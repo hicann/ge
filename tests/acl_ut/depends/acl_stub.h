@@ -140,6 +140,7 @@ public:
     virtual ge::Status GetAippType(uint32_t model_id, uint32_t index, ge::InputAippType &type, size_t &aippindex);
     virtual ge::Status GetAippType( uint32_t index, ge::InputAippType &type, size_t &aippindex);
     virtual ge::Status GetUserDesignateShapeOrder(uint32_t model_id, vector<string> &user_designate_shape_order);
+    virtual const std::vector<std::vector<int64_t>> &GetOriginInputDims();
     virtual ge::Status GetCurShape(const uint32_t model_id, std::vector<int64_t> &batch_info, int32_t &dynamic_type);
     virtual ge::Status GetModelAttr(uint32_t model_id, std::vector<std::string> &dynamic_output_shape_info);
     virtual ge::Status GetOpAttr(uint32_t model_id, const std::string &op_name, const std::string &attr_name, std::string &attr_value);
@@ -363,6 +364,7 @@ public:
     MOCK_METHOD1(GetShapeRange, graphStatus(std::vector<std::pair<int64_t, int64_t>> &range));
     MOCK_METHOD0(GetFormat, Format());
     MOCK_METHOD3(GetDynamicBatchInfo, ge::Status(uint32_t model_id, std::vector<std::vector<int64_t>> &batch_info, int32_t &dynamic_type));
+    MOCK_METHOD0(GetOriginInputDims, const std::vector<std::vector<int64_t>> &());
     MOCK_METHOD2(SetModelStreamPriority, ge::Status(uint32_t model_id, uint32_t priority));
     MOCK_METHOD2(GetModelStreamPriority, ge::Status(uint32_t model_id, uint32_t &priority));
     MOCK_METHOD6(LoadModelFromData, ge::Status(uint32_t &model_id, const ModelData &modelData,

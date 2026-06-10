@@ -46,25 +46,30 @@ session_lib.GeApiWrapper_Session_CreateSessionWithOptions.argtypes = [c_p_to_cha
 session_lib.GeApiWrapper_Session_CreateSessionWithOptions.restype = c_void_p
 
 session_lib.GeApiWrapper_Session_AddGraph.argtypes = [c_void_p, c_uint32, c_void_p]
-session_lib.GeApiWrapper_Session_AddGraph.restype = c_int
+session_lib.GeApiWrapper_Session_AddGraph.restype = c_uint32
 
 session_lib.GeApiWrapper_Session_AddGraphWithOptions.argtypes = [
     c_void_p, c_uint32, c_void_p, c_p_to_char_p, c_p_to_char_p, c_int
 ]
-session_lib.GeApiWrapper_Session_AddGraphWithOptions.restype = c_int
+session_lib.GeApiWrapper_Session_AddGraphWithOptions.restype = c_uint32
 
 session_lib.GeApiWrapper_Session_RemoveGraph.argtypes = [c_void_p, c_uint32]
-session_lib.GeApiWrapper_Session_RemoveGraph.restype = c_int
+session_lib.GeApiWrapper_Session_RemoveGraph.restype = c_uint32
 
 session_lib.GeApiWrapper_Session_RunGraph.argtypes = [
-    c_void_p, c_uint32, c_p_to_void_p, c_int, ctypes.POINTER(c_size_t)
+    c_void_p, c_uint32, c_p_to_void_p, c_int, ctypes.POINTER(ctypes.POINTER(c_void_p)),
+    ctypes.POINTER(c_size_t)
 ]
-session_lib.GeApiWrapper_Session_RunGraph.restype = ctypes.POINTER(c_void_p)
+session_lib.GeApiWrapper_Session_RunGraph.restype = c_uint32
 
 session_lib.GeApiWrapper_Session_RunGraphWithStreamAsync.argtypes = [
-    c_void_p, c_uint32, c_void_p, c_p_to_void_p, c_int, ctypes.POINTER(c_size_t)
+    c_void_p, c_uint32, c_void_p, c_p_to_void_p, c_int, ctypes.POINTER(ctypes.POINTER(c_void_p)),
+    ctypes.POINTER(c_size_t)
 ]
-session_lib.GeApiWrapper_Session_RunGraphWithStreamAsync.restype = ctypes.POINTER(c_void_p)
+session_lib.GeApiWrapper_Session_RunGraphWithStreamAsync.restype = c_uint32
+
+session_lib.GeApiWrapper_Session_FreeTensorArray.argtypes = [c_p_to_void_p]
+session_lib.GeApiWrapper_Session_FreeTensorArray.restype = None
 
 session_lib.GeApiWrapper_Session_DestroySession.argtypes = [c_void_p]
 session_lib.GeApiWrapper_Session_DestroySession.restype = None

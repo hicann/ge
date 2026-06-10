@@ -21,7 +21,7 @@ target_link_libraries(flowfunc_wrapper PRIVATE
         $<BUILD_INTERFACE:ge_intf_pub>
         $<BUILD_INTERFACE:udf_headers>
         $<BUILD_INTERFACE:slog_headers>
-        $<BUILD_INTERFACE:metadef_headers>
+        $<BUILD_INTERFACE:ge_metadef_headers>
         $<BUILD_INTERFACE:pybind_options>
         flow_func
         unified_dlog

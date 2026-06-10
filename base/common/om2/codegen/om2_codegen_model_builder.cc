@@ -134,7 +134,7 @@ Status Om2CodegenModelBuilder::CreateTaskCodeBuilders(const GeModelPtr &model, A
     GE_ASSERT_NOTNULL(node);
     const auto &op_desc = node->GetOpDesc();
     GE_ASSERT_NOTNULL(op_desc);
-    op_desc_by_index.emplace(op_desc->GetId(), op_desc);
+    (void)op_desc_by_index.emplace(op_desc->GetId(), op_desc);
   }
 
   const size_t task_size = static_cast<size_t>(model_task_def->task_size());
@@ -302,7 +302,7 @@ Status Om2CodegenModelBuilder::BuildRuntimeResource(const GeModelPtr &model, Om2
   }
   codegen_model.runtime.stream_flag_values.assign(codegen_model.runtime.stream_num, "RT_STREAM_PERSISTENT");
   codegen_model.runtime.bind_flag_values.assign(codegen_model.runtime.stream_num, "RT_HEAD_STREAM");
-  UpdateStreamFlag(model, codegen_model);
+  (void)UpdateStreamFlag(model, codegen_model);
   return SUCCESS;
 }
 
@@ -432,7 +432,7 @@ Status Om2CodegenModelBuilder::CollectModelIoItems(Om2CodegenModel &codegen_mode
       const auto output_offsets = op_desc->GetOutputOffset();
       GE_ASSERT_TRUE(!output_offsets.empty(), "[OM2] Data node output offset is empty, node=%s", node->GetName().c_str());
       input_items.push_back(InputModelIoItem{index, output_offsets[0], input_visit_order});
-      codegen_model.model_io.io_offsets.emplace(output_offsets[0]);
+      (void)codegen_model.model_io.io_offsets.emplace(output_offsets[0]);
       ++input_visit_order;
       continue;
     }

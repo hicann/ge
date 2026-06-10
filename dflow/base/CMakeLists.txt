@@ -72,7 +72,7 @@ target_link_libraries(data_flow_base PRIVATE
     -Wl,--no-as-needed
     ascend_protobuf
     static_mmpa
-    metadef_headers
+    ge_metadef_headers
     msprof_headers
     runtime_headers
     error_manager_headers

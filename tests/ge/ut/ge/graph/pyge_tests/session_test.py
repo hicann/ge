@@ -21,6 +21,7 @@ import pytest
 try:
     from ge.session import Session
     from ge.ge_global import GeApi
+    from ge.error import GeError
     from ge.graph import Graph
     from ge.graph import Tensor
     from ge.graph.types import DataType, Format
@@ -97,7 +98,7 @@ class TestSession:
         graph = Graph("test_graph")
         graph_id = 2
         session = Session()
-        with pytest.raises(RuntimeError, match="Failed to add graph, graph_id is 2"):
+        with pytest.raises(GeError, match=r"AddGraph failed;.*graph_id=2"):
             session.add_graph(graph_id, graph)
 
     @staticmethod
@@ -108,7 +109,7 @@ class TestSession:
         graph_id = 2
         option = {"ge.exec.deviceId":"2", "ge.graphRunMode":"0"}
         session = Session()
-        with pytest.raises(RuntimeError, match="Failed to add graph, graph_id is 2"):
+        with pytest.raises(GeError, match=r"AddGraph failed;.*graph_id=2"):
             session.add_graph(graph_id, graph, option)
 
     @staticmethod
@@ -135,7 +136,7 @@ class TestSession:
         inputs = [tensor]
         graph_id = 2
         session = Session()
-        with pytest.raises(RuntimeError, match="Failed to run graph, graph_id is 2"):
+        with pytest.raises(GeError, match=r"RunGraph failed;.*graph_id=2"):
             session.run_graph(graph_id,inputs)
 
     @staticmethod

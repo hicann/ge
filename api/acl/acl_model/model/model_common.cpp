@@ -22,6 +22,8 @@
 namespace {
 constexpr size_t DYNAMIC_BATCH_SIZE = 1U;
 constexpr size_t DYNAMIC_HW_SIZE = 2U;
+constexpr size_t MIN_OUTPUT_SHAPE_INFO_SIZE = 2U;
+constexpr size_t MAX_OUTPUT_SHAPE_INFO_SIZE = MIN_OUTPUT_SHAPE_INFO_SIZE + static_cast<size_t>(ACL_MAX_DIM_CNT);
 } // namespace
 
 namespace acl {
@@ -237,6 +239,111 @@ ACL_FUNC_VISIBILITY aclError GetDynamicTensorInfoHelp(aclmdlDesc *const modelDes
         return retVal;
     }
 
+    return ACL_SUCCESS;
+}
+
+ACL_FUNC_VISIBILITY aclError GetCurGearIndex(const aclmdlDesc *const modelDesc,
+                                             const std::vector<uint64_t> &shapeInfo,
+                                             const int32_t dynamicType, size_t &curGearIndex)
+{
+    if (dynamicType == static_cast<int32_t>(ge::DYNAMIC_DIMS)) {
+        ACL_LOG_DEBUG("Get dynamic dims gear index, dynamicType[%d], modelId[%u]",
+                      dynamicType, modelDesc->modelId);
+        for (size_t i = 0U; i < modelDesc->dynamicDims.size(); ++i) {
+            if (shapeInfo == modelDesc->dynamicDims[i]) {
+                curGearIndex = i;
+                return ACL_SUCCESS;
+            }
+        }
+    } else {
+        const size_t shapeSize = shapeInfo.size();
+        if (shapeSize == DYNAMIC_BATCH_SIZE) {
+            ACL_LOG_DEBUG("Get dynamic batch gear index, dynamicType[%d], modelId[%u]",
+                          dynamicType, modelDesc->modelId);
+            for (size_t i = 0U; i < modelDesc->dynamicBatch.size(); ++i) {
+                if (shapeInfo[0U] == modelDesc->dynamicBatch[i]) {
+                    curGearIndex = i;
+                    return ACL_SUCCESS;
+                }
+            }
+        } else if (shapeSize == DYNAMIC_HW_SIZE) {
+            ACL_LOG_DEBUG("Get dynamic hw gear index, dynamicType[%d], modelId[%u]",
+                          dynamicType, modelDesc->modelId);
+            for (size_t i = 0U; i < modelDesc->dynamicHW.size(); ++i) {
+                if (shapeInfo == modelDesc->dynamicHW[i]) {
+                    curGearIndex = i;
+                    return ACL_SUCCESS;
+                }
+            }
+        } else {
+            ACL_LOG_INNER_ERROR("[Check][dynamicType]dynamicType[%d] is invalid", dynamicType);
+        }
+    }
+    return ACL_ERROR_FAILURE;
+}
+
+ACL_FUNC_VISIBILITY aclError GetCurOuputShapeInfo(const aclmdlDesc *const modelDesc, const size_t idex,
+                                                   const size_t curGearIndex, aclmdlIODims *const dims)
+{
+    ACL_LOG_DEBUG("curGearIndex is %zu, dynamicOutputShapeInfoSize is %zu , modelId is %u",
+        curGearIndex, modelDesc->dynamicOutputShape.size(), modelDesc->modelId);
+    for (auto &it : modelDesc->dynamicOutputShape) {
+        if ((it.size() < MIN_OUTPUT_SHAPE_INFO_SIZE) || (it.size() > MAX_OUTPUT_SHAPE_INFO_SIZE)) {
+            ACL_LOG_INNER_ERROR("[Check][dynamicOutputShape]output shape info size[%zu] is invalid, range is "
+                "[%zu, %zu]", it.size(), MIN_OUTPUT_SHAPE_INFO_SIZE, MAX_OUTPUT_SHAPE_INFO_SIZE);
+            return ACL_ERROR_FAILURE;
+        }
+        if (((static_cast<int64_t>(curGearIndex) == it[0U]) || (it[0U] == -1)) &&
+            (static_cast<int64_t>(idex) == it[1U])) {
+            int32_t idx = 0;
+            for (size_t i = 2U; i < it.size(); ++i) {
+                dims->dims[idx] = it[i];
+                idx++;
+            }
+            dims->dimCount = it.size() - 2U;
+            const aclmdlTensorDesc &tensorDesc = modelDesc->outputDesc[idex];
+            const auto ret = GetTensorDescNameToDims(modelDesc, tensorDesc.name,
+                                                     TensorType::OUTPUT_TENSOR_TYPE, idex, dims);
+            if (ret != ACL_SUCCESS) {
+                ACL_LOG_INNER_ERROR("[Get][TensorDescName]get tensor desc name to dims failed, errorCode = %d", ret);
+                return ret;
+            }
+            return ACL_SUCCESS;
+        }
+    }
+    return ACL_ERROR_FAILURE;
+}
+
+ACL_FUNC_VISIBILITY aclError GetModelOutputShapeInfoHelp(aclmdlDesc *const modelDesc,
+                                                          std::vector<std::string> &geDynamicOutputShape)
+{
+    if (geDynamicOutputShape.empty()) {
+        ACL_LOG_INFO("model is not dynamic, geDynamicOutputShape is empty, modelId[%u]", modelDesc->modelId);
+        return ACL_SUCCESS;
+    }
+
+    std::vector<std::vector<int64_t>> &dynamicOutputShape = modelDesc->dynamicOutputShape;
+    for (auto &it : geDynamicOutputShape) {
+        int64_t val = 0;
+        int64_t negativeFlag = 1;
+        std::vector<int64_t> outputShape;
+        for (auto &strIt : it) {
+            if ((strIt >= '0') && (strIt <= '9')) {
+                val = (val * 10) + static_cast<int64_t>(strIt - '0');
+            } else if (strIt == '-') {
+                negativeFlag = -1;
+                ACL_LOG_DEBUG("dynamic model include static output");
+            } else {
+                val *= negativeFlag;
+                outputShape.emplace_back(val);
+                val = 0;
+                negativeFlag = 1;
+            }
+        }
+        val *= negativeFlag;
+        outputShape.emplace_back(val);
+        dynamicOutputShape.emplace_back(outputShape);
+    }
     return ACL_SUCCESS;
 }
 

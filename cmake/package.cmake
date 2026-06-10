@@ -239,7 +239,7 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
                 ARCHIVE DESTINATION ${ARCH_LINUX_PATH}/devlib/minios/aarch64 COMPONENT ge-executor
         )
         if(NOT ENABLE_MOD_EXT)
-            install(FILES ${CMAKE_BINARY_DIR}/runtime/ops/update_model_param/dav_2201/UpdateModelParam_dav_2201.o
+            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/runtime/ops/update_model_param/dav_2201/UpdateModelParam_dav_2201.o
                     DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT ge-executor
             )
         endif()
@@ -405,11 +405,13 @@ foreach(target IN LISTS all_targets)
     endif()
 endforeach()
 
-# ============= CPack =============
-# Per-component build: BUILD_COMPONENT contains exactly one component.
-list(GET BUILD_COMPONENT 0 current_component)
-if("dflow-executor" IN_LIST BUILD_COMPONENT)
-    set_cann_cpack_config(${current_component} ENABLE_DEVICE "${ENABLE_BUILD_DEVICE}")
-else()
-    set_cann_cpack_config(${current_component})
+if(BUILD_COMPONENT)
+    # ============= CPack =============
+    # Per-component build: BUILD_COMPONENT contains exactly one component.
+    list(GET BUILD_COMPONENT 0 current_component)
+    if("dflow-executor" IN_LIST BUILD_COMPONENT)
+        set_cann_cpack_config(${current_component} ENABLE_DEVICE "${ENABLE_BUILD_DEVICE}")
+    else()
+        set_cann_cpack_config(${current_component})
+    endif()
 endif()

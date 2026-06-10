@@ -14,7 +14,6 @@
 
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph/utils/graph_utils.h"
-#include "util/mem_utils.h"
 #include "ge_common/ge_api_error_codes.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "guarded_execution_point.h"

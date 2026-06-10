@@ -25,7 +25,7 @@ void AppendTypeNameSeparator(StringRef type_spec, std::string &output) {
   if (type_spec.Empty()) {
     return;
   }
-  const char last = type_spec.Data()[type_spec.Length() - 1];
+  const char last = type_spec.Data()[type_spec.Length() - 1UL];
   if ((last != '*') && (last != '&') && (last != ' ')) {
     (void)output.push_back(' ');
   }
@@ -259,7 +259,7 @@ Status CppEmitter::EmitFunctionSignature(StringRef return_type, StringRef name,
   }
   AppendStringRef(name, output);
   (void)output.append("(");
-  auto status = EmitParamList(params, output);
+  const auto status = EmitParamList(params, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -372,7 +372,7 @@ Status CppEmitter::Emit(const NamespaceDecl &node, std::string &output) {
     AppendStringRef(node.GetName(), output);
   }
   (void)output.append(" {\n");
-  auto status = EmitDeclBlock(node.GetItems(), true, output);
+  const auto status = EmitDeclBlock(node.GetItems(), true, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -392,7 +392,7 @@ Status CppEmitter::Emit(const ExternBlockDecl &node, std::string &output) {
   (void)output.append("\" {\n");
   (void)output.append("#endif\n");
   (void)output.append("\n");
-  auto status = EmitDeclBlock(node.GetItems(), true, output);
+  const auto status = EmitDeclBlock(node.GetItems(), true, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -412,7 +412,7 @@ Status CppEmitter::Emit(const StructDecl &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const AccessSectionDecl &node, std::string &output) {
-  const size_t access_level = indent_level_ == 0 ? 0 : indent_level_ - 1;
+  const size_t access_level = indent_level_ == 0 ? 0 : indent_level_ - 1UL;
   AppendIndentAt(access_level, output);
   (void)output.append(AccessLabel(node.GetKind()));
   (void)output.append(":\n");
@@ -437,7 +437,7 @@ Status CppEmitter::Emit(const FieldDecl &node, std::string &output) {
 
 Status CppEmitter::Emit(const MethodDecl &node, std::string &output) {
   AppendIndent(output);
-  auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
+  const auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
   if (status != SUCCESS) {
     return status;
   }
@@ -447,7 +447,7 @@ Status CppEmitter::Emit(const MethodDecl &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const FunctionDecl &node, std::string &output) {
-  auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
+  const auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
   if (status != SUCCESS) {
     return status;
   }
@@ -456,7 +456,7 @@ Status CppEmitter::Emit(const FunctionDecl &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const FunctionDef &node, std::string &output) {
-  auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
+  const auto status = EmitFunctionSignature(node.GetReturnType(), node.GetName(), node.GetParams(), output);
   if (status != SUCCESS) {
     return status;
   }
@@ -529,7 +529,7 @@ Status CppEmitter::Emit(const LiteralExpr &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const AssignExpr &node, std::string &output) {
-  auto status = node.GetLhs()->Accept(*this, output);
+  const auto status = node.GetLhs()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -591,7 +591,7 @@ Status CppEmitter::Emit(const CallExpr &node, std::string &output) {
       return status;
     }
   }
-  if ((args.Size() > 0) && (dynamic_cast<const LambdaExpr *>(args[args.Size() - 1]) != nullptr) && !output.empty() &&
+  if ((args.Size() > 0) && (dynamic_cast<const LambdaExpr *>(args[args.Size() - 1UL]) != nullptr) && !output.empty() &&
       output.back() == '\n') {
     output.pop_back();
   }
@@ -708,7 +708,7 @@ Status CppEmitter::Emit(const SubscriptExpr &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const MemberExpr &node, std::string &output) {
-  auto status = node.GetObject()->Accept(*this, output);
+  const auto status = node.GetObject()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -718,7 +718,7 @@ Status CppEmitter::Emit(const MemberExpr &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const CppArrowMemberExpr &node, std::string &output) {
-  auto status = node.GetObject()->Accept(*this, output);
+  const auto status = node.GetObject()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -871,7 +871,7 @@ Status CppEmitter::Emit(const VarDeclStmt &node, std::string &output) {
 
 Status CppEmitter::Emit(const ExprStmt &node, std::string &output) {
   AppendIndent(output);
-  auto status = node.GetExpr()->Accept(*this, output);
+  const auto status = node.GetExpr()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -969,7 +969,7 @@ Status CppEmitter::Emit(const RangeForStmt &node, std::string &output) {
   AppendTypeNameSeparator(node.GetTypeSpec(), output);
   AppendStringRef(node.GetName(), output);
   (void)output.append(" : ");
-  auto status = node.GetRange()->Accept(*this, output);
+  const auto status = node.GetRange()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
@@ -986,7 +986,7 @@ Status CppEmitter::Emit(const CaseStmt &node, std::string &output) {
   AppendIndent(output);
   if (node.GetValue() != nullptr) {
     output.append("case ");
-    auto status = node.GetValue()->Accept(*this, output);
+    const auto status = node.GetValue()->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
@@ -1008,7 +1008,7 @@ Status CppEmitter::Emit(const BreakStmt &node, std::string &output) {
 Status CppEmitter::Emit(const SwitchStmt &node, std::string &output) {
   AppendIndent(output);
   output.append("switch (");
-  auto status = node.GetCond()->Accept(*this, output);
+  const auto status = node.GetCond()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }

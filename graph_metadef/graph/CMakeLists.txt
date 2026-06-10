@@ -256,6 +256,7 @@ target_link_libraries(graph
         platform
         metadef
         -Wl,--as-needed
+        error_manager
         ascend_protobuf
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
@@ -264,7 +265,7 @@ target_link_libraries(graph
         ge_metadef_headers
 )
 
-target_link_libraries(graph PRIVATE graph_base error_manager runtime_headers)
+target_link_libraries(graph PRIVATE graph_base runtime_headers)
 target_compile_options(graph PRIVATE ${OPTIMIZE_OPTION})
 
 if (${ENABLE_OPEN_SRC} STREQUAL "True")

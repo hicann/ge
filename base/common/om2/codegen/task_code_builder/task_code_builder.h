@@ -198,7 +198,7 @@ class TaskCodeBuilder : public Om2ModelClassGeneratorBase {
     std::vector<Arg> args;
     args.reserve(values.size());
     for (const int64_t value : values) {
-      args.emplace_back(value);
+      (void)args.emplace_back(value);
     }
     return args;
   }

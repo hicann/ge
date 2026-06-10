@@ -18,6 +18,7 @@
 #include "acl_resource_manager_om2.h"
 #include "framework/runtime/om2_context.h"
 #include "framework/runtime/om2_model_executor.h"
+#include "framework/common/framework_types_internal.h"
 #include "types/tensor_desc_internal.h"
 #include "types/data_buffer_internal.h"
 #include "acl/acl_rt.h"
@@ -775,6 +776,44 @@ aclError aclmdlGetDescImplOm2(aclmdlDesc* modelDesc, uint32_t modelId) {
     // Fill aclmdlDesc using common helper
     ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, *inputDesc, *outputDesc, *inputDescV2, *outputDescV2));
 
+    // Populate dynamic bucketing metadata
+    {
+        std::vector<std::vector<int64_t>> batchInfo;
+        int32_t dynamicType = 0;
+        ge::Status dynRet = executor->GetDynamicBatchInfo(batchInfo, dynamicType);
+        if (dynRet != ge::SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Get][DynamicBatchInfo] failed, ge result[%u], modelId[%u]", dynRet, modelId);
+            return ACL_GET_ERRCODE_GE(static_cast<int32_t>(dynRet));
+        }
+
+        std::vector<std::string> userDesignateShapeOrder;
+        dynRet = executor->GetUserDesignateShapeOrder(userDesignateShapeOrder);
+        if (dynRet != ge::SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Get][UserDesignateShapeOrder] failed, ge result[%u], modelId[%u]", dynRet, modelId);
+            return ACL_GET_ERRCODE_GE(static_cast<int32_t>(dynRet));
+        }
+        modelDesc->dataNameOrder = userDesignateShapeOrder;
+
+        const aclError aclRet = acl::GetDynamicTensorInfoHelp(modelDesc, dynamicType, batchInfo);
+        if (aclRet != ACL_SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Get][DynamicTensorInfoHelp] failed, ret=%d, modelId[%u]", aclRet, modelId);
+            return aclRet;
+        }
+
+        std::vector<std::string> geDynamicOutputShape;
+        dynRet = executor->GetModelAttrs(geDynamicOutputShape);
+        if (dynRet != ge::SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Get][ModelAttrs] failed, ge result[%u], modelId[%u]", dynRet, modelId);
+            return ACL_GET_ERRCODE_GE(static_cast<int32_t>(dynRet));
+        }
+
+        const aclError aclRet2 = acl::GetModelOutputShapeInfoHelp(modelDesc, geDynamicOutputShape);
+        if (aclRet2 != ACL_SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Get][ModelOutputShapeInfoHelp] failed, ret=%d, modelId[%u]", aclRet2, modelId);
+            return aclRet2;
+        }
+    }
+
     modelDesc->modelId = modelId;
     ACL_LOG_INFO("[OM2] successfully execute aclmdlGetDesc, modelId[%u]", modelId);
     return ACL_SUCCESS;
@@ -1296,30 +1335,253 @@ aclError aclmdlQuerySizeFromMemImplOm2(const void* model, size_t modelSize, size
 }
 
 aclError aclmdlSetDynamicBatchSizeImplOm2(uint32_t modelId, aclmdlDataset* dataset, size_t index, uint64_t batchSize) {
-    (void)modelId;
-    (void)dataset;
-    (void)index;
-    (void)batchSize;
-    return ACL_ERROR_API_NOT_SUPPORT;
+    ACL_LOG_INFO("[OM2] start to execute aclmdlSetDynamicBatchSize, modelId[%u], index[%zu], batchSize[%lu]",
+                 modelId, index, batchSize);
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
+    if (batchSize == 0U) {
+        ACL_LOG_INNER_ERROR("[Check][BatchSize] batchSize is zero, modelId[%u]", modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    auto &rm = acl::AclResourceManagerOm2::GetInstance();
+    auto executor = rm.GetOm2Executor(modelId);
+    ACL_REQUIRES_NOT_NULL(executor);
+
+    const aclDataBuffer *const buf = aclmdlGetDatasetBufferImplOm2(dataset, index);
+    ACL_REQUIRES_NOT_NULL(buf);
+    void *const devPtr = aclGetDataBufferAddr(buf);
+    ACL_REQUIRES_NOT_NULL(devPtr);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buf);
+
+    const ge::Status ret = executor->SetDynamicSize({batchSize},
+                                                     static_cast<int32_t>(ge::DYNAMIC_BATCH));
+    if (ret != ge::SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Set][DynamicSize] set dynamic batch size failed, ge result[%u], modelId[%u]",
+                           ret, modelId);
+        return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
+    }
+
+    // Auto-detect element size: OM1 compares buffer size to detect uint32_t vs uint64_t
+    const uint64_t batchSizeU32 = static_cast<uint64_t>(sizeof(uint32_t));
+    if (memSize < batchSizeU32) {
+        ACL_LOG_INNER_ERROR("[Check][MemSize] device buffer size[%lu] is less than required[%lu] for "
+                            "batch size, modelId[%u]",
+                            static_cast<unsigned long>(memSize),
+                            static_cast<unsigned long>(batchSizeU32),
+                            modelId);
+        return ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID;
+    }
+    uint64_t elementSize = sizeof(uint32_t);
+    if (memSize >= static_cast<uint64_t>(sizeof(uint64_t))) {
+        elementSize = sizeof(uint64_t);
+    }
+    const aclError aclRet = aclrtMemcpy(devPtr, memSize, &batchSize, elementSize,
+                                         ACL_MEMCPY_HOST_TO_DEVICE);
+    if (aclRet != ACL_SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Memcpy] write batchSize to device failed, acl result[%d], modelId[%u]",
+                           aclRet, modelId);
+        return aclRet;
+    }
+
+    dataset->dynamicBatchSize = batchSize;
+    dataset->dynamicResolutionHeight = 0U;
+    dataset->dynamicResolutionWidth = 0U;
+
+    ACL_LOG_INFO("[OM2] successfully execute aclmdlSetDynamicBatchSize, modelId[%u], batchSize[%lu]",
+                 modelId, batchSize);
+    return ACL_SUCCESS;
 }
 
 aclError aclmdlSetDynamicHWSizeImplOm2(uint32_t modelId, aclmdlDataset* dataset, size_t index,
                                        uint64_t height, uint64_t width) {
-    (void)modelId;
-    (void)dataset;
-    (void)index;
-    (void)height;
-    (void)width;
-    return ACL_ERROR_API_NOT_SUPPORT;
+    ACL_LOG_INFO("[OM2] start to execute aclmdlSetDynamicHWSize, modelId[%u], index[%zu], h[%lu], w[%lu]",
+                 modelId, index, height, width);
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
+    if ((height == 0U) || (width == 0U)) {
+        ACL_LOG_INNER_ERROR("[Check][Params] height[%lu] or width[%lu] is zero, modelId[%u]",
+                            height, width, modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    auto &rm = acl::AclResourceManagerOm2::GetInstance();
+    auto executor = rm.GetOm2Executor(modelId);
+    ACL_REQUIRES_NOT_NULL(executor);
+
+    const aclDataBuffer *const buffer = aclmdlGetDatasetBufferImplOm2(dataset, index);
+    ACL_REQUIRES_NOT_NULL(buffer);
+    void *const devPtr = aclGetDataBufferAddr(buffer);
+    ACL_REQUIRES_NOT_NULL(devPtr);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buffer);
+
+    const ge::Status ret = executor->SetDynamicSize({height, width},
+                                                     static_cast<int32_t>(ge::DYNAMIC_IMAGE));
+    if (ret != ge::SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Set][DynamicSize] set dynamic HW size failed, ge result[%u], modelId[%u]",
+                           ret, modelId);
+        return ACL_ERROR_GE_DYNAMIC_BATCH_SIZE_INVALID;
+    }
+
+    // Auto-detect element size and copy each element individually (same as aclmdlSetInputDynamicDimsImplOm2)
+    const uint64_t hwBuf[2] = {height, width};
+    const size_t hwDimNum = 2U;
+    const uint64_t hwInputSizeU32 = static_cast<uint64_t>(hwDimNum * sizeof(uint32_t));
+    if (memSize < hwInputSizeU32) {
+        ACL_LOG_INNER_ERROR("[Check][MemSize] device buffer size[%lu] is less than required[%lu] for "
+                            "HW size, modelId[%u]",
+                            static_cast<unsigned long>(memSize),
+                            static_cast<unsigned long>(hwInputSizeU32),
+                            modelId);
+        return ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID;
+    }
+    uint64_t elementSize = sizeof(uint32_t);
+    if (memSize >= static_cast<uint64_t>(hwDimNum * sizeof(uint64_t))) {
+        elementSize = sizeof(uint64_t);
+    }
+    for (size_t i = 0U; i < hwDimNum; ++i) {
+        const aclError aclRet = aclrtMemcpy(
+            static_cast<uint8_t *>(devPtr) + (elementSize * i),
+            memSize - (elementSize * i),
+            &hwBuf[i],
+            elementSize,
+            ACL_MEMCPY_HOST_TO_DEVICE);
+        if (aclRet != ACL_SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Memcpy] write HW size[%zu] to device failed, acl result[%d], modelId[%u]",
+                               i, aclRet, modelId);
+            return aclRet;
+        }
+    }
+
+    dataset->dynamicBatchSize = 0U;
+    dataset->dynamicResolutionHeight = height;
+    dataset->dynamicResolutionWidth = width;
+
+    ACL_LOG_INFO("[OM2] successfully execute aclmdlSetDynamicHWSize, modelId[%u], h[%lu], w[%lu]",
+                 modelId, height, width);
+    return ACL_SUCCESS;
 }
 
 aclError aclmdlSetInputDynamicDimsImplOm2(uint32_t modelId, aclmdlDataset* dataset, size_t index,
                                           const aclmdlIODims* dims) {
-    (void)modelId;
-    (void)dataset;
-    (void)index;
-    (void)dims;
-    return ACL_ERROR_API_NOT_SUPPORT;
+    ACL_LOG_INFO("[OM2] start to execute aclmdlSetInputDynamicDims, modelId[%u], index[%zu]",
+                 modelId, index);
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dims);
+    if (dims->dimCount == 0U) {
+        ACL_LOG_INNER_ERROR("[Check][dimCount] dimCount is zero, modelId[%u]", modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    auto &rm = acl::AclResourceManagerOm2::GetInstance();
+    auto executor = rm.GetOm2Executor(modelId);
+    ACL_REQUIRES_NOT_NULL(executor);
+
+    const aclDataBuffer *const buffer = aclmdlGetDatasetBufferImplOm2(dataset, index);
+    ACL_REQUIRES_NOT_NULL(buffer);
+    void *const devPtr = aclGetDataBufferAddr(buffer);
+    ACL_REQUIRES_NOT_NULL(devPtr);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buffer);
+
+    // Step 1: Extract dynamic axis values using origin_input_dims (contains -1 for dynamic axes)
+    // Must follow user_designate_shape_order (same as OM1's GetCurDynamicDims)
+    const std::vector<ge::Om2TensorDesc>* inputDesc = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDesc = nullptr;
+    ge::Status descRet = executor->GetModelDescInfo(inputDesc, outputDesc);
+    if (descRet != ge::SUCCESS || inputDesc == nullptr) {
+        ACL_LOG_CALL_ERROR("[Get][ModelDescInfo] get input desc failed, ge result[%u], modelId[%u]",
+                           descRet, modelId);
+        return ACL_ERROR_INTERNAL_ERROR;
+    }
+
+    std::vector<std::string> userDesignateShapeOrder;
+    descRet = executor->GetUserDesignateShapeOrder(userDesignateShapeOrder);
+    if (descRet != ge::SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Get][UserDesignateShapeOrder] failed, ge result[%u], modelId[%u]",
+                           descRet, modelId);
+        return ACL_ERROR_INTERNAL_ERROR;
+    }
+
+    const auto &originInputDims = executor->GetOriginInputDims();
+
+    // Build name -> origin_dims map (origin_input_dims indexed same as input_desc)
+    std::map<std::string, std::vector<int64_t>> nameToOriginDims;
+    for (size_t i = 0U; i < inputDesc->size() && i < originInputDims.size(); ++i) {
+        nameToOriginDims[(*inputDesc)[i].GetName()] = originInputDims[i];
+    }
+
+    // Concatenate origin dims in user_designate_shape_order, identify dynamic axes via < 0
+    std::vector<int64_t> allOriginDims;
+    for (const auto &dataName : userDesignateShapeOrder) {
+        auto it = nameToOriginDims.find(dataName);
+        if (it != nameToOriginDims.end()) {
+            for (const auto d : it->second) {
+                allOriginDims.push_back(d);
+            }
+        }
+    }
+
+    if (dims->dimCount != allOriginDims.size()) {
+        ACL_LOG_INNER_ERROR("[Check][DimsSize] user dims count[%zu] != model input dims count[%zu], modelId[%u]",
+                            dims->dimCount, allOriginDims.size(), modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    // Extract only dynamic axis values (where origin shape < 0)
+    std::vector<uint64_t> curDynamicDims;
+    for (size_t i = 0U; i < allOriginDims.size(); ++i) {
+        if (allOriginDims[i] < 0) {
+            curDynamicDims.push_back(static_cast<uint64_t>(dims->dims[i]));
+        }
+    }
+
+    if (curDynamicDims.empty()) {
+        ACL_LOG_INNER_ERROR("[Check][DynamicDims] no dynamic axis found in model, modelId[%u]. "
+                            "Static model does not support aclmdlSetInputDynamicDims.", modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    // Step 2: Validate gear against model's dynamic_batch_info (contains only dynamic axis values)
+    const ge::Status ret = executor->SetDynamicSize(curDynamicDims,
+                                                     static_cast<int32_t>(ge::DYNAMIC_DIMS));
+    if (ret != ge::SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Set][DynamicSize] set dynamic dims failed, ge result[%u], modelId[%u]",
+                           ret, modelId);
+        return ACL_ERROR_GE_DYNAMIC_BATCH_SIZE_INVALID;
+    }
+
+    // Step 3: Write dynamic axis values to device buffer
+    // OM1 detects the element size by comparing the device buffer length against
+    // the expected size for uint32_t (4 bytes) and uint64_t (8 bytes), then copies
+    // each element individually. This handles both DT_INT32 and DT_UINT64 buffers.
+    const size_t dynamicDimNum = curDynamicDims.size();
+    const uint64_t dynamicInputSizeU32 = static_cast<uint64_t>(dynamicDimNum * sizeof(uint32_t));
+    if (memSize < dynamicInputSizeU32) {
+        ACL_LOG_INNER_ERROR("[Check][MemSize] device buffer size[%lu] is less than required[%lu] for "
+                            "%zu dynamic dims, modelId[%u]",
+                            static_cast<unsigned long>(memSize),
+                            static_cast<unsigned long>(dynamicInputSizeU32),
+                            dynamicDimNum, modelId);
+        return ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID;
+    }
+    uint64_t elementSize = sizeof(uint32_t);
+    if (memSize >= static_cast<uint64_t>(dynamicDimNum * sizeof(uint64_t))) {
+        elementSize = sizeof(uint64_t);
+    }
+    for (size_t i = 0U; i < dynamicDimNum; ++i) {
+        const aclError aclRet = aclrtMemcpy(
+            static_cast<uint8_t *>(devPtr) + (elementSize * i),
+            memSize - (elementSize * i),
+            &curDynamicDims[i],
+            elementSize,
+            ACL_MEMCPY_HOST_TO_DEVICE);
+        if (aclRet != ACL_SUCCESS) {
+            ACL_LOG_CALL_ERROR("[Memcpy] write dynamic dim[%zu] to device failed, acl result[%d], modelId[%u]",
+                               i, aclRet, modelId);
+            return aclRet;
+        }
+    }
+
+    ACL_LOG_INFO("[OM2] successfully execute aclmdlSetInputDynamicDims, modelId[%u]", modelId);
+    return ACL_SUCCESS;
 }
 
 aclError aclmdlGetInputDimsImplOm2(const aclmdlDesc* modelDesc, size_t index, aclmdlIODims* dims) {
@@ -1378,13 +1640,60 @@ aclError aclmdlGetCurOutputDimsImplOm2(const aclmdlDesc* modelDesc, size_t index
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dims);
 
-    // OM2 currently only supports static models, directly return static dims
-    ACL_LOG_DEBUG("[OM2] OM2 model detected, using static dims, modelId[%u]", modelDesc->modelId);
-    aclError aclRet = acl::GetDims(modelDesc, TensorType::OUTPUT_TENSOR_TYPE, DimsType::DIMS_TYPE_V1, index,
-                                           dims);
+    const uint32_t modelId = modelDesc->modelId;
+    const size_t descSize = modelDesc->outputDesc.size();
+    if (index >= descSize) {
+        ACL_LOG_INNER_ERROR("[Check][Index] index[%zu] >= output tensor count[%zu], modelId[%u]",
+                            index, descSize, modelId);
+        return ACL_ERROR_INVALID_PARAM;
+    }
+
+    // Get current gear from executor
+    auto &rm = acl::AclResourceManagerOm2::GetInstance();
+    auto executor = rm.GetOm2Executor(modelId);
+    if (executor == nullptr) {
+        ACL_LOG_INNER_ERROR("[Get][Executor] cannot find OM2 executor for modelId[%u]", modelId);
+        return ACL_ERROR_INTERNAL_ERROR;
+    }
+
+    std::vector<int64_t> geShapeInfo;
+    int32_t dynamicType = static_cast<int32_t>(ge::FIXED);
+    const ge::Status geRet = executor->GetCurrentShape(geShapeInfo, dynamicType);
+    if (geRet != ge::SUCCESS) {
+        ACL_LOG_CALL_ERROR("[Get][CurrentShape] failed, ge result[%u], modelId[%u]", geRet, modelId);
+        return ACL_GET_ERRCODE_GE(static_cast<int32_t>(geRet));
+    }
+
+    // If shape is empty (static model or gear not set), fall back to static dims
+    if (geShapeInfo.empty()) {
+        ACL_LOG_DEBUG("[OM2] Dynamic shape not set or static model, returning static dims, modelId[%u]", modelId);
+        const aclError aclRet = acl::GetDims(modelDesc, TensorType::OUTPUT_TENSOR_TYPE,
+                                              DimsType::DIMS_TYPE_V1, index, dims);
+        ACL_REQUIRES_OK_WITH_INNER_MESSAGE(aclRet,
+            "[Get][Dims] get static output dims failed, result[%d], index[%zu], modelId[%u]",
+            aclRet, index, modelId);
+        return ACL_SUCCESS;
+    }
+
+    // Convert int64_t to uint64_t for GetCurGearIndex
+    std::vector<uint64_t> shapeInfo;
+    shapeInfo.reserve(geShapeInfo.size());
+    for (const auto v : geShapeInfo) {
+        shapeInfo.push_back(static_cast<uint64_t>(v));
+    }
+
+    // Find current gear index
+    size_t curGearIndex = 0U;
+    aclError aclRet = acl::GetCurGearIndex(modelDesc, shapeInfo, dynamicType, curGearIndex);
     ACL_REQUIRES_OK_WITH_INNER_MESSAGE(aclRet,
-                                       "[Get][Dims]get output dims failed for OM2 model, result[%d], index[%zu], modelId[%u]",
-                                       aclRet, index, modelDesc->modelId);
+        "[Get][CurGearIndex] failed, result[%d], modelId[%u]", aclRet, modelId);
+
+    // Look up output shape for this gear + output index
+    aclRet = acl::GetCurOuputShapeInfo(modelDesc, index, curGearIndex, dims);
+    ACL_REQUIRES_OK_WITH_INNER_MESSAGE(aclRet,
+        "[Get][CurOutputShapeInfo] failed, result[%d], index[%zu], modelId[%u]",
+        aclRet, index, modelId);
+
     return ACL_SUCCESS;
 }
 

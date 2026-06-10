@@ -21,6 +21,7 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "external/graph/graph.h"
 #include "external/graph/operator.h"
+#include "graph/build/stream/stream_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/node_adapter.h"
@@ -549,6 +550,64 @@ TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_StreamIdOutOfRange) {
   ge::StreamPassContext context(0);
   ret = DAGAdapter::RefreshStreamIdsToGE(*dag, ge_graph, context);
   EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+/**
+ * 场景 6-7: GE 节点原始 stream_id 为 INVALID 时跳过刷新
+ * 验证：DAG 节点有有效 stream_id，但 GE 节点原始 stream_id 为 INVALID_STREAM_ID 时，
+ *       该节点不会被刷新，函数返回成功
+ */
+TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_OriginStreamIdInvalid) {
+  auto ge_graph = BuildMultiNodeGraph();
+  ASSERT_NE(ge_graph, nullptr);
+
+  // 为部分 GE 节点设置有效 stream_id，部分保持 INVALID
+  auto gnodes = ge_graph->GetDirectNode();
+  for (const auto& gnode : gnodes) {
+    AscendString name;
+    gnode.GetName(name);
+    std::string node_name(name.GetString());
+    auto compute_node = NodeAdapter::GNode2Node(gnode);
+    ASSERT_NE(compute_node, nullptr);
+    if (node_name == "add1") {
+      // add1 设置有效 stream_id
+      compute_node->GetOpDesc()->SetStreamId(0);
+    } else {
+      compute_node->GetOpDesc()->SetStreamId(-1);
+    }
+  }
+
+  // 转换为 DAG
+  std::shared_ptr<minidag::DAGGraph> dag;
+  auto ret = DAGAdapter::FromGEGraph(ge_graph, dag);
+  ASSERT_EQ(ret, ge::GRAPH_SUCCESS);
+  ASSERT_NE(dag, nullptr);
+
+  // DAG 节点全部设置有效 stream_id（模拟 CustomStreamPass）
+  auto dag_nodes = dag->GetAllNodes();
+  for (auto& node : dag_nodes) {
+    node->SetStreamId(1);
+  }
+
+  ge::StreamPassContext context(10);
+  ret = DAGAdapter::RefreshStreamIdsToGE(*dag, ge_graph, context);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+
+  // 验证：只有 add1 被刷新为 1，其他节点保持 INVALID
+  for (const auto& gnode : gnodes) {
+    AscendString name;
+    gnode.GetName(name);
+    std::string node_name(name.GetString());
+    auto compute_node = NodeAdapter::GNode2Node(gnode);
+    ASSERT_NE(compute_node, nullptr);
+    int64_t stream_id = compute_node->GetOpDesc()->GetStreamId();
+    if (node_name == "add1") {
+      EXPECT_EQ(stream_id, 1);  // 被刷新
+    } else if (node_name != "data1" && node_name != "data2" && node_name != "NetOutput") {
+      // relu1 原始为 INVALID，应被跳过
+      EXPECT_EQ(stream_id, INVALID_STREAM_ID);
+    }
+  }
 }
 
 // --------------------

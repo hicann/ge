@@ -216,12 +216,22 @@ graphStatus DAGAdapter::RefreshStreamIdsToGE(
     }
 
     // 设置到GE
+    const auto compute_node = NodeAdapter::GNode2Node(*gnode);
+    const auto &origin_stream_id = compute_node->GetOpDesc()->GetStreamId();
+    if (origin_stream_id == INVALID_STREAM_ID) {
+      GELOGD("Node %s origin stream id is invalid, skip", dag_node->GetName().c_str());
+      ++skip_count;
+      continue;
+    }
     auto ret = context.SetStreamId(*gnode, stream_id);
     if (ret != GRAPH_SUCCESS) {
       GE_LOGE("SetStreamId failed for node %s, stream_id=%ld, ret=%d",
               dag_node->GetName().c_str(), stream_id, ret);
       return ret;
     }
+    AscendString name;
+    GE_ASSERT_GRAPH_SUCCESS(gnode->GetName(name));
+    GELOGI("node %s refresh stream id from %ld to %ld", name.GetString(), origin_stream_id, stream_id);
     ++success_count;
   }
 

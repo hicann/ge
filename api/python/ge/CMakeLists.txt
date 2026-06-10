@@ -69,12 +69,12 @@ set(GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY
 set(GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY
         ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/__init__.py)
 set(GE_PYTHON_PASS_BRIDGE_SOURCES
-        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.cc)
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.cc)
 set(GE_PYTHON_PASS_BRIDGE_HEADERS
-        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.h
-        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_adapter.h
-        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/pass_registry.h
-        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_bridge_c_api.h)
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.h
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_adapter.h
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/pass_registry.h
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_bridge_c_api.h)
 
 add_custom_target(ge_python ALL)
 add_custom_target(ge_python_main_wheel DEPENDS ${GE_PYTHON_MAIN_WHEEL})

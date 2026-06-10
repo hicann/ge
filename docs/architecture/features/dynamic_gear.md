@@ -392,6 +392,93 @@ if (is_online_infer_dynamic_) {
 }
 ```
 
+### 5.5 OM2 离线模型动态分档
+
+OM2 是 GE 的新一代离线模型格式，使用 `Om2ModelExecutor`（Host 驱动执行器）替代 OM1 的 `DavinciModel`。OM2 动态分档复用 OM1 的编译期图变换（`ProcessMultiBatch`）和 Device 侧 StreamSwitch 执行机制，修改集中在四层：
+
+#### OM2 与 OM1 的关键差异
+
+| 方面 | OM1 (DavinciModel) | OM2 (Om2ModelExecutor) |
+|------|-------------------|----------------------|
+| 执行器 | `DavinciModel` | `Om2ModelExecutor`（pImpl 模式） |
+| 档位校验 | `SetDynamicSize` 仅存储，void 返回 | `SetDynamicSize` 校验档位合法性后存储，返回 `ge::Status` |
+| Device 写入 | `GeExecutor` 内部完成 `aclrtMemcpy` | ACL 层完成 `aclrtMemcpy`（执行器不持有 Device 地址） |
+| 档位信息来源 | `batch_info_` 成员（加载时解析 OM1 二进制） | `model_meta.json` 中的 `dynamic_batch_info` 字段 |
+| 输出 shape 查询 | `BuildOutputShapeInfo()` 从映射表查找 | `GetCurGearIndex` + `GetCurOuputShapeInfo` 从 `aclmdlDesc` 查找 |
+
+#### OM2 执行流程
+
+```
+编译期（与 OM1 共用，无需修改）：
+  ATC --dynamic_batch_size → ProcessMultiBatch → Case节点 + N子图
+  → om2_package_helper 序列化 dynamic_batch_info 到 model_meta.json
+
+加载期（无需修改）：
+  aclmdlLoadFromFile → Om2ModelExecutor::Init
+  → model_meta.json 已包含 dynamic_batch_info / dynamic_type / dynamic_output_shape
+
+描述期（aclmdlGetDesc → aclmdlGetDescImplOm2）：
+  → executor->GetDynamicBatchInfo → 填充 modelDesc->dynamicBatch/dynamicHW/dynamicDims
+  → executor->GetModelAttrs → 填充 modelDesc->dynamicOutputShape
+  （静态 OM2 模型获取失败时仅打 WARN 日志，不返回错误）
+
+执行前（aclmdlSetDynamicBatchSize → aclmdlSetDynamicBatchSizeImplOm2）：
+  → 从 dataset[index] 取 devPtr
+  → executor->SetDynamicSize({batchSize}, DYNAMIC_BATCH)
+    → 校验 dynamic_type 与模型编译时一致
+    → 在 dynamic_batch_info 中查找匹配档位
+    → 存储 cur_batch_size_
+  → aclrtMemcpy(devPtr, ..., &batchSize, ...) 写入 Device 内存
+
+执行期（无需修改，Device 侧自动完成）：
+  aclmdlExecute → Om2ModelExecutor::Execute
+  → StreamSwitch Task 读 devPtr 中的档位值 → aclrtSwitchStream 跳转对应子图
+
+查询期（aclmdlGetCurOutputDims → aclmdlGetCurOutputDimsImplOm2）：
+  → executor->GetCurrentShape → 若为空回退静态 shape（向后兼容）
+  → GetCurGearIndex → GetCurOuputShapeInfo → 返回档位对应的输出 shape
+```
+
+#### OM2 执行器关键接口
+
+| 接口 | 作用 | 文件 |
+|------|------|------|
+| `SetDynamicSize()` | 校验档位合法性并记录当前维度值 | `inc/framework/runtime/om2_model_executor.h` |
+| `GetCurrentShape()` | 返回当前档位维度值和动态类型 | `inc/framework/runtime/om2_model_executor.h` |
+| `GetDynamicBatchInfo()` | 从 model_meta.json 读取所有档位信息 | `runtime/om2/om2_model_executor.cc` |
+| `GetModelAttrs()` | 从 model_meta.json 读取 dynamic_output_shape | `runtime/om2/om2_model_executor.cc` |
+
+#### OM2 ACL 层接口
+
+| 接口 | 作用 | 文件 |
+|------|------|------|
+| `aclmdlSetDynamicBatchSizeImplOm2` | 校验 + aclrtMemcpy 写入 batch 值 | `api/acl/acl_model/model/model_om2.cpp` |
+| `aclmdlSetDynamicHWSizeImplOm2` | 校验 + aclrtMemcpy 写入 H/W 值 | `api/acl/acl_model/model/model_om2.cpp` |
+| `aclmdlSetInputDynamicDimsImplOm2` | 校验 + aclrtMemcpy 写入维度值 | `api/acl/acl_model/model/model_om2.cpp` |
+| `aclmdlGetCurOutputDimsImplOm2` | 动态查询 + 静态回退 | `api/acl/acl_model/model/model_om2.cpp` |
+| `aclmdlGetDescImplOm2` | 填充 dynamicBatch/HW/Dims/OutputShape | `api/acl/acl_model/model/model_om2.cpp` |
+
+#### OM2 共享工具函数
+
+为支持 OM2 动态分档，以下工具函数从 `model.cpp` 的 static 函数提取到 `model_common.cpp`，供 OM1 和 OM2 共用：
+
+| 函数 | 作用 | 文件 |
+|------|------|------|
+| `acl::GetDynamicTensorInfoHelp` | 解析 batchInfo 填充 dynamicBatch/HW/Dims | `api/acl/acl_model/model/model_common.cpp` |
+| `acl::GetCurGearIndex` | 在 gear 表中查找当前 shape 对应的索引 | `api/acl/acl_model/model/model_common.cpp` |
+| `acl::GetCurOuputShapeInfo` | 根据 gear 索引查找输出 shape | `api/acl/acl_model/model/model_common.cpp` |
+| `acl::GetModelOutputShapeInfoHelp` | 解析 dynamic_output_shape 字符串 | `api/acl/acl_model/model/model_common.cpp` |
+
+#### OM2 向后兼容性
+
+| 场景 | 行为 | 原因 |
+|------|------|------|
+| 静态 OM2 模型 + `aclmdlGetDesc` | 正常，不填充动态字段 | `GetDynamicBatchInfo` 返回空，`GetDynamicTensorInfoHelp` 快速返回 |
+| 静态 OM2 模型 + `aclmdlGetCurOutputDims` | 返回静态 dims | `GetCurrentShape` 返回空 → 回退 `acl::GetDims` |
+| 静态 OM2 模型 + `aclmdlSetDynamicBatchSize` | 返回错误 | `SetDynamicSize` 检测 `dynamic_type == FIXED(0)` ≠ `DYNAMIC_BATCH(1)` |
+| 动态 OM2 模型 + 未设档 + `GetCurOutputDims` | 返回静态 dims | `cur_batch_size_` 为空 → 回退路径 |
+| 动态 OM2 模型 + 设档 + `GetCurOutputDims` | 返回档位 dims | 正常路径 `GetCurGearIndex` → `GetCurOuputShapeInfo` |
+
 ---
 
 ## 6 关键数据结构

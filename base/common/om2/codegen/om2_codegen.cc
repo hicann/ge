@@ -47,7 +47,7 @@ void DumpGeneratedFiles(const Om2CodegenArtifacts &artifacts) {
       GELOGW("[OM2] Failed to open generated file dump path: %s.", dump_path.c_str());
       continue;
     }
-    output.write(artifact.data.data(), static_cast<std::streamsize>(artifact.data.size()));
+    (void)output.write(artifact.data.data(), static_cast<std::streamsize>(artifact.data.size()));
     if (!output.good()) {
       GELOGW("[OM2] Failed to dump generated file: %s.", dump_path.c_str());
     }

@@ -147,8 +147,8 @@ class IncludeDecl final : public DeclNode {
 
 class SpaceDecl final : public DeclNode {
  public:
+  using DeclNode::DeclNode;
   static SpaceDecl *Create(AstContext &ctx);
-  SpaceDecl() : DeclNode() {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 };
 
@@ -745,8 +745,8 @@ class CommentStmt final : public Stmt {
 
 class BlankLineStmt final : public Stmt {
  public:
+  using Stmt::Stmt;
   static BlankLineStmt *Create(AstContext &ctx);
-  BlankLineStmt() : Stmt() {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 };
 

@@ -83,6 +83,111 @@ std::string MakeManifestJson() {
 })";
 }
 
+std::string MakeModelMetaJsonWithDynamicBatch() {
+  return R"({
+    "dynamic_batch_info": [[1], [2], [4], [8]],
+    "dynamic_output_shape": ["0:0:1,1000", "1:0:2,1000", "2:0:4,1000", "3:0:8,1000"],
+    "dynamic_type": 1,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "NCHW",
+            "index": 0,
+            "name": "data",
+            "shape": [-1, 3, 224, 224],
+            "shape_range": [],
+            "shape_v2": [-1, 3, 224, 224],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "root_graph_name": "root_g1",
+    "outputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "output",
+            "shape": [-1, 1000],
+            "shape_range": [],
+            "size": 0
+        }
+    ],
+    "work_size": 2048,
+    "user_designate_shape_order": ["data"]
+})";
+}
+
+std::string MakeModelMetaJsonWithDynamicHW() {
+  return R"({
+    "dynamic_batch_info": [[224, 224], [448, 448]],
+    "dynamic_output_shape": ["0:0:1,1000", "1:0:1,1000"],
+    "dynamic_type": 2,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "NCHW",
+            "index": 0,
+            "name": "data",
+            "shape": [1, 3, -1, -1],
+            "shape_range": [],
+            "shape_v2": [1, 3, -1, -1],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "root_graph_name": "root_g1",
+    "outputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "output",
+            "shape": [1, 1000],
+            "shape_range": [],
+            "size": 0
+        }
+    ],
+    "work_size": 2048,
+    "user_designate_shape_order": ["data"]
+})";
+}
+
+std::string MakeModelMetaJsonWithDynamicDims() {
+  return R"({
+    "dynamic_batch_info": [[1, 128], [1, 256], [1, 512]],
+    "dynamic_output_shape": ["0:0:1,128", "1:0:1,256", "2:0:1,512"],
+    "dynamic_type": 3,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "data",
+            "shape": [-1, -1],
+            "shape_range": [],
+            "shape_v2": [-1, -1],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "root_graph_name": "root_g1",
+    "outputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "output",
+            "shape": [-1, -1],
+            "shape_range": [],
+            "size": 0
+        }
+    ],
+    "work_size": 2048,
+    "user_designate_shape_order": ["data"]
+})";
+}
+
 std::string MakeModelMetaJson() {
   return R"({
     "dynamic_batch_info": [],
@@ -1804,4 +1909,379 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_BeforeLoad_ReturnsError) {
   EXPECT_NE(status, SUCCESS);
   EXPECT_TRUE(op_attr_map.empty());
 }
+
+// ========== SetDynamicSize 和 GetCurrentShape 测试用例 ==========
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_BeforeLoad_ReturnsError) {
+  auto executor = std::make_unique<gert::Om2ModelExecutor>();
+  std::vector<uint64_t> batch_num = {1, 2, 4};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  ge::Status status = executor->SetDynamicSize(batch_num, dynamic_type);
+  EXPECT_NE(status, SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_TypeMismatch_ReturnsError) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+
+  // 静态模型 dynamic_type=0，尝试设置 DYNAMIC_BATCH=1 应该失败
+  std::vector<uint64_t> batch_num = {1};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  ge::Status status = executor.SetDynamicSize(batch_num, dynamic_type);
+  EXPECT_NE(status, SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_InvalidGear_ReturnsError) {
+  // 创建包含动态 batch 信息的模型
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
+  const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_batch.om2"});
+
+  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  // 加载模型
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_dynamic_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data, load_arg, 1U), SUCCESS);
+
+  // 尝试设置不存在的档位（模型支持 1,2,4,8）
+  std::vector<uint64_t> invalid_batch = {3};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  ge::Status status = executor.SetDynamicSize(invalid_batch, dynamic_type);
+  EXPECT_NE(status, SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_ValidGear_Success) {
+  // 创建包含动态 batch 信息的模型
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
+  const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_batch_valid.om2"});
+
+  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_dynamic_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data, load_arg, 1U), SUCCESS);
+
+  // 设置有效档位 batch=4
+  std::vector<uint64_t> batch_num = {4};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  ge::Status status = executor.SetDynamicSize(batch_num, dynamic_type);
+  EXPECT_EQ(status, SUCCESS);
+
+  // 验证 GetCurrentShape 返回正确的值
+  std::vector<int64_t> current_shape;
+  int32_t current_type = 0;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(current_shape.size(), 1U);
+  EXPECT_EQ(current_shape[0], 4);
+  EXPECT_EQ(current_type, dynamic_type);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicHW_Success) {
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
+  const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_hw.om2"});
+
+  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicHW();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_dynamic_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data, load_arg, 1U), SUCCESS);
+
+  // 设置有效档位 H=448, W=448
+  std::vector<uint64_t> hw_num = {448, 448};
+  int32_t dynamic_type = 2;  // DYNAMIC_IMAGE
+
+  ge::Status status = executor.SetDynamicSize(hw_num, dynamic_type);
+  EXPECT_EQ(status, SUCCESS);
+
+  std::vector<int64_t> current_shape;
+  int32_t current_type = 0;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(current_shape.size(), 2U);
+  EXPECT_EQ(current_shape[0], 448);
+  EXPECT_EQ(current_shape[1], 448);
+  EXPECT_EQ(current_type, dynamic_type);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicDims_Success) {
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
+  const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_dims.om2"});
+
+  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicDims();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_dynamic_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data, load_arg, 1U), SUCCESS);
+
+  // 设置有效档位 [1, 256]
+  std::vector<uint64_t> dims_num = {1, 256};
+  int32_t dynamic_type = 3;  // DYNAMIC_DIMS
+
+  ge::Status status = executor.SetDynamicSize(dims_num, dynamic_type);
+  EXPECT_EQ(status, SUCCESS);
+
+  std::vector<int64_t> current_shape;
+  int32_t current_type = 0;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(current_shape.size(), 2U);
+  EXPECT_EQ(current_shape[0], 1);
+  EXPECT_EQ(current_shape[1], 256);
+  EXPECT_EQ(current_type, dynamic_type);
+}
+
+TEST_F(Om2ModelExecutorUt, GetCurrentShape_BeforeSet_ReturnsFixed) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+
+  // 未调用 SetDynamicSize 时，GetCurrentShape 应该返回 FIXED 类型
+  std::vector<int64_t> current_shape;
+  int32_t current_type = -1;
+  ge::Status status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_TRUE(current_shape.empty());
+  EXPECT_EQ(current_type, 0);  // FIXED = 0
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_EmptyBatchNum_ReturnsError) {
+  // 创建包含动态 batch 信息的模型
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "dynamic_batch_empty.om2"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  ASSERT_EQ(executor.Load(model_data, load_arg, 1U), SUCCESS);
+
+  // 空 batch_num 应该返回错误（type 匹配但无有效档位）
+  std::vector<uint64_t> empty_batch;
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+  ge::Status status = executor.SetDynamicSize(empty_batch, dynamic_type);
+  EXPECT_NE(status, SUCCESS);
+}
+
+// 辅助 lambda：创建并加载包含动态 batch 信息的模型
+static bool LoadDynamicBatchModel(const std::string &test_work_dir,
+                                  const std::string &om2_suffix,
+                                  gert::Om2ModelExecutor &executor) {
+  const std::string so_path = PathUtils::Join({test_work_dir, "fake_runtime/libg1_om2.so"});
+  const std::string om2_path = PathUtils::Join({test_work_dir, "dynamic_batch_" + om2_suffix + ".om2"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  if (!zip_writer.IsMemFileOpened()) return false;
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
+  if (!zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false)) return false;
+  if (!zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false)) return false;
+  if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) return false;
+  if (!zip_writer.SaveModelDataToFile()) return false;
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_path, model_buf_size);
+  if (!model_buf || model_buf_size == 0U) return false;
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  auto load_arg = MakeOm2LoadArg();
+  return executor.Load(model_data, load_arg, 1U) == SUCCESS;
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_MultipleUpdates_UpdatesCorrectly) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "multi", executor));
+
+  // 第一次设置 batch=1
+  std::vector<uint64_t> batch1 = {1};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+  ge::Status status = executor.SetDynamicSize(batch1, dynamic_type);
+  EXPECT_EQ(status, SUCCESS);
+
+  std::vector<int64_t> current_shape;
+  int32_t current_type = -1;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(current_shape.size(), 1U);
+  EXPECT_EQ(current_shape[0], 1);
+  EXPECT_EQ(current_type, dynamic_type);
+
+  // 第二次设置 batch=2
+  std::vector<uint64_t> batch2 = {2};
+  status = executor.SetDynamicSize(batch2, dynamic_type);
+  EXPECT_EQ(status, SUCCESS);
+
+  current_shape.clear();
+  current_type = -1;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(current_shape.size(), 1U);
+  EXPECT_EQ(current_shape[0], 2);
+  EXPECT_EQ(current_type, dynamic_type);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_AllValidGears_Success) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "all_gears", executor));
+
+  // 测试所有有效档位 [1, 2, 4, 8]
+  std::vector<std::vector<uint64_t>> valid_gears = {{1}, {2}, {4}, {8}};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  for (const auto& gear : valid_gears) {
+    ge::Status status = executor.SetDynamicSize(gear, dynamic_type);
+    EXPECT_EQ(status, SUCCESS) << "Failed for gear size " << gear[0];
+
+    std::vector<int64_t> current_shape;
+    int32_t current_type = -1;
+    status = executor.GetCurrentShape(current_shape, current_type);
+    EXPECT_EQ(status, SUCCESS);
+    EXPECT_EQ(current_shape.size(), 1U);
+    EXPECT_EQ(current_shape[0], static_cast<int64_t>(gear[0]));
+    EXPECT_EQ(current_type, dynamic_type);
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_InvalidGears_AllFail) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "invalid", executor));
+
+  // 测试所有无效档位 [3, 5, 6, 7, 9, 10]
+  std::vector<std::vector<uint64_t>> invalid_gears = {{3}, {5}, {6}, {7}, {9}, {10}};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+
+  for (const auto& gear : invalid_gears) {
+    ge::Status status = executor.SetDynamicSize(gear, dynamic_type);
+    EXPECT_NE(status, SUCCESS) << "Should fail for invalid gear size " << gear[0];
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicSize_TypeMismatch_AllTypes) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "mismatch", executor));
+
+  // 模型是 DYNAMIC_BATCH (type=1)，测试其他类型不匹配
+  std::vector<uint64_t> batch = {1};
+
+  // FIXED (type=0)
+  ge::Status status = executor.SetDynamicSize(batch, 0);
+  EXPECT_NE(status, SUCCESS);
+
+  // DYNAMIC_IMAGE (type=2)
+  status = executor.SetDynamicSize(batch, 2);
+  EXPECT_NE(status, SUCCESS);
+
+  // DYNAMIC_DIMS (type=3)
+  status = executor.SetDynamicSize(batch, 3);
+  EXPECT_NE(status, SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, GetCurrentShape_AfterFailedSet_ReturnsEmpty) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "fail_shape", executor));
+
+  // 设置失败后，GetCurrentShape 应该仍然返回空
+  std::vector<uint64_t> invalid_batch = {3};
+  int32_t dynamic_type = 1;  // DYNAMIC_BATCH
+  ge::Status status = executor.SetDynamicSize(invalid_batch, dynamic_type);
+  EXPECT_NE(status, SUCCESS);
+
+  std::vector<int64_t> current_shape;
+  int32_t current_type = -1;
+  status = executor.GetCurrentShape(current_shape, current_type);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_TRUE(current_shape.empty());
+  EXPECT_EQ(current_type, 0);  // FIXED = 0
+}
+
 }  // namespace ge

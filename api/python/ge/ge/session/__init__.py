@@ -15,8 +15,10 @@
 session模块
 """
 
+from ge.error import GeError
 from .session import Session
 
 __all__ = [
+    'GeError',
     'Session'
 ]

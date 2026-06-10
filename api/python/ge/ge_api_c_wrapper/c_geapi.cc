@@ -14,6 +14,7 @@
 #include "common/checker.h"
 #include "ge_api_c_wrapper_utils.h"
 #include <iostream>
+#include <string>
 
 #ifdef __cplusplus
 using namespace ge;
@@ -44,6 +45,13 @@ Status GeApiWrapper_GEInitialize(char **keys, char **values, int size) {
 
 bool GeApiWrapper_IsGEInitialized() {
   return ge::IsGEInitialize();
+}
+
+const char *GeApiWrapper_GEGetErrorMsg() {
+  // Keep the returned C string valid after this function returns.
+  thread_local std::string error_msg{};
+  error_msg = ge::GEGetErrorMsg();
+  return error_msg.c_str();
 }
 
 #ifdef __cplusplus

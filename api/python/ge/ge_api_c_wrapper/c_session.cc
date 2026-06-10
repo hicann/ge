@@ -142,7 +142,8 @@ Status GeApiWrapper_Session_AddGraph(Session *session, uint32_t graph_id, Graph 
   return session->AddGraph(graph_id, *graph);
 }
 
-Status GeApiWrapper_Session_AddGraphWithOptions(Session *session, uint32_t graph_id, Graph *graph, char **keys, char **values, int size) {
+Status GeApiWrapper_Session_AddGraphWithOptions(Session *session, uint32_t graph_id, Graph *graph, char **keys,
+                                                char **values, int size) {
   GE_ASSERT_NOTNULL(session);
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(keys);
@@ -161,26 +162,39 @@ Status GeApiWrapper_Session_RemoveGraph(Session *session, uint32_t graph_id) {
   return session->RemoveGraph(graph_id);
 }
 
-Tensor** GeApiWrapper_Session_RunGraph(Session *session, uint32_t graph_id, void **inputs, int input_count, size_t *tensor_num) {
+Status GeApiWrapper_Session_RunGraph(Session *session, uint32_t graph_id, void **inputs, int input_count,
+                                     Tensor ***outputs, size_t *tensor_num) {
   GE_ASSERT_NOTNULL(session);
   GE_ASSERT_NOTNULL(inputs);
+  GE_ASSERT_NOTNULL(outputs);
   GE_ASSERT_NOTNULL(tensor_num);
+  *outputs = nullptr;
+  *tensor_num = 0U;
   std::vector<Tensor> inputs_vector;
+  inputs_vector.reserve(static_cast<size_t>(input_count));
   for (int i = 0; i < input_count; i++) {
+    GE_ASSERT_NOTNULL(inputs[i]);
     auto *tn = static_cast<Tensor *>(inputs[i]);
     inputs_vector.push_back(*tn);
   }
   std::vector<Tensor> outputs_vector;
-  GE_ASSERT_GRAPH_SUCCESS(session->RunGraph(graph_id, inputs_vector, outputs_vector));
-  return VecTensorToArray(outputs_vector, tensor_num);
+  const Status ret = session->RunGraph(graph_id, inputs_vector, outputs_vector);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  *outputs = VecTensorToArray(outputs_vector, tensor_num);
+  return SUCCESS;
 }
 
-Tensor** GeApiWrapper_Session_RunGraphWithStreamAsync(Session *session, uint32_t graph_id, void *stream, void **inputs,
-                                                      int input_count, size_t *tensor_num) {
+Status GeApiWrapper_Session_RunGraphWithStreamAsync(Session *session, uint32_t graph_id, void *stream, void **inputs,
+                                                    int input_count, Tensor ***outputs, size_t *tensor_num) {
   GE_ASSERT_NOTNULL(session);
   GE_ASSERT_NOTNULL(stream);
   GE_ASSERT_NOTNULL(inputs);
+  GE_ASSERT_NOTNULL(outputs);
   GE_ASSERT_NOTNULL(tensor_num);
+  *outputs = nullptr;
+  *tensor_num = 0U;
   std::vector<Tensor> inputs_vector;
   inputs_vector.reserve(static_cast<size_t>(input_count));
   for (int i = 0; i < input_count; i++) {
@@ -190,8 +204,16 @@ Tensor** GeApiWrapper_Session_RunGraphWithStreamAsync(Session *session, uint32_t
   }
 
   std::vector<Tensor> outputs_vector;
-  GE_ASSERT_GRAPH_SUCCESS(session->RunGraphWithStreamAsync(graph_id, stream, inputs_vector, outputs_vector));
-  return VecTensorToArray(outputs_vector, tensor_num);
+  const Status ret = session->RunGraphWithStreamAsync(graph_id, stream, inputs_vector, outputs_vector);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  *outputs = VecTensorToArray(outputs_vector, tensor_num);
+  return SUCCESS;
+}
+
+void GeApiWrapper_Session_FreeTensorArray(Tensor **tensors) {
+  delete[] tensors;
 }
 
 void GeApiWrapper_Session_DestroySession(const Session *session) {
