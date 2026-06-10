@@ -217,10 +217,10 @@ HcclResult HcceReduceScatterVGraphMode(void *sendBuf, const void *sendCounts, co
     return DlHcclFunction::get_instance().dlHcclReduceScatterVGraphMode(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, group, stream, tag, streams, streamCount, scratchMemAddr, scratchMemSize);
 }
 
-HcclResult HcceAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls, HcclDataType dataType, const char *group, void *stream, const char *tag, void **streams, size_t streamCount, void *scratchMemAddr, uint64_t scratchMemSiz) {
+HcclResult HcceAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls, HcclDataType dataType, const char *group, void *stream, const char *tag, void **streams, size_t streamCount, void *scratchMemAddr, uint64_t scratchMemSize) {
     CHK_PRT_RET(DlHcclFunction::get_instance().init() != HCCL_SUCCESS, HCCL_ERROR("DlHcclFunction::get_instance().init() fail \n"),
                 HCCL_E_PARA);
-    return DlHcclFunction::get_instance().dlHcclAllGatherVGraphMode(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, group, stream, tag, streams, streamCount, scratchMemAddr, scratchMemSiz);
+    return DlHcclFunction::get_instance().dlHcclAllGatherVGraphMode(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, group, stream, tag, streams, streamCount, scratchMemAddr, scratchMemSize);
 }
 
 HcclResult HcceAlltoAllGraphMode(const void *sendBuf, uint64_t sendCount, HcclDataType sendType, const void *recvBuf, uint64_t recvCount, HcclDataType recvType, 
