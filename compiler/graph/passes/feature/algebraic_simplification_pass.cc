@@ -285,6 +285,7 @@ graphStatus AlgebraicSimplificationPass::Run(const ComputeGraphPtr &compute_grap
   auto graph_ptr = std::shared_ptr<Graph>(&graph, [](Graph *) -> void {});
   UselessBinaryOpRemovePass used_binary_op_remove_pass;
   CustomPassContext context;
+  context.SetPassName("AlgebraicSimplificationPass");
   const auto ret = used_binary_op_remove_pass.Run(graph_ptr, context);
   GE_WARN_ASSERT(ret == SUCCESS || ret == NOT_CHANGED, "Failed to run UselessBinaryOpRemovePass");
   if (ret == SUCCESS) {
