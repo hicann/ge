@@ -12,6 +12,10 @@
 
 """Python DecomposePass sample for grouped Conv2D decomposition."""
 
+from __future__ import annotations
+
+from typing import List
+
 from ge.es import GraphBuilder, TensorHolder
 from ge.utils import GeUtils
 from ge.graph import DataType, Format, Graph, Node, TensorDesc
@@ -59,7 +63,7 @@ def _require_es_apis() -> None:
         )
 
 
-def _concat_tensors(tensors: list[TensorHolder]) -> TensorHolder:
+def _concat_tensors(tensors: List[TensorHolder]) -> TensorHolder:
     if Concat is not None:
         return Concat(1, tensors, N=len(tensors))
     return ConcatV2(tensors, 1, N=len(tensors))
@@ -113,7 +117,7 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
         input_slices = Split(1, input_tensor, groups, num_split=groups)
         filter_slices = Split(0, filter_tensor, groups, num_split=groups)
 
-        conv_outputs: list[TensorHolder] = []
+        conv_outputs: List[TensorHolder] = []
         for input_slice, filter_slice in zip(input_slices, filter_slices):
             r_conv = Conv2D(
                 input_slice,
