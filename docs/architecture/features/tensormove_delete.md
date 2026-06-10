@@ -58,19 +58,57 @@ Variable/Const -> TensorMove -> op2
 Variable/Const -> TensorMove -> Netoutput/PartitionedCall/If/while...
 ```
 
-### 场景五：单输出多引用（补控制边保序）
+### 场景五：单输出多引用（按读写行为决定是否补控制边）
+
+源节点单个输出同时被 `TensorMove` 和其他消费者（Sibling）引用时的删除判定。按 Sibling 和 TM 后继（TM_succ）的读写行为分三种情况处理：
+
+**情况 A：Sibling 覆写 source**
+
 ```
 优化前:
-  Source[0] → Sibling
+  Source[0] → Sibling(in-place/atomic)
   Source[0] → TensorMove → TM_succ
+优化后:
+  仅当图中已有 TM_succ -> Sibling 直接控制边时才删除 TensorMove
+```
+
+- Sibling 会覆写源内存（in-place 写回或 atomic 输出复用输入），删除 TM 后 Sibling 直接读写源内存
+- 必须要求外部已建立 TM_succ -> Sibling 的控制边来保序，Pass 不自行猜测语义方向
+
+**情况 B：Sibling 纯读、TM_succ 覆写 source**
+
+```
+优化前:
+  Source[0] → Sibling(纯读)
+  Source[0] → TensorMove → TM_succ(in-place/atomic)
 优化后:
   Source[0] → Sibling
   Source[0] → TM_succ
   Sibling -.ctrl.-> TM_succ
 ```
-- 源输出被多消费者引用，补控制边保序后可删除。
-- 单数出多引用场景下，仅判断直连场景
-- 如果TM_succ会改写输入，可能会触发读写冲突，最终不能删除TensorMove
+
+- Sibling 纯读、TM_succ 会覆写源内存，删除 TM 后存在 read-before-write 冒险
+- 补 Sibling -> TM_succ 控制边保序，确保旁路先读完源内存、后继再覆写
+
+**情况 C：Sibling 纯读、TM_succ 也纯读**
+
+```
+优化前:
+  Source[0] → Sibling(纯读)
+  Source[0] → TensorMove → TM_succ(纯读)
+优化后:
+  Source[0] → Sibling
+  Source[0] → TM_succ
+  （不补控制边）
+```
+
+- 两个纯读之间无读写冒险，删 TM 后 source 的生命周期由 source -> TM_succ 数据边保证
+- 补控制边对正确性零贡献，只会收窄调度并发，因此不补边
+
+**其他约束：**
+- 单输出多引用场景下，仅判断直连场景
+- 对新增控制边做自环和反向可达检查，避免把 DAG 改成有环图
+- 删除失败或补边失败时回滚本轮新增控制边
 
 ## 4. 对外接口
 
