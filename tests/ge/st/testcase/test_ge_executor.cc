@@ -41,6 +41,7 @@
 #include "framework/runtime/model_rt_var_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
+#include "graph/custom_op_factory.h"
 
 using namespace std;
 using namespace testing;
@@ -843,6 +844,7 @@ TEST_F(GeExecutorTest, dvpp_graph) {
 
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -969,6 +971,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1028,6 +1031,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     // Test LoadModelOnline: GraphModelListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1070,6 +1074,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true); // For not start DavinciModel thread.
@@ -1131,6 +1136,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
 
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1233,6 +1239,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_recover_single_model) {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true); // For not start DavinciModel thread.
 
@@ -1314,6 +1321,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_lora_format_changed) {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true);  // For not start DavinciModel thread.
@@ -1360,6 +1368,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_lora_format_changed) {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true);  // For not start DavinciModel thread.
@@ -1415,6 +1424,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1529,6 +1539,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     // Test LoadModelOnline: GraphModelListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1555,6 +1566,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -2218,6 +2230,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -2274,6 +2287,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     // Test LoadModelOnline: GraphModelListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -2328,6 +2342,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true); // For not start DavinciModel thread.
@@ -2369,6 +2384,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     // Test LoadModelOnline: for SuperKernel
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;

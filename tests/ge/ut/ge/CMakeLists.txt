@@ -461,7 +461,9 @@ set(MULTI_PARTS_TEST_FILES
     "common/platform_info_util_unittest.cc"
     "common/dnnengines_unittest.cc"
     "common/engine_manage_unittest.cc"
+    "common/helper/custom_op_registry_builder_unittest.cc"
     "graph_ir/ge_custom_op_factory_unittest.cc"
+    "graph_ir/ge_custom_op_pull_registry_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"
     "graph_ir/ge_ir_build_unittest.cc"
     "graph/transop_util_unittest.cc"
@@ -669,6 +671,7 @@ target_link_libraries(ge_ut_common PRIVATE
 
 target_link_libraries(ge_ut_common PUBLIC
     ge_graph_dsl
+    custom_op_registry_static
     ascendcl_stub)
 
 # ut binary
@@ -716,6 +719,7 @@ target_link_libraries(ut_libge_multiparts_utest
     -Wl,-z,muldefs
     symengine
     unified_dlog
+    custom_op_registry_static
     graph
     graph_base
     ge_executor_shared

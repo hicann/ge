@@ -160,6 +160,7 @@ target_link_libraries(graph_engine_test
     atc_static
     ge_running_env
     ge_runtime_stub
+    custom_op_registry_static
     -Wl,--no-whole-archive gert_op_impl
     es_ge_test ge_graph_dsl st_stubs GTestShared::gtest GTestShared::gmock GTestShared::gmock_main
     -ldl
@@ -247,6 +248,7 @@ target_link_libraries(ge_common_atc
     atc_static
     ge_running_env
     ge_runtime_stub
+    custom_op_registry_static
     -Wl,--no-whole-archive gert_op_impl
     es_ge_test ge_graph_dsl st_stubs GTestShared::gtest GTestShared::gmock GTestShared::gmock_main
     -ldl

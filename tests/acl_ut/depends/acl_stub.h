@@ -561,4 +561,8 @@ public:
 
     // mmpa
     MOCK_METHOD0(mmGetTid, INT32());
+
+private:
+    void ResetRtMocks();
+    void ResetDataBufferMocks();
 };

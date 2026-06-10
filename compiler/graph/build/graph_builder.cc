@@ -38,6 +38,7 @@
 #include "graph/unfold/graph_unfolder.h"
 #include "graph/passes/feature/super_kernel_pass.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
+#include "graph/custom_op_factory.h"
 
 using domi::BuildMode;
 
@@ -287,6 +288,7 @@ Status GraphBuilder::Build(ComputeGraphPtr &comp_graph, GeRootModelPtr &ge_root_
   if (ge_root_model_ptr == nullptr) {
     return MEMALLOC_FAILED;
   }
+  ge_root_model_ptr->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   // when Constant's memory is large, can be converted to Const,
   // because Const's memory can be released when model is unload

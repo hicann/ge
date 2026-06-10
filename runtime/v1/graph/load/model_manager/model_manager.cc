@@ -177,6 +177,19 @@ Status BindOutputMemBlock(const size_t tensor_size, ge::MemBlock *const mem_bloc
   ge_tensor.MutableTensorDesc().SetPlacement(ge::kPlacementDevice);
   return SUCCESS;
 }
+
+std::shared_ptr<DavinciModel> CreateDavinciModelFromRootModel(const GeRootModelPtr &root_model,
+                                                              const GeModelPtr &ge_model,
+                                                              const int32_t priority) {
+  const auto davinci_model = MakeShared<DavinciModel>(priority, nullptr);
+  if ((davinci_model == nullptr) || (root_model == nullptr) || (ge_model == nullptr)) {
+    return davinci_model;
+  }
+
+  davinci_model->Assign(ge_model);
+  davinci_model->SetCustomOpRegistry(root_model->GetCustomOpRegistry());
+  return davinci_model;
+}
 }  // namespace
 Status SetNetOutputTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph_node) {
   if (graph_node->IsSavedNetOutputTensorInfoFlag()) {
@@ -744,6 +757,7 @@ Status ModelManager::LoadModelOnline(uint32_t &model_id, const GeRootModelPtr &g
   GELOGI("Set graph id to model map, graph id: %u, model id: %u.", graph_node->GetGraphId(), model_id);
 
   domi::GetContext().is_online_model = true;
+  GE_ASSERT_NOTNULL(ge_root_model->GetCustomOpRegistry());
 
   GE_ASSERT_SUCCESS(InitOpMasterDeviceSo(model_id, ge_root_model), "Init model [%u] op master device failed", model_id);
 
@@ -770,6 +784,7 @@ Status ModelManager::LoadModelOnline(uint32_t &model_id, const GeRootModelPtr &g
   GE_TIMESTAMP_START(Assign);
   davinci_model->Assign(ge_model);
   GE_TIMESTAMP_END(Assign, "GraphLoader::ModelAssign");
+  davinci_model->SetCustomOpRegistry(ge_root_model->GetCustomOpRegistry());
   const uint64_t session_id = GetContext().SessionId();
 
   const DumpProperties &dump_properties = DumpManager::GetInstance().GetDumpProperties(session_id);
@@ -1518,6 +1533,7 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
   davinci_model->SetOmName(model.om_name);
   const auto &ge_root_model = model_helper.GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model);
+  davinci_model->SetCustomOpRegistry(ge_root_model->GetCustomOpRegistry());
   davinci_model->SetFileConstantWeightDir(ge_root_model->GetFileConstantWeightDir());
   const DumpProperties &dump_properties = DumpManager::GetInstance().GetDumpProperties(kOfflineSessionId);
   davinci_model->SetDumpProperties(dump_properties);
@@ -1606,9 +1622,8 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id,
   GE_ASSERT_SUCCESS(InitOpMasterDeviceSo(model_id, root_model), "Init model [%u] op master device failed", model_id);
   const auto &ge_model = it->second;
   GE_CHECK_NOTNULL(ge_model);
-  const auto davinci_model = MakeShared<DavinciModel>(priority, nullptr);
+  const auto davinci_model = CreateDavinciModelFromRootModel(root_model, ge_model, priority);
   GE_CHECK_NOTNULL(davinci_model);
-  davinci_model->Assign(ge_model);
 
   Status ret = SUCCESS;
   if (need_update_session_id) {
@@ -1691,9 +1706,8 @@ Status ModelManager::LoadModelWithoutQ(uint32_t &model_id, const GeRootModelPtr 
   GE_ASSERT_SUCCESS(InitOpMasterDeviceSo(model_id, root_model), "Init model [%u] op master device failed", model_id);
   const auto &ge_model = it->second;
   GE_CHECK_NOTNULL(ge_model);
-  const auto davinci_model = MakeShared<DavinciModel>(priority, nullptr);
+  const auto davinci_model = CreateDavinciModelFromRootModel(root_model, ge_model, priority);
   GE_CHECK_NOTNULL(davinci_model);
-  davinci_model->Assign(ge_model);
 
   GenModelId(model_id);
   davinci_model->SetId(model_id);

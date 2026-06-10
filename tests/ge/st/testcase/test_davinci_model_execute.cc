@@ -33,6 +33,7 @@
 #include "graph/manager/mem_manager.h"
 #include "common/profiling/profiling_manager.h"
 #include "graph/load/model_manager/model_utils.h"
+#include "graph/custom_op_factory.h"
 #include "common/dump/dump_manager.h"
 #include "common/dump/dump_utils.h"
 #include "graph/load/model_manager/model_manager.h"
@@ -331,6 +332,7 @@ Status BuildGraphNode(GraphId graph_id, GraphNodePtr &graph_node, GeRootModelPtr
 
   ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   graph_node = MakeShared<GraphNode>(graph_id);
@@ -523,6 +525,7 @@ TEST_F(DavinciModelTest, hccl_dump) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -605,6 +608,7 @@ TEST_F(DavinciModelTest, hccl_dump_on_watcher_model) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -683,6 +687,7 @@ TEST_F(DavinciModelTest, sdma_dump) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -758,6 +763,7 @@ TEST_F(DavinciModelTest, sample_davinci_model_static_memory_no_tiling) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -903,6 +909,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_file_constant) {
     auto runtime_stub = MockForKernelLaunchExFailed();
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -968,8 +975,10 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_const_placeholder) {
         // Test LoadModelOnline
         auto runtime_stub = MockForKernelLaunchExFailed();
         GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-        ge_root_model->Initialize(graph);
-        ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
+  ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
         GraphId graph_id = 1001;
         GraphNodePtr graph_node = MakeShared<GraphNode>(graph_id);
@@ -1000,6 +1009,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_file_constant_failed) {
     auto runtime_stub = MockForKernelLaunchExFailed();
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -1029,6 +1039,7 @@ TEST_F(DavinciModelTest, command_profiling_get_hybrid_model) {
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   GeRootModelPtr ge_root_model = make_shared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(ge_root_model);
   auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
   shared_model->SetDeviceId(0);
@@ -1066,6 +1077,7 @@ TEST_F(DavinciModelTest, unknown_shape_execute_with_file_constant_host) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -1113,6 +1125,7 @@ TEST_F(DavinciModelTest, unknown_shape_execute_with_file_constant) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -1211,6 +1224,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_no_tiling_with_sub_mem) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -1603,6 +1617,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_dumpok) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -1720,6 +1735,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_dumpok_with_op_range) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -1816,6 +1832,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_exception_dumpok) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -2094,6 +2111,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_static_shape_reuse_binary) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2165,6 +2183,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_static_shape_ifa_memcheck) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2230,6 +2249,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_static_shape_ifa_memcheck_args_li
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2301,6 +2321,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_static_shape_batch_memcheck) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2367,6 +2388,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_static_shape_batch_memcheck_no_ar
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2444,6 +2466,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_attached_vector_core) {
   // Test LoadModelOnline
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2540,6 +2563,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_atomic_clean_task) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -2623,6 +2647,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_aicpu_deploy_host) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -2675,6 +2700,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_with_aicpu_queue) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -2704,6 +2730,7 @@ TEST_F(DavinciModelTest, sample_davinci_model_execute_reuse_zero_copy_memory) {
 
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -2752,6 +2779,7 @@ TEST_F(DavinciModelTest, sample_davinci_model_execute_cmo_offset_invalid) {
 
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphId graph_id = 1001;
@@ -3069,6 +3097,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_no_tiling_without_q) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     GeExecutor ge_executor;
     uint32_t model_id = 0;
     EXPECT_NE(ge_executor.LoadModelWithoutQ(model_id, ge_root_model), SUCCESS);
@@ -3078,6 +3107,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_no_tiling_without_q) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -3121,6 +3151,7 @@ TEST_F(DavinciModelTest, sdma_dump_with_qos) {
     const auto ge_root_model = MakeShared<GeRootModel>();
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
     graph_node->IncreaseLoadCount();
@@ -3247,6 +3278,7 @@ TEST_F(DavinciModelTest, davinci_model_with_non_zero_cpy_inpouts) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -3500,6 +3532,7 @@ TEST_F(DavinciModelTest, davinci_model_error_tracking_test) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -4048,6 +4081,7 @@ TEST_F(DavinciModelTest, davinci_model_load_check_and_release_model_stream_resou
 
   auto ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model_1);
 
   graph_node_1 = MakeShared<GraphNode>(graph_id_1);
@@ -4198,6 +4232,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_hcom_continuous_input) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -4296,6 +4331,7 @@ TEST_F(DavinciModelTest, DavinciModelExecute_LiteException_Ok) {
     // Test LoadModelOnline
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -4372,6 +4408,7 @@ TEST_F(DavinciModelTest, sample_davinci_model_end_sequence) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -4736,6 +4773,7 @@ TEST_F(DavinciModelTest, super_kernel_graph_load_and_success) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -4908,6 +4946,7 @@ TEST_F(DavinciModelTest, ifa_aicore_with_tiling_sink_graph_load_and_success) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -5092,6 +5131,7 @@ TEST_F(DavinciModelTest, ifa_aicore_with_tiling_sink_graph_load_and_launch_cust_
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -5281,6 +5321,7 @@ TEST_F(DavinciModelTest, ifa_aicore_with_tiling_sink_graph_load_and_launch_cust_
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -5460,6 +5501,7 @@ TEST_F(DavinciModelTest, ifa_aicore_with_tiling_sink_graph_load_and_success_with
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -5500,6 +5542,7 @@ TEST_F(DavinciModelTest, sample_davinci_model_execute_fail) {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
     ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);
@@ -5561,6 +5604,7 @@ TEST_F(DavinciModelTest, init_space_registry_with_upgraded_so) {
   BuildAddGraph(graph, "file_constant_1", false);
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   std::vector<OpSoBinPtr> kernels;
   std::string so_name("libopsproto_rt.so");
@@ -5628,6 +5672,7 @@ TEST_F(DavinciModelTest, TilingSink_From_OppPackage_Success) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
     EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
     EXPECT_EQ(ge_root_model->GetSoInOmFlag(), 0x4000);
@@ -5673,6 +5718,7 @@ TEST_F(DavinciModelTest, TilingSink_From_Model_Success) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
     EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
     EXPECT_EQ(ge_root_model->GetSoInOmFlag(), 0x4000);
@@ -5724,6 +5770,7 @@ TEST_F(DavinciModelTest, TilingSink_From_Model_Failed) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
     EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
     EXPECT_EQ(ge_root_model->GetSoInOmFlag(), 0x4000);
@@ -5776,6 +5823,7 @@ TEST_F(DavinciModelTest, FileConstant_Success_UserSetDeviceMem) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
     EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
     EXPECT_EQ(ge_root_model->GetSoInOmFlag(), 0x4000);
@@ -6094,6 +6142,7 @@ TEST_F(DavinciModelTest, mc2_with_fusion_task_graph_load_and_success) {
   {
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
     GraphId graph_id = 1001;
@@ -6498,6 +6547,7 @@ TEST_F(DavinciModelTest, Adump_Enable_Success) {
   // 加载模型并执行
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphNodePtr graph_node = MakeShared<GraphNode>(graph->GetGraphID());
@@ -6636,6 +6686,7 @@ TEST_F(DavinciModelTest, Adump_OverflowNotSupported_NotCalled) {
 
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphNodePtr graph_node = MakeShared<GraphNode>(graph->GetGraphID());
@@ -6683,6 +6734,7 @@ TEST_F(DavinciModelTest, Adump_WatcherModelEnabled_NotCalled) {
 
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
 
   GraphNodePtr graph_node = MakeShared<GraphNode>(graph->GetGraphID());
@@ -7176,6 +7228,7 @@ TEST_F(DavinciModelTest, DavinciModelExecute_SubgraphDump_Blacklist_RootGraph) {
   // ========== 创建 GeRootModel 并关联 ==========
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   ge_root_model->Initialize(root_graph);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), root_ge_model);
   ge_root_model->SetSubgraphInstanceNameToModel(subgraph->GetName(), ge_model);
 
