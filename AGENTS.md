@@ -35,7 +35,7 @@ bash build.sh --dflow          # 构建 dflow 包
 ### 构建选项
 ```bash
 bash build.sh -j16                  # 16个并行线程（默认：8）
-bash build.sh --build_type=Debug    # Debug 构建（默认：Release）
+bash build.sh --build-type=Debug    # Debug 构建（默认：Release）
 bash build.sh --verbose             # 详细输出
 bash build.sh --asan                # 启用 AddressSanitizer
 bash build.sh --cov                 # 启用代码覆盖率
