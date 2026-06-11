@@ -26,6 +26,14 @@ size_t DAGGraph::GetEdgeCount() const {
   return edges_.size();
 }
 
+void DAGGraph::SetDeviceResource(const DeviceResourceInfo &resource) {
+  device_resource_ = resource;
+}
+
+const DeviceResourceInfo &DAGGraph::GetDeviceResource() const {
+  return device_resource_;
+}
+
 std::shared_ptr<DAGNode> DAGGraph::AddNode(const std::string &name, const std::string &type) {
   if (nodes_.find(name) != nodes_.end()) {
     MINIDAG_LOG_WARN("Node already exists: %s, type: %s", name.c_str(), type.c_str());

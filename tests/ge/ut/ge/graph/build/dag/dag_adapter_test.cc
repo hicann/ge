@@ -26,6 +26,10 @@
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/node_adapter.h"
 #include "register/custom_pass_context_impl.h"
+#include "graph/ge_local_context.h"
+#include "external/ge_common/ge_common_api_types.h"
+
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 namespace ge {
 
@@ -443,6 +447,35 @@ TEST_F(DAGAdapterGEIntegrationTest, NodeCostSetGet) {
   EXPECT_EQ(retrieved_cost.memory_usage, 1024);
 }
 
+/**
+ * 场景 5-4: DeviceResourceInfo 默认值
+ */
+TEST_F(DAGAdapterGEIntegrationTest, DAGGraph_DeviceResourceDefault) {
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->AddNode("node1", "Conv");
+
+  const auto& resource = dag->GetDeviceResource();
+  EXPECT_EQ(resource.cube_core_num, -1);
+  EXPECT_EQ(resource.vector_core_num, -1);
+}
+
+/**
+ * 场景 5-5: DeviceResourceInfo 设置验证
+ */
+TEST_F(DAGAdapterGEIntegrationTest, DAGGraph_DeviceResourceSetGet) {
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+
+  minidag::DeviceResourceInfo resource;
+  resource.cube_core_num = 30;
+  resource.vector_core_num = 8;
+
+  dag->SetDeviceResource(resource);
+
+  const auto& retrieved = dag->GetDeviceResource();
+  EXPECT_EQ(retrieved.cube_core_num, 30);
+  EXPECT_EQ(retrieved.vector_core_num, 8);
+}
+
 // --------------------
 // 场景 6：RefreshStreamIdsToGE 测试
 // --------------------
@@ -847,6 +880,67 @@ TEST_F(DAGAdapterDataEdgeTest, FromGEGraph_DataEdgeCount) {
   ASSERT_NE(dag, nullptr);
 
   EXPECT_EQ(dag->GetEdgeCount(), original_data_edges);
+}
+
+// --------------------
+// 场景 9：FillDeviceResource 错误路径测试
+// --------------------
+
+/**
+ * 场景 9-1: GetThreadLocalContext 获取 soc_version 失败时返回默认值
+ */
+TEST_F(DAGAdapterGEIntegrationTest, FillDeviceResource_SocVersionNotSet) {
+  ge::GetThreadLocalContext().SetGraphOption({});
+
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->AddNode("node1", "Conv");
+
+  auto ret = DAGAdapter::FillDeviceResource(*dag);
+
+  EXPECT_EQ(ret, SUCCESS);
+  const auto &resource = dag->GetDeviceResource();
+  EXPECT_EQ(resource.cube_core_num, -1);
+  EXPECT_EQ(resource.vector_core_num, -1);
+}
+
+/**
+ * 场景 9-2: 正常获取 PlatformInfo 并填充资源信息
+ */
+TEST_F(DAGAdapterGEIntegrationTest, FillDeviceResource_Success) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B1";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->AddNode("node1", "Conv");
+
+  auto ret = DAGAdapter::FillDeviceResource(*dag);
+
+  EXPECT_EQ(ret, SUCCESS);
+  const auto &resource = dag->GetDeviceResource();
+  // stub 实现固定返回 32
+  EXPECT_EQ(resource.cube_core_num, 32);
+  EXPECT_EQ(resource.vector_core_num, 32);
+}
+
+/**
+ * 场景 9-3: FromGEGraph 在 FillDeviceResource 场景下正常返回
+ */
+TEST_F(DAGAdapterGEIntegrationTest, FromGEGraph_FillDeviceResourceSuccess) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B1";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto ge_graph = BuildGraphWithNodes();
+  ASSERT_NE(ge_graph, nullptr);
+
+  std::shared_ptr<minidag::DAGGraph> dag;
+  auto ret = DAGAdapter::FromGEGraph(ge_graph, dag);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  ASSERT_NE(dag, nullptr);
+  const auto &resource = dag->GetDeviceResource();
+  EXPECT_EQ(resource.cube_core_num, 32);
+  EXPECT_EQ(resource.vector_core_num, 32);
 }
 
 }  // namespace ge

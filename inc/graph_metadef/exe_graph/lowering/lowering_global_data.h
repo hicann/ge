@@ -19,6 +19,7 @@
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "exe_graph/lowering/lowering_opt.h"
 #include "common/ge_common/ge_types.h"
+#include "graph/custom_op_registry.h"
 
 namespace ge {
 class AicoreKernelHandlesManager;
@@ -183,6 +184,13 @@ class LoweringGlobalData {
   std::shared_ptr<ge::AicoreKernelHandlesManager> GetAicoreKernelHandlesManager() const {
     return aicore_manager_;
   }
+  void SetCustomOpRegistry(const ge::CustomOpRegistryPtr &registry) {
+    custom_op_registry_ = registry;
+  }
+
+  const ge::CustomOpRegistryPtr &GetCustomOpRegistry() const {
+    return custom_op_registry_;
+  }
 
  private:
   struct HolderByGraphs {
@@ -211,6 +219,7 @@ class LoweringGlobalData {
   std::map<int64_t, std::pair<const void *, size_t>> fixed_feature_mem_;
   bool is_single_stream_scene_{true};
   void *host_resource_center_{nullptr};
+  ge::CustomOpRegistryPtr custom_op_registry_{nullptr};
   // user set file constant device memory, key is file name
   std::map<std::string, ge::FileConstantMem> file_constant_mems_;
   std::shared_ptr<ge::AicoreKernelHandlesManager> aicore_manager_;

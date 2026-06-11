@@ -15,7 +15,7 @@
 #include "common/checker.h"
 #include "exe_graph/lowering/frame_selector.h"
 #include "kernel/common_kernel_impl/build_tensor.h"
-#include "graph/custom_op_factory.h"
+#include "graph/custom_op_registry.h"
 #include "lowering/placement/placed_lowering_result.h"
 #include "exe_graph/lowering/lowering_definitions.h"
 #include "common/ge_common/ge_types.h"
@@ -23,13 +23,11 @@
 
 namespace gert {
 namespace {
-bool NeedCustomOpInferShape(const ge::NodePtr &node) {
+bool NeedCustomOpInferShape(const ge::NodePtr &node, const LoweringGlobalData &global_data) {
   GE_ASSERT_NOTNULL(node);
   const auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
-  auto custom_op = ge::CustomOpFactory::CreateOrGetCustomOp(node->GetTypePtr());
-  auto shape_infer_op = dynamic_cast<ge::ShapeInferOp *>(custom_op);
-  if (shape_infer_op != nullptr) {
+  if (bg::FindShapeInferOpInCustomOpRegistry(node->GetTypePtr(), global_data) != nullptr) {
     return true;
   }
   const std::string infer_rule = ge::InferenceRule::GetInferenceRule(op_desc);
@@ -40,10 +38,13 @@ bool NeedCustomOpInferShape(const ge::NodePtr &node) {
 }
 
 bg::ValueHolderPtr FindCustomExecutorFunc(const ge::NodePtr &node, const LowerInput &lower_input) {
-  auto builder = [&node]() -> std::vector<bg::ValueHolderPtr> {
-    return bg::FrameSelector::OnInitRoot([&]() -> std::vector<bg::ValueHolderPtr> {
+  auto builder = [&node, &lower_input]() -> std::vector<bg::ValueHolderPtr> {
+    return bg::FrameSelector::OnInitRoot([&node, &lower_input]() -> std::vector<bg::ValueHolderPtr> {
       auto node_type = bg::ValueHolder::CreateConst(node->GetTypePtr(), node->GetType().size() + 1, true);
-      return {bg::ValueHolder::CreateSingleDataOutput("FindCustomOp", {node_type})};
+      ge::CustomOpRegistry *custom_op_registry = lower_input.global_data->GetCustomOpRegistry().get();
+      auto registry_holder = bg::ValueHolder::CreateConst(&custom_op_registry, sizeof(custom_op_registry));
+      return {bg::ValueHolder::CreateSingleDataOutput("FindCustomOp",
+                                                      {node_type, registry_holder})};
     });
   };
   return lower_input.global_data->GetOrCreateUniqueValueHolder(node->GetType() + "_FindCustomOp_", builder)[0];
@@ -100,7 +101,7 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
   LOWER_REQUIRE_NOTNULL(op_desc);
   std::string kernel_type = "ExecuteCustomOp";
   std::vector<bg::ValueHolderPtr> infer_output_shapes;
-  if (NeedCustomOpInferShape(node)) {
+  if (NeedCustomOpInferShape(node, *lower_input.global_data)) {
     kernel_type = "ExecuteCustomOpWithInferShape";
     infer_output_shapes = bg::InferCustomOpShape(node, lower_input.input_shapes, *lower_input.global_data);
     input_holders.insert(input_holders.end(), infer_output_shapes.begin(), infer_output_shapes.end());

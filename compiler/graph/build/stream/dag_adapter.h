@@ -15,6 +15,7 @@
 
 #include "graph/build/dag/dag_graph.h"
 #include "external/register/register_custom_pass.h"
+#include "common/ge_common/ge_types.h"
 
 namespace ge {
 class DAGAdapter {
@@ -41,6 +42,7 @@ class DAGAdapter {
       const std::shared_ptr<minidag::DAGNode> &src_node,
       minidag::DAGGraph &dag,
       int64_t &edge_count);
+  static Status FillDeviceResource(minidag::DAGGraph &dag);
 };
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_STREAM_DAG_ADAPTER_H_

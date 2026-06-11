@@ -613,6 +613,10 @@ bool CanDeleteWhenSiblingOverwritesSource(const NodePtr &tensor_move_node, const
 
 /**
  * @brief 处理一个 sibling 相对全部 TM 后继的约束，必要时登记 sibling -> tm_succ 的待建控制边
+ *
+ * sibling 纯读时，仅当 TM 后继会覆写 source 才需要补 reader-before-writer 控制边。
+ * 若两侧都是纯读，删除 TM 后不存在读写冒险，不补控制边。
+ *
  * @return true 该 sibling 结构上允许删除 TM；false 必须保留 TM
  */
 bool CheckSiblingAgainstSuccessors(const NodePtr &tensor_move_node, const InDataAnchor *sibling_in_anchor,
@@ -628,13 +632,20 @@ bool CheckSiblingAgainstSuccessors(const NodePtr &tensor_move_node, const InData
     GE_WARN_ASSERT(tensor_move_succ_in_anchor != nullptr);
     const auto tensor_move_succ = tensor_move_succ_in_anchor->GetOwnerNode();
     GE_WARN_ASSERT((tensor_move_succ) != nullptr);
+    const auto tm_succ_input_idx = tensor_move_succ_in_anchor->GetIdx();
 
     if (sibling_overwrites_source) {
-      const auto tm_succ_input_idx = tensor_move_succ_in_anchor->GetIdx();
       if (!CanDeleteWhenSiblingOverwritesSource(tensor_move_node, sibling_node, tensor_move_succ,
                                                 tm_succ_input_idx)) {
         return false;
       }
+      continue;
+    }
+
+    if (!WillNodeOverwriteSourceMemory(tensor_move_succ, tm_succ_input_idx)) {
+      GELOGI("Delete TM %s: sibling %s and successor %s both pure-read source, no ctrl edge needed.",
+             tensor_move_node->GetName().c_str(), sibling_node->GetName().c_str(),
+             tensor_move_succ->GetName().c_str());
       continue;
     }
 
@@ -657,7 +668,9 @@ bool CheckSiblingAgainstSuccessors(const NodePtr &tensor_move_node, const InData
  *   2. 对每个 sibling 调用 CheckSiblingAgainstSuccessors：
  *      - 检查 sibling 本身类型/同图性/是否输出复用输入等硬约束；
  *      - 对 "sibling 覆写 source" 的情形要求外部已有 tm_succ -> sibling 的直接控制边；
- *      - 其余情形登记 sibling -> tm_succ 的 pending 控制边（延迟在 ApplyPendingControlEdges 落地）。
+ *      - 对 "sibling 纯读 + tm_succ 覆写 source" 的情形登记 sibling -> tm_succ 的 pending 控制边
+ *        （延迟在 ApplyPendingControlEdges 落地）；
+ *      - 对 "sibling 纯读 + tm_succ 纯读" 的情形不补控制边，直接放行。
  *
  * 任一 sibling 不通过即整体放弃删除 TM。
  *

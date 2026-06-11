@@ -18,6 +18,7 @@
 #include "framework/common/helper/model_helper.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "mmpa/mmpa_api.h"
+#include "graph/custom_op_factory.h"
 
 using namespace std;
 using namespace testing;
@@ -140,6 +141,7 @@ void BuildGraphModel(const ComputeGraphPtr &graph, uint32_t mem_offset, GeModelP
 Status OnlineInferDynamic(ComputeGraphPtr &graph, const GeModelPtr &ge_model) {
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
   GraphId graph_id = 1001;
   GraphNodePtr graph_node = MakeShared<GraphNode>(graph_id);

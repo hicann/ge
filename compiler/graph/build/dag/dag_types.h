@@ -23,6 +23,12 @@ enum class graphStatus {
   NODE_NOT_FOUND = 5
 };
 
+struct DeviceResourceInfo {
+  // Use -1 as default, means no limit.
+  int64_t cube_core_num = -1;
+  int64_t vector_core_num = -1;
+};
+
 constexpr int64_t INVALID_STREAM_ID = -1;
 constexpr int64_t INVALID_TOPO_ID = -1;
 }  // namespace minidag

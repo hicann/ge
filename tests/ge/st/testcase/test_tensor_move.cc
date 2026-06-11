@@ -145,8 +145,8 @@ Status RunTensorMoveDeletePass(const ComputeGraphPtr &graph) {
   return pass.Run(names_to_pass);
 }
 
-NodePtr AddTestNode(const ComputeGraphPtr &graph, const std::string &name, const std::string &type, int in_cnt, int out_cnt,
-                    Format format = FORMAT_NCHW, DataType data_type = DT_FLOAT,
+NodePtr AddTestNode(const ComputeGraphPtr &graph, const std::string &name, const std::string &type, int in_cnt,
+                    int out_cnt, Format format = FORMAT_NCHW, DataType data_type = DT_FLOAT,
                     const std::vector<int64_t> &shape = {1, 1, 224, 224}) {
   auto tensor_desc = std::make_shared<GeTensorDesc>();
   tensor_desc->SetShape(GeShape(shape));
@@ -300,12 +300,13 @@ TEST_F(TensorMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
  * 说明：
  * - 基本单输出多引用场景
  * - Add 只读取 Relu 输出，不透传也不 inplace
+ * - TensorMove 后继 NetOutput 也是纯读
  *
  * 预期：
  * - 删除 TensorMove
- * - Add 到 NetOutput 新增控制边
+ * - 旁路与后继均为纯读，二者间无读写冒险，不新增 Add 到 NetOutput 的控制边
  */
-TEST_F(TensorMoveTest, TensorMove_BasicMultiRefBranch_DeletedAndAddControlEdge) {
+TEST_F(TensorMoveTest, TensorMove_BasicMultiRefBranch_DeletedWithoutControlEdge) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu_node = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto add_node = AddTestNode(graph, "Add", ADD, 1, 1);
@@ -326,7 +327,7 @@ TEST_F(TensorMoveTest, TensorMove_BasicMultiRefBranch_DeletedAndAddControlEdge) 
 
   EXPECT_EQ(graph->FindNode("TensorMove"), nullptr);
   EXPECT_TRUE(relu_node->GetOutDataAnchor(0)->IsLinkedWith(netoutput_node->GetInDataAnchor(0)));
-  EXPECT_TRUE(add_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
+  EXPECT_FALSE(add_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
 }
 
 /**
@@ -338,12 +339,13 @@ TEST_F(TensorMoveTest, TensorMove_BasicMultiRefBranch_DeletedAndAddControlEdge) 
  *
  * 说明：
  * - Relu 单输出被多个普通读分支和 TensorMove 同时引用
+ * - TensorMove 后继 NetOutput 也是纯读
  *
  * 预期：
  * - 删除 TensorMove
- * - 两个普通读分支都向 NetOutput 补控制边
+ * - 旁路与后继均为纯读，不向 NetOutput 补控制边
  */
-TEST_F(TensorMoveTest, TensorMove_MultipleBasicMultiRefBranches_DeletedAndAddControlEdges) {
+TEST_F(TensorMoveTest, TensorMove_MultipleBasicMultiRefBranches_DeletedWithoutControlEdges) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu_node = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto add0_node = AddTestNode(graph, "Add0", ADD, 1, 1);
@@ -367,8 +369,8 @@ TEST_F(TensorMoveTest, TensorMove_MultipleBasicMultiRefBranches_DeletedAndAddCon
 
   EXPECT_EQ(graph->FindNode("TensorMove"), nullptr);
   EXPECT_TRUE(relu_node->GetOutDataAnchor(0)->IsLinkedWith(netoutput_node->GetInDataAnchor(0)));
-  EXPECT_TRUE(add0_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
-  EXPECT_TRUE(add1_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
+  EXPECT_FALSE(add0_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
+  EXPECT_FALSE(add1_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
 }
 
 /**
@@ -388,11 +390,12 @@ TEST_F(TensorMoveTest, TensorMove_MultipleBasicMultiRefBranches_DeletedAndAddCon
  * - 待删节点是 TensorMove1
  * - 分叉点位于 TensorMove1 的直接源节点 ScatterNDUpdate0，不是根 Data
  * - 上游 TensorMove0 通过保留属性固定不删除
+ * - TensorMove1 后继 ScatterNDUpdate1 通过 INPLACE_SUPPORT_INPUT_INDEX 覆写源内存
  *
  * 预期：
  * - 删除 TensorMove1
  * - ScatterNDUpdate0 直连 ScatterNDUpdate1
- * - MlpLightningIndexer0 到 ScatterNDUpdate1 新增控制边
+ * - 旁路 MlpLightningIndexer0 纯读、后继 ScatterNDUpdate1 覆写，新增 MlpLightningIndexer0 到 ScatterNDUpdate1 控制边
  * - TensorMove0 保留
  */
 TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_DeletedAndAddControlEdge) {
@@ -408,6 +411,7 @@ TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_Delet
   auto netoutput_node = AddTestNode(graph, "NetOutput", NETOUTPUT, 3, 1);
 
   AttrUtils::SetBool(tensor_move0_node->GetOpDesc(), ATTR_NAME_CANNOT_BE_DELETED, true);
+  SetInplaceOutput(scatter1_node, 0, 0);
 
   GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), tensor_move0_node->GetInDataAnchor(0));
   GraphUtils::AddEdge(tensor_move0_node->GetOutDataAnchor(0), scatter0_node->GetInDataAnchor(0));
@@ -431,6 +435,46 @@ TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_Delet
   EXPECT_EQ(graph->FindNode("TensorMove1"), nullptr);
   EXPECT_TRUE(scatter0_node->GetOutDataAnchor(0)->IsLinkedWith(scatter1_node->GetInDataAnchor(0)));
   EXPECT_TRUE(mlp_indexer0_node->GetOutControlAnchor()->IsLinkedWith(scatter1_node->GetInControlAnchor()));
+}
+
+/**
+ *        Relu
+ *       /    \
+ *  Sibling  TensorMove
+ *     ^         |
+ *     |       Succ(inplace)
+ *     +---------+
+ *
+ * 说明：
+ * - Sibling 纯读 Relu 输出
+ * - Succ 通过 INPLACE_SUPPORT_INPUT_INDEX 覆写源内存
+ * - Succ 已经通过数据边到达 Sibling，若补 Sibling -> Succ 控制边会成环
+ *
+ * 预期：
+ * - 保留 TensorMove
+ * - 不添加 Sibling 到 Succ 的控制边
+ */
+TEST_F(TensorMoveTest, TensorMove_SuccessorReachesSiblingViaDataPath_Kept) {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  auto relu_node = AddTestNode(graph, "Relu", RELU, 1, 1);
+  auto sibling_node = AddTestNode(graph, "Sibling", ADD, 2, 1);
+  auto tensor_move_node = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
+  auto succ_node = AddTestNode(graph, "Succ", ADD, 1, 1);
+  auto netoutput_node = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
+
+  SetInplaceOutput(succ_node, 0, 0);
+
+  GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), sibling_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), tensor_move_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(tensor_move_node->GetOutDataAnchor(0), succ_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(succ_node->GetOutDataAnchor(0), sibling_node->GetInDataAnchor(1));
+  GraphUtils::AddEdge(sibling_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+
+  EXPECT_EQ(RunTensorMoveDeletePass(graph), SUCCESS);
+
+  EXPECT_NE(graph->FindNode("TensorMove"), nullptr);
+  EXPECT_TRUE(tensor_move_node->GetOutDataAnchor(0)->IsLinkedWith(succ_node->GetInDataAnchor(0)));
+  EXPECT_FALSE(sibling_node->GetOutControlAnchor()->IsLinkedWith(succ_node->GetInControlAnchor()));
 }
 
 /**
@@ -536,6 +580,10 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump46ThreeReshapeAndSqueezeBranches_Delete
   GraphUtils::AddEdge(mla->GetOutDataAnchor(2), reshape0->GetInDataAnchor(0));
   GraphUtils::AddEdge(reshape0->GetOutDataAnchor(0), reshape1->GetInDataAnchor(0));
   GraphUtils::AddEdge(reshape1->GetOutDataAnchor(0), reshape2->GetInDataAnchor(0));
+  // ScatterNdUpdate 原地写回 input0 对应的源内存，旁路 IndexByTensor 纯读，需补 reader-before-writer 控制边
+  SetInplaceOutput(scatter0, 0, 0);
+  SetInplaceOutput(scatter1, 0, 0);
+
   GraphUtils::AddEdge(reshape2->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(0));
   GraphUtils::AddEdge(indices->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(1));
   GraphUtils::AddEdge(index_by_tensor0->GetOutDataAnchor(0), scatter0->GetInDataAnchor(2));
@@ -621,6 +669,9 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump70LeftTmP3P4_Deleted) {
   GraphUtils::AddEdge(tensor_move_kv->GetOutDataAnchor(0), mla->GetInDataAnchor(9));
 
   GraphUtils::AddEdge(mla->GetOutDataAnchor(2), reshape_p4->GetInDataAnchor(0));
+  // ScatterNdUpdate 原地写回 input0 对应的源内存，旁路 IndexByTensor_2 纯读，需补 reader-before-writer 控制边
+  SetInplaceOutput(scatter0, 0, 0);
+
   GraphUtils::AddEdge(reshape_p4->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(0));
   GraphUtils::AddEdge(indices->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(1));
   GraphUtils::AddEdge(index_by_tensor0->GetOutDataAnchor(0), scatter0->GetInDataAnchor(2));
@@ -923,6 +974,7 @@ TEST_F(TensorMoveTest, TensorMove_InplaceBranchWithoutReaderCtrl_Kept) {
 /**
  * atomic 输出分支（ATOMIC_ATTR_OUTPUT_INDEX 存在）但输出不复用输入时，
  * 不代表旁路会覆写 source 内存，可按普通旁路分支删除 TM。
+ * 旁路 AtomicBranch 与 TM 后继 Reader 均为纯读，二者间无读写冒险，不补控制边。
  */
 TEST_F(TensorMoveTest, TensorMove_AtomicIndependentOutputBranch_Deleted) {
   auto graph = std::make_shared<ComputeGraph>("g1");
@@ -944,7 +996,7 @@ TEST_F(TensorMoveTest, TensorMove_AtomicIndependentOutputBranch_Deleted) {
   EXPECT_EQ(CountNodesByType(graph, TENSORMOVE), 0U);
   EXPECT_TRUE(relu->GetOutDataAnchor(0)->IsLinkedWith(reader->GetInDataAnchor(0)));
   EXPECT_TRUE(relu->GetOutDataAnchor(0)->IsLinkedWith(atomic_branch->GetInDataAnchor(0)));
-  EXPECT_TRUE(atomic_branch->GetOutControlAnchor()->IsLinkedWith(reader->GetInControlAnchor()));
+  EXPECT_FALSE(atomic_branch->GetOutControlAnchor()->IsLinkedWith(reader->GetInControlAnchor()));
 }
 
 /**
@@ -1009,7 +1061,8 @@ TEST_F(TensorMoveTest, TensorMove_BothTmSuccAndSiblingOverwriteSource_Kept) {
  *
  *
  * 预期行为：
- * - 删除 TensorMove,sub_sub_NetOutput两个输出，一个空悬，一个给到TensorMove，但是任意一个的输入都是计算节点(TransData或Add)
+ * - 删除
+ * TensorMove,sub_sub_NetOutput两个输出，一个空悬，一个给到TensorMove，但是任意一个的输入都是计算节点(TransData或Add)
  */
 TEST_F(TensorMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
@@ -1056,8 +1109,7 @@ TEST_F(TensorMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
 
   ASSERT_TRUE(SetTransDataTensorDesc(compute_graph, {"transdata", "sub_sub_transdata"}));
 
-  NetoutputParentIndexes indexes{{"sub_netoutput", {0}},
-                                 {"sub_sub_netoutput", {0, 1}}};
+  NetoutputParentIndexes indexes{{"sub_netoutput", {0}}, {"sub_sub_netoutput", {0, 1}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
   ge::GEPass pass(compute_graph);
@@ -1141,7 +1193,6 @@ TEST_F(TensorMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
   sub_sub_1_graph->SetParentNode(sub_partitioned_call_node);
   compute_graph->AddSubGraph(sub_sub_1_graph);  // 嵌套子图
 
-
   const auto sub_sub_graph_1 = compute_graph->GetSubgraph("sub_sub_1");
   ASSERT_NE(sub_sub_graph_1, nullptr);
 
@@ -1150,7 +1201,6 @@ TEST_F(TensorMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
   NetoutputParentIndexes indexes{{"sub_netoutput", {0}},
                                  {"sub_sub_netoutput", {0, 1}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
-
 
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
@@ -1343,7 +1393,6 @@ TEST_F(TensorMoveTest, TensorMoveInRootAndIfSub_ViaTransData_Deleted) {
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(compute_graph->FindNode("tensormove"), nullptr);
   EXPECT_EQ(if_sub_graph->FindNode("if_tensormove"), nullptr);
-
 }
 
 /**
@@ -1540,6 +1589,7 @@ TEST_F(TensorMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(if_sub) {
+    CHAIN(NODE("if_sub_data", if_sub_data)->EDGE(0, 1)->NODE("if_sub_netoutput", NETOUTPUT));
     CHAIN(NODE("if_sub_data", if_sub_data)
               ->EDGE(0, 1)->NODE("if_sub_netoutput", NETOUTPUT));
     CHAIN(NODE("if_sub_data", if_sub_data)
@@ -1719,8 +1769,8 @@ TEST_F(TensorMoveTest, Add_InnerIdentity1) {
     CHAIN(NODE("data1")->EDGE(0, 1)->NODE("add1"));
     CHAIN(NODE("add1")->EDGE(0, 0)->NODE("add3"));
     CHAIN(NODE("data2", DATA)->EDGE(0, 1)->NODE(assign));
-    CHAIN(NODE("data1")->EDGE(0,0)->NODE("add2", ADD)->EDGE(0, 1)->NODE("add3"));
-    CHAIN(NODE("data1")->EDGE(0,1)->NODE("add2"));
+    CHAIN(NODE("data1")->EDGE(0, 0)->NODE("add2", ADD)->EDGE(0, 1)->NODE("add3"));
+    CHAIN(NODE("data1")->EDGE(0, 1)->NODE("add2"));
   };
 
   auto graph = ToGeGraph(g1);
@@ -1769,7 +1819,7 @@ TEST_F(TensorMoveTest, Add_InnerIdentity2) {
     CHAIN(NODE("const1", CONSTANT)->NODE("addn", AddNYes)->NODE(assign)->CTRL_EDGE()->NODE("shape1", ShapeNo));
     CHAIN(NODE("const2", CONSTANT)->EDGE(0, 1)->NODE("addn"));
     CHAIN(NODE("data", DATA)->EDGE(0, 1)->NODE(assign));
-    CHAIN(NODE("addn")->EDGE(0, 0)->NODE("shape1")->NODE("net_output",NETOUTPUT));
+    CHAIN(NODE("addn")->EDGE(0, 0)->NODE("shape1")->NODE("net_output", NETOUTPUT));
   };
   auto graph = ToGeGraph(g1);
   auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);

@@ -23,6 +23,8 @@
 #include "graph/utils/node_adapter.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
+#include "graph/ge_local_context.h"
+#include "external/ge_common/ge_common_api_types.h"
 
 namespace ge {
 namespace {
@@ -63,8 +65,11 @@ class DAGAdapterIntegrationTest : public testing::Test {
  protected:
   static void SetUpTestSuite() {
     std::map<std::string, std::string> options;
+    options[ge::SOC_VERSION] = "Ascend910B1";
     EXPECT_EQ(ge::GELib::Initialize(options), ge::SUCCESS);
     ge::GELib::GetInstance()->OpsKernelManagerObj().ops_kernel_store_.clear();
+
+    ge::GetThreadLocalContext().SetGraphOption(options);
 
     ge::GeRunningEnvFaker().Reset()
       .Install(ge::FakeEngine("DNN_VM_GE_LOCAL").KernelInfoStore("DNN_VM_GE_LOCAL_OP_STORE"))
@@ -338,6 +343,118 @@ TEST_F(DAGAdapterIntegrationTest, RefreshStreamIdsToGE_VariousStreamIds) {
   ge::StreamPassContext context(101);
   ret = DAGAdapter::RefreshStreamIdsToGE(*dag, ge_graph, context);
   EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+
+// --------------------
+// 场景 3：DeviceResourceInfo 测试
+// --------------------
+
+/**
+ * 场景 3-1: DeviceResourceInfo 默认值验证
+ */
+TEST_F(DAGAdapterIntegrationTest, DeviceResourceInfo_DefaultValues) {
+  minidag::DeviceResourceInfo resource;
+  EXPECT_EQ(resource.cube_core_num, -1);
+  EXPECT_EQ(resource.vector_core_num, -1);
+
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->AddNode("node1", "Conv");
+  const auto& default_resource = dag->GetDeviceResource();
+  EXPECT_EQ(default_resource.cube_core_num, -1);
+  EXPECT_EQ(default_resource.vector_core_num, -1);
+}
+
+/**
+ * 场景 3-2: DeviceResourceInfo 设置与获取验证
+ */
+TEST_F(DAGAdapterIntegrationTest, DeviceResourceInfo_SetAndGet) {
+  minidag::DeviceResourceInfo resource;
+  resource.cube_core_num = 30;
+  resource.vector_core_num = 15;
+
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->SetDeviceResource(resource);
+
+  const auto& retrieved = dag->GetDeviceResource();
+  EXPECT_EQ(retrieved.cube_core_num, 30);
+  EXPECT_EQ(retrieved.vector_core_num, 15);
+}
+
+/**
+ * 场景 3-3: FromGEGraph 后 DeviceResource 被正确填充
+ */
+TEST_F(DAGAdapterIntegrationTest, FromGEGraph_DeviceResourcePopulated) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+
+  auto ge_graph = ToConstGraphPtr(compute_graph);
+  ASSERT_NE(ge_graph, nullptr);
+
+  std::shared_ptr<minidag::DAGGraph> dag;
+  auto ret = DAGAdapter::FromGEGraph(ge_graph, dag);
+  ASSERT_EQ(ret, ge::GRAPH_SUCCESS);
+  ASSERT_NE(dag, nullptr);
+
+  const auto& resource = dag->GetDeviceResource();
+  EXPECT_GT(resource.cube_core_num, 0);
+  EXPECT_GT(resource.vector_core_num, 0);
+}
+
+/**
+ * 场景 3-4: FillDeviceResource 直接调用成功路径
+ */
+TEST_F(DAGAdapterIntegrationTest, FillDeviceResource_Success) {
+  auto dag = std::make_shared<minidag::DAGGraph>("test_dag");
+  dag->AddNode("node1", "Conv");
+
+  auto ret = DAGAdapter::FillDeviceResource(*dag);
+  EXPECT_EQ(ret, ge::SUCCESS);
+
+  const auto& resource = dag->GetDeviceResource();
+  // stub 实现固定返回 32
+  EXPECT_GT(resource.cube_core_num, 0);
+  EXPECT_GT(resource.vector_core_num, 0);
+}
+
+/**
+ * 场景 3-5: DeviceResourceInfo 各字段独立验证
+ */
+TEST_F(DAGAdapterIntegrationTest, DeviceResourceInfo_FieldVerification) {
+  minidag::DeviceResourceInfo resource;
+  resource.cube_core_num = 32;
+  resource.vector_core_num = 64;
+
+  auto dag = std::make_shared<minidag::DAGGraph>("field_test_dag");
+  dag->SetDeviceResource(resource);
+
+  const auto& r1 = dag->GetDeviceResource();
+  EXPECT_EQ(r1.cube_core_num, 32);
+  EXPECT_EQ(r1.vector_core_num, 64);
+
+  // 覆盖多次设置场景
+  resource.cube_core_num = 48;
+  dag->SetDeviceResource(resource);
+  const auto& r2 = dag->GetDeviceResource();
+  EXPECT_EQ(r2.cube_core_num, 48);
+}
+
+/**
+ * 场景 3-6: FillDeviceResource 后设备资源值合理性
+ */
+TEST_F(DAGAdapterIntegrationTest, FillDeviceResource_ValuesReasonable) {
+  auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  auto ge_graph = ToConstGraphPtr(compute_graph);
+  ASSERT_NE(ge_graph, nullptr);
+
+  std::shared_ptr<minidag::DAGGraph> dag;
+  auto ret = DAGAdapter::FromGEGraph(ge_graph, dag);
+  ASSERT_EQ(ret, ge::GRAPH_SUCCESS);
+
+  const auto& resource = dag->GetDeviceResource();
+  EXPECT_GT(resource.cube_core_num, 0);
+  EXPECT_GE(resource.vector_core_num, 0);
 }
 
 

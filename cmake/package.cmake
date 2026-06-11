@@ -82,7 +82,7 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
     message(STATUS "************Install ge-compiler packages***************")
     install_public_packages(ge-compiler)
     if(NOT MDC_COMPILE_RUNTIME)
-        install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler ge_python_pass_bridge fmk_onnx_parser opskernel ge_runner
+        install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
                         slice aicpu_const_folding llm_engine jit_exe _caffe_parser func2graph flow_graph aihac_autofusion dflow_runner eager_style_graph_builder_base
                         eager_style_graph_builder_base_static ge_runner_v2 aihac_symbolizer compress compressweight
                         hcom_gradient_split_tune hcom_graph_adaptor acl_op_compiler
@@ -220,8 +220,10 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
     message(STATUS "************Install ge-executor packages***************")
     install_public_packages(ge-executor)
     if(NOT MDC_COMPILE_RUNTIME)
-        install(TARGETS ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert om2_executor register
-                graph lowering register_static graph_base model_deployer npu_sched_model_loader data_flow_base hcom_executor
+        install(TARGETS ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert om2_executor
+                register graph lowering register_static graph_base custom_op_registry_static model_deployer
+                npu_sched_model_loader
+                data_flow_base hcom_executor
                 acl_mdl acl_mdl_impl acl_mdl_impl_om2 acl_op_executor acl_op_executor_impl acl_cblas
                 LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-executor
                 ARCHIVE DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-executor

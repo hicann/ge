@@ -15,6 +15,9 @@
 #include "graph/debug/ge_attr_define.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/build/stream/stream_utils.h"
+#include "graph/ge_local_context.h"
+#include "external/ge_common/ge_common_api_types.h"
+#include "platform/platform_info.h"
 
 namespace ge {
 graphStatus DAGAdapter::ToGEStatus(minidag::graphStatus status) {
@@ -53,6 +56,9 @@ graphStatus DAGAdapter::FromGEGraph(const ConstGraphPtr &ge_graph,
   auto edges_ret = ConvertEdges(ge_graph, *dag);
   GE_ASSERT_SUCCESS(edges_ret, "FromGEGraph failed: ConvertEdges returned %d",
                     static_cast<int>(edges_ret));
+
+  // 获取设备资源信息
+  GE_CHK_STATUS_RET(FillDeviceResource(*dag), "Failed to fill device resource info.");
 
   GELOGI("FromGEGraph done: nodes=%zu, edges=%zu",
           dag->GetNodeCount(), dag->GetEdgeCount());
@@ -239,4 +245,32 @@ graphStatus DAGAdapter::RefreshStreamIdsToGE(
           success_count, skip_count, filtered_count);
   return GRAPH_SUCCESS;
 }
-}  // namespace minidag
+
+Status DAGAdapter::FillDeviceResource(minidag::DAGGraph &dag) {
+  minidag::DeviceResourceInfo resource;
+
+  std::string soc_version;
+  auto ret = GetThreadLocalContext().GetOption(ge::SOC_VERSION, soc_version);
+  if (ret != GRAPH_SUCCESS || soc_version.empty()) {
+    GELOGW("Failed to get soc_version from thread local context, DeviceResourceInfo will use default values -1.");
+    return SUCCESS;
+  }
+
+  fe::PlatformInfo platform_info;
+  fe::OptionalInfo optional_info;
+  if (fe::PlatformInfoManager::GeInstance().InitializePlatformInfo() != 0U ||
+      fe::PlatformInfoManager::GeInstance().GetPlatformInfo(soc_version, platform_info, optional_info) != 0U) {
+    GELOGW("Failed to get platform info for soc_version %s, DeviceResourceInfo will use default values -1.",
+           soc_version.c_str());
+    return SUCCESS;
+  }
+  resource.cube_core_num = platform_info.soc_info.ai_core_cnt;
+  resource.vector_core_num = platform_info.soc_info.vector_core_cnt;
+
+  GELOGI("DeviceResourceInfo: soc_version=%s, aicore=%ld, vector=%ld",
+         soc_version.c_str(), resource.cube_core_num, resource.vector_core_num);
+
+  dag.SetDeviceResource(resource);
+  return SUCCESS;
+}
+}  // namespace ge

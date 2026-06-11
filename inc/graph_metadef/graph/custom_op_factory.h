@@ -10,6 +10,7 @@
 
 #ifndef CANN_GRAPH_ENGINE_CUSTOM_OP_REGISTRY_H
 #define CANN_GRAPH_ENGINE_CUSTOM_OP_REGISTRY_H
+#include <memory>
 #include <vector>
 
 #include "graph/custom_op.h"
@@ -18,12 +19,16 @@
 
 
 namespace ge {
+class CustomOpRegistry;
+using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;
 
 class CustomOpFactory {
 public:
   static graphStatus RegisterCustomOpCreator(const AscendString &op_type, const BaseOpCreator &op_creator);
 
   static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type);
+
+  static CustomOpRegistryPtr GetGlobalRegistryPtr();
 
   static graphStatus GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops);
 
@@ -32,6 +37,8 @@ public:
   static graphStatus LoadCustomOpsPartition(const uint8_t *data, size_t len);
 
   static bool IsAddressRefreshable(const AscendString &op_type);
+ private:
+  static CustomOpRegistry &GetGlobalRegistry();
 };
 } // namespace ge
 #endif  // CANN_GRAPH_ENGINE_CUSTOM_OP_REGISTRY_H

@@ -30,6 +30,7 @@
 #include "hcom/hcom_topo_info.h"
 #include "executor/ge_executor.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "graph/custom_op_factory.h"
 
 using namespace std;
 
@@ -144,6 +145,7 @@ TEST_F(UtestModelExecutorTest, test_load_graph_sync) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
@@ -175,6 +177,7 @@ TEST_F(UtestModelExecutorTest, test_load_graph_async) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
 
@@ -205,6 +208,7 @@ TEST_F(UtestModelExecutorTest, test_recover_graph) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
@@ -269,6 +273,7 @@ TEST_F(UtestModelExecutorTest, test_check_and_release_stream_success) {
     auto compute_graph = MakeShared<ComputeGraph>(graph_name);
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
     GeModelPtr ge_model = MakeShared<GeModel>();
     ge_model->SetGraph(compute_graph);
@@ -327,6 +332,7 @@ TEST_F(UtestModelExecutorTest, test_check_and_release_stream_failed) {
     auto compute_graph = MakeShared<ComputeGraph>(graph_name);
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
     GeModelPtr ge_model = MakeShared<GeModel>();
     ge_model->SetGraph(compute_graph);
     ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
@@ -383,6 +389,7 @@ TEST_F(UtestModelExecutorTest, test_check_and_release_event_success) {
     auto compute_graph = MakeShared<ComputeGraph>(graph_name);
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
     GeModelPtr ge_model = MakeShared<GeModel>();
     ge_model->SetGraph(compute_graph);
@@ -460,6 +467,7 @@ TEST_F(UtestModelExecutorTest, test_check_and_release_event_failed) {
     auto compute_graph = MakeShared<ComputeGraph>(graph_name);
     GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+    ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
     GeModelPtr ge_model = MakeShared<GeModel>();
     ge_model->SetGraph(compute_graph);
@@ -894,6 +902,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
@@ -942,6 +951,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
 
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
@@ -1182,6 +1192,7 @@ static void test_run_graph(ModelExecutor &model_executor) {
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   GeModelPtr ge_model = MakeShared<GeModel>();
   ge_model->SetGraph(compute_graph);
   shared_ptr<domi::ModelTaskDef> model_task_def = std::make_shared<domi::ModelTaskDef>();

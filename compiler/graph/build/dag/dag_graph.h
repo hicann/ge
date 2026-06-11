@@ -34,12 +34,15 @@ class DAGGraph {
   graphStatus AddEdge(std::shared_ptr<DAGNode> src, int32_t src_port,
                       std::shared_ptr<DAGNode> dst, int32_t dst_port);
   std::vector<std::shared_ptr<DAGEdge>> GetAllEdges() const;
+  void SetDeviceResource(const DeviceResourceInfo &resource);
+  const DeviceResourceInfo &GetDeviceResource() const;
 
  private:
   std::string name_;
   std::unordered_map<std::string, std::shared_ptr<DAGNode>> nodes_;
   std::vector<std::shared_ptr<DAGEdge>> edges_;
   std::vector<std::string> node_order_;
+  DeviceResourceInfo device_resource_;
 };
 
 }  // namespace minidag

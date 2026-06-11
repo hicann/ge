@@ -69,6 +69,7 @@ enum class DavinciModelCreateInput {
   kP2pFixedMemTensorFromInit,
   kFrozenInputIndicies,
   kFileConstantUserMem,
+  kCustomOpRegistry,
   kDavinciModelCreateInputEnd
 };
 

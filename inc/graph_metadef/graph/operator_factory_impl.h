@@ -137,6 +137,8 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY OperatorFactoryImpl {
 
   static void ReleaseRegInfo();
 
+  static void RemoveCustomOpCreators(const std::vector<std::string> &op_types);
+
   static void BackupAndClearRegInfoOnce();
 
   static void MergeBackupCreatorsOnce();
