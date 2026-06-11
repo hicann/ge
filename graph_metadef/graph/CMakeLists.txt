@@ -296,7 +296,7 @@ target_include_directories(custom_op_registry_static PRIVATE
 )
 
 target_link_libraries(custom_op_registry_static
-    PRIVATE intf_pub
+    PRIVATE intf_pub c_sec_headers runtime_headers
     PUBLIC metadef_headers)
 
 if (${ENABLE_OPEN_SRC} STREQUAL "True")
