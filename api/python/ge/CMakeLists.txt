@@ -36,6 +36,7 @@ set(GE_PYTHON_PASS_NATIVE_WHEEL
         ${CMAKE_CURRENT_BINARY_DIR}/ge_py_pass_bridge-0.0.1-${GE_PYTHON_PASS_PYTHON_TAG}-${GE_PYTHON_PASS_PYTHON_TAG}-${GE_PYTHON_PASS_WHEEL_PLATFORM}.whl)
 set(GE_PYTHON_PASS_NATIVE_WHEEL ${GE_PYTHON_PASS_NATIVE_WHEEL} CACHE INTERNAL "GE python pass native artifact wheel")
 set(GE_PYTHON_PASS_NATIVE_MATRIX_DIST_DIR ${CMAKE_CURRENT_BINARY_DIR}/native_wheel_matrix_dist)
+set(GE_PYTHON_PASS_BUILD_METADATA_DIR ${PROJECT_BINARY_DIR})
 set(GE_PYTHON_PASS_MATRIX_COMPILER_ARGS "--cxx-compiler" "${CMAKE_CXX_COMPILER}")
 if (CMAKE_CXX_COMPILER_LAUNCHER)
     list(APPEND GE_PYTHON_PASS_MATRIX_COMPILER_ARGS
@@ -82,7 +83,7 @@ add_custom_target(ge_python_native_wheel DEPENDS ${GE_PYTHON_PASS_NATIVE_WHEEL})
 add_custom_target(ge_python_pass_native_wheel_matrix
          COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_pass_native_matrix.py
             --source-dir ${AIR_CODE_DIR}
-            --build-dir ${CMAKE_BINARY_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
             --work-dir ${CMAKE_CURRENT_BINARY_DIR}/native_wheel_matrix_build
             --dist-dir ${GE_PYTHON_PASS_NATIVE_MATRIX_DIST_DIR}
             --platform-tag ${GE_PYTHON_PASS_PLATFORM_TAG}
@@ -106,7 +107,7 @@ add_custom_command(
                 ${GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY}
          COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
             --output-dir ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}
-            --build-dir ${CMAKE_BINARY_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
             --cann-root ${ASCEND_INSTALL_PATH}
             --bridge-abi ${GE_PYTHON_PASS_BRIDGE_ABI_VERSION}
             --bridge-source ${GE_PYTHON_PASS_BRIDGE_SOURCES}
