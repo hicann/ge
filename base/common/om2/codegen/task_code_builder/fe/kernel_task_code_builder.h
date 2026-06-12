@@ -30,7 +30,7 @@ constexpr uint64_t kMaxTilingDataSize = 16UL * 1024UL;
 class KernelTaskCodeBuilder : public TaskCodeBuilder {
  public:
   explicit KernelTaskCodeBuilder(AstBuildContext &ast)
-      : TaskCodeBuilder(ast), cust_value_var_index_(0), place_holder_var_index_(0) {}
+      : TaskCodeBuilder(ast) {}
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   Status RenderDistribution(std::vector<BodyItem> &items) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
@@ -76,6 +76,8 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status BuildLaunchSemantic(const TaskSemanticContributeContext &context);
   static Status ResolveKernelName(const KernelTaskSemantic &semantic, const OpDescPtr &op_desc,
                                    const domi::TaskDef &task_def, std::string &kernel_name);
+  std::string ResolveFuncHandleKey(const TaskSemanticContributeContext &context,
+                                 const std::string &kernel_name) const;
   Status ResolveTaskAddrs(TaskSemanticContributeContext &context);
   Status CopyTilingDataIfNeeded(const TaskSemanticContributeContext &context, const ArgsFormatInfo &args_format_holder);
   Status ConstructDfxInfo(const ge::OpDescPtr &op_desc, const optiling::OpRunInfoV2 &run_info,
@@ -90,11 +92,9 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   void AppendOrderedArgValue(const AddrSemantic &semantic);
   Status AppendOrderedArgValueForCommon(const AddrSemantic &semantic, const uint64_t addr_offset);
   void AppendOrderedArg(const AddrSemantic &semantic);
-  Status UpdateShapeAndType(const std::vector<int64_t> &dims, const DataType data_type,
-                            AicpuShapeAndType &shape_and_type) const;
   Status UpdateShapeAndType(const GeShape &shape, AicpuShapeAndType *const shape_and_type) const;
   Status ParseArgsFormat(const OpDescPtr &op_desc, ArgsFormatInfo &args_format_holder) const;
-  size_t GetArgsSizeByFormat(const OpDescPtr op_desc, ArgsFormatInfo &args_format_holder) const;
+  size_t GetArgsSizeByFormat(const OpDescPtr op_desc, const ArgsFormatInfo &args_format_holder) const;
   size_t GetExtraArgsSize(const OpDescPtr &op_desc, const ccKernelType kernel_type,
                           const ArgsFormatInfo &args_format_holder) const;
   void InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint32_t args_size);
@@ -195,8 +195,8 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
 
  private:
   std::vector<RenderedAddrInfo> args_addr_nodes_;
-  int32_t cust_value_var_index_;
-  int32_t place_holder_var_index_;
+  int32_t cust_value_var_index_{0};
+  int32_t place_holder_var_index_{0};
   std::vector<size_t> materialized_output_indices_;
   std::string kernel_name_;
   bool op_need_print_{false};

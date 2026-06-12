@@ -1372,7 +1372,7 @@ TEST_F(Om2CodegenModelBuilderUt, RenderDistribution_UsesTensorAndDeviceAddress_M
   std::vector<BodyItem> items;
   ASSERT_EQ(memcpy_async_builder->RenderDistribution(items), SUCCESS);
   const auto code = EmitCodeFromBodyItems(items);
-  EXPECT_NE(code.find("Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 2048),"),
+  EXPECT_NE(code.find("auto op2_output0 = GET_ADDR(total_dev_mem_ptr_, 2048)"),
             std::string::npos);
   EXPECT_NE(code.find("FlattenHostArgs(op2_input0, op2_output0)"), std::string::npos);
   EXPECT_NE(code.find("memcpy_s(args_table_.GetArgsInfo(1)->host_addr"), std::string::npos);
