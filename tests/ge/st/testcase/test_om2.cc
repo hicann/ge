@@ -190,6 +190,73 @@ GeRootModelPtr CreateGeRootModelWithAicoreOp() {
   return ge_root_model;
 }
 
+GeRootModelPtr CreateGeRootModelWithAtomicAicoreOp() {
+  const std::string args_format = "{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}";
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add", gert::AiCoreTaskDefFaker("add_stub").AtomicStubNum("atomic_add_stub")
+                                 .ArgsFormat(args_format))
+          .FakeTbeBin({gert::GeModelBuilder::TbeConfig("Add", true)})
+          .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  OpDescPtr add_desc = nullptr;
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      if (op_desc->GetType() == "Add") {
+        op_desc->AppendIrInput("x1", kIrInputRequired);
+        op_desc->AppendIrInput("x2", kIrInputRequired);
+        op_desc->AppendIrOutput("y", kIrOutputRequired);
+        (void)AttrUtils::SetBool(op_desc, ATTR_NAME_NEED_GENTASK_ATOMIC, true);
+        (void)AttrUtils::SetStr(op_desc, kAtomicPrefix + TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
+        add_desc = op_desc;
+      }
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+      op_desc->SetWorkspaceBytes(std::vector<int64_t>(1, 64));
+      op_desc->SetWorkspace(std::vector<int64_t>(1, 0));
+    }
+  }
+
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  if ((add_desc == nullptr) || name_to_ge_model.empty()) {
+    return nullptr;
+  }
+  const auto ge_model = name_to_ge_model.begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  const auto kernel_name_ptr = AttrUtils::GetStr(add_desc, "_kernelname");
+  const auto atomic_kernel_name_ptr = AttrUtils::GetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME);
+  if ((model_task_def == nullptr) || (model_task_def->task_size() < 2) ||
+      (kernel_name_ptr == nullptr) || (atomic_kernel_name_ptr == nullptr)) {
+    return nullptr;
+  }
+  model_task_def->mutable_task(0)->mutable_kernel()->set_kernel_name(*atomic_kernel_name_ptr);
+  model_task_def->mutable_task(0)->mutable_kernel()->mutable_context()->set_args_format(args_format);
+  model_task_def->mutable_task(1)->mutable_kernel()->set_kernel_name(*kernel_name_ptr);
+  model_task_def->mutable_task(1)->mutable_kernel()->mutable_context()->set_args_format(args_format);
+
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
 GeRootModelPtr CreateGeRootModelWithInternalConstOp() {
   auto ge_root_model = CreateGeRootModelWithAicoreOp();
   if (ge_root_model == nullptr) {
@@ -398,6 +465,7 @@ GeRootModelPtr CreateGeRootModelWithCustAicpuOp() {
     }
   }
 
+  CustAICPUKernelStore cust_aicpu_kernel_store;
   // Set CUST_AICPU kernel binary on op_desc extended attributes
   for (const auto &node : compute_graph->GetDirectNode()) {
     auto op_desc = node->GetOpDesc();
@@ -405,9 +473,12 @@ GeRootModelPtr CreateGeRootModelWithCustAicpuOp() {
       std::vector<char> kernel_bin(64, '\0');
       auto cust_aicpu_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
       op_desc->SetExtAttr(ge::OP_EXTATTR_CUSTAICPU_KERNEL, cust_aicpu_kernel);
+      cust_aicpu_kernel_store.AddCustAICPUKernel(cust_aicpu_kernel);
       (void)ge::AttrUtils::SetStr(op_desc, "kernelSo", "libcust_aicpu_kernel.so");
     }
   }
+  (void)cust_aicpu_kernel_store.Build();
+  ge_model->SetCustAICPUKernelStore(cust_aicpu_kernel_store);
 
   std::vector<uint64_t> weights_value(64, 1024);
   const size_t weight_size = weights_value.size() * sizeof(uint64_t);
@@ -1086,6 +1157,44 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   ExpectOm2ArchiveFiles(archive, expect_files);
 }
 
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAtomicAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_atomic.om2"});
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+  const std::set<std::string> expect_files = {
+      "fake_test_atomic/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test_atomic/data/model_0/runtime/g1_resources.cpp",
+      "fake_test_atomic/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test_atomic/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test_atomic/data/model_0/runtime/g1_interface.h",
+      "fake_test_atomic/data/model_0/runtime/Makefile",
+      "fake_test_atomic/data/model_0/runtime/libg1_om2.so",
+      "fake_test_atomic/data/constants/model_0_constants_config.json",
+      "fake_test_atomic/data/kernels_npu_arch/add1_faked_kernel.o",
+      "fake_test_atomic/data/kernels_npu_arch/add1_faked_atomic_kernel.o",
+      "fake_test_atomic/data/model_0/model_meta.json",
+      "fake_test_atomic/data/model_0/debug/op_attr.json",
+      "fake_test_atomic/manifest.json",
+  };
+  ExpectOm2ArchiveFiles(archive, expect_files);
+
+  size_t kernel_reg_size = 0U;
+  const auto kernel_reg_buf =
+      archive.ExtractToMem("fake_test_atomic/data/model_0/runtime/g1_kernel_reg.cpp", kernel_reg_size);
+  ASSERT_NE(kernel_reg_buf, nullptr);
+  const std::string kernel_reg(reinterpret_cast<const char *>(kernel_reg_buf.get()), kernel_reg_size);
+  EXPECT_NE(kernel_reg.find("add1_faked_atomic_kernel"), std::string::npos);
+}
+
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
   Om2PackageHelper om2_packager;
   const auto ge_root_model = CreateGeRootModelWithInternalConstOp();
@@ -1382,7 +1491,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
-    "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/debug/op_attr.json",
       "fake_test/manifest.json",
   };
   EXPECT_EQ(file_names.size(), expect_files.size());
@@ -1406,7 +1515,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
-  const std::set<std::string> expect_files = {
+  const std::set<std::string> expect_files_without_cust_kernel = {
       "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
       "fake_test/data/model_0/runtime/g1_resources.cpp",
       "fake_test/data/model_0/runtime/g1_args_manager.cpp",
@@ -1419,10 +1528,17 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
       "fake_test/data/model_0/debug/op_attr.json",
       "fake_test/manifest.json",
   };
-  EXPECT_EQ(file_names.size(), expect_files.size());
+  EXPECT_EQ(file_names.size(), expect_files_without_cust_kernel.size() + 1U);
+  bool found_cust_kernel = false;
   for (const auto &file_name : file_names) {
-    EXPECT_EQ(expect_files.count(file_name), 1);
+    if ((file_name.find("fake_test/data/kernels_npu_arch/") != std::string::npos) &&
+        (file_name.find("_CustAicpuKernel.o") != std::string::npos)) {
+      found_cust_kernel = true;
+      continue;
+    }
+    EXPECT_EQ(expect_files_without_cust_kernel.count(file_name), 1);
   }
+  EXPECT_TRUE(found_cust_kernel);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {

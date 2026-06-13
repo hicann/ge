@@ -444,6 +444,12 @@ Status KernelTaskCodeBuilder::ResolveTaskAddrs(TaskSemanticContributeContext &co
 
 Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeContext &context) {
   GE_ASSERT_NOTNULL(context.func_handle_indices);
+  GE_ASSERT_SUCCESS(BuildLaunchConfigSemantic(context));
+  GE_ASSERT_SUCCESS(BuildLaunchFuncHandleSemantic(context));
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::BuildLaunchConfigSemantic(const TaskSemanticContributeContext &context) {
   auto &launch_semantic = semantic_.launch;
   launch_semantic.stream_id = context.task_def.stream_id();
   if ((semantic_.task_type == ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL) ||
@@ -472,6 +478,11 @@ Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeCo
       launch_semantic.config.schedule_mode = static_cast<uint8_t>(kernel_def.schedule_mode() & k2BitsMask);
     }
   }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::BuildLaunchFuncHandleSemantic(const TaskSemanticContributeContext &context) {
+  auto &launch_semantic = semantic_.launch;
   std::string kernel_name;
   GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name));
   const std::string func_handle_key = ResolveFuncHandleKey(context, kernel_name);
@@ -672,7 +683,7 @@ Status KernelTaskCodeBuilder::CheckTaskSupport() const {
 }
 
 Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> &args_vars,
-                                                         std::vector<BodyItem> &items) {
+                                                         std::vector<BodyItem> &items) const {
   const int64_t op_index = header_.op_index;
   GE_ASSERT_TRUE(semantic_.args_table_entry.has_value());
 
@@ -1131,7 +1142,7 @@ ExprRef KernelTaskCodeBuilder::BuildReportTaskPreprocessCall(Arg l0_info) const 
 }
 
 Status KernelTaskCodeBuilder::AppendAicpuArgsCode(Arg iow_addr, const VarRef &args_var,
-                                                  std::vector<BodyItem> &items) {
+                                                  std::vector<BodyItem> &items) const {
   GELOGD("[OM2] start to assemble aicpu args code.");
   GE_ASSERT_TRUE(semantic_.aicpu_args.has_value());
   GE_ASSERT_TRUE(semantic_.aicpu_ext_info.has_value());
