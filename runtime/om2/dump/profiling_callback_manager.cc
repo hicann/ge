@@ -14,7 +14,6 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "framework/runtime/dump/profiling_config.h"
-#include "aprof_pub.h"
 
 extern "C" void RegisterOm2ProfilingCommandNotifier(
     void (*notifier)(const void *, uint32_t)) __attribute__((weak));
