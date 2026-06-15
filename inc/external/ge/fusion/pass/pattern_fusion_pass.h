@@ -18,11 +18,15 @@ namespace ge {
 namespace fusion {
 using GraphUniqPtr = std::unique_ptr<Graph>;
 using PatternUniqPtr = std::unique_ptr<Pattern>;
+/**
+ * @since 8.5.0(2025-12)
+ */
 class PatternFusionPass : public FusionBasePass {
  public:
   /**
    * PatternFusionPass的默认构造函数
    * 通过此构造函数构造的pass，其match config中的配置项均为默认值，即不开启任何配置的状态
+   * @since 8.5.0(2025-12)
    */
   PatternFusionPass();
 
@@ -30,6 +34,7 @@ class PatternFusionPass : public FusionBasePass {
    * 通过PatternMatcherConfig来构造PatternFusionPass
    * 子类可通过传入PatternMatcherConfig使能各项匹配的选项
    * @param match_config
+   * @since 8.5.0(2025-12)
    */
   explicit PatternFusionPass(std::unique_ptr<PatternMatcherConfig> match_config);
   /**
@@ -41,6 +46,7 @@ class PatternFusionPass : public FusionBasePass {
    * 注意: Run函数只处理当前图，若需要处理子图，由Pass调用者来负责
    * @param graph
    * @return
+   * @since 8.5.0(2025-12)
    */
   Status Run(GraphPtr &graph, CustomPassContext &pass_context) override;
 
@@ -48,6 +54,7 @@ class PatternFusionPass : public FusionBasePass {
   /**
    * 定义一个或多个pattern，用于表达希望匹配的图结构
    * @return 多个pattern指针
+   * @since 8.5.0(2025-12)
    */
   virtual std::vector<PatternUniqPtr> Patterns() = 0;
   /**
@@ -57,6 +64,7 @@ class PatternFusionPass : public FusionBasePass {
    * 若子类不重新实现，默认返回true
    * @param match_result
    * @return
+   * @since 8.5.0(2025-12)
    */
   virtual bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result);
 
@@ -64,6 +72,7 @@ class PatternFusionPass : public FusionBasePass {
    * 定义替换结构，入参中传入的match_result可以用于获取输入shape，子类可对replacement进行shape推导或checksupport
    * @param match_result
    * @return
+   * @since 8.5.0(2025-12)
    */
 virtual GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result) = 0;
 
@@ -78,25 +87,51 @@ virtual GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_resul
  * 与 V1 共用 REG_FUSION_PASS 注册（工厂返回 FusionBasePass*，对版本无感知）。V1 与 V2 的
  * 匹配/替换主循环共享同一份实现（compiler/graph/fusion/pass/pattern_fusion_run.h）。
  */
+/**
+ * @since 9.1.0(2026-05)
+ */
 class PatternFusionPassV2 : public FusionBasePass {
  public:
+  /**
+   * PatternFusionPassV2的默认构造函数，match config中的配置项均为默认值
+   * @since 9.1.0(2026-05)
+   */
   PatternFusionPassV2();
+  /**
+   * 通过PatternMatcherConfig来构造PatternFusionPassV2
+   * @param match_config 匹配选项配置
+   * @since 9.1.0(2026-05)
+   */
   explicit PatternFusionPassV2(std::unique_ptr<PatternMatcherConfig> match_config);
 
+  /**
+   * 执行pass的主函数，与V1行为一致，但MeetRequirements/Replacement钩子可透传CustomPassContext
+   * @param graph 目标图
+   * @param pass_context 上下文，可用于传递error msg等信息
+   * @return Status
+   * @since 9.1.0(2026-05)
+   */
   Status Run(GraphPtr &graph, CustomPassContext &pass_context) override;
 
  protected:
+  /**
+   * 定义一个或多个pattern，用于表达希望匹配的图结构
+   * @return 多个pattern指针
+   * @since 9.1.0(2026-05)
+   */
   virtual std::vector<PatternUniqPtr> Patterns() = 0;
 
   /**
    * 对匹配结果做条件校验，返回 true 表示允许替换。默认返回 true。
    * 相比 V1，本钩子可读取 pass_context 获取配置项 / 写入错误信息后再决策。
+   * @since 9.1.0(2026-05)
    */
   virtual bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result,
                                 CustomPassContext &pass_context);
 
   /**
    * 返回与 match_result 对应的替换子图。子类可向 pass_context 写入错误信息后返回 nullptr 终止替换。
+   * @since 9.1.0(2026-05)
    */
   virtual GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result,
                                    CustomPassContext &pass_context) = 0;
@@ -105,6 +140,9 @@ class PatternFusionPassV2 : public FusionBasePass {
   std::unique_ptr<PatternMatcherConfig> match_config_;
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 #define REG_FUSION_PASS(pass_class) REG_FUSION_PASS_UNIQ_HELPER(__COUNTER__, #pass_class, pass_class)
 #define REG_FUSION_PASS_UNIQ_HELPER(ctr, pass_name, pass_class) REG_FUSION_PASS_UNIQ(ctr, pass_name, pass_class)
 #define REG_FUSION_PASS_UNIQ(ctr, pass_name, pass_class)                                                          \

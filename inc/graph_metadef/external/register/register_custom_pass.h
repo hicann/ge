@@ -32,59 +32,152 @@ constexpr int64_t INVALID_STREAM_ID = -1;
 
 /**
  * 自定义pass执行阶段，若需扩展，请在kInvalid之前添加
+ * @since 8.5.0(2025-12)
  */
 enum class CustomPassStage : uint32_t {
-  kBeforeInferShape = 0,
-  kAfterInferShape = 1,
-  kAfterAssignLogicStream = 2, // only support CustomAllocateStreamPassFunc in this stage
-  kAfterBuiltinFusionPass = 3,
-  kAfterOriginGraphOptimize = 4,
-  kCompatibleInherited = 5,
-  kInvalid
+  kBeforeInferShape = 0,           // @since 8.5.0(2025-12)
+  kAfterInferShape = 1,            // @since 8.5.0(2025-12)
+  kAfterAssignLogicStream = 2,     // @since 8.5.0(2025-12) only support CustomAllocateStreamPassFunc in this stage
+  kAfterBuiltinFusionPass = 3,     // @since 8.5.0(2025-12)
+  kAfterOriginGraphOptimize = 4,   // @since 9.0.0(2026-02)
+  kCompatibleInherited = 5,        // @since 9.0.0(2026-02)
+  kInvalid                         // @since 8.5.0(2025-12)
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY PassRegistrationData {
  public:
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PassRegistrationData() = default;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PassRegistrationData() = default;
 
+  /**
+   * 通过pass名称构造注册数据
+   * @param pass_name 自定义pass的名称
+   * @since 8.5.0(2025-12)
+   */
   PassRegistrationData(std::string pass_name);
 
+  /**
+   * 注册自定义pass的执行函数
+   * @param custom_pass_fn 自定义pass的执行回调
+   * @return 自身引用，支持链式调用
+   * @since 8.5.0(2025-12)
+   */
   PassRegistrationData &CustomPassFn(const CustomPassFunc &custom_pass_fn);
 
+  /**
+   * 获取自定义pass的名称
+   * @return pass名称
+   * @since 8.5.0(2025-12)
+   */
   std::string GetPassName() const;
 
+  /**
+   * 获取自定义pass的执行函数
+   * @return 自定义pass执行回调
+   * @since 8.5.0(2025-12)
+   */
   CustomPassFunc GetCustomPassFn() const;
 
+  /**
+   * 设置自定义pass的执行阶段
+   * @param stage pass执行阶段
+   * @return 自身引用，支持链式调用
+   * @since 8.5.0(2025-12)
+   */
   PassRegistrationData &Stage(const CustomPassStage stage);
 
+  /**
+   * 获取自定义pass所属的执行阶段
+   * @return pass执行阶段
+   * @since 8.5.0(2025-12)
+   */
   CustomPassStage GetStage() const;
 
+  /**
+   * 注册自定义流分配pass的执行函数
+   * @param allocate_stream_pass_fn 自定义流分配pass的执行回调
+   * @return 自身引用，支持链式调用
+   * @since 8.5.0(2025-12)
+   */
   PassRegistrationData &CustomAllocateStreamPassFn(const CustomAllocateStreamPassFunc &allocate_stream_pass_fn);
 
+  /**
+   * 获取自定义流分配pass的执行函数
+   * @return 自定义流分配pass执行回调
+   * @since 8.5.0(2025-12)
+   */
   CustomAllocateStreamPassFunc GetCustomAllocateStreamPass() const;
 
  private:
   std::shared_ptr<PassRegistrationDataImpl> impl_;
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY PassReceiver {
  public:
+  /**
+   * 接收自定义pass注册数据，完成pass注册
+   * @param reg_data pass注册数据
+   * @since 8.5.0(2025-12)
+   */
   PassReceiver(PassRegistrationData &reg_data);
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PassReceiver() = default;
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 class CustomPassContext {
  public:
+  /**
+   * @since 8.5.0(2025-12)
+   */
   CustomPassContext();
+  /**
+   * @since 8.5.0(2025-12)
+   */
   virtual ~CustomPassContext();
 
+  /**
+   * 设置pass执行过程中的错误信息
+   * @param error_message 错误信息
+   * @since 8.5.0(2025-12)
+   */
   void SetErrorMessage(const AscendString &error_message);
 
+  /**
+   * 设置pass名称
+   * @param pass_name pass名称
+   * @since 9.0.0(2026-02)
+   */
   void SetPassName(const AscendString &pass_name);
 
+  /**
+   * 获取pass执行过程中的错误信息
+   * @return 错误信息
+   * @since 8.5.0(2025-12)
+   */
   AscendString GetErrorMessage() const;
 
+  /**
+   * 获取pass名称
+   * @return pass名称
+   * @since 9.0.0(2026-02)
+   */
   AscendString GetPassName() const;
 
   /**
@@ -93,6 +186,7 @@ class CustomPassContext {
    * @param option_key
    * @param option_value 出参
    * @return graphStatus
+   * @since 9.0.0(2026-01)
    */
   graphStatus GetOptionValue(const AscendString &option_key, AscendString &option_value) const;
 
@@ -100,18 +194,50 @@ class CustomPassContext {
   std::unique_ptr<CustomPassContextImpl> impl_;
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 class StreamPassContext : public CustomPassContext {
 public:
+ /**
+  * @since 8.5.0(2025-12)
+  */
  explicit StreamPassContext(int64_t current_max_stream_id);
 
+ /**
+  * @since 8.5.0(2025-12)
+  */
  ~StreamPassContext() override = default;
 
+ /**
+  * 为指定节点设置流ID
+  * @param node 目标节点
+  * @param stream_id 要设置的流ID
+  * @return graphStatus
+  * @since 8.5.0(2025-12)
+  */
  graphStatus SetStreamId(const GNode &node, int64_t stream_id);
 
+ /**
+  * 获取指定节点的流ID
+  * @param node 目标节点
+  * @return 节点对应的流ID，未设置时返回INVALID_STREAM_ID
+  * @since 8.5.0(2025-12)
+  */
  int64_t GetStreamId(const GNode &node) const;
 
+ /**
+  * 分配下一个可用的流ID
+  * @return 新分配的流ID
+  * @since 8.5.0(2025-12)
+  */
  int64_t AllocateNextStreamId();
 
+ /**
+  * 获取当前已分配的最大流ID
+  * @return 当前最大流ID
+  * @since 8.5.0(2025-12)
+  */
  int64_t GetCurrMaxStreamId() const;
 
 private:

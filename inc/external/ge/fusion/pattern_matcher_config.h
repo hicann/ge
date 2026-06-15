@@ -17,20 +17,40 @@ namespace ge {
 namespace fusion {
 /**
  * 用于配置PatternMatcher行为的类, 请使用PatternMatcherConfigBuilder来构造PatternMatcherConfig
+ * @since 8.5.0(2025-12)
  */
 class PatternMatcherConfig {
  public:
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfig();
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PatternMatcherConfig();
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfig(const PatternMatcherConfig &other);
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfig &operator=(const PatternMatcherConfig &other);
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfig(PatternMatcherConfig &&other) noexcept;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfig &operator=(PatternMatcherConfig &&other) noexcept;
   /**
    * 返回是否使能const值匹配能力
    * 若返回true，pattern matcher在匹配过程中将对pattern中定义的const/constant上携带的Tensor进行值的匹配，值相等才认为匹配成功。
    * 注意：匹配方式为二进制匹配，这是一种较为严格的匹配方式(对于浮点类数据类型来说）。若不符合预期，请关闭该开关，自行处理值校验逻辑
    * @return
+   * @since 8.5.0(2025-12)
    */
   bool IsEnableConstValueMatch() const;
 
@@ -39,6 +59,7 @@ class PatternMatcherConfig {
    * 若返回true, pattern matcher将在pattern匹配过程中对pattern中节点上携带的IR属性的值进行匹配。
    * 注意：匹配方式为二进制匹配，这是一种较为严格的匹配方式(对于浮点类数据类型来说）。若不符合预期，请关闭该开关，自行处理值校验逻辑
    * @return
+   * @since 8.5.0(2025-12)
    */
   bool IsEnableIrAttrMatch() const;
 
@@ -51,16 +72,24 @@ class PatternMatcherConfig {
 class PatternMatcherConfigBuilderImpl;
 /**
  * 构造PatternMatcherConfig的辅助类
+ * @since 8.5.0(2025-12)
  */
 class PatternMatcherConfigBuilder {
  public:
+  /**
+   * @since 8.5.0(2025-12)
+   */
   PatternMatcherConfigBuilder();
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PatternMatcherConfigBuilder();
   /**
    * 配置使能const值匹配能力
    * 若使能该配置，pattern matcher在匹配过程中将对pattern中定义的const/constant上携带的Tensor进行值的匹配，值相等才认为匹配成功。
    * 注意：匹配方式为二进制匹配，这是一种较为严格的匹配方式。若不符合预期，请关闭该配置，自行处理值校验逻辑
    * @return
+   * @since 8.5.0(2025-12)
    */
   PatternMatcherConfigBuilder &EnableConstValueMatch();
 
@@ -69,12 +98,14 @@ class PatternMatcherConfigBuilder {
    * 若使能该配置， pattern matcher将在pattern匹配过程中对pattern中节点上携带的IR属性的值进行匹配。
    * 注意：匹配方式为二进制匹配，这是一种较为严格的匹配方式。若不符合预期，请关闭该开关，自行处理值校验逻辑
    * @return
+   * @since 8.5.0(2025-12)
    */
   PatternMatcherConfigBuilder &EnableIrAttrMatch();
 
   /**
    * 构造PatternMatcherConfig
    * @return
+   * @since 8.5.0(2025-12)
    */
   std::unique_ptr<PatternMatcherConfig> Build() const;
 

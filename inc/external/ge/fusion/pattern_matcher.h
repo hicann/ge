@@ -20,6 +20,9 @@
 namespace ge {
 namespace fusion {
 class PatternMatcherImpl;
+/**
+ * @since 8.5.0(2025-12)
+ */
 class PatternMatcher {
  public:
   /**
@@ -27,6 +30,7 @@ class PatternMatcher {
    * 当使用这个构造函数时，match config中的配置项均为默认值，即不开启任何配置的状态
    * @param pattern
    * @param target_graph
+   * @since 8.5.0(2025-12)
    */
   explicit PatternMatcher(std::unique_ptr<Pattern> pattern, const GraphPtr &target_graph);
   /**
@@ -34,10 +38,14 @@ class PatternMatcher {
    * @param pattern
    * @param target_graph
    * @param matcher_config  匹配选项配置
+   * @since 8.5.0(2025-12)
    */
   PatternMatcher(std::unique_ptr<Pattern> pattern, const GraphPtr &target_graph,
                  std::unique_ptr<PatternMatcherConfig> matcher_config);
 
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PatternMatcher();
   /**
    * 按照当前target graph的拓扑顺序，返回下一个符合pattern定义的匹配结果
@@ -49,6 +57,7 @@ class PatternMatcher {
    *       A   A
    * (2) 该函数只匹配当前图，若target graph带子图，调用者需自行对子图进行匹配
    * @return
+   * @since 8.5.0(2025-12)
    */
   [[nodiscard]] std::unique_ptr<MatchResult> MatchNext();
 

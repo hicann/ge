@@ -16,6 +16,9 @@
 #define INC_EXTERNAL_GRAPH_ENGINE_GE_UTILS_H
 
 namespace ge {
+/**
+ * @since 8.5.0(2025-12)
+ */
 class GeUtils {
  public:
   /**
@@ -26,13 +29,17 @@ class GeUtils {
    * @param graph        待推导的图
    * @param input_shape  各输入 tensor 的 shape，顺序与图中 Data 节点的 ATTR_NAME_INDEX 对应
    * @return SUCCESS 或错误码
+   * @since 8.5.0(2025-12)
    */
   static Status InferShape(const Graph &graph, const std::vector<Shape> &input_shape);
 
   /**
    * 對传入的node做校验，校验其是否支持在aicore上执行
-   * @param node
-   * @param unsupported_reason
+   * @param node 待校验的节点
+   * @param is_supported 出参，是否支持在aicore上执行
+   * @param unsupported_reason 出参，不支持的原因
+   * @return Status
+   * @since 8.5.0(2025-12)
    */
   static Status CheckNodeSupportOnAicore(const GNode &node, bool &is_supported, AscendString &unsupported_reason);
 };

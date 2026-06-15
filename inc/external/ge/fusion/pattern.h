@@ -18,17 +18,22 @@
 namespace ge {
 namespace fusion {
 class PatternImpl;
+/**
+ * @since 8.5.0(2025-12)
+ */
 class Pattern {
  public:
   /**
    * 使用graph定义匹配pattern
    * @param pattern_graph
+   * @since 8.5.0(2025-12)
    */
   explicit Pattern(Graph &&pattern_graph);
 
   /**
    * 获取pattern中的pattern graph
    * @return
+   * @since 8.5.0(2025-12)
    */
   const Graph &GetGraph() const;
 
@@ -37,6 +42,7 @@ class Pattern {
    * @param node_output tensor的来源，即来自某个node的某个输出
    *        因node_output可唯一标定一个图中tensor, 因此常用node_output指代tensor
    * @return
+   * @since 8.5.0(2025-12)
    */
   Pattern &CaptureTensor(const NodeIo &node_output);
 
@@ -44,9 +50,13 @@ class Pattern {
    * 获取pattern中捕获的所有tensor，vector中顺序为捕获顺序
    * @param node_outputs
    * @return
+   * @since 8.5.0(2025-12)
    */
   Status GetCapturedTensors(std::vector<NodeIo> &node_outputs) const;
 
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~Pattern();
 
  private:
