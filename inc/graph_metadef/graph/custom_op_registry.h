@@ -13,15 +13,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <vector>
 
 #include "graph/ascend_string.h"
-#include "graph/custom_op.h"
+#include "graph/ge_error_codes.h"
 
 namespace ge {
+class BaseCustomOp;
+using BaseOpCreator = std::function<std::unique_ptr<BaseCustomOp>()>;
+
 class CustomOpSoHandle;
 using CustomOpSoHandlePtr = std::shared_ptr<CustomOpSoHandle>;
 
@@ -44,7 +48,7 @@ class CustomOpRegistry {
   mutable std::mutex mu_;
   std::vector<CustomOpSoHandlePtr> so_handles_;
   std::map<AscendString, BaseOpCreator> creators_;
-  std::map<AscendString, std::unique_ptr<BaseCustomOp>> custom_ops_;
+  std::map<AscendString, std::shared_ptr<BaseCustomOp>> custom_ops_;
 };
 
 using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;

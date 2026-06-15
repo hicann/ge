@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include "graph/custom_op.h"
 #include "graph/custom_op_registry.h"
 
 #include <limits>
@@ -146,7 +147,7 @@ BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOp(const AscendString &op_type)
       return nullptr;
     }
     auto base_custom_op = op_creator_it->second();
-    auto [ops_it, success] = custom_ops_.emplace(op_type, std::move(base_custom_op));
+    auto [ops_it, success] = custom_ops_.emplace(op_type, std::shared_ptr<BaseCustomOp>(std::move(base_custom_op)));
     if (success) {
       return ops_it->second.get();
     }

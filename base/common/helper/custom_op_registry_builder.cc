@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "common/helper/custom_op_so_loader.h"
+#include "graph/custom_op.h"
 #include "framework/common/debug/log.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/custom_op_pull_registry.h"

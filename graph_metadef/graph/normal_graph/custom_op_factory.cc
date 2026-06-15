@@ -18,9 +18,6 @@
 #include <memory>
 
 namespace ge {
-namespace {
-thread_local uint32_t g_offline_custom_op_so_loading_depth = 0U;
-}  // namespace
 
 CustomOpRegistry &CustomOpFactory::GetGlobalRegistry() {
   return *GetGlobalRegistryPtr();
@@ -59,19 +56,5 @@ CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_ty
     return;
   }
   CustomOpFactory::RegisterCustomOpCreator(operator_type, op_creator);
-}
-
-ScopedOfflineCustomOpSoLoadGuard::ScopedOfflineCustomOpSoLoadGuard() {
-  ++g_offline_custom_op_so_loading_depth;
-}
-
-ScopedOfflineCustomOpSoLoadGuard::~ScopedOfflineCustomOpSoLoadGuard() {
-  if (g_offline_custom_op_so_loading_depth > 0U) {
-    --g_offline_custom_op_so_loading_depth;
-  }
-}
-
-bool IsOfflineCustomOpSoLoading() {
-  return g_offline_custom_op_so_loading_depth > 0U;
 }
 }  // namespace ge
