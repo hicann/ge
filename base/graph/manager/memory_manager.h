@@ -14,7 +14,6 @@
 #include <string>
 #include <sstream>
 #include "ge/ge_api_types.h"
-#include "runtime/mem.h"
 
 namespace ge {
 inline std::string ToMallocMemInfo(const std::string &purpose, const void *const ptr, const uint32_t device_id,

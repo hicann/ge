@@ -15,7 +15,6 @@
 #include <iomanip>
 #include <sys/file.h>
 #include "mmpa/mmpa_api.h"
-#include "common/debug/log.h"
 #include "common/proto_util/proto_util.h"
 #include "common/helper/file_saver.h"
 #include "common/helper/model_parser_base.h"
