@@ -114,9 +114,8 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
   return true;
 }
 
-void SetInplaceOutput(const NodePtr &node, const uint32_t output_idx = 0U, const int32_t input_idx = 0) {
-  auto out_desc = node->GetOpDescBarePtr()->MutableOutputDesc(output_idx);
-  AttrUtils::SetInt(out_desc, INPLACE_SUPPORT_INPUT_INDEX, input_idx);
+void SetModifyInput(const NodePtr &node, const bool value = true) {
+  AttrUtils::SetBool(node->GetOpDesc(), "_input_mutable", value);
 }
 
 size_t CountNodesByType(const ComputeGraphPtr &graph, const std::string &type) {
@@ -299,7 +298,7 @@ TEST_F(TensorMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
  *
  * 说明：
  * - 基本单输出多引用场景
- * - Add 只读取 Relu 输出，不透传也不 inplace
+ * - Add 只读取 Relu 输出，不透传也不写输入
  * - TensorMove 后继 NetOutput 也是纯读
  *
  * 预期：
@@ -328,6 +327,40 @@ TEST_F(TensorMoveTest, TensorMove_BasicMultiRefBranch_DeletedWithoutControlEdge)
   EXPECT_EQ(graph->FindNode("TensorMove"), nullptr);
   EXPECT_TRUE(relu_node->GetOutDataAnchor(0)->IsLinkedWith(netoutput_node->GetInDataAnchor(0)));
   EXPECT_FALSE(add_node->GetOutControlAnchor()->IsLinkedWith(netoutput_node->GetInControlAnchor()));
+}
+
+/**
+ *           Relu
+ *      /             \
+ * PartitionedCall   TensorMove
+ *       |               |
+ *       +----------- NetOutput
+ *
+ * 说明：
+ * - Relu 单输出被带子图的 PartitionedCall 和 TensorMove 同时引用
+ * - PartitionedCall 的读写关系需要进子图分析，当前多消费者规则保守拒绝删除
+ *
+ * 预期：
+ * - 保留 TensorMove
+ */
+TEST_F(TensorMoveTest, TensorMove_WrapperSibling_Kept) {
+  DEF_GRAPH(sub) {
+    CHAIN(NODE("sub_data", OP_CFG(DATA).ParentNodeIndex(0))->NODE("sub_netoutput", NETOUTPUT));
+  };
+
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("Relu", RELU)->NODE("TensorMove", TENSORMOVE)->EDGE(0, 0)->NODE("NetOutput", NETOUTPUT));
+    CHAIN(NODE("Relu")->EDGE(0, 0)->NODE("PartitionedCall", PARTITIONEDCALL, sub)
+              ->EDGE(0, 1)->NODE("NetOutput"));
+  };
+
+  auto graph = ToComputeGraph(g1);
+  ASSERT_NE(graph, nullptr);
+  ASSERT_NE(graph->FindNode("PartitionedCall"), nullptr);
+
+  EXPECT_EQ(CountNodesByType(graph, TENSORMOVE), 1U);
+  EXPECT_EQ(RunTensorMoveDeletePass(graph), SUCCESS);
+  EXPECT_EQ(CountNodesByType(graph, TENSORMOVE), 1U);
 }
 
 /**
@@ -390,15 +423,15 @@ TEST_F(TensorMoveTest, TensorMove_MultipleBasicMultiRefBranches_DeletedWithoutCo
  * - 待删节点是 TensorMove1
  * - 分叉点位于 TensorMove1 的直接源节点 ScatterNDUpdate0，不是根 Data
  * - 上游 TensorMove0 通过保留属性固定不删除
- * - TensorMove1 后继 ScatterNDUpdate1 通过 INPLACE_SUPPORT_INPUT_INDEX 覆写源内存
+ * - TensorMove1 后继 ScatterNDUpdate1 是纯读
  *
  * 预期：
  * - 删除 TensorMove1
  * - ScatterNDUpdate0 直连 ScatterNDUpdate1
- * - 旁路 MlpLightningIndexer0 纯读、后继 ScatterNDUpdate1 覆写，新增 MlpLightningIndexer0 到 ScatterNDUpdate1 控制边
+ * - 旁路 MlpLightningIndexer0 与后继 ScatterNDUpdate1 均为纯读，不新增控制边
  * - TensorMove0 保留
  */
-TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_DeletedAndAddControlEdge) {
+TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_DeletedWithoutControlEdge) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto data_node = AddTestNode(graph, "Data", DATA, 1, 1);
   auto tensor_move0_node = AddTestNode(graph, "TensorMove0", TENSORMOVE, 1, 1);
@@ -411,7 +444,6 @@ TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_Delet
   auto netoutput_node = AddTestNode(graph, "NetOutput", NETOUTPUT, 3, 1);
 
   AttrUtils::SetBool(tensor_move0_node->GetOpDesc(), ATTR_NAME_CANNOT_BE_DELETED, true);
-  SetInplaceOutput(scatter1_node, 0, 0);
 
   GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), tensor_move0_node->GetInDataAnchor(0));
   GraphUtils::AddEdge(tensor_move0_node->GetOutDataAnchor(0), scatter0_node->GetInDataAnchor(0));
@@ -434,7 +466,7 @@ TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_Delet
   EXPECT_NE(graph->FindNode("TensorMove0"), nullptr);
   EXPECT_EQ(graph->FindNode("TensorMove1"), nullptr);
   EXPECT_TRUE(scatter0_node->GetOutDataAnchor(0)->IsLinkedWith(scatter1_node->GetInDataAnchor(0)));
-  EXPECT_TRUE(mlp_indexer0_node->GetOutControlAnchor()->IsLinkedWith(scatter1_node->GetInControlAnchor()));
+  EXPECT_FALSE(mlp_indexer0_node->GetOutControlAnchor()->IsLinkedWith(scatter1_node->GetInControlAnchor()));
 }
 
 /**
@@ -442,12 +474,12 @@ TEST_F(TensorMoveTest, TensorMove_FromIntermediateSource_WithScatterBranch_Delet
  *       /    \
  *  Sibling  TensorMove
  *     ^         |
- *     |       Succ(inplace)
+ *     |       Succ(modify_input)
  *     +---------+
  *
  * 说明：
  * - Sibling 纯读 Relu 输出
- * - Succ 通过 INPLACE_SUPPORT_INPUT_INDEX 覆写源内存
+ * - Succ 的输入读写关系为 kScopeWriteable，会覆写源内存
  * - Succ 已经通过数据边到达 Sibling，若补 Sibling -> Succ 控制边会成环
  *
  * 预期：
@@ -462,7 +494,7 @@ TEST_F(TensorMoveTest, TensorMove_SuccessorReachesSiblingViaDataPath_Kept) {
   auto succ_node = AddTestNode(graph, "Succ", ADD, 1, 1);
   auto netoutput_node = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
 
-  SetInplaceOutput(succ_node, 0, 0);
+  SetModifyInput(succ_node);
 
   GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), sibling_node->GetInDataAnchor(0));
   GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), tensor_move_node->GetInDataAnchor(0));
@@ -480,24 +512,24 @@ TEST_F(TensorMoveTest, TensorMove_SuccessorReachesSiblingViaDataPath_Kept) {
 /**
  *         Relu
  *        /    \
- *   Add(inplace) TensorMove
+ *   Add(modify_input) TensorMove
  *        |          |
  *        +------ NetOutput
  *
  * 说明：
- * - 旁路分支会原地写回源 buffer
+ * - 旁路分支的输入读写关系为 kScopeWriteable，会覆写源 buffer
  *
  * 预期：
  * - 保留 TensorMove
  */
-TEST_F(TensorMoveTest, TensorMove_BasicMultiRefWithInplaceBranch_Kept) {
+TEST_F(TensorMoveTest, TensorMove_BasicMultiRefWithWritableBranch_Kept) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu_node = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto add_node = AddTestNode(graph, "Add", ADD, 1, 1);
   auto tensor_move_node = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
   auto netoutput_node = AddTestNode(graph, "NetOutput", NETOUTPUT, 2, 1);
 
-  SetInplaceOutput(add_node, 0, 0);
+  SetModifyInput(add_node);
 
   GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), add_node->GetInDataAnchor(0));
   GraphUtils::AddEdge(add_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(1));
@@ -542,8 +574,7 @@ TEST_F(TensorMoveTest, TensorMove_BasicMultiRefWithInplaceBranch_Kept) {
  *   - 4 个 TensorMove 全部删除
  *   - arg11_1/arg12_1 直连 MlaPrologV3[9]/[10]
  *   - Reshape_62/Reshape_63 直连 ScatterNdUpdate/_1[0]
- *   - 多引用分支序列化：IndexByTensor_2 ─ctrl─► ScatterNdUpdate
- *                       IndexByTensor_3 ─ctrl─► ScatterNdUpdate_1
+ *   - IndexByTensor_2/3 与 ScatterNdUpdate/_1 均为纯读，不补控制边
  */
 TEST_F(TensorMoveTest, TensorMove_MlaDump46ThreeReshapeAndSqueezeBranches_Deleted) {
   SetMlaDumpReuseOptions();
@@ -580,10 +611,6 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump46ThreeReshapeAndSqueezeBranches_Delete
   GraphUtils::AddEdge(mla->GetOutDataAnchor(2), reshape0->GetInDataAnchor(0));
   GraphUtils::AddEdge(reshape0->GetOutDataAnchor(0), reshape1->GetInDataAnchor(0));
   GraphUtils::AddEdge(reshape1->GetOutDataAnchor(0), reshape2->GetInDataAnchor(0));
-  // ScatterNdUpdate 原地写回 input0 对应的源内存，旁路 IndexByTensor 纯读，需补 reader-before-writer 控制边
-  SetInplaceOutput(scatter0, 0, 0);
-  SetInplaceOutput(scatter1, 0, 0);
-
   GraphUtils::AddEdge(reshape2->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(0));
   GraphUtils::AddEdge(indices->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(1));
   GraphUtils::AddEdge(index_by_tensor0->GetOutDataAnchor(0), scatter0->GetInDataAnchor(2));
@@ -611,8 +638,8 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump46ThreeReshapeAndSqueezeBranches_Delete
   EXPECT_TRUE(kr_cache->GetOutDataAnchor(0)->IsLinkedWith(mla->GetInDataAnchor(10)));
   EXPECT_TRUE(reshape2->GetOutDataAnchor(0)->IsLinkedWith(scatter0->GetInDataAnchor(0)));
   EXPECT_TRUE(reshape3->GetOutDataAnchor(0)->IsLinkedWith(scatter1->GetInDataAnchor(0)));
-  EXPECT_TRUE(index_by_tensor0->GetOutControlAnchor()->IsLinkedWith(scatter0->GetInControlAnchor()));
-  EXPECT_TRUE(index_by_tensor1->GetOutControlAnchor()->IsLinkedWith(scatter1->GetInControlAnchor()));
+  EXPECT_FALSE(index_by_tensor0->GetOutControlAnchor()->IsLinkedWith(scatter0->GetInControlAnchor()));
+  EXPECT_FALSE(index_by_tensor1->GetOutControlAnchor()->IsLinkedWith(scatter1->GetInControlAnchor()));
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -642,7 +669,7 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump46ThreeReshapeAndSqueezeBranches_Delete
  *   - 2 个 TensorMove（TM1 + TM2）全部删除
  *   - arg11_1 直连 MlaPrologV3[9]
  *   - Reshape_23 直连 ScatterNdUpdate[0]；Reshape_24 保持直连 ScatterNdUpdate_1[0]
- *   - 多引用分支序列化：IndexByTensor_2 ─ctrl─► ScatterNdUpdate
+ *   - IndexByTensor_2 与 ScatterNdUpdate 均为纯读，不补控制边
  */
 TEST_F(TensorMoveTest, TensorMove_MlaDump70LeftTmP3P4_Deleted) {
   SetMlaDumpReuseOptions();
@@ -669,9 +696,6 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump70LeftTmP3P4_Deleted) {
   GraphUtils::AddEdge(tensor_move_kv->GetOutDataAnchor(0), mla->GetInDataAnchor(9));
 
   GraphUtils::AddEdge(mla->GetOutDataAnchor(2), reshape_p4->GetInDataAnchor(0));
-  // ScatterNdUpdate 原地写回 input0 对应的源内存，旁路 IndexByTensor_2 纯读，需补 reader-before-writer 控制边
-  SetInplaceOutput(scatter0, 0, 0);
-
   GraphUtils::AddEdge(reshape_p4->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(0));
   GraphUtils::AddEdge(indices->GetOutDataAnchor(0), index_by_tensor0->GetInDataAnchor(1));
   GraphUtils::AddEdge(index_by_tensor0->GetOutDataAnchor(0), scatter0->GetInDataAnchor(2));
@@ -697,7 +721,7 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump70LeftTmP3P4_Deleted) {
   EXPECT_TRUE(kv_cache->GetOutDataAnchor(0)->IsLinkedWith(mla->GetInDataAnchor(9)));
   EXPECT_TRUE(reshape_p4->GetOutDataAnchor(0)->IsLinkedWith(scatter0->GetInDataAnchor(0)));
   EXPECT_TRUE(reshape_p3->GetOutDataAnchor(0)->IsLinkedWith(scatter1->GetInDataAnchor(0)));
-  EXPECT_TRUE(index_by_tensor0->GetOutControlAnchor()->IsLinkedWith(scatter0->GetInControlAnchor()));
+  EXPECT_FALSE(index_by_tensor0->GetOutControlAnchor()->IsLinkedWith(scatter0->GetInControlAnchor()));
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -909,30 +933,30 @@ TEST_F(TensorMoveTest, TensorMove_MlaDump58CtrlSingleReshapeAndSqueezeBranches_D
 }
 
 /**
- * 单引用多输出 + 外部已有 reader-before-writer ctrl 边，inplace 分支也可放行删 TM。
+ * 单引用多输出 + 外部已有 reader-before-writer ctrl 边，writable 分支也可放行删 TM。
  *
  * 构图（pass 前）：
  *
  *                        ┌─► TensorMove ──► Reader ──► NetOutput
  *                Relu ───┤                     │
- *                        │                     └─ctrl─► InplaceWriter
- *                        └─────────────────────► InplaceWriter
- *                                             （INPLACE_SUPPORT_INPUT_INDEX=0）
+ *                        │                     └─ctrl─► WritableWriter
+ *                        └─────────────────────► WritableWriter
+ *                                             （modify_input）
  *
  * Pass 后预期：
  *   - TensorMove 被删除
- *   - Relu ─► Reader、Relu ─► InplaceWriter 数据边保留
- *   - 外部已有的 Reader ─ctrl─► InplaceWriter 保留，保证 reader-before-writer 语义
+ *   - Relu ─► Reader、Relu ─► WritableWriter 数据边保留
+ *   - 外部已有的 Reader ─ctrl─► WritableWriter 保留，保证 reader-before-writer 语义
  */
-TEST_F(TensorMoveTest, TensorMove_InplaceBranchWithExistingReaderCtrl_Deleted) {
+TEST_F(TensorMoveTest, TensorMove_WritableBranchWithExistingReaderCtrl_Deleted) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto tm = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
   auto reader = AddTestNode(graph, "Reader", ADD, 1, 1);
-  auto writer = AddTestNode(graph, "InplaceWriter", ADD, 1, 1);
+  auto writer = AddTestNode(graph, "WritableWriter", ADD, 1, 1);
   auto netoutput = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
 
-  SetInplaceOutput(writer, 0U, 0);
+  SetModifyInput(writer);
 
   GraphUtils::AddEdge(relu->GetOutDataAnchor(0), tm->GetInDataAnchor(0));
   GraphUtils::AddEdge(tm->GetOutDataAnchor(0), reader->GetInDataAnchor(0));
@@ -949,17 +973,17 @@ TEST_F(TensorMoveTest, TensorMove_InplaceBranchWithExistingReaderCtrl_Deleted) {
 }
 
 /**
- * 同上拓扑，但无预置 ctrl 边。回归：inplace 分支无外部保序证据，TM 必须保留。
+ * 同上拓扑，但无预置 ctrl 边。回归：writable 分支无外部保序证据，TM 必须保留。
  */
-TEST_F(TensorMoveTest, TensorMove_InplaceBranchWithoutReaderCtrl_Kept) {
+TEST_F(TensorMoveTest, TensorMove_WritableBranchWithoutReaderCtrl_Kept) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto tm = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
   auto reader = AddTestNode(graph, "Reader", ADD, 1, 1);
-  auto writer = AddTestNode(graph, "InplaceWriter", ADD, 1, 1);
+  auto writer = AddTestNode(graph, "WritableWriter", ADD, 1, 1);
   auto netoutput = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
 
-  SetInplaceOutput(writer, 0U, 0);
+  SetModifyInput(writer);
 
   GraphUtils::AddEdge(relu->GetOutDataAnchor(0), tm->GetInDataAnchor(0));
   GraphUtils::AddEdge(tm->GetOutDataAnchor(0), reader->GetInDataAnchor(0));
@@ -972,53 +996,25 @@ TEST_F(TensorMoveTest, TensorMove_InplaceBranchWithoutReaderCtrl_Kept) {
 }
 
 /**
- * atomic 输出分支（ATOMIC_ATTR_OUTPUT_INDEX 存在）但输出不复用输入时，
- * 不代表旁路会覆写 source 内存，可按普通旁路分支删除 TM。
- * 旁路 AtomicBranch 与 TM 后继 Reader 均为纯读，二者间无读写冒险，不补控制边。
- */
-TEST_F(TensorMoveTest, TensorMove_AtomicIndependentOutputBranch_Deleted) {
-  auto graph = std::make_shared<ComputeGraph>("g1");
-  auto relu = AddTestNode(graph, "Relu", RELU, 1, 1);
-  auto tm = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
-  auto reader = AddTestNode(graph, "Reader", ADD, 1, 1);
-  auto atomic_branch = AddTestNode(graph, "AtomicBranch", ADD, 1, 1);
-  auto netoutput = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
-
-  AttrUtils::SetListInt(atomic_branch->GetOpDesc(), ATOMIC_ATTR_OUTPUT_INDEX, std::vector<int64_t>{0});
-
-  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), tm->GetInDataAnchor(0));
-  GraphUtils::AddEdge(tm->GetOutDataAnchor(0), reader->GetInDataAnchor(0));
-  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), atomic_branch->GetInDataAnchor(0));
-  GraphUtils::AddEdge(reader->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
-
-  EXPECT_EQ(CountNodesByType(graph, TENSORMOVE), 1U);
-  EXPECT_EQ(RunTensorMoveDeletePass(graph), SUCCESS);
-  EXPECT_EQ(CountNodesByType(graph, TENSORMOVE), 0U);
-  EXPECT_TRUE(relu->GetOutDataAnchor(0)->IsLinkedWith(reader->GetInDataAnchor(0)));
-  EXPECT_TRUE(relu->GetOutDataAnchor(0)->IsLinkedWith(atomic_branch->GetInDataAnchor(0)));
-  EXPECT_FALSE(atomic_branch->GetOutControlAnchor()->IsLinkedWith(reader->GetInControlAnchor()));
-}
-
-/**
- * 旁路和 TM 后继都会 inplace 覆写源内存。即使外部已经有 "TM 后继 → 旁路" 的 ctrl 边，
+ * 旁路和 TM 后继都会通过读写关系覆写源内存。即使外部已经有 "TM 后继 → 旁路" 的 ctrl 边，
  * 删 TM 后两者会抢同一块 source 内存，语义不等价，必须保留 TM。
  *
- *                          ┌─► TensorMove ──► InplaceWriterA ──► NetOutput
+ *                          ┌─► TensorMove ──► WritableWriterA ──► NetOutput
  *                  Relu ───┤                         │
- *                          │                         └─ctrl─► InplaceWriterB
- *                          └─────────────────────► InplaceWriterB
- *                                            （两者都 INPLACE_SUPPORT_INPUT_INDEX=0）
+ *                          │                         └─ctrl─► WritableWriterB
+ *                          └─────────────────────► WritableWriterB
+ *                                            （两者都 modify_input）
  */
 TEST_F(TensorMoveTest, TensorMove_BothTmSuccAndSiblingOverwriteSource_Kept) {
   auto graph = std::make_shared<ComputeGraph>("g1");
   auto relu = AddTestNode(graph, "Relu", RELU, 1, 1);
   auto tm = AddTestNode(graph, "TensorMove", TENSORMOVE, 1, 1);
-  auto writer_a = AddTestNode(graph, "InplaceWriterA", ADD, 1, 1);
-  auto writer_b = AddTestNode(graph, "InplaceWriterB", ADD, 1, 1);
+  auto writer_a = AddTestNode(graph, "WritableWriterA", ADD, 1, 1);
+  auto writer_b = AddTestNode(graph, "WritableWriterB", ADD, 1, 1);
   auto netoutput = AddTestNode(graph, "NetOutput", NETOUTPUT, 1, 1);
 
-  SetInplaceOutput(writer_a, 0U, 0);
-  SetInplaceOutput(writer_b, 0U, 0);
+  SetModifyInput(writer_a);
+  SetModifyInput(writer_b);
 
   GraphUtils::AddEdge(relu->GetOutDataAnchor(0), tm->GetInDataAnchor(0));
   GraphUtils::AddEdge(tm->GetOutDataAnchor(0), writer_a->GetInDataAnchor(0));
