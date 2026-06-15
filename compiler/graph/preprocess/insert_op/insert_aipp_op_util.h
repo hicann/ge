@@ -71,6 +71,7 @@ class InsertAippOpUtil {
   Status FindMaxSizeNode(const ComputeGraphPtr &graph, const NodePtr &case_node, std::map<uint32_t, int64_t> &max_sizes,
                          std::map<uint32_t, GeTensorDescPtr> &aipp_inputs) const;
   Status UpdateCaseNode(const ComputeGraphPtr &graph, const NodePtr &case_node) const;
+  void DelStorageFormatAndShapeAttr(const NodePtr &case_node) const;
 };
 }  // namespace ge
 

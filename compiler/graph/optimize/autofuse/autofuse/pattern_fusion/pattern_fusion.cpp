@@ -13,6 +13,7 @@
 #include "fusion/autofuse_attrs.h"
 #include "common/checker.h"
 #include "decompose_large_const_pass.h"
+#include "cast_reshape_cast_pass.h"
 #include "flatten_concat_pass.h"
 #include "flatten_split_pass.h"
 #include "cascade_reshape_remove_pass.h"
@@ -60,6 +61,7 @@ graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) {
   GE_ASSERT_GRAPH_SUCCESS(FlattenSplitPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(GatherForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(DecomposeLargeConstPass::Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(CastReshapeCastPass::Run(graph));
   return graph->TopologicalSorting();
 }
 } // namespace ge

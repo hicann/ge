@@ -361,6 +361,24 @@ Status InsertAippOpUtil::FindMaxSizeNode(const ComputeGraphPtr &graph, const Nod
   return SUCCESS;
 }
 
+void InsertAippOpUtil::DelStorageFormatAndShapeAttr(const NodePtr &case_node) const {
+  const auto &case_op = case_node->GetOpDesc();
+  for (const auto &input_desc : case_op->GetAllInputsDescPtr()) {
+    if (input_desc != nullptr) {
+      (void)input_desc->DelAttr(ATTR_NAME_STORAGE_FORMAT);
+      (void)input_desc->DelAttr(ATTR_NAME_STORAGE_SHAPE);
+    }
+  }
+  for (const auto &output_desc : case_op->GetAllOutputsDescPtr()) {
+    if (output_desc != nullptr) {
+      (void)output_desc->DelAttr(ATTR_NAME_STORAGE_FORMAT);
+      (void)output_desc->DelAttr(ATTR_NAME_STORAGE_SHAPE);
+    }
+  }
+  GELOGI("Del node %s inputs and outputs %s %s attr.", case_node->GetName().c_str(),
+    ATTR_NAME_STORAGE_FORMAT.c_str(), ATTR_NAME_STORAGE_SHAPE.c_str());
+}
+
 Status InsertAippOpUtil::UpdateCaseNode(const ComputeGraphPtr &graph, const NodePtr &case_node) const {
   const auto &func_desc = case_node->GetOpDesc();
   std::map<uint32_t, int64_t> max_sizes;
@@ -484,6 +502,7 @@ Status InsertAippOpUtil::UpdatePrevNodeByAipp(const NodePtr &node) const {
   output->SetShapeRange(shape_ranges);
   output->SetOriginShapeRange(shape_ranges);
   ge::TensorUtils::SetSize(*output, size);
+  DelStorageFormatAndShapeAttr(src_node);
   GELOGI("Set node %s output %d size %ld by aipp.", src_node->GetName().c_str(), peer_out_anchor->GetIdx(), size);
 
   return SUCCESS;
