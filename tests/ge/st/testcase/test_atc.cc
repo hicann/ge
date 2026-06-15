@@ -41,8 +41,18 @@ DECLARE_string(save_original_model);
 DECLARE_string(static_model_ops_lower_limit);
 
 namespace ge {
+namespace {
+constexpr const char *kStInt32Flag = "st_cmd_flag_int32";
+
+void EnsureStCmdFlagRegistered() {
+  static int32_t &int32_flag = flgs::RegisterParamInt32(kStInt32Flag, 0, "st cmd flag int32");
+  (void)int32_flag;
+}
+}  // namespace
+
 class AtcCommonSTest : public AtcTest {
   void SetUp() override {
+    EnsureStCmdFlagRegistered();
     GeRunningEnvFaker::SetEnvForOfflineSoPack();
     const ::testing::TestInfo *test_info = ::testing::UnitTest::GetInstance()->current_test_info();
     test_case_name = test_info->test_case_name();
@@ -3072,6 +3082,26 @@ TEST_F(AtcCommonSTest, GeFlags_param_err04) {
 
 TEST_F(AtcCommonSTest, GeFlags_param_err05) {
   char *argv[] = {"atc", "--op_debug_level=3.6"};
+  int32_t ret = ge::flgs::ParseCommandLine(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+}
+
+TEST_F(AtcCommonSTest, GeFlags_param_bool_type_error) {
+  FLAGS_help = false;
+  char *argv[] = {"atc", "--help=invalid_bool"};
+  int32_t ret = ge::flgs::ParseCommandLine(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  EXPECT_FALSE(FLAGS_help);
+}
+
+TEST_F(AtcCommonSTest, GeFlags_param_int32_type_error) {
+  char *argv[] = {"atc", "--st_cmd_flag_int32=debug"};
+  int32_t ret = ge::flgs::ParseCommandLine(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+}
+
+TEST_F(AtcCommonSTest, GeFlags_param_display_model_info_range_error) {
+  char *argv[] = {"atc", "--display_model_info=2"};
   int32_t ret = ge::flgs::ParseCommandLine(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_NE(ret, 0);
 }
