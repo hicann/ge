@@ -124,7 +124,7 @@ static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *
   const std::vector<ge::Expression> *condition_value = GetInputSymbolicValue(context, 0);
   const std::vector<ge::Expression> *x1_value = GetInputSymbolicValue(context, 1);
   const std::vector<ge::Expression> *x2_value = GetInputSymbolicValue(context, 2);
-  if (!CheckInputsValue(condition_value, x2_value, x2_value)) {
+  if (!CheckInputsValue(condition_value, x1_value, x2_value)) {
     GELOGW("Select not support, inputs symbol value is empty.");
     return UNSUPPORTED;
   }
