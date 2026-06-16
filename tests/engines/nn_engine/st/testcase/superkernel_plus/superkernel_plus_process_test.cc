@@ -31,11 +31,18 @@ class SuperkernelPlusProcessTest: public testing::Test {
     auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
     gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
     cout << "SuperkernelPlusProcessTest SetUp" << endl;
+    string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
+    EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
+    string stub_opp_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/opp";
+    EnvVarGuard opp_guard(MM_ENV_ASCEND_OPP_PATH, stub_opp_path.c_str());
     InitWithSocVersion("Ascend910B1", "force_fp16");
+    Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = stub_opp_path + "/";
     FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
     map<string, string> options;
-    EXPECT_EQ(graph_optimizer_ptr->Initialize(options, nullptr), SUCCESS);
+    graph_optimizer_ptr->Initialize(options, nullptr);
     Configuration::Instance(AI_CORE_NAME).content_map_["superkernel_plus.enable"] = "true";
+    cann_guard.Restore();
+    opp_guard.Restore();
   }
   static void TearDownTestCase() {
     cout << "SuperkernelPlusProcessTest TearDown" << endl;

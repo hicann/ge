@@ -76,6 +76,29 @@ public:
     Configuration::Instance(fe::AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
             static_cast<int64_t>(buffer_optimize);
   }
+  // 统一 mock l1/l2 fusion 函数，通过 graph attr 读取返回值
+  static void MockL1FusionByAttr(LxFusionOptimizerPtr &opt) {
+    opt->l1_fusion_optimizer_func_ = [](ge::ComputeGraph &g, AOEOption) -> tune::Status {
+      int64_t ret_val = tune::NO_FUSION_STRATEGY;
+      (void)AttrUtils::GetInt(&g, "_l1_fusion_ret", ret_val);
+      return static_cast<tune::Status>(ret_val);
+    };
+  }
+  static void MockL2FusionByAttr(LxFusionOptimizerPtr &opt) {
+    opt->l2_fusion_pre_optimizer_func_ = [](ge::ComputeGraph &, AOEOption,
+        const std::vector<std::string> &, std::vector<PassChangeInfo> &) -> tune::Status {
+      return tune::SUCCESS;
+    };
+    opt->l2_fusion_optimizer_func_ = [](ge::ComputeGraph &g, AOEOption) -> tune::Status {
+      int64_t ret_val = tune::NO_FUSION_STRATEGY;
+      (void)AttrUtils::GetInt(&g, "_l2_fusion_ret", ret_val);
+      return static_cast<tune::Status>(ret_val);
+    };
+  }
+  static void MockL1L2FusionByAttr(LxFusionOptimizerPtr &opt) {
+    MockL1FusionByAttr(opt);
+    MockL2FusionByAttr(opt);
+  }
 };
 
 TEST_F(LxFusionOptimizerUT, init_and_finalize) {
@@ -92,6 +115,13 @@ TEST_F(LxFusionOptimizerUT, lx_fusion_Finalize) {
   LxFusionOptimizerPtr lx_fusion_optimizer = std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  lx_fusion_optimizer->lx_fusion_finalize_func_ = [](ge::ComputeGraph &g) -> tune::Status {
+    bool is_failed = false;
+    if (AttrUtils::GetBool(&g, "_is_lx_fusion_finalize_failed", is_failed) && is_failed) {
+      return tune::FAILED;
+    }
+    return tune::SUCCESS;
+  };
   EXPECT_EQ(lx_fusion_optimizer->LxFusionFinalize(*graph), fe::SUCCESS);
   AttrUtils::SetBool(graph, "_is_lx_fusion_finalize_failed", true);
   EXPECT_EQ(lx_fusion_optimizer->LxFusionFinalize(*graph), fe::FAILED);
@@ -201,6 +231,7 @@ TEST_F(LxFusionOptimizerUT, l2_fusion_Func_not_init_recovery) {
 TEST_F(LxFusionOptimizerUT, l1_fusion_failed) {
   LxFusionOptimizerPtr lx_fusion_optimizer = std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
+  MockL1FusionByAttr(lx_fusion_optimizer);
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
   GeTensorDesc output_desc;
@@ -220,6 +251,7 @@ TEST_F(LxFusionOptimizerUT, l1_fusion_failed) {
 TEST_F(LxFusionOptimizerUT, l2_fusion_failed) {
   LxFusionOptimizerPtr lx_fusion_optimizer = std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
+  MockL1L2FusionByAttr(lx_fusion_optimizer);
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
   GeTensorDesc output_desc;
@@ -260,6 +292,7 @@ TEST_F(LxFusionOptimizerUT, lx_fusion_optimize_case_1) {
   LxFusionOptimizerPtr lx_fusion_optimizer =
       std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
+  MockL1L2FusionByAttr(lx_fusion_optimizer);
   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
       static_cast<int64_t>(EN_L1_OPTIMIZE);
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
@@ -292,6 +325,7 @@ TEST_F(LxFusionOptimizerUT, lx_fusion_optimize_case_2) {
   LxFusionOptimizerPtr lx_fusion_optimizer =
       std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
+  MockL1FusionByAttr(lx_fusion_optimizer);
 
   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
       static_cast<int64_t>(EN_L1_OPTIMIZE);
@@ -323,6 +357,7 @@ TEST_F(LxFusionOptimizerUT, lx_fusion_optimize_case_3) {
   LxFusionOptimizerPtr lx_fusion_optimizer =
       std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
+  MockL2FusionByAttr(lx_fusion_optimizer);
 
   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
       static_cast<int64_t>(EN_L2_OPTIMIZE);
@@ -403,6 +438,11 @@ TEST_F(LxFusionOptimizerUT, l1_fusion_pass_changed_case_5) {
   LxFusionOptimizerPtr lx_fusion_optimizer = std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
   lx_fusion_optimizer->l2_fusion_pre_optimizer_func_ = L2FusionPreOptimizer2;
+  lx_fusion_optimizer->l2_fusion_optimizer_func_ = [](ge::ComputeGraph &g, AOEOption) -> tune::Status {
+    int64_t ret_val = tune::SUCCESS;
+    (void)AttrUtils::GetInt(&g, "_l2_fusion_ret", ret_val);
+    return static_cast<tune::Status>(ret_val);
+  };
 
   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
           static_cast<int64_t>(EN_L2_OPTIMIZE);
@@ -451,6 +491,11 @@ TEST_F(LxFusionOptimizerUT, l1_fusion_pass_changed_case_6) {
   LxFusionOptimizerPtr lx_fusion_optimizer = std::make_shared<LxFusionOptimizer>(fusion_priority_mgr, ops_kernel_info_store);
   EXPECT_EQ(lx_fusion_optimizer->Initialize(), fe::SUCCESS);
   lx_fusion_optimizer->l2_fusion_pre_optimizer_func_ = L2FusionPreOptimizer3;
+  lx_fusion_optimizer->l2_fusion_optimizer_func_ = [](ge::ComputeGraph &g, AOEOption) -> tune::Status {
+    int64_t ret_val = tune::SUCCESS;
+    (void)AttrUtils::GetInt(&g, "_l2_fusion_ret", ret_val);
+    return static_cast<tune::Status>(ret_val);
+  };
 
   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
           static_cast<int64_t>(EN_L2_OPTIMIZE);

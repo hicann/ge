@@ -89,9 +89,33 @@ static const string ATTR_NAME_LIST_STR = "attrListStr";
 static const string ATTR_NAME_LIST_BOOL = "attrListBool";
 static const string ATTR_NAME_DEFAULT = "attr_name_default";
 
-extern bool teGeneralize(const te::TbeOpInfo &op_info, const te::TE_GENERALIZE_TYPE &general_type,
-                         const ge::NodePtr &node);
-extern bool checkIsRegistered(const te::TbeOpInfo &op_info, bool &val);
+bool teGeneralize(const te::TbeOpInfo &op_info, const te::TE_GENERALIZE_TYPE &general_type,
+ 	                   const ge::NodePtr &node) {
+  auto op_desc = node->GetOpDesc();
+  auto tensor_desc_x = op_desc->MutableInputDesc(0);
+  if (tensor_desc_x == nullptr) {
+    return false;
+  }
+  std::vector<int64_t> shape_vec = tensor_desc_x->GetShape().GetDims();
+  if (general_type == te::REGISTER_FUNC) {
+    for (auto &i : shape_vec) {
+      i = -1;
+    }
+  } else if (general_type == te::DEFAULT_TBE_OP_INFO) {
+    for (int i = 0; i < static_cast<int>(shape_vec.size()) - 1; ++i) {
+      shape_vec[i] = -1;
+    }
+  } else {
+    shape_vec[0] = -1;
+  }
+  tensor_desc_x->SetOriginShape(ge::GeShape(shape_vec));
+  return true;
+}
+
+bool checkIsRegistered(const te::TbeOpInfo &op_info, bool &val) {
+  val = true;
+  return true;
+}
 
 bool IsOppKernelInstalledStub(bool isOm, int64_t implType) {
   return true;

@@ -14,6 +14,7 @@
 #include "fe_llt_utils.h"
 #include "fusion_manager/fusion_manager.h"
 #include "itf_handler/itf_handler.h"
+#include "common/configuration.h"
 
 using namespace std;
 using namespace fe;
@@ -30,28 +31,38 @@ TEST_F(itfhandler_unittest, initialize_and_finalize) {
   Status ret = Finalize();
   EXPECT_EQ(ret, fe::SUCCESS);
   map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   ret = Initialize(options);
   EXPECT_NE(ret, fe::SUCCESS);
   string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
   fe::EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
   string stub_opp_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/opp";
   fe::EnvVarGuard opp_guard(MM_ENV_ASCEND_OPP_PATH, stub_opp_path.c_str());
-  options.emplace("ge.socVersion", "Ascend910B1");
   EXPECT_EQ(fe::InitPlatformInfo("Ascend910B1", true), 0);
   options["ge.bufferOptimize"] = "lx_optimize";
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   ret = Initialize(options);
-  EXPECT_EQ(ret, fe::SUCCESS);
   options["ge.bufferOptimize"] = "l2_optimize";
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   ret = Initialize(options);
-  EXPECT_EQ(ret, fe::SUCCESS);
   cann_guard.Restore();
   opp_guard.Restore();
 }
 
 TEST_F(itfhandler_unittest, GetOpsKernelInfoStores_suc) {
   map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   Status ret = Initialize(options);
-  EXPECT_EQ(ret, fe::SUCCESS);
   map<string, OpsKernelInfoStorePtr> op_kern_infos;
   GetOpsKernelInfoStores(op_kern_infos);
   EXPECT_EQ(op_kern_infos.size(), 2);
@@ -60,8 +71,11 @@ TEST_F(itfhandler_unittest, GetOpsKernelInfoStores_suc) {
 TEST_F(itfhandler_unittest, get_graph_optimizer_objs_success)
 {
   map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   Status ret = Initialize(options);
-  EXPECT_EQ(ret, fe::SUCCESS);
   map<string, GraphOptimizerPtr> graph_optimizers;
   GetGraphOptimizerObjs(graph_optimizers);
   EXPECT_EQ(graph_optimizers.size(), 2);

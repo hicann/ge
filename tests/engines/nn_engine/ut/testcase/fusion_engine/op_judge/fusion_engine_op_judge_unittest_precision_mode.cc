@@ -873,12 +873,8 @@ TEST_F(UTEST_fusion_engine_op_judge_precision_mode, is_node_supported_16in_32out
 }
 TEST_F(UTEST_fusion_engine_op_judge_precision_mode, set_node_format_dtype_force_fp32)
 {
-  Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  map<string, string> options;
   string soc_version = "Ascend310";
   PlatformUtils::Instance().soc_version_ = soc_version;
-  config.Initialize(options);
-  config.InitFp16OpType();
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = FORCE_FP32;
   op_format_dtype_judge_ptr_ = std::make_shared<OpFormatDtypeJudge>(AI_CORE_NAME, reflection_builder_ptr_);
   op_format_dtype_judge_ptr_->Initialize();
@@ -5194,6 +5190,8 @@ TEST_F(UTEST_fusion_engine_op_judge_precision_mode, judge_node_by_customize_dtyp
 
   op_cust_dtypes_parser_ptr_->op_type_cust_dtypes_.clear();
   op_cust_dtypes_parser_ptr_->op_name_cust_dtypes_.clear();
+  auto &config = Configuration::Instance(fe::AI_CORE_NAME);
+  config.config_parser_map_vec_[static_cast<size_t>(CONFIG_PARSER_PARAM::CustDtypes)].clear();
 
   Status ret = op_format_dtype_judge_ptr_->SetDtypeByPrecisionMode(mat_mul_node, "tbe-custom", OpImplType::EN_IMPL_HW_TBE);
   ret = op_format_dtype_judge_ptr_->SetFormatByJudgeResult(mat_mul_node, "tbe-custom");

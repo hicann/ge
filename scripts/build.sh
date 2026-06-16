@@ -40,7 +40,7 @@ if [ -z "${OUTPUT_PATH}" ] ; then
 fi
 
 export BUILD_PATH="${BASEPATH}/build/"
-export AIR_CODE_DIR=${AIRDIR}
+export AIR_CODE_DIR=${BASEPATH}
 echo "AIR_CODE_DIR=${AIR_CODE_DIR}"
 
 # print usage message
@@ -360,6 +360,8 @@ run_llt_with_cov()
   then
     return 0
   fi
+  LCOV_PARALLEL_PARAMS=$(get_lcov_parallel_params ${THREAD_NUM})
+  LCOV_PARALLEL_IGNORE=$(get_lcov_parallel_ignore_errors)
   export ASCEND_OPP_PATH=$ASCEND_INSTALL_PATH/opp
   export PATH=$ASCEND_INSTALL_PATH/compiler/ccec_compiler/bin:$PATH
   export LD_LIBRARY_PATH=$ASCEND_INSTALL_PATH/compiler/lib64:$ASCEND_INSTALL_PATH/runtime/lib64:$ASCEND_INSTALL_PATH/runtime/lib64/stub:$LD_LIBRARY_PATH
@@ -383,7 +385,22 @@ run_llt_with_cov()
         export LD_PRELOAD=${USE_ASAN}:/usr/lib/x86_64-linux-gnu/libstdc++.so.6
         export ASAN_OPTIONS=detect_leaks=0
       fi
-      ./$AIRDIR/build/tests/engines/nn_engine/ut/fe_ut
+      echo "---------------- Begin to run split fe ut tests in parallel ----------------"
+        CTEST_PARALLEL=4
+        if [ "X$ENABLE_ASAN" != "Xtrue" ]; then
+          CTEST_PARALLEL=8
+        fi
+        echo "ctest parallel: ${CTEST_PARALLEL} (ASAN=${ENABLE_ASAN})"
+        export AIR_CODE_DIR=${BASEPATH}
+        ctest --verbose -j ${CTEST_PARALLEL} -L ut -L fe \
+              --test-dir ${BASEPATH}/build/tests/engines/nn_engine/ut \
+              --output-log ${BASEPATH}/build/tests/engines/nn_engine/ut/ctest_fe_split.log \
+              --no-tests=error
+        if [[ "$?" -ne 0 ]]; then
+            echo "!!! FE UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
+            exit 1
+        fi
+        echo "---------------- Finish all split fe ut tests ----------------"
       if [ "X$ENABLE_ASAN" = "Xtrue" ];then
         unset LD_PRELOAD
         unset ASAN_OPTIONS
@@ -394,8 +411,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of fe ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_ut/"
-        lcov -c -d build/tests/engines/nn_engine/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_fe_ut/tmp.info
-        lcov -r cov_fe_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_ut/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_fe_ut/tmp.info
+        lcov -r cov_fe_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_fe_ut/coverage.info
         cd "${BASEPATH}/cov_fe_ut/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
         echo "---------------- Finish the generating coverage of fe ut ----------------"
@@ -415,7 +432,22 @@ run_llt_with_cov()
         export LD_PRELOAD=${USE_ASAN}:/usr/lib/x86_64-linux-gnu/libstdc++.so.6
         export ASAN_OPTIONS=detect_leaks=0
       fi
-      ./$AIRDIR/build/tests/engines/nn_engine/st/fe_st
+      echo "---------------- Begin to run split fe st tests in parallel ----------------"
+        CTEST_PARALLEL=4
+        if [ "X$ENABLE_ASAN" != "Xtrue" ]; then
+          CTEST_PARALLEL=8
+        fi
+        echo "ctest parallel: ${CTEST_PARALLEL} (ASAN=${ENABLE_ASAN})"
+        export AIR_CODE_DIR=${BASEPATH}
+        ctest --verbose -j ${CTEST_PARALLEL} -L st -L fe \
+              --test-dir ${BASEPATH}/build/tests/engines/nn_engine/st \
+              --output-log ${BASEPATH}/build/tests/engines/nn_engine/st/ctest_fe_split.log \
+              --no-tests=error
+        if [[ "$?" -ne 0 ]]; then
+            echo "!!! FE ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+            exit 1
+        fi
+        echo "---------------- Finish all split fe st tests ----------------"
       if [ "X$ENABLE_ASAN" = "Xtrue" ];then
         unset LD_PRELOAD
         unset ASAN_OPTIONS
@@ -425,8 +457,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_st/"
-        lcov -c -d build/tests/engines/nn_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_fe_st/tmp.info
-        lcov -r cov_fe_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_st/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_fe_st/tmp.info
+        lcov -r cov_fe_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_fe_st/coverage.info
         cd "${BASEPATH}/cov_fe_st/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
       fi
@@ -450,8 +482,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_st_whole_process/"
-        lcov -c -d build/tests/engines/nn_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_fe_st_whole_process/tmp.info
-        lcov -r cov_fe_st_whole_process/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_st_whole_process/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_fe_st_whole_process/tmp.info
+        lcov -r cov_fe_st_whole_process/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_fe_st_whole_process/coverage.info
         cd "${BASEPATH}/cov_fe_st_whole_process/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
       fi
@@ -470,8 +502,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of tefusion ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_tefusion_ut/"
-        lcov -c -d build/tests/engines/te_fusion/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_tefusion_ut/tmp.info
-        lcov -r cov_tefusion_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_tefusion_ut/coverage.info
+        lcov -c -d build/tests/engines/te_fusion/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_tefusion_ut/tmp.info
+        lcov -r cov_tefusion_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_tefusion_ut/coverage.info
         cd "${BASEPATH}/cov_tefusion_ut/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
         echo "---------------- Finish generating coverage of tefusion ut ----------------"
@@ -487,8 +519,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_tefusion_st/"
-        lcov -c -d build/tests/engines/te_fusion/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_tefusion_st/tmp.info
-        lcov -r cov_tefusion_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_tefusion_st/coverage.info
+        lcov -c -d build/tests/engines/te_fusion/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_tefusion_st/tmp.info
+        lcov -r cov_tefusion_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_tefusion_st/coverage.info
         cd "${BASEPATH}/cov_tefusion_st/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
       fi
@@ -507,8 +539,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of ffts ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_ffts_ut/"
-        lcov -c -d build/tests/engines/ffts_engine/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_ffts_ut/tmp.info
-        lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_ffts_ut/coverage.info
+        lcov -c -d build/tests/engines/ffts_engine/ut --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_ffts_ut/tmp.info
+        lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_ffts_ut/coverage.info
         cd "${BASEPATH}/cov_ffts_ut/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
         echo "---------------- Finish the generating coverage of ffts ut ----------------"
@@ -524,8 +556,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_ffts_st/"
-        lcov -c -d build/tests/engines/ffts_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} -o cov_ffts_st/tmp.info
-        lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_ffts_st/coverage.info
+        lcov -c -d build/tests/engines/ffts_engine/st --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} -o cov_ffts_st/tmp.info
+        lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} ${LCOV_PARALLEL_PARAMS} ${LCOV_PARALLEL_IGNORE} ${LCOV_RC_PARAM} -o cov_ffts_st/coverage.info
         cd "${BASEPATH}/cov_ffts_st/"
         genhtml coverage.info ${GENHTML_IGNORE_ERRORS}
       fi

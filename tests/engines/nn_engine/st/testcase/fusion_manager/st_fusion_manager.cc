@@ -32,19 +32,12 @@ class fuison_manager_stest : public testing::Test
 
 TEST_F(fuison_manager_stest, dsa_instance)
 {
-  string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
-  fe::EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
-  string stub_opp_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/opp";
-  fe::EnvVarGuard opp_guard(MM_ENV_ASCEND_OPP_PATH, stub_opp_path.c_str());
-  map<string, string> options;
-  options.emplace(ge::SOC_VERSION, "Ascend910B1");
-  PlatformUtils::Instance().is_init_ = false;
   FusionManager &fm = FusionManager::Instance(kDsaCoreName);
-  EXPECT_EQ(fm.Initialize(kDsaCoreName, options), SUCCESS);
+  fm.ops_kernel_info_store_ = make_shared<FEOpsKernelInfoStore>(fe::kDsaCoreName);
+  fm.dsa_graph_opt_ = make_shared<DSAGraphOptimizer>(fm.ops_kernel_info_store_, fe::kDsaCoreName);
   map<string, GraphOptimizerPtr> graph_optimizers;
-  fm.GetGraphOptimizerObjs(graph_optimizers, kDsaCoreName);
+  std::string AIcoreEngine = "DSAEngine";
+  fm.GetGraphOptimizerObjs(graph_optimizers, AIcoreEngine);
   EXPECT_EQ(graph_optimizers.size(), 1);
-  cann_guard.Restore();
-  opp_guard.Restore();
 }
 

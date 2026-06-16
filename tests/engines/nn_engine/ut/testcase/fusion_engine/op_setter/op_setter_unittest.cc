@@ -231,6 +231,7 @@ TEST_F(UTEST_OP_SETTER, multi_set_op_info_success) {
 }
 
 TEST_F(UTEST_OP_SETTER, set_op_impl_failed) {
+  Configuration::Instance(AI_CORE_NAME).impl_mode_parser_ = std::make_shared<OpImplModeConfigParser>("");
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("op_setter_test");
   CreateOneInvalidOpGraph(graph);
   OpSetterPtr op_setter_ptr = std::make_shared<OpSetter>(AI_CORE_NAME);

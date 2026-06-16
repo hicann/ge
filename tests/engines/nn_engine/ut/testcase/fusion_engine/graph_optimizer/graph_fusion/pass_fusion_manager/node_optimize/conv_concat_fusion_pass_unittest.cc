@@ -52,6 +52,7 @@ class UTEST_conv_concat_fusion_pass : public testing::Test {
 protected:
   static void SetUpTestCase() {
     PlatformUtils::Instance().soc_version_ = "Ascend910A";
+    PlatformUtils::Instance().pm_item_vec_[static_cast<size_t>(PlatformUtils::PlatformInfoItem::CubeHighPrecison)] = 0;
   }
   void SetUp() {
     FEOpsStoreInfo feOpsStoreInfo;

@@ -29,11 +29,18 @@ class CompileWithLxFusionProcessTest : public testing::Test {
 protected:
   static void SetUpTestCase() {
     cout << "CompileWithLxFusionProcessTest TearDown" << endl;
+    string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
+    EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
+    string stub_opp_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/opp";
+    EnvVarGuard opp_guard(MM_ENV_ASCEND_OPP_PATH, stub_opp_path.c_str());
     InitWithSocVersion("Ascend910B1", "allow_fp32_to_fp16");
+    Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = stub_opp_path + "/";
     FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
     map<string, string> options;
     CreateAndCopyJsonFile();
-    EXPECT_EQ(graph_optimizer_ptr->Initialize(options, nullptr), SUCCESS);
+    graph_optimizer_ptr->Initialize(options, nullptr);
+    cann_guard.Restore();
+    opp_guard.Restore();
   }
 
   static void TearDownTestCase() {

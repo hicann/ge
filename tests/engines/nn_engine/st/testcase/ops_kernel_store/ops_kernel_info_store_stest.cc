@@ -77,9 +77,33 @@ enum TestIter {
     TEST_LACK_OF_ATTR_INT
 };
 
-extern bool teGeneralize(const te::TbeOpInfo &op_info, const te::TE_GENERALIZE_TYPE &general_type,
-                         const ge::NodePtr &node);
-extern bool checkIsRegistered(const te::TbeOpInfo &op_info, bool &val);
+bool teGeneralize(const te::TbeOpInfo &op_info, const te::TE_GENERALIZE_TYPE &general_type,
+ 	  	                   const ge::NodePtr &node) {
+  auto op_desc = node->GetOpDesc();
+  auto tensor_desc_x = op_desc->MutableInputDesc(0);
+  if (tensor_desc_x == nullptr) {
+    return false;
+  }
+  std::vector<int64_t> shape_vec = tensor_desc_x->GetShape().GetDims();
+  if (general_type == te::REGISTER_FUNC) {
+    for (auto &i : shape_vec) {
+      i = -1;
+    }
+  } else if (general_type == te::DEFAULT_TBE_OP_INFO) {
+    for (int i = 0; i < static_cast<int>(shape_vec.size()) - 1; ++i) {
+      shape_vec[i] = -1;
+    }
+  } else {
+    shape_vec[0] = -1;
+  }
+  tensor_desc_x->SetOriginShape(ge::GeShape(shape_vec));
+  return true;
+}
+
+bool checkIsRegistered(const te::TbeOpInfo &op_info, bool &val) {
+  val = true;
+  return true;
+}
 
 namespace {
 const string ATTR_NAME_INT = "transposX";
@@ -2743,7 +2767,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_op_tiling){
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 
   shared_ptr<ge::OpDesc> op_memset = make_shared<ge::OpDesc>("memset", "MemSet");
   shared_ptr<ge::OpDesc> op_reduce = make_shared<ge::OpDesc>("reduce", "ReduceSumD");
@@ -2769,7 +2793,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_op_tiling){
   ge::NodePtr sync_node = graph->AddNode(op_sync);
   ge::GraphUtils::AddEdge(reduce_node->GetOutControlAnchor(), sync_node->GetInControlAnchor());
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(sync_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
@@ -2792,7 +2816,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 
   c_ratio_vec = {1,0,2};
   v_ratio_vec = {0,1,1};
@@ -2802,7 +2826,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 
   c_ratio_vec = {2,0,2};
   v_ratio_vec = {1,1,1};
@@ -2812,7 +2836,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 
   c_ratio_vec = {1,0,2};
   v_ratio_vec = {2,1,1};
@@ -2824,7 +2848,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_vector_core_mix_tiling){
@@ -2848,12 +2872,12 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_vector_core_mix_tiling){
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   ge::AttrUtils::SetStr(op_desc_ptr, kTilingRemoveDuplicates, "0");
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
   std::string res;
   ge::AttrUtils::GetStr(op_desc_ptr, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, res);
   EXPECT_EQ(res, "MIX_VECTOR_CORE");
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_NE(fe::SUCCESS, ret);
+  EXPECT_EQ(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, allow_fp32_to_bf16_support_check_failed)
