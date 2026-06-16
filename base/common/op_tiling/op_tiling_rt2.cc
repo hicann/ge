@@ -659,7 +659,7 @@ static void *GetTilingData(gert::KernelContextHolder &tiling_parse_holder) {
 }
 
 static ge::graphStatus AutofuseNodeTiling(const ge::Operator &op, const fe::PlatFormInfos &platform_infos,
-                                          const OutputsConvertorFun &callback) {
+                                          const OutputsConvertorFun &callback, bool is_cube = false) {
   const auto node = ge::NodeUtilsEx::GetNodeFromOperator(op);
   GE_ASSERT_NOTNULL(node);
   const auto graph = node->GetOwnerComputeGraph();
@@ -698,7 +698,7 @@ static ge::graphStatus AutofuseNodeTiling(const ge::Operator &op, const fe::Plat
       static_cast<void *>(workspace_size.get());
 
   // 获取tiling函数
-  const std::string get_tiling_data_size_func_name("GetTilingDataSize");
+  std::string get_tiling_data_size_func_name = is_cube ? "GetTilingDataSizeVec" : "GetTilingDataSize";
   GetTilingDataFunc const get_tiling_data_size_func =
       reinterpret_cast<GetTilingDataFunc>(mmDlsym(handle, get_tiling_data_size_func_name.c_str()));
   GE_ASSERT_NOTNULL(get_tiling_data_size_func, "Failed to Dlsym function: %s", get_tiling_data_size_func_name.c_str());
@@ -717,7 +717,7 @@ static ge::graphStatus AutofuseNodeTiling(const ge::Operator &op, const fe::Plat
           .Outputs(outputs_holder)
           .Build(node->GetOpDesc());
   GE_ASSERT_NOTNULL(autofuse_tiling_context_holder.context_);
-  const std::string tiling_func_name("TilingFunc");
+  std::string tiling_func_name = is_cube ? "TilingFuncVec" : "TilingFunc";
   TilingFunc const tiling_func = reinterpret_cast<TilingFunc>(mmDlsym(handle, tiling_func_name.c_str()));
   GE_ASSERT_NOTNULL(tiling_func, "Failed to Dlsym function: %s", tiling_func_name.c_str());
   GE_ASSERT_GRAPH_SUCCESS(
@@ -783,7 +783,7 @@ ge::graphStatus AutofuseNodeWithMatmulTiling(const ge::Operator &op, const fe::P
                           &op_desc](gert::KernelContext *kernel_context) -> ge::graphStatus {
     return HandleAutofuseTilingCallback(kernel_context, run_info, wk_size, aiv_num, op_desc);
   };
-  (void)AutofuseNodeTiling(op, ge_platform_infos, callback2);
+  (void)AutofuseNodeTiling(op, ge_platform_infos, callback2, true);
   uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
   GELOGI("Get autofuse matmul op(%s) tiling key: %llu aic_num: %u, aiv_num: %u, fuse_op_block_dim: %u",
          op_desc->GetName().c_str(), run_info.GetTilingKey(), aic_num, aiv_num, new_block_dim);
@@ -810,7 +810,7 @@ ge::graphStatus AutofuseNodeWithConvTiling(const ge::Operator &op, const fe::Pla
                           &op_desc](gert::KernelContext *kernel_context) -> ge::graphStatus {
     return HandleAutofuseTilingCallback(kernel_context, run_info, wk_size, aiv_num, op_desc);
   };
-  (void)AutofuseNodeTiling(op, ge_platform_infos, callback2);
+  (void)AutofuseNodeTiling(op, ge_platform_infos, callback2, true);
   uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
   GELOGI("Get autofuse conv op(%s) tiling key: %llu aic_num: %u, aiv_num: %u, fuse_op_block_dim: %u",
          op_desc->GetName().c_str(), run_info.GetTilingKey(), aic_num, aiv_num, new_block_dim);
