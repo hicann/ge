@@ -11,6 +11,7 @@
 #include "autofuse_optimize.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/passes/feature/constant_clip_pass.h"
 #include "graph/passes/standard_optimize/constant_folding/constant_folding_pass.h"
 #include "graph/passes/standard_optimize/common_subexpression_elimination_pass.h"
 #include "graph/passes/pass_manager.h"
@@ -129,7 +130,9 @@ Status GraphOptimizerBeforeAutofuse(const ge::ComputeGraphPtr &compute_graph) {
 
   GEPass ge_passes(compute_graph);
   NamesToPass names_to_passes;
+  ConstantClipPass constant_clip_pass;
   ConstantFoldingPass constant_folding_pass;
+  names_to_passes.emplace_back("BeforeAutofuse::ConstantClipPass", &constant_clip_pass);
   names_to_passes.emplace_back("BeforeAutofuse::ConstantFoldingPass", &constant_folding_pass);
   GE_ASSERT_SUCCESS(ge_passes.Run(names_to_passes));
 
@@ -198,7 +201,9 @@ Status AutofuseOptimize::Run(const ge::ComputeGraphPtr &compute_graph, const std
     return GRAPH_SUCCESS;
   }
 
+  GE_DUMP(compute_graph, "AutofuseOptimize_Entry");
   GE_ASSERT_SUCCESS(PreProcess(compute_graph));
+  GE_DUMP(compute_graph, "AutofuseOptimize_AfterPreprocess");
   PassManager graph_pass_for_autofuse;
   GE_TRACE_START(Symbolize);
   GE_ASSERT_GRAPH_SUCCESS(SymbolicShapeSymbolizer::Symbolize(compute_graph, inputs), "Symbolize graph input failed, graph %s",
@@ -209,7 +214,7 @@ Status AutofuseOptimize::Run(const ge::ComputeGraphPtr &compute_graph, const std
   GE_CHK_STATUS_RET(graph_pass_for_autofuse.Run(compute_graph));
 
   GE_ASSERT_SUCCESS(PostProcess(compute_graph));
-  GE_DUMP(compute_graph, "After_AutoFusePass");
+  GE_DUMP(compute_graph, "AutofuseOptimize_Exit");
   return GRAPH_SUCCESS;
 }
 }

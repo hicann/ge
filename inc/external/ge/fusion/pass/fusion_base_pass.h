@@ -18,6 +18,7 @@ namespace ge {
 namespace fusion {
 /**
  * 融合pass基类
+ * @since 8.5.0(2025-12)
  */
 class FusionBasePass {
  public:
@@ -26,8 +27,12 @@ class FusionBasePass {
    * @param graph 目标图
    * @param pass_context 上下文，可用于传递error msg等信息
    * @return
+   * @since 8.5.0(2025-12)
    */
   virtual Status Run(GraphPtr &graph, CustomPassContext &pass_context) = 0;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   virtual ~FusionBasePass() = default;
 };
 } // namespace fusion

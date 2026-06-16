@@ -19,6 +19,7 @@ namespace ge {
 namespace fusion {
 /**
  * 用于 fusion pass Replacement 阶段对 replacement graph 做 shape/dtype 推导的工具集合。
+ * @since 9.1.0(2026-06)
  */
 class InferShapeUtil {
  public:
@@ -45,6 +46,7 @@ class InferShapeUtil {
    * @param replacement_graph 待推导的 replacement graph。
    * @param subgraph_boundary 原图子图边界，用于提供边界输入的 desc 及常量值。
    * @return SUCCESS 表示推导成功，否则返回错误码。
+   * @since 9.1.0(2026-06)
    */
   static Status InferShape(const Graph &replacement_graph, const SubgraphBoundary &subgraph_boundary);
 
@@ -56,6 +58,7 @@ class InferShapeUtil {
    * @param replacement_graph 待推导的 replacement graph。
    * @param match_result      匹配结果，用于构造子图边界。
    * @return SUCCESS 表示推导成功，否则返回错误码。
+   * @since 9.1.0(2026-06)
    */
   static Status InferShape(const Graph &replacement_graph, const MatchResult &match_result);
 
@@ -67,6 +70,7 @@ class InferShapeUtil {
    * @param replacement_graph 待推导的 replacement graph。
    * @param matched_node      原图中匹配到的节点，提供边界输入 desc。
    * @return SUCCESS 表示推导成功，否则返回错误码。
+   * @since 9.1.0(2026-06)
    */
   static Status InferShape(const Graph &replacement_graph, const GNode &matched_node);
 };

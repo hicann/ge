@@ -13,7 +13,6 @@
 #include <memory>
 #include <set>
 
-#include "framework/common/debug/log.h"
 #include "common/fp16_t/fp16_t.h"
 #include "framework/common/framework_types_internal.h"
 #include "framework/common/util.h"

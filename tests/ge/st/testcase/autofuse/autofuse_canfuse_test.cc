@@ -130,7 +130,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
       .Install(FakeOp("Relu").InfoStoreAndBuilder("AIcoreEngine"))
       .Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("AIcoreEngine"));
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   const auto compute_graph = gert::ShareGraph::BuildStaticAbsExpReluNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
@@ -143,7 +143,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -192,7 +192,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_2) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -202,7 +202,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_2) {
   session.BuildGraph(1, inputs);
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -250,7 +250,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -260,7 +260,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -307,7 +307,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion_2) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -318,7 +318,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion_2) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 3);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -367,7 +367,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_horizontal_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -376,7 +376,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_horizontal_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("Const", 1);
@@ -425,7 +425,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_horizontal_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -436,7 +436,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_horizontal_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 3);
     node_types_to_count0.emplace("Const", 2);
@@ -485,7 +485,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_1) {
   ASSERT_NE(compute_graph, nullptr);
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
 
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
@@ -496,7 +496,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_1) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("Const", 1);
@@ -547,7 +547,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_horizontal_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -556,7 +556,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_horizontal_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("Const", 2);
@@ -605,7 +605,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_1) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -615,7 +615,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_1) {
   session.BuildGraph(1, inputs);
 
   // lifting AscBackend中单节点还原为原节点
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("AscBackend", 2);
     node_types_to_count0.emplace("Data", 1);
@@ -647,7 +647,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_bro_vertical_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -657,7 +657,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_bro_vertical_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -708,7 +708,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_ele_vertical_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -717,7 +717,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_ele_vertical_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("Const", 1);
@@ -767,7 +767,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_vertical_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -775,7 +775,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_vertical_fusion) {
   std::vector<InputTensorInfo> inputs{input1};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -826,7 +826,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_vertical_fusion) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -836,7 +836,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_vertical_fusion) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -895,11 +895,11 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_vertical_fusion) {
   EXPECT_EQ(ret, SUCCESS);
   InputTensorInfo input1{0, {2, 2, 16}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1};
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("Const", 1);
@@ -957,11 +957,11 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_ele_vertical_fusion) {
   InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
   InputTensorInfo input2{0, {2, 2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -1021,11 +1021,11 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_vertical_fusion) {
   InputTensorInfo input1{0, {16, 16, 16}, nullptr, 0};
   InputTensorInfo input2{0, {16, 16, 16, 16}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 2);
     node_types_to_count0.emplace("Const", 1);
@@ -1086,11 +1086,11 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_vertical_fusion) {
   InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
   InputTensorInfo input3{0, {2, 2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2, input3};
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 3);
     node_types_to_count0.emplace("AscBackend", 1);
@@ -1120,67 +1120,6 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_vertical_fusion) {
 }
 
 /**
- * 用例描述：broadcast和reduce水平融合
- * 预置条件：开启自动融合
- * 测试步骤：
- * 预期结果:融合lowering生成的两个AscBc为1个，同时校验ascgraph的正确性
- */
-// TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_2) {
-//   auto infer_data = ELMTWISE_INFER_SHAPEANDTYPE("x", "y");
-//   ge_env.Reset()
-//       .Install(FakeEngine("AIcoreEngine").KernelInfoStore("AIcoreEngine"))
-//       .Install(FakeOp(DATA).Inputs({"x"}).Outputs({"y"}).InfoStoreAndBuilder("AIcoreEngine").InferShape(infer_data))
-//       .Install(FakeOp(CONSTANT).InfoStoreAndBuilder("AIcoreEngine"))
-//       .Install(FakeOp(ADD).InfoStoreAndBuilder("AIcoreEngine"))
-//       .Install(FakeOp("Abs").InfoStoreAndBuilder("AIcoreEngine"))
-//       .Install(FakeOp(REDUCESUM).InfoStoreAndBuilder("AIcoreEngine"))
-//       .Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("AIcoreEngine"));
-//
-//   const auto compute_graph = gert::ShareGraph::BuildStaticAbsAddReduceNodeGraph();
-//   ASSERT_NE(compute_graph, nullptr);
-//   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
-//   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
-//
-//   Session session(options);
-//   auto ret = session.AddGraph(1, *graph, options);
-//   EXPECT_EQ(ret, SUCCESS);
-//   InputTensorInfo input1{0, {2, 2}, nullptr, 0};
-//   InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
-//   std::vector<InputTensorInfo> inputs{input1, input2};
-//   DUMP_GRAPH_WHEN("After_AutoFusePass");
-//   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-//   EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
-//
-//   CHECK_GRAPH(After_AutoFusePass) {
-//     std::map<std::string, size_t> node_types_to_count0;
-//     node_types_to_count0.emplace("Data", 2);
-//     node_types_to_count0.emplace("Const", 1);
-//     node_types_to_count0.emplace("AscBackend", 1);
-//     node_types_to_count0.emplace("NetOutput", 1);
-//     std::string str = gert::SummaryChecker(graph).StrictDirectNodeTypes(node_types_to_count0);
-//     EXPECT_EQ(str, "success");
-//   };
-//
-//   auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
-//   ASSERT_NE(asc_bc, nullptr);
-//   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
-//   ASSERT_NE(attr, nullptr);
-//   ASSERT_NE(attr->GetAscGraph(), nullptr);
-//   const auto &fused_graph = AscGraphUtils::GetComputeGraph(*attr->GetAscGraph());
-//   std::map<std::string, size_t> node_types_to_count;
-//   node_types_to_count.emplace("Data", 2);
-//   node_types_to_count.emplace("Load", 2);
-//   node_types_to_count.emplace("Broadcast", 1);
-//   node_types_to_count.emplace("Abs", 1);
-//   node_types_to_count.emplace("Add", 1);
-//   node_types_to_count.emplace("Sum", 1);
-//   node_types_to_count.emplace("Store", 2);
-//   node_types_to_count.emplace("Output", 2);
-//   std::string str = gert::SummaryChecker(fused_graph).StrictDirectNodeTypes(node_types_to_count);
-//   EXPECT_EQ(str, "success");
-// }
-
-/**
  * 用例描述：reduce和reduce垂直融合
  * 预置条件：开启自动融合
  * 测试步骤：
@@ -1202,7 +1141,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_2) {
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
   std::map<AscendString, AscendString> options = {{"ge.oo.level", "O3"}};
 
-  DUMP_GRAPH_WHEN("After_AutoFusePass");
+  DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
@@ -1211,7 +1150,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_2) {
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
-  CHECK_GRAPH(After_AutoFusePass) {
+  CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
     node_types_to_count0.emplace("Const", 2);

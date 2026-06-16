@@ -23,7 +23,6 @@
 #include "graph/attribute_group/attr_group_shape_env.h"
 #include "graph/utils/node_utils.h"
 #include "autofuse_frame/autofuse_frames.h"
-#include "common/ge_types.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"

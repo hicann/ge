@@ -22,8 +22,6 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/op_kernel_bin.h"
 #include "runtime/stream.h"
-#include "runtime/kernel.h"
-#include "runtime/mem.h"
 #include "graph/node.h"
 #include "graph/runtime_inference_context.h"
 #include "graph/utils/op_desc_utils.h"

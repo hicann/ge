@@ -222,7 +222,9 @@ Status FillMissionIndex(const std::pair<int64_t, int64_t> &ellipsis_mask_range,
     origin_end_indexes.emplace_back(input_dims[i]);
     origin_strides_indexes.emplace_back(Symbol(1));
   }
-  origin_start_indexes.resize(input_dims.size()); origin_end_indexes.resize(input_dims.size()); origin_strides_indexes.resize(input_dims.size());
+  origin_start_indexes.resize(input_dims.size());
+  origin_end_indexes.resize(input_dims.size());
+  origin_strides_indexes.resize(input_dims.size());
   GE_ASSERT_SUCCESS(NormalizeInput(origin_start_indexes, input_dims));
   GE_ASSERT_SUCCESS(NormalizeInput(origin_end_indexes, input_dims));
   index_input.start_indexes.clear(); index_input.end_indexes.clear(); index_input.strides_indexes.clear();

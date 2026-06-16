@@ -18,17 +18,33 @@
 namespace ge {
 namespace fusion {
 class MatchResultImpl;
+/**
+ * @since 8.5.0(2025-12)
+ */
 class MatchResult {
  public:
   /**
    * 定义匹配结果，入参为pattern即匹配定义。
    * 在match result中，matched node为根据pattern node匹配到的节点，与pattern node是一一对应的
    * @param pattern
+   * @since 8.5.0(2025-12)
    */
   explicit MatchResult(const Pattern *pattern);
+  /**
+   * @since 8.5.0(2025-12)
+   */
   MatchResult(const MatchResult &other) noexcept;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   MatchResult(MatchResult &&other) noexcept;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   MatchResult &operator=(const MatchResult &other) noexcept;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   MatchResult &operator=(MatchResult &&other) noexcept;
 
   /**
@@ -36,6 +52,7 @@ class MatchResult {
    * @param pattern_node_out_tensor
    * @param target_node_out_tensor
    * @return
+   * @since 8.5.0(2025-12)
    */
   Status AppendNodeMatchPair(const NodeIo &pattern_node_out,
                              const NodeIo &matched_node_out);
@@ -44,6 +61,7 @@ class MatchResult {
    * 根据pattern node获取到匹配到的target node
    * @param pattern_node
    * @return
+   * @since 8.5.0(2025-12)
    */
   Status GetMatchedNode(const GNode &pattern_node, GNode &matched_node) const;
 
@@ -51,6 +69,7 @@ class MatchResult {
    * 获取所有匹配到的节点。
    * @param pattern_node
    * @return
+   * @since 8.5.0(2025-12)
    */
   [[nodiscard]] std::vector<GNode> GetMatchedNodes() const;
 
@@ -59,26 +78,33 @@ class MatchResult {
    * @param capture_idx
    * @param node_output
    * @return
+   * @since 8.5.0(2025-12)
    */
   Status GetCapturedTensor(size_t capture_idx, NodeIo &node_output) const;
 
   /**
    * 获取pattern中的pattern graph
    * @return
+   * @since 8.5.0(2025-12)
    */
   const Graph &GetPatternGraph() const;
 
   /**
    * 获取匹配结果对应的子图边界
    * @return
+   * @since 8.5.0(2025-12)
    */
   [[nodiscard]] std::unique_ptr<SubgraphBoundary> ToSubgraphBoundary() const;
 
   /**
    * 将match result序列化为字符串
+   * @since 8.5.0(2025-12)
    */
   [[nodiscard]] AscendString ToAscendString() const;
 
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~MatchResult();
 
  private:

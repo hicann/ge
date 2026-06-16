@@ -15,7 +15,6 @@
 #include <map>
 
 #include "graph/graph.h"
-#include "exe_graph/runtime/tensor.h"
 #include "ge/ge_api_types.h"
 #include "jit_execution/user_graphs_manager.h"
 

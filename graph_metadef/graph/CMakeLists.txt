@@ -90,6 +90,7 @@ set(GRAPH_BASE_SOURCE_LIST
     "${GE_METADEF_DIR}/base/utils/file_utils.cc"
     "${GE_METADEF_DIR}/base/utils/aligned_ptr.cc"
     "${GE_METADEF_DIR}/base/common/plugin/plugin_manager.cc"
+    "normal_graph/custom_op_load_context.cc"
 )
 
 SET(GRAPH_SOURCE_LIST
@@ -387,6 +388,8 @@ set(STUB_HEADER_LIST
     ${GE_METADEF_INC_DIR}/graph/ir_definitions_recover.h
     ${CMAKE_CURRENT_LIST_DIR}/../third_party/transformer/src/axis_constants.h
     ${GE_METADEF_INC_DIR}/common/screen_printer.h
+    ${GE_METADEF_INC_DIR}/graph/custom_op_pull_registry.h
+    ${GE_METADEF_INC_DIR}/graph/custom_op_registry.h
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
@@ -407,8 +410,6 @@ endif ()
 if (NOT "${PRODUCT}" STREQUAL "ascend031")
     list(APPEND STUB_HEADER_LIST
         ${GE_METADEF_INC_DIR}/external/graph/operator.h
-        ${GE_METADEF_INC_DIR}/graph/custom_op_pull_registry.h
-        ${GE_METADEF_INC_DIR}/graph/custom_op_registry.h
         ${GE_METADEF_INC_DIR}/graph/ge_tensor.h
     )
     if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)

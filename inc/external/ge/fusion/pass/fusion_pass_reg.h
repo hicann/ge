@@ -17,16 +17,31 @@ namespace fusion {
 using CreateFusionPassFn = FusionBasePass *(*)();
 
 class FusionPassRegistrationDataImpl;
+/**
+ * @since 8.5.0(2025-12)
+ */
 class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FusionPassRegistrationData {
  public:
+  /**
+   * @since 8.5.0(2025-12)
+   */
   FusionPassRegistrationData() = default;
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~FusionPassRegistrationData() = default;
 
+  /**
+   * 通过pass名称构造融合pass注册数据
+   * @param pass_name 融合pass的名称
+   * @since 8.5.0(2025-12)
+   */
   explicit FusionPassRegistrationData(const AscendString &pass_name);
 
   /**
    * 获取融合pass name
    * @return
+   * @since 8.5.0(2025-12)
    */
   AscendString GetPassName() const;
 
@@ -35,12 +50,14 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FusionPassRegistrationDat
    * 注意：kAfterAssignLogicStream阶段不可注册普通融合pass，此阶段不允许修改图结构，若误将pass注册到此阶段，将被忽略
    * @param stage
    * @return
+   * @since 8.5.0(2025-12)
    */
   FusionPassRegistrationData &Stage(CustomPassStage stage);
 
   /**
    * 获取融合pass所属阶段
    * @return
+   * @since 8.5.0(2025-12)
    */
   CustomPassStage GetStage() const;
 
@@ -48,18 +65,21 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FusionPassRegistrationDat
    * 融合pass creator注册函数
    * @param create_fusion_pass_fn
    * @return
+   * @since 8.5.0(2025-12)
    */
   FusionPassRegistrationData &CreatePassFn(const CreateFusionPassFn &create_fusion_pass_fn);
 
   /**
    * 获取融合pass creator
    * @return
+   * @since 8.5.0(2025-12)
    */
   CreateFusionPassFn GetCreatePassFn() const;
 
   /**
    * 将融合pass的注册信息序列化，如pass name, stage等
    * @return
+   * @since 8.5.0(2025-12)
    */
   AscendString ToString() const;
 
@@ -67,13 +87,20 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FusionPassRegistrationDat
   std::shared_ptr<FusionPassRegistrationDataImpl> impl_;
 };
 
+/**
+ * @since 8.5.0(2025-12)
+ */
 class PassRegistrar {
  public:
   /**
    * 该函数接收一个融合pass注册信息，注册到全局单例中
    * @param fusion_pass_reg_data
+   * @since 8.5.0(2025-12)
    */
   PassRegistrar(FusionPassRegistrationData &fusion_pass_reg_data);
+  /**
+   * @since 8.5.0(2025-12)
+   */
   ~PassRegistrar() = default;
 };
 }  // namespace fusion

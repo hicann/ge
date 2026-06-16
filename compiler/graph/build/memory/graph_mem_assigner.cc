@@ -15,7 +15,6 @@
 #include "common/math/math_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "base/err_msg.h"
-#include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "graph/build/memory/hybrid_mem_assigner.h"
 #include "graph/build/memory/var_mem_assign_util.h"

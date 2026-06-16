@@ -98,9 +98,9 @@ public:
   bool& GetFlagValueBool() { return value_bool_; }
   int32_t& GetFlagValueInt32() { return value_int32_; }
   GfStatus CheckValue(const std::string &value) const;
-  void PrintTypeError(const char *type);
-  void PrintValueError();
-  std::string PrintValueRange();
+  void PrintTypeError(const std::string &value, const char *type) const;
+  void PrintValueError(const std::string &value) const;
+  std::string PrintValueRange() const;
 
 private:
   enum class DataType {
@@ -150,13 +150,13 @@ CmdFlagInfo::CmdFlagInfo(int32_t has_arg, int32_t index, const std::string &flag
       data_type_(CmdFlagInfo::DataType::Int32),
       value_int32_(default_val) {}
 
-void CmdFlagInfo::PrintTypeError(const char *type) {
+void CmdFlagInfo::PrintTypeError(const std::string &value, const char *type) const {
   std::string reason = "The value type must be [" + std::string(type) + "].";
   REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"value", "parameter", "reason"}),
-                            std::vector<const char *>({value_string_.c_str(), flag_name_.c_str(), reason.c_str()}));
+                            std::vector<const char *>({value.c_str(), flag_name_.c_str(), reason.c_str()}));
 }
 
-std::string CmdFlagInfo::PrintValueRange() {
+std::string CmdFlagInfo::PrintValueRange() const {
   const auto it = kStrValueRange.find(flag_name_);
   if (it != kStrValueRange.cend()) {
     std::string result;
@@ -169,16 +169,16 @@ std::string CmdFlagInfo::PrintValueRange() {
   return "";
 }
 
-void CmdFlagInfo::PrintValueError() {
+void CmdFlagInfo::PrintValueError(const std::string &value) const {
   if ((flag_name_ == "status_check") || (flag_name_ == "deterministic") ||
       (flag_name_ == "external_weight") || (flag_name_ == "display_model_info") ||
       (flag_name_ == "atomic_clean_policy") || (flag_name_ == "dump_mode") || (flag_name_ == "disable_reuse_memory") ||
       flag_name_ == "sparsity") {
     REPORT_PREDEFINED_ERR_MSG("E10006", std::vector<const char *>({"value", "parameter"}),
-                              std::vector<const char *>({value_string_.c_str(), flag_name_.c_str()}));
+                              std::vector<const char *>({value.c_str(), flag_name_.c_str()}));
   } else if (flag_name_ == "log") {
     REPORT_PREDEFINED_ERR_MSG("E10010", std::vector<const char *>({"loglevel"}),
-                              std::vector<const char *>({value_string_.c_str()}));
+                              std::vector<const char *>({value.c_str()}));
   } else if (flag_name_ == "framework") {
     const std::string support = "0(Caffe) or 1(MindSpore) or 3(TensorFlow) or 5(Onnx)";
     REPORT_PREDEFINED_ERR_MSG("E10007", std::vector<const char *>({"parameter", "support"}),
@@ -188,7 +188,7 @@ void CmdFlagInfo::PrintValueError() {
     const std::string reason =
         "The value is not within the range of values. The valid range is " + PrintValueRange() + ".";
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
-                              std::vector<const char *>({value_string_.c_str(), parameter.c_str(), reason.c_str()}));
+                              std::vector<const char *>({value.c_str(), parameter.c_str(), reason.c_str()}));
   }
 }
 
@@ -196,13 +196,11 @@ GfStatus CmdFlagInfo::SetFlagValue(const std::string &value)
 {
   value_string_ = value;
   GE_CHK_BOOL_EXEC(CheckValue(value) == GF_SUCCESS, return GF_FAILED, "[Check][FlagValue]failed.");
-  if ((data_type_ == DataType::Bool) && (StringToBool(value_string_, value_bool_) != GF_SUCCESS)) {
-    PrintTypeError("bool");
-    return GF_FAILED;
+  if (data_type_ == DataType::Bool) {
+    (void)StringToBool(value_string_, value_bool_);
   }
-  if ((data_type_ == DataType::Int32) && (StringToInt32(value_string_, value_int32_) != GF_SUCCESS)) {
-    PrintTypeError("int32");
-    return GF_FAILED;
+  if (data_type_ == DataType::Int32) {
+    (void)StringToInt32(value_string_, value_int32_);
   }
   if (kDeprecatedFlags.count(flag_name_) > 0U) {
     GELOG_DEPRECATED(flag_name_);
@@ -214,29 +212,20 @@ GfStatus CmdFlagInfo::CheckValue(const std::string &value) const
 {
   const auto it = kStrValueRange.find(flag_name_);
   if ((it != kStrValueRange.cend()) && (it->second.count(value) == 0U)) {
-    const std::string old_value = value_string_;
-    const_cast<CmdFlagInfo *>(this)->value_string_ = value;
-    const_cast<CmdFlagInfo *>(this)->PrintValueError();
-    const_cast<CmdFlagInfo *>(this)->value_string_ = old_value;
+    PrintValueError(value);
     return GF_FAILED;
   }
   if (data_type_ == DataType::Bool) {
     bool value_bool = false;
     if (StringToBool(value, value_bool) != GF_SUCCESS) {
-      const std::string old_value = value_string_;
-      const_cast<CmdFlagInfo *>(this)->value_string_ = value;
-      const_cast<CmdFlagInfo *>(this)->PrintTypeError("bool");
-      const_cast<CmdFlagInfo *>(this)->value_string_ = old_value;
+      PrintTypeError(value, "bool");
       return GF_FAILED;
     }
   }
   if (data_type_ == DataType::Int32) {
     int32_t value_int32 = 0;
     if (StringToInt32(value, value_int32) != GF_SUCCESS) {
-      const std::string old_value = value_string_;
-      const_cast<CmdFlagInfo *>(this)->value_string_ = value;
-      const_cast<CmdFlagInfo *>(this)->PrintTypeError("int32");
-      const_cast<CmdFlagInfo *>(this)->value_string_ = old_value;
+      PrintTypeError(value, "int32");
       return GF_FAILED;
     }
   }

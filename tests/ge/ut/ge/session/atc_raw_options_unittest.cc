@@ -61,6 +61,7 @@ void MergeRawGeOptions(const std::map<std::string, std::string> &raw_options,
 
 namespace {
 constexpr const char *kRawUtInt32Flag = "raw_options_ut_int32";
+constexpr const char *kRawUtBoolFlag = "raw_options_ut_bool";
 constexpr const char *kRawUtNoCheckerOption = "ge.oo.raw_options_ut.no_checker";
 constexpr const char *kRawUtNoCheckerFlag = "raw_options_ut_no_checker";
 constexpr const char *kRawUtCheckerOption = "ge.oo.raw_options_ut.checker";
@@ -76,9 +77,11 @@ bool RawOptionsUtChecker(const std::string &value, std::string &reason) {
 
 void EnsureRawOptionsUtFlagsRegistered() {
   static int32_t &int32_flag = flgs::RegisterParamInt32(kRawUtInt32Flag, 0, "raw options ut int32");
+  static bool &bool_flag = flgs::RegisterParamBool(kRawUtBoolFlag, false, "raw options ut bool");
   static std::string &no_checker_flag = flgs::RegisterParamString(kRawUtNoCheckerFlag, "", "raw options ut string");
   static std::string &checker_flag = flgs::RegisterParamString(kRawUtCheckerFlag, "", "raw options ut checker");
   (void)int32_flag;
+  (void)bool_flag;
   (void)no_checker_flag;
   (void)checker_flag;
 }
@@ -149,10 +152,15 @@ class AtcRawOptionsUTest : public AtcTest {
 TEST_F(AtcRawOptionsUTest, CmdFlagValueHelpersCheckAndSetRegisteredFlags) {
   EXPECT_EQ(flgs::CheckFlagValue(kRawUtInt32Flag, "abc"), flgs::GF_FAILED);
   EXPECT_EQ(flgs::CheckFlagValue(kRawUtInt32Flag, "123"), flgs::GF_SUCCESS);
+  EXPECT_EQ(flgs::CheckFlagValue(kRawUtBoolFlag, "maybe"), flgs::GF_FAILED);
+  EXPECT_EQ(flgs::CheckFlagValue(kRawUtBoolFlag, "true"), flgs::GF_SUCCESS);
   EXPECT_EQ(flgs::CheckFlagValue("raw_options_ut_unknown", "1"), flgs::GF_FAILED);
 
   EXPECT_EQ(flgs::SetFlagValue("display_model_info", "1"), flgs::GF_SUCCESS);
   EXPECT_EQ(FLAGS_display_model_info, "1");
+  EXPECT_EQ(flgs::SetFlagValue("op_debug_level", "debug"), flgs::GF_FAILED);
+  EXPECT_EQ(flgs::SetFlagValue(kRawUtInt32Flag, "456"), flgs::GF_SUCCESS);
+  EXPECT_EQ(flgs::SetFlagValue(kRawUtBoolFlag, "yes"), flgs::GF_SUCCESS);
   EXPECT_EQ(flgs::SetFlagValue("raw_options_ut_unknown", "1"), flgs::GF_FAILED);
 }
 

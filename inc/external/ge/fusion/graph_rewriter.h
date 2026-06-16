@@ -18,6 +18,9 @@
 
 namespace ge {
 namespace fusion {
+/**
+ * @since 8.5.0(2025-12)
+ */
 class SubgraphRewriter {
  public:
   /**
@@ -25,6 +28,7 @@ class SubgraphRewriter {
    * @param subgraph
    * @param replacement
    * @return
+   * @since 8.5.0(2025-12)
    */
   static Status Replace(const SubgraphBoundary &subgraph, const Graph &replacement);
 
@@ -33,6 +37,7 @@ class SubgraphRewriter {
    * @param subgraph
    * @param replacement
    * @return
+   * @since 8.5.0(2025-12)
    */
   static Status Replace(const SubgraphBoundary &subgraph, Graph &&replacement);
 
