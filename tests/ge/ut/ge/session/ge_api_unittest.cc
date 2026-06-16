@@ -286,6 +286,22 @@ TEST_F(UtestGeApi, ge_not_initialized) {
   EXPECT_FALSE(session.IsGraphNeedRebuild(graph_id));
 
   EXPECT_EQ(session.RemoveGraph(graph_id), FAILED);
+
+  // newly added interfaces should also report E10062 when GE is not initialized
+  std::vector<FlowMsgPtr> flow_inputs;
+  EXPECT_EQ(session.FeedDataFlowGraph(graph_id, flow_inputs, 0), FAILED);
+  std::vector<uint32_t> flow_indexes;
+  std::vector<FlowMsgPtr> flow_outputs;
+  EXPECT_EQ(session.FetchDataFlowGraph(graph_id, flow_indexes, flow_outputs, 0), FAILED);
+  EXPECT_EQ(session.CompileGraph(graph_id), FAILED);
+  EXPECT_EQ(session.SetGraphConstMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.UpdateGraphFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.SetGraphFixedFeatureMemoryBaseWithType(graph_id, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U),
+            FAILED);
+  EXPECT_EQ(session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.RegisterExternalAllocator(nullptr, nullptr), FAILED);
+  EXPECT_EQ(session.UnregisterExternalAllocator(nullptr), FAILED);
+  EXPECT_EQ(session.PaRemapped(0U, 0U, 0U), FAILED);
   EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 

@@ -154,6 +154,17 @@ TEST_F(GeApiV2Test, api_not_init_failed) {
   EXPECT_EQ(session.LoadGraph(1, options, nullptr), FAILED);
   RunAsyncCallbackV2 callback2;
   EXPECT_EQ(session.RunGraphAsync(1, inputs, callback2), FAILED);
+
+  // newly added interfaces should also report E10062 when GE is not initialized
+  std::vector<ge::Tensor> compile_inputs;
+  EXPECT_EQ(session.CompileGraph(1, compile_inputs), FAILED);
+  EXPECT_EQ(session.GetCompiledGraphSummary(1), nullptr);
+  EXPECT_EQ(session.SetGraphConstMemoryBase(1, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.UpdateGraphFeatureMemoryBase(1, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.SetGraphFixedFeatureMemoryBaseWithType(1, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.UpdateGraphRefreshableFeatureMemoryBase(1, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.RegisterExternalAllocator(nullptr, nullptr), FAILED);
+  EXPECT_EQ(session.UnregisterExternalAllocator(nullptr), FAILED);
 }
 
 TEST_F(GeApiV2Test, ge_init_with_core_num) {
