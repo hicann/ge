@@ -11,14 +11,14 @@
 GE（Graph Engine）是面向昇腾的图编译器和执行器，提供了计算图优化、多流并行、内存复用和模型下沉等技术手段，加速模型执行效率，减少模型内存占用。
 GE 提供对 PyTorch、TensorFlow 前端的友好接入能力，并同时支持 onnx、pb 等主流模型格式的解析与编译。详见[昇腾社区文档-图模式开发指南](https://hiascend.com/document/redirect/CannCommunityGraphguide)。
 
-![](docs/figures/architecture.png)
+![](docs/zh/figures/architecture.png)
 
 
 ## ⚡️ 快速入门
 
 若希望快速体验 GE 的工作方式及基本开发流程，可参考以下文档：
 
--   [构建验证](docs/build.md)：介绍组件的完整构建、测试样例运行流程。
+-   [构建验证](docs/zh/build.md)：介绍组件的完整构建、测试样例运行流程。
 -   [快速开始](examples/acl/1_sample_resnet50_imagenet_classification/README.md)：以 ResNet50 模型为例，介绍如何使用 ATC 工具进行模型转换，并在昇腾 AI 处理器上执行推理。
 -   [快速开始-LLM](examples/acl/3_sample_qwen_llm/README.md)：以 Qwen 模型为例，介绍如何使用 ATC 工具进行LLM模型转换，并实现LLM模型的加载、执行和获取执行结果等。
 
@@ -28,7 +28,7 @@ GE 提供对 PyTorch、TensorFlow 前端的友好接入能力，并同时支持 
 
 如果希望深入了解 GE 的内部设计、架构机制与开发流程，可参考以下文档：
 
-* [GE 架构说明文档](docs/architecture/architecture.md)：介绍核心组件、执行流程、优化机制等内部原理。
+* [GE 架构说明文档](docs/zh/design/architecture.md)：介绍核心组件、执行流程、优化机制等内部原理。
 * [贡献指南](CONTRIBUTING.md)：说明如何提交 Issue、Pull Request 以及代码规范。
 * [AI Agent支持](.opencode/README.md)：介绍仓内默认使用的一些skills及使用agent辅助开发流程
 
@@ -50,4 +50,4 @@ GE 提供对 PyTorch、TensorFlow 前端的友好接入能力，并同时支持 
 
 ## 📝 联系我们
 
-<img src="docs\GE_contact.png">
+<img src="./docs/zh/figures/GE_contact.png">
