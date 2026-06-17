@@ -180,7 +180,7 @@ REG_OP(xxx)
 </tbody>
 </table>
 
->![](public_sys-resources/icon-note.gif) **说明：** 
+> [!NOTE]说明
 >OpReg类中的OpReg &N\(\)接口的功能是为了用户进行算子注册的时候，使用.\*\*的方式调用OpReg类的接口，例如.INPUT\(x, type\)、.OUTPUT\(x, type\)，无其他含义。
 
 ## 返回值说明<a name="zh-cn_topic_0000001312403741_section61705107"></a>
