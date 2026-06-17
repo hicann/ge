@@ -241,7 +241,7 @@ class TransferCacheJob:
                                    * _NUM_TENSORS_PER_LAYER)
         if check_type(transfer_config, TransferConfig):
             raise_if_false(len(transfer_config.dst_addrs) == num_tensors_to_transfer,
-                           "expect {0} dst_addrs, but len(dst_addrs) = {0}, range = {1}",
+                           "expect {0} dst_addrs, but len(dst_addrs) = {1}, range = {2}",
                            num_tensors_to_transfer, len(transfer_config.dst_addrs), transfer_config.src_layer_range)
 
     def get_results(self) -> List[LLMStatusCode]:
