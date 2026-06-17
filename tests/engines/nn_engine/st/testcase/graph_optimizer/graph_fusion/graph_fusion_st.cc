@@ -303,6 +303,7 @@ TEST_F(GRAPH_FUSION_ST, PruningPassSuccess) {
   auto node2 = AddOneNode(graph, "relu", RELU);
   ge::GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
 
+  PlatformUtils::Instance().pm_item_vec_[static_cast<size_t>(PlatformUtils::PlatformInfoItem::IsaArchVersion)] = static_cast<int64_t>(ISAArchVersion::EN_ISA_ARCH_V100);
   count= 0;
   EXPECT_EQ(SUCCESS, graph_optimizer_->OptimizeOriginalGraph(*graph));
   EXPECT_EQ(4, count);

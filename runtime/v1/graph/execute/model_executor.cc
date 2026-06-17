@@ -848,19 +848,19 @@ Status ModelExecutor::CheckAndReleaseStream(const GeRootModelPtr &ge_root_model,
     return FAILED;
   }
 
-  uint32_t free_stream_num = 0U;
+  uint32_t available_stream_num = 0U;
   GE_CHK_RT_RET(aclrtSetDevice(static_cast<int32_t>(GetContext().DeviceId())));
-  GE_CHK_RT_RET(aclrtGetStreamAvailableNum(&free_stream_num));
+  GE_CHK_RT_RET(aclrtGetStreamAvailableNum(&available_stream_num));
 
-  if (required_stream_num <= free_stream_num) {
-    GELOGI("Graph id[%u] no need to unload other models, required stream num[%u], free stream num[%u]",
-           graph_node->GetGraphId(), required_stream_num, free_stream_num);
+  if (required_stream_num <= available_stream_num) {
+    GELOGI("Graph id[%u] no need to unload other models, required stream num[%u], available stream num[%u]",
+           graph_node->GetGraphId(), required_stream_num, available_stream_num);
     GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
     return SUCCESS;
   }
 
-  GEEVENT("Graph id[%u] need to unload other models, if have any, required stream num[%u], free stream num[%u]",
-          graph_node->GetGraphId(), required_stream_num, free_stream_num);
+  GEEVENT("Graph id[%u] need to unload other models, if have any, required stream num[%u], available stream num[%u]",
+          graph_node->GetGraphId(), required_stream_num, available_stream_num);
 
   const std::lock_guard<std::mutex> lk(mutex_);
   for (const auto &it : graph_nodes_) {
@@ -878,8 +878,8 @@ Status ModelExecutor::CheckAndReleaseStream(const GeRootModelPtr &ge_root_model,
     it.second->SetLoadCount(it.second->GetLoadRecord());
     it.second->SetLoadRecord(kNeverLoaded);
 
-    GE_CHK_RT_RET(aclrtGetStreamAvailableNum(&free_stream_num));
-    if (required_stream_num <= free_stream_num) {
+    GE_CHK_RT_RET(aclrtGetStreamAvailableNum(&available_stream_num));
+    if (required_stream_num <= available_stream_num) {
       GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
       return SUCCESS;
     }
@@ -888,12 +888,13 @@ Status ModelExecutor::CheckAndReleaseStream(const GeRootModelPtr &ge_root_model,
   GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
   REPORT_INNER_ERR_MSG(
       "E19999",
-      "Graph id[%u] check and release stream failed, required total stream num[%u], required hccl follow stream num[%u], free stream num[%u]",
-      graph_node->GetGraphId(), required_stream_num, static_cast<uint32_t>(hccl_follow_stream_num), free_stream_num);
+      "Graph id[%u] check and release stream failed, required total stream num[%u], required hccl follow stream num[%u], available stream num[%u]",
+      graph_node->GetGraphId(), required_stream_num, static_cast<uint32_t>(hccl_follow_stream_num),
+      available_stream_num);
   GELOGE(FAILED,
          "Graph id[%u] check and release stream failed, required total stream num[%u], required hccl follow stream "
-         "num[%u], free stream num[%u]",
-         graph_node->GetGraphId(), required_stream_num, hccl_follow_stream_num, free_stream_num);
+         "num[%u], available stream num[%u]",
+         graph_node->GetGraphId(), required_stream_num, hccl_follow_stream_num, available_stream_num);
 
   return FAILED;
 }
@@ -923,19 +924,19 @@ Status ModelExecutor::CheckAndReleaseEvent(const GeRootModelPtr &ge_root_model, 
     return FAILED;
   }
 
-  uint32_t free_event_num = 0U;
+  uint32_t available_event_num = 0U;
   GE_CHK_RT_RET(aclrtSetDevice(static_cast<int32_t>(GetContext().DeviceId())));
-  GE_CHK_RT_RET(aclrtGetEventAvailNum(&free_event_num));
+  GE_CHK_RT_RET(aclrtGetEventAvailNum(&available_event_num));
 
-  if (required_event_num <= free_event_num) {
-    GELOGI("Graph id[%u] no need to unload other models, required event nums[%u], free event nums[%u]",
-           graph_node->GetGraphId(), required_event_num, free_event_num);
+  if (required_event_num <= available_event_num) {
+    GELOGI("Graph id[%u] no need to unload other models, required event nums[%u], available event nums[%u]",
+           graph_node->GetGraphId(), required_event_num, available_event_num);
     GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
     return SUCCESS;
   }
 
-  GEEVENT("Graph id[%u] need to unload other models, if have any, required event nums[%u], free event nums[%u]",
-          graph_node->GetGraphId(), required_event_num, free_event_num);
+  GEEVENT("Graph id[%u] need to unload other models, if have any, required event nums[%u], available event nums[%u]",
+          graph_node->GetGraphId(), required_event_num, available_event_num);
 
   const std::lock_guard<std::mutex> lk(mutex_);
   for (const auto &it : graph_nodes_) {
@@ -953,16 +954,20 @@ Status ModelExecutor::CheckAndReleaseEvent(const GeRootModelPtr &ge_root_model, 
     it.second->SetLoadCount(it.second->GetLoadRecord());
     it.second->SetLoadRecord(kNeverLoaded);
 
-    GE_CHK_RT_RET(aclrtGetEventAvailNum(&free_event_num));
-    if (required_event_num <= free_event_num) {
+    GE_CHK_RT_RET(aclrtGetEventAvailNum(&available_event_num));
+    if (required_event_num <= available_event_num) {
       GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
       return SUCCESS;
     }
   }
 
   GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
-  GELOGE(FAILED, "Graph id[%u] check and release event failed, required event nums[%u], free event nums[%u]",
-         graph_node->GetGraphId(), required_event_num, free_event_num);
+  REPORT_INNER_ERR_MSG(
+      "E19999",
+      "Graph id[%u] check and release event failed, required event nums[%u], available event nums[%u]",
+      graph_node->GetGraphId(), required_event_num, available_event_num);
+  GELOGE(FAILED, "Graph id[%u] check and release event failed, required event nums[%u], available event nums[%u]",
+         graph_node->GetGraphId(), required_event_num, available_event_num);
 
   return FAILED;
 }

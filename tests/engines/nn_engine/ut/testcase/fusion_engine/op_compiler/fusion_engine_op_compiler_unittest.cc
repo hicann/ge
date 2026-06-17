@@ -1518,6 +1518,8 @@ TEST_F(UTEST_fusion_engine_op_compiler, change_buffer_optimize_1)
   tbe_adapter_ptr->ChangeBufferOptimize(options, new_options);
   EXPECT_EQ(new_options["ge.bufferOptimize"], "");
   options["ge.bufferOptimize"] = "l2_optimize";
+  Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::BufferOptimize)] =
+      static_cast<int64_t>(EN_OFF_OPTIMIZE);
   tbe_adapter_ptr->ChangeBufferOptimize(options, new_options);
   EXPECT_EQ(new_options["ge.bufferOptimize"], "off_optimize");
 }

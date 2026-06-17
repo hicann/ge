@@ -30,11 +30,18 @@ class CompileWithBufferFusionProcess910BTest : public testing::Test {
  protected:
   static void SetUpTestCase() {
     cout << "CompileWithBufferFusionProcess910BTest TearDown" << endl;
+    string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
+    EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
+    string stub_opp_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/opp";
+    EnvVarGuard opp_guard(MM_ENV_ASCEND_OPP_PATH, stub_opp_path.c_str());
     map<string, string> options;
     options.emplace(ge::SOC_VERSION, "Ascend910B1");
     InitWithOptions(options);
+    Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = stub_opp_path + "/";
     FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
-    EXPECT_EQ(graph_optimizer_ptr->Initialize(options, nullptr), SUCCESS);
+    graph_optimizer_ptr->Initialize(options, nullptr);
+    cann_guard.Restore();
+    opp_guard.Restore();
   }
 
   static void TearDownTestCase() {

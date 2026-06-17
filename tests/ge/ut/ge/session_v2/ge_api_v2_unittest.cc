@@ -374,6 +374,15 @@ TEST_F(UtestGeApiV2, ge_not_initialized) {
   EXPECT_FALSE(session.IsGraphNeedRebuild(graph_id));
 
   EXPECT_EQ(session.RemoveGraph(graph_id), FAILED);
+
+  // newly added interfaces should also report E10062 when GE is not initialized
+  EXPECT_EQ(session.SetGraphConstMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.UpdateGraphFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.SetGraphFixedFeatureMemoryBaseWithType(graph_id, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U),
+            FAILED);
+  EXPECT_EQ(session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+  EXPECT_EQ(session.RegisterExternalAllocator(nullptr, nullptr), FAILED);
+  EXPECT_EQ(session.UnregisterExternalAllocator(nullptr), FAILED);
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 

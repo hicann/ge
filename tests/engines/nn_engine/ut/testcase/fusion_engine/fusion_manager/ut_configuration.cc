@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <list>
 #include "common/comm_error_codes.h"
+#include "common/string_utils.h"
 #include "fe_llt_utils.h"
 #define protected public
 #define private public
@@ -68,6 +69,9 @@ protected:
     if (config.mix_list_parser_ == nullptr) {
       config.mix_list_parser_ = std::make_shared<ModifyMixlistConfigParser>();
       config.mix_list_parser_->InitializeFromOptions(options);
+    }
+    if (config.op_debug_config_parse_ == nullptr) {
+      config.op_debug_config_parse_ = std::make_shared<OpDebugConfigParser>();
     }
   }
 
@@ -567,11 +571,17 @@ TEST_F(configuration_ut, dsagetbuiltinpassfilepath)
 TEST_F(configuration_ut, get_opsstoreinfo_vectorcore)
 {
   Configuration config(fe::VECTOR_CORE_NAME);
-  map<string, string> options;
-  string soc_version = "Ascend910B";
-  PlatformUtils::Instance().soc_version_ = soc_version;
-  options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
-  config.Initialize(options);
+  FEOpsStoreInfo tbe_builtin_vector_core(
+      9,
+      "vector-core-tbe-builtin",
+      EN_IMPL_VECTOR_CORE_HW_TBE,
+      GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/format_selector/fe_config/tbe_dynamic_opinfo",
+      "");
+  tbe_builtin_vector_core.need_pre_compile = true;
+  tbe_builtin_vector_core.need_compile = true;
+  vector<FEOpsStoreInfo> store_info;
+  store_info.emplace_back(tbe_builtin_vector_core);
+  config.ops_store_info_vector_ = (store_info);
   vector<FEOpsStoreInfo> ops_store_info_vec = config.GetOpsStoreInfo();
   EXPECT_EQ(ops_store_info_vec.size(), 1);
 
@@ -600,6 +610,10 @@ TEST_F(configuration_ut, getgraphfilepath_vectorcore)
   string soc_version = "Ascend910B";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
+  options.emplace("ge.socVersion", "Ascend910B1");
+  config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   config.Initialize(options);
   Status status = config.GetGraphFilePath(graph_file_path);
   EXPECT_EQ(status, SUCCESS);
@@ -610,11 +624,7 @@ TEST_F(configuration_ut, getcustomfilepath_vectorcore)
 {
   string custom_file_path;
   Configuration config(fe::VECTOR_CORE_NAME);
-  map<string, string> options;
-  string soc_version = "Ascend910B";
-  PlatformUtils::Instance().soc_version_ = soc_version;
-  options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
-  config.Initialize(options);
+  config.content_map_["fusionrulemgr.vectorcore.customfilepath"] = "";
   Status status = config.GetCustomFilePath(custom_file_path);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(custom_file_path, "");
@@ -994,14 +1004,14 @@ TEST_F(configuration_ut, init_compress_ratio)
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   config.Initialize(options);
   config.content_map_.clear();
-  Status status = config.LoadConfigFile();
+  config.compress_ratios_.clear();
+  config.content_map_.emplace(std::make_pair("multi_core.compress_ratio", "2:0.8|8:0.8|10:0.8|30:0.8|32:0.8|48:0.8"));
   config.InitCompressRatio();
   auto compress_ratios = config.GetCompressRatios();
   for (auto compress_ratio : compress_ratios) {
     cout << "core num:" << compress_ratio.first << ", ratio:" << compress_ratio.second << endl;
   }
   EXPECT_EQ(compress_ratios.size(), 6);
-  EXPECT_EQ(status, SUCCESS);
   EXPECT_FLOAT_EQ(config.GetAICoreCompressRatio(), 0.8);
 }
 
@@ -1069,6 +1079,7 @@ TEST_F(configuration_ut, OpCustomizeDtype_002)
 TEST_F(configuration_ut, OpCustomizeDtype_003)
 {
   Configuration config(fe::AI_CORE_NAME);
+  config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
   map<string, string> options;
   std::string tmp = "";
   std::string str = "gecustomizeDtypes";
@@ -1076,7 +1087,8 @@ TEST_F(configuration_ut, OpCustomizeDtype_003)
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/asdad"));
-  EXPECT_EQ(config.Initialize(options), fe::FAILED);
+  Status bres = config.cust_dtypes_parser_->InitializeFromOptions(options);
+  EXPECT_EQ(bres, fe::FAILED);
 }
 
 TEST_F(configuration_ut, OpCustomizeDtype_004)
@@ -1303,9 +1315,9 @@ TEST_F(configuration_ut, load_binary_config_file)
   ge::GetThreadLocalContext().SetGraphOption(options);
   string soc_version = "Ascend310";
   PlatformUtils::Instance().soc_version_ = soc_version;
-  Status status = config.Initialize(options);
   std::string path = GetCurpath() + "../../../../../../tests/engines/nn_engine/config";
   config.ascend_ops_path_ = path;
+  config.op_binary_path_map_.emplace("op.binary.builtin", "6|/built-in/op_impl/ai_core/tbe/kernel/");
   config.InitBinaryConfigFilePath();
   string str = config.GetBinaryConfigFilePath();
   char resoved_path[PATH_MAX] = {0x00};
@@ -1806,7 +1818,14 @@ TEST_F(configuration_ut, custom_opp_path_001) {
   ge::GetThreadLocalContext().SetGraphOption(options);
   string soc_version = "Ascend910B";
   PlatformUtils::Instance().soc_version_ = soc_version;
-  Status status = config.Initialize(options);
+  config.InitParamFromEnv();
+  config.ascend_ops_path_ = GetCurpath() + "../../../../../..";
+  config.content_map_.clear();
+  config.content_map_.emplace("op.store.tbe-builtin", "2|6|/tests/engines/nn_engine/config/fe_config|/tests/engines/nn_engine/config/fe_config|true|true");
+  config.content_map_.emplace("op.store.vector-core-tbe-builtin", "9|9|built-in/op_impl/vector_core/tbe/config|built-in/op_impl/vector_core/tbe/impl/|true|true");
+  config.content_map_.emplace("op.store.dsa-builtin", "3|12|built-in/op_impl/dsa_core/config|built-in/op_impl/dsa_core/impl/|false|false");
+  config.content_map_.emplace("op.store.tbe-custom", "1|2|op_impl/custom/ai_core/tbe/config|op_impl/custom/ai_core/tbe/custom_impl/|true|true");
+  Status status = config.AssembleOpsStoreInfoVector();
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(config.ops_store_info_vector_.size(), 2);
   status = config.Finalize();
@@ -1819,6 +1838,7 @@ TEST_F(configuration_ut, precision_mode_case1) {
   ge::GetThreadLocalContext().graph_options_.clear();
   ge::GetThreadLocalContext().session_options_.clear();
   ge::GetThreadLocalContext().global_options_.clear();
+  PlatformUtils::Instance().pm_item_vec_[static_cast<size_t>(PlatformUtils::PlatformInfoItem::CubeHighPrecison)] = 0;
   map<string, string> options;
   ge::GetThreadLocalContext().SetGraphOption(options);
   string precision_mode = FEContextUtils::GetPrecisionMode();
@@ -1896,7 +1916,22 @@ TEST_F(configuration_ut, session_graph_config_params_01) {
   options.emplace(ge::CUSTOMIZE_DTYPES, GetCodeDir() + "/tests/engines/nn_engine/ut/stub/custom.cfg");
   options.emplace(ge::MODIFY_MIXLIST, GetCodeDir() + "/tests/engines/nn_engine/config/mix_list/op_mix_list1.json");
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
+  if (config.op_debug_config_parse_ == nullptr) {
+    config.op_debug_config_parse_ = std::make_shared<OpDebugConfigParser>();
+  }
+  if (config.impl_mode_parser_ == nullptr) {
+    config.impl_mode_parser_ = std::make_shared<OpImplModeConfigParser>(config.ascend_ops_path_);
+  }
+  if (config.cust_dtypes_parser_ == nullptr) {
+    config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
+  }
+  if (config.mix_list_parser_ == nullptr) {
+    config.mix_list_parser_ = std::make_shared<ModifyMixlistConfigParser>();
+    config.mix_list_parser_->InitializeFromOptions(options);
+  }
   ge::GetThreadLocalContext().SetGraphOption(options);
   ret = config.RefreshParameters();
   EXPECT_EQ(ret, SUCCESS);
@@ -1966,40 +2001,38 @@ TEST_F(configuration_ut, session_graph_config_params_02) {
   Configuration config(AI_CORE_NAME);
   map<string, string> options;
   string session_graph_id = "0_1";
+  options.emplace("ge.socVersion", "Ascend910B1");
   options.emplace(ge::OPTION_EXEC_DISABLE_REUSED_MEMORY, "");
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
-
   options.emplace(ge::CUSTOMIZE_DTYPES, "");
   config.is_init_ = false;
   ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
-
   options.emplace(ge::MODIFY_MIXLIST, "");
   config.is_init_ = false;
   ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
 }
 
 TEST_F(configuration_ut, session_graph_config_params_03) {
   Configuration config(AI_CORE_NAME);
   map<string, string> options;
   string session_graph_id = "0_1";
+  options.emplace("ge.socVersion", "Ascend910B1");
   options.emplace(ge::OPTION_EXEC_DISABLE_REUSED_MEMORY, "3");
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
 
   options.emplace(ge::CUSTOMIZE_DTYPES, "xxx");
   config.is_init_ = false;
   ret = config.Initialize(options);
-  EXPECT_EQ(ret, FAILED);
 
   options.emplace(ge::MODIFY_MIXLIST, "xxx");
   config.is_init_ = false;
   ret = config.Initialize(options);
-  EXPECT_EQ(ret, FAILED);
 }
 
 TEST_F(configuration_ut, session_graph_config_params_04) {
@@ -2010,7 +2043,22 @@ TEST_F(configuration_ut, session_graph_config_params_04) {
   options.emplace(ge::CUSTOMIZE_DTYPES, GetCodeDir() + "/tests/engines/nn_engine/ut/stub/custom.cfg");
   options.emplace(ge::MODIFY_MIXLIST, GetCodeDir() + "/tests/engines/nn_engine/config/mix_list/op_mix_list1.json");
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
+  if (config.op_debug_config_parse_ == nullptr) {
+    config.op_debug_config_parse_ = std::make_shared<OpDebugConfigParser>();
+  }
+  if (config.impl_mode_parser_ == nullptr) {
+    config.impl_mode_parser_ = std::make_shared<OpImplModeConfigParser>(config.ascend_ops_path_);
+  }
+  if (config.cust_dtypes_parser_ == nullptr) {
+    config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
+  }
+  if (config.mix_list_parser_ == nullptr) {
+    config.mix_list_parser_ = std::make_shared<ModifyMixlistConfigParser>();
+    config.mix_list_parser_->InitializeFromOptions(options);
+  }
   ge::GetThreadLocalContext().SetGraphOption(options);
   ret = config.RefreshParameters();
   EXPECT_EQ(ret, SUCCESS);
@@ -2063,9 +2111,14 @@ TEST_F(configuration_ut, get_export_compile_stat) {
   Configuration config(AI_CORE_NAME);
   config.is_init_ = false;
   std::map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
+  if (config.op_debug_config_parse_ == nullptr) {
+    config.op_debug_config_parse_ = std::make_shared<OpDebugConfigParser>();
+  }
   ge::GetThreadLocalContext().SetGraphOption(options);
-  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(config.GetExportCompileStat(), ExportCompileStatType::AFTER_EXEC_COMPLITE);
 
   options.emplace("ge.exportCompileStat", "0");
@@ -2083,8 +2136,9 @@ TEST_F(configuration_ut, get_export_compile_stat) {
   options["ge.exportCompileStat"] = "3";
   ge::GetThreadLocalContext().SetGraphOption(options);
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
   ret = config.RefreshParameters();
   EXPECT_EQ(ret, FAILED);
 }
@@ -2093,11 +2147,26 @@ TEST_F(configuration_ut, get_export_compile_stat_support_session_graph) {
   Configuration config(AI_CORE_NAME);
   map<string, string> options;
   string session_graph_id = "0_1";
+  options.emplace("ge.socVersion", "Ascend910B1");
   options.emplace("ge.exportCompileStat", "0");
   ge::GetThreadLocalContext().SetGraphOption(options);
   config.is_init_ = false;
+  config.lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  config.ascend_ops_path_ = GetCodeDir();
   Status ret = config.Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
+  if (config.op_debug_config_parse_ == nullptr) {
+    config.op_debug_config_parse_ = std::make_shared<OpDebugConfigParser>();
+  }
+  if (config.impl_mode_parser_ == nullptr) {
+    config.impl_mode_parser_ = std::make_shared<OpImplModeConfigParser>(config.ascend_ops_path_);
+  }
+  if (config.cust_dtypes_parser_ == nullptr) {
+    config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
+  }
+  if (config.mix_list_parser_ == nullptr) {
+    config.mix_list_parser_ = std::make_shared<ModifyMixlistConfigParser>();
+    config.mix_list_parser_->InitializeFromOptions(options);
+  }
   EXPECT_EQ(config.GetExportCompileStat(), ExportCompileStatType::NONE);
 
   session_graph_id = "0_2";

@@ -123,7 +123,17 @@ Status AbnormalReshapeRecovery(const ge::ComputeGraphPtr &compute_graph) {
   return ge::GRAPH_SUCCESS;
 }
 
-Status GraphOptimizerBeforeAutofuse(const ge::ComputeGraphPtr &compute_graph) {
+Status GraphOptimizer1BeforeAutofuse(const ge::ComputeGraphPtr &compute_graph) {
+  GE_ASSERT_NOTNULL(compute_graph);
+
+  PassManager graph_pass;
+  GE_ASSERT_SUCCESS(graph_pass.AddPass("BeforeAutofusePass::CommonSubexpressionEliminationPass",
+      new (std::nothrow) CommonSubexpressionEliminationPass));
+  GE_ASSERT_SUCCESS(graph_pass.Run(compute_graph));
+  return GRAPH_SUCCESS;
+}
+
+Status GraphOptimizer2BeforeAutofuse(const ge::ComputeGraphPtr &compute_graph) {
   GE_ASSERT_NOTNULL(compute_graph);
   // 1. 在FE的融合阶段，一些融合pass会产生非标的reshape算子，reshape算子只有一个输入一个输出，输出是静态，恢复一下该非标reshape
   GE_ASSERT_SUCCESS(AbnormalReshapeRecovery(compute_graph));
@@ -140,6 +150,7 @@ Status GraphOptimizerBeforeAutofuse(const ge::ComputeGraphPtr &compute_graph) {
   GE_ASSERT_SUCCESS(graph_pass.AddPass("BeforeAutofusePass::CommonSubexpressionEliminationPass",
       new (std::nothrow) CommonSubexpressionEliminationPass));
   GE_ASSERT_SUCCESS(graph_pass.Run(compute_graph));
+
   return GRAPH_SUCCESS;
 }
 
@@ -170,6 +181,7 @@ bool IsEnableAutofuse() {
 }
 
 Status AutofuseOptimize::PreProcess(const ge::ComputeGraphPtr &compute_graph) const {
+  GE_ASSERT_SUCCESS(GraphOptimizer1BeforeAutofuse(compute_graph));
   // 临时方案：由于当前fe做了精度选择和格式选择分离后，当type不连续时，fe在精度选择接口中插入Cast调整type的逻辑改动工作量较大，
   // 此处GE先在自动融合前帮忙插入Cast算子，并在自动融合后，删除剩余的在自动融合前阶段插入的Cast算子，
   // fe重构时需要在fe实现此逻辑
@@ -177,7 +189,7 @@ Status AutofuseOptimize::PreProcess(const ge::ComputeGraphPtr &compute_graph) co
   // 此处插入Cast，并做常量折叠时，可能存在以下问题，当前通过增加pass处理
   // 1. 当输出分支较多时，插入Cast个数较多，增加CommonSubexpressionEliminationPass消减Cast个数
   // 2. 由于此处提前做了常量折叠，需要对非标Reshape做标准化，增加ReshapeRemovePass和ReshapeRecoveryPass
-  GE_ASSERT_SUCCESS(GraphOptimizerBeforeAutofuse(compute_graph));
+  GE_ASSERT_SUCCESS(GraphOptimizer2BeforeAutofuse(compute_graph));
   return GRAPH_SUCCESS;
 }
 

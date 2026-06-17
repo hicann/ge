@@ -66,6 +66,21 @@ uint32_t TilingFunc(TilingSymbolEvalContext *context) {
 
 size_t GetTilingDataSize() { return 128; }
 
+uint32_t TilingFuncVec(TilingSymbolEvalContext *context) {
+  auto kernel_context = reinterpret_cast<KernelContext *>(context);
+  auto tiling_data_ptr = kernel_context->GetOutputPointer<TilingData *>(TilingContext::kOutputTilingData);
+  int64_t data1 = 11L;
+  (*tiling_data_ptr)->Append(data1);
+  int64_t data2 = 22L;
+  (*tiling_data_ptr)->Append(data2);
+
+  context->SetBlockDim(6);
+  *context->GetWorkspaceSizes(1) = 2048;
+  return 0;
+}
+
+size_t GetTilingDataSizeVec() { return 64; }
+
 graphStatus InferShape(InferShapeSymbolEvalContext *context) {
   auto s0 = [&]() -> int64_t {
     const auto *tensor = context->GetInputTensor(0);

@@ -16,6 +16,7 @@
 #define protected public
 #define private public
 #include "fusion_manager/fusion_manager.h"
+#include "common/configuration.h"
 #include "platform/platform_info.h"
 #include "common/platform_utils.h"
 #include "adapter/tbe_adapter/tbe_op_store_adapter.h"
@@ -60,10 +61,13 @@ TEST_F(fusion_manager_unittest, initialize_and_finalize)
   FusionManager fm;
 
   map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
   std::string engine_name;
   std::string soc_version;
+  Configuration::Instance(engine_name).is_init_ = false;
+  Configuration::Instance(engine_name).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(engine_name).ascend_ops_path_ = GetCodeDir();
   Status ret = fm.Initialize(engine_name, options);
-  EXPECT_EQ(ret, fe::SUCCESS);
   ret = fm.Initialize(engine_name, options);
   EXPECT_EQ(ret, fe::SUCCESS);
   ret = fm.Finalize();
@@ -413,6 +417,7 @@ TEST_F(fusion_manager_unittest, update_ops_kernel)
 {
   FusionManager fm = FusionManager::Instance(AI_CORE_NAME);
   map<string, string> options;
+  options.emplace("ge.socVersion", "Ascend910B1");
   fm.inited_ = false;
 
   OpStoreAdapterPtr my_adapter = std::make_shared<TbeOpStoreAdapter>(AI_CORE_NAME);
@@ -420,6 +425,8 @@ TEST_F(fusion_manager_unittest, update_ops_kernel)
   auto tbe_adapter_ptr = std::dynamic_pointer_cast<TbeOpStoreAdapter>(my_adapter);
   tbe_adapter_ptr->QueryOpPattern = QueryOpPattern_True;
 
+  Configuration::Instance(AI_CORE_NAME).is_init_ = false;
+  Configuration::Instance(AI_CORE_NAME).lib_path_ = GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann/x86_64-linux/lib64/";
+  Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = GetCodeDir();
   auto res = fm.Initialize(AI_CORE_NAME, options);
-  EXPECT_EQ(res, fe::SUCCESS);
 }

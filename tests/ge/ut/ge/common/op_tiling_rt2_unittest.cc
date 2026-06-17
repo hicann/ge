@@ -134,6 +134,17 @@ graphStatus TilingForAdd(gert::TilingContext *context) {
   return GRAPH_SUCCESS;
 }
 
+graphStatus CubeTilingForAutofuse(gert::TilingContext *context) {
+  context->SetTilingKey(321);
+  context->SetBlockDim(4);
+  auto tiling_data = context->GetRawTilingData();
+  EXPECT_NE(tiling_data, nullptr);
+  int64_t data = 33L;
+  tiling_data->Append<int64_t>(data);
+  *context->GetWorkspaceSizes(1) = 512;
+  return GRAPH_SUCCESS;
+}
+
 struct AddCompileInfo {
   int64_t a;
   int64_t b;
@@ -145,6 +156,64 @@ void *CreateCompileInfo() {
 
 void DeleteCompileInfo(void *ptr) {
   delete static_cast<AddCompileInfo *>(ptr);
+}
+
+ge::ComputeGraphPtr BuildCubeSubgraph(const std::string &graph_name, const std::string &node_type) {
+  auto subgraph = std::make_shared<ge::ComputeGraph>(graph_name);
+  auto op_desc = std::make_shared<ge::OpDesc>(node_type, node_type);
+  GeTensorDesc tensor_desc(GeShape(std::vector<int64_t>({2, 2})), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc("x1", tensor_desc);
+  op_desc->AddInputDesc("x2", tensor_desc);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  auto node = subgraph->AddNode(op_desc);
+  EXPECT_NE(node, nullptr);
+  return subgraph;
+}
+
+class OpImplGuard {
+ public:
+  explicit OpImplGuard(const std::string &node_type)
+      : op_impl_func_(gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(
+            node_type.c_str())) {
+    saved_func_ = *op_impl_func_;
+  }
+
+  OpImplGuard(const OpImplGuard &) = delete;
+  OpImplGuard &operator=(const OpImplGuard &) = delete;
+
+  OpImplGuard(OpImplGuard &&other) noexcept
+      : op_impl_func_(other.op_impl_func_),
+        saved_func_(other.saved_func_),
+        need_restore_(other.need_restore_) {
+    other.op_impl_func_ = nullptr;
+    other.need_restore_ = false;
+  }
+
+  OpImplGuard &operator=(OpImplGuard &&) = delete;
+
+  ~OpImplGuard() {
+    if (need_restore_) {
+      if (op_impl_func_ != nullptr) {
+        *op_impl_func_ = saved_func_;
+      }
+    }
+  }
+
+ private:
+  gert::OpImplKernelRegistry::OpImplFunctionsV2 *op_impl_func_ = nullptr;
+  gert::OpImplKernelRegistry::OpImplFunctionsV2 saved_func_;
+  bool need_restore_ = true;
+};
+
+OpImplGuard RegisterCubeTiling(const std::string &node_type) {
+  OpImplGuard guard(node_type);
+  auto op_impl_func = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(
+      node_type.c_str());
+  op_impl_func->tiling = CubeTilingForAutofuse;
+  op_impl_func->tiling_parse = TilingParseForAdd;
+  op_impl_func->compile_info_creator = CreateCompileInfo;
+  op_impl_func->compile_info_deleter = DeleteCompileInfo;
+  return guard;
 }
 
 IMPL_OP(ConcatV2).TilingParse<DummyCompileInfo>(DummyTilingParse).Tiling(DummyTiling);
@@ -350,6 +419,54 @@ TEST_F(RegisterOpTilingRT2UT, AutofuseNodeAicoreParseAndTilingSuccess) {
   auto workspace = run_info.GetAllWorkspaces();
   EXPECT_EQ(run_info.GetWorkspaceNum(), 1);
   EXPECT_EQ(workspace[0], 1024);
+}
+
+TEST_F(RegisterOpTilingRT2UT, AutofuseNodeWithMatmulTilingUseVecFuncSuccess) {
+  auto op_impl_guard = RegisterCubeTiling("MatMulV3");
+  auto graph = ShareGraph::AutoFuseNodeGraph();
+  auto autofuse_node = graph->FindNode("fused_graph");
+  std::string cmake_binary_path = CMAKE_BINARY_DIR;
+  auto autofuse_stub_so = cmake_binary_path + "/tests/depends/op_stub/libautofuse_stub.so";
+
+  (void)ge::AttrUtils::SetStr(autofuse_node->GetOpDesc(), "bin_file_path", autofuse_stub_so);
+  (void)autofuse_node->GetOpDesc()->SetExtAttr("matmul_subgraph", BuildCubeSubgraph("matmul_subgraph", "MatMulV3"));
+  utils::OpRunInfo run_info;
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(autofuse_node);
+  fe::PlatFormInfos platform_infos;
+  graphStatus ret = AicoreRtParseAndTiling(op, platform_infos, run_info);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+
+  EXPECT_EQ(run_info.GetTilingKey(), 321);
+  EXPECT_EQ(run_info.GetBlockDim(), 4);
+  std::string tiling_data_str = parse_int(run_info.GetAllTilingData().str());
+  EXPECT_EQ(tiling_data_str, "33 ");
+  auto workspace = run_info.GetAllWorkspaces();
+  EXPECT_EQ(run_info.GetWorkspaceNum(), 1);
+  EXPECT_EQ(workspace[0], 2560);
+}
+
+TEST_F(RegisterOpTilingRT2UT, AutofuseNodeWithConvTilingUseVecFuncSuccess) {
+  auto op_impl_guard = RegisterCubeTiling("Conv2DV2");
+  auto graph = ShareGraph::AutoFuseNodeGraph();
+  auto autofuse_node = graph->FindNode("fused_graph");
+  std::string cmake_binary_path = CMAKE_BINARY_DIR;
+  auto autofuse_stub_so = cmake_binary_path + "/tests/depends/op_stub/libautofuse_stub.so";
+
+  (void)ge::AttrUtils::SetStr(autofuse_node->GetOpDesc(), "bin_file_path", autofuse_stub_so);
+  (void)autofuse_node->GetOpDesc()->SetExtAttr("conv_subgraph", BuildCubeSubgraph("conv_subgraph", "Conv2DV2"));
+  utils::OpRunInfo run_info;
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(autofuse_node);
+  fe::PlatFormInfos platform_infos;
+  graphStatus ret = AicoreRtParseAndTiling(op, platform_infos, run_info);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+
+  EXPECT_EQ(run_info.GetTilingKey(), 321);
+  EXPECT_EQ(run_info.GetBlockDim(), 4);
+  std::string tiling_data_str = parse_int(run_info.GetAllTilingData().str());
+  EXPECT_EQ(tiling_data_str, "33 ");
+  auto workspace = run_info.GetAllWorkspaces();
+  EXPECT_EQ(run_info.GetWorkspaceNum(), 1);
+  EXPECT_EQ(workspace[0], 2560);
 }
 
 TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingMemCheckDynamicInputDescSuccess) {

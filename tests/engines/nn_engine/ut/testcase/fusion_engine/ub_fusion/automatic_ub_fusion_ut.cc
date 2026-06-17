@@ -1415,6 +1415,7 @@ TEST_F(UB_FUSION_UT_AUTO_FUSION, complex_08) {
   BuildGraph_11(graph);
 
   sub_graph_optimizer_ptr_->engine_name_ = fe::AI_CORE_NAME;
+  auto_buffer_fusion_ptr_->may_duplicate_ = false;
   // find sub-graphs that match UB fusion pattern
   auto_buffer_fusion_ptr_->Run(*graph);
 

@@ -285,10 +285,14 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
     set(TOP_DIR ${CMAKE_SOURCE_DIR})
     # build dt
     if (ENABLE_FE_LLT AND ENABLE_UT)
-        add_dependencies(select_targets te_fusion_stub graph_tuner_stub fe_ut)
+        add_dependencies(select_targets te_fusion_stub graph_tuner_stub
+                     ut_fe_graph_optimizer ut_fe_fusion ut_fe_adapter_ops
+                     ut_fe_shape_common ut_fe_others)
     endif()
     if (ENABLE_FE_LLT AND ENABLE_ST)
-        add_dependencies(select_targets te_fusion_stub graph_tuner_stub fe_st)
+        add_dependencies(select_targets te_fusion_stub graph_tuner_stub
+                     st_fe_graph_optimizer st_fe_fusion st_fe_adapter_ops
+                     st_fe_shape_common st_fe_others)
     endif()
     if (ENABLE_FE_LLT AND ENABLE_ST_WHOLE_PROCESS)
         add_dependencies(select_targets fe_st_whole_process)

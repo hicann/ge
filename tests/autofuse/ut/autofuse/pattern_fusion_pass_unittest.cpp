@@ -390,6 +390,51 @@ TEST_F(PatternFusionPassTest, CastReshapeCastNoMatch2) {
   EXPECT_EQ(AttrUtils::GetBool(cast2_node->GetOpDesc(), kDisableAutoFuseNodeAttr, attr_value), false);
 }
 
+TEST_F(PatternFusionPassTest, CastReshapeCastNoMatch3) {
+  // 测试两个 Cast中间有个Reshape 不融合，首尾 dtype 匹配
+  // A(float) -> Relu(float16) -> Reshape(float16) -> Cast2(int32)
+  // Cast1输入是float，Cast2输出是int32，不匹配，三个节点都可融合
+  auto data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(0).OutCnt(1).Build("Data");
+  auto relu = OP_CFG("ReLU").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(1).OutCnt(1).Build("relu");
+  auto const1 = OP_CFG("Constant").TensorDesc(FORMAT_ND, DT_INT32, {2}).InCnt(0).OutCnt(1).Build("const1");
+  auto reshape = OP_CFG("Reshape").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(2).OutCnt(1).Build("reshape");
+  auto cast2 = OP_CFG("Cast").TensorDesc(FORMAT_ND, DT_INT32, {2, 3}).InCnt(1).OutCnt(1).Build("cast2");
+
+  DEF_GRAPH(test_graph) {
+    CHAIN(NODE(data)->NODE(relu)->DATA_EDGE(0, 0)->NODE(reshape)->NODE(cast2)->NODE("output_0", NETOUTPUT));
+    CHAIN(NODE(const1)->DATA_EDGE(0, 1)->NODE(reshape));
+  };
+
+  auto graph = ToComputeGraph(test_graph);
+  // Reshape输入不是cast，不匹配
+  auto cast1_node = graph->FindNode("relu");
+  ASSERT_NE(cast1_node, nullptr);
+  cast1_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  cast1_node->GetOpDesc()->MutableInputDesc(0)->SetOriginDataType(DT_FLOAT);
+  cast1_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  cast1_node->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
+
+  auto reshape_node = graph->FindNode("reshape");
+  ASSERT_NE(reshape_node, nullptr);
+  reshape_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  reshape_node->GetOpDesc()->MutableInputDesc(0)->SetOriginDataType(DT_FLOAT);
+  reshape_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  reshape_node->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
+
+  auto cast2_node = graph->FindNode("cast2");
+  ASSERT_NE(cast2_node, nullptr);
+  cast2_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  cast2_node->GetOpDesc()->MutableInputDesc(0)->SetOriginDataType(DT_FLOAT);
+  cast2_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_INT32);
+  cast2_node->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_INT32);
+
+  EXPECT_EQ(CastReshapeCastPass().Run(graph), GRAPH_SUCCESS);
+  bool attr_value = false;
+  EXPECT_EQ(AttrUtils::GetBool(cast1_node->GetOpDesc(), kDisableAutoFuseNodeAttr, attr_value), false);
+  EXPECT_EQ(AttrUtils::GetBool(reshape_node->GetOpDesc(), kDisableAutoFuseNodeAttr, attr_value), false);
+  EXPECT_EQ(AttrUtils::GetBool(cast2_node->GetOpDesc(), kDisableAutoFuseNodeAttr, attr_value), false);
+}
+
 TEST_F(PatternFusionPassTest, TransposeWithBroadcastMultipleTranspose) {
   // 测试多个 ZerosLike + Transpose 的情况
   // ZerosLike + Transpose 会被替换为 Constant + BroadcastTo
