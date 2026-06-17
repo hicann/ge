@@ -34,7 +34,7 @@
 此接口与[ExecuteGraphWithStreamAsync](ExecuteGraphWithStreamAsync.md)均为运行指定ID对应的图，并输出结果，该接口更多是为了前向兼容上层开源框架的图模式场景；如果用户使用的是8.0.RC3版本及之后的CANN包，则更推荐使用ExecuteGraphWithStreamAsync。
 
 -   该接口执行前需要完成[CompileGraph](CompileGraph.md)及[GeSessionLoadGraph](GeSessionLoadGraph.md)（异步运行Graph场景）流程。
--   inputs和outputs数据类型为gert::Tensor，该类型详细说明请参见[构造函数](zh-cn_topic_0000002078486329.md)。
+-   inputs和outputs数据类型为gert::Tensor，该类型详细说明请参见构造函数。
 
 ## 函数原型<a name="section1831611148519"></a>
 

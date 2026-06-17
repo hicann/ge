@@ -38,13 +38,13 @@ template<typename T> std::vector<ge::AscendString> ConvertToListAscendString(T s
 
 支持以下两种拓展：
 
--   template<\> inline std::vector<ge::AscendString\> ConvertToListAscendString\(std::vector<std::string\> strs\)
+-   template<\> inline std::vector\<ge::AscendString\> ConvertToListAscendString\(std::vector\<std::string\> strs\)
 
-    对于std::vectorstd::string类型的字符串列表，先将其转换为std::vector<const char \*\>类型，然后再进行转换。
+    对于std::vectorstd::string类型的字符串列表，先将其转换为std::vector\<const char \*\>类型，然后再进行转换。
 
--   template<\> inline std::vector<ge::AscendString\> ConvertToListAscendString\(std::vector<ge::AscendString\> strs\)
+-   template<\> inline std::vector\<ge::AscendString\> ConvertToListAscendString\(std::vector\<ge::AscendString\> strs\)
 
-    对于std::vector<ge::AscendString\>类型的字符串列表，直接返回原列表。
+    对于std::vector\<ge::AscendString\>类型的字符串列表，直接返回原列表。
 
 ## 参数说明<a name="zh-cn_topic_0000001836249772_zh-cn_topic_0204328235_zh-cn_topic_0182636384_section63604780"></a>
 

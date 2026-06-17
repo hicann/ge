@@ -23,7 +23,7 @@ GraphPp(const char_t *pp_name, const GraphBuilder &builder)
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | pp_name | 输入 | GraphPp的名称，需要全图唯一。 |
-| builder | 输入 | GE Graph的构建方法：std::function<ge::Graph()><br>GE Graph的构建具体请参考《图模式开发指南》。 |
+| builder | 输入 | GE Graph的构建方法：std::function\<ge::Graph()><br>GE Graph的构建具体请参考《图模式开发指南》。 |
 
 ## 返回值
 

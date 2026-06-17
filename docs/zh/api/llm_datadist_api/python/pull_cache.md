@@ -26,7 +26,7 @@ pull_cache(cache_key: Union[CacheKey, CacheKeyByIdAndIndex], kv_cache: KvCache, 
 | kv_cache | [KvCache](KvCache构造函数.md) | 目标KV Cache。 |
 | batch_index | int | 表示目标KV Cache的batch index，默认为0。 |
 | size | int | 默认为-1。<br>设置为>0的整数，表示要拉取的tensor大小。<br>或设置为-1，表示完整拷贝：本地单个KV的大小减去dst_cache_offset大小。 |
-| **kwargs | NA | 这个是Python函数的可扩展参数通用写法，一般通过key=value的方式直接传入参数。<br>可选参数的详细信息请参考[表1](#table37855712016)。 |
+| **kwargs | NA | 这个是Python函数的可扩展参数通用写法，一般通过key=value的方式直接传入参数。<br>可选参数的详细信息请参考表1。 |
 
 **表 1**  \*\*kwargs的可选参数
 

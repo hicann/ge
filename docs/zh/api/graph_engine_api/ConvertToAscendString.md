@@ -38,15 +38,15 @@ template<typename T> ge::AscendString ConvertToAscendString(T str)
 
 支持以下几种拓展：
 
--   template<\> inline ge::AscendString ConvertToAscendString<const char \*\>\(const char \*str\)
+-   template<\> inline ge::AscendString ConvertToAscendString\<const char \*\>\(const char \*str\)
 
     对于const char \*类型的字符串，直接使用AscendString的构造函数进行转换。
 
--   template<\> inline ge::AscendString ConvertToAscendString<std::string\>\(std::string str\)
+-   template<\> inline ge::AscendString ConvertToAscendString\<std::string\>\(std::string str\)
 
     对于std::string类型的字符串，先将其转换为const char \*类型，然后再进行转换。
 
--   template<\> inline ge::AscendString ConvertToAscendString<ge::AscendString\>\(ge::AscendString str\)
+-   template<\> inline ge::AscendString ConvertToAscendString\<ge::AscendString\>\(ge::AscendString str\)
 
     对于AscendString类型的字符串，直接返回AscendString类型字符串。
 

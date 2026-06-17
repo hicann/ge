@@ -41,18 +41,18 @@
 -   浮点数：float
 -   浮点数列表：std::vector<float\>
 -   字符串：string
--   字符串列表：std::vector<std::string\>
+-   字符串列表：std::vector\<std::string\>
 -   布尔：bool
 -   布尔列表：std::vector<bool\>
 -   Tensor：Tensor
 -   Tensor列表：std::vector<Tensor\>
 -   Bytes：字节数组，SetAttr接受通过OpBytes（即vector<uint8\_t\>），和（const uint8\_t\* data, size\_t size）表示的字节数组
 -   AttrValue类型
--   整型二维列表类型：std::vector<std::vector<int64\_t\>\>
--   DataType列表类型：std::vector<ge::DataType\>
+-   整型二维列表类型：std::vector\<std::vector<int64\_t\>\>
+-   DataType列表类型：std::vector\<ge::DataType\>
 -   DataType类型：ge::DataType
 -   NamedAttrs类型： ge::NamedAttrs
--   NamedAttrs列表类型：std::vector<ge::NamedAttrs\>
+-   NamedAttrs列表类型：std::vector\<ge::NamedAttrs\>
 
 ## 函数原型<a name="section182148481597"></a>
 

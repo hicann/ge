@@ -61,7 +61,7 @@ Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocato
 </td>
 <td class="cellrowborder" valign="top" width="12.23%" headers="mcps1.1.4.1.2 "><p id="p12467130101814"><a name="p12467130101814"></a><a name="p12467130101814"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="73.14%" headers="mcps1.1.4.1.3 "><p id="p17466110161820"><a name="p17466110161820"></a><a name="p17466110161820"></a>用户Allocator对象的智能指针。Allocator基于<a href="zh-cn_topic_0000001600456732.md">Allocator</a>派生。</p>
+<td class="cellrowborder" valign="top" width="73.14%" headers="mcps1.1.4.1.3 "><p id="p17466110161820"><a name="p17466110161820"></a><a name="p17466110161820"></a>用户Allocator对象的智能指针。Allocator基于Allocator派生。</p>
 </td>
 </tr>
 </tbody>

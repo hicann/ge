@@ -134,6 +134,6 @@ using RunAsyncCallbackV2 = std::function&lt;void(Status, std::vector&lt;gert::Te
     }
     ```
 
-3.  定义好指定图的输入数据const std::vector<gert::Tensor\> &inputs。
+3.  定义好指定图的输入数据const std::vector\<gert::Tensor\> &inputs。
 4.  调用接口RunGraphAsync\(graph\_id, inputs, CallBack\)。
 

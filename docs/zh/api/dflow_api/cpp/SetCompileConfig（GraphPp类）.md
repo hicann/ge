@@ -23,7 +23,7 @@ GraphPp &SetCompileConfig(const char_t *json_file_path)
 
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
-| json_file_path | 输入 | GraphPp的json配置文件路径和文件名。<br>GraphPp的json配置文件用于AscendGraph的描述和编译。<br>示例如下，参数解释请参考[表1](#zh-cn_topic_0000001411032876_table1179952915232)。<br>{"build_option":{},"inputs_tensor_desc":[{"data_type":"DT_UINT32","shape":[3]},{"data_type":"DT_UINT32","shape":[3]}]} |
+| json_file_path | 输入 | GraphPp的json配置文件路径和文件名。<br>GraphPp的json配置文件用于AscendGraph的描述和编译。<br>示例如下，参数解释请参考表1。<br>{"build_option":{},"inputs_tensor_desc":[{"data_type":"DT_UINT32","shape":[3]},{"data_type":"DT_UINT32","shape":[3]}]} |
 
 **表 1**  GraphPp的json配置文件
 

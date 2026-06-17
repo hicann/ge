@@ -49,7 +49,7 @@ aclError aclmdlBundleQueryInfoFromMem(const void *model, size_t modelSize, aclmd
 </td>
 <td class="cellrowborder" valign="top" width="68%" headers="mcps1.1.4.1.3 "><p id="p4388859358"><a name="p4388859358"></a><a name="p4388859358"></a>存放模型数据的内存地址指针。</p>
 <p id="p1413351917712"><a name="p1413351917712"></a><a name="p1413351917712"></a>此处的模型文件是基于构图接口构建出来的，调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，再由用户自行将保存出来的om模型文件读入内存，构图接口详细描述参见<span id="ph79081379286"><a name="ph79081379286"></a><a name="ph79081379286"></a>《图模式开发指南》</span>。</p>
-<p id="p1580512422221"><a name="p1580512422221"></a><a name="p1580512422221"></a>应用运行在Host时，此处需申请Host上的内存；应用运行在Device时，此处需申请Device上的内存。内存申请接口请参见<a href="zh-cn_topic_0000001312400661.md">内存管理</a>。</p>
+<p id="p1580512422221"><a name="p1580512422221"></a><a name="p1580512422221"></a>应用运行在Host时，此处需申请Host上的内存；应用运行在Device时，此处需申请Device上的内存。内存申请接口请参见内存管理。</p>
 </td>
 </tr>
 <tr id="row1782123695210"><td class="cellrowborder" valign="top" width="18%" headers="mcps1.1.4.1.1 "><p id="p966710213162"><a name="p966710213162"></a><a name="p966710213162"></a>modelSize</p>

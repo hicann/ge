@@ -26,7 +26,7 @@ pull_blocks(prompt_cache_key: BlocksCacheKey, decoder_kv_cache: KvCache, prompt_
 | decoder_kv_cache | [KvCache](KvCache构造函数.md) | 目标KV Cache。 |
 | prompt_blocks | List[int] | Prompt的block index列表。 |
 | decoder_blocks | List[int] | Decode的block index列表。 |
-| **kwargs | NA | 这个是Python函数的可扩展参数通用写法，一般通过key=value的方式直接传入参数。<br>可选参数的详细信息请参考[表1](#table37855712016)。 |
+| **kwargs | NA | 这个是Python函数的可扩展参数通用写法，一般通过key=value的方式直接传入参数。<br>可选参数的详细信息请参考表1。 |
 
 **表 1**  \*\*kwargs的可选参数
 
