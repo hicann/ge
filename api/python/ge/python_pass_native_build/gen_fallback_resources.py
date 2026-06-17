@@ -116,9 +116,6 @@ def _map_include_path(include_path: str, cann_root: Path) -> Optional[str]:
     if any(part.startswith("python3.") for part in parts):
         return "@PYTHON_INCLUDE@"
 
-    rel = _relative_parts(path, _normalized(cann_root / "pkg_inc"))
-    if rel is not None:
-        return _join_placeholder("@CANN_PKG_INC@", rel)
     rel = _relative_parts(path, _normalized(cann_root / "include"))
     if rel is not None:
         return _join_placeholder("@CANN_INCLUDE_DIR@", rel)
@@ -145,6 +142,7 @@ def _rewrite_include_args(include_args: Sequence[str], cann_root: Path) -> List[
             index += 1
             continue
         index += 1
+    rewritten.extend(["-I", "@CANN_PKG_INC@", "-I", "@CANN_PKG_INC@/base"])
     return rewritten
 
 
