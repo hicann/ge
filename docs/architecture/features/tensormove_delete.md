@@ -66,13 +66,13 @@ Variable/Const -> TensorMove -> Netoutput/PartitionedCall/If/while...
 
 ```
 优化前:
-  Source[0] → Sibling(in-place/atomic)
+  Source[0] → Sibling(kWriteable/kScopeWriteable)
   Source[0] → TensorMove → TM_succ
 优化后:
   仅当图中已有 TM_succ -> Sibling 直接控制边时才删除 TensorMove
 ```
 
-- Sibling 会覆写源内存（in-place 写回或 atomic 输出复用输入），删除 TM 后 Sibling 直接读写源内存
+- Sibling 会通过统一读写关系覆写源内存（`IsNodeInputWritable` 返回 true），删除 TM 后 Sibling 直接读写源内存
 - 必须要求外部已建立 TM_succ -> Sibling 的控制边来保序，Pass 不自行猜测语义方向
 
 **情况 B：Sibling 纯读、TM_succ 覆写 source**
@@ -80,7 +80,7 @@ Variable/Const -> TensorMove -> Netoutput/PartitionedCall/If/while...
 ```
 优化前:
   Source[0] → Sibling(纯读)
-  Source[0] → TensorMove → TM_succ(in-place/atomic)
+  Source[0] → TensorMove → TM_succ(kWriteable/kScopeWriteable)
 优化后:
   Source[0] → Sibling
   Source[0] → TM_succ
@@ -88,7 +88,8 @@ Variable/Const -> TensorMove -> Netoutput/PartitionedCall/If/while...
 ```
 
 - Sibling 纯读、TM_succ 会覆写源内存，删除 TM 后存在 read-before-write 冒险
-- 补 Sibling -> TM_succ 控制边保序，确保旁路先读完源内存、后继再覆写
+- 先登记 Sibling -> TM_succ pending 控制边保序，确保旁路先读完源内存、后继再覆写
+- 最终是否删除仍需通过 Rule 4 的统一 RW 冲突检查；若删除后 Source(out) 到 TM_succ(in) 本身存在冲突，则保留 TensorMove，pending 控制边不落地
 
 **情况 C：Sibling 纯读、TM_succ 也纯读**
 
@@ -243,7 +244,7 @@ flowchart LR
   - 检查旁路本身类型/同图性/是否输出复用输入等硬约束（`IsSiblingConsumerDeletable`）
   - 旁路覆写源内存时，要求外部已有 `TM 后继 → 旁路` 的直接控制边
   - 旁路是 TensorMove 时，作为只读消费者处理，不拒绝（二期放宽）
-  - 其余情形登记 `旁路 → TM 后继` 的 pending 控制边
+  - 旁路纯读且 TM 后继覆写源内存时，登记 `旁路 → TM 后继` 的 pending 控制边
 - 补边前调用 `WouldCreateControlCycle` 判断是否会成环
 
 **Rule 4：CheckRWConflictOnDelete — 读写冲突检查（二期新增）**
@@ -337,7 +338,7 @@ RefOp（如某些自定义算子）可能有多个输出端口，这些输出端
 
 **为什么二期要放宽特殊源节点限制？**
 
-Variable/Const 等特殊节点原先一律拒绝删除，是保守策略。实际上，若 TensorMove 的后继只是读取源内存而不覆写，删除 TensorMove 后源内存不会被篡改，语义仍等价。二期通过 `WillNodeOverwriteSourceMemory` 函数精确判定后继是否覆写，放宽了这部分限制，扩大了可消除范围。
+Variable/Const 等特殊节点原先一律拒绝删除，是保守策略。实际上，若 TensorMove 的后继只是读取源内存而不覆写，删除 TensorMove 后源内存不会被篡改，语义仍等价。二期通过 `WillNodeOverwriteSourceMemory` 函数基于统一输入读写关系精确判定后继是否覆写，放宽了这部分限制，扩大了可消除范围。
 
 **为什么二期要支持单输出多引用场景？**
 

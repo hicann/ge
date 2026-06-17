@@ -13,7 +13,6 @@
 #include <stack>
 #include <unordered_set>
 #include <queue>
-#include <limits>
 
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/attr_utils.h"
@@ -310,52 +309,6 @@ bool HasRefOutputFromInput(const NodePtr &node, const int32_t input_idx) {
   return false;
 }
 
-bool HasInplaceWriteFromInput(const NodePtr &node, const int32_t input_idx) {
-  GE_WARN_ASSERT((node) != nullptr);
-  GE_WARN_ASSERT((node->GetOpDesc()) != nullptr);
-  for (const auto &output_desc : node->GetOpDesc()->GetAllOutputsDescPtr()) {
-    int32_t inplace_input_idx = -1;
-    if (AttrUtils::GetInt(output_desc, INPLACE_SUPPORT_INPUT_INDEX, inplace_input_idx) &&
-        (inplace_input_idx == input_idx)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool HasAtomicWriteFromInput(const NodePtr &node, const int32_t input_idx) {
-  GE_WARN_ASSERT((node) != nullptr);
-  GE_WARN_ASSERT((node->GetOpDesc()) != nullptr);
-  if (!node->GetOpDesc()->HasAttr(ATOMIC_ATTR_OUTPUT_INDEX)) {
-    return false;
-  }
-
-  std::vector<int64_t> atomic_output_indexes;
-  if (!AttrUtils::GetListInt(node->GetOpDesc(), ATOMIC_ATTR_OUTPUT_INDEX, atomic_output_indexes)) {
-    GELOGI("Node %s has attr %s but output indexes parse skipped, treat as source overwrite conservatively.",
-           node->GetName().c_str(), ATOMIC_ATTR_OUTPUT_INDEX.c_str());
-    return true;
-  }
-  for (const auto output_idx : atomic_output_indexes) {
-    if ((output_idx < 0) || (output_idx > static_cast<int64_t>(std::numeric_limits<int32_t>::max()))) {
-      GELOGI("Node %s has invalid atomic output index %ld, treat as source overwrite conservatively.",
-             node->GetName().c_str(), output_idx);
-      return true;
-    }
-    const auto out_anchor = node->GetOutDataAnchor(static_cast<int32_t>(output_idx));
-    if (out_anchor == nullptr) {
-      GELOGI("Node %s atomic output index %ld has no out anchor, treat as source overwrite conservatively.",
-             node->GetName().c_str(), output_idx);
-      return true;
-    }
-    int32_t reuse_in_idx = -1;
-    if (GraphUtils::IsRefFromInput(out_anchor, reuse_in_idx) && (reuse_in_idx == input_idx)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
  * @brief 检查"旁路消费者"（sibling consumer，即除 TensorMove 外另一个读同一份源数据的消费节点）
  *        在结构上是否允许删除 TensorMove
@@ -374,6 +327,9 @@ bool HasAtomicWriteFromInput(const NodePtr &node, const int32_t input_idx) {
  *        的语义和普通节点不同。
  *      - 旁路是 If / Case / While 等多分支控制流算子：是否真的会读 source 要到运行期才
  *        确定，"旁路先读完再让 TM 后继读"这个假设不一定成立。
+ *      - 旁路是 PartitionCall / StatefulPartitionedCall 等带子图的 wrapper 算子：source 的
+ *        真正读写发生在子图内部，跨子图的读写关系判断比较复杂，"旁路先读完"的前提无法
+ *        在父图层面确定，暂不支持，保守拒绝不优化。
  *   3. 旁路消费者是输出复用输入算子。
  *      这种情况下，源内存不仅被旁路消费者自己用，还会通过它的输出继续被下游节点使用。
  *      即使后面让旁路消费者等 TensorMove 的下游先读完再执行，也管不到输出复用输入关系
@@ -395,8 +351,8 @@ bool IsSiblingConsumerDeletable(const NodePtr &tensor_move_node, const InDataAnc
     return false;
   }
   if ((sibling_node->GetType() == NETOUTPUT) ||
-      NodeUtils::IsMultiBranchControlFlowOp(sibling_node)) {
-    GELOGI("Sibling consumer %s(type %s) is NetOutput/control-flow, not supported by "
+      NodeUtils::IsWrapperNode(sibling_node)) {
+    GELOGI("Sibling consumer %s(type %s) is NetOutput/control-flow/subgraph wrapper, not supported by "
            "multi-consumer delete rule of tensor move %s.",
            sibling_node->GetName().c_str(), sibling_node->GetType().c_str(), tensor_move_node->GetName().c_str());
     return false;
@@ -416,10 +372,8 @@ bool IsSiblingConsumerDeletable(const NodePtr &tensor_move_node, const InDataAnc
 /**
  * @brief 检查一个节点是否会通过指定输入端口覆写源节点的内存
  *
- * 覆盖三种覆写情形：
- *   1. 输入读写类型为 kWriteable / kScopeWriteable（ref 输入 / while / modify_input 等）
- *   2. 声明了 inplace 写回：输出 desc 上的 INPLACE_SUPPORT_INPUT_INDEX 指向该输入端口
- *   3. 带 atomic 输出属性，且对应 atomic 输出通过 Ref/ReuseInput 复用该输入端口
+ * 仅依赖统一的输入内存读写关系：kWriteable / kScopeWriteable
+ * （ref 输入 / while / modify_input 等）。
  *
  * @return true 会覆写源内存；false 是纯读取，无覆写风险。
  */
@@ -427,16 +381,7 @@ bool WillNodeOverwriteSourceMemory(const NodePtr &node, const int32_t source_inp
   GE_WARN_ASSERT((node) != nullptr);
   GE_WARN_ASSERT((node->GetOpDesc()) != nullptr);
 
-  if (IsNodeInputWritable(node, static_cast<uint32_t>(source_input_idx))) {
-    return true;
-  }
-  if (HasInplaceWriteFromInput(node, source_input_idx)) {
-    return true;
-  }
-  if (HasAtomicWriteFromInput(node, source_input_idx)) {
-    return true;
-  }
-  return false;
+  return IsNodeInputWritable(node, static_cast<uint32_t>(source_input_idx));
 }
 
 bool WouldTMSuccessorsOverwriteSource(const TensorMoveDeleteContext &ctx) {
