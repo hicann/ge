@@ -55,7 +55,7 @@ python/
 ## 前置条件
 
 - 已完成 CANN 环境变量设置，设置方式为 `source ${ASCEND_PATH}/set_env.sh`，更多指导请参考 [C++ 样例 README](../cpp/README.md) 的配置环境变量步骤
-- CANN 软件包安装请参考 [环境准备](../../../../../docs/build.md#1-环境准备)
+- CANN 软件包安装请参考 [环境准备](../../../../../docs/zh/build.md#1-环境准备)
 - 已安装图编译流程相关 Python 依赖：`attrs`、`decorator`、`sympy`、`numpy`、`psutil`、`scipy`
 
 run 包已包含 GE Python 运行时所需的 `ge_py` wheel，本节不需要再单独安装 `ge_py-*.whl`。

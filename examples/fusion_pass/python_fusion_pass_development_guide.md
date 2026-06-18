@@ -1,6 +1,6 @@
 # Python 融合 Pass 开发指南
 
-本文面向想用 Python 编写 GE 融合 pass 的开发者。建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/architecture/features/fusion_pattern_pass.md)。
+本文面向想用 Python 编写 GE 融合 pass 的开发者。建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)。
 
 如果你已经理解“定义 pattern、匹配、过滤、replacement、重连”这条主线，可以直接按本文写代码。
 
@@ -99,7 +99,7 @@ from ge.passes import (
 from ge.passes import DecomposePass, register_decompose_pass
 ```
 
-接口完整说明见 [Python Passes API](../../docs/ge_python/api/Passes.md)。
+接口完整说明见 [Python Passes API](../../docs/zh/user-guides/ge_python/api/Passes.md)。
 
 ### 3.2 注册 pass
 
@@ -306,7 +306,7 @@ class PythonMyDecomposePass(DecomposePass):
 ```bash
 source ${ASCEND_PATH}/set_env.sh
 ```
-`ASCEND_PATH` 指向 CANN Toolkit 安装目录，更多安装路径说明见 [快速安装](../../docs/quick_install.md)。
+`ASCEND_PATH` 指向 CANN Toolkit 安装目录，更多安装路径说明见 [快速安装](../../docs/zh/quick_install.md)。
 Python pass 运行时会加载基于 `pybind11` 构建的预编译二进制组件，该组件与 Python 版本相关。CANN 包内包含多 Python 版本的预编译产物，并默认安装当前 Python 版本对应的产物。运行时会优先加载与当前 Python 版本匹配的产物；如果不存在匹配产物，会进入 fallback 编译流程，fallback 编译依赖当前 Python 环境中已安装 `pybind11`。
 
 再告诉 GE 从哪里加载 Python pass：
@@ -327,7 +327,7 @@ export ASCEND_GE_PY_PASS_PATH=/path/to/pass_dir/
 export ASCEND_GE_PY_PASS_PATH=/path/to/a.py:/path/to/pass_dir/
 ```
 
-详细扫描规则见 [ASCEND_GE_PY_PASS_PATH](../../docs/ge_python/env/ASCEND_GE_PY_PASS_PATH.md)。
+详细扫描规则见 [ASCEND_GE_PY_PASS_PATH](../../docs/zh/user-guides/ge_python/env/ASCEND_GE_PY_PASS_PATH.md)。
 
 ### 8.2 离线编译
 
@@ -375,7 +375,7 @@ export ASCEND_GLOBAL_LOG_LEVEL=0
 
 ## 10. 推荐阅读顺序
 
-1. [融合 Pattern Pass 机制](../../docs/architecture/features/fusion_pattern_pass.md)
+1. [融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass Python 样例](pattern_base_pass/4_add_zero_pass/python/README.md)
 3. [MatMul+Add Python 样例](pattern_base_pass/1_fuse_matmul_add_pass/python/README.md)
 4. [capture tensor Python 样例](pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/python/README.md)

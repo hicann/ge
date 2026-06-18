@@ -24,7 +24,7 @@
 
 
 ## 环境要求
-- 参考[环境准备](../../../README.md#环境准备)下载安装驱动/固件/CANN软件包；
+- 参考[环境准备](../../../docs/zh/quick_install.md)下载安装驱动/固件/CANN软件包；
 - config目录下的模型生成脚本 model_generator.py 依赖tensorflow，需通过pip3 install tensorflow安装。
 
 ## 程序编译

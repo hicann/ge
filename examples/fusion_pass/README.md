@@ -4,7 +4,7 @@
 
 如果是第一次开发，建议按下面顺序阅读：
 
-1. [融合 Pattern Pass 机制](../../docs/architecture/features/fusion_pattern_pass.md)：先理解 pattern、匹配、过滤、replacement 和边界规则。
+1. [融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)：先理解 pattern、匹配、过滤、replacement 和边界规则。
 2. [Python 融合 Pass 开发指南](python_fusion_pass_development_guide.md)：支持运行时接入和 `@pattern` 表达式写法。
 3. [C++ 融合 Pass 开发指南](cpp_fusion_pass_development_guide.md)：适合编译成 `.so` 后产品化交付。
 

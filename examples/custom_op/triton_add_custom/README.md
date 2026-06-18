@@ -24,7 +24,7 @@
 
 - 已安装并配置 CANN toolkit 和 ops 包。
 - `ASCEND_HOME_PATH` 已设置。
-- 参考 [安装指导](../../../docs/build.md#2-安装软件包) 完成 toolkit 和 ops 包安装。
+- 参考 [安装指导](../../../docs/zh/build.md#1-环境准备) 完成 toolkit 和 ops 包安装。
 
 ### 框架与插件
 

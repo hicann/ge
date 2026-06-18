@@ -33,9 +33,9 @@
 ```
 
 ## 环境准备
-- 参考[环境准备](../../../README.md#环境准备)下载安装驱动/固件/CANN软件包；
+- 参考[环境准备](../../../docs/zh/quick_install.md)下载安装驱动/固件/CANN软件包；
 
-- python 版本要求：python3.11 具体版本以dataflow wheel包编译时用的python版本为准，如果需要使用不同python版本，可以参考[编译](../../../docs/build.md#编译)重新编译ge_compiler包并安装；
+- python 版本要求：python3.11 具体版本以dataflow wheel包编译时用的python版本为准，如果需要使用不同python版本，可以参考[编译](../../../docs/zh/build.md#43-编译)重新编译ge_compiler包并安装；
 
 - config目录下的模型生成脚本 model_generator.py 依赖tensorflow-cpu和onnx，需通过 pip3 install tensorflow-cpu 和 pip3 install onnx 安装；
 

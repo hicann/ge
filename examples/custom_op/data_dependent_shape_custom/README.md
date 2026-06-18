@@ -26,7 +26,7 @@
 
 - 已正确安装并配置 CANN 环境，例如执行过 `source ${ASCEND_HOME_PATH}/set_env.sh`。
 - 当前环境具备 `ACL`、`GE`、`Graph`、`Ascend C` 相关头文件与库。
-- 参考 [安装指导](../../../docs/build.md#2-安装软件包) 完成 toolkit 和 ops 包安装。
+- 参考 [安装指导](../../../docs/zh/quick_install.md) 完成 toolkit 和 ops 包安装。
 
 ### 框架与插件
 
