@@ -7,8 +7,8 @@
 ## 文件权限控制
 
 - 建议用户在主机（包括宿主机）及容器中设置运行系统umask值为0027及以上，保障新增文件夹默认最高权限为750，新增文件默认最高权限为640。
-- 建议用户对个人隐私数据、商业资产、源文件和算子开发过程中保存的各类文件等敏感内容做好权限控制等安全措施。例如涉及本项目安装目录权限管控、输入公共数据文件权限管控，设定的权限建议参考[A-文件（夹）各场景权限管控推荐最大值](#A-文件（夹）各场景权限管控推荐最大值)。
-- 用户安装和使用过程需要做好权限控制，建议参考[A-文件（夹）各场景权限管控推荐最大值](#A-文件（夹）各场景权限管控推荐最大值)文件权限参考进行设置。
+- 建议用户对个人隐私数据、商业资产、源文件和算子开发过程中保存的各类文件等敏感内容做好权限控制等安全措施。例如涉及本项目安装目录权限管控、输入公共数据文件权限管控，设定的权限建议参考[A-文件（夹）各场景权限管控推荐最大值](#a-文件夹各场景权限管控推荐最大值)。
+- 用户安装和使用过程需要做好权限控制，建议参考[A-文件（夹）各场景权限管控推荐最大值](#a-文件夹各场景权限管控推荐最大值)文件权限参考进行设置。
 
 ## 构建安全声明
 
@@ -23,12 +23,12 @@
 
 |      类型      |                                           开源代码地址                                           |                            文件名                             |             公网IP地址/公网URL地址/域名/邮箱地址/压缩文件地址             |                   用途说明                    |
 | :------------: |:------------------------------------------------------------------------------------------:|:----------------------------------------------------------| :---------------------------------------------------------- |:-----------------------------------------|
-|  依赖  | 不涉及  | cmake/third_party/makeself-fetch.cmake | https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz | 从gitcode下载makeself源码，作用编译依赖 |
-|  依赖  | 不涉及  | cmake/third_party/json.cmake | https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip | 从gitcode下载json源码，作用编译依赖 |
-|  依赖  | 不涉及  | cmake/third_party/gtest.cmake | https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz | 从gitcode下载googletest源码，作用编译依赖 |
+|  依赖  | 不涉及  | cmake/third_party/makeself-fetch.cmake | https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz | 从gitcode下载makeself源码，作为编译依赖 |
+|  依赖  | 不涉及  | cmake/third_party/json.cmake | https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip | 从gitcode下载json源码，作为编译依赖 |
+|  依赖  | 不涉及  | cmake/third_party/gtest.cmake | https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz | 从gitcode下载googletest源码，作为编译依赖 |
 | 依赖 | 不涉及 | cmake/third_party/pybind11.cmake | <https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz> | 从gitcode下载pybind11源码，作为编译依赖 |
-|  依赖  | 不涉及  | cmake | https://apt.kitware.com/keys/kitware-archive-latest.asc | 从kitware下载cmake软件，作用编译依赖 |
-|  依赖  | 不涉及  | cmake | https://apt.kitware.com/ubuntu/ | 从kitware下载cmake软件，作用编译依赖 |
+|  依赖  | 不涉及  | cmake | https://apt.kitware.com/keys/kitware-archive-latest.asc | 从kitware下载cmake软件，作为编译依赖 |
+|  依赖  | 不涉及  | cmake | https://apt.kitware.com/ubuntu/ | 从kitware下载cmake软件，作为编译依赖 |
 
 ## 漏洞机制说明
 [漏洞管理](https://gitcode.com/cann/community/blob/master/security/security.md)
@@ -53,6 +53,6 @@
 | 维护升级文件目录                  |   770（rwxrwx---）    |
 | 业务数据文件                      |   640（rw-r-----）    |
 | 业务数据文件目录                  |   750（rwxr-x---）      |
-| 密钥组件、私钥、证书、密文文件目录    |  700（rwx—----）      |
+| 密钥组件、私钥、证书、密文文件目录    |  700（rwx------）      |
 | 密钥组件、私钥、证书、加密密文        | 600（rw-------）      |
 | 加解密接口、加解密脚本            |   500（r-x------）        |

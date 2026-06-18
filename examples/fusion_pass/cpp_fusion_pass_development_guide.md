@@ -1,6 +1,6 @@
 # C++ 融合 Pass 开发指南
 
-本文面向想用 C++ 编写 GE 融合 pass 的开发者。建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/architecture/features/fusion_pattern_pass.md)。
+本文面向想用 C++ 编写 GE 融合 pass 的开发者。建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)。
 
 C++ pass 的交付形态是动态库。开发者实现 pass 类，把它注册到 GE，然后编译成 `.so`。GE 编译模型时加载该 `.so`，在指定阶段执行 pass。
 
@@ -369,7 +369,7 @@ export ASCEND_GLOBAL_LOG_LEVEL=0
 
 ## 12. 推荐阅读顺序
 
-1. [融合 Pattern Pass 机制](../../docs/architecture/features/fusion_pattern_pass.md)
+1. [融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass C++ 样例](pattern_base_pass/4_add_zero_pass/cpp/README.md)
 3. [MatMul+Add C++ 样例](pattern_base_pass/1_fuse_matmul_add_pass/cpp/README.md)
 4. [capture tensor C++ 样例](pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/cpp/README.md)

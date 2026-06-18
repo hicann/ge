@@ -35,7 +35,7 @@ bash build.sh --dflow          # 构建 dflow 包
 ### 构建选项
 ```bash
 bash build.sh -j16                  # 16个并行线程（默认：8）
-bash build.sh --build_type=Debug    # Debug 构建（默认：Release）
+bash build.sh --build-type=Debug    # Debug 构建（默认：Release）
 bash build.sh --verbose             # 详细输出
 bash build.sh --asan                # 启用 AddressSanitizer
 bash build.sh --cov                 # 启用代码覆盖率
@@ -67,45 +67,45 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 ## 架构文档加载
 
-**重要**： 在探索仓库/项目、回答问题、修改代码、输出设计文档、需求Spec或做代码检视时，根据下表加载对应文档。每个文档只需加载一次，匹配触发词、涉及目录或场景中任意一条即加载。同时，修改了代码后，要更新`docs/architecture/features/`和`docs/architecture/modules`下的对应文档。
+**重要**： 在探索仓库/项目、回答问题、修改代码、输出设计文档、需求Spec或做代码检视时，根据下表加载对应文档。每个文档只需加载一次，匹配触发词、涉及目录或场景中任意一条即加载。同时，修改了代码后，要更新`docs/zh/design/features/`和`docs/zh/design/architecture/modules`下的对应文档。
 
 | 文档 | 触发词 | 涉及目录 |
 |------|----------------|----------|
-| [`architecture.md`](docs/architecture/architecture.md) | 架构总览、整体设计、GE介绍、系统架构、编译优化、插件扩展 | 首次了解项目时 |
-| [`ascend-ir.md`](docs/architecture/modules/graph_metadef/ascend-ir.md) | AscendIR、图结构、算子注册、Anchor、DAG | `base/`、`inc/`（图结构相关） |
-| [`compiler.md`](docs/architecture/modules/compiler/compiler.md) | 编译器、优化pass、融合、引擎分区、算子编译 | `compiler/`（非 memory/split/stream 子目录） |
-| [`runtime.md`](docs/architecture/modules/runtime/runtime.md) | 动态运行执行器、模型加载、模型执行、Hybrid、v2架构 | `runtime/`（整体架构层面） |
-| [`fusion_pattern_pass.md`](docs/architecture/features/fusion_pattern_pass.md) | 融合Pattern Pass、PatternFusionPass、DecomposePass、自定义融合Pass、MeetRequirements、CaptureTensor、Replacement、PatternMatcherConfig | `compiler/graph/fusion/`、`compiler/graph/passes/feature/`、`examples/fusion_pass/` |
-| [`datadump.md`](docs/architecture/features/datadump.md) | dump、溢出、落盘、datadump、异常dump | `common/dump/`、`runtime/*/dump/` |
-| [`external_weight.md`](docs/architecture/features/external_weight.md) | 外置权重、external weight、FileConstant、权重分离、权重落盘 | 仅使用触发词 |
-| [`constant_folding.md`](docs/architecture/features/constant_folding.md) | 常量折叠、constant folding、常量折叠优化、常量表达式求值 | `*constant_folding*` |
-| [`dynamic_gear.md`](docs/architecture/features/dynamic_gear.md) | 动态分档、dynamic gear、档位、动态batch、动态分辨率、dynamic_dims | `compiler/graph/preprocess/`、`compiler/graph/passes/multi_batch/`、`runtime/v1/executor/` |
-| [`memory_conflict.md`](docs/architecture/features/memory_conflict.md) | 内存冲突、内存排布冲突、读写冲突、Inplace冲突、子图地址隔离 | `compiler/graph/passes/memory_conflict/`、`mem_rw_conflict_optimize.cc`、`compiler/graph/optimize/mem_layout_conflict_optimize/`、`mem_inplace.cc` |
-| [`model_cache.md`](docs/architecture/features/model_cache.md) | 模型缓存、model cache、编译缓存、OM缓存、JIT缓存 | `*model_cache*` |
-| [`profiling.md`](docs/architecture/features/profiling.md) | profiling、性能分析、性能采集、msprof、性能调优 | `*profiling*` |
-| [`so_in_om.md`](docs/architecture/features/so_in_om.md) | SO in OM、算子打包、so打包、自包含模型、算子依赖 | `*op_so_store*` |
-| [`tensormove_delete.md`](docs/architecture/features/tensormove_delete.md) | TensorMove消除、TensorMove删除、冗余拷贝消除 | `*tensor_move_delete*` |
-| [`variable_manager.md`](docs/architecture/features/variable_manager.md) | 变量管理、Variable、变量内存、VarRef、变量生命周期、常量、FileConstant、外置权重 | `*var_manager*`、`*variable_optimize*` |
-| [`zero_copy.md`](docs/architecture/features/zero_copy.md) | 零拷贝、zero copy、模型输入/输出、用户输入/输出、用户内存/地址 | `*zero_copy*` |
-| [`concat_no_task.md`](docs/architecture/features/concat_no_task.md) | Concat No Task、concat优化、连续内存拼接、虚拟算子、不生成Task | `*concat_notask*` |
-| [`ge_local_operator.md`](docs/architecture/features/ge_local_operator.md) | GE Local算子、本地算子、GeLocal引擎、NoOp、GeDeletedOp、PhonyConcat、PhonySplit | `*local_engine*`、`*ge_local*` |
-| [`engine.md`](docs/architecture/features/engine.md) | 引擎、Engine、引擎选择、引擎注册、引擎分区、EnginePlacer、EnginePartitioner、DNNEngine、OpsKernelInfoStore | `compiler/engines/`、`*engine_place*`、`*dnnengine*` |
-| [`tiling_sink.md`](docs/architecture/features/tiling_sink.md) | Tiling下沉、tiling sink、AICPU Tiling、tiling_schedule_optimize | `*tiling_sink*`、`*fe_gentask_utils*` |
-| [`graph_splitter.md`](docs/architecture/features/graph_splitter.md) | 图拆分、Graph Split、动静拆分、DynamicShapePartitioner、EnginePartitioner、cluster、PartitionedCall | `compiler/graph/partition/`、`*dynamic_shape_partition*` |
-| [`known_shape_executor.md`](docs/architecture/features/known_shape_executor.md) | 静态执行器、Known Shape Executor、Task Sink、DavinciModel、地址刷新、模型下沉 | `runtime/v1/graph/load/model_manager/` |
-| [`unknown_shape_executor.md`](docs/architecture/features/unknown_shape_executor.md) | 动态执行器、Unknown Shape Executor、RT2.0、Lowering、ExecuteGraph、ModelV2Executor、动态shape执行 | `runtime/v2/`、`runtime/v1/hybrid/executor/` |
-| [`stream_allocator.md`](docs/architecture/features/stream_allocator.md) | 流分配、stream、多流、流复用、event同步、流激活 | `compiler/graph/build/stream/` |
-| [`infer_shape.md`](docs/architecture/features/infer_shape.md) | InferShape、Shape推导、OriginShape、StorageShape、动态Shape、符号化推导 | `*infer_shape*`、`*symbolic_shape*` |
-| [`infer_format.md`](docs/architecture/features/infer_format.md) | 格式推导、Format推导、InferFormat、OriginFormat、StorageFormat、TransData、格式传播 | `*format_refiner*`、`*format_optimize*` |
+| [`architecture.md`](docs/zh/design/architecture.md) | 架构总览、整体设计、GE介绍、系统架构、编译优化、插件扩展 | 首次了解项目时 |
+| [`ascend-ir.md`](docs/zh/design/modules/graph_metadef/ascend-ir.md) | AscendIR、图结构、算子注册、Anchor、DAG | `base/`、`inc/`（图结构相关） |
+| [`compiler.md`](docs/zh/design/modules/compiler/compiler.md) | 编译器、优化pass、融合、引擎分区、算子编译 | `compiler/`（非 memory/split/stream 子目录） |
+| [`runtime.md`](docs/zh/design/modules/runtime/runtime.md) | 动态运行执行器、模型加载、模型执行、Hybrid、v2架构 | `runtime/`（整体架构层面） |
+| [`fusion_pattern_pass.md`](docs/zh/design/features/fusion_pattern_pass.md) | 融合Pattern Pass、PatternFusionPass、DecomposePass、自定义融合Pass、MeetRequirements、CaptureTensor、Replacement、PatternMatcherConfig | `compiler/graph/fusion/`、`compiler/graph/passes/feature/`、`examples/fusion_pass/` |
+| [`datadump.md`](docs/zh/design/features/datadump.md) | dump、溢出、落盘、datadump、异常dump | `common/dump/`、`runtime/*/dump/` |
+| [`external_weight.md`](docs/zh/design/features/external_weight.md) | 外置权重、external weight、FileConstant、权重分离、权重落盘 | 仅使用触发词 |
+| [`constant_folding.md`](docs/zh/design/features/constant_folding.md) | 常量折叠、constant folding、常量折叠优化、常量表达式求值 | `*constant_folding*` |
+| [`dynamic_gear.md`](docs/zh/design/features/dynamic_gear.md) | 动态分档、dynamic gear、档位、动态batch、动态分辨率、dynamic_dims | `compiler/graph/preprocess/`、`compiler/graph/passes/multi_batch/`、`runtime/v1/executor/` |
+| [`memory_conflict.md`](docs/zh/design/features/memory_conflict.md) | 内存冲突、内存排布冲突、读写冲突、Inplace冲突、子图地址隔离 | `compiler/graph/passes/memory_conflict/`、`mem_rw_conflict_optimize.cc`、`compiler/graph/optimize/mem_layout_conflict_optimize/`、`mem_inplace.cc` |
+| [`model_cache.md`](docs/zh/design/features/model_cache.md) | 模型缓存、model cache、编译缓存、OM缓存、JIT缓存 | `*model_cache*` |
+| [`profiling.md`](docs/zh/design/features/profiling.md) | profiling、性能分析、性能采集、msprof、性能调优 | `*profiling*` |
+| [`so_in_om.md`](docs/zh/design/features/so_in_om.md) | SO in OM、算子打包、so打包、自包含模型、算子依赖 | `*op_so_store*` |
+| [`tensormove_delete.md`](docs/zh/design/features/tensormove_delete.md) | TensorMove消除、TensorMove删除、冗余拷贝消除 | `*tensor_move_delete*` |
+| [`variable_manager.md`](docs/zh/design/features/variable_manager.md) | 变量管理、Variable、变量内存、VarRef、变量生命周期、常量、FileConstant、外置权重 | `*var_manager*`、`*variable_optimize*` |
+| [`zero_copy.md`](docs/zh/design/features/zero_copy.md) | 零拷贝、zero copy、模型输入/输出、用户输入/输出、用户内存/地址 | `*zero_copy*` |
+| [`concat_no_task.md`](docs/zh/design/features/concat_no_task.md) | Concat No Task、concat优化、连续内存拼接、虚拟算子、不生成Task | `*concat_notask*` |
+| [`ge_local_operator.md`](docs/zh/design/features/ge_local_operator.md) | GE Local算子、本地算子、GeLocal引擎、NoOp、GeDeletedOp、PhonyConcat、PhonySplit | `*local_engine*`、`*ge_local*` |
+| [`engine.md`](docs/zh/design/features/engine.md) | 引擎、Engine、引擎选择、引擎注册、引擎分区、EnginePlacer、EnginePartitioner、DNNEngine、OpsKernelInfoStore | `compiler/engines/`、`*engine_place*`、`*dnnengine*` |
+| [`tiling_sink.md`](docs/zh/design/features/tiling_sink.md) | Tiling下沉、tiling sink、AICPU Tiling、tiling_schedule_optimize | `*tiling_sink*`、`*fe_gentask_utils*` |
+| [`graph_splitter.md`](docs/zh/design/features/graph_splitter.md) | 图拆分、Graph Split、动静拆分、DynamicShapePartitioner、EnginePartitioner、cluster、PartitionedCall | `compiler/graph/partition/`、`*dynamic_shape_partition*` |
+| [`known_shape_executor.md`](docs/zh/design/features/known_shape_executor.md) | 静态执行器、Known Shape Executor、Task Sink、DavinciModel、地址刷新、模型下沉 | `runtime/v1/graph/load/model_manager/` |
+| [`unknown_shape_executor.md`](docs/zh/design/features/unknown_shape_executor.md) | 动态执行器、Unknown Shape Executor、RT2.0、Lowering、ExecuteGraph、ModelV2Executor、动态shape执行 | `runtime/v2/`、`runtime/v1/hybrid/executor/` |
+| [`stream_allocator.md`](docs/zh/design/features/stream_allocator.md) | 流分配、stream、多流、流复用、event同步、流激活 | `compiler/graph/build/stream/` |
+| [`infer_shape.md`](docs/zh/design/features/infer_shape.md) | InferShape、Shape推导、OriginShape、StorageShape、动态Shape、符号化推导 | `*infer_shape*`、`*symbolic_shape*` |
+| [`infer_format.md`](docs/zh/design/features/infer_format.md) | 格式推导、Format推导、InferFormat、OriginFormat、StorageFormat、TransData、格式传播 | `*format_refiner*`、`*format_optimize*` |
 
 | 关键特性设计原则和软件约束 | 触发词 | 涉及目录 |
 |------|----------------|----------|
-| [`memory-constraints.md`](docs/architecture/constraints/memory-constraints.md) | 显存、内存复用、block_mem、allocator、零拷贝、连续内存、内存排布冲突、内存释放 | `compiler/graph/build/memory/`、`compiler/graph/optimize/mem_layout_conflict_optimize/` |
-| [`rt2_runtime.md`](docs/architecture/constraints/rt2_runtime.md) | RT2、动态shape、rt2 executor、hybrid执行 | `runtime/v2/` |
-| [`known_shape_runtime.md`](docs/architecture/constraints/known_shape_runtime.md) | 静态shape、known shape、davinci model、sink模式、地址刷新 | `runtime/v1/` |
-| [`graph_split.md`](docs/architecture/constraints/graph_split.md) | 图拆分、切图、cluster、动态图拆分、执行器选择 | `compiler/graph/split/` |
-| [`stream_allocator.md`](docs/architecture/constraints/stream_allocator.md) | 流分配、stream、多流、流复用、event同步、流激活 | `compiler/graph/build/stream/` |
-| [`graph_metadef.md`](docs/architecture/constraints/graph_metadef.md) | 图基础结构 | `graph_metadef/` |
+| [`memory-constraints.md`](docs/zh/design/constraints/memory-constraints.md) | 显存、内存复用、block_mem、allocator、零拷贝、连续内存、内存排布冲突、内存释放 | `compiler/graph/build/memory/`、`compiler/graph/optimize/mem_layout_conflict_optimize/` |
+| [`rt2_runtime.md`](docs/zh/design/constraints/rt2_runtime.md) | RT2、动态shape、rt2 executor、hybrid执行 | `runtime/v2/` |
+| [`known_shape_runtime.md`](docs/zh/design/constraints/known_shape_runtime.md) | 静态shape、known shape、davinci model、sink模式、地址刷新 | `runtime/v1/` |
+| [`graph_split.md`](docs/zh/design/constraints/graph_split.md) | 图拆分、切图、cluster、动态图拆分、执行器选择 | `compiler/graph/split/` |
+| [`stream_allocator.md`](docs/zh/design/constraints/stream_allocator.md) | 流分配、stream、多流、流复用、event同步、流激活 | `compiler/graph/build/stream/` |
+| [`graph_metadef.md`](docs/zh/design/constraints/graph_metadef.md) | 图基础结构 | `graph_metadef/` |
 
 ## 开发规范
 **gitcode pr/issue/ci 操作**
@@ -124,7 +124,7 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 同时，**必须**逐项检查以下内容：
 
-- [ ] **跨特性交叉影响（cross-feature-check）**：设计方案涉及的所有模块/目录，**必须**先读取 [cross_feature_check.md](docs/guidelines/cross_feature_check.md)，按其指引逐场景分析。按 cross_feature_check.md 中的场景表逐项评估是否存在遗漏特性/场景，并在设计文档中明确说明
+- [ ] **跨特性交叉影响（cross-feature-check）**：设计方案涉及的所有模块/目录，**必须**先读取 [cross_feature_check.md](docs/zh/design/cross_feature_check.md)，按其指引逐场景分析。按 cross_feature_check.md 中的场景表逐项评估是否存在遗漏特性/场景，并在设计文档中明确说明
 - [ ] **关键特性设计原则和软件约束**：根据设计方案涉及的目录，加载上表"关键特性设计原则和软件约束"中对应的架构文档，确保设计方案与已有约束一致。如需突破已有约束，必须明确说明原因和影响范围
 
 **示例输出格式**：
