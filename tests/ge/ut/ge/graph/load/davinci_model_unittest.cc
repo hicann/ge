@@ -4570,7 +4570,6 @@ TEST_F(UtestDavinciModel, test_task_distribute_ffts_plus) {
   model.mdl_prof_.enable_flag = 1;
   model.mdl_prof_.task_type_to_distribute_time[0] = 100;
   model.mdl_prof_.task_type_to_distribute_num[0] = 1;
-  model.args_manager_.task_list_ptr_ = &model.task_list_;
   EXPECT_EQ(model.DistributeTask(*model_task_def), SUCCESS);
   model.PrintfModelProfOfModelLoad();
 }
@@ -11448,45 +11447,6 @@ TEST_F(UtestDavinciModel, OpNeedDump_WithRootGraphConfig) {
   EXPECT_FALSE(model.OpNeedDump("other_op"));
 }
 
-TEST_F(UtestDavinciModel, AllocateArgsBuffer_ForwardsToArgsManager) {
-  DavinciModel model(0, nullptr);
-  model.runtime_param_.mem_size = 2048U;
-  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
-  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
-
-  // Set up extra pool in args_manager_
-  ModelArgsManager::ExtraArgsPool pool;
-  pool.host_addr = ge::MakeUnique<uint8_t[]>(4096);
-  pool.device_addr = 0xDEADBEEFULL;
-  pool.total_size = 4096UL;
-  pool.allocated_offset = 0UL;
-  pool.placement = ArgsPlacement::kArgsPlacementHbm;
-  model.args_manager_.extra_args_pools_.emplace_back(std::move(pool));
-  model.args_manager_.davinci_model_ = &model;
-
-  ArgsAllocationResult result;
-  ASSERT_EQ(model.AllocateArgsBuffer(32, ArgsPlacement::kArgsPlacementHbm, result), SUCCESS);
-
-  EXPECT_NE(result.host_addr, nullptr);
-  EXPECT_EQ(result.device_addr, 0xDEADBEEFULL);
-  EXPECT_EQ(result.size, 32UL);
-  EXPECT_FALSE(result.is_from_reserved);
-  EXPECT_EQ(result.extra_pool_index, 0U);
-
-  // Verify pool offset advanced
-  EXPECT_EQ(model.args_manager_.extra_args_pools_[0].allocated_offset, 32UL);
-
-  model.runtime_param_.mem_base = 0U;
-}
-
-TEST_F(UtestDavinciModel, AllocateArgsBuffer_InvalidArgs_ReturnsFailed) {
-  DavinciModel model(0, nullptr);
-
-  ArgsAllocationResult result;
-  EXPECT_NE(model.AllocateArgsBuffer(0, ArgsPlacement::kArgsPlacementHbm, result), SUCCESS);
-  EXPECT_NE(model.AllocateArgsBuffer(32, ArgsPlacement::kEnd, result), SUCCESS);
-}
-
 TEST_F(UtestDavinciModel, UpdateStaticModelArgsByFm_EarlyReturn_WhenNoQueueAttrsAndNoNeedUpdate) {
   DavinciModel model(0, nullptr);
   model.SetFeatureBaseRefreshable(true);
@@ -11555,5 +11515,4 @@ TEST_F(UtestDavinciModel, UpdateStaticModelArgsByFm_ExecutesWhenHasQueueAttrs) {
 
   EXPECT_EQ(model.UpdateStaticModelArgsByFm(), SUCCESS);
 }
-
 }  // namespace ge

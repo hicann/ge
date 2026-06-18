@@ -22,7 +22,6 @@
 #include "exec_runtime/execution_runtime_utils.h"
 #include "common/memory/mem_type_utils.h"
 #include "graph/manager/graph_var_manager.h"
-#include "graph/custom_op_factory.h"
 
 namespace ge {
 namespace {
@@ -406,10 +405,7 @@ bool MemLayoutConflictUtil::IsAddressRefreshable(const NodePtr &node) {
   }
   // 后续支持地址刷新特性的时候需要调整判断逻辑
   if (node->GetOpDesc()->GetOpKernelLibName() == ge::kCustomOpKernelLibName) {
-    AscendString op_type(node->GetOpDesc()->GetType().c_str());
-    if (!CustomOpFactory::IsAddressRefreshable(op_type)) {
-      return false;
-    }
+    return false;
   }
 
   return true;

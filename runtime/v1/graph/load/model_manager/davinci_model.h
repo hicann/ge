@@ -13,11 +13,9 @@
 
 #include <map>
 #include <memory>
-#include <mutex>
 #include <set>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 #include "framework/common/helper/model_helper.h"
@@ -409,10 +407,6 @@ class DavinciModel {
   uintptr_t GetLoopCond() const { return loop_cond_addr_; }
   // get updated task info list
   const std::vector<TaskInfoPtr> &GetTaskList() const { return task_list_; }
-
-  Status AllocateArgsBuffer(size_t size, ArgsPlacement placement, ArgsAllocationResult &result) {
-    return args_manager_.AllocateArgsBuffer(size, placement, result);
-  }
 
     // MDC特定形态下多单流模型加载保证串行，需要加锁保证不同流之间不串
   Status SetStreamLockOrUnlocK(aclrtStream stm, const bool is_lock) const;

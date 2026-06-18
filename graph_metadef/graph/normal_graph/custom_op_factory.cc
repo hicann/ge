@@ -29,10 +29,6 @@ bool CustomOpFactory::IsExistOp(const AscendString &op_type) {
   return CustomOpFactoryImpl::GetInstance().IsExistOp(op_type);
 }
 
-bool CustomOpFactory::IsAddressRefreshable(const AscendString &op_type) {
-  return CustomOpFactoryImpl::GetInstance().IsAddressRefreshable(op_type);
-}
-
 graphStatus CustomOpFactory::LoadCustomOpsPartition(const uint8_t *data, size_t len) {
   return CustomOpFactoryImpl::GetInstance().LoadCustomOpsPartition(data, len);
 }

@@ -276,8 +276,6 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
     )
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/eager_op_execution_context.h
             ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/op_compile_context.h
-            ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/update_args_context.h
-            ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/kernel_args.h
             DESTINATION ${ARCH_LINUX_PATH}/include/exe_graph/runtime COMPONENT ge-executor
     )
     set(EXTERNAL_GRAPH_FILES

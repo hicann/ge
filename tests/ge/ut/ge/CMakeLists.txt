@@ -149,9 +149,6 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/model_args_layout_planner_unittest.cc"
     "graph/load/device_memory_ptr_unittest.cc"
     "graph/load/model_args_manager_unittest.cc"
-    "graph/load/args_io_addrs_updater_unittest.cc"
-    "graph/load/custom_task_info_unittest.cc"
-    "graph/load/sink_op_args_handler_unittest.cc"
 )
 
 file(GLOB_RECURSE MEM_LAYOUT_CONFLICT_OPTIMIZE_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/mem_layout_conflict/*.cc" )
@@ -1244,8 +1241,6 @@ target_link_libraries(ut_libge_distinct_load_utest
     symengine
     gert
     ge_compiler
-    register
-    opp_registry
     om2_executor
     -Wl,-z,muldefs
     -Wl,--whole-archive
