@@ -554,6 +554,7 @@ class Om2ModelExecutor::Impl {
     dump_manager_ = std::unique_ptr<ge::dump::ModelDumpManager>(
         new (std::nothrow) ge::dump::ModelDumpManager(load_arg.model_id));
     GE_ASSERT_TRUE(dump_manager_ != nullptr);
+    dump_manager_->SetClearDfxCacheFlagAfterLoad(load_arg.need_clear_dfx_cache);
     return ge::SUCCESS;
   }
 

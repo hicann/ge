@@ -447,6 +447,7 @@ struct ExpectedOm2LoadArg {
     void *weight_ptr = nullptr;
     size_t weight_size = 0U;
     std::vector<ExpectedOm2FileConstantMem> file_constant_mems;
+    bool need_clear_dfx_cache = false;
 };
 
 ExpectedOm2LoadArg g_expected_om2_load_arg;
@@ -455,10 +456,11 @@ uint32_t g_last_om2_load_model_id = 0U;
 void SetExpectedOm2LoadArg(void *work_ptr = nullptr, size_t work_size = 0U,
                            void *weight_ptr = nullptr, size_t weight_size = 0U,
                            int32_t device_id = 0,
-                           std::vector<ExpectedOm2FileConstantMem> file_constant_mems = {})
+                           std::vector<ExpectedOm2FileConstantMem> file_constant_mems = {},
+                           bool need_clear_dfx_cache = false)
 {
     g_expected_om2_load_arg = {device_id, 0U, work_ptr, work_size, weight_ptr, weight_size,
-                               std::move(file_constant_mems)};
+                               std::move(file_constant_mems), need_clear_dfx_cache};
     g_last_om2_load_model_id = 0U;
 }
 
@@ -511,6 +513,7 @@ std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromDataCheckLoadArg(ge::
         load_arg.work_size != g_expected_om2_load_arg.work_size ||
         load_arg.weight_ptr != g_expected_om2_load_arg.weight_ptr ||
         load_arg.weight_size != g_expected_om2_load_arg.weight_size ||
+        load_arg.need_clear_dfx_cache != g_expected_om2_load_arg.need_clear_dfx_cache ||
         load_arg.file_constant_mems.size() != g_expected_om2_load_arg.file_constant_mems.size()) {
         error_code = ge::GRAPH_FAILED;
         return nullptr;
@@ -1051,10 +1054,13 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_Ok_LoadOm2ModelAllLoadTypes)
             ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WEIGHT_SIZET, &weight_size, sizeof(weight_size)),
                       ACL_SUCCESS);
         }
+        int32_t without_graph = 1;
+        ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WITHOUT_GRAPH_INT32, &without_graph, sizeof(without_graph)),
+                  ACL_SUCCESS);
 
         SetExpectedOm2LoadArg(with_mem ? work_ptr : nullptr, with_mem ? work_size : 0U,
                               with_mem ? weight_ptr : nullptr, with_mem ? weight_size : 0U,
-                              0, expected_file_constants);
+                              0, expected_file_constants, true);
         if (from_file) {
             EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(_, _))
                 .WillOnce(Invoke(LoadOm2DataFromFileSuccess));
@@ -7427,4 +7433,3 @@ TEST_F(UTEST_ACL_Model, DynamicGearWorkflow_MultipleSetDynamicSizes)
     aclmdlDestroyDataset(dataset);
     acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
 }
-
