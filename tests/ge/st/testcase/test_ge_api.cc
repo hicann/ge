@@ -1986,4 +1986,30 @@ TEST_F(GeApiTest, ExecuteGraphWithStreamAsync_builtin_allocator_output_memory) {
     EXPECT_GT(gert_outputs2[i].GetSize(), 0U);
   }
 }
+
+TEST_F(GeApiTest, api_not_init_failed) {
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+  {
+    std::map<std::string, std::string> options;
+    Session session(options);
+    const uint32_t graph_id = 1U;
+
+    std::vector<FlowMsgPtr> flow_inputs;
+    EXPECT_EQ(session.FeedDataFlowGraph(graph_id, flow_inputs, 0), FAILED);
+    std::vector<uint32_t> flow_indexes;
+    std::vector<FlowMsgPtr> flow_outputs;
+    EXPECT_EQ(session.FetchDataFlowGraph(graph_id, flow_indexes, flow_outputs, 0), FAILED);
+    EXPECT_EQ(session.CompileGraph(graph_id), FAILED);
+    EXPECT_EQ(session.GetCompiledGraphSummary(graph_id), nullptr);
+    EXPECT_EQ(session.SetGraphConstMemoryBase(graph_id, nullptr, 0U), FAILED);
+    EXPECT_EQ(session.UpdateGraphFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+    EXPECT_EQ(session.SetGraphFixedFeatureMemoryBaseWithType(graph_id, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U),
+              FAILED);
+    EXPECT_EQ(session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0U), FAILED);
+    EXPECT_EQ(session.RegisterExternalAllocator(nullptr, nullptr), FAILED);
+    EXPECT_EQ(session.UnregisterExternalAllocator(nullptr), FAILED);
+    EXPECT_EQ(session.PaRemapped(0U, 0U, 0U), FAILED);
+  }
+  ReInitGe();
+}
 }  // namespace ge
