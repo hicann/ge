@@ -368,7 +368,7 @@ Status GraphReplace::UpdateAttr(const FusionRuleNodeMapping &origin_sub_graph,
         return GRAPH_REPLACE_UPDATE_ATTR_FAILED;
       }
 
-      // this attribute serves as a sign of infering at Graph Engine
+      // this attribute serves as a sign of inferring at Graph Engine
       if (!ge::AttrUtils::SetBool(fusion_opdesc, NEED_INFER, true)) {
         REPORT_FE_ERROR("[GraphOpt][RunFusionRule][UpdAttr] set attr[%s] to node[%s] error", NEED_INFER.c_str(),
                         fusion_opdesc->GetName().c_str());

@@ -91,7 +91,7 @@ class FormatDtypeSelectorBase {
                                      vector<ge::DataType> &result) = 0;
 
   /**
-   * Get the dynmaic formats and dtypes by infering or caliing the
+   * Get the dynamic formats and dtypes by inferring or calling the
    * SelectTbeOpFormat function of TeFusion.
    * @param op_kernel_info_ptr op kernel info
    * @param NodePtr
