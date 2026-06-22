@@ -58,6 +58,7 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
 
 Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,
                                                   const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
+  body.push_back(ast_.Call("OM2_LOGI", {ast_.Str("Load begin")}));
   body.push_back(dev_ext_info_mem_ptrs_.Resize(codegen_model.aicpu_task_count));
   uint32_t op_idx = 0;
   for (const auto &task_code_builder : task_code_builders) {
@@ -80,6 +81,7 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
     }
   }
   body.push_back(ChkStatus(AclmdlRIBuildEnd(model_handle_, nullptr)));
+  body.push_back(ast_.Call("OM2_LOGI", {ast_.Str("Load done")}));
   body.push_back(ast_.Return("ACL_SUCCESS"));
   return SUCCESS;
 }
@@ -133,6 +135,8 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
   auto output_count = ast_.Var("size_t", "output_count");
   auto output_data = ast_.Var("void **", "output_data");
   auto exe_stream = ast_.Var("aclrtStream &", "exe_stream");
+  auto body_item = is_async ? ast_.Str("RunAsync begin") : ast_.Str("Run begin");
+  body.push_back(ast_.Call("OM2_LOGI", {body_item}));
   body.push_back(ast_.If((input_count != "om2::INPUT_NUM") || (output_count != "om2::OUTPUT_NUM"), {
       ast_.Return("ACL_ERROR_FAILURE"),
   }));
@@ -178,6 +182,8 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
     body.push_back(ChkStatus(AclmdlRIExecute(model_handle_, ast_.Var("int32_t", "stream_sync_timeout"))));
   }
   body.push_back(ast_.BlankLine());
+  auto done_item = is_async ? ast_.Str("RunAsync done") : ast_.Str("Run done");
+  body.push_back(ast_.Call("OM2_LOGI", {done_item}));
   body.push_back(ast_.Return("ACL_SUCCESS"));
   return SUCCESS;
 }

@@ -96,6 +96,7 @@ enum class StablePartId : uint8_t {
   kCreateLabelListForLabelSwitch,
   kCreateLabelListForLabelGotoEx,
   kOpDefStructs,
+  kOm2LogMacros,
 };
 
 enum class StablePartPlacement : uint8_t {

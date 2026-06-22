@@ -38,6 +38,9 @@ class Om2CodePrinter {
   ~Om2CodePrinter() = default;
   void AddContent(GeneratedFileIndex generated_file_index, const std::string &input_string);
   void GetOutputFiles(Om2CodegenArtifacts &artifacts) const;
+  const std::string &GetFileName(GeneratedFileIndex generated_file_index) const {
+    return output_[static_cast<size_t>(generated_file_index)].file_name;
+  }
 
  private:
   void SetFileInfo(GeneratedFileIndex generated_file_index, const std::string &file_name);

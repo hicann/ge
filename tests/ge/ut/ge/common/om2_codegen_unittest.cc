@@ -14,6 +14,7 @@
 #include "common/om2/codegen/ast/ast_nodes.h"
 #include "common/om2/codegen/emitter/stable_parts/stable_part_provider.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
+#include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/ge_local_context.h"
@@ -1317,6 +1318,7 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
       {StablePartId::kGenerateJsonFile, "aclError GenerateJsonFile"},
       {StablePartId::kInterfaceDumpApis, "struct Om2TaskInfo"},
       {StablePartId::kLoadAndRunDumpHelpers, "aclError ReportLaunchedOm2Task"},
+      {StablePartId::kOm2LogMacros, "#define OM2_LOGD"},
   };
 
   for (const auto &test_case : cases) {
@@ -1328,5 +1330,32 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
   std::string output;
   ASSERT_EQ(ResolveStablePart(static_cast<StablePartId>(0xff), output), FAILED);
   EXPECT_TRUE(output.empty());
+}
+
+TEST_F(Om2CodegenUt, StablePartProvider_Om2LogMacros_Ok) {
+  std::string output;
+  ASSERT_EQ(ResolveStablePart(StablePartId::kOm2LogMacros, output), SUCCESS);
+  ExpectContainsAll(output, {
+      "#define OM2_LOGD",
+      "#define OM2_LOGI",
+      "#define OM2_LOGW",
+      "#define OM2_LOGE",
+      "Om2GetTid",
+      "Om2IsLogEnable",
+      "OM2_MODULE_NAME",
+      "OM2_LOG_HEADER",
+  });
+}
+
+TEST_F(Om2CodegenUt, Om2CodePrinter_GetFileName_DefaultNames) {
+  const std::string model_name = "test_model";
+  Om2CodePrinter printer(model_name);
+
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_interface.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kResourcesFile), model_name + "_resources.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kArgsManagerFile), model_name + "_args_manager.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kKernelRegistryFile), model_name + "_kernel_reg.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kLoadingAndRunningFile), model_name + "_load_and_run.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kCMakeListsFile), "Makefile");
 }
 }  // namespace ge

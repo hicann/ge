@@ -1316,7 +1316,8 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
 }
 
 std::string GetExpectedArgsManagerSource() {
-  return R"(#include "g1_interface.h"
+  return R"(#line 1 "g1_args_manager.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 aclError Om2ArgsTable::Init() {
@@ -1401,6 +1402,7 @@ ifndef CPPFLAGS
 CPPFLAGS := \
   -I$(CANN_ROOT)/include \
   -I$(CANN_ROOT)/pkg_inc \
+  -I$(CANN_ROOT)/pkg_inc/base \
   -I$(CANN_ROOT)/pkg_inc/runtime \
   -I$(CANN_ROOT)/pkg_inc/runtime/runtime \
   -I$(CANN_ROOT)/pkg_inc/profiling \
@@ -1442,7 +1444,8 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-  const std::string expected = R"(#include "g1_interface.h"
+  const std::string expected = R"(#line 1 "g1_resources.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
@@ -1453,13 +1456,16 @@ Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_si
   bin_handles_.resize(1);
   func_handles_.resize(1);
   stream_list_.resize(1);
+  OM2_LOGD("Om2Model created");
 }
 
 Om2Model::~Om2Model() {
+  OM2_LOGD("~Om2Model");
   (void)ReleaseResources();
 }
 
 aclError Om2Model::InitResources() {
+  OM2_LOGI("InitResources begin");
   // 1. 创建 model
   OM2_CHK_STATUS(aclmdlRIBuildBegin(&model_handle_, 0));
 
@@ -1474,10 +1480,12 @@ aclError Om2Model::InitResources() {
   OM2_CHK_RT(rtModelBindStream(model_handle_, stream_list_[0], bind0_flag));
   is_stream_list_bind_ = true;
   args_table_.Init();
+  OM2_LOGI("InitResources done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::ReleaseResources() {
+  OM2_LOGI("ReleaseResources begin");
   if (is_stream_list_bind_) {
     for (auto stream : stream_list_) {
       OM2_CHK_STATUS(aclmdlRIUnbindStream(model_handle_, stream));
@@ -1503,6 +1511,7 @@ aclError Om2Model::ReleaseResources() {
       OM2_CHK_STATUS(aclrtFree(dev_dynamic_mem_ptrs_[i]));
     }
   }
+  OM2_LOGI("ReleaseResources done");
   return ACL_SUCCESS;
 }
 } // namespace om2)";
@@ -1542,11 +1551,64 @@ TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_Ok) {
 #include "acl/acl_base.h"
 #include "exe_graph/runtime/tensor.h"
 #include "rt.h"
+#include "dlog_pub.h"
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <cinttypes>
+
+// OM2 Logging Macros
+#define OM2_MODULE_NAME static_cast<int32_t>(GE)
+#define OM2_LOG_HEADER "OM2"
+
+static inline uint64_t Om2GetTid() {
+#ifdef __GNUC__
+  return static_cast<uint64_t>(syscall(__NR_gettid));
+#else
+  return static_cast<uint64_t>(GetCurrentThreadId());
+#endif
+}
+
+static inline bool Om2IsLogEnable(int32_t level) {
+  return CheckLogLevel(OM2_MODULE_NAME, level) == 1;
+}
+
+#define OM2_LOGD(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_DEBUG)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_DEBUG, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGI(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_INFO)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_INFO, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGW(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_WARN)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_WARN, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGE(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_ERROR)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_ERROR, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
 
 #define OM2_CHK_STATUS(expr, ...)            \
 do {                                       \
   const aclError _chk_status = (expr);     \
   if (_chk_status != ACL_SUCCESS) {        \
+    OM2_LOGE(__VA_ARGS__);                 \
     return _chk_status;                    \
   }                                        \
 } while (false)
@@ -1554,6 +1616,7 @@ do {                                       \
 #define OM2_CHK_NOTNULL(ptr, ...)            \
 do {                                       \
   if ((ptr) == nullptr) {                  \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -1561,6 +1624,7 @@ do {                                       \
 #define OM2_CHK_TRUE(expr, ...)              \
 do {                                       \
   if (!(expr)) {                           \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -1569,6 +1633,7 @@ do {                                       \
 do {                                       \
   const rtError_t _rt_err = (expr);        \
   if (_rt_err != RT_ERROR_NONE) {          \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -1992,7 +2057,8 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string kernel_reg_expected = R"OM2(#include "g1_interface.h"
+  const std::string kernel_reg_expected = R"OM2(#line 1 "g1_kernel_reg.cpp"
+#include "g1_interface.h"
 namespace om2 {
 namespace {
 constexpr uint32_t kMaxJsonFileLen = 512U;
@@ -2127,12 +2193,13 @@ aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &fu
 }
 } // namespace
 aclError Om2Model::RegisterKernels() {
+  OM2_LOGI("RegisterKernels begin");
   OM2_CHK_STATUS(RegisterAicoreKernel(bin_handles_[0], func_handles_[0], {ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_));
+  OM2_LOGI("RegisterKernels done");
   return ACL_SUCCESS;
 }
-} // namespace om2
-)OM2";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kKernelRegistryFile], kernel_reg_expected);
+} // namespace om2)OM2";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kKernelRegistryFile], kernel_reg_expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateProgram_FileStorageShape_Ok) {
@@ -2155,7 +2222,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#include "g1_interface.h"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 namespace {
@@ -2533,13 +2601,16 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 }
 
 aclError Om2Model::Load() {
+  OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   OM2_CHK_STATUS(DispatchOp(&kOpDefs[0], {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), stream_list_[0], model_id_, instance_handle_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_}));
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
+  OM2_LOGI("Load done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+  OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -2553,10 +2624,12 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
 
+  OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -2570,54 +2643,65 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
 
+  OM2_LOGI("Run done");
   return ACL_SUCCESS;
 }
 } // namespace om2
 aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+  OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
+    OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
                                 model_id, instance_handle);
   if (obj == nullptr) {
+    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
   auto ret = obj->InitResources();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   ret = obj->RegisterKernels();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
+  OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+    OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
 aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+  OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
 }
 
 aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
-}
-)";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected);
+})";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
@@ -2626,7 +2710,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#include "g1_interface.h"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 namespace {
@@ -3004,13 +3089,16 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 }
 
 aclError Om2Model::Load() {
+  OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   OM2_CHK_STATUS(DispatchOp(&kOpDefs[0], {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), stream_list_[0], model_id_, instance_handle_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_}));
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
+  OM2_LOGI("Load done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+  OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3024,10 +3112,12 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
 
+  OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3041,54 +3131,65 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
 
+  OM2_LOGI("Run done");
   return ACL_SUCCESS;
 }
 } // namespace om2
 aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+  OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
+    OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
                                 model_id, instance_handle);
   if (obj == nullptr) {
+    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
   auto ret = obj->InitResources();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   ret = obj->RegisterKernels();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
+  OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+    OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
 aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+  OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
 }
 
 aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
-}
-)";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected);
+})";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
@@ -3129,7 +3230,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#include "g1_interface.h"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 namespace {
@@ -3381,6 +3483,7 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 }
 
 aclError Om2Model::Load() {
+  OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(2);
   {
     // ============================= add1 ===============================
@@ -3429,10 +3532,12 @@ aclError Om2Model::Load() {
 
   }
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
+  OM2_LOGI("Load done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+  OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3446,10 +3551,12 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
 
+  OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3463,54 +3570,65 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
 
+  OM2_LOGI("Run done");
   return ACL_SUCCESS;
 }
 } // namespace om2
 aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+  OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
+    OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
                                 model_id, instance_handle);
   if (obj == nullptr) {
+    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
   auto ret = obj->InitResources();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   ret = obj->RegisterKernels();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
+  OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+    OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
 aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+  OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
 }
 
 aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
-}
-)";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected);
+})";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
@@ -3519,7 +3637,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#include "g1_interface.h"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+#include "g1_interface.h"
 
 namespace om2 {
 namespace {
@@ -3917,13 +4036,16 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 }
 
 aclError Om2Model::Load() {
+  OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   OM2_CHK_STATUS(DispatchOp(&kOpDefs[0], {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), stream_list_[0], model_id_, instance_handle_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_}));
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
+  OM2_LOGI("Load done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+  OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3937,10 +4059,12 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
 
+  OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
@@ -3954,54 +4078,65 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
 
+  OM2_LOGI("Run done");
   return ACL_SUCCESS;
 }
 } // namespace om2
 aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+  OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
+    OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
                                 model_id, instance_handle);
   if (obj == nullptr) {
+    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
   auto ret = obj->InitResources();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   ret = obj->RegisterKernels();
   if (ret != ACL_SUCCESS) {
+    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
     delete obj;
     return ret;
   }
   *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
+  OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+    OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
 aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+  OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
 }
 
 aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+  OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+  OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
-}
-)";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected);
+})";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, DoesNotDependOnGeModel_Ok) {
@@ -5310,6 +5445,58 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForSeparatelyCleanTask_Ok) {
   // The load_and_run source should be generated (func_handle_key resolved via ATOMIC_ATTR_TBE_KERNEL_NAME)
   const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
   EXPECT_NE(load_run.find("KernelTaskDistribute"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoggingFunctionality_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  // Interface header: logging includes
+  const auto &interface_header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  EXPECT_NE(interface_header.find("#include \"dlog_pub.h\""), std::string::npos);
+  EXPECT_EQ(interface_header.find("#line 1"), std::string::npos) << ".h file should not have #line directive";
+
+  // Interface header: logging macros
+  EXPECT_NE(interface_header.find("#define OM2_LOGD"), std::string::npos);
+  EXPECT_NE(interface_header.find("#define OM2_LOGI"), std::string::npos);
+  EXPECT_NE(interface_header.find("#define OM2_LOGW"), std::string::npos);
+  EXPECT_NE(interface_header.find("#define OM2_LOGE"), std::string::npos);
+
+  // Interface header: CHK macros contain OM2_LOGE
+  EXPECT_NE(interface_header.find("OM2_CHK_STATUS"), std::string::npos);
+  EXPECT_NE(interface_header.find("OM2_LOGE"), std::string::npos);
+
+  // Resources source: lifecycle logging + #line directive
+  const auto &resources_source = outputs[GeneratedFileIndex::kResourcesFile];
+  EXPECT_NE(resources_source.find("#line 1"), std::string::npos);
+  EXPECT_NE(resources_source.find("Om2Model created"), std::string::npos);
+  EXPECT_NE(resources_source.find("~Om2Model"), std::string::npos);
+  EXPECT_NE(resources_source.find("InitResources begin"), std::string::npos);
+  EXPECT_NE(resources_source.find("InitResources done"), std::string::npos);
+  EXPECT_NE(resources_source.find("ReleaseResources begin"), std::string::npos);
+  EXPECT_NE(resources_source.find("ReleaseResources done"), std::string::npos);
+
+  // Kernel registry: logging + #line directive
+  const auto &kernel_reg_source = outputs[GeneratedFileIndex::kKernelRegistryFile];
+  EXPECT_NE(kernel_reg_source.find("#line 1"), std::string::npos);
+  EXPECT_NE(kernel_reg_source.find("RegisterKernels begin"), std::string::npos);
+  EXPECT_NE(kernel_reg_source.find("RegisterKernels done"), std::string::npos);
+
+  // Load and run: logging + #line directive
+  const auto &load_and_run_source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(load_and_run_source.find("#line 1"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("Load begin"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("Load done"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("Run begin"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("Run done"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("RunAsync begin"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find("RunAsync done"), std::string::npos);
+
+  // Makefile: include path for dlog_pub.h
+  const auto &makefile = outputs[GeneratedFileIndex::kCMakeListsFile];
+  EXPECT_NE(makefile.find("pkg_inc/base"), std::string::npos);
 }
 
 }  // namespace ge

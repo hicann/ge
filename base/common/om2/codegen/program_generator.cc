@@ -27,6 +27,14 @@ Status EmitFile(const GeneratedFileIndex file_index, const AstNode *unit, Om2Cod
   std::string code_content;
   GE_ASSERT_SUCCESS(unit->Accept(emitter, code_content), "[OM2] Program %zu code generation failed.",
                     static_cast<size_t>(file_index));
+  // atc 通过 /proc/self/fd/N 传递源码给编译器，导致 __FILE__ 展开为 fd 路径。
+  // 插入 #line 指令强制 __FILE__ 为正确的文件名。
+  const std::string &file_name = code_printer.GetFileName(file_index);
+  constexpr char kCppExt[] = ".cpp";
+  if (file_name.size() >= sizeof(kCppExt) - 1 &&
+      file_name.compare(file_name.size() - (sizeof(kCppExt) - 1), sizeof(kCppExt) - 1, kCppExt) == 0) {
+    code_content = "#line 1 \"" + file_name + "\"\n" + code_content;
+  }
   code_printer.AddContent(file_index, code_content);
   return SUCCESS;
 }
@@ -65,7 +73,12 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
       ast_.Include("acl/acl_base.h"),
       ast_.Include("exe_graph/runtime/tensor.h"),
       ast_.Include("rt.h"),
+      ast_.Include("dlog_pub.h", IncludeDecl::Kind::kQuote),
+      ast_.Include("sys/syscall.h", IncludeDecl::Kind::kAngle),
+      ast_.Include("unistd.h", IncludeDecl::Kind::kAngle),
+      ast_.Include("cinttypes", IncludeDecl::Kind::kAngle),
       ast_.Space(),
+      ast_.StablePart(StablePartId::kOm2LogMacros, StablePartPlacement::kTranslationUnit),
       ast_.StablePart(StablePartId::kInterfaceMacros),
       ast_.StablePart(StablePartId::kInterfacePointerHelpers),
       ast_.StablePart(StablePartId::kInterfaceDumpApis),
@@ -202,6 +215,7 @@ ifndef CPPFLAGS
 CPPFLAGS := \
   -I$(CANN_ROOT)/include \
   -I$(CANN_ROOT)/pkg_inc \
+  -I$(CANN_ROOT)/pkg_inc/base \
   -I$(CANN_ROOT)/pkg_inc/runtime \
   -I$(CANN_ROOT)/pkg_inc/runtime/runtime \
   -I$(CANN_ROOT)/pkg_inc/profiling \
