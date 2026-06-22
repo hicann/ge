@@ -31,7 +31,7 @@ void CheckAndInitReduceAllLoadState(const NodePtr &node, AutoFuseAttrs *attr, co
       // 不是所有load都满足norm-like条件
       state = REDUCE_ALL_LOAD_NOT_ALL;
     }
-    GELOGI("%s norm-like state %u, depend on whether satisfy conditions (R axis <= 65536, A axis >= 16)", node_desc.c_str());
+    GELOGI("%s norm-like state %d, depend on whether satisfy conditions (R axis <= 32, A axis >= 128)", node_desc.c_str(), state);
     attr->SetReduceAllLoadState(state);
   }
 }
