@@ -16,7 +16,7 @@
 #include "framework/common/ge_types.h"
 #include "framework/common/ge_visibility.h"
 #include "framework/runtime/dump/model_dump_c_api.h"
-#include "runtime/base.h"
+#include "rt_external_base.h"
 
 namespace ge {
 namespace dump {
@@ -76,6 +76,7 @@ class VISIBILITY_EXPORT ModelDumpManager {
   // 模型级信息接口
   // ========================================================================
   Status SetModelDumpInfo(const ModelDumpInfo& model_info);
+  void SetClearDfxCacheFlagAfterLoad(bool clear_cache);
   Status ReportModelLoadBegin() const;
   Status ReportModelLoadEnd() const;
 
@@ -106,6 +107,7 @@ class VISIBILITY_EXPORT ModelDumpManager {
  private:
   uint32_t model_id_;
   ModelDumpInfo model_info_{};
+  bool need_clear_dfx_cache_{false};
 
   std::unique_ptr<DataDumpImpl> data_dump_impl_;
   std::unique_ptr<ExceptionDumpImpl> exception_impl_;

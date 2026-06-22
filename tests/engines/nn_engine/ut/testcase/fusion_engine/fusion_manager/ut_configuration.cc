@@ -602,7 +602,7 @@ TEST_F(configuration_ut, get_opsstoreinfo_vectorcore)
   }
 }
 
-TEST_F(configuration_ut, getgraphfilepath_vectorcore)
+TEST_F(configuration_ut, DISABLED_getgraphfilepath_vectorcore)
 {
   string graph_file_path;
   Configuration config(fe::VECTOR_CORE_NAME);

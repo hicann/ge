@@ -24,4 +24,38 @@ rm -fr "${WHL_INSTALL_DIR_PATH}/ge/passes/python_pass_artifacts" 2>/dev/null
 rm -f "${WHL_INSTALL_DIR_PATH}/ge/passes/_ge_pass_native.so" 2>/dev/null
 rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py_pass_bridge-"*.dist-info 2>/dev/null
 
-exit 0
+stub_libs="
+libacl_op_compiler.so
+libfmk_onnx_parser.so
+libfmk_parser.so
+libge_compiler.so
+libge_runner.so
+libge_runner_v2.so"
+
+sourcedir="${INSTALL_PATH}"
+pkg_arch_name="$(PKG_ARCH_NAME)"
+
+remove_stub_softlink() {
+    local install_path="${sourcedir}"
+    if [ ! -d "$install_path" ]; then
+        return
+    fi
+    local devlibdir="${install_path}/${pkg_arch_name}-linux/devlib"
+    ([ -d "${devlibdir}" ] && cd "${devlibdir}" && {
+        chmod u+w . && echo "${stub_libs}" | xargs --no-run-if-empty rm -rf
+        chmod u-w .
+    })
+}
+
+remove_stub_softlink
+
+remove_empty_dir() {
+    local dir="$1"
+    local parent
+    parent=$(dirname "${dir}")
+    [ -d "${dir}" ] || return 0
+    rmdir "${dir}" 2>/dev/null && chmod +w "${parent}" 2>/dev/null
+}
+
+remove_empty_dir "${WHL_INSTALL_DIR_PATH}"
+remove_empty_dir "${sourcedir}/python"

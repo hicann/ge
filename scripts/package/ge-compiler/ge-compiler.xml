@@ -15,7 +15,7 @@
        <GE_COMPILER_VERSION>$(ASCEND_VER)</GE_COMPILER_VERSION>
        <GE_COMPILER_TIMESTAMP>$(TIMESTAMP_NO)</GE_COMPILER_TIMESTAMP>
     </generate_info>
-    <generate_info value="scene.info" dst_path="share/info/ge-compiler" install_path="share/info/ge-compiler" install_mod="440">
+    <generate_info value="scene.info" dst_path="share/info/ge-compiler" install_path="share/info/ge-compiler" install_mod="640">
         <os>$(OS_NAME)</os>
         <os_version>$(OS_VER)</os_version>
         <arch>$(ARCH)</arch>
@@ -23,7 +23,7 @@
     <version_info install="true" install_path="ge-compiler" install_own="$username:$usergroup" install_mod="440"/>
     <file_info value="ge-compiler_script" copy_type="source" dst_path="share/info/ge-compiler" install_path="share/info/ge-compiler">
         <file value="script" entity="true"/>
-        <file value="version.info"/>
+        <file value="version.info" install_mod="440"/>
     </file_info>
     <block_info dependtree="false" dst_path="$(TARGET_ENV)" block_conf_path="ascend">
         <block name="EngineeringCommon"/>

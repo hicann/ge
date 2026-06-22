@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <base.h>
+#include "rt_external_base.h"
 
 #include "model/acl_model_impl_om2.h"
 #include "model_desc_internal.h"
@@ -93,7 +93,8 @@ const std::unordered_set<aclmdlConfigAttr> kOm2SupportedLoadConfigOpts = {
     ACL_MDL_WEIGHT_SIZET,
     ACL_MDL_WORKSPACE_ADDR_PTR,
     ACL_MDL_WORKSPACE_SIZET,
-    ACL_MDL_WEIGHT_PATH_PTR
+    ACL_MDL_WEIGHT_PATH_PTR,
+    ACL_MDL_WITHOUT_GRAPH_INT32
 };
 
 aclError PrepareOm2Tensor(std::vector<gert::Tensor>& tensor, std::vector<gert::Tensor*>& vec,
@@ -233,7 +234,8 @@ aclError Om2UpdateOutputTensorDesc(aclmdlDataset* const & output, std::vector<ge
 aclError ConstructOm2ModelLoadArg(void* workPtr, size_t workSize, void* weightPtr, size_t weightSize,
                                   gert::Om2ModelLoadArg& loadArgs, gert::RtSession* rtSession = nullptr,
                                   const std::vector<ge::FileConstantMem>& fileConstantMems = std::vector<
-                                  ge::FileConstantMem>()) {
+                                  ge::FileConstantMem>(),
+                                  bool needClearDfxCache = false) {
     loadArgs = {};
     loadArgs.work_ptr = workPtr;
     loadArgs.work_size = workSize;
@@ -241,6 +243,7 @@ aclError ConstructOm2ModelLoadArg(void* workPtr, size_t workSize, void* weightPt
     loadArgs.weight_size = weightSize;
     loadArgs.rt_session = rtSession;
     loadArgs.file_constant_mems = fileConstantMems;
+    loadArgs.need_clear_dfx_cache = needClearDfxCache;
     return SetOm2ModelLoadArgDevice(loadArgs);
 }
 
@@ -690,7 +693,8 @@ static aclError LoadFromFile(const aclmdlConfigHandle* handle, const std::vector
                              uint32_t* const modelId) {
     ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
     gert::Om2ModelLoadArg loadArgs;
-    ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems));
+    ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems,
+                                             handle->withoutGraph));
     return Om2ModelLoadFromFileWithMem(handle->loadPath.c_str(), modelId, loadArgs);
 }
 
@@ -700,7 +704,7 @@ static aclError LoadFromFileWithMem(const aclmdlConfigHandle* handle,
     ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
     gert::Om2ModelLoadArg loadArgs;
     ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr,
-        handle->weightSize, loadArgs, nullptr, fileConstantMems));
+        handle->weightSize, loadArgs, nullptr, fileConstantMems, handle->withoutGraph));
     return Om2ModelLoadFromFileWithMem(handle->loadPath.c_str(), modelId, loadArgs);
 }
 
@@ -709,7 +713,8 @@ static aclError LoadFromMem(const aclmdlConfigHandle* handle, const std::vector<
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle->mdlAddr);
     ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
     gert::Om2ModelLoadArg loadArgs;
-    ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems));
+    ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems,
+                                             handle->withoutGraph));
     return Om2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, modelId, loadArgs,
                                       handle->weightPath.c_str());
 }
@@ -722,7 +727,7 @@ static aclError LoadFromMemWithMem(const aclmdlConfigHandle* handle,
     ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
     gert::Om2ModelLoadArg loadArgs;
     ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr,
-        handle->weightSize, loadArgs, nullptr, fileConstantMems));
+        handle->weightSize, loadArgs, nullptr, fileConstantMems, handle->withoutGraph));
     return Om2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, modelId, loadArgs, nullptr);
 }
 

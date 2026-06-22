@@ -69,6 +69,11 @@ Status ModelDumpManager::SetModelDumpInfo(const ModelDumpInfo& model_info) {
   return SUCCESS;
 }
 
+void ModelDumpManager::SetClearDfxCacheFlagAfterLoad(bool clear_cache) {
+  GELOGI("set clear_cache %d", static_cast<int32_t>(clear_cache));
+  need_clear_dfx_cache_ = clear_cache;
+}
+
 Status ModelDumpManager::ReportModelLoadBegin() const {
   if (profiling_impl_ == nullptr) {
     return SUCCESS;
@@ -151,10 +156,13 @@ Status ModelDumpManager::AddOm2TaskInfo(const Om2TaskInfo& task_info) {
     }
   }
 
-  Status ret = exception_impl_->SaveOpInfo(task_info);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "Save task exception info failed, op_name=%s", op_name);
-    return ret;
+  const bool need_save_exception_info = DumpConfig::Instance().IsExceptionDumpEnabled() || !need_clear_dfx_cache_;
+  if (need_save_exception_info) {
+    Status ret = exception_impl_->SaveOpInfo(task_info);
+    if (ret != SUCCESS) {
+      GELOGE(ret, "Save task exception info failed, op_name=%s", op_name);
+      return ret;
+    }
   }
 
   if (profiling_impl_ != nullptr) {
