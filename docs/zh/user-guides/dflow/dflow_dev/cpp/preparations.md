@@ -41,4 +41,4 @@
 
 1. 网络包含几个输入，通过FlowData表示。
 2. 网络包含几个计算节点，通过FlowNode表示。
-3. FlowNode里的实际计算由ProcessPoint表示，ProcessPoint有两种，GraphPp和FunctionPp，如果是GraphPp请参考[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)进行AscendGraph开发。如果是FunctionPp参考[专题](special_topics.md#UDF开发)自定义用户功能。
+3. FlowNode里的实际计算由ProcessPoint表示，ProcessPoint有两种，GraphPp和FunctionPp，如果是GraphPp请参考[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)进行AscendGraph开发。如果是FunctionPp参考[专题](special_topics.md)中的“UDF开发”自定义用户功能。
