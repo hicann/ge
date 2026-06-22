@@ -9,9 +9,8 @@
         <path value="$(TARGET_ENV)/include/acl" install_mod="555"/>
         <path value="$(TARGET_ENV)/include/acl/error_codes" install_mod="555"/>
         <path value="$(TARGET_ENV)/include/parser" install_mod="555"/>
-        <path value="python" install_mod="555"/>
-        <path value="python/site-packages" install_mod="555"/>
-        <path value="python/site-packages/autofuse" install_mod="555"/>
+        <path value="python" install_mod="750"/>
+        <path value="python/site-packages" install_mod="750"/>
         <path value="$(TARGET_ENV)/lib64" install_mod="555"/>
         <path value="$(TARGET_ENV)/lib64/plugin" install_mod="555"/>
         <path value="$(TARGET_ENV)/lib64/plugin/nnengine/ge_config" install_mod="555"/>

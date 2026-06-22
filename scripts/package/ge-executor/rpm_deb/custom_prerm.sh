@@ -9,31 +9,19 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-sourcedir="${INSTALL_PATH}"
-# WHL_INSTALL_DIR_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))" 2>/dev/null)
-WHL_INSTALL_DIR_PATH="${sourcedir}/python/site-packages"
-export PYTHONPATH="${WHL_INSTALL_DIR_PATH}"
-export PIP_BREAK_SYSTEM_PACKAGES=1
-
-for pkg in ge-py-pass-bridge dataflow llm_datadist_v1 ge_py; do
-    pip3 uninstall -y "${pkg}" >/dev/null 2>&1 || true
-done
-
-rm -fr "${WHL_INSTALL_DIR_PATH}/llm_datadist_v1" "${WHL_INSTALL_DIR_PATH}/dataflow" "${WHL_INSTALL_DIR_PATH}/ge_py" 2>/dev/null
-rm -fr "${WHL_INSTALL_DIR_PATH}/ge/passes/python_pass_artifacts" 2>/dev/null
-rm -f "${WHL_INSTALL_DIR_PATH}/ge/passes/_ge_pass_native.so" 2>/dev/null
-rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py_pass_bridge-"*.dist-info 2>/dev/null
-
 stub_libs="
-libacl_op_compiler.so
-libfmk_onnx_parser.so
-libfmk_parser.so
-libge_compiler.so
-libge_runner.so
-libge_runner_v2.so"
+libacl_cblas.so
+libacl_mdl.so
+libacl_op_executor.so
+libge_common.so
+libgert.so
+libgraph.so
+libhybrid_executor.so
+liblowering.so
+libregister.so"
 
 sourcedir="${INSTALL_PATH}"
-pkg_arch_name="$(PKG_ARCH_NAME)"
+pkg_arch_name="${PKG_ARCH_NAME}"
 
 remove_stub_softlink() {
     local install_path="${sourcedir}"
@@ -48,14 +36,3 @@ remove_stub_softlink() {
 }
 
 remove_stub_softlink
-
-remove_empty_dir() {
-    local dir="$1"
-    local parent
-    parent=$(dirname "${dir}")
-    [ -d "${dir}" ] || return 0
-    rmdir "${dir}" 2>/dev/null && chmod +w "${parent}" 2>/dev/null
-}
-
-remove_empty_dir "${WHL_INSTALL_DIR_PATH}"
-remove_empty_dir "${sourcedir}/python"

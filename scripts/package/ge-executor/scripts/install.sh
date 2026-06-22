@@ -98,7 +98,7 @@ chmod_end() {
     chmod_single_dir "$default_dir/ascend_install.info" 640 file 2> /dev/null
     chmod_single_dir "$default_dir/version.info" 440 file 2> /dev/null
     chmod_single_dir "$default_dir/scene.info" 640 file 2> /dev/null
-    chmod_single_dir "$default_dir" 550 dir 2> /dev/null
+    chmod_single_dir "$default_dir" 750 dir 2> /dev/null
     chmod_single_dir "$default_dir/script" 550 dir 2> /dev/null
     chmod_recur "$default_dir/script" 550 file 2> /dev/null
     chown -R "$username":"$usergroup" "$default_dir" 2> /dev/null

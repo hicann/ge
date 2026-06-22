@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 sourcedir="${INSTALL_PATH}"
-pkg_arch_name=$(uname -m)
+pkg_arch_name="${PKG_ARCH_NAME}"
 # WHL_INSTALL_DIR_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))" 2>/dev/null)
 WHL_INSTALL_DIR_PATH="${sourcedir}/python/site-packages"
 unset PYTHONPATH
@@ -40,4 +40,31 @@ if [ -f "${WHL_GE_PY}" ]; then
     fi
 fi
 
-exit 0
+stub_libs="
+libacl_op_compiler.so
+libfmk_onnx_parser.so
+libfmk_parser.so
+libge_compiler.so
+libge_runner.so
+libge_runner_v2.so"
+
+sourcedir="${INSTALL_PATH}"
+pkg_arch_name="${PKG_ARCH_NAME}"
+
+create_stub_softlink() {
+    local install_path="${sourcedir}"
+    if [ ! -d "$install_path" ]; then
+        return
+    fi
+    local devlibdir="${install_path}/${pkg_arch_name}-linux/devlib"
+    ([ -d "${devlibdir}" ] && cd "${devlibdir}" && {
+        chmod u+w . && \
+        for lib in ${stub_libs}; do
+            lib="linux/${pkg_arch_name}/$lib"
+            [ -f "$lib" ] && ln -sf "$lib" "$(basename $lib)"
+        done
+        chmod u-w .
+    })
+}
+
+create_stub_softlink
