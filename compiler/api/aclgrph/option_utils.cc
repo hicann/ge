@@ -11,6 +11,7 @@
 #include "api/aclgrph/option_utils.h"
 
 #include "base/err_msg.h"
+#include "common/helper/om2/om2_utils.h"
 
 #include <iostream>
 #include <string>
@@ -223,6 +224,7 @@ std::string GetOptionValue(const std::map<std::string, std::string>& options, co
   }
   return "";
 }
+
 }  // namespace
 
 Status CheckInputFormat(const std::string &input_format) {
@@ -1608,6 +1610,43 @@ void SetDefaultHostEnvOsAndHostEnvCpu(std::string &host_env_os, std::string &hos
     GELOGI("Set host env cpu with default:%s", host_env_cpu.c_str());
   }
   return;
+}
+
+Status CheckOm2HostEnvValid(const std::string &host_env_os, const std::string &host_env_cpu) {
+  // 用户未设置 host_env，使用默认值，无需校验
+  if (host_env_os.empty() && host_env_cpu.empty()) {
+    return SUCCESS;
+  }
+  // 获取当前环境架构
+  std::string cur_os;
+  std::string cur_cpu;
+  PluginManager::GetCurEnvPackageOsAndCpuType(cur_os, cur_cpu);
+  const std::string normalized_cur_cpu = Om2Utils::NormalizeCpuArch(cur_cpu);
+  const std::string normalized_host_cpu = Om2Utils::NormalizeCpuArch(host_env_cpu);
+  // 如果用户传入的 host_env 与当前环境一致，允许原生编译
+  if (host_env_os == cur_os && normalized_host_cpu == normalized_cur_cpu) {
+    return SUCCESS;
+  }
+  // 如果与当前环境不一致，只允许目标是 Linux + ARM (aarch64/arm64) 的交叉编译
+  const bool is_arm_target = (normalized_host_cpu == "aarch64");
+  const bool is_linux_target = (host_env_os == "linux");
+  if (!is_arm_target || !is_linux_target) {
+    const std::string reason =
+        "OM2 mode only supports native compilation (current: " + cur_os + "+" + cur_cpu + ") "
+        "or Linux + ARM(aarch64/arm64) gcc cross-compilation. "
+        "Got os=[" + host_env_os + "], cpu=[" + host_env_cpu + "]. "
+        "For other target architectures, please use --build_config.";
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({("--host_env_os=" + host_env_os +
+                                    ", --host_env_cpu=" + host_env_cpu).c_str(),
+                                   "--host_env_os/--host_env_cpu",
+                                   reason.c_str()}));
+    GELOGE(PARAM_INVALID, "[Check][OM2][HostEnv] %s", reason.c_str());
+    return PARAM_INVALID;
+  }
+
+  return SUCCESS;
 }
 
 Status CheckOptionValidValues(const std::map<std::string, std::string> &options, const std::string &key,

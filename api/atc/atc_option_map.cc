@@ -93,6 +93,7 @@ const std::pair<std::string, std::string> kAtcGeOptionToCliName[] = {
     {ge::JIT_COMPILE, "--jit_compile"},
     {ge::OPTIMIZATION_SWITCH, "--optimization_switch"},
     {ge::OPTION_STATIC_MODEL_OPS_LOWER_LIMIT, "--static_model_ops_lower_limit"},
+    {ge::OPTION_BUILD_CONFIG, "--build_config"},
 };
 }  // namespace
 

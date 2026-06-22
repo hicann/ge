@@ -1387,34 +1387,49 @@ TEST_F(ProgramGeneratorUt, GenerateMakefile_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string expected = R"(CANN_ROOT ?= $(ASCEND_HOME_PATH)
-USE_STUB_LIB ?= 0
+USE_STUB_LIB ?= 1
 
-CXX := g++
+ifeq ($(origin CXX),default)
+CXX := c++
+endif
+CXX ?= c++
+
 TARGET := libg1_om2.so
 SRC_FILES := g1_resources.cpp g1_kernel_reg.cpp g1_load_and_run.cpp g1_args_manager.cpp
 
-CXXFLAGS := -std=c++17 -O2 -fPIC \
+ifndef CPPFLAGS
+CPPFLAGS := \
   -I$(CANN_ROOT)/include \
   -I$(CANN_ROOT)/pkg_inc \
   -I$(CANN_ROOT)/pkg_inc/runtime \
   -I$(CANN_ROOT)/pkg_inc/runtime/runtime \
   -I$(CANN_ROOT)/pkg_inc/profiling \
   -I$(CURDIR)/include
-
-ifeq ($(USE_STUB_LIB),1)
-LIB_PATH := $(CANN_ROOT)/devlib
-else
-LIB_PATH := $(CANN_ROOT)/lib64
 endif
 
-LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed -lacl_rt -Wl,--as-needed
+ifndef CXXFLAGS
+CXXFLAGS := -std=c++17 -O2 -fPIC
+endif
+
+ifeq ($(USE_STUB_LIB),1)
+LIB_PATH ?= $(CANN_ROOT)/devlib
+else
+LIB_PATH ?= $(CANN_ROOT)/lib64
+endif
+
+ifndef LDFLAGS
+LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed
+endif
+ifndef LDLIBS
+LDLIBS := -lacl_rt -Wl,--as-needed
+endif
 
 .PHONY: all clean
 
 all: $(TARGET)
 
 $(TARGET): $(SRC_FILES)
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	@$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
   clean:
 	@rm -f $(TARGET)

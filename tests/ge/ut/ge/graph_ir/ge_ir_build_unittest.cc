@@ -2146,3 +2146,39 @@ TEST(UtestIrBuild, ir_build_export_compile_stat_invalid) {
   GetThreadLocalContext().SetGraphOption({});
   GetThreadLocalContext().GetOo().Initialize({}, OptionRegistry::GetInstance().GetRegisteredOptTable());
 }
+
+// CheckOm2HostEnvValid UT
+TEST(UtestIrBuild, CheckOm2HostEnvValid_EmptyBoth_Success) {
+  EXPECT_EQ(CheckOm2HostEnvValid("", ""), SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_NativeArch_Success) {
+  std::string cur_os, cur_cpu;
+  PluginManager::GetCurEnvPackageOsAndCpuType(cur_os, cur_cpu);
+  if (!cur_os.empty() && !cur_cpu.empty()) {
+    EXPECT_EQ(CheckOm2HostEnvValid(cur_os, cur_cpu), SUCCESS);
+  }
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_LinuxAarch64_Success) {
+  EXPECT_EQ(CheckOm2HostEnvValid("linux", "aarch64"), SUCCESS);
+  EXPECT_EQ(CheckOm2HostEnvValid("linux", "arm64"), SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_NonLinuxOs_Rejected) {
+  EXPECT_NE(CheckOm2HostEnvValid("windows", "aarch64"), SUCCESS);
+  EXPECT_NE(CheckOm2HostEnvValid("macos", "arm64"), SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_NonArmCpu_Rejected) {
+  EXPECT_NE(CheckOm2HostEnvValid("linux", "riscv64"), SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_BothInvalid_Rejected) {
+  EXPECT_NE(CheckOm2HostEnvValid("windows", "x86_64"), SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckOm2HostEnvValid_PartialEmpty_Rejected) {
+  EXPECT_NE(CheckOm2HostEnvValid("linux", ""), SUCCESS);
+  EXPECT_NE(CheckOm2HostEnvValid("", "aarch64"), SUCCESS);
+}

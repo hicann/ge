@@ -96,5 +96,6 @@ DECLARE_string(hccl_sub_comm_config);
 DECLARE_string(quant_dumpable);
 DECLARE_string(is_weight_clip);
 DECLARE_string(oo_level);
+DECLARE_string(build_config);
 
 #endif  // AIR_CXX_COMPILER_OFFLINE_ATC_FLAGS_H_
