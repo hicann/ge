@@ -50,7 +50,7 @@ Status PluginManager::OpenPlugin(const string& path) {
   }
 
   // return when dlopen is failed
-  handle = mmDlopen(real_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+  handle = mmDlopen(real_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   FE_CHECK(handle == nullptr, REPORT_FE_ERROR("[FEInit][OpPluginSo] Failed to load so file %s, error message is %s",
            real_path.c_str(), mmDlerror()),
            return FAILED);
