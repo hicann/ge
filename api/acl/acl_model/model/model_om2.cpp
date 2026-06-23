@@ -781,6 +781,18 @@ aclError aclmdlGetDescImplOm2(aclmdlDesc* modelDesc, uint32_t modelId) {
     // Fill aclmdlDesc using common helper
     ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, *inputDesc, *outputDesc, *inputDescV2, *outputDescV2));
 
+    // Populate opAttrValueMap from OM2 executor (bulk fetch all op attrs)
+    {
+        std::map<std::string, std::map<std::string, std::string>> opAttrMap;
+        ge::Status attrRet = executor->GetOpAttr(opAttrMap);
+        if (attrRet != ge::SUCCESS) {
+            ACL_LOG_ERROR("[OM2] GetOpAttr failed, ret=%u, modelId=%u", attrRet, modelId);
+        } else {
+            modelDesc->opAttrValueMap = std::move(opAttrMap);
+            ACL_LOG_INFO("[OM2] successfully populated opAttrValueMap, modelId[%u]", modelId);
+        }
+    }
+
     // Populate dynamic bucketing metadata
     {
         std::vector<std::vector<int64_t>> batchInfo;
