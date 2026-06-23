@@ -70,6 +70,7 @@ const char *const kCaffeSupport = "Caffe is not supported in the current soc ver
 const char *const kTFFormatSupport =
     "The value must be NCHW, NHWC, ND, NCDHW or NDHWC in TF model.";
 const char *const kONNXFormatSupport = "The value must be NCHW, ND or NCDHW in ONNX model.";
+const char *const kOptionBuildConfig = "ge.buildConfig";
 // limit available mem size 2G
 const long kMinAvailableMem = 2097152;  // 2 * 1024 * 1024
 
@@ -131,8 +132,6 @@ const std::unordered_set<std::string> kOm2UnsuppotedFlag = {
     "singleop",
     "check_report",
     "json",
-    "host_env_os",
-    "host_env_cpu",
     "virtual_type",
     "insert_op_conf",
     "op_name_map",
@@ -655,6 +654,10 @@ class GFlagUtils {
         "  --op_compiler_cache_mode   Set the operator compilation cache mode. "
         "Options are disable(default), enable and force(force to refresh the cache)\n"
         "  --display_model_info     enable for display model info; 0(default): close display, 1: open display.\n"
+        "  --build_config           Make command template for generated source compilation. "
+        "GE adds the generated Makefile path automatically. "
+        "Allowed variables: CXX, CXXFLAGS, CPPFLAGS, LDFLAGS, LDLIBS. "
+        "E.g.: \"make -s -j16 CXX=/usr/bin/clang++ CXXFLAGS='-O2'\"\n"
         "  --shape_generalized_build_mode    For selecting the mode of shape generalization when build graph.\n"
         "                                    shape_generalized: Shape will be generalized during graph build\n"
         "                                    shape_precise(default): Shape will not be generalized, use precise shape\n"
@@ -801,7 +804,7 @@ class GFlagUtils {
     }
     return ge::SUCCESS;
   }
-  
+
   static Status CheckFlags() {
     const bool is_mode_om = ((FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM_MODEL)) ||
                              (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO)) ||
@@ -948,8 +951,14 @@ class GFlagUtils {
       return FAILED;
     }
 
-    if (CheckHostEnvOsAndHostEnvCpuValid(FLAGS_host_env_os, FLAGS_host_env_cpu) != SUCCESS) {
-      return PARAM_INVALID;
+    if (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM2_MODEL)) {
+      // OM2: 跳过 OPP 白名单校验，依赖 CheckOm2HostEnvValid（方向检查）+ 编译阶段自然报错
+      GE_ASSERT_SUCCESS(CheckOm2UserOptionsValid(ge::flgs::GetUserOptions()), "[Check][OM2][UserOptions] failed!");
+      GE_ASSERT_SUCCESS(ge::CheckOm2HostEnvValid(FLAGS_host_env_os, FLAGS_host_env_cpu), "[Check][OM2][HostEnv] failed!");
+    } else {
+      if (CheckHostEnvOsAndHostEnvCpuValid(FLAGS_host_env_os, FLAGS_host_env_cpu) != SUCCESS) {
+        return PARAM_INVALID;
+      }
     }
 
     GE_ASSERT_SUCCESS(CheckAllowHF32ParamValid(FLAGS_allow_hf32), "[Check][AllowHF32]failed!");
@@ -960,9 +969,6 @@ class GFlagUtils {
       GE_ASSERT_SUCCESS(CheckValidValueRange("--static_model_ops_lower_limit", FLAGS_static_model_ops_lower_limit, -1L,
                                              std::numeric_limits<int64_t>::max()),
                         "[Check][StaticModelOpsLowerLimit]failed!");
-    }
-    if (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM2_MODEL)) {
-      GE_ASSERT_SUCCESS(CheckOm2UserOptionsValid(ge::flgs::GetUserOptions()), "[Check][OM2][UserOptions] failed!");
     }
     return SUCCESS;
   }
@@ -1901,6 +1907,9 @@ void SetAtcEnvironmentOptions(std::map<std::string, std::string> &options) {
   options.insert(std::pair<std::string, std::string>("ge.is_weight_clip", FLAGS_is_weight_clip));
   options.insert(std::pair<std::string, std::string>(std::string(CLUSTER_CONFIG), FLAGS_cluster_config));
   options.insert(std::pair<std::string, std::string>(std::string("ge.hccl_sub_comm_config"), FLAGS_hccl_sub_comm_config));
+  if (!FLAGS_build_config.empty()) {
+    options.insert(std::pair<std::string, std::string>(std::string(kOptionBuildConfig), FLAGS_build_config));
+  }
   if (!FLAGS_input_hint_shape.empty()) {
     options.insert(std::pair<std::string, std::string>(std::string(INPUT_HINT_SHAPE), FLAGS_input_hint_shape));
   }

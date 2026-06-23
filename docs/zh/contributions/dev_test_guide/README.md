@@ -2,7 +2,7 @@
 
 本文针对UT和ST两类测试，结合DT测试中常见的问题，确定用例规范、基本要求。本文默认读者已经有了基本的UT/ST开发经验，可以实现UT/ST用例，因此关于用例的基础写法不会做详细介绍。
 
-> 本文仅指导如何写UT/ST，请使用`ge-dt-runner`skill编译运行，或参考docs/build.md全量执行用例
+> 本文仅指导如何写UT/ST，请使用`ge-dt-runner`skill编译运行，或参考docs/zh/build.md全量执行用例
 
 ## 详细指导
 
@@ -68,7 +68,7 @@ tests
  - test_c: C接口测试目录
 ```
 
-不论是UT还是ST，我们均使用googletest测试框架，并提供了AddressSanitizer来做内存类检查、gcov来做覆盖率统计。对于新增代码，UT覆盖率要求超过90%，ST覆盖率要求超过80%。覆盖率统计的具体操作请参考docs/build.md，基本命令为：
+不论是UT还是ST，我们均使用googletest测试框架，并提供了AddressSanitizer来做内存类检查、gcov来做覆盖率统计。对于新增代码，UT覆盖率要求超过90%，ST覆盖率要求超过80%。覆盖率统计的具体操作请参考docs/zh/build.md，基本命令为：
 ```bash
 # 带 -c 参数运行测试，自动生成覆盖率统计文件到 cov/ 目录
 bash tests/run_test.sh -c [其他参数]

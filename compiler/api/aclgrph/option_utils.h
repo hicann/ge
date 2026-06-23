@@ -138,6 +138,7 @@ Status UpdateDynamicInputShapeRange(const ge::ComputeGraphPtr &compute_graph, co
 void UpdateDataOpFormat(const OpDescPtr &op, const std::string &format);
 Status CheckHostEnvOsAndHostEnvCpuValid(const std::string &host_env_os, const std::string &host_env_cpu);
 void SetDefaultHostEnvOsAndHostEnvCpu(std::string &host_env_os, std::string &host_env_cpu);
+Status CheckOm2HostEnvValid(const std::string &host_env_os, const std::string &host_env_cpu);
 Status CheckOptionValidValues(const std::map<std::string, std::string> &options, const std::string &key,
                               const std::unordered_set<std::string> &valid_values);
 Status CheckOptionValidThreshold(const std::map<std::string, std::string> &options, const std::string &str);

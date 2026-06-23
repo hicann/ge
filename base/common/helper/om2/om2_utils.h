@@ -21,6 +21,7 @@ class Om2Utils {
  public:
   static Status CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, const std::string &model_name,
                                         Om2CodegenArtifact &so_artifact, const bool is_release = true);
+  static std::string NormalizeCpuArch(const std::string &cpu);
 };
 }  // namespace ge
 

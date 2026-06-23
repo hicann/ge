@@ -366,11 +366,64 @@ const std::string expected_header = R"(#include <iostream>
 #include "acl/acl_base.h"
 #include "exe_graph/runtime/tensor.h"
 #include "rt.h"
+#include "dlog_pub.h"
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <cinttypes>
+
+// OM2 Logging Macros
+#define OM2_MODULE_NAME static_cast<int32_t>(GE)
+#define OM2_LOG_HEADER "OM2"
+
+static inline uint64_t Om2GetTid() {
+#ifdef __GNUC__
+  return static_cast<uint64_t>(syscall(__NR_gettid));
+#else
+  return static_cast<uint64_t>(GetCurrentThreadId());
+#endif
+}
+
+static inline bool Om2IsLogEnable(int32_t level) {
+  return CheckLogLevel(OM2_MODULE_NAME, level) == 1;
+}
+
+#define OM2_LOGD(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_DEBUG)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_DEBUG, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGI(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_INFO)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_INFO, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGW(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_WARN)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_WARN, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
+
+#define OM2_LOGE(fmt, ...) \
+  do { \
+    if (Om2IsLogEnable(DLOG_ERROR)) { \
+      DlogRecord(OM2_MODULE_NAME, DLOG_ERROR, "[%s:%d] %" PRIu64 " [%s] %s: " fmt, \
+                 DLOG_FILE_NAME, __LINE__, Om2GetTid(), OM2_LOG_HEADER, __FUNCTION__, ##__VA_ARGS__); \
+    } \
+  } while (false)
 
 #define OM2_CHK_STATUS(expr, ...)            \
 do {                                       \
   const aclError _chk_status = (expr);     \
   if (_chk_status != ACL_SUCCESS) {        \
+    OM2_LOGE(__VA_ARGS__);                 \
     return _chk_status;                    \
   }                                        \
 } while (false)
@@ -378,6 +431,7 @@ do {                                       \
 #define OM2_CHK_NOTNULL(ptr, ...)            \
 do {                                       \
   if ((ptr) == nullptr) {                  \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -385,6 +439,7 @@ do {                                       \
 #define OM2_CHK_TRUE(expr, ...)              \
 do {                                       \
   if (!(expr)) {                           \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -393,6 +448,7 @@ do {                                       \
 do {                                       \
   const rtError_t _rt_err = (expr);        \
   if (_rt_err != RT_ERROR_NONE) {          \
+    OM2_LOGE(__VA_ARGS__);                 \
     return ACL_ERROR_FAILURE;              \
   }                                        \
 } while (false)
@@ -810,7 +866,8 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
 }
 #endif
 )";
-const std::string expected_resources = R"(#include "_interface.h"
+const std::string expected_resources = R"(#line 1 "g1_resources.cpp"
+#include "_interface.h"
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
@@ -822,13 +879,16 @@ Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_si
   notify_list_.resize(1);
   event_list_.resize(1);
   label_list_.resize(3);
+  OM2_LOGD("Om2Model created");
 }
 
 Om2Model::~Om2Model() {
+  OM2_LOGD("~Om2Model");
   (void)ReleaseResources();
 }
 
 aclError Om2Model::InitResources() {
+  OM2_LOGI("InitResources begin");
   // 1. 创建 model
   OM2_CHK_STATUS(aclmdlRIBuildBegin(&model_handle_, 0));
 
@@ -865,10 +925,12 @@ aclError Om2Model::InitResources() {
   OM2_CHK_STATUS(CreateLabelListForLabelSwitch(6, {1, 2}));
   OM2_CHK_STATUS(CreateLabelListForLabelGotoEx(11, 0));
   args_table_.Init();
+  OM2_LOGI("InitResources done");
   return ACL_SUCCESS;
 }
 
 aclError Om2Model::ReleaseResources() {
+  OM2_LOGI("ReleaseResources begin");
   for (auto label : label_list_) {
     if ((label != nullptr)) {
       OM2_CHK_STATUS(aclrtDestroyLabel(label));
@@ -917,6 +979,7 @@ aclError Om2Model::ReleaseResources() {
       OM2_CHK_STATUS(aclrtFree(dev_dynamic_mem_ptrs_[i]));
     }
   }
+  OM2_LOGI("ReleaseResources done");
   return ACL_SUCCESS;
 }
 

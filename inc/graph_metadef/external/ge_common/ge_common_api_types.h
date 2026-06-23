@@ -541,6 +541,8 @@ const std::string TILING_SCHEDULE_OPTIMIZE = "ge.tiling_schedule_optimize";
 
 const std::string GRAPH_MAX_PARALLEL_MODEL_NUM = "ge.graphMaxParallelModelNum";
 
+const std::string OPTION_BUILD_CONFIG = "ge.buildConfig";
+
 constexpr char_t EVENT[] = "ge.event";
 
 // option for optimization options
@@ -676,6 +678,7 @@ static const char_t *const OP_DEPENDENCY_IN_OM = ge::OPTION_OP_DEPENDENCY_IN_OM;
 static const char_t *const OP_DEBUG_OPTION = ge::OP_DEBUG_OPTION.c_str();
 static const char_t *const TILING_SCHEDULE_OPTIMIZE = ge::TILING_SCHEDULE_OPTIMIZE.c_str();
 static const char_t *const GRAPH_MAX_PARALLEL_MODEL_NUM = ge::GRAPH_MAX_PARALLEL_MODEL_NUM.c_str();
+static const char_t *const OPTION_BUILD_CONFIG = ge::OPTION_BUILD_CONFIG.c_str();
 static const char_t *const OO_LEVEL = ge::OO_LEVEL;
 static const char_t *const OO_CONSTANT_FOLDING = ge::OO_CONSTANT_FOLDING;
 static const char_t *const OO_DEAD_CODE_ELIMINATION = ge::OO_DEAD_CODE_ELIMINATION;
@@ -730,6 +733,7 @@ const std::set<std::string> ir_builder_suppported_options = {INPUT_FORMAT,
                                                              QUANT_DUMPABLE,
                                                              TILING_SCHEDULE_OPTIMIZE,
                                                              GRAPH_MAX_PARALLEL_MODEL_NUM,
+                                                             OPTION_BUILD_CONFIG,
                                                              OO_LEVEL,
                                                              OO_CONSTANT_FOLDING,
                                                              OO_DEAD_CODE_ELIMINATION,
@@ -781,6 +785,7 @@ const std::set<std::string> global_options = {CORE_TYPE,
                                               OP_DEPENDENCY_IN_OM,
                                               TILING_SCHEDULE_OPTIMIZE,
                                               GRAPH_MAX_PARALLEL_MODEL_NUM,
+                                              OPTION_BUILD_CONFIG,
                                               OO_LEVEL,
                                               OO_CONSTANT_FOLDING,
                                               OO_DEAD_CODE_ELIMINATION,

@@ -13,11 +13,11 @@
 # ge (Graph Engine) 编译环境依赖检查脚本
 #
 # 仓库:   https://gitcode.com/cann/ge
-# 依据:   https://gitcode.com/cann/ge/blob/master/docs/build.md
+# 依据:   https://gitcode.com/cann/ge/blob/master/docs/zh/build.md
 #         https://gitcode.com/cann/ge/blob/master/requirements.txt
 # 用法:   bash scripts/check_env.sh
 #
-# 本脚本所有检查项和版本约束严格来源于 docs/build.md 和 requirements.txt，
+# 本脚本所有检查项和版本约束严格来源于 docs/zh/build.md 和 requirements.txt，
 # 如文档更新，请同步修改本脚本。
 # ==============================================================================
 
@@ -36,7 +36,7 @@ WARNING_COUNT=0
 PASS_COUNT=0
 
 # ==============================================================================
-# 版本要求 (严格来源于 docs/build.md 和 requirements.txt)
+# 版本要求 (严格来源于 docs/zh/build.md 和 requirements.txt)
 #
 # build.md 原文:
 #   - GCC >= 7.3.x
@@ -137,7 +137,7 @@ echo ""
 echo "=================================================================="
 echo "  ge (Graph Engine) 编译环境依赖检查"
 echo "  仓库: https://gitcode.com/cann/ge"
-echo "  依据: docs/build.md + requirements.txt"
+echo "  依据: docs/zh/build.md + requirements.txt"
 echo "  时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "  系统: $(uname -s) $(uname -m)"
 echo "=================================================================="
@@ -627,7 +627,7 @@ log_info "CPU 核心数: $CPU_CORES"
 echo ""
 echo "=================================================================="
 echo "  ge (Graph Engine) 环境检查完成"
-echo "  依据: docs/build.md + requirements.txt"
+echo "  依据: docs/zh/build.md + requirements.txt"
 echo "=================================================================="
 echo ""
 
@@ -656,7 +656,7 @@ if [ $ERROR_COUNT -gt 0 ]; then
     echo "    安装: bash Ascend-cann-toolkit_xxx_linux-xxx.run --full --quiet"
     echo "    环境: source /usr/local/Ascend/cann/set_env.sh"
     echo ""
-    echo "  详细说明: docs/build.md"
+    echo "  详细说明: docs/zh/build.md"
     echo ""
     exit 1
 elif [ $WARNING_COUNT -gt 0 ]; then

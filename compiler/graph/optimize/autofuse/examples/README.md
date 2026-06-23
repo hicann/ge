@@ -28,7 +28,7 @@
    ```
     #用户自己的driver包安装路径
  	 source /usr/local/Ascend/driver/bin/setenv.sh
- 	 #用户自己的CANN包安装路径，参考(docs/build.md)安装社区toolkit包
+ 	 #用户自己的CANN包安装路径，参考(docs/zh/build.md)安装社区toolkit包
  	 source /usr/local/Ascend/ascend-toolkit/set_env.sh
     
     export PYTHONPATH=/usr_path/:$PYTHONPATH

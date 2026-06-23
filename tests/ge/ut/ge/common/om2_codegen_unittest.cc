@@ -14,13 +14,22 @@
 #include "common/om2/codegen/ast/ast_nodes.h"
 #include "common/om2/codegen/emitter/stable_parts/stable_part_provider.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
+#include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
+#include "common/ge_common/ge_types.h"
+#include "graph/ge_local_context.h"
 
 #include <gtest/gtest.h>
 
+#include <cerrno>
 #include <cstdlib>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <sys/stat.h>
+#include <sys/utsname.h>
+#include <map>
 #include <string>
 #include <vector>
 #include <unistd.h>
@@ -50,6 +59,118 @@ class ScopedEnvVar {
   std::string name_;
   std::string old_value_;
   bool has_old_value_ = false;
+};
+
+class ScopedUnsetEnvVar {
+ public:
+  explicit ScopedUnsetEnvVar(const char *name) : name_(name) {
+    const char *old_value = getenv(name);
+    if (old_value != nullptr) {
+      old_value_ = old_value;
+      has_old_value_ = true;
+    }
+    (void)unsetenv(name);
+  }
+
+  ~ScopedUnsetEnvVar() {
+    if (has_old_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+    }
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool has_old_value_ = false;
+};
+
+class ScopedGraphOptions {
+ public:
+  ScopedGraphOptions() : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {}
+  ~ScopedGraphOptions() { GetThreadLocalContext().SetGraphOption(old_options_); }
+ private:
+  std::map<std::string, std::string> old_options_;
+};
+
+class ScopedTempDir {
+ public:
+  ScopedTempDir() {
+    char dir_template[] = "/tmp/ge_om2_codegen_ut_XXXXXX";
+    const char *created_dir = mkdtemp(dir_template);
+    root_ = (created_dir == nullptr) ? std::string() : std::string(created_dir);
+  }
+
+  ~ScopedTempDir() {
+    for (auto file_iter = files_.rbegin(); file_iter != files_.rend(); ++file_iter) {
+      (void)remove(file_iter->c_str());
+    }
+    for (auto dir_iter = dirs_.rbegin(); dir_iter != dirs_.rend(); ++dir_iter) {
+      (void)rmdir(dir_iter->c_str());
+    }
+    if (!root_.empty()) {
+      (void)rmdir(root_.c_str());
+    }
+  }
+
+  const std::string &Root() const {
+    return root_;
+  }
+
+  std::string Path(const std::string &relative_path) const {
+    return root_ + "/" + relative_path;
+  }
+
+  bool CreateDir(const std::string &relative_path) {
+    if (root_.empty()) {
+      return false;
+    }
+    size_t begin = 0U;
+    while (begin < relative_path.size()) {
+      size_t end = relative_path.find('/', begin);
+      if (end == std::string::npos) {
+        end = relative_path.size();
+      }
+      const std::string dir = Path(relative_path.substr(0U, end));
+      const int32_t ret = mkdir(dir.c_str(), 0755);
+      if ((ret != 0) && (errno != EEXIST)) {
+        return false;
+      }
+      if (ret == 0) {
+        dirs_.push_back(dir);
+      }
+      begin = end + 1U;
+    }
+    return true;
+  }
+
+  bool WriteFile(const std::string &relative_path, const std::string &content, const mode_t mode = 0644) {
+    const std::string path = Path(relative_path);
+    std::ofstream output(path, std::ios::out | std::ios::binary);
+    if (!output.is_open()) {
+      return false;
+    }
+    output << content;
+    output.close();
+    if (chmod(path.c_str(), mode) != 0) {
+      return false;
+    }
+    files_.push_back(path);
+    return true;
+  }
+
+  bool Symlink(const std::string &relative_path, const std::string &target_path) {
+    const std::string path = Path(relative_path);
+    if (symlink(target_path.c_str(), path.c_str()) != 0) {
+      return false;
+    }
+    files_.push_back(path);
+    return true;
+  }
+
+ private:
+  std::string root_;
+  std::vector<std::string> files_;
+  std::vector<std::string> dirs_;
 };
 
 class ScopedStdoutCapture {
@@ -845,6 +966,342 @@ $(TARGET): $(SRC_FILES)
   EXPECT_EQ(compile_stdout.find("g++ -std=c++17 -fPIC"), std::string::npos);
 }
 
+// build_config 校验 UT：通过 SetGraphOption 注入 ge.buildConfig，走 CompileGeneratedCppToSo 触发校验
+static Om2CodegenArtifacts MakeBuildConfigTestArtifacts(const std::string &model_name) {
+  const std::string interface_name = model_name + "_interface.h";
+  const std::string include_line = "#include \"" + interface_name + "\"\n";
+  return {
+      {interface_name, "#pragma once\n#define BC_TEST_VALUE 1\n"},
+      {model_name + "_load_and_run.cpp",
+       include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n"},
+      {"Makefile", R"(CXX := c++
+TARGET := libbc_test_om2.so
+SRC_FILES := bc_test_load_and_run.cpp
+
+CXXFLAGS := -std=c++17 -fPIC
+LDFLAGS := -shared
+
+all: $(TARGET)
+
+$(TARGET): $(SRC_FILES)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+)"},
+  };
+}
+
+std::string GetNativeMachine() {
+  struct utsname uts;
+  if (uname(&uts) != 0) {
+    return "";
+  }
+  return uts.machine;
+}
+
+Status CompileBuildConfigArtifacts(const std::string &model_name) {
+  Om2CodegenArtifact so_artifact;
+  const Status ret = Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                                       model_name, so_artifact, false);
+  if (ret == SUCCESS) {
+    EXPECT_FALSE(so_artifact.data.empty());
+  }
+  return ret;
+}
+
+std::string FindExecutable(const std::string &name) {
+  std::ostringstream command;
+  command << "command -v " << name;
+  FILE *pipe = popen(command.str().c_str(), "r");
+  if (pipe == nullptr) {
+    return "";
+  }
+  std::string path;
+  char buffer[1024];
+  if (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    path = buffer;
+    while (!path.empty() && ((path.back() == '\n') || (path.back() == '\r'))) {
+      path.pop_back();
+    }
+  }
+  (void)pclose(pipe);
+  return path;
+}
+
+std::string ShellQuote(const std::string &value) {
+  std::string quoted = "'";
+  for (const auto c : value) {
+    if (c == '\'') {
+      quoted += "'\\''";
+      continue;
+    }
+    quoted.push_back(c);
+  }
+  quoted.push_back('\'');
+  return quoted;
+}
+
+bool PrepareCommandSymlink(ScopedTempDir &temp_dir, const std::string &relative_path, const std::string &command) {
+  const std::string path = FindExecutable(command);
+  return (!path.empty()) && temp_dir.Symlink(relative_path, path);
+}
+
+bool PrepareMakeRuntime(ScopedTempDir &temp_dir, const std::string &bin_dir) {
+  return PrepareCommandSymlink(temp_dir, bin_dir + "/env", "env") &&
+         PrepareCommandSymlink(temp_dir, bin_dir + "/make", "make");
+}
+
+bool PrepareFakeCompiler(ScopedTempDir &temp_dir, const std::string &relative_path) {
+  std::string cxx = FindExecutable("c++");
+  if (cxx.empty()) {
+    cxx = FindExecutable("g++");
+  }
+  const char *path_env = getenv("PATH");
+  if ((cxx.empty()) || (path_env == nullptr)) {
+    return false;
+  }
+  const std::string script = "#!/bin/sh\nexport PATH=" + ShellQuote(path_env) + "\nexec " +
+                             ShellQuote(cxx) + " \"$@\"\n";
+  return temp_dir.WriteFile(relative_path, script, 0755);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigInvalidChar_Rejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s; rm -rf /"}});
+
+  const std::string model_name = "bc_invalid_char";
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                               model_name, so_artifact, false), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNonWhitelisted_Rejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s SHELL=/bin/bash"}});
+
+  const std::string model_name = "bc_invalid_var";
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                               model_name, so_artifact, false), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUnbalancedQuote_Rejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s CXXFLAGS='-O2"}});
+
+  const std::string model_name = "bc_invalid_quote";
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                               model_name, so_artifact, false), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNotMakeCommand_Rejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "gcc -o out main.c"}});
+
+  const std::string model_name = "bc_not_make";
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                               model_name, so_artifact, false), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUseStubLib_Rejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s USE_STUB_LIB=0"}});
+
+  const std::string model_name = "bc_stub_lib";
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                               model_name, so_artifact, false), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig",
+                                           "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC'"}});
+
+  const std::string model_name = "bc_quoted_make_path";
+  Om2CodegenArtifact so_artifact;
+  ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                              model_name, so_artifact, false), SUCCESS);
+  EXPECT_FALSE(so_artifact.data.empty());
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  const std::vector<std::string> invalid_build_configs = {
+      "make -f user.mk",
+      "make -fuser.mk",
+      "make --file user.mk",
+      "make --file=user.mk",
+      "make --makefile user.mk",
+      "make --makefile=user.mk",
+  };
+
+  for (size_t i = 0U; i < invalid_build_configs.size(); ++i) {
+    GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", invalid_build_configs[i]}});
+    const std::string model_name = "bc_makefile_option_" + std::to_string(i);
+    Om2CodegenArtifact so_artifact;
+    EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                                model_name, so_artifact, false), SUCCESS)
+        << invalid_build_configs[i];
+  }
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
+  struct utsname uts;
+  if ((uname(&uts) != 0) || (std::string(uts.machine) != "aarch64")) {
+    GTEST_SKIP() << "native arm64 alias branch is only stable on aarch64 host";
+  }
+
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "arm64"}});
+
+  const std::string model_name = "host_env_arm64_alias";
+  Om2CodegenArtifact so_artifact;
+  ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                              model_name, so_artifact, false), SUCCESS);
+  EXPECT_FALSE(so_artifact.data.empty());
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeX86_Ok) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "native x86_64 branch runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "x86_64"}});
+
+  EXPECT_EQ(CompileBuildConfigArtifacts("host_env_x86_native"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNonArmTarget_Ok) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "riscv64"}});
+
+  const std::string model_name = "host_env_non_arm";
+  Om2CodegenArtifact so_artifact;
+  ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name),
+                                              model_name, so_artifact, false), SUCCESS);
+  EXPECT_FALSE(so_artifact.data.empty());
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileSystemCompiler_Ok) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("bin"));
+  ASSERT_TRUE(temp_dir.CreateDir("ascend/devlib/linux/aarch64"));
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "bin"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "bin/aarch64-linux-gnu-g++"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+
+  EXPECT_EQ(CompileBuildConfigArtifacts("cross_system_compiler"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCannCompiler_Ok) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("empty_bin"));
+  ASSERT_TRUE(temp_dir.CreateDir("ascend/tools/hcc/bin"));
+  ASSERT_TRUE(temp_dir.CreateDir("ascend/devlib/linux/aarch64"));
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "empty_bin"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "ascend/tools/hcc/bin/aarch64-target-linux-gnu-g++"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "arm64"}});
+
+  EXPECT_EQ(CompileBuildConfigArtifacts("cross_cann_compiler"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCompilerMissing_Rejected) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("empty_bin"));
+  ASSERT_TRUE(temp_dir.CreateDir("ascend/devlib/linux/aarch64"));
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "empty_bin"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+
+  EXPECT_NE(CompileBuildConfigArtifacts("cross_compiler_missing"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileDevlibMissing_Rejected) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("bin"));
+  ASSERT_TRUE(temp_dir.CreateDir("ascend"));
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "bin"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "bin/aarch64-linux-gnu-g++"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+
+  EXPECT_NE(CompileBuildConfigArtifacts("cross_devlib_missing"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileAscendHomeMissing_Rejected) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
+  }
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("bin"));
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "bin"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "bin/aarch64-linux-gnu-g++"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  ScopedUnsetEnvVar ascend_home_guard("ASCEND_HOME_PATH");
+  GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+
+  EXPECT_NE(CompileBuildConfigArtifacts("cross_ascend_home_missing"), SUCCESS);
+}
+
 TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
   const std::vector<std::pair<StablePartId, std::string>> cases = {
       {StablePartId::kChkStatusMacro, "#define OM2_CHK_STATUS"},
@@ -861,6 +1318,7 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
       {StablePartId::kGenerateJsonFile, "aclError GenerateJsonFile"},
       {StablePartId::kInterfaceDumpApis, "struct Om2TaskInfo"},
       {StablePartId::kLoadAndRunDumpHelpers, "aclError ReportLaunchedOm2Task"},
+      {StablePartId::kOm2LogMacros, "#define OM2_LOGD"},
   };
 
   for (const auto &test_case : cases) {
@@ -872,5 +1330,32 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
   std::string output;
   ASSERT_EQ(ResolveStablePart(static_cast<StablePartId>(0xff), output), FAILED);
   EXPECT_TRUE(output.empty());
+}
+
+TEST_F(Om2CodegenUt, StablePartProvider_Om2LogMacros_Ok) {
+  std::string output;
+  ASSERT_EQ(ResolveStablePart(StablePartId::kOm2LogMacros, output), SUCCESS);
+  ExpectContainsAll(output, {
+      "#define OM2_LOGD",
+      "#define OM2_LOGI",
+      "#define OM2_LOGW",
+      "#define OM2_LOGE",
+      "Om2GetTid",
+      "Om2IsLogEnable",
+      "OM2_MODULE_NAME",
+      "OM2_LOG_HEADER",
+  });
+}
+
+TEST_F(Om2CodegenUt, Om2CodePrinter_GetFileName_DefaultNames) {
+  const std::string model_name = "test_model";
+  Om2CodePrinter printer(model_name);
+
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_interface.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kResourcesFile), model_name + "_resources.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kArgsManagerFile), model_name + "_args_manager.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kKernelRegistryFile), model_name + "_kernel_reg.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kLoadingAndRunningFile), model_name + "_load_and_run.cpp");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kCMakeListsFile), "Makefile");
 }
 }  // namespace ge

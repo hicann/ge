@@ -139,6 +139,7 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterCustAicpuKernel() const {
 
 MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenModel &codegen_model) {
   std::vector<BodyItem> items;
+  (void)items.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("RegisterKernels begin")}));
   for (const auto &binary : codegen_model.kernel_registry.binaries) {
     if (binary.kind == KernelBinaryKind::kAicore || binary.kind == KernelBinaryKind::kAllKernel) {
       const bool use_tiling_key = (binary.kind == KernelBinaryKind::kAllKernel);
@@ -163,6 +164,7 @@ MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenMode
         {ast_.Str(binary.file_name), ast_.Str(binary.op_type), ast_.Str(binary.kernel_name)},
         bin_info_map_)));
   }
+  (void)items.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("RegisterKernels done")}));
   (void)items.emplace_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineMethod("Om2Model", "RegisterKernels", std::vector<VarRef>{}, "aclError", items);
 }

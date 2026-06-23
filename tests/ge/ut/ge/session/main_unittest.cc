@@ -326,6 +326,7 @@ TEST_F(UtestMain, MainImplTest_global_options) {
   std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
   std::string op_arg = AtcFileFactory::Generatefile1("--op_precision_mode=", "op_precision.ini");
   std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  std::string build_config_arg = "--build_config=make -s CXX=c++";
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -336,7 +337,8 @@ TEST_F(UtestMain, MainImplTest_global_options) {
                   const_cast<char *>(op_arg.c_str()),
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64"};
+                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(build_config_arg.c_str())};
   int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   auto &options = GetMutableGlobalOptions();
   auto it = options.find(ge::DETERMINISTIC);
@@ -348,6 +350,11 @@ TEST_F(UtestMain, MainImplTest_global_options) {
   EXPECT_NE(it, options.end());
   if (it != options.end()) {
     EXPECT_EQ(it->second == AtcFileFactory::GetFileRealName("op_precision.ini"), true);  }
+  it = options.find("ge.buildConfig");
+  EXPECT_NE(it, options.end());
+  if (it != options.end()) {
+    EXPECT_EQ(it->second, "make -s CXX=c++");
+  }
   EXPECT_NE(ret, 0);
   AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
 }

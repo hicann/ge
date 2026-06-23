@@ -661,7 +661,7 @@ graphStatus GetIrDescRange(const std::vector<IrIOSpec> &ir_specs, const std::map
     GE_WARN_ASSERT(idx2name.rbegin()->first == idx2name.size() - 1U);  // 拦截index不连续
   }
 
-  // 首先确定Dynamic类型的IR IO对应的index范围，对于IR构图场景，用户会通过create_dynmaic_xx接口创建多个输入Desc，
+  // 首先确定Dynamic类型的IR IO对应的index范围，对于IR构图场景，用户会通过create_dynamic_xx接口创建多个输入Desc，
   // 但是Desc在所有desc中的位置，是受调用时的参数决定的，默认情况下，都向尾部追加，会出现先定义的IR输入或输出对应的desc，在后定义的之后
   GE_WARN_ASSERT_GRAPH_SUCCESS(MappingDynamicIrDesc(ir_specs, desc_env, name2idx, ir_2_range));
 

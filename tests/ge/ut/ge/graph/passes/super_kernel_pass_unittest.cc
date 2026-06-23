@@ -1126,4 +1126,101 @@ TEST_F(SuperKernelPassTest, super_kernel_pass_simt) {
   sub_graph = sk_node->GetOpDesc()->TryGetExtAttr("_sk_sub_graph", sub_graph);
   EXPECT_NE(sub_graph, nullptr);
 }
+
+TEST_F(SuperKernelPassTest, tiling_sink_op_allows_fusion) {
+  auto builder = ut::GraphBuilder("test_tiling_sink");
+  auto data = builder.AddNode("data1", DATA, 0, 1);
+  auto op1 = builder.AddNode("op1", TRANSDATA, 1, 1);
+  auto op2 = builder.AddNode("op2", TRANSDATA, 1, 1);
+  auto netoutput = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, op1, 0);
+  builder.AddDataEdge(op1, 0, op2, 0);
+  builder.AddDataEdge(op2, 0, netoutput, 0);
+
+  AttrUtils::SetStr(op1->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op1->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetBool(op1->GetOpDesc(), "_tiling_sink_op", true);
+  AttrUtils::SetStr(op2->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op2->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetBool(op2->GetOpDesc(), "_tiling_sink_op", true);
+  op1->GetOpDesc()->SetStreamId(1);
+  op2->GetOpDesc()->SetStreamId(1);
+
+  auto compute_graph = builder.GetGraph();
+  ASSERT_EQ(compute_graph->TopologicalSorting(), GRAPH_SUCCESS);
+
+  SuperKernelPass super_kernel_pass;
+  auto ret = super_kernel_pass.Run(compute_graph);
+  EXPECT_EQ(ret, SUCCESS);
+
+  NodePtr sk_node;
+  for (auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == "SuperKernel") {
+      sk_node = node;
+    }
+  }
+  EXPECT_NE(sk_node, nullptr);
+}
+
+TEST_F(SuperKernelPassTest, tiling_sink_op_with_unsupported_op_excluded_from_fusion) {
+  auto builder = ut::GraphBuilder("test_tiling_sink_unsupported");
+  auto data = builder.AddNode("data1", DATA, 0, 1);
+  auto op1 = builder.AddNode("op1", TRANSDATA, 1, 1);
+  auto op2 = builder.AddNode("op2", TRANSDATA, 1, 1);
+  auto netoutput = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, op1, 0);
+  builder.AddDataEdge(op1, 0, op2, 0);
+  builder.AddDataEdge(op2, 0, netoutput, 0);
+
+  AttrUtils::SetStr(op1->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op1->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetBool(op1->GetOpDesc(), "_tiling_sink_op", true);
+  AttrUtils::SetStr(op2->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op2->GetOpDesc(), "supportSuperKernel", 0);
+  AttrUtils::SetBool(op2->GetOpDesc(), "_tiling_sink_op", true);
+  op1->GetOpDesc()->SetStreamId(1);
+  op2->GetOpDesc()->SetStreamId(1);
+
+  auto compute_graph = builder.GetGraph();
+  ASSERT_EQ(compute_graph->TopologicalSorting(), GRAPH_SUCCESS);
+
+  SuperKernelPass super_kernel_pass;
+  auto ret = super_kernel_pass.Run(compute_graph);
+  EXPECT_EQ(ret, SUCCESS);
+
+  std::string scope_attr;
+  EXPECT_FALSE(AttrUtils::GetStr(op2->GetOpDesc(), "_super_kernel_scope", scope_attr));
+}
+
+TEST_F(SuperKernelPassTest, simt_op_with_tiling_sink_excluded_from_fusion) {
+  auto builder = ut::GraphBuilder("test_simt_tiling_sink");
+  auto data = builder.AddNode("data1", DATA, 0, 1);
+  auto op1 = builder.AddNode("op1", TRANSDATA, 1, 1);
+  auto op2 = builder.AddNode("op2", TRANSDATA, 1, 1);
+  auto netoutput = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, op1, 0);
+  builder.AddDataEdge(op1, 0, op2, 0);
+  builder.AddDataEdge(op2, 0, netoutput, 0);
+
+  AttrUtils::SetStr(op1->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op1->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetBool(op1->GetOpDesc(), "_tiling_sink_op", true);
+  AttrUtils::SetInt(op1->GetOpDesc(), "local_memory_size", 1024);
+  AttrUtils::SetStr(op2->GetOpDesc(), "_super_kernel_scope", "scope1");
+  AttrUtils::SetInt(op2->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetBool(op2->GetOpDesc(), "_tiling_sink_op", true);
+  op1->GetOpDesc()->SetStreamId(1);
+  op2->GetOpDesc()->SetStreamId(1);
+
+  auto compute_graph = builder.GetGraph();
+  ASSERT_EQ(compute_graph->TopologicalSorting(), GRAPH_SUCCESS);
+
+  SuperKernelPass super_kernel_pass;
+  auto ret = super_kernel_pass.Run(compute_graph);
+  EXPECT_EQ(ret, SUCCESS);
+
+  std::string scope_attr;
+  EXPECT_FALSE(AttrUtils::GetStr(op1->GetOpDesc(), "_super_kernel_scope", scope_attr));
+}
+
 } // namespace ge

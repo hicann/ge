@@ -411,7 +411,7 @@ bool DynamicShapePartitioner::IsNeedMarkDynamicTilingDepend(const NodePtr &node)
       if (ge::OpDescUtils::GetInputConstData(op, static_cast<uint32_t>(i)) != nullptr) {
         continue;
       }
-      GELOGD("Input[%zu] of node: %s is dyanmic tilingDependent, index: %zu",
+      GELOGI("Input[%zu] of node: %s is dyanmic tilingDependent, index: %zu",
              i, node->GetName().c_str(), index);
       return true;
     }

@@ -48,6 +48,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   if (runtime.label_num > 0U) {
     (void)body.emplace_back(label_list_.Resize(runtime.label_num));
   }
+  (void)body.emplace_back(ast_.Call("OM2_LOGD", {ast_.Str("Om2Model created")}));
   return ast_.DefineMethod(
       "Om2Model", "Om2Model",
       {bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id, model_id, instance_handle}, "",
@@ -60,6 +61,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
 
 MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelDestructor() const {
   return ast_.DefineMethod("Om2Model", "~Om2Model", {}, "", {
+      ast_.Call("OM2_LOGD", {ast_.Str("~Om2Model")}),
       ast_.IgnoreOutput(ast_.Call("ReleaseResources", {})),
   });
 }
@@ -67,6 +69,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelDestructor() const {
 MethodDef *ResourcesFileCodeGenerator::BuildInitResourcesMethod(
     const Om2CodegenModel &codegen_model, const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   std::vector<BodyItem> body = {
+      ast_.Call("OM2_LOGI", {ast_.Str("InitResources begin")}),
       ast_.Comment("1. 创建 model"),
       ChkStatus(AclmdlRIBuildBegin(model_handle_.Addr(), 0)),
       ast_.BlankLine(),
@@ -86,6 +89,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildInitResourcesMethod(
   }
   BuildInitSessionScopeMemory(body, runtime);
   (void)body.emplace_back(args_table_.Attr("Init")());
+  (void)body.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("InitResources done")}));
   (void)body.emplace_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineMethod("Om2Model", "InitResources", {}, "aclError", body);
 }
@@ -159,6 +163,7 @@ void ResourcesFileCodeGenerator::BuildInitSessionScopeMemory(std::vector<BodyIte
 
 MethodDef *ResourcesFileCodeGenerator::BuildReleaseResourcesMethod(const Om2CodegenModel &codegen_model) {
   std::vector<BodyItem> body;
+  (void)body.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("ReleaseResources begin")}));
   const auto &runtime = codegen_model.runtime;
   if (runtime.label_num > 0U) {
     auto label = ast_.Var("auto", "label");
@@ -205,6 +210,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildReleaseResourcesMethod(const Om2Code
   (void)body.emplace_back(ast_.For(ast_.VarDecl(i, 0), i < dev_dynamic_mem_ptrs_.Size(), ast_.PostInc(i), {
       ast_.If(dev_dynamic_mem_ptrs_[i] != nullptr, {ChkStatus(AclrtFree(dev_dynamic_mem_ptrs_[i]))}),
   }));
+  (void)body.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("ReleaseResources done")}));
   (void)body.emplace_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineMethod("Om2Model", "ReleaseResources", {}, "aclError", body);
 }

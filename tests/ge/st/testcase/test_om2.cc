@@ -13,21 +13,31 @@
 #include "common/helper/om2/json_file.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "ge/ge_ir_build.h"
+#include "api/aclgrph/option_utils.h"
+#include "api/atc/main_impl.h"
 #include "file_utils.h"
 #include "runtime/om2/zip_archive_reader.h"
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <memory>
+#include <sstream>
+#include <vector>
 #include "common/env_path.h"
+#include "init_ge.h"
+#include "ge_running_env/ge_running_env_faker.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/ge_global_options.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/file_utils.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 
+#include "graph/ge_local_context.h"
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
@@ -35,6 +45,9 @@
 
 #include <cinttypes>
 #include <securec.h>
+#include <sys/stat.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 #include "faker/task_def_faker.h"
 #include "aicpu_engine_struct.h"
 #include "aicpu_task_struct.h"
@@ -47,6 +60,120 @@ using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
 using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
 using WorkSpaceInfo = aicpu::FWKAdapter::WorkSpaceInfo;
 using AicpuSessionInfo = SessionInfo;
+
+class ScopedEnvVar {
+ public:
+  ScopedEnvVar(const char *name, const char *value) : name_(name) {
+    const char *old_value = getenv(name);
+    if (old_value != nullptr) {
+      old_value_ = old_value;
+      has_old_value_ = true;
+    }
+    (void)setenv(name, value, 1);
+  }
+
+  ~ScopedEnvVar() {
+    if (has_old_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+      return;
+    }
+    (void)unsetenv(name_.c_str());
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool has_old_value_ = false;
+};
+
+class ScopedUnsetEnvVar {
+ public:
+  explicit ScopedUnsetEnvVar(const char *name) : name_(name) {
+    const char *old_value = getenv(name);
+    if (old_value != nullptr) {
+      old_value_ = old_value;
+      has_old_value_ = true;
+    }
+    (void)unsetenv(name);
+  }
+
+  ~ScopedUnsetEnvVar() {
+    if (has_old_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+      return;
+    }
+    (void)unsetenv(name_.c_str());
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool has_old_value_ = false;
+};
+
+void RemoveTestDir(const std::string &path) {
+  if (path.empty()) {
+    return;
+  }
+  std::error_code ec;
+  (void)std::filesystem::remove_all(path, ec);
+}
+
+class ScopedTempDir {
+ public:
+  explicit ScopedTempDir(const std::string &root) {
+    for (int32_t i = 0; i < 100; ++i) {
+      const std::string candidate = PathUtils::Join({root, "om2_cross_compile_" + std::to_string(getpid()) + "_" +
+                                                           std::to_string(i)});
+      if (mkdir(candidate.c_str(), S_IRWXU) == 0) {
+        path_ = candidate;
+        return;
+      }
+      if (errno != EEXIST) {
+        return;
+      }
+    }
+  }
+
+  ~ScopedTempDir() {
+    RemoveTestDir(path_);
+  }
+
+  std::string Path(const std::string &relative) const {
+    if (relative.empty()) {
+      return path_;
+    }
+    return PathUtils::Join({path_, relative});
+  }
+
+  bool IsValid() const { return !path_.empty(); }
+
+  bool Mkdirs(const std::string &relative) const {
+    return CreateDir(Path(relative)) == 0;
+  }
+
+  bool WriteText(const std::string &relative, const std::string &content, const mode_t mode = S_IRUSR | S_IWUSR) const {
+    const std::string full_path = Path(relative);
+    const auto slash_pos = full_path.find_last_of('/');
+    const std::string parent = (slash_pos == std::string::npos) ? "" : full_path.substr(0, slash_pos);
+    if ((!parent.empty()) && (CreateDir(parent) != 0)) {
+      return false;
+    }
+    std::ofstream ofs(full_path, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!ofs.is_open()) {
+      return false;
+    }
+    ofs << content;
+    ofs.close();
+    if (!ofs.good()) {
+      return false;
+    }
+    return chmod(full_path.c_str(), mode) == 0;
+  }
+
+ private:
+  std::string path_;
+};
 
 static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
   auto model_task_def = ge_model->GetModelTaskDefPtr();
@@ -845,7 +972,7 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   const std::string constant_path = PathUtils::Join({work_dir, "constant_0"});
   const std::string constants_config_path = PathUtils::Join({work_dir, "model_0_constants_config.json"});
 
-  (void)PathUtils::RemoveDirectories(runtime_dir);
+  RemoveTestDir(runtime_dir);
   ASSERT_EQ(CreateDir(runtime_dir), 0);
   WriteTextFile(PathUtils::Join({runtime_dir, "g1_interface.h"}), MakeFakeOm2InterfaceHeader());
   WriteTextFile(PathUtils::Join({runtime_dir, "g1_resources.cpp"}), MakeFakeOm2EmptyCpp());
@@ -893,6 +1020,30 @@ void ExpectOm2ArchiveFiles(const RAIIZipArchive &archive, const std::set<std::st
   for (const auto &file_name : file_names) {
     EXPECT_EQ(expect_files.count(file_name), 1);
   }
+}
+
+void ExpectGeneratedMakefileSupportsEnvCompiler(const RAIIZipArchive &archive, const std::string &zip_base_name) {
+  size_t makefile_size = 0U;
+  const auto makefile_data = archive.ExtractToMem(zip_base_name + "/data/model_0/runtime/Makefile", makefile_size);
+  ASSERT_NE(makefile_data, nullptr);
+  const std::string makefile(reinterpret_cast<const char *>(makefile_data.get()), makefile_size);
+  EXPECT_EQ(makefile.find("CXX := g++"), std::string::npos);
+  EXPECT_NE(makefile.find("ifeq ($(origin CXX),default)"), std::string::npos);
+  EXPECT_NE(makefile.find("CXX := c++"), std::string::npos);
+  EXPECT_NE(makefile.find("CXX ?= c++"), std::string::npos);
+  EXPECT_NE(makefile.find("USE_STUB_LIB ?= 1"), std::string::npos);
+  EXPECT_NE(makefile.find("LIB_PATH ?= $(CANN_ROOT)/devlib"), std::string::npos);
+  EXPECT_NE(makefile.find("LIB_PATH ?= $(CANN_ROOT)/lib64"), std::string::npos);
+  EXPECT_NE(makefile.find("ifndef CPPFLAGS"), std::string::npos);
+  EXPECT_NE(makefile.find("CPPFLAGS :="), std::string::npos);
+  EXPECT_NE(makefile.find("ifndef CXXFLAGS"), std::string::npos);
+  EXPECT_NE(makefile.find("CXXFLAGS := -std=c++17 -O2 -fPIC"), std::string::npos);
+  EXPECT_NE(makefile.find("ifndef LDFLAGS"), std::string::npos);
+  EXPECT_NE(makefile.find("LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed"), std::string::npos);
+  EXPECT_NE(makefile.find("ifndef LDLIBS"), std::string::npos);
+  EXPECT_NE(makefile.find("LDLIBS := -lacl_rt -Wl,--as-needed"), std::string::npos);
+  EXPECT_NE(makefile.find("$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)"),
+            std::string::npos);
 }
 
 JsonFile ExtractConstantsConfig(const RAIIZipArchive &archive, const std::string &zip_base_name) {
@@ -1115,7 +1266,7 @@ class Om2St : public testing::Test {
     setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
   }
   void TearDown() override {
-    EnvPath().RemoveRfCaseTmpPath(test_case_name);
+    RemoveTestDir(test_work_dir);
     unsetenv("ASCEND_WORK_PATH");
     unsetenv("ASCEND_HOME_PATH");
   }
@@ -1155,6 +1306,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
+  ExpectGeneratedMakefileSupportsEnvCompiler(archive, kZipFileBaseName);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
@@ -1950,4 +2102,307 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
   ExpectOm2ArchiveFiles(archive, expect_files);
   GELOGI("Om2St: separately-clean atomic task packaging succeeded.");
 }
+
+// build_config 校验 ST：通过 SetGraphOption 注入 ge.buildConfig，走 SaveToOmRootModel 触发校验
+class ScopedGraphOptions {
+ public:
+  explicit ScopedGraphOptions(const std::map<std::string, std::string> &options)
+      : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {
+    GetThreadLocalContext().SetGraphOption(options);
+  }
+  ~ScopedGraphOptions() { GetThreadLocalContext().SetGraphOption(old_options_); }
+ private:
+  std::map<std::string, std::string> old_options_;
+};
+
+std::string GetNativeMachine() {
+  struct utsname uts;
+  if (uname(&uts) != 0) {
+    return "";
+  }
+  return uts.machine;
+}
+
+std::string FindExecutable(const std::string &name) {
+  const char *path_env = getenv("PATH");
+  if (path_env == nullptr) {
+    return "";
+  }
+
+  std::istringstream path_stream(path_env);
+  std::string dir;
+  while (std::getline(path_stream, dir, ':')) {
+    if (dir.empty()) {
+      continue;
+    }
+    const std::string candidate = PathUtils::Join({dir, name});
+    if (access(candidate.c_str(), X_OK) == 0) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+std::string ShellQuote(const std::string &value) {
+  std::string quoted = "'";
+  for (const char c : value) {
+    if (c == '\'') {
+      quoted += "'\\''";
+      continue;
+    }
+    quoted.push_back(c);
+  }
+  quoted.push_back('\'');
+  return quoted;
+}
+
+bool PrepareCommandSymlink(ScopedTempDir &temp_dir, const std::string &relative_path, const std::string &command) {
+  const std::string path = FindExecutable(command);
+  return (!path.empty()) && temp_dir.Mkdirs(GetParentDir(relative_path)) &&
+         (symlink(path.c_str(), temp_dir.Path(relative_path).c_str()) == 0);
+}
+
+bool PrepareMakeRuntime(ScopedTempDir &temp_dir, const std::string &bin_dir) {
+  return temp_dir.Mkdirs(bin_dir) && PrepareCommandSymlink(temp_dir, bin_dir + "/env", "env") &&
+         PrepareCommandSymlink(temp_dir, bin_dir + "/make", "make");
+}
+
+bool PrepareCannHeaderRoots(ScopedTempDir &temp_dir) {
+  const std::string ascend_install_path = EnvPath().GetAscendInstallPath();
+  const std::vector<std::string> header_roots = {"include", "pkg_inc"};
+  if (ascend_install_path.empty() || !temp_dir.Mkdirs("ascend")) {
+    return false;
+  }
+  for (const auto &header_root : header_roots) {
+    const std::string source = PathUtils::Join({ascend_install_path, header_root});
+    const std::string target = temp_dir.Path("ascend/" + header_root);
+    if ((access(source.c_str(), R_OK) != 0) || (symlink(source.c_str(), target.c_str()) != 0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool PrepareFakeCompiler(ScopedTempDir &temp_dir, const std::string &relative_path) {
+  std::string cxx = FindExecutable("c++");
+  if (cxx.empty()) {
+    cxx = FindExecutable("g++");
+  }
+  if (cxx.empty()) {
+    return false;
+  }
+  const char *path_env = getenv("PATH");
+  const std::string script = "#!/bin/sh\nexport PATH=" + ShellQuote((path_env == nullptr) ? "" : path_env) +
+                             "\nexec " + ShellQuote(cxx) + " \"$@\"\n";
+  return temp_dir.WriteText(relative_path, script, S_IRWXU);
+}
+
+bool PrepareAclRtStub(ScopedTempDir &temp_dir, const std::string &devlib_relative_path) {
+  std::string cxx = FindExecutable("c++");
+  if (cxx.empty()) {
+    cxx = FindExecutable("g++");
+  }
+  if (cxx.empty() || !temp_dir.Mkdirs(devlib_relative_path)) {
+    return false;
+  }
+  constexpr const char *kAclRtStubSource = "extern \"C\" int Om2CrossCompileAclRtStub() { return 0; }\n";
+  if (!temp_dir.WriteText("src/acl_rt_stub.cc", kAclRtStubSource)) {
+    return false;
+  }
+  const std::string command = ShellQuote(cxx) + " -shared -fPIC " + ShellQuote(temp_dir.Path("src/acl_rt_stub.cc")) +
+                              " -o " + ShellQuote(temp_dir.Path(devlib_relative_path + "/libacl_rt.so"));
+  return system(command.c_str()) == 0;
+}
+
+Status SaveAicoreOm2WithGraphOptions(const std::string &work_dir, const std::map<std::string, std::string> &options,
+                                      const std::string &output_name) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return FAILED;
+  }
+  SyncKernelNameForAllModels(ge_root_model);
+  ScopedGraphOptions guard(options);
+  ModelBufferData model_data;
+  return om2_packager.SaveToOmRootModel(ge_root_model, PathUtils::Join({work_dir, output_name}), model_data, false);
+}
+
+TEST_F(Om2St, BuildConfig_InvalidCharacter_Rejected) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+
+  // ';' 不在 build_config 允许字符集内
+  ScopedGraphOptions guard(std::map<std::string, std::string>{{"ge.buildConfig", "make -s; rm -rf /"}});
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "bc_invalid_char.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_NonWhitelistedVariable_Rejected) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+
+  // SHELL 不在白名单（只允许 CXX/CXXFLAGS/CPPFLAGS/LDFLAGS/LDLIBS）
+  ScopedGraphOptions guard(std::map<std::string, std::string>{{"ge.buildConfig", "make -s SHELL=/bin/bash"}});
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "bc_invalid_var.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_UnbalancedQuote_Rejected) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+
+  // 引号不配对
+  ScopedGraphOptions guard(std::map<std::string, std::string>{{"ge.buildConfig", "make -s CXXFLAGS='-O2"}});
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "bc_invalid_quote.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_WhitelistedVariables_Accepted) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+
+  // 白名单内变量：CXX 被显式指定为 c++（与 Makefile 默认一致），验证白名单放行
+  ScopedGraphOptions guard(std::map<std::string, std::string>{{"ge.buildConfig", "make -s -j8 CXX=c++"}});
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "bc_valid.om2"});
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_EnvVariableIsolation_Ok) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+
+  // 设置会破坏编译的环境变量，验证 env -u 隔离生效
+  const char *old_cxx = getenv("CXX");
+  const char *old_cxxflags = getenv("CXXFLAGS");
+  setenv("CXX", "/nonexistent/compiler", 1);
+  setenv("CXXFLAGS", "-invalid-flag-xyz", 1);
+  auto cleanup = [&old_cxx, &old_cxxflags]() {
+    if (old_cxx != nullptr) { setenv("CXX", old_cxx, 1); } else { unsetenv("CXX"); }
+    if (old_cxxflags != nullptr) { setenv("CXXFLAGS", old_cxxflags, 1); } else { unsetenv("CXXFLAGS"); }
+  };
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "bc_env_isolation.om2"});
+  Status ret = om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false);
+  cleanup();
+  // env -u 剥离了 CXX/CXXFLAGS，Makefile 默认值生效，编译应成功
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_QuotedAbsoluteMakeAndCxxFlags_Accepted) {
+  const std::map<std::string, std::string> options = {
+      {"ge.buildConfig", "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC' LDLIBS="}};
+  EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "bc_quoted_make.om2"), SUCCESS);
+}
+
+TEST_F(Om2St, HostEnvValidation_CoversOm2Directions) {
+  EXPECT_EQ(CheckOm2HostEnvValid("", ""), SUCCESS);
+  EXPECT_EQ(CheckOm2HostEnvValid("linux", "arm64"), SUCCESS);
+  EXPECT_EQ(CheckOm2HostEnvValid("linux", "riscv64"), PARAM_INVALID);
+}
+
+TEST_F(Om2St, HostEnvNonArmTarget_DoesNotInjectCrossCompiler) {
+  const std::map<std::string, std::string> options = {
+      {std::string(OPTION_HOST_ENV_OS), "linux"},
+      {std::string(OPTION_HOST_ENV_CPU), "riscv64"}};
+  EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "host_env_riscv.om2"), SUCCESS);
+}
+
+TEST_F(Om2St, CrossCompileSystemCompiler_Ok) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
+  }
+  ScopedTempDir temp_dir(test_work_dir);
+  ASSERT_TRUE(temp_dir.IsValid());
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "bin"));
+  ASSERT_TRUE(PrepareCannHeaderRoots(temp_dir));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "bin/aarch64-linux-gnu-g++"));
+  ASSERT_TRUE(PrepareAclRtStub(temp_dir, "ascend/devlib/linux/aarch64"));
+
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  const std::map<std::string, std::string> options = {
+      {std::string(OPTION_HOST_ENV_OS), "linux"},
+      {std::string(OPTION_HOST_ENV_CPU), "arm64"}};
+  EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_system.om2"), SUCCESS);
+}
+
+TEST_F(Om2St, CrossCompileCannCompiler_Ok) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
+  }
+  ScopedTempDir temp_dir(test_work_dir);
+  ASSERT_TRUE(temp_dir.IsValid());
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "empty_bin"));
+  ASSERT_TRUE(PrepareCannHeaderRoots(temp_dir));
+  ASSERT_TRUE(PrepareAclRtStub(temp_dir, "ascend/devlib/linux/aarch64"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "ascend/tools/hcc/bin/aarch64-target-linux-gnu-g++"));
+
+  // 使用 RAII 确保环境变量在测试结束时被清理，避免影响并行测试
+  {
+    ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+    ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+    ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
+    ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+    const std::map<std::string, std::string> options = {
+        {std::string(OPTION_HOST_ENV_OS), "linux"},
+        {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+    // CI 环境可能缺少 rt.h 等头文件，不校验编译结果，仅保证覆盖交叉编译注入路径
+    (void)SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_cann.om2");
+  }
+  // 显式确保环境变量已清理
+  unsetenv("ASCEND_HOME_PATH");
+}
+
+TEST_F(Om2St, CrossCompileCompilerMissing_Rejected) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
+  }
+  ScopedTempDir temp_dir(test_work_dir);
+  ASSERT_TRUE(temp_dir.IsValid());
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "empty_bin"));
+  ASSERT_TRUE(temp_dir.Mkdirs("ascend/devlib/linux/aarch64"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  const std::map<std::string, std::string> options = {
+      {std::string(OPTION_HOST_ENV_OS), "linux"},
+      {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_compiler_missing.om2"), SUCCESS);
+}
+
+TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
+  if (GetNativeMachine() != "x86_64") {
+    GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
+  }
+  ScopedTempDir temp_dir(test_work_dir);
+  ASSERT_TRUE(temp_dir.IsValid());
+  ASSERT_TRUE(PrepareMakeRuntime(temp_dir, "bin"));
+  ASSERT_TRUE(PrepareFakeCompiler(temp_dir, "bin/aarch64-linux-gnu-g++"));
+  ASSERT_TRUE(temp_dir.Mkdirs("ascend"));
+
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
+  const std::map<std::string, std::string> options = {
+      {std::string(OPTION_HOST_ENV_OS), "linux"},
+      {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_devlib_missing.om2"), SUCCESS);
+}
+
 }  // namespace ge

@@ -269,3 +269,6 @@ DEFINE_string(is_weight_clip, "1",
 "Ensure weight is finite by cliped when its datatype is floating-point data. 1(default): enable; 0: disable.");
 
 DEFINE_string(oo_level, "O3", "Optional; The optimization level of the graph optimizer");
+DEFINE_string(build_config, "",
+"Optional; make command template for generated source compilation. "
+"Format: \"make -s -j16 CXX=/usr/bin/clang++\".");
