@@ -698,8 +698,8 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, std::
     // reducescatterV的counts代表sendCount，因为算子是散射操作，是send给所有ranks
     HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), counts, sendDispls, recvCount);
     if (counts.empty()) {
-      HCCL_ERROR("[TaskDefSetNumBlocks][GetCountsFromOpDesc], counts is empty");
-      return HCCL_E_PTR;
+      HCCL_WARNING("[TaskDefSetNumBlocks][GetCountsFromOpDesc], counts is empty");
+      return HCCL_SUCCESS;
     }
   }
   return HCCL_SUCCESS;
@@ -1639,6 +1639,12 @@ HcclResult HcomOpsKernelBuilder::CopyReduceScatterVParamsToDef(
   std::vector<int64_t> recvCount;
   CHK_RET(HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCount));
 
+  // 前端输入空tensor时，sendCounts为空，此时不需要将sendCounts、sendDispls、recvCount复制到privateDefBuf中，直接返回成功即可。
+  if (sendCounts.empty()) {
+    HCCL_WARNING("[HcomOpsKernelBuilder][%s] The value of sendCounts or sendDispls or recvCount is empty.",
+                 __func__);
+    return HCCL_SUCCESS;
+  }
   CHK_SAFETY_FUNC_RET(memcpy_s(privateDefBuf.paramsInfo.sendCounts, ALLTOALLV_RANK_MAX_NUM * sizeof(u64),
                                sendCounts.data(), sendCounts.size() * sizeof(u64)));
   CHK_SAFETY_FUNC_RET(memcpy_s(privateDefBuf.paramsInfo.sendDispls, ALLTOALLV_RANK_MAX_NUM * sizeof(u64),
@@ -2019,7 +2025,11 @@ HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpPara
     // reducescatterv复用HcomOpParam的All2AllDataDes字段
     CHK_RET(
         HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
-    count = *std::max_element(sendCounts.begin(), sendCounts.end());
+    if (sendCounts.empty()) {
+      count = 0;
+    } else {
+      count = *std::max_element(sendCounts.begin(), sendCounts.end());
+    }
     ret = HcceSetOpParamGraphModeDataCount(opParam, &count);
     HCCL_INFO("REDUCESCATTERV Count[%llu]", count);
     CHK_PRT_RET(
