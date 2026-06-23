@@ -1279,9 +1279,14 @@ HcclResult HcomGraphOptimizer::SetHcomOpParam(const ge::Node &node, HcomOpParam 
     // reducescatterv复用HcomOpParam的All2AllDataDes字段
     CHK_RET(
         HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
-    hcomOpParam->All2AllDataDes.sendCounts = static_cast<void *>(sendCounts.data());
-    hcomOpParam->All2AllDataDes.sendDispls = static_cast<void *>(sendDispls.data());
-    hcomOpParam->All2AllDataDes.recvCounts = static_cast<void *>(recvCounts.data());
+    if (!sendCounts.empty()) {
+      hcomOpParam->All2AllDataDes.sendCounts = static_cast<void *>(sendCounts.data());
+      hcomOpParam->All2AllDataDes.sendDispls = static_cast<void *>(sendDispls.data());
+      hcomOpParam->All2AllDataDes.recvCounts = static_cast<void *>(recvCounts.data());
+    } else {
+      // reducescatterv算子在输入数据量为0时，sendCounts和recvCounts会被设置为空，此时不将空指针传给HCCL，避免潜在的风险
+      HCCL_WARNING("[reduceScatterVCounts] size is invalid for zero-data input, skip All2AllDataDes assignment.");
+    }
   }
 
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_ALLGATHERV) {
@@ -1483,7 +1488,11 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
     // reducescatterv复用HcomOpParam的All2AllDataDes字段
     CHK_RET(
         HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
-    count = *std::max_element(sendCounts.begin(), sendCounts.end());
+    if (sendCounts.empty()) {
+      count = 0;
+    } else {
+      count = *std::max_element(sendCounts.begin(), sendCounts.end());
+    }
     ret = HcceSetOpParamGraphModeDataCount(opParam, &count);
     HCCL_INFO("REDUCESCATTERV Count[%llu]", count);
     CHK_PRT_RET(

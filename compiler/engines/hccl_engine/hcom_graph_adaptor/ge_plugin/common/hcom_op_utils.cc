@@ -384,9 +384,18 @@ HcclResult HcomOpUtils::GetReduceScatterVCountsDispl(ge::Node &node, std::vector
   const auto &op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
   ge::AttrUtils::GetListTensor(op_desc, "vInputVec", vInputVec);
 
-  CHK_PRT_RET(vInputVec.size() != V_INPUT_VEC_SIZE, HCCL_ERROR("Get ReduceScatterV input info from Operator invalid."),
-              HCCL_E_PARA);
+  // 带V算子在传空tensor的时候，vInputVec的size为0
+  if (vInputVec.size() == 0U) {
+    HCCL_WARNING("[%s] Get ReduceScatterV input info skipped, for vInputVec's size[%zu] != expected size[%u].",
+                 __func__, vInputVec.size(), V_INPUT_VEC_SIZE);
+    sendCounts.clear();
+    sendDispls.clear();
+    recvCount.clear();
+    return HCCL_SUCCESS;
+  }
 
+  CHK_PRT_RET(vInputVec.size() != V_INPUT_VEC_SIZE, HCCL_ERROR("Get ReduceScatterV input info from Operator invalid."),	 
+               HCCL_E_PARA);
   auto recvCountTensor = vInputVec[0U].get();
   auto sendCountsTensor = vInputVec[1U].get();
   auto sendDisplsTensor = vInputVec[2U].get();
