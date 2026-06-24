@@ -70,6 +70,7 @@ class CompilableOp : virtual public BaseCustomOp {
  */
 class EagerExecuteOp : virtual public BaseCustomOp {
  public:
+  ~EagerExecuteOp() override = default;
   /**
    * 自定义算子的执行函数
    * @param ctx 执行时上下文，可通过上下文获取input tensor，分配输出内存，分配workspace等
@@ -84,6 +85,7 @@ class EagerExecuteOp : virtual public BaseCustomOp {
  */
 class ShapeInferOp : virtual public BaseCustomOp {
  public:
+  ~ShapeInferOp() override = default;
   /**
    * 形状推理函数，用于推导算子输出的形状
    * @param ctx 形状推理上下文，可通过上下文获取输入张量形状，设置输出张量形状等
