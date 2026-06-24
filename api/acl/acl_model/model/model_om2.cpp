@@ -25,7 +25,7 @@
 #include "model_common.h"
 #include "model_config.h"
 #include "utils/math_utils.h"
-#include "utils/string_utils.h"
+#include "utils/acl_string_utils.h"
 
 namespace {
 constexpr int32_t DEFAULT_SYNC_TIMEOUT = -1;
