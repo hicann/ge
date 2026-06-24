@@ -328,10 +328,13 @@ void ParseOpAttrJsonToMapInternal(const ge::JsonFile &op_attr_json,
       try {
         std::string value_str;
         if (type == "LIST_STRING") {
-          // Serialize list as JSON array string
+          // Serialize as [N]value[N]value to match OM1 DavinciModel::GetNodeAttr format
           const auto &value_array = attr_obj.Raw()["value"];
           if (value_array.is_array()) {
-            value_str = value_array.dump();
+            for (const auto &elem : value_array) {
+              const std::string s = elem.get<std::string>();
+              value_str += "[" + std::to_string(s.size()) + "]" + s;
+            }
           }
         } else {
           // For other types, serialize as JSON string

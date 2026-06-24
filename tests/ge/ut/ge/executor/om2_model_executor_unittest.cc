@@ -1679,8 +1679,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
   EXPECT_TRUE(op_attr_map["test_op"].find("_datadump_original_op_names") != op_attr_map["test_op"].end());
 
   const std::string &value_str = op_attr_map["test_op"]["_datadump_original_op_names"];
-  // value应该是JSON数组字符串格式
-  EXPECT_EQ(value_str, "[\"original_op1\",\"original_op2\"]");
+  // value应该是[N]value格式，与OM1 DavinciModel::GetNodeAttr一致
+  EXPECT_EQ(value_str, "[12]original_op1[12]original_op2");
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
@@ -1892,11 +1892,11 @@ TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllA
   // op1有2个属性
   EXPECT_EQ(op_attr_map["op1"].size(), 2U);
   EXPECT_TRUE(op_attr_map["op1"].find("_datadump_original_op_names") != op_attr_map["op1"].end());
-  EXPECT_EQ(op_attr_map["op1"]["_datadump_original_op_names"], "[\"orig1\",\"orig2\"]");
+  EXPECT_EQ(op_attr_map["op1"]["_datadump_original_op_names"], "[5]orig1[5]orig2");
 
   // op2有1个属性
   EXPECT_EQ(op_attr_map["op2"].size(), 1U);
-  EXPECT_EQ(op_attr_map["op2"]["_datadump_original_op_names"], "[\"orig3\"]");
+  EXPECT_EQ(op_attr_map["op2"]["_datadump_original_op_names"], "[5]orig3");
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_BeforeLoad_ReturnsError) {
