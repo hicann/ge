@@ -102,7 +102,6 @@ SET(GRAPH_SOURCE_LIST
     "normal_graph/operator_factory_impl.cc"
     "normal_graph/graph.cc"
     "normal_graph/gnode.cc"
-    "normal_graph/named_io_node_builder.cc"
     "args_format/args_format_serializer.cc"
     "args_format/arg_desc_info.cc"
     "args_format/arg_desc_info_impl.cc"
