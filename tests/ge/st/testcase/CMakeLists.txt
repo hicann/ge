@@ -236,6 +236,7 @@ target_link_libraries(ge_common_atc
     om2_executor
     ge_common_base
     gert
+    register
     cpu_compiler
     aihacb_autofusion_stub
     ge_local_opskernel_builder
