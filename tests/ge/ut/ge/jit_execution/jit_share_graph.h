@@ -26,7 +26,6 @@ struct JitShareGraph {
                                                     const std::vector<int64_t> &input3_dims = {});
   static UniqueGraphPtr OneReshapeNodeTwoRelu();
   static UniqueGraphPtr TwoReshapeNodeTwoRelu();
-  static UniqueGraphPtr ThreeReshapeNodeThreeRelu();
   static UniqueGraphPtr AddUniqueNode();
   static UniqueGraphPtr OneAddNode();
   static UniqueGraphPtr OneConstTwoReshapeNodeTwoRelu();
