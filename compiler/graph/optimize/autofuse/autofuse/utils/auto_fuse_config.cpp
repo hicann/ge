@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "utils/auto_fuse_config.h"
+#include "auto_fuse_config.h"
 
 namespace ge {
 namespace autofuse {
