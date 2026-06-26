@@ -1214,6 +1214,36 @@ TEST_F(UtestMain, MainImplTest_amct_interface) {
   MmpaStub::GetInstance().Reset();
 }
 
+class MockMmpaDlOpenFail : public ge::MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    if (string("libamctacl.so") == file_name) {
+      return nullptr;
+    }
+    return MmpaStubApiGe::DlOpen(file_name, mode);
+  }
+  int32_t DlClose(void *handle) override {
+    return 0;
+  }
+};
+
+TEST_F(UtestMain, MainImplTest_amct_interface_dlopen_fail) {
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenFail>());
+  Graph graph("test");
+  std::map<std::string, std::string> options;
+  options[COMPRESSION_OPTIMIZE_CONF] = "path_test";
+
+  (void)dlerror();
+  auto ret = CallAmctInterface(graph, options);
+  EXPECT_NE(ret, 0);
+
+  (void)dlopen("nonexistent_lib_for_error.so", RTLD_NOW);
+  ret = CallAmctInterface(graph, options);
+  EXPECT_NE(ret, 0);
+
+  MmpaStub::GetInstance().Reset();
+}
+
 TEST_F(UtestMain, GeFlags_oo_help) {
   char *argv[] = {"atc", "--help"};
   int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);

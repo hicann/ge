@@ -1489,8 +1489,16 @@ Status CallAmctInterface(Graph &graph, std::map<std::string, std::string> &optio
   auto it = options.find(std::string(ge::COMPRESSION_OPTIMIZE_CONF));
   if ((it != options.end()) && (!it->second.empty())) {
     options.insert(std::pair<std::string, std::string>("build_graph_already_initialized", "1"));
-    void *handle = mmDlopen(kAmctSo, static_cast<int32_t>(MMPA_RTLD_NOW));
-    GE_CHECK_NOTNULL(handle);
+    void* handle = mmDlopen(kAmctSo, static_cast<int32_t>(MMPA_RTLD_NOW));
+    if (handle == nullptr) {
+      const char_t *error = mmDlerror();
+      error = (error == nullptr) ? "" : error;
+      string errmsg = "AMCT is not installed, error: " + string(error);
+      (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+            std::vector<const char *>({"--compression_optimize_conf", it->second.c_str(), errmsg.c_str()}));
+      GELOGE(FAILED, "[Open][AmctSo] %s failed, error: %s", kAmctSo, error);
+      return FAILED;
+    }
     GE_MAKE_GUARD(close_handle, [&handle]() {
       // dlClose 前先析构 IAmctCalibration
       GeAmctRegistry::GetInstance().Unregister();

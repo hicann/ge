@@ -3483,4 +3483,91 @@ TEST_F(AtcCommonSTest, TestAtc_Ok_Om2) {
     EXPECT_EQ(graph->GetDirectNodesSize(), 4);
   };
 }
+
+class MockMmpaDlOpenFail : public ge::MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    if (string("libamctacl.so") == file_name) {
+      return nullptr;
+    }
+    return MmpaStubApiGe::DlOpen(file_name, mode);
+  }
+  int32_t DlClose(void *handle) override {
+    return 0;
+  }
+};
+
+/**
+ * 用例描述：测试CallAmctInterface中mmDlopen返回nullptr且mmDlerror返回nullptr时的处理
+ * 预置条件：
+ *   1. 使用MockMmpaDlOpenFail打桩mmDlopen，使libamctacl.so加载失败返回nullptr
+ *   2. 提前调用dlerror()清除错误状态，使mmDlerror返回nullptr
+ * 测试步骤：
+ *   1. 构造atc命令行参数，包含--compression_optimize_conf=./触发AMCT流程
+ *   2. 调用main_impl执行图编译
+ * 预期结果：
+ *   1. main_impl返回非0值（编译失败）
+ */
+TEST_F(AtcCommonSTest, pb_model_amct_interface_dlopen_fail_no_error) {
+  ReInitGe();
+  (void)dlerror();
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenFail>());
+  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+  Mkdir(om_path.c_str());
+  om_path = PathJoin(om_path.c_str(), "pb_amct_dlopen_fail");
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = "--output=" + om_path;
+  char *argv[] = {"atc",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--framework=3",
+                  "--out_nodes=add_test_1:0",
+                  "--soc_version=Ascend910B2",
+                  "--output_type=FP32",
+                  "--input_shape=Placeholder_1:1,256,256,3",
+                  "--status_check=0",
+                  "--compression_optimize_conf=./"
+  };
+  auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  MmpaStub::GetInstance().Reset();
+  ReInitGe();
+}
+
+/**
+ * 用例描述：测试CallAmctInterface中mmDlopen返回nullptr且mmDlerror返回有效错误信息时的处理
+ * 预置条件：
+ *   1. 使用MockMmpaDlOpenFail打桩mmDlopen，使libamctacl.so加载失败返回nullptr
+ *   2. 先调用dlopen加载一个不存在的so，使dlerror()产生有效错误信息
+ * 测试步骤：
+ *   1. 构造atc命令行参数，包含--compression_optimize_conf=./触发AMCT流程
+ *   2. 调用main_impl执行图编译
+ * 预期结果：
+ *   1. main_impl返回非0值（编译失败）
+ */
+TEST_F(AtcCommonSTest, pb_model_amct_interface_dlopen_fail_with_error) {
+  ReInitGe();
+  (void)dlopen("nonexistent_lib_for_error.so", RTLD_NOW);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenFail>());
+  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+  Mkdir(om_path.c_str());
+  om_path = PathJoin(om_path.c_str(), "pb_amct_dlopen_fail_err");
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = "--output=" + om_path;
+  char *argv[] = {"atc",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--framework=3",
+                  "--out_nodes=add_test_1:0",
+                  "--soc_version=Ascend910B2",
+                  "--output_type=FP32",
+                  "--input_shape=Placeholder_1:1,256,256,3",
+                  "--status_check=0",
+                  "--compression_optimize_conf=./"
+  };
+  auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  MmpaStub::GetInstance().Reset();
+  ReInitGe();
+}
 }  // namespace ge
