@@ -24,7 +24,9 @@
 
 2. 根据页面提示创建NPU环境并配置规格，启动云开发环境后，单击“`连接 > WebIDE`”进入一站式开发平台。
 
-   当前开源项目资源默认在`/mnt/workspace/gitCode/${gitCode_id}`目录下，\$\{gitCode\_id\}表示开发者个人gitCode账号。
+   当前开源项目资源目录根据环境创建方式有所不同：
+   - 如果是从CANN社区仓库创建的环境，资源默认在`/mnt/workspace/gitCode/cann`目录下。
+   - 如果是从个人仓库fork的CANN仓库创建的环境，资源默认在`/mnt/workspace/gitCode/{fork仓库}`目录下。
 
    <img src="./figures/webIDE.png" alt="云平台"  width="1000px" height="150px">
 

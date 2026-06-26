@@ -24,7 +24,9 @@ For developers without Ascend devices, you can directly use CANNLab cloud develo
 
 2. Create NPU environment and configure specifications according to page prompts. After starting the cloud development environment, click "`Connect > WebIDE`" to enter the one-stop development platform.
 
-   Currently, open source project resources are located in the `/mnt/workspace/gitCode/${gitCode_id}` directory by default, where ${gitCode_id} represents the developer's personal gitCode account.
+   Currently, the open source project resource directory depends on how the environment was created:
+   - If created from the CANN community repository, resources are located in `/mnt/workspace/gitCode/cann`.
+   - If created from a personally forked CANN repository, resources are located in `/mnt/workspace/gitCode/{forked_repository}`.
 
    <img src="../zh/figures/webIDE.png" alt="Cloud Platform"  width="1000px" height="150px">
 
