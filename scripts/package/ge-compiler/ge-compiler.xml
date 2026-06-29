@@ -27,7 +27,6 @@
     </file_info>
     <block_info dependtree="false" dst_path="$(TARGET_ENV)" block_conf_path="ascend">
         <block name="EngineeringCommon"/>
-        <block name="EngineeringFiles"/>
         <block name="DevlibCommon"/>
         <block name="GeCompilerSo"/>
         <block name="GeCompilerInc"/>

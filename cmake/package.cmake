@@ -60,16 +60,9 @@ function(install_public_packages components)
         ${COMMON_FILES}
         ${CANN_CMAKE_DIR}/scripts/install/multi_version.inc
     )
-    set(CONF_FILES
-        ${CANN_CMAKE_DIR}/scripts/package/cfg/path.cfg
-    )
     install(FILES ${CMAKE_BINARY_DIR}/version.${components}.info
         DESTINATION share/info/${components}
         RENAME version.info
-        COMPONENT ${components}
-    )
-    install(FILES ${CONF_FILES}
-        DESTINATION ${ARCH_LINUX_PATH}/conf
         COMPONENT ${components}
     )
     install(FILES ${PACKAGE_FILES}
