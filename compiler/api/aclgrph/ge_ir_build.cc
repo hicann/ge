@@ -79,29 +79,8 @@ const std::string kInputFormat = "input_format";
 const std::string kShapeGeneralized = "shape_generalized";
 const std::string kShapePrecise = "shape_precise";
 const std::string kOffline = "offline";
-const std::string kOfflineModeOption = "ge.offlineMode";
-constexpr int32_t kOfflineModeOm = 0;
-constexpr int32_t kOfflineModeOm2 = 7;
-const std::unordered_set<std::string> kSupportedOfflineMode = {"0"};
 constexpr size_t kZipMagicSize = 4U;
 const uint8_t kZipLocalFileHeaderMagic[kZipMagicSize] = {0x50U, 0x4BU, 0x03U, 0x04U};
-const std::set<std::string> kOm2UnsupportedOptions = {
-    ge::ir_option::OP_NAME_MAP,
-    ge::ir_option::INSERT_OP_FILE,
-    ge::ir_option::AC_PARALLEL_ENABLE,
-    ge::ir_option::QUANT_DUMPABLE,
-    ge::ir_option::TILING_SCHEDULE_OPTIMIZE,
-    ge::ir_option::BUILD_INNER_MODEL,
-    ge::ir_option::INPUT_SHAPE_RANGE,
-    ge::ir_option::SHAPE_GENERALIZED_BUILD_MODE,
-    ge::OPTION_HOST_ENV_OS,
-    ge::OPTION_HOST_ENV_CPU,
-    ge::ir_option::VIRTUAL_TYPE,
-    ge::ir_option::ENABLE_SMALL_CHANNEL,
-    ge::ir_option::ENABLE_COMPRESS_WEIGHT,
-    ge::ir_option::COMPRESS_WEIGHT_CONF,
-    ge::ir_option::TUNE_DEVICE_IDS,
-};
 /**
  * @name  SetOpAttrFun
  * @brief set attribute for operators in the configuration file
@@ -160,61 +139,6 @@ Status CheckInputHintShape(const std::map<std::string, std::string> &global_opti
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector({"reason"}), std::vector({reason.c_str()}));
     GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] %s", reason.c_str());
     return GRAPH_PARAM_INVALID;
-  }
-  return GRAPH_SUCCESS;
-}
-
-graphStatus ParseOfflineMode(const std::map<std::string, std::string> &options, int32_t &offline_mode) {
-  offline_mode = kOfflineModeOm;
-  const auto iter = options.find(kOfflineModeOption);
-  if (iter == options.end()) {
-    return GRAPH_SUCCESS;
-  }
-  if (iter->second.empty()) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param]Option[%s] cannot be empty.", kOfflineModeOption.c_str());
-    return GRAPH_PARAM_INVALID;
-  }
-  GE_ASSERT_SUCCESS(CheckOptionValidValues(options, kOfflineModeOption, kSupportedOfflineMode));
-  if (ge::ConvertToInt32(iter->second, offline_mode) != SUCCESS) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param]Option[%s] value[%s] is invalid.",
-           kOfflineModeOption.c_str(), iter->second.c_str());
-    return GRAPH_PARAM_INVALID;
-  }
-  if ((offline_mode != kOfflineModeOm) && (offline_mode != kOfflineModeOm2)) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param]Option[%s] value[%s] is not supported.",
-           kOfflineModeOption.c_str(), iter->second.c_str());
-    return GRAPH_PARAM_INVALID;
-  }
-  return GRAPH_SUCCESS;
-}
-
-bool IsOm2BuildMode(const int32_t offline_mode) {
-  return offline_mode == kOfflineModeOm2;
-}
-
-graphStatus ReportOm2UnsupportedOption(const std::string &option, const std::string &value) {
-  REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-                            std::vector<const char_t *>({option.c_str(), value.c_str(),
-                                                         "this option is not supported in om2 mode."}));
-  GELOGE(GRAPH_PARAM_INVALID, "[Check][Option]option [%s] is not supported in om2 mode.", option.c_str());
-  return GRAPH_PARAM_INVALID;
-}
-
-graphStatus CheckOm2UnsupportedOptions(const std::map<std::string, std::string> &options) {
-  for (const auto &option : options) {
-    if (kOm2UnsupportedOptions.count(option.first) > 0U) {
-      return ReportOm2UnsupportedOption(option.first, option.second);
-    }
-  }
-  return GRAPH_SUCCESS;
-}
-
-graphStatus CheckUserSpecifiedGlobalOptionsForOm2() {
-  const auto &user_global_option_keys = GetMutableUserGlobalOptionKeys();
-  for (const auto &key : user_global_option_keys) {
-    if (kOm2UnsupportedOptions.count(key) > 0U) {
-      return ReportOm2UnsupportedOption(key, "");
-    }
   }
   return GRAPH_SUCCESS;
 }
@@ -1082,16 +1006,6 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
     return ret;
   }
   GE_ASSERT_SUCCESS(CheckInputHintShape(options));
-  int32_t offline_mode = kOfflineModeOm;
-  ret = ParseOfflineMode(options, offline_mode);
-  if (ret != GRAPH_SUCCESS) {
-    GELOGE(ret, "[Init][GeGenerator]Parse model offline mode failed!");
-    return ret;
-  }
-  if (IsOm2BuildMode(offline_mode)) {
-    GE_ASSERT_SUCCESS(CheckOm2UnsupportedOptions(options), "[Check][OM2][BuildOptions] failed!");
-    GE_ASSERT_SUCCESS(CheckUserSpecifiedGlobalOptionsForOm2(), "[Check][OM2][GlobalOptions] failed!");
-  }
   ge::PrintOptionMap(options, "BuildModel option");
   ret = Init(graph, options);
   if (ret != GRAPH_SUCCESS) {
@@ -1115,15 +1029,10 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
   }
 
   // 3. build IR model
-  ret = IsOm2BuildMode(offline_mode) ? generator_.GenerateOnlineOm2Model(graph, inputs, model)
-                                     : generator_.GenerateOnlineModel(graph, inputs, model);
+  ret = generator_.GenerateOnlineModel(graph, inputs, model);
   if (ret != GRAPH_SUCCESS) {
     GELOGE(ret, "[Generate][OnlineModel] failed!");
     return ret;
-  }
-  if (IsOm2BuildMode(offline_mode) && ((model.data == nullptr) || (model.length == 0U))) {
-    GELOGE(GRAPH_FAILED, "[Check][ModelBufferData] OM2 model buffer is empty.");
-    return GRAPH_FAILED;
   }
   return GRAPH_SUCCESS;
 }
