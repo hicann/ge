@@ -22,6 +22,7 @@ add_dependencies(aihac_autofusion metadef_graph_protos_obj)
 #endif ()
 
 target_include_directories(aihac_autofusion BEFORE PRIVATE
+       ${CODE_ROOT_DIR}
        ${AIR_CODE_DIR}/inc
        ${AIR_CODE_DIR}/inc/graph_metadef
        ${AIR_CODE_DIR}/inc/graph_metadef/graph
@@ -29,6 +30,7 @@ target_include_directories(aihac_autofusion BEFORE PRIVATE
        ${AIR_CODE_DIR}/inc/graph_metadef/external/graph
        ${AIR_CODE_DIR}/inc/graph_metadef/external/exe_graph
        ${AIR_CODE_DIR}/base
+       ${TOP_DIR}/air/compiler/graph/optimize/
 )
 
 target_compile_definitions(aihac_autofusion PRIVATE

@@ -15,7 +15,6 @@
 #include "utils/not_fuse_reason_code.h"
 #include "slice_split_fusion_strategy.h"
 #include "backend/backend_spec.h"
-#include "base/base_types.h"
 
 namespace ge {
 namespace {
