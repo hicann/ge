@@ -10,7 +10,6 @@
 
 #include "flatten_split_pass.h"
 
-#include "ascir.h"
 #include "backend/backend_spec.h"
 #include "common/checker.h"
 #include "graph_metadef/graph/debug/ge_util.h"

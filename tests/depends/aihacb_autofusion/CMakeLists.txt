@@ -42,6 +42,8 @@ target_link_options(aihacb_autofusion_stub PRIVATE
         )
 
 target_include_directories(aihacb_autofusion_stub BEFORE PRIVATE
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/graph
         ${AIR_CODE_DIR}/inc
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${AIR_CODE_DIR}/inc/graph_metadef/graph

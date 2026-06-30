@@ -27,7 +27,6 @@
 #include "lowerings.h"
 #include "lowering_query.h"
 
-#include "ascir_ops_utils.h"
 #include "backend/backend_spec.h"
 
 namespace ge {

@@ -1352,6 +1352,7 @@ target_include_directories(ge_manual_test BEFORE PRIVATE
         ${AIR_CODE_DIR}/graph_metadef
 )
 target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/meta
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion

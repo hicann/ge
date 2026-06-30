@@ -15,7 +15,25 @@
 #include "ascendc_ir_def.h"
 #include "ascendc_ir/utils/asc_graph_utils.h"
 #include "ascir_ops.h"
-#include "ascir_ops_utils.h"
+
+namespace ge {
+namespace ops {
+static Expression Zero = Symbol(0);
+static Expression One = Symbol(1);
+
+template <typename T>
+bool IsOps(const AscNodePtr &node) {
+  return node->GetType() == T::Type;
+}
+
+template <typename T>
+bool IsOps(const AscNode *node) {
+  return node->GetType() == T::Type;
+}
+}  // namespace ops
+}  // namespace ge
+
+namespace ops = ge::ops;
 
 using namespace ge;
 

@@ -28,7 +28,6 @@
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
-#include "ascend_graph_code_dumper.h"
 #include "graph/ge_context.h"
 #include "post_process/post_process_util.h"
 

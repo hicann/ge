@@ -21,7 +21,6 @@
 #include <unordered_map>
 #include <algorithm>
 #include <fstream>
-#include "base/base_types.h"
 #include "common/checker.h"
 #include "graph/types.h"
 #include "mmpa/mmpa_api.h"
@@ -188,8 +187,8 @@ class AutoFuseConfig {
   };
 
   struct LoweringStrategyConfig {
-    uint64_t max_fused_loop_ops{64U};  // loop融合循环节点的最大loop ops数
-    size_t max_buffer_readers{4U};     // kernel box最大允许的读取node数量，超过该数量则会终止融合
+    uint64_t max_fused_loop_ops{64U};    // loop融合循环节点的最大loop ops数
+    size_t max_buffer_readers{4U};       // kernel box最大允许的读取node数量，超过该数量则会终止融合
     size_t max_k_for_vectorize_mm{32U};  // 在n=1时，k小于等于该值，则触发将mm转换为mul+reduce的vector计算
     size_t recomputation_threshold{1U};  // 单输出节点重计算阈值，节点输出output个数大于该值将realize
     bool experimental_lowering_reduce{false};
@@ -203,7 +202,7 @@ class AutoFuseConfig {
     bool experimental_disable_lifting{false};
     std::unordered_set<std::string> skip_node_types;  // 需要跳过lowering的节点类型
     std::unordered_set<std::string> skip_node_names;  // 需要跳过lowering的节点名称
-    bool enable_subgraph_recover{false};  // 是否使能融合子图还原落盘（--subgraph_recover=true）
+    bool enable_subgraph_recover{false};              // 是否使能融合子图还原落盘（--subgraph_recover=true）
   };
 
  public:
