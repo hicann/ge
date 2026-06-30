@@ -1368,7 +1368,7 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
   // 清理环境变量
   mmSetEnv(kEnvValue, "", 1);
 }
-// 校验输入hint shape的index校验失败
+// atc支持input_hint_shape, 校验输入hint shape的index校验成功
 TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_shpae_index_invalid) {
   mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
@@ -1391,14 +1391,14 @@ TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_shpae_index_invalid) 
                   "--status_check=0"};
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, -1);
+  EXPECT_EQ(ret, 0);
   ReInitGe();  // the main_impl will call GEFinalize, so re-init after call it
   unsetenv("AUTOFUSE_FLAGS");
   unsetenv("ASCEND_OPP_PATH");
 }
 
-// 校验输入hint shape不匹配，符号推到失败场景
-TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_failed) {
+// atc支持input_hint_shape, 校验输入hint shape匹配，符号推导成功场景
+TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape) {
   mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
   ReInitGe();
@@ -1421,7 +1421,7 @@ TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_failed) {
                   "--status_check=0"};
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, -1);
+  EXPECT_EQ(ret, 0);
   ReInitGe();  // the main_impl will call GEFinalize, so re-init after call it
   unsetenv("AUTOFUSE_FLAGS");
   unsetenv("ASCEND_OPP_PATH");
@@ -3443,14 +3443,6 @@ TEST_F(AtcCommonSTest, CheckDisplayModelInfo_Failed) {
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
 }
 
-TEST_F(AtcCommonSTest, GeFlags_set_input_hint_shpae_failed) {
-  char *argv[] = {
-      "atc"
-      "--input_hint_shape=0:[3];1:[3]"};
-  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_NE(ret, 0);
-}
-
 TEST_F(AtcCommonSTest, TestAtc_Ok_Om2) {
   mmSetEnv("ASCEND_WORK_PATH", test_work_dir.c_str(), 1);
   const auto ascend_install_path = EnvPath().GetAscendInstallPath();
@@ -3526,8 +3518,7 @@ TEST_F(AtcCommonSTest, pb_model_amct_interface_dlopen_fail_no_error) {
                   "--output_type=FP32",
                   "--input_shape=Placeholder_1:1,256,256,3",
                   "--status_check=0",
-                  "--compression_optimize_conf=./"
-  };
+                  "--compression_optimize_conf=./"};
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_NE(ret, 0);
   MmpaStub::GetInstance().Reset();
@@ -3563,8 +3554,7 @@ TEST_F(AtcCommonSTest, pb_model_amct_interface_dlopen_fail_with_error) {
                   "--output_type=FP32",
                   "--input_shape=Placeholder_1:1,256,256,3",
                   "--status_check=0",
-                  "--compression_optimize_conf=./"
-  };
+                  "--compression_optimize_conf=./"};
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_NE(ret, 0);
   MmpaStub::GetInstance().Reset();
@@ -3581,8 +3571,8 @@ TEST_F(AtcCommonSTest, pb_model_load_custom_op_with_legacy_so) {
   std::string cmd = "mkdir -p " + plugin_dir + " && mkdir -p " + lib_dir;
   system(cmd.c_str());
 
-  std::vector<std::string> fake_sos = {"libcustom_op1.so", "libcustom_op2_legacy.so",
-                                        "libcustom_op3.so", "libcustom_op4_legacy.so"};
+  std::vector<std::string> fake_sos = {"libcustom_op1.so", "libcustom_op2_legacy.so", "libcustom_op3.so",
+                                       "libcustom_op4_legacy.so"};
   for (const auto &so_name : fake_sos) {
     std::ofstream(plugin_dir + so_name) << "fake";
   }

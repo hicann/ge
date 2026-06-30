@@ -501,6 +501,96 @@ if (NOT ENABLE_OPEN_SRC)
 endif ()
 
 
+#############################################################
+set(STUB_BASE_HEADER_LIST
+    ${GE_METADEF_INC_DIR}/external/graph/operator.h
+    ${GE_METADEF_INC_DIR}/graph/ge_tensor.h
+    ${GE_METADEF_INC_DIR}/external/graph/graph_buffer.h
+)
+
+if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
+    list(APPEND STUB_BASE_HEADER_LIST
+        ${METADEF_INC_PATH}/graph/tensor.h
+    )
+else ()
+    list(APPEND STUB_BASE_HEADER_LIST
+        ${METADEF_DIR}/inc/external/graph/tensor.h
+    )
+endif ()
+
+list(TRANSFORM STUB_BASE_HEADER_LIST
+    REPLACE "^.*/([^/]+)\\.h$" "${CMAKE_CURRENT_BINARY_DIR}/stub_base/stub_\\1.cc"
+    OUTPUT_VARIABLE STUB_BASE_SRC_LIST
+)
+
+add_custom_command(
+    OUTPUT ${STUB_BASE_SRC_LIST}
+    COMMAND echo "Generating stub base files."
+            && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR}/stub_base/ ${STUB_BASE_HEADER_LIST}
+            && echo "Generating stub base files end."
+)
+
+add_custom_target(graph_base_stub DEPENDS ${STUB_BASE_SRC_LIST})
+
+############ stub/libgraph_base.so ############
+add_library(atc_stub_graph_base SHARED ${STUB_BASE_SRC_LIST})
+
+add_dependencies(atc_stub_graph_base graph_base_stub)
+
+target_include_directories(atc_stub_graph_base PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_BINARY_DIR}
+    ${METADEF_DIR}
+    ${GE_METADEF_DIR}
+    ${AIR_CODE_DIR}/inc
+    ${AIR_CODE_DIR}/inc/graph_metadef
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+)
+
+target_compile_options(atc_stub_graph_base PRIVATE
+    -Wfloat-equal
+    -fno-common
+    -Werror=return-type
+    -Wno-unused-parameter
+)
+
+target_link_libraries(atc_stub_graph_base
+    PRIVATE
+        ge_intf_pub_Os
+        mmpa_headers
+        c_sec
+        slog_headers
+        error_manager_headers
+        runtime_headers
+        $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
+        -ldl
+    PUBLIC
+        ge_metadef_headers
+)
+
+set_target_properties(atc_stub_graph_base PROPERTIES
+    OUTPUT_NAME graph_base
+    LIBRARY_OUTPUT_DIRECTORY atc_stub
+)
+
+############ stub/libgraph_base.a ############
+if (NOT ENABLE_OPEN_SRC)
+    target_clone(atc_stub_graph_base atc_stub_graph_base_static STATIC)
+
+    add_dependencies(atc_stub_graph_base_static graph_base_stub)
+
+    target_compile_options(atc_stub_graph_base_static PRIVATE
+        -ffunction-sections
+        -fdata-sections
+    )
+
+    set_target_properties(atc_stub_graph_base_static PROPERTIES
+        OUTPUT_NAME graph_base
+        ARCHIVE_OUTPUT_DIRECTORY atc_stub
+    )
+endif ()
+
 ############ fwk_stub/libgraph.so ############
 add_library(fwk_stub_graph SHARED ${STUB_SRC_LIST})
 
@@ -546,7 +636,7 @@ set_target_properties(fwk_stub_graph PROPERTIES
 add_subdirectory(expression)
 
 ############ install ############
-install(TARGETS atc_stub_graph ${INSTALL_OPTIONAL}
+install(TARGETS atc_stub_graph atc_stub_graph_base ${INSTALL_OPTIONAL}
     LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/stub
 )
 

@@ -548,7 +548,7 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
                     graph custom_op_registry_static npu_sched_model_loader lowering register_static graph_base model_deployer
                     data_flow_base hcom_executor)
             add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_mdl_impl_om2 acl_op_executor acl_op_executor_impl acl_cblas)
-            add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register stub_acl_mdl
+            add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph atc_stub_graph_base gert_stub hybrid_executor_stub stub_register stub_acl_mdl
                     stub_acl_cblas stub_acl_op_executor)
             if(NOT ENABLE_MOD_EXT) # 交叉编译
                 add_dependencies(ge-executor runtime_update_model_param_dav_2201)

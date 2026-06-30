@@ -48,7 +48,7 @@ if (NOT ENABLE_OPEN_SRC)
     install(TARGETS graph_base_static metadef_static
         ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL}
     )
-    install(TARGETS atc_stub_graph_static stub_exe_graph_static stub_register_static
+    install(TARGETS atc_stub_graph_static atc_stub_graph_base_static stub_exe_graph_static stub_register_static
         ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/stub ${INSTALL_OPTIONAL}
     )
 endif ()
