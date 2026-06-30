@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -12,7 +12,6 @@
 #include "es_all_ops.h"
 #include "ge/fusion/pass/decompose_pass.h"
 #include "ge/fusion/infer_shape_util.h"
-#include "ge/ge_utils.h"
 
 using namespace ge;
 using namespace fusion;
@@ -100,24 +99,14 @@ protected:
         auto res = es::Concat(replacement_graph_builder.CreateScalar(1), convs, groups);
         auto replace_graph = replacement_graph_builder.BuildAndReset({res});
         // 当前pass注册在after infershape阶段，需要自行保证替换部分的shape连续
-        if (!InferShape(matched_node, *replace_graph)) {
-            return nullptr;
-        }
-        return replace_graph;
-    }
-
-private:
-    // 因为pass会被重复执行，不建议使用私有成员
-    // 如果使用，需要保证pass对象的可重入性
-    bool InferShapeAndCheckSupport(const GNode &matched_node, const Graph &graph) {
         // 使用 ge::fusion::InferShapeUtil 提供的 InferShape 接口做 shape/dtype 推导
         // 该接口会自动从 matched_node 边界获取输入 tensor desc（shape/dtype/format）
-        if (InferShapeUtil::InferShape(graph, matched_node) != SUCCESS) {
-            std::cout << "InferShapeUtil::InferShape failed" << std::endl;
-            return false;
+        if (InferShapeUtil::InferShape(*replace_graph, matched_node) != SUCCESS) {
+          std::cout << "InferShapeUtil::InferShape failed" << std::endl;
+          return nullptr;
         }
-        return true;
-    }
+        return replace_graph;
+  }
 };
 
 REG_DECOMPOSE_PASS(DecomposeGroupedConvToSplitedPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInferShape);
