@@ -208,19 +208,33 @@ except Exception:
     pybind_include = ""
 
 version = sysconfig.get_config_var("VERSION") or f"{sys.version_info.major}.{sys.version_info.minor}"
-libdir = sysconfig.get_config_var("LIBDIR") or ""
+lib_version = version + ("m" if sys.version_info[:2] <= (3, 7) else "") if version else ""
+libdirs = []
+for item in [
+    os.path.join(sys.prefix, "lib"),
+    os.path.join(sys.exec_prefix, "lib"),
+    os.path.abspath(os.path.join(os.path.dirname(sys.executable), "..", "lib")),
+    sysconfig.get_config_var("LIBDIR") or "",
+]:
+    if item and item not in libdirs:
+        libdirs.append(item)
 candidates = [
     sysconfig.get_config_var("LDLIBRARY"),
     sysconfig.get_config_var("INSTSONAME"),
     sysconfig.get_config_var("LIBRARY"),
-    f"libpython{version}.so.1.0" if version else "",
-    f"libpython{version}.so" if version else "",
+    f"libpython{lib_version}.so.1.0" if lib_version else "",
+    f"libpython{lib_version}.so" if lib_version else "",
 ]
 seen = []
 for candidate in candidates:
     if candidate and candidate not in seen:
         seen.append(candidate)
-matches = [os.path.join(libdir, item) for item in seen if libdir and os.path.exists(os.path.join(libdir, item))]
+matches = []
+for item in seen:
+    for directory in libdirs:
+        path = os.path.join(directory, item)
+        if os.path.exists(path):
+            matches.append(path)
 shared = next((item for item in matches if ".so" in os.path.basename(item)), "")
 print(json.dumps({
     "version": sys.version.split()[0],

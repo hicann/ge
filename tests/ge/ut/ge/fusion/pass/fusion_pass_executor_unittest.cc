@@ -391,6 +391,8 @@ void ResetPatternFusionRuntimeSnapshot() {
 
 std::atomic<bool> g_force_py_is_initialized_init_failure{false};
 std::atomic<uint32_t> g_py_is_initialized_call_count{0U};
+std::atomic<bool> g_force_py_get_version_probe_failure{false};
+constexpr const char *kProbeFailurePyVersion = "invalid-runtime";
 
 int QueryRealPyIsInitializedForUt() {
   using PyIsInitializedFn = int (*)();
@@ -406,6 +408,19 @@ extern "C" int Py_IsInitialized() {
   return QueryRealPyIsInitializedForUt();
 }
 
+const char *QueryRealPyGetVersionForUt() {
+  using PyGetVersionFn = const char *(*)();
+  auto *py_get_version = reinterpret_cast<PyGetVersionFn>(dlsym(RTLD_NEXT, "Py_GetVersion"));
+  return (py_get_version == nullptr) ? "" : py_get_version();
+}
+
+extern "C" const char *Py_GetVersion() {
+  if (g_force_py_get_version_probe_failure.load(std::memory_order_acquire)) {
+    return kProbeFailurePyVersion;
+  }
+  return QueryRealPyGetVersionForUt();
+}
+
 class ScopedPyIsInitializedInitFailureForUt {
  public:
   ScopedPyIsInitializedInitFailureForUt() {
@@ -414,6 +429,21 @@ class ScopedPyIsInitializedInitFailureForUt {
   }
 
   ~ScopedPyIsInitializedInitFailureForUt() {
+    g_force_py_is_initialized_init_failure.store(false, std::memory_order_release);
+    g_py_is_initialized_call_count.store(0U, std::memory_order_release);
+  }
+};
+
+class ScopedPyRuntimeProbeFailureForUt {
+ public:
+  ScopedPyRuntimeProbeFailureForUt() {
+    g_force_py_is_initialized_init_failure.store(true, std::memory_order_release);
+    g_py_is_initialized_call_count.store(0U, std::memory_order_release);
+    g_force_py_get_version_probe_failure.store(true, std::memory_order_release);
+  }
+
+  ~ScopedPyRuntimeProbeFailureForUt() {
+    g_force_py_get_version_probe_failure.store(false, std::memory_order_release);
     g_force_py_is_initialized_init_failure.store(false, std::memory_order_release);
     g_py_is_initialized_call_count.store(0U, std::memory_order_release);
   }
@@ -595,6 +625,57 @@ void ForgetNativeModuleForUt() {
                         "        sys.modules.pop(name, None)\n");
 }
 
+class ScopedLoadedPythonPassForUt {
+ public:
+  ~ScopedLoadedPythonPassForUt() {
+    UnloadPythonPasses();
+  }
+};
+
+const std::string &GetBridgeConfigDirForUt() {
+  static ScopedTempDir temp_dir;
+  static const std::string dir = []() {
+    temp_dir.MakeDir("ge/passes");
+    WriteFile(temp_dir.CreateFilePath("ge/__init__.py"), "");
+    WriteFile(temp_dir.CreateFilePath("ge/passes/__init__.py"),
+              "def clear_registered_passes():\n"
+              "    pass\n");
+    WriteFile(temp_dir.CreateFilePath("ge/passes/fake_native.py"), "configured_native_loaded = True\n");
+    WriteFile(temp_dir.CreateFilePath("ge/passes/_bridge.py"),
+              "def clear_pass_holders():\n"
+              "    pass\n"
+              "\n"
+              "def clear_loaded_pass_modules():\n"
+              "    pass\n");
+    return temp_dir.FilePath("");
+  }();
+  return dir;
+}
+
+const std::string &GetBridgeNativeModulePathForUt() {
+  static const std::string path = GetBridgeConfigDirForUt() + "/ge/passes/fake_native.py";
+  return path;
+}
+
+void RestoreBridgeConfigForUt(const PythonFusionPassBridgeApi &api) {
+  if (api.set_artifact_config == nullptr) {
+    return;
+  }
+
+  PythonFusionPassBridgeArtifactConfig config = {nullptr, GetBridgeNativeModulePathForUt().c_str()};
+  (void)api.set_artifact_config(&config);
+}
+
+void CleanupBridgeStateForUt(const PythonFusionPassBridgeApi &api) {
+  ScopedEnvVar scoped_python_path("PYTHONPATH", GetBridgeConfigDirForUt());
+  ScopedPythonPathForUt scoped_sys_path(GetBridgeConfigDirForUt());
+  RestoreBridgeConfigForUt(api);
+  if (api.reset_bridge_state != nullptr) {
+    api.reset_bridge_state();
+  }
+  ForgetNativeModuleForUt();
+}
+
 int g_direct_bridge_registered_count = 0;
 
 bool RecordPythonPassFromDirectBridge(const PythonPassDescriptor *pass_desc,
@@ -709,8 +790,6 @@ class UtestFusionPassExecutor : public testing::Test {
   void SetUp() override {
     PreparePythonPathForSt();
     (void)unsetenv(kEnvPythonPassPath);
-    // 逐 case 只清理 Python pass 业务态，避免在同一测试进程内反复 finalize/dlclose。
-    UnloadPythonPasses();
     PassRegistry::GetInstance().name_2_fusion_pass_regs_.clear();
     PassRegistry::GetInstance().descriptor_key_2_python_pass_descs_.clear();
     PassRegistry::GetInstance().pass_name_2_python_pass_create_contexts_.clear();
@@ -725,7 +804,6 @@ class UtestFusionPassExecutor : public testing::Test {
   }
   void TearDown() override {
     (void)unsetenv(kEnvPythonPassPath);
-    UnloadPythonPasses();
     PassRegistry::GetInstance().name_2_fusion_pass_regs_.clear();
     PassRegistry::GetInstance().descriptor_key_2_python_pass_descs_.clear();
     PassRegistry::GetInstance().pass_name_2_python_pass_create_contexts_.clear();
@@ -752,14 +830,17 @@ class UtestFusionPassExecutor : public testing::Test {
         const std::string new_python_path = std::string(ST_FUSION_PASS_PY_INSTALL_DIR) + ":" + python_path_bak_;
         (void)setenv("PYTHONPATH", new_python_path.c_str(), 1);
       }
+      PrependPythonPathForUt(ST_FUSION_PASS_PY_INSTALL_DIR);
       return;
     }
     (void)setenv("PYTHONPATH", ST_FUSION_PASS_PY_INSTALL_DIR, 1);
+    PrependPythonPathForUt(ST_FUSION_PASS_PY_INSTALL_DIR);
 #endif
   }
 
   void RestorePythonPathForSt() {
 #ifdef ST_FUSION_PASS_PY_INSTALL_DIR
+    RemovePythonPathForUt(ST_FUSION_PASS_PY_INSTALL_DIR);
     if (has_python_path_bak_) {
       (void)setenv("PYTHONPATH", python_path_bak_.c_str(), 1);
     } else {
@@ -1380,7 +1461,9 @@ TEST_F(UtestFusionPassExecutor, PythonPassBridgeLoader_ProbesPathPythonRuntime) 
   ASSERT_EQ(chmod(fake_python.c_str(), 0700), 0);
 
   ScopedEnvVar scoped_path("PATH", temp_dir.FilePath(""));
+  ScopedPyRuntimeProbeFailureForUt scoped_probe_failure;
   EXPECT_EQ(RegisterPythonPassesFromPlugin(), FAILED);
+  ShutdownPythonPassesForProcess();
 }
 
 TEST_F(UtestFusionPassExecutor, PythonPassBridgeLoader_SkipsBrokenPrebuiltCandidate) {
@@ -1470,7 +1553,7 @@ TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_ConfiguredNativeModulePathF
   g_direct_bridge_registered_count = 0;
   EXPECT_EQ(api->register_passes(&registrar), FAILED);
   EXPECT_EQ(g_direct_bridge_registered_count, 0);
-  ForgetNativeModuleForUt();
+  CleanupBridgeStateForUt(*api);
 }
 
 TEST_F(UtestFusionPassExecutor, PythonPassPybindBridge_InterpreterInitializationFailed) {
@@ -1524,6 +1607,7 @@ TEST_F(UtestFusionPassExecutor, PythonPassPybindBridge_InterpreterInitialization
   api->reset_bridge_state();
   ForgetNativeModuleForUt();
   EXPECT_EQ(g_direct_bridge_registered_count, 0);
+  CleanupBridgeStateForUt(*api);
 }
 
 TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_LoadsConfiguredNativeModulePath) {
@@ -1581,7 +1665,7 @@ TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_LoadsConfiguredNativeModule
 
   api->reset_bridge_state();
   EXPECT_EQ(api->set_artifact_config(&empty_config), SUCCESS);
-  ForgetNativeModuleForUt();
+  CleanupBridgeStateForUt(*api);
 }
 
 TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_PybindBridge_RunSuccess) {
@@ -1591,6 +1675,7 @@ TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_PybindBridge_RunSuccess) {
 
   ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindPassFilePath());
   ASSERT_EQ(RegisterPythonPassesFromPlugin(), SUCCESS);
+  ScopedLoadedPythonPassForUt loaded_python_pass;
 
   auto target_compute_graph = gert::ShareGraph::BuildSingleNodeGraph();
   const auto expected_graph_name = target_compute_graph->GetName();
@@ -1604,6 +1689,7 @@ TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_PybindBridge_RunFailedOnPyt
   EnsureSharedPybindPassFile();
   ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindPassFilePath());
   ASSERT_EQ(RegisterPythonPassesFromPlugin(), SUCCESS);
+  ScopedLoadedPythonPassForUt loaded_python_pass;
 
   auto target_compute_graph = gert::ShareGraph::BuildSingleNodeGraph();
   FusionPassExecutor pass_executor;
@@ -1617,6 +1703,7 @@ TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_PybindBridge_RunSuccess)
 
   ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindPatternPassFilePath());
   ASSERT_EQ(RegisterPythonPassesFromPlugin(), SUCCESS);
+  ScopedLoadedPythonPassForUt loaded_python_pass;
 
   auto target_graph = ge::es::EsGraphBuilder("python_pattern_target");
   auto *esb_graph = target_graph.GetCGraphBuilder();
@@ -1654,6 +1741,7 @@ TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_PybindBridge_MatcherConf
 
   ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindPatternMatcherConfigPassFilePath());
   ASSERT_EQ(RegisterPythonPassesFromPlugin(), SUCCESS);
+  ScopedLoadedPythonPassForUt loaded_python_pass;
 
   auto target_graph = ge::es::EsGraphBuilder("python_pattern_matcher_config_target");
   auto *esb_graph = target_graph.GetCGraphBuilder();
@@ -1690,6 +1778,7 @@ TEST_F(UtestFusionPassExecutor, PythonDecomposePass_PybindBridge_RunSuccess) {
 
   ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindDecomposePassFilePath());
   ASSERT_EQ(RegisterPythonPassesFromPlugin(), SUCCESS);
+  ScopedLoadedPythonPassForUt loaded_python_pass;
 
   auto target_graph = ge::es::EsGraphBuilder("python_decompose_target");
   auto *esb_graph = target_graph.GetCGraphBuilder();
@@ -1976,8 +2065,8 @@ TEST_F(UtestFusionPassExecutor, RunPasses_SkipOrphanSubgraph) {
   // 顶层图能正常处理，孤儿子图被安全跳过，不应崩溃。
   EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
 }
-} // namespace fusion
-} // namespace ge
+}  // namespace fusion
+}  // namespace ge
 
 // CPython 内部分配器（_PyObject_Malloc / PyThread_allocate_lock）在 Py_Finalize()
 // 后仍有残余内存不被回收，这是 CPython 的已知行为，不是业务代码的泄漏。

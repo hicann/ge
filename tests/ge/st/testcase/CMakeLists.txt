@@ -136,6 +136,8 @@ target_include_directories(graph_engine_test PRIVATE
 
 target_link_options(graph_engine_test PRIVATE
     -Wl,--disable-new-dtags
+    -rdynamic
+    -Wl,-Bsymbolic
 )
 
 target_link_libraries(graph_engine_test
@@ -223,6 +225,8 @@ target_include_directories(ge_common_atc PRIVATE
 
 target_link_options(ge_common_atc PRIVATE
     -Wl,--disable-new-dtags
+    -rdynamic
+    -Wl,-Bsymbolic
     )
 
 target_link_libraries(ge_common_atc
@@ -351,6 +355,7 @@ target_link_options(graph_engine_compile_test PRIVATE
         -Wl,--disable-new-dtags
         -Wl,-rpath,${CMAKE_BINARY_DIR}/compiler
         -rdynamic
+        -Wl,-Bsymbolic
 )
 target_link_libraries(graph_engine_compile_test
         intf_llt_pub

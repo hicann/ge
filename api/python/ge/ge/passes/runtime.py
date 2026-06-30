@@ -72,40 +72,66 @@ def _fallback_artifact_dir() -> Path:
     return artifacts_root() / f"{current_python_tag()}-{current_platform_tag()}"
 
 
-def _query_current_python_build_info() -> Optional[PythonBuildInfo]:
+def _resolve_pybind_include() -> Optional[Path]:
     try:
         import pybind11
-        pybind_include = Path(pybind11.get_include())
-        if not pybind_include.is_dir():
-            pybind_include = None
-    except Exception:
-        pybind_include = None
 
-    version = sysconfig.get_config_var("VERSION") or f"{sys.version_info.major}.{sys.version_info.minor}"
-    libdir = sysconfig.get_config_var("LIBDIR") or ""
+        include = Path(pybind11.get_include())
+        if not include.is_dir():
+            return None
+        return include
+    except Exception:
+        return None
+
+
+def _resolve_libpython_dirs() -> List[Path]:
+    libdirs: List[Path] = []
+    for item in [
+        Path(sys.prefix) / "lib",
+        Path(sys.exec_prefix) / "lib",
+        Path(sys.executable).resolve().parent.parent / "lib",
+        sysconfig.get_config_var("LIBDIR") or "",
+    ]:
+        path = Path(item)
+        if item and path not in libdirs:
+            libdirs.append(path)
+    return libdirs
+
+
+def _resolve_python_library(lib_version: str) -> Optional[Path]:
     candidates = [
         sysconfig.get_config_var("LDLIBRARY"),
         sysconfig.get_config_var("INSTSONAME"),
         sysconfig.get_config_var("LIBRARY"),
-        f"libpython{version}.so.1.0" if version else "",
-        f"libpython{version}.so" if version else "",
+        f"libpython{lib_version}.so.1.0" if lib_version else "",
+        f"libpython{lib_version}.so" if lib_version else "",
     ]
     seen: List[str] = []
     for candidate in candidates:
         if candidate and candidate not in seen:
             seen.append(candidate)
-    matches = [
-        Path(libdir) / item for item in seen
-        if libdir and (Path(libdir) / item).exists()
-    ]
+    libdirs = _resolve_libpython_dirs()
+    matches = []
+    for item in seen:
+        for directory in libdirs:
+            path = directory / item
+            if path.exists():
+                matches.append(path)
     shared = next((item for item in matches if ".so" in item.name), None)
     library = shared or (matches[0] if matches else None)
+    if library is not None and not library.is_file():
+        return None
+    return library
 
+
+def _query_current_python_build_info() -> Optional[PythonBuildInfo]:
+    pybind_include = _resolve_pybind_include()
+    version = sysconfig.get_config_var("VERSION") or f"{sys.version_info.major}.{sys.version_info.minor}"
+    lib_version = version + ("m" if sys.version_info[:2] <= (3, 7) else "") if version else ""
+    library = _resolve_python_library(lib_version)
     include_dir = Path(sysconfig.get_path("include") or sysconfig.get_config_var("INCLUDEPY") or "")
     if not include_dir.is_dir():
         return None
-    if library is not None and not library.is_file():
-        library = None
     return PythonBuildInfo(
         tag=current_python_tag(),
         executable=sys.executable,
