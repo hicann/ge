@@ -207,9 +207,9 @@ void DataDumper::SetWorkSpaceAddrForPrint(const std::shared_ptr<OpDesc> &op_desc
         if (ret != SUCCESS) {
             GELOGE(ret, "[DumpOpWithAdump] for print op %s", op_desc->GetName().c_str());
         }
-      }      
+      }
     }
-  } 
+  }
 }
 
 std::vector<Adx::DumpAttr> DataDumper::BuildDumpAttrs() const {
@@ -219,10 +219,11 @@ std::vector<Adx::DumpAttr> DataDumper::BuildDumpAttrs() const {
   auto addAttr = [&attrs, this, &dumpStep](Adx::DumpAttrId id) {
     Adx::DumpAttr attr;
     attr.id = id;
+    const std::string &dump_model_name = om_name_.empty() ? model_name_ : om_name_;
     if (id == Adx::DUMP_ATTR_MODEL_NAME) {
-      attr.value.modelName = const_cast<char*>(model_name_.c_str());
+      attr.value.modelName = const_cast<char *>(dump_model_name.c_str());
     } else if (id == Adx::DUMP_ATTR_MODEL_NAMESIZE) {
-      attr.value.modelNameSize = model_name_.size();
+      attr.value.modelNameSize = dump_model_name.size();
     } else if (id == Adx::DUMP_ATTR_MODEL_ID) {
       attr.value.modelId = model_id_;
     } else if (id == Adx::DUMP_ATTR_STEP_ID_ADDR) {
@@ -267,8 +268,8 @@ void DataDumper::SaveDumpTask(const OpDescInfoId &id, const std::shared_ptr<OpDe
          static_cast<int32_t>(is_op_debug));
 
   // 主算子直接推入列表
-  op_list_.push_back({id.task_id, id.stream_id, context_id, id.thread_id, op_desc, args, true, 0, 0, {}, 0,	 
-                      first_level_address_info.address_type, first_level_address_info.address, {},	 
+  op_list_.push_back({id.task_id, id.stream_id, context_id, id.thread_id, op_desc, args, true, 0, 0, {}, 0,
+                      first_level_address_info.address_type, first_level_address_info.address, {},
                       cust_to_relevant_offset, task_type, is_op_debug, stream});
 
   // 如果满足条件，立即调用 Adump
@@ -307,15 +308,15 @@ void DataDumper::SaveDumpTask(const OpDescInfoId &id, const std::shared_ptr<OpDe
       }
     }
 
-    GELOGI("Save input dump task: %s, id: %u, stream id: %u, data size: %" PRId64 ", input index: %d, output index: %d",	 
-          data_op->GetName().c_str(), id.task_id, id.stream_id, data_size, inner_input_mapping.input_anchor_index,	 
+    GELOGI("Save input dump task: %s, id: %u, stream id: %u, data size: %" PRId64 ", input index: %d, output index: %d",
+          data_op->GetName().c_str(), id.task_id, id.stream_id, data_size, inner_input_mapping.input_anchor_index,
           inner_input_mapping.output_anchor_index);
 
     // 输入节点推入列表
-    op_list_.push_back({id.task_id, id.stream_id, 0U, id.thread_id, data_op, args, false,	 
-                        inner_input_mapping.input_anchor_index, inner_input_mapping.output_anchor_index,	 
-                        input_tensor->GetShape().GetDims(), data_size,	 
-                        first_level_address_info.address_type, first_level_address_info.address, {},	 
+    op_list_.push_back({id.task_id, id.stream_id, 0U, id.thread_id, data_op, args, false,
+                        inner_input_mapping.input_anchor_index, inner_input_mapping.output_anchor_index,
+                        input_tensor->GetShape().GetDims(), data_size,
+                        first_level_address_info.address_type, first_level_address_info.address, {},
                         cust_to_relevant_offset, task_type, is_op_debug, stream});
     if (IsDumpOpWithAdump()) {
       const auto &input_info = op_list_.back();
@@ -338,12 +339,12 @@ void DataDumper::SavePrintDumpTask(const OpDescInfoId &id, const std::shared_ptr
   uint32_t context_id = 0U;
   (void)AttrUtils::GetInt(op_desc, "current_context_id", context_id);
   if ((op_desc->GetType() != "SuperKernel") || (task_type == ModelTaskType::MODEL_TASK_SUPER_KERNEL)) {
-    GELOGI("Save ascendc printf dump task %s, task id: %u, stream id: %u, context id: %u, thread id: %u.",	 
+    GELOGI("Save ascendc printf dump task %s, task id: %u, stream id: %u, context id: %u, thread id: %u.",
            op_desc->GetName().c_str(), id.task_id, id.stream_id, context_id, id.thread_id);
-    
+
     // 推入打印列表
-    op_print_list_.push_back({id.task_id, id.stream_id, context_id, id.thread_id, op_desc, args, true, 0, 0, {}, 0,	 
-                              first_level_address_info.address_type, first_level_address_info.address, {}, {},	 
+    op_print_list_.push_back({id.task_id, id.stream_id, context_id, id.thread_id, op_desc, args, true, 0, 0, {}, 0,
+                              first_level_address_info.address_type, first_level_address_info.address, {}, {},
                               task_type, false, stream});
   }
 }
@@ -1311,7 +1312,7 @@ Status DataDumper::FillRawTensorInfos(const InnerDumpInfo &dump_info, std::vecto
       }
       tensors.push_back(info);
     }
-  }  
+  }
 
   // 输出张量
   if (dump_output) {
@@ -1342,7 +1343,7 @@ Status DataDumper::FillRawTensorInfos(const InnerDumpInfo &dump_info, std::vecto
       }
       tensors.push_back(info);
     }
-  }  
+  }
 
   // 工作空间
   FillWorkspaceTensorInfos(dump_info, tensors);
@@ -1387,7 +1388,7 @@ Status DataDumper::DumpOpWithAdump(const InnerDumpInfo &dump_info) {
       GELOGE(ret, "[Adump] FillRawTensorInfos failed for op %s", op_name.c_str());
       return ret;
     }
-    GELOGD("[Adump] Raw address mode: op %s, raw address list size=%zu", 
+    GELOGD("[Adump] Raw address mode: op %s, raw address list size=%zu",
            op_name.c_str(), dump_info.address.size());
   } else {
     size_t input_count = dump_info.op->GetInputsSize();
