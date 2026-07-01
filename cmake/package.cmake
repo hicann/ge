@@ -221,7 +221,7 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
                 LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-executor
                 ARCHIVE DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-executor
         )
-        install(TARGETS ge_common_stub stub_lowering atc_stub_graph atc_stub_graph_base gert_stub hybrid_executor_stub stub_register
+        install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
                 LIBRARY DESTINATION ${ARCH_LINUX_PATH}/devlib/linux/${TARGET_ARCH} COMPONENT ge-executor
                 ARCHIVE DESTINATION ${ARCH_LINUX_PATH}/devlib/linux/${TARGET_ARCH} COMPONENT ge-executor
         )

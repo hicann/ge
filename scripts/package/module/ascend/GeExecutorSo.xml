@@ -38,7 +38,6 @@
         <file value="libregister.so" file_type="shared"/>
         <file value="liblowering.so" file_type="shared"/>
         <file value="libgraph.so" file_type="shared"/>
-        <file value="libgraph_base.so" file_type="shared"/>
     </file_info>
     <file_info value="devlib" copy_type="delivery" dst_path="devlib/linux/aarch64" install_path="$(TARGET_ENV)/devlib/linux/aarch64" install_type="devel" install_mod="440" optional="true">
         <file value="libge_common.so" file_type="shared"/>
@@ -47,7 +46,6 @@
         <file value="libregister.so" file_type="shared"/>
         <file value="liblowering.so" file_type="shared"/>
         <file value="libgraph.so" file_type="shared"/>
-        <file value="libgraph_base.so" file_type="shared"/>
     </file_info>
     <file_info value="devlib" copy_type="delivery" dst_path="devlib/minios/aarch64" install_path="$(TARGET_ENV)/devlib/minios/aarch64" install_type="devel" install_mod="440" optional="true">
         <file value="libgraph.so" file_type="shared"/>
