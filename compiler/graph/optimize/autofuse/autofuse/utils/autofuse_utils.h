@@ -20,6 +20,7 @@
 #include "common/checker.h"
 #include "common/autofuse_platform_api.h"
 #include "graph/compute_graph.h"
+#include "nlohmann/json.hpp"
 #include "ascir_ops.h"
 
 namespace ge {
@@ -207,6 +208,8 @@ class AutofuseUtils {
 
   static Status SerializeAndPackComputeGraph(const ComputeGraphPtr &compute_graph, const NodePtr &node,
                                              std::string &output, bool isHash = false);
+
+  static void InjectHostEnvToJson(nlohmann::json &json_obj);
 
   static Status GetNodeOutputIndex(const NodePtr &node, std::vector<uint32_t> &node_output_index);
 
