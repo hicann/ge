@@ -1243,9 +1243,8 @@ HcclResult HcomOpsKernelBuilder::SetPrivateDefWithTensorInfo(const ge::Node &nod
     free(privateDefPtr);
     return HCCL_E_INTERNAL;
   }
-  ret = memcpy_s(
-      static_cast<int64_t *>(static_cast<void *>(static_cast<s8 *>(privateDefPtr) + sizeof(privateDefBuf))),
-      crackOffset.size() * sizeof(int64_t), crackOffset.data(), crackOffset.size() * sizeof(int64_t));
+  ret = memcpy_s(static_cast<int64_t *>(static_cast<void *>(static_cast<s8 *>(privateDefPtr) + sizeof(privateDefBuf))),
+                 crackOffset.size() * sizeof(int64_t), crackOffset.data(), crackOffset.size() * sizeof(int64_t));
   if (UNLIKELY(ret != EOK)) {
     HCCL_ERROR("[Builder][SetPrivateDefWithTensorInfo][memcpy_s] copy crackOffset failed, ret -> %d", ret);
     free(privateDefPtr);
