@@ -1209,19 +1209,20 @@ HcclResult HcomOpsKernelBuilder::SetPrivateDefWithTensorInfo(const ge::Node &nod
                                                              HCCL_KERNEL_INFO_PRIVATE_DEF &privateDefBuf,
                                                              domi::TaskDef &taskDef) {
   // 在set_private_def之前，获取tensorInfo
-  int64_t tensorOffset[privateDefBuf.tensorNum];
-  int64_t tensorSize[privateDefBuf.tensorNum];
+  std::vector<int64_t> tensorOffset(privateDefBuf.tensorNum);
+  std::vector<int64_t> tensorSize(privateDefBuf.tensorNum);
 
-  CHK_RET(GetTensorParamsInfo(node, privateDefBuf.tensorNum, tensorOffset, tensorSize));
+  CHK_RET(GetTensorParamsInfo(node, privateDefBuf.tensorNum, tensorOffset.data(), tensorSize.data()));
   for (u32 i = 0; i < privateDefBuf.tensorNum; i++) {
     HCCL_DEBUG("[Builder][GetTensorParamsInfo] tensorOffset[%u] %lld tensorSize[%u] %lld.", i, tensorOffset[i], i,
                tensorSize[i]);
   }
 
   // 获取tensor间缝隙的offset和size
-  int64_t crackOffset[privateDefBuf.tensorNum];
-  int64_t crackSize[privateDefBuf.tensorNum];
-  CHK_RET(GetCrackParamsInfo(node, privateDefBuf.tensorNum, tensorOffset, tensorSize, crackOffset, crackSize));
+  std::vector<int64_t> crackOffset(privateDefBuf.tensorNum);
+  std::vector<int64_t> crackSize(privateDefBuf.tensorNum);
+  CHK_RET(GetCrackParamsInfo(node, privateDefBuf.tensorNum, tensorOffset.data(), tensorSize.data(), crackOffset.data(),
+                             crackSize.data()));
 
   for (u32 i = 0; i < privateDefBuf.tensorNum; i++) {
     HCCL_DEBUG("[Builder][SetPrivateDefWithTensorInfo] crackOffset[%u] %lld crackSize[%u] %lld.", i, crackOffset[i], i,
@@ -1230,7 +1231,8 @@ HcclResult HcomOpsKernelBuilder::SetPrivateDefWithTensorInfo(const ge::Node &nod
 
   // 将获取的tensorInfo，拼接到privateDefBuf数据后
   void *privateDefPtr = nullptr;
-  size_t privateDefBufSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + sizeof(crackOffset) + sizeof(crackSize);
+  size_t privateDefBufSize =
+      sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + crackOffset.size() * sizeof(int64_t) + crackSize.size() * sizeof(int64_t);
   privateDefPtr = malloc(privateDefBufSize);
   CHK_PTR_NULL(privateDefPtr);
 
@@ -1242,15 +1244,15 @@ HcclResult HcomOpsKernelBuilder::SetPrivateDefWithTensorInfo(const ge::Node &nod
     return HCCL_E_INTERNAL;
   }
   ret = memcpy_s(static_cast<int64_t *>(static_cast<void *>(static_cast<s8 *>(privateDefPtr) + sizeof(privateDefBuf))),
-                 sizeof(crackOffset), crackOffset, sizeof(crackOffset));
+                 crackOffset.size() * sizeof(int64_t), crackOffset.data(), crackOffset.size() * sizeof(int64_t));
   if (UNLIKELY(ret != EOK)) {
     HCCL_ERROR("[Builder][SetPrivateDefWithTensorInfo][memcpy_s] copy crackOffset failed, ret -> %d", ret);
     free(privateDefPtr);
     return HCCL_E_INTERNAL;
   }
   ret = memcpy_s(static_cast<int64_t *>(static_cast<void *>(static_cast<s8 *>(privateDefPtr) + sizeof(privateDefBuf) +
-                                                            sizeof(crackOffset))),
-                 sizeof(crackSize), crackSize, sizeof(crackSize));
+                                                            crackOffset.size() * sizeof(int64_t))),
+                 crackSize.size() * sizeof(int64_t), crackSize.data(), crackSize.size() * sizeof(int64_t));
   if (UNLIKELY(ret != EOK)) {
     HCCL_ERROR("[Builder][SetPrivateDefWithTensorInfo][memcpy_s] copy crackSize failed, ret -> %d", ret);
     free(privateDefPtr);
