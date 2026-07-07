@@ -88,13 +88,15 @@ class HopcroftKarp {
     int flow = 0, f;
     for (int &i = current_edge_idx_[current_node]; i < static_cast<int>(adjacency_list_[current_node].size()); i++) {
       Edge &e = edges_[adjacency_list_[current_node][i]];
-      if (distance_[current_node] + 1 == distance_[e.to] &&
-          (f = DFS(e.to, std::min(remaining_flow, e.cap - e.flow))) > 0) {
-        e.flow += f;
-        edges_[adjacency_list_[current_node][i] ^ 1].flow -= f;
-        flow += f;
-        remaining_flow -= f;
-        if (remaining_flow == 0) break;
+      if (distance_[current_node] + 1 == distance_[e.to]) {
+        f = DFS(e.to, std::min(remaining_flow, e.cap - e.flow));
+        if (f > 0) {
+          e.flow += f;
+          edges_[adjacency_list_[current_node][i] ^ 1].flow -= f;
+          flow += f;
+          remaining_flow -= f;
+          if (remaining_flow == 0) break;
+        }
       }
     }
     return flow;

@@ -37,6 +37,11 @@ class ProfilingParser {
 
   static graphStatus ParseRow(const std::vector<std::string> &fields, const std::vector<int32_t> &col_indices,
                               ProfilingData &data);
+
+  static std::vector<std::string> ParseCsvLine(const std::string &line);
+
+  static graphStatus ValidateRequiredColumns(const std::vector<std::string> &headers,
+                                             std::vector<int32_t> &col_indices);
 };
 
 }  // namespace minidag

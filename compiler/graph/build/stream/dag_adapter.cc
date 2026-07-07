@@ -17,7 +17,6 @@
 #include "graph/build/stream/stream_utils.h"
 #include "graph/ge_local_context.h"
 #include "graph/utils/op_type_utils.h"
-#include "external/ge_common/ge_common_api_types.h"
 #include "platform/platform_info.h"
 #include "graph/build/dag/dag_profiling_parser.h"
 #include <cstdlib>
@@ -110,10 +109,9 @@ graphStatus DAGAdapter::ConvertNodes(const ConstGraphPtr &ge_graph, minidag::DAG
     minidag::NodeCost cost = BuildNodeCost(node_name, node, op_desc, profiles, profiled_cost_matched);
     has_profiled_node_cost = has_profiled_node_cost || profiled_cost_matched;
     // 设置串行标记
-    std::string stream_label;
-    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_STREAM_LABEL, stream_label);
-    if (!stream_label.empty()) {
-      dag_node->SetSerialFlag(stream_label);
+    const std::string *stream_label_ptr = AttrUtils::GetStr(op_desc, ATTR_NAME_STREAM_LABEL);
+    if ((stream_label_ptr != nullptr) && (!stream_label_ptr->empty())) {
+      dag_node->SetSerialFlag(*stream_label_ptr);
     }
     // stream id如果是-1的节点一定不是device有计算任务的节点，所以执行耗时设置为0
     if (op_desc->GetStreamId() == INVALID_STREAM_ID) {
