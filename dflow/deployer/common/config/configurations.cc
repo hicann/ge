@@ -20,8 +20,6 @@
 
 namespace ge {
 namespace {
-const char_t *const kConfigFileName = "/resource.json";
-const char_t *const kHelperResFilePath = "HELPER_RES_FILE_PATH";
 const char_t *const kResourceConfigPath = "RESOURCE_CONFIG_PATH";
 const char_t *const kHomeEnvName = "HOME";
 }  // namespace

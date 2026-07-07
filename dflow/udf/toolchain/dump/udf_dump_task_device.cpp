@@ -20,7 +20,6 @@
 
 namespace FlowFunc {
 namespace {
-const uint64_t kDumpSliceSize = 128UL << 20U;  // 分片大小
 // DATA_DUMP_GRUOP_ID， EVENT_CCPU_CTRL_MSG， AICPU_SUB_EVENT_REPORT_UDF_DUMPDATA固定，与aicpu保持一致
 constexpr uint32_t kDataDumpGroupId = 31U;
 #define EVENT_CCPU_CTRL_MSG 19

@@ -45,7 +45,6 @@ constexpr const char *kSuspendGraphOriginalName = "_suspend_graph_original_name"
 constexpr const char *kAttrNameDataFlowCompilerResult = "_dflow_compiler_result";
 constexpr const char *kAttrNameDataFlowRunningResourceInfo = "_dflow_running_resource_info";
 constexpr const char *kAttrNameDataFlowRunnableResource = "_dflow_runnable_resource";
-constexpr size_t kMaxUpdateCacheThreadPoolSize = 8U;
 
 Status TryLockFile(const std::string &lock_file, int32_t &fd) {
   fd = mmOpen2(lock_file.c_str(), M_CREAT | M_WRONLY, M_IRUSR | M_IWUSR);
@@ -300,41 +299,6 @@ bool FlowModelCache::TryLoadCompileResultFromCache(CacheCompileResult &cache_com
     GE_COMPILE_TRACE_TIMESTAMP_END(LoadCompileResult, "loading compile result cache");
   }
   return match_cache;
-}
-
-Status FlowModelCache::UpdateFlowModelCache(const std::set<PneModelPtr> &refreshed_models) {
-  if (refreshed_models.empty()) {
-    return SUCCESS;
-  }
-  GE_TRACE_START(UpdateFlowModelCache);
-  size_t pool_size =
-      refreshed_models.size() > kMaxUpdateCacheThreadPoolSize ? kMaxUpdateCacheThreadPoolSize : refreshed_models.size();
-  ThreadPool pool("ge_upd_cch", static_cast<uint32_t>(pool_size), true);
-  std::vector<std::future<Status>> fut_rets;
-  for (const auto &model : refreshed_models) {
-    if (model->GetSavedModelPath().empty()) {
-      continue;
-    }
-    auto fut = pool.commit([model]() -> Status {
-      ModelBufferData serialize_buff{};
-      GE_CHK_STATUS_RET(model->SerializeModel(serialize_buff), "Failed to serialize model, model_name = %s",
-                        model->GetModelName().c_str());
-      const auto &saved_model_path = model->GetSavedModelPath();
-      GE_ASSERT_GRAPH_SUCCESS(
-          SaveBinToFile(reinterpret_cast<char_t *>(serialize_buff.data.get()), serialize_buff.length, saved_model_path),
-          "Failed to save model data to file %s.", saved_model_path.c_str());
-      GEEVENT("Update model cache success, model_name = %s, path = %s", model->GetModelName().c_str(),
-              saved_model_path.c_str());
-      return SUCCESS;
-    });
-    fut_rets.emplace_back(std::move(fut));
-  }
-
-  for (auto &fut : fut_rets) {
-    GE_CHK_STATUS_RET(fut.get(), "Failed to update model cache");
-  }
-  GE_COMPILE_TRACE_TIMESTAMP_END(UpdateFlowModelCache, "Update flow model cache cost");
-  return SUCCESS;
 }
 
 Status FlowModelCache::TryLoadFlowModelFromCache(const ComputeGraphPtr &root_graph, FlowModelPtr &flow_model) {

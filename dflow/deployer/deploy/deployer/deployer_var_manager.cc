@@ -24,7 +24,6 @@
 
 namespace ge {
 namespace {
-constexpr int32_t kCoreNumPerDevice = 8;
 constexpr size_t kMaxSharedContentSize = 1024 * 1024U;
 constexpr size_t kAlignSize = 512U;
 constexpr size_t kAlignUnit = 2U;

@@ -31,10 +31,8 @@
 namespace ge {
 namespace {
 constexpr int32_t kQueueOpTimeout = 10 * 60 * 1000;  // 10 min
-constexpr uint32_t kBufferCount = 1U;
 constexpr size_t kContextLen = 0U;
 constexpr size_t kAlignmentVal64 = 64U;
-constexpr uint32_t kMbufHeadMaxSize = 256U;
 constexpr uint32_t kMbufHeadEndOfSequencePos = 128U;
 constexpr uint8_t kEndOfSequenceFlag = 0x5A;
 constexpr uint32_t kEventGroupId = 3U;

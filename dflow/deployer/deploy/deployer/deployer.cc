@@ -26,7 +26,6 @@ constexpr int32_t kHeartbeatInterval = 5000;  // millisconds
 constexpr int32_t kDataGwPortBase = 16666;
 constexpr int32_t kDataGwPortMaxOffset = 256;
 constexpr int32_t kHeartbeatTryMaxNum = 10;
-constexpr int32_t kInvalidRankId = -1;
 constexpr uint32_t kInitTryWaitInterval = 1000;  // millisconds
 }  // namespace
 

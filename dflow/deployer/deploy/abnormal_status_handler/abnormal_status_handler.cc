@@ -95,54 +95,6 @@ Status AbnormalStatusHandler::FindAbnormalDeviceOnServer(DeployPlan::DeviceState
   return SUCCESS;
 }
 
-Status AbnormalStatusHandler::FindAbnormalDevice(DeployPlan::DeviceStateList &device_state_list,
-                                                 DeployerConfig information_new, DeployerConfig information_old) const {
-  auto &node_config_old = information_old.node_config;
-  auto &node_config_new = information_new.node_config;
-  if (node_config_old.ipaddr.compare(node_config_new.ipaddr) == 0) {  // host对比
-    DeployPlan::DeviceInfo device_info = DeployPlan::DeviceInfo(CPU, node_config_old.node_id, 0);
-    device_state_list.emplace(device_info, true);
-    GELOGI("AbnormalStatusMonitor, device is normal, node_id=%d, device_id=%u, device_type=%u, ipaddr=%s",
-           device_info.GetNodeId(), device_info.GetDeviceId(), device_info.GetType(), node_config_old.ipaddr.c_str());
-  } else {
-    DeployPlan::DeviceInfo device_info = DeployPlan::DeviceInfo(CPU, node_config_old.node_id, 0);
-    device_state_list.emplace(device_info, false);
-    GEEVENT("AbnormalStatusMonitor, device is abnormal, node_id=%d, device_id=%u, device_type=%u, ipaddr=%s",
-            device_info.GetNodeId(), device_info.GetDeviceId(), device_info.GetType(),
-            information_old.node_config.ipaddr.c_str());
-  }
-  for (auto &iter_old : information_old.remote_node_config_list) {  // device对比
-    bool find_old_in_new = false;
-    for (auto &iter_new : information_new.remote_node_config_list) {
-      // 新devices里面找老的device(51上device信息存在node中)，找不到说明老的device损坏
-      if (iter_old.ipaddr.compare(iter_new.ipaddr) == 0) {
-        DeployPlan::DeviceInfo device_info0 = DeployPlan::DeviceInfo(NPU, iter_old.node_id, 0);
-        DeployPlan::DeviceInfo device_info1 = DeployPlan::DeviceInfo(NPU, iter_old.node_id, 1);
-        device_state_list.emplace(device_info0, true);
-        device_state_list.emplace(device_info1, true);
-        GELOGI(
-            "AbnormalStatusMonitor, device is normal ipaddr=%s, node_id=%d, device_id=%u, device_type=%u,"
-            " node_id=%d, device_id=%u, device_type=%u",
-            iter_old.ipaddr.c_str(), device_info0.GetNodeId(), device_info0.GetDeviceId(), device_info0.GetType(),
-            device_info1.GetNodeId(), device_info1.GetDeviceId(), device_info1.GetType());
-        find_old_in_new = true;
-      }
-    }
-    if (!find_old_in_new) {  // 51上面一个device损坏两个卡都异常
-      DeployPlan::DeviceInfo device_info0 = DeployPlan::DeviceInfo(NPU, iter_old.node_id, 0);
-      DeployPlan::DeviceInfo device_info1 = DeployPlan::DeviceInfo(NPU, iter_old.node_id, 1);
-      device_state_list.emplace(device_info0, false);
-      device_state_list.emplace(device_info1, false);
-      GELOGI(
-          "AbnormalStatusMonitor, device is abnormal ipaddr=%s, node_id=%d, device_id=%u, device_type=%u,"
-          " node_id=%d, device_id=%u, device_type=%u",
-          iter_old.ipaddr.c_str(), device_info0.GetNodeId(), device_info0.GetDeviceId(), device_info0.GetType(),
-          device_info1.GetNodeId(), device_info1.GetDeviceId(), device_info1.GetType());
-    }
-  }
-  return SUCCESS;
-}
-
 Status AbnormalStatusHandler::ParseDeviceStateList(const std::string &file_path,
                                                    DeployPlan::DeviceStateList &device_state_list) {
   // 解析异常设备信息
