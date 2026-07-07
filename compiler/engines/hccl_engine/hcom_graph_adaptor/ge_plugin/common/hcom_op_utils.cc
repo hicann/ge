@@ -874,6 +874,16 @@ HcclResult HcomOpUtils::GetHcclCommNameFromConfig(std::string &commName) {
     return HCCL_SUCCESS;
   }
 
+  DevType tempDevType;
+  if (GetOffDeviceTypeWithoutDev(tempDevType) != HCCL_SUCCESS) {
+    HCCL_ERROR("[GetHcclCommNameFromConfig] get devType failed.");
+    return HCCL_E_INTERNAL;
+  }
+  if ((!IsOfflineCompilation()) || (tempDevType != DevType::DEV_TYPE_MC62)) {
+    HCCL_ERROR("[GetHcclCommNameFromConfig] not support, only offline compilation with MC62 chip is supported.");
+    return HCCL_E_NOT_SUPPORT;
+  }
+
   nlohmann::json commConfigJsom;
   HcclResult ret = SalParseInformation(commConfigJsom, commConfig);
   if (ret != HCCL_SUCCESS) {
@@ -970,6 +980,15 @@ HcclResult HcomOpUtils::GetRankIdsFromGroupList(const std::string &groupName, st
 
   // V2和旧的json格式上有差异，当前主要使用的是最新的V2格式json文件，优先判断尝试解析V2格式
   if (ge::GetThreadLocalContext().GetOption(ge::OPTION_EXEC_HCOM_GROUPLIST_V2, groupListString) == ge::GRAPH_SUCCESS) {
+    DevType tempDevType;
+    if (GetOffDeviceTypeWithoutDev(tempDevType) != HCCL_SUCCESS) {
+      HCCL_ERROR("[GetRankIdsFromGroupList] get devType failed.");
+      return HCCL_E_INTERNAL;
+    }
+    if ((!IsOfflineCompilation()) || (tempDevType != DevType::DEV_TYPE_MC62)) {
+      HCCL_ERROR("[GetRankIdsFromGroupList] not support, only offline compilation with MC62 chip is supported.");
+      return HCCL_E_NOT_SUPPORT;
+    }
     CHK_RET(GetRankIdsFromGroupListV2(groupName, groupListString, rankIds));
     return HCCL_SUCCESS;
   }
