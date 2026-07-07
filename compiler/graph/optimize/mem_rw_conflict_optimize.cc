@@ -201,7 +201,10 @@ bool IsSubgraphOutputNode(const NodePtr &node) {
 GeTensorDesc GetCleanTensorDesc(const NodePtr &node, int32_t out_anchor_idx) {
   auto data_desc = node->GetOpDesc()->GetOutputDesc(out_anchor_idx);
   auto temp = TensorAdapter::GeTensorDesc2TensorDesc(data_desc);
-  return TensorAdapter::TensorDesc2GeTensorDesc(temp);
+  auto desc = TensorAdapter::TensorDesc2GeTensorDesc(temp);
+  ge::TensorUtils::SetReuseInput(desc, false);
+  ge::TensorUtils::SetReuseInputIndex(desc, 0U);
+  return desc;
 }
 
 OpDescPtr CreateIdentityOpDesc(const NodePtr &src_node, int32_t out_anchor_idx) {
@@ -215,8 +218,6 @@ OpDescPtr CreateIdentityOpDesc(const NodePtr &src_node, int32_t out_anchor_idx) 
   // 1. create new identity op desc
   std::string identity_name = src_node->GetName() + "_" + IDENTITY + std::to_string(next_num);
   OpDescBuilder op_desc_builder(identity_name, IDENTITY);
-  auto data_desc = src_node->GetOpDesc()->GetOutputDesc(out_anchor_idx);
-  ge::TensorUtils::SetReuseInput(data_desc, false);
   auto desc = GetCleanTensorDesc(src_node, out_anchor_idx);
   auto identity_op_desc = op_desc_builder.AddInput("x", desc).AddOutput("y", desc).Build();
   std::string batch_label;

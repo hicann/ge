@@ -113,7 +113,6 @@ class FlowModelCache {
   static Status ReadCacheConfig(const std::string &config_file, CacheConfig &cache_config);
   static Status FormatCacheCompilerResult(const ge::NamedAttrs &compile_results, CacheCompileResult &result);
   Status GetSplitOmDataBaseDir(std::string &split_om_data_base_dir) const;
-  static Status UpdateFlowModelCache(const std::set<PneModelPtr> &refreshed_models);
   bool cache_enable_ = false;
   std::string cache_dir_;
   CacheFileIndex cache_index_;

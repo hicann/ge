@@ -316,13 +316,6 @@ Status FlowModelOmSaver::SaveFlowModelToFile(const std::string &output_file) {
   return SUCCESS;
 }
 
-Status FlowModelOmSaver::SaveFlowModelToDataBuffer(ModelBufferData &model_buff) {
-  const std::string output_file;
-  const auto ret = om_file_save_helper_.SaveModel(output_file.c_str(), model_buff, false);
-  GE_ASSERT_SUCCESS(ret, "save model to model buffer failed.");
-  return SUCCESS;
-}
-
 Status FlowModelOmSaver::AddPartition(const google::protobuf::Message &partition_msg,
                                       ModelPartitionType partition_type) {
   Buffer buffer(partition_msg.ByteSizeLong());

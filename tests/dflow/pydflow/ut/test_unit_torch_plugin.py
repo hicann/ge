@@ -165,6 +165,7 @@ class TestTorchPlugin(unittest.TestCase):
     )
     def test_prepare_inputs(self):
         import torch
+        import torch_npu  # noqa: F401
         import torchair
 
         TestTorchPlugin.MockTorchType(torch)
@@ -200,7 +201,9 @@ class TestTorchPlugin(unittest.TestCase):
         mock_tensor.shape = [2, 3]
         outputs = mock_tensor
         output_num = 2
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, outputs, output_num
+        )
         # output_num is 2, but only one output is provided
         self.assertNotEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
 
@@ -222,7 +225,9 @@ class TestTorchPlugin(unittest.TestCase):
         mock_tensor.shape = [2, 3]
         outputs = (mock_tensor, mock_tensor)
         output_num = 3
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, outputs, output_num
+        )
         # output_num is 3, but only 2 outputs is provided
         self.assertNotEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
 
@@ -241,7 +246,9 @@ class TestTorchPlugin(unittest.TestCase):
 
         outputs = 1
         output_num = 1
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, outputs, output_num
+        )
         # output is not torch tensor
         self.assertNotEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
 
@@ -264,13 +271,17 @@ class TestTorchPlugin(unittest.TestCase):
         mock_tensor.shape = [2, 3]
         outputs = mock_tensor
         output_num = 1
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, outputs, output_num
+        )
         self.assertEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
         self.assertEqual(len(runtime_tensor_descs), 1)
 
         mock_tensor.device.type = "cpu"
         error_outputs = mock_tensor
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, error_outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, error_outputs, output_num
+        )
         self.assertNotEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
 
     @patch.dict("sys.modules", {"torch": MagicMock()})
@@ -292,13 +303,17 @@ class TestTorchPlugin(unittest.TestCase):
         mock_tensor.shape = [2, 3]
         outputs = (mock_tensor, mock_tensor, mock_tensor)
         output_num = 3
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, outputs, output_num
+        )
         self.assertEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
         self.assertEqual(len(runtime_tensor_descs), 1)
 
         mock_tensor.device.type = "cpu"
         error_outputs = (mock_tensor, mock_tensor, mock_tensor)
-        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(runtime_context, error_outputs, output_num)
+        ret, runtime_tensor_descs = torch_plugin._prepare_outputs(
+            runtime_context, error_outputs, output_num
+        )
         self.assertNotEqual(ret, torch_plugin.ff.FLOW_FUNC_SUCCESS)
 
     @patch.dict(
@@ -307,6 +322,7 @@ class TestTorchPlugin(unittest.TestCase):
     )
     def test_dynamo_export_static(self):
         import torch
+        import torch_npu  # noqa: F401
         import torchair
 
         TestTorchPlugin.MockTorchType(torch)
@@ -330,6 +346,8 @@ class TestTorchPlugin(unittest.TestCase):
         {"torch": MagicMock(), "torch_npu": MagicMock(), "torchair": MagicMock()},
     )
     def test_dynamo_export_dynamic(self):
+        import torch  # noqa: F401
+        import torch_npu  # noqa: F401
         import torchair
 
         class_ins = MagicMock()
@@ -370,7 +388,7 @@ class TestTorchPlugin(unittest.TestCase):
         import torch
 
         buffer = bytes(1024)
-        deserialized = torch_plugin._deserialize_with_torch_tensor(buffer)
+        torch_plugin._deserialize_with_torch_tensor(buffer)
         torch.frombuffer.assert_called_once()
 
     @patch.dict(
@@ -386,6 +404,8 @@ class TestTorchPlugin(unittest.TestCase):
     def test_func_with_npu_model(self, mock_msg_type_register):
         import cloudpickle
         import torch
+        import torch_npu  # noqa: F401
+        import torchair  # noqa: F401
 
         TestTorchPlugin.MockTorchType(torch)
 
@@ -415,6 +435,8 @@ class TestTorchPlugin(unittest.TestCase):
     def test_class_with_npu_model_1(self, mock_msg_type_register):
         import cloudpickle
         import torch
+        import torch_npu  # noqa: F401
+        import torchair  # noqa: F401
 
         TestTorchPlugin.MockTorchType(torch)
 
@@ -446,6 +468,7 @@ class TestTorchPlugin(unittest.TestCase):
     def test_class_with_npu_model_2_dynamic(self, mock_msg_type_register):
         import cloudpickle
         import torch
+        import torch_npu  # noqa: F401
         import torchair
 
         TestTorchPlugin.MockTorchType(torch)
@@ -491,6 +514,7 @@ class TestTorchPlugin(unittest.TestCase):
     def test_class_with_npu_model_2_static(self, mock_msg_type_register):
         import cloudpickle
         import torch
+        import torch_npu  # noqa: F401
         import torchair
 
         TestTorchPlugin.MockTorchType(torch)
@@ -535,7 +559,9 @@ class TestTorchPlugin(unittest.TestCase):
     )
     @patch("dataflow.plugin.torch.torch_plugin.NpuFunctionProcessPoint")
     @patch("dataflow.plugin.torch.torch_plugin.msg_type_register")
-    def test_make_npu_model_func(self, mock_msg_type_register, mock_NpuFunctionProcessPoint):
+    def test_make_npu_model_func(
+        self, mock_msg_type_register, mock_NpuFunctionProcessPoint
+    ):
         def func_with_invalid_output_num(in0, in1):
             return in0, in1
 
@@ -549,7 +575,9 @@ class TestTorchPlugin(unittest.TestCase):
     )
     @patch("dataflow.plugin.torch.torch_plugin.NpuActorProcessPoint")
     @patch("dataflow.plugin.torch.torch_plugin.msg_type_register")
-    def test_make_npu_model_class(self, mock_msg_type_register, mock_NpuActorProcessPoint):
+    def test_make_npu_model_class(
+        self, mock_msg_type_register, mock_NpuActorProcessPoint
+    ):
         class TestNpuModel:
             def __init__(self):
                 pass

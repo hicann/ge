@@ -41,7 +41,6 @@ const std::string kUdfAttrNameReleaseLib = "_dflow_process_point_release_pkg";
 const std::string kUdfAttrNameFinalLocation = "_dflow_final_location";
 const std::set<std::string> kUdfBaseAttrNames = {kUdfAttrNameBinPath, kUdfAttrNameFuncName, kUdfAttrNameProcessorType,
                                                  kUdfAttrNameOsVersion};
-const std::string kUdfOpTypeFlowFunc = "FlowFunc";
 const std::string kUdfBuildInBinName = "libbuilt_in_flowfunc.so";
 const std::string kUdfBuildInFuncNamePrefix = "_BuiltIn_";
 constexpr const char *kAttrNameDataFlowHeavyLoad = "_dflow_heavy_load";

@@ -10,6 +10,9 @@
 # Compute Kernel
 
 
+import torch  # noqa: F401
+import torch_npu  # noqa: F401
+
 import triton
 import triton.language as tl
 

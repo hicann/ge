@@ -22,7 +22,6 @@ namespace FlowFunc {
 namespace {
 constexpr char kOsSplitChar = '/';
 constexpr uint32_t kDefaultPathMode = 0700;
-constexpr size_t kMaxErrstrLen = 128U;
 
 std::string GetFileDir(const std::string &path) {
   std::string dir;

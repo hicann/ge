@@ -11,6 +11,7 @@
 # ----------------------------------------------------------------------------
 
 import torch
+import torch_npu  # noqa: F401
 import torch.nn as nn
 import torchair
 

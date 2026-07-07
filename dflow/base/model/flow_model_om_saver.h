@@ -33,7 +33,6 @@ class FlowModelOmSaver {
   Status AddPartition(const google::protobuf::Message &partition_msg, ModelPartitionType partition_type);
   Status AddPartition(Buffer &buffer, ModelPartitionType partition_type);
   Status SaveFlowModelToFile(const std::string &output_file);
-  Status SaveFlowModelToDataBuffer(ModelBufferData &model_buff);
 
   /**
    * @brief fix non standard graph load failed.

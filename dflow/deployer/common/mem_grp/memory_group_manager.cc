@@ -22,7 +22,6 @@
 namespace ge {
 namespace {
 constexpr int32_t kTimeout = 3000;
-constexpr uint64_t kNpuMaxGroupMemSize = 35337011UL;                        // 33.7 * 1024 * 1024 KB
 constexpr uint64_t kDefaultRemoteGroupCacheAllocSize = 10 * 1024 * 1024UL;  // 10 * 1024 * 1024 KB
 constexpr uint32_t kAddGroupTimeout = 10000;
 }  // namespace

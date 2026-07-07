@@ -10,6 +10,7 @@
 
 #include "graph/build/dag/dag_profiling_parser.h"
 #include "graph/build/dag/dag_log.h"
+#include "graph/utils/file_utils.h"
 #include <fstream>
 #include <sstream>
 
@@ -82,14 +83,44 @@ graphStatus ProfilingParser::ParseRow(const std::vector<std::string> &fields, co
   return graphStatus::SUCCESS;
 }
 
-static const std::vector<std::string> kRequiredColumns = {"Op Name", "Task Type", "Task Duration(us)", "Block Num",
-                                                          "Mix Block Num"};
+std::vector<std::string> ProfilingParser::ParseCsvLine(const std::string &line) {
+  std::vector<std::string> fields;
+  std::stringstream ss(line);
+  std::string field;
+  while (std::getline(ss, field, ',')) {
+    fields.push_back(field);
+  }
+  return fields;
+}
+
+graphStatus ProfilingParser::ValidateRequiredColumns(const std::vector<std::string> &headers,
+                                                     std::vector<int32_t> &col_indices) {
+  static const std::vector<std::string> kRequiredColumns = {"Op Name", "Task Type", "Task Duration(us)", "Block Num",
+                                                            "Mix Block Num"};
+
+  col_indices.clear();
+  for (const auto &col_name : kRequiredColumns) {
+    int32_t idx = FindColumnIndex(headers, col_name);
+    if (idx < 0) {
+      MINIDAG_LOG_WARN("Required column not found: %s", col_name.c_str());
+      return graphStatus::FAILED;
+    }
+    col_indices.push_back(idx);
+  }
+  return graphStatus::SUCCESS;
+}
 
 graphStatus ProfilingParser::Parse(const std::string &csv_path,
                                    std::unordered_map<std::string, ProfilingData> &profiles) {
   profiles.clear();
 
-  std::ifstream file(csv_path);
+  std::string real_path = ge::RealPath(csv_path.c_str());
+  if (real_path.empty()) {
+    MINIDAG_LOG_WARN("Failed to get real path for profiling file: %s", csv_path.c_str());
+    return graphStatus::FAILED;
+  }
+
+  std::ifstream file(real_path);
   if (!file.is_open()) {
     MINIDAG_LOG_WARN("Failed to open profiling file: %s", csv_path.c_str());
     return graphStatus::FAILED;
@@ -101,21 +132,11 @@ graphStatus ProfilingParser::Parse(const std::string &csv_path,
     return graphStatus::FAILED;
   }
 
-  std::vector<std::string> headers;
-  std::stringstream header_ss(header_line);
-  std::string header_field;
-  while (std::getline(header_ss, header_field, ',')) {
-    headers.push_back(header_field);
-  }
+  std::vector<std::string> headers = ParseCsvLine(header_line);
 
   std::vector<int32_t> col_indices;
-  for (const auto &col_name : kRequiredColumns) {
-    int32_t idx = FindColumnIndex(headers, col_name);
-    if (idx < 0) {
-      MINIDAG_LOG_WARN("Required column not found: %s", col_name.c_str());
-      return graphStatus::FAILED;
-    }
-    col_indices.push_back(idx);
+  if (ValidateRequiredColumns(headers, col_indices) != graphStatus::SUCCESS) {
+    return graphStatus::FAILED;
   }
 
   std::string data_line;
@@ -124,12 +145,7 @@ graphStatus ProfilingParser::Parse(const std::string &csv_path,
       continue;
     }
 
-    std::vector<std::string> fields;
-    std::stringstream data_ss(data_line);
-    std::string field;
-    while (std::getline(data_ss, field, ',')) {
-      fields.push_back(field);
-    }
+    std::vector<std::string> fields = ParseCsvLine(data_line);
 
     ProfilingData data;
     if (ParseRow(fields, col_indices, data) == graphStatus::SUCCESS) {

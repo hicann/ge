@@ -50,8 +50,6 @@ class AbnormalStatusHandler {
   void FindOldDevice(DeployPlan::DeviceStateList &device_state_list, NodeConfig node_new, NodeConfig node_old) const;
   Status FindAbnormalDeviceOnServer(DeployPlan::DeviceStateList &device_state_list, DeployerConfig information_new,
                                     DeployerConfig information_old) const;
-  Status FindAbnormalDevice(DeployPlan::DeviceStateList &device_state_list, DeployerConfig information_new,
-                            DeployerConfig information_old) const;
   Status ParseDeviceStateList(const std::string &file_path, DeployPlan::DeviceStateList &device_state_list);
   bool IsModelMulInstance(std::map<const std::string, bool> &abnormal_submodel_instances_name,
                           DeployPlan::ModelDeployInfo model_deploy_infos) const;
