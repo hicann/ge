@@ -1,146 +1,171 @@
-# 样例使用指导
+# ResNet-50 动态 Batch 图片分类样例
 
 ## 功能描述
 
-该样例主要是基于Onnx ResNet-50网络（单输入、单Batch）实现多batch场景下图片分类的功能。
+基于 ONNX ResNet-50 网络，使用**动态 Batch** 特性实现多 Batch 图片分类。与样例 1（固定单 Batch）不同，本样例将 2 张图片作为一个 Batch 同时送入模型推理，输出各自的 Top-5 分类结果。
 
-在该样例中：
-1.  先使用样例提供的脚本transfer_pic.py，将2张\*.jpg图片都转换为\*.bin格式，同时将图片从1024\*683的分辨率缩放为224\*224。
-2.  加载离线模型om文件，对2张图片（batch值为2）进行推理，得到推理结果，再对推理结果进行处理，输出top5置信度的类别标识。
+## 快速开始
 
-在加载离线模型前，提前将Onnx ResNet-50网络的模型文件转换为适配昇腾AI处理器的离线模型。
+如果环境已就绪，可按以下命令快速复现（请根据实际情况替换 `soc_version`）：
+
+```bash
+# 1. 创建目录并下载模型和图片
+mkdir -p model data
+wget -O model/resnet50_Opset16.onnx "https://github.com/onnx/models/raw/main/Computer_Vision/resnet50_Opset16_timm/resnet50_Opset16.onnx"
+wget -O data/dog1_1024_683.jpg "https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1_1024_683.jpg"
+wget -O data/dog2_1024_683.jpg "https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2_1024_683.jpg"
+
+# 2. 转换模型（动态 Batch，需指定 input_shape 和 dynamic_batch_size）
+cd model && atc --model=resnet50_Opset16.onnx --framework=5 --output=resnet50_dynamic_batch \
+  --soc_version=Ascend910B1 --input_format=NCHW --output_type=FP32 \
+  --input_shape="x:-1,3,224,224" --dynamic_batch_size="1,2,4,8" && cd ..
+
+# 3. 转换图片
+cd data && python3 ../scripts/transfer_pic.py && cd ..
+
+# 4. 编译运行
+bash scripts/build.sh && bash scripts/run.sh
+```
 
 ## 目录结构
 
 ```
-├── data
-│   ├── dog1_1024_683.jpg               // 测试数据,需要按指导获取测试图片,放到data目录下
-│   ├── dog2_1024_683.jpg               // 测试数据,需要按指导获取测试图片,放到data目录下
-
-├── model
-│   ├── resnet50.om                     // Onnx ResNet-50网络的模型文件,需要按指导获取atc转换后的om文件,放到model目录下
-
-├── scripts
-│   ├── build.sh                        // sample编译脚本
-│   ├── run.sh                          // sample运行脚本
-│   ├── transfer_pic.py                 // 将*.jpg转换为*.bin，同时将图片从1024*683的分辨率缩放为224*224
-
-├── src
-│   ├── acl.json                        // 系统初始化的配置文件
-│   ├── CMakeLists.txt                  // 编译配置脚本
-│   ├── sample_resnet50_imagenet_classification_dynamic_batch.cpp       // 主函数，图片分类功能的实现文件
-
-├── CMakeLists.txt                      // 编译脚本，调用src目录下的CMakeLists文件
+2_sample_resnet50_imagenet_classification_dynamic_batch/
+├── CMakeLists.txt                          # 顶层编译脚本
+├── scripts/
+│   ├── build.sh                            # 编译脚本
+│   ├── run.sh                              # 运行脚本
+│   └── transfer_pic.py                     # 图片预处理（jpg → bin，缩放至 224×224）
+├── src/
+│   ├── acl.json                            # ACL 初始化配置
+│   ├── CMakeLists.txt                      # 编译配置
+│   └── sample_resnet50_imagenet_classification_dynamic_batch.cpp  # 主程序
+├── model/        [需手动创建]
+│   └── resnet50_dynamic_batch.om           # atc 转换后的动态 Batch 离线模型
+└── data/         [需手动创建]
+    ├── dog1_1024_683.jpg                   # 测试图片 1
+    ├── dog2_1024_683.jpg                   # 测试图片 2
+    ├── dog1_1024_683.bin                   # 预处理后的 bin（由 transfer_pic.py 生成）
+    └── dog2_1024_683.bin                   # 预处理后的 bin（由 transfer_pic.py 生成）
 ```
 
-## 环境要求
+## 环境准备
 
-- 通过安装指导 [环境准备](../../../docs/zh/quick_install.md#1-环境准备) 正确安装`toolkit`和`ops`包
+- [ ] 按 [环境准备](../../../docs/zh/quick_install.md#1-环境准备) 安装 `toolkit` 和 `ops` 包
+- [ ] 设置环境变量：`source /usr/local/Ascend/cann/set_env.sh`（路径按实际安装位置调整）
+- [ ] 安装 Python 依赖：`pip3 install Pillow numpy --user`
 
-- 设置环境变量（假设包安装在`/usr/local/Ascend/`）
+## 详细步骤
 
-    ```
-    source /usr/local/Ascend/cann/set_env.sh
-    ```
+### Step 1：准备模型
 
-## 实现步骤
+1. 下载 ONNX 模型文件到 `model/` 目录：
 
-1.  以运行用户登录开发环境。
-
-2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"样例目录。
-
-    请注意，下文中的样例目录均指"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"目录。
-
-3.  准备ResNet-50模型。
-    1.  获取ResNet-50原始模型。
-
-        您可以从以下链接中获取ResNet-50网络的模型文件，并以运行用户将获取的文件上传至开发环境的"样例目录/model"目录下。如果目录不存在，需要自行创建。
-
-        -   ResNet-50网络的模型文件（\*.onnx）：单击[Link](https://github.com/onnx/models/blob/main/Computer_Vision/resnet50_Opset16_timm/resnet50_Opset16.onnx)下载该文件。
-
-    2.  将ResNet-50原始模型转换为适配昇腾AI处理器的离线模型（\*.om文件）。
-
-        切换到样例目录，执行如下命令(以Atlas A2系列产品为例)：
-
-        ```
-        atc --model=resnet50_Opset16.onnx --framework=5 --output=resnet50_dynamic_batch --soc_version=Ascend910B1 --input_format=NCHW --output_type=FP32 --input_shape="x:-1,3,224,224" --dynamic_batch_size="1,2,4,8"
-        ```
-
-        -   --model：原始模型文件路径。
-        -   --framework：原始框架类型。0：表示Caffe；1：表示MindSpore；3：表示TensorFlow；5：表示ONNX。
-        -   --soc\_version：昇腾AI处理器的版本。版本获取可参考[Link](https://hiascend.com/document/redirect/CannCommunityAtcSocVersion)。
-        -   --input\_shape: 指定输入数据的shape值，其中不想指定的维度可以将其设置为-1。
-        -   --dynamic\_batch\_size: 设置动态batch_size参数。
-        -   --output\_type：指定输出的数据类型为float32。
-        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
-
-            ```
-            const char* omModelPath = "../model/resnet50_dynamic_batch.om";
-            ```
-
-4.  准备测试图片。
-    1.  请从以下链接获取该样例的输入图片，并以运行用户将获取的文件上传至开发环境的"样例目录/data"目录下。如果目录不存在，需自行创建。
-
-        [https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1\_1024\_683.jpg](https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1_1024_683.jpg)
-
-        [https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2\_1024\_683.jpg](https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2_1024_683.jpg)
-
-    2.  切换到“样例目录/data“目录下，执行transfer_pic.py脚本，将\*.jpg转换为\*.bin，同时将图片从1024\*683的分辨率缩放为224\*224。在“样例目录/data“目录下生成2个\*.bin文件。
-
-        ```
-        python3 ../scripts/transfer_pic.py
-        ```
-
-        如果执行脚本报错"ModuleNotFoundError: No module named 'PIL'"，则表示缺少Pillow库，请使用**pip3 install Pillow --user**命令安装Pillow库。
-
-## 构建验证
-
-1.  以运行用户登录开发环境。
-
-2.  请先进入根目录下"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"样例目录。
-
-    请注意，下文中的样例目录均指"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"目录。
-
-3.  切换到"样例目录/scripts",编译程序。
-
-    ```
-    bash build.sh
+    ```bash
+    mkdir -p model
+    wget -O model/resnet50_Opset16.onnx \
+      "https://github.com/onnx/models/raw/main/Computer_Vision/resnet50_Opset16_timm/resnet50_Opset16.onnx"
     ```
 
-4.  运行程序
+2. 转换动态 Batch 离线模型（在 `model/` 目录下执行 atc，以 Atlas A2 系列为例）：
+
+    ```bash
+    cd model
+    atc --model=resnet50_Opset16.onnx --framework=5 --output=resnet50_dynamic_batch \
+      --soc_version=Ascend910B1 --input_format=NCHW --output_type=FP32 \
+      --input_shape="x:-1,3,224,224" --dynamic_batch_size="1,2,4,8"
+    cd ..
     ```
-    bash run.sh
+
+    | 参数 | 说明 |
+    |------|------|
+    | `--input_shape` | 指定输入 shape，Batch 维度设为 `-1` 表示可变 |
+    | `--dynamic_batch_size` | 支持的 Batch size 列表，运行时自动适配 |
+    | `--framework` | 框架类型：0=Caffe, 1=MindSpore, 3=TensorFlow, 5=ONNX |
+    | `--soc_version` | 昇腾 AI 处理器版本，参考 [版本列表](https://hiascend.com/document/redirect/CannCommunityAtcSocVersion) |
+
+    > 若修改 `--output` 路径，需同步修改源码中的 `omModelPath`：
+    > ```cpp
+    > const char* omModelPath = "../model/resnet50_dynamic_batch.om";
+    > ```
+
+### Step 2：准备测试图片
+
+1. 下载测试图片到 `data/` 目录：
+
+    ```bash
+    mkdir -p data
+    wget -O data/dog1_1024_683.jpg "https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1_1024_683.jpg"
+    wget -O data/dog2_1024_683.jpg "https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2_1024_683.jpg"
     ```
 
-5.  执行结果
+2. 在 `data/` 目录下执行图片预处理（脚本扫描当前目录的 `*.jpg` 文件）：
 
-    执行成功后，在屏幕上的关键提示信息示例如下，提示信息中的index表示类别标识、value表示该分类的最大置信度，这些值可能会根据版本、环境有所不同，请以实际情况为准：
+    ```bash
+    cd data
+    python3 ../scripts/transfer_pic.py
+    cd ..
+    ```
 
-        [INFO] acl init success
-        [INFO] open device 0 success
-        [INFO] create context success
-        [INFO] create stream success
-        [INFO] load model ../model/resnet50_dynamic_batch.om success
-        [INFO] start to process file:../data/dog1_1024_683.bin
-        [INFO] start to process file:../data/dog2_1024_683.bin
-        [INFO] model execute success
-        [INFO] Result of picture 1:
-        [INFO] top 1: index[162] value[xxxxxx]
-        [INFO] top 2: index[161] value[xxxxxx]
-        [INFO] top 3: index[166] value[xxxxxx]
-        [INFO] top 4: index[167] value[xxxxxx]
-        [INFO] top 5: index[163] value[xxxxxx]
-        [INFO] Result of picture 2:
-        [INFO] top 1: index[267] value[xxxxxx]
-        [INFO] top 2: index[266] value[xxxxxx]
-        [INFO] top 3: index[265] value[xxxxxx]
-        [INFO] top 4: index[153] value[xxxxxx]
-        [INFO] top 5: index[99] value[xxxxxx]
-        [INFO] output data success
-        [INFO] SAMPLE PASSED
+    执行后在 `data/` 下生成 2 个 `*.bin` 文件。
 
-    **说明：**
-    类别标签和类别的对应关系与训练模型时使用的数据集有关，本样例使用的模型是基于imagenet数据集进行训练的，您可以在互联网上查阅imagenet数据集的标签及类别的对应关系。
-    当前屏显信息中的类别标识与类别的对应关系如下：
-    "161": \["basset", "basset hound"\]、
-    "267": \["standard poodle"\]。
+### Step 3：编译运行
+
+```bash
+bash scripts/build.sh
+bash scripts/run.sh
+```
+
+## 预期输出
+
+```
+[INFO] acl init success
+[INFO] open device 0 success
+[INFO] create context success
+[INFO] create stream success
+[INFO] load model ../model/resnet50_dynamic_batch.om success
+[INFO] start to process file:../data/dog1_1024_683.bin
+[INFO] start to process file:../data/dog2_1024_683.bin
+[INFO] model execute success
+[INFO] Result of picture 1:
+[INFO] top 1: index[162] value[xxxxxx]
+[INFO] top 2: index[161] value[xxxxxx]
+[INFO] top 3: index[166] value[xxxxxx]
+[INFO] top 4: index[167] value[xxxxxx]
+[INFO] top 5: index[163] value[xxxxxx]
+[INFO] Result of picture 2:
+[INFO] top 1: index[267] value[xxxxxx]
+[INFO] top 2: index[266] value[xxxxxx]
+[INFO] top 3: index[265] value[xxxxxx]
+[INFO] top 4: index[153] value[xxxxxx]
+[INFO] top 5: index[99] value[xxxxxx]
+[INFO] output data success
+[INFO] SAMPLE PASSED
+```
+
+| 类别标识 | 对应类别（ImageNet） |
+|---------|---------------------|
+| 161 | basset, basset hound |
+| 267 | standard poodle |
+
+> 具体数值可能因版本和环境不同而有差异。标签与类别的对应关系基于 ImageNet 数据集。
+
+## 常见问题
+
+**Q: 与样例 1 的区别是什么？**
+
+样例 1 是固定单 Batch，每次只能处理 1 张图片；本样例使用 `--dynamic_batch_size` 参数转换模型，运行时可将多张图片打包为一个 Batch 同时推理，提高吞吐。
+
+**Q: 如何修改运行时 Batch size？**
+
+修改源码中将多张图片送入模型的逻辑，Batch size 需在 `--dynamic_batch_size` 指定的列表中（1/2/4/8）。
+
+**Q: 执行 transfer_pic.py 报错 `ModuleNotFoundError: No module named 'PIL'`**
+
+```bash
+pip3 install Pillow --user
+```
+
+**Q: atc 转换报错找不到模型文件**
+
+确保在 `model/` 目录下执行 atc 命令，或在 `--model` 参数中使用正确的相对/绝对路径。
