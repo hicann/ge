@@ -12,6 +12,7 @@
 
 # 此例中，构造一个在MeetRequirements返回false的场景:add的两个输入shape不一致
 import torch
+import torch_npu  # noqa: F401
 import torch.nn as nn
 import torchair
 

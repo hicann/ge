@@ -6,6 +6,7 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 
+import npu_bridge  # noqa: F401
 import numpy as np
 import tensorflow as tf
 from tensorflow.core.protobuf.rewriter_config_pb2 import RewriterConfig
@@ -16,7 +17,7 @@ def generate_tf_graph():
     b = tf.compat.v1.placeholder(tf.float32, shape=[3, 2], name="b")
     matmul = tf.linalg.matmul(a, b, name="matmul")
     c = tf.compat.v1.placeholder(tf.float32, shape=[2, 2], name="c")
-    add = tf.add(matmul, c, name="add")
+    tf.add(matmul, c, name="add")
     return tf.compat.v1.get_default_graph()
 
 

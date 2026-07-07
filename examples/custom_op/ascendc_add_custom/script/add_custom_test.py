@@ -9,9 +9,11 @@
 import os
 
 import torch
+import torch_npu  # noqa: F401
 import torch._dynamo
 import torchair
 from torch_npu.testing.testcase import TestCase, run_tests
+from torchair import register_fx_node_ge_converter  # noqa: F401
 from torchair.ge import Tensor, TensorSpec
 
 # 环境校验
@@ -26,7 +28,9 @@ torch.ops.load_library(lib_path)
 
 @torchair.register_fx_node_ge_converter(torch.ops.ascendc_ops.ascendc_add.default)
 # 实现converter
-def convert_ascendc_ascendc_add(x: Tensor, y: Tensor, z: Tensor = None, meta_outputs: TensorSpec = None):
+def convert_ascendc_ascendc_add(
+    x: Tensor, y: Tensor, z: Tensor = None, meta_outputs: TensorSpec = None
+):
     return torchair.ge.custom_op(
         "AddCustom",
         inputs={
