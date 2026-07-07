@@ -21,6 +21,7 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <cmath>
 
 namespace minidag {
 namespace {
@@ -37,6 +38,11 @@ struct SerialGraphSplit {
 
 bool IsSerialNode(const DAGNodePtr &node) {
   return (node != nullptr) && (!node->GetSerialFlag().empty());
+}
+
+bool IsNonWightNode(const DAGNodePtr &node) {
+  minidag::NodeCost cost = node->GetCost();
+  return (std::fabs(cost.execution_time) <= 1e-6);
 }
 
 void SortByTopoId(std::vector<DAGNodePtr> &nodes) {
@@ -150,7 +156,7 @@ graphStatus AddResidualEdgesFromNode(DAGGraph &residual_graph, const DAGNodePtr 
     if (dst_node == nullptr) {
       return graphStatus::SUCCESS;
     }
-    if (IsSerialNode(dst_node)) {
+    if (IsSerialNode(dst_node) || IsNonWightNode(dst_node)) {
       if (visited_serial_nodes.insert(dst_node->GetName()).second) {
         pending_serial_nodes.push(dst_node);
       }
@@ -180,7 +186,7 @@ graphStatus BuildResidualEdges(const DAGGraph &graph, DAGGraph &residual_graph) 
   std::set<std::pair<std::string, std::string>> added_edges;
   for (const auto &node : graph.GetAllNodes()) {
     MINIDAG_ASSERT_NOTNULL(node, "Build residual edges failed: graph contains null node.");
-    if (IsSerialNode(node)) {
+    if (IsSerialNode(node) || IsNonWightNode(node)) {
       continue;
     }
     auto ret = AddResidualEdgesFromNode(residual_graph, node, added_edges);
@@ -198,6 +204,7 @@ graphStatus SplitSerialGraph(DAGGraph &graph, SerialGraphSplit &split) {
   auto all_nodes = graph.GetAllNodes();
   SortByTopoId(all_nodes);
   std::set<std::string> seen_labels;
+  int32_t serial_node_num = 0, non_weight_node_num = 0;
   for (const auto &node : all_nodes) {
     MINIDAG_ASSERT_NOTNULL(node, "Split serial graph failed: graph contains null node.");
     if (IsSerialNode(node)) {
@@ -206,6 +213,10 @@ graphStatus SplitSerialGraph(DAGGraph &graph, SerialGraphSplit &split) {
       if (seen_labels.insert(serial_label).second) {
         split.serial_label_order.push_back(serial_label);
       }
+      serial_node_num++;
+      continue;
+    } else if (IsNonWightNode(node)) {
+      non_weight_node_num++;
       continue;
     }
 
@@ -215,7 +226,7 @@ graphStatus SplitSerialGraph(DAGGraph &graph, SerialGraphSplit &split) {
     residual_node->SetTopoId(node->GetTopoId());
     residual_node->SetCost(node->GetCost());
   }
-
+  MINIDAG_LOG_INFO("serial node num: %d, non-weight node num: %d", serial_node_num, non_weight_node_num);
   for (auto &serial_group : split.serial_groups) {
     SortByTopoId(serial_group.second);
   }
@@ -262,7 +273,7 @@ void AssignSerialStreamIds(const SerialGraphSplit &split, const int64_t first_se
 graphStatus ByPathCoverCore(DAGGraph &graph, StreamAllocConfig &config) {
   auto all_nodes = graph.GetAllNodes();
   int32_t node_num = static_cast<int32_t>(all_nodes.size());
-
+  MINIDAG_LOG_INFO("rest dag node num: %d", node_num);
   std::map<int32_t, std::shared_ptr<DAGNode>> id_to_node;
   std::map<std::shared_ptr<DAGNode>, int32_t> node_to_id;
   BuildNodeIdMaps(graph, id_to_node, node_to_id);
