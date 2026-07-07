@@ -63,7 +63,7 @@ df.finalize()
 
 通过API构图并执行的流程如下所示。
 
-**图1**  通过FlowNode构图并执行
+**图2**  通过FlowNode构图并执行
 ![](figures/通过FlowNode构图并执行.png "通过FlowNode构图并执行")
 
 示例代码如下。完整示例代码请参考[sample\_base](https://gitcode.com/cann/ge/blob/master/examples/dflow/python/sample_base.py)。
