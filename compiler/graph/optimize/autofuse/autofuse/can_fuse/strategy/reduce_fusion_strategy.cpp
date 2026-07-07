@@ -20,6 +20,7 @@
 namespace ge {
 // 检查并初始化节点的is_reduce_all_load状态
 void CheckAndInitReduceAllLoadState(const NodePtr &node, AutoFuseAttrs *attr, const std::string &node_desc) {
+  (void)node_desc;
   // 只在状态为未初始化且节点为Reduce类型时才检查
   if (attr->HasFuseType(loop::FuseType::kReduction) && attr->GetReduceAllLoadState() == REDUCE_ALL_LOAD_INIT) {
     int32_t state;
@@ -31,8 +32,6 @@ void CheckAndInitReduceAllLoadState(const NodePtr &node, AutoFuseAttrs *attr, co
       // 不是所有load都满足norm-like条件
       state = REDUCE_ALL_LOAD_NOT_ALL;
     }
-    GELOGI("%s norm-like state %d, depend on whether satisfy conditions (R axis <= 32, A axis >= 128)",
-           node_desc.c_str(), state);
     attr->SetReduceAllLoadState(state);
   }
 }
