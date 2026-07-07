@@ -17,6 +17,7 @@
 #include "macro_utils/dt_public_unscope.h"
 #include "../passes/graph_builder_utils.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/utils/tensor_utils.h"
 #include "common/share_graph.h"
 
 namespace ge {
@@ -659,6 +660,44 @@ TEST(UtestGraphPassesHcclMemcpyPass, TestMulRefNode2ScopeWriteNode2) {
   auto temp_node = allreduce->GetInDataNodes().at(0);
   EXPECT_EQ(temp_node->GetType(), IDENTITY);
   EXPECT_TRUE(!AttrUtils::HasAttr(temp_node->GetOpDesc()->GetInputDesc(0), REF_VAR_SRC_VAR_NAME));
+}
+
+TEST(UtestGraphPassesHcclMemcpyPass, TestInsertIdentityCleanReuseInput) {
+  auto builder = ut::GraphBuilder("test");
+  auto data1 = builder.AddNode("data1", DATA, 0, 1);
+  auto data2 = builder.AddNode("data2", DATA, 0, 1);
+  auto data3 = builder.AddNode("data3", DATA, 0, 1);
+  auto source = builder.AddNode("source", MUL, 3, 1);
+  auto relu = builder.AddNode("relu", RELU, 1, 1);
+  auto allreduce = builder.AddNode("allreduce", HCOMALLREDUCE, 1, 0);
+  AttrUtils::SetBool(allreduce->GetOpDesc(), "_input_mutable", true);
+  TensorUtils::SetReuseInput(*source->GetOpDesc()->MutableOutputDesc(0), true);
+  TensorUtils::SetReuseInputIndex(*source->GetOpDesc()->MutableOutputDesc(0), 2U);
+
+  builder.AddDataEdge(data1, 0, source, 0);
+  builder.AddDataEdge(data2, 0, source, 1);
+  builder.AddDataEdge(data3, 0, source, 2);
+  builder.AddDataEdge(source, 0, relu, 0);
+  builder.AddDataEdge(source, 0, allreduce, 0);
+
+  auto graph = builder.GetGraph();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto identity = allreduce->GetInDataNodes().at(0);
+  ASSERT_EQ(identity->GetType(), IDENTITY);
+
+  bool reuse_input = true;
+  uint32_t reuse_input_index = 2U;
+  EXPECT_EQ(TensorUtils::GetReuseInput(identity->GetOpDesc()->GetInputDesc(0), reuse_input), GRAPH_SUCCESS);
+  EXPECT_FALSE(reuse_input);
+  EXPECT_EQ(TensorUtils::GetReuseInputIndex(identity->GetOpDesc()->GetInputDesc(0), reuse_input_index), GRAPH_SUCCESS);
+  EXPECT_EQ(reuse_input_index, 0U);
+  reuse_input = true;
+  reuse_input_index = 2U;
+  EXPECT_EQ(TensorUtils::GetReuseInput(identity->GetOpDesc()->GetOutputDesc(0), reuse_input), GRAPH_SUCCESS);
+  EXPECT_FALSE(reuse_input);
+  EXPECT_EQ(TensorUtils::GetReuseInputIndex(identity->GetOpDesc()->GetOutputDesc(0), reuse_input_index), GRAPH_SUCCESS);
+  EXPECT_EQ(reuse_input_index, 0U);
 }
 
 TEST(UtestGraphPassesHcclMemcpyPass, TestConst2ScopeWriteNode) {
