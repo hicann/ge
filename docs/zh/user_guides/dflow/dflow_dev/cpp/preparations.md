@@ -14,7 +14,7 @@
     安装CANN软件后，使用CANN运行用户进行编译、运行时，需要以CANN运行用户登录环境，执行`source ${INSTALL_DIR}/set_env.sh`命令设置环境变量。$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 
     ```shell
-    export RESOURCE_CONFIG_PATH=numa_config.json //用于设置配置异构资源描述信息文件的存储路径。
+    export RESOURCE_CONFIG_PATH=numa_config.json #用于设置配置异构资源描述信息文件的存储路径。
     ```
 
     > [!NOTE]说明
@@ -23,8 +23,8 @@
 - 可选环境变量
 
     ```shell
-    export ASCEND_GLOBAL_LOG_LEVEL=0 //设置应用类日志的日志级别及各模块日志级别，仅支持调试日志。0对应DEBUG级别。
-    export ASCEND_SLOG_PRINT_TO_STDOUT=1 //是否开启日志打印。1表示开启日志打印。
+    export ASCEND_GLOBAL_LOG_LEVEL=0 #设置应用类日志的日志级别及各模块日志级别，仅支持调试日志。0对应DEBUG级别。
+    export ASCEND_SLOG_PRINT_TO_STDOUT=1 #是否开启日志打印。1表示开启日志打印。
     ```
 
     具体说明请参考[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。

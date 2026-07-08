@@ -147,7 +147,7 @@ class Add():
         def init_flow_func(self, meta_params):  # 入参有且只能有meta_params，类型为MetaParams
             name = meta_params.get_name()
             ff.logger.info("func name is %s", name)
-            input_num= meta_params.get_input_num()
+            input_num = meta_params.get_input_num()
             ff.logger.info("input num %d", input_num)
             device_id = meta_params.get_running_device_id()
             ff.logger.info("device id %d", device_id)
@@ -391,7 +391,7 @@ C++的类要继承MetaMultiFunc，C++文件中核心内容包括三部分
 
 ```cpp
 FLOW_FUNC_REGISTRAR(Add)
-    .RegProcFunc("Add1", &Add::AddProc1);
+    .RegProcFunc("Add1", &Add::AddProc1)
     .RegProcFunc("Add2", &Add::AddProc2);
 ```
 
@@ -651,11 +651,11 @@ DataFlow离线编译是指在开发环境编译，在运行环境上加载和部
 
 **使用约束**
 
-无
+执行环境的numa_config.json需要和编译时候保持一致，ipaddr字段除外。
 
 **使用方法**
 
-1. 开启图编译缓存。示例如下**。**
+1. 开启图编译缓存，示例如下。
 
     ```python
         # 初始化
@@ -664,7 +664,7 @@ DataFlow离线编译是指在开发环境编译，在运行环境上加载和部
             "ge.exec.deviceId":"0",
             "ge.exec.logicalDeviceClusterDeployMode":"SINGLE",
             "ge.exec.logicalDeviceId":"[0:0]",
-           "ge.graph_compiler_cache_dir":"./build_cache_dir",
+            "ge.graph_compiler_cache_dir":"./build_cache_dir",
             "ge.runFlag":"0"
         }
         df.init(options)

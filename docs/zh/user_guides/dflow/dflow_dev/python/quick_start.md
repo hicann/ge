@@ -20,7 +20,7 @@
     安装CANN软件后，使用CANN运行用户进行编译、运行时，需要以CANN运行用户登录环境，执行**source \$_\{INSTALL\_DIR\}_/set\_env.sh**命令设置环境变量。\$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 
     ```shell
-    export RESOURCE_CONFIG_PATH=numa_config.json //用于设置配置异构资源描述信息文件的存储路径。
+    export RESOURCE_CONFIG_PATH=numa_config.json #用于设置配置异构资源描述信息文件的存储路径。
     ```
 
     > [!NOTE]说明
@@ -34,8 +34,8 @@
 
 ## 完整样例参考
 
-|Sample名称|代码地址|场景说明|
-|--|--|--|
-|sample_multiple_model|获取样例|多模型串接下沉执行。使用FuncProcessPoint和GraphProcessPoint构造DataFlow图，通过将GraphProcessPoint执行的onnx、pb模型下沉到device，减少host和device之间控制面、数据面交互，提高执行性能。|
-|sample_pytorch|获取样例|sample_pytorch：DataFlow结合PyTorch做模型在线推理。将原来预处理、模型推理、后处理的串行执行流程改造成能够异步流水执行的FlowGraph，从而提升推理整体的吞吐量。|
-|sample_npu_model|获取样例|针对sample_pytorch的优化，增加了对PyTorch模型节点的数据下沉或者模型下沉。|
+|Sample名称| 代码地址                                                                |场景说明|
+|--|---------------------------------------------------------------------|--|
+|sample_multiple_model| [获取样例](../../../../../../examples/dflow/python/sample_multiple_model.py) |多模型串接下沉执行。使用FuncProcessPoint和GraphProcessPoint构造DataFlow图，通过将GraphProcessPoint执行的onnx、pb模型下沉到device，减少host和device之间控制面、数据面交互，提高执行性能。|
+|sample_pytorch| [获取样例](../../../../../../examples/dflow/python/sample_pytorch.py) |sample_pytorch：DataFlow结合PyTorch做模型在线推理。将原来预处理、模型推理、后处理的串行执行流程改造成能够异步流水执行的FlowGraph，从而提升推理整体的吞吐量。|
+|sample_npu_model| [获取样例](../../../../../../examples/dflow/python/sample_npu_model.py) |针对sample_pytorch的优化，增加了对PyTorch模型节点的数据下沉或者模型下沉。|
