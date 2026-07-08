@@ -3406,8 +3406,8 @@ HcclResult HcomOpsKernelInfoStore::HcomAicpuStreamRegister(ge::GETaskInfo &task)
 
   // 获取aicpuStream
   rtStream_t aicpuStream;
-  HcclResult ret = HcomMc2AiCpuStreamAllocAndGet(group.c_str(), streamMode, &aicpuStream);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[HcomMc2AiCpuStreamAllocAndGet] error [%d]", ret), ret);
+  HcclResult ret = GetHcclUnfoldStream(group, streamMode, aicpuStream);
+  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[GetHcclUnfoldStream] error [%d]", ret), ret);
   CHK_PRT_RET(aicpuStream == nullptr, HCCL_ERROR("%s group:%s aicpuStream is null", __func__, group.c_str()),
               HCCL_E_PTR);
 
@@ -3421,6 +3421,47 @@ HcclResult HcomOpsKernelInfoStore::HcomAicpuStreamRegister(ge::GETaskInfo &task)
   return HCCL_SUCCESS;
 }
 
+HcclResult HcomOpsKernelInfoStore::GetHcclUnfoldStream(const std::string &group, uint64_t streamMode,
+ 	                                                        rtStream_t &unfoldStream) {
+ 	   HCCL_INFO("Get Unfold Stream from group:%s", group.c_str());
+ 	   HcclComm comm = nullptr;
+ 	   CHK_RET(HcomGetCommHandleByGroup(group.c_str(), &comm));
+ 	   std::string socVersion{};
+ 	   if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
+ 	     HCCL_ERROR("[HcomOpsKernelInfoStore] GetHcclUnfoldStream get soc version failed");
+ 	     return HCCL_E_NOT_FOUND;
+ 	   }
+ 	   if (socVersion.find("Ascend950") == std::string::npos) {
+ 	     rtStream_t aicpuStream = nullptr;
+ 	     CHK_RET(HcomMc2AiCpuStreamAllocAndGet(group.c_str(), streamMode, &aicpuStream));
+ 	     unfoldStream = aicpuStream;
+ 	   } else {
+ 	     HCCL_INFO("[GetHcclUnfoldStream] Get Unfold Stream with Thread");
+ 	     string ctxName = group + "_unfold";
+ 	     void *ctx = nullptr;
+ 	     uint64_t ctxSize = sizeof(ThreadHandle);
+ 	     HcclResult ret = HcclEngineCtxGet(comm, ctxName.c_str(), CommEngine::COMM_ENGINE_CPU_TS, &ctx, &ctxSize);
+ 	     if (ret != HCCL_SUCCESS) {
+ 	       // ctx不存在，创建新thread并填充到新ctx中
+ 	       HCCL_INFO("[GetHcclUnfoldStream] Create new thread for ctx:%s", ctxName.c_str());
+ 	       ThreadHandle unfoldThread;
+ 	       ctxSize = sizeof(ThreadHandle);
+ 	       CHK_RET(HcclThreadAcquire(comm, CommEngine::COMM_ENGINE_CPU, 1, 0, &unfoldThread));
+ 	       CHK_RET(HcclEngineCtxCreate(comm, ctxName.c_str(), CommEngine::COMM_ENGINE_CPU_TS, ctxSize, &ctx));
+ 	       HCCL_DEBUG("[GetHcclUnfoldStream] HcclEngineCtxCreate tag[%s], UnfoldThread[%lu]", ctxName.c_str(), unfoldThread);
+ 	       ThreadHandle *threadPtr = reinterpret_cast<ThreadHandle *>(ctx);
+ 	       *threadPtr = unfoldThread;
+ 	     }
+ 	     // 从ctx获取thread，再转换为stream
+ 	     ThreadHandle *threadPtr = reinterpret_cast<ThreadHandle *>(ctx);
+ 	     ThreadHandle unfoldThread = *threadPtr;
+ 	     void *stream = nullptr;
+ 	     CHK_RET(HcclThreadResGetInfo(comm, unfoldThread, ThreadResType::THREAD_RES_TYPE_STREAM, sizeof(void *), &stream));
+ 	     unfoldStream = static_cast<rtStream_t>(stream);
+ 	   }
+ 	   return HCCL_SUCCESS;
+ 	 }
+ 	 
 HcclResult HcomOpsKernelInfoStore::HcomAicpuStreamUnRegister(ge::GETaskInfo &task) {
   // 获取通信域
   std::string group;
