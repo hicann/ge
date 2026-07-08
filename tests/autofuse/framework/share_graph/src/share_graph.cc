@@ -11,11 +11,29 @@
 #include "share_graph.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/debug/ge_op_types.h"
-#include "ascendc_ir.h"
+#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "ascendc_ir_def.h"
 #include "ascendc_ir/utils/asc_graph_utils.h"
 #include "ascir_ops.h"
-#include "ascir_ops_utils.h"
+
+namespace ge {
+namespace ops {
+static Expression Zero = Symbol(0);
+static Expression One = Symbol(1);
+
+template <typename T>
+bool IsOps(const AscNodePtr &node) {
+  return node->GetType() == T::Type;
+}
+
+template <typename T>
+bool IsOps(const AscNode *node) {
+  return node->GetType() == T::Type;
+}
+}  // namespace ops
+}  // namespace ge
+
+namespace ops = ge::ops;
 
 using namespace ge;
 

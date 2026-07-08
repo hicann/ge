@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -16,10 +16,11 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
+#include "graph/symbolizer/symbolic_utils.h"
 #include "register/shape_inference.h"
 #include "utils/auto_fuse_config.h"
 #include "lowering/asc_lowerer/loop_common.h"
-#include "backend/backend_spec.h"
+#include "common/autofuse_backend_spec_api.h"
 #include "base/err_msg.h"
 #include "operator_factory.h"
 
@@ -103,7 +104,7 @@ uint32_t PeerOutNodeFuseParaCal(const NodePtr &concat_node, const NodePtr &peer_
       (void)ge::AttrUtils::GetInt(peer_out_node->GetOpDesc(), "N", peerout_node_concatnum);
     }
     GELOGD("fuse concat node info:nodeout anchorsize[%d], concat dim can get flag[%d], final concat flag[%d]",
-           nodeout_anchorsize, concat_dim_can_get_flag, concat_node_flag);     
+           nodeout_anchorsize, concat_dim_can_get_flag, concat_node_flag);
   }
   concat_node_flagvec.push_back(concat_node_flag);
   return static_cast<uint32_t>(peerout_node_concatnum);
@@ -312,7 +313,7 @@ graphStatus FlattenConcatPass::CanFlatten(const NodePtr &node, size_t concat_dim
                                  ge::GRAPH_FAILED,
                                  "number of inputs(%zu) exceeds max input num(%zu), do not flatten concat",
                                  num_inputs, kMaxFusedInputNum);
-  const auto backend_spec = optimize::BackendSpec::GetInstance();
+  const auto backend_spec = ge::GetAutofuseBackendSpec();
   GE_CHECK_NOTNULL(backend_spec);
   const auto max_single_op_input_num = backend_spec->concat_max_input_num;
   const auto may_deteriorate =

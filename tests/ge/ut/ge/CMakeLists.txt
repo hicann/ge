@@ -1289,9 +1289,13 @@ target_include_directories(ge_manual_test BEFORE PRIVATE
         ${AIR_CODE_DIR}/graph_metadef
 )
 target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/graph
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/meta
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion
+        ${CMAKE_BINARY_DIR}/proto/ge_autofuse_metadef_protos_af
         ${CMAKE_BINARY_DIR}/graph_metadef/graph/ascendc_ir/generator/
         ${ASCEND_INSTALL_PATH}/include
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
@@ -1300,6 +1304,8 @@ target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framewor
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/ascir
         ${ASCGEN_DIR}/inc
 )
+
+add_dependencies(ge_manual_test ge_autofuse_metadef_protos_af)
 
 target_link_options(ge_manual_test PRIVATE
     -Wl,--disable-new-dtags
@@ -1354,6 +1360,7 @@ target_include_directories(ut_jit_execution BEFORE PRIVATE
 target_include_directories(ut_jit_execution PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${AIR_CODE_DIR}/tests/ge/st/stubs/utils
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
         ${ASCEND_INSTALL_PATH}/include
         ${ASCEND_INSTALL_PATH}/include/exe_graph
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse

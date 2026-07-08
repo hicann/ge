@@ -1,10 +1,10 @@
 
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -26,7 +26,7 @@
 #include "post_process/asc_backend_post_processor.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
 #include "utils/auto_fuse_config.h"
-#include "backend/backend_spec.h"
+#include "common/autofuse_backend_spec_api.h"
 #include "ascgen_log.h"
 
 #include "common/util/mem_utils.h"
@@ -35,7 +35,7 @@
 #include "all_ops_cpp.h"
 #include "compliant_op_desc_builder.h"
 #include "esb_graph.h"
-#include "platform_context.h"
+#include "common/autofuse_platform_api.h"
 #include "base/att_const_values.h"
 #include "depends/runtime/src/runtime_stub.h"
 
@@ -160,7 +160,7 @@ uint8_t AscSubgraphNodeCount(const NodePtr & AscNode , const string &node_type) 
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5TransposeAndElementwiseCanFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -214,12 +214,12 @@ TEST_F(UTestLoweringAndCanfuseV2, A5TransposeAndElementwiseCanFuse) {
   EXPECT_EQ(non_asc_backend_node_count, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5TransposeAndTransposeLoweringCanfuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -265,12 +265,12 @@ TEST_F(UTestLoweringAndCanfuseV2, A5TransposeAndTransposeLoweringCanfuse) {
   // EXPECT_EQ(asc_backend_node_count, 1);
   // EXPECT_EQ(non_asc_backend_node_count, 2);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5ElementwiseAndTransposeCanFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -320,7 +320,7 @@ TEST_F(UTestLoweringAndCanfuseV2, A5ElementwiseAndTransposeCanFuse) {
   EXPECT_EQ(non_asc_backend_node_count, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
@@ -368,7 +368,7 @@ TEST_F(UTestLoweringAndCanfuseV2, A5BroadCastAndTransposeLoweringCanfuse2) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5BroadCastAndTransposeLoweringCanfuse3) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -413,12 +413,12 @@ TEST_F(UTestLoweringAndCanfuseV2, A5BroadCastAndTransposeLoweringCanfuse3) {
   }
   ASSERT_EQ(asc_node_count, 1);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5BroadCastAndTransposeLoweringCanfuse4) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -463,12 +463,12 @@ TEST_F(UTestLoweringAndCanfuseV2, A5BroadCastAndTransposeLoweringCanfuse4) {
   }
   ASSERT_EQ(asc_node_count, 1);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, A5MutiRefEleAndTransposeNotFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -512,12 +512,12 @@ TEST_F(UTestLoweringAndCanfuseV2, A5MutiRefEleAndTransposeNotFuse) {
   }
   ASSERT_EQ(asc_node_count, 1);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndMulLoweringCanfuseV2) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -559,7 +559,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndMulLoweringCanfuseV2) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndReshapeLoweringCanfuseV2) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -613,7 +613,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndReshapeLoweringCanfuseV2) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndAddLoweringCanfuseV2) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -655,7 +655,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndAddLoweringCanfuseV2) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, AbsAndCubeLoweringCanfuseV2CanNotFuseForward) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -716,7 +716,7 @@ TEST_F(UTestLoweringAndCanfuseV2, AbsAndCubeLoweringCanfuseV2CanNotFuseForward) 
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBroadcast) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -778,7 +778,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBroadc
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBatchBroadcast) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -841,7 +841,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBat
 
 // 特殊场景vector的轴信息为m 1 n，对于matmul的m n两根轴来说看起来是batch 轴broadcast，实际可以做无效轴删除然后变成非batch轴broadcast的可融合场景
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBatchBroadcast2) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -895,7 +895,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBatchB
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseDirectBroadcast) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -957,7 +957,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseDir
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndScalarLoweringCanfuseV2CanFuseScalar) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1018,7 +1018,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndScalarLoweringCanfuseV2CanFuseScalar) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseV2CanNotFuseReduce) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1078,7 +1078,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseV2CanNotFuseReduce
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndElementwiseLoweringCanfuseV2CanNotFuseVertical) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1133,7 +1133,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndElementwiseLoweringCanfuseV2CanNotFuseV
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseReluAbs) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1189,7 +1189,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseReluAbs) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseOnlyRelu) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1241,7 +1241,7 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseOnlyRelu) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, EleAndSplitLoweringCanfuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1277,7 +1277,7 @@ TEST_F(UTestLoweringAndCanfuseV2, EleAndSplitLoweringCanfuse) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitAndSplitLoweringCanfuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1322,7 +1322,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndSplitLoweringCanfuse) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, EleAndSplitLoweringCanfuseStatic) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1359,7 +1359,7 @@ TEST_F(UTestLoweringAndCanfuseV2, EleAndSplitLoweringCanfuseStatic) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, ReluAndSplitHorizontalLoweringCanfuseStatic) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1401,7 +1401,7 @@ TEST_F(UTestLoweringAndCanfuseV2, ReluAndSplitHorizontalLoweringCanfuseStatic) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitAndEleLoweringCanfuseStaticNoLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1451,7 +1451,7 @@ int DumpAllAscGraphs(const ComputeGraphPtr &cg, std::string s) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SingleSplitLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1487,7 +1487,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SingleSplitLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SingleGiantSplitLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1525,7 +1525,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SingleGiantSplitLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitSingleOutputDoubleQuotesLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1567,7 +1567,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitSingleOutputDoubleQuotesLoweringCanfuseLi
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitSingleOutputDoubleQuotesLoweringCanfuseLiftingNotFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1624,7 +1624,7 @@ REG_OP(SplitV)
     .REQUIRED_ATTR(num_split, Int)
     .OP_END_FACTORY_REG(SplitV)
 TEST_F(UTestLoweringAndCanfuseV2, SplitVLoweringCanfuseStatic) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1666,7 +1666,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitVLoweringCanfuseStatic) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitVLiftingErrorStatic) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1710,7 +1710,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitVLiftingErrorStatic) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SingleSplitVLiftingErrorStatic) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1754,7 +1754,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SingleSplitVLiftingErrorStatic) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1799,7 +1799,7 @@ TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitVLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1845,7 +1845,7 @@ TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitVLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitDLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1892,7 +1892,7 @@ TEST_F(UTestLoweringAndCanfuseV2, FlattenSplitDLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, HierarchicalFlattenSplitLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1938,7 +1938,7 @@ TEST_F(UTestLoweringAndCanfuseV2, HierarchicalFlattenSplitLoweringCanfuseLifting
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -1974,7 +1974,7 @@ TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseNoLifting) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2018,7 +2018,7 @@ TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseNoLifting) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseNoLowering) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2063,7 +2063,7 @@ TEST_F(UTestLoweringAndCanfuseV2, GiantSplitLoweringCanfuseNoLowering) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitAndAddNoBroadcast) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2093,7 +2093,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndAddNoBroadcast) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitAndConcatAndAbsSplitPartialFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2137,7 +2137,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndConcatAndAbsSplitPartialFuse) {
 }
 
 TEST_F(UTestLoweringAndCanfuseV2, SplitAndReduceAndAbsSplitLowFuseRatio) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2180,7 +2180,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndReduceAndAbsSplitLowFuseRatio) {
 
 // Gather + Elewis, Elewis包含Broadcast信息，Gather未与Broadcast直连，可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherAddBroadcastFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2229,13 +2229,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherAddBroadcastFuse) {
   ASSERT_EQ(asc_node_count, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Elewis, Elewis包含Broadcast信息，Gather与Broadcast直连，不可融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherAddBroadcastFuseInvalid) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2291,13 +2291,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherAddBroadcastFuseInvalid) {
   ASSERT_EQ(asc_node_count, 0);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Reduce, Reduce包含Broadcast信息，Gather未与Broadcast直连，可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherReduceBroadcastFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2349,13 +2349,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherReduceBroadcastFuse) {
   ASSERT_EQ(asc_node_count, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Reduce, Reduce包含Broadcast信息，Gather与Broadcast直连，不可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherReduceBroadcastFuseInvalid) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2407,13 +2407,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherReduceBroadcastFuseInvalid) {
   ASSERT_EQ(asc_node_count, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Elewis + Squeeze, 不可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherAddSqueezeFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2462,13 +2462,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherAddSqueezeFuse) {
   ASSERT_EQ(asc_node_count, 0);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Broc + Concat, 不可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherBrocConcatFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2522,13 +2522,13 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherBrocConcatFuse) {
   ASSERT_EQ(asc_node_count, 1); // 存在一个tile + concat的融合算子
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Gather + Concat, Concat与Gather直连分支上不包含Broc信息，可以融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherBrocConcatFuse2) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2583,7 +2583,7 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherBrocConcatFuse2) {
   ASSERT_EQ(asc_node_count, 1); // 存在一个tile + concat + gather的融合算子
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
@@ -2639,7 +2639,7 @@ static Status ProcessGraphWithFullPipeline(ComputeGraphPtr &cg) {
 
 // Gather/Gather + Concat, 可以融合,但是FusedAscBackend内部的Gather不能融合
 TEST_F(UTestLoweringAndCanfuseV2, GatherGatherConcatFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -2663,14 +2663,14 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherGatherConcatFuse) {
 
   // 清理环境
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Split与Reshape融合测试：Reshape只是squeeze掉shape为1的轴，且下游节点可以融合
 // 预期：Split应该与Reshape融合
 TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeSqueezeShouldFuseWhenNextNodeCanFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2758,14 +2758,14 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeSqueezeShouldFuseWhenNextNodeCanFu
   AscBackendPostProcessor post_processor;
   EXPECT_EQ(post_processor.Do(cg), SUCCESS);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Split与Reshape融合测试：Reshape只是squeeze掉shape为1的轴，但下游节点是NetOutput
 // 预期：Split不应与Reshape融合
 TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeSqueezeShouldNotFuseWhenNextIsNetOutput) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2837,14 +2837,14 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeSqueezeShouldNotFuseWhenNextIsNetO
   AscBackendPostProcessor post_processor;
   EXPECT_EQ(post_processor.Do(cg), SUCCESS);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 // Split与Reshape融合测试：Reshape不是squeeze（改变了shape的其他维度）
 // 预期：Split应该可以与Reshape融合
 TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeNotSqueezeShouldFuse) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
   [this]() {
@@ -2917,7 +2917,7 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitReshapeNotSqueezeShouldFuse) {
   AscBackendPostProcessor post_processor;
   EXPECT_EQ(post_processor.Do(cg), SUCCESS);
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 }  // namespace ge

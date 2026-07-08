@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -26,7 +26,7 @@
 #include "lowering/asc_lowerer/asc_overrides.h"
 #include "lowering/asc_lowerer/loop_common.h"
 #include "lowering/op_helper/stridedslice.h"
-#include "backend/backend_spec.h"
+#include "common/autofuse_backend_spec_api.h"
 #include "can_fuse/backend/backend_utils.h"
 #include "lowering/op_helper/cube.h"
 #include "common/fp16_t/fp16_t.h"
@@ -243,7 +243,7 @@ graphStatus LowerConcat(const NodePtr &node) {
   LOWERING_WARN_RECORD_REASON(concat_dim >= 0 && concat_dim < static_cast<int64_t>(output_dims.size()),
                               node, "Concat dim %ld must in dim range [0, %zu)", concat_dim, output_dims.size());
   LOWERING_WARN_RECORD_REASON(output_dims[concat_dim].FreeSymbols().size() <= kMaxFreeSymbols, node,
-                              "Output concat dim has too many free symbols: %zu, exceeds max value: %zu",	 
+                              "Output concat dim has too many free symbols: %zu, exceeds max value: %zu",
                               output_dims[concat_dim].FreeSymbols().size(), kMaxFreeSymbols);
 
   std::vector<InDataAnchorPtr> inputs;
@@ -254,7 +254,7 @@ graphStatus LowerConcat(const NodePtr &node) {
     (void) loop::Store(node->GetOutDataAnchor(0), loop::Load(inputs[0]));
     return GRAPH_SUCCESS;
   }
-  const auto backend_spec = optimize::BackendSpec::GetInstance();
+  const auto backend_spec = ge::GetAutofuseBackendSpec();
   LOWERING_WARN_RECORD_REASON(backend_spec != nullptr, node, "backend spec is nullptr.");
   if ((backend_spec->concat_alg != kAlgTranspose) && ConcatCanBeConvertedToBrc(inputs, concat_dim)) {
     // ConcatToBroadcast 内部已经调用宏，存储原因
@@ -587,7 +587,7 @@ graphStatus LowerSplitToStridedSlices(const NodePtr &node, const vector<Expressi
 
 bool InputIsConditionNode(const NodePtr &node) {
   bool node_peerin_node_is_branch = false;
-  for (auto in_node : node->GetInNodesPtr()) {  
+  for (auto in_node : node->GetInNodesPtr()) {
     GE_ASSERT_NOTNULL(in_node);
     if (find(kControlOpTypes.begin(), kControlOpTypes.end(), in_node->GetType()) != kControlOpTypes.end()) {
       node_peerin_node_is_branch = true;
@@ -867,7 +867,8 @@ graphStatus LowerSplit(const NodePtr &node) {
   InDataAnchorPtr x_anchor;
   vector<ge::Expression> x_dims;
   LOWERING_WARN_RECORD_REASON(ParseSplitNodeAndValidate(node, x_anchor, split_dim, x_dims) == GRAPH_SUCCESS, node, "Faile to ParseSplitNodeAndValidate");
-  const auto backend_spec = optimize::BackendSpec::GetInstance();
+  const auto backend_spec = ge::GetAutofuseBackendSpec();
+  GE_CHECK_NOTNULL(backend_spec);
   if (split_dim < 0) {
     split_dim += static_cast<int64_t>(x_dims.size());
   }
@@ -917,19 +918,19 @@ graphStatus LowerGather(const NodePtr &node) {
     axis[0] = axis[0] < 0 ? axis[0] + static_cast<int64_t>(params_dims.size()) : axis[0];
     LOWERING_WARN_RECORD_REASON(axis[0] >= 0 && axis[0] < static_cast<int64_t>(params_dims.size()), node,
       "Axis %ld must in dim range [0, %zu)", axis[0], params_dims.size());
-    const auto backend_spec = optimize::BackendSpec::GetInstance();
+    const auto backend_spec = ge::GetAutofuseBackendSpec();
     GE_CHECK_NOTNULL(backend_spec);
     LOWERING_WARN_RECORD_REASON(backend_spec->gather_spec.enable_non_tail_gather || axis[0] + 1 == static_cast<int64_t>(params_dims.size()),
       node, "Is not last dim gather");
     auto loop_var =
-        loop::GatherLoad(node->GetOutDataAnchor(0), node->GetInDataAnchor(0), node->GetInDataAnchor(1), axis[0], negative_index_support);       
+        loop::GatherLoad(node->GetOutDataAnchor(0), node->GetInDataAnchor(0), node->GetInDataAnchor(1), axis[0], negative_index_support);
     (void)loop::Store(node->GetOutDataAnchor(0), loop_var).Realize();
   }
   return GRAPH_SUCCESS;
 }
 
 bool IsPermSupported(const Permutation &perm, uint32_t transpose_mode) {
-  if (transpose_mode == static_cast<uint32_t>(optimize::TransposeMode::TRANSPOSE_MODE_UNNORMAL)) { // 1:非normal模式
+  if (transpose_mode == static_cast<uint32_t>(ge::AutofuseTransposeMode::TRANSPOSE_MODE_UNNORMAL)) { // 1:非normal模式
     // 先直接判断是否小于等于5维，后续添加合轴后的维度判断
     return perm.size() <= transpose_five_perms;
   }
@@ -1001,7 +1002,7 @@ graphStatus LowerTranspose(const NodePtr &node) {
     return ret;
   }
 
-  const auto backend_spec = optimize::BackendSpec::GetInstance();
+  const auto backend_spec = ge::GetAutofuseBackendSpec();
   GE_CHECK_NOTNULL(backend_spec);
   uint32_t transpose_mode = backend_spec->transpose_mode;
   LOWERING_WARN_RECORD_REASON(IsPermSupported(perm, transpose_mode) == true,
@@ -1619,7 +1620,7 @@ REGISTER_LOWERING(BroadcastTo) {
   indices.emplace_back(x_dims);
 
   loop::Index broadcast;
-  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, 
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS,
                               node, "Failed to imply input broadcast");
   loop::Store(node->GetOutDataAnchor(0), loop::Broadcast(x, x_dims, broadcast));
   return GRAPH_SUCCESS;

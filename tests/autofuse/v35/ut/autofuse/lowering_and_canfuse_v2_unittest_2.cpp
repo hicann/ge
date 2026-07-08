@@ -27,7 +27,7 @@
 #include "post_process/asc_backend_post_processor.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
 #include "utils/auto_fuse_config.h"
-#include "backend/backend_spec.h"
+#include "common/autofuse_backend_spec_api.h"
 #include "ascgen_log.h"
 
 #include "common/util/mem_utils.h"
@@ -36,7 +36,7 @@
 #include "all_ops_cpp.h"
 #include "compliant_op_desc_builder.h"
 #include "esb_graph.h"
-#include "platform_context.h"
+#include "common/autofuse_platform_api.h"
 #include "base/att_const_values.h"
 #include "depends/runtime/src/runtime_stub.h"
 
@@ -400,7 +400,7 @@ class UTestLoweringAndCanfuseV2_2 : public testing::Test {
 };
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrPostProcessPropagation) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -421,12 +421,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrPostProcessPropagation) {
   EXPECT_TRUE(found) << "Conv2D node not found in AscGraph";
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrBoundaryTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -447,12 +447,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrBoundaryTest) {
   EXPECT_TRUE(found) << "Conv2D node not found in AscGraph";
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrEdgeBoundaryTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -473,12 +473,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrEdgeBoundaryTest) {
   EXPECT_TRUE(found) << "Conv2D node not found in AscGraph";
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrOffsetXNegativeTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -498,12 +498,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DAttrOffsetXNegativeTest) {
   VerifyConv2DAttrGeneric(cg, {"Conv2DBias", "Conv2D"}, -128);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DNoBiasTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -523,12 +523,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DNoBiasTest) {
                       {1, 224, 224, 3}, {3, 3, 3, 64}, {1, 224, 224, 64}, 2, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithBiasTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -548,12 +548,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithBiasTest) {
                       {1, 224, 224, 3}, {3, 3, 3, 64}, {1, 224, 224, 64}, 3, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithOffsetWTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -585,12 +585,12 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithOffsetWTest) {
                       {1, 224, 224, 3}, {3, 3, 3, 64}, {1, 224, 224, 64}, 3, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 
 TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithBiasAndOffsetWTest) {
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
   RuntimeStub::SetInstance(stub_v2);
 
@@ -622,7 +622,7 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithBiasAndOffsetWTest) {
                       {1, 224, 224, 3}, {3, 3, 3, 64}, {1, 224, 224, 64}, 4, 1);
 
   SetCurShapeEnvContext(nullptr);
-  ge::PlatformContext::GetInstance().Reset();
+  ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
 }
 }  // namespace ge

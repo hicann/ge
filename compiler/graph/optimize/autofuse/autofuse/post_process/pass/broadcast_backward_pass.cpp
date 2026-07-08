@@ -13,7 +13,11 @@
 #include "post_process/post_process_util.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
-#include "common_utils.h"
+
+// 通过前置声明依赖后端判断节点是否支持scalar输入的接口，后续正式方案是所有节点都不支持scalar输入，等正式方案落地后此接口可删除
+namespace ascgen_utils {
+bool IsNodeSupportsScalarInput(const af::AscNodePtr &node, const std::vector<bool> &is_scalar_list);
+}
 
 namespace ge {
 namespace {
@@ -392,7 +396,7 @@ Status CheckNodeSupportsScalarInput(const NodePtr &compute_node, int32_t input_i
   is_support = ascgen_utils::IsNodeSupportsScalarInput(asc_node, is_scalar_list);
   if (!is_support) {
     GELOGD("Compute node %s does not support scalar input, is_scalar_list: %s", compute_node->GetName().c_str(),
-           ascgen_utils::VectorToStr(is_scalar_list).c_str());
+           AutofuseUtils::VectorToStr(is_scalar_list).c_str());
   }
 
   return SUCCESS;

@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -26,7 +26,7 @@
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/execute/model_executor.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
-#include "common/platform_context.h"
+#include "common/autofuse_platform_api.h"
 using namespace testing;
 
 namespace ge {
@@ -54,7 +54,7 @@ class UserGraphsManagerlUT : public testing::Test {
     gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry();
     std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310"}};
     GetThreadLocalContext().SetGlobalOption(options);
-    ge::PlatformContext::GetInstance().SetPlatform("fake");
+    ge::SetAutofusePlatform("fake");
     const auto env_ptr = getenv("LD_PRELOAD");
     if (env_ptr != nullptr) {
       env = env_ptr;
@@ -67,7 +67,7 @@ class UserGraphsManagerlUT : public testing::Test {
     gert_stub_.Clear();
     RuntimeStub::Reset();
     AclRuntimeStub::Reset();
-    ge::PlatformContext::GetInstance().Reset();
+    ge::ResetAutofusePlatform();
     if (!env.empty()) {
       setenv("LD_PRELOAD", env.c_str(), 1);
     }
@@ -205,7 +205,7 @@ TEST_F(UserGraphsManagerlUT, IsGraphNeedRebuild_False) {
   EXPECT_FALSE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
 
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-  
+
   // graph is not exist, need rebuild
   EXPECT_TRUE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
@@ -262,10 +262,10 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -319,9 +319,9 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   const std::map<std::string, std::string> options = {{ge::INPUT_HINT_SHAPE, "0:[2,3,4,5]; 1:[4]"}};
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -381,9 +381,9 @@ TEST_F(UserGraphsManagerlUT, return_load_fail_when_input_static_graph_not_partit
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_EQ(summary, nullptr);
@@ -410,9 +410,9 @@ TEST_F(UserGraphsManagerlUT, return_load_succ_when_input_dynamic_graph_partition
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_EQ(summary, nullptr);
@@ -443,9 +443,9 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   const std::map<std::string, std::string> options;
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -508,10 +508,10 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -569,10 +569,10 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   compute_graph->SetGraphOutNodesInfo(output_nodes);
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -634,10 +634,10 @@ TEST_F(UserGraphsManagerlUT, return_compile_summary_execute_success_when_input_s
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  
+
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  
+
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -662,7 +662,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_summary_execute_success_when_input_s
                     (void *) input_data_1.data()};
   gert_outputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}}, {}, {}, {}, nullptr};
   EXPECT_NE(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS); // 未load报错
- 
+
   gert_inputs.clear();
   gert_outputs.clear();
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
@@ -719,7 +719,7 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_dynamic_batch) {
   options["ge.dynamicDims"] = "1,1,1;2,2,2;3,3,3";
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
@@ -745,7 +745,7 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_aoe_mode) {
   options["ge.buildMode"] = "tuning";
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
@@ -766,7 +766,7 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_unsupported_op) {
   uint32_t user_graph_id = 2u;
   auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
-  
+
   // 添加不支持算子（Switch）到图中
   auto switch_op = std::make_shared<OpDesc>("switch_node", "Switch");
   GeTensorDesc input_desc(GeShape({1, 2, 3, 4}), FORMAT_ND, DT_FLOAT);
@@ -775,12 +775,12 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_unsupported_op) {
   switch_op->AddOutputDesc(input_desc);
   switch_op->AddOutputDesc(input_desc);
   compute_graph->AddNode(switch_op);
-  
+
   std::map<std::string, std::string> options;
   // 包含不支持算子 - 不支持 slice schedule，降级到传统模式
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
@@ -801,7 +801,7 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_resource_op) {
   uint32_t user_graph_id = 3u;
   auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
-  
+
   // 添加资源算子（输出类型为 DT_RESOURCE）到图中
   auto resource_op = std::make_shared<OpDesc>("resource_node", "ResourceOp");
   GeTensorDesc input_desc(GeShape({1, 2, 3, 4}), FORMAT_ND, DT_FLOAT);
@@ -810,12 +810,12 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_resource_op) {
   resource_op->AddInputDesc(input_desc);
   resource_op->AddOutputDesc(output_desc);
   compute_graph->AddNode(resource_op);
-  
+
   std::map<std::string, std::string> options;
   // 包含资源算子 - 不支持 slice schedule，降级到传统模式
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-  
+
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);

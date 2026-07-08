@@ -26,8 +26,8 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "can_fuse/backend/asc_backend_fusion_decider.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
-#include "ascir_registry.h"
-#include "platform_context.h"
+#include "graph/ascendc_ir/ascir_registry.h"
+#include "common/autofuse_platform_api.h"
 
 namespace ge {
 using namespace autofuse;
@@ -19242,7 +19242,7 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarOK) {
 
   // 获取当前平台信息
   std::string platform_name;
-  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+  ge::GetAutofusePlatform(platform_name);
 
   // 保存原始注册表状态
   auto &registry = af::ascir::AscirRegistry::GetInstance();
@@ -19431,7 +19431,7 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarMulRefsOK) {
 
   // 获取当前平台信息
   std::string platform_name;
-  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+  ge::GetAutofusePlatform(platform_name);
 
   // 保存原始注册表状态
   auto &registry = af::ascir::AscirRegistry::GetInstance();
@@ -19521,7 +19521,7 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarMulRefsOK2) {
 
   // 获取当前平台信息
   std::string platform_name;
-  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+  ge::GetAutofusePlatform(platform_name);
 
   // 保存原始注册表状态
   auto &registry = af::ascir::AscirRegistry::GetInstance();
@@ -19606,7 +19606,7 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarMulRefsOK3) {
 
   // 获取当前平台信息
   std::string platform_name;
-  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+  ge::GetAutofusePlatform(platform_name);
 
   // 保存原始注册表状态
   auto &registry = af::ascir::AscirRegistry::GetInstance();
@@ -19694,7 +19694,7 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarMulRefsOK4) {
 
   // 获取当前平台信息
   std::string platform_name;
-  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+  ge::GetAutofusePlatform(platform_name);
 
   // 保存原始注册表状态
   auto &registry = af::ascir::AscirRegistry::GetInstance();
