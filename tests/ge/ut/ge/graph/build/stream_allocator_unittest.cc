@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "macro_utils/dt_public_scope.h"
-#include "graph/build/stream/stream_allocator.h"
+#include "graph/build/stream/graph_stream_allocator.h"
 #include "graph/build/stream/stream_utils.h"
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "macro_utils/dt_public_unscope.h"

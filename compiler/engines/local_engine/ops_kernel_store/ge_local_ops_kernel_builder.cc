@@ -18,7 +18,7 @@
 #include "graph/utils/tensor_utils_ex.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_type_utils.h"
-#include "engines/local_engine/ops_kernel_store/op/op_factory.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op_factory.h"
 #include "engines/local_engine/common/constant/constant.h"
 #include "register/ops_kernel_builder_registry.h"
 #include "graph/debug/ge_attr_define.h"

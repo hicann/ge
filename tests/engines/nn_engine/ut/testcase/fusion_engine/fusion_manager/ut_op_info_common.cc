@@ -22,7 +22,7 @@
 #include "common/configuration.h"
 #include "ops_kernel_store/fe_ops_kernel_info_store.h"
 #include "common/fe_op_info_common.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "ops_store/ops_kernel_manager.h"
 #undef private
 #undef protected

@@ -16,7 +16,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "opskernel/ops_kernel_info_types.h"
 #include "graph/passes/standard_optimize/same_transdata_breadth_fusion_pass.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "api/gelib/gelib.h"
 #include "graph/operator_reg.h"

@@ -19,7 +19,7 @@
 
 #include "common/checker.h"
 #include "common/debug/ge_log.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/scope_guard.h"
 #include "ge/ge_ir_build.h"
 #include "graph_metadef/graph/utils/file_utils.h"

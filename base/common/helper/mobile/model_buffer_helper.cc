@@ -27,7 +27,7 @@
 #include "securec.h"
 #include "common/scope_guard.h"
 #include "large_memory_ops.h"
-#include "model.h"
+#include "mobile_model.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_type_utils.h"
 

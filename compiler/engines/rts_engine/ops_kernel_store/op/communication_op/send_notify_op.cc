@@ -11,7 +11,7 @@
 
 #include "common/constant/constant.h"
 #include "op_factory.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 #include "../../../inc/framework/common/runtime_model_ge.h"
 
 using namespace ge;

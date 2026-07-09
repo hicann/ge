@@ -12,8 +12,8 @@
 #include "graph/utils/execute_graph_utils.h"
 #include "graph/utils/fast_node_utils.h"
 #include "common/checker.h"
-#include "core/utils/executor_utils.h"
-#include "utils/utils.h"
+#include "core/utils/rt2_executor_utils.h"
+#include "utils/rt2_utils.h"
 
 namespace gert {
 namespace {

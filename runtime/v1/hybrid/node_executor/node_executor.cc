@@ -10,7 +10,7 @@
 
 #include "hybrid/node_executor/node_executor.h"
 #include "framework/common/ge_types.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "hybrid/executor/hybrid_execution_context.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 

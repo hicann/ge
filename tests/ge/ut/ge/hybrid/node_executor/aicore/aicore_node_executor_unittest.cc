@@ -21,7 +21,7 @@
 #include "api/gelib/gelib.h"
 #include "graph/bin_cache/node_bin_selector_factory.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"
 #include "ge_graph_dsl/graph_dsl.h"

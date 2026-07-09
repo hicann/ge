@@ -9,7 +9,7 @@
  */
 
 #include "common/format/axis_util.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 const std::map<ge::Format, GetAxisValueInfoByFormatPtr> AxisUtil::get_axis_value_func_map = {

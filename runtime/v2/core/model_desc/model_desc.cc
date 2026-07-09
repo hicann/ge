@@ -11,7 +11,7 @@
 #include "runtime/model_desc.h"
 
 #include <cinttypes>
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "common/debug/ge_log.h"
 #include "graph/load/model_manager/aipp_utils.h"
 

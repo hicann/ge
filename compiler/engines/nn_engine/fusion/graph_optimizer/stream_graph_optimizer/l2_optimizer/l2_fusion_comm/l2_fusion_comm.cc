@@ -10,7 +10,7 @@
 
 #include "graph_optimizer/stream_graph_optimizer/l2_optimizer/l2_fusion_comm/l2_fusion_comm.h"
 #include <set>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_inner_attr_define.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/tensor_utils.h"

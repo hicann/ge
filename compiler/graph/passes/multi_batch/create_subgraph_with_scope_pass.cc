@@ -19,7 +19,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "exec_runtime/execution_runtime_utils.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/context/local_context.h"
 #include "common/checker.h"
 #include "register/op_registry.h"

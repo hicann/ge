@@ -12,7 +12,7 @@
 #include <cinttypes>
 #include <cstring>
 #include <set>
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "base/err_msg.h"
 #include "framework/common/debug/log.h"

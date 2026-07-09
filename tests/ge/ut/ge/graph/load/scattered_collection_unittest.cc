@@ -17,7 +17,7 @@
 #include "graph/def_types.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/zero_copy_offset.h"
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 #include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_args_helper.h"
 #include "graph/load/model_manager/task_info/fe/fusion_start_task_info.h"
 #include "graph/load/model_manager/task_info/fe/fusion_stop_task_info.h"
@@ -86,7 +86,7 @@ TEST_F(UtestScatteredCollection, ZeroCopyOffset_Invalid) {
   zero_copy_offset.SetLogicalOutsideAddrs(logical_addr, false, device_addr);
 }
 
-// ffts_plus_proto_transfer.cc
+// v1_ffts_plus_proto_transfer.cc
 TEST_F(UtestScatteredCollection, FftsPlusProtoTransfer_InitManualAicAivCtx_Failed) {
   std::vector<uintptr_t> io_addrs;
   std::vector<void *> ext_args;

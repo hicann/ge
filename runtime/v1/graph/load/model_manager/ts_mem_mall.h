@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <memory>
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "rt_external_base.h"
 #include "framework/common/debug/ge_log.h"
 #include "rt_external_mem.h"

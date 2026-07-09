@@ -20,7 +20,7 @@
 #define protected public
 
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "cache/te_cache_space_manager.h"
 #include "file_handle/te_file_handle.h"
 #include "common/common_utils.h"

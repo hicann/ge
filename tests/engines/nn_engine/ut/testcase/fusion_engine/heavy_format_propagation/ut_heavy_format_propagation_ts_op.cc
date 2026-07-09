@@ -1116,7 +1116,7 @@ Status CreateGraphOfFunctionOp3(ComputeGraphPtr graph) {
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outputs) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp(graph);
@@ -1191,7 +1191,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outp
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outputs_1) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_1(graph);
@@ -1258,7 +1258,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outp
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outputs_1_with_input_exception) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_1_exception_one_input_edge(graph);
@@ -1347,7 +1347,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outp
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outputs_1_with_output_exception) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_1_exception_one_output_edge(graph);
@@ -1420,7 +1420,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outp
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outputs_2) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_1_1(graph);
@@ -1501,7 +1501,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_all_inputs_and_outp
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_output) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_2(graph);
@@ -1632,7 +1632,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_ou
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_output_2) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_3(graph);
@@ -1756,7 +1756,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_ou
 TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_output_3) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfTsOp_4(graph);
@@ -1880,7 +1880,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, format_agnostic_for_paired_input_and_ou
 TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFcAndRelu(graph, "FullyConnection");
@@ -1941,7 +1941,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu) {
 TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_2) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFcAndRelu2(graph, "FullyConnection2");
@@ -2003,7 +2003,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_2) {
 TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_3) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFcAndRelu3(graph, "FullyConnection");
@@ -2078,7 +2078,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_3) {
 TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_4) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFcAndRelu4(graph, "FullyConnection");
@@ -2139,7 +2139,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, fc_and_relu_4) {
 TEST_F(UTestHeavyFormatDistributionTsOp, function_op_01) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFunctionOp1(graph);
@@ -2225,7 +2225,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, function_op_01) {
 TEST_F(UTestHeavyFormatDistributionTsOp, function_op_03) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFunctionOp3(graph);
@@ -2337,7 +2337,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, function_op_03) {
 TEST_F(UTestHeavyFormatDistributionTsOp, function_op_02) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfFunctionOp2(graph);
@@ -2424,7 +2424,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, function_op_02) {
 TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfZeroShapeOp1(graph);
@@ -2507,7 +2507,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape) {
 TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_02) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfZeroShapeOp2(graph);
@@ -2590,7 +2590,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_02) {
 TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_03) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfZeroShapeOp3(graph);
@@ -2678,7 +2678,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_03) {
 TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_04) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfZeroShapeOp4(graph);
@@ -2757,7 +2757,7 @@ TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_04) {
 TEST_F(UTestHeavyFormatDistributionTsOp, zero_shape_05) {
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   CreateGraphOfZeroShapeOp5(graph);

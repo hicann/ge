@@ -17,7 +17,7 @@
 
 #include "formats/utils/formats_definitions.h"
 #include "formats/utils/formats_trans_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/math_util.h"

@@ -15,7 +15,7 @@
 #include <sstream>
 #include <array>
 #include <set>
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/taskdown_common.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/load/model_manager/ts_mem_mall.h"

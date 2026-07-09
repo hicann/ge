@@ -14,7 +14,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "compiler/graph/common/compress/inc/compress.h"
 #include "common/fe_thread_pool.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_inner_attr_define.h"
 
 namespace fe {

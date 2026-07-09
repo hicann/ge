@@ -12,7 +12,7 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph_optimizer/stream_graph_optimizer/l2_optimizer/l2_fusion_allocation/l2_fusion_allocation.h"

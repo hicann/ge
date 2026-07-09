@@ -18,7 +18,7 @@
 #include <cctype>
 #include "common/string_utils.h"
 #include "common/fe_inner_error_codes.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/util/op_info_util.h"
 #include "rt_external.h"
 #include "ops_store/ops_kernel_manager.h"

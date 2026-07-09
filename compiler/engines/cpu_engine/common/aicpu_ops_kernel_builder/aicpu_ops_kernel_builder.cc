@@ -18,7 +18,7 @@
 #include "ge/ge_api_types.h"
 #include "kernel_builder.h"
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 
 using namespace std;

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "core/utils/executor_utils.h"
+#include "core/utils/rt2_executor_utils.h"
 #include <gtest/gtest.h>
 namespace gert {
 class ExecutorUtilsUT : public testing::Test {};

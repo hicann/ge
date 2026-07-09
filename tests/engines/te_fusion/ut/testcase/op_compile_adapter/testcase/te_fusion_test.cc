@@ -31,7 +31,7 @@
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "python_adapter/python_api_call.h"
 #include "python_adapter/pyobj_assemble_utils.h"
 #include "python_adapter/python_adapter_manager.h"

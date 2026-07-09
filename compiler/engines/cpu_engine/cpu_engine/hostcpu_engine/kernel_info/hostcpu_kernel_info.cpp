@@ -14,7 +14,7 @@
 #include "config/ops_json_file.h"
 #include "error_code/error_code.h"
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 
 using namespace std;

@@ -16,7 +16,7 @@
 #include <string>
 
 #include "framework/engine/dnnengine.h"
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 
 namespace ge {
 class GE_FUNC_VISIBILITY AICoreDNNEngine : public DNNEngine {

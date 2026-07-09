@@ -8,12 +8,12 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef LLM_ENGINE_INC_COMMON_LLM_COMMON_H
-#define LLM_ENGINE_INC_COMMON_LLM_COMMON_H
+#ifndef LLM_ENGINE_INC_COMMON_LLM_DATADIST_COMMON_H
+#define LLM_ENGINE_INC_COMMON_LLM_DATADIST_COMMON_H
 
 #include "ge/ge_api_types.h"
 
 namespace llm {
 ge::Status TransRetToLlmCodes(const ge::Status &ret);
 }  // namespace llm
-#endif  // LLM_ENGINE_INC_COMMON_LLM_COMMON_H
+#endif  // LLM_ENGINE_INC_COMMON_LLM_DATADIST_COMMON_H

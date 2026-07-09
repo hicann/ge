@@ -19,7 +19,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/ge_context.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/const_place_holder_utils/const_place_holder_utils.h"
 #include "rt_external_device.h"
 #include "common/checker.h"

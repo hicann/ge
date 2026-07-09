@@ -17,7 +17,7 @@
 #include "flow_func/meta_run_context.h"
 #include "flow_func/dflow_attr_value.h"
 #include "mbuf_flow_msg.h"
-#include "flow_model.h"
+#include "udf_flow_model.h"
 
 namespace FlowFunc {
 class FLOW_FUNC_VISIBILITY FlowFuncContext : public MetaContext {

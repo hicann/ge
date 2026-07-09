@@ -22,7 +22,7 @@
 #include "flow_func/flow_func_manager.h"
 #include "flow_model_impl.h"
 #include "flow_func_drv_manager.h"
-#include "memory_statistic_manager.h"
+#include "udf_memory_statistic_manager.h"
 
 namespace FlowFunc {
 namespace {

@@ -24,7 +24,7 @@
 #include "api/gelib/gelib.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "register/ops_kernel_builder_registry.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "framework/common/helper/model_helper.h"
 using namespace std;
 

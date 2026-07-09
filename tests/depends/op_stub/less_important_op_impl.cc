@@ -13,7 +13,7 @@
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "register/node_converter_registry.h"
 #include "register/kernel_registry.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 
 namespace gert {

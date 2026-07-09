@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_COMMON_MATH_MATH_UTIL_H_
-#define GE_COMMON_MATH_MATH_UTIL_H_
+#ifndef GE_COMMON_MATH_GE_MATH_UTIL_H_
+#define GE_COMMON_MATH_GE_MATH_UTIL_H_
 
 #include <climits>
 #include <cmath>
@@ -947,4 +947,4 @@ inline bool IsEqualWith(const double &a, const double &b) {
 }
 
 }  // namespace ge
-#endif  // GE_COMMON_MATH_MATH_UTIL_H_
+#endif  // GE_COMMON_MATH_GE_MATH_UTIL_H_

@@ -25,7 +25,7 @@
 #include "graph/build/memory/var_mem_assign_util.h"
 #include "graph/optimize/mem_layout_conflict_optimize/mem_layout_conflict_util.h"
 #include "common/context/local_context.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/checker.h"
 #include "common/memory/mem_type_utils.h"
 #include "framework/common/op/ge_op_utils.h"

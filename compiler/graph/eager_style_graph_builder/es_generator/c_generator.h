@@ -14,7 +14,7 @@
 #include <cstring>
 #include <string>
 #include <unordered_map>
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "graph/op_desc.h"
 #include "generator_interface.h"
 

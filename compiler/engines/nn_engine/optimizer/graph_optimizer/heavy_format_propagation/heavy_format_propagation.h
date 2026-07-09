@@ -23,7 +23,7 @@
 #include "common/fe_inner_error_codes.h"
 #include "common/fe_log.h"
 #include "common/fe_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/util/op_info_util.h"
 #include "format_selector/manager/format_dtype_querier.h"
@@ -67,7 +67,7 @@ class HeavyFormatPropagation {
 
   HeavyFormatPropagation &operator=(const HeavyFormatPropagation &) = delete;
 
-  Status Initalize();
+  Status Initialize();
   /**
    * The main function of distributing heavy format and it is also the
    * interface given to graph optimizer.

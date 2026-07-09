@@ -19,7 +19,7 @@
 #include "graph/manager/caching_allocator.h"
 #include "graph/manager/graph_mem_allocator.h"
 #include "graph/manager/rdma_pool_allocator.h"
-#include "graph/manager/host_mem_allocator.h"
+#include "graph/manager/v1_host_mem_allocator.h"
 #include "graph/manager/mem_manager.h"
 #include "common/profiling_definitions.h"
 #include "common/checker.h"

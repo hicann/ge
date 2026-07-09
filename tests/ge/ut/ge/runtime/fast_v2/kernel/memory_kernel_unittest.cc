@@ -33,7 +33,7 @@
 #include "rt_external.h"
 #include "checker/memory_profiling_log_matcher.h"
 #include "stub/gert_runtime_stub.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "depends/runtime/src/runtime_stub.h"
 
 namespace gert {

@@ -10,7 +10,7 @@
 
 #include "hybrid/model/infer/tensor_desc_observer.h"
 #include "graph/ge_tensor.h"
-#include "hybrid/model/infer/shape_utils.h"
+#include "hybrid/model/infer/hybrid_shape_utils.h"
 #include "common/debug/log.h"
 
 namespace ge {

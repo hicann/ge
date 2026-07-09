@@ -14,7 +14,7 @@
 #include "graph/partition/optimizer/hostcpu_engine_update_pass.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "framework/common/ge_types.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph/utils/node_utils.h"
 #include "mmpa/mmpa_api.h"

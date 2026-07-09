@@ -10,7 +10,7 @@
 
 #include "tf_engine.h"
 #include <mutex>
-#include "common/util/log.h"
+#include "common/util/aicpu_log.h"
 #include "common/util/util.h"
 #include "common/aicpu_ops_kernel_info_store/aicpu_ops_kernel_info_store.h"
 #include "common/aicpu_graph_optimizer/aicpu_graph_optimizer.h"

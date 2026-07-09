@@ -24,7 +24,7 @@
 #include "llm_datadist/llm_error_codes.h"
 #include "llm_datadist_wrapper.h"
 #include "llm_tensor.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 
 #undef PYBIND11_CHECK_PYTHON_VERSION
 #define PYBIND11_CHECK_PYTHON_VERSION

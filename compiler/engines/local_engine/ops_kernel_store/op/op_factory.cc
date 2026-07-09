@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "engines/local_engine/ops_kernel_store/op/op_factory.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op_factory.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/op_desc.h"

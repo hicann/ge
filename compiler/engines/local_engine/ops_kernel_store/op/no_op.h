@@ -11,7 +11,7 @@
 #ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_NO_OP_H_
 #define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_NO_OP_H_
 
-#include "engines/local_engine/ops_kernel_store/op/op.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op.h"
 
 namespace ge {
 namespace ge_local {

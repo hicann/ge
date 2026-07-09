@@ -10,7 +10,7 @@
 
 #include "aicpu_engine.h"
 #include <mutex>
-#include "common/util/log.h"
+#include "common/util/aicpu_log.h"
 #include "platform/platform_info.h"
 #include "common/util/util.h"
 

@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 #include "engines/manager/engine_manager/dnnengine_manager.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/tuning_utils.h"
 #include "graph/operator_factory.h"
 #include "graph/ge_local_context.h"

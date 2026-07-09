@@ -26,7 +26,7 @@
 #include "register/graph_optimizer/buffer_fusion/buffer_fusion_pattern.h"
 #include "register/graph_optimizer/buffer_fusion/buffer_fusion_pass_registry.h"
 #include "framework/common/debug/ge_log.h"
-#include "register/graph_optimizer/graph_fusion/connection_matrix.h"
+#include "register/graph_optimizer/graph_fusion/fusion_connection_matrix.h"
 #include "register/graph_optimizer/fusion_common/op_slice_info.h"
 #include "common/ge_rts_decl.h"
 

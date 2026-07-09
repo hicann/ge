@@ -20,7 +20,7 @@
 #include "graph/op_desc.h"
 #include "graph/compute_graph.h"
 #include "faker/dsacore_taskdef_faker.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 namespace gert {
 namespace {
 class DsacoreKernelLaunchUT : public testing::Test {

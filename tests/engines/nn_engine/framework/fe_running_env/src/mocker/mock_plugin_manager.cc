@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include <fstream>
 #include <iostream>
 #include <memory>

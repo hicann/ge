@@ -1466,7 +1466,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1595,7 +1595,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1775,7 +1775,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1904,7 +1904,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -2043,7 +2043,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -2182,7 +2182,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -2320,7 +2320,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex,
   auto graph = BuildMainGraphWithWhileHeavyOpForend2();
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status status = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   // check result
   for (auto node : graph->GetDirectNode()) {
@@ -2338,7 +2338,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_complex, heavy_format_distr
   CreateGraphOfTanhGrad(graph);
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result = {16, 4, 16, 16};
   vector<int64_t> result1 = {-2};

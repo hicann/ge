@@ -916,7 +916,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     if (node->GetType() == "ApplyMomentumA") {
@@ -952,7 +952,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1012,7 +1012,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1093,7 +1093,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1186,7 +1186,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     vector<int64_t> result_original_dim = {3, 4, 5, 6};
@@ -1289,7 +1289,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   for (auto node : graph->GetDirectNode()) {
@@ -1326,7 +1326,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim_none = {};
@@ -1364,7 +1364,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim_none = {};
@@ -1409,7 +1409,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1465,7 +1465,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1521,7 +1521,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1572,7 +1572,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1614,7 +1614,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1655,7 +1655,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -1696,7 +1696,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     if (node->GetType() == "reduce") {
@@ -1731,7 +1731,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
 
   RefreshCubeC0FusionPass pass;
@@ -1805,7 +1805,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_find_samename
   vector<ge::NodePtr> var_nodes;
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  EXPECT_EQ(heavt_format_propagator->Initalize(), fe::SUCCESS);
+  EXPECT_EQ(heavt_format_propagator->Initialize(), fe::SUCCESS);
   heavt_format_propagator->FindSameNameVariableNodes(node, var_nodes);
   EXPECT_EQ(var_nodes.size(), 0);
 }

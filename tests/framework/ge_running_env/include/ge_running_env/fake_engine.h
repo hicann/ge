@@ -15,7 +15,7 @@
 #include "fake_ns.h"
 #include "ge_running_env/env_installer.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "register/ops_kernel_builder_registry.h"
 #include "fake_ops_kernel_builder.h"
 #include "fake_ops_kernel_info_store.h"

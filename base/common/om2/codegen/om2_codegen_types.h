@@ -24,7 +24,7 @@
 #include "ast/ast_context.h"
 #include "framework/common/taskdown_common.h"
 #include "proto/task.pb.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 
 namespace ge {
 constexpr int64_t kInvalidOpIndex = -1;

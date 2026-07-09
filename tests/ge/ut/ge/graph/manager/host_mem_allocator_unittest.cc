@@ -12,7 +12,7 @@
 #include <memory>
 
 #include "macro_utils/dt_public_scope.h"
-#include "graph/manager/host_mem_allocator.h"
+#include "graph/manager/v1_host_mem_allocator.h"
 #include "macro_utils/dt_public_unscope.h"
 
 namespace ge {

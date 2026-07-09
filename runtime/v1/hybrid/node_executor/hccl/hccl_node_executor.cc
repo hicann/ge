@@ -11,7 +11,7 @@
 #include "hybrid/node_executor/hccl/hccl_node_executor.h"
 
 #include "graph_metadef/common/plugin/plugin_manager.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/attr_value.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/manager/util/hcom_ome_util.h"

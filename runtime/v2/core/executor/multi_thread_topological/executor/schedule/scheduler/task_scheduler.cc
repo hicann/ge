@@ -13,7 +13,7 @@
 #include "core/executor/multi_thread_topological/executor/schedule/task/exec_task.h"
 #include "common/checker.h"
 #include "core/executor_error_code.h"
-#include "core/utils/executor_utils.h"
+#include "core/utils/rt2_executor_utils.h"
 #include "acl/acl_rt.h"
 #include "securectype.h"
 #include "runtime/subscriber/global_profiler.h"

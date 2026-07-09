@@ -10,7 +10,7 @@
 
 #include "evaluator.h"
 #include "cluster.h"
-#include "model.h"
+#include "hcom_model.h"
 
 using namespace std;
 vector<int> EvaluatorDataParallel::run(Model &model, Cluster &cluster, int batchSize) {

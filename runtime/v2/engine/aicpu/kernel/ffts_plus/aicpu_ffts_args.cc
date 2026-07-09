@@ -22,7 +22,7 @@
 #include "common/dump/kernel_tracing_utils.h"
 #include "rt_external_mem.h"
 #include "common/checker.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/ffts_plus/aicpu_update_kernel.h"

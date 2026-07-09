@@ -9,7 +9,7 @@
  */
 
 #include "get_attr_by_type.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 template <typename T>

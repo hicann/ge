@@ -16,7 +16,7 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/helper/model_parser_base.h"
 #include "common/helper/file_saver.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "ge/ge_error_codes.h"
 #include "acl/acl_rt.h"

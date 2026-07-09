@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "tensorflow_util.h"
-#include "util/log.h"
+#include "tf_optimizer_tensorflow_util.h"
+#include "util/aicpu_log.h"
 #include "error_code/error_code.h"
 #include "util/util.h"
 

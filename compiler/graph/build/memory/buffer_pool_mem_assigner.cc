@@ -15,7 +15,7 @@
 #include "framework/common/util.h"
 #include "graph/compute_graph.h"
 #include "graph/debug/ge_attr_define.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "base/err_msg.h"
 #include "mem_reuse_strategy.h"
 

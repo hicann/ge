@@ -12,7 +12,7 @@
 #include "cluster.h"
 #include "evaluator.h"
 #include "hccl/base.h"
-#include "model.h"
+#include "hcom_model.h"
 
 using namespace std;
 

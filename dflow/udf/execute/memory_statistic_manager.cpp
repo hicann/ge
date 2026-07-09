@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "memory_statistic_manager.h"
+#include "udf_memory_statistic_manager.h"
 #include <cstring>
 #include <string>
 #include <fstream>

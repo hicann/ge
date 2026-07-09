@@ -14,7 +14,7 @@
 
 #include "ge_ir_collector.h"
 #include "history/history_registry_writer.h"
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "common/ge_common/string_util.h"
 #include "generator_manager.h"
 #include "py_generator.h"

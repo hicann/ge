@@ -10,7 +10,7 @@
 
 #include "stream.h"
 #include "register/kernel_registry.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 #include "core/debug/kernel_tracing.h"
 #include "common/checker.h"
 #include "rt_external_stream.h"

@@ -9,7 +9,7 @@
  */
 
 #include "llm_datadist_wrapper.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "llm_tensor.h"
 #include "common/llm_checker.h"
 

@@ -13,7 +13,7 @@
 #include <mutex>
 #include "config/ops_json_file.h"
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/tf_util.h"
 #include "util/util.h"
 #include "error_code/error_code.h"

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_FRAMEWORK_COMMON_OP_TYPES_H_
-#define INC_FRAMEWORK_COMMON_OP_TYPES_H_
+#ifndef INC_FRAMEWORK_COMMON_FRAMEWORK_OP_TYPES_H_
+#define INC_FRAMEWORK_COMMON_FRAMEWORK_OP_TYPES_H_
 
 #include <set>
 #include <string>
@@ -50,4 +50,4 @@ class GE_FUNC_VISIBILITY OpTypeContainer {
   const bool VAR_UNUSED g_##var_name##_reg = OpTypeContainer::Instance()->Register(str_name)
 
 #define IS_OPTYPE_EXISTING(str_name) (ge::OpTypeContainer::Instance()->IsExisting(str_name))
-#endif  // INC_FRAMEWORK_COMMON_OP_TYPES_H_
+#endif  // INC_FRAMEWORK_COMMON_FRAMEWORK_OP_TYPES_H_

@@ -20,7 +20,7 @@
 #include "adapter/adapter_itf/op_store_adapter.h"
 #include "adapter/tbe_adapter/tbe_info/tbe_info_assembler.h"
 #include "adapter/tbe_adapter/tbe_info/tbe_single_op_info_assembler.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "graph_optimizer/graph_optimize_register_error_codes.h"
 #include "tensor_engine/fusion_api.h"
 #include "ops_kernel_store/fe_ops_kernel_info_store.h"

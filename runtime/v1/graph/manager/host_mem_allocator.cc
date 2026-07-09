@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "graph/manager/host_mem_allocator.h"
+#include "graph/manager/v1_host_mem_allocator.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/plugin/ge_make_unique_util.h"
 

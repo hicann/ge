@@ -16,7 +16,7 @@
 #include <sstream>
 #include <unordered_map>
 #include "graph/op_desc.h"
-#include "utils.h"
+#include "es_generator_utils.h"
 
 namespace ge {
 namespace es {

@@ -13,7 +13,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "graph/fuzz_compile/fuzz_compile_bin_selector.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "api/gelib/gelib.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "graph/passes/graph_builder_utils.h"

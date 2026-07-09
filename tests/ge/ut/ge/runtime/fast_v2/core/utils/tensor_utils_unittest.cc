@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include <gtest/gtest.h>
 #include "kernel/memory/host_mem_allocator.h"
 #include "kernel/memory/single_stream_l2_allocator.h"

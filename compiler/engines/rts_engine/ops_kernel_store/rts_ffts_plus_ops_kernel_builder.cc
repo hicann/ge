@@ -22,7 +22,7 @@
 #include "graph/compute_graph.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

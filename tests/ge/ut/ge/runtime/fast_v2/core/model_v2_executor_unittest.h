@@ -24,7 +24,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "faker/model_desc_holder_faker.h"
 #include "kernel/memory/host_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 
 namespace gert {

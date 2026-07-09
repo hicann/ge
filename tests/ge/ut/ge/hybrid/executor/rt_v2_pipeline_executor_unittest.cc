@@ -26,7 +26,7 @@
 #include "faker/magic_ops.h"
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "kernel/memory/single_stream_l2_allocator.h"
 #include "kernel/memory/caching_mem_allocator.h"
 

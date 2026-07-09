@@ -8,17 +8,28 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_SHAPE_UTILS_H
-#define AIR_CXX_SHAPE_UTILS_H
+#ifndef UDF_FLOW_MODEL_H
+#define UDF_FLOW_MODEL_H
 
-#include "ge/ge_api_error_codes.h"
+#include <vector>
+#include <memory>
+#include "flow_func/flow_msg.h"
 
-namespace ge {
-class GeTensorDesc;
-namespace hybrid {
-struct ShapeUtils {
-  static Status CopyShapeAndTensorSize(const GeTensorDesc &from, GeTensorDesc &to);
+namespace FlowFunc {
+class FLOW_FUNC_VISIBILITY FlowModel {
+ public:
+  FlowModel() = default;
+
+  virtual ~FlowModel() = default;
+
+  virtual int32_t Init() = 0;
+
+  virtual int32_t Run(const std::vector<std::shared_ptr<FlowMsg>> &input_msgs,
+                      std::vector<std::shared_ptr<FlowMsg>> &output_msgs, int32_t timeout) = 0;
+
+  virtual void AddExceptionTransId(uint64_t trans_id) = 0;
+
+  virtual void DeleteExceptionTransId(uint64_t trans_id) = 0;
 };
-}  // namespace hybrid
-}  // namespace ge
-#endif  // AIR_CXX_SHAPE_UTILS_H
+}  // namespace FlowFunc
+#endif  // UDF_FLOW_MODEL_H

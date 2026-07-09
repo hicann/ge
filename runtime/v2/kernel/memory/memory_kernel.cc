@@ -26,7 +26,7 @@
 #include "kernel/memory/host_mem_allocator.h"
 #include "kernel/memory/ffts_mem_allocator.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "runtime/gert_api.h"
 #include "exe_graph/runtime/tensor_data_utils.h"

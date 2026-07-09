@@ -10,7 +10,7 @@
 
 #include "graph/manager/trans_var_data_utils.h"
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "formats/formats.h"
 #include "base/err_mgr.h"
 #include "formats/utils/formats_trans_utils.h"

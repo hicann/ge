@@ -28,7 +28,7 @@
 #include "faker/fake_value.h"
 #include "faker/kernel_run_context_facker.h"
 #include "core/builder/node_types.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/compute_node_info.h"
 #include "exe_graph/runtime/kernel_context.h"
 

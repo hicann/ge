@@ -10,7 +10,7 @@
 
 #include "graph/manager/graph_mem_allocator.h"
 #include <string>
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/manager/mem_manager.h"
 #include "common/aclrt_malloc_helper.h"
 

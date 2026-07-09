@@ -11,7 +11,7 @@
 #include "llm_ge_api.h"
 #include "llm_utils.h"
 #include "framework/common/debug/ge_log.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "common/llm_inner_types.h"
 #include "cache_engine_stubs.h"
 #include "llm_test_helper.h"

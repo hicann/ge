@@ -24,7 +24,7 @@
 #include "framework/engine/dnnengine.h"
 #include "graph/op_desc.h"
 #include "graph/node.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 
 using JsonHandle = void *;
 namespace ge {

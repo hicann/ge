@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/llm_common.h"
+#include "common/llm_datadist_common.h"
 #include <set>
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_log.h"

@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "macro_utils/dt_public_scope.h"
-#include "engines/local_engine/ops_kernel_store/op/op_factory.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op_factory.h"
 #include "engines/local_engine/ops_kernel_store/op/no_op.h"
 #include "engines/local_engine/ops_kernel_store/ge_local_ops_kernel_builder.h"
 #include "macro_utils/dt_public_unscope.h"

@@ -10,7 +10,7 @@
 
 #include "ir2tf_json_file.h"
 #include <fstream>
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/tf_util.h"
 
 namespace aicpu {

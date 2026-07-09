@@ -12,7 +12,7 @@
 
 #include <unordered_map>
 #include <string>
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "py_gen_constants.h"
 
 namespace ge {

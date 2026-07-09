@@ -17,7 +17,7 @@
 #include "graph/utils/node_utils.h"
 #include "op/op_ffts_plus_factory.h"
 #include "proto/task.pb.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

@@ -14,7 +14,7 @@
 
 #include "framework/common/debug/log.h"
 #include "framework/common/framework_types_internal.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/op/ge_op_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/type_utils.h"

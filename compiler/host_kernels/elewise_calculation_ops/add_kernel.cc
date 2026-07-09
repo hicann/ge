@@ -9,7 +9,7 @@
  */
 
 #include <type_traits>
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/b_cast/b_cast.h"
 #include "graph/utils/type_utils.h"
 #include "host_kernels/kernel_factory.h"

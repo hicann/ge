@@ -24,7 +24,7 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "stub/gert_runtime_stub.h"
 #include "checker/memory_profiling_log_matcher.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "kernel/memory/single_stream_l2_allocator.h"
 #include "common/tiling_fwk_data_helper.h"
 

@@ -12,7 +12,7 @@
 #define GE_COMMON_PRELOAD_PRE_MODEL_UTILS_H_
 
 #include "common/model/ge_root_model.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "rt_external_preload.h"
 
 namespace ge {

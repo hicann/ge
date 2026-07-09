@@ -12,7 +12,7 @@
 
 #include "aicpu_callback.h"
 #include "common/hyper_status.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/sgt_slice_type.h"
 #include "engine/aicpu/graph_builder/bg_aicpu_arg.h"
 #include "engine/aicpu/kernel/ffts_plus/aicpu_ffts_args.h"

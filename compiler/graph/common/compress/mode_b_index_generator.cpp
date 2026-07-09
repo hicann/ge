@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <iostream>
 #include <securec.h>
-#include "log.h"
+#include "compress_log.h"
 
 namespace amctcmp {
 ModeBIndexGenerator::ModeBIndexGenerator(char *dataBuffer, char *indexBuffer, bool isTight, size_t fractalSize,

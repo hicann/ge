@@ -18,7 +18,7 @@
 
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/type_utils.h"
-#include "../utils.h"
+#include "../es_generator_utils.h"
 
 namespace ge {
 namespace es {

@@ -9,7 +9,7 @@
  */
 
 #include "single_stream_l2_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "core/debug/kernel_tracing.h"
 #include "multi_stream_mem_block_helper.h"
 #include "framework/runtime/device_memory_recorder.h"

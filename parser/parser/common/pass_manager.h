@@ -13,7 +13,7 @@
 
 #include <vector>
 
-#include "common/graph_pass.h"
+#include "common/parser_graph_pass.h"
 
 namespace ge {
 namespace parser {

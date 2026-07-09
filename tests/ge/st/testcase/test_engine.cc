@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "macro_utils/dt_public_scope.h"
-#include "compiler/engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "compiler/engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "ge_running_env/ge_running_env_faker.h"
 #include "macro_utils/dt_public_unscope.h"
 

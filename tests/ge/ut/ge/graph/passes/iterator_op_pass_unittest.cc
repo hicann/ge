@@ -24,7 +24,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/passes/pass_manager.h"
 #include "api/gelib/gelib.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/passes/feature/iterator_op_pass.h"
 #include "graph/passes/control_flow_and_stream/flow_ctrl_pass.h"
 #include "graph/manager/graph_var_manager.h"

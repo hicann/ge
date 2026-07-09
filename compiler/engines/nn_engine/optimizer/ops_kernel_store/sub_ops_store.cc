@@ -23,7 +23,7 @@
 #include "common/configuration.h"
 #include "common/fe_context_utils.h"
 #include "register/graph_optimizer/fusion_common/unknown_shape_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "adapter/common/op_store_adapter_manager.h"
 #include "graph/ge_tensor.h"
 #include "external/op_common/data_type_utils.h"

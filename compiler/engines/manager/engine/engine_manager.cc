@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 
 #include <map>
 #include <string>

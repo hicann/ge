@@ -12,7 +12,7 @@
 #include <regex>
 #include "graph/ge_context.h"
 #include "common/config/configurations.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/util.h"
 #include "mmpa/mmpa_api.h"
 #include "common/data_flow/event/proxy_event_manager.h"

@@ -19,7 +19,7 @@
 #include "framework/common/helper/model_helper.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/def_types.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "base/err_msg.h"
 #include "graph_metadef/common/ge_common/util.h"
 

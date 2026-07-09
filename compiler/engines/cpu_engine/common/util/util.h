@@ -20,7 +20,7 @@
 #include "ge/ge_api_error_codes.h"
 #include "graph/compute_graph.h"
 #include "graph/types.h"
-#include "log.h"
+#include "aicpu_log.h"
 #include "aicpu_ops_kernel_info_store/op_struct.h"
 #include "common/sgt_slice_type.h"
 #include "mmpa/mmpa_api.h"

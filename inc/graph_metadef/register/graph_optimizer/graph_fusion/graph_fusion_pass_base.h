@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "register/graph_optimizer/graph_fusion/fusion_pattern.h"
-#include "register/graph_optimizer/graph_fusion/graph_pass.h"
+#include "register/graph_optimizer/graph_fusion/graph_fusion_graph_pass.h"
 
 namespace fe {
 using std::initializer_list;

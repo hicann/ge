@@ -17,7 +17,7 @@
 #include "common/flow_graph_manager.h"
 #include "common/link_manager.h"
 #include "common/llm_utils.h"
-#include "common/cache_manager.h"
+#include "common/llm_datadist_cache_manager.h"
 #include "acl/acl.h"
 
 namespace llm {

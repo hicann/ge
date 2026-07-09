@@ -15,7 +15,7 @@
 #include <atomic>
 #include "ascend_hal.h"
 #include "common/common_define.h"
-#include "flow_func/flow_model.h"
+#include "flow_func/udf_flow_model.h"
 #include "reader_writer/queue_wrapper.h"
 #include "reader_writer/data_aligner.h"
 

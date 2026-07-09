@@ -20,7 +20,7 @@
 #include "anchor.h"
 #include "op_desc.h"
 #include "common_stub.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "common/common_utils.h"
 
 namespace {

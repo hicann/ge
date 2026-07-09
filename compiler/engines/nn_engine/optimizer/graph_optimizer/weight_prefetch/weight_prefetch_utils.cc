@@ -11,7 +11,7 @@
 #include "graph_optimizer/weight_prefetch/weight_prefetch_utils.h"
 #include <unordered_set>
 #include "common/fe_log.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/string_utils.h"
 #include "common/fe_inner_attr_define.h"
 #include "common/util/op_info_util.h"

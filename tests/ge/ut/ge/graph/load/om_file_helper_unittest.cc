@@ -12,7 +12,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "framework/common/helper/om_file_helper.h"
 #include "common/helper/file_saver.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_inner_error_codes.h"

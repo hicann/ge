@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_H_
-#define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_H_
+#ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_H_
+#define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_H_
 
 #include <string>
 #include "framework/common/ge_inner_error_codes.h"
@@ -38,4 +38,4 @@ class GE_FUNC_VISIBILITY Op {
 }  // namespace ge_local
 }  // namespace ge
 
-#endif  // GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_H_
+#endif  // GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_H_

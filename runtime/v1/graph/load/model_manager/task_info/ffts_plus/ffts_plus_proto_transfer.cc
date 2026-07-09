@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 
 #include "securec.h"
 #include "graph/utils/attr_utils.h"

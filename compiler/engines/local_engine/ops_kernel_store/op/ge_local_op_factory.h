@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_FACTORY_H_
-#define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_FACTORY_H_
+#ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_FACTORY_H_
+#define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_FACTORY_H_
 
 #include <functional>
 #include <map>
@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 #include "common/plugin/ge_make_unique_util.h"
-#include "engines/local_engine/ops_kernel_store/op/op.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op.h"
 
 namespace ge {
 namespace ge_local {
@@ -93,4 +93,4 @@ class GE_FUNC_VISIBILITY OpRegistrar {
 }  // namespace ge_local
 }  // namespace ge
 
-#endif  // GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_OP_FACTORY_H_
+#endif  // GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_LOCAL_OP_FACTORY_H_

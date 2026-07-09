@@ -19,7 +19,7 @@
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "param_calculate/tensorsize_calculator.h"
-#include "ops_kernel_builder/task_builder/dsa_task_builder.h"
+#include "ops_kernel_builder/task_builder/ops_kernel_dsa_task_builder.h"
 #include "register/ops_kernel_builder_registry.h"
 
 namespace fe {

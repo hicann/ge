@@ -13,7 +13,7 @@
 
 #include "graph/op_desc.h"
 #include "graph/load/model_manager/task_info/task_info.h"
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 #include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_args_helper.h"
 #include "hybrid/node_executor/aicpu/aicpu_ext_info_handler.h"
 #include "common/op_tiling/op_tiling_rt2.h"

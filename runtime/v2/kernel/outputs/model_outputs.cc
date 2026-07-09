@@ -18,7 +18,7 @@
 #include "framework/runtime/subscriber/global_tracer.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "exe_graph/runtime/tensor_data_utils.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 namespace kernel {

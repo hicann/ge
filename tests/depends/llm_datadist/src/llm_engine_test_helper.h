@@ -19,7 +19,7 @@
 #include "ge/ge_ir_build.h"
 #include "common/llm_ge_api.h"
 #include "common/llm_utils.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "dlog_pub.h"
 #include <nlohmann/json.hpp>
 #include "common/llm_log.h"

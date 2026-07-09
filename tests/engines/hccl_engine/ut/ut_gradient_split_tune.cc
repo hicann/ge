@@ -34,7 +34,7 @@
 #define private public
 #include "cluster.h"
 #undef private
-#include "model.h"
+#include "hcom_model.h"
 #include "evaluator.h"
 
 using namespace std;

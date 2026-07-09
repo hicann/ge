@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_RUNTIME_LLM_ENGINE_COMMON_CACHE_MANAGER_H_
-#define AIR_RUNTIME_LLM_ENGINE_COMMON_CACHE_MANAGER_H_
+#ifndef AIR_RUNTIME_LLM_ENGINE_COMMON_LLM_DATADIST_CACHE_MANAGER_H_
+#define AIR_RUNTIME_LLM_ENGINE_COMMON_LLM_DATADIST_CACHE_MANAGER_H_
 
 #include <map>
 #include <mutex>
@@ -45,4 +45,4 @@ class CacheManager {
 };
 }  // namespace llm
 
-#endif  // AIR_RUNTIME_LLM_ENGINE_COMMON_CACHE_MANAGER_H_
+#endif  // AIR_RUNTIME_LLM_ENGINE_COMMON_LLM_DATADIST_CACHE_MANAGER_H_

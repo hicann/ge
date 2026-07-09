@@ -20,7 +20,7 @@
 #include "hcom_alltoallvc_fusion.h"
 #include "hcom_allgather_fusion.h"
 #include "hcom_reducescatter_fusion.h"
-#include "plugin_manager.h"
+#include "hcom_plugin_manager.h"
 #include "hcom_fusion_optimizer.h"
 #include "offline_build_config_parse.h"
 #include "hcom_graph_optimizer.h"
@@ -46,14 +46,14 @@
 #include "graph/ge_tensor.h"
 
 #include "evaluator.h"
-#include "model.h"
+#include "hcom_model.h"
 #include "cluster.h"
 
 #include <iostream>
 #include <fstream>
 #include "graph/ge_context.h"
 #include "hcom_all_reduce_fusion.h"
-#include "plugin_manager.h"
+#include "hcom_plugin_manager.h"
 #include "hcom_graph_optimizer.h"
 #include "auto_tuning_plugin.h"
 #include "auto_tuning_hcom_ops_kernel_info_store.h"

@@ -8,30 +8,17 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_DELETED_OP_H_
-#define GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_DELETED_OP_H_
+#ifndef AIR_CXX_HYBRID_SHAPE_UTILS_H
+#define AIR_CXX_HYBRID_SHAPE_UTILS_H
 
-#include "engines/local_engine/ops_kernel_store/op/ge_local_op.h"
+#include "ge/ge_api_error_codes.h"
 
 namespace ge {
-namespace ge_local {
-class GE_FUNC_VISIBILITY GeDeletedOp : public Op {
- public:
-  GeDeletedOp(const Node &node, RunContext &run_context);
-
-  ~GeDeletedOp() override = default;
-
-  GeDeletedOp &operator=(const GeDeletedOp &op) = delete;
-
-  GeDeletedOp(const GeDeletedOp &op) = delete;
-
-  /**
-   *  @brief generate task.
-   *  @return result
-   */
-  ge::Status Run() override;
+class GeTensorDesc;
+namespace hybrid {
+struct ShapeUtils {
+  static Status CopyShapeAndTensorSize(const GeTensorDesc &from, GeTensorDesc &to);
 };
-}  // namespace ge_local
+}  // namespace hybrid
 }  // namespace ge
-
-#endif  // GE_GE_LOCAL_ENGINE_OPS_KERNEL_STORE_OP_GE_DELETED_OP_H_
+#endif  // AIR_CXX_HYBRID_SHAPE_UTILS_H

@@ -16,7 +16,7 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "base/err_msg.h"
 #include "host_cpu_engine/host_cpu_engine.h"
 

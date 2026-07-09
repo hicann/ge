@@ -11,7 +11,7 @@
 
 #include "op_factory.h"
 #include "graph/debug/ge_attr_define.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

@@ -13,7 +13,7 @@
 #include "llm_engine_test_helper.h"
 #include "llm_string_util.h"
 #include "llm_test_helper.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "common/llm_checker.h"
 #include "graph_metadef/graph/aligned_ptr.h"
 #include "graph_metadef/graph/debug/ge_util.h"

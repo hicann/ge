@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 namespace {

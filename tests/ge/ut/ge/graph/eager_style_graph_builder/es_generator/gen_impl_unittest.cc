@@ -17,7 +17,7 @@
 #include "graph/utils/file_utils.h"
 #include "c_generator.h"
 #include "cpp_generator.h"
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "graph/op_desc.h"
 #include "es_codegen_default_value.h"
 #include "history/history_registry_utils.h"

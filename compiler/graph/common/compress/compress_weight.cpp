@@ -13,7 +13,7 @@
 #include <sstream>
 #include <securec.h>
 #include "compress.h"
-#include "log.h"
+#include "compress_log.h"
 #include "compress_weight.h"
 
 #define CHECK_NOTNULLPTR(val, msg, expr) \

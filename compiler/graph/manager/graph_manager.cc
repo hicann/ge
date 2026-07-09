@@ -20,7 +20,7 @@
 #include <unordered_set>
 #include <openssl/sha.h>
 #include "common/checker.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/memory/mem_type_utils.h"
 #include "common/thread_pool/thread_pool.h"
 #include "common/dump/dump_manager.h"
@@ -80,7 +80,7 @@
 #include "graph/passes/variable_optimize/ref_identity_delete_op_pass.h"
 #include "graph/passes/standard_optimize/remove_same_const_pass.h"
 #include "graph/passes/shape_optimize/reshape_recovery_pass.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/passes/shape_optimize/reshape_remove_pass.h"
 #include "graph/passes/standard_optimize/same_transdata_breadth_fusion_pass.h"
 #include "graph/passes/memory_conflict/subgraph_pass.h"

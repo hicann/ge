@@ -22,7 +22,7 @@
 #include "host_cpu_engine/host_cpu_engine.h"
 #include "ge_running_env/fake_ops_kernel_builder.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "hybrid/common/npu_memory_allocator.h"
 #include "graph/bin_cache/node_compile_cache_module.h"
 #include "register/op_tiling_registry.h"
@@ -1184,9 +1184,8 @@ TEST_F(DynamicGraphTest, TestDynamicOfflineModel_aicore_with_atomic_output) {
 
 TEST_F(DynamicGraphTest, GenerateOfflineModelInvalidHostEnvFailsAfterDynamicBuild) {
   MockForGenerateTask("AIcoreEngine", GenerateTaskForAiCore);
-  const std::map<std::string, std::string> invalid_options = {
-      {std::string(OPTION_HOST_ENV_OS), "linux"},
-      {std::string(OPTION_HOST_ENV_CPU), "unsupported_cpu"}};
+  const std::map<std::string, std::string> invalid_options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
+                                                              {std::string(OPTION_HOST_ENV_CPU), "unsupported_cpu"}};
   ScopedGraphOptions guard(invalid_options);
 
   GeGenerator generator;

@@ -14,7 +14,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/build/stream/logical_stream_allocator.h"
-#include "graph/build/stream/stream_allocator.h"
+#include "graph/build/stream/graph_stream_allocator.h"
 #include "graph/build/stream/assign_attached_event_pass.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "graph/debug/ge_attr_define.h"

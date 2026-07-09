@@ -29,7 +29,7 @@
 #include "proto/aicpu/cpu_node_def.pb.h"
 #include "proto/aicpu/cpu_tensor.pb.h"
 #include "proto/aicpu/cpu_tensor_shape.pb.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "graph/types.h"
 #include "mmpa/mmpa_api.h"
 

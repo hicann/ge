@@ -15,7 +15,7 @@
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/ge_context.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "formats/utils/formats_trans_utils.h"
 
 namespace ge {

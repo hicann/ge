@@ -13,7 +13,7 @@
 #include "graph/def_types.h"
 #include "common/debug/log.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/tensor_utils_ex.h"
 #include "common/plugin/ge_make_unique_util.h"

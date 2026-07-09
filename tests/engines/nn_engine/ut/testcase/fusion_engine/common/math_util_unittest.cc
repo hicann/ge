@@ -16,7 +16,7 @@
 
 #define protected public
 #define private public
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_utils.h"
 #include "fusion_rule_manager/fusion_rule_data/fusion_rule_pattern.h"
 #undef protected

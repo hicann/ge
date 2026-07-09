@@ -15,7 +15,7 @@
 #include "graph/op_desc.h"
 #include "tensor_engine/fusion_types.h"
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 
 #include "graph/ge_attr_value.h"
 #include "graph/ge_tensor.h"

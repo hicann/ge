@@ -18,7 +18,7 @@
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "graph/types.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 

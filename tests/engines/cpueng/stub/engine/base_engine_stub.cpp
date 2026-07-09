@@ -13,7 +13,7 @@
 #include "common/aicpu_ops_kernel_info_store/aicpu_ops_kernel_info_store.h"
 #include "common/aicpu_graph_optimizer/aicpu_graph_optimizer.h"
 #include "common/aicpu_ops_kernel_builder/aicpu_ops_kernel_builder.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 
 using namespace std;
 namespace {

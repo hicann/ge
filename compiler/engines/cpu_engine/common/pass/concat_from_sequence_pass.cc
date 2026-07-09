@@ -19,7 +19,7 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "common/util/mem_utils.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 
 using namespace ge;
 

@@ -18,7 +18,7 @@
 
 #include "framework/common/fmk_error_codes.h"
 #include "framework/common/fmk_types.h"
-#include "framework/common/op_types.h"
+#include "framework/common/framework_op_types.h"
 #include "register/register_types.h"
 
 namespace ge {

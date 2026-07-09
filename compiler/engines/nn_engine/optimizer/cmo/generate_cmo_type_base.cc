@@ -13,7 +13,7 @@
 #include "common/fe_log.h"
 #include "common/configuration.h"
 #include "common/fe_op_info_common.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/aicore_util_types.h"
 #include "common/aicore_util_attr_define.h"
 #include "common/graph/fe_graph_utils.h"

@@ -28,7 +28,7 @@
 #include "common/fusion_common.h"
 #include "common/signal_manager.h"
 #include "assemble_json/te_json_assemble.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "compile/prebuild_manager.h"
 #include "compile/superkernel_task.h"
 #include "file_handle/te_file_handle.h"

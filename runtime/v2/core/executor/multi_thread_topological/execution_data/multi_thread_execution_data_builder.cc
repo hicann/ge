@@ -12,7 +12,7 @@
 #include "multi_thread_execution_data.h"
 #include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler_factory.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/task_producer_factory.h"
-#include "core/utils/executor_utils.h"
+#include "core/utils/rt2_executor_utils.h"
 #include "multi_thread_exe_graph_resource_guard.h"
 #include "framework/runtime/executor_option/multi_thread_executor_option.h"
 

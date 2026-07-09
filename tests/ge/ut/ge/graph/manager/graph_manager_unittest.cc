@@ -25,7 +25,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "graph/manager/graph_manager.h"
 #include "api/gelib/gelib.h"
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 #include "graph/preprocess/hccl_offline_option_builder.h"
 
 #include "graph/graph.h"

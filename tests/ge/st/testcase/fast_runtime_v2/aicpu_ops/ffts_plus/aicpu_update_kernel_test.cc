@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 #include "faker/kernel_run_context_facker.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "faker/aicpu_ext_info_faker.h"
 #include "register/kernel_registry.h"
 #include "common/plugin/ge_make_unique_util.h"

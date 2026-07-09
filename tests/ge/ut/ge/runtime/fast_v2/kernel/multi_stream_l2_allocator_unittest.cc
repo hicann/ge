@@ -13,7 +13,7 @@
 #include <optional>
 #include "kernel/memory/multi_stream_mem_block.h"
 #include "stub/runtime_stub_impl.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "faker/multi_stream_allocator_faker.h"
 #include "stub/gert_runtime_stub.h"
 #include "checker/memory_profiling_log_matcher.h"

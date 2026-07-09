@@ -9,7 +9,7 @@
  */
 
 #include "ops_parallel_rule_json_file.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 
 using namespace std;

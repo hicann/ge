@@ -18,7 +18,7 @@
 #include "common/checker.h"
 #include "graph/manager/graph_var_manager.h"
 #include "framework/runtime/rt_session.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 namespace gert {

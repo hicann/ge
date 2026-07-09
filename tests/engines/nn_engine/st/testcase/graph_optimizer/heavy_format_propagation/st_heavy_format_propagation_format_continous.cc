@@ -114,7 +114,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, switch_input_format
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
 }
@@ -176,7 +176,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, switch_input_format
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -256,7 +256,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, switch_input_format
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -333,7 +333,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, switch_input_format
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -408,7 +408,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, switch_input_format
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -479,7 +479,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
 }
@@ -540,7 +540,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -620,7 +620,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -696,7 +696,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -768,7 +768,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -842,7 +842,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -919,7 +919,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto node : graph->GetDirectNode()) {
@@ -985,7 +985,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, merge_input_format_
 
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
 }
@@ -1044,7 +1044,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   auto opdesc = node->GetOpDesc();
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {
@@ -1143,7 +1143,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   auto opdesc = node->GetOpDesc();
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {
@@ -1249,7 +1249,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
 
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {
@@ -1353,7 +1353,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
 
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {
@@ -1467,7 +1467,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
 
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {
@@ -1581,7 +1581,7 @@ TEST_F(ST_fusion_engine_heavy_format_continous_distribution, variable_optimize_0
   HeavyFormatPropagationPtr heavt_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
 
-  heavt_format_propagator->Initalize();
+  heavt_format_propagator->Initialize();
   Status ret = heavt_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
   for (auto &node : graph->GetDirectNode()) {

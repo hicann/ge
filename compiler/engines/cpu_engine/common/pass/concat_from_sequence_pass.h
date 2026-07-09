@@ -11,7 +11,7 @@
 #ifndef AICPU_CONCAT_FROM_SEQUENCE_PASS_H
 #define AICPU_CONCAT_FROM_SEQUENCE_PASS_H
 
-#include "inc/graph_pass.h"
+#include "inc/cpu_engine_graph_pass.h"
 
 namespace aicpu {
 class ConcatFromSequencePass : public GraphPass {

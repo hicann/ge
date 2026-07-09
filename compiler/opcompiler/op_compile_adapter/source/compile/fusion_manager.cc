@@ -31,7 +31,7 @@
 #include <sys/time.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 
 #include "inc/te_fusion_check.h"
 #include "inc/te_fusion_error_code.h"

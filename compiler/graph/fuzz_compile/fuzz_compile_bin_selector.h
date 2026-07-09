@@ -20,7 +20,7 @@
 #include "graph/bin_cache/node_bin_selector_factory.h"
 #include "graph/bin_cache/node_compile_cache_module.h"
 #include "graph/bin_cache/op_binary_cache.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 
 namespace ge {
 

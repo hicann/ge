@@ -12,9 +12,9 @@
 #define H1D9F4FDE_BB21_4DE4_AC7E_751920B45039
 
 #include "fake_ns.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "register/ops_kernel_builder_registry.h"
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 
 FAKE_NS_BEGIN
 

@@ -785,7 +785,7 @@ TEST_F(UTEST_fusion_engine_heavy_format_distribution_fzg, heavy_format_distribut
 
   HeavyFormatPropagationPtr heavy_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavy_format_propagator->Initalize();
+  heavy_format_propagator->Initialize();
   Status ret = heavy_format_propagator->PropagateHeavyFormat(*(graph.get()));
   for (auto node : graph->GetDirectNode()) {
     OpDescPtr opdesc = node->GetOpDesc();
@@ -844,7 +844,7 @@ TEST_F(UTEST_fusion_engine_heavy_format_distribution_fzg, heavy_format_distribut
 
   HeavyFormatPropagationPtr heavy_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavy_format_propagator->Initalize();
+  heavy_format_propagator->Initialize();
   Status ret = heavy_format_propagator->PropagateHeavyFormat(*(graph.get()));
   vector<int64_t> result_dim = {3, 4, 5, 6};
   vector<int64_t> result_dim5_h_d = {3, 1, 5, 6, 16};
@@ -902,7 +902,7 @@ TEST_F(UTEST_fusion_engine_heavy_format_distribution_fzg, heavy_format_distribut
 
   HeavyFormatPropagationPtr heavy_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavy_format_propagator->Initalize();
+  heavy_format_propagator->Initialize();
   ret = heavy_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
 
@@ -952,7 +952,7 @@ TEST_F(UTEST_fusion_engine_heavy_format_distribution_fzg, heavy_format_distribut
 
   HeavyFormatPropagationPtr heavy_format_propagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  heavy_format_propagator->Initalize();
+  heavy_format_propagator->Initialize();
   ret = heavy_format_propagator->PropagateHeavyFormat(*(graph.get()));
   EXPECT_EQ(fe::SUCCESS, ret);
 

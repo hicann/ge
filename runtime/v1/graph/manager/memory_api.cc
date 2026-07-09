@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/def_types.h"
 #include "graph/manager/mem_manager.h"

@@ -14,7 +14,7 @@
 #include <set>
 
 #include "framework/common/debug/log.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/framework_types_internal.h"
 #include "framework/common/util.h"
 #include "framework/common/debug/ge_log.h"

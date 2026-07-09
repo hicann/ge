@@ -12,7 +12,7 @@
 
 #include "rt_external_model.h"
 #include "rt_external_stream.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {

@@ -12,7 +12,7 @@
 #include "common/base64.h"
 #include "graph/def_types.h"
 #include "graph/utils/math_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/plugin/datatype_util.h"
 

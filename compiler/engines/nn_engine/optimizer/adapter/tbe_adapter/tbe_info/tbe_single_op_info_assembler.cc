@@ -12,7 +12,7 @@
 #include "adapter/tbe_adapter/tbe_info/tbe_info_assembler.h"
 #include "common/fe_log.h"
 #include "common/fe_type_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/string_utils.h"
 #include "ge/ge_api_types.h"

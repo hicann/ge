@@ -11,7 +11,7 @@
 #include "graph_metadef/graph/aligned_ptr.h"
 #include "common/llm_log.h"
 #include "common/def_types.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 
 namespace ge {
 

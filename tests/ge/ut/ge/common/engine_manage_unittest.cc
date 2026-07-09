@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "macro_utils/dt_public_scope.h"
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 #include "macro_utils/dt_public_unscope.h"
 
 using namespace std;

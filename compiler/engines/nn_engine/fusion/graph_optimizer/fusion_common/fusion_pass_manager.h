@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 #include "common/aicore_util_types.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "graph/compute_graph.h"
 
 namespace fe {

@@ -10,7 +10,7 @@
 
 #include "graph/manager/active_memory_allocator.h"
 #include <string>
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/checker.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "graph/manager/graph_var_manager.h"

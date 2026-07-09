@@ -16,7 +16,7 @@
 #include "faker/kernel_run_context_facker.h"
 #include "runtime/model_v2_executor.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 namespace {

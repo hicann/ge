@@ -9,7 +9,7 @@
  */
 
 #include "adapter/tbe_adapter/tbe_info/estimator/matmul_estimator.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "graph/utils/attr_utils.h"
 
 namespace fe {

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "error_code/error_code.h"
 #include "base/err_msg.h"
 #include "ge/ge_api_types.h"

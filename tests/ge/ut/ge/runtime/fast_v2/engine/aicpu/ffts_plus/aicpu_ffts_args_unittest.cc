@@ -14,7 +14,7 @@
 #include "stub/gert_runtime_stub.h"
 #include "register/kernel_registry.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include <kernel/memory/mem_block.h>
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/ffts_plus/aicpu_ffts_args.h"

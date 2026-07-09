@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef TE_FUSION_OP_H
-#define TE_FUSION_OP_H
+#ifndef OPCOMPILER_COMPILE_FUSION_MANAGER_H_
+#define OPCOMPILER_COMPILE_FUSION_MANAGER_H_
 
 #include <Python.h>
 #include <vector>
@@ -313,4 +313,4 @@ class TeFusionManager {
 bool SetNodeCompileInfoAttr(const ge::OpDescPtr &opDesc, const OpBuildTaskResultPtr &opRes);
 }  // namespace fusion
 }  // namespace te
-#endif
+#endif  // OPCOMPILER_COMPILE_FUSION_MANAGER_H_

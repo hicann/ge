@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_PROTO_TRANSFER_H_
-#define GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_PROTO_TRANSFER_H_
+#ifndef GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_V1_FFTS_PLUS_PROTO_TRANSFER_H_
+#define GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_V1_FFTS_PLUS_PROTO_TRANSFER_H_
 
 #include <vector>
 #include <functional>
@@ -274,4 +274,4 @@ class FftsPlusProtoTransfer {
   std::vector<uint64_t> l0_dump_list_;  // 保存当前处理的context的size info
 };
 }  // namespace ge
-#endif  // GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_PROTO_TRANSFER_H_
+#endif  // GE_GRAPH_LOAD_MODEL_MANAGER_TASK_INFO_FFTS_PLUS_V1_FFTS_PLUS_PROTO_TRANSFER_H_

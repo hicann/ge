@@ -17,7 +17,7 @@
 #include "graph_optimizer/rts_graph_optimizer.h"
 #include "ops_kernel_store/rts_ffts_plus_ops_kernel_info.h"
 #include "graph_optimizer/rts_ffts_plus_graph_optimizer.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

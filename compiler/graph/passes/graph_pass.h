@@ -19,7 +19,7 @@
 #include "graph/compute_graph.h"
 #include "register/optimization_option_registry.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/passes/pass.h"
+#include "graph/passes/compiler_pass.h"
 #include "base/err_msg.h"
 
 namespace ge {

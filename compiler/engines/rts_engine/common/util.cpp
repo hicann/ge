@@ -12,7 +12,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_context.h"
 #include "external/ge/ge_api_types.h"
-#include "util/log.h"
+#include "util/rts_log.h"
 #include <cstring>
 #include <string.h>
 #include "securec.h"

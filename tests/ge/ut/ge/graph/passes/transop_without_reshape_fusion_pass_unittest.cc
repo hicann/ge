@@ -12,7 +12,7 @@
 #include <string>
 
 #include "macro_utils/dt_public_scope.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/passes/format_optimize/transop_without_reshape_fusion_pass.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "common/ge_inner_error_codes.h"

@@ -14,7 +14,7 @@
 
 #define private public
 
-#include "execute/memory_statistic_manager.h"
+#include "execute/udf_memory_statistic_manager.h"
 
 #undef private
 

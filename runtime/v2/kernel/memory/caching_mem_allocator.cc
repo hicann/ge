@@ -18,7 +18,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 #include "multi_stream_mem_block_helper.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "acl/acl_rt.h"

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_OPSKERNEL_MANAGER_OPS_KERNEL_MANAGER_H_
-#define GE_OPSKERNEL_MANAGER_OPS_KERNEL_MANAGER_H_
+#ifndef GE_OPSKERNEL_MANAGER_DNN_OPS_KERNEL_MANAGER_H_
+#define GE_OPSKERNEL_MANAGER_DNN_OPS_KERNEL_MANAGER_H_
 
 #include <map>
 #include <set>
@@ -130,4 +130,4 @@ class GE_FUNC_VISIBILITY OpsKernelManager {
   bool enable_ffts_flag_{false};
 };
 }  // namespace ge
-#endif  // GE_OPSKERNEL_MANAGER_OPS_KERNEL_MANAGER_H_
+#endif  // GE_OPSKERNEL_MANAGER_DNN_OPS_KERNEL_MANAGER_H_

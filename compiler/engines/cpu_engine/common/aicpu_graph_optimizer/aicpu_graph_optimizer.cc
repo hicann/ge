@@ -21,7 +21,7 @@
 #include "graph_optimizer_utils.h"
 #include "optimizer.h"
 #include "rt_external_device.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "util/constant.h"
 #include "pass/concat_from_sequence_pass.h"

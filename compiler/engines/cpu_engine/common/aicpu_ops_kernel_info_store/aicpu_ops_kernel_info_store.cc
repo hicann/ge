@@ -16,7 +16,7 @@
 #include "error_code/error_code.h"
 #include "kernel_info.h"
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "graph/utils/type_utils.h"
 
