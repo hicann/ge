@@ -234,10 +234,10 @@ Status PostOpProcessForSubgraph(const ParseArg &arg, ge::ComputeGraphPtr sub_gra
   std::string op_type = arg.parent_node->GetType();
   std::string op_name = arg.parent_node->GetName();
   domi::ParseSubgraphFuncV2 parse_func_v2 = nullptr;
-  auto post_func = domi::OpRegistry::Instance()->GetParseSubgraphPostFunc(op_type);
+  auto post_func = domi::OpRegistry::Instance()->GetParseSubgraphPostFunc(op_type, domi::ONNX);
   if (post_func == nullptr) {
     GELOGW("The subgraph post func for node %s type %s is null", op_name.c_str(), op_type.c_str());
-    if (domi::OpRegistry::Instance()->GetParseSubgraphPostFunc(op_type, parse_func_v2) != SUCCESS ||
+    if (domi::OpRegistry::Instance()->GetParseSubgraphPostFunc(op_type, domi::ONNX, parse_func_v2) != SUCCESS ||
         parse_func_v2 == nullptr) {
       GELOGW("The subgraph post func v2 for node %s type %s is null", op_name.c_str(), op_type.c_str());
       return SUCCESS;

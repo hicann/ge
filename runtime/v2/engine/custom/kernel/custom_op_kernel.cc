@@ -21,7 +21,6 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "rt_external_kernel.h"
 #include "runtime/v2/engine/custom/kernel/eager_args_handler.h"
-#include "runtime/kernel.h"
 
 namespace gert {
 namespace kernel {

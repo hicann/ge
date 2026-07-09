@@ -18,6 +18,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
+#include "graph/utils/type_utils_inner.h"
 #include "proto/tensorflow/attr_value.pb.h"
 #include "proto/tensorflow/node_def.pb.h"
 #include "register/auto_mapping_util.h"
@@ -1071,13 +1072,22 @@ bool OpRegistry::Register(const OpRegistrationData &reg_data, bool is_custom_op)
     }
   }
 
+  const std::string om_fmk_type =
+      GetParserKey(reg_data.impl_->om_optype_, ge::TypeUtilsInner::FmkTypeToSerialString(reg_data.impl_->fmk_type_));
+  if ((op_types_to_parse_subgraph_post_func_.find(om_fmk_type) == op_types_to_parse_subgraph_post_func_.end()) &&
+      !is_custom_op) {
+    op_types_to_parse_subgraph_post_func_[om_fmk_type] = reg_data.impl_->parse_subgraph_post_fn_;
+  }
+  if ((op_types_to_parse_subgraph_post_func_v2_.find(om_fmk_type) == op_types_to_parse_subgraph_post_func_v2_.end()) &&
+      !is_custom_op) {
+    op_types_to_parse_subgraph_post_func_v2_[om_fmk_type] = reg_data.impl_->parse_subgraph_post_fn_v2_;
+  }
+
   if ((op_run_mode_map_.find(reg_data.impl_->om_optype_) != op_run_mode_map_.end()) && !is_custom_op) {
     GELOGI("[Register][Check] Plugin of %s already registered, skip", reg_data.impl_->om_optype_.c_str());
     return true;
   }
   op_run_mode_map_[reg_data.impl_->om_optype_] = reg_data.impl_->imply_type_;
-  op_types_to_parse_subgraph_post_func_[reg_data.impl_->om_optype_] = reg_data.impl_->parse_subgraph_post_fn_;
-  op_types_to_parse_subgraph_post_func_v2_[reg_data.impl_->om_optype_] = reg_data.impl_->parse_subgraph_post_fn_v2_;
   return true;
 }
 
@@ -1149,9 +1159,29 @@ domi::ParseSubgraphFunc OpRegistry::GetParseSubgraphPostFunc(const std::string &
   return it_find->second;
 }
 
+domi::ParseSubgraphFunc OpRegistry::GetParseSubgraphPostFunc(const std::string &op_type, domi::FrameworkType fmk_type) {
+  const std::string om_fmk_type = GetParserKey(op_type, ge::TypeUtilsInner::FmkTypeToSerialString(fmk_type));
+  const auto it_find = op_types_to_parse_subgraph_post_func_.find(om_fmk_type);
+  if (it_find == op_types_to_parse_subgraph_post_func_.end()) {
+    return nullptr;
+  }
+  return it_find->second;
+}
+
 Status OpRegistry::GetParseSubgraphPostFunc(const std::string &op_type,
                                             domi::ParseSubgraphFuncV2 &parse_subgraph_func) {
   const auto it_find = op_types_to_parse_subgraph_post_func_v2_.find(op_type);
+  if (it_find == op_types_to_parse_subgraph_post_func_v2_.end()) {
+    return FAILED;
+  }
+  parse_subgraph_func = it_find->second;
+  return SUCCESS;
+}
+
+Status OpRegistry::GetParseSubgraphPostFunc(const std::string &op_type, domi::FrameworkType fmk_type,
+                                            domi::ParseSubgraphFuncV2 &parse_subgraph_func) {
+  const std::string om_fmk_type = GetParserKey(op_type, ge::TypeUtilsInner::FmkTypeToSerialString(fmk_type));
+  const auto it_find = op_types_to_parse_subgraph_post_func_v2_.find(om_fmk_type);
   if (it_find == op_types_to_parse_subgraph_post_func_v2_.end()) {
     return FAILED;
   }

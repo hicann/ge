@@ -966,4 +966,41 @@ std::string AutofuseUtils::SimplifyNodeName(const std::string &node_name) {
     return ProcessGeneralFormat(parts);
   }
 }
+
+std::vector<ge::Expression> AutofuseUtils::GetSymbolicOrConstFallback(const NodePtr &curr_node, int32_t input_idx,
+                                                                      const std::vector<int64_t> &fallback_list,
+                                                                      const std::string &name) {
+  // 1. 已经获取到常量，则不获取符号
+  if (!fallback_list.empty()) {
+    GELOGI("Using const_list for '%s' (size: %zu)", name.c_str(), fallback_list.size());
+    std::vector<ge::Expression> res_exprs;
+    res_exprs.reserve(fallback_list.size());
+    for (const auto val : fallback_list) {
+      res_exprs.push_back(ge::Symbol(val));
+    }
+    return res_exprs;
+  }
+
+  // 2. 校验节点及 OpDesc
+  GE_WARN_ASSERT((curr_node != nullptr) && (curr_node->GetOpDesc() != nullptr), "curr_node or OpDesc is null for '%s'",
+                 name.c_str());
+
+  // 3. 获取input_desc
+  const auto input_desc = curr_node->GetOpDesc()->GetInputDescPtr(input_idx);
+  GE_WARN_ASSERT(input_desc != nullptr, "input_desc is null for '%s', input_idx: %d", name.c_str(), input_idx);
+  GELOGD("input_desc is valid for '%s', input_idx: %d.", name.c_str(), input_idx);
+
+  // 4. 获取SymbolicDescAttr
+  const auto sym_attr = input_desc->GetAttrsGroup<SymbolicDescAttr>();
+  GE_WARN_ASSERT(sym_attr != nullptr, "GetAttrsGroup<SymbolicDescAttr>() IS NULL for '%s'!", name.c_str());
+  GELOGD("fetched 'SymbolicDescAttr' successfully for '%s'.", name.c_str());
+
+  // 5. 获取SymbolicValue
+  const auto sym_val_ptr = sym_attr->symbolic_tensor.GetSymbolicValue();
+  GE_WARN_ASSERT(sym_val_ptr != nullptr, "GetSymbolicValue() IS NULL for '%s'!", name.c_str());
+
+  GELOGD("Found expressions for '%s', size: %zu", name.c_str(), sym_val_ptr->size());
+  return *sym_val_ptr;
+}
+
 }  // namespace ge

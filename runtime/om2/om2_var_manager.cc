@@ -17,7 +17,7 @@
 #include "common/ge_inner_error_codes.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "om2_malloc_helper.h"
-#include "runtime/mem.h"
+#include "rt_external_mem.h"
 
 namespace gert {
 Om2VarManager::~Om2VarManager() {

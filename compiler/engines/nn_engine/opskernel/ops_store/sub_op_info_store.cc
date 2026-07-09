@@ -20,6 +20,7 @@
 #include "ops_store/ops_kernel_utils.h"
 #include "ops_store/ops_kernel_error_codes.h"
 #include "ops_store/ops_kernel_constants.h"
+#include "graph/custom_op_factory.h"
 
 namespace fe {
 SubOpInfoStore::SubOpInfoStore(const FEOpsStoreInfo &ops_store_info)
@@ -191,6 +192,10 @@ Status SubOpInfoStore::LoadOpJsonFile(const std::string &json_file_path) {
 Status SubOpInfoStore::ConstructOpKernelInfo(const std::string &engine_name) {
   OpKernelInfoConstructor op_kernel_info_constructor;
   for (auto &op : op_content_map_) {
+    if (ge::CustomOpFactory::IsExistOp(ge::AscendString(op.first.c_str()))) {
+      FE_LOGD("Op[%s] is ge_custom_op, skip construct op_kernel_info.", op.first.c_str());
+      continue;
+    }
     OpKernelInfoPtr op_kernel_info_ptr = nullptr;
     FE_MAKE_SHARED(op_kernel_info_ptr = std::make_shared<OpKernelInfo>(op.first, ops_store_info_.op_impl_type),
                    return FAILED);

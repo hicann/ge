@@ -20,6 +20,7 @@
 
 #include "graph_metadef/register/graph_register.h"
 #include "graph/types.h"
+#include "register/register_fmk_types.h"
 
 namespace domi {
 enum class RemoveInputType : uint16_t {
@@ -66,6 +67,11 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY OpRegistry {
   domi::ParseSubgraphFunc GetParseSubgraphPostFunc(const std::string &op_type);
 
   Status GetParseSubgraphPostFunc(const std::string &op_type, domi::ParseSubgraphFuncV2 &parse_subgraph_func);
+
+  domi::ParseSubgraphFunc GetParseSubgraphPostFunc(const std::string &op_type, domi::FrameworkType fmk_type);
+
+  Status GetParseSubgraphPostFunc(const std::string &op_type, domi::FrameworkType fmk_type,
+                                  domi::ParseSubgraphFuncV2 &parse_subgraph_func);
 
   domi::ImplyType GetImplyTypeByOriOpType(const std::string &ori_optype);
 

@@ -1043,6 +1043,121 @@ TEST_F(LoweringAndCanfuseUT, CubeAndReshapeLoweringCanfuseCanNotFuseInThisChip) 
   SetCurShapeEnvContext(nullptr);
 }
 
+void VerifyStridedSliceV3Lowering(const ge::ComputeGraphPtr &cg) {
+  ge::PatternFusion patter_fusion;
+  ASSERT_EQ(patter_fusion.RunAllPatternFusion(cg), GRAPH_SUCCESS);
+
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetOpDesc() && node->GetOpDesc()->GetType() == "StridedSliceV3") {
+      auto sd = node->GetOpDesc();
+      for (size_t i = 0; i < sd->GetInputsSize(); ++i) {
+        std::string name = sd->GetInputNameByIndex(i);
+        if (name != "begin" && name != "end") {
+          continue;
+        }
+        auto attr = sd->MutableInputDesc(i)->template GetOrCreateAttrsGroup<SymbolicDescAttr>();
+        if (attr == nullptr) {
+          continue;
+        }
+
+        auto p = std::make_unique<std::vector<ge::Expression>>();
+        auto syms = (name == "begin") ? std::vector<const char *>{"s0", "s1", "s2"}
+                                      : std::vector<const char *>{"s3", "s4", "s5"};
+        for (auto n : syms) {
+          p->emplace_back(Symbol(n));
+        }
+        attr->symbolic_tensor.SetSymbolicValue(std::move(p));
+      }
+    }
+  }
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+
+  bool has_asc_backend = false;
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetOpDesc() && node->GetOpDesc()->GetType() == "AscBackend") {
+      has_asc_backend = true;
+      EXPECT_NE(node->GetName().find("autofuse_slice"), std::string::npos);
+    }
+  }
+  ASSERT_TRUE(has_asc_backend) << "Target AscBackend node not found after lowering!";
+
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+  SetCurShapeEnvContext(nullptr);
+}
+
+REG_OP(StridedSliceV3)
+    .INPUT(x, TensorType({BasicType(), DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN}))
+    .INPUT(begin, TensorType::IndexNumberType())
+    .INPUT(end, TensorType::IndexNumberType())
+    .OPTIONAL_INPUT(axes, TensorType::IndexNumberType())
+    .OPTIONAL_INPUT(strides, TensorType::IndexNumberType())
+    .OUTPUT(y, TensorType({BasicType(), DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN}))
+    .OP_END_FACTORY_REG(StridedSliceV3)
+
+        TEST_F(LoweringAndCanfuseUT, StridedSliceV3LoweringCanfuseSymbolic) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"64", "96", "16"});
+    auto begin = es_graph_->CreateInput(1, "begin", nullptr);
+    begin.SetSymbolShape({"3"});
+    auto end = es_graph_->CreateInput(2, "end", nullptr);
+    end.SetSymbolShape({"3"});
+
+    auto axes = CreateConst(*es_graph_, ge::DT_INT64, {3}, std::vector<int64_t>{0, 1, 2});
+    axes.SetSymbolShape({"3"});
+    auto strides = es_graph_->CreateInput(3, "strides", nullptr);
+    strides.SetSymbolShape({"3"});
+
+    auto out = es::StridedSliceV3(data0, begin, end, axes, strides);
+    out.SetSymbolShape({"64", "s_out_1", "16"});
+    es_graph_->SetOutput(out.GetEsbTensor(), 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  VerifyStridedSliceV3Lowering(cg);
+}
+
+TEST_F(LoweringAndCanfuseUT, StridedSliceV3NegativeAxesSymbolic) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"64", "96", "16"});
+
+    auto begin = es_graph_->CreateInput(1, "begin", nullptr);
+    begin.SetSymbolShape({"3"});
+
+    auto end = es_graph_->CreateInput(2, "end", nullptr);
+    end.SetSymbolShape({"3"});
+
+    auto axes = CreateConst(*es_graph_, ge::DT_INT64, {3}, std::vector<int64_t>{-3, -2, -1});
+    axes.SetSymbolShape({"3"});
+
+    auto strides = es_graph_->CreateInput(3, "strides", nullptr);
+    strides.SetSymbolShape({"3"});
+
+    auto out = es::StridedSliceV3(data0, begin, end, axes, strides);
+    out.SetSymbolShape({"64", "s_out_1", "16"});
+    es_graph_->SetOutput(out.GetEsbTensor(), 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  VerifyStridedSliceV3Lowering(cg);
+}
+
 TEST_F(LoweringAndCanfuseUT, AbsAndSliceAndConcat) {
   [this]() {
     auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
@@ -1304,7 +1419,7 @@ REG_OP(SplitV)
   [this]() {
     auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
     data0.SetSymbolShape({"64", "96", "16"});
-    auto size_splits = CreateConst(*es_graph_, ge::DT_INT64, {1}, std::vector<int64_t>{32, 32, 32});
+    auto size_splits = CreateConst(*es_graph_, ge::DT_INT64, {3}, std::vector<int64_t>{32, 32, 32});
     size_splits.SetSymbolShape({"3"});
     auto split_dim = CreateConst(*es_graph_, ge::DT_INT64, {1}, std::vector<int64_t>{1});
     split_dim.SetSymbolShape({"1"});

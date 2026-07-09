@@ -19,6 +19,8 @@
 #include "common/configuration.h"
 #include "common/aicore_util_constants.h"
 #include "graph/utils/op_desc_utils_ex.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 #undef private
 #undef protected
 
@@ -152,4 +154,15 @@ TEST_F(ops_kernel_manager_unit_test, initialize_success) {
   EXPECT_EQ(opKernelInfoPtr->IsMultiKernelSupport(), true);
   EXPECT_EQ(opKernelInfoPtr->GetPrecisionPolicy(), PrecisionPolicy::BLACK);
   EXPECT_EQ(opKernelInfoPtr->IsOpFileNull(), true);
+}
+
+TEST_F(ops_kernel_manager_unit_test, construct_op_kernel_info_skip_custom_op) {
+  (void)ge::CustomOpFactory::RegisterCustomOpCreator(ge::AscendString("conv"),
+                                                     []() -> std::unique_ptr<ge::BaseCustomOp> { return nullptr; });
+
+  OpsKernelManager opsKernelManager(AI_CORE_NAME);
+  Status ret = opsKernelManager.Initialize();
+  EXPECT_EQ(ret, fe::SUCCESS);
+  EXPECT_EQ(opsKernelManager.GetOpKernelInfoByOpType("tbe-custom", "conv"), nullptr);
+  EXPECT_NE(opsKernelManager.GetOpKernelInfoByOpType("tbe-custom", "conv2"), nullptr);
 }

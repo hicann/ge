@@ -863,6 +863,98 @@ graphStatus LowerStridedSlice(const NodePtr &node) {
   return GRAPH_SUCCESS;
 }
 
+graphStatus ParseV3IndexInputs(const NodePtr &node, const std::vector<ge::Expression> &src_dims,
+                               StrdedSliceIndexInputs &idx_in) {
+  std::vector<int64_t> begin_list, stride_list, axes;
+  (void)AutofuseUtils::GetListIntByInputOrAttr(node, begin_list, "begin", "begin");
+  (void)AutofuseUtils::GetListIntByInputOrAttr(node, stride_list, "strides", "strides");
+  (void)AutofuseUtils::GetListIntByInputOrAttr(node, axes, "axes", "axes");
+  auto begin_expr_list = AutofuseUtils::GetSymbolicOrConstFallback(node, 1, begin_list, "begin");
+  auto stride_expr_list = AutofuseUtils::GetSymbolicOrConstFallback(node, 4, stride_list, "strides");
+  LOWERING_WARN_RECORD_REASON(!begin_expr_list.empty(), node, "Failed to get stridedslicev3 begin.");
+
+  // strides缺省时，按照begin的长度补1
+  if (stride_expr_list.empty() && !begin_expr_list.empty()) {
+    GELOGI("stridedslicev3 strides is empty, populating with 1s, size: %zu", begin_expr_list.size());
+    stride_expr_list.assign(begin_expr_list.size(), ge::Symbol(1));
+  }
+
+  // 根据axes扩充begin和strides
+  if (!axes.empty()) {
+    std::vector<ge::Expression> padded_begin(src_dims.size(), ge::Symbol(0));
+    std::vector<ge::Expression> padded_stride(src_dims.size(), ge::Symbol(1));
+    const int64_t dim_size = static_cast<int64_t>(src_dims.size());
+    for (size_t i = 0; i < axes.size(); ++i) {
+      int64_t axis = axes[i];
+
+      if (axis < 0 && axis >= -dim_size) {
+        axis += dim_size;  // 负数索引转换为正数索引
+      }
+
+      if (axis >= 0 && static_cast<size_t>(axis) < src_dims.size()) {
+        if (i < begin_expr_list.size()) {
+          padded_begin[axis] = begin_expr_list[i];
+        }
+        if (i < stride_expr_list.size()) {
+          padded_stride[axis] = stride_expr_list[i];
+        }
+      }
+    }
+    begin_expr_list = std::move(padded_begin);
+    stride_expr_list = std::move(padded_stride);
+  }
+
+  if (!stride_list.empty() && !stride_expr_list.empty() && stride_expr_list.back().Str()) {
+    LOWERING_WARN_RECORD_REASON(std::string_view(stride_expr_list.back().Str().get()) == "1", node,
+                                "End stride must be 1.");
+  }
+
+  for (size_t i = 0; i < begin_expr_list.size(); ++i) {
+    if (i < stride_list.size()) {
+      LOWERING_WARN_RECORD_REASON(stride_list[i] >= 0, node, "Stride must be >= 0");
+    }
+    bool is_negative_begin = (i < begin_list.size() && begin_list[i] < 0);
+    idx_in.start_indexes.push_back(is_negative_begin ? (begin_expr_list[i] + src_dims[i]) : begin_expr_list[i]);
+    idx_in.strides_indexes.push_back(stride_expr_list[i]);
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus LowerStridedSliceV3(const NodePtr &node) {
+  const auto src_anc = node->GetInDataAnchor(0);
+  GE_ASSERT_NOTNULL(src_anc);
+  std::vector<ge::Expression> src_dims;
+
+  const auto shape_ret = loop::GetBufferShape(src_anc, src_dims);
+  LOWERING_WARN_RECORD_REASON(shape_ret == GRAPH_SUCCESS, node, "Failed to get 0th-input symbol shape");
+  GE_ASSERT_TRUE(!src_dims.empty());
+
+  if (IsRedundantNode(node, src_dims)) {
+    const auto load_ret = ConvertToDirectLoad(node);
+    LOWERING_WARN_RECORD_REASON(load_ret == GRAPH_SUCCESS, node,
+                                "Failed to convert to direct load when this node is redundant.");
+    return GRAPH_SUCCESS;
+  }
+
+  StrdedSliceIndexInputs idx_in;
+  const auto parse_ret = ParseV3IndexInputs(node, src_dims, idx_in);
+  if (parse_ret != GRAPH_SUCCESS) {
+    return parse_ret;
+  }
+  StridedSliceMaskAttr zero_mask{};
+  const auto inf_ret = InferShapeStridedSlice(src_dims, zero_mask, idx_in);
+  LOWERING_WARN_RECORD_REASON(inf_ret == GRAPH_SUCCESS, node, "Failed to InferShapeStridedSlice");
+
+  string err_msg;
+  auto out_anc = node->GetOutDataAnchor(0);
+  auto res_slice =
+      loop::StoreStridedSlice(out_anc, src_anc, idx_in.start_indexes, idx_in.strides_indexes, src_dims, err_msg);
+
+  LOWERING_WARN_RECORD_REASON(err_msg.empty(), node, err_msg.c_str());
+  loop::Store(out_anc, res_slice);
+  return GRAPH_SUCCESS;
+}
+
 graphStatus LowerSplit(const NodePtr &node) {
   int64_t split_dim = 0L;
   InDataAnchorPtr x_anchor;
@@ -1354,6 +1446,7 @@ REGISTER_LOWERING_WITH_EXISTED(SliceD, LowerSlice);
 REGISTER_LOWERING_WITH_EXISTED(StridedSlice, LowerStridedSlice);
 REGISTER_LOWERING_WITH_EXISTED(StridedSliceD, LowerStridedSlice);
 REGISTER_LOWERING_WITH_EXISTED(StridedSliceV2, LowerStridedSlice);
+REGISTER_LOWERING_WITH_EXISTED(StridedSliceV3, LowerStridedSliceV3);
 REGISTER_LOWERING_WITH_EXISTED(Split, LowerSplit);
 REGISTER_LOWERING_WITH_EXISTED(SplitD, LowerSplit);
 REGISTER_LOWERING_WITH_EXISTED(SplitV, LowerSplit);

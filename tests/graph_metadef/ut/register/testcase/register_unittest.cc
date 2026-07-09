@@ -1055,14 +1055,15 @@ TEST_F(UtestRegister, ParseSubgraphPostFnTest) {
   opRegData.GetParseSubgraphPostFn(Getfunc);
 
   OpRegistry *opReg = OpRegistry::Instance();
+  opRegData.FrameworkType(domi::ONNX);
   opReg->Register(opRegData);
 
-  EXPECT_EQ(opReg->GetParseSubgraphPostFunc(std::string("strOmOptype")), nullptr);
-  EXPECT_EQ(opReg->GetParseSubgraphPostFunc(std::string("OmOptype")), nullptr);
+  EXPECT_EQ(opReg->GetParseSubgraphPostFunc("strOmOptype", domi::ONNX), nullptr);
+  EXPECT_NE(opReg->GetParseSubgraphPostFunc("OmOptype", domi::ONNX), nullptr);
 
   domi::ParseSubgraphFuncV2 parse_subgraph_func;
-  EXPECT_EQ(opReg->GetParseSubgraphPostFunc(std::string("OmOptype"), parse_subgraph_func), domi::SUCCESS);
-  EXPECT_EQ(opReg->GetParseSubgraphPostFunc(std::string("strOmOptype"), parse_subgraph_func), domi::FAILED);
+  EXPECT_EQ(opReg->GetParseSubgraphPostFunc("OmOptype", domi::ONNX, parse_subgraph_func), domi::SUCCESS);
+  EXPECT_EQ(opReg->GetParseSubgraphPostFunc("strOmOptype", domi::ONNX, parse_subgraph_func), domi::FAILED);
 }
 
 TEST_F(UtestRegister, optiling_py_interface) {

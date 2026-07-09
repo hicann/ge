@@ -163,6 +163,10 @@ Status FillMissionIndex(const std::pair<int64_t, int64_t> &ellipsis_mask_range,
 
 Status HandleBeginMask(const StridedSliceMaskAttr &strided_slice_attr, const std::vector<Expression> &input_dims,
                        const std::pair<int64_t, int64_t> &ellipsis_mask_range, StrdedSliceIndexInputs &index_input) {
+  if (strided_slice_attr.begin_mask == 0U) {
+    GELOGI("begin_mask is 0, skip HandleBeginMask.");
+    return SUCCESS;
+  }
   uint64_t mask_pos = 0U;
   for (size_t i = 0UL; i < index_input.start_indexes.size(); i++) {
     if (IsInEllipsisMaskRange(ellipsis_mask_range, static_cast<int64_t>(i))) {

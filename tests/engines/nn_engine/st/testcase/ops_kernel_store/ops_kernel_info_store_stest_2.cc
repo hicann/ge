@@ -26,6 +26,8 @@
 #include "adapter/common/op_store_adapter_manager.h"
 #include "adapter/tbe_adapter/tbe_op_store_adapter.h"
 #include "common/configuration.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 
 #include "graph/ge_tensor.h"
 #include "graph/types.h"
@@ -478,4 +480,23 @@ TEST_F(STEST_OPS_KERNEL_INFO_STORE_2, set_atomic_op_attr) {
 TEST_F(STEST_OPS_KERNEL_INFO_STORE_2, test_op_info_mgr_finalize) {
   Status ret = fe_ops_kernel_info_store_ptr->Finalize();
   EXPECT_EQ(fe::SUCCESS, ret);
+}
+
+TEST_F(STEST_OPS_KERNEL_INFO_STORE_2, construct_op_kernel_info_skip_custom_op) {
+  const std::string kCustomOpName = "_ge_st_skip_custom_op";
+
+  (void)ge::CustomOpFactory::RegisterCustomOpCreator(ge::AscendString(kCustomOpName.c_str()),
+                                                     []() -> std::unique_ptr<ge::BaseCustomOp> { return nullptr; });
+
+  SubOpInfoStore sub_store(tbe_custom_opinfo);
+
+  OpContent custom_content;
+  custom_content.op_type_ = kCustomOpName;
+  sub_store.op_content_map_[kCustomOpName] = custom_content;
+
+  Status ret = sub_store.ConstructOpKernelInfo(AI_CORE_NAME);
+  EXPECT_EQ(ret, fe::SUCCESS);
+
+  EXPECT_EQ(sub_store.op_kernel_info_map_.count(kCustomOpName), 0);
+  EXPECT_TRUE(sub_store.op_kernel_info_map_.empty());
 }

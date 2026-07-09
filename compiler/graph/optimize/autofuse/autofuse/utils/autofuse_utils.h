@@ -201,6 +201,10 @@ class AutofuseUtils {
    */
   static std::string SimplifyNodeName(const std::string &node_name);
 
+  static std::vector<ge::Expression> GetSymbolicOrConstFallback(const NodePtr &curr_node, int32_t input_idx,
+                                                                const std::vector<int64_t> &fallback_list,
+                                                                const std::string &name);
+
  private:
   static NodePtr ConvertAscBackendNodeToAscGraphNode(const ComputeGraphPtr compute_graph, const NodePtr &node);
 
