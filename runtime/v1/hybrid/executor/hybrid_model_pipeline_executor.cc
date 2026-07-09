@@ -11,7 +11,7 @@
 #include "hybrid/executor/hybrid_model_pipeline_executor.h"
 
 #include "base/err_mgr.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/dump/dump_manager.h"
 #include "graph/ge_context.h"
 #include "graph/runtime_inference_context.h"

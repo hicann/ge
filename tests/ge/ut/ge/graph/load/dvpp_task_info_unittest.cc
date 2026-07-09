@@ -14,7 +14,7 @@
 #include "graph/load/model_manager/task_info/dvpp/dvpp_task_info.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"
-#include "compiler/engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "compiler/engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 
 namespace ge {
 class UtestDvppTask : public testing::Test {

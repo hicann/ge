@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "py_generator.h"
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "graph/operator_factory.h"
 #include "graph/op_desc.h"
 

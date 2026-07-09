@@ -21,7 +21,7 @@
 #include "graph/utils/type_utils.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "base/err_msg.h"

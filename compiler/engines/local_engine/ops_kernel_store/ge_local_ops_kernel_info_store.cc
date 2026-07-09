@@ -17,7 +17,7 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/type_utils.h"
-#include "engines/local_engine/ops_kernel_store/op/op_factory.h"
+#include "engines/local_engine/ops_kernel_store/op/ge_local_op_factory.h"
 
 namespace ge {
 namespace ge_local {

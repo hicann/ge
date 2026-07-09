@@ -35,7 +35,7 @@
 #include "kernel/kernel_log.h"
 #include "kernel/memory/mem_block.h"
 #include "kernel/memory/host_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "aicpu_bin_handler.h"

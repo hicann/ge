@@ -13,7 +13,7 @@
 #include "mockcpp/mockcpp.hpp"
 
 #define private public
-#include "execute/memory_statistic_manager.h"
+#include "execute/udf_memory_statistic_manager.h"
 #undef private
 
 #include "common/scope_guard.h"

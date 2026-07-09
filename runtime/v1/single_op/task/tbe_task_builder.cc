@@ -19,7 +19,7 @@
 #include "graph/def_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/load/model_manager/model_utils.h"
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 #include "graph/manager/graph_var_manager.h"
 #include "rt_external.h"
 #include "single_op/task/build_task_utils.h"

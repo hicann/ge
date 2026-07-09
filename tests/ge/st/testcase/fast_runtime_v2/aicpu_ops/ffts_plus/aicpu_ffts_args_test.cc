@@ -14,7 +14,7 @@
 #include "stub/gert_runtime_stub.h"
 #include "register/kernel_registry.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include <kernel/memory/mem_block.h>
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/ffts_plus/aicpu_ffts_args.h"
@@ -23,7 +23,7 @@
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
 #include "register/ffts_node_calculater_registry.h"
 #include "graph_builder/bg_memory.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "kernel/memory/caching_mem_allocator.h"
 #include "kernel/memory/ffts_mem_allocator.h"
 #include "exe_graph/runtime/gert_tensor_data.h"

@@ -16,7 +16,7 @@
 #include <tuple>
 #include <vector>
 #include <sys/syscall.h>
-#include "utils.h"
+#include "pydflow_utils.h"
 #include "pybind11/numpy.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"

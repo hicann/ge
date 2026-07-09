@@ -26,7 +26,7 @@
 #include "graph/op_desc.h"
 #include "graph/debug/ge_attr_define.h"
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "cache/te_cache_space_manager.h"
 #include "common/tbe_op_info_cache.h"
 #include "common/common_utils.h"

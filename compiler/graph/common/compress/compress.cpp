@@ -17,7 +17,7 @@
 #include <securec.h>
 
 #include "mode_warehouse.h"
-#include "log.h"
+#include "compress_log.h"
 #include "data_compressor.h"
 #include "index_generator_factory.h"
 

@@ -14,7 +14,7 @@
 #include "common/debug/ge_log.h"
 #include "hybrid/model/node_item.h"
 #include "hybrid/model/infer/tensor_desc_holder.h"
-#include "hybrid/model/infer/shape_utils.h"
+#include "hybrid/model/infer/hybrid_shape_utils.h"
 #include "hybrid/model/infer/node_shape_infer.h"
 #include "common/plugin/ge_make_unique_util.h"
 

@@ -12,7 +12,7 @@
 #include "ge/ge_api.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "api/gelib/gelib.h"
-#include "engines/manager/engine/engine_manager.h"
+#include "engines/manager/engine/dnn_engine_manager.h"
 #include "ge_running_env/ge_running_env_faker.h"
 #include "ge_default_running_env.h"
 #include "op/fake_op_repo.h"

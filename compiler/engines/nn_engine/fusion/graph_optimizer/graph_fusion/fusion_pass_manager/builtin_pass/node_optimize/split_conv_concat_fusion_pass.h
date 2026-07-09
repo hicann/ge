@@ -15,7 +15,7 @@
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/builtin_pass/node_optimize/checker/concat_optimize_checker.h"
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/builtin_pass/node_optimize/checker/split_optimize_checker.h"
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/builtin_pass/node_optimize/node_optimize_pass_base.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 struct QuantCmpAttr {

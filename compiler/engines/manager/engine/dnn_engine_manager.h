@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_PLUGIN_ENGINE_ENGINE_MANAGE_H_
-#define GE_PLUGIN_ENGINE_ENGINE_MANAGE_H_
+#ifndef GE_PLUGIN_ENGINE_DNN_ENGINE_MANAGE_H_
+#define GE_PLUGIN_ENGINE_DNN_ENGINE_MANAGE_H_
 
 #if defined(_MSC_VER)
 #ifdef FUNC_VISIBILITY
@@ -58,4 +58,4 @@ extern "C" {
 GE_FUNC_VISIBILITY void GetDNNEngineObjs(std::map<std::string, DNNEnginePtr> &engines);
 }
 }  // namespace ge
-#endif  // GE_PLUGIN_ENGINE_ENGINE_MANAGE_H_
+#endif  // GE_PLUGIN_ENGINE_DNN_ENGINE_MANAGE_H_

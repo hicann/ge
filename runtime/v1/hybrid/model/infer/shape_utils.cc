@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "hybrid/model/infer/shape_utils.h"
+#include "hybrid/model/infer/hybrid_shape_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/ge_tensor.h"
 #include "common/debug/log.h"

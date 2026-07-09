@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "utils.h"
+#include "rt2_utils.h"
 #include "ge/ge_api_types.h"
 #include "rt_error_codes.h"
 #include "rt_external.h"

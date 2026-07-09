@@ -9,7 +9,7 @@
  */
 
 #include "strided_slice_kernel.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/framework_types_internal.h"
 #include "graph/utils/type_utils.h"
 #include "host_kernels/kernel_utils.h"

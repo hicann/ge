@@ -13,7 +13,7 @@
 #include "common/fe_inner_attr_define.h"
 #include "common/fe_utils.h"
 #include "common/util/op_info_util.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "graph/compute_graph.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_attr_value.h"

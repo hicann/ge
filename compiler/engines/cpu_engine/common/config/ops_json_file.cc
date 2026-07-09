@@ -11,7 +11,7 @@
 #include "ops_json_file.h"
 
 #include "graph/types.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 
 using namespace std;

@@ -32,7 +32,7 @@
 #include "communication_op/recv_notify_op.h"
 #include "communication_op/send_notify_op.h"
 #include "memory_op/cmo_addr_op.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

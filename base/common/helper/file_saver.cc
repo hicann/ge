@@ -17,7 +17,7 @@
 #include <iostream>
 #include <array>
 #include "common/checker.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/screen_printer.h"
 #include "framework/common/debug/ge_log.h"

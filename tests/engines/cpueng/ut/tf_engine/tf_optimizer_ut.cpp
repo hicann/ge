@@ -14,7 +14,7 @@
 #include "engine/tf_engine.h"
 #include "tf_optimizer/tf_optimizer_utils.h"
 #include "tf_optimizer/tf_optimizer.h"
-#include "tf_optimizer/tensorflow_util.h"
+#include "tf_optimizer/tf_optimizer_tensorflow_util.h"
 #include "ir2tf/ir2tf_base_parser.h"
 #include "graph/operator_factory_impl.h"
 #include "graph/utils/op_desc_utils.h"

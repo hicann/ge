@@ -16,7 +16,7 @@
 
 #include "common/fe_log.h"
 #include "common/fe_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/util/op_info_util.h"
 #include "graph_optimizer/fusion_common/graph_node_map_util.h"
 

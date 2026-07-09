@@ -24,7 +24,7 @@
 
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_log.h"
-#include "mem_utils.h"
+#include "llm_datadist_mem_utils.h"
 
 namespace llm {
 using ThreadTask = std::function<void()>;

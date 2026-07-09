@@ -35,7 +35,7 @@
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "common/fake_node_helper.h"
 #include "subscriber/profiler/base_executor_profiler.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "engine/aicore/fe_rt2_common.h"
 #include "common/sgt_slice_type.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"

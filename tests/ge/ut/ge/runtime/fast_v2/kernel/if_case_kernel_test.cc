@@ -19,7 +19,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "faker/fake_value.h"
 #include "kernel/memory/host_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "kernel/control_kernel/control_kernel.h"
 #include "graph/utils/execute_graph_utils.h"
 

@@ -12,7 +12,7 @@
 #include "caching_mem_allocator.h"
 #include "common/checker.h"
 #include "rts_caching_mem_allocator.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 
 namespace gert {
 namespace memory {

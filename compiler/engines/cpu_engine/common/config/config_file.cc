@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <fstream>
 
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 
 using namespace std;

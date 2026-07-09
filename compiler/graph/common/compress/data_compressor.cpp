@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <securec.h>
-#include "log.h"
+#include "compress_log.h"
 
 namespace {
 bool FreqCmp(std::pair<int, size_t> i, std::pair<int, size_t> j) {

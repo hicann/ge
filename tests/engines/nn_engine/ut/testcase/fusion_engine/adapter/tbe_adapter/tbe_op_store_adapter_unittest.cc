@@ -27,7 +27,7 @@
 #include "ops_kernel_store/fe_ops_kernel_info_store.h"
 #include "common/platform_utils.h"
 #include "common/configuration.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "common/util/op_info_util.h"
 #include "ops_store/op_kernel_info.h"
 #include "common/fe_op_info_common.h"

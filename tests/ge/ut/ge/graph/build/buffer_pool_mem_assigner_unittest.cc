@@ -21,7 +21,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "graph/build/memory/buffer_pool_mem_assigner.h"
 #include "framework/memory/memory_assigner.h"
-#include "graph/build/stream/stream_allocator.h"
+#include "graph/build/stream/graph_stream_allocator.h"
 #include "graph/build/stream/stream_utils.h"
 #include "graph/ge_local_context.h"
 #include "macro_utils/dt_public_unscope.h"

@@ -9,7 +9,7 @@
  */
 
 #include "llm_tensor.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "common/llm_checker.h"
 #include "common/def_types.h"
 #include "common/llm_utils.h"

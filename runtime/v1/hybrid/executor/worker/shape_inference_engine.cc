@@ -13,12 +13,12 @@
 #include "graph/shape_refiner.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/tensor_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/profiling/profiling_properties.h"
 #include "common/profiling/profiling_manager.h"
 #include "common/profiling_definitions.h"
 #include "hybrid/node_executor/node_executor.h"
-#include "hybrid/model/infer/shape_utils.h"
+#include "hybrid/model/infer/hybrid_shape_utils.h"
 
 namespace ge {
 namespace {

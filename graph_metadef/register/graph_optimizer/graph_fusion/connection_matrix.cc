@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "register/graph_optimizer/graph_fusion/connection_matrix.h"
+#include "register/graph_optimizer/graph_fusion/fusion_connection_matrix.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace fe {

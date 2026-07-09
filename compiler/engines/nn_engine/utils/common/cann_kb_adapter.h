@@ -10,7 +10,7 @@
 #ifndef ATC_OPCOMPILER_TE_FUSION_SOURCE_COMMON_CANN_KB_UTILS_H_
 #define ATC_OPCOMPILER_TE_FUSION_SOURCE_COMMON_CANN_KB_UTILS_H_
 #include <map>
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 
 namespace fe {
 namespace CannKb {

@@ -14,7 +14,7 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "mem_block.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 namespace memory {

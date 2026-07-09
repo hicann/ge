@@ -13,7 +13,7 @@
 #include <memory>
 #include <set>
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "framework/common/op/ge_op_utils.h"
 #include "framework/common/framework_types_internal.h"
 #include "framework/common/debug/ge_log.h"

@@ -19,7 +19,7 @@
 #include "common/fe_type_utils.h"
 #include "common/graph/fe_graph_utils.h"
 #include "common/lxfusion_json_util.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/string_utils.h"
 #include "common/unknown_shape_util.h"

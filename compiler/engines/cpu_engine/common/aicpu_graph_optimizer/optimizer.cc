@@ -18,7 +18,7 @@
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "common/op_slice_util.h"
 #include "common/aicore_util_types.h"

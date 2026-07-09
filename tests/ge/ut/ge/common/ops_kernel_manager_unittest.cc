@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "macro_utils/dt_public_scope.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "api/gelib/gelib.h"
 #include "graph/optimize/graph_optimize.h"
 #include "macro_utils/dt_public_unscope.h"

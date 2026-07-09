@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 #include "adapter/tbe_adapter/tbe_info/tbe_info_assembler.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "common/opskernel/ops_kernel_info_types.h"

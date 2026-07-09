@@ -15,7 +15,7 @@
 #include <string>
 #include <securec.h>
 #include "compress_type.h"
-#include "log.h"
+#include "compress_log.h"
 
 namespace amctcmp {
 ModeAIndexGenerator::ModeAIndexGenerator(char *dataBuffer, char *indexBuffer, bool isTight, size_t fractalSize,

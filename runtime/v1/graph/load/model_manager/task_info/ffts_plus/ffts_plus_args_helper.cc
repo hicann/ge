@@ -12,7 +12,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "common/util.h"
 #include "graph/load/model_manager/davinci_model.h"
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 namespace {
 constexpr size_t kDescBufAlignedBytes = 128UL;
 }

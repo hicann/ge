@@ -15,7 +15,7 @@
 #include "label_control_op/label_switch_op.h"
 #include "memory_op/memcpy_async_op.h"
 #include "common/util.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

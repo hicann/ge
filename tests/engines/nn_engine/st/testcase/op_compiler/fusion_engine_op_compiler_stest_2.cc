@@ -23,7 +23,7 @@
 #include "common/aicore_util_types.h"
 #include "common/platform_utils.h"
 #include "common/configuration.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "common/scope_allocator.h"
 #include "common/util/op_info_util.h"
 #include "platform/platform_info.h"

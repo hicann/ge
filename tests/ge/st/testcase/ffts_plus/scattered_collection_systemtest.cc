@@ -17,7 +17,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "ge/ut/ge/test_tools_task_info.h"
-#include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.h"
+#include "graph/load/model_manager/task_info/ffts_plus/v1_ffts_plus_proto_transfer.h"
 #include "graph/load/model_manager/task_info/ffts_plus/ffts_plus_args_helper.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"

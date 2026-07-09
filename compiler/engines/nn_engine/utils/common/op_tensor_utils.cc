@@ -13,7 +13,7 @@
 #include <cmath>
 #include "common/comm_error_codes.h"
 #include "common/fe_log.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/constants_define.h"
 #include "common/string_utils.h"
 #include "common/platform_utils.h"

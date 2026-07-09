@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "plugin_manager.h"
+#include "hcom_plugin_manager.h"
 #include <sstream>
 #include "ge/ge_api_types.h"            // ge对内options
 #include "framework/common/ge_types.h"  // ge对外options

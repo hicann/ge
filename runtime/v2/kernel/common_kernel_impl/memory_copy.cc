@@ -28,9 +28,9 @@
 #include "kernel/tensor_attr.h"
 #include "graph/def_types.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 #include "exe_graph/runtime/tensor_data_utils.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 
 using namespace ge;

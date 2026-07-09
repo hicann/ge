@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef MEMORY_STATISTIC_MANAGER_H
-#define MEMORY_STATISTIC_MANAGER_H
+#ifndef UDF_MEMORY_STATISTIC_MANAGER_H
+#define UDF_MEMORY_STATISTIC_MANAGER_H
 
 #include <cstdint>
 #include <mutex>
@@ -66,4 +66,4 @@ class MemoryStatisticManager {
   volatile uint32_t xsmem_statistic_count_{0};
 };
 }  // namespace FlowFunc
-#endif  // MEMORY_STATISTIC_MANAGER_H
+#endif  // UDF_MEMORY_STATISTIC_MANAGER_H

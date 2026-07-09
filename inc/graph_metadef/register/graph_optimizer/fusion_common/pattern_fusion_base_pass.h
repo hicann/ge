@@ -20,8 +20,8 @@
 
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "register/graph_optimizer/graph_fusion/fusion_pattern.h"
-#include "register/graph_optimizer/graph_fusion/graph_pass.h"
-#include "register/graph_optimizer/graph_fusion/connection_matrix.h"
+#include "register/graph_optimizer/graph_fusion/graph_fusion_graph_pass.h"
+#include "register/graph_optimizer/graph_fusion/fusion_connection_matrix.h"
 
 namespace fe {
 using std::initializer_list;

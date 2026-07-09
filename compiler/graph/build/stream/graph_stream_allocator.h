@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GRAPH_BUILD_STREAM_STREAM_ALLOCATOR_H_
-#define GE_GRAPH_BUILD_STREAM_STREAM_ALLOCATOR_H_
+#ifndef GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_
+#define GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_
 
 #include <map>
 #include <set>
@@ -281,4 +281,4 @@ class StreamAllocator {
   Node2AttachedStreamId2EventId attached_node_to_stream_id_to_recv_event_id_;
 };
 }  // namespace ge
-#endif  // GE_GRAPH_BUILD_STREAM_STREAM_ALLOCATOR_H_
+#endif  // GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_

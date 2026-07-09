@@ -43,10 +43,10 @@
 #include "engine/aicore/kernel/aicore_update_kernel.h"
 #include "register/ffts_node_calculater_registry.h"
 #include "graph/utils/tensor_utils.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 #include "engine/aicore/kernel/mixl2_update_kernel.h"           // todo: to be deleted
 #include "engine/aicpu/kernel/ffts_plus/aicpu_update_kernel.h"  // todo: to be deleted
-#include "core/utils/executor_utils.h"
+#include "core/utils/rt2_executor_utils.h"
 #include "kernel/known_subgraph/davinci_model_kernel.h"
 #include "graph/utils/attr_utils.h"
 #include "exe_graph/lowering/value_holder_utils.h"

@@ -27,7 +27,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include "api/gelib/gelib.h"
 #include "common/model/ge_model.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"

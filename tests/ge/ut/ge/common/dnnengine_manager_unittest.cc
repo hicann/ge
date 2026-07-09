@@ -22,7 +22,7 @@
 #include "framework/engine/dnnengine.h"
 #include "graph/op_desc.h"
 #include "graph/node.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/ge_local_context.h"
 #include "macro_utils/dt_public_unscope.h"
 

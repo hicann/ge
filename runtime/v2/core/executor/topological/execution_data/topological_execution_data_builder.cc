@@ -10,7 +10,7 @@
 
 #include "topological_execution_data_builder.h"
 #include "core/executor/sequential/execution_data/sequential_execution_data.h"
-#include "core/utils/executor_utils.h"
+#include "core/utils/rt2_executor_utils.h"
 
 namespace gert {
 TopologicalExecutionDataBuilder::TopologicalExecutionDataBuilder(GraphExecutorBuilder &executor_builder)

@@ -13,7 +13,7 @@
 #include <sstream>
 #include <vector>
 #include "common/fe_inner_error_codes.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/util/op_info_util.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/graph_utils.h"

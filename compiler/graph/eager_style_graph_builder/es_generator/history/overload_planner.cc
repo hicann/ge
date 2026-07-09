@@ -18,7 +18,7 @@
 #include "attr_type_traits.h"
 #include "ambiguity_checker.h"
 #include "warning_formatter.h"
-#include "../utils.h"
+#include "../es_generator_utils.h"
 
 namespace ge {
 namespace es {

@@ -22,7 +22,7 @@
 #include "graph/utils/op_desc_utils_ex.h"
 #include "graph/passes/pass_manager.h"
 #include "api/gelib/gelib.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 
 using namespace std;
 using namespace testing;

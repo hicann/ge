@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/util/json_util.h"
 #include "common/fe_context_utils.h"

@@ -26,7 +26,7 @@
 #include "ge/ge_api_types.h"
 #include "ops_kernel_store/fe_ops_kernel_info_store.h"
 #include "common/configuration.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "graph/utils/attr_utils.h"
 #include "common/util/op_info_util.h"
 #include "ops_store/op_kernel_info.h"

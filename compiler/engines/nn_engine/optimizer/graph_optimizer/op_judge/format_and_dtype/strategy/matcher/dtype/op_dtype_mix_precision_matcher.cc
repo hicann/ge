@@ -12,7 +12,7 @@
 #include "graph/utils/type_utils.h"
 #include "common/fe_log.h"
 #include "common/util/op_info_util.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 OpDtypeMixPrecisionMatcher::OpDtypeMixPrecisionMatcher() : OpDtypeMatcherBase() {}

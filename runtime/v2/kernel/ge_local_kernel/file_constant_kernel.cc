@@ -25,7 +25,7 @@
 #include "kernel/kernel_log.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "core/debug/kernel_tracing.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "hybrid/model/hybrid_model_builder.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 

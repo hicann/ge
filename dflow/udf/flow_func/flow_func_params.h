@@ -19,7 +19,7 @@
 #include "common/common_define.h"
 #include "flow_func/meta_params.h"
 #include "flow_func/meta_flow_func.h"
-#include "flow_func/flow_model.h"
+#include "flow_func/udf_flow_model.h"
 #include "flow_func/dflow_attr_value.h"
 #include "mbuf_flow_msg.h"
 

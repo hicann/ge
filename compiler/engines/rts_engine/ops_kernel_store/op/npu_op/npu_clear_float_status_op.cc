@@ -13,7 +13,7 @@
 
 #include "op_factory.h"
 #include "graph/utils/tensor_utils.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 
 using namespace ge;
 namespace cce {

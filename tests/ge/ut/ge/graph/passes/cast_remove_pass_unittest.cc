@@ -27,7 +27,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "omg/omg_inner_types.h"
 
 using namespace testing;

@@ -15,7 +15,7 @@
 #include "kernel/memory/caching_mem_allocator.h"
 #include "kernel/memory/host_mem_allocator.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 class FakedShapeImpl : public BaseNodeExeFaker {

@@ -16,7 +16,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "graph/utils/type_utils.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "util/constant.h"
 

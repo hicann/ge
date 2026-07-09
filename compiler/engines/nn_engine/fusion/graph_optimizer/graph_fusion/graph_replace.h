@@ -23,7 +23,7 @@
 #include "graph_optimizer/graph_fusion/graph_matcher.h"
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 using std::map;

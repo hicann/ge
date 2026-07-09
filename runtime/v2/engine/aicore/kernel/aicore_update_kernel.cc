@@ -16,7 +16,7 @@
 #include "exe_graph/runtime/tiling_data.h"
 #include "register/kernel_registry_impl.h"
 #include "register/op_tiling.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "utils/extern_math_util.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "exe_graph/lowering/shape_utils.h"

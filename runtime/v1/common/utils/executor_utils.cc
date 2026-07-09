@@ -9,7 +9,7 @@
  */
 
 #include "common/utils/executor_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/utils/tensor_utils.h"
 
 #include <string>

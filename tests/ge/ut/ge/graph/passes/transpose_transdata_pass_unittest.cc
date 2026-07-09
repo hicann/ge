@@ -13,7 +13,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/passes/format_optimize/transpose_transdata_pass.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph_builder_utils.h"
 #include "macro_utils/dt_public_unscope.h"
 

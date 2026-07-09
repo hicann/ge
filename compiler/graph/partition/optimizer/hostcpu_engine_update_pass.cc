@@ -9,13 +9,13 @@
  */
 
 #include "graph/partition/optimizer/hostcpu_engine_update_pass.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/utils/node_utils.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ge_local_context.h"
 #include "ge/ge_api_types.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/option/optimization_option_info.h"
 #include "register/optimization_option_registry.h"
 #include "register/pass_option_utils.h"

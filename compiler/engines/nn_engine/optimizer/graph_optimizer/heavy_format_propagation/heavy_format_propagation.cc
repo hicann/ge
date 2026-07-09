@@ -208,7 +208,7 @@ HeavyFormatPropagation::HeavyFormatPropagation(const std::string &engine_name, R
 
 HeavyFormatPropagation::~HeavyFormatPropagation() {}
 
-Status HeavyFormatPropagation::Initalize() {
+Status HeavyFormatPropagation::Initialize() {
   FE_MAKE_SHARED(format_dtype_querier_ptr_ = std::make_shared<FormatDtypeQuerier>(engine_name_), return FAILED);
   FE_MAKE_SHARED(format_dtype_setter_ptr_ = std::make_shared<FormatDtypeSetter>(engine_name_), return FAILED);
   FE_MAKE_SHARED(supportformats_updater_ptr_ = std::make_shared<HeavyFormatSupportFormatsUpdater>(
@@ -220,7 +220,7 @@ Status HeavyFormatPropagation::Initalize() {
   if (heavy_format_selector_ptr_ == nullptr) {
     return FAILED;
   }
-  return heavy_format_selector_ptr_->Initalize();
+  return heavy_format_selector_ptr_->Initialize();
 }
 
 bool HeavyFormatPropagation::IsPropagateFromNode(const ge::NodePtr &node, const OpKernelInfoPtr &op_kernel_info_ptr) {

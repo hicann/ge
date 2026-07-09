@@ -14,7 +14,7 @@
 #include <vector>
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "graph/graph.h"
-#include "register/graph_optimizer/graph_fusion/graph_pass.h"
+#include "register/graph_optimizer/graph_fusion/graph_fusion_graph_pass.h"
 
 namespace fe {
 using OpsKernelInfoStorePtr = std::shared_ptr<ge::OpsKernelInfoStore>;

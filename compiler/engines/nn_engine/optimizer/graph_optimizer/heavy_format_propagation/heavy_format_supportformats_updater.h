@@ -15,7 +15,7 @@
 #include "common/fe_inner_error_codes.h"
 #include "common/fe_log.h"
 #include "common/fe_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/util/op_info_util.h"
 #include "format_selector/manager/format_dtype_querier.h"

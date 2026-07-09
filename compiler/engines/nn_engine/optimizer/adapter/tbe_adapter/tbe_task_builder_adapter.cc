@@ -19,7 +19,7 @@
 #include "common/l2_stream_info.h"
 #include "common/lxfusion_json_util.h"
 #include "common/op_tensor_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/string_utils.h"
 #include "common/fe_inner_attr_define.h"
 #include "common/aicore_util_constants.h"

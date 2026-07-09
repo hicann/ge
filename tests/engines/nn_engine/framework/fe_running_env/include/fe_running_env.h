@@ -17,7 +17,7 @@
 #include <sstream>
 #define protected public
 #define private public
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "common/configuration.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"

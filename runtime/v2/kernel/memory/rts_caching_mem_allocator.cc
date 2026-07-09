@@ -21,7 +21,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 
 namespace gert {
 namespace memory {

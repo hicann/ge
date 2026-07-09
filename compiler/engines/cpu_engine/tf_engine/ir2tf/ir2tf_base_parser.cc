@@ -19,7 +19,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/operator.h"
 #include "util/tf_util.h"
-#include "common/util/log.h"
+#include "common/util/aicpu_log.h"
 #include "common/util/constant.h"
 #include "common/error_code/error_code.h"
 #include "config/ir2tf_json_file.h"

@@ -17,7 +17,7 @@
 #include "graph/utils/type_utils.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/ir_definitions_recover.h"
 #include "exe_graph/lowering/bg_ir_attrs.h"
 

@@ -14,7 +14,7 @@
 #include <vector>
 #include <climits>
 #include <unordered_map>
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph/node.h"
 #include "proto/task.pb.h"

@@ -26,7 +26,7 @@
 #include "framework/common/util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/type_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "proto/task.pb.h"
 
 namespace ge {

@@ -17,7 +17,7 @@
 #include "framework/common/framework_types_internal.h"
 #include "common/helper/file_saver.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/checker.h"
 #include "common/thread_pool/thread_pool.h"
 #include "graph/compute_graph.h"

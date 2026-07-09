@@ -28,7 +28,7 @@
 #include "ge/ge_api.h"
 #include "api/gelib/gelib.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/plugin/plugin_manager.h"
 

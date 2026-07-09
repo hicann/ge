@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_GRAPH_MANAGER_HOST_MEM_ALLOCATOR_H_
-#define GE_GRAPH_MANAGER_HOST_MEM_ALLOCATOR_H_
+#ifndef GE_GRAPH_MANAGER_V1_HOST_MEM_ALLOCATOR_H_
+#define GE_GRAPH_MANAGER_V1_HOST_MEM_ALLOCATOR_H_
 
 #include <mutex>
 #include <map>
@@ -50,4 +50,4 @@ class HostMemAllocator {
 };
 }  // namespace ge
 
-#endif  // GE_GRAPH_MANAGER_HOST_MEM_ALLOCATOR_H_
+#endif  // GE_GRAPH_MANAGER_V1_HOST_MEM_ALLOCATOR_H_

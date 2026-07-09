@@ -24,7 +24,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/util/trace_manager/trace_manager.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 #define RT_ERROR_INVALID_VALUE 0x07110001
 const uint32_t RT_MEMORY_DEFAULT = 0x0U;
 const uint32_t RT_MEMORY_TS = 0x40U;

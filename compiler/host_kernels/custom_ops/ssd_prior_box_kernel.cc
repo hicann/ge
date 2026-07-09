@@ -15,7 +15,7 @@
 #include <memory>
 #include <utility>
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/utils/math_util.h"
 #include "framework/common/framework_types_internal.h"
 #include "framework/common/util.h"

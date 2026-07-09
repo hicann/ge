@@ -15,7 +15,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/detail/common.h>
 #include <sys/syscall.h>
-#include "utils.h"
+#include "pydflow_utils.h"
 #include "flow_func/flow_func_ascend_string.h"
 #include "flow_func/dflow_attr_value.h"
 #include "flow_func/flow_func_defines.h"

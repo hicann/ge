@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_RUNTIME_V2_CORE_UTILS_EXECUTOR_UTILS_H_
-#define AIR_CXX_RUNTIME_V2_CORE_UTILS_EXECUTOR_UTILS_H_
+#ifndef AIR_CXX_RUNTIME_V2_CORE_UTILS_RT2_EXECUTOR_UTILS_H_
+#define AIR_CXX_RUNTIME_V2_CORE_UTILS_RT2_EXECUTOR_UTILS_H_
 #include "runtime/model_v2_executor.h"
 #include "common/ge_inner_attrs.h"
 #include "core/builder/graph_node.h"
@@ -52,4 +52,4 @@ inline ge::graphStatus AssembleNodeRequestedExtraInfos(const std::pair<ge::FastN
   return ge::GRAPH_SUCCESS;
 }
 }  // namespace gert
-#endif  // AIR_CXX_RUNTIME_V2_CORE_UTILS_EXECUTOR_UTILS_H_
+#endif  // AIR_CXX_RUNTIME_V2_CORE_UTILS_RT2_EXECUTOR_UTILS_H_

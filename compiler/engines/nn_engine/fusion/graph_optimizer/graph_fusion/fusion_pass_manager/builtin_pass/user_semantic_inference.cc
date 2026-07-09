@@ -21,7 +21,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_context_utils.h"
 #include "ops_store/ops_kernel_manager.h"
 #include "register/graph_optimizer/fusion_common/unknown_shape_utils.h"

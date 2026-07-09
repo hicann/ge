@@ -20,7 +20,7 @@
 #include "base/err_mgr.h"
 #include "macro_utils/dt_public_scope.h"
 #include "graph/manager/graph_manager.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/build/memory/binary_block_mem_assigner.h"
 #include "graph/build/memory/block_type_list.h"
 #include "hybrid/node_executor/node_executor.h"

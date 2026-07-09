@@ -17,7 +17,7 @@
 #include "graph/manager/mem_manager.h"
 #include "graph/def_types.h"
 #include "common/debug/log.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {

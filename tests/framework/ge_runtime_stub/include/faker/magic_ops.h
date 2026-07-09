@@ -16,7 +16,7 @@
 #include "nodes_faker_for_exe.h"
 #include "register/kernel_registry.h"
 #include "stub/gert_runtime_stub.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 
 namespace gert {

@@ -12,7 +12,7 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_context_utils.h"
 #include "common/platform_utils.h"
 #include "ops_store/ops_kernel_manager.h"

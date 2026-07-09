@@ -19,7 +19,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "graph/compute_graph.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 
 namespace ge {
 class KernelUtils {

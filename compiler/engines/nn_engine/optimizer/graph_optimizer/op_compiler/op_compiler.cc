@@ -16,7 +16,7 @@
 #include "common/fe_inner_attr_define.h"
 #include "common/fe_type_utils.h"
 #include "common/ffts_plus_type.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_op_info_common.h"
 #include "common/util/op_info_util.h"
 #include "common/scope_allocator.h"

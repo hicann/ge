@@ -13,7 +13,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "graph/compute_graph.h"
-#include "common/pass.h"
+#include "common/parser_pass.h"
 #include "base/err_msg.h"
 
 namespace ge {

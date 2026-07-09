@@ -10,10 +10,10 @@
 
 #include "llm_datadist_internal.h"
 #include "acl/acl.h"
-#include "common/mem_utils.h"
+#include "common/llm_datadist_mem_utils.h"
 #include "common/llm_flow_service.h"
 #include "common/cache_engine.h"
-#include "common/llm_common.h"
+#include "common/llm_datadist_common.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 

@@ -25,7 +25,7 @@
 #include "graph/op_desc.h"
 #include "graph/debug/ge_attr_define.h"
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "python_adapter/python_api_call.h"
 #include "common/common_utils.h"
 

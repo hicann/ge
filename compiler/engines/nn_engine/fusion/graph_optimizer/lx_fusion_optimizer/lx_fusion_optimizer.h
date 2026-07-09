@@ -14,7 +14,7 @@
 #include <string>
 #include <memory>
 #include "common/aicore_util_types.h"
-#include "common/plugin_manager.h"
+#include "common/nn_engine_plugin_manager.h"
 #include "common/util/op_info_util.h"
 #include "fusion_config_manager/fusion_priority_manager.h"
 #include "common/opskernel/ops_kernel_info_store.h"

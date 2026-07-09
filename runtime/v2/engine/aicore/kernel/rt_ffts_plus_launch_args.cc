@@ -13,7 +13,7 @@
 #include "register/ffts_node_calculater_registry.h"
 #include "engine/aicore/fe_rt2_common.h"
 #include "rt_external_mem.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "exe_graph/runtime/kernel_context.h"
 #include "register/kernel_registry_impl.h"
 #include "exe_graph/runtime/tiling_data.h"

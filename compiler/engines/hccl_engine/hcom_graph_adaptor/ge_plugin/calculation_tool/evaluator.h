@@ -12,7 +12,7 @@
 #define AUTO_TUNING_EVALUATOR_H
 
 #include <vector>
-#include "model.h"
+#include "hcom_model.h"
 
 class EvaluatorDataParallel {
  public:

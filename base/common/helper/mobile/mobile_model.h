@@ -8,28 +8,25 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef FLOW_MODEL_H
-#define FLOW_MODEL_H
+#ifndef BASE_COMMON_HELPER_MOBILE_MODEL_H
+#define BASE_COMMON_HELPER_MOBILE_MODEL_H
 
-#include <vector>
-#include <memory>
-#include "flow_func/flow_msg.h"
+#include "graph/compute_graph.h"
+#include "ge_common/ge_api_error_codes.h"
+#include "graph/buffer.h"
+#include "common/model/ge_model.h"
+#include "graph/node.h"
+#include "proto/ge_ir_mobile.pb.h"
+#include "proto/ge_ir.pb.h"
 
-namespace FlowFunc {
-class FLOW_FUNC_VISIBILITY FlowModel {
+namespace ge {
+
+class MobileModel {
  public:
-  FlowModel() = default;
-
-  virtual ~FlowModel() = default;
-
-  virtual int32_t Init() = 0;
-
-  virtual int32_t Run(const std::vector<std::shared_ptr<FlowMsg>> &input_msgs,
-                      std::vector<std::shared_ptr<FlowMsg>> &output_msgs, int32_t timeout) = 0;
-
-  virtual void AddExceptionTransId(uint64_t trans_id) = 0;
-
-  virtual void DeleteExceptionTransId(uint64_t trans_id) = 0;
+  static ge::Status ConvertToMobileModelDef(const ge::proto::ModelDef &model_def,
+                                            ge::mobile::proto::ModelDef &mobile_model_def);
 };
-}  // namespace FlowFunc
-#endif  // FLOW_MODEL_H
+
+}  // namespace ge
+
+#endif  // BASE_COMMON_HELPER_MOBILE_MODEL_H

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/preload/model/pre_model_partition_utils.h"
 
 namespace ge {

@@ -15,7 +15,7 @@
 #include <vector>
 #include "common/fe_inner_error_codes.h"
 #include "common/fe_utils.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/util/op_info_util.h"
 #include "graph/compute_graph.h"
 #include "graph/debug/ge_attr_define.h"

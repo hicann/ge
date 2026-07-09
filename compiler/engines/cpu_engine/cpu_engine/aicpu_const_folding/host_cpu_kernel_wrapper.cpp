@@ -20,7 +20,7 @@
 #include "folding.h"
 #include "register/host_cpu_context.h"
 #include "graph/utils/op_desc_utils.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 
 extern "C" {
 FMK_FUNC_HOST_VISIBILITY ge::graphStatus Initialize(const ge::HostCpuContext &ctx) {

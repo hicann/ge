@@ -15,7 +15,7 @@
 #define private public
 #define protected public
 #include "hcom_all_reduce_fusion.h"
-#include "plugin_manager.h"
+#include "hcom_plugin_manager.h"
 #include "hcom_graph_optimizer.h"
 #include "auto_tuning_plugin.h"
 #include "auto_tuning_hcom_ops_kernel_info_store.h"

@@ -13,7 +13,7 @@
 #include "rt_external_mem.h"
 #include <cmath>
 #include "stub/gert_runtime_stub.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 namespace memory {

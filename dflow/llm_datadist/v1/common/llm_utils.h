@@ -20,7 +20,7 @@
 #include "flow_graph/data_flow.h"
 #include "common/flow_graph_manager.h"
 #include "common/llm_inner_types.h"
-#include "mem_utils.h"
+#include "llm_datadist_mem_utils.h"
 #include "common/def_types.h"
 
 namespace llm {

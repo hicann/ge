@@ -20,7 +20,7 @@
 #include "llm_test_helper.h"
 #include "common/llm_file_saver.h"
 #include "common/llm_ge_api.h"
-#include "common/cache_manager.h"
+#include "common/llm_datadist_cache_manager.h"
 #include "common/llm_checker.h"
 #include "flow_graph_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"

@@ -32,7 +32,7 @@
 #include "graph/node.h"
 #include "graph/op_desc.h"
 #include "tensor_engine/fusion_api.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "register/op_check.h"
 #include "common/common_utils.h"
 #include "common/fusion_common.h"

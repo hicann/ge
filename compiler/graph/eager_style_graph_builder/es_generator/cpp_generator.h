@@ -10,7 +10,7 @@
 
 #ifndef AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_EAGER_STYLE_GRAPH_BUILDER_CPP_GENERATOR_H_
 #define AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_EAGER_STYLE_GRAPH_BUILDER_CPP_GENERATOR_H_
-#include "utils.h"
+#include "es_generator_utils.h"
 #include <sstream>
 #include "graph/op_desc.h"
 #include "generator_interface.h"

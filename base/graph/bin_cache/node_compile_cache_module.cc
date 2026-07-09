@@ -16,7 +16,7 @@
 #include "graph/cache_policy/policy_register.h"
 #include "graph/operator_factory.h"
 #include "graph/utils/op_desc_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/compute_graph.h"
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"

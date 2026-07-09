@@ -13,7 +13,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/tensor_utils.h"
-#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
+#include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/build/memory/binary_block_mem_assigner.h"
 #include "hybrid/node_executor/node_executor.h"
 #include "ge_graph_dsl/assert/graph_assert.h"

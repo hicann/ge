@@ -41,7 +41,7 @@
 #include "common/checker.h"
 #include "exec_runtime/execution_runtime_utils.h"
 #include "graph/utils/op_type_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/passes/pass_manager.h"
 #include "base/err_msg.h"
 #include "ge/ge_api_types.h"

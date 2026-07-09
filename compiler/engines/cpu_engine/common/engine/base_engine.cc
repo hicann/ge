@@ -13,7 +13,7 @@
 #include "base/err_msg.h"
 #include "config/config_file.h"
 #include "error_code/error_code.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "util/constant.h"
 

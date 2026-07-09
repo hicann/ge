@@ -12,7 +12,7 @@
 #define FUSION_ENGINE_OPTIMIZER_GRAPH_OPTIMIZER_SHAPE_FORMAT_TRANSFER_TRANS_NODE_MANAGER_TRANS_NODE_INSERTION_INSERT_TRANS_NODE_STRATEGY_H_
 
 #include <map>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_type_utils.h"
 #include "common/util/op_info_util.h"
 #include "graph/node.h"

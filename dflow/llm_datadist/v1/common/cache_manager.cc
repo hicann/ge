@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "cache_manager.h"
+#include "llm_datadist_cache_manager.h"
 #include <numeric>
 #include "acl/acl.h"
 #include "common/llm_utils.h"

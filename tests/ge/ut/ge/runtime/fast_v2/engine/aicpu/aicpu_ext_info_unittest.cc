@@ -22,7 +22,7 @@
 #include "subscriber/dumper/executor_dumper.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "kernel/memory/caching_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 namespace gert {
 class AicpuExtInfoUT : public testing::Test {

@@ -427,7 +427,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_graph_constructor, distribu
   Conv2D_ReduceSumD(graph1);
   HeavyFormatPropagationPtr HeavyFormatPropagator =
       std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
-  HeavyFormatPropagator->Initalize();
+  HeavyFormatPropagator->Initialize();
   Status ret = HeavyFormatPropagator->PropagateHeavyFormat(*(graph1.get()));
   for (auto node : graph1->GetDirectNode()) {
     if (node->GetType() == "ReduceSumD") {
@@ -467,7 +467,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_graph_constructor, distribu
 //   test.SetInput("Cosh_0", "Conv3D", {3, 4, 5, 6 }, DESTINATION);
 //   test.Judge(fe_ops_kernel_info_store_ptr_);
 //   HeavyFormatPropagationPtr HeavyFormatPropagator = std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME,
-//   reflection_builder_ptr_); HeavyFormatPropagator->Initalize(); Status ret =
+//   reflection_builder_ptr_); HeavyFormatPropagator->Initialize(); Status ret =
 //   HeavyFormatPropagator->PropagateHeavyFormat(*(graph.get()));
 //
 //
@@ -543,7 +543,7 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution_graph_constructor, distribu
 //   test.Judge(fe_ops_kernel_info_store_ptr_);
 //
 //   HeavyFormatPropagationPtr HeavyFormatPropagator = std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME,
-//   reflection_builder_ptr_); HeavyFormatPropagator->Initalize(); Status ret =
+//   reflection_builder_ptr_); HeavyFormatPropagator->Initialize(); Status ret =
 //   HeavyFormatPropagator->PropagateHeavyFormat(*(graph.get()));
 //
 //   for(auto node : graph->GetDirectNode()) {

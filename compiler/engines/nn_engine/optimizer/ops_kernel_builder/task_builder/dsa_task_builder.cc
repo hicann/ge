@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "ops_kernel_builder/task_builder/dsa_task_builder.h"
+#include "ops_kernel_builder/task_builder/ops_kernel_dsa_task_builder.h"
 #include "framework/common/runtime_model_ge.h"
 
 #include <securec.h>

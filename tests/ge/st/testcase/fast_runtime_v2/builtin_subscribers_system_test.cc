@@ -59,7 +59,7 @@
 #include "proto/dump_task.pb.h"
 #include "graph/operator_factory_impl.h"
 #include "depends/profiler/src/dump_stub.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "graph/manager/graph_var_manager.h"
 #include "framework/ge_runtime_stub/include/common/dump_checker.h"
 #include "framework/runtime/gert_const_types.h"

@@ -9,7 +9,7 @@
  */
 
 #include "adapter/tbe_adapter/tbe_info/estimator/vector_estimator.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 constexpr char const *kVecCalcSize = "vec_calc_size";

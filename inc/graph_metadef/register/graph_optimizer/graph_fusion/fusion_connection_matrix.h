@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_CONNECTION_MATRIX_H_
-#define INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_CONNECTION_MATRIX_H_
+#ifndef INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_FUSION_CONNECTION_MATRIX_H_
+#define INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_FUSION_CONNECTION_MATRIX_H_
 
 #include "graph/debug/ge_attr_define.h"
 #include "graph/node.h"
@@ -78,4 +78,4 @@ class ConnectionMatrix {
   std::map<std::string, int64_t> name_to_index_;
 };
 }  // namespace fe
-#endif  // INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_CONNECTION_MATRIX_H_
+#endif  // INC_REGISTER_GRAPH_OPTIMIZER_GRAPH_FUSION_FUSION_CONNECTION_MATRIX_H_

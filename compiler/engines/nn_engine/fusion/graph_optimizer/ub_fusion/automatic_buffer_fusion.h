@@ -20,8 +20,8 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/node.h"
 #include "graph/range_vistor.h"
-#include "register/graph_optimizer/graph_fusion/graph_pass.h"
-#include "register/graph_optimizer/graph_fusion/connection_matrix.h"
+#include "register/graph_optimizer/graph_fusion/graph_fusion_graph_pass.h"
+#include "register/graph_optimizer/graph_fusion/fusion_connection_matrix.h"
 
 namespace fe {
 template <class T>

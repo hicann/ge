@@ -11,7 +11,7 @@
 #include "superkernel_task.h"
 #include "inc/te_fusion_log.h"
 #include "inc/te_fusion_util_constants.h"
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "common/tbe_op_info_cache.h"
 #include "common/te_config_info.h"
 #include "python_adapter/python_adapter_manager.h"

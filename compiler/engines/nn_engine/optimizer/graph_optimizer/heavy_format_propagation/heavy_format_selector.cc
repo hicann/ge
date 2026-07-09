@@ -10,7 +10,7 @@
 
 #include "heavy_format_selector.h"
 #include <sstream>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 namespace {
@@ -72,7 +72,7 @@ HeavyFormatSelector::HeavyFormatSelector(FormatDtypeQuerierPtr format_dtype_quer
 
 HeavyFormatSelector::~HeavyFormatSelector() {}
 
-Status HeavyFormatSelector::Initalize() {
+Status HeavyFormatSelector::Initialize() {
   FE_MAKE_SHARED(precise_dtype_matcher_ptr_ = std::make_shared<OpDtypePreciseMatcher>(), return FAILED);
   input_and_output_kernel_.emplace_back();
   input_and_output_kernel_.emplace_back();

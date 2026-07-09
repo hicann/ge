@@ -27,7 +27,7 @@
 #include "kernel/kernel_log.h"
 #include "kernel/memory/caching_mem_allocator.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "exe_graph/lowering/shape_utils.h"
 

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_COMMON_STRING_UTIL_H_
-#define INC_COMMON_STRING_UTIL_H_
+#ifndef INC_COMMON_GE_STRING_UTIL_H_
+#define INC_COMMON_GE_STRING_UTIL_H_
 
 #include <cctype>
 #include <securec.h>
@@ -217,4 +217,4 @@ class GE_FUNC_VISIBILITY StringUtils {
 };
 }  // namespace ge
 
-#endif  // INC_COMMON_STRING_UTIL_H_
+#endif  // INC_COMMON_GE_STRING_UTIL_H_

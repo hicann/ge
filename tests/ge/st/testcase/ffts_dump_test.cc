@@ -14,7 +14,7 @@
 #include "common/bg_test.h"
 #include "stub/gert_runtime_stub.h"
 #include "core/builder/model_v2_executor_builder.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "common/dump/dump_manager.h"
 #include "common/dump/dump_properties.h"
 #include "framework/runtime/model_v2_executor.h"

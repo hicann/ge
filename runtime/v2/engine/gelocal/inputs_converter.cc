@@ -33,7 +33,7 @@
 #include "common/host_resource_center/host_resource_center.h"
 #include "common/host_resource_center/weight_manager.h"
 #include "engine/node_converter_utils.h"
-#include "utils/utils.h"
+#include "utils/rt2_utils.h"
 
 namespace gert {
 using namespace bg;

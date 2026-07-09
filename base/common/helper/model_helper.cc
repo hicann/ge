@@ -32,7 +32,7 @@
 #include "graph/build/memory/var_mem_assign_util.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/custom_op_factory.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/file_constant_utils/file_constant_utils.h"
 #include "common/helper/file_saver.h"
 #include "common/model/model_introduction.h"

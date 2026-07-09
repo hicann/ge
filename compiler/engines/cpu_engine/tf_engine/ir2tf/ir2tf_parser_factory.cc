@@ -9,7 +9,7 @@
  */
 
 #include "ir2tf_parser_factory.h"
-#include "common/util/log.h"
+#include "common/util/aicpu_log.h"
 
 namespace aicpu {
 Ir2tfParserFactory &Ir2tfParserFactory::Instance() {

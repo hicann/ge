@@ -15,7 +15,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/args_format_desc.h"
 #include "common/util.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 #include "common/constant/constant.h"
 #include "../../../inc/framework/common/runtime_model_ge.h"
 #include "graph/debug/ge_attr_define.h"

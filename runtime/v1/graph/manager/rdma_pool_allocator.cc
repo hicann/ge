@@ -17,7 +17,7 @@
 #include "graph/ge_context.h"
 #include "rt_external_device.h"
 #include "graph/manager/mem_manager.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "acl/acl_rt.h"
 

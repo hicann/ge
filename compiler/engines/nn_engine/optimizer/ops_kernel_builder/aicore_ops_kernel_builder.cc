@@ -16,7 +16,7 @@
 #include "common/aicore_util_attr_define.h"
 #include "common/aicore_util_constants.h"
 #include "common/scope_allocator.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/util/op_info_util.h"
 #include "common/fe_gentask_utils.h"
 #include "common/fe_op_info_common.h"

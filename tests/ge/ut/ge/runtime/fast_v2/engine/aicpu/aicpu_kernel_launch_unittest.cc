@@ -24,7 +24,7 @@
 #include "aicpu_task_struct.h"
 #include "faker/aicpu_ext_info_faker.h"
 #include "kernel/memory/host_mem_allocator.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "subscriber/dumper/executor_dumper.h"
 

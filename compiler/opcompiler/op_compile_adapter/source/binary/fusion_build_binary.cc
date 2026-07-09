@@ -30,7 +30,7 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 
-#include "compile/fusion_manager.h"
+#include "compile/opcompiler_fusion_manager.h"
 #include "inc/te_fusion_check.h"
 #include "python_adapter/py_decouple.h"
 #include "python_adapter/python_api_call.h"

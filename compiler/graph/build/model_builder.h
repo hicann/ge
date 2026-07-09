@@ -25,7 +25,7 @@
 #include "graph/compute_graph.h"
 #include "graph/manager/graph_manager_utils.h"
 #include "graph/manager/graph_var_manager.h"
-#include "graph/build/stream/stream_allocator.h"
+#include "graph/build/stream/graph_stream_allocator.h"
 #include "graph/model.h"
 #include "graph/node.h"
 #include "common/model/ge_model.h"

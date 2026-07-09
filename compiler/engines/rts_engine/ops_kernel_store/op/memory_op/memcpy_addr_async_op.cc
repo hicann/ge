@@ -13,7 +13,7 @@
 #include "op_factory.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/args_format_desc.h"
-#include "common/util/log.h"
+#include "common/util/rts_log.h"
 #include "../../../inc/framework/common/runtime_model_ge.h"
 #include "../acl_rt_memcpy_kind.h"
 constexpr uint64_t MAX_MEMCPY_SIZE_OF_D2D = 4ULL * 1024ULL * 1024ULL * 1024ULL;  // 4G

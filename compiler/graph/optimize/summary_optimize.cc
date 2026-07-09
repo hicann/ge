@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/optimize/graph_optimize.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/tensor_utils.h"

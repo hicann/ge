@@ -16,7 +16,7 @@
 #include "common/fe_op_info_common.h"
 #include "common/util/op_info_util.h"
 #include "common/configuration.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "param_calculate/tensorsize_calculator.h"
 #include "ffts_type.h"
 #include "ops_store/ops_kernel_manager.h"

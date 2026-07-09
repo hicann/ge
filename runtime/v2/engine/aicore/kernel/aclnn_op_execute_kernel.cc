@@ -15,7 +15,7 @@
 #include "exe_graph/runtime/op_execute_context.h"
 #include "kernel/memory/multi_stream_mem_block.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "core/debug/kernel_tracing.h"
 #include "acl/acl_rt.h"
 #include "runtime/rt_external_stream.h"

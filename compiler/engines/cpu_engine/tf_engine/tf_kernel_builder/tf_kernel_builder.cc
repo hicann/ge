@@ -12,7 +12,7 @@
 
 #include <mutex>
 #include "util/constant.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/tf_util.h"
 #include "error_code/error_code.h"
 #include "ir2tf/ir2tf_parser_factory.h"

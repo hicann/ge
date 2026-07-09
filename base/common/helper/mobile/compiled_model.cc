@@ -27,7 +27,7 @@
 #include "graph/op_desc.h"
 #include "graph/node.h"
 #include "proto/ge_ir.pb.h"
-#include "model.h"
+#include "mobile_model.h"
 
 namespace {
 

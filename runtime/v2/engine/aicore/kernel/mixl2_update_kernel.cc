@@ -10,7 +10,7 @@
 
 #include "mixl2_update_kernel.h"
 #include "acl/acl_rt.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/sgt_slice_type.h"
 #include "aicore_update_kernel.h"
 #include "register/op_tiling.h"

@@ -37,7 +37,7 @@
 #include "graph/operator_reg.h"
 #include "graph/ge_attr_value.h"
 #include "ge_local_context.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 
 using namespace ge;
 using namespace gert;

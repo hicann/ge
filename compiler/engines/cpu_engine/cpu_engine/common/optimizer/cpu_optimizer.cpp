@@ -26,7 +26,7 @@
 #include "graph/op_kernel_bin.h"
 #include "graph/utils/attr_utils.h"
 #include "common/util/trace_manager/trace_manager.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "cpu_engine_util.h"
 #include "cpu_engine/aicpu_engine/engine/aicpu_engine.h"

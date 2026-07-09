@@ -15,7 +15,7 @@
 #include "common/aicore_util_types.h"
 #include "common/op_store_adapter_base.h"
 #include "common/fe_inner_attr_define.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "graph_optimizer/buffer_fusion/buffer_fusion_pass_base.h"
 #include "fusion_rule_manager/fusion_cycle_detector.h"
 

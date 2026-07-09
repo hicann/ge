@@ -11,7 +11,7 @@
 #include "graph_optimizer/op_judge/format_and_dtype/strategy/matcher/dtype/op_dtype_rise_matcher.h"
 #include "common/fe_utils.h"
 #include "common/util/op_info_util.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 
 namespace fe {
 OpDtypeRiseMatcher::OpDtypeRiseMatcher() : OpDtypeMatcherBase() {}

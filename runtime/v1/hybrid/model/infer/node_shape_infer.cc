@@ -11,7 +11,7 @@
 #include "hybrid/model/infer/node_shape_infer.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/tensor_utils_ex.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "graph/utils/type_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
 

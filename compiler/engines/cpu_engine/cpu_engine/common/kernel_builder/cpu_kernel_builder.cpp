@@ -16,7 +16,7 @@
 #include "aicpu_task_struct.h"
 #include "util/constant.h"
 #include "error_code/error_code.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "config/ops_json_file.h"
 #include "graph/debug/ge_attr_define.h"

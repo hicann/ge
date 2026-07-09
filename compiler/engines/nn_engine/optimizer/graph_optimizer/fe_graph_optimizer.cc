@@ -24,7 +24,7 @@ using StringVector = std::vector<std::string>;
 #include "common/fe_op_info_common.h"
 #include "common/util/op_info_util.h"
 #include "common/platform_utils.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/fe_context_utils.h"
 #include "common/fe_type_utils.h"
 #include "common/fe_report_error.h"
@@ -620,7 +620,7 @@ Status FEGraphOptimizer::OptimizeOriginalGraphJudgeFormatInsert(ge::ComputeGraph
   FE_MAKE_SHARED(heavy_format_propagation_ptr =
                      std::make_shared<HeavyFormatPropagation>(graph_optimizer_attr_.engineName, reflection_builder_ptr),
                  return GRAPH_OPTIMIZER_MAKE_SHARED_FAILED);
-  if (heavy_format_propagation_ptr->Initalize() != SUCCESS) {
+  if (heavy_format_propagation_ptr->Initialize() != SUCCESS) {
     REPORT_FE_ERROR("[GraphOptJdgFmtInst][Init] Failed to initialize heavy_format_propagation_ptr_ for graph[%s].",
                     graph.GetName().c_str());
     return FAILED;

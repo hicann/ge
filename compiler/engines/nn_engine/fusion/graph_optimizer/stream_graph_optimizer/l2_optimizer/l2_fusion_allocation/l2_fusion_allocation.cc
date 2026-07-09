@@ -10,7 +10,7 @@
 
 #include "graph_optimizer/stream_graph_optimizer/l2_optimizer/l2_fusion_allocation/l2_fusion_allocation.h"
 #include <cmath>
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/fe_inner_error_codes.h"
 #include "common/fe_utils.h"
 

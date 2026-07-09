@@ -19,7 +19,7 @@
 #include "kernel/memory/caching_mem_allocator.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "faker/fake_value.h"
-#include "core/utils/tensor_utils.h"
+#include "core/utils/rt2_tensor_utils.h"
 #include "checker/memory_profiling_log_matcher.h"
 #include "exe_graph/lowering/shape_utils.h"
 

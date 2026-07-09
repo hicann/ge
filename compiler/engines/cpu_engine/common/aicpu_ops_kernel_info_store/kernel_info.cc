@@ -13,7 +13,7 @@
 #include "config/ops_json_file.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/tensor_utils.h"
-#include "util/log.h"
+#include "util/aicpu_log.h"
 #include "util/util.h"
 #include "util/constant.h"
 #include "proto/aicpu/cpu_node_def.pb.h"

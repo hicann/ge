@@ -19,7 +19,7 @@
 #include "register/kernel_registry_impl.h"
 #include "rt_external_ffts_define.h"
 #include "rt_external_ffts.h"
-#include "common/math/math_util.h"
+#include "common/math/ge_math_util.h"
 #include "common/sgt_slice_type.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"

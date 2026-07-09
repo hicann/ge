@@ -19,7 +19,7 @@
 #include "platform/platform_info.h"
 #include "common/platform_utils.h"
 #include "common/scope_allocator.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "graph/ge_context.h"
 #include "graph/utils/op_desc_utils.h"
 #include "ops_store/ops_kernel_manager.h"

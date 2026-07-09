@@ -10,7 +10,7 @@
 #ifndef AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_EAGER_STYLE_GRAPH_BUILDER_PY_GENERATOR_UTILS_H_
 #define AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_EAGER_STYLE_GRAPH_BUILDER_PY_GENERATOR_UTILS_H_
 
-#include "utils.h"
+#include "es_generator_utils.h"
 #include "cpp_generator.h"
 #include "py_gen_constants.h"
 #include "py_type_mapper.h"

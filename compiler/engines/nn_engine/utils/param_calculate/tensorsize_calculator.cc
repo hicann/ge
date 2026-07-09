@@ -14,7 +14,7 @@
 #include "common/fe_type_utils.h"
 #include "common/fe_log.h"
 #include "common/constants_define.h"
-#include "common/math_util.h"
+#include "common/nn_engine_math_util.h"
 #include "common/op_tensor_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/tensor_utils.h"

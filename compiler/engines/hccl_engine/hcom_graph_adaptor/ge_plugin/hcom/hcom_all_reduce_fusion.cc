@@ -17,7 +17,7 @@
 #include "graph/node.h"
 #include "graph/utils/node_utils.h"
 #include "calculation_tool/evaluator.h"
-#include "calculation_tool/model.h"
+#include "calculation_tool/hcom_model.h"
 #include "calculation_tool/cluster.h"
 #include "mmpa/mmpa_api.h"
 #include "hccl/hcom.h"
