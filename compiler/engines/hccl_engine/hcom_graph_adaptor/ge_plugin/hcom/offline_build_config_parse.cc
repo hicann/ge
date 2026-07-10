@@ -84,11 +84,14 @@ HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
     HCCL_WARNING("[GetOffDeviceTypeWithoutDev] Ascend310B1 not support! please check usage");
   }
   if (socVersion.find("Ascend950") != std::string::npos) {
-#ifdef MACRO_DEV_TYPE_NEW
     tempDevType = DevType::DEV_TYPE_950;
-#else
-    tempDevType = DevType::DEV_TYPE_910_95;
-#endif
+    devType = tempDevType;
+    return HCCL_SUCCESS;
+  }
+
+  if (socVersion.find("Ascend960") != std::string::npos || socVersion.find("ascend960") != std::string::npos ||
+      socVersion.find("Ascend910_96") != std::string::npos) {
+    tempDevType = DevType::DEV_TYPE_960;
     devType = tempDevType;
     return HCCL_SUCCESS;
   }
@@ -108,11 +111,8 @@ HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
 
   if (tempDevType != DevType::DEV_TYPE_910 && tempDevType != DevType::DEV_TYPE_910B &&
       tempDevType != DevType::DEV_TYPE_310P1 && tempDevType != DevType::DEV_TYPE_310P3 &&
-#ifdef MACRO_DEV_TYPE_NEW
-      tempDevType != DevType::DEV_TYPE_910_93 && tempDevType != DevType::DEV_TYPE_950) {
-#else
-      tempDevType != DevType::DEV_TYPE_910_93 && tempDevType != DevType::DEV_TYPE_910_95) {
-#endif
+      tempDevType != DevType::DEV_TYPE_910_93 && tempDevType != DevType::DEV_TYPE_950 &&
+      tempDevType != DevType::DEV_TYPE_960) {
     HCCL_ERROR("[offline][compilation] cur dev type[%u] is not support.", tempDevType);
     return HCCL_E_RUNTIME;
   }
@@ -122,12 +122,8 @@ HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
 }
 
 static bool IsStrictDeterministicSupported(DevType devType) {
-#ifdef MACRO_DEV_TYPE_NEW
-  return devType == DevType::DEV_TYPE_910B || devType == DevType::DEV_TYPE_910_93 || devType == DevType::DEV_TYPE_950;
-#else
-  return devType == DevType::DEV_TYPE_910B || devType == DevType::DEV_TYPE_910_93 ||
-         devType == DevType::DEV_TYPE_910_95;
-#endif
+  return devType == DevType::DEV_TYPE_910B || devType == DevType::DEV_TYPE_910_93 || devType == DevType::DEV_TYPE_950 ||
+         devType == DevType::DEV_TYPE_960;
 }
 
 HcclResult GetDeterministic(u8 &deterministic) {

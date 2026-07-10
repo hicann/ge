@@ -361,8 +361,9 @@ HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrs(const ge::OpDescPt
     return HCCL_E_NOT_FOUND;
   }
   // 步骤3：根据SOC_VERSION和确定性配置选择不同的二进制文件路径
-  if (socVersion.find("Ascend950") != std::string::npos) {
-    // 950架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
+  if (socVersion.find("Ascend950") != std::string::npos || socVersion.find("Ascend960") != std::string::npos ||
+      socVersion.find("Ascend910_96") != std::string::npos || socVersion.find("ascend960") != std::string::npos) {
+    // 950或960架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
     CHK_RET(SetAivSuperKernelBinaryAttrFor950(opDescPtr, opType, dataType, algName, funcName, binPath));
   } else {
     u8 deterministic = DETERMINISTIC_DISABLE;
@@ -1058,7 +1059,7 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, const std::strin
                                 reduction, aivCoreLimit));
   // 判断是否走 Aiv
   DevType devType = HcomGetDeviceType();
-  if (devType != DevType::DEV_TYPE_950) {
+  if (devType != DevType::DEV_TYPE_950 && devType != DevType::DEV_TYPE_960) {
     void *countsPtr = counts.data();
 #ifdef HCOM_SELECT_ALG_POINTER_MODE
     CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, countsPtr, dataType, reduction, opType, aivCoreLimit, &ifAiv,

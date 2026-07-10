@@ -197,11 +197,7 @@ void ReleaseA5AicpuGraphSyncResource(const char *groupName) {
 }
 
 bool IsA5DeviceType(const DevType devType) {
-#ifdef MACRO_DEV_TYPE_NEW
-  return devType == DevType::DEV_TYPE_950;
-#else
-  return devType == DevType::DEV_TYPE_910_95;
-#endif
+  return devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960;
 }
 
 HcclAllocComResourceByTilingA5Mc2Func GetA5Mc2AllocFunc() {
@@ -352,11 +348,7 @@ rtStream_t HcomGetStreamByOpDesc(const ge::OpDescPtr &opdesc) {
 void *HcomGetContext(const rtStream_t stream, const void *tilingData, const char *groupName) {
 #ifndef OPEN_BUILD_PROJECT
   DevType devType = HcomGetDeviceType();
-#ifdef MACRO_DEV_TYPE_NEW
-  if (devType == DevType::DEV_TYPE_950) {
-#else
-  if (devType == DevType::DEV_TYPE_910_95) {
-#endif
+  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
     return HcomGetContextV2(stream, tilingData, groupName);
   }
 #endif
