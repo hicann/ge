@@ -10,24 +10,26 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Discovery and loading utilities for Python GE pass plugins."""
+"""Discovery and loading utilities for Python GE custom op plugins."""
 
 from types import ModuleType
 from typing import List
 
 from ge._internal.plugin_loader import load_plugins_from_env
-from .registry import get_registered_pass_dicts
+from .registry import get_registered_op_impl_dicts
 
-ENV_PY_PASS_PATH = "ASCEND_GE_PY_PASS_PATH"
+ENV_PY_CUSTOM_OP_PATH = "ASCEND_CUSTOM_OPP_PATH"
 
 
-def load_pass_plugins() -> List[ModuleType]:
-    """Load pass plugins from the env-configured path list."""
+def load_custom_op_plugins() -> List[ModuleType]:
+    """Load custom op plugins from the env-configured path list."""
 
     return load_plugins_from_env(
-        ENV_PY_PASS_PATH, module_prefix="_ge_py_pass_", plugin_kind="python pass"
+        ENV_PY_CUSTOM_OP_PATH,
+        module_prefix="_ge_py_custom_op_",
+        plugin_kind="python custom op",
     )
 
 
-def get_registered_passes() -> List[dict]:
-    return get_registered_pass_dicts()
+def get_registered_op_impls() -> List[dict]:
+    return get_registered_op_impl_dicts()

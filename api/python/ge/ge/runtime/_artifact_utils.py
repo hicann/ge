@@ -10,7 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Python pass artifact discovery helpers."""
+"""Python runtime native artifact discovery helpers."""
 
 from __future__ import annotations
 
@@ -22,30 +22,26 @@ from ge._internal.artifact_utils import (
     PythonArtifact,
     find_compatible_artifact,
     iter_artifacts as iter_artifacts_from_root,
-    load_bridge_artifact_manifest,
+    load_native_artifact_manifest,
     load_module_from_path,
 )
 
-BRIDGE_ABI_VERSION = 1
-NATIVE_MODULE_NAME = "ge.passes._ge_pass_native"
+NATIVE_ABI_VERSION = 1
+NATIVE_MODULE_NAME = "ge.runtime._ge_runtime_native"
 
 
 def artifacts_root() -> Path:
-    return Path(__file__).resolve().parent / "python_pass_artifacts"
-
-
-def load_artifact_from_dir(artifact_dir: Path) -> Optional[PythonArtifact]:
-    return load_bridge_artifact_manifest(artifact_dir / "manifest.json")
+    return Path(__file__).resolve().parent / "python_runtime_artifacts"
 
 
 def iter_artifacts(root: Optional[Path] = None) -> Iterable[PythonArtifact]:
     return iter_artifacts_from_root(
-        root or artifacts_root(), load_bridge_artifact_manifest
+        root or artifacts_root(), load_native_artifact_manifest
     )
 
 
 def find_prebuilt_artifact() -> Optional[PythonArtifact]:
-    return find_compatible_artifact(iter_artifacts(), BRIDGE_ABI_VERSION)
+    return find_compatible_artifact(iter_artifacts(), NATIVE_ABI_VERSION)
 
 
 def load_native_module(native_path: Path) -> ModuleType:

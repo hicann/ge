@@ -10,24 +10,36 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Discovery and loading utilities for Python GE pass plugins."""
+"""Load and re-export the selected Python runtime native module."""
 
-from types import ModuleType
-from typing import List
+from __future__ import annotations
 
-from ge._internal.plugin_loader import load_plugins_from_env
-from .registry import get_registered_pass_dicts
+__all__ = [
+    "ExpandDimsType",
+    "Shape",
+    "StorageFormat",
+    "StorageShape",
+    "Tensor",
+    "TensorPlacement",
+]
 
-ENV_PY_PASS_PATH = "ASCEND_GE_PY_PASS_PATH"
+from importlib import import_module
+
+from ._artifact_utils import find_prebuilt_artifact, load_native_module
 
 
-def load_pass_plugins() -> List[ModuleType]:
-    """Load pass plugins from the env-configured path list."""
+def _load_native_module():
+    artifact = find_prebuilt_artifact()
+    if artifact is not None:
+        return load_native_module(artifact.native_path)
+    return import_module("ge.runtime._ge_runtime_native")
 
-    return load_plugins_from_env(
-        ENV_PY_PASS_PATH, module_prefix="_ge_py_pass_", plugin_kind="python pass"
-    )
 
+_native = _load_native_module()
 
-def get_registered_passes() -> List[dict]:
-    return get_registered_pass_dicts()
+ExpandDimsType = _native.ExpandDimsType
+Shape = _native.Shape
+StorageFormat = _native.StorageFormat
+StorageShape = _native.StorageShape
+Tensor = _native.Tensor
+TensorPlacement = _native.TensorPlacement

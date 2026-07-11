@@ -10,24 +10,20 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Discovery and loading utilities for Python GE pass plugins."""
+"""Python GE runtime data structures."""
 
-from types import ModuleType
-from typing import List
+__all__ = [
+    "ExpandDimsType",
+    "Shape",
+    "StorageFormat",
+    "StorageShape",
+    "Tensor",
+    "TensorPlacement",
+]
 
-from ge._internal.plugin_loader import load_plugins_from_env
-from .registry import get_registered_pass_dicts
-
-ENV_PY_PASS_PATH = "ASCEND_GE_PY_PASS_PATH"
-
-
-def load_pass_plugins() -> List[ModuleType]:
-    """Load pass plugins from the env-configured path list."""
-
-    return load_plugins_from_env(
-        ENV_PY_PASS_PATH, module_prefix="_ge_py_pass_", plugin_kind="python pass"
-    )
-
-
-def get_registered_passes() -> List[dict]:
-    return get_registered_pass_dicts()
+from ._native import ExpandDimsType
+from ._native import Shape
+from ._native import StorageFormat
+from ._native import StorageShape
+from ._native import Tensor
+from ._native import TensorPlacement
