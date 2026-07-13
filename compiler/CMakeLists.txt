@@ -454,6 +454,7 @@ target_link_libraries(ge_compiler
         static_mmpa
         ge_proto_common
         -Wl,--no-as-needed
+        custom_op_runtime
         graph
         graph_base
         flow_graph
