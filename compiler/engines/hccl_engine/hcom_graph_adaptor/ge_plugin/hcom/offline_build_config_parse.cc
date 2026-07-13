@@ -94,7 +94,7 @@ HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
   }
 
   if (socVersion.find("MC62") != std::string::npos) {
-    tempDevType = DevType::DEV_TYPE_MC62;
+    devType = DevType::DEV_TYPE_MC62;
     return HCCL_SUCCESS;
   }
 
