@@ -24,12 +24,22 @@
 #include "graph/passes/graph_builder_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "api/gelib/gelib.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 namespace ge {
+class MockMmpaForGeInit : public MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    return nullptr;
+  }
+};
+
 class UtestDynamicStreamAllocator : public testing::Test {
  protected:
   void SetUp() {
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForGeInit>());
     InitGeLib();
+    MmpaStub::GetInstance().Reset();
   }
 
   void TearDown() {

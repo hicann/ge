@@ -21,8 +21,16 @@
 #include "graph/utils/type_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "api/gelib/gelib.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 namespace ge {
+class MockMmpaForTransOpInit : public MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    return nullptr;
+  }
+};
+
 class UtestGraphCreateTransOp : public testing::Test {
  protected:
   void SetUp() {}
@@ -196,7 +204,9 @@ TEST(UtestGraphCreateTransOp, create_cast_with_check_failed) {
 
 TEST(UtestGraphCreateTransOp, test_check_support_not_found_type) {
   map<string, string> options;
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForTransOpInit>());
   ge::GELib::Initialize(options);
+  MmpaStub::GetInstance().Reset();
 
   OpDescPtr type_not_found = std::make_shared<OpDesc>("type_not_found", "type_not_found");
   bool is_support = false;
