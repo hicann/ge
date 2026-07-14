@@ -42,6 +42,8 @@ RETURN_STATEMENTS = {
     "graphStatus": "    return ge::GRAPH_SUCCESS;",
     "ge::graphStatus": "    return ge::GRAPH_SUCCESS;",
     "ge::Status": "    return ge::SUCCESS;",
+    "ArgsRefreshStrategy": "    return ArgsRefreshStrategy::kNone;",
+    "ge::ArgsRefreshStrategy": "    return ge::ArgsRefreshStrategy::kNone;",
     "Status": "    return 0U;",
     "Format": "    return Format();",
     "ge::Format": "    return ge::Format();",
@@ -504,7 +506,8 @@ pattern_template_end = re.compile(r">\s*$")
 pattern_namespace = re.compile(r"namespace.*{")
 # class : which can handle classA a and {not on the same line, but if found ';' after class,then don't deal with
 pattern_class = re.compile(
-    r"^\s*(class|struct)\s+((?:%s|%s)\s+)?([a-zA-Z0-9_\-]+<?)(?!.*;)" % (GE_ATTR, VISIBILITY_ATTR)
+    r"^\s*(class|struct)\s+((?:%s|%s)\s+)?([a-zA-Z0-9_\-]+<?)(?!.*;)"
+    % (GE_ATTR, VISIBILITY_ATTR)
 )
 # pattern for function body start and end
 pattern_start = re.compile("(?!namespace|class).+{")
@@ -581,16 +584,16 @@ class H2CC(object):
 
     def just_skip(self):
         # skip blank line or comment
-        if pattern_blank_line.search(self.input_content[self.line_index]) or pattern_comment.search(
+        if pattern_blank_line.search(
             self.input_content[self.line_index]
-        ):
+        ) or pattern_comment.search(self.input_content[self.line_index]):
             self.line_index += 1
             return "continue"
         # skip comment /* */
         elif pattern_comment_2_start.search(self.input_content[self.line_index]):
-            while self.line_index < len(self.input_content) and not pattern_comment_2_end.search(
-                self.input_content[self.line_index]
-            ):
+            while self.line_index < len(
+                self.input_content
+            ) and not pattern_comment_2_end.search(self.input_content[self.line_index]):
                 self.line_index += 1
             self.line_index += 1
             return "continue"
@@ -600,26 +603,30 @@ class H2CC(object):
             return "continue"
         # skip define
         elif pattern_define.search(self.input_content[self.line_index]):
-            while pattern_blank_line.search(self.input_content[self.line_index]) or pattern_define_return.search(
+            while pattern_blank_line.search(
                 self.input_content[self.line_index]
-            ):
+            ) or pattern_define_return.search(self.input_content[self.line_index]):
                 self.line_index += 1
             self.line_index += 1
             return "continue"
         # skip using
         elif pattern_using.search(self.input_content[self.line_index]):
-            while pattern_blank_line.search(self.input_content[self.line_index]) or not pattern_using_return.search(
+            while pattern_blank_line.search(
                 self.input_content[self.line_index]
-            ):
+            ) or not pattern_using_return.search(self.input_content[self.line_index]):
                 self.line_index += 1
             self.line_index += 1
             return "continue"
         # skip extern const|constexpr type VARIABLE;
-        elif re.compile(r"^.*\b(constexpr|const)\b.*(?= = ).*;$").search(self.input_content[self.line_index]):
+        elif re.compile(r"^.*\b(constexpr|const)\b.*(?= = ).*;$").search(
+            self.input_content[self.line_index]
+        ):
             self.line_index += 1
             return "continue"
         # static_assert
-        elif re.compile(r"^\s*static_assert").search(self.input_content[self.line_index]):
+        elif re.compile(r"^\s*static_assert").search(
+            self.input_content[self.line_index]
+        ):
             self.line_index += 1
             return "continue"
         # skip virtual function
@@ -769,7 +776,9 @@ class H2CC(object):
             line += break_line
 
             while self.line_index < len(self.input_content):
-                if re.search(r"\)", break_line) and not re.search(r"std::function<.+?> &input,", break_line):
+                if re.search(r"\)", break_line) and not re.search(
+                    r"std::function<.+?> &input,", break_line
+                ):
                     break
                 self.line_index += 1
                 break_line = self.input_content[self.line_index]
@@ -893,10 +902,13 @@ class H2CC(object):
                 "OpImplSpaceRegistryV2",
             ]:
                 return "pass"
-            context = "class %s {\n  public:\n    %s() = default;\n    ~%s() = default;\n};\n\n" % (
-                class_name,
-                class_name,
-                class_name,
+            context = (
+                "class %s {\n  public:\n    %s() = default;\n    ~%s() = default;\n};\n\n"
+                % (
+                    class_name,
+                    class_name,
+                    class_name,
+                )
             )
             self.output_fd.write(context)
             return "continue"
@@ -957,17 +969,23 @@ class H2CC(object):
 
         if self.stack_template[-1] != "":
             if not (re.search(r"<\s*>", self.stack_template[-1])):
-                template_line = re.sub(r"^\s*template", "template", self.stack_template[-1])
+                template_line = re.sub(
+                    r"^\s*template", "template", self.stack_template[-1]
+                )
                 if not (re.search(r"<.*>", self.stack_class[-1])):
                     # for x we get like template<class T, typename U> -> <T,U>
-                    x = re.sub(r"template\s*<", "<", template_line)  # remove template -> <class T, typename U>
+                    x = re.sub(
+                        r"template\s*<", "<", template_line
+                    )  # remove template -> <class T, typename U>
                     x = re.sub(r"\n", "", x)
                     x = re.sub(r"\s*=.*,", ",", x)
                     x = re.sub(r"\s*=.*>", ">", x)
                     x = x.rstrip()  # remove \n
 
                     # remove class,typename ->  <T, U>
-                    x = re.sub(r"(class|typename)\s+|(<class>|<typename>\s*class)", "", x)
+                    x = re.sub(
+                        r"(class|typename)\s+|(<class>|<typename>\s*class)", "", x
+                    )
                     x = re.sub(r"<\s+", "<", x)
                     x = re.sub(r"\s+>", ">", x)
                     x = re.sub(r"\s+,", ",", x)
@@ -999,7 +1017,9 @@ class H2CC(object):
         func_name = re.search(r"^.*\)", line, re.MULTILINE | re.DOTALL).group()
         line = re.sub(r"\b(KernelInfo)\b", r"KernelRegistry::\1", line)
         line = re.sub(r"\b(KernelFuncs)\b", r"KernelRegistry::\1", line)
-        line = re.sub(r"(?<!::)\b(OpImplFunctions)\b", r"OpImplKernelRegistry::\1", line)
+        line = re.sub(
+            r"(?<!::)\b(OpImplFunctions)\b", r"OpImplKernelRegistry::\1", line
+        )
         line = re.sub(r"(?<!::)\b(OpType)\b", r"OpImplKernelRegistry::\1", line)
         line = re.sub(
             r"\b(PrivateAttrList &OpImplKernelRegistry::)",
@@ -1064,7 +1084,9 @@ class H2CC(object):
             *m.group("ret_type", "class_name", "func_name"),
         )
 
-        type_cls_func_name = "%s %s::%s" % m.group("ret_type", "class_name", "func_name")
+        type_cls_func_name = "%s %s::%s" % m.group(
+            "ret_type", "class_name", "func_name"
+        )
         if type_cls_func_name in RETURN_STATEMENTS:
             logging.info("type_cls_func_name:[%s] matched!", type_cls_func_name)
             return RETURN_STATEMENTS[type_cls_func_name]
@@ -1150,7 +1172,10 @@ class H2CC(object):
                     return_type = return_type[0 : return_type.index("<")]
                 if (
                     return_type.endswith("*")
-                    or (len(all_items) > start + 1 and all_items[start + 1].startswith("*"))
+                    or (
+                        len(all_items) > start + 1
+                        and all_items[start + 1].startswith("*")
+                    )
                     or return_type.startswith("std::unique_ptr")
                     or return_type.startswith("std::shared_ptr")
                 ):
@@ -1187,7 +1212,9 @@ def collect_header_files(inc_file):
     ]
     for inc_dir in inc_dirs:
         if inc_file.find(inc_dir) != -1:
-            include_str = '#include "{}"\n'.format(inc_file[inc_file.index(inc_dir) + len(inc_dir) :])
+            include_str = '#include "{}"\n'.format(
+                inc_file[inc_file.index(inc_dir) + len(inc_dir) :]
+            )
             shared_includes_content.append(include_str)
             break
     else:
@@ -1250,7 +1277,9 @@ def gen_code(inc_files, out_cc_dir):
         out_cc_dir += "/"
     for inc_file in inc_files:
         if not os.path.isabs(inc_file):
-            logging.warning("inc_file:[%s] not absolute path, and will be ignored.", inc_file)
+            logging.warning(
+                "inc_file:[%s] not absolute path, and will be ignored.", inc_file
+            )
             continue
         generate_stub_file(inc_file, out_cc_dir)
 
