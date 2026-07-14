@@ -44,8 +44,7 @@ bool IsNoTaskContinuousInputReuse(const OpDescPtr &op_desc, int64_t &reuse_dim_i
   (void)AttrUtils::GetBool(op_desc, ATTR_NAME_NOTASK, is_no_task);
   (void)AttrUtils::GetBool(op_desc, ATTR_NAME_OUTPUT_REUSE_INPUT, is_output_reuse_input);
   (void)AttrUtils::GetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, is_nopadding_continuous_input);
-  const bool has_reuse_dim_index =
-      AttrUtils::GetInt(op_desc, ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, reuse_dim_index);
+  const bool has_reuse_dim_index = AttrUtils::GetInt(op_desc, ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, reuse_dim_index);
   return is_no_task && is_output_reuse_input && is_nopadding_continuous_input && has_reuse_dim_index;
 }
 
@@ -64,12 +63,10 @@ Node *GetPeerNode(const Node &netoutput_node, size_t input_index) {
 // 将 NoTask 连续输入复用输出展开为模型输出地址刷新项。
 // 只遍历数据输入，避免控制/可选输入参与刷新。
 Status ExpandNoTaskContinuousInputOutput(const Node &peer_node, const OpDescPtr &peer_op_desc,
-                                       const int64_t base_output_offset, const uint32_t model_output_index,
-                                       std::vector<OutputModelIoItem> &output_items,
-                                       std::set<int64_t> &io_offsets) {
+                                         const int64_t base_output_offset, const uint32_t model_output_index,
+                                         std::vector<OutputModelIoItem> &output_items, std::set<int64_t> &io_offsets) {
   const auto &peer_data_anchors = peer_node.GetAllInDataAnchorsPtr();
-  GE_ASSERT_TRUE(!peer_data_anchors.empty(),
-                 "[OM2] NoTask continuous-input node %s has no data anchors",
+  GE_ASSERT_TRUE(!peer_data_anchors.empty(), "[OM2] NoTask continuous-input node %s has no data anchors",
                  peer_op_desc->GetName().c_str());
   for (const auto &peer_in_anchor : peer_data_anchors) {
     if (peer_in_anchor == nullptr) {
@@ -85,20 +82,20 @@ Status ExpandNoTaskContinuousInputOutput(const Node &peer_node, const OpDescPtr 
     GE_ASSERT_NOTNULL(producer_op_desc);
     const auto producer_output_offsets = producer_op_desc->GetOutputOffset();
     const int32_t producer_out_idx = producer_out->GetIdx();
-    GE_ASSERT_TRUE(producer_out_idx >= 0 &&
-                   static_cast<size_t>(producer_out_idx) < producer_output_offsets.size(),
-                   "[OM2] Producer output anchor index %d out of range for %s",
-                   producer_out_idx, producer_op_desc->GetName().c_str());
+    GE_ASSERT_TRUE(producer_out_idx >= 0 && static_cast<size_t>(producer_out_idx) < producer_output_offsets.size(),
+                   "[OM2] Producer output anchor index %d out of range for %s", producer_out_idx,
+                   producer_op_desc->GetName().c_str());
     const int64_t producer_output_offset = producer_output_offsets[producer_out_idx];
     GE_CHK_STATUS_RET(CheckInt64SubOverflow(producer_output_offset, base_output_offset),
-        "[OM2] Overflow computing addr_offset: producer_output_offset=%" PRId64
-        ", base_output_offset=%" PRId64, producer_output_offset, base_output_offset);
+                      "[OM2] Overflow computing addr_offset: producer_output_offset=%" PRId64
+                      ", base_output_offset=%" PRId64,
+                      producer_output_offset, base_output_offset);
     const int64_t addr_offset = producer_output_offset - base_output_offset;
     if (addr_offset < 0) {
       REPORT_INNER_ERR_MSG("E19999",
-          "[OM2] Negative addr_offset %" PRId64 " for no-task node %s input offset %" PRId64
-          ", base offset %" PRId64, addr_offset, peer_op_desc->GetName().c_str(),
-          producer_output_offset, base_output_offset);
+                           "[OM2] Negative addr_offset %" PRId64 " for no-task node %s input offset %" PRId64
+                           ", base offset %" PRId64,
+                           addr_offset, peer_op_desc->GetName().c_str(), producer_output_offset, base_output_offset);
       GELOGE(PARAM_INVALID, "[OM2] Negative addr_offset %" PRId64, addr_offset);
       return PARAM_INVALID;
     }
@@ -484,9 +481,8 @@ Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenM
   }
   uint32_t max_output_index = 0U;
   for (const auto &item : output_items) {
-    codegen_model.model_io.entries.push_back(
-        ModelIoEntry{item.index, item.memory_offset, update_host_args_index, false, item.is_addr_refreshable,
-                     item.addr_offset});
+    codegen_model.model_io.entries.push_back(ModelIoEntry{item.index, item.memory_offset, update_host_args_index, false,
+                                                          item.is_addr_refreshable, item.addr_offset});
     ++update_host_args_index;
     max_output_index = std::max(max_output_index, item.index);
   }
@@ -523,16 +519,16 @@ Status Om2CodegenModelBuilder::CollectModelIoItems(Om2CodegenModel &codegen_mode
     }
     // 遍历 NetOutput 的每个输入，按 NoTask 连续输入复用情况分类处理：
     // dim_index=0 展开多段地址刷新 / dim_index≠0 fallback 执行后拷贝 / 普通 addr_refreshable。
-    GE_ASSERT_SUCCESS(CollectNetOutputIoItems(*node, op_desc, next_model_output_index,
-                                               output_items, codegen_model.model_io.io_offsets));
+    GE_ASSERT_SUCCESS(CollectNetOutputIoItems(*node, op_desc, next_model_output_index, output_items,
+                                              codegen_model.model_io.io_offsets));
   }
   return SUCCESS;
 }
 
 Status Om2CodegenModelBuilder::CollectNetOutputIoItems(const Node &node, const OpDescPtr &op_desc,
-                                                        uint32_t &next_model_output_index,
-                                                        std::vector<OutputModelIoItem> &output_items,
-                                                        std::set<int64_t> &io_offsets) const {
+                                                       uint32_t &next_model_output_index,
+                                                       std::vector<OutputModelIoItem> &output_items,
+                                                       std::set<int64_t> &io_offsets) const {
   const auto input_offsets = op_desc->GetInputOffset();
   for (size_t i = 0U; i < op_desc->GetAllInputsSize(); ++i) {
     const auto tensor_desc = op_desc->MutableInputDesc(static_cast<uint32_t>(i));
@@ -552,9 +548,8 @@ Status Om2CodegenModelBuilder::CollectNetOutputIoItems(const Node &node, const O
     int64_t reuse_dim_index = 0;
     if (IsNoTaskContinuousInputReuse(peer_op_desc, reuse_dim_index)) {
       if (reuse_dim_index == 0) {
-        GE_ASSERT_SUCCESS(ExpandNoTaskContinuousInputOutput(
-            *peer_node, peer_op_desc, base_output_offset, model_output_index,
-            output_items, io_offsets));
+        GE_ASSERT_SUCCESS(ExpandNoTaskContinuousInputOutput(*peer_node, peer_op_desc, base_output_offset,
+                                                            model_output_index, output_items, io_offsets));
       } else {
         // 非 0 维连续输入复用可能需要多段/stride 布局。OM2 当前 ModelIoEntry 只能表达单个
         // addr_offset，因此不展开 producer，保留 NetOutput 基准 offset，执行后拷贝到用户输出。
@@ -810,7 +805,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForCustAicpu(Om2CodegenModel &
   GE_ASSERT_NOTNULL(cust_aicpu_bin_ptr);
   const size_t hash_id = std::hash<std::string>{}(std::string(
       cust_aicpu_bin_ptr->GetBinData(), cust_aicpu_bin_ptr->GetBinData() + cust_aicpu_bin_ptr->GetBinDataSize()));
-  const std::string file_name = std::to_string(hash_id) + "_CustAicpuKernel";
+  const std::string file_name = std::to_string(hash_id) + "_CustAicpuKernel.o";
   const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
   GELOGI("[OM2] RegisterCustAicpu: op_type=%s, kernel=%s, sign=%s, func_idx=%u", op_type.c_str(), kernel_name.c_str(),
          kernel_sign.c_str(), func_handle_index);
