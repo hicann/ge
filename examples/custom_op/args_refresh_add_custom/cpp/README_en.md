@@ -1,4 +1,4 @@
-# ArgsUpdater Address Refresh Custom Operator Sample
+# ArgsUpdater Address Refresh Custom Operator C++ Sample
 
 ## Sample Overview
 
@@ -24,7 +24,7 @@ The core concept of `ArgsUpdater`: During model loading, `MallocReadOnlyDevArgs`
 
 - The CANN environment is properly installed and configured, for example, by executing `source ${ASCEND_HOME_PATH}/set_env.sh`.
 - The current environment has `ACL`, `GE`, and `Graph` related header files and libraries.
-- Refer to the [Installation Guide](../../../docs/zh/quick_install.md) to complete toolkit and ops package installation.
+- Refer to the [Installation Guide](../../../../docs/zh/quick_install.md) to complete toolkit and ops package installation.
 
 ### Framework and Plugins
 
@@ -43,7 +43,7 @@ The core concept of `ArgsUpdater`: During model loading, `MallocReadOnlyDevArgs`
 
 ## Quick Run
 
-Execute in the `examples/custom_op/args_refresh_add_custom` directory:
+Execute in the `examples/custom_op/args_refresh_add_custom/cpp` directory:
 
 ### Recommended Method
 
@@ -88,21 +88,25 @@ The command `export ASCEND_CUSTOM_OPP_PATH="$(pwd)/output:$ASCEND_CUSTOM_OPP_PAT
 
 ```text
 args_refresh_add_custom
-├── CMakeLists.txt
-├── README.md
-├── run.sh
-├── add_custom_kernel
-│   ├── add_custom.asc                // Ascend C Add kernel source code (RTC runtime compilation)
-│   └── add_custom_kernel.h           // kernel header file
-├── ge
-│   ├── add_custom.h                  // AddRefreshOp / AddNoRefreshOp proto definition
-│   ├── custom_op.cpp                 // Implementation of Execute, ArgsUpdater, InferShape, etc. for both operators
-│   └── utils
-│       ├── log.h                     // Unified log macros (LOG_ERROR/LOG_WARNING/LOG_INFO)
-│       ├── rtc_kernel_loader.h       // RTC kernel loader interface
-│       └── rtc_kernel_loader.cpp     // RTC compilation and loading implementation
-└── session_run
-    └── main.cc                       // In-process graph construction, online performance comparison
+├── cpp
+│   ├── CMakeLists.txt
+│   ├── README.md
+│   ├── README_en.md
+│   ├── run.sh
+│   ├── add_custom_kernel
+│   │   ├── add_custom.asc            // Ascend C Add kernel source code (RTC runtime compilation)
+│   │   └── add_custom_kernel.h       // kernel header file
+│   ├── ge
+│   │   ├── add_custom.h              // AddRefreshOp / AddNoRefreshOp proto definition
+│   │   ├── custom_op.cpp             // Execute, ArgsUpdater, InferShape implementation
+│   │   └── utils
+│   │       ├── log.h                 // Unified log macros (LOG_ERROR/LOG_WARNING/LOG_INFO)
+│   │       ├── rtc_kernel_loader.h   // RTC kernel loader interface
+│   │       └── rtc_kernel_loader.cpp // RTC compilation and loading implementation
+│   └── session_run
+│       └── main.cc                   // In-process graph construction, online performance comparison
+└── python
+    └── README.md
 ```
 
 Key files:

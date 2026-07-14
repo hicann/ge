@@ -2,7 +2,7 @@
 
 ## 概述
 
-GE-PY 是 GraphEngine 的 Python 接口模块，提供了 Pythonic 的图相关接口。为用户提供了便捷的图构建和操作，编译执行等功能。该模块对外头文件位于 `api/python/ge/ge/` 目录下。
+GE-PY 是 GraphEngine 的 Python 接口模块，提供了 Pythonic 的图相关接口。为用户提供了便捷的图构建和操作、编译执行、Pass 扩展和自定义算子扩展等功能。该模块对外头文件位于 `api/python/ge/ge/` 目录下。
 
 ## 目录结构
 
@@ -691,6 +691,129 @@ export ASCEND_GE_PY_PASS_PATH=/path/to/my_pass.py:/path/to/pass_dir/
 ```
 
 更多设计细节请参考 [Python Pass 设计文档](ge_python_pass_design.md)。
+
+### custom_op 模块
+
+#### 目录结构
+```
+custom_op/
+├── __init__.py              # 模块初始化，导出公共 API
+├── base.py                  # BaseCustomOp、EagerExecuteOp 基类定义
+├── registry.py              # Python 自定义算子实现注册中心与装饰器
+├── bootstrap.py             # 插件发现与加载
+├── _bridge.py               # Bridge 运行时辅助（实例管理，供 C++ bridge .so 回调）
+├── _native.py               # native module 装载与 re-export
+├── _artifact_utils.py       # 运行时 artifact 选择辅助
+├── _ge_custom_op_native.pyi # native module 类型桩
+└── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
+```
+注：下划线开头的为 Python 风格下的对内模块。
+注：`EagerOpExecutionContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期返回或接收的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
+
+#### 模块定位
+
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现所有基于 `BaseCustomOp` 的自定义算子能力。当前 V1 版本只先打通 `EagerExecuteOp.execute(ctx)` 执行闭环。
+
+#### 运行时 native artifact 选择
+
+`_ge_custom_op_native.so` 与 `libge_python_custom_op_bridge.so` 作为同一套 artifact set 成套发布，目录固定为：
+
+```text
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/manifest.json
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/_ge_custom_op_native.so
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_custom_op_bridge.so
+```
+
+运行时根据当前进程中已加载的 Python 解释器版本、平台 tag 和 bridge ABI 选择匹配 artifact。当前 Python custom op native/bridge 与构建时 Python ABI 相关，要求构建和运行使用兼容的 Python minor 版本。
+
+#### 类详细说明
+
+##### 1. BaseCustomOp 类
+
+**文件位置**: `base.py`
+
+**功能**: Python 自定义算子能力接口的公共基类。
+
+**关系**:
+- `EagerExecuteOp` 的父类
+- 仅继承 `BaseCustomOp` 不能注册为有效 Python 自定义算子实现
+
+##### 2. EagerExecuteOp 类
+
+**文件位置**: `base.py`
+
+**功能**: Python Eager 执行自定义算子基类。
+
+**主要方法**:
+- `execute(ctx)` - 执行入口，`ctx` 为 `EagerOpExecutionContext`
+
+**设计约束**:
+- 当前 V1 只支持 `execute(self, ctx)` 签名。
+- `ctx` 及其返回的 borrowed view 仅可在当前 `execute` 回调内使用。
+- 正常返回表示执行成功；失败时应抛出异常。
+
+##### 3. EagerOpExecutionContext native-backed wrapper
+
+**文件位置**: `_native.py`、`_ge_custom_op_native.pyi`
+
+**功能**: Python 侧的自定义算子执行上下文视图。
+
+**主要方法**:
+- `get_input_tensor(index)` - 根据输入 index 获取输入 `Tensor`
+- `get_input_num()` - 获取当前计算节点的运行时输入 tensor 数量
+- `get_required_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `REQUIRED_INPUT` 类型的输入 `Tensor`
+- `get_optional_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `OPTIONAL_INPUT` 类型的输入 `Tensor`
+- `get_dynamic_input_tensor(ir_index, relative_index)` - 基于算子 IR 原型定义获取 `DYNAMIC_INPUT` 类型的输入 `Tensor`
+- `malloc_output_tensor(index, shape, format, dtype)` - 为某个输出 tensor 申请 device 内存，并初始化输出 tensor 的基本信息
+- `make_output_ref_input(output_index, input_index)` - 指定某输出的内存地址引用自某个输入
+- `malloc_workspace(size)` - 分配 workspace 内存，placement 为 device，返回地址整数
+- `get_output_tensor(index)` - 获取 index 指定的输出 `Tensor`
+- `get_stream()` - 获取所属执行流地址整数
+
+##### 4. OpImplDescriptor 数据类
+
+**文件位置**: `registry.py`
+
+**功能**: 规范化的 Python 自定义算子实现描述符。
+
+**属性**:
+- `descriptor_key` - 描述符唯一键（格式：`模块名:类名:算子类型`）
+- `op_type` - 自定义算子类型
+- `module_name` - 所属模块名
+- `class_name` - 类名
+- `interfaces` - 能力接口列表，V1 为 `["eager_execute"]`
+- `cls` - Python 实现类引用
+
+#### 注册与发现
+
+**装饰器**:
+- `register_op_impl(op_type)` - 注册 `EagerExecuteOp` 实现类
+
+**发现机制**:
+- 复用环境变量 `ASCEND_CUSTOM_OPP_PATH` 指定 Python custom op 文件或目录路径
+- `bootstrap.py` 负责扫描路径并动态加载 Python 模块
+- 支持单个 `.py` 文件、普通目录下的 `.py` 文件和包含 `__init__.py` 的 Python 包
+
+**使用示例**:
+```python
+from ge.custom_op import EagerExecuteOp, register_op_impl
+
+
+@register_op_impl(op_type="AddPythonCustomOp")
+class AddPythonCustomOp(EagerExecuteOp):
+    def execute(self, ctx):
+        x = ctx.get_input_tensor(0)
+        y = ctx.get_input_tensor(1)
+        z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
+        ...
+```
+
+加载 Python 自定义算子：
+```bash
+export ASCEND_CUSTOM_OPP_PATH=/path/to/my_custom_op.py:/path/to/custom_op_dir/
+```
+
+更多设计细节请参考 [Python 自定义算子设计文档](ge_python_custom_op_design.md)。
 
 ## ES 模块
 
