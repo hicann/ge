@@ -32,6 +32,11 @@ InternalAllocator::~InternalAllocator() {
   gert::DeviceMemoryRecorder::ClearReserveMemory();
 }
 
+void InternalAllocator::Free(MemBlock *block) {
+  const auto rt_ret = aclrtFree(block->GetAddr());
+  GE_IF_BOOL_EXEC(rt_ret != RT_ERROR_NONE, GELOGE(RT_FAILED, "[Free][Rt] failed."));
+};
+
 MemBlock *InternalAllocator::Malloc(size_t size) {
   if (size == 0U) {
     GELOGD("Mem size == 0");
