@@ -399,13 +399,10 @@ foreach(target IN LISTS all_targets)
     endif()
 endforeach()
 
-if(BUILD_COMPONENT)
-    # ============= CPack =============
-    # Per-component build: BUILD_COMPONENT contains exactly one component.
-    list(GET BUILD_COMPONENT 0 current_component)
-    if("dflow-executor" IN_LIST BUILD_COMPONENT)
-        set_cann_cpack_config(${current_component} ENABLE_DEVICE "${ENABLE_BUILD_DEVICE}" PACKAGE_TYPE "${PACKAGE_TYPE}")
+foreach(PER_BUILD_COMPONENT IN LISTS BUILD_COMPONENT)
+    if("dflow-executor" STREQUAL PER_BUILD_COMPONENT)
+        set_cann_cpack_config(${PER_BUILD_COMPONENT} ENABLE_DEVICE "${ENABLE_BUILD_DEVICE}" PACKAGE_TYPE "${PACKAGE_TYPE}")
     else()
-        set_cann_cpack_config(${current_component} PACKAGE_TYPE "${PACKAGE_TYPE}")
+        set_cann_cpack_config(${PER_BUILD_COMPONENT} PACKAGE_TYPE "${PACKAGE_TYPE}")
     endif()
-endif()
+endforeach()
