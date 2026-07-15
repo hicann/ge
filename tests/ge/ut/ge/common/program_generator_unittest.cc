@@ -5367,7 +5367,7 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_InConstantRange_SetsConstTensor) {
 TEST_F(ProgramGeneratorUt, GetRtAddress_MatchedMemoryInfo_ReturnsParamInvalid) {
   GetRtAddressTestContext ctx;
   const uintptr_t logic_addr = 0x8000U;
-  MemInfo mem_info(static_cast<int64_t>(0x8000U), static_cast<int64_t>(0x1000U), nullptr, false);
+  om2::MemInfo mem_info(static_cast<int64_t>(0x8000U), static_cast<int64_t>(0x1000U), nullptr, false);
   mem_info.memory_type = RT_MEMORY_HBM;
   ctx.runtime.memory_infos[0] = mem_info;
   AddrSemantic addr_node;

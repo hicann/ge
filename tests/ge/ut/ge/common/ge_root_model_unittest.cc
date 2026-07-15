@@ -19,6 +19,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/model/ge_root_model.h"
+#include "common/om2/om2_model_data.h"
 #include "graph/custom_op_factory.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -233,4 +234,74 @@ TEST_F(UtestGeRootModel, IsNeedMallocFixedFeatureMemByType_ReturnFalse_IfUnknow)
   ge_root_model.SetRootGraph(root_graph);
   EXPECT_FALSE(ge_root_model.IsNeedMallocFixedFeatureMem());
 }
+
+TEST_F(UtestGeRootModel, Om2ModelData_InitiallyFalse) {
+  GeRootModel ge_root_model;
+  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
+  EXPECT_FALSE(ge_root_model.HasOm2ModelData());
+}
+
+TEST_F(UtestGeRootModel, Om2ModelData_SetAndGet) {
+  GeRootModel ge_root_model;
+  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
+
+  auto om2_data = std::make_shared<gert::Om2ModelData>();
+  om2_data->model_meta.model_name = "test_model";
+  om2_data->model_meta.work_size = 1024U;
+  ge_root_model.SetOm2ModelData(om2_data);
+
+  EXPECT_TRUE(ge_root_model.HasOm2ModelData());
+  EXPECT_EQ(ge_root_model.GetOm2ModelData().model_meta.model_name, "test_model");
+  EXPECT_EQ(ge_root_model.GetOm2ModelData().model_meta.work_size, 1024U);
+}
+
+TEST_F(UtestGeRootModel, Om2ModelData_GetMutableNull_Death) {
+  GeRootModel ge_root_model;
+  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
+
+  EXPECT_DEATH((void)ge_root_model.GetOm2ModelData(), "");
+}
+
+TEST_F(UtestGeRootModel, Om2ModelData_SetNull_Overwrites) {
+  GeRootModel ge_root_model;
+  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
+
+  auto om2_data = std::make_shared<gert::Om2ModelData>();
+  om2_data->model_meta.model_name = "test_model";
+  ge_root_model.SetOm2ModelData(om2_data);
+  EXPECT_TRUE(ge_root_model.HasOm2ModelData());
+
+  ge_root_model.SetOm2ModelData(nullptr);
+  EXPECT_FALSE(ge_root_model.HasOm2ModelData());
+}
+
+TEST_F(UtestGeRootModel, Om2ModelData_MoveSemantics) {
+  auto om2_data1 = std::make_shared<gert::Om2ModelData>();
+  om2_data1->model_meta.model_name = "original_model";
+  om2_data1->constants_data.weight_data = {0x01, 0x02, 0x03};
+
+  auto om2_data2 = std::move(om2_data1);
+  EXPECT_EQ(om2_data1, nullptr);
+  EXPECT_EQ(om2_data2->model_meta.model_name, "original_model");
+  EXPECT_EQ(om2_data2->constants_data.weight_data.size(), 3U);
+}
+
+TEST_F(UtestGeRootModel, ForkSharesOm2ModelData) {
+  const auto root_graph = std::make_shared<ComputeGraph>("root_graph");
+  const auto ge_root_model = std::make_shared<GeRootModel>();
+  ASSERT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  const auto om2_data = std::make_shared<gert::Om2ModelData>();
+  om2_data->model_meta.model_name = "om2_fork_model";
+  ge_root_model->SetOm2ModelData(om2_data);
+
+  const auto forked = ge_root_model->Fork();
+  ASSERT_NE(forked, nullptr);
+  EXPECT_TRUE(forked->HasOm2ModelData());
+  EXPECT_EQ(&forked->GetOm2ModelData(), &ge_root_model->GetOm2ModelData());
+}
+
 }  // namespace ge

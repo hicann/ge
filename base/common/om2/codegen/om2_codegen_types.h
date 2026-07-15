@@ -40,6 +40,7 @@ struct OpInputEdges {
   std::vector<std::string> output_var_names;
 };
 
+namespace om2 {
 struct MemInfo {
   int64_t logic_memory_base;
   int64_t memory_size;
@@ -102,6 +103,7 @@ struct MemInfo {
     return nullptr;
   }
 };
+}  // namespace om2
 
 struct RuntimeResourceSemantic {
   uint64_t total_mem_size{0U};
@@ -115,7 +117,7 @@ struct RuntimeResourceSemantic {
   uint64_t logic_weight_base{0U};
   uint64_t logic_var_base{0U};
   uint64_t var_size{0U};
-  std::map<uint64_t, MemInfo> memory_infos;
+  std::map<uint64_t, om2::MemInfo> memory_infos;
   bool has_label_switch{false};
   bool has_label_goto{false};
   std::vector<std::string> stream_flag_values;
@@ -230,11 +232,13 @@ enum class AddrValueKind : int32_t {
   kEmptyAddr,
 };
 
+namespace om2 {
 enum class MemoryAppType : int32_t {
   kFix,
   kFeatureMap,
   kModelIo,
 };
+}  // namespace om2
 
 struct OpDispatchType {
   enum Value : uint32_t {
@@ -284,7 +288,7 @@ struct OpDispatchType {
 
 struct AddrSemantic {
   AddrValueKind kind{AddrValueKind::kInputInstance};
-  MemoryAppType memory_app{MemoryAppType::kFix};
+  om2::MemoryAppType memory_app{om2::MemoryAppType::kFix};
   std::string symbol_hint;
   int64_t mem_offset{0};
   uint64_t byte_size{0U};

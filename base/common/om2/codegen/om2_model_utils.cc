@@ -209,7 +209,7 @@ Status Om2ModelUtils::ConstructAddrSemanticForCommon(const TaskSemanticContribut
   GE_IF_BOOL_EXEC(!ValidateMemRange(context.op_desc, context.runtime->total_mem_size, input_offset, 0), return FAILED);
   input_addr.mem_offset = input_offset;
   if (context.model_io->io_offsets.find(input_offset) != context.model_io->io_offsets.end()) {
-    input_addr.memory_app = MemoryAppType::kModelIo;
+    input_addr.memory_app = om2::MemoryAppType::kModelIo;
     input_addr.compile_state_io_addr_offset = input_offset;
   }
 
@@ -241,7 +241,7 @@ Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &con
 
     AddrSemantic input_addr;
     input_addr.kind = AddrValueKind::kInputInstance;
-    input_addr.memory_app = MemoryAppType::kFix;
+    input_addr.memory_app = om2::MemoryAppType::kFix;
     input_addr.byte_size = static_cast<uint64_t>(tensor_size);
     if ((i < v_is_input_const.size()) && v_is_input_const[i]) {
       GE_ASSERT_SUCCESS(ConstructAddrSemanticForInputConst(context, input_addr, tensor_desc, i));
@@ -288,7 +288,7 @@ Status Om2ModelUtils::ConstructOutputAddrForCommon(const TaskSemanticContributeC
                   return FAILED);
   output_addr.mem_offset = v_output_offset[index];
   if (context.model_io->io_offsets.find(v_output_offset[index]) != context.model_io->io_offsets.end()) {
-    output_addr.memory_app = MemoryAppType::kModelIo;
+    output_addr.memory_app = om2::MemoryAppType::kModelIo;
     output_addr.compile_state_io_addr_offset = v_output_offset[index];
   }
   return SUCCESS;
@@ -320,7 +320,7 @@ Status Om2ModelUtils::ResolveOutputAddrs(const TaskSemanticContributeContext &co
     }
     AddrSemantic output_addr;
     output_addr.kind = AddrValueKind::kOutputInstance;
-    output_addr.memory_app = MemoryAppType::kFix;
+    output_addr.memory_app = om2::MemoryAppType::kFix;
     output_addr.symbol_hint = "op" + std::to_string(context.op_index) + "_output" + std::to_string(i);
     int64_t tensor_size = 0;
     GE_CHK_STATUS_EXEC(TensorUtils::GetSize(*tensor_desc, tensor_size), return FAILED);
@@ -410,7 +410,7 @@ Status Om2ModelUtils::ConstructWorkspaceAddr(const TaskSemanticContributeContext
                     return FAILED);
   }
   workspace_addr.kind = AddrValueKind::kWorkspace;
-  workspace_addr.memory_app = MemoryAppType::kFix;
+  workspace_addr.memory_app = om2::MemoryAppType::kFix;
   workspace_addr.symbol_hint = "op" + std::to_string(context.op_index) + "_ws" + std::to_string(index);
   workspace_addr.mem_offset = v_workspace_offset[index];
   workspace_addr.byte_size = static_cast<uint64_t>(v_workspace_bytes[index]);
@@ -423,7 +423,7 @@ Status Om2ModelUtils::GetRtInputAddress(const TaskSemanticContributeContext &con
   addr_node.kind = AddrValueKind::kInputInstance;
   addr_node.mem_offset = logical_offset;
   if (context.op_desc != nullptr) {
-    addr_node.memory_app = MemoryAppType::kFix;
+    addr_node.memory_app = om2::MemoryAppType::kFix;
     const GeTensorDescPtr tensor_desc = context.op_desc->MutableInputDesc(static_cast<uint32_t>(index));
     GE_ASSERT_TRUE(tensor_desc != nullptr, "[OM2] Op: %s, Index: %u, has no input", context.op_desc->GetName().c_str(),
                    index);
@@ -434,7 +434,7 @@ Status Om2ModelUtils::GetRtInputAddress(const TaskSemanticContributeContext &con
                                           index, addr_node.symbol_hint, addr_node.is_reused_from_upstream));
   }
   if (context.model_io->io_offsets.find(logical_offset) != context.model_io->io_offsets.end()) {
-    addr_node.memory_app = MemoryAppType::kModelIo;
+    addr_node.memory_app = om2::MemoryAppType::kModelIo;
     addr_node.compile_state_io_addr_offset = logical_offset;
     GELOGI("[OM2][GetRtInputAddress] op=%s, logical_offset=%" PRId64 " found in io_offsets, memory_app=kModelIo",
            context.op_desc != nullptr ? context.op_desc->GetName().c_str() : "null", logical_offset);
@@ -497,7 +497,7 @@ Status Om2ModelUtils::GetRtOutputAddress(const TaskSemanticContributeContext &co
   addr_node.kind = AddrValueKind::kOutputInstance;
   addr_node.mem_offset = logical_offset;
   if (context.op_desc != nullptr) {
-    addr_node.memory_app = MemoryAppType::kFix;
+    addr_node.memory_app = om2::MemoryAppType::kFix;
     addr_node.symbol_hint = "op" + std::to_string(context.op_index) + "_output" + std::to_string(index);
     const GeTensorDescPtr tensor_desc = context.op_desc->MutableOutputDesc(static_cast<uint32_t>(index));
     GE_ASSERT_TRUE(tensor_desc != nullptr, "[OM2] Op: %s, Index: %u, Tensor Desc is null",
@@ -514,7 +514,7 @@ Status Om2ModelUtils::GetRtOutputAddress(const TaskSemanticContributeContext &co
     current_edges.output_var_names[index] = addr_node.symbol_hint;
   }
   if (context.model_io->io_offsets.find(logical_offset) != context.model_io->io_offsets.end()) {
-    addr_node.memory_app = MemoryAppType::kModelIo;
+    addr_node.memory_app = om2::MemoryAppType::kModelIo;
     addr_node.compile_state_io_addr_offset = logical_offset;
   }
   return SUCCESS;

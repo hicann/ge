@@ -28,7 +28,7 @@ constexpr char_t const *kAttrAddrOffset = "offset";
 
 namespace ge {
 void CmoAddrTaskCodeBuilder::AppendOrderedArgValue(const AddrSemantic &semantic, uint64_t current_host_offset) {
-  if (semantic.memory_app == MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(semantic.compile_state_io_addr_offset), current_host_offset});
     GELOGI("[OM2]append addr offset map: compile offset[%lu], args info offset[%lu]",

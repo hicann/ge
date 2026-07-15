@@ -49,7 +49,6 @@ set(MODEL_SRC_FILES
     "${BASE_DIR}/api/acl/acl_model/model/model_config_om2.cpp"
     "${BASE_DIR}/api/acl/acl_model/types/tensor_desc_internal_om2.cpp"
     "${BASE_DIR}/api/acl/acl_model/model/model_common.cpp"
-    "${BASE_DIR}/runtime/om2/om2_tensor_desc.cc"
     "${BASE_DIR}/api/acl/common/json_parser.cpp"
     "${BASE_DIR}/api/acl/common/log_inner.cpp"
     "${BASE_DIR}/api/acl/utils/string_utils.cpp"

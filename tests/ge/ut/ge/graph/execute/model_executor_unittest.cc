@@ -14,6 +14,7 @@
 #include <future>
 #include <chrono>
 #include <condition_variable>
+#include <fstream>
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/load/graph_loader.h"
@@ -31,11 +32,129 @@
 #include "executor/ge_executor.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/custom_op_factory.h"
+#include "common/om2/om2_model_data.h"
+#include "common/helper/om2/om2_utils.h"
+#include "common/memory/tensor_trans_utils.h"
+#include "common/env_path.h"
+#include "common/path_utils.h"
+#include "mmpa/mmpa_api.h"
 
 using namespace std;
 
 namespace ge {
 namespace {
+class EnvValueGuard {
+ public:
+  explicit EnvValueGuard(const char *name) : name_(name) {
+    const char *value = std::getenv(name_.c_str());
+    if (value != nullptr) {
+      old_value_ = value;
+      had_value_ = true;
+    }
+  }
+
+  ~EnvValueGuard() {
+    if (had_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+    } else {
+      (void)unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool had_value_ = false;
+};
+
+void EnableOm2OnlineMode() {
+  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
+}
+
+std::string MakeFakeOm2SoSource() {
+  return R"(
+#include <cstdint>
+#include <cstddef>
+extern "C" {
+int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **,
+                   size_t *, int, void **, void *, uint64_t *, unsigned int, void *) {
+  if (model_handle) *model_handle = (void*)0x1;
+  if (rt_model_handle) *rt_model_handle = (void*)0x2;
+  return 0;
+}
+int Om2ModelLoad(void **) { return 0; }
+int Om2ModelRun(void **, int, void **, int, void **, int) { return 0; }
+int Om2ModelRunAsync(void **, void *, int, void **, int, void **) { return 0; }
+int Om2ModelDestroy(void **) { return 0; }
+}
+)";
+}
+
+std::vector<uint8_t> ReadFileBytes(const std::string &path) {
+  std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+  if (!ifs.is_open()) {
+    return {};
+  }
+  const auto size = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+  std::vector<uint8_t> data(static_cast<size_t>(size));
+  ifs.read(reinterpret_cast<char *>(data.data()), size);
+  return data;
+}
+
+gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "test_model";
+  model_data.model_meta.root_graph_name = "test_graph";
+  model_data.model_meta.work_size = 1024U;
+
+  ge::Om2TensorDesc input_desc;
+  input_desc.SetName("input");
+  input_desc.SetDataType(ge::DT_FLOAT);
+  input_desc.SetShape({1, 4});
+  input_desc.SetSize(16U);
+  model_data.model_meta.input_desc.push_back(input_desc);
+  model_data.model_meta.input_desc_v2.push_back(input_desc);
+
+  ge::Om2TensorDesc output_desc;
+  output_desc.SetName("output");
+  output_desc.SetDataType(ge::DT_FLOAT);
+  output_desc.SetShape({1, 4});
+  output_desc.SetSize(16U);
+  model_data.model_meta.output_desc.push_back(output_desc);
+  model_data.model_meta.output_desc_v2.push_back(output_desc);
+
+  auto so_bytes = ReadFileBytes(so_path);
+  model_data.program_body.so_artifact.file_name = "libtest_model_om2.so";
+  model_data.program_body.so_artifact.data = std::string(so_bytes.begin(), so_bytes.end());
+
+  return model_data;
+}
+
+gert::Om2ModelData MakeMinimalOm2ModelData(size_t work_size = 1024U, size_t tensor_size = 16U) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "om2_ut_model";
+  model_data.model_meta.root_graph_name = "test_graph";
+  model_data.model_meta.work_size = work_size;
+
+  ge::Om2TensorDesc input_desc;
+  input_desc.SetName("input0");
+  input_desc.SetDataType(DT_FLOAT);
+  input_desc.SetFormat(FORMAT_ND);
+  input_desc.SetShape({1, 4});
+  input_desc.SetSize(tensor_size);
+  model_data.model_meta.input_desc.emplace_back(input_desc);
+
+  ge::Om2TensorDesc output_desc;
+  output_desc.SetName("output0");
+  output_desc.SetDataType(DT_FLOAT);
+  output_desc.SetFormat(FORMAT_ND);
+  output_desc.SetShape({1, 4});
+  output_desc.SetSize(tensor_size);
+  model_data.model_meta.output_desc.emplace_back(output_desc);
+  return model_data;
+}
+
 class ExternalAllocatorUtStub : public Allocator {
  public:
   MemBlock *Malloc(size_t size) override {
@@ -1526,4 +1645,709 @@ TEST_F(UtestModelExecutorTest, MallocAndFreeFixedFeatureMemoryIfNeed_UserHasSetF
   EXPECT_TRUE(ge_root_model->GetFixedFeatureMemory().empty());
   ExternalAllocatorManager::DeleteExternalAllocator(rtStream_t(0x1));
 }
+
+// ============================================================================
+// OM2 Online Mode Tests
+// ============================================================================
+
+TEST_F(UtestModelExecutorTest, Om2Mode_EnvNotSet_IsFalse) {
+  unsetenv("ENABLE_RUNTIME_OM2");
+  EXPECT_FALSE(IsOm2OnlineMode());
+}
+
+TEST_F(UtestModelExecutorTest, Om2Mode_EnvSetToOne_IsTrue) {
+  setenv("ENABLE_RUNTIME_OM2", "1", 1);
+  EXPECT_TRUE(IsOm2OnlineMode());
+  unsetenv("ENABLE_RUNTIME_OM2");
+}
+
+TEST_F(UtestModelExecutorTest, Om2Mode_DynamicSwitch) {
+  unsetenv("ENABLE_RUNTIME_OM2");
+  EXPECT_FALSE(IsOm2OnlineMode());
+
+  setenv("ENABLE_RUNTIME_OM2", "1", 1);
+  EXPECT_TRUE(IsOm2OnlineMode());
+
+  unsetenv("ENABLE_RUNTIME_OM2");
+  EXPECT_FALSE(IsOm2OnlineMode());
+}
+
+TEST_F(UtestModelExecutorTest, Om2Mode_NonOneValues_AreFalse) {
+  setenv("ENABLE_RUNTIME_OM2", "0", 1);
+  EXPECT_FALSE(IsOm2OnlineMode());
+
+  setenv("ENABLE_RUNTIME_OM2", "true", 1);
+  EXPECT_FALSE(IsOm2OnlineMode());
+
+  setenv("ENABLE_RUNTIME_OM2", "", 1);
+  EXPECT_FALSE(IsOm2OnlineMode());
+
+  unsetenv("ENABLE_RUNTIME_OM2");
+}
+
+TEST_F(UtestModelExecutorTest, RunGraphWithStreamOm2_ConvertsCallerOutputsToGertOutputs) {
+  GeTensorDesc desc(GeShape({1, 4}), FORMAT_ND, DT_FLOAT);
+  desc.SetPlacement(kPlacementDevice);
+  GeTensor output(desc);
+  std::vector<uint8_t> data(16U, 0U);
+  ASSERT_EQ(output.SetData(data.data(), data.size()), SUCCESS);
+
+  std::vector<GeTensor> ge_outputs{output};
+  std::vector<gert::Tensor> gert_outputs;
+  ASSERT_EQ(TensorTransUtils::GeTensors2GertTensors(ge_outputs, gert_outputs), SUCCESS);
+
+  ASSERT_EQ(gert_outputs.size(), 1U);
+  EXPECT_NE(gert_outputs[0].GetAddr(), nullptr);
+  EXPECT_EQ(gert_outputs[0].GetSize(), data.size());
+}
+
+TEST_F(UtestModelExecutorTest, DumpDebugJSONPrint_ReturnsUnsupportedInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+  ModelExecutor model_executor;
+  AscendString json_result;
+  EXPECT_EQ(model_executor.DumpDebugJSONPrint(1U, 1U, 0U, json_result), GE_GRAPH_UNSUPPORTED);
+}
+
+class UtestModelExecutorOm2Test : public testing::Test {
+ protected:
+  static void SetUpTestSuite() {
+    test_work_dir_ = EnvPath().GetOrCreateCaseTmpPath("UtestModelExecutorOm2");
+    setenv("ASCEND_WORK_PATH", test_work_dir_.c_str(), 1);
+
+    const std::string src_path = PathUtils::Join({test_work_dir_, "fake_om2.cpp"});
+    fake_so_path_ = PathUtils::Join({test_work_dir_, "libfake_om2.so"});
+    std::ofstream ofs(src_path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(ofs.is_open());
+    ofs << MakeFakeOm2SoSource();
+    ofs.close();
+    const std::string compile_cmd = "ASAN_OPTIONS=detect_leaks=0 LSAN_OPTIONS=detect_leaks=0 g++ -shared -fPIC -o " +
+                                    fake_so_path_ + " " + src_path;
+    ASSERT_EQ(std::system(compile_cmd.c_str()), 0);
+    ASSERT_EQ(mmAccess2(fake_so_path_.c_str(), M_F_OK), EOK);
+  }
+
+  static void TearDownTestSuite() {
+    unsetenv("ASCEND_WORK_PATH");
+    EnvPath().RemoveRfCaseTmpPath("UtestModelExecutorOm2");
+  }
+
+  void TearDown() override {
+    unsetenv("ENABLE_RUNTIME_OM2");
+  }
+
+  static std::string test_work_dir_;
+  static std::string fake_so_path_;
+};
+
+std::string UtestModelExecutorOm2Test::test_work_dir_;
+std::string UtestModelExecutorOm2Test::fake_so_path_;
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_HostInput_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 2001;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  gert::Tensor host_input;
+  host_input.SetPlacement(gert::kOnHost);
+  std::vector<uint8_t> data(16U, 0U);
+  host_input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnHost));
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  output.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(host_input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), GE_GRAPH_UNSUPPORTED);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_NotLoaded_ReturnsGraphNotExist) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  GraphId graph_id = 3001;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  std::vector<gert::Tensor> inputs(1);
+  std::vector<gert::Tensor> outputs(1);
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), GE_GRAPH_GRAPH_NOT_EXIST);
+
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, UnloadGraph_NotLoaded_ReturnsSuccess) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GraphId graph_id = 3002;
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_InputCountMismatch_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3003;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<gert::Tensor> inputs;
+  std::vector<gert::Tensor> outputs(1);
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_OutputCountMismatch_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3004;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> data(16U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  gert::Tensor output1;
+  output1.SetPlacement(gert::kOnDeviceHbm);
+  output1.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+  gert::Tensor output2;
+  output2.SetPlacement(gert::kOnDeviceHbm);
+  output2.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output1));
+  outputs.push_back(std::move(output2));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_InputSizeInsufficient_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3005;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> small_data(4U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(small_data.data(), nullptr, small_data.size(), gert::kOnDeviceHbm));
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  std::vector<uint8_t> out_data(16U, 0U);
+  output.SetData(gert::TensorData(out_data.data(), nullptr, out_data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_EmptyOutputs_PrepareOm2Outputs) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3006;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> data(16U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), SUCCESS);
+  EXPECT_EQ(outputs.size(), 1U);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, LoadAndUnload_Success) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3007;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, LoadGraph_ExternalConstAndFeatureMemory_Success) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3011;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  std::vector<uint8_t> const_mem(16U, 0U);
+  std::vector<uint8_t> feature_mem(1024U, 0U);
+  graph_node->SetConstMemoryBase(const_mem.data(), const_mem.size());
+  graph_node->SetFeatureMemoryBase(feature_mem.data(), feature_mem.size());
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, UnloadOm2Graph_UnknownGraph_ReturnsSuccess) {
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.UnloadOm2Graph(3012U), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraphWithStream_Om2Mode_Success) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3013;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  GeTensorDesc input_desc(GeShape({1, 4}), FORMAT_ND, DT_FLOAT);
+  input_desc.SetPlacement(kPlacementDevice);
+  GeTensorDesc output_desc(GeShape({1, 4}), FORMAT_ND, DT_FLOAT);
+  output_desc.SetPlacement(kPlacementDevice);
+  std::vector<uint8_t> input_data(16U, 0U);
+  std::vector<uint8_t> output_data(16U, 0U);
+  std::vector<GeTensor> inputs{GeTensor(input_desc, input_data.data(), input_data.size())};
+  std::vector<GeTensor> outputs{GeTensor(output_desc, output_data.data(), output_data.size())};
+
+  EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph_id, nullptr, inputs, outputs), SUCCESS);
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_InputNullAddr_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3008;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  std::vector<uint8_t> out_data(16U, 0U);
+  output.SetData(gert::TensorData(out_data.data(), nullptr, out_data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_OutputNullAddr_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3009;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> input_data(16U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(input_data.data(), nullptr, input_data.size(), gert::kOnDeviceHbm));
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunGraph_OutputSizeInsufficient_ReturnsParamInvalid) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 3010;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> input_data(16U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(input_data.data(), nullptr, input_data.size(), gert::kOnDeviceHbm));
+
+  std::vector<uint8_t> small_output_data(4U, 0U);
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  output.SetData(gert::TensorData(small_output_data.data(), nullptr, small_output_data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, UpdateFeatureMemoryBase_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(1U);
+  graph_node->SetGeRootModel(MakeShared<GeRootModel>());
+
+  EXPECT_EQ(model_executor.UpdateFeatureMemoryBase(graph_node, 0U, 0U), GE_GRAPH_UNSUPPORTED);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, PaRemapped_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(1U);
+  graph_node->SetGeRootModel(MakeShared<GeRootModel>());
+
+  std::vector<std::pair<uint64_t, uint64_t>> cross_ranges;
+  EXPECT_EQ(model_executor.PaRemapped(graph_node, 0U, 0U, 0U, cross_ranges), GE_GRAPH_UNSUPPORTED);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, RunThread_Om2Mode_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+  model_executor.StartRunThread();
+
+  GraphId graph_id = 4001;
+  uint64_t session_id = 0;
+  error_message::ErrorManagerContext error_context;
+  GEThreadLocalContext context = GetThreadLocalContext();
+
+  std::promise<Status> status_promise;
+  auto status_future = status_promise.get_future();
+  const auto callback = [&status_promise](Status status, std::vector<gert::Tensor> &outputs) {
+    status_promise.set_value(status);
+  };
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+  graph_node->SetLoadFlag(true);
+  graph_node->IncreaseLoadCount();
+  graph_node->Lock();
+
+  std::vector<gert::Tensor> input_tensors(1);
+
+  auto run_args = std::make_shared<RunArgs>();
+  ASSERT_TRUE(run_args != nullptr);
+  run_args->graph_node = graph_node;
+  run_args->graph_id = graph_id;
+  run_args->session_id = session_id;
+  run_args->error_context = error_context;
+  run_args->input_tensor = std::move(input_tensors);
+  run_args->context = context;
+  run_args->callback = callback;
+  EXPECT_EQ(model_executor.PushRunArgs(run_args), SUCCESS);
+
+  auto status = status_future.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready);
+  EXPECT_EQ(status_future.get(), GE_GRAPH_UNSUPPORTED);
+
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestModelExecutorOm2Test, ExecuteGraphWithStream_Om2Mode_Success) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 4002;
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  std::vector<uint8_t> data(16U, 0U);
+  gert::Tensor input;
+  input.SetPlacement(gert::kOnDeviceHbm);
+  input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  output.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+
+  EXPECT_EQ(model_executor.ExecuteGraphWithStream(graph_node, graph_id, nullptr, inputs, outputs), SUCCESS);
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
 }  // namespace ge

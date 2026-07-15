@@ -109,7 +109,7 @@ void KernelTaskCodeBuilder::AppendOrderedArgValue(const AddrSemantic &semantic) 
     GELOGE(FAILED, "[OM2] Args table entry is required before append ordered arg.");
     return;
   }
-  if (semantic.memory_app == MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
     uint64_t current_offset = args_table_entry_->host_offset;
     for (const auto &ordered_arg : build_data_.semantic.ordered_arg_values) {
       current_offset += (ordered_arg.kind == AddrValueKind::kShapeInfoBuffer && ordered_arg.shape_info.has_value())
@@ -194,7 +194,7 @@ AicpuTaskData KernelTaskCodeBuilder::BuildAicpuTaskData() const {
 }
 
 Status KernelTaskCodeBuilder::AppendOrderedArgValueForCommon(const AddrSemantic &semantic, const uint64_t addr_offset) {
-  if (semantic.memory_app == MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(semantic.compile_state_io_addr_offset), addr_offset});
     GELOGI("[OM2]append input addr offset map: compile offset[%lu], args info offset[%lu]",

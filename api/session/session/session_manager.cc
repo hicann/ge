@@ -19,6 +19,7 @@
 #include "graph/manager/util/rt_context_util.h"
 #include "graph/manager/session_id_manager.h"
 #include "common/memory/tensor_trans_utils.h"
+#include "common/helper/om2/om2_utils.h"
 
 namespace ge {
 Status SessionManager::Initialize() {
@@ -154,6 +155,10 @@ Status SessionManager::GetNextSessionId(SessionId &next_session_id) const {
 }
 Status SessionManager::GetVariables(SessionId session_id, const std::vector<std::string> &var_names,
                                     std::vector<Tensor> &var_values) {
+  if (IsOm2OnlineMode()) {
+    GELOGE(GE_GRAPH_UNSUPPORTED, "[OM2][Check] GetVariables is unsupported in OM2 online mode.");
+    return GE_GRAPH_UNSUPPORTED;
+  }
   // step 0: get session
   const SessionPtr &inner_session = GetSession(session_id);
   if (inner_session == nullptr) {

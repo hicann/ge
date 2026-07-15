@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 file(GLOB_RECURSE OM2_EXECUTOR_SRCS CONFIGURE_DEPENDS "${AIR_CODE_DIR}/runtime/om2/*.cc")
+list(FILTER OM2_EXECUTOR_SRCS EXCLUDE REGEX "om2_model_manager\\.cc$")
 set(OM2_EXTRA_SRCS
         "${AIR_CODE_DIR}/graph_metadef/base/utils/type_utils_inner.cc"
 )

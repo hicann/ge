@@ -13,7 +13,18 @@
 
 #include "framework/common/helper/model_save_helper.h"
 #include "common/om2/codegen/om2_codegen_types.h"
+#include <map>
 #include <memory>
+#include <string>
+
+namespace gert {
+struct Om2ModelData;
+struct Om2ProgramBody;
+struct Om2KernelBinary;
+struct Om2ModelMeta;
+struct Om2ConstantsData;
+struct Om2DebugInfo;
+}  // namespace gert
 
 namespace ge {
 class ZipArchiveWriter;
@@ -29,6 +40,9 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
 
   Status SaveToOmModel(const GeModelPtr &ge_model, const std::string &output_file, ModelBufferData &model,
                        const GeRootModelPtr &ge_root_model = nullptr) override;
+
+  Status BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data,
+                           const GeRootModelPtr &ge_root_model = nullptr);
 
   void SetSaveMode(const bool val) override;
 
@@ -58,6 +72,15 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   static Status SaveManifest(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeRootModelPtr &ge_root_model);
   static Status SaveCodegenArtifacts(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
                                      const size_t model_index, std::vector<Om2ConstMeta> &const_metas);
+
+  static Status BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ProgramBody &body,
+                                 std::vector<Om2ConstMeta> &const_metas);
+  static Status BuildKernelBinaries(const GeModelPtr &ge_model, std::vector<gert::Om2KernelBinary> &kernel_binaries);
+  static Status BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelMeta &model_meta);
+  static Status BuildConstantsData(const GeModelPtr &ge_model, const std::vector<Om2ConstMeta> &const_metas,
+                                   gert::Om2ConstantsData &data);
+  static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2DebugInfo &debug_info);
+  static Status BuildManifest(const GeRootModelPtr &ge_root_model, std::map<std::string, std::string> &manifest);
 
  private:
   bool is_offline_{true};

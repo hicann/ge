@@ -80,13 +80,13 @@ void MemcpyAsyncTaskCodeBuilder::CheckIoRefresh(TaskSemanticContributeContext &c
 
 void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContext &context) {
   const uint64_t addr_offset = *context.next_host_args_offset;
-  if (input_addr_node_.memory_app == MemoryAppType::kModelIo) {
+  if (input_addr_node_.memory_app == om2::MemoryAppType::kModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(input_addr_node_.compile_state_io_addr_offset), addr_offset});
     GELOGI("[OM2]append input addr offset map: compile offset[%lu], args info offset[%lu]",
            static_cast<uint64_t>(input_addr_node_.compile_state_io_addr_offset), addr_offset);
   }
-  if (output_addr_node_.memory_app == MemoryAppType::kModelIo) {
+  if (output_addr_node_.memory_app == om2::MemoryAppType::kModelIo) {
     io_addr_refresh_records_.push_back(IoAddrRefreshRecord{
         static_cast<uint64_t>(output_addr_node_.compile_state_io_addr_offset), addr_offset + sizeof(uint64_t)});
     GELOGI("[OM2]append output addr offset map: compile offset[%lu], args info offset[%lu]",

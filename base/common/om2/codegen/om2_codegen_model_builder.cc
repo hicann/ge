@@ -317,29 +317,29 @@ Status Om2CodegenModelBuilder::BuildModelInfo(const GeModelPtr &model, Om2Codege
   return SUCCESS;
 }
 
-std::vector<MemInfo> Om2CodegenModelBuilder::GetAllMemoryTypeSize(const GeModelPtr &model) const {
-  std::vector<MemInfo> all_mem_info;
+std::vector<om2::MemInfo> Om2CodegenModelBuilder::GetAllMemoryTypeSize(const GeModelPtr &model) const {
+  std::vector<om2::MemInfo> all_mem_info;
   // hbm先不适配
 
-  MemInfo p2p_mem_info{};
+  om2::MemInfo p2p_mem_info{};
   (void)AttrUtils::GetInt(model, ATTR_MODEL_P2P_MEMORY_SIZE, p2p_mem_info.memory_size);
   p2p_mem_info.memory_type = RT_MEMORY_P2P_DDR;
   p2p_mem_info.memory_key = "_p";
   (void)all_mem_info.emplace_back(std::move(p2p_mem_info));
 
-  MemInfo session_scope_mem_info{};
+  om2::MemInfo session_scope_mem_info{};
   (void)AttrUtils::GetInt(model, ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE, session_scope_mem_info.memory_size);
   session_scope_mem_info.memory_type = (kSessionScopeMemoryMask | RT_MEMORY_HBM);
   (void)all_mem_info.emplace_back(std::move(session_scope_mem_info));
 
-  MemInfo host_mem_info{};
+  om2::MemInfo host_mem_info{};
   (void)AttrUtils::GetInt(model, MODEL_ATTR_HOST_MEMORY_SIZE, host_mem_info.memory_size);
   (void)AttrUtils::GetInt(model, MODEL_ATTR_TASK_GEN_HOST_BASE_ADDR, host_mem_info.logic_memory_base);
   host_mem_info.memory_type = RT_MEMORY_HOST;
   host_mem_info.memory_key = "_h";
   (void)all_mem_info.emplace_back(std::move(host_mem_info));
 
-  MemInfo host_svm_mem_info{};
+  om2::MemInfo host_svm_mem_info{};
   (void)AttrUtils::GetInt(model, MODEL_ATTR_HOST_SVM_SIZE, host_svm_mem_info.memory_size);
   (void)AttrUtils::GetInt(model, MODEL_ATTR_TASK_GEN_HOST_SVM_BASE_ADDR, host_svm_mem_info.logic_memory_base);
   host_svm_mem_info.memory_type = RT_MEMORY_HOST_SVM;

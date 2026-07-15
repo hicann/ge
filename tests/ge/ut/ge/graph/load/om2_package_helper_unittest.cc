@@ -13,6 +13,8 @@
 #include "runtime/om2/zip_archive_reader.h"
 #include "common/om2/codegen/om2_codegen.h"
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "common/om2/om2_model_data.h"
+#include "common/helper/om2/om2_zip_saver.h"
 #define private public
 #include "framework/common/helper/om2_package_helper.h"
 #undef private
@@ -460,9 +462,9 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   std::string atc_command;
   ASSERT_TRUE(manifest_json.Get("atc_command", atc_command));
   EXPECT_EQ(atc_command, "");
-  int model_num = 0;
+  std::string model_num;
   ASSERT_TRUE(manifest_json.Get("model_num", model_num));
-  EXPECT_EQ(model_num, 1);
+  EXPECT_EQ(model_num, "1");
   std::string om2_version;
   ASSERT_TRUE(manifest_json.Get("om2_version", om2_version));
   EXPECT_EQ(om2_version, "0");
@@ -968,13 +970,8 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_WithAttr_GenValidOpAttrJson) {
   EXPECT_TRUE(op_attr.contains("_datadump_original_op_names"));
 
   const auto &attr_value = op_attr.at("_datadump_original_op_names");
-  EXPECT_EQ(attr_value.at("type"), JsonFile::json("LIST_STRING"));
-  EXPECT_TRUE(attr_value.at("value").is_array());
-
-  const auto &value_array = attr_value.at("value");
-  EXPECT_EQ(value_array.size(), 2U);
-  EXPECT_EQ(value_array[0], JsonFile::json("original_op1"));
-  EXPECT_EQ(value_array[1], JsonFile::json("original_op2"));
+  EXPECT_TRUE(attr_value.is_string());
+  EXPECT_EQ(attr_value.get<std::string>(), "[12]original_op1[12]original_op2");
 }
 
 TEST_F(Om2PackageHelperUt, SaveOpAttrJson_NoAttr_GenEmptyOpAttrJson) {
@@ -1043,12 +1040,12 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_EmptyOriginalOpNames_GenValidOpAttrJso
   const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
   ASSERT_TRUE(op_attr_json.IsValid());
 
-  // 验证value为空数组 []
+  // 验证value为空编码字符串
   const auto &raw_json = op_attr_json.Raw();
   EXPECT_TRUE(raw_json.contains("add1"));
   const auto &attr_value = raw_json.at("add1").at("_datadump_original_op_names");
-  EXPECT_TRUE(attr_value.at("value").is_array());
-  EXPECT_EQ(attr_value.at("value").size(), 0U);
+  EXPECT_TRUE(attr_value.is_string());
+  EXPECT_EQ(attr_value.get<std::string>(), "");
 }
 
 TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_SingleKernel) {
@@ -1635,5 +1632,194 @@ TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_NoVisualJson) {
 
   std::string json_out;
   EXPECT_NE(Om2PackageHelper::ExtractVisualJson(file_buf.get(), file_size, json_out), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_SpecialInputSize) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  const auto &graph = ge_model->GetGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == DATA) {
+      auto output_desc = op_desc->MutableOutputDesc(0U);
+      ASSERT_NE(output_desc, nullptr);
+      (void)AttrUtils::SetInt(*output_desc, ATTR_NAME_SPECIAL_INPUT_SIZE, 2048);
+      break;
+    }
+  }
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  ASSERT_FALSE(model_meta.input_desc.empty());
+  EXPECT_EQ(model_meta.input_desc[0].GetByteSize(), 2048U);
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_InputDimsAttr) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  const auto &graph = ge_model->GetGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == DATA) {
+      (void)AttrUtils::SetListInt(op_desc, ATTR_NAME_INPUT_DIMS, {2, 8});
+      break;
+    }
+  }
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  ASSERT_FALSE(model_meta.input_desc_v2.empty());
+  EXPECT_EQ(model_meta.input_desc_v2[0].GetShape(), std::vector<int64_t>({2, 8}));
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_SpecialOutputSize) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  const auto &graph = ge_model->GetGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == NETOUTPUT) {
+      auto input_desc = op_desc->MutableInputDesc(0U);
+      ASSERT_NE(input_desc, nullptr);
+      (void)AttrUtils::SetInt(*input_desc, ATTR_NAME_SPECIAL_OUTPUT_SIZE, 4096);
+      break;
+    }
+  }
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  ASSERT_FALSE(model_meta.output_desc.empty());
+  EXPECT_EQ(model_meta.output_desc[0].GetByteSize(), 4096U);
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_DynamicOutputDims) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  const auto &graph = ge_model->GetGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == NETOUTPUT) {
+      (void)AttrUtils::SetListStr(op_desc, ATTR_NAME_DYNAMIC_OUTPUT_DIMS, {"1,4", "2,8"});
+      break;
+    }
+  }
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  EXPECT_EQ(model_meta.dynamic_output_shape.size(), 2U);
+  EXPECT_EQ(model_meta.dynamic_output_shape[0], "1,4");
+  EXPECT_EQ(model_meta.dynamic_output_shape[1], "2,8");
+}
+
+TEST_F(Om2PackageHelperUt, BuildDebugInfo_DumpOriginOpNames) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  const auto &graph = ge_model->GetGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == "Add") {
+      (void)AttrUtils::SetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, {"original_add_1", "original_add_2"});
+      break;
+    }
+  }
+
+  Om2PackageHelper om2_packager;
+  gert::Om2DebugInfo debug_info;
+  ASSERT_EQ(om2_packager.BuildDebugInfo(ge_model, debug_info), SUCCESS);
+  ASSERT_FALSE(debug_info.op_attr_map.empty());
+
+  bool found = false;
+  for (const auto &[op_name, attrs] : debug_info.op_attr_map) {
+    auto it = attrs.find(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES);
+    if (it != attrs.end()) {
+      found = true;
+      EXPECT_NE(it->second.find("[14]original_add_1"), std::string::npos);
+      EXPECT_NE(it->second.find("[14]original_add_2"), std::string::npos);
+      break;
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(Om2PackageHelperUt, BuildManifest_NullRootModel) {
+  Om2PackageHelper om2_packager;
+  std::map<std::string, std::string> manifest;
+  ASSERT_EQ(om2_packager.BuildManifest(nullptr, manifest), SUCCESS);
+
+  ASSERT_EQ(manifest.count(OM2_MODEL_NUM), 1U);
+  EXPECT_EQ(manifest[OM2_MODEL_NUM], "1");
+}
+
+TEST_F(Om2PackageHelperUt, Serialize_OnlineMode_ExternalConst_HasFilePath) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "test_model";
+  model_data.model_meta.root_graph_name = "test_graph";
+
+  Om2ConstMeta const_meta;
+  const_meta.index = 0U;
+  const_meta.type = "EXTERNAL";
+  const_meta.file_name = "external_weight.bin";
+  const_meta.file_path = "/data/weights/external_weight.bin";
+  const_meta.offset = 0;
+  const_meta.size = 1024;
+  const_meta.op_name = "const_op";
+  model_data.constants_data.consts.push_back(const_meta);
+
+  model_data.program_body.so_artifact.file_name = "libtest.so";
+  model_data.program_body.so_artifact.data = "fake_so_content";
+
+  model_data.debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
+
+  const std::string writer_path = PathUtils::Join({test_work_dir, "external_const.om2"});
+  ModelBufferData model_buffer;
+  ASSERT_EQ(Om2ZipSaver::Save(model_data, model_buffer, false, writer_path), SUCCESS);
+  ASSERT_NE(model_buffer.data, nullptr);
+  ASSERT_GT(model_buffer.length, 0U);
+
+  SimpleZipArchiveReader archive(model_buffer.data.get(), model_buffer.length);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  std::string constants_entry;
+  for (const auto &name : file_names) {
+    if (name.find("constants_config.json") != std::string::npos) {
+      constants_entry = name;
+      break;
+    }
+  }
+  ASSERT_FALSE(constants_entry.empty()) << "constants_config.json not found in archive";
+
+  size_t buf_size = 0U;
+  const auto buf = archive.ExtractToMem(constants_entry, buf_size);
+  ASSERT_NE(buf, nullptr);
+  ASSERT_GT(buf_size, 0U);
+
+  const std::string constants_json(reinterpret_cast<const char *>(buf.get()), buf_size);
+  EXPECT_NE(constants_json.find("file_path"), std::string::npos);
+  EXPECT_NE(constants_json.find("/data/weights/external_weight.bin"), std::string::npos);
 }
 }  // namespace ge

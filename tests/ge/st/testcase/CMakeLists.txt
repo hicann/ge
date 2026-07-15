@@ -104,6 +104,7 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/graph_metadef/ut/register/testcase/op_def_factory_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2_online.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_adapter_integration_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_stream_allocator_pass_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_weighted_stream_merger_public_st_test.cc"

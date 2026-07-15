@@ -10,13 +10,48 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <string>
+
 #include "macro_utils/dt_public_scope.h"
 #include "session/session_manager.h"
+#include "common/helper/om2/om2_utils.h"
 #include "macro_utils/dt_public_unscope.h"
 
 using namespace std;
 
 namespace ge {
+namespace {
+class EnvValueGuard {
+ public:
+  explicit EnvValueGuard(const char *name) : name_(name) {
+    const char *value = std::getenv(name_.c_str());
+    if (value != nullptr) {
+      old_value_ = value;
+      had_value_ = true;
+    }
+  }
+
+  ~EnvValueGuard() {
+    if (had_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+    } else {
+      (void)unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool had_value_ = false;
+};
+
+void EnableOm2OnlineMode() {
+  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
+}
+
+}  // namespace
+
 class Utest_SessionManager : public testing::Test {
  protected:
   void SetUp() override {}
@@ -78,4 +113,16 @@ TEST_F(Utest_SessionManager, GetSession_not_exits) {
   SessionPtr session = sm->GetSession(session_id);
   EXPECT_EQ(session, nullptr);
 }
+
+TEST_F(Utest_SessionManager, GetVariables_Om2Mode_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  auto sm = std::make_shared<SessionManager>();
+  sm->init_flag_ = true;
+  std::vector<std::string> var_names;
+  std::vector<ge::Tensor> var_values;
+  EXPECT_EQ(sm->GetVariables(0, var_names, var_values), GE_GRAPH_UNSUPPORTED);
+}
+
 }  // namespace ge
