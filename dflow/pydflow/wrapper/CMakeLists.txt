@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 ############ libdflow_wrapper.so ############
+set(CMAKE_LINK_DEPENDENT_LIBRARY_FILES ON)
 add_library(dflow_wrapper MODULE dflow_wrapper.cpp)
 
 target_include_directories(dflow_wrapper PRIVATE

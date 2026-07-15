@@ -5668,7 +5668,7 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
                             "register_info.op_type, &func_handle));"),
             std::string::npos);
   const size_t cust_aicpu_hash_id = std::hash<std::string>{}(std::string(64, '\0'));
-  const std::string cust_aicpu_file_name = std::to_string(cust_aicpu_hash_id) + "_CustAicpuKernel";
+  const std::string cust_aicpu_file_name = std::to_string(cust_aicpu_hash_id) + "_CustAicpuKernel.o";
   const std::string expected_reg_call =
       "OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_handles_[0], func_handles_[0], {\"" + cust_aicpu_file_name +
       "\", \"Add\", \"name\"}, bin_info_map_));";

@@ -2,7 +2,7 @@
 
 ## Overview
 
-GE-PY is GraphEngine's Python interface module, providing Pythonic graph-related interfaces. Provides convenient graph building and operation, compilation execution and other functions for users. This module's external header files located in `api/python/ge/ge/` directory.
+GE-PY is the Python interface module of GraphEngine and provides Pythonic graph-related interfaces. It provides users with convenient graph construction and manipulation, compilation and execution, Pass extension, and custom operator extension capabilities. The external header files of this module are located in the `api/python/ge/ge/` directory.
 
 ## Directory Structure
 
@@ -127,7 +127,7 @@ graph TB
 **Function**: Graph node operation interface class
 
 **Main Methods**:
-- `get_attr(key)` - Get node attribute (can return string / number / list / `Tensor` etc. Python values)
+- `get_attr(key)` - Get node attribute (can return string / number / list / `Tensor` and other Python values)
 - `set_attr(key, value)` - Set node attribute
 - `get_in_data_nodes_and_port_indexes(in_index)` - Get input node and port
 - `get_out_data_nodes_and_port_indexes(out_index)` - Get output node and port
@@ -269,10 +269,10 @@ graph TB
 
 **File Location**: `utils/ge_utils.py`
 
-**Function**: GE common utility interface, provides Shape inference and node AICore support validation capabilities面向 `Graph` / `Node` objects.
+**Function**: GE common utility interface that provides shape inference and node AICore support validation capabilities for `Graph` / `Node` objects.
 
 **Main Methods**:
-- `infer_shape(graph, input_shapes)` - Given input shape, perform whole graph shape inference on传入 graph; this interface only does shape inference, does not perform any other optimizations on graph (such as constant folding, dead edge elimination etc.)
+- `infer_shape(graph, input_shapes)` - Given input shapes, performs whole-graph shape inference on the input graph. This interface performs only shape inference and does not perform other graph optimizations, such as constant folding or dead edge elimination.
 - `check_node_support_on_aicore(node)` - Validate whether specified node supports execution on AICore
 
 **Relationships**:
@@ -456,8 +456,8 @@ GeApi.ge_finalize()
 ```
 
 ├── __init__.py      # Module initialization, export public API
-├── base.py          # Pass base class definition (FusionBasePass, PatternFusionPass, DecomposePass etc.)
-├── pattern.py       # Pattern / NodeIo etc. pattern matching helper interface
+├── base.py          # Pass base class definition (FusionBasePass, PatternFusionPass, DecomposePass, and so on)
+├── pattern.py       # Pattern / NodeIo and other pattern matching helper interfaces
 ├── replacement.py   # replacement graph build helper interface
 ├── registry.py      # Pass registry and decorator
 ├── bootstrap.py     # Plugin discovery and loading
@@ -465,11 +465,11 @@ GeApi.ge_finalize()
 └── _bridge.py       # Bridge runtime helper (Pass instance management, for C++ bridge .so callback)
 ```
 Note: Underscore-prefixed are internal modules in Python style
-Note: `PassContext`, `MatchResult`, `Pattern`, `PatternMatcherConfig` etc. objects provided by `_ge_pass_native.so` native-backed implementation, `base.py` / `pattern.py` responsible for external export and少量 Python helper encapsulation.
+Note: Objects such as `PassContext`, `MatchResult`, `Pattern`, and `PatternMatcherConfig` are provided by the native-backed implementation in `_ge_pass_native.so`; `base.py` / `pattern.py` handle external exports and a small amount of Python helper encapsulation.
 
 #### Runtime Native Artifact Selection
 
-`_ge_pass_native.so` and `libge_python_pass_bridge.so` as same artifact set成套发布, directory fixed as:
+`_ge_pass_native.so` and `libge_python_pass_bridge.so` are released as the same artifact set, and the directory is fixed as:
 
 ```text
 ge/passes/python_pass_artifacts/<python_tag>-<platform>/manifest.json
@@ -477,12 +477,12 @@ ge/passes/python_pass_artifacts/<python_tag>-<platform>/_ge_pass_native.so
 ge/passes/python_pass_artifacts/<python_tag>-<platform>/libge_python_pass_bridge.so
 ```
 
-Main wheel maintains one pure Python interface, no longer内置 current Python's default native artifact set. Native sub wheel按 `cp39` to `cp314` Python minor version matrix分别承载预制 artifact set. Native sub wheel generated through standard `bdist_wheel`.仓内提供矩阵 builder entry用于自动嗅探 PATH中可用的 Python minor versions并分别构建; if某个 Python executable存在但开发头文件或 libpython不完整, builder会跳过该版本并继续构建其他可用版本.
+The main wheel keeps only the pure Python interface and no longer embeds the default native artifact set of the current Python version. Native sub-wheels carry prebuilt artifact sets for the Python minor version matrix from `cp39` to `cp314`. Native sub-wheels are generated through standard `bdist_wheel`. The repository provides a matrix builder entry to automatically detect available Python minor versions in `PATH` and build them separately. If a Python executable exists but its development headers or libpython are incomplete, the builder skips that version and continues to build other available versions.
 
-run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installation script只应安装与当前执行安装脚本 Python interpreter兼容一个 sub wheel; recommend使用 `pip install --no-index --find-links <ge-compiler/lib64> <ge_py wheel> ge-py-pass-bridge`,由 pip按 wheel tag自动选择. Runtime selection顺序为:
+The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but the installation script should install only the sub-wheel compatible with the Python interpreter that runs the installation script. Use `pip install --no-index --find-links <ge-compiler/lib64> <ge_py wheel> ge-py-pass-bridge`, and pip selects the wheel automatically by wheel tag. Runtime selection order:
 
-1. 与当前进程 Python tag、平台 tag、bridge ABI匹配的预制 artifact.
-2. runtime fallback codegen新生成到 `ge/passes/python_pass_artifacts/<python_tag>-<platform>/`,且与当前进程 Python tag、平台 tag、bridge ABI匹配的 artifact.
+1. The prebuilt artifact that matches the Python tag, platform tag, and bridge ABI of the current process.
+2. The artifact newly generated by runtime fallback codegen under `ge/passes/python_pass_artifacts/<python_tag>-<platform>/` and matching the Python tag, platform tag, and bridge ABI of the current process.
 
 #### Class Detailed Description
 
@@ -518,7 +518,7 @@ run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installati
 **Function**: Pattern matching result
 
 **Main Methods**:
-- `get_matched_nodes()` - Get current match命中 node list
+- `get_matched_nodes()` - Gets the node list hit by the current match
 - `get_captured_tensor(capture_index)` - Get specified capture's `NodeIo`
 - `get_pattern_graph_name()` - Get pattern graph name
 - `__str__()` - Return readable string representation
@@ -530,26 +530,26 @@ run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installati
 **Function**: Python-side subgraph boundary description and subgraph replacement interface, used to support graph base class pass's "subgraph replacement" capability.
 
 **Main Classes/Methods**:
-- `SubgraphInput` - Describe a subgraph input (one input可对应多个边界上 node input)
+- `SubgraphInput` - Describes a subgraph input. One input can correspond to multiple node inputs on the boundary.
   - `SubgraphInput() / SubgraphInput([(node, out_index), ...])` - Construct subgraph input
   - `add_input(node, out_index)` - Append an input anchor (`node` is `ge.graph.Node`, `out_index` is its output index)
 - `SubgraphOutput` - Describe a subgraph output
   - `SubgraphOutput() / SubgraphOutput(node, out_index)` - Construct subgraph output
   - `set_output(node, out_index)` - Set output anchor
-- `SubgraphBoundary` - Describe待替换 subgraph's input/output boundary
-  - `add_input(index, input)` - Bind第 `index` boundary input to `SubgraphInput`
-  - `add_output(index, output)` - Bind第 `index` boundary output to `SubgraphOutput`
+- `SubgraphBoundary` - Describes the input/output boundary of the subgraph to be replaced
+  - `add_input(index, input)` - Binds the `index`-th boundary input to `SubgraphInput`
+  - `add_output(index, output)` - Binds the `index`-th boundary output to `SubgraphOutput`
 - `SubgraphRewriter.replace(boundary, replacement)` - Execute subgraph replacement
   - `boundary`: `SubgraphBoundary`
-  - `replacement`: `ge.graph.Graph` (replacement graph会在 C++侧拷贝并完成重连)
+  - `replacement`: `ge.graph.Graph` (the replacement graph is copied and reconnected on the C++ side)
 
 ##### 5. Pattern / NodeIo / PatternMatcherConfig
 
 **File Location**: `pattern.py`, `base.py`
 
 **Function**:
-- `Pattern` - native-backed pattern wrapper, responsible for持有 pattern graph与 capture information
-- `NodeIo` - Python-side描述节点输出位置 lightweight helper
+- `Pattern` - Native-backed pattern wrapper that holds the pattern graph and capture information
+- `NodeIo` - Lightweight Python-side helper that describes the node output position
 - `PatternMatcherConfig` / `PatternMatcherConfigBuilder` - Pattern matching configuration object and builder
 
 **Main Interfaces**:
@@ -586,13 +586,13 @@ run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installati
 - `replacement(match_result)` - Generate replacement subgraph based on match result, must return `Graph`
 
 **Optional Constructor Parameters**:
-- `matcher_config` - `PatternMatcherConfig`, used to control constant value matching, IR attribute matching等 matcher options
+- `matcher_config` - `PatternMatcherConfig`, used to control matcher options such as constant value matching and IR attribute matching
 
 **Design Constraints**:
-- **不支持 user-defined `run()` method**: `PatternFusionPass` reuses C++ `Run()` implementation to execute standard pattern-match-replacement flow. Python side只需实现 `patterns()`, `meet_requirements()` and `replacement()` three hooks.
-- **若 subclass overrides `run()` will throw `TypeError` at class definition stage**: Avoid user mistakenly thinking `run()` will be called in `PatternFusionPass` path.
-- **不支持 returning `None` in `replacement()` to表示 skip**: If希望放弃 current match, need to return `False` in `meet_requirements()`.
-- **需要完全 custom `run()` logic scenarios**: Please directly use `FusionBasePass` base class.
+- **User-defined `run()` methods are not supported**: `PatternFusionPass` reuses the C++ `Run()` implementation to execute the standard pattern-match-replacement flow. The Python side only needs to implement the three hooks: `patterns()`, `meet_requirements()`, and `replacement()`.
+- **If a subclass overrides `run()`, `TypeError` is thrown at class definition time**: This avoids making users think that `run()` is called in the `PatternFusionPass` path.
+- **Returning `None` in `replacement()` to skip is not supported**: To abandon the current match, return `False` in `meet_requirements()`.
+- **For scenarios that require fully custom `run()` logic**: Directly use the `FusionBasePass` base class.
 
 **Relationships**:
 - Inherits from `FusionBasePass`
@@ -612,10 +612,10 @@ run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installati
 - `replacement(node)` - Decompose node into multiple sub-nodes, must return `Graph`
 
 **Design Constraints**:
-- **不支持 user-defined `run()` method**: `DecomposePass` reuses C++ `Run()` implementation to execute standard node-filter-replacement flow. Python side只需实现 `meet_requirements()` and `replacement()` two hooks.
-- **若 subclass overrides `run()` will throw `TypeError` at class definition stage**: Avoid user mistakenly thinking `run()` will be called in `DecomposePass` path.
-- **不支持 returning `None` in `replacement()` to表示 skip**: If希望放弃 current node, need to return `False` in `meet_requirements()`.
-- **`op_types` declared by `register_decompose_pass(..., op_types=[...])` and固化到 descriptor**: Python base class不再自行维护另一套 constructor parameters.
+- **User-defined `run()` methods are not supported**: `DecomposePass` reuses the C++ `Run()` implementation to execute the standard node-filter-replacement flow. The Python side only needs to implement the two hooks: `meet_requirements()` and `replacement()`.
+- **If a subclass overrides `run()`, `TypeError` is thrown at class definition time**: This avoids making users think that `run()` is called in the `DecomposePass` path.
+- **Returning `None` in `replacement()` to skip is not supported**: To abandon the current node, return `False` in `meet_requirements()`.
+- **`op_types` is declared by `register_decompose_pass(..., op_types=[...])` and fixed in the descriptor**: The Python base class no longer maintains another set of constructor parameters.
 
 **Relationships**:
 - Inherits from `FusionBasePass`
@@ -630,7 +630,7 @@ run package可携带多个 `ge_py_pass_bridge` native sub wheels, but installati
 **Properties**:
 - `descriptor_key` - Descriptor unique key (format: `module_name:class_name:Pass_name`)
 - `pass_name` - Pass name
-- `module_name` -所属 module name
+- `module_name` - Module name
 - `class_name` - Class name
 - `stage` - Execution stage (PassStage)
 - `kind` - Pass type (`fusion_base`, `pattern_fusion`, `decompose`)
@@ -684,6 +684,7 @@ class MyPatternPass(PatternFusionPass):
 class MyDecomposePass(DecomposePass):
     def replacement(self, node):
         pass
+```
 
 Loading custom Pass:
 ```bash
@@ -691,6 +692,129 @@ export ASCEND_GE_PY_PASS_PATH=/path/to/my_pass.py:/path/to/pass_dir/
 ```
 
 For more design details please refer to [Python Pass Design Document](ge_python_pass_design.md).
+
+### custom_op Module
+
+#### Directory Structure
+```
+custom_op/
+├── __init__.py              # Module initialization, exports public API
+├── base.py                  # BaseCustomOp and EagerExecuteOp base class definitions
+├── registry.py              # Python custom operator implementation registry and decorators
+├── bootstrap.py             # Plugin discovery and loading
+├── _bridge.py               # Bridge runtime helper (instance management, for C++ bridge .so callbacks)
+├── _native.py               # Native module loading and re-export
+├── _artifact_utils.py       # Runtime artifact selection helper
+├── _ge_custom_op_native.pyi # Native module type stub
+└── native_bindings/         # pybind11 binding implementation for _ge_custom_op_native.so
+```
+Note: Files prefixed with underscores are internal modules in the Python style.
+Note: `EagerOpExecutionContext` is provided by `_ge_custom_op_native.so` as a native-backed implementation. Runtime data structures such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution are provided by the `ge.runtime` module.
+
+#### Module Positioning
+
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes in Python and implementing all custom operator capabilities based on `BaseCustomOp`. The current V1 release only establishes the `EagerExecuteOp.execute(ctx)` execution closed loop.
+
+#### Runtime Native Artifact Selection
+
+`_ge_custom_op_native.so` and `libge_python_custom_op_bridge.so` are released as a single artifact set, and the directory is fixed at:
+
+```text
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/manifest.json
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/_ge_custom_op_native.so
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_custom_op_bridge.so
+```
+
+At runtime, the matching artifact is selected based on the loaded Python interpreter version, platform tag, and bridge ABI in the current process. The current Python custom op native/bridge is related to the Python ABI at build time. The build and runtime must use compatible Python minor versions.
+
+#### Detailed Class Descriptions
+
+##### 1. BaseCustomOp Class
+
+**File location**: `base.py`
+
+**Function**: Public base class of the Python custom operator capability interface.
+
+**Relationships**:
+- Parent class of `EagerExecuteOp`
+- Inheriting only `BaseCustomOp` cannot be registered as a valid Python custom operator implementation
+
+##### 2. EagerExecuteOp Class
+
+**File location**: `base.py`
+
+**Function**: Python Eager execution custom operator base class.
+
+**Main methods**:
+- `execute(ctx)` - Execution entry. `ctx` is `EagerOpExecutionContext`
+
+**Design constraints**:
+- V1 currently supports only the `execute(self, ctx)` signature.
+- `ctx` and the borrowed views it returns can be used only within the current `execute` callback.
+- A normal return indicates successful execution. Exceptions should be raised on failure.
+
+##### 3. EagerOpExecutionContext Native-Backed Wrapper
+
+**File location**: `_native.py`, `_ge_custom_op_native.pyi`
+
+**Function**: Python-side custom operator execution context view.
+
+**Main methods**:
+- `get_input_tensor(index)` - Obtains an input `Tensor` by input index
+- `get_input_num()` - Obtains the number of runtime input tensors of the current compute node
+- `get_required_input_tensor(ir_index)` - Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition
+- `get_optional_input_tensor(ir_index)` - Obtains an `OPTIONAL_INPUT` type input `Tensor` based on the operator IR prototype definition
+- `get_dynamic_input_tensor(ir_index, relative_index)` - Obtains a `DYNAMIC_INPUT` type input `Tensor` based on the operator IR prototype definition
+- `malloc_output_tensor(index, shape, format, dtype)` - Allocates device memory for an output tensor and initializes the basic information of the output tensor
+- `make_output_ref_input(output_index, input_index)` - Specifies that the memory address of an output references an input
+- `malloc_workspace(size)` - Allocates workspace memory with device placement and returns the address as an integer
+- `get_output_tensor(index)` - Obtains the output `Tensor` specified by index
+- `get_stream()` - Obtains the address integer of the associated execution stream
+
+##### 4. OpImplDescriptor Data Class
+
+**File location**: `registry.py`
+
+**Function**: Standardized Python custom operator implementation descriptor.
+
+**Attributes**:
+- `descriptor_key` - Descriptor unique key (format: `module_name:class_name:operator_type`)
+- `op_type` - Custom operator type
+- `module_name` - Associated module name
+- `class_name` - Class name
+- `interfaces` - Capability interface list, V1 uses `["eager_execute"]`
+- `cls` - Python implementation class reference
+
+#### Registration and Discovery
+
+**Decorators**:
+- `register_op_impl(op_type)` - Registers an `EagerExecuteOp` implementation class
+
+**Discovery mechanism**:
+- Reuses the environment variable `ASCEND_CUSTOM_OPP_PATH` to specify Python custom op file or directory paths
+- `bootstrap.py` scans paths and dynamically loads Python modules
+- Supports single `.py` files, `.py` files in plain directories, and Python packages containing `__init__.py`
+
+**Usage sample**:
+```python
+from ge.custom_op import EagerExecuteOp, register_op_impl
+
+
+@register_op_impl(op_type="AddPythonCustomOp")
+class AddPythonCustomOp(EagerExecuteOp):
+    def execute(self, ctx):
+        x = ctx.get_input_tensor(0)
+        y = ctx.get_input_tensor(1)
+        z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
+        ...
+```
+
+Load Python custom operators:
+```bash
+export ASCEND_CUSTOM_OPP_PATH=/path/to/my_custom_op.py:/path/to/custom_op_dir/
+```
+
+For more design details, refer to the [Python Custom Operator Design Document](ge_python_custom_op_design.md).
 
 ## ES Module
 

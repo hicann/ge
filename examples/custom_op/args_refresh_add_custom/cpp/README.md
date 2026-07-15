@@ -1,4 +1,4 @@
-# ArgsUpdater 地址刷新自定义算子样例
+# ArgsUpdater 地址刷新自定义算子 C++ 样例
 
 ## 样例概述
 
@@ -24,7 +24,7 @@
 
 - 已正确安装并配置 CANN 环境，例如执行过 `source ${ASCEND_HOME_PATH}/set_env.sh`。
 - 当前环境具备 `ACL`、`GE`、`Graph` 相关头文件与库。
-- 参考 [安装指导](../../../docs/zh/quick_install.md) 完成 toolkit 和 ops 包安装。
+- 参考 [安装指导](../../../../docs/zh/quick_install.md) 完成 toolkit 和 ops 包安装。
 
 ### 框架与插件
 
@@ -43,7 +43,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/args_refresh_add_custom` 目录下执行：
+在 `examples/custom_op/args_refresh_add_custom/cpp` 目录下执行：
 
 ### 推荐方式
 
@@ -88,21 +88,23 @@ cd ..
 
 ```text
 args_refresh_add_custom
-├── CMakeLists.txt
-├── README.md
-├── run.sh
-├── add_custom_kernel
-│   ├── add_custom.asc                // Ascend C Add kernel 源码（RTC 运行时编译）
-│   └── add_custom_kernel.h           // kernel 头文件
-├── ge
-│   ├── add_custom.h                  // AddRefreshOp / AddNoRefreshOp proto 定义
-│   ├── custom_op.cpp                 // 两个算子的 Execute、ArgsUpdater、InferShape 等实现
-│   └── utils
-│       ├── log.h                     // 统一日志宏（LOG_ERROR/LOG_WARNING/LOG_INFO）
-│       ├── rtc_kernel_loader.h       // RTC kernel 加载器接口
-│       └── rtc_kernel_loader.cpp     // RTC 编译和加载实现
-└── session_run
-    └── main.cc                       // 进程内构图，在线性能对比
+├── cpp
+│   ├── CMakeLists.txt
+│   ├── README.md
+│   ├── README_en.md
+│   ├── run.sh
+│   ├── add_custom_kernel
+│   │   ├── add_custom.asc            // Ascend C Add kernel 源码（RTC 运行时编译）
+│   │   └── add_custom_kernel.h       // kernel 头文件
+│   ├── ge
+│   │   ├── add_custom.h              // AddRefreshOp / AddNoRefreshOp proto 定义
+│   │   ├── custom_op.cpp             // 两个算子的 Execute、ArgsUpdater、InferShape 等实现
+│   │   └── utils
+│   │       ├── log.h                 // 统一日志宏（LOG_ERROR/LOG_WARNING/LOG_INFO）
+│   │       ├── rtc_kernel_loader.h   // RTC kernel 加载器接口
+│   │       └── rtc_kernel_loader.cpp // RTC 编译和加载实现
+│   └── session_run
+│       └── main.cc                   // 进程内构图，在线性能对比
 ```
 
 重点文件：

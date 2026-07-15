@@ -122,41 +122,41 @@ class AddRefreshOp : public EagerExecuteOp, public ArgsUpdater, public ShapeInfe
    * @brief 执行算子
    *
    * 执行流程：
-    * 1. 加载 kernel（模型加载时）
-    * 2. 获取输入输出张量
-    * 3. 计算 block 数量
-    * 4. 通过 MallocReadOnlyDevArgs 注册 args
-     * 5. 使用 aclrtLaunchKernelV2 下发 kernel
-    */
-   graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
-     // 加载 kernel（模型加载时编译并缓存）
-     if (LoadKernel() != GRAPH_SUCCESS) {
-       LOG_ERROR("LoadKernel failed");
-       return GRAPH_FAILED;
-     }
+   * 1. 加载 kernel（模型加载时）
+   * 2. 获取输入输出张量
+   * 3. 计算 block 数量
+   * 4. 通过 MallocReadOnlyDevArgs 注册 args
+   * 5. 使用 aclrtLaunchKernelV2 下发 kernel
+   */
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    // 加载 kernel（模型加载时编译并缓存）
+    if (LoadKernel() != GRAPH_SUCCESS) {
+      LOG_ERROR("LoadKernel failed");
+      return GRAPH_FAILED;
+    }
 
-     // 获取输入张量
-     const gert::Tensor *input_x = ctx->GetInputTensor(kInputX);
-     const gert::Tensor *input_y = ctx->GetInputTensor(kInputY);
-     if (input_x == nullptr || input_y == nullptr) {
-       LOG_ERROR("GetInputTensor failed, input_x=", input_x, " input_y=", input_y);
-       return GRAPH_FAILED;
-     }
+    // 获取输入张量
+    const gert::Tensor *input_x = ctx->GetInputTensor(kInputX);
+    const gert::Tensor *input_y = ctx->GetInputTensor(kInputY);
+    if (input_x == nullptr || input_y == nullptr) {
+      LOG_ERROR("GetInputTensor failed, input_x=", input_x, " input_y=", input_y);
+      return GRAPH_FAILED;
+    }
 
-     // 分配输出张量（与输入相同的 shape/format/datatype）
-     gert::Tensor *output_z =
-         ctx->MallocOutputTensor(kOutputZ, input_x->GetShape(), input_x->GetFormat(), input_x->GetDataType());
-     if (output_z == nullptr) {
-       LOG_ERROR("MallocOutputTensor failed");
-       return GRAPH_FAILED;
-     }
+    // 分配输出张量（与输入相同的 shape/format/datatype）
+    gert::Tensor *output_z =
+        ctx->MallocOutputTensor(kOutputZ, input_x->GetShape(), input_x->GetFormat(), input_x->GetDataType());
+    if (output_z == nullptr) {
+      LOG_ERROR("MallocOutputTensor failed");
+      return GRAPH_FAILED;
+    }
 
-     // 计算 kernel 启动参数
-     const uint32_t num_blocks = CalcNumBlocks(static_cast<uint32_t>(input_x->GetShapeSize()));
-     AddArgs args = {input_x->GetAddr(), input_y->GetAddr(), const_cast<void *>(output_z->GetAddr())};
+    // 计算 kernel 启动参数
+    const uint32_t num_blocks = CalcNumBlocks(static_cast<uint32_t>(input_x->GetShapeSize()));
+    AddArgs args = {input_x->GetAddr(), input_y->GetAddr(), const_cast<void *>(output_z->GetAddr())};
 
-     // 关键优化：通过 MallocReadOnlyDevArgs 注册 args
-     // - 模型加载时：在 device 侧分配只读内存并拷贝 args
+    // 关键优化：通过 MallocReadOnlyDevArgs 注册 args
+    // - 模型加载时：在 device 侧分配只读内存并拷贝 args
     // - 后续执行：GE 框架调用 UpdateHostArgs 刷新地址，避免重新分配
     const gert::KernelArgs *registered_args = ctx->MallocReadOnlyDevArgs(&args, sizeof(args));
     if (registered_args == nullptr) {
@@ -274,33 +274,33 @@ class AddNoRefreshOp : public EagerExecuteOp, public ShapeInferOp {
    * 产生额外的 MEMCPY_ASYNC 开销，这是与 AddRefreshOp 的性能差异来源。
    */
   graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
-     // 加载 kernel（模型加载时编译并缓存）
-     if (LoadKernel() != GRAPH_SUCCESS) {
-       LOG_ERROR("LoadKernel failed");
-       return GRAPH_FAILED;
-     }
+    // 加载 kernel（模型加载时编译并缓存）
+    if (LoadKernel() != GRAPH_SUCCESS) {
+      LOG_ERROR("LoadKernel failed");
+      return GRAPH_FAILED;
+    }
 
-     // 获取输入张量
-     const gert::Tensor *input_x = ctx->GetInputTensor(kInputX);
-     const gert::Tensor *input_y = ctx->GetInputTensor(kInputY);
-     if (input_x == nullptr || input_y == nullptr) {
-       LOG_ERROR("GetInputTensor failed, input_x=", input_x, " input_y=", input_y);
-       return GRAPH_FAILED;
-     }
+    // 获取输入张量
+    const gert::Tensor *input_x = ctx->GetInputTensor(kInputX);
+    const gert::Tensor *input_y = ctx->GetInputTensor(kInputY);
+    if (input_x == nullptr || input_y == nullptr) {
+      LOG_ERROR("GetInputTensor failed, input_x=", input_x, " input_y=", input_y);
+      return GRAPH_FAILED;
+    }
 
-     // 分配输出张量（与输入相同的 shape/format/datatype）
-     gert::Tensor *output_z =
-         ctx->MallocOutputTensor(kOutputZ, input_x->GetShape(), input_x->GetFormat(), input_x->GetDataType());
-     if (output_z == nullptr) {
-       LOG_ERROR("MallocOutputTensor failed");
-       return GRAPH_FAILED;
-     }
+    // 分配输出张量（与输入相同的 shape/format/datatype）
+    gert::Tensor *output_z =
+        ctx->MallocOutputTensor(kOutputZ, input_x->GetShape(), input_x->GetFormat(), input_x->GetDataType());
+    if (output_z == nullptr) {
+      LOG_ERROR("MallocOutputTensor failed");
+      return GRAPH_FAILED;
+    }
 
-     // 计算 kernel 启动参数
-     const uint32_t num_blocks = CalcNumBlocks(static_cast<uint32_t>(input_x->GetShapeSize()));
-     AddArgs args = {input_x->GetAddr(), input_y->GetAddr(), const_cast<void *>(output_z->GetAddr())};
+    // 计算 kernel 启动参数
+    const uint32_t num_blocks = CalcNumBlocks(static_cast<uint32_t>(input_x->GetShapeSize()));
+    AddArgs args = {input_x->GetAddr(), input_y->GetAddr(), const_cast<void *>(output_z->GetAddr())};
 
-     // 分配 device 内存（Execute 仅在加载时调用一次）
+    // 分配 device 内存（Execute 仅在加载时调用一次）
     void *dev_args = nullptr;
     aclError ret = aclrtMalloc(&dev_args, sizeof(args), ACL_MEM_MALLOC_HUGE_FIRST);
     if (ret != ACL_ERROR_NONE) {
