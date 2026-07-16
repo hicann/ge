@@ -42,10 +42,3 @@ graph_metadef/register/shape_inference.cc
 parser/parser/onnx/onnx_parser.cc
 parser/parser/tensorflow/tensorflow_parser.cc
 graph_metadef/register/register.cpp
-compiler/graph/common/compress/compress_weight.cpp
-compiler/graph/common/compress/compress.cpp
-compiler/graph/common/compress/data_compressor.cpp
-compiler/graph/common/compress/mode_b_index_generator.cpp
-compiler/graph/common/compress/log.cpp
-compiler/graph/common/compress/mode_a_index_generator.cpp
-graph_metadef/third_party/transformer/src/transfer_shape_utils.cc

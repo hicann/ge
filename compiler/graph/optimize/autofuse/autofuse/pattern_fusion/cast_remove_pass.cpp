@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "cast_remove_pass.h"
+#include "autofuse_cast_remove_pass.h"
 #include "common/checker.h"
 #include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"

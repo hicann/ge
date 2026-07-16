@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "lowering_utils.h"
+#include "autofuse_lowering_utils.h"
 
 #include <map>
 #include <iostream>

@@ -9,7 +9,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "graph_manager.h"
+#include "autofuse_graph_manager.h"
 #include <iostream>
 #include <stack>
 #include "common/checker.h"
