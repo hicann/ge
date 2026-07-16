@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <utility>
 #include <dirent.h>
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_error_codes_v1.h"
 #include "ge/ge_api.h"
 #include "ge/ge_ir_build.h"
 #include "nlohmann/json.hpp"

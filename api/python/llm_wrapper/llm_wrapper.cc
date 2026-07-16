@@ -21,7 +21,7 @@
 #include "acl/acl.h"
 #include "ge/ge_api.h"
 #include "graph/types.h"
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_error_codes_v1.h"
 #include "llm_datadist_wrapper.h"
 #include "llm_tensor.h"
 #include "common/llm_datadist_mem_utils.h"

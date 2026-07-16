@@ -15,7 +15,7 @@
 #include <gmock/gmock.h>
 
 #include "llm_engine_test_helper.h"
-#include "llm_datadist/llm_datadist.h"
+#include "llm_datadist_v1.h"
 #include "common/llm_flow_service.h"
 #include "common/llm_ge_api.h"
 #include "cache_engine_stubs.h"

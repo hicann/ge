@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_RUNTIME_LLM_ENGINE_INC_EXTERNAL_LLM_ERROR_CODES_H_
-#define AIR_RUNTIME_LLM_ENGINE_INC_EXTERNAL_LLM_ERROR_CODES_H_
+#ifndef DFLOW_LLM_DATADIST_V1_LLM_ERROR_CODES_V1_H_
+#define DFLOW_LLM_DATADIST_V1_LLM_ERROR_CODES_V1_H_
 
 #include "external/ge_common/ge_api_error_codes.h"
 
@@ -47,4 +47,4 @@ GE_ERRORNO_DEFINE(0b01, 0b01, 0b000, 8, 11, LLM_LINK_BUSY, 27);
 GE_ERRORNO_DEFINE(0b01, 0b01, 0b000, 8, 11, LLM_OUT_OF_MEMORY, 28);
 }  // namespace ge
 #endif
-#endif  // AIR_RUNTIME_LLM_ENGINE_INC_EXTERNAL_LLM_ERROR_CODES_H_
+#endif  // DFLOW_LLM_DATADIST_V1_LLM_ERROR_CODES_V1_H_

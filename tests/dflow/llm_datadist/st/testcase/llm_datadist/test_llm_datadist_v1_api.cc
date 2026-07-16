@@ -13,8 +13,8 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include "llm_datadist/llm_datadist.h"
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_datadist_v1.h"
+#include "llm_error_codes_v1.h"
 #include "common/llm_ge_api.h"
 #include "cache_engine_stubs.h"
 

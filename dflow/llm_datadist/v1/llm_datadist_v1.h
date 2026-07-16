@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_GRAPH_ENGINE_INC_EXTERNAL_LLM_DATADIST_LLM_DATA_DIST_H_
-#define CANN_GRAPH_ENGINE_INC_EXTERNAL_LLM_DATADIST_LLM_DATA_DIST_H_
+#ifndef DFLOW_LLM_DATADIST_V1_LLM_DATA_DIST_V1_H_
+#define DFLOW_LLM_DATADIST_V1_LLM_DATA_DIST_V1_H_
 
 #include <cstdint>
 #include <map>
@@ -322,4 +322,4 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
 };
 }  // namespace llm_datadist
 
-#endif  // CANN_GRAPH_ENGINE_INC_EXTERNAL_LLM_DATADIST_LLM_DATA_DIST_H_
+#endif  // DFLOW_LLM_DATADIST_V1_LLM_DATA_DIST_V1_H_

@@ -12,8 +12,8 @@
 #define AIR_RUNTIME_LLM_ENGINE_INC_LLM_DATADIST_INTERNAL_H
 
 #include "ge/ge_ir_build.h"
-#include "llm_datadist/llm_engine_types.h"
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_engine_types_v1.h"
+#include "llm_error_codes_v1.h"
 #include "common/llm_inner_types.h"
 #include "common/common.h"
 
