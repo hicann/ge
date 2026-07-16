@@ -72,6 +72,8 @@ DECLARE_string(tiling_schedule_optimize);
 DECLARE_string(atomic_clean_policy);
 DECLARE_string(status_check);
 DECLARE_string(input_shape_range);
+DECLARE_string(host_env_os);
+DECLARE_string(host_env_cpu);
 
 DECLARE_string(oo_level);
 DECLARE_string(cluster_config);

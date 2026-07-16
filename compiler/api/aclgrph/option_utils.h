@@ -131,6 +131,7 @@ Status UpdateDataOpShapeRange(const OpDescPtr &op,
                               const std::vector<std::vector<std::pair<int64_t, int64_t>>> &index_shape_range_map);
 Status UpdateDynamicInputShapeRange(const ge::ComputeGraphPtr &compute_graph, const std::string &input_shape_range);
 void UpdateDataOpFormat(const OpDescPtr &op, const std::string &format);
+Status CheckHostEnvOsAndHostEnvCpuStringValid(const std::string &host_env_os, const std::string &host_env_cpu);
 Status CheckHostEnvOsAndHostEnvCpuValid(const std::string &host_env_os, const std::string &host_env_cpu);
 void SetDefaultHostEnvOsAndHostEnvCpu(std::string &host_env_os, std::string &host_env_cpu);
 Status CheckOm2HostEnvValid(const std::string &host_env_os, const std::string &host_env_cpu);

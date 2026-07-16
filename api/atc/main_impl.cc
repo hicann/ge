@@ -999,6 +999,9 @@ class GFlagUtils {
         GE_ASSERT_SUCCESS(ge::InsertAippOpUtil::ValidateStaticAippOnly(FLAGS_insert_op_conf),
                           "[Check][OM2][InsertOpConf] Dynamic AIPP is not supported in OM2 mode.");
       }
+    } else {
+      GE_ASSERT_SUCCESS(ge::CheckHostEnvOsAndHostEnvCpuStringValid(FLAGS_host_env_os, FLAGS_host_env_cpu),
+                        "[Check][HostEnvOsCpu] failed!");
     }
 
     GE_ASSERT_SUCCESS(CheckAllowHF32ParamValid(FLAGS_allow_hf32), "[Check][AllowHF32]failed!");

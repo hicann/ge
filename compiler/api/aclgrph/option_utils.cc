@@ -114,6 +114,8 @@ const char *const kInputShapeRangeSample7 = "\"n1~n2,c1,h1,w1;n3,c2,h2,w2\"";
 const char *const kHintInputShape = "ge.inputHintShape";
 
 const std::unordered_set<std::string> kSupportedPrintMode = {"enable", "disable"};
+const std::unordered_set<std::string> kValidHostEnvOs = {"minios", "linux"};
+const std::unordered_set<std::string> kValidHostEnvCpu = {"x86_64", "aarch64", "arm64", "arm"};
 
 constexpr const char *kExternalWeightDisabled = "0";  // 禁用外置权重
 constexpr const char *kExternalWeightEnabled = "1";   // 启用外置权重，每个权重单独导出
@@ -1557,6 +1559,25 @@ std::string SupportedHostEnvCpuList(std::unordered_set<std::string> &supported_o
   }
 
   return opp_supported_cpu;
+}
+
+Status CheckHostEnvOsAndHostEnvCpuStringValid(const std::string &host_env_os, const std::string &host_env_cpu) {
+  if (kValidHostEnvOs.count(host_env_os) == 0U) {
+    const std::string reason = "The OS " + host_env_os + " is invalid. It should be like 'linux' or 'minios'.";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"--host_env_os", host_env_os.c_str(), reason.c_str()}));
+    GELOGE(PARAM_INVALID, "%s", reason.c_str());
+    return PARAM_INVALID;
+  }
+  if (kValidHostEnvCpu.count(host_env_cpu) == 0U) {
+    const std::string reason =
+        "The CPU " + host_env_cpu + " is invalid. It should be like 'x86_64', 'aarch64', 'arm64', or 'arm'.";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"--host_env_cpu", host_env_cpu.c_str(), reason.c_str()}));
+    GELOGE(PARAM_INVALID, "%s", reason.c_str());
+    return PARAM_INVALID;
+  }
+  return SUCCESS;
 }
 
 Status CheckHostEnvOsAndHostEnvCpuValid(const std::string &host_env_os, const std::string &host_env_cpu) {
