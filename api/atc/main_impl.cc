@@ -1464,7 +1464,6 @@ Status GenerateInfershapeJson() {
     DOMI_LOGE("GeGenerator initialize failed!");
     return FAILED;
   }
-  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
 
   Graph graph;
   std::map<std::string, std::string> atc_params;
@@ -1500,14 +1499,7 @@ static Status ConvertModelToJson(int32_t fwk_type, const std::string &model_file
     ret = ConvertOm(model_file.c_str(), json_file.c_str(), true);
     return ret;
   }
-  ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before converting model to json, continue initialization, ret[%u].", ret);
-  }
-  GE_MAKE_GUARD(release_python_runtime, []() {
-    (void)ge::custom_op::ShutdownCustomOpsForProcess();
-    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
-  });
+  GE_MAKE_GUARD(release_custom_ops, []() { (void)ge::custom_op::ShutdownCustomOpsForProcess(); });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   // Need to save caffe.proto path
   SaveCustomCaffeProtoPath();
@@ -1696,18 +1688,7 @@ Status GenerateModel(std::map<std::string, std::string> &options, const std::str
   GeGenerator ge_generator;
   Status ret = SUCCESS;
   std::shared_ptr<GELib> instance_ptr = GELib::GetInstance();
-  bool release_python_runtime = false;
-  GE_DISMISSABLE_GUARD(release_python_runtime_guard, ([&release_python_runtime]() {
-                         if (release_python_runtime) {
-                           (void)GePythonRuntimeManager::Instance().ShutdownProcess();
-                         }
-                       }));
   if (instance_ptr == nullptr || !instance_ptr->InitFlag()) {
-    ret = GePythonRuntimeManager::Instance().EnsureReady();
-    if (ret != SUCCESS) {
-      GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", ret);
-    }
-    release_python_runtime = true;
     ret = GELib::Initialize(options);
     if (ret != SUCCESS) {
       DOMI_LOGE("GE initialize failed!");
@@ -1723,10 +1704,8 @@ Status GenerateModel(std::map<std::string, std::string> &options, const std::str
   const std::function<void()> callback = [&ge_generator]() {
     (void)ge_generator.Finalize();
     (void)GELib::GetInstance()->Finalize();
-    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   };
   GE_MAKE_GUARD(release, callback);
-  release_python_runtime = false;
   GELOGD("Current input is single graph to generate model.");
   return GenerateModelBySingleGraph(ge_generator, output, options);
 }
@@ -1832,13 +1811,8 @@ Status GenerateSingleOp(const std::string &json_file_path) {
   // print single op option map
   PrintOptionMap(options, "single op option");
 
-  auto ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before generating single op, continue initialization, ret[%u].", ret);
-  }
-  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
-  ret = GELib::Initialize(options);
+  auto ret = GELib::Initialize(options);
   if (ret != SUCCESS) {
     DOMI_LOGE("GE initialize failed!");
     return FAILED;
@@ -2065,11 +2039,6 @@ Status PrepareOmGeneration() {
                    "[Check][Flags] failed! Please check whether some atc params that include semicolons[;] use double "
                    "quotation marks (\") to enclose each argument such as out_nodes, input_shape, dynamic_image_size");
 #if !defined(__ANDROID__) && !defined(ANDROID)
-  const auto python_runtime_ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (python_runtime_ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before preparing OM generation, continue initialization, ret[%u].",
-           python_runtime_ret);
-  }
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   LoadCustomOpLib(true);
   SaveCustomCaffeProtoPath();
@@ -2364,6 +2333,13 @@ int32_t main_impl(int32_t argc, char *argv[]) {
   if (LoadRawOptionsForAtc(raw_options) != SUCCESS) {
     return static_cast<int32_t>(CheckRet(-1));
   }
+
+  const auto python_runtime_ret = GePythonRuntimeManager::Instance().EnsureReady();
+  if (python_runtime_ret != SUCCESS) {
+    GELOGW("[Ensure][PythonRuntime] failed before running ATC, continue initialization, ret[%u].", python_runtime_ret);
+  }
+  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
+
   ret = (CheckGlobalOptionsBeforeRun() == SUCCESS && RunAtcByMode(raw_options) == SUCCESS) ? SUCCESS : FAILED;
 
   // Tbe may print ... without Enter when some op compile slow, here atc add "...\n" to display better at last

@@ -44,8 +44,6 @@
 #include "common/dump/dump_callback.h"
 #include "graph/operator_factory_impl.h"
 #include "common/helper/custom_op_so_loader.h"
-#include "common/python_runtime/ge_python_runtime_manager.h"
-#include "framework/common/scope_guard.h"
 
 namespace {
 constexpr size_t kDynamicBatchSizeVecSize = 1U;
@@ -275,12 +273,6 @@ Status GeExecutor::Initialize(const std::map<std::string, std::string> &options)
   // 备份并清空注册信息map
   OperatorFactoryImpl::BackupAndClearRegInfoOnce();
 
-  GELOGI("Init GeExecutor begin.");
-  Status python_runtime_ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (python_runtime_ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", python_runtime_ret);
-  }
-  GE_DISMISSABLE_GUARD(release_python_runtime, ([]() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); }));
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
 
   const std::string path_base = GetModelPath();
@@ -331,7 +323,6 @@ Status GeExecutor::Initialize(const std::map<std::string, std::string> &options)
   OperatorFactoryImpl::MergeBackupCreatorsOnce();
   is_inited_.store(true);
   GELOGI("Init GeExecutor over.");
-  GE_DISMISS_GUARD(release_python_runtime);
   return SUCCESS;
 }
 

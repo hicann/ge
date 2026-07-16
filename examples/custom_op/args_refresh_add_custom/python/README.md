@@ -33,7 +33,11 @@ args_refresh_add_custom
 
 ## 前置条件
 
-- 已完成 CANN 环境变量设置，设置方式为 `source ${ASCEND_HOME_PATH}/set_env.sh`
+- 参考 [安装指导](../../../../docs/zh/quick_install.md) 正确安装`toolkit`和`ops`包
+- 设置环境变量（假设包安装在 /usr/local/Ascend/）
+```
+source /usr/local/Ascend/cann/set_env.sh
+```
 - **run 包编译使用的 Python 版本**与执行本样例的 Python 版本一致。当前 Python 自定义算子加载链路还不支持跨 Python 版本兼容
 - 当前 Python 环境可导入 `ge.custom_op` 和 `acl`
 

@@ -456,16 +456,11 @@ Status GeGenerator::Initialize(const std::map<std::string, std::string> &options
     GELOGE(MEMALLOC_FAILED, "[Create][Impl] Make shared failed");
     return MEMALLOC_FAILED;
   }
-  Status ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", ret);
-  }
-  GE_DISMISSABLE_GUARD(release_python_runtime, ([]() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); }));
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   // 加载顺序遵循3.0目录结构，按op_graph->op_impl->op_proto->framework顺序加载，详细规则见PluginManager::GetOpsProtoPath注释
   gert::OppPackageUtils::LoadAllOppPackage();
   std::string opsproto_path;
-  ret = PluginManager::GetOpsProtoPath(opsproto_path);
+  Status ret = PluginManager::GetOpsProtoPath(opsproto_path);
   if (ret != SUCCESS) {
     GELOGW("Failed to get ops proto path!");
   }
@@ -494,7 +489,6 @@ Status GeGenerator::Initialize(const std::map<std::string, std::string> &options
   if (iter != options.end()) {
     impl_->build_step_ = iter->second;
   }
-  GE_DISMISS_GUARD(release_python_runtime);
   return SUCCESS;
 }
 
