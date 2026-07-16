@@ -247,16 +247,23 @@ Status ReadRawGeOptionsFile(const std::string &file_path, nlohmann::json &raw_js
   std::ifstream raw_file(file_path);
   if (!raw_file.is_open()) {
     GELOGE(FAILED, "[Check][RawGeOptions]open raw_ge_options file failed. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_path.c_str(), "Open file failed"}));
     return FAILED;
   }
 
   raw_json = nlohmann::json::parse(raw_file, nullptr, false);
   if (raw_json.is_discarded()) {
     GELOGE(FAILED, "[Check][RawGeOptions]parse raw_ge_options json failed. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({file_path.c_str(), "Invalid JSON format"}));
     return FAILED;
   }
   if (!raw_json.is_object()) {
     GELOGE(FAILED, "[Check][RawGeOptions]raw_ge_options json must be an object. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10032", std::vector<const char *>({"file_name", "reason"}),
+        std::vector<const char *>({file_path.c_str(), "The top-level JSON value must be an object"}));
     return FAILED;
   }
   return SUCCESS;
@@ -271,17 +278,27 @@ Status ParseRawCompileOptionLevel(const nlohmann::json &compile_options, const s
   }
   if (!level_iter->is_object()) {
     GELOGE(FAILED, "[Check][RawGeOptions]compile options level [%s] must be an object.", level.c_str());
+    const std::string reason = "Compile options level (level=" + level + ") must be an object";
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
     return FAILED;
   }
 
   for (auto option_iter = level_iter->begin(); option_iter != level_iter->end(); ++option_iter) {
     if (option_iter.key().empty()) {
       GELOGE(FAILED, "[Check][RawGeOptions]option key in level [%s] must not be empty.", level.c_str());
+      const std::string reason = "Option key in level (level=" + level + ") must not be empty";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
     if (!option_iter.value().is_string()) {
       GELOGE(FAILED, "[Check][RawGeOptions]option [%s] in level [%s] must be string.", option_iter.key().c_str(),
              level.c_str());
+      const std::string reason =
+          "Option (option=" + option_iter.key() + ") in level (level=" + level + ") must be a string";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
     raw_options[option_iter.key()] = option_iter.value().get<std::string>();
@@ -295,6 +312,11 @@ Status ParseRawCompileOptions(const nlohmann::json &raw_json, std::map<std::stri
   const auto compile_options_iter = raw_json.find(kRawCompileOptions);
   if ((compile_options_iter == raw_json.end()) || (!compile_options_iter->is_object())) {
     GELOGE(FAILED, "[Check][RawGeOptions]raw_ge_options must contain object [compile options].");
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10032", std::vector<const char *>({"file_name", "reason"}),
+        std::vector<const char *>(
+            {FLAGS_raw_ge_options.c_str(),
+             "The options JSON file must contain an object under the key (key=compile options)."}));
     return FAILED;
   }
 
@@ -303,6 +325,10 @@ Status ParseRawCompileOptions(const nlohmann::json &raw_json, std::map<std::stri
   for (auto level_iter = compile_options_iter->begin(); level_iter != compile_options_iter->end(); ++level_iter) {
     if (supported_levels.find(level_iter.key()) == supported_levels.end()) {
       GELOGE(FAILED, "[Check][RawGeOptions]unsupported compile options level [%s].", level_iter.key().c_str());
+      const std::string reason = "Unsupported compile options level (level=" + level_iter.key() +
+                                 "). Supported levels are [global, session, graph]";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
   }
