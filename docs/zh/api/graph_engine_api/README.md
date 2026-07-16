@@ -7,7 +7,6 @@
     - [aclgrphBuildModel](cpp\ge\aclgrphBuildModel.md)
     - [aclgrphBundleBuildModel](cpp\ge\aclgrphBundleBuildModel.md)
     - [aclgrphBundleSaveModel](cpp\ge\aclgrphBundleSaveModel.md)
-    - [aclgrphCalibration](cpp\ge\aclgrphCalibration.md)
     - [aclgrphConvertToWeightRefreshableGraphs](cpp\ge\aclgrphConvertToWeightRefreshableGraphs.md)
     - [aclgrphDumpGraph](cpp\ge\aclgrphDumpGraph.md)
     - [aclgrphGetIRVersion](cpp\ge\aclgrphGetIRVersion.md)
