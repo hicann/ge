@@ -17,6 +17,7 @@
 #include "framework/common/om2_tensor_desc.h"
 
 namespace gert {
+struct Om2ModelData;
 class RtSession;
 
 struct VISIBILITY_EXPORT Om2ModelLoadArg {
@@ -29,6 +30,7 @@ struct VISIBILITY_EXPORT Om2ModelLoadArg {
   gert::RtSession *rt_session = nullptr;
   std::vector<ge::FileConstantMem> file_constant_mems;
   bool need_clear_dfx_cache = false;
+  std::string om_path;
 };
 
 class VISIBILITY_EXPORT Om2ModelExecutor {
@@ -41,6 +43,9 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   Om2ModelExecutor &operator=(const Om2ModelExecutor &) = delete;
   Om2ModelExecutor &operator=(Om2ModelExecutor &&) = delete;
 
+  /// 新接口：直接从 Om2ModelData 加载（统一入口）
+  ge::Status Load(const gert::Om2ModelData &model_data, const Om2ModelLoadArg &load_arg,
+                  const uint64_t session_id) const;
   ge::Status Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg, const uint64_t session_id) const;
   ge::Status Run(std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
   ge::Status RunAsync(void *const stream, std::vector<gert::Tensor *> &inputs,

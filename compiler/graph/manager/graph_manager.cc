@@ -22,6 +22,7 @@
 #include "common/checker.h"
 #include "common/math/ge_math_util.h"
 #include "common/memory/mem_type_utils.h"
+#include "common/helper/om2/om2_utils.h"
 #include "common/thread_pool/thread_pool.h"
 #include "common/dump/dump_manager.h"
 #include "common/file_constant_utils/file_constant_utils.h"
@@ -140,6 +141,9 @@
 #include "acl/acl_rt.h"
 #include "graph/preprocess/hccl_offline_option_builder.h"
 #include "runtime/custom_op/custom_op_loader.h"
+#include "common/om2/om2_model_data.h"
+#include "common/helper/om2/om2_zip_saver.h"
+#include "framework/common/helper/om2_package_helper.h"
 
 namespace ge {
 namespace {
@@ -445,6 +449,31 @@ Status OptimizeTensorMove(ge::ComputeGraphPtr &compute_graph) {
   return SUCCESS;
 }
 
+ge::Status BuildOm2PackageIfNeeded(const GraphNodePtr &graph_node, const GeRootModelPtr &ge_root_model) {
+  if (!IsOm2OnlineMode()) {
+    return ge::SUCCESS;
+  }
+  GE_ASSERT_NOTNULL(ge_root_model);
+
+  const auto &root_graph = ge_root_model->GetRootGraph();
+  GE_ASSERT_NOTNULL(root_graph);
+  const auto &name_to_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  auto it = name_to_model.find(root_graph->GetName());
+  if (it == name_to_model.end()) {
+    GELOGE(ge::FAILED, "Cannot find GeModel for root graph %s", root_graph->GetName().c_str());
+    return ge::FAILED;
+  }
+  GeModelPtr ge_model = it->second;
+
+  auto model_data = std::make_shared<gert::Om2ModelData>();
+  Om2PackageHelper package_helper;
+  GE_ASSERT_SUCCESS(package_helper.BuildOm2ModelData(ge_model, *model_data, ge_root_model));
+  ge_root_model->SetOm2ModelData(std::move(model_data));
+
+  GELOGI("OM2 model data built successfully for graph %u", graph_node->GetGraphId());
+  return ge::SUCCESS;
+}
+
 }  // namespace
 GraphManager::~GraphManager() {
   // set thread local omg_contex to default, to avoid other use invalid memory
@@ -722,6 +751,7 @@ Status GraphManager::CreateGraphNode(uint32_t graph_id, const Graph &graph,
   ParseOption(options, TUNING_PATH, options_.tuning_path);
   ParseOption(options, BUILD_INNER_MODEL, options_.build_inner_model);
   graph_node->SetOptions(options);
+
   graph_node->SetGraph(graph_ptr);
   graph_node->IncreaseLoadCount();
   AddGraphNode(graph_id, graph_node);
@@ -1616,6 +1646,7 @@ Status GraphManager::StartForRunGraph(const GraphNodePtr &graph_node, const std:
       GELOGE(ret, "[Call][PreRun] Failed, graph_id:%u, session_id:%" PRIu64 ".", graph_node->GetGraphId(), session_id);
       return ret;
     }
+    GE_ASSERT_SUCCESS(BuildOm2PackageIfNeeded(graph_node, ge_root_model));
     graph_node->SetBuildFlag(true);
     GE_ASSERT_NOTNULL(graph_rebuild_state_ctrl_);
     graph_rebuild_state_ctrl_->SetGraphBuildEnd(graph_node->GetGraphId());
@@ -2840,6 +2871,13 @@ Status GraphManager::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_
   }
   const auto ge_root_model = graph_node->GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model, "graph_id:%u", graph_id);
+
+  // OM2 mode: serialize Om2ModelData to ModelBufferData
+  if (IsOm2OnlineMode() && ge_root_model->HasOm2ModelData()) {
+    const auto &om2_model_data = ge_root_model->GetOm2ModelData();
+    return ge::Om2ZipSaver::Save(om2_model_data, model_buffer, false);
+  }
+
   return SaveRootModel(ge_root_model, model_buffer);
 }
 
@@ -3723,6 +3761,11 @@ Status GraphManager::RunGraphAsync(const GraphId &graph_id, std::vector<gert::Te
     return status;
   }
   GetThreadLocalContext().SetGraphOption(graph_node->GetOptions());
+  if (IsOm2OnlineMode()) {
+    GELOGE(GE_GRAPH_UNSUPPORTED,
+           "[OM2][Check] RunGraphAsync queue path is unsupported in OM2 online mode, graph_id:%u.", graph_id);
+    return GE_GRAPH_UNSUPPORTED;
+  }
   std::shared_ptr<RunArgs> args;
   GE_MAKE_SHARED(args = std::make_shared<RunArgs>(), return FAILED);
   GE_ASSERT_NOTNULL(args);
@@ -4849,6 +4892,11 @@ Status GraphManager::SetFixedFeatureMemoryBase(uint32_t graph_id, MemoryType typ
            graph_id);
     return GE_GRAPH_UNSUPPORTED;
   }
+  if (IsOm2OnlineMode()) {
+    GELOGE(GE_GRAPH_UNSUPPORTED,
+           "[OM2][Check] Fixed feature memory base is unsupported in OM2 online mode, graph_id:%u.", graph_id);
+    return GE_GRAPH_UNSUPPORTED;
+  }
   std::string reason;
   if (!IsMemoryAndTypeSupport(graph_node, type, memory, size, reason)) {
     GELOGE(GE_GRAPH_UNSUPPORTED, "%s", reason.c_str());
@@ -4910,6 +4958,12 @@ Status GraphManager::UpdateRefreshableFeatureMemoryBase(uint32_t graph_id, const
   const auto compute_graph = graph_node->GetComputeGraph();
   GE_ASSERT_NOTNULL(compute_graph, "graph_id:%u.", graph_id);
   GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not support for dynamic compiled graph.");
+
+  if (IsOm2OnlineMode()) {
+    GELOGE(GE_GRAPH_UNSUPPORTED,
+           "[OM2][Check] Refreshable feature memory base is unsupported in OM2 online mode, graph_id:%u.", graph_id);
+    return GE_GRAPH_UNSUPPORTED;
+  }
 
   if (memory == nullptr) {
     GELOGE(PARAM_INVALID, "[Check][Param] invalid null memory ptr , graph_id:%u.", graph_id);
@@ -5143,6 +5197,7 @@ Status GraphManager::CompileGraph(uint32_t graph_id, uint64_t session_id, const 
   const auto ret = PreRun(graph_node, ge_tensor_inputs, ge_root_model, session_id);
   GE_ASSERT_SUCCESS(ret, "[Call][PreRun] Failed, graph_id:%u, session_id:%" PRIu64 ".", graph_node->GetGraphId(),
                     session_id);
+  GE_ASSERT_SUCCESS(BuildOm2PackageIfNeeded(graph_node, ge_root_model));
 
   graph_node->SetBuildFlag(true);
   GE_ASSERT_NOTNULL(graph_rebuild_state_ctrl_);

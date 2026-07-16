@@ -59,6 +59,34 @@ using namespace std;
 namespace ge {
 using Json = nlohmann::json;
 namespace {
+class EnvValueGuard {
+ public:
+  explicit EnvValueGuard(const char *name) : name_(name) {
+    const char *value = std::getenv(name_.c_str());
+    if (value != nullptr) {
+      old_value_ = value;
+      had_value_ = true;
+    }
+  }
+
+  ~EnvValueGuard() {
+    if (had_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+    } else {
+      (void)unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool had_value_ = false;
+};
+
+void EnableOm2OnlineMode() {
+  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
+}
+
 constexpr size_t kMaxSleepTimes = 15U;
 class FakeLabelMaker : public LabelMaker {
  public:
@@ -2293,6 +2321,37 @@ TEST_F(UtestGeApiV2, QuerySameVersionIr) {
   EXPECT_TRUE(::IsIrRepSupport(INFERENCE_RULE));
   EXPECT_FALSE(::IsIrRepSupport("future_new_feature_rule"));
   EXPECT_FALSE(::IsIrRepSupport(""));
+}
+
+TEST_F(UtestGeApiV2, RunGraphAsync_ReturnsUnsupportedInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  std::vector<gert::Tensor> inputs;
+  bool callback_called = false;
+  const auto callback = [&callback_called](Status status, std::vector<gert::Tensor> &outputs) {
+    (void)status;
+    (void)outputs;
+    callback_called = true;
+  };
+  EXPECT_NE(session.RunGraphAsync(1U, inputs, callback), SUCCESS);
+  EXPECT_FALSE(callback_called);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, GraphDebugJSONPrint_ReturnsFailureInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  AscendString json_result;
+  EXPECT_NE(session.GraphDebugJSONPrint(1U, 0U, json_result), SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 
 TEST_F(UtestGeApiV2, GEInitialize_long_option_value) {

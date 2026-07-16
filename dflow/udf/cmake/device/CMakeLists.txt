@@ -62,7 +62,7 @@ add_custom_target(pack_udf_compat ALL
 )
 
 if (ENABLE_SIGN)
-    sign_file(
+    add_cann_sign_file(
             INPUT "${CMAKE_BINARY_DIR}/${PACKAGE_TAR_FILE_NAME}"
             CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/sign/sign.xml
             RESULT_VAR "udf_compat_sign_file"
@@ -130,7 +130,7 @@ if (ENABLE_SIGN)
     add_custom_target(pack_runtime_device ALL
             DEPENDS ${CMAKE_BINARY_DIR}/${RUNTIME_PACKAGE_TAR_FILE_NAME}
     )
-    sign_file(
+    add_cann_sign_file(
             INPUT "${CMAKE_BINARY_DIR}/${RUNTIME_PACKAGE_TAR_FILE_NAME}"
             CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/sign/runtime_dev_sign.xml
             RESULT_VAR "runtime_device_sign_file"

@@ -65,7 +65,6 @@ file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS
         "common/helper/om2_package_helper.cc"
         "common/helper/visual_json_converter.cc"
 )
-
 set(SRC_BASE_LIST
     "common/context/ctx.cc"
     "common/context/local_context.cc"

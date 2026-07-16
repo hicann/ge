@@ -101,13 +101,13 @@ Status DSATaskCodeBuilder::InitHbmArgsTable(TaskSemanticContributeContext &conte
   *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(hbm_entry_->args_size));
 
   for (auto &addr : input_addrs_) {
-    if (addr.memory_app == MemoryAppType::kModelIo) {
+    if (addr.memory_app == om2::MemoryAppType::kModelIo) {
       (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset), hbm_entry_->host_offset});
     }
   }
   for (auto &addr : output_addrs_) {
-    if (addr.memory_app == MemoryAppType::kModelIo) {
+    if (addr.memory_app == om2::MemoryAppType::kModelIo) {
       (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset), hbm_entry_->host_offset});
     }

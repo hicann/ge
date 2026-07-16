@@ -14,7 +14,12 @@
 #include <thread>
 
 #include "common/model/executor.h"
+#include "framework/common/om2_tensor_desc.h"
 #include "graph/execute/graph_executor.h"
+
+namespace gert {
+class Om2ModelManager;
+}  // namespace gert
 
 namespace ge {
 class ModelExecutor : public Executor {
@@ -134,12 +139,25 @@ class ModelExecutor : public Executor {
   void ReturnError(const RunAsyncCallbackV2 &callback, const Status ret, const std::string &log_info) const;
   bool DoReleaseModel(const GeRootModelPtr &ge_root_model, const GraphNodePtr &loaded_graph_node) const;
 
+  ge::Status LoadOm2Graph(const GeRootModelPtr &ge_root_model, const GraphNodePtr &graph_node,
+                          const aclrtStream stream);
+  ge::Status RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph_id, const aclrtStream stream,
+                         const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
+  ge::Status UnloadOm2Graph(uint32_t graph_id);
+  ge::Status GetOm2ModelTensorDesc(const GraphNodePtr &graph_node, const std::vector<ge::Om2TensorDesc> *&input_desc,
+                                   const std::vector<ge::Om2TensorDesc> *&output_desc) const;
+  ge::Status ValidateOm2Tensors(const std::vector<ge::Om2TensorDesc> &descs, const std::vector<gert::Tensor> &tensors,
+                                const char *kind, uint32_t graph_id) const;
+  ge::Status PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vector<gert::Tensor> &outputs) const;
+
   bool init_flag_{false};
   uint64_t session_id_{0U};
   GraphExecutor graph_executor_;
 
   std::mutex mutex_;
   std::map<GraphId, GraphNodePtr> graph_nodes_;
+  std::map<uint32_t, uint32_t> om2_graph_to_model_map_;
+  std::mutex om2_map_mutex_;
 
   std::thread run_thread_;
   std::atomic_bool thread_run_flag_{false};

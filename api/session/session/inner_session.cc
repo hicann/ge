@@ -42,6 +42,7 @@
 #include <api/gelib/gelib.h>
 #include "common/memory/tensor_trans_utils.h"
 #include "register/core_num_utils.h"
+#include "common/helper/om2/om2_utils.h"
 
 namespace ge {
 void CopyGeOutputsMemToUserOutputs(const std::vector<GeTensor> &ge_outputs, std::vector<Tensor> &outputs) {
@@ -824,6 +825,13 @@ Status InnerSession::UnregisterExternalAllocator(const void *const stream) const
 }
 
 Status InnerSession::PaRemapped(const uint64_t va, const uint64_t new_pa, const uint64_t len) const {
+  if (IsOm2OnlineMode()) {
+    GELOGE(GE_GRAPH_UNSUPPORTED,
+           "[OM2][Check] PaRemapped is unsupported in OM2 online mode, va:%" PRIu64 ", new_pa:%" PRIu64 ", len:%" PRIu64
+           ".",
+           va, new_pa, len);
+    return GE_GRAPH_UNSUPPORTED;
+  }
   const auto &ordered_graph_ids = graph_manager_.GetOrderedGraphIds();
   GE_ASSERT_TRUE(!(ordered_graph_ids.empty()), "[PaRemapped][Graph]there is no graph, InnerSession:%ld", session_id_);
   Status ret;

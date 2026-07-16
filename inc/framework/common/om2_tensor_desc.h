@@ -22,7 +22,7 @@ namespace ge {
 
 class VISIBILITY_EXPORT Om2TensorDesc {
  public:
-  Om2TensorDesc();
+  Om2TensorDesc() : size_(0) {}
   ~Om2TensorDesc() = default;
 
   Om2TensorDesc(const Om2TensorDesc &) = default;
@@ -30,29 +30,67 @@ class VISIBILITY_EXPORT Om2TensorDesc {
   Om2TensorDesc &operator=(const Om2TensorDesc &) = default;
   Om2TensorDesc &operator=(Om2TensorDesc &&) = default;
 
-  // Setters
-  void SetDataType(DataType data_type);
-  void SetFormat(Format format);
-  void SetShape(const std::vector<int64_t> &dims);
-  void SetName(const std::string &name);
-  void SetShapeRange(const std::vector<std::pair<int64_t, int64_t>> &shape_range);
-  void SetSize(size_t size);
+  void SetDataType(DataType data_type) {
+    data_type_ = data_type;
+  }
+  void SetFormat(Format format) {
+    format_ = format;
+  }
+  void SetShape(const std::vector<int64_t> &dims) {
+    dims_ = dims;
+  }
+  void SetName(const std::string &name) {
+    name_ = name;
+  }
+  void SetShapeRange(const std::vector<std::pair<int64_t, int64_t>> &shape_range) {
+    shape_range_ = shape_range;
+  }
+  void SetSize(size_t size) {
+    size_ = size;
+  }
 
-  // Getters
-  DataType GetDataType() const;
-  Format GetFormat() const;
-  const std::vector<int64_t> &GetShape() const;
-  const std::string &GetName() const;
-  const std::vector<std::pair<int64_t, int64_t>> &GetShapeRange() const;
-  size_t GetSize() const;
+  DataType GetDataType() const {
+    return data_type_;
+  }
+  Format GetFormat() const {
+    return format_;
+  }
+  const std::vector<int64_t> &GetShape() const {
+    return dims_;
+  }
+  const std::string &GetName() const {
+    return name_;
+  }
+  const std::vector<std::pair<int64_t, int64_t>> &GetShapeRange() const {
+    return shape_range_;
+  }
+  size_t GetSize() const {
+    return size_;
+  }
 
-  // Additional getters for compatibility
-  Format GetOriginFormat() const;
-  const std::vector<int64_t> &GetOriginShape() const;
+  Format GetOriginFormat() const {
+    return format_;
+  }
+  const std::vector<int64_t> &GetOriginShape() const {
+    return dims_;
+  }
 
-  // Computation methods
-  int64_t GetElementNum() const;
-  size_t GetByteSize() const;
+  int64_t GetElementNum() const {
+    if (dims_.empty()) {
+      return 0;
+    }
+    int64_t element_num = 1;
+    for (int64_t dim : dims_) {
+      if (dim < 0) {
+        return 0;
+      }
+      element_num *= dim;
+    }
+    return element_num;
+  }
+  size_t GetByteSize() const {
+    return size_;
+  }
 
  private:
   DataType data_type_ = DT_UNDEFINED;

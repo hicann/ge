@@ -12,6 +12,7 @@ set(EXECUTOR_SRC_LIST
     executor/ge_executor.cc
     graph/execute/graph_executor.cc
     graph/execute/model_executor.cc
+    ${AIR_CODE_DIR}/runtime/om2/om2_model_manager.cc
     graph/load/graph_loader.cc
     graph/load/model_manager/model_manager.cc
     common/profiling/ge_profiling.cc
@@ -221,6 +222,7 @@ target_include_directories(ge_executor PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v2
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
@@ -249,6 +251,7 @@ target_link_libraries(ge_executor PRIVATE
     json
     ascend_dump
     c_sec
+    om2_executor
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
     -ldl
 )
@@ -280,6 +283,7 @@ target_include_directories(ge_executor_shared PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${AIR_CODE_DIR}
     ${AIR_CODE_DIR}/base
+    ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v2
     ${AIR_CODE_DIR}/compiler
     ${AIR_CODE_DIR}/inc
@@ -336,6 +340,7 @@ target_link_libraries(ge_executor_shared
         -ldl
     PUBLIC
         air_headers
+        om2_executor
 )
 
 set_target_properties(ge_executor_shared PROPERTIES
@@ -368,6 +373,7 @@ target_include_directories(davinci_executor PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v1
     ${AIR_CODE_DIR}/runtime/v2
     ${CMAKE_BINARY_DIR}
@@ -462,6 +468,7 @@ target_include_directories(hybrid_executor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${AIR_CODE_DIR}
     ${AIR_CODE_DIR}/base
+    ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v2
     ${AIR_CODE_DIR}/compiler
     ${AIR_CODE_DIR}/inc
@@ -570,6 +577,7 @@ target_compile_definitions(hybrid_executor_stub PRIVATE
 target_include_directories(hybrid_executor_stub PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${AIR_CODE_DIR}/base
+    ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v2
     ${AIR_CODE_DIR}/compiler
     ${CMAKE_CURRENT_LIST_DIR}

@@ -21,6 +21,7 @@
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "framework/runtime/rt_session.h"
+#include "ge/ge_ir_build.h"
 #include "common/env_path.h"
 #include "common/helper/om2/zip_archive_writer.h"
 #include "common/path_utils.h"
@@ -39,6 +40,7 @@ constexpr uintptr_t kFakeRtModelHandleValue = 0x12345678U;
 struct ModelDataHolder {
   ge::ModelData model_data{};
   std::unique_ptr<char[]> buffer;
+  std::shared_ptr<uint8_t> shared_buffer;
 };
 
 std::string GetParentDir(const std::string &path) {
@@ -233,6 +235,54 @@ std::string MakeModelMetaJson() {
     ],
     "work_size": 2048,
     "zero_copy_size": 0,
+    "user_designate_shape_order": []
+})";
+}
+
+std::string MakeModelMetaJsonWithZeroCopySize() {
+  return R"({
+    "dynamic_batch_info": [],
+    "dynamic_output_shape": [],
+    "dynamic_type": 0,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "data1",
+            "origin_input_dims": [1, -1, 3, 4],
+            "shape": [1, 2, 3, 4],
+            "shape_range": [],
+            "shape_v2": [1, 8, 3, 4],
+            "size": 0
+        },
+        {
+            "data_type": "DT_FLOAT",
+            "format": "NCHW",
+            "index": 1,
+            "name": "data2",
+            "origin_input_dims": [1, 1, -1, 224],
+            "shape": [1, 1, 224, 224],
+            "shape_range": [],
+            "shape_v2": [1, 1, 448, 224],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "root_graph_name": "root_g1",
+    "outputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "output_0_reshape1_0",
+            "shape": [],
+            "shape_range": [],
+            "size": 4
+        }
+    ],
+    "work_size": 2048,
+    "zero_copy_size": 1024,
     "user_designate_shape_order": []
 })";
 }
@@ -1142,6 +1192,109 @@ TEST_F(Om2ModelExecutorUt, load_ok) {
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 }
 
+TEST_F(Om2ModelExecutorUt, load_ok_with_zip_archive_writer_base_name_prefix) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_mem_path = PathUtils::Join({test_work_dir_, "load_with_base_prefix.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+  const std::string archive_constant_path = PathUtils::Join({test_work_dir_, "constant_0"});
+  const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "model_0_constants_config.json"});
+
+  ZipArchiveWriter zip_writer(om2_mem_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", archive_constant_path, false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/constants/model_0_constants_config.json", archive_constant_cfg_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+  ASSERT_NE(model_buf.data, nullptr);
+  ASSERT_GT(model_buf.length, 0U);
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_mem_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  const auto load_arg = MakeOm2LoadArg();
+  EXPECT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_model_meta) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_mem_path = PathUtils::Join({test_work_dir_, "load_with_zero_copy.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_mem_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithZeroCopySize();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+  ASSERT_NE(model_buf.data, nullptr);
+  ASSERT_GT(model_buf.length, 0U);
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_mem_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg{MakeOm2LoadArg()};
+  std::vector<uint8_t> external_work(1024U, 0U);
+  load_arg.work_ptr = external_work.data();
+  load_arg.work_size = external_work.size();
+  ASSERT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
+
+  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  ASSERT_EQ(executor.GetModelDescInfo(input_desc, output_desc, false), SUCCESS);
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_EQ(input_desc->size(), 2U);
+  EXPECT_EQ((*input_desc)[0].GetShape(), std::vector<int64_t>({1, 2, 3, 4}));
+  EXPECT_EQ((*input_desc)[1].GetShape(), std::vector<int64_t>({1, 1, 224, 224}));
+
+  const std::vector<ge::Om2TensorDesc> *input_desc_v2 = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc_v2 = nullptr;
+  ASSERT_EQ(executor.GetModelDescInfo(input_desc_v2, output_desc_v2, true), SUCCESS);
+  ASSERT_NE(input_desc_v2, nullptr);
+  ASSERT_EQ(input_desc_v2->size(), 2U);
+  EXPECT_EQ((*input_desc_v2)[0].GetShape(), std::vector<int64_t>({1, 8, 3, 4}));
+  EXPECT_EQ((*input_desc_v2)[1].GetShape(), std::vector<int64_t>({1, 1, 448, 224}));
+
+  const auto &origin_input_dims = executor.GetOriginInputDims();
+  ASSERT_EQ(origin_input_dims.size(), 2U);
+  EXPECT_EQ(origin_input_dims[0], std::vector<int64_t>({1, -1, 3, 4}));
+  EXPECT_EQ(origin_input_dims[1], std::vector<int64_t>({1, 1, -1, 224}));
+}
+
+TEST_F(Om2ModelExecutorUt, load_uses_external_work_ptr_when_size_is_enough) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  std::vector<uint8_t> external_work(4096U, 0U);
+  load_arg.work_ptr = external_work.data();
+  load_arg.work_size = external_work.size();
+
+  EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
+  EnvValueGuard guard_value("OM2_EXPECT_WORK_PTR_VALUE");
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "EQUAL", 1), 0);
+  const std::string expected_ptr = PtrToHexString(external_work.data());
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_VALUE", expected_ptr.c_str(), 1), 0);
+
+  EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
 TEST_F(Om2ModelExecutorUt, load_runtime_so_without_creating_workspace) {
   auto model_data_holder = LoadValidModelData();
   const std::string ascend_work_path = PathUtils::Join({test_work_dir_, "load_without_workspace"});
@@ -1599,14 +1752,7 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_from_mem_ok) {
 
 // 辅助函数：生成带属性的op_attr.json
 static std::string MakeOpAttrJson() {
-  return R"({
-    "test_op": {
-      "_datadump_original_op_names": {
-        "type": "LIST_STRING",
-        "value": ["original_op1", "original_op2"]
-      }
-    }
-  })";
+  return R"({"test_op":{"_datadump_original_op_names":"[12]original_op1[12]original_op2"}})";
 }
 
 // 辅助函数：生成空op_attr.json
@@ -1621,24 +1767,7 @@ static std::string MakeInvalidOpAttrJson() {
 
 // 辅助函数：生成多个算子属性的op_attr.json
 static std::string MakeMultipleOpAttrJson() {
-  return R"({
-    "op1": {
-      "_datadump_original_op_names": {
-        "type": "LIST_STRING",
-        "value": ["orig1", "orig2"]
-      },
-      "_another_attr": {
-        "type": "STRING",
-        "value": "test_value"
-      }
-    },
-    "op2": {
-      "_datadump_original_op_names": {
-        "type": "LIST_STRING",
-        "value": ["orig3"]
-      }
-    }
-  })";
+  return R"({"op1":{"_datadump_original_op_names":"[5]orig1[5]orig2","_another_attr":"test_value"},"op2":{"_datadump_original_op_names":"[5]orig3"}})";
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {

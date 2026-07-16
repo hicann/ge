@@ -24,6 +24,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/manager/graph_manager.h"
+#include "common/om2/om2_model_data.h"
 #include "api/gelib/gelib.h"
 #include "engines/manager/engine/dnn_engine_manager.h"
 #include "graph/preprocess/hccl_offline_option_builder.h"
@@ -84,6 +85,34 @@ const uint32_t kDoneAdded = 2;
 
 namespace ge {
 namespace {
+class EnvValueGuard {
+ public:
+  explicit EnvValueGuard(const char *name) : name_(name) {
+    const char *value = std::getenv(name_.c_str());
+    if (value != nullptr) {
+      old_value_ = value;
+      had_value_ = true;
+    }
+  }
+
+  ~EnvValueGuard() {
+    if (had_value_) {
+      (void)setenv(name_.c_str(), old_value_.c_str(), 1);
+    } else {
+      (void)unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::string old_value_;
+  bool had_value_ = false;
+};
+
+void EnableOm2OnlineMode() {
+  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
+}
+
 Graph BuildHCCLGraph() {
   DEF_GRAPH(g1) {
     CHAIN(NODE("data1", DATA)->NODE("hcom1", HCOMALLREDUCE)->NODE("relu1", RELU)->NODE("output", NETOUTPUT));
@@ -5583,5 +5612,120 @@ TEST_F(UtestGraphManagerTest, test_compile_graph_need_rebuild) {
   graph_manager.AddGraphNode(graph_id, graph_node);
   std::vector<ge::Tensor> inputs;
   EXPECT_EQ(graph_manager.CompileGraph(graph_id, 0U, inputs), ge::PARAM_INVALID);
+}
+TEST_F(UtestGraphManagerTest, SetConstAndFeatureMemoryBase_RecordForOm2Load) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  StubExecutor executor;
+  graph_manager.executor_ = &executor;
+  GraphNodePtr graph_node;
+  GeModelPtr ge_model;
+  CreateSummaryCompiledModel(graph_node, ge_model);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+  graph_node->SetBuildFlag(true);
+  graph_node->SetCompiledFlag(true);
+
+  std::vector<uint8_t> const_mem(512U, 0U);
+  std::vector<uint8_t> feature_mem(1024U, 0U);
+  EXPECT_EQ(graph_manager.SetConstMemoryBase(graph_id, const_mem.data(), const_mem.size()), SUCCESS);
+  EXPECT_EQ(graph_manager.UpdateFeatureMemoryBase(graph_id, feature_mem.data(), feature_mem.size()), SUCCESS);
+
+  EXPECT_EQ(graph_node->GetConstMemoryBase().first, const_mem.data());
+  EXPECT_EQ(graph_node->GetConstMemoryBase().second, const_mem.size());
+  EXPECT_EQ(graph_node->GetFeatureMemoryBase().first, feature_mem.data());
+  EXPECT_EQ(graph_node->GetFeatureMemoryBase().second, feature_mem.size());
+}
+
+TEST_F(UtestGraphManagerTest, SetFixedFeatureMemoryBase_ReturnsUnsupportedInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  StubExecutor executor;
+  graph_manager.executor_ = &executor;
+  GraphNodePtr graph_node;
+  GeModelPtr ge_model;
+  CreateSummaryCompiledModel(graph_node, ge_model);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+  graph_node->SetBuildFlag(true);
+  graph_node->SetCompiledFlag(true);
+
+  std::vector<uint8_t> mem(1024U, 0U);
+  EXPECT_EQ(graph_manager.SetFixedFeatureMemoryBase(graph_id, MemoryType::MEMORY_TYPE_DEFAULT, mem.data(), mem.size()),
+            GE_GRAPH_UNSUPPORTED);
+}
+
+TEST_F(UtestGraphManagerTest, UpdateRefreshableFeatureMemoryBase_ReturnsUnsupportedInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  StubExecutor executor;
+  graph_manager.executor_ = &executor;
+  GraphNodePtr graph_node;
+  GeModelPtr ge_model;
+  CreateSummaryCompiledModel(graph_node, ge_model);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+  graph_node->SetBuildFlag(true);
+  graph_node->SetCompiledFlag(true);
+
+  std::vector<uint8_t> mem(1024U, 0U);
+  EXPECT_EQ(graph_manager.UpdateRefreshableFeatureMemoryBase(graph_id, mem.data(), mem.size()), GE_GRAPH_UNSUPPORTED);
+}
+
+TEST_F(UtestGraphManagerTest, GetCompiledModel_SerializesOm2ModelDataInOm2Mode) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  StubExecutor executor;
+  graph_manager.executor_ = &executor;
+  GraphNodePtr graph_node;
+  GeModelPtr ge_model;
+  CreateSummaryCompiledModel(graph_node, ge_model);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+  graph_node->SetBuildFlag(true);
+  graph_node->SetCompiledFlag(true);
+
+  const auto om2_data = MakeShared<gert::Om2ModelData>();
+  om2_data->model_meta.model_name = "om2_ut_model";
+  om2_data->model_meta.root_graph_name = "graph";
+  om2_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
+  graph_node->GetGeRootModel()->SetOm2ModelData(om2_data);
+
+  ModelBufferData model_buffer;
+  EXPECT_EQ(graph_manager.GetCompiledModel(graph_id, model_buffer), SUCCESS);
+  EXPECT_NE(model_buffer.data, nullptr);
+  EXPECT_GT(model_buffer.length, 0U);
+}
+
+TEST_F(UtestGraphManagerTest, RunGraphAsync_Om2Mode_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  StubExecutor executor;
+  graph_manager.executor_ = &executor;
+  GraphNodePtr graph_node;
+  GeModelPtr ge_model;
+  CreateSummaryCompiledModel(graph_node, ge_model);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+  graph_node->SetBuildFlag(true);
+  graph_node->SetCompiledFlag(true);
+
+  bool callback_called = false;
+  const RunAsyncCallbackV2 callback = [&callback_called](Status, std::vector<gert::Tensor> &) {
+    callback_called = true;
+  };
+  std::vector<gert::Tensor> inputs;
+  EXPECT_EQ(graph_manager.RunGraphAsync(graph_id, std::move(inputs), 0U, callback), GE_GRAPH_UNSUPPORTED);
+  EXPECT_FALSE(callback_called);
 }
 }  // namespace ge

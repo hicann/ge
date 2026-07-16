@@ -32,6 +32,7 @@
 #include "external/ge_common/ge_common_api_types.h"
 #include "external/graph/custom_op.h"
 #include "graph/custom_op/cast.h"
+#include "common/om2/om2_model_data.h"
 
 namespace ge {
 namespace {
@@ -634,6 +635,15 @@ Status GeRootModel::GetSummaryFeatureMemory(std::vector<FeatureMemoryPtr> &all_f
 HostResourceCenterPtr GeRootModel::GetHostResourceCenterPtr() const {
   return host_resource_center_;
 }
+
+gert::Om2ModelData &GeRootModel::GetOm2ModelData() {
+  if (om2_model_data_ == nullptr) {
+    GELOGE(FAILED, "[GeRootModel] om2_model_data_ is null");
+    std::abort();
+  }
+  return *om2_model_data_;
+}
+
 std::shared_ptr<GeRootModel> GeRootModel::Fork() {
   std::shared_ptr<GeRootModel> ge_root_model = MakeShared<ge::GeRootModel>();
   GE_ASSERT_NOTNULL(ge_root_model);
@@ -654,6 +664,7 @@ std::shared_ptr<GeRootModel> GeRootModel::Fork() {
   ge_root_model->autofuse_so_set_ = this->autofuse_so_set_;
   ge_root_model->custom_op_so_set_ = this->custom_op_so_set_;
   ge_root_model->custom_op_registry_ = this->custom_op_registry_;
+  ge_root_model->om2_model_data_ = this->om2_model_data_;
   return ge_root_model;
 }
 }  // namespace ge

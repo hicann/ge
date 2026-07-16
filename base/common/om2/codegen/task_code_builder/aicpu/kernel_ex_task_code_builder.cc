@@ -61,7 +61,7 @@ Status KernelExTaskCodeBuilder::InitTaskExInfo(const TaskSemanticContributeConte
 
 Status KernelExTaskCodeBuilder::InitIowAddrRefreshInfo(uint64_t current_offset) {
   for (const auto &input_addr : build_data_.semantic.input_addrs) {
-    if (input_addr.memory_app == MemoryAppType::kModelIo) {
+    if (input_addr.memory_app == om2::MemoryAppType::kModelIo) {
       io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(input_addr.compile_state_io_addr_offset), current_offset});
       current_offset += static_cast<uint32_t>(sizeof(uint64_t));
@@ -69,7 +69,7 @@ Status KernelExTaskCodeBuilder::InitIowAddrRefreshInfo(uint64_t current_offset) 
     build_data_.semantic.ordered_arg_values.push_back(input_addr);
   }
   for (const auto &out_addr : build_data_.semantic.output_addrs) {
-    if (out_addr.memory_app == MemoryAppType::kModelIo) {
+    if (out_addr.memory_app == om2::MemoryAppType::kModelIo) {
       io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(out_addr.compile_state_io_addr_offset), current_offset});
       current_offset += static_cast<uint32_t>(sizeof(uint64_t));
