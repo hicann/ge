@@ -9,6 +9,7 @@
  */
 
 #include "hybrid/executor/hybrid_model_async_executor.h"
+#include "common/compile_profiling/ge_call_wrapper.h"
 #include "base/err_mgr.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "graph/utils/tensor_utils.h"
@@ -230,6 +231,7 @@ Status HybridModelAsyncExecutor::Init(const aclrtStream stream) {
 }
 
 Status HybridModelAsyncExecutor::RunInternal() {
+  SET_THREAD_NAME(pthread_self(), "ge_rt2_mdlrun");
   const auto device_id = static_cast<int32_t>(device_id_);
   GELOGD("Hybrid model start. model_id = %u, device_id = %u", model_id_, device_id_);
   GE_CHK_ACL_RET(aclrtSetDevice(device_id));

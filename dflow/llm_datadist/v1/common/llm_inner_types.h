@@ -14,7 +14,7 @@
 #include <vector>
 #include "ge/ge_api_types.h"
 #include "llm_log.h"
-#include "llm_datadist/llm_engine_types.h"
+#include "llm_engine_types_v1.h"
 
 namespace llm {
 using char_t = ge::char_t;

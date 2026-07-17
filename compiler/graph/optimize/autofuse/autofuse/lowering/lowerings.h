@@ -15,7 +15,7 @@
 
 #include "graph/node.h"
 #include "asc_lowerer/loop_api.h"
-#include "lowering_utils.h"
+#include "autofuse_lowering_utils.h"
 
 namespace ge {
 const std::vector<std::string> reduce_types = {"ReduceMean",  "ReduceMax",  "ReduceMin",  "ReduceSum",  "ReduceProd",
@@ -43,7 +43,9 @@ class LoweringManager {
 
   [[nodiscard]] bool IsLoweringRegistered(const std::string &op_type) const;
   static void Register(const std::string &op_type, const std::function<graphStatus(const NodePtr &)> &lower);
-  static bool HasLowering(const std::string &op_type) { return Instance().IsLoweringRegistered(op_type); }
+  static bool HasLowering(const std::string &op_type) {
+    return Instance().IsLoweringRegistered(op_type);
+  }
 
  private:
   LoweringManager() = default;

@@ -18,7 +18,7 @@
 #include "common/checker.h"
 #include "lowering/asc_lowerer/loop_api.h"
 #include "lowering/lowerings.h"
-#include "lowering/lowering_utils.h"
+#include "lowering/autofuse_lowering_utils.h"
 
 namespace ge {
 

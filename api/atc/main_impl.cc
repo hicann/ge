@@ -247,16 +247,23 @@ Status ReadRawGeOptionsFile(const std::string &file_path, nlohmann::json &raw_js
   std::ifstream raw_file(file_path);
   if (!raw_file.is_open()) {
     GELOGE(FAILED, "[Check][RawGeOptions]open raw_ge_options file failed. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_path.c_str(), "Open file failed"}));
     return FAILED;
   }
 
   raw_json = nlohmann::json::parse(raw_file, nullptr, false);
   if (raw_json.is_discarded()) {
     GELOGE(FAILED, "[Check][RawGeOptions]parse raw_ge_options json failed. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({file_path.c_str(), "Invalid JSON format"}));
     return FAILED;
   }
   if (!raw_json.is_object()) {
     GELOGE(FAILED, "[Check][RawGeOptions]raw_ge_options json must be an object. file: %s", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10032", std::vector<const char *>({"file_name", "reason"}),
+        std::vector<const char *>({file_path.c_str(), "The top-level JSON value must be an object"}));
     return FAILED;
   }
   return SUCCESS;
@@ -271,17 +278,27 @@ Status ParseRawCompileOptionLevel(const nlohmann::json &compile_options, const s
   }
   if (!level_iter->is_object()) {
     GELOGE(FAILED, "[Check][RawGeOptions]compile options level [%s] must be an object.", level.c_str());
+    const std::string reason = "Compile options level (level=" + level + ") must be an object";
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
     return FAILED;
   }
 
   for (auto option_iter = level_iter->begin(); option_iter != level_iter->end(); ++option_iter) {
     if (option_iter.key().empty()) {
       GELOGE(FAILED, "[Check][RawGeOptions]option key in level [%s] must not be empty.", level.c_str());
+      const std::string reason = "Option key in level (level=" + level + ") must not be empty";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
     if (!option_iter.value().is_string()) {
       GELOGE(FAILED, "[Check][RawGeOptions]option [%s] in level [%s] must be string.", option_iter.key().c_str(),
              level.c_str());
+      const std::string reason =
+          "Option (option=" + option_iter.key() + ") in level (level=" + level + ") must be a string";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
     raw_options[option_iter.key()] = option_iter.value().get<std::string>();
@@ -295,6 +312,11 @@ Status ParseRawCompileOptions(const nlohmann::json &raw_json, std::map<std::stri
   const auto compile_options_iter = raw_json.find(kRawCompileOptions);
   if ((compile_options_iter == raw_json.end()) || (!compile_options_iter->is_object())) {
     GELOGE(FAILED, "[Check][RawGeOptions]raw_ge_options must contain object [compile options].");
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10032", std::vector<const char *>({"file_name", "reason"}),
+        std::vector<const char *>(
+            {FLAGS_raw_ge_options.c_str(),
+             "The options JSON file must contain an object under the key (key=compile options)."}));
     return FAILED;
   }
 
@@ -303,6 +325,10 @@ Status ParseRawCompileOptions(const nlohmann::json &raw_json, std::map<std::stri
   for (auto level_iter = compile_options_iter->begin(); level_iter != compile_options_iter->end(); ++level_iter) {
     if (supported_levels.find(level_iter.key()) == supported_levels.end()) {
       GELOGE(FAILED, "[Check][RawGeOptions]unsupported compile options level [%s].", level_iter.key().c_str());
+      const std::string reason = "Unsupported compile options level (level=" + level_iter.key() +
+                                 "). Supported levels are [global, session, graph]";
+      REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                std::vector<const char *>({FLAGS_raw_ge_options.c_str(), reason.c_str()}));
       return FAILED;
     }
   }
@@ -973,6 +999,9 @@ class GFlagUtils {
         GE_ASSERT_SUCCESS(ge::InsertAippOpUtil::ValidateStaticAippOnly(FLAGS_insert_op_conf),
                           "[Check][OM2][InsertOpConf] Dynamic AIPP is not supported in OM2 mode.");
       }
+    } else {
+      GE_ASSERT_SUCCESS(ge::CheckHostEnvOsAndHostEnvCpuStringValid(FLAGS_host_env_os, FLAGS_host_env_cpu),
+                        "[Check][HostEnvOsCpu] failed!");
     }
 
     GE_ASSERT_SUCCESS(CheckAllowHF32ParamValid(FLAGS_allow_hf32), "[Check][AllowHF32]failed!");
@@ -1435,7 +1464,6 @@ Status GenerateInfershapeJson() {
     DOMI_LOGE("GeGenerator initialize failed!");
     return FAILED;
   }
-  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
 
   Graph graph;
   std::map<std::string, std::string> atc_params;
@@ -1471,14 +1499,7 @@ static Status ConvertModelToJson(int32_t fwk_type, const std::string &model_file
     ret = ConvertOm(model_file.c_str(), json_file.c_str(), true);
     return ret;
   }
-  ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before converting model to json, continue initialization, ret[%u].", ret);
-  }
-  GE_MAKE_GUARD(release_python_runtime, []() {
-    (void)ge::custom_op::ShutdownCustomOpsForProcess();
-    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
-  });
+  GE_MAKE_GUARD(release_custom_ops, []() { (void)ge::custom_op::ShutdownCustomOpsForProcess(); });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   // Need to save caffe.proto path
   SaveCustomCaffeProtoPath();
@@ -1667,18 +1688,7 @@ Status GenerateModel(std::map<std::string, std::string> &options, const std::str
   GeGenerator ge_generator;
   Status ret = SUCCESS;
   std::shared_ptr<GELib> instance_ptr = GELib::GetInstance();
-  bool release_python_runtime = false;
-  GE_DISMISSABLE_GUARD(release_python_runtime_guard, ([&release_python_runtime]() {
-                         if (release_python_runtime) {
-                           (void)GePythonRuntimeManager::Instance().ShutdownProcess();
-                         }
-                       }));
   if (instance_ptr == nullptr || !instance_ptr->InitFlag()) {
-    ret = GePythonRuntimeManager::Instance().EnsureReady();
-    if (ret != SUCCESS) {
-      GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", ret);
-    }
-    release_python_runtime = true;
     ret = GELib::Initialize(options);
     if (ret != SUCCESS) {
       DOMI_LOGE("GE initialize failed!");
@@ -1694,10 +1704,8 @@ Status GenerateModel(std::map<std::string, std::string> &options, const std::str
   const std::function<void()> callback = [&ge_generator]() {
     (void)ge_generator.Finalize();
     (void)GELib::GetInstance()->Finalize();
-    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   };
   GE_MAKE_GUARD(release, callback);
-  release_python_runtime = false;
   GELOGD("Current input is single graph to generate model.");
   return GenerateModelBySingleGraph(ge_generator, output, options);
 }
@@ -1803,13 +1811,8 @@ Status GenerateSingleOp(const std::string &json_file_path) {
   // print single op option map
   PrintOptionMap(options, "single op option");
 
-  auto ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before generating single op, continue initialization, ret[%u].", ret);
-  }
-  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
-  ret = GELib::Initialize(options);
+  auto ret = GELib::Initialize(options);
   if (ret != SUCCESS) {
     DOMI_LOGE("GE initialize failed!");
     return FAILED;
@@ -2036,11 +2039,6 @@ Status PrepareOmGeneration() {
                    "[Check][Flags] failed! Please check whether some atc params that include semicolons[;] use double "
                    "quotation marks (\") to enclose each argument such as out_nodes, input_shape, dynamic_image_size");
 #if !defined(__ANDROID__) && !defined(ANDROID)
-  const auto python_runtime_ret = GePythonRuntimeManager::Instance().EnsureReady();
-  if (python_runtime_ret != SUCCESS) {
-    GELOGW("[Ensure][PythonRuntime] failed before preparing OM generation, continue initialization, ret[%u].",
-           python_runtime_ret);
-  }
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   LoadCustomOpLib(true);
   SaveCustomCaffeProtoPath();
@@ -2335,6 +2333,13 @@ int32_t main_impl(int32_t argc, char *argv[]) {
   if (LoadRawOptionsForAtc(raw_options) != SUCCESS) {
     return static_cast<int32_t>(CheckRet(-1));
   }
+
+  const auto python_runtime_ret = GePythonRuntimeManager::Instance().EnsureReady();
+  if (python_runtime_ret != SUCCESS) {
+    GELOGW("[Ensure][PythonRuntime] failed before running ATC, continue initialization, ret[%u].", python_runtime_ret);
+  }
+  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
+
   ret = (CheckGlobalOptionsBeforeRun() == SUCCESS && RunAtcByMode(raw_options) == SUCCESS) ? SUCCESS : FAILED;
 
   // Tbe may print ... without Enter when some op compile slow, here atc add "...\n" to display better at last

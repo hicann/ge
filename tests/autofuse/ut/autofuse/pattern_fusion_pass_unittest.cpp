@@ -30,7 +30,7 @@
 #include "pattern_fusion/pattern_fusion.h"
 #include "pattern_fusion/transpose_with_broadcast_eliminate_pass.h"
 #include "pattern_fusion/slice_forward_fusion_pass.h"
-#include "pattern_fusion/cast_remove_pass.h"
+#include "pattern_fusion/autofuse_cast_remove_pass.h"
 #include "pattern_fusion/cast_reshape_cast_pass.h"
 #include "pattern_fusion/cascade_reshape_remove_pass.h"
 #include "pattern_fusion/pattern_fusion_utils.h"

@@ -33,7 +33,11 @@ args_refresh_add_custom
 
 ## Prerequisites
 
-- The CANN environment variables are configured by running `source ${ASCEND_HOME_PATH}/set_env.sh`
+- Follow the [Installation Guide](../../../../docs/en/quick_install.md) to install the `toolkit` and `ops` packages.
+- Configure the environment variables. The following example assumes that the packages are installed in `/usr/local/Ascend/`:
+```
+source /usr/local/Ascend/cann/set_env.sh
+```
 - **The Python version used to compile the run package** matches the Python version used to run this sample. The current Python custom operator loading path does not support cross-Python-version compatibility
 - The current Python environment can import `ge.custom_op` and `acl`
 

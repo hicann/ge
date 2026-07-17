@@ -28,7 +28,7 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "post_process/asc_backend_post_processor.h"
 #include "lowering/op_helper/lower_concat_helper.h"
-#include "can_fuse/graph_manager.h"
+#include "can_fuse/autofuse_graph_manager.h"
 #include "op_creator_register.h"
 #include "all_ops_cpp.h"
 #include "esb_graph.h"

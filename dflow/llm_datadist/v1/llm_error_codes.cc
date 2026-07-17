@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_error_codes_v1.h"
 
 // register error desc
 namespace ge {

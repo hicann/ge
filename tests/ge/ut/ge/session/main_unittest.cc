@@ -10,6 +10,7 @@
 
 #include "graph/model_serialize.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "api/aclgrph/option_utils.h"
 #include "api/atc/main_impl.h"
 #include "framework/omg/parser/parser_factory.h"
 #include "framework/omg/parser/model_parser.h"
@@ -371,9 +372,21 @@ TEST_F(UtestMain, MainImplTest_global_options) {
   AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
 }
 
-TEST_F(UtestMain, MainImplTest_static_shape_invalid_host_env_cpu_not_failed_in_flag_check) {
+TEST_F(UtestMain, CheckHostEnvOsAndHostEnvCpuStringValid) {
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("linux", "x86_64"), ge::SUCCESS);
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("linux", "aarch64"), ge::SUCCESS);
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("ubuntu", "x86_64"), ge::PARAM_INVALID);
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("linux#", "x86_64"), ge::PARAM_INVALID);
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("linux", "arm64"), ge::SUCCESS);
+  EXPECT_EQ(CheckHostEnvOsAndHostEnvCpuStringValid("linux", "x86_64#"), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestMain, MainImplTest_static_shape_invalid_host_env_cpu_failed_in_flag_check) {
   GetMutableGlobalOptions().clear();
   GetThreadLocalContext().SetGlobalOption({});
+
+  const std::string original_host_env_os = FLAGS_host_env_os;
+  const std::string original_host_env_cpu = FLAGS_host_env_cpu;
 
   std::string opp_path = "./opp/";
   system(("mkdir -p " + opp_path).c_str());
@@ -412,20 +425,12 @@ TEST_F(UtestMain, MainImplTest_static_shape_invalid_host_env_cpu_not_failed_in_f
                   "--deterministic=1",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=unsupported_cpu"};
+                  "--host_env_cpu=x86_64#"};
   int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  auto &options = GetMutableGlobalOptions();
-  auto deterministic_it = options.find(ge::DETERMINISTIC);
-  EXPECT_NE(deterministic_it, options.end());
-  if (deterministic_it != options.end()) {
-    EXPECT_EQ(deterministic_it->second, "1");
-  }
-  auto host_cpu_it = options.find(ge::OPTION_HOST_ENV_CPU);
-  EXPECT_NE(host_cpu_it, options.end());
-  if (host_cpu_it != options.end()) {
-    EXPECT_EQ(host_cpu_it->second, "unsupported_cpu");
-  }
+  FLAGS_host_env_os = original_host_env_os;
+  FLAGS_host_env_cpu = original_host_env_cpu;
   EXPECT_NE(ret, 0);
+  EXPECT_TRUE(GetMutableGlobalOptions().empty());
   AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp_invalid_host_env_cpu.om").c_str());
 }
 

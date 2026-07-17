@@ -485,6 +485,84 @@ TEST_F(AtcCommonSTest, CheckPrecisionModeAndPrecisionModeV2) {
   MainImplTearDown();
 }
 
+TEST_F(AtcCommonSTest, StaticModelInvalidHostEnvOsFailsInFlagCheck) {
+  MainImplSetUp();
+  GetMutableGlobalOptions().clear();
+  ge::GetThreadLocalContext().SetGlobalOption({});
+  std::string om_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = Generatefile("--output=", "invalid_host_env_os");
+  char *argv[] = {"atc",
+                  "--mode=0",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend310",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux#",
+                  "--host_env_cpu=x86_64"};
+
+  EXPECT_NE(main_impl(sizeof(argv) / sizeof(argv[0]), argv), SUCCESS);
+  EXPECT_TRUE(GetMutableGlobalOptions().empty());
+  remove(Generatefile("", "invalid_host_env_os.om").c_str());
+  MainImplTearDown();
+}
+
+TEST_F(AtcCommonSTest, StaticModelInvalidHostEnvCpuFailsInFlagCheck) {
+  MainImplSetUp();
+  GetMutableGlobalOptions().clear();
+  ge::GetThreadLocalContext().SetGlobalOption({});
+  std::string om_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = Generatefile("--output=", "invalid_host_env_cpu");
+  char *argv[] = {"atc",
+                  "--mode=0",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend310",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64#"};
+
+  EXPECT_NE(main_impl(sizeof(argv) / sizeof(argv[0]), argv), SUCCESS);
+  EXPECT_TRUE(GetMutableGlobalOptions().empty());
+  remove(Generatefile("", "invalid_host_env_cpu.om").c_str());
+  MainImplTearDown();
+}
+
+TEST_F(AtcCommonSTest, StaticModelValidHostEnvPassesFlagCheckWithoutTargetOppDirectory) {
+  MainImplSetUp();
+  ASSERT_EQ(ge::GEFinalize(), ge::SUCCESS);
+  GetMutableGlobalOptions().clear();
+  ge::GetThreadLocalContext().SetGlobalOption({});
+  std::string om_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = Generatefile("--output=", "static_aarch64_host_env");
+  char *argv[] = {"atc",
+                  "--mode=0",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend310",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=aarch64"};
+
+  (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  const auto &options = GetMutableGlobalOptions();
+  const auto host_os_it = options.find(ge::OPTION_HOST_ENV_OS);
+  EXPECT_NE(host_os_it, options.end());
+  if (host_os_it != options.end()) {
+    EXPECT_EQ(host_os_it->second, "linux");
+  }
+  const auto host_cpu_it = options.find(ge::OPTION_HOST_ENV_CPU);
+  EXPECT_NE(host_cpu_it, options.end());
+  if (host_cpu_it != options.end()) {
+    EXPECT_EQ(host_cpu_it->second, "aarch64");
+  }
+  remove(Generatefile("", "static_aarch64_host_env.om").c_str());
+  MainImplTearDown();
+  ReInitGe();
+}
+
 TEST_F(AtcCommonSTest, pb_keep_dtype_invalid) {
   unsetenv("ASCEND_OPP_PATH");
   ReInitGe();

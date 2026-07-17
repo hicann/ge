@@ -29,7 +29,7 @@
 #include "post_process/scheduler_adapter/torch_adaption_fallback_load.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
 #include "asc_graph_axis_mapping.h"
-#include "can_fuse/graph_manager.h"
+#include "can_fuse/autofuse_graph_manager.h"
 #include "utils/not_fuse_reason_code.h"
 #include "lowering/asc_lowerer/loop_common.h"
 

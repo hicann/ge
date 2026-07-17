@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef LLM_ENGINE_INC_EXTERNAL_LLM_ENGINE_TYPES_H
-#define LLM_ENGINE_INC_EXTERNAL_LLM_ENGINE_TYPES_H
+#ifndef DFLOW_LLM_DATADIST_V1_LLM_ENGINE_TYPES_V1_H_
+#define DFLOW_LLM_DATADIST_V1_LLM_ENGINE_TYPES_V1_H_
 
 namespace llm {
 constexpr const char kPrompt[] = "Prompt";
@@ -23,4 +23,4 @@ constexpr const char LLM_OPTION_ENABLE_SWITCH_ROLE[] = "llm.EnableSwitchRole";
 constexpr const char LLM_OPTION_BUF_POOL_CFG[] = "llm.BufPoolCfg";
 }  // namespace llm
 
-#endif  // LLM_ENGINE_INC_EXTERNAL_LLM_ENGINE_TYPES_H
+#endif  // DFLOW_LLM_DATADIST_V1_LLM_ENGINE_TYPES_V1_H_

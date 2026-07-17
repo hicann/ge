@@ -16,9 +16,9 @@
 #include <iostream>
 #include <regex>
 #include "mmpa/mmpa_api.h"
-#include "llm_datadist/llm_engine_types.h"
+#include "llm_engine_types_v1.h"
 #include "common/llm_inner_types.h"
-#include "llm_datadist/llm_datadist.h"
+#include "llm_datadist_v1.h"
 #include "graph/tensor.h"
 
 namespace llm {

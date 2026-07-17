@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "llm_datadist/llm_datadist.h"
-#include "llm_datadist/llm_engine_types.h"
+#include "llm_datadist_v1.h"
+#include "llm_engine_types_v1.h"
 #include "common/llm_inner_types.h"
 #include "common/llm_file_saver.h"
 #include "common/llm_utils.h"

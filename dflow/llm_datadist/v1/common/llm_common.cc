@@ -10,7 +10,7 @@
 
 #include "common/llm_datadist_common.h"
 #include <set>
-#include "llm_datadist/llm_error_codes.h"
+#include "llm_error_codes_v1.h"
 #include "common/llm_log.h"
 
 namespace llm {
