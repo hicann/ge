@@ -20,7 +20,13 @@ inline void ReInitGe() {
   ge::GEFinalize();
   std::map<AscendString, AscendString> options;
   options[ge::OPTION_HOST_ENV_OS] = "linux";
+#if defined(__aarch64__) || defined(__arm64__)
+  options[ge::OPTION_HOST_ENV_CPU] = "aarch64";
+#elif defined(__x86_64__) || defined(__amd64__)
   options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+#else
+  options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+#endif
   auto init_status = ge::GEInitialize(options);
   if (init_status != SUCCESS) {
     std::cout << "ge init failed , ret code:" << init_status << std::endl;

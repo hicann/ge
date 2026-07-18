@@ -263,12 +263,8 @@ std::string GetGuardCompiler() {
 #endif
   if (!host_env_cpu.empty() && host_env_cpu != native_cpu) {
     GELOGD("Cross-compile guard_check.so, target_cpu=%s, native_cpu=%s.", host_env_cpu.c_str(), native_cpu.c_str());
-    if (host_env_os == "linux") {
-      if (host_env_cpu == "aarch64") {
-        return "aarch64-linux-gnu-g++";
-      } else if (host_env_cpu == "x86_64") {
-        return "x86_64-linux-gnu-g++";
-      }
+    if (host_env_os == "linux" && host_env_cpu == "aarch64") {
+      return "aarch64-linux-gnu-g++";
     }
   }
   return "g++";
