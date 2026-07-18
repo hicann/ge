@@ -16,6 +16,7 @@ set(_ge_pass_native_sources
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/pattern_matcher_config_binding.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/graph_handle_binding.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/graph_rewriter_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/graph_fuse_inspector_binding.cc
 )
 
 set(_ge_pass_native_headers
