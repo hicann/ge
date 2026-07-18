@@ -6190,4 +6190,555 @@ TEST_F(UtestTensorflowCustomOpParser, ParseCustomOp_OutDirContainsPid) {
   custom_nodes_map.clear();
 }
 
+// ======================== GeStoi exception branch tests ========================
+
+TEST_F(UtestTensorflowParser, GeStoi_out_of_range) {
+  int32_t index = 0;
+  std::string huge_num = "99999999999999999999";
+  auto ret = TensorFlowModelParser::GeStoi("test_node", huge_num, &index);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GeStoi_invalid_argument) {
+  int32_t index = 0;
+  std::string bad_str = "not_a_number";
+  auto ret = TensorFlowModelParser::GeStoi("test_node", bad_str, &index);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GeStoi_normal_value) {
+  int32_t index = 0;
+  std::string good_str = "3";
+  auto ret = TensorFlowModelParser::GeStoi("test_node", good_str, &index);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(index, 3);
+}
+
+// ======================== CheckInputNodeName tests ========================
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_with_invalid_index) {
+  string node_name;
+  int32_t index = 0;
+  bool control = false;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("node:99999999999999999999", &node_name, &index, &control);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_with_non_numeric_index) {
+  string node_name;
+  int32_t index = 0;
+  bool control = false;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("node:abc", &node_name, &index, &control);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_control_input) {
+  string node_name;
+  int32_t index = 0;
+  bool control = false;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("^control_node", &node_name, &index, &control);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(control);
+  EXPECT_EQ(node_name, "control_node");
+  EXPECT_EQ(index, 0);
+}
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_with_index) {
+  string node_name;
+  int32_t index = 0;
+  bool control = false;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("my_node:2", &node_name, &index, &control);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(control);
+  EXPECT_EQ(node_name, "my_node");
+  EXPECT_EQ(index, 2);
+}
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_null_index) {
+  string node_name;
+  bool control = false;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("simple_node", &node_name, nullptr, &control);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(node_name, "simple_node");
+}
+
+TEST_F(UtestTensorflowParser, CheckInputNodeName_null_control) {
+  string node_name;
+  int32_t index = 0;
+  auto ret = TensorFlowModelParser::CheckInputNodeName("^ctrl:1", &node_name, &index, nullptr);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(node_name, "ctrl");
+  EXPECT_EQ(index, 1);
+}
+
+// ======================== SoftmaxAddAttr tests ========================
+
+TEST_F(UtestTensorflowParser, SoftmaxAddAttr_with_softmax_node) {
+  domi::tensorflow::GraphDef graph_def;
+  auto *node = graph_def.add_node();
+  node->set_name("softmax_node");
+  node->set_op("Softmax");
+  node->add_input("input_data");
+
+  auto *other_node = graph_def.add_node();
+  other_node->set_name("relu_node");
+  other_node->set_op("Relu");
+
+  TensorFlowModelParser::SoftmaxAddAttr(&graph_def);
+
+  bool found_axis = false;
+  for (const auto &attr : graph_def.node(0).attr()) {
+    if (attr.first == "axis") {
+      found_axis = true;
+      EXPECT_EQ(attr.second.i(), 1);
+    }
+  }
+  EXPECT_TRUE(found_axis);
+
+  for (const auto &attr : graph_def.node(1).attr()) {
+    EXPECT_NE(attr.first, "axis");
+  }
+}
+
+TEST_F(UtestTensorflowParser, SoftmaxAddAttr_no_softmax_node) {
+  domi::tensorflow::GraphDef graph_def;
+  auto *node = graph_def.add_node();
+  node->set_name("relu_node");
+  node->set_op("Relu");
+
+  TensorFlowModelParser::SoftmaxAddAttr(&graph_def);
+  EXPECT_EQ(graph_def.node(0).attr_size(), 0);
+}
+
+// ======================== DumpNodeContext tests ========================
+
+TEST_F(UtestTensorflowParser, DumpNodeContext_basic) {
+  OpNodeContext ctx;
+  ctx.input_map["src_node"].emplace_back(std::make_pair(0, 0));
+  ctx.input_map["src_node"].emplace_back(std::make_pair(1, 1));
+  ctx.output_map["dst_node"].emplace_back(std::make_pair(0, 0));
+
+  TensorFlowModelParser::DumpNodeContext("test_node", ctx, "test_phase");
+}
+
+TEST_F(UtestTensorflowParser, DumpNodeContext_empty_context) {
+  OpNodeContext ctx;
+  TensorFlowModelParser::DumpNodeContext("empty_node", ctx, "empty_phase");
+}
+
+TEST_F(UtestTensorflowParser, DumpAllNodeContext_basic) {
+  TensorFlowModelParser parser;
+  parser.DumpAllNodeContext("test");
+}
+
+// ======================== ParseProto(string) tests ========================
+
+TEST_F(UtestTensorflowParser, ParseProto_string_empty) {
+  TensorFlowModelParser parser;
+  ge::ComputeGraphPtr graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  auto ret = parser.ParseProto(std::string(""), graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, ParseProto_string_invalid_proto) {
+  TensorFlowModelParser parser;
+  ge::ComputeGraphPtr graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  auto ret = parser.ParseProto(std::string("invalid_proto_data"), graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, ParseProto_string_valid_empty_graph) {
+  TensorFlowModelParser parser;
+  ge::ComputeGraphPtr graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  domi::tensorflow::GraphDef graph_def;
+  std::string serialized;
+  graph_def.SerializeToString(&serialized);
+  auto ret = parser.ParseProto(serialized, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== UpdateInputTensor / UpdateOutputTensor tests ========================
+
+TEST_F(UtestTensorflowParser, UpdateInputTensor_with_desc) {
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("test_op", "Conv2D");
+  ge::GeTensorDesc desc1(ge::GeShape({1, 3, 224, 224}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  ge::GeTensorDesc desc2(ge::GeShape({64, 3, 7, 7}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc("input", desc1);
+  op_desc->AddInputDesc("weight", desc2);
+  std::vector<ge::GeTensorDesc> input_descs = {desc1, desc2};
+  TensorFlowModelParser::UpdateInputTensor(op_desc, input_descs, 2);
+  EXPECT_EQ(op_desc->GetInputsSize(), 2);
+}
+
+TEST_F(UtestTensorflowParser, UpdateInputTensor_more_than_desc) {
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("test_op", "Conv2D");
+  ge::GeTensorDesc desc1(ge::GeShape({1, 3, 224, 224}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc("input", desc1);
+  op_desc->AddInputDesc("weight", ge::GeTensorDesc());
+  std::vector<ge::GeTensorDesc> input_descs = {desc1};
+  TensorFlowModelParser::UpdateInputTensor(op_desc, input_descs, 2);
+  EXPECT_EQ(op_desc->GetInputsSize(), 2);
+}
+
+TEST_F(UtestTensorflowParser, UpdateOutputTensor_with_desc) {
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("test_op", "Conv2D");
+  ge::GeTensorDesc desc(ge::GeShape({1, 64, 112, 112}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddOutputDesc("output", desc);
+  std::vector<ge::GeTensorDesc> output_descs = {desc};
+  TensorFlowModelParser::UpdateOutputTensor(op_desc, output_descs, 1);
+  EXPECT_EQ(op_desc->GetOutputsSize(), 1);
+}
+
+TEST_F(UtestTensorflowParser, UpdateOutputTensor_more_than_desc) {
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("test_op", "Conv2D");
+  ge::GeTensorDesc desc(ge::GeShape({1, 64, 112, 112}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddOutputDesc("output1", desc);
+  op_desc->AddOutputDesc("output2", ge::GeTensorDesc());
+  std::vector<ge::GeTensorDesc> output_descs = {desc};
+  TensorFlowModelParser::UpdateOutputTensor(op_desc, output_descs, 2);
+  EXPECT_EQ(op_desc->GetOutputsSize(), 2);
+}
+
+// ======================== CheckAndUpdateInputDesc tests ========================
+
+TEST_F(UtestTensorflowParser, CheckAndUpdateInputDesc_empty_graph) {
+  auto graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  auto ret = TensorFlowModelParser::CheckAndUpdateInputDesc(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, CheckAndUpdateInputDesc_no_optional_input) {
+  auto graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("node1", "Add");
+  ge::GeTensorDesc desc;
+  op_desc->AddInputDesc("x", desc);
+  op_desc->AddInputDesc("y", desc);
+  op_desc->AddOutputDesc("z", desc);
+  graph->AddNode(op_desc);
+  auto ret = TensorFlowModelParser::CheckAndUpdateInputDesc(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// ======================== TrimGraphByOutput tests ========================
+
+TEST_F(UtestTensorflowParser, TrimGraphByOutput_basic) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  domi::tensorflow::GraphDef input_graph;
+  auto *node1 = input_graph.add_node();
+  node1->set_name("input");
+  node1->set_op("Placeholder");
+
+  auto *node2 = input_graph.add_node();
+  node2->set_name("add");
+  node2->set_op("Add");
+  node2->add_input("input");
+
+  auto *node3 = input_graph.add_node();
+  node3->set_name("output");
+  node3->set_op("Identity");
+  node3->add_input("add");
+
+  ge::GetParserContext().out_nodes_map["output"] = {0};
+  ge::GetParserContext().input_dims["input"] = {1, 3, 224, 224};
+
+  domi::tensorflow::GraphDef output_graph;
+  auto ret = TensorFlowModelParser::TrimGraphByOutput(input_graph, &output_graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_GE(output_graph.node_size(), 1);
+}
+
+TEST_F(UtestTensorflowParser, TrimGraphByOutput_missing_output_node) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  domi::tensorflow::GraphDef input_graph;
+  auto *node1 = input_graph.add_node();
+  node1->set_name("input");
+  node1->set_op("Placeholder");
+
+  ge::GetParserContext().out_nodes_map["nonexistent"] = {0};
+
+  domi::tensorflow::GraphDef output_graph;
+  auto ret = TensorFlowModelParser::TrimGraphByOutput(input_graph, &output_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== GetNodeFormat tests ========================
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_with_data_format_nchw) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("conv_node");
+  node.set_op("Conv2D");
+  domi::tensorflow::AttrValue attr;
+  attr.set_s("NCHW");
+  node.mutable_attr()->insert({"data_format", attr});
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, NO_TRANSPOSE, format, visited);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(format, domi::DOMI_TENSOR_NCHW);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_with_data_format_nhwc) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("conv_node");
+  node.set_op("Conv2D");
+  domi::tensorflow::AttrValue attr;
+  attr.set_s("NHWC");
+  node.mutable_attr()->insert({"data_format", attr});
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, NO_TRANSPOSE, format, visited);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(format, domi::DOMI_TENSOR_NHWC);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_nchw_with_to_nchw_transpose) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("conv_node");
+  node.set_op("Conv2D");
+  domi::tensorflow::AttrValue attr;
+  attr.set_s("NCHW");
+  node.mutable_attr()->insert({"data_format", attr});
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, TO_NCHW, format, visited);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_nhwc_with_to_nhwc_transpose) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("conv_node");
+  node.set_op("Conv2D");
+  domi::tensorflow::AttrValue attr;
+  attr.set_s("NHWC");
+  node.mutable_attr()->insert({"data_format", attr});
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, TO_NHWC, format, visited);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_conflict_nchw_to_nhwc) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("conv_node");
+  node.set_op("Conv2D");
+  domi::tensorflow::AttrValue attr;
+  attr.set_s("NCHW");
+  node.mutable_attr()->insert({"data_format", attr});
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, TO_NHWC, format, visited);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_switch_node) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("switch_node");
+  node.set_op("Switch");
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, NO_TRANSPOSE, format, visited);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GetNodeFormat_already_visited) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("visited_node");
+  node.set_op("Conv2D");
+
+  set<const domi::tensorflow::NodeDef *> visited;
+  visited.insert(&node);
+  domiTensorFormat_t format = DOMI_TENSOR_RESERVED;
+  auto ret = parser.GetNodeFormat(&node, NO_TRANSPOSE, format, visited);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// ======================== GetFormatTranspose tests ========================
+
+TEST_F(UtestTensorflowParser, GetFormatTranspose_non_transpose_node) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("relu_node");
+  node.set_op("Relu");
+
+  TfTranspose transpose = NO_TRANSPOSE;
+  auto ret = parser.GetFormatTranspose(&node, transpose);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(transpose, NO_TRANSPOSE);
+}
+
+TEST_F(UtestTensorflowParser, GetFormatTranspose_transpose_wrong_input_count) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("transpose_node");
+  node.set_op("Transpose");
+  node.add_input("data");
+
+  TfTranspose transpose = NO_TRANSPOSE;
+  auto ret = parser.GetFormatTranspose(&node, transpose);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, GetFormatTranspose_perm_node_not_found) {
+  TensorFlowModelParser parser;
+  domi::tensorflow::NodeDef node;
+  node.set_name("transpose_node");
+  node.set_op("Transpose");
+  node.add_input("data");
+  node.add_input("perm_node");
+
+  TfTranspose transpose = NO_TRANSPOSE;
+  auto ret = parser.GetFormatTranspose(&node, transpose);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== AddEdges error branch tests ========================
+
+TEST_F(UtestTensorflowParser, AddEdges_dest_node_not_found) {
+  TensorFlowModelParser parser;
+  auto graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  auto op_desc = ge::parser::MakeShared<ge::OpDesc>("src_node", "Const");
+  ge::GeTensorDesc desc;
+  op_desc->AddOutputDesc("out", desc);
+  graph->AddNode(op_desc);
+
+  OpNodeContext src_ctx;
+  src_ctx.output_map["nonexistent_dest"].emplace_back(std::make_pair(0, 0));
+  parser.op_node_context_map_["src_node"] = src_ctx;
+
+  auto ret = parser.AddEdges(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// ======================== aclgrphParseTensorFlow null model_file test ========================
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_null_model_file) {
+  ge::Graph graph;
+  auto ret = aclgrphParseTensorFlow(nullptr, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_with_params_null_model_file) {
+  ge::Graph graph;
+  std::map<AscendString, AscendString> params;
+  auto ret = aclgrphParseTensorFlow(nullptr, params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== AddDumpOriginName tests ========================
+
+TEST_F(UtestTensorflowParser, AddDumpOriginName_null_parent) {
+  auto graph = ge::parser::MakeShared<ge::ComputeGraph>("test_graph");
+  AddDumpOriginName(nullptr, "subgraph", graph);
+}
+
+TEST_F(UtestTensorflowParser, AddDumpOriginName_with_parent) {
+  auto parent_graph = ge::parser::MakeShared<ge::ComputeGraph>("parent_graph");
+  auto parent_op = ge::parser::MakeShared<ge::OpDesc>("parent_node", "If");
+  auto parent_node = parent_graph->AddNode(parent_op);
+
+  auto sub_graph = ge::parser::MakeShared<ge::ComputeGraph>("sub_graph");
+  auto child_op = ge::parser::MakeShared<ge::OpDesc>("child_node", "Add");
+  sub_graph->AddNode(child_op);
+
+  AddDumpOriginName(parent_node, "then_branch", sub_graph);
+
+  std::vector<std::string> dump_names;
+  auto direct_nodes = sub_graph->GetDirectNode();
+  ASSERT_GT(direct_nodes.size(), 0U);
+  ge::NodePtr child_node;
+  for (auto &n : direct_nodes) {
+    child_node = n;
+    break;
+  }
+  (void)ge::AttrUtils::GetListStr(child_node->GetOpDesc(), ge::ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, dump_names);
+  EXPECT_EQ(dump_names.size(), 1U);
+  EXPECT_NE(dump_names[0].find("parent_node"), std::string::npos);
+  EXPECT_NE(dump_names[0].find("then_branch"), std::string::npos);
+  EXPECT_NE(dump_names[0].find("child_node"), std::string::npos);
+}
+
+// ======================== NodeNameFromInput tests ========================
+
+TEST_F(UtestTensorflowParser, NodeNameFromInput_simple) {
+  TensorFlowModelParser parser;
+  auto name = parser.NodeNameFromInput("simple_node");
+  EXPECT_EQ(name, "simple_node");
+}
+
+TEST_F(UtestTensorflowParser, NodeNameFromInput_with_index) {
+  TensorFlowModelParser parser;
+  auto name = parser.NodeNameFromInput("node:0");
+  EXPECT_EQ(name, "node");
+}
+
+TEST_F(UtestTensorflowParser, NodeNameFromInput_control) {
+  TensorFlowModelParser parser;
+  auto name = parser.NodeNameFromInput("^control_node");
+  EXPECT_EQ(name, "control_node");
+}
+
+TEST_F(UtestTensorflowParser, NodeNameFromInput_control_with_index) {
+  TensorFlowModelParser parser;
+  auto name = parser.NodeNameFromInput("^control_node:1");
+  EXPECT_EQ(name, "control_node");
+}
+
+// ======================== TrimGraph tests ========================
+
+TEST_F(UtestTensorflowParser, TrimGraph_with_input_dims_no_out_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  TensorFlowModelParser parser;
+
+  domi::tensorflow::GraphDef input_graph;
+  auto *node1 = input_graph.add_node();
+  node1->set_name("input");
+  node1->set_op("Placeholder");
+  auto *node2 = input_graph.add_node();
+  node2->set_name("add");
+  node2->set_op("Add");
+  node2->add_input("input");
+  auto *node3 = input_graph.add_node();
+  node3->set_name("unused");
+  node3->set_op("Const");
+
+  ge::GetParserContext().input_dims["input"] = {1, 3, 224, 224};
+
+  domi::tensorflow::GraphDef output_graph;
+  auto ret = parser.TrimGraph(input_graph, &output_graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TrimGraph_with_out_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  TensorFlowModelParser parser;
+
+  domi::tensorflow::GraphDef input_graph;
+  auto *node1 = input_graph.add_node();
+  node1->set_name("input");
+  node1->set_op("Placeholder");
+  auto *node2 = input_graph.add_node();
+  node2->set_name("output");
+  node2->set_op("Identity");
+  node2->add_input("input");
+
+  ge::GetParserContext().out_nodes_map["output"] = {0};
+
+  domi::tensorflow::GraphDef output_graph;
+  auto ret = parser.TrimGraph(input_graph, &output_graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
 }  // namespace ge

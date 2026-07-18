@@ -122,7 +122,7 @@ graphengine:
       - graph_metadef/graph/attr/ge_attr_define.cc
       - runtime/v2/engine/aicpu
       - base/common/atrace
-      - graph_metadef/graph/stub/stub_operator_factory_impl.cc
+      - graph_metadef/graph/stub
       - api/atc/atc_flags.cc
       - base/common/ge_inner_error_codes.cc
       - graph_metadef/register/host_cpu_context.cc
@@ -130,6 +130,7 @@ graphengine:
       - parser/parser/common/op_map.cc
       - compiler/engines/nn_engine/utils/common/aicore_util_attr_define.cc
       - runtime/v1
+      - api/atc/main.cc
   llt:
     ut_check:true
     st_check:true
