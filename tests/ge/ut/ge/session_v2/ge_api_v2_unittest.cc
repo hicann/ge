@@ -56,6 +56,30 @@
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 using namespace std;
 
+static bool g_fail_nothrow_new = false;
+
+__attribute__((no_sanitize("address"))) void *operator new(std::size_t size, const std::nothrow_t &tag) noexcept {
+  if (g_fail_nothrow_new) {
+    return nullptr;
+  }
+  try {
+    return ::operator new(size);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+__attribute__((no_sanitize("address"))) void *operator new[](std::size_t size, const std::nothrow_t &tag) noexcept {
+  if (g_fail_nothrow_new) {
+    return nullptr;
+  }
+  try {
+    return ::operator new[](size);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
 namespace ge {
 using Json = nlohmann::json;
 namespace {
@@ -2369,6 +2393,80 @@ TEST_F(UtestGeApiV2, GEInitialize_long_option_value) {
       {AscendString("ge.test.short_option"), AscendString(short_value.c_str())}};
   ret = ge::GEInitializeV2(options2);
   EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, GeSessionConstructorFailWhenInnerSessionAllocFailed) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().Clear();
+  dlog_setlevel(GE_MODULE_NAME, 0, 0);
+
+  g_fail_nothrow_new = true;
+  std::map<AscendString, AscendString> options;
+  GeSession session(options);
+  g_fail_nothrow_new = false;
+
+  EXPECT_EQ(session.GetSessionId(), uint64_t{0});
+  auto find_log = runtime_stub.GetSlogStub().FindErrorLogEndsWith("[Init][Create]GeSession failed");
+  EXPECT_GE(find_log, 0);
+  dlog_setlevel(GE_MODULE_NAME, 3, 0);
+}
+
+TEST_F(UtestGeApiV2, GeSessionImpl_SetSessionIdAndGetSessionId) {
+  std::map<std::string, std::string> options;
+  GeSession::Impl impl(options);
+  impl.SetSessionId(42U);
+  EXPECT_EQ(impl.GetSessionId(), uint64_t{42});
+}
+
+TEST_F(UtestGeApiV2, GeSessionImpl_GetInnerSession) {
+  EXPECT_EQ(GEInitializeV2({}), SUCCESS);
+  {
+    std::map<std::string, std::string> options;
+    GeSession::Impl impl(options);
+    EXPECT_NE(impl.GetInnerSession(), nullptr);
+  }
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, DumpDebugJSONPrint_CallThroughWithValidGraph) {
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  {
+    GeSession session(options);
+    uint32_t graph_id = 1;
+    const auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+    EXPECT_EQ(session.AddGraph(graph_id, GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph), {}), SUCCESS);
+    AscendString json_result;
+    (void)session.GraphDebugJSONPrint(graph_id, 0U, json_result);
+  }
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, RunGraphWithStreamAsync_CallThroughWithValidGraph) {
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  {
+    GeSession session(options);
+    uint32_t graph_id = 1;
+    const auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+    EXPECT_EQ(session.AddGraph(graph_id, GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph), {}), SUCCESS);
+    vector<gert::Tensor> inputs;
+    vector<gert::Tensor> outputs;
+    (void)session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs);
+  }
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, GeSessionImpl_AddAndRemoveDumpProperties) {
+  EXPECT_EQ(GEInitializeV2({}), SUCCESS);
+  {
+    std::map<std::string, std::string> str_options;
+    GeSession::Impl impl(str_options);
+    DumpProperties dump_properties;
+    (void)impl.AddDumpProperties(dump_properties);
+    (void)impl.RemoveDumpProperties();
+  }
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 }  // namespace ge

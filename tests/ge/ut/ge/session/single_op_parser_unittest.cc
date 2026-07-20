@@ -714,4 +714,161 @@ TEST_F(UtestOmg, TransConstValueTest) {
   EXPECT_NE(desc.const_value_size, 0);
 }
 
+TEST_F(UtestOmg, ParseSingleOpList_WithOriginFormat) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "origin_format_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+[
+    {
+      "op": "Add",
+      "input_desc": [
+        {
+          "format": "ND",
+          "origin_format": "NCHW",
+          "shape": [1,2],
+          "type": "int32"
+        },
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_EQ(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
+
+TEST_F(UtestOmg, ParseSingleOpList_WithDynamicInput) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "dynamic_input_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+[
+    {
+      "op": "Add",
+      "input_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32",
+          "dynamic_input": "input0"
+        },
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_EQ(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
+
+TEST_F(UtestOmg, ParseSingleOpList_LongOpName) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "long_name_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  std::string long_op_name(200, 'x');
+  sstream << R"(
+[
+    {
+      "op": ")"
+          << long_op_name << R"(",
+      "input_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_EQ(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
+
+TEST_F(UtestOmg, ParseSingleOpList_UnsupportedAttrType) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "unsupported_attr_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+[
+    {
+      "op": "Add",
+      "attr": [
+        {
+          "name": "test_attr",
+          "type": "unknown_type",
+          "value": true
+        }
+      ],
+      "input_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        },
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
 }  // namespace ge

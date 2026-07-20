@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/graph.h"
@@ -31,6 +32,30 @@
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "graph_metadef/common/ge_common/util.h"
+
+static bool g_fail_nothrow_new = false;
+
+__attribute__((no_sanitize("address"))) void *operator new(std::size_t size, const std::nothrow_t &tag) noexcept {
+  if (g_fail_nothrow_new) {
+    return nullptr;
+  }
+  try {
+    return ::operator new(size);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+__attribute__((no_sanitize("address"))) void *operator new[](std::size_t size, const std::nothrow_t &tag) noexcept {
+  if (g_fail_nothrow_new) {
+    return nullptr;
+  }
+  try {
+    return ::operator new[](size);
+  } catch (...) {
+    return nullptr;
+  }
+}
 
 namespace ge {
 namespace formats {
@@ -343,6 +368,184 @@ TEST_F(UtestIntegerChecker, All) {
   EXPECT_TRUE(IntegerChecker<uint64_t>::Compat(std::numeric_limits<uint64_t>::min()));
   EXPECT_TRUE(IntegerChecker<uint64_t>::Compat(std::numeric_limits<uint64_t>::max()));
   EXPECT_FALSE(IntegerChecker<uint64_t>::Compat(-1));
+}
+
+TEST_F(UtestUtilTransfer, CheckInputPathValid_AtcParamWithDoubleHyphen) {
+  EXPECT_EQ(CheckInputPathValid("", "--param"), false);
+}
+
+TEST_F(UtestUtilTransfer, CheckInputPathValid_FileNotReadable) {
+  if (geteuid() == 0) {
+    GTEST_SKIP() << "Skipping test because running as root";
+  }
+  system("touch ut_test_input_file");
+  system("chmod 000 ut_test_input_file");
+  EXPECT_EQ(CheckInputPathValid("./ut_test_input_file", ""), false);
+  system("chmod 644 ut_test_input_file");
+  system("rm -f ut_test_input_file");
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_FileNotWritable) {
+  if (geteuid() == 0) {
+    GTEST_SKIP() << "Skipping test because running as root";
+  }
+  system("touch ut_test_output_file");
+  system("chmod 444 ut_test_output_file");
+  EXPECT_EQ(CheckOutputPathValid("./ut_test_output_file", ""), false);
+  system("chmod 644 ut_test_output_file");
+  system("rm -f ut_test_output_file");
+}
+
+TEST_F(UtestUtilTransfer, CheckInputPathValid_InvalidPathChars) {
+  EXPECT_EQ(CheckInputPathValid("$#%", ""), false);
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_Utf8Truncated) {
+  const std::string truncated("\xC2");
+  EXPECT_EQ(CheckOutputPathValid(truncated, ""), false);
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_Utf8InvalidContinuation) {
+  const std::string invalid("\xC2\x00");
+  EXPECT_EQ(CheckOutputPathValid(invalid, ""), false);
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_Utf8Overlong) {
+  const std::string overlong("\xC0\x80");
+  EXPECT_EQ(CheckOutputPathValid(overlong, ""), false);
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_Utf8Surrogate) {
+  const std::string surrogate("\xED\xA0\x80");
+  EXPECT_EQ(CheckOutputPathValid(surrogate, ""), false);
+}
+
+TEST_F(UtestUtilTransfer, ReadBytesFromBinaryFile_EmptyFile) {
+  system("touch ut_empty_file");
+  char *const_buffer = nullptr;
+  int32_t len = 0;
+  EXPECT_EQ(ReadBytesFromBinaryFile("./ut_empty_file", &const_buffer, len), false);
+  system("rm -f ut_empty_file");
+}
+
+TEST_F(UtestUtilTransfer, ReadBytesFromBinaryFile_FileNotFound) {
+  char *const_buffer = nullptr;
+  int32_t len = 0;
+  EXPECT_EQ(ReadBytesFromBinaryFile("./non_existent_file_12345.bin", &const_buffer, len), false);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_OutOfRange) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("99999999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_InvalidFormat) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("123abc", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_PartialMatch) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("12.34", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_Valid) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("12345", val), SUCCESS);
+  EXPECT_EQ(val, 12345);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_OutOfRange) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("99999999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_InvalidFormat) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("not_a_number", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_Valid) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("12345", val), SUCCESS);
+  EXPECT_EQ(val, uint64_t{12345});
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_OutOfRange) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("99999999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_InvalidFormat) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("invalid", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ValidateStr_SimpleMatch) {
+#ifdef __GNUC__
+  EXPECT_EQ(ValidateStr("hello", "hello"), true);
+  EXPECT_EQ(ValidateStr("hello", "^hello$"), true);
+  EXPECT_EQ(ValidateStr("world", "^hello$"), false);
+#endif
+}
+
+TEST_F(UtestUtilTransfer, GetErrorNumStr) {
+  EXPECT_NE(GetErrorNumStr(0), "");
+}
+
+TEST_F(UtestUtilTransfer, SplitStringByComma) {
+  std::vector<std::string> result;
+  SplitStringByComma("a,b,c", result);
+  EXPECT_EQ(result.size(), 3U);
+}
+
+TEST_F(UtestUtilTransfer, SplitStringByComma_Empty) {
+  std::vector<std::string> result;
+  SplitStringByComma("", result);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UtestUtilTransfer, PrintOptionsWithLengthLimit_AscendString) {
+  std::map<AscendString, AscendString> options;
+  AscendString key("test_key");
+  std::string long_val(200, 'x');
+  AscendString val(long_val.c_str());
+  options[key] = val;
+  PrintOptionsWithLengthLimit(options, "test_prefix", 50U);
+}
+
+TEST_F(UtestUtilTransfer, PrintOptionsWithLengthLimit_EmptyKey) {
+  std::map<AscendString, AscendString> options;
+  options[AscendString("")] = AscendString("value");
+  PrintOptionsWithLengthLimit(options, "test_prefix");
+}
+
+TEST_F(UtestUtilTransfer, PrintOptionsWithLengthLimit_ShortValue) {
+  std::map<std::string, std::string> options;
+  options["key"] = "short_value";
+  PrintOptionsWithLengthLimit(options, "test_prefix");
+}
+
+TEST_F(UtestUtilTransfer, GetCurrentTimestamp) {
+  EXPECT_GT(GetCurrentTimestamp(), uint64_t{0});
+}
+
+TEST_F(UtestUtilTransfer, CurrentTimeInStr) {
+  auto time_str = CurrentTimeInStr();
+  EXPECT_FALSE(time_str.empty());
+}
+
+TEST_F(UtestUtilTransfer, ReadBytesFromBinaryFile_BufferAllocFailed) {
+  system("rm -f ut_test_buf_alloc");
+  ComputeGraphPtr cgp = BuildComputeGraph();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  graph.SaveToFile("./ut_test_buf_alloc");
+  char *const_buffer = nullptr;
+  int32_t len = 0;
+  g_fail_nothrow_new = true;
+  EXPECT_EQ(ReadBytesFromBinaryFile("./ut_test_buf_alloc", &const_buffer, len), false);
+  g_fail_nothrow_new = false;
+  system("rm -f ut_test_buf_alloc");
 }
 }  // namespace formats
 }  // namespace ge

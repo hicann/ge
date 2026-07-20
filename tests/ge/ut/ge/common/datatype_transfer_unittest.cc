@@ -423,5 +423,14 @@ TEST_F(UtestDataTypeTransfer, unsupprot_trans2) {
   EXPECT_EQ(transfer.TransDataType(args, result), ACL_ERROR_GE_DATATYPE_INVALID);
   EXPECT_EQ(TransTensorDataType(args, result), ACL_ERROR_GE_DATATYPE_INVALID);
 }
+
+TEST_F(UtestDataTypeTransfer, TransDataType_ZeroSize) {
+  int32_t data[4] = {1, 2, 3, 4};
+  CastArgs args{reinterpret_cast<uint8_t *>(data), 0, DT_INT32, DT_FLOAT};
+  TransResult result;
+  DataTypeTransfer transfer;
+  EXPECT_EQ(transfer.TransDataType(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
 }  // namespace formats
 }  // namespace ge
