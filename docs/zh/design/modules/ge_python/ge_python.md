@@ -560,6 +560,22 @@ run 包可携带多个 `ge_py_pass_bridge` native 子 wheel，但安装脚本只
 - `PatternMatcherConfigBuilder.enable_ir_attr_match()` - 打开 IR 属性匹配
 - `PatternMatcherConfigBuilder.build()` - 生成配置对象
 
+##### GraphFuseInspector native helper
+
+**文件位置**: `graph_fuse_inspector_binding.cc`、`fuse_inspector.py`
+
+**功能**: 为 graph base 类 pass 提供改图前的融合可行性检查。
+
+**主要接口**:
+- `can_fuse(nodes: Iterable[Node]) -> FuseCheckResult` - 检查节点集合融合成单节点后是否满足 stream label 和无环约束
+- `FuseCheckResult.ok` - 是否可融合
+- `FuseCheckResult.reason` - 不可融合原因；可融合时为空字符串
+
+native binding 将 Python `Node` iterable 转换为 `std::vector<GNode>`，调用
+`GraphFuseInspectorUtils::CanFuse`，再由 `fuse_inspector.py` 将 native 返回的 `(bool, str)` 包装为不可变
+dataclass。
+业务不可融合返回 `FuseCheckResult(False, reason)`；输入类型错误或 Node handle 失效时抛出 Python 异常。
+
 ##### 6. FusionBasePass 类
 
 **文件位置**: `base.py`

@@ -36,6 +36,7 @@ NATIVE_SOURCES = (
     "api/python/ge/ge/passes/native_bindings/pattern_matcher_config_binding.cc",
     "api/python/ge/ge/passes/native_bindings/graph_handle_binding.cc",
     "api/python/ge/ge/passes/native_bindings/graph_rewriter_binding.cc",
+    "api/python/ge/ge/passes/native_bindings/graph_fuse_inspector_binding.cc",
 )
 
 

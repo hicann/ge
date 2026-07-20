@@ -923,6 +923,8 @@
       - [简介](python\ge\passes\FusionBasePass\overview.md)
       - [run](python\ge\passes\FusionBasePass\run.md)
 
+    - [FuseCheckResult](python/ge/passes/FuseCheckResult.md)
+
     - [Graph](python\ge\graph\Graph\Graph.md)
       - [overv简介iew](python\ge\graph\Graph\overview.md)
       - [Graph构造函数](python\ge\graph\Graph\Graph_constructor.md)
@@ -1076,6 +1078,7 @@
       - [set\_data\_type](python\ge\graph\TensorDesc\set_data_type.md)
 
     - [clear\_registered\_passes](python\ge\passes\clear_registered_passes.md)
+    - [can\_fuse](python/ge/passes/can_fuse.md)
     - [create\_replacement](python\ge\passes\create_replacement.md)
     - [create\_pattern](python\ge\passes\create_pattern.md)
     - [get\_registered\_passes](python\ge\passes\get_registered_passes.md)

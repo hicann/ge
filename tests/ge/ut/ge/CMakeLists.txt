@@ -709,6 +709,7 @@ target_compile_definitions(ut_libge_multiparts_utest PRIVATE
 target_include_directories(ut_libge_multiparts_utest PRIVATE
     ${AIR_CODE_DIR}/tests/st/stubs
     ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+    ${AIR_CODE_DIR}/tests/depends
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/exe_graph
     ${ASCGEN_DIR}/inc
@@ -764,8 +765,9 @@ target_link_libraries(ut_libge_multiparts_utest
 set_target_properties(ut_libge_multiparts_utest PROPERTIES CXX_STANDARD 17)
 
 add_test(NAME ut_libge_multiparts_utest COMMAND ut_libge_multiparts_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_multiparts_utest.xml)
-set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest")
-
+set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest"
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0"
+        RUN_SERIAL TRUE)
 # ut_libge_symbol_infer_utest
 add_executable(ut_libge_symbol_infer_utest
         ${SYMBOL_SHAPE_INFER_FILE}

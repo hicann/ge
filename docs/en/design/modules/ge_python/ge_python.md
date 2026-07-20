@@ -561,6 +561,23 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 - `PatternMatcherConfigBuilder.enable_ir_attr_match()` - Enable IR attribute matching
 - `PatternMatcherConfigBuilder.build()` - Generate configuration object
 
+##### GraphFuseInspector native helper
+
+**File Location**: `graph_fuse_inspector_binding.cc`, `fuse_inspector.py`
+
+**Function**: Provides graph base passes with a pre-rewrite fusion feasibility check.
+
+**Main Interfaces**:
+- `can_fuse(nodes: Iterable[Node]) -> FuseCheckResult` - Checks stream-label and cycle constraints for fusing a node set into one node
+- `FuseCheckResult.ok` - Whether fusion is supported
+- `FuseCheckResult.reason` - Why fusion is not supported; empty on success
+
+The native binding converts the Python `Node` iterable to `std::vector<GNode>`, calls
+`GraphFuseInspectorUtils::CanFuse`, and lets `fuse_inspector.py` wrap the native `(bool, str)` result in an
+immutable dataclass.
+Business-level rejection returns `FuseCheckResult(False, reason)`; invalid input types and stale Node handles raise
+Python exceptions.
+
 ##### 6. FusionBasePass Class
 
 **File Location**: `base.py`

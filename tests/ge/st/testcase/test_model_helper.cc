@@ -524,9 +524,24 @@ ComputeGraphPtr BuildAutofuseGraphWithStub(const std::string &om_path) {
   return graph;
 }
 
+static const char *GetCompileTimeCpu() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return "aarch64";
+#elif defined(__x86_64__) || defined(__amd64__)
+  return "x86_64";
+#else
+  return "x86_64";
+#endif
+}
+
+static std::string MakePlatformSuffix() {
+  return std::string("_linux_") + GetCompileTimeCpu();
+}
+
 std::string SaveAutofuseRootModel(const GeRootModelPtr &ge_root_model, const std::string &om_path) {
-  (void)GetThreadLocalContext().SetGlobalOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "x86_64"}});
-  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + "_linux_x86_64.om";
+  (void)GetThreadLocalContext().SetGlobalOption(
+      {{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", GetCompileTimeCpu()}});
+  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + MakePlatformSuffix() + ".om";
   ModelBufferData first;
   ModelHelper helper;
   helper.SetSaveMode(true);
@@ -536,11 +551,12 @@ std::string SaveAutofuseRootModel(const GeRootModelPtr &ge_root_model, const std
 
 std::string GetAutofuseActualOutput(const std::string &output) {
   std::string actual_output = output;
+  const std::string suffix = MakePlatformSuffix();
   const auto dot_pos = actual_output.find(".om");
   if (dot_pos < actual_output.length()) {
-    actual_output.insert(dot_pos, "_linux_x86_64");
+    actual_output.insert(dot_pos, suffix);
   } else {
-    actual_output.append("_linux_x86_64");
+    actual_output.append(suffix);
   }
   return actual_output;
 }

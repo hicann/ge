@@ -761,4 +761,625 @@ TEST_F(UtestOnnxParser, OnnxModelParser_ParseOnnxModelStableSort) {
   ge::Graph graph("stable_topo");
   EXPECT_EQ(model_parser.Parse(model_file.c_str(), graph), SUCCESS);
 }
+// ======================== ConstructOriType domain_version tests ========================
+
+TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_multiple_versions) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+  parser.domain_verseion_["com.microsoft"] = 1;
+
+  ge::onnx::NodeProto node;
+  node.set_op_type("CustomOp");
+  node.set_domain("");
+
+  std::string ori_type;
+  auto ret = parser.ConstructOriType(&node, ori_type);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_single_version) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 13;
+
+  ge::onnx::NodeProto node;
+  node.set_op_type("Relu");
+  node.set_domain("");
+
+  std::string ori_type;
+  auto ret = parser.ConstructOriType(&node, ori_type);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ori_type, "ai.onnx::13::Relu");
+}
+
+TEST_F(UtestOnnxParser, ConstructOriType_unknown_domain) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+
+  ge::onnx::NodeProto node;
+  node.set_op_type("CustomOp");
+  node.set_domain("unknown.domain");
+
+  std::string ori_type;
+  auto ret = parser.ConstructOriType(&node, ori_type);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestOnnxParser, ConstructOriType_known_op_in_map) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_op_type("Input");
+
+  std::string ori_type;
+  auto ret = parser.ConstructOriType(&node, ori_type);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ori_type, "Input");
+}
+
+TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_empty_versions) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_op_type("SomeOp");
+  node.set_domain("");
+
+  std::string ori_type;
+  auto ret = parser.ConstructOriType(&node, ori_type);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+// ======================== TransNodeToOperator IR not registered ========================
+
+TEST_F(UtestOnnxParser, TransNodeToOperator_ir_not_registered) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_name("unregistered_node");
+  node.set_op_type("NonExistentOp");
+
+  ge::Operator op;
+  auto ret = parser.TransNodeToOperator(&node, op, "NonExistentOp");
+  EXPECT_EQ(ret, INTERNAL_ERROR);
+}
+
+// ======================== SetOperatorInputs tests ========================
+
+TEST_F(UtestOnnxParser, SetOperatorInputs_unknown_input) {
+  OnnxModelParser parser;
+  parser.inputs_map_["unknown_tensor"] = {{"node_a", 0}};
+  auto ret = parser.SetOperatorInputs();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, SetOperatorInputs_input_node_not_found) {
+  OnnxModelParser parser;
+  parser.inputs_map_["tensor1"] = {{"nonexistent_node", 0}};
+  parser.outputs_map_["tensor1"] = {{"node_b", 0}};
+
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("node_b", "Add");
+  ge::Operator op_b = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc);
+  parser.name_operator_["node_b"] = op_b;
+
+  auto ret = parser.SetOperatorInputs();
+  EXPECT_EQ(ret, INTERNAL_ERROR);
+}
+
+TEST_F(UtestOnnxParser, SetOperatorInputs_output_node_not_found) {
+  OnnxModelParser parser;
+  parser.inputs_map_["tensor1"] = {{"node_a", 0}};
+  parser.outputs_map_["tensor1"] = {{"nonexistent_node", 0}};
+
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("node_a", "Add");
+  ge::Operator op_a = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc);
+  parser.name_operator_["node_a"] = op_a;
+
+  auto ret = parser.SetOperatorInputs();
+  EXPECT_EQ(ret, INTERNAL_ERROR);
+}
+
+// ======================== GetGraphInputs node not found ========================
+
+TEST_F(UtestOnnxParser, GetGraphInputs_node_not_found) {
+  OnnxModelParser parser;
+  parser.input_node_names_.push_back("nonexistent_input");
+
+  ge::onnx::GraphProto graph;
+  std::vector<ge::Operator> input_ops;
+  auto ret = parser.GetGraphInputs(graph, input_ops);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+// ======================== GetGraphOutputs tests ========================
+
+TEST_F(UtestOnnxParser, GetGraphOutputs_output_not_found) {
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("nonexistent_output");
+
+  std::vector<std::pair<ge::Operator, std::vector<size_t>>> output_ops;
+  ParserUtils::OutputMapping out_tensor_to_nodes;
+  auto ret = parser.GetGraphOutputs(output_ops, out_tensor_to_nodes);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestOnnxParser, GetGraphOutputs_operator_not_found) {
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+  parser.outputs_map_["output_tensor"] = {{"nonexistent_node", 0}};
+
+  std::vector<std::pair<ge::Operator, std::vector<size_t>>> output_ops;
+  ParserUtils::OutputMapping out_tensor_to_nodes;
+  auto ret = parser.GetGraphOutputs(output_ops, out_tensor_to_nodes);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestOnnxParser, GetGraphOutputs_success) {
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+  parser.outputs_map_["output_tensor"] = {{"node_a", 0}};
+
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("node_a", "Identity");
+  ge::GeTensorDesc desc;
+  op_desc->AddOutputDesc("out", desc);
+  ge::Operator op_a = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc);
+  parser.name_operator_["node_a"] = op_a;
+
+  std::vector<std::pair<ge::Operator, std::vector<size_t>>> output_ops;
+  ParserUtils::OutputMapping out_tensor_to_nodes;
+  auto ret = parser.GetGraphOutputs(output_ops, out_tensor_to_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(output_ops.size(), 1U);
+}
+
+// ======================== ParseInput with initializer ========================
+
+TEST_F(UtestOnnxParser, ParseInput_with_initializer_skipped) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *input = graph.add_input();
+  input->set_name("weight");
+
+  std::map<std::string, ge::onnx::TensorProto> initializer;
+  ge::onnx::TensorProto tensor;
+  tensor.set_name("weight");
+  initializer["weight"] = tensor;
+
+  auto ret = parser.ParseInput(initializer, false, graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(graph.node_size(), 0);
+}
+
+TEST_F(UtestOnnxParser, ParseInput_subgraph_adds_subgraph_attr) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *input = graph.add_input();
+  input->set_name("sub_input");
+  auto *type = input->mutable_type();
+  auto *tensor_type = type->mutable_tensor_type();
+  tensor_type->set_elem_type(1);
+
+  std::map<std::string, ge::onnx::TensorProto> initializer;
+  auto ret = parser.ParseInput(initializer, true, graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_GE(graph.node_size(), 1);
+  bool found_subgraph_attr = false;
+  for (int i = 0; i < graph.node(0).attribute_size(); i++) {
+    if (graph.node(0).attribute(i).name() == ge::kAttrNameIsSubgraphOp) {
+      found_subgraph_attr = true;
+    }
+  }
+  EXPECT_TRUE(found_subgraph_attr);
+}
+
+TEST_F(UtestOnnxParser, ParseInput_with_shape) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *input = graph.add_input();
+  input->set_name("data_input");
+  auto *type = input->mutable_type();
+  auto *tensor_type = type->mutable_tensor_type();
+  tensor_type->set_elem_type(1);
+  auto *shape = tensor_type->mutable_shape();
+  shape->add_dim()->set_dim_value(1);
+  shape->add_dim()->set_dim_value(3);
+  shape->add_dim()->set_dim_value(224);
+  shape->add_dim()->set_dim_value(224);
+
+  std::map<std::string, ge::onnx::TensorProto> initializer;
+  auto ret = parser.ParseInput(initializer, false, graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// ======================== ParseInitializer with external data ========================
+
+TEST_F(UtestOnnxParser, ParseInitializer_external_data_location) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+
+  std::map<std::string, ge::onnx::TensorProto> initializer;
+  ge::onnx::TensorProto tensor;
+  tensor.set_name("ext_weight");
+  tensor.set_data_location(ge::onnx::TensorProto_DataLocation_EXTERNAL);
+  initializer["ext_weight"] = tensor;
+
+  auto ret = parser.ParseInitializer(graph, initializer);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(graph.node_size(), 1);
+  EXPECT_EQ(graph.node(0).op_type(), kFileConstant);
+}
+
+TEST_F(UtestOnnxParser, ParseInitializer_default_data_location) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+
+  std::map<std::string, ge::onnx::TensorProto> initializer;
+  ge::onnx::TensorProto tensor;
+  tensor.set_name("default_weight");
+  tensor.set_data_location(ge::onnx::TensorProto_DataLocation_DEFAULT);
+  initializer["default_weight"] = tensor;
+
+  auto ret = parser.ParseInitializer(graph, initializer);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(graph.node_size(), 1);
+  EXPECT_EQ(graph.node(0).op_type(), ge::kOpTypeConstant);
+}
+
+// ======================== ClearMembers test ========================
+
+TEST_F(UtestOnnxParser, ClearMembers_clears_all) {
+  OnnxModelParser parser;
+  parser.name_operator_["test"] = ge::Operator();
+  parser.input_node_names_.push_back("input");
+  parser.output_node_names_.push_back("output");
+  parser.inputs_map_["tensor"] = {{"node", 0}};
+  parser.outputs_map_["tensor"] = {{"node", 0}};
+
+  parser.ClearMembers();
+  EXPECT_TRUE(parser.name_operator_.empty());
+  EXPECT_TRUE(parser.input_node_names_.empty());
+  EXPECT_TRUE(parser.output_node_names_.empty());
+  EXPECT_TRUE(parser.inputs_map_.empty());
+  EXPECT_TRUE(parser.outputs_map_.empty());
+}
+
+// ======================== ToJson null params ========================
+
+TEST_F(UtestOnnxParser, ToJson_null_model_file) {
+  OnnxModelParser parser;
+  auto ret = parser.ToJson(nullptr, "output.json");
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, ToJson_null_json_file) {
+  OnnxModelParser parser;
+  auto ret = parser.ToJson("model.onnx", nullptr);
+  EXPECT_EQ(ret, FAILED);
+}
+
+// ======================== aclgrphParseONNX null tests ========================
+
+TEST_F(UtestOnnxParser, aclgrphParseONNX_null_model_file) {
+  ge::Graph graph;
+  std::map<AscendString, AscendString> params;
+  auto ret = aclgrphParseONNX(nullptr, params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, aclgrphParseONNXFromMem_null_buffer) {
+  ge::Graph graph;
+  std::map<AscendString, AscendString> params;
+  auto ret = aclgrphParseONNXFromMem(nullptr, 0, params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== ModelParseToGraph no graph ========================
+
+TEST_F(UtestOnnxParser, ModelParseToGraph_no_graph_in_model) {
+  OnnxModelParser parser;
+  ge::onnx::ModelProto model;
+  ge::Graph root_graph("test");
+  auto ret = parser.ModelParseToGraph(model, root_graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+// ======================== ConstructInputOutputContext ========================
+
+TEST_F(UtestOnnxParser, ConstructInputOutputContext_basic) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_name("test_node");
+  node.add_input("input_0");
+  node.add_input("input_1");
+  node.add_output("output_0");
+
+  auto ret = parser.ConstructInputOutputContext(&node);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(parser.inputs_map_.size(), 2U);
+  EXPECT_EQ(parser.outputs_map_.size(), 1U);
+  EXPECT_EQ(parser.inputs_map_["input_0"][0].first, "test_node");
+  EXPECT_EQ(parser.inputs_map_["input_0"][0].second, 0);
+  EXPECT_EQ(parser.inputs_map_["input_1"][0].second, 1);
+  EXPECT_EQ(parser.outputs_map_["output_0"][0].first, "test_node");
+}
+
+// ======================== Prechecker tests ========================
+
+TEST_F(UtestOnnxParser, Prechecker_construct_ori_type_failure) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+  parser.domain_verseion_["other.domain"] = 1;
+
+  ge::onnx::GraphProto graph;
+  auto *node = graph.add_node();
+  node->set_name("bad_node");
+  node->set_op_type("BadOp");
+  node->set_domain("");
+
+  auto ret = parser.Prechecker(graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== AdapterOpType tests ========================
+
+TEST_F(UtestOnnxParser, AdapterOpType_input_op) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_op_type("Input");
+
+  std::string ori_type, op_type;
+  auto ret = parser.AdapterOpType(&node, ori_type, op_type);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(op_type, ge::parser::DATA);
+}
+
+TEST_F(UtestOnnxParser, AdapterOpType_constant_op) {
+  OnnxModelParser parser;
+  ge::onnx::NodeProto node;
+  node.set_op_type("Constant");
+
+  std::string ori_type, op_type;
+  auto ret = parser.AdapterOpType(&node, ori_type, op_type);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(op_type, ge::parser::CONSTANT);
+}
+
+TEST_F(UtestOnnxParser, AdapterOpType_unregistered_op) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+
+  ge::onnx::NodeProto node;
+  node.set_op_type("TotallyUnknownOp");
+  node.set_domain("ai.onnx");
+
+  std::string ori_type, op_type;
+  auto ret = parser.AdapterOpType(&node, ori_type, op_type);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+// ======================== UpdateDataFormat ========================
+
+TEST_F(UtestOnnxParser, UpdateDataFormat_empty_graph) {
+  OnnxModelParser parser;
+  ge::Graph graph("test");
+  parser.UpdateDataFormat(graph);
+}
+
+// ======================== SetOutputsInfo tests ========================
+
+TEST_F(UtestOnnxParser, SetOutputsInfo_default_output) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+
+  ParserUtils::OutputMapping final_output_nodes;
+  final_output_nodes["output_tensor"] = {"node_a", 0};
+  ParserUtils::OutputMapping tensor_to_nodes;
+  tensor_to_nodes["output_tensor"] = {"node_a", 0};
+
+  auto ret = parser.SetOutputsInfo(final_output_nodes, tensor_to_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, SetOutputsInfo_user_specified_output_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  ge::GetParserContext().user_out_nodes.push_back({"node_a", 0});
+
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+
+  ParserUtils::OutputMapping final_output_nodes;
+  final_output_nodes["node_a"] = {"node_a", 0};
+  ParserUtils::OutputMapping tensor_to_nodes;
+
+  auto ret = parser.SetOutputsInfo(final_output_nodes, tensor_to_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, SetOutputsInfo_user_specified_tensors_not_found) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  ge::GetParserContext().user_out_tensors.push_back("nonexistent_tensor");
+
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+
+  ParserUtils::OutputMapping final_output_nodes;
+  final_output_nodes["output_tensor"] = {"node_a", 0};
+  ParserUtils::OutputMapping tensor_to_nodes;
+  tensor_to_nodes["output_tensor"] = {"node_a", 0};
+
+  auto ret = parser.SetOutputsInfo(final_output_nodes, tensor_to_nodes);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, SetOutputsInfo_user_specified_tensors_found) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  ge::GetParserContext().user_out_tensors.push_back("output_tensor");
+
+  OnnxModelParser parser;
+  parser.output_node_names_.push_back("output_tensor");
+
+  ParserUtils::OutputMapping final_output_nodes;
+  final_output_nodes["output_tensor"] = {"node_a", 0};
+  ParserUtils::OutputMapping tensor_to_nodes;
+  tensor_to_nodes["output_tensor"] = {"node_a", 0};
+
+  auto ret = parser.SetOutputsInfo(final_output_nodes, tensor_to_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// ======================== ParseAllNodeProto failure tests ========================
+
+TEST_F(UtestOnnxParser, ParseAllNodeProto_adapter_op_type_failure) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+  parser.domain_verseion_["other"] = 1;
+
+  ge::onnx::GraphProto graph;
+  auto *node = graph.add_node();
+  node->set_name("bad_node");
+  node->set_op_type("BadOp");
+  node->set_domain("");
+
+  ge::Graph ge_graph("test");
+  auto ret = parser.ParseAllNodeProto(graph, ge_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+// ======================== ModelParseToGraphImpl ONLY_PRE_CHECK ========================
+
+TEST_F(UtestOnnxParser, ModelParseToGraphImpl_only_precheck) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  ge::GetParserContext().run_mode = ge::ONLY_PRE_CHECK;
+
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 11;
+
+  ge::onnx::GraphProto onnx_graph;
+  onnx_graph.set_name("test_graph");
+  auto *input = onnx_graph.add_input();
+  input->set_name("data");
+  auto *output = onnx_graph.add_output();
+  output->set_name("data");
+
+  ge::Graph graph("test");
+  auto ret = parser.ModelParseToGraphImpl(false, onnx_graph, graph);
+  EXPECT_EQ(ret, SUCCESS);
+
+  ge::GetParserContext().run_mode = ge::GEN_OM_MODEL;
+}
+
+// ======================== GetAllGraphNodes ========================
+
+TEST_F(UtestOnnxParser, GetAllGraphNodes_basic) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto onnx_graph;
+  auto *node = onnx_graph.add_node();
+  node->set_name("test_node");
+  node->set_op_type("Add");
+
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("test_node", "Add");
+  ge::Operator op = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc);
+  parser.name_operator_["test_node"] = op;
+
+  std::vector<ge::Operator> ops;
+  auto ret = parser.GetAllGraphNodes(onnx_graph, ops);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ops.size(), 1U);
+}
+
+// ======================== AdaptAndFindAllOnnxGraph ========================
+
+TEST_F(UtestOnnxParser, AdaptAndFindAllOnnxGraph_empty_graph) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto root_graph;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  auto ret = parser.AdaptAndFindAllOnnxGraph(root_graph, name_to_graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, AdaptAndFindAllOnnxGraph_with_named_node) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto root_graph;
+  auto *node = root_graph.add_node();
+  node->set_name("my_node");
+  node->set_op_type("Relu");
+
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  auto ret = parser.AdaptAndFindAllOnnxGraph(root_graph, name_to_graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, AdaptAndFindAllOnnxGraph_unnamed_node_gets_name) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto root_graph;
+  auto *node = root_graph.add_node();
+  node->set_op_type("Relu");
+
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  auto ret = parser.AdaptAndFindAllOnnxGraph(root_graph, name_to_graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(root_graph.node(0).name().empty());
+}
+
+// ======================== ParseOutput with outputs ========================
+
+TEST_F(UtestOnnxParser, ParseOutput_with_outputs) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *output = graph.add_output();
+  output->set_name("output_0");
+  auto *output2 = graph.add_output();
+  output2->set_name("output_1");
+
+  auto ret = parser.ParseOutput(graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(parser.output_node_names_.size(), 2U);
+}
+
+// ======================== UpdateNodeNameAndOpType ========================
+
+TEST_F(UtestOnnxParser, UpdateNodeNameAndOpType_empty_name) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *node = graph.add_node();
+  node->set_op_type("Relu");
+
+  parser.UpdateNodeNameAndOpType(graph);
+  EXPECT_FALSE(graph.node(0).name().empty());
+  EXPECT_EQ(graph.node(0).name(), "Relu_0");
+}
+
+TEST_F(UtestOnnxParser, UpdateNodeNameAndOpType_with_name) {
+  OnnxModelParser parser;
+  ge::onnx::GraphProto graph;
+  auto *node = graph.add_node();
+  node->set_name("my_relu");
+  node->set_op_type("Relu");
+
+  parser.UpdateNodeNameAndOpType(graph);
+  EXPECT_EQ(graph.node(0).name(), "my_relu");
+}
+
+// ======================== ConvertToGeDataType ========================
+
+TEST_F(UtestOnnxParser, ConvertToGeDataType_float) {
+  OnnxModelParser parser;
+  auto dt = parser.ConvertToGeDataType(1);
+  EXPECT_EQ(dt, ge::DT_FLOAT);
+}
+
+TEST_F(UtestOnnxParser, ConvertToGeDataType_int64) {
+  OnnxModelParser parser;
+  auto dt = parser.ConvertToGeDataType(7);
+  EXPECT_EQ(dt, ge::DT_INT64);
+}
+
+// ======================== HasError / Save / Clear ========================
+
+TEST_F(UtestOnnxParser, HasError_initial) {
+  OnnxModelParser parser;
+  EXPECT_FALSE(parser.HasError());
+}
+
+TEST_F(UtestOnnxParser, Clear_clears_prechecker) {
+  OnnxModelParser parser;
+  parser.Clear();
+}
+
 }  // namespace ge

@@ -14,6 +14,7 @@
 
 __all__ = [
     "DecomposePass",
+    "FuseCheckResult",
     "FusionBasePass",
     "MatchResult",
     "NodeIo",
@@ -27,6 +28,7 @@ __all__ = [
     "SubgraphOutput",
     "SubgraphBoundary",
     "SubgraphRewriter",
+    "can_fuse",
     "clear_registered_passes",
     "create_pattern",
     "create_replacement",
@@ -42,6 +44,7 @@ from .pattern import pattern
 
 _LAZY_EXPORTS = {
     "DecomposePass": ".base",
+    "FuseCheckResult": ".fuse_inspector",
     "FusionBasePass": ".base",
     "MatchResult": ".base",
     "PassStage": ".base",
@@ -53,6 +56,7 @@ _LAZY_EXPORTS = {
     "SubgraphOutput": ".base",
     "SubgraphBoundary": ".base",
     "SubgraphRewriter": ".base",
+    "can_fuse": ".fuse_inspector",
     "NodeIo": ".pattern",
     "Pattern": ".pattern",
     "create_pattern": ".pattern",

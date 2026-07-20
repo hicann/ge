@@ -28,7 +28,13 @@ __all__: list[str] = [
     "SubgraphInput",
     "SubgraphOutput",
     "SubgraphRewriter",
+    "can_fuse",
 ]
+
+
+def can_fuse(nodes: typing.Iterable[Node]) -> tuple[bool, str]:
+    """Check whether nodes can be safely fused into one node."""
+    ...
 
 
 class PassContext:

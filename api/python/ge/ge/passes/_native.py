@@ -26,6 +26,7 @@ __all__ = [
     "SubgraphRewriter",
     "borrow_match_result",
     "borrow_node",
+    "can_fuse",
     "clone_pattern_matcher_config",
     "release_graph",
 ]
@@ -45,5 +46,6 @@ SubgraphBoundary = _native.SubgraphBoundary
 SubgraphRewriter = _native.SubgraphRewriter
 borrow_match_result = _native.borrow_match_result
 borrow_node = _native.borrow_node
+can_fuse = _native.can_fuse
 clone_pattern_matcher_config = _native.clone_pattern_matcher_config
 release_graph = _native.release_graph
