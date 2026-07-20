@@ -340,7 +340,7 @@ class Configuration {
 
   /**
    * Initialize the parameters from options
-   * @param options patameters map
+   * @param options parameters map
    */
   Status InitConfigParamFromOptions(const std::map<string, string> &options);
 

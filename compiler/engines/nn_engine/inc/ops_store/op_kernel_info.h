@@ -128,7 +128,7 @@ class InputOrOutputInfo {
    * is 1,2,3D or more than 6D. */
   std::string reshape_type_;
 
-  /* Reshape type which needed to be transfered which is used when we transfer
+  /* Reshape type which needed to be transferred which is used when we transfer
    * this input into 4D if it is 1,2,3D or more than 6D. */
   std::string propagate_reshape_type_;
 

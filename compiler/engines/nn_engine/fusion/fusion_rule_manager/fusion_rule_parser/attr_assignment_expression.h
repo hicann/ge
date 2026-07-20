@@ -23,8 +23,8 @@ namespace fe {
 
 using FusionRuleAttrValuePtr = std::shared_ptr<FusionRuleAttrValue>;
 
-/** @brief provide attribute assginment expression parse methods, and get
- *        attribute's info from OpKernleInfoStore */
+/** @brief provide attribute assignment expression parse methods, and get
+ *        attribute's info from OpKernelInfoStore */
 class AttrAssignmentExpression {
  public:
   AttrAssignmentExpression()
@@ -73,7 +73,7 @@ class AttrAssignmentExpression {
   Status GetValueType(const std::map<string, std::vector<string>> &node_map, const FusionRuleAttr &attr,
                       ge::GeAttrValue::ValueType &value_type) const;
   /*
-   * @brief: Convert fixed value or relected value of r_value from json
+   * @brief: Convert fixed value or reflected value of r_value from json
    */
   Status ConvertToAttrValue(const nlohmann::json &json_object, ge::GeAttrValue::ValueType value_type,
                             FusionRuleAttrValuePtr value);

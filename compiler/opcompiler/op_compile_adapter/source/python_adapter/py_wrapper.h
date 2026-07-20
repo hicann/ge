@@ -80,7 +80,7 @@ struct PyWrapper {
     }
 
     if (pyRes == nullptr) {
-      // python exception occured, just clear the exception
+      // python exception occurred, just clear the exception
       PyObject *ptype = nullptr;
       PyObject *pvalue = nullptr;
       PyObject *ptb = nullptr;
@@ -141,7 +141,7 @@ struct PyWrapper {
     PyObject *pyRes = nullptr;
     pyRes = HandleManager::Instance().TE_PyObject_Call(pyFunc, tmpArgs, kwargs);
     if (pyRes == nullptr) {
-      // python exception occured, just clear the exception
+      // python exception occurred, just clear the exception
       PrintPyException();
     }
     return PyObjectPtr(pyRes, PyWrapper::PyObjectDecRef);

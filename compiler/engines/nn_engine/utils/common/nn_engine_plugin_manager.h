@@ -74,7 +74,7 @@ class PluginManager {
     Status ret = GetFunction(func_name, func);
     if (ret != SUCCESS) {
       REPORT_FE_ERROR("[GraphOpt][InitTbeFunc]: Failed to dlsym function %s.", func_name.c_str());
-      // No matter we close it successfully or not, we will return FAILED because we failed to get fucntion.
+      // No matter we close it successfully or not, we will return FAILED because we failed to get function.
       (void)CloseHandle();
       return FAILED;
     }

@@ -66,7 +66,7 @@ struct TransferInfo {
 
   uint32_t insertion_mode;
 
-  /* Set this source out orginal format and shape for getting 4D shape
+  /* Set this source out original format and shape for getting 4D shape
    * without padding in 5->4 scenario */
   ge::Format src_out_original_format;
   ge::GeShape src_out_original_shape;

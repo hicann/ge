@@ -64,7 +64,7 @@ using FusionRuleAttrValuePtr = std::shared_ptr<FusionRuleAttrValue>;
  * one FusionRulePattern represents one fusion rule
  * only provide 'Get' functions
  */
-/** @brief implement the fuctions of data structure of fusion rules which are
+/** @brief implement the functions of data structure of fusion rules which are
  *        read from config file.
  *        Provide methods of fusion rules for the match of input graph and
  *        fusion rules. */

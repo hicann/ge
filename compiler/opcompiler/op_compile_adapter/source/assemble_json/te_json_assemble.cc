@@ -789,7 +789,7 @@ void TeJsonAssemble::OutputsDescToJsonProcess(nlohmann::json &json_str, const st
     outputDescJson["data_type"] = dtype;
     // get output_name: NodeName + "__" + output order
     std::string currentOutputName = outputParam.keyName + "__" + std::to_string(anchorIdx);
-    // if the output is multi-refered, add an ":$seq" suffix
+    // if the output is multi-referred, add an ":$seq" suffix
     if (peerSize > 1) {
       std::string suffix;
       GetOutputSuffix(peers.at(i), allNodes, suffix, refCount);

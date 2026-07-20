@@ -112,8 +112,8 @@ FE_DEF_ERRORNO_SHAPE_FORMAT_TRANSFER(MERGE_TRANS_OP_NO_MORE_PREDECESSOR, 7,
 /** fusion manager error code define */
 FE_DEF_ERRORNO_ITF(OPINFO_STORES_INIT_FAILED, 0, "Failed to init opinfo_kernel_stores!");      // 0x3330000
 FE_DEF_ERRORNO_ITF(GRAPH_OPTIMIZER_INIT_FAILED, 1, "Failed to init graphoptimizer!");          // 0x3330001
-FE_DEF_ERRORNO_ITF(OPINFO_STORES_FINI_FAILED, 2, "Failed to finilize opinfo_kernel_stores!");  // 0x3330002
-FE_DEF_ERRORNO_ITF(GRAPHOPTIMIZER_FINI_FAILED, 3, "Failed to finilize graphoptimizer!");       // 0x3330003
+FE_DEF_ERRORNO_ITF(OPINFO_STORES_FINI_FAILED, 2, "Failed to finalize opinfo_kernel_stores!");  // 0x3330002
+FE_DEF_ERRORNO_ITF(GRAPHOPTIMIZER_FINI_FAILED, 3, "Failed to finalize graphoptimizer!");       // 0x3330003
 FE_DEF_ERRORNO_ITF(CONFIGURATION_INIT_FAILED, 4, "Failed to initialize configuration!");       // 0x3330004
 
 /** graph optimizer error code define */
@@ -152,7 +152,7 @@ FE_DEF_ERRORNO_OP_COMPILER(OP_COMPILER_MAKE_SHARED_FAILED, 0, "Failed to make sh
 FE_DEF_ERRORNO_OP_COMPILER(OP_COMPILER_CHECK_FALSE_FAILED, 1, "Failed to check false in op compiler!");  // 0x3370001
 FE_DEF_ERRORNO_OP_COMPILER(OP_COMPILER_L1_FUSION_FAILED, 2, "Failed to compile l1 fusion op!");          // 0x3370002
 
-/** op kenel store error code define */
+/** op kernel store error code define */
 FE_DEF_ERRORNO_OP_KERNEL_STORE(OP_STORE_PARSE_FAILED, 0, "Failed to parse the op kernel store cfg file!");  // 0x3380000
 FE_DEF_ERRORNO_OP_KERNEL_STORE(OP_STORE_MAP_KEY_FIND_FAILED, 1,
                                "Failed to find the map key in FEOpKernelStore!");  // 0x3380001

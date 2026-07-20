@@ -25,7 +25,7 @@ struct FftsPlusContextPath {
   vector<uint32_t> cmo_list;    // label context_id
   vector<uint32_t> label_list;  // label context_id
   vector<uint32_t> pre_list;    // pre list context_id
-  vector<uint32_t> succ_list;   // succ lsit context_id
+  vector<uint32_t> succ_list;   // succ list context_id
 };
 
 #define RT_CTX_TYPE_NOOP_LABEL (RT_CTX_TYPE_LABEL + 1)

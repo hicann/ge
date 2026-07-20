@@ -19,7 +19,7 @@ class SplitOptimizeChecker : public NodeOptimizeCheckerBase {
 
  private:
   /**
-   * Check if ther ara multiple data outputs.
+   * Check if there are multiple data outputs.
    * @param node_ptr node
    * @return true or false
    */

@@ -89,7 +89,7 @@ class HeavyFormatPropagation {
   Status PropagateBackwards(const NodeInfoPtr &node_info, int32_t format_index,
                             FormatSelectionType format_selection_type, std::deque<NodeInfoPtr> &next_node_queue);
   /**
-   * Propagate farward from all output of current node to the peer inputs'
+   * Propagate forward from all output of current node to the peer inputs'
    * owner node.
    * @param last_node: we will not traversing to the node where the heavy
    * format is from.
@@ -153,7 +153,7 @@ class HeavyFormatPropagation {
    * whether there is some input or output which is not format agnostic. */
   bool IsAnchorFormatAgnostic(const TensorInfoPtr &tensor_info_ptr, bool is_input, int64_t anchor_idex) const;
   /**
-   * Propagate farward from all output of current node to the peer inputs'
+   * Propagate forward from all output of current node to the peer inputs'
    * owner node.
    * @param last_node: we will not traversing to the node where the heavy
    * format is from.
@@ -166,7 +166,7 @@ class HeavyFormatPropagation {
                                      const TensorInfoPtr &tensor_info_ptr, std::deque<NodeInfoPtr> &next_node_queue);
 
   /**
-   * Propagate farward from all input of sub graph netoutput to peer inputs'
+   * Propagate forward from all input of sub graph netoutput to peer inputs'
    * owner node.
    * @param last_node: we will not traversing to the node where the heavy
    * format is from.

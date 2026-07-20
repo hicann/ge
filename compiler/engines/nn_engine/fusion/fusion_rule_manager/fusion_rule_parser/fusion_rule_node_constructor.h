@@ -50,7 +50,7 @@ class FusionRuleNodeConstructor {
    */
   static Status CheckOuterOutputUniqueInput(FusionRuleNodePtr node, set<FusionRuleAnchorPtr> &record_map);
   /*
-   * @brief: Record relected assgined attr's source node ptr
+   * @brief: Record reflected assigned attr's source node ptr
    */
   static Status SetAttrOwnerNode(FusionRuleNodePtr node, const std::set<FusionRuleNodePtr> &nodes);
 };

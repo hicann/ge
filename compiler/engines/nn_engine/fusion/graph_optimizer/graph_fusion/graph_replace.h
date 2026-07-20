@@ -160,7 +160,7 @@ class GraphReplace {
                          ge::ComputeGraph &graph) const;
   /*
    * @ingroup fe
-   * @brief   create fusion node name, prevent Name conflict whit in on scope
+   * @brief   create fusion node name, prevent Name conflict with in on scope
    * @param   [in] origin_sub_graph, subgraph with fusion rule node corresponds to
    * pre-fusion node
    * @param   [in] fusion_rule_pattern, fusion pattern
@@ -263,7 +263,7 @@ class GraphReplace {
                            const map<FusionRuleAnchorPtr, std::set<ge::AnchorPtr>> &outer_inputs) const;
   /*
    * @ingroup fe
-   * @brief infer the shape, data type and origin foramt of fusion node
+   * @brief infer the shape, data type and origin format of fusion node
    */
   bool InferShapeDtypeAndFormat(const vector<ge::NodePtr> &sort_nodes,
                                 const map<ge::NodePtr, FusionRuleNodePtr> &fusion_nodes,

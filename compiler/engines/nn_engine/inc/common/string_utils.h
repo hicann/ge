@@ -48,7 +48,7 @@ class StringUtils {
         num_flag = false;
         data = 0;
       }
-      // when inplace size is 2 push to res to assember listlistint
+      // when inplace size is 2 push to res to assembler list
       char right_brace = outputInplaceAbility[i];
       if (!IsValidOutputInplace(right_brace, output_inplace, res, left_brace_num)) {
         res.clear();
@@ -159,7 +159,7 @@ class StringUtils {
   }
 
   /** @ingroup domi_common
-   *  @brief remove the white space at the begining and end position of string
+   *  @brief remove the white space at the beginning and end position of string
    *  @param [in] s : the string need to be trim
    *  @return the string after trim
    */
@@ -204,7 +204,7 @@ class StringUtils {
   }
 
   /** @ingroup fe
-   *  @brief whether a string match another string, after triming space
+   *  @brief whether a string match another string, after trimming space
    *  @param [in] left    : a string to be matched
    *  @param [in] right   : a string to be matched
    *  @return true else false

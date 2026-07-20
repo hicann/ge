@@ -52,7 +52,7 @@ class TransNodeMerging {
 
  private:
   /* Remove edge between src_anchor and dst Anchor. Then, add two edges which are
-   * frome src_anchor to new_node and from new_node to dst_anchor. */
+   * from src_anchor to new_node and from new_node to dst_anchor. */
   Status AddEdgesForNewNode(ge::OutDataAnchorPtr src_anchor, ge::InDataAnchorPtr dst_anchor, ge::NodePtr new_node);
 
   Status MergeOneNode(ge::ComputeGraph &fused_graph, ge::NodePtr node, const uint32_t &current_in_anchor_index,

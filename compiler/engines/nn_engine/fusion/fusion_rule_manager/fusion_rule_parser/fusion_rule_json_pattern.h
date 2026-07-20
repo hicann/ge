@@ -120,7 +120,7 @@ class FusionRuleJsonGraph {
   FusionRuleJsonGraph(const FusionRuleJsonGraph &) = delete;
   FusionRuleJsonGraph &operator=(const FusionRuleJsonGraph &) = delete;
   /*
-   * @breif: graph json format: {
+   * @brief: graph json format: {
    *                                "Nodes":[{node_format},...],
    *                                "Edges":[{edge_format},...],
    *                                "Attrs":[{attr_format},...]
@@ -171,7 +171,7 @@ class FusionRuleJsonEdge {
   FusionRuleJsonEdge(const FusionRuleJsonEdge &) = delete;
   FusionRuleJsonEdge &operator=(const FusionRuleJsonEdge &) = delete;
   /*
-   * @breif: edge json format: {
+   * @brief: edge json format: {
    *                               "src":{anchor_format},
    *                               "dst":{anchor_format}
    *                           }
@@ -203,7 +203,7 @@ class FusionRuleJsonNode {
   FusionRuleJsonNode(const FusionRuleJsonNode &) = delete;
   FusionRuleJsonNode &operator=(const FusionRuleJsonNode &) = delete;
   /*
-   * @breif: node json format: {
+   * @brief: node json format: {
    *                               "name":"node_name",
    *                               "type":["type1"],
    *                           }
