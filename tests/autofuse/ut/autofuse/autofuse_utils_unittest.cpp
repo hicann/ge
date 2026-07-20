@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <queue>
 #include "utils/autofuse_utils.h"
+#include "utils/auto_fuse_config.h"
 #include "fusion/autofuse_attrs.h"
 #include "can_fuse/backend/asc_backend_fusion_decider.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
@@ -552,6 +553,66 @@ TEST_F(AutofuseUtilsTest, DumpGEGraph_ok1) {
   AutofuseUtils::DumpGEGraphLevel1(graph, "", "");
   system(("rm -rf " + prefix).c_str());
   unsetenv(kDumpGEGraph);
+}
+
+TEST_F(AutofuseUtilsTest, DumpAscGraph_LargeConcatAscBackendSkipDetail) {
+  auto concat = OP_CFG(kAscBackendType)
+                    .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
+                    .InCnt(1)
+                    .OutCnt(1)
+                    .InNames({"x"})
+                    .OutNames({"y"})
+                    .Build("ConcatLarge");
+  DEF_GRAPH(g) {
+    CHAIN(NODE(concat));
+  };
+  auto graph = ToComputeGraph(g);
+  auto node = graph->FindNode("ConcatLarge");
+  ASSERT_NE(node, nullptr);
+  ASSERT_EQ(SetAttrsGroup(node), SUCCESS);
+
+  auto &cfg = autofuse::AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver();
+  const auto old_max_fusion_size = cfg.max_fusion_size;
+  cfg.max_fusion_size = 1U;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+  const auto ret = BackendUtils::DumpAscGraph(node);
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+  cfg.max_fusion_size = old_max_fusion_size;
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(AutofuseUtilsTest, DumpAscGraph_LargeConcatFusedAscBackendSkipDetail) {
+  auto fused = OP_CFG(kFusedAscBackendType)
+                   .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
+                   .InCnt(1)
+                   .OutCnt(1)
+                   .InNames({"x"})
+                   .OutNames({"y"})
+                   .Build("FusedConcatLarge");
+  DEF_GRAPH(g) {
+    CHAIN(NODE(fused));
+  };
+  auto graph = ToComputeGraph(g);
+  auto node = graph->FindNode("FusedConcatLarge");
+  ASSERT_NE(node, nullptr);
+
+  ge::AscGraph concat_graph("large_concat_graph");
+  auto asc_graph = CreatConcatAscGraph(concat_graph);
+  ASSERT_NE(asc_graph, nullptr);
+  auto fused_compute_graph = af::AscGraphUtils::GetComputeGraph(*asc_graph);
+  ASSERT_NE(fused_compute_graph, nullptr);
+  auto attr = GetOrCreateAutoFuseAttrs(node->GetOpDesc());
+  ASSERT_NE(attr, nullptr);
+  attr->SetFuseComputeGraph(fused_compute_graph);
+
+  auto &cfg = autofuse::AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver();
+  const auto old_max_fusion_size = cfg.max_fusion_size;
+  cfg.max_fusion_size = 1U;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+  const auto ret = BackendUtils::DumpAscGraph(node);
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+  cfg.max_fusion_size = old_max_fusion_size;
+  EXPECT_EQ(ret, SUCCESS);
 }
 
 TEST_F(AutofuseUtilsTest, IsNoNeedDump_ok) {
