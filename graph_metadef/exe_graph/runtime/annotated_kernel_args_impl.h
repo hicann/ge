@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "common/checker.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/utils/args_format_desc_utils.h"
 
 namespace gert {

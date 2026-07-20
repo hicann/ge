@@ -10,7 +10,7 @@
 
 #include "memory_copy.h"
 #include "common/checker.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "exe_graph/runtime/tensor_data.h"
 #include "exe_graph/runtime/shape.h"

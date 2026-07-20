@@ -12,7 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_KERNEL_CONTROL_KERNEL_CONTROL_KERNEL_H_
 #include "exe_graph/runtime/kernel_context.h"
 #include "graph/node.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "core/execution_data.h"
 
 namespace gert {

@@ -28,7 +28,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/ge_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/op_tiling/op_tiling_constants.h"
 #include "register/op_tiling_info.h"
 #include "graph/def_types.h"

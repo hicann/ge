@@ -9,7 +9,7 @@
  */
 
 #include "infer_shape_range.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "framework/common/debug/ge_log.h"
 #include "kernel/kernel_log.h"

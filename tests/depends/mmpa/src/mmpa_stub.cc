@@ -12,7 +12,7 @@
 #include <dirent.h>
 #include "mmpa/mmpa_api.h"
 #include "framework/common/taskdown_common.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/any_value.h"
 #include "register/op_impl_kernel_registry.h"
 #include <string>

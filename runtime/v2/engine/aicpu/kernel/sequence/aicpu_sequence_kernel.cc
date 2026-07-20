@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <cinttypes>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "register/kernel_registry.h"
 #include "framework/common/debug/log.h"

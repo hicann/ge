@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <iostream>
 #include <algorithm>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "register/kernel_registry.h"

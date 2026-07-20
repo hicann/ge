@@ -11,7 +11,7 @@
 #include "file_constant_kernel.h"
 #include <fstream>
 #include "securec.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "framework/runtime/rt_session.h"

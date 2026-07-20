@@ -19,7 +19,7 @@
 #include <vector>
 #include "graph/buffer.h"
 #include "detail/attributes_holder.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/ge_tensor.h"
 #include "graph/any_value.h"
 #include "graph/attr_value.h"

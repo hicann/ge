@@ -20,7 +20,7 @@
 #include "graph/types.h"
 #include "graph/ascend_string.h"
 #include "graph/resource_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class ShapeAndTypeImpl;

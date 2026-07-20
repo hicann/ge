@@ -11,7 +11,7 @@
 #include "common/preload/elf/elf_data.h"
 #include <functional>
 #include <securec.h>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "common/checker.h"
 #include "graph/def_types.h"
 #include "graph_metadef/common/ge_common/util.h"

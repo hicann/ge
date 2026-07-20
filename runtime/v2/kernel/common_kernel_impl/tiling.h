@@ -10,7 +10,7 @@
 
 #ifndef AIR_CXX_RUNTIME_V2_KERNEL_TILING_H_
 #define AIR_CXX_RUNTIME_V2_KERNEL_TILING_H_
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "common/math/ge_math_util.h"
 #include "exe_graph/runtime/tiling_context.h"
 #include "exe_graph/runtime/continuous_vector.h"

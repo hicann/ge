@@ -15,7 +15,7 @@
 #include <variant>
 #include <unordered_map>
 #include "acl/acl_rt.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "common/tbe_handle_store/kernel_store.h"
 
 namespace ge {

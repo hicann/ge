@@ -14,7 +14,7 @@
 #include "graph/fast_graph/fast_node.h"
 #include "graph/fast_graph/edge.h"
 #include "graph/fast_graph/execute_graph.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class FastNodeUtils {

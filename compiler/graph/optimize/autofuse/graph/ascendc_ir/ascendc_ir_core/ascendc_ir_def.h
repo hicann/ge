@@ -17,7 +17,7 @@
 #include "graph/symbolizer/symbolic.h"
 #include "graph/expression/const_values.h"
 #include "ascendc_ir/ascendc_ir_core/debug/ge_util.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/ge_tensor.h"
 #include "ascendc_ir/ascendc_ir_check.h"
 #include "proto/ascendc_ir.pb.h"

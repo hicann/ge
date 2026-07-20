@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_KERNEL_ACLNN_OP_EXECUTE_KERNEL_H_
 #define AIR_CXX_RUNTIME_V2_KERNEL_ACLNN_OP_EXECUTE_KERNEL_H_
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/kernel_context.h"
 #include "platform/platform_infos_def.h"
 #include "kernel/common_kernel_impl/platform.h"

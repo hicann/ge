@@ -12,7 +12,7 @@
 #define SLICE_DATASLICE_DATA_SLICE_TOOLKIT_H_
 
 #include <string>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "ge/ge_api_types.h"
 #include "graph/operator.h"
 namespace ge {

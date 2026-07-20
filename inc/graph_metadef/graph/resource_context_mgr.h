@@ -15,7 +15,7 @@
 #include <map>
 #include <mutex>
 #include "graph/resource_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/node.h"
 #include "graph/utils/node_utils.h"
 

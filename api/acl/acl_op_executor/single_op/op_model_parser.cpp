@@ -15,7 +15,7 @@
 #include "framework/common/helper/om_file_helper.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 #include "common/log_inner.h"
 #include "utils/acl_attr_utils.h"

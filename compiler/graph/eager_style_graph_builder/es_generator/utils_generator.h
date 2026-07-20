@@ -79,7 +79,7 @@ class UtilsGenerator {
     std::string elog_contents = R"(
 #ifndef CANN_GRAPH_ENGINE_ES_ELOG_H
 #define CANN_GRAPH_ENGINE_ES_ELOG_H
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include <securec.h>
 #include <memory>
 #include <vector>

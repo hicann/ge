@@ -13,7 +13,7 @@
 #include "adump_pub.h"
 #include "adump_api.h"
 #include "rt_external_ffts.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "common/runtime_api_wrapper.h"
 #include "register/kernel_registry_impl.h"
 #include "register/ffts_node_calculater_registry.h"

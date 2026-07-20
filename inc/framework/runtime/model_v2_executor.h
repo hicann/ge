@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include "graph/compute_graph.h"
 #include "graph/fast_graph/execute_graph.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "model_desc.h"
 #include "rt_external_stream.h"
 #include "exe_graph/runtime/runtime_tensor.h"

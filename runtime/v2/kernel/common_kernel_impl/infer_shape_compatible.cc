@@ -10,7 +10,7 @@
 
 #include "infer_shape_range.h"
 #include "infer_shape.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/normal_graph/operator_impl.h"
 #include "graph/compute_graph.h"

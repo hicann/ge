@@ -9,7 +9,7 @@
  */
 
 #include "condition_calc.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "register/op_impl_registry.h"
 #include "framework/common/debug/ge_log.h"

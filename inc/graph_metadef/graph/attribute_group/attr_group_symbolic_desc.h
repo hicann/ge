@@ -11,7 +11,7 @@
 #ifndef INC_GRAPH_ATTR_GROUP_SYMBOLIC_DESC_H
 #define INC_GRAPH_ATTR_GROUP_SYMBOLIC_DESC_H
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "attribute_group/attr_group_base.h"
 #include "graph/tensor.h"
 #include "exe_graph/runtime/symbolic_tensor.h"

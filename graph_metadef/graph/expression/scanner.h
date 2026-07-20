@@ -16,7 +16,7 @@
 #include <map>
 #include <array>
 #include "graph/types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 enum class TokenType {

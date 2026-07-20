@@ -10,7 +10,7 @@
 
 #ifndef AIR_CXX_INC_FRAMEWORK_RUNTIME_EXE_GRAPH_EXECUTOR_H_
 #define AIR_CXX_INC_FRAMEWORK_RUNTIME_EXE_GRAPH_EXECUTOR_H_
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 #include "common/ge_visibility.h"
 #include "exe_graph_resource_guard.h"

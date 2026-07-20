@@ -9,7 +9,7 @@
  */
 
 #include "exe_graph/runtime/extended_kernel_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry_impl.h"
 #include "kernel/tensor_attr.h"
 #include "kernel/kernel_log.h"

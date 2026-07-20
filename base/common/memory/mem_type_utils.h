@@ -17,7 +17,7 @@
 #include "runtime/rt_external_mem.h"
 #endif
 #include "ge/ge_api_types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class MemTypeUtils {

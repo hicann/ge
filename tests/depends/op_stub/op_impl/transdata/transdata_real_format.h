@@ -10,7 +10,7 @@
 
 #ifndef AIR_CXX_RUNTIME_V2_OP_IMPL_TRANSDATA_TRANSDATA_REAL_FORMAT_H_
 #define AIR_CXX_RUNTIME_V2_OP_IMPL_TRANSDATA_TRANSDATA_REAL_FORMAT_H_
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 namespace gert {
 namespace kernel {

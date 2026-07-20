@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry_impl.h"
 #include "common/checker.h"
 #include "exe_graph/runtime/runtime_tensor.h"

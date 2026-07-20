@@ -12,7 +12,7 @@
 #include <cmath>
 #include "common/ge_inner_attrs.h"
 #include "common/checker.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "graph/utils/type_utils.h"
 #include "exe_graph/runtime/storage_shape.h"

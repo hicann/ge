@@ -12,7 +12,7 @@
 #include "rt_external_kernel.h"
 #include "rt_external.h"
 #include "acl/acl_rt.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "register/kernel_registry.h"
 #include "framework/common/debug/log.h"

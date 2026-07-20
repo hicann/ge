@@ -13,7 +13,7 @@
 
 #include <map>
 #include <string>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/option/optimization_option.h"
 
 namespace ge {

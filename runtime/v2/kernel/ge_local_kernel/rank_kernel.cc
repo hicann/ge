@@ -10,7 +10,7 @@
 
 #include "rank_kernel.h"
 #include "securec.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "graph/utils/math_util.h"
 #include "register/kernel_registry.h"

@@ -15,7 +15,7 @@
 #include "kernel/kernel_log.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "register/op_tiling.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "register/kernel_registry_impl.h"

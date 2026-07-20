@@ -9,7 +9,7 @@
  */
 
 #include "tiling.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/utils/op_desc_utils.h"
 #include "register/kernel_registry.h"
 #include "register/op_tiling/op_tiling_constants.h"

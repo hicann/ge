@@ -15,7 +15,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/infer_datatype_context.h"
 #include "exe_graph/runtime/infer_shape_context.h"
 #include "exe_graph/runtime/op_compile_context.h"

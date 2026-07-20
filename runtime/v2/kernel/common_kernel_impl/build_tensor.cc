@@ -11,7 +11,7 @@
 #include "build_tensor.h"
 #include <unordered_set>
 #include "securec.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "kernel/tensor_attr.h"
 #include "common/checker.h"

@@ -27,7 +27,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include "graph/model.h"
 #include "graph/ge_attr_value.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "graph/operator.h"
 #include "ge/ge_api.h"

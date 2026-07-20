@@ -15,7 +15,7 @@
 #include <set>
 #include <string>
 #include "register/op_lib_register.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class OpLibRegisterImpl {

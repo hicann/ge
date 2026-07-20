@@ -10,7 +10,7 @@
 
 #include <cstdint>
 #include <cstddef>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/infer_shape_context.h"
 
 struct AfTilingParseData {
