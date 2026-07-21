@@ -10,7 +10,7 @@
 
 #include "variable.h"
 #include <unordered_set>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "kernel/tensor_attr.h"
 #include "exe_graph/runtime/gert_tensor_data.h"

@@ -17,7 +17,7 @@
 #include "stub_ge_error_codes.h"
 #else
 #include "dvpp_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #endif
 
 struct DvppSqeInfo {

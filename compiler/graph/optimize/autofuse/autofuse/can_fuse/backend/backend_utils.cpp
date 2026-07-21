@@ -32,6 +32,7 @@
 #include "can_fuse/autofuse_graph_manager.h"
 #include "utils/not_fuse_reason_code.h"
 #include "lowering/asc_lowerer/loop_common.h"
+#include "utils/auto_fuse_config.h"
 
 extern "C" {
 bool IsNormLikeReduceGraph(const af::AscGraph &graph);
@@ -127,6 +128,65 @@ bool CheckValidTranspose(const ComputeGraphPtr &graph, const std::vector<std::pa
   }
 
   return true;
+}
+
+Status ShouldSkipDumpConcatAscGraphDetail(const NodePtr &node, const ComputeGraphPtr &graph, bool &skip_dump) {
+  skip_dump = false;
+  // AscBackend keeps exact fuse type in attr; current FusedAscBackend is only produced by concat fusion.
+  if (node->GetType() == kAscBackendType) {
+    auto attr = BackendUtils::GetNodeAutoFuseAttr(node);
+    if ((attr == nullptr) || !attr->HasFuseType(loop::FuseType::kConcat)) {
+      return SUCCESS;
+    }
+  }
+  const uint64_t graph_nodes_size = static_cast<uint64_t>(graph->GetAllNodesSize());
+  const uint64_t max_fusion_size = AutoFuseConfig::Config().GetFusionStrategySolver().max_fusion_size;
+  if (graph_nodes_size > max_fusion_size) {
+    GELOGD("skip dump ascgraph detail for concat fusion node %s(%s), graph %s has %" PRIu64
+           " nodes, exceeds max fusion size %" PRIu64 ".",
+           node->GetNamePtr(), node->GetType().c_str(), graph->GetName().c_str(), graph_nodes_size, max_fusion_size);
+    skip_dump = true;
+  }
+  return SUCCESS;
+}
+
+Status DumpAscBackendGraphDetail(const NodePtr &node, const ComputeGraphPtr &graph) {
+  GELOGD("\n  ascgraph name:(%s), node name:(%s), node type:(%s)", graph->GetName().c_str(), node->GetName().c_str(),
+         node->GetType().c_str());
+  for (const auto &asc_node : graph->GetAllNodes()) {
+    auto asc_node_op_desc = asc_node->GetOpDesc();
+    GE_ASSERT_NOTNULL(asc_node_op_desc);
+    AscNodeAttr *asc_node_attr = asc_node_op_desc->GetAttrsGroup<AscNodeAttr>();
+    GE_ASSERT_NOTNULL(asc_node_attr);
+    GELOGD("\n    node name:%s(%s)\n     sched axis(%s)", asc_node->GetName().c_str(), asc_node->GetType().c_str(),
+           AutofuseUtils::VectorToStr(asc_node_attr->sched.axis).c_str());
+    for (auto index = 0U; index < asc_node_op_desc->GetAllOutputsDescSize(); index++) {
+      auto asc_node_output_desc = asc_node_op_desc->MutableOutputDesc(index);
+      GE_ASSERT_NOTNULL(asc_node_output_desc);
+      auto asc_node_tensor_attr = asc_node_output_desc->GetAttrsGroup<AscTensorAttr>();
+      GE_ASSERT_NOTNULL(asc_node_tensor_attr);
+      GELOGD("\n        tensor[%u]: repeats(%s), strides(%s), axis(%s).", index,
+             AutofuseUtils::VectorToStr(asc_node_tensor_attr->repeats).c_str(),
+             AutofuseUtils::VectorToStr(asc_node_tensor_attr->strides).c_str(),
+             AutofuseUtils::VectorToStr(asc_node_tensor_attr->axis).c_str());
+    }
+  }
+
+  auto graph_attr = graph->GetAttrsGroup<AscGraphAttr>();
+  GE_ASSERT_NOTNULL(graph_attr);
+  for (auto &axis_info : graph_attr->axis) {
+    GELOGD("\n  axis info: axis name(%s), axis id(%ld), axis size(%s).", axis_info->name.c_str(), axis_info->id,
+           std::string(axis_info->size.Str().get()).c_str());
+  }
+  return SUCCESS;
+}
+
+Status DumpFusedAscBackendGraphDetail(const ComputeGraphPtr &graph) {
+  GELOGD("\nfusedascgraph name:(%s)", graph->GetName().c_str());
+  for (const auto &asc_node : graph->GetAllNodes()) {
+    GE_ASSERT_SUCCESS(BackendUtils::DumpAscGraph(asc_node));
+  }
+  return SUCCESS;
 }
 
 Status GetCurAscLoadNode(const ComputeGraphPtr &graph, const int32_t index, NodePtr &load_node) {
@@ -1893,40 +1953,21 @@ Status BackendUtils::DumpAscGraph(const NodePtr &node) {
   if (node->GetType() == kAscBackendType) {
     ComputeGraphPtr graph;
     GE_ASSERT_SUCCESS(GetNodeFusedGraph(node, graph));
-    GELOGD("\n  ascgraph name:(%s), node name:(%s), node type:(%s)", graph->GetName().c_str(), node->GetName().c_str(),
-           node->GetType().c_str());
-    for (const auto &asc_node : graph->GetAllNodes()) {
-      auto asc_node_op_desc = asc_node->GetOpDesc();
-      GE_ASSERT_NOTNULL(asc_node_op_desc);
-      AscNodeAttr *asc_node_attr = asc_node_op_desc->GetAttrsGroup<AscNodeAttr>();
-      GE_ASSERT_NOTNULL(asc_node_attr);
-      GELOGD("\n    node name:%s(%s)\n     sched axis(%s)", asc_node->GetName().c_str(), asc_node->GetType().c_str(),
-             AutofuseUtils::VectorToStr(asc_node_attr->sched.axis).c_str());
-      for (auto index = 0U; index < asc_node_op_desc->GetAllOutputsDescSize(); index++) {
-        auto asc_node_output_desc = asc_node_op_desc->MutableOutputDesc(index);
-        GE_ASSERT_NOTNULL(asc_node_output_desc);
-        auto asc_node_tensor_attr = asc_node_output_desc->GetAttrsGroup<AscTensorAttr>();
-        GE_ASSERT_NOTNULL(asc_node_tensor_attr);
-        GELOGD("\n        tensor[%u]: repeats(%s), strides(%s), axis(%s).", index,
-               AutofuseUtils::VectorToStr(asc_node_tensor_attr->repeats).c_str(),
-               AutofuseUtils::VectorToStr(asc_node_tensor_attr->strides).c_str(),
-               AutofuseUtils::VectorToStr(asc_node_tensor_attr->axis).c_str());
-      }
+    bool skip_dump = false;
+    GE_ASSERT_SUCCESS(ShouldSkipDumpConcatAscGraphDetail(node, graph, skip_dump));
+    if (skip_dump) {
+      return SUCCESS;
     }
-
-    auto graph_attr = graph->GetAttrsGroup<AscGraphAttr>();
-    GE_ASSERT_NOTNULL(graph_attr);
-    for (auto &axis_info : graph_attr->axis) {
-      GELOGD("\n  axis info: axis name(%s), axis id(%ld), axis size(%s).", axis_info->name.c_str(), axis_info->id,
-             std::string(axis_info->size.Str().get()).c_str());
-    }
+    GE_ASSERT_SUCCESS(DumpAscBackendGraphDetail(node, graph));
   } else if (node->GetType() == kFusedAscBackendType) {
     ComputeGraphPtr graph;
     GE_ASSERT_SUCCESS(GetNodeFusedGraph(node, graph));
-    GELOGD("\nfusedascgraph name:(%s)", graph->GetName().c_str());
-    for (const auto &asc_node : graph->GetAllNodes()) {
-      GE_ASSERT_SUCCESS(DumpAscGraph(asc_node));
+    bool skip_dump = false;
+    GE_ASSERT_SUCCESS(ShouldSkipDumpConcatAscGraphDetail(node, graph, skip_dump));
+    if (skip_dump) {
+      return SUCCESS;
     }
+    GE_ASSERT_SUCCESS(DumpFusedAscBackendGraphDetail(graph));
   } else {
     // nothing
   }

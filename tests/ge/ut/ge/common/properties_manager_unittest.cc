@@ -12,6 +12,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/context/properties_manager.h"
+#include "framework/common/fmk_error_codes.h"
 #include "graph/passes/graph_builder_utils.h"
 #include "graph/graph.h"
 #include "graph/operator.h"
@@ -109,5 +110,38 @@ TEST_F(UtestPropertiesManager, GetPropertyValue) {
   PropertiesManager::Instance().SetPropertyValue("test_key", "test_value");
   EXPECT_EQ(PropertiesManager::Instance().GetPropertyValue("test_key"), "test_value");
   EXPECT_EQ(PropertiesManager::Instance().GetPropertyValue("test_key_t"), "");
+}
+
+TEST_F(UtestPropertiesManager, Init_AlreadyInitialized) {
+  PropertiesManager properties_manager;
+  EXPECT_EQ(properties_manager.Init("./ut_graph1.txt"), false);
+  EXPECT_EQ(properties_manager.Init("./ut_graph1.txt"), false);
+  system("rm -rf ./ut_graph1.txt");
+}
+
+TEST_F(UtestPropertiesManager, LoadFileContent_ValidFile) {
+  std::ofstream ofs("./ut_properties_valid.txt");
+  ofs << "# comment line\n";
+  ofs << "key1=value1\n";
+  ofs << "key2=value2\n";
+  ofs.close();
+  EXPECT_EQ(PropertiesManager::Instance().LoadFileContent("./ut_properties_valid.txt"), true);
+  system("rm -rf ./ut_properties_valid.txt");
+}
+
+TEST_F(UtestPropertiesManager, FmkRegisterErrorNo_ExistingError) {
+  bool ret = domi::StatusFactory::Instance()->RegisterErrorNo(domi::SUCCESS, "Success");
+  EXPECT_EQ(ret, true);
+}
+
+TEST_F(UtestPropertiesManager, FmkGetErrDesc_NotFound) {
+  std::string desc = domi::StatusFactory::Instance()->GetErrDesc(0xDEADBEEF);
+  EXPECT_EQ(desc, "");
+}
+
+TEST_F(UtestPropertiesManager, FmkGetErrDesc_Found) {
+  (void)domi::StatusFactory::Instance()->RegisterErrorNo(0x12345678, "Test Error");
+  std::string desc = domi::StatusFactory::Instance()->GetErrDesc(0x12345678);
+  EXPECT_EQ(desc, "Test Error");
 }
 }  // namespace ge

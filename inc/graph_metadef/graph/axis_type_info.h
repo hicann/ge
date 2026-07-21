@@ -15,7 +15,7 @@
 #include <map>
 #include <string>
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 using CutInfo = std::pair<int64_t, std::vector<int64_t>>;

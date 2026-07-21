@@ -9,7 +9,7 @@
  */
 
 #include <sstream>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "rt_external_mem.h"
 #include "register/kernel_registry_impl.h"
 #include "common/checker.h"

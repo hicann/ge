@@ -16,7 +16,7 @@
 #include "rt_external.h"
 #include "adump_pub.h"
 #include "adump_api.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/tiling_data.h"
 #include "graph/def_types.h"
 #include "register/kernel_registry.h"

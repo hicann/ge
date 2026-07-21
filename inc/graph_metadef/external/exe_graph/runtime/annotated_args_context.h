@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "exe_graph/runtime/extended_kernel_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/tensor.h"
 
 namespace ge {

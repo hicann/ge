@@ -147,7 +147,7 @@ class FFTSPlusTaskBuilder {
       FFTS_CHECK_NOTNULL(last_succ_ctx);
       domi::FftsPlusLabelCtxDef *avl_label_ctx = nullptr;
       if (last_succ_ctx->context_type() == RT_CTX_TYPE_LABEL) {
-        FFTS_LOGD("last context is label, keep seaching its succesorrs.");
+        FFTS_LOGD("last context is label, keep searching its successors.");
         domi::FftsPlusLabelCtxDef *pre_label = last_succ_ctx->mutable_label_ctx();
         uint32_t recursion_count = 0;
         if (GetFirstAvailableLabel(ffts_plus_task_def, pre_label, &avl_label_ctx, recursion_count) != SUCCESS ||

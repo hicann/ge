@@ -12,7 +12,7 @@
 #define __LLT_HCCL_STUB_GERT_H__
 
 #include "register/node_converter_registry.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "graph/compiler_def.h"
 #include "register/op_impl_kernel_registry.h"

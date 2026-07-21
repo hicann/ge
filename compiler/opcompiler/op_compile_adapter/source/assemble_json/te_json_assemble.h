@@ -149,8 +149,8 @@ class TeJsonAssemble {
    * A has two different output and they are both linked to B. We
    * need to record the output index of A because if A's two output have
    * same format\attr\dtype and shape, compiling cache will consider them as
-   * the same. So we need the output index to differenciate the output.
-   * @parmater allInputsId: {input index, input sequence from 0 to the size of input
+   * the same. So we need the output index to differentiate the output.
+   * @parameter allInputsId: {input index, input sequence from 0 to the size of input
    * sorted by the peer output's topo id.} */
   static void GetPeerOutputsOrder(const ge::Node *node, const std::unordered_set<ge::Node *> &allNodes,
                                   std::map<size_t, int64_t> &peerOutputsOrder);

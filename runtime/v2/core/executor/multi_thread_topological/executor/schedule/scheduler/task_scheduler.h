@@ -19,7 +19,7 @@
 #include "core/executor/multi_thread_topological/executor/schedule/producer/task_producer.h"
 #include "runtime/subscriber/executor_subscriber_c.h"
 #include "ge/ge_api_types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "acl/acl_rt.h"
 
 namespace gert {

@@ -10,7 +10,7 @@
 
 #include "sink_node_bin.h"
 #include <list>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "graph/utils/math_util.h"
 #include "rt_external_kernel.h"

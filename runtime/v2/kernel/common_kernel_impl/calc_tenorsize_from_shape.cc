@@ -9,7 +9,7 @@
  */
 
 #include <cinttypes>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "graph/types.h"

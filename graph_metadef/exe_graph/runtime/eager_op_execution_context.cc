@@ -75,7 +75,8 @@ Tensor *EagerOpExecutionContext::MallocOutputTensor(size_t index, const StorageS
   GE_ASSERT_TRUE(!ge::RoundUpOverflow(tensor_size, kMemAlignment, aligned_tensor_size));
   const TensorData &tensor_data = output_tensor->GetTensorData();
   // 静态场景下内存地址已赋值 不需要去Malloc
-  if (tensor_data.GetAddr() != nullptr && tensor_data.GetSize() > 0) {
+  // 注意：静态图逻辑地址可能是合法的0（偏移），不能用 GetAddr() != nullptr 判断
+  if (tensor_data.GetSize() > 0) {
     return output_tensor;
   }
   // 外部未申请输出内存, 内部申请并将内存共享给output_tensor

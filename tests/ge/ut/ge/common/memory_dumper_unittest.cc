@@ -36,4 +36,16 @@ TEST_F(UtestMemoryDumper, OpenLongFile_success) {
   EXPECT_NE(MemoryDumper::OpenFile(dump_file_path), -1);
 }
 
+TEST_F(UtestMemoryDumper, DumpToFile_EmptyData) {
+  const char *filename = "./empty_dump_test";
+  const uint8_t data[] = {0x01, 0x02};
+  EXPECT_NE(MemoryDumper::DumpToFile(filename, data, 0U), SUCCESS);
+}
+
+TEST_F(UtestMemoryDumper, DumpToFile_ValidData) {
+  const char *filename = "./dump_test_file";
+  const uint8_t data[] = {0x01, 0x02, 0x03, 0x04};
+  EXPECT_EQ(MemoryDumper::DumpToFile(filename, data, sizeof(data)), SUCCESS);
+  (void)remove(filename);
+}
 }  // namespace ge

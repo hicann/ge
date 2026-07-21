@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "graph/compute_graph.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "node.h"
 
 namespace ge {

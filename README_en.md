@@ -37,9 +37,10 @@ To gain a deep understanding of GE's internal design, architecture mechanisms, a
 The following projects have integrated GE as an inference or graph mode backend:
 
 - **TorchAir**: Integrates GE into PyTorch graph mode. [Link](https://gitcode.com/Ascend/torchair)
-- **TFA (TensorFlow Adapter)**: Uses GE as TensorFlow backend. [Link](https://gitcode.com/cann/tensorflow)
+- **TFA (TensorFlow Adapter)**: Uses GE as TensorFlow's backend. [Link](https://gitcode.com/cann/tensorflow)
 - **JittorInfer**: Large model C++ inference framework based on Ascend chips. [Link](https://github.com/Jittor/JittorInfer)
 - **Triton GE Backend**: GE's Triton Inference Server backend. [Link](https://gitcode.com/cann/triton-inference-server-ge-backend)
+- **MindSpore Lite**: Uses GE as MindSpore Lite's backend. [Link](https://gitcode.com/mindspore/mindspore-lite)
 
 **Note:** The above list shows known and publicly disclosed integration cases, **not a complete list**. If you are using GE, welcome to supplement through Issues or Pull Requests, and we will continuously update relevant information.
 

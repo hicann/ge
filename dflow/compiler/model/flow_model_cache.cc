@@ -19,7 +19,7 @@
 #include "common/proto_util/proto_util.h"
 #include "common/helper/file_saver.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
 #include "graph_metadef/graph/utils/file_utils.h"

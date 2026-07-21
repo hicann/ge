@@ -15,7 +15,7 @@
 #include <set>
 #include <unordered_map>
 #include "graph/types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/type/tensor_type_impl.h"
 #include "graph/op_desc.h"
 #include "graph/type/sym_dtype.h"

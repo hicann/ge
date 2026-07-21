@@ -304,9 +304,9 @@ Status FormatDtypeOpBuiltinSelector::GetDynamicFormatDtype(const OpKernelInfoPtr
   for (const auto &heavy_format : FE_HEAVY_FORMAT_VECTOR) {
     string heavy_format_str = ge::TypeUtils::FormatToSerialString(heavy_format);
     args.support_format = heavy_format;
-    auto processer = BuildFormatProcess(args);
-    if (processer == nullptr) {
-      FE_LOGD("Op[name=%s,type=%s]: can't find the proccesser of heavy format %s.", op_name.c_str(), op_type.c_str(),
+    auto processor = BuildFormatProcess(args);
+    if (processor == nullptr) {
+      FE_LOGD("Op[name=%s,type=%s]: can't find the processor of heavy format %s.", op_name.c_str(), op_type.c_str(),
               heavy_format_str.c_str());
       continue;
     }
@@ -314,7 +314,7 @@ Status FormatDtypeOpBuiltinSelector::GetDynamicFormatDtype(const OpKernelInfoPtr
     FormatProccessResult result;
     FE_LOGD("Op[name=%s,type=%s]: start to process format %s.", op_name.c_str(), op_type.c_str(),
             heavy_format_str.c_str());
-    if (processer->Process(*op_desc, args, result) == SUCCESS) {
+    if (processor->Process(*op_desc, args, result) == SUCCESS) {
       FE_LOGD("Op[name=%s,type=%s]: end to process format %s, support it.", op_name.c_str(), op_type.c_str(),
               heavy_format_str.c_str());
       if (UpdateFormatMap(op_kernel_info_ptr, result, input_index_map, output_index_map, format_dtype_info.format_map,

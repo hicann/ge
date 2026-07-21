@@ -14,7 +14,7 @@
 #include <mutex>
 #include "nlohmann/json.hpp"
 #include "graph/ascend_string.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 #ifndef INC_EXTERNAL_REGISTER_OP_BINARY_RESOURCE_MANAGER_H_
 #define INC_EXTERNAL_REGISTER_OP_BINARY_RESOURCE_MANAGER_H_

@@ -177,7 +177,7 @@ class OpFormatDtypeJudge : public OpJudgeBase {
   /**
    * whether to judge the format. The Data, Const, Variable,
    * NetOutput and non fe imply type don't need to judge the format.
-   * @param op_desc_ptr currrent op desc
+   * @param op_desc_ptr current op desc
    * @param imply_type the imply type of the op_desc_ptr
    * @return result
    */

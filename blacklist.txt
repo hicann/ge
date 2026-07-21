@@ -42,3 +42,5 @@ graph_metadef/register/shape_inference.cc
 parser/parser/onnx/onnx_parser.cc
 parser/parser/tensorflow/tensorflow_parser.cc
 graph_metadef/register/register.cpp
+graph_metadef/third_party/transformer/src/transfer_shape_utils.cc
+graph_metadef/third_party/transformer/src/expand_dimension.cc

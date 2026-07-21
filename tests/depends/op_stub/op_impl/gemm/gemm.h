@@ -17,7 +17,7 @@
 #include <string>
 #include "cache_tiling.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace gert {
 

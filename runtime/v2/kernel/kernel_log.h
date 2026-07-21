@@ -12,7 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_KERNEL_KERNEL_LOG_H_
 #include "framework/common/debug/ge_log.h"
 #include "exe_graph/runtime/extended_kernel_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 #define KLOGE(fmt, ...)                                                                                         \
   GELOGE(ge::FAILED, "[%s][%s]" fmt, reinterpret_cast<gert::ExtendedKernelContext *>(context)->GetKernelType(), \

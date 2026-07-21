@@ -17,7 +17,7 @@
 #include "graph/attr_store.h"
 #include "graph/detail/attributes_holder.h"
 #include "graph/buffer.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "proto/ge_ir.pb.h"
 #include "graph/ge_tensor.h"
 #include "graph/types.h"

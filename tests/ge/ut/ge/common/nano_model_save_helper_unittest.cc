@@ -366,6 +366,7 @@ TEST_F(UtestNanoModelSaveHelper, GenSwitchByIndexExeom) {
    */
 
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
+  setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
   setenv("LD_LIBRARY_PATH", (ascend_install_path + "/fwkacllib/lib64").c_str(), 1);
   auto label_switch = OP_CFG(LABELSWITCHBYINDEX).Attr(ATTR_NAME_LABEL_SWITCH_LIST, std::vector<uint32_t>{0, 1});
   auto label_set_l0 = OP_CFG(LABELSET).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 0);
@@ -421,6 +422,10 @@ TEST_F(UtestNanoModelSaveHelper, GenSwitchByIndexExeom) {
     TensorUtils::SetSize(tensor, 512);
     op_desc->AddOutputDesc(tensor);
     op_desc->SetOutputOffset({1024});
+
+    const auto kernel = MakeShared<OpKernelBin>("switch_by_index.o", CreateStubBin());
+    tbe_kernel_store.AddTBEKernel(kernel);
+    ge_model->SetTBEKernelStore(tbe_kernel_store);
 
     // task 0 switch_by_index
     domi::TaskDef *task_def = model_def->add_task();
@@ -538,6 +543,7 @@ TEST_F(UtestNanoModelSaveHelper, GenSwitchByIndexExeom) {
   system("rm -rf outputfile.exeom");
   system("rm -rf outputfile.dbg");
   unsetenv("LD_LIBRARY_PATH");
+  unsetenv("ASCEND_HOME_PATH");
 }
 
 TEST_F(UtestNanoModelSaveHelper, GenLabelGotoExExeom) {
@@ -553,6 +559,7 @@ TEST_F(UtestNanoModelSaveHelper, GenLabelGotoExExeom) {
    *          AddN
    */
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
+  setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
   setenv("LD_LIBRARY_PATH", (ascend_install_path + "/fwkacllib/lib64").c_str(), 1);
   auto label_set_l2 = OP_CFG(LABELSET).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 2);
   auto label_gotoex = OP_CFG(LABELGOTOEX).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 2);
@@ -599,6 +606,10 @@ TEST_F(UtestNanoModelSaveHelper, GenLabelGotoExExeom) {
     TensorUtils::SetSize(tensor, 512);
     op_desc->AddOutputDesc(tensor);
     op_desc->SetOutputOffset({1024});
+
+    const auto kernel = MakeShared<OpKernelBin>("switch_by_index.o", CreateStubBin());
+    tbe_kernel_store.AddTBEKernel(kernel);
+    ge_model->SetTBEKernelStore(tbe_kernel_store);
 
     // task 0 label goto
     domi::TaskDef *task_def = model_def->add_task();
@@ -688,6 +699,7 @@ TEST_F(UtestNanoModelSaveHelper, GenLabelGotoExExeom) {
     EXPECT_NE(nano_model_helper.SaveToExeOmModel(ge_model, output_file, model), SUCCESS);
   }
   unsetenv("LD_LIBRARY_PATH");
+  unsetenv("ASCEND_HOME_PATH");
 }
 
 TEST_F(UtestNanoModelSaveHelper, GenExeomSubGraph) {

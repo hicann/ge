@@ -9,7 +9,7 @@
  */
 
 #include "transdata_op_impl.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "register/op_impl_registry.h"
 

@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/inference_context.h"
 #include "graph/tensor.h"
 #include "graph/types.h"

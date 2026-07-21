@@ -31,7 +31,7 @@
 #include <vector>
 #include "graph/compute_graph.h"
 #include "graph/types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 // ShapeRefiner performs shape inference for compute graphs

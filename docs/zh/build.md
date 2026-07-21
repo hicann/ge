@@ -122,8 +122,6 @@ bash scripts/check_env.sh
 > [!NOTE] 注意
 > 若您的编译环境无法访问网络，请确保已经完成了[4.3 编译](#43-编译)章节中的[离线编译指导](./user_guides/offline_compile.md)。
 
-编译完成后，用户可以进行开发者测试。
-
 - 编译执行`UT`测试用例（x86_64默认开启asan）：
 
   ```bash

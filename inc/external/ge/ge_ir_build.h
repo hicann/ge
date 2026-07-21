@@ -29,7 +29,7 @@
 #include <map>
 #include <memory>
 #include "graph/graph.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 namespace ge {
 const int32_t IR_MAJOR_VERSION = 1;
 const int32_t IR_MINOR_VERSION = 0;

@@ -13,7 +13,7 @@
 #include <iomanip>
 #include <cinttypes>
 #include "aicpu_ext_info_handle.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "framework/common/debug/log.h"
 #include "exe_graph/runtime/runtime_tensor.h"

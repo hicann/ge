@@ -21,7 +21,7 @@
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "framework/common/helper/model_helper.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
 #include "graph/build/memory/var_mem_assign_util.h"

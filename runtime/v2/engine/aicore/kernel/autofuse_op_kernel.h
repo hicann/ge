@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_KERNEL_AUTOFUSE_OP_KERNEL_H_
 #define AIR_CXX_RUNTIME_V2_KERNEL_AUTOFUSE_OP_KERNEL_H_
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/fast_graph/fast_node.h"
 #include "exe_graph/runtime/kernel_context.h"
 

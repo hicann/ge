@@ -16,7 +16,7 @@
 #include "graph/custom_op.h"
 #include "graph/custom_op/args_refresh.h"
 #include "graph/ascend_string.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class CustomOpRegistry;

@@ -9,7 +9,7 @@
  */
 
 #include "exe_graph/runtime/op_execute_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include <gtest/gtest.h>
 #include "faker/kernel_run_context_faker.h"
 #include "faker/allocator_faker.h"

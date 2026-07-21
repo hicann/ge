@@ -15,7 +15,7 @@
 #include "trans_data_negative_target_tc_201.h"
 #include "trans_data_positive_source_tc_1010.h"
 #include <algorithm>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 #include "graph/utils/math_util.h"
 

@@ -12,7 +12,7 @@
 #define INC_GRAPH_UTILS_TYPE_UTILS_INNER_H_
 
 #include <string>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "register/register_types.h"
 #include "register/register_fmk_types.h"

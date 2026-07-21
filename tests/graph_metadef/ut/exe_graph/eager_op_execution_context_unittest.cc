@@ -9,7 +9,7 @@
  */
 
 #include "exe_graph/runtime/eager_op_execution_context.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include <gtest/gtest.h>
 #include "faker/allocator_faker.h"
 #include "exe_graph/runtime/storage_shape.h"
@@ -93,16 +93,13 @@ class EagerOpExecutionContextUT : public testing::Test {
                                          ge::DT_FLOAT16,                              // data type
                                          (void *)0x234565};
     in_2_out_2_case_.output_tensors.resize(2);
+    // 动态图场景：输出 tensor 由 CreateOutputTensors 构造，不预分配地址，size 为 0
     in_2_out_2_case_.output_tensors[0] = {{{8, 3, 224, 224}, {8, 1, 224, 224, 16}},    // shape
                                           {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                                          kOnDeviceHbm,                                // placement
-                                          ge::DT_FLOAT16,                              // data type
-                                          nullptr};
+                                          ge::DT_FLOAT16};                             // data type
     in_2_out_2_case_.output_tensors[1] = {{{8, 3, 224, 224}, {8, 1, 224, 224, 16}},    // shape
                                           {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                                          kOnDeviceHbm,                                // placement
-                                          ge::DT_FLOAT16,                              // data type
-                                          nullptr};
+                                          ge::DT_FLOAT16};                             // data type
     in_2_out_2_case_.stream_int = 1;
     in_2_out_2_case_.workspace_mems = std::make_shared<std::vector<gert::GertMemBlock *>>();
     in_2_out_2_case_.workspace_mems->reserve(1UL);
@@ -136,16 +133,13 @@ class EagerOpExecutionContextUT : public testing::Test {
                                             ge::DT_FLOAT16,                              // data type
                                             (void *)0x234565};
     dynamic_input_case_.output_tensors.resize(2);
+    // 动态图场景：输出 tensor 由 CreateOutputTensors 构造，不预分配地址，size 为 0
     dynamic_input_case_.output_tensors[0] = {{{8, 3, 224, 224}, {8, 1, 224, 224, 16}},    // shape
                                              {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                                             kOnDeviceHbm,                                // placement
-                                             ge::DT_FLOAT16,                              // data type
-                                             nullptr};
+                                             ge::DT_FLOAT16};                             // data type
     dynamic_input_case_.output_tensors[1] = {{{8, 3, 224, 224}, {8, 1, 224, 224, 16}},    // shape
                                              {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                                             kOnDeviceHbm,                                // placement
-                                             ge::DT_FLOAT16,                              // data type
-                                             nullptr};
+                                             ge::DT_FLOAT16};                             // data type
     dynamic_input_case_.stream_int = 1;
     dynamic_input_case_.workspace_mems = std::make_shared<std::vector<gert::GertMemBlock *>>();
     dynamic_input_case_.workspace_mems->reserve(1UL);
@@ -316,6 +310,49 @@ TEST_F(EagerOpExecutionContextUT, MakeOutputRefInputError) {
   ASSERT_NE(context, nullptr);
   auto output_tensor = context->MakeOutputRefInput(1, 0);
   ASSERT_EQ(output_tensor, nullptr);
+}
+
+// 静态图场景：输出 tensor 地址已由上层预赋值（可能为合法的逻辑地址0），size > 0，不应重新 Malloc
+TEST_F(EagerOpExecutionContextUT, MallocOutputTensorSkipMallocWhenSizeGtZero) {
+  // 模拟静态图：输出 tensor 地址为 0（合法逻辑偏移），但 size > 0
+  gert::Tensor static_output = {{{2, 1, 3, 4}, {1, 2, 3, 4}},
+                                {ge::FORMAT_ND, ge::FORMAT_ND, ExpandDimsType()},
+                                kOnDeviceHbm,
+                                ge::DT_FLOAT16,
+                                nullptr};
+  ASSERT_EQ(static_output.GetAddr(), nullptr);
+  ASSERT_GT(static_output.GetSize(), 0U);
+
+  CustomOpAllocatorFaker gert_allocator;
+  int32_t stream_int = 1;
+  auto workspace_mems = std::make_shared<std::vector<gert::GertMemBlock *>>();
+  workspace_mems->reserve(1UL);
+
+  auto context_holder = EagerOpExecutionContextFaker()
+                            .IrInstanceNum({1, 1})
+                            .NodeIoNum(2, 2)
+                            .NodeInputTd(0, ge::DT_FLOAT16, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                            .NodeInputTd(1, ge::DT_FLOAT16, ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ)
+                            .NodeOutputTd(0, ge::DT_FLOAT16, ge::FORMAT_ND, ge::FORMAT_ND)
+                            .NodeOutputTd(1, ge::DT_FLOAT16, ge::FORMAT_ND, ge::FORMAT_ND)
+                            .InputTensor({&in_2_out_2_case_.input_tensors[0], &in_2_out_2_case_.input_tensors[1]})
+                            .OutputTensor({&in_2_out_2_case_.output_tensors[0], &static_output})
+                            .OutputMem(workspace_mems)
+                            .Allocator(&gert_allocator)
+                            .Stream(static_cast<void *>(&stream_int))
+                            .Build();
+
+  auto context = context_holder.GetContext<EagerOpExecutionContext>();
+  ASSERT_NE(context, nullptr);
+
+  // output index 1（名字 "z" 与 input 无冲突），预赋值地址为 0（nullptr）但 size > 0
+  auto output_tensor = context->MallocOutputTensor(1, {{2, 1, 3, 4}, {1, 2, 3, 4}},
+                                                   {ge::FORMAT_ND, ge::FORMAT_ND, ExpandDimsType()}, ge::DT_FLOAT16);
+  ASSERT_NE(output_tensor, nullptr);
+  // 不应重新 Malloc：地址保持构造时的 nullptr（静态图逻辑地址 0 的模拟）
+  EXPECT_EQ(output_tensor->GetAddr(), nullptr);
+  // size 保持构造时由 shape 计算的值（48 = 24 elements * 2 bytes），未被 Malloc 的对齐值（512）覆盖
+  EXPECT_EQ(output_tensor->GetSize(), 48UL);
 }
 
 }  // namespace gert

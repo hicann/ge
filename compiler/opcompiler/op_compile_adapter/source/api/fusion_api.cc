@@ -489,7 +489,7 @@ extern "C" bool WaitAllFinished(uint64_t graphId, vector<FinComTask> &tasks) {
 /**
  * @brief select tbe op format
  * @param [in] tbeOpInfo            op info
- * @param [out] opDtypeformat       op date format
+ * @param [out] opDtypeformat       op dtype format
  * @return [out] bool               succ or fail
  */
 extern "C" bool SelectTbeOpFormat(const TbeOpInfo &tbeOpInfo, std::string &opDtypeFormat) {

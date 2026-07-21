@@ -11,7 +11,7 @@
 #ifndef INC_GRAPH_COMMON_ERROR_CODES_H_
 #define INC_GRAPH_COMMON_ERROR_CODES_H_
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 constexpr graphStatus NO_DEPENDENCE_FUNC = 50331647U;

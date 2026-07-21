@@ -34,7 +34,7 @@ class ReduceFormatProcess : public FormatProcessBase {
    * and check whether the origin format is identifiable.
    * @param formats origin formats
    * @param shapes origin shapes
-   * @param dim refernce value
+   * @param dim reference value
    * @return
    */
   virtual bool CheckOriginFormatAndShape(const vector<ge::Format> &input_formats,

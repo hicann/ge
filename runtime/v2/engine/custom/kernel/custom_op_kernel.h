@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_NODE_CUSTOM_KERNEL_CUSTOM_OP_KERNEL_H_
 #define AIR_CXX_RUNTIME_V2_NODE_CUSTOM_KERNEL_CUSTOM_OP_KERNEL_H_
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/kernel_context.h"
 
 namespace gert {

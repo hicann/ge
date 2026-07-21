@@ -11,7 +11,7 @@
 #ifndef INC_REGISTER_INFER_AXIS_SLICE_REGISTRY_H_
 #define INC_REGISTER_INFER_AXIS_SLICE_REGISTRY_H_
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/operator.h"
 #include "graph/types.h"
 #include "graph/axis_type_info.h"

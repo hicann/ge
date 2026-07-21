@@ -15,7 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/tensor.h"
 #include "graph/ge_attr_value.h"
 

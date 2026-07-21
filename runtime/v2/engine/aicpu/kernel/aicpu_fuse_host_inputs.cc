@@ -10,7 +10,7 @@
 
 #include "aicpu_fuse_host_inputs.h"
 #include "common/checker.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "exe_graph/runtime/tensor_data.h"
 #include "exe_graph/runtime/storage_shape.h"

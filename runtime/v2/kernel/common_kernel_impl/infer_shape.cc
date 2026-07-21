@@ -11,7 +11,7 @@
 #include "infer_shape.h"
 #include "common/checker.h"
 #include "formats/utils/formats_trans_utils.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "register/kernel_registry.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "graph/utils/inference_rule.h"

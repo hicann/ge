@@ -21,7 +21,6 @@
 namespace {
 constexpr const char_t *kHcomParallelGroupName = "-1";
 constexpr const char_t kNewStreamId[] = "NewStreamId";
-constexpr const char_t *kDisableIneffectiveMultiStreamOptimize = "DISABLE_INEFFECTIVE_MULTI_STREAM_OPTIMIZE";
 constexpr int64_t kMainStreamId = 0;
 constexpr uint32_t kWhileBodyIndex = 1;
 
@@ -898,14 +897,6 @@ Status LogicalStreamAllocator::DoAssign(const ComputeGraphPtr &graph, const Grap
 }
 
 Status OptimizeIneffectiveMultiStreamPass::Run(const ComputeGraphPtr &graph) {
-  char disable_flag_str[MMPA_MAX_PATH] = {"0"};
-  mmGetEnv(kDisableIneffectiveMultiStreamOptimize, &disable_flag_str[0], static_cast<uint32_t>(MMPA_MAX_PATH));
-  int32_t disable_flag;
-  GE_ASSERT_SUCCESS(ge::ConvertToInt32(std::string(disable_flag_str), disable_flag));
-  if (disable_flag == 1) {
-    GELOGI("Disable optimize ineffective multi stream");
-    return NOT_CHANGED;
-  }
   std::map<int64_t, std::set<int64_t>> stream_id_to_node_ids;
   std::set<int64_t> stream_label_stream_ids;
   bool changed = false;

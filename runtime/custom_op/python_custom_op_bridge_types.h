@@ -14,7 +14,7 @@
 #include <string>
 
 #include "graph/custom_op/capability.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace gert {
 class EagerOpExecutionContext;

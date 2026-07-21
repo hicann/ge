@@ -9,7 +9,7 @@
  */
 
 #include "op_tiling_kernel.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/node.h"
 #include "register/kernel_registry.h"
 #include "exe_graph/runtime/continuous_vector.h"

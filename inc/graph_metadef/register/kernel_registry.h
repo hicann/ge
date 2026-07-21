@@ -14,7 +14,7 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "graph/fast_graph/fast_node.h"
 #include "exe_graph/runtime/base_type.h"

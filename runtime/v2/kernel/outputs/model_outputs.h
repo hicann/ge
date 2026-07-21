@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_KERNEL_OUTPUTS_MODEL_OUTPUTS_H_
 #define AIR_CXX_RUNTIME_V2_KERNEL_OUTPUTS_MODEL_OUTPUTS_H_
 #include "graph/types.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "exe_graph/runtime/kernel_context.h"
 namespace gert {
 namespace kernel {

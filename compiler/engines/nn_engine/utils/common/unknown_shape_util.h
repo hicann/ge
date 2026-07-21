@@ -23,7 +23,7 @@
 namespace fe {
 /*
  *  @ingroup fe
- *  @brief   get sting of shape range.
+ *  @brief   get string of shape range.
  *  @param   [in]  input or output tensor.
  *  @return  shape range
  */

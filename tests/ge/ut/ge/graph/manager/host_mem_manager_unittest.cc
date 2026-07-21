@@ -294,4 +294,45 @@ TEST_F(UtestAclrtMallocHostSharedMemTest, free_fd_neg1_skip_close_and_unlink) {
   }
   close(fd);
 }
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, aclrt_malloc_host_type) {
+  void *ptr = nullptr;
+  EXPECT_EQ(AclrtMalloc(&ptr, 1024U, RT_MEMORY_HOST, 0U), ACL_SUCCESS);
+  EXPECT_NE(ptr, nullptr);
+}
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, aclrt_malloc_unknown_type) {
+  void *ptr = nullptr;
+  EXPECT_EQ(AclrtMalloc(&ptr, 1024U, 0xFFFFFFFFU, 0U), ACL_SUCCESS);
+  EXPECT_NE(ptr, nullptr);
+}
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, advise_and_touch_null_ptr) {
+  AdviseAndTouchHugePages(nullptr, 1024U);
+}
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, advise_and_touch_zero_size) {
+  uint8_t buf[64];
+  AdviseAndTouchHugePages(buf, 0U);
+}
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, aclrt_malloc_shared_null_params) {
+  aclError err = AclrtMallocHostSharedMemory(nullptr, 1024U, nullptr, nullptr, nullptr);
+  EXPECT_EQ(err, ACL_ERROR_INVALID_PARAM);
+}
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, aclrt_malloc_shared_size_overflow) {
+  int32_t fd = -1;
+  void *host_ptr = nullptr;
+  void *dev_ptr = nullptr;
+  aclError err = AclrtMallocHostSharedMemory("test", static_cast<uint64_t>(INT64_MAX) + 1U, &fd, &host_ptr, &dev_ptr);
+  EXPECT_EQ(err, ACL_ERROR_INVALID_PARAM);
+}
+
+extern "C" void GeApiWrapper_SetDomiContextTrainFlag(bool train_flag);
+
+TEST_F(UtestAclrtMallocHostSharedMemTest, set_domi_context_train_flag) {
+  GeApiWrapper_SetDomiContextTrainFlag(true);
+}
+
 }  // namespace ge

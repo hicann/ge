@@ -27,9 +27,9 @@ namespace fe {
 class NodeOptimizeCheckerBase {
  public:
   /**
-   * Check if wee need to optimize the C aixs.
+   * Check if we need to optimize the C axis.
    * @param node_ptr node
-   * @param dim_attr the attribute name of the aixs
+   * @param dim_attr the attribute name of the axis
    * @param is_input is input or output
    * @return true or false
    */
@@ -44,7 +44,7 @@ class NodeOptimizeCheckerBase {
   Status GetDimC(const ge::GeTensorDesc &tensor_desc, int &dim_c) const;
 
   /**
-   * Get the postion of the dim_c, if the dim_c <0, update it to a positive
+   * Get the position of the dim_c, if the dim_c <0, update it to a positive
    * number.
    * @param tensor_desc input or output desc
    * @param pos result

@@ -14,7 +14,7 @@
 #include <cinttypes>
 #include "aicpu_ext_info_handle.h"
 #include "graph/op_kernel_bin.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "register/kernel_registry.h"
 #include "framework/common/debug/log.h"

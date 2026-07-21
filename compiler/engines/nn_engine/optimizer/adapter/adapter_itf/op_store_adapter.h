@@ -85,8 +85,8 @@ class OpStoreAdapter : public OpStoreAdapterBase {
   }
   /*
    *  @ingroup fe
-   *  @brief   check op wether supported in ops store
-   *  @param   [in] op_desc   infomation of op in ge
+   *  @brief   check op whether supported in ops store
+   *  @param   [in] op_desc   information of op in ge
    *  @return  true or false
    */
   virtual bool CheckSupport(const ge::NodePtr &node, CheckSupportParam &check_param, const bool &is_dynamic_impl,

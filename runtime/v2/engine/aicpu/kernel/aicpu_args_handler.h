@@ -15,7 +15,7 @@
 #include "graph/def_types.h"
 #include "rt_external_kernel.h"
 #include "ge/ge_api_error_codes.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace gert {
 class AicpuArgsHandler {

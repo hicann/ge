@@ -21,7 +21,7 @@
 
 #include "graph/ascend_string.h"
 #include "graph/custom_op/args_refresh.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace ge {
 class BaseCustomOp;

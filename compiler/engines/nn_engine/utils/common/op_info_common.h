@@ -51,7 +51,7 @@ const std::unordered_map<ge::Format, std::unordered_set<ge::Format>> kValidTrans
 struct UpdateInfo {
   const OpKernelInfoPtr &op_kernel_info_ptr;             // op kernel info
   const InputOrOutputInfoPtr &input_or_output_info_ptr;  // tensor kernel info
-  const uint32_t &matched_index;                         // mathed index of the op_kernel_info
+  const uint32_t &matched_index;                         // matched index of the op_kernel_info
   const ge::NodePtr &node_ptr;                           // current node pointer
   const uint32_t &index;                                 // the index of the input or output desc
   ge::GeTensorDesc &op_input_or_output_desc;             // the input or output desc of the current node

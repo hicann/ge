@@ -12,7 +12,7 @@
 #define INC_REGISTER_PASS_OPTION_UTILS_H
 
 #include "optimization_option_registry.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 namespace ge {
 class PassOptionUtils {
  public:

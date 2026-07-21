@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_AICPU_FFTS_ARGS_H
 #define AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_AICPU_FFTS_ARGS_H
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/def_types.h"
 #include "exe_graph/runtime/kernel_context.h"
 

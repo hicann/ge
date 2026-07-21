@@ -12,7 +12,7 @@
 #define INC_GRAPH_ATTR_GROUP_ATTR_GROUP_BASE_H
 
 #include <memory>
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/type_id.h"
 
 namespace ge {

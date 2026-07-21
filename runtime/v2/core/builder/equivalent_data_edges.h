@@ -12,7 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_CORE_EQUIVALENT_DATA_EDGES_H_
 
 #include "graph/fast_graph/execute_graph.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 
 namespace gert {
 struct EquivalentDataEdges {

@@ -15,7 +15,7 @@
 #include "rt_external_ffts_define.h"
 #include "register/kernel_registry_impl.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "common/checker.h"
 #include "exe_graph/runtime/gert_tensor_data.h"

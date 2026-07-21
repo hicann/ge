@@ -222,7 +222,7 @@ class HeavyFormatSelector {
                                                    const ge::OpDescPtr &op_desc_ptr);
 
  private:
-  /* For specifc input or output (which the heavy format is distributed from),
+  /* For specific input or output (which the heavy format is distributed from),
    * we need to ensure its format is exactly the same as the heavy format.
    * So we first select the format index which qualify this requirement. */
   Status SelectQualifiedFormat(const OpKernelInfoPtr &op_kernel_info_ptr, const ge::NodePtr &current_node,

@@ -41,7 +41,6 @@ extern std::string g_runtime_stub_mock;
 using namespace std;
 using namespace ge;
 namespace {
-constexpr const char_t *kDisableIneffectiveMultiStreamOptimize = "DISABLE_INEFFECTIVE_MULTI_STREAM_OPTIMIZE";
 /**
  *    Const   Const     Data      Const   Const
  *       \     /       /    \        \     /
@@ -1832,28 +1831,6 @@ TEST_F(STEST_stream_allocator, AicoreHcclSerialAndMultiHcclSerial) {
     ASSERT_NE(relu2, nullptr);
     EXPECT_EQ(relu2->GetOpDesc()->GetStreamId(), 1);
   };
-}
-
-TEST_F(STEST_stream_allocator, DisableOptimizeIneffectiveMultiStream) {
-  mmSetEnv(kDisableIneffectiveMultiStreamOptimize, "1", 1);
-  auto graph = BuildGraphWithAicoreHcclSerial();
-  std::map<string, string> options;
-  Session session(options);
-  auto ret = session.AddGraph(0, graph, options);
-  EXPECT_EQ(ret, SUCCESS);
-  std::vector<InputTensorInfo> inputs;
-  ret = session.BuildGraph(0, inputs);
-  EXPECT_EQ(ret, SUCCESS);
-
-  CHECK_GRAPH(PreRunAfterBuild) {
-    auto all_reduce = graph->FindNode("HcomAllReduce");
-    ASSERT_NE(all_reduce, nullptr);
-    EXPECT_EQ(all_reduce->GetOpDesc()->GetStreamId(), 0);
-    auto relu2 = graph->FindNode("relu2");
-    ASSERT_NE(relu2, nullptr);
-    EXPECT_EQ(relu2->GetOpDesc()->GetStreamId(), 1);
-  };
-  mmSetEnv(kDisableIneffectiveMultiStreamOptimize, "0", 1);
 }
 
 TEST_F(STEST_stream_allocator, optimize_ineffective_multi_stream_not_move_to_stream_label) {

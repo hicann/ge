@@ -14,7 +14,7 @@
 #include <vector>
 #include <cstdint>
 
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 #include "graph/types.h"
 #include "graph/tensor.h"
 #include "graph/ascend_string.h"

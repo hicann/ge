@@ -280,8 +280,8 @@ bool HostcpuEngineUpdatePass::CheckAndMarkHostExec(const NodePtr &node, NodeEngi
     (void)AttrUtils::SetBool(op_desc, kSmallShapeHostcpu, true);
     node_atomic_engine_map[node] = kHostCpuEngineName;
     node_composite_engine_map[node] = kHostCpuEngineName;
-    GELOGI("[HostcpuEngineUpdatePass]: Set OpKernelLibName %s and OpEngineName %s to %s", kHostCpuOpKernelLibName,
-           kHostCpuEngineName, op_desc->GetName().c_str());
+    GELOGI("[HostcpuEngineUpdatePass]: Set OpKernelLibName %s and OpEngineName %s to %s",
+           kHostCpuOpKernelLibName.c_str(), kHostCpuEngineName.c_str(), op_desc->GetName().c_str());
     host_exe_ops_.insert(node);
     return true;
   }

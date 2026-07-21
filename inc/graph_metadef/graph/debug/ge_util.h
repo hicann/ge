@@ -13,7 +13,7 @@
 
 #include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/ge_error_codes.h"
+#include "graph/error_codes.h"
 namespace ge {
 template <typename T, typename... Args>
 static inline std::shared_ptr<T> ComGraphMakeShared(Args &&...args) {
