@@ -4673,6 +4673,9 @@ TEST_F(UtestGraphManagerTest, test_checkIoReuseMemIndexesOption1) {
   options.emplace(ge::OPTION_HOST_SCHEDULING_MAX_THRESHOLD, "abc");
   EXPECT_NE(CheckOptionValidThreshold(options, OPTION_HOST_SCHEDULING_MAX_THRESHOLD), SUCCESS);
   options.clear();
+  options.emplace(ge::OPTION_HOST_SCHEDULING_MAX_THRESHOLD, "9223372036854775808");
+  EXPECT_EQ(CheckOptionValidThreshold(options, OPTION_HOST_SCHEDULING_MAX_THRESHOLD), PARAM_INVALID);
+  options.clear();
   options.emplace(ge::OPTION_HOST_SCHEDULING_MAX_THRESHOLD, "15");
   EXPECT_EQ(CheckOptionValidThreshold(options, OPTION_HOST_SCHEDULING_MAX_THRESHOLD), SUCCESS);
 }
