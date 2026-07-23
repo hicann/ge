@@ -189,6 +189,7 @@ add_executable(ge_common_atc
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_ge_ir_build.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_ge_ir_build_offline_launch.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
+    "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/allocator_faker.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_model_helper.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_single_op_profiling.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_dynamic_stack_execute.cc"
