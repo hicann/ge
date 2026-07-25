@@ -37,6 +37,7 @@ endif ()
 set(ASCEND_ROOT ${ASCEND_INSTALL_PATH}) # e.g. /usr/local/Ascend/ascend-toolkit/latest
 
 set(CODE_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR ${CODE_ROOT_DIR}/temporary_dependencies)
 
 if (ENABLE_OPEN_SRC)
     set(GE_METADEF_DIR ${CODE_ROOT_DIR}/../../../../graph_metadef)
@@ -60,9 +61,11 @@ endif()
 # bare includes like "attr_store.h" resolve to the af-namespace package headers.
 # Keep generic "graph/..." lookups on GE metadef first under AUTOFUSE_USE_GE_METADEF.
 include_directories(BEFORE ${CODE_ROOT_DIR})
-include_directories(BEFORE ${CODE_ROOT_DIR}/graph)
-include_directories(BEFORE ${CODE_ROOT_DIR}/ascir)
-include_directories(BEFORE ${CODE_ROOT_DIR}/ascir/utils)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR})
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/graph)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir/utils)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/autofuse)
 include_directories(${GE_METADEF_INC_DIR}/external)
 include_directories(${GE_METADEF_INC_DIR}/external/graph)
 include_directories(${GE_METADEF_INC_DIR})

@@ -35,6 +35,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
     endif ()
 endif ()
 set(CODE_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../compiler/graph/optimize/autofuse)
+set(AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR ${CODE_ROOT_DIR}/temporary_dependencies)
 set(ASCEND_ROOT ${ASCEND_INSTALL_PATH}) # e.g. /usr/local/Ascend/ascend-toolkit/latest
 
 set(ASCEND_INSTALL_PATH ${ASCEND_INSTALL_PATH})
@@ -60,9 +61,11 @@ endif()
 
 link_directories(${ASCEND_ROOT}/lib64)
 include_directories(BEFORE ${CODE_ROOT_DIR})
-include_directories(BEFORE ${CODE_ROOT_DIR}/graph)
-include_directories(BEFORE ${CODE_ROOT_DIR}/ascir)
-include_directories(BEFORE ${CODE_ROOT_DIR}/ascir/utils)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR})
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/graph)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir/utils)
+include_directories(BEFORE ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/autofuse)
 include_directories(${AIR_CODE_DIR}/inc)
 include_directories(${AIR_CODE_DIR}/inc/graph_metadef)
 include_directories(${AIR_CODE_DIR}/inc/graph_metadef/graph)
@@ -100,7 +103,7 @@ endif()
 if (NOT TARGET ascir_ops_headers)
     add_library(ascir_ops_headers INTERFACE)
     target_include_directories(ascir_ops_headers INTERFACE
-        ${CODE_ROOT_DIR}/ascir
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir
     )
 endif()
 
@@ -162,6 +165,11 @@ target_compile_definitions(autofuse PRIVATE
 target_include_directories(autofuse PUBLIC
     ${AUTOFUSE_DIR}
     ${CODE_ROOT_DIR}
+    ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}
+    ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/autofuse
+    ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/graph
+    ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir
+    ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir/utils
     ${AIR_CODE_DIR}/base
     ${CODE_ROOT_DIR}/autofuse
     ${CMAKE_CURRENT_SOURCE_DIR}

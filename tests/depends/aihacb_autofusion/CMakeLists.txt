@@ -20,12 +20,13 @@ file(GLOB_RECURSE ASC_SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 if (NOT DEFINED CODE_ROOT_DIR)
         set(CODE_ROOT_DIR ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse)
 endif ()
+set(AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR ${CODE_ROOT_DIR}/temporary_dependencies)
 
 include(${CODE_ROOT_DIR}/cmake/autofuse_protos.cmake)
 
 add_library(ascir_ops_headers INTERFACE)
 target_include_directories(ascir_ops_headers INTERFACE
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir
         )
 
 add_library(aihacb_autofusion_stub SHARED
@@ -50,9 +51,11 @@ target_link_options(aihacb_autofusion_stub PRIVATE
 target_include_directories(aihacb_autofusion_stub BEFORE PRIVATE
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/graph
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/utils
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/autofuse
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/graph
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir
+        ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir/utils
         ${AIR_CODE_DIR}/inc
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${AIR_CODE_DIR}/inc/graph_metadef/graph
@@ -85,7 +88,6 @@ target_include_directories(aihacb_autofusion_stub PRIVATE
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/utils
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/inc
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/att/
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/meta
         ${CMAKE_BINARY_DIR}/proto/metadef_protos
         ${CMAKE_BINARY_DIR}/proto/ge_autofuse_metadef_protos_af
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos

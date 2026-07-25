@@ -43,8 +43,11 @@ target_include_directories(autofuse_test PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_running_env/include
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/inc
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/graph
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/graph
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/ascir
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/ascir/utils
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/att/
         ${ASCGEN_DIR}
         ${ASCGEN_DIR}/autofuse

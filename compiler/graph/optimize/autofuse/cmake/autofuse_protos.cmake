@@ -8,7 +8,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set(AUTOFUSE_PROTO_DIR ${CODE_ROOT_DIR}/proto)
+set(AUTOFUSE_PROTO_DIR ${CODE_ROOT_DIR}/temporary_dependencies/proto)
 set(AUTOFUSE_PROTO_SRCS
     "${CMAKE_BINARY_DIR}/proto/ge_autofuse_metadef_protos_af/proto/af_ir.pb.cc"
     "${CMAKE_BINARY_DIR}/proto/ge_autofuse_metadef_protos_af/proto/ascendc_ir.pb.cc"
