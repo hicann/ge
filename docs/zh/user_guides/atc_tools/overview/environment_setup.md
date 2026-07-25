@@ -32,7 +32,7 @@
         export LD_LIBRARY_PATH=/usr/local/Ascend/cann/<arch>-linux/devlib:$LD_LIBRARY_PATH
         ```
 
-        其中，/usr/local/Ascend/为root用户的默认安装路径，请根据实际情况进行替换，_<arch\>_请替换为操作系统具体架构。
+        其中，/usr/local/Ascend/为root用户的默认安装路径，请根据实际情况进行替换，<arch\>请替换为操作系统具体架构。
 
     - **设置Python相关环境变量**
 

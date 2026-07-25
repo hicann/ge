@@ -28,14 +28,10 @@ ShapeAndType(const Shape &shape, DataType data_type)
 | shape | 输入 | 需设置的shape。 |
 | data_type | 输入 | 需设置的DataType。 |
 
-## 返回值
+## 返回值说明
 
 ShapeAndType构造函数返回ShapeAndType类型的对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

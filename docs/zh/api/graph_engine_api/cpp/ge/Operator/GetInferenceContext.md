@@ -33,10 +33,6 @@ InferenceContextPtr是指向InferenceContext类的指针的别名：
 using InferenceContextPtr = std::shared_ptr<InferenceContext>;
 ```
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

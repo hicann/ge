@@ -27,10 +27,6 @@ const std::vector<std::vector<ShapeAndType>> &GetOutputHandleShapesAndTypes() co
 
 算子输出句柄的[ShapeAndType](../ShapeAndType/ShapeAndType.md)。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

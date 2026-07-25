@@ -27,10 +27,6 @@ const Shape &GetShape() const
 
 ShapeAndType对象中的[Shape](https://hiascend.com/document/redirect/CannCommunitybasicopapi)。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

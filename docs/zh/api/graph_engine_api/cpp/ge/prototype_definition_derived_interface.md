@@ -1,6 +1,6 @@
 # 原型定义衍生接口
 
-算子原型定义的相关接口会自动生成对应的衍生接口，可用于IR模型构建，以下接口的详细使用方法可参见《图开发》。
+算子原型定义的相关接口会自动生成对应的衍生接口，可用于IR模型构建，以下接口的详细使用方法可参见[《图开发》](../../../../user_guides/graph_dev/README.md)。
 
 ## 产品支持情况
 
@@ -14,7 +14,7 @@
 
 注册算子类型后，会自动生成算子类型的两个构造函数。
 
-例如，注册算子的类型名称Conv2D，可调用REG\_OP\(Conv2D\)接口，调用该接口后，定义了算子的类型名称Conv2D，同时产生Conv2D的两个构造函数，其中，**Conv2D\(const AscendString& name\)**需指定算子名称，Conv2D\(\)使用默认算子名称。
+例如，注册算子的类型名称Conv2D，可调用REG\_OP\(Conv2D\)接口，调用该接口后，定义了算子的类型名称Conv2D，同时产生Conv2D的两个构造函数，其中，Conv2D\(const AscendString& name\)需指定算子名称，Conv2D\(\)使用默认算子名称。
 
 ```c++
 class Conv2D : public Operator {
@@ -29,7 +29,7 @@ public:
 
 注册算子输入信息成功后，自动生成算子输入的相关接口，用于获取算子输入的名称、设置算子输入的对应描述等。
 
-例如，注册算子输入x，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用**INPUT\(x, TensorType\{DT\_FLOAT\}\)**接口，注册算子输入成功后，自动生成以下相关接口：
+例如，注册算子输入x，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用INPUT\(x, TensorType\{DT\_FLOAT\}\)接口，注册算子输入成功后，自动生成以下相关接口：
 
 ```c++
 static const string name_in_x(); // 返回输入的名称，即“x”
@@ -45,7 +45,7 @@ graphStatus update_input_desc_x(const TensorDesc& tensorDesc);// 设置输入x�
 
 注册可选算子输入信息成功后，自动生成算子输入的相关接口，用于获取算子输入的名称、设置算子输入的对应描述等。
 
-例如，注册算子输入b，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用**OPTIONAL\_INPUT\(b, TensorType\{DT\_FLOAT\}\)**接口，注册算子输入成功后，自动生成以下相关接口：
+例如，注册算子输入b，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用OPTIONAL\_INPUT\(b, TensorType\{DT\_FLOAT\}\)接口，注册算子输入成功后，自动生成以下相关接口：
 
 ```c++
 static const string name_in_b(); // 返回输入的名称，即“b”
@@ -60,7 +60,7 @@ graphStatus update_input_desc_b(const TensorDesc& tensorDesc);// 设置输入b�
 
 注册动态算子输入信息成功后，自动生成算子输入的相关接口，用于创建动态输入、设置算子输入的对应描述等。
 
-例如，注册算子的动态输入d，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用**DYNAMIC\_INPUT\(d, TensorType\{DT\_FLOAT\}\)**接口，注册算子的动态输入成功后，自动生成以下相关接口：
+例如，注册算子的动态输入d，算子输入支持的数据类型为TensorType\{DT\_FLOAT\}，可调用DYNAMIC\_INPUT\(d, TensorType\{DT\_FLOAT\}\)接口，注册算子的动态输入成功后，自动生成以下相关接口：
 
 ```c++
 _THIS_TYPE& create_dynamic_input_d(unsigned int num); // 创建动态输入d，包括num个输入，并且把这个输入作为算子最后的输入
@@ -76,7 +76,7 @@ _THIS_TYPE& set_dynamic_input_d(unsigned int dstIndex, Operator &v, const char *
 
 注册算子输出信息成功后，自动生成算子输出的相关接口，用户获取算子输出的名称、获取算子输出的描述、设置算子输出的描述。
 
-例如，注册算子输出y，算子输出支持的数据类型为TensorType\{DT\_FLOAT\}，可调用**OUTPUT\(y, TensorType\{DT\_FLOAT\}\)**接口，注册算子输出成功后，自动生成以下相关接口
+例如，注册算子输出y，算子输出支持的数据类型为TensorType\{DT\_FLOAT\}，可调用OUTPUT\(y, TensorType\{DT\_FLOAT\}\)接口，注册算子输出成功后，自动生成以下相关接口
 
 ```c++
 static const string name_out_y();// 返回输出的名称，即“y”
@@ -88,7 +88,7 @@ graphStatus update_output_desc_y(const TensorDesc& tensorDesc); // 设置输出y
 
 注册动态算子输出信息成功后，自动生成动态算子输出的相关接口，包括用于创建动态输出、设置算子输出的对应描述等。
 
-例如，注册动态算子输出d，算子输出支持的数据类型为TensorType\{DT\_FLOAT\}，可调用**DYNAMIC\_OUTPUT\(d, TensorType\{DT\_FLOAT\}\)**接口，注册动态算子输出成功后，自动生成以下相关接口：
+例如，注册动态算子输出d，算子输出支持的数据类型为TensorType\{DT\_FLOAT\}，可调用DYNAMIC\_OUTPUT\(d, TensorType\{DT\_FLOAT\}\)接口，注册动态算子输出成功后，自动生成以下相关接口：
 
 ```c++
 _THIS_TYPE& create_dynamic_output_d(unsigned int num); // 创建动态输出d，包括num个输出
@@ -100,7 +100,7 @@ graphStatus update_dynamic_output_desc_d(unsigned int index, const TensorDesc& t
 
 注册算子属性成功后，自动生成算子属性的3个对外接口，用于获取属性的名称、获取属性的值、设置属性的值。
 
-例如，注册类型为int64\_t的属性mode，可调用**REQUIRED\_ATTR\(mode, Int\)**接口，注册算子属性成功后，会自动生成如下接口：
+例如，注册类型为int64\_t的属性mode，可调用REQUIRED\_ATTR\(mode, Int\)接口，注册算子属性成功后，会自动生成如下接口：
 
 ```c++
 static const string name_attr_mode(); // 返回属性的名称，即“mode”
@@ -154,7 +154,7 @@ _THIS_TYPE& set_attr_data_format(const char* v); // 设置data_format属性的�
 
 注册算子子图信息成功后，自动生成算子子图的相关接口，用户获取算子子图的名称、获取算子子图的描述、设置算子子图的描述。
 
-例如，注册算子子图y，可调用**GRAPH\(y\)**接口，注册算子子图成功后，自动生成以下相关接口：
+例如，注册算子子图y，可调用GRAPH\(y\)接口，注册算子子图成功后，自动生成以下相关接口：
 
 ```c++
 static const string name_graph_y();// 返回算子子图的名称，即“y”
@@ -167,7 +167,7 @@ Graph get_subgraph_y() const;// 获取子图y对应的graph对象
 
 注册动态算子子图信息成功后，自动生成动态算子子图的相关接口，包括用于创建动态子图、设置算子子图的对应描述等。
 
-例如，注册动态算子子图branches，可调用**DYNAMIC\_GRAPH\(branches\)**接口，注册动态算子子图成功后，自动生成以下相关接口：
+例如，注册动态算子子图branches，可调用DYNAMIC\_GRAPH\(branches\)接口，注册动态算子子图成功后，自动生成以下相关接口：
 
 ```c++
 _THIS_TYPE& create_dynamic_subgraph_branches(unsigned int num); // 创建动态子图branches，包括num个子图

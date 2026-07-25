@@ -36,10 +36,6 @@ graphStatus UpdateOutputDesc(const uint32_t index, const TensorDesc &tensor_desc
 
 graphStatus类型：更新TensorDesc成功，返回GRAPH\_SUCCESS，否则，返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

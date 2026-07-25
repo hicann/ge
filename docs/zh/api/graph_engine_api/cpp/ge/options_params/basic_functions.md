@@ -231,9 +231,11 @@ N表示该台Server上的可用AI处理器个数。
 - DT\_UINT64
 - DT\_INT64
 - DT\_DOUBLE
+<!-- npu="950" id8 -->
 - DT\_HIFLOAT8
 - DT\_FLOAT8\_E5M2
 - DT\_FLOAT8\_E4M3FN
+<!-- end id8 -->
 
 **参数值约束：**
 
@@ -269,35 +271,7 @@ N表示该台Server上的可用AI处理器个数。
 
 指定编译优化模型的AI处理器型号。
 
-取值查询方法如下：
-
-<!-- npu="950" id2 -->
-- 针对Ascend 950PR/Ascend 950DT，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascend_xxx_，**NPU Name**取值为1234，实际配置值为Ascend_xxx__\__1234。
-
-    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-<!-- end id2 -->
-
-<!-- npu="A3" id3 -->
-- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascend_xxx_，**NPU Name**取值为1234，实际配置值为Ascend_xxx__\__1234。其中：
-  - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-  - chip\_id：芯片id，通过**npu-smi info -m**命令查出的Chip ID即为芯片id。
-<!-- end id3 -->
-
-<!-- npu="910b,910,310p" id4 -->
-- 针对如下产品：在安装AI处理器的服务器执行**npu-smi info**命令进行查询，获取**Name**信息。实际配置值为AscendName，例如**Name**取值为_xxxyy_，实际配置值为Ascend_xxxyy_。
-
-    <!-- npu="910b" id5 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
-    <!-- end id5 -->
-
-    <!-- npu="310p" id6 -->
-    Atlas 推理系列产品
-    <!-- end id6 -->
-
-    <!-- npu="910" id7 -->
-    Atlas 训练系列产品
-    <!-- end id7 -->
-<!-- end id4 -->
+取值查询方法请参见[--soc_version](../../../../../user_guides/atc_tools/CLI_options/--soc_version.md)。
 
 **必选/可选**：可选
 

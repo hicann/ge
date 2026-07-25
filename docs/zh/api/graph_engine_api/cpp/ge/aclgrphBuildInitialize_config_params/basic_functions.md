@@ -316,44 +316,7 @@ sub\_comm\_config.json文件示例如下：
 
 **参数取值：**
 
-<soc\_version\>查询方法为：
-
-<!-- npu="910b,910,310p,310b" id29 -->
-- 针对如下产品：在安装AI处理器的服务器执行**npu-smi info**命令进行查询，获取**Name**信息。实际配置值为AscendName，例如**Name**取值为xxxyy，实际配置值为Ascendxxxyy。
-
-    <!-- npu="910b" id30 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
-    <!-- end id30 -->
-
-    <!-- npu="310b" id31 -->
-    Atlas 200I/500 A2 推理产品
-    <!-- end id31 -->
-
-    <!-- npu="310p" id32 -->
-    Atlas 推理系列产品
-    <!-- end id32 -->
-
-    <!-- npu="910" id33 -->
-    Atlas 训练系列产品
-    <!-- end id33 -->
-<!-- end id29 -->
-
-<!-- npu="A3" id34 -->
-- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。其中：
-  - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-  - chip\_id：芯片id，通过**npu-smi info -m**命令查出的Chip ID即为芯片id。
-<!-- end id34 -->
-
-<!-- npu="950" id35 -->
-- 针对Ascend 950PR/Ascend 950DT，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。
-
-    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-<!-- end id35 -->
-
-<!-- npu="IPV350" id36 -->
-IPV350参数值：Ascend035
-<!-- end id36 -->
-<!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/basic_functions_res.md#id5 -->
+<soc\_version\>查询方法请参见[--soc_version](../../../../../user_guides/atc_tools/CLI_options/--soc_version.md)。
 
 **配置示例：**
 

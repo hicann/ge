@@ -16,7 +16,7 @@
 
   - 设置shape分档（静态shape），包括设置batch\_size档位、设置分辨率档位、设置动态维度档位。
 
-    设置INPUT\_SHAPE参数时，将对应维度值设置为-1，同时配合使用DYNAMIC\_BATCH\_SIZE（设置batch\_size档位）或DYNAMIC\_IMAGE\_SIZE（设置分辨率档位）或DYNAMIC\_DIMS（设置动态维度档位）参数。详细用法请参考DYNAMIC\_BATCH\_SIZE、DYNAMIC\_IMAGE\_SIZE、DYNAMIC\_DIMS参数说明。
+    设置INPUT\_SHAPE参数时，将对应维度值设置为-1，同时配合使用[DYNAMIC\_BATCH\_SIZE](#dynamic_batch_size)（设置batch\_size档位）或[DYNAMIC\_IMAGE\_SIZE](#dynamic_image_size)（设置分辨率档位）或[DYNAMIC\_DIMS](#dynamic_dims)（设置动态维度档位）参数。
 
   - 设置shape范围（动态shape）。
 
@@ -46,7 +46,7 @@
 
 **配置示例：**
 
-- 固定shape，例如某网络的输入shape信息，输入1**：**input\_0\_0 \[16,32,208,208\]，输入2：input\_1\_0 \[16,64,208,208\]，则INPUT\_SHAPE的配置信息为：
+- 固定shape，例如某网络的输入shape信息，输入1：input\_0\_0 \[16,32,208,208\]，输入2：input\_1\_0 \[16,64,208,208\]，则INPUT\_SHAPE的配置信息为：
 
     ```c++
     {ge::ir_option::INPUT_SHAPE, "input_0_0:16,32,208,208;input_1_0:16,64,208,208"}
@@ -74,7 +74,7 @@
     {ge::ir_option::INPUT_SHAPE, "input_name1:;input_name2:16,32,208,208"}
     ```
 
-    上述示例中的**input\_name1**为可选配置**。**
+    上述示例中的**input\_name1**为可选配置。
 
   - 动态分档场景
 
@@ -87,9 +87,7 @@
 
 > [!NOTE]说明
 >
->如果模型转换时通过该参数设置了shape的范围，使用应用工程进行模型推理时，需要在**模型执行**接口之前，调用**aclmdlSetDatasetTensorDesc**接口，用于设置真实的输入Tensor描述信息（输入shape范围）；模型执行之后，调用**aclmdlGetDatasetTensorDesc**接口获取模型动态输出的Tensor描述信息；再进一步调用**aclTensorDesc**下的操作接口获取输出Tensor数据占用的内存大小、Tensor的Format信息、Tensor的维度信息等。
->
->关于**aclmdlSetDatasetTensorDesc**、**aclmdlGetDatasetTensorDesc**等接口的具体使用方法，请参见《GE图引擎 API》。
+>如果模型转换时通过该参数设置了shape的范围，使用应用工程进行模型推理时，需要在**模型执行**接口之前，调用[aclmdlSetDatasetTensorDesc](../../../c/acl/aclmdlSetDatasetTensorDesc.md)接口，用于设置真实的输入Tensor描述信息（输入shape范围）；模型执行之后，调用[aclmdlGetDatasetTensorDesc](../../../c/acl/aclmdlGetDatasetTensorDesc.md)接口获取模型动态输出的Tensor描述信息；再进一步调用[aclTensorDesc](../../../c/acl/aclTensorDesc.md)下的操作接口获取输出Tensor数据占用的内存大小、Tensor的Format信息、Tensor的维度信息等。
 
 **产品支持情况：**
 
@@ -105,7 +103,9 @@
 
 **参数值格式**：指定的参数必须放在双引号中，档位之间使用英文逗号分隔。
 
+<!-- npu="950,A3,910b,910,310p,310b" id48 -->
 **参数值约束：**
+<!-- end id48 -->
 
 <!-- npu="950" id3 -->
 - 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置；每个档位数值建议限制为：\[1\~2048\]。
@@ -184,7 +184,9 @@ INPUT\_SHAPE中的“-1”表示设置动态batch。
 
 **参数值格式：**指定的参数必须放在双引号中，档位之间英文**分号**分隔，每档内参数使用英文**逗号**分隔。
 
+<!-- npu="950,A3,910b,910,310p,310b" id46 -->
 **参数值约束：**
+<!-- end id46 -->
 
 <!-- npu="950" id10 -->
 - 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置。
@@ -263,7 +265,9 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 
 **参数值格式**：所有档位必须放在双引号中，档位之间使用英文**分号**分隔，每档内参数使用英文**逗号**分隔；每档中的dim值与INPUT\_SHAPE参数中的-1标识的参数依次对应，INPUT\_SHAPE参数中有几个-1，则每档必须设置几个维度。
 
+<!-- npu="950,A3,910b,910,310p,310b" id47 -->
 **参数值约束：**
+<!-- end id47 -->
 
 <!-- npu="950" id24 -->
 - 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置，建议配置为3\~4档。

@@ -34,10 +34,6 @@ static T CreateFrom(DT &&val)
 
 返回T类型的参数。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

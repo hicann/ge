@@ -34,10 +34,6 @@ SubgraphBuilder GetDynamicSubgraphBuilder(const char_t *name, uint32_t index) co
 
 SubgraphBuilder对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

@@ -29,10 +29,6 @@ Operator &AddControlInput(const Operator &src_oprt)
 
 算子对象本身。
 
-## 异常处理
-
-无
-
 ## 约束说明
 
 无

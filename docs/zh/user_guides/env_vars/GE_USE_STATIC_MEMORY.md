@@ -17,7 +17,7 @@
 > - 为兼容历史版本配置，配置为“1”的场景下，系统会按照“2”的方式进行处理。
 > - 配置为“3”和“4”的场景下，将带来内存收益，但可能导致性能损失。
 > - 针对TensorFlow训练场景与在线推理场景，此环境变量与配置参数“static_memory_policy”不可同时使用，否则网络运行会冲突。建议开发者优先使用配置参数“static_memory_policy”设置网络运行时的内存分配方式。
-> - 针对Ascend Graph构图场景，此环境变量与配置参数“ge.exec.staticMemoryPolicy”不可同时使用，否则网络运行会冲突。建议开发者优先使用配置参数“ge.exec.staticMemoryPolicy”设置网络运行时的内存分配方式。
+> - 针对图开发场景，此环境变量与配置参数[ge.exec.staticMemoryPolicy](../../api/graph_engine_api/cpp/ge/options_params/memory_management.md#geexecstaticmemorypolicy)不可同时使用，否则网络运行会冲突。建议开发者优先使用配置参数“ge.exec.staticMemoryPolicy”设置网络运行时的内存分配方式。
 
 ## 配置示例
 

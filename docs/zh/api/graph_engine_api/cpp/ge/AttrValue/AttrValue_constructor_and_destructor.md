@@ -28,10 +28,6 @@ AttrValue()
 
 AttrValue构造函数返回AttrValue类型的对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
 无。

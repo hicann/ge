@@ -35,10 +35,6 @@ graphStatus UpdateDynamicInputDesc(const char_t *name, uint32_t index, const Ten
 
 graphStatus类型：更新动态Input成功，返回GRAPH\_SUCCESS， 否则，返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

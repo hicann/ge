@@ -36,10 +36,6 @@ MatchResult &operator=(MatchResult &&other) noexcept ;
 
 无
 
-## 异常处理
-
-无
-
 ## 约束说明
 
 无

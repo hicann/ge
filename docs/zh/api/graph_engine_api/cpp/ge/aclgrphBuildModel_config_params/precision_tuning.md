@@ -229,7 +229,7 @@
 
 **参数取值：**
 
-配置为路径以及文件名，文件为JSON格式。黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。）：
+配置为路径以及文件名，文件为JSON格式。黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。）：
 
 - 若取值为true（白名单），表示混合精度模式下，**允许**降低精度。
 - 若取值为false（黑名单），表示混合精度模式下，**不允许**降低精度。
@@ -346,7 +346,7 @@ OpType::Relu:InputDtype:float16,int8,OutputDtype:float16,int8
 > [!NOTE]说明
 >
 >- 算子具体支持的计算精度可以从算子信息库中查看，默认存储路径为：`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`。
->    $\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。
+>    $\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。
 >- 通过该参数指定的优先级高，因此可能会导致精度/性能的下降，如果指定的dtype不支持，会导致编译失败。
 
 **配置示例：**

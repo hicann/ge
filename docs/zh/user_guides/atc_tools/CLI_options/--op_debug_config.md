@@ -28,17 +28,17 @@
   - 配置该选项，算子编译时，在当前执行路径算子编译生成的kernel\_meta文件夹中保留.o（算子二进制文件）和.json文件（算子描述文件）。
   - 使用该选项后，在算子编译过程中会加入如下的检测逻辑，用户可以通过再使用**dump\_cce**参数，在生成的.cce文件中查看如下的代码。
 
-        ```cce
-        inline __aicore__ void  CheckInvalidAccessOfDDR(xxx) {
-            if (access_offset < 0 || access_offset + access_extent > ddr_size) {
-                if (read_or_write == 1) {
-                    trap(0X5A5A0001);
-                } else {
-                    trap(0X5A5A0002);
-                }
+    ```cce
+    inline __aicore__ void  CheckInvalidAccessOfDDR(xxx) {
+        if (access_offset < 0 || access_offset + access_extent > ddr_size) {
+            if (read_or_write == 1) {
+                trap(0X5A5A0001);
+            } else {
+                trap(0X5A5A0002);
             }
         }
-        ```
+    }
+    ```
 
 - **dump\_cce**：算子编译时，在当前执行路径算子编译生成的kernel\_meta文件夹中保留算子cce文件\*.cce，以及.o（算子二进制文件）和.json文件（算子描述文件）。
 - **dump\_loc**：算子编译时，在当前执行路径算子编译生成的kernel\_meta文件夹中保留python-cce映射文件\*\_loc.json，以及.o（算子二进制文件）和.json文件（算子描述文件）。
@@ -48,31 +48,31 @@
   - 配置该选项，算子编译时，在当前执行路径算子编译生成的kernel\_meta文件夹中保留.o（算子二进制文件）和.json文件（算子描述文件）。
   - 使用该选项后，在算子编译过程中会加入如下的检测逻辑，用户可以通过再使用**dump\_cce**参数，在生成的.cce文件中查看如下的代码。
 
-        ```cce
-          set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
-          set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
-          set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
-          set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
-          ....
-          pipe_barrier(PIPE_MTE3);
-          pipe_barrier(PIPE_MTE2);
-          pipe_barrier(PIPE_M);
-          pipe_barrier(PIPE_V);
-          pipe_barrier(PIPE_MTE1);
-          pipe_barrier(PIPE_ALL);
-          wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
-          wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
-          wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
-          wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
-          ...
-        ```
+    ```cce
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
+    ....
+    pipe_barrier(PIPE_MTE3);
+    pipe_barrier(PIPE_MTE2);
+    pipe_barrier(PIPE_M);
+    pipe_barrier(PIPE_V);
+    pipe_barrier(PIPE_MTE1);
+    pipe_barrier(PIPE_ALL);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
+    ...
+    ```
 
-      实际执行推理过程中，如果确实存在算子内部流水线同步信号不匹配，则最终会在**有问题的算子处超时报错，并终止程序**，报错信息示例为：
+    实际执行推理过程中，如果确实存在算子内部流水线同步信号不匹配，则最终会在**有问题的算子处超时报错，并终止程序**，报错信息示例为：
 
-        ```
-        Aicore kernel execute failed, ..., fault kernel_name=算子名,...
-        rtStreamSynchronizeWithTimeout execute failed....
-        ```
+    ```plaintext
+    Aicore kernel execute failed, ..., fault kernel_name=算子名,...
+    rtStreamSynchronizeWithTimeout execute failed....
+    ```
 
 > [!NOTE]说明
 >
@@ -80,13 +80,13 @@
 >
 >   由于算子Kernel文件过大而无法编译的报错日志示例如下：
 >
->   ```console
+>   ```plaintext
 >   message:link error ld.lld: error: InputSection too large for range extension thunk ./kernel_meta_xxxxx.o:
 >    ```
 >
 >- ccec编译器选项ccec\_O0和oom不能同时开启，可能会导致AICore Error报错，报错信息示例如下：
 >
->   ```console
+>   ```plaintext
 >   ...there is an aivec error exception, core id is 49, error code = 0x4 ...
 >    ```
 >

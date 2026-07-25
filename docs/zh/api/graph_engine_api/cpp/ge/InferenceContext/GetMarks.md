@@ -33,10 +33,6 @@ void GetMarks(std::vector<AscendString> &marks) const
 
 资源类算子的标记。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
 无。

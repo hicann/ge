@@ -34,10 +34,6 @@ graphStatus GetInputConstData(const char_t *dst_name, Tensor &data) const
 
 graphStatus类型：如果指定算子Input对应的节点为Const节点且获取数据成功，返回GRAPH\_SUCCESS，否则，返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无
