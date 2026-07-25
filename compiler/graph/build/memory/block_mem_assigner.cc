@@ -50,50 +50,12 @@ const uint32_t kAutoMode = 1U;
 const std::set<ge::DataType> kNotPostReuseDataType = {ge::DT_RESOURCE, ge::DT_VARIANT};
 constexpr int64_t kParentNodeDefaultStreamId = -2;
 
-bool IsNodeSupportZeroCopy(const ge::Node *const node) {
-  const auto op_engine = node->GetOpDesc()->GetOpKernelLibName();
-  if (op_engine == ge::kEngineNameDsa) {
-    GELOGD("dsa engine op[%s] not support zero copy", node->GetName().c_str());
-    return false;
+bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
+  const bool is_support_zero_copy = ge::MemLayoutConflictUtil::IsAddressRefreshable(node);
+  if (!is_support_zero_copy) {
+    GELOGI("Op[%s] not support zero copy", node->GetName().c_str());
   }
-  if (op_engine == ge::kCustomOpKernelLibName) {
-    ge::AscendString op_type(node->GetOpDesc()->GetType().c_str());
-    if (!ge::CustomOpFactory::IsAddressRefreshable(op_type)) {
-      GELOGD("custom engine op[%s] not support zero copy", node->GetName().c_str());
-      return false;
-    }
-  }
-  if (ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
-    GELOGD("hccl engine op[%s] not support zero copy", node->GetName().c_str());
-    return false;
-  }
-  return true;
-}
-
-// condition op, dsa op and same hccl op cannot reuse model io block which can zero copy
-bool CanReuseZeroCopyBlock(const ge::Node *const node) {
-  const static std::set<std::string> kConditionOps = {ge::STREAMSWITCH, ge::LABELSWITCHBYINDEX};
-  if (kConditionOps.count(node->GetTypePtr()) > 0U) {
-    GELOGD("Condition op[%s] cannot reuse zero copy block", node->GetName().c_str());
-    return false;
-  }
-  const auto op_engine = node->GetOpDesc()->GetOpKernelLibName();
-  if (op_engine == ge::kCustomOpKernelLibName) {
-    ge::AscendString op_type(node->GetOpDesc()->GetType().c_str());
-    if (!ge::CustomOpFactory::IsAddressRefreshable(op_type)) {
-      GELOGD("custom engine op[%s] not support zero copy", node->GetName().c_str());
-      return false;
-    }
-  }
-  if (op_engine == ge::kEngineNameDsa) {
-    GELOGD("dsa engine op[%s] cannot reuse zero copy block", node->GetName().c_str());
-    return false;
-  }
-  if (ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
-    GELOGD("hccl engine op[%s] cannot reuse zero copy block", node->GetName().c_str());
-    return false;
-  }
-  return true;
+  return is_support_zero_copy;
 }
 
 bool IsContinuousOutput(const ge::NodePtr &n) {
@@ -142,8 +104,7 @@ size_t GetOutputFlowToNetoutputNum(const ge::NodePtr &node, uint32_t output_inde
     for (const auto &node_index_io : same_anchors) {
       if ((node_index_io.io_type_ != ge::kIn) && (node_index_io.node_ptr_ != nullptr) &&
           (node_index_io.node_ptr_->GetOpDescBarePtr() != nullptr)) {
-        if (!IsNodeSupportZeroCopy(node_index_io.node_ptr_)) {
-          GELOGI("op[%s] not support zero copy", node_index_io.node_ptr_->GetNamePtr());
+        if (!IsNodeSupportZeroCopy(node_index_io.node_)) {
           include_not_support_zero_copy_node = true;
         }
         continue;
@@ -2701,11 +2662,7 @@ void BlockMemAssigner::UpdateOpTensorMemType(const std::list<NodeIndexIO> &node_
 
 bool BlockMemAssigner::IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index) const {
   GELOGD("Check node %s and peer node of output %u task zero copy supported", node->GetNamePtr(), output_index);
-  if (is_feature_map_refreshable_) {
-    return true;
-  }
-
-  if (!IsNodeSupportZeroCopy(node.get())) {
+  if (!IsNodeSupportZeroCopy(node)) {
     return false;
   }
 
@@ -2716,7 +2673,7 @@ bool BlockMemAssigner::IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &n
   const auto peer_anchors = out_anchor->GetPeerInDataAnchorsPtr();
   const bool support = std::all_of(peer_anchors.begin(), peer_anchors.end(), [](const ge::InDataAnchor *anchor) {
     return ((anchor != nullptr) && (anchor->GetOwnerNodeBarePtr() != nullptr) &&
-            IsNodeSupportZeroCopy(anchor->GetOwnerNodeBarePtr()));
+            IsNodeSupportZeroCopy(anchor->GetOwnerNode()));
   });
 
   GELOGD("Task of node %s and peer node of output %u %s zero copy", node->GetNamePtr(), output_index,
@@ -2765,7 +2722,7 @@ bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_inde
         ((ge::GetContext().GetOption(ge::OPTION_BUILD_GRAPH_MODE, build_graph_mode) == ge::GRAPH_SUCCESS) &&
          (build_graph_mode.compare(kOffline) == 0));
     if (!is_build_graph_offline && is_multi_batch_shape_data) {
-      GELOGD("Multi batch shape data node[%s] output memory no need zero copy.", node->GetName().c_str());
+      GELOGI("Multi batch shape data node[%s] output memory no need zero copy.", node->GetName().c_str());
       return false;
     }
     if (node->GetOpDescBarePtr()->HasAttr(ATTR_NAME_PARENT_NODE_INDEX)) {  // Never zero copy for subgrapgh data
@@ -3265,7 +3222,7 @@ int32_t BlockMemAssigner::GetAllRefCount(const NodeIndexIO &out_node_index_io, b
       if (node_index_io.node_ptr_ == nullptr) {
         continue;
       }
-      is_reuse_zero_copy = (is_reuse_zero_copy && CanReuseZeroCopyBlock(node_index_io.node_ptr_));
+      is_reuse_zero_copy = (is_reuse_zero_copy && IsNodeSupportZeroCopy(node_index_io.node_));
       if (node_index_io.io_type_ != kIn) {
         continue;
       }
@@ -3414,15 +3371,14 @@ void BlockMemAssigner::MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock 
   }
 
   // data直连特殊的rts算子且不可刷新状态下，不能做零拷贝
-  const static std::set<std::string> kTaskUnsupportZeroCopyOp{ge::STREAMSWITCH, ge::LABELSWITCHBYINDEX};
   auto out_anchor = n->GetOutDataAnchor(static_cast<int32_t>(index));
   bool data_connect_unsupport_zero_copy = false;
-  if (OpTypeUtils::IsDataNode(node_op_desc->GetType()) && (!is_feature_map_refreshable_) && (out_anchor != nullptr)) {
+  if (OpTypeUtils::IsDataNode(node_op_desc->GetType()) && (out_anchor != nullptr)) {
     auto peer_anchors = out_anchor->GetPeerInDataAnchorsPtr();
     data_connect_unsupport_zero_copy =
         std::any_of(peer_anchors.begin(), peer_anchors.end(), [](const ge::InDataAnchor *anchor) {
           return ((anchor != nullptr) && (anchor->GetOwnerNodeBarePtr() != nullptr) &&
-                  (kTaskUnsupportZeroCopyOp.count(anchor->GetOwnerNodeBarePtr()->GetTypePtr()) > 0U));
+                  (!IsNodeSupportZeroCopy(anchor->GetOwnerNode())));
         });
   }
 
@@ -4100,7 +4056,7 @@ Status BlockMemAssigner::AssignWorkSpaceMemoryWithReuse(const NodePtr &node, std
                               false};
     MemoryBlock *mem_block = ApplyMemory(node, workspace_reuse_flag, param);
     GE_CHECK_NOTNULL_EXEC(mem_block, continue);
-    mem_block->is_reuse_zero_copy_ = (mem_block->is_reuse_zero_copy_) && (CanReuseZeroCopyBlock(node.get()));
+    mem_block->is_reuse_zero_copy_ = (mem_block->is_reuse_zero_copy_) && (IsNodeSupportZeroCopy(node));
 
     bool is_fixed_addr_prior = false;
     (void)ge::AttrUtils::GetBool(node_op_desc, ATTR_NAME_IS_FIXED_ADDR_PRIOR, is_fixed_addr_prior);

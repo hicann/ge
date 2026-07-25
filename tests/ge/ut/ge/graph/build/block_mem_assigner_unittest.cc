@@ -268,7 +268,7 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_data_out_anchor_null) {
   EXPECT_EQ(p1->IsZeroCopyBlock(node, 1, false), false);
 }
 
-TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_dsa) {
+TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_dsa_support_zerocopy) {
   auto root_builder = block_mem_ut::GraphBuilder("root_graph");
   const auto &add = root_builder.AddNode("add", ADD, 0, 1);
   const auto &netout = root_builder.AddNode("NETOUTPUT", NETOUTPUT, 1, 1);
@@ -280,8 +280,10 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_dsa) {
 
   MemAssistInfo mem_assist_info;
   mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
   auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
-  EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), false);
+  EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), true);
   EXPECT_EQ(p1->IsZeroCopyBlock(netout, 0, false), true);
 }
 
@@ -297,8 +299,50 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_hccl) {
 
   MemAssistInfo mem_assist_info;
   mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
   auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
   EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), false);
+}
+
+TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_rts) {
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.featureBaseRefreshable", "1"}});
+  auto root_builder = block_mem_ut::GraphBuilder("root_graph");
+  const auto &data = root_builder.AddNode("data", DATA, 0, 1);
+  const auto &rts = root_builder.AddNode("STREAMSWITCH", STREAMSWITCH, 1, 1);
+  const auto &netout = root_builder.AddNode("NETOUTPUT", NETOUTPUT, 1, 1);
+  root_builder.AddDataEdge(data, 0, rts, 0);
+  root_builder.AddDataEdge(rts, 0, netout, 0);
+  const auto &root_graph = root_builder.GetGraph();
+
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
+  EXPECT_EQ(p1->IsZeroCopyBlock(data, 0, false), false);
+  EXPECT_EQ(p1->IsZeroCopyBlock(rts, 0, false), false);
+  ge::GetThreadLocalContext().SetGraphOption({{}});
+}
+
+TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_support_hccl) {
+  auto root_builder = block_mem_ut::GraphBuilder("root_graph");
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.featureBaseRefreshable", "1"}});
+  const auto &add = root_builder.AddNode("add", ADD, 0, 1);
+  const auto &netout = root_builder.AddNode("NETOUTPUT", NETOUTPUT, 1, 1);
+  root_builder.AddDataEdge(add, 0, netout, 0);
+  const auto &root_graph = root_builder.GetGraph();
+
+  auto op_desc = root_graph->FindNode("add")->GetOpDesc();
+  op_desc->SetOpKernelLibName(ge::kEngineNameHccl.c_str());
+
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
+  EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), true);
+  ge::GetThreadLocalContext().SetGraphOption({{}});
 }
 
 TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_hccl_with_dynamic) {
@@ -314,6 +358,8 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_hccl_with_dynamic) {
 
   MemAssistInfo mem_assist_info;
   mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
   (void)AttrUtils::SetBool(root_graph, ATTR_NAME_DYNAMIC_SHAPE_PARTITIONED, true);
   auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
   EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), false);
@@ -334,6 +380,8 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_addhccl) {
 
   MemAssistInfo mem_assist_info;
   mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
   auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
   EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), false);
 }
@@ -375,6 +423,8 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlockWithSubgraph) {
 
   MemAssistInfo mem_assist_info;
   mem_assist_info.compute_graph = root_graph;
+  auto ret = GraphUtils::GetRefMapping(root_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
   auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
   EXPECT_EQ(p1->IsZeroCopyBlock(partitioncall_0_a, 0, false), false);
 
