@@ -11,6 +11,7 @@ This directory provides samples related to custom operator graph integration, co
 | `compilable_add_custom` | Ascend C operator enters graph through GE and generates om offline model | GE + ATC offline compilation | Ascend C | RTC operator runtime compilation | Supports model sink to om offline model | [README](./compilable_add_custom/README_en.md) |
 | `data_dependent_shape_custom` | Data dependent shape operator | GE | Ascend C | CMake compilation | Not involved | [README](data_dependent_shape_custom/README_en.md) |
 | `args_refresh_add_custom` | ArgsUpdater address refresh + MallocReadOnlyDevArgs + performance comparison | GE online execution | Ascend C | RTC runtime compilation | Online address refresh performance comparison | [README](./args_refresh_add_custom/cpp/README_en.md) |
+| `annotated_args_refresh_add_custom` | AnnotatedArgsOp declarative address refresh for online performance comparison and offline model | GE online execution + ATC offline compilation | Ascend C | RTC runtime compilation | Supports online performance comparison and OM model sink | [README](./annotated_args_refresh_add_custom/README_en.md) |
 | `args_refresh_add_custom (Python version)` | Python EagerExecuteOp execution | GE online execution | Ascend C | Bisheng pre-compilation | Not involved | [README](./args_refresh_add_custom/python/README.md) |
 
 ## General Development Process
@@ -26,6 +27,8 @@ Currently provided interface functionality:
 |------------------|---------|
 | `class BaseCustomOp` | Common base class for custom operator capability interfaces, user implementation classes combine and inherit other capability interfaces as needed. |
 | `class EagerExecuteOp` | Runtime execution capability, can get input Tensor, allocate output Tensor, allocate workspace and initiate kernel call. |
+| `class ArgsUpdater` | Callback-based args address refresh capability. When I/O addresses change, GE invokes `UpdateHostArgs` to update the existing args buffer. |
+| `class AnnotatedArgsOp` | Declarative kernel launch and args layout capability. At compile time, `DeclareLaunchArgs` annotates input, output, and workspace address slots so GE can generate tasks and refresh addresses. |
 | `class ShapeInferOp` | Shape / DataType derivation capability, used to set output description during compilation or graph composition phase. |
 | `class CompilableOp` | Online compilation capability, suitable for reading input metadata, compiling kernel or preparing compilation products during GE/ATC compilation process. |
 | `class PortableOp` | Serialization / deserialization capability, used to serialize / deserialize custom operator kernel bin during OM save and load phases. |
@@ -39,7 +42,9 @@ Interface combination selection by scenario:
 | Dynamic graph online execution | `EagerExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` |
 | Static graph offline sink OM model execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` + `PortableOp` |
-| Address refresh + online execution | `EagerExecuteOp` + `ArgsUpdater` + `ShapeInferOp` |
+| Callback-based address refresh + online execution | `EagerExecuteOp` + `ArgsUpdater` + `ShapeInferOp(optional)` |
+| Declarative address refresh + online execution + operator online compilation | `CompilableOp` + `AnnotatedArgsOp` + `ShapeInferOp(optional)` |
+| Declarative address refresh + offline OM + operator online compilation | `CompilableOp` + `AnnotatedArgsOp` + `PortableOp` + `ShapeInferOp(optional)` |
 
 Deliverable naming can be chosen according to samples, but need to ensure operator type, registration class name and graph composition side used op type are aligned.
 

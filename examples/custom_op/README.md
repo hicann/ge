@@ -4,13 +4,14 @@
 
 ## 样例总览
 
-| 样例 | 场景                          | 构图入口 | 算子编成语言 | 算子编译方式        | 模型下沉能力 | 链接 |
+| 样例 | 场景                          | 构图入口 | 算子编程语言 | 算子编译方式        | 模型下沉能力 | 链接 |
 | --- |-----------------------------| -- | --- |---------------| --- | --- |
 | `ascendc_add_custom` | Ascend C 算子通过 GE 入图         | PyTorch + TorchAir | Ascend C | CMake编译       | 不涉及 | [README](./ascendc_add_custom/README.md) |
 | `triton_add_custom` | Triton 算子通过 GE 入图           | TensorFlow    | Triton | 预编译为 `npubin` | 不涉及 | [README](./triton_add_custom/README.md) |
 | `compilable_add_custom` | Ascend C 算子通过 GE 入图并生成 om离线模型 | GE + ATC离线编译 | Ascend C | RTC算子运行时编译    | 支持模型下沉到 om离线模型 | [README](./compilable_add_custom/README.md) |
 | `data_dependent_shape_custom` | 数据依赖 shape 算子             | GE | Ascend C | CMake编译       | 不涉及 | [README](data_dependent_shape_custom/README.md) |
 | `args_refresh_add_custom` | ArgsUpdater 地址刷新 + MallocReadOnlyDevArgs + 性能对比 | GE 在线执行 | Ascend C | RTC 运行时编译 | 在线地址刷新性能对比 | [README](./args_refresh_add_custom/cpp/README.md) |
+| `annotated_args_refresh_add_custom` | AnnotatedArgsOp 声明式地址刷新在线场景性能对比+离线场景 | GE 在线执行 + ATC 离线编译 | Ascend C | RTC 运行时编译 | 支持在线性能对比和 OM 模型下沉 | [README](./annotated_args_refresh_add_custom/README.md) |
 | `args_refresh_add_custom（Python 版本）` | Python EagerExecuteOp 执行 | GE 在线执行 | Ascend C | Bisheng 预编译 | 不涉及 | [README](./args_refresh_add_custom/python/README.md) |
 
 ## 通用开发流程
@@ -26,6 +27,8 @@ GE 原生构图场景还需要提供 `REG_OP` proto 头文件，描述算子的�
 |------------------------|--------------------------------------------------------------|
 | `class BaseCustomOp`   | 自定义算子能力接口的公共基类，用户实现类按需组合继承其他能力接口。                            |
 | `class EagerExecuteOp` | 运行时执行能力，可获取输入 Tensor、申请输出 Tensor、申请 workspace 并发起 kernel 调用。 |
+| `class ArgsUpdater`    | 回调式地址刷新能力，I/O 地址变化时由 GE 回调 `UpdateHostArgs` 更新已有 args buffer。       |
+| `class AnnotatedArgsOp` | 声明式地址刷新能力，编译期通过 `DeclareLaunchArgs` 标注输入、输出和 workspace 地址槽位，由 GE 生成任务并完成地址刷新。 |
 | `class ShapeInferOp`   | Shape / DataType 推导能力，用于在编译或构图阶段设置输出描述。                      |
 | `class CompilableOp`   | 在线编译能力，适合在 GE/ATC 编译过程中读取输入元信息、编译 kernel 或准备编译产物。            |
 | `class PortableOp`     | 序列化 / 反序列化能力，用于在 OM 保存和加载阶段序列化 / 反序列化自定义算子kernel bin。        |
@@ -39,7 +42,9 @@ GE 原生构图场景还需要提供 `REG_OP` proto 头文件，描述算子的�
 | 动态图在线执行                | `EagerExecuteOp` + `ShapeInferOp(可选)`                                 |
 | 动态图在线执行 + 算子在线编译       | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(可选)`                |
 | 静态图离线下沉OM模型执行 + 算子在线编译 | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(可选)` + `PortableOp` |
-| 地址刷新 + 在线执行 | `EagerExecuteOp` + `ArgsUpdater` + `ShapeInferOp` |
+| 回调式地址刷新 + 在线执行          | `EagerExecuteOp` + `ArgsUpdater` + `ShapeInferOp(可选)`                  |
+| 声明式地址刷新 + 在线执行 + 算子在线编译 | `CompilableOp` + `AnnotatedArgsOp` + `ShapeInferOp(可选)`                |
+| 声明式地址刷新 + 离线 OM + 算子在线编译 | `CompilableOp` + `AnnotatedArgsOp` + `PortableOp` + `ShapeInferOp(可选)` |
 
 交付件命名可以按样例自行选择，但需要保证算子类型、注册类名和构图侧使用的 op type 对齐。
 
