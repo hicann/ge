@@ -780,7 +780,8 @@ TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_multiple_versions) {
 
   std::string ori_type;
   auto ret = parser.ConstructOriType(&node, ori_type);
-  EXPECT_EQ(ret, PARAM_INVALID);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ori_type, "ai.onnx::11::CustomOp");
 }
 
 TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_single_version) {
@@ -1106,7 +1107,7 @@ TEST_F(UtestOnnxParser, ConstructInputOutputContext_basic) {
 
 // ======================== Prechecker tests ========================
 
-TEST_F(UtestOnnxParser, Prechecker_construct_ori_type_failure) {
+TEST_F(UtestOnnxParser, Prechecker_unregistered_op_type_failure) {
   OnnxModelParser parser;
   parser.domain_verseion_["ai.onnx"] = 11;
   parser.domain_verseion_["other.domain"] = 1;
@@ -1118,7 +1119,8 @@ TEST_F(UtestOnnxParser, Prechecker_construct_ori_type_failure) {
   node->set_domain("");
 
   auto ret = parser.Prechecker(graph);
-  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(parser.HasError());
 }
 
 // ======================== AdapterOpType tests ========================

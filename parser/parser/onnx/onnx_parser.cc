@@ -417,34 +417,14 @@ Status OnnxModelParser::ConstructOriType(const ge::onnx::NodeProto *node_proto, 
     return SUCCESS;
   }
 
-  std::string domain = node_proto->domain();
-  int64_t version = 0;
-  if (!domain.empty()) {
-    std::map<std::string, int64_t>::const_iterator it = domain_verseion_.find(domain);
-    if (it != domain_verseion_.end()) {
-      version = it->second;
-    } else {
-      REPORT_INNER_ERR_MSG("E19999", "The opset of domain[%s] has no responding version.", domain.c_str());
-      GELOGE(PARAM_INVALID, "[Check][Param]The opset of domain[%s] has no responding version.", domain.c_str());
-      return PARAM_INVALID;
-    }
-  } else {
-    size_t domain_version_size = domain_verseion_.size();
-    if (domain_version_size == 1) {
-      domain = domain_verseion_.begin()->first;
-      version = domain_verseion_.begin()->second;
-    } else {
-      GELOGE(PARAM_INVALID, "[Check][Param]The size of domain_version[%zu] should be equal to one.",
-             domain_version_size);
-      REPORT_PREDEFINED_ERR_MSG("E16005", std::vector<const char *>({"domain_version_size"}),
-                                std::vector<const char *>({to_string(domain_version_size).c_str()}));
-      return PARAM_INVALID;
-    }
+  std::string domain = node_proto->domain().empty() ? "ai.onnx" : node_proto->domain();
+  std::map<std::string, int64_t>::const_iterator it = domain_verseion_.find(domain);
+  if (it == domain_verseion_.end()) {
+    REPORT_INNER_ERR_MSG("E19999", "The opset of domain[%s] has no responding version.", domain.c_str());
+    GELOGE(PARAM_INVALID, "[Check][Param]The opset of domain[%s] has no responding version.", domain.c_str());
+    return PARAM_INVALID;
   }
-
-  if (domain.empty()) {
-    domain = "ai.onnx";
-  }
+  int64_t version = it->second;
 
   ori_type = domain + "::" + to_string(version) + "::" + ori_type;
   return SUCCESS;
@@ -947,8 +927,9 @@ Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model
 
   auto opset_import = onnx_model.opset_import();
   for (auto it : opset_import) {
-    domain_verseion_[it.domain()] = it.version();
-    GELOGI("Domain:[%s], Version:[%ld].", it.domain().c_str(), it.version());
+    std::string domain = it.domain().empty() ? "ai.onnx" : it.domain();
+    domain_verseion_[domain] = it.version();
+    GELOGI("Domain:[%s], Version:[%ld].", domain.c_str(), it.version());
   }
   std::string root_graph_name =
       ParserUtils::GetGraphName(root_graph).empty() ? "default_graph" : ParserUtils::GetGraphName(root_graph);
