@@ -3229,3 +3229,25 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, test_set_op_custom_op_file_path) {
   (void)ge::AttrUtils::GetStr(node->GetOpDesc(), CUSTOM_OP_FILE_PATH, custom_op_file_path3);
   EXPECT_EQ(custom_op_file_path3, "");
 }
+
+TEST_F(STEST_OP_KERNEL_INFO_STORE, check_single_tensor_accurate_mode_nullptr_tensor_desc) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
+
+  OpKernelInfoPtr op_kernel_info_ptr =
+      OpsKernelManager::Instance(AI_CORE_NAME).GetOpKernelInfoByOpType("tbe-custom", "conv");
+  ASSERT_NE(op_kernel_info_ptr, nullptr);
+  SupportedFormatAndDtype info(op_kernel_info_ptr, "");
+  FormatDtypeInfo format_dtype_info;
+  Status status = sub_ops_store_ptr->GetSupportFormatAndDtype(test_node, op_kernel_info_ptr, false, format_dtype_info);
+  EXPECT_EQ(fe::SUCCESS, status);
+  info.suppport_formats_map = format_dtype_info.format_map;
+  info.support_data_types_map = format_dtype_info.data_type_map;
+
+  info.is_input = true;
+  info.input_index_name_map.emplace(99, "optional_input");
+  bool check_flag = false;
+  bool ret = sub_ops_store_ptr->CheckSingleTensorSupportedAccurateMode(test_node, 99, 0, info, check_flag);
+  EXPECT_EQ(true, ret);
+  EXPECT_EQ(false, check_flag);
+}
