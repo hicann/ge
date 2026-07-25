@@ -27,12 +27,8 @@ void SetInputHandleShapesAndTypes(std::vector<std::vector<ShapeAndType>> &&shape
 
 ## 返回值说明
 
-无。
-
-## 异常处理
-
-无。
+无
 
 ## 约束说明
 
-无。
+无

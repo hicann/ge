@@ -45,4 +45,4 @@ Status SetGraphFixedFeatureMemoryBase(uint32_t graph_id, const void * const memo
 - 当Fixed内存长度为0时，调用该接口不生效，且会生成warning日志提示用户。
 - [options参数说明](../options_params/options_parameters_description.md)\>内存管理中的ge.exec.staticMemoryPolicy参数设置为4或者GE\_USE\_STATIC\_MEMORY环境变量设置为4时，此时动静态图支持内存复用；而该接口不支持地址刷新，因此动静态图内存复用场景下不支持通过将地址设置为nullptr、size设置为0的方式，关闭默认申请Fixed内存的行为。
 
-    环境变量详细说明请参见《环境变量参考》。
+   环境变量详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。

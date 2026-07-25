@@ -95,10 +95,6 @@ graphStatus GetAttr(const char_t *name, std::vector<ge::NamedAttrs> &attr_value)
 
 graphStatus类型：找到对应name，返回GRAPH\_SUCCESS，否则返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

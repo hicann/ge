@@ -74,14 +74,14 @@
 
       - [IrOutputDef](cpp/ge/es/CompliantNodeBuilder/IrOutputDef.md)
       - [IrOutputDefV2](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/IrOutputDefV2.md)
-        - [简介](cpp/ge/es/CompliantNodeBuilder/overview.md)
+        - [简介](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/overview.md)
         - [IrOutputDefV2构造函数](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/IrOutputDefV2_constructor.md)
-        - [GetName](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetName.md)
+        - [GetName](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetName.md)
         - [GetOutputType](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetOutputType.md)
-        - [GetSymbolId](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetSymbolId.md)
-        - [Name](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/Name.md)
+        - [GetSymbolId](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetSymbolId.md)
+        - [Name](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/Name.md)
         - [OutputType](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/OutputType.md)
-        - [SymbolId](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/SymbolId.md)
+        - [SymbolId](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/SymbolId.md)
 
       - [Name](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/Name.md)
       - [OpType](cpp/ge/es/CompliantNodeBuilder/OpType.md)
@@ -1060,7 +1060,7 @@
       - [get\_shape\_size](python/ge/graph/Shape/get_shape_size.md)
       - [is\_unknown\_shape](python/ge/graph/Shape/is_unknown_shape.md)
 
-      - [SubgraphInput](python/ge/passes/SubgraphInput/SubgraphInput.md)
+    - [SubgraphInput](python/ge/passes/SubgraphInput/SubgraphInput.md)
       - [简介](python/ge/passes/SubgraphInput/overview.md)
       - [\_\_init\_\_](python/ge/passes/SubgraphInput//__init__.md)
       - [add\_input](python/ge/passes/SubgraphInput/add_input.md)

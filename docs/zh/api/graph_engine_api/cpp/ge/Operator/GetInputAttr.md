@@ -66,10 +66,6 @@ graphStatus GetInputAttr(const char_t *dst_name, const char_t *name, std::vector
 
 graphStatus类型：找到对应属性，返回GRAPH\_SUCCESS，否则返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

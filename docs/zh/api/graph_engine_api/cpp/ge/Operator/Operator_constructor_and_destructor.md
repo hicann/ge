@@ -35,10 +35,6 @@ virtual ~Operator() = default
 
 Operator构造函数返回Operator类型的对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

@@ -32,10 +32,6 @@ explicit NamedIoNodeBuilder(Graph &graph)
 
 构造函数返回NamedIoNodeBuilder类型的对象。
 
-## 异常处理
-
-无
-
 ## 约束说明
 
 - NamedIoNodeBuilder对象不可拷贝构造和赋值。

@@ -124,10 +124,6 @@ Operator &SetAttr(const char_t *name, const std::vector<ge::NamedAttrs> &attr_va
 
 [Operator](Operator.md)对象本身。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

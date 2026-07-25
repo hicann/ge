@@ -33,11 +33,11 @@ logic_stream_id: 0, user_stream_label: 11, is_assigned_by_user_stream_pass: fals
 
 对应信息为：
 
-- 逻辑流ID：0，
-- 用户流标签：11，
-- 是否来自用户注册的流分配Pass：false，
-- 附属从流ID： ，
-- 实际物理流数量：1，
+- 逻辑流ID：0。
+- 用户流标签：11。
+- 是否来自用户注册的流分配Pass：false。
+- 附属从流ID。
+- 实际物理流数量：1。
 - 通信从流数量：0。
 
 ## 约束说明

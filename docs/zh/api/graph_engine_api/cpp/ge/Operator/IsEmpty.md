@@ -28,10 +28,6 @@ bool IsEmpty() const
 - True：为空。
 - False：非空。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

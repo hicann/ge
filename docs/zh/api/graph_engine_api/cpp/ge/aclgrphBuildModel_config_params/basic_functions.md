@@ -150,7 +150,6 @@ aipp_op {
 - FP8E5M2：仅Ascend 950PR/Ascend 950DT支持该类型。
 - FP8E4M3FN：仅Ascend 950PR/Ascend 950DT支持该类型。
 <!-- end id15 -->
-<!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/basic_functions_res.md#id3 -->
 
 模型编译后，在对应的\*.om模型文件中，上述数据类型分别呈现方式如下：
 
@@ -165,9 +164,11 @@ aipp_op {
 - DT\_UINT64
 - DT\_INT64
 - DT\_DOUBLE
+<!-- npu="950" id16 -->
 - DT\_HIFLOAT8
 - DT\_FLOAT8\_E5M2
 - DT\_FLOAT8\_E4M3FN
+<!-- end id16 -->
 
 **配置示例：**
 

@@ -54,28 +54,4 @@ pyatc --model=resnet50.onnx --framework=5 --soc_version=MC62CM12A* --output=resn
 pyatc --model=resnet50.onnx --framework=5 --soc_version=Ascend035 --output=resnet50
 ```
 
-_<soc\_version\>_取值或者查询方法如下：
-
-- 针对如下产品：在安装AI处理器的服务器执行**npu-smi info**命令进行查询，获取**Name**信息。实际配置值为AscendName，例如**Name**取值为_xxxyy_，实际配置值为Ascend_xxxyy_。
-
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
-
-    Atlas 200I/500 A2 推理产品
-
-    Atlas 推理系列产品
-
-    Atlas 训练系列产品
-
-- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascend_xxx_，**NPU Name**取值为1234，实际配置值为Ascend_xxx__\__1234。其中：
-   - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-   - chip\_id：芯片id，通过**npu-smi info -m**命令查出的Chip ID即为芯片id。
-
-- 针对Ascend 950PR/Ascend 950DT，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascend_xxx_，**NPU Name**取值为1234，实际配置值为Ascend_xxx__\__1234。
-
-    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-
-BS9SX1A AI处理器参数值：BS9SX1A\*
-
-BS9SX2A AI处理器参数值：BS9SX2A\*
-
-其中：\*可能根据芯片性能提升等级、芯片核数使用等级等因素会有不同的取值，例如取值可以为A、B或C，请根据实际情况获取对应的取值。
+<soc\_version\>查询方法请参见[--soc_version](../../../../../user_guides/atc_tools/CLI_options/--soc_version.md)。

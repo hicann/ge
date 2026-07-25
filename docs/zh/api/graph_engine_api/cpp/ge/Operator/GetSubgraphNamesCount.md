@@ -27,10 +27,6 @@ size_t GetSubgraphNamesCount() const
 
 返回当前算子子图个数。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

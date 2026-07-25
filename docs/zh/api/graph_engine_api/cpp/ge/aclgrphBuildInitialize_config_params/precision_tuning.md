@@ -231,7 +231,7 @@
 
 **参数取值：**
 
-配置为路径以及文件名，文件为JSON格式。黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。）：
+配置为路径以及文件名，文件为JSON格式。黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。）：
 
 - 若取值为true（白名单），表示混合精度模式下，**允许**降低精度。
 - 若取值为false（黑名单），表示混合精度模式下，**不允许**降低精度。

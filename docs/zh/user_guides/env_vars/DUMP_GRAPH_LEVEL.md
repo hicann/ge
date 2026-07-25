@@ -35,7 +35,7 @@ DUMP\_GRAPH\_LEVEL环境变量只有在[DUMP\_GE\_GRAPH](DUMP_GE_GRAPH.md)开启
 ## 使用约束
 
 - 如果此环境变量设置了其他非法值，可能会导致未定义的行为发生。
-- 如果开启了采集算子dump数据功能，可以参考《图开发》\>“接口参考 \> C++语言接口 \> 图基础数据结构和接口 \> options参数说明 \> ge.exec.enableDump”参数，即使不配置DUMP\_GRAPH\_LEVEL环境变量，或者配置export DUMP\_GRAPH\_LEVEL="PreRunBegin|AfterInfershape"但不包括“Build”字符串，最终都会dump子图ge\_proto\_xxxx\_Build.txt。
+- 如果开启了采集算子dump数据功能，可以参考[ge.exec.enableDump](../../api/graph_engine_api/cpp/ge/options_params/precision_comparison.md#geexecenabledump)参数，即使不配置DUMP\_GRAPH\_LEVEL环境变量，或者配置export DUMP\_GRAPH\_LEVEL="PreRunBegin|AfterInfershape"但不包括“Build”字符串，最终都会dump子图ge\_proto\_xxxx\_Build.txt。
 - 此环境变量需要配合[DUMP\_GE\_GRAPH](DUMP_GE_GRAPH.md)使用，即开启[DUMP\_GE\_GRAPH](DUMP_GE_GRAPH.md)的场景下，可通过DUMP\_GRAPH\_LEVEL控制生成的dump图信息。全量dump图信息请参见[表1](#table1)。
 
 **表 1**  dump图详细信息说明<a id="table1"></a>

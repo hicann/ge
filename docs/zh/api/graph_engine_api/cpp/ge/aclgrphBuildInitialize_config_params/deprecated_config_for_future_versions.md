@@ -36,7 +36,8 @@ AI处理器部分内置算子有高精度和高性能实现方式，用户可以
 
 上述实现模式，根据算子的dtype进行区分。$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 
-**参数默认值：**high\_performance
+**参数默认值：**
+high\_performance
 
 **配置示例：**
 

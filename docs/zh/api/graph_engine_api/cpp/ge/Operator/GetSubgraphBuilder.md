@@ -33,10 +33,6 @@ SubgraphBuilder GetSubgraphBuilder(const char_t *name) const
 
 SubgraphBuilder对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

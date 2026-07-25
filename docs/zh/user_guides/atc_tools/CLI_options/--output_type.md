@@ -29,19 +29,9 @@
 - DOUBLE
 <!-- npu="950" id1 -->
 - HIF8：仅Ascend 950PR/Ascend 950DT支持该类型。
-<!-- end id1 -->
-<!-- npu="950" id2 -->
 - FP8E5M2：仅Ascend 950PR/Ascend 950DT支持该类型。
-<!-- end id2 -->
-<!-- npu="950" id3 -->
 - FP8E4M3FN：仅Ascend 950PR/Ascend 950DT支持该类型。
-<!-- end id3 -->
-
-<!-- npu="IPV350" id4 -->
-其中，HIF8、FP8E5M2、FP8E4M3FN：IPV350不支持。
-<!-- end id4 -->
-
-<!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--output_type_res.md#id1 -->
+<!-- end id1 -->
 
 **参数值约束：**
 
@@ -57,10 +47,12 @@
 - DT\_INT32
 - DT\_UINT64
 - DT\_INT64
+<!-- npu="950" id2 -->
 - DT\_DOUBLE
 - DT\_HIFLOAT8
 - DT\_FLOAT8\_E5M2
 - DT\_FLOAT8\_E4M3FN
+<!-- end id2 -->
 
 若在模型转换时不指定网络具体输出数据类型，则以原始网络模型最后一层输出的算子数据类型为准；若指定了类型，则以该参数指定的类型为准，此时[--is\_output\_adjust\_hw\_layout](--is_output_adjust_hw_layout.md)参数指定的类型不生效。
 

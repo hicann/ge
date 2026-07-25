@@ -35,10 +35,6 @@ TensorDesc GetOutputDesc(uint32_t index) const
 
 算子Output的。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

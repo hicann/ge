@@ -27,10 +27,6 @@ const std::vector<std::vector<ShapeAndType>> &GetInputHandleShapesAndTypes() con
 
 算子输入句柄的[ShapeAndType](../ShapeAndType/overview.md)。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

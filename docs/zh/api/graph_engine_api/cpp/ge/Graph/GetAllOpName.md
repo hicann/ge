@@ -15,16 +15,10 @@
 
 ## 函数原型
 
-> [!NOTE]说明
+>[!NOTE]说明
 >数据类型为string的接口后续版本会废弃，建议使用数据类型为非string的接口。
 
 ```c++
-
-> [!NOTE]说明
->数据类型为string的接口后续版本会废弃，建议使用数据类型为非string的接口。
-
-```c++
-
 graphStatus GetAllOpName(std::vector<std::string> &op_name) const
 graphStatus GetAllOpName(std::vector<AscendString> &names) const
 

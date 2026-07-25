@@ -11,8 +11,8 @@
 
 > [!NOTE]说明
 >
->1. 设置“DUMP\_GRAPH\_PATH”环境变量的场景下，程序会在指定路径下创建“pid\_$\{pid\}\_deviceid\_$\{deviceid\}”子文件夹，存储DUMP图文件。其中$\{pid\}为进程ID，$\{deviceid\}为设备ID。
->2. 若不设置“DUMP\_GRAPH\_PATH”环境变量，DUMP图文件直接存储在当前脚本执行路径，不会创建“pid\_$\{pid\}\_deviceid\_$\{deviceid\}”子文件夹。
+>1. 设置“DUMP\_GRAPH\_PATH”环境变量的场景下，程序会在指定路径下创建`pid_${pid}_deviceid_${deviceid}`子文件夹，存储DUMP图文件。其中`${pid}`为进程ID，`${deviceid}`为设备ID。
+>2. 若不设置“DUMP\_GRAPH\_PATH”环境变量，DUMP图文件直接存储在当前脚本执行路径，不会创建`pid_${pid}_deviceid_${deviceid}`子文件夹。
 
 DUMP图文件存储路径优先级为：
 
@@ -24,7 +24,7 @@ DUMP图文件存储路径优先级为：
 export DUMP_GRAPH_PATH=/home/dumpgraph
 ```
 
-则DUMP图文件存储在/home/dumpgraph/pid\_$\{pid\}\_deviceid\_$\{deviceid\}路径下，例如/home/dumpgraph/pid\_53343\_deviceid\_0。
+则DUMP图文件存储在`/home/dumpgraph/pid_${pid}_deviceid_${deviceid}`路径下，例如/home/dumpgraph/pid\_53343\_deviceid\_0。
 
 ## 使用约束
 

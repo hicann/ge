@@ -27,10 +27,6 @@ size_t GetInputsSize() const
 
 返回当前算子Input个数。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

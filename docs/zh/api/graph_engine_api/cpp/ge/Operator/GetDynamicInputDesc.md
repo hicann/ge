@@ -34,10 +34,6 @@ TensorDesc GetDynamicInputDesc(const char_t *name, uint32_t index) const
 
 获取成功，则返回算子动态Input的TensorDesc；获取失败，则返回TensorDesc默认构造的对象，其中，主要设置DataType为DT\_FLOAT（表示float类型），Format为FORMAT\_NCHW（表示NCHW）。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

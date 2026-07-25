@@ -30,10 +30,6 @@ graphStatus SetSubgraphInstanceName(const uint32_t index, const char_t *name);
 
 graphStatus类型：成功，返回GRAPH\_SUCCESS，否则，返回GRAPH\_FAILED。
 
-## 异常处理
-
-无
-
 ## 约束说明
 
 无

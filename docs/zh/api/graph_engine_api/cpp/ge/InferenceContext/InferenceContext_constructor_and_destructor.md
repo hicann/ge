@@ -33,10 +33,6 @@ InferenceContext &operator=(const InferenceContext &&context) = delete
 
 InferenceContext构造函数返回InferenceContext类型的对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

@@ -53,10 +53,6 @@ Operator &SetInput(const char_t *dst_name, uint32_t dst_index, const Operator &s
 
 当前调度者本身。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

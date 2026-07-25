@@ -32,7 +32,7 @@ OpType::Relu:InputDtype:float16,int8,OutputDtype:float16,int8
 
 > [!NOTE]说明
 >
->- 算子具体支持的计算精度可以从算子信息库中查看，默认存储路径为：`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/_xxx_/aic-xxx-ops-info-*.json`，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。
+>- 算子具体支持的计算精度可以从算子信息库中查看，默认存储路径为：`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。
 >- 通过该参数指定的优先级高，因此可能会导致精度/性能的下降，如果指定的dtype不支持，会导致编译失败。
 
 **必选/可选**：可选
@@ -43,7 +43,7 @@ OpType::Relu:InputDtype:float16,int8,OutputDtype:float16,int8
 
 混合精度场景下，通过此参数指定混合精度黑白灰名单的路径以及文件名，自行指定哪些算子允许降精度，哪些算子不允许降精度。配置为路径以及文件名，文件为JSON格式。
 
-黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。）：
+黑白灰名单，可从`${INSTALL_DIR}/opp/built-in/op_impl/ai_core/tbe/config/xxx/aic-xxx-ops-info-*.json`内置优化策略文件中查看“precision\_reduce”参数下的flag参数值（其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。）：
 
 - 若取值为true（白名单），表示混合精度模式下，**允许**降低精度。
 - 若取值为false（黑名单），表示混合精度模式下，**不允许**降低精度。
@@ -162,7 +162,7 @@ true：白名单；false：黑名单；不配置：灰名单。
   - 如果原图中算子精度为float32，则优先使用原图精度float32，如果AI Core中算子不支持float32，则降低精度到bfloat16；如果AI Core中算子不支持bfloat16，则使用AI CPU算子进行计算；如果AI CPU算子也不支持，则执行报错。
   - 如果原图中算子精度为bfloat16，则优先使用原图精度bfloat16，如果AI Core中算子不支持bfloat16，则选择float32，如果AI Core中算子不支持float32，则使用AI CPU算子进行计算；如果AI CPU算子也不支持，则执行报错。
 
-上述路径中的$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。
+上述路径中的$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。
 
 **参数默认值：**
 
@@ -184,9 +184,10 @@ true：白名单；false：黑名单；不配置：灰名单。
 
 在线推理场景下，参数默认值为“force\_fp16”。
 
+<!-- npu="950,A3,910b" id5 -->
+
 **参数值约束：**
 
-<!-- npu="950,A3,910b" id5 -->
 **bfloat16数据类型仅支持以下产品**：
 
 Atlas A2 训练系列产品/Atlas A2 推理系列产品
@@ -272,7 +273,7 @@ Ascend 950PR/Ascend 950DT
 
     表示若原图中的cube算子既支持hifloat8，又支持float16、bfloat16或float32数据类型时，强制选择hifloat8数据类型。
 
-上述路径中的$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_xxx_请根据实际产品进行选择。
+上述路径中的$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。xxx请根据实际产品进行选择。
 
 **参数默认值：**
 
