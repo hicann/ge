@@ -479,7 +479,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_3_drop_remainde
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 500;
+  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {

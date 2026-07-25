@@ -421,3 +421,72 @@ TEST_F(UtestCycleDetector, ConnectionMatrixCoverage_00) {
   EXPECT_FALSE(has_cycle);
   detector->Update(graph, fusion_nodes);
 }
+
+TEST_F(UtestCycleDetector, CovConnectionMatrixSetConnectivity) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  const auto &node2 = builder.AddNode("node2", "Relu", 1, 1);
+  const auto &node3 = builder.AddNode("node3", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddDataEdge(node2, 0, node3, 0);
+  auto graph = builder.GetGraph();
+
+  ConnectionMatrix matrix(graph);
+  matrix.Generate(graph);
+  auto inputs = node3->GetInAllNodes();
+  matrix.SetConnectivity(inputs, node3);
+  EXPECT_TRUE(matrix.IsConnected(node1, node3));
+}
+
+TEST_F(UtestCycleDetector, CovConnectionMatrixUpdateGraphMismatch) {
+  auto builder1 = ut::GraphBuilder("graph1");
+  const auto &node1 = builder1.AddNode("node1", "Relu", 1, 1);
+  auto graph1 = builder1.GetGraph();
+
+  auto builder2 = ut::GraphBuilder("graph2");
+  const auto &node2 = builder2.AddNode("node2", "Relu", 1, 1);
+  auto graph2 = builder2.GetGraph();
+
+  ConnectionMatrix matrix(graph1);
+  matrix.Generate(graph1);
+  std::vector<NodePtr> fusion_nodes = {node1};
+  matrix.Update(graph2, fusion_nodes);
+  SUCCEED();
+}
+
+TEST_F(UtestCycleDetector, CovCycleDetectorUpdateNullConnectivity) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+
+  CycleDetectorPtr detector = GraphUtils::CreateCycleDetector(graph);
+  EXPECT_NE(detector, nullptr);
+  std::vector<NodePtr> fusion_nodes = {node1};
+  detector->Update(graph, fusion_nodes);
+  SUCCEED();
+}
+
+TEST_F(UtestCycleDetector, CovCycleDetectorExpandAndUpdate) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  const auto &node2 = builder.AddNode("node2", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  auto graph = builder.GetGraph();
+
+  CycleDetectorPtr detector = GraphUtils::CreateCycleDetector(graph);
+  EXPECT_NE(detector, nullptr);
+  std::vector<NodePtr> fusion_nodes = {node1, node2};
+  detector->ExpandAndUpdate(fusion_nodes, "fused_node");
+  SUCCEED();
+}
+
+TEST_F(UtestCycleDetector, CovCycleDetectorExpandAndUpdateNullConnectivity) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+
+  auto detector = std::make_shared<CycleDetector>();
+  std::vector<NodePtr> fusion_nodes = {node1};
+  detector->ExpandAndUpdate(fusion_nodes, "fused_node");
+  SUCCEED();
+}

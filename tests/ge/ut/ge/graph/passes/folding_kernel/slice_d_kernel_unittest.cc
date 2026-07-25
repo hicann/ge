@@ -201,3 +201,253 @@ TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CheckOutputDims1) {
   Status status = slice_d_kernel.CheckOutputDims(output_dims, op_desc_ptr);
   EXPECT_EQ(SUCCESS, status);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovComputeSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc(GeShape({2}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {1};
+  vector<int64_t> sizes = {2};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+  vector<GeTensorPtr> outputs;
+
+  SliceDKernel slice_d_kernel;
+  Status status = slice_d_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+  EXPECT_EQ(outputs.size(), 1);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovComputeSizeMinusOne) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc(GeShape({3}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {1};
+  vector<int64_t> sizes = {-1};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+  vector<GeTensorPtr> outputs;
+
+  SliceDKernel slice_d_kernel;
+  Status status = slice_d_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovComputeZeroDim) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4, 0}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc(GeShape({2, 0}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {1, 0};
+  vector<int64_t> sizes = {2, 0};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4, 0}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+  vector<GeTensorPtr> outputs;
+
+  SliceDKernel slice_d_kernel;
+  Status status = slice_d_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovComputeSizeOverflow) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc(GeShape({3}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {2};
+  vector<int64_t> sizes = {3};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+  vector<GeTensorPtr> outputs;
+
+  SliceDKernel slice_d_kernel;
+  Status status = slice_d_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckNullTensor) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc;
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<ConstGeTensorPtr> input = {nullptr};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckZeroData) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape(), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {0};
+  vector<int64_t> sizes = {1};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  GeTensorDesc tensor_desc(GeShape(), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor = std::make_shared<GeTensor>(tensor_desc);
+
+  vector<ConstGeTensorPtr> input = {tensor};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckGetBeginFail) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> sizes = {2};
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckGetSizeFail) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {1};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckDimMismatch) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4, 2}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {0};
+  vector<int64_t> sizes = {2};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4, 5, 6, 7, 8};
+  GeTensorDesc tensor_desc(GeShape({4, 2}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovSliceDCheckDimOutOfRange) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  GeTensorDesc input_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, input_desc);
+  GeTensorDesc output_desc;
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  vector<int64_t> offsets = {-1};
+  vector<int64_t> sizes = {2};
+  AttrUtils::SetListInt(op_desc_ptr, "offsets", offsets);
+  AttrUtils::SetListInt(op_desc_ptr, "size", sizes);
+
+  vector<int32_t> data_vec = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor};
+
+  SliceDKernel slice_d_kernel;
+  std::vector<int64_t> begin_list;
+  std::vector<int64_t> size_list;
+  Status status = slice_d_kernel.SliceDCheck(op_desc_ptr, input, begin_list, size_list);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSliceDKernel, CovCheckOutputDimsAllNonPositive) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("SLICED", SLICED);
+  std::vector<int64_t> output_dims = {0, -1, 0};
+
+  SliceDKernel slice_d_kernel;
+  Status status = slice_d_kernel.CheckOutputDims(output_dims, op_desc_ptr);
+  EXPECT_EQ(NOT_CHANGED, status);
+}

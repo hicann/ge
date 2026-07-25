@@ -256,5 +256,72 @@ TEST_F(UTestGraphFusionPassReg, test_compile_level_case_01) {
   EXPECT_EQ(enable_flag, false);
 }
 
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternSetName) {
+  FusionPattern pattern("test");
+  pattern.SetName("new_name");
+  EXPECT_EQ(pattern.GetName(), "new_name");
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternSetOutputsEmptyIdStr) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"Relu"});
+  pattern.SetOutputs("", {{0, "a"}});
+  EXPECT_EQ(pattern.Build(), false);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternSetOutputsEmptyIdVecStr) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"Relu"});
+  pattern.SetOutputs("", FusionPattern::OutputMapVecStr{{0, {"a"}}});
+  EXPECT_EQ(pattern.Build(), false);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternBuildWithError) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {""});
+  pattern.SetOutput("a");
+  pattern.AddOpDesc("a", {"Relu"});
+  EXPECT_EQ(pattern.Build(), false);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternBuildMultipleOutputs) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"Relu"});
+  pattern.AddOpDesc("b", {"Relu"});
+  pattern.SetOutput("a");
+  pattern.SetOutput("b");
+  EXPECT_EQ(pattern.Build(), false);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternBuildNoOutput) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"Relu"});
+  EXPECT_EQ(pattern.Build(), false);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternGetInputsNullptr) {
+  auto result = FusionPattern::GetInputs(nullptr);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovFusionPatternGetOpDescsAndDump) {
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"Relu"});
+  pattern.AddOpDesc("b", {"Cast"});
+  pattern.SetInputs("b", {"a"});
+  pattern.SetOutput("b");
+  auto &descs = pattern.GetOpDescs();
+  EXPECT_EQ(descs.size(), 2U);
+  pattern.Dump();
+  EXPECT_EQ(pattern.Build(), true);
+}
+
+TEST_F(UTestGraphFusionPassReg, CovGetCreateFnByType) {
+  auto create_fns = FusionPassRegistry::GetInstance().GetCreateFnByType(BUILT_IN_GRAPH_PASS);
+  EXPECT_GE(create_fns.size(), 1U);
+  auto create_fns_empty = FusionPassRegistry::GetInstance().GetCreateFnByType(SECOND_ROUND_BUILT_IN_GRAPH_PASS);
+  EXPECT_EQ(create_fns_empty.size(), 0U);
+}
+
 }  // namespace graph_fusion_reg_v2
 }  // namespace fe

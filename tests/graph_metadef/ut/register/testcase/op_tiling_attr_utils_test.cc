@@ -399,4 +399,140 @@ TEST_F(OpTilingAttrUtilsTest, get_list_float_attr_to_int32_fail_2) {
   EXPECT_EQ(ret, GRAPH_FAILED);
 }
 
+TEST_F(OpTilingAttrUtilsTest, cov_get_float_attr_to_bf16_success) {
+  Operator op("relu", "Relu");
+  op.SetAttr("attr_float", 1.5f);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_float", "float", attr_data_ptr, "bfloat16");
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(attr_data_ptr->GetSize(), 2U);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_float_attr_to_bf16_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_float", "float", attr_data_ptr, "bfloat16");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_unsupported_attr_dtype) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr", "invalid_type", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_unsupported_target_dtype) {
+  Operator op("relu", "Relu");
+  op.SetAttr("attr_int", 10);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_int", "int", attr_data_ptr, "invalid_target");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_int_attr_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_int", "int", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_int_attr_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_int", "list_int", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_int_attr_empty) {
+  Operator op("relu", "Relu");
+  vector<int32_t> empty_vec;
+  op.SetAttr("attr_list_int", empty_vec);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_int", "list_int", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_bool_attr_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_bool", "bool", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_str_attr_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_str", "string", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_int_to_uint_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_int", "int", attr_data_ptr, "uint32");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_int_to_list_uint_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_int", "list_int", attr_data_ptr, "list_uint32");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_float_to_fp16_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_float", "float", attr_data_ptr, "float16");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_float_to_list_fp16_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_float", "list_float32", attr_data_ptr, "list_float16");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_float_to_list_fp16_empty) {
+  Operator op("relu", "Relu");
+  vector<float> empty_vec;
+  op.SetAttr("attr_list_float", empty_vec);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_float", "list_float32", attr_data_ptr, "list_float16");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_float_to_list_int_fail) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_float", "list_float32", attr_data_ptr, "list_int");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_get_list_float_to_list_int_empty) {
+  Operator op("relu", "Relu");
+  vector<float> empty_vec;
+  op.SetAttr("attr_list_float", empty_vec);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_list_float", "list_float32", attr_data_ptr, "list_int");
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_null_attr_name) {
+  Operator op("relu", "Relu");
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, nullptr, "int", attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(OpTilingAttrUtilsTest, cov_null_attr_dtype) {
+  Operator op("relu", "Relu");
+  op.SetAttr("attr_int", 10);
+  AttrDataPtr attr_data_ptr = nullptr;
+  graphStatus ret = GetOperatorAttrValue(op, "attr_int", nullptr, attr_data_ptr);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
 }  // namespace optiling

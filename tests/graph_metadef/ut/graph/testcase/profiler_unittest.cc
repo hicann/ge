@@ -301,5 +301,39 @@ TEST_F(ProfilerUt, BeyondMaxRecordsNum) {
   EXPECT_EQ(lines.size(), profiling::kMaxRecordNum + 3);
 }
 */
+
+TEST_F(ProfilerUt, CovUpdateHashByIndexBeyondMax) {
+  auto p = Profiler::Create();
+  p->RegisterString(0, "Node1");
+  p->UpdateHashByIndex(kMaxStrIndex, 0x123);
+  auto s = p->GetStringHashes();
+  EXPECT_EQ(s[0].hash == 0U, true);
+}
+
+TEST_F(ProfilerUt, CovRegisterStringHashBeyondMax) {
+  auto p = Profiler::Create();
+  p->RegisterStringHash(kMaxStrIndex, 0x123, "TestNode");
+  SUCCEED();
+}
+
+TEST_F(ProfilerUt, CovRecordBeyondMax) {
+  auto p = Profiler::Create();
+  p->Record(0, 1, 2, EventType::kEventStart, std::chrono::system_clock::now());
+  for (int64_t i = 0; i < profiling::kMaxRecordNum + 10; ++i) {
+    p->Record(0, 1, 2, EventType::kEventStart, std::chrono::system_clock::now());
+  }
+  EXPECT_EQ(p->GetRecordNum(), profiling::kMaxRecordNum + 11);
+  struct NullBuf : std::streambuf {
+    int_type overflow(int_type c) override {
+      return c;
+    }
+    std::streamsize xsputn(const char_type *, std::streamsize n) override {
+      return n;
+    }
+  } null_buf;
+  std::ostream os(&null_buf);
+  p->Dump(os);
+  SUCCEED();
+}
 }  // namespace profiling
 }  // namespace ge

@@ -282,4 +282,67 @@ TEST_F(FusionQuantUtilImplCovUT, InsertFixpipeDequantScaleConvert_WithDeqScaleAn
   auto ret = QuantUtil::InsertFixpipeDequantScaleConvert(deq_scale, quant_offset, fusion_nodes);
   EXPECT_NE(ret, SUCCESS);
 }
+
+TEST_F(FusionQuantUtilImplCovUT, InsertQuantScaleConvert_OneNullOneValid) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr quant_scale = mm_node->GetInDataAnchor(0);
+  InDataAnchorPtr quant_offset = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertQuantScaleConvert(quant_scale, quant_offset, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, InsertQuantScaleConvert_BothValidSameAnchor) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr quant_scale = mm_node->GetInDataAnchor(0);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(0);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertQuantScaleConvert(quant_scale, quant_offset, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, InsertRequantScaleConvert_NullReqScale) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr req_scale = nullptr;
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(1);
+  InDataAnchorPtr cube_bias = mm_node->GetInDataAnchor(0);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertRequantScaleConvert(req_scale, quant_offset, cube_bias, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, InsertRequantScaleConvert_NullQuantOffset) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr req_scale = mm_node->GetInDataAnchor(0);
+  InDataAnchorPtr quant_offset = nullptr;
+  InDataAnchorPtr cube_bias = mm_node->GetInDataAnchor(1);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertRequantScaleConvert(req_scale, quant_offset, cube_bias, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, BiasOptimizeByEdge_WithQuantNodeAndNullDeqScale) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = nullptr;
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(mm_node, param, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, InsertFixpipeDequantScaleConvert_NullDeqScale) {
+  InDataAnchorPtr deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertFixpipeDequantScaleConvert(deq_scale, fusion_nodes);
+  EXPECT_EQ(ret, FAILED);
+}
 }  // namespace fe

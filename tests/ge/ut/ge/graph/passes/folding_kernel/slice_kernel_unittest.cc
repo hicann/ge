@@ -458,3 +458,231 @@ TEST_F(UtestFoldingSliceKernel, InputCheckFailed) {
   ret = slice_kerel.Compute(node->GetOpDesc(), input, v_output);
   EXPECT_EQ(NOT_CHANGED, ret);
 }
+
+TEST_F(UtestFoldingSliceKernel, CovSliceInt32BeginSizeSuccess) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {2};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, ret);
+  EXPECT_EQ(outputs.size(), 1);
+  auto ret_shape = outputs.at(0)->GetTensorDesc().GetShape();
+  EXPECT_EQ(ret_shape.GetDim(0), 2);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceInt32NegativeSize) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {-1};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, ret);
+  EXPECT_EQ(outputs.size(), 1);
+  auto ret_shape = outputs.at(0)->GetTensorDesc().GetShape();
+  EXPECT_EQ(ret_shape.GetDim(0), 3);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceRankMismatch) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {2};
+  vector<int32_t> data_vec_begin = {0, 1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {2};
+  vector<int32_t> data_vec_size = {1, 1};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceNullInputTensor) {
+  vector<ConstGeTensorPtr> input = {nullptr, nullptr, nullptr};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceUnsupportedXType) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_STRING);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {2};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceUnsupportedBeginType) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {2};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceUnsupportedSizeType) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {1};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {2};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}
+
+TEST_F(UtestFoldingSliceKernel, CovSliceAllOutputNonPositive) {
+  vector<int64_t> dims_vec_x = {4};
+  vector<int32_t> data_vec_x = {1, 2, 3, 4};
+  GeTensorDesc tensor_desc_x(GeShape(dims_vec_x), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_x =
+      std::make_shared<GeTensor>(tensor_desc_x, (uint8_t *)data_vec_x.data(), data_vec_x.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_begin = {1};
+  vector<int32_t> data_vec_begin = {0};
+  GeTensorDesc tensor_desc_begin(GeShape(dims_vec_begin), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_begin = std::make_shared<GeTensor>(tensor_desc_begin, (uint8_t *)data_vec_begin.data(),
+                                                             data_vec_begin.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_size = {1};
+  vector<int32_t> data_vec_size = {0};
+  GeTensorDesc tensor_desc_size(GeShape(dims_vec_size), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_size = std::make_shared<GeTensor>(tensor_desc_size, (uint8_t *)data_vec_size.data(),
+                                                            data_vec_size.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_x, tensor_begin, tensor_size};
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("slice", "Slice");
+  op_desc_ptr->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_INT32));
+
+  SliceKernel slice_kernel;
+  vector<GeTensorPtr> outputs;
+  auto ret = slice_kernel.Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, ret);
+}

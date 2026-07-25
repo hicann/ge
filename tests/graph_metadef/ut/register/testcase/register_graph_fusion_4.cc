@@ -17,6 +17,7 @@
 #include "register/graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #include "register/graph_optimizer/graph_fusion/graph_fusion_pass_base.h"
 #include "register/graph_optimizer/fusion_common/pattern_fusion_base_pass.h"
+#include "register/graph_optimizer/graph_fusion/pattern_fusion_base_pass_impl.h"
 #include "register/graph_optimizer/fusion_common/graph_pass_util.h"
 #include "framework/common/debug/ge_log.h"
 /**
@@ -31,7 +32,7 @@
  *     NetOutput
  */
 namespace fe {
-using Mapping = std::map<const std::shared_ptr<ge::OpDesc>, std::vector<ge::NodePtr>, fe::CmpKey>;
+using Mapping = std::map<const std::shared_ptr<FusionPattern::OpDesc>, std::vector<ge::NodePtr>, fe::CmpKey>;
 using namespace ge;
 class TestSetOutputsPass1 : public GraphFusionPassBase {
  protected:
@@ -965,5 +966,166 @@ TEST_F(UTESTGraphFusionPass4, UTESTGraphFusionPassFuzzy_8) {
   pass.SetName("test");
   status = pass.Run(*graph);
   EXPECT_EQ(status, fe::SUCCESS);
+}
+
+class CovTestPass : public PatternFusionBasePass {
+ protected:
+  vector<FusionPattern *> DefinePatterns() override {
+    vector<FusionPattern *> patterns;
+    FusionPattern *pattern = new FusionPattern("CovTestPattern");
+    pattern->AddOpDesc("a", {"TypeA"}).SetOutput("a");
+    patterns.push_back(pattern);
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+};
+
+class CovTestPassBadPattern : public PatternFusionBasePass {
+ protected:
+  vector<FusionPattern *> DefinePatterns() override {
+    vector<FusionPattern *> patterns;
+    FusionPattern *pattern = new FusionPattern("BadPattern");
+    pattern->AddOpDesc("a", {"TypeA"});
+    patterns.push_back(pattern);
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+};
+
+TEST_F(UTESTGraphFusionPass4, CovPatternFusionBasePass_RunSuccess) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<ge::OpDesc>("node1", "TypeA");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  CovTestPass pass;
+  pass.SetName("CovTestPass");
+  Status status = pass.Run(*graph);
+  EXPECT_EQ(status, fe::NOT_CHANGED);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovPatternFusionBasePass_BadPatternBuildFail) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<ge::OpDesc>("node1", "TypeA");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  CovTestPassBadPattern pass;
+  pass.SetName("CovBadPass");
+  Status status = pass.Run(*graph);
+  EXPECT_EQ(status, fe::FAILED);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovPatternFusionBasePass_GetPatterns) {
+  CovTestPass pass;
+  pass.SetName("CovGetPatterns");
+  const auto &patterns = pass.GetPatterns();
+  EXPECT_EQ(patterns.size(), 1U);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovPatternFusionBasePass_GetInnerPatterns) {
+  CovTestPass pass;
+  pass.SetName("CovGetInnerPatterns");
+  const auto &inner_patterns = pass.GetInnerPatterns();
+  EXPECT_EQ(inner_patterns.size(), 0U);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovPatternFusionBasePass_CheckGraphCycle) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  OpDescPtr op2 = std::make_shared<ge::OpDesc>("node2", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  op1->AddInputDesc(tensor_desc);
+  op1->AddOutputDesc(tensor_desc);
+  op2->AddInputDesc(tensor_desc);
+  op2->AddOutputDesc(tensor_desc);
+  NodePtr node1 = graph->AddNode(op1);
+  NodePtr node2 = graph->AddNode(op2);
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  CovTestPass pass;
+  bool has_cycle = pass.CheckGraphCycle(*graph);
+  EXPECT_EQ(has_cycle, false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovGraphFusionPassBase_GetNodeFromMapping) {
+  GraphFusionPassBase::Mapping mapping;
+  auto pattern_op = std::make_shared<FusionPattern::OpDesc>();
+  pattern_op->id = "test_id";
+  mapping[pattern_op] = {};
+  auto result = GraphFusionPassBase::GetNodeFromMapping("test_id", mapping);
+  EXPECT_EQ(result, nullptr);
+  auto result2 = GraphFusionPassBase::GetNodeFromMapping("nonexistent", mapping);
+  EXPECT_EQ(result2, nullptr);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplIsMatchedNullParams) {
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test";
+  Mapping mapping;
+  EXPECT_EQ(PatternFusionBasePassImpl::IsMatched(nullptr, nullptr, mapping), false);
+  EXPECT_EQ(PatternFusionBasePassImpl::IsMatched(op_desc, nullptr, mapping), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplIsOpTypeExist) {
+  std::vector<std::string> types = {"Relu", "Cast"};
+  EXPECT_EQ(PatternFusionBasePassImpl::IsOpTypeExist("Relu", types), true);
+  EXPECT_EQ(PatternFusionBasePassImpl::IsOpTypeExist("Conv", types), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplIsNodesExist) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  ge::OpDescPtr op2 = std::make_shared<ge::OpDesc>("node2", "Relu");
+  NodePtr node1 = graph->AddNode(op1);
+  NodePtr node2 = graph->AddNode(op2);
+  std::vector<ge::NodePtr> nodes = {node1};
+  EXPECT_EQ(PatternFusionBasePassImpl::IsNodesExist(node1, nodes), true);
+  EXPECT_EQ(PatternFusionBasePassImpl::IsNodesExist(node2, nodes), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplGetMatchOutputNodesNullOutput) {
+  PatternFusionBasePassImpl impl;
+  FusionPattern pattern("test");
+  auto graph = std::make_shared<ComputeGraph>("test");
+  std::vector<ge::NodePtr> matched_nodes;
+  EXPECT_EQ(impl.GetMatchOutputNodes(*graph, pattern, matched_nodes), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplGetMatchOutputNodesEmpty) {
+  PatternFusionBasePassImpl impl;
+  FusionPattern pattern("test");
+  pattern.AddOpDesc("a", {"NonExistentType"});
+  pattern.SetOutput("a");
+  auto graph = std::make_shared<ComputeGraph>("test");
+  std::vector<ge::NodePtr> matched_nodes;
+  EXPECT_EQ(impl.GetMatchOutputNodes(*graph, pattern, matched_nodes), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplCheckOpSupportedNullStore) {
+  PatternFusionBasePassImpl impl;
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("test", "Relu");
+  EXPECT_EQ(impl.CheckOpSupported(op_desc), false);
+  auto graph = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graph->AddNode(op_desc);
+  EXPECT_EQ(impl.CheckOpSupported(node), false);
+  EXPECT_EQ(impl.CheckAccuracySupported(nullptr), false);
+  EXPECT_EQ(impl.CheckAccuracySupported(node), false);
+}
+
+TEST_F(UTESTGraphFusionPass4, CovImplSetActualFusedNodes) {
+  PatternFusionBasePassImpl impl;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("test", "Relu");
+  NodePtr node = graph->AddNode(op);
+  std::vector<ge::NodePtr> fused_nodes = {node};
+  impl.SetActualFusedNodes(fused_nodes);
+  const auto &result = impl.GetActualFusedNodes();
+  EXPECT_EQ(result.size(), 1U);
 }
 }  // namespace fe

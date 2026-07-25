@@ -1497,4 +1497,129 @@ TEST_F(UtestOpDescUtils, CreateConstOpWithCopy) {
   EXPECT_TRUE(ConstantUtils::GetWeight(const_op_desc, 0UL, weight) == true);
   EXPECT_TRUE(weight->GetData().GetData() != const_tensor_ptr->GetData().GetData());
 }
+
+TEST_F(UtestOpDescUtils, CovGetConstInputsEnterNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const1", "Const", 0, 1);
+  auto enter_node = builder.AddNode("enter1", ENTER, 1, 1);
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const_node, {tensor0});
+  AttrUtils::SetBool(enter_node->GetOpDesc(), ENTER_ATTR_CONSTANT_FLAG, true);
+  builder.AddDataEdge(const_node, 0, enter_node, 0);
+  builder.AddDataEdge(enter_node, 0, addn, 0);
+  auto graph = builder.GetGraph();
+  auto const_input_nodes = OpDescUtils::GetConstInputNode(*addn);
+  EXPECT_TRUE((const_input_nodes.size() == 0U) || (const_input_nodes.size() == 1U));
+  EXPECT_EQ(const_input_nodes[0]->GetName(), const_node->GetName());
+  auto const_inputs = OpDescUtils::GetConstInputs(addn);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputsNullNode) {
+  ge::ConstNodePtr null_node;
+  auto const_inputs = OpDescUtils::GetConstInputs(null_node);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovIsNonConstInput) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1);
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  builder.AddDataEdge(data, 0, addn, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(OpDescUtils::IsNonConstInput(addn, 0), true);
+  EXPECT_EQ(OpDescUtils::IsNonConstInput(addn, 5), false);
+  ge::ConstNodePtr null_node;
+  EXPECT_EQ(OpDescUtils::IsNonConstInput(null_node, 0), false);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputTensorDesc) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1);
+  auto const1 = builder.AddNode("const1", "Const", 0, 1);
+  auto addn = builder.AddNode("addn", "AddN", 2, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const1, {tensor0});
+  builder.AddDataEdge(data, 0, addn, 0);
+  builder.AddDataEdge(const1, 0, addn, 1);
+  auto graph = builder.GetGraph();
+  auto desc = OpDescUtils::GetNonConstInputTensorDesc(addn, 0);
+  EXPECT_EQ(desc.GetDataType(), DT_FLOAT);
+  size_t index = 999U;
+  EXPECT_TRUE(OpDescUtils::GetNonConstInputIndex(addn, 0, index));
+  EXPECT_EQ(index, 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetWeightsEmpty) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto node = builder.AddNode("relu1", "Relu", 1, 1);
+  auto weights = OpDescUtils::GetWeights(node);
+  EXPECT_EQ(weights.size(), 0U);
+  ge::ConstNodePtr null_node;
+  auto weights2 = OpDescUtils::GetWeights(null_node);
+  EXPECT_EQ(weights2.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovCopyOpDesc) {
+  auto op_desc = std::make_shared<OpDesc>("test_copy", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetInt(op_desc, "test_attr", 100);
+  auto copied = OpDescUtils::CopyOpDesc(op_desc);
+  EXPECT_NE(copied, nullptr);
+  EXPECT_EQ(copied->GetName(), "test_copy");
+  EXPECT_EQ(copied->GetType(), "Relu");
+  EXPECT_EQ(copied->GetInputsSize(), 1U);
+  EXPECT_EQ(copied->GetOutputsSize(), 1U);
+  int64_t val = 0;
+  AttrUtils::GetInt(copied, "test_attr", val);
+  EXPECT_EQ(val, 100);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputsSize) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1);
+  auto const1 = builder.AddNode("const1", "Const", 0, 1);
+  auto addn = builder.AddNode("addn", "AddN", 2, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const1, {tensor0});
+  builder.AddDataEdge(data, 0, addn, 0);
+  builder.AddDataEdge(const1, 0, addn, 1);
+  auto graph = builder.GetGraph();
+  auto size = OpDescUtils::GetNonConstInputsSize(addn);
+  EXPECT_EQ(size, 1U);
+  ge::ConstNodePtr null_node;
+  auto size2 = OpDescUtils::GetNonConstInputsSize(null_node);
+  EXPECT_EQ(size2, 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstTensorDesc) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1);
+  auto const1 = builder.AddNode("const1", "Const", 0, 1);
+  auto addn = builder.AddNode("addn", "AddN", 2, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const1, {tensor0});
+  builder.AddDataEdge(data, 0, addn, 0);
+  builder.AddDataEdge(const1, 0, addn, 1);
+  auto graph = builder.GetGraph();
+  auto descs = OpDescUtils::GetNonConstTensorDesc(addn);
+  EXPECT_EQ(descs.size(), 1U);
+  ge::ConstNodePtr null_node;
+  auto descs2 = OpDescUtils::GetNonConstTensorDesc(null_node);
+  EXPECT_EQ(descs2.size(), 0U);
+}
 }  // namespace ge

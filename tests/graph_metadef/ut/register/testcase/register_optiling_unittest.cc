@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <limits>
 #include "register/op_tiling_registry.h"
 #include "op_tiling/op_tiling.cc"
 #include "common/sgt_slice_type.h"
@@ -779,4 +780,205 @@ TEST_F(RegisterOpTilingUT, PostProcMemoryCheck_AlignOffset) {
   ge::graphStatus ret = PostProcMemoryCheck(op, run_info);
   EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
 }
+
+TEST_F(RegisterOpTilingUT, CovReplaceAndRecoveryEmptyShape) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc input_desc(GeShape(), FORMAT_NCHW, DT_FLOAT);
+  GeTensorDesc output_desc(GeShape(), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(input_desc);
+  op_desc->AddOutputDesc(output_desc);
+  std::vector<int32_t> indexes;
+  ReplaceEmptyShapeOfTensorDesc(op_desc, indexes);
+  EXPECT_EQ(indexes.size(), 2U);
+  RecoveryEmptyShapeOfTensorDesc(op_desc, indexes);
+  EXPECT_EQ(op_desc->MutableInputDesc(0)->MutableShape().IsScalar(), true);
+  EXPECT_EQ(op_desc->MutableOutputDesc(0)->MutableShape().IsScalar(), true);
+}
+
+TEST_F(RegisterOpTilingUT, CovFeedTeOpTensorArgWithBadDtype) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  GeShape shape({3, 4});
+  GeTensorDesc tensor_desc(shape, FORMAT_NCHW, DT_FLOAT);
+  op_desc->UpdateInputDesc(0, tensor_desc);
+  op_desc->UpdateOutputDesc(0, tensor_desc);
+  ge::OpDesc::Vistor<ge::GeTensorDescPtr> inputs = op_desc->GetAllInputsDescPtr();
+  std::vector<TeOpTensorArg> tensor_arg;
+  EXPECT_EQ(FeedTeOpTensorArg(inputs, tensor_arg, op_desc), true);
+  EXPECT_TRUE((tensor_arg.size() == 1U) || (tensor_arg.size() == 2U));
+}
+
+TEST_F(RegisterOpTilingUT, CovFeedTeOpTensorArgWithScalarShape) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  GeTensorDesc tensor_desc(GeShape(), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc("x", tensor_desc);
+  ge::OpDesc::Vistor<ge::GeTensorDescPtr> inputs = op_desc->GetAllInputsDescPtr();
+  std::vector<TeOpTensorArg> tensor_arg;
+  EXPECT_EQ(FeedTeOpTensorArg(inputs, tensor_arg, op_desc), true);
+}
+
+TEST_F(RegisterOpTilingUT, CovAssembleCompileInfoJsonSuccess) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "TestOp");
+  std::string compile_info_json = R"({"key":"value"})";
+  std::vector<int64_t> workspace_size_list = {100, 200};
+  std::string result_json = compile_info_json;
+  graphStatus ret = AssembleCompileInfoJson(op_desc, workspace_size_list, result_json);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  EXPECT_NE(result_json.find("workspace_size_list"), std::string::npos);
+}
+
+TEST_F(RegisterOpTilingUT, CovAssembleCompileInfoJsonInvalidJson) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "TestOp");
+  std::string compile_info_json = "invalid_json";
+  std::vector<int64_t> workspace_size_list = {100};
+  std::string result_json = compile_info_json;
+  graphStatus ret = AssembleCompileInfoJson(op_desc, workspace_size_list, result_json);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, CovGenerateCompileInfoKey) {
+  std::vector<int64_t> workspace_size_list = {100, 200, 300};
+  std::string key;
+  GenerateCompileInfoKey(workspace_size_list, key);
+  EXPECT_NE(key.find("100"), std::string::npos);
+  EXPECT_NE(key.find("200"), std::string::npos);
+  EXPECT_NE(key.find("300"), std::string::npos);
+}
+
+TEST_F(RegisterOpTilingUT, CovAssembleWorkspaceListNoAtomic) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc(tensor_desc);
+  int64_t first_clean_size = 0;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, first_clean_size, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, CovAssembleWorkspaceListWithAtomicOutput) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc(tensor_desc);
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  int64_t first_clean_size = 0;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, first_clean_size, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  EXPECT_EQ(workspace_size_list.size(), 1U);
+}
+
+TEST_F(RegisterOpTilingUT, CovPostProcMemoryCheckWithWorkspaces) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 2, 2);
+  GeShape shape({3, 4, 2, 1});
+  GeTensorDesc tensor_desc(shape);
+  OpDescPtr op_desc = node->GetOpDesc();
+  op_desc->UpdateInputDesc(0, tensor_desc);
+  op_desc->UpdateInputDesc(1, tensor_desc);
+  op_desc->UpdateOutputDesc(0, tensor_desc);
+  op_desc->UpdateOutputDesc(1, tensor_desc);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  run_info.AddWorkspace(100);
+  run_info.AddWorkspace(200);
+  (void)ge::AttrUtils::SetBool(op_desc, kMemoryCheck, true);
+  ge::graphStatus ret = PostProcMemoryCheck(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpParaCalculateV2NoTilingFunc) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("unknown_op", "UnknownOpType", 1, 1);
+  GeShape shape({3, 4});
+  GeTensorDesc tensor_desc(shape, FORMAT_NCHW, DT_FLOAT);
+  node->GetOpDesc()->AddInputDesc("x", tensor_desc);
+  node->GetOpDesc()->AddOutputDesc("y", tensor_desc);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpRunInfoMoveConstructor) {
+  utils::OpRunInfo run_info1(8, true, 64);
+  run_info1.AddWorkspace(100);
+  utils::OpRunInfo run_info2(std::move(run_info1));
+  EXPECT_EQ(run_info2.GetBlockDim(), 8U);
+  EXPECT_EQ(run_info2.GetWorkspaceNum(), 1U);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpRunInfoMoveAssignment) {
+  utils::OpRunInfo run_info1(8, true, 64);
+  run_info1.AddWorkspace(100);
+  utils::OpRunInfo run_info2(4, false, 32);
+  run_info2 = std::move(run_info1);
+  EXPECT_EQ(run_info2.GetBlockDim(), 8U);
+  EXPECT_EQ(run_info2.GetWorkspaceNum(), 1U);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpRunInfoGetAicpuBlockDim) {
+  utils::OpRunInfo run_info(8, true, 64);
+  run_info.SetAicpuBlockDim(16);
+  EXPECT_EQ(run_info.GetAicpuBlockDim(), 16U);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpRunInfoSetMemCheckBaseOffsetOverflow) {
+  utils::OpRunInfo run_info(8, true, 64);
+  uint64_t max_offset = std::numeric_limits<uint64_t>::max() - 1U;
+  EXPECT_EQ(run_info.SetMemCheckBaseOffset(max_offset), false);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpRunInfoAddTilingDataMemCopyFail) {
+  utils::OpRunInfo run_info(8, true, 64);
+  std::vector<uint8_t> buffer(16, 0);
+  run_info.ResetAddrBase(buffer.data(), 4U);
+  std::string data(8, 'x');
+  run_info.AddTilingData(data.c_str(), data.size());
+  EXPECT_EQ(run_info.GetTilingDataSize(), 0U);
+}
+
+TEST_F(RegisterOpTilingUT, CovOpCompileInfoMoveConstructor) {
+  utils::OpCompileInfo info1(std::string("key1"), std::string("value1"));
+  utils::OpCompileInfo info2(std::move(info1));
+  EXPECT_EQ(std::string(info2.GetKey().GetString()), "key1");
+  EXPECT_EQ(std::string(info2.GetValue().GetString()), "value1");
+}
+
+TEST_F(RegisterOpTilingUT, CovOpCompileInfoCopyAssignment) {
+  utils::OpCompileInfo info1(std::string("key1"), std::string("value1"));
+  utils::OpCompileInfo info2(std::string("key2"), std::string("value2"));
+  info2 = info1;
+  EXPECT_EQ(std::string(info2.GetKey().GetString()), "key1");
+  EXPECT_EQ(std::string(info2.GetValue().GetString()), "value1");
+}
+
+TEST_F(RegisterOpTilingUT, CovOpCompileInfoMoveAssignment) {
+  utils::OpCompileInfo info1(std::string("key1"), std::string("value1"));
+  utils::OpCompileInfo info2(std::string("key2"), std::string("value2"));
+  info2 = std::move(info1);
+  EXPECT_EQ(std::string(info2.GetKey().GetString()), "key1");
+  EXPECT_EQ(std::string(info2.GetValue().GetString()), "value1");
+}
+
+TEST_F(RegisterOpTilingUT, CovOpTilingFuncInfoIsFunctionChecks) {
+  OpTilingFuncInfo info("TestOp");
+  EXPECT_EQ(info.IsFunctionV1(), false);
+  EXPECT_EQ(info.IsFunctionV2(), false);
+  EXPECT_EQ(info.IsFunctionV3(), false);
+  EXPECT_EQ(info.IsFunctionV4(), false);
+}
+
+TEST_F(RegisterOpTilingUT, CovByteBufferPutAndGet) {
+  ByteBuffer buf;
+  std::vector<uint8_t> data = {1, 2, 3, 4, 5};
+  ByteBufferPut(buf, data.data(), data.size());
+  std::vector<uint8_t> dest(5, 0);
+  size_t nread = ByteBufferGetAll(buf, reinterpret_cast<ge::char_t *>(dest.data()), dest.size());
+  EXPECT_EQ(nread, 5U);
+}
+
 }  // namespace optiling
