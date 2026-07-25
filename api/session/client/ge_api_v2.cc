@@ -262,7 +262,11 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
   if (ret != SUCCESS) {
     GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", ret);
   }
-  GE_DISMISSABLE_GUARD(release_python_runtime, ([]() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); }));
+  GE_DISMISSABLE_GUARD(release_python_resources, ([]() {
+                         (void)fusion::ShutdownPassPluginsForProcess();
+                         (void)ge::custom_op::ShutdownCustomOpsForProcess();
+                         (void)GePythonRuntimeManager::Instance().ShutdownProcess();
+                       }));
 
   // 4. init OpsProto lib plugin
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
@@ -341,7 +345,7 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
   if (!g_ge_initialized) {
     g_ge_initialized = true;
   }
-  GE_DISMISS_GUARD(release_python_runtime);
+  GE_DISMISS_GUARD(release_python_resources);
 
   GELOGT(TRACE_STOP, "GEInitialize finished");
   GE_TIMESTAMP_EVENT_END(GEInitializeAll, "GEInitialize::All");

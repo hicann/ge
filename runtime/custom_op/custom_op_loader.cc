@@ -33,10 +33,17 @@ class CustomOpLoader {
       GELOGE(cpp_load_ret, "Load C++ custom ops failed.");
       return cpp_load_ret;
     }
-    if ((!python_custom_ops_loaded_) && NeedLoadPythonCustomOps()) {
+    bool need_load_python_custom_ops = false;
+    const auto check_ret = CheckNeedLoadPythonCustomOps(need_load_python_custom_ops);
+    if (check_ret != SUCCESS) {
+      GELOGE(check_ret, "Check Python custom ops failed.");
+      return check_ret;
+    }
+    if ((!python_custom_ops_loaded_) && need_load_python_custom_ops) {
       const auto ret = LoadPythonCustomOps();
       if (ret != SUCCESS) {
         GELOGE(ret, "Load Python custom ops failed.");
+        RollbackPythonCustomOpsLoad();
         return ret;
       }
       python_custom_ops_loaded_ = true;
@@ -46,12 +53,19 @@ class CustomOpLoader {
 
   Status LoadPythonCustomOpsIfNeeded() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!NeedLoadPythonCustomOps()) {
+    bool need_load_python_custom_ops = false;
+    const auto check_ret = CheckNeedLoadPythonCustomOps(need_load_python_custom_ops);
+    if (check_ret != SUCCESS) {
+      GELOGE(check_ret, "Check Python custom ops failed.");
+      return check_ret;
+    }
+    if (!need_load_python_custom_ops) {
       return SUCCESS;
     }
     const auto ret = LoadPythonCustomOps();
     if (ret != SUCCESS) {
       GELOGE(ret, "Load Python custom ops failed.");
+      RollbackPythonCustomOpsLoad();
       return ret;
     }
     python_custom_ops_loaded_ = true;
@@ -87,6 +101,11 @@ class CustomOpLoader {
   }
 
  private:
+  void RollbackPythonCustomOpsLoad() {
+    UnloadPythonCustomOps();
+    python_custom_ops_loaded_ = false;
+  }
+
   std::mutex mutex_;
   bool python_custom_ops_loaded_{false};
   bool shutdown_done_{false};

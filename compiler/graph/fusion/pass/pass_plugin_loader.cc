@@ -50,6 +50,7 @@ class PassPluginLoader {
       const auto ret = RegisterPythonPassesFromPlugin();
       if (ret != SUCCESS) {
         GELOGE(ret, "Load Python fusion pass plugins failed.");
+        RollbackPythonPassesLoad();
         return ret;
       }
       python_pass_loaded_ = true;
@@ -102,6 +103,11 @@ class PassPluginLoader {
   }
 
  private:
+  void RollbackPythonPassesLoad() {
+    UnloadPythonPasses();
+    python_pass_loaded_ = false;
+  }
+
   std::mutex mutex_;
   bool cpp_pass_loaded_{false};
   bool python_pass_loaded_{false};

@@ -61,16 +61,7 @@ bool HasPackageInitFile(const std::string &dir) {
   return stat((dir + "/" + kPythonPackageInitFile).c_str(), &path_stat) == 0;
 }
 
-bool HasPythonCustomOpEntry(const std::string &path) {
-  if (path.empty()) {
-    return false;
-  }
-
-  struct stat path_stat{};
-  if (stat(path.c_str(), &path_stat) != 0) {
-    GELOGI("Skip scanning python custom op path[%s] because stat failed.", path.c_str());
-    return false;
-  }
+bool HasPythonCustomOpEntry(const std::string &path, const struct stat &path_stat) {
   if (S_ISREG(path_stat.st_mode)) {
     return IsPythonFile(path);
   }
@@ -107,34 +98,28 @@ bool HasPythonCustomOpEntry(const std::string &path) {
   return false;
 }
 
-bool HasPythonModuleInCustomOppPath(const char *env_value) {
+Status FindPythonCustomOpEntryInEnv(const char *env_value, bool &found) {
+  found = false;
   const std::string custom_opp_path = env_value;
   const std::vector<std::string> custom_opp_paths = StringUtils::Split(custom_opp_path, ':');
   if (custom_opp_paths.empty()) {
-    return false;
+    return SUCCESS;
   }
-  for (const auto &path : custom_opp_paths) {
-    if (!path.empty() && HasPythonCustomOpEntry(path)) {
-      return true;
+  for (auto path : custom_opp_paths) {
+    if (StringUtils::Trim(path).empty()) {
+      continue;
+    }
+    struct stat path_stat{};
+    if (stat(path.c_str(), &path_stat) != 0) {
+      GELOGE(FAILED, "Custom op path[%s] does not exist or is inaccessible.", path.c_str());
+      return FAILED;
+    }
+    if (HasPythonCustomOpEntry(path, path_stat)) {
+      found = true;
+      return SUCCESS;
     }
   }
-  return false;
-}
-
-bool NeedLoadPythonCustomOpsImpl() {
-  const char_t *custom_opp_path_env = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_CUSTOM_OPP_PATH, custom_opp_path_env);
-  if ((custom_opp_path_env == nullptr) || (custom_opp_path_env[0] == '\0')) {
-    GELOGI("Skip loading python custom ops because ASCEND_CUSTOM_OPP_PATH is empty.");
-    return false;
-  }
-  if (!HasPythonModuleInCustomOppPath(custom_opp_path_env)) {
-    GELOGI(
-        "Skip loading python custom ops because no loadable python custom op entry is found in "
-        "ASCEND_CUSTOM_OPP_PATH.");
-    return false;
-  }
-  return true;
+  return SUCCESS;
 }
 
 std::string GetLoaderLibraryPath() {
@@ -348,8 +333,24 @@ class PythonCustomOpBridgeLoader {
 };
 }  // namespace
 
-bool NeedLoadPythonCustomOps() {
-  return NeedLoadPythonCustomOpsImpl();
+Status CheckNeedLoadPythonCustomOps(bool &need_load) {
+  need_load = false;
+  const char_t *custom_opp_path_env = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_ASCEND_CUSTOM_OPP_PATH, custom_opp_path_env);
+  if ((custom_opp_path_env == nullptr) || (custom_opp_path_env[0] == '\0')) {
+    GELOGI("Skip loading python custom ops because ASCEND_CUSTOM_OPP_PATH is empty.");
+    return SUCCESS;
+  }
+  const auto ret = FindPythonCustomOpEntryInEnv(custom_opp_path_env, need_load);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  if (!need_load) {
+    GELOGI(
+        "Skip loading python custom ops because no loadable python custom op entry is found in "
+        "ASCEND_CUSTOM_OPP_PATH.");
+  }
+  return SUCCESS;
 }
 
 Status LoadPythonCustomOps() {

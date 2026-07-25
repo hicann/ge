@@ -15,7 +15,7 @@
 
 namespace ge {
 namespace custom_op {
-bool NeedLoadPythonCustomOps();
+Status CheckNeedLoadPythonCustomOps(bool &need_load);
 Status LoadPythonCustomOps();
 void UnloadPythonCustomOps();
 void ShutdownPythonCustomOpsForProcess();
