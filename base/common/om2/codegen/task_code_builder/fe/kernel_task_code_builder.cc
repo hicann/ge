@@ -10,6 +10,7 @@
 
 #include "kernel_task_code_builder.h"
 #include <cinttypes>
+#include <numeric>
 #include <sstream>
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
@@ -261,7 +262,48 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   dispatch_type_ = (IsAicpuTask(build_data_.semantic) || IsCustAicpuTask(build_data_.semantic))
                        ? OpDispatchType::DISPATCH_AICPU
                        : OpDispatchType::DISPATCH_AICORE;
+
+  GE_CHK_STATUS_RET(ReadFusionOpInfo(context.op_desc));
+
   GE_ASSERT_SUCCESS(AssembleBuildData());
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ReadFusionOpInfo(const OpDescPtr &op_desc) {
+  if (!AttrUtils::GetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, build_data_.semantic.original_op_names)) {
+    return SUCCESS;
+  }
+
+  const auto &is_const = op_desc->GetIsInputConst();
+  uint64_t input_mem = 0U;
+  uint64_t weight_mem = 0U;
+  for (size_t i = 0U; i < op_desc->GetAllInputsSize(); ++i) {
+    int64_t tensor_size = 0;
+    const auto tensor_desc = op_desc->MutableInputDesc(static_cast<uint32_t>(i));
+    if (tensor_desc != nullptr && TensorUtils::GetSize(*tensor_desc, tensor_size) == GRAPH_SUCCESS) {
+      auto tensor_mem = static_cast<uint64_t>(tensor_size);
+      input_mem += tensor_mem;
+      if (i < is_const.size() && is_const[i]) {
+        weight_mem += tensor_mem;
+      }
+    }
+  }
+  build_data_.semantic.input_mem_size = input_mem;
+  build_data_.semantic.weight_mem_size = weight_mem;
+
+  uint64_t output_mem = 0U;
+  for (uint32_t i = 0U; i < op_desc->GetAllOutputsDescSize(); ++i) {
+    int64_t tensor_size = 0;
+    const auto tensor_desc = op_desc->MutableOutputDesc(i);
+    if (tensor_desc != nullptr && TensorUtils::GetSize(*tensor_desc, tensor_size) == GRAPH_SUCCESS) {
+      output_mem += static_cast<uint64_t>(tensor_size);
+    }
+  }
+  build_data_.semantic.output_mem_size = output_mem;
+
+  const auto &ws_bytes = op_desc->GetWorkspaceBytes();
+  build_data_.semantic.workspace_mem_size =
+      static_cast<uint64_t>(std::accumulate(ws_bytes.begin(), ws_bytes.end(), int64_t{0}));
   return SUCCESS;
 }
 
@@ -1543,23 +1585,25 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const Va
   return {
       ast_.VarDecl(ast_.Var("ArgsInfo *", "aicpu_args_info"),
                    ctx.Attr("args_table").Attr("GetArgsInfo")(ast_.Var("", "aicpu_args_idx"))),
+      ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
       ChkStatus(ast_.Call("AicpuKernelTaskDistribute",
                           {ast_.Var("", "aicpu_args_var"), ast_.Var("", "aicpu_args_info"),
                            ctx.Attr("func_handles")[op.Arrow("dispatch_info").Attr("aicpu").Attr("func_idx")],
                            op.Arrow("dispatch_info").Attr("aicpu").Attr("block_dim"),
                            ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicpu").Attr("stream_id")],
                            ast_.Var("", "aicpu_cfg_holder").Attr("cfg").Addr()})),
-      ChkStatus(ast_.Call("ReportLaunchedOm2Task",
-                          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("aicpu").Attr("op_type"), ast_.UInt(0),
-                           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "aicpu_args_info").Arrow("dev_addr")),
-                           ast_.Var("", "aicpu_args_info").Arrow("size"), ast_.Var("", "aicpu_report_inputs").Data(),
-                           ast_.StaticCast("uint64_t", ast_.Var("", "aicpu_report_inputs").Size()),
-                           ast_.Var("", "aicpu_report_outputs").Data(),
-                           ast_.StaticCast("uint32_t", ast_.Var("", "aicpu_report_outputs").Size()), Arg(nullptr),
-                           Arg(nullptr), ast_.UInt(0U), op.Arrow("dispatch_info").Attr("aicpu").Attr("task_type"),
-                           op.Arrow("dispatch_info").Attr("aicpu").Attr("block_dim"),
-                           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicpu").Attr("stream_id")],
-                           ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
+      ChkStatus(ast_.Call(
+          "ReportLaunchedOm2Task",
+          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("aicpu").Attr("op_type"), ast_.UInt(0),
+           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "aicpu_args_info").Arrow("dev_addr")),
+           ast_.Var("", "aicpu_args_info").Arrow("size"), ast_.Var("", "aicpu_report_inputs").Data(),
+           ast_.StaticCast("uint64_t", ast_.Var("", "aicpu_report_inputs").Size()),
+           ast_.Var("", "aicpu_report_outputs").Data(),
+           ast_.StaticCast("uint32_t", ast_.Var("", "aicpu_report_outputs").Size()), Arg(nullptr), Arg(nullptr),
+           ast_.UInt(0U), op.Arrow("dispatch_info").Attr("aicpu").Attr("task_type"),
+           op.Arrow("dispatch_info").Attr("aicpu").Attr("block_dim"),
+           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicpu").Attr("stream_id")], ctx.Attr("model_id"),
+           ctx.Attr("instance_handle"), ast_.UInt(0U), ast_.Var("uint64_t", "_launch_begin")})),
   };
 }
 
@@ -1646,46 +1690,54 @@ BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
 }
 
 std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) {
+  auto aicore = op.Arrow("dispatch_info").Attr("aicore");
+  auto slot_args = aicore.Attr("slot_args");
+  auto dispatch_type = ast_.StaticCast("uint32_t", op.Arrow("dispatch_type"));
+  auto stream = ctx.Attr("stream_list")[aicore.Attr("stream_id")];
+
   return {
       ast_.VarDecl(
           ast_.Var("Om2L0TaskRawInfo", "l0_info"),
-          ast_.InitList({ast_.UInt(1U),
-                         op.Arrow("dispatch_info").Attr("aicore").Attr("slot_args").Attr("need_assert_or_printf"),
-                         ast_.StaticCast("uint64_t",
-                                         op.Arrow("dispatch_info").Attr("aicore").Attr("slot_args").Attr("slots_num")),
-                         op.Arrow("dispatch_info").Attr("aicore").Attr("slot_args").Attr("slot_info")})),
-      ChkStatus(
-          ast_.Call("ReportOm2TaskPreprocess",
-                    {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("aicore").Attr("op_type"),
-                     ast_.UInt(0),  // op_desc_id (not in TaskDispatchInfo struct, default to 0)
-                     ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
-                     ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs"),
-                     ast_.Var("", "report_outputs"), ast_.Var("", "report_workspace_addrs"),
-                     ast_.Var("", "report_workspace_sizes"), ast_.StaticCast("uint32_t", op.Arrow("dispatch_type")),
-                     op.Arrow("dispatch_info").Attr("aicore").Attr("block_dim"),
-                     ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicore").Attr("stream_id")],
-                     ast_.Var("", "l0_info").Addr(), ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
+          ast_.InitList({ast_.UInt(1U), slot_args.Attr("need_assert_or_printf"),
+                         ast_.StaticCast("uint64_t", slot_args.Attr("slots_num")), slot_args.Attr("slot_info")})),
+      ChkStatus(ast_.Call("ReportOm2TaskPreprocess",
+                          {op.Arrow("op_name"), aicore.Attr("op_type"),
+                           ast_.UInt(0),  // op_desc_id
+                           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
+                           ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs"),
+                           ast_.Var("", "report_outputs"), ast_.Var("", "report_workspace_addrs"),
+                           ast_.Var("", "report_workspace_sizes"), dispatch_type, aicore.Attr("block_dim"), stream,
+                           ast_.Var("", "l0_info").Addr(), ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
+      ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
       ChkStatus(ast_.Call("KernelTaskDistribute",
                           {ast_.Var("", "ordered_io_addrs"), ast_.Var("", "args_info"),
-                           ctx.Attr("func_handles")[op.Arrow("dispatch_info").Attr("aicore").Attr("func_idx")],
-                           op.Arrow("dispatch_info").Attr("aicore").Attr("block_dim"),
-                           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicore").Attr("stream_id")],
+                           ctx.Attr("func_handles")[aicore.Attr("func_idx")], aicore.Attr("block_dim"), stream,
                            ast_.Var("", "cfg_holder").Attr("cfg").Addr()})),
-      // -- Report（empty vector 的 data() 返回 nullptr）--
-      ChkStatus(ast_.Call(
-          "ReportLaunchedOm2Task",
-          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("aicore").Attr("op_type"),
-           ast_.UInt(0),  // op_desc_id (not in TaskDispatchInfo struct, default to 0)
-           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
-           ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs").Data(),
-           ast_.StaticCast("uint64_t", ast_.Var("", "report_inputs").Size()), ast_.Var("", "report_outputs").Data(),
-           ast_.StaticCast("uint32_t", ast_.Var("", "report_outputs").Size()),
-           ast_.Var("", "report_workspace_addrs").Data(), ast_.Var("", "report_workspace_sizes").Data(),
-           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_sizes").Size()),
-           ast_.StaticCast("uint32_t", op.Arrow("dispatch_type")),
-           op.Arrow("dispatch_info").Attr("aicore").Attr("block_dim"),
-           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicore").Attr("stream_id")], ctx.Attr("model_id"),
-           ctx.Attr("instance_handle")})),
+      ChkStatus(ast_.Call("ReportLaunchedOm2Task",
+                          {op.Arrow("op_name"),
+                           aicore.Attr("op_type"),
+                           ast_.UInt(0),  // op_desc_id
+                           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
+                           ast_.Var("", "args_info").Arrow("size"),
+                           ast_.Var("", "report_inputs").Data(),
+                           ast_.StaticCast("uint64_t", ast_.Var("", "report_inputs").Size()),
+                           ast_.Var("", "report_outputs").Data(),
+                           ast_.StaticCast("uint32_t", ast_.Var("", "report_outputs").Size()),
+                           ast_.Var("", "report_workspace_addrs").Data(),
+                           ast_.Var("", "report_workspace_sizes").Data(),
+                           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_sizes").Size()),
+                           dispatch_type,
+                           aicore.Attr("block_dim"),
+                           stream,
+                           ctx.Attr("model_id"),
+                           ctx.Attr("instance_handle"),
+                           ast_.UInt(1U),
+                           ast_.Var("uint64_t", "_launch_begin"),
+                           aicore.Attr("fusion_op").Attr("original_op_names"),
+                           aicore.Attr("fusion_op").Attr("input_mem_size"),
+                           aicore.Attr("fusion_op").Attr("output_mem_size"),
+                           aicore.Attr("fusion_op").Attr("workspace_mem_size"),
+                           aicore.Attr("fusion_op").Attr("weight_mem_size")})),
   };
 }
 
@@ -1828,6 +1880,17 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
       ast_.CCast("const Om2L0ArgSlotInfo[]",
                  TaskCodeBuilderUtil::BuildL0ArgSlotEntries(ast_, build_data_.semantic.ordered_arg_values)),
   };
+  // 融合算子字段：从 semantic 直接读取，编译期嵌入 kOpDefs[]
+  const auto &orig_names = build_data_.semantic.original_op_names;
+  Arg orig_names_arg = Arg(nullptr);
+  if (!orig_names.empty()) {
+    std::string joined;
+    for (size_t i = 0U; i < orig_names.size(); ++i) {
+      if (i != 0U) joined += ';';
+      joined += orig_names[i];
+    }
+    orig_names_arg = Arg::StringLiteral(joined);
+  }
   auto aicore_fields = std::vector<std::pair<std::string, Arg>>{
       {"args_info", TaskCodeBuilderUtil::RenderOpArgDesc(ast_, build_data_.ordered_args)},
       {"args_info_num", static_cast<int64_t>(build_data_.ordered_args.size())},
@@ -1838,6 +1901,13 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
       {"launch", ast_.InitList(launch_values)},
       {"slot_args", ast_.InitList(l0_values)},
+      {"fusion_op", ast_.InitList({
+                        orig_names_arg,
+                        ast_.ULong(build_data_.semantic.input_mem_size),
+                        ast_.ULong(build_data_.semantic.output_mem_size),
+                        ast_.ULong(build_data_.semantic.workspace_mem_size),
+                        ast_.ULong(build_data_.semantic.weight_mem_size),
+                    })},
   };
   return ast_.DesignatedInit({{"aicore", ast_.DesignatedInit(aicore_fields)}});
 }

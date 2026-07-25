@@ -47,7 +47,8 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncAssembleExInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunchTask(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
-  Status RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
+  Status RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
+                                  const VarRef &launch_begin);
   static std::string SerializeBytesToOctalString(const std::vector<uint8_t> &buffer);
   Status InitIowAddrRefreshInfo(uint64_t current_offset);
   Status InitLaunchInfo(const TaskSemanticContributeContext &context);

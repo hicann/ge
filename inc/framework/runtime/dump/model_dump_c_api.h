@@ -124,7 +124,42 @@ struct Om2TaskInfo {
   uint32_t is_raw_address;  // 输入，是否为 raw address 模式，0 表示否，非 0 表示是。
   // 输入，L0 异常 dump 原始信息指针。不需要 L0 异常 dump 时可以为空指针。
   const struct Om2L0TaskRawInfo *l0_exception_dump_info;
+
+  // kernel launch 计时
+  uint64_t launch_begin;  // 输入，kernel launch 开始时间戳
+
+  // 融合算子信息
+  const char *original_op_names;  // 输入，分号分隔的原始算子名称列表。非融合算子为 nullptr。
+  uint64_t input_mem_size;        // 输入，输入内存大小，单位为字节。
+  uint64_t output_mem_size;       // 输入，输出内存大小，单位为字节。
+  uint64_t workspace_mem_size;    // 输入，workspace 内存大小，单位为字节。
+  uint64_t weight_mem_size;       // 输入，权重内存大小，单位为字节。
 };
+
+enum Om2ProfType : uint32_t {
+  OM2_PROF_INPUT_COPY = 0,
+  OM2_PROF_MODEL_EXECUTE = 1,
+  OM2_PROF_OUTPUT_COPY = 2,
+  OM2_PROF_STEP_INFO_START = 3,
+  OM2_PROF_STEP_INFO_END = 4,
+  OM2_PROF_TYPE_COUNT,
+};
+
+struct Om2ProfUnit {
+  Om2ProfType type;
+  uint64_t begin_time;
+  uint64_t end_time;
+  uint32_t thread_id;
+};
+
+struct Om2ProfInfos {
+  uint32_t version;       // 版本号，使用 sizeof(Om2ProfInfos) 自动兼容
+  uint32_t count;         // profUnit 有效条目数
+  Om2ProfUnit *profUnit;  // 指针，Executor 分配，codegen 填充
+  uint64_t step_id;       // 输入：Executor 设置，0 不上报 StepInfo
+};
+
+constexpr uint32_t kOm2ProfInfosVersion = sizeof(Om2ProfInfos);
 
 // ============ 弱符号接口 ============
 /**

@@ -21,6 +21,7 @@ class InterfaceFileCodeGenerator : public CodeGeneratorBase {
 
   TypeAliasDecl *BuildOm2ModelHandleAlias();
   StructDecl *BuildBinDataInfoStruct();
+  StructDecl *BuildOm2ProfInfosStruct();
   StructDecl *BuildAicpuParamHeadStruct();
   StructDecl *BuildAicpuSessionInfoStruct();
   StructDecl *BuildTfAiCpuExInfoStruct();

@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <sstream>
+#include <fstream>
 
 #include "common/om2/codegen/ast/ast_context.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
@@ -363,9 +364,11 @@ TEST_F(ControlTaskCodeGeneratorUt, GenerateControlTaskFiles_Ok) {
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "rt_external.h"
 #include "dlog_pub.h"
+#include "profiling/prof_common.h"
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <cinttypes>
+#include "mmpa/mmpa_api.h"
 
 // OM2 Logging Macros
 #define OM2_MODULE_NAME static_cast<int32_t>(GE)
@@ -583,6 +586,37 @@ struct Om2TaskInfo {
   void* stream;
   uint32_t is_raw_address;
   const struct Om2L0TaskRawInfo* l0_exception_dump_info;
+  uint64_t launch_begin;
+  const char *original_op_names;
+  uint64_t input_mem_size;
+  uint64_t output_mem_size;
+  uint64_t workspace_mem_size;
+  uint64_t weight_mem_size;
+};
+
+#pragma pack(push)
+#pragma pack(1)
+struct ProfTraceUserData {
+  uint64_t id;
+  uint64_t model_id;
+  uint16_t tag_id;
+};
+#pragma pack(pop)
+
+enum Om2ProfType : uint32_t {
+  OM2_PROF_INPUT_COPY = 0,
+  OM2_PROF_MODEL_EXECUTE = 1,
+  OM2_PROF_OUTPUT_COPY = 2,
+  OM2_PROF_STEP_INFO_START = 3,
+  OM2_PROF_STEP_INFO_END = 4,
+  OM2_PROF_TYPE_COUNT,
+};
+
+struct Om2ProfUnit {
+  Om2ProfType type;
+  uint64_t begin_time;
+  uint64_t end_time;
+  uint32_t thread_id;
 };
 
 extern "C" {
@@ -603,6 +637,13 @@ __attribute__((weak)) int32_t IsDataDumpEnabled(uint32_t model_id,
                                                       const char* op_name,
                                                       uint8_t* is_data_dump);
 }
+
+struct Om2ProfInfos {
+  uint32_t version;
+  uint32_t count;
+  Om2ProfUnit *profUnit;
+  uint64_t step_id;
+};
 
 struct rtLabelDevInfo {
   uint16_t modelId;
@@ -804,6 +845,13 @@ struct AicoreDispatchInfo {
     uint32_t slots_num;    // L0 slot 数量
     const Om2L0ArgSlotInfo *slot_info; // L0 slot 信息数组
   } slot_args;
+  struct {                     // 融合算子信息，非融合全为 0/nullptr
+    const char *original_op_names; // 原始算子名称（分号分隔）
+    uint64_t input_mem_size;       // 输入内存大小，字节
+    uint64_t output_mem_size;      // 输出内存大小，字节
+    uint64_t workspace_mem_size;   // workspace 内存大小，字节
+    uint64_t weight_mem_size;      // 权重内存大小，字节
+  } fusion_op;
 };
 
 struct AicpuDispatchInfo {
@@ -983,8 +1031,8 @@ class Om2Model {
     aclError RegisterKernels();
     aclError Load();
     aclmdlRI GetRtModelHandle();
-    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout);
-    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data);
+    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info);
     aclError ReleaseResources();
   private:
     void **constants_;
@@ -1025,9 +1073,9 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data);
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info);
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout);
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
 

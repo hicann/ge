@@ -333,6 +333,13 @@ struct KernelTaskSemantic {
   uint64_t aicpu_task_index{0U};
   std::optional<AicpuArgsSemantic> aicpu_args;
   std::optional<AicpuExtInfoSemantic> aicpu_ext_info;
+
+  // 融合算子信息（来自 OpDesc 属性）
+  std::vector<std::string> original_op_names;
+  uint64_t input_mem_size = 0U;
+  uint64_t output_mem_size = 0U;
+  uint64_t workspace_mem_size = 0U;
+  uint64_t weight_mem_size = 0U;
 };
 
 struct TaskSemanticHeader {

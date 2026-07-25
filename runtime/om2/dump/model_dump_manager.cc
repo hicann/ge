@@ -47,6 +47,9 @@ Status ModelDumpManager::SetModelDumpInfo(const ModelDumpInfo &model_info) {
   const char *model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
   GELOGD("SetModelDumpInfo: model_id=%u, model_name=%s", model_info.model_id, model_name);
   model_info_ = model_info;
+  if (profiling_impl_ != nullptr) {
+    (void)profiling_impl_->RegisterModelToProfilingRuntime(model_info_);
+  }
   exception_impl_->SetDeviceId(model_info.device_id);
 
   // 如果 Overflow 开关开启，自动注册
@@ -83,6 +86,17 @@ Status ModelDumpManager::ReportModelLoadEnd() const {
     return SUCCESS;
   }
   return profiling_impl_->ReportModelLoadEnd(model_info_);
+}
+
+Status ModelDumpManager::ReportModelLevelProf(const Om2ProfInfos &prof_info) const {
+  if (profiling_impl_ == nullptr) {
+    GELOGW("[OM2][Prof] Skip ReportModelLevelProf, profiling_impl is null, model_id=%u", model_info_.model_id);
+    return SUCCESS;
+  }
+  GELOGD("[OM2][Prof] ReportModelLevelProf begin, model_id=%u, count=%u", model_info_.model_id, prof_info.count);
+  auto ret = profiling_impl_->ReportModelLevelProf(prof_info, model_info_.model_id);
+  GELOGD("[OM2][Prof] ReportModelLevelProf end, model_id=%u, ret=%u", model_info_.model_id, ret);
+  return ret;
 }
 
 Status ModelDumpManager::IsDataDumpEnabled(const char *op_name, uint8_t *is_data_dump) const {
@@ -203,6 +217,9 @@ void ModelDumpManager::Clear() {
   }
   if (overflow_impl_ != nullptr && model_info_.rt_model_handle != nullptr) {
     overflow_impl_->UnregisterForModel(model_info_.rt_model_handle);
+  }
+  if (profiling_impl_ != nullptr) {
+    (void)profiling_impl_->UnregisterModelFromProfilingRuntime(model_id_);
   }
 }
 

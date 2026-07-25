@@ -351,8 +351,10 @@ Status KernelExTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &item
   auto op = ast_.Var("const TaskDispatchInfo *", "op");
   auto ctx = ast_.Var("const DispatchOpContext &", "ctx");
   GE_ASSERT_SUCCESS(RenderDispatchFuncSetup(body, op, ctx));
+  auto launch_begin = ast_.Var("uint64_t", "_launch_begin");
+  body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunch(body, op, ctx));
-  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx));
+  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, launch_begin));
   GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::RenderDispatchFunc(ast_, kDispatchFuncName, body, items));
   return SUCCESS;
 }
@@ -502,7 +504,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op,
-                                                         const VarRef &ctx) {
+                                                         const VarRef &ctx, const VarRef &launch_begin) {
   auto io_tensors = ast_.Var("std::vector<Om2Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));
@@ -536,7 +538,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &
                  report_inputs.Data(), ast_.StaticCast("uint64_t", report_inputs.Size()), report_outputs.Data(),
                  ast_.StaticCast("uint32_t", report_outputs.Size()), Arg(nullptr), Arg(nullptr), ast_.UInt(0U),
                  kex.Attr("task_type"), kex.Attr("block_dim"), ctx.Attr("stream_list")[kex.Attr("stream_id")],
-                 ctx.Attr("model_id"), ctx.Attr("instance_handle")})));
+                 ctx.Attr("model_id"), ctx.Attr("instance_handle"), ast_.UInt(0U), launch_begin})));
   return SUCCESS;
 }
 

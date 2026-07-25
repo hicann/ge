@@ -22,6 +22,15 @@ StructDecl *InterfaceFileCodeGenerator::BuildBinDataInfoStruct() {
                                     });
 }
 
+StructDecl *InterfaceFileCodeGenerator::BuildOm2ProfInfosStruct() {
+  return ast_.Struct("Om2ProfInfos", {
+                                         ast_.Field("uint32_t", "version"),
+                                         ast_.Field("uint32_t", "count"),
+                                         ast_.Field("Om2ProfUnit *", "profUnit"),
+                                         ast_.Field("uint64_t", "step_id"),
+                                     });
+}
+
 StructDecl *InterfaceFileCodeGenerator::BuildAicpuParamHeadStruct() {
   return ast_.Struct("AicpuParamHead", {
                                            ast_.Field("uint32_t", "length"),
@@ -105,16 +114,16 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
       ast_.DeclareMethod("Load", {}, "aclError"),
       ast_.DeclareMethod("GetRtModelHandle", {}, "aclmdlRI"),
-      ast_.DeclareMethod(
-          "Run",
-          {ast_.Var("size_t", "input_count"), ast_.Var("void **", "input_data"), ast_.Var("size_t", "output_count"),
-           ast_.Var("void **", "output_data"), ast_.Var("int32_t", "stream_sync_timeout")},
-          "aclError"),
-      ast_.DeclareMethod(
-          "RunAsync",
-          {ast_.Var("aclrtStream &", "exe_stream"), ast_.Var("size_t", "input_count"),
-           ast_.Var("void **", "input_data"), ast_.Var("size_t", "output_count"), ast_.Var("void **", "output_data")},
-          "aclError"),
+      ast_.DeclareMethod("Run",
+                         {ast_.Var("size_t", "input_count"), ast_.Var("void **", "input_data"),
+                          ast_.Var("size_t", "output_count"), ast_.Var("void **", "output_data"),
+                          ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("Om2ProfInfos *", "prof_info")},
+                         "aclError"),
+      ast_.DeclareMethod("RunAsync",
+                         {ast_.Var("aclrtStream &", "exe_stream"), ast_.Var("size_t", "input_count"),
+                          ast_.Var("void **", "input_data"), ast_.Var("size_t", "output_count"),
+                          ast_.Var("void **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
+                         "aclError"),
       ast_.DeclareMethod("ReleaseResources", {}, "aclError"),
       ast_.Private(),
       ast_.Field("void **", "constants_"),
@@ -199,16 +208,18 @@ std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildExternalApiDecls() {
            ast_.Var("void *", "instance_handle")},
           "aclError"),
       ast_.DeclareFunction("Om2ModelLoad", {ast_.Var("om2::Om2ModelHandle *", "model_handle")}, "aclError"),
-      ast_.DeclareFunction("Om2ModelRunAsync",
-                           {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("aclrtStream", "stream"),
-                            ast_.Var("int", "input_count"), ast_.Var("void **", "input_data"),
-                            ast_.Var("int", "output_count"), ast_.Var("void **", "output_data")},
-                           "aclError"),
-      ast_.DeclareFunction("Om2ModelRun",
-                           {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("int", "input_count"),
-                            ast_.Var("void **", "input_data"), ast_.Var("int", "output_count"),
-                            ast_.Var("void **", "output_data"), ast_.Var("int32_t", "stream_sync_timeout")},
-                           "aclError"),
+      ast_.DeclareFunction(
+          "Om2ModelRunAsync",
+          {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("aclrtStream", "stream"),
+           ast_.Var("int", "input_count"), ast_.Var("void **", "input_data"), ast_.Var("int", "output_count"),
+           ast_.Var("void **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
+          "aclError"),
+      ast_.DeclareFunction(
+          "Om2ModelRun",
+          {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("int", "input_count"),
+           ast_.Var("void **", "input_data"), ast_.Var("int", "output_count"), ast_.Var("void **", "output_data"),
+           ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("Om2ProfInfos *", "prof_info")},
+          "aclError"),
       ast_.DeclareFunction("Om2ModelDestroy", {ast_.Var("om2::Om2ModelHandle *", "model_handle")}, "aclError"),
   };
 }
