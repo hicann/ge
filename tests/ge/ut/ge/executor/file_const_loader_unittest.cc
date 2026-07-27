@@ -187,7 +187,7 @@ TEST_F(FileConstLoaderUt, resolve_weight_dir_prefers_weight_path) {
   model_data.weight_path = weight_dir;
   model_data.om_path = PathUtils::Join({test_dir_, "model.om2"});
   std::string resolved_weight_dir;
-  ASSERT_EQ(gert::ResolveFileConstWeightDir(model_data, resolved_weight_dir), SUCCESS);
+  ASSERT_EQ(gert::ResolveFileConstWeightDir(model_data.weight_path, model_data.om_path, resolved_weight_dir), SUCCESS);
   EXPECT_EQ(resolved_weight_dir, ge::RealPath(weight_dir.c_str()) + "/");
 }
 
@@ -197,7 +197,7 @@ TEST_F(FileConstLoaderUt, resolve_weight_dir_from_om_path) {
   ge::ModelData model_data;
   model_data.om_path = om_path;
   std::string resolved_weight_dir;
-  ASSERT_EQ(gert::ResolveFileConstWeightDir(model_data, resolved_weight_dir), SUCCESS);
+  ASSERT_EQ(gert::ResolveFileConstWeightDir(model_data.weight_path, model_data.om_path, resolved_weight_dir), SUCCESS);
   EXPECT_EQ(resolved_weight_dir, test_dir_ + "/weight/");
 }
 

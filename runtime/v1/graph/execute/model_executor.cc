@@ -357,6 +357,8 @@ Status ModelExecutor::RunGraphWithStream(const GraphNodePtr &graph_node, const G
       GELOGE(ret, "[Execute][OM2][Graph] With Stream failed, graph_id = %u.", graph_id);
       return ret;
     }
+    outputs.clear();
+    GE_ASSERT_SUCCESS(TensorTransUtils::GertTensors2GeTensors(gert_outputs, outputs));
     return SUCCESS;
   }
   const auto ret = graph_executor_.ExecuteGraphWithStream(stream, graph_node, ge_root_model, inputs, outputs);
@@ -979,8 +981,8 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
   // NOTE: Load 阶段不需要 stream。stream 在 Execute 阶段通过 RunOm2Graph 传递给 RunAsync。
   // OM1 路径中 ModelLoad 也不使用 stream 参数（仅 MallocFixedFeatureMemoryIfNeed 使用）。
   (void)stream;
-  GE_ASSERT_TRUE(ge_root_model->HasOm2ModelData());
   const auto &model_data = ge_root_model->GetOm2ModelData();
+  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing Om2ModelData.");
 
   const uint32_t graph_id = graph_node->GetGraphId();
   uint32_t model_id = ge_root_model->GetModelId();
@@ -1015,7 +1017,7 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
            feature_mem.first, feature_mem.second);
   }
 
-  const ge::Status ret = Om2ModelManager::GetInstance().LoadModel(model_id, model_data, load_arg, session_id_);
+  const ge::Status ret = Om2ModelManager::GetInstance().LoadModel(model_id, *model_data, load_arg, session_id_);
   if (ret == SUCCESS) {
     std::lock_guard<std::mutex> lock(om2_map_mutex_);
     om2_graph_to_model_map_[graph_id] = model_id;
@@ -1031,8 +1033,9 @@ Status ModelExecutor::GetOm2ModelTensorDesc(const GraphNodePtr &graph_node,
   GE_CHECK_NOTNULL(graph_node);
   const auto ge_root_model = graph_node->GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model);
-  GE_ASSERT_TRUE(ge_root_model->HasOm2ModelData(), "[OM2][Check] Missing Om2ModelData.");
-  const auto &model_meta = ge_root_model->GetOm2ModelData().model_meta;
+  const auto &model_data = ge_root_model->GetOm2ModelData();
+  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing Om2ModelData.");
+  const auto &model_meta = model_data->model_meta;
   input_desc = &model_meta.input_desc;
   output_desc = &model_meta.output_desc;
   return SUCCESS;

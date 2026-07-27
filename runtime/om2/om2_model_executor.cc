@@ -161,32 +161,25 @@ ge::Status ExtractEntryToBytes(const ge::RAIIZipArchive &archive, const std::str
   return ge::SUCCESS;
 }
 
-ge::Status ParseTensorDescFromJson(const ge::JsonFile::json &json, ge::Om2TensorDesc &desc) {
-  if (json.contains("name")) {
-    desc.SetName(json["name"].get<std::string>());
-  }
-  if (json.contains("shape")) {
-    desc.SetShape(json["shape"].get<std::vector<int64_t>>());
-  }
-  if (json.contains("data_type")) {
-    desc.SetDataType(ge::TypeUtilsInner::SerialStringToDataType(json["data_type"].get<std::string>()));
-  }
-  if (json.contains("format")) {
-    desc.SetFormat(ge::TypeUtilsInner::SerialStringToFormat(json["format"].get<std::string>()));
-  }
-  if (json.contains("size")) {
-    desc.SetSize(json["size"].get<size_t>());
-  }
-  if (json.contains("shape_range")) {
-    desc.SetShapeRange(json["shape_range"].get<std::vector<std::pair<int64_t, int64_t>>>());
-  }
+ge::Status ParseTensorDescFromJson(const ge::JsonFile &json_file, ge::Om2TensorDesc &desc) {
+  ge::JsonFile::TryGetAndApply<std::string>(json_file, "name", [&](const std::string &v) { desc.SetName(v); });
+  ge::JsonFile::TryGetAndApply<std::vector<int64_t>>(json_file, "shape",
+                                                     [&](const std::vector<int64_t> &v) { desc.SetShape(v); });
+  ge::JsonFile::TryGetAndApply<std::string>(json_file, "data_type", [&](const std::string &v) {
+    desc.SetDataType(ge::TypeUtilsInner::SerialStringToDataType(v));
+  });
+  ge::JsonFile::TryGetAndApply<std::string>(
+      json_file, "format", [&](const std::string &v) { desc.SetFormat(ge::TypeUtilsInner::SerialStringToFormat(v)); });
+  ge::JsonFile::TryGetAndApply<size_t>(json_file, "size", [&](const size_t &v) { desc.SetSize(v); });
+  ge::JsonFile::TryGetAndApply<std::vector<std::pair<int64_t, int64_t>>>(
+      json_file, "shape_range", [&](const std::vector<std::pair<int64_t, int64_t>> &v) { desc.SetShapeRange(v); });
   return ge::SUCCESS;
 }
 
-ge::Status ParseOpAttrMapJson(const std::string &json_str,
+ge::Status ParseOpAttrMapJson(const uint8_t *data, size_t data_size,
                               std::map<std::string, std::map<std::string, std::string>> &op_attr_map) {
   try {
-    const auto json_obj = ge::JsonFile::json::parse(json_str);
+    const auto json_obj = ge::JsonFile::json::parse(data, data + data_size);
     if (!json_obj.is_object()) {
       GELOGW("[OM2] op_attr.json root is not an object");
       return ge::FAILED;
@@ -214,134 +207,88 @@ ge::Status ParseOpAttrMapJson(const std::string &json_str,
   }
 }
 
-ge::Status DeserializeCodegenArtifactsFromArchive(const ge::RAIIZipArchive &archive,
-                                                  const std::vector<std::string> &entries,
-                                                  gert::Om2ModelData &model_data) {
-  for (const auto &entry : entries) {
-    if (!IsFileNameEndsWith(entry, ".so")) {
-      continue;
-    }
-    ge::Om2CodegenArtifact artifact;
-    artifact.file_name = ExtractParentDirAndFileName(entry).second;
-    std::string content;
-    GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, content));
-    artifact.data = std::move(content);
-    model_data.program_body.so_artifact = std::move(artifact);
-    return ge::SUCCESS;
-  }
+ge::Status DeserializeCodegenEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                   gert::Om2ModelData &model_data) {
+  ge::Om2CodegenArtifact artifact;
+  artifact.file_name = ExtractParentDirAndFileName(entry).second;
+  std::string content;
+  GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, content));
+  artifact.data = std::move(content);
+  model_data.program_body.so_artifact = std::move(artifact);
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeWeightDataFromArchive(const ge::RAIIZipArchive &archive, const std::vector<std::string> &entries,
-                                            gert::Om2ModelData &model_data) {
-  const std::string weight_prefix = "data/constants/constant_";
-  for (const auto &entry : entries) {
-    if ((entry.find(weight_prefix) != std::string::npos) && !IsFileNameEndsWith(entry, ".json")) {
-      GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, model_data.constants_data.weight_data));
-      return ge::SUCCESS;
-    }
-  }
+ge::Status DeserializeWeightEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  gert::Om2ModelData &model_data) {
+  GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, model_data.constants_data.weight_data));
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeConstantsConfigFromArchive(const ge::RAIIZipArchive &archive,
-                                                 const std::vector<std::string> &entries,
-                                                 gert::Om2ModelData &model_data) {
-  const std::string constants_dir = "data/constants/";
-  for (const auto &entry : entries) {
-    if ((entry.find(constants_dir) == std::string::npos) || !IsFileNameEndsWith(entry, "_constants_config.json")) {
-      continue;
-    }
-    std::string json_str;
-    GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, json_str));
-    const ge::JsonFile json_file(reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
-    GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid constants config JSON from entry %s", entry.c_str());
-
-    size_t internal_weight_size{0U};
-    (void)json_file.Get("internal_weight_size", internal_weight_size);
-    model_data.constants_data.internal_weight_size = internal_weight_size;
-
-    ge::JsonFile::json consts_json;
-    if (json_file.Get("consts", consts_json) && consts_json.is_object()) {
-      for (auto &[key, val] : consts_json.items()) {
-        (void)key;
-        ge::Om2ConstMeta meta;
-        if (val.contains("index")) {
-          meta.index = val["index"].get<size_t>();
-        }
-        if (val.contains("type")) {
-          meta.type = val["type"].get<std::string>();
-        }
-        if (val.contains("file_name")) {
-          meta.file_name = val["file_name"].get<std::string>();
-        }
-        if (val.contains("file_path")) {
-          meta.file_path = val["file_path"].get<std::string>();
-        }
-        if (val.contains("offset")) {
-          meta.offset = val["offset"].get<int64_t>();
-        }
-        if (val.contains("size")) {
-          meta.size = val["size"].get<int64_t>();
-        }
-        if (val.contains("op_name")) {
-          meta.op_name = val["op_name"].get<std::string>();
-        }
-        (void)model_data.constants_data.consts.emplace_back(std::move(meta));
-      }
-    }
-    break;
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeKernelBinariesFromArchive(const ge::RAIIZipArchive &archive,
-                                                const std::vector<std::string> &entries,
-                                                gert::Om2ModelData &model_data) {
-  for (const auto &entry : entries) {
-    if (!IsFileNameEndsWith(entry, ".o")) {
-      continue;
-    }
-    gert::Om2KernelBinary kernel_binary;
-    kernel_binary.name = ExtractParentDirAndFileName(entry).second;
-    GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, kernel_binary.data));
-    (void)model_data.kernel_binaries.emplace_back(std::move(kernel_binary));
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeModelMetaFromArchive(const ge::RAIIZipArchive &archive, const std::vector<std::string> &entries,
+ge::Status DeserializeConstantsConfigEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
                                            gert::Om2ModelData &model_data) {
-  std::string json_str;
-  bool found = false;
-  for (const auto &entry : entries) {
-    if (IsFileNameEndsWith(entry, "data/model_0/model_meta.json")) {
-      GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, json_str));
-      found = true;
-      break;
+  size_t buff_size = 0U;
+  auto buff_data = archive.ExtractToMem(entry, buff_size);
+  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
+  GE_ASSERT_TRUE(buff_size > 0U);
+  const ge::JsonFile json_file(buff_data.get(), buff_size);
+  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid constants config JSON from entry %s", entry.c_str());
+
+  size_t internal_weight_size{0U};
+  (void)json_file.Get("internal_weight_size", internal_weight_size);
+  model_data.constants_data.internal_weight_size = internal_weight_size;
+
+  ge::JsonFile::json consts_json;
+  if (json_file.Get("consts", consts_json) && consts_json.is_object()) {
+    for (auto &[key, val] : consts_json.items()) {
+      (void)key;
+      const ge::JsonFile val_file(val);
+      ge::Om2ConstMeta meta;
+      (void)val_file.Get("index", meta.index);
+      (void)val_file.Get("type", meta.type);
+      (void)val_file.Get("file_name", meta.file_name);
+      (void)val_file.Get("file_path", meta.file_path);
+      (void)val_file.Get("offset", meta.offset);
+      (void)val_file.Get("size", meta.size);
+      (void)val_file.Get("op_name", meta.op_name);
+      (void)model_data.constants_data.consts.emplace_back(std::move(meta));
     }
   }
-  if (!found) {
-    GELOGW("[OM2] model_meta.json not found in ZIP archive");
-    return ge::SUCCESS;
-  }
+  return ge::SUCCESS;
+}
 
-  const ge::JsonFile json_file(reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
+ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  gert::Om2ModelData &model_data) {
+  gert::Om2KernelBinary kernel_binary;
+  kernel_binary.name = ExtractParentDirAndFileName(entry).second;
+  GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, kernel_binary.data));
+  (void)model_data.kernel_binaries.emplace_back(std::move(kernel_binary));
+  return ge::SUCCESS;
+}
+
+ge::Status DeserializeModelMetaEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                     gert::Om2ModelData &model_data) {
+  size_t buff_size = 0U;
+  auto buff_data = archive.ExtractToMem(entry, buff_size);
+  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
+  GE_ASSERT_TRUE(buff_size > 0U);
+  const ge::JsonFile json_file(buff_data.get(), buff_size);
   GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid model_meta.json");
 
   ge::JsonFile::json inputs_json;
   if (json_file.Get("inputs", inputs_json) && inputs_json.is_array()) {
     for (const auto &input_json : inputs_json) {
-      GE_ASSERT_TRUE(input_json.contains("shape_v2"), "[OM2] input shape_v2 not found in model_meta.json");
+      const ge::JsonFile input_file(input_json);
+      std::vector<int64_t> shape_v2;
+      GE_ASSERT_TRUE(input_file.Get("shape_v2", shape_v2), "[OM2] input shape_v2 not found in model_meta.json");
       ge::Om2TensorDesc desc;
-      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_json, desc));
+      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_file, desc));
       model_data.model_meta.input_desc.emplace_back(desc);
       ge::Om2TensorDesc desc_v2 = desc;
-      desc_v2.SetShape(input_json["shape_v2"].get<std::vector<int64_t>>());
+      desc_v2.SetShape(shape_v2);
       model_data.model_meta.input_desc_v2.emplace_back(desc_v2);
-      if (input_json.contains("origin_input_dims")) {
-        model_data.model_meta.origin_input_dims.emplace_back(
-            input_json["origin_input_dims"].get<std::vector<int64_t>>());
+      std::vector<int64_t> origin_input_dims;
+      if (input_file.Get("origin_input_dims", origin_input_dims)) {
+        model_data.model_meta.origin_input_dims.emplace_back(std::move(origin_input_dims));
       } else {
         (void)model_data.model_meta.origin_input_dims.emplace_back(desc.GetShape());
       }
@@ -351,8 +298,9 @@ ge::Status DeserializeModelMetaFromArchive(const ge::RAIIZipArchive &archive, co
   ge::JsonFile::json outputs_json;
   if (json_file.Get("outputs", outputs_json) && outputs_json.is_array()) {
     for (const auto &output_json : outputs_json) {
+      const ge::JsonFile output_file(output_json);
       ge::Om2TensorDesc desc;
-      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(output_json, desc));
+      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(output_file, desc));
       model_data.model_meta.output_desc.emplace_back(desc);
       model_data.model_meta.output_desc_v2.emplace_back(desc);
     }
@@ -379,67 +327,74 @@ ge::Status DeserializeModelMetaFromArchive(const ge::RAIIZipArchive &archive, co
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeDebugInfoFromArchive(const ge::RAIIZipArchive &archive, const std::vector<std::string> &entries,
-                                           gert::Om2ModelData &model_data) {
-  for (const auto &entry : entries) {
-    if (IsFileNameEndsWith(entry, "op_attr.json")) {
-      std::string json_str;
-      GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, json_str));
-      if (ParseOpAttrMapJson(json_str, model_data.debug_info.op_attr_map) != ge::SUCCESS) {
-        GELOGW("[OM2] Failed to parse op_attr.json, using empty map");
-        model_data.debug_info.op_attr_map.clear();
-      }
-      break;
-    }
-  }
-
-  for (const auto &entry : entries) {
-    const std::string debug_file = ExtractParentDirAndFileName(entry).second;
-    if ((debug_file.find("ge_visual_") != std::string::npos) && IsFileNameEndsWith(debug_file, ".json")) {
-      GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, model_data.debug_info.visual_json));
-      break;
-    }
+ge::Status DeserializeOpAttrEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  gert::Om2ModelData &model_data) {
+  size_t buff_size = 0U;
+  auto buff_data = archive.ExtractToMem(entry, buff_size);
+  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
+  GE_ASSERT_TRUE(buff_size > 0U);
+  if (ParseOpAttrMapJson(buff_data.get(), buff_size, model_data.debug_info.op_attr_map) != ge::SUCCESS) {
+    GELOGW("[OM2] Failed to parse op_attr.json, using empty map");
+    model_data.debug_info.op_attr_map.clear();
   }
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeManifestFromArchive(const ge::RAIIZipArchive &archive, const std::vector<std::string> &entries,
-                                          gert::Om2ModelData &model_data) {
-  for (const auto &entry : entries) {
-    if (IsFileNameEndsWith(entry, "manifest.json")) {
-      std::string json_str;
-      GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, json_str));
-      try {
-        const auto manifest_json = nlohmann::json::parse(json_str);
-        for (auto it = manifest_json.begin(); it != manifest_json.end(); ++it) {
-          if (it.value().is_string()) {
-            model_data.manifest[it.key()] = it.value().get<std::string>();
-          } else {
-            model_data.manifest[it.key()] = it.value().dump();
-          }
-        }
-      } catch (const std::exception &e) {
-        GELOGW("[OM2] Failed to parse manifest.json, msg: %s", e.what());
-      }
-      return ge::SUCCESS;
-    }
+ge::Status DeserializeVisualEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  gert::Om2ModelData &model_data) {
+  GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, model_data.debug_info.visual_json));
+  return ge::SUCCESS;
+}
+
+ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                              gert::Om2ModelData &model_data) {
+  if (entry.find("/runtime/") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
+    GE_ASSERT_SUCCESS(DeserializeCodegenEntry(archive, entry, model_data));
+    return ge::SUCCESS;
   }
-  GELOGW("[OM2] manifest.json not found in ZIP archive");
+  if (entry.find("/debug/") != std::string::npos) {
+    if (IsFileNameEndsWith(entry, "op_attr.json")) {
+      GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
+    } else {
+      const std::string debug_file = ExtractParentDirAndFileName(entry).second;
+      if ((debug_file.find("ge_visual_") != std::string::npos) && IsFileNameEndsWith(debug_file, ".json")) {
+        GE_ASSERT_SUCCESS(DeserializeVisualEntry(archive, entry, model_data));
+      }
+    }
+    return ge::SUCCESS;
+  }
+  if (IsFileNameEndsWith(entry, "model_meta.json")) {
+    GE_ASSERT_SUCCESS(DeserializeModelMetaEntry(archive, entry, model_data));
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/constants/") != std::string::npos) {
+    if (IsFileNameEndsWith(entry, "_constants_config.json")) {
+      GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
+    } else if (entry.find("data/constants/constant_") != std::string::npos) {
+      GE_ASSERT_SUCCESS(DeserializeWeightEntry(archive, entry, model_data));
+    }
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/kernels_") != std::string::npos && IsFileNameEndsWith(entry, ".o")) {
+    GE_ASSERT_SUCCESS(DeserializeKernelEntry(archive, entry, model_data));
+  }
   return ge::SUCCESS;
 }
 
 ge::Status DeserializeOm2ModelDataFromArchive(ge::RAIIZipArchive &archive, gert::Om2ModelData &model_data) {
-  GE_ASSERT_TRUE(archive.IsGood(), "[OM2] Failed to open OM2 ZIP archive for deserialization");
-  const auto entries = archive.ListFiles();
-  GE_ASSERT_TRUE(!entries.empty(), "[OM2] ZIP archive is empty");
+  const auto &entries = archive.ListFiles();
+  if (entries.empty()) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] ZIP archive is empty");
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
 
-  GE_ASSERT_SUCCESS(DeserializeCodegenArtifactsFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeWeightDataFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeConstantsConfigFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeKernelBinariesFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeModelMetaFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeDebugInfoFromArchive(archive, entries, model_data));
-  GE_ASSERT_SUCCESS(DeserializeManifestFromArchive(archive, entries, model_data));
+  for (const auto &entry : entries) {
+    GE_ASSERT_SUCCESS(HandleArchiveEntry(archive, entry, model_data));
+  }
+
+  GE_ASSERT_TRUE(!model_data.model_meta.model_name.empty(), "[OM2] model_meta.json not found in ZIP archive.");
+  GE_ASSERT_TRUE(!model_data.program_body.so_artifact.file_name.empty(),
+                 "[OM2] Compiled .so not found in ZIP archive.");
   return ge::SUCCESS;
 }
 
@@ -751,12 +706,9 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(BuildUserFileConstMemMap(load_arg.file_constant_mems, user_file_const_mems));
     GE_ASSERT_SUCCESS(
         PrepareInternalConsts(weight_buf, load_arg, classified_items.internal_consts, internal_weight_size, constants));
-    // Build a ModelData with om_path from load_arg for file const resolution
-    ge::ModelData model_data_for_consts;
-    model_data_for_consts.om_path = load_arg.om_path;
-    GE_ASSERT_SUCCESS(PrepareCombinedConsts(model_data_for_consts, user_file_const_mems,
+    GE_ASSERT_SUCCESS(PrepareCombinedConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
                                             classified_items.combined_consts, constants));
-    GE_ASSERT_SUCCESS(PrepareIndividualConsts(model_data_for_consts, user_file_const_mems,
+    GE_ASSERT_SUCCESS(PrepareIndividualConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
                                               classified_items.individual_consts, constants));
     return ge::SUCCESS;
   }
@@ -1214,35 +1166,35 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareCombinedConsts(const ge::ModelData &model_data,
+  ge::Status PrepareCombinedConsts(const std::string &weight_path, const std::string &om_path,
                                    const std::map<std::string, ge::FileConstantMem> &user_file_const_mems,
                                    const std::vector<Om2ConstItem> &const_items, std::vector<void *> &constants) {
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
     FileConstContext file_const_ctx;
-    GE_ASSERT_SUCCESS(BuildFileConstContext(model_data, user_file_const_mems, file_const_ctx));
+    GE_ASSERT_SUCCESS(BuildFileConstContext(weight_path, om_path, user_file_const_mems, file_const_ctx));
     GE_ASSERT_SUCCESS(gert::PrepareCombinedConsts(const_items, file_const_ctx, constants));
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareIndividualConsts(const ge::ModelData &model_data,
+  ge::Status PrepareIndividualConsts(const std::string &weight_path, const std::string &om_path,
                                      const std::map<std::string, ge::FileConstantMem> &user_file_const_mems,
                                      const std::vector<Om2ConstItem> &const_items, std::vector<void *> &constants) {
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
     FileConstContext file_const_ctx;
-    GE_ASSERT_SUCCESS(BuildFileConstContext(model_data, user_file_const_mems, file_const_ctx));
+    GE_ASSERT_SUCCESS(BuildFileConstContext(weight_path, om_path, user_file_const_mems, file_const_ctx));
     GE_ASSERT_SUCCESS(gert::PrepareIndividualConsts(const_items, file_const_ctx, device_id_, constants));
     return ge::SUCCESS;
   }
 
-  ge::Status BuildFileConstContext(const ge::ModelData &model_data,
+  ge::Status BuildFileConstContext(const std::string &weight_path, const std::string &om_path,
                                    const std::map<std::string, ge::FileConstantMem> &user_file_const_mems,
                                    FileConstContext &file_const_ctx) {
     std::string weight_dir;
-    GE_ASSERT_SUCCESS(ResolveFileConstWeightDir(model_data, weight_dir));
+    GE_ASSERT_SUCCESS(ResolveFileConstWeightDir(weight_path, om_path, weight_dir));
     file_const_ctx.weight_dir = weight_dir;
     file_const_ctx.user_file_const_mems = &user_file_const_mems;
     file_const_ctx.owned_buffers = &owned_buffers_;
@@ -1288,12 +1240,14 @@ ge::Status Om2ModelExecutor::Load(ge::ModelData &model_data, const Om2ModelLoadA
                                   const uint64_t session_id) const {
   gert::Om2ModelData om2_data;
   ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data.model_data), model_data.model_len);
-  GE_ASSERT_TRUE(archive.IsGood(), "[OM2] Failed to open OM2 ZIP archive for deserialization");
+  if (!archive.IsGood()) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] Failed to open OM2 ZIP archive for deserialization");
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
   GE_ASSERT_SUCCESS(DeserializeOm2ModelDataFromArchive(archive, om2_data));
   Om2ModelLoadArg load_arg_with_path = load_arg;
-  if (load_arg_with_path.om_path.empty()) {
-    load_arg_with_path.om_path = model_data.om_path;
-  }
+  load_arg_with_path.om_path = model_data.om_path;
+  load_arg_with_path.weight_path = model_data.weight_path;
   return Load(om2_data, load_arg_with_path, session_id);
 }
 

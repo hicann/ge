@@ -36,7 +36,8 @@ struct FileConstContext {
 
 ge::Status BuildUserFileConstMemMap(const std::vector<ge::FileConstantMem> &file_constant_mems,
                                     std::map<std::string, ge::FileConstantMem> &file_name_to_mem);
-ge::Status ResolveFileConstWeightDir(const ge::ModelData &model_data, std::string &weight_dir);
+ge::Status ResolveFileConstWeightDir(const std::string &weight_path, const std::string &om_path,
+                                     std::string &weight_dir);
 ge::Status ResolveFileConstFilePath(const std::string &weight_dir, const std::string &file_name,
                                     std::string &file_path);
 ge::Status PrepareCombinedConsts(const std::vector<Om2ConstItem> &const_items, const FileConstContext &ctx,

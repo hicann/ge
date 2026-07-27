@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <fstream>
+#include <utility>
 #include "framework/common/debug/log.h"
 
 namespace ge {
@@ -112,6 +113,14 @@ class JsonFile {
 
   const json &Raw() const {
     return data_;
+  }
+
+  template <typename T, typename Fn>
+  static void TryGetAndApply(const JsonFile &json_file, const std::string &key, Fn &&fn) {
+    T value{};
+    if (json_file.Get(key, value)) {
+      std::forward<Fn>(fn)(value);
+    }
   }
 
  private:

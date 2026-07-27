@@ -32,6 +32,7 @@ struct VISIBILITY_EXPORT Om2ModelLoadArg {
   std::vector<ge::FileConstantMem> file_constant_mems;
   bool need_clear_dfx_cache = false;
   std::string om_path;
+  std::string weight_path;
 };
 
 class VISIBILITY_EXPORT Om2ModelExecutor {

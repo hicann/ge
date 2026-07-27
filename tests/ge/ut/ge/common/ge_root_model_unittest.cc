@@ -239,7 +239,7 @@ TEST_F(UtestGeRootModel, Om2ModelData_InitiallyFalse) {
   GeRootModel ge_root_model;
   auto root_graph = std::make_shared<ComputeGraph>("test_graph");
   EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
-  EXPECT_FALSE(ge_root_model.HasOm2ModelData());
+  EXPECT_EQ(ge_root_model.GetOm2ModelData(), nullptr);
 }
 
 TEST_F(UtestGeRootModel, Om2ModelData_SetAndGet) {
@@ -252,17 +252,9 @@ TEST_F(UtestGeRootModel, Om2ModelData_SetAndGet) {
   om2_data->model_meta.work_size = 1024U;
   ge_root_model.SetOm2ModelData(om2_data);
 
-  EXPECT_TRUE(ge_root_model.HasOm2ModelData());
-  EXPECT_EQ(ge_root_model.GetOm2ModelData().model_meta.model_name, "test_model");
-  EXPECT_EQ(ge_root_model.GetOm2ModelData().model_meta.work_size, 1024U);
-}
-
-TEST_F(UtestGeRootModel, Om2ModelData_GetMutableNull_Death) {
-  GeRootModel ge_root_model;
-  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
-  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
-
-  EXPECT_DEATH((void)ge_root_model.GetOm2ModelData(), "");
+  EXPECT_NE(ge_root_model.GetOm2ModelData(), nullptr);
+  EXPECT_EQ(ge_root_model.GetOm2ModelData()->model_meta.model_name, "test_model");
+  EXPECT_EQ(ge_root_model.GetOm2ModelData()->model_meta.work_size, 1024U);
 }
 
 TEST_F(UtestGeRootModel, Om2ModelData_SetNull_Overwrites) {
@@ -273,10 +265,10 @@ TEST_F(UtestGeRootModel, Om2ModelData_SetNull_Overwrites) {
   auto om2_data = std::make_shared<gert::Om2ModelData>();
   om2_data->model_meta.model_name = "test_model";
   ge_root_model.SetOm2ModelData(om2_data);
-  EXPECT_TRUE(ge_root_model.HasOm2ModelData());
+  EXPECT_NE(ge_root_model.GetOm2ModelData(), nullptr);
 
   ge_root_model.SetOm2ModelData(nullptr);
-  EXPECT_FALSE(ge_root_model.HasOm2ModelData());
+  EXPECT_EQ(ge_root_model.GetOm2ModelData(), nullptr);
 }
 
 TEST_F(UtestGeRootModel, Om2ModelData_MoveSemantics) {
@@ -300,8 +292,8 @@ TEST_F(UtestGeRootModel, ForkSharesOm2ModelData) {
 
   const auto forked = ge_root_model->Fork();
   ASSERT_NE(forked, nullptr);
-  EXPECT_TRUE(forked->HasOm2ModelData());
-  EXPECT_EQ(&forked->GetOm2ModelData(), &ge_root_model->GetOm2ModelData());
+  EXPECT_NE(forked->GetOm2ModelData(), nullptr);
+  EXPECT_EQ(forked->GetOm2ModelData(), ge_root_model->GetOm2ModelData());
 }
 
 }  // namespace ge

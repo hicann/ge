@@ -193,28 +193,27 @@ class GeRootModel : public std::enable_shared_from_this<GeRootModel> {
     return custom_op_registry_;
   }
 
-  bool HasOm2ModelData() const {
-    return om2_model_data_ != nullptr;
-  }
   void SetOm2ModelData(std::shared_ptr<gert::Om2ModelData> data) {
     om2_model_data_ = std::move(data);
   }
-  gert::Om2ModelData &GetOm2ModelData();
+  const std::shared_ptr<gert::Om2ModelData> &GetOm2ModelData() const {
+    return om2_model_data_;
+  }
 
   std::shared_ptr<GeRootModel> Fork();
 
-  inline void SetRootGraph(const ComputeGraphPtr &graph) {
+  void SetRootGraph(const ComputeGraphPtr &graph) {
     root_graph_ = graph;
   }
-  inline const ComputeGraphPtr &GetRootGraph() const {
+  const ComputeGraphPtr &GetRootGraph() const {
     return root_graph_;
   }
 
-  inline void SetModelName(const std::string &model_name) {
+  void SetModelName(const std::string &model_name) {
     model_name_ = model_name;
   }
 
-  inline const std::string &GetModelName() const {
+  const std::string &GetModelName() const {
     return model_name_;
   }
 

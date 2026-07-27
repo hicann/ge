@@ -28,6 +28,7 @@
 #include "framework/common/helper/om2_package_helper.h"
 #include "graph/execute/model_executor.h"
 #include "graph/ge_local_context.h"
+#include "graph/manager/graph_manager.h"
 #include "graph/manager/graph_manager_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/graph.h"
@@ -36,6 +37,7 @@
 #include "init_ge.h"
 #include "mmpa/mmpa_api.h"
 #include "common/model/ge_root_model.h"
+#include "ge/ge_api_v2.h"
 
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
@@ -129,7 +131,7 @@ TEST_F(Om2OnlineSessionTest, GeRootModel_Om2DataLifecycle) {
   ASSERT_NE(ge_root_model, nullptr);
 
   // Initially no OM2 data
-  EXPECT_FALSE(ge_root_model->HasOm2ModelData());
+  EXPECT_EQ(ge_root_model->GetOm2ModelData(), nullptr);
 
   // Set OM2 data
   auto om2_data = std::make_shared<gert::Om2ModelData>();
@@ -137,13 +139,13 @@ TEST_F(Om2OnlineSessionTest, GeRootModel_Om2DataLifecycle) {
   om2_data->model_meta.work_size = 2048U;
   ge_root_model->SetOm2ModelData(om2_data);
 
-  EXPECT_TRUE(ge_root_model->HasOm2ModelData());
-  EXPECT_EQ(ge_root_model->GetOm2ModelData().model_meta.model_name, "test_model");
-  EXPECT_EQ(ge_root_model->GetOm2ModelData().model_meta.work_size, 2048U);
+  EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
+  EXPECT_EQ(ge_root_model->GetOm2ModelData()->model_meta.model_name, "test_model");
+  EXPECT_EQ(ge_root_model->GetOm2ModelData()->model_meta.work_size, 2048U);
 
   // Clear OM2 data
   ge_root_model->SetOm2ModelData(nullptr);
-  EXPECT_FALSE(ge_root_model->HasOm2ModelData());
+  EXPECT_EQ(ge_root_model->GetOm2ModelData(), nullptr);
 }
 
 // Test: Om2ModelData structure integrity
@@ -190,15 +192,15 @@ TEST_F(Om2OnlineSessionTest, MultipleGeRootModels_IndependentOm2Data) {
   model2->SetOm2ModelData(data2);
 
   // Each model has its own independent OM2 data
-  EXPECT_TRUE(model1->HasOm2ModelData());
-  EXPECT_TRUE(model2->HasOm2ModelData());
-  EXPECT_EQ(model1->GetOm2ModelData().model_meta.model_name, "model_1");
-  EXPECT_EQ(model2->GetOm2ModelData().model_meta.model_name, "model_2");
+  EXPECT_NE(model1->GetOm2ModelData(), nullptr);
+  EXPECT_NE(model2->GetOm2ModelData(), nullptr);
+  EXPECT_EQ(model1->GetOm2ModelData()->model_meta.model_name, "model_1");
+  EXPECT_EQ(model2->GetOm2ModelData()->model_meta.model_name, "model_2");
 
   // Clearing one doesn't affect the other
   model1->SetOm2ModelData(nullptr);
-  EXPECT_FALSE(model1->HasOm2ModelData());
-  EXPECT_TRUE(model2->HasOm2ModelData());
+  EXPECT_EQ(model1->GetOm2ModelData(), nullptr);
+  EXPECT_NE(model2->GetOm2ModelData(), nullptr);
 }
 
 // Test: Om2ModelData shared_ptr semantics (Fork scenario)
@@ -214,12 +216,12 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
   // Simulate fork: shared_ptr copy
   auto forked_data = om2_data;  // shared_ptr copy, same underlying data
 
-  EXPECT_TRUE(ge_root_model->HasOm2ModelData());
+  EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
   EXPECT_EQ(forked_data->model_meta.model_name, "shared_model");
   EXPECT_EQ(forked_data->constants_data.weight_data.size(), 3U);
 
   // Both point to the same data
-  EXPECT_EQ(&ge_root_model->GetOm2ModelData(), forked_data.get());
+  EXPECT_EQ(ge_root_model->GetOm2ModelData().get(), forked_data.get());
 }
 
 namespace {
@@ -775,6 +777,32 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_InputCountMismatch_ReturnsParamInval
 
   EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
+TEST_F(Om2OnlineModelExecutorTest, GetCompiledModel_Om2Mode_Success) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  GraphManager graph_manager;
+  const GraphId graph_id = 5012;
+  const auto ge_root_model = CreateSimpleGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+
+  auto graph_node = std::make_shared<GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+  graph_node->SetBuildFlag(true);
+  graph_manager.AddGraphNode(graph_id, graph_node);
+
+  const auto om2_model_data = std::make_shared<gert::Om2ModelData>();
+  om2_model_data->model_meta.model_name = "om2_st_model";
+  om2_model_data->model_meta.root_graph_name = "test_graph";
+  om2_model_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1})";
+  ge_root_model->SetOm2ModelData(om2_model_data);
+
+  ModelBufferData model_buffer;
+  EXPECT_EQ(graph_manager.GetCompiledModel(graph_id, model_buffer), SUCCESS);
+  ASSERT_NE(model_buffer.data, nullptr);
+  EXPECT_GT(model_buffer.length, 0U);
 }
 
 }  // namespace ge
