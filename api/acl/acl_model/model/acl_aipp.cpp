@@ -29,162 +29,12 @@
 
 namespace {
 constexpr size_t STATIC_BATCH_INFO_SIZE = 1U;
-constexpr uint32_t MAX_NPU_ARCH_LEN = 32U;
-
-static std::string GetNpuArch() {
-  char npuArch[MAX_NPU_ARCH_LEN] = {0};
-  const auto ret = rtGetSocSpec("version", "NpuArch", npuArch, sizeof(npuArch));
-  if (ret != RT_ERROR_NONE) {
-    return "";
-  }
-  return std::string(npuArch);
-}
-
-static aclError SetIODims(const ge::InputOutputDims &oriDims, aclmdlIODims &dstDims) {
-  ACL_LOG_DEBUG("start to execute SetIODims");
-  dstDims.dimCount = oriDims.dim_num;
-  if (oriDims.dims.size() > static_cast<size_t>(ACL_MAX_DIM_CNT)) {
-    ACL_LOG_INNER_ERROR("[Check][Params]size of dims[%zu] must be smaller than ACL_MAX_DIM_CNT(128)",
-                        oriDims.dims.size());
-    return ACL_ERROR_GE_FAILURE;
-  }
-  for (size_t i = 0U; i < oriDims.dims.size(); ++i) {
-    dstDims.dims[i] = oriDims.dims[i];
-  }
-  if (oriDims.name.empty()) {
-    ACL_LOG_DEBUG("the name of oriDims is empty");
-    return ACL_SUCCESS;
-  }
-  const auto ret = strncpy_s(dstDims.name, sizeof(dstDims.name), oriDims.name.c_str(), oriDims.name.size());
-  if (ret != EOK) {
-    ACL_LOG_INNER_ERROR("[Copy][Str]call strncpy_s failed");
-    return ACL_ERROR_FAILURE;
-  }
-  return ACL_SUCCESS;
-}
 
 /**
  * @ingroup fp16_t global filed
  * @brief   round mode of last valid digital
  */
 
-union TypeUnion {
-  float32_t fVal;
-  uint32_t uVal;
-};
-
-#define FP16_EXTRAC_SIGN(x) (((x) >> 15U) & 1U)
-#define FP16_EXTRAC_EXP(x) (((x) >> 10U) & acl::FP16_MAX_EXP)
-#define FP16_EXTRAC_MAN(x) ((((x) >> 0U) & 0x3FFU) | ((((((x) >> 10U) & 0x1FU) > 0U) ? 1U : 0U) * 0x400U))
-#define FP32_CONSTRUCTOR(s, e, m) \
-  (((s) << acl::FP32_SIGN_INDEX) | ((e) << acl::FP32_MAN_LEN) | ((m) & acl::FP32_MAX_MAN))
-
-void ExtractFP16(const uint16_t val, uint16_t *const s, int16_t *const e, uint16_t *const m) {
-  // 1.Extract
-  *s = FP16_EXTRAC_SIGN(val);
-  *e = static_cast<int16_t>(FP16_EXTRAC_EXP(val));
-  *m = FP16_EXTRAC_MAN(val);
-
-  // Denormal
-  if ((*e) == 0) {
-    *e = 1;
-  }
-}
-
-float32_t Fp16ToFloat(const uint16_t val) {
-  uint16_t hfSign;
-  uint16_t hfMan;
-  int16_t hfExp;
-  ExtractFP16(val, &hfSign, &hfExp, &hfMan);
-
-  while ((hfMan != 0U) && ((hfMan & acl::FP16_MAN_HIDE_BIT) == 0U)) {
-    hfMan <<= 1U;
-    hfExp--;
-  }
-
-  uint32_t eRet;
-  uint32_t mRet;
-  if (hfMan == 0U) {
-    eRet = 0U;
-    mRet = 0U;
-  } else {
-    eRet = static_cast<uint32_t>(hfExp + static_cast<int16_t>(acl::FP32_EXP_BIAS - acl::FP16_EXP_BIAS));
-    mRet = static_cast<uint32_t>(hfMan & acl::FP16_MAN_MASK);
-    mRet = mRet << (acl::FP32_MAN_LEN - acl::FP16_MAN_LEN);
-  }
-
-  const uint32_t sRet = hfSign;
-  TypeUnion u;
-  u.uVal = FP32_CONSTRUCTOR(sRet, eRet, mRet);
-  const auto ret = u.fVal;
-  return ret;
-}
-
-static std::string AippBatchParaDebugString(const kAippDynamicBatchPara &aippBatchPara) {
-  std::stringstream ss;
-  ss << "kAippDynamicBatchPara[";
-  ss << " cropSwitch:" << static_cast<int32_t>(aippBatchPara.cropSwitch);
-  ss << " cropStartPosW:" << aippBatchPara.cropStartPosW;
-  ss << " cropStartPosH:" << aippBatchPara.cropStartPosH;
-  ss << " cropSizeW:" << aippBatchPara.cropSizeW;
-  ss << " cropSizeH:" << aippBatchPara.cropSizeH;
-  ss << " scfSwitch:" << static_cast<int32_t>(aippBatchPara.scfSwitch);
-  ss << " scfInputSizeW:" << aippBatchPara.scfInputSizeW;
-  ss << " scfInputSizeH:" << aippBatchPara.scfInputSizeH;
-  ss << " scfOutputSizeW:" << aippBatchPara.scfOutputSizeW;
-  ss << " scfOutputSizeH:" << aippBatchPara.scfOutputSizeH;
-  ss << " paddingSwitch:" << static_cast<int32_t>(aippBatchPara.paddingSwitch);
-  ss << " paddingSizeTop:" << aippBatchPara.paddingSizeTop;
-  ss << " paddingSizeBottom:" << aippBatchPara.paddingSizeBottom;
-  ss << " paddingSizeLeft:" << aippBatchPara.paddingSizeLeft;
-  ss << " paddingSizeRight:" << aippBatchPara.paddingSizeRight;
-  ss << " rotateSwitch:" << static_cast<int32_t>(aippBatchPara.rotateSwitch);
-  ss << " dtcPixelMeanChn0:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn0);
-  ss << " dtcPixelMeanChn1:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn1);
-  ss << " dtcPixelMeanChn2:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn2);
-  ss << " dtcPixelMeanChn3:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn3);
-  ss << " dtcPixelMinChn0:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn0);
-  ss << " dtcPixelMinChn1:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn1);
-  ss << " dtcPixelMinChn2:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn2);
-  ss << " dtcPixelMinChn3:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn3);
-  ss << " dtcPixelVarReciChn0:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn0);
-  ss << " dtcPixelVarReciChn1:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn1);
-  ss << " dtcPixelVarReciChn2:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn2);
-  ss << " dtcPixelVarReciChn3:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn3);
-  ss << " ]";
-
-  return ss.str();
-}
-
-static std::string AippParmsDebugString(const kAippDynamicPara &aippParms) {
-  std::stringstream ss;
-  ss << "kAippDynamicPara[";
-  ss << " inputFormat:" << static_cast<uint32_t>(aippParms.inputFormat);
-  ss << " cscSwitch:" << static_cast<int32_t>(aippParms.cscSwitch);
-  ss << " rbuvSwapSwitch:" << static_cast<int32_t>(aippParms.rbuvSwapSwitch);
-  ss << " axSwapSwitch:" << static_cast<int32_t>(aippParms.axSwapSwitch);
-  ss << " batchNum:" << static_cast<int32_t>(aippParms.batchNum);
-  ss << " srcImageSizeW:" << aippParms.srcImageSizeW;
-  ss << " srcImageSizeH:" << aippParms.srcImageSizeH;
-  ss << " cscMatrixR0C0:" << static_cast<int32_t>(aippParms.cscMatrixR0C0);
-  ss << " cscMatrixR0C1:" << static_cast<int32_t>(aippParms.cscMatrixR0C1);
-  ss << " cscMatrixR0C2:" << static_cast<int32_t>(aippParms.cscMatrixR0C2);
-  ss << " cscMatrixR1C0:" << static_cast<int32_t>(aippParms.cscMatrixR1C0);
-  ss << " cscMatrixR1C1:" << static_cast<int32_t>(aippParms.cscMatrixR1C1);
-  ss << " cscMatrixR1C2:" << static_cast<int32_t>(aippParms.cscMatrixR1C2);
-  ss << " cscMatrixR2C0:" << static_cast<int32_t>(aippParms.cscMatrixR2C0);
-  ss << " cscMatrixR2C1:" << static_cast<int32_t>(aippParms.cscMatrixR2C1);
-  ss << " cscMatrixR2C2:" << static_cast<int32_t>(aippParms.cscMatrixR2C2);
-  ss << " cscOutputBiasR0:" << static_cast<uint32_t>(aippParms.cscOutputBiasR0);
-  ss << " cscOutputBiasR1:" << static_cast<uint32_t>(aippParms.cscOutputBiasR1);
-  ss << " cscOutputBiasR2:" << static_cast<uint32_t>(aippParms.cscOutputBiasR2);
-  ss << " cscInputBiasR0:" << static_cast<uint32_t>(aippParms.cscInputBiasR0);
-  ss << " cscInputBiasR1:" << static_cast<uint32_t>(aippParms.cscInputBiasR1);
-  ss << " cscInputBiasR2:" << static_cast<uint32_t>(aippParms.cscInputBiasR2);
-  ss << " ]";
-
-  return ss.str();
-}
 static bool IsDynamicModel(const uint32_t modelId, std::shared_ptr<gert::ModelV2Executor> &executorRt2) {
   if (acl::AclResourceManager::GetInstance().IsRuntimeV2Enable(true)) {
     executorRt2 = acl::AclResourceManager::GetInstance().GetExecutor(modelId);
@@ -254,19 +104,6 @@ static ge::Status GetAippType(const uint32_t modelId, const uint32_t index, ge::
   }
 }
 
-static size_t GetMaxShapeIndex(const std::vector<ge::InputOutputDims> &inputDims) {
-  size_t maxShapeIndex = 0U;
-  uint32_t shapeSize = 0U;
-  for (size_t i = 0U; i < inputDims.size(); ++i) {
-    if (inputDims[i].size > shapeSize) {
-      shapeSize = inputDims[i].size;
-      maxShapeIndex = i;
-    }
-  }
-  ACL_LOG_INFO("GetMaxShapeIndex success, maxShapeIndex[%zu]", maxShapeIndex);
-  return maxShapeIndex;
-}
-
 static aclError GetModelOriDims(const uint32_t modelId, const uint32_t relatedInputRank, bool &isGetDim,
                                 int64_t &mdlOriH, int64_t &mdlOriW, int64_t &mdlOriN) {
   // get model origin input info
@@ -301,9 +138,9 @@ static aclError GetModelOriDims(const uint32_t modelId, const uint32_t relatedIn
     return ACL_ERROR_GE_FAILURE;
   }
   // Get the index of the maximum gear
-  const size_t maxShapeIndex = GetMaxShapeIndex(inputDims);
+  const size_t maxShapeIndex = acl::GetMaxShapeIndex(inputDims);
   aclmdlIODims srcDims;
-  const aclError ioRet = SetIODims(inputDims[maxShapeIndex], srcDims);
+  const aclError ioRet = acl::SetIODims(inputDims[maxShapeIndex], srcDims);
   if (ioRet != ACL_SUCCESS) {
     ACL_LOG_INNER_ERROR("[Set][IODims]srcDims SetIODims failed, modelId[%u], result[%d]", modelId, ioRet);
     return ioRet;
@@ -357,7 +194,7 @@ static aclError GetAndCheckAippOutputShape(const uint32_t modelId, const aclmdlD
   int64_t mdlOriH = 0;
   int64_t mdlOriW = 0;
   int64_t mdlOriN = 0;
-  const aclError result = acl::GetAippOutputHW(aippParmsSet, 0U, GetNpuArch(), aippOutputW, aippOutputH);
+  const aclError result = acl::GetAippOutputHW(aippParmsSet, 0U, acl::GetNpuArch(), aippOutputW, aippOutputH);
   if (result != ACL_SUCCESS) {
     return result;
   }
@@ -421,7 +258,7 @@ static aclError GetAndCheckAippParams(const uint32_t modelId, const aclmdlDesc &
   } else {
     ACL_LOG_INFO("current used model is old");
   }
-  return acl::AippParamsCheck(aippParmsSet, GetNpuArch());
+  return acl::AippParamsCheck(aippParmsSet, acl::GetNpuArch());
 }
 
 static aclError VerifyIndex(const uint32_t modelId, const size_t idx, aclmdlDesc *const modelDesc) {
@@ -474,163 +311,6 @@ static aclError CheckAippDataIndex(const uint32_t modelId, const size_t idx, con
   }
 }
 
-static std::string AippInfoDebugString(const aclAippInfo *const aippInfo) {
-  if (aippInfo == nullptr) {
-    ACL_LOG_INNER_ERROR("[Check][aippInfo]param aippInfo must not be null");
-    return "";
-  }
-  std::stringstream ss;
-  ss << "aclAippInfo[";
-  ss << " inputFormat:" << static_cast<int32_t>(aippInfo->inputFormat);
-  ss << " srcImageSizeW:" << aippInfo->srcImageSizeW;
-  ss << " srcImageSizeH:" << aippInfo->srcImageSizeH;
-
-  ss << " cropSwitch:" << static_cast<int32_t>(aippInfo->cropSwitch);
-  ss << " loadStartPosW:" << aippInfo->loadStartPosW;
-  ss << " loadStartPosH:" << aippInfo->loadStartPosH;
-  ss << " cropSizeW:" << aippInfo->cropSizeW;
-  ss << " cropSizeH:" << aippInfo->cropSizeH;
-
-  ss << " resizeSwitch:" << static_cast<int32_t>(aippInfo->resizeSwitch);
-  ss << " resizeOutputW:" << aippInfo->resizeOutputW;
-  ss << " resizeOutputH:" << aippInfo->resizeOutputH;
-
-  ss << " paddingSwitch:" << static_cast<int32_t>(aippInfo->paddingSwitch);
-  ss << " leftPaddingSize:" << aippInfo->leftPaddingSize;
-  ss << " rightPaddingSize:" << aippInfo->rightPaddingSize;
-  ss << " topPaddingSize:" << aippInfo->topPaddingSize;
-  ss << " bottomPaddingSize:" << aippInfo->bottomPaddingSize;
-
-  ss << " cscSwitch:" << static_cast<int32_t>(aippInfo->cscSwitch);
-  ss << " rbuvSwapSwitch:" << static_cast<int32_t>(aippInfo->rbuvSwapSwitch);
-  ss << " axSwapSwitch:" << static_cast<int32_t>(aippInfo->axSwapSwitch);
-  ss << " singleLineMode:" << static_cast<int32_t>(aippInfo->singleLineMode);
-
-  ss << " matrixR0C0:" << aippInfo->matrixR0C0;
-  ss << " matrixR0C1:" << aippInfo->matrixR0C1;
-  ss << " matrixR0C2:" << aippInfo->matrixR0C2;
-  ss << " matrixR1C0:" << aippInfo->matrixR1C0;
-  ss << " matrixR1C1:" << aippInfo->matrixR1C1;
-  ss << " matrixR1C2:" << aippInfo->matrixR1C2;
-  ss << " matrixR2C0:" << aippInfo->matrixR2C0;
-  ss << " matrixR2C1:" << aippInfo->matrixR2C1;
-  ss << " matrixR2C2:" << aippInfo->matrixR2C2;
-
-  ss << " outputBias0:" << aippInfo->outputBias0;
-  ss << " outputBias1:" << aippInfo->outputBias1;
-  ss << " outputBias2:" << aippInfo->outputBias2;
-  ss << " inputBias0:" << aippInfo->inputBias0;
-  ss << " inputBias1:" << aippInfo->inputBias1;
-  ss << " inputBias2:" << aippInfo->inputBias2;
-
-  ss << " meanChn0:" << aippInfo->meanChn0;
-  ss << " meanChn1:" << aippInfo->meanChn1;
-  ss << " meanChn2:" << aippInfo->meanChn2;
-  ss << " meanChn3:" << aippInfo->meanChn3;
-  ss << " minChn0:" << aippInfo->minChn0;
-  ss << " minChn1:" << aippInfo->minChn1;
-  ss << " minChn2:" << aippInfo->minChn2;
-  ss << " minChn3:" << aippInfo->minChn3;
-  ss << " varReciChn0:" << aippInfo->varReciChn0;
-  ss << " varReciChn1:" << aippInfo->varReciChn1;
-  ss << " varReciChn2:" << aippInfo->varReciChn2;
-  ss << " varReciChn3:" << aippInfo->varReciChn3;
-
-  ss << " shapeCount:" << aippInfo->shapeCount;
-  ss << " srcFormat:" << aippInfo->srcFormat;
-  ss << " srcDatatype:" << aippInfo->srcDatatype;
-  ss << " srcDimNum:" << aippInfo->srcDimNum;
-  ss << " ]";
-  return ss.str();
-}
-
-static std::string DimsDebugString(const aclmdlIODims &ioDims) {
-  std::stringstream ss;
-  ss << "[" << " tensorName:" << ioDims.name;
-  ss << " dimcount:" << static_cast<int32_t>(ioDims.dimCount);
-  ss << " dims:";
-  for (size_t i = 0U; i < ioDims.dimCount; i++) {
-    ss << " " << ioDims.dims[i];
-  }
-  ss << "]; ";
-  return ss.str();
-}
-
-static std::string AippDimsDebugString(const aclAippDims *const aippDims, const size_t shapeCount) {
-  std::stringstream ssDims;
-  for (size_t i = 0U; i < shapeCount; i++) {
-    ssDims << " aclAippDims[" << i << "]: ";
-    ssDims << DimsDebugString(aippDims[i].srcDims);
-    ssDims << " srcSize:" << aippDims[i].srcSize;
-    ssDims << DimsDebugString(aippDims[i].aippOutdims);
-    ssDims << " aippOutSize:" << aippDims[i].aippOutSize;
-  }
-  return ssDims.str();
-}
-
-static void SetAippInfo(aclAippInfo *const aippInfo, const ge::AippConfigInfo &aippParams) {
-  ACL_LOG_DEBUG("start to execute SetAippInfo");
-  if (aippInfo == nullptr) {
-    ACL_LOG_INNER_ERROR("[Check][AippInfo]param aippInfo must not be null");
-    return;
-  }
-  aippInfo->inputFormat = static_cast<aclAippInputFormat>(aippParams.input_format);
-  aippInfo->srcImageSizeW = aippParams.src_image_size_w;
-  aippInfo->srcImageSizeH = aippParams.src_image_size_h;
-
-  aippInfo->cropSwitch = aippParams.crop;
-  aippInfo->loadStartPosW = aippParams.load_start_pos_w;
-  aippInfo->loadStartPosH = aippParams.load_start_pos_h;
-  aippInfo->cropSizeW = aippParams.crop_size_w;
-  aippInfo->cropSizeH = aippParams.crop_size_h;
-
-  aippInfo->resizeSwitch = aippParams.resize;
-  aippInfo->resizeOutputW = aippParams.resize_output_w;
-  aippInfo->resizeOutputH = aippParams.resize_output_h;
-
-  aippInfo->paddingSwitch = aippParams.padding;
-  aippInfo->leftPaddingSize = aippParams.left_padding_size;
-  aippInfo->rightPaddingSize = aippParams.right_padding_size;
-  aippInfo->topPaddingSize = aippParams.top_padding_size;
-  aippInfo->bottomPaddingSize = aippParams.bottom_padding_size;
-
-  aippInfo->cscSwitch = aippParams.csc_switch;
-  aippInfo->rbuvSwapSwitch = aippParams.rbuv_swap_switch;
-  aippInfo->axSwapSwitch = aippParams.ax_swap_switch;
-  aippInfo->singleLineMode = aippParams.single_line_mode;
-
-  aippInfo->matrixR0C0 = aippParams.matrix_r0c0;
-  aippInfo->matrixR0C1 = aippParams.matrix_r0c1;
-  aippInfo->matrixR0C2 = aippParams.matrix_r0c2;
-  aippInfo->matrixR1C0 = aippParams.matrix_r1c0;
-  aippInfo->matrixR1C1 = aippParams.matrix_r1c1;
-  aippInfo->matrixR1C2 = aippParams.matrix_r1c2;
-  aippInfo->matrixR2C0 = aippParams.matrix_r2c0;
-  aippInfo->matrixR2C1 = aippParams.matrix_r2c1;
-  aippInfo->matrixR2C2 = aippParams.matrix_r2c2;
-
-  aippInfo->outputBias0 = aippParams.output_bias_0;
-  aippInfo->outputBias1 = aippParams.output_bias_1;
-  aippInfo->outputBias2 = aippParams.output_bias_2;
-  aippInfo->inputBias0 = aippParams.input_bias_0;
-  aippInfo->inputBias1 = aippParams.input_bias_1;
-  aippInfo->inputBias2 = aippParams.input_bias_2;
-
-  aippInfo->meanChn0 = aippParams.mean_chn_0;
-  aippInfo->meanChn1 = aippParams.mean_chn_1;
-  aippInfo->meanChn2 = aippParams.mean_chn_2;
-  aippInfo->meanChn3 = aippParams.mean_chn_3;
-  aippInfo->minChn0 = aippParams.min_chn_0;
-  aippInfo->minChn1 = aippParams.min_chn_1;
-  aippInfo->minChn2 = aippParams.min_chn_2;
-  aippInfo->minChn3 = aippParams.min_chn_3;
-
-  aippInfo->varReciChn0 = aippParams.var_reci_chn_0;
-  aippInfo->varReciChn1 = aippParams.var_reci_chn_1;
-  aippInfo->varReciChn2 = aippParams.var_reci_chn_2;
-  aippInfo->varReciChn3 = aippParams.var_reci_chn_3;
-  ACL_LOG_DEBUG("end to execute SetAippInfo");
-}
 }  // namespace
 
 namespace acl {
@@ -756,10 +436,10 @@ aclError aclmdlSetInputAIPPImpl(uint32_t modelId, aclmdlDataset *dataset, size_t
     return ACL_ERROR_INVALID_PARAM;
   }
   const uint64_t memSize = aclGetDataBufferSizeV2(buff);
-  ACL_LOG_DEBUG("aippParmsSet->aippParms: %s .", AippParmsDebugString(aippParmsSet->aippParms).c_str());
+  ACL_LOG_DEBUG("aippParmsSet->aippParms: %s .", acl::AippParmsDebugString(aippParmsSet->aippParms).c_str());
   for (size_t i = 0U; i < aippParmsSet->aippBatchPara.size(); ++i) {
     ACL_LOG_DEBUG("batchIndex[%lu] aippParmsSet->aippBatchPara: %s .", i,
-                  AippBatchParaDebugString(aippParmsSet->aippBatchPara[i]).c_str());
+                  acl::AippBatchParaDebugString(aippParmsSet->aippBatchPara[i]).c_str());
   }
   // send dynamic aipp to GE
   ACL_LOG_INFO("call ge interface executor.SetDynamicAippData, modelId[%u]", modelId);
@@ -839,7 +519,7 @@ aclError aclmdlGetFirstAippInfoImpl(uint32_t modelId, size_t index, aclAippInfo 
                        ret);
     return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
   }
-  SetAippInfo(aippInfo, aippParams);
+  acl::SetAippInfo(aippInfo, aippParams);
   size_t shapeCount;
   ACL_LOG_DEBUG("call ge interface executor.GetBatchInfoSize");
   std::shared_ptr<gert::ModelV2Executor> executorRt2;
@@ -870,7 +550,7 @@ aclError aclmdlGetFirstAippInfoImpl(uint32_t modelId, size_t index, aclAippInfo 
   aippInfo->srcFormat = static_cast<aclFormat>(inputInfo.format);
   aippInfo->srcDatatype = static_cast<aclDataType>(inputInfo.data_type);
   aippInfo->srcDimNum = inputInfo.dim_num;
-  ACL_LOG_DEBUG("aclAippInfo: %s .", AippInfoDebugString(aippInfo).c_str());
+  ACL_LOG_DEBUG("aclAippInfo: %s .", acl::AippInfoDebugString(aippInfo).c_str());
 
   std::vector<ge::InputOutputDims> inputDims;
   std::vector<ge::InputOutputDims> outputDims;
@@ -894,14 +574,14 @@ aclError aclmdlGetFirstAippInfoImpl(uint32_t modelId, size_t index, aclAippInfo 
     return ACL_ERROR_GE_FAILURE;
   }
   for (size_t i = 0U; i < shapeCount; i++) {
-    aclError ioRet = SetIODims(inputDims[i], aippInfo->outDims[i].srcDims);
+    aclError ioRet = acl::SetIODims(inputDims[i], aippInfo->outDims[i].srcDims);
     if (ioRet != ACL_SUCCESS) {
       ACL_LOG_INNER_ERROR("[Set][IODims]srcDims SetIODims failed, modelId[%u], index[%zu], result[%d]", modelId, index,
                           ioRet);
       return ioRet;
     }
     aippInfo->outDims[i].srcSize = inputDims[i].size;
-    ioRet = SetIODims(outputDims[i], aippInfo->outDims[i].aippOutdims);
+    ioRet = acl::SetIODims(outputDims[i], aippInfo->outDims[i].aippOutdims);
     if (ioRet != ACL_SUCCESS) {
       ACL_LOG_INNER_ERROR("[Set][IODims]aippOutdims SetIODims failed, modelId[%u], index[%zu], result[%d]", modelId,
                           index, ioRet);
@@ -910,6 +590,6 @@ aclError aclmdlGetFirstAippInfoImpl(uint32_t modelId, size_t index, aclAippInfo 
     aippInfo->outDims[i].aippOutSize = outputDims[i].size;
   }
   ACL_LOG_DEBUG("successfully execute aclmdlGetFirstAippInfo, aclAippDims: %s",
-                AippDimsDebugString(aippInfo->outDims, aippInfo->shapeCount).c_str());
+                acl::AippDimsDebugString(aippInfo->outDims, aippInfo->shapeCount).c_str());
   return ACL_SUCCESS;
 }

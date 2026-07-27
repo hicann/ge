@@ -748,27 +748,4 @@ Status InsertAippOpUtil::SetModelInputDims(NodePtr &data_node, NodePtr &aipp_nod
   return SUCCESS;
 }
 
-Status InsertAippOpUtil::ValidateStaticAippOnly(const std::string &config_path) {
-  if (config_path.empty()) {
-    return SUCCESS;
-  }
-  domi::InsertNewOps insert_ops;
-  GE_CHK_BOOL_RET_STATUS(ReadProtoFromText(config_path.c_str(), &insert_ops), PARAM_INVALID,
-                         "[Read][Proto] from file:%s failed", config_path.c_str());
-  for (int32_t i = 0; i < insert_ops.aipp_op_size(); ++i) {
-    const auto &aipp_op = insert_ops.aipp_op(i);
-    if (aipp_op.aipp_mode() == domi::AippOpParams::dynamic) {
-      REPORT_PREDEFINED_ERR_MSG(
-          "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-          std::vector<const char_t *>({"--insert_op_conf", config_path.c_str(),
-                                       "dynamic AIPP is not supported in om2 mode. Please use aipp_mode: static."}));
-      GELOGE(PARAM_INVALID,
-             "[Check][OM2][AippMode] Dynamic AIPP (aipp_op[%d]) is not supported in OM2 build mode. "
-             "Please use aipp_mode: static.",
-             i);
-      return PARAM_INVALID;
-    }
-  }
-  return SUCCESS;
-}
 }  // namespace ge

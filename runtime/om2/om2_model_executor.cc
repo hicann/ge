@@ -36,6 +36,7 @@
 #include "om2_var_manager.h"
 #include "zip_archive_reader.h"
 #include "common/om2/om2_model_data.h"
+#include "om2_aipp_utils.h"
 
 namespace gert {
 namespace {
@@ -365,6 +366,16 @@ ge::Status DeserializeModelMetaFromArchive(const ge::RAIIZipArchive &archive, co
   (void)json_file.Get("zero_copy_size", model_data.model_meta.zero_copy_size);
   (void)json_file.Get("name", model_data.model_meta.model_name);
   (void)json_file.Get("root_graph_name", model_data.model_meta.root_graph_name);
+
+  // 读取 aipp 字段
+  ge::JsonFile aipp_json;
+  if (json_file.Get("aipp", aipp_json) && aipp_json.IsValid()) {
+    const ge::Status aipp_ret =
+        om2::ParseAippJson(aipp_json, model_data.model_meta.aipp_infos, model_data.model_meta.has_aipp);
+    if (aipp_ret != ge::SUCCESS) {
+      GELOGW("[OM2][AIPP] ParseAippJson failed, ret=%u", aipp_ret);
+    }
+  }
   return ge::SUCCESS;
 }
 
@@ -656,6 +667,8 @@ class Om2ModelExecutor::Impl {
     model_meta_info_.origin_input_dims = meta.origin_input_dims;
     model_meta_info_.output_desc = meta.output_desc;
     model_meta_info_.output_desc_v2 = meta.output_desc_v2;
+    has_aipp_ = meta.has_aipp;
+    aipp_infos_ = meta.aipp_infos;
     return ge::SUCCESS;
   }
 
@@ -1022,6 +1035,114 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
+  ge::Status GetAippInfo(const uint32_t index, ge::AippConfigInfo &aipp_info) const {
+    if (!has_aipp_ || index >= aipp_infos_.size()) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    aipp_info = aipp_infos_[index].aipp_config_info;
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetAippType(const uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
+    if (!has_aipp_ || index >= aipp_infos_.size()) {
+      aipp_type = ge::DATA_WITHOUT_AIPP;
+      aipp_data_index = 0xFFFFFFFFU;
+      return ge::SUCCESS;
+    }
+    aipp_type = aipp_infos_[index].aipp_type;
+    aipp_data_index = aipp_infos_[index].aipp_data_index;
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetOrigInputInfo(const uint32_t index, ge::OriginInputInfo &orig_input_info) const {
+    if (!has_aipp_ || index >= aipp_infos_.size()) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    const auto &input_info = aipp_infos_[index].orig_input_info;
+    if ((input_info.format != ge::FORMAT_RESERVED) || (input_info.data_type != ge::DT_UNDEFINED)) {
+      orig_input_info = input_info;
+    }
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetAllAippInputOutputDims(const uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
+                                       std::vector<ge::InputOutputDims> &output_dims) const {
+    if (!has_aipp_ || index >= aipp_infos_.size()) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    input_dims = aipp_infos_[index].aipp_input_dims;
+    output_dims = aipp_infos_[index].aipp_output_dims;
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetBatchInfoSize(size_t &shape_count) const {
+    std::vector<std::vector<int64_t>> batch_info;
+    int32_t dynamic_type = 0;
+    const auto ret = GetDynamicBatchInfo(batch_info, dynamic_type);
+    if (ret != ge::SUCCESS) {
+      return ret;
+    }
+    if (batch_info.empty()) {
+      shape_count = 1U;
+    } else {
+      shape_count = batch_info.size();
+    }
+    return ge::SUCCESS;
+  }
+
+  ge::Status SetDynamicAippData(void *dynamic_input_addr, const uint64_t length,
+                                const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
+                                const kAippDynamicPara &aipp_parms) {
+    if (dynamic_input_addr == nullptr) {
+      REPORT_INNER_ERR_MSG("E19999", "Param dynamic_input_addr is nullptr, check invalid");
+      GELOGE(ACL_ERROR_GE_DYNAMIC_INPUT_ADDR_INVALID, "[Check][Param] Dynamic aipp input addr is nullptr");
+      return ACL_ERROR_GE_DYNAMIC_INPUT_ADDR_INVALID;
+    }
+    if (aipp_batch_para.empty()) {
+      REPORT_INNER_ERR_MSG("E19999", "Param aipp_batch_para is empty, check invalid");
+      GELOGE(ACL_ERROR_GE_AIPP_BATCH_EMPTY, "[Check][Param] aipp_batch_para is empty");
+      return ACL_ERROR_GE_AIPP_BATCH_EMPTY;
+    }
+    const uint64_t batch_num = aipp_batch_para.size();
+    constexpr uint64_t real_aipp_params_size = sizeof(kAippDynamicPara) - sizeof(kAippDynamicBatchPara);
+    const uint64_t struct_len = (batch_num * sizeof(kAippDynamicBatchPara)) + real_aipp_params_size;
+    if (struct_len > length) {
+      REPORT_INNER_ERR_MSG("E19999", "input dynamic aipp param len:%" PRIu64 " is larger than aipp_data size:%" PRIu64,
+                           struct_len, length);
+      GELOGE(ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID,
+             "[Check][Param] input dynamic aipp param len [%" PRIu64 "] is larger than aipp_data size [%" PRIu64 "]",
+             struct_len, length);
+      return ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID;
+    }
+    aclError rt_ret =
+        aclrtMemcpy(dynamic_input_addr, length, &aipp_parms, real_aipp_params_size, ACL_MEMCPY_HOST_TO_DEVICE);
+    if (rt_ret != ACL_SUCCESS) {
+      REPORT_INNER_ERR_MSG("E19999", "Call aclrtMemcpy failed, size:%" PRIu64 ", ret:%d", length, rt_ret);
+      GELOGE(ge::FAILED, "[Call][aclrtMemcpy] memcpy aipp_parms failed! size:%" PRIu64 ", ret:%d", length, rt_ret);
+      return ge::FAILED;
+    }
+    for (uint64_t i = 0U; i < batch_num; ++i) {
+      const uint64_t offset = real_aipp_params_size + (i * sizeof(kAippDynamicBatchPara));
+      rt_ret = aclrtMemcpy(static_cast<uint8_t *>(dynamic_input_addr) + offset, length - offset, &aipp_batch_para[i],
+                           sizeof(kAippDynamicBatchPara), ACL_MEMCPY_HOST_TO_DEVICE);
+      if (rt_ret != ACL_SUCCESS) {
+        REPORT_INNER_ERR_MSG("E19999", "Call aclrtMemcpy failed, ret:%d", rt_ret);
+        GELOGE(ge::FAILED, "[Call][aclrtMemcpy] memcpy kAippDynamicBatchPara input data failed! ret:%d", rt_ret);
+        return ge::FAILED;
+      }
+    }
+    return ge::SUCCESS;
+  }
+
   void Cleanup() {
     if (dump_manager_ != nullptr) {
       dump_manager_.reset();
@@ -1151,6 +1272,8 @@ class Om2ModelExecutor::Impl {
   // 当前档位维度值，由 SetDynamicSize 写入，GetCurrentShape 读取
   std::vector<uint64_t> cur_batch_size_;
   int32_t dynamic_type_ = 0;  // 0=FIXED
+  std::vector<Om2AippInfo> aipp_infos_;
+  bool has_aipp_ = false;
 };
 
 Om2ModelExecutor::Om2ModelExecutor() : impl_(std::make_unique<Impl>()) {}
@@ -1235,6 +1358,33 @@ ge::Status Om2ModelExecutor::GetOpAttr(std::map<std::string, std::map<std::strin
 ge::Status Om2ModelExecutor::GetOpDescInfo(uint32_t device_id, uint32_t stream_id, uint32_t task_id,
                                            ge::OpDescInfo &op_desc_info) const {
   return impl_->GetOpDescInfo(device_id, stream_id, task_id, op_desc_info);
+}
+
+ge::Status Om2ModelExecutor::GetAippInfo(uint32_t index, ge::AippConfigInfo &aipp_info) const {
+  return impl_->GetAippInfo(index, aipp_info);
+}
+
+ge::Status Om2ModelExecutor::GetAippType(uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
+  return impl_->GetAippType(index, aipp_type, aipp_data_index);
+}
+
+ge::Status Om2ModelExecutor::GetOrigInputInfo(uint32_t index, ge::OriginInputInfo &orig_input_info) const {
+  return impl_->GetOrigInputInfo(index, orig_input_info);
+}
+
+ge::Status Om2ModelExecutor::GetAllAippInputOutputDims(uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
+                                                       std::vector<ge::InputOutputDims> &output_dims) const {
+  return impl_->GetAllAippInputOutputDims(index, input_dims, output_dims);
+}
+
+ge::Status Om2ModelExecutor::GetBatchInfoSize(size_t &shape_count) const {
+  return impl_->GetBatchInfoSize(shape_count);
+}
+
+ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const uint64_t length,
+                                                const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
+                                                const kAippDynamicPara &aipp_parms) {
+  return impl_->SetDynamicAippData(dynamic_input_addr, length, aipp_batch_para, aipp_parms);
 }
 
 ge::Status LoadOm2DataFromFile(const std::string &model_path, ge::ModelData &model_data) {

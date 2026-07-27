@@ -1084,11 +1084,6 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
   if (IsOm2BuildMode(offline_mode)) {
     GE_ASSERT_SUCCESS(CheckOm2UnsupportedOptions(options), "[Check][OM2][BuildOptions] failed!");
     GE_ASSERT_SUCCESS(CheckUserSpecifiedGlobalOptionsForOm2(), "[Check][OM2][GlobalOptions] failed!");
-    const auto insert_op_iter = options.find(ge::ir_option::INSERT_OP_FILE);
-    if (insert_op_iter != options.cend()) {
-      GE_ASSERT_SUCCESS(InsertAippOpUtil::ValidateStaticAippOnly(insert_op_iter->second),
-                        "[Check][OM2][InsertOpConf] Dynamic AIPP is not supported in OM2 mode.");
-    }
   }
   ge::PrintOptionMap(options, "BuildModel option");
   ret = Init(graph, options);

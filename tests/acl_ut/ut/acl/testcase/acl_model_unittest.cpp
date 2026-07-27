@@ -5953,9 +5953,9 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadFromMemWithQ_Om2Model_ReturnsNotSupported) {
 // OM2 Interface Test Cases - AIPP Interfaces
 // ============================================================================
 
-TEST_F(UTEST_ACL_Model, aclmdlGetAippType_Om2ModelId_ReturnsNotSupported) {
-  // Test that aclmdlGetAippType returns not supported for OM2 model
-  // First load an OM2 model to get a valid OM2 model ID
+TEST_F(UTEST_ACL_Model, aclmdlGetAippType_Om2ModelId_Success) {
+  // Test that aclmdlGetAippType works for OM2 models (now implemented)
+  // Load an OM2 model to get a valid OM2 model ID
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
 
@@ -5963,22 +5963,22 @@ TEST_F(UTEST_ACL_Model, aclmdlGetAippType_Om2ModelId_ReturnsNotSupported) {
   aclError load_ret = aclmdlLoadFromFile("test_om2_model.om2", &modelId);
 
   if (load_ret == ACL_SUCCESS && modelId >= std::numeric_limits<uint32_t>::max() / 2U) {
-    // Try to get AIPP type - should return not supported
+    // Get AIPP type - now returns real result (not ACL_ERROR_FEATURE_UNSUPPORTED)
     aclmdlInputAippType aippType;
     size_t aippTypeNum = 0;
     aclError ret = aclmdlGetAippType(modelId, 0, &aippType, &aippTypeNum);
 
-    // Verify that the function returns not supported error
-    EXPECT_EQ(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
+    // Verify the function is now implemented and returns success or appropriate error
+    EXPECT_TRUE(ret == ACL_SUCCESS || ret == static_cast<int32_t>(ACL_ERROR_GE_AIPP_NOT_EXIST));
 
     // Cleanup
     acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(modelId);
   }
 }
 
-TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfo_Om2ModelId_ReturnsNotSupported) {
-  // Test that aclmdlGetFirstAippInfo returns not supported for OM2 model
-  // First load an OM2 model to get a valid OM2 model ID
+TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfo_Om2ModelId_Success) {
+  // Test that aclmdlGetFirstAippInfo works for OM2 models (now implemented)
+  // Load an OM2 model to get a valid OM2 model ID
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
 
@@ -5986,21 +5986,41 @@ TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfo_Om2ModelId_ReturnsNotSupported) {
   aclError load_ret = aclmdlLoadFromFile("test_om2_model.om2", &modelId);
 
   if (load_ret == ACL_SUCCESS && modelId >= std::numeric_limits<uint32_t>::max() / 2U) {
-    // Try to get first AIPP info - should return not supported
+    // Get first AIPP info - now returns real result (not ACL_ERROR_FEATURE_UNSUPPORTED)
     aclAippInfo aippInfo;
     aclError ret = aclmdlGetFirstAippInfo(modelId, 0, &aippInfo);
 
-    // Verify that the function returns not supported error
-    EXPECT_EQ(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
+    // Verify the function is now implemented: returns success or specific AIPP error
+    EXPECT_TRUE(ret == ACL_SUCCESS || ret == static_cast<int32_t>(ACL_ERROR_GE_AIPP_NOT_EXIST));
 
     // Cleanup
     acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(modelId);
   }
 }
 
-TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP_Om2ModelId_ReturnsNotSupported) {
-  // Test that aclmdlSetInputAIPP returns not supported for OM2 model
-  // First load an OM2 model to get a valid OM2 model ID
+TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfo_Om2ModelId_NullAippInfo) {
+  // Test that aclmdlGetFirstAippInfo returns error for null aippInfo
+  uint32_t modelId = 101U;
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  if (executor != nullptr) {
+    acl::AclResourceManagerOm2::GetInstance().AddOm2ExecutorWithModelId(modelId, std::move(executor));
+    aclError ret = aclmdlGetFirstAippInfo(modelId, 0, nullptr);
+    EXPECT_NE(ret, ACL_SUCCESS);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(modelId);
+  }
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfo_Om2ModelId_ExecutorNotFound) {
+  // Test that aclmdlGetFirstAippInfo returns error when executor is not found
+  uint32_t modelId = 102U;
+  aclAippInfo aippInfo;
+  aclError ret = aclmdlGetFirstAippInfo(modelId, 0, &aippInfo);
+  EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP_Om2ModelId_Success) {
+  // Test that aclmdlSetInputAIPP works for OM2 models (now implemented)
+  // Load an OM2 model to get a valid OM2 model ID
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
 
@@ -6012,11 +6032,11 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP_Om2ModelId_ReturnsNotSupported) {
     aclmdlDataset *dataset = aclmdlCreateDataset();
     ASSERT_NE(dataset, nullptr);
 
-    // Try to set input AIPP - should return not supported
+    // Set input AIPP - now returns real result (not ACL_ERROR_FEATURE_UNSUPPORTED)
     aclError ret = aclmdlSetInputAIPP(modelId, dataset, 0, nullptr);
 
-    // Verify that the function returns not supported error
-    EXPECT_EQ(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
+    // Verify the function is now implemented: returns appropriate error for null aippParmsSet
+    EXPECT_NE(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
 
     // Cleanup
     aclmdlDestroyDataset(dataset);
@@ -6024,9 +6044,9 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP_Om2ModelId_ReturnsNotSupported) {
   }
 }
 
-TEST_F(UTEST_ACL_Model, aclmdlSetAIPPByInputIndex_Om2ModelId_ReturnsNotSupported) {
-  // Test that aclmdlSetAIPPByInputIndex returns not supported for OM2 model
-  // First load an OM2 model to get a valid OM2 model ID
+TEST_F(UTEST_ACL_Model, aclmdlSetAIPPByInputIndex_Om2ModelId_Success) {
+  // Test that aclmdlSetAIPPByInputIndex works for OM2 models (now implemented)
+  // Load an OM2 model to get a valid OM2 model ID
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
 
@@ -6038,11 +6058,11 @@ TEST_F(UTEST_ACL_Model, aclmdlSetAIPPByInputIndex_Om2ModelId_ReturnsNotSupported
     aclmdlDataset *dataset = aclmdlCreateDataset();
     ASSERT_NE(dataset, nullptr);
 
-    // Try to set AIPP by input index - should return not supported
+    // Set AIPP by input index - now returns real result (not ACL_ERROR_FEATURE_UNSUPPORTED)
     aclError ret = aclmdlSetAIPPByInputIndex(modelId, dataset, 0, nullptr);
 
-    // Verify that the function returns not supported error
-    EXPECT_EQ(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
+    // Verify the function is now implemented: returns appropriate error for null aippParmsSet
+    EXPECT_NE(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
 
     // Cleanup
     aclmdlDestroyDataset(dataset);
@@ -6665,6 +6685,326 @@ TEST_F(UTEST_ACL_Model, GetModelOutputShapeInfoHelp_WithStaticOutputs_ParsesCorr
   for (size_t i = 0; i < desc.dynamicOutputShape.size(); i++) {
     EXPECT_EQ(desc.dynamicOutputShape[i][0], -1);
   }
+}
+
+// ============================================================================
+// Test Cases for model_common AIPP Utility Functions
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, SetAippInfo_NullAippInfo_DoesNotCrash) {
+  ge::AippConfigInfo config{};
+  config.src_image_size_w = 224;
+  config.src_image_size_h = 224;
+  config.input_format = 2;
+
+  // Should not crash, just log error and return
+  acl::SetAippInfo(nullptr, config);
+  SUCCEED();
+}
+
+TEST_F(UTEST_ACL_Model, SetAippInfo_ValidConfig_MapsAllFields) {
+  // 构造含所有关键字段的 AippConfigInfo
+  ge::AippConfigInfo config{};
+  config.aipp_mode = 1;
+  config.input_format = 2;
+  config.src_image_size_w = 640;
+  config.src_image_size_h = 480;
+  config.crop = 1;
+  config.load_start_pos_w = 10;
+  config.load_start_pos_h = 20;
+  config.crop_size_w = 224;
+  config.crop_size_h = 224;
+  config.resize = 1;
+  config.resize_output_w = 112;
+  config.resize_output_h = 112;
+  config.padding = 1;
+  config.left_padding_size = 3;
+  config.right_padding_size = 4;
+  config.top_padding_size = 5;
+  config.bottom_padding_size = 6;
+  config.csc_switch = 1;
+  config.rbuv_swap_switch = 1;
+  config.ax_swap_switch = 0;
+  config.single_line_mode = 1;
+  config.matrix_r0c0 = 256;
+  config.matrix_r0c1 = 0;
+  config.matrix_r0c2 = 0;
+  config.matrix_r1c0 = 0;
+  config.matrix_r1c1 = 256;
+  config.matrix_r1c2 = 0;
+  config.matrix_r2c0 = 0;
+  config.matrix_r2c1 = 0;
+  config.matrix_r2c2 = 256;
+  config.output_bias_0 = 16;
+  config.output_bias_1 = 128;
+  config.output_bias_2 = 128;
+  config.input_bias_0 = 16;
+  config.input_bias_1 = 128;
+  config.input_bias_2 = 128;
+  config.mean_chn_0 = 104;
+  config.mean_chn_1 = 117;
+  config.mean_chn_2 = 123;
+  config.mean_chn_3 = 0;
+  config.min_chn_0 = 0.0F;
+  config.min_chn_1 = 0.0F;
+  config.min_chn_2 = 0.0F;
+  config.min_chn_3 = 0.0F;
+  config.var_reci_chn_0 = 0.003921F;
+  config.var_reci_chn_1 = 0.003921F;
+  config.var_reci_chn_2 = 0.003921F;
+  config.var_reci_chn_3 = 1.0F;
+  config.support_rotation = 0;
+  config.related_input_rank = 0U;
+  config.max_src_image_size = 8192U;
+
+  aclAippInfo aipp_info{};
+  (void)memset(&aipp_info, 0, sizeof(aipp_info));
+  acl::SetAippInfo(&aipp_info, config);
+
+  // 校验所有关键字段正确映射
+  EXPECT_EQ(aipp_info.inputFormat, 2);
+  EXPECT_EQ(aipp_info.srcImageSizeW, 640);
+  EXPECT_EQ(aipp_info.srcImageSizeH, 480);
+  EXPECT_EQ(aipp_info.cropSwitch, 1);
+  EXPECT_EQ(aipp_info.loadStartPosW, 10);
+  EXPECT_EQ(aipp_info.loadStartPosH, 20);
+  EXPECT_EQ(aipp_info.cropSizeW, 224);
+  EXPECT_EQ(aipp_info.cropSizeH, 224);
+  EXPECT_EQ(aipp_info.resizeSwitch, 1);
+  EXPECT_EQ(aipp_info.resizeOutputW, 112);
+  EXPECT_EQ(aipp_info.resizeOutputH, 112);
+  EXPECT_EQ(aipp_info.paddingSwitch, 1);
+  EXPECT_EQ(aipp_info.leftPaddingSize, 3);
+  EXPECT_EQ(aipp_info.rightPaddingSize, 4);
+  EXPECT_EQ(aipp_info.topPaddingSize, 5);
+  EXPECT_EQ(aipp_info.bottomPaddingSize, 6);
+  EXPECT_EQ(aipp_info.cscSwitch, 1);
+  EXPECT_EQ(aipp_info.rbuvSwapSwitch, 1);
+  EXPECT_EQ(aipp_info.axSwapSwitch, 0);
+  EXPECT_EQ(aipp_info.singleLineMode, 1);
+  EXPECT_EQ(aipp_info.matrixR0C0, 256);
+  EXPECT_EQ(aipp_info.matrixR0C1, 0);
+  EXPECT_EQ(aipp_info.matrixR0C2, 0);
+  EXPECT_EQ(aipp_info.matrixR1C0, 0);
+  EXPECT_EQ(aipp_info.matrixR1C1, 256);
+  EXPECT_EQ(aipp_info.matrixR1C2, 0);
+  EXPECT_EQ(aipp_info.matrixR2C0, 0);
+  EXPECT_EQ(aipp_info.matrixR2C1, 0);
+  EXPECT_EQ(aipp_info.matrixR2C2, 256);
+  EXPECT_EQ(aipp_info.outputBias0, 16);
+  EXPECT_EQ(aipp_info.outputBias1, 128);
+  EXPECT_EQ(aipp_info.outputBias2, 128);
+  EXPECT_EQ(aipp_info.inputBias0, 16);
+  EXPECT_EQ(aipp_info.inputBias1, 128);
+  EXPECT_EQ(aipp_info.inputBias2, 128);
+  EXPECT_EQ(aipp_info.meanChn0, 104);
+  EXPECT_EQ(aipp_info.meanChn1, 117);
+  EXPECT_EQ(aipp_info.meanChn2, 123);
+  EXPECT_EQ(aipp_info.meanChn3, 0);
+  EXPECT_FLOAT_EQ(aipp_info.minChn0, 0.0F);
+  EXPECT_FLOAT_EQ(aipp_info.minChn1, 0.0F);
+  EXPECT_FLOAT_EQ(aipp_info.minChn2, 0.0F);
+  EXPECT_FLOAT_EQ(aipp_info.minChn3, 0.0F);
+  EXPECT_FLOAT_EQ(aipp_info.varReciChn0, 0.003921F);
+  EXPECT_FLOAT_EQ(aipp_info.varReciChn1, 0.003921F);
+  EXPECT_FLOAT_EQ(aipp_info.varReciChn2, 0.003921F);
+  EXPECT_FLOAT_EQ(aipp_info.varReciChn3, 1.0F);
+}
+
+TEST_F(UTEST_ACL_Model, GetNpuArch_RtGetSocSpecFails_ReturnsEmpty) {
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetSocSpec(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(static_cast<rtError_t>(1)));
+
+  const std::string arch = acl::GetNpuArch();
+  EXPECT_TRUE(arch.empty());
+}
+
+TEST_F(UTEST_ACL_Model, GetNpuArch_RtGetSocSpecSucceeds_ReturnsArch) {
+  const std::string expected_arch = "Davinci200";
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetSocSpec(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce(testing::DoAll(testing::SetArrayArgument<2>(expected_arch.begin(), expected_arch.end()),
+                               testing::Return(RT_ERROR_NONE)));
+
+  const std::string arch = acl::GetNpuArch();
+  EXPECT_EQ(arch, expected_arch);
+}
+
+TEST_F(UTEST_ACL_Model, SetIODims_ValidDims_CopiesFieldsCorrectly) {
+  ge::InputOutputDims ori_dims;
+  ori_dims.name = "test_tensor";
+  ori_dims.dim_num = 4U;
+  ori_dims.size = 100U;
+  ori_dims.dims = {1, 3, 224, 224};
+
+  aclmdlIODims dst_dims{};
+  const aclError ret = acl::SetIODims(ori_dims, dst_dims);
+  EXPECT_EQ(ret, ACL_SUCCESS);
+
+  EXPECT_EQ(dst_dims.dimCount, 4U);
+  EXPECT_EQ(dst_dims.dims[0], 1);
+  EXPECT_EQ(dst_dims.dims[1], 3);
+  EXPECT_EQ(dst_dims.dims[2], 224);
+  EXPECT_EQ(dst_dims.dims[3], 224);
+  EXPECT_STREQ(dst_dims.name, "test_tensor");
+}
+
+TEST_F(UTEST_ACL_Model, SetIODims_DimsExceedMaxCnt_ReturnsError) {
+  ge::InputOutputDims ori_dims;
+  ori_dims.name = "overflow_tensor";
+  ori_dims.dim_num = 200U;
+  // 构造超过 ACL_MAX_DIM_CNT(128) 的 dims
+  for (size_t dim_idx = 0U; dim_idx < 129U; ++dim_idx) {
+    ori_dims.dims.emplace_back(static_cast<int64_t>(dim_idx));
+  }
+  ori_dims.size = 0U;
+
+  aclmdlIODims dst_dims{};
+  const aclError ret = acl::SetIODims(ori_dims, dst_dims);
+  EXPECT_EQ(ret, ACL_ERROR_GE_FAILURE);
+}
+
+TEST_F(UTEST_ACL_Model, SetIODims_EmptyName_ReturnsSuccess) {
+  ge::InputOutputDims ori_dims;
+  ori_dims.name = "";
+  ori_dims.dim_num = 2U;
+  ori_dims.size = 32U;
+  ori_dims.dims = {1, 10};
+
+  aclmdlIODims dst_dims{};
+  const aclError ret = acl::SetIODims(ori_dims, dst_dims);
+  EXPECT_EQ(ret, ACL_SUCCESS);
+
+  // dims 仍应正确复制
+  EXPECT_EQ(dst_dims.dimCount, 2U);
+  EXPECT_EQ(dst_dims.dims[0], 1);
+  EXPECT_EQ(dst_dims.dims[1], 10);
+}
+
+TEST_F(UTEST_ACL_Model, AippInfoDebugString_NullInput_ReturnsEmpty) {
+  const std::string result = acl::AippInfoDebugString(nullptr);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UTEST_ACL_Model, AippInfoDebugString_ValidInput_ContainsKeyFields) {
+  aclAippInfo aipp_info{};
+  aipp_info.inputFormat = static_cast<aclAippInputFormat>(2);
+  aipp_info.srcImageSizeW = 640;
+  aipp_info.srcImageSizeH = 480;
+  aipp_info.cropSwitch = 1;
+  aipp_info.srcFormat = ACL_FORMAT_NCHW;
+  aipp_info.srcDatatype = ACL_FLOAT;
+
+  const std::string result = acl::AippInfoDebugString(&aipp_info);
+  EXPECT_FALSE(result.empty());
+  EXPECT_NE(result.find("aclAippInfo"), std::string::npos);
+  EXPECT_NE(result.find("inputFormat:2"), std::string::npos);
+  EXPECT_NE(result.find("srcImageSizeW:640"), std::string::npos);
+  EXPECT_NE(result.find("srcImageSizeH:480"), std::string::npos);
+  EXPECT_NE(result.find("cropSwitch:1"), std::string::npos);
+}
+
+TEST_F(UTEST_ACL_Model, DimsDebugString_ValidInput_ContainsTensorName) {
+  aclmdlIODims io_dims{};
+  io_dims.dimCount = 3U;
+  io_dims.dims[0] = 1;
+  io_dims.dims[1] = 512;
+  io_dims.dims[2] = 512;
+  (void)snprintf(io_dims.name, sizeof(io_dims.name), "%s", "input_0");
+
+  const std::string result = acl::DimsDebugString(io_dims);
+  EXPECT_FALSE(result.empty());
+  EXPECT_NE(result.find("tensorName:input_0"), std::string::npos);
+  EXPECT_NE(result.find("dimcount:3"), std::string::npos);
+  EXPECT_NE(result.find("1"), std::string::npos);
+  EXPECT_NE(result.find("512"), std::string::npos);
+}
+
+TEST_F(UTEST_ACL_Model, AippDimsDebugString_NullInput_ReturnsEmpty) {
+  const std::string result = acl::AippDimsDebugString(nullptr, 1U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UTEST_ACL_Model, AippDimsDebugString_ValidInput_FormatsMultipleItems) {
+  aclAippDims aipp_dims[2]{};
+  aipp_dims[0].srcDims.dimCount = 3U;
+  aipp_dims[0].srcDims.dims[0] = 1;
+  aipp_dims[0].srcDims.dims[1] = 3;
+  aipp_dims[0].srcDims.dims[2] = 224;
+  aipp_dims[0].srcSize = 100U;
+  aipp_dims[0].aippOutdims.dimCount = 3U;
+  aipp_dims[0].aippOutdims.dims[0] = 1;
+  aipp_dims[0].aippOutdims.dims[1] = 3;
+  aipp_dims[0].aippOutdims.dims[2] = 224;
+  aipp_dims[0].aippOutSize = 100U;
+
+  aipp_dims[1].srcDims.dimCount = 3U;
+  aipp_dims[1].srcDims.dims[0] = 1;
+  aipp_dims[1].srcDims.dims[1] = 3;
+  aipp_dims[1].srcDims.dims[2] = 448;
+  aipp_dims[1].srcSize = 200U;
+  aipp_dims[1].aippOutdims.dimCount = 3U;
+  aipp_dims[1].aippOutdims.dims[0] = 1;
+  aipp_dims[1].aippOutdims.dims[1] = 3;
+  aipp_dims[1].aippOutdims.dims[2] = 448;
+  aipp_dims[1].aippOutSize = 200U;
+
+  const std::string result = acl::AippDimsDebugString(aipp_dims, 2U);
+  EXPECT_FALSE(result.empty());
+  // 包含两个 aclAippDims 条目
+  EXPECT_NE(result.find("aclAippDims[0]"), std::string::npos);
+  EXPECT_NE(result.find("aclAippDims[1]"), std::string::npos);
+  EXPECT_NE(result.find("srcSize:100"), std::string::npos);
+  EXPECT_NE(result.find("srcSize:200"), std::string::npos);
+  EXPECT_NE(result.find("aippOutSize:100"), std::string::npos);
+  EXPECT_NE(result.find("aippOutSize:200"), std::string::npos);
+}
+
+TEST_F(UTEST_ACL_Model, AippParmsDebugString_ValidInput_ContainsKeyFields) {
+  kAippDynamicPara aipp_parms{};
+  aipp_parms.inputFormat = 2U;
+  aipp_parms.cscSwitch = 1;
+  aipp_parms.rbuvSwapSwitch = 0;
+  aipp_parms.axSwapSwitch = 0;
+  aipp_parms.batchNum = 1;
+  aipp_parms.srcImageSizeW = 640;
+  aipp_parms.srcImageSizeH = 480;
+  aipp_parms.cscMatrixR0C0 = 256;
+  aipp_parms.cscMatrixR1C1 = 256;
+  aipp_parms.cscMatrixR2C2 = 256;
+
+  const std::string result = acl::AippParmsDebugString(aipp_parms);
+  EXPECT_FALSE(result.empty());
+  EXPECT_NE(result.find("kAippDynamicPara"), std::string::npos);
+  EXPECT_NE(result.find("inputFormat:2"), std::string::npos);
+  EXPECT_NE(result.find("cscSwitch:1"), std::string::npos);
+  EXPECT_NE(result.find("srcImageSizeW:640"), std::string::npos);
+  EXPECT_NE(result.find("srcImageSizeH:480"), std::string::npos);
+}
+
+TEST_F(UTEST_ACL_Model, AippBatchParaDebugString_ValidInput_ContainsKeyFields) {
+  kAippDynamicBatchPara batch_para{};
+  batch_para.cropSwitch = 1;
+  batch_para.cropStartPosW = 10;
+  batch_para.cropStartPosH = 20;
+  batch_para.cropSizeW = 224;
+  batch_para.cropSizeH = 224;
+  batch_para.scfSwitch = 1;
+  batch_para.scfInputSizeW = 224;
+  batch_para.scfInputSizeH = 224;
+  batch_para.scfOutputSizeW = 112;
+  batch_para.scfOutputSizeH = 112;
+  batch_para.paddingSwitch = 1;
+  batch_para.paddingSizeTop = 5;
+  batch_para.paddingSizeBottom = 5;
+  batch_para.paddingSizeLeft = 5;
+  batch_para.paddingSizeRight = 5;
+
+  const std::string result = acl::AippBatchParaDebugString(batch_para);
+  EXPECT_FALSE(result.empty());
+  EXPECT_NE(result.find("kAippDynamicBatchPara"), std::string::npos);
+  EXPECT_NE(result.find("cropSwitch:1"), std::string::npos);
+  EXPECT_NE(result.find("cropSizeW:224"), std::string::npos);
+  EXPECT_NE(result.find("cropSizeH:224"), std::string::npos);
 }
 
 // ============================================================================

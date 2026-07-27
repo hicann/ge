@@ -86,11 +86,28 @@ class JsonFile {
     }
   }
 
+  bool Get(const std::string &key, JsonFile &out) const {
+    if (!valid_ || !data_.contains(key)) {
+      return false;
+    }
+    try {
+      out = JsonFile(data_.at(key));
+      return true;
+    } catch (const std::exception &e) {
+      GELOGW("Cannot get value with key [%s], msg: %s", key.c_str(), e.what());
+      return false;
+    }
+  }
+
   std::string Dump(const bool pretty = true) const {
     if (!valid_) {
       return "{}";
     }
     return pretty ? data_.dump(kJsonPrettyIndent) : data_.dump();
+  }
+
+  const json &operator[](const std::string &key) const {
+    return data_[key];
   }
 
   const json &Raw() const {

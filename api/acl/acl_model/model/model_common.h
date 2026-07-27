@@ -17,6 +17,8 @@
 #include <set>
 #include "acl/acl_base.h"
 #include "acl/acl_mdl.h"
+#include "common/ge_common/ge_types.h"
+#include "common/dynamic_aipp.h"
 #include "framework/runtime/rt_session.h"
 
 // Common enums for tensor/dims operations
@@ -111,6 +113,7 @@ constexpr float32_t MIN_CHN_MIN = 0.0F;
 constexpr float32_t MIN_CHN_MAX = 255.0F;
 constexpr float32_t VR_CHN_MIN = -65504.0F;
 constexpr float32_t VR_CHN_MAX = 65504.0F;
+constexpr uint32_t MAX_NPU_ARCH_LEN = 32U;
 
 inline bool IsRoundOne(const uint64_t man, const uint16_t truncLen) {
   const uint16_t shiftOut = truncLen - 2U;
@@ -137,6 +140,17 @@ inline void Fp16Normalize(int16_t &expo, uint16_t &man) {
     man = 0U;
   }
 }
+
+void SetAippInfo(aclAippInfo *const aippInfo, const ge::AippConfigInfo &aippParams);
+
+std::string GetNpuArch();
+std::string AippInfoDebugString(const aclAippInfo *aippInfo);
+aclError SetIODims(const ge::InputOutputDims &oriDims, aclmdlIODims &dstDims);
+std::string DimsDebugString(const aclmdlIODims &ioDims);
+std::string AippDimsDebugString(const aclAippDims *aippDims, size_t shapeCount);
+std::string AippParmsDebugString(const kAippDynamicPara &aippParms);
+std::string AippBatchParaDebugString(const kAippDynamicBatchPara &aippBatchPara);
+size_t GetMaxShapeIndex(const std::vector<ge::InputOutputDims> &inputDims);
 }  // namespace acl
 
 #endif  // ACL_MODEL_SRC_MODEL_MODEL_COMMON_H_

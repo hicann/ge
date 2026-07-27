@@ -212,8 +212,8 @@ static aclError AippCropSizeCheck(const aclmdlAIPP *const aippParmsSet, const si
   return ACL_SUCCESS;
 }
 
-aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex, const std::string &npuArch,
-                         int32_t &aippOutputW, int32_t &aippOutputH) {
+ACL_FUNC_VISIBILITY aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex,
+                                             const std::string &npuArch, int32_t &aippOutputW, int32_t &aippOutputH) {
   if (aippParmsSet->aippBatchPara.empty()) {
     ACL_LOG_INNER_ERROR("[Check][Params]aippParmsSet->aippBatchPara is empty!");
     return ACL_ERROR_INVALID_PARAM;
@@ -309,7 +309,7 @@ static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, 
   return ACL_SUCCESS;
 }
 
-aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &npuArch) {
+ACL_FUNC_VISIBILITY aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &npuArch) {
   ACL_LOG_INFO("start to execute aclAippParamsCheck");
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(aippParmsSet);
 
@@ -346,7 +346,7 @@ aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string
   return ACL_SUCCESS;
 }
 
-uint64_t GetSrcImageSize(const aclmdlAIPP *const aippParmsSet) {
+ACL_FUNC_VISIBILITY uint64_t GetSrcImageSize(const aclmdlAIPP *const aippParmsSet) {
   if (aippParmsSet == nullptr) {
     return 0UL;
   }

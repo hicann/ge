@@ -35,6 +35,13 @@ constexpr auto kAttrKernelName = "_kernelname";
 const std::string kOm2ConstantsConfigSuffix = "_constants_config.json";
 const std::string kOm2ExternalWeightDirName = "weight";
 
+constexpr size_t kAippDimPartsNum = 6U;
+constexpr size_t kAippDimNameIdx = 2U;
+constexpr size_t kAippDimSizeIdx = 3U;
+constexpr size_t kAippDimDimNumIdx = 4U;
+constexpr size_t kAippDimShapeIdx = 5U;
+constexpr int32_t kAippDecimalRadix = 10;
+
 struct ModelIoNodes {
   std::map<uint32_t, OpDescPtr> input_ops;
   std::vector<OpDescPtr> output_ops;
@@ -374,6 +381,219 @@ Status SetOm2CompatibleOmInfoList(const GeModelPtr &ge_model) {
                    return FAILED);
   return SUCCESS;
 }
+
+static void ConvertAippAttrToConfigInfo(const GeAttrValue::NamedAttrs &aipp_attr, ge::AippConfigInfo &info) {
+  GELOGD("[OM2] Converting NamedAttrs to AippConfigInfo");
+  int64_t i64_val = 0;
+  float32_t f32_val = 0.0F;
+  bool b_val = false;
+  std::vector<int64_t> i64_vec;
+  std::vector<float32_t> f32_vec;
+
+  auto getInt = [&aipp_attr, &i64_val](const char *k) -> int64_t {
+    (void)aipp_attr.GetItem(k).GetValue<GeAttrValue::INT>(i64_val);
+    return i64_val;
+  };
+  auto getF32 = [&aipp_attr, &f32_val](const char *k) -> float32_t {
+    (void)aipp_attr.GetItem(k).GetValue<GeAttrValue::FLOAT>(f32_val);
+    return f32_val;
+  };
+  auto getBool = [&aipp_attr, &b_val](const char *k) -> bool {
+    (void)aipp_attr.GetItem(k).GetValue<GeAttrValue::BOOL>(b_val);
+    return b_val;
+  };
+  auto getListIntFirst = [&aipp_attr, &i64_vec](const char *k) -> int32_t {
+    if (aipp_attr.GetItem(k).GetValue<GeAttrValue::LIST_INT>(i64_vec) == SUCCESS && !i64_vec.empty()) {
+      return static_cast<int32_t>(i64_vec[0]);
+    }
+    return 0;
+  };
+  auto getListF32First = [&aipp_attr, &f32_vec](const char *k) -> float32_t {
+    if (aipp_attr.GetItem(k).GetValue<GeAttrValue::LIST_FLOAT>(f32_vec) == SUCCESS && !f32_vec.empty()) {
+      return f32_vec[0];
+    }
+    return 0.0F;
+  };
+
+  info.aipp_mode = static_cast<int8_t>(getInt("aipp_mode"));
+  info.input_format = static_cast<int8_t>(getInt("input_format"));
+  info.src_image_size_w = static_cast<int32_t>(getInt("src_image_size_w"));
+  info.src_image_size_h = static_cast<int32_t>(getInt("src_image_size_h"));
+  info.crop = static_cast<int8_t>(getBool("crop"));
+  info.load_start_pos_w = static_cast<int32_t>(getInt("load_start_pos_w"));
+  info.load_start_pos_h = static_cast<int32_t>(getInt("load_start_pos_h"));
+  info.crop_size_w = static_cast<int32_t>(getInt("crop_size_w"));
+  info.crop_size_h = static_cast<int32_t>(getInt("crop_size_h"));
+  info.resize = static_cast<int8_t>(getBool("resize"));
+  info.resize_output_w = static_cast<int32_t>(getInt("resize_output_w"));
+  info.resize_output_h = static_cast<int32_t>(getInt("resize_output_h"));
+  info.padding = static_cast<int8_t>(getBool("padding"));
+  info.left_padding_size = static_cast<int32_t>(getInt("left_padding_size"));
+  info.right_padding_size = static_cast<int32_t>(getInt("right_padding_size"));
+  info.top_padding_size = static_cast<int32_t>(getInt("top_padding_size"));
+  info.bottom_padding_size = static_cast<int32_t>(getInt("bottom_padding_size"));
+  info.csc_switch = static_cast<int8_t>(getBool("csc_switch"));
+  info.rbuv_swap_switch = static_cast<int8_t>(getBool("rbuv_swap_switch"));
+  info.ax_swap_switch = static_cast<int8_t>(getBool("ax_swap_switch"));
+  info.single_line_mode = static_cast<int8_t>(getBool("single_line_mode"));
+  info.matrix_r0c0 = getListIntFirst("matrix_r0c0");
+  info.matrix_r0c1 = getListIntFirst("matrix_r0c1");
+  info.matrix_r0c2 = getListIntFirst("matrix_r0c2");
+  info.matrix_r1c0 = getListIntFirst("matrix_r1c0");
+  info.matrix_r1c1 = getListIntFirst("matrix_r1c1");
+  info.matrix_r1c2 = getListIntFirst("matrix_r1c2");
+  info.matrix_r2c0 = getListIntFirst("matrix_r2c0");
+  info.matrix_r2c1 = getListIntFirst("matrix_r2c1");
+  info.matrix_r2c2 = getListIntFirst("matrix_r2c2");
+  info.output_bias_0 = getListIntFirst("output_bias_0");
+  info.output_bias_1 = getListIntFirst("output_bias_1");
+  info.output_bias_2 = getListIntFirst("output_bias_2");
+  info.input_bias_0 = getListIntFirst("input_bias_0");
+  info.input_bias_1 = getListIntFirst("input_bias_1");
+  info.input_bias_2 = getListIntFirst("input_bias_2");
+  info.mean_chn_0 = static_cast<int32_t>(getInt("mean_chn_0"));
+  info.mean_chn_1 = static_cast<int32_t>(getInt("mean_chn_1"));
+  info.mean_chn_2 = static_cast<int32_t>(getInt("mean_chn_2"));
+  info.mean_chn_3 = static_cast<int32_t>(getInt("mean_chn_3"));
+  info.min_chn_0 = getF32("min_chn_0");
+  info.min_chn_1 = getF32("min_chn_1");
+  info.min_chn_2 = getF32("min_chn_2");
+  info.min_chn_3 = getF32("min_chn_3");
+  info.var_reci_chn_0 = getListF32First("var_reci_chn_0");
+  info.var_reci_chn_1 = getListF32First("var_reci_chn_1");
+  info.var_reci_chn_2 = getListF32First("var_reci_chn_2");
+  info.var_reci_chn_3 = getListF32First("var_reci_chn_3");
+  info.support_rotation = static_cast<int8_t>(getBool("support_rotation"));
+  info.related_input_rank = static_cast<uint32_t>(getInt("related_input_rank"));
+  info.max_src_image_size = static_cast<uint32_t>(getInt("max_src_image_size"));
+}
+
+static Status ParseAippModeStr(const std::string &mode, ge::InputAippType &aipp_type) {
+  if (mode == "static_aipp") {
+    aipp_type = ge::DATA_WITH_STATIC_AIPP;
+  } else if (mode == "dynamic_aipp") {
+    aipp_type = ge::DATA_WITH_DYNAMIC_AIPP;
+  } else if (mode == "dynamic_aipp_conf") {
+    aipp_type = ge::DYNAMIC_AIPP_NODE;
+  } else {
+    GELOGE(PARAM_INVALID, "[OM2] Unknown AIPP mode: %s", mode.c_str());
+    return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
+static size_t ResolveAippDataIndex(const std::map<std::string, uint32_t> &data_index_map,
+                                   const std::string &target_name) {
+  const auto iter = data_index_map.find(target_name);
+  return (iter != data_index_map.end()) ? static_cast<size_t>(iter->second) : 0U;
+}
+
+static void ParseOrigInputInfoFromStr(const std::string &input_str, ge::OriginInputInfo &orig_info) {
+  const auto parts = StringUtils::Split(input_str, ':');
+  if (parts.size() >= 5U) {
+    orig_info.format = static_cast<ge::Format>(ge::TypeUtils::SerialStringToFormat(parts[0]));
+    orig_info.data_type = static_cast<ge::DataType>(ge::TypeUtils::SerialStringToDataType(parts[1]));
+    orig_info.dim_num =
+        static_cast<uint32_t>(std::strtol(parts[kAippDimDimNumIdx].c_str(), nullptr, kAippDecimalRadix));
+  }
+}
+
+// 将 "NCHW:DT_FLOAT:data:0:4:1,3,224,224" 格式的字符串解析为 InputOutputDims
+static Status ParseAippDimInfo(const std::string &info_str, ge::InputOutputDims &dims_info) {
+  const auto parts = StringUtils::Split(info_str, ':');
+  if (parts.size() != kAippDimPartsNum) {
+    GELOGW("[OM2][AIPP] Invalid aipp dim info: %s, parts=%zu", info_str.c_str(), parts.size());
+    return FAILED;
+  }
+  dims_info.name = parts[kAippDimNameIdx];
+  dims_info.size = static_cast<uint32_t>(std::strtol(parts[kAippDimSizeIdx].c_str(), nullptr, kAippDecimalRadix));
+  dims_info.dim_num = static_cast<size_t>(std::strtol(parts[kAippDimDimNumIdx].c_str(), nullptr, kAippDecimalRadix));
+
+  const auto dim_strs = StringUtils::Split(parts[kAippDimShapeIdx], ',');
+  for (const auto &dim_str : dim_strs) {
+    if (dim_str.empty()) {
+      continue;
+    }
+    dims_info.dims.emplace_back(std::strtol(dim_str.c_str(), nullptr, kAippDecimalRadix));
+  }
+  return SUCCESS;
+}
+
+static Status ParseAippDims(const std::vector<std::string> &dim_strs, std::vector<ge::InputOutputDims> &dims) {
+  for (const auto &s : dim_strs) {
+    ge::InputOutputDims dim_info;
+    GE_CHK_STATUS_RET(ParseAippDimInfo(s, dim_info), "[Parse][AippDimInfo] failed for: %s", s.c_str());
+    dims.push_back(std::move(dim_info));
+  }
+  return SUCCESS;
+}
+
+static Status ExtractAippMetaFromOpDesc(const OpDescPtr &op_desc, const std::map<std::string, uint32_t> &data_index_map,
+                                        gert::Om2AippMeta &meta) {
+  GELOGD("[OM2] Extract AIPP meta from node: %s", op_desc->GetName().c_str());
+  GeAttrValue::NamedAttrs aipp_attr;
+  if (ge::AttrUtils::GetNamedAttrs(op_desc, ATTR_NAME_AIPP, aipp_attr)) {
+    ConvertAippAttrToConfigInfo(aipp_attr, meta.aipp_config_info);
+  }
+  const std::string *related_name = ge::AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP);
+  if (related_name != nullptr) {
+    meta.aipp_data_index = ResolveAippDataIndex(data_index_map, *related_name);
+  }
+  std::vector<std::string> aipp_inputs;
+  std::vector<std::string> aipp_outputs;
+  (void)ge::AttrUtils::GetListStr(op_desc, ATTR_NAME_AIPP_INPUTS, aipp_inputs);
+  (void)ge::AttrUtils::GetListStr(op_desc, ATTR_NAME_AIPP_OUTPUTS, aipp_outputs);
+  GE_CHK_STATUS_RET(ParseAippDims(aipp_inputs, meta.aipp_input_dims));
+  GE_CHK_STATUS_RET(ParseAippDims(aipp_outputs, meta.aipp_output_dims));
+  if (!aipp_inputs.empty()) {
+    ParseOrigInputInfoFromStr(aipp_inputs[0], meta.orig_input_info);
+  }
+  return SUCCESS;
+}
+
+static Status CollectAippMetas(const ComputeGraphPtr &graph, gert::Om2ModelMeta &model_meta) {
+  std::map<std::string, uint32_t> data_index_map;
+  for (const auto &node : graph->GetDirectNode()) {
+    const auto op_desc = node->GetOpDesc();
+    if (op_desc != nullptr) {
+      uint32_t index = 0U;
+      if (ge::AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, index)) {
+        data_index_map[op_desc->GetName()] = index;
+      }
+    }
+  }
+
+  for (const auto &node : graph->GetDirectNode()) {
+    const auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      continue;
+    }
+    const std::string *mode = ge::AttrUtils::GetStr(op_desc, ATTR_DATA_RELATED_AIPP_MODE);
+    if (mode == nullptr) {
+      continue;
+    }
+    GELOGI("[OM2] Found AIPP node: %s, mode=%s", op_desc->GetName().c_str(), mode->c_str());
+    ge::InputAippType aipp_type;
+    GE_CHK_STATUS_RET(ParseAippModeStr(*mode, aipp_type), "[Parse][AippMode] Unknown AIPP mode for node: %s",
+                      op_desc->GetName().c_str());
+    uint32_t input_index = 0U;
+    (void)ge::AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, input_index);
+    if (input_index >= model_meta.aipp_infos.size()) {
+      model_meta.aipp_infos.resize(input_index + 1U);
+    }
+    gert::Om2AippMeta &meta = model_meta.aipp_infos[input_index];
+    meta.aipp_type = aipp_type;
+    const Status ret = ExtractAippMetaFromOpDesc(op_desc, data_index_map, meta);
+    if (ret != SUCCESS) {
+      GELOGE(ret, "[OM2] ExtractAippMetaFromOpDesc failed for node: %s", op_desc->GetName().c_str());
+      return ret;
+    }
+    model_meta.has_aipp = true;
+  }
+  GELOGI("[OM2] Collected %zu AIPP metas", model_meta.aipp_infos.size());
+  return SUCCESS;
+}
+
 }  // namespace
 
 Status Om2PackageHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model, const std::string &output_file,
@@ -930,6 +1150,8 @@ Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2Mod
   model_meta.dynamic_type = extra_info.dynamic_type;
   model_meta.dynamic_output_shape = extra_info.dynamic_output_shape;
   model_meta.user_designate_shape_order = extra_info.user_designate_shape_order;
+
+  GE_CHK_STATUS_RET(CollectAippMetas(graph, model_meta));
 
   GELOGI("[OM2] Successfully built model meta");
   return SUCCESS;

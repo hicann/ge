@@ -2130,6 +2130,40 @@ const std::vector<std::vector<int64_t>> &Om2ModelExecutor::GetOriginInputDims() 
   return MockFunctionTest::aclStubInstance().GetOriginInputDims();
 }
 
+ge::Status Om2ModelExecutor::GetAippInfo(uint32_t index, ge::AippConfigInfo &aipp_info) const {
+  return MockFunctionTest::aclStubInstance().GetAippInfo(index, aipp_info);
+}
+
+ge::Status Om2ModelExecutor::GetAippType(uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
+  return MockFunctionTest::aclStubInstance().GetAippType(index, aipp_type, aipp_data_index);
+}
+
+ge::Status Om2ModelExecutor::GetOrigInputInfo(uint32_t index, ge::OriginInputInfo &orig_input_info) const {
+  (void)index;
+  (void)orig_input_info;
+  return ge::SUCCESS;
+}
+
+ge::Status Om2ModelExecutor::GetAllAippInputOutputDims(uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
+                                                       std::vector<ge::InputOutputDims> &output_dims) const {
+  return MockFunctionTest::aclStubInstance().GetAllAippInputOutputDims(index, input_dims, output_dims);
+}
+
+ge::Status Om2ModelExecutor::GetBatchInfoSize(size_t &shape_count) const {
+  shape_count = 0U;
+  return ge::SUCCESS;
+}
+
+ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
+                                                const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
+                                                const kAippDynamicPara &aipp_parms) {
+  (void)dynamic_input_addr;
+  (void)length;
+  (void)aipp_batch_para;
+  (void)aipp_parms;
+  return ge::SUCCESS;
+}
+
 class Om2ModelExecutor::Impl {
  public:
   int dummy;
