@@ -117,22 +117,22 @@ Global Memory内存检测功能开关。此参数实际对应的options参数为
   - 使用该选项后，在算子编译过程中会加入如下的检测逻辑，用户可以通过再使用**dump\_cce**参数，在生成的.cce文件中查看如下的代码。
 
     ```cce
-        set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
-        set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
-        set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
-        set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
-        ....
-        pipe_barrier(PIPE_MTE3);
-        pipe_barrier(PIPE_MTE2);
-        pipe_barrier(PIPE_M);
-        pipe_barrier(PIPE_V);
-        pipe_barrier(PIPE_MTE1);
-        pipe_barrier(PIPE_ALL);
-        wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
-        wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
-        wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
-        wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
-        ...
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
+    set_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
+    ....
+    pipe_barrier(PIPE_MTE3);
+    pipe_barrier(PIPE_MTE2);
+    pipe_barrier(PIPE_M);
+    pipe_barrier(PIPE_V);
+    pipe_barrier(PIPE_MTE1);
+    pipe_barrier(PIPE_ALL);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID0);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID1);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID2);
+    wait_flag(PIPE_MTE3, PIPE_MTE2, EVENT_ID3);
+    ...
     ```
 
     实际执行推理过程中，如果确实存在算子内部流水线同步信号不匹配，则最终会在**有问题的算子处超时报错，并终止程序**，报错信息示例为：
@@ -250,7 +250,7 @@ op_debug_list=GatherV2,opType::ReduceSum
 
 > [!NOTE]说明
 >
->- 若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本的当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：$ASCEND\_WORK\_PATH/FE/$\{进程号\}/fusion\_result.json。环境变量详细说明请参见《环境变量参考》。
+>- 若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本的当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：`$ASCEND_WORK_PATH/FE/${进程号}/fusion_result.json`。环境变量详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 >- 通过FUSION\_SWITCH\_FILE参数关闭的融合规则，不会在fusion\_result.json文件中呈现。
 
 **配置示例：**

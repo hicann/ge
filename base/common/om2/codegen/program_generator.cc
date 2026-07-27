@@ -72,9 +72,11 @@ std::vector<DeclNode *> ProgramGenerator::BuildInterfaceHeaderIncludes() const {
       ast_.Include("exe_graph/runtime/runtime_tensor.h"),
       ast_.Include("rt_external.h"),
       ast_.Include("dlog_pub.h", IncludeDecl::Kind::kQuote),
+      ast_.Include("profiling/prof_common.h"),
       ast_.Include("sys/syscall.h", IncludeDecl::Kind::kAngle),
       ast_.Include("unistd.h", IncludeDecl::Kind::kAngle),
       ast_.Include("cinttypes", IncludeDecl::Kind::kAngle),
+      ast_.Include("mmpa/mmpa_api.h"),
   };
 }
 
@@ -88,6 +90,7 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
   file_items.push_back(ast_.StablePart(StablePartId::kInterfaceMacros));
   file_items.push_back(ast_.StablePart(StablePartId::kInterfacePointerHelpers));
   file_items.push_back(ast_.StablePart(StablePartId::kInterfaceDumpApis));
+  file_items.push_back(interface_handler.BuildOm2ProfInfosStruct());
   file_items.insert(file_items.end(), rt_forward_decls.begin(), rt_forward_decls.end());
   file_items.push_back(ast_.Namespace(
       "om2", {

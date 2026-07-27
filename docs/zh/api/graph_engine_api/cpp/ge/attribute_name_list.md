@@ -19,6 +19,7 @@
 
 全量芯片支持。
 
+<!-- npu="950,A3,910b" id1 -->
 ## \_op\_aicore\_num
 
 用于配置算子编译时使用的AI Core中的Cube Core核数。
@@ -35,7 +36,7 @@ cube_core_cnt=24
 vector_core_cnt=48
 ```
 
-其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_<arch\>_表示具体操作系统架构，_xxx_请根据实际产品进行选择。
+其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。<arch\>表示具体操作系统架构，xxx请根据实际产品进行选择。
 
 **产品支持情况：**
 
@@ -45,11 +46,9 @@ vector_core_cnt=48
 - Atlas 推理系列产品：不支持
 - Atlas 训练系列产品：不支持
 - Atlas 200I/500 A2 推理产品：不支持
-- MC62CM12A AI处理器：不支持
-- BS9SX1A AI处理器：不支持
-- BS9SX2A AI处理器：不支持
-- IPV350：不支持
+<!-- end id1 -->
 
+<!-- npu="950,A3,910b" id2 -->
 ## \_op\_vectorcore\_num
 
 用于配置算子编译时使用的AI Core中的Vector Core核数。
@@ -66,7 +65,7 @@ cube_core_cnt=24
 vector_core_cnt=48
 ```
 
-其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。_<arch\>_表示具体操作系统架构，_xxx_请根据实际产品进行选择。
+其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。<arch\>表示具体操作系统架构，xxx请根据实际产品进行选择。
 
 **产品支持情况：**
 
@@ -76,10 +75,7 @@ vector_core_cnt=48
 - Atlas 推理系列产品：不支持
 - Atlas 训练系列产品：不支持
 - Atlas 200I/500 A2 推理产品：不支持
-- MC62CM12A AI处理器：不支持
-- BS9SX1A AI处理器：不支持
-- BS9SX2A AI处理器：不支持
-- IPV350：不支持
+<!-- end id2 -->
 
 ## \_op\_exec\_never\_timeout
 

@@ -24,7 +24,11 @@ add_dependencies(aihac_autofusion metadef_graph_protos_obj ge_autofuse_metadef_g
 target_include_directories(aihac_autofusion BEFORE PRIVATE
        ${CODE_ROOT_DIR}
        ${CODE_ROOT_DIR}/autofuse
-       ${CODE_ROOT_DIR}/graph
+       ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}
+       ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/autofuse
+       ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/graph
+       ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir
+       ${AUTOFUSE_TEMPORARY_DEPENDENCIES_DIR}/ascir/utils
        ${AIR_CODE_DIR}/inc
        ${AIR_CODE_DIR}/inc/graph_metadef
        ${AIR_CODE_DIR}/inc/graph_metadef/graph

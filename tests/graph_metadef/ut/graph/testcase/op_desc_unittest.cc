@@ -1112,4 +1112,40 @@ TEST_F(UtestOpDesc, TestGetOrderedSubgraphs) {
   EXPECT_EQ("static_graph", subgraph_pair[1].first);
   EXPECT_EQ(kStatic, subgraph_pair[1].second);
 }
+
+TEST_F(UtestOpDesc, CovNodeShapeTransUtilsInputReshapeType) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  GeTensorDesc input_desc(GeShape({3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_ND);
+  op_desc->AddInputDesc(input_desc);
+  AttrUtils::SetStr(op_desc->MutableInputDesc(0), ATTR_NAME_RESHAPE_INFER_TYPE, "C");
+  NodeShapeTransUtils trans_utils(op_desc);
+  EXPECT_TRUE(trans_utils.Init());
+  EXPECT_TRUE(trans_utils.CatchFormatAndShape());
+  EXPECT_TRUE(trans_utils.UpdateFormatAndShape());
+}
+
+TEST_F(UtestOpDesc, CovNodeShapeTransUtilsOutputFormatMismatch) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  GeTensorDesc output_desc(GeShape({3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  output_desc.SetOriginFormat(FORMAT_ND);
+  op_desc->AddOutputDesc(output_desc);
+  NodeShapeTransUtils trans_utils(op_desc);
+  EXPECT_TRUE(trans_utils.Init());
+  EXPECT_TRUE(trans_utils.CatchFormatAndShape());
+  op_desc->MutableOutputDesc(0)->SetFormat(FORMAT_HWCN);
+  EXPECT_FALSE(trans_utils.UpdateFormatAndShape());
+}
+
+TEST_F(UtestOpDesc, CovNodeShapeTransUtilsOutputReshapeType) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  GeTensorDesc output_desc(GeShape({3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  output_desc.SetOriginFormat(FORMAT_ND);
+  op_desc->AddOutputDesc(output_desc);
+  AttrUtils::SetStr(op_desc->MutableOutputDesc(0), ATTR_NAME_RESHAPE_INFER_TYPE, "C");
+  NodeShapeTransUtils trans_utils(op_desc);
+  EXPECT_TRUE(trans_utils.Init());
+  EXPECT_TRUE(trans_utils.CatchFormatAndShape());
+  EXPECT_TRUE(trans_utils.UpdateFormatAndShape());
+}
 }  // namespace ge

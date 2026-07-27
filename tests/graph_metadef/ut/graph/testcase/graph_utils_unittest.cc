@@ -5472,4 +5472,113 @@ TEST_F(UtestGraphUtils, PostProcess_RecordOriginalNamesWhenNotExists) {
   EXPECT_EQ(node1->GetName(), "test_owner/node1");
   EXPECT_EQ(node2->GetName(), "test_owner/node2");
 }
+
+TEST_F(UtestGraphUtils, CovGraphUtilsExInferShapeInNeedVerifyFail) {
+  ut::GraphBuilder builder = ut::GraphBuilder("test_graph");
+  auto node = builder.AddNode("cast", "Cast", 1, 1, FORMAT_NCHW, DT_FLOAT, {4});
+  AttrUtils::SetBool(node->GetOpDesc(), NEED_INFER, true);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtilsEx::InferShapeInNeed(graph), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovGraphUtilsExInferShapeInNeedNoInferFunc) {
+  ut::GraphBuilder builder = ut::GraphBuilder("test_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1, FORMAT_NCHW, DT_FLOAT, {4});
+  auto cast = builder.AddNode("cast", "Cast", 1, 1, FORMAT_NCHW, DT_FLOAT, {4});
+  AttrUtils::SetBool(cast->GetOpDesc(), NEED_INFER, true);
+  builder.AddDataEdge(data, 0, cast, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtilsEx::InferShapeInNeed(graph), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovGraphUtilsExInferShapeInNeedInferFail) {
+  ut::GraphBuilder builder = ut::GraphBuilder("test_graph");
+  auto data = builder.AddNode("data", "Data", 1, 1, FORMAT_NCHW, DT_FLOAT, {4});
+  auto cast = builder.AddNode("cast", "Cast", 1, 1, FORMAT_NCHW, DT_FLOAT, {4});
+  AttrUtils::SetBool(cast->GetOpDesc(), NEED_INFER, true);
+  const auto stub_func = [](Operator &op) { return GRAPH_FAILED; };
+  cast->GetOpDesc()->AddInferFunc(stub_func);
+  builder.AddDataEdge(data, 0, cast, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtilsEx::InferShapeInNeed(graph), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovGraphUtilsExCopyGraphWithParent) {
+  auto parent_cg = std::make_shared<ComputeGraph>("parent");
+  auto sub_cg = std::make_shared<ComputeGraph>("sub");
+  sub_cg->SetParentGraph(parent_cg);
+  Graph src_graph = GraphUtilsEx::CreateGraphFromComputeGraph(sub_cg);
+  Graph dst_graph("dst");
+  EXPECT_EQ(GraphUtilsEx::CopyGraph(src_graph, dst_graph), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovMoveNodeToGraphSuccess) {
+  auto builder = ut::GraphBuilder("src");
+  const auto &node = builder.AddNode("node1", "Relu", 1, 1);
+  auto src_graph = builder.GetGraph();
+  auto dst_graph = std::make_shared<ComputeGraph>("dst");
+  auto ret = GraphUtils::MoveNodeToGraph(node, *dst_graph);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(src_graph->GetDirectNodesSize(), 0U);
+  EXPECT_EQ(dst_graph->GetDirectNodesSize(), 1U);
+}
+
+TEST_F(UtestGraphUtils, CovMoveNodeToGraphNullNode) {
+  auto dst_graph = std::make_shared<ComputeGraph>("dst");
+  NodePtr null_node = nullptr;
+  auto ret = GraphUtils::MoveNodeToGraph(null_node, *dst_graph);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovWriteProtoToOStreamSuccess) {
+  onnx::ModelProto model_proto;
+  model_proto.set_producer_name("test");
+  std::ostringstream os;
+  auto ret = GraphUtils::WriteProtoToOStream(model_proto, os);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(os.str().empty());
+}
+
+TEST_F(UtestGraphUtils, CovWriteReadableDumpToOStreamSuccess) {
+  std::stringstream readable_ss;
+  readable_ss << "test readable dump content";
+  std::ostringstream os;
+  auto ret = GraphUtils::WriteReadableDumpToOStream(readable_ss, os);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(os.str(), "test readable dump content");
+}
+
+TEST_F(UtestGraphUtils, CovWriteReadableDumpToOStreamBadStream) {
+  std::stringstream readable_ss;
+  readable_ss << "test";
+  std::ostringstream os;
+  os.setstate(std::ios::failbit);
+  auto ret = GraphUtils::WriteReadableDumpToOStream(readable_ss, os);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovDumpGEGraphByPathInt64Overload) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  auto ret =
+      GraphUtils::DumpGEGraphByPath(graph, "./test_graph_int64.txt", static_cast<int64_t>(ge::DumpLevel::NO_DUMP));
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  system("rm -f ./test_graph_int64.txt");
+}
+
+TEST_F(UtestGraphUtils, CovWriteReadableDumpToTextFile) {
+  std::stringstream readable_ss;
+  readable_ss << "test readable dump to file";
+  GraphUtils::WriteReadableDumpToTextFile(readable_ss, "./test_readable_dump_cov.txt");
+  SUCCEED();
+  system("rm -f ./test_readable_dump_cov.txt");
+}
+
+TEST_F(UtestGraphUtils, CovWriteProtoToTextFileInvalidPath) {
+  onnx::ModelProto model_proto;
+  model_proto.set_producer_name("test");
+  GraphUtils::WriteProtoToTextFile(model_proto, "/nonexistent_dir/cov_test.txt");
+  SUCCEED();
+}
 }  // namespace ge

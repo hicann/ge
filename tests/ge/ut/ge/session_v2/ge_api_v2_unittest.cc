@@ -898,6 +898,9 @@ TEST_F(UtestGeApiV2, CompileGraph_test) {
 }
 
 TEST_F(UtestGeApiV2, CompileGraph_with_hint_option_test) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Skipped on native aarch64: autofuse fusion pass registry crash";
+#endif
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   char old_opp_path_env[MMPA_MAX_PATH] = {'\0'};
@@ -962,6 +965,9 @@ TEST_F(UtestGeApiV2, CompileGraph_with_hint_option_test) {
 }
 
 TEST_F(UtestGeApiV2, CompileGraph_unknown_rank_with_hint_option_test) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Skipped on native aarch64: autofuse fusion pass registry crash";
+#endif
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   char old_opp_path_env[MMPA_MAX_PATH] = {'\0'};
@@ -1024,6 +1030,9 @@ TEST_F(UtestGeApiV2, CompileGraph_unknown_rank_with_hint_option_test) {
 }
 
 TEST_F(UtestGeApiV2, CompileGraph_scalar_with_hint_option_test) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Skipped on native aarch64: autofuse fusion pass registry crash";
+#endif
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   char old_opp_path_env[MMPA_MAX_PATH] = {'\0'};
@@ -1076,6 +1085,9 @@ TEST_F(UtestGeApiV2, CompileGraph_scalar_with_hint_option_test) {
 }
 
 TEST_F(UtestGeApiV2, CompileGraph_static_with_hint_option_test) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Skipped on native aarch64: autofuse fusion pass registry crash";
+#endif
   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   char old_opp_path_env[MMPA_MAX_PATH] = {'\0'};

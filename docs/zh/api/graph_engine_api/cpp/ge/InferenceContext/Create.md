@@ -31,10 +31,6 @@ void *resource_context_mgr = nullptr
 
 资源类算子间传递的上下文对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
 无。

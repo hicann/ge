@@ -34,10 +34,6 @@ Graph GetDynamicSubgraph(const char_t *name, uint32_t index) const
 
 Graph对象。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

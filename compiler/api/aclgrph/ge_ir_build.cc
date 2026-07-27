@@ -434,7 +434,11 @@ static graphStatus aclgrphBuildInitializeImpl(std::map<std::string, std::string>
   if (python_runtime_ret != SUCCESS) {
     GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", python_runtime_ret);
   }
-  GE_DISMISSABLE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
+  GE_DISMISSABLE_GUARD(release_python_resources, []() {
+    (void)fusion::ShutdownPassPluginsForProcess();
+    (void)ge::custom_op::ShutdownCustomOpsForProcess();
+    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
+  });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   LoadOpsProto();
   GE_ASSERT_SUCCESS(fusion::LoadPassPlugins());
@@ -454,7 +458,7 @@ static graphStatus aclgrphBuildInitializeImpl(std::map<std::string, std::string>
   GELOGW("gelib has been initialized!");
   Status ret = static_cast<uint32_t>(error_message::ErrMgrInit(error_message::ErrorMessageMode::INTERNAL_MODE));
   GE_ASSERT_SUCCESS(ret, "ErrorManager init failed!");
-  GE_DISMISS_GUARD(release_python_runtime);
+  GE_DISMISS_GUARD(release_python_resources);
   return GRAPH_SUCCESS;
 }
 

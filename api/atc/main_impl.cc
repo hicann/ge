@@ -51,6 +51,7 @@
 #include "graph_metadef/graph/operator_factory_impl.h"
 #include "nlohmann/json.hpp"
 #include "graph_metadef/graph/utils/file_utils.h"
+#include "graph/fusion/pass/pass_plugin_loader.h"
 #include "register/optimization_option_registry.h"
 #include "register/amct_registry.h"
 #include "runtime/custom_op/custom_op_loader.h"
@@ -1508,7 +1509,6 @@ static Status ConvertModelToJson(int32_t fwk_type, const std::string &model_file
     ret = ConvertOm(model_file.c_str(), json_file.c_str(), true);
     return ret;
   }
-  GE_MAKE_GUARD(release_custom_ops, []() { (void)ge::custom_op::ShutdownCustomOpsForProcess(); });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
   // Need to save caffe.proto path
   SaveCustomCaffeProtoPath();
@@ -2347,7 +2347,11 @@ int32_t main_impl(int32_t argc, char *argv[]) {
   if (python_runtime_ret != SUCCESS) {
     GELOGW("[Ensure][PythonRuntime] failed before running ATC, continue initialization, ret[%u].", python_runtime_ret);
   }
-  GE_MAKE_GUARD(release_python_runtime, []() { (void)GePythonRuntimeManager::Instance().ShutdownProcess(); });
+  GE_MAKE_GUARD(release_python_resources, []() {
+    (void)ge::fusion::ShutdownPassPluginsForProcess();
+    (void)ge::custom_op::ShutdownCustomOpsForProcess();
+    (void)GePythonRuntimeManager::Instance().ShutdownProcess();
+  });
 
   ret = (CheckGlobalOptionsBeforeRun() == SUCCESS && RunAtcByMode(raw_options) == SUCCESS) ? SUCCESS : FAILED;
 

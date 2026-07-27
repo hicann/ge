@@ -32,9 +32,17 @@ constexpr uint32_t kAgingFlag = 1U;
 constexpr uint32_t kNonAgingFlag = 0U;
 constexpr uint32_t kModelGraphIdMapDataLen = 16U;
 constexpr uint32_t kOm1ModelLoadType = MSPROF_REPORT_MODEL_GRAPH_ID_MAP_TYPE + 2U;
+// 模型级 / Node 级 profiling type ID，对齐 gert::GeProfInfoType 枚举值
+constexpr uint32_t kProfModelExecuteType = MSPROF_REPORT_MODEL_GRAPH_ID_MAP_TYPE + 1U;
+constexpr uint32_t kProfInputCopyType = MSPROF_REPORT_MODEL_GRAPH_ID_MAP_TYPE + 3U;
+constexpr uint32_t kProfOutputCopyType = MSPROF_REPORT_MODEL_GRAPH_ID_MAP_TYPE + 4U;
+constexpr uint32_t kProfStepInfoType = MSPROF_REPORT_NODE_GE_API_BASE_TYPE + 6U;
+constexpr uint32_t kProfLaunchType = MSPROF_REPORT_NODE_LAUNCH_TYPE;
 constexpr uint32_t kTensorInfoBytes = 44U;
 constexpr uint32_t kTensorInfoBytesWithCap = 56U;
 constexpr uint32_t kInvalidContextId = 0xFFFFFFFFU;
+constexpr uint32_t kFusionOpInfoCap = 52U;
+constexpr uint32_t kHashOffset = 8U;
 
 const std::map<ModelTaskType, MsprofGeTaskType> kModelTaskTypeToProfTaskType = {
     {ModelTaskType::MODEL_TASK_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
@@ -146,7 +154,7 @@ Status ProfilingImpl::ReportModelLoadBegin(const ModelDumpInfo &model_info) cons
   model_load_event.itemId = model_info.model_id;
   model_load_event.level = MSPROF_REPORT_MODEL_LEVEL;
   model_load_event.timeStamp = MsprofSysCycleTime();
-  model_load_event.threadId = 0U;
+  model_load_event.threadId = static_cast<uint32_t>(mmGetTid());
   model_load_event.requestId = 0U;
   return CheckMsprofRet(MsprofReportEvent(kNonAgingFlag, &model_load_event), "Report model load begin", model_name);
 }
@@ -161,7 +169,7 @@ Status ProfilingImpl::ReportModelLoadEnd(const ModelDumpInfo &model_info) const 
   const char *model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
   GELOGD("Report OM2 profiling model load end, model_id=%u, model_name=%s", model_info.model_id, model_name);
   const uint64_t prof_time = MsprofSysCycleTime();
-  const uint32_t tid = 0U;
+  const uint32_t tid = static_cast<uint32_t>(mmGetTid());
 
   MsprofAdditionalInfo graph_id_info{};
   graph_id_info.level = MSPROF_REPORT_MODEL_LEVEL;
@@ -209,7 +217,10 @@ Status ProfilingImpl::SaveTaskInfo(const Om2TaskInfo &task_info, const ModelDump
            task_info.task_type);
     return SUCCESS;
   }
-  return ReportTaskDescInfo(task_desc_info, prof_task_type, task_info.thread_id);
+  GE_CHK_STATUS_RET(ReportTaskDescInfo(task_desc_info, prof_task_type, task_info.thread_id));
+  GE_CHK_STATUS_RET(ReportFusionOpInfo(task_info, model_info.model_id));
+  GE_CHK_STATUS_RET(ReportLaunchInfo(task_info, task_desc_info.prof_time), "ReportLaunchInfo failed");
+  return SUCCESS;
 }
 
 Status ProfilingImpl::BuildTaskDescInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info,
@@ -268,7 +279,6 @@ Status ProfilingImpl::ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uin
     return FAILED;
   }
   GE_CHK_STATUS_RET(ReportTensorInfo(task_desc_info, node_basic_info.threadId));
-  GE_CHK_STATUS_RET(ReportContextIdInfo(task_desc_info, node_basic_info.threadId));
   return SUCCESS;
 }
 
@@ -319,6 +329,201 @@ Status ProfilingImpl::ReportContextIdInfo(const TaskDescInfo &task_desc_info, ui
   return CheckMsprofRet(
       MsprofReportAdditionalInfo(kAgingFlag, &context_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
       "Report profiling context id info", task_desc_info.op_name.c_str());
+}
+
+Status ProfilingImpl::ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32_t model_id) const {
+  if (!ProfilingConfig::Instance().IsTaskTimeEnabled()) {
+    GELOGD("[OM2][Prof] Skip reporting OM2 model level profiling, model_execute profiling disabled, model_id=%u",
+           model_id);
+    return SUCCESS;
+  }
+
+  GELOGD("[OM2][Prof] Report OM2 model level profiling, model_id=%u, count=%u", model_id, prof_info.count);
+
+  for (uint32_t i = 0U; i < prof_info.count; ++i) {
+    auto &unit = prof_info.profUnit[i];
+    if (unit.type >= OM2_PROF_TYPE_COUNT) {
+      GELOGW("[OM2][Prof] Invalid prof type=%u at index=%u, model_id=%u, skipping", unit.type, i, model_id);
+      continue;
+    }
+    switch (unit.type) {
+      case OM2_PROF_INPUT_COPY:
+        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_MODEL_LEVEL, static_cast<uint32_t>(kProfInputCopyType),
+                                        static_cast<uint64_t>(model_id), unit, "ReportInputCopy"));
+        GELOGD("[OM2][Prof] InputCopy reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
+               unit.end_time);
+        break;
+      case OM2_PROF_MODEL_EXECUTE:
+        GE_CHK_STATUS_RET(ReportProfModelExecute(unit, model_id, prof_info.step_id));
+        GELOGD("[OM2][Prof] ModelExecute reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
+               unit.end_time);
+        break;
+      case OM2_PROF_OUTPUT_COPY:
+        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_MODEL_LEVEL, static_cast<uint32_t>(kProfOutputCopyType),
+                                        static_cast<uint64_t>(model_id), unit, "ReportOutputCopy"));
+        GELOGD("[OM2][Prof] OutputCopy reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
+               unit.end_time);
+        break;
+      case OM2_PROF_STEP_INFO_START:
+        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_NODE_LEVEL, static_cast<uint32_t>(kProfStepInfoType), 0U, unit,
+                                        "ReportStepInfo start"));
+        GELOGD("[OM2][Prof] StepInfo start reported, model_id=%u, time=%lu", model_id, unit.begin_time);
+        break;
+      case OM2_PROF_STEP_INFO_END:
+        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_NODE_LEVEL, static_cast<uint32_t>(kProfStepInfoType), 1U, unit,
+                                        "ReportStepInfo end"));
+        GELOGD("[OM2][Prof] StepInfo end reported, model_id=%u, time=%lu", model_id, unit.end_time);
+        break;
+      default:
+        GELOGW("[OM2][Prof] Unhandled prof type=%u at index=%u, model_id=%u", unit.type, i, model_id);
+        break;
+    }
+  }
+
+  GELOGD("[OM2][Prof] ReportModelLevelProf done, model_id=%u, total=%u entries", model_id, prof_info.count);
+  return SUCCESS;
+}
+
+Status ProfilingImpl::ReportProfApi(uint32_t level, uint32_t type, uint64_t item_id, const Om2ProfUnit &unit,
+                                    const char *tag) const {
+  MsprofApi api{};
+  api.level = static_cast<uint16_t>(level);
+  api.type = static_cast<uint16_t>(type);
+  api.beginTime = static_cast<uint32_t>(unit.begin_time);
+  api.endTime = static_cast<uint32_t>(unit.end_time);
+  api.itemId = static_cast<uint32_t>(item_id);
+  api.threadId = unit.thread_id;
+  return CheckMsprofRet(MsprofReportApi(kAgingFlag, &api), tag, "");
+}
+
+Status ProfilingImpl::ReportProfModelExecute(const Om2ProfUnit &unit, uint32_t model_id, uint64_t step_id) const {
+  MsprofEvent event{};
+  event.level = MSPROF_REPORT_MODEL_LEVEL;
+  event.type = static_cast<uint32_t>(kProfModelExecuteType);
+  event.itemId = static_cast<uint32_t>(model_id);
+  event.threadId = unit.thread_id;
+  event.requestId = static_cast<uint32_t>(step_id);
+  event.timeStamp = unit.begin_time;
+  GE_CHK_STATUS_RET(CheckMsprofRet(MsprofReportEvent(kAgingFlag, &event), "ReportModelExecute begin", ""));
+  event.timeStamp = unit.end_time;
+  return CheckMsprofRet(MsprofReportEvent(kAgingFlag, &event), "ReportModelExecute end", "");
+}
+
+Status ProfilingImpl::ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t prof_time) const {
+  if (task_info.launch_begin == 0U) {
+    if (task_info.op_name != nullptr) {
+      GELOGD("[OM2][Prof] Launch timing not recorded, op_name=%s", task_info.op_name);
+    }
+    return SUCCESS;
+  }
+  const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
+  GELOGD("[OM2][Prof] Report OM2 launch info, op_name=%s", op_name);
+
+  MsprofApi api{};
+  api.level = MSPROF_REPORT_NODE_LEVEL;
+  api.type = static_cast<uint32_t>(kProfLaunchType);
+  api.beginTime = static_cast<uint32_t>(task_info.launch_begin);
+  api.endTime = static_cast<uint32_t>(prof_time);
+  api.itemId = static_cast<uint32_t>(MsprofGetHashId(op_name, strlen(op_name)));
+  api.threadId = task_info.thread_id;
+  return CheckMsprofRet(MsprofReportApi(kNonAgingFlag, &api), "ReportLaunchInfo", op_name);
+}
+
+Status ProfilingImpl::ReportFusionOpInfo(const Om2TaskInfo &task_info, uint32_t model_id) const {
+  if (task_info.original_op_names == nullptr) {
+    return SUCCESS;  // 非融合算子，跳过
+  }
+
+  const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
+  const std::vector<std::string> origin_op_names = SplitFusionOpNames(task_info.original_op_names);
+  const uint64_t prof_time = MsprofSysCycleTime();
+  const uint32_t tid = task_info.thread_id;
+  const uint64_t op_name_hash = MsprofGetHashId(op_name, strlen(op_name));
+  const size_t total_op_num = origin_op_names.size();
+
+  GELOGD(
+      "[OM2][Prof] Report OM2 fusion op info, op_name=%s, model_id=%u, fusion_num=%zu, "
+      "input_mem=%lu, output_mem=%lu, workspace_mem=%lu, weight_mem=%lu",
+      op_name, model_id, total_op_num, task_info.input_mem_size, task_info.output_mem_size,
+      task_info.workspace_mem_size, task_info.weight_mem_size);
+
+  // 参照 V1 BuildFusionOpInfo 分批上报
+  auto report_batch = [&prof_time, &tid, &op_name_hash, &task_info, &origin_op_names, &op_name](size_t batch_begin,
+                                                                                                size_t batch_num) {
+    MsprofAdditionalInfo info{};
+    info.level = MSPROF_REPORT_NODE_LEVEL;
+    info.type = MSPROF_REPORT_NODE_FUSION_OP_INFO_TYPE;
+    info.timeStamp = prof_time;
+    info.threadId = tid;
+    info.dataLen = kFusionOpInfoCap + static_cast<uint32_t>(batch_num) * kHashOffset;
+    auto *fusion_info = reinterpret_cast<ProfFusionOpInfo *>(info.data);
+    fusion_info->opName = op_name_hash;
+    fusion_info->fusionOpNum = static_cast<uint32_t>(batch_num);
+    fusion_info->inputMemsize = task_info.input_mem_size;
+    fusion_info->outputMemsize = task_info.output_mem_size;
+    fusion_info->workspaceMemSize = task_info.workspace_mem_size;
+    fusion_info->weightMemSize = task_info.weight_mem_size;
+    fusion_info->totalMemSize = fusion_info->inputMemsize + fusion_info->outputMemsize + fusion_info->workspaceMemSize +
+                                fusion_info->weightMemSize;
+    for (size_t i = 0U; i < batch_num; ++i) {
+      fusion_info->fusionOpId[i] =
+          MsprofGetHashId(origin_op_names[batch_begin + i].c_str(), origin_op_names[batch_begin + i].length());
+    }
+    return CheckMsprofRet(
+        MsprofReportAdditionalInfo(kNonAgingFlag, &info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
+        "ReportFusionOpInfo", op_name);
+  };
+
+  const size_t batch_cnt = total_op_num / static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM);
+  for (size_t i = 0U; i < batch_cnt; ++i) {
+    GE_CHK_STATUS_RET(
+        report_batch(i * static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM), static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM)));
+  }
+  const size_t remain = total_op_num % static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM);
+  if (remain != 0U) {
+    GE_CHK_STATUS_RET(report_batch(batch_cnt * static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM), remain));
+  }
+  return SUCCESS;
+}
+
+std::vector<std::string> ProfilingImpl::SplitFusionOpNames(const char *names_str) const {
+  std::vector<std::string> result;
+  if (names_str == nullptr) {
+    return result;
+  }
+  std::string str(names_str);
+  size_t start = 0U;
+  size_t end = 0U;
+  while ((end = str.find(';', start)) != std::string::npos) {
+    result.emplace_back(str.substr(start, end - start));
+    start = end + 1U;
+  }
+  if (start < str.length()) {
+    result.emplace_back(str.substr(start));
+  }
+  return result;
+}
+
+Status ProfilingImpl::RegisterModelToProfilingRuntime(const ModelDumpInfo &model_info) const {
+  const int32_t ret = MsprofSetDeviceIdByGeModelIdx(model_info.model_id, model_info.device_id);
+  if (ret != MSPROF_ERROR_NONE) {
+    GELOGW("[OM2][Prof] Register model_id to profiling runtime failed, model_id=%u, device_id=%u, ret=%d",
+           model_info.model_id, model_info.device_id, ret);
+    return FAILED;
+  }
+  GELOGD("[OM2][Prof] Register model_id to profiling runtime success, model_id=%u, device_id=%u", model_info.model_id,
+         model_info.device_id);
+  return SUCCESS;
+}
+
+Status ProfilingImpl::UnregisterModelFromProfilingRuntime(uint32_t model_id) const {
+  const int32_t ret = MsprofUnsetDeviceIdByGeModelIdx(model_id, 0U);
+  if (ret != MSPROF_ERROR_NONE) {
+    GELOGW("[OM2][Prof] Unregister model_id from profiling runtime failed, model_id=%u, ret=%d", model_id, ret);
+    return FAILED;
+  }
+  GELOGD("[OM2][Prof] Unregister model_id from profiling runtime success, model_id=%u", model_id);
+  return SUCCESS;
 }
 
 }  // namespace dump

@@ -93,10 +93,6 @@ Operator &SetOutputAttr(const char_t *dst_name, const char_t *name, const std::v
 
 [Operator](Operator.md)对象本身。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

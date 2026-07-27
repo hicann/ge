@@ -32,10 +32,10 @@ export ASCEND_MAX_OP_CACHE_SIZE=500
 
 不同场景下指定算子编译磁盘缓存目录的方法不同，例如：
 
-- 基于AscendCL接口开发AI应用场景下，可在“aclCompileOpt”接口中通过编译选项ACL\_OP\_COMPILER\_CACHE\_DIR设置。
-- Ascend Graph构图场景下，可通过配置参数“ge.op\_compiler\_cache\_dir”设置。
-- ATC模型转换场景下，可通过参数“--op\_compiler\_cache\_dir”设置。
-- PyTorch框架场景下，可通过环境变量“ACL\_OP\_COMPILER\_CACHE\_DIR”设置，关于“ACL\_OP\_COMPILER\_CACHE\_DIR”的介绍可参见《[Ascend Extension for PyTorch 环境变量参考](https://www.hiascend.com/document/detail/zh/Pytorch/600/apiref/Envvariables/Envir_001.html)》。
+- 基于acl接口开发AI应用场景下，可在[aclCompileOpt](../../api/graph_engine_api/c/acl/aclCompileOpt.md)接口中通过编译选项ACL\_OP\_COMPILER\_CACHE\_DIR设置。
+- 图开发下，可通过配置参数[ge.op\_compiler\_cache\_dir](../../api/graph_engine_api/cpp/ge/options_params/operator_and_graph_compilation.md#geop_compiler_cache_dir)设置。
+- ATC离线模型转换场景下，可通过参数[--op\_compiler\_cache\_dir](../atc_tools/CLI_options/--op_compiler_cache_dir.md)设置。
+- PyTorch框架场景下，可通过环境变量“ACL\_OP\_COMPILER\_CACHE\_DIR”设置，关于“ACL\_OP\_COMPILER\_CACHE\_DIR”的介绍可参见《[TorchNPU环境变量参考](https://www.hiascend.com/document/detail/zh/Pytorch/600/apiref/Envvariables/Envir_001.html)》。
 - TensorFlow框架场景下，可通过配置参数“op\_compiler\_cache\_dir”设置。
 
     TF Adapter配置参数“op\_compiler\_cache\_dir”的详细说明可参见：

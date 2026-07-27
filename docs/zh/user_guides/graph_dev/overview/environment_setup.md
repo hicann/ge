@@ -9,7 +9,7 @@
 - “$\{INSTALL\_DIR\}/**opp/built-in/op\_graph/inc**”下提供了CANN算子原型定义，用于通过算子原型构建Graph。
 - “$\{INSTALL\_DIR\}/**include/graph**”下提供了Graph构建接口。
 - “$\{INSTALL\_DIR\}/**include/ge**”下提供了Graph运行接口。
-- “$\{INSTALL\_DIR\}/**_<arch\>_-linux/devlib**”下为相关依赖库。_<arch\>_为操作系统架构。
+- “$\{INSTALL\_DIR\}/**_<arch\>_-linux/devlib**”下为相关依赖库。<arch\>为操作系统架构。
 
 其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 

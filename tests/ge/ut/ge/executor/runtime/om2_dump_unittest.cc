@@ -21,9 +21,11 @@
 #include "framework/runtime/dump/exception_dump_impl.h"
 #include "framework/runtime/dump/profiling_config.h"
 #include "framework/runtime/dump/profiling_callback_manager.h"
-#include "common/ge_common/ge_log.h"
-#include "dump_stub.h"
+#include "framework/runtime/dump/profiling_impl.h"
+#include "common/debug/ge_log.h"
+#include "depends/profiler/src/dump_stub.h"
 #include "aprof_pub.h"
+#include "depends/profiler/src/profiling_test_util.h"
 
 using namespace testing;
 using namespace ge::dump;
@@ -703,7 +705,7 @@ TEST(DataDumpImplTest, SaveTaskTest) {
   info.task_id = 1;
   info.stream_id = 1;
 
-  Status ret = impl.SaveTask(info, ModelTaskType::TASK_TYPE_KERNEL, nullptr, false);
+  Status ret = impl.SaveTask(info, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -845,4 +847,564 @@ TEST_F(ProfilingConfigTest, RejectsInvalidInput) {
   EXPECT_TRUE(ProfilingConfig::Instance().IsEnabled());
 }
 
+// =========================================================================
+//  ProfilingImpl 测试
+// =========================================================================
+class ProfilingImplTest : public Test {
+ protected:
+  void SetUp() override {
+    ProfilingConfig::Instance().Disable();
+    // 保证 TaskTime / ModelLoad 等子开关在初始均关闭
+  }
+
+  void TearDown() override {
+    ProfilingConfig::Instance().Disable();
+    ProfilingTestUtil::Instance().Clear();
+  }
+
+  ModelDumpInfo MakeModelInfo(uint32_t model_id = 42U) {
+    return ModelDumpInfo{model_id, "test_model", nullptr, 0U, nullptr, 0U, 0U, 0U};
+  }
+};
+
+// --- ReportModelLoadBegin ---
+
+TEST_F(ProfilingImplTest, ReportModelLoadBegin_ProfilingDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.ReportModelLoadBegin(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLoadBegin_ProfilingEnabled_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.model_load_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+  EXPECT_TRUE(ProfilingConfig::Instance().IsModelLoadEnabled());
+
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.ReportModelLoadBegin(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- ReportModelLoadEnd ---
+
+TEST_F(ProfilingImplTest, ReportModelLoadEnd_ProfilingDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.ReportModelLoadEnd(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLoadEnd_ProfilingEnabled_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.model_load_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+  EXPECT_TRUE(ProfilingConfig::Instance().IsModelLoadEnabled());
+
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.ReportModelLoadEnd(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- ReportModelLevelProf ---
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_TaskTimeDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_EmptyProfInfo_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+  EXPECT_TRUE(ProfilingConfig::Instance().IsTaskTimeEnabled());
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_InputCopyType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+  EXPECT_TRUE(ProfilingConfig::Instance().IsTaskTimeEnabled());
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = OM2_PROF_INPUT_COPY;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_ModelExecuteType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = OM2_PROF_MODEL_EXECUTE;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 99U};  // step_id = 99
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_OutputCopyType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = OM2_PROF_OUTPUT_COPY;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_StepInfoStartType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = OM2_PROF_STEP_INFO_START;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_StepInfoEndType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = OM2_PROF_STEP_INFO_END;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_InvalidType_SkipsAndReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[1] = {};
+  units[0U].type = static_cast<Om2ProfType>(OM2_PROF_TYPE_COUNT);  // OM2_PROF_TYPE_COUNT is invalid
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportModelLevelProf_AllTypes_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2ProfUnit units[5] = {};
+  units[0U].type = OM2_PROF_INPUT_COPY;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[1U].type = OM2_PROF_MODEL_EXECUTE;
+  units[1U].begin_time = 200U;
+  units[1U].end_time = 300U;
+  units[2U].type = OM2_PROF_OUTPUT_COPY;
+  units[2U].begin_time = 300U;
+  units[2U].end_time = 400U;
+  units[3U].type = OM2_PROF_STEP_INFO_START;
+  units[3U].begin_time = 150U;
+  units[3U].end_time = 250U;
+  units[4U].type = OM2_PROF_STEP_INFO_END;
+  units[4U].begin_time = 350U;
+  units[4U].end_time = 450U;
+  Om2ProfInfos prof_info = {1U, 5U, units, 0U};
+  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- ReportLaunchInfo ---
+
+TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginZero_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.launch_begin = 0U;
+  Status ret = impl.ReportLaunchInfo(task_info, 1000U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginNonZero_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.launch_begin = 500U;
+  task_info.thread_id = 1U;
+  Status ret = impl.ReportLaunchInfo(task_info, 1000U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportLaunchInfo_NullOpName_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = nullptr;
+  task_info.launch_begin = 500U;
+  task_info.thread_id = 1U;
+  Status ret = impl.ReportLaunchInfo(task_info, 1000U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- ReportFusionOpInfo ---
+
+TEST_F(ProfilingImplTest, ReportFusionOpInfo_OriginalOpNamesNull_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "fusion_op";
+  task_info.original_op_names = nullptr;
+  Status ret = impl.ReportFusionOpInfo(task_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportFusionOpInfo_SingleOpName_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "fusion_op";
+  task_info.original_op_names = "MatMul";
+  task_info.input_mem_size = 1024U;
+  task_info.output_mem_size = 512U;
+  task_info.workspace_mem_size = 256U;
+  task_info.weight_mem_size = 128U;
+  task_info.thread_id = 1U;
+  Status ret = impl.ReportFusionOpInfo(task_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ReportFusionOpInfo_MultipleOpNames_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "fusion_op";
+  task_info.original_op_names = "MatMul;Add;Relu";
+  task_info.input_mem_size = 1024U;
+  task_info.output_mem_size = 512U;
+  task_info.workspace_mem_size = 256U;
+  task_info.weight_mem_size = 128U;
+  task_info.thread_id = 1U;
+  Status ret = impl.ReportFusionOpInfo(task_info, 42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- RegisterModelToProfilingRuntime ---
+
+TEST_F(ProfilingImplTest, RegisterModelToProfilingRuntime_ReturnsSuccess) {
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo(1U);
+  Status ret = impl.RegisterModelToProfilingRuntime(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, RegisterModelToProfilingRuntime_DifferentModelId_ReturnsSuccess) {
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo(999U);
+  model_info.device_id = 1U;
+  Status ret = impl.RegisterModelToProfilingRuntime(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- UnregisterModelFromProfilingRuntime ---
+
+TEST_F(ProfilingImplTest, UnregisterModelFromProfilingRuntime_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Status ret = impl.UnregisterModelFromProfilingRuntime(42U);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- SaveTaskInfo ---
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportEnabled_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+  EXPECT_TRUE(ProfilingConfig::Instance().IsTaskReportEnabled());
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.launch_begin = 500U;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_InvalidTaskType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Unknown";
+  task_info.task_type = 0xFFU;  // invalid task type
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  int64_t shape[] = {1, 3, 224, 224};
+  Om2Tensor tensor = {};
+  tensor.size = 1024U;
+  tensor.data_type = 0U;  // DT_FLOAT
+  tensor.format = 0U;     // FORMAT_NCHW
+  tensor.shape_dims = shape;
+  tensor.shape_dims_num = 4U;
+
+  Om2TaskIoEntry inputs[2] = {};
+  inputs[0U].tensor = &tensor;
+  inputs[0U].offset = 0U;
+  inputs[1U].tensor = &tensor;
+  inputs[1U].offset = 1024U;
+
+  Om2TaskIoEntry outputs[1] = {};
+  outputs[0U].tensor = &tensor;
+  outputs[0U].offset = 2048U;
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.inputs = inputs;
+  task_info.input_num = 2U;
+  task_info.outputs = outputs;
+  task_info.output_num = 1U;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_NullTensor_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  // tensor with null shape_dims but shape_dims_num != 0
+  Om2Tensor tensor = {};
+  tensor.size = 1024U;
+  tensor.data_type = 0U;
+  tensor.format = 0U;
+  tensor.shape_dims = nullptr;
+  tensor.shape_dims_num = 4U;
+
+  Om2TaskIoEntry inputs[1] = {};
+  inputs[0U].tensor = &tensor;
+  inputs[0U].offset = 0U;
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.inputs = inputs;
+  task_info.input_num = 1U;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_NullIoEntries_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.inputs = nullptr;
+  task_info.input_num = 0U;
+  task_info.outputs = nullptr;
+  task_info.output_num = 0U;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_WithNullOpName_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = nullptr;
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// --- BuildTaskDescInfo coverage (indirect via SaveTaskInfo) ---
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_AicpuTaskType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "aicpu_op";
+  task_info.op_type = "KernelEx";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL_EX);  // AICPU
+  task_info.block_dim = 1U;
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_DsaTaskType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "dsa_op";
+  task_info.op_type = "DSA";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_DSA);
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, SaveTaskInfo_HcclTaskType_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_report_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "hccl_op";
+  task_info.op_type = "HCCL";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_HCCL);
+  auto model_info = MakeModelInfo();
+  Status ret = impl.SaveTaskInfo(task_info, model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// =========================================================================
+//  ModelDumpManager::ReportModelLevelProf 测试
+// =========================================================================
+
+TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_Enabled_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ModelDumpManager manager(42U);
+  ModelDumpInfo info = MakeModelInfo();
+  ASSERT_EQ(manager.SetModelDumpInfo(info), SUCCESS);
+
+  Om2ProfUnit units[3] = {};
+  units[0U].type = OM2_PROF_INPUT_COPY;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 200U;
+  units[0U].thread_id = 1U;
+  units[1U].type = OM2_PROF_MODEL_EXECUTE;
+  units[1U].begin_time = 200U;
+  units[1U].end_time = 300U;
+  units[1U].thread_id = 1U;
+  units[2U].type = OM2_PROF_OUTPUT_COPY;
+  units[2U].begin_time = 300U;
+  units[2U].end_time = 400U;
+  units[2U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 3U, units, 0U};
+
+  Status ret = manager.ReportModelLevelProf(prof_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_Empty_ReturnsSuccess) {
+  ModelDumpManager manager(42U);
+  Om2ProfUnit units[1] = {};
+  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
+  Status ret = manager.ReportModelLevelProf(prof_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_WithStepId_ReturnsSuccess) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  ModelDumpManager manager(42U);
+  ModelDumpInfo info = MakeModelInfo();
+  ASSERT_EQ(manager.SetModelDumpInfo(info), SUCCESS);
+
+  Om2ProfUnit units[2] = {};
+  units[0U].type = OM2_PROF_STEP_INFO_START;
+  units[0U].begin_time = 100U;
+  units[0U].end_time = 150U;
+  units[0U].thread_id = 1U;
+  units[1U].type = OM2_PROF_STEP_INFO_END;
+  units[1U].begin_time = 350U;
+  units[1U].end_time = 400U;
+  units[1U].thread_id = 1U;
+  Om2ProfInfos prof_info = {1U, 2U, units, 12345U};  // step_id != 0
+
+  Status ret = manager.ReportModelLevelProf(prof_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace ge

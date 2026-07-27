@@ -148,11 +148,15 @@
 - 若原始模型中输入数据的某个或某些维度值不固定，当前支持通过设置shape范围的方式转换模型。
   - 设置shape范围。
 
-        Atlas 200I/500 A2 推理产品**不支持设置shape范围**。
+    <!-- npu="310b" id1 -->
+    Atlas 200I/500 A2 推理产品**不支持设置shape范围**。
+    <!-- end id1 -->
 
-        IPV350**不支持设置shape范围**。
+    <!-- npu="IPV350" id2 -->
+    IPV350**不支持设置shape范围**。
+    <!-- end id2 -->
 
-        设置INPUT\_SHAPE参数时，可将对应维度的值设置为范围。
+    设置INPUT\_SHAPE参数时，可将对应维度的值设置为范围。
 
     - 支持按照name设置："input\_name1:n1,c1,h1,w1;input\_name2:n2,c2,h2,w2"，例如："input\_name1:8\~20,3,5,-1;input\_name2:5,3\~9,10,-1"。指定的节点必须放在双引号中，节点中间使用英文分号分隔。input\_name必须是转换前的网络模型中的节点名称。如果用户知道data节点的name，推荐按照name设置。
     - 支持按照index设置："n1,c1,h1,w1;n2,c2,h2,w2"，例如："8\~20,3,5,-1;5,3\~9,10,-1"。可以不指定节点名，节点按照索引顺序排列，节点中间使用英文分号分隔。按照index设置shape范围时，data节点需要设置属性index，说明是第几个输入，index从0开始。
@@ -162,11 +166,11 @@
 - shape为标量。
   - 非动态分档场景：
 
-        shape为标量的输入，可选配置，例如模型有两个输入，input\_name1为标量，即shape为"\[\]"形式，input\_name2输入shape为\[n2,c2,h2,w2\]，则shape信息为"**input\_name1:**;input\_name2:n2,c2,h2,w2"，指定的节点必须放在双引号中，不同输入之间使用英文分号分隔，input\_name必须是转换前的网络模型中的节点名称；标量的输入如果配置，则配置为空。
+    shape为标量的输入，可选配置，例如模型有两个输入，input\_name1为标量，即shape为"\[\]"形式，input\_name2输入shape为\[n2,c2,h2,w2\]，则shape信息为"**input\_name1:**;input\_name2:n2,c2,h2,w2"，指定的节点必须放在双引号中，不同输入之间使用英文分号分隔，input\_name必须是转换前的网络模型中的节点名称；标量的输入如果配置，则配置为空。
 
 **配置示例：**
 
-- 静态shape，例如某网络的输入shape信息，输入1**：**input\_0\_0 \[16,32,208,208\]，输入2：input\_1\_0 \[16,64,208,208\]，则INPUT\_SHAPE的配置信息为：
+- 静态shape，例如某网络的输入shape信息，输入1：input\_0\_0 \[16,32,208,208\]，输入2：input\_1\_0 \[16,64,208,208\]，则INPUT\_SHAPE的配置信息为：
 
     ```c++
     {ge::AscendString(ge::ir_option::INPUT_SHAPE), ge::AscendString("input_0_0:16,32,208,208;input_1_0:16,64,208,208")},
@@ -187,7 +191,7 @@
     {ge::AscendString(ge::ir_option::INPUT_SHAPE), ge::AscendString("input_name1:;input_name2:16,32,208,208")},
     ```
 
-    上述示例中的**input\_name1**为可选配置**。**
+    上述示例中的**input\_name1**为可选配置。
 
 > [!NOTE]说明
 >

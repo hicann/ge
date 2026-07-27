@@ -37,6 +37,7 @@
 #include "register/custom_pass_context_impl.h"
 #include "graph/ge_local_context.h"
 #include "compiler/graph/fusion/pass/fusion_pass_executor.h"
+#include "compiler/graph/fusion/pass/pass_plugin_loader.h"
 #include "register/optimization_option_registry.h"
 
 // 单例，为了保证ut效果，需要清理其成员
@@ -1837,6 +1838,29 @@ TEST_F(UtestFusionPassExecutor, PythonDecomposePass_PybindBridge_RunSuccess) {
   }
   EXPECT_EQ(add_node_count, 0U);
   EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassPluginLoader_RollbackOnDuplicatePassName) {
+  constexpr const char *kDuplicatePassName = "PythonPassPluginLoaderDuplicateCppPass";
+  FusionPassRegistrationData cpp_pass(kDuplicatePassName);
+  cpp_pass.Stage(CustomPassStage::kAfterInferShape).CreatePassFn([]() -> FusionBasePass * { return nullptr; });
+  PassRegistry::GetInstance().RegisterFusionPass(cpp_pass);
+
+  ScopedTempDir temp_dir;
+  const auto duplicate_py_pass = temp_dir.CreateFilePath("duplicate_python_pass.py");
+  WriteFile(duplicate_py_pass,
+            "from ge.passes import FusionBasePass, PassStage, register_fusion_pass\n"
+            "@register_fusion_pass(name='PythonPassPluginLoaderDuplicateCppPass', stage=PassStage.AFTER_INFER_SHAPE)\n"
+            "class DuplicatePythonPass(FusionBasePass):\n"
+            "    def run(self, graph, context):\n"
+            "        return 0\n");
+
+  ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, duplicate_py_pass);
+  EXPECT_EQ(LoadPassPlugins(), FAILED);
+  EXPECT_TRUE(PassRegistry::GetInstance().descriptor_key_2_python_pass_descs_.empty());
+  EXPECT_TRUE(PassRegistry::GetInstance().pass_name_2_python_pass_create_contexts_.empty());
+  EXPECT_EQ(PassRegistry::GetInstance().name_2_fusion_pass_regs_.count(kDuplicatePassName), 1U);
+  EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
 }
 
 TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateAndDestroy) {

@@ -74,14 +74,14 @@
 
       - [IrOutputDef](cpp/ge/es/CompliantNodeBuilder/IrOutputDef.md)
       - [IrOutputDefV2](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/IrOutputDefV2.md)
-        - [简介](cpp/ge/es/CompliantNodeBuilder/overview.md)
+        - [简介](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/overview.md)
         - [IrOutputDefV2构造函数](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/IrOutputDefV2_constructor.md)
-        - [GetName](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetName.md)
+        - [GetName](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetName.md)
         - [GetOutputType](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetOutputType.md)
-        - [GetSymbolId](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetSymbolId.md)
-        - [Name](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/Name.md)
+        - [GetSymbolId](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/GetSymbolId.md)
+        - [Name](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/Name.md)
         - [OutputType](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/OutputType.md)
-        - [SymbolId](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/SymbolId.md)
+        - [SymbolId](cpp/ge/es/CompliantNodeBuilder/IrOutputDefV2/SymbolId.md)
 
       - [Name](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/Name.md)
       - [OpType](cpp/ge/es/CompliantNodeBuilder/OpType.md)
@@ -275,6 +275,31 @@
     - [aclskScopeEnd](c/super_kernel/aclskScopeEnd.md)
 
   - [图基础数据结构和接口](cpp/ge/graph_basic_data_structure_and_interface.md)
+  - [AnnotatedArgsContext](cpp/gert/AnnotatedArgsContext/AnnotatedArgsContext.md)
+    - [简介](cpp/gert/AnnotatedArgsContext/overview.md)
+    - [MallocWorkSpace](cpp/gert/AnnotatedArgsContext/MallocWorkSpace.md)
+    - [GetStreamId](cpp/gert/AnnotatedArgsContext/GetStreamId.md)
+    - [AddLaunch](cpp/gert/AnnotatedArgsContext/AddLaunch.md)
+    - [GetInputTensor](cpp/gert/AnnotatedArgsContext/GetInputTensor.md)
+    - [GetOutputTensor](cpp/gert/AnnotatedArgsContext/GetOutputTensor.md)
+    - [GetRequiredInputTensor](cpp/gert/AnnotatedArgsContext/GetRequiredInputTensor.md)
+    - [GetOptionalInputTensor](cpp/gert/AnnotatedArgsContext/GetOptionalInputTensor.md)
+    - [GetDynamicInputTensor](cpp/gert/AnnotatedArgsContext/GetDynamicInputTensor.md)
+    - [GetRequiredOutputTensor](cpp/gert/AnnotatedArgsContext/GetRequiredOutputTensor.md)
+    - [GetDynamicOutputTensor](cpp/gert/AnnotatedArgsContext/GetDynamicOutputTensor.md)
+
+  - [AnnotatedArgsOp](cpp/ge/AnnotatedArgsOp/AnnotatedArgsOp.md)
+    - [简介](cpp/ge/AnnotatedArgsOp/overview.md)
+    - [DeclareLaunchArgs](cpp/ge/AnnotatedArgsOp/DeclareLaunchArgs.md)
+
+  - [AnnotatedKernelArgs](cpp/gert/AnnotatedKernelArgs/AnnotatedKernelArgs.md)
+    - [简介](cpp/gert/AnnotatedKernelArgs/overview.md)
+    - [AnnotatedKernelArgs的构造函数、赋值运算符和析构函数](cpp/gert/AnnotatedKernelArgs/AnnotatedKernelArgs_constructor_and_destructor.md)
+    - [AppendArg](cpp/gert/AnnotatedKernelArgs/AppendArg.md)
+    - [ExtractArgsData](cpp/gert/AnnotatedKernelArgs/ExtractArgsData.md)
+
+  - [AnnotatedKernelLaunchInfo](cpp/gert/AnnotatedKernelLaunchInfo.md)
+
     - [ArgDescInfo](cpp/ge/ArgDescInfo/ArgDescInfo.md)
       - [简介](cpp/ge/ArgDescInfo/overview.md)
       - [ArgDescInfo构造函数和析构函数](cpp/ge/ArgDescInfo/ArgDescInfo_constructor_and_destructor.md)
@@ -520,6 +545,7 @@
       - [简介](cpp/ge/InferValueRangeFuncRegister/overview.md)
       - [InferValueRangeFuncRegister构造函数和析构函数](cpp/ge/InferValueRangeFuncRegister/InferValueRangeFuncRegister_constructor_and_destructor.md)
 
+    - [InputAddr](cpp/gert/InputAddr.md)
     - [InputTensorInfo](cpp/ge/InputTensorInfo.md)
     - [KernelLaunchInfo](cpp/ge/KernelLaunchInfo/KernelLaunchInfo.md)
       - [简介](cpp/ge/KernelLaunchInfo/overview.md)
@@ -646,6 +672,7 @@
       - [构造函数和析构函数](cpp/ge/OpLibRegister/constructor_and_destructor.md)
       - [RegOpLibInit](cpp/ge/OpLibRegister/RegOpLibInit.md)
 
+    - [OutputAddr](cpp/gert/OutputAddr.md)
     - [OutputTensorInfo](cpp/ge/OutputTensorInfo.md)
     - [PassReceiver](cpp/ge/PassReceiver/PassReceiver.md)
       - [简介](cpp/ge/PassReceiver/overview.md)
@@ -761,6 +788,8 @@
     - [VerifyFuncRegister](cpp/ge/VerifyFuncRegister/VerifyFuncRegister.md)
       - [简介](cpp/ge/VerifyFuncRegister/overview.md)
       - [VerifyFuncRegister构造函数和析构函数](cpp/ge/VerifyFuncRegister/VerifyFuncRegister_constructor_and_destructor.md)
+
+    - [WorkspaceAddr](cpp/gert/WorkspaceAddr.md)
 
     - [ConvertToAscendString](cpp/ge/ConvertToAscendString.md)
     - [ConvertToListAscendString](cpp/ge/ConvertToListAscendString.md)
@@ -1031,7 +1060,7 @@
       - [get\_shape\_size](python/ge/graph/Shape/get_shape_size.md)
       - [is\_unknown\_shape](python/ge/graph/Shape/is_unknown_shape.md)
 
-      - [SubgraphInput](python/ge/passes/SubgraphInput/SubgraphInput.md)
+    - [SubgraphInput](python/ge/passes/SubgraphInput/SubgraphInput.md)
       - [简介](python/ge/passes/SubgraphInput/overview.md)
       - [\_\_init\_\_](python/ge/passes/SubgraphInput//__init__.md)
       - [add\_input](python/ge/passes/SubgraphInput/add_input.md)

@@ -1971,6 +1971,9 @@ TEST_F(GeIrBuildTest, TestSocVersionCheck_ok_Nano) {
 }
 
 TEST_F(GeIrBuildTest, ir_build_so_in_om_multi_customize_priroity) {
+  const char *old_custom_opp_path = getenv("ASCEND_CUSTOM_OPP_PATH");
+  const bool has_old_custom_opp_path = old_custom_opp_path != nullptr;
+  const std::string old_custom_opp_path_value = has_old_custom_opp_path ? old_custom_opp_path : "";
   BenchEnv::Init();
   setenv("ASCEND_OPP_PATH", "./", 0);
   auto graph = ConstructUbFusionGraph();
@@ -1990,12 +1993,17 @@ TEST_F(GeIrBuildTest, ir_build_so_in_om_multi_customize_priroity) {
   system(("mkdir -p " + tmp_path).c_str());
 
   unsetenv("ASCEND_OPP_PATH");
-  setenv("ASCEND_CUSTOM_OPP_PATH", tmp_path.c_str(), 0);
+  setenv("ASCEND_CUSTOM_OPP_PATH", tmp_path.c_str(), 1);
   setenv("ASCEND_OPP_PATH", tmp_path.c_str(), 0);
   std::string output_file = "./saved_model";
   EXPECT_EQ(aclgrphSaveModel(output_file, model_buffer_data), PARAM_INVALID);
   system(("rm -rf " + tmp_path).c_str());
   unsetenv("ASCEND_OPP_PATH");
+  if (has_old_custom_opp_path) {
+    setenv("ASCEND_CUSTOM_OPP_PATH", old_custom_opp_path_value.c_str(), 1);
+  } else {
+    unsetenv("ASCEND_CUSTOM_OPP_PATH");
+  }
 }
 
 void BuildAndCheckSimpleConstCastGraph(bool use_const, DataType dtype) {

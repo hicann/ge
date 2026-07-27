@@ -30,6 +30,7 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   StructDecl *BuildLaunchKernelCfgHolder() const;
   StructDecl *BuildLaunchKernelConfig() const;
   FunctionDef *BuildAssembleLaunchConfig() const;
+  FunctionDef *BuildCommitProfUnit() const;
   DeclNode *BuildOpDefTable(const Om2CodegenModel &codegen_model,
                             const std::vector<TaskCodeBuilderPtr> &task_code_builders) const;
 
@@ -37,6 +38,12 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   Status BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,
                        const std::vector<TaskCodeBuilderPtr> &task_code_builders);
   Status BuildRunBodyImpl(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model, bool is_async);
+  void BuildRunBodyPhaseInputCopy(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
+                                  VarRef exe_stream, bool is_async, VarRef prof_info, VarRef input_begin);
+  void BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream, bool is_async, VarRef prof_info,
+                                     VarRef exec_begin);
+  void BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
+                                   VarRef exe_stream, bool is_async, VarRef prof_info, VarRef output_begin);
   void BuildRunBodyDeclareTensorIoVars(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
                                        const VarRef &input_data, const VarRef &output_data);
   void BuildRunBodyProcessInputsAndAddrRefresh(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,

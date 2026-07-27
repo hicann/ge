@@ -1,18 +1,5 @@
 # ShardGraphsToFile
 
-## 产品支持情况
-
-- Ascend 950PR/Ascend 950DT：不支持
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：不支持
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
-- Atlas 200I/500 A2 推理产品：不支持
-- Atlas 推理系列产品：支持
-- Atlas 训练系列产品：支持
-- MC62CM12A AI处理器：不支持
-- BS9SX2A AI处理器：不支持
-- BS9SX1A AI处理器：不支持
-- IPV350：不支持
-
 ## 头文件/库文件
 
 - 头文件：\#include <ge/ge\_api.h\>
@@ -40,8 +27,8 @@
     ShardGraphsToFile适用于大模型分布式编译切分场景，而SaveGraphsToPb适用于任何图。
 
 - **该接口与[ShardGraphs](ShardGraphs.md)接口区别**：
-    - ShardGraphsToFile可以完成搜索策略、图的切分，并输出切分后的图等文件，**切分后的图也通过该接口落盘**（file\_path参数必须指定有效路径）。
-    - 而ShardGraphs完成搜索策略、图的切分，并输出切分后的图等文件后，**切分后的图保存在内存中，然后通过[SaveGraphsToPb](SaveGraphsToPb.md)落盘**。
+  - ShardGraphsToFile可以完成搜索策略、图的切分，并输出切分后的图等文件，**切分后的图也通过该接口落盘**（file\_path参数必须指定有效路径）。
+  - 而ShardGraphs完成搜索策略、图的切分，并输出切分后的图等文件后，**切分后的图保存在内存中，然后通过[SaveGraphsToPb](SaveGraphsToPb.md)落盘**。
 
 ## 函数原型
 

@@ -626,4 +626,93 @@ TEST_F(UtestTuningUtils, WeightExternalizationAndRecover) {
   system("rm -rf ./aicore_subgraph_*");
   system("rm -rf ./subgraph_*");
 }
+
+TEST_F(UtestTuningUtils, CovGenerateFileConstPath) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node = builder.AddNode("const0", CONSTANT, 0, 1);
+  auto op_desc = node->GetOpDesc();
+  EXPECT_FALSE(TuningUtils::GenerateFileConstPath("", op_desc).empty());
+  EXPECT_FALSE(TuningUtils::GenerateFileConstPath("./", op_desc).empty());
+  AttrUtils::SetStr(op_desc, "_parentNodeName", "parent");
+  EXPECT_FALSE(TuningUtils::GenerateFileConstPath("", op_desc).empty());
+}
+
+TEST_F(UtestTuningUtils, CovGetOrSaveReusableFileConst) {
+  TuningUtils::reusable_weight_files_.clear();
+  TuningUtils::hash_to_files_.clear();
+  auto tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value{1, 2, 3};
+  std::vector<int64_t> shape{3};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  std::string file_path = "./tmp_test_reusable.bin";
+  EXPECT_EQ(TuningUtils::GetOrSaveReusableFileConst(tensor, file_path), SUCCESS);
+  std::string file_path2 = "./tmp_test_reusable2.bin";
+  EXPECT_EQ(TuningUtils::GetOrSaveReusableFileConst(tensor, file_path2), SUCCESS);
+  system("rm -f ./tmp_test_reusable.bin ./tmp_test_reusable2.bin");
+}
+
+TEST_F(UtestTuningUtils, CovCheckFilesSame) {
+  std::string file_path = "./tmp_test_check_same.bin";
+  std::vector<uint8_t> data = {1, 2, 3, 4, 5};
+  std::ofstream ofs(file_path, std::ios::binary);
+  ofs.write(reinterpret_cast<const char *>(data.data()), data.size());
+  ofs.close();
+  bool is_same = false;
+  EXPECT_EQ(TuningUtils::CheckFilesSame(file_path, reinterpret_cast<const char *>(data.data()), data.size(), is_same),
+            SUCCESS);
+  EXPECT_TRUE(is_same);
+  std::vector<uint8_t> diff_data = {1, 2, 3, 4, 6};
+  bool is_same2 = false;
+  EXPECT_EQ(TuningUtils::CheckFilesSame(file_path, reinterpret_cast<const char *>(diff_data.data()), diff_data.size(),
+                                        is_same2),
+            SUCCESS);
+  EXPECT_FALSE(is_same2);
+  std::vector<uint8_t> short_data = {1, 2, 3};
+  bool is_same3 = false;
+  EXPECT_EQ(TuningUtils::CheckFilesSame(file_path, reinterpret_cast<const char *>(short_data.data()), short_data.size(),
+                                        is_same3),
+            SUCCESS);
+  EXPECT_FALSE(is_same3);
+  system("rm -f ./tmp_test_check_same.bin");
+}
+
+TEST_F(UtestTuningUtils, CovCreateDataNodeEmptyWeight) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto pld = builder.AddNode("pld", PLACEHOLDER, 0, 1);
+  auto empty_tensor = std::make_shared<GeTensor>();
+  empty_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  empty_tensor->MutableTensorDesc().SetShape(GeShape({0}));
+  EXPECT_EQ(ge::AttrUtils::SetTensor(pld->GetOpDesc(), "value", empty_tensor), true);
+  NodePtr data_node;
+  EXPECT_EQ(TuningUtils::CreateDataNode(pld, "", data_node), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovHandleConst) {
+  TuningUtils::reusable_weight_files_.clear();
+  TuningUtils::hash_to_files_.clear();
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto const_node = builder.AddNode("const0", CONSTANT, 0, 1);
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value{1, 2, 3};
+  std::vector<int64_t> shape{3};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  EXPECT_EQ(ge::OpDescUtils::SetWeights(const_node, {tensor}), 0);
+  NodePtr node = const_node;
+  EXPECT_EQ(TuningUtils::HandleConst(node, ""), SUCCESS);
+  auto const_node2 = builder.AddNode("const1", CONSTANT, 0, 1);
+  auto empty_tensor = std::make_shared<GeTensor>();
+  empty_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  empty_tensor->MutableTensorDesc().SetShape(GeShape({0}));
+  EXPECT_EQ(ge::OpDescUtils::SetWeights(const_node2, {empty_tensor}), 0);
+  NodePtr node2 = const_node2;
+  EXPECT_EQ(TuningUtils::HandleConst(node2, ""), SUCCESS);
+  auto relu_node = builder.AddNode("relu", "Relu", 1, 1);
+  NodePtr node3 = relu_node;
+  EXPECT_EQ(TuningUtils::HandleConst(node3, ""), SUCCESS);
+  system("rm -rf ./tmp_weight_*");
+}
 }  // namespace ge

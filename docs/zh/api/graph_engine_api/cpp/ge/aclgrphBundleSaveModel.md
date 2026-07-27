@@ -13,7 +13,7 @@
 
 将离线模型序列化并保存到指定文件中。
 
-- 与[aclgrphSaveModel](aclgrphSaveModel.md)接口的区别是，该接口适用于权重更新场景，且通过该接口生成的模型，如果要使用acl进行推理，需要使用aclmdlBundleLoadFromFile或aclmdlBundleLoadFromMem接口加载模型，接口详细介绍请参见《GE图引擎 API》中的“模型管理 \> 模型加载和卸载”。
+- 与[aclgrphSaveModel](aclgrphSaveModel.md)接口的区别是，该接口适用于权重更新场景，且通过该接口生成的模型，如果要使用acl进行推理，需要使用[aclmdlBundleLoadFromFile](../../c/acl/aclmdlBundleLoadFromFile.md)或[aclmdlBundleLoadFromMem](../../c/acl/aclmdlBundleLoadFromMem.md)接口加载模型。
 - 通过[aclgrphBundleBuildModel](aclgrphBundleBuildModel.md)接口生成离线模型缓存后才可以使用aclgrphBundleSaveModel接口落盘。
 
 ## 函数原型

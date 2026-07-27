@@ -1118,3 +1118,105 @@ TEST_F(UtestGraphPassesFoldingKernelGatherV2Kernel, AxisNotScalarFail) {
   ge::Status status = kernel->Compute(op_desc_ptr, input, outputs);
   EXPECT_NE(ge::SUCCESS, status);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelGatherV2Kernel, CovAxisInvalidDataType) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("GatherV2", "GatherV2");
+
+  vector<int64_t> x_shape = {3};
+  vector<int64_t> indices_shape = {2};
+  GeTensorDesc tensor_desc_x(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_indices(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_axis(GeShape(), FORMAT_NHWC, DT_FLOAT);
+
+  op_desc_ptr->AddInputDesc(0, tensor_desc_x);
+  op_desc_ptr->AddInputDesc(1, tensor_desc_indices);
+  op_desc_ptr->AddInputDesc(2, tensor_desc_axis);
+
+  vector<int32_t> data_vec_0 = {1, 2, 3};
+  vector<int32_t> data_vec_1 = {0, 1};
+  vector<float> axis_vec = {0.0f};
+  GeTensorDesc tensor_desc_0(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_1(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_2(GeShape(), FORMAT_NHWC, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_2 =
+      std::make_shared<GeTensor>(tensor_desc_2, (uint8_t *)axis_vec.data(), axis_vec.size() * sizeof(float));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1, tensor_2};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(GATHERV2);
+  ge::Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_NE(ge::SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelGatherV2Kernel, CovAxisExceedFourDims) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("GatherV2", "GatherV2");
+
+  vector<int64_t> x_shape = {2, 2, 2, 2, 3};
+  vector<int64_t> indices_shape = {2};
+  GeTensorDesc tensor_desc_x(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_indices(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_axis(GeShape(), FORMAT_NHWC, DT_INT32);
+
+  op_desc_ptr->AddInputDesc(0, tensor_desc_x);
+  op_desc_ptr->AddInputDesc(1, tensor_desc_indices);
+  op_desc_ptr->AddInputDesc(2, tensor_desc_axis);
+
+  vector<int32_t> data_vec_0(48, 1);
+  vector<int32_t> data_vec_1 = {0, 1};
+  vector<int32_t> axis_vec = {4};
+  GeTensorDesc tensor_desc_0(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_1(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_2(GeShape(), FORMAT_NHWC, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_2 =
+      std::make_shared<GeTensor>(tensor_desc_2, (uint8_t *)axis_vec.data(), axis_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1, tensor_2};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(GATHERV2);
+  ge::Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_NE(ge::SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelGatherV2Kernel, CovOutputZeroDim) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("GatherV2", "GatherV2");
+
+  vector<int64_t> x_shape = {3, 0};
+  vector<int64_t> indices_shape = {1};
+  GeTensorDesc tensor_desc_x(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_indices(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_axis(GeShape(), FORMAT_NHWC, DT_INT32);
+
+  op_desc_ptr->AddInputDesc(0, tensor_desc_x);
+  op_desc_ptr->AddInputDesc(1, tensor_desc_indices);
+  op_desc_ptr->AddInputDesc(2, tensor_desc_axis);
+
+  vector<int32_t> data_vec_0 = {1, 2, 3, 4, 5, 6};
+  vector<int32_t> data_vec_1 = {0};
+  vector<int32_t> axis_vec = {0};
+  GeTensorDesc tensor_desc_0(GeShape(x_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_1(GeShape(indices_shape), FORMAT_NHWC, DT_INT32);
+  GeTensorDesc tensor_desc_2(GeShape(), FORMAT_NHWC, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_2 =
+      std::make_shared<GeTensor>(tensor_desc_2, (uint8_t *)axis_vec.data(), axis_vec.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1, tensor_2};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(GATHERV2);
+  ge::Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_NE(ge::SUCCESS, status);
+}

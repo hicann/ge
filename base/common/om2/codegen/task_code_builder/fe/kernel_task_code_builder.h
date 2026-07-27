@@ -76,6 +76,7 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   // ── Build data assembly ──
   Status AssembleBuildData();
   Status CheckTaskSupport() const;
+  Status ReadFusionOpInfo(const OpDescPtr &op_desc);
   void AssignTaskLocalIoNames();
 
   // ── Launch semantic construction ──

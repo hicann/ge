@@ -42,8 +42,8 @@
 
 Host侧输入数据搬运到Device侧时，将用户离散多个输入数据合并拷贝的阈值，最小值为0 Byte，最大值为33554432 Byte（32MB），默认值为131072Byte（128KB）。若：
 
-- 输入数据大小**<=**阈值，则合并输入，然后从host搬运到device。
-- 输入数据大小**\>**阈值，或者阈值=0（功能关闭），则不合并，直接从host搬运到device。
+- 输入数据大小<=阈值，则合并输入，然后从host搬运到device。
+- 输入数据大小\>阈值，或者阈值=0（功能关闭），则不合并，直接从host搬运到device。
 
 例如用户有10个输入，有2个输入数据大小为100KB，2个输入数据大小为50KB，其余输入大于100KB，若设置：
 
@@ -205,12 +205,12 @@ ge.exec.outputReuseInputMemIndexes = "0,1|6,8"
 落盘路径说明：
 
 - 若配置了ge.externalWeightDir，则权重文件会落盘到指定目录。
-- 若环境中未配置环境变量ASCEND\_WORK\_PATH，则权重文件落盘至当前执行目录“tmp\_weight\__<pid\>_\__<sessionid__\>_”下。
-- 若环境中配置环境变量ASCEND\_WORK\_PATH，则权重文件会落盘至$\{ASCEND\_WORK\_PATH\}/tmp\_weight_\_<pid\>_\__<sessionid__\>_目录下，关于ASCEND\_WORK\_PATH的详细说明，可参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+- 若环境中未配置环境变量ASCEND\_WORK\_PATH，则权重文件落盘至当前执行目录`tmp_weight_<pid>_<sessionid>`下。
+- 若环境中配置环境变量ASCEND\_WORK\_PATH，则权重文件会落盘至`${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>`目录下，关于ASCEND\_WORK\_PATH的详细说明，可参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 
-落盘路径优先级：ge.externalWeightDir \> $\{ASCEND\_WORK\_PATH\}/tmp\_weight_\_<pid\>_\__<sessionid__\>_  \>当前执行目录tmp\_weight\__<pid\>_\__<sessionid__\>_。
+落盘路径优先级：ge.externalWeightDir \> `${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>` \>当前执行目录`tmp_weight_<pid>_<sessionid>`。
 
-模型卸载时，会将tmp\_weight\__<pid\>_\__<sessionid__\>_目录删除。
+模型卸载时，会将`tmp_weight_<pid>_<sessionid>`目录删除。
 
 **配置示例：**
 
@@ -229,7 +229,7 @@ ge.exec.outputReuseInputMemIndexes = "0,1|6,8"
 **使用约束：**
 
 - 如果要自行指定外置权重文件存放路径，需与ge.externalWeight参数配合使用。
-- 优先级：ge.externalWeightDir \> $\{ASCEND\_WORK\_PATH\}/tmp\_weight_\_<pid\>_\__<sessionid__\>_  \>当前执行目录tmp\_weight\__<pid\>_\__<sessionid__\>_。
+- 优先级：ge.externalWeightDir \> `${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>` \>当前执行目录`tmp_weight_<pid>_<sessionid>`。
 
 **配置示例：**
 

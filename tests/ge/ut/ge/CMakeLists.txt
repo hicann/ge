@@ -130,8 +130,8 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "executor/file_const_loader_unittest.cc"
     "executor/executor_utils_unittest.cc"
     "executor/runtime/om2_without_graph_dump_unittest.cc"
-     "executor/runtime/model_rt_var_manager_unittest.cc"
-     "executor/runtime/davinci_model_priority_test.cc"
+    "executor/runtime/model_rt_var_manager_unittest.cc"
+    "executor/runtime/davinci_model_priority_test.cc"
     "graph/load/model_helper_unittest.cc"
     "graph/load/model_helper_attr_compression_unittest.cc"
     "graph/load/model_helper_misc_unittest.cc"
@@ -1365,9 +1365,11 @@ target_include_directories(ge_manual_test BEFORE PRIVATE
 target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/graph
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/meta
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/graph
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/ascir
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/ascir/utils
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion
         ${CMAKE_BINARY_DIR}/proto/ge_autofuse_metadef_protos_af
         ${CMAKE_BINARY_DIR}/graph_metadef/graph/ascendc_ir/generator/
@@ -1435,6 +1437,7 @@ target_include_directories(ut_jit_execution PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${AIR_CODE_DIR}/tests/ge/st/stubs/utils
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/temporary_dependencies/autofuse
         ${ASCEND_INSTALL_PATH}/include
         ${ASCEND_INSTALL_PATH}/include/exe_graph
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse

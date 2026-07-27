@@ -224,8 +224,10 @@ Status DSATaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
   GE_ASSERT_SUCCESS(RenderSqeScalars(body, dsa_data, sqe));
   GE_ASSERT_SUCCESS(RenderSqeAddrFields(body, dsa_data, ctx, sqe, addrs));
   GE_ASSERT_SUCCESS(RenderHbmIoArgs(body, dsa_data, ctx, addrs));
+  auto launch_begin = ast_.Var("uint64_t", "_launch_begin");
+  body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunch(body, op, ctx, dsa_data, sqe));
-  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, dsa_data, addrs));
+  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, dsa_data, addrs, launch_begin));
 
   GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::RenderDispatchFunc(ast_, kDispatchFuncName, body, items));
   return SUCCESS;
@@ -356,7 +358,8 @@ Status DSATaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body,
 }
 
 Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                    const ExprRef &dsa_data, const VarRef &addrs) {
+                                                    const ExprRef &dsa_data, const VarRef &addrs,
+                                                    const VarRef &launch_begin) {
   auto dsa_io_tensors = ast_.Var("std::vector<Om2Tensor>", "dsa_io_tensors");
   (void)body.push_back(ast_.VarDecl(dsa_io_tensors));
   (void)body.push_back(ast_.Call("", {dsa_io_tensors.Attr("reserve")(dsa_data.Attr("num_args"))}));
@@ -372,7 +375,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
   GE_ASSERT_SUCCESS(RenderDispatchFuncReportIo(body, dsa_data, addrs, dsa_io_tensors, dsa_report_inputs,
                                                dsa_report_outputs, dsa_report_ws_addrs, dsa_report_ws_sizes));
   GE_ASSERT_SUCCESS(RenderDispatchFuncReportSubmit(body, op, ctx, dsa_data, dsa_report_inputs, dsa_report_outputs,
-                                                   dsa_report_ws_addrs, dsa_report_ws_sizes));
+                                                   dsa_report_ws_addrs, dsa_report_ws_sizes, launch_begin));
   return SUCCESS;
 }
 
@@ -418,12 +421,10 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
   return SUCCESS;
 }
 
-Status DSATaskCodeBuilder::RenderDispatchFuncReportSubmit(std::vector<BodyItem> &body, const VarRef &op,
-                                                          const VarRef &ctx, const ExprRef &dsa_data,
-                                                          const VarRef &dsa_report_inputs,
-                                                          const VarRef &dsa_report_outputs,
-                                                          const VarRef &dsa_report_ws_addrs,
-                                                          const VarRef &dsa_report_ws_sizes) {
+Status DSATaskCodeBuilder::RenderDispatchFuncReportSubmit(
+    std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx, const ExprRef &dsa_data,
+    const VarRef &dsa_report_inputs, const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
+    const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) {
   auto hbm_ai = ast_.Var("ArgsInfo *", "hbm_ai");
   (void)body.push_back(
       ast_.VarDecl(hbm_ai, ctx.Attr("args_table").Attr("GetArgsInfo")(dsa_data.Attr("hbm_table_index"))));
@@ -435,7 +436,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportSubmit(std::vector<BodyItem> 
        ast_.StaticCast("uint32_t", dsa_report_outputs.Size()), dsa_report_ws_addrs.Data(), dsa_report_ws_sizes.Data(),
        ast_.StaticCast("uint32_t", dsa_report_ws_sizes.Size()), dsa_data.Attr("task_type"), ast_.UInt(0U),
        ctx.Attr("stream_list")[dsa_data.Attr("stream_id")], ctx.Attr("model_id"), ctx.Attr("instance_handle"),
-       ast_.UInt(1U)})));
+       ast_.UInt(1U), launch_begin})));
   return SUCCESS;
 }
 

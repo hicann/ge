@@ -43,9 +43,9 @@ graphStatus aclgrphBuildModel(const ge::Graph &graph, const std::map<AscendStrin
 - 使用aclgrphBuildModel接口传入build\_options参数时，多张图场景下，如果传入的参数为ge::ir\_option::PRECISION\_MODE或者ge::ir\_option::PRECISION\_MODE\_V2，多张图设置的参数值需要相同。
 - 使用aclgrphBuildModel接口编译的离线模型，保存在内存缓冲区中：
 
-    - 如果希望将内存缓冲区中的模型保存为离线模型文件xx.om，则需要调用[aclgrphSaveModel](aclgrphSaveModel.md)接口，序列化保存离线模型到文件中。后续进行推理业务，需要使用**从文件中**加载模型的接口，例如aclmdlLoadFromFile，然后使用aclmdlExecute接口执行推理。
-    - 如果离线模型保存在内存缓冲区：
+  - 如果希望将内存缓冲区中的模型保存为离线模型文件xx.om，则需要调用[aclgrphSaveModel](aclgrphSaveModel.md)接口，序列化保存离线模型到文件中。后续进行推理业务，需要使用**从文件中**加载模型的接口，例如aclmdlLoadFromFile，然后使用aclmdlExecute接口执行推理。
+  - 如果离线模型保存在内存缓冲区：
 
-        后续进行推理业务时，需要使用**从内存中**加载模型的接口，例如aclmdlLoadFromMem，然后使用aclmdlExecute接口执行推理。
+    后续进行推理业务时，需要使用**从内存中**加载模型的接口，例如aclmdlLoadFromMem，然后使用aclmdlExecute接口执行推理。
 
-    接口详细使用说明请参见《应用开发 \(C&C++\)》中的“模型推理”章节。
+    接口详细使用说明请参见[《应用开发 \(C&C++\)》](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)中的“模型推理”章节。

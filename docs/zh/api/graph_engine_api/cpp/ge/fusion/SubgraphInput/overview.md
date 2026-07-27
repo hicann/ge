@@ -4,7 +4,7 @@
 
 - 考虑一个Tensor可能有多个消费者，因此一个Subgraph input可能对应多个Node input。
 
-    ```mermaid
+    ```plaintext
            tensor1
             /  \
           op1   op2

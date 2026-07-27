@@ -218,4 +218,52 @@ TEST_F(UtestConstantUtils, TestGetWeightFromFile) {
   ASSERT_EQ(weight->GetTensorDesc().GetShape().GetDims(), shape);
   system("rm -rf ./weight.bin");
 }
+
+TEST_F(UtestConstantUtils, CovGetWeightIndexNotFound) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  const auto &shape_node = builder.AddNode("shape_node", "Shape", 1, 1);
+  AttrUtils::SetBool(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_CONST, true);
+  AttrUtils::SetListInt(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_WEIGHT_INDICES, {0});
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  AttrUtils::SetListTensor(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_WEIGHT, {tensor});
+  ConstGeTensorPtr weight;
+  EXPECT_FALSE(ConstantUtils::GetWeight(shape_node->GetOpDesc(), 1, weight));
+}
+
+TEST_F(UtestConstantUtils, CovMutableWeightNotPotentialConst) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  GeTensorPtr weight;
+  EXPECT_FALSE(ConstantUtils::MutableWeight(op_desc, 0, weight));
+}
+
+TEST_F(UtestConstantUtils, CovMutableWeightInvalidPotential) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Shape");
+  AttrUtils::SetBool(op_desc, ATTR_NAME_POTENTIAL_CONST, true);
+  GeTensorPtr weight;
+  EXPECT_FALSE(ConstantUtils::MutableWeight(op_desc, 0, weight));
+}
+
+TEST_F(UtestConstantUtils, CovMutableWeightIndexNotFound) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  const auto &shape_node = builder.AddNode("shape_node", "Shape", 1, 1);
+  AttrUtils::SetBool(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_CONST, true);
+  AttrUtils::SetListInt(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_WEIGHT_INDICES, {0});
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  AttrUtils::SetListTensor(shape_node->GetOpDesc(), ATTR_NAME_POTENTIAL_WEIGHT, {tensor});
+  GeTensorPtr weight;
+  EXPECT_FALSE(ConstantUtils::MutableWeight(shape_node->GetOpDesc(), 1, weight));
+}
+
+TEST_F(UtestConstantUtils, CovSetWeightNotPotentialConst) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Relu");
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  EXPECT_FALSE(ConstantUtils::SetWeight(op_desc, 0, tensor));
+}
+
+TEST_F(UtestConstantUtils, CovSetWeightInvalidPotential) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Shape");
+  AttrUtils::SetBool(op_desc, ATTR_NAME_POTENTIAL_CONST, true);
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  EXPECT_FALSE(ConstantUtils::SetWeight(op_desc, 0, tensor));
+}
 }  // namespace ge

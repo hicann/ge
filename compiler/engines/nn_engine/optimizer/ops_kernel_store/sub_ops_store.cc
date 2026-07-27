@@ -854,8 +854,9 @@ bool SubOpsStore::CheckSingleTensorSupportedAccurateMode(const ge::NodePtr &node
     }
   }
   if (tensor_desc == nullptr) {
-    REPORT_FE_ERROR("[ChkSpt][FEChk][ChkSigTensSptAccrMode] tensor_desc is null.");
-    return false;
+    FE_LOGD("[ChkSpt][FEChk][ChkSigTensSptAccrMode] %s [%u] tensor_desc is null, skip as unlinked optional input.",
+            input_or_output.c_str(), index);
+    return true;
   }
   InputOrOutputInfoPtr tensor_info_ptr;
   if (info.op_kernel_info_ptr->GetTensorInfoByName(info.is_input, name, tensor_info_ptr) != SUCCESS) {
@@ -904,11 +905,8 @@ bool SubOpsStore::CheckSingleTensorAccurateMode(uint32_t size, uint32_t type_ind
 
 bool SubOpsStore::CheckAllTensorsSupportedAccurateMode(const ge::NodePtr &node, SupportedFormatAndDtype &info) const {
   ge::OpDescPtr op_desc_ptr = node->GetOpDesc();
-  ge::OpDesc &op_desc = *(op_desc_ptr.get());
-  ge::OpDesc::Vistor<ge::GeTensorDescPtr> all_input_desc_ptr_vistor = op_desc.GetAllInputsDescPtr();
-  ge::OpDesc::Vistor<ge::GeTensorDescPtr> all_output_desc_ptr_vistor = op_desc.GetAllOutputsDescPtr();
-  auto input_size = static_cast<uint32_t>(all_input_desc_ptr_vistor.size());
-  auto output_size = static_cast<uint32_t>(all_output_desc_ptr_vistor.size());
+  auto input_size = static_cast<uint32_t>(op_desc_ptr->GetAllInputsSize());
+  auto output_size = static_cast<uint32_t>(op_desc_ptr->GetOutputsSize());
 
   UnSupportedReason reason_tmp;
   bool ret = GetInputOutputNameMap(node, info.op_kernel_info_ptr, info.input_index_name_map, info.output_index_name_map,

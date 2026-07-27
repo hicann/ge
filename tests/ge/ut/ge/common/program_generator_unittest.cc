@@ -1685,9 +1685,11 @@ TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_Ok) {
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "rt_external.h"
 #include "dlog_pub.h"
+#include "profiling/prof_common.h"
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <cinttypes>
+#include "mmpa/mmpa_api.h"
 
 // OM2 Logging Macros
 #define OM2_MODULE_NAME static_cast<int32_t>(GE)
@@ -1905,6 +1907,37 @@ struct Om2TaskInfo {
   void* stream;
   uint32_t is_raw_address;
   const struct Om2L0TaskRawInfo* l0_exception_dump_info;
+  uint64_t launch_begin;
+  const char *original_op_names;
+  uint64_t input_mem_size;
+  uint64_t output_mem_size;
+  uint64_t workspace_mem_size;
+  uint64_t weight_mem_size;
+};
+
+#pragma pack(push)
+#pragma pack(1)
+struct ProfTraceUserData {
+  uint64_t id;
+  uint64_t model_id;
+  uint16_t tag_id;
+};
+#pragma pack(pop)
+
+enum Om2ProfType : uint32_t {
+  OM2_PROF_INPUT_COPY = 0,
+  OM2_PROF_MODEL_EXECUTE = 1,
+  OM2_PROF_OUTPUT_COPY = 2,
+  OM2_PROF_STEP_INFO_START = 3,
+  OM2_PROF_STEP_INFO_END = 4,
+  OM2_PROF_TYPE_COUNT,
+};
+
+struct Om2ProfUnit {
+  Om2ProfType type;
+  uint64_t begin_time;
+  uint64_t end_time;
+  uint32_t thread_id;
 };
 
 extern "C" {
@@ -1925,6 +1958,13 @@ __attribute__((weak)) int32_t IsDataDumpEnabled(uint32_t model_id,
                                                       const char* op_name,
                                                       uint8_t* is_data_dump);
 }
+
+struct Om2ProfInfos {
+  uint32_t version;
+  uint32_t count;
+  Om2ProfUnit *profUnit;
+  uint64_t step_id;
+};
 
 struct rtLabelDevInfo {
   uint16_t modelId;
@@ -2126,6 +2166,13 @@ struct AicoreDispatchInfo {
     uint32_t slots_num;    // L0 slot 数量
     const Om2L0ArgSlotInfo *slot_info; // L0 slot 信息数组
   } slot_args;
+  struct {                     // 融合算子信息，非融合全为 0/nullptr
+    const char *original_op_names; // 原始算子名称（分号分隔）
+    uint64_t input_mem_size;       // 输入内存大小，字节
+    uint64_t output_mem_size;      // 输出内存大小，字节
+    uint64_t workspace_mem_size;   // workspace 内存大小，字节
+    uint64_t weight_mem_size;      // 权重内存大小，字节
+  } fusion_op;
 };
 
 struct AicpuDispatchInfo {
@@ -2305,8 +2352,8 @@ class Om2Model {
     aclError RegisterKernels();
     aclError Load();
     aclmdlRI GetRtModelHandle();
-    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout);
-    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data);
+    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info);
     aclError ReleaseResources();
   private:
     void **constants_;
@@ -2344,9 +2391,9 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data);
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info);
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout);
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
 
@@ -2552,13 +2599,19 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
                              const Om2TaskIoEntry *outputs, uint32_t output_num,
                              const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
                              uint32_t workspace_num, uint32_t task_type, void *stream,
-                             uint32_t is_raw_address = 0U) {
+                             uint32_t is_raw_address = 0U,
+                             uint64_t launch_begin = 0U,
+                             const char *original_op_names = nullptr,
+                             uint64_t input_mem_size = 0U,
+                             uint64_t output_mem_size = 0U,
+                             uint64_t workspace_mem_size = 0U,
+                             uint64_t weight_mem_size = 0U) {
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
   task_info->stream_id = stream_id;
   task_info->context_id = 0U;
-  task_info->thread_id = 0U;
+  task_info->thread_id = static_cast<uint32_t>(mmGetTid());
   task_info->block_dim = block_dim;
   task_info->op_desc_id = op_desc_id;
   task_info->args_base = args_base;
@@ -2574,6 +2627,12 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
   task_info->stream = stream;
   task_info->is_raw_address = is_raw_address;
   task_info->l0_exception_dump_info = nullptr;
+  task_info->launch_begin = launch_begin;
+  task_info->original_op_names = original_op_names;
+  task_info->input_mem_size = input_mem_size;
+  task_info->output_mem_size = output_mem_size;
+  task_info->workspace_mem_size = workspace_mem_size;
+  task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
 }
 
@@ -2616,7 +2675,13 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t workspace_num,
                                uint32_t task_type, uint32_t block_dim, void *stream,
                                uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U) {
+                               uint32_t is_raw_address = 0U,
+                               uint64_t launch_begin = 0U,
+                               const char *original_op_names = nullptr,
+                               uint64_t input_mem_size = 0U,
+                               uint64_t output_mem_size = 0U,
+                               uint64_t workspace_mem_size = 0U,
+                               uint64_t weight_mem_size = 0U) {
   uint32_t task_id = 0U;
   OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
 
@@ -2629,7 +2694,11 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                       inputs, input_num,
                                       outputs, output_num,
                                       workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address));
+                                      task_type, stream, is_raw_address,
+                                      launch_begin,
+                                      original_op_names,
+                                      input_mem_size, output_mem_size,
+                                      workspace_mem_size, weight_mem_size));
   task_info.l0_exception_dump_info = nullptr;
   if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
     OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
@@ -2730,6 +2799,15 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
   return ACL_SUCCESS;
+}
+
+void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
+  auto &unit = prof_info->profUnit[prof_info->count];
+  unit.type = type;
+  unit.begin_time = begin_time;
+  unit.end_time = MsprofSysCycleTime();
+  unit.thread_id = static_cast<uint32_t>(mmGetTid());
+  ++prof_info->count;
 }
 constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
@@ -2888,8 +2966,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -2931,8 +3010,9 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   aicpu_args_var.resize(args_blob_len);
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, ctx.func_handles[op->dispatch_info.aicpu.func_idx], op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], &aicpu_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin));
   return ACL_SUCCESS;
 }
 
@@ -2974,6 +3054,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .stream_id = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
+      .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
 }};
@@ -2999,10 +3080,16 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -3010,18 +3097,51 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -3029,9 +3149,36 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("Run done");
   return ACL_SUCCESS;
@@ -3076,14 +3223,14 @@ aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
+  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
+  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
@@ -3124,13 +3271,19 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
                              const Om2TaskIoEntry *outputs, uint32_t output_num,
                              const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
                              uint32_t workspace_num, uint32_t task_type, void *stream,
-                             uint32_t is_raw_address = 0U) {
+                             uint32_t is_raw_address = 0U,
+                             uint64_t launch_begin = 0U,
+                             const char *original_op_names = nullptr,
+                             uint64_t input_mem_size = 0U,
+                             uint64_t output_mem_size = 0U,
+                             uint64_t workspace_mem_size = 0U,
+                             uint64_t weight_mem_size = 0U) {
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
   task_info->stream_id = stream_id;
   task_info->context_id = 0U;
-  task_info->thread_id = 0U;
+  task_info->thread_id = static_cast<uint32_t>(mmGetTid());
   task_info->block_dim = block_dim;
   task_info->op_desc_id = op_desc_id;
   task_info->args_base = args_base;
@@ -3146,6 +3299,12 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
   task_info->stream = stream;
   task_info->is_raw_address = is_raw_address;
   task_info->l0_exception_dump_info = nullptr;
+  task_info->launch_begin = launch_begin;
+  task_info->original_op_names = original_op_names;
+  task_info->input_mem_size = input_mem_size;
+  task_info->output_mem_size = output_mem_size;
+  task_info->workspace_mem_size = workspace_mem_size;
+  task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
 }
 
@@ -3188,7 +3347,13 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t workspace_num,
                                uint32_t task_type, uint32_t block_dim, void *stream,
                                uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U) {
+                               uint32_t is_raw_address = 0U,
+                               uint64_t launch_begin = 0U,
+                               const char *original_op_names = nullptr,
+                               uint64_t input_mem_size = 0U,
+                               uint64_t output_mem_size = 0U,
+                               uint64_t workspace_mem_size = 0U,
+                               uint64_t weight_mem_size = 0U) {
   uint32_t task_id = 0U;
   OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
 
@@ -3201,7 +3366,11 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                       inputs, input_num,
                                       outputs, output_num,
                                       workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address));
+                                      task_type, stream, is_raw_address,
+                                      launch_begin,
+                                      original_op_names,
+                                      input_mem_size, output_mem_size,
+                                      workspace_mem_size, weight_mem_size));
   task_info.l0_exception_dump_info = nullptr;
   if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
     OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
@@ -3302,6 +3471,15 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
   return ACL_SUCCESS;
+}
+
+void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
+  auto &unit = prof_info->profUnit[prof_info->count];
+  unit.type = type;
+  unit.begin_time = begin_time;
+  unit.end_time = MsprofSysCycleTime();
+  unit.thread_id = static_cast<uint32_t>(mmGetTid());
+  ++prof_info->count;
 }
 constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
@@ -3460,8 +3638,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -3503,8 +3682,9 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   aicpu_args_var.resize(args_blob_len);
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, ctx.func_handles[op->dispatch_info.aicpu.func_idx], op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], &aicpu_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin));
   return ACL_SUCCESS;
 }
 
@@ -3546,6 +3726,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .stream_id = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
+      .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
 }};
@@ -3571,10 +3752,16 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -3582,18 +3769,51 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -3601,9 +3821,36 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("Run done");
   return ACL_SUCCESS;
@@ -3648,14 +3895,14 @@ aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
+  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
+  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
@@ -3728,13 +3975,19 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
                              const Om2TaskIoEntry *outputs, uint32_t output_num,
                              const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
                              uint32_t workspace_num, uint32_t task_type, void *stream,
-                             uint32_t is_raw_address = 0U) {
+                             uint32_t is_raw_address = 0U,
+                             uint64_t launch_begin = 0U,
+                             const char *original_op_names = nullptr,
+                             uint64_t input_mem_size = 0U,
+                             uint64_t output_mem_size = 0U,
+                             uint64_t workspace_mem_size = 0U,
+                             uint64_t weight_mem_size = 0U) {
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
   task_info->stream_id = stream_id;
   task_info->context_id = 0U;
-  task_info->thread_id = 0U;
+  task_info->thread_id = static_cast<uint32_t>(mmGetTid());
   task_info->block_dim = block_dim;
   task_info->op_desc_id = op_desc_id;
   task_info->args_base = args_base;
@@ -3750,6 +4003,12 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
   task_info->stream = stream;
   task_info->is_raw_address = is_raw_address;
   task_info->l0_exception_dump_info = nullptr;
+  task_info->launch_begin = launch_begin;
+  task_info->original_op_names = original_op_names;
+  task_info->input_mem_size = input_mem_size;
+  task_info->output_mem_size = output_mem_size;
+  task_info->workspace_mem_size = workspace_mem_size;
+  task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
 }
 
@@ -3792,7 +4051,13 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t workspace_num,
                                uint32_t task_type, uint32_t block_dim, void *stream,
                                uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U) {
+                               uint32_t is_raw_address = 0U,
+                               uint64_t launch_begin = 0U,
+                               const char *original_op_names = nullptr,
+                               uint64_t input_mem_size = 0U,
+                               uint64_t output_mem_size = 0U,
+                               uint64_t workspace_mem_size = 0U,
+                               uint64_t weight_mem_size = 0U) {
   uint32_t task_id = 0U;
   OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
 
@@ -3805,7 +4070,11 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                       inputs, input_num,
                                       outputs, output_num,
                                       workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address));
+                                      task_type, stream, is_raw_address,
+                                      launch_begin,
+                                      original_op_names,
+                                      input_mem_size, output_mem_size,
+                                      workspace_mem_size, weight_mem_size));
   task_info.l0_exception_dump_info = nullptr;
   if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
     OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
@@ -3906,6 +4175,15 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
   return ACL_SUCCESS;
+}
+
+void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
+  auto &unit = prof_info->profUnit[prof_info->count];
+  unit.type = type;
+  unit.begin_time = begin_time;
+  unit.end_time = MsprofSysCycleTime();
+  unit.thread_id = static_cast<uint32_t>(mmGetTid());
+  ++prof_info->count;
 }
 constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
@@ -4064,8 +4342,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -4107,8 +4386,9 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   aicpu_args_var.resize(args_blob_len);
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, ctx.func_handles[op->dispatch_info.aicpu.func_idx], op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], &aicpu_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin));
   return ACL_SUCCESS;
 }
 
@@ -4208,10 +4488,16 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -4219,18 +4505,51 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -4238,9 +4557,36 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("Run done");
   return ACL_SUCCESS;
@@ -4285,14 +4631,14 @@ aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
+  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
+  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
@@ -4333,13 +4679,19 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
                              const Om2TaskIoEntry *outputs, uint32_t output_num,
                              const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
                              uint32_t workspace_num, uint32_t task_type, void *stream,
-                             uint32_t is_raw_address = 0U) {
+                             uint32_t is_raw_address = 0U,
+                             uint64_t launch_begin = 0U,
+                             const char *original_op_names = nullptr,
+                             uint64_t input_mem_size = 0U,
+                             uint64_t output_mem_size = 0U,
+                             uint64_t workspace_mem_size = 0U,
+                             uint64_t weight_mem_size = 0U) {
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
   task_info->stream_id = stream_id;
   task_info->context_id = 0U;
-  task_info->thread_id = 0U;
+  task_info->thread_id = static_cast<uint32_t>(mmGetTid());
   task_info->block_dim = block_dim;
   task_info->op_desc_id = op_desc_id;
   task_info->args_base = args_base;
@@ -4355,6 +4707,12 @@ aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const 
   task_info->stream = stream;
   task_info->is_raw_address = is_raw_address;
   task_info->l0_exception_dump_info = nullptr;
+  task_info->launch_begin = launch_begin;
+  task_info->original_op_names = original_op_names;
+  task_info->input_mem_size = input_mem_size;
+  task_info->output_mem_size = output_mem_size;
+  task_info->workspace_mem_size = workspace_mem_size;
+  task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
 }
 
@@ -4397,7 +4755,13 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t workspace_num,
                                uint32_t task_type, uint32_t block_dim, void *stream,
                                uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U) {
+                               uint32_t is_raw_address = 0U,
+                               uint64_t launch_begin = 0U,
+                               const char *original_op_names = nullptr,
+                               uint64_t input_mem_size = 0U,
+                               uint64_t output_mem_size = 0U,
+                               uint64_t workspace_mem_size = 0U,
+                               uint64_t weight_mem_size = 0U) {
   uint32_t task_id = 0U;
   OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
 
@@ -4410,7 +4774,11 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                       inputs, input_num,
                                       outputs, output_num,
                                       workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address));
+                                      task_type, stream, is_raw_address,
+                                      launch_begin,
+                                      original_op_names,
+                                      input_mem_size, output_mem_size,
+                                      workspace_mem_size, weight_mem_size));
   task_info.l0_exception_dump_info = nullptr;
   if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
     OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
@@ -4511,6 +4879,15 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
   return ACL_SUCCESS;
+}
+
+void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
+  auto &unit = prof_info->profUnit[prof_info->count];
+  unit.type = type;
+  unit.begin_time = begin_time;
+  unit.end_time = MsprofSysCycleTime();
+  unit.thread_id = static_cast<uint32_t>(mmGetTid());
+  ++prof_info->count;
 }
 constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
@@ -4669,8 +5046,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -4712,8 +5090,9 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   aicpu_args_var.resize(args_blob_len);
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
+  uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, ctx.func_handles[op->dispatch_info.aicpu.func_idx], op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], &aicpu_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicpu.op_type, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, op->dispatch_info.aicpu.block_dim, ctx.stream_list[op->dispatch_info.aicpu.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin));
   return ACL_SUCCESS;
 }
 
@@ -4775,6 +5154,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .stream_id = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 9, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}}},
+      .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
 }};
@@ -4800,10 +5180,16 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -4811,18 +5197,51 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), exe_stream);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("RunAsync done");
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
+  }
+  uint64_t _t_input_begin = 0U;
+  uint64_t _t_exec_begin = 0U;
+  uint64_t _t_output_begin = 0U;
+  if ((prof_info != nullptr)) {
+    _t_input_begin = MsprofSysCycleTime();
   }
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
@@ -4830,9 +5249,36 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
+  }
+  if ((prof_info != nullptr)) {
+    _t_exec_begin = MsprofSysCycleTime();
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_begin = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
+  }
 
   OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
+  }
+  if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
+    uint64_t _t_step_end = MsprofSysCycleTime();
+    ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
+  }
+  if ((prof_info != nullptr)) {
+    _t_output_begin = MsprofSysCycleTime();
+  }
+  if ((prof_info != nullptr)) {
+    CommitProfUnit(prof_info, OM2_PROF_OUTPUT_COPY, _t_output_begin);
+  }
 
   OM2_LOGI("Run done");
   return ACL_SUCCESS;
@@ -4877,14 +5323,14 @@ aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
   return static_cast<om2::Om2Model*>(*model_handle)->Load();
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data) {
+aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data);
+  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout) {
+aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout);
+  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
 aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
@@ -6277,6 +6723,84 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_NoTaskConcatReuseDimOne_Copy
   EXPECT_NE(execute_pos, std::string::npos);
   EXPECT_NE(copy_pos, std::string::npos);
   EXPECT_LT(execute_pos, copy_pos);
+}
+
+// =========================================================================
+//  OM2 Profiling — codegen 输出中包含 profiling 相关模式
+// =========================================================================
+
+TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_ContainsProfilingTypes) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+
+  // profiling/prof_common.h 和 mmpa/mmpa_api.h 应包含在头文件中
+  EXPECT_NE(header.find("#include \"profiling/prof_common.h\""), std::string::npos);
+  EXPECT_NE(header.find("#include \"mmpa/mmpa_api.h\""), std::string::npos);
+  // Om2ProfInfos 结构体应该存在
+  EXPECT_NE(header.find("struct Om2ProfInfos"), std::string::npos);
+  // ProfTraceUserData 结构体应该存在
+  EXPECT_NE(header.find("struct ProfTraceUserData"), std::string::npos);
+  // Om2ProfType 枚举应该存在
+  EXPECT_NE(header.find("enum Om2ProfType"), std::string::npos);
+  EXPECT_NE(header.find("OM2_PROF_INPUT_COPY"), std::string::npos);
+  EXPECT_NE(header.find("OM2_PROF_MODEL_EXECUTE"), std::string::npos);
+  EXPECT_NE(header.find("OM2_PROF_OUTPUT_COPY"), std::string::npos);
+  EXPECT_NE(header.find("OM2_PROF_STEP_INFO_START"), std::string::npos);
+  EXPECT_NE(header.find("OM2_PROF_STEP_INFO_END"), std::string::npos);
+  // Om2ProfUnit 结构体应该存在
+  EXPECT_NE(header.find("struct Om2ProfUnit"), std::string::npos);
+  // Om2TaskInfo 新增 profiling 字段
+  EXPECT_NE(header.find("uint64_t launch_begin"), std::string::npos);
+  EXPECT_NE(header.find("original_op_names"), std::string::npos);
+  EXPECT_NE(header.find("input_mem_size"), std::string::npos);
+  EXPECT_NE(header.find("output_mem_size"), std::string::npos);
+  EXPECT_NE(header.find("workspace_mem_size"), std::string::npos);
+  EXPECT_NE(header.find("weight_mem_size"), std::string::npos);
+  // Om2Model 和外部 API 接收 Om2ProfInfos*
+  EXPECT_NE(header.find("Om2ProfInfos *prof_info"), std::string::npos);
+  // AicoreDispatchInfo 中应有 fusion_op 字段
+  EXPECT_NE(header.find("fusion_op"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+
+  // CommitProfUnit 函数应存在于代码中
+  EXPECT_NE(load_run.find("void CommitProfUnit("), std::string::npos);
+  EXPECT_NE(load_run.find("Om2ProfInfos *prof_info"), std::string::npos);
+  // RunAsync 和 Run 方法应包含 profiling 计时
+  EXPECT_NE(load_run.find("_t_input_begin"), std::string::npos);
+  EXPECT_NE(load_run.find("_t_exec_begin"), std::string::npos);
+  EXPECT_NE(load_run.find("_t_output_begin"), std::string::npos);
+  // MsprofSysCycleTime 应在 profiling 相关路径中调用
+  EXPECT_NE(load_run.find("MsprofSysCycleTime()"), std::string::npos);
+  // CommitProfUnit 调用应包含各阶段类型
+  EXPECT_NE(load_run.find("OM2_PROF_INPUT_COPY"), std::string::npos);
+  EXPECT_NE(load_run.find("OM2_PROF_MODEL_EXECUTE"), std::string::npos);
+  EXPECT_NE(load_run.find("OM2_PROF_OUTPUT_COPY"), std::string::npos);
+  // step_id 相关的 ProfTraceUserData 和 aclrtProfTrace
+  EXPECT_NE(load_run.find("ProfTraceUserData"), std::string::npos);
+  EXPECT_NE(load_run.find("aclrtProfTrace"), std::string::npos);
+  EXPECT_NE(load_run.find("OM2_PROF_STEP_INFO_START"), std::string::npos);
+  EXPECT_NE(load_run.find("OM2_PROF_STEP_INFO_END"), std::string::npos);
+  // DispatchKernelAicore 中应有 _launch_begin
+  EXPECT_NE(load_run.find("_launch_begin"), std::string::npos);
+  // AicoreDispatchInfo 中 fusion_op 字段应被引用
+  EXPECT_NE(load_run.find("fusion_op"), std::string::npos);
+  EXPECT_NE(load_run.find("original_op_names"), std::string::npos);
+  EXPECT_NE(load_run.find("input_mem_size"), std::string::npos);
+  EXPECT_NE(load_run.find("output_mem_size"), std::string::npos);
+  EXPECT_NE(load_run.find("workspace_mem_size"), std::string::npos);
+  EXPECT_NE(load_run.find("weight_mem_size"), std::string::npos);
 }
 
 }  // namespace ge

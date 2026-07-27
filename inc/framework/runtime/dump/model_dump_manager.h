@@ -78,6 +78,7 @@ class VISIBILITY_EXPORT ModelDumpManager {
   void SetClearDfxCacheFlagAfterLoad(bool clear_cache);
   Status ReportModelLoadBegin() const;
   Status ReportModelLoadEnd() const;
+  Status ReportModelLevelProf(const Om2ProfInfos &prof_info) const;
 
   // ========================================================================
   // Task 级信息接口

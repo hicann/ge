@@ -31,12 +31,8 @@ void SetMarks(const std::vector<AscendString> &marks)
 
 ## 返回值说明
 
-无。
-
-## 异常处理
-
-无。
+无
 
 ## 约束说明
 
-无。
+无

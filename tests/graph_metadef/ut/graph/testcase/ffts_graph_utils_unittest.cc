@@ -543,4 +543,55 @@ TEST_F(UtestFftsGraphUtils, Calculate_nullptr_node) {
   std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
   ASSERT_TRUE(FftsGraphUtils::Calculate(node, nullptr, node_value, graph_value, 1).empty());
 }
+
+TEST_F(UtestFftsGraphUtils, CovGraphPartitionEmptyUnsupported) {
+  auto builder = ut::GraphBuilder("root");
+  auto graph = builder.GetGraph();
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*graph, {}), SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovGraphPartitionNoNodeToClip) {
+  ComputeGraphPtr graph;
+  ComputeGraphPtr subgraph;
+  BuildGraphForSplit_without_func_node(graph, subgraph);
+  auto builder = ut::GraphBuilder("other");
+  const auto &other_node = builder.AddNode("other", "Relu", 1, 1);
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, {other_node}), SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovGraphPartitionNoParentNode) {
+  auto builder = ut::GraphBuilder("root");
+  builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  const auto &calc_func = [](const NodePtr &n) { return std::vector<uint32_t>{1}; };
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*graph, calc_func, {8}), PARAM_INVALID);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCalculateValueSizeMismatch) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  const auto &node2 = builder.AddNode("node2", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  const auto &calc_func = [](const NodePtr &n) {
+    if (n->GetName() == "node1") {
+      return std::vector<uint32_t>{1};
+    }
+    return std::vector<uint32_t>{1, 2};
+  };
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  ASSERT_EQ(FftsGraphUtils::Calculate(graph, calc_func, node_value, graph_value, 1), GRAPH_FAILED);
+}
+
+TEST_F(UtestFftsGraphUtils, CovIsValueInvalid) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  node_value[node1] = {1, 2};
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  graph_value[graph] = {1, 2};
+  std::vector<uint32_t> upper_limit = {8};
+  ASSERT_FALSE(FftsGraphUtils::IsValueValid(graph, upper_limit, node_value, graph_value));
+}
 }  // namespace ge

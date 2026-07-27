@@ -1154,4 +1154,75 @@ TEST_F(UtestNodeUtils, Verify_noneed_update_output_name) {
 
   EXPECT_EQ(data_node->GetOpDesc()->GetAllOutputName().cbegin()->first, "yy");
 }
+
+TEST_F(UtestNodeUtils, CovGetParentNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root");
+  const auto &node = builder.AddNode("node1", "Relu", 1, 1);
+  auto parent = NodeUtils::GetParentNode(node);
+  EXPECT_EQ(parent, nullptr);
+}
+
+TEST_F(UtestNodeUtils, CovGetParentNodeNullPtr) {
+  NodePtr null_node;
+  auto parent = NodeUtils::GetParentNode(null_node);
+  EXPECT_EQ(parent, nullptr);
+}
+
+TEST_F(UtestNodeUtils, CovGetParentNodeWithSubgraph) {
+  auto root_builder = ut::GraphBuilder("root_graph");
+  const auto &parent_node = root_builder.AddNode("parent", PARTITIONEDCALL, 0, 1);
+  const auto &netoutput = root_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  root_builder.AddDataEdge(parent_node, 0, netoutput, 0);
+  auto root_graph = root_builder.GetGraph();
+
+  auto sub_builder = ut::GraphBuilder("sub_graph");
+  const auto &sub_data = sub_builder.AddNode("sub_data", "Data", 1, 1);
+  const auto &sub_netoutput = sub_builder.AddNode("sub_netoutput", NETOUTPUT, 1, 0);
+  sub_builder.AddDataEdge(sub_data, 0, sub_netoutput, 0);
+  auto sub_graph = sub_builder.GetGraph();
+  sub_graph->SetParentNode(parent_node);
+  sub_graph->SetParentGraph(root_graph);
+  parent_node->GetOpDesc()->AddSubgraphName("f");
+  parent_node->GetOpDesc()->SetSubgraphInstanceName(0, "sub_graph");
+  root_graph->AddSubGraph(sub_graph);
+
+  auto result = NodeUtils::GetParentNode(sub_data);
+  EXPECT_NE(result, nullptr);
+  EXPECT_EQ(result->GetName(), "parent");
+}
+
+TEST_F(UtestNodeUtils, CovRemoveSubgraphsOnNode) {
+  auto root_builder = ut::GraphBuilder("root_graph");
+  const auto &parent_node = root_builder.AddNode("parent", PARTITIONEDCALL, 0, 1);
+  const auto &netoutput = root_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  root_builder.AddDataEdge(parent_node, 0, netoutput, 0);
+  auto root_graph = root_builder.GetGraph();
+
+  auto sub_builder = ut::GraphBuilder("sub_graph");
+  const auto &sub_const = sub_builder.AddNode("sub_const", "Const", 0, 1);
+  const auto &sub_netoutput = sub_builder.AddNode("sub_netoutput", NETOUTPUT, 1, 0);
+  sub_builder.AddDataEdge(sub_const, 0, sub_netoutput, 0);
+  auto sub_graph = sub_builder.GetGraph();
+  sub_graph->SetParentNode(parent_node);
+  sub_graph->SetParentGraph(root_graph);
+  parent_node->GetOpDesc()->AddSubgraphName("f");
+  parent_node->GetOpDesc()->SetSubgraphInstanceName(0, "sub_graph");
+  root_graph->AddSubgraph(sub_graph->GetName(), sub_graph);
+
+  EXPECT_EQ(NodeUtils::RemoveSubgraphsOnNode(parent_node), GRAPH_SUCCESS);
+  const auto &names = parent_node->GetOpDesc()->GetSubgraphInstanceNames();
+  EXPECT_EQ(names.size(), 1U);
+  EXPECT_EQ(names[0], "");
+}
+
+TEST_F(UtestNodeUtils, CovRemoveSubgraphsOnNodeNoSubgraph) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root");
+  const auto &node = builder.AddNode("node1", "Relu", 1, 1);
+  EXPECT_EQ(NodeUtils::RemoveSubgraphsOnNode(node), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestNodeUtils, CovRemoveSubgraphsOnNodeNullPtr) {
+  NodePtr null_node;
+  EXPECT_NE(NodeUtils::RemoveSubgraphsOnNode(null_node), GRAPH_SUCCESS);
+}
 }  // namespace ge

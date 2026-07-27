@@ -29,10 +29,6 @@ graphStatus VerifyAllAttr(bool disable_common_verifier = false)
 
 graphStatus类型：推导成功，返回GRAPH\_SUCCESS，否则，返回GRAPH\_FAILED。
 
-## 异常处理
-
-无。
-
 ## 约束说明
 
-无。
+无

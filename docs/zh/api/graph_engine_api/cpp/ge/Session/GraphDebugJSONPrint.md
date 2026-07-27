@@ -21,7 +21,7 @@ export DUMP_GE_GRAPH=1
 - 若指定环境变量：DUMP\_GRAPH\_PATH，生成的JSON文件在$\{DUMP\_GRAPH\_PATH\}/目录。
 - 若没有指定环境变量，生成的JSON文件在当前脚本执行目录。
 
-上述环境变量的详细说明请参见《环境变量参考》。
+上述环境变量的详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 
 ## 函数原型
 
