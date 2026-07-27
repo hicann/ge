@@ -1110,24 +1110,6 @@ DataFlow离线编译是指在开发环境编译，在运行环境上加载和部
     > [!NOTE]说明
     >**numa\_config.json**请参考[附录](appendices.md)。ipaddr字段可以使用任意IP。
 
-    ```json
-    {
-                        "host":{
-                             "resourceType": "X86",
-                        .........
-                        "devList":[
-                          {
-                          "ipaddr":"XX.XX.XX.XX",
-                          "port":2509,
-                          "deviceIdList":[0,1],
-                          "resourceType":"Ascend",
-                          "token":"OKIJBNHYGFVT7RGH",
-                          "chip_count":2,
-                          }
-                       ],
-    }
-    ```
-
    **表1**  参数解释
 
    |参数名|含义|

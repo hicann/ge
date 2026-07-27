@@ -129,8 +129,6 @@ numa\_config.json全量字段含义如表1所示。
 |memory|String|是|整芯片总内存。 Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，请配置为[DDR:64GB]。Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，请配置为[DDR:31GB]。|
 |aic_type|String|是|加速卡计算核类型和核数。如[DAVINCI_V100:32]。|
 |resource_type|String|是|UDF可部署的Ascend资源类型。请配置为Ascend。|
-|links_mode|String|否|芯片内互联拓扑。|
-|device_list|Array of device_infodevice_info详细信息请参见表9。|否|整芯片内包含物理device信息。|
 
 **表2**  cluster\_node说明
 
@@ -189,12 +187,6 @@ numa\_config.json全量字段含义如表1所示。
 |--|--|--|--|
 |plane_id|Integer|是|server间通信平面是第几个plane(云提供)。|
 |devices|Array of int list|是|属于该平面的加速卡列表。|
-
-**表9**  device\_info说明
-
-|**名称**|**类型**|**是否必选**|**描述**|
-|--|--|--|--|
-|device_id|Integer|是|整芯片内物理device ID。|
 
 <!-- npu="910b" id9 -->
 
