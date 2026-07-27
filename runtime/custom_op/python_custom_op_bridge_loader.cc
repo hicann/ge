@@ -111,8 +111,12 @@ Status FindPythonCustomOpEntryInEnv(const char *env_value, bool &found) {
     }
     struct stat path_stat{};
     if (stat(path.c_str(), &path_stat) != 0) {
-      GELOGE(FAILED, "Custom op path[%s] does not exist or is inaccessible.", path.c_str());
-      return FAILED;
+      if (IsPythonFile(path)) {
+        GELOGE(FAILED, "Python custom op path[%s] does not exist or is inaccessible.", path.c_str());
+        return FAILED;
+      }
+      GELOGW("Skip inaccessible custom op path[%s].", path.c_str());
+      continue;
     }
     if (HasPythonCustomOpEntry(path, path_stat)) {
       found = true;

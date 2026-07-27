@@ -1589,13 +1589,13 @@ TEST_F(CustomOpFactoryStTest, load_python_custom_ops_if_needed_fails_for_missing
   EXPECT_EQ(custom_op::LoadPythonCustomOpsIfNeeded(), FAILED);
 }
 
-TEST_F(CustomOpFactoryStTest, check_need_load_python_custom_ops_fails_for_missing_non_python_path) {
+TEST_F(CustomOpFactoryStTest, check_need_load_python_custom_ops_skips_missing_non_python_path) {
   ScopedTempDirForCustomOpSt temp_dir;
   const auto missing_so_file = temp_dir.FilePath("missing_custom_op.so");
   ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, missing_so_file);
 
   bool need_load = true;
-  EXPECT_EQ(custom_op::CheckNeedLoadPythonCustomOps(need_load), FAILED);
+  EXPECT_EQ(custom_op::CheckNeedLoadPythonCustomOps(need_load), SUCCESS);
   EXPECT_FALSE(need_load);
 }
 
