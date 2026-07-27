@@ -9,6 +9,7 @@
  */
 
 #include "hcom_fusion_optimizer.h"
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include "hcom_alltoallvc_fusion.h"
 #include "hcom_allgather_fusion.h"
@@ -99,20 +100,34 @@ HcclResult HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
   }
 
   for (auto nodePtr : graph.GetAllNodes()) {
+    if (!nodePtr) {
+      HCCL_WARNING("[Optimize][Precision]: null node exists.");
+      continue;
+    }
     auto opDescPtr = nodePtr->GetOpDesc();
-    for (uint32_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {
+    if (!opDescPtr) {
+      HCCL_WARNING("[Optimize][Precision]: desc of node[%s] is null.", nodePtr->GetName().c_str());
+      continue;
+    }
+
+    std::string opType = opDescPtr->GetType();
+    if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) == HCOM_SUPPORTED_OP_TYPE.end()) {
+      continue;
+    }
+
+    for (size_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {
       auto inTensorDescPtr = opDescPtr->MutableInputDesc(i);
       if (inTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
         inTensorDescPtr->SetDataType(ge::DataType::DT_FLOAT16);
-        HCCL_DEBUG("[Optimize][Precision]node[%s] input[%u] datatype changed from FP32 to FP16.",
+        HCCL_DEBUG("[Optimize][Precision]node[%s] input[%zu] datatype changed from FP32 to FP16.",
                    opDescPtr->GetName().c_str(), i);
       }
     }
-    for (uint32_t i = 0; i < opDescPtr->GetOutputsSize(); i++) {
+    for (size_t i = 0; i < opDescPtr->GetOutputsSize(); i++) {
       auto outTensorDescPtr = opDescPtr->MutableOutputDesc(i);
       if (outTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
         outTensorDescPtr->SetDataType(ge::DataType::DT_FLOAT16);
-        HCCL_DEBUG("[Optimize][Precision]node[%s] output[%u] datatype changed from FP32 to FP16.",
+        HCCL_DEBUG("[Optimize][Precision]node[%s] output[%zu] datatype changed from FP32 to FP16.",
                    opDescPtr->GetName().c_str(), i);
       }
     }
