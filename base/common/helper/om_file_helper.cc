@@ -276,8 +276,14 @@ Status OmFileLoadHelper::CheckModelCompatibility(const Model &model) const {
     return PARAM_INVALID;
   }
   GELOGI("The soc version [%s]. Check compatibility is %d.", model_soc_version.c_str(), compatible);
-  GE_ASSERT_TRUE(compatible == 1, "Model soc version[%s] is not support in this device",
-                 model_soc_version.c_str());  // 1 for compatible, 0 for incompatible
+  if (compatible != 1) {  // 1 for compatible, 0 for incompatible
+    const std::string reason = "Model soc version is not support in this device.";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"soc_version", model_soc_version.c_str(), reason.c_str()}));
+    GELOGE(PARAM_INVALID, "Model soc version[%s] is not support in this device", model_soc_version.c_str());
+    return PARAM_INVALID;
+  }
   return SUCCESS;
 }
 

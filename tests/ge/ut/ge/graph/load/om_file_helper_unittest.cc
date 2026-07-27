@@ -242,7 +242,7 @@ TEST_F(UtestOmFileHelper, CheckModelCompatibility_IncompatibleDevice_ReturnFaile
   OmFileLoadHelper loader;
   Model model("test_model", "v1");
   (void)AttrUtils::SetStr(model, "soc_version", "Ascend910A");
-  EXPECT_NE(loader.CheckModelCompatibility(model), SUCCESS);
+  EXPECT_EQ(loader.CheckModelCompatibility(model), PARAM_INVALID);
 
   ge::AclRuntimeStub::Reset();
 }

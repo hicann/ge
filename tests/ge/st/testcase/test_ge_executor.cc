@@ -80,6 +80,10 @@ class MockAclRuntime : public ge::AclRuntimeStub {
       *canCompatible = 0;
       return -1;
     }
+    if (std::string(socVersion) == "Ascend910A") {
+      *canCompatible = 0;
+      return ACL_SUCCESS;
+    }
     *canCompatible = 1;
     return ACL_SUCCESS;
   }
@@ -1894,6 +1898,24 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
       EXPECT_NE(ge_executor_.LoadModelFromData(model_id, model_data, nullptr, 0U, nullptr, 0U), SUCCESS);
       model_ids.emplace_back(model_id);
     }
+
+    // 用例描述：soc_version 合法但与当前设备不兼容时，加载模型返回参数错误。
+    // 预置条件：aclrtCheckArchCompatibility 返回 ACL_SUCCESS 且 canCompatible 为 0。
+    // 测试步骤：设置模型 soc_version 为 Ascend910A，调用 LoadModelFromData。
+    // 预期结果：返回 PARAM_INVALID。
+    ModelHelper incompatible_model_helper;
+    incompatible_model_helper.SetSaveMode(false);  // Save to buffer.
+    ModelBufferData incompatible_model_buffer;
+    EXPECT_TRUE(AttrUtils::SetStr(*(ge_model.get()), "soc_version", "Ascend910A"));
+    EXPECT_EQ(incompatible_model_helper.SaveToOmModel(ge_model, "incompatible_model", incompatible_model_buffer),
+              SUCCESS);
+    const ModelData incompatible_model_data{incompatible_model_buffer.data.get(),
+                                            static_cast<uint32_t>(incompatible_model_buffer.length), 0, "", ""};
+    uint32_t incompatible_model_id = 0U;
+    EXPECT_EQ(ge_executor_.LoadModelFromData(incompatible_model_id, incompatible_model_data, nullptr, 0U, nullptr, 0U),
+              PARAM_INVALID);
+    model_ids.emplace_back(incompatible_model_id);
+
     ge::RuntimeStub::Reset();
     ge::AclRuntimeStub::Reset();
   }
