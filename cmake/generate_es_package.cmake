@@ -179,8 +179,13 @@ function(_add_es_library_impl)
     # CMake if() 自动识别 TRUE/True/ON/On/on/YES/yes/1 等真值，无需逐一枚举
     if(ENABLE_ASAN)
         set(ENABLE_ASAN_NORMALIZED "true")
+        set(ASAN_LIBRARY_PATH "")
+        if (COMMAND cann_get_asan_real_path)
+            cann_get_asan_real_path(ASAN_LIBRARY_PATH)
+        endif ()
     else()
         set(ENABLE_ASAN_NORMALIZED "")
+        set(ASAN_LIBRARY_PATH "")
     endif()
     # 每次 cmake 配置都重新生成脚本，确保 ENABLE_ASAN 等配置变化能即时反映到脚本中
     # （修复脚本缓存陈旧导致 --asan=false 不生效的问题，见 issue #466）。
@@ -289,7 +294,10 @@ execute_gen_esb() {
             ENV_PREFIX=\"ASCEND_OPP_PATH=\${OPP_PATH}\"
         fi
         if [[ \"${ENABLE_ASAN_NORMALIZED}\" == \"true\" ]]; then
-            USE_ASAN=\$(gcc -print-file-name=libasan.so)
+            USE_ASAN=\"${ASAN_LIBRARY_PATH}\"
+            if [ -z \"\${USE_ASAN}\" ]; then
+                USE_ASAN=\$(gcc -print-file-name=libasan.so)
+            fi
             ENV_PREFIX=\"\${ENV_PREFIX} LD_PRELOAD=\${USE_ASAN}\"
         fi
         log_debug \"Command: \$ENV_PREFIX \\\"\${GEN_ESB_EXE}\\\" --output_dir=\\\"\${OUTPUT_DIR}\\\" --module_name=\\\"\${MODULE_NAME}\\\" --exclude_ops=\\\"\${EXCLUDE_OPS}\\\" \${EXTRACT_HISTORY_FLAG} \${RELEASE_VERSION_FLAG} \${HISTORY_REGISTRY_ARG} \${RELEASE_DATE_ARG} \${BRANCH_NAME_ARG}\"
