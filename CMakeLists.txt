@@ -576,30 +576,8 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         add_dependencies(dflow-executor version_dflow-executor_info)
         if (ENABLE_BUILD_DEVICE)
             cmake_print_variables(ENABLE_SIGN CUSTOM_SIGN_SCRIPT)
-            include(ExternalProject)
-            ExternalProject_Add(udf_device
-                    SOURCE_DIR ${CMAKE_SOURCE_DIR}/cmake/device
-                    BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
-                    CMAKE_ARGS
-                    -DTOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc
-                    -DCMAKE_TOOLCHAIN_FILE=${CANN_CMAKE_DIR}/toolchain/aarch64-hcc-toolchain.cmake
-                    -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
-                    -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
-                    -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
-                    -DINSTALL_LIBRARY_DIR=${INSTALL_LIBRARY_DIR}
-                    -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
-                    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                    -DHI_PYTHON=${HI_PYTHON}
-                    -DENABLE_SIGN=${ENABLE_SIGN}
-                    -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
-                    -DVERSION_INFO=${VERSION_INFO}
-                    INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
-                    BUILD_ALWAYS TRUE)
-            install(FILES
-                    ${CMAKE_BINARY_DIR}/device_build/device-dflow-executor.tar.gz
-                    DESTINATION .
-                    COMPONENT dflow-executor)
-            add_dependencies(dflow-executor udf_device)
+            add_cann_device_project(dflow-executor)
+            add_dependencies(dflow-executor cann_device)
         endif ()
     endif()
     include(cmake/package.cmake)
