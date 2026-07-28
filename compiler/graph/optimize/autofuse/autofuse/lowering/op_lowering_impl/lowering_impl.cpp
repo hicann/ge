@@ -468,7 +468,11 @@ loop::LoopVar CalculateOneOrZero(const loop::LoopVar &input, DataType dtype,
   help_rec_one = loop::Broadcast(help_rec_one, status);
   help_rec_sec = loop::Broadcast(help_rec_sec, status);
   auto zero = loop::Broadcast(loop::Scalar("0", dtype), status);
-  auto min_y = loop::Minimum(input, help_min);
+  auto safe_input = input;
+  if ((dtype == DT_FLOAT) || (dtype == DT_FLOAT16)) {
+    safe_input = loop::Where(loop::IsNan(input), zero, input);
+  }
+  auto min_y = loop::Minimum(safe_input, help_min);
   auto max_y = loop::Maximum(min_y, zero);
   auto result = loop::Mul(max_y, help_rec_one);
   if (dtype == DT_FLOAT) {
