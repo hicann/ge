@@ -44,6 +44,18 @@ class MemReuseUtils {
   static Status GetDstNodeThroughRefNode(const Node *const node, const int32_t out_index,
                                          std::vector<Node *> &dst_nodes, std::vector<int32_t> &in_indexes);
   static std::string GetGraphNameId(const ge::ComputeGraph *const graph);
+  static bool IsSubGraphNetOutNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph);
+  static bool IsDirectInputNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph);
+  static bool IsContinuousOutput(const ge::NodePtr &n);
+  static bool IsNoReleaseNodeOutBlock(const ge::Node *const node);
+  static const ge::Node *GeParentNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph,
+                                      uint32_t depth);
+  static bool PeerIsSubGraphNetOutNode(const ge::NodePtr &node, const ge::OutDataAnchorPtr &out_data_anchor,
+                                       const ge::ComputeGraphPtr &compute_graph);
+  static bool IsSubGraphInOrOutNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph);
+  static bool IsDirectOutputNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph);
+  static bool IsAtomicWorkSpace(const int64_t index,
+                                const std::map<std::string, std::map<int64_t, int64_t>> &atomic_workspace);
 };
 
 class MemReuseStrategy {

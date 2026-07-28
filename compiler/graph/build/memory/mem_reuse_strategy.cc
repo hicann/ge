@@ -17,8 +17,14 @@
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_type_utils.h"
 #include "mem_assigner.h"
+#include "graph/ge_context.h"
+#include "graph/build/memory/block_mem_assigner.h"
+#include "graph/optimize/mem_layout_conflict_optimize/mem_layout_conflict_util.h"
 
 namespace ge {
+namespace {
+const std::set<ge::DataType> kNotPostReuseDataType = {ge::DT_RESOURCE, ge::DT_VARIANT};
+}
 int32_t MemReuseUtils::GetThreadScopeId(const ge::OpDesc *const desc) {
   int32_t thread_scope_id = ge::kInvalidThreadScopeId;
   if ((desc != nullptr) && ge::AttrUtils::GetInt(desc, ge::ATTR_NAME_THREAD_SCOPE_ID, thread_scope_id)) {
@@ -321,4 +327,141 @@ std::string MemReuseUtils::GetGraphNameId(const ge::ComputeGraph *const graph) {
   graph_name.append(std::to_string(graph->GetGraphID()));
   return graph_name;
 }
+
+///              -sub graph1
+///             |
+/// root graph -|-sub graph2 -|- sub graph4
+///             |
+///              -sub graph3
+/// when compile sub graph2 it's NETOUTPUT is not SubGraphNetOutNode
+/// sub graph4's NETOUTPUT is SubGraphNetOutNode
+bool MemReuseUtils::IsSubGraphNetOutNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph) {
+  if ((node != nullptr) && (node->GetType() == ge::NETOUTPUT) && (node->GetOpDescBarePtr() != nullptr)) {
+    auto owner_graph = node->GetOwnerComputeGraphBarePtr();
+    if (owner_graph == compute_graph.get()) {
+      return false;
+    }
+    for (uint32_t index = 0U; index < node->GetOpDescBarePtr()->GetInputsSize(); ++index) {
+      const auto input_desc = node->GetOpDescBarePtr()->GetInputDescPtr(index);
+      if ((input_desc != nullptr) && input_desc->HasAttr(ge::ATTR_NAME_PARENT_NODE_INDEX)) {
+        GELOGD("Node: %s is subgraph net out.", node->GetNamePtr());
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool MemReuseUtils::IsDirectInputNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph) {
+  if (node != nullptr) {
+    auto owner_graph = node->GetOwnerComputeGraphBarePtr();
+    if ((owner_graph == compute_graph.get()) && ge::OpTypeUtils::IsDataNode(node->GetType())) {
+      GELOGD("This is model input node:%s.", node->GetNamePtr());
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MemReuseUtils::IsContinuousOutput(const ge::NodePtr &n) {
+  if (ge::MemLayoutConflictUtil::IsContinuousOutput(n)) {
+    if (n->GetOwnerComputeGraphBarePtr() != nullptr) {
+      GELOGI("%s name[%s] set continuous, output size[%u].", n->GetOwnerComputeGraphBarePtr()->GetName().c_str(),
+             n->GetNamePtr(), n->GetAllOutDataAnchorsSize());
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool MemReuseUtils::IsNoReleaseNodeOutBlock(const ge::Node *const node) {
+  for (const auto &input_desc : node->GetOpDesc()->GetAllInputsDescPtr()) {
+    if ((input_desc != nullptr) &&
+        (kNotPostReuseDataType.find(input_desc->GetDataType()) != kNotPostReuseDataType.cend())) {
+      return true;
+    }
+  }
+  for (const auto &output_desc : node->GetOpDesc()->GetAllOutputsDescPtr()) {
+    if ((output_desc != nullptr) &&
+        (kNotPostReuseDataType.find(output_desc->GetDataType()) != kNotPostReuseDataType.cend())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const ge::Node *MemReuseUtils::GeParentNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph,
+                                            uint32_t depth) {
+  depth++;
+  const ge::Node *parent_node = nullptr;
+  if ((node != nullptr) && (depth < ge::kMaxDepthNum)) {
+    auto owner_graph = node->GetOwnerComputeGraphBarePtr();
+    if (owner_graph != nullptr) {
+      parent_node = owner_graph->GetParentNodeBarePtr();
+      const bool is_root_graph =
+          (parent_node != nullptr) && (parent_node->GetOwnerComputeGraphBarePtr() == compute_graph.get());
+      if (!is_root_graph) {
+        parent_node = GeParentNode(parent_node, compute_graph, depth);
+      }
+    }
+  }
+  if (parent_node == nullptr) {
+    return node;
+  }
+  return parent_node;
+}
+
+bool MemReuseUtils::PeerIsSubGraphNetOutNode(const ge::NodePtr &node, const ge::OutDataAnchorPtr &out_data_anchor,
+                                             const ge::ComputeGraphPtr &compute_graph) {
+  if (node != nullptr) {
+    for (const auto in_anchor : out_data_anchor->GetPeerInDataAnchorsPtr()) {
+      const auto peer_node = in_anchor->GetOwnerNodeBarePtr();
+      if (IsSubGraphNetOutNode(peer_node, compute_graph)) {
+        GELOGD("Node: %s peer node:%s is subgraph net out.", node->GetNamePtr(), peer_node->GetNamePtr());
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool MemReuseUtils::IsSubGraphInOrOutNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph) {
+  if (node != nullptr) {
+    auto owner_graph = node->GetOwnerComputeGraphBarePtr();
+    if (owner_graph != compute_graph.get()) {
+      std::string op_type(node->GetTypePtr());
+      if ((op_type == ge::DATA) || (op_type == ge::NETOUTPUT) || (op_type == ge::PARTITIONEDCALL)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool MemReuseUtils::IsDirectOutputNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph) {
+  if ((node == nullptr) || (node->GetOpDescBarePtr() == nullptr) ||
+      (node->GetOpDescBarePtr()->GetType() != ge::NETOUTPUT) || IsSubGraphNetOutNode(node, compute_graph)) {
+    return false;
+  }
+  GELOGD("This is model netoutput node:%s.", node->GetNamePtr());
+  return true;
+}
+
+bool MemReuseUtils::IsAtomicWorkSpace(const int64_t index,
+                                      const std::map<std::string, std::map<int64_t, int64_t>> &atomic_workspace) {
+  for (auto const &it : atomic_workspace) {
+    if (it.second.empty()) {
+      continue;
+    }
+    for (const auto &workspae_info : it.second) {
+      if (workspae_info.first == index) {
+        GELOGD("Node:%s's workspace:%" PRId64 " is atomic.", it.first.c_str(), index);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 }  // namespace ge
