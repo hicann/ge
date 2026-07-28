@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <fstream>
+#include <utility>
 #include "framework/common/debug/log.h"
 
 namespace ge {
@@ -86,6 +87,19 @@ class JsonFile {
     }
   }
 
+  bool Get(const std::string &key, JsonFile &out) const {
+    if (!valid_ || !data_.contains(key)) {
+      return false;
+    }
+    try {
+      out = JsonFile(data_.at(key));
+      return true;
+    } catch (const std::exception &e) {
+      GELOGW("Cannot get value with key [%s], msg: %s", key.c_str(), e.what());
+      return false;
+    }
+  }
+
   std::string Dump(const bool pretty = true) const {
     if (!valid_) {
       return "{}";
@@ -93,8 +107,20 @@ class JsonFile {
     return pretty ? data_.dump(kJsonPrettyIndent) : data_.dump();
   }
 
+  const json &operator[](const std::string &key) const {
+    return data_[key];
+  }
+
   const json &Raw() const {
     return data_;
+  }
+
+  template <typename T, typename Fn>
+  static void TryGetAndApply(const JsonFile &json_file, const std::string &key, Fn &&fn) {
+    T value{};
+    if (json_file.Get(key, value)) {
+      std::forward<Fn>(fn)(value);
+    }
   }
 
  private:

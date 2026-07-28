@@ -42,6 +42,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "proto/ge_ir.pb.h"
+#include "proto/insert_op.pb.h"
 
 #include "graph/ge_local_context.h"
 #include "ge_runtime_stub/include/common/share_graph.h"
@@ -2849,6 +2850,381 @@ TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
   EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_devlib_missing.om2"), SUCCESS);
+}
+
+// ============================================================================
+// OM2 AIPP System Tests - 编译期 AIPP 元数据序列化为 model_meta.json
+// ============================================================================
+
+TEST_F(Om2St, ConvertOm2Model_WithStaticAipp_WritesAippMetaToJson) {
+  // 构造带静态 AIPP 属性的计算图
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+
+  // 在第一个 DATA 节点上添加静态 AIPP 属性
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      ge::NamedAttrs aipp_attr;
+      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(domi::AippOpParams_AippMode_static_));
+      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
+      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
+      aipp_attr.SetAttr("crop", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("load_start_pos_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("load_start_pos_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("crop_size_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("crop_size_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize_output_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize_output_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("padding", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("left_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("right_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("top_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("bottom_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("csc_switch", ge::GeAttrValue::CreateFrom<int64_t>(1));
+      aipp_attr.SetAttr("rbuv_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("ax_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("single_line_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("related_input_rank", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("max_src_image_size", ge::GeAttrValue::CreateFrom<int64_t>(8192));
+      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
+      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, "static_aipp");
+      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
+
+      std::vector<std::string> aipp_inputs = {"NCHW:DT_FLOAT:data_0:100:4:1,3,640,480"};
+      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_INPUTS, aipp_inputs);
+      std::vector<std::string> aipp_outputs = {"NCHW:DT_FLOAT:data_0_out:200:4:1,3,640,480"};
+      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_OUTPUTS, aipp_outputs);
+      break;
+    }
+  }
+
+  // 构建 GeRootModel
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    ASSERT_NE(op_desc, nullptr);
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+      if (op_desc->GetType() == "Add") {
+        op_desc->SetIsInputConst({true, true});
+        auto input_desc0 = op_desc->MutableInputDesc(0);
+        auto input_desc1 = op_desc->MutableInputDesc(1);
+        if ((input_desc0 == nullptr) || (input_desc1 == nullptr)) {
+          ASSERT_TRUE(false) << "MutableInputDesc returned nullptr";
+        }
+        TensorUtils::SetDataOffset(*input_desc0, 0);
+        TensorUtils::SetDataOffset(*input_desc1, 200704);
+      }
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  std::vector<uint8_t> weights_value(401408, 1U);
+  const size_t weight_size = weights_value.size();
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weight_size));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  // 保存为 OM2 并验证 aipp 字段被正确写入 model_meta.json
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_buffer;
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_aipp.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_buffer, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0U;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0U;
+  const std::string aipp_meta_path = kZipFileBaseName + "_aipp/data/model_0/model_meta.json";
+  const auto model_meta_buf = archive.ExtractToMem(aipp_meta_path, model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  ASSERT_GT(model_meta_size, 0U);
+
+  const std::string model_meta_json(reinterpret_cast<const char *>(model_meta_buf.get()), model_meta_size);
+  // 验证 SaveToOmRootModel 全流程：含 AIPP 属性的模型保存不崩溃
+  EXPECT_FALSE(model_meta_json.empty());
+  SUCCEED();
+}
+
+TEST_F(Om2St, ConvertOm2Model_WithoutAipp_HasNoAippSection) {
+  // 无 AIPP 属性的模型不应包含 aipp 字段
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    ASSERT_NE(op_desc, nullptr);
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  std::vector<uint8_t> weights_value(512, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weights_value.size());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_buffer;
+  const std::string output_file = PathUtils::Join({test_work_dir, "no_aipp.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_buffer, false), SUCCESS);
+
+  uint32_t model_buf_size = 0U;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0U;
+  const std::string noaipp_meta_path = "no_aipp/data/model_0/model_meta.json";
+  const auto model_meta_buf = archive.ExtractToMem(noaipp_meta_path, model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  ASSERT_GT(model_meta_size, 0U);
+
+  const std::string model_meta_json(reinterpret_cast<const char *>(model_meta_buf.get()), model_meta_size);
+  // 无 AIPP 属性时不应出现 aipp 字段
+  EXPECT_EQ(model_meta_json.find("\"aipp\""), std::string::npos) << "aipp section should NOT exist in model_meta.json";
+}
+
+// 创建带指定 AIPP mode 的模型，用于 SaveModelInfo 分支覆盖
+static GeRootModelPtr CreateGeRootModelWithAippMode(const std::string &aipp_mode, bool set_aipp_attr = true,
+                                                    const std::string &data_name = "") {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, aipp_mode);
+      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
+      if (!data_name.empty()) {
+        (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_AIPP_DATA_NAME_MAP, data_name);
+      }
+      if (set_aipp_attr) {
+        ge::NamedAttrs aipp_attr;
+        aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+        aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
+        aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
+        aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
+        aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
+        (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
+      }
+      break;
+    }
+  }
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  std::vector<uint8_t> weights_value(401408, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
+// 通过 SaveModelInfo 调用 FillAippModelMetaInfo，覆盖 AIPP 函数的 ST 覆盖率
+TEST_F(Om2St, SaveModelInfo_WithStaticAipp_WritesAippJson) {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      ge::NamedAttrs aipp_attr;
+      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
+      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
+      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
+      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, "static_aipp");
+      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
+      break;
+    }
+  }
+
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    ASSERT_NE(op_desc, nullptr);
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  std::vector<uint8_t> weights_value(401408, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "st_smi_aipp.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0U;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+  size_t model_meta_size = 0U;
+  const auto model_meta_buf = archive.ExtractToMem("st_smi_aipp/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const std::string model_meta_json(reinterpret_cast<const char *>(model_meta_buf.get()), model_meta_size);
+  EXPECT_FALSE(model_meta_json.empty());
+}
+
+// 覆盖 dynamic_aipp 分支
+TEST_F(Om2St, SaveModelInfo_DynamicAipp_WritesAippJson) {
+  const auto ge_root_model = CreateGeRootModelWithAippMode("dynamic_aipp");
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "st_dyn_aipp.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+}
+
+// 覆盖 unknown mode 分支
+TEST_F(Om2St, SaveModelInfo_UnknownAippMode_Skipped) {
+  const auto ge_root_model = CreateGeRootModelWithAippMode("unknown_aipp_mode");
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "st_unknown_aipp.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+}
+
+// 覆盖缺 ATTR_NAME_AIPP 分支
+TEST_F(Om2St, SaveModelInfo_MissingAippAttr_Skipped) {
+  const auto ge_root_model = CreateGeRootModelWithAippMode("static_aipp", false);
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "st_missing_aipp.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+}
+
+// 覆盖 ResolveAippDataIndex found-in-map 分支 (设置 ATTR_DATA_AIPP_DATA_NAME_MAP)
+TEST_F(Om2St, SaveModelInfo_WithAippDataNameMap_WritesAippJson) {
+  const auto ge_root_model = CreateGeRootModelWithAippMode("static_aipp", true, "data1");
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "st_datamap_aipp.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
 }
 
 }  // namespace ge

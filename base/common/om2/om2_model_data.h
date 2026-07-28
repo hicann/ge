@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "common/ge_common/ge_types.h"
 #include "framework/common/om2_tensor_desc.h"
 
 namespace gert {
@@ -33,6 +34,18 @@ struct Om2ProgramBody {
   ge::Om2CodegenArtifacts source_artifacts;
   ge::Om2CodegenArtifact so_artifact;
 };
+
+/// AIPP 元数据，编译期从 ComputeGraph 提取，序列化到 model_meta.json 的 aipp 字段
+struct Om2AippMeta {
+  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
+  size_t aipp_data_index = 0U;
+  ge::AippConfigInfo aipp_config_info;
+  std::vector<ge::InputOutputDims> aipp_input_dims;
+  std::vector<ge::InputOutputDims> aipp_output_dims;
+  ge::OriginInputInfo orig_input_info;
+};
+
+using Om2AippInfo = Om2AippMeta;
 
 /// 模型元数据
 struct Om2ModelMeta {
@@ -49,6 +62,8 @@ struct Om2ModelMeta {
   std::vector<std::string> dynamic_output_shape;
   std::vector<std::string> user_designate_shape_order;
   std::vector<std::vector<int64_t>> origin_input_dims;
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
 };
 
 struct Om2ConstantsData {

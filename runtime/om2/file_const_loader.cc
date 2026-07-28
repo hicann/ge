@@ -199,20 +199,20 @@ ge::Status BuildUserFileConstMemMap(const std::vector<ge::FileConstantMem> &file
   return ge::SUCCESS;
 }
 
-ge::Status ResolveFileConstWeightDir(const ge::ModelData &model_data, std::string &weight_dir) {
+ge::Status ResolveFileConstWeightDir(const std::string &weight_path, const std::string &om_path,
+                                     std::string &weight_dir) {
   weight_dir.clear();
-  if (!model_data.weight_path.empty()) {
-    const auto real_weight_path = ge::om2::RealPath(model_data.weight_path.c_str());
-    GE_ASSERT_TRUE(!real_weight_path.empty(), "[OM2][Check] Failed to resolve weight path: [%s].",
-                   model_data.weight_path.c_str());
+  if (!weight_path.empty()) {
+    const auto real_weight_path = ge::om2::RealPath(weight_path.c_str());
+    GE_ASSERT_TRUE(!real_weight_path.empty(), "[OM2][Check] Failed to resolve weight path: [%s].", weight_path.c_str());
     weight_dir = real_weight_path + "/";
     return ge::SUCCESS;
   }
-  if (model_data.om_path.empty()) {
+  if (om_path.empty()) {
     return ge::SUCCESS;
   }
-  const auto real_om_path = ge::om2::RealPath(model_data.om_path.c_str());
-  GE_ASSERT_TRUE(!real_om_path.empty(), "[OM2][Check] Failed to resolve om path: [%s].", model_data.om_path.c_str());
+  const auto real_om_path = ge::om2::RealPath(om_path.c_str());
+  GE_ASSERT_TRUE(!real_om_path.empty(), "[OM2][Check] Failed to resolve om path: [%s].", om_path.c_str());
   std::string om_dir;
   std::string om_name;
   ge::om2::SplitFilePath(real_om_path, om_dir, om_name);

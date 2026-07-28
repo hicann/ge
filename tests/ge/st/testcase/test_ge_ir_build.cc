@@ -74,18 +74,6 @@ graphStatus StubInferFunction(Operator &op) {
   return GRAPH_SUCCESS;
 }
 
-std::string WriteDynamicAippConfig() {
-  const std::string cfg_path = "om2_dynamic_aipp_build.cfg";
-  std::ofstream cfg_file(cfg_path);
-  cfg_file << "aipp_op {\n"
-           << "  aipp_mode: dynamic\n"
-           << "  related_input_rank: 0\n"
-           << "  max_src_image_size: 752640\n"
-           << "  input_format: RGB888_U8\n"
-           << "  csc_switch: false\n"
-           << "}\n";
-  return cfg_path;
-}
 class ScopedGraphOptions {
  public:
   explicit ScopedGraphOptions(const std::map<std::string, std::string> &options)
@@ -477,22 +465,6 @@ TEST_F(GeIrBuildTest, TestBuildModelOm2UnsupportedGlobalOption) {
     ModelBufferData model_buffer_data;
     EXPECT_EQ(aclgrphBuildModel(graph, build_options, model_buffer_data), PARAM_INVALID);
   }
-  aclgrphBuildFinalize();
-}
-
-TEST_F(GeIrBuildTest, TestBuildModelOm2DynamicAippRejected) {
-  aclgrphBuildFinalize();
-  std::map<std::string, std::string> init_options;
-  ASSERT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
-
-  auto graph = GraphFactory::SingeOpGraph2();
-  const auto cfg_path = WriteDynamicAippConfig();
-  const std::map<std::string, std::string> build_options = {
-      {"ge.offlineMode", "7"},
-      {ge::ir_option::INSERT_OP_FILE, cfg_path},
-  };
-  ModelBufferData model_buffer_data;
-  EXPECT_EQ(aclgrphBuildModel(graph, build_options, model_buffer_data), PARAM_INVALID);
   aclgrphBuildFinalize();
 }
 

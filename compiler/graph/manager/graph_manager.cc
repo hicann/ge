@@ -2873,9 +2873,10 @@ Status GraphManager::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_
   GE_CHECK_NOTNULL(ge_root_model, "graph_id:%u", graph_id);
 
   // OM2 mode: serialize Om2ModelData to ModelBufferData
-  if (IsOm2OnlineMode() && ge_root_model->HasOm2ModelData()) {
+  if (IsOm2OnlineMode()) {
     const auto &om2_model_data = ge_root_model->GetOm2ModelData();
-    return ge::Om2ZipSaver::Save(om2_model_data, model_buffer, false);
+    GE_ASSERT_NOTNULL(om2_model_data, "[OM2] Missing Om2ModelData in OM2 online mode.");
+    return ge::Om2ZipSaver::Save(*om2_model_data, model_buffer, false);
   }
 
   return SaveRootModel(ge_root_model, model_buffer);

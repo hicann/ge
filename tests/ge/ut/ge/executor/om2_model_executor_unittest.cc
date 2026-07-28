@@ -29,6 +29,7 @@
 #include "mmpa/mmpa_api.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "ge/ge_error_codes.h"
+#include "runtime/om2/om2_aipp_utils.h"
 
 namespace ge {
 namespace {
@@ -2463,4 +2464,767 @@ TEST_F(Om2ModelExecutorUt, GetCurrentShape_AfterFailedSet_ReturnsEmpty) {
   EXPECT_EQ(current_type, 0);  // FIXED = 0
 }
 
+// ============================================================================
+// OM2 AIPP Method Tests
+// ============================================================================
+
+namespace {
+constexpr const char *kAippModelMetaJson = R"({
+    "dynamic_batch_info": [],
+    "dynamic_output_shape": [],
+    "dynamic_type": 0,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "NCHW",
+            "index": 0,
+            "name": "data1",
+            "shape": [1, 3, 224, 224],
+            "shape_range": [],
+            "shape_v2": [1, 3, 224, 224],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "root_graph_name": "root_g1",
+    "outputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "output_0",
+            "shape": [1, 1000],
+            "shape_range": [],
+            "shape_v2": [1, 1000],
+            "size": 0
+        }
+    ],
+    "work_size": 2048,
+    "zero_copy_size": 0,
+    "user_designate_shape_order": []
+})";
+
+constexpr const char *kAippJsonSectionStatic = R"("aipp": {
+    "aipp_infos": [
+      {
+        "index": 0,
+        "aipp_type": 1,
+        "aipp_data_index": 0,
+        "aipp_mode": 1,
+        "input_format": 2,
+        "src_image_size_w": 640,
+        "src_image_size_h": 480,
+        "crop": 0,
+        "load_start_pos_w": 0,
+        "load_start_pos_h": 0,
+        "crop_size_w": 0,
+        "crop_size_h": 0,
+        "resize": 0,
+        "resize_output_w": 0,
+        "resize_output_h": 0,
+        "padding": 0,
+        "left_padding_size": 0,
+        "right_padding_size": 0,
+        "top_padding_size": 0,
+        "bottom_padding_size": 0,
+        "csc_switch": 1,
+        "rbuv_swap_switch": 0,
+        "ax_swap_switch": 0,
+        "single_line_mode": 0,
+        "matrix_r0c0": 256,
+        "matrix_r0c1": 0,
+        "matrix_r0c2": 0,
+        "matrix_r1c0": 0,
+        "matrix_r1c1": 256,
+        "matrix_r1c2": 0,
+        "matrix_r2c0": 0,
+        "matrix_r2c1": 0,
+        "matrix_r2c2": 256,
+        "output_bias_0": 16,
+        "output_bias_1": 128,
+        "output_bias_2": 128,
+        "input_bias_0": 16,
+        "input_bias_1": 128,
+        "input_bias_2": 128,
+        "mean_chn_0": 104,
+        "mean_chn_1": 117,
+        "mean_chn_2": 123,
+        "mean_chn_3": 0,
+        "min_chn_0": 0.0,
+        "min_chn_1": 0.0,
+        "min_chn_2": 0.0,
+        "min_chn_3": 0.0,
+        "var_reci_chn_0": 1.0,
+        "var_reci_chn_1": 1.0,
+        "var_reci_chn_2": 1.0,
+        "var_reci_chn_3": 1.0,
+        "support_rotation": 0,
+        "related_input_rank": 0,
+        "max_src_image_size": 8192,
+        "orig_input_format": 0,
+        "orig_input_data_type": 0,
+        "orig_input_dim_num": 4,
+        "aipp_inputs": ["NCHW:DT_FLOAT:tensor_0:100:3:1,3,224,224"],
+        "aipp_outputs": ["NCHW:DT_FLOAT:tensor_0_out:200:3:1,3,224,224"]
+      }
+    ]
+  })";
+
+constexpr const char *kAippJsonSectionDynamic = R"("aipp": {
+    "aipp_infos": [
+      {
+        "index": 0,
+        "aipp_type": 2,
+        "aipp_data_index": 0,
+        "aipp_mode": 1,
+        "input_format": 2,
+        "src_image_size_w": 640,
+        "src_image_size_h": 480,
+        "crop": 0,
+        "load_start_pos_w": 0,
+        "load_start_pos_h": 0,
+        "crop_size_w": 0,
+        "crop_size_h": 0,
+        "resize": 0,
+        "resize_output_w": 0,
+        "resize_output_h": 0,
+        "padding": 0,
+        "left_padding_size": 0,
+        "right_padding_size": 0,
+        "top_padding_size": 0,
+        "bottom_padding_size": 0,
+        "csc_switch": 1,
+        "rbuv_swap_switch": 0,
+        "ax_swap_switch": 0,
+        "single_line_mode": 0,
+        "matrix_r0c0": 256,
+        "matrix_r0c1": 0,
+        "matrix_r0c2": 0,
+        "matrix_r1c0": 0,
+        "matrix_r1c1": 256,
+        "matrix_r1c2": 0,
+        "matrix_r2c0": 0,
+        "matrix_r2c1": 0,
+        "matrix_r2c2": 256,
+        "output_bias_0": 16,
+        "output_bias_1": 128,
+        "output_bias_2": 128,
+        "input_bias_0": 16,
+        "input_bias_1": 128,
+        "input_bias_2": 128,
+        "mean_chn_0": 104,
+        "mean_chn_1": 117,
+        "mean_chn_2": 123,
+        "mean_chn_3": 0,
+        "min_chn_0": 0.0,
+        "min_chn_1": 0.0,
+        "min_chn_2": 0.0,
+        "min_chn_3": 0.0,
+        "var_reci_chn_0": 1.0,
+        "var_reci_chn_1": 1.0,
+        "var_reci_chn_2": 1.0,
+        "var_reci_chn_3": 1.0,
+        "support_rotation": 0,
+        "related_input_rank": 0,
+        "max_src_image_size": 8192,
+        "orig_input_format": 0,
+        "orig_input_data_type": 0,
+        "orig_input_dim_num": 4,
+        "aipp_inputs": ["NCHW:DT_FLOAT:tensor_0:100:3:1,3,224,224"],
+        "aipp_outputs": ["NCHW:DT_FLOAT:tensor_0_out:200:3:1,3,224,224"]
+      }
+    ]
+  })";
+
+constexpr const char *kAippJsonSectionDynamicConf = R"("aipp": {
+    "aipp_infos": [
+      {
+        "index": 0,
+        "aipp_type": 3,
+        "aipp_data_index": 0,
+        "aipp_mode": 1,
+        "input_format": 2,
+        "src_image_size_w": 640,
+        "src_image_size_h": 480,
+        "crop": 0,
+        "load_start_pos_w": 0,
+        "load_start_pos_h": 0,
+        "crop_size_w": 0,
+        "crop_size_h": 0,
+        "resize": 0,
+        "resize_output_w": 0,
+        "resize_output_h": 0,
+        "padding": 0,
+        "left_padding_size": 0,
+        "right_padding_size": 0,
+        "top_padding_size": 0,
+        "bottom_padding_size": 0,
+        "csc_switch": 1,
+        "rbuv_swap_switch": 0,
+        "ax_swap_switch": 0,
+        "single_line_mode": 0,
+        "matrix_r0c0": 256,
+        "matrix_r0c1": 0,
+        "matrix_r0c2": 0,
+        "matrix_r1c0": 0,
+        "matrix_r1c1": 256,
+        "matrix_r1c2": 0,
+        "matrix_r2c0": 0,
+        "matrix_r2c1": 0,
+        "matrix_r2c2": 256,
+        "output_bias_0": 16,
+        "output_bias_1": 128,
+        "output_bias_2": 128,
+        "input_bias_0": 16,
+        "input_bias_1": 128,
+        "input_bias_2": 128,
+        "mean_chn_0": 104,
+        "mean_chn_1": 117,
+        "mean_chn_2": 123,
+        "mean_chn_3": 0,
+        "min_chn_0": 0.0,
+        "min_chn_1": 0.0,
+        "min_chn_2": 0.0,
+        "min_chn_3": 0.0,
+        "var_reci_chn_0": 1.0,
+        "var_reci_chn_1": 1.0,
+        "var_reci_chn_2": 1.0,
+        "var_reci_chn_3": 1.0,
+        "support_rotation": 0,
+        "related_input_rank": 0,
+        "max_src_image_size": 8192,
+        "orig_input_format": 0,
+        "orig_input_data_type": 0,
+        "orig_input_dim_num": 4,
+        "aipp_inputs": ["NCHW:DT_FLOAT:tensor_0:100:3:1,3,224,224"],
+        "aipp_outputs": ["NCHW:DT_FLOAT:tensor_0_out:200:3:1,3,224,224"]
+      }
+    ]
+  })";
+
+std::string MakeAippJsonSection(const bool is_dynamic, const int32_t aipp_type) {
+  // 根据 aipp_type 选择预构建的 JSON，避免运行时字符串拼接触发 clang-tidy
+  if (is_dynamic && aipp_type == 2) {
+    return kAippJsonSectionDynamic;
+  }
+  if (aipp_type == 3) {
+    return kAippJsonSectionDynamicConf;
+  }
+  return kAippJsonSectionStatic;
+}
+
+std::string MakeModelMetaJsonWithAipp(const bool is_dynamic, const int32_t aipp_type) {
+  std::string base_json = kAippModelMetaJson;
+  // 找到最后一个 '}'（即 JSON 根对象的闭合括号）并移除它
+  const size_t last_brace = base_json.rfind('}');
+  if (last_brace == std::string::npos) {
+    return base_json;
+  }
+  // 移除根对象闭合括号，追加 aipp 字段和新闭合括号
+  std::string json_without_root = base_json.substr(0, last_brace);
+  std::string result = json_without_root + ",\n  " + MakeAippJsonSection(is_dynamic, aipp_type) + "\n}";
+  return result;
+}
+
+static bool LoadAippModel(const std::string &test_work_dir, const bool is_dynamic, const int32_t aipp_type,
+                          gert::Om2ModelExecutor &executor) {
+  const std::string so_path = PathUtils::Join({test_work_dir, "fake_runtime/libg1_om2.so"});
+  const std::string om2_suffix =
+      std::string("aipp_") + (is_dynamic ? "dynamic_" : "static_") + std::to_string(aipp_type);
+  const std::string om2_path = PathUtils::Join({test_work_dir, om2_suffix + ".om2"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  if (!zip_writer.IsMemFileOpened()) {
+    return false;
+  }
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithAipp(is_dynamic, aipp_type);
+  if (!zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false)) {
+    return false;
+  }
+  if (!zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false)) {
+    return false;
+  }
+  if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) {
+    return false;
+  }
+  if (!zip_writer.SaveModelDataToFile()) {
+    return false;
+  }
+
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_path, model_buf_size);
+  if (!model_buf || model_buf_size == 0U) {
+    return false;
+  }
+
+  ModelData model_data{};
+  model_data.model_data = model_buf.get();
+  model_data.model_len = model_buf_size;
+
+  auto load_arg = MakeOm2LoadArg();
+  return executor.Load(model_data, load_arg, 1U) == SUCCESS;
+}
+}  // namespace
+
+TEST_F(Om2ModelExecutorUt, GetAippInfo_NoAipp_ReturnsNotExist) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "no_aipp", executor));
+
+  ge::AippConfigInfo aipp_info{};
+  const auto status = executor.GetAippInfo(0U, aipp_info);
+  EXPECT_EQ(status, ACL_ERROR_GE_AIPP_NOT_EXIST);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippInfo_IndexOutOfRange_ReturnsNotExist) {
+  gert::Om2ModelExecutor executor;
+  // 模型有 1 个 AIPP 条目在 index 0，查询 index 5
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  ge::AippConfigInfo aipp_info{};
+  const auto status = executor.GetAippInfo(5U, aipp_info);
+  EXPECT_EQ(status, ACL_ERROR_GE_AIPP_NOT_EXIST);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippInfo_StaticAipp_ReturnsCorrectConfig) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  ge::AippConfigInfo aipp_info{};
+  const auto status = executor.GetAippInfo(0U, aipp_info);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_info.input_format, 2);
+  EXPECT_EQ(aipp_info.src_image_size_w, 640);
+  EXPECT_EQ(aipp_info.src_image_size_h, 480);
+  EXPECT_EQ(aipp_info.csc_switch, 1);
+  EXPECT_EQ(aipp_info.max_src_image_size, 8192U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippInfo_DynamicAipp_ReturnsCorrectConfig) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, true, 2, executor));
+
+  ge::AippConfigInfo aipp_info{};
+  const auto status = executor.GetAippInfo(0U, aipp_info);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_info.input_format, 2);
+  EXPECT_EQ(aipp_info.src_image_size_w, 640);
+  EXPECT_EQ(aipp_info.src_image_size_h, 480);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippType_NoAipp_ReturnsDataWithoutAipp) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "a_type_noaip", executor));
+
+  ge::InputAippType aipp_type = ge::DYNAMIC_AIPP_NODE;
+  size_t aipp_data_index = 999U;
+  const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_type, ge::DATA_WITHOUT_AIPP);
+  EXPECT_EQ(aipp_data_index, 0xFFFFFFFFU);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippType_StaticAipp_ReturnsCorrectType) {
+  gert::Om2ModelExecutor executor;
+  // aipp_type=1 → DATA_WITH_STATIC_AIPP
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
+  size_t aipp_data_index = 0U;
+  const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_type, ge::DATA_WITH_STATIC_AIPP);
+  EXPECT_EQ(aipp_data_index, 0U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippType_DynamicAipp_ReturnsCorrectType) {
+  gert::Om2ModelExecutor executor;
+  // aipp_type=2 → DATA_WITH_DYNAMIC_AIPP
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, true, 2, executor));
+
+  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
+  size_t aipp_data_index = 0U;
+  const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_type, ge::DATA_WITH_DYNAMIC_AIPP);
+  EXPECT_EQ(aipp_data_index, 0U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAippType_DynamicAippConf_ReturnsCorrectType) {
+  gert::Om2ModelExecutor executor;
+  // aipp_type=3 → DYNAMIC_AIPP_NODE
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 3, executor));
+
+  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
+  size_t aipp_data_index = 0U;
+  const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(aipp_type, ge::DYNAMIC_AIPP_NODE);
+}
+
+TEST_F(Om2ModelExecutorUt, GetOrigInputInfo_NoAipp_ReturnsNotExist) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "noaipp_orig", executor));
+
+  ge::OriginInputInfo orig_info{};
+  const auto status = executor.GetOrigInputInfo(0U, orig_info);
+  EXPECT_EQ(status, ACL_ERROR_GE_AIPP_NOT_EXIST);
+}
+
+TEST_F(Om2ModelExecutorUt, GetOrigInputInfo_ValidAipp_ReturnsCorrectInfo) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  ge::OriginInputInfo orig_info{};
+  const auto status = executor.GetOrigInputInfo(0U, orig_info);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(orig_info.format, ge::FORMAT_NCHW);
+  EXPECT_EQ(orig_info.data_type, ge::DT_FLOAT);
+  EXPECT_EQ(orig_info.dim_num, 4U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAllAippInputOutputDims_NoAipp_ReturnsNotExist) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "noaipp_dims", executor));
+
+  std::vector<ge::InputOutputDims> input_dims;
+  std::vector<ge::InputOutputDims> output_dims;
+  const auto status = executor.GetAllAippInputOutputDims(0U, input_dims, output_dims);
+  EXPECT_EQ(status, ACL_ERROR_GE_AIPP_NOT_EXIST);
+}
+
+TEST_F(Om2ModelExecutorUt, GetAllAippInputOutputDims_ValidAipp_ReturnsCorrectDims) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  std::vector<ge::InputOutputDims> input_dims;
+  std::vector<ge::InputOutputDims> output_dims;
+  const auto status = executor.GetAllAippInputOutputDims(0U, input_dims, output_dims);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(input_dims.size(), 1U);
+  EXPECT_EQ(output_dims.size(), 1U);
+  EXPECT_EQ(input_dims[0].name, "tensor_0");
+  EXPECT_EQ(input_dims[0].size, 100U);
+  EXPECT_EQ(input_dims[0].dim_num, 3U);
+  EXPECT_EQ(output_dims[0].name, "tensor_0_out");
+  EXPECT_EQ(output_dims[0].size, 200U);
+  EXPECT_EQ(output_dims[0].dim_num, 3U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetBatchInfoSize_NoBatchInfo_ReturnsOne) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, false, 1, executor));
+
+  size_t shape_count = 0U;
+  const auto status = executor.GetBatchInfoSize(shape_count);
+  EXPECT_EQ(status, SUCCESS);
+  // 模型没有 dynamic_batch_info 时，shape_count 应为 1
+  EXPECT_EQ(shape_count, 1U);
+}
+
+TEST_F(Om2ModelExecutorUt, GetBatchInfoSize_WithBatchInfo_ReturnsCorrectSize) {
+  gert::Om2ModelExecutor executor;
+  // 使用动态 batch 模型（4 个档位: 1, 2, 4, 8）
+  ASSERT_TRUE(LoadDynamicBatchModel(test_work_dir_, "batch_size", executor));
+
+  size_t shape_count = 0U;
+  const auto status = executor.GetBatchInfoSize(shape_count);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_EQ(shape_count, 4U);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicAippData_NullAddr_ReturnsError) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, true, 2, executor));
+
+  const std::vector<kAippDynamicBatchPara> batch_para(1);
+  const kAippDynamicPara aipp_parms{};
+  const auto status = executor.SetDynamicAippData(nullptr, 1024U, batch_para, aipp_parms);
+  EXPECT_EQ(status, ACL_ERROR_GE_DYNAMIC_INPUT_ADDR_INVALID);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicAippData_EmptyBatchPara_ReturnsError) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, true, 2, executor));
+
+  uint8_t dummy_buffer[4096] = {0};
+  const std::vector<kAippDynamicBatchPara> empty_batch;
+  const kAippDynamicPara aipp_parms{};
+  const auto status = executor.SetDynamicAippData(dummy_buffer, sizeof(dummy_buffer), empty_batch, aipp_parms);
+  EXPECT_EQ(status, ACL_ERROR_GE_AIPP_BATCH_EMPTY);
+}
+
+TEST_F(Om2ModelExecutorUt, SetDynamicAippData_StructLargerThanLength_ReturnsError) {
+  gert::Om2ModelExecutor executor;
+  ASSERT_TRUE(LoadAippModel(test_work_dir_, true, 2, executor));
+
+  uint8_t dummy_buffer[8] = {0};
+  const std::vector<kAippDynamicBatchPara> batch_para(10);
+  const kAippDynamicPara aipp_parms{};
+  // struct_len = 10 * sizeof(kAippDynamicBatchPara) + (sizeof(kAippDynamicPara) - sizeof(kAippDynamicBatchPara))
+  // far exceeds length=8
+  const auto status = executor.SetDynamicAippData(dummy_buffer, 8U, batch_para, aipp_parms);
+  EXPECT_EQ(status, ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID);
+}
 }  // namespace ge
+
+namespace gert {
+namespace om2 {
+
+class Om2AippUtilsUt : public ::testing::Test {
+ protected:
+  void SetUp() override {}
+  void TearDown() override {}
+};
+
+TEST_F(Om2AippUtilsUt, ParseAippDimInfo_InvalidPartsCount) {
+  ge::InputOutputDims dims_info;
+  auto status = ParseAippDimInfo("too:few", dims_info);
+  EXPECT_EQ(status, ge::FAILED);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippDimInfo_EmptyDimInShape) {
+  ge::InputOutputDims dims_info;
+  auto status = ParseAippDimInfo("NCHW:DT_FLOAT:data:0:4:1,,3,224", dims_info);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(dims_info.name, "data");
+  EXPECT_EQ(dims_info.dim_num, 4U);
+  EXPECT_EQ(dims_info.dims.size(), 3U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippConfigFromJson_AllFields) {
+  ge::JsonFile entry;
+  entry.Set("aipp_mode", static_cast<int8_t>(1));
+  entry.Set("input_format", static_cast<int8_t>(1));
+  entry.Set("src_image_size_w", static_cast<int32_t>(224));
+  entry.Set("src_image_size_h", static_cast<int32_t>(224));
+  entry.Set("crop", static_cast<int8_t>(1));
+  entry.Set("csc_switch", static_cast<int8_t>(1));
+  entry.Set("matrix_r0c0", static_cast<int32_t>(1));
+  entry.Set("matrix_r2c2", static_cast<int32_t>(9));
+  entry.Set("mean_chn_0", static_cast<int32_t>(128));
+  entry.Set("min_chn_0", static_cast<float32_t>(0.0F));
+  entry.Set("var_reci_chn_0", static_cast<float32_t>(1.0F));
+  entry.Set("max_src_image_size", static_cast<uint32_t>(4096U));
+  entry.Set("support_rotation", static_cast<int8_t>(0));
+  entry.Set("related_input_rank", static_cast<uint32_t>(0U));
+
+  auto result = ParseAippConfigFromJson(entry);
+  EXPECT_EQ(result.aipp_mode, 1);
+  EXPECT_EQ(result.csc_switch, 1);
+  EXPECT_EQ(result.matrix_r0c0, 1);
+  EXPECT_EQ(result.matrix_r2c2, 9);
+  EXPECT_EQ(result.mean_chn_0, 128);
+  EXPECT_EQ(result.max_src_image_size, 4096U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseOriginInputFromJson_Valid) {
+  ge::JsonFile entry;
+  entry.Set("orig_input_format", static_cast<int32_t>(0));
+  entry.Set("orig_input_data_type", static_cast<int32_t>(1));
+  entry.Set("orig_input_dim_num", static_cast<uint32_t>(4U));
+
+  auto result = ParseOriginInputFromJson(entry);
+  EXPECT_EQ(result.format, static_cast<ge::Format>(0));
+  EXPECT_EQ(result.data_type, static_cast<ge::DataType>(1));
+  EXPECT_EQ(result.dim_num, 4U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippDimsFromJson_Valid) {
+  ge::JsonFile entry;
+  entry.Set("aipp_inputs", std::vector<std::string>{"NCHW:DT_FLOAT:data:0:4:1,3,224,224"});
+
+  auto result = ParseAippDimsFromJson(entry, "aipp_inputs");
+  EXPECT_EQ(result.size(), 1U);
+  EXPECT_EQ(result[0].name, "data");
+  EXPECT_EQ(result[0].dim_num, 4U);
+  EXPECT_EQ(result[0].dims.size(), 4U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippDimsFromJson_WithInvalidEntry) {
+  ge::JsonFile entry;
+  entry.Set("aipp_inputs", std::vector<std::string>{"invalid", "NCHW:DT_FLOAT:data:0:4:1,3,224"});
+
+  auto result = ParseAippDimsFromJson(entry, "aipp_inputs");
+  EXPECT_EQ(result.size(), 1U);
+  EXPECT_EQ(result[0].name, "data");
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_NoAippInfosKey) {
+  ge::JsonFile aipp_json;
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::FAILED);
+  EXPECT_FALSE(has_aipp);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_AippInfosNotArray) {
+  ge::JsonFile aipp_json;
+  aipp_json.Set("aipp_infos", "not_an_array");
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_FALSE(has_aipp);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_EmptyAippInfos) {
+  ge::JsonFile aipp_json;
+  aipp_json.Set("aipp_infos", nlohmann::json::array());
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_TRUE(has_aipp);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_ValidAippInfo) {
+  nlohmann::json aipp_item;
+  aipp_item["index"] = 0;
+  aipp_item["aipp_type"] = 1;
+  aipp_item["aipp_data_index"] = 0;
+  aipp_item["aipp_mode"] = 1;
+  aipp_item["input_format"] = 1;
+  aipp_item["src_image_size_w"] = 224;
+  aipp_item["src_image_size_h"] = 224;
+  aipp_item["csc_switch"] = 1;
+  aipp_item["matrix_r0c0"] = 1;
+  aipp_item["matrix_r2c2"] = 9;
+  aipp_item["mean_chn_0"] = 128;
+  aipp_item["min_chn_0"] = 0.0F;
+  aipp_item["var_reci_chn_0"] = 1.0F;
+  aipp_item["max_src_image_size"] = 4096;
+  aipp_item["orig_input_format"] = 0;
+  aipp_item["orig_input_data_type"] = 1;
+  aipp_item["orig_input_dim_num"] = 4;
+  aipp_item["aipp_inputs"] = nlohmann::json::array({"NCHW:DT_FLOAT:data:0:4:1,3,224,224"});
+  aipp_item["aipp_outputs"] = nlohmann::json::array();
+
+  nlohmann::json root_json;
+  root_json["aipp_infos"] = nlohmann::json::array({aipp_item});
+
+  ge::JsonFile aipp_json(root_json);
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_TRUE(has_aipp);
+  EXPECT_EQ(aipp_infos.size(), 1U);
+  EXPECT_EQ(aipp_infos[0].aipp_type, ge::DATA_WITH_STATIC_AIPP);
+  EXPECT_EQ(aipp_infos[0].aipp_config_info.aipp_mode, 1);
+  EXPECT_EQ(aipp_infos[0].aipp_input_dims.size(), 1U);
+  EXPECT_EQ(aipp_infos[0].orig_input_info.dim_num, 4U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_SkipNonObjectItem) {
+  nlohmann::json root_json;
+  root_json["aipp_infos"] = nlohmann::json::array({"not_an_object", 42});
+
+  ge::JsonFile aipp_json(root_json);
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_TRUE(has_aipp);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_IndexOutOfBounds) {
+  nlohmann::json aipp_item;
+  aipp_item["index"] = 2;
+  aipp_item["aipp_type"] = 1;
+  aipp_item["aipp_data_index"] = 0;
+  aipp_item["aipp_mode"] = 1;
+  aipp_item["input_format"] = 1;
+  aipp_item["src_image_size_w"] = 224;
+  aipp_item["src_image_size_h"] = 224;
+  aipp_item["csc_switch"] = 0;
+  aipp_item["matrix_r0c0"] = 0;
+  aipp_item["matrix_r2c2"] = 0;
+  aipp_item["mean_chn_0"] = 0;
+  aipp_item["min_chn_0"] = 0.0F;
+  aipp_item["var_reci_chn_0"] = 0.0F;
+  aipp_item["max_src_image_size"] = 0;
+  aipp_item["orig_input_format"] = 0;
+  aipp_item["orig_input_data_type"] = 0;
+  aipp_item["orig_input_dim_num"] = 0;
+  aipp_item["aipp_inputs"] = nlohmann::json::array();
+  aipp_item["aipp_outputs"] = nlohmann::json::array();
+
+  nlohmann::json root_json;
+  root_json["aipp_infos"] = nlohmann::json::array({aipp_item});
+
+  ge::JsonFile aipp_json(root_json);
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(aipp_infos.size(), 3U);
+}
+
+TEST_F(Om2AippUtilsUt, ParseAippJson_MultipleValidItems) {
+  nlohmann::json item0;
+  item0["index"] = 0;
+  item0["aipp_type"] = 1;
+  item0["aipp_data_index"] = 0;
+  item0["aipp_mode"] = 1;
+  item0["input_format"] = 1;
+  item0["src_image_size_w"] = 224;
+  item0["src_image_size_h"] = 224;
+  item0["csc_switch"] = 0;
+  item0["matrix_r0c0"] = 0;
+  item0["matrix_r2c2"] = 0;
+  item0["mean_chn_0"] = 0;
+  item0["min_chn_0"] = 0.0F;
+  item0["var_reci_chn_0"] = 0.0F;
+  item0["max_src_image_size"] = 0;
+  item0["orig_input_format"] = 0;
+  item0["orig_input_data_type"] = 0;
+  item0["orig_input_dim_num"] = 0;
+  item0["aipp_inputs"] = nlohmann::json::array();
+  item0["aipp_outputs"] = nlohmann::json::array();
+
+  nlohmann::json item1;
+  item1["index"] = 1;
+  item1["aipp_type"] = 2;
+  item1["aipp_data_index"] = 1;
+  item1["aipp_mode"] = 2;
+  item1["input_format"] = 2;
+  item1["src_image_size_w"] = 512;
+  item1["src_image_size_h"] = 512;
+  item1["csc_switch"] = 0;
+  item1["matrix_r0c0"] = 0;
+  item1["matrix_r2c2"] = 0;
+  item1["mean_chn_0"] = 0;
+  item1["min_chn_0"] = 0.0F;
+  item1["var_reci_chn_0"] = 0.0F;
+  item1["max_src_image_size"] = 0;
+  item1["orig_input_format"] = 0;
+  item1["orig_input_data_type"] = 0;
+  item1["orig_input_dim_num"] = 0;
+  item1["aipp_inputs"] = nlohmann::json::array();
+  item1["aipp_outputs"] = nlohmann::json::array();
+
+  nlohmann::json root_json;
+  root_json["aipp_infos"] = nlohmann::json::array({item0, item1});
+
+  ge::JsonFile aipp_json(root_json);
+  std::vector<Om2AippMeta> aipp_infos;
+  bool has_aipp = false;
+
+  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_TRUE(has_aipp);
+  EXPECT_EQ(aipp_infos.size(), 2U);
+  EXPECT_EQ(aipp_infos[0].aipp_type, ge::DATA_WITH_STATIC_AIPP);
+  EXPECT_EQ(aipp_infos[1].aipp_type, ge::DATA_WITH_DYNAMIC_AIPP);
+}
+
+}  // namespace om2
+}  // namespace gert

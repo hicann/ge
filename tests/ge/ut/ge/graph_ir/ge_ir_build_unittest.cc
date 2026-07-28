@@ -1847,28 +1847,6 @@ TEST(UtestIrBuild, aclgrphBuildModelOm2InsertOpFileNotBlockedByUnsupportedCheck)
   EXPECT_NE(ret, ge::GRAPH_SUCCESS);
 }
 
-TEST(UtestIrBuild, aclgrphBuildModelOm2DynamicAippRejected) {
-  // Write a temporary dynamic AIPP config file
-  const std::string cfg_path = "/tmp/ut_om2_dynamic_aipp.cfg";
-  {
-    std::ofstream ofs(cfg_path);
-    ofs << "aipp_op {\n"
-        << "  aipp_mode: dynamic\n"
-        << "  related_input_rank: 0\n"
-        << "  max_src_image_size: 752640\n"
-        << "}\n";
-  }
-
-  Graph graph = BuildIrGraph1();
-  ModelBufferData model;
-  const std::map<std::string, std::string> build_options = {
-      {"ge.offlineMode", "7"},
-      {ge::ir_option::INSERT_OP_FILE, cfg_path},
-  };
-  EXPECT_EQ(ge::aclgrphBuildModel(graph, build_options, model), ge::PARAM_INVALID);
-  (void)remove(cfg_path.c_str());
-}
-
 TEST(UtestIrCommon, CheckDynamicBatchSizeInputShapeValidTest) {
   map<string, vector<int64_t>> shape_map;
   shape_map.insert(std::pair<string, vector<int64_t>>("data", {}));

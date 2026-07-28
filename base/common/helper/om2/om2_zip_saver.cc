@@ -117,6 +117,103 @@ Status SerializeKernelBinaries(const gert::Om2ModelData &model_data,
   return SUCCESS;
 }
 
+JsonFile SerializeAippDimsToJson(const std::vector<ge::InputOutputDims> &dims_list, const std::string &fmt_str,
+                                 const std::string &dt_str) {
+  JsonFile::json arr = JsonFile::json::array();
+  for (const auto &dims : dims_list) {
+    std::string dim_csv;
+    for (size_t d = 0U; d < dims.dims.size(); ++d) {
+      if (d > 0U) {
+        dim_csv += ",";
+      }
+      dim_csv += std::to_string(dims.dims[d]);
+    }
+    arr.push_back(fmt_str + ":" + dt_str + ":" + dims.name + ":" + std::to_string(dims.size) + ":" +
+                  std::to_string(dims.dim_num) + ":" + dim_csv);
+  }
+  return JsonFile(arr);
+}
+
+void SerializeAippMeta(const gert::Om2ModelMeta &model_meta, JsonFile &model_meta_info) {
+  if (model_meta.aipp_infos.empty()) {
+    return;
+  }
+  GELOGI("[OM2] Serializing %zu AIPP entries to model_meta.json", model_meta.aipp_infos.size());
+  JsonFile::json aipp_infos_arr = JsonFile::json::array();
+  for (size_t i = 0U; i < model_meta.aipp_infos.size(); ++i) {
+    const auto &meta = model_meta.aipp_infos[i];
+    if (meta.aipp_type == ge::DATA_WITHOUT_AIPP) {
+      continue;
+    }
+    const std::string fmt_str = ge::TypeUtils::FormatToSerialString(meta.orig_input_info.format);
+    const std::string dt_str = ge::TypeUtils::DataTypeToSerialString(meta.orig_input_info.data_type);
+    JsonFile entry;
+    entry.Set("index", i)
+        .Set("aipp_type", static_cast<int32_t>(meta.aipp_type))
+        .Set("aipp_data_index", meta.aipp_data_index)
+        .Set("aipp_mode", static_cast<int32_t>(meta.aipp_config_info.aipp_mode))
+        .Set("input_format", static_cast<int32_t>(meta.aipp_config_info.input_format))
+        .Set("src_image_size_w", meta.aipp_config_info.src_image_size_w)
+        .Set("src_image_size_h", meta.aipp_config_info.src_image_size_h)
+        .Set("crop", static_cast<int32_t>(meta.aipp_config_info.crop))
+        .Set("load_start_pos_w", meta.aipp_config_info.load_start_pos_w)
+        .Set("load_start_pos_h", meta.aipp_config_info.load_start_pos_h)
+        .Set("crop_size_w", meta.aipp_config_info.crop_size_w)
+        .Set("crop_size_h", meta.aipp_config_info.crop_size_h)
+        .Set("resize", static_cast<int32_t>(meta.aipp_config_info.resize))
+        .Set("resize_output_w", meta.aipp_config_info.resize_output_w)
+        .Set("resize_output_h", meta.aipp_config_info.resize_output_h)
+        .Set("padding", static_cast<int32_t>(meta.aipp_config_info.padding))
+        .Set("left_padding_size", meta.aipp_config_info.left_padding_size)
+        .Set("right_padding_size", meta.aipp_config_info.right_padding_size)
+        .Set("top_padding_size", meta.aipp_config_info.top_padding_size)
+        .Set("bottom_padding_size", meta.aipp_config_info.bottom_padding_size)
+        .Set("csc_switch", static_cast<int32_t>(meta.aipp_config_info.csc_switch))
+        .Set("rbuv_swap_switch", static_cast<int32_t>(meta.aipp_config_info.rbuv_swap_switch))
+        .Set("ax_swap_switch", static_cast<int32_t>(meta.aipp_config_info.ax_swap_switch))
+        .Set("single_line_mode", static_cast<int32_t>(meta.aipp_config_info.single_line_mode))
+        .Set("matrix_r0c0", meta.aipp_config_info.matrix_r0c0)
+        .Set("matrix_r0c1", meta.aipp_config_info.matrix_r0c1)
+        .Set("matrix_r0c2", meta.aipp_config_info.matrix_r0c2)
+        .Set("matrix_r1c0", meta.aipp_config_info.matrix_r1c0)
+        .Set("matrix_r1c1", meta.aipp_config_info.matrix_r1c1)
+        .Set("matrix_r1c2", meta.aipp_config_info.matrix_r1c2)
+        .Set("matrix_r2c0", meta.aipp_config_info.matrix_r2c0)
+        .Set("matrix_r2c1", meta.aipp_config_info.matrix_r2c1)
+        .Set("matrix_r2c2", meta.aipp_config_info.matrix_r2c2)
+        .Set("output_bias_0", meta.aipp_config_info.output_bias_0)
+        .Set("output_bias_1", meta.aipp_config_info.output_bias_1)
+        .Set("output_bias_2", meta.aipp_config_info.output_bias_2)
+        .Set("input_bias_0", meta.aipp_config_info.input_bias_0)
+        .Set("input_bias_1", meta.aipp_config_info.input_bias_1)
+        .Set("input_bias_2", meta.aipp_config_info.input_bias_2)
+        .Set("mean_chn_0", meta.aipp_config_info.mean_chn_0)
+        .Set("mean_chn_1", meta.aipp_config_info.mean_chn_1)
+        .Set("mean_chn_2", meta.aipp_config_info.mean_chn_2)
+        .Set("mean_chn_3", meta.aipp_config_info.mean_chn_3)
+        .Set("min_chn_0", meta.aipp_config_info.min_chn_0)
+        .Set("min_chn_1", meta.aipp_config_info.min_chn_1)
+        .Set("min_chn_2", meta.aipp_config_info.min_chn_2)
+        .Set("min_chn_3", meta.aipp_config_info.min_chn_3)
+        .Set("var_reci_chn_0", meta.aipp_config_info.var_reci_chn_0)
+        .Set("var_reci_chn_1", meta.aipp_config_info.var_reci_chn_1)
+        .Set("var_reci_chn_2", meta.aipp_config_info.var_reci_chn_2)
+        .Set("var_reci_chn_3", meta.aipp_config_info.var_reci_chn_3)
+        .Set("support_rotation", static_cast<int32_t>(meta.aipp_config_info.support_rotation))
+        .Set("related_input_rank", meta.aipp_config_info.related_input_rank)
+        .Set("max_src_image_size", meta.aipp_config_info.max_src_image_size)
+        .Set("aipp_inputs", SerializeAippDimsToJson(meta.aipp_input_dims, fmt_str, dt_str))
+        .Set("aipp_outputs", SerializeAippDimsToJson(meta.aipp_output_dims, fmt_str, dt_str))
+        .Set("orig_input_format", static_cast<int32_t>(meta.orig_input_info.format))
+        .Set("orig_input_data_type", static_cast<int32_t>(meta.orig_input_info.data_type))
+        .Set("orig_input_dim_num", meta.orig_input_info.dim_num);
+    aipp_infos_arr.push_back(entry.Raw());
+  }
+  JsonFile aipp_json;
+  (void)aipp_json.Set("aipp_infos", aipp_infos_arr);
+  (void)model_meta_info.Set("aipp", aipp_json);
+}
+
 Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const size_t model_index = 0UL;
   JsonFile model_meta_info;
@@ -165,6 +262,9 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
   (void)model_meta_info.Set("zero_copy_size", model_data.model_meta.zero_copy_size);
   (void)model_meta_info.Set("name", model_data.model_meta.model_name);
   (void)model_meta_info.Set("root_graph_name", model_data.model_meta.root_graph_name);
+
+  // 序列化 AIPP 元数据
+  SerializeAippMeta(model_data.model_meta, model_meta_info);
 
   const auto model_meta_info_str = model_meta_info.Dump();
   const auto model_meta_entry_path = FormatOm2Path(OM2_MODEL_META_PATH_FORMAT, std::to_string(model_index).c_str());

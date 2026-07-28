@@ -14,6 +14,7 @@
 #include <vector>
 #include "common/ge_visibility.h"
 #include "common/ge_common/ge_types.h"
+#include "common/dynamic_aipp.h"
 #include "framework/common/om2_tensor_desc.h"
 
 namespace gert {
@@ -31,6 +32,7 @@ struct VISIBILITY_EXPORT Om2ModelLoadArg {
   std::vector<ge::FileConstantMem> file_constant_mems;
   bool need_clear_dfx_cache = false;
   std::string om_path;
+  std::string weight_path;
 };
 
 class VISIBILITY_EXPORT Om2ModelExecutor {
@@ -61,6 +63,15 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   ge::Status GetOpAttr(std::map<std::string, std::map<std::string, std::string>> &op_attr_map) const;
   ge::Status GetOpDescInfo(uint32_t device_id, uint32_t stream_id, uint32_t task_id,
                            ge::OpDescInfo &op_desc_info) const;
+  ge::Status GetAippInfo(uint32_t index, ge::AippConfigInfo &aipp_info) const;
+  ge::Status GetAippType(uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const;
+  ge::Status GetOrigInputInfo(uint32_t index, ge::OriginInputInfo &orig_input_info) const;
+  ge::Status GetAllAippInputOutputDims(uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
+                                       std::vector<ge::InputOutputDims> &output_dims) const;
+  ge::Status GetBatchInfoSize(size_t &shape_count) const;
+  ge::Status SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
+                                const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
+                                const kAippDynamicPara &aipp_parms);
 
  private:
   class Impl;

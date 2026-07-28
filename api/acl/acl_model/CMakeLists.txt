@@ -12,7 +12,6 @@
 add_library(acl_mdl_impl SHARED
     model/model.cpp
     model/acl_aipp.cpp
-    model/aipp_param_check.cpp
     model/acl_resource_manager.cpp
     model/init_callback_register.cpp
     types/tensor_desc_internal.cpp
@@ -105,6 +104,7 @@ target_link_libraries(acl_mdl_impl PRIVATE
 add_library(acl_mdl_impl_om2 SHARED
     model/model_om2.cpp
     model/model_common.cpp
+    model/aipp_param_check.cpp
     model/acl_aipp_om2.cpp
     model/model_config_om2.cpp
     model/acl_resource_manager_om2.cpp
