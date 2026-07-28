@@ -51,7 +51,7 @@ private:
   HcclResult FuseHcomAllgatherNode(ge::ComputeGraph &graph);
   HcclResult FuseHcomReduceScatterNode(ge::ComputeGraph &graph);
   HcclResult HcomOptimizeSetAttr(ge::ComputeGraph &graph);
-  HcclResult OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph);
+  ge::Status OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph);
 };
 }  // namespace hccl
 #endif

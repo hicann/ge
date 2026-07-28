@@ -60,12 +60,12 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraph(ge::ComputeGraph &graph) {
 }
 
 HcclResult HcomFusionOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &graph) {
-  HcclResult ret = OptimizeOriginalGraphJudgeInsert(graph);
-  CHK_PRT_RET(ret != HCCL_SUCCESS,
+  ge::Status status = OptimizeOriginalGraphJudgeInsert(graph);
+  CHK_PRT_RET(status != ge::SUCCESS,
               HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: optimize original graph judge insert failed. ret[%d]",
-                         graph.GetName().c_str(), ret),
+                         graph.GetName().c_str(), status),
               HCCL_E_PARA);
-  ret = FuseHcomAlltoAllVCNode(graph);
+  HcclResult ret = FuseHcomAlltoAllVCNode(graph);
   CHK_PRT_RET(ret != HCCL_SUCCESS,
               HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: fuse HcomAlltoAllVC node failed. ret[%d]",
                          graph.GetName().c_str(), ret),
@@ -88,7 +88,7 @@ HcclResult HcomFusionOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &grap
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph) {
+ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph) {
   std::string precision_mode_str;
   ge::graphStatus status = ge::GetContext().GetOption(ge::PRECISION_MODE, precision_mode_str);
   if (status != ge::GRAPH_SUCCESS || precision_mode_str.empty()) {
@@ -96,7 +96,7 @@ HcclResult HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
   }
 
   if (precision_mode_str != "force_fp16" && precision_mode_str != "fp16") {
-    return HCCL_SUCCESS;
+    return ge::SUCCESS;
   }
 
   for (auto nodePtr : graph.GetAllNodes()) {
@@ -133,7 +133,7 @@ HcclResult HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
     }
   }
 
-  return HCCL_SUCCESS;
+  return ge::SUCCESS;
 }
 
 HcclResult HcomFusionOptimizer::HcomOptimizeSetAttr(ge::ComputeGraph &graph) {
