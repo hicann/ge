@@ -412,14 +412,14 @@ HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrs(const ge::OpDescPt
 // 设置SuperKernel Block维度以计算并设置AIV核数（block维度）
 HcclResult HcomOpsKernelBuilder::SetSuperKernelBlockDim(const ge::OpDescPtr &opDescPtr, const std::string &group,
                                                         HcclCMDType opType, u64 count, void *counts,
-                                                        HcclDataType dataType, u32 aivCoreLimit, char *algName,
-                                                        u32 rankSize) const {
+                                                        HcclDataType dataType, HcclReduceOp reduction, u32 aivCoreLimit,
+                                                        char *algName, u32 rankSize) const {
   // 计算AIV核数
   u32 blockDim;
   bool openSourceTag = false;
   CHK_RET(IsUsingOpenSource(openSourceTag));
   if (openSourceTag) {
-    CHK_RET(HcceCalcAivCoreNumGraphMode(aivCoreLimit, &blockDim));
+    CHK_RET(HcceCalcAivCoreNumGraphMode(group.c_str(), count, dataType, reduction, opType, aivCoreLimit, &blockDim));
   } else {
     CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &blockDim));
   }
@@ -486,8 +486,8 @@ HcclResult HcomOpsKernelBuilder::SetSuperKernelScopeAttr(ge::Node &node) {
   // 步骤3：设置superkernel二进制属性并计算block维度
   std::string funcName;
   CHK_RET(SetAivSuperKernelBinaryAttrs(opDescPtr, opType, dataType, algName, funcName));
-  CHK_RET(
-      SetSuperKernelBlockDim(opDescPtr, sGroup, opType, count, countsPtr, dataType, aivCoreLimit, algName, rankSize));
+  CHK_RET(SetSuperKernelBlockDim(opDescPtr, sGroup, opType, count, countsPtr, dataType, reduction, aivCoreLimit,
+                                 algName, rankSize));
   HCCL_INFO("[HcomOpsKernelBuilder][SetSuperKernelScopeAttr] Support SPK Optype[%s] funcName[%s]",
             sCollectiveType.c_str(), funcName.c_str());
   return HCCL_SUCCESS;

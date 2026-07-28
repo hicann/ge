@@ -63,8 +63,8 @@ class HcomOpsKernelBuilder : public HCCLOpsKernelBuilder {
                                                  const std::string &algName, std::string &funcName,
                                                  const std::string &binPath) const;
   HcclResult SetSuperKernelBlockDim(const ge::OpDescPtr &opDescPtr, const std::string &group, HcclCMDType opType,
-                                    u64 count, void *counts, HcclDataType dataType, u32 aivCoreLimit, char *algName,
-                                    u32 rankSize) const;
+                                    u64 count, void *counts, HcclDataType dataType, HcclReduceOp reduction,
+                                    u32 aivCoreLimit, char *algName, u32 rankSize) const;
   HcclResult SetSuperKernelScopeAttr(ge::Node &node);
   HcclResult SKGetAlgPath(HcclCMDType opType, std::string &binaryPath) const;
   HcclResult GetHcomReceiveOpOutputSize(const ge::OpDescPtr &op, u32 dataTypeSize, u64 &outputSize);
