@@ -615,14 +615,14 @@ Status InferOneNode(NodePtr &node) {
     return ret;
   }
 
-  // 2. 其次静态shape推导
-  ret = UseStaticShapeIfWeCan(op_desc);
+  // 2. 其次shape callback推导
+  ret = DoInferShapeAndUpdate(node);
   if (ret != UNSUPPORTED) {
     return ret;
   }
 
-  // 3. 最后shape callback推导
-  return DoInferShapeAndUpdate(node);
+  // 3. 最后静态shape推导
+  return UseStaticShapeIfWeCan(op_desc);
 }
 }  // namespace
 

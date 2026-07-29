@@ -3240,6 +3240,71 @@ TEST_F(SymbolicShapeInferenceST, test_guard_check_graph2) {
   }
 }
 
+/*   Data0[(-1), (-1)]    Data1[(-1), 4]
+ *        |                    |
+ *        ConcatV2D(axis=0) ---
+ *                    |
+ *                  Output
+ *
+ * 场景验证： ConcatV2D callback推导优先于静态shape推导，确保callback中的
+ * ASSERT_SYMBOL_EQ建立guard并写入AppendReplacement，
+ * 后续Simplify能将input节点的符号shape刷新为具体值。
+ */
+TEST_F(SymbolicShapeInferenceST, test_ConcatV2D_callback_guard_simplify_input_shape) {
+  auto data0 = builder_->CreateInput(0, "data0");
+  auto data1 = builder_->CreateInput(1, "data1");
+  ASSERT_NE(data0.GetCTensorHolder(), nullptr);
+  ASSERT_NE(data1.GetCTensorHolder(), nullptr);
+  auto concat = es::ConcatV2D({data0, data1}, 0, 1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(concat, 0), 0);
+  auto cg = GraphUtilsEx::GetComputeGraph(*builder_->BuildAndReset());
+  ASSERT_NE(cg, nullptr);
+
+  auto d0_op = cg->FindNode("data0")->GetOpDesc();
+  auto d1_op = cg->FindNode("data1")->GetOpDesc();
+  ge::AttrUtils::SetInt(d0_op, "index", 0);
+  ge::AttrUtils::SetInt(d1_op, "index", 1);
+  auto set_shape = [](GeTensorDescPtr d, std::vector<int64_t> dims) {
+    d->SetShape(GeShape(dims));
+    d->SetOriginShape(GeShape(dims));
+    d->SetDataType(DT_INT32);
+  };
+  set_shape(d0_op->MutableInputDesc(0), {-1, -1});
+  set_shape(d0_op->MutableOutputDesc(0), {-1, -1});
+  set_shape(d1_op->MutableInputDesc(0), {-1, 4});
+  set_shape(d1_op->MutableOutputDesc(0), {-1, 4});
+
+  std::vector<ge::GeTensor> input_vec;
+  input_vec.emplace_back(MakeInputTensor({3, 4}, FORMAT_ND, DT_INT32));
+  input_vec.emplace_back(MakeInputTensor({3, 4}, FORMAT_ND, DT_INT32));
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+
+  auto sym0 = d0_op->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(sym0, nullptr);
+  auto shape0 = sym0->symbolic_tensor.GetOriginSymbolShape();
+  ASSERT_EQ(shape0.GetDimNum(), 2);
+  EXPECT_EQ(std::string(shape0.GetDim(1).Serialize().get()), "4");
+
+  auto concat_op = cg->FindFirstNodeMatchType("ConcatV2D")->GetOpDesc();
+  auto concat_attr = concat_op->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(concat_attr, nullptr);
+  EXPECT_EQ(std::string(concat_attr->symbolic_tensor.GetOriginSymbolShape().GetDim(1).Serialize().get()), "4");
+
+  auto shape_env = cg->GetAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env, nullptr);
+  bool found = false;
+  for (auto &info : shape_env->GetAllSymbolAssertInfos()) {
+    if (std::string(info.expr.Serialize().get()).find("4") != std::string::npos) {
+      found = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
 /*   [-1, 29, 39]
      Data0      Data1[41, 29, 39]
       |        /

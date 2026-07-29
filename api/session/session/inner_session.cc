@@ -31,7 +31,6 @@
 #include "graph/manager/graph_var_manager.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/graph_utils_ex.h"
-#include "rt_external_mem.h"
 #include "api/aclgrph/option_utils.h"
 #include "common/profiling/profiling_manager.h"
 #include "common/profiling/profiling_init.h"
