@@ -420,6 +420,7 @@ struct ExpectedOm2LoadArg {
   size_t weight_size = 0U;
   std::vector<ExpectedOm2FileConstantMem> file_constant_mems;
   bool need_clear_dfx_cache = false;
+  bool reuse_zero_copy = false;
 };
 
 ExpectedOm2LoadArg g_expected_om2_load_arg;
@@ -428,9 +429,16 @@ uint32_t g_last_om2_load_model_id = 0U;
 void SetExpectedOm2LoadArg(void *work_ptr = nullptr, size_t work_size = 0U, void *weight_ptr = nullptr,
                            size_t weight_size = 0U, int32_t device_id = 0,
                            std::vector<ExpectedOm2FileConstantMem> file_constant_mems = {},
-                           bool need_clear_dfx_cache = false) {
-  g_expected_om2_load_arg = {
-      device_id, 0U, work_ptr, work_size, weight_ptr, weight_size, std::move(file_constant_mems), need_clear_dfx_cache};
+                           bool need_clear_dfx_cache = false, bool reuse_zero_copy = false) {
+  g_expected_om2_load_arg = {device_id,
+                             0U,
+                             work_ptr,
+                             work_size,
+                             weight_ptr,
+                             weight_size,
+                             std::move(file_constant_mems),
+                             need_clear_dfx_cache,
+                             reuse_zero_copy};
   g_last_om2_load_model_id = 0U;
 }
 
@@ -481,6 +489,7 @@ std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromDataCheckLoadArg(ge::
       load_arg.weight_ptr != g_expected_om2_load_arg.weight_ptr ||
       load_arg.weight_size != g_expected_om2_load_arg.weight_size ||
       load_arg.need_clear_dfx_cache != g_expected_om2_load_arg.need_clear_dfx_cache ||
+      load_arg.reuse_zero_copy != g_expected_om2_load_arg.reuse_zero_copy ||
       load_arg.file_constant_mems.size() != g_expected_om2_load_arg.file_constant_mems.size()) {
     error_code = ge::GRAPH_FAILED;
     return nullptr;
@@ -1010,6 +1019,60 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_Ok_LoadOm2ModelAllLoadTypes) {
   check_load_with_config(ACL_MDL_LOAD_FROM_FILE_WITH_MEM, true, true);
   check_load_with_config(ACL_MDL_LOAD_FROM_MEM, false, false);
   check_load_with_config(ACL_MDL_LOAD_FROM_MEM_WITH_MEM, false, true);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_Om2_ReuseZeroCopy_PropagatesToLoadArg) {
+  // Verify that ACL_MDL_WORKSPACE_MEM_OPTIMIZE=1 propagates reuseZeroCopy through to Om2ModelLoadArg
+  const char *load_path = "/fake/om2_model.om2";
+  uint8_t om2ModelData[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  uint32_t modelId = 0U;
+
+  SetExpectedOm2LoadArg(nullptr, 0U, nullptr, 0U, 0, {}, false, true);
+  ExpectAclrtGetDeviceOk();
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _)).WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _, _)).WillRepeatedly(Invoke(IsOm2ModelFromData));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(_, _))
+      .WillOnce(Invoke(LoadOm2DataFromFileSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2ExecutorFromData(_, _, _))
+      .WillOnce(Invoke(LoadOm2ExecutorFromDataCheckLoadArg));
+
+  aclmdlConfigHandle *handle = aclmdlCreateConfigHandle();
+  ASSERT_NE(handle, nullptr);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_PATH_PTR, &load_path, sizeof(load_path)), ACL_SUCCESS);
+  size_t reuseMemory = 1U;
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WORKSPACE_MEM_OPTIMIZE, &reuseMemory, sizeof(reuseMemory)), ACL_SUCCESS);
+  size_t loadType = ACL_MDL_LOAD_FROM_FILE;
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &loadType, sizeof(loadType)), ACL_SUCCESS);
+
+  EXPECT_EQ(aclmdlLoadWithConfig(handle, &modelId), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlUnload(modelId), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlDestroyConfigHandle(handle), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_Om2_ReuseZeroCopy_DefaultFalseInLoadArg) {
+  // Verify that without ACL_MDL_WORKSPACE_MEM_OPTIMIZE, reuse_zero_copy defaults to false
+  const char *load_path = "/fake/om2_model.om2";
+  uint8_t om2ModelData[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  uint32_t modelId = 0U;
+
+  SetExpectedOm2LoadArg(nullptr, 0U, nullptr, 0U, 0, {}, false, false);
+  ExpectAclrtGetDeviceOk();
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _)).WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _, _)).WillRepeatedly(Invoke(IsOm2ModelFromData));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(_, _))
+      .WillOnce(Invoke(LoadOm2DataFromFileSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2ExecutorFromData(_, _, _))
+      .WillOnce(Invoke(LoadOm2ExecutorFromDataCheckLoadArg));
+
+  aclmdlConfigHandle *handle = aclmdlCreateConfigHandle();
+  ASSERT_NE(handle, nullptr);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_PATH_PTR, &load_path, sizeof(load_path)), ACL_SUCCESS);
+  size_t loadType = ACL_MDL_LOAD_FROM_FILE;
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &loadType, sizeof(loadType)), ACL_SUCCESS);
+
+  EXPECT_EQ(aclmdlLoadWithConfig(handle, &modelId), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlUnload(modelId), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlDestroyConfigHandle(handle), ACL_SUCCESS);
 }
 
 TEST_F(UTEST_ACL_Model, aclmdlLoad_Om2GetDeviceFailed_ReturnInvalidParam) {

@@ -1125,7 +1125,9 @@ class Om2ModelExecutor::Impl {
 
  private:
   ge::Status PrepareWorkPtr(const Om2ModelLoadArg &load_arg, void *&work_ptr) {
-    const size_t required_work_size = model_meta_info_.work_size - model_meta_info_.zero_copy_size;
+    const size_t required_work_size = load_arg.reuse_zero_copy
+                                          ? model_meta_info_.work_size - model_meta_info_.zero_copy_size
+                                          : model_meta_info_.work_size;
     if (load_arg.work_ptr != nullptr) {
       work_ptr = load_arg.work_ptr;
       return ge::SUCCESS;
