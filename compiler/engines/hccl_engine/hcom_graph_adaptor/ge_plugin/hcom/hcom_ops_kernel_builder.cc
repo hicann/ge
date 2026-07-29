@@ -1103,7 +1103,7 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   if (!IsOfflineCompilation()) {
     CHK_PRT(JudgeIsAivMode(node, node.GetOpDesc()->GetType(), ifAiv));
   }
-  HCCL_INFO("[%s] ifAiv[%d] should %s set attached stream info", __func__, ifAiv, ifAiv ? "not" : "");
+  HCCL_INFO("[%s] ifAiv[%d] should%s set attached stream info", __func__, ifAiv, ifAiv ? " not" : "");
 
   // AIV 模式不设置从流信息
   if (!ifAiv) {
