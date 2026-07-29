@@ -15,7 +15,7 @@
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 from .base import BaseCustomOp, EagerExecuteOp, EagerOpExecutionContext
 from .bootstrap import get_registered_op_impls, load_custom_op_plugins
@@ -75,7 +75,12 @@ def destroy_op_impl_holder(instance_id: str) -> bool:
         return _OP_IMPL_HOLDERS.pop(instance_id, None) is not None
 
 
-def call_execute(instance_id: str, ctx: EagerOpExecutionContext) -> None:
+def call_execute(
+    instance_id: str,
+    ir_meta: Optional[dict],
+    ctx: EagerOpExecutionContext,
+) -> None:
+    del ir_meta
     try:
         custom_op = _get_eager_execute_op(instance_id)
         custom_op.execute(ctx)

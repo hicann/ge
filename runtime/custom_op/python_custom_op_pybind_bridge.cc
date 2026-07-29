@@ -22,6 +22,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "common/ge_common/debug/ge_log.h"
 #include "pybind11/embed.h"
@@ -180,7 +181,8 @@ class PythonCustomOpPybindBridge {
     delete holder;
   }
 
-  graphStatus Execute(const PythonCustomOpBridgeHolder *holder, gert::EagerOpExecutionContext *ctx) {
+  graphStatus Execute(const PythonCustomOpBridgeHolder *holder, gert::EagerOpExecutionContext *ctx,
+                      const PythonCustomOpIrMetaView *ir_meta) {
     if ((holder == nullptr) || (ctx == nullptr)) {
       GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
       return GRAPH_FAILED;
@@ -199,9 +201,14 @@ class PythonCustomOpPybindBridge {
                holder->descriptor_key.c_str(), holder->instance_id.c_str());
         return GRAPH_FAILED;
       }
-      py::object result = bridge_module_.attr("call_execute")(holder->instance_id, BuildPythonContext(ctx));
+      py::object result =
+          bridge_module_.attr("call_execute")(holder->instance_id, BuildPythonIrMeta(ir_meta), BuildPythonContext(ctx));
       return TranslateStatusLike(result);
     } catch (const py::error_already_set &err) {
+      GELOGE(GRAPH_FAILED, "Execute python custom op failed, descriptor key[%s], instance id[%s]: %s",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
+      return GRAPH_FAILED;
+    } catch (const std::exception &err) {
       GELOGE(GRAPH_FAILED, "Execute python custom op failed, descriptor key[%s], instance id[%s]: %s",
              holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
       return GRAPH_FAILED;
@@ -335,6 +342,60 @@ class PythonCustomOpPybindBridge {
     return (!desc.descriptor_key.empty() && !desc.op_type.empty()) ? SUCCESS : FAILED;
   }
 
+  static py::object BuildPythonIrMeta(const PythonCustomOpIrMetaView *ir_meta) {
+    if (ir_meta == nullptr) {
+      return py::none();
+    }
+    if ((ir_meta->op_type == nullptr) || ((ir_meta->input_count != 0U) && (ir_meta->inputs == nullptr)) ||
+        ((ir_meta->attr_count != 0U) && (ir_meta->attrs == nullptr)) ||
+        ((ir_meta->output_count != 0U) && (ir_meta->outputs == nullptr))) {
+      throw std::runtime_error("invalid custom op IR meta view");
+    }
+
+    py::list inputs;
+    for (size_t i = 0U; i < ir_meta->input_count; ++i) {
+      const auto &input = ir_meta->inputs[i];
+      if (input.name == nullptr) {
+        throw std::runtime_error("invalid custom op IR input view");
+      }
+      py::dict item;
+      item["name"] = py::str(input.name);
+      item["kind"] = py::int_(input.kind);
+      inputs.append(std::move(item));
+    }
+
+    py::list attrs;
+    for (size_t i = 0U; i < ir_meta->attr_count; ++i) {
+      const auto &attr = ir_meta->attrs[i];
+      if ((attr.name == nullptr) || (attr.type == nullptr)) {
+        throw std::runtime_error("invalid custom op IR attr view");
+      }
+      py::dict item;
+      item["name"] = py::str(attr.name);
+      item["type"] = py::str(attr.type);
+      attrs.append(std::move(item));
+    }
+
+    py::list outputs;
+    for (size_t i = 0U; i < ir_meta->output_count; ++i) {
+      const auto &output = ir_meta->outputs[i];
+      if (output.name == nullptr) {
+        throw std::runtime_error("invalid custom op IR output view");
+      }
+      py::dict item;
+      item["name"] = py::str(output.name);
+      item["kind"] = py::int_(output.kind);
+      outputs.append(std::move(item));
+    }
+
+    py::dict result;
+    result["op_type"] = py::str(ir_meta->op_type);
+    result["inputs"] = std::move(inputs);
+    result["attrs"] = std::move(attrs);
+    result["outputs"] = std::move(outputs);
+    return result;
+  }
+
   static py::object BuildPythonContext(gert::EagerOpExecutionContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
     return native_module.attr("_borrow_eager_op_execution_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
@@ -366,9 +427,10 @@ class PythonCustomOpPybindBridge {
     callbacks.destroy = [](void *holder) {
       PythonCustomOpPybindBridge::GetInstance().DestroyHolder(static_cast<PythonCustomOpBridgeHolder *>(holder));
     };
-    callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx) -> graphStatus {
+    callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx,
+                           const PythonCustomOpIrMetaView *ir_meta) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().Execute(static_cast<const PythonCustomOpBridgeHolder *>(holder),
-                                                               ctx);
+                                                               ctx, ir_meta);
     };
     return callbacks;
   }

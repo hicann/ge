@@ -15,12 +15,106 @@
 #include <new>
 #include <utility>
 
+#include "common/checker.h"
 #include "framework/common/debug/ge_log.h"
+#include "graph/operator_factory.h"
 #include "graph_metadef/graph/debug/ge_util.h"
+#include "runtime/custom_op/python_custom_op_ir_meta.h"
 
 namespace ge {
 namespace custom_op {
+class PythonCustomOpIrMetaViewStorage {
+ public:
+  graphStatus Initialize(const std::string &op_type) {
+    GE_ASSERT_GRAPH_SUCCESS(CollectCustomOpIrMeta(op_type, ir_meta_));
+
+    input_views_.reserve(ir_meta_.inputs.size());
+    for (const auto &input : ir_meta_.inputs) {
+      uint32_t kind = 0U;
+      GE_ASSERT_GRAPH_SUCCESS(ConvertInputKind(input.kind, kind));
+      input_views_.emplace_back(PythonCustomOpIrInputView{input.name.c_str(), kind});
+    }
+
+    attr_views_.reserve(ir_meta_.attrs.size());
+    for (const auto &attr : ir_meta_.attrs) {
+      attr_views_.emplace_back(PythonCustomOpIrAttrView{attr.name.c_str(), attr.type.c_str()});
+    }
+
+    output_views_.reserve(ir_meta_.outputs.size());
+    for (const auto &output : ir_meta_.outputs) {
+      uint32_t kind = 0U;
+      GE_ASSERT_GRAPH_SUCCESS(ConvertOutputKind(output.kind, kind));
+      output_views_.emplace_back(PythonCustomOpIrOutputView{output.name.c_str(), kind});
+    }
+
+    view_ = PythonCustomOpIrMetaView{
+        ir_meta_.op_type.c_str(), input_views_.empty() ? nullptr : input_views_.data(),
+        input_views_.size(),      attr_views_.empty() ? nullptr : attr_views_.data(),
+        attr_views_.size(),       output_views_.empty() ? nullptr : output_views_.data(),
+        output_views_.size(),
+    };
+    return GRAPH_SUCCESS;
+  }
+
+  const PythonCustomOpIrMetaView &GetView() const {
+    return view_;
+  }
+
+ private:
+  static graphStatus ConvertInputKind(const ge::IrInputType kind, uint32_t &value) {
+    switch (kind) {
+      case ge::kIrInputRequired:
+        value = 0U;
+        return GRAPH_SUCCESS;
+      case ge::kIrInputOptional:
+        value = 1U;
+        return GRAPH_SUCCESS;
+      case ge::kIrInputDynamic:
+        value = 2U;
+        return GRAPH_SUCCESS;
+      default:
+        GE_ASSERT_TRUE(false, "Unsupported custom op IR input kind[%u].", static_cast<uint32_t>(kind));
+    }
+  }
+
+  static graphStatus ConvertOutputKind(const ge::IrOutputType kind, uint32_t &value) {
+    switch (kind) {
+      case ge::kIrOutputRequired:
+        value = 0U;
+        return GRAPH_SUCCESS;
+      case ge::kIrOutputDynamic:
+        value = 1U;
+        return GRAPH_SUCCESS;
+      default:
+        GE_ASSERT_TRUE(false, "Unsupported custom op IR output kind[%u].", static_cast<uint32_t>(kind));
+    }
+  }
+
+  CustomOpIrMeta ir_meta_;
+  std::vector<PythonCustomOpIrInputView> input_views_;
+  std::vector<PythonCustomOpIrAttrView> attr_views_;
+  std::vector<PythonCustomOpIrOutputView> output_views_;
+  PythonCustomOpIrMetaView view_{};
+};
+
 namespace {
+std::unique_ptr<PythonCustomOpIrMetaViewStorage> CreateIrMetaViewStorage(const std::string &op_type) {
+  if (!OperatorFactory::IsExistOp(op_type.c_str())) {
+    return nullptr;
+  }
+  auto storage = std::unique_ptr<PythonCustomOpIrMetaViewStorage>(new (std::nothrow) PythonCustomOpIrMetaViewStorage());
+  if (storage == nullptr) {
+    GELOGE(GRAPH_FAILED, "Create custom op IR meta view storage failed, op type[%s].", op_type.c_str());
+    return nullptr;
+  }
+  const auto ret = storage->Initialize(op_type);
+  if (ret != GRAPH_SUCCESS) {
+    GELOGE(ret, "Initialize custom op IR meta view storage failed, op type[%s].", op_type.c_str());
+    return nullptr;
+  }
+  return storage;
+}
+
 struct PythonCustomOpRuntimeEntry {
   explicit PythonCustomOpRuntimeEntry(PythonCustomOpDescriptor d, PythonCustomOpCallbacks cb)
       : desc(std::move(d)), callbacks(cb) {}
@@ -195,7 +289,9 @@ void PythonCustomOpRuntimeRegistry::Clear() {
 }
 
 PythonCustomOpAdapter::PythonCustomOpAdapter(PythonCustomOpDescriptor desc)
-    : desc_(std::move(desc)), holder_(new (std::nothrow) PythonCustomOpHolder(desc_)) {}
+    : desc_(std::move(desc)),
+      ir_meta_(CreateIrMetaViewStorage(desc_.op_type)),
+      holder_(new (std::nothrow) PythonCustomOpHolder(desc_)) {}
 
 PythonCustomOpAdapter::~PythonCustomOpAdapter() = default;
 
@@ -217,7 +313,8 @@ graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
            desc_.descriptor_key.c_str(), desc_.op_type.c_str());
     return GRAPH_FAILED;
   }
-  return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx);
+  const auto *ir_meta = (ir_meta_ == nullptr) ? nullptr : &ir_meta_->GetView();
+  return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx, ir_meta);
 }
 
 graphStatus PythonCustomOpAdapter::Compile(gert::OpCompileContext *ctx) {
