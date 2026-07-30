@@ -17,7 +17,7 @@ set -e
 ########
 # Init #
 ########
-source "${WORKSPACE}/.gitcode/scripts/common.sh"
+source "${WORKSPACE}/common.sh"
 
 echo "========================================================"
 /usr/local/ccache/bin/ccache -V
