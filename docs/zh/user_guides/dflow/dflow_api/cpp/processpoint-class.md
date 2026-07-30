@@ -1,4 +1,4 @@
-﻿# ProcessPoint类
+# ProcessPoint类
 
 - [ProcessPoint析构函数](processpoint-dtor.md)
 - [GetProcessPointType](GetProcessPointType.md)

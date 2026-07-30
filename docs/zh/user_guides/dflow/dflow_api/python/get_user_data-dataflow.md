@@ -1,4 +1,4 @@
-﻿﻿# get\_user\_data（dataflow）
+# get\_user\_data（dataflow）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# FlowBufferFactory数据类型
+# FlowBufferFactory数据类型
 
 - [AllocTensor（FlowBufferFactory数据类型）](alloctensor-flowbufferfactory-datatype.md)
 - [AllocTensorMsg（FlowBufferFactory数据类型）](alloctensormsg-flowbufferfactory-datatype.md)

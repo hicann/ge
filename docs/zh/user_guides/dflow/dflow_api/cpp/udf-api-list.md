@@ -1,4 +1,4 @@
-﻿# UDF接口列表
+# UDF接口列表
 
 ## AttrValue类
 
@@ -8,16 +8,16 @@
 | --- | --- |
 | [AttrValue构造函数和析构函数](attrvalue-ctor-dtor.md) | AttrValue构造函数和析构函数。 |
 | [GetVal(AscendString &value)](getval-ascendstring-value.md) | 获取string类型的属性值。 |
-| [GetVal(std::vector<AscendString> &value)](getval-std-vector-ascendstring-value.md) | 获取list string类型的属性值。 |
+| [GetVal(std::vector\<AscendString\> &value)](getval-std-vector-ascendstring-value.md) | 获取list string类型的属性值。 |
 | [GetVal(int64_t &value)](getval-int64_t-value.md) | 获取int类型的属性值。 |
 | [GetVal(std::vector<int64_t> &value)](getval-std-vector-int64_t-value.md) | 获取list int类型的属性值。 |
 | [GetVal(std::vector<std::vector<int64_t >> &value)](getval-std-vector-std-vector-int64_t-value.md) | 获取list list int类型的属性值。 |
 | [GetVal(float &value)](getval-float-value.md) | 获取float类型的属性值。 |
-| [GetVal(std::vector<float> &value)](getval-std-vector-float-value.md) | 获取list float类型的属性值。 |
+| [GetVal(std::vector\<float\> &value)](getval-std-vector-float-value.md) | 获取list float类型的属性值。 |
 | [GetVal(bool &value)](getval-bool-value.md) | 获取bool类型的属性值。 |
-| [GetVal(std::vector<bool> &value)](getval-std-vector-bool-value.md) | 获取list bool类型的属性值。 |
+| [GetVal(std::vector\<bool\> &value)](getval-std-vector-bool-value.md) | 获取list bool类型的属性值。 |
 | [GetVal(TensorDataType &value)](getval-tensordatatype-value.md) | 获取TensorDataType类型的属性值。 |
-| [GetVal(std::vector<TensorDataType> &value)](getval-std-vector-tensordatatype-value.md) | 获取list TensorDataType类型的属性值。 |
+| [GetVal(std::vector\<TensorDataType\> &value)](getval-std-vector-tensordatatype-value.md) | 获取list TensorDataType类型的属性值。 |
 
 ## AscendString类
 

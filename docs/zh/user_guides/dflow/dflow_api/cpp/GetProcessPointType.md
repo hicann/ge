@@ -1,4 +1,4 @@
-﻿# GetProcessPointType
+# GetProcessPointType
 
 ## 产品支持情况
 

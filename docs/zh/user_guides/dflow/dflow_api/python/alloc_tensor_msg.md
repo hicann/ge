@@ -1,4 +1,4 @@
-﻿# alloc\_tensor\_msg
+# alloc\_tensor\_msg
 
 ## 产品支持情况
 

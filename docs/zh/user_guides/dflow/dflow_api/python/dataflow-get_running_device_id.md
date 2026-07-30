@@ -1,4 +1,4 @@
-﻿# dataflow.get\_running\_device\_id
+# dataflow.get\_running\_device\_id
 
 ## 产品支持情况
 

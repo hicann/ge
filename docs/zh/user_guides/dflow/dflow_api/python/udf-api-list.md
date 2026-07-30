@@ -1,4 +1,4 @@
-﻿# UDF接口列表
+# UDF接口列表
 
 本文档主要描述UDF（User Defined Function）模块对外提供的接口，用户可以调用这些接口进行自定义处理函数的开发，然后通过DataFlow构图在CPU上执行该处理函数。
 

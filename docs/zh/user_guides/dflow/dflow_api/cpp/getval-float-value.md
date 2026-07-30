@@ -1,4 +1,4 @@
-﻿# GetVal\(float &value\)
+# GetVal\(float &value\)
 
 ## 产品支持情况
 

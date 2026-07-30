@@ -1,4 +1,4 @@
-﻿# pull\_blocks
+# pull\_blocks
 
 ## 产品支持情况
 

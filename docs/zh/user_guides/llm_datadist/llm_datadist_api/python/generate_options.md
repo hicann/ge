@@ -1,4 +1,4 @@
-﻿# generate\_options
+# generate\_options
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# 专题
+# 专题
 
 ## UDF开发流程
 
@@ -729,7 +729,7 @@ DataFlow离线编译是指在开发环境编译，在运行环境上加载和部
 **了解数据对齐之前，需要先了解什么是数据对。**
 
 **图1**  数据对示意图
-![](figures/数据对示意图.png "数据对示意图")
+![](figures/data_for_schematic.png "数据对示意图")
 
 - 定义Model X为数据最早的来源，输出有两个队列，输出的多组数据\[A1',B1'\]、\[A2',B2'\]、\[A3',B3'\]，每组数据是有关联的。
 - 定义Model A和Model B为数据处理节点，多实例部署在多张卡上，Model A负责处理数据流A'，Model B负责处理数据流B'，由于是多实例部署，处理完之后会乱序，无法按照Model X输出的原始顺序输出。
@@ -839,7 +839,7 @@ def resize_bilinear(x: torch.Tensor, hw: torch.Tensor):
 - 并行方式1：请求间多实例并行：
 
     **图1**  请求间多实例并行
-    ![](figures/请求间多实例并行.png "请求间多实例并行")
+    ![](figures/multi_instance_run_in_parallel_req.png "请求间多实例并行")
 
     图中是由Model X-\>Model A-\>Model B串起来的DataFlow模型，由于Model A计算耗时长，所以对Model A拆成两个实例加速，数据流（A、B、C、D）经过Model X后，根据transaction ID轮询并分发到Model A的两个实例（数据A和C分流到实例1，数据B和D分流到实例2），之后再由Model B实现汇聚。
 
@@ -848,7 +848,7 @@ def resize_bilinear(x: torch.Tensor, hw: torch.Tensor):
     这种场景需要增加数据拆分和数据合并的逻辑，通过输出时指定BalanceConfig进行均衡分发，控制输出分发和汇聚（此功能当前不支持py\_flow注解执行方式）。
 
     **图2**  拆分请求多实例加速
-    ![](figures/拆分请求多实例加速.png "拆分请求多实例加速")
+    ![](figures/multi_instance_acceleration_split_req.png "拆分请求多实例加速")
 
 原始模型为由Model X-\>Model A-\>Model B串起来的DataFlow模型，由于Model A计算耗时长，为了降低端到端时延，对Model A进行多实例加速。详细步骤如下。
 

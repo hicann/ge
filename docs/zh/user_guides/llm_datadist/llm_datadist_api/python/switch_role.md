@@ -1,4 +1,4 @@
-﻿# switch\_role
+# switch\_role
 
 ## 产品支持情况
 

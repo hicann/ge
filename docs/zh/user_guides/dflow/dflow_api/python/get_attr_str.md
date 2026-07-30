@@ -1,4 +1,4 @@
-﻿# get\_attr\_str
+# get\_attr\_str
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# AttrValue类
+# AttrValue类
 
 - [AttrValue构造函数和析构函数](attrvalue-ctor-dtor.md)
 - [GetVal\(AscendString &value\)](getval-ascendstring-value.md)

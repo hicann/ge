@@ -1,4 +1,4 @@
-﻿# LLMRole
+# LLMRole
 
 调用[init](init.md)接口传入的角色类型。
 

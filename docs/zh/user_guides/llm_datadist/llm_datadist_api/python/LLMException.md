@@ -1,4 +1,4 @@
-﻿# LLMException
+# LLMException
 
 调用LLMDataDist各接口，异常场景可能抛出LLMException异常。当前该类下只有一个接口status\_code。
 

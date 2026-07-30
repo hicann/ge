@@ -1,4 +1,4 @@
-﻿# MetaParams类
+# MetaParams类
 
 - [MetaParams构造函数和析构函数](metaparams-ctor-dtor.md)
 - [GetName](GetName.md)

@@ -1,4 +1,4 @@
-﻿# get\_tensor
+# get\_tensor
 
 ## 产品支持情况
 

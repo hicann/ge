@@ -1,4 +1,4 @@
-﻿# SetOutputs（index）
+# SetOutputs（index）
 
 ## 产品支持情况
 

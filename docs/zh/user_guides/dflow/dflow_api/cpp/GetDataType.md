@@ -1,4 +1,4 @@
-﻿# GetDataType
+# GetDataType
 
 ## 产品支持情况
 

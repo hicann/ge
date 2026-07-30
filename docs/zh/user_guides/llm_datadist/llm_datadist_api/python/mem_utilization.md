@@ -1,4 +1,4 @@
-﻿# mem\_utilization
+# mem\_utilization
 
 ## 产品支持情况
 

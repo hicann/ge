@@ -1,4 +1,4 @@
-﻿# get\_work\_path
+# get\_work\_path
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# deallocate\_cache
+# deallocate\_cache
 
 ## 产品支持情况
 

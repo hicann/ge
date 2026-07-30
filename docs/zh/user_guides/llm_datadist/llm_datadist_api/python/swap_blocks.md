@@ -1,4 +1,4 @@
-﻿# swap\_blocks
+# swap\_blocks
 
 ## 产品支持情况
 

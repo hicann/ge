@@ -1,4 +1,4 @@
-﻿# get\_name
+# get\_name
 
 ## 产品支持情况
 

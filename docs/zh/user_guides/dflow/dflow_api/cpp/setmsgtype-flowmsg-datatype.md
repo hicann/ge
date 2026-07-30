@@ -1,4 +1,4 @@
-﻿# SetMsgType（FlowMsg数据类型）
+# SetMsgType（FlowMsg数据类型）
 
 ## 产品支持情况
 

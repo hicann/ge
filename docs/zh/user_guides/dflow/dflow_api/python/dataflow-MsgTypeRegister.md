@@ -1,4 +1,4 @@
-﻿﻿# dataflow.MsgTypeRegister
+# dataflow.MsgTypeRegister
 
 - [register](register.md)
 - [registered](registered.md)

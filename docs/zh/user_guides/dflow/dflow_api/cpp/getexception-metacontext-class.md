@@ -1,4 +1,4 @@
-﻿# GetException（MetaContext类）
+# GetException（MetaContext类）
 
 ## 产品支持情况
 

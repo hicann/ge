@@ -1,4 +1,4 @@
-﻿# cache\_id
+# cache\_id
 
 ## 产品支持情况
 

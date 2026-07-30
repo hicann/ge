@@ -1,4 +1,4 @@
-﻿# Serialize（ProcessPoint类）
+# Serialize（ProcessPoint类）
 
 ## 产品支持情况
 

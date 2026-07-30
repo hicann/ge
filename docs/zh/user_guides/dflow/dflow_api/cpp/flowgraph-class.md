@@ -1,4 +1,4 @@
-﻿# FlowGraph类
+# FlowGraph类
 
 - [FlowGraph构造函数和析构函数](flowgraph-ctor-dtor.md)
 - [SetInputs](SetInputs.md)

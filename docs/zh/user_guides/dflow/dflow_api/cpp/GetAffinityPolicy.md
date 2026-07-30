@@ -1,4 +1,4 @@
-﻿# GetAffinityPolicy
+# GetAffinityPolicy
 
 ## 产品支持情况
 

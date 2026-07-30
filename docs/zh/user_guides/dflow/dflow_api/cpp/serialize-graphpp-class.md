@@ -1,4 +1,4 @@
-﻿# Serialize（GraphPp类）
+# Serialize（GraphPp类）
 
 ## 产品支持情况
 

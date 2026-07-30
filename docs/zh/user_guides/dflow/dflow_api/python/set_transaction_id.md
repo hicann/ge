@@ -1,4 +1,4 @@
-﻿# set\_transaction\_id
+# set\_transaction\_id
 
 ## 产品支持情况
 
@@ -7,7 +7,7 @@
 
 ## 函数功能
 
-设置DataFlow数据传输使用的事务ID**。**
+设置DataFlow数据传输使用的事务ID。
 
 ## 函数原型
 

@@ -1,4 +1,4 @@
-﻿# RegProcFunc
+# RegProcFunc
 
 ## 产品支持情况
 

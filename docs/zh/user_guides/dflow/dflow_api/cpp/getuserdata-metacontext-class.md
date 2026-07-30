@@ -1,4 +1,4 @@
-﻿# GetUserData（MetaContext类）
+# GetUserData（MetaContext类）
 
 ## 产品支持情况
 

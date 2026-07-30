@@ -1,4 +1,4 @@
-﻿# MetaMultiFunc注册函数宏
+# MetaMultiFunc注册函数宏
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# GetFlowFlags（FlowMsg数据类型）
+# GetFlowFlags（FlowMsg数据类型）
 
 ## 产品支持情况
 

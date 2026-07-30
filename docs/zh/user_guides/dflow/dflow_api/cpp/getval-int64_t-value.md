@@ -1,4 +1,4 @@
-﻿# GetVal\(int64\_t &value\)
+# GetVal\(int64\_t &value\)
 
 ## 产品支持情况
 

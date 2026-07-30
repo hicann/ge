@@ -1,4 +1,4 @@
-﻿# GetLogger
+# GetLogger
 
 ## 产品支持情况
 

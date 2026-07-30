@@ -1,4 +1,4 @@
-﻿# DataFlow头文件和库文件说明
+# DataFlow头文件和库文件说明
 
 您可以在`${INSTALL_DIR}/include/flow_graph`和`${INSTALL_DIR}/include/ge`路径下查看对应接口的头文件。
 

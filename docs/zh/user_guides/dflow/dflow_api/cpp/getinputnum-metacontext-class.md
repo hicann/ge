@@ -1,4 +1,4 @@
-﻿# GetInputNum（MetaContext类）
+# GetInputNum（MetaContext类）
 
 ## 产品支持情况
 

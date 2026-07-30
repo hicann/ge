@@ -1,4 +1,4 @@
-﻿# GetRunningDeviceId（MetaParams类）
+# GetRunningDeviceId（MetaParams类）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# GetGraphBuilder（GraphPp类）
+# GetGraphBuilder（GraphPp类）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿﻿# BalanceConfig类
+# BalanceConfig类
 
 - [BalanceConfig构造函数](balanceconfig-ctor.md)
 - [set\_data\_pos](set_data_pos.md)

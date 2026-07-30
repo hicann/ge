@@ -1,4 +1,4 @@
-﻿# get\_data\_type
+# get\_data\_type
 
 ## 产品支持情况
 

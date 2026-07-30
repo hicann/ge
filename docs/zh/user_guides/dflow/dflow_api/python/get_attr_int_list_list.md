@@ -1,4 +1,4 @@
-﻿# get\_attr\_int\_list\_list
+# get\_attr\_int\_list\_list
 
 ## 产品支持情况
 

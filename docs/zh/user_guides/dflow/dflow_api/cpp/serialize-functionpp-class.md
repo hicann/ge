@@ -1,4 +1,4 @@
-﻿# Serialize（FunctionPp类）
+# Serialize（FunctionPp类）
 
 ## 产品支持情况
 

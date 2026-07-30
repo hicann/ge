@@ -1,4 +1,4 @@
-﻿# AllocEmptyDataMsg（MetaContext类）
+# AllocEmptyDataMsg（MetaContext类）
 
 ## 产品支持情况
 

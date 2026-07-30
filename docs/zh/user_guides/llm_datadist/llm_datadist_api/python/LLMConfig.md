@@ -1,4 +1,4 @@
-﻿# LLMConfig
+# LLMConfig
 
 - [LLMConfig-constructor](LLMConfig-constructor.md)
 - [generate\_options](generate_options.md)

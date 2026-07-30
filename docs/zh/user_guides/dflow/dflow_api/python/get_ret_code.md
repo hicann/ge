@@ -1,4 +1,4 @@
-﻿# get\_ret\_code
+# get\_ret\_code
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿﻿# LlmDataDist-interface
+# LlmDataDist-interface
 
 - [LLMDataDist-constructor](LlmDataDist-constructor.md)
 - [\~LlmDataDist\(\)](LlmDataDist-destructor.md)

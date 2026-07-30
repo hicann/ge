@@ -1,4 +1,4 @@
-﻿# device\_id
+# device\_id
 
 ## 产品支持情况
 

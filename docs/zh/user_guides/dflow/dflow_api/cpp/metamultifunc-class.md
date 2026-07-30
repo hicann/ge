@@ -1,4 +1,4 @@
-﻿# MetaMultiFunc类
+# MetaMultiFunc类
 
 - [MetaMultiFunc构造函数和析构函数](metamultifunc-ctor-dtor.md)
 - [Init（MetaMultiFunc类）](init-metamultifunc-class.md)

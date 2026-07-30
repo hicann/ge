@@ -1,4 +1,4 @@
-﻿# GetWorkPath（MetaParams类）
+# GetWorkPath（MetaParams类）
 
 ## 产品支持情况
 

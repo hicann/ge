@@ -1,4 +1,4 @@
-﻿# GetOutputNum（MetaParams类）
+# GetOutputNum（MetaParams类）
 
 ## 产品支持情况
 

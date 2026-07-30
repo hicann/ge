@@ -1,4 +1,4 @@
-﻿# SetEndTime（FlowMsg数据类型）
+# SetEndTime（FlowMsg数据类型）
 
 ## 产品支持情况
 

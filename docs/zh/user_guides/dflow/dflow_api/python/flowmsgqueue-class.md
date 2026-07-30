@@ -1,4 +1,4 @@
-﻿﻿# FlowMsgQueue类
+# FlowMsgQueue类
 
 - [FlowMsgQueue构造函数](flowmsgqueue-ctor.md)
 - [get](get.md)

@@ -1,4 +1,4 @@
-﻿# copy\_blocks
+# copy\_blocks
 
 ## 产品支持情况
 

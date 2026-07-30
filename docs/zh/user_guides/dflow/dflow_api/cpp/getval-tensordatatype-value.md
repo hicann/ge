@@ -1,4 +1,4 @@
-﻿# GetVal\(TensorDataType &value\)
+# GetVal\(TensorDataType &value\)
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# sync\_kv\_timeout
+# sync\_kv\_timeout
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# UDF日志接口
+# UDF日志接口
 
 - [UDF日志接口简介](udf-log-api-intro.md)
 - [FlowFuncLogger构造函数](flowfunclogger-ctor.md)

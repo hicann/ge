@@ -1,4 +1,4 @@
-﻿# get\_serialize\_func
+# get\_serialize\_func
 
 ## 产品支持情况
 

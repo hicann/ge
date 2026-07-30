@@ -1,4 +1,4 @@
-﻿# LlmRole
+# LlmRole
 
 LLM-DataDist的角色
 
@@ -8,5 +8,5 @@ enum class LlmRole : int32_t {
   kDecoder = 2,     // 角色为Decoder
   kMix = 3,         // 角色为Mix
   kEnd              // 无效值
-}
+};
 ```

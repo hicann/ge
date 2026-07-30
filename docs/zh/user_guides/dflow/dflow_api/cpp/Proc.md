@@ -1,4 +1,4 @@
-﻿# Proc
+# Proc
 
 ## 产品支持情况
 
@@ -28,7 +28,7 @@ int32_t Proc(const std::vector<std::shared_ptr<FlowMsg>> &inputMsgs)
 
 ## 异常处理
 
-如果有不可恢复的异常信息发生，返回ERROR；其他情况则调用SetRetcode设置输出tensor的错误码。如果返回SUCCESS，调度会终止。
+如果有不可恢复的异常信息发生，返回ERROR；其他情况则调用SetRetCode设置输出tensor的错误码。如果返回SUCCESS，调度会终止。
 
 ## 约束说明
 

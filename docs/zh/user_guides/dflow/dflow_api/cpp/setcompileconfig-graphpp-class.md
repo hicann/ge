@@ -1,4 +1,4 @@
-﻿# SetCompileConfig（GraphPp类）
+# SetCompileConfig（GraphPp类）
 
 ## 产品支持情况
 

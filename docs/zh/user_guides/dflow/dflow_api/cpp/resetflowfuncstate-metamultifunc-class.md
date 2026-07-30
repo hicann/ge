@@ -1,4 +1,4 @@
-﻿# ResetFlowFuncState（MetaMultiFunc类）
+# ResetFlowFuncState（MetaMultiFunc类）
 
 ## 产品支持情况
 

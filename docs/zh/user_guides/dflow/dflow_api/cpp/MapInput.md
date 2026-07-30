@@ -1,4 +1,4 @@
-﻿# MapInput
+# MapInput
 
 ## 产品支持情况
 

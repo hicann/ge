@@ -1,4 +1,4 @@
-﻿# GetUserData（MetaRunContext类）
+# GetUserData（MetaRunContext类）
 
 ## 产品支持情况
 

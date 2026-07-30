@@ -1,4 +1,4 @@
-﻿# registered
+# registered
 
 ## 产品支持情况
 

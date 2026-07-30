@@ -1,4 +1,4 @@
-﻿# FlowFuncLogger构造函数和析构函数
+# FlowFuncLogger构造函数和析构函数
 
 ## 产品支持情况
 

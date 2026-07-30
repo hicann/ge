@@ -1,4 +1,4 @@
-﻿# GetAttr（MetaContext类，获取指针）
+# GetAttr（MetaContext类，获取指针）
 
 ## 产品支持情况
 

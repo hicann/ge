@@ -1,4 +1,4 @@
-﻿# FlowMsg数据类型
+# FlowMsg数据类型
 
 - [FlowMsg数据类型构造函数和析构函数](flowmsg-datatype-ctor-dtor.md)
 - [GetMsgType（FlowMsg数据类型）](getmsgtype-flowmsg-datatype.md)

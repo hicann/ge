@@ -1,4 +1,4 @@
-﻿﻿# Tensor类
+# Tensor类
 
 - [Tensor构造函数和析构函数](tensor-ctor-dtor.md)
 - [GetShape](GetShape.md)

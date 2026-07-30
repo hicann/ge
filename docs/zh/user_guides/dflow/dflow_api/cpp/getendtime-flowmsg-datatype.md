@@ -1,4 +1,4 @@
-﻿# GetEndTime（FlowMsg数据类型）
+# GetEndTime（FlowMsg数据类型）
 
 ## 产品支持情况
 

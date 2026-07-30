@@ -1,4 +1,4 @@
-﻿# get\_msg\_type（dataflow）
+# get\_msg\_type（dataflow）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# FlowMsgQueue构造函数
+# FlowMsgQueue构造函数
 
 ## 产品支持情况
 

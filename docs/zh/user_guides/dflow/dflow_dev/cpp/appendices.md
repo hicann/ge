@@ -1,4 +1,4 @@
-﻿# 附录
+# 附录
 
 ## numa\_config.json配置
 

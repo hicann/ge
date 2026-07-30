@@ -1,4 +1,4 @@
-﻿﻿# method
+# method
 
 ## 产品支持情况
 

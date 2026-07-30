@@ -1,4 +1,4 @@
-﻿# check\_link\_status
+# check\_link\_status
 
 ## 产品支持情况
 

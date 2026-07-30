@@ -1,4 +1,4 @@
-﻿# DeallocateCache
+# DeallocateCache
 
 ## 产品支持情况
 
@@ -25,7 +25,7 @@ Status DeallocateCache(int64_t cache_id)
 ## 调用示例
 
 ```cpp
-Status ret = llm_datadist.DeallocateCache(cache.cache_id)
+Status ret = llm_datadist.DeallocateCache(cache.cache_id);
 ```
 
 ## 返回值

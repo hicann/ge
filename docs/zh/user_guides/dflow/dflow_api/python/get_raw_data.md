@@ -1,4 +1,4 @@
-﻿# get\_raw\_data
+# get\_raw\_data
 
 ## 产品支持情况
 

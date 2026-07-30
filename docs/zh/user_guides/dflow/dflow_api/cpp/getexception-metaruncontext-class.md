@@ -1,4 +1,4 @@
-﻿# GetException（MetaRunContext类）
+# GetException（MetaRunContext类）
 
 ## 产品支持情况
 

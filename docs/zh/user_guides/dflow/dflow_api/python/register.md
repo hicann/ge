@@ -1,4 +1,4 @@
-﻿﻿# register
+# register
 
 ## 产品支持情况
 

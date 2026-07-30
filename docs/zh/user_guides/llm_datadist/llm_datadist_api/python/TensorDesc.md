@@ -1,4 +1,4 @@
-﻿# TensorDesc
+# TensorDesc
 
 - [TensorDesc-constructor](TensorDesc-constructor.md)
 - [dtype](dtype.md)

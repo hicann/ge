@@ -1,4 +1,4 @@
-﻿# get\_exception
+# get\_exception
 
 ## 产品支持情况
 

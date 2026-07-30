@@ -1,4 +1,4 @@
-﻿# GetFlowFlags（FlowMsg类）
+# GetFlowFlags（FlowMsg类）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# CacheKeyByIdAndIndex
+# CacheKeyByIdAndIndex
 
 ## 产品支持情况
 

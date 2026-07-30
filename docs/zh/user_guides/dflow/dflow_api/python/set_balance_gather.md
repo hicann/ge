@@ -1,4 +1,4 @@
-﻿# set\_balance\_gather
+# set\_balance\_gather
 
 ## 产品支持情况
 

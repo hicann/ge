@@ -1,4 +1,4 @@
-﻿# FlowFuncLogger构造函数
+# FlowFuncLogger构造函数
 
 ## 产品支持情况
 

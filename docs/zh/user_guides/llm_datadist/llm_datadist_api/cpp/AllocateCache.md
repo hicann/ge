@@ -1,4 +1,4 @@
-﻿# AllocateCache
+# AllocateCache
 
 ## 产品支持情况
 

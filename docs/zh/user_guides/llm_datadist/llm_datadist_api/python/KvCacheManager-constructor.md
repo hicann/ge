@@ -1,4 +1,4 @@
-﻿# KvCacheManager-constructor
+# KvCacheManager-constructor
 
 ## 产品支持情况
 

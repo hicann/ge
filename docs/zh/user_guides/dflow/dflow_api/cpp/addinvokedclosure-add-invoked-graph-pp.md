@@ -1,4 +1,4 @@
-﻿# AddInvokedClosure \(添加调用的GraphPp\)
+# AddInvokedClosure \(添加调用的GraphPp\)
 
 ## 产品支持情况
 

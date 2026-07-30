@@ -1,4 +1,4 @@
-﻿# get\_inner\_config
+# get\_inner\_config
 
 ## 产品支持情况
 

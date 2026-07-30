@@ -1,4 +1,4 @@
-﻿# Tensor类
+# Tensor类
 
 - [Tensor构造函数](tensor-ctor.md)
 - [get\_shape](get_shape.md)

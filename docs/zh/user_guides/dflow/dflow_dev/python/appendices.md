@@ -1,11 +1,11 @@
-﻿# 附录
+# 附录
 
 ## DataFlow框架介绍
 
 **DataFlow框架结构**
 
 **图1**  DataFlow框架结构
-![](figures/DataFlow框架结构.png "DataFlow框架结构")
+![](figures/dataflow_framework_architecture.png "DataFlow框架结构")
 
 DataFlow结构可以分为3层，各层介绍如下。
 

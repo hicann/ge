@@ -1,4 +1,4 @@
-﻿# FlowNode类
+# FlowNode类
 
 - [FlowNode构造函数和析构函数](flownode-ctor-dtor.md)
 - [SetInput](SetInput.md)

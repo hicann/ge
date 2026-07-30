@@ -1,4 +1,4 @@
-﻿# alloc\_empty\_data\_msg
+# alloc\_empty\_data\_msg
 
 ## 产品支持情况
 

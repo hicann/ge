@@ -1,4 +1,4 @@
-﻿# GetAttr（MetaContext类，获取属性值）
+# GetAttr（MetaContext类，获取属性值）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# TransferConfig
+# TransferConfig
 
 ## 产品支持情况
 

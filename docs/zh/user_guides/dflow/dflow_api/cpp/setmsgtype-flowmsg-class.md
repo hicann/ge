@@ -1,4 +1,4 @@
-﻿# SetMsgType（FlowMsg类）
+# SetMsgType（FlowMsg类）
 
 ## 产品支持情况
 

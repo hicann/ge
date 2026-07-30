@@ -1,4 +1,4 @@
-﻿# AscendString构造函数和析构函数
+# AscendString构造函数和析构函数
 
 ## 产品支持情况
 

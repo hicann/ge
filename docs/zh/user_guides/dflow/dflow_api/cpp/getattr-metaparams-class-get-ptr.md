@@ -1,4 +1,4 @@
-﻿# GetAttr（MetaParams类，获取指针）
+# GetAttr（MetaParams类，获取指针）
 
 ## 产品支持情况
 

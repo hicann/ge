@@ -1,4 +1,4 @@
-﻿# GetStartTime（FlowMsg类）
+# GetStartTime（FlowMsg类）
 
 ## 产品支持情况
 

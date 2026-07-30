@@ -1,4 +1,4 @@
-﻿# get\_transaction\_id
+# get\_transaction\_id
 
 ## 产品支持情况
 

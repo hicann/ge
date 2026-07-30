@@ -1,4 +1,4 @@
-﻿# AllocTensor（FlowBufferFactory类）
+# AllocTensor（FlowBufferFactory类）
 
 ## 产品支持情况
 

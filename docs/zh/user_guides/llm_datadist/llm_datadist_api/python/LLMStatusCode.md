@@ -1,4 +1,4 @@
-﻿# LLMStatusCode
+# LLMStatusCode
 
 LLMException中status\_code对应的枚举类，枚举值及解决方法如下表。
 
@@ -24,6 +24,6 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 | LLM_FEATURE_NOT_ENABLED | 特性未使能 | 是 | 检查初始化LLMDataDist时是否传入了必要option:<br>如果是切换当前LLMDataDist的角色时抛出该异常，排查初始化时LLMConfig是否设置了enable_switch_role = True。 |
 | LLM_LINK_BUSY | 链路繁忙 | 是 | 检查同时调用的接口是否有冲突，例如：同时调用如下接口时，会报该error-code。<br><br>  - 使用相同链路同时调用KvCacheManager的[pull_cache](pull_cache.md)和[transfer_cache_async](transfer_cache_async.md)。<br>  - 同时调用[check_link_status](check_link_status.md)和KvCacheManager的[pull_cache](pull_cache.md)。 |
 | LLM_OUT_OF_MEMORY | 内存不足 | 是 | CacheManager模式下才会出现该error-code。<br>检查内存池是否足够容纳申请的KV大小；<br>检查申请的内存是否没有释放。 |
-| LLM_DEVICE_MEM_ERROR | 出现内存UCE（incorrect error，指系统硬件不能直接处理恢复内存错误）的错误虚拟地址 | 是 | 请参考《Ascend Extension for PyTorch 自定义API参考》中的torch_npu.npu.restart_device接口的说明获取并修复内存UCE的错误虚拟地址。<br> 说明： 本error-code为预留，暂不支持。 |
+| LLM_DEVICE_MEM_ERROR | 出现内存UCE（指系统硬件不能直接处理恢复内存错误）的错误虚拟地址 | 是 | 请参考《TorchNPU自定义API》中的torch_npu.npu.restart_device接口的说明获取并修复内存UCE的错误虚拟地址。<br> 说明： 本error-code为预留，暂不支持。 |
 | LLM_SUSPECT_REMOTE_ERROR | 疑似是UCE内存故障 | 否 | 上层框架需要结合其它故障进行综合判断是UCE内存故障还是他故障。 |
 | LLM_UNKNOWN_ERROR | 未知错误 | 否 | 保留现场，获取Host/Device日志，并备份。 |

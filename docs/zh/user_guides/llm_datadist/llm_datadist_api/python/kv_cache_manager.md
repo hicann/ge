@@ -1,4 +1,4 @@
-﻿# kv\_cache\_manager
+# kv\_cache\_manager
 
 ## 产品支持情况
 

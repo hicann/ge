@@ -1,4 +1,4 @@
-﻿# AllocRawDataMsg（MetaRunContext类）
+# AllocRawDataMsg（MetaRunContext类）
 
 ## 产品支持情况
 
