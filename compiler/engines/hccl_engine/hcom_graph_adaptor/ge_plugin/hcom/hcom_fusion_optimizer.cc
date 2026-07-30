@@ -89,21 +89,17 @@ HcclResult HcomFusionOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &grap
 }
 
 ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph) {
-  HCCL_INFO("[Optimize][Precision]OptimizeOriginalGraphJudgeInsert enter, graph[%s]", graph.GetName().c_str());
-  HCCL_DEBUG("[Optimize][Precision]c00913534 0");
   std::string precision_mode_str;
   ge::graphStatus status = ge::GetContext().GetOption(ge::PRECISION_MODE, precision_mode_str);
   if (status != ge::GRAPH_SUCCESS || precision_mode_str.empty()) {
     ge::GetContext().GetOption(ge::PRECISION_MODE_V2, precision_mode_str);
   }
-  HCCL_INFO("[Optimize][Precision]precision_mode[%s]", precision_mode_str.c_str());
   if (precision_mode_str != "force_fp16" && precision_mode_str != "fp16") {
-    HCCL_DEBUG("[Optimize][Precision]c00913534 1");
+    HCCL_INFO("[Optimize][Precision]OptimizeOriginalGraphJudgeInsert precision_mode_str[%s]", precision_mode_str.c_str());
     return ge::SUCCESS;
   }
 
   for (auto nodePtr : graph.GetAllNodes()) {
-    HCCL_DEBUG("[Optimize][Precision]c00913534 2");
     if (!nodePtr) {
       HCCL_WARNING("[Optimize][Precision]: null node exists.");
       continue;
@@ -115,11 +111,9 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
     }
 
     std::string opType = opDescPtr->GetType();
-    HCCL_DEBUG("[Optimize][Precision]c00913534 opType [%s]", opType.c_str());
     if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) == HCOM_SUPPORTED_OP_TYPE.end()) {
       continue;
     }
-    HCCL_DEBUG("[Optimize][Precision]c00913534 3");
     for (size_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {
       auto inTensorDescPtr = opDescPtr->MutableInputDesc(i);
       if (inTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
@@ -128,7 +122,6 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
                    opDescPtr->GetName().c_str(), i);
       }
     }
-    HCCL_DEBUG("[Optimize][Precision]c00913534 4");
     for (size_t i = 0; i < opDescPtr->GetOutputsSize(); i++) {
       auto outTensorDescPtr = opDescPtr->MutableOutputDesc(i);
       if (outTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
