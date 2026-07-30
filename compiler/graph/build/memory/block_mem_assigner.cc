@@ -52,9 +52,19 @@ const uint32_t kAutoMode = 1U;
 const std::set<ge::DataType> kNotPostReuseDataType = {ge::DT_RESOURCE, ge::DT_VARIANT};
 
 bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
-  const bool is_support_zero_copy = ge::MemLayoutConflictUtil::IsAddressRefreshable(node);
+  bool is_support_zero_copy = ge::MemLayoutConflictUtil::IsAddressRefreshable(node);
   if (!is_support_zero_copy) {
     GELOGI("Op[%s] not support zero copy", node->GetName().c_str());
+  } else {
+    // IsAddressRefreshable在动态shape静态子图场景认为hccl算子是可刷新的，实际上因为处理阶段有差异，
+    // 比如hccl判断时还未拆图，可能导致结果不一致，这里还是统一使用IsHcomNodeNotSupportAddrRefresh的结果
+    const auto root_graph = ge::GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
+    const bool is_dynamic_shape_sub_graph = (root_graph != nullptr) && root_graph->GetGraphUnknownFlag() &&
+                                            (!node->GetOwnerComputeGraph()->GetGraphUnknownFlag());
+    if (is_dynamic_shape_sub_graph && ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
+      GELOGI("hccl engine op[%s] not support zero copy", node->GetName().c_str());
+      is_support_zero_copy = false;
+    }
   }
   return is_support_zero_copy;
 }
