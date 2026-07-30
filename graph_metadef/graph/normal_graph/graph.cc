@@ -245,8 +245,9 @@ class GraphImpl {
     AscendString name;
     (void)op.GetName(name);
     const auto ret = op_list_.emplace(std::pair<std::string, ge::Operator>(name.GetString(), op));
-    GE_CHK_BOOL_RET_STATUS(ret.second, GRAPH_FAILED, "[Check][Param] the op have added before, op name:%s.",
-                           name.GetString());
+    if (!ret.second) {
+      GELOGW("[Check][Param] the op have added before, op name:%s.", name.GetString());
+    }
     return GRAPH_SUCCESS;
   }
 
