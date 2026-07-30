@@ -1,0 +1,85 @@
+name: st_action
+
+on:
+  workflow_call:
+    inputs:
+      st_type:
+        required: true
+        type: string
+      st_package:
+        required: false
+        type: string
+        default: 'st_cov_*.tar.gz'
+      language:
+        required: false
+        type: string
+        default: 'cpp'
+      image_version:
+        required: true
+        type: string
+
+jobs:
+  JOB_st:
+    name: st
+    steps:
+      - name: Checkout
+        identifier: process_checkout_st
+        uses: checkout
+        with:
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: download
+        uses: obs-download
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{ secrets.AK }}
+          secret-key: ${{ secrets.SK }}
+          key: |
+            ${{ env.obs_path }}/pr_filelist.txt
+            ${{ env.obs_path }}/pr_filelist_mod.txt
+            ${{ env.obs_path }}/ge_st.sh
+            ${{ env.obs_path }}/common.sh
+          path: ${{ steps.process_checkout_st.outputs.path }}
+
+      - name: redis-cache
+        uses: cann/.gitcode/actions/redis-cache@master
+
+      - name: st_acc
+        identifier: st
+        run: |
+          export WORKSPACE=${{ steps.process_checkout_st.outputs.path }}
+          cd ${{ steps.process_checkout_st.outputs.path }}
+          export GIT_TARGET_BRANCH=${{ env.TARGET_BRANCH }}
+          export GE_ST_RT2=${{ inputs.st_type }}
+          export ASCEND_3RD_LIB_PATH=/home/jenkins/opensource
+          export ASCEND_INSTALL_PATH=/home/jenkins/Ascend/cann
+          export ASCEND_HOME_PATH=/home/jenkins/Ascend/cann
+          export ASCEND_CUSTOM_PATH=/home/jenkins/Ascend/cann
+          bash ge_st.sh
+
+      - name: ST_Cov
+        identifier: ut_cov
+        uses: cann/.gitcode/actions/ut-cov-report@master
+        with:
+          ut_process: ${{ steps.st.outputs.ut_process }}
+          workspace: ${{ steps.process_checkout_st.outputs.path }}
+          language: ${{ inputs.language }}
+          ut_type: ${{ steps.st.outputs.ut_type }}
+          target_branch: ${{ env.TARGET_BRANCH }}
+          git_token: ${{secrets.GIT_TOKEN}}
+
+      - name: upload
+        uses: obs-upload
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{ secrets.AK }}
+          secret-key: ${{ secrets.SK }}
+          artifact-path: "${{ steps.process_checkout_st.outputs.path }}/${{ inputs.st_package }}"
+          object-prefix: ${{ env.obs_path }}/
+    if: "${{ default() }}"
+    runs-on: [dedicate-hosted, x64, xlarge]
+    container:
+      image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
