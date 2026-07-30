@@ -1,5 +1,6 @@
 ﻿# GE图引擎接口
 
+- [头文件和库文件说明](header_and_library_files_description.md)
 - [C++语言接口](cpp/cpp_language_interface.md)
   - [aclgrph接口](cpp/ge/aclgrph_interface.md)
     - [aclgrphBuildInitialize](cpp/ge/aclgrphBuildInitialize.md)

@@ -2,25 +2,25 @@
 
 ## 1 Overview
 
-In Ascend AI processor graph compilation and execution process, multiple operators may share same physical memory (through symbol table merging, Inplace optimization, reference relationship and other mechanisms). Shared memory brings significant显存 savings, but also introduces various conflict risks: read write timing uncertainty, memory attribute incompatibility, subgraph address isolation insufficient, atomic operation accumulation error, multi-stream concurrent回收 and others.
+In Ascend AI processor graph compilation and execution process, multiple operators may share same physical memory (through symbol table merging, Inplace optimization, reference relationship and other mechanisms). Shared memory brings significant memory savings, but also introduces various conflict risks: read write timing uncertainty, memory attribute incompatibility, subgraph address isolation insufficient, atomic operation accumulation error, multi-stream concurrent reclamation and others.
 
-GE (Graph Engine) establishes complete memory conflict protection system at compiler and runtime two levels, covering semantic-level read write conflict detection, symbol-level memory layout conflict detection, subgraph address isolation, zero-copy address传递, Inplace reuse conflict check, and runtime phase multi-stream concurrent memory lifecycle management. This document from system design perspective, comprehensively analyzes this mechanism.
+GE (Graph Engine) establishes complete memory conflict protection system at compiler and runtime two levels, covering semantic-level read write conflict detection, symbol-level memory layout conflict detection, subgraph address isolation, zero-copy address passing, Inplace reuse conflict check, and runtime phase multi-stream concurrent memory lifecycle management. This document from system design perspective, comprehensively analyzes this mechanism.
 
 ---
 
 ## 2 Conflict Classification
 
-Memory conflicts according to generation cause and所处阶段, can be divided into following categories:
+Memory conflicts according to generation cause and stage, can be divided into following categories:
 
 | Conflict Type | Generation Scenario | Detection Stage | Hazard Level |
-|---------|---------|---------|---------|
+| --------- | --------- | --------- | --------- |
 | Semantic read write conflict | One output simultaneously consumed by read operator and write operator | Compiler optimization | High (accuracy error) |
 | Memory layout conflict | Anchors sharing same symbol have incompatible memory attributes | Compiler optimization | High (runtime exception) |
 | Subgraph address isolation conflict | While/If/Case subgraph inside and outside share same input address | Compiler Pass | High (data overwrite) |
 | HCCL local write conflict | Collective communication operator in-place modifies input memory | Compiler Pass | High (accuracy error) |
 | Atomic operation conflict | Atomic operator output memory not cleared zero between iterations | Compiler Pass | High (accumulation error) |
 | Conditional branch input-output mapping conflict | If/Case different branches for same output index come from different inputs | Runtime graph build | High (address error) |
-| Multi-stream memory lifecycle conflict | Cross-stream accessed memory in source stream not yet released时被 target stream回收 | Runtime execution | High (data corruption) |
+| Multi-stream memory lifecycle conflict | Cross-stream accessed memory reclaimed by target stream before source stream releases it | Runtime execution | High (data corruption) |
 
 ---
 
@@ -57,22 +57,23 @@ Located at `compiler/graph/passes/memory_conflict/` directory, runs in graph opt
 **Purpose**: Handle read write conflicts of HCCL operators with `_input_mutable` attribute (such as HcomAllReduce, HcomBroadcast).
 
 **Conflict Scenario**: HCCL operators in-place modify input memory during execution (Scope Write). If this input simultaneously consumed by other operators, then:
+
 - If read before write, not insert Identity also can guarantee accuracy
 - If write before read, must insert Identity isolate, otherwise read operator will read overwritten incorrect data
 
 **Handling Strategy**:
 
 1. **Constant/Variable Protection**: If HCCL operator input comes from Const or Variable node, unconditionally insert Identity node in middle, prevent constant being overwritten
-2. **Topology Order Judgment**: For non-constant inputs, through node ID (reflecting topological sorting) judge sibling node and HCCL operator execution先后 order. Only when sibling node ID less than HCCL node (i.e.,先执行)时 need insert Identity
+2. **Topology Order Judgment**: For non-constant inputs, through node ID (reflecting topological sorting) judge sibling node and HCCL operator execution order. Only when sibling node ID less than HCCL node (i.e., executes first) need insert Identity
 3. **Shape Calculation Branch Exemption**: Shape, Rank and other only calculate shape information operators not affected by memory modification, not insert isolation
 4. **Broadcast Write-back**: For HcomBroadcast operator, additionally insert Assign node write broadcast result back to Variable
 5. **Mark Skip**: Already handled HCCL operators mark `_skip_rw_conflict=true`, avoid subsequent `HandleMemoryRWConflict` duplicate processing
 
-**Execution Timing**: First run in GraphPrepare phase, again run in OptimizeStage1_3 phase (temporary solution,覆盖无子图 scenario `_mutable_input` handling).
+**Execution Timing**: First run in GraphPrepare phase, again run in OptimizeStage1_3 phase (temporary solution, covering no-subgraph scenario `_mutable_input` handling).
 
 #### 3.1.2 HcclContinuousMemcpyPass
 
-**Purpose**: Handle HCCL operators needing continuous input memory (such as HcomAllReduce), when其 input comes from Data/Const/Variable时, insert Identity separate address space. Simultaneously handle P2P memory type input scenarios.
+**Purpose**: Handle HCCL operators needing continuous input memory (such as HcomAllReduce), when their input comes from Data/Const/Variable, insert Identity to separate address space. Simultaneously handle P2P memory type input scenarios.
 
 #### 3.1.3 SubgraphPass
 
@@ -81,7 +82,7 @@ Located at `compiler/graph/passes/memory_conflict/` directory, runs in graph opt
 **Core Processing Logic**:
 
 | Scenario | Processing Method |
-|------|---------|
+| ------ | --------- |
 | While input shared by multiple consumers | Insert Memcpy (Identity) isolate at While input side |
 | While body subgraph Data node output to operator needing continuous input | Insert Memcpy after Data |
 | While body subgraph Data directly connected NetOutput and index unchanged | Skip (bypass), avoid needless copy |
@@ -96,281 +97,290 @@ Located at `compiler/graph/passes/memory_conflict/` directory, runs in graph opt
 
 **Purpose**: Identify operators can do Inplace (output reuse input memory), and mark `_inplace_support_input_index` attribute.
 
-**Judgment Conditions**: Single output operator, input and output data type and Shape completely match, and input not Data/Const/Variable等 source nodes (these node addresses cannot be overwritten), input predecessor node only has one consumer.
+**Judgment Conditions**: Single output operator, input and output data type and Shape completely match, and input not Data/Const/Variable and other source nodes (these node addresses cannot be overwritten), input predecessor node only has one consumer.
+
 #### 3.1.5 AtomicAddrCleanPass
 
-**Purpose**: Fusion atomic operation address zero clearing. Atomic operators (such as ScatterAdd) use atomic write方式 update output, before iteration开始需要将 output memory clear zero.
+**Purpose**: Fusion atomic operation address zero clearing. Atomic operators (such as ScatterAdd) use atomic write mode to update output, and the output memory needs to be cleared to zero before iteration starts.
 
 **Processing Strategy**:
 
-- **Non-loop graph**: Insert a unified AtomicAddrClean node at graph head, through control edge connect to all atomic operators及其 predecessor nodes, ensure zero clear operation executes before all atomic operators
-- **Loop graph**: Each atomic operator前单独 insert AtomicAddrClean node, ensure每次 iteration开始前都 zero clear
-- **Atomic operator直连 NetOutput**:单独 insert AtomicAddrClean,因为 zero copy可能改变 output address导致 zero clear range不连续
+- **Non-loop graph**: Insert a unified AtomicAddrClean node at graph head, through control edge connect to all atomic operators and their predecessor nodes, ensure zero clear operation executes before all atomic operators
+- **Loop graph**: Insert AtomicAddrClean node individually before each atomic operator, ensure zero clear before every iteration
+- **Atomic operator directly connected to NetOutput**: Insert AtomicAddrClean individually, because zero copy may change output address causing zero clear range to be non-contiguous
 
 #### 3.1.6 MemcpyAddrAsyncPass
 
-**Purpose**: In zero copy scenario insert MemcpyAddrAsync node, implement user data address async传递.
+**Purpose**: In zero copy scenario insert MemcpyAddrAsync node, implement user data address async passing.
 
 **Processing Scenarios**:
-- StreamMerge node input来自 user Data时, insert MemcpyAddrAsync传递 address而非拷贝 data
-- Root graph NetOutput前 Const/Data直连 scenario,在 offline compilation等需要强制拷贝 scenarios下 insert MemcpyAddrAsync
-- HCCL operator与 RefData之间 address isolation,当 Feature Map不可刷新时需要 insert isolation node
+
+- When StreamMerge node input comes from user Data, insert MemcpyAddrAsync to pass address rather than copy data
+- Root graph NetOutput Const/Data direct connection scenario, insert MemcpyAddrAsync in scenarios requiring forced copy such as offline compilation
+- Address isolation between HCCL operator and RefData, when Feature Map is not refreshable, insert isolation node
 
 #### 3.1.7 MarkSameAddrPass
 
-**Purpose**: In dynamic+static memory reuse mode,为 StreamSwitch/LabelSwitchByIndex等需要固定物理地址 operators mark `ATTR_DYNAMIC_SHAPE_FIXED_ADDR` attribute.
+**Purpose**: In dynamic+static memory reuse mode, mark `ATTR_DYNAMIC_SHAPE_FIXED_ADDR` attribute for operators such as StreamSwitch/LabelSwitchByIndex that require fixed physical address.
 
 #### 3.1.8 SetInputOutputOffsetPass
 
-**Purpose**: 为带有 `ATTR_NAME_NODE_CONNECT_INPUT`/`ATTR_NAME_NODE_CONNECT_OUTPUT`标记 nodes设置正确 memory offset. Special处理 fusion nodes、HCOM nodes和 Concat nodes.
+**Purpose**: Set correct memory offset for nodes marked with `ATTR_NAME_NODE_CONNECT_INPUT`/`ATTR_NAME_NODE_CONNECT_OUTPUT`. Special handling for fusion nodes, HCOM nodes and Concat nodes.
 
 ### 3.2 Second Layer: Semantic-level Read-Write Conflict Handling
 
 **Entry**: `GraphOptimize::HandleMemoryRWConflict()`
 **File**: `compiler/graph/optimize/mem_rw_conflict_optimize.cc`
 
-This is based on node read-write behavior classification通用 conflict detection和 processing system.
+This is a general conflict detection and processing system based on node read-write behavior classification.
 
 #### 3.2.1 Read-Write Type Classification
 
-System first为 each node's input和 output anchors分类 read-write types:
+System first classifies read-write types for each node's input and output anchors:
 
 **Input Types (InputRWType)**:
 
 | Type | Meaning | Typical Operators |
-|------|------|---------|
-| `kReadOnly` | Only read input,不 modify | Most常规 operators |
-| `kWriteable` | Modify input, modification对外 visible | Assign、ApplyMomentum |
-| `kScopeWriteable` | Modify input, but仅在局部范围 visible | HcomAllReduce、While |
+| ------ | ------ | --------- |
+| `kReadOnly` | Only read input, does not modify | Most common operators |
+| `kWriteable` | Modify input, modification is externally visible | Assign, ApplyMomentum |
+| `kScopeWriteable` | Modify input, but only visible in local scope | HcomAllReduce, While |
 
 **Output Types (OutputRWType)**:
 
 | Type | Meaning | Judgment Condition |
-|------|------|---------|
+| ------ | ------ | --------- |
 | `kReadOnlyConst` | Constant output | Const/Constant nodes |
-| `kReadOnly` | Read-only output,有多个 consumers | Non ref output且 downstream多于一个 |
-| `kSoftRead` | Soft read-only,仅一个 consumer | Non ref output且 downstream仅一个 |
-| `kWriteable` | Writable output (ref output) | Output通过 reference引用 input |
+| `kReadOnly` | Read-only output, has multiple consumers | Non ref output and downstream has more than one |
+| `kSoftRead` | Soft read-only, only one consumer | Non ref output and downstream has only one |
+| `kWriteable` | Writable output (ref output) | Output references input through reference |
 
 #### 3.2.2 Conflict Decision Matrix
 
-Based on output type和 downstream input type组合, decide是否需要 insert Identity node隔离:
+Based on output type and downstream input type combination, decide whether to insert Identity node for isolation:
 
 ```
                       Input:ReadOnly    Input:Writeable    Input:ScopeWriteable
-Output:ReadOnlyConst:   No处理            InsertIdentity       InsertIdentity
-Output:ReadOnly:        No处理            No处理             InsertIdentity
-Output:SoftRead:        No处理            No处理             No处理
-Output:Writeable:       No处理            No处理             InsertIdentity
+Output:ReadOnlyConst:   NoAction            InsertIdentity       InsertIdentity
+Output:ReadOnly:        NoAction            NoAction             InsertIdentity
+Output:SoftRead:        NoAction            NoAction             NoAction
+Output:Writeable:       NoAction            NoAction             InsertIdentity
 ```
 
 **Design Considerations**:
 
-- `kSoftRead` (single consumer)与任何 input type组合均不冲突,因为不存在多 consumer竞争
-- `kWriteable` output与 `kReadOnly`/`kWriteable` input不冲突,因为 write operation是预期 semantic behavior
-- `kScopeWriteable`是最容易产生冲突 type:它在局部范围内修改 memory, but upstream可能不知道 memory已被 modify
-- `kReadOnlyConst` output是最需要保护 type: constant不允许被 modify
+- `kSoftRead` (single consumer) does not conflict with any input type combination, because there is no multi-consumer competition
+- `kWriteable` output does not conflict with `kReadOnly`/`kWriteable` input, because write operation is expected semantic behavior
+- `kScopeWriteable` is the most conflict-prone type: it modifies memory within local scope, but upstream may not know the memory has been modified
+- `kReadOnlyConst` output is the type most needing protection: constants must not be modified
 
 #### 3.2.3 Processing Flow
 
 ```mermaid
 flowchart TD
     A[MarkRefRelations] --> B[MarkRWTypeForAllSubgraph]
-    B --> C[遍历 all nodes]
+    B --> C[Traverse all nodes]
     C --> D{Node is Identity or ReadVariableOp?}
-    D -->|是| E[SplitIdentity + RemoveNoUseIdentity]
-    D -->|否| F[InsertIdentityAsNeeded]
+    D -->|Yes| E[SplitIdentity + RemoveNoUseIdentity]
+    D -->|No| F[InsertIdentityAsNeeded]
     E --> F
-    F --> G{Output anchor有多个 consumers?}
-    G -->|否| C
-    G -->|是| H[计算 output RW type]
-    H --> I[遍历 each downstream input]
-    I --> J[计算 input RW type]
-    J --> K[查询 conflict decision matrix]
-    K --> L{Result为 INSERT_IDENTITY?}
-    L -->|是| M[在 conflict input前 insert Identity]
-    L -->|否| C
+    F --> G{Output anchor has multiple consumers?}
+    G -->|No| C
+    G -->|Yes| H[Compute output RW type]
+    H --> I[Traverse each downstream input]
+    I --> J[Compute input RW type]
+    J --> K[Query conflict decision matrix]
+    K --> L{Result is INSERT_IDENTITY?}
+    L -->|Yes| M[Insert Identity before conflict input]
+    L -->|No| C
     M --> C
 ```
 
 **Key Details**:
-- Subgraph processing采用 reverse traversal,从最内层 subgraph向外层 propagate RW type
-- 已被 `HcclMemcpyPass`标记 `_skip_rw_conflict` nodes会被 skip
 
-#### 3.2.4 Subgraph Processing Special Cases
+- Subgraph processing uses reverse traversal, propagating RW type from innermost subgraph to outer layers
+- Nodes already marked with `_skip_rw_conflict` by `HcclMemcpyPass` will be skipped
+- Identity nodes are marked with `ATTR_NO_NEED_CONSTANT_FOLDING=false` and `ATTR_NAME_CANNOT_BE_DELETED=true` to prevent subsequent optimization Passes from deleting them
 
-**While Loop Handling**:
-- While body subgraph需要独立处理 RW type marking
-- While input和 output的 RW type需要从 outer graph propagate进来
-- Special handling for `_mutable_input` attribute: While在多次迭代中可能 modify同一 memory,需要 special isolation
-
-**If/Case Branch Handling**:
-- Each branch's RW type需要独立 mark
-- 不同 branches对同一 output index可能来自不同 inputs,这会引致 runtime address mapping conflict
-- 在 `CondRemovePass` 中检测并处理这类冲突
-
-**PartitionedCall Handling**:
-- PartitionedCall represents跨 engine subgraph call
-- 其 input/output RW type需要与 caller graph协调
-- 通过 `_skip_rw_conflict` attribute避免 duplicate processing
-
----
-
-### 3.3 第三 Layer: Symbol-level Memory Layout Conflict Processing
+### 3.3 Third Layer: Symbol-level Memory Layout Conflict Processing
 
 **Entry**: `GraphOptimize::HandleMemoryLayoutConflict()`
 **File**: `compiler/graph/optimize/mem_layout_conflict_optimize/`
 
-This layer handles symbol-based memory layout conflicts—a deeper level of conflict detection based on memory symbol merging mechanism.
+This is a finer-grained conflict detection system based on memory symbol equivalence classes. When multiple anchors share the same memory symbol through `SymbolToAnchors`/`AnchorToSymbol` mappings, the system detects whether these anchors' memory attributes are compatible.
 
-#### 3.3.1 Symbol Merge Background
+#### 3.3.1 Anchor Attribute Classification
 
-GE's memory planning通过 symbol merging实现 memory reuse. Multiple anchors can share same memory symbol (`SymbolToAnchors` mapping), achieving:
+The system defines 14 anchor attributes (AnchorAttribute), each representing one kind of memory constraint:
 
-- **Memory Reuse**: Different lifecycle tensors share same physical memory
-- **Reference Optimization**: Ref output directly reuse input memory,无需额外 allocation
-
-However, symbol merging带来 potential conflicts:不同 anchors可能有 incompatible memory attribute requirements.
-
-#### 3.3.2 Anchor Attribute Classification
-
-System classifies 14 anchor attribute types (AnchorAttributeType), each representing一种 memory requirement:
-
-| Type | Meaning | Applicable Nodes |
+| Attribute | Meaning | Marked Object |
 |------|------|---------|
-| `kUserMemoryInput` | User provided input memory | Root graph Data nodes |
-| `kUserMemoryOutput` | User provided output memory | Root graph NetOutput nodes |
-| `kImmutableAddressOutput` | Immutable address output | Const/Constant nodes |
-| `kUnknownAddressRefreshOperatorInput` | Unknown address refresh operator input | Special operators |
-| `kUnknownAddressRefreshOperatorOutput` | Unknown address refresh operator output | Operator outputs |
-| `kContinuousInput` | Requires continuous input memory | Operators marked `continuous_input` |
-| `kContinuousOutput` | Requires continuous output memory | Operators marked `continuous_output` |
-| `kNoPaddingContinuousInput` | Continuous input without padding | Operators marked `_no_padding_continuous_input` |
-| `kNoPaddingContinuousOutput` | Continuous output without padding | Operators marked `_no_padding_continuous_output` |
-| `kRtsSpecialTypeInput` | RTS special memory type input | P2P memory等 special types |
-| `kRtsSpecialTypeOutput` | RTS special memory type output | RTS special memory type outputs |
-| `kNormalInput` | Normal input | Default |
-| `kNormalOutput` | Normal output | Default |
+| `USER_MEMORY_INPUT` | User provided input | Root graph Data nodes |
+| `USER_MEMORY_OUTPUT` | User visible output | Root graph NetOutput nodes |
+| `IMMUTABLE_ADDRESS_OUTPUT` | Immutable address output | Const/Constant/Variable |
+| `UNSUPPORTED_ADDRESS_REFRESH_OPERATOR_INPUT` | Input that does not support address refresh | Specific operator inputs |
+| `UNSUPPORTED_ADDRESS_REFRESH_OPERATOR_OUTPUT` | Output that does not support address refresh | Specific operator outputs |
+| `CONTINUOUS_INPUT` | Requires continuous input memory | Operators marked with `continuous_input` attribute |
+| `CONTINUOUS_OUTPUT` | Produces continuous output memory | Operators marked with `continuous_output` attribute |
+| `NOPADDING_CONTINUOUS_INPUT` | No padding continuous input | Operators marked with `_no_padding_continuous_input` |
+| `NOPADDING_CONTINUOUS_OUTPUT` | No padding continuous output | Operators marked with `_no_padding_continuous_output` |
+| `RTS_SPECIAL_TYPE_INPUT` | RTS special memory type input | P2P memory and other special type inputs |
+| `RTS_SPECIAL_TYPE_OUTPUT` | RTS special memory type output | P2P memory and other special type outputs |
+| `REFERENCE_OUTPUT` | Reference variable output | Outputs referencing variables through `ref_var_src_var_name` |
+| `NORMAL_INPUT` | Normal input | Default |
+| `NORMAL_OUTPUT` | Normal output | Default |
 
-#### 3.3.3 Conflict Classification
+#### 3.3.2 Conflict Classification
 
-System divides conflicts into three categories:
+The system divides conflicts into three categories:
 
-**Absolutely No Conflict**: Following attribute pairs不会产生 conflict,可以直接 share symbol:
-- `kUserMemoryInput`与 `kNormalInput`
-- `kUserMemoryOutput`与 `kNormalOutput`
-- `kImmutableAddressOutput`与 `kImmutableAddressOutput` (constants可以 share)
+**Absolutely No Conflict**: The following attribute pair combinations never produce conflict and can be directly skipped:
 
-**Absolutely Conflict**: Following attribute pair combinations一定 conflict,必须 insert Identity isolate:
-- `kUserMemoryInput`与 `kUnknownAddressRefreshOperatorInput`: User input cannot be modified by unsupported refresh operator
-- `kUserMemoryOutput`与 `kContinuousOutput`: User output可能不满足 continuous memory requirement
-- `kImmutableAddressOutput`与 `kNormalInput`: Constant cannot be modified by any operator
-- `kImmutableAddressOutput`与 `kContinuousInput`: Constant may not satisfy continuous input requirement
-- `kContinuousInput`与 `kNoPaddingContinuousInput`: Continuous input和无 padding continuous alignment requirements incompatible
-- `kContinuousOutput`与 `kNoPaddingContinuousOutput`: Same
-- `kNoPaddingContinuousInput`与 `kNoPaddingContinuousOutput`: Same
+| Attribute A | Attribute B |
+|--------|--------|
+| `RTS_SPECIAL_TYPE_INPUT` | `NORMAL_OUTPUT` |
+| `USER_MEMORY_OUTPUT` | `USER_MEMORY_OUTPUT` |
+| `USER_MEMORY_INPUT` | `USER_MEMORY_OUTPUT` |
 
-**Conditional Conflict**: Need to judge through registered Checker functions. System provides `REGISTER_FUNC(type_a, type_b, func_name)` mechanism用于注册 conditional Checker.
+Additionally, the `REFERENCE_OUTPUT` attribute always belongs to the no-conflict type.
 
-#### 3.3.4 Checker Registration Framework
+**Absolutely Conflict**: The following attribute pair combinations always conflict, requiring no conditional judgment:
 
-Registered Checker functions:
+| Attribute A | Attribute B | Conflict Reason |
+|--------|--------|---------|
+| `USER_MEMORY_INPUT` | `UNSUPPORTED_ADDRESS_REFRESH_OPERATOR_INPUT` | User input address cannot be overwritten by operators that do not support refresh |
+| `USER_MEMORY_INPUT` | `RTS_SPECIAL_TYPE_INPUT` | User input cannot use special memory types |
+| `USER_MEMORY_OUTPUT` | `RTS_SPECIAL_TYPE_INPUT/OUTPUT` | User output address cannot share with special memory |
+| `USER_MEMORY_OUTPUT` | `CONTINUOUS_OUTPUT` | User output may not satisfy continuity requirement |
+| `USER_MEMORY_OUTPUT` | `NOPADDING_CONTINUOUS_OUTPUT` | Same as above |
+| `IMMUTABLE_ADDRESS_OUTPUT` | `RTS_SPECIAL_TYPE_INPUT` | Immutable address cannot be occupied by special memory types |
+| `IMMUTABLE_ADDRESS_OUTPUT` | `CONTINUOUS_INPUT` | Immutable address may not satisfy continuity requirement |
+| `CONTINUOUS_INPUT` | `NOPADDING_CONTINUOUS_OUTPUT` | Continuous input and no-padding continuous output alignment requirements may be incompatible |
+| `CONTINUOUS_OUTPUT` | `NOPADDING_CONTINUOUS_INPUT` | Same as above |
+
+**Conditional Conflict**: Requires conditional judgment through registered Checker functions. The system provides the registration macro `REGISTER_FUNC(type_a, type_b, func_name)` for registering conditional conflict check functions, with 22 Checkers currently registered.
+
+#### 3.3.3 Checker Registration Framework
+
+The 22 registered Checker functions:
 
 | Checker | Checked Attribute Pair |
 |---------|------------|
-| `continuous_input_and_continuous_input_checker` | CONTINUOUS_INPUT vs CONTINUOUS_INPUT |
-| `continuous_output_and_continuous_output_checker` | CONTINUOUS_OUTPUT vs CONTINUOUS_OUTPUT |
-| `continuous_in_and_continuous_out_checker` | CONTINUOUS_INPUT vs CONTINUOUS_OUTPUT |
-| `continuous_in_and_rts_special_out_checker` | CONTINUOUS vs RTS_SPECIAL series (8 pairs) |
-| `user_in_and_continuous_out_checker` | USER vs CONTINUOUS series |
-| `user_in_and_unrefresh_out_checker` | USER_MEMORY_INPUT vs UNKNOWN_ADDRESS_REFRESH_OUTPUT |
+| `continuous_input_and_continuous_input` | CONTINUOUS_INPUT vs CONTINUOUS_INPUT |
+| `continuous_output_and_continuous_input` | CONTINUOUS_OUTPUT vs CONTINUOUS_INPUT |
+| `continuous_out_and_continuous_out` | CONTINUOUS_OUTPUT vs CONTINUOUS_OUTPUT |
+| `continuous_in_out_and_rts_special_mem_in_out` | CONTINUOUS series vs RTS_SPECIAL series (8 pairs) |
+| `user_in_and_continuous_in_out_checker` | USER_MEMORY_INPUT vs CONTINUOUS series (4 pairs) |
+| `user_in_and_unrefresh_out_checker` | USER_MEMORY_INPUT vs UNSUPPORTED_ADDRESS_REFRESH_OUTPUT |
 | `user_in_and_rts_special_out_checker` | USER_MEMORY_INPUT vs RTS_SPECIAL_TYPE_OUTPUT |
-| `user_out_and_unrefresh_out_checker` | USER_MEMORY_OUTPUT vs UNKNOWN_ADDRESS_REFRESH_OUTPUT |
-| `user_out_and_unrefresh_in_checker` | USER_MEMORY_OUTPUT vs UNKNOWN_ADDRESS_REFRESH_INPUT |
+| `user_out_and_unrefresh_out_checker` | USER_MEMORY_OUTPUT vs UNSUPPORTED_ADDRESS_REFRESH_OUTPUT |
+| `user_out_and_unrefresh_in_checker` | USER_MEMORY_OUTPUT vs UNSUPPORTED_ADDRESS_REFRESH_INPUT |
 | `user_out_and_immutable_out_checker` | USER_MEMORY_OUTPUT vs IMMUTABLE_ADDRESS_OUTPUT |
-| `user_in_and_continuous_in_checker` | USER vs CONTINUOUS_INPUT (对) |
-| `immutable_out_and_rts_special_out_checker` | IMMUTABLE vs RTS_SPECIAL_TYPE_OUTPUT |
-| `immutable_out_and_continuous_out_checker` | IMMUTABLE_ADDRESS_OUTPUT vs CONTINUOUS_OUTPUT (2 pairs) |
-| `immutable_in_and_nopadding_continuous_in_checker` | IMMUTABLE_ADDRESS_INPUT vs NOPADDING_CONTINUOUS_INPUT |
-| `immutable_in_and_continuous_in_checker` | IMMUTABLE_ADDRESS_INPUT vs CONTINUOUS_INPUT |
-| `immutable_out_and_nopadding_continuous_out_checker` | IMMUTABLE_ADDRESS_OUTPUT vs NOPADDING_CONTINUOUS_OUTPUT |
-| `nopadding_continuous_in_and_nopadding_continuous_in_checker` | NOPADDING_CONTINUOUS_INPUT vs NOPADDING_CONTINUOUS_INPUT |
-| `nopadding_continuous_out_and_nopadding_continuous_out_checker` | NOPADDING_CONTINUOUS_OUTPUT vs NOPADDING_CONTINUOUS_OUTPUT |
-| `nopadding_continuous_in_and_nopadding_continuous_out_checker` | NOPADDING_CONTINUOUS_INPUT vs NOPADDING_CONTINUOUS_OUTPUT |
-| `rts_special_in_and_rts_special_in_checker` | RTS vs RTS_SPECIAL_TYPE_INPUT |
+| `user_out_and_continuous_input` | USER_MEMORY_OUTPUT vs CONTINUOUS_INPUT series (2 pairs) |
+| `immutable_out_and_rts_specail_out_checker` | IMMUTABLE_ADDRESS_OUTPUT vs RTS_SPECIAL_TYPE_OUTPUT |
+| `immutable_out_and_nopadding_continuous_in_checker` | IMMUTABLE_ADDRESS_OUTPUT vs NOPADDING_CONTINUOUS_INPUT |
+| `immutable_out_and_continuous_out_checker` | IMMUTABLE_ADDRESS_OUTPUT vs CONTINUOUS_OUTPUT series (2 pairs) |
+| `nopadding_continuous_input_and_nopadding_continuous_input` | NOPADDING_CONTINUOUS_INPUT vs NOPADDING_CONTINUOUS_INPUT |
+| `nopadding_continuous_input_and_nopadding_continuous_out` | NOPADDING_CONTINUOUS_INPUT vs NOPADDING_CONTINUOUS_OUTPUT |
+| `nopadding_continuous_out_and_nopadding_continuous_out` | NOPADDING_CONTINUOUS_OUTPUT vs NOPADDING_CONTINUOUS_OUTPUT |
+| `rts_special_in_and_rts_special_in_checker` | RTS_SPECIAL_TYPE_INPUT vs RTS_SPECIAL_TYPE_INPUT |
+| `rts_special_in_and_rts_special_out_checker` | RTS_SPECIAL_TYPE_INPUT vs RTS_SPECIAL_TYPE_OUTPUT |
 | `rts_special_out_and_rts_special_out_checker` | RTS_SPECIAL_TYPE_OUTPUT vs RTS_SPECIAL_TYPE_OUTPUT |
+| `unrefresh_in_checker` | UNSUPPORTED_ADDRESS_REFRESH_INPUT vs special types |
+| `unrefresh_out_checker` | UNSUPPORTED_ADDRESS_REFRESH_OUTPUT vs special types |
 | `unrefresh_in_and_unrefresh_out_checker` | UNKNOWN_ADDRESS_REFRESH_INPUT vs UNKNOWN_ADDRESS_REFRESH_OUTPUT |
 | `unrefresh_out_and_unrefresh_out_checker` | UNKNOWN_ADDRESS_REFRESH_OUTPUT series |
 
-Checker conflict decision process:
+Checker conflict detection execution flow:
 
 ```mermaid
 flowchart TD
-    A[Checker::checkConflict] --> B{Absolutely No Conflict?}
-    B -->|是| C[SKIP]
-    B -->|否| D{Absolutely Conflict?}
-    D -->|是| E[MARK Conflict Anchor]
-    D -->|否| F{Conditional Judgment?}
-    F -->|否| G[NO Conflict]
-    F -->|是| H[Call Registered Checker]
-    H --> I{Checker Returns Conflict?}
-    I -->|是| E
-    I -->|否| G
+    S[Checker::CheckConflict] --> T1{Absolutely No Conflict?}
+    T1 -->|Yes| SKIP[Skip]
+    T1 -->|No| T2{Absolutely Conflict?}
+    T2 -->|Yes| MARK[Mark Conflict Anchor]
+    T2 -->|No| T3{Conditional Conflict?}
+    T3 --> CALL[Call Registered Checker Function]
+    CALL --> T4{Checker Returns Conflict?}
+    T4 -->|Yes| MARK
+    T4 -->|No| SKIP
+```
+
+Key Checker judgment logic:
+
+- **continuous_output_and_continuous_input**: Determine whether actual memory range overlap conflict exists between continuous output and continuous input
+- **user_in_and_unrefresh_out_checker**: Determine whether user input shares address with output that does not support address refresh, preferentially insert Identity on the side of the node that does not support refresh
+- **user_out_and_immutable_out_checker**: User output cannot share address with constant/variable (would cause immutable data to be overwritten)
+- **nopadding_continuous_input_and_nopadding_continuous_input**: When two operators requiring no-padding continuous input share the same symbol, address alignment requirements may cause conflict
+
+#### 3.3.4 Control Flow Subgraph Conflict Handling
+
+Before the main symbol-level conflict detection, `CtrlNodeConflict` specifically handles If/Case/While control flow node subgraph conflicts:
+
+**If/Case Conflict Handling**:
+- Check whether each branch subgraph's Data node directly connects to NetOutput
+- Check whether a single output node is referenced by multiple inputs of NetOutput (shared address)
+- For detected conflicts, insert Identity isolation within the subgraph
+
+**While Conflict Handling**:
+- Check the index mapping relationship from Data to NetOutput in While body
+- If input index differs from output index (data position changed within loop body), insert Identity to guarantee address correspondence
+- Insert Identity nodes after Data and before NetOutput in While body
 
 #### 3.3.5 Processing Flow
 
 ```mermaid
 flowchart TD
-    A[Collect all顶层 static subgraphs] --> B[For each subgraph]
-    B --> C[CtrlNodeConflict处理 If/Case/While]
-    C --> D[Build SymbolToAnchors和 AnchorToSymbol]
-    D --> E[MarkAllAttribute:为 all anchors mark attribute]
+    A[Collect all top-level static subgraphs] --> B[For each subgraph]
+    B --> C[CtrlNodeConflict handles If/Case/While]
+    C --> D[Build SymbolToAnchors and AnchorToSymbol]
+    D --> E[MarkAllAttribute: mark attribute for all anchors]
     E --> F[For each symbol group: FindConflictNodes]
     F --> G[For each conflict anchor: SolveConflict]
     G --> H{Conflict anchor is input anchor?}
-    H -->|是| I[Insert Identity before input anchor]
-    H -->|否| J[Insert Identity after output anchor]
+    H -->|Yes| I[Insert Identity before input anchor]
+    H -->|No| J[Insert Identity after output anchor]
     I --> K[Mark ATTR_NAME_CANNOT_BE_DELETED]
     J --> K
 ```
 
-### 3.4 Inplace Memory Reuse与 Conflict Check
+### 3.4 Inplace Memory Reuse and Conflict Check
 
 **File**: `compiler/graph/build/memory/mem_inplace.cc`
 
-Inplace optimization允许 output tensor reuse input tensor's memory address,是减少 memory footprint重要手段. But Inplace引入额外 read-write conflict risk,需要严格 conflict check.
+Inplace optimization allows output tensor to reuse input tensor's memory address, and is an important means to reduce memory footprint. But Inplace introduces extra read-write conflict risk, requiring strict conflict check.
 
 **Processing Flow**:
 
-1. **Identify read-only symbols**: Mark symbols来自 Data/Variable/Const为 read-only
-2. **Get Inplace candidates**: Through `GetSupportInplaceOutput`获取支持 Inplace outputs
-3. **Size filter**: Only allow input output size完全匹配 Inplace
-4. **Read conflict filter**: If input symbol来自 read-only data source (variable),不允许 Inplace
-5. **Write conflict filter**: If output需要 continuous memory或与 variable share memory,不允许 Inplace
-6. **Symbol conflict check**: Merge input output symbol后,使用 `MemLayoutConflictUtil::IsGraphExistMemConflictSymbol` check是否产生 new conflict
-7. **Merge symbol table**: If所有 checks pass, merge symbol table实现 Inplace
+1. **Identify read-only symbols**: Mark symbols from Data/Variable/Const as read-only
+2. **Get Inplace candidates**: Through `GetSupportInplaceOutput` get outputs that support Inplace
+3. **Size filter**: Only allow Inplace where input output size exactly matches
+4. **Read conflict filter**: If input symbol comes from read-only data source (variable), Inplace is not allowed
+5. **Write conflict filter**: If output needs continuous memory or shares memory with variable, Inplace is not allowed
+6. **Symbol conflict check**: After merging input output symbols, use `MemLayoutConflictUtil::IsGraphExistMemConflictSymbol` to check whether new conflict is produced
+7. **Merge symbol table**: If all checks pass, merge symbol table to implement Inplace
 
 ### 3.5 Post-compilation Verification (GraphLint)
 
 **File**: `compiler/graph/preprocess/checker/graph_lint.cc`
 
-After compilation完成, `GraphLint`进行最终 read-write conflict verification,这是诊断性 check (issue warning而非 error terminate).
+After compilation completes, `GraphLint` performs final read-write conflict verification, which is a diagnostic check (issues warning rather than error termination).
 
 **Verification Logic**:
 
 1. Pre-calculate each node input's RW type (`kReadOnly`/`kWritable`/`kCanIgnore`)
-2. Build graph-level connection matrix (`ConnectionMatrix`), record node间 reachability
-3. For each有 2+ consumers output anchor:
-   - Collect all write nodes和 read nodes
-   - Check任意 two write nodes之间是否有 control dependency (through connection matrix判断 reachability)
-   - Check each write node与 each read node之间是否有 control dependency
-   - If无 control dependency,说明 execution order uncertain, issue `W18888` warning
+2. Build graph-level connection matrix (`ConnectionMatrix`), record reachability between nodes
+3. For each output anchor with 2+ consumers:
+   - Collect all write nodes and read nodes
+   - Check whether any two write nodes have control dependency (judge reachability through connection matrix)
+   - Check whether each write node and each read node have control dependency
+   - If no control dependency exists, execution order is uncertain, issue `W18888` warning
 
 ---
 
 ## 4 Runtime-side Conflict Handling
 
-Runtime-side conflict handling主要集中 in conditional branch address mapping、multi-stream concurrent memory lifecycle management两个方面.
+Runtime-side conflict handling mainly focuses on conditional branch address mapping and multi-stream concurrent memory lifecycle management.
 
 ### 4.1 Conditional Branch Conflict Handling
 
@@ -378,18 +388,18 @@ Runtime-side conflict handling主要集中 in conditional branch address mapping
 
 #### 4.1.1 Branch Chain Conflict Detection (CalcChainConflictSolvePolicy)
 
-For If/Case nodes,不同 branch subgraphs可能将同一 output index mapping到不同 input sources:
+For If/Case nodes, different branch subgraphs may map the same output index to different input sources:
 
 ```mermaid
 flowchart TD
     subgraph "If Node"
         subgraph "Then Branch"
-            I1[InnerData 0] --> N1[NetOutput index 0来自 input 0]
-            I2[InnerData 1] --> N2[NetOutput index 1来自 input 1]
+            I1[InnerData 0] --> N1[NetOutput index 0 comes from input 0]
+            I2[InnerData 1] --> N2[NetOutput index 1 comes from input 1]
         end
         subgraph "Else Branch"
-            I3[InnerData 0] --> N3[NetOutput index 0来自 input 1]
-            I4[InnerData 1] --> N4[NetOutput index 1来自 input 1]
+            I3[InnerData 0] --> N3[NetOutput index 0 comes from input 1]
+            I4[InnerData 1] --> N4[NetOutput index 1 comes from input 1]
         end
     end
 
@@ -397,62 +407,62 @@ flowchart TD
     N3 --> CONFLICT
 ```
 
-**Detection Rule**: For each output index, if各 branches映射到的 input index set size超过 1, then该 index为 conflict index (`conflict_indexes`).
+**Detection Rule**: For each output index, if the input index set size mapped by each branch exceeds 1, then that index is a conflict index (`conflict_indexes`).
 
-**Solution**: For each conflict index,在所有 branch subgraph's InnerNetOutput前 insert `PointFromInputs` node. `PointFromInputs` at runtime is zero overhead passthrough node (only pass pointer),其 purpose is在 graph structure level明确 data source.
+**Solution**: For each conflict index, insert `PointFromInputs` node before InnerNetOutput in all branch subgraphs. `PointFromInputs` at runtime is zero overhead passthrough node (only pass pointer), its purpose is to clarify data source at graph structure level.
 
 #### 4.1.2 Resource Lifecycle Extension (CalcSubgraphGuardersPolicy)
 
-When subgraph内 resources (memory blocks带 `FreeMemory` guard) cross subgraph boundary,需要将 lifecycle extend到 parent graph:
+When resources inside subgraph (memory blocks with `FreeMemory` guard) cross subgraph boundary, the lifecycle needs to be extended to parent graph:
 
 | Scenario | Processing Method |
-|------|---------|
-| Subgraph internal memory guard, resource needs pass out | Remove subgraph内 guard,在 parent graph create new guard + subgraph内 insert `IdentityAddr` increase reference count |
-| Resource来自 parent graph input, subgraph内有 guard | 在 parent graph increase guard + subgraph内 increase reference count |
-| Current branch无 guard, other branches有 | Insert `IdentityAddr` align各 branches' lifecycle |
+| ------ | --------- |
+| Subgraph internal memory guard, resource needs pass out | Remove guard inside subgraph, create new guard in parent graph + insert `IdentityAddr` inside subgraph to increase reference count |
+| Resource comes from parent graph input, subgraph has guard | Add guard in parent graph + increase reference count inside subgraph |
+| Current branch has no guard, other branches have | Insert `IdentityAddr` to align lifecycle across branches |
 
 ### 4.2 Multi-stream Memory Lifecycle Management
 
-Runtime采用 three-layer allocator architecture和 event-based synchronization mechanism来 manage multi-stream concurrent下 memory conflicts.
+Runtime uses three-layer allocator architecture and event-based synchronization mechanism to manage memory conflicts under multi-stream concurrency.
 
 #### 4.2.1 Three-layer Allocator Architecture
 
 ```mermaid
 flowchart TD
-    A[L1: CachingMemAllocator] --> B[Physical memory management,带 cache/queue reuse]
-    C[L2: L2MemPool] --> D[Stream-aware memory pool,管理 block allocation, versioning和 recycle]
-    E[L3: BorrowAllocator] --> F[Cross-stream memory sharing pool, reuse other stream释放 blocks]
+    A[L1: CachingMemAllocator] --> B[Physical memory management, with cache/queue reuse]
+    C[L2: L2MemPool] --> D[Stream-aware memory pool, manages block allocation, versioning and recycle]
+    E[L3: BorrowAllocator] --> F[Cross-stream memory sharing pool, reuses blocks released by other streams]
 
     B --> G[HBM/Host physical memory]
     D --> H[MultiStreamL2Allocator: multi-stream coordination]
     D --> I[SingleStreamL2Allocator: single stream]
-    F --> J[Cross-stream borrow blocks,带 MIF bitmap tracking]
+    F --> J[Cross-stream borrow blocks, with MIF bitmap tracking]
 ```
 
 #### 4.2.2 MIF (Multi-stream Independent Flags)
 
 **File**: `runtime/v2/kernel/memory/mif.h`
 
-MIF is each memory block上 bitmap structure,追踪哪些 streams正在使用 ("occupying") 该 block:
+MIF is a bitmap structure on each memory block, tracking which streams are currently using ("occupying") that block:
 
-- `stream_ids_to_bits_[maintained_stream]` is一个 bitmap, bit `i`表示 "from `maintained_stream`'s视角看, stream `i`仍在使用该 block"
-- `Set(stream_a, stream_b)`: Mark stream `b`正在使用该 block (from stream `a`视角)
-- `SetAll(stream)`: From所有 streams'视角 mark stream `stream`正在使用该 block
-- `IsAnySet(stream)`: Check从某 stream视角看,是否还有 other streams在使用该 block
+- `stream_ids_to_bits_[maintained_stream]` is a bitmap, bit `i` means "from `maintained_stream`'s perspective, stream `i` is still using that block"
+- `Set(stream_a, stream_b)`: Mark stream `b` is using that block (from stream `a` perspective)
+- `SetAll(stream)`: From all streams' perspectives mark stream `stream` is using that block
+- `IsAnySet(stream)`: Check from a stream's perspective, whether other streams are still using that block
 
 #### 4.2.3 Three Recycle Modes
 
 **File**: `runtime/v2/kernel/memory/multi_stream_mem_block.cc`
 
 | Recycle Mode | Trigger Condition | Behavior |
-|---------|---------|------|
-| Birth Recycle | Birth stream不再 needs该 block,且无 other streams hold reference | Physical memory归还到 pool |
-| Borrow Recycle | Block从 current stream migrate到 BorrowAllocator | MIF reset,等待 other stream reuse |
-| Local Recycle | Still有 other stream reference | Add到 `local_recycle_blocks_`等待 event sync后处理 |
+| --------- | --------- | ------ |
+| Birth Recycle | Birth stream no longer needs that block, and no other streams hold reference | Physical memory is returned to pool |
+| Borrow Recycle | Block migrates from current stream to BorrowAllocator | MIF reset, waiting for other stream reuse |
+| Local Recycle | Other stream references still exist | Add to `local_recycle_blocks_` waiting for event sync processing |
 
 #### 4.2.4 Cross-stream Memory Access (AccessMemCrossStream)
 
-When一个 tensor在 stream A上 allocate,但在 stream B上 consume:
+When a tensor is allocated on stream A but consumed on stream B:
 
 ```mermaid
 sequenceDiagram
@@ -464,12 +474,12 @@ sequenceDiagram
     Lowering->>Runtime: Detect cross-stream access
     Lowering->>Runtime: Create AccessMemCrossStream node
     Runtime->>StreamA: Execute WanderFrom()
-    StreamA->>StreamB: Mark MIF: Stream B occupies该 block
-    Note over StreamB: From all streams视角 mark<br/>StreamB正在使用该 block
+    StreamA->>StreamB: Mark MIF: Stream B occupies that block
+    Note over StreamB: Mark from all streams perspective<br/>StreamB is using that block
 ```
 
-- Host memory: Directly `ShareFrom` (share pointer),无 stream constraint
-- Device memory: Through `WanderFrom`进行 cross-stream wander,调用 `MultiStreamMemBlock::NewAccessStream` mark MIF
+- Host memory: Directly `ShareFrom` (share pointer), no stream constraint
+- Device memory: Perform cross-stream wander through `WanderFrom`, call `MultiStreamMemBlock::NewAccessStream` to mark MIF
 
 #### 4.2.5 Event-driven Stream Synchronization
 
@@ -482,80 +492,79 @@ sequenceDiagram
     participant DstStream as Target Stream
 
     SrcStream->>Event: SendEvents kernel
-    Note over SrcStream,Event: Collect待回收 blocks + borrow blocks<br/>Pack到 GertEvent::space<br/>Call aclrtRecordEvent()
+    Note over SrcStream,Event: Collect blocks pending recycle + borrow blocks<br/>Pack into GertEvent::space<br/>Call aclrtRecordEvent()
 
     Event->>DstStream: WaitEvents kernel
-    Note over DstStream: Call rtStreamWaitEvent()<br/>SyncLocalRecycleStatus: Merge source stream recycle status<br/>BirthRecycle: Fully release回归 birth stream blocks<br/>Version match: Ignore expired events
+    Note over DstStream: Call rtStreamWaitEvent()<br/>SyncLocalRecycleStatus: Merge source stream recycle status<br/>BirthRecycle: Fully release blocks returned to birth stream<br/>Version match: Ignore expired events
 ```
 
 **Three Event Sync Stages**:
 
 | Stage | Timing | Function |
-|------|------|------|
-| `kFirstSyncStage` | Execution start | Main stream向 sub stream sync |
-| `kLastSyncStage` | Execution end | Sub stream向 main stream sync |
-| `kLastResourceCleanStage` | Final cleanup | Force sync所有 streams, recycle所有 memory |
+| ------ | ------ | ------ |
+| `kFirstSyncStage` | Execution start | Main stream syncs to sub stream |
+| `kLastSyncStage` | Execution end | Sub stream syncs to main stream |
+| `kLastResourceCleanStage` | Final cleanup | Force sync all streams, recycle all memory |
 
 #### 4.2.6 Version Block Tracking (VersionBlocks)
 
 **File**: `runtime/v2/kernel/memory/version_blocks.h`
 
-Memory block每次 recycle后 re-allocate version number increment. Through version match avoid processing expired events:
+Memory block version number increments after each recycle and re-allocation. Through version match avoid processing expired events:
 
-- `StreamedVersionBlock` contains version number和 sent flag
-- `FindNext()` Automatically skip已 sent或 expired entries
+- `StreamedVersionBlock` contains version number and sent flag
+- `FindNext()` Automatically skip already sent or expired entries
 - `FindNextForAll()` Used for `LastWaitEvents` global cleanup
 
 ### 4.3 IO Address Reuse Verification
 
 **File**: `runtime/v2/core/model_v2_executor.cc`
 
-At model load, compiler通过 `ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES` attribute mark哪些 outputs reuse input memory (Inplace scenario). Runtime在每次 execution前通过 `CheckIoReuseAddrs` verify address match,确保 Inplace constraints得到满足.
+At model load, compiler marks which outputs reuse input memory through `ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES` attribute (Inplace scenario). Runtime verifies address match through `CheckIoReuseAddrs` before each execution, ensuring Inplace constraints are satisfied.
 
 ### 4.4 Cross-storage Location Data Transfer
 
 **File**: `runtime/v2/lowering/placement/placed_lowering_result.cc`
 
-When tensor需要在不同 storage locations间 move (Host/HBM/P2P), system automatically generate corresponding copy nodes:
+When tensor needs to move between different storage locations (Host/HBM/P2P), system automatically generates corresponding copy nodes:
 
 | Source → Target | Generated Node |
-|-----------|---------|
+| ----------- | --------- |
 | Host → HBM | CopyH2D |
 | HBM → Host | SyncStream + CopyD2H + FreeMemory |
 | HBM → P2P | P2P Copy |
 | P2P → Host | SyncStream + CopyD2H |
 | Host → Host | No copy needed |
 
-Device to Host copy前必须 insert `SyncStream` node,确保 device-side computation完成后再 copy.
+Before Device to Host copy, `SyncStream` node must be inserted, ensuring device-side computation completes before copy.
 
 ---
 
 ## 5 Key Attribute Summary
 
-Following attributes贯穿 compiler和 runtime,是理解 memory conflict handling和 address isolation核心:
+Following attributes span compiler and runtime, and are core to understanding memory conflict handling and address isolation:
 
 | Attribute Name | String Value | Setter | Consumer | Purpose |
-|--------|---------|--------|--------|------|
-| `ATTR_NAME_MODIFY_INPUT` | `_input_mutable` | Operator registration | HcclMemcpyPass, mem_rw_conflict_optimize | Mark operator修改 input |
-| `_skip_rw_conflict` | `_skip_rw_conflict` | HcclMemcpyPass | mem_rw_conflict_optimize | Skip已 processed HCCL nodes |
-| `ATTR_NAME_CONTINUOUS_INPUT` | `continuous_input` | Operator registration | SubgraphPass, mem_layout_conflict | Mark需要 continuous input memory |
-| `ATTR_NAME_CONTINUOUS_OUTPUT` | `continuous_output` | Operator registration | SubgraphPass, mem_layout_conflict | Mark产生 continuous output memory |
+| -------- | --------- | -------- | -------- | ------ |
+| `ATTR_NAME_MODIFY_INPUT` | `_input_mutable` | Operator registration | HcclMemcpyPass, mem_rw_conflict_optimize | Mark operator modifies input |
+| `_skip_rw_conflict` | `_skip_rw_conflict` | HcclMemcpyPass | mem_rw_conflict_optimize | Skip already processed HCCL nodes |
+| `ATTR_NAME_CONTINUOUS_INPUT` | `continuous_input` | Operator registration | SubgraphPass, mem_layout_conflict | Mark requires continuous input memory |
+| `ATTR_NAME_CONTINUOUS_OUTPUT` | `continuous_output` | Operator registration | SubgraphPass, mem_layout_conflict | Mark produces continuous output memory |
 | `ATTR_NAME_NOPADDING_CONTINUOUS_INPUT` | `_no_padding_continuous_input` | Operator registration | mem_layout_conflict | No padding continuous input |
 | `ATTR_NAME_NOPADDING_CONTINUOUS_OUTPUT` | `_no_padding_continuous_output` | Operator registration | mem_layout_conflict | No padding continuous output |
 | `ATTR_NAME_REFERENCE` | `reference` | Operator registration | mem_rw_conflict, mem_inplace | Output reference input |
-| `INPLACE_SUPPORT_INPUT_INDEX` | `_inplace_support_input_index` | InplaceSupportCheckPass | mem_inplace | Mark支持 Inplace input index |
+| `INPLACE_SUPPORT_INPUT_INDEX` | `_inplace_support_input_index` | InplaceSupportCheckPass | mem_inplace | Mark supported Inplace input index |
 | `REF_VAR_SRC_VAR_NAME` | `ref_var_src_var_name` | Operator registration | mem_layout_conflict, AtomicAddrCleanPass | Output referenced variable name |
-| `ATTR_NAME_CANNOT_BE_DELETED` | - | 各 conflict Pass | Subsequent optimization Pass | Prevent conflict isolation node被 optimized delete |
-| `ATTR_NO_NEED_CONSTANT_FOLDING` | - | 各 conflict Pass | Constant folding Pass | Prevent conflict isolation node被 constant folded |
-| `ATTR_DYNAMIC_SHAPE_FIXED_ADDR` | - | MarkSameAddrPass | Memory allocator | Dynamic shape下需要 fixed physical address |
+| `ATTR_NAME_CANNOT_BE_DELETED` | - | Each conflict Pass | Subsequent optimization Pass | Prevent conflict isolation node from being optimized and deleted |
+| `ATTR_NO_NEED_CONSTANT_FOLDING` | - | Each conflict Pass | Constant folding Pass | Prevent conflict isolation node from being constant folded |
+| `ATTR_DYNAMIC_SHAPE_FIXED_ADDR` | - | MarkSameAddrPass | Memory allocator | Requires fixed physical address under dynamic shape |
 | `ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES` | `output_reuse_input_mem_indexes` | Compiler memory allocation | Runtime model_v2_executor | Mark Inplace IO address correspondence |
 
 ---
 
-## 6 Over
-all Pipeline
+## 6 Overall Pipeline
 
-Chaining compiler和 runtime conflict handling, complete memory conflict protection pipeline如下:
+Chaining compiler and runtime conflict handling, the complete memory conflict protection pipeline is as follows:
 
 ```mermaid
 flowchart TD

@@ -1,6 +1,5 @@
 # Graph Split Module Constraints Document
 
-
 Graph execution module should try to avoid dynamic memory allocation (may cause random performance degradation).
 Graph compilation module memory reuse processing phase forbids graph modification (multiple reuse algorithms will process concurrently in multiple threads, will cause exceptions).
 
@@ -11,6 +10,7 @@ Graph split module's responsibility is to perform model splitting by execution s
 Graph split module only handles splitting itself, not responsible for post-split subgraph internal operator executor selection, kernel selection, stream allocation, memory allocation, GenTask and runtime scheduling strategy, should not perceive other components' internal implementation details, nor should it couple other module logic through cross-component attribute writing.
 
 Design should strictly separate "split decision" and "execution implementation":
+
 - Graph split module responsible for node attribution, path closure, cluster merge and subgraph construction;
 - Engine selection, stream allocation, memory reuse, task distribution and other modules each responsible for split results;
 - If certain attributes or extension info need to be used both before and after split, must clearly define inheritance and passing rules, avoid boundary fuzziness and responsibility leakage.
@@ -48,6 +48,7 @@ Current dynamic graph split rules are:
 7. Split static graph subgraph operator count below threshold (threshold configurable through `ge.exec.static_model_ops_lower_limit`), needs to be cut to dynamic graph executor, does not affect whether whole graph goes dynamic graph split flow.
 
 On top of above rules, should also follow these constraints:
+
 - Dynamic path adsorption, small cluster degradation, no-tiling fallback behaviors, essentially belong to joint rules of execution semantic correctness and overall performance balance, not allowed to make isolated judgments only from local node attributes;
 - Not allowed to break dynamic chain continuity to preserve local static subgraphs;
 - Not allowed to incorrectly expand dynamic graph executor scope to reduce split count, causing unnecessary static capability degradation.
@@ -109,51 +110,55 @@ On top of above rules, should also follow these constraints:
    Graph split related requirements and defect fixes should first adopt equivalent modification, ensure original execution semantics, kernel execution paths and overall performance characteristics don't undergo unnecessary changes.
 
 2. **No Kernel Performance Degradation Principle**
-   If modification doesn't involve kernel itself, shouldn't downgrade original static execution path to dynamic execution path through split boundary changes, causing kernel-side extra scheduling, synchronization or data搬运 overhead.
+   If the modification does not involve the kernel itself, it should not downgrade the original static execution path to a dynamic execution path through split boundary changes, causing extra scheduling, synchronization, or data transfer overhead on the kernel side.
 
 3. **Avoid Execution Period Dynamic Memory Allocation Principle**
-   Graph execution module should尽量避免 dynamic memory allocation; graph split design should first complete decisions at compile time,不得 introduce random performance degradation through new runtime dynamic resource allocation.
+   The graph execution module should avoid dynamic memory allocation as much as possible; graph split design should complete decisions at compile time first, and must not introduce random performance degradation through new runtime dynamic resource allocation.
 
 4. **Reduce Fragmented Subgraphs Principle**
    Should avoid generating large amounts of too small static subgraphs or dynamic graph subgraphs. Small cluster downgrade, path adsorption etc. mechanisms fundamentally are to reduce subgraph fragmentation, reduce executor switches, reduce Host/Device roundtrips and synchronization overhead.
 
 5. **Hot Path Lightweight Principle**
-   Graph split related hot paths禁止 adding unnecessary logs, timestamp acquisition, repeated calculations and temporary object overhead; performance evaluation should cover split graph duration, subgraph count, cross-subgraph boundary count and subsequent execution chain overhead.
+   Graph split related hot paths must not add unnecessary logs, timestamp acquisition, repeated calculations, or temporary object overhead; performance evaluation should cover split graph duration, subgraph count, cross-subgraph boundary count, and subsequent execution chain overhead.
 
 ## 8. Typical Constraints and Implementation Requirements
 
-1. Graph split design and implementation should first遵守 module boundaries,不得 expand into "顺便 complete engine selection/stream allocation/resource scheduling" mixed modules.
+1. Graph split design and implementation should first comply with module boundaries, and must not expand into mixed modules that incidentally complete engine selection/stream allocation/resource scheduling.
 2. New rules must satisfy "rule interpretable, log observable, behavior verifiable, result reproducible".
-3. Any modification involving attribute writes, should verify write scope, write timing and before/after state through UT/ST,必要时 add graph split before/after attribute consistency validation.
+3. Any modification involving attribute writes should verify write scope, write timing, and before/after state through UT/ST, and add graph split before/after attribute consistency validation when necessary.
 4. Any modification involving boundary changes, should supplement whole graph scenario, mixed graph scenario, small cluster scenario, HostCpu scenario, dynamic path adsorption scenario and compatibility scenario validation.
 5. If modification will affect subsequent small engine split, stream allocation, memory reuse, RT2 dynamic flow, dump/prof etc. modules, must perform cross analysis and linkage validation, avoid locally correct, whole chain abnormal.
 
 ## 9. Graph Split Module Design Review Checklist
 
 #### 1. Module Boundary
-- [ ] Whether clearly this modification only acts on "graph split" boundary, doesn't扩散 to executor selection, stream allocation, memory allocation, GenTask, runtime scheduling.
+
+- [ ] Whether clearly this modification only acts on the "graph split" boundary, and does not spread to executor selection, stream allocation, memory allocation, GenTask, or runtime scheduling.
 - [ ] Whether clearly new logic belongs to "split graph decision" not "execution implementation".
 - [ ] Whether identified and explained affected adjacent modules: small engine split, stream allocation, memory reuse, RT2, dump/prof.
 - [ ] Whether defined new attributes or states' ownership and inheritance rules before and after split, before and after subgraph construction.
 
 #### 2. Rule Correctness
+
 - [ ] Whether new rules are explicit, interpretable, debuggable, avoid implicit judgments.
 - [ ] Whether explained rule hit input conditions, boundary conditions, exclusion conditions.
 - [ ] Whether explained whether this rule affects "whether whole graph enters dynamic graph split flow".
 - [ ] Whether explained whether this rule is "node-level to dynamic" or "path/cluster-level to dynamic".
-- [ ] Whether verified won't破坏 dynamic link continuity.
-- [ ] Whether verified won't错误 expand dynamic graph executor scope.
-- [ ] Whether verified won't错误 retain static nodes that should enter dynamic graph executor.
+- [ ] Whether verified it will not break dynamic link continuity.
+- [ ] Whether verified it will not erroneously expand the dynamic graph executor scope.
+- [ ] Whether verified it will not erroneously retain static nodes that should enter the dynamic graph executor.
 
 #### 3. Topology and Graph Structure Stability
+
 - [ ] Whether ensure topology dependency semantics unchanged before and after split.
 - [ ] Whether ensure cluster merge, downgrade, adsorption won't introduce cycles.
 - [ ] Whether ensure graph structure modification timing controlled during graph split.
 - [ ] Whether ensure all necessary graph modifications complete before subsequent memory reuse, multithreading phases.
 - [ ] Whether evaluated impact on topo sort, topo id, cluster sort stability.
-- [ ] Whether avoid relying on unstable container traversal order causing result漂移.
+- [ ] Whether avoiding relying on unstable container traversal order causing result drift.
 
 #### 4. Concurrency and Thread Safety
+
 - [ ] Whether clearly data structures this modification involves will be accessed by multithreading.
 - [ ] Whether avoid unconstrained writing OpDesc/Node attributes in multithreading semantic scenarios.
 - [ ] If introducing global cache, tables, registration info, whether explained thread safety model.
@@ -161,6 +166,7 @@ On top of above rules, should also follow these constraints:
 - [ ] Whether verified same graph multiple split results consistent under same inputs.
 
 #### 5. Debugging and Logging
+
 - [ ] Whether provided key logs at boundary change points.
 - [ ] Whether maintain `Mark node` etc. existing keywords stable.
 - [ ] Whether can distinguish specific trigger causes through logs:
@@ -173,10 +179,11 @@ On top of above rules, should also follow these constraints:
   - [ ] HostCpu engine
 - [ ] Whether logs avoid high-frequency printing.
 - [ ] Whether log content includes node name, type, reason, key attributes, before/after state.
-- [ ] Whether new rules or attributes同步补充 debug output or other observability means.
+- [ ] Whether new rules or attributes synchronously supplement debug output or other observability means.
 
 #### 6. Compatibility
-- [ ] Whether involves external option, environment variable, interface, data structure, log口径 changes.
+
+- [ ] Whether involves external option, environment variable, interface, data structure, or log specification changes.
 - [ ] If involves, whether completed review with clear conclusions.
 - [ ] Whether prioritize adopting "new rule/new switch/new attribute" rather than modifying old semantics.
 - [ ] Whether evaluated old graph, old configuration, historical scenario compatibility.
@@ -184,24 +191,27 @@ On top of above rules, should also follow these constraints:
 - [ ] Whether evaluated compatibility with scripts, debugging, production network troubleshooting methods.
 
 #### 7. Performance
-- [ ] Whether遵循 "prioritize equivalent modification".
-- [ ] Whether confirmed won't无故 downgrade original static path to dynamic path.
+
+- [ ] Whether following "prioritize equivalent modification".
+- [ ] Whether confirmed it will not downgrade the original static path to dynamic path without reason.
 - [ ] Whether confirmed won't introduce kernel performance degradation.
 - [ ] Whether avoid new execution period dynamic memory allocation.
-- [ ] Whether evaluated impact on subgraph count, cross-subgraph boundary count, sync/搬运次数.
+- [ ] Whether evaluated impact on subgraph count, cross-subgraph boundary count, sync/transfer count.
 - [ ] Whether evaluated impact on Host/Device roundtrips, scheduling overhead, executor switches.
 - [ ] Whether hot paths avoid new unnecessary logs, timestamps, repeated calculations, temporary objects.
 
 #### 8. Test Coverage
+
 - [ ] Whether having UT covering new rule hit scenarios.
 - [ ] Whether having UT covering rule miss scenarios.
 - [ ] Whether having UT covering boundary scenarios: mixed graph, path adsorption, small cluster, HostCpu, force_unknown, tiling depend, addr refresh.
 - [ ] Whether having ST covering linkage scenarios with small engine split, stream allocation, memory reuse, RT2, dump/prof.
 - [ ] Whether having before/after attribute consistency validation.
-- [ ] Whether having log keyword and debug口径 validation.
+- [ ] Whether having log keyword and debug specification validation.
 - [ ] Whether verified same graph repeated execution results stable.
 
 #### 9. Conclusion Items
+
 - [ ] Rule correct.
 - [ ] Boundary clear.
 - [ ] Concurrent safe.

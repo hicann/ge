@@ -149,11 +149,11 @@ The position of format inference in the GE compilation process:
 
 ```mermaid
 flowchart TD
-    A[图解析完成] --> B[InferOriginFormat<br>FormatRefiner]
+    A[Graph Parsing Complete] --> B[InferOriginFormat<br>FormatRefiner]
     B --> C[InferShape<br>ShapeRefiner]
     C --> D[PrepareRunningFormatRefiner<br>GraphPrepare]
-    D --> E[FE 格式选择与扩散]
-    E --> F[TransData 插入与优化]
+    D --> E[FE Format Selection and Propagation]
+    E --> F[TransData Insertion and Optimization]
 ```
 
 Key sequence: **Infer OriginFormat first, then do InferShape, finally handle StorageFormat**. This is because InferShape needs to execute in the correct OriginFormat context (Shape dimension meaning depends on Format), while StorageFormat selection occurs during the FE phase.
@@ -168,12 +168,12 @@ The inference uses an **anchor propagation** strategy:
 
 ```mermaid
 flowchart TD
-    A[扫描全图节点] --> B{所有输入输出<br>格式都是 ND？}
-    B -- 是 --> C[加入 anchor_data_nodes<br>待后续处理]
-    B -- 否 --> D[标记为 anchor_point<br>已携带格式语义]
-    D --> E[RefreshOriginFormatOfAnchor<br>将 format 刷新到 origin_format]
-    E --> F[从锚点向前/向后<br>扩散格式推导]
-    F --> G[DataNodeFormatProcess<br>为未推导的 Data 节点<br>设置全局格式]
+    A[Scan All Graph Nodes] --> B{Are All Input/Output<br>Formats ND?}
+    B -- Yes --> C[Add to anchor_data_nodes<br>For Later Processing]
+    B -- No --> D[Mark as anchor_point<br>Already Carries Format Semantics]
+    D --> E[RefreshOriginFormatOfAnchor<br>Refresh format to origin_format]
+    E --> F[Propagate Format Forward/Backward<br>From Anchor Points]
+    F --> G[DataNodeFormatProcess<br>Set Global Format for<br>Underived Data Nodes]
 ```
 
 Specific steps:
@@ -271,7 +271,7 @@ return td->GetFormat() != td->GetOriginFormat() ||
 In the compatibility InferShape in `runtime/v2/kernel/common_kernel_impl/infer_shape_compatible.cc`, there is a key format handling:
 
 ```
-// RT1时，算子的infershape只能拿到format字段，但是却需要用origin format
+// In RT1, operator infershape can only access the format field, but needs origin format
 input_desc->SetFormat(input_desc_in_context->GetOriginFormat());
 input_desc->SetOriginFormat(input_desc_in_context->GetOriginFormat());
 ```
@@ -282,10 +282,10 @@ In the `TransformOutputShape` function in `runtime/v2/kernel/common_kernel_impl/
 
 ```
 if (output_td->GetOriginFormat() == output_td->GetStorageFormat()) {
-    // 格式相同，无需转换
+    // Formats are the same, no conversion needed
     return GRAPH_SUCCESS;
 }
-// 格式不同，需要根据 StorageFormat 计算 StorageShape
+// Formats differ, need to calculate StorageShape based on StorageFormat
 TransferShape(origin_format, storage_format, data_type, storage_shape)
 ```
 
@@ -294,7 +294,7 @@ TransferShape(origin_format, storage_format, data_type, storage_shape)
 In `compiler/graph/manager/graph_manager.cc`, format-related phases execute in the following order:
 
 ```
-PrepareRunningFormatRefiner  ← StorageFormat 刷新
+PrepareRunningFormatRefiner  ← StorageFormat refresh
   → UpdateDataNetOutputByStorageFormat
   → VariablePrepareOpPass
   → UpdateInputOutputByOptions
@@ -304,7 +304,7 @@ PrepareRunningFormatRefiner  ← StorageFormat 刷新
 Before this, in GraphPrepare::GenerateInfershapeGraph:
 
 ```
-InferOriginFormat  ← OriginFormat 推导
+InferOriginFormat  ← OriginFormat inference
   → FormatRefiner::InferOrigineFormat
 ```
 
@@ -349,33 +349,33 @@ The following is the complete lifecycle of format information in a typical Conv2
 
 ```mermaid
 sequenceDiagram
-    participant Parser as 图解析
+    participant Parser as Graph Parser
     participant FR as FormatRefiner
     participant SR as ShapeRefiner
     participant GP as GraphPrepare
-    participant FE as 融合引擎
-    participant RT as 运行时
+    participant FE as Fusion Engine
+    participant RT as Runtime
 
-    Parser->>Parser: 解析模型，Data 节点格式=NCHW
+    Parser->>Parser: Parse model, Data node format=NCHW
     Note over Parser: format_=NCHW, origin_format_=ND
 
-    FR->>FR: 识别 Conv2D 为锚点
-    FR->>FR: 设置 Conv2D origin_format_=NCHW
-    FR->>FR: 向前传播 Data origin_format_=NCHW
-    FR->>FR: 向后传播 ReLU origin_format_=NCHW
-    Note over FR: origin_format_ 全部确定
+    FR->>FR: Identify Conv2D as anchor point
+    FR->>FR: Set Conv2D origin_format_=NCHW
+    FR->>FR: Propagate forward Data origin_format_=NCHW
+    FR->>FR: Propagate backward ReLU origin_format_=NCHW
+    Note over FR: origin_format_ all determined
 
-    SR->>SR: 基于 OriginFormat 推导 Shape
-    Note over SR: origin_shape_ 确定
+    SR->>SR: Infer Shape based on OriginFormat
+    Note over SR: origin_shape_ determined
 
-    GP->>GP: 消费 ATTR_NAME_STORAGE_FORMAT
-    GP->>GP: 刷新 Data/NetOutput 的 format_
+    GP->>GP: Consume ATTR_NAME_STORAGE_FORMAT
+    GP->>GP: Refresh Data/NetOutput format_
 
-    FE->>FE: 为 Conv2D 选择 NC1HWC0
-    FE->>FE: 设置 Conv2D format_=NC1HWC0
+    FE->>FE: Select NC1HWC0 for Conv2D
+    FE->>FE: Set Conv2D format_=NC1HWC0
     Note over FE: format_ ≠ origin_format_
 
-    FE->>RT: 插入 TransData (NCHW→NC1HWC0)
-    RT->>RT: 执行时按 StorageFormat 访问内存
-    RT->>RT: Dump 时按 OriginFormat 还原数据
+    FE->>RT: Insert TransData (NCHW→NC1HWC0)
+    RT->>RT: Access memory by StorageFormat during execution
+    RT->>RT: Restore data by OriginFormat during dump
 ```

@@ -20,16 +20,16 @@ The core logic of the GE Local feature concentrates in the compilation (compiler
 
 ```mermaid
 graph TB
-    subgraph "编译阶段 (compiler)"
-        GLE[GeLocalEngine<br/>引擎入口] --> GLOKS[GeLocalOpsKernelInfoStore<br/>算子信息注册]
-        GLE --> GLGO[GeLocalGraphOptimizer<br/>图优化器]
-        GLOKS --> OF[OpFactory<br/>算子工厂]
-        OF --> NoOp[NoOp<br/>空操作算子]
-        OF --> GDO[GeDeletedOp<br/>应删除算子]
-        GLOKB[GeLocalOpsKernelBuilder<br/>算子构建器] --> CalcParam[CalcOpRunningParam<br/>运行参数计算]
-        GLOKB --> GenTask[GenerateTask<br/>任务生成]
-        CalcParam --> CC[PhonyConcat/Split<br/>偏移量计算]
-        CalcParam --> Reuse[ReuseInput<br/>内存复用标记]
+    subgraph "Compilation Phase (compiler)"
+        GLE[GeLocalEngine<br/>Engine Entry] --> GLOKS[GeLocalOpsKernelInfoStore<br/>Operator Info Registry]
+        GLE --> GLGO[GeLocalGraphOptimizer<br/>Graph Optimizer]
+        GLOKS --> OF[OpFactory<br/>Operator Factory]
+        OF --> NoOp[NoOp<br/>No-Operation Operator]
+        OF --> GDO[GeDeletedOp<br/>Operator To Be Deleted]
+        GLOKB[GeLocalOpsKernelBuilder<br/>Operator Builder] --> CalcParam[CalcOpRunningParam<br/>Running Parameter Calculation]
+        GLOKB --> GenTask[GenerateTask<br/>Task Generation]
+        CalcParam --> CC[PhonyConcat/Split<br/>Offset Calculation]
+        CalcParam --> Reuse[ReuseInput<br/>Memory Reuse Marker]
     end
 
 ```

@@ -10,7 +10,7 @@ GE runtime simultaneously maintains v1 and v2 two execution architectures, this 
 
 ### 1.1 v1 Architecture: Static Shape Executor
 
-v1 is current production主力, undertakes static shape model loading and execution responsibilities. Its core directory structure is:
+v1 is the current production mainstay, undertaking static shape model loading and execution responsibilities. Its core directory structure is:
 
 ```
 runtime/v1/
@@ -54,7 +54,7 @@ runtime/v2/
 ### 1.3 v1 and v2 Architecture Differences
 
 | Dimension | v1 | v2 |
-|------|-----|-----|
+| ------ | ----- | ----- |
 | Core Abstraction | DavinciModel + TaskDef | ExecuteGraph + Node/Kernel |
 | Execution Model | rtModelExecute (Hardware Sink) | Host sequential/topological execution |
 | Applicable Scenarios | Static shape models (Sink mode) | Dynamic shape / single operator |
@@ -111,6 +111,7 @@ flowchart TD
 **Decoupling loading protocol and internal implementation**: Upper layer (Session, ACL) only needs to know "load a model", does not need to know ModelManager's existence.
 
 Key loading entries:
+
 - `LoadModelOnline`: Online mode, directly load from GeRootModel in memory
 - `LoadModelFromData`: Offline mode, load from serialized ModelData
 - `LoadModelWithQ`: Queue mode, bind input/output queues (for data flow scenarios)
@@ -127,6 +128,7 @@ hybrid_model_map_: map<uint32_t, shared_ptr<HybridDavinciModel>> # Dynamic shape
 Execution paths for two model types are completely different — DavinciModel goes through `rtModelExecute` (hardware Sink), HybridDavinciModel goes through Host-side subgraph scheduling. Separate storage allows each path to achieve zero-overhead abstraction.
 
 ModelManager responsibilities:
+
 - **AICPU Kernel Lifecycle Management**: Load/unload custom AICPU SO libraries
 - **Weight Sharing**: Through `weights_mem_ids_to_addr_info_` support multiple models sharing same weight memory
 - **Session Binding**: `sess_id_to_device_ids_` tracks Session and device mapping relationship
@@ -147,11 +149,13 @@ InitModelMem → InitIoNodes → TransAllVarData → InitNodes → DoTaskSink �
 **Stage One: InitModelMem** — Memory Mapping
 
 GE has three device memory types needing management:
+
 - **Feature Map Memory** (`mem_base_`): Operator input/output workspace, corresponds to compile-time calculated `runtime_param_.mem_size`
 - **Weight Memory** (`weights_mem_base_`): Model parameters (Constant, Variable initial values)
 - **Variable Memory** (`var_mem_base_`): Mutable parameters in training scenarios
 
 Memory sources have two types:
+
 1. GE self-allocates (`MallocFeatureMapMem` → `aclrtMalloc`)
 2. External provides (user sets through `SetFeatureMemoryBase`)
 
@@ -170,6 +174,7 @@ Zero-Copy eliminates additional copy of input/output data by directly writing us
 **Stage Three: InitNodes** — Operator Node Initialization
 
 Execute engine-specific initialization for each node:
+
 - TBE operators: Register Kernel Handle (`InitTbeHandle`)
 - HCCL operators: Collect communication stream information
 - LabelSet/StreamSwitch: Control flow hardware resource allocation
@@ -271,7 +276,7 @@ When using forbidden stream and timeout is set, will call `rtModelExecuteSync` i
 Run Loop Mode vs NnExecute Mode differences:
 
 | Dimension | Run Loop Mode | NnExecute Mode |
-|------|----------|-----------|
+| ------ | ---------- | ----------- |
 | Trigger Way | Independent thread loop, get data from queue | Caller thread active call |
 | Thread Model | Independent thread | Caller thread |
 | Data Copy | Pass through DataInputer queue | CopyModelData + CopyOutputData |
@@ -301,7 +306,7 @@ External API through different paths finally reaches `Run()` or `NnExecute()`:
 **Paths to `NnExecute()` entry**:
 
 | API | Call Chain | Description |
-|-----|--------|------|
+| ----- | -------- | ------ |
 | `aclmdlExecuteV2` | `GeExecutor::ExecModel` → `GraphLoader::ExecuteModel` → `ModelManager::ExecuteModel` → `NnExecute` | Sync execution, caller thread blocks waiting |
 | `aclmdlExecuteAsyncV2` | `GeExecutor::ExecModel(async_mode=true)` → `ModelManager::ExecuteModel` → `NnExecute(async_mode=true)` | Async execution |
 | `GeSession::RunGraph` | `GraphManager::RunGraph` → `ModelExecutor::RunGraph` → `GraphExecutor::ExecuteGraph` → `ModelManager::syncExecuteModel` → `NnExecute` | **Note**: Sync path actually goes NnExecute, not Run |
@@ -320,11 +325,13 @@ A notable design detail: **`GeSession::RunGraph` although name suggests "run gra
 `GraphExecutor` (`runtime/v1/graph/execute/graph_executor.cc`) and `ModelExecutor` (`runtime/v1/graph/execute/model_executor.cc`) constitute execution layer's dual-layer abstraction:
 
 **GraphExecutor** — Pure execution proxy:
+
 - All methods are static or const methods
 - Does not hold state, directly forwards to `ModelManager`
 - Responsibilities: Sync execution (`ExecuteGraph`), async execution (`ExecuteGraphAsync`), stream-level execution (`ExecuteGraphWithStream`)
 
 **ModelExecutor** — Session-level execution coordinator:
+
 - Inherits from `Executor` base class
 - Holds `GraphNode` registry (`graph_nodes_`)
 - Manages resource recycling (memory, stream, event)
@@ -347,7 +354,7 @@ ModelExecutor needs to handle "loading decision" — when resources are insuffic
 
 Same logic also applies to stream (`CheckAndReleaseStream`) and event (`CheckAndReleaseEvent`) resource recycling. This design ensures in device resource-limited situations, system still can run new models through "replace old with new" way.
 
-HCCL (Huawei Collective Communication Library) involves cross-device communication, unloading will破坏 communication topology integrity. This is an important constraint in distributed training scenarios.
+HCCL (Huawei Collective Communication Library) involves cross-device communication, and unloading will break communication topology integrity. This is an important constraint in distributed training scenarios.
 
 ---
 
@@ -395,16 +402,19 @@ Init Graph → Main Graph → DeInit Graph
 ```
 
 **Load Phase**:
+
 1. Load and execute Init Graph (memory allocation, stream allocation, constant initialization)
 2. Unload Init Graph
 3. Load Main Graph (do not execute, only prepare execution data)
 
 **Execute Phase**:
+
 1. Specify input/output Tensor
 2. Specify runtime parameters (stream, event, notify, memory allocator)
 3. Execute Main Graph
 
 **UnLoad Phase**:
+
 1. Unload Main Graph
 2. Load and execute DeInit Graph (resource cleanup)
 3. Unload DeInit Graph
@@ -428,10 +438,12 @@ KernelStatus SequentialExecute(void *arg) {
 ```
 
 **Reasons for Using C Implementation**:
+
 1. **No Runtime Overhead**: C language has no implicit overhead like exception handling, RTTI, virtual function table. This loop executes thousands of times per inference, every nanosecond counts.
 2. **Portability**: C code can directly execute on device side (AICORE's DSP), leaving space for future device-side scheduling.
 
 **`SequentialExecutionData`** structure is extremely minimalist:
+
 ```c
 typedef struct {
     size_t node_num;
@@ -463,7 +475,7 @@ This is consistent with Ascend Stream's design philosophy — Stream is ordered 
 
 ### 5.1 Why Need Hybrid?
 
-Static shape model's TaskSink path although efficient, but面对 dynamic shape (such as variable length sequence in NLP) is powerless — because different shapes correspond to different Task sequences and memory layouts.
+The static shape model's TaskSink path, although efficient, is powerless when facing dynamic shapes (such as variable-length sequences in NLP) — because different shapes correspond to different Task sequences and memory layouts.
 
 `HybridDavinciModel` (`runtime/v1/hybrid/hybrid_davinci_model.h`) is dynamic shape scenario's execution entry. Its existence is determined by `ModelManager::IsNeedHybridLoad` — when `GeRootModel` is marked as dynamic shape, goes Hybrid path.
 
@@ -507,7 +519,7 @@ Currently PyTorch mainly uses `aclnn` as single operator execution path, only op
 
 `SingleOp` (`runtime/v1/single_op/single_op.h`) and `DynamicSingleOp` provide operator-level execution capability:
 
-- **SingleOp**: Fixed shape single operator execution. Shape determined at initialization, subsequent execution无需重新编译.
+- **SingleOp**: Fixed shape single operator execution. Shape determined at initialization, subsequent execution requires no recompilation.
 - **DynamicSingleOp**: Dynamic shape single operator execution. Each execution may pass different shape.
 
 ---
@@ -541,9 +553,9 @@ Initialize() → AddGraph() → BuildGraph() / CompileGraph() → RunGraph() →
 
 **Key Design Decisions**:
 
-1. **Compilation and Execution Separation**: `BuildGraph` only compiles不加载, `RunGraph` will trigger first-time loading and execution. This lazy loading strategy avoids unnecessary device resource occupation.
+1. **Compilation and Execution Separation**: `BuildGraph` only compiles without loading, `RunGraph` will trigger first-time loading and execution. This lazy loading strategy avoids unnecessary device resource occupation.
 
-2. **External Memory Management**: `SetGraphConstMemoryBase` / `UpdateGraphFeatureMemoryBase` allow users to self-manage device memory, GE only负责constructing model on user-provided memory.
+2. **External Memory Management**: `SetGraphConstMemoryBase` / `UpdateGraphFeatureMemoryBase` allow users to self-manage device memory, GE is only responsible for constructing the model on user-provided memory.
 
 3. **ForkGraph** (`inner_session.h`): Supports fork a compiled graph, forked graph shares compilation product but can independently load and execute. This is key capability for multi-instance concurrent inference — avoiding repeated compilation.
 
@@ -572,21 +584,23 @@ GE divides device memory into multiple logical segments:
 ## 9. Multi-stream Parallelism
 
 GE's multi-stream parallelism algorithm based on graph's topology structure and engine type:
+
 1. Assign execution engine for each node
 2. Assign Stream for each node based on topology and engine
 3. Insert synchronization between different Streams to ensure execution timing
 
 Three parallel scenarios:
-- **Computation and Communication Parallel**: AllReduce and Convolution无依赖can并发
+
+- **Computation and Communication Parallel**: AllReduce and Convolution have no dependency and can run concurrently
 - **Different Engine Parallel**: AI Core and DVPP can simultaneously work
-- **Same Engine Internal Parallel**: When one operator cannot fully occupy engine, different topology sets can并发
+- **Same Engine Internal Parallel**: When one operator cannot fully occupy the engine, different topology sets can run concurrently
 
 ---
 
 ## 10. Runtime Design Characteristics
 
 | Dimension | GE Runtime v1 | GE Runtime v2 |
-|------|--------------|--------------|
+| ------ | -------------- | -------------- |
 | Execution Model | TaskSink + Host Scheduling | Host Sequential/Topological Execution |
 | Dynamic Shape | Hybrid Subgraph Scheduling (no longer evolving) | ExecuteGraph Node-level |
 | Memory Management | Segmented + Zero-Copy | Unified Allocator |
@@ -594,10 +608,11 @@ Three parallel scenarios:
 | Load/Execution Separation | Yes (Load + NnExecute) | Yes (Load + Execute) |
 
 **GE Runtime's Unique Features**:
+
 1. **TaskSink Mode**: Pre-load entire execution sequence to device, Host zero scheduling overhead. This is Ascend hardware's unique capability — device-side Task scheduler can autonomously execute pre-loaded Task sequence.
-2. **Dual-version Runtime**: v1 pursues极致static performance (Sink mode), v2 pursues flexibility and extensibility (Lowering + pure C executor).
-3. **Multi-engine Heterogeneous Execution**: AICore, AICPU, DVPP, HCCE, HostCPU etc. engines协同work in same runtime.
+2. **Dual-version Runtime**: v1 pursues ultimate static performance (Sink mode), v2 pursues flexibility and extensibility (Lowering + pure C executor).
+3. **Multi-engine Heterogeneous Execution**: AICore, AICPU, DVPP, HCCE, HostCPU and other engines work collaboratively in the same runtime.
 
 ---
 
-> Runtime system maps compiler-produced static execution plan to physical device, achieves extreme execution efficiency in Sink mode, but in dynamic shape scenarios still needs to承受 Host scheduling overhead — this naturally引出requirements for **task sequence optimization, stream parallel scheduling, memory reuse** etc. key optimization technologies.
+> The runtime system maps the compiler-produced static execution plan to the physical device, achieving extreme execution efficiency in Sink mode, but in dynamic shape scenarios still needs to bear Host scheduling overhead — this naturally leads to requirements for **task sequence optimization, stream parallel scheduling, memory reuse** and other key optimization technologies.

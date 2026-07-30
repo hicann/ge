@@ -70,7 +70,6 @@ To reduce maintenance costs, the interface adopts an automatic generation mechan
 
 ![](figures/esb_publish.svg)
 
-
 ## API/ABI Compatibility Design
 
 Forward and backward compatibility is a basic specification for external `API` of `CANN`. `esb` is positioned as a graph construction series `API`, so compatibility design is particularly important and considered as the primary factor.
@@ -188,8 +187,107 @@ Given the previously mentioned approach of using C++ overloading and inlining cu
 **Compatibility in Dynamic Library Scenario**:
 
 - **Cannot satisfy ABI compatibility**: If the C function signature changes (parameter count changes), user APP must be recompiled, otherwise it will cause runtime errors (coredump)
-- **Can only satisfy API compatibility**: Through C++ overloading, users can choose to use v1 or v2 version API, while **needing to rely on deprecated overload interface mechanism**: through `[[deprecated]]`
-### IR Semantic Compatibility Processing
+- **Can only satisfy API compatibility**: Through C++ overloading, users can choose to use v1 or v2 version API, while **needing to rely on deprecated overload interface mechanism**: through `[[deprecated]]
+` attribute-decorated overload interfaces, guiding users to choose graph construction interfaces that are more favorable for forward compatibility, avoiding misuse that leads to forward compatibility issues
+
+**Compatibility in Static Library Scenario**:
+
+- **Can satisfy ABI compatibility**: APP has already linked the corresponding version C function implementation, parameters match, no parameter mismatch issue
+- **Can satisfy API compatibility**: Through C++ overloading, users can choose to use v1 or v2 version API, while **needing to rely on deprecated overload interface mechanism**: through `[[deprecated]]
+` attribute-decorated overload interfaces, guiding users to choose graph construction interfaces that are more favorable for forward compatibility, avoiding misuse that leads to forward compatibility issues
+- **Depends on [IR Semantic Runtime Compatibility Processing](#ir-semantic-compatibility-design)**: Even if IR definition has changed, correctness can be guaranteed through IR semantic runtime compatibility processing
+
+Therefore, users can combine actual situations in their own code projects to link ES API dynamic library or static library
+
+#### Special Scenario Discussion: Compatibility Loss Due to Misuse of Overloaded Interfaces
+
+Each `C++` overloaded version API is bound to a specific version `IR` definition. When users use inappropriate overload forms, even if actual functionality is not used, it may break forward compatibility due to signature changes.
+
+Taking the above `Foo` interface as example, assume in `V2` version optional input `xo2` was introduced. Although user does not use this input, they still wrote the following call:
+
+```C++
+auto foo = Foo(x, nullptr, nullptr /* xo2 */);
+```
+
+At this point if runtime environment falls back to `V1` version and attempts recompilation, although `xo2` is actually `nullptr`, it will still cause compilation error because the overload signature no longer exists, causing forward compatibility failure.
+
+To avoid this type of misuse as much as possible, introduce fool-proof mechanism in overload design, through `std::nullptr_t` parameter combined with `[[deprecated]]` marker, provide compile-time hints for typical incorrect calls:
+
+```C++
+namespace es {
+[[deprecated("Passing nullptr as xo2 may break forward compatibility. "
+  "Use this version instead: "
+  "Foo(const Tensor *x, const Tensor *xo1, int64_t a=0, int64_t b=0). "
+  "See http://xxxx for more info.")]]
+FORCE_INLINE Tensor* Foo(const Tensor* x, const Tensor* xo1, std::nullptr_t xo2,
+int64_t a = 0, int64_t b = 0);
+}
+```
+
+This mechanism can effectively catch cases of directly passing `nullptr`, but cannot trigger warnings for the following forms:
+
+```c++
+Tensor* xo2 = nullptr;
+auto foo = Foo(x, nullptr, xo2);  // Cannot detect
+```
+
+Therefore, although API design has tried to prevent misuse, it is still recommended to clearly remind users in development documentation and usage instructions: **Avoid using overloaded interfaces beyond the target deployment environment, especially when corresponding IR capabilities are not enabled.**
+
+Note 1: Type names etc. in above pseudocode may vary, refer to actual code;
+
+Note 2: C++ overload mechanism design is documented separately, refer to [es_cxx_compatibility_design.md](es_cxx_compatibility_design.md)
+
+### `Python` Language `API` Compatibility
+
+`Python` as a dynamic language does not involve compile-time symbol linking, therefore does not need to consider `ABI` compatibility issues. Compared to `C++`, although `Python` does not support function overloading, its good support for keyword arguments makes it very suitable for expressing optional attributes and optional inputs.
+
+This design continues the interface style from `torchair`: using positional parameters to represent inputs, keyword parameters to represent attributes. This approach can clearly distinguish inputs from attributes, and is convenient for extension and compatibility.
+
+The following `IR` example defines a required input, an optional input, a required attribute and an optional attribute:
+
+```C++
+// IR definition
+REG_OP(Foo)
+  .INPUT(xr)
+  .OPTIONAL_INPUT(xo)       // Optional input xo
+  .REQUIRED_ATTR(a, Int)    // Required attribute, no default value
+  .ATTR(b, Int, 0)          // Optional attribute, default value 0
+```
+
+Its `Python API`:
+
+```Python
+def Foo(xr: Tensor, xo: Optional[Tensor] = None, *, a: int, b: int = 0):
+    """
+- `xr` is required input
+- `xo` expresses optional input through optional positional parameter
+- `a` is required attribute, must be passed as keyword
+- `b` is optional attribute, uses keyword parameter with default value specified
+"""
+```
+
+In the next version, add optional input `xo1`, optional attribute `c`, then `API` becomes:
+
+```Python
+def Foo(xr: Tensor, xo: Optional[Tensor] = None, xo1: Optional[Tensor] = None,
+        *, a: int, b: int = 0, c: int = 0):
+```
+
+Note: Type names etc. in above pseudocode may vary, refer to actual code
+
+## `IR` Semantic Compatibility Design
+
+When user completes graph construction based on version `A` `IR` definition, if compiling in version `B` environment, and `A` and `B` use different operator definitions, `GE` will attempt to restore and understand graph construction intent, and adapt the graph to conform to version `B` `IR` specification. This process is the `IR` semantic compatibility processing flow.
+
+`IR` semantic compatibility only applies to scenarios using `C/C++` graph construction with **static linking**. In this mode, graph construction `lib` (`libesb`) is embedded into APP binary at compile time, therefore runtime may encounter situations where graph construction version differs from runtime environment, requiring adaptation through `GE` semantic compatibility mechanism.
+
+In scenarios using `Python API` for graph construction, since there is no linking process, graph construction operations are always dynamically initiated at runtime, and graph construction behavior directly depends on `IR` definitions in the runtime environment. Therefore, graph construction version and runtime version naturally remain consistent, and there is no semantic compatibility processing.
+
+At runtime, the call relationships of three graph construction methods are shown in the following figure:
+
+![](figures/api_diff_c_and_python.svg)
+
+### `IR` Semantic Compatibility Processing
 
 Currently supported IR compatibility changes include:
 
@@ -220,13 +318,13 @@ The following table shows processing logic for node attributes and inputs when d
 
 **Notes on Compatibility Direction Judgment**
 
-From the above processing rules we can see that **semantic compatibility judgment only depends on two versions' IR definition structural difference** and can be completed, no need to感知 specific version number, also no need to explicitly distinguish "forward" or "backward" compatibility.
+From the above processing rules we can see that **semantic compatibility judgment only depends on two versions' IR definition structural difference** and can be completed, no need to perceive specific version number, also no need to explicitly distinguish "forward" or "backward" compatibility.
 
 But for robustness consideration, still should do compatibility consistency validation in following scenarios: If direct graph IR compared to compatible graph IR simultaneously has new attributes or inputs, and also missing some attributes or inputs, then it indicates IR has undergone incompatible modification, graph version cannot be directly adapted, semantic compatibility should terminate and return error.
 
 ## API Style Design
 
-The entire graph construction process分为 four steps:
+The entire graph construction process is divided into four steps:
 
 1. **Create graph builder (`EsGraphBuilder`)**
    Initialize graph builder instance, used to provide context required for graph construction, workspace and construction related methods
@@ -235,14 +333,14 @@ The entire graph construction process分为 four steps:
 3. **Add intermediate nodes**
    Intermediate nodes are computation nodes with input dependencies, usually generated by user graph construction logic, and connected through existing nodes as inputs
 4. **Set graph outputs**
-   Specify graph output nodes as终点 of computation results
+   Specify graph output nodes as endpoints of computation results
 
 During graph construction process, involves two main objects:
 
-- **`Graph`**: represents最终 constructed static computation graph, is target product of graph construction
+- **`Graph`**: represents the final constructed static computation graph, is the target product of graph construction
 - **`EsGraphBuilder`**: graph construction helper class, provides node addition, connection, attribute setting and other methods, and records intermediate state of graph construction process
 
-`EsGraphBuilder` only exists during graph construction phase, used to carry intermediate construction information, is object directly manipulated when APP constructs graph. After graph construction completes, its internal state is封装为 `Graph` instance returned, `EsGraphBuilder` itself and its related resources are released.
+`EsGraphBuilder` only exists during graph construction phase, used to carry intermediate construction information, is the object directly manipulated when APP constructs graph. After graph construction completes, its internal state is encapsulated as a `Graph` instance and returned, `EsGraphBuilder` itself and its related resources are released.
 
 ### IR to API Mapping Relationship
 
@@ -288,7 +386,6 @@ To improve multi-language user experience, `es` provides following aggregate int
 - `es_all_ops_c.h`: contains all C encapsulated operator APIs
 - `es_all` Python package: Automatically aggregate all generated `.py` modules, providing unified import path and usage interface.
 
-
 ### C API Style Design
 
 The following example shows using `C` interface to construct a "two inputs sum" computation graph:
@@ -318,17 +415,17 @@ EsDestroyGraphBuilder(builder);
 >
 > **Resource Management Notes**
 >
-> - During graph construction, all intermediate resources created through `es` interface (如 `EsCTensorHolder*` type's `data0`, `add` etc.) are uniformly managed by `EsCGraphBuilder`, their lifecycle consistent with `builder`. After calling `EsDestroyGraphBuilder()`, these resources will be released together with `builder`.
+> - During graph construction, all intermediate resources created through `es` interface (such as `EsCTensorHolder*` type's `data0`, `add` and so on) are uniformly managed by `EsCGraphBuilder`, their lifecycle consistent with `builder`. After calling `EsDestroyGraphBuilder()`, these resources will be released together with `builder`.
 > - User only needs to manage two objects' lifecycle: `EsCGraphBuilder*` and finally generated `EsCGraph*`.
 
 > [!Note]
 >
 > **Type Encapsulation Notes**
-> To ensure interface compatibility and encapsulation, `es` returned object types (如 `EsCGraphBuilder`, `EsCTensorHolder`) remain opaque on user side. They are exposed through `extern struct xxx;` declaration方式, only providing incomplete type definition, application side cannot access their internal structure, only can operate through `es` provided interfaces.
+> To ensure interface compatibility and encapsulation, `es` returned object types (such as `EsCGraphBuilder`, `EsCTensorHolder`) remain opaque on user side. They are exposed through `extern struct xxx;` declaration approach, only providing incomplete type definition, application side cannot access their internal structure, only can operate through `es` provided interfaces.
 
 #### Attributes
 
-ES graph construction will map IR operator's attributes, C interface attribute type mapping relationship为:
+ES graph construction will map IR operator's attributes, C interface attribute type mapping relationship is:
 
 | Operator Attribute Type | IR Attribute Type | C Interface Attribute Type |
 | --------- | ------------- | --------------- |
@@ -347,7 +444,7 @@ ES graph construction will map IR operator's attributes, C interface attribute t
 
 ##### Generated Code Example
 
-Has operator `Foo`, contains one input `x`, one `Int` type attribute `a1`, and one `ListListInt` type attribute `a2`如下:
+Has operator `Foo`, contains one input `x`, one `Int` type attribute `a1`, and one `ListListInt` type attribute `a2` as follows:
 
 ```C++
 REG_OP(Foo)
@@ -357,7 +454,7 @@ REG_OP(Foo)
     .ATTR(a2, ListListInt, {{}, {}});
 ```
 
-Convert为 `C API`为:
+Converted to `C API`:
 
 ```c
 EsCTensorHolder Foo(EsCTensorHolder *x,
@@ -369,7 +466,7 @@ EsCTensorHolder Foo(EsCTensorHolder *x,
 
 #### Optional Input and Optional Attribute
 
-Since `C` language doesn't support default parameter mechanism, generated `C API`中 **optional input and ordinary input无差别**, **optional attribute won't retain default value information**.
+Since `C` language doesn't support default parameter mechanism, in generated `C API` **optional input and ordinary input have no difference**, **optional attribute won't retain default value information**.
 
 For example, following `IR` definition contains one optional input `x2` and one optional attribute `a2`:
 
@@ -382,7 +479,7 @@ REG_OP(Foo)
   .ATTR(a2, Float, 10);
 ```
 
-Corresponding generated `C API`为:
+Corresponding generated `C API` is:
 
 ```C
 EsCTensorHolder *EsFoo(EsCTensorHolder *x1, EsCTensorHolder *x2, int64_t a1, float a2);
@@ -390,23 +487,23 @@ EsCTensorHolder *EsFoo(EsCTensorHolder *x1, EsCTensorHolder *x2, int64_t a1, flo
 
 In this interface:
 
-- Optional input `x2` allows passing `nullptr`表示 not used
+- Optional input `x2` allows passing `nullptr` to indicate not used
 - Optional attribute `a2` must be explicitly passed by caller, interface itself doesn't retain default value
-- If passed `a2` value matches `IR` definition's default value, then视为该 attribute not configured
+- If passed `a2` value matches `IR` definition's default value, then this attribute is considered not configured
 
 Optional input's unused, optional attribute's unconfigured status, will be used for subsequent semantic compatibility flow.
 
 #### Control Input
 
-Control input用于 express control relationship between nodes, characteristics是
+Control input is used to express control relationship between nodes, characteristics are:
 
-1. Won't manifest到 `IR` definition's input中
+1. Won't manifest in `IR` definition's input
 2. Any operator allows adding N control inputs to it (`N >= 0`)
-3. Under guaranteeing graph construction legality (directed acyclic graph)前提, any node can作为其他 arbitrary node's control input and control output
+3. Under the premise of guaranteeing graph construction legality (directed acyclic graph), any node can serve as any other node's control input and control output
 
-Because we adopt策略是: provide C and C++ interfaces for configuring control input.
+Because the strategy we adopt is: provide C and C++ interfaces for configuring control input.
 
-`C` interface uses operator returned `EsCTensorHolder` and control input's `EsCTensorHolder **` form all nodes and corresponding node count作为 input parameters, specific interface如下:
+`C` interface uses operator returned `EsCTensorHolder` and control input's `EsCTensorHolder **` form all nodes and corresponding node count as input parameters, specific interface is as follows:
 
 ```c
 /**
@@ -414,7 +511,7 @@ Because we adopt策略是: provide C and C++ interfaces for configuring control 
  * @param dest_ctrl_tensor Control edge connection object
  * @param src_ctrl_tensors Control edge input
  * @param ctrl_tensors_num Control edge count
- * @return Success为0, other failure
+ * @return Success returns 0, others indicate failure
  */
 uint32_t EsAddControlEdge(EsCTensorHolder *dest_ctrl_tensor,
                           EsCTensorHolder **src_ctrl_tensors,
@@ -432,7 +529,7 @@ REG_OP(Foo)
   .OUTPUT(y2);
 ```
 
-Corresponding `C` interface为:
+Corresponding `C` interface is:
 
 ```C
 typedef struct {
@@ -443,18 +540,18 @@ typedef struct {
 FooOutput EsFoo(EsCTensorHolder *x);
 ```
 
-This struct用于 represent `Foo` operator's multiple outputs, struct member names与 `REG_OP`中 output names保持一致, facilitating semantic correspondence and automatic generation.
+This struct is used to represent `Foo` operator's multiple outputs, struct member names are consistent with output names in `REG_OP`, facilitating semantic correspondence and automatic generation.
 
 > [!Note]
 >
 > **Resource Management Notes**
-> Consistent with `C API`'s overall resource management strategy, `EsFoo` returned struct internal members are managed by `EsCGraphBuilder`, caller无需手动释放,即 `EsCTensorHolder*` pointed resources将在 `EsCGraphBuilder` destroy时一并释放.
+> Consistent with `C API`'s overall resource management strategy, `EsFoo` returned struct internal members are managed by `EsCGraphBuilder`, caller does not need to manually release them, that is `EsCTensorHolder*` pointed resources will be released together when `EsCGraphBuilder` is destroyed.
 
 #### Dynamic Input and Dynamic Output
 
-Dynamic input表示 can pass `1`到 `n` inputs when graph construction; dynamic output表示 will generate `1`到 `n` outputs when graph construction.
+Dynamic input means can pass `1` to `n` inputs when graph construction; dynamic output means will generate `1` to `n` outputs when graph construction.
 
-In `C API`, dynamic input and output are expressed through secondary pointer (`EsCTensorHolder**`), and配合 `int64_t` type count parameter说明 element count. For example, `IdentityN` operator accepts one到 multiple inputs and outputs, and copies each input到 corresponding output, then its `IR` definition为:
+In `C API`, dynamic input and output are expressed through secondary pointer (`EsCTensorHolder**`), combined with `int64_t` type count parameter to indicate element count. For example, `IdentityN` operator accepts one to multiple inputs and outputs, and copies each input to corresponding output, then its `IR` definition is:
 
 ```C++
 REG_OP(IdentityN)
@@ -462,7 +559,7 @@ REG_OP(IdentityN)
   .DYNAMIC_OUTPUT(y);
 ```
 
-Corresponding `C` interface prototype为:
+Corresponding `C` interface prototype is:
 
 ```c
 typedef struct {
@@ -478,13 +575,13 @@ IdentityNOutput EsIdentityN(EsCTensorHolder ** x,  // Dynamic input x
 > [!Note]
 >
 > **Resource Management Notes**
-> Consistent with `C API`'s overall resource management strategy, returned `IdentityNOutput` struct其 internal `EsCTensorHolder** y` member is managed by `EsCGraphBuilder`,无需 user manually release, they将在 `EsCGraphBuilder` destroy时一并释放.
+> Consistent with `C API`'s overall resource management strategy, returned `IdentityNOutput` struct's internal `EsCTensorHolder** y` member is managed by `EsCGraphBuilder`, user does not need to manually release them, they will be released together when `EsCGraphBuilder` is destroyed.
 >
-> Input parameter `x` pointed pointer array is managed by caller, need自行 apply and release.
+> Input parameter `x` pointed pointer array is managed by caller, caller needs to allocate and release it.
 
 ##### Dynamic Output Count
 
-Dynamic output's actual count由 graph construction API derived according to operator semantics. API implementation needs to understand operator's semantic logic, to determine should produce how many outputs.
+Dynamic output's actual count is derived by graph construction API according to operator semantics. API implementation needs to understand operator's semantic logic, to determine should produce how many outputs.
 
 Taking above `IdentityN` as example, its output count equals input count; while `SplitD` according to attribute `num_split` value, splits input, generating multiple outputs:
 
@@ -496,13 +593,13 @@ REG_OP(SplitD)
   .REQUIRED_ATTR(num_split, Int);
 ```
 
-However, currently `IR` definition doesn't explicitly describe "input/attribute → dynamic output count" mapping relationship, causing graph construction API difficult to automatically derive output count,进而 cannot correctly generate outputs.
+However, currently `IR` definition doesn't explicitly describe "input/attribute → dynamic output count" mapping relationship, causing graph construction API difficult to automatically derive output count, and thus cannot correctly generate outputs.
 
 To solve this problem, `es` provides two mechanisms:
 
 **① Manually Specify Output Count (Default Approach)**
 
-User通过 explicitly passing parameters,告知 API该 operator should produce how many outputs. For example:
+User informs the API how many outputs the operator should produce through explicitly passing parameters. For example:
 
 ```c
 typedef struct {
@@ -517,7 +614,7 @@ IdentityNOutput EsIdentityN(EsCTensorHolder ** x,  // Dynamic input x
 
 **② Register Output Count Derivation Function (Optimization Plan)**
 
-To improve usability, `es` supports registering dynamic output count derivation logic for each operator. When generating API will embed该 logic,从而 automatically determine output count, user无需 explicitly pass parameters.
+To improve usability, `es` supports registering dynamic output count derivation logic for each operator. When generating API, this logic will be embedded, thereby automatically determining output count, user does not need to explicitly pass parameters.
 
 For example, register a simple derivation rule for `IdentityN`:
 
@@ -526,6 +623,7 @@ For example, register a simple derivation rule for `IdentityN`:
 REG_FOR_ESB(IdentityN)
   .DynamicOutputNum("y", "x_num"); // Derivation code, expressing dynamic output y's count can be obtained from "x_num" expression
 ```
+
 ```C++
 // Header file definition
 typedef struct {
@@ -533,6 +631,7 @@ typedef struct {
   int64_t y_num;
 } IdentityNOutput;
 ```
+
 ```C++
 // Implementation pseudocode
 IdentityNOutput IdentityN(EsCTensorHolder ** x, int64_t x_num) {
@@ -540,11 +639,11 @@ IdentityNOutput IdentityN(EsCTensorHolder ** x, int64_t x_num) {
   return IdentityN(x, x_num, y_num); // Use derived y_num, call approach 1 interface
 ```
 
-Registered approach currently受限 by component coordination暂时无法实现, currently use explicitly specified approach 1, or [custom es implementation](../../../../../../examples/custom_es_api/README_en.md).
+Registered approach is currently limited by component coordination and cannot be implemented yet, currently use explicitly specified approach 1, or [custom es implementation](../../../../../../examples/custom_es_api/README_en.md).
 
 ##### Dynamic Output and Non-dynamic Output Mixed Case
 
-Some operators may simultaneously contain multiple dynamic outputs and non-dynamic outputs,如:
+Some operators may simultaneously contain multiple dynamic outputs and non-dynamic outputs, for example:
 
 ```c
 REG_OP(CTCBeamSearchDecoder)
@@ -564,39 +663,39 @@ Its return value structure has following two considerations:
 
 1. Multi-layer `struct` structure
 
-```c
-typedef struct {
-  struct {
-    EsCTensorHolder **decoded_indices,
-    int64_t decoded_indices_num,
-  } es_decoded_indices_output;
-  struct {
-    EsCTensorHolder **decoded_values,
-    int64_t decoded_values_num,
-  } es_decoded_values_output;
-  struct {
-    EsCTensorHolder **decoded_shape,
-    int64_t decoded_shape_num,
-  } es_decoded_shape_output;
-  EsCTensorHolder *log_probability,
-} EsCTCBeamSearchDecoderOutput;
-```
+  ```c
+  typedef struct {
+   struct {
+      EsCTensorHolder **decoded_indices,
+      int64_t decoded_indices_num,
+    } es_decoded_indices_output;
+    struct {
+      EsCTensorHolder **decoded_values,
+      int64_t decoded_values_num,
+   } es_decoded_values_output;
+    struct {
+      EsCTensorHolder **decoded_shape,
+      int64_t decoded_shape_num,
+    } es_decoded_shape_output;
+    EsCTensorHolder *log_probability,
+  } EsCTCBeamSearchDecoderOutput;
+  ```
 
 2. **Non-multi-layer case (currently adopted strategy)**
 
-```c
-typedef struct {
-  EsCTensorHolder **decoded_indices,
-  int64_t decoded_indices_num,
-  EsCTensorHolder **decoded_values
-  int64_t decoded_values_num,
-  EsCTensorHolder **decoded_shape,
-  int64_t decoded_shape_num,
-  EsCTensorHolder *log_probability,
-} EsCTCBeamSearchDecoderOutput;
-```
+  ```c
+  typedef struct {
+   EsCTensorHolder **decoded_indices,
+    int64_t decoded_indices_num,
+    EsCTensorHolder **decoded_values
+   int64_t decoded_values_num,
+   EsCTensorHolder **decoded_shape,
+   int64_t decoded_shape_num,
+   EsCTensorHolder *log_probability,
+  } EsCTCBeamSearchDecoderOutput;
+  ```
 
-To reduce `struct` count improve code readability,同时 make interface output parameters more intuitive, currently adopt **second non-multi-layer approach**
+To reduce `struct` count and improve code readability, and make interface output parameters more intuitive, currently adopt **second non-multi-layer approach**
 
 ```c
 
@@ -627,6 +726,106 @@ EsCTCBeamSearchDecoderOutput EsCTCBeamSearchDecoder(
     bool merge_repeated);
 }
 ```
+
+#### Redundant Attributes
+
+Due to historical reasons, some attributes defined in `IR` are redundant. For example, in the `ConcatD` operator, attribute `N` represents the count of input `x`:
+
+```C++
+REG_OP(ConcatD)
+  .DYNAMIC_INPUT(x)
+  .OUTPUT(y)
+  .REQUIRED_ATTR(concat_dim, Int)
+  .ATTR(N, Int, 1);
+```
+
+The API generated according to default mapping rules appears redundant:
+
+```C
+EsCTensorHolder *EsConcatD(EsCTensorHolder ** x, int64_t x_num, int64_t concat_dim, int64_t N);
+```
+
+The optimization approach is to register attribute `N` as an inferable attribute, allowing it to be automatically inferred from `x_num`. Register the inference logic through the following statement:
+
+```C++
+REG_FOR_ESB(ConcatD)
+.InferableAttr("N", "x_num"); // Register inference code, considering attribute N as "inferable", inference logic is equal to x_num
+```
+
+This mechanism is similar to the dynamic output count inference logic. The generated inference version API will be prioritized, with prototype and logic as follows:
+
+```c
+EsCTensorHolder *EsConcatD(EsCTensorHolder ** x, int64_t x_num, int64_t concat_dim) {
+  int64_t N = x_num;  // Infer N according to registered logic
+  return EsConcatD(x, x_num, concat_dim, N); // Call default implementation
+}
+```
+
+The registered approach currently cannot be implemented due to inter-component coordination limitations. You can use [custom ES implementation](../../../../../../examples/custom_es_api/README.md).
+
+#### Control Subgraph
+
+Some operators contain subgraphs as input parameters. Taking `Case` operator as an example, the prototype is as follows:
+
+```c
+REG_OP(Case)
+  .INPUT(branch_index, DT_INT32)
+  .DYNAMIC_INPUT(input, TensorType::ALL())
+  .DYNAMIC_OUTPUT(output, TensorType::ALL())
+  .DYNAMIC_GRAPH(branches)
+  .OP_END_FACTORY_REG(Case)
+```
+
+Its semantics can be equivalent to:
+
+```c
+// Implementation pseudocode
+switch (branch_index) {
+  case 0:
+    output = branches[0](input);
+    break;
+  case 1:
+    output = branches[1](input);
+    break;
+  case 2:
+    output = branches[2](input);
+    break;
+    // ...
+  return output;
+}
+```
+
+For dynamic input `input` and dynamic output `output` count, the previous design is followed (refer to `Dynamic Input and Dynamic Output` section).
+
+Subgraphs are expressed through double pointer (`ge::Graph **branches`) combined with `branches_num` count parameter to indicate element count.
+
+For C interface, considering C language characteristics, function signature uses `EsCGraph **` opaque pointer expression, then performs type casting inside the function.
+
+The generated header file and interface are as follows:
+
+```c
+// Header file definition
+typedef struct {
+  EsCTensorHolder **output;
+  int64_t output_num;
+} EsCaseOutput;
+EsCaseOutput EsCase(EsCTensorHolder *branch_index, EsCTensorHolder **input, int64_t input_num,
+                    int64_t output_num, EsCGraph **branches, int64_t branches_num);
+```
+
+> [!Note]
+>
+> **Resource Management Notes**
+>
+> Consistent with the overall `C API` resource management strategy, the `EsCTensorHolder** output` member inside the returned `EsCaseOutput` structure is managed by `EsCGraphBuilder`, no manual release is needed by users, they will be released together when `EsCGraphBuilder` is destroyed.
+>
+> After subgraph input parameter `branches` is created and passed to the interface, its lifecycle will be transferred to the corresponding `EsCGraphBuilder` inside the function and managed uniformly, users should not operate on the subgraph after passing it.
+>
+> The pointer array pointed to by input parameter `input` is managed by the caller, requiring manual allocation and release.
+>
+> **Input/Output Count Description**
+>
+> See appendix [Subgraph Internal and External Index Mapping Relationship Expression](#subgraph-internal-and-external-index-mapping-relationship-expression) section
 
 #### `Tensor` Attribute Syntax
 
@@ -668,6 +867,7 @@ EsCTensor *EsCreateEsCTensorFromFile(const char *data_file_path,
 These two interfaces generate an `EsCTensor *` anonymous pointer pointing to `ge::Tensor *`, which is subsequently used as a `Tensor` type attribute passed to the corresponding operator's graph construction function.
 
 Parameter descriptions are as follows:
+
 - **`data` / `data_file_path`**: Source of constant data. The former indicates data is already loaded into memory, the latter is a data file path from which content will be read.
 - **`dim` + `dim_num`**: Specifies the shape of the constant `Tensor`.
 - **`data_type`**: Data type, uses `C_DataType` enum, definition consistent with `ge::DataType`.
@@ -718,6 +918,7 @@ EsCTensorHolder *EsCreateConstFloat(EsCGraphBuilder *graph,
 ```
 
 Parameter descriptions are as follows:
+
 - **`graph`**: The `Graph` to which the operator belongs.
 - **`value`**: Source of constant data.
 - **`dims` + `dim_num`**: Specifies the shape of the constant `Tensor`.
@@ -863,7 +1064,7 @@ namespace es {
 
 The advantage is function parameter order is consistent with IR order, the disadvantage is user must pass value 10 or other for a1.
 
-2. Reorder parameters, placing optional ones at the end. The corresponding C++ interface is:
+1. Reorder parameters, placing optional ones at the end. The corresponding C++ interface is:
 
 ```C++
 namespace es {
@@ -998,6 +1199,7 @@ EsTensorLike(const std::nullptr_t);
 
 1. C++ vectors don't support implicit type conversion, so dynamic input parameters don't support passing numeric types
 2. Operators meeting any of the following conditions support numeric input:
+
 - Input count exceeds one, and not all are dynamic inputs (when passing parameters, at least one `EsTensorHolder` type input parameter must be included to resolve graph builder)
 - All inputs are optional parameters (in this scenario, API provides optional `owner_builder` parameter for explicitly passing `EsGraphBuilder*`. When passing parameters, at least one `EsTensorHolder` type input parameter must be included, or pass `owner_builder`)
 
@@ -1030,24 +1232,24 @@ Similar to `C++`, `Python API` utilizes language features to improve usability. 
 
 #### `Python API` Prototype Rules
 
-`Python API` follows the overall `IR` to `API` mapping relationship, maintaining input parameter order consistent with `IR` definition. It also utilizes Python's placeholder arguments, keyword arguments, and default value capabilities to fully support optional inputs and optional attributes. Examples are already provided in the `Python API` compatibility section, so this section won't elaborate further.
+`Python API` follows the overall `IR` to `API` mapping relationship, maintaining input parameter order consistent with `IR` definition. It also utilizes `Python` placeholder parameters, keyword arguments, and default value capabilities to fully support optional inputs and optional attributes. Examples are already provided in the `Python API` compatibility section, so this section won't elaborate further.
 
 #### Multiple Outputs
 
-Custom output expression class, each element in the class can be `Tensor` or `list[Tensor]` type, representing normal output and dynamic output respectively.
+Custom output expression class, each element in the class can be `Tensor` or `list[Tensor]` type, representing normal output and dynamic output respectively
 
 #### Control Input
 
 There are two approaches to choose from:
 
-1. Pass through keyword argument `dependencies=[]`, default is empty, as shown below:
+1. Pass `dependencies=[]` through keyword argument, default is empty, as shown below
 
 ```Python
 def Foo(xr: Tensor, xo: Optional[Tensor] = None, xo1: Optional[Tensor] = None,
         *, a: int, b: int = 0, c: int = 0, dependencies: List[Tensor] = []):
 ```
 
-2. Implement through separate control API:
+1. Implement through separate control API
 
 ```python
 f0 = Foo()
@@ -1060,10 +1262,10 @@ f2.control_dependencies([f0, f1])
 
 We adopt approach 2 for implementation, for the following reasons:
 
-- Approach 1 is the style currently used by torchair. This is done because torchair has a design philosophy of "prevention over usability", therefore introducing a principle that all graph construction operations should be completed entirely through IR's API. This principle is to eliminate any post-processing behaviors that might damage the graph. After considering various trade-offs, ES graph construction decided not to pursue this principle. Refer to the subsequent discussion on `whether to achieve complete prevention` for details.
-- Most graph construction scenarios can fully express sequence through data dependencies. Scenarios requiring control edges might be certain operations without data exchange but still wish to execute in specific order, such as variable read and update operations. PyTorch doesn't even provide the concept of control edges, therefore there's no need to expose a control edge parameter for every IR's ES API.
+- Approach 1 is the style currently used by torchair. This is done because torchair has a design philosophy of "prevention over usability", therefore introducing a principle that all graph construction operations should be completed entirely through IR API. This principle is to eliminate any post-processing behaviors that might damage the graph. After considering various trade-offs, ES graph construction decided not to pursue this principle. Refer to the subsequent discussion on `whether to achieve complete fool-proofing` for details.
+- Most graph construction scenarios can fully express sequence through data dependencies. Scenarios requiring control edges might be certain operations without data exchange but still wish to execute in specific order, such as variable read and update operations. PyTorch doesn't even provide the concept of control edges, therefore there is no need to expose a control edge parameter for every IR ES API.
 
-- ES C implementation doesn't have default parameters, so parameters won't be added at IR's ES API level, instead provided through separate API for setting. Given that ES multi-language capabilities should remain consistent, ES Python implementation encapsulates ES C, therefore API style should also be consistent with ES C.
+- ES C implementation doesn't have default parameters, so parameters won't be added at IR ES API level, instead provided through separate API for setting. Given that ES multi-language capabilities should remain consistent, ES Python implementation encapsulates ES C, therefore API style should also be consistent with ES C.
 
 Meanwhile, combining language characteristics, we can additionally provide control edge setting functionality in a TensorFlow-like style:
 
@@ -1083,23 +1285,22 @@ Here are some common operators and corresponding special methods:
 - `*` : `__mul__(self, other)`
 - `/` : `__div__(self, other)`
 
+Special methods internally call corresponding operator implementation
 
-Special methods internally call corresponding operators to implement:
-
-| Operator | **Corresponding Operator** |
+| Operator  | **Corresponding Operator**     |
 | ---- | ------------ |
-| `+` | `Add` |
-| `-` | `Sub` |
-| `*` | `Mul` |
-| `/` | `Div` |
+| `+`  | `Add`        |
+| `-`  | `Sub`        |
+| `*`  | `Mul`        |
+| `/`  | `Div`        |
 
 #### Numeric Input Support
 
-To improve graph construction usability, `Python API` supports directly using scalars or (nested) lists as operator inputs without manually creating constant nodes. This feature is implemented through the `tensor_like` module, with implementation mechanism as follows:
+To improve graph construction usability, `Python API` supports directly using scalar or (nested) list as operator input, without manually creating constant node. This feature is implemented through `tensor_like` module, implementation mechanism is as follows:
 
-1. **API Parameter Type Extension**: `TensorLike` is a collection of scalar and (nested) list types. Operator API input parameters supporting numeric input are extended to `Union[TensorHolder, TensorLike]` to accept different input types (EsTensorHolder, scalar, vector, etc.)
-2. **Resolve Graph Builder**: Parse `GraphBuilder` instance from input parameters through `resolve_builder` function for subsequent constant node creation
-3. **Normalization Processing**: Call `convert_to_tensor_holder` function to complete normalization, converting numeric types to `TensorHolder` objects
+1. **API Parameter Type Extension**: `TensorLike` is a collection of scalar and (nested) list types. Operator API input parameters supporting numeric input are extended to `Union[TensorHolder, TensorLike]` to accept different input types (EsTensorHolder, scalar, vector and so on)
+2. **Parse Graph Builder**: Parse `GraphBuilder` instance from input parameters through `resolve_builder` function, for subsequent constant node creation
+3. **Normalization Processing**: Call `convert_to_tensor_holder` function to complete normalization, converting numeric type to `TensorHolder` object
 
 ##### Supported Input Types
 
@@ -1112,7 +1313,8 @@ To improve graph construction usability, `Python API` supports directly using sc
 ##### Applicable Scope and Constraints
 
 Operators meeting any of the following conditions support numeric input:
-- Input count exceeds one (when passing parameters, at least one `TensorHolder` type input parameter must be included to resolve graph builder)
+
+- Input count exceeds one (when passing parameters, at least one `TensorHolder` type input parameter must be included, from which graph builder can be resolved)
 - All inputs are optional parameters (in this scenario, API provides optional `owner_builder` parameter for explicitly passing `GraphBuilder`. When passing parameters, at least one `TensorHolder` type input parameter must be included, or pass `owner_builder`)
 
 Unlike `C++ API`, **Python's dynamic input parameters also support passing numeric values**.
@@ -1123,260 +1325,58 @@ For specific call examples, refer to [make_transformer_graph.py](../../../../../
 
 ##### Node-level Private Attribute Scope Setting
 
-Refer to subsequent [Private Attributes](#private-attributes) section for details.
-
-#### Control Subgraph
-
-Similar to `C` interface实 control subgraph方式, `C++` interface's control subgraph通过 `std::vector<std::unique_ptr<ge::Graph>>`表达, subgraph count通过 `vector` size来表达.
-
-以 `Case`为例 (prototype参考 `C` interface control subgraph chapter), `C++` interface为:
-
-```c++
-namespace es {
-inline std::vector<EsCTensorHolder> Case(
-    const EsTensorHolder &branch_index,
-    const std::vector<EsTensorHolder> &input,
-    int64_t output_num,
-    std::vector<std::unique_ptr<ge::Graph>> branches)
-    );
-}
-```
-
-> [!Note]
->
-> **Resource Management Note**
-> Subgraph `vector`'s lifecycle会在 function内部转移,最终由 `EsCGraphBuilder`进行管理.
->
-
-#### Operator Overloading
-
-`C++ API` utilizes operator overloading使 graph construction code更直观、自然. For支持 overload operators, API同时提供 function version和 operator version,二者等价. For example, addition operation既可使用 function call:
-
-```c++
-EsTensorHolder add = Add(x1, x2);
-```
-
-也可使用更简洁 operator form:
-
-```C++
-EsTensorHolder add = x1 + x2;
-```
-
-Operator overloading rules与 PyTorch保持一致,同时考虑 C++合法 operators,我们支持 operations及其对应 operators如下:
-
-| Operator | **Corresponding Operator**      |
-| ------ | ----------------- |
-| `+`    | `Add`             |
-| `-`    | `Sub`             |
-| `*`    | `Mul`             |
-| `/`    | `Div`             |
-
-#### Numeric Input Support
-
-为提升 graph construction usability, `C++ API` supports directly using scalar或 vector作为 operator input,无需手动 create constant node. 该 feature通过 `EsTensorLike` wrapper class实现, implementation mechanism如下:
-
-1. **Constructor Overloading**: `EsTensorLike`通过 constructor overloading承接不同 input types (`EsTensorHolder`, scalar, vector等)
-2. **Parse Graph Builder**: 从 input parameters中解析出 `EsCGraphBuilder*`,用于后续 create constant node
-3. **Normalization Processing**: Call `EsTensorLike::ToTensorHolder(EsCGraphBuilder *graph)` method完成 normalization,将 numeric type转换为 `EsTensorHolder` object
-
-##### Supported Input Types
-
-`EsTensorLike`通过 constructor overloading支持以下 input types:
-
-```c++
-EsTensorLike(const EsTensorHolder &tensor);
-EsTensorLike(const int64_t value);
-EsTensorLike(const float value);
-EsTensorLike(const std::vector<int64_t> &values);
-EsTensorLike(const std::vector<float> &values);
-EsTensorLike(const std::nullptr_t);
-// More data types,按需添加
-```
-
-##### Applicable Scope和 Constraints
-
-1. C++ vector不支持 implicit type conversion,因此 dynamic input parameters不支持传入 numeric type
-2. 满足以下任一条件 operators支持 numeric input:
-- Input count超过一个,且不全为 dynamic input (传参时至少包含一个 `EsTensorHolder` type input parameter,可从该 parameter解析 graph builder)
-- All inputs都是 optional parameters (该 scenario下, API会提供 optional `owner_builder` parameter用于显式传入 `EsGraphBuilder*`. 传参时至少包含一个 `EsTensorHolder` type input parameter,或者传入 `owner_builder`)
-
-Specific call examples可参考 [make_transformer_graph.cpp](../../../../../../examples/es/transformer/cpp/src/make_transformer_graph.cpp).
-
-### `Python API` Style Design
-
-以下 example展示了使用 `Python` interface构造一个"两个 input求和" computation graph:
-
-```python
-from ge.es.graph_builder import GraphBuilder, TensorHolder
-
-# 1. Create graph builder (GraphBuilder)
-builder = GraphBuilder("graph_name")
-
-# 2. Add 2 input nodes
-data0, data1 = builder.create_inputs(2)
-
-# 3. Add intermediate nodes
-add = data0 + data1
-
-# 4. Set graph output
-builder.set_graph_output(add, 0)
-
-# 5. Complete graph construction, return final graph object
-graph = builder.build_and_reset()
-```
-
-Similar to `C++`, `Python API` utilizes language features to improve usability. During graph construction,无需显式 manage resources,遵循与 `C++ API`相同 operator overloading rules. `es`还提供了符合 Python style encapsulation,使 graph construction flow更自然、直观.
-
-#### `Python API` Prototype Rules
-
-`Python API`遵守整体 `IR`和 `API` mapping relationship,保持 input parameters与 `IR`定义顺序一致.同时利用 `Python` placeholder parameters、keyword arguments、default values capability,完整支持 optional input、optional attributes. In `Python API` compatibility chapter已有举例,本节不做赘述.
-
-#### Multiple Outputs
-
-Custom output expression class, class中每个 element可以是 `Tensor`或 `list[Tensor]` type,分别表示 normal output和 dynamic output
-
-#### Control Input
-
-有两种方案可以选择:
-
-1. Through keyword argument传递 `dependencies=[]`, default为空,如下所示
-
-```Python
-def Foo(xr: Tensor, xo: Optional[Tensor] = None, xo1: Optional[Tensor] = None,
-        *, a: int, b: int = 0, c: int = 0, dependencies: List[Tensor] = []):
-```
-
-2. Through单独 control API来实现
-
-```python
-f0 = Foo()
-f1 = Foo()
-f2 = Foo()
-
-f2.control_dependencies([f0, f1])
-
-```
-
-我们采用方案 2来实现,原因有如下几点:
-
-- 方案 1是 torchair目前采用风格,之所以这么做是因为 torchair有一个设计理念防呆大于易用,因此其引入了一条构图操作应该完全通过 IR API来完成原则,此原则是为了杜绝任何可能改坏图后处理行为, ES构图在考虑各方取舍之后,决定不追求此原则,具体可以看后续 `是否要做到完全防呆` discussion
-- 绝大多数构图场景通过数据依赖就可以完整表达顺序,用到控制边场景可能是某些 operations之间没有数据交换,但是仍然希望按照特定顺序执行,比如变量读取和更新操作, PyTorch甚至都没提供控制边概念,因此没有必要对每个 IR ES API都暴露一个控制边参数
-
-- ES C实现因为没有默认参数,所以不会在 IR ES API层面添加参数,而是通过提供单独 API设置,鉴于 ES多语言能力应该保持一致原则, ES Python实现是对 ES C封装,因此 API风格也应该和 ES C保持一致
-
-同时我们结合语言特点,可以使用类似 TensorFlow风格,额外提供如下风格控制边设置功能:
-
-```python
-with EsBuilder.control_dependencies([f0, f1]):
-    f2 = Foo()
-```
-
-#### Operator Overloading
-
-In Python,可以通过在 `Tensor` class中定义特定 special methods (也称为 magic methods)来实现 operator overloading.
-
-如下是一些常见 operators和对应 special methods:
-
-- `+` : `__add__(self, other)`
-- `-` : `__sub__(self, other)`
-- `*` : `__mul__(self, other)`
-- `/` : `__div__(self, other)`
-
-
-Special methods内部调用对应 operator implementation
-
-| Operator  | **Corresponding Operator**     |
-| ---- | ------------ |
-| `+`  | `Add`        |
-| `-`  | `Sub`        |
-| `*`  | `Mul`        |
-| `/`  | `Div`        |
-
-#### Numeric Input Support
-
-为提升 graph construction usability, `Python API` supports directly using scalar或 (nested) list作为 operator input,无需手动 create constant node. 该 feature通过 `tensor_like` module实现, implementation mechanism如下:
-
-1. **API Parameter Type Extension**: `TensorLike`是 scalar和 (nested) list type集合,支持 numeric input operator API input parameter type扩展为 `Union[TensorHolder, TensorLike]`,以承接不同 input types (EsTensorHolder、scalar、vector等)
-2. **Parse Graph Builder**: Through `resolve_builder` function从 input parameters中解析出 `GraphBuilder` instance,用于后续 create constant node
-3. **Normalization Processing**: Call `convert_to_tensor_holder` function完成 normalization,将 numeric type转换为 `TensorHolder` object
-
-##### Supported Input Types
-
-`Python API`支持以下 numeric types作为 input:
-
-- `int` / `float`: scalar
-- `List[int]` / `List[float]`: one-dimensional list
-- `List[List[...]]`: multi-dimensional nested list
-
-##### Applicable Scope和 Constraints
-
-满足以下任一条件 operators支持 numeric input:
-- Input count超过一个 (传参时至少包含一个 `TensorHolder` type input parameter,可从该 parameter解析 graph builder)
-- All inputs都是 optional parameters (该 scenario下, API会提供 optional `owner_builder` parameter用于显式传入 `GraphBuilder`. 传参时至少包含一个 `TensorHolder` type input parameter,或者传入 `owner_builder`)
-
-与 `C++ API`不同的是, **Python's dynamic input parameters也支持传入 numeric values**.
-
-Specific call examples可参考 [make_transformer_graph.py](../../../../../../examples/es/transformer/python/src/make_transformer_graph.py).
-
-#### Python-specific Graph Construction Syntax Sugar
-
-##### Node-level Private Attribute Scope Setting
-
-详见后续 [Private Attributes](#private-attributes) chapter
-
+Refer to subsequent [Private Attributes](#private-attributes) section for details
 
 ## Detailed Design
 
 ### Build Flow
 
-如前所述,在 `API` generation过程中,需要依赖历史 `IR` information,以生成满足 compatibility要求 function signature.因此,从 operator repository构建视角来看,构建工程新增了一个额外 input和 output:各版本 prototype information.
+As mentioned earlier, during `API` generation process, historical `IR` information is needed to generate function signatures that meet compatibility requirements. Therefore, from the operator repository build perspective, the build project adds one extra input and output: prototype information for each version.
 
 ![](figures/data_flow_build.svg)
 
-展开而言,在 operator engineering构建过程中, prototype information compilation完成后,将进入 **ES系列 API生成与编译阶段**. 该阶段基于当前版本与历史 prototype库,按照预设规则进行 code generation (codegen),生成符合 compatibility规范 ES graph construction API,并将其编译为 binary files.
+In detail, during operator engineering build process, after prototype information compilation is completed, the **ES series API generation and compilation phase** begins. This phase performs code generation (codegen) based on current version and historical prototype library according to preset rules, generating ES graph construction API that meets compatibility specifications, and compiles them into binary files.
 
-随后,生成 ES binary及对应 header files会被打包进 run package发布. 整个构建流程中, ES implementation code仅作为构建过程中 intermediate artifacts, **不会合入 operator code repository**.
+Subsequently, the generated ES binary and corresponding header files are packaged into the run package for release. Throughout the entire build flow, ES implementation code only serves as intermediate artifacts during the build process, **and will not be merged into the operator code repository**.
 
 ![](./figures/data_flow_build_1.svg)
 
-同时在上图 "ES系列 API生成与编译阶段流程"中, ES codegen读取 "历史 prototype库",具体来说:是指基于历史 prototype information,生成满足 compatibility要求 ES API
+In the above figure "ES series API generation and compilation phase flow", ES codegen reads the "historical prototype library". Specifically: it generates ES API that meets compatibility requirements based on historical prototype information.
 
-所谓 "历史 prototype库",相较于 prototype definition,具有以下显著差异:
+The so-called "historical prototype library", compared to prototype definition, has the following significant differences:
 
-- **Definition方式不同**:
+- **Definition approach is different**:
 
-  Prototype definition通过 `C++` code中 `REG_OP` macro进行 registration,需经 compilation后方可使用;而历史 prototype information采用 structured text format描述,可直接 parse,无需 compilation,适合在构建流程中快速读取和处理.
+  Prototype definition performs registration through `REG_OP` macro in `C++` code, requires compilation before use; while historical prototype information uses structured text format description, can be parsed directly without compilation, suitable for quick reading and processing in the build flow.
 
-- **Data Content不同**
-  "历史 prototype库"按商发版本组织,记录了历史上每个商发版本完整 prototype definition,用于支持多版本对比与 compatibility判断.
+- **Data Content is different**
+  The "historical prototype library" is organized by commercial release versions, recording complete prototype definition for each historical commercial release version, used to support multi-version comparison and compatibility judgment.
 
-  按照 compatibility规范,商发版本中 interfaces (包括 graph construction interfaces)需在发布后 **backward compatible一年, forward compatible一年**. 例如, 2025年6月30日发布版本应 backward compatible至 2024年3月30日之前版本, forward compatible至 2026年9月30日之后版本. 鉴于兼容周期可能因规范调整而变化,历史 prototype库需 **完整保留所有历史版本 API定义**,以便灵活适应未来 compatibility策略演进.
+  According to compatibility specifications, interfaces in commercial release versions (including graph construction interfaces) need to be **backward compatible for one year and forward compatible for one year** after release. For example, a version released on June 30, 2025 should be backward compatible to versions before March 30, 2024, and forward compatible to versions after September 30, 2026. Given that compatibility cycles may change due to specification adjustments, the historical prototype library needs to **completely preserve all historical version API definitions** to flexibly adapt to future compatibility strategy evolution.
 
 ### Module Division
 
-构建流程中新增了四个模块:
+The build flow adds four new modules:
 
-- **ES generator** (归属 `GE`):对应前文所述 `ES codegen`阶段,结合当前版本 prototype information,生成符合 compatibility要求 ES graph construction API.
-- **历史 Prototype库** (归属 `opp`):用于定义和维护 prototype库 protocol,存储所有历史 prototype information,为多版本 compatibility processing提供基础支撑.
-- **generated Eager Style Op API** (归属 `opp`):该模块为 graph construction API generation result,由构建流程中 dynamically generated,并随 run package发布. 由于不参与 source maintenance,图中以虚线表示其存在.
-- **Eager Style Graph Builder** (归属 `GE`):该模块为 `generated Eager Style Op API`基础,配合后者提供完整 ES graph construction capability.
+- **ES generator** (belongs to `GE`): corresponds to the `ES codegen` phase described earlier, combines current version prototype information to generate ES graph construction API that meets compatibility requirements.
+- **Historical Prototype Library** (belongs to `opp`): used to define and maintain prototype library protocol, stores all historical prototype information, provides foundation support for multi-version compatibility processing.
+- **generated Eager Style Op API** (belongs to `opp`): this module is the graph construction API generation result, dynamically generated during the build flow, and released with the run package. Since it does not participate in source maintenance, it is shown with dashed lines in the figure.
+- **Eager Style Graph Builder** (belongs to `GE`): this module is the foundation of `generated Eager Style Op API`, works with the latter to provide complete ES graph construction capability.
 
 ![](./figures/logical_all.svg)
 
-从开发视角来看, `ES generator`与 `Eager Style Graph Builder`可直接纳入 `GE` repository maintenance
-
+From development perspective, `ES generator` and `Eager Style Graph Builder` can be directly included in `GE` repository maintenance
 
 ### Module Deployment
 
-下图用来描述前文涉及模块在 run package中归属关系,以及 run package中新增内容 (deliverables)
+The following figure describes the ownership relationship of modules mentioned earlier in the run package, as well as new content (deliverables) in the run package
 
 ![](figures/physical_view.svg)
 
+#### Python Encapsulation Specific Implementation
 
-#### Python封装 Specific Implementation
-
-我们采用 ctypes (built-in library,不引入额外 dependencies)方式基于 `C` code so做 API封装;并且如上图所示,我们需要对 esb generated产物和 esb base两部分 C code做封装,分别集成到 opp package和 compile package.
-以如下 prototype Gen出来 C function signature举例:
+We use ctypes (built-in library, no additional dependencies introduced) to perform API encapsulation based on `C` code so; and as shown in the figure above, we need to encapsulate both esb generated artifacts and esb base C code, integrating them into opp package and compile package respectively.
+Taking the following prototype Gen C function signature as example:
 
 ```c
 #ifdef
@@ -1390,7 +1390,7 @@ __cplusplus
 #endif
 ```
 
-我们可以通过如下 Python封装层来实现对应 Python API功能
+We can implement corresponding Python API functionality through the following Python encapsulation layer:
 
 ```python
 import ctypes
@@ -1402,7 +1402,7 @@ try:
         get_generated_lib
     )
 except ImportError as e:
-    pytest.skip(f"无法导入 pyge模块: {e}", allow_module_level=True)
+    pytest.skip(f"Cannot import pyge module: {e}", allow_module_level=True)
 
 # Define function prototype
 esb_generated_lib = get_generated_lib()
@@ -1412,7 +1412,7 @@ esb_generated_lib.Esphony_1i1o.restype = ctypes.c_void_p
 # Create Python wrapper function
 def phony_1i1o(x: TensorHolder, index: int) -> TensorHolder:
     """
-    调用 Esphony_1i1o function Python wrapper
+    Call Esphony_1i1o function Python wrapper
     Parameters:
         x: TensorHolder object
         index: int64 type index value
@@ -1422,220 +1422,217 @@ def phony_1i1o(x: TensorHolder, index: int) -> TensorHolder:
     # Get underlying C object pointer
     x_ptr = x.handle
 
-    # Call C function并创建新 Python wrapper object
+    # Call C function and create new Python wrapper object
     return TensorHolder(esb_lib.Esphony_1i1o(x_ptr, ctypes.c_int64(index)))
 ```
 
 ### ES Python Graph Construction Additional Processing
 
-从实际业务流程来看, `APP`调用 `libesb`完成 graph construction后,需要应用该图,即通过 `GE` interface完成 graph compilation和 execution. 目前, `GE`仅提供 `C++` API,因此:
+From actual business flow perspective, after `APP` calls `libesb` to complete graph construction, the graph needs to be applied, that is, graph compilation and execution are completed through `GE` interface. Currently, `GE` only provides `C++` API, therefore:
 
-- **Using C++ APP**:可直接进行 graph construction、compilation和 execution
-- **Using Python APP**:虽能完成 graph construction,但无法持有 graph construction result,且缺少后续 compilation和 execution capability
+- **Using C++ APP**: can directly perform graph construction, compilation and execution
+- **Using Python APP**: although graph construction can be completed, it cannot hold graph construction result, and lacks subsequent compilation and execution capability
 
-为支持 Python API完整功能,需要在以下模块新增 Python封装:
+To support Python API complete functionality, Python encapsulation needs to be added in the following modules:
 
-* **GE**:作为通用 graph structure carrier module,需将 `Graph`等基础结构封装为 Python可用 objects,同时打包到 `GE图编译子包`
-* **GE**:需将已有 `Session` class封装为 Python class,暴露 compilation和 execution capability,同时打包到 `GE图编译子包`
+- **GE**: as general graph structure carrier module, needs to encapsulate basic structures such as `Graph` into Python-usable objects, and package them into `GE graph compilation sub-package`
+- **GE**: needs to encapsulate existing `Session` class into Python class, expose compilation and execution capability, and package them into `GE graph compilation sub-package`
 
 ![](figures/development_view.svg)
 
-
 ### Whether to Achieve Complete Fool-proofing
 
-Complete fool-proofing前文提到是 torchair一个设计原则, ES如果 follow这个原则,意味着所有操作要在 ES API内完成闭环,同时不对外提供任何可以基于 objects二次改图 interfaces;对于 ES来说会有如下问题:
+Complete fool-proofing mentioned earlier is a design principle of torchair. If ES follows this principle, it means all operations must be completed within ES API, and no interfaces for secondary graph modification based on objects are exposed externally; for ES, there are the following issues:
 
-1. ES API是忠实于 IR定义 gen出来,同时要支撑多个 scenarios使用,如 user-defined pass,内部图 dump code able完整表达,这意味着要支持 scenarios会比 torchair面临 scenarios复杂,这会出现 private attributes、control edge等不体现在 IR上信息需要 ES graph construction来表达,如果 follow torchair原则,会对每个 API统一添加很多可能很少 scenarios下才会用到 parameters,造成可读性下降同时会打破 ES API是忠实于 IR定义这一原则
+1. ES API is generated faithfully from IR definition, and needs to support multiple scenarios, such as user-defined pass, internal graph dump code complete expression. This means ES faces more complex scenarios than torchair. This leads to private attributes, control edges and other information not reflected in IR needing to be expressed through ES graph construction. If following torchair's principle, many parameters that are rarely used would be uniformly added to each API, reducing readability while breaking the principle that ES API is faithful to IR definition.
 
-2. 不对外提供任何可以基于 objects二次改图 interfaces,对 ES来说就是不暴露 GetProducer获取 GNode object interfaces,这个带来影响如下
+2. Not exposing any interfaces for secondary graph modification based on objects means for ES, not exposing GetProducer to get GNode object interfaces. The impact is as follows:
 
-- 实际 scenarios下, GetProducer很难干掉,因为 ES API implementation构造节点连边关系时候,鉴于我们 ES reuse已有 data structure原则,需要 reuse对 GNode建立连边 interfaces,需要 Graph::AddEdge( tensorholder0->GetProducer()， tensorholder1->GetProducer()，如果要去掉,则面临此新增 ES专门连边基础 interfaces,打破了 reuse原则
+   - In actual scenarios, GetProducer is hard to eliminate, because when ES API implementation constructs node-edge relationships, given our ES principle of reusing existing data structures, it needs to reuse interfaces for establishing edges on GNode, requiring Graph::AddEdge(tensorholder0->GetProducer(), tensorholder1->GetProducer()). If removed, ES would need specialized edge-establishing basic interfaces, breaking the reuse principle.
 
-- GetProducer提供好处也显而易见,可以让 ES跟现有 GE data structures建立桥梁,意味着 ES capability更强大,拥有更多可能性
+   - GetProducer also provides obvious benefits, allowing ES to build bridges with existing GE data structures, meaning ES capability is more powerful with more possibilities.
 
-3. 鉴于前文提到 ES多语言 (C、C++、Python)能力一致原则,对 ES API添加 parameters会造成 ES C graph construction usability下降,因为 C语言不支持 default parameters,此举会造成使用者不得感知所有 parameters
+3. Given the ES multi-language (C, C++, Python) capability consistency principle mentioned earlier, adding parameters to ES API would reduce ES C graph construction usability, because C language doesn't support default parameters, and this would require users to be aware of all parameters.
 
-鉴于上述,我们 ES原则是 API内部仅完成 IR相关 graph construction settings,设置 private attributes和 control edge等 IR不相干 behavior通过单独 API完成,做到部分 fool-proofing同时兼顾 graph construction high usability
+Given the above, our ES principle is that API internally only completes IR-related graph construction settings, setting private attributes and control edges and other IR-unrelated behaviors are completed through separate API, achieving partial fool-proofing while maintaining high graph construction usability.
 
 ### Private Attributes
 
-目前对 graph objects、node objects、node output objects设置 private attributes,整体来说以下几种方式可以选择:
+Currently for setting private attributes on graph objects, node objects, and node output objects, overall the following approaches can be chosen:
 
-1. 基于现有基础类设置属性 interfaces进行设置 (C不支持,因为 GNode没有对应 C struct)
+1. Set through existing base class attribute setting interfaces (C doesn't support, because GNode doesn't have corresponding C struct)
 
-```c++
-EsGraphBuilder builder("test_graph");
-auto t = graph_builder->CreateScalar(int64_t(321));
-// ... 其他构图代码
-std::unique_ptr<ge::Graph> graph = builder.Build();
-graph->SetAttr(attr_name, attr_value); // 依赖现有ge::Graph类设置属性能力,以及AttrValue泛型 object支持任意基本类型 attributes
+  ```c++
+  EsGraphBuilder builder("test_graph");
+  auto t = graph_builder->CreateScalar(int64_t(321));
+  // ... other graph construction code
+  std::unique_ptr<ge::Graph> graph = builder.Build();
+  graph->SetAttr(attr_name, attr_value); // relies on existing ge::Graph class attribute setting capability, and AttrValue generic object supporting any basic type attributes
 
-auto node_ptr = t.GetProducer();
-node_ptr->SetAttr(attr_name, attr_value); // 依赖现有ge::GNode类设置属性能力,以及AttrValue泛型 object支持任意基本类型 attributes
-node_ptr->SetOutputAttr(attr_name, attr_value); // 依赖现有ge::GNode类设置属性能力,以及AttrValue泛型 object支持任意基本类型 attributes
+  auto node_ptr = t.GetProducer();
+  node_ptr->SetAttr(attr_name, attr_value); // relies on existing ge::GNode class attribute setting capability, and AttrValue generic object supporting any basic type attributes
+  node_ptr->SetOutputAttr(attr_name, attr_value); // relies on existing ge::GNode class attribute setting capability, and AttrValue generic object supporting any basic type attributes
 
-```
+  ```
 
-```python
-# 封装GNode和Graph python classes,提供方法设置
+  ```python
+  # Encapsulate GNode and Graph python classes, provide methods for setting
 
-```
+  ```
 
-2. 基于EsGraphBuilder和EsTensorHolder封装 interfaces进行设置
+2. Set through EsGraphBuilder and EsTensorHolder encapsulated interfaces
 
-```c++
-class EsGraphBuilder {
-  Status SetAttr(const char *attr_name, int64_t value);
-  Status SetAttr(const char *attr_name, const char *value);
-  Status SetAttr(const char *attr_name, bool value);
-}
-class EsTensorHolder {
-  Status SetAttr(const char *attr_name, int64_t value);
-  Status SetAttr(const char *attr_name, const char *value);
-  Status SetAttr(const char *attr_name, bool value);
-  Status SetAttrForNode(const char *attr_name, int64_t value);
-  Status SetAttrForNode(const char *attr_name, const char *value);
-  Status SetAttrForNode(const char *attr_name, bool value);
-}
+  ```c++
+  class EsGraphBuilder {
+   Status SetAttr(const char *attr_name, int64_t value);
+   Status SetAttr(const char *attr_name, const char *value);
+   Status SetAttr(const char *attr_name, bool value);
+  }
+  class EsTensorHolder {
+    Status SetAttr(const char *attr_name, int64_t value);
+    Status SetAttr(const char *attr_name, const char *value);
+    Status SetAttr(const char *attr_name, bool value);
+    Status SetAttrForNode(const char *attr_name, int64_t value);
+   Status SetAttrForNode(const char *attr_name, const char *value);
+   Status SetAttrForNode(const char *attr_name, bool value);
+  }
 
-```
+  ```
 
-```c
-uint32_t EsSetInt64AttrForGraph(EsCGraphBuilder *graph, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, bool value);
+  ```c
+  uint32_t EsSetInt64AttrForGraph(EsCGraphBuilder *graph, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, bool value);
 
-uint32_t EsSetInt64AttrForTensor(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, bool value);
+  uint32_t EsSetInt64AttrForTensor(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, bool value);
 
-uint32_t EsSetInt64AttrForNode(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForNode(EsCTensorHolder *tensor, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForNode(EsCTensorHolder *tensor, const char *attr_name, bool value);
-```
+  uint32_t EsSetInt64AttrForNode(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForNode(EsCTensorHolder *tensor, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForNode(EsCTensorHolder *tensor, const char *attr_name, bool value);
+  ```
 
-```python
-# 封装EsTensorHolder和EsGraphBuilder python classes,提供方法进行设置
+  ```python
+  # Encapsulate EsTensorHolder and EsGraphBuilder python classes, provide methods for setting
 
-```
+  ```
 
-3. Context manager方式设置 (目前仅 Python支持,并且只支持对 node设置属性)
+3. Context manager approach for setting (currently only Python supports, and only supports setting attributes on nodes)
 
-```python
-@contextlib.contextmanager
-def attr_scope(attr_maps):
-    # Get当前属性并合并新属性
-    current_attrs = getattr(local_variable, "custom_node_attrs", {})
-    new_attrs = {**current_attrs, **attr_maps}  # 合并字典
+  ```python
+  @contextlib.contextmanager
+  def attr_scope(attr_maps):
+     # Get current attributes and merge new attributes
+      current_attrs = getattr(local_variable, "custom_node_attrs", {})
+      new_attrs = {**current_attrs, **attr_maps}  # merge dictionaries
 
-    try:
-        setattr(local_variable, "custom_node_attrs", new_attrs)
-        yield
-    finally:
-        # 恢复为进入上下文前状态
-        setattr(local_variable, "custom_node_attrs", current_attrs)
+      try:
+         setattr(local_variable, "custom_node_attrs", new_attrs)
+         yield
+      finally:
+         # Restore to state before entering context
+          setattr(local_variable, "custom_node_attrs", current_attrs)
 
+  # Usage side
+  with attr_scope({"key": "value"}):
+      # In this context, custom_node_attrs is set to {"key": "value"}
+      create_nodes1_with_attrs()  # get and set on nodes1 produced here
+      with attr_scope({"key1": "value1"}):
+          # In this context, custom_node_attrs is set to {"key": "value", "key1": "value1"}
+         create_nodes2_with_attrs()  # get and set on nodes2 produced here
+      # After exit, custom_node_attrs automatically restores to {"key": "value"}
+  # After exit, custom_node_attrs automatically restores to empty dictionary
+  ```
 
-# 使用方
-with attr_scope({"key": "value"}):
-    # 在这个上下文中, custom_node_attrs被设置为 {"key": "value"}
-    create_nodes1_with_attrs()  # get然后设置到此处产生 nodes1上
-    with attr_scope({"key1": "value1"}):
-        # 在这个上下文中, custom_node_attrs被设置为 {"key": "value", "key1": "value1"}
-        create_nodes2_with_attrs()  # get然后设置到此处产生 nodes2上
-    # 退出后, custom_node_attrs自动恢复为 {"key": "value"}
-# 退出后, custom_node_attrs自动恢复为空字典
-```
+4. API adds parameters to pass optional private attributes (only node level attribute setting as follows)
 
-4. API添加 parameters来传递 optional private attributes (仅 node级别属性设置如下)
-
-```C
-extern "C" {
-EsCTensorHolder* EsRelu(EsCTensorHolder* x, const char* types, const char* name, ...) {
-// 省略构造节点代码
-  va_list args;
-  for (int i = 0; types[i] != '\0'; i++) {
-    switch (types[i]) {
-      case 'i': // 整数
-      printf("%d ", va_arg(args, int));
-      y->GetProducer()->SetAttr(name[i], va_arg(args, int)); //内部调用GNode能力
-      break;
-      case 's': // 字符串
-      printf("%s ", va_arg(args, char*));
-      y->GetProducer()->SetAttr(name[i], va_arg(args, char*));
-      break;
-      // 其他类型
+  ```C
+  extern "C" {
+  EsCTensorHolder* EsRelu(EsCTensorHolder* x, const char* types, const char* name, ...) {
+  // Omit node construction code
+   va_list args;
+   for (int i = 0; types[i] != '\0'; i++) {
+      switch (types[i]) {
+       case 'i': // integer
+       printf("%d ", va_arg(args, int));
+       y->GetProducer()->SetAttr(name[i], va_arg(args, int)); // internally calls GNode capability
+       break;
+       case 's': // string
+       printf("%s ", va_arg(args, char*));
+       y->GetProducer()->SetAttr(name[i], va_arg(args, char*));
+       break;
+       // other types
+      }
     }
   }
-}
-}
-```
-
-```C++
-namespace ge {
-namespace es {
-EsTensorHolder Relu(EsCTensorHolder &x, std::map<std::AscendString, ge::AttrValue> custom_attrs = {
-}) {
-// 省略构造节点代码
-  for (const auto& pair : custom_attrs) {
-  y->GetProducer()->SetAttr(pair.first, pair.second); //内部调用GNode能力
   }
-}
-}
-}
-```
+  ```
 
-```python
-# es_relu.py
-def Relu(x: TensorHolder, custom_attrs: Optional[Dict[str, Any]] = None) -> TensorHolder:
-    # 构建类型字符串和值列表
-    types_str = ""
-    values = []
-    names_str = ""
+  ```C++
+  namespace ge {
+  namespace es {
+  EsTensorHolder Relu(EsCTensorHolder &x, std::map<std::AscendString, ge::AttrValue> custom_attrs = {
+  }) {
+  // Omit node construction code
+   for (const auto& pair : custom_attrs) {
+   y->GetProducer()->SetAttr(pair.first, pair.second); // internally calls GNode capability
+   }
+  }
+  }
+  }
+  ```
 
-    for key, value in custom_attrs.items():
-        if isinstance(value, int):
-            types_str += 'i'
-            values.append(value)
-        elif isinstance(value, str):
-            types_str += 's'
-            values.append(value.encode('utf-8'))
-        # 添加其他类型处理...
-        names_str += key + '\0'
+  ```python
+  # es_relu.py
+  def Relu(x: TensorHolder, custom_attrs: Optional[Dict[str, Any]] = None) -> TensorHolder:
+     # Build type string and value list
+      types_str = ""
+      values = []
+      names_str = ""
 
-    # 调用 C function
-    result_ptr = _lib.EsRelu(
-        x._as_parameter_,
-        types_str.encode('utf-8'),
-        names_str.encode('utf-8'),
-        *values  # 展开值列表
-    )
-```
+     for key, value in custom_attrs.items():
+         if isinstance(value, int):
+             types_str += 'i'
+              values.append(value)
+          elif isinstance(value, str):
+             types_str += 's'
+              values.append(value.encode('utf-8'))
+          # Add other type handling...
+          names_str += key + '\0'
 
-从以下几个维度来比对上面几种构图方式:
+      # Call C function
+     result_ptr = _lib.EsRelu(
+         x._as_parameter_,
+         types_str.encode('utf-8'),
+         names_str.encode('utf-8'),
+         *values  # expand value list
+      )
+  ```
 
-|       | 基于现有基础类设置属性 interfaces进行设置        | 基于 EsGraphBuilder和 EsTensorHolder封装 interfaces进行设置 | Context manager方式设置                        | API添加 parameters来传递 optional private attributes             |
+Compare the above graph construction approaches from the following dimensions:
+
+| | Set through existing base class attribute setting interfaces | Set through EsGraphBuilder and EsTensorHolder encapsulated interfaces | Context manager approach | API adds parameters to pass optional private attributes |
 | ----- | ------------------------- | ---------------------------------------- | ---------------------------------- | ---------------------------- |
-| 易用性   | 3星 (调用构图 API之后,基于返回 objects进行后处理) | 3星 (调用构图 API之后,基于返回 objects进行后处理)                | 3.5星 (批处理和嵌套 scenarios优势巨大);但是 C++构图写法会比较繁琐 | 2.5星 (parameters构造比较麻烦)               |
-| 防呆性   | 3星 (提供了 GNode获取方法, user可以魔改)  | 3.5星 (有后处理,但是后处理是我们 ES提供固定 API,可控)         | 4星 (API内部获取上下文信息搞定属性设置,无任何后处理)      | 4星 (API内部获取上下文信息搞定属性设置,无任何后处理) |
-| 功能完备性 | 3星 (C不支持)                  | 5星                                       | 3星 (C支持困难)                          | 5星                           |
+| Usability | 3 stars (after calling graph construction API, post-process based on returned objects) | 3 stars (after calling graph construction API, post-process based on returned objects) | 3.5 stars (batch processing and nested scenarios have significant advantages); but C++ graph construction writing is cumbersome | 2.5 stars (parameters construction is cumbersome) |
+| Fool-proofing | 3 stars (provides GNode retrieval method, user can modify freely) | 3.5 stars (has post-processing, but post-processing uses fixed API provided by ES, controllable) | 4 stars (API internally gets context information to handle attribute setting, no post-processing) | 4 stars (API internally gets context information to handle attribute setting, no post-processing) |
+| Functional Completeness | 3 stars (C doesn't support) | 5 stars | 3 stars (C support is difficult) | 5 stars |
 
-我们策略做一个能力并集:
+Our strategy is to make a capability union:
 
-1. 提供获取 GNode、Graph能力,供 ES构图可以切换到基于现有基础类设置属性 interfaces进行设置
-2. 基于 EsGraphBuilder和 EsTensorHolder封装 interfaces进行设置,便于 C构图人或者不了解之前基础类人更好使用
-3. Python语言结合自身语言特点,可以提供语法糖更高层封装,也就是 context manager方式设置来更好设置
+1. Provide capability to get GNode and Graph, allowing ES graph construction to switch to setting through existing base class attribute setting interfaces
+2. Set through EsGraphBuilder and EsTensorHolder encapsulated interfaces, making it easier for C graph construction users or those unfamiliar with the base classes to use
+3. Python language combines its own language characteristics to provide higher-level syntax sugar encapsulation, that is, context manager approach for better setting
 
+### Lifecycle Management in `EsCGraphBuilder`
 
-### `EsCGraphBuilder`中 Lifecycle Management
-
-Operator内部创建 `Node`、operator interfaces返回 dynamic output、以及 user通过入参传入 `Tensor` attributes与 subgraphs,在 `EsCGraphBuilder`内部统一通过 `std::list<std::unique_ptr<ResourceHolder>> resource_holder_` structure管理,具体 structure如下:
+`Node` created internally by operator, dynamic output returned by operator interfaces, and `Tensor` attributes and subgraphs passed by user through input parameters are uniformly managed within `EsCGraphBuilder` through `std::list<std::unique_ptr<ResourceHolder>> resource_holder_` structure, specific structure is as follows:
 
 ```c++
   /**
-   * 资源管理struct
-   * resource_ptr_ 资源指针
-   * deleter_ 析构函数
+   * Resource management struct
+   * resource_ptr_ resource pointer
+   * deleter_ destructor
    */
   struct ResourceHolder{
     void *resource_ptr_;
@@ -1651,23 +1648,23 @@ Operator内部创建 `Node`、operator interfaces返回 dynamic output、以及 
   std::list<std::unique_ptr<ResourceHolder>> resource_holder_;
 ```
 
-目前依赖于该 structure管理有:
+Currently, the following depend on this structure for management:
 
-- User传入 interfaces `Tensor` attributes
+- User passes `Tensor` attributes through interfaces
 
-- Interfaces返回 `EsCTensorHolder`
+- Interfaces return `EsCTensorHolder`
 
-- Interfaces dynamic output返回值
+- Interfaces dynamic output return values
 
-- User传入 interfaces subgraphs
+- User passes subgraphs through interfaces
 
-相关实例 lifecycle会转移给 `EsCGraphBuilder`,并跟随 `EsCGraphBuilder`析构而释放持有 memory.
+Related instance lifecycle will be transferred to `EsCGraphBuilder`, and released along with `EsCGraphBuilder` destruction.
 
 ### Control Subgraph Related Design Description
 
-#### Control Subgraph依赖 `MetaDef`新增 Interfaces
+#### Control Subgraph Depends on `MetaDef` New Interfaces
 
-为适配 ES构图中 subgraph构建与连边等 logic,在 `graph.h`与 `gnode.h`新增 interfaces:
+To adapt ES graph construction subgraph building and edge connection logic, new interfaces are added in `graph.h` and `gnode.h`:
 
 `graph.h`
 
@@ -1712,19 +1709,19 @@ Operator内部创建 `Node`、operator interfaces返回 dynamic output、以及 
   graphStatus SetSubgraphs(const AscendString &subgraph_ir_name, const std::vector<Graph> &subgraphs);
 ```
 
-### ES部分 Complex Attributes说明
+### ES Partial Complex Attributes Description
 
-Operator attributes mapping relationship已在上文进行描述,本章节仅对部分 complex attributes进行说明
+Operator attributes mapping relationship has been described above, this section only describes some complex attributes
 
 #### ListType
 
-IR operator attribute `VT_LIST_DATA_TYPE`对应 operator type `ListType`,依赖 IR type `ge::DataType`,在 user可感知该 attribute时,按照如 `VT_LIST_INT`等其他 list type已适配 attributes方式处理,对于 C type interface,需要转换为 `C_DataType`.
+IR operator attribute `VT_LIST_DATA_TYPE` corresponds to operator type `ListType`, depends on IR type `ge::DataType`. When user can perceive this attribute, it is handled in the same way as other list types such as `VT_LIST_INT` that have been adapted. For C type interface, conversion to `C_DataType` is needed.
 
-在 code generation后, user使用时参考如 `VT_LIST_INT` type进行使用即可.
+After code generation, user can refer to `VT_LIST_INT` type when using it.
 
 ##### Example
 
-设有 operator `Foo`,包含一个 input `x`以及一个 `ListType` type optional attribute `a1`如下:
+Suppose operator `Foo`, contains one input `x` and one `ListType` type optional attribute `a1` as follows:
 
 ```C++
 REG_OP(Foo)
@@ -1733,7 +1730,7 @@ REG_OP(Foo)
     .ATTR(a1, ListType, {});
 ```
 
-转换为 `C API`为:
+Converted to `C API`:
 
 ```C
 EsCTensorHolder Foo(EsCTensorHolder *x,
@@ -1741,7 +1738,7 @@ EsCTensorHolder Foo(EsCTensorHolder *x,
                     int64_t a1_size);
 ```
 
-转换为 `C++ API`为:
+Converted to `C++ API`:
 
 ```C++
 namespace es {
@@ -1752,21 +1749,57 @@ EsTensorHolder Foo(const EsTensorHolder &x,
 
 #### ListListInt
 
-对于 `C++` interface,直接使用 `vector` format parameters:
+For `C++` interface, directly use `vector` format parameters:
 
 ```c++
-// C++ interface形参
+// C++ interface formal parameter
 ...std::vector<std::vector<int64_t>> &input_list...
 ```
 
-**因 C语言不支持 `vector`等 library functions,无法直接使用上述 type parameters.**
+**Because C language doesn't support `vector` and other library functions, it cannot directly use the above type parameters.**
 
-对于 C language interface,处理方式有两种:
+For C language interface, there are two handling approaches:
 
-1. 在 C language interface中,将 `std::vector<int64_t>`转换为 `Struct` structure (参考 `output`构造方式),之后将 `VT_LIST_LIST_INT`转换为 `list of struct`:
+1. In C language interface, convert `std::vector<int64_t>` to `Struct` structure (refer to `output` construction approach), then convert `VT_LIST_LIST_INT` to `list of struct`:
 
-   ```c
-转换为 `C API`为:
+   ```c++
+   // Generated structure code for C language interface
+   typedef struct {
+     int64_t* value;
+     int64_t size;
+   } EsListInt;
+   // C language interface formal parameters
+   ...EsListListInt *input_list, int64_t input_list_size...
+   ```
+
+   Then adapt corresponding logic during function declaration and internal implementation.
+
+2. Split multi-layer `vector` type parameters into three parts: corresponding type double pointer, outer `list` size, and each inner `list` size:
+
+   ```c++
+   ...
+   const int64_t **attr_name,
+   int64_t outer_size,
+   const int64_t *inner_size,
+   ...
+   ```
+
+   Then internally generate double pointer to vector conversion and other logic.
+
+To make interfaces clear and easy to use, while reducing parameter count, **the second approach is currently adopted**.
+
+##### Example
+
+Suppose operator `Foo`, contains one input `x` and one `ListListInt` type optional attribute `a1` as follows:
+
+```C++
+REG_OP(Foo)
+    .INPUT(x)
+    .OUTPUT(y)
+    .ATTR(a1, ListListInt, {{}, {}});
+```
+
+Converted to `C API`:
 
 ```C
 EsCTensorHolder Foo(EsCTensorHolder *x,
@@ -1775,7 +1808,7 @@ EsCTensorHolder Foo(EsCTensorHolder *x,
                     const int64_t *a1_inner_size);
 ```
 
-转换为 `C++ API`为:
+Converted to `C++ API`:
 
 ```C++
 namespace es {
@@ -1786,23 +1819,23 @@ EsTensorHolder Foo(const EsTensorHolder &x,
 
 #### Tensor
 
-与非 `List` attributes类似,区别为 `Tensor` type attribute入参在传入后,其 lifecycle会被转移给 operator对应 `EsCGraphBuilder`进行管理, user不应在传入 `Tensor` type attribute后再对传入 parameters进行操作.
+Similar to non-`List` attributes, with the difference that after `Tensor` type attribute input is passed in, its lifecycle will be transferred to the operator's corresponding `EsCGraphBuilder` for management. User should not operate on the passed parameters after passing `Tensor` type attribute.
 
 > [!CAUTION]
 >
-> 对于 `Tensor` type attributes, 目前仅支持 `Tensor()`一种默认值.
+> For `Tensor` type attributes, currently only `Tensor()` one default value is supported.
 
-对于 C++ interface users,可以直接传入 `ge::Tensor` type attributes;而对于 C interface users, ES会提供接创建匿名指针 `EsCTensor *` interfaces作为 C interface形式 `Tensor` type attribute pointer.
+For C++ interface users, `ge::Tensor` type attributes can be passed directly; while for C interface users, ES provides interfaces for creating anonymous pointer `EsCTensor *` as C interface form `Tensor` type attribute pointer.
 
-`C/C++` interfaces `Tensor` type attribute lifecycle都会被转移给 `EsCGraphBuilder`进行管理.
+`C/C++` interfaces `Tensor` type attribute lifecycle will both be transferred to `EsCGraphBuilder` for management.
 
 > [!Note]
 >
-> 对于 C++ interface传入 `ge::Tensor` attributes,在内部处理时会将其转换为 `EsCTensor` type之后传递给 C interface, user不感知该转换.
+> For C++ interface passing `ge::Tensor` attributes, during internal processing they will be converted to `EsCTensor` type before being passed to C interface, user is not aware of this conversion.
 
 ##### Example
 
-设有 operator `Foo`,包含一个 input `x`以及一个 `Tensor` type optional attribute `a1`如下:
+Suppose operator `Foo`, contains one input `x` and one `Tensor` type optional attribute `a1` as follows:
 
 ```C++
 REG_OP(Foo)
@@ -1811,14 +1844,14 @@ REG_OP(Foo)
     .ATTR(a1, Tensor, Tensor());
 ```
 
-转换为 `C API`为:
+Converted to `C API`:
 
 ```C
 EsCTensorHolder Foo(EsCTensorHolder *x,
                     EsCTensor *a1);
 ```
 
-转换为 `C++ API`为:
+Converted to `C++ API`:
 
 ```C++
 namespace es {
@@ -1829,13 +1862,13 @@ EsTensorHolder Foo(const EsTensorHolder &x,
 
 #### ListString
 
-对于 `C++` interface中 `String` type来说, **因不同 GCC版本 `std::string`对应 symbols可能不一致**,因此需要使用 `const char *`替代 `std::string`,形参构造为:
+For `String` type in `C++` interface, **because different GCC versions may have inconsistent `std::string` corresponding symbols**, `const char *` needs to be used instead of `std::string`, formal parameter is constructed as:
 
 ```c++
 ...std::vector<char *> input_list...
 ```
 
-对于 C language interface,则直接使用
+For C language interface, directly use
 
 ```c
 ...const char **input_list...
@@ -1843,7 +1876,7 @@ EsTensorHolder Foo(const EsTensorHolder &x,
 
 ##### Example
 
-设有 operator `Foo`,包含一个 input `x`以及一个 `ListString` type optional attribute `a1`如下:
+Suppose operator `Foo`, contains one input `x` and one `ListString` type optional attribute `a1` as follows:
 
 ```C++
 REG_OP(Foo)
@@ -1852,15 +1885,15 @@ REG_OP(Foo)
     .ATTR(a1, ListString, {});
 ```
 
-转换为 `C API`为:
+Converted to `C API`:
 
 ```C
 EsCTensorHolder Foo(EsCTensorHolder *x,
-                    const char **a1, // 因AscendString包含char *构造函数,不需要传入ListString内部每个string对应char *长度
+                    const char **a1, // Because AscendString contains char * constructor, no need to pass each string's corresponding char * length inside ListString
                     const int64_t a1_size);
 ```
 
-转换为 `C++ API`为:
+Converted to `C++ API`:
 
 ```C++
 namespace es {
@@ -1871,138 +1904,139 @@ EsTensorHolder Foo(const EsTensorHolder &x,
 
 ## Appendix
 
-### V1 Control Operators不生成 ES API
+### V1 Control Operators Do Not Generate ES API
 
-当前 ES graph construction logic不包含 V1 control operators:
+Current ES graph construction logic does not include V1 control operators:
 
-| V1 Control Operators      |
+| V1 Control Operators |
 | ------------- |
-| Switch        |
-| StreamSwitch  |
-| Merge         |
-| StreamMerge   |
-| Enter         |
-| Exit          |
-| LoopCond      |
+| Switch |
+| StreamSwitch |
+| Merge |
+| StreamMerge |
+| Enter |
+| Exit |
+| LoopCond |
 | NextIteration |
 
-### `Variable` Operator因已提供 `C/C++` Interfaces,不再生成 Operator
+### `Variable` Operator Does Not Generate Operator Because `C/C++` Interfaces Already Provided
 
-| 已有 C/C++ Interfaces Operators |
+| Existing C/C++ Interfaces Operators |
 |--------------|
 | Variable     |
 
-### Solution Discussion:通过多版本 Function Names (如 `FooV2`)保持 Compatibility
+### Solution Discussion: Maintain Compatibility Through Multi-version Function Names (such as `FooV2`)
 
-当 operator prototype发生 compatibility扩展 (如新增 optional input或 attribute)时,由于 `C` language不支持 function overload或 default parameters,无法在同一 function signature下表达 interface变化. 此时,一种常见但问题较多做法是通过 function name加 version suffix (如 `esFooV2`)来区分 API versions,以规避签名不兼容问题. 例如:
+When operator prototype undergoes compatibility extension (such as adding optional input or attribute), because `C` language doesn't support function overload or default parameters, it cannot express interface changes under the same function signature. At this point, a common but problematic approach is to distinguish API versions through function name with version suffix (such as `esFooV2`), to avoid signature incompatibility issues. For example:
 
 ```
 cCopyEdit// v1 version API
 Tensor *esFoo(const Tensor *x);
 
-// v2 version新增 optional input xo
+// v2 version adds optional input xo
 Tensor *esFooV2(const Tensor *x, const Tensor *xo);
 ```
 
-该 solution虽然在表面上保留了旧 interface,但在实际 engineering中存在明显缺陷:
+Although this solution retains old interfaces on the surface, it has obvious defects in actual engineering:
 
-**1. Semantic Confusion, Naming不直观**
+**1. Semantic Confusion, Naming Not Intuitive**
 
-`esFooV2`易被误解为一个新的 operator,而非 `Foo`扩展版本. 这种 naming方式难以准确传达 "同一操作演进版本",不利于 user形成统一 API认知.
+`esFooV2` is easily misunderstood as a new operator, rather than an extended version of `Foo`. This naming approach is difficult to accurately convey "same operation evolution version", not conducive to user forming unified API cognition.
 
-**2. Multi-language Style割裂**
+**2. Multi-language Style Fragmentation**
 
-`C++`和 `Python`支持 default parameters和 function overload,可自然表达 interface演进,无需区分多个 function names. 若仅在 `C` layer引入 version suffix,将破坏多语言 interface style一致性,影响 user experience.
+`C++` and `Python` support default parameters and function overload, can naturally express interface evolution, no need to distinguish multiple function names. If only `C` layer introduces version suffix, it will break multi-language interface style consistency, affecting user experience.
 
-**3.无法 Forward Compatible, Linking脆弱**
+**3. Cannot Forward Compatible, Linking Fragile**
 
-即使仅使用 `esFooV2`兼容 parameters (如不传 `xo`),只要 function signature发生变化,在旧 version运行环境中仍可能因 symbol缺失导致 linking失败. 该 solution仅满足 backward compatibility,无法保障 forward compatibility.
+Even when only using `esFooV2` compatible parameters (such as not passing `xo`), as long as function signature changes, in old version runtime environment it may still fail linking due to missing symbols. This solution only satisfies backward compatibility, cannot guarantee forward compatibility.
 
-**4. Interface膨胀, Maintenance Cost高**
+**4. Interface Bloat, High Maintenance Cost**
 
-每次 interface演进都需新增一组 function names,带来额外 documentation、testing、封装和 toolchain burden. 长期来看,易导致 namespace膨胀和维护难度上升.
+Each interface evolution requires adding a new set of function names, bringing extra documentation, testing, encapsulation and toolchain burden. In the long run, it easily leads to namespace bloat and increased maintenance difficulty.
 
 ------
 
-基于 `C` language在 expression capability上 natural limitations, graph construction interfaces很难同时实现完美 forward和 backward compatibility. `C` interface存在一方面是为了 capability完备,另一方面也是为习惯或确有需求 users提供选择. 实际使用中,我们更推荐 users优先使用 `C++`或 `Python` graph construction interfaces,它们能够更优雅支持 interface演进和 version compatibility.
+Based on `C` language's natural limitations in expression capability, graph construction interfaces are difficult to simultaneously achieve perfect forward and backward compatibility. `C` interface exists on one hand for capability completeness, on the other hand to provide choices for users who are accustomed to or have actual needs. In actual use, we recommend users prioritize using `C++` or `Python` graph construction interfaces, which can more elegantly support interface evolution and version compatibility.
 
-### 关于 Floating Type Optional Attributes判断
+### About Floating Type Optional Attributes Judgment
 
-由于 floating numbers在计算机中无法精确表达, `es`在判断 **optional floating attributes是否被显式配置**时可能遇到精度误差问题: user传入值与 `IR`定义默认值在语义上相等,但在数值表示上存在极小差异,导致误判为 "已配置".
+Because floating numbers cannot be precisely expressed in computers, `es` may encounter precision error issues when judging **whether optional floating attributes are explicitly configured**: user passed value and `IR` defined default value are semantically equal, but have extremely small differences in numerical representation, causing misjudgment as "configured".
 
-为解决该问题,存在两种策略:
+To solve this problem, two strategies exist:
 
-1. **Tolerance判断 (推荐方案)**
-   使用绝对误差 tolerance进行比较:若传入值与默认值之间差异在指定 tolerance范围内 (如 `1e-5`)则视为相等. 该 solution是 floating比较中通用策略,易于实现, user experience友好.
-2. **String比较 (理论方案)**
-   在 graph construction API中要求 user以 string形式传入 floating values,同时在 `IR`中保存默认值 string表示. 通过 string做精确匹配以判断是否 "配置过".
+1. **Tolerance Judgment (Recommended Approach)**
+   Use absolute error tolerance for comparison: if the difference between passed value and default value is within specified tolerance range (such as `1e-5`), they are considered equal. This solution is a general strategy in floating comparison, easy to implement, user experience friendly.
+2. **String Comparison (Theoretical Approach)**
+   In graph construction API, require user to pass floating values in string form, and save default value string representation in `IR`. Perform exact matching through string to judge whether "configured".
 
-尽管方案 2更严谨,但它会显著降低 API直观性—— floating attributes需以 string形式传入,与 type semantics不符. 相比之下,方案 1在大多数实际 scenarios下误判概率极低,即使误判,由于在 tolerance范围内,也不应该对 operator behavior产生实质性影响. 因此, `es`当下采用方案 1.
+Although approach 2 is more rigorous, it significantly reduces API intuitiveness - floating attributes need to be passed in string form, which doesn't match type semantics. In comparison, approach 1 has extremely low misjudgment probability in most actual scenarios, and even if misjudged, since it is within tolerance range, it should not have substantial impact on operator behavior. Therefore, `es` currently adopts approach 1.
 
-### Subgraph内外 Index Mapping Relationship表达
+### Subgraph Internal and External Index Mapping Relationship Expression
 
-携带 subgraphs operators, operator实例化后,通过在 subgraph内 `Data`和 `NetOutput`标记信息来映射到 operator inputs outputs上; 具体来说:
+Operators carrying subgraphs, after operator instantiation, mark information on `Data` and `NetOutput` inside subgraph to map to operator inputs and outputs; specifically:
 
-1. `Data`节点上按照创建时指定 `index`表示对应于 operator第几个 input; 实际含义是 subgraph内第 N个 `Data`节点对应 data source是 operator第 N个 input data;
-   `Data`节点个数代表 subgraph input个数, subgraph input个数应该小于等于 operator实际 input个数
-2. `NetOutput` input顺序表示对应 operator output,实际含义是 operator第 N个 output对应 data source是 subgraph内 `NetOutput`第 N个 input data; subgraph成图时保证了 subgraph内只有一个 `NetOutput`
-   节点,其 input个数代表了 subgraph output个数, runtime有可能作为 operator执行逻辑表达载体 subgraph,其 output个数应当跟 operator output个数保持一致
+1. `Data` node's `index` specified at creation indicates which input of the operator it corresponds to; actual meaning is the Nth `Data` node inside subgraph corresponds to the Nth input data of the operator;
+   `Data` node count represents subgraph input count, subgraph input count should be less than or equal to operator actual input count
+2. `NetOutput` input order indicates corresponding operator output, actual meaning is the Nth output of operator corresponds to the Nth input data of `NetOutput` inside subgraph; when subgraph forms graph, it ensures only one `NetOutput`
+   node inside subgraph, its input count represents subgraph output count. Runtime may use subgraph as operator execution logic expression carrier, its output count should remain consistent with operator output count
 
-### generate_es_package.cmake Dependency说明
+### generate_es_package.cmake Dependency Description
 
-`generate_es_package.cmake`采用 **单文件模式**,将所有生成 ES API code合并到一个源文件中统一编译.
+`generate_es_package.cmake` adopts **single-file mode**, merging all generated ES API code into one source file for unified compilation.
 
-#### Design理念
+#### Design Philosophy
 
-单文件模式核心思想是:
-- 将生成多个 operator code files合并为一个 `all_in_one.cpp`
-- 在构建阶段一次性完成:清理目录 → 生成 code → 写入文件 → 编译
-- 避免多文件管理、避免 subprocess calls、避免 race conditions、并可以有效减少生成 library file size
+Single-file mode core idea is:
 
-#### Build阶段 Flow
+- Merge generated multiple operator code files into one `all_in_one.cpp`
+- Complete in one go during build phase: clean directory -> generate code -> write file -> compile
+- Avoid multi-file management, avoid subprocess calls, avoid race conditions, and can effectively reduce generated library file size
 
-```
-Build阶段 (make)
-    │
-    ├─> 1. 清理输出目录
-    │
-    ├─> 2. 执行 gen_esb 生成 code
-    │       └─> 依赖: opgraph_xxx (prototype库)
-    │
-    ├─> 3. 将所有生成内容写入 all_in_one.cpp
-    │
-    └─> 4. 编译 all_in_one.cpp → libes_xxx.so
-```
-
-#### Architecture图
+#### Build Phase Flow
 
 ```
-User应用 (my_app)
+Build Phase (make)
     │
-    └─> target_link_libraries(PRIVATE es_math)  # user调用
+    ├─> 1. Clean output directory
+    │
+    ├─> 2. Execute gen_esb to generate code
+    │       └─> Dependency: opgraph_xxx (prototype library)
+    │
+    ├─> 3. Write all generated content to all_in_one.cpp
+    │
+    └─> 4. Compile all_in_one.cpp → libes_xxx.so
+```
+
+#### Architecture Diagram
+
+```
+User Application (my_app)
+    │
+    └─> target_link_libraries(PRIVATE es_math)  # user call
             │
             ▼
     ┌──────────────────────────────────────┐
-    │  es_math (INTERFACE library)         │  ← 对外 interfaces
+    │  es_math (INTERFACE library)         │  ← External interfaces
     │  - target_link_libraries INTERFACE  │
-    │  - 传递 header paths、linking libraries │
+    │  - Pass header paths, linking libraries │
     └──────────────────────────────────────┘
             │
             └─> add_dependencies(build_es_math)
                      │
                      ▼
             ┌──────────────────────────────────────┐
-            │  build_es_math (custom_target)       │  ← Build目标
-            │  - 依赖: install_es_math             │
-            │  - 触发完整构建流程                   │
+            │  build_es_math (custom_target)       │  ← Build target
+            │  - Depends on: install_es_math       │
+            │  - Triggers complete build flow      │
             └──────────────────────────────────────┘
                      │
                      ▼
             ┌──────────────────────────────────────┐
-            │  install_es_math (custom_target)     │  ← 安装目标
-            │  - 依赖: es_math_so                  │
-            │  - 依赖: generate_es_math_whl        │
-            │  - 拷贝 headers、.so、.whl到输出目录   │
+            │  install_es_math (custom_target)     │  ← Install target
+            │  - Depends on: es_math_so            │
+            │  - Depends on: generate_es_math_whl  │
+            │  - Copies headers, .so, .whl to output directory│
             └──────────────────────────────────────┘
                      │
                      ├──────────────────────────────┐
@@ -2010,99 +2044,37 @@ User应用 (my_app)
                      ▼                              ▼
     ┌──────────────────────────────┐    ┌──────────────────────────────────────┐
     │  es_math_so (SHARED library) │    │  generate_es_math_whl (custom_target)│
-    │  - 源文件: all_in_one.cpp     │    │  - 依赖: generate_es_math_code        │
-    │  - 依赖: generate_es_math_code│    │  - 构建 Python wheel package           │
-    │  - 产物: libes_math.so        │    │  - 产物: es_math-1.0.0-py3-none-any.whl│
+    │  - Source file: all_in_one.cpp│    │  - Depends on: generate_es_math_code │
+    │  - Depends on: generate_es_math_code│  │  - Builds Python wheel package       │
+    │  - Output: libes_math.so     │    │  - Output: es_math-1.0.0-py3-none-any.whl│
     └──────────────────────────────┘    └──────────────────────────────────────┘
                      │
                      ▼
     ┌──────────────────────────────────────┐
     │  generate_es_math_code (custom_target) │  ← Code Generation
-    │  - ALL target (始
-                     │
-                     ▼
-    ┌──────────────────────────────────────┐
-    │  generate_es_math_code (custom_target) │  ← Code Generation
     │  - ALL target (always build)          │
-    │  - 依赖: generated_code.flag          │
+    │  - Depends on: generated_code.flag    │
     │  - Trigger: build phase               │
-    │  - Flow:                               │
+    │  - Flow:                              │
     │    1. Clean output directory          │
-    │    2. Call gen_esb generate各 operator .cpp       │
+    │    2. Call gen_esb to generate each operator .cpp│
     │    3. Run generate_wrapper.cmake      │
-    │    4. Generate all_in_one.cpp              │
+    │    4. Generate all_in_one.cpp         │
     └──────────────────────────────────────┘
                      │
                      ▼
     ┌──────────────────────────────────────┐
-    │  generated_code.flag (file)         │  ← Generation Mark
-    │  - Generated by add_custom_command        │
-    │  - Depends: opgraph_math (prototype库)        │
-    │  - Depends: gen_esb (code generation tool)       │
+    │  generated_code.flag (file)          │  ← Generation Mark
+    │  - Generated by add_custom_command   │
+    │  - Depends on: opgraph_math (prototype library)│
+    │  - Depends on: gen_esb (code generation tool)│
     └──────────────────────────────────────┘
-```
-
-#### Comparison with Multi-file Mode
-
-| 特性 | Multi-file Mode | Single-file Mode |
-|------|-----------|-----------|
-| Source file count | Multiple .cpp files | Single all_in_one.cpp |
-| Code management | placeholder + file replacement | Direct generation |
-| Build process | Two-stage (first placeholder + reconfigure) | Single-stage |
-| Subprocess calls | Required | Not required |
-
-                      │
-                      ▼
-             ┌──────────────────────────────────────┐
-             │  build_es_math (custom_target)       │  ← Build target
-             │  - Depends on: install_es_math       │
-             │  - Triggers complete build flow      │
-             └──────────────────────────────────────┘
-                      │
-                      ▼
-             ┌──────────────────────────────────────┐
-             │  install_es_math (custom_target)     │  ← Install target
-             │  - Depends on: es_math_so            │
-             │  - Depends on: generate_es_math_whl  │
-             │  - Copies headers, .so, .whl to output directory│
-             └──────────────────────────────────────┘
-                      │
-                      ├──────────────────────────────┐
-                      │                              │
-                      ▼                              ▼
-     ┌──────────────────────────────┐    ┌──────────────────────────────────────┐
-     │  es_math_so (SHARED library) │    │  generate_es_math_whl (custom_target)│
-     │  - Source: all_in_one.cpp    │    │  - Depends on: generate_es_math_code │
-     │  - Depends on: generate_es_math_code│  │  - Builds Python wheel package       │
-     │  - Output: libes_math.so     │    │  - Output: es_math-1.0.0-py3-none-any.whl│
-     └──────────────────────────────┘    └──────────────────────────────────────┘
-                      │
-                      ▼
-     ┌──────────────────────────────────────┐
-     │  generate_es_math_code (custom_target) │  ← Code generation
-     │  - ALL target (always builds)        │
-     │  - Depends on: generated_code.flag   │
-     │  - Trigger timing: build phase       │
-     │  - Process:                          │
-     │    1. Clean output directory         │
-     │    2. Call gen_esb to generate operator .cpp│
-     │    3. Run generate_wrapper.cmake     │
-     │    4. Generate all_in_one.cpp        │
-     └──────────────────────────────────────┘
-                      │
-                      ▼
-     ┌──────────────────────────────────────┐
-     │  generated_code.flag (file)          │  ← Generation mark
-     │  - Generated by add_custom_command   │
-     │  - Depends on: opgraph_math (prototype library)│
-     │  - Depends on: gen_esb (code generation tool)│
-     └──────────────────────────────────────┘
 ```
 
 #### Comparison with Multi-file Mode
 
 | Feature | Multi-file Mode | Single-file Mode |
-|---------|-----------------|------------------|
+| --------- | ----------------- | ------------------ |
 | Source file count | Multiple .cpp files | Single all_in_one.cpp |
 | Code management | placeholder + file replacement | Direct generation |
 | Build process | Two-stage (first placeholder + reconfigure) | Single-stage |

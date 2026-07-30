@@ -1,6 +1,5 @@
 # Stream Allocation Constraint Document
 
-
 **Module Boundaries**
 
 > Static shape: Logic stream allocation -> Memory allocation -> GenTask -> Stream splitting
@@ -47,7 +46,7 @@
 4. **Stream Reuse Principle**:
    - Independent engine (IsEngineIndependent, such as hccl) does not allow reuse
    - Stream with StreamLabel does not allow reuse
-   - Stream reuse needs to satisfy:前后子图scheduler_id相同、前子图后续子图引擎冲突检查、memory_priority模式下SubGraphCouldReuse规则
+   - Stream reuse needs to satisfy: the preceding and succeeding subgraphs have the same scheduler_id, engine conflict check between the preceding subgraph and its subsequent subgraphs, and the SubGraphCouldReuse rule in memory_priority mode
    - Reuse selection: Select highest priority from reusable subgraph set
 
 5. **Stream Continuity Guarantee**: After stream allocation completion, will refresh stream ID, ensure stream ID starts from 0 continuous allocation. Any Pass that may modify node stream_id (including migrating node to new stream, reordering stream ID, etc.) may cause certain stream_id to no longer have operators and produce holes. Therefore, stream ID continuity refresh must execute **after all Passes that may modify stream_id**, as last step of logic stream allocation phase, can correctly eliminate holes, avoid runtime extra apply physical stream for holes stream_id causing resource waste
@@ -109,6 +108,42 @@ The default is single-stream. Multi-stream allocation is entered only when `ENAB
 
 5. **Auto Multi-Stream Compatibility**: Dynamic Shape multi-stream is enabled only by `ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1`. After the environment switch is enabled, `ge.autoMultistreamParallelMode` selects `cv` or an explicit DAG mode; `cv`, `LoadBalance:N`, and `MainStream:N` cannot enable Dynamic Shape multi-stream by themselves. DAG modes must use `LoadBalance:N` or `MainStream:N`, where `N` is an integer in `[1, 64]`. Compatibility for bare `LoadBalance` defaulting to eight streams has been retired. DAG modes first execute existing rules based on engine reuse and StreamLabel, then run the custom Stream Pass. Because the DAG pass may rewrite stream id, stream IDs need to be made continuous again according to the stream_id actually used by nodes, and the mapping from stream_id to node list needs to be rebuilt. Subsequent Event insertion must be based on this final stream_id to ensure correct cross-stream dependency synchronization
 
+**Synchronization Mechanism Design**
+
+1. **EventType Types**:
+   - kEvent: Normal event
+   - kNotify: Notify between synchronized streams
+
+2. **Insertion Scenarios**:
+   - Between adjacent nodes on different logic streams
+   - Between stream-split nodes
+   - Between main and sub streams (StreamActive and activated streams)
+   - Between attached stream and main stream (based on dependency relationships in ATTR_NAME_ATTACHED_STREAM_INFO)
+   - **Subgraph Entry Boundary**: When a subgraph's entry node with no predecessor and its parent node's input source node are on different streams, an event must be inserted. Any Pass that modifies stream_id (such as CustomStreamPass) may cause the subgraph entry node and parent node input source to be assigned to different streams. Missing synchronization events will cause the subgraph to start prematurely before input data is ready, leading to accuracy issues
+
+3. **Optimization Strategies**:
+   - OptimizeBySendEvents: Delete redundant send events based on node order within stream
+   - OptimizeByRecvEvents: Delete redundant recv events based on node order within stream
+   - OptimizeByStreamActivate: Optimize cross-stream events through StreamActive (no event needed between activated stream and activating stream)
+   - Event reuse: Build event reuse mapping for multi-gear scenarios, multi-dimensional scenario event reuse
+
+**Stream Activation Mechanism**
+
+1. **ActiveLabelList Processing**:
+   - Set node's active_label_list attribute
+   - Build label-to-stream mapping (labeled_streams_)
+   - Record specific_activated_labels_and specific_activated_streams_
+
+2. **Stream Activation Flow**:
+   - SetActiveStreamsByLabel: Set stream activation relationships based on active_label_list
+   - SetActiveStreamsForSubgraphs: Handle first-node activation for While/For loop subgraphs
+   - UpdateActiveStreamsForSwitchNode: Update Switch node's activation stream list
+   - UpdateActiveStreamsForLoop: Set stream activation for loop scenarios
+
+3. **Constraints**:
+   - Stream activation in loop scenarios requires correct configuration
+   - Subgraph first-node StreamActive needs to activate other streams within the same subgraph
+
 **Constraints and Boundary Conditions**
 
 1. **Static Shape Constraints**:
@@ -116,6 +151,7 @@ The default is single-stream. Multi-stream allocation is entered only when `ENAB
    - Attached stream can only be allocated after main stream allocation completes
    - Event ID must be continuous, uniformly managed through Nodes2SyncInfos
    - StreamLabel in dynamic gear scenarios needs gear information
+   - Nodes with `ATTR_NAME_RTS_LABEL_NODE` attribute must be allocated on the default stream (root graph main stream 0, or the stream where the subgraph's parent node resides), and cannot follow the subgraph's stream_id. This constraint is executed in NodeStreamUpdatePass to ensure control flow label nodes (such as LabelSet, LabelGotoEx, LabelSwitchByIndex, etc.) execute on the same stream as their parent node, avoiding cross-stream control flow semantic errors
 
 2. **Dynamic Shape Constraints**:
    - When multi-stream is enabled, ac_parallel_enable value can only be "0", "1" or empty
@@ -123,3 +159,14 @@ The default is single-stream. Multi-stream allocation is entered only when `ENAB
    - AICPU engine stream allocation considers parallel scenarios
    - Specific nodes (Data, NetOutput, etc.) must be on main stream
    - Subgraph nodes must be on main stream
+
+3. **General Constraints**:
+   - Graph structure cannot change during stream allocation
+   - Topo ID must be continuous
+   - StreamAllocator supports multi-threading, but shared resources need protection
+   - ScalableAllocator does not support multi-threading concurrency (lock-free design)
+   - Graph modification is prohibited during logic stream allocation phase to avoid affecting memory reuse and physical stream splitting
+
+4. **Dynamic Graph Special Handling**:
+   - The NetOutput of the static body subgraph of While operator on dynamic graph needs to be on stream id 0 to avoid multi-stream graph construction bugs
+   - Dynamic graph needs to consider the impact of multi-batch scenarios

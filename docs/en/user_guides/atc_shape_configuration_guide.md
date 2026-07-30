@@ -98,3 +98,86 @@ This chapter explains from the **ATC parameter configuration perspective** how t
 Under the static shape strategy, the model needs to **completely determine all input tensor dimensions** during compile phase. When converting with ATC, users need to explicitly specify a fixed shape for each input.
 
 For example:
+
+```shell
+--input_shape="input_0_0:16,32,208,208;input_1_0:16,64,208,208"
+```
+
+In the above configuration, all input dimensions are completely determined at compile time, and the model is compiled in static shape mode.
+
+Configuration items involved:
+
+* **`--input_shape`**
+  [https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0016.html](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0016.html)
+
+---
+
+### Parameter Configuration for Dynamic Shape
+
+Dynamic shape means that at compile time **the dimensions of input or intermediate tensors cannot be completely determined**, and the shape needs to be determined at runtime.
+
+In ATC, dynamic shape is still configured through `--input_shape`, using `-1` to indicate that the corresponding dimension is dynamic.
+
+For example:
+
+```shell
+--input_shape="input_0_0:-1,32,208,208;input_1_0:-1,64,208,208"
+```
+
+The above configuration indicates that the batch dimension cannot be determined at compile time, and the model will be compiled in dynamic shape mode.
+
+**Dynamic shape and static shape use the same configuration items**, the difference is only reflected in whether there are undetermined dimensions.
+
+---
+
+### Parameter Configuration for Dynamic Multi-Gear
+
+Dynamic multi-gear is used to handle **scenarios where shape changes are limited and can be enumerated in advance**.
+
+In ATC, the core of dynamic multi-gear configuration is not "making the model support runtime dynamic shape", but rather:
+
+> **Enumerate all possible fixed shape gears at once during compile time.**
+
+Each gear is treated as static shape during the compile phase, and at runtime the corresponding gear is selected for execution based on the input shape.
+
+Dynamic multi-gear configuration typically has the following characteristics:
+
+* All shape variations have been enumerated at compile time;
+* The compiled product contains execution paths for multiple static shapes;
+* Input shapes that do not match any gear will cause execution failure.
+
+Semantically, dynamic multi-gear still belongs to the category of **"compile-time shape determination"**, it is just that there is more than one determined shape.
+
+#### Example: Dynamic Batch Multi-Gear Configuration
+
+If only the batch dimension of the model is variable, it can be configured as follows:
+
+```shell
+$ atc \
+  --input_shape="input_0_0:-1,32,208,208;input_1_0:-1,64,208,208" \
+  --dynamic_batch_size="1,8,16"
+```
+
+Where:
+
+* `-1` in `--input_shape` indicates that the batch dimension is dynamic;
+* `--dynamic_batch_size` enumerates all possible batch gears at runtime.
+
+This configuration means that during model execution, only the following input shapes are allowed:
+
+* `[1, 3, 224, 224]`
+* `[8, 3, 224, 224]`
+* `[16, 3, 224, 224]`
+
+#### Dynamic Multi-Gear Related Configuration Items
+
+* **Dynamic batch (`--dynamic_batch_size`)**
+  [https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0018.html](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0018.html)
+
+* **Dynamic image size (`--dynamic_image_size`)**
+  [https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0019.html](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0019.html)
+
+* **Arbitrary dimension dynamic (`--dynamic_dims`)**
+  [https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0020.html](https://www.hiascend.com/document/detail/zh/canncommercial/850/devaids/atctool/atlasatcparam_16_0020.html)
+
+Among them, the configuration capability of `--dynamic_dims` can cover both dynamic batch and dynamic image size, but the configuration is relatively more complex.

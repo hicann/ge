@@ -37,7 +37,7 @@ flowchart LR
 
 GE compiler entry is `GraphManager`, it manages graph lifecycle: AddGraph → Build → Run. Core compilation flow organized through `CompilerStages` structure into four stages:
 
-```
+```c++
 struct CompilerStages {
     GraphPrepare preparer;        // Preprocessing: normalization, Shape inference
     GraphOptimize optimizer;      // Optimization: graph-level optimization, engine optimization
@@ -130,7 +130,7 @@ GE's optimization Passes fall into two categories:
 
 **NodePass (BaseNodePass)**: Runs on node unit, traverses each node of the graph through `GEPass` framework (`passes/base_pass.h`). `GEPass` provides complex re-traversal mechanism:
 
-```
+```c++
 GEPass::Run(names_to_passes) {
     For each node in graph:
         For each NodePass:
@@ -152,7 +152,7 @@ GE's optimization Passes execute in multiple batches, distributed at different s
 **OptimizeStage1** (Pre-partition optimization):
 
 | Pass Sub-stage | Key Pass | Purpose |
-|------------|----------|------|
+| ------------ | ---------- | ------ |
 | 1. Graph Structure Organization | MergeInputMemcpyPass, SwitchDataEdgesBypass | Normalize control flow |
 | 1. Constant Optimization | ConstantFuseSamePass, CommonSubexpressionEliminationPass | Eliminate redundant constants |
 | 1. Data Optimization | FuseDataNodesWithCommonInputPass | Merge Data nodes with same input |
@@ -183,11 +183,13 @@ Stage2 Passes process the merged whole graph, at this time subgraph boundaries h
 Engine partitioning changes the graph's topology structure, this is the core reason requiring two-stage optimization.
 
 Stage1 runs before partitioning, can safely perform:
+
 - Constant folding (does not depend on engine information)
 - Common subexpression elimination (does not depend on engine information)
 - Control flow transformation (needs to know all control flow nodes)
 
 Stage2 runs after partitioning and merging, at this time needs to handle:
+
 - Memcpy nodes introduced by subgraph boundaries
 - New constant folding opportunities after engine-specific optimization
 - Memory read-write conflicts between subgraphs
@@ -298,7 +300,7 @@ Python `PatternFusionPass` besides adapter protocol also provides a layer of exp
 Python layer will automatically create ES `GraphBuilder`, graph input, graph output and pattern capture, finally still return original `Pattern` / `Graph` objects to C++ bridge. Multiple `@pattern` methods will be synthesized into multiple patterns returned by legacy `patterns(self)`; old explicit `patterns(self)` is still compatible, but cannot be mixed with `@pattern` methods.
 This layer of encapsulation only changes Python-side usability, does not change C++ pass execution flow and matching semantics.
 
-For mechanism explanation and development steps面向开发者, see [Fusion Pattern Pass Mechanism](../../features/fusion_pattern_pass.md).
+For mechanism explanation and development steps for developers, see [Fusion Pattern Pass Mechanism](../../features/fusion_pattern_pass.md).
 
 To lower custom `FusionBasePass` integration cost, `ge/fusion/graph_fuse_inspector_utils.h` adds `GraphFuseInspectorUtils` public utility class. It converges key steps originally scattered in `ComputeGraph::IsSupportFuse`, `FusionUtils::WillCauseCycleIfFuse`, `FusionUtils::UpdateToCycleDetector` and fusion statistics logic into two open capabilities:
 
@@ -320,7 +322,7 @@ Auto fusion subsystem (`compiler/graph/optimize/autofuse/`) contains complete su
 Ascend devices have multiple execution engines, each engine responsible for different types of operators:
 
 | Engine | Responsibility | Typical Operators |
-|------|------|---------|
+| ------ | ------ | --------- |
 | nn_engine (AIcoreEngine) | AI Core matrix computation | MatMul, Conv, Softmax |
 | VectorEngine | Vector computation | ElementWise operations |
 | cpu_engine (HostCpu) | Host CPU execution | Operators not supporting device execution |
@@ -355,6 +357,7 @@ Key step analysis:
 **DynamicShapePartition**: Dynamic Shape partitioning (`partition/dynamic_shape_partition.cc`) divides graph into "known Shape" and "unknown Shape" subgraphs. Unknown Shape subgraphs need special runtime scheduling (device-side Shape computation).
 
 **Two-level Partitioning (Composite + Atomic)**:
+
 - `kCompositeEnginePartitioning`: First partition by composite engine (such as FE fusion engine)
 - `kAtomicEnginePartitioning`: Then partition by atomic engine
 
@@ -375,7 +378,7 @@ Reason for two-level partitioning is: fusion engine needs to first see complete 
 
 After partitioning, each subgraph is assigned to different engine, through thread pool parallel optimization:
 
-```
+```c++
 OptimizeSubGraphWithMultiThreads:
     ThreadPool executor(16 threads)
     for each subgraph:
@@ -448,6 +451,7 @@ Ascend device's Stream is an ordered queue of device-side operations — operati
 - Fewer streams → Less sync overhead → But lower parallelism
 
 GE's strategy is:
+
 1. First allocate logical streams by engine and stream label (`AssignLogicalStreams`)
 2. Insert sync nodes between logical streams (Event/Notify)
 3. Split overly long streams based on task count (`SplitStreams`)
@@ -481,7 +485,7 @@ flowchart TD
 
 **Memory Allocator Hierarchy**:
 
-```
+```tree
 MemAssigner (Interface)
 ├── HybridMemAssigner (Hybrid Allocator)
 │   ├── MaxBlockMemAssigner (Max Block Allocator - Priority)
@@ -512,6 +516,7 @@ GE's memory planning is a static analysis, needs to handle multiple memory types
 4. **Multi-threaded Generation**: Use thread pool to parallel generate tasks
 
 During task generation, each operator's `OpKernelLibName` determines which execution engine to use to generate task. Generated `TaskDef` (Protocol Buffer format) contains:
+
 - Operator binary (TBE Kernel / AscendC Kernel)
 - Input output offsets
 - Stream ID
@@ -546,6 +551,7 @@ Operator compilation occurs at two timings:
 ### 6.2 TBE Kernel Store
 
 Compiled operator binary is stored in `TBEKernelStore` (`model_builder.h`), finally serialized to OM file. Each `TBEKernel` contains:
+
 - Operator name
 - Compiled binary
 - Input output description
@@ -554,7 +560,7 @@ Compiled operator binary is stored in `TBEKernelStore` (`model_builder.h`), fina
 
 GE supports model cache (`build/model_cache.h`), avoids repeated compilation:
 
-```
+```c++
 BuildModel:
     ModelCache.Init(root_graph)
     if ModelCache.TryLoadModelFromCache():

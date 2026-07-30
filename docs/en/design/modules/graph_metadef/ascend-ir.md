@@ -107,6 +107,7 @@ Each Node at initialization (`NodeImpl::Init`), based on input/output quantity d
 Connection relationship maintenance: each AnchorImpl internally holds a `vector<weak_ptr<Anchor>> peer_anchors_`. When OutDataAnchor calls `LinkTo(InDataAnchor)`, both ends add each other to their peer_anchors_ lists. This is a **bidirectional adjacency list** design.
 
 Key constraints:
+
 - **InDataAnchor can only have one peer** (single input), `LinkFrom` method checks if peer_anchors_ is empty
 - **OutDataAnchor can have multiple peers** (fan-out), one output can connect to multiple downstream inputs
 - **ControlAnchor can connect arbitrarily**, used to express execution order dependencies
@@ -167,7 +168,7 @@ Subgraph is not an independent graph, but an attached structure hanging on paren
 AscendIR provides four topological sorting strategies:
 
 | Strategy | Algorithm | Applicable Scenarios |
-|---|---|---|
+| --- | --- | --- |
 | BFS | Breadth-first | Training scenarios (default) |
 | DFS | Depth-first | Inference scenarios (default) |
 | RDFS | Reverse depth-first | Backtracking from output nodes |
@@ -185,12 +186,13 @@ After sorting, each node's `id` is reset to its position index in sorting result
 
 ### 4.1 OpDesc's Dual Identity
 
-OpDesc is AscendIR's most information-dense object, simultaneously承担 two responsibilities:
+OpDesc is AscendIR's most information-dense object, simultaneously undertaking two responsibilities:
 
 1. **Static description**: Operator's input/output tensor descriptors, name mappings, attributes
 2. **Compilation state carrier**: id, stream_id, input_offset, output_offset, workspace etc. information gradually filled during compilation process
 
 OpDescImpl's key members:
+
 - `vector<GeTensorDescPtr> inputs_desc_` / `outputs_desc_`: Input/output tensor descriptors
 - `map<string, uint32_t> input_name_idx_` / `output_name_idx_`: Name to index mappings
 - `AttrStore attrs_`: Attribute storage (based on protobuf's AnyValue)
@@ -204,7 +206,7 @@ OpDesc provides two access modes for inputs/outputs: **by index** and **by name*
 
 Dynamic input handling via `AddDynamicInputDesc`: creates input descriptors named `name0, name1, ...` in order for dynamic input ports. `AddInputDescMiddle` and `AddInputDescForward` support inserting new input descriptors at intermediate positions or head, simultaneously updating name to index mappings.
 
-Different frontend frameworks name same operator inputs differently. Via `UpdateInputName` method, OpDesc can replace name mappings at runtime (standard names from Factory覆盖 Parser-set names), without changing actual input indices and descriptors.
+Different frontend frameworks name the same operator inputs differently. Through the `UpdateInputName` method, OpDesc can replace name mappings at runtime (standard names from Factory override Parser-set names), without changing actual input indices and descriptors.
 
 ### 4.3 Attribute System
 
@@ -233,6 +235,7 @@ Operator definition repository(.so) ──dlopen──→ OperatorFactoryImpl (g
 ```
 
 `OperatorFactoryImpl` maintains a series of global static `shared_ptr<map<string, FuncType>>`:
+
 - `operator_creators_v2_`: Operator creation functions (lookup by type name)
 - `operator_infershape_funcs_`: Shape inference functions
 - `operator_inferformat_funcs_`: Format inference functions
@@ -245,7 +248,7 @@ Operators registered in independent repositories via `REG_OP` macro, compiled in
 Operator definitions split into independent repositories (like ops-math, ops-transformer), main reasons include:
 
 1. **Multi-scenario sharing**: Same operator definition needs use in multiple scenarios—aclnn (single operator direct call), GE (graph compilation), debugging tools.
-2. **Independent iteration**: Operator addition and modification frequency far higher than graph engine. Separating operator definitions enables adding new operators without recompiling GE (只需 replacing .so).
+2. **Independent iteration**: Operator addition and modification frequency is far higher than the graph engine. Separating operator definitions enables adding new operators without recompiling GE (only replacing the .so is needed).
 3. **Plugin architecture**: Ascend NPU product lines have different operator support sets. Dynamically loading operator .so enables different hardware configurations loading different operator sets.
 4. **Offline compilation support**: GE's compilation functionality can run in device-free environments (offline compilation), operator .so loading is deferred, not all loaded at compilation time.
 
@@ -260,6 +263,7 @@ Registration override (`is_register_overridable`) allows same-name operator's re
 ### 6.1 Design
 
 GeTensorDesc describes a tensor's metadata:
+
 - **Shape** (GeShape): Tensor's dimension information
 - **DataType**: Data type (supports from FP32 to various low-precision formats like FP8/FP4/INT4/INT2 etc.)
 - **Format**: Data layout format (NCHW, NHWC, ND etc., includes Ascend-specific 5D/6D formats)
@@ -271,6 +275,7 @@ GeTensorDesc uses Pimpl pattern (via `GeTensorDescImpl`), enabling internal impl
 ### 6.2 Serialization
 
 GeTensorDesc serialization via `GeTensorSerializeUtils::GeTensorDescAsProto`, writing each field to protobuf's `TensorDescriptor`. Serialization needs handling:
+
 - Extended metadata directly mapped to proto fields
 - Attributes serialized to proto's attr map via `AttrGroupSerialize`
 - Origin information stored in attr map via special attribute keys
@@ -294,25 +299,27 @@ ModelDef
 └── attr{}
 ```
 
-`ModelSerializeImp`负责 serialization core logic:
+`ModelSerializeImp` is responsible for the serialization core logic:
+
 - `SerializeOpDesc`: Serialize OpDesc to OpDef proto
 - `SerializeEdge`: Traverse all node's InDataAnchor and InControlAnchor, encoding predecessor node information as "node_name:output_index" format string
-- At deserialization, first create all nodes, then重建 anchor connections based on input strings
+- At deserialization, first create all nodes, then rebuild anchor connections based on input strings
 
 ### 7.2 Serialization Design Choices
 
 Edge serialization adopts **node name reference** mode (`"node_name:output_index"`), rather than serializing anchors themselves. This means:
+
 - Serialized data is **self-contained**—no additional edge table needed
-- Deserialization needs one global name lookup to重建 connections
+- Deserialization needs one global name lookup to rebuild connections
 - Control edges identified by index -1 (`"node_name:-1"`)
 
-This design balances serialization efficiency and重建 efficiency. For GE's typical graph scale (thousands to tens of thousands of nodes), name lookup overhead is acceptable.
+This design balances serialization efficiency and rebuild efficiency. For GE's typical graph scale (thousands to tens of thousands of nodes), name lookup overhead is acceptable.
 
 ### 7.3 Attribute Serialization
 
 Attribute serialization adopts **type dispatch** pattern: `AttrSerializerRegistry` registers serializer for each attribute type (int, float, string, tensor, graph etc.). Each type has independent Serializer class (like IntSerializer, FloatSerializer, TensorSerializer), implementing `Serialize(AnyValue → AttrDef)` and `Deserialize(AttrDef → AnyValue)` methods.
 
-This design supports extension—new attribute types只需 register new serializers, without modifying serialization framework.
+This design supports extension — new attribute types only need to register new serializers, without modifying the serialization framework.
 
 ## 8. Graph Utility Classes
 

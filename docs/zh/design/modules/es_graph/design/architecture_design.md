@@ -677,37 +677,37 @@ REG_OP(CTCBeamSearchDecoder)
 
 1. 多层`struct`结构
 
-```c
-typedef struct {
-  struct {
-    EsCTensorHolder **decoded_indices,
-    int64_t decoded_indices_num,
-  } es_decoded_indices_output;
-  struct {
-    EsCTensorHolder **decoded_values,
-    int64_t decoded_values_num,
-  } es_decoded_values_output;
-  struct {
-    EsCTensorHolder **decoded_shape,
-    int64_t decoded_shape_num,
-  } es_decoded_shape_output;
-  EsCTensorHolder *log_probability,
-} EsCTCBeamSearchDecoderOutput;
-```
+  ```c
+  typedef struct {
+    struct {
+      EsCTensorHolder **decoded_indices,
+      int64_t decoded_indices_num,
+    } es_decoded_indices_output;
+   struct {
+     EsCTensorHolder **decoded_values,
+     int64_t decoded_values_num,
+   } es_decoded_values_output;
+   struct {
+      EsCTensorHolder **decoded_shape,
+      int64_t decoded_shape_num,
+    } es_decoded_shape_output;
+   EsCTensorHolder *log_probability,
+  } EsCTCBeamSearchDecoderOutput;
+  ```
 
 2. **非多层情况(当前采取的策略)**
 
-```c
-typedef struct {
-  EsCTensorHolder **decoded_indices,
-  int64_t decoded_indices_num,
-  EsCTensorHolder **decoded_values
-  int64_t decoded_values_num,
-  EsCTensorHolder **decoded_shape,
-  int64_t decoded_shape_num,
-  EsCTensorHolder *log_probability,
-} EsCTCBeamSearchDecoderOutput;
-```
+  ```c
+  typedef struct {
+   EsCTensorHolder **decoded_indices,
+    int64_t decoded_indices_num,
+    EsCTensorHolder **decoded_values
+   int64_t decoded_values_num,
+   EsCTensorHolder **decoded_shape,
+   int64_t decoded_shape_num,
+   EsCTensorHolder *log_probability,
+  } EsCTCBeamSearchDecoderOutput;
+  ```
 
 为减少`struct`数量提高代码可读性，同时使接口出参更直观，目前采取**第二种非多层的方式**
 
@@ -1484,154 +1484,153 @@ def phony_1i1o(x: TensorHolder, index: int) -> TensorHolder:
 
 1. 基于现有的基础类设置属性接口进行设置（C 不支持，因为 GNode 没有对应的 C 的 struct）
 
-```c++
-EsGraphBuilder builder("test_graph");
-auto t = graph_builder->CreateScalar(int64_t(321));
-// ... 其他构图代码
-std::unique_ptr<ge::Graph> graph = builder.Build();
-graph->SetAttr(attr_name, attr_value); // 依赖现有的ge::Graph类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
+  ```c++
+  EsGraphBuilder builder("test_graph");
+  auto t = graph_builder->CreateScalar(int64_t(321));
+  // ... 其他构图代码
+  std::unique_ptr<ge::Graph> graph = builder.Build();
+  graph->SetAttr(attr_name, attr_value); // 依赖现有的ge::Graph类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
 
-auto node_ptr = t.GetProducer();
-node_ptr->SetAttr(attr_name, attr_value); // 依赖现有的ge::GNode类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
-node_ptr->SetOutputAttr(attr_name, attr_value); // 依赖现有的ge::GNode类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
+  auto node_ptr = t.GetProducer();
+  node_ptr->SetAttr(attr_name, attr_value); // 依赖现有的ge::GNode类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
+  node_ptr->SetOutputAttr(attr_name, attr_value); // 依赖现有的ge::GNode类的设置属性能力，以及AttrValue的泛型对象支持任意的基本类型属性
 
-```
+  ```
 
-```python
-# 封装GNode和Graph的python类，提供方法设置
+  ```python
+  # 封装GNode和Graph的python类，提供方法设置
 
-```
+  ```
 
 2. 基于EsGraphBuilder和EsTensorHolder封装的接口进行设置
 
-```c++
-class EsGraphBuilder {
-  Status SetAttr(const char *attr_name, int64_t value);
-  Status SetAttr(const char *attr_name, const char *value);
-  Status SetAttr(const char *attr_name, bool value);
-}
-class EsTensorHolder {
-  Status SetAttr(const char *attr_name, int64_t value);
-  Status SetAttr(const char *attr_name, const char *value);
-  Status SetAttr(const char *attr_name, bool value);
-  Status SetAttrForNode(const char *attr_name, int64_t value);
-  Status SetAttrForNode(const char *attr_name, const char *value);
-  Status SetAttrForNode(const char *attr_name, bool value);
-}
+  ```c++
+  class EsGraphBuilder {
+    Status SetAttr(const char *attr_name, int64_t value);
+    Status SetAttr(const char *attr_name, const char *value);
+    Status SetAttr(const char *attr_name, bool value);
+  }
+  class EsTensorHolder {
+    Status SetAttr(const char *attr_name, int64_t value);
+    Status SetAttr(const char *attr_name, const char *value);
+   Status SetAttr(const char *attr_name, bool value);
+    Status SetAttrForNode(const char *attr_name, int64_t value);
+    Status SetAttrForNode(const char *attr_name, const char *value);
+    Status SetAttrForNode(const char *attr_name, bool value);
+  }
 
-```
+  ```
 
-```c
-uint32_t EsSetInt64AttrForGraph(EsCGraphBuilder *graph, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, bool value);
+  ```c
+  uint32_t EsSetInt64AttrForGraph(EsCGraphBuilder *graph, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForGraph(EsCGraphBuilder *graph, const char *attr_name, bool value);
 
-uint32_t EsSetInt64AttrForTensor(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, bool value);
+  uint32_t EsSetInt64AttrForTensor(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForTensor(EsCTensorHolder *tensor, const char *attr_name, bool value);
 
-uint32_t EsSetInt64AttrForNode(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
-uint32_t EsSetStringAttrForNode(EsCTensorHolder *tensor, const char *attr_name, const char *value);
-uint32_t EsSetBoolAttrForNode(EsCTensorHolder *tensor, const char *attr_name, bool value);
-```
+  uint32_t EsSetInt64AttrForNode(EsCTensorHolder *tensor, const char *attr_name, int64_t value);
+  uint32_t EsSetStringAttrForNode(EsCTensorHolder *tensor, const char *attr_name, const char *value);
+  uint32_t EsSetBoolAttrForNode(EsCTensorHolder *tensor, const char *attr_name, bool value);
+  ```
 
-```python
-# 封装EsTensorHolder和EsGraphBuilder的python类，提供方法进行设置
+  ```python
+  # 封装EsTensorHolder和EsGraphBuilder的python类，提供方法进行设置
 
-```
+  ```
 
 3. 上下文管理器的方式设置（目前仅 Python 支持，并且只支持对 node 设置属性）
 
-```python
-@contextlib.contextmanager
-def attr_scope(attr_maps):
-    # 获取当前属性并合并新属性
-    current_attrs = getattr(local_variable, "custom_node_attrs", {})
-    new_attrs = {**current_attrs, **attr_maps}  # 合并字典
+  ```python
+  @contextlib.contextmanager
+  def attr_scope(attr_maps):
+     # 获取当前属性并合并新属性
+      current_attrs = getattr(local_variable, "custom_node_attrs", {})
+     new_attrs = {**current_attrs, **attr_maps}  # 合并字典
 
-    try:
-        setattr(local_variable, "custom_node_attrs", new_attrs)
-        yield
-    finally:
-        # 恢复为进入上下文前的状态
-        setattr(local_variable, "custom_node_attrs", current_attrs)
+     try:
+         setattr(local_variable, "custom_node_attrs", new_attrs)
+          yield
+      finally:
+         # 恢复为进入上下文前的状态
+          setattr(local_variable, "custom_node_attrs", current_attrs)
 
-
-# 使用方
-with attr_scope({"key": "value"}):
-    # 在这个上下文中，custom_node_attrs被设置为{"key": "value"}
-    create_nodes1_with_attrs()  # get然后设置到此处产生的nodes1上
-    with attr_scope({"key1": "value1"}):
-        # 在这个上下文中，custom_node_attrs被设置为{"key": "value", "key1": "value1"}
-        create_nodes2_with_attrs()  # get然后设置到此处产生的nodes2上
-    # 退出后，custom_node_attrs自动恢复为{"key": "value"}
-# 退出后，custom_node_attrs自动恢复为空字典
-```
+  # 使用方
+  with attr_scope({"key": "value"}):
+      # 在这个上下文中，custom_node_attrs被设置为{"key": "value"}
+      create_nodes1_with_attrs()  # get然后设置到此处产生的nodes1上
+      with attr_scope({"key1": "value1"}):
+         # 在这个上下文中，custom_node_attrs被设置为{"key": "value", "key1": "value1"}
+         create_nodes2_with_attrs()  # get然后设置到此处产生的nodes2上
+      # 退出后，custom_node_attrs自动恢复为{"key": "value"}
+  # 退出后，custom_node_attrs自动恢复为空字典
+  ```
 
 4. API 添加参数来传递可选私有属性（仅 node 级别的属性设置如下）
 
-```C
-extern "C" {
-EsCTensorHolder* EsRelu(EsCTensorHolder* x, const char* types, const char* name, ...) {
-// 省略构造节点代码
-  va_list args;
-  for (int i = 0; types[i] != '\0'; i++) {
-    switch (types[i]) {
-      case 'i': // 整数
-      printf("%d ", va_arg(args, int));
-      y->GetProducer()->SetAttr(name[i], va_arg(args, int)); //内部调用GNode的能力
-      break;
-      case 's': // 字符串
-      printf("%s ", va_arg(args, char*));
-      y->GetProducer()->SetAttr(name[i], va_arg(args, char*));
-      break;
-      // 其他类型
+  ```C
+  extern "C" {
+  EsCTensorHolder* EsRelu(EsCTensorHolder* x, const char* types, const char* name, ...) {
+  // 省略构造节点代码
+   va_list args;
+   for (int i = 0; types[i] != '\0'; i++) {
+      switch (types[i]) {
+        case 'i': // 整数
+        printf("%d ", va_arg(args, int));
+        y->GetProducer()->SetAttr(name[i], va_arg(args, int)); //内部调用GNode的能力
+       break;
+       case 's': // 字符串
+       printf("%s ", va_arg(args, char*));
+       y->GetProducer()->SetAttr(name[i], va_arg(args, char*));
+       break;
+        // 其他类型
+      }
     }
   }
-}
-}
-```
-
-```C++
-namespace ge {
-namespace es {
-EsTensorHolder Relu(EsCTensorHolder &x, std::map<std::AscendString, ge::AttrValue> custom_attrs = {
-}) {
-// 省略构造节点代码
-  for (const auto& pair : custom_attrs) {
-  y->GetProducer()->SetAttr(pair.first, pair.second); //内部调用GNode的能力
   }
-}
-}
-}
-```
+  ```
 
-```python
-# es_relu.py
-def Relu(x: TensorHolder, custom_attrs: Optional[Dict[str, Any]] = None) -> TensorHolder:
-    # 构建类型字符串和值列表
-    types_str = ""
-    values = []
-    names_str = ""
+  ```C++
+  namespace ge {
+  namespace es {
+  EsTensorHolder Relu(EsCTensorHolder &x, std::map<std::AscendString, ge::AttrValue> custom_attrs = {
+  }) {
+  // 省略构造节点代码
+   for (const auto& pair : custom_attrs) {
+   y->GetProducer()->SetAttr(pair.first, pair.second); //内部调用GNode的能力
+   }
+  }
+  }
+  }
+  ```
 
-    for key, value in custom_attrs.items():
-        if isinstance(value, int):
-            types_str += 'i'
-            values.append(value)
-        elif isinstance(value, str):
-            types_str += 's'
-            values.append(value.encode('utf-8'))
-        # 添加其他类型处理...
-        names_str += key + '\0'
+  ```python
+  # es_relu.py
+  def Relu(x: TensorHolder, custom_attrs: Optional[Dict[str, Any]] = None) -> TensorHolder:
+      # 构建类型字符串和值列表
+      types_str = ""
+      values = []
+      names_str = ""
 
-    # 调用 C 函数
-    result_ptr = _lib.EsRelu(
-        x._as_parameter_,
-        types_str.encode('utf-8'),
-        names_str.encode('utf-8'),
-        *values  # 展开值列表
-    )
-```
+     for key, value in custom_attrs.items():
+         if isinstance(value, int):
+             types_str += 'i'
+              values.append(value)
+          elif isinstance(value, str):
+              types_str += 's'
+             values.append(value.encode('utf-8'))
+          # 添加其他类型处理...
+          names_str += key + '\0'
+
+      # 调用 C 函数
+      result_ptr = _lib.EsRelu(
+         x._as_parameter_,
+         types_str.encode('utf-8'),
+         names_str.encode('utf-8'),
+          *values  # 展开值列表
+      )
+  ```
 
 从以下几个维度来比对上面几种构图方式：
 

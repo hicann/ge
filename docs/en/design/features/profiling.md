@@ -1,16 +1,20 @@
-In AI model training and inference, performance bottlenecks may appear at any stage: operator execution taking too long, unreasonable memory allocation, stream scheduling conflicts, Host-Device data transmission blocking, etc. GE's Profiling feature is designed to solve these observability problems.
+# GE Profiling Feature Introduction
+
+## 1. Business Perspective: What Problems Does Profiling Solve
+
+In AI model training and inference, performance bottlenecks may appear at any stage: operator execution taking too long, memory allocation being unreasonable, stream scheduling conflicts, Host-Device data transmission blocking, and so on. GE's Profiling feature is designed to solve these observability problems.
 
 **Typical User Scenarios**:
 
-1. **Training scenario performance tuning**: Developers need to know in one training step, how much time forward propagation (FP) and backward propagation (BP) each take, which AllReduce operators become communication bottlenecks, whether there's idle waiting between iterations.
+1. **Training scenario performance tuning**: Developers need to know in one training step, how much time forward propagation (FP) and backward propagation (BP) each take, which AllReduce operators become communication bottlenecks, and whether there is idle waiting between iterations.
 
-2. **Inference scenario latency analysis**: How long does model loading take? What's each operator's execution time distribution? Are there certain operators abnormally slow?
+2. **Inference scenario latency analysis**: How long does model loading take? What is the execution time distribution of each operator? Are there certain operators that are abnormally slow?
 
-3. **Memory analysis**: What's the static operator's memory lifecycle? Does memory layout conflict exist?
+3. **Memory analysis**: What is the static operator's memory lifecycle? Does memory layout conflict exist?
 
-4. **API-level performance tracing**: How long do user-called `aclmdlExecute`, `aclopExecute` etc. APIs take?
+4. **API-level performance tracing**: How long do user-called APIs such as `aclmdlExecute` and `aclopExecute` take?
 
-GE's Profiling system design philosophy is: **layered collection, on-demand enable, unified reporting**. Different layers (API layer, Host layer, Device layer) independently collect, through unified msprof library report to analysis tools (such as MSProfiler), users can enable different granularity profiling as needed.
+GE's Profiling system design philosophy is: **layered collection, on-demand enable, unified reporting**. Different layers (API layer, Host layer, Device layer) independently collect data, and through the unified msprof library report to analysis tools (such as MSProfiler). Users can enable different granularity profiling as needed.
 
 ---
 
@@ -18,20 +22,20 @@ GE's Profiling system design philosophy is: **layered collection, on-demand enab
 
 ### 2.1 Enable via GE Options (Recommended Method)
 
-When calling `GEInitialize` or creating Session, through options parameter configure `ge.exec.profilingMode` as "1" to enable profiling, and in `ge.exec.profilingOptions` specify in JSON format output path, training trace switch, fp_point/bp_point operator names, task_trace, hccl, aicpu, aic_metrics etc. options.
+When calling `GEInitialize` or creating a Session, configure `ge.exec.profilingMode` as "1" through the options parameter to enable profiling, and specify the output path, training trace switch, fp_point/bp_point operator names, task_trace, hccl, aicpu, aic_metrics and other options in JSON format in `ge.exec.profilingOptions`.
 
 ### 2.2 Enable via Environment Variables
 
-Set environment variable `GE_PROFILING_MODE=true`, and through `GE_PROFILING_OPTIONS` specify JSON format configuration items (output, training_trace, task_trace, hccl, aicpu, aic_metrics etc.).
+Set environment variable `GE_PROFILING_MODE=true`, and specify JSON format configuration items (output, training_trace, task_trace, hccl, aicpu, aic_metrics, and so on) through `GE_PROFILING_OPTIONS`.
 
 ### 2.3 Dynamic Control via C API
 
-After including header file `ge/ge_prof.h`, call in sequence: `aclgrphProfInit` initialize and specify output path → `aclgrphProfCreateConfig` create device list and metrics configuration → `aclgrphProfStart` start collection → execute model → `aclgrphProfStop` stop collection → `aclgrphProfFinalize` end profiling → `aclgrphProfDestroyConfig` destroy configuration.
+After including header file `ge/ge_prof.h`, call in sequence: `aclgrphProfInit` to initialize and specify output path → `aclgrphProfCreateConfig` to create device list and metrics configuration → `aclgrphProfStart` to start collection → execute model → `aclgrphProfStop` to stop collection → `aclgrphProfFinalize` to end profiling → `aclgrphProfDestroyConfig` to destroy configuration.
 
 ### 2.4 Profiling Configuration Items Details
 
 | Configuration Item | Description | Example Value |
-|--------------------|-------------|---------------|
+|--------|------|--------|
 | `output` | Profiling data output path | `/tmp/profiling` |
 | `training_trace` | Whether enable training trace (FP/BP time points) | `on` / `off` |
 | `fp_point` | Forward propagation starting operator name | `data` (if not specified, auto find Data/GetNext nodes) |
@@ -39,15 +43,15 @@ After including header file `ge/ge_prof.h`, call in sequence: `aclgrphProfInit` 
 | `task_trace` | Whether enable operator task-level tracing | `on` / `off` |
 | `hccl` | Whether enable collective communication tracing | `on` / `off` |
 | `aicpu` | Whether enable AI CPU operator tracing | `on` / `off` |
-| `aic_metrics` | AI Core performance metrics type | `PipeUtilization` / `ArithmeticUtilization` / `Memory` etc. |
+| `aic_metrics` | AI Core performance metrics type | `PipeUtilization` / `ArithmeticUtilization` / `Memory` and so on |
 | `msproftx` | Whether enable msproftx function | `on` / `off` |
 
 ### 2.5 AI Core Metrics Indicator Types
 
 | Enum Value | Description |
-|-------------|-------------|
+|--------|------|
 | `kAicoreArithmeticUtilization` (0) | Computation-type metrics percentage |
-| `kAicorePipeUtilization` (1) | Compute unit and搬运 unit time percentage |
+| `kAicorePipeUtilization` (1) | Compute unit and data transfer unit time percentage |
 | `kAicoreMemory` (2) | UB/L1/L2 read/write bandwidth |
 | `kAicoreMemoryL0` (3) | L0 read/write bandwidth |
 | `kAicoreResourceConflictRatio` (4) | Pipeline queue-type instruction percentage |
@@ -58,7 +62,7 @@ After including header file `ge/ge_prof.h`, call in sequence: `aclgrphProfInit` 
 
 ## 3. Overall Architecture Design
 
-GE Profiling system adopts layered architecture, from user API call to Device-side operator execution, each layer has independent collection mechanism, finally unified through msprof library report.
+The GE Profiling system adopts a layered architecture. From user API calls to Device-side operator execution, each layer has an independent collection mechanism, and all data is ultimately reported through the msprof library in a unified manner.
 
 ```mermaid
 graph TB
@@ -121,8 +125,8 @@ graph TB
 
 | Layer | Core Components | Responsibilities |
 |-------|-----------------|------------------|
-| **API Layer** | `AclProfilingReporter`, `GraphProfilingReporter` | Collect user API call duration (e.g. `aclmdlExecute`, `GEInitialize`) |
-| **Host Layer** | `GlobalProfilingWrapper`, `ScopeProfiler` | Collect Host-side framework execution duration (e.g. InferShape, Tiling, memory allocation) |
+| **API Layer** | `AclProfilingReporter`, `GraphProfilingReporter` | Collect user API call duration (such as `aclmdlExecute`, `GEInitialize`) |
+| **Host Layer** | `GlobalProfilingWrapper`, `ScopeProfiler` | Collect Host-side framework execution duration (such as InferShape, Tiling, memory allocation) |
 | **Compilation Layer** | `ProfilingTaskUtils` | Insert ProfilerTrace tasks into model during compilation, for training trace collection |
 | **Runtime V1** | `HybridProfiler`, `CannTracingProfiler`, `ProfilerCollector` | Operator execution time collection under Hybrid executor |
 | **Runtime V2** | `CannProfilerV2`, `CannHostProfiler`, `CannMemoryProfiler` | Operator execution, Host scheduling, memory information collection under V2 executor |
@@ -149,15 +153,15 @@ runtime/v1/common/profiling/profiling_init.cc: ProfilingInit::Instance().Init(op
 
 **Initialization Entry Design**:
 
-`InitProfiling` function in `ge_api_v2.cc` receives options parameter, calls `ProfilingInit::Instance().Init(options)` to execute initialization. If returns non-SUCCESS status then report error, otherwise return success.
+The `InitProfiling` function in `ge_api_v2.cc` receives the options parameter and calls `ProfilingInit::Instance().Init(options)` to execute initialization. If it returns a non-SUCCESS status, an error is reported; otherwise success is returned.
 
 **Options Parsing Logic**:
 
-`ProfilingInit::InitProfOptions` method adopts priority strategy: First look for `ge.exec.profilingMode` and `ge.exec.profilingOptions` from GE options; If options not configured (profilingMode not "1"), fallback to read environment variables `MM_ENV_PROFILING_MODE` and `MM_ENV_PROFILING_OPTIONS`; If environment variables also not set or value not "true", directly return SUCCESS (meaning profiling not enabled). After parsing complete call `ParseOptions` to extract training_trace, fp_point, bp_point etc. fields from JSON, finally through `ProfilingProperties::Instance().SetExecuteProfiling(true)` set global state.
+The `ProfilingInit::InitProfOptions` method adopts a priority strategy: first look for `ge.exec.profilingMode` and `ge.exec.profilingOptions` from GE options; if options are not configured (profilingMode is not "1"), fall back to reading environment variables `MM_ENV_PROFILING_MODE` and `MM_ENV_PROFILING_OPTIONS`; if environment variables are also not set or the value is not "true", directly return SUCCESS (meaning profiling is not enabled). After parsing is complete, call `ParseOptions` to extract training_trace, fp_point, bp_point and other fields from JSON, and finally set the global state through `ProfilingProperties::Instance().SetExecuteProfiling(true)`.
 
 ### 4.2 Compilation Period Profiling Task Insertion
 
-During graph compilation phase, `ProfilingTaskUtils` is responsible for inserting ProfilerTrace tasks into computational graph. These tasks generate timestamps when executing on Device side, used for training trace analysis.
+During the graph compilation phase, `ProfilingTaskUtils` is responsible for inserting ProfilerTrace tasks into the computational graph. These tasks generate timestamps when executing on the Device side, used for training trace analysis.
 
 ```
 Compilation graph build flow
@@ -166,25 +170,25 @@ compiler/graph/build/profiling_task_utils.cc: ProfilingTaskUtils::FindProfilingT
     ↓
 1. Check ProfilingProperties::ProfilingOn() or ProfilingTrainingTraceOn()
 2. Find FP point (forward starting operator):
-   - User specified: Through fp_point config find matching operator name
-   - Auto find: Traverse graph to find first Data/GetNext/IteratorV2 node
+   - User specified: find matching operator name through fp_point config
+   - Auto find: traverse graph to find first Data/GetNext/IteratorV2 node
 3. Find BP point (backward ending operator):
-   - User specified: Through bp_point config find matching operator name
-   - Auto find: Find last AllReduce or NetOutput node
+   - User specified: find matching operator name through bp_point config
+   - Auto find: find last AllReduce or NetOutput node
 4. Find iteration end point: FlowCtrl related nodes or NetOutput
 5. Find AllReduce node list (for communication trace)
 6. Find GetNext node list (for data loading trace)
     ↓
-InsertProfilingTaskBefore/After() Insert TaskDef before/after operator
+InsertProfilingTaskBefore/After() insert TaskDef before/after operator
     ↓
-AssembleTaskForProfilerTrace() Generate MODEL_TASK_PROFILER_TRACE type task
+AssembleTaskForProfilerTrace() generate MODEL_TASK_PROFILER_TRACE type task
 ```
 
 **Profiling Task Insertion Logic**:
 
-`InsertProfilingTaskBefore` method (defined in `compiler/graph/build/profiling_task_utils.cc`) checks whether need to insert profiling task before operator execution, through operator attribute judge whether marked as FP insertion point, if yes then generate ProfilerTrace task. For AllReduce type operators call dedicated method to insert communication trace task, for GetNext type operators insert data loading trace task.
+The `InsertProfilingTaskBefore` method (defined in `compiler/graph/build/profiling_task_utils.cc`) checks whether a profiling task needs to be inserted before operator execution, determines through operator attributes whether it is marked as an FP insertion point, and if so generates a ProfilerTrace task. For AllReduce type operators, a dedicated method is called to insert communication trace tasks; for GetNext type operators, data loading trace tasks are inserted.
 
-`AssembleTaskForProfilerTrace` method responsible for assembling ProfilerTrace task: Create TaskDef object, set task type as `MODEL_TASK_PROFILER_TRACE`, bind stream_id, write logid and iteration end marker, finally add to task list.
+The `AssembleTaskForProfilerTrace` method is responsible for assembling ProfilerTrace tasks: create a TaskDef object, set the task type as `MODEL_TASK_PROFILER_TRACE`, bind stream_id, write logid and iteration end marker, and finally add to the task list.
 
 **LogID Definition**:
 
@@ -196,106 +200,9 @@ AssembleTaskForProfilerTrace() Generate MODEL_TASK_PROFILER_TRACE type task
 | `kProfilingArStartLogid = 10000` | AllReduce start (each AR +2) |
 | `kProfilingArEndLogid = 10001` | AllReduce end (each AR +2) |
 | `kProfilingGetNextStartLogid = 20000` | GetNext start |
-| `kProfilingGetNextEndLogid = 20001` | GetNext end |# GE Profiling Feature Introduction
+| `kProfilingGetNextEndLogid = 20001` | GetNext end |
 
-## 1. Business Perspective: What Problems Does Profiling Solve
-
-In AI model training和 inference, performance瓶颈 may appear at any环节: operator execution耗时过长, memory allocation不合理, stream调度冲突, Host-Device data transmission阻塞等. GE's Profiling feature is designed to solve these observability problems.
-
-**Typical User Scenarios**:
-
-1. **Training scenario performance tuning**: Developers need to know in one training step, forward propagation (FP)和 backward propagation (BP)各耗时多少, which AllReduce operators become communication瓶颈, whether there's idle waiting between iterations.
-
-2. **Inference scenario latency analysis**: Model loading耗时多少? Each operator's execution time distribution如何? Are there certain operators异常慢?
-
-3. **Memory analysis**: Static operator's memory lifecycle是怎样的? Does memory layout conflict exist?
-
-4. **API-level performance tracing**: User-called `aclmdlExecute`, `aclopExecute`等 API耗时多少?
-
-GE's Profiling system design philosophy is: **layered collection, on-demand enable, unified reporting**. Different layers (API layer, Host layer, Device layer) independently collect, through unified msprof library report to analysis tools (such as MSProfiler), users can according to需要开启 different granularity profiling.
-
----
-
-## 2. How to Enable Profiling
-
-### 2.1 Enable via GE Options (Recommended Method)
-
-When calling `GEInitialize` or creating Session, through options parameter configure `ge.exec.profilingMode` as "1" to enable profiling,并在 `ge.exec.profilingOptions`中以 JSON format specify output path, training trace开关, fp_point/bp_point operator names, task_trace, hccl, aicpu, aic_metrics等 options.
-
-### 2.2 Enable via Environment Variables
-
-Set environment variable `GE_PROFILING_MODE=true`,并通过 `GE_PROFILING_OPTIONS` specify JSON format configuration items (output, training_trace, task_trace, hccl, aicpu, aic_metrics等).
-
-### 2.3 Dynamic Control via C API
-
-After including header file `ge/ge_prof.h`, call in sequence: `aclgrphProfInit` initialize并 specify output path → `aclgrphProfCreateConfig` create device list和 metrics configuration → `aclgrphProfStart` start collection → execute model → `aclgrphProfStop` stop collection → `aclgrphProfFinalize` end profiling → `aclgrphProfDestroyConfig` destroy configuration.
-
-### 2.4 Profiling Configuration Items Details
-
-| Configuration Item | Description | Example Value |
-|--------|------|--------|
-| `output` | Profiling data output path | `/tmp/profiling` |
-| `training_trace` | Whether enable training trace (FP/BP time points) | `on` / `off` |
-| `fp_point` | Forward propagation starting operator name | `data` (not specified则 auto find Data/GetNext nodes) |
-| `bp_point` | Backward propagation ending operator name | `gradients` (not specified则 auto find AllReduce nodes) |
-| `task_trace` | Whether enable operator task-level tracing | `on` / `off` |
-| `hccl` | Whether enable collective communication tracing | `on` / `off` |
-| `aicpu` | Whether enable AI CPU operator tracing | `on` / `off` |
-| `aic_metrics` | AI Core performance metrics type | `PipeUtilization` / `ArithmeticUtilization` / `Memory`等 |
-| `msproftx` | Whether enable msproftx function | `on` / `off` |
-
-### 2.5 AI Core Metrics Indicator Types
-
-| Enum Value | Description |
-|--------|------|
-| `kAicoreArithmeticUtilization` (0) | Computation-type metrics percentage |
-| `kAicorePipeUtilization` (1) | Compute unit和搬运 unit time percentage |
-| `kAicoreMemory` (2) | UB/L1/L2 read/write bandwidth |
-| `kAicoreMemoryL0` (3) | L0 read/write bandwidth |
-| `kAicoreResourceConflictRatio` (4) | Pipeline queue-type instruction percentage |
-| `kAicoreMemoryUB` (5) | Fine-grained UB read/write bandwidth |
-| `kAicoreL2Cache` (6) | Cache hit/miss counts |
-
----
-
-## 3. Overall Architecture Design
-
-GE Profiling system采用分层架构, from user API call to Device-side operator execution, each layer has independent collection mechanism,最终 unified through msprof library report.
-
-```mermaid
-graph TB
-    subgraph "User Layer"
-        A[User code] --> B[ACL API]
-        A --> C[GE API]
-    end
-
-    subgraph "API Layer Profiling"
-        B --> D[AclProfilingReporter]
-        C --> E[GraphProfilingReporter]
-        D --> F[MsprofReportApi]
-        E --> F
-    end
-
-    subgraph "Host Layer Profiling"
-        G[ProfilingProperties] --> H[GlobalProfilingWrapper]
-        H --> I[GlobalProfiler]
-        I --> J[ScopeProfiler RAII]
-    end
-
-    subgraph "Compilation Layer Profiling"
-        K[ProfilingTaskUtils] --> L[Insert ProfilerTrace Task]
-        L --> M[domi::TaskDef]
-    end
-
-    subgraph "Runtime V1 (Hybrid)"
-        N[HybridProfiler] --> O[CannTracingProfiler]
-        O --> P[ProfilerCollector]
-        P --> Q[RecordStart/RecordEnd]
-    end
-
-    subgraph "Runtime V2 (Model Executor)"
-        R[CannProfilerV2] --> S[CannHostProfiler]
-        R --> T[GeHostProfiler]### 4.3 API Layer Profiling
+### 4.3 API Layer Profiling
 
 API layer collects user API call duration through RAII pattern Reporter classes.
 
@@ -541,3 +448,5 @@ GE's Profiling system is a layered, on-demand enabled, unified reporting perform
 4. **Host Layer**: Through `ScopeProfiler` and `GlobalProfiler` collect framework internal execution duration
 5. **Runtime Layer**: `CannProfilerV2` (V2) and `ProfilerCollector` (V1) collect operator execution time and Tensor info
 6. **Unified Reporting**: All data through msprof library report to MSProfiler tool for analysis
+
+This design enables developers to understand model execution performance comprehensively, from macro level (training step duration) to micro level (individual operator execution time), and is an indispensable tool for performance tuning.
