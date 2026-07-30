@@ -1,5 +1,13 @@
 name: PR-pipeline_ge
 
+concurrency:
+  max: 5
+  exceed-action: QUEUE
+  enable: true
+  preemption:
+    enable: true
+    events: [mr_id]
+
 on:
   pull_request_comment:
     types: [created]
