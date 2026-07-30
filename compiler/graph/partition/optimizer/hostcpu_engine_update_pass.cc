@@ -11,6 +11,7 @@
 #include "graph/partition/optimizer/hostcpu_engine_update_pass.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/utils/node_utils.h"
+#include "graph/utils/op_type_utils.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ge_local_context.h"
@@ -58,12 +59,11 @@ bool IsExecOnDevice(const OpDescPtr &op_desc) {
 }
 
 bool IsConstOp(const OpDescPtr &op_desc) {
-  return (strcmp(op_desc->GetTypePtr(), CONSTANT) == 0) || (strcmp(op_desc->GetTypePtr(), CONSTANTOP) == 0);
+  return OpTypeUtils::IsConstNode(op_desc->GetType());
 }
 
 bool IsHostModelInputType(const OpDescPtr &op_desc) {
-  const auto type = op_desc->GetTypePtr();
-  return (strcmp(type, DATA) == 0);
+  return OpTypeUtils::IsDataNode(op_desc->GetType());
 }
 
 bool IsHostInputAnchor(const OpDescPtr &op_desc) {
@@ -294,7 +294,7 @@ Status HostcpuEngineUpdatePass::FindHostDataOfSubgraph(const ComputeGraphPtr &gr
   }
   for (const auto &node : graph->GetDirectNode()) {
     GE_CHECK_NOTNULL(node);
-    if (strcmp(node->GetTypePtr(), DATA) == 0) {
+    if (OpTypeUtils::IsDataNode(node->GetType())) {
       NodePtr in_node = GetParentNode(node);
       if ((in_node != nullptr) && IsExecOnHost(in_node)) {
         if (host_exe_ops_.count(node) > 0U) {
@@ -313,7 +313,7 @@ Status HostcpuEngineUpdatePass::FindHostDataOfSubgraph(const ComputeGraphPtr &gr
 Status HostcpuEngineUpdatePass::FindHostDataOfPartitionCall(const ComputeGraphPtr &graph, std::deque<NodePtr> &q) {
   for (const auto &node : graph->GetDirectNode()) {
     GE_CHECK_NOTNULL(node);
-    if (strcmp(node->GetTypePtr(), DATA) == 0) {
+    if (OpTypeUtils::IsDataNode(node->GetType())) {
       NodePtr in_node = nullptr;
       GE_ASSERT_SUCCESS(NodeUtils::GetInNodeCrossPartionedCallNode(node, kDataInputIndex, in_node));
       if (in_node == nullptr) {
