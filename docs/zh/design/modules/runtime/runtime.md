@@ -345,7 +345,7 @@ ModelExecutor 需要处理"加载决策"——在资源不足时，需要卸载�
 6. 如果仍不够，继续卸载下一个模型
 ```
 
-同样的逻辑也用于事件（`CheckAndReleaseEvent`）资源的回收。这种设计确保了在设备资源受限的情况下，系统仍然能够通过"以旧换新"的方式运行新模型。
+同样的逻辑也用于流（`CheckAndReleaseStream`）和事件（`CheckAndReleaseEvent`）资源的回收。这种设计确保了在设备资源受限的情况下，系统仍然能够通过"以旧换新"的方式运行新模型。
 
 HCCL（Huawei Collective Communication Library）涉及跨设备通信，卸载会破坏通信拓扑的完整性。这是分布式训练场景下的重要约束。
 
