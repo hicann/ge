@@ -8,7 +8,7 @@
 - `meet_requirements()` 中检查 `groups != 1` 且 `data_format == "NCHW"`
 - `replacement()` 中按 `Split(input) + Split(filter) + 多个 Conv2D + Concat` 构造 replacement graph
 - 对 replacement graph 中每个 `Conv2D` 更新输入/输出 `TensorDesc`，设置 `FORMAT_NCHW` / `DT_FLOAT`
-- 对 replacement graph 执行 `InferShape`，完成替换子图的 shape 推导
+- 使用 `ge.passes.infer_shape(replacement_graph, node)` 执行 `InferShape`，从匹配节点边界输入 desc 推导；推导失败时不执行替换
 
 ## 目录结构
 

@@ -8,7 +8,7 @@ This directory provides a **pure Python** version of `pattern_base_pass/6_decomp
 - `meet_requirements()` checks `groups != 1` and `data_format == "NCHW"`
 - `replacement()` constructs a replacement graph using `Split(input) + Split(filter) + multiple Conv2D + Concat`
 - Updates input/output `TensorDesc` for each `Conv2D` in the replacement graph, setting `FORMAT_NCHW` / `DT_FLOAT`
-- Executes `InferShape` on the replacement graph to complete shape inference
+- Calls `ge.passes.infer_shape(replacement_graph, node)` to infer from the matched node's boundary input descs; if inference fails, the replacement is not performed
 
 ## Directory Structure
 

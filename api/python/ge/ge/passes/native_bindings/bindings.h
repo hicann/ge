@@ -19,6 +19,7 @@ namespace python_pass_native {
 void BindPassContext(py::module_ &m);
 void BindPattern(py::module_ &m);
 void BindMatchResult(py::module_ &m);
+void BindInferShape(py::module_ &m);
 void BindPatternMatcherConfig(py::module_ &m);
 void BindGraphHandleHelpers(py::module_ &m);
 void BindGraphRewriter(py::module_ &m);

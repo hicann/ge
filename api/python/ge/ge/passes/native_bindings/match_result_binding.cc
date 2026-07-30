@@ -56,6 +56,11 @@ class BorrowedMatchResult {
     return AscendStringToString(match_result_->ToAscendString());
   }
 
+  const MatchResult *GetMatchResult() const {
+    EnsureValid();
+    return match_result_;
+  }
+
   void Invalidate() {
     valid_ = false;
     match_result_ = nullptr;
@@ -79,6 +84,10 @@ BorrowedMatchResult BorrowMatchResult(uintptr_t match_result_handle) {
   return BorrowedMatchResult(reinterpret_cast<MatchResult *>(match_result_handle));
 }
 }  // namespace
+
+const fusion::MatchResult *BorrowMatchResultFromPython(const py::handle &match_result_obj) {
+  return match_result_obj.cast<const BorrowedMatchResult &>().GetMatchResult();
+}
 
 void BindMatchResult(py::module_ &m) {
   py::class_<BorrowedMatchResult>(m, "MatchResult", "Pattern matching result")

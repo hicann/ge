@@ -16,6 +16,7 @@
 #include <string>
 
 #include "binding_common.h"
+#include "ge/fusion/match_result.h"
 #include "ge/fusion/pattern.h"
 #include "graph/ascend_string.h"
 #include "graph/graph.h"
@@ -25,6 +26,8 @@ namespace ge {
 namespace python_pass_native {
 
 using ::ge::fusion::NodeIo;
+
+const fusion::MatchResult *BorrowMatchResultFromPython(const py::handle &match_result_obj);
 
 inline std::string AscendStringToString(const AscendString &ascend_str) {
   return std::string(ascend_str.GetString());
