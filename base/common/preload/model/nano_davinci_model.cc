@@ -121,7 +121,18 @@ Status NanoDavinciModel::Init() {
   GE_TIMESTAMP_START(DoPartitionProcess);
   GE_CHK_STATUS_RET(DoPartitionProcess(), "[Call][DoPartitionProcess] failed, model_id:%u.", model_id_);
   GE_TIMESTAMP_END(DoPartitionProcess, "NanoDavinciModel::DoPartitionProcess");
-  GELOGI("success init nano davinci model.");
+  /* Nano上workspace及输入输出由用户分别申请，总memory_size无需包含zero_copy_size. */
+  GE_ASSERT_TRUE(runtime_param_.mem_size >= static_cast<uint64_t>(runtime_param_.zero_copy_size),
+                 "mem_size[%" PRIu64 "] < zero_copy_size[%" PRId64 "].", runtime_param_.mem_size,
+                 runtime_param_.zero_copy_size);
+  auto model_task_def = ge_model_->GetModelTaskDefPtr();
+  GE_ASSERT_NOTNULL(model_task_def, "[Check][Param] model_task_def is null.");
+  auto nano_model_memory_size = runtime_param_.mem_size - runtime_param_.zero_copy_size;
+  model_task_def->set_memory_size(nano_model_memory_size);
+  (void)AttrUtils::SetInt(ge_model_, ATTR_MODEL_MEMORY_SIZE, nano_model_memory_size);
+  GELOGI("success init nano davinci model, nano_model_memory_size:%" PRIu64 ", total_mem_size:%" PRIu64
+         ", zero_copy_size:%" PRId64 ".",
+         nano_model_memory_size, runtime_param_.mem_size, runtime_param_.zero_copy_size);
   return SUCCESS;
 }
 Status NanoDavinciModel::DoPartitionProcess() {

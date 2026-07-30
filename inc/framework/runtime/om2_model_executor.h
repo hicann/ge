@@ -31,6 +31,7 @@ struct VISIBILITY_EXPORT Om2ModelLoadArg {
   gert::RtSession *rt_session = nullptr;
   std::vector<ge::FileConstantMem> file_constant_mems;
   bool need_clear_dfx_cache = false;
+  bool reuse_zero_copy = false;
   std::string om_path;
   std::string weight_path;
 };

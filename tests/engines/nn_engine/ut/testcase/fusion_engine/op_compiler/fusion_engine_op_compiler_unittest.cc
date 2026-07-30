@@ -196,6 +196,15 @@ class UTEST_fusion_engine_op_compiler : public testing::Test {
 
   void TearDown() {
     te_task_map.clear();
+    if (tbe_adapter_ptr_ != nullptr) {
+      tbe_adapter_ptr_->SelectTbeOpFormat = nullptr;
+      tbe_adapter_ptr_->CheckTbeSupported = nullptr;
+      tbe_adapter_ptr_->GetOpUniqueKeyFunc = nullptr;
+      tbe_adapter_ptr_->PreBuildTbeOp = nullptr;
+      tbe_adapter_ptr_->GetOpInfo = nullptr;
+      tbe_adapter_ptr_->WaitAllFinished = nullptr;
+      tbe_adapter_ptr_->TeFusion = nullptr;
+    }
   }
 
   static void RegisterOpCreator(const std::string &op_type, const std::vector<std::string> &input_names,

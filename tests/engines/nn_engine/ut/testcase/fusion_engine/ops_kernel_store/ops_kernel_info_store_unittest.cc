@@ -164,6 +164,20 @@ bool GetOpSpecificInfoStub(const TbeOpInfo &tbeOpInfo, std::string &opSpecificIn
   opSpecificInfo = json_str;
   return true;
 }
+
+bool SelectTbeOpFormatStub(const te::TbeOpInfo &tbe_op_info, std::string &format_str) {
+  return true;
+}
+
+bool CheckTbeSupportedStub(TbeOpInfo &opinfo, CheckSupportedInfo &result) {
+  return true;
+}
+
+te::OpBuildResCode TeFusionStub(std::vector<ge::Node *> teGraphNode, ge::OpDescPtr opDesc,
+                                const std::vector<ge::NodePtr> &toBeDel, uint64_t taskId, uint64_t graphId,
+                                const std::string &strategy) {
+  return te::OP_BUILD_SUCC;
+}
 }  // namespace
 
 class OptimizeUtilityStubST : public ge::OptimizeUtility {
@@ -214,9 +228,12 @@ class FEOpsKernelInfoStoreTest : public testing::Test {
 
     tbe_adapter_ptr_ = std::dynamic_pointer_cast<TbeOpStoreAdapter>(
         OpStoreAdapterManager::Instance(AI_CORE_NAME).GetOpStoreAdapter(EN_IMPL_HW_TBE));
+    tbe_adapter_ptr_->SelectTbeOpFormat = SelectTbeOpFormatStub;
+    tbe_adapter_ptr_->CheckTbeSupported = CheckTbeSupportedStub;
     tbe_adapter_ptr_->GetOpInfo = GetOpInfoStubTestImplJudge;
     tbe_adapter_ptr_->PreBuildTbeOp = PreBuildTbeOpStubTestImplJudge;
     tbe_adapter_ptr_->WaitAllFinished = WaitAllFinishedStub;
+    tbe_adapter_ptr_->TeFusion = TeFusionStub;
     fe_ops_kernel_info_store_ptr = make_shared<fe::FEOpsKernelInfoStore>(AI_CORE_NAME);
     FEOpsStoreInfo tbe_custom{
         2,
@@ -249,6 +266,13 @@ class FEOpsKernelInfoStoreTest : public testing::Test {
     Configuration::Instance(fe::AI_CORE_NAME).content_map_["check_subformat.enable"] = "true";
     fe_ops_kernel_info_store_ptr->Initialize(options);
 
+    SetupOpDescInputsAndOutputs();
+
+    format_dtype_querier_ptr_ = std::make_shared<FormatDtypeQuerier>(AI_CORE_NAME);
+    cout << "a test Set Up" << endl;
+  }
+
+  void SetupOpDescInputsAndOutputs() {
     op_desc_ptr->SetName("tbe_conv");
     ge::OpDescUtilsEx::SetType(op_desc_ptr, "conv");
     ge::DataType set_dtype = ge::DT_FLOAT16;
@@ -278,13 +302,19 @@ class FEOpsKernelInfoStoreTest : public testing::Test {
     output0_desc_ptr->SetDataType(set_dtype);
     output0_desc_ptr->SetFormat(set_format);
     op_desc_ptr->AddOutputDesc("z", output0_desc_ptr->Clone());
-
-    format_dtype_querier_ptr_ = std::make_shared<FormatDtypeQuerier>(AI_CORE_NAME);
-    cout << "a test Set Up" << endl;
   }
+
   virtual void TearDown() {
     cout << "a test Tear Down" << endl;
     fe_ops_kernel_info_store_ptr->Finalize();
+    if (tbe_adapter_ptr_ != nullptr) {
+      tbe_adapter_ptr_->SelectTbeOpFormat = nullptr;
+      tbe_adapter_ptr_->CheckTbeSupported = nullptr;
+      tbe_adapter_ptr_->GetOpInfo = nullptr;
+      tbe_adapter_ptr_->PreBuildTbeOp = nullptr;
+      tbe_adapter_ptr_->WaitAllFinished = nullptr;
+      tbe_adapter_ptr_->TeFusion = nullptr;
+    }
   }
 
   OpDescPtr CreateOpDescPtr(TestIter test_iter) {

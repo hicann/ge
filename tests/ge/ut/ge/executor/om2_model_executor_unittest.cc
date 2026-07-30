@@ -2966,6 +2966,54 @@ TEST_F(Om2ModelExecutorUt, SetDynamicAippData_StructLargerThanLength_ReturnsErro
   const auto status = executor.SetDynamicAippData(dummy_buffer, 8U, batch_para, aipp_parms);
   EXPECT_EQ(status, ACL_ERROR_GE_DYNAMIC_INPUT_LENGTH_INVALID);
 }
+
+TEST_F(Om2ModelExecutorUt, make_om2_load_arg_has_reuse_zero_copy_false_by_default) {
+  auto load_arg = MakeOm2LoadArg();
+  EXPECT_FALSE(load_arg.reuse_zero_copy);
+}
+
+TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_true_and_internal_work_allocation) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.reuse_zero_copy = true;
+
+  EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NON_NULL", 1), 0);
+
+  EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_false_and_internal_work_allocation) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.reuse_zero_copy = false;
+
+  EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NON_NULL", 1), 0);
+
+  EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_true_and_external_work_ptr) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.reuse_zero_copy = true;
+  std::vector<uint8_t> external_work(4096U, 0U);
+  load_arg.work_ptr = external_work.data();
+  load_arg.work_size = external_work.size();
+
+  EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
+  EnvValueGuard guard_value("OM2_EXPECT_WORK_PTR_VALUE");
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "EQUAL", 1), 0);
+  const std::string expected_ptr = PtrToHexString(external_work.data());
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_VALUE", expected_ptr.c_str(), 1), 0);
+
+  EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
 }  // namespace ge
 
 namespace gert {

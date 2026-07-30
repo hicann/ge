@@ -66,6 +66,7 @@ if (ENABLE_SIGN)
             INPUT "${CMAKE_BINARY_DIR}/${PACKAGE_TAR_FILE_NAME}"
             CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/sign/sign.xml
             RESULT_VAR "udf_compat_sign_file"
+            VERSION "${CANN_VERSION_dflow-executor_VERSION}"
             DEPENDS pack_udf_compat
     )
 
@@ -134,6 +135,7 @@ if (ENABLE_SIGN)
             INPUT "${CMAKE_BINARY_DIR}/${RUNTIME_PACKAGE_TAR_FILE_NAME}"
             CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/sign/runtime_dev_sign.xml
             RESULT_VAR "runtime_device_sign_file"
+            VERSION "${CANN_VERSION_dflow-executor_VERSION}"
             DEPENDS pack_runtime_device sign_cann_udf_compat
     )
 

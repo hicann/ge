@@ -468,6 +468,7 @@ set(MULTI_PARTS_TEST_FILES
     "common/dnnengines_unittest.cc"
     "common/engine_manage_unittest.cc"
     "common/helper/custom_op_registry_builder_unittest.cc"
+    "runtime/custom_op/python_custom_op_ir_meta_unittest.cc"
     "graph_ir/ge_custom_op_factory_unittest.cc"
     "graph_ir/ge_custom_op_pull_registry_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"

@@ -1000,6 +1000,7 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
   gert::Om2ModelLoadArg load_arg;
   load_arg.device_id = static_cast<int32_t>(GetContext().DeviceId());
   load_arg.model_id = model_id;
+  load_arg.reuse_zero_copy = ModelUtils::IsReuseZeroCopyMemory();
 
   const auto &const_mem = graph_node->GetConstMemoryBase();
   if (const_mem.first != nullptr) {

@@ -237,7 +237,13 @@ def test_bridge_custom_op_holder_and_execute():
     descriptor_key = descriptors[0]["descriptor_key"]
     ctx = _FakeEagerContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
-    assert bridge.call_execute(instance_id, ctx) is None
+    ir_meta = {
+        "op_type": "AddCustom",
+        "inputs": [{"name": "x", "kind": 0}],
+        "attrs": [{"name": "alpha", "type": "VT_FLOAT"}],
+        "outputs": [{"name": "y", "kind": 0}],
+    }
+    assert bridge.call_execute(instance_id, ir_meta, ctx) is None
     assert ctx.invalidated is True
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
@@ -252,7 +258,7 @@ def test_bridge_call_execute_ignores_return_value():
     instance_id = "ReturnCustom#1"
     ctx = _FakeEagerContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
-    assert bridge.call_execute(instance_id, ctx) is None
+    assert bridge.call_execute(instance_id, None, ctx) is None
     assert ctx.invalidated is True
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
