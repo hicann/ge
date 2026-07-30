@@ -115,6 +115,7 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
     }
 
     std::string opType = opDescPtr->GetType();
+    HCCL_DEBUG("[Optimize][Precision]c00913534 opType [%s]", opType.c_str());
     if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) == HCOM_SUPPORTED_OP_TYPE.end()) {
       continue;
     }
