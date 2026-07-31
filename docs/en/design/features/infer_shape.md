@@ -221,6 +221,16 @@ ge::graphStatus InferShapeRangeForWhere(InferShapeRangeContext *context) {
 ```
 - Note: Definition of Type 1, 2, and 3 operators can be found in [op_impl_dev_guide.md](../../user_guides/custom_op/custom_op_v1/op_impl_dev_guide.md)
 
+### 4.6 Python Pass Replacement Graph Inference
+
+Python Fusion Passes can use `ge.passes.infer_shape` to infer a replacement graph:
+
+```python
+infer_shape(replacement: Graph, source: MatchResult | Node | SubgraphBoundary) -> None
+```
+
+Pass `MatchResult`, `Node`, or `SubgraphBoundary` as `source` for PatternFusionPass, DecomposePass, or graph-based Pass scenarios, respectively. The interface first synchronizes the source boundary input descriptions to the Data nodes in the replacement graph, and then performs whole-graph inference to update the output descriptions (shape, dtype, and format) of the operators in place. If a replacement graph at `PassStage.AFTER_INFER_SHAPE` or a later stage introduces new operators that require inference, call this interface before returning the graph to complete their output descriptions. A replacement graph at `BEFORE_INFER_SHAPE` does not require this call because its operators participate in the whole-graph `InferShapePass` after being inserted into the original graph. The interface neither reads nor validates the current PassStage; it performs inference immediately at any stage and does not fail or skip execution merely because it is called at `BEFORE_INFER_SHAPE`. It returns `None` on success and raises `RuntimeError` on failure. If it is explicitly called at `BEFORE_INFER_SHAPE` and the replacement graph is successfully inserted into the original graph, its operators still participate in the subsequent whole-graph `InferShapePass`. An uncaught exception terminates the current replacement callback.
+
 ## 5 Compile-time Implementation
 
 ### 5.1 Overall Flow

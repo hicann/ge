@@ -223,13 +223,13 @@ ge::graphStatus InferShapeRangeForWhere(InferShapeRangeContext *context) {
 
 ### 4.6 Python Pass replacement graph 推导
 
-Python Fusion Pass可通过[ge.passes.infer_shape](../../api/graph_engine_api/python/ge/passes/infer_shape.md)推导replacement graph：
+Python Fusion Pass可调用[ge.passes.infer_shape](../../api/graph_engine_api/python/ge/passes/infer_shape.md)完成replacement graph推导：
 
 ```python
 infer_shape(replacement: Graph, source: MatchResult | Node | SubgraphBoundary) -> None
 ```
 
-`source`在PatternFusionPass、DecomposePass和Graph-base Pass场景分别传入`MatchResult`、`Node`和`SubgraphBoundary`。接口先将source的边界输入描述同步到replacement graph的Data节点，再执行全图推导，原地更新图中算子的输出描述（shape、dtype和format）。`PassStage.AFTER_INFER_SHAPE`及之后阶段的替换图引入需要推导的新算子时，在返回替换图前调用本接口补齐输出描述。`BEFORE_INFER_SHAPE`阶段的替换图在接入原图后，其中的算子会参加GE编译流程中的全图`InferShapePass`，因此无需调用本接口。本接口不读取或校验当前PassStage；在任意阶段调用时都会立即执行推导，不会因为处于`BEFORE_INFER_SHAPE`阶段而报错或跳过。推导成功时返回`None`，推导失败时抛出`RuntimeError`；在`BEFORE_INFER_SHAPE`阶段显式调用后，如果替换图成功接入原图，其中的算子还会参加后续的全图`InferShapePass`。异常未被捕获时，当前replacement回调终止。
+`source`在PatternFusionPass、DecomposePass和Graph-base Pass场景分别传入`MatchResult`、`Node`和`SubgraphBoundary`。接口先依据source提供的边界输入描述更新replacement graph的Data节点，再执行全图推导，原地更新图中算子的输出描述（shape、dtype和format）。`PassStage.AFTER_INFER_SHAPE`及之后阶段的替换图引入需要推导的新算子时，在返回替换图前调用本接口补齐输出描述。`BEFORE_INFER_SHAPE`阶段的替换图在接入原图后，其中的算子会参加GE编译流程中的全图`InferShapePass`，因此无需调用本接口。本接口不读取或校验当前PassStage；在任意阶段调用时都会立即执行推导，不会因为处于`BEFORE_INFER_SHAPE`阶段而报错或跳过。推导成功时返回`None`，推导失败时抛出`RuntimeError`；在`BEFORE_INFER_SHAPE`阶段显式调用后，如果替换图成功接入原图，其中的算子还会参加后续的全图`InferShapePass`。异常未被捕获时，将终止当前replacement回调。
 
 ## 5 编译期实现
 

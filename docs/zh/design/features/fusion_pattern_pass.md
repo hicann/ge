@@ -266,7 +266,7 @@ Pass 注册时需要指定执行阶段。阶段决定 pass 能看到的图状态
 
 初次开发建议优先选择 InferShape 前阶段。只有当你的判断必须依赖已经推导完成的 shape，或 replacement 本身明确会调用 shape 推导时，再考虑 InferShape 后阶段。
 
-在`PassStage.AFTER_INFER_SHAPE`及之后阶段构造replacement graph后，可调用[ge.passes.infer_shape](../../api/graph_engine_api/python/ge/passes/infer_shape.md)补齐输出描述。PatternFusionPass、DecomposePass和Graph-base Pass场景的`source`分别传入`MatchResult`、`Node`和`SubgraphBoundary`；调用失败时不得继续执行替换。
+在`PassStage.AFTER_INFER_SHAPE`及之后阶段构造replacement graph后，可调用[ge.passes.infer_shape](../../api/graph_engine_api/python/ge/passes/infer_shape.md)补齐输出描述。PatternFusionPass、DecomposePass和Graph-base Pass场景的`source`分别传入`MatchResult`、`Node`和`SubgraphBoundary`；接口调用失败时，不得继续执行替换。
 
 ## 7. Python 与 C++ 的关系
 

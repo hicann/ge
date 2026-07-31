@@ -638,6 +638,18 @@ Python exceptions.
 `report_fuse` sets the context error message and raises `RuntimeError` on failure. An empty `nodes_after` represents
 a deletion-only rewrite.
 
+##### InferShape native helper
+
+**File Location**: `base.py`, `native_bindings/infer_shape_binding.cc`
+
+**Function**: Provides Python Fusion Passes with Shape, DataType, and Format inference for replacement graphs.
+
+**Main Interface**:
+
+- `infer_shape(replacement, source) -> None`: `source` supports `MatchResult`, `Node`, and `SubgraphBoundary`
+
+The native binding calls the corresponding `InferShapeUtil` overload according to the `source` type. It first synchronizes the source boundary input descriptions to the Data nodes in the replacement graph, and then performs whole-graph inference to update the output descriptions of the operators in place. The interface neither reads nor validates the current PassStage and performs inference immediately at any stage. A `MatchResult` remains valid only during the current Pass callback. Inference failures raise `RuntimeError`; the exception message includes the replacement graph name, source type, and source name when available.
+
 ##### 6. FusionBasePass Class
 
 **File Location**: `base.py`
