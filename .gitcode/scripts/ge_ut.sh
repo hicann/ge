@@ -8,13 +8,14 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
+set -e
 
 # Usage:
 #    Command: sh ge_ut.sh
 #    Environment: WORKSPACE, GE_ST_RT2, GIT_TARGET_BRANCH, ASCEND_3RD_LIB_PATH
 
 source "${WORKSPACE}/common.sh"
-
+set +e
 function GE_ENV(){
     # Delete driver link
     echo "Delete driver link."
@@ -32,12 +33,12 @@ function GE_ENV(){
 }
 
 main(){
-    sudo update-alternatives --set gcc /usr/bin/gcc-14
+    sudo update-alternatives --set gcc /usr/bin/gcc-14 || { echo "Failed to set gcc-14"; exit 1; }
     #########
     # install #
     #########
-    pip3 install --user cloudpickle
-    ln -sf /opt/buildtools/python-3.10.2/bin/coverage /usr/local/bin/coverage
+    pip3 install --user cloudpickle || { echo "Failed to install cloudpickle"; exit 1; }
+    ln -sf /opt/buildtools/python-3.10.2/bin/coverage /usr/local/bin/coverage || { echo "Failed to ln coverage"; exit 1; }
     export BUILD_METADEF=OFF
     export BUILD_PARSER=OFF
     GE_ENV

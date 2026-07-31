@@ -23,12 +23,16 @@
 # fi
 
 # Uninstall package
+set -e
 source "${WORKSPACE}/.gitcode/scripts/common.sh"
 echo "Uninstall pip package."
-pip3 uninstall -y mindspore > /dev/null 2>&1
-pip3 uninstall -y mindspore-ascend > /dev/null 2>&1
-pip3 uninstall -y mindspore-gpu > /dev/null 2>&1
-pip3 uninstall -y mindinsight > /dev/null 2>&1
-pip3 uninstall -y mindarmour > /dev/null 2>&1
+pip3 uninstall -y mindspore > /dev/null 2>&1 || true
+pip3 uninstall -y mindspore-ascend > /dev/null 2>&1 || true
+pip3 uninstall -y mindspore-gpu > /dev/null 2>&1 || true
+pip3 uninstall -y mindinsight > /dev/null 2>&1 || true
+pip3 uninstall -y mindarmour > /dev/null 2>&1 || true
+set +e
 pip3 list|egrep 'mindspore|mindinsight|mindarmour'
-DP_ASSERT_NOT_EQUAL "$?" "0" "Uninstall package" "false"
+result=$?
+set -e
+DP_ASSERT_NOT_EQUAL "$result" "0" "Uninstall package" "false"

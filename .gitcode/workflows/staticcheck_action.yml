@@ -52,6 +52,7 @@ jobs:
           workspace: ${{ steps.process_checkout.outputs.path }}
       -
         name: upload
+        if: ${{ always() }}
         uses: obs-upload
         with:
           endpoint: "https://obs.cn-north-4.myhuaweicloud.com"

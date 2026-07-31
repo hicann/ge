@@ -8,19 +8,19 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
+set -e
 
 # Usage:
 #    Command: sh ge_st.sh
 #    Environment: WORKSPACE, GE_ST_RT2, GIT_TARGET_BRANCH, ASCEND_3RD_LIB_PATH
 
 source "${WORKSPACE}/common.sh"
-
+set +e
 function executSt(){
     # Build ge
     cd ${WORKSPACE}/tests || exit
     echo "Run ST testcase of graphengine."
     if [ "${GE_ST_RT2}X" == "ge_commonX" ];then
-        echo 0 &> ${CODE_PATH}/st_ge.txt
         if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
             LOG_DO bash run_test.sh --st=ge_common --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
         else
@@ -82,10 +82,10 @@ function executSt(){
 
 
 function main(){
-    sudo update-alternatives --set gcc /usr/bin/gcc-14
-    pip3 install --user cloudpickle
+    sudo update-alternatives --set gcc /usr/bin/gcc-14 || { echo "Failed to set gcc-14"; exit 1; }
+    pip3 install --user cloudpickle || { echo "Failed to install cloudpickle"; exit 1; }
     echo "ln -sf /opt/buildtools/python-3.10.2/bin/coverage /usr/local/bin/coverage"
-    ln -sf /opt/buildtools/python-3.10.2/bin/coverage /usr/local/bin/coverage
+    ln -sf /opt/buildtools/python-3.10.2/bin/coverage /usr/local/bin/coverage || { echo "Failed to ln coverage"; exit 1; }
     export BUILD_METADEF=OFF
     export BUILD_PARSER=OFF
 
