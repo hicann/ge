@@ -515,7 +515,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/ut_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.UT_Test_Report }}
@@ -565,7 +565,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/ut_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.UT_Test_Report }}
@@ -615,7 +615,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/ut_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.UT_Test_Report }}
@@ -665,7 +665,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/ut_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.UT_Test_Report }}
@@ -719,7 +719,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/st_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.ST_Test_Report }}
@@ -773,7 +773,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/st_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.ST_Test_Report }}
@@ -827,7 +827,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/st_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.ST_Test_Report }}
@@ -881,7 +881,7 @@ stages:
               artifact-path: |
                 ${{ steps.process_checkout.outputs.path }}/st_cov_*.tar.gz
               object-prefix: ${{ env.obs_path }}/
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: [dedicate-hosted, x64, small]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.ST_Test_Report }}
@@ -968,7 +968,7 @@ stages:
               repo: ${{ steps.process_checkout.outputs.path }}
               file_path: ${{ steps.process_checkout.outputs.path }}/ci/smoke-conf/smoke-A2.yaml
 
-        if: env.TARGET_BRANCH == 'master'
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: ['self-hosted','arch=arm','smoke=204']
     pre:
     - type: auto
