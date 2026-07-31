@@ -36,6 +36,7 @@ void EraseIntersectedEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set, cons
                           const int64_t dst_node_stream_id);
 Status GetNetoutputInNodeStream(const Node *const netoutput, const Node *const parent_node,
                                 std::unordered_map<const Node *, std::vector<int64_t>> &parent_nodes_to_stream_ids);
+std::set<int64_t> GetStreamMergeAndOutStreams(const ge::ComputeGraphPtr &graph);
 
 }  // namespace ge
 

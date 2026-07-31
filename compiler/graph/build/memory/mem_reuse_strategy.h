@@ -56,6 +56,7 @@ class MemReuseUtils {
   static bool IsDirectOutputNode(const ge::Node *const node, const ge::ComputeGraphPtr &compute_graph);
   static bool IsAtomicWorkSpace(const int64_t index,
                                 const std::map<std::string, std::map<int64_t, int64_t>> &atomic_workspace);
+  static bool IsSeparateCleanContinuousInputNode(const Node *const node);
 };
 
 class MemReuseStrategy {

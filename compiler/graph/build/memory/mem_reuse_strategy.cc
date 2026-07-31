@@ -464,4 +464,19 @@ bool MemReuseUtils::IsAtomicWorkSpace(const int64_t index,
   return false;
 }
 
+bool MemReuseUtils::IsSeparateCleanContinuousInputNode(const Node *const node) {
+  GE_ASSERT_NOTNULL(node->GetOpDescBarePtr());
+  bool is_input_continuous = MemLayoutConflictUtil::IsContinuousInput(node);
+  if (!is_input_continuous) {
+    return false;
+  }
+  bool need_gentask_atomic = false;
+  (void)ge::AttrUtils::GetBool(node->GetOpDescBarePtr(), "need_gentask_atomic", need_gentask_atomic);
+  const bool has_atomic_input = node->GetOpDescBarePtr()->HasAttr(ATOMIC_ATTR_INPUT_INDEX);
+  if (has_atomic_input && need_gentask_atomic) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace ge

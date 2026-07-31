@@ -14,6 +14,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/build/memory/block_mem_assigner.h"
+#include "graph/build/memory/block_mem_zero_copy.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/manager/graph_var_manager.h"
@@ -178,17 +179,17 @@ TEST_F(UtestBlockMemAssigner, GetWorkSpaceMemoryType) {
   bool is_p2p_memory = true;
   bool session_scope_memory = true;
   memory_type =
-      p1->GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
+      GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
   EXPECT_EQ(memory_type, RT_MEMORY_P2P_DDR);
 
   is_p2p_memory = false;
   memory_type =
-      p1->GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
+      GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
   EXPECT_EQ(memory_type, (kSessionScopeMemory | RT_MEMORY_HBM));
 
   session_scope_memory = false;
   memory_type =
-      p1->GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
+      GetWorkSpaceMemoryType(no_reuse_scope_size, index, is_p2p_memory, session_scope_memory, workspace_reuse_flag);
   EXPECT_EQ(memory_type, RT_MEMORY_HBM);
 }
 
@@ -1149,11 +1150,11 @@ TEST_F(UtestBlockMemAssigner, ContinuousOutputCanNotZeroCpy) {
   MemoryBlock child(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   child.is_reuse_zero_copy_ = true;
   child.is_zero_copy_ = true;
-  assigner.MarkReuseZeroCopyBlockFlag(node_a, &child, 0);
+  MarkReuseZeroCopyBlockFlag(node_a, &child, 0);
   EXPECT_EQ(child.is_reuse_zero_copy_, false);
   EXPECT_EQ(child.is_zero_copy_, true);
 
-  assigner.MarkReuseZeroCopyBlockFlag(node, &child, 0);
+  MarkReuseZeroCopyBlockFlag(node, &child, 0);
   EXPECT_EQ(child.is_reuse_zero_copy_, false);
   EXPECT_EQ(child.is_zero_copy_, false);
 }
@@ -1779,7 +1780,7 @@ TEST_F(UtestBlockMemAssigner, GetNoNeedAssignMemoryFlag_AsFirstAndSecondInput) {
 
   auto a = graph->FindNode("a");
   ASSERT_NE(a, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 }
 
@@ -1815,12 +1816,12 @@ TEST_F(UtestBlockMemAssigner, GetNoNeedAssignMemoryFlag_PhonyConcat) {
 
   auto d = graph->FindNode("d");
   ASSERT_NE(d, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(d, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(d, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 
   auto b = graph->FindNode("b");
   ASSERT_NE(b, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 }
 
@@ -1850,12 +1851,12 @@ TEST_F(UtestBlockMemAssigner, GetNoNeedAssignMemoryFlag_Hcom_WithoutLxFusion) {
 
   auto a = graph->FindNode("a");
   ASSERT_NE(a, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 
   auto b = graph->FindNode("b");
   ASSERT_NE(b, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 }
 
@@ -1890,10 +1891,10 @@ TEST_F(UtestBlockMemAssigner, GetNoNeedAssignMemoryFlag_Hcom_WithLxFusion) {
 
   auto a = graph->FindNode("a");
   ASSERT_NE(a, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 }
 
@@ -1923,32 +1924,32 @@ TEST_F(UtestBlockMemAssigner, GetNoNeedAssignMemoryFlag_Cascaded_Success) {
 
   auto a = graph->FindNode("a");
   ASSERT_NE(a, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(a, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 
   auto b = graph->FindNode("b");
   ASSERT_NE(b, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(b, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 
   auto c = graph->FindNode("c");
   ASSERT_NE(c, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(c, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(c, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 
   auto d = graph->FindNode("d");
   ASSERT_NE(d, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(d, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(d, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_FALSE(no_need_assign_memory_flag);
 
   auto f = graph->FindNode("f");
   ASSERT_NE(f, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(f, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(f, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 
   auto pc1 = graph->FindNode("pc1");
   ASSERT_NE(pc1, nullptr);
-  ASSERT_EQ(assigner.GetNoNeedAssignMemoryFlag(pc1, 0, no_need_assign_memory_flag), SUCCESS);
+  ASSERT_EQ(GetNoNeedAssignMemoryFlag(pc1, 0, no_need_assign_memory_flag), SUCCESS);
   EXPECT_TRUE(no_need_assign_memory_flag);
 }
 

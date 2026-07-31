@@ -57,6 +57,11 @@ struct MemAssistInfo {
   std::unordered_map<const Node *, std::vector<int64_t>> parent_nodes_to_stream_ids;
 };
 
+bool CheckIsZeroMemNodeType(const std::string &node_type);
+Status GetNoNeedAssignMemoryFlag(const NodePtr &n, uint32_t out_index, bool &no_need_assign_memory);
+uint64_t GetWorkSpaceMemoryType(const size_t no_reuse_scope_size, const size_t index, const bool is_p2p_memory,
+                                const bool session_scope_memory, std::vector<bool> &workspace_reuse_flag);
+
 class BlockMemAssigner : public MemAssigner {
  public:
   BlockMemAssigner(const MemAssistInfo &mem_assist_info);
@@ -127,14 +132,6 @@ class BlockMemAssigner : public MemAssigner {
   Status GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_size);
 
   void GetNodeWorkSpaceSize(const ge::NodePtr &node, std::vector<int64_t> &workspace_memory, int64_t &total_size) const;
-
-  /// @ingroup GE
-  /// @brief Determine whether it is the type of zero memory node.
-  /// @param [in] node type.
-  /// @return bool true: is zero memory node; false: is not zero memory node
-  /// @author
-  bool CheckIsZeroMemNodeType(const std::string &node_type) const;
-
   /// @ingroup GE
   /// @brief check if input node reuse memory
   /// @param [in] n input node
@@ -344,16 +341,11 @@ class BlockMemAssigner : public MemAssigner {
   void ReleaseInputNodeOutMemory(const NodePtr &node);
 
   void AssignContinuousBlocks();
-
-  bool IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index) const;
-
   bool IsZeroCopyBlock(const NodePtr &node, uint32_t output_index, bool continuous, size_t output_size = 0) const;
   bool IsAtomicOutputMemory(const ge::NodePtr &node, uint32_t output_index, bool is_atomic,
                             bool out_node_set_continuous_input) const;
   bool IsOutNodeSetContinuousInput(const NodePtr &n, uint32_t out_index, InDataAnchor *&continuous_in_anchor,
                                    bool &is_reuse_zero_copy, std::set<int64_t> &streams);
-  Status GetNoNeedAssignMemoryFlag(const NodePtr &n, uint32_t out_index, bool &no_need_assign_memory) const;
-
   bool IsContinuousMemoryReuse(const Node *const n, uint32_t out_index, const Node *const continuous_node,
                                std::set<int64_t> &streams);
 
@@ -369,9 +361,6 @@ class BlockMemAssigner : public MemAssigner {
   /// @return void
   /// @author
   void ReuseBlocksByLifeTime();
-
-  uint64_t GetWorkSpaceMemoryType(const size_t no_reuse_scope_size, const size_t index, const bool is_p2p_memory,
-                                  const bool session_scope_memory, std::vector<bool> &workspace_reuse_flag) const;
 
   void ContinuousOutRefCheck(bool &is_all_output_ref, bool &is_output_has_ref, const NodePtr &n);
 
@@ -413,7 +402,6 @@ class BlockMemAssigner : public MemAssigner {
   void ParseIoReuseMemOption();
   Status InitIoReuseFlag();
   void AddMemoryStat(uint64_t memory_type, size_t real_size, bool is_reuse_memory);
-  void MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block, const uint32_t index) const;
 
   void InitDiffStreamSameOutTable();
   // [memory type][sub graph id][stream id]
@@ -487,5 +475,6 @@ class BlockMemAssigner : public MemAssigner {
   const std::unordered_map<const Node *, std::vector<int64_t>> &parent_nodes_to_stream_ids_;
   ContinuousMemMng continuous_mem_mng_;
 };
+using BlockMemAssignerPtr = std::shared_ptr<BlockMemAssigner>;
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_MEMORY_BLOCK_MEM_ASSIGNER_H_

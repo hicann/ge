@@ -568,6 +568,13 @@ Status SetChildHeadOffset(size_t offset, size_t max_offset, std::vector<MemoryBl
 void SetChildTailOffset(size_t offset, std::vector<MemoryBlock *> &blocks);
 std::string ToString(const ge::NodeTypeIndex &x);
 std::string GetName(const ge::MemoryBlock &block, bool last_node = false);
+bool CompareBlockIndex(const MemoryBlock *const left, const MemoryBlock *const right);
+struct CompareLifeInterval {
+  explicit CompareLifeInterval(const ReuseStrategy &reuse_strategy) : reuse_strategy_(reuse_strategy) {}
+  bool operator()(MemoryBlock *const left, MemoryBlock *const right) const;
+  ReuseStrategy reuse_strategy_;
+};
+Status AddBlockMemOffset(std::map<uint64_t, size_t> &mem_offsets, MemoryBlock &block);
 
 }  // namespace ge
 

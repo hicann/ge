@@ -222,4 +222,44 @@ void DynamicBatchMemAssigner::DoResizeDynamicBatchBlocks(
     AddBlockToMaxBatchBlock(max_blocks, batch_blocks.second);
   }
 }
+
+void GetMaxBatchAllMemorySize(std::map<std::string, std::vector<int64_t>> &batch_all_memory_size,
+                              std::map<std::string, int64_t> batch_total_size, std::vector<int64_t> &all_memory_size,
+                              std::string &max_batch_label) {
+  // use max batch all memory size for reuse range
+  int64_t max_batch_size = 0;
+  for (const auto &it : batch_total_size) {
+    GELOGI("Batch[%s] total memory size[%" PRId64 "]", it.first.c_str(), it.second);
+    // no batch label
+    if (it.first.empty()) {
+      continue;
+    }
+    if (it.second > max_batch_size) {
+      max_batch_size = it.second;
+      max_batch_label = it.first;
+    }
+  }
+  GELOGI("Max batch[%s] total memory size[%" PRId64 "]", max_batch_label.c_str(), max_batch_size);
+
+  for (const auto &it : batch_all_memory_size) {
+    if (it.first.empty() || (it.first == max_batch_label)) {
+      all_memory_size.insert(all_memory_size.cend(), it.second.cbegin(), it.second.cend());
+    }
+  }
+  // all_memory_size can't be empty
+  if (all_memory_size.empty()) {
+    all_memory_size.emplace_back(MEM_ALIGN_SIZE);
+  }
+  sort(all_memory_size.begin(), all_memory_size.end());
+  GELOGD("All memory size: %s", ToString(all_memory_size).c_str());
+
+  for (auto iter = all_memory_size.begin(); iter != all_memory_size.end();) {
+    if (*iter == 0) {
+      iter = all_memory_size.erase(iter);
+    } else {
+      ++iter;
+    }
+  }
+}
+
 }  // namespace ge

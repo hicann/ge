@@ -341,4 +341,40 @@ TEST_F(UtestReuseChecker, ModifyPhonyConcatLastInputMemSize) {
   size_t zero_memory_size = 0;
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
 }
+
+TEST_F(UtestReuseChecker, MemReuseUtils_IsNoPaddingContinuousInput_NotSet) {
+  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding");
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc());
+  auto node = compute_graph->AddNode(op_desc);
+  EXPECT_FALSE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
+}
+
+TEST_F(UtestReuseChecker, MemReuseUtils_IsNoPaddingContinuousInput_SetButSingleInput) {
+  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding2");
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  op_desc->AddInputDesc(GeTensorDesc());
+  AttrUtils::SetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, true);
+  auto node = compute_graph->AddNode(op_desc);
+  EXPECT_FALSE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
+}
+
+TEST_F(UtestReuseChecker, MemReuseUtils_IsNoPaddingContinuousInput_SetMultiInput) {
+  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding3");
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc());
+  AttrUtils::SetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, true);
+  auto node = compute_graph->AddNode(op_desc);
+  EXPECT_TRUE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
+}
+
+TEST_F(UtestReuseChecker, MemReuseUtils_GetOutputNoAlignSize_Success) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape({2, 3}), FORMAT_ND, DT_FLOAT));
+  size_t size = 0;
+  EXPECT_EQ(MemReuseUtils::GetOutputNoAlignSize(*op_desc, 0, size), SUCCESS);
+  EXPECT_GT(size, 0U);
+}
 }  // namespace ge

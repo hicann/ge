@@ -871,4 +871,65 @@ std::string MemoryBlock::String() const {
   return ss.str();
 }
 
+// ascending order
+bool CompareBlockIndex(const MemoryBlock *const left, const MemoryBlock *const right) {
+  if (left == nullptr || right == nullptr) {
+    return false;
+  }
+  if (left->input_index_ < right->input_index_) {
+    return true;
+  }
+  return false;
+}
+
+bool CompareLifeInterval::operator()(MemoryBlock *const left, MemoryBlock *const right) const {
+  if ((left != nullptr) && (right != nullptr)) {
+    auto left_size = left->AlignSize();
+    auto right_size = right->AlignSize();
+    if (left->GetContinuousFlag()) {
+      auto it = std::max_element(std::begin(left->NoAlignSizeList()), std::end(left->NoAlignSizeList()));
+      if (it != left->NoAlignSizeList().end()) {
+        left_size = *it;
+      }
+    }
+
+    if (right->GetContinuousFlag()) {
+      auto it = std::max_element(std::begin(right->NoAlignSizeList()), std::end(right->NoAlignSizeList()));
+      if (it != right->NoAlignSizeList().end()) {
+        right_size = *it;
+      }
+    }
+
+    if (left_size == right_size) {
+      if (!reuse_strategy_.ascending_sort_) {
+        return (left->GetLifeBegin(true) > right->GetLifeBegin(true));
+      }
+      if (left->NodeTypeIndexList().size() == right->NodeTypeIndexList().size()) {
+        return (left->GetLifeBegin(true) < right->GetLifeBegin(true));
+      } else {
+        return (left->NodeTypeIndexList().size() < right->NodeTypeIndexList().size());
+      }
+    } else {
+      return (left_size > right_size);
+    }
+  }
+  return false;
+}
+
+Status AddBlockMemOffset(std::map<uint64_t, size_t> &mem_offsets, MemoryBlock &block) {
+  auto it = mem_offsets.find(block.memory_type_);
+  if (it == mem_offsets.end()) {
+    auto result = mem_offsets.insert(std::pair<int64_t, size_t>(block.memory_type_, block.memory_type_logic_base_));
+    GE_ASSERT_TRUE(result.second);
+    it = result.first;
+  }
+  GE_ASSERT_TRUE(it != mem_offsets.end());
+  auto &mem_offset = it->second;
+  block.Resize();
+  GE_ASSERT_SUCCESS(block.SetHeadOffset(mem_offset));
+  mem_offset += block.Size();
+  block.SetTailOffset(mem_offset - 1);
+  return SUCCESS;
+}
+
 }  // namespace ge
