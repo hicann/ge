@@ -441,4 +441,191 @@ TEST_F(OpDefCovUT, OpParamDef_GetScalarName) {
   auto &name = param.GetScalarName();
   EXPECT_EQ(name, ge::AscendString("y"));
 }
+
+TEST_F(OpDefCovUT, OpDef_MergeParam) {
+  OpDef opDef("TestMergeParamCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> merge;
+  std::vector<OpParamDef> aicore_params;
+  auto &input = opDef.GetInputs();
+  aicore_params = input;
+  opDef.MergeParam(merge, aicore_params);
+  EXPECT_FALSE(merge.empty());
+}
+
+TEST_F(OpDefCovUT, OpDef_DfsDataType) {
+  OpDef opDef("TestDfsDataTypeCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND});
+  opDef.Output("y").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsDataType(dfs_param, all_param, 0U, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_DfsFormat) {
+  OpDef opDef("TestDfsFormatCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFormat(dfs_param, all_param, 0U, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_DfsFullPermutation) {
+  OpDef opDef("TestDfsFullPermCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFullPermutation(dfs_param, all_param, 0U, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_IsNonListTypes) {
+  OpDef opDef("TestIsNonListTypesCov");
+  auto &param1 = opDef.Input("x").DataType({ge::DT_FLOAT16});
+  EXPECT_TRUE(opDef.IsNonListTypes(param1));
+  auto &param2 = opDef.Input("y").DataTypeList({ge::DT_FLOAT16, ge::DT_FLOAT});
+  EXPECT_FALSE(opDef.IsNonListTypes(param2));
+}
+
+TEST_F(OpDefCovUT, OpDef_IsNonListFormats) {
+  OpDef opDef("TestIsNonListFormatsCov");
+  auto &param1 = opDef.Input("x").Format({ge::FORMAT_ND});
+  EXPECT_TRUE(opDef.IsNonListFormats(param1));
+  auto &param2 = opDef.Input("y").FormatList({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  EXPECT_FALSE(opDef.IsNonListFormats(param2));
+}
+
+TEST_F(OpDefCovUT, OpDef_GetNonListLen) {
+  OpDef opDef("TestGetNonListLenCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  opDef.Input("y").DataType({ge::DT_FLOAT}).Format({ge::FORMAT_NCHW});
+  opDef.Output("z").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  auto &inputs = opDef.GetInputs();
+  auto &outputs = opDef.GetOutputs();
+  uint32_t len = opDef.GetNonListLen(inputs, outputs);
+  EXPECT_GE(len, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_UpdateDtypeImpl) {
+  OpDef opDef("TestUpdateDtypeCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  OpDef::DfsParam dfs_param;
+  opDef.DfsDataType(dfs_param, all_param, 0U, 0U);
+  OpParamDef param = opDef.GetInputs()[0];
+  opDef.UpdateDtypeImpl(dfs_param, param, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_UpdateFormatImpl) {
+  OpDef opDef("TestUpdateFormatCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFormat(dfs_param, all_param, 0U, 0U);
+  OpParamDef param = opDef.GetInputs()[0];
+  opDef.UpdateFormatImpl(dfs_param, param, 0U);
+}
+
+TEST_F(OpDefCovUT, OpDef_UpdateInput) {
+  OpDef opDef("TestUpdateInputCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFullPermutation(dfs_param, all_param, 0U, 0U);
+  std::vector<OpParamDef> input = opDef.GetInputs();
+  opDef.UpdateInput(dfs_param, input);
+}
+
+TEST_F(OpDefCovUT, OpDef_UpdateOutput) {
+  OpDef opDef("TestUpdateOutputCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFullPermutation(dfs_param, all_param, 0U, 0U);
+  std::vector<OpParamDef> output = opDef.GetOutputs();
+  opDef.UpdateOutput(dfs_param, output);
+}
+
+TEST_F(OpDefCovUT, OpDef_SetPermutedParam) {
+  OpDef opDef("TestSetPermutedParamCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFullPermutation(dfs_param, all_param, 0U, 0U);
+  std::vector<OpParamDef> input = opDef.GetInputs();
+  std::vector<OpParamDef> output = opDef.GetOutputs();
+  opDef.SetPermutedParam(dfs_param, input, output);
+}
+
+TEST_F(OpDefCovUT, OpDef_CheckIncompatible) {
+  OpDef opDef("TestCheckIncompatibleCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  opDef.CheckIncompatible(all_param);
+}
+
+TEST_F(OpDefCovUT, OpDef_FullPermutation) {
+  OpDef opDef("TestFullPermutationCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND, ge::FORMAT_NCHW});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> input = opDef.GetInputs();
+  std::vector<OpParamDef> output = opDef.GetOutputs();
+  opDef.FullPermutation(input, output);
+}
+
+TEST_F(OpDefCovUT, OpDef_SetDefaultND) {
+  OpDef opDef("TestSetDefaultNDCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  opDef.Output("y").DataType({ge::DT_FLOAT16}).Format({ge::FORMAT_ND});
+  std::vector<OpParamDef> defs = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    defs.push_back(out);
+  }
+  opDef.SetDefaultND(defs);
+}
+
+TEST_F(OpDefCovUT, OpDef_FollowListImpl) {
+  OpDef opDef("TestFollowListImplCov");
+  opDef.Input("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND});
+  opDef.Output("y").Follow("x").DataType({ge::DT_FLOAT16, ge::DT_FLOAT}).Format({ge::FORMAT_ND});
+  opDef.FollowImpl();
+  std::vector<OpParamDef> all_param = opDef.GetInputs();
+  for (auto &out : opDef.GetOutputs()) {
+    all_param.push_back(out);
+  }
+  OpDef::DfsParam dfs_param;
+  opDef.DfsFullPermutation(dfs_param, all_param, 0U, 0U);
+  std::vector<OpParamDef> input = opDef.GetInputs();
+  std::vector<OpParamDef> output = opDef.GetOutputs();
+  opDef.FollowListImpl(dfs_param, input, output);
+}
 }  // namespace ops

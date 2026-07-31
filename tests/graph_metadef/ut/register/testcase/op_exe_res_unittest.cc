@@ -380,4 +380,83 @@ TEST_F(OpExeResTest, SK_Test) {
   ge::AttrUtils::GetInt(mm, sk_id, int_ret);
   EXPECT_EQ(int_ret, 3);
 }
+
+TEST_F(OpExeResTest, IncCov_OpResAPIErrorPaths) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_err");
+  OpDescPtr mm = std::make_shared<OpDesc>("mm_err", "WeightQuantBatchMatmulV2");
+  ge::GeShape shape({2, 4});
+  GeTensorDesc tensor_desc(shape, ge::FORMAT_ND, ge::DT_FLOAT16);
+  tensor_desc.SetOriginFormat(ge::FORMAT_ND);
+  tensor_desc.SetOriginDataType(ge::DT_FLOAT16);
+  tensor_desc.SetOriginShape(shape);
+  mm->AddInputDesc(tensor_desc);
+  mm->AddOutputDesc(tensor_desc);
+  NodePtr mm_node = graph->AddNode(mm);
+
+  ExeResGenerationCtxBuilder exe_ctx_builder;
+  auto res_ptr_holder = exe_ctx_builder.CreateOpExeContext(*mm_node);
+  ASSERT_NE(res_ptr_holder, nullptr);
+  auto op_exe_res_ctx = reinterpret_cast<ExeResGenerationContext *>(res_ptr_holder->context_);
+
+  auto out_shape = op_exe_res_ctx->GetOutputShape(-1);
+  EXPECT_EQ(out_shape, nullptr);
+  out_shape = op_exe_res_ctx->GetOutputShape(100);
+  EXPECT_EQ(out_shape, nullptr);
+
+  auto stream_infos = op_exe_res_ctx->GetAttachedStreamInfos();
+  EXPECT_EQ(stream_infos.empty(), true);
+
+  auto sync_infos = op_exe_res_ctx->GetSyncResInfos();
+  EXPECT_EQ(sync_infos.empty(), true);
+
+  std::vector<StreamInfo> empty_stream_vec;
+  auto ret = op_exe_res_ctx->SetAttachedStreamInfos(empty_stream_vec);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+
+  std::vector<StreamInfo> stream_vec;
+  StreamInfo si;
+  si.name = "";
+  stream_vec.emplace_back(si);
+  ret = op_exe_res_ctx->SetAttachedStreamInfos(stream_vec);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+
+  std::vector<SyncResInfo> empty_sync_vec;
+  ret = op_exe_res_ctx->SetSyncResInfos(empty_sync_vec);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+
+  std::vector<SyncResInfo> sync_vec;
+  SyncResInfo sync_info;
+  sync_info.name = "";
+  sync_vec.emplace_back(sync_info);
+  ret = op_exe_res_ctx->SetSyncResInfos(sync_vec);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(OpExeResTest, IncCov_OpCheckInvalidIndices) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_check_err");
+  OpDescPtr mm = std::make_shared<OpDesc>("mm_check_err", "WeightQuantBatchMatmulV2");
+  ge::GeShape shape({2, 4});
+  GeTensorDesc tensor_desc(shape, ge::FORMAT_ND, ge::DT_FLOAT16);
+  tensor_desc.SetOriginFormat(ge::FORMAT_ND);
+  tensor_desc.SetOriginDataType(ge::DT_FLOAT16);
+  tensor_desc.SetOriginShape(shape);
+  mm->AddInputDesc(tensor_desc);
+  mm->AddOutputDesc(tensor_desc);
+  NodePtr mm_node = graph->AddNode(mm);
+
+  ExeResGenerationCtxBuilder exe_ctx_builder;
+  auto res_ptr_holder = exe_ctx_builder.CreateOpCheckContext(*mm_node);
+  ASSERT_NE(res_ptr_holder, nullptr);
+  auto op_check_ctx = reinterpret_cast<OpCheckContext *>(res_ptr_holder->context_);
+
+  auto in_shape = op_check_ctx->GetInputShape(-1);
+  EXPECT_EQ(in_shape, nullptr);
+  in_shape = op_check_ctx->GetInputShape(100);
+  EXPECT_EQ(in_shape, nullptr);
+
+  auto out_shape = op_check_ctx->GetOutputShape(-1);
+  EXPECT_EQ(out_shape, nullptr);
+  out_shape = op_check_ctx->GetOutputShape(100);
+  EXPECT_EQ(out_shape, nullptr);
+}
 }  // namespace

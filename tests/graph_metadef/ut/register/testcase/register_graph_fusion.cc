@@ -18,6 +18,7 @@
 #include "register/graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #include "register/graph_optimizer/graph_fusion/graph_fusion_pass_base.h"
 #include "register/graph_optimizer/fusion_common/pattern_fusion_base_pass.h"
+#include "register/graph_optimizer/fusion_common/graph_pass_util.h"
 
 #include "framework/common/debug/ge_log.h"
 
@@ -750,5 +751,133 @@ TEST_F(UTESTGraphFusionPass, coverage_01) {
   std::map<string, FusionPassRegistry::CreateFn> create_fns =
       FusionPassRegistry::GetInstance().GetCreateFnByType(SECOND_ROUND_BUILT_IN_GRAPH_PASS);
   EXPECT_NO_THROW(create_fns = FusionPassRegistry::GetInstance().GetCreateFnByType(BUILT_IN_GRAPH_PASS););
+}
+
+class TestGraphFusionPassBase : public GraphFusionPassBase {
+ protected:
+  vector<FusionPattern *> DefinePatterns() override {
+    vector<FusionPattern *> patterns;
+    FusionPattern *pattern = new (std::nothrow) FusionPattern("TestGraphFusionBase");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"}).SetOutput("output");
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+};
+
+class BadBuildGraphFusionPass : public GraphFusionPassBase {
+ protected:
+  vector<FusionPattern *> DefinePatterns() override {
+    vector<FusionPattern *> patterns;
+    FusionPattern *pattern = new (std::nothrow) FusionPattern("BadBuild");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"});
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+};
+
+class FailedGraphFusionPass : public GraphFusionPassBase {
+ protected:
+  vector<FusionPattern *> DefinePatterns() override {
+    vector<FusionPattern *> patterns;
+    FusionPattern *pattern = new (std::nothrow) FusionPattern("FailedFusion");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"}).SetOutput("output");
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &new_nodes) override {
+    return FAILED;
+  }
+};
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_run) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  TestGraphFusionPassBase pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::NOT_CHANGED);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_bad_build) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb_bad");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  BadBuildGraphFusionPass pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_run_count_overflow) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb_overflow");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  NodeMapInfoPtr node_map_info = std::make_shared<NodeMapInfo>();
+  node_map_info->run_count = std::numeric_limits<int64_t>::max();
+  node_map_info->node_type_map = std::make_shared<NodeTypeMap>();
+  (void)graph->SetExtAttr("NodeMapInfo", node_map_info);
+  TestGraphFusionPassBase pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_failed_fusion) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb_failed");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  FailedGraphFusionPass pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_get_node_from_mapping) {
+  GraphFusionPassBase::Mapping mapping;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test_id";
+  mapping[op_desc] = {};
+  EXPECT_EQ(GraphFusionPassBase::GetNodeFromMapping("test_id", mapping), nullptr);
+  EXPECT_EQ(GraphFusionPassBase::GetNodeFromMapping("nonexistent", mapping), nullptr);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_run_empty_graph) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb_empty");
+  TestGraphFusionPassBase pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::NOT_CHANGED);
+}
+
+TEST_F(UTESTGraphFusionPass, cov_graph_fusion_pass_base_run_with_node_map_info) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_gfpb_nmi");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("relu", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  TestGraphFusionPassBase pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, fe::NOT_CHANGED);
 }
 }  // namespace fe

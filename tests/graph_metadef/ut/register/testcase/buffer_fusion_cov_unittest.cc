@@ -12,6 +12,9 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <new>
+#include <cstdlib>
+#include <limits>
 
 #include "graph/compute_graph.h"
 #include "graph/op_desc.h"
@@ -21,6 +24,23 @@
 #include "register/graph_optimizer/buffer_fusion/buffer_fusion_pass_registry.h"
 #include "register/graph_optimizer/buffer_fusion/buffer_fusion_pattern.h"
 #include "register/graph_optimizer/fusion_common/op_slice_info.h"
+
+static bool g_nothrow_new_fail = false;
+
+void *operator new(std::size_t size, const std::nothrow_t &) noexcept {
+  if (g_nothrow_new_fail) {
+    return nullptr;
+  }
+  try {
+    return ::operator new(size);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+void operator delete(void *ptr, const std::nothrow_t &) noexcept {
+  ::operator delete(ptr);
+}
 
 using namespace std;
 using namespace ge;
@@ -381,5 +401,164 @@ TEST_F(BufferFusionCovUT, Pattern_UpdateSkipStatus) {
   auto *desc = pattern.GetOpDesc("desc1");
   pattern.UpdateSkipStatus(desc);
   EXPECT_EQ(pattern.GetHead().size(), 1U);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_FiveParamOverload) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, true);
+  pattern.SetHead({"desc1"});
+  EXPECT_EQ(pattern.GetHead().size(), 1U);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDescTypeRules_InvalidShapeRulesSize) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDescTypeRules("desc1", {"Relu", "Add", "Mul"}, 1, 1, TBE_PATTERN_GROUPID_INVALID,
+                             {ONLY_SUPPORT_STATIC, ONLY_SUPPORT_DYNAMIC}, false, true);
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_RelationMismatch) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc3", {"Mul"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"desc2"}, TBE_OUTPUT_BRANCH_SINGLE);
+  pattern.SetOutputs("desc1", {"desc3"}, TBE_OUTPUT_BRANCH_MULTI);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_GetOutputs_Basic) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"desc2"});
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  vector<BufferFusionOpDesc *> outputs;
+  bool result = pattern.GetOutputs(desc1, outputs);
+  EXPECT_TRUE(result);
+  EXPECT_EQ(outputs.size(), 2U);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_GetOutputs_NullOpDesc) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  vector<BufferFusionOpDesc *> outputs;
+  bool result = pattern.GetOutputs(nullptr, outputs);
+  EXPECT_FALSE(result);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_GetOutputs_WithRepeatAndSubOutputs) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 2, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 0, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc3", {"Mul"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"desc2"});
+  pattern.SetOutputs("desc2", {"desc3"});
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  vector<BufferFusionOpDesc *> outputs;
+  bool result = pattern.GetOutputs(desc1, outputs);
+  EXPECT_TRUE(result);
+  EXPECT_GE(outputs.size(), 1U);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_GetOutputs_NullDescInOutputs) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"desc2"});
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  desc1->outputs.push_back(nullptr);
+  vector<BufferFusionOpDesc *> outputs;
+  bool result = pattern.GetOutputs(desc1, outputs);
+  EXPECT_TRUE(result);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetHead_DescTotalMinExceedsOne) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetHead({"desc1", "desc2"});
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_Destructor_NullOp) {
+  auto *pattern = new BufferFusionPattern("test_pattern", 10);
+  pattern->AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  auto &descs = const_cast<std::vector<BufferFusionOpDesc *> &>(pattern->GetOpDescs());
+  descs.push_back(nullptr);
+  delete pattern;
+}
+
+TEST_F(BufferFusionCovUT, Pattern_UpdateSkipStatus_MultiBranch_SameType) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc0", {"Relu"}, 1, 2, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc0", {"desc1"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+  pattern.SetOutputs("desc1", {"desc2"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_UpdateSkipStatus_MultiBranch_DifferentTypeSize) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc0", {"Relu", "Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc0", {"desc1"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+  pattern.SetOutputs("desc1", {"desc2"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_UpdateSkipStatus_MultiBranch_DifferentType) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc0", {"Add"}, 1, 2, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Mul"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc0", {"desc1"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+  pattern.SetOutputs("desc1", {"desc2"}, TBE_OUTPUT_BRANCH_MULTI, false, true);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_NewFailure) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  g_nothrow_new_fail = true;
+  pattern.AddOpDescTypeRules("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, {ONLY_SUPPORT_STATIC}, false, true);
+  g_nothrow_new_fail = false;
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_ErrorCountOverflow) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.error_count_ = std::numeric_limits<int64_t>::max();
+  pattern.SetOutputs("desc1", {"nonexistent"});
+  EXPECT_EQ(pattern.GetErrorCnt(), std::numeric_limits<int64_t>::max());
+}
+
+TEST_F(BufferFusionCovUT, Pattern_IncreaseErrorCount_Overflow) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.error_count_ = std::numeric_limits<int64_t>::max();
+  pattern.IncreaseErrorCount();
+  EXPECT_EQ(pattern.GetErrorCnt(), std::numeric_limits<int64_t>::max());
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetHead_ErrorCountOverflow_NullDesc) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.error_count_ = std::numeric_limits<int64_t>::max();
+  pattern.SetHead({"nonexistent"});
+  EXPECT_EQ(pattern.GetErrorCnt(), std::numeric_limits<int64_t>::max());
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetHead_ErrorCountOverflow_RepeatMax) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 2, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.error_count_ = std::numeric_limits<int64_t>::max();
+  pattern.SetHead({"desc1"});
+  EXPECT_EQ(pattern.GetErrorCnt(), std::numeric_limits<int64_t>::max());
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetHead_DescTotalMinOverflow) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  desc1->repeate_min = std::numeric_limits<int64_t>::max();
+  pattern.SetHead({"desc1", "desc2"});
 }
 }  // namespace fe

@@ -60,4 +60,17 @@ TEST_F(RegisterTuningTilingUT, from_json_ut) {
   EXPECT_EQ(res, jsonval);
   std::cout << "expected json:" << res.dump() << std::endl;
 }
+
+TEST_F(RegisterTuningTilingUT, IncCov_RegisterNullConstructor_Test) {
+  TuningTilingClassFactory::RegisterTilingData("IncCov_NullCons", nullptr);
+  auto result = TuningTilingClassFactory::CreateTilingDataInstance("IncCov_NullCons");
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(RegisterTuningTilingUT, IncCov_CreateTilingDataInstanceNullConstructor_Test) {
+  auto &instance = TuningTilingClassFactory::RegisterInfo();
+  instance["IncCov_NullInMap"] = nullptr;
+  auto result = TuningTilingClassFactory::CreateTilingDataInstance("IncCov_NullInMap");
+  EXPECT_EQ(result, nullptr);
+}
 }  // namespace tuningtiling

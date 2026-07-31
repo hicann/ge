@@ -98,4 +98,21 @@ TEST_F(UtestOpsKernelBuilderRegistry, OpsKernelBuilderRegistrarTest) {
   EXPECT_EQ(ops_map.size(), 1);
 }
 
+TEST_F(UtestOpsKernelBuilderRegistry, IncCov_DestructorUnregisterWarning_Test) {
+  {
+    ge::OpsKernelBuilderRegistry ops_registry;
+    OpsKernelBuilderPtr opsptr = std::shared_ptr<OpsKernelBuilder>();
+    ops_registry.kernel_builders_.insert(std::pair<std::string, OpsKernelBuilderPtr>("IncCov_Builder", opsptr));
+  }
+  SUCCEED();
+}
+
+TEST_F(UtestOpsKernelBuilderRegistry, IncCov_CreateOpsKernelBuilderNotFound_Test) {
+  ge::OpsKernelBuilderRegistrar::CreateFn fn = []() -> OpsKernelBuilder * { return nullptr; };
+  OpsKernelBuilderRegistrar ops_rar("IncCov_NullBuilder", fn);
+  auto ops_map = OpsKernelBuilderRegistry::GetInstance().GetAll();
+  EXPECT_EQ(ops_map.count("IncCov_NullBuilder"), 1);
+  EXPECT_EQ(ops_map["IncCov_NullBuilder"], nullptr);
+  OpsKernelBuilderRegistry::GetInstance().Unregister("IncCov_NullBuilder");
+}
 }  // namespace ge

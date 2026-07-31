@@ -40,4 +40,20 @@ TEST_F(NodeConverterRegistryUnittest, RegisterSuccess_WithPlacement) {
   EXPECT_EQ(reg_data1->converter, TestFunc2);
   EXPECT_EQ(reg_data1->require_placement, 10);
 }
+
+TEST_F(NodeConverterRegistryUnittest, IncCov_RegisterNodeConverterDirect_Test) {
+  gert::NodeConverterRegistry::GetInstance().RegisterNodeConverter("IncCov_DirectReg", TestFunc);
+  EXPECT_EQ(gert::NodeConverterRegistry::GetInstance().FindNodeConverter("IncCov_DirectReg"), TestFunc);
+  auto reg_data = gert::NodeConverterRegistry::GetInstance().FindRegisterData("IncCov_DirectReg");
+  ASSERT_NE(reg_data, nullptr);
+  EXPECT_EQ(reg_data->require_placement, -1);
+}
+
+TEST_F(NodeConverterRegistryUnittest, IncCov_NodeConverterRegisterNoPlacement_Test) {
+  gert::NodeConverterRegister register_no_placement("IncCov_NoPlacement", TestFunc);
+  EXPECT_EQ(gert::NodeConverterRegistry::GetInstance().FindNodeConverter("IncCov_NoPlacement"), TestFunc);
+  auto reg_data = gert::NodeConverterRegistry::GetInstance().FindRegisterData("IncCov_NoPlacement");
+  ASSERT_NE(reg_data, nullptr);
+  EXPECT_EQ(reg_data->require_placement, -1);
+}
 }  // namespace TestNodeConverterRegistry

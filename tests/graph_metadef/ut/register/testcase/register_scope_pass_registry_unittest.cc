@@ -111,3 +111,13 @@ TEST_F(UtestScopePassRegistry, GetCreateFnWithDisableFlag) {
       ScopeFusionPassRegistry::GetInstance().impl_->CreateScopeFusionPass(std::string(regName));
   EXPECT_EQ(scoPassPtr2, nullptr);
 }
+
+TEST_F(UtestScopePassRegistry, IncCov_RegisterScopeFusionPass_NullImpl) {
+  auto &registry = ScopeFusionPassRegistry::GetInstance();
+  auto *saved_impl = registry.impl_.release();
+
+  registry.RegisterScopeFusionPass(std::string("null_impl_test"), nullptr, true);
+  registry.RegisterScopeFusionPass("null_impl_test2", nullptr, true);
+
+  new (&registry.impl_) decltype(registry.impl_)(saved_impl);
+}

@@ -28,4 +28,13 @@ TEST_F(AttrSerializerRegistryUt, StringReg) {
   ASSERT_NE(deserializer, nullptr);
 }
 
+TEST_F(AttrSerializerRegistryUt, IncCov_GetDeserializerUnregistered) {
+  GeIrAttrSerializer *deserializer =
+      AttrSerializerRegistry::GetInstance().GetDeserializer(proto::AttrDef::VALUE_NOT_SET);
+  EXPECT_EQ(deserializer, nullptr);
+}
+
+TEST_F(AttrSerializerRegistryUt, IncCov_RegistrarWithNullBuilder) {
+  AttrSerializerRegistrar registrar(nullptr, GetTypeId<int32_t>(), proto::AttrDef::kI);
+}
 }  // namespace ge

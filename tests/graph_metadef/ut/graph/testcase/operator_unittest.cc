@@ -2815,4 +2815,219 @@ TEST_F(UtestOperater, ExternC_Operator_ComplexAttrValue) {
   EXPECT_EQ(get_complex_attr.GetAttrValue(get_vec_value), GRAPH_SUCCESS);
   EXPECT_EQ(get_vec_value, vec_value);
 }
+
+TEST_F(UtestOperater, IncCov_OperatorNullImplEdgeAttrs) {
+  Operator op;
+  op.operator_impl_ = nullptr;
+  int64_t int_val = 0;
+  op.SetInputAttr(0, "attr", int_val);
+  op.SetInputAttr(static_cast<const char_t *>("x"), "attr", int_val);
+  op.SetOutputAttr(0, "attr", int_val);
+  op.SetOutputAttr(static_cast<const char_t *>("y"), "attr", int_val);
+  op.SetInputAttr(0, "attr", AscendString("val"));
+  op.SetInputAttr(static_cast<const char_t *>("x"), "attr", AscendString("val"));
+  op.SetOutputAttr(0, "attr", AscendString("val"));
+  op.SetOutputAttr(static_cast<const char_t *>("y"), "attr", AscendString("val"));
+  op.SetInputAttr(0, "attr", std::vector<AscendString>({AscendString("v")}));
+  op.SetOutputAttr(0, "attr", std::vector<AscendString>({AscendString("v")}));
+  op.SetInputAttr(static_cast<const char_t *>("x"), "attr", std::vector<AscendString>({AscendString("v")}));
+  op.SetOutputAttr(static_cast<const char_t *>("y"), "attr", std::vector<AscendString>({AscendString("v")}));
+  EXPECT_EQ(op.GetInputAttr(0, "attr", int_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(0, "attr", int_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetInputAttr(static_cast<const char_t *>("x"), "attr", int_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(static_cast<const char_t *>("y"), "attr", int_val), GRAPH_FAILED);
+  std::vector<AscendString> as_vals;
+  EXPECT_EQ(op.GetInputAttr(0, "attr", as_vals), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(0, "attr", as_vals), GRAPH_FAILED);
+  EXPECT_EQ(op.GetInputAttr(static_cast<const char_t *>("x"), "attr", as_vals), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(static_cast<const char_t *>("y"), "attr", as_vals), GRAPH_FAILED);
+  AscendString as_val;
+  EXPECT_EQ(op.GetInputAttr(0, "attr", as_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(0, "attr", as_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetInputAttr(static_cast<const char_t *>("x"), "attr", as_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(static_cast<const char_t *>("y"), "attr", as_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetInputAttr(nullptr, "attr", as_val), GRAPH_FAILED);
+  EXPECT_EQ(op.GetOutputAttr(nullptr, "attr", as_val), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorNullImplSubgraph) {
+  Operator op;
+  op.operator_impl_ = nullptr;
+  op.SubgraphRegister("sub", true);
+  op.SubgraphRegister(nullptr, true);
+  op.SubgraphCountRegister("sub", 2);
+  op.SubgraphCountRegister(nullptr, 2);
+  op.SetSubgraphBuilder("sub", 0, nullptr);
+  op.SetSubgraphBuilder(nullptr, 0, nullptr);
+  EXPECT_EQ(op.GetDynamicSubgraphBuilder("sub", 0), nullptr);
+  EXPECT_EQ(op.GetDynamicSubgraphBuilder(nullptr, 0), nullptr);
+  EXPECT_EQ(op.GetDynamicSubgraphBuilder(static_cast<const char_t *>("sub"), 0), nullptr);
+  EXPECT_EQ(op.GetSubgraphBuilder("sub"), nullptr);
+  EXPECT_EQ(op.GetSubgraphBuilder(static_cast<const char_t *>("sub")), nullptr);
+  EXPECT_EQ(op.GetSubgraphNamesCount(), 0UL);
+  EXPECT_EQ(op.GetSubgraph("sub").GetName(), "");
+  EXPECT_EQ(op.GetSubgraph(nullptr).GetName(), "");
+  EXPECT_EQ(op.GetDynamicSubgraph("sub", 0).GetName(), "");
+  EXPECT_EQ(op.GetDynamicSubgraph(static_cast<const char_t *>("sub"), 0).GetName(), "");
+  EXPECT_EQ(op.GetDynamicSubgraph(nullptr, 0).GetName(), "");
+  op.UpdateInputDesc(0U, TensorDesc());
+  op.UpdateOutputDesc(0U, TensorDesc());
+}
+
+TEST_F(UtestOperater, IncCov_OperatorSetInputErrors) {
+  Operator op("test_op", "Foo11");
+  Operator null_op;
+  null_op.operator_impl_ = nullptr;
+  op.SetInput(static_cast<const char_t *>(nullptr), null_op);
+  op.SetInput("x", null_op);
+  op.SetInput(static_cast<const char_t *>("x"), null_op);
+  op.SetInput("x", null_op, "y");
+  op.SetInput(static_cast<const char_t *>("x"), null_op, static_cast<const char_t *>("y"));
+  op.SetInput(static_cast<const char_t *>("x"), null_op, static_cast<const char_t *>(nullptr));
+  op.SetInput(static_cast<const char_t *>(nullptr), null_op, static_cast<const char_t *>("y"));
+  op.SetInput("x", null_op, 0U);
+  op.SetInput(static_cast<const char_t *>("x"), null_op, 0U);
+  op.SetInput(static_cast<const char_t *>(nullptr), null_op, 0U);
+  op.SetInput(0U, null_op, 0U);
+  op.SetInput("x", 0U, null_op);
+  op.SetInput(static_cast<const char_t *>("x"), 0U, null_op);
+  op.SetInput(static_cast<const char_t *>(nullptr), 0U, null_op);
+  op.SetInput("x", 0U, null_op, "y");
+  op.SetInput(static_cast<const char_t *>("x"), 0U, null_op, static_cast<const char_t *>("y"));
+  op.SetInput(static_cast<const char_t *>(nullptr), 0U, null_op, static_cast<const char_t *>("y"));
+  op.SetInput(static_cast<const char_t *>("x"), 0U, null_op, static_cast<const char_t *>(nullptr));
+  op.AddControlInput(null_op);
+  Tensor data;
+  EXPECT_EQ(op.GetInputConstData(static_cast<const char_t *>(nullptr), data), ge::PARAM_INVALID);
+  EXPECT_EQ(op.GetInputConstDataOut(static_cast<const char_t *>(nullptr), data), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorConstructors) {
+  Operator op1(static_cast<const char_t *>("TestType"));
+  EXPECT_FALSE(op1.IsEmpty());
+  Operator op2(static_cast<const char_t *>(nullptr));
+  Operator op3(AscendString("op_name"), AscendString("op_type"));
+  EXPECT_FALSE(op3.IsEmpty());
+  Operator op4(AscendString(nullptr), AscendString("op_type"));
+  Operator op5(AscendString("op_name"), AscendString(nullptr));
+  Operator op6(static_cast<const char_t *>("name"), static_cast<const char_t *>("type"));
+  EXPECT_FALSE(op6.IsEmpty());
+  Operator op7(static_cast<const char_t *>(nullptr), static_cast<const char_t *>("type"));
+  Operator op8(static_cast<const char_t *>("name"), static_cast<const char_t *>(nullptr));
+  auto attrs = op1.GetAllAttrNamesAndTypes();
+  std::map<AscendString, AscendString> attr_map;
+  EXPECT_EQ(op1.GetAllAttrNamesAndTypes(attr_map), GRAPH_SUCCESS);
+  EXPECT_EQ(op1.GetAllIrAttrNamesAndTypes(attr_map), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorAttrSetGet) {
+  Operator op("test_op", "Foo11");
+  op.SetAttr("int_attr", int64_t(42));
+  int64_t int_val = 0;
+  EXPECT_EQ(op.GetAttr("int_attr", int_val), GRAPH_SUCCESS);
+  EXPECT_EQ(int_val, 42);
+  op.SetAttr("str_attr", std::string("hello"));
+  std::string str_val;
+  EXPECT_EQ(op.GetAttr("str_attr", str_val), GRAPH_SUCCESS);
+  EXPECT_EQ(str_val, "hello");
+  op.SetAttr("list_str_attr", std::vector<std::string>({"a", "b"}));
+  std::vector<std::string> list_str;
+  EXPECT_EQ(op.GetAttr("list_str_attr", list_str), GRAPH_SUCCESS);
+  EXPECT_EQ(list_str.size(), 2U);
+  op.SetAttr("float_attr", float32_t(3.14));
+  float32_t float_val = 0;
+  EXPECT_EQ(op.GetAttr("float_attr", float_val), GRAPH_SUCCESS);
+  op.SetAttr("bool_attr", true);
+  bool bool_val = false;
+  EXPECT_EQ(op.GetAttr("bool_attr", bool_val), GRAPH_SUCCESS);
+  EXPECT_TRUE(bool_val);
+  AscendString as_val;
+  op.SetAttr(static_cast<const char_t *>("as_attr"), AscendString("val"));
+  EXPECT_EQ(op.GetAttr(static_cast<const char_t *>("as_attr"), as_val), GRAPH_SUCCESS);
+  EXPECT_STREQ(as_val.GetString(), "val");
+  std::vector<AscendString> as_vals;
+  op.SetAttr(static_cast<const char_t *>("as_list"), std::vector<AscendString>({AscendString("x")}));
+  EXPECT_EQ(op.GetAttr(static_cast<const char_t *>("as_list"), as_vals), GRAPH_SUCCESS);
+  EXPECT_EQ(as_vals.size(), 1U);
+  op.SetAttr("dt_attr", DT_FLOAT);
+  ge::DataType dt_val;
+  EXPECT_EQ(op.GetAttr("dt_attr", dt_val), GRAPH_SUCCESS);
+  EXPECT_EQ(dt_val, DT_FLOAT);
+  op.SetAttr("dt_list_attr", std::vector<ge::DataType>({DT_FLOAT, DT_INT32}));
+  std::vector<ge::DataType> dt_list;
+  EXPECT_EQ(op.GetAttr("dt_list_attr", dt_list), GRAPH_SUCCESS);
+  EXPECT_EQ(dt_list.size(), 2U);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorEdgeAttrSetGet) {
+  Operator op = OperatorFactory::CreateOperator("test_edge_op", "Foo11");
+  op.SetInputAttr(0, "edge_attr", int64_t(10));
+  int64_t edge_int = 0;
+  EXPECT_EQ(op.GetInputAttr(0, "edge_attr", edge_int), GRAPH_SUCCESS);
+  EXPECT_EQ(edge_int, 10);
+  op.SetOutputAttr(0, "edge_attr", int64_t(20));
+  EXPECT_EQ(op.GetOutputAttr(0, "edge_attr", edge_int), GRAPH_SUCCESS);
+  EXPECT_EQ(edge_int, 20);
+  op.SetInputAttr(0, "str_edge", AscendString("val"));
+  AscendString edge_as;
+  EXPECT_EQ(op.GetInputAttr(0, "str_edge", edge_as), GRAPH_SUCCESS);
+  EXPECT_STREQ(edge_as.GetString(), "val");
+  op.SetOutputAttr(0, "str_edge", AscendString("out_val"));
+  EXPECT_EQ(op.GetOutputAttr(0, "str_edge", edge_as), GRAPH_SUCCESS);
+  EXPECT_STREQ(edge_as.GetString(), "out_val");
+  op.SetInputAttr(0, "list_edge", std::vector<AscendString>({AscendString("v")}));
+  std::vector<AscendString> edge_list;
+  EXPECT_EQ(op.GetInputAttr(0, "list_edge", edge_list), GRAPH_SUCCESS);
+  op.SetOutputAttr(0, "list_edge", std::vector<AscendString>({AscendString("v")}));
+  EXPECT_EQ(op.GetOutputAttr(0, "list_edge", edge_list), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorImplMethods) {
+  Operator op = OperatorFactory::CreateOperator("test_impl_op", "Foo11");
+  auto impl_ptr = op.GetOperatorImplPtr();
+  ASSERT_NE(impl_ptr, nullptr);
+  EXPECT_EQ(impl_ptr->GetInputsSize(), 1UL);
+  EXPECT_EQ(impl_ptr->GetOutputsSize(), 1UL);
+  EXPECT_EQ(impl_ptr->GetSubgraphNamesCount(), 0UL);
+  EXPECT_EQ(impl_ptr->GetSubgraphNames().size(), 0UL);
+  EXPECT_FALSE(impl_ptr->InputIsSet("x"));
+  EXPECT_EQ(impl_ptr->GetInputDesc("x").GetDataType(), DT_FLOAT);
+  EXPECT_EQ(impl_ptr->GetInputDesc(0).GetDataType(), DT_FLOAT);
+  EXPECT_EQ(impl_ptr->GetOutputDesc("y").GetDataType(), DT_FLOAT);
+  EXPECT_EQ(impl_ptr->GetOutputDesc(0).GetDataType(), DT_FLOAT);
+  EXPECT_EQ(impl_ptr->MutableOutputDesc("nonexistent"), nullptr);
+  EXPECT_EQ(impl_ptr->GetOutput("nonexistent"), nullptr);
+  EXPECT_EQ(impl_ptr->GetOutput(100U), nullptr);
+  EXPECT_EQ(impl_ptr->UpdateInputDesc("nonexistent", GeTensorDesc()), GRAPH_FAILED);
+  EXPECT_EQ(impl_ptr->UpdateOutputDesc("nonexistent", GeTensorDesc()), GRAPH_FAILED);
+  Tensor data;
+  EXPECT_EQ(impl_ptr->GetInputConstData("nonexistent", data), GRAPH_FAILED);
+  ConstGeTensorPtr ge_tensor_ptr;
+  EXPECT_EQ(impl_ptr->GetInputConstDataOut(0U, ge_tensor_ptr), GRAPH_FAILED);
+  auto node = impl_ptr->GetNode();
+  EXPECT_EQ(node, nullptr);
+  EXPECT_EQ(impl_ptr->SetNode(nullptr), GRAPH_SUCCESS);
+  op.BreakConnect();
+}
+
+TEST_F(UtestOperater, IncCov_OperatorImplSubgraph) {
+  Operator op = OperatorFactory::CreateOperator("test_sub_op", "Foo11");
+  auto impl_ptr = op.GetOperatorImplPtr();
+  ASSERT_NE(impl_ptr, nullptr);
+  impl_ptr->SubgraphRegister("sub1", false);
+  impl_ptr->SubgraphCountRegister("sub1", 1);
+  impl_ptr->SetSubgraphBuilder("sub1", 0, nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphBuilder("sub1", 0), nullptr);
+  impl_ptr->SubgraphRegister("sub2", true);
+  impl_ptr->SubgraphCountRegister("sub2", 2);
+  impl_ptr->SetSubgraphBuilder("sub2", 0, nullptr);
+  impl_ptr->SetSubgraphBuilder("sub2", 1, nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphBuilder("sub2", 0), nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphBuilder("sub2", 1), nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphBuilder("nonexistent"), nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphBuilder("nonexistent", 0), nullptr);
+  impl_ptr->SetSubgraphBuilder("nonexistent", 0, nullptr);
+  EXPECT_EQ(impl_ptr->GetSubgraphNamesCount(), 2UL);
+  op.BreakConnect();
+}
 }  // namespace ge

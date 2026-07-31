@@ -692,4 +692,297 @@ TEST_F(RegisterOpTilingPyCovUT, TbeOpTilingPyInterface_WithAttrsListListInt64) {
                                    sizeof(run_info_json), elapse);
   EXPECT_EQ(ret, 0);
 }
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_EmptyInputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = "[]";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_EmptyOutputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = "[]";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_InvalidInputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = "invalid_json";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_NullCompileInfo) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", nullptr, "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_UnknownOpType) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("UnknownOpType_0724", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_BFloat16Dtype) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"bfloat16"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"bfloat16"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_Float16Dtype) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float16"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float16"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_Int8Dtype) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"int8"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"int8"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_UnsupportedDtype) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs =
+      R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"invalid_dtype"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithConstInputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs =
+      R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"},)"
+      R"({"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32","const_value":[1.0,2.0,3.0,4.0]}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterfaceEx2_Basic) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterfaceEx2("Relu", "compile_info", inputs, outputs, run_info_json, sizeof(run_info_json),
+                                      "hash", elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterfaceEx2_WithExtraInfo) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterfaceEx2("Relu", "compile_info", inputs, outputs, run_info_json, sizeof(run_info_json),
+                                      "hash", elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterfaceEx2_NullExtraInfo) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterfaceEx2("Relu", "compile_info", inputs, outputs, run_info_json, sizeof(run_info_json),
+                                      nullptr, elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterfaceEx2_InvalidExtraInfo) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs =
+      R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"invalid_dtype"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterfaceEx2("Relu", "compile_info", inputs, outputs, run_info_json, sizeof(run_info_json),
+                                      "hash", elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsInt) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"int","value":42}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsFloat) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"float","value":3.14}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsListFloat) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"list_float","value":[1.0,2.0,3.0]}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsListInt) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"list_int","value":[1,2,3]}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsStr) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"str","value":"hello"}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrsBool) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"bool","value":true}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithInvalidAttrsDtype) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"invalid_dtype","value":42}])";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithScalarShape) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[],"ori_shape":[],"format":"ND","ori_format":"ND","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[],"ori_shape":[],"format":"ND","ori_format":"ND","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithMultipleInputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"},)"
+                       R"({"shape":[2,4],"ori_shape":[2,4],"format":"NCHW","ori_format":"NCHW","dtype":"float16"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_NoCompileInfo) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret =
+      TbeOpTilingPyInterface("Relu", "", "hash", inputs, outputs, attrs, run_info_json, sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithNDFormat) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"ND","ori_format":"ND","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"ND","ori_format":"ND","dtype":"float32"}])";
+  const char *attrs = "[]";
+  int ret = TbeOpTilingPyInterface("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_OpTilingForCompile_Basic) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = "[]";
+  const char *extra_info = R"({"op_type":"Relu","compile_info":"compile_info"})";
+  int ret = OpTilingForCompile("Relu", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                               sizeof(run_info_json), elapse, extra_info);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_OpTilingForCompile_NullPtr) {
+  int ret = OpTilingForCompile(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, nullptr, nullptr);
+  EXPECT_EQ(ret, 0);
+}
 }  // namespace optiling

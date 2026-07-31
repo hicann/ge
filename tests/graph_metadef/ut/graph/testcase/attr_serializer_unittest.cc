@@ -600,4 +600,149 @@ TEST_F(AttrSerializerUt, ConstSerializer) {
   EXPECT_TRUE(AttrUtils::GetTensor(res_node->GetOpDesc(), "value", res_tensor));
 }
 
+TEST_F(AttrSerializerUt, IncCov_BoolSerializeTypeMismatch) {
+  BoolSerializer serializer;
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_BufferSerializeTypeMismatch) {
+  BufferSerializer serializer;
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_DtSerializeTypeMismatch) {
+  DataTypeSerializer serializer;
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_FloatSerializeTypeMismatch) {
+  FloatSerializer serializer;
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_GraphSerializeTypeMismatch) {
+  GraphSerializer serializer;
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_IntSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(std::string("wrong_type"));
+  proto::AttrDef def;
+  IntSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_StringSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  StringSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_TensorDescSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  TensorDescSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_TensorSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  TensorSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_ListListFloatSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  ListListFloatSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_ListListIntSerializerSerializeWrongType) {
+  AnyValue av;
+  av.SetValue(std::string("wrong_type"));
+  proto::AttrDef def;
+  ListListIntSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_NamedAttrsSerializerSerializeWrongType) {
+  REG_GEIR_SERIALIZER(named_attr_serializer, NamedAttrsSerializer, GetTypeId<ge::NamedAttrs>(), proto::AttrDef::kFunc);
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  NamedAttrsSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_NamedAttrsSerializerDeserializeFail) {
+  REG_GEIR_SERIALIZER(named_attr_serializer, NamedAttrsSerializer, GetTypeId<ge::NamedAttrs>(), proto::AttrDef::kFunc);
+  REG_GEIR_SERIALIZER(list_int, ListValueSerializer, GetTypeId<std::vector<int64_t>>(), proto::AttrDef::kList);
+  NamedAttrsSerializer serializer;
+  proto::AttrDef def;
+  auto *func = def.mutable_func();
+  auto *func_attr = func->mutable_attr();
+  proto::AttrDef sub_attr;
+  sub_attr.mutable_list()->set_val_type(proto::AttrDef::ListValue::VT_LIST_NONE);
+  (*func_attr)["sub_key"] = sub_attr;
+  AnyValue av;
+  EXPECT_EQ(serializer.Deserialize(def, av), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_ListValueSerializerSerializeUnsupportedType) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  ListValueSerializer serializer;
+  EXPECT_EQ(serializer.Serialize(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_ListValueSerializerDeserializeUnsupportedType) {
+  REG_GEIR_SERIALIZER(list_int, ListValueSerializer, GetTypeId<std::vector<int64_t>>(), proto::AttrDef::kList);
+  proto::AttrDef def;
+  def.mutable_list()->set_val_type(proto::AttrDef::ListValue::VT_LIST_NONE);
+  AnyValue av;
+  ListValueSerializer serializer;
+  EXPECT_EQ(serializer.Deserialize(def, av), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_ListValueSerializerDeserializeListNamedAttrsFail) {
+  REG_GEIR_SERIALIZER(named_attr_serializer, NamedAttrsSerializer, GetTypeId<ge::NamedAttrs>(), proto::AttrDef::kFunc);
+  REG_GEIR_SERIALIZER(list_named_attr, ListValueSerializer, GetTypeId<std::vector<ge::NamedAttrs>>(),
+                      proto::AttrDef::kList);
+  REG_GEIR_SERIALIZER(list_int, ListValueSerializer, GetTypeId<std::vector<int64_t>>(), proto::AttrDef::kList);
+  proto::AttrDef def;
+  def.mutable_list()->set_val_type(proto::AttrDef::ListValue::VT_LIST_NAMED_ATTRS);
+  auto *na = def.mutable_list()->add_na();
+  na->set_name("test_na");
+  auto *na_attr = na->mutable_attr();
+  proto::AttrDef sub_attr;
+  sub_attr.mutable_list()->set_val_type(proto::AttrDef::ListValue::VT_LIST_NONE);
+  (*na_attr)["sub_key"] = sub_attr;
+  AnyValue av;
+  ListValueSerializer serializer;
+  EXPECT_EQ(serializer.Deserialize(def, av), GRAPH_FAILED);
+}
 }  // namespace ge

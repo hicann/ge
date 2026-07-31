@@ -128,3 +128,35 @@ TEST(UtestCustomOpPullRegistry, macro_registers_global_and_pull_entries_in_norma
   EXPECT_NE(nullptr, dynamic_cast<PullRegistryMacroOp *>(CustomOpFactory::CreateOrGetCustomOp("PullRegistryMacroOp")));
   EXPECT_EQ(true, HasRegisteredCreator("PullRegistryMacroOp"));
 }
+
+TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_NullOpType_NoEffect) {
+  const auto before = GetRegisteredCustomOpCreatorNum();
+  RegisterCustomOpLocalCreator(nullptr, CreatePullRegistryCreatorOp);
+  EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
+}
+
+TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_EmptyOpType_NoEffect) {
+  const auto before = GetRegisteredCustomOpCreatorNum();
+  RegisterCustomOpLocalCreator("", CreatePullRegistryCreatorOp);
+  EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
+}
+
+TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_NullCreator_NoEffect) {
+  const auto before = GetRegisteredCustomOpCreatorNum();
+  RegisterCustomOpLocalCreator("IncCovNullCreatorOp", nullptr);
+  EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
+}
+
+TEST(UtestCustomOpPullRegistry, IncCov_GetCreators_NullPointerWithNonZeroNum_ReturnsError) {
+  EXPECT_EQ(-1, GetRegisteredCustomOpCreators(nullptr, 1U, sizeof(CustomOpTypeToCreator)));
+}
+
+TEST(UtestCustomOpPullRegistry, IncCov_GetCreators_SmallStructSize_ReturnsError) {
+  const auto num = GetRegisteredCustomOpCreatorNum();
+  std::vector<CustomOpTypeToCreator> creators(num);
+  if (num > 0U) {
+    EXPECT_EQ(-1, GetRegisteredCustomOpCreators(creators.data(), num, 1U));
+  } else {
+    EXPECT_EQ(-1, GetRegisteredCustomOpCreators(nullptr, 1U, 1U));
+  }
+}

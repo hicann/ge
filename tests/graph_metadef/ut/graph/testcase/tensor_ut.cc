@@ -813,4 +813,183 @@ TEST_F(TensorUT, GetPaddingSize_ReturnsCachedValue) {
   const int64_t second = TensorUtilsEx::GetPaddingSize();
   EXPECT_EQ(first, second);
 }
+
+TEST_F(TensorUT, IncCov_ShapeOverflowChecks) {
+  Shape s1({INT64_MAX, 2});
+  EXPECT_EQ(s1.GetShapeSize(), 0);
+  Shape s2({2, INT64_MIN});
+  EXPECT_EQ(s2.GetShapeSize(), 0);
+  Shape s3({-3, INT64_MAX});
+  EXPECT_EQ(s3.GetShapeSize(), 0);
+  Shape s4({-3, -4});
+  EXPECT_EQ(s4.GetShapeSize(), 12);
+  Shape s5({-3, INT64_MIN + 1});
+  EXPECT_EQ(s5.GetShapeSize(), 0);
+}
+
+TEST_F(TensorUT, IncCov_ShapeEdgeCases) {
+  Shape shape({1, 2, 3});
+  EXPECT_EQ(shape.GetDim(10), 0);
+  EXPECT_EQ(shape.SetDim(10, 1), GRAPH_FAILED);
+  Shape null_shape;
+  null_shape.impl_ = nullptr;
+  EXPECT_EQ(null_shape.GetDimNum(), 0U);
+  EXPECT_EQ(null_shape.GetDim(0), 0);
+  EXPECT_EQ(null_shape.SetDim(0, 1), GRAPH_FAILED);
+  EXPECT_EQ(null_shape.GetDims(), std::vector<int64_t>());
+  EXPECT_EQ(null_shape.GetShapeSize(), 0);
+}
+
+TEST_F(TensorUT, IncCov_TensorDescNullImpl) {
+  TensorDesc desc;
+  desc.impl = nullptr;
+  EXPECT_EQ(desc.GetShape().GetDimNum(), 0U);
+  EXPECT_EQ(desc.SetUnknownDimNumShape(), GRAPH_FAILED);
+  EXPECT_EQ(desc.SetShapeRange({}), GRAPH_FAILED);
+  std::vector<std::pair<int64_t, int64_t>> range;
+  EXPECT_EQ(desc.GetShapeRange(range), GRAPH_FAILED);
+  EXPECT_EQ(desc.GetOriginShape().GetDimNum(), 0U);
+  EXPECT_EQ(desc.GetFormat(), FORMAT_RESERVED);
+  EXPECT_EQ(desc.GetOriginFormat(), FORMAT_RESERVED);
+  EXPECT_EQ(desc.GetDataType(), DT_UNDEFINED);
+  EXPECT_EQ(desc.GetSize(), 0);
+  EXPECT_EQ(desc.GetRealDimCnt(), 0);
+  EXPECT_EQ(desc.GetName(), "");
+  AscendString name;
+  EXPECT_EQ(desc.GetName(name), GRAPH_FAILED);
+  EXPECT_EQ(desc.GetPlacement(), kPlacementHost);
+  uint8_t *const_data = nullptr;
+  size_t const_data_len = 0;
+  EXPECT_FALSE(desc.GetConstData(&const_data, const_data_len));
+  AscendString rule;
+  EXPECT_EQ(desc.GetExpandDimsRule(rule), GRAPH_FAILED);
+}
+
+TEST_F(TensorUT, IncCov_TensorDescConstDataAndCopy) {
+  TensorDesc desc;
+  auto const_data = std::unique_ptr<uint8_t[]>(new uint8_t[4]{1, 2, 3, 4});
+  desc.SetConstData(std::move(const_data), 4);
+  uint8_t *get_data = nullptr;
+  size_t get_len = 0;
+  EXPECT_TRUE(desc.GetConstData(&get_data, get_len));
+  EXPECT_EQ(get_len, 4U);
+  TensorDesc copy_desc(desc);
+  uint8_t *copy_data = nullptr;
+  size_t copy_len = 0;
+  EXPECT_TRUE(copy_desc.GetConstData(&copy_data, copy_len));
+  EXPECT_EQ(copy_len, 4U);
+  TensorDesc assign_desc;
+  assign_desc = desc;
+  uint8_t *assign_data = nullptr;
+  size_t assign_len = 0;
+  EXPECT_TRUE(assign_desc.GetConstData(&assign_data, assign_len));
+  EXPECT_EQ(assign_len, 4U);
+  TensorDesc self_assign = desc;
+  self_assign = self_assign;
+  TensorDesc empty_desc;
+  TensorDesc copy_empty(empty_desc);
+  TensorDesc assign_empty;
+  assign_empty = empty_desc;
+  desc.impl = nullptr;
+  desc.SetConstData(nullptr, 0);
+  EXPECT_FALSE(desc.GetConstData(&get_data, get_len));
+}
+
+TEST_F(TensorUT, IncCov_TensorNullImpl) {
+  Tensor tensor;
+  tensor.impl = nullptr;
+  EXPECT_EQ(tensor.GetTensorDesc().GetShape().GetDimNum(), 0U);
+  EXPECT_EQ(tensor.SetTensorDesc(TensorDesc()), GRAPH_FAILED);
+  EXPECT_EQ(tensor.GetData(), nullptr);
+  EXPECT_EQ(tensor.GetSize(), 0U);
+  EXPECT_EQ(tensor.ResetData(), nullptr);
+  std::vector<uint8_t> vec = {1, 2};
+  std::vector<uint8_t> vec2 = {1, 2};
+  EXPECT_EQ(tensor.SetData(std::move(vec2)), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(vec), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(vec.data(), vec.size()), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(std::string("test")), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(std::vector<std::string>({"a"})), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(static_cast<const char_t *>("test")), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(std::vector<AscendString>({AscendString("a")})), GRAPH_FAILED);
+  uint8_t *data_ptr = new uint8_t[10];
+  EXPECT_EQ(tensor.SetData(data_ptr, 10, [](uint8_t *p) { delete[] p; }), GRAPH_FAILED);
+  delete[] data_ptr;
+  EXPECT_EQ(tensor.ResetData(data_ptr, 10, [](uint8_t *p) { delete[] p; }), GRAPH_FAILED);
+}
+
+TEST_F(TensorUT, IncCov_TensorSetDataStringAndVectors) {
+  Tensor tensor;
+  EXPECT_EQ(tensor.SetData(std::string("")), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(std::string("hello")), GRAPH_SUCCESS);
+  EXPECT_EQ(tensor.SetData(std::vector<std::string>({"a", "b"})), GRAPH_SUCCESS);
+  EXPECT_EQ(tensor.SetData(std::vector<std::string>()), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(static_cast<const char_t *>(nullptr)), GRAPH_FAILED);
+  EXPECT_EQ(tensor.SetData(static_cast<const char_t *>("test")), GRAPH_SUCCESS);
+}
+
+TEST_F(TensorUT, IncCov_TensorAdapterNullTensor) {
+  Tensor tensor;
+  tensor.impl = nullptr;
+  EXPECT_EQ(TensorAdapter::AsGeTensorPtr(static_cast<const Tensor &>(tensor)), nullptr);
+  EXPECT_EQ(TensorAdapter::AsGeTensorPtr(tensor), nullptr);
+  auto ge1 = TensorAdapter::AsGeTensor(static_cast<const Tensor &>(tensor));
+  auto ge2 = TensorAdapter::AsGeTensor(tensor);
+  EXPECT_EQ(TensorAdapter::AsBareGeTensorPtr(tensor), nullptr);
+  auto ge3 = TensorAdapter::AsGeTensorShared(tensor);
+  EXPECT_EQ(TensorAdapter::GeTensor2Tensor(nullptr).GetSize(), 0U);
+}
+
+TEST_F(TensorUT, IncCov_TensorAdapterMethods) {
+  GeTensorDesc ge_desc(GeShape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  GeTensor ge_tensor_from_desc(ge_desc);
+  auto tensor = TensorAdapter::AsTensor(ge_tensor_from_desc);
+  auto ge_tensor = TensorAdapter::AsGeTensor(static_cast<const Tensor &>(tensor));
+  EXPECT_EQ(ge_tensor.GetTensorDesc().GetDataType(), DT_FLOAT);
+  GeTensor ge_tensor2(ge_desc, std::vector<uint8_t>({1, 2, 3, 4}));
+  auto tensor2 = TensorAdapter::AsTensor(ge_tensor2);
+  EXPECT_EQ(tensor2.GetSize(), 4U);
+  auto ge_tensor3 = TensorAdapter::AsGeTensorShared(tensor2);
+  auto normalized = TensorAdapter::NormalizeGeTensor(ge_tensor2);
+  TensorAdapter::NormalizeGeTensorDesc(ge_desc);
+  auto ge_tensor_ptr = TensorAdapter::AsGeTensorPtr(tensor2);
+  EXPECT_NE(ge_tensor_ptr, nullptr);
+  auto const_ge_tensor_ptr = TensorAdapter::AsGeTensorPtr(static_cast<const Tensor &>(tensor2));
+  EXPECT_NE(const_ge_tensor_ptr, nullptr);
+  auto bare_ptr = TensorAdapter::AsBareGeTensorPtr(tensor2);
+  EXPECT_NE(bare_ptr, nullptr);
+  EXPECT_EQ(TensorAdapter::GeTensor2Tensor(ge_tensor_ptr).GetSize(), 4U);
+}
+
+TEST_F(TensorUT, IncCov_TensorCloneAndIsValid) {
+  Tensor tensor(TensorDesc(Shape({2, 3}), FORMAT_NCHW, DT_FLOAT), std::vector<uint8_t>(24, 1));
+  auto cloned = tensor.Clone();
+  EXPECT_EQ(cloned.GetSize(), 24U);
+  EXPECT_EQ(cloned.GetTensorDesc().GetDataType(), DT_FLOAT);
+
+  TensorDesc desc(Shape({-1, 2}), FORMAT_NCHW, DT_FLOAT);
+  Tensor tensor2(desc, std::vector<uint8_t>(8, 0));
+  EXPECT_EQ(tensor2.IsValid(), GRAPH_SUCCESS);
+
+  TensorDesc string_desc(Shape({1}), FORMAT_NCHW, DT_STRING);
+  Tensor string_tensor(string_desc);
+  string_tensor.SetData(std::string("test"));
+  EXPECT_EQ(string_tensor.IsValid(), GRAPH_SUCCESS);
+}
+
+TEST_F(TensorUT, IncCov_TensorDescSetNameAndExpandDims) {
+  TensorDesc desc;
+  desc.SetName("test_name");
+  EXPECT_EQ(desc.GetName(), "test_name");
+  AscendString name;
+  EXPECT_EQ(desc.GetName(name), GRAPH_SUCCESS);
+  EXPECT_STREQ(name.GetString(), "test_name");
+  desc.SetName(static_cast<const char_t *>(nullptr));
+  EXPECT_EQ(desc.GetName(), "test_name");
+  desc.SetExpandDimsRule(AscendString("0011"));
+  AscendString rule;
+  EXPECT_EQ(desc.GetExpandDimsRule(rule), GRAPH_SUCCESS);
+  EXPECT_STREQ(rule.GetString(), "0011");
+  desc.SetReuseInputIndex(5);
+}
 }  // namespace ge

@@ -681,3 +681,158 @@ TEST_F(UtestFusionScope, InnerNodeSetIOFormat) {
   retGraphStat = InnerNode.SetDynamicOutputFormat("DynamicOutputName2", 1, "DynamicOutputFormat2");
   EXPECT_NE(retGraphStat, ge::GRAPH_PARAM_INVALID);
 }
+
+TEST_F(UtestScopeGraph, IncCov_Scope_InitAndNameStringOverload) {
+  Scope scope;
+  Status ret = scope.Init(std::string("my_scope"), std::string("my_subtype"), nullptr);
+  EXPECT_EQ(ret, SUCCESS);
+
+  const std::string &name = scope.Name();
+  EXPECT_EQ(name, "my_scope");
+}
+
+TEST_F(UtestScopeGraph, IncCov_Scope_LastNameMultiLevel) {
+  Scope scope;
+  scope.Init("parent/child", "", nullptr);
+  std::string last_name = scope.impl_->LastName();
+  EXPECT_EQ(last_name, "parent");
+}
+
+TEST_F(UtestScopeGraph, IncCov_Scope_ClearTypeAndSubTypeWithSubScopes) {
+  Scope root;
+  root.Init("root", "root_type", nullptr);
+  Scope *sub = new Scope();
+  sub->Init("root/sub", "sub_type", &root);
+  root.impl_->AddSubScope(sub);
+  root.impl_->ClearTypeAndSubType();
+  EXPECT_EQ(root.SubType(), "");
+}
+
+TEST_F(UtestScopeGraph, IncCov_Scope_GetAllSubScopesNested) {
+  domi::tensorflow::GraphDef graph_def;
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  Status ret = scope_graph->Init();
+  ASSERT_EQ(ret, SUCCESS);
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+  const ScopeTree *scopeTree = scope_graph->GetScopeTree();
+
+  OperatorPtr node(new (std::nothrow) ge::Operator("add0/sub0/deep", "Add"));
+  scopeTree->impl_->AddNodeToScope(node);
+
+  std::vector<Scope *> scopes = scopeTree->GetAllScopes().front()->impl_->GetAllSubScopes();
+  EXPECT_EQ(scopes.empty(), false);
+}
+
+TEST_F(UtestScopeGraph, IncCov_TrimScopeIndexNonNumeric) {
+  std::string scope_str = "scope_abc";
+  std::string retStr = Scope::ScopeImpl::TrimScopeIndex(scope_str);
+  EXPECT_EQ(retStr, "scope_abc");
+}
+
+TEST_F(UtestScopeGraph, IncCov_InnerNodeInfo_StringConstructorAndMoveAssign) {
+  FusionScopesResult::InnerNodeInfo info1(std::string("FusionNode"), std::string("NodeName"), std::string("NodeType"));
+  FusionScopesResult::InnerNodeInfo info2(std::string(""), std::string("NodeName2"), std::string("NodeType2"));
+
+  FusionScopesResult::InnerNodeInfo info3(std::string("FusionNode3"));
+  info3.SetName(std::string("InnerNode3"));
+  info3.SetType(std::string("Add"));
+  info3 = std::move(info1);
+  EXPECT_NE(info3.GetName(), "");
+}
+
+TEST_F(UtestScopeGraph, IncCov_InnerNodeInfo_NullImplMethods) {
+  FusionScopesResult::InnerNodeInfo info("FusionNode");
+  info.impl_.reset();
+
+  EXPECT_EQ(info.BuildInnerNode(), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.MutableOperator(), nullptr);
+  EXPECT_EQ(info.SetInputFormat(std::string("x"), std::string("y")), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetInputFormat("x", "y"), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetOutputFormat(std::string("x"), std::string("y")), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetOutputFormat("x", "y"), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetDynamicInputFormat(std::string("x"), 0, std::string("y")), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetDynamicInputFormat("x", 0, "y"), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetDynamicOutputFormat(std::string("x"), 0, std::string("y")), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.SetDynamicOutputFormat("x", 0, "y"), ge::GRAPH_PARAM_INVALID);
+  EXPECT_EQ(info.GetName(), "");
+  EXPECT_EQ(info.GetType(), "");
+  EXPECT_EQ(info.GetInputs().empty(), true);
+  EXPECT_EQ(info.GetOutputs().empty(), true);
+}
+
+TEST_F(UtestScopeGraph, IncCov_FusionScopesResult_EdgeCases) {
+  FusionScopesResult *fr = new FusionScopesResult();
+  fr->Init();
+
+  FusionScopesResult::InnerNodeInfo *inner = fr->AddInnerNode(std::string("InnerName"), std::string("InnerType"));
+  EXPECT_NE(inner, nullptr);
+
+  FusionScopesResult::InnerNodeInfo *recent = fr->impl_->MutableRecentInnerNode();
+  EXPECT_NE(recent, nullptr);
+
+  FusionScopesResult::InnerNodeInfo *oob = fr->impl_->MutableInnerNode(100U);
+  EXPECT_EQ(oob, nullptr);
+
+  FusionScopesResult::InnerNodeInfo *recent_empty = fr->impl_->MutableRecentInnerNode();
+  EXPECT_NE(recent_empty, nullptr);
+
+  FusionScopesResult *empty_fr = new FusionScopesResult();
+  empty_fr->Init();
+  FusionScopesResult::InnerNodeInfo *empty_recent = empty_fr->impl_->MutableRecentInnerNode();
+  EXPECT_EQ(empty_recent, nullptr);
+  FusionScopesResult::InnerNodeInfo *empty_indexed = empty_fr->impl_->MutableInnerNode(0U);
+  EXPECT_EQ(empty_indexed, nullptr);
+
+  fr->AddInnerNode("dup", "type1");
+  fr->AddInnerNode("dup", "type2");
+  EXPECT_EQ(fr->CheckInnerNodesInfo(), ge::GRAPH_PARAM_INVALID);
+
+  FusionScopesResult *null_fr = new FusionScopesResult();
+  null_fr->AddInnerNode("name", "type");
+  null_fr->MutableInnerNode(0U);
+  null_fr->MutableRecentInnerNode();
+  null_fr->CheckInnerNodesInfo();
+
+  delete fr;
+  delete empty_fr;
+  delete null_fr;
+}
+
+TEST_F(UtestScopeGraph, IncCov_IsFusionOpMatching) {
+  domi::tensorflow::GraphDef graph_def;
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  Status ret = scope_graph->Init();
+  ASSERT_EQ(ret, SUCCESS);
+  auto &impl = scope_graph->impl_;
+
+  FusionScopesResult *fusionResult = new (std::nothrow) FusionScopesResult();
+  ASSERT_NE(fusionResult, nullptr);
+  fusionResult->Init();
+  fusionResult->SetName("fusion_node");
+  fusionResult->SetType("FusionType");
+  impl->AddFusionScopesResult(fusionResult);
+
+  domi::tensorflow::NodeDef *node = graph_def.add_node();
+  node->set_name("fusion_node");
+  node->set_op("FusionType");
+  EXPECT_TRUE(impl->IsFusionOp(node));
+}
+
+TEST_F(UtestScopeGraph, IncCov_GetNodesMapNonEmpty) {
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraphDef(graph_def);
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  Status ret = scope_graph->Init();
+  ASSERT_EQ(ret, SUCCESS);
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  std::unordered_map<AscendString, ge::OperatorPtr> nodes_map;
+  ret = scope_graph->GetNodesMap(nodes_map);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(nodes_map.empty(), false);
+}

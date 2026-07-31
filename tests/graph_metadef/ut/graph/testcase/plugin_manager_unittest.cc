@@ -1053,3 +1053,400 @@ TEST_F(UtestPluginManagerCov, GetPluginPathFromCustomOppPath_WithMultiplePaths) 
   PluginManager::GetPluginPathFromCustomOppPath("op_proto/", plugin_path);
   EXPECT_FALSE(plugin_path.empty());
 }
+
+TEST_F(UtestPluginManagerCov, IncCov_GetPackageSoPath_WithCustomOpp) {
+  std::string custom_dir = kTmpDir + "/custom_opp_pkg";
+  system(("mkdir -p " + custom_dir).c_str());
+  PluginManager::SetCustomOpLibPath(custom_dir);
+  std::vector<std::string> vendors;
+  PluginManager::GetPackageSoPath(vendors);
+  EXPECT_FALSE(vendors.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetPackageSoPath_NoCustomOpp) {
+  PluginManager::SetCustomOpLibPath("");
+  std::vector<std::string> vendors;
+  PluginManager::GetPackageSoPath(vendors);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppSupportedOsAndCpuType_NotDir) {
+  std::string file_path = kTmpDir + "/not_a_dir.txt";
+  system(("touch " + file_path).c_str());
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu, file_path, "", 0U);
+  EXPECT_TRUE(opp_supported_os_cpu.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppSupportedOsAndCpuType_EmptyPath) {
+  unsetenv("ASCEND_OPP_PATH");
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu, "", "", 0U);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppSupportedOsAndCpuType_LayerExceedsMax) {
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu, "/tmp", "linux", 2U);
+  EXPECT_TRUE(opp_supported_os_cpu.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_OppNotInRange) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{60000, 60100}};
+  EXPECT_FALSE(PluginManager::CheckOppAndCompilerVersions("5.0", "", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_CompilerNotInRange) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{60000, 60100}};
+  EXPECT_FALSE(PluginManager::CheckOppAndCompilerVersions("", "5.0", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_OppInvalid) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{600000, 601000}};
+  EXPECT_FALSE(PluginManager::CheckOppAndCompilerVersions("abc", "", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_CompilerInvalid) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{600000, 601000}};
+  EXPECT_FALSE(PluginManager::CheckOppAndCompilerVersions("", "abc", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_BothInRange) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{600000, 601000}};
+  EXPECT_TRUE(PluginManager::CheckOppAndCompilerVersions("6.0", "6.0", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_CheckOppAndCompilerVersions_Empty) {
+  std::vector<std::pair<uint32_t, uint32_t>> required_version = {{600000, 601000}};
+  EXPECT_TRUE(PluginManager::CheckOppAndCompilerVersions("", "", required_version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetEffectiveVersion_EdgeCases) {
+  uint32_t ver = 0;
+  EXPECT_FALSE(PluginManager::GetEffectiveVersion("1", ver));
+  EXPECT_TRUE(PluginManager::GetEffectiveVersion("6.3", ver));
+  EXPECT_TRUE(PluginManager::GetEffectiveVersion("9.0", ver));
+  EXPECT_FALSE(PluginManager::GetEffectiveVersion("x.y", ver));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetConstantFoldingOpsPath_OldStruct) {
+  unsetenv("ASCEND_OPP_PATH");
+  std::string path;
+  EXPECT_EQ(PluginManager::GetConstantFoldingOpsPath("/tmp", path), SUCCESS);
+  EXPECT_FALSE(path.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetConstantFoldingOpsPath_NewStruct) {
+  std::string opp_dir = kTmpDir + "/opp_new";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetConstantFoldingOpsPath("/tmp", path), SUCCESS);
+  EXPECT_FALSE(path.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOpMasterDeviceSoPath_SubPkgBuiltin) {
+  std::string opp_dir = kTmpDir + "/opp_master";
+  system(("mkdir -p " + opp_dir + "/built-in/op_impl/ai_core/tbe/op_tiling_device/lib/").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetOpMasterDeviceSoPath(path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOpMasterDeviceSoPath_NoSubPkg) {
+  std::string opp_dir = kTmpDir + "/opp_master2";
+  system(("mkdir -p " + opp_dir + "/built-in/op_impl/ai_core/tbe/op_master_device/lib/").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetOpMasterDeviceSoPath(path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_IsVendorVersionValid_OppLatest) {
+  EXPECT_TRUE(PluginManager::IsVendorVersionValid("/some/path/opp_latest"));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_IsVendorVersionValid_EmptyVersions) {
+  EXPECT_TRUE(PluginManager::IsVendorVersionValid("/nonexist/path"));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_IsVendorVersionValid_WithVersions) {
+  std::string opp_dir = kTmpDir + "/opp_version_test";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  std::string version_file = opp_dir + "/version.info";
+  system(("echo 'Version=6.0' > " + version_file).c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  bool result = PluginManager::IsVendorVersionValid(opp_dir + "/built-in");
+  EXPECT_TRUE(result);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppAndCompilerVersion_BuiltIn) {
+  std::string opp_dir = kTmpDir + "/opp_compiler_test";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  std::string version_file = opp_dir + "/version.info";
+  system(("echo 'Version=6.0' > " + version_file).c_str());
+  std::string opp_version;
+  std::string compiler_version;
+  PluginManager::GetOppAndCompilerVersion(opp_dir + "/built-in", opp_version, compiler_version);
+  EXPECT_FALSE(opp_version.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppAndCompilerVersion_Vendor) {
+  std::string vendor_dir = kTmpDir + "/vendor_test";
+  system(("mkdir -p " + vendor_dir).c_str());
+  std::string version_file = vendor_dir + "/version.info";
+  system(("echo 'compiler_version=6.0' > " + version_file).c_str());
+  std::string opp_version;
+  std::string compiler_version;
+  PluginManager::GetOppAndCompilerVersion(vendor_dir, opp_version, compiler_version);
+  EXPECT_FALSE(compiler_version.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_ValidateSo_FileNotExist) {
+  PluginManager pm;
+  int64_t file_size = 0;
+  EXPECT_EQ(pm.ValidateSo("/nonexist/file.so", 0, file_size), FAILED);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_ValidateSo_ValidFile) {
+  std::string file_path = kTmpDir + "/fake.so";
+  system(("touch " + file_path).c_str());
+  PluginManager pm;
+  int64_t file_size = 0;
+  EXPECT_EQ(pm.ValidateSo(file_path, 0, file_size), SUCCESS);
+  EXPECT_GE(file_size, 0);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetFileListWithSuffix_EmptyPath) {
+  std::vector<std::string> file_list;
+  PluginManager::GetFileListWithSuffix("", ".so", file_list);
+  EXPECT_TRUE(file_list.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetFileListWithSuffix_PathTooLong) {
+  std::string long_path(5000, 'x');
+  std::vector<std::string> file_list;
+  PluginManager::GetFileListWithSuffix(long_path, ".so", file_list);
+  EXPECT_TRUE(file_list.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetFileListWithSuffix_NotDir) {
+  std::string file_path = kTmpDir + "/notdir.txt";
+  system(("touch " + file_path).c_str());
+  std::vector<std::string> file_list;
+  PluginManager::GetFileListWithSuffix(file_path, ".so", file_list);
+  EXPECT_TRUE(file_list.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetFileListWithSuffix_ValidDir) {
+  std::string dir = kTmpDir + "/so_dir";
+  system(("mkdir -p " + dir).c_str());
+  system(("touch " + dir + "/lib_a.so").c_str());
+  system(("touch " + dir + "/lib_b.so").c_str());
+  system(("touch " + dir + "/not_so.txt").c_str());
+  std::vector<std::string> file_list;
+  PluginManager::GetFileListWithSuffix(dir, ".so", file_list);
+  EXPECT_EQ(file_list.size(), 2U);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_FindSoFilesInCustomPassDirs_NotExist) {
+  std::vector<std::string> so_files;
+  PluginManager::FindSoFilesInCustomPassDirs("/nonexist/dir", so_files);
+  EXPECT_TRUE(so_files.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_FindSoFilesInCustomPassDirs_NotDir) {
+  std::string file_path = kTmpDir + "/notdir_pass.txt";
+  system(("touch " + file_path).c_str());
+  std::vector<std::string> so_files;
+  PluginManager::FindSoFilesInCustomPassDirs(file_path, so_files);
+  EXPECT_TRUE(so_files.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_FindSoFilesInCustomPassDirs_EmptyDir) {
+  std::string dir = kTmpDir + "/empty_pass_dir";
+  system(("mkdir -p " + dir).c_str());
+  std::vector<std::string> so_files;
+  PluginManager::FindSoFilesInCustomPassDirs(dir, so_files);
+  EXPECT_TRUE(so_files.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_FindSoFilesInCustomPassDirs_WithSoFiles) {
+  std::string dir = kTmpDir + "/pass_dir_with_so";
+  std::string subdir = dir + "/vendor1/custom_fusion_passes";
+  system(("mkdir -p " + subdir).c_str());
+  system(("touch " + subdir + "/lib_pass.so").c_str());
+  std::vector<std::string> so_files;
+  PluginManager::FindSoFilesInCustomPassDirs(dir, so_files);
+  EXPECT_EQ(so_files.size(), 1U);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetSoPackageName_Vendors) {
+  EXPECT_EQ(PluginManager::GetSoPackageName("/opp/vendors/customize/op_proto/lib.so"), "customize");
+  EXPECT_EQ(PluginManager::GetSoPackageName("/opp/vendors/customize"), "customize");
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetSoPackageName_Custom) {
+  EXPECT_EQ(PluginManager::GetSoPackageName("/opp/op_proto/custom/lib.so"), "custom");
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetSoPackageName_BuiltIn) {
+  EXPECT_EQ(PluginManager::GetSoPackageName("/opp/built-in/op_proto/lib.so"), "built-in");
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_IsEndWith) {
+  EXPECT_TRUE(PluginManager::IsEndWith("test.so", ".so"));
+  EXPECT_FALSE(PluginManager::IsEndWith("test.txt", ".so"));
+  EXPECT_FALSE(PluginManager::IsEndWith("ab", "longer"));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppPkgPath_NotBuiltIn) {
+  bool is_sub_pkg = false;
+  std::string result = PluginManager::GetOppPkgPath("/custom/path", "/whole/", "/sub/", "os/cpu", is_sub_pkg);
+  EXPECT_FALSE(is_sub_pkg);
+  EXPECT_FALSE(result.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppPkgPath_BuiltInNoSubPkg) {
+  std::string opp_dir = kTmpDir + "/opp_pkg_test";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  bool is_sub_pkg = false;
+  std::string result = PluginManager::GetOppPkgPath(opp_dir + "/built-in", "/whole/", "/sub/", "os/cpu", is_sub_pkg);
+  EXPECT_FALSE(is_sub_pkg);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetVersionFromPathWithName_InvalidPath) {
+  std::string version;
+  EXPECT_FALSE(PluginManager::GetVersionFromPathWithName("/nonexist/file", version, "Version="));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_ParseVersion_EdgeCases) {
+  std::string line;
+  std::string version;
+
+  line = "";
+  EXPECT_FALSE(PluginManager::ParseVersion(line, version, "Version="));
+
+  line = "no_match_here";
+  EXPECT_FALSE(PluginManager::ParseVersion(line, version, "Version="));
+
+  line = "Version=";
+  EXPECT_FALSE(PluginManager::ParseVersion(line, version, "Version="));
+
+  line = "Version=6.0";
+  EXPECT_TRUE(PluginManager::ParseVersion(line, version, "Version="));
+  EXPECT_EQ(version, "6.0");
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetVersionFromPath_Valid) {
+  std::string version_file = kTmpDir + "/version_valid.info";
+  system(("echo 'Version=8.0.RC1' > " + version_file).c_str());
+  std::string version;
+  EXPECT_TRUE(PluginManager::GetVersionFromPath(version_file, version));
+  EXPECT_EQ(version, "8.0.RC1");
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetVersionFromPath_InvalidPath) {
+  std::string version;
+  EXPECT_FALSE(PluginManager::GetVersionFromPath("/nonexist/file.info", version));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetVersionFromPathWithName_NotFound) {
+  std::string version_file = kTmpDir + "/version_notfound.info";
+  system(("echo 'some_other_key=value' > " + version_file).c_str());
+  std::string version;
+  EXPECT_FALSE(PluginManager::GetVersionFromPathWithName(version_file, version, "Version="));
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_LoadSo_EmptyPath) {
+  PluginManager pm;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(pm.LoadSo("", func_check_list), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_LoadSo_NonexistPath) {
+  PluginManager pm;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(pm.LoadSo("/nonexist/path/lib.so", func_check_list), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_Load_NonexistPath) {
+  PluginManager pm;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(pm.Load("/nonexist/dir", func_check_list), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_Load_EmptyDir) {
+  std::string dir = kTmpDir + "/empty_load_dir";
+  system(("mkdir -p " + dir).c_str());
+  PluginManager pm;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(pm.Load(dir, func_check_list), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_Load_DirWithSoFiles) {
+  std::string dir = kTmpDir + "/load_dir_with_so";
+  system(("mkdir -p " + dir).c_str());
+  system(("touch " + dir + "/not_so.txt").c_str());
+  PluginManager pm;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(pm.Load(dir, func_check_list), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetCustomCaffeProtoPath_NewStruct) {
+  std::string opp_dir = kTmpDir + "/opp_caffe_new";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetCustomCaffeProtoPath(path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetCustomCaffeProtoPath_NewStructWithVendors) {
+  std::string opp_dir = kTmpDir + "/opp_caffe_vendors";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  system(("mkdir -p " + opp_dir + "/vendors").c_str());
+  std::string cfg = opp_dir + "/vendors/config.ini";
+  system(("echo 'load_priority=vendor_x' > " + cfg).c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetCustomCaffeProtoPath(path), SUCCESS);
+  EXPECT_FALSE(path.empty());
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOpsProtoPath_NewStruct) {
+  std::string opp_dir = kTmpDir + "/opp_proto_new";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetOpsProtoPath(path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetCustomOpPath_NewStruct) {
+  std::string opp_dir = kTmpDir + "/opp_custom_new";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetCustomOpPath("caffe", path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOpTilingPath_NewStruct) {
+  std::string opp_dir = kTmpDir + "/opp_tiling_new";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+  std::string path;
+  EXPECT_EQ(PluginManager::GetOpTilingPath(path), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppPluginPathNew_WithVendors) {
+  std::string opp_dir = kTmpDir + "/opp_plugin_new_vendors";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  system(("mkdir -p " + opp_dir + "/vendors").c_str());
+  std::string cfg = opp_dir + "/vendors/config.ini";
+  system(("echo 'load_priority=vendor_a' > " + cfg).c_str());
+  std::string plugin_path;
+  EXPECT_EQ(PluginManager::GetOppPluginPathNew(opp_dir, "%s/op_proto/", plugin_path, ""), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, IncCov_GetOppPluginPathNew_NoVendors) {
+  std::string opp_dir = kTmpDir + "/opp_plugin_no_vendors";
+  system(("mkdir -p " + opp_dir + "/built-in").c_str());
+  std::string plugin_path;
+  EXPECT_EQ(PluginManager::GetOppPluginPathNew(opp_dir, "%s/op_proto/", plugin_path, "custom/"), SUCCESS);
+}

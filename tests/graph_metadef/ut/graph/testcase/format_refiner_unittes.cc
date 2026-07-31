@@ -629,6 +629,110 @@ ut::GraphBuilder BuildGraphWithFormatLocked() {
   return builder;
 }
 
+/*
+ *              netoutput1 (ND, 2D)
+ *                |
+ *              biasadd (NCHW, 2D)  -- dim_num < 4 branch
+ *                |
+ *              data1 (ND, 2D)
+ */
+ut::GraphBuilder BuildGraphBiasAddLessThan4D() {
+  auto builder = ut::GraphBuilder("g_biasadd_lt4");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1, FORMAT_NCHW, DT_FLOAT, {3, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {3, 224});
+  builder.AddDataEdge(data1, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+/*
+ *              netoutput1 (ND, 4D)
+ *                |
+ *              biasadd (NCHW, 4D)  -- do nothing branch (dim_num == 4)
+ *                |
+ *              data1 (ND, 4D)
+ */
+ut::GraphBuilder BuildGraphBiasAdd4D() {
+  auto builder = ut::GraphBuilder("g_biasadd_4d");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {1, 3, 224, 224});
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1, FORMAT_NCHW, DT_FLOAT, {1, 3, 224, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {1, 3, 224, 224});
+  builder.AddDataEdge(data1, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+/*
+ *              netoutput1 (ND, 2D)
+ *                |
+ *              conv1 (NCHW, 4D, anchor point)
+ *                |
+ *              squeeze (ND, 2D, change-dim node) -- back infer change-dim detection
+ *                |
+ *              data1 (ND, 2D)
+ */
+ut::GraphBuilder BuildGraphChangeDimBackInfer() {
+  auto builder = ut::GraphBuilder("g_changedim_back");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto squeeze = builder.AddNode("squeeze", "Squeeze", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto conv1 = builder.AddNode("conv1", "Conv2D", 1, 1, FORMAT_NCHW, DT_FLOAT, {1, 3, 224, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {3, 224});
+  builder.AddDataEdge(data1, 0, squeeze, 0);
+  builder.AddDataEdge(squeeze, 0, conv1, 0);
+  builder.AddDataEdge(conv1, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+/*
+ *              netoutput1 (ND, 2D)
+ *                |
+ *              squeeze (ND, 2D, change-dim node) -- forward infer change-dim detection
+ *                |
+ *              conv1 (NCHW, 4D, anchor point, no input connected)
+ */
+ut::GraphBuilder BuildGraphChangeDimForwardInfer() {
+  auto builder = ut::GraphBuilder("g_changedim_fwd");
+  auto conv1 = builder.AddNode("conv1", "Conv2D", 0, 1, FORMAT_NCHW, DT_FLOAT, {1, 3, 224, 224});
+  auto squeeze = builder.AddNode("squeeze", "Squeeze", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {3, 224});
+  builder.AddDataEdge(conv1, 0, squeeze, 0);
+  builder.AddDataEdge(squeeze, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+/*
+ *              netoutput1 (ND, 2D)
+ *                |
+ *              data1 (ND, 2D)  -- DataNodeFormatProcess with dim < 4
+ */
+ut::GraphBuilder BuildGraphDataNodeLessThan4D() {
+  auto builder = ut::GraphBuilder("g_data_lt4");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {3, 224});
+  builder.AddDataEdge(data1, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+/*
+ *              netoutput1 (ND, 4D)
+ *                |
+ *              data1 (ND, 4D)  -- DataNodeFormatProcess sets format
+ */
+ut::GraphBuilder BuildGraphDataNode4D() {
+  auto builder = ut::GraphBuilder("g_data_4d");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {1, 3, 224, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {1, 3, 224, 224});
+  builder.AddDataEdge(data1, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
 }  // namespace
 // Test BiasAdd special process
 TEST_F(UTEST_FormatRefiner, biasadd_special_process) {
@@ -1014,6 +1118,69 @@ TEST_F(UTEST_FormatRefiner, SaveFormat) {
   graph->SaveDataFormat(FORMAT_NHWC);
   auto save_format = graph->GetDataFormat();
   EXPECT_EQ(save_format, FORMAT_NHWC);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_BiasAddFormatFixProcess_LessThan4Dims) {
+  auto builder = BuildGraphBiasAddLessThan4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto biasadd = graph->FindNode("biasadd");
+  EXPECT_EQ(biasadd->GetOpDesc()->GetInputDesc(0).GetOriginFormat(), FORMAT_ND);
+  EXPECT_EQ(biasadd->GetOpDesc()->GetInputDesc(0).GetFormat(), FORMAT_ND);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_BiasAddFormatFixProcess_4Dims) {
+  auto builder = BuildGraphBiasAdd4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto biasadd = graph->FindNode("biasadd");
+  EXPECT_EQ(biasadd->GetOpDesc()->GetInputDesc(0).GetOriginFormat(), FORMAT_NCHW);
+  EXPECT_EQ(biasadd->GetOpDesc()->GetInputDesc(0).GetFormat(), FORMAT_NCHW);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_ChangeDimNode_BackInferDetection) {
+  auto builder = BuildGraphChangeDimBackInfer();
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto squeeze = graph->FindNode("squeeze");
+  EXPECT_EQ(squeeze->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_ChangeDimNode_ForwardInferDetection) {
+  auto builder = BuildGraphChangeDimForwardInfer();
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto squeeze = graph->FindNode("squeeze");
+  EXPECT_EQ(squeeze->GetOpDesc()->GetInputDesc(0).GetOriginFormat(), FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_LessThan4Dims) {
+  auto builder = BuildGraphDataNodeLessThan4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto data1 = graph->FindNode("data1");
+  EXPECT_EQ(data1->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_ND);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_SetFormatForUninferred) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto data1 = graph->FindNode("data1");
+  EXPECT_EQ(data1->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_NCHW);
+  EXPECT_EQ(data1->GetOpDesc()->GetInputDesc(0).GetOriginFormat(), FORMAT_NCHW);
+  SetFirstInferFlag(graph, true);
   graph->SaveDataFormat(FORMAT_ND);
 }
 }  // namespace ge

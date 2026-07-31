@@ -1148,4 +1148,160 @@ TEST_F(UtestOpDesc, CovNodeShapeTransUtilsOutputReshapeType) {
   EXPECT_TRUE(trans_utils.CatchFormatAndShape());
   EXPECT_TRUE(trans_utils.UpdateFormatAndShape());
 }
+
+TEST_F(UtestOpDesc, IncCov_OpDescImplCopyAssign) {
+  OpDescImpl impl1("test", "Test");
+  GeTensorDesc desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  impl1.AddInputDesc("input1", desc);
+  impl1.AddOutputDesc("output1", desc);
+
+  OpDescImpl impl2("other", "Other");
+  impl2 = impl1;
+  EXPECT_EQ(impl2.GetName(), "test");
+  EXPECT_EQ(impl2.GetInputsSize(), 1U);
+  EXPECT_EQ(impl2.GetOutputsSize(), 1U);
+
+  impl2 = impl2;
+  EXPECT_EQ(impl2.GetName(), "test");
+}
+
+TEST_F(UtestOpDesc, IncCov_OpDescMoveConstructor) {
+  OpDesc op1("test", "Test");
+  GeTensorDesc desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  op1.AddInputDesc("input1", desc);
+  op1.AddOutputDesc("output1", desc);
+
+  OpDesc op2(std::move(op1));
+  EXPECT_EQ(op2.GetName(), "test");
+  EXPECT_EQ(op2.GetInputsSize(), 1U);
+  EXPECT_EQ(op2.GetOutputsSize(), 1U);
+}
+
+TEST_F(UtestOpDesc, IncCov_AddInputDescMiddleIndexTooBig) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  op_desc->AddInputDesc("input1", GeTensorDesc());
+  EXPECT_EQ(op_desc->AddInputDescMiddle("x", 1, 5), GRAPH_FAILED);
+}
+
+TEST_F(UtestOpDesc, IncCov_AddDynamicOutputDescForward) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  EXPECT_EQ(op_desc->AddDynamicOutputDesc("y", 2, false), GRAPH_SUCCESS);
+  EXPECT_EQ(op_desc->GetOutputsSize(), 2U);
+}
+
+TEST_F(UtestOpDesc, IncCov_AddDynamicOutputDescDuplicate) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  op_desc->AddOutputDesc("y0", GeTensorDesc());
+  EXPECT_EQ(op_desc->AddDynamicOutputDesc("y", 1, true), GRAPH_FAILED);
+  EXPECT_EQ(op_desc->AddDynamicOutputDesc("y", 1, false), GRAPH_FAILED);
+}
+
+TEST_F(UtestOpDesc, IncCov_MutableInputDescNullPtr) {
+  OpDescImpl impl("test", "Test");
+  impl.AddInputDesc("input1", GeTensorDesc());
+  impl.inputs_desc_[0] = nullptr;
+  EXPECT_EQ(impl.MutableInputDesc(0), nullptr);
+  EXPECT_EQ(impl.GetInputDescPtr(0), nullptr);
+}
+
+TEST_F(UtestOpDesc, IncCov_GetSubgraphNameByInstanceName) {
+  OpDescImpl impl("test", "Test");
+  impl.AddSubgraphName("branch1");
+  impl.SetSubgraphInstanceName(0, "sub_inst1");
+
+  std::string name;
+  EXPECT_EQ(impl.GetSubgraphNameByInstanceName("sub_inst1", name), GRAPH_SUCCESS);
+  EXPECT_EQ(name, "branch1");
+  EXPECT_EQ(impl.GetSubgraphNameByInstanceName("not_found", name), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestOpDesc, IncCov_SetGetAttachedStreamIds) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  op_desc->SetAttachedStreamIds({100});
+  auto ids = op_desc->GetAttachedStreamIds();
+  EXPECT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], 100);
+  EXPECT_TRUE(op_desc->HasValidAttachedStreamId());
+}
+
+TEST_F(UtestOpDesc, IncCov_SetGetOpInferDepends) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  std::vector<std::string> depends = {"dep1", "dep2"};
+  op_desc->SetOpInferDepends(depends);
+  auto result = op_desc->GetOpInferDepends();
+  EXPECT_EQ(result.size(), 2U);
+  EXPECT_EQ(result[0], "dep1");
+}
+
+TEST_F(UtestOpDesc, IncCov_SetIsInputConst) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  std::vector<bool> is_const = {true, false};
+  op_desc->SetIsInputConst(is_const);
+  auto result = op_desc->GetIsInputConst();
+  EXPECT_EQ(result.size(), 2U);
+  EXPECT_EQ(result[0], true);
+}
+
+TEST_F(UtestOpDesc, IncCov_OpDescBuilderFailure) {
+  OpDescBuilder builder("test", "Test");
+  builder.AddOutput("y", GeTensorDesc());
+  builder.AddOutput("y", GeTensorDesc());
+  EXPECT_EQ(builder.Build(), nullptr);
+}
+
+TEST_F(UtestOpDesc, IncCov_SetGetWorkspace) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  std::vector<int64_t> ws = {10, 20, 30};
+  op_desc->SetWorkspace(ws);
+  auto result = op_desc->GetWorkspace();
+  EXPECT_EQ(result.size(), 3U);
+  EXPECT_EQ(result[0], 10);
+
+  std::vector<int64_t> wb = {100, 200};
+  op_desc->SetWorkspaceBytes(wb);
+  auto result2 = op_desc->GetWorkspaceBytes();
+  EXPECT_EQ(result2.size(), 2U);
+  EXPECT_EQ(result2[0], 100);
+}
+
+TEST_F(UtestOpDesc, IncCov_OppImplVersion) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  EXPECT_EQ(op_desc->GetOppImplVersion(), OppImplVersion::kOpp);
+}
+
+TEST_F(UtestOpDesc, IncCov_UpdateOutputDescByName) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  GeTensorDesc desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc("output1", desc);
+  GeTensorDesc new_desc(GeShape({2}), FORMAT_NHWC, DT_INT32);
+  EXPECT_EQ(op_desc->UpdateOutputDesc("output1", new_desc), GRAPH_SUCCESS);
+  EXPECT_EQ(op_desc->UpdateOutputDesc("not_exist", new_desc), GRAPH_FAILED);
+  EXPECT_EQ(op_desc->MutableOutputDesc("not_exist"), nullptr);
+}
+
+TEST_F(UtestOpDesc, IncCov_GetInputDescByNameNotFound) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  op_desc->AddInputDesc("input1", GeTensorDesc());
+  EXPECT_NE(op_desc->MutableInputDesc("input1"), nullptr);
+  EXPECT_EQ(op_desc->MutableInputDesc("not_exist"), nullptr);
+  op_desc->impl_->inputs_desc_[0] = nullptr;
+  EXPECT_EQ(op_desc->GetInputDescPtr(0), nullptr);
+}
+
+TEST_F(UtestOpDesc, IncCov_AddDynamicInputDescPushBack) {
+  auto op_desc = std::make_shared<OpDesc>("test", "Test");
+  EXPECT_EQ(op_desc->AddDynamicInputDesc("x", 2, true), GRAPH_SUCCESS);
+  EXPECT_EQ(op_desc->GetAllInputsSize(), 2U);
+}
+
+TEST_F(UtestOpDesc, IncCov_OpDescEqual) {
+  auto op_desc1 = std::make_shared<OpDesc>("test", "Test");
+  auto op_desc2 = std::make_shared<OpDesc>("test", "Test");
+  op_desc1->AddInputDesc("input1", GeTensorDesc());
+  op_desc2->AddInputDesc("input1", GeTensorDesc());
+  EXPECT_TRUE(op_desc1->OpDescAttrsAreEqual(*op_desc2));
+  EXPECT_TRUE(op_desc1->OpDescMembersAreEqual(*op_desc2));
+  EXPECT_TRUE(op_desc1->OpDescGenTensorDescsAreEqual(*op_desc2));
+  EXPECT_TRUE(*op_desc1 == *op_desc2);
+}
 }  // namespace ge

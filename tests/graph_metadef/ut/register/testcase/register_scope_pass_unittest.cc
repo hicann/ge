@@ -485,3 +485,199 @@ TEST_F(UtestScopePass, PrintFusionScopeInfo) {
   retStatus = scoBasePass.impl_->PrintFusionScopeInfo(scope_graph);
   EXPECT_EQ(retStatus, SUCCESS);
 }
+
+TEST_F(UtestScopePass, IncCov_AddFusionScopesResultToScopeGraph_NullImplScopeRlt) {
+  Status retStatus;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  retStatus = scope_graph->Init();
+  ASSERT_EQ(retStatus, SUCCESS);
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  ScopePass1 scoBasePass;
+  std::vector<ScopesResult> scope_results;
+  ScopesResult null_rst;
+  null_rst.impl_.reset();
+  scope_results.push_back(null_rst);
+  retStatus = scoBasePass.impl_->AddFusionScopesResultToScopeGraph(scope_graph, scope_results);
+  EXPECT_EQ(retStatus, SUCCESS);
+}
+
+namespace {
+class ScopePassBreakBatch : public ScopeBasePass {
+ public:
+  ScopePattern *scoPattern1;
+  ScopePattern *scoPattern2;
+
+ protected:
+  std::vector<ScopeFusionPatterns> DefinePatterns() {
+    std::vector<std::vector<std::vector<ScopePattern *>>> scoPattern;
+    std::vector<std::vector<ScopePattern *>> scoPatternSub;
+    std::vector<ScopePattern *> batch1;
+    std::vector<ScopePattern *> batch2;
+
+    scoPattern1 = new ScopePattern();
+    scoPattern2 = new ScopePattern();
+    NodeOpTypeFeature feat("NonExistent", 1, 0);
+    scoPattern2->AddNodeOpTypeFeature(feat);
+
+    batch1.push_back(scoPattern1);
+    batch2.push_back(scoPattern2);
+    scoPatternSub.push_back(batch1);
+    scoPatternSub.push_back(batch2);
+    scoPattern.push_back(scoPatternSub);
+    return scoPattern;
+  }
+  std::string PassName() {
+    return std::string("passNameBreak");
+  }
+  Status LastMatchScopesAndOPs(std::shared_ptr<ScopeGraph> &scope_graph, std::vector<ScopesResult> &results) {
+    return SUCCESS;
+  }
+  void GenerateFusionResult(const std::vector<Scope *> &scopes, FusionScopesResult *fusion_rlt) {
+    return;
+  }
+};
+}  // namespace
+
+TEST_F(UtestScopePass, IncCov_MatchAllBatches_BreakAndRollback) {
+  Status retStatus;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  retStatus = scope_graph->Init();
+  ASSERT_EQ(retStatus, SUCCESS);
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  ScopePassBreakBatch scoBasePass;
+  retStatus = scoBasePass.impl_->Run(scope_graph);
+  EXPECT_EQ(retStatus, domi::SCOPE_NOT_CHANGED);
+}
+
+TEST_F(UtestScopePass, IncCov_MatchOneScope_NullImplScopePattern) {
+  bool retBool;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  scope_graph->Init();
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  const ScopeTree *scopeTree = scope_graph->GetScopeTree();
+  std::vector<Scope *> scopes = scopeTree->impl_->scopes_;
+
+  ScopePattern scoPattern;
+  auto *saved_pattern = scoPattern.impl_.release();
+  std::vector<Scope *> results;
+  ScopePass1 scoBasePass;
+  for (auto scope : scopes) {
+    retBool = scoBasePass.impl_->MatchOneScope(&scoPattern, scope, results);
+    EXPECT_EQ(retBool, false);
+  }
+  new (&scoPattern.impl_) decltype(scoPattern.impl_)(saved_pattern);
+}
+
+TEST_F(UtestScopePass, IncCov_MatchOneScope_SubScopeMatch) {
+  bool retBool;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  scope_graph->Init();
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  const ScopeTree *scopeTree = scope_graph->GetScopeTree();
+  Scope *root = const_cast<Scope *>(scopeTree->impl_->Root());
+  const auto &sub_scopes = root->impl_->GetSubScopes();
+  for (auto &entry : sub_scopes) {
+    Scope *sub_scope = entry.second;
+    OperatorPtr sub_node(new (std::nothrow) ge::Operator("sub_node", "Sub"));
+    sub_scope->impl_->AddNode(sub_node);
+    sub_scope->impl_->OpsNumInc("Sub");
+    break;
+  }
+
+  ScopePattern scoPattern;
+  NodeOpTypeFeature feature("Sub", 1, 0);
+  scoPattern.AddNodeOpTypeFeature(feature);
+
+  std::vector<Scope *> results;
+  ScopePass1 scoBasePass;
+  retBool = scoBasePass.impl_->MatchOneScope(&scoPattern, root, results);
+  EXPECT_EQ(retBool, true);
+}
+
+TEST_F(UtestScopePass, IncCov_PrintFusionScopeInfo_NullResult) {
+  Status retStatus;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  scope_graph->Init();
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  impl->fusion_results_["null_entry"] = nullptr;
+
+  ScopePass1 scoBasePass;
+  retStatus = scoBasePass.impl_->PrintFusionScopeInfo(scope_graph);
+  EXPECT_EQ(retStatus, PARAM_INVALID);
+  impl->fusion_results_.erase("null_entry");
+}
+
+TEST_F(UtestScopePass, IncCov_PrintFusionScopeInfo_NullScope) {
+  Status retStatus;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  scope_graph->Init();
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  FusionScopesResult *fr = new FusionScopesResult();
+  fr->Init();
+  fr->SetName("null_scope_test");
+  fr->impl_->AddScopes({nullptr});
+  impl->AddFusionScopesResult(fr);
+
+  ScopePass1 scoBasePass;
+  retStatus = scoBasePass.impl_->PrintFusionScopeInfo(scope_graph);
+  EXPECT_EQ(retStatus, PARAM_INVALID);
+}
+
+TEST_F(UtestScopePass, IncCov_PrintFusionScopeInfo_NullNode) {
+  Status retStatus;
+  domi::tensorflow::GraphDef graph_def;
+  CreateGraph(graph_def);
+
+  std::shared_ptr<ScopeGraph> scope_graph = std::make_shared<ScopeGraph>();
+  ASSERT_NE(scope_graph, nullptr);
+  scope_graph->Init();
+  auto &impl = scope_graph->impl_;
+  impl->BuildScopeGraph(&graph_def);
+
+  FusionScopesResult *fr = new FusionScopesResult();
+  fr->Init();
+  fr->SetName("null_node_test");
+  std::vector<OperatorPtr> nodes = {nullptr};
+  fr->impl_->AddNodes(nodes);
+  impl->AddFusionScopesResult(fr);
+
+  ScopePass1 scoBasePass;
+  retStatus = scoBasePass.impl_->PrintFusionScopeInfo(scope_graph);
+  EXPECT_EQ(retStatus, PARAM_INVALID);
+}

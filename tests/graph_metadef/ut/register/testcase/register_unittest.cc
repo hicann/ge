@@ -3787,3 +3787,68 @@ TEST_F(UtestRegister, new_optiling_py_interface_ok_with_output_tensor_and_null_o
   EXPECT_EQ(expect_result, runinfo);
   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
 }
+
+TEST_F(UtestRegister, IncCov_AutoMappingFnDynamicSizeExceeded) {
+  domi::tensorflow::GraphDef graph_def;
+  GraphInit(graph_def);
+  ge::Operator op_dst = ge::Operator("Add", "int");
+  domi::tensorflow::NodeDef *node = graph_def.mutable_node(0);
+
+  map<std::string, std::pair<std::string, std::string>> name_attrs;
+  name_attrs.insert(make_pair(std::string("in"), make_pair(std::string("dyn1"), std::string("attr1"))));
+  name_attrs.insert(make_pair(std::string("out"), make_pair(std::string("dyn2"), std::string("attr2"))));
+  name_attrs.insert(make_pair(std::string("other"), make_pair(std::string("dyn3"), std::string("attr3"))));
+
+  auto ret = AutoMappingFnDynamic(node, op_dst, name_attrs, 1, 1);
+  EXPECT_EQ(ret, domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingFunctionUnexpectedType) {
+  domi::tensorflow::GraphDef graph_def;
+  GraphInit(graph_def);
+  ge::Operator op_dst = ge::Operator("Add", "int");
+  op_dst.SubgraphRegister("subVal", true);
+
+  domi::tensorflow::NodeDef *node = graph_def.mutable_node(0);
+  domi::tensorflow::AttrValue attrValue;
+  attrValue.set_i(88);
+  node->mutable_attr()->insert({"subVal", attrValue});
+
+  auto ret = AutoMappingFn(node, op_dst);
+  EXPECT_EQ(ret, domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingFunctionAddSubgraphFail) {
+  domi::tensorflow::GraphDef graph_def;
+  GraphInit(graph_def);
+  ge::Operator op_dst = ge::Operator("Add", "int");
+  op_dst.SubgraphRegister("subVal", true);
+  op_dst.SubgraphCountRegister("subVal", 6);
+  op_dst.SubgraphRegister("subVal0", true);
+
+  domi::tensorflow::NodeDef *node = graph_def.mutable_node(0);
+  domi::tensorflow::AttrValue attrValue;
+  auto *list_val = attrValue.mutable_list();
+  list_val->add_func()->set_name("func1");
+  list_val->add_func()->set_name("func2");
+  node->mutable_attr()->insert({"subVal", attrValue});
+
+  auto ret = AutoMappingFn(node, op_dst);
+  EXPECT_EQ(ret, domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_CheckDynamicInfoPortNameMismatch) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_mismatch");
+  auto node_src = builder.AddNode("ParseSingleExample", "ParseSingleType", 3, 0, FORMAT_ALL);
+  ge::Operator op_src = OpDescUtils::CreateOperatorFromNode(node_src);
+  ge::Operator op_dst = ge::Operator("ParseSingleExample");
+  auto op_desc_dst = ge::OpDescUtils::GetOpDescFromOperator(op_dst);
+  op_desc_dst->AddRegisterInputName("port_name");
+
+  std::vector<DynamicInputOutputInfo> value;
+  DynamicInputOutputInfo input_fail(kInput, "port", 10, "attr", 4);
+  value.push_back(input_fail);
+
+  auto ret = AutoMappingByOpFnDynamic(op_src, op_dst, value);
+  EXPECT_EQ(ret, domi::FAILED);
+}

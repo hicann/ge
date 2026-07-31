@@ -472,4 +472,256 @@ TEST_F(AttrStoreUt, GetOrCreateAttrGroupWith2Args) {
   auto ptr_5 = s.GetOrCreateAttrsGroup<TestAttrGroup>();
   ASSERT_EQ(ptr_5, ptr);
 }
+
+TEST_F(AttrStoreUt, IncCov_MoveConstructor) {
+  auto s = AttrStore::Create(2);
+  EXPECT_TRUE(s.Set<int64_t>(0, 100));
+  EXPECT_TRUE(s.Set<int64_t>(1, 200));
+  s.SetNameAndId("attr1", 0);
+  s.SetNameAndId("attr2", 1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  s.CreateAttrsGroup<TestAttrGroup>(1, 2);
+
+  AttrStore moved(std::move(s));
+  EXPECT_EQ(*moved.Get<int64_t>(0), 100);
+  EXPECT_EQ(*moved.Get<int64_t>(1), 200);
+  EXPECT_TRUE(moved.Exists("attr1"));
+  auto *ptr = moved.GetAttrsGroup<TestAttrGroup>();
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(ptr->a, 1);
+}
+
+TEST_F(AttrStoreUt, IncCov_MoveAssignment) {
+  auto s = AttrStore::Create(2);
+  EXPECT_TRUE(s.Set<int64_t>(0, 100));
+  s.SetNameAndId("attr1", 0);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  s.CreateAttrsGroup<TestAttrGroup>(3, 4);
+
+  AttrStore target = AttrStore::Create(1);
+  target.CreateAttrsGroup<TestAttrGroup>(5, 6);
+  target = std::move(s);
+  EXPECT_EQ(*target.Get<int64_t>(0), 100);
+  EXPECT_TRUE(target.Exists("attr1"));
+  auto *ptr = target.GetAttrsGroup<TestAttrGroup>();
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(ptr->a, 3);
+}
+
+TEST_F(AttrStoreUt, IncCov_CopyAssignmentSelf) {
+  auto s = AttrStore::Create(2);
+  EXPECT_TRUE(s.Set<int64_t>(0, 100));
+  s.SetNameAndId("attr1", 0);
+  s = s;
+  EXPECT_EQ(*s.Get<int64_t>(0), 100);
+  EXPECT_TRUE(s.Exists("attr1"));
+}
+
+TEST_F(AttrStoreUt, IncCov_GetAnyValueWithGeneralType) {
+  auto s = AttrStore::Create(2);
+  AttrId general_id = GetAttrId(static_cast<uint32_t>(AttrType::kAttrGeneral), 0);
+  s.SetNameAndId("general_attr", general_id);
+  EXPECT_FALSE(s.Exists(general_id));
+  EXPECT_EQ(s.Get<int64_t>(general_id), nullptr);
+
+  AttrId unknown_id = GetAttrId(static_cast<uint32_t>(AttrType::kAttrTypeEnd), 0);
+  s.SetNameAndId("unknown_attr", unknown_id);
+  EXPECT_FALSE(s.Exists(unknown_id));
+}
+
+TEST_F(AttrStoreUt, IncCov_PreDefinedDeleteOutOfRange) {
+  auto s = AttrStore::Create(2);
+  s.SetNameAndId("out_of_range", GetAttrId(0, 10));
+  EXPECT_FALSE(s.Delete("out_of_range"));
+}
+
+TEST_F(AttrStoreUt, IncCov_GetAllAttrsOutOfRangePredefined) {
+  auto s = AttrStore::Create(2);
+  s.SetNameAndId("out_of_range", GetAttrId(0, 10));
+  s.SetByName("custom_attr", std::string("hello"));
+  auto attrs = s.GetAllAttrs();
+  EXPECT_EQ(attrs.count("out_of_range"), 0U);
+  EXPECT_EQ(attrs.count("custom_attr"), 1U);
+}
+
+TEST_F(AttrStoreUt, IncCov_SetAnyValueByNameFails) {
+  auto s = AttrStore::Create(2);
+  s.SetNameAndId("out_of_range", GetAttrId(0, 10));
+  AnyValue av;
+  av.SetValue<int64_t>(999);
+  EXPECT_FALSE(s.SetAnyValueByName("out_of_range", av));
+}
+
+TEST_F(AttrStoreUt, IncCov_FastGetAllAttrsFromOtherGroup) {
+  auto s = AttrStore::Create(1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  const auto &fast_attrs = s.FastGetAllAttrsFromOtherGroup();
+  EXPECT_EQ(fast_attrs.size(), 1U);
+}
+
+TEST_F(AttrStoreUt, IncCov_GetAllAttrsFromOtherGroup) {
+  auto s = AttrStore::Create(1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  auto attrs = s.GetAllAttrsFromOtherGroup();
+  EXPECT_EQ(attrs.size(), 1U);
+}
+
+TEST_F(AttrStoreUt, IncCov_MutableAttrsGroupPtr) {
+  auto s = AttrStore::Create(1);
+  s.CreateAttrsGroup<TestAttrGroup>(1, 2);
+  auto &groups = s.MutableAttrsGroupPtr();
+  EXPECT_EQ(groups.size(), 1U);
+}
+
+TEST_F(AttrStoreUt, IncCov_ClearAllAttrs) {
+  auto s = AttrStore::Create(1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  s.CreateAttrsGroup<TestAttrGroup>(1, 2);
+  s.ClearAllAttrs();
+  EXPECT_FALSE(s.CheckAttrIsExistInOtherGroup("Max memory"));
+  EXPECT_EQ(s.GetAttrsGroup<TestAttrGroup>(), nullptr);
+}
+
+TEST_F(AttrStoreUt, IncCov_ClearAllAttrsInOtherAttrs) {
+  auto s = AttrStore::Create(1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  s.ClearAllAttrsInOtherAttrs();
+  EXPECT_FALSE(s.CheckAttrIsExistInOtherGroup("Max memory"));
+}
+
+TEST_F(AttrStoreUt, IncCov_ClearAttrInOtherAttrs) {
+  auto s = AttrStore::Create(1);
+  AnyValue av;
+  av.SetValue<int64_t>(42);
+  ASSERT_EQ(s.SetAttrToOtherGroup("Max memory", av), GRAPH_SUCCESS);
+  EXPECT_TRUE(s.ClearAttrInOtherAttrs("Max memory"));
+  EXPECT_FALSE(s.CheckAttrIsExistInOtherGroup("Max memory"));
+  EXPECT_FALSE(s.ClearAttrInOtherAttrs("Max memory"));
+}
+
+TEST_F(AttrStoreUt, IncCov_DeleteSingleAttrNotFound) {
+  auto s = AttrStore::Create(1);
+  EXPECT_FALSE(s.DeleteSingleAttrsInOtherGroup("nonexistent_attr"));
+}
+
+TEST_F(AttrStoreUt, IncCov_MutableAnyValueByName) {
+  auto s = AttrStore::Create(2);
+  EXPECT_TRUE(s.Set<int64_t>(0, 100));
+  s.SetNameAndId("attr1", 0);
+  auto *av = s.MutableAnyValue("attr1");
+  ASSERT_NE(av, nullptr);
+}
+
+TEST_F(AttrStoreUt, IncCov_SetAnyValueByName) {
+  auto s = AttrStore::Create(2);
+  s.SetNameAndId("attr1", 0);
+  AnyValue av;
+  av.SetValue<int64_t>(999);
+  EXPECT_TRUE(s.SetAnyValueByName("attr1", av));
+  EXPECT_EQ(*s.Get<int64_t>(0), 999);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryRegisterAndGet) {
+  auto builder = []() -> std::unique_ptr<AttrGroupsBase> {
+    return std::unique_ptr<AttrGroupsBase>(new TestAttrGroup());
+  };
+  auto obj_type = GetTypeId<TestAttrGroup>();
+  auto proto_type = proto::AttrGroupDef::kTensorAttrGroup;
+  AttrGroupSerializerRegistry::GetInstance().RegisterAttrGroupSerialize(builder, obj_type, proto_type);
+
+  auto serializer = AttrGroupSerializerRegistry::GetInstance().GetSerializer(obj_type);
+  ASSERT_NE(serializer, nullptr);
+
+  auto deserializer = AttrGroupSerializerRegistry::GetInstance().GetDeserializer(proto_type);
+  ASSERT_NE(deserializer.impl, nullptr);
+  EXPECT_EQ(deserializer.id, obj_type);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryRegisterDuplicate) {
+  auto builder = []() -> std::unique_ptr<AttrGroupsBase> {
+    return std::unique_ptr<AttrGroupsBase>(new TestAttrGroup());
+  };
+  auto obj_type = GetTypeId<TestAttrGroup>();
+  auto proto_type = proto::AttrGroupDef::kShapeEnvAttrGroup;
+  AttrGroupSerializerRegistry::GetInstance().RegisterAttrGroupSerialize(builder, obj_type, proto_type);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryGetSerializerNotFound) {
+  auto obj_type = GetTypeId<int64_t>();
+  auto serializer = AttrGroupSerializerRegistry::GetInstance().GetSerializer(obj_type);
+  EXPECT_EQ(serializer, nullptr);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryRegisterNullptrBuilder) {
+  auto obj_type = GetTypeId<bool>();
+  auto proto_type = proto::AttrGroupDef::kShapeEnvAttrGroup;
+  AttrGroupSerializerRegister register_null(nullptr, obj_type, proto_type);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryRegisterValidBuilder) {
+  auto builder = []() -> std::unique_ptr<AttrGroupsBase> {
+    return std::unique_ptr<AttrGroupsBase>(new TestAttrGroup());
+  };
+  auto obj_type = GetTypeId<bool>();
+  auto proto_type = proto::AttrGroupDef::kShapeEnvAttrGroup;
+  AttrGroupSerializerRegister register_valid(builder, obj_type, proto_type);
+}
+
+TEST_F(AttrStoreUt, IncCov_RegistryRegisterNullSerializerBuilder) {
+  auto null_builder = []() -> std::unique_ptr<AttrGroupsBase> { return nullptr; };
+  auto obj_type = GetTypeId<float>();
+  auto proto_type = proto::AttrGroupDef::kShapeEnvAttrGroup;
+  AttrGroupSerializerRegistry::GetInstance().RegisterAttrGroupSerialize(null_builder, obj_type, proto_type);
+}
+
+TEST_F(AttrStoreUt, IncCov_DeserializeAllAttrWithRegisteredDeserializer) {
+  auto builder = []() -> std::unique_ptr<AttrGroupsBase> {
+    return std::unique_ptr<AttrGroupsBase>(new TestAttrGroup());
+  };
+  auto obj_type = GetTypeId<TestAttrGroup>();
+  auto proto_type = proto::AttrGroupDef::kTensorAttrGroup;
+  AttrGroupSerializerRegistry::GetInstance().RegisterAttrGroupSerialize(builder, obj_type, proto_type);
+
+  proto::AttrGroups attr_groups;
+  auto *def = attr_groups.add_attr_group_def();
+  def->mutable_tensor_attr_group();
+
+  ComputeGraph cg("test_deserialize");
+  auto status = AttrGroupSerialize::DeserializeAllAttr(attr_groups, &cg);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
+
+TEST_F(AttrStoreUt, IncCov_DeserializeAllAttrEmpty) {
+  proto::AttrGroups attr_groups;
+  ComputeGraph cg("test_empty");
+  auto status = AttrGroupSerialize::DeserializeAllAttr(attr_groups, &cg);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
+
+TEST_F(AttrStoreUt, IncCov_SerializeAllAttr) {
+  auto s = AttrStore::Create(1);
+  s.CreateAttrsGroup<TestAttrGroup>(1, 2);
+  proto::AttrGroups attr_groups;
+  auto status = AttrGroupSerialize::SerializeAllAttr(attr_groups, s);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
+
+TEST_F(AttrStoreUt, IncCov_SerializeAllAttrEmpty) {
+  auto s = AttrStore::Create(1);
+  proto::AttrGroups attr_groups;
+  auto status = AttrGroupSerialize::SerializeAllAttr(attr_groups, s);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
 }  // namespace ge

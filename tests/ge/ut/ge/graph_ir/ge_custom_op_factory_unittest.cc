@@ -430,3 +430,34 @@ TEST(UtestCustomOpFactory, load_custom_kernels_partition_deserialize_fail_propag
   payload.back() = 0x9U;
   EXPECT_EQ(ge::GRAPH_FAILED, CustomOpFactory::LoadCustomOpsPartition(payload.data(), payload.size()));
 }
+
+TEST(UtestCustomOpFactory, IncCov_RemoveCustomOps_RemovesRegisteredOps) {
+  const auto reg_ret = CustomOpFactory::RegisterCustomOpCreator(
+      "IncCovRemoveOp", []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<RegistryTestOp>(); });
+  EXPECT_TRUE((reg_ret == ge::SUCCESS) || (reg_ret == ge::GRAPH_FAILED));
+  EXPECT_EQ(true, CustomOpFactory::IsExistOp("IncCovRemoveOp"));
+
+  std::vector<AscendString> op_types{AscendString("IncCovRemoveOp")};
+  CustomOpFactory::RemoveCustomOps(op_types);
+  EXPECT_EQ(false, CustomOpFactory::IsExistOp("IncCovRemoveOp"));
+  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("IncCovRemoveOp"));
+}
+
+TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_EntrySizeExceedsData) {
+  CustomOpRegistry registry;
+  const std::string name = "TestEntrySizeOp";
+  ge::CustomKernelItemHeader header{ge::kCustomKernelItemMagic, static_cast<uint32_t>(name.size()), 10U};
+  std::vector<uint8_t> payload(sizeof(header) + name.size() + 2U, 0U);
+  (void)memcpy_s(payload.data(), payload.size(), &header, sizeof(header));
+  (void)memcpy_s(payload.data() + sizeof(header), payload.size() - sizeof(header), name.data(), name.size());
+  EXPECT_EQ(ge::GRAPH_FAILED, registry.LoadCustomOpsPartition(payload.data(), payload.size()));
+}
+
+TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_RegisteredNonPortableOp) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("IncCovNonPortableOp", []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<RegistryTestOp>();
+  }));
+  const auto payload = BuildCustomOpPartition("IncCovNonPortableOp", {0x1U});
+  EXPECT_EQ(ge::GRAPH_FAILED, registry.LoadCustomOpsPartition(payload.data(), payload.size()));
+}
