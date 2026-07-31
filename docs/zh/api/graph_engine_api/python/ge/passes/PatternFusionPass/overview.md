@@ -1,6 +1,6 @@
 # 简介
 
-基于模式匹配的融合Pass，继承自FusionBasePass。执行引擎会调用patterns\(\)、meet\_requirements\(\)和replacement\(\)三个钩子方法，而非run\(\)方法。
+基于模式匹配的融合Pass，继承自FusionBasePass。执行引擎会调用patterns\(\)、meet\_requirements\(\)和replacement\(\)三个方法，而非run\(\)方法。meet\_requirements\(\)和replacement\(\)方法都可以在参数末尾声明`context: PassContext`。
 
 约束说明：
 

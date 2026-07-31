@@ -12,6 +12,7 @@
 
 ```python
 meet_requirements(self, node: Node) -> bool
+meet_requirements(self, node: Node, context: PassContext) -> bool
 ```
 
 ## 参数说明
@@ -19,6 +20,7 @@ meet_requirements(self, node: Node) -> bool
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | node | 输入 | 待判断的节点，类型为ge.graph.Node。 |
+| context | 输入 | 当前编译期PassContext，仅在当前回调栈内有效，可读取编译选项或设置错误信息。 |
 
 ## 返回值说明
 
@@ -26,4 +28,4 @@ meet_requirements(self, node: Node) -> bool
 
 ## 约束说明
 
-无
+可选声明`context`参数；未声明时保持原有单参数调用方式。

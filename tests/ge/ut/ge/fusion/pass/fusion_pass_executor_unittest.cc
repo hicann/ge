@@ -427,6 +427,8 @@ struct PatternFusionPassRuntimeSnapshot {
   Status patterns_status{SUCCESS};
   bool meet_requirements_result{true};
   Status replacement_status{SUCCESS};
+  std::string meet_context_pass_name;
+  std::string replacement_context_pass_name;
 };
 
 PatternFusionPassRuntimeSnapshot g_pattern_fusion_runtime_snapshot;
@@ -752,14 +754,16 @@ Status GetPatternsForUt(const void *holder, std::vector<PatternUniqPtr> &pattern
   return g_pattern_fusion_runtime_snapshot.patterns_status;
 }
 
-bool MeetRequirementsForUt(const void *holder, const std::unique_ptr<MatchResult> &match_result) {
+bool MeetRequirementsForUt(const void *, const std::unique_ptr<MatchResult> &, CustomPassContext &pass_context) {
   ++g_pattern_fusion_runtime_snapshot.meet_requirements_count;
+  g_pattern_fusion_runtime_snapshot.meet_context_pass_name = pass_context.GetPassName().GetString();
   return g_pattern_fusion_runtime_snapshot.meet_requirements_result;
 }
 
-Status ReplacementForUt(const void *holder, const std::unique_ptr<MatchResult> &match_result,
-                        GraphUniqPtr &replacement_graph) {
+Status ReplacementForUt(const void *, const std::unique_ptr<MatchResult> &, GraphUniqPtr &,
+                        CustomPassContext &pass_context) {
   ++g_pattern_fusion_runtime_snapshot.replacement_count;
+  g_pattern_fusion_runtime_snapshot.replacement_context_pass_name = pass_context.GetPassName().GetString();
   return g_pattern_fusion_runtime_snapshot.replacement_status;
 }
 
@@ -770,6 +774,8 @@ struct DecomposePassRuntimeSnapshot {
   int replacement_count{0};
   bool meet_requirements_result{true};
   Status replacement_status{SUCCESS};
+  std::string meet_context_pass_name;
+  std::string replacement_context_pass_name;
 };
 
 DecomposePassRuntimeSnapshot g_decompose_runtime_snapshot;
@@ -791,13 +797,15 @@ void DestroyDecomposePassHolderForUt(void *holder) {
   delete static_cast<PythonFusionBasePassHolderForUt *>(holder);
 }
 
-bool DecomposeMeetRequirementsForUt(const void *holder, const GNode &matched_node) {
+bool DecomposeMeetRequirementsForUt(const void *, const GNode &, CustomPassContext &pass_context) {
   ++g_decompose_runtime_snapshot.meet_requirements_count;
+  g_decompose_runtime_snapshot.meet_context_pass_name = pass_context.GetPassName().GetString();
   return g_decompose_runtime_snapshot.meet_requirements_result;
 }
 
-Status DecomposeReplacementForUt(const void *holder, const GNode &matched_node, GraphUniqPtr &replacement_graph) {
+Status DecomposeReplacementForUt(const void *, const GNode &, GraphUniqPtr &, CustomPassContext &pass_context) {
   ++g_decompose_runtime_snapshot.replacement_count;
+  g_decompose_runtime_snapshot.replacement_context_pass_name = pass_context.GetPassName().GetString();
   return g_decompose_runtime_snapshot.replacement_status;
 }
 
@@ -1906,7 +1914,7 @@ TEST_F(UtestFusionPassExecutor, PythonPassPluginLoader_RollbackOnDuplicatePassNa
   EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
 }
 
-TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateAndDestroy) {
+TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateRunHooksAndDestroy) {
   PythonPassDescriptor pass_desc;
   pass_desc.descriptor_key = "python.pattern.fusion.create";
   pass_desc.pass_name = "PythonPatternFusionCreatePass";
@@ -1919,6 +1927,7 @@ TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateAndDestroy) {
   callbacks.create = CreatePatternFusionPassHolderForUt;
   callbacks.destroy = DestroyPatternFusionPassHolderForUt;
   callbacks.patterns = GetPatternsForUt;
+  callbacks.meet_requirements = MeetRequirementsForUt;
   callbacks.replacement = ReplacementForUt;
 
   ASSERT_TRUE(RegisterPythonPass(pass_desc, callbacks));
@@ -1931,11 +1940,18 @@ TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateAndDestroy) {
     // Patterns callback should be invoked
     auto patterns = adapter->Patterns();
     EXPECT_EQ(g_pattern_fusion_runtime_snapshot.patterns_count, 1);
+    CustomPassContext context;
+    context.SetPassName("PatternContextPass");
+    auto match_result = std::unique_ptr<MatchResult>();
+    EXPECT_TRUE(adapter->MeetRequirements(match_result, context));
+    EXPECT_EQ(g_pattern_fusion_runtime_snapshot.meet_context_pass_name, "PatternContextPass");
+    EXPECT_EQ(adapter->Replacement(match_result, context), nullptr);
+    EXPECT_EQ(g_pattern_fusion_runtime_snapshot.replacement_context_pass_name, "PatternContextPass");
   }
   EXPECT_EQ(g_pattern_fusion_runtime_snapshot.destroy_count, 1);
 }
 
-TEST_F(UtestFusionPassExecutor, PythonDecomposePass_CreateAndDestroy) {
+TEST_F(UtestFusionPassExecutor, PythonDecomposePass_CreateRunHooksAndDestroy) {
   PythonPassDescriptor pass_desc;
   pass_desc.descriptor_key = "python.decompose.create";
   pass_desc.pass_name = "PythonDecomposeCreatePass";
@@ -1948,6 +1964,7 @@ TEST_F(UtestFusionPassExecutor, PythonDecomposePass_CreateAndDestroy) {
   PythonFusionPassCallbacks callbacks;
   callbacks.create = CreateDecomposePassHolderForUt;
   callbacks.destroy = DestroyDecomposePassHolderForUt;
+  callbacks.decompose_meet_requirements = DecomposeMeetRequirementsForUt;
   callbacks.decompose_replacement = DecomposeReplacementForUt;
 
   ASSERT_TRUE(RegisterPythonPass(pass_desc, callbacks));
@@ -1956,6 +1973,15 @@ TEST_F(UtestFusionPassExecutor, PythonDecomposePass_CreateAndDestroy) {
     auto adapter = std::make_unique<PythonDecomposePassAdapter>(pass_desc);
     ASSERT_TRUE(adapter->IsValid());
     EXPECT_EQ(g_decompose_runtime_snapshot.create_count, 1);
+    auto target_compute_graph = gert::ShareGraph::BuildSingleNodeGraph();
+    ASSERT_FALSE(target_compute_graph->GetDirectNode().empty());
+    const auto matched_node = NodeAdapter::Node2GNode(*target_compute_graph->GetDirectNode().begin());
+    CustomPassContext context;
+    context.SetPassName("DecomposeContextPass");
+    EXPECT_TRUE(adapter->MeetRequirements(matched_node, context));
+    EXPECT_EQ(g_decompose_runtime_snapshot.meet_context_pass_name, "DecomposeContextPass");
+    EXPECT_EQ(adapter->Replacement(matched_node, context), nullptr);
+    EXPECT_EQ(g_decompose_runtime_snapshot.replacement_context_pass_name, "DecomposeContextPass");
   }
   EXPECT_EQ(g_decompose_runtime_snapshot.destroy_count, 1);
 }
@@ -1983,7 +2009,8 @@ TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_MeetRequirements_Default
 
   // meet_requirements callback is nullptr -> falls back to PatternFusionPass::MeetRequirements (returns true)
   auto null_result = std::unique_ptr<MatchResult>();
-  EXPECT_TRUE(adapter->MeetRequirements(null_result));
+  CustomPassContext context;
+  EXPECT_TRUE(adapter->MeetRequirements(null_result, context));
 
   // meet_requirements callback is nullptr, so count should stay 0
   EXPECT_EQ(g_pattern_fusion_runtime_snapshot.meet_requirements_count, 0);
@@ -2017,7 +2044,8 @@ TEST_F(UtestFusionPassExecutor, PythonDecomposePass_MeetRequirements_DefaultFall
   }
   ASSERT_NE(matched_node_ptr, nullptr);
   const auto matched_node = NodeAdapter::Node2GNode(matched_node_ptr);
-  EXPECT_TRUE(adapter->MeetRequirements(matched_node));
+  CustomPassContext context;
+  EXPECT_TRUE(adapter->MeetRequirements(matched_node, context));
   EXPECT_EQ(g_decompose_runtime_snapshot.meet_requirements_count, 0);
 }
 

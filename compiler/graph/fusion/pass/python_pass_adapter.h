@@ -31,12 +31,14 @@ using PythonFusionPassGetMatcherConfigFn = Status (*)(const void *holder,
                                                       std::unique_ptr<PatternMatcherConfig> &matcher_config);
 using PythonFusionPassPatternsFn = Status (*)(const void *holder, std::vector<PatternUniqPtr> &patterns);
 using PythonFusionPassMeetRequirementsFn = bool (*)(const void *holder,
-                                                    const std::unique_ptr<MatchResult> &match_result);
+                                                    const std::unique_ptr<MatchResult> &match_result,
+                                                    CustomPassContext &pass_context);
 using PythonFusionPassReplacementFn = Status (*)(const void *holder, const std::unique_ptr<MatchResult> &match_result,
-                                                 GraphUniqPtr &replacement_graph);
-using PythonDecomposePassMeetRequirementsFn = bool (*)(const void *holder, const GNode &matched_node);
+                                                 GraphUniqPtr &replacement_graph, CustomPassContext &pass_context);
+using PythonDecomposePassMeetRequirementsFn = bool (*)(const void *holder, const GNode &matched_node,
+                                                       CustomPassContext &pass_context);
 using PythonDecomposePassReplacementFn = Status (*)(const void *holder, const GNode &matched_node,
-                                                    GraphUniqPtr &replacement_graph);
+                                                    GraphUniqPtr &replacement_graph, CustomPassContext &pass_context);
 
 struct PythonFusionPassCallbacks {
   PythonFusionBasePassHolderCreateFn create{nullptr};
@@ -113,7 +115,7 @@ class PythonFusionBasePassAdapter : public FusionBasePass {
   std::unique_ptr<PythonPassHolder> holder_;
 };
 
-class PythonPatternFusionPassAdapter : public PatternFusionPass {
+class PythonPatternFusionPassAdapter : public PatternFusionPassV2 {
  public:
   explicit PythonPatternFusionPassAdapter(const PythonPassDescriptor &pass_desc);
   ~PythonPatternFusionPassAdapter() override;
@@ -122,8 +124,8 @@ class PythonPatternFusionPassAdapter : public PatternFusionPass {
 
  protected:
   std::vector<PatternUniqPtr> Patterns() override;
-  bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override;
-  GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result) override;
+  bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result, CustomPassContext &pass_context) override;
+  GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result, CustomPassContext &pass_context) override;
 
  private:
   explicit PythonPatternFusionPassAdapter(
@@ -132,7 +134,7 @@ class PythonPatternFusionPassAdapter : public PatternFusionPass {
   std::unique_ptr<PythonPassHolder> holder_;
 };
 
-class PythonDecomposePassAdapter : public DecomposePass {
+class PythonDecomposePassAdapter : public DecomposePassV2 {
  public:
   explicit PythonDecomposePassAdapter(const PythonPassDescriptor &pass_desc);
   ~PythonDecomposePassAdapter() override;
@@ -140,8 +142,8 @@ class PythonDecomposePassAdapter : public DecomposePass {
   bool IsValid() const;
 
  protected:
-  bool MeetRequirements(const GNode &matched_node) override;
-  GraphUniqPtr Replacement(const GNode &matched_node) override;
+  bool MeetRequirements(const GNode &matched_node, CustomPassContext &pass_context) override;
+  GraphUniqPtr Replacement(const GNode &matched_node, CustomPassContext &pass_context) override;
 
  private:
   std::unique_ptr<PythonPassHolder> holder_;

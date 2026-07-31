@@ -30,7 +30,7 @@ std::vector<AscendString> BuildDecomposeOpTypes(const PythonPassDescriptor &pass
 }  // namespace
 
 PythonDecomposePassAdapter::PythonDecomposePassAdapter(const PythonPassDescriptor &pass_desc)
-    : DecomposePass(BuildDecomposeOpTypes(pass_desc)), holder_(new (std::nothrow) PythonPassHolder(pass_desc)) {}
+    : DecomposePassV2(BuildDecomposeOpTypes(pass_desc)), holder_(new (std::nothrow) PythonPassHolder(pass_desc)) {}
 
 PythonDecomposePassAdapter::~PythonDecomposePassAdapter() = default;
 
@@ -38,27 +38,29 @@ bool PythonDecomposePassAdapter::IsValid() const {
   return (holder_ != nullptr) && holder_->IsValid();
 }
 
-bool PythonDecomposePassAdapter::MeetRequirements(const GNode &matched_node) {
+bool PythonDecomposePassAdapter::MeetRequirements(const GNode &matched_node, CustomPassContext &pass_context) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr)) {
     return false;
   }
   if (holder_->GetCallbacks().decompose_meet_requirements == nullptr) {
-    return DecomposePass::MeetRequirements(matched_node);
+    return DecomposePassV2::MeetRequirements(matched_node, pass_context);
   }
-  const bool ret = holder_->GetCallbacks().decompose_meet_requirements(holder_->GetHolder(), matched_node);
+  const bool ret =
+      holder_->GetCallbacks().decompose_meet_requirements(holder_->GetHolder(), matched_node, pass_context);
   GELOGI("PythonDecomposePassAdapter::MeetRequirements for pass[%s] returned[%d].",
          holder_->GetPassDescriptor().pass_name.c_str(), ret ? 1 : 0);
   return ret;
 }
 
-GraphUniqPtr PythonDecomposePassAdapter::Replacement(const GNode &matched_node) {
+GraphUniqPtr PythonDecomposePassAdapter::Replacement(const GNode &matched_node, CustomPassContext &pass_context) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().decompose_replacement == nullptr)) {
     GELOGW("PythonDecomposePassAdapter::Replacement() is invalid.");
     return nullptr;
   }
   GraphUniqPtr replacement_graph;
-  const auto ret = holder_->GetCallbacks().decompose_replacement(holder_->GetHolder(), matched_node, replacement_graph);
+  const auto ret = holder_->GetCallbacks().decompose_replacement(holder_->GetHolder(), matched_node, replacement_graph,
+                                                                 pass_context);
   if (ret != SUCCESS) {
     GELOGW("Python decompose adapter Replacement callback failed, ret[%u].", static_cast<uint32_t>(ret));
     return nullptr;

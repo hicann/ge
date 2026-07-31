@@ -59,8 +59,9 @@ def infer_shape(
 class PassContext:
     """Compile-time pass context (Python view of C++ ``CustomPassContext``).
 
-    Injected by the engine into ``FusionBasePass.run(graph, context)`` for querying or
-    setting pass name, error message, and compilation options.
+    Injected by the engine into ``FusionBasePass.run(graph, context)`` and, when declared,
+    PatternFusionPass/DecomposePass ``meet_requirements`` and ``replacement`` hooks for
+    querying or setting pass name, error message, and compilation options.
 
     **Constraints**
 

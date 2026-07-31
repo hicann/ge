@@ -160,6 +160,16 @@ def meet_requirements(self, match_result):
 
 If only topology matching is sufficient, this method can be omitted; it returns `True` by default.
 
+If `meet_requirements()` needs to read compilation options or set an error message, declare `context` as the last parameter:
+
+```python
+from ge.passes import PassContext
+
+
+def meet_requirements(self, match_result, context: PassContext):
+    return context.get_option_value("ge.custom.enable_rule") == "1"
+```
+
 ### 3.5 Use replacement to Define Replacement Structure
 
 The simplest replacement can directly return an input:
@@ -195,6 +205,18 @@ def replacement(self, inputs, match_result):
         break
     return GEMM(a, b, c, 1.0, 1.0, transpose_a, transpose_b)
 ```
+
+If replacement needs to read both match details and compilation context, add a `context` parameter:
+
+```python
+def replacement(self, inputs, match_result, context: PassContext):
+    a, b, c = inputs[:3]
+    if context.get_option_value("ge.custom.enable_rule") != "1":
+        context.set_error_message("rule is disabled")
+    return GEMM(a, b, c, 1.0, 1.0)
+```
+
+If replacement only needs compilation context, use `replacement(self, inputs, context)`. The third parameter is treated as `PassContext` only when it is named exactly `context`; otherwise, it retains the original `match_result` semantics. Existing forms without `context` remain unchanged.
 
 ## 4. When Not to Use @pattern
 
@@ -276,7 +298,7 @@ If the goal is "when seeing a certain single operator, decompose it into a set o
 Skeleton is as follows:
 
 ```python
-from ge.passes import DecomposePass, PassStage, register_decompose_pass
+from ge.passes import DecomposePass, PassContext, PassStage, register_decompose_pass
 
 
 @register_decompose_pass(
@@ -285,10 +307,10 @@ from ge.passes import DecomposePass, PassStage, register_decompose_pass
     op_types=["Conv2D"],
 )
 class PythonMyDecomposePass(DecomposePass):
-    def meet_requirements(self, node):
-        return node.get_attr("groups") != 1
+    def meet_requirements(self, node, context: PassContext):
+        return node.get_attr("groups") != 1 and context.get_pass_name() != ""
 
-    def replacement(self, node):
+    def replacement(self, node, context: PassContext):
         # Return replacement graph composed of basic operators
         ...
 ```

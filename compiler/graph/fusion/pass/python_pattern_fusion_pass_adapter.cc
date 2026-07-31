@@ -52,7 +52,7 @@ PythonPatternFusionPassAdapter::PythonPatternFusionPassAdapter(const PythonPassD
 
 PythonPatternFusionPassAdapter::PythonPatternFusionPassAdapter(
     std::pair<std::unique_ptr<PythonPassHolder>, std::unique_ptr<PatternMatcherConfig>> init)
-    : PatternFusionPass(init.second == nullptr ? BuildDefaultPatternMatcherConfig() : std::move(init.second)),
+    : PatternFusionPassV2(init.second == nullptr ? BuildDefaultPatternMatcherConfig() : std::move(init.second)),
       holder_(std::move(init.first)) {}
 
 PythonPatternFusionPassAdapter::~PythonPatternFusionPassAdapter() = default;
@@ -80,27 +80,30 @@ std::vector<PatternUniqPtr> PythonPatternFusionPassAdapter::Patterns() {
   return patterns;
 }
 
-bool PythonPatternFusionPassAdapter::MeetRequirements(const std::unique_ptr<MatchResult> &match_result) {
+bool PythonPatternFusionPassAdapter::MeetRequirements(const std::unique_ptr<MatchResult> &match_result,
+                                                      CustomPassContext &pass_context) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr)) {
     return false;
   }
   if (holder_->GetCallbacks().meet_requirements == nullptr) {
-    return PatternFusionPass::MeetRequirements(match_result);
+    return PatternFusionPassV2::MeetRequirements(match_result, pass_context);
   }
-  const bool ret = holder_->GetCallbacks().meet_requirements(holder_->GetHolder(), match_result);
+  const bool ret = holder_->GetCallbacks().meet_requirements(holder_->GetHolder(), match_result, pass_context);
   GELOGI("PythonPatternFusionPassAdapter::MeetRequirements for pass[%s] returned[%d].",
          holder_->GetPassDescriptor().pass_name.c_str(), ret ? 1 : 0);
   return ret;
 }
 
-GraphUniqPtr PythonPatternFusionPassAdapter::Replacement(const std::unique_ptr<MatchResult> &match_result) {
+GraphUniqPtr PythonPatternFusionPassAdapter::Replacement(const std::unique_ptr<MatchResult> &match_result,
+                                                         CustomPassContext &pass_context) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().replacement == nullptr)) {
     GELOGW("PythonPatternFusionPassAdapter::Replacement() is invalid.");
     return nullptr;
   }
   GraphUniqPtr replacement_graph;
-  const auto ret = holder_->GetCallbacks().replacement(holder_->GetHolder(), match_result, replacement_graph);
+  const auto ret =
+      holder_->GetCallbacks().replacement(holder_->GetHolder(), match_result, replacement_graph, pass_context);
   if (ret != SUCCESS) {
     GELOGW("Python pattern fusion adapter Replacement callback failed, ret[%u].", static_cast<uint32_t>(ret));
     return nullptr;
