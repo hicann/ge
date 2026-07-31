@@ -23,6 +23,7 @@
 #include "graph/op_kernel_bin.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/op_desc_utils.h"
+#include "graph/utils/tensor_utils.h"
 #include "ffts_plus_proto_tools.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
@@ -32,9 +33,13 @@
 #include "exe_graph/runtime/kernel_args.h"
 #include "framework/runtime/args_handler.h"
 #include "graph/utils/args_format_desc_utils.h"
+#include "register/op_impl_registry.h"
+#include "faker/space_registry_faker.h"
 
 namespace ge {
 namespace {
+IMPL_OP(CustomOp).InputsDataDependency({0});
+
 class AclMockMemcpy : public AclRuntimeStub {
  public:
   MOCK_METHOD5(aclrtMemcpy, int32_t(void *, size_t, const void *, size_t, aclrtMemcpyKind));
@@ -606,6 +611,30 @@ class TestFailArgsUpdaterCustomOp : public ArgsUpdater, public EagerExecuteOp {
 
 class TestNonEagerCustomOp : public BaseCustomOp {};
 
+class TestHostInputCustomOp : public EagerExecuteOp {
+ public:
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    execute_called_ = true;
+    // input 0: non-Tensor (kind=10), expect kOnHost
+    const auto *in_tensor_0 = ctx->GetInputTensor(0);
+    if (in_tensor_0 != nullptr) {
+      input0_placement_ = static_cast<int32_t>(in_tensor_0->GetPlacement());
+    }
+    // input 1: Tensor (kind=0), expect kOnDeviceHbm
+    const auto *in_tensor_1 = ctx->GetInputTensor(1);
+    if (in_tensor_1 != nullptr) {
+      input1_placement_ = static_cast<int32_t>(in_tensor_1->GetPlacement());
+    }
+    auto *out_tensor = ctx->MallocOutputTensor(0, gert::StorageShape({2, 3}, {2, 1, 3, 16}),
+                                               gert::StorageFormat{ge::FORMAT_ND, ge::FORMAT_ND, {}}, ge::DT_INT64);
+    return GRAPH_SUCCESS;
+  }
+
+  bool execute_called_ = false;
+  int32_t input0_placement_ = -1;
+  int32_t input1_placement_ = -1;
+};
+
 }  // namespace
 
 TEST_F(UtestCustomTaskInfo, ParseTaskRunParam_UsesModelCustomOpRegistry) {
@@ -636,6 +665,9 @@ class UtestCustomTaskInfoE2E : public testing::Test {
  protected:
   void SetUp() {
     RTS_STUB_SETUP();
+    auto acl_runtime_stub = std::make_shared<AclMockMemcpy>();
+    AclRuntimeStub::SetInstance(acl_runtime_stub);
+    EXPECT_CALL(*acl_runtime_stub, aclrtMemcpy).WillRepeatedly(testing::Return(RT_ERROR_NONE));
   }
   void TearDown() {
     AclRuntimeStub::Reset();
@@ -1625,6 +1657,138 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_LaunchesTaskDefKernel) {
   EXPECT_EQ(task_info.Distribute(), SUCCESS);
   EXPECT_GT(stream_get_id_count, 0U);
   EXPECT_EQ(task_info.GetTaskID(), 123U);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+/*
+ * ConstructCustomKernelContextInputsOutputs D2H 测试：
+ * 带 input_kinds 属性 + InputsDataDependency 注册时，非 Tensor 输入（input_kinds >=
+ * _custom_op_non_tensor_kind_base，缺省 3）D2H 到 host
+ */
+TEST_F(UtestCustomTaskInfoE2E, Distribute_NonTensorInput_D2HToHost) {
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry(true);
+  TestHostInputCustomOp *op_instance = nullptr;
+  // 使用 "CustomOp" type 匹配 IMPL_OP(CustomOp) 注册的 InputsDataDependency
+  CustomOpFactory::RegisterCustomOpCreator("CustomOp", [&op_instance]() -> std::unique_ptr<BaseCustomOp> {
+    auto op = std::make_unique<TestHostInputCustomOp>();
+    op_instance = op.get();
+    return op;
+  });
+
+  DavinciModel model(0, nullptr);
+  // 2 inputs: input0 = non-Tensor (kind=10, >= 默认 base 3), input1 = Tensor (kind=0)
+  const auto op_desc = CreateOpDesc("custom_op_d2h", "CustomOp", 2, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+  // input_kinds: [10, 0] → input0 是非 Tensor (10 >= 默认 base 3), input1 是 Tensor
+  AttrUtils::SetListInt(op_desc, "input_kinds", {10, 0});
+  auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
+  model.SetSpaceRegistries(space_registries);
+
+  std::vector<ArgDesc> arg_descs;
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+  IowAddrs iow_addrs;
+  EXPECT_EQ(task_info.Init(task_def, &model, args, {}, iow_addrs), SUCCESS);
+  EXPECT_EQ(task_info.Distribute(), SUCCESS);
+
+  ASSERT_NE(op_instance, nullptr);
+  EXPECT_TRUE(op_instance->execute_called_);
+  // input0 应该是 kOnHost (D2H)
+  EXPECT_EQ(op_instance->input0_placement_, static_cast<int32_t>(gert::kOnHost));
+  // input1 应该是 kOnDeviceHbm
+  EXPECT_EQ(op_instance->input1_placement_, static_cast<int32_t>(gert::kOnDeviceHbm));
+  // host_input_mem_ 应持有 1 个 host 内存（input0 的 D2H 结果）
+  EXPECT_EQ(task_info.host_input_mem_.size(), 1UL);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+/*
+ * 无 input_kinds 属性时，全部走 kOnDeviceHbm（向后兼容）
+ */
+TEST_F(UtestCustomTaskInfoE2E, Distribute_WithoutInputKinds_AllDeviceHbm) {
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry(true);
+  CustomOpFactory::RegisterCustomOpCreator(
+      "CustomOp", []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestHostInputCustomOp>(); });
+
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc("custom_op_no_kinds", "CustomOp", 2, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+  // 不设置 input_kinds 属性
+  auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
+  model.SetSpaceRegistries(space_registries);
+
+  std::vector<ArgDesc> arg_descs;
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+  IowAddrs iow_addrs;
+  EXPECT_EQ(task_info.Init(task_def, &model, args, {}, iow_addrs), SUCCESS);
+  EXPECT_EQ(task_info.Distribute(), SUCCESS);
+
+  EXPECT_EQ(task_info.host_input_mem_.size(), 0UL);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+/*
+ * 显式设置 _custom_op_non_tensor_kind_base 属性，验证 GE 读取该属性作为非 Tensor 阈值
+ * _custom_op_non_tensor_kind_base=5, input_kinds={5, 4} → input0(kind=5 >= 5) 是非 Tensor, input1(kind=4 < 5) 是 Tensor
+ * Note: "CustomOp" 首次注册后不覆盖，op_instance 无法再次捕获，仅验证 host_input_mem_.size()
+ */
+TEST_F(UtestCustomTaskInfoE2E, Distribute_WithExplicitNonTensorKindBase_D2HOnlyForNonTensor) {
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry(true);
+  CustomOpFactory::RegisterCustomOpCreator(
+      "CustomOp", []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestHostInputCustomOp>(); });
+
+  DavinciModel model(0, nullptr);
+  // 2 inputs: input0 = non-Tensor (kind=5 >= base=5), input1 = Tensor (kind=4 < base=5)
+  const auto op_desc = CreateOpDesc("custom_op_base", "CustomOp", 2, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+  AttrUtils::SetInt(op_desc, "_custom_op_non_tensor_kind_base", 5L);
+  AttrUtils::SetListInt(op_desc, "input_kinds", {5, 4});
+  auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
+  model.SetSpaceRegistries(space_registries);
+
+  std::vector<ArgDesc> arg_descs;
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+  IowAddrs iow_addrs;
+  EXPECT_EQ(task_info.Init(task_def, &model, args, {}, iow_addrs), SUCCESS);
+  EXPECT_EQ(task_info.Distribute(), SUCCESS);
+
+  // input0 (kind=5 >= base=5) → D2H to host → host_input_mem_ 持有 1 个 host 内存
+  EXPECT_EQ(task_info.host_input_mem_.size(), 1UL);
 
   model.runtime_param_.mem_base = 0U;
 }

@@ -104,7 +104,7 @@ class CustomTaskInfo : public TaskInfo {
 
   Status ConstructCustomKernelContextInputsOutputs(const ge::OpDescPtr &op_desc,
                                                    std::vector<std::unique_ptr<uint8_t[]>> &inputs,
-                                                   std::vector<std::unique_ptr<uint8_t[]>> &outputs) const;
+                                                   std::vector<std::unique_ptr<uint8_t[]>> &outputs);
   Status DistributeAnnotatedArgsFromTaskDef();
 
   Status InitArgsIoAddrsUpdater();
@@ -148,6 +148,7 @@ class CustomTaskInfo : public TaskInfo {
   std::vector<void *> ws_vec_;
   std::vector<std::unique_ptr<uint8_t[]>> inputs_holder_;
   std::vector<std::unique_ptr<uint8_t[]>> outputs_holder_;
+  std::vector<std::unique_ptr<uint8_t[]>> host_input_mem_;
   std::string kernel_name_;
   uint32_t block_dim_ = 1U;
 
