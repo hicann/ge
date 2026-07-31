@@ -1,10 +1,10 @@
-﻿# LLM-DataDist接口参考（C++）
+# LLM-DataDist接口参考（C++）
 
 - [头文件和库文件说明](./cpp/header_files_and_library_files.md)
 - [LLM-DataDist-interface-list](./cpp/LLM-DataDist-interface-list.md)
 - [LlmDataDist-interface](./cpp/LlmDataDist-interface.md)
   - [LLMDataDist-constructor](./cpp/LlmDataDist-constructor.md)
-  - [\~LlmDataDist\(\)](./cpp/LlmDataDist-destructor.md)
+  - [LlmDataDist\(\)](./cpp/LlmDataDist-destructor.md)
   - [Initialize](./cpp/Initialize.md)
   - [Finalize](./cpp/Finalize.md)
   - [SetRole](./cpp/SetRole.md)

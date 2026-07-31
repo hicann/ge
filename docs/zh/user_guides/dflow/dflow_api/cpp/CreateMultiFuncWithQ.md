@@ -1,4 +1,4 @@
-﻿# CreateMultiFuncWithQ
+# CreateMultiFuncWithQ
 
 ## 产品支持情况
 

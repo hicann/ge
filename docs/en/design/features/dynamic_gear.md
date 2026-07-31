@@ -13,7 +13,7 @@ This way, each gear enjoys all compile optimizations for static shape (operator 
 ### 1.2 Three Dynamic Gear Modes
 
 | Mode | Parameter | Applicable Scenario | Limitation |
-|------|------|---------|------|
+| ------ | ------ | --------- | ------ |
 | Dynamic Batch | `--dynamic_batch_size` | Only batch dimension changes | `-1` can only be in first dimension |
 | Dynamic Resolution | `--dynamic_image_size` | Only H/W dimension changes | H and W must change simultaneously |
 | Arbitrary Dimension Dynamic (ND) | `--dynamic_dims` | Arbitrary multiple dimensions change | Most flexible but most complex configuration |
@@ -92,6 +92,7 @@ This is a design worth introducing in depth. When you configure the following fo
 > Code entry: `api/session/session/user_hybrid_graph_manager.cc:76-86` `IsHybridMode()`
 
 In hybrid mode, GE splits one user graph into **two graphs for parallel compilation**:
+
 - **Gear graph**: Carries `inputShape` + `dynamicDims` options, compiles to Case + N subgraphs structure
 - **Dynamic shape graph**: Removes gear constraints, compiles to true dynamic shape graph
 
@@ -119,7 +120,7 @@ During execution, `UserHybridGraphManager::SelectExecuteGraph()` extracts curren
 
 Dynamic gear compilation core locates in `compiler/graph/` directory. Three Passes form the flow in order:
 
-```
+```c++
 File: compiler/graph/preprocess/multi_batch_copy_graph.cc:156-164
 
 ProcessMultiBatch(graph, session_id)
@@ -145,6 +146,7 @@ enum DynamicType {
 #### Parameter Parsing Flow
 
 `InitDynamicParams()` (`compiler/graph/preprocess/multi_batch_options.cc:485-522`) parses three sources:
+
 - `dynamic_batch_size="1,2,4,8"` → `batch_shapes_ = [[1],[2],[4],[8]]`
 - `dynamic_image_size="224,224;448,448"` → `batch_shapes_ = [[224,224],[448,448]]`
 - `dynamic_dims="1,224;1,448;1,672"` → `batch_shapes_ = [[1,224],[1,448],[1,672]]`
@@ -157,7 +159,7 @@ This is dynamic gear compilation's **core** - transforming one dynamic graph to 
 
 #### Execution Flow
 
-```
+```c++
 File: compiler/graph/passes/multi_batch/multi_batch_clone_pass.cc:52-139
 
 MultiBatchClonePass::Run(graph):
@@ -213,6 +215,7 @@ Flatten all gears to one-dimensional int32 array. For example, `batch_shapes_ = 
 **MapIndex Operator** (`multi_batch_clone_pass.cc:584-649`):
 
 Receives two inputs:
+
 1. `x`: Runtime gear_info from Data or GetDynamicDims (dynamic dimension value vector)
 2. `data_seq`: Gear lookup table from Const
 
@@ -226,6 +229,7 @@ Outputs `branch_index` (0, 1, ..., N-1), indicating which subgraph branch Case s
 **Case Operator** (`multi_batch_clone_pass.cc:389-466`):
 
 Sets key attributes:
+
 - `ATTR_NAME_BATCH_NUM`: Gear count
 - `ATTR_NAME_PRED_VALUE_0..N`: Shape values for each gear
 - `ATTR_USER_DESIGNEATE_SHAPE_ORDER`: Data node name order
@@ -235,6 +239,7 @@ Sets key attributes:
 #### Subgraph Creation (`multi_batch_clone_pass.cc:1504-1528`)
 
 For each gear `batch_shapes_[i]`:
+
 1. `CloneComputeGraph(branch)` clones original graph
 2. Rename all nodes, add `_ascend_mbatch_batch_N` suffix
 3. Update Data node shape to corresponding gear specific values
@@ -266,7 +271,7 @@ Difference from root graph is using `GetShape` to extract shape from runtime inp
 ### 4.1 ACL Common Interfaces
 
 | Interface | Purpose | File |
-|------|------|------|
+| ------ | ------ | ------ |
 | `aclmdlSetInputDynamicDims` | Set current inference dynamic dimension values before execution | `inc/external/acl/acl_mdl.h:987` |
 | `aclmdlGetInputDynamicGearCount` | Query gear count model supports | `inc/external/acl/acl_mdl.h:1200` |
 | `aclmdlGetInputDynamicDims` | Query specific dimension values for each model gear | `inc/external/acl/acl_mdl.h:1212` |
@@ -310,7 +315,7 @@ sequenceDiagram
 ### 4.3 GeExecutor Key Interfaces
 
 | Interface | Purpose | File |
-|------|------|------|
+| ------ | ------ | ------ |
 | `SetDynamicDims()` | Sets dynamic dimensions, writes to device after validation match | `runtime/v1/executor/ge_executor.cc:502` |
 | `SetDynamicBatchSize()` | Sets dynamic batch | `runtime/v1/executor/ge_executor.cc:374` |
 | `SetDynamicImageSize()` | Sets dynamic resolution | `runtime/v1/executor/ge_executor.cc:430` |
@@ -325,7 +330,7 @@ sequenceDiagram
 
 `DavinciModel` initializes gear information when loading OM model:
 
-```
+```c++
 File: runtime/v1/graph/load/model_manager/davinci_model.cc:2896-2924
 
 InitRealSizeAndShapeInfo():
@@ -371,6 +376,7 @@ if (dynamic_batch_size || dynamic_image || dynamic_dims) {
 In GetNext sink mode, gear info is not written by host. Instead, `GetDynamicDims` operator on device side automatically extracts from input shape at execution time.
 
 `AssembleListenerOutput()` (`davinci_model.cc:5409-5435`):
+
 ```cpp
 if (is_getnext_sink_dynamic_) {
     cur_dynamic_dims_.resize(shape_of_cur_dynamic_dims_);
@@ -397,7 +403,7 @@ if (is_online_infer_dynamic_) {
 ## 6 Key Data Structures
 
 | Structure | File | Purpose |
-|--------|------|------|
+| -------- | ------ | ------ |
 | `HybridDynamicDimsInfo` | `api/session/session/user_hybrid_graph_manager.h:23` | Hybrid mode gear information |
 | `OmeContext` | `base/common/context/ome_context.h:17` | Dynamic dimension information in compile context |
 | `RunModelData` | `inc/framework/executor/ge_executor.h:34` | Dynamic parameters during execution (batch/resolution/dimensions) |
@@ -410,7 +416,7 @@ if (is_online_infer_dynamic_) {
 ## 7 Key Attribute List
 
 | Attribute Name | Set Object | Purpose |
-|--------|---------|------|
+| -------- | --------- | ------ |
 | `ATTR_NAME_BATCH_NUM` | Case node | Gear/subgraph count |
 | `ATTR_NAME_PRED_VALUE_N` | Case node | Nth gear's shape values |
 | `ATTR_INSERT_BY_MBATCH` | Case/MapIndex | Mark as gear pass insertion |
@@ -428,10 +434,10 @@ if (is_online_infer_dynamic_) {
 ### docs/ Documents
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `docs/atc_shape_configuration_guide.md` | atc shape configuration practice guide |
-| `docs/graph_engine_api/options参数说明.md` | ge.inputShape / ge.dynamicDims parameter explanation |
-| `docs/graph_engine_api/aclgrphBuildModel支持的配置参数.md` | Compile parameters DYNAMIC_DIMS / DYNAMIC_BATCH_SIZE / DYNAMIC_IMAGE_SIZE |
+| `docs/graph_engine_api/options_parameter_description.md` | ge.inputShape / ge.dynamicDims parameter explanation |
+| `docs/graph_engine_api/aclgrphBuildModel_supported_configuration_parameters.md` | Compile parameters DYNAMIC_DIMS / DYNAMIC_BATCH_SIZE / DYNAMIC_IMAGE_SIZE |
 | `docs/graph_engine_api/aclmdlGetInputDynamicGearCount.md` | Query gear count API |
 | `docs/graph_engine_api/aclmdlGetInputDynamicDims.md` | Query each gear dimensions API |
 | `docs/graph_engine_api/aclmdlSetInputDynamicDims.md` | Set dynamic dimensions API |
@@ -440,7 +446,7 @@ if (is_online_infer_dynamic_) {
 ### api/ Interface Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `api/session/session/user_hybrid_graph_manager.h` | Hybrid mode manager definition |
 | `api/session/session/user_hybrid_graph_manager.cc` | Hybrid mode: dual graph parallel compilation, execution selection |
 | `api/session/session/inner_session.cc:165` | Create HybridManager, route all graph operations |
@@ -452,7 +458,7 @@ if (is_online_infer_dynamic_) {
 ### compiler/ Compile Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `compiler/graph/preprocess/multi_batch_copy_graph.cc:156` | Pass flow entry |
 | `compiler/graph/preprocess/multi_batch_options.cc` | Parameter parsing, validation |
 | `compiler/graph/preprocess/multi_batch_options.h` | Parameter parsing API declaration |
@@ -465,7 +471,7 @@ if (is_online_infer_dynamic_) {
 ### runtime/ Runtime Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `runtime/v1/executor/ge_executor.cc:98-136` | `SetDynamicInputDataFlag()` gear matching |
 | `runtime/v1/executor/ge_executor.cc:374-568` | SetDynamicBatchSize / SetDynamicImageSize / SetDynamicDims |
 | `runtime/v1/executor/ge_executor.cc:570-621` | `GetCurDynamicDims()` extracts dynamic axes |
@@ -475,12 +481,13 @@ if (is_online_infer_dynamic_) {
 | `runtime/v1/graph/load/model_manager/davinci_model.cc:5246-5320` | Output shape table lookup |
 | `runtime/v1/graph/load/model_manager/davinci_model.cc:8471-8521` | `GetCurDynamicDims()` model-level validation |
 | `base/common/context/ome_context.h:17` | `OmeContext` structure |
+
 ---
 
 ## 6 Key Data Structures
 
 | Structure | File | Purpose |
-|--------|------|------|
+| -------- | ------ | ------ |
 | `HybridDynamicDimsInfo` | `api/session/session/user_hybrid_graph_manager.h:23` | Hybrid mode gear information |
 | `OmeContext` | `base/common/context/ome_context.h:17` | Dynamic dimension information in compilation context |
 | `RunModelData` | `inc/framework/executor/ge_executor.h:34` | Dynamic parameters at execution (batch/resolution/dims) |
@@ -493,7 +500,7 @@ if (is_online_infer_dynamic_) {
 ## 7 Key Attribute List
 
 | Attribute Name | Target Object | Purpose |
-|--------|---------|------|
+| -------- | --------- | ------ |
 | `ATTR_NAME_BATCH_NUM` | Case node | Gear/subgraph count |
 | `ATTR_NAME_PRED_VALUE_N` | Case node | Shape value for gear N |
 | `ATTR_INSERT_BY_MBATCH` | Case/MapIndex | Mark as inserted by gear pass |
@@ -511,10 +518,10 @@ if (is_online_infer_dynamic_) {
 ### docs/ Documentation
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `docs/atc_shape_configuration_guide.md` | ATC shape configuration practice guide |
-| `docs/graph_engine_api/options参数说明.md` | ge.inputShape / ge.dynamicDims parameter description |
-| `docs/graph_engine_api/aclgrphBuildModel支持的配置参数.md` | Compilation parameters DYNAMIC_DIMS / DYNAMIC_BATCH_SIZE / DYNAMIC_IMAGE_SIZE |
+| `docs/graph_engine_api/options_parameter_description.md` | ge.inputShape / ge.dynamicDims parameter description |
+| `docs/graph_engine_api/aclgrphBuildModel_supported_configuration_parameters.md` | Compilation parameters DYNAMIC_DIMS / DYNAMIC_BATCH_SIZE / DYNAMIC_IMAGE_SIZE |
 | `docs/graph_engine_api/aclmdlGetInputDynamicGearCount.md` | Query gear count API |
 | `docs/graph_engine_api/aclmdlGetInputDynamicDims.md` | Query each gear dimensions API |
 | `docs/graph_engine_api/aclmdlSetInputDynamicDims.md` | Set dynamic dimensions API |
@@ -523,7 +530,7 @@ if (is_online_infer_dynamic_) {
 ### api/ Interface Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `api/session/session/user_hybrid_graph_manager.h` | Hybrid mode manager definition |
 | `api/session/session/user_hybrid_graph_manager.cc` | Hybrid mode: dual-graph parallel compilation, execution selection |
 | `api/session/session/inner_session.cc:165` | Create HybridManager, route all graph operations |
@@ -535,7 +542,7 @@ if (is_online_infer_dynamic_) {
 ### compiler/ Compilation Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `compiler/graph/preprocess/multi_batch_copy_graph.cc:156` | Pass flow entry |
 | `compiler/graph/preprocess/multi_batch_options.cc` | Parameter parsing, validation |
 | `compiler/graph/preprocess/multi_batch_options.h` | Parameter parsing API declaration |
@@ -548,7 +555,7 @@ if (is_online_infer_dynamic_) {
 ### runtime/ Runtime Layer
 
 | File | Key Content |
-|------|---------|
+| ------ | --------- |
 | `runtime/v1/executor/ge_executor.cc:98-136` | `SetDynamicInputDataFlag()` gear matching |
 | `runtime/v1/executor/ge_executor.cc:374-568` | SetDynamicBatchSize / SetDynamicImageSize / SetDynamicDims |
 | `runtime/v1/executor/ge_executor.cc:570-621` | `GetCurDynamicDims()` extracts dynamic axes |

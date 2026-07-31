@@ -1,4 +1,4 @@
-﻿# get\_shape
+# get\_shape
 
 ## 产品支持情况
 

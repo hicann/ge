@@ -1,4 +1,4 @@
-﻿# GetRawData（FlowMsg类）
+# GetRawData（FlowMsg类）
 
 ## 产品支持情况
 

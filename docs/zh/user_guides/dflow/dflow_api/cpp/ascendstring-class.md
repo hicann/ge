@@ -1,4 +1,4 @@
-﻿# AscendString类
+# AscendString类
 
 - [AscendString构造函数和析构函数](ascendstring-ctor-dtor.md)
 - [GetString](GetString.md)

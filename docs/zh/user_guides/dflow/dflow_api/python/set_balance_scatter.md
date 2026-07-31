@@ -1,4 +1,4 @@
-﻿# set\_balance\_scatter
+# set\_balance\_scatter
 
 ## 产品支持情况
 

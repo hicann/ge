@@ -1,4 +1,4 @@
-﻿# GetWorkPath（MetaContext类）
+# GetWorkPath（MetaContext类）
 
 ## 产品支持情况
 

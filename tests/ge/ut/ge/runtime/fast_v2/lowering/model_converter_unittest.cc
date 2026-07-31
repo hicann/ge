@@ -178,6 +178,7 @@ TEST_F(ModelConverterUT, LoweringGlobalDataKeepsCustomOpRegistryAfterRootModelRe
 }
 
 TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamForStreamNotEnough) {
+  setenv("MOCK_AVAIL_STREAM_NUM", "1", 0);  // only has 1 stream
   gert::CreateVersionInfo();
   int64_t stream_num = 1;
   int64_t event_num = 0;
@@ -208,13 +209,15 @@ TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamForStreamNotEnough) {
   auto model_desc_buffer = reinterpret_cast<ContinuousBuffer *>(buffer_data.get());
   auto model_desc = model_desc_buffer->Get<ModelDesc>(model_desc_buffer->GetNum() - 1);
   EXPECT_NE(model_desc, nullptr);
-  EXPECT_EQ(model_desc->GetReusableStreamNum(), 2);
-  EXPECT_EQ(model_desc->GetReusableEventNum(), 3);
+  EXPECT_EQ(model_desc->GetReusableStreamNum(), 1);
+  EXPECT_EQ(model_desc->GetReusableEventNum(), 0);
 
   gert::DestroyVersionInfo();
+  unsetenv("MOCK_AVAIL_STREAM_NUM");
 }
 TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamForRtsInterfaceReturnFail) {
-  // invalid stream num
+  // invalid stream num, aclrtGetStreamAvailableNum will return fail
+  setenv("MOCK_AVAIL_STREAM_NUM", "a", 0);
   gert::CreateVersionInfo();
   int64_t stream_num = 1;
   int64_t event_num = 0;
@@ -245,13 +248,15 @@ TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamForRtsInterfaceReturnFai
   auto model_desc_buffer = reinterpret_cast<ContinuousBuffer *>(buffer_data.get());
   auto model_desc = model_desc_buffer->Get<ModelDesc>(model_desc_buffer->GetNum() - 1);
   EXPECT_NE(model_desc, nullptr);
-  EXPECT_EQ(model_desc->GetReusableStreamNum(), 2);
-  EXPECT_EQ(model_desc->GetReusableEventNum(), 3);
+  EXPECT_EQ(model_desc->GetReusableStreamNum(), 1);
+  EXPECT_EQ(model_desc->GetReusableEventNum(), 0);
 
   gert::DestroyVersionInfo();
+  unsetenv("MOCK_AVAIL_STREAM_NUM");
 }
 
 TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamWithStaticSubModelForStreamNotEnough) {
+  setenv("MOCK_AVAIL_STREAM_NUM", "4", 0);  // only has 1 stream
   gert::CreateVersionInfo();
   int64_t stream_num = 1;
   int64_t event_num = 0;
@@ -279,9 +284,10 @@ TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamWithStaticSubModelForStr
   auto model_desc_buffer = reinterpret_cast<ContinuousBuffer *>(buffer_data.get());
   auto model_desc = model_desc_buffer->Get<ModelDesc>(model_desc_buffer->GetNum() - 1);
   EXPECT_NE(model_desc, nullptr);
-  EXPECT_EQ(model_desc->GetReusableStreamNum(), 4);
-  EXPECT_EQ(model_desc->GetReusableEventNum(), 5);
+  EXPECT_EQ(model_desc->GetReusableStreamNum(), 1);
+  EXPECT_EQ(model_desc->GetReusableEventNum(), 0);
 
   gert::DestroyVersionInfo();
+  unsetenv("MOCK_AVAIL_STREAM_NUM");
 }
 }  // namespace gert

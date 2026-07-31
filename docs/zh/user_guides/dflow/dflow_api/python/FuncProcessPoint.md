@@ -1,4 +1,4 @@
-﻿# FuncProcessPoint
+# FuncProcessPoint
 
 ## 产品支持情况
 
@@ -118,15 +118,15 @@ CMakeLists文件相关内容如下：
         if ("x${RESOURCE_TYPE}" STREQUAL "xAscend")
           message(STATUS "ascend compiler enter")
           # if unsupported current resource type, please uncomment the next line.
-          # message(FATAL_ERROR "Unsupport compile Ascend target!")
+          # message(FATAL_ERROR "Unsupported compile Ascend target!")
         elseif("x${RESOURCE_TYPE}" STREQUAL "xAarch")
           message(STATUS "aarch64 compiler enter")
           # if unsupported current resource type, please uncomment the next line.
-          # message(FATAL_ERROR "Unsupport compile Aarch64 target!")
+          # message(FATAL_ERROR "Unsupported compile Aarch64 target!")
         else()
           message(STATUS "x86 compiler enter")
           # if unsupported current resource type, please uncomment the next line.
-          # message(FATAL_ERROR "Unsupport compile X86 target!")
+          # message(FATAL_ERROR "Unsupporte'd compile X86 target!")
         endif()
 
         if(DEFINED ENV{ASCEND_HOME_PATH})
@@ -154,7 +154,7 @@ CMakeLists文件相关内容如下：
         set(CMAKE_CXX_COMPILER ${TOOLCHAIN})
 
         # =========================UDF so compile============================
-        # check if SRC_LIST is exist
+        # check if SRC_LIST exists
         if("x${SRC_LIST}" STREQUAL "x")
             message(UDF "=========no source file=============")
             add_custom_target(${UDF_TARGET_LIB}
@@ -184,7 +184,7 @@ CMakeLists文件相关内容如下：
             ${ASCEND_HOME_PATH}/devlib/device/libflow_func.so
             -Wl,--no-whole-archive
           )
-          # If there have any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
+          # if there are any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           # [[execute_process(
             COMMAND cp libdepend_xxx.so ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           )]]
@@ -194,7 +194,7 @@ CMakeLists文件相关内容如下：
            ${ASCEND_HOME_PATH}/devlib/linux/aarch64/libflow_func.so
             -Wl,--no-whole-archive
           )
-          # If there have any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
+          # if there are any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           # [[execute_process(
             COMMAND cp libdepend_xxx.so ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           )]]
@@ -204,7 +204,7 @@ CMakeLists文件相关内容如下：
             ${ASCEND_HOME_PATH}/devlib/linux/x86_64/libflow_func.so
             -Wl,--no-whole-archive
           )
-          # If there have any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
+          # if there are any dependent so, please release the following comments and copy dependent so to ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           # [[execute_process(
              COMMAND cp libdepend_xxx.so ${PROJECT_BINARY_DIR}/${RELEASE_DIR}
           )]]

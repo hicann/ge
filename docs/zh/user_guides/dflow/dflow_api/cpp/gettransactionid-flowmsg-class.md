@@ -1,4 +1,4 @@
-﻿# GetTransactionId（FlowMsg类）
+# GetTransactionId（FlowMsg类）
 
 ## 产品支持情况
 

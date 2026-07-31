@@ -1,4 +1,4 @@
-﻿# get\_log\_header
+# get\_log\_header
 
 ## 产品支持情况
 

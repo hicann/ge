@@ -1,4 +1,4 @@
-﻿# GetRetCode（FlowMsg类）
+# GetRetCode（FlowMsg类）
 
 ## 产品支持情况
 

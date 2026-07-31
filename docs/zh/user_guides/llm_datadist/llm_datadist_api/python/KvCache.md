@@ -1,4 +1,4 @@
-﻿# KvCache
+# KvCache
 
 - [KvCache-constructor](KvCache-constructor.md)
 - [cache\_id](cache_id.md)

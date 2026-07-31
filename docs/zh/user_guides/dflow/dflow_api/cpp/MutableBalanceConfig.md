@@ -1,4 +1,4 @@
-﻿# MutableBalanceConfig
+# MutableBalanceConfig
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# GetRunningDeviceId（MetaContext类）
+# GetRunningDeviceId（MetaContext类）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# GetLength
+# GetLength
 
 ## 产品支持情况
 

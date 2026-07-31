@@ -1,4 +1,4 @@
-﻿# BalanceConfig类
+# BalanceConfig类
 
 - [BalanceConfig构造函数和析构函数](balanceconfig-ctor-dtor.md)
 - [SetAffinityPolicy](SetAffinityPolicy.md)

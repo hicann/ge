@@ -1,4 +1,4 @@
-﻿# GetOutputNum（MetaContext类）
+# GetOutputNum（MetaContext类）
 
 ## 产品支持情况
 

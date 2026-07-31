@@ -1,4 +1,4 @@
-﻿# CacheDesc
+# CacheDesc
 
 ## 函数功能
 

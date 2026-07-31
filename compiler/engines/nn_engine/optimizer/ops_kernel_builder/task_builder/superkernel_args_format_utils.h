@@ -39,11 +39,11 @@ bool KernelLaunch(const std::string &stub_func, const uint32_t block_dim, const 
 ge::Status FillTaskDefAfterGenTask(const ge::OpDescPtr &op_desc, domi::TaskDef &task_def, std::string &args_format);
 ge::Status SetArgFormatValue(uint32_t args_size_workspace, std::vector<std::vector<domi::TaskDef>> &subTasks,
                              const std::vector<ge::Node *> &sub_nodes, void *all_args_buff_total,
-                             uint32_t args_size_total);
+                             size_t args_size_total);
 ge::Status GetAICoreArgFormatinLoop(std::string &sub_arg_format, const std::vector<ge::Node *> &sub_nodes,
                                     uint32_t &args_size, std::string &super_kernel_args_format,
                                     const ge::NodePtr &shared_node, const ge::NodePtr &sub_node, uint32_t cnt);
-ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, uint32_t &args_size_total,
+ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, size_t &args_size_total,
                         std::vector<std::vector<domi::TaskDef>> &subTasks, const ge::OpDescPtr &super_kernel_op_desc,
                         std::vector<domi::TaskDef> &tasks, const ge::NodePtr &shared_node,
                         std::string &super_kernel_args_format);

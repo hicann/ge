@@ -1,4 +1,4 @@
-﻿# get\_output\_num
+# get\_output\_num
 
 ## 产品支持情况
 

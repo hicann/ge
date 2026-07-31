@@ -1,4 +1,4 @@
-﻿﻿# FlowMsg类
+# FlowMsg类
 
 - [FlowMsg构造函数](flowmsg-ctor.md)
 - [get\_msg\_type（UDF）](get_msg_type-udf.md)

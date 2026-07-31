@@ -18,8 +18,7 @@ from typing import List
 
 from ge.es import GraphBuilder, TensorHolder
 from ge.graph import DataType, Format, Graph, Node, TensorDesc
-from ge.passes import DecomposePass, PassStage, register_decompose_pass
-from ge.utils import GeUtils
+from ge.passes import DecomposePass, PassStage, infer_shape, register_decompose_pass
 
 try:
     from ge.es.math import Split
@@ -67,19 +66,6 @@ def _concat_tensors(tensors: List[TensorHolder]) -> TensorHolder:
     if Concat is not None:
         return Concat(1, tensors, N=len(tensors))
     return ConcatV2(tensors, 1, N=len(tensors))
-
-
-def _infer_shape(matched_node: Node, graph: Graph) -> bool:
-    input_shapes = []
-    for input_index in range(matched_node.get_inputs_size()):
-        input_shapes.append(matched_node.get_input_desc(input_index).get_shape())
-
-    try:
-        GeUtils.infer_shape(graph, input_shapes)
-    except RuntimeError as exc:
-        print(f"InferShape failed, reason: {exc}")
-        return False
-    return True
 
 
 @register_decompose_pass(
@@ -141,8 +127,7 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
 
         result = _concat_tensors(conv_outputs)
         replacement_graph = builder.build_and_reset([result])
-        if not _infer_shape(node, replacement_graph):
-            raise RuntimeError("InferShape failed")
+        infer_shape(replacement_graph, node)
 
         return replacement_graph
 

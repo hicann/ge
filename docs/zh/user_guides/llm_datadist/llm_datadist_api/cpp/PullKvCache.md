@@ -1,4 +1,4 @@
-﻿# PullKvCache
+# PullKvCache
 
 ## 产品支持情况
 
@@ -37,7 +37,7 @@ CacheIndex cache_index;
 cache_index.cluster_id = 0;
 cache_index.cache_id = cached_tensors.cache_id;
 cache_index.batch_index = 0;
-Status ret = llm_datadist.PullKvCache(cache_index, cache)
+Status ret = llm_datadist.PullKvCache(cache_index, cache);
 ```
 
 ## 返回值

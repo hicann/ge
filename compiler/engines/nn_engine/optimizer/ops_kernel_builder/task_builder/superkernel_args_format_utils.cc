@@ -166,7 +166,7 @@ uint64_t GetAtomicStubFuncId() {
 
 ge::Status SetArgFormatValue(uint32_t args_size_workspace, std::vector<std::vector<domi::TaskDef>> &subTasks,
                              const std::vector<ge::Node *> &sub_nodes, void *all_args_buff_total,
-                             uint32_t args_size_total) {
+                             size_t args_size_total) {
   // 拷贝args
   bool is_need_ffts = IsNeedFFTS();
   int32_t args_size_cur = is_need_ffts ? WORKSPACE_SIZE : 0;
@@ -317,7 +317,7 @@ bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_conte
   return false;
 }
 
-ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, uint32_t &args_size_total,
+ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, size_t &args_size_total,
                         std::vector<std::vector<domi::TaskDef>> &subTasks, const ge::OpDescPtr &super_kernel_op_desc,
                         std::vector<domi::TaskDef> &tasks, const ge::NodePtr &shared_node,
                         std::string &super_kernel_args_format) {
@@ -368,6 +368,10 @@ ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, uint32_t &args
           return ge::FAILED;
         }
         FE_LOGI("task_arg addr_len size:%d", args_size);
+        if (args_size_total + args_size > static_cast<size_t>(UINT32_MAX)) {
+          FE_LOGE("args_size_total is overflow, args_size_total:%zu, args_size:%u", args_size_total, args_size);
+          return ge::FAILED;
+        }
         args_size_total += args_size;
       }
     }
@@ -400,7 +404,7 @@ ge::Status GenTaskForSuperKernel(const ge::Node &node, std::vector<std::vector<d
 
   bool is_need_ffts = IsNeedFFTS();
 
-  uint32_t args_size_total = 0;
+  size_t args_size_total = 0;
   if (is_need_ffts) {
     std::string super_kernel_first_addr = "{ffts_addr}";
     auto first_node = const_cast<ge::Node *>(sub_nodes[0])->shared_from_this();
@@ -425,10 +429,10 @@ ge::Status GenTaskForSuperKernel(const ge::Node &node, std::vector<std::vector<d
   args_size_total += args_size_workspace;
 
   FE_LOGI("GenTaskForSuperKernel finish DFX stage");
-  FE_LOGI("GenTaskForSuperKernel args_size_total is:%d", args_size_total);
+  FE_LOGI("GenTaskForSuperKernel args_size_total is:%zu", args_size_total);
   void *all_args_buff_total = (void *)malloc(args_size_total);
   if (all_args_buff_total == nullptr) {
-    FE_LOGE("all_args_buff_total is nullptr args_size:%d", args_size_total);
+    FE_LOGE("all_args_buff_total is nullptr args_size:%zu", args_size_total);
     return ge::FAILED;
   }
 
@@ -480,8 +484,8 @@ ge::Status GenTaskForSuperKernel(const ge::Node &node, std::vector<std::vector<d
   FE_LOGI("GenTaskForSuperKernel GetUniqueGraphIdForNode finished");
   FE_LOGD("Generate stub func[%s] of node[%s, %s]", stub_func.c_str(), super_kernel_op_desc->GetNamePtr(),
           super_kernel_op_desc->GetTypePtr());
-  bool launchRel =
-      KernelLaunch(stub_func, block_dim, all_args_buff_total, args_size_total, nullptr, superkernel_task_def);
+  bool launchRel = KernelLaunch(stub_func, block_dim, all_args_buff_total, static_cast<uint32_t>(args_size_total),
+                                nullptr, superkernel_task_def);
   if (!launchRel) {
     FE_LOGE("Node[%s, %s] fill kernel def failed.", super_kernel_op_desc->GetNamePtr(),
             super_kernel_op_desc->GetTypePtr());

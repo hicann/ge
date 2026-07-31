@@ -1,4 +1,4 @@
-﻿# Tensor-constructor
+# Tensor-constructor
 
 ## 产品支持情况
 

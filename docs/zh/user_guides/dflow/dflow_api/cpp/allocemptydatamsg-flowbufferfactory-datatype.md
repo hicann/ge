@@ -1,4 +1,4 @@
-﻿# AllocEmptyDataMsg（FlowBufferFactory数据类型）
+# AllocEmptyDataMsg（FlowBufferFactory数据类型）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# 通过FlowOperator构建FlowGraph
+# 通过FlowOperator构建FlowGraph
 
 ## 什么是FlowOperator
 
@@ -91,7 +91,7 @@ FlowNode是FlowGraph的计算节点。FlowNode定义了计算节点的名称、�
         auto node0 = dflow::FlowNode("node0", 2, 1);
         ```
 
-    注意：图中的data名称和node名称**必须唯一**。
+    注意：图中的data名称和node名称必须唯一。
 
 3. 设置FlowOperator输入。
 

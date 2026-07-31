@@ -1,4 +1,4 @@
-﻿# dataflow.TimeBatch
+# dataflow.TimeBatch
 
 ## 产品支持情况
 

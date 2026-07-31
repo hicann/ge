@@ -1,4 +1,4 @@
-﻿# UDF日志接口简介
+# UDF日志接口简介
 
 UDF Python开放了日志记录接口，使用时导入flow\_func模块。使用其中定义的logger对象，调用logger对象封装的不同级别的日志接口。
 

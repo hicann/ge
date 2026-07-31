@@ -1,4 +1,4 @@
-﻿# LayerSynchronizer
+# LayerSynchronizer
 
 抽象类，需要由用户继承该抽象类实现相关接口。当前该类下只有一个接口synchronize\_layer。
 

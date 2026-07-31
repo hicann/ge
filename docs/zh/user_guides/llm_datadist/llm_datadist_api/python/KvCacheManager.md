@@ -1,4 +1,4 @@
-﻿# KvCacheManager
+# KvCacheManager
 
 - [KvCacheManager-constructor](KvCacheManager-constructor.md)
 - [is\_initialized](is_initialized.md)

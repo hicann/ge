@@ -1,4 +1,4 @@
-﻿# AllocEmptyDataMsg（MetaRunContext类）
+# AllocEmptyDataMsg（MetaRunContext类）
 
 ## 产品支持情况
 

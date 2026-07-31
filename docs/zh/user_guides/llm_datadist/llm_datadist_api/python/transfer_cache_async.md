@@ -1,4 +1,4 @@
-﻿# transfer\_cache\_async
+# transfer\_cache\_async
 
 ## 产品支持情况
 
@@ -39,11 +39,11 @@ from llm_datadist import *
 ...
 class LayerSynchronizerImpl(LayerSynchronizer):
     def synchronize_layer(self, layer_index: int, timeout_in_millis: Optional[int]) -> bool:
-        # need control time for transfer layer here.
+        # need to control time for transfer layer here.
         return True
 num_layers = 40
 dst_cluster_id = 2
-# need register decoder kv addr here.
+# need to register decoder kv addr here.
 decoder_addrs = ...
 assert(len(decoder_addrs) = 2*num_layers)
 transfer_config = TransferConfig(dst_cluster_id, decoder_addrs, range(0, num_layers), 0)

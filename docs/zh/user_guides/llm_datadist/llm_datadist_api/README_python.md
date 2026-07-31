@@ -1,4 +1,4 @@
-﻿# LLM-DataDist接口参考（Python）
+# LLM-DataDist接口参考（Python）
 
 - [LLM-DataDist-interface-list](./python/LLM-DataDist-interface-list.md)
 - [LLMDataDist](./python/LLMDataDist.md)

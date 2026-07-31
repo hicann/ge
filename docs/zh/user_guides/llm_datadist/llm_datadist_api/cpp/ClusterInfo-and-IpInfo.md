@@ -1,4 +1,4 @@
-﻿# ClusterInfo-and-IpInfo
+# ClusterInfo-and-IpInfo
 
 用于描述集群信息，用于建链与断链。
 
@@ -9,11 +9,11 @@ struct ClusterInfo {
   std::vector<IpInfo> local_ip_infos;  // 本地LLM-DataDist的IP信息，详见如下结构体IpInfo
   std::vector<IpInfo> remote_ip_infos; // 对端LLM-DataDist的IP信息，详见如下结构体IpInfo
   uint8_t reserved[128];               // 预留
-}
+};
 
 struct IpInfo {
   AscendString ip;         // IP地址
   uint16_t port = 0U;      // 端口号
   uint8_t reserved[128];   // 预留
-}
+};
 ```

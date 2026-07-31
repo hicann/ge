@@ -1,4 +1,4 @@
-﻿# GetMsgType（FlowMsg类）
+# GetMsgType（FlowMsg类）
 
 ## 产品支持情况
 

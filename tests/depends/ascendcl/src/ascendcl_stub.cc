@@ -957,6 +957,24 @@ aclError AclRuntimeStub::aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtGetStreamAvailableNum(uint32_t *streamCount) {
+  const char *const kEnvRecordPath = "MOCK_AVAIL_STREAM_NUM";
+  char record_path[8] = {};
+  int32_t ret = mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(8));
+  if ((ret != EN_OK) || (strlen(record_path) == 0)) {
+    *streamCount = g_free_stream_num;
+    return ACL_SUCCESS;
+  }
+  try {
+    *streamCount = std::stoi(std::string(record_path));
+    return ACL_SUCCESS;
+  } catch (...) {
+    return 1;  // SOME ERROR
+  }
+  *streamCount = g_free_stream_num;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtSetStreamResLimit(aclrtStream stream, aclrtDevResLimitType type, uint32_t value) {
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -1725,6 +1743,10 @@ aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout) {
 
 aclError aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout) {
   return ge::AclRuntimeStub::GetInstance()->aclrtSetOpExecuteTimeOutV2(timeout, actualTimeout);
+}
+
+aclError aclrtGetStreamAvailableNum(uint32_t *streamCount) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetStreamAvailableNum(streamCount);
 }
 
 aclError aclrtSetStreamResLimit(aclrtStream stream, aclrtDevResLimitType type, uint32_t value) {

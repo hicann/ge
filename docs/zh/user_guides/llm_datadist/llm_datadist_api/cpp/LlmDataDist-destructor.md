@@ -1,4 +1,4 @@
-﻿# \~LlmDataDist\(\)
+# LlmDataDist\(\)
 
 ## 产品支持情况
 
@@ -13,7 +13,7 @@ LLM-DataDist对象析构函数。
 ## 函数原型
 
 ```cpp
-~LlmDataDist-destructor
+~LlmDataDist()
 ```
 
 ## 参数说明

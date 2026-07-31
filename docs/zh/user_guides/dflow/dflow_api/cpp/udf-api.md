@@ -1,4 +1,4 @@
-﻿﻿# UDF接口
+# UDF接口
 
 - [UDF接口列表](udf-api-list.md)
 - [AttrValue类](attrvalue-class.md)

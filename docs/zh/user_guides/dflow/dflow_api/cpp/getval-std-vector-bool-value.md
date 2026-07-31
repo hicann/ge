@@ -1,4 +1,4 @@
-﻿# GetVal\(std::vector<bool\> &value\)
+# GetVal\(std::vector<bool\> &value\)
 
 ## 产品支持情况
 

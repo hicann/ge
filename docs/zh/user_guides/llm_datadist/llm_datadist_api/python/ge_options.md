@@ -1,4 +1,4 @@
-﻿# ge\_options
+# ge\_options
 
 ## 产品支持情况
 

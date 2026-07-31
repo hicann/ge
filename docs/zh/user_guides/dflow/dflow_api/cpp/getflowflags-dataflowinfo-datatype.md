@@ -1,4 +1,4 @@
-﻿# GetFlowFlags（DataFlowInfo数据类型）
+# GetFlowFlags（DataFlowInfo数据类型）
 
 ## 产品支持情况
 

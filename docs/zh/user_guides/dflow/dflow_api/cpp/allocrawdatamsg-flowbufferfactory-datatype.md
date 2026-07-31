@@ -1,4 +1,4 @@
-﻿# AllocRawDataMsg（FlowBufferFactory数据类型）
+# AllocRawDataMsg（FlowBufferFactory数据类型）
 
 ## 产品支持情况
 

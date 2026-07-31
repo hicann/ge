@@ -1,4 +1,4 @@
-﻿# get\_attr\_bool
+# get\_attr\_bool
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# AddInvokedClosure \(添加调用的ProcessPoint子类\)
+# AddInvokedClosure \(添加调用的ProcessPoint子类\)
 
 ## 产品支持情况
 

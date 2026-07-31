@@ -1,4 +1,4 @@
-﻿# GetTransactionId（DataFlowInfo数据类型）
+# GetTransactionId（DataFlowInfo数据类型）
 
 ## 产品支持情况
 

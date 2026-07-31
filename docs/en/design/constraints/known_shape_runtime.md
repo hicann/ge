@@ -98,3 +98,30 @@ Static shape module is GE runtime's high-frequency execution path, has extremely
     - Old version DRV does not support this interface, need to ensure business flow is normal, no ERROR logs
 
 2. **Stream and Resource Management**
+     - When releasing resources, first synchronize streams, then release memory, and finally destroy the device
+     - Ensure correct lifecycle management of resources
+
+**IX. Special Scenario Handling**
+
+1. **Multi-stream and Stream Splitting**
+     - Physical streams have limited task capacity, need to split by threshold
+     - After stream splitting, stream activation relationships need to be updated
+
+2. **HCCL Operator Special Handling**
+     - HCCL operators have special continuous memory requirements
+     - In pure static graphs, HCOM operator virtual addresses and physical addresses both do not support refresh (no featureBaseRefreshable)
+     - HCCL operator physical addresses do not support refresh
+
+**X. Concurrency and Safety Rules**
+
+1. **Thread Safety**
+     - When handling resources, need to consider resource specifications and limits
+     - Shared resources need proper protection
+     - ScalableAllocator does not support multi-thread concurrency (lock-free design), must not be called by multiple threads
+
+2. **Overflow Detection and Exception Handling**
+     - All numerical calculations must check for overflow
+     - Use safe functions such as AddOverflow, MulOverflow
+     - Prevent security issues caused by integer overflow
+
+---

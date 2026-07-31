@@ -1,4 +1,4 @@
-﻿# GetVal\(std::vector<TensorDataType\> &value\)
+# GetVal\(std::vector<TensorDataType\> &value\)
 
 ## 产品支持情况
 

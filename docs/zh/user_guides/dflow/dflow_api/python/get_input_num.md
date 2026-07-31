@@ -1,4 +1,4 @@
-﻿# get\_input\_num
+# get\_input\_num
 
 ## 产品支持情况
 

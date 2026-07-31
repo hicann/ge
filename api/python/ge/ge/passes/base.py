@@ -17,7 +17,17 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Iterable, List, Optional, Union
 
-from ._native import MatchResult, PassContext, PatternMatcherConfig, PatternMatcherConfigBuilder, SubgraphInput, SubgraphOutput, SubgraphBoundary, SubgraphRewriter
+from ._native import (  # noqa: F401
+    MatchResult,
+    PassContext,
+    PatternMatcherConfig,
+    PatternMatcherConfigBuilder,
+    SubgraphInput,
+    SubgraphOutput,
+    SubgraphBoundary,
+    SubgraphRewriter,
+)
+from ._native import infer_shape as _infer_shape
 
 if TYPE_CHECKING:
     from ge.graph.graph import Graph
@@ -28,6 +38,21 @@ if TYPE_CHECKING:
 
 PatternOrGraph = Union["Pattern", "Graph"]
 StatusLike = Optional[Union[bool, int]]
+
+
+def infer_shape(
+    replacement: "Graph", source: Union[MatchResult, "Node", SubgraphBoundary]
+) -> None:
+    """Infer shape, data type, and format for a replacement graph from a matched source."""
+    from ge.graph import Graph, Node
+
+    if not isinstance(replacement, Graph):
+        raise TypeError("replacement must be a ge.graph.Graph")
+    if not isinstance(source, (MatchResult, Node, SubgraphBoundary)):
+        raise TypeError("source must be MatchResult, Node, or SubgraphBoundary")
+    if not replacement.get_all_nodes():
+        raise RuntimeError("replacement graph is empty")
+    _infer_shape(replacement, source)
 
 
 class PassStage(str, Enum):

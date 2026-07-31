@@ -1,4 +1,4 @@
-﻿# LLM-DataDist-interface-list
+# LLM-DataDist-interface-list
 
 LLM-DataDist：大模型分布式集群和数据加速组件，提供了集群KV数据管理能力，支持全量图和增量图分离部署。
 

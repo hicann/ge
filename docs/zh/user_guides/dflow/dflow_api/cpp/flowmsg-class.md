@@ -1,4 +1,4 @@
-﻿# FlowMsg类
+# FlowMsg类
 
 - [FlowMsg构造函数和析构函数](flowmsg-ctor-dtor.md)
 - [GetMsgType（FlowMsg类）](getmsgtype-flowmsg-class.md)

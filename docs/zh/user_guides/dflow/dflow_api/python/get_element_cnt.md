@@ -1,4 +1,4 @@
-﻿# get\_element\_cnt
+# get\_element\_cnt
 
 ## 产品支持情况
 

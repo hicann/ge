@@ -1,4 +1,4 @@
-﻿# allocate\_cache
+# allocate\_cache
 
 ## 产品支持情况
 

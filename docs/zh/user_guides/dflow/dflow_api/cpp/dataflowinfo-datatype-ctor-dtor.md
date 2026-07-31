@@ -1,4 +1,4 @@
-﻿# DataFlowInfo数据类型构造函数和析构函数
+# DataFlowInfo数据类型构造函数和析构函数
 
 ## 产品支持情况
 

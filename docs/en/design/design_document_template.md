@@ -34,7 +34,6 @@ Describe the overall environment composed of this product and other products or 
 
 It is very helpful to describe the main components of the larger system or project, their interconnectivity, and external interfaces using block diagrams. This section should not propose a specific design solution or specific design constraints on the solution (specific design constraints will be described in the specific requirements section). The content of this section is the basis for generating design constraints.
 
-
 ## Software Functions
 
 Overview of the main functions that the software must implement and those implemented through user operations. Only a brief description is needed here (e.g., a table of contents), with detailed descriptions in the detailed requirements section. Organize requirement functions so that readers can understand them and this can guide subsequent design and testing. Charts can be used to represent the relationships between major requirement groups, such as high-level data flow diagrams, object-oriented analysis, etc.
@@ -62,74 +61,74 @@ Describe matters that may limit developers' choices, and what capabilities the f
 > Use short words as the functional requirement name, do not use "Functional Requirement (1)" as the functional name
 >
 
-1.  Introduction
+1. Introduction
 
-> List the functional requirements related to this feature item by item. Include how the project responds to expected error inputs, illegal conditions, and invalid inputs. Requirements should be concise, complete, unambiguous, verifiable, and necessary. Use "TBD" when needed information is uncertain.
+    > List the functional requirements related to this feature item by item. Include how the project responds to expected error inputs, illegal conditions, and invalid inputs. Requirements should be concise, complete, unambiguous, verifiable, and necessary. Use "TBD" when needed information is uncertain.
 
-2.  Input
+2. Input
 
-> This subsection should contain the following:
->
-> A. Detailed description of all input data for this function, including:
->
-> Input source
->
-> Quantity
->
-> Unit of measurement
->
-> Time requirements
->
-> Valid input range including precision and tolerance
->
-> B. References to interface specifications or interface control documents where appropriate.
+    > This subsection should contain the following:
+    >
+    > A. Detailed description of all input data for this function, including:
+    >
+    > Input source
+    >
+    > Quantity
+    >
+    > Unit of measurement
+    >
+    > Time requirements
+    >
+    > Valid input range including precision and tolerance
+    >
+    > B. References to interface specifications or interface control documents where appropriate.
 
-3.  Processing
+3. Processing
 
-> This subsection should describe all operations performed on input data and how output is obtained. This includes the following specifications:
->
-> A. Validity detection of input data.
->
-> B. Exact sequence of operations, including timing of events.
->
-> C. Responses to exceptional conditions, such as:
->
-> Overflow
->
-> Communication failure
-> Communication failure
->
-> Error handling
->
-> D. Any method used to convert system inputs to corresponding outputs (such as equations, mathematical algorithms, logical operations). For example, this may describe the following aspects:
->
-> Calculation formula for withholding income tax in payroll.
->
-> Meteorological model used for weather forecasting.
->
-> E. Validity detection for output data.
+    > This subsection should describe all operations performed on input data and how output is obtained. This includes the following specifications:
+    >
+    > A. Validity detection of input data.
+    >
+    > B. Exact sequence of operations, including timing of events.
+    >
+    > C. Responses to exceptional conditions, such as:
+    >
+    > Overflow
+    >
+    > Communication failure
+    > Communication failure
+    >
+    > Error handling
+    >
+    > D. Any method used to convert system inputs to corresponding outputs (such as equations, mathematical algorithms, logical operations). For example, this may describe the following aspects:
+    >
+    > Calculation formula for withholding income tax in payroll.
+    >
+    > Meteorological model used for weather forecasting.
+    >
+    > E. Validity detection for output data.
 
-4.  Output
+4. Output
 
-> This subparagraph should contain:
->
-> A. Detailed description of all output data for this function, this description includes:
->
-> Output destination (e.g. printer, file)
->
-> Quantity
->
-> Measurement unit
->
-> Timing
->
-> Valid output range including precision and tolerance
->
-> Handling of illegal values
->
-> Error messages
->
-> B. Where appropriate, provide references to interface specifications or interface control documents.
+    > This subparagraph should contain:
+    >
+    > A. Detailed description of all output data for this function, this description includes:
+    >
+    > Output destination (e.g. printer, file)
+    >
+    > Quantity
+    >
+    > Measurement unit
+    >
+    > Timing
+    >
+    > Valid output range including precision and tolerance
+    >
+    > Handling of illegal values
+    >
+    > Error messages
+    >
+    > B. Where appropriate, provide references to interface specifications or interface control documents.
 
 Additionally, for systems where requirements concentrate on input/output behavior, SRS should describe all important input/output behaviors and sequence of input/output pairs. For systems that need to remember their behavior to react based on inputs and past behaviors, sequence of input/output pairs is required; this functional behavior is similar to finite state machine.
 
@@ -161,7 +160,7 @@ See [cross_feature_check.md](cross_feature_check.md)
 
 ### OM Size and Load Memory Usage
 
-*Load memory usage needs to consider memory-sensitive scenarios, new features原则上 should not cause memory increase (actually also belongs to compatibility issue), if new features need extra memory,原则上 default off*
+*Load memory usage needs to consider memory-sensitive scenarios. In principle, new features should not cause memory increase (this also belongs to compatibility issues). If new features require extra memory, they should be disabled by default in principle.*
 
 ### Execution Performance
 
@@ -178,20 +177,19 @@ See [cross_feature_check.md](cross_feature_check.md)
 ### Interface Checklist
 
 -------------- ---------------------------------------------------------------------------- --------------
-| **Check Item**   | **Sub-check Item**                                                 | **Involved** |
+
+| **Check Item** | **Sub-check Item** | **Involved** |
 | ------------ | ------------------------------------------------------------ | :----------- |
-| **Interface Description** | Whether interface needs review, review needs to focus on interface compatibility and interface constraints (optional between modules, mandatory between components) |              |
-| **Interface Description** | Whether needs supplementary documentation explanation                                         |              |
-| **Interface Description** | Whether interface document clearly explains interface prototype, functionality, return value etc.             |              |
-| **Interface Compatibility** | Interface behavior compatibility, whether behavior changes before and after modification, whether needs to notify related components |              |
-| **Interface Compatibility** | Whether interface has compatibility, whether new interface can work normally on old version, involves this component and external component new interfaces |              |
-| **Interface Compatibility** | Whether interface involves usage scenarios, calling sequence etc. constraints                         |              |
-| **Interface Constraints** | Whether can clearly report error when interface call doesn't meet constraint conditions                       |              |
-| **Interface Constraints** | Whether needs to design separate test cases                                   |              |
+| **Interface Description** | Whether interface needs review, review needs to focus on interface compatibility and interface constraints (optional between modules, mandatory between components) | |
+| **Interface Description** | Whether needs supplementary documentation explanation | |
+| **Interface Description** | Whether interface document clearly explains interface prototype, functionality, return value etc. | |
+| **Interface Compatibility** | Interface behavior compatibility, whether behavior changes before and after modification, whether needs to notify related components | |
+| **Interface Compatibility** | Whether interface has compatibility, whether new interface can work normally on old version, involves this component and external component new interfaces | |
+| **Interface Compatibility** | Whether interface involves usage scenarios, calling sequence etc. constraints | |
+| **Interface Constraints** | Whether can clearly report error when interface call doesn't meet constraint conditions | |
+| **Interface Constraints** | Whether needs to design separate test cases | |
 
 -------------- ---------------------------------------------------------------------------- --------------
-
-
 
 ## Software Design
 
@@ -223,10 +221,10 @@ Refer to coding_military_rules.md
 
 ### Coding Checklist
 
-| **Check Item**                                         | **Check Item Description**                                               | **Involved** |
+| **Check Item** | **Check Item Description** | **Involved** |
 | -------------------------------------------------- | ------------------------------------------------------------ | ------------ |
-| **Whether involves resource lifecycle management (e.g. thread pool, memory pool etc.)** | Resource lifecycle too long may lead to resource shortage, slow response, system crash etc. serious system stability and reliability issues. Clearly defining resource lifecycle (process-level/Session-level/Graph-level etc.) can help us better control resource usage, ensure effective utilization and timely release of resources. For using long-lifecycle resources, need code design meeting review or consider other technical means. |              |
-| **Whether creating new thread**                                 | 1) Newly created threads need to copy ThreadLocalContext, ErrorContext etc. context information. Performance scenarios as special case separate analysis, if not needed can not copy.  2) Newly created threads need to set thread name. |              |
+| **Whether involves resource lifecycle management (e.g. thread pool, memory pool etc.)** | Resource lifecycle too long may lead to resource shortage, slow response, system crash etc. serious system stability and reliability issues. Clearly defining resource lifecycle (process-level/Session-level/Graph-level etc.) can help us better control resource usage, ensure effective utilization and timely release of resources. For using long-lifecycle resources, need code design meeting review or consider other technical means. | |
+| **Whether creating new thread** | 1) Newly created threads need to copy ThreadLocalContext, ErrorContext etc. context information. Performance scenarios as special case separate analysis, if not needed can not copy.  2) Newly created threads need to set thread name. | |
 
 ## Compatibility Check
 
@@ -244,8 +242,6 @@ Key focus whether old om can execute under new version, new om executing under o
 
 **Case types: UT, ST, BBIT**
 
-
-
 | **Test Category** | **Key Test Items** | **Test Method** | **Case Type** |
 | ------------ | -------------- | ------------ | ------------ |
 | **Functionality**     |                |              |              |
@@ -253,7 +249,6 @@ Key focus whether old om can execute under new version, new om executing under o
 | **Precision**     |                |              |              |
 | **Compatibility**   |                |              |              |
 | **Feature Cross** |                |              |              |
-
 
 -------------- ---------------- --------------------------------------- --------------
 

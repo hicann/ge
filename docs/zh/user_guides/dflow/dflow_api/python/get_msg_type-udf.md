@@ -1,4 +1,4 @@
-﻿# get\_msg\_type（UDF）
+# get\_msg\_type（UDF）
 
 ## 产品支持情况
 

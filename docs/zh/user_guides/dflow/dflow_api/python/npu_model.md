@@ -1,4 +1,4 @@
-﻿# npu\_model
+# npu\_model
 
 ## 产品支持情况
 

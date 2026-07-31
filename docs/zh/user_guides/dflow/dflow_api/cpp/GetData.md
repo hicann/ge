@@ -1,4 +1,4 @@
-﻿# GetData
+# GetData
 
 ## 产品支持情况
 

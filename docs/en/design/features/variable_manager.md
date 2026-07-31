@@ -1,10 +1,10 @@
 # Variable Manager
 
-GE graph engine provides complete variable lifecycle management mechanism,覆盖 variable registration, memory allocation, format conversion optimization, logical address mapping, offline serialization/deserialization, runtime address resolution等 full flow. This mechanism supports training scenario下 multiple subgraphs sharing same variable, inference scenario下 weight loading和 reuse, and OM model offline compilation与 deployment等 core capabilities.
+GE graph engine provides a complete variable lifecycle management mechanism, covering variable registration, memory allocation, format conversion optimization, logical address mapping, offline serialization/deserialization, runtime address resolution, and other full-flow processes. This mechanism supports core capabilities such as multiple subgraphs sharing the same variable in training scenarios, weight loading and reuse in inference scenarios, and OM model offline compilation and deployment.
 
 ## Overall Architecture
 
-GE's variable management system adopts layered design, composed of compilation-time和 runtime two levels:
+GE's variable management system adopts a layered design, composed of two levels: compilation-time and runtime:
 
 ```mermaid
 graph TB
@@ -52,10 +52,10 @@ graph TB
 
 ### Variable Types
 
-GE manages following几类 needing persistent memory operator nodes, collectively called "variables":
+GE manages the following categories of operator nodes that require persistent memory, collectively called "variables":
 
 | Type | Description | Scenario |
-|------|------|------|
+| ------ | ------ | ------ |
 | `VARIABLE` | Training parameter variables, can be shared read/write by multiple subgraphs | Training scenario |
 | `CONSTANTOP` | Constant nodes, compile-time determined value, stored in variable memory region | Inference/training |
 | `FILECONSTANT` | External weight constants, weight data stored in external files, loaded on-demand at runtime | Inference (large models) |
@@ -63,13 +63,13 @@ GE manages following几类 needing persistent memory operator nodes, collectivel
 
 ### Variable Unique Identifier
 
-Variable's unique key由 variable name + format + data type组合而成, defined at `VarResource::VarKey()`:
+The unique key of a variable is composed of variable name + format + data type, defined at `VarResource::VarKey()`:
 
 ```
 var_key = batch_var_name + "_" + format + "_" + data_type
 ```
 
-Where `batch_var_name` is variable name mapping supporting multi-batch training scenario: Same variable may use different names in different batch branches, but底层 share same memory, through `batch_var_name_map_` establish mapping relationship.
+Where `batch_var_name` is the variable name mapping supporting multi-batch training scenarios: the same variable may use different names in different batch branches, but shares the same underlying memory, with the mapping relationship established through `batch_var_name_map_`.
 
 ## Variable Manager (VarManager)
 
@@ -91,18 +91,33 @@ Source file location:
 
 ### VarManagerPool
 
-`VarManagerPool` is global singleton, maintains `session_id → VarManager` mapping relationship. Each training/inference Session has independent `VarManager` instance, guaranteeing Session间 variable isolation.
+`VarManagerPool` is a global singleton that maintains the `session_id → VarManager` mapping relationship. Each training/inference Session has an independent `VarManager` instance, guaranteeing variable isolation between Sessions.
 
 ```mermaid
 sequenceDiagram
     participant Session as Session
     participant Pool as VarManagerPool
-    participant VM as VarManager### VarResource
+    participant VM as VarManager
+    participant VR as VarResource
+
+    Session->>Pool: GetVarManager(session_id)
+    alt First time
+        Pool->>VM: new VarManager(session_id)
+        Pool-->>Session: shared_ptr<VarManager>
+    else Already exists
+        Pool-->>Session: existing shared_ptr<VarManager>
+    end
+
+    Session->>VM: Init(version, session_id, device_id, job_id)
+    VM->>VR: new VarResource(session_id)
+```
+
+### VarResource
 
 `VarResource` is the core storage of variable information, maintaining following key data structures:
 
 | Member | Type | Purpose |
-|------|------|------|
+| ------ | ------ | ------ |
 | `var_addr_mgr_map_` | `map<var_key, VarAddrMgr>` | Variable name+format → address info mapping |
 | `cur_var_tensor_desc_map_` | `map<var_name, GeTensorDesc>` | Variable's current latest Tensor description |
 | `var_offset_map_` | `map<logic_addr, MemType>` | Logic address → memory type mapping |
@@ -119,7 +134,7 @@ sequenceDiagram
 `MemResource` manages variable memory allocation, divided into three implementations by memory type:
 
 | Type | Class | Allocation Strategy |
-|------|-----|---------|
+| ------ | ----- | --------- |
 | `RT_MEMORY_HBM` (device memory) | `HbmMemResource` | Offset incremental allocation, 512-byte aligned, additionally reserve 1024-byte guard space |
 | `RT_MEMORY_RDMA_HBM` (RDMA memory) | `RdmaMemResource` | Allocate from RDMA memory pool |
 | `RT_MEMORY_HOST` (host memory) | `HostMemResource` | Allocate from Host memory pool |
@@ -261,7 +276,7 @@ sequenceDiagram
 Variable acceleration supports following conversion operator types:
 
 | Type | Condition |
-|------|------|
+| ------ | ------ |
 | `TransData` | Source/target format both supported (validated through `formats::IsTransFormatSupport`) |
 | `TransDataD` | Same as TransData |
 | `Cast` | Data type conversion supported (validated through `formats::IsTransDataTypeSupport`) |
@@ -274,14 +289,16 @@ Variable acceleration supports following conversion operator types:
 Variable acceleration involves multiple coordinated Passes:
 
 | Pass | Stage | Role |
-|------|------|------|
+| ------ | ------ | ------ |
 | `VariablePrepareOpPass` | O3 | Build Variable-VarRef relationship: Create VariableRef node for writable variables (Assign/AssignAdd/AssignSub) |
 | `VariableOpPass` | O3 (OptimizeStage1_1) | Variable format fusion optimization |
 | `VariableRefDeleteOpPass` | Post-processing | Clean up no longer needed VariableRef nodes |
 | `VariableRefUselessControlOutDeletePass` | Post-processing | Delete redundant control edges on VariableRef |
 | `VarIsInitializedOpPass` | O0 | Replace VarIsInitializedOp with constant (based on whether variable already initialized) |
 
-Source file location: `compiler/graph/passes/variable_optimize/`## Variable Prepare Pass (VariablePrepareOpPass)
+Source file location: `compiler/graph/passes/variable_optimize/`
+
+## Variable Prepare Pass (VariablePrepareOpPass)
 
 ### Function
 
@@ -363,7 +380,7 @@ VarManager supports serializing complete variable management information to Prot
 Protobuf definition located at `graph_metadef/proto/var_manager.proto`, core messages include:
 
 | Message | Purpose |
-|------|------|
+| ------ | ------ |
 | `VarManagerInfo` | VarManager complete information (version, Session ID, memory config, variable resource) |
 | `VarResourceInfo` | Variable resource information (address mapping table, description table, conversion path, broadcast information) |
 | `VarDescInfo` | Variable description information (current description, staging description, conversion path) |
@@ -371,11 +388,13 @@ Protobuf definition located at `graph_metadef/proto/var_manager.proto`, core mes
 | `MemResourceInfo` | Memory resource information (total size, used size) |
 
 **Serialization Flow** (`VarManagerToSerial`):
+
 1. Record VarManager's version, Session ID, device ID, memory config etc metadata.
 2. Serialize address mapping table, description table, conversion path, broadcast information in VarResource.
 3. Serialize MemResource usage of each memory type.
 
 **Deserialization Flow** (`VarManagerToDeserial`):
+
 1. Get current device ID (`aclrtGetDevice`).
 2. Restore memory config parameters.
 3. Restore VarResource's all mapping tables from Protobuf data.
@@ -406,6 +425,7 @@ Source file location: `base/common/file_constant_utils/file_constant_utils.h`
 **Runtime Load**: `FileConstantKernel` at first execution, reads data from weight file and copies to device memory. Subsequent executions directly use already loaded memory address, skip file read. Different operators of same weight file share memory through `file_constant_var_map_`.
 
 **External Weight Export**: Controlled through `ge.externalWeight` option, supports two modes:
+
 - Separate export (`1`): Each weight generates independent file.
 - Merge export (`2`): All weights merge to same file, distinguish by offset.
 
@@ -436,7 +456,7 @@ Source file location: `base/graph/manager/graph_var_manager.cc` (`InitVarIfHasIn
 GE through `GE_USE_STATIC_MEMORY` environment variable and `STATIC_MEMORY_POLICY` option controls memory allocation strategy:
 
 | Strategy Value | Meaning |
-|--------|------|
+| -------- | ------ |
 | `0` | Default strategy |
 | `1` (`kStaticMemory`) | Static memory strategy |
 | `2` (`kExtendSizeType`) | Extend size strategy, static and dynamic graph memory reuse |
@@ -472,14 +492,15 @@ VarManager supports multi-device scenario. `VarResource` through `device_id_to_v
 ### VarManager Main Interfaces
 
 | Interface | Function |
-|------|------|
+| ------ | ------ |
 | `Init()` | Initialize VarManager (version, Session, device, Job) |
 | `AssignVarMem()` | Allocate variable memory (includes reuse check) |
 | `RestoreVarMem()` | Restore variable memory (offline load scenario) |
 | `SetVarAddr()` | Set variable address |
 | `GetVarAddr()` | Get variable logic address |
 | `GetVarMemoryAddr()` | Logic address → physical address conversion |
-| `SetTransRoad()` | Set variable format conversion path || `GetTransRoad()` | Get variable format conversion path |
+| `SetTransRoad()` | Set variable format conversion path |
+| `GetTransRoad()` | Get variable format conversion path |
 | `RenewCurVarDesc()` | Update variable current description (after format/data type change) |
 | `VarManagerToSerial()` | Serialize to Protobuf |
 | `VarManagerToDeserial()` | Deserialize from Protobuf |
@@ -490,7 +511,7 @@ VarManager supports multi-device scenario. `VarResource` through `device_id_to_v
 ### VarResource Main Interfaces
 
 | Interface | Function |
-|------|------|
+| ------ | ------ |
 | `GetVarAddr()` | Get address by variable name and description |
 | `GetReuseAddr()` | Find reusable variable address (weight deduplication) |
 | `SetVarAddr()` | Register variable address |
@@ -503,7 +524,7 @@ VarManager supports multi-device scenario. `VarResource` through `device_id_to_v
 ## File Index
 
 | Module | File Path |
-|------|---------|
+| ------ | --------- |
 | Variable Manager Core | `base/graph/manager/graph_var_manager.h`, `.cc` |
 | Variable Memory Allocation | `base/graph/build/memory/var_mem_assign_util.h`, `.cc` |
 | Variable Acceleration Pass | `compiler/graph/passes/variable_optimize/variable_op_pass.h`, `.cc` |

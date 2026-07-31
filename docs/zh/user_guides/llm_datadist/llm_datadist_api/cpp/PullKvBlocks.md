@@ -1,4 +1,4 @@
-﻿# PullKvBlocks
+# PullKvBlocks
 
 ## 产品支持情况
 
@@ -39,7 +39,7 @@ std::vector<uint64_t> decoder_blocks = {0,2,4,6};
 auto ret = llm_datadist.PullKvBlocks(cache_key,
                                      kv_cache,
                                      prompt_blocks,
-                                     decoder_blocks)
+                                     decoder_blocks);
 ```
 
 ## 返回值

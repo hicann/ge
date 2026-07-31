@@ -17,6 +17,7 @@
 #include "ops_kernel_builder/aicore_ops_kernel_builder.h"
 #include "graph/utils/tensor_utils.h"
 #include "ops_kernel_builder/task_builder/superkernel_task_builder.h"
+#include "ops_kernel_builder/task_builder/superkernel_args_format_utils.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "register/op_ext_gentask_registry.h"
@@ -282,4 +283,91 @@ TEST_F(SuperkernelTaskBuilderST, superkernel_plus_reuse_binary_not_tiling_sink_f
   }
   ge::GetThreadLocalContext().SetGraphOption(options_bk);
 }
+
+TEST_F(SuperkernelTaskBuilderST, get_arg_format_args_size_overflow) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  auto kernel_def = task_def.mutable_kernel();
+  kernel_def->set_block_dim(24);
+  kernel_def->set_args_size(0xFFFFFFFFU);
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_args_count(1);
+  kernel_context->set_args_format("{ws0}");
+
+  ge::OpDescPtr super_kernel_op_desc = std::make_shared<ge::OpDesc>("A", "A");
+
+  std::string super_kernel_args_format;
+  size_t args_size_total = 8U;
+
+  std::vector<domi::TaskDef> tasks;
+  tasks.emplace_back(task_def);
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+  const std::string subOpType = "SubKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+  nodeOpDescPtr->SetId(0U);
+
+  ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
+  ge::Node *subNode = node.get();
+  subNodeOpDescPtr->SetId(0U);
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  ge::Status status = fe::GetArgFormat(sub_nodes, args_size_total, sub_tasks, super_kernel_op_desc, tasks, node,
+                                       super_kernel_args_format);
+  EXPECT_EQ(status, ge::FAILED);
+}
+
+TEST_F(SuperkernelTaskBuilderST, gen_task_for_super_kernel_malloc_fail) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  auto kernel_def = task_def.mutable_kernel();
+  kernel_def->set_block_dim(24);
+  kernel_def->set_args_size(0xFFFFFFFFU);
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_args_count(1);
+  kernel_context->set_args_format("{ws0}");
+
+  std::vector<domi::TaskDef> tasks;
+  tasks.emplace_back(task_def);
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  (void)ge::AttrUtils::SetInt(nodeOpDescPtr, "_op_dfx_buffer_size", 16);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+  nodeOpDescPtr->SetId(0U);
+
+  ge::Node *subNode = node.get();
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  std::vector<domi::TaskDef> output_tasks;
+  ge::Status status = fe::GenTaskForSuperKernel(*node, sub_tasks, sub_nodes, output_tasks);
+  EXPECT_EQ(status, ge::FAILED);
+}
 }  // namespace fe
+
+#if defined(__SANITIZE_ADDRESS__)
+extern "C" const char *__asan_default_options() {
+  return "allocator_may_return_null=1:max_allocation_size_mb=256:detect_leaks=0";
+}
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+extern "C" const char *__asan_default_options() {
+  return "allocator_may_return_null=1:max_allocation_size_mb=256:detect_leaks=0";
+}
+#endif
+#endif

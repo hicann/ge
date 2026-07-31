@@ -1,4 +1,4 @@
-﻿# get\_attr\_tensor\_dtype
+# get\_attr\_tensor\_dtype
 
 ## 产品支持情况
 

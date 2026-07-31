@@ -7,6 +7,7 @@ GE-PY is the Python interface module of GraphEngine and provides Pythonic graph-
 ## Directory Structure
 
 ### graph module
+
 ```
 
 ├── __init__.py      # Module initialization file
@@ -18,6 +19,7 @@ GE-PY is the Python interface module of GraphEngine and provides Pythonic graph-
 ├── _attr.py         # Internal attribute value class definition
 └── _numeric.py      # Internal numerical conversion class definition
 ```
+
 Note: Underscore-prefixed are internal modules in Python style
 
 #### graph core class relationship diagram
@@ -93,6 +95,7 @@ graph TB
 **Function**: Main interface class for graph operations
 
 **Main Methods**:
+
 - `__init__(name)` - Initialize graph
 - `get_all_nodes()` - Get all nodes
 - `get_direct_node()` - Get directly connected nodes
@@ -111,12 +114,14 @@ graph TB
 - `remove_subgraph(name)` - Remove subgraph by name
 
 **Properties**:
+
 - `_handle` - Underlying C graph object handle
 - `_owns_handle` - Whether owns handle ownership
 - `_owner` - Handle owner
 - `_name` - Graph name
 
 **Relationships**:
+
 - Calls underlying C API through `graph_lib`
 - Manages multiple `Node` objects
 
@@ -127,6 +132,7 @@ graph TB
 **Function**: Graph node operation interface class
 
 **Main Methods**:
+
 - `get_attr(key)` - Get node attribute (can return string / number / list / `Tensor` and other Python values)
 - `set_attr(key, value)` - Set node attribute
 - `get_in_data_nodes_and_port_indexes(in_index)` - Get input node and port
@@ -147,6 +153,7 @@ graph TB
 - `type` - Node type (readonly property)
 
 **Relationships**:
+
 - Calls underlying C API through `graph_lib`
 - Associated with `Graph` object
 
@@ -157,6 +164,7 @@ graph TB
 **Function**: Defines supported data types
 
 **Relationships**:
+
 - Corresponds to C++ `ge::DataType`
 - Used in `Graph` and `Node` operations
 
@@ -167,6 +175,7 @@ graph TB
 **Function**: Defines tensor formats
 
 **Relationships**:
+
 - Corresponds to C++ `ge::Format`
 - Used for tensor shape and format description
 
@@ -177,6 +186,7 @@ graph TB
 **Function**: Defines Tensor data storage location
 
 **Relationships**:
+
 - Corresponds to C++ `ge::Placement`
 - Used for describing data storage location
 
@@ -188,6 +198,7 @@ graph TB
 
 - **External Dependencies**:
   - ctypes library
+
 ##### 6. Tensor Class
 
 **File Location**: `tensor.py`
@@ -195,6 +206,7 @@ graph TB
 **Function**: Tensor data class
 
 **Main Methods**:
+
 - `set_format(format)` - Set format
 - `get_format()` - Get format
 - `set_data_type(data_type)` - Set data type
@@ -207,11 +219,13 @@ graph TB
 - `to_host()` - Move current Tensor from Device to Host
 
 **Properties**:
+
 - `_handle` - Handle to underlying C node object
 - `_owns_handle` - Whether owns handle ownership
 - `_owner` - Handle owner
 
 **Relationships**:
+
 - Calls underlying C API through `graph_lib` and `esb_lib`
 - Associated with `Session` object
 
@@ -222,6 +236,7 @@ graph TB
 **Function**: Tensor metadata description class, used to describe shape, format, data type and origin shape/origin format.
 
 **Main Methods**:
+
 - `__init__(shape=None, format=Format.FORMAT_ND, data_type=DataType.DT_FLOAT)` - Create TensorDesc; `shape=None` represents scalar
 - `get_shape()` / `set_shape(shape)` - Get or set shape
 - `get_origin_shape()` / `set_origin_shape(shape)` - Get or set origin shape
@@ -230,6 +245,7 @@ graph TB
 - `get_data_type()` / `set_data_type(data_type)` - Get or set data type
 
 **Properties**:
+
 - `shape` - Tensor shape
 - `origin_shape` - Original tensor shape
 - `format` - Tensor storage format
@@ -237,6 +253,7 @@ graph TB
 - `data_type` - Tensor data type
 
 **Relationships**:
+
 - Calls underlying C API through `graph_lib`
 - Associated with `Tensor` and `Node` objects
 
@@ -247,15 +264,18 @@ graph TB
 **Function**: Tensor shape class, inherits from Python `list`, maintains ordinary list comparison, traversal and indexing behavior, while providing shape-related helper methods.
 
 **Main Methods**:
+
 - `get_shape_size()` - Get total shape element count; empty shape returns `0`, contains unknown dimension `-1` or `-2` returns `-1`
 - `is_unknown_shape()` - Determine if contains unknown dimension
 
 **Relationships**:
+
 - Used to describe tensor shape
 
 ### utils Module
 
 #### Directory Structure
+
 ```
 
 ├── utils/
@@ -272,15 +292,18 @@ graph TB
 **Function**: GE common utility interface that provides shape inference and node AICore support validation capabilities for `Graph` / `Node` objects.
 
 **Main Methods**:
+
 - `infer_shape(graph, input_shapes)` - Given input shapes, performs whole-graph shape inference on the input graph. This interface performs only shape inference and does not perform other graph optimizations, such as constant folding or dead edge elimination.
 - `check_node_support_on_aicore(node)` - Validate whether specified node supports execution on AICore
 
 **Relationships**:
+
 - Calls underlying C API through `ge_utils_lib`
 
 ### allocator Module
 
 #### Directory Structure
+
 ```
 allocator/
 ├── __init__.py           # Module initialization file
@@ -296,6 +319,7 @@ allocator/
 **Function**: Describes a segment of Device memory managed by allocator.
 
 **Main Properties**:
+
 - `addr` - Device-side address
 - `size` - Memory size (bytes)
 
@@ -306,26 +330,34 @@ allocator/
 **Function**: Memory allocator abstract base class
 
 **Main Methods**:
+
 - `malloc(size)` - Allocate a segment of Device memory, returns `MemBlock`
 - `free(block)` - Free `MemBlock` returned by `malloc()`
 
 **Relationships**:
+
 - Registered to specified stream by `Session.register_external_allocator()`, used when `Session.run_graph_with_stream_async()` uses this allocator
 
 ### ge_global Module
+
 #### Directory Structure
+
 ```
 
 ├── __init__.py           # Module initialization file
 └── geapi.py              # GeApi interface file
 ```
+
 #### Class Detailed Description
+
 ##### 1. Geapi Class
+
 **File Location**: `geapi.py`
 
 **Function**: Provides GE initialization and destruction
 
 **Main Methods**:
+
 - `ge_initialize(config)` - GE initialization
 - `ge_finalize()` - GE destruction
 
@@ -333,6 +365,7 @@ allocator/
 - Calls underlying C API through `geapi_lib`
 
 **Usage Example**:
+
 ```python
 from ge.ge_global import GeApi
 
@@ -345,19 +378,25 @@ ge_api.ge_finalize()
 ```
 
 ### offline_compile Module
+
 #### Directory Structure
+
 ```
 
 ├── __init__.py           # Module initialization file
 └── offline_compile.py    # Offline graph compilation interface file
 ```
+
 #### Interface Description
+
 ##### 1. offline_compile Module
+
 **File Location**: `offline_compile.py`
 
 **Function**: Offline graph compilation interface
 
 **Main Interfaces**:
+
 - `build_initialize(global_options)` - Model build initialization, used to apply for resources
 - `build_finalize()` - After system completes model build, releases resources through this interface
 - `build_model(graph, build_options)` - Compile input Graph into offline model adapted to AI processor, and save to memory buffer
@@ -366,14 +405,17 @@ ge_api.ge_finalize()
 - `bundle_save_model(output_file, model)` - Serialize offline model and save to specified file, this interface applicable to weight update scenario
 
 **Helper Types**:
+
 - `ModelBuffer` - Serialized model data in memory buffer, holds handle to underlying C model object
 - `GraphWithOptions` - Graph and compile options pair during bundle compilation
 
 **Relationships**:
+
 - Calls underlying C API through `offline_compile_lib`
 - Input depends on `Graph` object
 
 **Usage Example**:
+
 ```python
 from ge.offline_compile import build_initialize, build_finalize, build_model, save_model
 from ge.graph import Graph
@@ -393,12 +435,15 @@ build_finalize()
 ### Session Module
 
 #### Directory Structure
+
 ```
 
 ├── __init__.py           # Module initialization file
 └── session.py            # session interface file
 ```
+
 #### Class Detailed Description
+
 ##### 1. Session Class
 
 **File Location**: `session.py`
@@ -406,6 +451,7 @@ build_finalize()
 **Function**: Graph compilation execution operation interface class
 
 **Main Methods**:
+
 - `__init__()` - Initialize session
 - `add_graph(graph_id, add_graph, options)` - Add graph
 - `remove_graph(graph_id)` - Remove graph
@@ -415,12 +461,14 @@ build_finalize()
 - `run_graph_with_stream_async(graph_id, stream, inputs)` - Asynchronously execute graph on specified stream
 
 **Properties**:
+
 - `_handle` - Handle to underlying C node object
 - `_owns_handle` - Whether owns handle ownership
 
   **Relationships**:
 - Calls underlying C API through `session_lib`
   **Usage Example**:
+
 ```python
 from ge.session import Session
 from ge.ge_global import GeApi
@@ -449,10 +497,10 @@ output_tensor_list = session.run_graph(graph_id,input_tensor_list)
 GeApi.ge_finalize()
 ```
 
-
 ### passes Module
 
 #### Directory Structure
+
 ```
 
 ├── __init__.py      # Module initialization, export public API
@@ -464,6 +512,7 @@ GeApi.ge_finalize()
 ├── runtime.py       # Runtime artifact loading and fallback codegen
 └── _bridge.py       # Bridge runtime helper (Pass instance management, for C++ bridge .so callback)
 ```
+
 Note: Underscore-prefixed are internal modules in Python style
 Note: Objects such as `PassContext`, `MatchResult`, `Pattern`, and `PatternMatcherConfig` are provided by the native-backed implementation in `_ge_pass_native.so`; `base.py` / `pattern.py` handle external exports and a small amount of Python helper encapsulation.
 
@@ -493,6 +542,7 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **Function**: Define Pass execution stages
 
 **Enumeration Values**:
+
 - `BEFORE_INFER_SHAPE` - Execute before InferShape
 - `AFTER_INFER_SHAPE` - Execute after InferShape
 - `AFTER_BUILTIN_FUSION_PASS` - Execute after built-in fusion Pass
@@ -505,6 +555,7 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **Function**: Python-side Pass context view
 
 **Main Methods**:
+
 - `get_pass_name()` - Get Pass name
 - `set_pass_name(pass_name)` - Set Pass name
 - `get_option_value(option_key)` - Get compilation option
@@ -518,6 +569,7 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **Function**: Pattern matching result
 
 **Main Methods**:
+
 - `get_matched_nodes()` - Gets the node list hit by the current match
 - `get_captured_tensor(capture_index)` - Get specified capture's `NodeIo`
 - `get_pattern_graph_name()` - Get pattern graph name
@@ -530,6 +582,7 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **Function**: Python-side subgraph boundary description and subgraph replacement interface, used to support graph base class pass's "subgraph replacement" capability.
 
 **Main Classes/Methods**:
+
 - `SubgraphInput` - Describes a subgraph input. One input can correspond to multiple node inputs on the boundary.
   - `SubgraphInput() / SubgraphInput([(node, out_index), ...])` - Construct subgraph input
   - `add_input(node, out_index)` - Append an input anchor (`node` is `ge.graph.Node`, `out_index` is its output index)
@@ -549,11 +602,13 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **File Location**: `pattern.py`, `base.py`
 
 **Function**:
+
 - `Pattern` - Native-backed pattern wrapper that holds the pattern graph and capture information
 - `NodeIo` - Lightweight Python-side helper that describes the node output position
 - `PatternMatcherConfig` / `PatternMatcherConfigBuilder` - Pattern matching configuration object and builder
 
 **Main Interfaces**:
+
 - `Pattern(graph)` - Construct pattern from `ge.graph.Graph`
 - `Pattern.capture_tensor(source, index=0)` - Record capture tensor
 - `Pattern.get_captured_tensors()` - Get capture list
@@ -569,6 +624,7 @@ The run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but th
 **Function**: Provides graph base passes with a pre-rewrite fusion feasibility check.
 
 **Main Interfaces**:
+
 - `can_fuse(nodes: Iterable[Node]) -> FuseCheckResult` - Checks stream-label and cycle constraints for fusing a node set into one node
 - `report_fuse(nodes_before, nodes_after, context) -> None` - Reports a custom rewrite after graph modification and before old nodes are deleted
 - `FuseCheckResult.ok` - Whether fusion is supported
@@ -589,9 +645,11 @@ a deletion-only rewrite.
 **Function**: Base fusion Pass base class, directly manipulate graph structure
 
 **Main Methods**:
+
 - `run(graph, context)` - Execute Pass, receive graph object and `PassContext`, return `None` / `bool` / `int` status value
 
 **Relationships**:
+
 - Parent class of `PatternFusionPass` and `DecomposePass`
 - Registered to global Pass registry through `register_fusion_pass` decorator
 
@@ -602,20 +660,24 @@ a deletion-only rewrite.
 **Function**: Pattern matching-based fusion Pass base class
 
 **Main Methods**:
+
 - `patterns()` - Define matching patterns, return pattern list
 - `meet_requirements(match_result)` - Judge if match result satisfies fusion conditions, default returns True
 - `replacement(match_result)` - Generate replacement subgraph based on match result, must return `Graph`
 
 **Optional Constructor Parameters**:
+
 - `matcher_config` - `PatternMatcherConfig`, used to control matcher options such as constant value matching and IR attribute matching
 
 **Design Constraints**:
+
 - **User-defined `run()` methods are not supported**: `PatternFusionPass` reuses the C++ `Run()` implementation to execute the standard pattern-match-replacement flow. The Python side only needs to implement the three hooks: `patterns()`, `meet_requirements()`, and `replacement()`.
 - **If a subclass overrides `run()`, `TypeError` is thrown at class definition time**: This avoids making users think that `run()` is called in the `PatternFusionPass` path.
 - **Returning `None` in `replacement()` to skip is not supported**: To abandon the current match, return `False` in `meet_requirements()`.
 - **For scenarios that require fully custom `run()` logic**: Directly use the `FusionBasePass` base class.
 
 **Relationships**:
+
 - Inherits from `FusionBasePass`
 - Registered through `register_fusion_pass` decorator
 
@@ -626,19 +688,23 @@ a deletion-only rewrite.
 **Function**: Operator decomposition Pass base class
 
 **Class Attributes**:
+
 - `op_types` - Operator types list needing decomposition
 
 **Main Methods**:
+
 - `meet_requirements(node)` - Judge if node satisfies decomposition conditions, default returns True
 - `replacement(node)` - Decompose node into multiple sub-nodes, must return `Graph`
 
 **Design Constraints**:
+
 - **User-defined `run()` methods are not supported**: `DecomposePass` reuses the C++ `Run()` implementation to execute the standard node-filter-replacement flow. The Python side only needs to implement the two hooks: `meet_requirements()` and `replacement()`.
 - **If a subclass overrides `run()`, `TypeError` is thrown at class definition time**: This avoids making users think that `run()` is called in the `DecomposePass` path.
 - **Returning `None` in `replacement()` to skip is not supported**: To abandon the current node, return `False` in `meet_requirements()`.
 - **`op_types` is declared by `register_decompose_pass(..., op_types=[...])` and fixed in the descriptor**: The Python base class no longer maintains another set of constructor parameters.
 
 **Relationships**:
+
 - Inherits from `FusionBasePass`
 - Registered through `register_decompose_pass` decorator
 
@@ -649,6 +715,7 @@ a deletion-only rewrite.
 **Function**: Normalized Python Pass descriptor
 
 **Properties**:
+
 - `descriptor_key` - Descriptor unique key (format: `module_name:class_name:Pass_name`)
 - `pass_name` - Pass name
 - `module_name` - Module name
@@ -661,15 +728,18 @@ a deletion-only rewrite.
 #### Registration and Discovery
 
 **Decorators**:
+
 - `register_fusion_pass(name, stage, kind=None)` - Register FusionBasePass or PatternFusionPass
 - `register_decompose_pass(name, stage, op_types)` - Register DecomposePass
 
 **Discovery Mechanism**:
+
 - Specify Pass file or directory path through environment variable `ASCEND_GE_PY_PASS_PATH`
 - `bootstrap.py` responsible for scanning path and dynamically loading Python modules
 - Supports single `.py` file and Python package containing `__init__.py`
 
 **Usage Example**:
+
 ```python
 from ge.passes import (
     FusionBasePass, PatternFusionPass, DecomposePass,
@@ -708,6 +778,7 @@ class MyDecomposePass(DecomposePass):
 ```
 
 Loading custom Pass:
+
 ```bash
 export ASCEND_GE_PY_PASS_PATH=/path/to/my_pass.py:/path/to/pass_dir/
 ```
@@ -717,6 +788,7 @@ For more design details please refer to [Python Pass Design Document](ge_python_
 ### custom_op Module
 
 #### Directory Structure
+
 ```
 custom_op/
 ├── __init__.py              # Module initialization, exports public API
@@ -729,6 +801,7 @@ custom_op/
 ├── _ge_custom_op_native.pyi # Native module type stub
 └── native_bindings/         # pybind11 binding implementation for _ge_custom_op_native.so
 ```
+
 Note: Files prefixed with underscores are internal modules in the Python style.
 Note: `EagerOpExecutionContext` is provided by `_ge_custom_op_native.so` as a native-backed implementation. Runtime data structures such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution are provided by the `ge.runtime` module.
 
@@ -757,6 +830,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 **Function**: Public base class of the Python custom operator capability interface.
 
 **Relationships**:
+
 - Parent class of `EagerExecuteOp`
 - Inheriting only `BaseCustomOp` cannot be registered as a valid Python custom operator implementation
 
@@ -767,9 +841,11 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 **Function**: Python Eager execution custom operator base class.
 
 **Main methods**:
+
 - `execute(ctx)` - Execution entry. `ctx` is `EagerOpExecutionContext`
 
 **Design constraints**:
+
 - V1 currently supports only the `execute(self, ctx)` signature.
 - `ctx` and the borrowed views it returns can be used only within the current `execute` callback.
 - A normal return indicates successful execution. Exceptions should be raised on failure.
@@ -781,6 +857,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 **Function**: Python-side custom operator execution context view.
 
 **Main methods**:
+
 - `get_input_tensor(index)` - Obtains an input `Tensor` by input index
 - `get_input_num()` - Obtains the number of runtime input tensors of the current compute node
 - `get_required_input_tensor(ir_index)` - Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition
@@ -799,6 +876,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 **Function**: Standardized Python custom operator implementation descriptor.
 
 **Attributes**:
+
 - `descriptor_key` - Descriptor unique key (format: `module_name:class_name:operator_type`)
 - `op_type` - Custom operator type
 - `module_name` - Associated module name
@@ -809,14 +887,17 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 #### Registration and Discovery
 
 **Decorators**:
+
 - `register_op_impl(op_type)` - Registers an `EagerExecuteOp` implementation class
 
 **Discovery mechanism**:
+
 - Reuses the environment variable `ASCEND_CUSTOM_OPP_PATH` to specify Python custom op file or directory paths
 - `bootstrap.py` scans paths and dynamically loads Python modules
 - Supports single `.py` files, `.py` files in plain directories, and Python packages containing `__init__.py`
 
 **Usage sample**:
+
 ```python
 from ge.custom_op import EagerExecuteOp, register_op_impl
 
@@ -831,6 +912,7 @@ class AddPythonCustomOp(EagerExecuteOp):
 ```
 
 Load Python custom operators:
+
 ```bash
 export ASCEND_CUSTOM_OPP_PATH=/path/to/my_custom_op.py:/path/to/custom_op_dir/
 ```

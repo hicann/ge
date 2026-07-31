@@ -1,4 +1,4 @@
-﻿# GraphPp类
+# GraphPp类
 
 - [GraphPp构造函数和析构函数](graphpp-ctor-dtor.md)
 - [SetCompileConfig（GraphPp类）](setcompileconfig-graphpp-class.md)

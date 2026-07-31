@@ -25,7 +25,7 @@ Precise boundary:
 ## Constraint 3: Scenarios to consider for static graph memory new features
 
 | Scenario | Code marker/basis | Impact on reuse |
-|------|-------------|-------------|
+| ------ | ------------- | ------------- |
 | **Continuous memory** | `continuous_block_` (`block_mem_assigner.h`), `ContinuousMemMng` (`continuous_mem.cc`) | Supports memory merging for continuous input nodes; continuous memory in different batches can merge and reuse |
 | **Atomic centralized zero-clear** | `atomic_addr_clean_id_` (`block_mem_assigner.h`) | Memory blocks needing atomic zero-clear cannot be reused by other nodes; if node has no related attribute, skip zero-clear |
 | **Zero copy** | `is_zero_copy_` (`block_mem_assigner.h`), `IsNodeAndPeerNodeTaskSupportZeroCopy` (`block_mem_assigner.cc`) | Zero copy blocks can be reused across nodes (`IsRealSizeReuseBlock`); zero copy memory cannot merge (multiple user input addresses may be discontinuous) |
@@ -61,6 +61,7 @@ Precise boundary:
 # Dynamic Memory Reuse
 
 **Code Location:**
+
 - v2 layer: `runtime/v2/kernel/memory/allocator/` (ScalableAllocator, MemoryPool)
 - v1 layer: `runtime/v1/graph/manager/active_memory_allocator.h` (ActiveMemoryAllocator, ExpandableActiveMemoryAllocator, PhysicalMemoryAllocator)
 - Bridge layer: `runtime/v2/kernel/memory/device/device_allocator.h` (DeviceAllocator)
@@ -76,6 +77,7 @@ Precise boundary:
 
 - **Thread safety mechanism:** Uses `std::recursive_mutex` to protect shared resources
 - **New code requirements:** Must lock when accessing shared resources, follow existing lock usage patterns
+
 ---
 
 # Memory Management
@@ -98,3 +100,71 @@ Precise boundary:
 - **Actual call location:** `runtime/v1/graph/manager/active_memory_allocator.cc`
 - **Fallback path:** When `rtReserveMemAddress` fails, mark as not supporting virtual address reservation, fallback to physical address allocation mode. — `runtime/v1/graph/manager/active_memory_allocator.cc` ("Maybe not support rtReserveMemAddress.")
 - **Requirement:** Need to ensure business flow is normal, no ERROR logs
+
+## Constraint 4: caching_mem_allocator process exit timing
+
+- **Code location:** `caching_mem_allocator.h` — `static std::vector<CachingMemAllocator *> all_caching_mem_allocators_`
+- **Mechanism:** Global variable stores all allocator instance pointers, GE finalize actively calls all allocators' finalize method
+- **Reason:** When allocator destructs, if memory is still unreleased, it will call rts interfaces to release, but at this point rts so may have been unloaded, causing core dump
+- **Finalize entry:** `rts_caching_mem_allocator.cc` traverses `all_caching_mem_allocators_` and finalizes each one
+
+## Constraint 5: Singleton memory pool must also be destructed when model is unloaded or session is destructed
+
+For example, `SessionMemAllocator<ExpandableActiveMemoryAllocator>` is a singleton that internally stores objects based on `session id`. When user creates a new session, or calls interfaces starting with `aclmdl` for offline inference, a new `session id` will be generated, which also creates new objects. Therefore, `SessionMemAllocator<ExpandableActiveMemoryAllocator>::Instance().RemoveAllocator` must be called at the following two locations to release object memory. Otherwise, in scenarios where user creates multiple sessions or repeatedly calls interfaces starting with `aclmdl` for offline inference, unused objects will occupy extra host memory or device memory resources, causing "memory leak" phenomenon.
+
+- GeExecutor::UnloadModel — `aclmdl` offline inference scenario model unloading
+- InnerSession::Finalize — InnerSession destruction
+
+## CachingMemAllocator Complete Relationship Diagram
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  CachingMemAllocator                                         │
+│  runtime/v2/kernel/memory/caching_mem_allocator.h            │
+│  - all_caching_mem_allocators_ (global allocator registry)    │
+│  - rts_mem_allocator_ (RtsFirstLevelPool)                    │
+│  - memory_pool_ → ScalableAllocator                          │
+│  - mutex_ (static, protects allocator creation/destruction)   │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌── RtsCachingMemAllocator                                  │
+│  │   runtime/v2/kernel/memory/rts_caching_mem_allocator.h    │
+│  │   - device_id_to_allocators_ (device → allocator mapping) │
+│  │   - Responsible for finalize flow, traverses              │
+│  │     all_caching_mem_allocators_                           │
+│  │                                                           │
+│  └── ScalableAllocator (through memory_pool_ pointer)        │
+│       runtime/v2/kernel/memory/allocator/scalable_allocator  │
+│       - Lock-free design, single-threaded calling            │
+│       - Bridges to v1 allocator through DeviceAllocator      │
+│                                                              │
+│       └── DeviceAllocator                                    │
+│            runtime/v2/kernel/memory/device/device_allocator   │
+│            - active_memory_allocator_ (Expandable...Imp, v1)  │
+│                                                              │
+│            └── PhysicalMemoryAllocator (v1)                  │
+│                 runtime/v1/graph/manager/active_mem...h      │
+│                 - recursive_mutex protection                 │
+│                 - Ultimately calls rtMalloc / rtFree         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+# Compile-time Memory Layout Conflict
+
+**Code Location:** `compiler/graph/optimize/mem_layout_conflict_optimize/`
+
+## Debugging Log Constraints
+
+- Conflict found: `[MemConflict][Conflict] type: [%s, %s], anchor: [%s, %s], will insert %s %s`
+- Insert Identity: `[MemConflict][INSERT][NODE]`
+- Logs use `[MemConflict]` keyword, if only printed once per graph, use `LOGI`
+
+# Cross-module Constraint Summary
+
+The following constraints span multiple modules and must be considered synchronously when modifying:
+
+1. **Address refresh capability (Module 1 + Module 2):** The conflict detection in mem_layout_conflict_optimize determines the "not supporting address refresh" operator list, which must remain consistent with the handling logic in static memory reuse.
+
+2. **v1/v2 allocator boundary (Module 3 + Module 4):** v2's ScalableAllocator bridges to v1's PhysicalMemoryAllocator through DeviceAllocator. Modifying any layer's interface requires considering the impact on the other layer.
+
+3. **caching_mem_allocator lifecycle (Module 3 + Module 4):** CachingMemAllocator's finalize flow depends on the `all_caching_mem_allocators_` global registry, new allocator types must be correctly registered in this table.

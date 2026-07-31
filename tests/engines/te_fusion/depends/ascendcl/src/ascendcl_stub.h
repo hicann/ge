@@ -144,6 +144,7 @@ class AclRuntimeStub {
   virtual aclError aclrtSetOpExecuteTimeOut(uint32_t timeout);
   virtual aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout);
   virtual aclError aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout);
+  virtual aclError aclrtGetStreamAvailableNum(uint32_t *streamCount);
   virtual aclError aclrtSetStreamResLimit(aclrtStream stream, aclrtDevResLimitType type, uint32_t value);
   virtual aclError aclrtUseStreamResInCurrentThread(aclrtStream stream);
   virtual aclError aclrtUnuseStreamResInCurrentThread(aclrtStream stream);

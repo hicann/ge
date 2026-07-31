@@ -1,4 +1,4 @@
-﻿# Init（MetaMultiFunc类）
+# Init（MetaMultiFunc类）
 
 ## 产品支持情况
 

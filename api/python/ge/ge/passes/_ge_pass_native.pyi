@@ -30,6 +30,7 @@ __all__: list[str] = [
     "SubgraphRewriter",
     "can_fuse",
     "report_fuse",
+    "infer_shape",
 ]
 
 
@@ -44,6 +45,14 @@ def report_fuse(
     context: PassContext,
 ) -> None:
     """Report a completed graph fusion rewrite."""
+    ...
+
+
+def infer_shape(
+    replacement: Graph,
+    source: typing.Union[MatchResult, Node, SubgraphBoundary],
+) -> None:
+    """Infer shape, data type, and format for a replacement graph from a matched source."""
     ...
 
 

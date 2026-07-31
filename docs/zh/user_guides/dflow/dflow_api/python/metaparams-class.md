@@ -1,4 +1,4 @@
-﻿﻿# MetaParams类
+# MetaParams类
 
 - [PyMetaParams构造函数](pymetaparams-ctor.md)
 - [get\_name](get_name.md)

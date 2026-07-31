@@ -1,4 +1,4 @@
-﻿# set\_inputs\_align\_attrs
+# set\_inputs\_align\_attrs
 
 ## 产品支持情况
 

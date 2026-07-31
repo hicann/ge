@@ -25,6 +25,7 @@
 #include "common/python_runtime/python_bridge_loader_utils.h"
 #include "es_ge_test_ops.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/operator_factory_impl.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/node_adapter.h"
 #include "nlohmann/json.hpp"
@@ -255,6 +256,29 @@ void EnsureSharedPybindPassFile() {
   });
 }
 
+void AppendPatternReplacementCode(std::ostringstream &pass_code) {
+  pass_code << "    def replacement(self, match_result):\n"
+            << "        captured = match_result.get_captured_tensor(0)\n"
+            << "        Path(MARKER_FILE).write_text(\n"
+            << "            f\"{match_result.get_pattern_graph_name()}|{captured.node.name}:{captured.index}\",\n"
+            << "            encoding='utf-8'\n"
+            << "        )\n"
+            << "        replacement_builder = GraphBuilder('add_zero_replacement')\n"
+            << "        passthrough = replacement_builder.create_input(0, shape=[1])\n"
+            << "        replacement_builder.set_graph_output(passthrough, 0)\n"
+            << "        replacement_graph = replacement_builder.build_and_reset()\n"
+            << "        replacement_data = next(\n"
+            << "            node for node in replacement_graph.get_direct_nodes() if node.type == 'Data'\n"
+            << "        )\n"
+            << "        assert replacement_data.get_output_desc(0).get_shape() == [1]\n"
+            << "        infer_shape(replacement_graph, match_result)\n"
+            << "        assert replacement_data.get_output_desc(0).get_shape() == (\n"
+            << "            captured.node.get_output_desc(captured.index).get_shape()\n"
+            << "        )\n"
+            << "        assert replacement_data.get_output_desc(0).get_shape() != [1]\n"
+            << "        return create_replacement(replacement_graph)\n";
+}
+
 void EnsureSharedPybindPatternPassFile() {
   static std::once_flag once;
   std::call_once(once, []() {
@@ -268,6 +292,7 @@ void EnsureSharedPybindPatternPassFile() {
               << "    PatternMatcherConfigBuilder,\n"
               << "    create_pattern,\n"
               << "    create_replacement,\n"
+              << "    infer_shape,\n"
               << "    register_fusion_pass,\n"
               << ")\n\n"
               << "MARKER_FILE = r'" << GetSharedPybindPatternMarkerFilePath() << "'\n\n"
@@ -287,17 +312,8 @@ void EnsureSharedPybindPatternPassFile() {
               << "        pattern.capture_tensor(data)\n"
               << "        return [pattern]\n\n"
               << "    def meet_requirements(self, match_result):\n"
-              << "        return True\n\n"
-              << "    def replacement(self, match_result):\n"
-              << "        captured = match_result.get_captured_tensor(0)\n"
-              << "        Path(MARKER_FILE).write_text(\n"
-              << "            f\"{match_result.get_pattern_graph_name()}|{captured.node.name}:{captured.index}\",\n"
-              << "            encoding='utf-8'\n"
-              << "        )\n"
-              << "        replacement_builder = GraphBuilder('add_zero_replacement')\n"
-              << "        passthrough = replacement_builder.create_input(0)\n"
-              << "        replacement_builder.set_graph_output(passthrough, 0)\n"
-              << "        return create_replacement(replacement_builder.build_and_reset())\n";
+              << "        return True\n\n";
+    AppendPatternReplacementCode(pass_code);
     WriteFile(GetSharedPybindPatternPassFilePath(), pass_code.str());
   });
 }
@@ -352,6 +368,7 @@ void EnsureSharedPybindDecomposePassFile() {
               << "    DecomposePass,\n"
               << "    PassStage,\n"
               << "    create_replacement,\n"
+              << "    infer_shape,\n"
               << "    register_decompose_pass,\n"
               << ")\n\n"
               << "MARKER_FILE = r'" << GetSharedPybindDecomposeMarkerFilePath() << "'\n\n"
@@ -363,10 +380,22 @@ void EnsureSharedPybindDecomposePassFile() {
               << "        return node.type == 'Add'\n\n"
               << "    def replacement(self, node):\n"
               << "        replacement_builder = GraphBuilder('decompose_add_replacement')\n"
-              << "        passthrough = replacement_builder.create_input(0)\n"
-              << "        replacement_builder.create_input(1)\n"
+              << "        passthrough = replacement_builder.create_input(0, shape=[1])\n"
+              << "        replacement_builder.create_input(1, shape=[1])\n"
               << "        replacement_builder.set_graph_output(passthrough, 0)\n"
-              << "        return create_replacement(replacement_builder.build_and_reset())\n";
+              << "        replacement_graph = replacement_builder.build_and_reset()\n"
+              << "        replacement_data = sorted(\n"
+              << "            (item for item in replacement_graph.get_direct_nodes() if item.type == 'Data'),\n"
+              << "            key=lambda item: item.name,\n"
+              << "        )\n"
+              << "        assert [item.get_output_desc(0).get_shape() for item in replacement_data] == [[1], [1]]\n"
+              << "        infer_shape(replacement_graph, node)\n"
+              << "        assert [item.get_output_desc(0).get_shape() for item in replacement_data] == [\n"
+              << "            node.get_input_desc(0).get_shape(),\n"
+              << "            node.get_input_desc(1).get_shape(),\n"
+              << "        ]\n"
+              << "        assert [item.get_output_desc(0).get_shape() for item in replacement_data] != [[1], [1]]\n"
+              << "        return create_replacement(replacement_graph)\n";
     WriteFile(GetSharedPybindDecomposePassFilePath(), pass_code.str());
   });
 }
@@ -806,6 +835,10 @@ using namespace ge::es;
 class UtestFusionPassExecutor : public testing::Test {
  public:
   void SetUp() override {
+    const auto no_op_infer = [](Operator &) { return GRAPH_SUCCESS; };
+    data_infer_registered_ = OperatorFactoryImpl::RegisterInferShapeFunc("Data", no_op_infer) == GRAPH_SUCCESS;
+    netoutput_infer_registered_ =
+        OperatorFactoryImpl::RegisterInferShapeFunc("NetOutput", no_op_infer) == GRAPH_SUCCESS;
     PreparePythonPathForSt();
     (void)unsetenv(kEnvPythonPassPath);
     PassRegistry::GetInstance().name_2_fusion_pass_regs_.clear();
@@ -821,6 +854,14 @@ class UtestFusionPassExecutor : public testing::Test {
     graph_options_bak_ = ge::GetThreadLocalContext().GetAllGraphOptions();
   }
   void TearDown() override {
+    if (OperatorFactoryImpl::operator_infershape_funcs_ != nullptr) {
+      if (data_infer_registered_) {
+        (void)OperatorFactoryImpl::operator_infershape_funcs_->erase("Data");
+      }
+      if (netoutput_infer_registered_) {
+        (void)OperatorFactoryImpl::operator_infershape_funcs_->erase("NetOutput");
+      }
+    }
     (void)unsetenv(kEnvPythonPassPath);
     PassRegistry::GetInstance().name_2_fusion_pass_regs_.clear();
     PassRegistry::GetInstance().descriptor_key_2_python_pass_descs_.clear();
@@ -875,6 +916,8 @@ class UtestFusionPassExecutor : public testing::Test {
   std::map<std::string, std::string> session_options_bak_;
   std::string python_path_bak_;
   bool has_python_path_bak_{false};
+  bool data_infer_registered_{false};
+  bool netoutput_infer_registered_{false};
 };
 /**
  * single node match

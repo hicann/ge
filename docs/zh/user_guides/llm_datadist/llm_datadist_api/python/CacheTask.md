@@ -1,4 +1,4 @@
-﻿# CacheTask
+# CacheTask
 
 - [CacheTask-constructor](CacheTask-constructor.md)
 - [synchronize](synchronize.md)

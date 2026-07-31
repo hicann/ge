@@ -1,4 +1,4 @@
-﻿# copy\_cache
+# copy\_cache
 
 ## 产品支持情况
 

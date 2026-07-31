@@ -1,5 +1,6 @@
 ﻿# GE图引擎接口
 
+- [头文件和库文件说明](header_and_library_files_description.md)
 - [C++语言接口](cpp/cpp_language_interface.md)
   - [aclgrph接口](cpp/ge/aclgrph_interface.md)
     - [aclgrphBuildInitialize](cpp/ge/aclgrphBuildInitialize.md)
@@ -1113,6 +1114,7 @@
     - [get\_registered\_passes](python/ge/passes/get_registered_passes.md)
     - [get\_registered\_pass\_dicts](python/ge/passes/get_registered_pass_dicts.md)
     - [get\_registered\_pass\_by\_descriptor\_key](python/ge/passes/get_registered_pass_by_descriptor_key.md)
+    - [infer_shape](python/ge/passes/infer_shape.md)
     - [NodeIo](python/ge/passes/NodeIo.md)
     - [pattern](python/ge/passes/pattern.md)
     - [register\_decompose\_pass](python/ge/passes/register_decompose_pass.md)

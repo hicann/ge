@@ -1,4 +1,4 @@
-﻿# GetVal\(bool &value\)
+# GetVal\(bool &value\)
 
 ## 产品支持情况
 

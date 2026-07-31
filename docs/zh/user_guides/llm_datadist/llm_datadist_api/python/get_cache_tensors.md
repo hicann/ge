@@ -1,4 +1,4 @@
-﻿# get\_cache\_tensors
+# get\_cache\_tensors
 
 ## 产品支持情况
 

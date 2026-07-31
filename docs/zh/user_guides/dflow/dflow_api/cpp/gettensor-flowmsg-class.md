@@ -1,4 +1,4 @@
-﻿# GetTensor（FlowMsg类）
+# GetTensor（FlowMsg类）
 
 ## 产品支持情况
 

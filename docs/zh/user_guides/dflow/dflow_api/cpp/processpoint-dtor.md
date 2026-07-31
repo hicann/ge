@@ -1,4 +1,4 @@
-﻿# ProcessPoint析构函数
+# ProcessPoint析构函数
 
 ## 产品支持情况
 

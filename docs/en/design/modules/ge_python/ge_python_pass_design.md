@@ -4,69 +4,69 @@
 
 GE currently has two types of basic capabilities directly related to this requirement:
 
-- The existing custom pass loading chain already exists, GE will discover and `dlopen` pass libraries through `opp/vendors/*/custom_fusion_passes/*.so`.
-- Python side already has `ge.es` graph construction capability and `ge.graph` basic graph interface.
+- The existing custom pass loading chain already exists. GE discovers and `dlopen`-s pass libraries through `opp/vendors/*/custom_fusion_passes/*.so`.
+- The Python side already has `ge.es` graph construction capability and `ge.graph` basic graph interfaces.
 
-The goal of this design is to introduce formal Python pass development capability without overturning the existing GE pass execution framework, so that users can both quickly develop and debug locally and distribute passes as standard Python packages to teams.
+The goal of this design is to introduce formal Python pass development capability without overturning the existing GE pass execution framework, so that users can both quickly develop and validate locally and distribute passes as standard Python packages to teams.
 
 ## 2. Goals and Scope
 
 ### 2.1 Goals
 
-- Support users to develop GE passes using Python.
-- Reuse existing GE pass execution chain, do not add a second pass scheduling framework.
-- Reuse existing `ge.es` Python graph construction capability, do not redesign Python ES.
-- First support environment variable-driven development mode integration, then supplement release mode auto-discovery.
+- Support users in developing GE passes using Python.
+- Reuse the existing GE pass execution chain without adding a second pass scheduling framework.
+- Reuse the existing `ge.es` Python graph construction capability without redesigning Python ES.
+- First support environment variable-driven development mode integration, then supplement release mode auto-discovery later.
 - Reserve extension points for subsequent Python ATC entry to reuse the same pass registration and discovery protocol.
 
 ### 2.2 V1 Scope
 
 - Support three types of passes:
-  - `FusionBasePass`
-  - `PatternFusionPass`
-  - `DecomposePass`
+- `FusionBasePass`
+- `PatternFusionPass`
+- `DecomposePass`
 
 - The bring-up and independent bridge separation phase still uses `FusionBasePass` regression as the minimum verification chain; after formal wrapper implementation, the first complete acceptance target shifts to `PatternFusionPass`, with `DecomposePass` added afterwards, but still within V1 scope of this design document.
 
-- Current phase discovery mechanism is first converged to:
-  - Environment variable `ASCEND_GE_PY_PASS_PATH`
+- The current phase discovery mechanism is first converged to:
+- Environment variable `ASCEND_GE_PY_PASS_PATH`
 
 - Subsequent phase will add:
-  - `entry_points(group="ge.passes.plugins")`
+- `entry_points(group="ge.passes.plugins")`
 
-- Current code has converged to the environment variable main path, with `entry_points` as subsequent phase capability supplement.
+- Current code has already converged to the environment variable main path, with `entry_points` as a subsequent phase capability supplement.
 
-- Complete minimum graph interface capabilities required for Python pass writing.
-- Current repository directly outputs `ge_py` main wheel and multi-version native sub-wheels.
-- Existing 9 samples in `examples/fusion_pass` are planned to provide Python comparison versions.
-- `REGISTER_CUSTOM_PASS` needs to be supported, but not as the first main chain target, placed in subsequent extension phase based on the same bridge / registry / session mechanism reuse implementation.
+- Complete the minimum graph interface capabilities required for Python pass authoring.
+- The current repository directly produces the `ge_py` main wheel and multi-version native sub-wheels.
+- The existing 9 samples in `examples/fusion_pass` are planned to have Python equivalent versions provided.
+- `REGISTER_CUSTOM_PASS` needs to be supported, but is not a first-batch main chain target; it is placed in the subsequent extension phase based on the same bridge / registry / session mechanism reuse.
 - Current priority rectification items:
   - Discovery mechanism first converged to environment variable `ASCEND_GE_PY_PASS_PATH`
   - `entry_points` to be added later
-  - `python_pass_bootstrap_test.py` migrated to `tests/ge/ut/ge/graph/pyge_tests/` and connected to current frontend script
-  - New file year uniformly uses `2026`, existing old files do not batch change year
-  - First priority is to target "formal sample of `FusionBasePass` end-to-end passing via environment variable", all capabilities involved in this goal must be formally completed, capabilities not involved can be deferred
-  - After phase 2 closure, `PassContext` / `MatchResult` / `Pattern` / `PatternMatcherConfig` formal Python form uniformly directly depends on `_ge_pass_native.so`, no longer retaining bring-up phase compatibility shim
+  - `python_pass_bootstrap_test.py` migrated to `tests/ge/ut/ge/graph/pyge_tests/` and connected to the current frontend script
+  - New file year uniformly uses `2026`; existing old files do not have their year batch-changed
+  - First priority targets "`FusionBasePass` formal sample passing end-to-end through environment variable"; all capabilities involved in this goal must be formally completed; capabilities not involved can be deferred
+  - After Phase 2 closure, the formal Python form of `PassContext` / `MatchResult` / `Pattern` / `PatternMatcherConfig` uniformly depends directly on `_ge_pass_native.so`, no longer retaining the bring-up phase compatibility shim
 
 ### 2.3 Non-Goals
 
 - V1 does not force users to package passes into whl.
-- V1 first batch does not take legacy `REGISTER_CUSTOM_PASS` system as the main Python implementation object, prioritizing coverage of `PassRegistry` system's three pass types; but architecture and documentation need to reserve subsequent integration capability.
+- V1 first batch does not take the legacy `REGISTER_CUSTOM_PASS` system as the main Python implementation target; it prioritizes coverage of the three pass types in the `PassRegistry` system. However, the architecture and documentation need to reserve subsequent integration capability.
 - V1 does not create a second Python-only pass executor.
 
 ## 3. User Experience Design
 
 ### 3.1 Development Mode
 
-After users install the `ge_py` provided by CANN, they only need to write ordinary `.py` files or ordinary Python packages and tell GE/ATC via environment variables:
+After users install the `ge_py` provided by CANN, they only need to write ordinary `.py` files or ordinary Python packages, and tell GE/ATC through environment variables:
 
 - `ASCEND_GE_PY_PASS_PATH=/abs/path1:/abs/path2`
 
-The current phase focuses on stabilizing this path first, not requiring users to write their own wheel packaging logic, nor requiring users to understand `entry_points`.
+The current phase focuses on stabilizing this path first. It does not require users to write their own wheel packaging logic, nor does it require users to understand `entry_points`.
 
 ### 3.2 Release Mode (Subsequent Phase)
 
-When users need team sharing, version freezing, and auto-discovery, they can make passes into independent Python packages and declare:
+When users need team sharing, version freezing, and auto-discovery, they can package passes into independent Python packages and declare:
 
 - `entry_points = {"ge.passes.plugins": [...]}`
 
@@ -78,116 +78,120 @@ The current phase environment variable is not a fallback, but the main path:
 
 - `ASCEND_GE_PY_PASS_PATH=/abs/path1:/abs/path2`
 
-`entry_points` auto-discovery to be added later.
+`entry_points` auto-discovery will be added later.
 
 ## 4. Overall Architecture
 
 ### 4.1 Architecture Principles
 
-- GE collects pass plugin loading through a unified upper-level loader during initialization phase.
+- GE collects pass plugin loading through a unified upper-level loader during the initialization phase.
 - Legacy custom passes continue to use the existing `.so + dlopen` mechanism.
-- From long-term productization and extensibility perspective, Python pass bridge should be designed as "independent internal bridge `.so`" from the beginning, rather than directly compiled into `ge_compiler.so`.
-- This still does not adopt the "bridge `.so` discovered and loaded by `custom_fusion_passes` as a pass plugin" approach; the recommendation is a private bridge `.so` explicitly loaded by GE internal loader.
-- The design goal is to keep `ge_compiler.so` as Python ABI neutral as possible, only retaining stable pass runtime, registry and adapter protocols; all logic directly depending on `Python.h` / `pybind11` / `libpython` should be converged into replaceable independent bridge `.so`.
+- From a long-term productization and extensibility perspective, the Python pass bridge should be designed as an "independent internal bridge `.so`" from the beginning, rather than being directly compiled into `ge_compiler.so`.
+- This still does not adopt the "bridge `.so` discovered and loaded as a pass plugin by `custom_fusion_passes`" approach; the recommendation is a private bridge `.so` explicitly loaded by the GE internal loader.
+- The design goal is to keep `ge_compiler.so` as Python ABI neutral as possible, only retaining the stable pass runtime, registry, and adapter protocols; all logic directly depending on `Python.h` / `pybind11` / `libpython` should be converged into a replaceable independent bridge `.so`.
 - This way, whether going through pre-compilation or fallback codegen, the replacement target is the independent bridge `.so`, not the `ge_compiler.so` in the run package.
-- Python side uniformly manages plugin discovery, module import and registry through `ge.passes.bootstrap`.
-- C++ side only cares about "getting executable pass descriptor and registering to PassRegistry", not about where user Python files specifically are.
+- The Python side uniformly manages plugin discovery, module import, and the registry through `ge.passes.bootstrap`.
+- The C++ side only cares about "getting executable pass descriptors and registering them to PassRegistry", not about where user Python files specifically are.
 
 ### 4.2 Core Components
 
 - `PassPluginLoader`
-  - Unified pass plugin loading entry at compiler layer
-  - Internally uniformly calls legacy `CustomPassHelper::Load()` and Python pass registration logic
-  - Maintains "one call entry closure", while not putting Python logic back into `graph_metadef/register`
+- Unified pass plugin loading entry at the compiler layer
+- Internally uniformly calls legacy `CustomPassHelper::Load()` and Python pass registration logic
+- Maintains "one call entry closure", while not putting Python logic back into `graph_metadef/register`
 
 - `ge.passes.bootstrap`
-  - Python-side unified discovery entry
-  - Currently prioritizes environment variable discovery, with `entry_points` to be added later
+- Python-side unified discovery entry
+- Currently prioritizes environment variable discovery, with `entry_points` to be added later
 
 - `ge.passes.registry`
-  - Python-side registry
-  - Responsible for storing pass metadata, class objects, stages, types, and additional parameters
+- Python-side registry
+- Responsible for storing pass metadata, class objects, stages, types, and additional parameters
 
 - `ge.passes._bridge`
-  - Protocol layer between Python and C++ bridge
-  - Responsible for normalizing Python registry objects into C++ consumable data structures
+- Protocol layer between Python and the C++ bridge
+- Responsible for normalizing Python registry objects into C++ consumable data structures
+
+- `ge.passes.runtime`
+- Python-side native artifact runtime management entry
+- Responsible for prebuilt artifact selection, fallback codegen triggering, and `_ge_pass_native.so` loading
 
 - `_ge_pass_native`
-  - Python helper module exported by `PYBIND11_MODULE`
-  - Only carries `Graph` / `PassContext` / `MatchResult` and other native-backed wrappers and helpers
-  - Does not carry `FusionBasePass` / `PatternFusionPass` / `DecomposePass` these user-inheritable pass base classes
+- Python helper module exported by `PYBIND11_MODULE`
+- Only carries `Graph` / `PassContext` / `MatchResult` and other native-backed wrappers and helpers
+- Does not carry `FusionBasePass` / `PatternFusionPass` / `DecomposePass` user-inheritable pass base classes
 
 - C++ pass adapter
-  - Provides corresponding C++ adapter classes for three types of Python passes
-  - Calls back Python object methods in adapter classes
+- Provides corresponding C++ adapter classes for the three types of Python passes
+- Calls back Python object methods in the adapter classes
 
-- Independent bridge `.so` loaded as pass plugin via `dlopen`
-  - Current main approach has explicitly abandoned this
-  - Any description in the document based on "adding a new bridge `.so` discovered by `custom_fusion_passes`" should be understood as "unified loader + private internal bridge `.so`", not a new pass plugin discovery chain
+- Independent bridge `.so` loaded as a pass plugin via `dlopen`
+- The current main approach has explicitly abandoned this
+- Any description in the document based on "adding a new bridge `.so` discovered by `custom_fusion_passes`" should be understood as "unified loader + private internal bridge `.so`", not a new pass plugin discovery chain
 
 - Private internal bridge `.so`
-  - This is the recommended formal direction in this design, not an optional optimization
-  - It is not a pass plugin and does not participate in `custom_fusion_passes` discovery; it carries complete Python version-sensitive bridge logic, including interpreter initialization, GIL, object conversion, exception translation, and Python callbacks
-  - During formal delivery, it forms the same bridge artifact set with `_ge_pass_native.so`, both need to be included in pre-compilation and fallback management
+- This is the recommended formal direction in this design, not an optional optimization
+- It is not a pass plugin and does not participate in `custom_fusion_passes` discovery; it carries complete Python version-sensitive bridge logic, including interpreter initialization, GIL, object conversion, exception translation, and Python callbacks
+- During formal delivery, it forms the same bridge artifact set with `_ge_pass_native.so`; both need to be included in pre-compilation and fallback management
 
 ### 4.3 Native Binding Strategy
 
 V1 adopts a "two-layer binding" strategy, rather than migrating all Python interfaces to the same binding method at once:
 
 - `ge.graph` / `ge.es`
-  - Continue to reuse the existing C wrapper + `ctypes` approach in the repository
-  - This minimizes changes and allows prioritizing reuse of existing Python graph interfaces and eager-style graph construction capabilities
+- Continue to reuse the existing C wrapper + `ctypes` approach in the repository
+- This minimizes changes and allows prioritizing reuse of existing Python graph interfaces and eager-style graph construction capabilities
 
 - Python pass bridge / adapter layer
-  - Uses `pybind11` as core implementation strategy
-  - Reason is that this part needs to more naturally handle `MatchResult` wrapping, Python object lifecycle, exception translation, and GIL management
+- Uses `pybind11` as the core implementation strategy
+- The reason is that this part needs to more naturally handle `MatchResult` wrapping, Python object lifecycle, exception translation, and GIL management
 
 - Version release strategy
-  - Main wheel is responsible for Python code, discovery logic, and runtime selection logic
-  - `cp39-cp312` provides pre-compiled `pybind11` native sub-wheels
-  - When pre-compiled version is not matched, runtime fallback codegen as final fallback
+- The main wheel is responsible for Python code, discovery logic, and runtime selection logic
+- `cp39-cp314` provides pre-compiled `pybind11` native sub-wheels
+- When no pre-compiled version is matched, runtime fallback codegen serves as the final fallback
 
-That is, V1 is not "full pybind migration", but "graph interfaces continue with existing ctypes/C wrapper, pass bridge adopts pybind11".
+That is, V1 is not "full pybind migration", but "graph interfaces continue with the existing ctypes/C wrapper, pass bridge adopts pybind11".
 
 ### 4.4 pybind11 Usage Method Selection
 
 `pybind11` has two typical usage methods in this solution:
 
 - embed mode
-  - Python interpreter initialized by C++ process, `import` Python modules, and callback Python objects
+- The C++ process initializes the Python interpreter, `import`-s Python modules, and calls back Python objects
 
 - extension mode
-  - Export C++ capabilities as Python-directly `import`-able native modules through `PYBIND11_MODULE`
+- Exports C++ capabilities as Python-directly `import`-able native modules through `PYBIND11_MODULE`
 
 The existing `compiler/graph/fusion/pass/python_fusion_base_pass_pybind_bridge.cc` uses embed mode, not extension mode. The reasons are:
 
-- Current main direction is "GE compiler calls Python pass", not "Python actively imports a C++ pass runtime then reversely drives compiler"
-- `FusionBasePass` first stage only needs to let C++ safely create Python objects and call their `run()`, without first exposing C++ base classes to Python for inheritance
-- embed mode can first reuse existing `ge.passes.bootstrap / registry / _bridge` pure Python organization, reducing first implementation cost
+- The current main direction is "GE compiler calls Python pass", not "Python actively imports a C++ pass runtime then reversely drives the compiler"
+- `FusionBasePass` in the first stage only needs C++ to safely create Python objects and call their `run()`, without first exposing C++ base classes to Python for inheritance
+- embed mode can first reuse the existing `ge.passes.bootstrap / registry / _bridge` pure Python organization, reducing first-batch implementation cost
 
-Therefore, the current bridge file will not have `PYBIND11_MODULE` macro, this is not a missing feature, but an intentional mode difference.
+Therefore, the current bridge file does not have a `PYBIND11_MODULE` macro. This is not a missing feature, but an intentional mode difference.
 
-But from long-term design perspective, embed bridge should not continue to be directly compiled into `ge_compiler.so`. Current workspace has already split it into independent `libge_python_pass_bridge.so`, which is also the formal boundary that should be continuously maintained. A more reasonable form is:
+However, from a long-term design perspective, the embed bridge should not continue to be directly compiled into `ge_compiler.so`. The current workspace has already split it into the independent `libge_python_pass_bridge.so`, which is also the formal boundary that should be continuously maintained. A more reasonable form is:
 
 - `ge_compiler.so`
-  - Only holds stable loader, descriptor / adapter protocols, and minimal C/C++ interaction surface
+- Only holds the stable loader, descriptor / adapter protocols, and minimal C/C++ interaction surface
 
 - Independent internal bridge `.so`
-  - Adopts embed or extension whichever is more suitable for specific implementation
-  - Undertakes all Python version-sensitive native logic
+- Adopts whichever of embed or extension is more suitable for the specific implementation
+- Undertakes all Python version-sensitive native logic
 
 - `_ge_pass_native.so`
-  - As Python-directly `import`-able helper extension
-  - Provides native-backed wrappers and helpers for Python layer, but does not define user-inheritable pass base classes
+- Serves as a Python-directly `import`-able helper extension
+- Provides native-backed wrappers and helpers for the Python layer, but does not define user-inheritable pass base classes
 
 What needs to be further emphasized is that the current solution has two clear boundaries that cannot be mixed:
 
 - User pass definition layer
-  - Continues to maintain pure Python form, users inherit `ge.passes.base.FusionBasePass` / `PatternFusionPass` / `DecomposePass`
+- Continues to maintain pure Python form; users inherit `ge.passes.base.FusionBasePass` / `PatternFusionPass` / `DecomposePass`
 
 - native helper / wrapper layer
-  - Provided by `_ge_pass_native.so` for `Graph` / `PassContext` / `MatchResult` and other wrappers
-  - Provided by `libge_python_pass_bridge.so` for embed path runtime bridging
+- `_ge_pass_native.so` provides `Graph` / `PassContext` / `MatchResult` and other wrappers
+- `libge_python_pass_bridge.so` provides embed path runtime bridging
 
 That is, this solution does not require or recommend exposing C++ `FusionBasePass` / `PatternFusionPass` base classes to Python for inheritance through `PYBIND11_MODULE`.
 
@@ -197,12 +201,113 @@ What needs special explanation is that Python version sensitivity is not only pr
 - `pybind11`
 - `libpython`
 
-Whether embed or extension, it will naturally have binary coupling with Python minor version. `PYBIND11_MODULE` is just the export entry for extension mode, not the root cause of version sensitivity.
-9. bootstrap discovers and imports user pass modules
-10. User pass modules register pass to `ge.passes.registry` through decorators
-11. Bridge reads registry and dynamically registers descriptor back to `PassRegistry` through registrar callback
+Whether embed or extension, it naturally has binary coupling with the Python minor version. `PYBIND11_MODULE` is just the export entry for extension mode, not the root cause of version sensitivity.
 
-Corresponding call relationship can be simplified为 following timeline:
+#### 4.4.1 Loading Location Differences Between `_ge_pass_native.so` and `libge_python_pass_bridge.so`
+
+Although these two artifacts both belong to the Python pass bridge artifact set, they are on two different loading paths:
+
+- `_ge_pass_native.so`
+  - As a Python extension module, loaded by the Python interpreter through `import ge.passes._ge_pass_native`
+  - When it enters the process, the host interpreter already exists; therefore, on Linux, `libpython.so` does not need to be explicitly written into the ELF `NEEDED`
+  - This type of extension typically resolves `Py_*` / `PyObject_*` symbols directly to the current interpreter process at import time
+
+- `libge_python_pass_bridge.so`
+  - As an embed bridge from the GE internal loader perspective, explicitly `dlopen`-ed by the `ge_compiler` side
+  - It is responsible for interpreter initialization, interpreter reuse, GIL management, Python module import, and exception translation
+  - Because it cannot assume a Python interpreter already exists in the process, it needs to explicitly link `libpython.so`
+
+Therefore, "`_ge_pass_native.so` does not explicitly depend on `libpython.so` in ELF" only indicates that its loading context is different; it does not mean it is naturally easier to reuse across versions than the embed bridge.
+
+#### 4.4.2 ABI Compatibility Boundary: Whether `NEEDED libpython` Is Explicit Is Not the Same as Whether Python Version Constraints Apply
+
+Two levels need to be distinguished:
+
+- Whether `NEEDED libpythonX.Y.so` explicitly appears at the ELF level
+- Whether the artifact is still bound to a certain CPython minor version C API / ABI
+
+For the current solution:
+
+- `_ge_pass_native.so`
+  - Even if `libpython` is not explicitly carried in ELF
+  - It is still an extension built against the `Python.h` / `pybind11` headers corresponding to the current `HI_PYTHON`
+  - As long as the `Py_LIMITED_API` / `abi3` approach is not adopted, it is still bound to the specific CPython minor version ABI by default
+
+- `libge_python_pass_bridge.so`
+  - Because it uses the embed path, this binding is more directly manifested as explicit `NEEDED libpythonX.Y.so`
+  - Its runtime constraints are also exposed earlier and more explicitly
+
+Therefore:
+
+- `_ge_pass_native.so` not explicitly `NEEDED libpython` does not mean it can safely be reused across multiple Python minor versions
+- `libge_python_pass_bridge.so` has more explicit and harder restrictions, but both are Python version-sensitive artifacts in the ABI sense
+- If cross-version reuse capability needs to be expanded in the future, the direction should be evaluating `abi3` / limited API, rather than inferring compatibility solely based on "the extension does not explicitly link `libpython`"
+
+In conclusion, these two artifacts should still be treated as the same Python-version-sensitive artifact set, entering pre-compilation and fallback management together.
+
+#### 4.4.3 Why Pass Base Classes Continue to Remain Pure Python Rather Than Being Migrated to Native Wrappers
+
+The current solution deliberately separates the "user-inheritable pass contract layer" from the "lifecycle-sensitive native helper layer":
+
+- User-inheritable pass contract layer
+  - `FusionBasePass`
+  - `PatternFusionPass`
+  - `DecomposePass`
+  - Remains pure Python
+
+- Lifecycle-sensitive native helper layer
+  - `PassContext`
+  - `MatchResult`
+  - `Pattern`
+  - `PatternMatcherConfig`
+  - `release_graph()` and other helpers
+  - Converges to `_ge_pass_native.so`
+
+The reasons for this layering are:
+
+- Pass base classes are essentially user DSL / contracts
+- If `FusionBasePass` / `PatternFusionPass` were also migrated to `_ge_pass_native.so`
+  - It would pull user-side APIs into the Python ABI sensitive surface
+  - It would increase import, release, and environment assembly constraints
+  - It would reduce the evolvability of Python layer protocols, error messages, type constraints, and registration logic
+
+- More importantly, doing so would not eliminate `libge_python_pass_bridge.so`
+  - Because the "GE calling Python pass from C++" embed chain would still exist
+  - That is, making pass base classes native would only expand the version-sensitive surface without reducing the need for the bridge
+
+Therefore, the formal boundary of this solution remains:
+
+- `libge_python_pass_bridge.so`
+  - Responsible for the C++ perspective embed bridge
+
+- `_ge_pass_native.so`
+  - Responsible for the Python perspective native-backed wrappers and helpers
+
+- `ge.passes.base` / `registry` / `bootstrap` / `_bridge`
+  - Continue to carry the pure Python parts of the user DSL, registration protocol, and bridging protocol
+
+This is also why the current solution recommends "base classes pure Python + helpers native" rather than "making pass base classes into wrapper modules too".
+
+Additionally, `pybind_options` in the current build is only a CMake `INTERFACE` target used to suppress some compilation warnings introduced by pybind headers; it does not carry runtime logic and is not an independent pybind dependency artifact.
+
+## 5. Runtime Chain
+
+### 5.1 Initialization Phase
+
+1. GE starts and triggers the unified entry `LoadPassPlugins()`
+2. The loader internally first calls legacy `CustomPassHelper::Load()`
+3. The loader determines whether the Python pass discovery chain needs to be started solely through the environment variable `ASCEND_GE_PY_PASS_PATH`; `options` no longer carries user pass routing parameters such as `ge.py_path / py_path`
+4. The bridge loader inside `ge_compiler.so` calls `RegisterPythonFusionBasePassesFromPlugin()`
+5. The bridge loader resolves the target Python runtime key
+6. The bridge loader selects and loads `libge_python_pass_bridge.so` in the order of "prebuilt artifact, runtime fallback codegen"
+7. The bridge loader obtains the stable entry exported by the bridge through `GeGetPythonFusionBasePassBridgeApi()` and passes the registrar callback to the bridge
+8. `libge_python_pass_bridge.so` initializes or reuses the Python runtime and imports `ge.passes._bridge`
+9. The bridge synchronizes `ASCEND_GE_PY_PASS_PATH` from the current process environment to Python `os.environ`, then calls `load_and_get_pass_descriptors()`
+10. bootstrap discovers and imports user pass modules
+11. User pass modules register passes to `ge.passes.registry` through decorators
+12. The bridge reads the registry and dynamically registers descriptors back to `PassRegistry` through the registrar callback
+
+The corresponding call relationship can be simplified as the following timeline:
 
 ```text
 PassPluginLoader / ge_compiler.so
@@ -219,25 +324,25 @@ PassPluginLoader / ge_compiler.so
 
 Where:
 
-- `registrar` is constructed by loader, representing "how to register descriptor back to compiler"
-- `bridge` is responsible for discovering Python pass, and after getting descriptor, callback `registrar`
-- `RegisterPythonFusionBasePass(...)` is真正 landing point that挂 descriptor, callbacks and creator back to compiler侧 registration center
+- `registrar` is constructed by the loader, representing "how to register descriptors back to the compiler"
+- `bridge` is responsible for discovering Python passes, and after getting descriptors, calls back `registrar`
+- `RegisterPythonFusionBasePass(...)` is the actual landing point that attaches descriptors, callbacks, and creators back to the compiler-side registration center
 
-Phase 1 split初期, `libge_python_pass_bridge.so` can first only depend on pure Python `bootstrap / _bridge` protocol to complete minimum integration调试; Phase 2 closure后的 formal approach则要求 `_ge_pass_native.so` simultaneously到位, bridge and Python API default基于 same set of native helper 运行.
+In the early stage of Phase 1 split, `libge_python_pass_bridge.so` can first depend only on the pure Python `bootstrap / _bridge` protocol to complete minimum integration debugging; the formal approach after Phase 2 closure requires `_ge_pass_native.so` to be in place simultaneously, and the bridge and Python API run based on the same set of native helpers by default.
 
 ### 5.2 Execution Phase
 
-1. `FusionPassExecutor` gets pass from `PassRegistry` according to现有 flow
-2. If pass is Python pass, then actually created is corresponding C++ adapter instance
-3. Adapter calls back Python pass object in `Run` or related phase
-4. Python pass reads/writes graph and builds replacement graph through `ge.graph` and `ge.es` interfaces
-5. Return value maps为 GE `Status`
+1. `FusionPassExecutor` gets passes from `PassRegistry` according to the existing flow
+2. If a pass is a Python pass, the corresponding C++ adapter instance is actually created
+3. The adapter calls back the Python pass object during `Run` or related phases
+4. The Python pass reads/writes the graph and builds the replacement graph through `ge.graph` and `ge.es` interfaces
+5. The return value maps to GE `Status`
 
 ## 6. Python Public Interface Design
 
 ### 6.1 Package Structure
 
-Add new `ge.passes` package, providing following public interfaces:
+Add a new `ge.passes` package, providing the following public interfaces:
 
 - `FusionBasePass`
 - `PatternFusionPass`
@@ -251,7 +356,6 @@ Add new `ge.passes` package, providing following public interfaces:
 - `MatchResult`
 - `PatternMatcherConfig`
 - `PatternMatcherConfigBuilder`
-- `capture_tensor`
 - `create_pattern`
 - `create_replacement`
 - `FuseCheckResult`
@@ -262,11 +366,11 @@ Add new `ge.passes` package, providing following public interfaces:
 
 ### 6.2 Method Style
 
-Default use Python style naming
+Default to Python style naming.
 
 ### 6.3 Registration Interface
 
-Suggested form如下:
+The suggested form is as follows:
 
 ```python
 from ge.passes import FusionBasePass, PassStage, register_fusion_pass
@@ -299,25 +403,24 @@ class DecomposeGroupedConv(DecomposePass):
 - `meet_requirements` returns `bool`
 - `patterns` returns `list[Pattern | Graph]`
 - `replacement` returns `Graph`
-- If希望 skip current match, must return `False` in `meet_requirements`, not支持通过 `replacement` returning `None` to express "abandon replacement"
+- If the user wishes to skip the current match, the user must return `False` in `meet_requirements`; returning `None` through `replacement` to express "abandon replacement" is not supported
 
-
-Where `StatusLike` in Python layer uniformly converts为 GE `Status`.
+Where `StatusLike` in the Python layer uniformly converts to GE `Status`.
 
 ## 7. Discovery Mechanism Design
 
 ### 7.1 Unified Entry
 
-Python side uniformly provides:
+The Python side uniformly provides:
 
 - `ge.passes.bootstrap.load_pass_plugins()`
 - `ge.passes.bootstrap.get_registered_passes()`
 
-bridge registration chain路 before each round loading first由 C++ according to current process environment refresh Python `os.environ`中 `ASCEND_GE_PY_PASS_PATH`,避免 resident Python interpreter中 environment cache affecting下一轮 pass discovery.
+Before each round of loading, the C++ side refreshes `ASCEND_GE_PY_PASS_PATH` in Python `os.environ` according to the current process environment, to prevent the environment cache in the resident Python interpreter from affecting the next round of pass discovery.
 
 ### 7.2 Discovery Priority
 
-Current phase priority converges to:
+The current phase priority converges to:
 
 1. Environment variable `ASCEND_GE_PY_PASS_PATH`
 
@@ -327,257 +430,153 @@ Subsequent phase will add:
 
 ### 7.3 Environment Variable Mode
 
-- `ASCEND_GE_PY_PASS_PATH` supports multiple directories,以 `:` separated
-- Directory中 allows single file module or ordinary Python package
-- bootstrap负责将这些 directories temporarily add to `sys.path`
+- `ASCEND_GE_PY_PASS_PATH` supports multiple directories, separated by `:`
+- Directories allow single-file modules or ordinary Python packages
+- `bootstrap` is responsible for temporarily adding these directories to `sys.path`
 
 ### 7.4 entry_points Mode (Subsequent Phase)
 
-- group fixed为 `ge.passes.plugins`
-- value can point to module path, or return module's callable
-- Module after import通过 decorator completes registration
+- The group is fixed as `ge.passes.plugins`
+- The value can point to a module path, or return a callable that provides a module
+- After the module is imported, registration is completed through decorators
 
-## 8. Three Types Pass Bridge Design
+## 8. Three Types of Pass Bridge Design
 
 ### 8.1 FusionBasePass
 
-Most direct type, C++ adapter calls Python object:
+The most direct type. The C++ adapter calls the Python object:
 
 - `run(graph, context)`
-- Return value constraint为 `None` / `bool` / `int` three types status value
-- Formal pass contract中, `context`始终为 `PassContext`
+- The return value is constrained to `None` / `bool` / `int` three types of status values
+- In the formal pass contract, `context` is always `PassContext`
 - Only `_bridge.py`'s direct bridge/pytest auxiliary entry allows passing `None`
 
-该 type优先打通,作为整条链路's minimum closure.
+This type is prioritized for connection, serving as the minimum closure of the entire chain.
 
 ### 8.2 PatternFusionPass
 
-该 type continues reusing existing C++ PatternMatcher mechanism. Python side only负责:
+This type continues to reuse the existing C++ PatternMatcher mechanism. The Python side is only responsible for:
 
-- Providing pattern graph
-- According to `MatchResult` judging whether满足 condition
-- Constructing replacement graph
+- Providing the pattern graph
+- Judging whether conditions are satisfied based on `MatchResult`
+- Constructing the replacement graph
 
-This means C++ side needs a Python adapter继承 `PatternFusionPass`, in following points callback Python:
+This means the C++ side needs a Python adapter inheriting `PatternFusionPass`, calling back to Python at the following points:
 
 - `Patterns()`
 - `MeetRequirements()`
 - `Replacement()`
 
-Here有一个明确方案 constraint:
+There is a clear scheme constraint here:
 
-- Not requiring Python user class directly inherit一个通过 `PYBIND11_MODULE` exposed C++ `PatternFusionPass`
-- User continues inheriting pure Python's `ge.passes.base.PatternFusionPass`
-- Reusing C++ base class public `Run()` flow's responsibility放在 `PythonPatternFusionPassAdapter`上,而不是放在 Python user class上
-- Python subclass禁止 override `run()`; if误 override, base class in class definition phase directly throws `TypeError`,避免 "implemented but永远不会被调用" ambiguity
+- The Python user class is not required to directly inherit a C++ `PatternFusionPass` exposed through `PYBIND11_MODULE`
+- Users continue inheriting the pure Python `ge.passes.base.PatternFusionPass`
+- The responsibility of reusing the C++ base class public `Run()` flow is placed on `PythonPatternFusionPassAdapter`, not on the Python user class
+- Python subclasses are prohibited from overriding `run()`; if mistakenly overridden, the base class directly throws `TypeError` at the class definition phase, avoiding the ambiguity of "implemented but never called"
 
-Recommended form是:
+The recommended form is:
 
 - `PythonPatternFusionPassAdapter : public PatternFusionPass`
-- adapter overrides `Patterns()` / `MeetRequirements()` / `Replacement()`
-- Override functions内部再 callback Python pass instance
-- `Run()` directly reuses existing C++ `PatternFusionPass::Run()`
+- The adapter overrides `Patterns()` / `MeetRequirements()` / `Replacement()`
+- The override functions internally call back to the Python pass instance
+- `Run()` directly reuses the existing C++ `PatternFusionPass::Run()`
 
-Choosing this approach reason是:
+The reasons for choosing this approach are:
 
-- 能最大化 reuse existing C++ `PatternMatcher`, rewrite, statistics and error handling logic
-- Not forcing Python user environment must first successfully import一个 native C++ base class module, keeping `ge.passes` pure Python API usability
-- 能让 `FusionBasePass`, `PatternFusionPass`, `DecomposePass` three types pass在 user side keep unified style
-- 能把 Python version sensitive问题尽量收敛 in adapter / wrapper / native bridge layer,而不是扩散 to user pass base class definition layer
+- It maximizes reuse of the existing C++ `PatternMatcher`, rewrite, statistics, and error handling logic
+- It does not force the Python user environment to first successfully import a native C++ base class module, maintaining the usability of the `ge.passes` pure Python API
+- It keeps `FusionBasePass`, `PatternFusionPass`, and `DecomposePass` in a unified style on the user side
+- It converges Python version sensitivity issues into the adapter / wrapper / native bridge layer as much as possible, rather than spreading them to the user pass base class definition layer
 
 ### 8.3 DecomposePass
 
-该 type continues reusing existing `DecomposePass` semantics. Python side only负责:
+This type continues to reuse the existing `DecomposePass` semantics. The Python side is only responsible for:
 
 - `MeetRequirements(const GNode &)`
 - `Replacement(const GNode &)`
 
-Construction时 needs retaining `op_types` information.
+`op_types` information needs to be retained during construction.
 
-与 `PatternFusionPass` same, Python user class不 directly接管 `Run()` main flow,而是只 implement hooks:
+Same as `PatternFusionPass`, the Python user class does not directly take over the `Run()` main flow, but only implements hooks:
 
 - `meet_requirements(node) -> bool`
 - `replacement(node) -> Graph`
 
-Here额外 contract constraint needs明确写死 in Python base class里:
+The additional contract constraints here need to be explicitly hardcoded in the Python base class:
 
-- Python subclass禁止 override `run()`; if误 override, base class in class definition phase directly throws `TypeError`
-- `replacement()` must return replacement Graph
-- If希望 skip current node,必须在 `meet_requirements()` phase return `False`,不支持通过 `replacement()` return `None`
+- Python subclasses are prohibited from overriding `run()`; if mistakenly overridden, the base class directly throws `TypeError` at the class definition phase
+- `replacement()` must return a replacement Graph
+- If the user wishes to skip the current node, the user must return `False` in `meet_requirements()`; returning `None` through `replacement()` is not supported
 
-与 `PatternFusionPass` same,这里也不要求 Python user class directly inherit pybind exposed C++ `DecomposePass`. Recommended form是:
+Same as `PatternFusionPass`, the Python user class is not required to directly inherit the C++ `DecomposePass` exposed through pybind. The recommended form is:
 
 - `PythonDecomposePassAdapter : public DecomposePass`
-- adapter在 C++ side reuses `DecomposePass::Run()`
-- adapter overrides `MeetRequirements()` / `Replacement()` and转调 Python pass instance
+- The adapter reuses `DecomposePass::Run()` on the C++ side
+- The adapter overrides `MeetRequirements()` / `Replacement()` and delegates to the Python pass instance
 
-This可以 retain existing C++ `DecomposePass`'s main flow semantics,同时避免把 construction parameters, `op_types` and Python version sensitive logic directly expose给 Python base class inheritance system.
+This retains the existing C++ `DecomposePass` main flow semantics while avoiding exposing construction parameters, `op_types`, and Python version-sensitive logic directly to the Python base class inheritance system.
 
-### 8.4 creator and Context Acquisition Design
+### 8.4 Creator and Context Acquisition Design
 
-Current `CreateFusionPassFn`是 naked function pointer:
+The current `CreateFusionPassFn` is a naked function pointer:
 
 - `using CreateFusionPassFn = FusionBasePass *(*)();`
 
-V1不建议把它直接改成 `std::function<FusionBasePass *()>`. Reasons有两点:
+V1 does not recommend directly changing it to `std::function<FusionBasePass *()>`. There are two reasons:
 
-- Python pass来自 bridge `.so`'s dynamic registration, if creator holds可捕获 lambda,析构链容易和 `dlclose` order coupling
-- Once `PassRegistry` or other global object在 bridge `.so`已 unloaded后析构, `std::function` internal object析构就可能访问已 unloaded code,存在 `coredump` risk
-Here当前不再以 "独立 bridge `.so`'s `dlclose` risk"作为 main reason. More accurate reason是:
+- Python passes come from dynamic registration of the bridge `.so`; if the creator holds a capturable lambda, the destruction chain easily couples with `dlclose` order
+- Once `PassRegistry` or other global objects are destructed after the bridge `.so` has been unloaded, `std::function` internal object destruction may access already unloaded code, posing a `coredump` risk
+The current approach no longer uses "independent bridge `.so` `dlclose` risk" as the main reason. The more accurate reasons are:
 
-- Existing creator ABI仍是无参 naked function pointer,直接改成可捕获 object会扩大 impact面
-- `std::function`会把 runtime routing information, object析构 and call path耦合进 creator本身,不利于 maintaining "creator只做最小 routing, runtime resources放在 bridge/runtime registry" layering
-- Retaining naked function pointer + TLS routing context,仍是当前影响面最小、最稳妥方案
+- The existing creator ABI is still a parameterless naked function pointer; directly changing to capturable objects would expand the impact scope
+- `std::function` would couple runtime routing information, object destruction, and call paths into the creator itself, which is detrimental to maintaining the layering of "creator only does minimal routing, runtime resources placed in bridge/runtime registry"
+- Retaining naked function pointer + TLS routing context remains the approach with the smallest impact scope and the most reliable solution
 
-Therefore here建议采用更稳妥方案:
+Therefore, a more prudent approach is recommended here:
 
-- Retain `CreateFusionPassFn`为 naked function pointer
-- Add一个 "creation phase TLS context"
-- Python pass's runtime object and metadata放在 bridge held process-level registry中
+- Retain `CreateFusionPassFn` as a naked function pointer
+- Add a "creation-phase TLS context"
+- Python pass runtime objects and metadata are placed in the process-level registry held by the bridge
 
-Here说 "identification information"不是 Python runtime context itself,而是**用于 registry lookup's stable key and metadata**,例如:
+The "identification information" mentioned here is not the Python runtime context itself, but rather **the stable key and metadata used for registry lookup**, for example:
 
 - `pass_name`
-- `pass_kind`,即 `fusion` / `pattern` / `decompose`
+- `pass_kind`, namely `fusion` / `pattern` / `decompose`
 - `stage`
 - Python module name
 - Python class full name
-- `decompose` scenario下 `op_types`
+- `op_types` in `decompose` scenarios
 
-These information属于 registration phase static information,不是 execution phase context.真正 Python interpreter state, module object, pass instance,不放在 creator里携带,而是放在 bridge's global registry中 unified management.
+This information belongs to registration-phase static information, not execution-phase context. The actual Python interpreter state, module objects, and pass instances are not carried in the creator, but are uniformly managed in the bridge's global registry.
 
-Recommended implementation方式如下:
+The recommended implementation approach is as follows:
 
-1. 在 consume `create_fn()`'s position set TLS creation context
-- 最终建议传入 `descriptor_key`
-- 某些现有 call points短期更容易拿到 `pass_name`时,可先做过渡 mapping,但不建议把 `pass_name` fixed化为最终 creator routing key
+1. Set the TLS creation context at the position that consumes `create_fn()`
+- The final recommendation is to pass in `descriptor_key`
+- When some existing call points can more easily obtain `pass_name` in the short term, a transitional mapping can be used first, but it is not recommended to fix `pass_name` as the final creator routing key
 
-2. 为三类 Python pass提供少量 generic creator functions
+2. Provide a small number of generic creator functions for the three types of Python passes
 - `CreatePythonFusionPass()`
 - `CreatePythonPatternPass()`
 - `CreatePythonDecomposePass()`
 
-3. Generic creator从 TLS中读取 current `descriptor_key`
-- 再据此从 bridge registry中找到对应 descriptor
-- Then construct对应 adapter
+3. The generic creator reads the current `descriptor_key` from TLS
+- Then finds the corresponding descriptor from the bridge registry accordingly
+- Then constructs the corresponding adapter
 
-4. Adapter在 execution时再从 bridge registry获取 Python pass instance or its holder
+4. The adapter obtains the Python pass instance or its holder from the bridge registry during execution
 
-This design's advantages是:
+The advantages of this design are:
 
-- 不需要把 Python object context塞进 `create_fn`
-- 不引入 `std::function`'s析构顺序 risk
-- 与当前 GE's creator call方式 compatibility更好
+- No need to put Python object context into `create_fn`
+- Does not introduce `std::function` destruction order risk
+- Better compatibility with the current GE creator call approach
 
 ### 8.5 TLS Creation Context Refinement
 
-Current implementation需要保留一个轻量 creation phase TLS context. Its necessity不是 "为了传更多信息",而是因为 current `FusionPassRegistrationData::CreatePassFn`仍是无参 creator,而 Python pass side多个 descriptors会共用同一个 adapter factory;如果没有这份 TLS, upper layer `PassRegistry::CreatePass()` although knows "正在创建哪个 pass", shared factory却不知道应该绑定哪个 Python descriptor.
+The current implementation needs to retain a lightweight creation-phase TLS context. Its necessity is not "to pass more information", but because the current `FusionPassRegistrationData::CreatePassFn` is still a parameterless creator, and multiple descriptors on the Python pass side share the same adapter factory; without this TLS, the upper-layer `PassRegistry::CreatePass()` knows "which pass is being created", but the shared factory does not know which Python descriptor to bind to.
 
-Current code form可表示为:
-
-```cpp
-struct PythonPassCreateContext {
-  std::string descriptor_key;
-  std::string pass_name;
-  PythonPassKind kind;
-};
-```
-
-并提供如下 auxiliary facilities:
-
-- `SetCurrentPythonPassCreateContext(descriptor_key)`
-- `GetCurrentPythonPassCreateContext()`
-- `ClearCurrentPythonPassCreateContext()`
-- RAII scope guard,例如 `PythonPassCreateScope`
-
-Usage方式如下:
-
-1. 在调用 `create_fn()`前,由调用方设置当前 `descriptor_key`
-2. Generic creator读取 TLS中 `descriptor_key`
-3. Generic creator再到 bridge registry中查找对应 descriptor
-4. 构造对应 adapter
-5. `create_fn()`返回后自动清理 TLS
-
-其中:
-
-- `descriptor_key`是真正 routing primary key
-- `pass_name` / `kind`当前主要承担一致性校验,避免 shared factory误绑定到错误 descriptor
-
-后续如果调用链进一步统一,仍建议把 `PythonPassCreateContext`收敛到 "只保留 `descriptor_key`这一最小必要字段",避免状态重复,并与运行时 descriptor / runtime entry主键 model保持一致.
-
-V1建议在以下调用点接入该 scope:
-
-- `compiler/graph/fusion/pass/fusion_pass_executor.cc`
-- `FusionPassExecutor::InitPassesIfNeed`
-
-其中:
-
-- 首批与后续主链路都只覆盖 `FusionPassExecutor`
-- `graph_fusion.cc`不在本方案后续支持范围内
-
-这样可以避免把 Python
-
-### 8.4 Creator和 Context Retrieval Design
-
-当前 `CreateFusionPassFn`是裸函数指针:
-
-- `using CreateFusionPassFn = FusionBasePass *(*)();`
-
-V1不建议把它直接改成 `std::function<FusionBasePass *()>`. 原因有两点:
-
-- Python pass来自 bridge `.so` dynamic registration,如果 creator持有可捕获 lambda,析构链容易和 `dlclose`顺序耦合
-- 一旦 `PassRegistry`或其他全局 objects在 bridge `.so`已卸载后才析构, `std::function`内部 object析构就可能访问已卸载 code,存在 `coredump`风险
-这里当前不再以 "独立 bridge `.so` `dlclose`风险"作为主原因.更准确原因是:
-
-- 现有 creator ABI仍是无参裸函数指针,直接改成可捕获 objects会扩大影响面
-- `std::function`会把运行时 routing information、object析构和调用路径耦合进 creator本身,不利于维持 "creator只做最小 routing、运行时 resources放在 bridge/runtime registry"分层
-- 保留裸函数指针 + TLS routing context,仍然是当前影响面最小、最稳妥方案
-
-因此这里建议采用更稳妥方案:
-
-- 保留 `CreateFusionPassFn`为裸函数指针
-- 增加一个 "创建期 TLS context"
-- Python pass运行时 objects和 metadata放在 bridge持有进程级注册表中
-
-这里说 "标识信息"不是 Python runtime context本身,而是 **用于注册表查找稳定 key和 metadata**,例如:
-
-- `pass_name`
-- `pass_kind`,即 `fusion` / `pattern` / `decompose`
-- `stage`
-- Python模块名
-- Python类全名
-- `decompose` scenarios下 `op_types`
-
-这些信息属于注册期静态 information,不是执行期 context.真正 Python解释器状态、模块 object、pass实例,不放在 creator里携带,而是放在 bridge全局注册表中统一管理.
-
-推荐实现方式如下:
-
-1. 在消费 `create_fn()`位置设置 TLS创建 context
-- 最终建议传入 `descriptor_key`
-- 某些现有调用点短期更容易拿到 `pass_name`时,可先做过渡 mapping,但不建议把 `pass_name`固化为最终 creator routing key
-
-2. 为三类 Python pass提供少量通用 creator functions
-- `CreatePythonFusionPass()`
-- `CreatePythonPatternPass()`
-- `CreatePythonDecomposePass()`
-
-3. 通用 creator从 TLS中读取当前 `descriptor_key`
-- 再据此从 bridge注册表中找到对应 descriptor
-- 然后构造对应 adapter
-
-4. adapter在执行时再从 bridge注册表获取 Python pass实例或其 holder
-
-这个设计优点是:
-
-- 不需要把 Python objects context塞进 `create_fn`
-- 不引入 `std::function`析构顺序风险
-- 与当前 GE creator调用方式 compatibility更好
-
-### 8.5 TLS Creation Context细化
-
-当前实现需要保留一个轻量创建期 TLS context.它必要性不是 "为了传更多信息",而是因为当前 `FusionPassRegistrationData::CreatePassFn`仍是无参 creator,而 Python pass侧多个 descriptors会共用同一个 adapter factory;如果没有这份 TLS,上层 `PassRegistry::CreatePass()`虽然知道 "正在创建哪个 pass",共享 factory却不知道应该绑定哪个 Python descriptor.
-
-当前 code形态可以表示为:
+The current code form can be expressed as:
 
 ```cpp
 struct PythonPassCreateContext {
@@ -587,55 +586,55 @@ struct PythonPassCreateContext {
 };
 ```
 
-并提供如下辅助设施:
+And provides the following auxiliary facilities:
 
 - `SetCurrentPythonPassCreateContext(descriptor_key)`
 - `GetCurrentPythonPassCreateContext()`
 - `ClearCurrentPythonPassCreateContext()`
-- RAII scope guard,例如 `PythonPassCreateScope`
+- RAII scope guard, for example `PythonPassCreateScope`
 
-使用方式如下:
+The usage is as follows:
 
-1. 在调用 `create_fn()`前,由调用方设置当前 `descriptor_key`
-2. 通用 creator读取 TLS中 `descriptor_key`
-3. 通用 creator再到 bridge注册表中查找对应 descriptor
-4. 构造对应 adapter
-5. `create_fn()`返回后自动清理 TLS
+1. Before calling `create_fn()`, the caller sets the current `descriptor_key`
+2. The generic creator reads `descriptor_key` from TLS
+3. The generic creator then finds the corresponding descriptor in the bridge registry
+4. Constructs the corresponding adapter
+5. Automatically cleans up TLS after `create_fn()` returns
 
-其中:
+Where:
 
-- `descriptor_key`是真正 routing primary key
-- `pass_name` / `kind`当前主要承担一致性校验,避免共享 factory误绑定到错误 descriptor
+- `descriptor_key` is the actual routing primary key
+- `pass_name` / `kind` currently mainly serves consistency verification, avoiding the shared factory from mistakenly binding to the wrong descriptor
 
-后续如果调用链进一步统一,仍建议把 `PythonPassCreateContext`收敛到 "只保留 `descriptor_key`这一最小必要 fields",避免状态重复,并与运行时 descriptor / runtime entry主键 model保持一致.
+If the call chain is further unified subsequently, it is still recommended to converge `PythonPassCreateContext` to "retaining only `descriptor_key` as the minimum necessary field", avoiding state duplication and keeping consistency with the runtime descriptor / runtime entry primary key model.
 
-V1建议在以下调用点接入该 scope:
+V1 recommends connecting this scope at the following call points:
 
 - `compiler/graph/fusion/pass/fusion_pass_executor.cc`
 - `FusionPassExecutor::InitPassesIfNeed`
 
-其中:
+Where:
 
-- 首批与后续主链路都只覆盖 `FusionPassExecutor`
-- `graph_fusion.cc`不在本方案后续支持范围内
+- Both the first batch and subsequent main chains only cover `FusionPassExecutor`
+- `graph_fusion.cc` is not within the subsequent support scope of this scheme
 
-这样可以避免把 Python化范围扩散到 legacy兼容链路,同时保证 creator / TLS / descriptor方案围绕主链闭环演进.
+This avoids spreading the Python-ification scope to the legacy compatibility chain, while ensuring the creator / TLS / descriptor scheme evolves around the main chain in a closed loop.
 
-### 8.6 Bridge Process-level Registry细化
+### 8.6 Bridge Process-level Registry Refinement
 
-Bridge内部建议维护两个层次注册 information,而不是继续让一个 `holder_key`同时承担 "静态身份"和 "运行时实例"两种 semantics.逻辑上可拆成两部分:
+The bridge internally recommends maintaining two levels of registration information, rather than continuing to let a single `holder_key` simultaneously serve as both "static identity" and "runtime instance" semantics. Logically it can be split into two parts:
 
 - `PythonPassDescriptor`
-- 注册期静态 information
+- Registration-phase static information
 
 - `PythonPassInstanceHolder`
-- 执行期实例 information
-- Python pass实例
-- 运行期状态
-- 异常状态
-- session / instance关联 information
+- Execution-phase instance information
+- Python pass instance
+- Runtime state
+- Exception state
+- session / instance association information
 
-其中 `PythonPassDescriptor`建议至少包含:
+`PythonPassDescriptor` is recommended to contain at least:
 
 - `pass_name`
 - `pass_kind`
@@ -645,1061 +644,1064 @@ Bridge内部建议维护两个层次注册 information,而不是继续让一个 
 - `op_types`
 - `descriptor_key`
 
-其中:
+Where:
 
 - `descriptor_key`
-- 表示 "这个 pass类是谁"静态 key
-- 建议格式为 `module_name + class_qualname + pass_name`
-- 用于注册去重、descriptor查找、日志定位
+- Represents the static key of "which pass class this is"
+- Recommended format is `module_name + class_qualname + pass_name`
+- Used for registration deduplication, descriptor lookup, and log positioning
 
 - `instance_id`
-- 表示 "这次运行时实例是谁"动态 key
-- 由 adapter / session在创建时生成
-- 用于 holder查找、实例 lifecycle管理、执行期隔离
+- Represents the dynamic key of "which runtime instance this is"
+- Generated by adapter / session during creation
+- Used for holder lookup, instance lifecycle management, and execution-phase isolation
 
-最小实现阶段曾把 `holder_key`同时用于 descriptor查找和 holder查找.当前 `FusionBasePass`已完成拆分,后续其余 pass也应保持这套 model:
+The minimum implementation phase once used `holder_key` for both descriptor lookup and holder lookup. The current `FusionBasePass` has completed the split, and subsequent passes should also maintain this model:
 
 - `descriptor_key`
-- 静态身份
+- Static identity
 
 - `instance_id`
-- 动态实例身份
+- Dynamic instance identity
 
-V1建议注册表只由 bridge自己持有和析构,不暴露给其他全局 singleton持有 objects,避免再次产生跨 so lifecycle耦合.
+V1 recommends the registry be held and destructed only by the bridge itself, not exposed to other global singleton-held objects, avoiding cross-so lifecycle coupling.
 
-这里刻意不把 Python pass实例做成进程级 singleton.原因是:
+This design deliberately does not make Python pass instances into process-level singletons. The reasons are:
 
-- User更容易自然地把 `self`当成 "本次 pass执行临时状态容器"
-- 可以避免跨图、跨执行残留状态污染
-- 可以降低多线程并发下实例共享导致锁和重入要求
+- Users can more naturally treat `self` as a "temporary state container for this pass execution"
+- It can avoid residual state pollution across graphs and across executions
+- It can reduce lock and reentrancy requirements caused by instance sharing under multi-threaded concurrency
 
-### 8.7 Python Pass Adapter细化
+### 8.7 Python Pass Adapter Refinement
 
-V1建议为三类 pass分别提供 adapter:
+V1 recommends providing adapters for the three types of passes respectively:
 
 - `PythonFusionBasePassAdapter`
 - `PythonPatternFusionPassAdapter`
 - `PythonDecomposePassAdapter`
 
-三者共同特征:
+Common characteristics of the three:
 
-- 构造时只接收 `descriptor_key`或 `pass_name`
-- 构造时不直接持有 Python临时 object裸指针
-- 构造期完成 descriptor绑定,并为当前 adapter创建独立 `instance_id`
-- Adapter lifecycle内独占自己 Python pass实例,不复用长期共享 holder
-- 执行时通过 `instance_id`在 bridge实例仓库中查找当前 adapter对应 holder
-- 析构时通过 `instance_id`释放 holder
-- 执行时统一做 GIL获取、异常转译、状态映射
+- Only receives `descriptor_key` or `pass_name` during construction
+- Does not directly hold raw pointers to Python temporary objects during construction
+- Completes descriptor binding during construction and creates an independent `instance_id` for the current adapter
+- The adapter exclusively owns its Python pass instance during its lifecycle, and does not reuse long-term shared holders
+- During execution, finds the holder corresponding to the current adapter in the bridge instance repository through `instance_id`
+- Releases the holder through `instance_id` during destruction
+- Uniformly performs GIL acquisition, exception translation, and state mapping during execution
 
-这样即使 adapter本身由 GE长期持有,它也只依赖 bridge稳定管理 holder,不依赖 creator闭包 object.
+This way, even if the adapter itself is held by GE long-term, it only depends on the holder stably managed by the bridge, and does not depend on creator closure objects.
 
-三类 adapter分工还需要进一步明确:
+The division of responsibilities among the three types of adapters needs further clarification:
 
 - `PythonFusionBasePassAdapter`
-- 直接覆盖 `Run()`,内部调用 Python `run(graph, context)`
+- Directly overrides `Run()`, internally calls Python `run(graph, context)`
 
 - `PythonPatternFusionPassAdapter`
-- 继承 C++ `PatternFusionPass`
-- 不重写基类公共 `Run()`主流程
-- 只覆盖 `Patterns()` / `MeetRequirements()` / `Replacement()`三个 hook,并在 hook内部转调 Python
+- Inherits C++ `PatternFusionPass`
+- Does not override the base class public `Run()` main flow
+- Only overrides `Patterns()` / `MeetRequirements()` / `Replacement()` three hooks, and delegates to Python within the hooks
 
 - `PythonDecomposePassAdapter`
-- 继承 C++ `DecomposePass`
-- 不重写基类公共 `Run()`主流程
-- 只覆盖 `MeetRequirements()` / `Replacement()`,并在 hook内部转调 Python
+- Inherits C++ `DecomposePass`
+- Does not override the base class public `Run()` main flow
+- Only overrides `MeetRequirements()` / `Replacement()`, and delegates to Python within the hooks
 
-这也是当前设计里 "为什么不急着把 C++ pass基类通过 `PYBIND11_MODULE`暴露给 Python继承"核心原因:真正需要复用 C++非纯虚主流程是 adapter,不是 user写 Python pass classes.
+This is also the core reason why the current design does not rush to expose C++ pass base classes to Python for inheritance through `PYBIND11_MODULE`: the ones that truly need to reuse the C++ non-pure-virtual main flow are the adapters, not the Python pass classes written by users.
 
-### 8.8 Execution期 Session Design
+### 8.8 Execution-phase Session Design
 
-为避免对 Python pass写法施加不必要限制, V1建议引入 "每次执行一个 session" model:
+To avoid imposing unnecessary restrictions on Python pass authoring, V1 recommends introducing a "one session per execution" model:
 
-- 一个 adapter一次 `Run`调用,对应一个 `PythonPassExecutionSession`
-- Session内创建新 Python pass实例,并分配唯一 `instance_id`
-- 同一 session内,多次 Python回调共用同一个实例
+- One `Run` call of one adapter corresponds to one `PythonPassExecutionSession`
+- A new Python pass instance is created within the session, and a unique `instance_id` is assigned
+- Within the same session, multiple Python callbacks share the same instance
+- When the session ends, the instance and its temporary wrapper objects are uniformly released
 
-- Session结束时销毁实例,释放 `instance_id`
-- Session提供 GIL获取、异常捕获、logging转发等基础封装
-
-这样 user在 Python pass内部可以自由使用 `self`保存临时状态,而不必担心跨执行污染.
-
-### 8.9 Bridge Runtime Registry和 Holder Lookup
-
-当前建议 bridge实现两阶段查找:
-
-1. **Descriptor Lookup** (创建期)
-   - 由 adapter构造时根据 TLS `descriptor_key`进行
-   - 返回 `PythonPassDescriptor *`
-
-2. **Holder Lookup** (执行期)
-   - 由 adapter `Run`内部根据自己 `instance_id`进行
-   - 返回 `PythonPassInstanceHolder *`
-   - Holder内包含 Python pass实例
-
-查找流程:
-
-```
-Adapter构造:
-  descriptor_key → GetDescriptor(descriptor_key) → PythonPassDescriptor
-
-Adapter Run:
-  instance_id → GetInstanceHolder(instance_id) → PythonPassInstanceHolder → python_pass_instance
-```
-
-Bridge registry内部建议使用 concurrent containers (如 `std::unordered_map` + lock或 `tbb::concurrent_hash_map`),以支持多线程创建和执行.
-
-### 8.10 Exception Handling和 Status Mapping
-
-Python pass执行时可能抛出多种异常. V1建议统一转译为 GE status codes:
-
-| Python Exception Type | GE Status Code | Description |
-|------|------|------|
-| `PassSkipException` | `GRAPH_SUCCESS` (but不 apply changes) | User主动跳过当前 match |
-| `PassFatalError` | `GRAPH_FAILED` | User主动标记失败 |
-| `PyError` (一般 exception) | `GRAPH_FAILED` + exception message | Python runtime error |
-| `GeError` (from GE API calls) | Original GE error code | GE内部 error |
-
-Adapter统一在以下位置捕获:
-
-- `Run()`内部
-- `Patterns()`内部
-- `MeetRequirements()`内部
-- `Replacement()`内部
-
-捕获后统一通过 `context->SetErrorMessage()`记录,并返回对应 status code.
-
-### 8.11 Logging和 Tracing
-
-V1建议 adapter在关键节点添加 tracing:
-
-- Pass creation: `descriptor_key`, `instance_id`
-- Pass execution: `graph_id`, `input shapes`, `output shapes`
-- Pattern matching: `match_count`, `capture tensors`
-- Replacement: `nodes_added`, `nodes_removed`
-
-Tracing可以通过 GE现有 profiling infrastructure输出,或通过 bridge内部 logging facade.
-
-### 8.12 Backward Compatibility和 Versioning
-
-Python pass registry和 adapter设计需要考虑 version compatibility:
-
-- **Descriptor compatibility**: 不同 version pass定义可能存在 optional inputs/attributes差异
-- **Adapter compatibility**: Adapter需要处理 legacy Python pass classes
-- **Bridge compatibility**: Bridge registry需要支持多 version artifacts共存
-
-V1建议:
-
-- `PythonPassDescriptor`包含 `version` field
-- Bridge registry按 `descriptor_key + version`索引
-- Adapter根据 descriptor version选择对应 execution strategy
-
----
-
-## 9 Native Helper和 Code Generation
-
-### 9.1 Native Helper Architecture
-
-Native helper是 bridge内部辅助 module,负责:
-
-- Python object和 C++ object conversion
-- Graph structure marshalling
-- Tensor data marshalling
-- Attribute value marshalling
-
-Native helper位于 bridge `.so`内部,不暴露给 user.
-
-### 9.2 Code Generation Pipeline
-
-Python pass code generation pipeline包含以下 stages:
-
-```
-Python Pass Registration
-    ↓
-Bridge Descriptor Registration
-    ↓
-Native Helper Binding
-    ↓
-Adapter Creation
-    ↓
-GE Pass Registry Entry
-```
-
-每个 stage详细说明:
-
-**Stage 1: Python Pass Registration**
-- Python user通过 decorator注册 pass
-- Python module加载时执行 registration code
-- Registration code调用 bridge C API注册 descriptor
-
-**Stage 2: Bridge Descriptor Registration**
-- Bridge接收 descriptor information
-- Bridge创建 `PythonPassDescriptor` entry
-- Bridge分配 `descriptor_key`
-- Bridge保存 descriptor到 process-level registry
-
-**Stage 3: Native Helper Binding**
-- Bridge根据 descriptor type选择 native helper
-- Native helper生成对应 C++ binding code
-- Binding code负责 Python和 C++ marshalling
-
-**Stage 4: Adapter Creation**
-- GE调用 `CreatePassFn`
-- TLS context设置 `descriptor_key`
-- Bridge根据 descriptor创建 adapter
-- Adapter分配 `instance_id`
-
-**Stage 5: GE Pass Registry Entry**
-- Adapter注册到 GE `PassRegistry`
-- GE `PassRegistry`保存 adapter pointer
-- GE编译流程调用 adapter `Run`
-
-### 9.3 Generated Code Structure
-
-Generated code包含以下 components:
-
-**Header Files**:
-- `python_pass_bridge.h`: Bridge public API
-- `python_pass_adapter.h`: Adapter definitions
-- `python_pass_types.h`: Type definitions
-
-**Source Files**:
-- `python_pass_bridge.cc`: Bridge implementation
-- `python_pass_adapter.cc`: Adapter implementation
-- `python_pass_registry.cc`: Registry implementation
-
-**Generated Files**:
-- `python_pass_generated_bindings.cc`: Marshalling bindings
-- `python_pass_generated_creators.cc`: Creator functions
-
-### 9.4 Build和 Deployment
-
-Python pass build和 deployment流程:
-
-1. **Native Artifact Generation**
-   - C++ code生成 native helper和 adapter
-   - 编译为 `_ge_pass_native.so`
-   - 编译为 `libge_python_pass_bridge.so`
-
-2. **Python Package Generation**
-   - Python code打包为 wheel package
-   - Wheel package包含 Python pass modules
-   - Wheel package依赖 native artifacts
-
-3. **Deployment**
-   - Native artifacts部署到 GE run package
-   - Python wheel部署到 Python environment
-   - Bridge `.so`加载到 GE process
-
----
-
-## 10 Runtime Fallback和 Multi-version Support
-
-### 10.1 Runtime Fallback Overview
-
-Runtime fallback是指当 native artifacts不可用时,自动生成 fallback code:
-
-- **Scenario 1**: Python pass requires native helper, but native helper `.so` missing
-- **Scenario 2**: Python pass requires specific version artifact, but artifact version mismatch
-- **Scenario 3**: Python pass requires platform-specific artifact, but platform not supported
-
-Fallback code generation流程:
-
-```
-Detect Missing Native Artifact
-    ↓
-Generate Fallback Code
-    ↓
-Compile Fallback Code
-    ↓
-Load Fallback Artifact
-    ↓
-Continue Pass Execution
-```
-
-### 10.2 Fallback Code Generation
-
-Fallback code generation策略:
-
-**Strategy 1: Pure Python Fallback**
-- 纯 Python implementation of pass logic
-- 无需 native helper依赖
-- 性能较低,但可用性最高
-
-**Strategy 2: Minimal Native Fallback**
-- 最小 native helper实现
-- 仅支持基本 marshalling
-- 性能中等,可用性中等
-
-**Strategy 3: JIT Compilation Fallback**
-- 运行时 JIT compile native code
-- 支持完整 marshalling
-- 性能接近 native,但需要 JIT infrastructure
-
-V1建议采用 Strategy 2,因为:
-
-- Pure Python fallback性能过低
-- JIT compilation fallback infrastructure复杂
-- Minimal native fallback是当前最优 trade-off
-
-### 10.3 Multi-version Artifact Support
-
-Multi-version artifact是指支持多 Python version artifacts:
-
-- `cp39`: Python 3.9
-- `cp310`: Python 3.10
-- `cp311`: Python 3.11
-- `cp312`: Python 3.12
-- `cp313`: Python 3.13
-- `cp314`: Python 3.14
-
-每个 version artifact包含:
-
-- Version-specific native helper
-- Version-specific adapter
-- Version-specific bridge `.so`
-
-Artifact selection流程:
-
-```
-Detect Current Python Version
-    ↓
-Search Version-specific Artifact
-    ↓
-Load Matching Artifact
-    ↓
-If Not Found, Generate Fallback
-```
-
-### 10.4 Artifact Cache和 Pre-built Artifacts
-
-Pre-built artifacts是指提前编译 native artifacts:
-
-- **Build阶段**: 编译所有 version artifacts
-- **Package阶段**: 打包所有 artifacts到 run package
-- **Install阶段**: 选择匹配 version artifact安装
-
-Artifact cache是指缓存已生成 fallback artifacts:
-
-- Cache位置: `ge/passes/python_pass_artifacts/`
-- Cache key: `python_tag + platform + bridge_abi`
-- Cache管理: 自动清理过期 artifacts
-
----
-
-## 11 Implementation Roadmap
-
-### 11.1 V1 Implementation Scope
-
-V1 implementation scope包含:
-
-**Core Components**:
-- `PythonPassDescriptor` registry
-- `PythonPassInstanceHolder` management
-- `PythonFusionBasePassAdapter`
-- `PythonPatternFusionPassAdapter`
-- `PythonDecomposePassAdapter`
-- TLS creation context
-- Bridge registry
-
-**Infrastructure**:
-- Native helper binding
-- Exception handling
-- Logging和 tracing
-- Status mapping
-
-**Deployment**:
-- Pre-built artifacts generation
-- Multi-version support
-- Runtime fallback
-
-### 11.2 V1 Implementation Milestones
-
-**Milestone 1: Basic Framework** (Week 1-2)
-- Bridge registry implementation
-- Descriptor registration API
-- TLS creation context
-- Basic adapter skeleton
-
-**Milestone 2: Adapter Implementation** (Week 3-4)
-- `PythonFusionBasePassAdapter` implementation
-- `PythonPatternFusionPassAdapter` implementation
-- `PythonDecomposePassAdapter` implementation
-- Exception handling
-
-**Milestone 3: Native Helper** (Week 5-6)
-- Native helper generation
-- Marshalling bindings
-- Python-C++ conversion
-- Logging和 tracing
-
-**Milestone 4: Multi-version和 Fallback** (Week 7-8)
-- Pre-built artifacts generation
-- Version-specific artifacts
-- Runtime fallback code generation
-- Artifact cache management
-
-### 11.3 Future Enhancements
-
-Future enhancements考虑:
-
-**Performance优化**:
-- Cache Python pass instances
-- Optimize marshalling overhead
-- Reduce GIL持有时间
-
-**功能扩展**:
-- Support更多 pass types
-- Support更多 Python versions
-- Support更多
-
-- Session结束时统一释放该实例及其临时包装objects
-
-这意味着:
+This means:
 
 - `FusionBasePass`
-- 一次 `Run`对应一个 Python实例
+- One `Run` corresponds to one Python instance
 
 - `PatternFusionPass`
-- 一次 `Run`内部 `Patterns`、`MeetRequirements`、`Replacement`共用同一个 Python实例
+- `Patterns`, `MeetRequirements`, and `Replacement` within one `Run` share the same Python instance
 
 - `DecomposePass`
-- 一次 `Run`内部对多个匹配节点处理共用同一个 Python实例
+- Processing of multiple matching nodes within one `Run` shares the same Python instance
 
-这样设计后, Python user可以自然使用:
+After this design, Python users can naturally use:
 
-- `self.xxx`作为一次执行期间临时 cache
-- 普通Python objects作为辅助状态
-- 普通异常作为失败信号
+- `self.xxx` as temporary cache during one execution
+- Ordinary Python objects as auxiliary state
+- Ordinary exceptions as failure signals
 
-而无需理解 "这个实例是不是跨图复用"这种 bridge内部细节.
+Without needing to understand bridge internal details such as "whether this instance is reused across graphs".
 
-### 8.9 Memory Management细化
+### 8.9 Memory Management Refinement
 
-V1 memory管理目标是:
+The V1 memory management goals are:
 
-- 不要求 Python user手工释放任何 bridge objects
-- 不要求 Python user显式使用 `with`、`close()`、`release()`之类 interfaces
-- 不允许因为 user把 object存在局部变量或成员变量里就触发双释放或悬挂指针
+- Does not require Python users to manually release any bridge objects
+- Does not require Python users to explicitly use interfaces such as `with`, `close()`, `release()`
+- Does not allow double-free or dangling pointers triggered by users storing objects in local variables or member variables
 
-建议按三层 objects分别处理.
+It is recommended to handle objects at three levels separately.
 
-#### 8.9.1 Registration期 Objects
+#### 8.9.1 Registration-phase Objects
 
-Registration期 objects包括:
+Registration-phase objects include:
 
 - descriptor
-- Python模块 object
-- Python类 object
-- descriptor注册表
+- Python module objects
+- Python class objects
+- descriptor registry
 
-这些 objects由 bridge注册表统一持有,桥接层负责引用计数和清理.对 Python user透明.
+These objects are held by the bridge registry uniformly, and the bridge layer is responsible for reference counting and cleanup. Transparent to Python users.
 
-#### 8.9.2 Execution期 Objects
+#### 8.9.2 Execution-phase Objects
 
-Execution期 objects包括:
+Execution-phase objects include:
 
 - instance holder
-- Python pass实例
-- Callback中创建 `Graph` / `Node` / `MatchResult` / `NodeIo` Python包装 objects
-- 可能临时 `TensorDesc` / `Shape` / `Tensor`包装 objects
+- Python pass instances
+- `Graph` / `Node` / `MatchResult` / `NodeIo` Python wrapper objects created in callbacks
+- Possible temporary `TensorDesc` / `Shape` / `Tensor` wrapper objects
 - `instance_id`
 
-这些 objects都绑定到 execution session,而不是绑定到全局 descriptor.
+These objects are all bound to the execution session, not to the global descriptor.
 
-Session结束时:
+When the session ends:
 
-- Python pass实例释放
-- Execution期包装 cache释放
-- Execution期有效性 token失效
+- Python pass instance is released
+- Execution-phase wrapper cache is released
+- Execution-phase validity token is invalidated
 
 #### 8.9.3 Borrowed Graph Objects
 
-`Graph`、`Node`、`Tensor`等 objects很多是对 GE当前执行图借用视图.为保证 Python experience不变差,建议:
+`Graph`, `Node`, `Tensor` and other objects are often borrowed views of the current GE execution graph. To ensure the Python experience does not degrade, it is recommended:
 
-- Python包装 object内部持有一个 execution期 owner token
-- 在 owner token有效时,所有访问都正常工作
-- 一旦 user把 object跨 session保存并再次访问,不允许崩溃,而是抛出明确 Python exception,例如:
+- Python wrapper objects internally hold an execution-phase owner token
+- While the owner token is valid, all accesses work normally
+- Once a user saves an object across sessions and accesses it again, a crash is not allowed; instead, a clear Python exception is thrown, for example:
 - `RuntimeError: graph handle has expired`
 
-这样做效果是:
+The effect of this approach is:
 
-- 不要求文档里给 user增加 "不要缓存这些 objects"硬限制
-- 即使 user这么写,也应得到可理解 Python错误,而不是 coredump
+- Does not require adding a hard restriction in documentation telling users "do not cache these objects"
+- Even if users write code this way, they should get an understandable Python error, not a coredump
 
 #### 8.9.4 TensorDesc / Shape Value Semantics
 
-`TensorDesc`、`Shape`这类 objects建议按 value semantics暴露给 Python:
+`TensorDesc` and `Shape` objects are recommended to be exposed to Python with value semantics:
 
-- Python获得是独立 object
-- 可安全保存在局部变量或 `self`上
-- 不依赖原始 borrowed graph句柄继续存活
+- Python obtains independent objects
+- Can be safely stored in local variables or `self`
+- Does not depend on the original borrowed graph handle continuing to survive
 
-这样更符合 Python user预期,也能减少悬挂引用问题.
+This better matches Python user expectations and can also reduce dangling reference issues.
 
-#### 8.9.5 Bridge卸载与析构顺序
+#### 8.9.5 Bridge Unloading and Destruction Order
 
-GE提供两级卸载 semantics,分别对应 "一轮业务结束"和 "进程退出"两个 lifecycle:
+GE provides two levels of unloading semantics, corresponding to the "end of one round of business" and "process exit" lifecycles respectively:
 
-##### Unload — 业务级卸载
+##### Unload -- Business-level Unloading
 
-一轮图编译完成后, GE调用 `UnloadPassPlugins()`清理本轮 pass注册态,但不关闭 Python解释器也不卸载 bridge so.这样下一轮业务可以复用已初始化 Python runtime,避免反复初始化/终结带来开销.
+After one round of graph compilation completes, GE calls `UnloadPassPlugins()` to clean up the pass registration state for this round, but does not close the Python interpreter or unload the bridge so. This way the next round of business can reuse the already initialized Python runtime, avoiding the overhead of repeated initialization/finalization.
 
-当前实现链路:
+Current implementation chain:
 
 ```
 UnloadPassPlugins()
   → PassPluginLoader::Unload()                              [pass_plugin_loader.cc]
-    ├─ UnloadPythonFusionBasePasses()                        // 仅在 python_pass_loaded_为 true时执行
+    ├─ UnloadPythonFusionBasePasses()                        // Only executed when python_pass_loaded_ is true
     │   → BridgeLoader::Unload()                             [bridge_loader.cc]
-    │     ├─ api_->reset_bridge_state()                      // 通知 bridge清理 Python侧状态并释放 bridge模块引用
-    │     ├─ ClearPythonFusionBasePassRuntimeRegistry()      // 清理 C++侧 runtime注册表
-    │     └─ PassRegistry::ClearPythonPasses()               // 清理 C++侧 pass注册表
+    │     ├─ api_->reset_bridge_state()                      // Notify bridge to clean up Python-side state and release bridge module references
+    │     ├─ ClearPythonFusionBasePassRuntimeRegistry()      // Clean up C++-side runtime registry
+    │     └─ PassRegistry::ClearPythonPasses()               // Clean up C++-side pass registry
     │   python_pass_loaded_ = false
-    └─ CustomPassHelper::Unload()                            // 清理 C++自定义 pass
+    └─ CustomPassHelper::Unload()                            // Clean up C++ custom passes
 ```
 
-Unload不触及 Python解释器 lifecycle和 bridge so句柄,确保下一轮 `Load()`可以直接复用.
+Unload does not touch the Python interpreter lifecycle or bridge so handle, ensuring the next `Load()` can directly reuse them.
 
-##### ShutdownForProcess — 进程级关闭
+##### ShutdownForProcess -- Process-level Shutdown
 
-进程退出时, GE调用 `ShutdownPassPluginsForProcess()`执行完整资源释放.当前有3个入口可以触发:
+When the process exits, GE calls `ShutdownPassPluginsForProcess()` to perform complete resource release. Currently there are 3 entry points that can trigger this:
 
-- `GEFinalizeV2()` — 在线模式进程结束时
-- `aclgrphBuildFinalize()` — 离线编译结束时
-- `GeGenerator::Finalize()` — 生成器模式结束时
+- `GEFinalizeV2()` -- when the online mode process ends
+- `aclgrphBuildFinalize()` -- when offline compilation ends
+- `GeGenerator::Finalize()` -- when the generator mode ends
 
-当前实现链路:
+Current implementation chain:
 
 ```
 ShutdownPassPluginsForProcess()
   → PassPluginLoader::ShutdownForProcess()                   [pass_plugin_loader.cc]
-    ├─ 一次性守卫: if (shutdown_done_) return               // 确保进程级 shutdown只执行一次
+    ├─ One-time guard: if (shutdown_done_) return            // Ensure process-level shutdown only executes once
     ├─ shutdown_done_ = true
     │
     ├─ if (python_pass_loaded_):
-    │   UnloadPythonFusionBasePasses()                       // 先清理注册态(同 Unload)
+    │   UnloadPythonFusionBasePasses()                       // Clean up registration state first (same as Unload)
     │     → BridgeLoader::Unload()
     │       ├─ api_->reset_bridge_state()
     │       ├─ ClearPythonFusionBasePassRuntimeRegistry()
     │       └─ PassRegistry::ClearPythonPasses()
     │   python_pass_loaded_ = false
     │
-    ├─ ShutdownPythonFusionBasePassesForProcess()            // 无条件执行
+    ├─ ShutdownPythonFusionBasePassesForProcess()            // Unconditionally executed
     │   → BridgeLoader::ShutdownForProcess()                 [bridge_loader.cc]
     │     ├─ if (api_ != nullptr):
-    │     │   api_->shutdown_bridge()                        // 调用 bridge so导出 shutdown
+    │     │   api_->shutdown_bridge()                        // Call bridge so exported shutdown
     │     │     → PybindBridge::Shutdown()                   [pybind_bridge.cc]
-    │     │       ├─ ResetBridgeStateUnlocked()              // 清理 Python侧状态、释放 bridge模块引用并 gc.collect()
-    │     │       └─ if (owns_interpreter_):                 // 仅当解释器由 bridge自己拉起时
-    │     │           py::finalize_interpreter()             // 终结 Python解释器
+    │     │       ├─ ResetBridgeStateUnlocked()              // Clean up Python-side state, release bridge module references and gc.collect()
+    │     │       └─ if (owns_interpreter_):                 // Only when the interpreter was started by the bridge itself
+    │     │           py::finalize_interpreter()             // Finalize the Python interpreter
     │     │     owns_interpreter_ = false
-    │     ├─ api_ = nullptr                                  // 置空,防止后续再调用
+    │     ├─ api_ = nullptr                                  // Set to null, prevent subsequent calls
     │     ├─ if (handle_ != nullptr):
-    │     │   dlclose(handle_)                               // 卸载 bridge so
-    │     │   handle_ = nullptr                              // 置空,防止 dlclose重复
+    │     │   dlclose(handle_)                               // Unload bridge so
+    │     │   handle_ = nullptr                              // Set to null, prevent dlclose duplication
     │     └─ loaded_path_.clear()
     │
-    └─ CustomPassHelper::Unload()                            // 清理 C++自定义 pass
+    └─ CustomPassHelper::Unload()                            // Clean up C++ custom passes
 ```
 
-##### 幂等性保证
+##### Idempotency Guarantee
 
-由于 `ShutdownPassPluginsForProcess()`可能从多个入口被重复调用,整条链路通过以下守卫保证幂等:
+Since `ShutdownPassPluginsForProcess()` may be called repeatedly from multiple entry points, the entire chain guarantees idempotency through the following guards:
 
-1. **PassPluginLoader层** — `shutdown_done_`标志:首次执行后置为 `true`,后续调用直接返回 `SUCCESS`
-2. **BridgeLoader层** — `api_` / `handle_`空指针守卫:首次执行后置为 `nullptr`,后续调用跳过 shutdown和 dlclose
-3. **PybindBridge层** — `Py_IsInitialized()`守卫:解释器已终结后不再进入 Python清理逻辑; `owns_interpreter_`守卫确保只终结自己初始化解释器
+1. **PassPluginLoader layer** -- `shutdown_done_` flag: set to `true` after first execution, subsequent calls directly return `SUCCESS`
+2. **BridgeLoader layer** -- `api_` / `handle_` null pointer guard: set to `nullptr` after first execution, subsequent calls skip shutdown and dlclose
+3. **PybindBridge layer** -- `Py_IsInitialized()` guard: does not enter Python cleanup logic after the interpreter has been finalized; `owns_interpreter_` guard ensures only the self-initialized interpreter is finalized
 
-##### 卸载顺序核心约束
+##### Unloading Order Core Constraints
 
-当前实现遵循以下顺序原则:
+The current implementation follows these order principles:
 
-1. **先清理 C++注册表,再 dlclose bridge so** — `UnloadPythonFusionBasePasses()`先清理 `PassRegistry`和 `PythonFusionBasePassRuntimeRegistry`,之后才执行 `ShutdownForProcess()`进行 `dlclose`.这保证 dlclose时没有任何 C++ object仍在持有 bridge侧回调函数指针.
-2. **先清理 Python objects,再终结解释器** — `PybindBridge::Shutdown()`先调用 `ResetBridgeStateUnlocked()`清理 Python侧注册表、holder和动态加载 pass模块,并在 reset内释放 `bridge_module_`引用、调用 `gc.collect()`打破循环引用,最后才调用 `py::finalize_interpreter()`.
-3. **先终结解释器,再 dlclose so** — `shutdown_bridge()`在 `BridgeLoader::ShutdownForProcess()`中先于 `dlclose(handle_)`执行,保证 dlclose时 Python解释器已不再运行.
-4. **如果解释器已被外部终结** — `Py_IsInitialized()`返回0, bridge跳过所有 Python清理逻辑,仅清理 C++侧状态,不会对已释放 Python objects做 `DECREF`.
+1. **Clean up C++ registry first, then dlclose bridge so** -- `UnloadPythonFusionBasePasses()` first cleans up `PassRegistry` and `PythonFusionBasePassRuntimeRegistry`, then executes `ShutdownForProcess()` to perform `dlclose`. This ensures no C++ object still holds bridge-side callback function pointers during dlclose.
+2. **Clean up Python objects first, then finalize interpreter** -- `PybindBridge::Shutdown()` first calls `ResetBridgeStateUnlocked()` to clean up the Python-side registry, holders, and dynamically loaded pass modules, and within reset releases the `bridge_module_` reference and calls `gc.collect()` to break circular references, and only then calls `py::finalize_interpreter()`.
+3. **Finalize interpreter first, then dlclose so** -- `shutdown_bridge()` executes before `dlclose(handle_)` in `BridgeLoader::ShutdownForProcess()`, ensuring the Python interpreter is no longer running during dlclose.
+4. **If the interpreter has been finalized externally** -- `Py_IsInitialized()` returns 0, the bridge skips all Python cleanup logic and only cleans up C++-side state, and does not perform `DECREF` on already released Python objects.
 
-这里优先保证 "不崩溃",而不是极限回收所有尾声内存. CPython内部 arena分配器在 `Py_Finalize()`后可能仍有残余内存不被回收,这是 CPython已知行为,不影响进程正常退出.
+The priority here is to guarantee "no crash" rather than aggressively reclaiming all trailing memory. The CPython internal arena allocator may still have residual memory not reclaimed after `Py_Finalize()`; this is known CPython behavior and does not affect normal process exit.
 
-### 8.10 Lock和 GIL策略细化
+### 8.10 Lock and GIL Strategy Refinement
 
-Lock和 GIL设计目标是:
+The lock and GIL design goals are:
 
-- 不把 lock概念暴露给 Python user
-- 不要求 Python pass作者自己理解或管理 GIL
-- 在 bridge内部把 lock粒度控制到最小,避免把整个 GE pass执行路径串行化
+- Does not expose lock concepts to Python users
+- Does not require Python pass authors to understand or manage GIL themselves
+- Controls lock granularity to the minimum within the bridge, avoiding serializing the entire GE pass execution path
 
-建议分三类 lock.
+It is recommended to divide into three types of locks.
 
 #### 8.10.1 Bridge Management Lock
 
-用于保护:
+Used to protect:
 
-- 注册表初始化
-- 插件发现
-- Holder懒加载
-- Unload / finalize状态切换
+- Registry initialization
+- Plugin discovery
+- Holder lazy loading
+- Unload / finalize state transitions
 
-这类 lock只包围 bridge自己状态管理,不包围 user pass逻辑执行.
+This type of lock only surrounds the bridge's own state management, not user pass logic execution.
 
 #### 8.10.2 Execution Session Lock
 
-每个 execution session可有自己轻量状态保护,但不建议让多个 session共享粗粒度互斥锁.
+Each execution session can have its own lightweight state protection, but it is not recommended to let multiple sessions share coarse-grained mutexes.
 
-目标是允许:
+The goal is to allow:
 
-- 不同 pass不同执行互不阻塞
-- 非 Python纯 C++匹配/改图逻辑继续按原有路径运行
+- Different passes executing without blocking each other
+- Non-Python pure C++ matching/graph modification logic continues to run along the original path
 
 #### 8.10.3 Python GIL
 
-统一规则如下:
+Unified rules are as follows:
 
-- 进入Python前获取 GIL
-- 离开Python后立即释放 GIL
-- 纯C++图匹配、图遍历、数据整理逻辑不持有 GIL
+- Acquire GIL before entering Python
+- Release GIL immediately after leaving Python
+- Pure C++ graph matching, graph traversal, and data organization logic does not hold GIL
 
-对三类 pass具体策略:
+Specific strategies for the three types of passes:
 
 - `FusionBasePass`
-- 回调 `run`时持有 GIL
-- Python返回后立刻释放 GIL
+- Holds GIL when calling back `run`
+- Releases GIL immediately after Python returns
 
 - `PatternFusionPass`
-- C++ pattern匹配过程不持有 GIL
-- 调 `Patterns`、`MeetRequirements`、`Replacement`时短时持有 GIL
+- C++ pattern matching process does not hold GIL
+- Briefly holds GIL when calling `Patterns`, `MeetRequirements`, `Replacement`
 
 - `DecomposePass`
-- C++搜索匹配节点时不持有 GIL
-- 调 `meet_requirements`、`replacement`时短时持有 GIL
+- C++ search for matching nodes does not hold GIL
+- Briefly holds GIL when calling `meet_requirements`, `replacement`
 
-这样可以把 Python执行和 C++执行边界清楚分开,减少不必要全局串行化.
+This clearly separates Python execution and C++ execution boundaries, reducing unnecessary global serialization.
 
-#### 8.10.4 Callback重入策略
+#### 8.10.4 Callback Reentry Strategy
 
-V1建议默认支持 "多 session并发、单 session内串行":
+V1 recommends supporting "multiple sessions concurrent, single session serial" by default:
 
-- 一个 execution session内部不做并发 Python回调
-- 不同 session之间如果由 GE上层并发触发,则通过 GIL自然串行进入 Python
+- No concurrent Python callbacks within one execution session
+- If different sessions are concurrently triggered by the GE upper layer, they naturally serialize into Python through GIL
 
-这对 Python user含义是:
+For Python users this means:
 
-- 不需要为了 bridge额外给 pass写 lock
-- 如果 user自己使用模块级全局可变状态,仍需自行保证逻辑正确
+- No need to write additional locks for passes because of the bridge
+- If users use module-level global mutable state themselves, they still need to ensure logic correctness themselves
 
-Bridge不额外限制 user这么写,但也不为 user自己全局共享状态提供自动事务 semantics.
+The bridge does not additionally restrict users from writing this way, but also does not provide automatic transaction semantics for user-owned global shared state.
 
-### 8.11 Pythonic Experience约束
+### 8.11 Pythonic Experience Constraints
 
-V1设计原则是 "把 lifecycle和并发复杂度收敛在 bridge内部",尽量不给 Python user增加非 Pythonic规则.具体要求如下:
+The V1 design principle is "converging lifecycle and concurrency complexity inside the bridge", minimizing non-Pythonic rules imposed on Python users. Specific requirements are as follows:
 
-- 不要求 user手工管理 memory
-- 不要求 user手工管理 lock或 GIL
-- 不要求 user通过特定 context manager才能写 pass
-- 不要求 user为了避免复用问题而人为拆散普通 Python写法
+- Does not require users to manually manage memory
+- Does not require users to manually manage locks or GIL
+- Does not require users to write passes through specific context managers
+- Does not require users to artificially break apart ordinary Python code to avoid reuse issues
 
-在可做到范围内, Python user应当能按普通类来写:
+Within what is achievable, Python users should be able to write as ordinary classes:
 
-- 用构造函数初始化固定配置
-- 用 `self`保存一次执行内临时状态
-- 用普通 Python异常表示错误
-- 用普通返回值表示结果
+- Use constructors to initialize fixed configuration
+- Use `self` to save temporary state within one execution
+- Use ordinary Python exceptions to indicate errors
+- Use ordinary return values to indicate results
 
-需要如实说明边界只有两类:
+The boundaries that need to be truthfully explained are only two types:
 
-- 注册协议边界
-- User仍需通过 decorator或等价注册接口声明 pass,这属于框架接入协议,不属于非 Pythonic限制
+- Registration protocol boundary
+- Users still need to declare passes through decorators or equivalent registration interfaces; this belongs to the framework integration protocol and is not a non-Pythonic restriction
 
-- 过期 object边界
-- 如果 user跨执行长期保存 borrowed graph视图 object,后续再次访问时会得到 Python异常,而不是被静默支持到无限期
+- Expired object boundary
+- If users save borrowed graph view objects long-term across executions and access them again later, they will get a Python exception rather than being silently supported indefinitely
 
-这两类边界是框架接入必需,但不应把 user逼到 "必须按非 Pythonic模式写 code".
+These two types of boundaries are necessary for framework integration, but should not force users into "having to write code in non-Pythonic patterns".
 
-### 8.12 `REGISTER_CUSTOM_PASS`后续支持设计
+### 8.12 `REGISTER_CUSTOM_PASS` Subsequent Support Design
 
-`REGISTER_CUSTOM_PASS`需要支持,但建议放在三类 `PassRegistry` pass稳定之后扩展阶段实施.原因是:
+`REGISTER_CUSTOM_PASS` needs to be supported, but it is recommended to place it in the extension phase after the three types of `PassRegistry` passes are stabilized. The reasons are:
 
-- 其执行路径与 `FusionPassExecutor`体系不同,当前更多走 `CustomPassHelper` / legacy custom pass链路
-- 首批优先打通三类 pass,能更快把 descriptor、session、bridge、holder、GIL、异常隔离这些公共底座做稳定
-- 等底座稳定后,再接 `REGISTER_CUSTOM_PASS`,可以显著提高代码复用度,避免再做第二套 Python bridge
+- Its execution path differs from the `FusionPassExecutor` system, currently mostly going through `CustomPassHelper` / legacy custom pass chain
+- The first batch prioritizes connecting the three types of passes, which can more quickly stabilize the common foundation of descriptor, session, bridge, holder, GIL, and exception isolation
+- After the foundation is stabilized, connecting `REGISTER_CUSTOM_PASS` can significantly improve code reuse and avoid building a second Python bridge
 
-推荐复用方式如下:
+The recommended reuse approach is as follows:
 
-- 继续复用同一套 Python发现机制
+- Continue to reuse the same Python discovery mechanism
   - `ge.passes.bootstrap`
-  - 当前阶段以环境变量为主路径,后续再补 `entry_points`
+  - The current phase uses the environment variable as the main path, with `entry_points` to be added later
 
-- 继续复用同一套 Python注册表与 descriptor机制
-  - 在 `PythonPassKind`中新增 `legacy_custom`
-  - Descriptor新增 legacy custom pass所需 metadata
+- Continue to reuse the same Python registry and descriptor mechanism
+  - Add `legacy_custom` in `PythonPassKind`
+  - Descriptor adds metadata required by legacy custom passes
 
-- 继续复用同一套 pybind bridge
-  - 不另起第二套 Python runtime初始化
-  - 不另起第二套 holder / session管理
+- Continue to reuse the same pybind bridge
+  - Does not start a second Python runtime initialization
+  - Does not start a second holder / session management
 
-### 8.13 PatternFusionPass桥接协议
+- Continue to reuse the "static `descriptor_key` + dynamic `instance_id`" model
+  - Avoid legacy custom passes reintroducing shared Python instance state limitations
 
-PatternFusionPass桥接协议定义 adapter如何与 Python pass交互:
+- Add `PythonLegacyCustomPassAdapter` on the C++ side
+  - Adapt the interfaces and execution entry required by `REGISTER_CUSTOM_PASS`
+  - Only differs from the three types of passes at the outermost interface adaptation level
 
-#### 8.13.1 Patterns Hook
+In other words, the subsequent support for `REGISTER_CUSTOM_PASS` should be:
 
-`Patterns()` hook返回 pattern列表:
+- Reuse the same `bootstrap`
+- Reuse the same `registry`
+- Reuse the same `pybind bridge`
+- Reuse the same `session / holder / instance_id`
+- Only add a legacy custom path adapter layer and a small number of descriptor fields
 
-- Python实现应返回 `List[Pattern]`或等价结构
-- Adapter在 C++侧调用 `Patterns()`,并将返回结果转换为 C++ pattern objects
-- GIL只在 `Patterns()`调用期间持有
+This ensures the subsequent extension does not need to build a second parallel system.
 
-#### 8.13.2 MeetRequirements Hook
+### 8.13 PatternFusionPass Bridge Protocol
 
-`MeetRequirements(match_result)` hook判断是否满足融合条件:
+This section defines the cross-language call protocol between the C++ pybind bridge and `_bridge.py` for `PatternFusionPass`.
 
-- Input: `MatchResult` Python wrapper
-- Output: `bool` (True/False)
-- Adapter在 C++侧调用 `MeetRequirements()`,传入转换后 `MatchResult`
-- GIL只在 hook调用期间持有
+#### 8.13.1 Protocol Functions
 
-#### 8.13.3 Replacement Hook
+`_bridge.py` needs to implement the following three functions for `libge_python_pass_bridge.so` to call back in embed mode:
 
-`Replacement(match_result)` hook生成替换图:
+1. **`get_pass_patterns(instance_id: str) -> list`**
+   - Called back by the C++ side `PythonPatternFusionPassAdapter::Patterns()` through the bridge
+   - `_bridge.py` calls the Python pass instance's `patterns()` method
+   - Returns a Pattern object list; each Pattern is constructed by `_ge_pass_native.so`
 
-- Input: `MatchResult` Python wrapper
-- Output: `Graph` Python object
-- Adapter在 C++侧调用 `Replacement()`,传入转换后 `MatchResult`
-- Adapter将返回 Graph转换为 C++ Graph并执行替换
-- GIL只在 hook调用期间持有
+2. **`call_meet_requirements(instance_id: str, match_result_handle: int) -> bool`**
+   - Called back by the C++ side `PythonPatternFusionPassAdapter::MeetRequirements()` through the bridge
+   - `match_result_handle` is the `uintptr_t` representation of the C++ `MatchResult*`
+   - `_bridge.py` restores it to a borrowed MatchResult wrapper through `_ge_pass_native.so`
+   - Calls the Python pass instance's `meet_requirements()` method
+   - Returns whether the condition is satisfied
 
----
+3. **`call_replacement(instance_id: str, match_result_handle: int) -> int`**
+   - Called back by the C++ side `PythonPatternFusionPassAdapter::Replacement()` through the bridge
+   - `match_result_handle` is the same as above
+   - Calls the Python pass instance's `replacement()` method
+   - Requires the Python pass to return a replacement Graph
+   - If the current match should not continue, it must return `False` in the `meet_requirements()` phase
+   - `_bridge.py` is responsible for validating the return value type and transferring Graph ownership to C++
 
-## 9. Python Graph Interfaces补齐设计
+#### 8.13.2 Ownership and Lifecycle Convention
 
-### 9.1 必补能力
+##### Pattern Ownership Transfer (get_pass_patterns)
 
-Python graph wrapper需要补齐以下能力以支持 Python pass:
+- The Python side constructs Pattern objects through `_ge_pass_native.so`
+- Pattern has `unique_ptr` semantics; before the function returns, the Python side must call `release()` to transfer ownership
+- The C++ side takes over the raw pointer through `unique_ptr<Pattern>` and is responsible for subsequent destruction
+- **Constraint**: The Python side must not continue to hold Pattern references after the function returns
 
-- `Graph::FindNodeByName(node_name)`
-- `Node::GetAllOutAnchors()`
-- `Node::GetAllInAnchors()`
-- `Graph::GetParentGraph()`
-- `Graph::GetParentNode()`
-- Subgraph相关 interfaces
+##### MatchResult Borrowed Semantics (call_meet_requirements / call_replacement)
+
+- `MatchResult` ownership always remains on the C++ side (held by `PatternFusionPass::Run()`)
+- The MatchResult obtained by the Python side is a borrowed view and does not own ownership
+- **Constraint**: The Python side must not continue to hold or cache MatchResult references after the callback returns
+- The native binding should provide a borrowed wrapper and throw `RuntimeError` on expired access rather than crashing
+- `uintptr_t` passing is a transitional approach, to be replaced with a type-safe method when the MatchResult native binding is ready
+
+##### Replacement Graph Ownership Transfer (call_replacement)
+
+- The Python side constructs the replacement Graph
+- Graph ownership is transferred to the C++ side through `release()` (`GraphUniqPtr` / `unique_ptr<Graph>`)
+- **Constraint**: The Python side must not continue to hold the Graph reference after the function returns
+
+#### 8.13.3 DecomposePass Bridge Protocol
+
+`DecomposePass` reuses the C++ `DecomposePass::Run()` matching and replacement main flow, so `_bridge.py` only needs to add two per-node callback protocol functions:
+
+1. **`call_decompose_meet_requirements(instance_id: str, node_handle: int) -> bool`**
+   - Called back by C++ `PythonDecomposePassAdapter::MeetRequirements()` through the bridge
+   - `node_handle` is the `uintptr_t` representation of the current `GNode*`
+   - `_bridge.py` restores it to a short-lived Python `Node` view through the `_ge_pass_native.so` `borrow_node()` helper
+   - Calls the Python pass instance's `meet_requirements()` method
+
+2. **`call_decompose_replacement(instance_id: str, node_handle: int) -> int`**
+   - Called back by C++ `PythonDecomposePassAdapter::Replacement()` through the bridge
+   - `_bridge.py` calls the Python pass instance's `replacement()` method
+   - Requires the Python pass to return a replacement Graph
+   - If the current node should not continue, it must return `False` in the `meet_requirements()` phase
+   - `_bridge.py` is responsible for validating the return value type and transferring ownership to C++ through `release_graph()`
+
+3. **`_bridge.py` internal instance dispatch uses explicit base classes, not `Any`**
+   - The instance type saved in the holder converges to `FusionBasePass`
+   - `PatternFusionPass` / `DecomposePass` protocol entries perform `isinstance` convergence before calling
+   - The bridge parameters and return values of `replacement()` are handled according to the formal `Graph` / `Node` interfaces, no longer passed as unconstrained `Any`
+
+##### Node Borrowed Semantics (call_decompose_meet_requirements / call_decompose_replacement)
+
+- `DecomposePass::Run()` enumerates matching nodes on the C++ side
+- The `Node` seen by the Python side is a short-lived view constructed by `_ge_pass_native.so` based on the current `GNode`
+- The Python side should not cache this `Node` across callbacks
+- Because this view essentially still points to the real graph node, reading name, type, attributes, and tensor descriptions remains consistent with the current graph
+
+It is recommended to split legacy custom pass integration into two layers:
+
+- Discovery and registration layer
+  - Continue to reuse `ge.passes.bootstrap`, `ge.passes.registry`, `ge.passes._bridge`
+  - The Python side only needs to add `legacy_custom` descriptor fields and decorator/registration entry
+
+- Execution adaptation layer
+  - Add `PythonLegacyCustomPassAdapter` on the existing `CustomPassHelper` / legacy custom pass chain
+  - This adapter continues to reuse the same pybind bridge and the same `descriptor_key -> instance_id` lifecycle protocol
+
+The direct benefits of this approach are:
+
+- Python pass discovery, module loading, exception translation, GIL, session, and holder reclamation only maintain one implementation
+- Legacy custom passes only add outermost interface adaptation without duplicating Python runtime management logic
+- If both `PassRegistry` passes and `REGISTER_CUSTOM_PASS` need to be supported simultaneously, both sides still share the same Python user development experience
+
+## 9. Python Graph Interface Completion Design
+
+### 9.1 Required Capabilities
+
+To support rewriting the existing `examples/fusion_pass` in Python, at minimum the following need to be completed:
+
+- `Graph` borrowed/non-owning handle mode
+- `Node.get_input_desc`
+- `Node.get_output_desc`
+- `Node.update_input_desc`
+- `Node.update_output_desc`
+- `Node.get_input_const_tensor`
+- `Shape`
+- `TensorDesc`
+- `GeUtils.InferShape`
+- `GeUtils.CheckNodeSupportOnAicore`
 
 ### 9.2 Borrowed Handle
 
-所有 graph wrapper objects都是 borrowed handle:
+Many `Graph`, `Node`, `Tensor` objects passed back from C++ to Python at runtime should not be destructed by Python. The current `Graph._create_from(handle, owns_handle, owner)` already supports borrowed / non-owning form. During execution, the bridge maps runtime `GraphPtr` to the formal `ge.graph.Graph` view through:
 
-- 不拥有底层 C++ Graph lifetime
-- 依赖 execution session有效性
-- Session失效后访问会抛出 Python exception
+- `_create_from(handle, owns_handle=False, owner=...)`
 
----
+and uses `owner` to hold the creation-phase token, preventing the Python wrapper from prematurely destructing and accidentally releasing the underlying runtime graph.
 
-## 10. Packaging和 Release设计
+## 10. Packaging and Release Design
 
 ### 10.1 Artifacts
 
-最终产物包含:
+The current repository is responsible for building:
 
-**Native Artifacts**:
-- `_ge_pass_native.so`: Native helper和 adapter implementations
-- `libge_python_pass_bridge.so`: Bridge shared library
+- `ge_py` main wheel
+- Multi-version native sub-wheels
+- Bridge artifact set and its loading logic
 
-**Python Packages**:
-- `ge_py_pass_bridge`: Main Python wheel package
-- `ge_py_pass_bridge_cp39`: Native sub-wheel for Python 3.9
-- `ge_py_pass_bridge_cp310`: Native sub-wheel for Python 3.10
-- ... (cp311 to cp314)
+The bridge artifact set here refers to:
 
-**Installation Artifacts**:
-- Header files: `python_pass_bridge.h`, `python_pass_adapter.h`
-- Runtime libraries: `.so` files
-- Python wheels: `.whl` files
+- `libge_python_pass_bridge.so`
+  - The private bridge so `dlopen`-ed by the GE internal loader
+  - Responsible for the embed path, interpreter management, GIL, Python callbacks, and exception translation
+
+- `_ge_pass_native.so`
+  - The helper extension imported by Python
+  - Responsible for `Graph` / `PassContext` / `MatchResult` and other native-backed wrappers and helpers
+  - Does not carry user-inheritable pass base classes
 
 ### 10.2 Version Strategy
 
-版本策略遵循 Python ABI compatibility:
+Formal support matrix:
 
-- Each Python version requires dedicated native artifact
-- Native artifacts are backward compatible within same Python minor version
-- Python wheel version independent from native artifact version
+- `cp39`
+- `cp310`
+- `cp311`
+- `cp312`
+- `cp313`
+- `cp314`
+
+These sub-wheels carry the `pybind11` extensions related to the Python pass bridge / adapter, not replacements for the entire `ge.graph` Python wrapper.
+
+The release pipeline needs to cover build capability for the above Python versions, but this is not equivalent to "a single machine must have all Python versions installed simultaneously". It is recommended to organize by a multi-version build matrix:
+
+- Each build job/container is only responsible for one Python minor version
+- Each job produces the native sub-wheel for the corresponding tag
+- The main wheel still maintains a single build
+
+In other words, the requirement is "the overall release pipeline covers `cp39-cp314`", not "every development machine or build machine must have all versions simultaneously".
+
+Current implementation status:
+
+- `build_python_pass_native_matrix.py` has built-in support for the version set `cp39/cp310/cp311/cp312/cp313/cp314`; CMake no longer maintains a separate version list, and `--tag` is only used for manually specifying a build version
+- The `ge_python` formal target produces the main wheel and triggers `ge_python_pass_native_wheel_matrix` to best-effort build native sub-wheels for available Python minor versions
+- `ge_python_native_wheel` is a single-version development target, only outputting the artifact set and `ge_py_pass_bridge` native sub-wheel corresponding to the current `HI_PYTHON`
+- The repository provides `build_python_pass_native_matrix.py` and the `ge_python_pass_native_wheel_matrix` target in the `python_pass_native_build` build tool directory, for automatically sniffing available `python3.9` through `python3.14` in CI/local environments; the matrix does not reconfigure the entire repository CMake, but reuses compile/link metadata generated by the parent build, only replacing Python include/lib before recompiling `libge_python_pass_bridge.so` and `_ge_pass_native.so`
+- The interpreter discovery order is: explicitly passed `--python`, `python3.9` through `python3.14`/`python3`/`python` in `PATH`, `bin/python` in Conda environments; Conda environments are preferably obtained through `conda env list --json`, falling back to scanning the `envs` directory derived from `CONDA_PREFIX`/`CONDA_EXE` and common paths `~/miniconda3/envs`, `~/anaconda3/envs`, `~/.conda/envs`
+- The matrix build depends on the parent build first completing the current `HI_PYTHON` `ge_python_native_wheel`, and reuses the parent build's compiler, compilation options, include/link metadata, built GE dependency libraries, and `CMAKE_CXX_COMPILER_LAUNCHER`; this flow does not re-enter `cmake/package.cmake` or recalculate `BUILD_COMPONENT`
+- The main wheel only assembles pure Python code and no longer embeds the default native artifact set for the current build Python
+- Native sub-wheels are generated through standard `bdist_wheel`, carrying a bridge/native artifact set under `ge/passes/python_pass_artifacts/<python_tag>-<platform>`
+- The ge-compiler run package continues to install the original `ge_py-0.0.1-py3-none-any.whl`, and additionally installs `ge_py_pass_bridge-*.whl` from the matrix output directory into `ge-compiler/lib64`
+- The `ge_python_pass_fallback_codegen` target generates `ge/passes/fallback_codegen/` resources through `gen_fallback_resources.py`, including `build_config.json` and a Python resource module that can temporarily expand `src/{bridge,native}` and `include/{bridge,native}`
+- Runtime selection priority is "prebuilt artifact set > runtime fallback codegen"
+
+The run package installation script needs to note: the run package can carry multiple `ge_py_pass_bridge` native sub-wheels, but a single installation should only install one sub-wheel compatible with "the Python interpreter executing the installation script". It is recommended to let pip automatically select based on wheel tags:
+
+```bash
+PYTHON_BIN=${PYTHON_BIN:-python3}
+LIB_DIR=<run-package>/ge-compiler/lib64
+
+"${PYTHON_BIN}" -m pip install \
+  --no-index \
+  --find-links "${LIB_DIR}" \
+  "${LIB_DIR}/ge_py-0.0.1-py3-none-any.whl" \
+  ge-py-pass-bridge
+```
+
+In this approach, the `ge_py` main wheel is explicitly installed through a file path, and `ge-py-pass-bridge` selects the native sub-wheel matching the current Python tag and platform tag from the same directory through `--find-links`. For example, Python 3.11 will only select the `cp311-cp311` wheel. The installation script should not pass all `cp39-cp314` native wheel file paths to pip at once, otherwise wheels incompatible with the current interpreter will be judged as uninstallable.
+
+#### 10.2.1 Artifact Set Manifest and Selection Mechanism
+
+The Python pass bridge artifact set uses a fixed directory layout:
+
+```text
+ge/passes/python_pass_artifacts/<python_tag>-<platform>/manifest.json
+ge/passes/python_pass_artifacts/<python_tag>-<platform>/libge_python_pass_bridge.so
+ge/passes/python_pass_artifacts/<python_tag>-<platform>/_ge_pass_native.so
+```
+
+The current manifest fields are as follows:
+
+```json
+{
+  "python_tag": "cp311",
+  "platform": "linux-x86_64",
+  "bridge_abi": 1,
+  "artifacts": {
+    "bridge": "libge_python_pass_bridge.so",
+    "native": "_ge_pass_native.so"
+  }
+}
+```
+
+Field descriptions:
+
+| Field | Description | Matching Method |
+|-------|-------------|-----------------|
+| `python_tag` | The CPython minor version tag bound to the artifact, for example `cp39`, `cp310`, `cp311`, `cp312` | Must match the target Python runtime key in the current process |
+| `platform` | The platform tag bound to the artifact, currently composed of the system name and machine architecture, for example `linux-x86_64` | Must match the current running platform |
+| `bridge_abi` | The C ABI protocol version between the loader in `ge_compiler.so` and `libge_python_pass_bridge.so` | Must match `kPythonFusionPassBridgeAbiVersion` |
+| `artifacts.bridge` | The bridge `.so` path relative to the manifest directory | Must resolve to a real file, as the `dlopen` target |
+| `artifacts.native` | The `_ge_pass_native.so` path relative to the manifest directory | Must resolve to a real file, and be passed to the bridge through `set_artifact_config` to ensure Python import uses the same-source native |
+
+Selection flow:
+
+1. The loader first resolves the current process target Python runtime key. If the current process has already loaded CPython C API symbols, it obtains `cpXY` through `Py_GetVersion()`; if no visible CPython symbols exist in the process, it probes `python3` and `python` in `PATH` according to the internal native entry scenario.
+2. The loader derives the `ge` package directory from its own `.so` path and scans manifests under `ge/passes/python_pass_artifacts`.
+3. The manifest first undergoes JSON structure and artifact file existence validation, then filters by `python_tag`, `platform`, and `bridge_abi`.
+4. Matched artifact sets enter the candidate list with priority.
+5. If no match is found or candidate loading fails, runtime fallback codegen is triggered, calling `ge.passes.runtime.run_fallback_codegen()`; if fallback artifacts are still unavailable, the loader directly returns failure.
+6. After bridge `dlopen` succeeds, the loader reads the actual Python runtime key of the current process and performs consistency validation against the target key before loading, to avoid accidentally starting a different CPython minor version in the same process.
+
+`kPythonFusionPassBridgeAbiVersion` only describes the protocol version of the loader and bridge C API, for example it only needs to be rolled when function table fields, function semantics, or call timing undergo incompatible changes. Before the project formally releases the Python pass bridge, this value remains `1` during full feature development and does not change frequently due to internal field additions or phased development commits.
 
 ### 10.3 Installation Strategy
 
-安装策略:
+V1 does not perform installation-time codegen, nor does it plan a separate `prepare` pre-compilation command. The reasons include:
 
-**Run Package Installation**:
-- All native artifacts packaged in run package
-- Installation script selects matching version artifact
-- Installation copies header files and `.so` to target directory
+- Standard wheels lack a stable, universal post-install compilation mechanism
+- The Python environment at installation time is not necessarily the final runtime environment
+- Installation machines do not necessarily have compilers and development headers
+- Once installation-time automatic compilation fails, it may also bring down the availability of the pure Python parts
 
-**Python Wheel Installation**:
-- Main wheel installed to Python environment
-- Native sub-wheel installed based on current Python version
-- `pip install --no-index --find-links <path> ge_py_pass_bridge`
+Therefore, a two-layer strategy is recommended:
+
+1. Mainstream versions use pre-compiled native sub-wheels
+2. Non-covered versions use runtime fallback codegen as fallback
+
+That is, the installation phase is only responsible for installing the main wheel and available native sub-wheels in place; if the current Python version does not match a prebuilt artifact, the runtime triggers fallback on demand.
+
+For the packaged default path in the run package, the following fixed constraints also need to be satisfied:
+
+- `libge_python_pass_bridge.so` is placed with the native artifact wheel at `ge/passes/python_pass_artifacts/<python_tag>-<platform>/`
+- The GE internal loader resolves bridge/native paths in the artifact set through manifest parsing
+- `_ge_pass_native.so` and `libge_python_pass_bridge.so` follow the same artifact set assembly constraints
 
 ### 10.4 Fallback
 
-Fallback机制当 native artifact缺失时:
+When the current Python version does not match a pre-compiled sub-wheel:
 
-**Fallback Trigger Conditions**:
-1. Native artifact file not found
-2. Native artifact version mismatch
-3. Native artifact ABI incompatible
+- The main wheel directly enters the runtime fallback flow
+- Generates and compiles the corresponding version bridge artifact set in the local cache directory
+- If successful, enables Python pass
+- If failed, disables Python pass, but does not affect the original C++ pass flow
 
-**Fallback Code Generation**:
-- Generate minimal native helper code
-- Generate adapter skeleton code
-- Compile generated code to temporary `.so`
-- Load temporary artifact
-- Cache artifact for reuse
+The fallback boundary needs to be specially constrained:
 
-### 10.5 Local验证约束
+- Fallback codegen does not generate user pass code
+- Fallback codegen does not rewrite `ge_compiler.so`
+- The goal of fallback codegen is to generate a replaceable bridge artifact set, not a local patch
+- Fallback artifacts need to cover both `libge_python_pass_bridge.so` and `_ge_pass_native.so`
+- Fallback artifacts carry complete Python version-sensitive bridge logic and reuse the stable protocol agreed upon with `ge_compiler.so`
 
-本地验证需要:
+### 10.5 Local Validation Constraints
 
-**Environment Requirements**:
-- Python interpreter available
-- Required Python packages installed
-- CANN toolkit installed
+The current development environment Python is `3.13`, while the formal matrix is `cp39-cp314`. Therefore, local validation can only cover Python tags available in the current environment; the full matrix requires CI or release pipelines to build separately in environments with the corresponding Python versions.
 
-**Build Requirements**:
-- C++ compiler available
-- Required headers and libraries available
+### 10.6 pybind Module Boundary
 
-**Validation Checklist**:
-- Pass registration successful
-- Pass execution successful
-- Graph modification correct
-- Exception handling correct
+V1 recommends keeping pybind-side content within the "pass bridge required capability" scope, not expanding to the entire `ge.graph`. It is recommended to split into the following boundaries:
 
-### 10.6 pybind模块边界
+- Pure Python code in the main wheel
+- `ge.passes.base`
+- `ge.passes.registry`
+- `ge.passes.bootstrap`
+- `ge.passes.runtime`
+- `ge.passes._bridge`
 
-pybind模块边界清晰划分:
+- Stable core inside `ge_compiler.so`
+- `PassPluginLoader`
+- `PassRegistry` registration and runtime routing
+- `descriptor_key + instance_id` lifecycle protocol
+- Adapter callbacks, exception translation, error code mapping
+- Stable interface for interacting with the independent internal bridge `.so`
 
-**Bridge Module (`pybind_bridge`)**:
-- Python解释器管理
-- Bridge state management
-- Pass module loading
-- Exception translation
+- Prebuilt / fallback generated independent internal bridge `.so`
+- Python version-sensitive `Python.h` / `pybind11` binding code
+- Python interpreter initialization, GIL management, module import, exception translation
+- Unified runtime path calling `ge.passes._bridge`
 
-**Native Helper Module**:
-- Graph/Node/Tensor marshalling
-- Attribute value marshalling
-- Shape/Format conversion
+- Prebuilt / fallback generated `_ge_pass_native.so`
+- Construction and conversion of formal Python wrappers such as `Graph` / `PassContext` / `MatchResult` / `NodeIo`
+- Helper and factory interfaces directly imported by the Python side
+- Provides formal native-backed object sources for `ge.passes.base` / `ge.passes.pattern`
 
-**清晰分离原因**:
-- Bridge module依赖 `Python.h`
-- Native helper可独立编译和替换
-- Avoid circular dependencies
+In other words:
 
-### 10.7 pybind子Wheel组织建议
+- The responsibility of `libge_python_pass_bridge.so` is "supporting Python pass integration into GE"
+- The responsibility of `_ge_pass_native.so` is "exposing native-backed objects and helpers for Python passes"
+- Neither is "rewriting the existing Python graph API"
 
-pybind子wheel组织:
+Differences between Python versions should not in principle be reflected in maintaining multiple `.cc` files with different semantics, but mainly reflected in:
 
-**Directory Structure**:
+- Using the same template or the same source code
+- Different Python include / libpython / extension suffix / rpath and other build parameters at compilation time
+- Individual compatibility macros, conditional compilation, or generated metadata differences
+
+That is, it is not recommended to maintain multiple hand-written bridge source code branches by `cp39/cp310/cp311/cp312/cp313/cp314` long-term.
+
+### 10.7 pybind Sub-Wheel Organization Recommendations
+
+It is recommended to adopt a "main wheel + internal bridge native wheel" organization:
+
+- Main wheel package name
+- Keep `ge_py`
+
+- Native bridge wheel
+- Carried by a separate package name, for example logically named `ge_py_pass_bridge`
+- Wheel tag corresponds to `cp39-cp314`
+- Uses standard `bdist_wheel` generation, avoiding manual assembly of wheel metadata / RECORD / tags
+
+`ge.passes.runtime` in the main wheel is responsible for:
+
+1. Identifying the current Python version
+2. Parsing and loading matching bridge artifact metadata
+3. If no prebuilt module is matched, entering fallback codegen
+4. Providing the final bridge artifact path and entry information to the GE internal loader
+5. The GE internal loader `dlopen`-s `libge_python_pass_bridge.so` and establishes callback entries
+6. `libge_python_pass_bridge.so` then loads `_ge_pass_native.so` from the same directory
+
+This way the main wheel logic is fixed, and the native wheel is only responsible for bridge implementation under different Python versions.
+
+A compatibility principle needs to be further clarified here:
+
+- The bridge artifact ultimately selected at runtime should be overridden with "prebuilt artifact > fallback artifact" priority
+- It should not be required to decide which generated artifact to use at `ge_compiler.so` link time
+- A more reasonable approach is for the Python side or configuration side to first resolve the target bridge artifact, then have the GE internal loader `dlopen` it
+- Therefore, generated artifacts need to be dynamically loaded through stable module names or stable C ABI, rather than making the `.so` built into the run package the only hard-linked target
+
+From an extensibility perspective, the bridge should not continue to be compiled into `ge_compiler.so`. If such implementation currently exists, it can only be treated as a temporary bring-up deviation, not the formal architecture.
+
+### 10.8 Fallback Codegen Boundary
+
+Fallback codegen is recommended to directly generate the entire bridge artifact set, not just a single local wrapper helper. The input is fixed as:
+
+- Current Python version
+- Unified source code or templates for `libge_python_pass_bridge.so` / `_ge_pass_native.so`
+- Stable header files exported by the current repository
+- Build parameters such as include / libpython / extension suffix corresponding to the current Python environment
+- Stable link dependencies exposed by the current run package
+
+The output is fixed as:
+
+- `ge/passes/python_pass_artifacts/<python_tag>-<platform>/libge_python_pass_bridge.so`
+- `ge/passes/python_pass_artifacts/<python_tag>-<platform>/_ge_pass_native.so`
+- Corresponding manifest / metadata files
+
+The recommended link and loading relationship is as follows:
+
+1. `ge_compiler.so` does not depend on a specific fallback artifact at link time
+2. The runtime resolves the final bridge artifact path to use
+3. The GE internal loader `dlopen`-s that bridge `.so`
+4. The bridge `.so` interacts with `ge_compiler.so` through stable ABI
+
+This ensures "generated `.so` takes effect with priority" rather than always being overridden by the version preset in the run package.
+
+### 10.9 Current Engineering and Subsequent Codegen Compatibility Strategy
+
+The current engineering has already split `python_fusion_base_pass_pybind_bridge.cc` out of `ge_compiler.so`, with the first batch changed to have `python_fusion_base_pass_bridge_loader.cc` responsible for runtime loading of `libge_python_pass_bridge.so`. For compatibility with subsequent codegen evolution, subsequent implementations still need to continuously observe the following boundaries:
+
+- Do not solidify Python version-sensitive logic into the `ge_compiler.so` shipped with the run package
+- `ge_compiler.so` only retains the stable loader, registry, adapter protocols, and minimal interaction surface
+- The independent bridge `.so` carries complete Python-sensitive logic and becomes the unified replacement target for pre-compilation / fallback
+- Core semantics such as `descriptor_key + instance_id`, adapter callback protocol, error code translation, and holder lifecycle remain stable on the compiler side
+
+In other words, if the goal is productized support for subsequent extensions, then the independent bridge `.so` should not be an optimization item to "move later", but should be the formal architecture boundary from the beginning.
+
+### 10.10 Python Interpreter Source and Fallback Selection Constraints
+
+The Python pass bridge cannot assume "there is only one way to start Python in the process". When subsequently doing multi-version pre-compilation and fallback codegen, interpreter source, artifact version selection, and finalize order must be treated as the same lifecycle problem.
+
+The following typical scenarios currently need to be covered:
+
+| Scenario | Current Process | Python Interpreter State | Bridge Behavior | Fallback / Codegen Constraint |
+|----------|----------------|-------------------------|-----------------|-------------------------------|
+| External Python launcher, for example the actual `python -m ge.pyatc` | The process where the bridge resides is still `atc.bin` | The outer Python only starts `atc.bin`, which is not equivalent to `atc.bin` already having an interpreter; actual logs show TBE initializes Python inside `atc.bin` first | The bridge sees `Py_IsInitialized()` as true in `atc.bin` and reuses the TBE interpreter, `owns_interpreter=false` | Artifact selection must be based on the interpreter version in the current `atc.bin` process; the launcher Python or TBE worker Python cannot be directly used as the bridge version basis |
+| Python process directly calls GE/ATC entry through `ctypes` / C API | Current Python main process | The interpreter is already initialized before entering GE | Both TBE and the bridge should see `Py_IsInitialized()==1` and reuse the current interpreter; neither owns the interpreter | Artifact selection must use the current Python process's `sys.version_info` as the sole authoritative version; `python3` in `PATH` does not participate in version selection for this scenario |
+| Internal native entry, for example `atc.bin`, and Python pass uses Python first | `atc.bin` | The interpreter is not initialized before the bridge enters | The bridge can call `py::initialize_interpreter()` and record `owns_interpreter=true` | Artifact selection must be completed before initialization based on a clear target Python environment, for example a configured Python executable or unified runtime selector; different sources of `python3` cannot be implicitly randomly used |
+| TBE initializes Python first in `atc.bin` | `atc.bin` | TBE's `TbeInitialize -> PythonAdapterManager::Initialize -> py_decouple.cc` has already initialized the interpreter | The bridge must reuse the existing interpreter, `owns_interpreter=false` | Prebuilt or fallback artifacts must match the Python minor version already started by TBE in the process; if the selected artifact is inconsistent with the in-process version, it must report an error and disable Python pass; a second interpreter cannot be started |
+| TBE parallel compilation worker, for example `TBE(pid,python3)` in logs | Independent `python3` subprocess | Only affects the worker's own address space | Has no shared interpreter relationship with the bridge in `atc.bin` | The worker process Python version cannot be used as the bridge artifact selection basis; the bridge only looks at the current process |
+
+#### 10.10.1 External Python Launcher Actual Flow
+
+For the current `python -m ge.pyatc` type external startup scenario, if the implementation is `subprocess` / `execve` starting the native `atc.bin`, it should be understood as "Python launcher starts native `atc.bin`", not "GE runs directly in the launcher Python process". Therefore, the current process effective for the Python pass bridge is still `atc.bin`.
+
+It needs to be clarified that after `subprocess.Popen(["atc.bin", ...])` goes through `execve`, the `atc.bin` subprocess does not inherit the parent Python process's interpreter state, GIL, `sys.modules`, Python objects, or loaded libpython handles; it only inherits environment variables, current working directory, some file descriptors, and other process attributes. Therefore, the outer launcher Python version can only indirectly affect `atc.bin` through environment variables such as `PATH`, `LD_LIBRARY_PATH`, `PYTHONPATH`, `ASCEND_GE_PY_PASS_PATH`, and cannot directly serve as the bridge artifact version basis.
+
+The actual log-corresponding flow is TBE starting Python first:
+
+```text
+User shell
+  -> python -m ge.pyatc
+      -> Outer Python launcher prepares parameters / environment
+      -> Starts atc.bin
+
+atc.bin process
+  -> TbeInitialize()
+      -> PythonAdapterManager::Initialize()
+          -> HandleManager::Initialize()
+              -> dlsym(RTLD_DEFAULT, "Py_Initialize")
+                  -> If symbol can be found:
+                       -> LoadFuncs(RTLD_DEFAULT)
+                       -> If Py_IsInitialized() == 1:
+                            -> Reuse existing interpreter
+                       -> If Py_IsInitialized() == 0:
+                            -> TE_Py_Initialize()
+                  -> If symbol cannot be found:
+                       -> LaunchDynamicLib()
+                       -> Derive libpython from python3 / python in PATH
+                       -> dlopen(libpythonX.Y.so.1.0, RTLD_GLOBAL)
+                       -> TE_Py_Initialize()
+          -> import te_fusion.* / parallel_compilation
+          -> init_multi_process_env()
+          -> Start independent python3 worker subprocess
+
+atc.bin process
+  -> LoadPassPlugins()
+      -> dlopen(libge_python_pass_bridge.so)
+      -> bridge EnsureBridgeReady()
+          -> Py_IsInitialized() == 1
+          -> Reuse TBE-initialized interpreter
+          -> owns_interpreter = false
+          -> import ge.passes._ge_pass_native / ge.passes._bridge
+          -> Register Python pass descriptors
 ```
-ge_py_pass_bridge/
-├── ge/
-│   └── passes/
-│       ├── __init__.py
-│       ├── base.py
-│       ├── registry.py
-│       └── _bridge.so        # Platform-specific native
-└── pyproject.toml
 
-ge_py_pass_bridge_cp39/
-├── ge/
-│   └── passes/
-│       └── native/
-│           └── _ge_pass_native.so
-└── pyproject.toml
+In this scenario, TBE is the interpreter owner, and the Python pass bridge is the interpreter user. Neither the outer launcher Python nor the TBE worker Python is the interpreter where the bridge resides.
+
+#### 10.10.2 Python Process `ctypes` / C API Direct Call Scenario
+
+If there is subsequently a mode that does not start a subprocess but directly calls GE/ATC entry functions within the Python main process through `ctypes.CDLL(...)`, C API wrapper, or similar approaches, GE, TBE, and the Python pass bridge all run in the same Python process address space:
+
+```text
+python main process
+  -> import ge.pyatc / ctypes.CDLL(...)
+  -> Call main_impl / GE build entry
+
+Same python process
+  -> TbeInitialize()
+      -> dlsym(RTLD_DEFAULT, "Py_Initialize")
+          -> Should be able to find current CPython symbols
+      -> Py_IsInitialized() == 1
+      -> TBE reuses current Python interpreter
+      -> pyEnvStatusBeforeTbe = true
+      -> TBE does not own the interpreter, should not Py_Finalize
+
+Same python process
+  -> LoadPassPlugins()
+      -> dlopen(libge_python_pass_bridge.so)
+      -> bridge EnsureBridgeReady()
+          -> Py_IsInitialized() == 1
+          -> Reuse current Python interpreter
+          -> owns_interpreter = false
+          -> import ge.passes._ge_pass_native / ge.passes._bridge
+          -> Register Python pass descriptors
 ```
 
-**Wheel Metadata**:
-- Wheel tag: `cp39-cp39-manylinux2014_x86_64`
-- Platform: Linux x86_64
-- Python version: 3.9
+In this scenario, the interpreter owner is the outer Python main process. Both TBE and the Python pass bridge can only serve as interpreter users and must not call `Py_Finalize()` / `py::finalize_interpreter()`.
 
-### 10.8 Fallback Codegen边界
+Version selection in this mode is the most direct; the core principle is reusing the existing interpreter in the current process:
 
-Fallback codegen边界:
+- The current Python process's `sys.version_info` is the sole authoritative version.
+- `libge_python_pass_bridge.so` and `_ge_pass_native.so` must match that Python minor version.
+- TBE's `py_decouple.cc` must reuse the current interpreter when it can already find CPython symbols through `RTLD_DEFAULT` and `Py_IsInitialized()==1`; the `PATH` / `python3-config` branch should only be entered when the current process has no visible CPython symbols.
+- If the current process's initialized Python version is found to be inconsistent with the bridge artifact manifest, it must report an error and disable Python pass; having two CPython minor versions coexisting in the same process is not an acceptable fallback approach.
 
-**What Gets Generated**:
-- Minimal marshalling functions
-- Adapter skeleton
-- Bridge registration entry
+#### 10.10.3 Internal `atc.bin` Scenario: TBE Starts First
 
-**What NOT Generated**:
-- Full native helper (性能 critical)
-- Complex optimization code
-- Platform-specific optimizations
+In the `atc.bin` native process, if TBE uses Python first, TBE's `py_decouple.cc` is responsible for finding and initializing libpython:
 
-**Generated Code Location**:
-- `ge/passes/python_pass_artifacts/<python_tag>/<platform>/`
-- Temporary,可被清理
-- Cacheable for reuse
+```text
+atc.bin
+  -> TbeInitialize()
+      -> dlsym(RTLD_DEFAULT, "Py_Initialize")
+          -> Symbol found:
+               -> Indicates the current process already has visible CPython C API
+               -> Then call Py_IsInitialized()
+                    -> true: Reuse existing interpreter
+                    -> false: TBE calls TE_Py_Initialize()
+          -> Symbol not found:
+               -> popen("python3 -V")
+               -> If fails, popen("python -V")
+               -> Parse Python major.minor
+               -> Assemble so name:
+                    Python 3.7  -> libpython3.7m.so.1.0
+                    Python 3.8+ -> libpython3.X.so.1.0
+               -> popen("python3-config --prefix")
+               -> Assemble $prefix/lib/libpythonX.Y[ m ].so.1.0
+               -> mmDlopen(absolute path, RTLD_NOW | RTLD_GLOBAL)
+               -> If fails:
+                    -> mmDlopen("libpythonX.Y[ m ].so.1.0", RTLD_NOW | RTLD_GLOBAL)
+                    -> Depends on LD_LIBRARY_PATH / RUNPATH / ld.so.cache / system lib paths
+               -> TE_Py_Initialize()
 
-### 10.9 当前工程与后续Codegen兼容策略
+atc.bin
+  -> LoadPassPlugins()
+      -> dlopen(libge_python_pass_bridge.so)
+      -> Py_IsInitialized() == 1
+      -> Bridge reuses TBE interpreter
+      -> owns_interpreter = false
+```
 
-兼容策略保证当前工程与后续 codegen平滑演进:
+In this scenario, fallback / codegen must match the Python minor version in the `atc.bin` process that TBE has already initialized. If the bridge artifact is inconsistent with that version, Python pass must be disabled or a clear error must be reported; attempting to load another CPython is not allowed.
 
-**Phase 1: Pre-built Artifacts**:
-- 手动编写 native helper
-- 手动编写 adapter
-- 手动 build and package
+#### 10.10.4 Internal `atc.bin` Scenario: Python Pass Starts First
 
-**Phase 2: Codegen Integration**:
-- 自动生成部分 marshalling code
-- 自动生成 adapter skeleton
-- Semi-automated build
+If in some flow the Python pass bridge uses Python before TBE, the interpreter owner becomes the bridge:
 
-**Phase 3: Full Codegen**:
-- 自动生成 all native code
-- 自动 build and package
-- Minimal manual intervention
+```text
+atc.bin
+  -> LoadPassPlugins()
+      -> Resolve bridge artifact set
+      -> dlopen(libge_python_pass_bridge.so)
+          -> libpython resolved by bridge's ELF NEEDED / RUNPATH / LD_LIBRARY_PATH / ld.so.cache
+      -> bridge EnsureBridgeReady()
+          -> Py_IsInitialized() == 0
+          -> py::initialize_interpreter()
+          -> owns_interpreter = true
+          -> import ge.passes._ge_pass_native / ge.passes._bridge
+          -> Register Python pass descriptors
 
-**Compatibility Guarantee**:
-- Phase 1 artifacts compatible with Phase 2
-- Phase 2 artifacts compatible with Phase 3
-- User Python code unchanged across phases
+atc.bin
+  -> TbeInitialize()
+      -> dlsym(RTLD_DEFAULT, "Py_Initialize")
+          -> Can find symbol
+      -> Py_IsInitialized() == 1
+      -> TBE reuses bridge-initialized interpreter
+      -> pyEnvStatusBeforeTbe = true
+      -> TBE does not own the interpreter, should not Py_Finalize
+```
 
-### 10.10 Python解释器来源与Fallback选择约束
+In this scenario, special care is needed for shutdown: although the bridge has `owns_interpreter=true`, if TBE subsequently reuses that interpreter, the bridge must not call `py::finalize_interpreter()` before TBE cleans up its own Python module / parallel compilation. Therefore, the subsequent design must split "bridge cleaning up Python pass state" and "interpreter final finalize" into two actions, or introduce a unified process-level Python runtime manager.
 
-Python解释器来源影响 fallback选择:
+There are several judgment principles that must be hardcoded:
 
-**解释器由Bridge初始化**:
-- Bridge owns interpreter lifecycle
-- Fallback codegen can use current interpreter
-- Shutdown时解释器由 bridge终结
+- `Py_IsInitialized()` only describes the CPython interpreter state in the **current process**, not the external `python3` subprocess state.
+- `Py_IsInitialized()` returning true only indicates the current process already has an interpreter; it cannot alone determine which wheel to select; the version still needs to be explicitly read through in-process `sys.version_info` or `Py_GetVersion()`.
+- Being able to find symbols through `dlsym(RTLD_DEFAULT, "Py_IsInitialized")` or `Py_Initialize` only indicates the current process has visible CPython C API symbols, which is not equivalent to the interpreter being initialized.
+- Only one CPython minor version is allowed in the same process; any module that finds the current process already has an interpreter must base subsequent Python pass artifact selection on that interpreter version, and cannot re-select a different minor version artifact based on another `python3` in `PATH`.
+- `libge_python_pass_bridge.so` and `_ge_pass_native.so` must match the same CPython minor version and be enabled together as the same manifest-described artifact set.
+- If the bridge initializes the interpreter itself, the bridge can call `py::finalize_interpreter()` during process-level shutdown; if the interpreter comes from the user Python main process or TBE, the bridge can only clean up its own held modules, holders, and registry state, and must not finalize the interpreter.
 
-**解释器由外部初始化**:
-- Bridge does not own interpreter lifecycle
-- Fallback codegen limited by external interpreter state
-- Shutdown时解释器由外部管理
+Therefore, the recommended strategy for the fallback runtime selector is:
 
-**Fallback选择约束**:
-- Prefer pre-built artifact over fallback
-- Use fallback only when necessary
-- Fallback codegen limited by interpreter ABI stability
+1. If the interpreter in the current process is already initialized, use the in-process Python version as the sole authoritative version.
+2. If the interpreter in the current process is not yet initialized, use the explicitly configured target Python executable or unified selector result as the target version, and use that version to generate / select the artifact set.
+3. After bridge initialization, read the in-process Python version again and perform consistency validation against the artifact manifest.
+4. When version inconsistency is found, prioritize reporting a clear error and disabling Python pass; mixing two CPython minor versions in the same process is not an acceptable recovery path.
 
----
+A shutdown order problem needs to be specially prevented here:
 
-## 11. ATC Extension设计
+```text
+TBE initializes Python
+  -> Python pass bridge reuses interpreter and caches py::object / holders
+  -> TBE calls Py_Finalize first
+  -> Python pass bridge subsequently continues to access py::objects
+```
 
-ATC扩展支持 Python pass参数:
+The above order is illegal. The more accurate principle is not "the bridge always finalizes first" or "TBE always finalizes first", but:
 
-**New ATC Parameters**:
-- `--py_pass_path`: Python pass plugin path
-- `--py_pass_module`: Specific Python module to load
+- All Python objects, modules, and holders held by all modules must be cleaned up before the interpreter is finalized.
+- The module that actually calls `Py_Finalize()` / `py::finalize_interpreter()` must be the interpreter owner, and must wait until all other Python users in the process have completed cleanup before executing.
+- The bridge's "cleaning up Python pass state" and "finalizing the interpreter" must be separable by design; the two must not be permanently bound as one action.
 
-**Parameter Processing**:
-- Environment variable `ASCEND_GE_PY_PASS_PATH` primary
-- ATC参数补充 specific paths
-- Bootstrap discovers all Python passes
+Therefore, the shutdown constraints differ under different startup orders:
 
-**Integration Point**:
-- ATC编译前调用 `PassPluginLoader::Load()`
-- Pass registration completes before compilation starts
-- Compilation uses registered Python passes
+```text
+TBE initializes Python first:
+ShutdownPassPluginsForProcess()
+  -> reset / clear Python pass holders, modules, registry
+GELib::Finalize()
+  -> TBE / op store finalize
+  -> TBE cleans up its own Python modules / parallel compilation
+  -> TBE calls Py_Finalize when it owns the interpreter
 
----
+Python pass bridge initializes Python first:
+ShutdownPassPluginsForProcess()
+  -> reset / clear Python pass holders, modules, registry
+  -> Must not immediately py::finalize_interpreter unless confirmed TBE and other Python users have not initialized
+GELib::Finalize()
+  -> TBE / op store finalize
+  -> TBE only cleans up its own Python modules, does not Py_Finalize
+Finally the bridge owner or process-level Python runtime manager finalizes the interpreter
+```
+
+If `GEFinalize`, `GeGenerator::Finalize`, `aclgrphBuildFinalize`, TBE plugin manager, or pass plugin loader order is subsequently adjusted, this constraint must be re-checked. As long as the bridge does not own the interpreter, it cannot assume it can control the interpreter lifecycle; as long as the bridge owns the interpreter but TBE has already reused it, the bridge must not finalize the interpreter before TBE cleans up its own Python modules. The more robust long-term direction is to introduce a process-level Python runtime manager or reference-counted owner protocol, abstracting "interpreter initialization / reuse / final finalize" out of individual bridge or TBE modules.
+
+## 11. ATC Extension Design
+
+To make unified reservations for subsequent Python ATC entry, the current recommendation is to split into two layers:
+
+- Current main path
+- `ASCEND_GE_PY_PASS_PATH`
+
+- Subsequent productization entry
+- CLI / internal options can add explicit parameters later, but all should ultimately converge to the `ge.passes.bootstrap.load_pass_plugins()` unified discovery protocol
+
+- Selection logic related to the native companion module
+- Users should not be required to directly specify a pybind bridge source code or generation script
+- It is more appropriate for `ge.passes.runtime` to uniformly decide "prebuilt / fallback" artifact selection
+
+The subsequent Python ATC entry should not design a second discovery mechanism, but directly reuse:
+
+- `ge.passes.bootstrap.load_pass_plugins()`
+- `ge.passes.bootstrap.get_registered_passes()`
 
 ## 12. File-level Development Plan
 
-### 12.1 Python Package和 Discovery Layer
+### 12.1 Python Package and Discovery Layer
 
-**Files to Implement**:
-- `ge/passes/__init__.py`: Module initialization
-- `ge/passes/base.py`: Pass base classes
-- `ge/passes/pattern.py`: Pattern matching helpers
-- `ge/passes/registry.py`: Pass registry
-- `ge/passes/bootstrap.py`: Plugin discovery
-- `ge/passes/runtime.py`: Runtime artifact loading
+Modify and add the following files:
 
-### 12.2 Python Graph Wrapper补齐
+- `api/python/ge/setup.py`
+- `api/python/ge/ge/__init__.py`
+- `api/python/ge/ge/passes/__init__.py`
+- `api/python/ge/ge/passes/base.py`
+- `api/python/ge/ge/passes/registry.py`
+- `api/python/ge/ge/passes/pattern.py`
+- `api/python/ge/ge/passes/replacement.py`
+- `api/python/ge/ge/passes/bootstrap.py`
+- `api/python/ge/ge/passes/_bridge.py`
 
-**Files to Update**:
-- `ge/graph/graph.py`: Add new interfaces
-- `ge/graph/node.py`: Add anchor interfaces
-- `ge/graph/tensor.py`: Add tensor interfaces
+Responsibilities are as follows:
 
-### 12.3 C Wrapper和 Native Bridge
+- Define the three types of pass Python base classes
+- Provide decorators and registry
+- Implement the environment variable main path discovery logic, and reserve extension for subsequent `entry_points`
+- Unify the bridge external interface
+- Carry wheel selection and fallback management
 
-**Files to Implement**:
-- `pybind_bridge.cc`: Bridge implementation
-- `python_pass_adapter.h`: Adapter definitions
-- `python_pass_adapter.cc`: Adapter implementations
-- `python_pass_registry.cc`: Registry implementation
+The formal direction of `base.py` needs to be clearly split into two layers:
 
-### 12.4 Pass注册核心改造
+- User inheritance layer
+- Continue to expose pure Python `FusionBasePass` / `PatternFusionPass` / `DecomposePass`
+- Users are not required to inherit native C++ base classes here
 
-**Files to Modify**:
-- `fusion_pass_executor.cc`: Add Python pass loading
-- `pass_registry.h`: Add Python pass support
-- `pass_registry.cc`: Add Python pass creation
+- Wrapper source layer
+- `PassContext` / `MatchResult` / `PatternMatcherConfig` and other objects directly obtain native-backed implementations from `_ge_pass_native`
+- `_ge_pass_native` import failure is an environment or artifact assembly issue, no longer treated as a formal fallback path for the Python API
 
-### 12.5 A/B分工与联调边界
+### 12.2 Python Graph Wrapper Completion
 
-**Team A Responsibilities**:
-- Python package implementation
-- Graph wrapper补齐
-- Bootstrap discovery mechanism
+Modify and add the following files:
 
-**Team B Responsibilities**:
-- Bridge implementation
-- Adapter implementation
-- Registry implementation
+- `api/python/ge/ge/graph/__init__.py`
+- `api/python/ge/ge/graph/graph.py`
+- `api/python/ge/ge/graph/node.py`
+- `api/python/ge/ge/graph/tensor.py`
+- `api/python/ge/ge/graph/tensor_desc.py`
+- `api/python/ge/ge/_capi/pygraph_wrapper.py`
 
-**Integration Boundary**:
-- Python registration API ↔ Bridge C API
-- Bridge ↔ GE Pass Registry
+Responsibilities are as follows:
 
-### 12.6 ATC参数接入
+- Complete borrowed handle
+- Expose tensor desc/shape
+- Add node input/output desc capabilities
+- Add constant tensor read interface
 
-**Files to Modify**:
-- `atc/main_impl.cc`: Add parameter parsing
-- `pass_plugin_loader.cc`: Add ATC integration
+### 12.3 C Wrapper and Native Bridge
 
-### 12.7 Documentation、Samples、Testing
-
-**Documentation**:
-- User guide
-- API reference
-- Design document
-
-**Samples**:
-- Simple fusion pass example
-- Pattern fusion pass example
-- Decompose pass example
-
-**Testing**:
-- Unit tests for Python pass
-- Integration tests for bridge
-- End-to-end compilation tests
-
----
-
-## 13. Collaboration和推进方式
-
-### 13.1 Collaboration总原则
-
-- Python侧和 C++侧并行开发
-- 清晰接口定义优先
-- 集成测试及时进行
-- 文档同步更新
-
-### 13.2 A/B工作流边界
-
-**Team A**: Python侧开发
-- Week 1-2: Package结构搭建
-- Week 3-4: Base classes和 registry
-- Week 5-6: Bootstrap和 discovery
-
-**Team B**: C++侧开发
-- Week 1
-
-### 12.3 C wrapper和 Native Bridge
-
-修改和新增如下 files:
+Modify and add the following files:
 
 - `api/python/ge/ge_api_c_wrapper/c_graph.cc`
 - `api/python/ge/ge_api_c_wrapper/c_gnode.cc`
@@ -1712,162 +1714,162 @@ ATC扩展支持 Python pass参数:
 - `compiler/graph/fusion/pass/python_fusion_base_pass_bridge_loader.cc`
 - `compiler/graph/fusion/pass/python_fusion_base_pass_pybind_bridge.cc`
 - `compiler/graph/fusion/pass/python_fusion_base_pass_pybind_bridge.h`
-- 新增 `_ge_pass_native.so` 源码、导出 header和 build script
+- Add `_ge_pass_native.so` source code, export headers, and build script
 - `api/python/ge/ge_api_c_wrapper/CMakeLists.txt`
 - `api/python/ge/CMakeLists.txt`
 - `compiler/CMakeLists.txt`
 
-职责如下:
+Responsibilities are as follows:
 
-- 为 Python graph wrapper提供 C接口
-- 提供基于 `pybind11` Python pass bridge / helper so
-- 接入 wheel打包与安装
+- Provide C interfaces for Python graph wrappers
+- Provide `pybind11`-based Python pass bridge / helper so
+- Connect wheel packaging and installation
 
-其中建议进一步拆分 responsibility:
+It is recommended to further split responsibilities:
 
 - `c_graph.cc` / `c_gnode.cc` / `c_tensor.cc` / `c_match_result.cc`
-- 继续服务 `ge.graph` / `ge.es` ctypes路线
+- Continue to serve the `ge.graph` / `ge.es` ctypes approach
 
-- 独立 bridge `.so`
-- 负责 Python runtime初始化、descriptor同步、holder管理、adapter原生 logic以及 Python/C++ object转换
-- 负责承接预编译 / fallback产物
+- Independent bridge `.so`
+- Responsible for Python runtime initialization, descriptor synchronization, holder management, adapter native logic, and Python/C++ object conversion
+- Responsible for receiving prebuilt / fallback artifacts
 
 - `_ge_pass_native.so`
-- 负责 `Graph` / `PassContext` / `MatchResult`等 native-backed wrapper与 helper
-- 负责与 `base.py` object来源对接
-- 不承载 user pass基类,也不要求 user直接 import C++ pass基类继承
+- Responsible for `Graph` / `PassContext` / `MatchResult` and other native-backed wrappers and helpers
+- Responsible for interfacing with `base.py` object sources
+- Does not carry user pass base classes, and does not require users to directly import C++ pass base classes for inheritance
 
 - `pass_plugin_loader.cc/.h`
-- 负责定位并 `dlopen` bridge `.so`
-- 负责和 bridge `.so`稳定 ABI对接
+- Responsible for locating and `dlopen`-ing bridge `.so`
+- Responsible for stable ABI interfacing with bridge `.so`
 
 - `python_fusion_base_pass_bridge_c_api.h`
-- 定义 bridge loader与 `libge_python_pass_bridge.so`之间稳定 C ABI
-- 当前入口为 `GeGetPythonFusionBasePassBridgeApi()`
+- Defines the stable C ABI between bridge loader and `libge_python_pass_bridge.so`
+- Current entry is `GeGetPythonFusionBasePassBridgeApi()`
 
 - `python_fusion_base_pass_bridge_loader.cc`
-- 位于 `ge_compiler.so`一侧
-- 负责 `dladdr`定位、`dlopen/dlsym`、cache bridge API、以及把 registrar callback传入 bridge
-- 当前显式使用 `RTLD_GLOBAL`装载 bridge,以便 embedded CPython后续导入标准库/native extension时能解析到 `libpython` symbols
+- Located on the `ge_compiler.so` side
+- Responsible for `dladdr` positioning, `dlopen/dlsym`, caching bridge API, and passing registrar callback to bridge
+- Currently explicitly uses `RTLD_GLOBAL` to load bridge, so that embedded CPython can resolve `libpython` symbols when subsequently importing standard library / native extensions
 
 - `python_fusion_base_pass_pybind_bridge.cc/.h`
-- 位于 `libge_python_pass_bridge.so`一侧
-- 负责 Python runtime初始化、descriptor同步、holder lifecycle和 `create/run/destroy` callback实现
-- 对 `pass_plugin_loader`暴露稳定 ABI,对 Python侧复用 `bootstrap / _bridge`协议
+- Located on the `libge_python_pass_bridge.so` side
+- Responsible for Python runtime initialization, descriptor synchronization, holder lifecycle, and `create/run/destroy` callback implementation
+- Exposes stable ABI to `pass_plugin_loader`, reuses `bootstrap / _bridge` protocol on the Python side
 
-正式架构边界应是 "bridge artifact set可替换, `ge_compiler.so`稳定".其中:
+The formal architecture boundary should be "bridge artifact set replaceable, `ge_compiler.so` stable". Where:
 
-- `libge_python_pass_bridge.so`是 GE内部 loader视角主入口
-- `_ge_pass_native.so`是 Python视角 helper extension
-- 二者必须作为同一 version、同一 build key配套产物管理
-- 当前第一批已把 `python_fusion_base_pass_pybind_bridge.cc`从 `ge_compiler` target中迁出,并新增 `ge_python_pass_bridge` target产出 `libge_python_pass_bridge.so`
-- `ge_compiler.so`当前只保留 loader、adapter、registry/runtime entry等稳定 semantics; bridge so才直接依赖 `Python3::Python`与 `pybind_options`
+- `libge_python_pass_bridge.so` is the main entry from the GE internal loader perspective
+- `_ge_pass_native.so` is the helper extension from the Python perspective
+- Both must be managed as the same version, same build key companion artifacts
+- The current first batch has moved `python_fusion_base_pass_pybind_bridge.cc` out of the `ge_compiler` target and added a new `ge_python_pass_bridge` target to produce `libge_python_pass_bridge.so`
+- `ge_compiler.so` currently only retains stable semantics such as loader, adapter, registry/runtime entry; the bridge so is the one that directly depends on `Python3::Python` and `pybind_options`
 
-### 12.4 Pass注册核心改造
+### 12.4 Pass Registration Core Refactoring
 
-修改如下 files:
+Modify the following files:
 
 - `compiler/graph/fusion/pass/pass_registry.cc`
 - `compiler/graph/fusion/pass/fusion_pass_executor.cc`
-- 新增创建期 context管理 files,例如:
+- Add creation-phase context management files, for example:
 - `compiler/graph/fusion/pass/pass_create_context.h`
 - `compiler/graph/fusion/pass/pass_create_context.cc`
 
-职责如下:
+Responsibilities are as follows:
 
-- 在 `create_fn()`调用点注入 TLS创建 context
-- 让通用 creator能按 `pass_name`找到对应 Python descriptor
-- 保持现有 C++ pass行为不变
+- Inject TLS creation context at the `create_fn()` call point
+- Let the generic creator find the corresponding Python descriptor by `pass_name`
+- Keep existing C++ pass behavior unchanged
 
-建议职责再细化为:
+Recommended responsibility further refinement:
 
 - `pass_create_context.h/.cc`
-- 定义 TLS context与 RAII scope
+- Define TLS context and RAII scope
 
 - `fusion_pass_executor.cc`
-- 在 `InitPassesIfNeed`中围绕 `create_fn()`加 scope
+- Add scope around `create_fn()` in `InitPassesIfNeed`
 
-- Bridge注册函数
-- 将 Python pass descriptor注册为 "固定 creator函数 + pass_name metadata"
+- Bridge registration function
+- Register Python pass descriptor as "fixed creator function + pass_name metadata"
 
-说明:
+Notes:
 
-- `graph_fusion.cc`属于 legacy兼容链路,不纳入本方案后续支持范围
-- `REGISTER_CUSTOM_PASS`后续支持走独立扩展阶段,但仍复用同一套 descriptor / bridge / session机制
+- `graph_fusion.cc` belongs to the legacy compatibility chain and is not included in the subsequent support scope of this scheme
+- `REGISTER_CUSTOM_PASS` subsequent support goes through an independent extension phase, but still reuses the same descriptor / bridge / session mechanism
 
-### 12.5 A/B分工与联调边界
+### 12.5 A/B Division and Integration Boundary
 
-当前建议按以下边界并行推进:
+The current recommendation is to advance in parallel along the following boundaries:
 
-- A负责 `libge_python_pass_bridge.so`、`pass_plugin_loader`、`ge_compiler.so`稳定 ABI、adapter路由、fallback装载,以及现有 `ge.graph.Graph` borrowed view接入
-- B负责 `_ge_pass_native.so`、`base.py`、`PassContext` / `MatchResult` native-backed wrapper,以及 Python sample / Python API补齐
+- A is responsible for `libge_python_pass_bridge.so`, `pass_plugin_loader`, `ge_compiler.so` stable ABI, adapter routing, fallback loading, and existing `ge.graph.Graph` borrowed view integration
+- B is responsible for `_ge_pass_native.so`, `base.py`, `PassContext` / `MatchResult` native-backed wrappers, and Python sample / Python API completion
 
-B需要明确交付:
+B needs to clearly deliver:
 
-- `_ge_pass_native.so`构建脚本与模块导出
+- `_ge_pass_native.so` build script and module exports
 - `PassContext` borrowed view wrapper
-- `MatchResult`最小可用 wrapper
-- 必要 helper /工厂 interfaces,供 `libge_python_pass_bridge.so`构造 Python objects
-- `base.py` / `pattern.py`中 `PassContext` / `MatchResult` / `Pattern` / `PatternMatcherConfig` native-backed直接导出
-- Python sample和 Python API补齐所需最小能力清单
+- `MatchResult` minimum usable wrapper
+- Necessary helper / factory interfaces for `libge_python_pass_bridge.so` to construct Python objects
+- `base.py` / `pattern.py` in `PassContext` / `MatchResult` / `Pattern` / `PatternMatcherConfig` native-backed direct export
+- Python sample and Python API completion minimum capability list
 
-A需要明确交付:
+A needs to clearly deliver:
 
-- `graph.py`中 `Graph._create_from(handle, owns_handle, owner)` borrowed / non-owning semantics
-- `python_fusion_base_pass_pybind_bridge.cc`中 `BuildPythonGraph()`对现有 `ge.graph.Graph`正式接入
-- `libge_python_pass_bridge.so`与 `_ge_pass_native.so`桥接集成点
+- `graph.py` in `Graph._create_from(handle, owns_handle, owner)` borrowed / non-owning semantics
+- `python_fusion_base_pass_pybind_bridge.cc` in `BuildPythonGraph()` formal integration with existing `ge.graph.Graph`
+- `libge_python_pass_bridge.so` and `_ge_pass_native.so` bridge integration point
 
-关于 `Graph`这条边界,需要特别固定如下原则:
+Regarding the `Graph` boundary, the following principles need to be specially fixed:
 
-- `Graph`优先复用当前已经存在 `ge.graph.Graph`
-- `_ge_pass_native.so`不再引入第二套 user可见 `Graph` type
-- A负责把 runtime `GraphPtr`以 borrowed view方式接到现有 `ge.graph.Graph`
-- B不直接拥有 `Graph` type本身,而是围绕 `PassContext` / `MatchResult` / helper提供配套能力
+- `Graph` prioritizes reusing the currently existing `ge.graph.Graph`
+- `_ge_pass_native.so` no longer introduces a second user-visible `Graph` type
+- A is responsible for connecting runtime `GraphPtr` to the existing `ge.graph.Graph` as a borrowed view
+- B does not directly own the `Graph` type itself, but provides supporting capabilities around `PassContext` / `MatchResult` / helpers
 
-B完成后, `base.py`应收敛为:
+After B completes, `base.py` should converge to:
 
-- `FusionBasePass` / `PatternFusionPass` / `DecomposePass`仍然保持纯 Python基类
-- `PassContext` / `MatchResult` / `PatternMatcherConfig`直接 re-export `_ge_pass_native`提供 types
-- `Pattern`通过 `ge.passes.pattern`直接导出 `_ge_pass_native`提供 types
-- 不再为 `_ge_pass_native`缺失场景保留兼容 shim
+- `FusionBasePass` / `PatternFusionPass` / `DecomposePass` still maintain pure Python base classes
+- `PassContext` / `MatchResult` / `PatternMatcherConfig` directly re-export types provided by `_ge_pass_native`
+- `Pattern` directly exports types provided by `_ge_pass_native` through `ge.passes.pattern`
+- No longer retain compatibility shims for `_ge_pass_native` missing scenarios
 
-A在本地拆分 bridge `.so`与 loader时,阶段1可先不依赖 `_ge_pass_native`做最小验证,但这只是一条临时 bring-up策略,不应继续保留到阶段2收口后正式 code中:
+When A locally splits bridge `.so` and loader, Phase 1 can first not depend on `_ge_pass_native` for minimum validation, but this is only a temporary bring-up strategy and should not be retained in formal code after Phase 2 closure:
 
-- 先继续使用 `FusionBasePass`现有纯 Python合约类
-- `_bridge.py`与 bridge `.so`先验证 descriptor、holder、create/run/destroy、`dlopen`、fallback产物选择
-- 涉及 `PatternFusionPass`正式端到端验收,等 B `_ge_pass_native`落地后再合流完成
+- Continue to use the existing `FusionBasePass` pure Python contract class
+- `_bridge.py` and bridge `.so` first validate descriptor, holder, create/run/destroy, `dlopen`, and fallback artifact selection
+- `PatternFusionPass` formal end-to-end validation waits for B's `_ge_pass_native` to land before merging
 
-补充约束:
+Additional constraints:
 
-- A不拥有 `base.py`,只消费 B暴露出来稳定 Python interfaces
-- B不直接拥有 `libge_python_pass_bridge.so`,只提供 bridge需要使用稳定 Python / native helper能力
+- A does not own `base.py`, only consumes stable Python interfaces exposed by B
+- B does not directly own `libge_python_pass_bridge.so`, only provides stable Python / native helper capabilities needed by the bridge
 
-### 12.6 ATC参数接入
+### 12.6 ATC Parameter Integration
 
-修改如下 files:
+Modify the following files:
 
 - `api/atc/main_impl.cc`
 
-职责如下:
+Responsibilities are as follows:
 
-- 当前不新增新 user pass路由 parameters
-- 后续若补 CLI / option,也应最终归一到 `ASCEND_GE_PY_PASS_PATH`或 `ge.passes.bootstrap`统一发现协议
+- Currently does not add new user pass routing parameters
+- If CLI / options are added later, they should ultimately converge to `ASCEND_GE_PY_PASS_PATH` or `ge.passes.bootstrap` unified discovery protocol
 
-### 12.7 Documentation、Samples、Testing
+### 12.7 Documentation, Samples, Testing
 
-新增和修改如下 files:
+Add and modify the following files:
 
 - `examples/fusion_pass/README.md`
-- `examples/fusion_pass/python_pass开发指南.md`
+- `examples/fusion_pass/python_pass_development_guide.md`
 - `examples/fusion_pass/*/python/*`
 - `tests/ge/ut/ge/graph/pyge_tests/*_test.py`
 - `tests/ge/python_pass/*`
 
-职责如下:
+Responsibilities are as follows:
 
-- 给出 Python sample
-- 给出 user使用 documentation
-- 完成单测与集成验证
+- Provide Python samples
+- Provide user usage documentation
+- Complete unit tests and integration validation
 
 ## 13. Collaboration and Advancement Approach
 
@@ -2067,10 +2069,10 @@ This design document only retains the following long-term acceptance requirement
 
 - If `CreateFusionPassFn` is directly changed to `std::function`, it may introduce `dlclose` and global destructor ordering coupling risks; prioritize adopting the "function pointer + TLS creation context + process-level registry" approach.
 - `Graph` borrowed wrapper has been implemented, but subsequently added runtime wrappers must still comply with the constraint of "not taking runtime handle ownership by default" to avoid reintroducing double-free risks.
-- Local development environment is Python 3.13, while formal wheel planning is `cp39-cp314`; local testing can only cover Python tags available in the current environment, and the full matrix requires release pipelines to validate separately by Python minor version.
+- The local development environment is Python 3.13, while the formal wheel planning is `cp39-cp314`; local testing can only cover Python tags available in the current environment, and the full matrix requires release pipelines to validate separately by Python minor version.
 - V1 needs to clearly distinguish two types of native strategies in documentation and implementation: `ge.graph` continues to use ctypes/C wrapper, Python pass bridge uses `pybind11`.
 - If more Python version-sensitive logic continues to be compiled directly into `ge_compiler.so`, the evolution space for subsequent bridge artifact sets and fallback will be compressed; therefore, subsequent implementations must converge version differences into replaceable `libge_python_pass_bridge.so` / `_ge_pass_native.so`.
-- Within `atc.bin`, Python may be initialized first by TBE, or Python may be initialized first by Python pass bridge; fallback selection must be based on the current in-process interpreter or unified selector, and bridge state cleanup should be designed separately from interpreter finalize, ensuring the interpreter is only finalized by the owner after all Python users have cleaned up.
+- Within `atc.bin`, Python may be initialized first by TBE, or Python may be initialized first by the Python pass bridge; fallback selection must be based on the current in-process interpreter or unified selector, and bridge state cleanup should be designed separately from interpreter finalize, ensuring the interpreter is only finalized by the owner after all Python users have cleaned up.
 - `PatternFusionPass` Python implementation is not a simple function callback; it must ensure that the pattern/match/replacement three-stage semantics are consistent with the existing C++ framework.
 - Before B's `_ge_pass_native` is implemented, local validation can temporarily not depend on it, but this can only be used for independent bridge `.so` splitting and `FusionBasePass` regression; it cannot replace the final acceptance of `PatternFusionPass`.
 - Providing Python equivalents for all 9 samples will expand wrapper coverage; priority should be given to ensuring main chain availability before gradually completing edge interfaces.
@@ -2085,7 +2087,7 @@ Subsequently, if "custom operator Python implementation" is advanced, a large pa
 
 The following capabilities can be directly reused in subsequent custom operator Python implementation:
 
-- Python plugin discovery protocol: Currently based on environment variable primary path as baseline, with `entry_points` auto-discovery to be added later; this protocol can be abstracted into a generic Python extension discovery framework.
+- Python plugin discovery protocol: Currently based on the environment variable primary path as baseline, with `entry_points` auto-discovery to be added later; this protocol can be abstracted into a generic Python extension discovery framework.
 - Main wheel + native sub-wheel + fallback codegen: This "pure Python main package + multi-Python version native companion package + local fallback compilation when version not matched" release mode is essentially independent of pass/custom op.
 - Bridge lifecycle management: Python interpreter initialization, repeated initialization idempotency, exception isolation, unload order control, logging, and diagnostics can all be reused.
 - GIL and lock strategies: The strategy of "management lock + session lightweight state + GIL precise surround for Python callbacks" defined in the current document applies to the vast majority of subsequent Python extension integration points.
@@ -2104,18 +2106,18 @@ The following capabilities can reuse a portion but need to be tailored according
 - Error propagation and degradation strategy: The "single plugin failure does not bring down the main chain" approach in current passes still applies, but custom ops are often closer to the compilation main flow than passes; which errors allow degradation and which errors must hard fail needs to be re-graded.
 - ATC parameter entry: The parameter integration approach reserved for `--py_pass_path`, `--py_pass_module` in this scheme can be extended to Python custom op later; but parameter naming, priority, and relationship with existing custom opp directory configuration still need to be determined.
 
-This layer is more like "mechanism reuse", not "implementation direct copy". Reuse ratio is roughly `20%~30%`.
+This layer is more like "mechanism reuse", not "implementation direct copy". The reuse ratio is roughly `20%~30%`.
 
 ### 16.3 Capabilities Needing New Addition for Custom Operators
 
-The following parts cannot be directly obtained from the Python pass scheme and need separate design:
+The following parts basically cannot be directly obtained from the Python pass scheme and need separate design:
 
 - Custom operator schema/OpDef registration model: Including inputs, outputs, attributes, constraints, default values, version, and namespace.
 - Shape/type inference Python registration and execution model.
 - Kernel delivery chain: For example, AscendC/Triton/TBE/host-side implementation, compilation artifacts, binary layout, version validation.
 - OPP package layout and installation protocol: Directory organization relationships between Python packages, op proto, kernel binaries, tiling files, and configuration files.
 - Compile/runtime recognition logic: How ATC and online compilation phases discover, validate, and sink Python custom ops.
-- Custom operator and framework adaptor connection: For example, the PyTorch/TensorFlow graph entry methods shown in current `examples/custom_op`, this part is clearly beyond the scope of pass responsibilities.
+- Custom operator and framework adaptor connection: For example, the PyTorch/TensorFlow graph entry methods shown in current `examples/custom_op`; this part is clearly beyond the scope of pass responsibilities.
 
 If the subsequent goal is only "Python writing schema + infer + registration", the reuse from the current pass scheme will be higher; if the goal also includes "Python side fully driving kernel development, packaging, and publishing", the new work will increase significantly.
 
@@ -2126,7 +2128,7 @@ It is recommended to view "Python pass implementation" and "Python custom op imp
 - The first phase completes Python pass first, stabilizing the generic foundation of Python plugin integration, lifecycle, memory management, lock/GIL, packaging, and fallback.
 - The second phase adds custom operator-specific models on this foundation, including schema, infer, kernel delivery, and OPP layout.
 
-Rough estimate from project dimension:
+Rough estimate from the project dimension:
 
 - Infrastructure layer reuse: `60%~70%`
 - Overall project reuse: `40%~50%`

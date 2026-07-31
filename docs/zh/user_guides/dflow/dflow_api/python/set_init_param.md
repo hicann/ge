@@ -1,4 +1,4 @@
-﻿# set\_init\_param
+# set\_init\_param
 
 ## 产品支持情况
 

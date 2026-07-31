@@ -1,4 +1,4 @@
-﻿# get\_nowait
+# get\_nowait
 
 ## 产品支持情况
 

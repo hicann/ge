@@ -1,4 +1,4 @@
-﻿# get\_data\_size
+# get\_data\_size
 
 ## 产品支持情况
 

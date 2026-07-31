@@ -1,4 +1,4 @@
-﻿# get\_user\_data（UDF）
+# get\_user\_data（UDF）
 
 ## 产品支持情况
 

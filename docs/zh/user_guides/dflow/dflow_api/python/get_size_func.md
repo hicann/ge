@@ -1,4 +1,4 @@
-﻿# get\_size\_func
+# get\_size\_func
 
 ## 产品支持情况
 

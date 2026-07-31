@@ -1,4 +1,4 @@
-﻿# FunctionPp类
+# FunctionPp类
 
 - [FunctionPp构造函数和析构函数](functionpp-ctor-dtor.md)
 - [SetCompileConfig（FunctionPp类）](setcompileconfig-functionpp-class.md)

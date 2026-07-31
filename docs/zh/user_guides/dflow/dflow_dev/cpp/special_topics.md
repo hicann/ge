@@ -1,4 +1,4 @@
-﻿# 专题
+# 专题
 
 ## UDF开发
 
@@ -7,7 +7,7 @@
 进行UDF开发的流程如下图所示。
 
 **图1**  UDF开发流程
-![](figures/UDF开发流程.png "UDF开发流程")
+![](figures/udf_develop_process.png "UDF开发流程")
 
 开发步骤详解如表1所示。
 
@@ -152,7 +152,7 @@ class AddFlowFunc: public MetaFlowFunc{};
             // 根据输入shape和输出数据的dataType信息，申请FlowFunc算子的输出flow msg
             auto outputMsg = context_->AllocTensorMsg(inputShape1, outDataType_);
             if (outputMsg == nullptr) {
-                FLOW_FUNC_LOG_ERROR("allow tensor msg failed");
+                FLOW_FUNC_LOG_ERROR("alloc Tensor msg failed");
                 return -1;
             }
             // 调用第三方库中的AddTensor接口，实现Add功能
@@ -187,7 +187,7 @@ class AddFlowFunc: public MetaFlowFunc{};
 用户继承meta\_flow\_func.h文件的MetaFlowFunc基类，重写Init和Proc两个函数。
 
 ```cpp
-class CallNnFlowFunc: public MetaFlowFunc{}
+class CallNnFlowFunc: public MetaFlowFunc{};
 ```
 
 - Init\(\)：执行初始化动作，如变量初始化，获取属性等，在本例中Init不需要做处理，直接返回SUCCESS。
@@ -402,7 +402,7 @@ class AddFlowFunc: public MetaMultiFunc{};
                 auto inputDataType2 = inputTensor2->GetDataType();
                 // 校验两个输入的data type是否一致
                 if (inputDataType1 != inputDataType2) {
-                    FLOW_FUNC_LOG_ERROR("input type not be same");
+                    FLOW_FUNC_LOG_ERROR("input type is not the same");
                     return -1;
                 }
                 // 从Tensor中获取shape信息
@@ -411,13 +411,13 @@ class AddFlowFunc: public MetaMultiFunc{};
 
                 // 校验两个输入tensor的shape是否一致
                 if (inputShape1 != inputShape2) {
-                    FLOW_FUNC_LOG_ERROR("input shape not be same");
+                    FLOW_FUNC_LOG_ERROR("input shape is not the same");
                     return -1;
                 }
                 // 申请输出的msg信息
                 auto outputMsg = runContext->AllocTensorMsg(inputShape1, outDataType_);
                 if (outputMsg == nullptr) {
-                    FLOW_FUNC_LOG_ERROR("all tensor fail");
+                    FLOW_FUNC_LOG_ERROR("alloc Tensor msg failed");
                     return -1;
                 }
                 auto outputTensor = outputMsg->GetTensor();
@@ -494,7 +494,7 @@ class AddFlowFunc: public MetaMultiFunc{};
 
                 // 校验两个输入的data type是否一致
                 if (inputDataType1 != inputDataType2) {
-                    FLOW_FUNC_LOG_ERROR("allow Tensor msg failed");
+                    FLOW_FUNC_LOG_ERROR("alloc Tensor msg failed");
                     return -1;
                 }
                 // 从tensor中获取shape信息
@@ -503,13 +503,13 @@ class AddFlowFunc: public MetaMultiFunc{};
 
                 // 校验两个输入tensor的shape是否一致
                 if (inputShape1 != inputShape2) {
-                    FLOW_FUNC_LOG_ERROR("input shape not be same");
+                    FLOW_FUNC_LOG_ERROR("input shape is not the same");
                     return -1;
                 }
                 // 申请输出的Tensor信息
                 auto outputMsg = runContext->AllocTensorMsg(inputShape1, outDataType_);
                 if (outputMsg == nullptr) {
-                    FLOW_FUNC_LOG_ERROR("all tensor fail");
+                    FLOW_FUNC_LOG_ERROR("alloc Tensor msg failed");
                     return -1;
                 }
                 auto outputTensor = outputMsg->GetTensor();
@@ -580,7 +580,7 @@ class AddFlowFunc: public MetaMultiFunc{};
 用户继承meta\_flow\_func.h文件的MetaFlowFunc基类，重写Init函数和自定义的处理函数。
 
 ```cpp
-class CallNnFlowFunc: public MetaMultiFunc{}
+class CallNnFlowFunc: public MetaMultiFunc{};
 ```
 
 - Init\(\)：执行初始化动作，如变量初始化，获取属性等，在本例中Init不需要做处理，因此不需要该函数。
@@ -625,7 +625,7 @@ FLOW_FUNC_REGISTRAR(CallNnFlowFunc)
 - Proc2：用户自定义多func处理函数名，需要和在AddFlowFunc中定义的处理函数名保持一致。
 - Add：用户自定义函数名，需要和在CallNnFlowFunc中定义的处理函数名保持一致。
 - AddFlowFunc：类名，需要和“UDF实现文件（通过UDF实现自定义功能）”中的类名保持一致。
-- CallNnFlowFunc：类名，需要和“UDF实现文件（通过调用NN实现自定义功能）”中的类名保持一致。
+- ：类名，需要和“UDF实现文件（通过调用NN实现自定义功能）”中的类名保持一致。
 
 ### 工程编译
 
@@ -826,7 +826,7 @@ IR构图示例：
     auto OP_Sub = op::Sub("Sub").set_input_x1(data3).set_input_x2(data4);
 
     auto OP_Mul = op::Mul("Mul").set_input_x1(OP_Add).set_input_x2(OP_Sub);
-    auto partition1 = op::PartitionedCall("partitio_001")
+    auto partition1 = op::PartitionedCall("partition_001")
  .create_dynamic_input_args(1)
  .set_dynamic_input_args(0, OP_Mul)
  .create_dynamic_output_output(1)

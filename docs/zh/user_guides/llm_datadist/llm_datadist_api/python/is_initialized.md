@@ -1,4 +1,4 @@
-﻿# is\_initialized
+# is\_initialized
 
 ## 产品支持情况
 

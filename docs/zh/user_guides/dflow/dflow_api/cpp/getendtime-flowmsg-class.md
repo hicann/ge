@@ -1,4 +1,4 @@
-﻿# GetEndTime（FlowMsg类）
+# GetEndTime（FlowMsg类）
 
 ## 产品支持情况
 

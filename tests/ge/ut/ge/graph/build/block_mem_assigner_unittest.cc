@@ -345,6 +345,35 @@ TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_support_hccl) {
   ge::GetThreadLocalContext().SetGraphOption({{}});
 }
 
+TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_hccl_dynamic_static_subgraph) {
+  auto root_builder = block_mem_ut::GraphBuilder("root_graph");
+  const auto &partitioned_call = root_builder.AddNode("partitioned_call", PARTITIONEDCALL, 0, 1);
+  const auto &root_graph = root_builder.GetGraph();
+  root_graph->SetGraphUnknownFlag(true);
+
+  auto sub_builder = std::make_shared<block_mem_ut::GraphBuilder>("sub_graph");
+  const auto &add = sub_builder->AddNode("add", ADD, 0, 1);
+  const auto &netout = sub_builder->AddNode("NETOUTPUT", NETOUTPUT, 1, 1);
+  sub_builder->AddDataEdge(add, 0, netout, 0);
+  const auto &sub_graph = sub_builder->GetGraph();
+
+  partitioned_call->GetOpDesc()->AddSubgraphName(sub_graph->GetName());
+  partitioned_call->GetOpDesc()->SetSubgraphInstanceName(0, sub_graph->GetName());
+  sub_graph->SetParentGraph(root_graph);
+  sub_graph->SetParentNode(partitioned_call);
+  root_graph->AddSubgraph(sub_graph);
+
+  auto op_desc = sub_graph->FindNode("add")->GetOpDesc();
+  op_desc->SetOpKernelLibName(ge::kEngineNameHccl.c_str());
+
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = sub_graph;
+  auto ret = GraphUtils::GetRefMapping(sub_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  auto p1 = std::make_shared<FakBlockMemAssigner>(mem_assist_info);
+  EXPECT_EQ(p1->IsZeroCopyBlock(add, 0, false), false);
+}
+
 TEST_F(UtestBlockMemAssigner, IsZeroCopyBlock_unsupport_hccl_with_dynamic) {
   ge::GetThreadLocalContext().SetGraphOption({{"ge.exec.static_model_addr_fixed", "1"}});
   auto root_builder = block_mem_ut::GraphBuilder("root_graph");

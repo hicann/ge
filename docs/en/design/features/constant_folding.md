@@ -18,7 +18,7 @@ In deep learning computation graphs, many node inputs are determinable at compil
 Constant folding feature contains following capabilities:
 
 | Capability | Description |
-|------------|-------------|
+| ------------ | ------------- |
 | Standard constant folding | Replace operators with all constant inputs as constant nodes |
 | Dimension computation folding | Compile-time evaluation for Shape/Reshape/Transpose dimension operations |
 | Dimension adjustment folding | In-place optimize and remove dimension-changing operators like ExpandDims |
@@ -81,7 +81,7 @@ Framework side (like TensorFlow `_grappler_do_not_remove` attribute) or users ca
 ### 3.1 Configuration Parameters
 
 | Parameter Key | Parameter Value | Configuration Entry | Description |
-|---------------|----------------|--------------------|-------------|
+| --------------- | ---------------- | -------------------- | ------------- |
 | `ge.oo.constantFolding` | `"true"` / `"false"` | aclgrphBuildInitialize, aclgrphBuildModel, atc | Control constant folding optimization switch |
 | `ge.oo.level` | `"O1"` / `"O2"` / `"O3"` | Same as above | Optimization level, O1 and above default enable constant folding |
 
@@ -103,7 +103,7 @@ Option defaults to enable at O1 and O3 optimization levels, supports Session, IR
 ### 3.2 Node Attribute Interfaces
 
 | Attribute Name | Function | Setter |
-|----------------|----------|--------|
+| ---------------- | ---------- | -------- |
 | `ATTR_NO_NEED_CONSTANT_FOLDING` | Mark node no need for constant folding | GE internal Pass |
 | `ATTR_NAME_DO_NOT_CONSTANT_FOLDING` | Mark user specified node not do constant folding | Framework Parser / User |
 | `ATTR_NAME_POTENTIAL_CONST` | Mark node as potential constant | GE constant folding Pass |
@@ -170,6 +170,7 @@ Constant folding Pass system adopts three-layer inheritance structure, progressi
 **BaseNodePass** → Defines basic framework for node-level Pass, including node traversal, re-pass (RePass), node deletion tracking mechanisms.
 
 **FoldingPass** → Inherits BaseNodePass, implements core "folding" action (`FoldingPass::Folding`), including:
+
 - Collect folded node downstream anchor connection relationships (`GetIndexAndPeerInDataAnchors`)
 - Handle Switch/RefSwitch type input nodes (disconnect data edges, insert Identity node maintain control dependency)
 - Create new Const node replace original node output (`AddConstNodeToGraph`)
@@ -225,9 +226,11 @@ This is constant folding main entry Pass, processing nodes with all inputs as co
    - Summary output performance trace log in `GraphManager::OptimizeStage1_2`
 
 Pass registration macro:
+
 ```
 REG_PASS_OPTION("ConstantFoldingPass").SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 ```
+
 This Pass controlled by `ge.oo.constantFolding` switch.
 
 #### 4.3.2 DimensionComputePass — Dimension Computation Folding
@@ -243,6 +246,7 @@ Specifically handles dimension-related computation operations (like Shape, Resha
 In preprocessing stage (`GraphPrepare::ComputeConstantShape`), DimensionComputePass runs in `need_fold=false` mode, purpose is first use dimension computation determine Shape information, provide more accurate input for subsequent InferShape.
 
 Pass registration macro:
+
 ```
 REG_PASS_OPTION("DimensionComputePass").LEVELS(OoLevel::kO1).SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 ```
@@ -262,6 +266,7 @@ Handles ExpandDims operators adjusting dimension through constant parameters. Wo
 DimensionAdjustPass does not go through complete constant folding replacement flow (does not create Const node), but directly completes dimension inference then simplifies node as direct connect.
 
 Pass registration macro:
+
 ```
 REG_PASS_OPTION("DimensionAdjustPass").LEVELS(OoLevel::kO1).SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 ```
@@ -273,6 +278,7 @@ File: `compiler/graph/passes/standard_optimize/constant_folding/replace_with_emp
 Identifies operators with empty tensor output (Shape contains dimension 0, like `[0, 3, 224, 224]`), replaces as empty constant nodes.
 
 Exclusion rules (node types not replaced):
+
 - Const/ConstantOp/FileConstant constant class nodes
 - Data class nodes
 - NetOutput nodes
@@ -285,6 +291,7 @@ Exclusion rules (node types not replaced):
 This Pass also supports `need_fold` parameter control whether only do marking.
 
 Pass registration macro:
+
 ```
 REG_PASS_OPTION("ReplaceWithEmptyConstPass").LEVELS(OoLevel::kO1).SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 ```
@@ -298,6 +305,7 @@ This is a special Pass, its `Run` method is no-op (directly returns SUCCESS), ac
 Design intent: During graph traversal, some node partial inputs are not yet constants in current round (like from Shape inference intermediate results). DimensionComputePass etc. will mark as "potential constant" and cache weight. When graph traversal completes (all Pass executed), potential constant inputs may have been folded as constant in previous rounds. At this time PotentialConstTakenEffectPass uniformly scans all nodes marked as potential constant in `OnFinishGraph`, executes delayed folding.
 
 Processing flow:
+
 1. Traverse all nodes in graph, find nodes with `ATTR_NAME_POTENTIAL_CONST` mark
 2. Read cached potential weight from attributes (`ATTR_NAME_POTENTIAL_WEIGHT`)
 3. If weight exists, call `FoldingPass::Folding` execute folding
@@ -305,6 +313,7 @@ Processing flow:
 5. Collect all nodes needing re-pass, pass to next round Pass execution
 
 Pass registration macro:
+
 ```
 REG_PASS_OPTION("PotentialConstTakenEffectPass").LEVELS(OoLevel::kO1).SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 ```
@@ -316,7 +325,7 @@ Potential constant (Potential Const) is one of GE constant folding core innovati
 Related attributes and tool classes:
 
 | Component | Location | Description |
-|-----------|----------|-------------|
+| ----------- | ---------- | ------------- |
 | `ConstantUtils` | `inc/graph_metadef/graph/utils/constant_utils.h` | Potential constant mark/query/clear tool class |
 | `ATTR_NAME_POTENTIAL_CONST` | `inc/graph_metadef/graph/debug/ge_attr_define.h` | Mark node as potential constant |
 | `ATTR_NAME_POTENTIAL_WEIGHT` | Same as above | Cache potential constant weight value |
@@ -367,7 +376,7 @@ Located at `compiler/host_kernels/`, through `KernelFactory` registration and cr
 Registered Host Kernel distributed by category:
 
 | Category | Directory | Operator List |
-|----------|-----------|---------------|
+| ---------- | ----------- | --------------- |
 | Array operations | `host_kernels/array_ops/` | Reshape, Squeeze, SqueezeV3, Unsqueeze, UnsqueezeV3, ExpandDims, Rank, Shape, ShapeN, Size, Identity, Empty, BroadcastArgs, BroadcastGradientArgs, GatherShapes |
 | Element-wise computation | `host_kernels/elewise_calculation_ops/` | Add, Sub, Mul, FloorDiv, FloorMod, Maximum, Greater, Rsqrt, Cast |
 | Selection operations | `host_kernels/selection_ops/` | Slice, SliceD, StridedSlice, GatherV2, Range |
@@ -387,6 +396,7 @@ As GE built-in Kernel supplement, through AICPU engine execute operators. Locate
 Load path is `libconstant_folding_ops.so`, provided by OPP (Operator Package), contains wider operator implementations. `compiler/engines/cpu_engine/cpu_engine/constant_folding_stub/constant_folding_ops_stub.cpp` is compilation stub library (no actual implementation), runtime replaced by real OPP library.
 
 `HostCpuEngine` responsible for:
+
 - Loading `libconstant_folding_ops.so` dynamic library
 - Creating operator instance through `OpKernelRegistry`
 - Calling `RunHostCpuKernel` execute computation
@@ -426,6 +436,7 @@ GraphOptimizerBeforeAutofuse (before auto-fusion)
 ```
 
 Multi-stage calling design considerations:
+
 - **Preprocessing stage** runs DimensionComputePass in marking mode, first complete dimension inference then execute standard folding
 - **Optimization stage1** is constant folding main battlefield, contains all Pass complete execution
 - **Optimization stage2** does constant folding once more for merged subgraph graph, eliminate new constant computations introduced by subgraph merging

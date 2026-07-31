@@ -1,4 +1,4 @@
-﻿﻿# AffinityPolicy类
+# AffinityPolicy类
 
 ## 产品支持情况
 

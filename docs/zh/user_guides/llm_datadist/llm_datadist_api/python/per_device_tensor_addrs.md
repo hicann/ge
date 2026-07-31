@@ -1,4 +1,4 @@
-﻿# per\_device\_tensor\_addrs
+# per\_device\_tensor\_addrs
 
 ## 产品支持情况
 

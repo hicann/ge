@@ -1,4 +1,4 @@
-﻿# get\_attr\_float
+# get\_attr\_float
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# GetRunningInstanceId
+# GetRunningInstanceId
 
 ## 产品支持情况
 

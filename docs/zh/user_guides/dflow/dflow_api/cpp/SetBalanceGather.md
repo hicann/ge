@@ -1,4 +1,4 @@
-﻿# SetBalanceGather
+# SetBalanceGather
 
 ## 产品支持情况
 

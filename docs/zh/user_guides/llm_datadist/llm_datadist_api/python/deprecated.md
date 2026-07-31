@@ -1,4 +1,4 @@
-﻿﻿# deprecated
+# deprecated
 
 - [TensorDesc](TensorDesc.md)
   - [TensorDesc-constructor](TensorDesc-constructor.md)

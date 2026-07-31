@@ -1,4 +1,4 @@
-﻿# GetVal\(AscendString &value\)
+# GetVal\(AscendString &value\)
 
 ## 产品支持情况
 

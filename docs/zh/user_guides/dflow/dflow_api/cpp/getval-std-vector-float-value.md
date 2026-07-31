@@ -1,4 +1,4 @@
-﻿# GetVal\(std::vector<float\> &value\)
+# GetVal\(std::vector<float\> &value\)
 
 ## 产品支持情况
 

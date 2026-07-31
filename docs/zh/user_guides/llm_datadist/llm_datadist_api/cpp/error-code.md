@@ -1,4 +1,4 @@
-﻿# error-code
+# error-code
 
 error-code是通过如下宏定义的。
 

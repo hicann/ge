@@ -1,4 +1,4 @@
-﻿# CopyKvBlocks
+# CopyKvBlocks
 
 ## 产品支持情况
 
@@ -34,7 +34,7 @@ Status CopyKvBlocks(const Cache &src_cache,
 ## 调用示例
 
 ```cpp
-Status ret = llm_datadist.CopyKvCache(src_cache, dst_cache, {1,2}, {{1,2},{3,4}})
+Status ret = llm_datadist.CopyKvBlocks(src_cache, dst_cache, {1,2}, {{1,2},{3,4}});
 ```
 
 ## 返回值

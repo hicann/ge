@@ -78,12 +78,12 @@ GE-PY module contains the following core components:
 ### Basic Graph Operation Example
 
 Refer to the [using es python api graph construction sample](../../../../examples/es/transformer/python/README.md) execution method, especially important to note:
-[Need to install package first and set corresponding environment variables](../../../../examples/es/transformer/python/README.md#31准备cann包)
+[Need to install package first and set corresponding environment variables](../../../../examples/es/transformer/python/README_en.md#31-prepare-cann-package)
 
 ### Offline Graph Compilation Execution Example
 
 Refer to the [using offline_compile python api offline graph compilation execution sample](../../../../examples/offline_compile_run/python/README.md) execution method, especially important to note:
-[Need to install package first and set corresponding environment variables](../../../../examples/offline_compile_run/python/README.md#31准备cann包)
+[Need to install package first and set corresponding environment variables](../../../../examples/offline_compile_run/python/README_en.md#31-prepare-cann-package)
 
 ### More Examples
 
@@ -126,4 +126,3 @@ In 2026 Q1, our main work focused on completing es api integration, allowing use
 ### Others
 
 - [] [***Future Phase***] Custom operator graph insertion Python support
-

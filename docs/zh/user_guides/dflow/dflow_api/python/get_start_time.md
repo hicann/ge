@@ -1,4 +1,4 @@
-﻿# get\_start\_time
+# get\_start\_time
 
 ## 产品支持情况
 

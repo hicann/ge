@@ -1,4 +1,4 @@
-﻿# GetVal\(std::vector<AscendString\> &value\)
+# GetVal\(std::vector<AscendString\> &value\)
 
 ## 产品支持情况
 

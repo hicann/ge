@@ -9,16 +9,174 @@
  */
 
 #include "bindings.h"
+#include "exe_graph/runtime/continuous_vector.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "exe_graph/runtime/runtime_attrs.h"
 #include "runtime/native_bindings/runtime_type_wrappers.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace ge {
 namespace python_custom_op_native {
 namespace {
 namespace runtime_native = ::ge::python_runtime_native;
+
+template <typename T>
+const T *GetRequiredAttr(const gert::RuntimeAttrs *attrs, const size_t index, const char *type_name) {
+  const auto *value = attrs->GetAttrPointer<T>(index);
+  if (value == nullptr) {
+    throw std::runtime_error(std::string("Failed to get runtime attr type[") + type_name + "] at index[" +
+                             std::to_string(index) + "]");
+  }
+  return value;
+}
+
+template <typename T>
+py::list BuildTypedList(const gert::TypedContinuousVector<T> *value) {
+  if (value == nullptr) {
+    throw std::runtime_error("Runtime attr list is null");
+  }
+  py::list result;
+  const auto *data = value->GetData();
+  for (size_t index = 0U; index < value->GetSize(); ++index) {
+    result.append(data[index]);
+  }
+  return result;
+}
+
+py::list BuildDataTypeList(const gert::ContinuousVector *value) {
+  if (value == nullptr) {
+    throw std::runtime_error("Runtime attr data type list is null");
+  }
+  py::list result;
+  const auto *data = static_cast<const ge::DataType *>(value->GetData());
+  for (size_t index = 0U; index < value->GetSize(); ++index) {
+    result.append(runtime_native::MakeGraphTypeEnum("DataType", static_cast<int32_t>(data[index])));
+  }
+  return result;
+}
+
+py::list BuildBoolList(const gert::ContinuousVector *value) {
+  if (value == nullptr) {
+    throw std::runtime_error("Runtime attr bool list is null");
+  }
+  py::list result;
+  const auto *data = static_cast<const uint8_t *>(value->GetData());
+  for (size_t index = 0U; index < value->GetSize(); ++index) {
+    result.append(data[index] != 0U);
+  }
+  return result;
+}
+
+py::list BuildStringList(const gert::ContinuousVector *value) {
+  if (value == nullptr) {
+    throw std::runtime_error("Runtime attr string list is null");
+  }
+  py::list result;
+  const auto *data = static_cast<const char *>(value->GetData());
+  for (size_t index = 0U; index < value->GetSize(); ++index) {
+    result.append(py::str(data));
+    data += std::strlen(data) + 1U;
+  }
+  return result;
+}
+
+py::list BuildIntListList(const gert::ContinuousVectorVector *value) {
+  if (value == nullptr) {
+    throw std::runtime_error("Runtime attr nested int list is null");
+  }
+  py::list result;
+  for (size_t index = 0U; index < value->GetSize(); ++index) {
+    const auto *inner = value->Get(index);
+    if (inner == nullptr) {
+      throw std::runtime_error("Runtime attr nested int list element is null");
+    }
+    const auto *data = static_cast<const int64_t *>(inner->GetData());
+    py::list inner_result;
+    for (size_t inner_index = 0U; inner_index < inner->GetSize(); ++inner_index) {
+      inner_result.append(data[inner_index]);
+    }
+    result.append(std::move(inner_result));
+  }
+  return result;
+}
+
+class BorrowedRuntimeAttrs {
+ public:
+  BorrowedRuntimeAttrs(const gert::RuntimeAttrs *attrs, std::shared_ptr<bool> valid)
+      : attrs_(attrs), valid_(std::move(valid)) {}
+
+  int64_t GetInt(size_t index) const {
+    return *GetRequiredAttr<int64_t>(Get(), index, "VT_INT");
+  }
+
+  float GetFloat(size_t index) const {
+    return *GetRequiredAttr<float>(Get(), index, "VT_FLOAT");
+  }
+
+  bool GetBool(size_t index) const {
+    return *GetRequiredAttr<bool>(Get(), index, "VT_BOOL");
+  }
+
+  std::string GetStr(size_t index) const {
+    return GetRequiredAttr<char>(Get(), index, "VT_STRING");
+  }
+
+  py::object GetDataType(size_t index) const {
+    const auto value = *GetRequiredAttr<ge::DataType>(Get(), index, "VT_DATA_TYPE");
+    return runtime_native::MakeGraphTypeEnum("DataType", static_cast<int32_t>(value));
+  }
+
+  py::object GetTensor(size_t index) const {
+    const auto *tensor = GetRequiredAttr<gert::Tensor>(Get(), index, "VT_TENSOR");
+    return py::cast(runtime_native::NativeTensor::Borrow(const_cast<gert::Tensor *>(tensor), valid_));
+  }
+
+  py::list GetListInt(size_t index) const {
+    return BuildTypedList(Get()->GetListInt(index));
+  }
+
+  py::list GetListFloat(size_t index) const {
+    return BuildTypedList(Get()->GetListFloat(index));
+  }
+
+  py::list GetListBool(size_t index) const {
+    return BuildBoolList(GetRequiredAttr<gert::ContinuousVector>(Get(), index, "VT_LIST_BOOL"));
+  }
+
+  py::list GetListStr(size_t index) const {
+    return BuildStringList(GetRequiredAttr<gert::ContinuousVector>(Get(), index, "VT_LIST_STRING"));
+  }
+
+  py::list GetListDataType(size_t index) const {
+    return BuildDataTypeList(GetRequiredAttr<gert::ContinuousVector>(Get(), index, "VT_LIST_DATA_TYPE"));
+  }
+
+  py::list GetListListInt(size_t index) const {
+    return BuildIntListList(Get()->GetListListInt(index));
+  }
+
+  size_t GetAttrNum() const {
+    return Get()->GetAttrNum();
+  }
+
+ private:
+  const gert::RuntimeAttrs *Get() const {
+    if ((valid_ == nullptr) || (!(*valid_)) || (attrs_ == nullptr)) {
+      throw std::runtime_error("Borrowed runtime attrs have expired");
+    }
+    return attrs_;
+  }
+
+  const gert::RuntimeAttrs *attrs_{nullptr};
+  std::shared_ptr<bool> valid_;
+};
 
 class BorrowedEagerOpExecutionContext {
  public:
@@ -32,6 +190,22 @@ class BorrowedEagerOpExecutionContext {
 
   size_t GetInputNum() const {
     return Get()->GetComputeNodeInputNum();
+  }
+
+  size_t GetDynamicInputNum(size_t ir_index) const {
+    const auto *instance_info = Get()->GetIrInputInstanceInfo(ir_index);
+    if (instance_info == nullptr) {
+      throw std::runtime_error("Failed to get dynamic input instance info");
+    }
+    return instance_info->GetInstanceNum();
+  }
+
+  py::object GetAttrs() const {
+    const auto *attrs = Get()->GetAttrs();
+    if (attrs == nullptr) {
+      throw std::runtime_error("Failed to get runtime attrs");
+    }
+    return py::cast(BorrowedRuntimeAttrs(attrs, valid_));
   }
 
   py::object GetRequiredInputTensor(size_t ir_index) const {
@@ -128,10 +302,27 @@ BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(uintptr_t ctx_hand
 }  // namespace
 
 void BindEagerOpExecutionContext(py::module_ &m) {
+  py::class_<BorrowedRuntimeAttrs>(m, "RuntimeAttrs", "Borrowed view of gert::RuntimeAttrs")
+      .def("get_int", &BorrowedRuntimeAttrs::GetInt, py::arg("index"))
+      .def("get_float", &BorrowedRuntimeAttrs::GetFloat, py::arg("index"))
+      .def("get_bool", &BorrowedRuntimeAttrs::GetBool, py::arg("index"))
+      .def("get_str", &BorrowedRuntimeAttrs::GetStr, py::arg("index"))
+      .def("get_data_type", &BorrowedRuntimeAttrs::GetDataType, py::arg("index"))
+      .def("get_tensor", &BorrowedRuntimeAttrs::GetTensor, py::arg("index"))
+      .def("get_list_int", &BorrowedRuntimeAttrs::GetListInt, py::arg("index"))
+      .def("get_list_float", &BorrowedRuntimeAttrs::GetListFloat, py::arg("index"))
+      .def("get_list_bool", &BorrowedRuntimeAttrs::GetListBool, py::arg("index"))
+      .def("get_list_str", &BorrowedRuntimeAttrs::GetListStr, py::arg("index"))
+      .def("get_list_data_type", &BorrowedRuntimeAttrs::GetListDataType, py::arg("index"))
+      .def("get_list_list_int", &BorrowedRuntimeAttrs::GetListListInt, py::arg("index"))
+      .def("get_attr_num", &BorrowedRuntimeAttrs::GetAttrNum);
+
   py::class_<BorrowedEagerOpExecutionContext>(m, "EagerOpExecutionContext",
                                               "Borrowed view of gert::EagerOpExecutionContext")
       .def("get_input_tensor", &BorrowedEagerOpExecutionContext::GetInputTensor, py::arg("index"))
       .def("get_input_num", &BorrowedEagerOpExecutionContext::GetInputNum)
+      .def("get_dynamic_input_num", &BorrowedEagerOpExecutionContext::GetDynamicInputNum, py::arg("ir_index"))
+      .def("get_attrs", &BorrowedEagerOpExecutionContext::GetAttrs)
       .def("get_required_input_tensor", &BorrowedEagerOpExecutionContext::GetRequiredInputTensor, py::arg("ir_index"))
       .def("get_optional_input_tensor", &BorrowedEagerOpExecutionContext::GetOptionalInputTensor, py::arg("ir_index"))
       .def("get_dynamic_input_tensor", &BorrowedEagerOpExecutionContext::GetDynamicInputTensor, py::arg("ir_index"),

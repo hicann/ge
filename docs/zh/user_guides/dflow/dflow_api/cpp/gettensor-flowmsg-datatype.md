@@ -1,4 +1,4 @@
-﻿# GetTensor（FlowMsg数据类型）
+# GetTensor（FlowMsg数据类型）
 
 ## 产品支持情况
 

@@ -1,4 +1,4 @@
-﻿# enable\_switch\_role
+# enable\_switch\_role
 
 ## 产品支持情况
 

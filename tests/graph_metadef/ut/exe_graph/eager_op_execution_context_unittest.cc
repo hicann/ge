@@ -214,6 +214,8 @@ TEST_F(EagerOpExecutionContextUT, GetDynamicInputTensor) {
   auto context = dynamic_input_case_.context_holder.GetContext<EagerOpExecutionContext>();
 
   ASSERT_NE(context, nullptr);
+  ASSERT_NE(context->GetIrInputInstanceInfo(1), nullptr);
+  EXPECT_EQ(context->GetIrInputInstanceInfo(1)->GetInstanceNum(), 2U);
   auto tensor_1_in_context = context->GetDynamicInputTensor(1, 1);
   ASSERT_NE(tensor_1_in_context, nullptr);
   EXPECT_EQ(tensor_1_in_context->GetOriginShape(), dynamic_input_case_.input_tensors[1].GetOriginShape());

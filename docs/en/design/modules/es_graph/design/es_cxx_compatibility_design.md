@@ -21,9 +21,9 @@
 In ES (Eager Style) graph building, to ensure backward API compatibility for C++ ES APIs, the generation tool needs to understand the IR prototype evolution across different commercial release versions. The historical prototype library is responsible for accumulating and providing this historical prototype data for `gen_esb` to compare differences and generate overloaded interfaces during the generation phase.
 
 Note:
+
 - `gen_esb` is a tool in the ES scenario: currently both the main consumer of historical prototype data and the generation tool for structured data (`--extract-history`). No new generation tools will be provided in the short term.
 - The historical prototype library protocol layer is not bound to ES: it can be reused by other consumers in the future. This document only describes the consumption and generation strategies for the ES scenario.
-
 
 ## 2. Module Architecture and Responsibility Division
 
@@ -33,14 +33,16 @@ The historical prototype library system consists of two core modules:
 
 1. **Historical Prototype Library Module (Ops Component, Ops Package)**: Responsible for storing and managing historical prototype data
 2. **Consumption and Generation Tool Module (gen_esb, GE Repository, GE Component, GE Package)**:
-  - **Consumer Role**: Responsible for reading historical data and generating C++ overloaded interfaces
-  - **Producer Role**: Responsible for generating historical prototype library data (reusing `gen_esb --extract-history`)
+
+- **Consumer Role**: Responsible for reading historical data and generating C++ overloaded interfaces
+- **Producer Role**: Responsible for generating historical prototype library data (reusing `gen_esb --extract-history`)
 
 ### 2.2 Historical Prototype Library Module Responsibilities
 
 In one sentence: The responsibility of the historical prototype library module is to **store and provide historical prototype structured data in file system form**.
 
 Boundaries:
+
 - Only provides data and metadata (version index, operator prototypes, etc.), does not provide business logic output
 - Does not perform disambiguation detection/compatibility judgment/overload generation/code generation
 
@@ -80,7 +82,6 @@ Protocol details (directories/files/fields) see [protocol document](history_op_r
 - Generate JSON-formatted historical prototype data
 - Output to historical prototype library directory structure
 
-
 ### 2.4 Inter-Module Interfaces
 
 #### 2.4.1 Interfaces Provided by Historical Prototype Library
@@ -88,7 +89,9 @@ Protocol details (directories/files/fields) see [protocol document](history_op_r
 The historical prototype library module provides data through **file system interfaces**:
 
 ##### 2.4.1.1 Package File Directory Structure
+
 Protocol and directory/data format details in `history_op_registry_protocol.md`. This document only uses its file system interfaces and key filenames:
+
 - `index.json`: Version list (including release dates, etc.)
 - `registry/<ver>/operators.json`: Operator prototype definitions for that version
 - `registry/<ver>/metadata.json`: Version metadata (e.g., release date, branch name)
@@ -96,6 +99,7 @@ Protocol and directory/data format details in `history_op_registry_protocol.md`.
 #### 2.4.2 Usage of gen_esb Tool
 
 **Consuming Historical Prototypes for ES API Code Generation**:
+
 ```bash
 gen_esb \
   --history-registry /path/to/registry/math \        # Historical prototype library package directory
@@ -110,12 +114,11 @@ The generation and publication of historical prototype library structured data b
 [generate_es_package](../../../../user_guides/es_graph/tools/generate_es_package_cmake_readme.md) is a cmake function wrapping gen_esb, with current parameters as follows:
 
 | Parameter | Required | Description | Example |
-|------|--------|------|------|
+| ------ | -------- | ------ | ------ |
 | `ES_LINKABLE_AND_ALL_TARGET` | Required | Library target name exposed externally | `es_math`, `es_nn`, `es_cv` |
 | `OPP_PROTO_TARGET` | Required | CMake target name of operator prototype library | `opgraph_math`, `opgraph_nn` |
 | `OUTPUT_PATH` | Required | Root directory for product output | `${CMAKE_BINARY_DIR}/output` |
-| `EXCLUDE_OPS` | Optional  | Operators to exclude from generation | `Add,Conv2D`|
-
+| `EXCLUDE_OPS` | Optional | Operators to exclude from generation | `Add,Conv2D` |
 
 **Simplified Approach**
 
@@ -124,18 +127,17 @@ The engineering team defines some global cmake variables, and the generate_es_pa
 The benefits of this approach are:
 ops components have less awareness, combined with the current ops multi-repository and multi-package background, processing inside the generate_es_package function can avoid each repository needing to adapt;
 
-
 **Alternative Approach**
 
 1. Add the following parameters:
 
 | Parameter | Required | Description | Example |
-|------|--------|------|------|
-| `HISTORY_REGISTRY`| Optional  | Historical prototype structured data directory on build environment | `/path/to/registry/math` |
-| `EXTRACT_HISTORY` | Optional  | Generate historical prototype structured data, default not generate | `ON`|
-| `RELEASE_VERSION` | Optional  | Current version number | `8.0.RC2`|
+| ------ | -------- | ------ | ------ |
+| `HISTORY_REGISTRY` | Optional | Historical prototype structured data directory on build environment | `/path/to/registry/math` |
+| `EXTRACT_HISTORY` | Optional | Generate historical prototype structured data, default not generate | `ON` |
+| `RELEASE_VERSION` | Optional | Current version number | `8.0.RC2` |
 
-2. Caller (Ops) passes corresponding parameters
+1. Caller (Ops) passes corresponding parameters
 
 **Generate ES API Code**:
 Additionally pass HISTORY_REGISTRY (optional, if there are historical prototypes), RELEASE_VERSION (optional, if there are historical prototypes)
@@ -144,7 +146,6 @@ Additionally pass HISTORY_REGISTRY (optional, if there are historical prototypes
 Additionally pass HISTORY_REGISTRY (optional, if there are historical prototypes), RELEASE_VERSION (required, version number corresponding to current historical prototype data), EXTRACT_HISTORY (required, inform that historical prototype structured data generation mode is enabled)
 
 **Recommended to use simplified approach**
-
 
 #### 2.4.4 Other Required Information
 
@@ -155,7 +156,7 @@ release_date: commercial release time, branch_name: branch name
 ### 2.5 Responsibility Boundary Summary
 
 | Function | Historical Prototype Library Module | gen_esb Tool |
-|-----|--------------|-------------|
+| ----- | -------------- | ------------- |
 | Store historical prototype data | Responsible | Not responsible |
 | Provide data query interface | Responsible (file system form) | Not responsible |
 | Generate historical prototype library data | Not responsible | Responsible |
@@ -167,6 +168,7 @@ release_date: commercial release time, branch_name: branch name
 | Code generation | Not responsible | Responsible |
 
 **Core Principles**:
+
 - **Historical Prototype Library = Data Storage + Data Provision** (pure data layer, as part of ops run package)
 - **gen_esb = Data Generation + Data Reading + Business Logic + Code Generation** (business logic layer)
 
@@ -180,7 +182,6 @@ The collaboration between engineering team, operators, and GE is as follows:
 
 ![Collaboration Flow Diagram](./figures/process_view.svg)
 
-
 Specifically:
 
 **Initial Build of Commercial Release Version**
@@ -193,12 +194,9 @@ The engineering team passes information (via compilation macros), telling GE to 
 
 3. Ops component uniformly packages products from 1 and 2, completing ops package build
 
-
 **Non-commercial release build or commercial release version daily build**
 
 Complete logic parts 1 and 3 from the above commercial release flow
-
-
 
 ## 4. Overload Generation and Disambiguation
 
@@ -207,7 +205,6 @@ Complete logic parts 1 and 3 from the above commercial release flow
 1. C++ requires default parameters to be at the end of parameter list, optional parameters of basic types will have overload disambiguation
 2. `EsTensorLike` supports implicit conversion from scalar types (`int64_t`, `float`), making scalar values simultaneously match `EsTensorLike` parameters and `int64_t` parameters, producing disambiguation.
 
-
 ### 4.2 Solution
 
 #### 4.2.1 Design Constraints (User-side Semantic Conventions)
@@ -215,10 +212,12 @@ Complete logic parts 1 and 3 from the above commercial release flow
 This chapter's goal: Without introducing "version namespace", make historical overload interfaces compilable, non-disambiguous, and try to maintain stable user call habits.
 
 Core facts (from `EsTensorLike` definition):
+
 - `EsTensorLike(const std::nullptr_t)`: Can use `nullptr` to express "this input has no edge" (optional input semantics)
 - `EsTensorLike(const int64_t/float/vector<...>)`: Scalars/vectors will be treated as constant inputs (implicit construction)
 
 Core constraints (user-side semantic conventions, oriented toward "retain v1, generate multi-version overloads" strategy):
+
 - When adding optional input `xo2`:
   - **Not using xo2 (no edge)**: Fixed use of v1 form (e.g., `Foo(x, xo1[, attr...])`), ensuring maximum forward compatibility
   - **Using xo2 (edge exists)**: Use v2 form (e.g., `Foo(x, xo1, xo2[, attr...])`)
@@ -237,6 +236,7 @@ Core goal of Solution A: Within same namespace, through a set of compilable and 
 Applicable scenario: New optional input `xo2` will not produce "scalar literal disambiguation" with existing parameters (e.g., attribute is `const char*` / `std::string` etc., will not conflict with `EsTensorLike(int64_t)`).
 
 Approach:
+
 - Retain v1: Used to express `xo2` has no edge (most forward compatible call form)
 - v2: Add `xo2`, but generate `xo2` as required parameter (no default value), used to express `xo2` has edge
 - Safeguard: Additionally generate `std::nullptr_t` deprecated+delete overload, prompting "xo2 no edge please use v1"
@@ -293,7 +293,7 @@ FORCE_INLINE EsTensorLike Foo(const EsTensorLike &x, const EsTensorLike &xo1,
 #### 4.2.4 Solution Comparison and Trade-off
 
 | Dimension | Solution A (Same Namespace, Multi-version Overload) | Solution B (Version Namespace) |
-|---|---|---|
+| --- | --- | --- |
 | Overload disambiguation risk | Low: A1 default + A2 TensorHolder fallback disambiguation when needed | Low: Namespace isolation |
 | User call habit stability | High: `Foo(x, xo1[, attr...])` always represents "no edge" | Medium: Caller needs to explicitly choose namespace |
 | Forward compatibility guidance | Can use deprecated+delete to force user "no edge go v1" | Mainly relies on documentation norms |
@@ -307,27 +307,33 @@ Overall trade-off: This design chooses Solution A.
 This subsection provides implementable generation rules (for `gen_esb`), goal: on "one-year window" version chain, generate a **minimal and non-disambiguous** C++ interface collection.
 
 Version chain explanation:
+
 - Version chain is sorted by release time in version metadata (e.g., `metadata.json.release_date`) to get `V0 < ... < Vn`; one-year window filtering strategy is calculated by `gen_esb` based on current version number and release date.
 
 Terminology definition:
+
 - Extraction existence: For a version's operator prototype, judge whether a certain input/attribute "exists" in IR prototype (based on whether IR prototype declares that name; optional/dynamic inputs are also treated as existing).
 - New addition point: When comparing adjacent two versions, satisfies "new version exists, old version doesn't exist" input/attribute.
 - First appearance: In version sequence (from old to new), the version where a certain input/attribute first changes from "non-existent" to "existent".
 
 Note (new addition point vs first appearance):
+
 - If IR prototype only has "monotonic compatible changes" within one-year window (only adding optional inputs/attributes with defaults), then adjacent versions' "new addition points" are equivalent to "first appearance" on version chain.
 - But we also need to cover future possible compatible changes (e.g., required→optional), such changes don't necessarily manifest as exists changing from 0→1; therefore implementation still retains
   distinction between "new addition point (exists change)" and "first trigger generation (may come from exists/required/default change)".
 
 Generation method (each operator executes independently; for guiding `gen_esb` implementation):
+
 - Input: One-year window version chain `V0 < V1 < ... < Vn` IR prototypes (inputs/attrs and default values).
 - Output: A **minimal, non-disambiguous, with safeguard** C++ interface signature collection (including Runnable Dump generation constraints).
 
 Phase 0: Extract existence matrix (see Chapter 8 Appendix "Existence Matrix and Disambiguation Detection Examples")
+
 - For each version `Vi` extract `exists_input[Vi][name]`, `exists_attr[Vi][name]`.
 - For adjacent version pairs `(Vi-1, Vi)` calculate new addition points `new_inputs(Vi)`, `new_attrs(Vi)`.
 
 Phase 1: Candidate signature generation (generate first, then judge; if Phase 2 fails go back here to converge; don't enumerate cases here)
+
 - Only add optional attribute (with default value): Don't add overload; just append default attribute to **latest interface** parameter end.
 - Add optional input: First judge whether **can safely merge to single signature (A0)**, otherwise enter "retain v1 convergence chain (try 0→A1→A2)":
   - Safe merge (A0) judgment (when all satisfied can merge, and no longer retain v1):
@@ -341,6 +347,7 @@ Phase 1: Candidate signature generation (generate first, then judge; if Phase 2 
     - A2 (convergence 2/fallback): If A1 still might have overload disambiguation with scalar literals, then switch v2's `xo2` to `TensorHolder` required, and require dump/user explicitly `CreateScalar/CreateVector/CreateConst`.
 
 Phase 2: Disambiguation judgment (generation side must execute; if fails go back to Phase 1 to converge)
+
 - Gate1 (candidate pair filtering): For any two candidate interfaces `f/g`, calculate callable argument count ranges `Rf=[req_f, tot_f]`, `Rg=[req_g, tot_g]` (`req`=required parameter count). If `Rf ∩ Rg` is empty, then impossible disambiguation; otherwise enter Gate2.
 - Gate2 (typical argument set check, conservative judgment): In calls where `k ∈ (Rf ∩ Rg)`, check whether there exists some **typical argument** that can simultaneously match `f/g`'s parameter types at same position. Suggest at least covering two categories:
   - Can implicitly convert to `EsTensorLike`: `nullptr`, `0`, `0.0` (corresponding to `EsTensorLike(std::nullptr_t/int64_t/float)`).
@@ -348,12 +355,14 @@ Phase 2: Disambiguation judgment (generation side must execute; if fails go back
   If there exists typical argument that can simultaneously match, then judge as potential disambiguation: prohibit this combination; go back to Phase 1 to upgrade strategy (try 0→A1→A2), or adjust signature collection. Note: This check is engineering conservative approximation, doesn't pursue complete equivalence to C++ overload resolution rules.
 
 Phase 3: Safeguard and export constraint landing
+
 - If final collection contains "v2 new input required" overload (A1/A2), then automatically generate `std::nullptr_t` deprecated+delete safeguard overload (see 4.3), and require Runnable Dump not to output `(..., nullptr, ...)` placeholder form.
 - A0 (single signature and new input default `= nullptr`) doesn't generate above `nullptr` safeguard; Runnable Dump can omit this input to utilize default value.
 
 Minimal examples (two scenario comparison):
 
 A) Only add optional input, and no scalar literal disambiguation (default solution: v2 make xo2 required + safeguard)
+
 - v1: `Foo(x, xo1[, mode])` (xo2 has no edge)
 - v2: Add optional input `xo2`
 Generate: Retain v1 + generate v2 (xo2 required) + generate nullptr safeguard
@@ -362,6 +371,7 @@ Generate: Retain v1 + generate v2 (xo2 required) + generate nullptr safeguard
 - `Foo(x, xo1, nullptr[, mode]) = delete` (deprecated prompt use v1)
 
 B) Add optional input + exists scalar attribute default parameter (default solution will conflict with literal, trigger fallback solution A)
+
 - v1: `Foo(x, xo1, a=0)`
 - v2: Add optional input `xo2`
 Generate: Retain v1 + add v2 overload (`TensorHolder` disambiguation)
@@ -418,6 +428,7 @@ FORCE_INLINE EsTensorLike Foo(const EsTensorLike &x, const EsTensorLike &xo1,
 **Scenario**: At some version (like 8.0.RC1) first enable historical prototype library, previous versions not archived
 
 **Processing strategy**:
+
 1. Treat current version as "baseline version"
 2. Only generate current version's API, not generate overloads
 3. In subsequent versions, use baseline version as starting point to generate overloads
@@ -429,6 +440,7 @@ Specifically, 2026/3/30 version planned as first version to enable historical pr
 **Scenario**: Current version newly added operator, not existent in historical versions
 
 **Processing strategy**:
+
 - Only generate current version's API
 - Not generate overloads (because no historical versions)
 - C++ interface and C interface one-to-one correspondence
@@ -460,7 +472,7 @@ One-year window versions are `V1 < V2 < V3`, this operator's input name union ac
 Input existence matrix (`1` represents this input definition exists in that version IR):
 
 | version | x | xo1 | xo2 |
-|---|---:|---:|---:|
+| --- | ---: | ---: | ---: |
 | V1 | 1 | 1 | 0 |
 | V2 | 1 | 1 | 1 |
 | V3 | 1 | 1 | 1 |
@@ -468,24 +480,27 @@ Input existence matrix (`1` represents this input definition exists in that vers
 Attribute existence matrix:
 
 | version | a | b |
-|---|---:|---:|
+| --- | ---: | ---: |
 | V1 | 1 | 0 |
 | V2 | 1 | 0 |
 | V3 | 1 | 1 |
 
 From this we can get:
+
 - New addition points: `new_inputs(V2)={xo2}`, `new_attrs(V3)={b}`
 - First appearance: `xo2` first appears in `V2`, `b` first appears in `V3`
 
 ### A.2 Gate1/Gate2 "Interval Intersection" and Disambiguation Examples
 
 Two candidate overloads:
+
 - f1: `Foo(x, xo1, int64_t a=0)`, callable range `R1=[2,3]`
 - f2: `Foo(x, xo1, TensorHolder xo2, int64_t a=0)`, callable range `R2=[3,4]`
 
 Gate1 (intersection): `R1 ∩ R2 = [2,3] ∩ [3,4] = [3,3]`, indicates only when call passes 3 arguments, both can simultaneously become candidates.
 
 Gate2 (argument can simultaneously match):
+
 - Call `Foo(x, xo1, 0)`:
   - For f1: `0` can convert to `int64_t`, can match
   - For f2: `0` cannot convert to `TensorHolder`, cannot match
@@ -493,15 +508,16 @@ Gate2 (argument can simultaneously match):
 
 If change f2's `xo2` type to `EsTensorLike` (and exists `EsTensorLike(int64_t)` implicit construction), then `Foo(x, xo1, 0)` can simultaneously match f1 and f2, thus producing disambiguation; this is "conflict time Solution A (TensorHolder fallback)" trigger reason.
 
-
 ### A.3 New Optional Input (EsTensorLike Required + nullptr Safeguard)
 
 When v1/v2 need to simultaneously exist, v2 cannot write new input as `xo2=nullptr` (otherwise `Foo(x, xo1)` will have disambiguation). Recommended form is:
+
 - v1: Express `xo2` has no edge
 - v2: `xo2` required, express `xo2` has edge
 - Safeguard: `std::nullptr_t` overload prompts user to fallback to v1
 
 Example:
+
 - v1: `Foo(x, xo1, const char* mode="xx")`
 - v2: `Foo(x, xo1, EsTensorLike xo2, const char* mode="xx")`
 - Safeguard: [deprecated("description information")] `Foo(x, xo1, nullptr, const char* mode="xx") = delete`

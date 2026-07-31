@@ -1,4 +1,4 @@
-﻿# Placement
+# Placement
 
 表示Cache所在位置，通常作为CacheDesc的placement参数的类型。
 

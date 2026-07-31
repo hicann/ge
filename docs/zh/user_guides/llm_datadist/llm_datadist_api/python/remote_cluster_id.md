@@ -1,4 +1,4 @@
-﻿# remote\_cluster\_id
+# remote\_cluster\_id
 
 ## 产品支持情况
 

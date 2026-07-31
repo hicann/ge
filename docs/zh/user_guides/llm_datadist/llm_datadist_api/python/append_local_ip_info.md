@@ -1,4 +1,4 @@
-﻿# append\_local\_ip\_info
+# append\_local\_ip\_info
 
 ## 产品支持情况
 

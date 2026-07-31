@@ -1,4 +1,4 @@
-﻿# LLMClusterInfo
+# LLMClusterInfo
 
 - [LLMClusterInfo-constructor](LLMClusterInfo-constructor.md)
 - [remote\_cluster\_id](remote_cluster_id.md)

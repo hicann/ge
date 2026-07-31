@@ -1,4 +1,4 @@
-﻿# set\_alias
+# set\_alias
 
 ## 产品支持情况
 

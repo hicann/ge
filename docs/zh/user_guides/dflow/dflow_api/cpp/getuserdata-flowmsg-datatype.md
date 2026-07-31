@@ -1,4 +1,4 @@
-﻿# GetUserData（FlowMsg数据类型）
+# GetUserData（FlowMsg数据类型）
 
 ## 产品支持情况
 
