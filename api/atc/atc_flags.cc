@@ -246,10 +246,11 @@ DEFINE_string(deterministic, "0",
 
 DEFINE_string(deterministic_level, "0",
               "Optional; "
-              "For deterministic and strong consistency calculation"
+              "For deterministic, strong consistency and batch consistency calculation. "
               "0: deterministic off. "
               "1: deterministic on. "
               "2: strong consistency on. "
+              "3: batch consistency on. "
               "Default is 0.");
 
 DEFINE_string(host_env_os, "",
