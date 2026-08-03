@@ -339,10 +339,12 @@ HcclResult HcceSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
                                                                  ifAiv, algName);
 }
 
-HcclResult HcceCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *blockDim) {
+HcclResult HcceCalcAivCoreNumGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
+                                       HcclCMDType opType, u32 aivCoreLimit, u32 *blockDim) {
   CHK_PRT_RET(DlHcclFunction::get_instance().init() != HCCL_SUCCESS,
               HCCL_ERROR("DlHcclFunction::get_instance().init() fail \n"), HCCL_E_PARA);
-  return DlHcclFunction::get_instance().dlHcclCalcAivCoreNumGraphMode(aivCoreLimit, blockDim);
+  return DlHcclFunction::get_instance().dlHcclCalcAivCoreNumGraphMode(group, count, dataType, op, opType, aivCoreLimit,
+                                                                      blockDim);
 }
 
 HcclResult HcceGetAlgExecParamGraphMode(const char *tag, const char *group, u64 count, void *inputPtr, void *outputPtr,

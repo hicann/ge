@@ -130,7 +130,8 @@ class DlHcclFunction {
   HcclResult dlHcclSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit);
   HcclResult dlHcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
                                       HcclCMDType opType, int32_t aivCoreLimit, bool *ifAiv, char *algName);
-  HcclResult dlHcclCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *blockDim);
+  HcclResult dlHcclCalcAivCoreNumGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
+                                           HcclCMDType opType, u32 aivCoreLimit, u32 *blockDim);
   HcclResult dlHcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 count, void *inputPtr,
                                             void *outputPtr, HcclCMDType opType, bool clearEnable,
                                             HcclDataType dataType, HcclReduceOp op, void **commContext, u64 *len,
@@ -267,7 +268,8 @@ class DlHcclFunction {
   std::function<HcclResult(const char *, u32)> dlHcclSetAivCoreLimitGraphModeFunc;
   std::function<HcclResult(const char *, u64, HcclDataType, HcclReduceOp, HcclCMDType, int32_t, bool *, char *)>
       dlHcclSelectAlgGraphModeFunc;
-  std::function<HcclResult(u32, u32 *)> dlHcclCalcAivCoreNumGraphModeFunc;
+  std::function<HcclResult(const char *, u64, HcclDataType, HcclReduceOp, HcclCMDType, u32, u32 *)>
+      dlHcclCalcAivCoreNumGraphModeFunc;
   std::function<HcclResult(const char *, const char *, u64, void *, void *, HcclCMDType, bool, HcclDataType,
                            HcclReduceOp, void **, u64 *, u32)>
       dlHcclGetAlgExecParamGraphModeFunc;

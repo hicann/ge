@@ -268,7 +268,8 @@ HcclResult DlHcclFunction::initHcclGraphModeFunctions() {
               HCCL_RUN_WARNING("[DlHcclFunction]load HcclSelectAlgGraphMode function fail."), HCCL_E_PTR);
 
   dlHcclCalcAivCoreNumGraphModeFunc =
-      (HcclResult (*)(u32 aivCoreLimit, u32 *blockDim))dlsym(dl_hccl_handle, "HcclCalcAivCoreNumGraphMode");
+      (HcclResult (*)(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op, HcclCMDType opType,
+                      u32 aivCoreLimit, u32 *blockDim))dlsym(dl_hccl_handle, "HcclCalcAivCoreNumGraphMode");
   CHK_PRT_RET(dlHcclCalcAivCoreNumGraphModeFunc == nullptr,
               HCCL_RUN_WARNING("[DlHcclFunction]load HcclCalcAivCoreNumGraphMode function fail."), HCCL_E_PTR);
 
@@ -522,8 +523,10 @@ HcclResult DlHcclFunction::dlHcclSelectAlgGraphMode(const char *group, u64 count
   return dlHcclSelectAlgGraphModeFunc(group, count, dataType, op, opType, aivCoreLimit, ifAiv, algName);
 }
 
-HcclResult DlHcclFunction::dlHcclCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *blockDim) {
-  return dlHcclCalcAivCoreNumGraphModeFunc(aivCoreLimit, blockDim);
+HcclResult DlHcclFunction::dlHcclCalcAivCoreNumGraphMode(const char *group, u64 count, HcclDataType dataType,
+                                                         HcclReduceOp op, HcclCMDType opType, u32 aivCoreLimit,
+                                                         u32 *blockDim) {
+  return dlHcclCalcAivCoreNumGraphModeFunc(group, count, dataType, op, opType, aivCoreLimit, blockDim);
 }
 
 HcclResult DlHcclFunction::dlHcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 count, void *inputPtr,
