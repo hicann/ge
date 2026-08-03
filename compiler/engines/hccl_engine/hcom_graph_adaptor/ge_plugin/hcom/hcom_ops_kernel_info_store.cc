@@ -769,7 +769,7 @@ HcclResult HcomOpsKernelInfoStore::CleanIntervalMemory(const char *tag, std::vec
   HCCL_DEBUG("[CleanIntervalMemory][HcomGetDeviceType]devType is %d", devType);
 
 #ifndef OPEN_BUILD_PROJECT
-  if (devType == DevType::DEV_TYPE_950) {
+  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
     // A5适配
     return CleanInterMemoryV2(crackSize, crackAddr, stream);
   }
@@ -2650,9 +2650,10 @@ HcclResult HcomOpsKernelInfoStore::SetKnownShapeWorkspaceResource(const ge::GETa
               HCCL_E_PARA);
   ge::GETaskKernelHcclInfo hcclInfo = hcclInfos[0];  // HCOM场景下只会有一个
   DevType devType = HcomGetDeviceType();
-  // A5
-  // 单p场景算法返回的workSpaceMemSize可能为0，同时workSpaceAddr也是nullptr，所以不做拦截.A3场景workSpaceMemSize最小值为32k，不能为0.
-  if (devType != DevType::DEV_TYPE_950 && (hcclInfo.workSpaceAddr == nullptr || hcclInfo.workSpaceMemSize == 0)) {
+  // A5和A6 单p场景算法返回的workSpaceMemSize可能为0，
+  // 同时workSpaceAddr也是nullptr，所以不做拦截.A3场景workSpaceMemSize最小值为32k，不能为0.
+  if (devType != DevType::DEV_TYPE_950 && devType != DevType::DEV_TYPE_960 &&
+      (hcclInfo.workSpaceAddr == nullptr || hcclInfo.workSpaceMemSize == 0)) {
     HCCL_ERROR(
         "[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] load task failed. "
         "workspace memory ptr is null or size is [%llu]",
@@ -3438,7 +3439,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcclUnfoldStream(const std::string &group,
   HcclComm comm = nullptr;
   CHK_RET(HcomGetCommHandleByGroup(group.c_str(), &comm));
   DevType devType = HcomGetDeviceType();
-  if (devType != DevType::DEV_TYPE_950) {
+  if (devType != DevType::DEV_TYPE_950 && devType != DevType::DEV_TYPE_960) {
     rtStream_t aicpuStream = nullptr;
     CHK_RET(HcomMc2AiCpuStreamAllocAndGet(group.c_str(), streamMode, &aicpuStream));
     unfoldStream = aicpuStream;
