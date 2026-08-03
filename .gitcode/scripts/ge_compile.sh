@@ -43,10 +43,17 @@ set +e
 #########
 # Build #
 #########
-pip3 install -r requirements.txt
-python3 -m pip install wheel setuptools --upgrade --user -i https://pypi.tuna.tsinghua.edu.cn/simple
-
 cd ${WORKSPACE}
+if [[ -f requirements.txt ]]; then
+    pip3 install -r requirements.txt --retries 3 --timeout 60 \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple
+else
+    echo "WARN: requirements.txt not found, skipping..."
+fi
+
+python3 -m pip install wheel setuptools --upgrade \
+    --user --retries 3 --timeout 60 \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 echo "Build ${REPOSITORY_NAME}."
 if [[ "${task_name}" =~ executor ]]; then
