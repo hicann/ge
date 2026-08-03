@@ -2144,3 +2144,278 @@ TEST_F(UtestGraph, TestGraphGetParentNode_success) {
   subgraph_parent_node->GetName(ret_parent_node_name);
   ASSERT_TRUE(ret_parent_node_name == exp_parent_node_name);
 }
+
+TEST_F(UtestGraph, IncCov_GraphConstructor_NullName) {
+  Graph graph(nullptr);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_NullImpl) {
+  Graph graph(nullptr);
+  std::vector<Operator> outputs;
+  graph.SetOutputs(outputs);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_VectorPair_NullImpl) {
+  Graph graph(nullptr);
+  std::vector<std::pair<Operator, std::vector<size_t>>> outputs;
+  graph.SetOutputs(outputs);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_OperatorString_NullImpl) {
+  Graph graph(nullptr);
+  std::vector<std::pair<Operator, std::string>> outputs;
+  graph.SetOutputs(outputs);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_OperatorAscendString_NullImpl) {
+  Graph graph(nullptr);
+  std::vector<std::pair<Operator, AscendString>> outputs;
+  graph.SetOutputs(outputs);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_AscendString_NullName) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  std::vector<std::pair<Operator, AscendString>> outputs{{op1, AscendString(nullptr)}};
+  gptr->SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetTargets_NullImpl) {
+  Graph graph(nullptr);
+  std::vector<Operator> targets;
+  graph.SetTargets(targets);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_SetTargets_NonExistentNode) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  Operator fake_op("nonexistent");
+  std::vector<Operator> targets{fake_op};
+  gptr->SetTargets(targets);
+}
+
+TEST_F(UtestGraph, IncCov_SetNeedIteration_NullImpl) {
+  Graph graph(nullptr);
+  graph.SetNeedIteration(true);
+}
+
+TEST_F(UtestGraph, IncCov_GetAllNodes_NullImpl) {
+  Graph graph(nullptr);
+  auto nodes = graph.GetAllNodes();
+  EXPECT_TRUE(nodes.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GetAllNodes_InvalidGraph) {
+  Graph graph("test");
+  auto nodes = graph.GetAllNodes();
+  EXPECT_TRUE(nodes.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GetDirectNode_NullImpl) {
+  Graph graph(nullptr);
+  auto nodes = graph.GetDirectNode();
+  EXPECT_TRUE(nodes.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GetDirectNode_InvalidGraph) {
+  Graph graph("test");
+  auto nodes = graph.GetDirectNode();
+  EXPECT_TRUE(nodes.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GetName_NullImpl) {
+  Graph graph(nullptr);
+  AscendString name;
+  EXPECT_EQ(graph.GetName(name), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_FindNodeByName_InvalidGraph) {
+  Graph graph("test");
+  AscendString name("node1");
+  EXPECT_EQ(graph.FindNodeByName(name), nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_GetParentGraph_InvalidGraph) {
+  Graph graph("test");
+  EXPECT_EQ(graph.GetParentGraph(), nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_GetParentNode_InvalidGraph) {
+  Graph graph("test");
+  EXPECT_EQ(graph.GetParentNode(), nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_AddNodeByOp_NullImpl) {
+  Graph graph(nullptr);
+  Operator op1 = op::Phony0("op1");
+  auto gnode = graph.AddNodeByOp(op1);
+  AscendString name;
+  EXPECT_EQ(gnode.GetName(name), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_AddDataEdge_NullImpl) {
+  Graph graph(nullptr);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(graph.AddDataEdge(src, 0, dst, 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_AddControlEdge_NullImpl) {
+  Graph graph(nullptr);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(graph.AddControlEdge(src, dst), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveEdge_NullImpl) {
+  Graph graph(nullptr);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(graph.RemoveEdge(src, 0, dst, 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveEdge_InvalidPortCombo) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(g.RemoveEdge(src, -1, dst, 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveEdge_InvalidGNode) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(g.RemoveEdge(src, 0, dst, 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_AddDataEdge_InvalidGNode) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(g.AddDataEdge(src, 0, dst, 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_AddControlEdge_InvalidGNode) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  GNode src;
+  GNode dst;
+  EXPECT_EQ(g.AddControlEdge(src, dst), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_FindOpByName_NullName) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  Operator op_find;
+  EXPECT_EQ(gptr->FindOpByName(nullptr, op_find), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_FindOpByType_NullType) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  std::vector<Operator> ops;
+  EXPECT_EQ(gptr->FindOpByType(nullptr, ops), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_SaveToFile_NullFilename) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  EXPECT_EQ(g.SaveToFile(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_LoadFromFile_NullFilename) {
+  Graph g;
+  EXPECT_EQ(g.LoadFromFile(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_CopyFrom) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr src = Graph::ConstructFromInputs(inputs, name);
+  Graph dst;
+  EXPECT_EQ(dst.CopyFrom(*src), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_SetInputs_EmptyInputs) {
+  Graph graph("test_graph");
+  std::vector<Operator> inputs;
+  graph.SetInputs(inputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_NonExistentNode) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  Operator fake_op("nonexistent");
+  std::vector<std::pair<Operator, std::string>> outputs{{fake_op, ""}};
+  gptr->SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_OperatorVector_Empty) {
+  Operator op1 = op::Phony0("op1");
+  std::vector<Operator> inputs = {op1};
+  AscendString name = "graph_name";
+  GraphPtr gptr = Graph::ConstructFromInputs(inputs, name);
+  std::vector<Operator> outputs;
+  gptr->SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveNode_InvalidGNode) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph g = GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  GNode node;
+  EXPECT_EQ(g.RemoveNode(node), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestGraph, IncCov_GetAllSubgraphs_InvalidGraph) {
+  Graph graph("test");
+  auto subgraphs = graph.GetAllSubgraphs();
+  EXPECT_TRUE(subgraphs.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GetSubGraph_InvalidGraph) {
+  Graph graph("test");
+  EXPECT_EQ(graph.GetSubGraph("sub"), nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_AddSubGraph_InvalidGraph) {
+  Graph graph("test");
+  Graph subgraph("sub");
+  EXPECT_EQ(graph.AddSubGraph(subgraph), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveSubgraph_InvalidGraph) {
+  Graph graph("test");
+  EXPECT_EQ(graph.RemoveSubgraph("sub"), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_GNode_InvalidGraph) {
+  Graph graph("test");
+  std::vector<std::pair<GNode, int32_t>> outputs;
+  EXPECT_EQ(graph.SetOutputs(outputs), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestGraph, IncCov_Dump_InvalidGraph) {
+  Graph graph("test");
+  std::ostringstream stream;
+  EXPECT_EQ(graph.Dump(Graph::DumpFormat::kOnnx, stream), ge::PARAM_INVALID);
+}

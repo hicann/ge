@@ -391,3 +391,41 @@ TEST_F(AutoMappingUtils, ConvertValueTest) {
   ge::AttrUtils::GetStr(ge_func, convertName, valueStr);
   EXPECT_EQ(valueStr == "valueString", true);
 }
+
+TEST_F(AutoMappingUtils, IncCov_ConvertTensorListSuccess) {
+  domi::tensorflow::AttrValue_ListValue list;
+  std::vector<ge::GeTensorPtr> vec;
+
+  auto tensor = list.add_tensor();
+  tensor->set_dtype(domi::tensorflow::DT_UINT8);
+  ge::AutoMappingUtil::ConvertTensorList(list, vec);
+  EXPECT_EQ(vec.empty(), false);
+}
+
+TEST_F(AutoMappingUtils, IncCov_ConvertFuncWithAttrs) {
+  domi::tensorflow::NameAttrList tf_func;
+  ge::NamedAttrs ge_func;
+
+  tf_func.set_name("test_func");
+  auto attr_map = tf_func.mutable_attr();
+  domi::tensorflow::AttrValue attr_val;
+  attr_val.set_s("test_string");
+  (*attr_map)["key1"] = attr_val;
+
+  EXPECT_NO_THROW(ge::AutoMappingUtil::ConvertFunc(tf_func, ge_func));
+}
+
+TEST_F(AutoMappingUtils, IncCov_ConvertFuncListWithAttrs) {
+  domi::tensorflow::AttrValue_ListValue list;
+  std::vector<ge::NamedAttrs> vec;
+
+  auto func_entry = list.add_func();
+  func_entry->set_name("test_func");
+  auto attr_map = func_entry->mutable_attr();
+  domi::tensorflow::AttrValue attr_val;
+  attr_val.set_i(42);
+  (*attr_map)["num"] = attr_val;
+
+  ge::AutoMappingUtil::ConvertFuncList(list, vec);
+  EXPECT_EQ(vec.empty(), false);
+}

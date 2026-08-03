@@ -11,6 +11,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "register/op_binary_resource_manager.h"
+#include "common/ge_common/error_codes_define.h"
 
 class OpBinaryResourceManagerUT : public testing::Test {
  protected:
@@ -200,4 +201,92 @@ TEST_F(OpBinaryResourceManagerUT, Error) {
 
   std::vector<ge::AscendString> kbList;
   EXPECT_EQ(manager.GetOpRuntimeKB("AddTik2Invalid", kbList), ge::GRAPH_PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_InvalidJsonNullPointer_Test) {
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> invalid_binary;
+  invalid_binary.push_back(std::make_tuple(nullptr, nullptr));
+  EXPECT_EQ(manager.AddBinary("IncCov_NullPtr", invalid_binary), ge::PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_InvalidJsonParse_Test) {
+  std::string invalid_json = "{invalid json}";
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> invalid_binary;
+  invalid_binary.push_back(
+      std::make_tuple(reinterpret_cast<const uint8_t *>(invalid_json.c_str()),
+                      reinterpret_cast<const uint8_t *>(invalid_json.c_str() + invalid_json.size())));
+  EXPECT_EQ(manager.AddBinary("IncCov_InvalidJson", invalid_binary), ge::PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_InvalidBinaryNull_Test) {
+  std::string op_desc = "{\"op\":\"test_bin_null\"}";
+  std::string binary_json = "{\"filePath\":\"test_bin_null.json\"}";
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> binary;
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(op_desc.c_str()),
+                                   reinterpret_cast<const uint8_t *>(op_desc.c_str() + op_desc.size())));
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(binary_json.c_str()),
+                                   reinterpret_cast<const uint8_t *>(binary_json.c_str() + binary_json.size())));
+  binary.push_back(std::make_tuple(nullptr, nullptr));
+  EXPECT_EQ(manager.AddBinary("IncCov_NullBinary", binary), ge::PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_BinaryTooLarge_Test) {
+  std::string op_desc = "{\"op\":\"test_too_large\"}";
+  std::string binary_json = "{\"filePath\":\"test_too_large.json\"}";
+  const uint8_t *fake_start = reinterpret_cast<const uint8_t *>(1);
+  const uint8_t *fake_end = reinterpret_cast<const uint8_t *>(static_cast<uintptr_t>(UINT32_MAX) + 2);
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> binary;
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(op_desc.c_str()),
+                                   reinterpret_cast<const uint8_t *>(op_desc.c_str() + op_desc.size())));
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(binary_json.c_str()),
+                                   reinterpret_cast<const uint8_t *>(binary_json.c_str() + binary_json.size())));
+  binary.push_back(std::make_tuple(fake_start, fake_end));
+  EXPECT_EQ(manager.AddBinary("IncCov_TooLarge", binary), ge::PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_DuplicateAddOpFuncHandle_Test) {
+  int i;
+  manager.AddOpFuncHandle("IncCov_DupHandle", {(void *)&i});
+  EXPECT_EQ(manager.resourceHandle_["IncCov_DupHandle"].size(), 1);
+  manager.AddOpFuncHandle("IncCov_DupHandle", {(void *)&i});
+  EXPECT_EQ(manager.resourceHandle_["IncCov_DupHandle"].size(), 1);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_DuplicateAddBinary_Test) {
+  std::string op_desc = "{\"op\":\"test_dup\"}";
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> binary;
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(op_desc.c_str()),
+                                   reinterpret_cast<const uint8_t *>(op_desc.c_str() + op_desc.size())));
+  EXPECT_EQ(manager.AddBinary("IncCov_Dup", binary), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(manager.AddBinary("IncCov_Dup", binary), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_JsonFilePathException_Test) {
+  std::string op_desc = "{\"op\":\"test_no_filepath\"}";
+  std::string binary_json_no_filepath = "{\"notFilePath\":\"test\"}";
+  std::string binary_data = "data";
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> binary;
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(op_desc.c_str()),
+                                   reinterpret_cast<const uint8_t *>(op_desc.c_str() + op_desc.size())));
+  binary.push_back(std::make_tuple(
+      reinterpret_cast<const uint8_t *>(binary_json_no_filepath.c_str()),
+      reinterpret_cast<const uint8_t *>(binary_json_no_filepath.c_str() + binary_json_no_filepath.size())));
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(binary_data.c_str()),
+                                   reinterpret_cast<const uint8_t *>(binary_data.c_str() + binary_data.size())));
+  EXPECT_EQ(manager.AddBinary("IncCov_NoFilePath", binary), ge::GRAPH_PARAM_INVALID);
+}
+
+TEST_F(OpBinaryResourceManagerUT, IncCov_SimplifiedKeyWarning_Test) {
+  std::string op_desc = "{\"op\":\"test_no_simplified\"}";
+  std::string binary_json_no_simplified = "{\"filePath\":\"test_no_simplified.json\"}";
+  std::string binary_data = "data";
+  std::vector<std::tuple<const uint8_t *, const uint8_t *>> binary;
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(op_desc.c_str()),
+                                   reinterpret_cast<const uint8_t *>(op_desc.c_str() + op_desc.size())));
+  binary.push_back(std::make_tuple(
+      reinterpret_cast<const uint8_t *>(binary_json_no_simplified.c_str()),
+      reinterpret_cast<const uint8_t *>(binary_json_no_simplified.c_str() + binary_json_no_simplified.size())));
+  binary.push_back(std::make_tuple(reinterpret_cast<const uint8_t *>(binary_data.c_str()),
+                                   reinterpret_cast<const uint8_t *>(binary_data.c_str() + binary_data.size())));
+  EXPECT_EQ(manager.AddBinary("IncCov_NoSimplifiedKey", binary), ge::GRAPH_SUCCESS);
 }

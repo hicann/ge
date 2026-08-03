@@ -1063,4 +1063,17 @@ TEST_F(NamedIoNodeBuilderTest, BuildWithoutName_Succeeds) {
   ASSERT_NE(node, nullptr);
 }
 
+TEST_F(NamedIoNodeBuilderTest, IncCov_BuildWithNullImpl_ReturnsNullptr) {
+  Graph graph("test_graph");
+  AscendString error_msg;
+
+  NamedIoNodeBuilder builder(graph);
+  // NamedIoNodeBuilder has no vtable and only one member (unique_ptr<Impl>),
+  // which is layout-compatible with a raw pointer on this platform.
+  // Nullify it to cover the impl_ == nullptr branch in Build().
+  *reinterpret_cast<void **>(&builder) = nullptr;
+
+  auto node = builder.Build(error_msg);
+  EXPECT_EQ(node, nullptr);
+}
 }  // namespace ge

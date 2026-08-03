@@ -66,7 +66,9 @@ class PatternInputs:
     @overload
     def __getitem__(self, index: slice) -> List[TensorHolder]: ...
 
-    def __getitem__(self, index: Union[int, slice]) -> Union[TensorHolder, List[TensorHolder]]:
+    def __getitem__(
+        self, index: Union[int, slice]
+    ) -> Union[TensorHolder, List[TensorHolder]]:
         if isinstance(index, slice):
             return self._get_slice(index)
         if not isinstance(index, int):
@@ -77,7 +79,9 @@ class PatternInputs:
         return self._inputs[index]
 
     def __iter__(self) -> Iterator[TensorHolder]:
-        raise TypeError("PatternInputs cannot be iterated because the input count is unknown; use inputs[:N]")
+        raise TypeError(
+            "PatternInputs cannot be iterated because the input count is unknown; use inputs[:N]"
+        )
 
     def _get_slice(self, index_slice: slice) -> List[TensorHolder]:
         if index_slice.step not in (None, 1):
@@ -85,11 +89,15 @@ class PatternInputs:
         start = 0 if index_slice.start is None else index_slice.start
         stop = index_slice.stop
         if stop is None:
-            raise ValueError("PatternInputs slice must provide a stop index, for example inputs[:3]")
+            raise ValueError(
+                "PatternInputs slice must provide a stop index, for example inputs[:3]"
+            )
         if start < 0 or stop < 0:
             raise ValueError("PatternInputs slice indices must be non-negative")
         if stop < start:
-            raise ValueError("PatternInputs slice stop must be greater than or equal to start")
+            raise ValueError(
+                "PatternInputs slice stop must be greater than or equal to start"
+            )
         return [self[i] for i in range(start, stop)]
 
     def _ensure_created(self, index: int) -> None:
@@ -149,7 +157,9 @@ def _adapt_decorated_pattern_methods(cls: Type[object]) -> Callable[..., object]
             builder = GraphBuilder(_decorated_pattern_graph_name(self, method))
             inputs = PatternInputs(builder)
             result = method(self, inputs)
-            patterns.extend(_build_patterns_from_expression_result(builder, inputs, result))
+            patterns.extend(
+                _build_patterns_from_expression_result(builder, inputs, result)
+            )
         return patterns
 
     return wrapper
@@ -158,7 +168,7 @@ def _adapt_decorated_pattern_methods(cls: Type[object]) -> Callable[..., object]
 def _adapt_expression_replacement(
     method: Callable[..., object],
 ) -> Callable[..., object]:
-    """Wrap ``replacement(self, inputs[, match_result])`` into the legacy hook."""
+    """Wrap expression replacement hooks into ``replacement(match_result, context)``."""
 
     positional_params = _positional_params(method)
     if len(positional_params) < 2 or positional_params[1].name != "inputs":
@@ -166,18 +176,34 @@ def _adapt_expression_replacement(
     _check_required_arg_count(
         method,
         min_count=2,
-        max_count=3,
-        message="Expression-style replacement only supports "
-        "replacement(self, inputs) or replacement(self, inputs, match_result)",
+        max_count=4,
+        message="Expression-style replacement only supports replacement(self, inputs), "
+        "replacement(self, inputs, match_result), replacement(self, inputs, context), or "
+        "replacement(self, inputs, match_result, context)",
     )
-    accepts_match_result = _positional_arg_count(method) == 3
+    positional_count = _positional_arg_count(method)
+    accepts_match_result = positional_count in (3, 4) and not (
+        positional_count == 3 and positional_params[2].name == "context"
+    )
+    accepts_context = positional_count in (3, 4) and (
+        positional_count == 4 or positional_params[2].name == "context"
+    )
+    if positional_count == 4 and positional_params[3].name != "context":
+        raise TypeError(
+            "Expression-style replacement with four arguments must use "
+            "replacement(self, inputs, match_result, context)"
+        )
 
     @wraps(method)
-    def wrapper(self, match_result: object) -> Graph:
+    def wrapper(self, match_result: object, context: object = None) -> Graph:
         builder = GraphBuilder(_default_graph_name(self, "replacement"))
         inputs = PatternInputs(builder)
-        if accepts_match_result:
+        if accepts_match_result and accepts_context:
+            result = method(self, inputs, match_result, context)
+        elif accepts_match_result:
             result = method(self, inputs, match_result)
+        elif accepts_context:
+            result = method(self, inputs, context)
         else:
             result = method(self, inputs)
         return _build_replacement_from_expression_result(builder, result)
@@ -185,9 +211,50 @@ def _adapt_expression_replacement(
     return wrapper
 
 
-def _check_required_arg_count(method: Callable[..., object], *, min_count: int, max_count: int, message: str) -> None:
+def _adapt_context_hook(
+    method: Callable[..., object], hook_name: str, value_name: str
+) -> Callable[..., object]:
+    """Normalize a graph-building hook to ``(value, context)``."""
+
+    _check_required_arg_count(
+        method,
+        min_count=2,
+        max_count=3,
+        message=f"{hook_name} only supports {hook_name}(self, {value_name}) or "
+        f"{hook_name}(self, {value_name}, context)",
+    )
+    positional_count = _positional_arg_count(method)
+    accepts_context = positional_count == 3
+
+    @wraps(method)
+    def wrapper(self, value: object, context: object = None):
+        if accepts_context:
+            return method(self, value, context)
+        return method(self, value)
+
+    return wrapper
+
+
+def _adapt_replacement_hook(
+    method: Callable[..., object],
+) -> Callable[..., object]:
+    """Normalize an expression-style or graph-building replacement hook."""
+
+    adapted = _adapt_expression_replacement(method)
+    if adapted is not method:
+        return adapted
+    return _adapt_context_hook(method, "replacement", "match_result")
+
+
+def _check_required_arg_count(
+    method: Callable[..., object], *, min_count: int, max_count: int, message: str
+) -> None:
     count = _positional_arg_count(method)
-    if count < min_count or count > max_count or _has_required_keyword_only_args(method):
+    if (
+        count < min_count
+        or count > max_count
+        or _has_required_keyword_only_args(method)
+    ):
         raise TypeError(message)
 
 
@@ -200,21 +267,25 @@ def _positional_params(method: Callable[..., object]) -> List[inspect.Parameter]
     return [
         param
         for param in signature.parameters.values()
-        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        if param.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
     ]
 
 
 def _has_required_keyword_only_args(method: Callable[..., object]) -> bool:
     signature = inspect.signature(method)
     return any(
-        param.kind == inspect.Parameter.KEYWORD_ONLY and param.default is inspect.Parameter.empty
+        param.kind == inspect.Parameter.KEYWORD_ONLY
+        and param.default is inspect.Parameter.empty
         for param in signature.parameters.values()
     )
 
 
 def _get_decorated_pattern_methods(cls: Type[object]) -> List[Callable[..., object]]:
     return [
-        method for method in cls.__dict__.values() if callable(method) and getattr(method, _PATTERN_METHOD_MARK, False)
+        method
+        for method in cls.__dict__.values()
+        if callable(method) and getattr(method, _PATTERN_METHOD_MARK, False)
     ]
 
 
@@ -222,7 +293,9 @@ def _default_graph_name(instance: object, suffix: str) -> str:
     return f"{instance.__class__.__name__}_{suffix}"
 
 
-def _decorated_pattern_graph_name(instance: object, method: Callable[..., object]) -> str:
+def _decorated_pattern_graph_name(
+    instance: object, method: Callable[..., object]
+) -> str:
     return f"{instance.__class__.__name__}_{method.__name__}_pattern"
 
 
@@ -231,7 +304,11 @@ def _build_patterns_from_expression_result(
 ) -> List["Pattern"]:
     if _is_pattern_or_graph(result):
         return [ensure_pattern(result)]
-    if isinstance(result, (list, tuple)) and result and all(_is_pattern_or_graph(item) for item in result):
+    if (
+        isinstance(result, (list, tuple))
+        and result
+        and all(_is_pattern_or_graph(item) for item in result)
+    ):
         raise TypeError(
             "A @pattern method supports a single pattern only. "
             "For multiple patterns, declare several @pattern methods or use legacy patterns(self)."
@@ -247,7 +324,9 @@ def _build_patterns_from_expression_result(
     return [built_pattern]
 
 
-def _build_replacement_from_expression_result(builder: GraphBuilder, result: object) -> Graph:
+def _build_replacement_from_expression_result(
+    builder: GraphBuilder, result: object
+) -> Graph:
     if isinstance(result, Graph):
         return result
     return builder.build_and_reset(_normalize_tensor_outputs(result, "replacement"))
@@ -258,7 +337,11 @@ def _normalize_tensor_outputs(result: object, hook_name: str) -> List[TensorHold
         return [result]
     if isinstance(result, tuple):
         result = list(result)
-    if isinstance(result, list) and result and all(isinstance(item, TensorHolder) for item in result):
+    if (
+        isinstance(result, list)
+        and result
+        and all(isinstance(item, TensorHolder) for item in result)
+    ):
         return result
     raise TypeError(
         f"Expression-style {hook_name} must return a TensorHolder or a non-empty list/tuple of TensorHolder"

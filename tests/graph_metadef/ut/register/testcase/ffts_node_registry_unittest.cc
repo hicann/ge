@@ -82,4 +82,20 @@ TEST_F(FFTSNodeRegistryUnittest, ExtTaskTypeReg_test) {
   fe::ExtTaskType taskType = fe::OpExtGenTaskRegistry::GetInstance().GetExtTaskType("MoeDistributeCombine");
   EXPECT_EQ(taskType, fe::ExtTaskType::kAicoreTask);
 }
+
+TEST_F(FFTSNodeRegistryUnittest, IncCov_RegisterNodeConverterDirect_Test) {
+  gert::FFTSNodeConverterRegistry::GetInstance().RegisterNodeConverter("IncCov_DirectReg", TestFftsLowFunc);
+  EXPECT_EQ(gert::FFTSNodeConverterRegistry::GetInstance().FindNodeConverter("IncCov_DirectReg"), TestFftsLowFunc);
+  auto reg_data = gert::FFTSNodeConverterRegistry::GetInstance().FindRegisterData("IncCov_DirectReg");
+  ASSERT_NE(reg_data, nullptr);
+  EXPECT_EQ(reg_data->require_placement, -1);
+}
+
+TEST_F(FFTSNodeRegistryUnittest, IncCov_ConverterRegisterNoPlacement_Test) {
+  gert::FFTSNodeConverterRegister register_no_placement("IncCov_NoPlacement", TestFftsLowFunc);
+  EXPECT_EQ(gert::FFTSNodeConverterRegistry::GetInstance().FindNodeConverter("IncCov_NoPlacement"), TestFftsLowFunc);
+  auto reg_data = gert::FFTSNodeConverterRegistry::GetInstance().FindRegisterData("IncCov_NoPlacement");
+  ASSERT_NE(reg_data, nullptr);
+  EXPECT_EQ(reg_data->require_placement, -1);
+}
 }  // namespace TestFFTSNodeRegistry

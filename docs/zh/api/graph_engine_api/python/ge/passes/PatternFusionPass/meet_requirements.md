@@ -12,6 +12,7 @@
 
 ```python
 meet_requirements(self, match_result: MatchResult) -> bool
+meet_requirements(self, match_result: MatchResult, context: PassContext) -> bool
 ```
 
 ## 参数说明
@@ -19,6 +20,7 @@ meet_requirements(self, match_result: MatchResult) -> bool
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | match_result | 输入 | 模式匹配结果，类型为MatchResult，包含匹配到的节点和边信息。 |
+| context | 输入 | 当前编译期PassContext，仅在当前回调栈内有效，可读取编译选项或设置错误信息。 |
 
 ## 返回值说明
 
@@ -26,4 +28,4 @@ meet_requirements(self, match_result: MatchResult) -> bool
 
 ## 约束说明
 
-无
+可选声明`context`参数；未声明时保持原有单参数调用方式。

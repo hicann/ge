@@ -1,6 +1,6 @@
 # 简介
 
-算子分解Pass，继承自FusionBasePass。执行引擎会对匹配到的节点调用meet\_requirements\(\)和replacement\(\)方法，而非run\(\)方法。
+算子分解Pass，继承自FusionBasePass。执行引擎会对匹配到的节点调用meet\_requirements\(\)和replacement\(\)方法，而非run\(\)方法。meet\_requirements\(\)和replacement\(\)方法都可以在参数末尾声明`context: PassContext`。
 
 **约束说明**：
 

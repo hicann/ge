@@ -21,7 +21,6 @@
 
 namespace ge {
 namespace {
-
 static bool CompareNodeId(const ge::InDataAnchor *const left, const ge::InDataAnchor *const right) {
   bool invalid_para =
       ((left == nullptr) || (left->GetPeerOutAnchor() == nullptr) ||
@@ -41,7 +40,7 @@ static bool CompareNodeId(const ge::InDataAnchor *const left, const ge::InDataAn
 void GetDiffStreamMinLifeTime(const Node *const node, const int64_t src_stream,
                               const DiffStreamEdgeLife &in_stream_edge, int64_t &min_life_time) {
   const auto node_op_desc = node->GetOpDescBarePtr();
-  const auto dst_stream = ge::MemReuseUtils::GetStreamId(node_op_desc);
+  const auto dst_stream = MemReuseUtils::GetStreamId(node_op_desc);
   if (dst_stream == src_stream) {
     min_life_time = node_op_desc->GetId();
     GELOGI("same stream, node[%s] id as min life[%" PRId64 "]", node_op_desc->GetNamePtr(), min_life_time);
@@ -120,12 +119,12 @@ void GetDiffStreamMaxLifeTime(const Node *const node, const int64_t stream_id,
   auto node_op_desc = node->GetOpDescBarePtr();
   GE_CHECK_NOTNULL_JUST_RETURN(node_op_desc);
   GELOGD("Out depend node:[%s] life begin:%" PRId64 " stream_id:[%" PRId64 "->%" PRId64 "]", node_op_desc->GetNamePtr(),
-         node_op_desc->GetId(), ge::MemReuseUtils::GetStreamId(node_op_desc), stream_id);
-  if (ge::MemReuseUtils::GetStreamId(node_op_desc) == stream_id) {
+         node_op_desc->GetId(), MemReuseUtils::GetStreamId(node_op_desc), stream_id);
+  if (MemReuseUtils::GetStreamId(node_op_desc) == stream_id) {
     max_life_time = node_op_desc->GetId();
     return;
   }
-  const auto it = diff_stream_edge_life.find(ge::MemReuseUtils::GetStreamId(node_op_desc));
+  const auto it = diff_stream_edge_life.find(MemReuseUtils::GetStreamId(node_op_desc));
   if (it == diff_stream_edge_life.cend()) {
     return;
   }
@@ -138,7 +137,7 @@ void GetDiffStreamMaxLifeTime(const Node *const node, const int64_t stream_id,
     return;
   }
   GELOGD("Node:[%s] life begin:%" PRId64 " stream_id:[%" PRId64 "->%" PRId64 "] life_time:[%" PRId64 "->%" PRId64 "]",
-         node_op_desc->GetNamePtr(), node_op_desc->GetId(), ge::MemReuseUtils::GetStreamId(node_op_desc), stream_id,
+         node_op_desc->GetNamePtr(), node_op_desc->GetId(), MemReuseUtils::GetStreamId(node_op_desc), stream_id,
          (*edge_it).node_id, (*edge_it).peer_node_id);
   max_life_time = (*edge_it).peer_node_id;
 }
@@ -148,7 +147,7 @@ int64_t GetNodeMaxLifeBySymbol(const SymbolToAnchors &symbol_to_anchors, const N
                                const DiffStreamEdgeLife &diff_stream_edge_life, int64_t stream_id = kInvalidStreamId) {
   NodeIndexIO out_node_index_io(n, out_index, kOut);
   const int64_t n_stream_id =
-      (stream_id == kInvalidStreamId) ? ge::MemReuseUtils::GetStreamId(n->GetOpDescBarePtr()) : stream_id;
+      (stream_id == kInvalidStreamId) ? MemReuseUtils::GetStreamId(n->GetOpDescBarePtr()) : stream_id;
   SymbolToAnchors::const_iterator iter = symbol_to_anchors.find(out_node_index_io.ToString());
   // 先初始化返回值的为该节点本身的起使生命周期
   int64_t max_node_life_time = n->GetOpDescBarePtr()->GetId();
@@ -158,7 +157,7 @@ int64_t GetNodeMaxLifeBySymbol(const SymbolToAnchors &symbol_to_anchors, const N
           (node_index_io.node_ptr_->GetOpDescBarePtr() == nullptr)) {
         continue;
       }
-      const int64_t in_anchor_stream_id = ge::MemReuseUtils::GetStreamId(node_index_io.node_ptr_->GetOpDescBarePtr());
+      const int64_t in_anchor_stream_id = MemReuseUtils::GetStreamId(node_index_io.node_ptr_->GetOpDescBarePtr());
       if (node_index_io.node_ptr_->GetOpDescBarePtr()->GetOpKernelLibName() != kEngineNameGeLocal) {
         streams.emplace(in_anchor_stream_id);
       }
@@ -294,7 +293,7 @@ Status GetNetoutputInNodeStream(const Node *const netoutput, const Node *const p
     int64_t input_node_stream_id = kInvalidStreamId;
     // input_node is not a parent node
     if (input_node_iter == parent_nodes_to_stream_ids.end()) {
-      input_node_stream_id = ge::MemReuseUtils::GetStreamId(input_node->GetOpDescBarePtr());
+      input_node_stream_id = MemReuseUtils::GetStreamId(input_node->GetOpDescBarePtr());
     } else {
       const auto input_node_out_index = in_data_anchor->GetPeerOutAnchor()->GetIdx();
       GE_ASSERT_TRUE(static_cast<size_t>(input_node_out_index) <= input_node_iter->second.size(),
@@ -317,6 +316,26 @@ Status GetNetoutputInNodeStream(const Node *const netoutput, const Node *const p
            input_node->GetNamePtr());
   }
   return SUCCESS;
+}
+
+std::set<int64_t> GetStreamMergeAndOutStreams(const ge::ComputeGraphPtr &graph) {
+  std::set<int64_t> merge_and_out_streams;
+  for (const NodePtr &node : graph->GetAllNodes()) {
+    if (!MemReuseUtils::IsMergeNode(node)) {
+      continue;
+    }
+    if (merge_and_out_streams.insert(MemReuseUtils::GetStreamId(node->GetOpDescBarePtr())).second) {
+      GELOGD("Stream %" PRId64 " not reuse memory with other streams",
+             MemReuseUtils::GetStreamId(node->GetOpDescBarePtr()));
+    }
+    for (const auto &out_node : node->GetOutAllNodes()) {
+      if (merge_and_out_streams.insert(MemReuseUtils::GetStreamId(out_node->GetOpDescBarePtr())).second) {
+        GELOGD("Stream %" PRId64 " not reuse memory with other streams",
+               MemReuseUtils::GetStreamId(out_node->GetOpDescBarePtr()));
+      }
+    }
+  }
+  return merge_and_out_streams;
 }
 
 }  // namespace ge

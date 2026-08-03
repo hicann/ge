@@ -477,4 +477,210 @@ TEST_F(UtestShapeRefiner, InferShapeAndType_UpdateSubGraphDataNodes) {
   (void)AttrUtils::SetBool(p1_node->GetOpDesc(), ATTR_NAME_NEED_INFER_AGAIN, true);
   EXPECT_EQ(ShapeRefiner::InferShapeAndType(p1_node, true), GRAPH_SUCCESS);
 }
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateOutputForMultiBatch_Success) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_multibatch");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub_graph");
+  op_desc->SetSubgraphInstanceName(0, "sub_graph");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_BATCH_NUM, 2);
+
+  auto subgraph = std::make_shared<ComputeGraph>("sub_graph");
+  NodePtr sub_node = CreateNode(subgraph, "netoutput", "Netoutput", 1, 1);
+  sub_node->GetOpDesc()->SetType(NETOUTPUT);
+  AttrUtils::SetInt(sub_node->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+  subgraph->SetParentNode(root_node);
+  subgraph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub_graph", subgraph);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateOutputForMultiBatch_DiffDtype) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_multibatch_diff_dtype");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  op_desc->AddSubgraphName("sub2");
+  op_desc->SetSubgraphInstanceName(1, "sub2");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_BATCH_NUM, 2);
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr net1 = CreateNode(sub1, "net1", "Netoutput", 1, 1);
+  net1->GetOpDesc()->SetType(NETOUTPUT);
+  net1->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  AttrUtils::SetInt(net1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub1->SetParentNode(root_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  auto sub2 = std::make_shared<ComputeGraph>("sub2");
+  NodePtr net2 = CreateNode(sub2, "net2", "Netoutput", 1, 1);
+  net2->GetOpDesc()->SetType(NETOUTPUT);
+  net2->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_INT32);
+  AttrUtils::SetInt(net2->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub2->SetParentNode(root_node);
+  sub2->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub2", sub2);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateParentNodeForBranch_DiffDtype) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_diff_dtype");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  op_desc->AddSubgraphName("sub2");
+  op_desc->SetSubgraphInstanceName(1, "sub2");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr net1 = CreateNode(sub1, "net1", "Netoutput", 1, 1);
+  net1->GetOpDesc()->SetType(NETOUTPUT);
+  net1->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  AttrUtils::SetInt(net1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub1->SetParentNode(root_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  auto sub2 = std::make_shared<ComputeGraph>("sub2");
+  NodePtr net2 = CreateNode(sub2, "net2", "Netoutput", 1, 1);
+  net2->GetOpDesc()->SetType(NETOUTPUT);
+  net2->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_INT32);
+  AttrUtils::SetInt(net2->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub2->SetParentNode(root_node);
+  sub2->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub2", sub2);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateParentNodeForBranch_DiffShapeSize) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_diff_shape_size");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  op_desc->AddSubgraphName("sub2");
+  op_desc->SetSubgraphInstanceName(1, "sub2");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr net1 = CreateNode(sub1, "net1", "Netoutput", 1, 1);
+  net1->GetOpDesc()->SetType(NETOUTPUT);
+  net1->GetOpDesc()->MutableInputDesc(0)->SetShape(GeShape({1, 3, 224, 224}));
+  AttrUtils::SetInt(net1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub1->SetParentNode(root_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  auto sub2 = std::make_shared<ComputeGraph>("sub2");
+  NodePtr net2 = CreateNode(sub2, "net2", "Netoutput", 1, 1);
+  net2->GetOpDesc()->SetType(NETOUTPUT);
+  net2->GetOpDesc()->MutableInputDesc(0)->SetShape(GeShape({3, 224}));
+  AttrUtils::SetInt(net2->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub2->SetParentNode(root_node);
+  sub2->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub2", sub2);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateParentNodeForWhile_SizeMismatch) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_while_mismatch");
+  NodePtr while_node = CreateNode(root_graph, "while", "While", 2, 1);
+  auto op_desc = while_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr net1 = CreateNode(sub1, "net1", "Netoutput", 1, 1);
+  net1->GetOpDesc()->SetType(NETOUTPUT);
+  AttrUtils::SetInt(net1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub1->SetParentNode(while_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(while_node);
+  auto ret = ShapeRefiner::InferShapeAndType(while_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_UpdateParentNodeForWhile_OutputCountNotOne) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_while_multi_output");
+  NodePtr while_node = CreateNode(root_graph, "while", "While", 1, 1);
+  auto op_desc = while_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  op_desc->AddSubgraphName("sub2");
+  op_desc->SetSubgraphInstanceName(1, "sub2");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr net1 = CreateNode(sub1, "net1", "Netoutput", 1, 1);
+  net1->GetOpDesc()->SetType(NETOUTPUT);
+  AttrUtils::SetInt(net1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub1->SetParentNode(while_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  auto sub2 = std::make_shared<ComputeGraph>("sub2");
+  NodePtr net2 = CreateNode(sub2, "net2", "Netoutput", 1, 1);
+  net2->GetOpDesc()->SetType(NETOUTPUT);
+  AttrUtils::SetInt(net2->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub2->SetParentNode(while_node);
+  sub2->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub2", sub2);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(while_node);
+  auto ret = ShapeRefiner::InferShapeAndType(while_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_FindSubgraphDataAndNetoutput_NoParentNodeIndex) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_no_parent_idx");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr data1 = CreateNode(sub1, "data1", "Data", 1, 1);
+  sub1->SetParentNode(root_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefiner, IncCov_FindSubgraphDataAndNetoutput_RefIndexOutOfRange) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_ref_out_of_range");
+  NodePtr root_node = CreateNode(root_graph, "if", "If", 1, 1);
+  auto op_desc = root_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  NodePtr data1 = CreateNode(sub1, "data1", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 5);
+  sub1->SetParentNode(root_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(root_node);
+  auto ret = ShapeRefiner::InferShapeAndType(root_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
 }  // namespace ge

@@ -36,6 +36,7 @@ class FusionQuantUtilImplCovUT : public testing::Test {
     ComputeGraphPtr graph = std::make_shared<ComputeGraph>("quant_test");
     OpDescPtr data = std::make_shared<OpDesc>("data", "Data");
     OpDescPtr weight = std::make_shared<OpDesc>("weight", "Const");
+    OpDescPtr deq_scale = std::make_shared<OpDesc>("deq_scale", "Const");
     OpDescPtr mm = std::make_shared<OpDesc>("mm", "WeightQuantBatchMatmulV2");
     OpDescPtr y = std::make_shared<OpDesc>("y", "NetOutput");
 
@@ -58,6 +59,7 @@ class FusionQuantUtilImplCovUT : public testing::Test {
 
     data->AddOutputDesc(tensor_desc1);
     weight->AddOutputDesc(tensor_desc2);
+    deq_scale->AddOutputDesc(tensor_desc3);
 
     mm->AddInputDesc(tensor_desc1);
     mm->AddInputDesc(tensor_desc2);
@@ -69,11 +71,13 @@ class FusionQuantUtilImplCovUT : public testing::Test {
 
     NodePtr data_node = graph->AddNode(data);
     NodePtr weight_node = graph->AddNode(weight);
+    NodePtr deq_scale_node = graph->AddNode(deq_scale);
     NodePtr mm_node = graph->AddNode(mm);
     NodePtr y_node = graph->AddNode(y);
 
     GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), mm_node->GetInDataAnchor(0));
     GraphUtils::AddEdge(weight_node->GetOutDataAnchor(0), mm_node->GetInDataAnchor(1));
+    GraphUtils::AddEdge(deq_scale_node->GetOutDataAnchor(0), mm_node->GetInDataAnchor(3));
     GraphUtils::AddEdge(mm_node->GetOutDataAnchor(0), y_node->GetInDataAnchor(0));
     return graph;
   }
@@ -344,5 +348,260 @@ TEST_F(FusionQuantUtilImplCovUT, InsertFixpipeDequantScaleConvert_NullDeqScale) 
   vector<NodePtr> fusion_nodes;
   auto ret = QuantUtil::InsertFixpipeDequantScaleConvert(deq_scale, fusion_nodes);
   EXPECT_EQ(ret, FAILED);
+}
+
+static ComputeGraphPtr CreateGraphForBiasCreation() {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("quant_bias_test");
+  OpDescPtr data = std::make_shared<OpDesc>("data", "Data");
+  OpDescPtr weight = std::make_shared<OpDesc>("weight", "Const");
+  OpDescPtr mm = std::make_shared<OpDesc>("mm", "FFN");
+
+  GeShape shape1({2, 4, 9, 16});
+  GeTensorDesc tensor_desc1(shape1, FORMAT_NCHW, DT_FLOAT16);
+  tensor_desc1.SetOriginFormat(FORMAT_NCHW);
+  tensor_desc1.SetOriginDataType(DT_FLOAT16);
+  tensor_desc1.SetOriginShape(shape1);
+
+  GeShape shape2({2, 4});
+  GeTensorDesc tensor_desc2(shape2, FORMAT_ND, DT_INT8);
+  tensor_desc2.SetOriginFormat(FORMAT_ND);
+  tensor_desc2.SetOriginDataType(DT_INT8);
+  tensor_desc2.SetOriginShape(shape2);
+
+  GeShape shape3({1, 16});
+  GeTensorDesc tensor_desc3(shape3, FORMAT_ND, DT_FLOAT);
+  tensor_desc3.SetOriginFormat(FORMAT_ND);
+  tensor_desc3.SetOriginDataType(DT_FLOAT);
+  tensor_desc3.SetOriginShape(shape3);
+
+  data->AddOutputDesc(tensor_desc1);
+  weight->AddOutputDesc(tensor_desc2);
+
+  mm->AddInputDesc(tensor_desc1);
+  mm->AddInputDesc(tensor_desc2);
+  mm->AddInputDesc(tensor_desc1);
+  mm->AddInputDesc(tensor_desc3);
+  mm->AddInputDesc(tensor_desc3);
+  mm->AddOutputDesc(tensor_desc2);
+
+  NodePtr data_node = graph->AddNode(data);
+  NodePtr weight_node = graph->AddNode(weight);
+  NodePtr mm_node = graph->AddNode(mm);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), mm_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(weight_node->GetOutDataAnchor(0), mm_node->GetInDataAnchor(1));
+  return graph;
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithNoBiasPeer) {
+  ComputeGraphPtr graph = CreateGraphForBiasCreation();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(2);
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(param, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithQuantNode_NoBiasPeer) {
+  ComputeGraphPtr graph = CreateGraphForBiasCreation();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(2);
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(mm_node, param, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithDeqScale) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  QuantParam quant_param = {1.0F, 0.0F};
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(quant_param, param, fusion_nodes, WeightMode::WEIGHTWITH2D);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithQuantNodeAndDeqScale) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(mm_node, param, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithDeqScaleAnd5D) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  QuantParam quant_param = {1.0F, 0.0F};
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(quant_param, param, fusion_nodes, WeightMode::WEIGHTWITH5D);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithNullQuantNodeAndScaleOffset) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(param, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithQuantCinCoutReverse) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  AttrUtils::SetBool(mm_node->GetOpDesc(), "quant_cin_cout_reverse", true);
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(mm_node, param, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithGroups) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  AttrUtils::SetInt(mm_node->GetOpDesc(), "groups", 2);
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(mm_node, param, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithFFNAndNDFormat) {
+  ComputeGraphPtr graph = CreateGraphForBiasCreation();
+  NodePtr mm_node = graph->FindNode("mm");
+  QuantParam quant_param = {1.0F, 0.0F};
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(1);
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(quant_param, param, fusion_nodes, WeightMode::WEIGHTWITH2D);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_InsertFixpipeDequantScaleConvert_WithWeightNode) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr deq_scale = mm_node->GetInDataAnchor(3);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(4);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertFixpipeDequantScaleConvert(deq_scale, quant_offset, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_InsertQuantScaleConvert_WithValidScaleAndOffset) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr quant_scale = mm_node->GetInDataAnchor(3);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(4);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertQuantScaleConvert(quant_scale, quant_offset, fusion_nodes);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_InsertRequantScaleConvert_WithValidAnchors) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr req_scale = mm_node->GetInDataAnchor(3);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(4);
+  InDataAnchorPtr cube_bias = mm_node->GetInDataAnchor(1);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertRequantScaleConvert(req_scale, quant_offset, cube_bias, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_InsertRequantScaleConvert_WithSameAnchorForAll) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr req_scale = mm_node->GetInDataAnchor(0);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(0);
+  InDataAnchorPtr cube_bias = mm_node->GetInDataAnchor(0);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertRequantScaleConvert(req_scale, quant_offset, cube_bias, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_InsertFixpipeDequantScaleConvert_WithDeqScaleAndOffsetValid) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  InDataAnchorPtr deq_scale = mm_node->GetInDataAnchor(3);
+  InDataAnchorPtr quant_offset = mm_node->GetInDataAnchor(4);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::InsertFixpipeDequantScaleConvert(deq_scale, quant_offset, fusion_nodes);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithInvalidParam) {
+  ComputeGraphPtr graph = CreateSimpleGraphWithAnchors();
+  NodePtr mm_node = graph->FindNode("mm");
+  BiasOptimizeEdges param;
+  param.quant_scale = nullptr;
+  param.quant_offset = nullptr;
+  param.cube_weight = mm_node->GetInDataAnchor(0);
+  param.cube_bias = nullptr;
+  param.deq_scale = nullptr;
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(param, fusion_nodes);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(FusionQuantUtilImplCovUT, IncCov_BiasOptimizeByEdge_WithQuantParamAndFFN_ND) {
+  ComputeGraphPtr graph = CreateGraphForBiasCreation();
+  NodePtr mm_node = graph->FindNode("mm");
+  QuantParam quant_param = {1.0F, 0.5F};
+  BiasOptimizeEdges param;
+  param.quant_scale = mm_node->GetInDataAnchor(3);
+  param.quant_offset = mm_node->GetInDataAnchor(4);
+  param.cube_weight = mm_node->GetInDataAnchor(1);
+  param.cube_bias = mm_node->GetInDataAnchor(2);
+  param.deq_scale = mm_node->GetInDataAnchor(3);
+  vector<NodePtr> fusion_nodes;
+  auto ret = QuantUtil::BiasOptimizeByEdge(quant_param, param, fusion_nodes, WeightMode::WEIGHTWITH2D);
+  EXPECT_NE(ret, SUCCESS);
 }
 }  // namespace fe

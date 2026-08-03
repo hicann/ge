@@ -29,7 +29,9 @@ except ImportError as exc:
 Graph = graph_module.Graph
 
 
-def _write_decompose_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
+def _write_decompose_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
     file_path = dir_path / f"{module_name}.py"
     file_path.write_text(
         textwrap.dedent(f"""
@@ -50,7 +52,34 @@ def _write_decompose_pass_module(dir_path: Path, module_name: str, pass_name: st
     return file_path
 
 
-def _write_invalid_replacement_decompose_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
+def _write_context_decompose_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
+    file_path = dir_path / f"{module_name}.py"
+    file_path.write_text(
+        textwrap.dedent(f"""
+        from ge.graph import Graph
+        from ge.passes import DecomposePass, PassStage, register_decompose_pass
+
+        @register_decompose_pass(name="{pass_name}", stage=PassStage.AFTER_INFER_SHAPE, op_types=["Add"])
+        class {pass_name}(DecomposePass):
+            def meet_requirements(self, node, context):
+                context["meet"] = node
+                return True
+
+            def replacement(self, node, context):
+                context["replacement"] = node
+                return Graph("replacement_graph")
+    """).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    return file_path
+
+
+def _write_invalid_replacement_decompose_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
     file_path = dir_path / f"{module_name}.py"
     file_path.write_text(
         textwrap.dedent(f"""
@@ -87,6 +116,44 @@ def test_decompose_pass_rejects_run_override():
                 return True
 
 
+def test_decompose_hooks_forward_context_and_keep_legacy_signatures():
+    seen = []
+
+    class ContextDecomposePass(passes.DecomposePass):
+        def meet_requirements(self, node, context):
+            seen.append(("meet", node, context))
+            return True
+
+        def replacement(self, node, context):
+            seen.append(("replacement", node, context))
+            return Graph("replacement_graph")
+
+    context = object()
+    instance = ContextDecomposePass()
+    assert instance.meet_requirements("node", context) is True
+    assert instance.replacement("node", context).name == "replacement_graph"
+    assert seen == [("meet", "node", context), ("replacement", "node", context)]
+
+    class LegacyDecomposePass(passes.DecomposePass):
+        def replacement(self, node):
+            return Graph("legacy_replacement")
+
+    assert (
+        LegacyDecomposePass().replacement("node", context).name == "legacy_replacement"
+    )
+
+
+def test_decompose_context_hook_rejects_unsupported_signature():
+    with pytest.raises(TypeError, match=r"meet_requirements\(self, node\)"):
+
+        class InvalidDecomposePass(passes.DecomposePass):
+            def meet_requirements(self, node, context, extra):
+                return True
+
+            def replacement(self, node):
+                return Graph("replacement_graph")
+
+
 def test_register_decompose_pass_requires_non_empty_string_op_types():
     with pytest.raises(TypeError, match="iterable of strings"):
 
@@ -112,7 +179,9 @@ def test_register_decompose_pass_requires_non_empty_string_op_types():
 
 
 def test_register_decompose_pass_exposes_op_types(tmp_path, monkeypatch):
-    module_path = _write_decompose_pass_module(tmp_path, "bridge_decompose_pass", "BridgeDecomposePass")
+    module_path = _write_decompose_pass_module(
+        tmp_path, "bridge_decompose_pass", "BridgeDecomposePass"
+    )
     monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
 
     descriptors = bridge.load_and_get_pass_descriptors()
@@ -127,7 +196,9 @@ def test_register_decompose_pass_exposes_op_types(tmp_path, monkeypatch):
 
 
 def test_bridge_decompose_protocol_functions(tmp_path, monkeypatch):
-    module_path = _write_decompose_pass_module(tmp_path, "bridge_decompose_pass", "BridgeDecomposePass")
+    module_path = _write_decompose_pass_module(
+        tmp_path, "bridge_decompose_pass", "BridgeDecomposePass"
+    )
     monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
 
     descriptors = bridge.load_and_get_pass_descriptors()
@@ -152,6 +223,42 @@ def test_bridge_decompose_protocol_functions(tmp_path, monkeypatch):
     assert bridge.destroy_pass_holder(instance_id) is True
 
 
+def test_bridge_decompose_protocol_forwards_context_without_runtime_inspection(
+    tmp_path, monkeypatch
+):
+    module_path = _write_context_decompose_pass_module(
+        tmp_path, "context_decompose_pass", "ContextDecomposePass"
+    )
+    monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
+
+    descriptors = bridge.load_and_get_pass_descriptors()
+    descriptor_key = descriptors[0]["descriptor_key"]
+    instance_id = "ContextDecomposePass#1"
+    assert bridge.create_pass_holder(instance_id, descriptor_key)
+
+    class FakeNode:
+        type = "Add"
+
+    context = {}
+    monkeypatch.setattr(bridge, "borrow_node", lambda _handle: FakeNode())
+    monkeypatch.setattr(bridge, "release_graph", lambda graph: 1)
+
+    def fail_signature(*_args, **_kwargs):
+        raise AssertionError("bridge dispatch must not inspect normalized hooks")
+
+    monkeypatch.setattr(importlib.import_module("inspect"), "signature", fail_signature)
+
+    assert bridge.call_decompose_meet_requirements(instance_id, 1, context) is True
+    meet_node = context.get("meet")
+    assert meet_node is not None
+    assert meet_node.type == "Add"
+    assert bridge.call_decompose_replacement(instance_id, 1, context) == 1
+    replacement_node = context.get("replacement")
+    assert replacement_node is not None
+    assert replacement_node.type == "Add"
+    assert bridge.destroy_pass_holder(instance_id) is True
+
+
 def test_bridge_decompose_replacement_rejects_none(tmp_path, monkeypatch):
     module_path = _write_invalid_replacement_decompose_pass_module(
         tmp_path,
@@ -172,6 +279,7 @@ def test_bridge_decompose_replacement_rejects_none(tmp_path, monkeypatch):
 
     monkeypatch.setattr(bridge, "borrow_node", lambda _handle: FakeNode())
 
+    assert bridge.call_decompose_meet_requirements(instance_id, 1, {}) is True
     with pytest.raises(TypeError, match="must return ge\\.graph\\.Graph"):
         bridge.call_decompose_replacement(instance_id, 1)
 

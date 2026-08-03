@@ -46,6 +46,9 @@
 #include "proto/om.pb.h"
 #include "attribute_group/attr_group_base.h"
 #include "test_structs.h"
+#include "graph/serialization/attr_serializer_registry.h"
+#include "graph/serialization/named_attrs_serializer.h"
+#include "graph/serialization/list_value_serializer.h"
 
 using namespace ge;
 using namespace std;
@@ -1621,4 +1624,233 @@ TEST(UTEST_ge_model_unserialize, SerializeAttrGroupFailed) {
   op_desc->GetOrCreateAttrsGroup<TestAttrGroup>()->status = GRAPH_FAILED;
   proto::OpDef op_def;
   EXPECT_EQ(model_serialize_imp.SerializeOpDesc(op_desc, &op_def), true);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_OpDescToAttrDefNull) {
+  ModelSerializeImp imp;
+  ConstOpDescPtr null_op_desc;
+  proto::OpDef op_def;
+  imp.OpDescToAttrDef(null_op_desc, &op_def);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_AttrDefToOpDescInNullAndMismatch) {
+  ModelSerializeImp imp;
+  OpDescPtr null_op_desc;
+  std::vector<std::string> key_in = {"key1"};
+  std::vector<uint32_t> value_in = {1U, 2U};
+  imp.AttrDefToOpDescIn(null_op_desc, key_in, value_in);
+
+  auto op_desc = std::make_shared<OpDesc>();
+  std::vector<std::string> key_in2 = {"key1", "key2"};
+  std::vector<uint32_t> value_in2 = {1U};
+  imp.AttrDefToOpDescIn(op_desc, key_in2, value_in2);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_AttrDefToOpDescNullAndMismatch) {
+  ModelSerializeImp imp;
+  OpDescPtr null_op_desc;
+  std::vector<std::string> key_out = {"key1"};
+  std::vector<uint32_t> value_out = {1U, 2U};
+  std::vector<std::string> opt_input;
+  imp.AttrDefToOpDesc(null_op_desc, key_out, value_out, opt_input);
+
+  auto op_desc = std::make_shared<OpDesc>();
+  std::vector<std::string> key_out2 = {"key1", "key2"};
+  std::vector<uint32_t> value_out2 = {1U};
+  imp.AttrDefToOpDesc(op_desc, key_out2, value_out2, opt_input);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_AttrDefToOpDescIrDefInvalidValue) {
+  ModelSerializeImp imp;
+  auto op_desc = std::make_shared<OpDesc>();
+  proto::OpDef op_def;
+  auto *attr = op_def.mutable_attr();
+  proto::AttrDef key;
+  key.mutable_list()->add_s("input1");
+  (*attr)["_ir_inputs_key"] = key;
+  proto::AttrDef value;
+  value.mutable_list()->add_i(static_cast<int64_t>(100));
+  (*attr)["_ir_inputs_value"] = value;
+  imp.AttrDefToOpDescIrDef(op_desc, op_def);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_AttrDefToOpDescIrDefMismatchedSizes) {
+  ModelSerializeImp imp;
+  auto op_desc = std::make_shared<OpDesc>();
+  proto::OpDef op_def;
+  auto *attr = op_def.mutable_attr();
+  proto::AttrDef key;
+  key.mutable_list()->add_s("input1");
+  key.mutable_list()->add_s("input2");
+  (*attr)["_ir_inputs_key"] = key;
+  proto::AttrDef value;
+  value.mutable_list()->add_i(static_cast<int64_t>(0));
+  (*attr)["_ir_inputs_value"] = value;
+  imp.AttrDefToOpDescIrDef(op_desc, op_def);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_LoadWeightFromFileNegativeLength) {
+  ModelSerializeImp imp;
+  std::string weight;
+  EXPECT_FALSE(imp.LoadWeightFromFile("path", -1, weight));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_SetWeightForModelNoLength) {
+  ModelSerializeImp imp;
+  proto::OpDef op_def;
+  auto *attr = op_def.mutable_attr();
+  proto::AttrDef loc;
+  loc.set_s("some_path");
+  (*attr)[ATTR_NAME_LOCATION] = loc;
+  EXPECT_TRUE(imp.SetWeightForModel(op_def));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_DeserializeAllAttrsUnsupportedType) {
+  google::protobuf::Map<std::string, ::ge::proto::AttrDef> proto_attr_map;
+  proto::AttrDef bad_attr;
+  bad_attr.set_expression("test");
+  proto_attr_map["bad_key"] = bad_attr;
+  auto op_desc = std::make_shared<OpDesc>();
+  EXPECT_FALSE(ModelSerializeImp::DeserializeAllAttrsToAttrHolder(proto_attr_map, op_desc.get()));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_DeserializeAllAttrsDeserializeFail) {
+  REG_GEIR_SERIALIZER(named_attr_serializer, NamedAttrsSerializer, GetTypeId<ge::NamedAttrs>(), proto::AttrDef::kFunc);
+  REG_GEIR_SERIALIZER(list_int, ListValueSerializer, GetTypeId<std::vector<int64_t>>(), proto::AttrDef::kList);
+  google::protobuf::Map<std::string, ::ge::proto::AttrDef> proto_attr_map;
+  proto::AttrDef func_attr;
+  auto *func = func_attr.mutable_func();
+  auto *func_attr_map = func->mutable_attr();
+  proto::AttrDef sub_attr;
+  sub_attr.mutable_list()->set_val_type(proto::AttrDef::ListValue::VT_LIST_NONE);
+  (*func_attr_map)["sub_key"] = sub_attr;
+  proto_attr_map["func_key"] = func_attr;
+  auto op_desc = std::make_shared<OpDesc>();
+  EXPECT_FALSE(ModelSerializeImp::DeserializeAllAttrsToAttrHolder(proto_attr_map, op_desc.get()));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_SerializeGraphAttrFailed) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  AnyValue av;
+  av.SetValue(std::vector<int32_t>({1, 2, 3}));
+  graph->SetAttr("unregistered", av);
+  proto::GraphDef graph_proto;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.SerializeGraph(graph, &graph_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_SerializeModelAttrFailed) {
+  Model model("test", "v1");
+  AnyValue av;
+  av.SetValue(std::vector<int32_t>({1, 2, 3}));
+  model.SetAttr("unregistered", av);
+  proto::ModelDef model_proto;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.SerializeModel(model, &model_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_UnserializeOpDescAttrFailed) {
+  proto::OpDef op_def_proto;
+  op_def_proto.set_name("test_node");
+  op_def_proto.set_type("Data");
+  auto *attr = op_def_proto.mutable_attr();
+  proto::AttrDef bad_attr;
+  bad_attr.set_expression("test");
+  (*attr)["bad_key"] = bad_attr;
+  OpDescPtr op_desc;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.UnserializeOpDesc(op_desc, op_def_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_UnserializeModelEmptyGraphProto) {
+  proto::ModelDef model_proto;
+  model_proto.set_name("test_model");
+  Model model;
+  ModelSerializeImp imp;
+  EXPECT_TRUE(imp.UnserializeModel(model, model_proto, true));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_UnserializeModelAttrFailed) {
+  proto::ModelDef model_proto;
+  model_proto.set_name("test_model");
+  auto *attr = model_proto.mutable_attr();
+  proto::AttrDef bad_attr;
+  bad_attr.set_expression("test");
+  (*attr)["bad_key"] = bad_attr;
+  Model model;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.UnserializeModel(model, model_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_UnserializeGraphAttrFailed) {
+  proto::GraphDef graph_proto;
+  graph_proto.set_name("test");
+  auto *attr = graph_proto.mutable_attr();
+  proto::AttrDef bad_attr;
+  bad_attr.set_expression("test");
+  (*attr)["bad_key"] = bad_attr;
+  ComputeGraphPtr graph;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.UnserializeGraph(graph, graph_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_UnserializeNodeFailed) {
+  proto::GraphDef graph_proto;
+  graph_proto.set_name("test");
+  auto *op_def = graph_proto.add_op();
+  op_def->set_name("test_node");
+  op_def->set_type("Data");
+  auto *node_attr = op_def->mutable_attr();
+  proto::AttrDef bad_attr;
+  bad_attr.set_expression("test");
+  (*node_attr)["bad_key"] = bad_attr;
+  ComputeGraphPtr graph;
+  ModelSerializeImp imp;
+  EXPECT_FALSE(imp.UnserializeGraph(graph, graph_proto));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_RebuildOwnershipSubgraphNotFound) {
+  ModelSerializeImp imp;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  auto op_desc = std::make_shared<OpDesc>();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "nonexistent");
+  graph->AddNode(op_desc);
+  std::map<std::string, ComputeGraphPtr> subgraphs;
+  EXPECT_FALSE(imp.RebuildOwnership(graph, subgraphs));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_RebuildOwnershipEmptySubgraphName) {
+  ModelSerializeImp imp;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  auto op_desc = std::make_shared<OpDesc>();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "");
+  graph->AddNode(op_desc);
+  std::map<std::string, ComputeGraphPtr> subgraphs;
+  EXPECT_TRUE(imp.RebuildOwnership(graph, subgraphs));
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_SerializeModelProtoFailed) {
+  Model model("test", "v1");
+  proto::ModelDef model_def;
+  ModelSerialize serialize;
+  EXPECT_EQ(serialize.SerializeModel(model, false, model_def), FAILED);
+}
+
+TEST(UTEST_ge_model_serialize, IncCov_SeparateModelDefEmptyWeight) {
+  proto::ModelDef model_def;
+  model_def.set_name("test_model");
+  auto *graph_def = model_def.add_graph();
+  graph_def->set_name("test_graph");
+  auto *op_def = graph_def->add_op();
+  op_def->set_type(CONSTANT);
+  op_def->set_name("const_op");
+  auto *attr = op_def->mutable_attr();
+  proto::AttrDef weight_attr;
+  weight_attr.mutable_t();
+  (*attr)[ATTR_NAME_WEIGHTS] = weight_attr;
+  Buffer buffer;
+  ModelSerializeImp imp;
+  EXPECT_TRUE(imp.SeparateModelDef(buffer, "test_path", model_def));
 }

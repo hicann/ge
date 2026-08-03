@@ -1622,4 +1622,532 @@ TEST_F(UtestOpDescUtils, CovGetNonConstTensorDesc) {
   auto descs2 = OpDescUtils::GetNonConstTensorDesc(null_node);
   EXPECT_EQ(descs2.size(), 0U);
 }
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumEmptyValidNames) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names;
+  size_t instance_num = 999U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 0, 0, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumRequiredMatching) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "a"}, {2, "bias"}, {3, "b"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 1, 1, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumRequiredNonMatchingNoSubsequent) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "other"}, {2, "bias"}, {3, "b"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 1, 1, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumRequiredNonMatchingWithSubsequent) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "other"}, {2, "a"}, {3, "b"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 1, 1, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumRequiredStartOutOfRange) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "a"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 1, 5, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumOptionalMatching) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "a"}, {2, "bias"}, {3, "b"}};
+  size_t instance_num = 99U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 2, 2, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumOptionalNonMatching) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "a"}, {2, "other"}, {3, "b"}};
+  size_t instance_num = 99U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 2, 2, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumOptionalStartOutOfRange) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "a"}};
+  size_t instance_num = 99U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 2, 5, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumDynamicMatching) {
+  auto graph = BuildGraph4(3, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "x1"},   {2, "x2"},
+                                                         {3, "a"},  {4, "bias"}, {5, "b"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 0, 0, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 3U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumDynamicPartialMatch) {
+  auto graph = BuildGraph4(3, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "other"}, {2, "a"}, {3, "bias"}, {4, "b"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 0, 0, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInstanceNumDynamicExceedMaxIndex) {
+  auto graph = BuildGraph4(5, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::map<uint32_t, std::string> valid_index_2_names = {{0, "x0"}, {1, "x1"}, {2, "x2"}};
+  size_t instance_num = 0U;
+  auto ret = OpDescUtils::GetInstanceNum(op_desc, 0, 0, valid_index_2_names, instance_num);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(instance_num, 3U);
+}
+
+TEST_F(UtestOpDescUtils, CovHasCallbackGetConstInputFunc) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  auto op = op::DynamicOpUt();
+  EXPECT_FALSE(OpDescUtils::HasCallbackGetConstInputFunc(op));
+  OpDescUtils::SetCallbackGetConstInputFuncToOperator(
+      op, [](const ge::ConstNodePtr &node_val, const size_t idx, ge::GeTensorPtr &tensor) -> graphStatus {
+        (void)node_val;
+        (void)idx;
+        (void)tensor;
+        return GRAPH_SUCCESS;
+      });
+  EXPECT_TRUE(OpDescUtils::HasCallbackGetConstInputFunc(op));
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputsDepthZero) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto const_inputs = OpDescUtils::GetConstInputs(*addn_node, 0U);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovHasQuantizeFactorParamsNullptr) {
+  OpDescPtr null_op = nullptr;
+  EXPECT_FALSE(OpDescUtils::HasQuantizeFactorParams(null_op));
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodeConstInvalidSize) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const_node", "Const", 0, 1);
+  GeTensorPtr tensor1 = std::make_shared<GeTensor>();
+  GeTensorPtr tensor2 = std::make_shared<GeTensor>();
+  auto ret = OpDescUtils::SetWeights(*const_node, std::vector<GeTensorPtr>{tensor1, tensor2});
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodeMapInvalidConstSize) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const_node", "Const", 0, 1);
+  GeTensorPtr tensor1 = std::make_shared<GeTensor>();
+  GeTensorPtr tensor2 = std::make_shared<GeTensor>();
+  std::map<int, GeTensorPtr> weights_map = {{0, tensor1}, {1, tensor2}};
+  auto ret = OpDescUtils::SetWeights(*const_node, weights_map);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodeMapInvalidIdx) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::map<int, GeTensorPtr> weights_map = {{-1, tensor}};
+  auto ret = OpDescUtils::SetWeights(*addn_node, weights_map);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodeMapNonConstPeer) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::map<int, GeTensorPtr> weights_map = {{0, tensor}};
+  auto ret = OpDescUtils::SetWeights(*addn_node, weights_map);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovMutableWeightsConstNoWeight) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const_no_weight", "Const", 0, 1);
+  auto weights = OpDescUtils::MutableWeights(const_node);
+  EXPECT_EQ(weights.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovMutableWeightsNodePtrNull) {
+  ge::NodePtr null_node;
+  auto weights = OpDescUtils::MutableWeights(null_node);
+  EXPECT_EQ(weights.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetWeightsConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  auto weights = OpDescUtils::GetWeights(null_node);
+  EXPECT_EQ(weights.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputsConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  auto const_inputs = OpDescUtils::GetConstInputs(null_node);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputIndexAnchorStatusSet) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  NodeUtils::SetAllAnchorStatus(addn_node);
+  auto anchors = addn_node->GetAllInDataAnchors();
+  for (auto &anchor : anchors) {
+    AnchorUtils::SetStatus(anchor, ANCHOR_DATA);
+  }
+  size_t index = 0U;
+  auto ret = OpDescUtils::GetNonConstInputIndex(*addn_node, 0, index);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputTensorDescAnchorStatusSet) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  NodeUtils::SetAllAnchorStatus(addn_node);
+  auto anchors = addn_node->GetAllInDataAnchors();
+  for (auto &anchor : anchors) {
+    AnchorUtils::SetStatus(anchor, ANCHOR_DATA);
+  }
+  auto desc = OpDescUtils::GetNonConstInputTensorDesc(*addn_node, 0);
+  EXPECT_EQ(desc.GetDataType(), DT_FLOAT);
+}
+
+TEST_F(UtestOpDescUtils, CovIsNonConstInputAnchorStatusSet) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  NodeUtils::SetAllAnchorStatus(addn_node);
+  auto anchors = addn_node->GetAllInDataAnchors();
+  for (auto &anchor : anchors) {
+    AnchorUtils::SetStatus(anchor, ANCHOR_DATA);
+  }
+  EXPECT_TRUE(OpDescUtils::IsNonConstInput(*addn_node, 0));
+}
+
+TEST_F(UtestOpDescUtils, CovIsNonConstInputConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  EXPECT_FALSE(OpDescUtils::IsNonConstInput(null_node, 0));
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputIndexConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  size_t index = 0U;
+  EXPECT_FALSE(OpDescUtils::GetNonConstInputIndex(null_node, 0, index));
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputTensorDescConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  auto desc = OpDescUtils::GetNonConstInputTensorDesc(null_node, 0);
+  EXPECT_EQ(desc.GetDataType(), DT_FLOAT);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputsSizeConstNodePtrNull) {
+  ge::ConstNodePtr null_node;
+  EXPECT_EQ(OpDescUtils::GetNonConstInputsSize(null_node), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInputDataNullWeight) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const_node", "Const", 0, 1);
+  std::vector<ge::NodePtr> input_nodes = {const_node};
+  auto data = OpDescUtils::GetInputData(input_nodes);
+  EXPECT_EQ(data.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsOpDescNullWeight) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "TestType");
+  auto ret = OpDescUtils::SetWeights(op_desc, nullptr);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovMutableWeightsOpDescPtrNull) {
+  OpDescPtr null_op;
+  auto weight = OpDescUtils::MutableWeights(null_op);
+  EXPECT_EQ(weight, nullptr);
+}
+
+TEST_F(UtestOpDescUtils, CovClearWeightsGraphNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const_node", "Const", 0, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const_node, {tensor0});
+  auto graph = builder.GetGraph();
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  builder.AddDataEdge(const_node, 0, addn, 0);
+  auto ret = OpDescUtils::ClearWeights(addn);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetSubgraphInstanceNameNotFound) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "TestType");
+  auto ret = OpDescUtils::SetSubgraphInstanceName("nonexistent", "instance_name", op_desc);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovCreateConstOpZeroCopy) {
+  GeTensorDesc desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  auto tensor = std::make_shared<GeTensor>(desc);
+  auto const_op = OpDescUtils::CreateConstOpZeroCopy(tensor);
+  EXPECT_NE(const_op, nullptr);
+  EXPECT_EQ(const_op->GetType(), CONSTANT);
+}
+
+TEST_F(UtestOpDescUtils, CovCreateConstOpCopy) {
+  GeTensorDesc desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  auto tensor = std::make_shared<GeTensor>(desc);
+  auto const_op = OpDescUtils::CreateConstOp(tensor);
+  EXPECT_NE(const_op, nullptr);
+  EXPECT_EQ(const_op->GetType(), CONSTANT);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInputConstDataNullOperator) {
+  ge::Operator op;
+  auto data = OpDescUtils::GetInputConstData(op, 0);
+  EXPECT_EQ(data, nullptr);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstTensorDescAnchorStatusSet) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  NodeUtils::SetAllAnchorStatus(addn_node);
+  auto anchors = addn_node->GetAllInDataAnchors();
+  for (auto &anchor : anchors) {
+    AnchorUtils::SetStatus(anchor, ANCHOR_DATA);
+  }
+  ge::ConstNodePtr const_node = addn_node;
+  auto descs = OpDescUtils::GetNonConstTensorDesc(const_node);
+  EXPECT_EQ(descs.size(), 2U);
+}
+
+TEST_F(UtestOpDescUtils, CovSetNoneConstNodeWeightsLessThanInputs) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  std::vector<GeTensorPtr> empty_weights;
+  auto ret = OpDescUtils::SetWeights(*addn_node, empty_weights);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputNodeNullPeerOutAnchor) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 2, 1);
+  auto graph = builder.GetGraph();
+  auto const_inputs = OpDescUtils::GetConstInputNode(*addn);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputNodeAndAnchorNullPeer) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 2, 1);
+  auto graph = builder.GetGraph();
+  auto const_inputs = OpDescUtils::GetConstInputNodeAndAnchor(*addn);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, CovClearInputDescSuccess) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto ret = OpDescUtils::ClearInputDesc(addn_node);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovClearOutputDescSuccess) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 1, 2);
+  auto graph = builder.GetGraph();
+  auto ret = OpDescUtils::ClearOutputDesc(addn);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovClearInputDescByIndex) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto ret = OpDescUtils::ClearInputDesc(addn_node->GetOpDesc(), 0);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovClearOutputDescByIndex) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 1, 2);
+  auto graph = builder.GetGraph();
+  auto ret = OpDescUtils::ClearOutputDesc(addn->GetOpDesc(), 0);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovHasQuantizeFactorParamsRef) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "TestType");
+  EXPECT_FALSE(OpDescUtils::HasQuantizeFactorParams(*op_desc));
+  AttrUtils::SetTensor(op_desc, "quantize_factor", std::make_shared<GeTensor>());
+  EXPECT_TRUE(OpDescUtils::HasQuantizeFactorParams(*op_desc));
+}
+
+TEST_F(UtestOpDescUtils, CovMutableWeightsOpDescRef) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Const");
+  auto weight = OpDescUtils::MutableWeights(*op_desc);
+  EXPECT_EQ(weight, nullptr);
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  OpDescUtils::SetWeights(*op_desc, tensor);
+  weight = OpDescUtils::MutableWeights(*op_desc);
+  EXPECT_NE(weight, nullptr);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsOpDescPtr) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Const");
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  auto ret = OpDescUtils::SetWeights(op_desc, tensor);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodePtrVector) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  auto ret = OpDescUtils::SetWeights(addn, std::vector<GeTensorPtr>{tensor});
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetWeightsNodePtrMap) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::map<int, GeTensorPtr> weights_map = {{0, tensor}};
+  auto ret = OpDescUtils::SetWeights(*addn_node, weights_map);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetInputDataSuccess) {
+  auto graph = BuildGraph1();
+  auto const1 = graph->FindNode("const1");
+  std::vector<ge::NodePtr> input_nodes = {const1};
+  auto data = OpDescUtils::GetInputData(input_nodes);
+  EXPECT_EQ(data.size(), 1U);
+}
+
+TEST_F(UtestOpDescUtils, CovAddConstOpToAnchorSuccess) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  auto graph = builder.GetGraph();
+  GeTensorDesc desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  auto tensor = std::make_shared<GeTensor>(desc);
+  auto in_anchor = addn->GetInDataAnchor(0);
+  auto ret = OpDescUtils::AddConstOpToAnchor(in_anchor, tensor);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovSetRuntimeContextToOperator) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op = op::DynamicOpUt();
+  OpDescUtils::SetRuntimeContextToOperator(op, nullptr);
+}
+
+TEST_F(UtestOpDescUtils, CovGetIrInputDtypeSymIds) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::vector<std::string> sym_ids;
+  auto ret = OpDescUtils::GetIrInputDtypeSymIds(op_desc, sym_ids);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetIrOutputDtypeSymIds) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::vector<std::string> sym_ids;
+  auto ret = OpDescUtils::GetIrOutputDtypeSymIds(op_desc, sym_ids);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetPromoteInstanceInputList) {
+  auto graph = BuildGraph4(1, true);
+  auto node = graph->FindNode("dynamic_op_ut");
+  auto op_desc = node->GetOpDesc();
+  std::vector<std::vector<size_t>> promote_index_list;
+  auto ret = OpDescUtils::GetPromoteInstanceInputList(op_desc, promote_index_list);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputTensorDescOutOfRange) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto desc = OpDescUtils::GetNonConstInputTensorDesc(*addn_node, 10);
+  EXPECT_EQ(desc.GetDataType(), DT_FLOAT);
+}
+
+TEST_F(UtestOpDescUtils, CovGetNonConstInputIndexOutOfRange) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  size_t index = 0U;
+  auto ret = OpDescUtils::GetNonConstInputIndex(*addn_node, 10, index);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(UtestOpDescUtils, CovIsNonConstInputOutOfRange) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  EXPECT_FALSE(OpDescUtils::IsNonConstInput(*addn_node, 10));
+}
+
+TEST_F(UtestOpDescUtils, CovGetConstInputsDataParentConst) {
+  ut::GraphBuilder builder = ut::GraphBuilder("cov_graph");
+  auto const_node = builder.AddNode("const1", "Const", 0, 1);
+  auto data_node = builder.AddNode("data1", DATA, 1, 1);
+  auto addn = builder.AddNode("addn", "AddN", 1, 1);
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor0 = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const_node, {tensor0});
+  builder.AddDataEdge(const_node, 0, data_node, 0);
+  builder.AddDataEdge(data_node, 0, addn, 0);
+  auto graph = builder.GetGraph();
+  auto const_inputs = OpDescUtils::GetConstInputs(*addn, 1U);
+  EXPECT_EQ(const_inputs.size(), 0U);
+}
 }  // namespace ge

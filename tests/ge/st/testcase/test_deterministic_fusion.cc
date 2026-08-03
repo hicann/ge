@@ -9,12 +9,27 @@
  */
 
 #include <gtest/gtest.h>
+#include <map>
+#include <vector>
+#include <string>
 
 #include "graph/compute_graph.h"
 #include "graph/ge_tensor.h"
 #include "graph/op_desc.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/utils/tensor_utils.h"
+#include "graph/utils/op_desc_utils.h"
+#include "graph/operator.h"
+#include "graph/attr_value.h"
+#include "graph/ge_attr_value.h"
+#include "graph/normal_graph/ge_tensor_impl.h"
+#include "graph/detail/attributes_holder.h"
+#include "register/scope/scope_fusion_pass_register.h"
+#include "register/scope/scope_pattern_impl.h"
+#include "register/scope/scope_graph_impl.h"
+#include "register/graph_optimizer/fusion_common/pattern_fusion_base_pass.h"
+#include "register/graph_optimizer/graph_fusion/fusion_pattern.h"
 
 namespace ge {
 namespace {
@@ -147,4 +162,84 @@ TEST_F(DeterministicFusionSTest, FuseNodeKeepTopoKeepSameAttrsOnFusionOp) {
   const auto fuse_nodes = fusion_graph.graph->FuseNodeKeepTopo({fusion_graph.relu1, fusion_graph.relu2}, {fusion_op});
   ASSERT_EQ(fuse_nodes.size(), 1U);
 }
+
+TEST_F(DeterministicFusionSTest, IncCovSt_ShareTensor_WithProtoOwner) {
+  GeIrProtoHelper<ge::proto::TensorDef> helper;
+  helper.InitDefault();
+  helper.GetProtoMsg()->mutable_data()->resize(10);
+  GeTensor from(helper.GetProtoOwner(), helper.GetProtoMsg());
+  GeTensor to;
+  TensorUtils::ShareTensor(from, to);
+}
+
+TEST_F(DeterministicFusionSTest, IncCovSt_CopyOperatorLinks_Success) {
+  std::map<std::string, Operator> src_op_list;
+  std::map<std::string, Operator> dst_op_list;
+  Operator src_op("op1", "Data");
+  Operator dst_op("op1", "Data");
+  src_op_list["op1"] = src_op;
+  dst_op_list["op1"] = dst_op;
+  EXPECT_EQ(OpDescUtils::CopyOperatorLinks(src_op_list, dst_op_list), GRAPH_SUCCESS);
+}
 }  // namespace ge
+
+using namespace std;
+using namespace ge;
+
+namespace fe {
+class BadBuildPatternPassCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("BadBuildPatternCov");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"});
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, std::vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+  const std::string GetName() const {
+    return "BadBuildPatternPassCov";
+  }
+};
+
+class BadBuildInnerPatternPassCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    return patterns;
+  }
+  std::vector<FusionPattern *> DefineInnerPatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("BadBuildInnerPatternCov");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"});
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, std::vector<ge::NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+  const std::string GetName() const {
+    return "BadBuildInnerPatternPassCov";
+  }
+};
+
+class IncCovStPatternFusionPass : public testing::Test {};
+
+TEST_F(IncCovStPatternFusionPass, GetPatterns_BuildFail) {
+  BadBuildPatternPassCov pass;
+  const auto &patterns = pass.GetPatterns();
+  EXPECT_TRUE(patterns.empty());
+}
+
+TEST_F(IncCovStPatternFusionPass, GetInnerPatterns_BuildFail) {
+  BadBuildInnerPatternPassCov pass;
+  const auto &inner_patterns = pass.GetInnerPatterns();
+  EXPECT_TRUE(inner_patterns.empty());
+}
+}  // namespace fe

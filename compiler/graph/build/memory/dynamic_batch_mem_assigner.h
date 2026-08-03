@@ -50,5 +50,9 @@ class DynamicBatchMemAssigner {
   ReuseStrategy reuse_strategy_{};
 };
 
+void GetMaxBatchAllMemorySize(std::map<std::string, std::vector<int64_t>> &batch_all_memory_size,
+                              std::map<std::string, int64_t> batch_total_size, std::vector<int64_t> &all_memory_size,
+                              std::string &max_batch_label);
+
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_MEMORY_DYNAMIC_BATCH_MEM_ASSIGNER_H_

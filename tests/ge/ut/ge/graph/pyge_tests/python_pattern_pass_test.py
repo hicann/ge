@@ -33,10 +33,11 @@ Pattern = passes.Pattern
 PatternMatcherConfigBuilder = passes.PatternMatcherConfigBuilder
 
 
-def _write_pattern_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
+def _write_pattern_pass_source(
+    dir_path: Path, module_name: str, pass_name: str, hooks: str
+) -> Path:
     file_path = dir_path / f"{module_name}.py"
-    file_path.write_text(
-        textwrap.dedent(f"""
+    class_source = textwrap.dedent(f"""
         from ge.graph import Graph
         from ge.passes import PassStage, PatternFusionPass, register_fusion_pass
 
@@ -44,38 +45,60 @@ def _write_pattern_pass_module(dir_path: Path, module_name: str, pass_name: str)
         class {pass_name}(PatternFusionPass):
             def patterns(self):
                 return [Graph("pattern_graph")]
-
-            def meet_requirements(self, match_result):
-                return match_result.get_pattern_graph_name() == "borrowed_pattern"
-
-            def replacement(self, match_result):
-                return Graph("replacement_graph")
     """).strip()
-        + "\n",
-        encoding="utf-8",
-    )
+    hook_source = textwrap.indent(textwrap.dedent(hooks).strip(), "    ")
+    file_path.write_text(f"{class_source}\n\n{hook_source}\n", encoding="utf-8")
     return file_path
 
 
-def _write_invalid_replacement_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
-    file_path = dir_path / f"{module_name}.py"
-    file_path.write_text(
-        textwrap.dedent(f"""
-        from ge.graph import Graph
-        from ge.passes import PassStage, PatternFusionPass, register_fusion_pass
+def _write_pattern_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
+    return _write_pattern_pass_source(
+        dir_path,
+        module_name,
+        pass_name,
+        """
+        def meet_requirements(self, match_result):
+            return match_result.get_pattern_graph_name() == "borrowed_pattern"
 
-        @register_fusion_pass(name="{pass_name}", stage=PassStage.AFTER_INFER_SHAPE)
-        class {pass_name}(PatternFusionPass):
-            def patterns(self):
-                return [Graph("pattern_graph")]
-
-            def replacement(self, match_result):
-                return None
-    """).strip()
-        + "\n",
-        encoding="utf-8",
+        def replacement(self, match_result):
+            return Graph("replacement_graph")
+        """,
     )
-    return file_path
+
+
+def _write_context_pattern_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
+    return _write_pattern_pass_source(
+        dir_path,
+        module_name,
+        pass_name,
+        """
+        def meet_requirements(self, match_result, context):
+            context["meet"] = match_result
+            return True
+
+        def replacement(self, match_result, context):
+            context["replacement"] = match_result
+            return Graph("replacement_graph")
+        """,
+    )
+
+
+def _write_invalid_replacement_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
+    return _write_pattern_pass_source(
+        dir_path,
+        module_name,
+        pass_name,
+        """
+        def replacement(self, match_result):
+            return None
+        """,
+    )
 
 
 def test_pattern_fusion_pass_rejects_run_override():
@@ -86,7 +109,9 @@ def test_pattern_fusion_pass_rejects_run_override():
                 return True
 
 
-def _write_pattern_matcher_config_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
+def _write_pattern_matcher_config_pass_module(
+    dir_path: Path, module_name: str, pass_name: str
+) -> Path:
     file_path = dir_path / f"{module_name}.py"
     file_path.write_text(
         textwrap.dedent(f"""
@@ -133,7 +158,12 @@ def clear_python_pattern_runtime(monkeypatch):
 
 
 def test_pattern_matcher_config_builder_flags():
-    config = PatternMatcherConfigBuilder().enable_const_value_match().enable_ir_attr_match().build()
+    config = (
+        PatternMatcherConfigBuilder()
+        .enable_const_value_match()
+        .enable_ir_attr_match()
+        .build()
+    )
 
     assert config.is_enable_const_value_match() is True
     assert config.is_enable_ir_attr_match() is True
@@ -222,6 +252,82 @@ def test_decorated_expression_pattern_pass_builds_graph_and_captures_inputs_outp
     assert isinstance(replacement_graph, Graph)
 
 
+def test_pattern_hooks_forward_context_and_keep_legacy_signatures():
+    seen = []
+
+    class ContextPatternPass(passes.PatternFusionPass):
+        def patterns(self):
+            return [Graph("pattern_graph")]
+
+        def meet_requirements(self, match_result, context):
+            seen.append(("meet", match_result, context))
+            return True
+
+        def replacement(self, match_result, context):
+            seen.append(("replacement", match_result, context))
+            return Graph("replacement_graph")
+
+    context = object()
+    instance = ContextPatternPass()
+    assert instance.meet_requirements("match", context) is True
+    assert instance.replacement("match", context).name == "replacement_graph"
+    assert seen == [("meet", "match", context), ("replacement", "match", context)]
+
+    class LegacyPatternPass(passes.PatternFusionPass):
+        def patterns(self):
+            return [Graph("pattern_graph")]
+
+        def replacement(self, match_result):
+            return Graph("legacy_replacement")
+
+    assert (
+        LegacyPatternPass().replacement("match", context).name == "legacy_replacement"
+    )
+
+
+def test_expression_replacement_context_signatures_are_disambiguated():
+    context = object()
+
+    class ContextExpressionPass(passes.PatternFusionPass):
+        def replacement(self, inputs, context):
+            assert context is not None
+            return inputs[0]
+
+    class MatchAndContextExpressionPass(passes.PatternFusionPass):
+        def replacement(self, inputs, match_result, context):
+            assert match_result == "match"
+            assert context is not None
+            return inputs[0]
+
+    class LegacyMatchExpressionPass(passes.PatternFusionPass):
+        def replacement(self, inputs, details):
+            assert details == "match"
+            return inputs[0]
+
+    assert isinstance(ContextExpressionPass().replacement("match", context), Graph)
+    assert isinstance(
+        MatchAndContextExpressionPass().replacement("match", context), Graph
+    )
+    assert isinstance(LegacyMatchExpressionPass().replacement("match", context), Graph)
+
+
+def test_pattern_context_hook_rejects_unsupported_signature():
+    with pytest.raises(TypeError, match=r"meet_requirements\(self, match_result\)"):
+
+        class InvalidPatternPass(passes.PatternFusionPass):
+            def meet_requirements(self, match_result, context, extra):
+                return True
+
+            def replacement(self, match_result):
+                return Graph("replacement_graph")
+
+    with pytest.raises(TypeError, match="four arguments"):
+
+        class InvalidExpressionPass(passes.PatternFusionPass):
+            def replacement(self, inputs, match_result, options):
+                return inputs[0]
+
+
 def test_decorated_expression_pattern_pass_captures_outputs_in_return_order():
     class ExpressionPatternPass(passes.PatternFusionPass):
         @passes.pattern
@@ -281,7 +387,9 @@ def test_decorated_expression_patterns_rejects_multiple_native_patterns():
 
 
 def test_decorated_expression_patterns_rejects_patterns_method_conflict():
-    with pytest.raises(TypeError, match="cannot combine @pattern methods with patterns"):
+    with pytest.raises(
+        TypeError, match="cannot combine @pattern methods with patterns"
+    ):
 
         class InvalidMultiPatternPass(passes.PatternFusionPass):
             @passes.pattern
@@ -306,7 +414,9 @@ def test_legacy_patterns_method_still_accepts_multiple_patterns():
 
 
 def test_bridge_pattern_protocol_functions(tmp_path, monkeypatch):
-    module_path = _write_pattern_pass_module(tmp_path, "bridge_pattern_pass", "BridgePatternPass")
+    module_path = _write_pattern_pass_module(
+        tmp_path, "bridge_pattern_pass", "BridgePatternPass"
+    )
     monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
 
     descriptors = bridge.load_and_get_pass_descriptors()
@@ -354,6 +464,41 @@ def test_bridge_pattern_protocol_functions(tmp_path, monkeypatch):
     assert bridge.destroy_pass_holder(instance_id) is True
 
 
+def test_bridge_pattern_protocol_forwards_context_without_runtime_inspection(
+    tmp_path, monkeypatch
+):
+    module_path = _write_context_pattern_pass_module(
+        tmp_path, "context_pattern_pass", "ContextPatternPass"
+    )
+    monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
+
+    descriptors = bridge.load_and_get_pass_descriptors()
+    descriptor_key = descriptors[0]["descriptor_key"]
+    instance_id = "ContextPatternPass#1"
+    assert bridge.create_pass_holder(instance_id, descriptor_key)
+
+    class FakeMatchResult:
+        def _invalidate(self):
+            return None
+
+    context = {}
+    monkeypatch.setattr(
+        bridge, "borrow_match_result", lambda _handle: FakeMatchResult()
+    )
+    monkeypatch.setattr(bridge, "release_graph", lambda graph: 1)
+
+    def fail_signature(*_args, **_kwargs):
+        raise AssertionError("bridge dispatch must not inspect normalized hooks")
+
+    monkeypatch.setattr(importlib.import_module("inspect"), "signature", fail_signature)
+
+    assert bridge.call_meet_requirements(instance_id, 1, context) is True
+    assert context.get("meet") is not None
+    assert bridge.call_replacement(instance_id, 1, context) == 1
+    assert context.get("replacement") is not None
+    assert bridge.destroy_pass_holder(instance_id) is True
+
+
 def test_bridge_pattern_replacement_rejects_none(tmp_path, monkeypatch):
     module_path = _write_invalid_replacement_pass_module(
         tmp_path, "invalid_replacement_pattern_pass", "InvalidReplacementPatternPass"
@@ -371,8 +516,11 @@ def test_bridge_pattern_replacement_rejects_none(tmp_path, monkeypatch):
         def _invalidate(self):
             return None
 
-    monkeypatch.setattr(bridge, "borrow_match_result", lambda _handle: FakeMatchResult())
+    monkeypatch.setattr(
+        bridge, "borrow_match_result", lambda _handle: FakeMatchResult()
+    )
 
+    assert bridge.call_meet_requirements(instance_id, 1, {}) is True
     with pytest.raises(TypeError, match="must return ge\\.graph\\.Graph"):
         bridge.call_replacement(instance_id, 1)
 

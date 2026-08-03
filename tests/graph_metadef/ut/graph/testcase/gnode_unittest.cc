@@ -920,4 +920,206 @@ TEST_F(GNodeTest, TestAddDynamicSubGraph_success_different_name) {
   GraphPtr subgraph_valid = Graph::ConstructFromInputs(inputs2, name);
   ASSERT_EQ(GRAPH_SUCCESS, node_valid.SetSubgraphs("branch1", std::vector<ge::Graph>{*subgraph_valid.get()}));
 }
+
+TEST_F(GNodeTest, IncCov_GNodeAdapterNullChecks) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+
+  GNode empty_gnode;
+  empty_gnode.impl_ = nullptr;
+  ASSERT_EQ(NodeAdapter::GNode2Node(empty_gnode), nullptr);
+
+  NodePtr null_node = nullptr;
+  ASSERT_EQ(NodeAdapter::GNode2Node(NodeAdapter::Node2GNode(null_node)), nullptr);
+  ASSERT_EQ(NodeAdapter::Node2GNodePtr(null_node), nullptr);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeNullOpDescPaths) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  node->impl_->op_ = nullptr;
+  GNode gnode = NodeAdapter::Node2GNode(node);
+
+  int32_t index = 0;
+  EXPECT_EQ(gnode.GetInputIndexByName("x", index), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetOutputIndexByName("y", index), GRAPH_FAILED);
+
+  std::vector<int32_t> indexes;
+  EXPECT_EQ(gnode.GetDynamicInputIndexesByName("x", indexes), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetDynamicOutputIndexesByName("y", indexes), GRAPH_FAILED);
+
+  EXPECT_EQ(gnode.GetInputsSize(), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetOutputsSize(), GRAPH_FAILED);
+
+  TensorDesc td;
+  EXPECT_EQ(gnode.GetInputDesc(0, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetOutputDesc(0, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.UpdateInputDesc(0, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.UpdateOutputDesc(0, td), GRAPH_FAILED);
+
+  EXPECT_EQ(gnode.HasAttr("attr"), false);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetSubgraphInvalidIndex) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  GraphPtr graph;
+  EXPECT_EQ(gnode.GetSubgraph(999U, graph), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetALLSubgraphsNoSubgraphs) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 0, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  std::vector<GraphPtr> subgraphs;
+  EXPECT_NE(gnode.GetALLSubgraphs(subgraphs), GRAPH_SUCCESS);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeAttrGetSetAllTypes) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AscendString name = "test_attr";
+
+  int64_t v64 = 42;
+  EXPECT_EQ(gnode.SetAttr(name, v64), GRAPH_SUCCESS);
+  int64_t gv64 = 0;
+  EXPECT_EQ(gnode.GetAttr(name, gv64), GRAPH_SUCCESS);
+  EXPECT_EQ(gv64, 42);
+
+  int32_t v32 = 10;
+  EXPECT_EQ(gnode.SetAttr(name, v32), GRAPH_SUCCESS);
+  int32_t gv32 = 0;
+  EXPECT_EQ(gnode.GetAttr(name, gv32), GRAPH_SUCCESS);
+  EXPECT_EQ(gv32, 10);
+
+  uint32_t vu32 = 20;
+  EXPECT_EQ(gnode.SetAttr(name, vu32), GRAPH_SUCCESS);
+  uint32_t gvu32 = 0;
+  EXPECT_EQ(gnode.GetAttr(name, gvu32), GRAPH_SUCCESS);
+  EXPECT_EQ(gvu32, 20U);
+
+  float32_t vf = 3.14f;
+  EXPECT_EQ(gnode.SetAttr(name, vf), GRAPH_SUCCESS);
+  float32_t gvf = 0.0f;
+  EXPECT_EQ(gnode.GetAttr(name, gvf), GRAPH_SUCCESS);
+
+  bool vb = true;
+  EXPECT_EQ(gnode.SetAttr(name, vb), GRAPH_SUCCESS);
+  bool gvb = false;
+  EXPECT_EQ(gnode.GetAttr(name, gvb), GRAPH_SUCCESS);
+  EXPECT_EQ(gvb, true);
+
+  std::vector<int64_t> vvi64 = {1, 2, 3};
+  EXPECT_EQ(gnode.SetAttr(name, vvi64), GRAPH_SUCCESS);
+  std::vector<int64_t> gvvi64;
+  EXPECT_EQ(gnode.GetAttr(name, gvvi64), GRAPH_SUCCESS);
+  EXPECT_EQ(gvvi64.size(), 3U);
+
+  std::vector<int32_t> vvi32 = {4, 5};
+  EXPECT_EQ(gnode.SetAttr(name, vvi32), GRAPH_SUCCESS);
+  std::vector<int32_t> gvvi32;
+  EXPECT_EQ(gnode.GetAttr(name, gvvi32), GRAPH_SUCCESS);
+
+  std::vector<uint32_t> vvu32 = {6, 7};
+  EXPECT_EQ(gnode.SetAttr(name, vvu32), GRAPH_SUCCESS);
+  std::vector<uint32_t> gvvu32;
+  EXPECT_EQ(gnode.GetAttr(name, gvvu32), GRAPH_SUCCESS);
+
+  std::vector<float32_t> vvf = {1.0f, 2.0f};
+  EXPECT_EQ(gnode.SetAttr(name, vvf), GRAPH_SUCCESS);
+  std::vector<float32_t> gvvf;
+  EXPECT_EQ(gnode.GetAttr(name, gvvf), GRAPH_SUCCESS);
+
+  std::vector<bool> vvb = {true, false};
+  EXPECT_EQ(gnode.SetAttr(name, vvb), GRAPH_SUCCESS);
+  std::vector<bool> gvvb;
+  EXPECT_EQ(gnode.GetAttr(name, gvvb), GRAPH_SUCCESS);
+
+  ge::DataType vdt = DT_FLOAT;
+  EXPECT_EQ(gnode.SetAttr(name, vdt), GRAPH_SUCCESS);
+  ge::DataType gvdt = DT_INT32;
+  EXPECT_EQ(gnode.GetAttr(name, gvdt), GRAPH_SUCCESS);
+  EXPECT_EQ(gvdt, DT_FLOAT);
+
+  std::vector<ge::DataType> vvdt = {DT_FLOAT, DT_INT32};
+  EXPECT_EQ(gnode.SetAttr(name, vvdt), GRAPH_SUCCESS);
+  std::vector<ge::DataType> gvvdt;
+  EXPECT_EQ(gnode.GetAttr(name, gvvdt), GRAPH_SUCCESS);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeAttrNullImplAndNode) {
+  GNode gnode;
+  AscendString name = "test_attr";
+
+  int64_t v64 = 0;
+  gnode.impl_ = nullptr;
+  EXPECT_EQ(gnode.GetAttr(name, v64), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, v64), GRAPH_FAILED);
+
+  float32_t vf = 0;
+  EXPECT_EQ(gnode.GetAttr(name, vf), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, vf), GRAPH_FAILED);
+
+  bool vb = false;
+  EXPECT_EQ(gnode.GetAttr(name, vb), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, vb), GRAPH_FAILED);
+
+  std::vector<int64_t> vvi64;
+  EXPECT_EQ(gnode.GetAttr(name, vvi64), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, vvi64), GRAPH_FAILED);
+
+  ge::DataType vdt = DT_FLOAT;
+  EXPECT_EQ(gnode.GetAttr(name, vdt), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, vdt), GRAPH_FAILED);
+
+  AttrValue av;
+  EXPECT_EQ(gnode.SetAttr(name, av), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInDataNodesInvalidIndex) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  auto result = gnode.GetInDataNodesAndPortIndexs(999);
+  EXPECT_EQ(result.first, nullptr);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetOutDataNodesInvalidIndex) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  auto result = gnode.GetOutDataNodesAndPortIndexs(999);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInputConstDataNonConst) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node1 = builder.AddNode("node1", "node1", 0, 1);
+  const auto node2 = builder.AddNode("node2", "node2", 1, 0);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node2);
+  Tensor data;
+  EXPECT_EQ(gnode.GetInputConstData(0, data), GRAPH_NODE_WITHOUT_CONST_INPUT);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInputConstDataInvalidIndex) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  Tensor data;
+  EXPECT_NE(gnode.GetInputConstData(999, data), GRAPH_SUCCESS);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInputDescOutOfRange) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  TensorDesc td;
+  EXPECT_EQ(gnode.GetInputDesc(999, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.UpdateInputDesc(999, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetOutputDesc(999, td), GRAPH_FAILED);
+  EXPECT_EQ(gnode.UpdateOutputDesc(999, td), GRAPH_FAILED);
+}
 }  // namespace ge

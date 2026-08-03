@@ -438,4 +438,91 @@ TEST_F(TensorUtilsUT, SetReuseInputIndex) {
   EXPECT_EQ(reuse_flag, true);
   EXPECT_EQ(reuse_index, 1);
 }
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescMoveAndSwap) {
+  TensorDesc desc1(Shape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  desc1.SetName("desc1");
+  desc1.SetOriginShape(Shape({3, 4}));
+  desc1.SetOriginFormat(FORMAT_NHWC);
+  TensorDesc desc2(std::move(desc1));
+  EXPECT_EQ(desc2.GetName(), "desc1");
+  EXPECT_EQ(desc2.GetOriginFormat(), FORMAT_NHWC);
+  TensorDesc desc3;
+  desc3 = std::move(desc2);
+  EXPECT_EQ(desc3.GetName(), "desc1");
+  EXPECT_EQ(desc3.GetShape().GetDimNum(), 2U);
+  TensorDesc desc4 = desc3;
+  EXPECT_EQ(desc4.GetName(), "desc1");
+  TensorDesc desc5;
+  desc5 = desc3;
+  EXPECT_EQ(desc5.GetName(), "desc1");
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescUpdateAndAccessors) {
+  TensorDesc desc(Shape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  desc.Update(Shape({3, 4}), FORMAT_NHWC, DT_INT32);
+  EXPECT_EQ(desc.GetShape().GetDimNum(), 2U);
+  EXPECT_EQ(desc.GetFormat(), FORMAT_NHWC);
+  EXPECT_EQ(desc.GetDataType(), DT_INT32);
+  desc.SetShape(Shape({5, 6}));
+  EXPECT_EQ(desc.GetShape().GetDim(0), 5);
+  desc.SetSize(100);
+  EXPECT_EQ(desc.GetSize(), 100);
+  desc.SetRealDimCnt(3);
+  EXPECT_EQ(desc.GetRealDimCnt(), 3);
+  desc.SetPlacement(kPlacementDevice);
+  EXPECT_EQ(desc.GetPlacement(), kPlacementDevice);
+  desc.SetShapeRange({{1, 10}, {2, 20}});
+  std::vector<std::pair<int64_t, int64_t>> range;
+  EXPECT_EQ(desc.GetShapeRange(range), GRAPH_SUCCESS);
+  EXPECT_EQ(range.size(), 2U);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorSetDataWithDeleter) {
+  Tensor tensor;
+  uint8_t *data_ptr = new uint8_t[10];
+  for (int i = 0; i < 10; ++i) {
+    data_ptr[i] = static_cast<uint8_t>(i);
+  }
+  EXPECT_EQ(tensor.SetData(data_ptr, 10, [](uint8_t *p) { delete[] p; }), GRAPH_SUCCESS);
+  EXPECT_EQ(tensor.GetSize(), 10U);
+  EXPECT_EQ(tensor.GetData()[0], 0);
+  EXPECT_EQ(tensor.GetData()[9], 9);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorSetDataAscendStrings) {
+  Tensor tensor;
+  std::vector<AscendString> datas = {AscendString("hello"), AscendString("world")};
+  EXPECT_EQ(tensor.SetData(datas), GRAPH_SUCCESS);
+  EXPECT_EQ(tensor.SetData(std::vector<AscendString>({AscendString("a")})), GRAPH_SUCCESS);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorAdapterAllMethods) {
+  GeTensorDesc ge_desc(GeShape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(ge_desc, 100);
+  TensorUtils::SetRealDimCnt(ge_desc, 2);
+  auto tensor_desc = TensorAdapter::GeTensorDesc2TensorDesc(ge_desc);
+  EXPECT_EQ(tensor_desc.GetDataType(), DT_FLOAT);
+  auto converted = TensorAdapter::TensorDesc2GeTensorDesc(tensor_desc);
+  EXPECT_EQ(converted.GetDataType(), DT_FLOAT);
+
+  GeTensor ge_tensor(ge_desc, std::vector<uint8_t>({1, 2, 3}));
+  auto tensor = TensorAdapter::AsTensor(ge_tensor);
+  EXPECT_EQ(tensor.GetSize(), 3U);
+  auto shared = TensorAdapter::AsGeTensorShared(tensor);
+  EXPECT_EQ(shared.GetTensorDesc().GetDataType(), DT_FLOAT);
+  auto bare_ptr = TensorAdapter::AsBareGeTensorPtr(tensor);
+  EXPECT_NE(bare_ptr, nullptr);
+  auto ge_ptr = TensorAdapter::AsGeTensorPtr(tensor);
+  EXPECT_NE(ge_ptr, nullptr);
+  auto const_ge_ptr = TensorAdapter::AsGeTensorPtr(static_cast<const Tensor &>(tensor));
+  EXPECT_NE(const_ge_ptr, nullptr);
+  auto ge1 = TensorAdapter::AsGeTensor(static_cast<const Tensor &>(tensor));
+  auto ge2 = TensorAdapter::AsGeTensor(tensor);
+  EXPECT_EQ(ge1.GetTensorDesc().GetDataType(), DT_FLOAT);
+  auto from_ge = TensorAdapter::GeTensor2Tensor(ge_ptr);
+  EXPECT_EQ(from_ge.GetSize(), 3U);
+  auto from_null = TensorAdapter::GeTensor2Tensor(nullptr);
+  EXPECT_EQ(from_null.GetSize(), 0U);
+}
 }  // namespace ge

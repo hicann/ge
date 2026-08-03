@@ -56,4 +56,68 @@ TEST_F(UtestAlignedPtr, BuildFromData_success) {
   uint8_t result = *(aligned_ptr->Get());
   ASSERT_EQ(result, 10);
 }
+
+TEST_F(UtestAlignedPtr, ConstructorZeroBufferSize) {
+  auto aligned_ptr = MakeShared<AlignedPtr>(0U, 16U);
+  ASSERT_NE(aligned_ptr, nullptr);
+  EXPECT_EQ(aligned_ptr->Get(), nullptr);
+}
+
+TEST_F(UtestAlignedPtr, ConstructorAlignmentZero) {
+  auto aligned_ptr = MakeShared<AlignedPtr>(100U, 0U);
+  ASSERT_NE(aligned_ptr, nullptr);
+  EXPECT_NE(aligned_ptr->Get(), nullptr);
+  EXPECT_EQ(aligned_ptr->Get(), aligned_ptr->base_.get());
+}
+
+TEST_F(UtestAlignedPtr, ConstructorWithAlignment) {
+  auto aligned_ptr = MakeShared<AlignedPtr>(100U, 32U);
+  ASSERT_NE(aligned_ptr, nullptr);
+  EXPECT_NE(aligned_ptr->Get(), nullptr);
+  uint64_t addr = reinterpret_cast<uintptr_t>(aligned_ptr->Get());
+  EXPECT_EQ(addr % 32U, 0U);
+}
+
+TEST_F(UtestAlignedPtr, ResetWithNullDeleter) {
+  auto aligned_ptr = MakeShared<AlignedPtr>(0U, 16U);
+  ASSERT_NE(aligned_ptr, nullptr);
+  auto output = aligned_ptr->Reset();
+  EXPECT_EQ(output, nullptr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromAllocFuncNullFuncs) {
+  auto ptr = AlignedPtr::BuildFromAllocFunc(nullptr, nullptr);
+  EXPECT_EQ(ptr, nullptr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromAllocFuncNullAllocResult) {
+  auto alloc_func = [](std::unique_ptr<uint8_t[], AlignedPtr::Deleter> &base_addr) { (void)base_addr; };
+  auto deleter = [](uint8_t *ptr) { delete[] ptr; };
+  auto ptr = AlignedPtr::BuildFromAllocFunc(alloc_func, deleter);
+  EXPECT_EQ(ptr, nullptr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromAllocFuncSuccess) {
+  auto alloc_func = [](std::unique_ptr<uint8_t[], AlignedPtr::Deleter> &base_addr) {
+    uint8_t *data = new uint8_t[128];
+    base_addr.reset(data);
+  };
+  auto deleter = [](uint8_t *ptr) { delete[] ptr; };
+  auto ptr = AlignedPtr::BuildFromAllocFunc(alloc_func, deleter);
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_NE(ptr->Get(), nullptr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromDataNullData) {
+  auto deleter = [](uint8_t *ptr) { delete[] ptr; };
+  auto ptr = AlignedPtr::BuildFromData(nullptr, deleter);
+  EXPECT_EQ(ptr, nullptr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromDataNullDeleter) {
+  uint8_t *data = new uint8_t[10];
+  auto ptr = AlignedPtr::BuildFromData(data, nullptr);
+  EXPECT_EQ(ptr, nullptr);
+  delete[] data;
+}
 }  // namespace ge

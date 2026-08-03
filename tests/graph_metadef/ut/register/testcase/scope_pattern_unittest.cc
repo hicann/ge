@@ -16,6 +16,8 @@
 #include "register/scope/scope_graph_impl.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/types.h"
+#include "graph/utils/op_desc_utils.h"
+#include "graph/utils/attr_utils.h"
 #include "register/scope/scope_fusion_pass_register.h"
 
 using namespace std;
@@ -313,5 +315,81 @@ TEST_F(ScopePatternUt, AddFeature_Null) {
   scope_pat.AddScopeFeature(sf);
 
   EXPECT_EQ(scope_pat.impl_, nullptr);
+}
+
+TEST_F(ScopePatternUt, IncCov_NodeAttrFeature_NullImpl) {
+  ScopeAttrValue empty_val;
+  NodeAttrFeature naf("node_type", "attr_name", DT_INT8, empty_val);
+  naf.impl_.reset();
+  Scope scope;
+  scope.Init("name", "sub_type", nullptr);
+  EXPECT_FALSE(naf.Match(&scope));
+
+  ScopeAttrValue other_val;
+  NodeAttrFeature assigned("other", "other_attr", DT_INT8, other_val);
+  assigned.impl_.reset();
+  assigned = naf;
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeFeature_MatchFull) {
+  Scope root;
+  root.Init("parent/child", "", nullptr);
+  Scope *sub1 = new Scope();
+  sub1->Init("parent/child/sub1", "my_type", &root);
+  sub1->impl_->SetSubType("my_type");
+  root.impl_->AddSubScope(sub1);
+
+  ScopeFeature sf("my_type", 1, "parent", "", 0);
+  EXPECT_TRUE(sf.impl_->Match(&root));
+
+  ScopeFeature sf2("my_type", 2, "parent", "", 0);
+  EXPECT_FALSE(sf2.impl_->Match(&root));
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeFeature_SubScopesMatchContinueAndTrue) {
+  Scope *sub1 = new Scope();
+  sub1->Init("parent/child_a", "my_type", nullptr);
+  sub1->impl_->SetSubType("my_type");
+  Scope *sub2 = new Scope();
+  sub2->Init("parent/child_b", "my_type", nullptr);
+  sub2->impl_->SetSubType("my_type");
+
+  std::vector<Scope *> scopes = {sub1, sub2};
+  ScopeFeature sf("my_type", 2, "", "parent", 0);
+  EXPECT_TRUE(sf.impl_->SubScopesMatch(scopes));
+
+  ScopeFeature sf2("my_type", 1, "", "parent", 0);
+  EXPECT_FALSE(sf2.impl_->SubScopesMatch(scopes));
+
+  delete sub1;
+  delete sub2;
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopePattern_MatchEdgeCases) {
+  ScopePattern scope_pat;
+  EXPECT_FALSE(scope_pat.impl_->Match(nullptr));
+
+  Scope scope;
+  scope.Init("name", "sub_type", nullptr);
+  OperatorPtr node(new ge::Operator("add1", "Add"));
+  scope.impl_->AddNode(node);
+  scope.impl_->OpsNumInc("Add");
+
+  ScopeAttrValue attr_val;
+  attr_val.SetBoolValue(true);
+  NodeAttrFeature naf("Mul", "attr_name", DT_BOOL, attr_val);
+  scope_pat.AddNodeAttrFeature(naf);
+  EXPECT_FALSE(scope_pat.impl_->Match(&scope));
+
+  ScopePattern scope_pat2;
+  ScopeFeature sf("nonexistent", 1, "suffix", "mask", 0);
+  scope_pat2.AddScopeFeature(sf);
+  EXPECT_FALSE(scope_pat2.impl_->Match(&scope));
+
+  Scope scope_retval;
+  scope_retval.Init("retval_scope", "", nullptr);
+  scope_retval.impl_->OpsNumInc("_Retval");
+  ScopePattern scope_pat3;
+  EXPECT_FALSE(scope_pat3.impl_->Match(&scope_retval));
 }
 }  // namespace ge

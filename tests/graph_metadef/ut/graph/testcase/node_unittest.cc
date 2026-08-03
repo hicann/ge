@@ -396,4 +396,135 @@ TEST_F(UtestNode, GetOutControlNodes) {
   EXPECT_EQ(data_node1->GetOutDataNodesSize(), 1);
   EXPECT_EQ(data_node1->GetOutNodesSize(), 2);
 }
+
+TEST_F(UtestNode, IncCov_NodeNullAnchorInVariousMethods) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+  auto attr_node = builder.AddNode("Attr", "Attr", 2, 2);
+
+  data_node->impl_->in_data_anchors_.push_back(nullptr);
+  data_node->impl_->out_data_anchors_.push_back(nullptr);
+
+  EXPECT_EQ(data_node->GetInNodes().size(), 0U);
+  EXPECT_EQ(data_node->GetInNodesPtr().size(), 0U);
+  EXPECT_EQ(data_node->GetInDataNodesSize(), 0U);
+  EXPECT_EQ(data_node->GetInDataNodesAndAnchors().size(), 0U);
+  EXPECT_EQ(data_node->GetOutDataNodesAndAnchors().size(), 0U);
+  EXPECT_EQ(data_node->GetOutDataNodesPtr().size(), 0U);
+  EXPECT_EQ(data_node->GetOutDataNodesSize(), 0U);
+  EXPECT_EQ(data_node->GetAllInDataAnchorsPtr().size(), 2U);
+  EXPECT_EQ(data_node->GetAllOutDataAnchorsPtr().size(), 2U);
+  EXPECT_EQ(data_node->GetAllInAnchorsPtr().size(), 2U);
+  EXPECT_EQ(data_node->GetAllOutAnchorsPtr().size(), 2U);
+}
+
+TEST_F(UtestNode, IncCov_NodeInConnectsControlAnchorMismatch) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+  auto node3 = builder.AddNode("Data3", "Data", 1, 1);
+
+  builder.AddControlEdge(node3, node1);
+  EXPECT_EQ(node1->NodeInConnectsAreEqual(*node2), false);
+}
+
+TEST_F(UtestNode, IncCov_NodeInConnectsControlAnchorVerify) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+  auto node3 = builder.AddNode("Data3", "Data", 1, 1);
+  auto node4 = builder.AddNode("Data4", "Data", 1, 1);
+
+  builder.AddControlEdge(node3, node1);
+  builder.AddControlEdge(node4, node2);
+  EXPECT_EQ(node1->NodeInConnectsAreEqual(*node2), false);
+}
+
+TEST_F(UtestNode, IncCov_NodeOutConnectsControlAnchorMismatch) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+  auto node3 = builder.AddNode("Data3", "Data", 1, 1);
+
+  builder.AddControlEdge(node1, node3);
+  EXPECT_EQ(node1->NodeOutConnectsAreEqual(*node2), false);
+}
+
+TEST_F(UtestNode, IncCov_NodeOutConnectsControlAnchorVerify) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+  auto node3 = builder.AddNode("Data3", "Data", 1, 1);
+  auto node4 = builder.AddNode("Data4", "Data", 1, 1);
+
+  builder.AddControlEdge(node1, node3);
+  builder.AddControlEdge(node2, node4);
+  EXPECT_EQ(node1->NodeOutConnectsAreEqual(*node2), false);
+}
+
+TEST_F(UtestNode, IncCov_AddLinkFromByNameExistingIndex) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+  auto attr_node = builder.AddNode("Attr", "Attr", 1, 1);
+
+  EXPECT_EQ(attr_node->AddLinkFrom("__input0", data_node), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestNode, IncCov_GetOutDataAnchorInvalid) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+
+  EXPECT_EQ(data_node->GetOutDataAnchor(-1), nullptr);
+  EXPECT_EQ(data_node->GetOutDataAnchor(5), nullptr);
+}
+
+TEST_F(UtestNode, IncCov_IsAllInNodesSeenNullPeerNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("node1", "node1", 1, 1);
+  auto node2 = builder.AddNode("node2", "node2", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+
+  auto existing_peer = node2->GetInDataAnchor(0)->GetPeerOutAnchor();
+  EXPECT_EQ(node2->GetInDataAnchor(0)->Unlink(existing_peer), GRAPH_SUCCESS);
+  OutDataAnchorPtr null_out = std::make_shared<OutDataAnchor>(nullptr, 0);
+  EXPECT_EQ(node2->GetInDataAnchor(0)->LinkFrom(null_out), GRAPH_SUCCESS);
+
+  std::unordered_set<Node *> us;
+  EXPECT_EQ(node2->IsAllInNodesSeen(us), false);
+
+  node2->GetInDataAnchor(0)->Unlink(null_out);
+}
+
+TEST_F(UtestNode, IncCov_GetInDataAnchorInvalid) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+
+  EXPECT_EQ(data_node->GetInDataAnchor(-1), nullptr);
+  EXPECT_EQ(data_node->GetInDataAnchor(5), nullptr);
+  EXPECT_NE(data_node->GetInAnchor(-1), nullptr);
+  EXPECT_EQ(data_node->GetInAnchor(-2), nullptr);
+  EXPECT_EQ(data_node->GetInAnchor(5), nullptr);
+  EXPECT_NE(data_node->GetOutAnchor(-1), nullptr);
+  EXPECT_NE(data_node->GetOutAnchor(0), nullptr);
+}
+
+TEST_F(UtestNode, IncCov_NodeAllAnchorsAndNodes) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddControlEdge(node1, node2);
+
+  EXPECT_EQ(node1->GetAllInAnchors().size(), 1U);
+  EXPECT_EQ(node2->GetAllInAnchors().size(), 2U);
+  EXPECT_EQ(node1->GetAllOutAnchors().size(), 2U);
+  EXPECT_EQ(node2->GetAllOutAnchors().size(), 1U);
+  EXPECT_EQ(node2->GetInAllNodes().size(), 2U);
+  EXPECT_EQ(node1->GetOutAllNodes().size(), 2U);
+  EXPECT_EQ(node2->GetInControlNodesSize(), 1U);
+  EXPECT_EQ(node1->GetOutControlNodesSize(), 1U);
+  EXPECT_EQ(node2->GetInNodesSize(), 2U);
+  EXPECT_EQ(node1->GetOutNodesSize(), 2U);
+}
 }  // namespace ge

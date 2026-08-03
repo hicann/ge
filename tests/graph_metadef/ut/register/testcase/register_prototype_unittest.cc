@@ -51,4 +51,19 @@ TEST_F(UtestProtoTypeRegister, register_test_fail) {
   auto pass_vec = ProtoTypePassRegistry::GetInstance().GetCreateFnByType(domi::CAFFE);
   EXPECT_NE(pass_vec.size(), 1);
 }
+
+TEST_F(UtestProtoTypeRegister, IncCov_NullImplRegisterRun_Test) {
+  ProtoTypePassRegistry registry;
+  auto *saved = registry.impl_.release();
+  registry.RegisterProtoTypePass("IncCov_Test", nullptr, domi::CAFFE);
+  new (&registry.impl_) decltype(registry.impl_)(saved);
+}
+
+TEST_F(UtestProtoTypeRegister, IncCov_NullImplGetCreateFnByType_Test) {
+  ProtoTypePassRegistry registry;
+  auto *saved = registry.impl_.release();
+  auto pass_vec = registry.GetCreateFnByType(domi::CAFFE);
+  EXPECT_TRUE(pass_vec.empty());
+  new (&registry.impl_) decltype(registry.impl_)(saved);
+}
 }  // namespace ge

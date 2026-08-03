@@ -604,6 +604,8 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t *const com
   int32_t deterministic = 0;
   int32_t deterministic_level = 0;
   GE_ASSERT_SUCCESS(GetDeterministicConfig(op_desc, deterministic, deterministic_level));
+  GELOGI("Get deterministic: %d, deterministic level: %d from node: %s", deterministic, deterministic_level,
+         op_desc->GetName().c_str());
 
   /*
    * 后续切换OpTilingContextBuilder时，出于兼容性考虑（新GE包+老metadef包），建议deterministic_level的设置通过调用纯C弱符号接口

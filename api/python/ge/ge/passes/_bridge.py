@@ -20,7 +20,12 @@ from typing import Dict, List, Optional, cast
 
 from ge.graph import Graph, Node
 
-from ._native import borrow_match_result, borrow_node, clone_pattern_matcher_config, release_graph
+from ._native import (
+    borrow_match_result,
+    borrow_node,
+    clone_pattern_matcher_config,
+    release_graph,
+)
 from .base import (
     DecomposePass,
     FusionBasePass,
@@ -96,7 +101,9 @@ def destroy_pass_holder(instance_id: str) -> bool:
         return _PASS_HOLDERS.pop(instance_id, None) is not None
 
 
-def run_fusion_base_pass(instance_id: str, graph: Graph, context: Optional[PassContext] = None) -> StatusLike:
+def run_fusion_base_pass(
+    instance_id: str, graph: Graph, context: Optional[PassContext] = None
+) -> StatusLike:
     pass_instance = _get_fusion_base_pass(instance_id)
     if context is not None and not isinstance(context, PassContext):
         raise TypeError("context type error")
@@ -115,7 +122,9 @@ def get_pass_patterns(instance_id: str) -> List[int]:
     if patterns is None:
         return []
     if not isinstance(patterns, Iterable) or isinstance(patterns, (str, bytes)):
-        raise TypeError("PatternFusionPass.patterns must return an iterable of Pattern or Graph")
+        raise TypeError(
+            "PatternFusionPass.patterns must return an iterable of Pattern or Graph"
+        )
 
     released_patterns = []
     for item in patterns:
@@ -130,40 +139,50 @@ def get_pattern_matcher_config(instance_id: str) -> Optional[int]:
     if matcher_config is None:
         return None
     if not isinstance(matcher_config, PatternMatcherConfig):
-        raise TypeError("PatternFusionPass.matcher_config must be PatternMatcherConfig or None")
+        raise TypeError(
+            "PatternFusionPass.matcher_config must be PatternMatcherConfig or None"
+        )
     return clone_pattern_matcher_config(matcher_config)
 
 
-def call_meet_requirements(instance_id: str, match_result_handle: int) -> bool:
+def call_meet_requirements(
+    instance_id: str, match_result_handle: int, context: Optional[PassContext] = None
+) -> bool:
     pass_instance = _get_pattern_fusion_pass(instance_id)
     match_result = borrow_match_result(match_result_handle)
     try:
-        return bool(pass_instance.meet_requirements(match_result))
+        return bool(pass_instance.meet_requirements(match_result, context))
     finally:
         match_result._invalidate()
 
 
-def call_replacement(instance_id: str, match_result_handle: int) -> int:
+def call_replacement(
+    instance_id: str, match_result_handle: int, context: Optional[PassContext] = None
+) -> int:
     pass_instance = _get_pattern_fusion_pass(instance_id)
     match_result = borrow_match_result(match_result_handle)
     try:
-        replacement = pass_instance.replacement(match_result)
+        replacement = pass_instance.replacement(match_result, context)
     finally:
         match_result._invalidate()
 
     return _release_replacement_graph(replacement, "PatternFusionPass")
 
 
-def call_decompose_meet_requirements(instance_id: str, node_handle: int) -> bool:
+def call_decompose_meet_requirements(
+    instance_id: str, node_handle: int, context: Optional[PassContext] = None
+) -> bool:
     pass_instance = _get_decompose_pass(instance_id)
     node = cast(Node, borrow_node(node_handle))
-    return bool(pass_instance.meet_requirements(node))
+    return bool(pass_instance.meet_requirements(node, context))
 
 
-def call_decompose_replacement(instance_id: str, node_handle: int) -> int:
+def call_decompose_replacement(
+    instance_id: str, node_handle: int, context: Optional[PassContext] = None
+) -> int:
     pass_instance = _get_decompose_pass(instance_id)
     node = cast(Node, borrow_node(node_handle))
-    replacement = pass_instance.replacement(node)
+    replacement = pass_instance.replacement(node, context)
     return _release_replacement_graph(replacement, "DecomposePass")
 
 

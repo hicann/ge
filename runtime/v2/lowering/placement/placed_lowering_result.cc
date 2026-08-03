@@ -122,6 +122,46 @@ ge::graphStatus DeviceHbmToHost(const ge::Node *node, LoweringGlobalData &global
   return ge::GRAPH_SUCCESS;
 }
 
+// DeviceHbmToHostPermanent: 将 device 内存 D2H 拷贝到 host，host 内存由 allocator 管理，生命周期跟随模型。
+// 与 DeviceHbmToHost 的区别：不创建 FreeMemory guarder。
+// 原因：此函数用于 Init 图中的 D2H（如 Const 节点给 custom op 提供 host 输入），
+// Init 图在 Load 阶段执行后会被 UnLoad，如果带 FreeMemory guarder，UnLoad 时 host 内存被释放，
+// 后续 Execute 阶段读 host 地址会触发 UAF。不带 FreeMemory 则 host 内存由 allocator 在模型 UnLoad 时统一释放。
+ge::graphStatus DeviceHbmToHostPermanent(const ge::Node *node, LoweringGlobalData &global_data, ge::DataType data_type,
+                                         const OutputLowerResult &src, int64_t dst_logic_stream_id,
+                                         OutputLowerResult &dst) {
+  (void)dst_logic_stream_id;
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  const int64_t src_logic_stream_id = op_desc->GetStreamId();
+  auto src_stream = global_data.GetStreamById(src_logic_stream_id);
+  const auto sync_stream_key = "SyncStream_" + node->GetName();
+  auto builder = [&src_stream]() -> bg::ValueHolderPtr {
+    return bg::ValueHolder::CreateVoid<bg::ValueHolder>("SyncStream", {src_stream});
+  };
+  auto sync_stream_holder = global_data.GetOrCreateUniqueValueHolder(sync_stream_key, builder);
+  for (const auto &src_ordered_holder : src.order_holders) {
+    bg::ValueHolder::AddDependency(src_ordered_holder, sync_stream_holder);
+  }
+  auto dt_holder = bg::ValueHolder::CreateConst(&data_type, sizeof(data_type));
+  auto tensor_size = GetTensorSize(global_data, data_type, src, dt_holder);
+  auto allocator_holder =
+      global_data.GetOrCreateL2Allocator(src_logic_stream_id, {kOnHost, AllocatorUsage::kAllocNodeWorkspace});
+  GE_ASSERT_NOTNULL(allocator_holder);
+  auto dst_address = bg::DevMemValueHolder::CreateSingleDataOutput(
+      "CopyD2H", {src.address, tensor_size, allocator_holder}, src_logic_stream_id);
+  bg::ValueHolder::AddDependency(sync_stream_holder, dst_address);
+
+  dst.order_holders.clear();
+  dst.shape = src.shape;
+  dst.address = dst_address;
+  dst.address->SetPlacement(kOnHost);
+  dst.has_init = true;
+  dst.order_holders.emplace_back(dst_address);
+
+  return ge::GRAPH_SUCCESS;
+}
+
 bool IsNodeRefedByRefNode(const ge::Node *node) {
   for (const auto &out_pair : node->GetOutDataNodesAndAnchors()) {
     const auto &peer_node = out_pair.first;
@@ -269,6 +309,38 @@ bool ShouldGenOnInit(const bg::ValueHolderPtr &shape_on_init, const bg::ValueHol
   }
   return true;
 }
+
+// CallGenerator: 调用 placement 转换 generator，决定 copy 节点放在 Init 图还是 Main 图。
+// 如果源数据的 shape/address/order_holders 都已在 Init 图上（如 Const 节点经 SinkWeightData 后），
+// 则 copy 节点也放在 Init 图（Load 阶段执行一次，Execute 阶段零开销）。
+// 否则放在 Main 图（每次 Execute 都执行）。
+ge::graphStatus CallGenerator(const ge::Node *node, LoweringGlobalData &global_data, const ge::ConstGeTensorDescPtr &td,
+                              const OutputLowerResult &src, OutputLowerResult &target, const OutputGenerator &generator,
+                              int64_t dst_logic_stream_id) {
+  auto shape_holder_on_init = HolderOnInit(src.shape);
+  auto address_holder_on_init = HolderOnInit(src.address);
+  std::vector<bg::ValueHolderPtr> order_holders_on_init;
+  if (ShouldGenOnInit(shape_holder_on_init, address_holder_on_init, src.order_holders, order_holders_on_init)) {
+    OutputLowerResult result_from_init = {order_holders_on_init, shape_holder_on_init,
+                                          std::dynamic_pointer_cast<bg::DevMemValueHolder>(address_holder_on_init)};
+    auto outputs = bg::FrameSelector::OnInitRoot(
+        [&generator, &global_data, &td, &result_from_init, node]() -> std::vector<bg::ValueHolderPtr> {
+          OutputLowerResult result_on_init;
+          auto ret = generator(node, global_data, td->GetDataType(), result_from_init, 0, result_on_init);
+          if (ret != ge::GRAPH_SUCCESS) {
+            return {};
+          }
+          return {result_on_init.shape, result_on_init.address};
+        });
+    GE_ASSERT_EQ(outputs.size(), 2U);
+    target.shape = std::move(outputs[0U]);
+    target.address = std::dynamic_pointer_cast<bg::DevMemValueHolder>(outputs[1U]);
+    target.order_holders = src.order_holders;
+  } else {
+    GE_ASSERT_SUCCESS(generator(node, global_data, td->GetDataType(), src, dst_logic_stream_id, target));
+  }
+  return ge::GRAPH_SUCCESS;
+}
 }  // namespace
 PlacedLoweringResult::PlacedLoweringResult(const ge::NodePtr &node, LowerResult &&lower_result)
     : node_(node.get()), result_(std::move(lower_result)) {
@@ -370,43 +442,53 @@ const OutputLowerResult *PlacedLoweringResult::CreateNoDataDependentResult(Lower
   const auto &td = op_desc->GetOutputDescPtr(output_index);
   GE_ASSERT_NOTNULL(td);
   auto priority_generator = PlacedLoweringRegistry::GetInstance().FindPlacedLower(node_->GetType());
-  OutputGenerator generator;
+  // priority_generator 是节点类型注册的自定义 placement 转换函数（如 Const 节点的 SinkWeightData）。
+  // 它负责将节点原始 placement 的数据搬到 kOnDeviceHbm（H2D），供其他算子消费。
+  // 当目标 placement 不是 kOnDeviceHbm 时（如 custom op 需要 kOnHost），需要在 H2D 之后再串联一步 D2H，
+  // 因为 priority_generator 已经把数据放到了 device 上，无法跳过这一步直接用原始 host 地址。
   if (priority_generator != nullptr) {
-    generator = priority_generator;
-  } else {
-    generator = kOutputDataCopyer.Find(result->GetPlacement(), target_addr_desc.address_placement);
+    // 第一步：用 priority_generator 生成 kOnDeviceHbm 结果（如 SinkWeightData 的 CopyH2D）。
+    // 如果已经有 kOnDeviceHbm 结果（被其他消费者触发过），直接复用，不重复生成。
+    auto device_result = output_results.FindPointer(static_cast<int32_t>(kOnDeviceHbm), static_cast<int32_t>(false));
+    GE_ASSERT_NOTNULL(device_result);
+    if (!device_result->has_init) {
+      GELOGI("Create copy nodes from placement %d to %d (priority) for the %d output of node %s",
+             result->GetPlacement(), static_cast<int32_t>(kOnDeviceHbm), output_index, node_->GetNamePtr());
+      GE_ASSERT_SUCCESS(CallGenerator(node_, global_data, td, *output_result, *device_result, priority_generator,
+                                      target_addr_desc.logic_stream_id));
+      device_result->has_init = true;
+    }
+    // 如果目标就是 kOnDeviceHbm，直接复用 device_result，无需额外拷贝。
+    if (target_addr_desc.address_placement == static_cast<int32_t>(kOnDeviceHbm)) {
+      *target_result = *device_result;
+      target_result->has_init = true;
+      return target_result;
+    }
+    // 第二步：目标不是 kOnDeviceHbm，需要从 device_result 再串联一步 copy 到目标 placement。
+    // kOnHost 场景使用 DeviceHbmToHostPermanent（不带 FreeMemory guarder），
+    // 因为 host 内存需要在 Init 图 Load 后长期存活，不能被 FreeMemory 释放导致 UAF。
+    OutputGenerator chain_generator;
+    if (target_addr_desc.address_placement == static_cast<int32_t>(kOnHost)) {
+      chain_generator = DeviceHbmToHostPermanent;
+    } else {
+      chain_generator = kOutputDataCopyer.Find(static_cast<int32_t>(kOnDeviceHbm), target_addr_desc.address_placement);
+    }
+    GE_ASSERT_NOTNULL(chain_generator);
+    GELOGI("Create chain copy nodes from placement %d to %d for the %d output of node %s",
+           static_cast<int32_t>(kOnDeviceHbm), target_addr_desc.address_placement, output_index, node_->GetNamePtr());
+    GE_ASSERT_SUCCESS(CallGenerator(node_, global_data, td, *device_result, *target_result, chain_generator,
+                                    target_addr_desc.logic_stream_id));
+    target_result->has_init = true;
+    return target_result;
   }
+
+  // 无 priority_generator：节点没有自定义 placement 转换逻辑，直接用 kOutputDataCopyer 查表做一步转换。
+  auto generator = kOutputDataCopyer.Find(result->GetPlacement(), target_addr_desc.address_placement);
   GE_ASSERT_NOTNULL(generator);
   GELOGI("Create copy nodes from placement %d to %d for the %d output of node %s", result->GetPlacement(),
          target_addr_desc.address_placement, output_index, node_->GetNamePtr());
-
-  auto shape_holder_on_init = HolderOnInit(output_result->shape);
-  auto address_holder_on_init = HolderOnInit(output_result->address);
-  std::vector<bg::ValueHolderPtr> order_holders_on_init;
-  if (ShouldGenOnInit(shape_holder_on_init, address_holder_on_init, output_result->order_holders,
-                      order_holders_on_init)) {
-    OutputLowerResult result_from_init = {order_holders_on_init, shape_holder_on_init,
-                                          std::dynamic_pointer_cast<bg::DevMemValueHolder>(address_holder_on_init)};
-    auto outputs = bg::FrameSelector::OnInitRoot(
-        [&generator, &global_data, &td, &result_from_init, this]() -> std::vector<bg::ValueHolderPtr> {
-          OutputLowerResult result_on_init;
-          auto ret = generator(node_, global_data, td->GetDataType(), result_from_init, 0, result_on_init);
-          if (ret != ge::GRAPH_SUCCESS) {
-            return {};
-          }
-          return {result_on_init.shape, result_on_init.address};
-        });
-    GE_ASSERT_EQ(outputs.size(), 2U);
-
-    target_result->shape = std::move(outputs[0U]);
-    auto output_addr = std::dynamic_pointer_cast<bg::DevMemValueHolder>(outputs[1U]);
-    target_result->address = std::move(output_addr);
-    target_result->order_holders = output_result->order_holders;
-  } else {
-    GE_ASSERT_SUCCESS(generator(node_, global_data, td->GetDataType(), *output_result, target_addr_desc.logic_stream_id,
-                                *target_result));
-  }
-
+  GE_ASSERT_SUCCESS(CallGenerator(node_, global_data, td, *output_result, *target_result, generator,
+                                  target_addr_desc.logic_stream_id));
   target_result->has_init = true;
   return target_result;
 }

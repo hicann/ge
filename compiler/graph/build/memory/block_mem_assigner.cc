@@ -37,9 +37,8 @@
 #include "common/ge_common/ge_types.h"
 #include "memory_block.h"
 #include "block_mem_stream.h"
-
-using std::unordered_map;
-using std::unordered_set;
+#include "block_mem_zero_copy.h"
+#include "mem_reuse_strategy.h"
 
 namespace {
 const char *const kAttrNameWorkspaceReuseFlag = "workspace_reuse_flag";
@@ -48,83 +47,7 @@ const char *const kOpNoReuseMem = "no_reuse_mem_flag";
 const std::string kOffline = "offline";
 const int32_t kReuseMaxOpNum = 10;
 const int32_t kReuseMaxCharNum = 2000;
-const uint32_t kAutoMode = 1U;
 const std::set<ge::DataType> kNotPostReuseDataType = {ge::DT_RESOURCE, ge::DT_VARIANT};
-
-bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
-  bool is_support_zero_copy = ge::MemLayoutConflictUtil::IsAddressRefreshable(node);
-  if (!is_support_zero_copy) {
-    GELOGI("Op[%s] not support zero copy", node->GetName().c_str());
-  } else {
-    // IsAddressRefreshable在动态shape静态子图场景认为hccl算子是可刷新的，实际上因为处理阶段有差异，
-    // 比如hccl判断时还未拆图，可能导致结果不一致，这里还是统一使用IsHcomNodeNotSupportAddrRefresh的结果
-    const auto root_graph = ge::GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
-    const bool is_dynamic_shape_sub_graph = (root_graph != nullptr) && root_graph->GetGraphUnknownFlag() &&
-                                            (!node->GetOwnerComputeGraph()->GetGraphUnknownFlag());
-    if (is_dynamic_shape_sub_graph && ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
-      GELOGI("hccl engine op[%s] not support zero copy", node->GetName().c_str());
-      is_support_zero_copy = false;
-    }
-  }
-  return is_support_zero_copy;
-}
-
-// 编译图的子图中连接netoutput的节点不进行零拷贝
-bool IsOutNodeInCurComputeGraph(const ge::Node *const node, const ge::ComputeGraphPtr &graph) {
-  return (node->GetType() == ge::NETOUTPUT) && (node->GetOwnerComputeGraphBarePtr() == graph.get());
-}
-
-const std::list<ge::NodeIndexIO> &FindNodeOutputSameAnchors(const ge::NodeIndexIO &node_index_io,
-                                                            const ge::AnchorToSymbol &anchor_to_symbol,
-                                                            const ge::SymbolToAnchors &symbol_to_anchors) {
-  static const std::list<ge::NodeIndexIO> res = {};
-  const auto &symbol_iter = anchor_to_symbol.find(node_index_io.ToString());
-  if (symbol_iter != anchor_to_symbol.cend()) {
-    const auto &anchors_iter = symbol_to_anchors.find(symbol_iter->second);
-    if (anchors_iter != symbol_to_anchors.cend()) {
-      return anchors_iter->second;
-    }
-  }
-  return res;
-}
-
-size_t GetOutputFlowToNetoutputNum(const ge::NodePtr &node, uint32_t output_index, const ge::ComputeGraphPtr &graph,
-                                   const ge::SymbolToAnchors &symbol_to_anchors,
-                                   const ge::AnchorToSymbol &anchor_to_symbol) {
-  auto out_anchor = node->GetOutDataAnchor(static_cast<int32_t>(output_index));
-  if (out_anchor == nullptr) {
-    return 0U;
-  }
-  size_t num_anchors_to_netoutput = 0U;
-  ge::NodeIndexIO out_node_index_io(node, output_index, ge::kOut);
-  const auto &same_anchors = FindNodeOutputSameAnchors(out_node_index_io, anchor_to_symbol, symbol_to_anchors);
-  bool include_not_support_zero_copy_node = false;
-  if (!same_anchors.empty()) {
-    for (const auto &node_index_io : same_anchors) {
-      if ((node_index_io.io_type_ != ge::kIn) && (node_index_io.node_ptr_ != nullptr) &&
-          (node_index_io.node_ptr_->GetOpDescBarePtr() != nullptr)) {
-        if (!IsNodeSupportZeroCopy(node_index_io.node_)) {
-          include_not_support_zero_copy_node = true;
-        }
-        continue;
-      }
-
-      if (IsOutNodeInCurComputeGraph(node_index_io.node_.get(), graph)) {  // Combined with NET-OUTPUT of root graph
-        num_anchors_to_netoutput++;
-      }
-    }
-  }
-
-  if (num_anchors_to_netoutput > 0U) {
-    GELOGI("Node %s output %u flow to %zu root graph output", node->GetNamePtr(), output_index,
-           num_anchors_to_netoutput);
-    if (include_not_support_zero_copy_node) {
-      GELOGI("Node %s output %u symbol is same as not support zero copy node", node->GetNamePtr(), output_index);
-      num_anchors_to_netoutput = 0U;
-    }
-  }
-  return num_anchors_to_netoutput;
-}
 
 int64_t GetStreamId(const ge::OpDesc *const desc) {
   return ge::MemReuseUtils::GetStreamId(desc);
@@ -155,13 +78,117 @@ bool NotMatchNoReuseType(const std::set<std::string> &no_reuse_types, const std:
 }
 
 }  // namespace
-
 namespace ge {
 // Memory size is fixed and has nothing to do with different batches.
 bool SizeIndependentOfBatch(const std::string &node_type) {
   static const std::unordered_set<std::string> kSizeIndependentOps = {
       HCOMBROADCAST, HVDCALLBACKBROADCAST, HCOMALLREDUCE, HVDCALLBACKALLREDUCE, HCOMALLGATHER, HVDCALLBACKALLGATHER};
   return (kSizeIndependentOps.count(node_type) != 0UL);
+}
+
+void CheckAndGetOpReuseEnv(const std::string &env, std::unordered_set<std::string> &env_set, bool &op_reuse_env_valid) {
+  std::string env_str = std::string(env);
+  if (env_str.size() > kReuseMaxCharNum) {
+    GELOGE(FAILED, "[Check][Param] The OP_NO_REUSE_MEM has more than %d characters.", kReuseMaxCharNum);
+    return;
+  }
+
+  std::vector<std::string> env_vec;
+  SplitStringByComma(env_str, env_vec);
+  if (env_vec.size() > kReuseMaxOpNum) {
+    GELOGE(FAILED, "[Check][Param] The OP_NO_REUSE_MEM has more than %d nodes.", kReuseMaxOpNum);
+    return;
+  }
+
+  for (const auto &item : env_vec) {
+    env_set.insert(item);
+  }
+  op_reuse_env_valid = true;
+  return;
+}
+
+bool CheckIsZeroMemNodeType(const std::string &node_type) {
+  return (node_type == VARIABLE) || (node_type == CONSTANT) || (node_type == MULTISHAPE) || (node_type == CONSTANTOP) ||
+         (node_type == HVDWAIT) || (node_type == FILECONSTANT) || (node_type == CONSTPLACEHOLDER);
+}
+
+/*
+ * 直连或经过RefNode间接连接连续输入节点的，有些情况只给第0个输入分配内存，大小是所有输入的总大小，其他输入不分配内存。
+ * 1. NoPadding连续输入只给第0个输入分配内存
+ * 2. 带Padding连续输入，一般情况下每个输入都分配内存，以下两个特殊情况下，只给第0个输入分配内存
+ * 2.1 输入上带有lx fusion（ATTR_NAME_OUTPUT_OFFSET_FOR_BUFFER_FUSION）属性的
+ * 2.2 连续输入需要对输入做单独清零的（有need_gentask_atomic/ATOMIC_ATTR_INPUT_INDEX属性）
+ * 3. NoPadding连续输入级联场景，只给最后一个PhonyConcat的第0个输入分配内存
+ * 4. 既作为第0个输入，又作为其他输入的，需要分配内存。
+ */
+Status GetNoNeedAssignMemoryFlag(const NodePtr &n, uint32_t out_index, bool &no_need_assign_memory) {
+  no_need_assign_memory = false;
+  auto node_desc = n->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(node_desc);
+  auto out_anchor = n->GetOutDataAnchor(out_index);
+  GE_ASSERT_NOTNULL(out_anchor);
+  std::vector<int64_t> offsets_for_fusion = {};
+  const auto has_lx_fusion_attr =
+      AttrUtils::GetListInt(node_desc, ATTR_NAME_OUTPUT_OFFSET_FOR_BUFFER_FUSION, offsets_for_fusion);
+
+  for (auto const peer_in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
+    InDataAnchor *new_peer_in_anchor = nullptr;
+    const auto nopadding_continuous =
+        MemLayoutConflictUtil::IsContinuousInputThroughRefNode(peer_in_anchor, true, new_peer_in_anchor);
+    bool continuous = false;
+    if (!nopadding_continuous) {
+      continuous = MemLayoutConflictUtil::IsContinuousInputThroughRefNode(peer_in_anchor, false, new_peer_in_anchor);
+    }
+    if (!(continuous || nopadding_continuous)) {
+      continue;  // peer node does not need continuous memory
+    }
+    /*
+     * 判断输出节点是不是连续内存节点，不能只看直连的输出，而且也要看经过RefNode连接的节点
+     * new_peer不一定是n的直连输出，也可能是n经过一个或多个RefNod连接的输出节点
+     */
+    GE_ASSERT_NOTNULL(new_peer_in_anchor);
+    const auto continuous_node = new_peer_in_anchor->GetOwnerNodeBarePtr();
+    GE_ASSERT_NOTNULL(continuous_node);
+
+    if (new_peer_in_anchor->GetIdx() == 0) {
+      no_need_assign_memory = false;
+      break;
+    }
+    if (continuous) {
+      // lx_fusion memory only assign first input, broadcast's input some are variable some are not, reassign later
+      // In CleanSeparately policy, padding continuous input only allocate index 0 input
+      if (!(has_lx_fusion_attr || MemReuseUtils::IsSeparateCleanContinuousInputNode(continuous_node))) {
+        continue;
+      }
+    }
+    no_need_assign_memory = true;
+    GELOGI(
+        "%s name[%s] output[%u] peer[%s] input[%d] need continuous, input size[%u], nopadding_continuous[%d], "
+        "continuous[%d], has_lx_fusion_attr[%d]",
+        n->GetOwnerComputeGraphBarePtr()->GetName().c_str(), n->GetNamePtr(), out_index, continuous_node->GetNamePtr(),
+        new_peer_in_anchor->GetIdx(), continuous_node->GetAllInDataAnchorsSize(), nopadding_continuous, continuous,
+        has_lx_fusion_attr);
+  }
+  GELOGI("%s name[%s] output[%u] no_need_assign_memory:%d.", n->GetOwnerComputeGraphBarePtr()->GetName().c_str(),
+         n->GetNamePtr(), out_index, no_need_assign_memory);
+  return SUCCESS;
+}
+
+uint64_t GetWorkSpaceMemoryType(const size_t no_reuse_scope_size, const size_t index, const bool is_p2p_memory,
+                                const bool session_scope_memory, std::vector<bool> &workspace_reuse_flag) {
+  if (is_p2p_memory) {
+    return RT_MEMORY_P2P_DDR;
+  }
+
+  if (session_scope_memory) {
+    if (workspace_reuse_flag.empty()) {
+      workspace_reuse_flag.assign(no_reuse_scope_size, true);
+    }
+    workspace_reuse_flag[index] = false;
+    return kSessionScopeMemory | RT_MEMORY_HBM;
+  }
+
+  return RT_MEMORY_HBM;
 }
 
 BlockMemAssigner::BlockMemAssigner(const MemAssistInfo &mem_assist_info)
@@ -191,45 +218,6 @@ BlockMemAssigner::~BlockMemAssigner() {
   GELOGD("[Destruct][BlockMemAssigner]blocks_store_ size : %lu", blocks_store_.size());
   for (MemoryBlock *memory_block : blocks_store_) {
     GE_DELETE_NEW_SINGLE(memory_block);
-  }
-}
-
-void GetMaxBatchAllMemorySize(std::map<std::string, std::vector<int64_t>> &batch_all_memory_size,
-                              std::map<std::string, int64_t> batch_total_size, std::vector<int64_t> &all_memory_size,
-                              std::string &max_batch_label) {
-  // use max batch all memory size for reuse range
-  int64_t max_batch_size = 0;
-  for (const auto &it : batch_total_size) {
-    GELOGI("Batch[%s] total memory size[%" PRId64 "]", it.first.c_str(), it.second);
-    // no batch label
-    if (it.first.empty()) {
-      continue;
-    }
-    if (it.second > max_batch_size) {
-      max_batch_size = it.second;
-      max_batch_label = it.first;
-    }
-  }
-  GELOGI("Max batch[%s] total memory size[%" PRId64 "]", max_batch_label.c_str(), max_batch_size);
-
-  for (const auto &it : batch_all_memory_size) {
-    if (it.first.empty() || (it.first == max_batch_label)) {
-      all_memory_size.insert(all_memory_size.cend(), it.second.cbegin(), it.second.cend());
-    }
-  }
-  // all_memory_size can't be empty
-  if (all_memory_size.empty()) {
-    all_memory_size.emplace_back(MEM_ALIGN_SIZE);
-  }
-  sort(all_memory_size.begin(), all_memory_size.end());
-  GELOGD("All memory size: %s", ToString(all_memory_size).c_str());
-
-  for (auto iter = all_memory_size.begin(); iter != all_memory_size.end();) {
-    if (*iter == 0) {
-      iter = all_memory_size.erase(iter);
-    } else {
-      ++iter;
-    }
   }
 }
 
@@ -508,24 +496,6 @@ Status BlockMemAssigner::GetRealStreamIdForParentNode(const NodePtr &node, const
   return SUCCESS;
 }
 
-std::set<int64_t> GetStreamMergeAndOutStreams(const ge::ComputeGraphPtr &graph) {
-  std::set<int64_t> merge_and_out_streams;
-  for (const NodePtr &node : graph->GetAllNodes()) {
-    if (!MemReuseUtils::IsMergeNode(node)) {
-      continue;
-    }
-    if (merge_and_out_streams.insert(GetStreamId(node->GetOpDescBarePtr())).second) {
-      GELOGD("Stream %" PRId64 " not reuse memory with other streams", GetStreamId(node->GetOpDescBarePtr()));
-    }
-    for (const auto &out_node : node->GetOutAllNodes()) {
-      if (merge_and_out_streams.insert(GetStreamId(out_node->GetOpDescBarePtr())).second) {
-        GELOGD("Stream %" PRId64 " not reuse memory with other streams", GetStreamId(out_node->GetOpDescBarePtr()));
-      }
-    }
-  }
-  return merge_and_out_streams;
-}
-
 /*
  * 不能改为非static的，不能修改成员变量，因为在HybridMemAssigner中，
  * 只有一个binary_assigner对象会调用该函数，其他开启多线程创建的assigner对象并没有调用这个接口
@@ -800,22 +770,6 @@ void BlockMemAssigner::SetContinuousNodeLifeTimeBegin(const Node *const org_node
   }
   return;
 }
-
-bool IsSeparateCleanContinuousInputNode(const Node *const node) {
-  GE_ASSERT_NOTNULL(node->GetOpDescBarePtr());
-  bool is_input_continuous = MemLayoutConflictUtil::IsContinuousInput(node);
-  if (!is_input_continuous) {
-    return false;
-  }
-  bool need_gentask_atomic = false;
-  (void)ge::AttrUtils::GetBool(node->GetOpDescBarePtr(), "need_gentask_atomic", need_gentask_atomic);
-  const bool has_atomic_input = node->GetOpDescBarePtr()->HasAttr(ATOMIC_ATTR_INPUT_INDEX);
-  if (has_atomic_input && need_gentask_atomic) {
-    return true;
-  }
-  return false;
-}
-
 /*
  * 1. NoPadding连续输入，仅首个输入分配一个block，所有输入使用这一个block
  * 2. 带Padding连续输入，每个输入有自己的block，连续在一起。
@@ -860,7 +814,7 @@ bool BlockMemAssigner::IsOutNodeSetContinuousInput(const NodePtr &n, uint32_t ou
 
     // lx_fusion memory only assign first input, broadcast's input some are variable some are not, reassign later
     // In CleanSeparately policy, padding continuous input only allocate index 0 input
-    const bool is_separate_clean_continuous_input = IsSeparateCleanContinuousInputNode(continuous_node);
+    const bool is_separate_clean_continuous_input = MemReuseUtils::IsSeparateCleanContinuousInputNode(continuous_node);
     if (CheckIsZeroMemNodeType(continuous_node->GetTypePtr()) ||
         ((has_lx_fusion_attr || is_separate_clean_continuous_input) && (new_peer_in_anchor->GetIdx() != 0))) {
       GELOGI("Node[%s] output[%u] peer node[%s] type[%s] input[%u].", n->GetNamePtr(), out_index,
@@ -897,69 +851,6 @@ bool BlockMemAssigner::IsOutNodeSetContinuousInput(const NodePtr &n, uint32_t ou
     is_out_node_continuous_input = true;
   }
   return is_out_node_continuous_input;
-}
-
-/*
- * 直连或经过RefNode间接连接连续输入节点的，有些情况只给第0个输入分配内存，大小是所有输入的总大小，其他输入不分配内存。
- * 1. NoPadding连续输入只给第0个输入分配内存
- * 2. 带Padding连续输入，一般情况下每个输入都分配内存，以下两个特殊情况下，只给第0个输入分配内存
- * 2.1 输入上带有lx fusion（ATTR_NAME_OUTPUT_OFFSET_FOR_BUFFER_FUSION）属性的
- * 2.2 连续输入需要对输入做单独清零的（有need_gentask_atomic/ATOMIC_ATTR_INPUT_INDEX属性）
- * 3. NoPadding连续输入级联场景，只给最后一个PhonyConcat的第0个输入分配内存
- * 4. 既作为第0个输入，又作为其他输入的，需要分配内存。
- */
-Status BlockMemAssigner::GetNoNeedAssignMemoryFlag(const NodePtr &n, uint32_t out_index,
-                                                   bool &no_need_assign_memory) const {
-  no_need_assign_memory = false;
-  auto node_desc = n->GetOpDescBarePtr();
-  GE_ASSERT_NOTNULL(node_desc);
-  auto out_anchor = n->GetOutDataAnchor(out_index);
-  GE_ASSERT_NOTNULL(out_anchor);
-  std::vector<int64_t> offsets_for_fusion = {};
-  const auto has_lx_fusion_attr =
-      AttrUtils::GetListInt(node_desc, ATTR_NAME_OUTPUT_OFFSET_FOR_BUFFER_FUSION, offsets_for_fusion);
-
-  for (auto const peer_in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
-    InDataAnchor *new_peer_in_anchor = nullptr;
-    const auto nopadding_continuous =
-        MemLayoutConflictUtil::IsContinuousInputThroughRefNode(peer_in_anchor, true, new_peer_in_anchor);
-    bool continuous = false;
-    if (!nopadding_continuous) {
-      continuous = MemLayoutConflictUtil::IsContinuousInputThroughRefNode(peer_in_anchor, false, new_peer_in_anchor);
-    }
-    if (!(continuous || nopadding_continuous)) {
-      continue;  // peer node does not need continuous memory
-    }
-    /*
-     * 判断输出节点是不是连续内存节点，不能只看直连的输出，而且也要看经过RefNode连接的节点
-     * new_peer不一定是n的直连输出，也可能是n经过一个或多个RefNod连接的输出节点
-     */
-    GE_ASSERT_NOTNULL(new_peer_in_anchor);
-    const auto continuous_node = new_peer_in_anchor->GetOwnerNodeBarePtr();
-    GE_ASSERT_NOTNULL(continuous_node);
-
-    if (new_peer_in_anchor->GetIdx() == 0) {
-      no_need_assign_memory = false;
-      break;
-    }
-    if (continuous) {
-      // lx_fusion memory only assign first input, broadcast's input some are variable some are not, reassign later
-      // In CleanSeparately policy, padding continuous input only allocate index 0 input
-      if (!(has_lx_fusion_attr || IsSeparateCleanContinuousInputNode(continuous_node))) {
-        continue;
-      }
-    }
-    no_need_assign_memory = true;
-    GELOGI(
-        "%s name[%s] output[%u] peer[%s] input[%d] need continuous, input size[%u], nopadding_continuous[%d], "
-        "continuous[%d], has_lx_fusion_attr[%d]",
-        n->GetOwnerComputeGraphBarePtr()->GetName().c_str(), n->GetNamePtr(), out_index, continuous_node->GetNamePtr(),
-        new_peer_in_anchor->GetIdx(), continuous_node->GetAllInDataAnchorsSize(), nopadding_continuous, continuous,
-        has_lx_fusion_attr);
-  }
-  GELOGI("%s name[%s] output[%u] no_need_assign_memory:%d.", n->GetOwnerComputeGraphBarePtr()->GetName().c_str(),
-         n->GetNamePtr(), out_index, no_need_assign_memory);
-  return SUCCESS;
 }
 
 Status BlockMemAssigner::CalNodeAsContinuousInputMaxLife(const Node *const n, uint32_t out_index,
@@ -1392,28 +1283,6 @@ void BlockMemAssigner::UpdateOpTensorMemType(const std::list<NodeIndexIO> &node_
     }
   }
 }
-
-bool BlockMemAssigner::IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index) const {
-  GELOGD("Check node %s and peer node of output %u task zero copy supported", node->GetNamePtr(), output_index);
-  if (!IsNodeSupportZeroCopy(node)) {
-    return false;
-  }
-
-  const auto out_anchor = node->GetOutDataAnchor(static_cast<int32_t>(output_index));
-  if (out_anchor == nullptr) {
-    return false;
-  }
-  const auto peer_anchors = out_anchor->GetPeerInDataAnchorsPtr();
-  const bool support = std::all_of(peer_anchors.begin(), peer_anchors.end(), [](const ge::InDataAnchor *anchor) {
-    return ((anchor != nullptr) && (anchor->GetOwnerNodeBarePtr() != nullptr) &&
-            IsNodeSupportZeroCopy(anchor->GetOwnerNode()));
-  });
-
-  GELOGD("Task of node %s and peer node of output %u %s zero copy", node->GetNamePtr(), output_index,
-         (support ? "support" : "not support"));
-  return support;
-}
-
 bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_index, bool continuous,
                                        size_t output_size) const {
   std::string op_type(node->GetTypePtr());
@@ -1473,19 +1342,6 @@ bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_inde
   }
 
   return false;
-}
-
-void MarkZeroCopyBlockAttr(std::vector<TAttr<bool>> &bool_attr, const OpDesc *const op_desc, bool is_zero_copy,
-                           bool mem_type, uint32_t out_index) {
-  if (is_zero_copy && (mem_type == kOutput)) {
-    auto output_desc = op_desc->MutableOutputDesc(out_index);
-    if (output_desc != nullptr) {
-      bool_attr.emplace_back(output_desc.get(), op_desc, out_index, ATTR_IS_ZERO_COPY_BLOCK, true);
-    } else {
-      GELOGE(PARAM_INVALID, "Node %s output %u is zero copy block but not marked as output desc is nullptr",
-             op_desc->GetNamePtr(), out_index);
-    }
-  }
 }
 
 void BlockMemAssigner::AddMemoryStat(uint64_t memory_type, size_t real_size, bool is_reuse_memory) {
@@ -1641,38 +1497,6 @@ MemoryBlock *BlockMemAssigner::GetLastReleaseBlock(const size_t block_size, cons
     return reusable_block;
   }
   return nullptr;
-}
-
-bool IsOutputIndexRef(const OpDesc *const op_desc, uint32_t index) {
-  auto output_tensor = op_desc->GetOutputDescPtr(index);
-  if (output_tensor == nullptr) {
-    return false;
-  }
-  bool dst_reuse_input = false;
-  (void)ge::TensorUtils::GetReuseInput(*output_tensor, dst_reuse_input);
-  if (dst_reuse_input) {
-    return true;
-  }
-
-  bool is_ref = false;
-  (void)ge::AttrUtils::GetBool(op_desc, ATTR_NAME_REFERENCE, is_ref);
-  if (is_ref) {
-    std::string output_name = op_desc->GetOutputNameByIndex(index);
-    for (const auto &input_name : op_desc->GetAllInputNames()) {
-      if (output_name == input_name) {
-        return true;
-        ;
-      }
-    }
-  }
-  return false;
-}
-
-bool IsSubgraphDataRefConstInput(const NodePtr &node) {
-  std::string op_type;
-  const auto &in_node = ge::NodeUtils::GetParentInput(node);
-  return ge::NodeUtils::GetConstOpType(in_node, op_type) ||
-         ((in_node != nullptr) && ge::OpTypeUtils::IsVariableNode(in_node->GetType()));
 }
 
 void BlockMemAssigner::ContinuousOutRefCheck(bool &is_all_output_ref, bool &is_output_has_ref, const NodePtr &n) {
@@ -2043,7 +1867,7 @@ void BlockMemAssigner::CalExitSymbolNodeLifeTime(const Node *const n, uint32_t o
   (void)ge::AttrUtils::GetBool(n->GetOpDescBarePtr(), ATTR_NAME_NOPADDING_CONTINUOUS_INPUT,
                                is_cur_node_input_continuous);
   if (!is_cur_node_input_continuous) {
-    is_cur_node_input_continuous = IsSeparateCleanContinuousInputNode(n);
+    is_cur_node_input_continuous = MemReuseUtils::IsSeparateCleanContinuousInputNode(n);
   }
   const auto &out_anchor = n->GetOutDataAnchor(out_index);
   if (is_cur_node_input_continuous || (out_anchor == nullptr)) {
@@ -2059,7 +1883,7 @@ void BlockMemAssigner::CalExitSymbolNodeLifeTime(const Node *const n, uint32_t o
     (void)ge::AttrUtils::GetBool(out_node->GetOpDescBarePtr(), ATTR_NAME_NOPADDING_CONTINUOUS_INPUT,
                                  is_input_continuous);
     if (!is_input_continuous) {
-      is_input_continuous = IsSeparateCleanContinuousInputNode(out_node);
+      is_input_continuous = MemReuseUtils::IsSeparateCleanContinuousInputNode(out_node);
     }
     if (!is_input_continuous) {
       continue;
@@ -2075,51 +1899,6 @@ void BlockMemAssigner::CalExitSymbolNodeLifeTime(const Node *const n, uint32_t o
   }
   GELOGI("Node[%s:%u] has exit symbol, it's max_life_time:%zu stream count:%zu", n->GetNamePtr(), out_index,
          max_life_time, streams.size());
-}
-
-void BlockMemAssigner::MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block,
-                                                  const uint32_t index) const {
-  auto node_op_desc = n->GetOpDescBarePtr();
-
-  // 输出连续内存不能做零拷贝，同时NoPadding且Reuse的也不能做零拷贝
-  bool can_reuse_zero_copy = true;
-  bool is_continuous = ge::MemLayoutConflictUtil::IsContinuousOutput(n);
-  bool is_nopadding_continuous = false;
-
-  if (!is_continuous) {
-    (void)ge::AttrUtils::GetBool(*node_op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_OUTPUT, is_nopadding_continuous);
-    if (is_nopadding_continuous) {
-      bool attr_reuse = false;
-      (void)ge::AttrUtils::GetBool(*node_op_desc, ATTR_NAME_OUTPUT_REUSE_INPUT, attr_reuse);
-      can_reuse_zero_copy = !attr_reuse;
-    }
-  } else {
-    can_reuse_zero_copy = false;
-  }
-
-  if (!can_reuse_zero_copy) {
-    block->is_reuse_zero_copy_ = false;
-  }
-
-  // data直连特殊的rts算子且不可刷新状态下，不能做零拷贝
-  auto out_anchor = n->GetOutDataAnchor(static_cast<int32_t>(index));
-  bool data_connect_unsupport_zero_copy = false;
-  if (OpTypeUtils::IsDataNode(node_op_desc->GetType()) && (out_anchor != nullptr)) {
-    auto peer_anchors = out_anchor->GetPeerInDataAnchorsPtr();
-    data_connect_unsupport_zero_copy =
-        std::any_of(peer_anchors.begin(), peer_anchors.end(), [](const ge::InDataAnchor *anchor) {
-          return ((anchor != nullptr) && (anchor->GetOwnerNodeBarePtr() != nullptr) &&
-                  (!IsNodeSupportZeroCopy(anchor->GetOwnerNode())));
-        });
-  }
-
-  if (data_connect_unsupport_zero_copy) {
-    block->is_reuse_zero_copy_ = false;
-    block->is_zero_copy_ = false;
-  }
-
-  GELOGD("Node name: %s index: %d, can_reuse_zero_copy: %s, data_connect_unsupport_zero_copy: %s ", n->GetNamePtr(),
-         index, can_reuse_zero_copy ? "true" : "false", data_connect_unsupport_zero_copy ? "true" : "false");
 }
 
 MemoryBlock *BlockMemAssigner::ApplyOutMemory(const NodePtr &n, uint32_t index, const std::vector<int64_t> &ranges,
@@ -2300,23 +2079,6 @@ MemoryBlock *BlockMemAssigner::ApplyOutDescMemory(const NodePtr &n, uint32_t ind
   return block;
 }
 
-bool IsOutputBlock(const ge::InDataAnchor *const in_data_anchor) {
-  auto peer_out_anchor = in_data_anchor->GetPeerOutAnchor();
-  GE_IF_BOOL_EXEC(peer_out_anchor == nullptr, REPORT_INNER_ERR_MSG("E19999", "Peer out anchor is nullptr.");
-                  GELOGE(FAILED, "[Check][Param] Peer out anchor is nullptr."); return false);
-  auto src = peer_out_anchor->GetOwnerNodeBarePtr();
-  int32_t index = peer_out_anchor->GetIdx();
-  auto iter = GetLocalOmgContext().out_nodes_map.find(src->GetNamePtr());
-  if (iter != GetLocalOmgContext().out_nodes_map.end()) {
-    for (auto id : iter->second) {
-      if (index == id) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 // atomic out memory will be reassigned
 bool BlockMemAssigner::IsAtomicOutputMemory(const ge::NodePtr &node, uint32_t output_index, bool is_atomic,
                                             bool out_node_set_continuous_input) const {
@@ -2352,48 +2114,6 @@ bool BlockMemAssigner::IsAtomicOutputMemory(const ge::NodePtr &node, uint32_t ou
     }
   }
   return false;
-}
-
-bool IsKnownSubgraphData(const Node *node) {
-  if ((node == nullptr) || NodeUtils::IsDynamicShape(*node)) {
-    return false;
-  }
-
-  return node->GetOpDescBarePtr()->HasAttr(ATTR_NAME_PARENT_NODE_INDEX);
-}
-
-void SetReleaseBlockLifeEnd(MemoryBlock *to_release, int64_t stream_id) {
-  const auto to_release_out_stream_life_time = to_release->NodeTypeIndexList().back().out_stream_life_time_;
-  if (to_release_out_stream_life_time.size() == 1) {
-    for (const auto &item : to_release_out_stream_life_time) {
-      size_t end_life_time = item.second.second;
-      int64_t release_stream_id = to_release->stream_id_;
-      if (to_release->stream_id_ != item.first) {
-        // kMaxLifeTime means cannot return self stream, so need to set kMaxLifeTime to self stream, set real end time
-        // to out stream.
-        if (end_life_time == kMaxLifeTime) {
-          release_stream_id = stream_id;
-          end_life_time = item.second.first;
-        }
-      }
-      to_release->SetLifeTimeEnd(end_life_time, release_stream_id);
-      // stream 0->1->2->0场景，增加一个0->1的结束点，2上面的内存有机会和0上的复用
-      if (to_release->diff_stream_prior_ && (to_release->stream_id_ != stream_id)) {
-        to_release->SetLifeTimeEnd(item.second.first, stream_id);
-      }
-    }
-    return;
-  }
-  size_t max_end_life_time = 0U;
-  for (const auto &item : to_release_out_stream_life_time) {
-    if (max_end_life_time < item.second.second) {
-      max_end_life_time = item.second.second;
-    }
-  }
-  if (max_end_life_time == kMaxLifeTime) {
-    to_release->same_stream_ = false;
-  }
-  to_release->SetLifeTimeEnd(max_end_life_time, to_release->stream_id_);
 }
 
 void BlockMemAssigner::ReleaseMemory(MemoryBlock *const to_release, std::vector<MemoryBlock *> &reusable_memory,
@@ -2538,28 +2258,6 @@ void BlockMemAssigner::ReleaseInputNodeOutMemory(const NodePtr &node) {
     }
   }
 }
-
-void CheckAndGetOpReuseEnv(const std::string &env, std::unordered_set<std::string> &env_set, bool &op_reuse_env_valid) {
-  std::string env_str = std::string(env);
-  if (env_str.size() > kReuseMaxCharNum) {
-    GELOGE(FAILED, "[Check][Param] The OP_NO_REUSE_MEM has more than %d characters.", kReuseMaxCharNum);
-    return;
-  }
-
-  std::vector<std::string> env_vec;
-  SplitStringByComma(env_str, env_vec);
-  if (env_vec.size() > kReuseMaxOpNum) {
-    GELOGE(FAILED, "[Check][Param] The OP_NO_REUSE_MEM has more than %d nodes.", kReuseMaxOpNum);
-    return;
-  }
-
-  for (const auto &item : env_vec) {
-    env_set.insert(item);
-  }
-  op_reuse_env_valid = true;
-  return;
-}
-
 void BlockMemAssigner::CheckAndReleaseSuspendedBlock(const NodePtr &node, uint32_t idx, MemoryBlock *block) {
   if ((node == nullptr) || (block == nullptr)) {
     return;
@@ -2996,17 +2694,6 @@ void BlockMemAssigner::GetNodeWorkSpaceSize(const NodePtr &node, std::vector<int
   }
 }
 
-// ascending order
-static bool CompareBlockIndex(const MemoryBlock *const left, const MemoryBlock *const right) {
-  if (left == nullptr || right == nullptr) {
-    return false;
-  }
-  if (left->input_index_ < right->input_index_) {
-    return true;
-  }
-  return false;
-}
-
 /// @ingroup domi
 /// @brief order blocks by continuous input index
 /// @param [in] blocks need be processed
@@ -3076,45 +2763,6 @@ void BlockMemAssigner::AssignContinuousBlocks() {
   }
 }
 
-struct CompareLifeInterval {
-  explicit CompareLifeInterval(const ReuseStrategy &reuse_strategy) : reuse_strategy_(reuse_strategy) {}
-
-  bool operator()(MemoryBlock *const left, MemoryBlock *const right) const {
-    if ((left != nullptr) && (right != nullptr)) {
-      auto left_size = left->AlignSize();
-      auto right_size = right->AlignSize();
-      if (left->GetContinuousFlag()) {
-        auto it = std::max_element(std::begin(left->NoAlignSizeList()), std::end(left->NoAlignSizeList()));
-        if (it != left->NoAlignSizeList().end()) {
-          left_size = *it;
-        }
-      }
-
-      if (right->GetContinuousFlag()) {
-        auto it = std::max_element(std::begin(right->NoAlignSizeList()), std::end(right->NoAlignSizeList()));
-        if (it != right->NoAlignSizeList().end()) {
-          right_size = *it;
-        }
-      }
-
-      if (left_size == right_size) {
-        if (!reuse_strategy_.ascending_sort_) {
-          return (left->GetLifeBegin(true) > right->GetLifeBegin(true));
-        }
-        if (left->NodeTypeIndexList().size() == right->NodeTypeIndexList().size()) {
-          return (left->GetLifeBegin(true) < right->GetLifeBegin(true));
-        } else {
-          return (left->NodeTypeIndexList().size() < right->NodeTypeIndexList().size());
-        }
-      } else {
-        return (left_size > right_size);
-      }
-    }
-    return false;
-  }
-  ReuseStrategy reuse_strategy_;
-};
-
 void BlockMemAssigner::ReuseBlocksByLifeTime() {
   if (!NeedLevel2Reuse()) {
     return;
@@ -3159,22 +2807,6 @@ void BlockMemAssigner::ReuseBlocksByLifeTime() {
       }
     }
   }
-}
-
-Status AddBlockMemOffset(std::map<uint64_t, size_t> &mem_offsets, MemoryBlock &block) {
-  auto it = mem_offsets.find(block.memory_type_);
-  if (it == mem_offsets.end()) {
-    auto result = mem_offsets.insert(std::pair<int64_t, size_t>(block.memory_type_, block.memory_type_logic_base_));
-    GE_ASSERT_TRUE(result.second);
-    it = result.first;
-  }
-  GE_ASSERT_TRUE(it != mem_offsets.end());
-  auto &mem_offset = it->second;
-  block.Resize();
-  GE_ASSERT_SUCCESS(block.SetHeadOffset(mem_offset));
-  mem_offset += block.Size();
-  block.SetTailOffset(mem_offset - 1);
-  return SUCCESS;
 }
 
 /// @ingroup domi_omg
@@ -3414,11 +3046,6 @@ Status BlockMemAssigner::Assign() {
   return SUCCESS;
 }
 
-bool BlockMemAssigner::CheckIsZeroMemNodeType(const std::string &node_type) const {
-  return (node_type == VARIABLE) || (node_type == CONSTANT) || (node_type == MULTISHAPE) || (node_type == CONSTANTOP) ||
-         (node_type == HVDWAIT) || (node_type == FILECONSTANT) || (node_type == CONSTPLACEHOLDER);
-}
-
 bool BlockMemAssigner::CheckIsZeroMemNodeOutputIndex(const NodePtr &n, uint32_t index) const {
   const auto op_desc = n->GetOpDescBarePtr();
   GE_ASSERT_NOTNULL(op_desc);
@@ -3436,21 +3063,4 @@ bool BlockMemAssigner::CheckIsZeroMemNodeOutputIndex(const NodePtr &n, uint32_t 
   return false;
 }
 
-uint64_t BlockMemAssigner::GetWorkSpaceMemoryType(const size_t no_reuse_scope_size, const size_t index,
-                                                  const bool is_p2p_memory, const bool session_scope_memory,
-                                                  std::vector<bool> &workspace_reuse_flag) const {
-  if (is_p2p_memory) {
-    return RT_MEMORY_P2P_DDR;
-  }
-
-  if (session_scope_memory) {
-    if (workspace_reuse_flag.empty()) {
-      workspace_reuse_flag.assign(no_reuse_scope_size, true);
-    }
-    workspace_reuse_flag[index] = false;
-    return kSessionScopeMemory | RT_MEMORY_HBM;
-  }
-
-  return RT_MEMORY_HBM;
-}
 }  // namespace ge

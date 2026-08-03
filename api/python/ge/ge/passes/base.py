@@ -22,9 +22,9 @@ from ._native import (  # noqa: F401
     PassContext,
     PatternMatcherConfig,
     PatternMatcherConfigBuilder,
+    SubgraphBoundary,
     SubgraphInput,
     SubgraphOutput,
-    SubgraphBoundary,
     SubgraphRewriter,
 )
 from ._native import infer_shape as _infer_shape
@@ -81,12 +81,15 @@ class PatternFusionPass(FusionBasePass):
 
     Subclasses can use either the legacy graph-building hooks:
       - ``patterns(self) -> Iterable[Pattern | Graph]``
+      - ``meet_requirements(self, match_result) -> bool``
       - ``replacement(self, match_result) -> Graph``
+      - the same hooks may append ``context: PassContext``
 
     or expression-style pattern methods:
       - ``@pattern def name(self, inputs) -> TensorHolder | list[TensorHolder] | tuple[TensorHolder, ...]``
       - ``replacement(self, inputs) -> TensorHolder | list[TensorHolder] | tuple[TensorHolder, ...] | Graph``
       - ``replacement(self, inputs, match_result)`` when match details are needed
+      - ``replacement(self, inputs, context)`` or ``replacement(self, inputs, match_result, context)``
 
     In a ``@pattern`` method, a list/tuple means multiple outputs of one
     pattern, not multiple patterns. Declare several ``@pattern`` methods for
@@ -106,8 +109,9 @@ class PatternFusionPass(FusionBasePass):
                 f"Implement patterns()/replacement() instead."
             )
         from .pattern import (
+            _adapt_context_hook,
             _adapt_decorated_pattern_methods,
-            _adapt_expression_replacement,
+            _adapt_replacement_hook,
             _has_decorated_pattern_methods,
         )
 
@@ -118,8 +122,14 @@ class PatternFusionPass(FusionBasePass):
                     f"Use one style for declaring patterns."
                 )
             cls.patterns = _adapt_decorated_pattern_methods(cls)
+        if "meet_requirements" in cls.__dict__:
+            cls.meet_requirements = _adapt_context_hook(
+                cls.__dict__["meet_requirements"],
+                "meet_requirements",
+                "match_result",
+            )
         if "replacement" in cls.__dict__:
-            cls.replacement = _adapt_expression_replacement(cls.__dict__["replacement"])
+            cls.replacement = _adapt_replacement_hook(cls.__dict__["replacement"])
 
     @property
     def matcher_config(self) -> Optional[PatternMatcherConfig]:
@@ -128,10 +138,14 @@ class PatternFusionPass(FusionBasePass):
     def patterns(self) -> Iterable[PatternOrGraph]:
         raise NotImplementedError("PatternFusionPass.patterns must be implemented")
 
-    def meet_requirements(self, match_result: MatchResult) -> bool:
+    def meet_requirements(
+        self, match_result: MatchResult, context: Optional[PassContext] = None
+    ) -> bool:
         return True
 
-    def replacement(self, match_result: MatchResult) -> "Graph":
+    def replacement(
+        self, match_result: MatchResult, context: Optional[PassContext] = None
+    ) -> "Graph":
         raise NotImplementedError("PatternFusionPass.replacement must be implemented")
 
 
@@ -154,9 +168,23 @@ class DecomposePass(FusionBasePass):
                 f"by the DecomposePass execution path. "
                 f"Implement meet_requirements()/replacement() instead."
             )
+        from .pattern import _adapt_context_hook
 
-    def meet_requirements(self, node: "Node") -> bool:
+        if "meet_requirements" in cls.__dict__:
+            cls.meet_requirements = _adapt_context_hook(
+                cls.__dict__["meet_requirements"], "meet_requirements", "node"
+            )
+        if "replacement" in cls.__dict__:
+            cls.replacement = _adapt_context_hook(
+                cls.__dict__["replacement"], "replacement", "node"
+            )
+
+    def meet_requirements(
+        self, node: "Node", context: Optional[PassContext] = None
+    ) -> bool:
         return True
 
-    def replacement(self, node: "Node") -> "Graph":
+    def replacement(
+        self, node: "Node", context: Optional[PassContext] = None
+    ) -> "Graph":
         raise NotImplementedError("DecomposePass.replacement must be implemented")

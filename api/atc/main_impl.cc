@@ -715,8 +715,9 @@ class GFlagUtils {
         "                           0 (default): centralized clean.  1: separate clean.\n"
         "  --deterministic          For deterministic calculation.\n"
         "                           0 (default): deterministic off. 1: deterministic on.\n"
-        "  --deterministic_level    For deterministic and strong consistency calculation.\n"
-        "                           0 (default): deterministic off. 1: deterministic on. 2: strong consistency on.\n" +
+        "  --deterministic_level    For deterministic, strong consistency and batch consistency calculation.\n"
+        "                           0 (default): deterministic off. 1: deterministic on. 2: strong consistency on. "
+        "3: batch consistency on.\n" +
         oo_help_info[static_cast<size_t>(OoCategory::kDebug)]);
 
     return flgs::ParseCommandLine(argc, argv);

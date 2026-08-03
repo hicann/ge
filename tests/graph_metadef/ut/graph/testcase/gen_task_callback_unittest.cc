@@ -1179,4 +1179,55 @@ TEST_F(TestCreateFusionAndCcuTask, TestFusionTaskSqeNumCalculation) {
     EXPECT_EQ(task_def.sqe_num(), 5);
   }
 }
+// 测试KernelLaunchInfo移动后impl_为null时的各种方法调用
+TEST_F(TestGenTaskCallback, IncCov_NullImplMethods_Test) {
+  auto graph = CreateMc2NodeGraph();
+  auto mc2_node = graph->FindNode("mc2");
+  auto res_context_holder = CreateNodeExeResContext(mc2_node);
+  auto op_exe_res_ctx = reinterpret_cast<gert::ExeResGenerationContext *>(res_context_holder->GetKernelContext());
+
+  auto aicpu_task = KernelLaunchInfo::CreateAicpuKfcTask(op_exe_res_ctx, "test.so", "test_kernel");
+  KernelLaunchInfo moved_task(std::move(aicpu_task));
+
+  EXPECT_EQ(aicpu_task.GetStreamId(), std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(aicpu_task.GetBlockDim(), std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(aicpu_task.GetSoName(), nullptr);
+  EXPECT_EQ(aicpu_task.GetKernelName(), nullptr);
+  EXPECT_EQ(aicpu_task.GetArgsFormat(), nullptr);
+  EXPECT_TRUE(aicpu_task.Serialize().empty());
+  aicpu_task.SetStreamId(5);
+}
+
+// 测试FusionTask中包含不支持的子任务类型
+TEST_F(TestCreateFusionAndCcuTask, IncCov_UnsupportedFusionSubTask_Test) {
+  auto record_task = KernelLaunchInfo::CreateHcomRecordTask(op_exe_res_ctx_);
+
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(record_task));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+  auto serialized_data = fusion_task.Serialize();
+  EXPECT_FALSE(serialized_data.empty());
+}
+
+// 测试FusionTask的GetArgsFormat和SetArgsFormat
+TEST_F(TestCreateFusionAndCcuTask, IncCov_FusionTaskArgsFormat_Test) {
+  auto aicore_task_def = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer(aicore_task_def.ByteSizeLong());
+  aicore_task_def.SerializeToArray(buffer.data(), buffer.size());
+  auto aicore_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer);
+  aicore_task.SetArgsFormat("{test_args}");
+  aicore_task.SetBlockDim(32);
+
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  auto args_format = fusion_task.GetArgsFormat();
+  EXPECT_NE(args_format, nullptr);
+
+  EXPECT_EQ(fusion_task.SetArgsFormat("{fusion_args}"), SUCCESS);
+  EXPECT_EQ(std::string(fusion_task.GetArgsFormat()), "{fusion_args}");
+}
 }  // namespace ge

@@ -537,4 +537,196 @@ TEST_F(UtestGeAttrValue, ExternC_AttrValue_SetAttrValue_Bool_EdgeCases) {
   EXPECT_EQ(attr_value.GetAttrValue(get_value), GRAPH_SUCCESS);
   EXPECT_EQ(get_value, false);
 }
+
+TEST_F(UtestGeAttrValue, IncCov_NullObj_AllGetSetFails) {
+  OpDescPtr null_desc;
+  EXPECT_FALSE(AttrUtils::HasAttr(null_desc, "attr"));
+  EXPECT_FALSE(AttrUtils::SetListInt(null_desc, "attr", std::vector<int64_t>{1, 2}));
+  std::vector<int64_t> out_list_i64;
+  EXPECT_FALSE(AttrUtils::GetListInt(null_desc, "attr", out_list_i64));
+  EXPECT_FALSE(AttrUtils::SetInt(null_desc, "attr", static_cast<int64_t>(1)));
+  int64_t out_i64 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(null_desc, "attr", out_i64));
+  int32_t out_i32 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(null_desc, "attr", out_i32));
+  uint32_t out_u32 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(null_desc, "attr", out_u32));
+  uint64_t out_u64 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(null_desc, "attr", out_u64));
+  EXPECT_FALSE(AttrUtils::SetFloat(null_desc, "attr", 1.0f));
+  float32_t out_f32 = 0.0f;
+  EXPECT_FALSE(AttrUtils::GetFloat(null_desc, "attr", out_f32));
+  EXPECT_FALSE(AttrUtils::SetListFloat(null_desc, "attr", std::vector<float32_t>{1.0f}));
+  std::vector<float32_t> out_list_f32;
+  EXPECT_FALSE(AttrUtils::GetListFloat(null_desc, "attr", out_list_f32));
+  EXPECT_FALSE(AttrUtils::SetBool(null_desc, "attr", true));
+  bool out_b = false;
+  EXPECT_FALSE(AttrUtils::GetBool(null_desc, "attr", out_b));
+  EXPECT_FALSE(AttrUtils::SetListBool(null_desc, "attr", std::vector<bool>{true}));
+  std::vector<bool> out_list_b;
+  EXPECT_FALSE(AttrUtils::GetListBool(null_desc, "attr", out_list_b));
+  EXPECT_FALSE(AttrUtils::SetStr(null_desc, "attr", std::string("test")));
+  std::string out_str;
+  EXPECT_FALSE(AttrUtils::GetStr(null_desc, "attr", out_str));
+  std::string out_str2;
+  EXPECT_FALSE(AttrUtils::GetStr(null_desc, "attr1", "attr2", out_str2));
+  EXPECT_EQ(AttrUtils::GetStr(null_desc, "attr"), nullptr);
+  EXPECT_FALSE(AttrUtils::SetListStr(null_desc, "attr", std::vector<std::string>{"a"}));
+  std::vector<std::string> out_list_str;
+  EXPECT_FALSE(AttrUtils::GetListStr(null_desc, "attr", out_list_str));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_NullObj_TensorAndGraphFails) {
+  OpDescPtr null_desc;
+  GeTensorDesc td;
+  EXPECT_FALSE(AttrUtils::SetTensorDesc(null_desc, "attr", td));
+  EXPECT_FALSE(AttrUtils::GetTensorDesc(null_desc, "attr", td));
+  EXPECT_FALSE(AttrUtils::SetListTensorDesc(null_desc, "attr", std::vector<GeTensorDesc>{td}));
+  std::vector<GeTensorDesc> out_list_td;
+  EXPECT_FALSE(AttrUtils::GetListTensorDesc(null_desc, "attr", out_list_td));
+  EXPECT_FALSE(AttrUtils::SetNamedAttrs(null_desc, "attr", NamedAttrs()));
+  NamedAttrs na;
+  EXPECT_FALSE(AttrUtils::GetNamedAttrs(null_desc, "attr", na));
+  EXPECT_FALSE(AttrUtils::SetListNamedAttrs(null_desc, "attr", std::vector<NamedAttrs>{}));
+  std::vector<NamedAttrs> out_list_na;
+  EXPECT_FALSE(AttrUtils::GetListNamedAttrs(null_desc, "attr", out_list_na));
+  EXPECT_FALSE(AttrUtils::SetDataType(null_desc, "attr", DT_FLOAT));
+  DataType dt = DT_FLOAT;
+  EXPECT_FALSE(AttrUtils::GetDataType(null_desc, "attr", dt));
+  EXPECT_FALSE(AttrUtils::SetListDataType(null_desc, "attr", std::vector<DataType>{DT_FLOAT}));
+  std::vector<DataType> out_list_dt;
+  EXPECT_FALSE(AttrUtils::GetListDataType(null_desc, "attr", out_list_dt));
+  EXPECT_FALSE(AttrUtils::SetListListInt(null_desc, "attr", std::vector<std::vector<int64_t>>{}));
+  std::vector<std::vector<int64_t>> out_list_list_i64;
+  EXPECT_FALSE(AttrUtils::GetListListInt(null_desc, "attr", out_list_list_i64));
+  EXPECT_FALSE(AttrUtils::SetListListFloat(null_desc, "attr", std::vector<std::vector<float32_t>>{}));
+  std::vector<std::vector<float32_t>> out_list_list_f32;
+  EXPECT_FALSE(AttrUtils::GetListListFloat(null_desc, "attr", out_list_list_f32));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_NullObj_TensorFails) {
+  OpDescPtr null_desc;
+  GeTensor tensor;
+  EXPECT_FALSE(AttrUtils::SetTensor(null_desc, "attr", tensor));
+  EXPECT_FALSE(AttrUtils::SetShareTensor(null_desc, "attr", tensor));
+  EXPECT_FALSE(AttrUtils::SetTensor(null_desc, "attr", GeTensorPtr()));
+  EXPECT_FALSE(AttrUtils::SetTensor(null_desc, "attr", ConstGeTensorPtr()));
+  EXPECT_FALSE(AttrUtils::SetListTensor(null_desc, "attr", std::vector<GeTensor>{}));
+  EXPECT_FALSE(AttrUtils::SetListTensor(null_desc, "attr", std::vector<GeTensorPtr>{}));
+  EXPECT_FALSE(AttrUtils::SetListTensor(null_desc, "attr", std::vector<ConstGeTensorPtr>{}));
+  EXPECT_FALSE(AttrUtils::SetListTensor(null_desc, "attr", std::initializer_list<ConstGeTensorPtr>{}));
+  GeTensorPtr out_tensor;
+  EXPECT_FALSE(AttrUtils::MutableTensor(null_desc, "attr", out_tensor));
+  ConstGeTensorPtr out_const_tensor;
+  EXPECT_FALSE(AttrUtils::GetTensor(null_desc, "attr", out_const_tensor));
+  std::vector<ConstGeTensorPtr> out_list_tensor;
+  EXPECT_FALSE(AttrUtils::GetListTensor(null_desc, "attr", out_list_tensor));
+  std::vector<GeTensorPtr> out_tensors;
+  EXPECT_FALSE(AttrUtils::MutableListTensor(null_desc, "attr", out_tensors));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_NullObj_GraphAndBytesFails) {
+  OpDescPtr null_desc;
+  ComputeGraphPtr graph;
+  EXPECT_FALSE(AttrUtils::SetGraph(null_desc, "attr", graph));
+  EXPECT_FALSE(AttrUtils::SetListGraph(null_desc, "attr", std::vector<ComputeGraphPtr>{}));
+  ComputeGraphPtr out_graph;
+  EXPECT_FALSE(AttrUtils::GetGraph(null_desc, "attr", out_graph));
+  std::vector<ComputeGraphPtr> out_graphs;
+  EXPECT_FALSE(AttrUtils::GetListGraph(null_desc, "attr", out_graphs));
+  Buffer buf;
+  EXPECT_FALSE(AttrUtils::SetBytes(null_desc, "attr", buf));
+  EXPECT_FALSE(AttrUtils::GetBytes(null_desc, "attr", buf));
+  EXPECT_FALSE(AttrUtils::SetListBytes(null_desc, "attr", std::vector<Buffer>{}));
+  std::vector<Buffer> out_list_buf;
+  EXPECT_FALSE(AttrUtils::GetListBytes(null_desc, "attr", out_list_buf));
+  Buffer zc_buf;
+  EXPECT_FALSE(AttrUtils::SetZeroCopyBytes(null_desc, "attr", std::move(zc_buf)));
+  EXPECT_FALSE(AttrUtils::GetZeroCopyBytes(null_desc, "attr", zc_buf));
+  std::vector<Buffer> zc_list;
+  EXPECT_FALSE(AttrUtils::SetZeroCopyListBytes(null_desc, "attr", zc_list));
+  EXPECT_FALSE(AttrUtils::GetZeroCopyListBytes(null_desc, "attr", zc_list));
+  EXPECT_FALSE(AttrUtils::ClearAllAttrs(null_desc));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_NullObj_GetAllAttrsAndStr) {
+  OpDescPtr null_desc;
+  auto attrs = AttrUtils::GetAllAttrs(null_desc);
+  EXPECT_TRUE(attrs.empty());
+  auto attrs_filtered = AttrUtils::GetAllAttrsWithFilter(null_desc, [](const std::string &) { return true; });
+  EXPECT_TRUE(attrs_filtered.empty());
+  EXPECT_EQ(AttrUtils::GetAllAttrsStr(null_desc), "");
+  EXPECT_EQ(AttrUtils::GetAttrsStrAfterRid(null_desc, {}), "");
+}
+
+TEST_F(UtestGeAttrValue, IncCov_SetListIntVariants) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "list_uint32", std::vector<uint32_t>{1, 2, 3}));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "list_int32", std::vector<int32_t>{4, 5, 6}));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "list_init", {static_cast<int64_t>(7), static_cast<int64_t>(8)}));
+
+  std::vector<int32_t> out_i32;
+  EXPECT_TRUE(AttrUtils::GetListInt(op_desc, "list_int32", out_i32));
+  EXPECT_EQ(out_i32.size(), 3U);
+  std::vector<uint32_t> out_u32;
+  EXPECT_TRUE(AttrUtils::GetListInt(op_desc, "list_uint32", out_u32));
+  EXPECT_EQ(out_u32.size(), 3U);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetListGraphAndListBytesNotFound) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  std::vector<ComputeGraphPtr> out_graphs;
+  EXPECT_FALSE(AttrUtils::GetListGraph(op_desc, "nonexistent", out_graphs));
+  std::vector<Buffer> out_buffers;
+  EXPECT_FALSE(AttrUtils::GetListBytes(op_desc, "nonexistent", out_buffers));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetIntOverflow) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, "big_val", static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 1));
+  int32_t val_i32 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(op_desc, "big_val", val_i32));
+
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, "big_u32", static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 1));
+  uint32_t val_u32 = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(op_desc, "big_u32", val_u32));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetListIntOverflow) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  std::vector<int64_t> big_vals = {static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 1};
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "big_list", big_vals));
+  std::vector<int32_t> out_i32;
+  EXPECT_FALSE(AttrUtils::GetListInt(op_desc, "big_list", out_i32));
+
+  std::vector<int64_t> big_u32_vals = {static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 1};
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "big_u32_list", big_u32_vals));
+  std::vector<uint32_t> out_u32;
+  EXPECT_FALSE(AttrUtils::GetListInt(op_desc, "big_u32_list", out_u32));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_ValueTypeToSerialStringInvalid) {
+  EXPECT_EQ(AttrUtils::ValueTypeToSerialString(static_cast<AnyValue::ValueType>(999)), "");
+}
+
+TEST_F(UtestGeAttrValue, IncCov_SerialStringToValueTypeInvalid) {
+  EXPECT_EQ(AttrUtils::SerialStringToValueType("INVALID_TYPE"), AnyValue::VT_NONE);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_SerialStringToValueTypeValid) {
+  EXPECT_EQ(AttrUtils::SerialStringToValueType("VT_INT"), AnyValue::VT_INT);
+  EXPECT_EQ(AttrUtils::SerialStringToValueType("VT_STRING"), AnyValue::VT_STRING);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_NamedAttrsGetItem) {
+  NamedAttrs named_attrs;
+  named_attrs.SetName("test_named");
+  named_attrs.MutableAttrMap().SetByName("key1", static_cast<int64_t>(42));
+  auto item = named_attrs.GetItem("key1");
+  int64_t val = 0;
+  EXPECT_EQ(item.GetValue(val), GRAPH_SUCCESS);
+  EXPECT_EQ(val, 42);
+  auto item2 = named_attrs.GetItem("nonexistent");
+  EXPECT_TRUE(item2.IsEmpty());
+}
 }  // namespace ge

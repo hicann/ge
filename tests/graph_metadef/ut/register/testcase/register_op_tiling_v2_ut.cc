@@ -258,4 +258,48 @@ TEST_F(RegisterOpTilingV2UT, op_atomic_calculate_v2_3) {
   EXPECT_EQ(ret, GRAPH_FAILED);
   tiling_func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
 }
+
+TEST_F(RegisterOpTilingV2UT, cov_replace_empty_shape_with_null_desc) {
+  OpDescPtr op_desc = make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({4, 3, 16, 16}));
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->UpdateInputDesc(2, tensor_desc);
+  std::vector<int32_t> indexes;
+  EXPECT_NO_THROW(ReplaceEmptyShapeOfTensorDesc(op_desc, indexes));
+}
+
+TEST_F(RegisterOpTilingV2UT, cov_replace_empty_shape_with_null_output_desc) {
+  OpDescPtr op_desc = make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({4, 3, 16, 16}));
+  op_desc->AddOutputDesc("y", tensor_desc);
+  op_desc->UpdateOutputDesc(2, tensor_desc);
+  std::vector<int32_t> indexes;
+  EXPECT_NO_THROW(ReplaceEmptyShapeOfTensorDesc(op_desc, indexes));
+}
+
+TEST_F(RegisterOpTilingV2UT, cov_recovery_empty_shape_with_null_desc) {
+  OpDescPtr op_desc = make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({4, 3, 16, 16}));
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->UpdateInputDesc(2, tensor_desc);
+  std::vector<int32_t> indexes = {0, 2};
+  EXPECT_NO_THROW(RecoveryEmptyShapeOfTensorDesc(op_desc, indexes));
+}
+
+TEST_F(RegisterOpTilingV2UT, cov_recovery_empty_shape_negative_index) {
+  OpDescPtr op_desc = make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({4, 3, 16, 16}));
+  op_desc->AddOutputDesc("y", tensor_desc);
+  std::vector<int32_t> indexes = {-1};
+  EXPECT_NO_THROW(RecoveryEmptyShapeOfTensorDesc(op_desc, indexes));
+}
+
+TEST_F(RegisterOpTilingV2UT, cov_recovery_empty_shape_empty_indexes) {
+  OpDescPtr op_desc = make_shared<OpDesc>("test", "TestOp");
+  GeTensorDesc tensor_desc(GeShape({4, 3, 16, 16}));
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  std::vector<int32_t> indexes;
+  EXPECT_NO_THROW(RecoveryEmptyShapeOfTensorDesc(op_desc, indexes));
+}
 }  // namespace optiling

@@ -2400,4 +2400,154 @@ TEST_F(UtestComputeGraph, BuildGraphWithNetOutput_CreateOrUpdateNetOutput_Succes
   ASSERT_EQ(net_output_node->GetInDataNodesSize(), 1U);
   ASSERT_EQ(net_output_node->GetInDataNodes().at(0), node3);
 }
+
+TEST_F(UtestComputeGraph, IncCov_OperatorEqual_NodeNotFound) {
+  auto graph1 = std::make_shared<ComputeGraph>("graph");
+  auto graph2 = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "type1");
+  op1->AddOutputDesc(GeTensorDesc());
+  graph1->AddNode(op1);
+  auto op2 = std::make_shared<OpDesc>("node2", "type2");
+  op2->AddOutputDesc(GeTensorDesc());
+  graph2->AddNode(op2);
+  EXPECT_FALSE((*graph1) == (*graph2));
+}
+
+TEST_F(UtestComputeGraph, IncCov_OperatorEqual_DifferentAttrs) {
+  auto graph1 = std::make_shared<ComputeGraph>("graph");
+  auto graph2 = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "type1");
+  op1->AddOutputDesc(GeTensorDesc());
+  graph1->AddNode(op1);
+  graph2->AddNode(op1);
+  int64_t val = 0;
+  AnyValue anyvalue;
+  anyvalue.SetValue(val);
+  graph1->SetAttr("test_attr", anyvalue);
+  EXPECT_FALSE((*graph1) == (*graph2));
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddOutputNode_NullNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->AddOutputNode(nullptr), nullptr);
+  EXPECT_EQ(graph->AddOutputNodeByIndex(nullptr, 0), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddOutputNode_AlreadyExists) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node = builder.AddNode("node1", "type1", 1, 1);
+  auto graph = builder.GetGraph();
+  graph->AddOutputNode(node);
+  auto ret = graph->AddOutputNode(node);
+  EXPECT_NE(ret, nullptr);
+  EXPECT_EQ(graph->GetOutputNodes().size(), 1U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddOutputNode_NotInGraph) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("external_node", "type1");
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = std::make_shared<Node>(op, graph);
+  node->Init();
+  auto ret = graph->AddOutputNode(node);
+  EXPECT_NE(ret, nullptr);
+  EXPECT_EQ(graph->GetDirectNode().size(), 1U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveNode_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->RemoveNode(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveNode_NotInGraph) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("external_node", "type1");
+  op->AddInputDesc(GeTensorDesc());
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = std::make_shared<Node>(op, graph);
+  node->Init();
+  EXPECT_EQ(graph->RemoveNode(node), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_UpdateOutputMapping_NoNetOutput) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  std::map<uint32_t, uint32_t> output_mapping{{0, 1}};
+  EXPECT_EQ(graph->UpdateOutputMapping(output_mapping), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_UpdateInputMapping_NoMatchingData) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("node1", "type1");
+  op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op);
+  std::map<uint32_t, uint32_t> input_mapping{{0, 1}};
+  EXPECT_EQ(graph->UpdateInputMapping(input_mapping), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_TopologicalSorting_InvalidMode) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node1 = builder.AddNode("node1", "type1", 1, 1);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(graph->TopologicalSorting(TopoSortingMode::kInvalid), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_TopologicalSorting_ClosedLoop) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node1 = builder.AddNode("node1", "type1", 1, 1);
+  const auto &node2 = builder.AddNode("node2", "type2", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddDataEdge(node2, 0, node1, 0);
+  auto graph = builder.GetGraphWithoutSort();
+  EXPECT_NE(graph->TopologicalSorting(), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_VectorInputNodePtrIsEqual_NullNodes) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  std::vector<NodePtr> left{nullptr};
+  std::vector<NodePtr> right{nullptr};
+  EXPECT_FALSE(graph->VectorInputNodePtrIsEqual(left, right));
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveInputNode_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->RemoveInputNode(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveOutputNode_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->RemoveOutputNode(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveSubGraph_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->RemoveSubGraph(nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddSubGraph_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->AddSubGraph(nullptr), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddNodeFront_NullNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(graph->AddNodeFront(null_node), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddNode_NullOpDesc) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  OpDescPtr null_op = nullptr;
+  EXPECT_EQ(graph->AddNode(null_op), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_TopologicalSorting_WithSubgraph) {
+  auto graph = std::make_shared<ComputeGraph>("root");
+  auto sub_graph = std::make_shared<ComputeGraph>("sub");
+  auto op = std::make_shared<OpDesc>("node1", "type1");
+  op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op);
+  sub_graph->AddNode(op);
+  graph->AddSubGraph(sub_graph);
+  EXPECT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+}
 }  // namespace ge

@@ -884,4 +884,324 @@ TEST_F(GraphPassUtilUT, cov_get_op_type_map_to_graph) {
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_NE(retrieved_info, nullptr);
 }
+
+TEST_F(GraphPassUtilUT, cov_set_output_desc_attr_null_fusion_node) {
+  OpDescPtr relu1 = std::make_shared<OpDesc>("relu1", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  relu1->AddOutputDesc(tensor_desc);
+  auto graph = std::make_shared<ComputeGraph>("test");
+  NodePtr relu1_node = graph->AddNode(relu1);
+  EXPECT_NO_THROW(GraphPassUtil::SetOutputDescAttr(0, 0, relu1_node, nullptr));
+}
+
+TEST_F(GraphPassUtilUT, cov_set_output_desc_attr_null_fusion_opdesc) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr empty_op = std::make_shared<OpDesc>("empty", "Empty");
+  NodePtr empty_node = graph->AddNode(empty_op);
+  OpDescPtr relu1 = std::make_shared<OpDesc>("relu1", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  relu1->AddOutputDesc(tensor_desc);
+  NodePtr relu1_node = graph->AddNode(relu1);
+  EXPECT_NO_THROW(GraphPassUtil::SetOutputDescAttr(0, 0, relu1_node, empty_node));
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_format_not_found) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  ge::Format fmt = GraphPassUtil::GetDataDumpOriginFormat(tensor_desc_ptr);
+  EXPECT_EQ(fmt, ge::FORMAT_RESERVED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_format_reserved) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  (void)ge::AttrUtils::SetStr(tensor_desc_ptr, ge::ATTR_NAME_DATA_DUMP_ORIGIN_FORMAT, "RESERVED");
+  ge::Format fmt = GraphPassUtil::GetDataDumpOriginFormat(tensor_desc_ptr);
+  EXPECT_EQ(fmt, ge::FORMAT_RESERVED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_dtype_not_found) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  ge::DataType dt = GraphPassUtil::GetDataDumpOriginDataType(tensor_desc_ptr);
+  EXPECT_EQ(dt, ge::DT_UNDEFINED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_dtype_reserved) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  (void)ge::AttrUtils::SetStr(tensor_desc_ptr, ge::ATTR_NAME_DATA_DUMP_ORIGIN_DATA_TYPE, "RESERVED");
+  ge::DataType dt = GraphPassUtil::GetDataDumpOriginDataType(tensor_desc_ptr);
+  EXPECT_EQ(dt, ge::DT_UNDEFINED);
+}
+
+TEST_F(GraphPassUtilUT, cov_store_and_update_origin_fusion_pass_name_null_opdesc) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  NodePtr node = graph->AddNode(op_desc);
+  std::vector<ge::NodePtr> original_nodes = {node};
+  Status ret = GraphPassUtil::StoreAndUpdataOriginFusionPassName(nullptr, original_nodes, "passA");
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(GraphPassUtilUT, cov_store_and_update_origin_fusion_pass_name_null_original) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  NodePtr node = graph->AddNode(op_desc);
+  std::vector<ge::NodePtr> original_nodes = {nullptr};
+  Status ret = GraphPassUtil::StoreAndUpdataOriginFusionPassName(op_desc, original_nodes, "passA");
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(GraphPassUtilUT, cov_record_original_names_null_original_node) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr fus_op = std::make_shared<OpDesc>("fusion", "Fusion");
+  NodePtr fus_node = graph->AddNode(fus_op);
+  std::vector<ge::NodePtr> original_nodes = {nullptr};
+  EXPECT_NO_THROW(GraphPassUtil::RecordOriginalNames(original_nodes, fus_node));
+}
+
+TEST_F(GraphPassUtilUT, cov_record_original_names_null_node) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op = std::make_shared<OpDesc>("ori", "Relu");
+  NodePtr ori_node = graph->AddNode(ori_op);
+  std::vector<ge::NodePtr> original_nodes = {ori_node};
+  EXPECT_NO_THROW(GraphPassUtil::RecordOriginalNames(original_nodes, nullptr));
+}
+
+TEST_F(GraphPassUtilUT, cov_add_node_to_node_type_map_null) {
+  NodeTypeMapPtr null_map = nullptr;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op = std::make_shared<OpDesc>("test_op", "TestOp");
+  auto node = graph->AddNode(op);
+  EXPECT_NO_THROW(GraphPassUtil::AddNodeToNodeTypeMap(null_map, "TestOp", node));
+}
+
+TEST_F(GraphPassUtilUT, cov_add_node_to_node_type_map_new_type) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op = std::make_shared<OpDesc>("test_op", "NewOpType");
+  auto node = graph->AddNode(op);
+  NodeTypeMapPtr node_type_map = std::make_shared<NodeTypeMap>();
+  GraphPassUtil::AddNodeToNodeTypeMap(node_type_map, "NewOpType", node);
+  EXPECT_EQ(node_type_map->size(), 1U);
+}
+
+TEST_F(GraphPassUtilUT, cov_remove_node_from_node_type_map_null) {
+  NodeTypeMapPtr null_map = nullptr;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op = std::make_shared<OpDesc>("test_op", "TestOp");
+  auto node = graph->AddNode(op);
+  EXPECT_NO_THROW(GraphPassUtil::RemoveNodeFromNodeTypeMap(null_map, "TestOp", node));
+}
+
+TEST_F(GraphPassUtilUT, cov_get_nodes_from_node_type_map_null_map) {
+  NodeTypeMapPtr null_map = nullptr;
+  vector<ge::NodePtr> nodes;
+  EXPECT_NO_THROW(GraphPassUtil::GetNodesFromNodeTypeMap(null_map, "TestOp", nodes));
+}
+
+TEST_F(GraphPassUtilUT, cov_get_nodes_from_node_type_map_not_found) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op = std::make_shared<OpDesc>("test_op", "TestOp");
+  auto node = graph->AddNode(op);
+  std::map<std::string, ge::NodePtr> inner_map;
+  inner_map["test_op"] = node;
+  std::unordered_map<std::string, std::map<std::string, ge::NodePtr>> node_map;
+  node_map["TestOp"] = inner_map;
+  NodeTypeMapPtr node_type_map = std::make_shared<NodeTypeMap>(node_map);
+  vector<ge::NodePtr> nodes;
+  EXPECT_NO_THROW(GraphPassUtil::GetNodesFromNodeTypeMap(node_type_map, "NonExistentType", nodes));
+}
+
+TEST_F(GraphPassUtilUT, cov_get_peer_out_anchor_null_node) {
+  EXPECT_EQ(GraphPassUtil::GetPeerOutAnchorNotInDeleteList(nullptr, 0), nullptr);
+}
+
+TEST_F(GraphPassUtilUT, cov_set_pair_tensor_attr_output_mode) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc1 = std::make_shared<OpDesc>("node1", "Relu");
+  OpDescPtr op_desc2 = std::make_shared<OpDesc>("node2", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc1->AddInputDesc(tensor_desc);
+  op_desc1->AddOutputDesc(tensor_desc);
+  op_desc2->AddInputDesc(tensor_desc);
+  op_desc2->AddOutputDesc(tensor_desc);
+  NodePtr node1 = graph->AddNode(op_desc1);
+  NodePtr node2 = graph->AddNode(op_desc2);
+  ge::GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  std::map<std::string, int> attr_val;
+  attr_val["_tensor_memory_scope"] = 2;
+  EXPECT_NO_THROW(GraphPassUtil::SetPairTensorAttr(node1, 0, attr_val, false));
+}
+
+TEST_F(GraphPassUtilUT, cov_set_pair_tensor_attr_output_mode_null_anchor) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  NodePtr node = graph->AddNode(op_desc);
+  std::map<std::string, int> attr_val;
+  attr_val["_tensor_memory_scope"] = 2;
+  EXPECT_NO_THROW(GraphPassUtil::SetPairTensorAttr(node, 5, attr_val, false));
+}
+
+TEST_F(GraphPassUtilUT, cov_inherit_attrs_with_heavy_op_no_group_id) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op_desc = std::make_shared<OpDesc>("matmul1", "MatMul");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "MatMul");
+  NodePtr ori_node = graph->AddNode(ori_op_desc);
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  std::vector<ge::NodePtr> ori_nodes = {ori_node};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  EXPECT_NO_THROW(GraphPassUtil::InheritAttrFromOriNodes(ori_nodes, fus_nodes, BackWardInheritMode::kFusedNode));
+}
+
+TEST_F(GraphPassUtilUT, cov_inherit_attrs_with_heavy_op_default_group_id) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op_desc = std::make_shared<OpDesc>("matmul1", "MatMul");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "MatMul");
+  NodePtr ori_node = graph->AddNode(ori_op_desc);
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  AttrUtils::SetInt(ori_op_desc, ge::ATTR_NAME_PARALLEL_GROUP_ID, static_cast<int64_t>(0xFFFFFFFF));
+  std::vector<ge::NodePtr> ori_nodes = {ori_node};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  EXPECT_NO_THROW(GraphPassUtil::InheritAttrFromOriNodes(ori_nodes, fus_nodes, BackWardInheritMode::kFusedNode));
+}
+
+TEST_F(GraphPassUtilUT, cov_inherit_attrs_with_heavy_op_fus_has_group_id) {
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op_desc = std::make_shared<OpDesc>("matmul1", "MatMul");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "MatMul");
+  NodePtr ori_node = graph->AddNode(ori_op_desc);
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  AttrUtils::SetInt(ori_op_desc, ge::ATTR_NAME_PARALLEL_GROUP_ID, static_cast<int64_t>(100));
+  AttrUtils::SetInt(fus_op_desc, ge::ATTR_NAME_PARALLEL_GROUP_ID, static_cast<int64_t>(200));
+  std::vector<ge::NodePtr> ori_nodes = {ori_node};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  EXPECT_NO_THROW(GraphPassUtil::InheritAttrFromOriNodes(ori_nodes, fus_nodes, BackWardInheritMode::kFusedNode));
+}
+
+TEST_F(GraphPassUtilUT, cov_record_original_op_attrs_without_dump) {
+  unsetenv("DUMP_GE_GRAPH");
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "Fusion");
+  NodePtr ori_node = graph->AddNode(ori_op_desc);
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  std::vector<ge::NodePtr> ori_nodes = {ori_node};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  GraphPassUtil::OriginOpAttrsVec origin_op_attrs = {{"node1", "Relu"}};
+  EXPECT_NO_THROW(GraphPassUtil::RecordPassnameAndOriginalAttrs(ori_nodes, fus_nodes, "pass_test", origin_op_attrs));
+}
+
+TEST_F(GraphPassUtilUT, cov_record_original_op_attrs_null_original_node) {
+  putenv(const_cast<char *>("DUMP_GE_GRAPH=2"));
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "Fusion");
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  std::vector<ge::NodePtr> ori_nodes = {nullptr};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  EXPECT_NO_THROW(GraphPassUtil::RecordPassnameAndOriginalAttrs(ori_nodes, fus_nodes, "pass_test"));
+}
+
+TEST_F(GraphPassUtilUT, cov_record_original_op_attrs_with_pass_names) {
+  putenv(const_cast<char *>("DUMP_GE_GRAPH=2"));
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr ori_op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  OpDescPtr fus_op_desc = std::make_shared<OpDesc>("fusion", "Fusion");
+  GeTensorDesc tensor_desc(GeShape({4, 4, 1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  ori_op_desc->AddInputDesc(tensor_desc);
+  ori_op_desc->AddOutputDesc(tensor_desc);
+  fus_op_desc->AddInputDesc(tensor_desc);
+  fus_op_desc->AddOutputDesc(tensor_desc);
+  NodePtr ori_node = graph->AddNode(ori_op_desc);
+  NodePtr fus_node = graph->AddNode(fus_op_desc);
+  std::vector<std::string> pass_names = {"pass_old"};
+  AttrUtils::SetListStr(ori_op_desc, "pass_name", pass_names);
+  std::shared_ptr<GraphPassUtil::UnorderedMapping> op_attrs_maps_tmp =
+      std::make_shared<GraphPassUtil::UnorderedMapping>();
+  GraphPassUtil::OriginOpAttrsVec origin_attrs = {{"old_node", "OldType"}};
+  op_attrs_maps_tmp->insert(std::pair<std::string, GraphPassUtil::OriginOpAttrsVec>("pass_old", origin_attrs));
+  (void)ori_op_desc->SetExtAttr(ge::ATTR_NAME_ORIGIN_OP_ATTRS_MAP, op_attrs_maps_tmp);
+  std::vector<ge::NodePtr> ori_nodes = {ori_node};
+  std::vector<ge::NodePtr> fus_nodes = {fus_node};
+  EXPECT_NO_THROW(GraphPassUtil::RecordPassnameAndOriginalAttrs(ori_nodes, fus_nodes, "pass_new"));
+}
+
+TEST_F(GraphPassUtilUT, cov_set_output_desc_attr_const_tensor_desc) {
+  GeTensorDescPtr origin_tensor_desc = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  origin_tensor_desc->SetOriginFormat(FORMAT_NCHW);
+  origin_tensor_desc->SetOriginDataType(DT_FLOAT);
+  GeTensorDescPtr target_tensor_desc = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT16);
+  OpDescPtr origin_op_desc = std::make_shared<OpDesc>("origin", "Relu");
+  (void)ge::AttrUtils::SetInt(origin_tensor_desc, ge::ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, 5);
+  ge::ConstGeTensorDescPtr const_origin_tensor_desc = origin_tensor_desc;
+  GraphPassUtil::SetOutputDescAttr(const_origin_tensor_desc, 0, origin_op_desc, target_tensor_desc);
+  int64_t origin_output_index = 0;
+  AttrUtils::GetInt(target_tensor_desc, ge::ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, origin_output_index);
+  EXPECT_EQ(origin_output_index, 5);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_format_const_not_found) {
+  ge::ConstGeTensorDescPtr const_tensor_desc =
+      std::make_shared<const GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  ge::Format fmt = GraphPassUtil::GetDataDumpOriginFormat(const_tensor_desc);
+  EXPECT_EQ(fmt, ge::FORMAT_RESERVED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_format_const_reserved) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  (void)ge::AttrUtils::SetStr(tensor_desc_ptr, ge::ATTR_NAME_DATA_DUMP_ORIGIN_FORMAT, "RESERVED");
+  ge::ConstGeTensorDescPtr const_tensor_desc = tensor_desc_ptr;
+  ge::Format fmt = GraphPassUtil::GetDataDumpOriginFormat(const_tensor_desc);
+  EXPECT_EQ(fmt, ge::FORMAT_RESERVED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_dtype_const_not_found) {
+  ge::ConstGeTensorDescPtr const_tensor_desc =
+      std::make_shared<const GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  ge::DataType dt = GraphPassUtil::GetDataDumpOriginDataType(const_tensor_desc);
+  EXPECT_EQ(dt, ge::DT_UNDEFINED);
+}
+
+TEST_F(GraphPassUtilUT, cov_get_data_dump_origin_dtype_const_reserved) {
+  GeTensorDescPtr tensor_desc_ptr = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  (void)ge::AttrUtils::SetStr(tensor_desc_ptr, ge::ATTR_NAME_DATA_DUMP_ORIGIN_DATA_TYPE, "RESERVED");
+  ge::ConstGeTensorDescPtr const_tensor_desc = tensor_desc_ptr;
+  ge::DataType dt = GraphPassUtil::GetDataDumpOriginDataType(const_tensor_desc);
+  EXPECT_EQ(dt, ge::DT_UNDEFINED);
+}
+
+TEST_F(GraphPassUtilUT, cov_add_node_from_optypemap_null_node_map_info) {
+  NodeMapInfoPtr null_info = nullptr;
+  auto graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op = std::make_shared<OpDesc>("test_op", "TestOp");
+  auto node = graph->AddNode(op);
+  EXPECT_NO_THROW(GraphPassUtil::AddNodeFromOpTypeMap(null_info, node));
+}
+
+TEST_F(GraphPassUtilUT, cov_add_node_from_optypemap_null_node) {
+  NodeMapInfoPtr node_map_info = std::make_shared<NodeMapInfo>();
+  node_map_info->node_type_map = std::make_shared<NodeTypeMap>();
+  EXPECT_NO_THROW(GraphPassUtil::AddNodeFromOpTypeMap(node_map_info, nullptr));
+}
+
+TEST_F(GraphPassUtilUT, cov_get_op_type_map_to_graph_fail) {
+  auto graph = std::make_shared<ComputeGraph>("test_no_ext_attr");
+  NodeMapInfoPtr retrieved_info = nullptr;
+  Status ret = GraphPassUtil::GetOpTypeMapToGraph(retrieved_info, *graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(GraphPassUtilUT, cov_set_pair_tensor_int_attr_null_node) {
+  EXPECT_NO_THROW(GraphPassUtil::SetPairTensorIntAttr(nullptr, 0, {{"_test", 1}}));
+}
+
+TEST_F(GraphPassUtilUT, cov_set_pair_tensor_attr_input_null_node_idx) {
+  EXPECT_NO_THROW(GraphPassUtil::SetPairTensorAttr(nullptr, 0, {{"_test", 1}}, true));
+}
+
+TEST_F(GraphPassUtilUT, cov_set_pair_tensor_attr_output_null_node_idx) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("node1", "Relu");
+  NodePtr node = graph->AddNode(op_desc);
+  EXPECT_NO_THROW(GraphPassUtil::SetPairTensorAttr(node, 0, {{"_test", 1}}, false));
+}
 }  // namespace fe

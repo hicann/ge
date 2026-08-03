@@ -493,4 +493,193 @@ TEST_F(AnchorUt, InsertSuccess) {
   the_same = node22->GetInDataAnchor(0U)->GetFirstPeerAnchor()->Equal(node11->GetOutDataAnchor(0U));
   EXPECT_TRUE(the_same);
 }
+
+namespace {
+class CovDataAnchor : public DataAnchor {
+ public:
+  CovDataAnchor(const NodePtr &owner_node, const int32_t idx) : DataAnchor(owner_node, idx) {}
+  ~CovDataAnchor() = default;
+  bool Equal(const AnchorPtr anchor) const override {
+    return false;
+  }
+  Anchor::TYPE CovGetSelfType() const {
+    return GetSelfType();
+  }
+  bool CovIsTypeOf(const Anchor::TYPE type) const {
+    return IsTypeOf(type);
+  }
+};
+
+class CovControlAnchor : public ControlAnchor {
+ public:
+  CovControlAnchor(const NodePtr &owner_node, const int32_t idx) : ControlAnchor(owner_node, idx) {}
+  ~CovControlAnchor() = default;
+  bool Equal(const AnchorPtr anchor) const override {
+    return false;
+  }
+  Anchor::TYPE CovGetSelfType() const {
+    return GetSelfType();
+  }
+  bool CovIsTypeOf(const Anchor::TYPE type) const {
+    return IsTypeOf(type);
+  }
+};
+
+class CovAnchor : public Anchor {
+ public:
+  CovAnchor(const NodePtr &owner_node, const int32_t idx) : Anchor(owner_node, idx) {}
+  ~CovAnchor() = default;
+  bool Equal(const AnchorPtr anchor) const override {
+    return false;
+  }
+  Anchor::TYPE CovGetSelfType() const {
+    return GetSelfType();
+  }
+  bool CovIsTypeOf(const Anchor::TYPE type) const {
+    return IsTypeOf(type);
+  }
+};
+}  // namespace
+
+TEST_F(AnchorUt, IncCov_AnchorGetSelfTypeAllLevels) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("Data", "Data", 1, 1);
+  auto cov_anchor = std::make_shared<CovAnchor>(node, 0);
+  auto cov_data = std::make_shared<CovDataAnchor>(node, 0);
+  auto cov_ctrl = std::make_shared<CovControlAnchor>(node, 0);
+  EXPECT_NE(cov_anchor->CovGetSelfType(), nullptr);
+  EXPECT_NE(cov_data->CovGetSelfType(), nullptr);
+  EXPECT_NE(cov_ctrl->CovGetSelfType(), nullptr);
+}
+
+TEST_F(AnchorUt, IncCov_AnchorIsTypeOfAllLevels) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("Data", "Data", 1, 1);
+  SubInDataAnchorPtr in_anch = std::make_shared<SubInDataAnchor>(node, 0);
+  SubOutDataAnchorPtr out_anch = std::make_shared<SubOutDataAnchor>(node, 0);
+  SubInControlAnchorPtr inc_anch = std::make_shared<SubInControlAnchor>(node, 0);
+  SubOutControlAnchorPtr outc_anch = std::make_shared<SubOutControlAnchor>(node, 0);
+
+  EXPECT_TRUE(in_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<InDataAnchor>()));
+  EXPECT_TRUE(in_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<DataAnchor>()));
+  EXPECT_TRUE(out_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<OutDataAnchor>()));
+  EXPECT_TRUE(inc_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<InControlAnchor>()));
+  EXPECT_TRUE(inc_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<ControlAnchor>()));
+  EXPECT_TRUE(outc_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<OutControlAnchor>()));
+  EXPECT_TRUE(outc_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<ControlAnchor>()));
+  EXPECT_TRUE(out_anch->EncaIsTypeOf(SubInDataAnchor::EncaTypeOf<DataAnchor>()));
+}
+
+TEST_F(AnchorUt, IncCov_AnchorImplNullAllPaths) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("Data", "Data", 1, 1);
+
+  SubInDataAnchorPtr in_anch = std::make_shared<SubInDataAnchor>(node, 0);
+  in_anch->SetImpNull();
+  EXPECT_EQ(in_anch->GetPeerAnchorsSize(), 0UL);
+  EXPECT_EQ(in_anch->GetPeerAnchors().size(), 0);
+  EXPECT_EQ(in_anch->GetPeerAnchorsPtr().size(), 0);
+  EXPECT_EQ(in_anch->GetFirstPeerAnchor(), nullptr);
+  EXPECT_EQ(in_anch->GetOwnerNode(), nullptr);
+  EXPECT_EQ(in_anch->GetOwnerNodeBarePtr(), nullptr);
+  EXPECT_EQ(in_anch->GetIdx(), 0);
+  in_anch->SetIdx(5);
+  EXPECT_EQ(in_anch->IsLinkedWith(nullptr), false);
+  in_anch->UnlinkAll();
+
+  SubOutDataAnchorPtr out_anch = std::make_shared<SubOutDataAnchor>(node, 0);
+  out_anch->SetImpNull();
+  EXPECT_EQ(out_anch->GetPeerAnchorsSize(), 0UL);
+  EXPECT_EQ(out_anch->GetPeerAnchorsPtr().size(), 0);
+  EXPECT_EQ(out_anch->GetFirstPeerAnchor(), nullptr);
+  EXPECT_EQ(out_anch->GetOwnerNode(), nullptr);
+  EXPECT_EQ(out_anch->GetOwnerNodeBarePtr(), nullptr);
+  EXPECT_EQ(out_anch->GetIdx(), 0);
+  out_anch->SetIdx(5);
+  EXPECT_EQ(out_anch->IsLinkedWith(nullptr), false);
+  out_anch->UnlinkAll();
+  EXPECT_EQ(out_anch->GetPeerInDataAnchors().size(), 0);
+  EXPECT_EQ(out_anch->GetPeerInDataAnchorsPtr().size(), 0);
+  EXPECT_EQ(out_anch->GetPeerInDataNodesSize(), 0U);
+  EXPECT_EQ(out_anch->GetPeerInControlAnchors().size(), 0);
+
+  SubInControlAnchorPtr inc_anch = std::make_shared<SubInControlAnchor>(node, 0);
+  inc_anch->SetImpNull();
+  EXPECT_EQ(inc_anch->IsPeerOutAnchorsEmpty(), false);
+  EXPECT_EQ(inc_anch->GetPeerOutControlAnchors().size(), 0);
+  EXPECT_EQ(inc_anch->GetPeerOutControlAnchorsPtr().size(), 0);
+  EXPECT_EQ(inc_anch->GetPeerOutDataAnchors().size(), 0);
+
+  SubOutControlAnchorPtr outc_anch = std::make_shared<SubOutControlAnchor>(node, 0);
+  outc_anch->SetImpNull();
+  EXPECT_EQ(outc_anch->GetPeerInControlAnchors().size(), 0);
+  EXPECT_EQ(outc_anch->GetPeerInControlAnchorsPtr().size(), 0);
+  EXPECT_EQ(outc_anch->GetPeerInDataAnchors().size(), 0);
+}
+
+TEST_F(AnchorUt, IncCov_InsertSecondPeerTypeMismatch) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+  auto node3 = builder.AddNode("Data3", "Data", 1, 1);
+
+  graphStatus ret = ge::GraphUtils::AddEdge(node0->GetOutDataAnchor(0U), node2->GetInDataAnchor(0));
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+
+  ret = node0->GetOutDataAnchor(0U)->Insert(node2->GetInDataAnchor(0), node1->GetInDataAnchor(0),
+                                            node3->GetInControlAnchor());
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(AnchorUt, IncCov_IsLinkedWithNullPeerAndPeers) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+
+  OutDataAnchorPtr out_anch = node0->GetOutDataAnchor(0);
+  InDataAnchorPtr in_anch = node1->GetInDataAnchor(0);
+  EXPECT_EQ(out_anch->LinkTo(in_anch), GRAPH_SUCCESS);
+  EXPECT_EQ(out_anch->IsLinkedWith(nullptr), false);
+}
+
+TEST_F(AnchorUt, IncCov_LinkToInControlImplNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+
+  SubOutDataAnchorPtr out_anch = std::make_shared<SubOutDataAnchor>(node0, 0);
+  out_anch->SetImpNull();
+  InControlAnchorPtr in_ctrl = node1->GetInControlAnchor();
+  EXPECT_EQ(out_anch->LinkTo(in_ctrl), GRAPH_FAILED);
+}
+
+TEST_F(AnchorUt, IncCov_GetPeerAnchorsPtrWithPeers) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  auto node1 = builder.AddNode("Data1", "Data", 1, 1);
+  auto node2 = builder.AddNode("Data2", "Data", 1, 1);
+
+  OutDataAnchorPtr out_anch = node0->GetOutDataAnchor(0);
+  InDataAnchorPtr in_anch1 = node1->GetInDataAnchor(0);
+  InControlAnchorPtr in_ctrl2 = node2->GetInControlAnchor();
+  EXPECT_EQ(out_anch->LinkTo(in_anch1), GRAPH_SUCCESS);
+  EXPECT_EQ(out_anch->LinkTo(in_ctrl2), GRAPH_SUCCESS);
+  EXPECT_EQ(out_anch->GetPeerAnchorsPtr().size(), 2);
+  EXPECT_EQ(out_anch->GetPeerInDataAnchorsPtr().size(), 1);
+  EXPECT_EQ(out_anch->GetPeerInDataNodesSize(), 1U);
+  EXPECT_EQ(out_anch->GetPeerInControlAnchors().size(), 1);
+
+  OutControlAnchorPtr out_ctrl = node0->GetOutControlAnchor();
+  InControlAnchorPtr in_ctrl = node1->GetInControlAnchor();
+  EXPECT_EQ(out_ctrl->LinkTo(in_ctrl), GRAPH_SUCCESS);
+  EXPECT_EQ(in_ctrl->GetPeerOutControlAnchorsPtr().size(), 1);
+  EXPECT_EQ(in_ctrl->GetPeerOutControlAnchors().size(), 1);
+  EXPECT_EQ(in_ctrl->GetPeerOutDataAnchors().size(), 0);
+
+  InDataAnchorPtr in_data = node2->GetInDataAnchor(0);
+  EXPECT_EQ(out_ctrl->LinkTo(in_data), GRAPH_SUCCESS);
+  EXPECT_EQ(out_ctrl->GetPeerInControlAnchorsPtr().size(), 1);
+  EXPECT_EQ(out_ctrl->GetPeerInDataAnchors().size(), 1);
+}
 }  // namespace ge

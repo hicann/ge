@@ -350,4 +350,36 @@ TEST_F(UtestRegisterPass, CustomPassContext_GetPassName_without_SetPassName) {
   auto custom_pass = CustomPassContext();
   EXPECT_STREQ(custom_pass.GetPassName().GetString(), "");
 }
+
+TEST_F(UtestRegisterPass, IncCov_MiniDAGStreamPassCvParallel) {
+  std::map<std::string, std::string> options_map = {{"ge.autoMultistreamParallelMode", "cv"}};
+  auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption(options_map);
+
+  CustomAllocateStreamPassFunc alloc_fn = [](const ConstGraphPtr &, StreamPassContext &) -> Status { return SUCCESS; };
+  PassRegistrationData pass_data("MiniDAGStreamPass");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_cv");
+  StreamPassContext stream_ctx(0);
+  auto ret = CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream);
+  EXPECT_EQ(ret, SUCCESS);
+
+  GetThreadLocalContext().SetGraphOption(option_bak);
+}
+
+TEST_F(UtestRegisterPass, IncCov_CustomPassContextNullImpl) {
+  auto custom_pass = CustomPassContext();
+  custom_pass.impl_.reset();
+  EXPECT_STREQ(custom_pass.GetErrorMessage().GetString(), "");
+  EXPECT_STREQ(custom_pass.GetPassName().GetString(), "");
+}
+
+TEST_F(UtestRegisterPass, IncCov_StreamPassContextNullImpl) {
+  StreamPassContext stream_ctx(0);
+  stream_ctx.impl_.reset();
+  EXPECT_EQ(stream_ctx.AllocateNextStreamId(), INT64_MAX);
+}
 }  // namespace ge

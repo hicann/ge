@@ -242,7 +242,8 @@ ge::Status BuildTilingDeterministicInput(const ge::NodePtr &node, LoweringGlobal
   if (GetDeterministicConfig(node, deterministic, deterministic_level) != ge::SUCCESS) {
     return ge::FAILED;
   }
-  GELOGI("Get DETERMINISTIC: %d, DETERMINISTIC LEVEL: %d", deterministic, deterministic_level);
+  GELOGI("Get DETERMINISTIC: %d, DETERMINISTIC LEVEL: %d from node: %s", deterministic, deterministic_level,
+         node->GetName().c_str());
 
   auto deterministic_builder = [deterministic]() -> std::vector<ValueHolderPtr> {
     return bg::FrameSelector::OnInitRoot([deterministic]() -> std::vector<ValueHolderPtr> {

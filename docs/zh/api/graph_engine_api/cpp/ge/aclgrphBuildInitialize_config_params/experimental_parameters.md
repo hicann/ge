@@ -64,6 +64,57 @@ HF32是昇腾推出的专门用于算子内部计算的单精度浮点类型，�
 
 <!-- end id1 -->
 
+## DETERMINISTIC\_LEVEL
+
+**该参数为调试参数，暂不支持应用于生产环境，后续版本会作为正式特性更新发布。**
+
+确定性计算级别。此参数实际对应的options参数为`ge.deterministicLevel`。
+
+默认情况下，确定性级别为0，即不开启确定性计算，是否开启确定性计算的选项`DETERMINISTIC`也需要是0。当需要开启确定性计算时，确定性级别需要设置为1，同时确定性计算选项`DETERMINISTIC`也需设置为1。当开启强一致性计算时，级别需要设置为2，同时确定性计算选项`DETERMINISTIC`也需设置为1。当开启Batch一致性计算时，级别需要设置为3，同时确定性计算选项`DETERMINISTIC`也需设置为1。
+
+当开启强一致性计算功能时（DETERMINISTIC\_LEVEL=2），计算结果是确定的，多次执行将产生相同的输出。此外，计算结果与数据的位置无关。例如，在进行矩阵乘时，不同行的累加顺序可能不同，这可能会导致相同数据在不同行的计算结果出现细微差异。但在启用强一致性计算的情况下，只要输入相同，即使在不同的行中，计算结果都将保持一致。
+
+默认情况下，强一致性计算功能不会启用。在这种默认模式下，相同数据出现在不同行时，可能会产生计算结果上的不一致。
+
+**参数取值：**
+
+- 0：（默认值）不开启确定性计算。
+- 1：开启确定性计算。
+- 2：开启强一致性计算。
+- 3：开启Batch一致性计算。
+
+**配置示例：**
+
+```c++
+{ge::ir_option::DETERMINISTIC, "1"},
+{ge::ir_option::DETERMINISTIC_LEVEL, "2"}
+```
+
+**产品支持情况：**
+
+<!-- npu="950" id15 -->
+- Ascend 950PR/Ascend 950DT：支持
+<!-- end id15 -->
+<!-- npu="A3" id16 -->
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+<!-- end id16 -->
+<!-- npu="910b" id17 -->
+- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+<!-- end id17 -->
+<!-- npu="310b" id18 -->
+- Atlas 200I/500 A2 推理产品：不支持
+<!-- end id18 -->
+<!-- npu="310p" id19 -->
+- Atlas 推理系列产品：支持
+<!-- end id19 -->
+<!-- npu="910" id20 -->
+- Atlas 训练系列产品：支持
+<!-- end id20 -->
+<!-- npu="IPV350" id21 -->
+- IPV350：不支持
+<!-- end id21 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/experimental_parameters_res.md#id1 -->
+
 ## OO\_CONSTANT\_FOLDING
 
 **调试功能扩展参数，暂不支持应用于生产环境，后续版本会作为正式功能更新发布。**

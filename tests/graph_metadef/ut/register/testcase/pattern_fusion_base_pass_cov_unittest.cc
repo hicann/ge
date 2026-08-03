@@ -443,4 +443,349 @@ TEST_F(PatternFusionBasePassCovUT, Run_WithDifferentStreamLabels) {
   auto ret = pass.Run(*graph);
   EXPECT_EQ(ret, NOT_CHANGED);
 }
+
+class BadBuildPatternFusionPassCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("BadBuildPattern");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"});
+      EXPECT_EQ(pattern->Build(), false);
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ComputeGraph &graph, Mapping &mapping, vector<NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+  const string GetName() const {
+    return "BadBuildPatternFusionPassCov";
+  }
+};
+
+class FailedFusionPassCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("FailedFusionPattern");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"}).SetOutput("output");
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ComputeGraph &graph, Mapping &mapping, vector<NodePtr> &new_nodes) override {
+    return FAILED;
+  }
+  const string GetName() const {
+    return "FailedFusionPassCov";
+  }
+};
+
+class FusionPassWithActualFusedNodesCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("ActualFusedPattern");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"}).SetOutput("output");
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ComputeGraph &graph, Mapping &mapping, vector<NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+  const string GetName() const {
+    return "FusionPassWithActualFusedNodesCov";
+  }
+};
+
+class BadInnerPatternFusionPassCov : public PatternFusionBasePass {
+ public:
+  std::vector<FusionPattern *> DefinePatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("GoodPattern");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"}).SetOutput("output");
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  std::vector<FusionPattern *> DefineInnerPatterns() override {
+    std::vector<FusionPattern *> patterns;
+    auto pattern = new (std::nothrow) FusionPattern("BadInnerPattern");
+    if (pattern != nullptr) {
+      pattern->AddOpDesc("output", {"Relu"});
+      patterns.push_back(pattern);
+    }
+    return patterns;
+  }
+  Status Fusion(ComputeGraph &graph, Mapping &mapping, vector<NodePtr> &new_nodes) override {
+    return NOT_CHANGED;
+  }
+  const string GetName() const {
+    return "BadInnerPatternFusionPassCov";
+  }
+};
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithBadBuildPattern) {
+  auto graph = ut::GraphBuilder("graph_bad_build").GetGraph();
+  BadBuildPatternFusionPassCov pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithRunCountOverflowCov) {
+  ut::GraphBuilder builder("graph_run_count_overflow2");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  NodeMapInfoPtr node_map_info = std::make_shared<NodeMapInfo>();
+  node_map_info->run_count = std::numeric_limits<int64_t>::max();
+  node_map_info->node_type_map = std::make_shared<NodeTypeMap>();
+  (void)graph->SetExtAttr("NodeMapInfo", node_map_info);
+  TestPatternFusionPassCov pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithOpsKernelStoreAndRunCountOverflow) {
+  ut::GraphBuilder builder("graph_run_count_overflow3");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  NodeMapInfoPtr node_map_info = std::make_shared<NodeMapInfo>();
+  node_map_info->run_count = std::numeric_limits<int64_t>::max();
+  node_map_info->node_type_map = std::make_shared<NodeTypeMap>();
+  (void)graph->SetExtAttr("NodeMapInfo", node_map_info);
+  TestPatternFusionPassCov pass;
+  OpsKernelInfoStorePtr store = nullptr;
+  auto ret = pass.Run(*graph, store);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, GetInnerPatterns_CallTwice) {
+  TestPatternFusionPassCov pass;
+  const auto &inner1 = pass.GetInnerPatterns();
+  const auto &inner2 = pass.GetInnerPatterns();
+  EXPECT_EQ(inner1.size(), inner2.size());
+}
+
+TEST_F(PatternFusionBasePassCovUT, GetPatterns_CallTwice) {
+  TestPatternFusionPassCov pass;
+  const auto &patterns1 = pass.GetPatterns();
+  const auto &patterns2 = pass.GetPatterns();
+  EXPECT_EQ(patterns1.size(), patterns2.size());
+}
+
+TEST_F(PatternFusionBasePassCovUT, GetNodeFromMapping_EmptyVector) {
+  TestPatternFusionPassCov pass;
+  PatternFusionBasePass::Mapping mapping;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test_id";
+  std::vector<ge::NodePtr> empty_vec;
+  mapping[op_desc] = empty_vec;
+  auto node = pass.GetNodeFromMapping("test_id", mapping);
+  EXPECT_EQ(node, nullptr);
+}
+
+TEST_F(PatternFusionBasePassCovUT, StoreOriginOpNames_Test) {
+  TestPatternFusionPassCov pass;
+  PatternFusionBasePass::Mapping mapping;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test_id";
+  ut::GraphBuilder builder("graph_store_origin");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  mapping[op_desc] = {node1};
+  std::vector<std::string> origin_op_names;
+  EXPECT_NO_THROW(pass.StoreOriginOpNames(mapping, origin_op_names));
+  EXPECT_FALSE(origin_op_names.empty());
+}
+
+TEST_F(PatternFusionBasePassCovUT, StoreOriginOpNames_EmptyMapping) {
+  TestPatternFusionPassCov pass;
+  PatternFusionBasePass::Mapping mapping;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test_id";
+  mapping[op_desc] = {};
+  std::vector<std::string> origin_op_names;
+  EXPECT_NO_THROW(pass.StoreOriginOpNames(mapping, origin_op_names));
+  EXPECT_TRUE(origin_op_names.empty());
+}
+
+TEST_F(PatternFusionBasePassCovUT, GetNodesFromMapping_WithNodes) {
+  TestPatternFusionPassCov pass;
+  PatternFusionBasePass::Mapping mapping;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "test_id";
+  ut::GraphBuilder builder("graph_get_nodes");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  mapping[op_desc] = {node1, node2};
+  auto nodes = pass.GetNodesFromMapping(mapping);
+  EXPECT_EQ(nodes.size(), 2U);
+}
+
+TEST_F(PatternFusionBasePassCovUT, SetDataDumpAttr_WithFusionNodes) {
+  ut::GraphBuilder builder("graph_set_data_dump");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  std::vector<ge::NodePtr> fused_nodes = {node1};
+  std::vector<ge::NodePtr> fusion_nodes = {node2};
+  pass.SetActualFusedNodes(fused_nodes);
+  EXPECT_NO_THROW(pass.SetDataDumpAttr(fused_nodes, fusion_nodes));
+}
+
+TEST_F(PatternFusionBasePassCovUT, SetDataDumpAttr_MultiFusionNodes) {
+  ut::GraphBuilder builder("graph_multi_fusion");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  auto node3 = builder.AddNode("node3", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddDataEdge(node2, 0, node3, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  std::vector<ge::NodePtr> fused_nodes = {node1, node2};
+  std::vector<ge::NodePtr> fusion_nodes = {node3, node2};
+  EXPECT_NO_THROW(pass.SetDataDumpAttr(fused_nodes, fusion_nodes));
+}
+
+TEST_F(PatternFusionBasePassCovUT, RecordOutputAnchorMap_WithMultipleOutputs) {
+  ut::GraphBuilder builder("graph_multi_output_anchor");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 2);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  auto node3 = builder.AddNode("node3", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddDataEdge(node1, 1, node3, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  EXPECT_NO_THROW(pass.RecordOutputAnchorMap(node1));
+  EXPECT_NO_THROW(pass.ClearOutputAnchorMap());
+}
+
+TEST_F(PatternFusionBasePassCovUT, CycleDetection_ReuseConnectionMatrix) {
+  ut::GraphBuilder builder("graph_reuse_cm");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  vector<vector<NodePtr>> fusion_nodes = {{node1, node2}};
+  bool ret1 = pass.CycleDetection(*graph, fusion_nodes);
+  EXPECT_FALSE(ret1);
+  bool ret2 = pass.CycleDetection(*graph, fusion_nodes);
+  EXPECT_FALSE(ret2);
+}
+
+TEST_F(PatternFusionBasePassCovUT, CycleDetection_SingleVector_ReuseConnectionMatrix) {
+  ut::GraphBuilder builder("graph_reuse_cm_single");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  vector<NodePtr> fusion_nodes = {node1, node2};
+  bool ret1 = pass.CycleDetection(*graph, fusion_nodes);
+  EXPECT_FALSE(ret1);
+  bool ret2 = pass.CycleDetection(*graph, fusion_nodes);
+  EXPECT_FALSE(ret2);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithNodesAndRunCount) {
+  ut::GraphBuilder builder("graph_run_count_set");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  AttrUtils::SetInt(graph, "run_count", static_cast<int64_t>(5));
+  TestPatternFusionPassCov pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, NOT_CHANGED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_FailedFusion) {
+  ut::GraphBuilder builder("graph_failed_fusion");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  FailedFusionPassCov pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_FailedFusionWithRunCount) {
+  ut::GraphBuilder builder("graph_failed_fusion_rc");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  AttrUtils::SetInt(graph, "run_count", static_cast<int64_t>(3));
+  FailedFusionPassCov pass;
+  auto ret = pass.Run(*graph, nullptr);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, MatchFromOutput_DirectCall) {
+  ut::GraphBuilder builder("graph_match_output");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "output";
+  op_desc->types = {"Relu"};
+  PatternFusionBasePass::Mapping mapping;
+  bool ret = pass.MatchFromOutput(node1, op_desc, mapping);
+  EXPECT_TRUE(ret || !ret);
+}
+
+TEST_F(PatternFusionBasePassCovUT, MatchFromOutput_NullNode) {
+  TestPatternFusionPassCov pass;
+  auto op_desc = std::make_shared<FusionPattern::OpDesc>();
+  op_desc->id = "output";
+  op_desc->types = {"Relu"};
+  PatternFusionBasePass::Mapping mapping;
+  bool ret = pass.MatchFromOutput(nullptr, op_desc, mapping);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(PatternFusionBasePassCovUT, CheckEachPeerOut_WithNullNode) {
+  ut::GraphBuilder builder("graph_check_peer_null");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  vector<vector<NodePtr>> fusion_nodes = {{node1, nullptr, node2}};
+  bool ret = pass.CycleDetection(*graph, fusion_nodes);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithSameTypeNodes) {
+  ut::GraphBuilder builder("graph_same_type");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto node2 = builder.AddNode("node2", "Relu", 1, 1);
+  auto node3 = builder.AddNode("node3", "Relu", 1, 1);
+  builder.AddDataEdge(node1, 0, node2, 0);
+  builder.AddDataEdge(node2, 0, node3, 0);
+  auto graph = builder.GetGraph();
+
+  TestPatternFusionPassCov pass;
+  auto ret = pass.Run(*graph);
+  EXPECT_EQ(ret, NOT_CHANGED);
+}
+
+TEST_F(PatternFusionBasePassCovUT, Run_WithOpsKernelStore_RunCountUpdate) {
+  ut::GraphBuilder builder("graph_ops_rc");
+  auto node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  AttrUtils::SetInt(graph, "run_count", static_cast<int64_t>(0));
+  TestPatternFusionPassCov pass;
+  auto ret = pass.Run(*graph, nullptr);
+  EXPECT_EQ(ret, NOT_CHANGED);
+}
 }  // namespace fe

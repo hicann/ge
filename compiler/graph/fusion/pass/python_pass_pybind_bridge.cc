@@ -431,26 +431,28 @@ class PythonFusionPassPybindBridge {
       return PythonFusionPassPybindBridge::GetInstance().GetPatterns(static_cast<const PythonBridgeHolder *>(holder),
                                                                      patterns);
     };
-    callbacks.meet_requirements = [](const void *holder, const std::unique_ptr<MatchResult> &match_result) -> bool {
+    callbacks.meet_requirements = [](const void *holder, const std::unique_ptr<MatchResult> &match_result,
+                                     CustomPassContext &pass_context) -> bool {
       return PythonFusionPassPybindBridge::GetInstance().CallMeetRequirements(
-          static_cast<const PythonBridgeHolder *>(holder), match_result);
+          static_cast<const PythonBridgeHolder *>(holder), match_result, pass_context);
     };
     callbacks.replacement = [](const void *holder, const std::unique_ptr<MatchResult> &match_result,
-                               GraphUniqPtr &replacement_graph) -> Status {
+                               GraphUniqPtr &replacement_graph, CustomPassContext &pass_context) -> Status {
       return PythonFusionPassPybindBridge::GetInstance().CallReplacement(
-          static_cast<const PythonBridgeHolder *>(holder), match_result, replacement_graph);
+          static_cast<const PythonBridgeHolder *>(holder), match_result, replacement_graph, pass_context);
     };
   }
 
   static void SetDecomposeCallbacks(PythonFusionPassCallbacks &callbacks) {
-    callbacks.decompose_meet_requirements = [](const void *holder, const GNode &matched_node) -> bool {
+    callbacks.decompose_meet_requirements = [](const void *holder, const GNode &matched_node,
+                                               CustomPassContext &pass_context) -> bool {
       return PythonFusionPassPybindBridge::GetInstance().CallDecomposeMeetRequirements(
-          static_cast<const PythonBridgeHolder *>(holder), matched_node);
+          static_cast<const PythonBridgeHolder *>(holder), matched_node, pass_context);
     };
-    callbacks.decompose_replacement = [](const void *holder, const GNode &matched_node,
-                                         GraphUniqPtr &replacement_graph) -> Status {
+    callbacks.decompose_replacement = [](const void *holder, const GNode &matched_node, GraphUniqPtr &replacement_graph,
+                                         CustomPassContext &pass_context) -> Status {
       return PythonFusionPassPybindBridge::GetInstance().CallDecomposeReplacement(
-          static_cast<const PythonBridgeHolder *>(holder), matched_node, replacement_graph);
+          static_cast<const PythonBridgeHolder *>(holder), matched_node, replacement_graph, pass_context);
     };
   }
 
@@ -538,7 +540,8 @@ class PythonFusionPassPybindBridge {
     }
   }
 
-  bool CallMeetRequirements(const PythonBridgeHolder *holder, const std::unique_ptr<MatchResult> &match_result) {
+  bool CallMeetRequirements(const PythonBridgeHolder *holder, const std::unique_ptr<MatchResult> &match_result,
+                            CustomPassContext &pass_context) {
     if ((holder == nullptr) || (match_result == nullptr)) {
       return false;
     }
@@ -550,7 +553,8 @@ class PythonFusionPassPybindBridge {
     py::gil_scoped_acquire gil;
     try {
       py::object result = bridge_module_.attr("call_meet_requirements")(
-          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(match_result.get())));
+          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(match_result.get())),
+          BuildPythonPassContext(pass_context));
       return result.cast<bool>();
     } catch (const py::error_already_set &err) {
       GELOGW("Call python meet_requirements failed, instance id[%s]: %s", holder->instance_id.c_str(), err.what());
@@ -559,7 +563,7 @@ class PythonFusionPassPybindBridge {
   }
 
   Status CallReplacement(const PythonBridgeHolder *holder, const std::unique_ptr<MatchResult> &match_result,
-                         GraphUniqPtr &replacement_graph) {
+                         GraphUniqPtr &replacement_graph, CustomPassContext &pass_context) {
     if (holder == nullptr) {
       return FAILED;
     }
@@ -571,7 +575,8 @@ class PythonFusionPassPybindBridge {
     py::gil_scoped_acquire gil;
     try {
       py::object result = bridge_module_.attr("call_replacement")(
-          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(match_result.get())));
+          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(match_result.get())),
+          BuildPythonPassContext(pass_context));
       if (result.is_none()) {
         GELOGW("Python pattern fusion pass instance[%s] returned None replacement.", holder->instance_id.c_str());
         return FAILED;
@@ -591,7 +596,8 @@ class PythonFusionPassPybindBridge {
     }
   }
 
-  bool CallDecomposeMeetRequirements(const PythonBridgeHolder *holder, const GNode &matched_node) {
+  bool CallDecomposeMeetRequirements(const PythonBridgeHolder *holder, const GNode &matched_node,
+                                     CustomPassContext &pass_context) {
     if (holder == nullptr) {
       return false;
     }
@@ -603,7 +609,8 @@ class PythonFusionPassPybindBridge {
     py::gil_scoped_acquire gil;
     try {
       py::object result = bridge_module_.attr("call_decompose_meet_requirements")(
-          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(&matched_node)));
+          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(&matched_node)),
+          BuildPythonPassContext(pass_context));
       return result.cast<bool>();
     } catch (const py::error_already_set &err) {
       GELOGW("Call python decompose meet_requirements failed, instance id[%s]: %s", holder->instance_id.c_str(),
@@ -613,7 +620,7 @@ class PythonFusionPassPybindBridge {
   }
 
   Status CallDecomposeReplacement(const PythonBridgeHolder *holder, const GNode &matched_node,
-                                  GraphUniqPtr &replacement_graph) {
+                                  GraphUniqPtr &replacement_graph, CustomPassContext &pass_context) {
     if (holder == nullptr) {
       return FAILED;
     }
@@ -625,7 +632,8 @@ class PythonFusionPassPybindBridge {
     py::gil_scoped_acquire gil;
     try {
       py::object result = bridge_module_.attr("call_decompose_replacement")(
-          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(&matched_node)));
+          holder->instance_id, py::int_(reinterpret_cast<uintptr_t>(&matched_node)),
+          BuildPythonPassContext(pass_context));
       if (result.is_none()) {
         GELOGW("Python decompose pass instance[%s] returned None replacement.", holder->instance_id.c_str());
         return FAILED;

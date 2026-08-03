@@ -584,12 +584,12 @@ dataclass。
 
 **文件位置**：`base.py`、`native_bindings/infer_shape_binding.cc`
 
-**功能**：为Python Fusion Pass提供replacement graph的Shape、DataType和Format推导能力。
+**功能**：用于为Python Fusion Pass推导replacement graph的Shape、DataType和Format。
 
 **主要接口**：
-- `infer_shape(replacement, source) -> None`：`source`支持`MatchResult`、`Node`和`SubgraphBoundary`
+- `infer_shape(replacement, source) -> None`：`source`可传入`MatchResult`、`Node`和`SubgraphBoundary`
 
-native binding根据`source`类型调用`InferShapeUtil`的对应重载，先将source的边界输入描述同步到replacement graph的Data节点，再执行全图推导，原地更新图中算子的输出描述。本接口不读取或校验当前PassStage，在任意阶段调用时都会立即执行推导。`MatchResult`仅在当前Pass回调期间有效。推导失败时抛出`RuntimeError`，异常信息包含replacement graph名称、source类型，以及可获取时的source名称。
+native binding根据`source`类型调用`InferShapeUtil`的对应重载，先将source的边界输入描述同步到replacement graph的Data节点，再执行全图推导，原地更新图中算子的输出描述。本接口不读取或校验当前PassStage，在任意阶段调用时都会立即执行推导。`MatchResult`仅在当前Pass回调期间有效。推导失败时抛出`RuntimeError`，异常信息中包含replacement graph名称、source类型，以及可获取时的source名称。
 
 ##### 6. FusionBasePass 类
 

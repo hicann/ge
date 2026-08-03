@@ -11,6 +11,8 @@
 #include <securec.h>
 #include <gtest/gtest.h>
 #include "graph/buffer.h"
+#include "buffer/buffer_impl.h"
+#include "proto/ge_ir.pb.h"
 
 namespace ge {
 class BufferUT : public testing::Test {
@@ -292,5 +294,101 @@ TEST_F(BufferUT, Cov_DefaultValConstructor) {
   for (size_t i = 0; i < 20; ++i) {
     EXPECT_EQ(buf[i], 0x42);
   }
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_ProtoOwnerAttrDef) {
+  auto attr_def = std::make_shared<proto::AttrDef>();
+  attr_def->set_bt("hello");
+  BufferImpl impl(attr_def, attr_def.get());
+  EXPECT_EQ(impl.GetSize(), 5UL);
+  const BufferImpl &const_impl = impl;
+  const uint8_t *ptr = const_impl.GetData();
+  ASSERT_NE(ptr, nullptr);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_ProtoOwnerAttrDef_NullProtoMsg) {
+  auto owner = std::make_shared<proto::AttrDef>();
+  BufferImpl impl(owner, static_cast<proto::AttrDef *>(nullptr));
+  EXPECT_EQ(impl.GetSize(), 0UL);
+  EXPECT_EQ(impl.GetData(), nullptr);
+  const BufferImpl &const_impl = impl;
+  EXPECT_EQ(const_impl.GetData(), nullptr);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_ProtoOwnerString) {
+  auto owner = std::make_shared<proto::AttrDef>();
+  std::string buf = "test";
+  BufferImpl impl(owner, &buf);
+  EXPECT_EQ(impl.GetSize(), 4UL);
+  const BufferImpl &const_impl = impl;
+  const uint8_t *ptr = const_impl.GetData();
+  ASSERT_NE(ptr, nullptr);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_ProtoOwnerString_NullString) {
+  auto owner = std::make_shared<proto::AttrDef>();
+  BufferImpl impl(owner, static_cast<std::string *>(nullptr));
+  EXPECT_EQ(impl.GetSize(), 0UL);
+  EXPECT_EQ(impl.GetData(), nullptr);
+  const BufferImpl &const_impl = impl;
+  EXPECT_EQ(const_impl.GetData(), nullptr);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_GetDataConst_WithData) {
+  uint8_t data[5] = {1, 2, 3, 4, 5};
+  BufferImpl impl;
+  impl.CopyFrom(data, sizeof(data));
+  const BufferImpl &const_impl = impl;
+  const uint8_t *ptr = const_impl.GetData();
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(memcmp(ptr, data, sizeof(data)), 0);
+}
+
+TEST_F(BufferUT, Cov_Buffer_ProtoOwnerAttrDefCtor) {
+  auto attr_def = std::make_shared<proto::AttrDef>();
+  attr_def->set_bt("test");
+  ProtoMsgOwner owner = attr_def;
+  Buffer buf(owner, attr_def.get());
+  EXPECT_EQ(buf.GetSize(), 4UL);
+  EXPECT_NE(buf.GetData(), nullptr);
+}
+
+TEST_F(BufferUT, Cov_Buffer_ProtoOwnerStringCtor) {
+  auto attr_def = std::make_shared<proto::AttrDef>();
+  ProtoMsgOwner owner = attr_def;
+  std::string str = "hello";
+  Buffer buf(owner, &str);
+  EXPECT_EQ(buf.GetSize(), 5UL);
+  EXPECT_NE(buf.GetData(), nullptr);
+}
+
+class GeAttrValueImp {
+ public:
+  static Buffer CreateBufferFromAttrDef(const ProtoMsgOwner &proto_owner, proto::AttrDef *buffer) {
+    return Buffer(proto_owner, buffer);
+  }
+  static Buffer CreateBufferFromString(const ProtoMsgOwner &proto_owner, std::string *buffer) {
+    return Buffer(proto_owner, buffer);
+  }
+};
+
+TEST_F(BufferUT, Cov_Buffer_FromProtoOwnerAttrDef) {
+  auto attr_def = std::make_shared<proto::AttrDef>();
+  attr_def->set_bt("hello");
+  Buffer buf = GeAttrValueImp::CreateBufferFromAttrDef(attr_def, attr_def.get());
+  EXPECT_EQ(buf.GetSize(), 5UL);
+  const Buffer &const_buf = buf;
+  ASSERT_NE(const_buf.GetData(), nullptr);
+  EXPECT_EQ(const_buf.data()[0], static_cast<uint8_t>('h'));
+}
+
+TEST_F(BufferUT, Cov_Buffer_FromProtoOwnerString) {
+  auto owner = std::make_shared<proto::AttrDef>();
+  std::string str = "test";
+  Buffer buf = GeAttrValueImp::CreateBufferFromString(owner, &str);
+  EXPECT_EQ(buf.GetSize(), 4UL);
+  const Buffer &const_buf = buf;
+  ASSERT_NE(const_buf.GetData(), nullptr);
+  EXPECT_EQ(const_buf.data()[0], static_cast<uint8_t>('t'));
 }
 }  // namespace ge

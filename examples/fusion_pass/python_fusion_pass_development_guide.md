@@ -160,6 +160,16 @@ def meet_requirements(self, match_result):
 
 如果只要拓扑匹配成功就替换，可以不写这个方法；默认返回 `True`。
 
+如果meet\_requirements\(\)方法需要读取编译选项或设置错误信息，可以在参数末尾声明`context`：
+
+```python
+from ge.passes import PassContext
+
+
+def meet_requirements(self, match_result, context: PassContext):
+    return context.get_option_value("ge.custom.enable_rule") == "1"
+```
+
 ### 3.5 用 replacement 定义替换结构
 
 最简单的 replacement 可以直接返回某个输入：
@@ -195,6 +205,18 @@ def replacement(self, inputs, match_result):
         break
     return GEMM(a, b, c, 1.0, 1.0, transpose_a, transpose_b)
 ```
+
+如果 replacement 需要同时读取匹配详情和编译期上下文，可以多接收一个`context`参数：
+
+```python
+def replacement(self, inputs, match_result, context: PassContext):
+    a, b, c = inputs[:3]
+    if context.get_option_value("ge.custom.enable_rule") != "1":
+        context.set_error_message("rule is disabled")
+    return GEMM(a, b, c, 1.0, 1.0)
+```
+
+如果 replacement 只需要编译期上下文，也可以使用`replacement(self, inputs, context)`。第三个参数只有严格命名为`context`时才按`PassContext`处理，否则按原有语义作为`match_result`传入。未声明`context`的原有写法保持不变。
 
 ## 4. 什么时候不用 @pattern
 
@@ -276,7 +298,7 @@ class PythonAddZeroConstValueMatchPass(PatternFusionPass):
 骨架如下：
 
 ```python
-from ge.passes import DecomposePass, PassStage, register_decompose_pass
+from ge.passes import DecomposePass, PassContext, PassStage, register_decompose_pass
 
 
 @register_decompose_pass(
@@ -285,10 +307,10 @@ from ge.passes import DecomposePass, PassStage, register_decompose_pass
     op_types=["Conv2D"],
 )
 class PythonMyDecomposePass(DecomposePass):
-    def meet_requirements(self, node):
-        return node.get_attr("groups") != 1
+    def meet_requirements(self, node, context: PassContext):
+        return node.get_attr("groups") != 1 and context.get_pass_name() != ""
 
-    def replacement(self, node):
+    def replacement(self, node, context: PassContext):
         # 返回用基础算子组成的替换 graph
         ...
 ```

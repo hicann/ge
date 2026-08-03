@@ -33,6 +33,7 @@
 #include "faker/aicpu_taskdef_faker.h"
 #include "faker/node_faker.h"
 #include "lowering/placement/placed_lowering_result.h"
+#include "lowering/placement/placed_lowering_register.h"
 #include "framework/common/ge_types.h"
 #include "runtime/gert_api.h"
 #include "check/executor_statistician.h"
@@ -347,6 +348,116 @@ TEST_F(PlaceLoweringResultStringTest, ResultGet_AclnnHbmToHost) {
   // EXPECT_EQ(result->shape, shape);
 
   EXPECT_EQ(result->address->GetFastNode()->GetType(), "CopyD2H");
+}
+
+namespace {
+ge::graphStatus StPriorityGenH2D(const ge::Node *const_node, LoweringGlobalData &global_data, ge::DataType data_type,
+                                 const OutputLowerResult &src, int64_t dst_logic_stream_id, OutputLowerResult &dst) {
+  (void)const_node;
+  (void)dst_logic_stream_id;
+  auto dt_holder = bg::ValueHolder::CreateConst(&data_type, sizeof(data_type));
+  auto tensor_size =
+      bg::ValueHolder::CreateSingleDataOutput("CalcUnalignedTensorSizeFromStorage", {dt_holder, src.shape});
+  auto dst_allocator = global_data.GetOrCreateL2Allocator(0, {kOnDeviceHbm, AllocatorUsage::kAllocNodeOutput});
+  std::vector<bg::ValueHolderPtr> copy_inputs{
+      global_data.GetStreamById(0), dst_allocator, src.address, tensor_size, src.shape, dt_holder};
+  auto dst_address = bg::DevMemValueHolder::CreateSingleDataOutput("CopyH2D", copy_inputs, 0);
+  GE_ASSERT_NOTNULL(bg::ValueHolder::CreateVoidGuarder("FreeMemory", dst_address, {}));
+  dst.shape = src.shape;
+  dst.address = dst_address;
+  dst.address->SetPlacement(kOnDeviceHbm);
+  dst.has_init = true;
+  dst.order_holders.emplace_back(dst_address);
+  return ge::GRAPH_SUCCESS;
+}
+
+void InitTestFramesWithStream(LoweringGlobalData &global_data, int64_t stream_num = 1) {
+  auto init_out = bg::FrameSelector::OnInitRoot([&stream_num, &global_data]() -> std::vector<bg::ValueHolderPtr> {
+    global_data.LoweringAndSplitRtStreams(1);
+    auto stream_num_holder = bg::ValueHolder::CreateConst(&stream_num, sizeof(stream_num));
+    global_data.SetUniqueValueHolder(kGlobalDataModelStreamNum, stream_num_holder);
+    return {};
+  });
+  global_data.LoweringAndSplitRtStreams(stream_num);
+}
+}  // namespace
+
+/*
+ * ST: priority_generator 串联测试 — Const 节点目标 kOnHost
+ * 期望：先 priority_generator(H2D) 生成 kOnDeviceHbm 结果，再 DeviceHbmToHostPermanent(D2H) 生成 kOnHost 结果
+ * D2H 节点无 FreeMemory guarder（永久生命周期）
+ */
+TEST_F(PlaceLoweringResultStringTest, ResultGet_PriorityChain_HbmToHost) {
+  auto node = ComputeNodeFaker().NameAndType("ConstWithPriority", "ConstWithPriority").IoNum(0, 4).Build();
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tmp-graph");
+  compute_graph->AddNode(node);
+  PlacedLoweringRegistry::GetInstance().Register("ConstWithPriority", StPriorityGenH2D);
+
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  LoweringGlobalData global_data = GlobalDataFaker(root_model).Build();
+  InitTestFramesWithStream(global_data, 1);
+
+  auto shape_and_addr = bg::FrameSelector::OnInitRoot([&]() -> std::vector<bg::ValueHolderPtr> {
+    auto c1 = bg::ValueHolder::CreateConst("Hello", 5);
+    auto ret = bg::DevMemValueHolder::CreateDataOutput("SplitTensor", {c1}, 2, 0);
+    ret[0]->SetPlacement(kOnDeviceHbm);
+    ret[1]->SetPlacement(kOnDeviceHbm);
+    return {ret[0], ret[1]};
+  });
+  ASSERT_EQ(shape_and_addr.size(), 2);
+
+  LowerResult lower_result = {HyperStatus::Success(),
+                              {},
+                              {shape_and_addr[0]},
+                              {std::dynamic_pointer_cast<bg::DevMemValueHolder>(shape_and_addr[1])}};
+
+  PlacedLoweringResult plr(node, std::move(lower_result));
+  auto result = plr.GetOutputResult(global_data, 0, {kOnHost, bg::kMainStream}, false);
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(result->has_init);
+  ASSERT_NE(result->address, nullptr);
+
+  auto init_graph = init_frame_->GetExecuteGraph().get();
+  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "CopyD2H"), nullptr);
+  ASSERT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "FreeMemory"), nullptr);
+}
+
+/*
+ * ST: priority_generator 串联测试 — Const 节点目标 kOnDeviceHbm
+ * 期望：只调 priority_generator(H2D)，不串联 D2H
+ */
+TEST_F(PlaceLoweringResultStringTest, ResultGet_PriorityChain_TargetHbm) {
+  auto node = ComputeNodeFaker().NameAndType("ConstWithPriority", "ConstWithPriority").IoNum(0, 4).Build();
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tmp-graph");
+  compute_graph->AddNode(node);
+  PlacedLoweringRegistry::GetInstance().Register("ConstWithPriority", StPriorityGenH2D);
+
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  LoweringGlobalData global_data = GlobalDataFaker(root_model).Build();
+  InitTestFramesWithStream(global_data, 1);
+
+  auto shape_and_addr = bg::FrameSelector::OnInitRoot([&]() -> std::vector<bg::ValueHolderPtr> {
+    auto c1 = bg::ValueHolder::CreateConst("Hello", 5);
+    auto ret = bg::DevMemValueHolder::CreateDataOutput("SplitTensor", {c1}, 2, 0);
+    ret[0]->SetPlacement(kOnHost);
+    ret[1]->SetPlacement(kOnHost);
+    return {ret[0], ret[1]};
+  });
+  ASSERT_EQ(shape_and_addr.size(), 2);
+
+  LowerResult lower_result = {HyperStatus::Success(),
+                              {},
+                              {shape_and_addr[0]},
+                              {std::dynamic_pointer_cast<bg::DevMemValueHolder>(shape_and_addr[1])}};
+
+  PlacedLoweringResult plr(node, std::move(lower_result));
+  auto result = plr.GetOutputTensorResult(global_data, 0, {kOnDeviceHbm, bg::kMainStream});
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(result->has_init);
+
+  auto init_graph = init_frame_->GetExecuteGraph().get();
+  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "CopyH2D"), nullptr);
+  ASSERT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "CopyD2H"), nullptr);
 }
 
 }  // namespace gert

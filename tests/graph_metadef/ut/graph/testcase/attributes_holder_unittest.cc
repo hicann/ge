@@ -246,4 +246,115 @@ TEST_F(AttrHolderUt, CreateAttrGroupWith2Args) {
   auto ptr_5 = s.GetOrCreateAttrsGroup<TestAttrGroup>();
   ASSERT_EQ(ptr_5, ptr);
 }
+
+TEST_F(AttrHolderUt, CovSetAttrEmptyValueFailed) {
+  SubAttrHolder holder;
+  AnyValue empty_av;
+  EXPECT_EQ(holder.SetAttr("empty_key", empty_av), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovTrySetAttrEmptyValueFailed) {
+  SubAttrHolder holder;
+  AnyValue empty_av;
+  EXPECT_EQ(holder.TrySetAttr("empty_key", empty_av), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovTrySetAttrAlreadyExists) {
+  SubAttrHolder holder;
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.SetAttr("existing_key", av), GRAPH_SUCCESS);
+  AnyValue av2 = AnyValue::CreateFrom<int>(99);
+  EXPECT_EQ(holder.TrySetAttr("existing_key", av2), GRAPH_SUCCESS);
+  AnyValue got;
+  EXPECT_EQ(holder.GetAttr("existing_key", got), GRAPH_SUCCESS);
+}
+
+TEST_F(AttrHolderUt, CovGetAttrNonExistent) {
+  SubAttrHolder holder;
+  AnyValue av;
+  EXPECT_EQ(holder.GetAttr("nonexistent_key", av), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovDelAttrNonExistent) {
+  SubAttrHolder holder;
+  EXPECT_EQ(holder.DelAttr("nonexistent_key"), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovDelAttrExistent) {
+  SubAttrHolder holder;
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.SetAttr("key_to_delete", av), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.DelAttr("key_to_delete"), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.DelAttr("key_to_delete"), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovHasAttrNonExistent) {
+  SubAttrHolder holder;
+  EXPECT_FALSE(holder.HasAttr("nonexistent_key"));
+}
+
+TEST_F(AttrHolderUt, CovAddRequiredAttrDuplicate) {
+  SubAttrHolder holder;
+  EXPECT_EQ(holder.AddRequiredAttr("req_attr"), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.AddRequiredAttr("req_attr"), GRAPH_FAILED);
+  EXPECT_TRUE(holder.HasAttr("req_attr"));
+}
+
+TEST_F(AttrHolderUt, CovAddRequiredAttrWithType) {
+  SubAttrHolder holder;
+  EXPECT_EQ(holder.AddRequiredAttrWithType("typed_attr", "Int"), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.AddRequiredAttrWithType("typed_attr", "Float"), GRAPH_FAILED);
+  EXPECT_TRUE(holder.HasAttr("typed_attr"));
+}
+
+TEST_F(AttrHolderUt, CovCopyAttrsFrom) {
+  SubAttrHolder src;
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(src.SetAttr("copy_key", av), GRAPH_SUCCESS);
+
+  SubAttrHolder dst;
+  dst.CopyAttrsFrom(src);
+  AnyValue got;
+  EXPECT_EQ(dst.GetAttr("copy_key", got), GRAPH_SUCCESS);
+}
+
+TEST_F(AttrHolderUt, CovCopyFrom) {
+  SubAttrHolder src;
+  EXPECT_EQ(src.AddRequiredAttrWithType("copy_req", "Int"), GRAPH_SUCCESS);
+
+  SubAttrHolder dst;
+  dst.CopyFrom(src);
+  EXPECT_TRUE(dst.HasAttr("copy_req"));
+}
+
+TEST_F(AttrHolderUt, CovGetAllAttrs) {
+  SubAttrHolder holder;
+  AnyValue av1 = AnyValue::CreateFrom<int>(1);
+  AnyValue av2 = AnyValue::CreateFrom<int>(2);
+  EXPECT_EQ(holder.SetAttr("key1", av1), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.SetAttr("key2", av2), GRAPH_SUCCESS);
+  auto all_attrs = holder.GetAllAttrs();
+  EXPECT_EQ(all_attrs.size(), 2U);
+}
+
+TEST_F(AttrHolderUt, CovGetAllAttrNames) {
+  SubAttrHolder holder;
+  AnyValue av = AnyValue::CreateFrom<int>(1);
+  EXPECT_EQ(holder.SetAttr("name_key", av), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.AddRequiredAttr("req_name"), GRAPH_SUCCESS);
+  auto names = holder.GetAllAttrNames();
+  EXPECT_FALSE(names.empty());
+}
+
+TEST_F(AttrHolderUt, CovGetAllAttrsWithFilter) {
+  SubAttrHolder holder;
+  AnyValue av1 = AnyValue::CreateFrom<int>(1);
+  AnyValue av2 = AnyValue::CreateFrom<int>(2);
+  EXPECT_EQ(holder.SetAttr("keep_key", av1), GRAPH_SUCCESS);
+  EXPECT_EQ(holder.SetAttr("skip_key", av2), GRAPH_SUCCESS);
+  AttrNameFilter filter = [](const std::string &attr_name) { return attr_name == "keep_key"; };
+  auto filtered = holder.GetAllAttrsWithFilter(filter);
+  EXPECT_EQ(filtered.size(), 1U);
+  EXPECT_NE(filtered.find("keep_key"), filtered.end());
+}
 }  // namespace ge

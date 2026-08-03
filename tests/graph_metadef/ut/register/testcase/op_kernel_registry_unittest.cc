@@ -45,4 +45,46 @@ TEST_F(UtestOpKernelRegistry, HostCpuOpRegistrarTest) {
   EXPECT_EQ(host_cpu, nullptr);
 }
 
+class IncCovTestHostCpuOp : public HostCpuOp {
+ public:
+  graphStatus Compute(Operator &op, const std::map<std::string, const ge::Tensor> &inputs,
+                      std::map<std::string, ge::Tensor> &outputs) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
+TEST_F(UtestOpKernelRegistry, IncCov_NullImplIsRegistered_Test) {
+  OpKernelRegistry op_registry;
+  auto *saved = op_registry.impl_.release();
+  EXPECT_FALSE(op_registry.IsRegistered("test_op"));
+  new (&op_registry.impl_) decltype(op_registry.impl_)(saved);
+}
+
+TEST_F(UtestOpKernelRegistry, IncCov_NullImplRegisterHostCpuOp_Test) {
+  OpKernelRegistry op_registry;
+  auto *saved = op_registry.impl_.release();
+  op_registry.RegisterHostCpuOp("test_op", nullptr);
+  new (&op_registry.impl_) decltype(op_registry.impl_)(saved);
+}
+
+TEST_F(UtestOpKernelRegistry, IncCov_NullImplCreateHostCpuOp_Test) {
+  OpKernelRegistry op_registry;
+  auto *saved = op_registry.impl_.release();
+  EXPECT_EQ(op_registry.CreateHostCpuOp("test_op"), nullptr);
+  new (&op_registry.impl_) decltype(op_registry.impl_)(saved);
+}
+
+TEST_F(UtestOpKernelRegistry, IncCov_SuccessfulCreateHostCpuOp_Test) {
+  OpKernelRegistry op_registry;
+  OpKernelRegistry::CreateFn fn = []() -> HostCpuOp * { return new IncCovTestHostCpuOp(); };
+  op_registry.RegisterHostCpuOp("IncCov_TestOp", fn);
+  EXPECT_TRUE(op_registry.IsRegistered("IncCov_TestOp"));
+  auto host_cpu = op_registry.CreateHostCpuOp("IncCov_TestOp");
+  EXPECT_NE(host_cpu, nullptr);
+}
+
+TEST_F(UtestOpKernelRegistry, IncCov_HostCpuOpRegistrarValidType_Test) {
+  HostCpuOpRegistrar registrar("IncCov_ValidOp", []() -> HostCpuOp * { return new IncCovTestHostCpuOp(); });
+  EXPECT_TRUE(OpKernelRegistry::GetInstance().IsRegistered("IncCov_ValidOp"));
+}
 }  // namespace ge

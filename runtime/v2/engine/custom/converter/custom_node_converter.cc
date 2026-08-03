@@ -21,9 +21,44 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/utils/inference_rule.h"
+#include "exe_graph/lowering/data_dependent_interpreter.h"
+#include "graph/utils/attr_utils.h"
+#include "graph/utils/op_desc_utils.h"
 
 namespace gert {
 namespace {
+// Default threshold for non-tensor InputKind values. When the "_custom_op_non_tensor_kind_base"
+// attribute is absent (e.g. older OM models without the attribute), this value is used so that
+// InputKind enums starting from 3 (INT, FLOAT, BOOL, ...) are recognised as non-tensor.
+constexpr int64_t kDefaultNonTensorInputKindBase = 3L;
+
+bool NeedHostInput(const ge::OpDescPtr &op_desc, size_t instance_index, const gert::DataDependentInterpreter &ddi) {
+  std::vector<int64_t> input_kinds;
+  if (!ge::AttrUtils::GetListInt(op_desc, "input_kinds", input_kinds) || input_kinds.empty()) {
+    return false;
+  }
+  size_t ir_index = 0U;
+  if (ge::OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, instance_index, ir_index) != ge::SUCCESS) {
+    return false;
+  }
+  // Read the non-tensor kind base from the attribute set by codegen; fall back to default for
+  // backward compatibility with OMs that do not carry this attribute.
+  int64_t non_tensor_base = kDefaultNonTensorInputKindBase;
+  (void)ge::AttrUtils::GetInt(op_desc, "_custom_op_non_tensor_kind_base", non_tensor_base);
+  if (ir_index >= input_kinds.size() || input_kinds[ir_index] < non_tensor_base) {
+    return false;
+  }
+  bool is_data_dependent = false;
+  if (ddi.IsDataDependent(static_cast<int32_t>(instance_index), is_data_dependent) != ge::GRAPH_SUCCESS) {
+    return false;
+  }
+  if (is_data_dependent) {
+    GELOGI("NeedHostInput: op=%s, input instance_index=%zu, ir_index=%zu, input_kind=%ld, non_tensor_base=%ld",
+           op_desc->GetNamePtr(), instance_index, ir_index, input_kinds[ir_index], non_tensor_base);
+  }
+  return is_data_dependent;
+}
+
 bool NeedCustomOpInferShape(const ge::NodePtr &node, const LoweringGlobalData &global_data) {
   GE_ASSERT_NOTNULL(node);
   const auto op_desc = node->GetOpDesc();
@@ -54,6 +89,8 @@ ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &low
                                   std::vector<bg::ValueHolderPtr> &input_tensor_holders,
                                   std::vector<bg::ValueHolderPtr> &input_addr_holders) {
   const ge::OpDescPtr op_desc = node->GetOpDesc();
+  gert::DataDependentInterpreter ddi(op_desc, lower_input.global_data->GetSpaceRegistriesV2());
+  size_t instance_index = 0U;
   for (const ge::InDataAnchorPtr &in_data_anchor : node->GetAllInDataAnchors()) {
     GE_ASSERT_NOTNULL(in_data_anchor);
     // optional场景
@@ -68,14 +105,15 @@ ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &low
                       peer_node->GetTypePtr());
     auto *lower_result = const_cast<PlacedLoweringResult *>(const_lower_result);
     GE_ASSERT_NOTNULL(lower_result);
-    // remove last true
+    const int32_t input_placement = NeedHostInput(op_desc, instance_index, ddi) ? kOnHost : kOnDeviceHbm;
     const OutputLowerResult *result = lower_result->GetOutputTensorResult(
-        *lower_input.global_data, out_data_anchor->GetIdx(), {kOnDeviceHbm, node->GetOpDesc()->GetStreamId()});
+        *lower_input.global_data, out_data_anchor->GetIdx(), {input_placement, node->GetOpDesc()->GetStreamId()});
     GE_ASSERT_NOTNULL(result, "Lowering result of node [%s, %s] output[%d] is nullptr.", peer_node->GetNamePtr(),
                       peer_node->GetTypePtr(), out_data_anchor->GetIdx());
     GE_ASSERT_NOTNULL(result->shape);
     input_tensor_holders.emplace_back(result->shape);
     input_addr_holders.emplace_back(result->address);
+    ++instance_index;
   }
   GE_ASSERT_TRUE(lower_input.input_shapes.size() == input_tensor_holders.size(),
                  "Size[%zu] of input shapes and size[%zu] of input tensor is not same.",
@@ -108,10 +146,10 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
     input_holders.insert(input_holders.end(), infer_output_shapes.begin(), infer_output_shapes.end());
   }
   // 最后需要workspace地址和args_handler地址
-  std::vector<bg::ValueHolderPtr> output_tensor_holders =
-      bg::ValueHolder::CreateDataOutput(kernel_type.c_str(),
-      input_holders, node->GetAllOutDataAnchorsSize() +
-      static_cast<size_t>(gert::EagerOpExecutionContext::AdditionalOutputIndex::kNum));
+  std::vector<bg::ValueHolderPtr> output_tensor_holders = bg::ValueHolder::CreateDataOutput(
+      kernel_type.c_str(), input_holders,
+      node->GetAllOutDataAnchorsSize() +
+          static_cast<size_t>(gert::EagerOpExecutionContext::AdditionalOutputIndex::kNum));
   std::vector<bg::ValueHolderPtr> output_shapes;
   std::vector<bg::DevMemValueHolderPtr> output_addrs;
   for (size_t i = 0UL; i < node->GetAllOutDataAnchorsSize(); i++) {
@@ -124,11 +162,13 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
     output_shapes.emplace_back(split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kShape)]);
     output_addrs.emplace_back(split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kTensorData)]);
   }
-  LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder("FreeCustomOpWorkspaces",
-      output_tensor_holders[node->GetAllOutDataAnchorsSize()], {allocator_holder}));
-  LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder("FreeArgsGuarder",
+  LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder(
+      "FreeCustomOpWorkspaces", output_tensor_holders[node->GetAllOutDataAnchorsSize()], {allocator_holder}));
+  LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder(
+      "FreeArgsGuarder",
       output_tensor_holders[node->GetAllOutDataAnchorsSize() +
-      static_cast<size_t>(gert::EagerOpExecutionContext::AdditionalOutputIndex::kArgsHandler)], {}));
+                            static_cast<size_t>(gert::EagerOpExecutionContext::AdditionalOutputIndex::kArgsHandler)],
+      {}));
   // 输入tensor需要添加对地址guard的依赖边，否则会出现提前释放
   for (auto &addr : input_addr_holders) {
     auto guarder = addr->GetGuarder();

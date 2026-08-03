@@ -25,6 +25,11 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
+#include "ge_ir.pb.h"
+#include "graph/graph_buffer.h"
+
+extern "C" ge::graphStatus GeApiWrapper_ModelSaveToString(const ge::Graph &graph, const std::string &node_name,
+                                                          std::string &model_str);
 
 namespace ge {
 namespace {
@@ -430,5 +435,125 @@ TEST_F(ModelUt, SaveModelWithAscendWorkPath) {
   EXPECT_EQ(model_back.LoadFromFile(file_path), GRAPH_SUCCESS);
   unsetenv("ASCEND_WORK_PATH");
   system(clear_cmd.c_str());
+}
+
+TEST_F(ModelUt, IncCov_Save_EmptyModel) {
+  Model model;
+  Buffer buf;
+  EXPECT_EQ(model.Save(buf, false), GRAPH_FAILED);
+}
+
+TEST_F(ModelUt, IncCov_SaveWithoutSeparate_ValidModel) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  Buffer buf;
+  EXPECT_EQ(md.SaveWithoutSeparate(buf, false), GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_SaveSeparateModel) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  std::string file_name = "./test_separate.air";
+  std::string clear_cmd = "rm -rf " + file_name + " ./air_weight";
+  system(clear_cmd.c_str());
+  EXPECT_EQ(md.SaveToFile(file_name, true), GRAPH_SUCCESS);
+  system(clear_cmd.c_str());
+}
+
+TEST_F(ModelUt, IncCov_SaveModelDef) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  ge::proto::ModelDef model_def;
+  EXPECT_EQ(md.Save(model_def, false), GRAPH_SUCCESS);
+  EXPECT_EQ(md.Save(model_def, true), GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_LoadFromModelDef) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  ge::proto::ModelDef model_def;
+  md.Save(model_def, false);
+  Model model_back;
+  EXPECT_EQ(model_back.Load(model_def), GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_LoadWithMultiThread_Success) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  Buffer buf;
+  md.Save(buf, false);
+  Model model_back;
+  EXPECT_EQ(Model::LoadWithMultiThread(buf.GetData(), buf.GetSize(), model_back), GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_LoadWithMultiThread_CorruptedData) {
+  uint8_t bad_data[5] = {1, 2, 3, 4, 5};
+  Model model_back;
+  EXPECT_EQ(Model::LoadWithMultiThread(bad_data, 5, model_back), GRAPH_FAILED);
+}
+
+TEST_F(ModelUt, IncCov_ModelSaveToString) {
+  auto graph = BuildGraph();
+  std::string model_str;
+  EXPECT_EQ(GeApiWrapper_ModelSaveToString(graph, "test_node", model_str), GRAPH_SUCCESS);
+  EXPECT_FALSE(model_str.empty());
+}
+
+TEST_F(ModelUt, IncCov_ModelSaveToString_InvalidGraph) {
+  Graph invalid_graph;
+  std::string model_str;
+  auto ret = GeApiWrapper_ModelSaveToString(invalid_graph, "test_node", model_str);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_SaveToFile_InvalidPath) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  EXPECT_EQ(md.SaveToFile("/proc/nonexistent_dir/file.air"), ge::PARAM_INVALID);
+}
+
+TEST_F(ModelUt, IncCov_LoadFromFile_CorruptedFile) {
+  std::string file_name = "./corrupted_model.air";
+  std::ofstream ofs(file_name, std::ios::out);
+  ofs << "corrupted protobuf data that will fail to parse";
+  ofs.close();
+  Model model_back;
+  EXPECT_EQ(model_back.LoadFromFile(file_name), GRAPH_FAILED);
+  system(("rm -rf " + file_name).c_str());
+}
+
+TEST_F(ModelUt, IncCov_SaveToFile_NoDirAndNoWorkPath) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  unsetenv("ASCEND_WORK_PATH");
+  EXPECT_EQ(md.SaveToFile("just_a_file.air"), GRAPH_SUCCESS);
+  system("rm -rf just_a_file.air");
+}
+
+TEST_F(ModelUt, IncCov_LoadFromSerializedModelArray_Success) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  Buffer buf;
+  md.Save(buf, false);
+  Graph loaded_graph;
+  EXPECT_EQ(loaded_graph.LoadFromSerializedModelArray(buf.GetData(), buf.GetSize()), GRAPH_SUCCESS);
+}
+
+TEST_F(ModelUt, IncCov_SaveToMem_LoadFromMem) {
+  auto md = SubModel("md", "test");
+  auto graph = BuildGraph();
+  md.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  GraphBuffer graph_buffer;
+  EXPECT_EQ(graph.SaveToMem(graph_buffer), GRAPH_SUCCESS);
+  Graph loaded_graph;
+  EXPECT_EQ(loaded_graph.LoadFromMem(graph_buffer), GRAPH_SUCCESS);
 }
 }  // namespace ge

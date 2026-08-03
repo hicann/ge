@@ -48,4 +48,20 @@ TEST_F(UtestFftsPlusUpdate, GetUpdater) {
   EXPECT_EQ(FftsPlusUpdateManager::Instance().GetUpdater("AIC_AIV"), nullptr);
   EXPECT_NE(FftsPlusUpdateManager::Instance().GetUpdater("FFTS_TEST"), nullptr);
 }
+
+TEST_F(UtestFftsPlusUpdate, IncCov_RegisterNullCreator_Test) {
+  FftsPlusUpdateManager::Instance().RegisterCreator("IncCov_NullCore", nullptr);
+  EXPECT_EQ(FftsPlusUpdateManager::Instance().GetUpdater("IncCov_NullCore"), nullptr);
+}
+
+TEST_F(UtestFftsPlusUpdate, IncCov_RegisterDuplicateCreator_Test) {
+  auto creator = []() -> FftsCtxUpdatePtr { return std::make_shared<FFTSPlusTaskUpdateStub>(); };
+  FftsPlusUpdateManager::Instance().RegisterCreator("IncCov_DupCore", creator);
+  FftsPlusUpdateManager::Instance().RegisterCreator("IncCov_DupCore", creator);
+  EXPECT_NE(FftsPlusUpdateManager::Instance().GetUpdater("IncCov_DupCore"), nullptr);
+}
+
+TEST_F(UtestFftsPlusUpdate, IncCov_Initialize_Test) {
+  EXPECT_EQ(FftsPlusUpdateManager::Instance().Initialize(), SUCCESS);
+}
 }  // namespace ge

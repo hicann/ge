@@ -39,6 +39,8 @@
 #include "graph/load/model_manager/task_info/ge/sink_op_args_handler.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/utils/node_utils.h"
+#include "graph/utils/tensor_utils.h"
+#include "exe_graph/lowering/data_dependent_interpreter.h"
 
 namespace ge {
 
@@ -69,6 +71,66 @@ void GetStorageShape(const ge::GeTensorDesc &tensor_desc, gert::StorageShape &st
   for (const auto &dim : origin_dims) {
     (void)storage_shape.MutableOriginShape().AppendDim(dim);
   }
+}
+
+Status TryCopyNonTensorInputToHost(const ge::OpDescPtr &op_desc, const ge::GeTensorDescPtr &input_desc,
+                                   size_t instance_index, const std::vector<int64_t> &input_kinds,
+                                   const gert::DataDependentInterpreter *ddi, gert::TensorAddress &address,
+                                   gert::TensorPlacement &placement,
+                                   std::vector<std::unique_ptr<uint8_t[]>> &host_input_mem) {
+  if ((ddi == nullptr) || input_kinds.empty()) {
+    return SUCCESS;
+  }
+  size_t ir_index = 0U;
+  if (ge::OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, instance_index, ir_index) != ge::SUCCESS) {
+    return SUCCESS;
+  }
+  int64_t non_tensor_base = 3L;
+  (void)ge::AttrUtils::GetInt(op_desc, "_custom_op_non_tensor_kind_base", non_tensor_base);
+  if (ir_index >= input_kinds.size() || input_kinds[ir_index] < non_tensor_base) {
+    return SUCCESS;
+  }
+  bool is_data_dependent = false;
+  if (ddi->IsDataDependent(static_cast<int32_t>(instance_index), is_data_dependent) != ge::GRAPH_SUCCESS ||
+      !is_data_dependent) {
+    return SUCCESS;
+  }
+  int64_t tensor_size = 0;
+  GE_ASSERT_SUCCESS(ge::TensorUtils::GetTensorSizeInBytes(*input_desc, tensor_size));
+  if (tensor_size > 0) {
+    GELOGI(
+        "NeedHostInput: op=%s, input instance_index=%zu, ir_index=%zu, input_kind=%ld, non_tensor_base=%ld, "
+        "D2H copy %ld bytes to host",
+        op_desc->GetNamePtr(), instance_index, ir_index, input_kinds[ir_index], non_tensor_base, tensor_size);
+    auto host_mem = ge::ComGraphMakeUnique<uint8_t[]>(static_cast<size_t>(tensor_size));
+    GE_ASSERT_NOTNULL(host_mem);
+    GE_ASSERT_RT_OK(aclrtMemcpy(host_mem.get(), static_cast<size_t>(tensor_size), address,
+                                static_cast<size_t>(tensor_size), ACL_MEMCPY_DEVICE_TO_HOST));
+    address = host_mem.get();
+    placement = gert::kOnHost;
+    host_input_mem.push_back(std::move(host_mem));
+  }
+  return SUCCESS;
+}
+
+Status ConstructOutputTensorHolders(const ge::OpDescPtr &op_desc, const std::vector<uint64_t> &output_data_addrs,
+                                    std::vector<std::unique_ptr<uint8_t[]>> &outputs) {
+  for (size_t i = 0UL; i < op_desc->GetOutputsSize(); i++) {
+    gert::StorageShape storage_shape;
+    auto output_desc = op_desc->MutableOutputDesc(i);
+    GE_ASSERT_NOTNULL(output_desc);
+    GetStorageShape(*output_desc, storage_shape);
+    GE_ASSERT_TRUE((output_data_addrs.size() > i), "output index %zu is invalid, total output size %zu", i,
+                   output_data_addrs.size());
+    gert::TensorAddress address = ValueToPtr(output_data_addrs[i]);
+    std::unique_ptr<uint8_t[]> tensor_holder = ge::ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
+    GE_ASSERT_NOTNULL(tensor_holder, "Create context holder outputs failed.");
+    new (tensor_holder.get())
+        gert::Tensor(storage_shape, {output_desc->GetOriginFormat(), output_desc->GetFormat(), {}}, gert::kOnDeviceHbm,
+                     output_desc->GetDataType(), address);
+    (void)outputs.emplace_back(std::move(tensor_holder));
+  }
+  return SUCCESS;
 }
 
 // inputs layout is input tensors
@@ -347,9 +409,17 @@ void CustomTaskInfo::UpdateIoAndWorkspaceAddrs(const IowAddrs &iow_addrs) {
                                   : iow_addrs.workspace_logic_addrs[i].memory_type;
   }
 }
-Status CustomTaskInfo::ConstructCustomKernelContextInputsOutputs(
-    const ge::OpDescPtr &op_desc, std::vector<std::unique_ptr<uint8_t[]>> &inputs,
-    std::vector<std::unique_ptr<uint8_t[]>> &outputs) const {
+Status CustomTaskInfo::ConstructCustomKernelContextInputsOutputs(const ge::OpDescPtr &op_desc,
+                                                                 std::vector<std::unique_ptr<uint8_t[]>> &inputs,
+                                                                 std::vector<std::unique_ptr<uint8_t[]>> &outputs) {
+  std::vector<int64_t> input_kinds;
+  (void)ge::AttrUtils::GetListInt(op_desc, "input_kinds", input_kinds);
+  auto space_registries = davinci_model_->GetSpaceRegistries();
+  std::unique_ptr<gert::DataDependentInterpreter> ddi = nullptr;
+  if (space_registries != nullptr) {
+    ddi = ge::ComGraphMakeUnique<gert::DataDependentInterpreter>(op_desc, *space_registries);
+  }
+
   size_t invalid_index_num = 0UL;
   for (size_t i = 0UL; i < op_desc->GetAllInputsSize(); i++) {
     if (!IsInputDescValid(op_desc->GetInputDesc(static_cast<uint32_t>(i)), invalid_index_num)) {
@@ -360,34 +430,23 @@ Status CustomTaskInfo::ConstructCustomKernelContextInputsOutputs(
     auto input_desc = op_desc->MutableInputDesc(i);
     GE_ASSERT_NOTNULL(input_desc);
     GetStorageShape(*input_desc, storage_shape);
-    // init tensor address, if cannot get const tensor input, set it to nullptr
     const size_t instance_index = i - invalid_index_num;
     GE_ASSERT_TRUE((input_data_addrs_.size() > instance_index),
                    "instance_index %zu is invalid, %zu - %zu, total input size %zu", instance_index, i,
                    invalid_index_num, input_data_addrs_.size());
     gert::TensorAddress address = ValueToPtr(input_data_addrs_[instance_index]);
+    gert::TensorPlacement placement = gert::kOnDeviceHbm;
+
+    GE_ASSERT_SUCCESS(TryCopyNonTensorInputToHost(op_desc, input_desc, instance_index, input_kinds, ddi.get(), address,
+                                                  placement, host_input_mem_));
+
     std::unique_ptr<uint8_t[]> tensor_holder = ge::ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
     GE_ASSERT_NOTNULL(tensor_holder, "Create context holder inputs failed.");
     new (tensor_holder.get()) gert::Tensor(storage_shape, {input_desc->GetOriginFormat(), input_desc->GetFormat(), {}},
-                                           gert::kOnDeviceHbm, input_desc->GetDataType(), address);
+                                           placement, input_desc->GetDataType(), address);
     (void)inputs.emplace_back(std::move(tensor_holder));
   }
-  for (size_t i = 0UL; i < op_desc->GetOutputsSize(); i++) {
-    gert::StorageShape storage_shape;
-    auto output_desc = op_desc->MutableOutputDesc(i);
-    GE_ASSERT_NOTNULL(output_desc);
-    GetStorageShape(*output_desc, storage_shape);
-    GE_ASSERT_TRUE((output_data_addrs_.size() > i), "output index %zu is invalid, total output size %zu", i,
-                   output_data_addrs_.size());
-    gert::TensorAddress address = ValueToPtr(output_data_addrs_[i]);
-    std::unique_ptr<uint8_t[]> tensor_holder = ge::ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
-    GE_ASSERT_NOTNULL(tensor_holder, "Create context holder outputs failed.");
-    new (tensor_holder.get())
-        gert::Tensor(storage_shape, {output_desc->GetOriginFormat(), output_desc->GetFormat(), {}}, gert::kOnDeviceHbm,
-                     output_desc->GetDataType(), address);
-    (void)outputs.emplace_back(std::move(tensor_holder));
-  }
-  return SUCCESS;
+  return ConstructOutputTensorHolders(op_desc, output_data_addrs_, outputs);
 }
 
 Status CustomTaskInfo::Distribute() {

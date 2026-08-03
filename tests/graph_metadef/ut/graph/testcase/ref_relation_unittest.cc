@@ -139,4 +139,56 @@ TEST_F(UtestRefRelation, build_ref_relations_fail) {
   RefRelations ref;
   EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
 }
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelations_DataNodeNoRefIdx) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto if_op_desc = CreateOpDesc("if", "If", 2, 1);
+  auto if_node = root_graph->AddNode(if_op_desc);
+  if_op_desc->AddSubgraphName("sub1");
+  if_op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  ComputeGraphPtr sub_graph = std::make_shared<ComputeGraph>("sub1");
+  {
+    auto data1_op_desc = CreateOpDesc("sub1_data1", DATA, 1, 1);
+    auto data1_node = sub_graph->AddNode(data1_op_desc);
+
+    auto netoutput_op_desc = CreateOpDesc("sub1_netoutput", NETOUTPUT, 1, 1);
+    auto netoutput_node = sub_graph->AddNode(netoutput_op_desc);
+    AttrUtils::SetInt(netoutput_op_desc->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+    GraphUtils::AddEdge(data1_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+    sub_graph->SetParentGraph(root_graph);
+    sub_graph->SetParentNode(if_node);
+    root_graph->AddSubGraph(sub_graph);
+  }
+
+  RefRelations ref;
+  EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelations_NetOutputNoRefIdx) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto if_op_desc = CreateOpDesc("if", "If", 2, 1);
+  auto if_node = root_graph->AddNode(if_op_desc);
+  if_op_desc->AddSubgraphName("sub1");
+  if_op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  ComputeGraphPtr sub_graph = std::make_shared<ComputeGraph>("sub1");
+  {
+    auto data1_op_desc = CreateOpDesc("sub1_data1", DATA, 1, 1);
+    auto data1_node = sub_graph->AddNode(data1_op_desc);
+    AttrUtils::SetInt(data1_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+    auto netoutput_op_desc = CreateOpDesc("sub1_netoutput", NETOUTPUT, 1, 1);
+    auto netoutput_node = sub_graph->AddNode(netoutput_op_desc);
+
+    GraphUtils::AddEdge(data1_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+    sub_graph->SetParentGraph(root_graph);
+    sub_graph->SetParentNode(if_node);
+    root_graph->AddSubGraph(sub_graph);
+  }
+
+  RefRelations ref;
+  EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
 }  // namespace ge

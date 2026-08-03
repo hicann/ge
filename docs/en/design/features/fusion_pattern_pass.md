@@ -267,6 +267,8 @@ Pass needs to specify execution stage when registering. Stage determines what gr
 
 Initial development suggests first choosing before InferShape stage. Only consider after InferShape stage when your judgment must depend on already derived shapes, or replacement itself will explicitly call shape derivation.
 
+After constructing a replacement graph at `PassStage.AFTER_INFER_SHAPE` or a later stage, you can call `ge.passes.infer_shape` to complete its output descriptions. Pass `MatchResult`, `Node`, or `SubgraphBoundary` as `source` for PatternFusionPass, DecomposePass, or graph-based Pass scenarios, respectively. Do not continue with the replacement if inference fails.
+
 ## 7. Python and C++ Relationship
 
 Both Python and C++ passes will connect to GE's unified pass scheduling flow.
