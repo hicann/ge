@@ -10,6 +10,7 @@
 
 #include "graph/load/model_manager/task_info/args_io_addrs_updater.h"
 #include "graph/load/model_manager/memory_app_type_classifier.h"
+#include "graph/load/model_manager/model_utils.h"
 #include <gtest/gtest.h>
 
 namespace ge {
@@ -251,6 +252,47 @@ TEST_F(UtestArgsIoAddrsUpdater, GenArgsRefreshInfos_EmptyAddrs_NoInfos) {
   std::vector<TaskArgsRefreshInfo> infos;
   updater.GenArgsRefreshInfos(infos, 0ULL, ArgsPlacement::kArgsPlacementHbm);
   EXPECT_EQ(infos.size(), 0UL);
+}
+
+TEST_F(UtestArgsIoAddrsUpdater, SetArgIoAddrsTwiceKeepsInstanceOffsetsAndZeroSlot) {
+  std::vector<MemAllocation> logical_mem_allocations = {
+      {0, 0x10000000ULL, 0x100000ULL, MemAllocation::FEATURE_MAP, 0, 0ULL, 0ULL, 0ULL},
+      {1, 0x20000000ULL, 0x100000ULL, MemAllocation::OUTPUT, 0, 0ULL, 0ULL, 0ULL},
+      {2, 0x0ULL, 0ULL, MemAllocation::ABSOLUTE, 0, 0ULL, 0ULL, 0ULL}};
+  std::vector<uint64_t> logical_addrs = {0x10001000ULL, 0ULL, 0x20002000ULL};
+  std::vector<uint64_t> mem_types = {static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap), kAbsoluteMemType,
+                                     static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo)};
+
+  ArgsIoAddrsUpdater::OpInfo op_info{"twice_refresh_op", "TwiceRefreshOp"};
+  ArgsIoAddrsUpdater updater;
+  ASSERT_EQ(updater.Init(logical_mem_allocations, logical_addrs, mem_types, op_info), SUCCESS);
+
+  std::vector<TaskArgsRefreshInfo> infos;
+  uint64_t host_args_base_offset = 0ULL;
+  updater.GenArgsRefreshInfos(infos, host_args_base_offset, ArgsPlacement::kArgsPlacementHbm);
+  ASSERT_EQ(infos.size(), 3UL);
+  EXPECT_EQ(infos[0].io_index, 0UL);
+  EXPECT_EQ(infos[0].args_offset, 0ULL);
+  EXPECT_EQ(infos[1].io_index, 1UL);
+  EXPECT_EQ(infos[1].args_offset, sizeof(uint64_t));
+  EXPECT_EQ(infos[2].io_index, 2UL);
+  EXPECT_EQ(infos[2].args_offset, 2UL * sizeof(uint64_t));
+
+  uint64_t host_args_a[3] = {0ULL, 0ULL, 0ULL};
+  std::vector<uint64_t> active_bases_a = {0x30000000ULL, 0x40000000ULL, 0ULL};
+  ASSERT_EQ(updater.SetArgIoAddrs(active_bases_a, host_args_a, sizeof(host_args_a)), SUCCESS);
+  EXPECT_EQ(host_args_a[0], 0x30001000ULL);
+  EXPECT_EQ(host_args_a[1], 0ULL);
+  EXPECT_EQ(host_args_a[2], 0x40002000ULL);
+
+  uint64_t host_args_b[3] = {0ULL, 0ULL, 0ULL};
+  std::vector<uint64_t> active_bases_b = {0x50000000ULL, 0x60000000ULL, 0ULL};
+  ASSERT_EQ(updater.SetArgIoAddrs(active_bases_b, host_args_b, sizeof(host_args_b)), SUCCESS);
+  EXPECT_EQ(host_args_b[0], 0x50001000ULL);
+  EXPECT_EQ(host_args_b[1], 0ULL);
+  EXPECT_EQ(host_args_b[2], 0x60002000ULL);
+  EXPECT_NE(host_args_b[0], host_args_a[0]);
+  EXPECT_NE(host_args_b[2], host_args_a[2]);
 }
 
 }  // namespace ge

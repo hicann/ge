@@ -31,7 +31,7 @@ namespace gert {
  * @since 9.2.0(2026-07)
  */
 struct InputAddr {
-  uint32_t index;    ///< 算子 IR 原型定义中的输入 index
+  uint32_t index;    ///< 当前算子实例中的输入平铺 index
   const void *addr;  ///< 输入设备地址
 };
 
@@ -40,7 +40,7 @@ struct InputAddr {
  * @since 9.2.0(2026-07)
  */
 struct OutputAddr {
-  uint32_t index;    ///< 算子 IR 原型定义中的输出 index
+  uint32_t index;    ///< 当前算子实例中的输出平铺 index
   const void *addr;  ///< 输出设备地址
 };
 
@@ -133,7 +133,7 @@ class AnnotatedKernelArgs {
 
   /**
    * 追加一个逻辑输入地址参数。
-   * @param addr 逻辑输入地址描述符，包含 IR index 和设备地址
+   * @param addr 逻辑输入地址描述符，包含输入平铺 index 和设备地址
    * @return GRAPH_SUCCESS 表示追加成功，否则返回错误码
    * @since 9.2.0(2026-07)
    */
@@ -141,7 +141,7 @@ class AnnotatedKernelArgs {
 
   /**
    * 追加一个逻辑输出地址参数。
-   * @param addr 逻辑输出地址描述符，包含 IR index 和设备地址
+   * @param addr 逻辑输出地址描述符，包含输出平铺 index 和设备地址
    * @return GRAPH_SUCCESS 表示追加成功，否则返回错误码
    * @since 9.2.0(2026-07)
    */

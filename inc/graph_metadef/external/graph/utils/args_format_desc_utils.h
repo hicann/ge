@@ -51,6 +51,7 @@ enum class TilingContextSubType {
 
 // i* -> ir_idx = -1，folded=false
 // 对于输入输出，idx表示ir定义的idx，-1表示所有输入、所有输出，此时非动态输入、输出默认展开，动态输出要i1*这样才表示展开
+// 对于 INPUT_INSTANCE/OUTPUT_INSTANCE，idx表示算子实例平铺index，每个descriptor固定对应一个地址槽
 // 对于workspace -1表示个数未知，folded暂时无意义
 // 对ffts尾块非尾块地址，idx=0表示非尾块，idx=1表示尾块
 // 对于hidden input，支持多个，idx表示索引，从0开始，reserved字段表示类型（uint32）
