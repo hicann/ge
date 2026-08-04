@@ -11,7 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_CUSTOM_OP_PYTHON_CUSTOM_OP_BRIDGE_TYPES_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_CUSTOM_OP_PYTHON_CUSTOM_OP_BRIDGE_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -30,39 +29,12 @@ struct PythonCustomOpDescriptor {
   CustomOpCapabilityMask capabilities{0U};
 };
 
-// 该借用式 POD view 是临时的 bridge 边界。CollectCustomOpIrMeta 当前依赖 runtime 私有接口，
-// Python 版本敏感的 bridge/codegen 只能依赖 run 包的公开头文件，因此由 custom_op_runtime 持有 IR 快照并
-// 通过该 view 暴露。后续 collector 所需接口全部成为 run 包稳定公开 API 后，应将 collector 迁移到
-// bridge/codegen 侧并删除 POD 投影，改为通过正式公共头文件和符号表达依赖，不再维护私有 callback/POD 协议。
-struct PythonCustomOpIrInputView {
-  const char *name;
-  uint32_t kind;
-};
-
-struct PythonCustomOpIrAttrView {
-  const char *name;
-  const char *type;
-};
-
-struct PythonCustomOpIrOutputView {
-  const char *name;
-  uint32_t kind;
-};
-
-struct PythonCustomOpIrMetaView {
-  const char *op_type;
-  const PythonCustomOpIrInputView *inputs;
-  size_t input_count;
-  const PythonCustomOpIrAttrView *attrs;
-  size_t attr_count;
-  const PythonCustomOpIrOutputView *outputs;
-  size_t output_count;
-};
+// IR 原型由 Python bridge 通过 run 包正式公开的 GetRegisteredIrDef 接口获取并在 bridge 内部缓存，
+// 不再通过 runtime/bridge callback 传递 IR 的私有 POD 投影。
 
 using PythonCustomOpHolderCreateFn = void *(*)(const PythonCustomOpDescriptor *desc);
 using PythonCustomOpHolderDestroyFn = void (*)(void *holder);
-using PythonCustomOpExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx,
-                                                const PythonCustomOpIrMetaView *ir_meta);
+using PythonCustomOpExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx);
 
 struct PythonCustomOpCallbacks {
   PythonCustomOpHolderCreateFn create{nullptr};

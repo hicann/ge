@@ -8,20 +8,20 @@ This document describes the requirements, design boundaries, runtime access meth
 
 ### 1.2 Scope
 
-The full positioning of the Python custom operator is to support users in describing custom operator prototypes in Python and implementing all custom operator capabilities based on `BaseCustomOp`. The current V1 release completes the minimum viable closed loop and covers only the following capabilities:
+The full positioning of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. The current V1 release completes the minimum viable closed loop and covers only the following capabilities:
 
-- Python users write `EagerExecuteOp` execution logic through `ge.custom_op`.
+- Python users write `execute` logic through `ge.custom_op`. User classes do not need to inherit capability base classes, while the existing `EagerExecuteOp` inheritance form remains compatible.
+- `execute` supports both the legacy form that directly receives an `EagerOpExecutionContext` and a schema-bound form whose inputs and attributes are assembled from canonical IR.
 - Python plugins are discovered and imported through `ASCEND_CUSTOM_OPP_PATH`.
 - GE loads Python custom ops idempotently before initialization, online compilation, and execution.
 - The C++ runtime accesses the existing `CustomOpFactory` / `CustomOpRegistry` through `PythonCustomOpAdapter`.
-- The Python native module `_ge_custom_op_native` provides the `EagerOpExecutionContext` borrowed view.
+- The Python native module `_ge_custom_op_native` provides `EagerOpExecutionContext` and `RuntimeAttrs` borrowed views.
 - `ge.runtime` provides runtime data structures required by the context for return values or input parameters, such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement`.
 
 V1 does not cover the following items, but these capabilities remain within the scope of subsequent Python custom operator evolution:
 
 - Python versions of `ShapeInferOp`, `CompilableOp`, `PortableOp`, `ArgsUpdater`, and `AnnotatedArgsOp`.
 - Python operator prototype definition and op proto generation/registration.
-- A more Pythonic `execute` user interface.
 - Python custom operator serialization and deserialization with OM and cross-process loading.
 - External encapsulation of `KernelArgs` / `MallocReadOnlyDevArgs` on the Python side.
 
@@ -31,9 +31,9 @@ V1 does not cover the following items, but these capabilities remain within the 
 
 GE supports extending operator prototypes, compilation capabilities, and runtime execution capabilities through custom operators. Traditional C++ custom operators define operator prototypes, implement `BaseCustomOp` and its capability interfaces, and register creators to `CustomOpFactory`. They are created and invoked by GE during the compilation and execution phases.
 
-The Python custom operator aims to progressively provide Python implementations for operator prototypes and all `BaseCustomOp` capabilities. The current V1 release only enables the `EagerExecuteOp` execution capability: users still provide operator definitions and kernels through the existing OPP / op proto mechanism, and GE wraps the runtime `EagerOpExecutionContext` as a Python borrowed view and calls back the user's Python `execute` method to complete host-side scheduling.
+The Python custom operator aims to progressively provide Python implementations for operator prototypes and custom operator capabilities. The current V1 release only enables execution capability: users still provide operator definitions and kernels through the existing OPP / op proto mechanism, and GE wraps the runtime `EagerOpExecutionContext` as a Python borrowed view and calls back the user's Python `execute` method to complete host-side scheduling.
 
-The current `execute(ctx)` is a direct Python counterpart of the C++ `EagerExecuteOp::Execute(gert::EagerOpExecutionContext *)`. It is primarily used to establish the bridge, lifecycle, and runtime tensor access closed loop. Subsequent releases need to provide more Pythonic interfaces on this basis, such as more natural input parameter expressions, to reduce the cost for users to directly understand C++ context details.
+The execution entry supports two forms. `execute(ctx)` directly corresponds to C++ `EagerExecuteOp::Execute(gert::EagerOpExecutionContext *)`, while schema-bound `execute` lets the bridge assemble input and attribute arguments from canonical IR and the runtime context. Both forms share the same adapter, holder, and borrowed-view lifecycle.
 
 ### 2.2 Product Environment Introduction
 
@@ -47,9 +47,9 @@ The actual module boundaries are as follows:
 
 | Module | Location | Responsibility |
 |--------|----------|----------------|
-| Python API | `api/python/ge/ge/custom_op/` | User base class inheritance, implementation registration, plugin discovery, bridge helper |
+| Python API | `api/python/ge/ge/custom_op/` | Implementation method reflection, registration, compatibility base classes, plugin discovery, bridge helper |
 | Runtime types | `api/python/ge/ge/runtime/` | Runtime data structures such as `Tensor`, `StorageShape`, and `StorageFormat` |
-| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`, binding `EagerOpExecutionContext` |
+| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`, binding `EagerOpExecutionContext` and `RuntimeAttrs` |
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | Unified loading of C++ custom ops and Python custom ops |
 | Bridge loader | `runtime/custom_op/python_custom_op_bridge_loader.cc` | Artifact selection, loading `libge_python_custom_op_bridge.so`, and creator registration |
 | Pybind bridge | `runtime/custom_op/python_custom_op_pybind_bridge.cc` | Importing the Python bridge module, creating holders, and calling back `execute` |
@@ -61,8 +61,9 @@ The actual module boundaries are as follows:
 V1 functions include:
 
 - `@register_op_impl(op_type=...)` registers a Python custom operator implementation.
-- `EagerExecuteOp.execute(self, ctx)` receives an `EagerOpExecutionContext`.
-- `EagerOpExecutionContext` supports input and output tensor queries, output and workspace allocation, and stream retrieval.
+- `register_op_impl` reflects a callable `execute` method on the implementation class and declares execution capability without requiring inheritance from `BaseCustomOp` or `EagerExecuteOp`.
+- The legacy `execute(self, ctx)` form directly receives an `EagerOpExecutionContext`; the schema-bound form receives inputs and attributes assembled from canonical IR.
+- `EagerOpExecutionContext` supports input and output tensor queries, dynamic input instance counts, runtime attribute access, output and workspace allocation, and stream retrieval.
 - `ASCEND_CUSTOM_OPP_PATH` carries both the existing C++ custom op OPP paths and the Python custom op file or package paths.
 - GE initialization and `GraphManager::PreRun()` idempotently load Python custom ops when needed, so that the corresponding op type is visible before `OpsKernelInfo` is refreshed.
 
@@ -71,10 +72,11 @@ V1 functions include:
 - The AscendIR graph structure, op proto format, and OM file format are not changed.
 - Python runtime or pybind dependencies are not directly introduced in `graph_metadef/register`.
 - Python entry failures affect loading only when Python custom op entries actually exist. The loading is skipped when no Python file or package is present.
-- `EagerOpExecutionContext` and objects returned through it are all borrowed views and can be used only within the current `execute` callback.
+- `EagerOpExecutionContext`, `RuntimeAttrs`, and borrowed views such as `Tensor` objects returned through them can be used only within the current `execute` callback.
 - The return value of the Python `execute` method is not used as a status code. A normal return indicates success, and an exception indicates failure.
 - The Python custom op currently declares only the `EagerExecuteOp` capability. Other C++ capability interfaces are retained as overrides in the adapter but are treated as unsupported.
-- The current `execute(ctx)` maintains direct semantic alignment with the C++ `EagerOpExecutionContext`. The Pythonic API is a subsequent evolution goal and is not forcibly abstracted in V1.
+- The schema-bound form depends on canonical IR from the existing operator prototype. The function signature is assumed to follow IR input and attribute order, and no additional signature-to-IR consistency check is performed.
+- A schema-bound callback obtains the current context through `get_execute_ctx()`. The binding is valid only in the dynamic scope of that callback.
 - The Python custom op native/bridge is related to the Python ABI at build time. Cross-Python minor version compatibility is not guaranteed.
 
 ### 2.5 Assumptions and Dependencies
@@ -106,10 +108,11 @@ GE initialization / PreRun
 
 Runtime execution
   -> CustomOpRegistry creates PythonCustomOpAdapter
+  -> The bridge obtains and caches canonical IR through the public run-package symbol GetRegisteredIrDef(op_type)
   -> CustomOpCast<EagerExecuteOp>()
   -> PythonCustomOpAdapter::Execute(ctx)
-  -> ge.custom_op._bridge.call_execute(instance_id, python_ctx)
-  -> User EagerExecuteOp.execute(...)
+  -> ge.custom_op._bridge.call_execute(instance_id, ir_meta, python_ctx)
+  -> legacy execute(ctx) or schema-bound execute(*inputs, **attrs)
 ```
 
 ### 3.2 Functional Requirements
@@ -118,25 +121,36 @@ Runtime execution
 
 **Introduction**
 
-Users inherit `ge.custom_op.EagerExecuteOp` and implement the `execute` method. The current `ctx` form directly maps to the C++ `EagerOpExecutionContext` and is a low-level interface in V1.
+Users implement a callable `execute` method in either a plain Python class or a subclass of a compatibility base class. The bridge selects the invocation form from the bound method signature: a single positional parameter named `ctx` uses the legacy form, while other signatures use the schema-bound form. Callable `execute` methods provided through `staticmethod`, `classmethod`, or inheritance follow the same rule.
 
 ```python
+# Legacy form
 def execute(self, ctx: EagerOpExecutionContext) -> None:
+    ...
+
+# Schema-bound form; parameter order follows canonical IR
+def execute(self, x, optional_y, dynamic_z, *, alpha, axes) -> None:
     ...
 ```
 
 **Input**
 
-- `ctx`: `EagerOpExecutionContext` borrowed view.
+- Legacy form: `ctx` is an `EagerOpExecutionContext` borrowed view.
+- Schema-bound inputs: `REQUIRED_INPUT` passes one `Tensor`, `OPTIONAL_INPUT` passes a `Tensor` or `None`, and `DYNAMIC_INPUT` passes a list of `Tensor` objects in runtime instance order.
+- Schema-bound attributes: the bridge reads runtime attributes in canonical IR order and passes them as keyword arguments named by the IR attributes.
 
 **Processing**
 
+- When `PythonCustomOpAdapter` creates its holder, the bridge collects canonical IR through the official public run-package API `GetRegisteredIrDef(op_type)` and stores an owned IR snapshot in the bridge holder.
+- Schema-bound invocation reads inputs and attributes from `EagerOpExecutionContext` in IR order and does not additionally validate the Python function signature against IR.
+- During a schema-bound callback, `get_execute_ctx()` returns the current context. When a nested invocation ends, the outer binding is restored.
 - The Python bridge calls `ctx._invalidate()` in the `finally` block to invalidate the context and its derived borrowed views.
 
 **Output**
 
 - A normal return indicates successful execution.
 - Users should express failure by raising exceptions.
+- A schema-bound invocation without canonical IR raises `RuntimeError`.
 
 #### 3.2.2 Plugin Discovery and Registration
 
@@ -151,8 +165,9 @@ The Python custom op uses the `@register_op_impl(op_type=...)` decorator to regi
 
 **Processing**
 
-- `register_op_impl` verifies that the decorated object is a subclass of `BaseCustomOp`.
-- The registry collects the interfaces supported by the class. Currently, only `EagerExecuteOp` is supported, and it generates `descriptor_key = module_name:class_name:op_type`.
+- `register_op_impl` verifies that the decorated object is a concrete, non-abstract class. It does not require a `BaseCustomOp` subclass; holder creation later instantiates the class with a no-argument constructor.
+- The registry reflects callable methods on the class. Currently, `execute` maps to `eager_execute`, and the registry generates `descriptor_key = module_name:class_name:op_type`.
+- Registration fails when the class implements no supported method. The business parameter signature of `execute` is not validated during registration.
 - `ge.custom_op.bootstrap.load_custom_op_plugins()` imports Python plugins from the environment variable path through `ge._internal.plugin_loader`.
 - The bridge reads `get_registered_op_impl_dicts()` and converts descriptors into data consumable by C++.
 
@@ -172,7 +187,7 @@ Each descriptor contains at least:
 
 **Introduction**
 
-`_ge_custom_op_native` only binds `EagerOpExecutionContext`. Types such as `Tensor`, `StorageShape`, and `StorageFormat` returned by context methods are provided by `ge.runtime`.
+`_ge_custom_op_native` binds `EagerOpExecutionContext` and `RuntimeAttrs`. Types such as `Tensor`, `StorageShape`, and `StorageFormat` returned by context methods are provided by `ge.runtime`.
 
 **Input**
 
@@ -186,6 +201,8 @@ The bridge layer injects the Python borrowed view at the execution entry.
 |--------|-------------|
 | `get_input_tensor(index)` | Obtains an input `Tensor` by input index |
 | `get_input_num()` | Obtains the number of runtime input tensors of the current compute node |
+| `get_dynamic_input_num(ir_index)` | Obtains the runtime instance count of a dynamic input IR slot |
+| `get_attrs()` | Obtains the `RuntimeAttrs` borrowed view of the current node |
 | `get_required_input_tensor(ir_index)` | Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition |
 | `get_optional_input_tensor(ir_index)` | Obtains an `OPTIONAL_INPUT` type input `Tensor` based on the operator IR prototype definition |
 | `get_dynamic_input_tensor(ir_index, relative_index)` | Obtains a `DYNAMIC_INPUT` type input `Tensor` based on the operator IR prototype definition |
@@ -195,12 +212,21 @@ The bridge layer injects the Python borrowed view at the execution entry.
 | `get_output_tensor(index)` | Obtains the output `Tensor` specified by index |
 | `get_stream()` | Obtains the address integer of the associated execution stream |
 
+`RuntimeAttrs` provides the following typed readers by attribute IR index:
+
+| Attribute type | Methods |
+|----------------|---------|
+| Scalar | `get_int`, `get_float`, `get_bool`, `get_str`, `get_data_type`, and `get_tensor` |
+| List | `get_list_int`, `get_list_float`, `get_list_bool`, `get_list_str`, `get_list_data_type`, and `get_list_list_int` |
+| Count | `get_attr_num()` |
+
 **Output**
 
 - Tensor-related methods return `ge.runtime.Tensor`.
 - Shape and format input parameters use `ge.runtime.StorageShape` and `ge.runtime.StorageFormat`.
 - dtype uses `ge.graph.DataType`.
 - Stream and workspace addresses are represented as Python `int`.
+- `RuntimeAttrs` and borrowed objects returned from it expire with the current context.
 
 #### 3.2.4 C++ Adapter and Capability Detection
 
@@ -255,8 +281,8 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 
 #### 3.3.2 Testability
 
-- Python UT covers registration, `ctx` signature verification, holder creation and destruction, and environment variable plugin loading.
-- C++ UT should cover the capability helper, adapter execute forwarding, loader skip and load paths, bridge ABI verification, and shutdown order.
+- Python UT covers plain-class and compatibility-base registration, capability reflection, legacy/schema-bound invocation, IR input and attribute assembly, context scope, holder lifecycle, and environment-variable plugin loading.
+- C++ UT should cover the capability helper, canonical IR collection and POD view, adapter execute forwarding, loader skip and load paths, bridge ABI verification, and shutdown order.
 - The sample `examples/custom_op/args_refresh_add_custom/python` verifies end-to-end loading, graph construction, and execution.
 
 #### 3.3.3 Portability
@@ -268,7 +294,7 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 
 - When no Python custom op entry exists, loading is skipped and existing C++ custom ops are not affected.
 - When a Python custom op entry exists but the interpreter is not loaded or not initialized, the loader returns failure to avoid continuing execution in a partially initialized state.
-- Borrowed views are uniformly invalidated after `execute` completes, reducing the risk of dangling references across callbacks.
+- Borrowed views are uniformly invalidated after `execute` completes, and schema-bound context bindings are cleared on both normal and exceptional paths, reducing the risk of dangling references across callbacks.
 
 #### 3.3.5 Platform Requirements
 
@@ -278,11 +304,11 @@ The Python custom op does not differentiate between chips and does not introduce
 
 | Scenario | Applicability | Analysis |
 |----------|---------------|----------|
-| Static Shape | Applicable | The Python custom op executes through the existing `EagerExecuteOp` call site and does not change static shape compilation, memory planning, or DavinciModel interfaces. The execution hot path only calls back to Python after the custom operator node enters the adapter. |
-| Dynamic Shape | Applicable | `EagerOpExecutionContext` provides dynamic input queries and runtime tensor metadata. The Python side reads shape, format, and dtype from the current execution context and does not add RT2 lowering data. |
+| Static Shape | Applicable | The Python custom op executes through the existing `EagerExecuteOp` call site. Schema-bound arguments only project existing canonical IR and do not change static-shape compilation, memory planning, or DavinciModel interfaces. |
+| Dynamic Shape | Applicable | `EagerOpExecutionContext` provides dynamic input instance counts, tensor queries, and runtime metadata. The bridge assembles dynamic input lists at execution time and adds no RT2 lowering data. |
 | Dynamic Shape Static Subgraph | Applicable | No new `DavinciModelCreate` / `DavinciModelCreateV2` inputs are added, and the v2-to-v1 boundary data is not changed. If a custom op exists in a static subgraph, it is still called through the existing custom op registry and `EagerExecuteOp` path. |
 | Offline Scenario (atc compilation) | Partially applicable | atc initialization loads custom ops, making the Python op type visible during compilation. However, the current Python implementation is not saved with the OM and cannot serve as an independently deployable offline execution implementation. |
-| Online Scenario (framework adaptation) | Applicable | Both online initialization and `GraphManager::PreRun()` can load Python custom ops. The front end still needs to generate matching op types and necessary tensor descriptions. |
+| Online Scenario (framework adaptation) | Applicable | Both online initialization and `GraphManager::PreRun()` can load Python custom ops. The front end still needs to generate matching op types, operator prototypes, and necessary tensor descriptions; schema-bound invocation reuses canonical IR from that prototype. |
 
 ## 4. Performance
 
@@ -296,7 +322,7 @@ The current implementation does not serialize Python implementations into the OM
 
 ### 4.3 Execution Performance
 
-The V1 Python `EagerExecuteOp.execute` path enters the Python GIL and calls back user Python code. Its performance is not equivalent to that of C++ custom ops. This low-level execution interface is primarily used to enable development convenience and host-side scheduling capabilities and is not suitable as an ultimate execution performance path. The execution hot path does not print high-frequency logs. Logs, dynamic allocation, ACL calls, and kernel args management in user Python code are controlled by the user.
+The Python `execute` path enters the Python GIL and calls back user Python code. Its performance is not equivalent to that of C++ custom ops. The schema-bound form also traverses IR inputs and attributes and creates Python `list` / `dict` arguments, with cost growing linearly with the number of prototype parameters. This interface primarily provides development convenience and host-side scheduling and is not suitable as an ultimate execution performance path. The execution hot path does not print high-frequency logs. Logs, dynamic allocation, ACL calls, and kernel args management in user Python code are controlled by the user.
 
 ## 5. Interface Design
 
@@ -306,11 +332,13 @@ For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/cu
 
 | Interface | Description |
 |-----------|-------------|
-| `BaseCustomOp` | Python custom op base class |
-| `EagerExecuteOp` | Eager execution custom operator base class |
-| `EagerExecuteOp.execute` | User-implemented execution entry |
+| `BaseCustomOp` | Compatibility base class for existing Python custom ops; new implementations are not required to inherit it |
+| `EagerExecuteOp` | Compatibility Eager execution base class; new implementations may use a plain class |
+| `execute` | User-implemented execution entry supporting both legacy and schema-bound forms |
 | `EagerOpExecutionContext` | Execution context borrowed view |
-| `register_op_impl` | Registers a Python custom op implementation class |
+| `RuntimeAttrs` | Attribute borrowed view returned by `EagerOpExecutionContext.get_attrs()` |
+| `get_execute_ctx` | Obtains the execution context of the active schema-bound callback |
+| `register_op_impl` | Registers an implementation class and reflects its capability methods |
 | `get_registered_op_impls` | Obtains the list of descriptor objects |
 | `get_registered_op_impl_dicts` | Obtains the bridge dictionary list |
 | `get_registered_op_impl_by_descriptor_key` | Queries a descriptor by descriptor key |
@@ -325,9 +353,9 @@ For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/cu
 | Interface description | Whether review is required; review should focus on interface compatibility and interface constraints | Involved; new Python external API added |
 | Interface description | Whether supplementary materials are needed | Involved; API documentation and samples have been added |
 | Interface description | Whether interface prototypes, functions, and return values are clearly described | Involved; refer to the API documentation |
-| Interface compatibility | Whether behavior changes before and after modification | Not involved; this is a new capability with no historical public Python custom op API |
+| Interface compatibility | Whether behavior changes before and after modification | Involved; existing inheritance and `execute(ctx)` behavior is preserved, while plain-class registration and schema-bound invocation are added |
 | Interface compatibility | Whether the new interface works properly on older versions | Involved; it is unavailable when the older run package lacks the corresponding native/bridge |
-| Interface constraints | Whether usage scenarios and call sequence constraints are involved | Involved; the context can be used only within the current `execute` callback |
+| Interface constraints | Whether usage scenarios and call sequence constraints are involved | Involved; context/attrs are valid only in the current callback, and schema-bound invocation depends on canonical IR |
 | Interface constraints | Whether clear errors are reported when constraints are not met | Involved; the Python side raises `TypeError` / `ValueError` / `RuntimeError` |
 | Interface constraints | Whether dedicated test cases need to be designed | Involved; coverage of registration, signatures, lifecycle, and native context is required |
 
@@ -347,10 +375,16 @@ class OpImplDescriptor:
     module_name: str
     class_name: str
     interfaces: List[str]
-    cls: Type[BaseCustomOp]
+    cls: Type[Any]
 ```
 
 `to_bridge_dict()` returns the stable fields required by the bridge and does not expose `cls`.
+
+#### PythonCustomOpIrMeta
+
+The Python-version-sensitive bridge uses the official `GetRegisteredIrDef` signature from public run-package headers, resolves the loaded run-package symbol through `dlsym(RTLD_DEFAULT, "GetRegisteredIrDef")`, and copies the returned op type, input, attribute, and output information into its private `PythonCustomOpIrMeta`. `PythonCustomOpBridgeHolder` owns the metadata, so neither C++ containers nor a private POD view cross the runtime/bridge callback boundary.
+
+Runtime symbol resolution is used because `libge_runner.so`/`libge_runner_v2.so` already depend on `custom_op_runtime`, while the bridge is dynamically loaded by `custom_op_runtime`; directly linking the bridge back to a runner would create a reverse SO dependency. The function signature and data types are still governed by official public run-package headers, with only symbol binding deferred until after the bridge is loaded.
 
 #### PythonCustomOpDescriptor
 
@@ -376,8 +410,11 @@ The native binding holds a `gert::EagerOpExecutionContext *` and a shared validi
 
 - **Plugin discovery**: Reuses `ge._internal.plugin_loader` and splits environment variables by `os.pathsep`. Files are imported by dynamic module name, and directories are imported as one-level `.py` files and packages.
 - **Artifact selection**: Reuses `python_artifact_utils` and `python_bridge_loader_utils` and matches `python_custom_op_artifacts` by the loaded Python runtime key.
+- **Capability reflection**: The registry applies `getattr` and `callable` checks to the implementation class and maps `execute` to `eager_execute`. The inheritance hierarchy of the Python user class does not participate in capability detection.
 - **Capability filtering**: `CustomOpCast<T>()` first identifies `CustomOpCapabilityProvider` and then checks the bitmask to determine whether the target interface is supported.
+- **IR argument assembly**: The adapter holds a POD view of canonical IR. The bridge reads required, optional, and dynamic inputs and typed runtime attributes in IR order, then constructs positional and keyword arguments.
 - **Holder lifecycle**: The C++ adapter owns `PythonCustomOpHolder`. The Python side uses `_OP_IMPL_HOLDERS` to save instances by `instance_id`. When the adapter is destructed, the Python holder is destroyed.
+- **Context binding**: A schema-bound callback establishes a dynamic scope with `ContextVar`, and `get_execute_ctx()` reads the current binding. Resetting the token restores the outer context after nested invocation.
 - **Context invalidation**: The `call_execute` of the bridge uses `finally` to ensure context invalidation and does not rely on the user returning normally.
 
 ### 6.3 Process Design
@@ -415,13 +452,17 @@ CustomOpRegistry::CreateOrGetCustomOp(op_type)
   -> PythonCustomOpAdapter(desc)
   -> PythonCustomOpHolder(desc)
   -> callbacks.create(desc)
+  -> The bridge resolves the public GetRegisteredIrDef symbol and queries canonical IR
+  -> The bridge holder stores PythonCustomOpIrMeta
   -> ge.custom_op._bridge.create_op_impl_holder(instance_id, descriptor_key)
 
 PythonCustomOpAdapter::Execute(ctx)
   -> callbacks.execute(holder, ctx)
   -> _borrow_eager_op_execution_context(ctx_handle)
-  -> ge.custom_op._bridge.call_execute(instance_id, py_ctx)
-  -> user_op.execute(...)
+  -> The bridge holder builds the Python ir_meta object
+  -> ge.custom_op._bridge.call_execute(instance_id, ir_meta, py_ctx)
+  -> legacy: user_op.execute(ctx)
+  -> schema-bound: user_op.execute(*inputs, **attrs)
   -> py_ctx._invalidate()
 ```
 
@@ -429,7 +470,7 @@ PythonCustomOpAdapter::Execute(ctx)
 
 - `api/python/ge/ge/custom_op/`: Added Python custom op API, registry, bootstrap, bridge helper, and native context binding.
 - `api/python/ge/ge/runtime/`: Provides runtime tensor/shape/format types for reuse by the custom op context.
-- `runtime/custom_op/`: Added Python bridge loader, adapter, and bridge C ABI.
+- `runtime/custom_op/`: Added the Python bridge loader, adapter, and bridge C ABI; the bridge obtains and caches canonical IR through the public run-package API.
 - `inc/graph_metadef/graph/custom_op/`: Added capability and cast helper.
 - GE initialization entry: Ensures the Python runtime is attempted to be ready before `LoadCustomOps()`. On failure, a warning is logged and execution continues. The Python custom op loader performs a hard fail only when Python entries actually exist.
 - `compiler/graph/manager/graph_manager.cc`: `PreRun()` idempotently loads Python custom ops before refreshing ops kernel information.
@@ -442,14 +483,16 @@ PythonCustomOpAdapter::Execute(ctx)
 - Bridge/native artifact missing or ABI mismatch: Warning is logged for each candidate. Failure is returned after all candidates fail.
 - Holder creation failure: The adapter is deemed invalid and the execution path fails.
 - Context query, output allocation, or workspace allocation failure: The native binding raises `RuntimeError`.
+- Failure to collect canonical IR required by schema-bound invocation: The bridge holder cannot provide IR metadata, and the Python bridge raises `RuntimeError` to terminate the current execution.
 
 #### Interface Errors
 
 - `op_type` is not a string or is an empty string: `register_op_impl` raises `TypeError`.
-- The decorated object is not a subclass of `BaseCustomOp`: `TypeError` is raised.
-- Only `BaseCustomOp` is inherited but no supported interface is provided: `TypeError` is raised.
+- The decorated object is not a class or is an abstract class: `TypeError` is raised.
+- The implementation class provides no supported callable method: `TypeError` is raised and the message lists the supported methods.
 - Duplicate `op_type` or `descriptor_key`: `ValueError` is raised.
-- The `execute` signature is not `self, ctx`: `TypeError` is raised at class definition time.
+- A schema-bound `execute` has no canonical IR: `RuntimeError` is raised at execution time.
+- `get_execute_ctx()` is called outside a schema-bound callback: `RuntimeError` is raised.
 - Accessing a borrowed view after expiration: `RuntimeError` is raised.
 
 ## 7. Security Check
@@ -474,6 +517,7 @@ The implementation follows the existing Python pass and GE runtime style:
 
 ## 8. Compatibility Check
 
+- Existing Python user implementations based on `EagerExecuteOp` inheritance and `execute(ctx)` continue through the original path. Capability reflection only relaxes registration requirements and does not change the legacy argument or lifecycle semantics.
 - The original C++ custom op `dynamic_cast` semantics are preserved through `CustomOpCast<T>()` fallback for regular C++ ops.
 - The OM format is not changed. Old OMs are still loaded according to the original custom op partition and registry logic on new versions.
 - New OMs do not carry Python implementations. The Python custom op execution capability cannot be assumed to be reproducible on older versions.
@@ -493,14 +537,16 @@ The implementation follows the existing Python pass and GE runtime style:
 
 | Test Category | Key Test Items | Test Method | Case Type |
 |---------------|----------------|-------------|-----------|
-| Function | Successful registration, duplicate registration, invalid `op_type`, invalid inheritance, invalid `execute` signature | Python pytest | UT |
-| Function | `execute(self, ctx)` signature verification and context pass-through | Python pytest fake context | UT |
-| Function | Bridge descriptor retrieval, holder creation and destruction, context invalidation on exceptions | Python pytest | UT |
+| Function | Capability reflection for plain classes, compatibility bases, inherited methods, `staticmethod`, and `classmethod`, plus invalid registration | Python pytest | UT |
+| Function | Legacy `execute(ctx)` context pass-through; schema-bound required/optional/dynamic input and typed attribute assembly | Python pytest fake context | UT |
+| Function | `get_execute_ctx()` access in callbacks, exception cleanup, and nested invocation restoration | Python pytest | UT |
+| Function | Bridge descriptor retrieval, holder creation/destruction, non-callable `execute` rejection, and context invalidation | Python pytest | UT |
+| Function | Canonical IR collection, POD view lifecycle, and adapter execute forwarding | C++ gtest | UT |
 | Function | Capability bitmask and `CustomOpCast<T>()` behavior | C++ gtest | UT |
 | Function | Loader skips when no Python entry exists and loads the bridge when entries exist | C++ gtest / stub | UT |
 | Compatibility | C++ custom op bare capability inheritance still casts correctly | C++ gtest | UT |
 | Feature cross | Ops kernel info is refreshed after online PreRun loading | GE graph execution related tests | UT/ST |
-| Sample | Python EagerExecuteOp custom op graph construction and execution | `args_refresh_add_custom/python` | ST |
+| Sample | Python custom op legacy/schema-bound graph construction and execution | `args_refresh_add_custom/python` | ST |
 
 ### 9.3 Test Framework Design
 

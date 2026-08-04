@@ -1,15 +1,15 @@
 # ArgsUpdater Add Custom Python 实现样例
 
-本目录是 `examples/custom_op/args_refresh_add_custom/python` 的最小 Python 自定义算子执行样例，用于验证 GE 可以加载 Python `EagerExecuteOp` 自定义算子，并通过 Python ES API 构图和执行。
+本目录是 `examples/custom_op/args_refresh_add_custom/python` 的最小 Python 自定义算子执行样例，用于验证 GE 可以加载 Python 自定义算子，并通过 Python ES API 构图和执行。
 
 ## 范围
 
 - 自定义算子原型仍使用 C++ `REG_OP` 注册：`AddPythonCustomOp`
-- 算子实现使用 Python `EagerExecuteOp.execute(ctx)`
+- 算子实现使用 schema-bound Python `execute(x, y)`，`x`、`y` 按 `REG_OP` canonical IR 顺序绑定
 - 通过 `gen_esb` 生成 `ge.es.custom.AddPythonCustomOp` Python ES API，并使用 Python `GraphBuilder` 和 `Session.run_graph` 构图执行
 - Ascend C kernel 复用 `../cpp/add_custom_kernel/add_custom.asc`
 - `run.sh` 通过 `bisheng` 将 Ascend C kernel 预编译为 host object，并从 `.aicore_binary` section 提取 AI Core device binary
-- `execute` 中分配输出、通过 ACL Python runtime 加载提取出的 device binary、使用 `kernel_args_*` 准备 x/y/z 三个地址参数，并调用 `acl.rt.launch_kernel_with_config`
+- `execute` 中通过 `get_execute_ctx()` 获取仅在回调期间有效的执行上下文，用于分配输出和获取 stream；随后通过 ACL Python runtime 加载提取出的 device binary、使用 `kernel_args_*` 准备 x/y/z 三个地址参数，并调用 `acl.rt.launch_kernel_with_config`
 - 不做 ArgsUpdater 地址刷新优化、性能对比或精度校验
 
 ## 目录
@@ -28,7 +28,7 @@ args_refresh_add_custom
     └── src
         ├── run.py                     # Python 构图和执行入口
         └── ge
-            └── add_custom.py          # Python EagerExecuteOp 实现
+            └── add_custom.py          # Python 自定义算子实现
 ```
 
 ## 前置条件
@@ -40,6 +40,7 @@ source /usr/local/Ascend/cann/set_env.sh
 ```
 - **run 包编译使用的 Python 版本**与执行本样例的 Python 版本一致。当前 Python 自定义算子加载链路还不支持跨 Python 版本兼容
 - 当前 Python 环境可导入 `ge.custom_op` 和 `acl`
+- CANN run 包支持 schema-bound Python 自定义算子 `execute(*inputs, **attrs)` 和 `get_execute_ctx()` 接口
 
 ## Conda 环境示例（Python 3.11）
 
@@ -74,7 +75,7 @@ bash run.sh
 ```text
 [Sample] graph added, graph_id=0
 [PythonCustomOp] loaded kernel binary=.../build/add_custom.aicore.o, kernel=add_custom
-[PythonCustomOp] AddPythonCustomOp.execute called
+[PythonCustomOp] AddPythonCustomOp.execute(x, y) called
 [PythonCustomOp] x shape=[1024], dtype=0, addr=0x...
 [PythonCustomOp] y shape=[1024], dtype=0, addr=0x...
 [PythonCustomOp] z shape=[1024], dtype=0, addr=0x...
@@ -90,4 +91,4 @@ bash run.sh
 `src/run.py` 使用 `GraphBuilder` 创建两个 `Data` 输入，通过生成的 `ge.es.custom.AddPythonCustomOp` 构图，显式设置输出 shape/data type/format 后调用 `Session.run_graph` 执行。
 `run.sh` 先通过 Bisheng 将 Ascend C 源码编译为 `add_custom.host.o`，再通过 `llvm-objcopy --only-section=.aicore_binary` 提取 `add_custom.aicore.o`。`AddPythonCustomOp` 使用 Python 完成 host 侧调度：读取输入/输出地址、通过 `acl.rt.binary_load_from_file` 加载提取后的 `add_custom.aicore.o`。当前 `binary_load_from_file` 不支持 `ACL_RT_LOAD_BINARY_OPT_MAGIC`，因此加载选项传空列表。
 kernel 参数通过 `acl.rt.kernel_args_init`、`acl.rt.kernel_args_append`、`acl.rt.kernel_args_finalize` 按 x/y/z 顺序追加，并通过 ACL Python runtime 的 `acl.rt.launch_kernel_with_config` 下发 `add_custom` kernel。`launch_kernel_with_config` 的 `cfg` 传空列表，使用 runtime 默认配置。
-当前阶段 C++ 代码只承担 `REG_OP` 原型声明和复用的 Ascend C kernel 源码；真正的算子执行入口在 `src/ge/add_custom.py` 的 `execute(ctx)` 中。
+当前阶段 C++ 代码只承担 `REG_OP` 原型声明和复用的 Ascend C kernel 源码；真正的算子执行入口在 `src/ge/add_custom.py` 的 `execute(x, y)` 中。`x`、`y` 由 GE 根据 canonical IR 自动绑定，输出分配和 stream 获取通过回调期间的 `get_execute_ctx()` 完成。

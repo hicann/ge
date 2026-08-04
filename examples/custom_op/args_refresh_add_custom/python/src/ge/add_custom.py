@@ -14,7 +14,7 @@ import atexit
 import ctypes
 from pathlib import Path
 
-from ge.custom_op import EagerExecuteOp, register_op_impl
+from ge.custom_op import get_execute_ctx, register_op_impl
 
 
 _KERNEL_NAME = "add_custom"
@@ -136,24 +136,21 @@ def _launch_kernel(
 
 
 @register_op_impl(op_type="AddPythonCustomOp")
-class AddPythonCustomOp(EagerExecuteOp):
-    def execute(self, ctx):
-        input_x = ctx.get_input_tensor(0)
-        input_y = ctx.get_input_tensor(1)
-        output_z = ctx.malloc_output_tensor(
-            0, input_x.shape, input_x.format, input_x.data_type
-        )
-        num_blocks = _get_num_blocks(input_x)
+class AddPythonCustomOp:
+    def execute(self, x, y):
+        ctx = get_execute_ctx()
+        output_z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
+        num_blocks = _get_num_blocks(x)
         func_handle = _load_kernel()
 
-        print("[PythonCustomOp] AddPythonCustomOp.execute called")
-        _print_tensor_info("x", input_x)
-        _print_tensor_info("y", input_y)
+        print("[PythonCustomOp] AddPythonCustomOp.execute(x, y) called")
+        _print_tensor_info("x", x)
+        _print_tensor_info("y", y)
         _print_tensor_info("z", output_z)
         stream = ctx.get_stream()
         print("[PythonCustomOp] stream={}".format(_format_addr(stream)))
         args_handle, host_values = _build_kernel_args(
-            func_handle, int(input_x.addr), int(input_y.addr), int(output_z.addr)
+            func_handle, int(x.addr), int(y.addr), int(output_z.addr)
         )
         print(
             "[PythonCustomOp] kernel args handle={}, num_blocks={}".format(

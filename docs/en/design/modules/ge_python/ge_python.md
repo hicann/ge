@@ -807,6 +807,7 @@ custom_op/
 ├── base.py                  # BaseCustomOp and EagerExecuteOp base class definitions
 ├── registry.py              # Python custom operator implementation registry and decorators
 ├── bootstrap.py             # Plugin discovery and loading
+├── context.py               # Current execution context binding for schema-bound execute
 ├── _bridge.py               # Bridge runtime helper (instance management, for C++ bridge .so callbacks)
 ├── _native.py               # Native module loading and re-export
 ├── _artifact_utils.py       # Runtime artifact selection helper
@@ -819,7 +820,7 @@ Note: `EagerOpExecutionContext` is provided by `_ge_custom_op_native.so` as a na
 
 #### Module Positioning
 
-The long-term goal of the Python custom operator is to support users in describing custom operator prototypes in Python and implementing all custom operator capabilities based on `BaseCustomOp`. The current V1 release only establishes the `EagerExecuteOp.execute(ctx)` execution closed loop.
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Execution capability is now detected by reflecting a callable `execute` method on the implementation class. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order.
 
 #### Runtime Native Artifact Selection
 
@@ -839,27 +840,30 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 **File location**: `base.py`
 
-**Function**: Public base class of the Python custom operator capability interface.
+**Function**: Compatibility base class for existing Python custom operator implementations. New implementations may use plain Python classes.
 
 **Relationships**:
 
 - Parent class of `EagerExecuteOp`
-- Inheriting only `BaseCustomOp` cannot be registered as a valid Python custom operator implementation
+- It is not a mandatory base class for `register_op_impl`; capabilities are reflected from callable methods on the implementation class
+- A class that only inherits `BaseCustomOp` without implementing a supported method cannot be registered as a valid implementation
 
 ##### 2. EagerExecuteOp Class
 
 **File location**: `base.py`
 
-**Function**: Python Eager execution custom operator base class.
+**Function**: Compatibility base class for existing Python Eager execution custom operators. A plain Python class that implements `execute` can also declare execution capability.
 
 **Main methods**:
 
-- `execute(ctx)` - Execution entry. `ctx` is `EagerOpExecutionContext`
+- `execute(*args, **kwargs)` - Execution entry whose arguments depend on the selected invocation form
 
 **Design constraints**:
 
-- V1 currently supports only the `execute(self, ctx)` signature.
-- `ctx` and the borrowed views it returns can be used only within the current `execute` callback.
+- The legacy form is `execute(self, ctx)`, where `ctx` is an `EagerOpExecutionContext`.
+- The schema-bound form passes required, optional, and dynamic inputs in canonical IR order and passes attributes as keyword arguments by name.
+- A schema-bound callback uses `get_execute_ctx()` when it needs the execution context.
+- `ctx`, `RuntimeAttrs`, and their derived borrowed views can be used only within the current `execute` callback.
 - A normal return indicates successful execution. Exceptions should be raised on failure.
 
 ##### 3. EagerOpExecutionContext Native-Backed Wrapper
@@ -872,6 +876,8 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 - `get_input_tensor(index)` - Obtains an input `Tensor` by input index
 - `get_input_num()` - Obtains the number of runtime input tensors of the current compute node
+- `get_dynamic_input_num(ir_index)` - Obtains the runtime instance count of a dynamic input IR slot
+- `get_attrs()` - Obtains the `RuntimeAttrs` borrowed view of the current node
 - `get_required_input_tensor(ir_index)` - Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition
 - `get_optional_input_tensor(ir_index)` - Obtains an `OPTIONAL_INPUT` type input `Tensor` based on the operator IR prototype definition
 - `get_dynamic_input_tensor(ir_index, relative_index)` - Obtains a `DYNAMIC_INPUT` type input `Tensor` based on the operator IR prototype definition
@@ -881,7 +887,24 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 - `get_output_tensor(index)` - Obtains the output `Tensor` specified by index
 - `get_stream()` - Obtains the address integer of the associated execution stream
 
-##### 4. OpImplDescriptor Data Class
+##### 4. RuntimeAttrs Native-Backed Wrapper
+
+**File location**: `_ge_custom_op_native.pyi`
+
+**Function**: Borrowed runtime attribute view for the current execution callback. For schema-bound invocation, the bridge selects a typed reader according to each canonical IR attribute type.
+
+**Main methods**:
+- Scalars: `get_int`, `get_float`, `get_bool`, `get_str`, `get_data_type`, and `get_tensor`
+- Lists: `get_list_int`, `get_list_float`, `get_list_bool`, `get_list_str`, `get_list_data_type`, and `get_list_list_int`
+- `get_attr_num()` - Obtains the number of runtime attributes
+
+##### 5. get_execute_ctx Function
+
+**File location**: `context.py`
+
+**Function**: Obtains the `EagerOpExecutionContext` of the active schema-bound `execute` callback. Calling it outside the callback or after the callback ends raises `RuntimeError`.
+
+##### 6. OpImplDescriptor Data Class
 
 **File location**: `registry.py`
 
@@ -900,7 +923,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 **Decorators**:
 
-- `register_op_impl(op_type)` - Registers an `EagerExecuteOp` implementation class
+- `register_op_impl(op_type)` - Registers a Python implementation class and reflects its callable methods into a capability list; currently, `execute` maps to `eager_execute`
 
 **Discovery mechanism**:
 
@@ -911,17 +934,18 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 **Usage sample**:
 
 ```python
-from ge.custom_op import EagerExecuteOp, register_op_impl
+from ge.custom_op import get_execute_ctx, register_op_impl
 
 
 @register_op_impl(op_type="AddPythonCustomOp")
-class AddPythonCustomOp(EagerExecuteOp):
-    def execute(self, ctx):
-        x = ctx.get_input_tensor(0)
-        y = ctx.get_input_tensor(1)
+class AddPythonCustomOp:
+    def execute(self, x, y, *, alpha):
+        ctx = get_execute_ctx()
         z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
         ...
 ```
+
+The existing `class AddPythonCustomOp(EagerExecuteOp)` and `execute(self, ctx)` forms remain compatible.
 
 Load Python custom operators:
 

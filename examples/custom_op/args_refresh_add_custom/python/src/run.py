@@ -13,7 +13,7 @@
 import traceback
 from typing import List
 
-from ge.es.graph_builder import GraphBuilder
+from ge.es.graph_builder import GraphBuilder, attr_scope
 from ge.ge_global import GeApi
 from ge.graph import Tensor
 from ge.graph.types import DataType, Format
@@ -49,7 +49,10 @@ def build_graph():
         shape=[-1],
     )
 
-    output_z = AddPythonCustomOp(input_x, input_y)
+    # Remove this lock after Python custom ops support infer-shape and infer-datatype registration.
+    # Until then, GE's fallback inference may overwrite the explicit output dtype with an undefined origin dtype.
+    with attr_scope({"_out_shape_locked": True}):
+        output_z = AddPythonCustomOp(input_x, input_y)
     output_z.set_shape([-1]).set_format(Format.FORMAT_ND).set_data_type(
         DataType.DT_FLOAT
     )
