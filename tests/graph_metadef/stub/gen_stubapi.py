@@ -244,6 +244,7 @@ RETURN_STATEMENTS = {
     "ConstGeTensorPtr": "    return nullptr;",
     "ConstNodePtr": "    return nullptr;",
     "ComputeGraphPtr": "    return nullptr;",
+    "ge::ComputeGraphPtr": "    return nullptr;",
     "ConstGeTensorBarePtr": "    return nullptr;",
     "GeTensorDesc": "    return GeTensorDesc();",
     "HcomTopoInfo& HcomTopoInfo::": "    static HcomTopoInfo hcom_topo_info;\n    return hcom_topo_info;",
