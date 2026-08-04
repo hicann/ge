@@ -2797,6 +2797,30 @@ TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_unsupported_failed) {
   ReInitGe();
 }
 
+TEST_F(AtcCommonSTest, GeFlags_raw_multi_stream_parallel_mode_conflicts_with_enable_single_stream) {
+  const auto raw_path = WriteRawOptionsJson("raw_ge_options_multi_stream_parallel_mode.json", R"({
+    "compile options": {
+      "graph": {
+        "ge.autoMultistreamParallelMode": "LoadBalance:8"
+      }
+    }
+  })");
+  testing::internal::CaptureStdout();
+  testing::internal::CaptureStderr();
+  const int32_t ret =
+      RunAtcWithRawOptions("raw_ge_options_multi_stream_parallel_mode", raw_path, {"--enable_single_stream=true"});
+  const auto output = testing::internal::GetCapturedStdout() + testing::internal::GetCapturedStderr();
+  EXPECT_NE(ret, 0);
+  EXPECT_NE(output.find("Cannot configure both parameters --multi_stream_parallel_mode and --enable_single_stream "
+                        "simultaneously."),
+            std::string::npos)
+      << output;
+  EXPECT_NE(output.find("--multi_stream_parallel_mode"), std::string::npos) << output;
+  EXPECT_NE(output.find("--enable_single_stream"), std::string::npos) << output;
+  (void)remove(raw_path.c_str());
+  ReInitGe();
+}
+
 TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_without_compile_options_failed) {
   const auto raw_path = WriteRawOptionsJson("raw_ge_options_without_compile_options.json", R"({
     "execute options": {

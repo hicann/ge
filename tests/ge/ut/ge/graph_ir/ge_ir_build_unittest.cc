@@ -2015,6 +2015,9 @@ TEST(UtestIrBuild, bundle_save_flow_model_invalid_buffer) {
 }
 
 TEST(UtestIrBuild, ir_build_oo_init) {
+  const auto global_options_backup = GetMutableGlobalOptions();
+  GE_MAKE_GUARD(restore_global_options,
+                [global_options_backup]() { GetMutableGlobalOptions() = global_options_backup; });
   const auto opp_path = ConstructOppEnv();
   Graph graph_1 = BuildIrGraph1();
   ModelBufferData model_1;

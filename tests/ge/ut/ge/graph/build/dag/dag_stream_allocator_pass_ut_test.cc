@@ -24,15 +24,32 @@
 #include "register/custom_pass_context_impl.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
+#include "register/optimization_option_registry.h"
 
 namespace minidag {
 
 namespace {
+void SetGraphOptionForTest(const std::map<std::string, std::string> &options) {
+  ge::GetThreadLocalContext().SetGraphOption(options);
+  ASSERT_EQ(ge::GetThreadLocalContext().GetOo().Initialize(ge::GetThreadLocalContext().GetAllOptions(),
+                                                           ge::OptionRegistry::GetInstance().GetRegisteredOptTable()),
+            ge::GRAPH_SUCCESS);
+}
+
 struct GraphOptionGuard {
   ~GraphOptionGuard() {
-    ge::GetThreadLocalContext().SetGraphOption({});
+    SetGraphOptionForTest({});
   }
 };
+
+ge::Status RunMiniDAGStreamPassForTest(const ge::ConstGraphPtr &graph, ge::StreamPassContext &context) {
+  const auto ret = ge::GetThreadLocalContext().GetOo().Initialize(
+      ge::GetThreadLocalContext().GetAllOptions(), ge::OptionRegistry::GetInstance().GetRegisteredOptTable());
+  if (ret != ge::GRAPH_SUCCESS) {
+    return ret;
+  }
+  return ge::RunMiniDAGStreamPass(graph, context);
+}
 
 class ProfilingFileGuard {
  public:
@@ -105,8 +122,16 @@ ge::ConstGraphPtr BuildGraphWithControlEdge() {
 
 class DagStreamAllocatorPassTest : public testing::Test {
  protected:
-  void SetUp() {}
-  void TearDown() {}
+  void SetUp() override {
+    graph_options_ = ge::GetThreadLocalContext().GetAllGraphOptions();
+  }
+
+  void TearDown() override {
+    SetGraphOptionForTest(graph_options_);
+  }
+
+ private:
+  std::map<std::string, std::string> graph_options_;
 };
 
 // --------------------
@@ -116,7 +141,7 @@ class DagStreamAllocatorPassTest : public testing::Test {
 /**
  * 场景 A1: 正常图执行返回 SUCCESS
  */
-TEST(DagStreamAllocatorPassTest, RunPass_Success) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_Success) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -125,7 +150,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_Success) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);  // current_max_stream_id = 0
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -134,16 +159,16 @@ TEST(DagStreamAllocatorPassTest, RunPass_Success) {
 /**
  * 场景 A2: 空图（nullptr）返回 FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_NullGraph) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_NullGraph) {
   ge::StreamPassContext context(0);  // current_max_stream_id = 0
-  auto ret = RunMiniDAGStreamPass(nullptr, context);
+  auto ret = RunMiniDAGStreamPassForTest(nullptr, context);
   EXPECT_NE(ret, ge::SUCCESS);
 }
 
 /**
  * 场景 A3: 多次执行均返回 SUCCESS
  */
-TEST(DagStreamAllocatorPassTest, RunPass_MultipleExecution) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_MultipleExecution) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -155,8 +180,8 @@ TEST(DagStreamAllocatorPassTest, RunPass_MultipleExecution) {
 
   ge::StreamPassContext context1(0), context2(0);
 
-  auto ret1 = RunMiniDAGStreamPass(graph1, context1);
-  auto ret2 = RunMiniDAGStreamPass(graph2, context2);
+  auto ret1 = RunMiniDAGStreamPassForTest(graph1, context1);
+  auto ret2 = RunMiniDAGStreamPassForTest(graph2, context2);
 
   EXPECT_EQ(ret1, ge::SUCCESS);
   EXPECT_EQ(ret2, ge::SUCCESS);
@@ -167,7 +192,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_MultipleExecution) {
 /**
  * 场景 A4: 仅包含 Data/NetOutput 的图返回 SUCCESS（空 DAG）
  */
-TEST(DagStreamAllocatorPassTest, RunPass_EmptyDAG) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_EmptyDAG) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -176,7 +201,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyDAG) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);  // current_max_stream_id = 0
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -189,7 +214,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyDAG) {
 /**
  * 场景 B1: 空图多次执行
  */
-TEST(DagStreamAllocatorPassTest, RunPass_EmptyGraphMultipleTimes) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_EmptyGraphMultipleTimes) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -199,7 +224,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyGraphMultipleTimes) {
 
   for (int i = 0; i < 3; ++i) {
     ge::StreamPassContext context(i);
-    auto ret = RunMiniDAGStreamPass(graph, context);
+    auto ret = RunMiniDAGStreamPassForTest(graph, context);
     EXPECT_EQ(ret, ge::SUCCESS);
   }
 
@@ -209,7 +234,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyGraphMultipleTimes) {
 /**
  * 场景 B2: 带 Data 节点的图
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithDataNode) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithDataNode) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -222,7 +247,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithDataNode) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -231,7 +256,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithDataNode) {
 /**
  * 场景 B3: 仅 NetOutput 节点
  */
-TEST(DagStreamAllocatorPassTest, RunPass_OnlyNetOutput) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_OnlyNetOutput) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -242,7 +267,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_OnlyNetOutput) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -251,7 +276,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_OnlyNetOutput) {
 /**
  * 场景 B4: 多节点复杂图
  */
-TEST(DagStreamAllocatorPassTest, RunPass_ComplexMultiNodeGraph) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_ComplexMultiNodeGraph) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -275,7 +300,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_ComplexMultiNodeGraph) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -284,7 +309,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_ComplexMultiNodeGraph) {
 /**
  * 场景 B5: 带 Relu 节点的图
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithReluNode) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithReluNode) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -302,7 +327,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithReluNode) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -311,7 +336,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithReluNode) {
 /**
  * 场景 B6: 不同 context stream id
  */
-TEST(DagStreamAllocatorPassTest, RunPass_DifferentStreamId) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_DifferentStreamId) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -321,7 +346,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_DifferentStreamId) {
 
   for (int stream_id = 0; stream_id < 5; ++stream_id) {
     ge::StreamPassContext context(stream_id);
-    auto ret = RunMiniDAGStreamPass(graph, context);
+    auto ret = RunMiniDAGStreamPassForTest(graph, context);
     EXPECT_EQ(ret, ge::SUCCESS);
   }
 
@@ -331,7 +356,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_DifferentStreamId) {
 /**
  * 场景 B7: 带 Sigmoid 节点的图
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithSigmoidNode) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithSigmoidNode) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -349,7 +374,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithSigmoidNode) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -358,7 +383,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithSigmoidNode) {
 /**
  * 场景 B8: 仅 Data 节点
  */
-TEST(DagStreamAllocatorPassTest, RunPass_OnlyDataNode) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_OnlyDataNode) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -369,7 +394,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_OnlyDataNode) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -382,7 +407,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_OnlyDataNode) {
 /**
  * 场景 C1: 设置 ge.autoMultistreamParallelMode="LoadBalance:8" - 解析冒号格式
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_LoadBalance) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_LoadBalance) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -391,7 +416,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_LoadBalance) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -400,7 +425,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_LoadBalance) {
 /**
  * 场景 C1.1: profiling 文件命中节点时，stream pass 成功走通入口路径
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithProfiledNodeCost_EntryPathSucceeds) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithProfiledNodeCost_EntryPathSucceeds) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -415,14 +440,14 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithProfiledNodeCost_EntryPathSucceeds)
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 }
 
 /**
  * 场景 C1.2: profiling 文件未命中节点时，stream pass 成功走通入口路径
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithUnmatchedProfiling_EntryPathSucceeds) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithUnmatchedProfiling_EntryPathSucceeds) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -437,14 +462,14 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithUnmatchedProfiling_EntryPathSucceed
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 }
 
 /**
  * 场景 C2: 设置 ge.autoMultistreamParallelMode="MainStream:6" - 解析冒号格式+MainStream策略
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_MainStream) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_MainStream) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "MainStream:6";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -453,7 +478,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_MainStream) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -462,7 +487,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_MainStream) {
 /**
  * 场景 C2-1: 设置 ge.autoMultistreamParallelMode="WeightedLoadBalance:6" - 解析冒号格式+WeightedLoadBalance策略
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBalance) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBalance) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "WeightedLoadBalance:6";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -471,7 +496,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBal
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -480,7 +505,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBal
 /**
  * 场景 C3: 设置 ge.autoMultistreamParallelMode="LoadBalance:invalid" - 无效max_stream值，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_InvalidMax) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_InvalidMax) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:invalid";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -489,7 +514,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_InvalidMax) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -498,7 +523,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_InvalidMax) {
 /**
  * 场景 C4-1: 设置 ge.autoMultistreamParallelMode="WeightedLoadBalance" - 无冒号格式，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBalanceLegacyFormat) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBalanceLegacyFormat) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "WeightedLoadBalance";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -507,7 +532,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBal
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -516,7 +541,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_WeightedLoadBal
 /**
  * 场景 C5: 设置 ge.autoMultistreamParallelMode="LoadBalance:0" - max_val <= 0，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ZeroMax) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ZeroMax) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:0";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -525,7 +550,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ZeroMax) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -534,7 +559,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ZeroMax) {
 /**
  * 场景 C6: 设置 ge.autoMultistreamParallelMode="LoadBalance:-5" - max_val为负数，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_NegativeMax) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_NegativeMax) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:-5";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -543,7 +568,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_NegativeMax) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -552,7 +577,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_NegativeMax) {
 /**
  * 场景 C9: ge.autoMultistreamParallelMode 超大 max_stream 值，strtol 溢出返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_HugeMax) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_HugeMax) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:99999999999999999999";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -561,7 +586,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_HugeMax) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -570,7 +595,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_HugeMax) {
 /**
  * 场景 C10: ge.autoMultistreamParallelMode="LoadBalance:1" - 合法值下边界测试
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidLowerBoundary) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidLowerBoundary) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:1";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -579,7 +604,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidLowerBound
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -588,7 +613,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidLowerBound
 /**
  * 场景 C11: ge.autoMultistreamParallelMode="LoadBalance:64" - 合法值上边界测试
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidUpperBoundary) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidUpperBoundary) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:64";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -597,7 +622,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidUpperBound
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -606,7 +631,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ValidUpperBound
 /**
  * 场景 C12: ge.autoMultistreamParallelMode="LoadBalance:65" - 超过上限64，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ExceedsMax) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ExceedsMax) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:65";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -615,7 +640,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ExceedsMax) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -628,7 +653,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ExceedsMax) {
 /**
  * 场景 D1: 无冒号分隔符（非"LoadBalance"字符串），返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "MainStream";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -637,7 +662,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -646,7 +671,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator) {
 /**
  * 场景 D2: 无冒号分隔符（随机字符串），返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator_RandomString) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator_RandomString) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "RandomString";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -655,7 +680,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator_RandomString) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -664,7 +689,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator_RandomString) {
 /**
  * 场景 D3: algo 名称为空（冒号在最前面），返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_EmptyAlgoName) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_EmptyAlgoName) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = ":8";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -673,7 +698,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyAlgoName) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -682,7 +707,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyAlgoName) {
 /**
  * 场景 D4: 未知的 algo 名称，返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_UnknownAlgoName) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_UnknownAlgoName) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "UnknownAlgo:4";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -691,7 +716,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_UnknownAlgoName) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -700,7 +725,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_UnknownAlgoName) {
 /**
  * 场景 D5: max_stream 为空字符串（冒号在最后面），返回FAILED
  */
-TEST(DagStreamAllocatorPassTest, RunPass_EmptyMaxStream) {
+TEST_F(DagStreamAllocatorPassTest, RunPass_EmptyMaxStream) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:";
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -709,7 +734,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_EmptyMaxStream) {
   ASSERT_NE(graph, nullptr);
 
   ge::StreamPassContext context(0);
-  auto ret = RunMiniDAGStreamPass(graph, context);
+  auto ret = RunMiniDAGStreamPassForTest(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
   ge::GetThreadLocalContext().SetGraphOption({});

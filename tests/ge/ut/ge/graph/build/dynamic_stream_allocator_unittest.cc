@@ -26,6 +26,7 @@
 #include "graph/utils/graph_utils.h"
 #include "api/gelib/gelib.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "register/optimization_option_registry.h"
 
 namespace ge {
 class MockMmpaForGeInit : public MmpaStubApiGe {
@@ -44,6 +45,8 @@ class UtestDynamicStreamAllocator : public testing::Test {
   }
 
   void TearDown() {
+    GetThreadLocalContext().SetGraphOption({});
+    RefreshOptimizationOptions();
     FinalizeGeLib();
   }
 
@@ -292,12 +295,20 @@ class UtestDynamicStreamAllocator : public testing::Test {
     std::map<std::string, std::string> options;
     options["ge.autoMultistreamParallelMode"] = mode;
     GetThreadLocalContext().SetGraphOption(options);
+    RefreshOptimizationOptions();
   }
 
   void ClearAutoMultistreamMode() {
     std::map<std::string, std::string> options;
     options["ge.autoMultistreamParallelMode"] = "";
     GetThreadLocalContext().SetGraphOption(options);
+    RefreshOptimizationOptions();
+  }
+
+  void RefreshOptimizationOptions() {
+    ASSERT_EQ(GetThreadLocalContext().GetOo().Initialize(GetThreadLocalContext().GetAllOptions(),
+                                                         OptionRegistry::GetInstance().GetRegisteredOptTable()),
+              GRAPH_SUCCESS);
   }
 
   Graph2SubGraphInfoList CreateSubgraphMap(const ComputeGraphPtr &graph,

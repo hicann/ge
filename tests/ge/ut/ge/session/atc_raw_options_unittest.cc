@@ -341,4 +341,30 @@ TEST_F(AtcRawOptionsUTest, MergeRawGeOptionsSkipsCliHandledAndExplicitOptions) {
   MergeRawGeOptions({{kRawUtCheckerOption, "raw"}}, options);
   EXPECT_EQ(options[kRawUtCheckerOption], "raw");
 }
+
+TEST_F(AtcRawOptionsUTest, MultiStreamParallelModeRegistered) {
+  const auto *info = OptionRegistry::GetInstance().FindOptInfo("ge.autoMultistreamParallelMode");
+  ASSERT_NE(info, nullptr) << "ge.autoMultistreamParallelMode should be registered in OptionRegistry";
+  EXPECT_TRUE(OoInfoUtils::IsBitSet(info->visibility, static_cast<uint32_t>(OoEntryPoint::kAtc)))
+      << "autoMultistreamParallelMode should be visible in ATC entry point";
+  EXPECT_TRUE(OoInfoUtils::IsBitSet(info->levels, static_cast<uint32_t>(OoLevel::kO3)))
+      << "autoMultistreamParallelMode should belong to O3 level";
+  EXPECT_EQ(info->default_values.count(OoLevel::kO3), 1U);
+  EXPECT_EQ(info->default_values.at(OoLevel::kO3), "");
+}
+
+TEST_F(AtcRawOptionsUTest, MultiStreamParallelModeConflictDetectionPattern) {
+  flgs::GetUserOptions()["multi_stream_parallel_mode"] = "LoadBalance:8";
+  GetRawAppliedFlagNames().insert("multi_stream_parallel_mode");
+  const auto &user_opts = flgs::GetUserOptions();
+  const bool is_set_by_cli = (user_opts.count("multi_stream_parallel_mode") > 0U);
+  const bool is_set_by_raw = (GetRawAppliedFlagNames().count("multi_stream_parallel_mode") > 0U);
+  EXPECT_TRUE(is_set_by_cli) << "GetUserOptions() should contain multi_stream_parallel_mode after setting";
+  EXPECT_TRUE(is_set_by_raw) << "GetRawAppliedFlagNames() should contain multi_stream_parallel_mode after setting";
+
+  flgs::GetUserOptions().clear();
+  GetRawAppliedFlagNames().clear();
+  EXPECT_EQ(flgs::GetUserOptions().count("multi_stream_parallel_mode"), 0U);
+  EXPECT_EQ(GetRawAppliedFlagNames().count("multi_stream_parallel_mode"), 0U);
+}
 }  // namespace ge
