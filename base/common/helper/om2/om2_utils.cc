@@ -152,12 +152,20 @@ std::string JoinFdPaths(const std::vector<MemFdFile> &files) {
   return oss.str();
 }
 
+Status ReportInvalidBuildConfig(const std::string &value, const std::string &reason) {
+  (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                                  std::vector<const char_t *>({"build_config", value.c_str(), reason.c_str()}));
+  GELOGE(PARAM_INVALID, "[OM2] Invalid build_config: %s. Reason: %s", value.c_str(), reason.c_str());
+  return PARAM_INVALID;
+}
+
 Status CheckBuildConfigValue(const std::string &value) {
   constexpr std::string_view kAllowedChars = " _-./+,:=@%'\"";
   for (const auto c : value) {
     // Keep build_config as make arguments instead of opening a general shell command surface.
     const bool is_allowed = std::isalnum(static_cast<uint8_t>(c)) || (kAllowedChars.find(c) != std::string_view::npos);
-    GE_ASSERT_TRUE(is_allowed, "[OM2] Invalid character in build_config");
+    GE_IF_BOOL_EXEC(!is_allowed,
+                    return ReportInvalidBuildConfig(value, "build_config contains an unsupported character."));
   }
   return SUCCESS;
 }
@@ -194,7 +202,7 @@ Status SplitCommandTokens(const std::string &command, std::vector<std::string> &
     token.push_back(c);
   }
   // 校验引号闭合
-  GE_ASSERT_TRUE(quote == '\0', "[OM2] Unbalanced quote in build_config");
+  GE_IF_BOOL_EXEC(quote != '\0', return ReportInvalidBuildConfig(command, "quotes are unbalanced."));
   if (!token.empty()) {
     tokens.emplace_back(token);
   }
@@ -226,25 +234,28 @@ bool IsAllowedBuildConfigVariable(const std::string &key) {
 Status AddGeneratedMakefileOption(const std::string &makefile_path, std::string &command) {
   std::vector<std::string> tokens;
   GE_ASSERT_SUCCESS(SplitCommandTokens(command, tokens));
+  GE_IF_BOOL_EXEC(tokens.empty(), return ReportInvalidBuildConfig(command, "build_config is empty."));
   for (auto iter = tokens.begin() + 1; iter != tokens.end(); ++iter) {
-    GE_ASSERT_TRUE(!IsMakefileOption(*iter), "[OM2] build_config does not support custom Makefile option");
+    GE_IF_BOOL_EXEC(IsMakefileOption(*iter),
+                    return ReportInvalidBuildConfig(command, "custom Makefile options are not supported."));
     // make flag（-j, -s 等）放行
     if (!iter->empty() && (*iter)[0] == '-') {
       continue;
     }
     // 变量赋值：只允许白名单内的变量名
     const auto eq_pos = iter->find('=');
-    GE_ASSERT_TRUE(eq_pos != std::string::npos, "[OM2] build_config: unexpected token '%s'", iter->c_str());
+    if (eq_pos == std::string::npos) {
+      return ReportInvalidBuildConfig(command, "build_config contains an unexpected token: " + *iter + ".");
+    }
     const std::string key = iter->substr(0, eq_pos);
-    GE_ASSERT_TRUE(IsAllowedBuildConfigVariable(key),
-                   "[OM2] build_config: variable '%s' is not allowed, "
-                   "only CXX, CXXFLAGS, CPPFLAGS, LDFLAGS, LDLIBS are supported",
-                   key.c_str());
+    GE_IF_BOOL_EXEC(!IsAllowedBuildConfigVariable(key),
+                    return ReportInvalidBuildConfig(command, "variable " + key + " is not supported."));
   }
   // The generated Makefile lives on a memfd path, so GE must inject it instead of relying on cwd lookup.
   // command 已通过 CheckBuildConfigValue 校验，白名单中唯一允许的空白字符是空格，不含 tab，因此用 find(' ') 即可
   const auto first_space = command.find(' ');
-  command.insert(first_space, " -f " + makefile_path);
+  const auto insert_pos = (first_space == std::string::npos) ? command.size() : first_space;
+  command.insert(insert_pos, " -f " + makefile_path);
   return SUCCESS;
 }
 
@@ -362,26 +373,33 @@ Status AppendCrossCompilerIfNeeded(std::string &command) {
   return SUCCESS;
 }
 
-Status BuildMakeCommand(const std::string &makefile_path, const bool is_release, std::string &command) {
-  // 读取用户自定义编译命令
+std::string GetBuildConfig() {
   std::string build_config;
-  const bool has_build_config = ge::GetContext().GetOption(kOptionBuildConfig, build_config) == GRAPH_SUCCESS;
-
-  // 空白字符只允许空格（由 CheckBuildConfigValue 限定），不含 tab
+  if (ge::GetContext().GetOption(kOptionBuildConfig, build_config) != GRAPH_SUCCESS) {
+    return "";
+  }
   const auto first_non_space = build_config.find_first_not_of(' ');
-  if ((!has_build_config) || (first_non_space == std::string::npos)) {
+  if (first_non_space == std::string::npos) {
+    return "";
+  }
+  return build_config.substr(first_non_space);
+}
+
+Status BuildMakeCommand(const std::string &makefile_path, const bool is_release, const std::string &build_config,
+                        std::string &command) {
+  if (build_config.empty()) {
     // 默认路径：构建 make 命令，交叉编译时自动注入 CXX 和 LIB_PATH
     command = BuildDefaultMakeCommand(makefile_path);
     GE_ASSERT_SUCCESS(AppendCrossCompilerIfNeeded(command));
   } else {
     // 自定义路径：校验字符集、首 token 必须是 make、变量名在白名单内，并注入 -f
-    build_config.erase(0U, first_non_space);
     GE_ASSERT_SUCCESS(CheckBuildConfigValue(build_config));
     const auto first_space = build_config.find(' ');
     const std::string first_token = build_config.substr(0, first_space);
-    GE_ASSERT_TRUE(IsMakeCommand(first_token), "[OM2] build_config must start with make command");
-    GE_ASSERT_SUCCESS(AddGeneratedMakefileOption(makefile_path, build_config));
+    GE_IF_BOOL_EXEC(!IsMakeCommand(first_token),
+                    return ReportInvalidBuildConfig(build_config, "build_config must start with make command."));
     command = build_config;
+    GE_ASSERT_SUCCESS(AddGeneratedMakefileOption(makefile_path, command));
   }
 
   // 始终注入 USE_STUB_LIB，控制链接桩库还是真实库
@@ -493,11 +511,18 @@ Status CompileWithMemFdMakefile(const Om2CodegenArtifact &makefile_artifact, con
   GE_ASSERT_SUCCESS(CreateMemFdFile("Makefile", compile_makefile_data, makefile_file));
   GE_ASSERT_SUCCESS(CheckSafePath(makefile_file.fd_path));
 
+  const std::string build_config = GetBuildConfig();
   std::string command;
-  GE_ASSERT_SUCCESS(BuildMakeCommand(makefile_file.fd_path, is_release, command));
+  GE_ASSERT_SUCCESS(BuildMakeCommand(makefile_file.fd_path, is_release, build_config, command));
   GELOGI("[OM2] Compile generated cpp artifacts to so by Makefile, command: %s", command.c_str());
-  GE_CHK_BOOL_RET_STATUS(system(command.c_str()) == 0, FAILED, "[OM2] Failed to compile so artifact: %s",
-                         so_artifact.file_name.c_str());
+  if (system(command.c_str()) != 0) {
+    if (!build_config.empty()) {
+      REPORT_INNER_ERR_MSG("E19999", "[OM2] Failed to execute make command specified by build_config: %s.",
+                           build_config.c_str());
+    }
+    GELOGE(FAILED, "[OM2] Failed to compile so artifact: %s.", so_artifact.file_name.c_str());
+    return FAILED;
+  }
   GE_ASSERT_SUCCESS(ReadFileToString(so_path, so_artifact.data));
   GE_ASSERT_TRUE(!so_artifact.data.empty(), "[OM2] Compiled so artifact is empty: %s", so_artifact.file_name.c_str());
   return SUCCESS;

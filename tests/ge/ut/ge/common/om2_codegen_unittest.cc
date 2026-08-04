@@ -17,6 +17,7 @@
 #include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/ge_common/ge_types.h"
+#include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
 
 #include <gtest/gtest.h>
@@ -1096,11 +1097,15 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigInvalidChar_Rejected) {
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s; rm -rf /"}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
 
   const std::string model_name = "bc_invalid_char";
   Om2CodegenArtifact so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("build_config contains an unsupported character."), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNonWhitelisted_Rejected) {
@@ -1151,6 +1156,24 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUseStubLib_Rejected) {
             SUCCESS);
 }
 
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeOnly_Ok) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make"}});
+
+  EXPECT_EQ(CompileBuildConfigArtifacts("bc_make_only"), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigAbsoluteMakeOnly_Ok) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "/usr/bin/make"}});
+
+  EXPECT_EQ(CompileBuildConfigArtifacts("bc_absolute_make_only"), SUCCESS);
+}
+
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
@@ -1183,6 +1206,72 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) 
         SUCCESS)
         << invalid_build_configs[i];
   }
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigCrossCompilerMissing_ReportsInternalError) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  const std::string build_config = "make -s CXX=/nonexistent/om2/aarch64-linux-gnu-g++";
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", build_config}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(CompileBuildConfigArtifacts("bc_cross_compiler_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_EQ(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find(build_config), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigTargetDevlibMissing_ReportsInternalError) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  const std::string build_config = "make -s LDFLAGS='-shared -L/nonexistent/om2/devlib -lom2_missing_devlib'";
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", build_config}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(CompileBuildConfigArtifacts("bc_target_devlib_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_EQ(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find(build_config), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeFailure_ReportsInternalError) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.WriteFile("make", "#!/bin/sh\nexit 1\n", 0755));
+  const std::string build_config = temp_dir.Path("make");
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", build_config}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(CompileBuildConfigArtifacts("bc_make_failure"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_EQ(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find(build_config), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_DefaultMakeFailure_DoesNotReportInvalidArgument) {
+  ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
+  ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
+  ScopedGraphOptions graph_guard;
+  ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateDir("bin"));
+  ASSERT_TRUE(PrepareCommandSymlink(temp_dir, "bin/env", "env"));
+  ASSERT_TRUE(temp_dir.WriteFile("bin/make", "#!/bin/sh\nexit 1\n", 0755));
+  ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
+  GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", ""}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(CompileBuildConfigArtifacts("default_make_failure"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_EQ(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("E19999"), std::string::npos);
+  EXPECT_EQ(error_message.find("specified by build_config"), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
