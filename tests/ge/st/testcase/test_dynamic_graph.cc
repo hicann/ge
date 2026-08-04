@@ -1000,6 +1000,172 @@ Graph BuildControlOpIfGraph() {
   return GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
 }
 
+ComputeGraphPtr BuildControlOpWhileCondGraph() {
+  DEF_GRAPH(cond) {
+    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
+
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {});
+    CHAIN(NODE("cond_data", cond_data)->NODE("cond_Node_Output", net_output));
+  };
+  return ToComputeGraph(cond);
+}
+
+ComputeGraphPtr BuildControlOpWhileBodyGraph() {
+  GeTensor zero_tensor(GeTensorDesc(GeShape(std::vector<int64_t>{}), FORMAT_ND, DT_INT32));
+  zero_tensor.SetData(std::vector<uint8_t>{0, 0, 0, 0});
+  DEF_GRAPH(body) {
+    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
+
+    auto value_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+
+    auto const_data =
+        OP_CFG(CONSTANT).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {}).Attr(ATTR_NAME_WEIGHTS, zero_tensor);
+
+    auto mul = OP_CFG(MUL).InCnt(2).OutCnt(1).Attr("op_para_size", 1).TensorDesc(FORMAT_ND, DT_INT32, {});
+
+    auto net_output =
+        OP_CFG(NETOUTPUT).InCnt(2).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {16}).Build("body_Node_Output");
+
+    net_output->MutableOutputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
+    net_output->MutableOutputDesc(0)->SetDataType(DT_INT32);
+    CHAIN(NODE("body_arg_0", cond_data)->NODE("mul", mul)->NODE(net_output));
+    CHAIN(NODE("one_tensor", const_data)->NODE("mul", mul));
+    CHAIN(NODE("value_data", value_data)->NODE(net_output));
+  };
+  return ToComputeGraph(body);
+}
+
+Graph BuildControlOpWhileGraph(const bool use_legacy_subgraph_names) {
+  auto cond_graph = BuildControlOpWhileCondGraph();
+  auto body_graph = BuildControlOpWhileBodyGraph();
+  if (use_legacy_subgraph_names) {
+    cond_graph->SetName("cond_graph");
+    body_graph->SetName("body_graph");
+  }
+
+  DEF_GRAPH(while_graph) {
+    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
+
+    auto value_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+
+    auto unique_op = OP_CFG("Unique").InCnt(1).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+
+    auto while_op = OP_CFG(WHILE).InCnt(2).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {-1}).Build("while_op");
+
+    while_op->MutableInputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
+    while_op->MutableInputDesc(0)->SetDataType(DT_INT32);
+    while_op->MutableOutputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
+    while_op->MutableOutputDesc(0)->SetDataType(DT_INT32);
+    while_op->RegisterSubgraphIrName("cond", SubgraphType::kStatic);
+    while_op->RegisterSubgraphIrName("body", SubgraphType::kStatic);
+
+    while_op->AddSubgraphName(cond_graph->GetName());
+    while_op->SetSubgraphInstanceName(0, cond_graph->GetName());
+    while_op->AddSubgraphName(body_graph->GetName());
+    while_op->SetSubgraphInstanceName(1, body_graph->GetName());
+
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+
+    CHAIN(NODE("arg_cond", cond_data)->NODE(while_op));
+    CHAIN(NODE("arg_value", value_data)
+              ->NODE("unique", unique_op)
+              ->NODE(while_op)
+              ->EDGE(1, 0)
+              ->NODE("Node_Output", net_output));
+  };
+
+  auto root_graph = ToComputeGraph(while_graph);
+  auto while_node = root_graph->FindFirstNodeMatchType(WHILE);
+  EXPECT_TRUE(while_node != nullptr);
+  cond_graph->SetParentNode(while_node);
+  cond_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  body_graph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph(cond_graph);
+  root_graph->AddSubgraph(body_graph);
+  return GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
+}
+
+void RunControlOpWhileGraph(Graph &graph) {
+  char runtime2_env[MMPA_MAX_PATH] = {'1'};
+  mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
+  MockForGenerateTask("aicpu_ascend_kernel", GenerateTaskForAicpuDependRange);
+  MockForGenerateTask("AIcoreEngine", GenerateTaskForStaticAicore);
+
+  auto mul_kernel = [](const void *stubFunc, uint32_t blockDim, rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc,
+                       rtStream_t stream, uint32_t flag, const rtTaskCfgInfo_t *cfgInfo) -> int {
+    auto io_addrs = reinterpret_cast<uintptr_t *>(argsInfo->args);
+    auto *input_0 = reinterpret_cast<int32_t *>(io_addrs[0]);
+    auto *input_1 = reinterpret_cast<int32_t *>(io_addrs[1]);
+    auto *output = reinterpret_cast<int32_t *>(io_addrs[2]);
+    *output = *input_0 * *input_1;
+    return RT_ERROR_NONE;
+  };
+  auto runtime_stub = std::make_shared<MockRuntime>();
+  RuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, rtKernelLaunchWithFlagV2).WillRepeatedly(testing::Invoke(mul_kernel));
+
+  std::map<AscendString, AscendString> options;
+  options[VARIABLE_MEMORY_MAX_SIZE] = "12800";
+  Session session(options);
+  GraphId graph_id = 1;
+  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
+
+  Shape shape_cond(std::vector<int64_t>{});
+  Tensor cond_tensor(TensorDesc(shape_cond, FORMAT_ND, DT_INT32));
+  int32_t value = 1;
+  cond_tensor.SetData((uint8_t *)&value, sizeof(value));
+
+  uint8_t value_buffer[16 * 4];
+  Shape shape_value(std::vector<int64_t>({16}));
+  Tensor value_tensor(TensorDesc(shape_value, FORMAT_ND, DT_FLOAT));
+  value_tensor.SetData(value_buffer, sizeof(value_buffer));
+
+  std::vector<Tensor> inputs{cond_tensor, value_tensor};
+  std::vector<Tensor> outputs;
+  // cond->body->cond
+  EXPECT_EQ(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
+  value = 0;
+  cond_tensor.SetData((uint8_t *)&value, sizeof(value));
+  // cond
+  inputs = {cond_tensor, value_tensor};
+  EXPECT_EQ(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
+  session.RemoveGraph(graph_id);
+}
+
+void CheckWhileSubgraphOutputMappings(const ComputeGraphPtr &graph, const std::string &cond_name,
+                                      const std::string &body_name) {
+  ASSERT_NE(graph, nullptr);
+  const auto cond_graph = graph->GetSubgraph(cond_name);
+  ASSERT_NE(cond_graph, nullptr);
+  const auto cond_netoutput = cond_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(cond_netoutput, nullptr);
+  const auto cond_op_desc = cond_netoutput->GetOpDesc();
+  ASSERT_NE(cond_op_desc, nullptr);
+  ASSERT_GT(cond_op_desc->GetInputsSize(), 0U);
+  for (size_t i = 0U; i < cond_op_desc->GetInputsSize(); ++i) {
+    const auto input_desc = cond_op_desc->GetInputDescPtr(i);
+    ASSERT_NE(input_desc, nullptr);
+    int32_t parent_index = -1;
+    EXPECT_FALSE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+  }
+
+  const auto body_graph = graph->GetSubgraph(body_name);
+  ASSERT_NE(body_graph, nullptr);
+  const auto body_netoutput = body_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(body_netoutput, nullptr);
+  const auto body_op_desc = body_netoutput->GetOpDesc();
+  ASSERT_NE(body_op_desc, nullptr);
+  ASSERT_GT(body_op_desc->GetInputsSize(), 0U);
+  for (size_t i = 0U; i < body_op_desc->GetInputsSize(); ++i) {
+    const auto input_desc = body_op_desc->GetInputDescPtr(i);
+    ASSERT_NE(input_desc, nullptr);
+    int32_t parent_index = -1;
+    ASSERT_TRUE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+    EXPECT_EQ(parent_index, static_cast<int32_t>(i));
+  }
+}
+
 Graph BuildType2AndGeLocal() {
   DEF_GRAPH(graph_def) {
     auto var = OP_CFG(VARIABLE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
@@ -1799,125 +1965,21 @@ TEST_F(DynamicGraphTest, TestControlOp_If) {
 }
 
 TEST_F(DynamicGraphTest, TestControlOp_While) {
-  char runtime2_env[MMPA_MAX_PATH] = {'1'};
-  mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
-  MockForGenerateTask("aicpu_ascend_kernel", GenerateTaskForAicpuDependRange);
-  MockForGenerateTask("AIcoreEngine", GenerateTaskForStaticAicore);
-
-  DEF_GRAPH(cond) {
-    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
-
-    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {});
-    CHAIN(NODE("cond_data", cond_data)->NODE("cond_Node_Output", net_output));
+  DUMP_GRAPH_WHEN("PreRunAfterNormalizeGraph");
+  auto graph = BuildControlOpWhileGraph(false);
+  RunControlOpWhileGraph(graph);
+  CHECK_GRAPH(PreRunAfterNormalizeGraph) {
+    CheckWhileSubgraphOutputMappings(graph, "cond", "body");
   };
+}
 
-  GeTensor zero_tensor(GeTensorDesc(GeShape(std::vector<int64_t>{}), FORMAT_ND, DT_INT32));
-  zero_tensor.SetData(std::vector<uint8_t>{0, 0, 0, 0});
-  DEF_GRAPH(body) {
-    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
-
-    auto value_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
-
-    auto const_data =
-        OP_CFG(CONSTANT).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {}).Attr(ATTR_NAME_WEIGHTS, zero_tensor);
-
-    auto mul = OP_CFG(MUL).InCnt(2).OutCnt(1).Attr("op_para_size", 1).TensorDesc(FORMAT_ND, DT_INT32, {});
-
-    auto net_output =
-        OP_CFG(NETOUTPUT).InCnt(2).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {16}).Build("body_Node_Output");
-
-    net_output->MutableOutputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
-    net_output->MutableOutputDesc(0)->SetDataType(DT_INT32);
-    CHAIN(NODE("body_arg_0", cond_data)->NODE("mul", mul)->NODE(net_output));
-    CHAIN(NODE("one_tensor", const_data)->NODE("mul", mul));
-    CHAIN(NODE("value_data", value_data)->NODE(net_output));
+TEST_F(DynamicGraphTest, TestControlOp_WhileWithLegacySubgraphNames) {
+  DUMP_GRAPH_WHEN("PreRunAfterNormalizeGraph");
+  auto graph = BuildControlOpWhileGraph(true);
+  RunControlOpWhileGraph(graph);
+  CHECK_GRAPH(PreRunAfterNormalizeGraph) {
+    CheckWhileSubgraphOutputMappings(graph, "cond_graph", "body_graph");
   };
-
-  auto cond_graph = ToComputeGraph(cond);
-  auto body_graph = ToComputeGraph(body);
-
-  DEF_GRAPH(while_graph) {
-    auto cond_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {});
-
-    auto value_data = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
-
-    auto unique_op = OP_CFG("Unique").InCnt(1).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
-
-    auto while_op = OP_CFG(WHILE).InCnt(2).OutCnt(2).TensorDesc(FORMAT_ND, DT_FLOAT, {-1}).Build("while_op");
-
-    while_op->MutableInputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
-    while_op->MutableInputDesc(0)->SetDataType(DT_INT32);
-    while_op->MutableOutputDesc(0)->SetShape(GeShape(std::vector<int64_t>({})));
-    while_op->MutableOutputDesc(0)->SetDataType(DT_INT32);
-    while_op->RegisterSubgraphIrName("cond", SubgraphType::kStatic);
-    while_op->RegisterSubgraphIrName("body", SubgraphType::kStatic);
-
-    while_op->AddSubgraphName(cond_graph->GetName());
-    while_op->SetSubgraphInstanceName(0, cond_graph->GetName());
-    while_op->AddSubgraphName(body_graph->GetName());
-    while_op->SetSubgraphInstanceName(1, body_graph->GetName());
-
-    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
-
-    CHAIN(NODE("arg_cond", cond_data)->NODE(while_op));
-    CHAIN(NODE("arg_value", value_data)
-              ->NODE("unique", unique_op)
-              ->NODE(while_op)
-              ->EDGE(1, 0)
-              ->NODE("Node_Output", net_output));
-  };
-
-  auto root_graph = ToComputeGraph(while_graph);
-  auto while_node = root_graph->FindFirstNodeMatchType(WHILE);
-  EXPECT_TRUE(while_node != nullptr);
-  cond_graph->SetParentNode(while_node);
-  cond_graph->SetParentGraph(root_graph);
-  body_graph->SetParentNode(while_node);
-  body_graph->SetParentGraph(root_graph);
-  root_graph->AddSubgraph(cond_graph);
-  root_graph->AddSubgraph(body_graph);
-
-  auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
-
-  auto mul_kernel = [](const void *stubFunc, uint32_t blockDim, rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc,
-                       rtStream_t stream, uint32_t flag, const rtTaskCfgInfo_t *cfgInfo) -> int {
-    auto io_addrs = reinterpret_cast<uintptr_t *>(argsInfo->args);
-    auto *input_0 = reinterpret_cast<int32_t *>(io_addrs[0]);
-    auto *input_1 = reinterpret_cast<int32_t *>(io_addrs[1]);
-    auto *output = reinterpret_cast<int32_t *>(io_addrs[2]);
-    *output = *input_0 * *input_1;
-    return RT_ERROR_NONE;
-  };
-  auto runtime_stub = std::make_shared<MockRuntime>();
-  RuntimeStub::SetInstance(runtime_stub);
-  EXPECT_CALL(*runtime_stub, rtKernelLaunchWithFlagV2).WillRepeatedly(testing::Invoke(mul_kernel));
-
-  std::map<AscendString, AscendString> options;
-  options[VARIABLE_MEMORY_MAX_SIZE] = "12800";
-  Session session(options);
-  GraphId graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape_cond(std::vector<int64_t>{});
-  Tensor cond_tensor(TensorDesc(shape_cond, FORMAT_ND, DT_INT32));
-  int32_t value = 1;
-  cond_tensor.SetData((uint8_t *)&value, sizeof(value));
-
-  uint8_t value_buffer[16 * 4];
-  Shape shape_value(std::vector<int64_t>({16}));
-  Tensor value_tensor(TensorDesc(shape_value, FORMAT_ND, DT_FLOAT));
-  value_tensor.SetData(value_buffer, sizeof(value_buffer));
-
-  std::vector<Tensor> inputs{cond_tensor, value_tensor};
-  std::vector<Tensor> outputs;
-  // cond->body->cond
-  EXPECT_EQ(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
-  value = 0;
-  cond_tensor.SetData((uint8_t *)&value, sizeof(value));
-  // cond
-  inputs = {cond_tensor, value_tensor};
-  EXPECT_EQ(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
-  session.RemoveGraph(graph_id);
 }
 
 TEST_F(DynamicGraphTest, HostCpuPassDoesNotRouteUnsupportedConcatV2ToHostCpu) {
