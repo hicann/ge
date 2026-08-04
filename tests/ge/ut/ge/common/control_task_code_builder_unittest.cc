@@ -832,6 +832,7 @@ struct AicoreDispatchInfo {
   uint32_t block_dim;        // Block 维度
   uint32_t func_idx;         // 函数句柄索引，用于查找 func_handles
   uint32_t stream_id;        // 执行流索引
+  uint32_t task_type;
   struct {                    // Launch 配置，构建 LaunchKernelConfig → AssembleLaunchConfig
     uint8_t schedule_mode;    // 调度模式
     uint32_t engine_type;     // 引擎类型

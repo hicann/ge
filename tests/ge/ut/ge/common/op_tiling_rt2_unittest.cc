@@ -1207,4 +1207,35 @@ TEST_F(RegisterOpTilingRT2UT, AutofuseNodeNativeFallbackSuccess) {
 
   ge::MmpaStub::GetInstance().Reset();
 }
+
+TEST_F(RegisterOpTilingRT2UT, EnableRt2Tiling_WithUnknownOpType_ReturnsTrue) {
+  auto op_desc = std::make_shared<ge::OpDesc>("unknown_op", "UnknownOpType");
+  EXPECT_TRUE(EnableRt2Tiling(op_desc));
+}
+
+TEST_F(RegisterOpTilingRT2UT, EnableRt2Tiling_WithRt2RegisteredOp_ReturnsTrue) {
+  SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto op_desc = std::make_shared<ge::OpDesc>("concat_op", "ConcatV2");
+  EXPECT_TRUE(EnableRt2Tiling(op_desc));
+}
+
+TEST_F(RegisterOpTilingRT2UT, EnableAtomicRt2Tiling_WithUnknownOpType_ReturnsTrue) {
+  auto op_desc = std::make_shared<ge::OpDesc>("unknown_atomic_op", "UnknownOpType");
+  EXPECT_TRUE(EnableAtomicRt2Tiling(op_desc));
+}
+
+TEST_F(RegisterOpTilingRT2UT, EnableRt2Tiling_WithNullOpDesc) {
+  ge::OpDescPtr null_op_desc = nullptr;
+  EXPECT_FALSE(EnableRt2Tiling(null_op_desc));
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetDeterministicLevel_WithSessionOption) {
+  ge::GetThreadLocalContext().SetSessionOption({{"ge.deterministicLevel", "1"}});
+  int32_t deterministic_level = -1;
+  bool has_deterministic_level = false;
+  EXPECT_EQ(GetDeterministicLevel(deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
+  EXPECT_EQ(deterministic_level, 1);
+  EXPECT_TRUE(has_deterministic_level);
+  ge::GetThreadLocalContext().SetSessionOption({});
+}
 }  // namespace optiling

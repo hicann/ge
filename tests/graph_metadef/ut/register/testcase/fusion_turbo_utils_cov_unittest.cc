@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "register/graph_optimizer/fusion_common/fusion_turbo_utils.h"
+#include "register/graph_optimizer/fusion_common/fusion_turbo.h"
 #include "graph_builder_utils.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/utils/node_utils.h"
@@ -398,5 +399,145 @@ TEST_F(FusionTurboUtilsCovUT, IncCov_RelationsGetInRelationsAndOutRelations) {
   EXPECT_EQ(r.GetOutRelations().size(), 1U);
   EXPECT_FALSE(r.GetInRelations().at(0).empty());
   EXPECT_FALSE(r.GetOutRelations().at(0).empty());
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddConstNode_NoPeer) {
+  auto graph = std::make_shared<ge::ComputeGraph>("test_addconst_nopeer");
+  auto op_desc = std::make_shared<ge::OpDesc>("node1", "Relu");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({2, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  FusionTurbo ft(graph);
+  auto data_ptr = std::make_unique<int32_t[]>(16);
+  WeightInfo w(tensor_desc, data_ptr.get());
+  auto const_node = ft.AddWeight(node, 0, w);
+  EXPECT_NE(const_node, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_GetPeerInFirstPairViaTurbo) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  ASSERT_NE(relu_node, nullptr);
+  auto result = ft.GetPeerInFirstPair(relu_node, 0);
+  EXPECT_NE(result.node, nullptr);
+  auto result2 = ft.GetPeerOutPair(relu_node, 0);
+  EXPECT_NE(result2.node, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_MultiInOne_WithExistingNode) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(relu_node, nullptr);
+  ASSERT_NE(add_node, nullptr);
+  Relations input_rel(0, {relu_node, 0});
+  Relations output_rel;
+  auto new_node = ft.MultiInOne("merged_node", "Relu", input_rel, output_rel, {add_node}, false);
+  EXPECT_NE(new_node, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_InsertNodeBefore_WithPeer) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  ASSERT_NE(relu_node, nullptr);
+  auto new_node = ft.InsertNodeBefore("before_relu", "Relu", relu_node, 0, 0, 0);
+  EXPECT_NE(new_node, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_InsertNodeAfter_WithPeer) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  ASSERT_NE(relu_node, nullptr);
+  auto new_node = ft.InsertNodeAfter("after_relu", "Relu", relu_node, 0, 0, 0);
+  EXPECT_NE(new_node, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddWeight_WithTensorName) {
+  auto graph = std::make_shared<ge::ComputeGraph>("test_addweight_name2");
+  auto op_desc = std::make_shared<ge::OpDesc>("node1", "Relu");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({2, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  FusionTurbo ft(graph);
+  auto data_ptr = std::make_unique<int32_t[]>(16);
+  WeightInfo w(tensor_desc, data_ptr.get());
+  auto ret = ft.AddWeight(node, "x", w);
+  EXPECT_NE(ret, nullptr);
+  EXPECT_EQ(ft.AddWeight(node, "nonexistent", w), nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkInput_LinkOutput_UpdatePeer) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto const_node = graph->FindNode("const1");
+  auto relu_node = graph->FindNode("relu1");
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(const_node, nullptr);
+  ASSERT_NE(relu_node, nullptr);
+  ASSERT_NE(add_node, nullptr);
+  Relations input_rel(0, {const_node, 0});
+  EXPECT_EQ(ft.LinkInput(input_rel, add_node, UPDATE_PEER), FAILED);
+  Relations output_rel(0, {add_node, 0});
+  EXPECT_EQ(ft.LinkOutput(output_rel, relu_node, UPDATE_NONE), SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkInput_DstIndexOutOfRange) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto const_node = graph->FindNode("const1");
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(const_node, nullptr);
+  ASSERT_NE(add_node, nullptr);
+  Relations input_rel(99, {const_node, 0});
+  EXPECT_EQ(ft.LinkInput(input_rel, add_node, UPDATE_NONE), SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkOutput_SrcIndexOutOfRange) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(relu_node, nullptr);
+  ASSERT_NE(add_node, nullptr);
+  Relations output_rel(99, {add_node, 0});
+  EXPECT_EQ(ft.LinkOutput(output_rel, relu_node, UPDATE_NONE), SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkOutput_EmptyRelation) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  ASSERT_NE(relu_node, nullptr);
+  Relations output_rel(0, NodeIndices{});
+  EXPECT_EQ(ft.LinkOutput(output_rel, relu_node, UPDATE_NONE), PARAM_INVALID);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkInput_EmptyRelation) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  Relations input_rel(0, NodeIndices{});
+  EXPECT_EQ(ft.LinkInput(input_rel, add_node, UPDATE_NONE), PARAM_INVALID);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddWeights_WithZeroDataSize) {
+  auto graph = std::make_shared<ge::ComputeGraph>("test_addweights_zero");
+  auto op_desc = std::make_shared<ge::OpDesc>("node1", "Relu");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({0}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  FusionTurbo ft(graph);
+  auto data_ptr = std::make_unique<int32_t[]>(16);
+  WeightInfo w(tensor_desc, data_ptr.get());
+  auto nodes = ft.AddWeights(node, {w});
+  EXPECT_TRUE(nodes.empty());
 }
 }  // namespace fe

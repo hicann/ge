@@ -5575,5 +5575,42 @@ TEST_F(UtestFormatTransferNhwcFz, invalid_data_shape) {
       transfer3.TransShape(args3.src_format, args3.src_shape, args3.src_data_type, args3.dst_format, args3.dst_shape),
       ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransferNhwcFz, nhwc_invalid_data_type_trans_shape) {
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NHWC, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z, FORMAT_RESERVED, 5));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZ transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {1, 1, 1, 1}, DT_STRING, dst_format, dst_shape),
+            ACL_ERROR_GE_DATATYPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNhwcFz, nhwc_invalid_src_shape_trans_shape) {
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NHWC, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z, FORMAT_RESERVED, 5));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZ transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {1, 1}, DT_FLOAT16, dst_format, dst_shape), ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNhwcFz, nhwc_invalid_dst_shape_relation) {
+  uint16_t data[1 * 1 * 1 * 1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NHWC, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_NHWC,
+                 FORMAT_FRACTAL_Z,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {1, 1, 1, 1},
+                 {2, 1, 16, 16},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferFractalZ transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

@@ -13939,5 +13939,45 @@ TEST_F(UtestFormatTransferHwcnC1hwncoc0, hwcn_to_6d_fp32_success_gt_cube) {
     EXPECT_EQ((reinterpret_cast<float *>(result.data.get()))[i], data_6d[i]);
   }
 }
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, empty_tensor_success) {
+  uint8_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_HWCN, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_C1HWNCoC0, FORMAT_RESERVED, 5));
+  TransArgs args{
+      data, src_format, dst_format,   FORMAT_HWCN,          FORMAT_C1HWNCoC0, FORMAT_RESERVED, FORMAT_RESERVED,
+      16,   16,         {1, 1, 0, 1}, {0, 1, 1, 1, 16, 16}, DT_FLOAT};
+  TransResult result;
+  FormatTransferHwcnC1hwncoc0 transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, invalid_data_type_trans_shape) {
+  FormatTransferHwcnC1hwncoc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_HWCN, {1, 1, 1, 1}, DT_DOUBLE, FORMAT_C1HWNCoC0, dst_shape),
+            ACL_ERROR_GE_DATATYPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, invalid_format_trans_shape) {
+  FormatTransferHwcnC1hwncoc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_NCHW, {1, 1, 1, 1}, DT_FLOAT, FORMAT_C1HWNCoC0, dst_shape),
+            ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, invalid_src_shape_trans_shape) {
+  FormatTransferHwcnC1hwncoc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_HWCN, {1, 1}, DT_FLOAT, FORMAT_C1HWNCoC0, dst_shape),
+            ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, invalid_dst_shape_trans_shape_mismatch) {
+  FormatTransferHwcnC1hwncoc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_HWCN, {1, 1, 1, 1}, DT_FLOAT, FORMAT_C1HWNCoC0, dst_shape),
+            ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

@@ -194,6 +194,8 @@ const char *const kRawCompileOptionsGlobal = "global";
 const char *const kRawCompileOptionsSession = "session";
 const char *const kRawCompileOptionsGraph = "graph";
 const char *const kCliOptionPrefix = "--";
+const char *const kMultiStreamParallelModeFlag = "multi_stream_parallel_mode";
+const char *const kMultiStreamParallelModeOption = "--multi_stream_parallel_mode";
 const std::set<std::string> kRawNonReplaceableCliOptions = {"model", "output", "framework", "soc_version"};
 
 std::set<std::string> &GetRawAppliedFlagNames() {
@@ -865,6 +867,19 @@ class GFlagUtils {
     return SUCCESS;
   }
 
+  static Status CheckMultiStreamParallelModeConflict() {
+    const auto &user_options = ge::flgs::GetUserOptions();
+    const bool is_multi_stream_set = (user_options.count(kMultiStreamParallelModeFlag) > 0U) ||
+                                     (GetRawAppliedFlagNames().count(kMultiStreamParallelModeFlag) > 0U);
+    if (is_multi_stream_set && FLAGS_enable_single_stream == "true") {
+      REPORT_PREDEFINED_ERR_MSG("E10056", std::vector<const char *>({"parameter1", "parameter2"}),
+                                std::vector<const char *>({kMultiStreamParallelModeOption, "--enable_single_stream"}));
+      GELOGE(FAILED, "Cannot set both %s and --enable_single_stream.", kMultiStreamParallelModeOption);
+      return FAILED;
+    }
+    return SUCCESS;
+  }
+
   static Status CheckFlags() {
     const bool is_mode_om = ((FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM_MODEL)) ||
                              (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO)) ||
@@ -981,6 +996,7 @@ class GFlagUtils {
 
     GE_CHK_BOOL_EXEC(CheckEnableSingleStreamParamValid(std::string(FLAGS_enable_single_stream)) == SUCCESS,
                      return FAILED, "[Check][EnableSingleStream]failed!");
+    GE_ASSERT_SUCCESS(CheckMultiStreamParallelModeConflict(), "[Check][MultiStreamParallelModeConflict]failed!");
 
     GE_CHK_BOOL_EXEC(CheckExternalWeightParamValid(std::string(FLAGS_external_weight)) == SUCCESS, return FAILED,
                      "[Check][ExternalWeight]failed!");

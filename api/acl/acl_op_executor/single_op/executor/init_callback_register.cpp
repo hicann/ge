@@ -28,7 +28,7 @@ aclError AclOpExecutorInitCallbackFunc(const char *configBuffer, size_t bufferSi
   if ((configBuffer != nullptr) && (bufferSize != 0UL)) {
     // config max_opqueue_num
     ACL_LOG_INFO("set max_opqueue_num in aclInit");
-    auto ret = acl::AclOpResourceManager::GetInstance().HandleMaxOpQueueConfig(configBuffer);
+    const auto ret = acl::AclOpResourceManager::GetInstance().HandleMaxOpQueueConfig(configBuffer);
     if (ret != ACL_SUCCESS) {
       ACL_LOG_ERROR("[Process][QueueConfig]process HandleMaxOpQueueConfig failed");
       return ret;
@@ -50,7 +50,7 @@ aclError AclOpResourceInitCallbackFunc(const char *configBuffer, size_t bufferSi
   (void)userData;
   ACL_LOG_INFO("start to enter AclOpResourceInitCallbackFunc");
   // register ge release function by stream
-  auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", &HandleReleaseSourceByStream, nullptr);
+  const auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", &HandleReleaseSourceByStream, nullptr);
   if (aclErr != ACL_SUCCESS) {
     ACL_LOG_ERROR("register release function by stream to runtime failed, ret:%d", aclErr);
     return aclErr;
@@ -69,7 +69,7 @@ aclError AclOpResourceFinalizeCallbackFunc(void *userData) {
   (void)userData;
   ACL_LOG_INFO("start to enter AclOpResourceFinalizeCallbackFunc");
   // unregister ge release function by stream
-  auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", nullptr, nullptr);
+  const auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", nullptr, nullptr);
   if (aclErr != ACL_SUCCESS) {
     ACL_LOG_ERROR("unregister release function by stream to runtime failed, ret:%d", aclErr);
     return aclErr;

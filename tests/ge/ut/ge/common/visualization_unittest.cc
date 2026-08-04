@@ -912,5 +912,322 @@ TEST_F(VisualizationTest, SerializeFromModelDef_EmptyModel) {
   EXPECT_FALSE(j["model"].contains("graph"));
 }
 
+TEST_F(VisualizationTest, SerializeFromModelDef_DoubleField) {
+  proto::ModelDef model_def;
+  model_def.set_name("double_model");
+  auto *graph = model_def.add_graph();
+  graph->set_name("main_graph");
+  auto *op = graph->add_op();
+  op->set_name("double_op");
+  op->set_type("DoubleOp");
+
+  auto *td = op->add_input_desc();
+  td->set_name("input_td");
+  td->set_dtype(proto::DT_DOUBLE);
+  td->mutable_shape()->add_dim(2);
+  td->mutable_shape()->add_dim(3);
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+  EXPECT_EQ(j["model"]["graph"][0]["op"][0]["input_desc"][0]["dtype"], "DT_DOUBLE");
+}
+
+TEST_F(VisualizationTest, SerializeFromModelDef_RepeatedDoubleField) {
+  proto::ModelDef model_def;
+  auto *graph = model_def.add_graph();
+  graph->set_name("main_graph");
+  auto *op = graph->add_op();
+  op->set_name("rep_dt_op");
+  op->set_type("RepDtOp");
+
+  auto *list = (*op->mutable_attr())["list_dt"].mutable_list();
+  list->set_val_type(proto::AttrDef_ListValue_ListValueType_VT_LIST_DATA_TYPE);
+  list->add_dt(proto::DT_DOUBLE);
+  list->add_dt(proto::DT_FLOAT);
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+  const auto &attr = j["model"]["graph"][0]["op"][0]["attr"]["list_dt"];
+  EXPECT_EQ(attr["type"], "list_data_type");
+  EXPECT_EQ(attr["value"].size(), 2U);
+  EXPECT_EQ(attr["value"][0], proto::DT_DOUBLE);
+}
+
+TEST_F(VisualizationTest, SerializeFromModelDef_AttrDefWithUnknownValueCase) {
+  proto::ModelDef model_def;
+  auto *graph = model_def.add_graph();
+  graph->set_name("main_graph");
+  auto *op = graph->add_op();
+  op->set_name("unknown_val_op");
+  op->set_type("UnknownValOp");
+
+  // Create an AttrDef with no value set (kValueNotSet)
+  (void)(*op->mutable_attr())["unknown_val"];
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+}
+
+TEST_F(VisualizationTest, SerializeFromModelDef_ListValueWithEmptyListAndNoValType) {
+  proto::ModelDef model_def;
+  auto *graph = model_def.add_graph();
+  graph->set_name("main_graph");
+  auto *op = graph->add_op();
+  op->set_name("empty_no_type_op");
+  op->set_type("EmptyNoTypeOp");
+
+  auto *list = (*op->mutable_attr())["empty_no_type"].mutable_list();
+  // Don't set val_type, don't add any elements
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+  const auto &attr = j["model"]["graph"][0]["op"][0]["attr"]["empty_no_type"];
+  EXPECT_TRUE(attr.is_object());
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_EnumFieldAsStringWithEnumAsStringTrue) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "enum_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "enum_op",
+          "type": "EnumOp",
+          "input_desc": [{"name": "x", "dtype": "DT_FLOAT"}],
+          "output_desc": [{"name": "y", "dtype": "DT_INT32"}]
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  const std::set<std::string> black_fields;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, black_fields, pb_json, true), SUCCESS);
+
+  const auto &input_desc = pb_json["graph"][0]["op"][0]["input_desc"][0];
+  EXPECT_EQ(input_desc["dtype"], "DT_FLOAT");
+  const auto &output_desc = pb_json["graph"][0]["op"][0]["output_desc"][0];
+  EXPECT_EQ(output_desc["dtype"], "DT_INT32");
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_ArrayElementNotObject) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "array_elem_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "array_op",
+          "type": "ArrayOp",
+          "attr": {
+            "list_int_mixed": {"type": "list_int", "value": [1, "not_object", 3]}
+          }
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_RepeatedMessageFieldWithNonArray) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "rep_msg_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "rep_msg_op",
+          "type": "RepMsgOp",
+          "input_desc": "not_an_array"
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_NullAttrValue) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "null_attr_model",
+      "graph": [{
+        "name": "main_graph",
+        "attr": {
+          "null_value": null
+        },
+        "op": [{
+          "name": "null_op",
+          "type": "NullOp",
+          "attr": {
+            "null_attr": null
+          }
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+}
+
+TEST_F(VisualizationTest, SerializeFromModelDef_GraphDefWithAttrs) {
+  proto::ModelDef model_def;
+  model_def.set_name("graph_attr_model");
+  auto *graph = model_def.add_graph();
+  graph->set_name("main_graph");
+  graph->add_input("input:0");
+  graph->add_output("output:0");
+
+  auto *graph_attr = graph->mutable_attr();
+  (*graph_attr)["graph_str"].set_s("graph_value");
+  (*graph_attr)["graph_int"].set_i(42);
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+  const auto &graph_json = j["model"]["graph"][0];
+  EXPECT_EQ(graph_json["attr"]["graph_str"], "graph_value");
+  EXPECT_EQ(graph_json["attr"]["graph_int"], 42);
+}
+
+TEST_F(VisualizationTest, SerializeFromModelDef_ModelDefWithAttrs) {
+  proto::ModelDef model_def;
+  model_def.set_name("model_with_attrs");
+  model_def.set_version(2);
+  model_def.set_custom_version("2.0.0");
+
+  auto *model_attr = model_def.mutable_attr();
+  auto *list_attr = (*model_attr)["model_list"].mutable_list();
+  list_attr->set_val_type(proto::AttrDef_ListValue_ListValueType_VT_LIST_INT);
+  list_attr->add_i(10);
+  list_attr->add_i(20);
+
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+
+  nlohmann::json j;
+  ASSERT_NO_THROW(j = nlohmann::json::parse(json_str));
+  EXPECT_EQ(j["model"]["attr"]["model_list"]["type"], "list_int");
+  EXPECT_EQ(j["model"]["attr"]["model_list"]["value"][1], 20);
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_AttrDefWithBytesAndFunc) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "bytes_func_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "bytes_op",
+          "type": "BytesOp",
+          "attr": {
+            "bytes_attr": {"type": "bytes", "value": "raw_bytes_data"},
+            "expr_attr": {"type": "expression", "value": "a * b + c"}
+          }
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+
+  const auto &attrs = pb_json["graph"][0]["op"][0]["attr"];
+  ASSERT_TRUE(attrs.is_array());
+  EXPECT_EQ(RequireMapValue(attrs, "bytes_attr")["bt"], "raw_bytes_data");
+  EXPECT_EQ(RequireMapValue(attrs, "expr_attr")["expression"], "a * b + c");
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_AttrDefWithTensorDescAndGraph) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "td_graph_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "td_op",
+          "type": "TdOp",
+          "attr": {
+            "td_attr": {"type": "tensor_desc", "value": {"name": "td0", "dtype": "DT_FLOAT", "shape": {"dim": [1, 2]}}},
+            "g_attr": {"type": "graph", "value": {"name": "sub_graph", "input": ["in:0"], "output": ["out:0"]}}
+          }
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+
+  const auto &attrs = pb_json["graph"][0]["op"][0]["attr"];
+  ASSERT_TRUE(attrs.is_array());
+  EXPECT_EQ(RequireMapValue(attrs, "td_attr")["td"]["name"], "td0");
+  EXPECT_EQ(RequireMapValue(attrs, "g_attr")["g"]["name"], "sub_graph");
+}
+
+TEST_F(VisualizationTest, LoadFromVisualJson_ListValueWithObjectElementsFallback) {
+  const std::string visual_json = R"({
+    "format": "ge_visual_json",
+    "format_version": 1,
+    "model": {
+      "name": "list_obj_model",
+      "graph": [{
+        "name": "main_graph",
+        "op": [{
+          "name": "list_obj_op",
+          "type": "ListObjOp",
+          "attr": {
+            "list_td_fallback": {"type": "list_tensor_desc", "value": [{"name": "td_f0"}, {"name": "td_f1"}]},
+            "list_t_fallback": {"type": "list_tensor", "value": [{"desc": {"name": "t_f0"}}, {"desc": {"name": "t_f1"}}]},
+            "list_g_fallback": {"type": "list_graph", "value": [{"name": "g_f0"}, {"name": "g_f1"}]},
+            "list_na_fallback": {"type": "list_named_attrs", "value": [{"name": "na_f0", "attr": {"k": "v"}}]}
+          }
+        }]
+      }]
+    }
+  })";
+
+  nlohmann::json pb_json;
+  ASSERT_EQ(VisualJsonConverter::LoadFromVisualJson(visual_json, pb_json), SUCCESS);
+
+  const auto &attrs = pb_json["graph"][0]["op"][0]["attr"];
+  ASSERT_TRUE(attrs.is_array());
+  const auto *list_td = FindMapValue(attrs, "list_td_fallback");
+  ASSERT_NE(list_td, nullptr);
+  EXPECT_EQ((*list_td)["list"]["val_type"], 6);
+  EXPECT_EQ((*list_td)["list"]["td"][0]["name"], "td_f0");
+}
+
 }  // namespace
 }  // namespace ge

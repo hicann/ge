@@ -2280,4 +2280,42 @@ TEST_F(UtestGeApi, FullSetupRunGraphForPrintOutput) {
   AclRuntimeStub::Reset();
   ge_env.Reset();
 }
+
+TEST_F(UtestGeApi, GetVariables_NullName_CovEnhance) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<AscendString> var_names;
+  var_names.emplace_back(AscendString());
+  std::vector<Tensor> var_values;
+  EXPECT_EQ(session.GetVariables(var_names, var_values), FAILED);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, FeedDataFlowGraph_TensorNotInit_CovEnhance) {
+  GEFinalize();
+  std::map<std::string, std::string> options;
+  Session session(options);
+  std::vector<Tensor> inputs;
+  DataFlowInfo info;
+  EXPECT_EQ(session.FeedDataFlowGraph(1U, inputs, info, 0), FAILED);
+}
+
+TEST_F(UtestGeApi, FeedRawData_NotInit_CovEnhance) {
+  GEFinalize();
+  std::map<std::string, std::string> options;
+  Session session(options);
+  std::vector<RawData> raw_data_list;
+  DataFlowInfo info;
+  EXPECT_EQ(session.FeedRawData(1U, raw_data_list, 0U, info, 0), FAILED);
+}
+
+TEST_F(UtestGeApi, FetchDataFlowGraph_TensorNotInit_CovEnhance) {
+  GEFinalize();
+  std::map<std::string, std::string> options;
+  Session session(options);
+  std::vector<Tensor> outputs;
+  DataFlowInfo info;
+  EXPECT_EQ(session.FetchDataFlowGraph(1U, outputs, info, 0), FAILED);
+}
 }  // namespace ge

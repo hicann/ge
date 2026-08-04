@@ -105,3 +105,167 @@ TEST_F(UtestVarMemAssignUtil, GetNameForVarManager_EmptySrcConstName) {
   ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_SRC_CONST_NAME, "");
   ASSERT_EQ(ge::VarMemAssignUtil::GetNameForVarManager(op_desc), "test_name");
 }
+
+TEST_F(UtestVarMemAssignUtil, AssignVarMemory_CovEnhance_RdmaHbm) {
+  auto graph = gert::ShareGraph::SimpleVariableGraph();
+  graph->SetSessionID(202311132103);
+  auto variable = graph->FindFirstNodeMatchType("Variable");
+  ASSERT_NE(variable, nullptr);
+  ge::AttrUtils::SetInt(variable->GetOpDesc(), ge::ATTR_OUTPUT_MEMORY_TYPE, 1U);
+  VarManager::Instance(graph->GetSessionID())->Init(0, graph->GetSessionID(), 0, 0);
+  ASSERT_NE(ge::VarMemAssignUtil::AssignVarMemory(graph), ge::SUCCESS);
+  VarManager::Instance(graph->GetSessionID())->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, AssignData2Fp32Var_CovEnhance_WithSrcVarName) {
+  uint64_t session_id = 202311132107;
+  auto op_desc = std::make_shared<ge::OpDesc>("test_var", "Variable");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  ge::AttrUtils::SetStr(op_desc, ge::VAR_ATTR_SRC_VAR_NAME, "src_var");
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  GeTensorDesc src_tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(src_tensor_desc, 16);
+  VarManager::Instance(session_id)->AssignVarMem("src_var", nullptr, src_tensor_desc, RT_MEMORY_HBM);
+
+  ASSERT_EQ(ge::VarMemAssignUtil::AssignData2Fp32Var(node, session_id), ge::SUCCESS);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, SetOutVariableAttr_CovEnhance_EmptyOutputList) {
+  uint64_t session_id = 202311132108;
+  auto op_desc = std::make_shared<ge::OpDesc>("test_node", "Assign");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+  auto var_op_desc = std::make_shared<ge::OpDesc>("var_node", "Variable");
+  var_op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  auto var_node = graph->AddNode(var_op_desc);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  ASSERT_EQ(ge::VarMemAssignUtil::SetOutVariableAttr(node, var_node, 0, session_id), ge::PARAM_INVALID);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, SetOutVariableAttr_CovEnhance_IndexOutOfBounds) {
+  uint64_t session_id = 202311132109;
+  auto op_desc = std::make_shared<ge::OpDesc>("test_node", "Assign");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  op_desc->SetOutputOffset({100});
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+  auto var_op_desc = std::make_shared<ge::OpDesc>("var_node", "Variable");
+  GeTensorDesc var_tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(var_tensor_desc, 16);
+  var_op_desc->AddOutputDesc(var_tensor_desc);
+  auto var_node = graph->AddNode(var_op_desc);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  VarManager::Instance(session_id)->AssignVarMem("var_node", var_op_desc, var_tensor_desc, RT_MEMORY_HBM);
+  ASSERT_EQ(ge::VarMemAssignUtil::SetOutVariableAttr(node, var_node, 5, session_id), ge::FAILED);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, AssignData2VarRef_CovEnhance_RefData) {
+  uint64_t session_id = 202311132110;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  graph->SetSessionID(session_id);
+  auto refdata_op_desc = std::make_shared<ge::OpDesc>("refdata_node", "RefData");
+  refdata_op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  auto refdata_node = graph->AddNode(refdata_op_desc);
+  auto has_ref_op_desc = std::make_shared<ge::OpDesc>("has_ref_node", "Assign");
+  has_ref_op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  has_ref_op_desc->SetOutputOffset({200});
+  auto has_ref_node = graph->AddNode(has_ref_op_desc);
+  ge::GraphToNodeMap graph_to_node;
+  ASSERT_EQ(ge::VarMemAssignUtil::AssignData2VarRef(has_ref_node, "refdata_node", session_id, 0, graph_to_node),
+            ge::SUCCESS);
+}
+
+TEST_F(UtestVarMemAssignUtil, DealBroadCastNode_CovEnhance_BasicFlow) {
+  uint64_t session_id = 202311132111;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  graph->SetSessionID(session_id);
+  graph->SetGraphID(0);
+  auto var_op_desc = std::make_shared<ge::OpDesc>("var_node", "Variable");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16);
+  var_op_desc->AddOutputDesc(tensor_desc);
+  var_op_desc->SetOutputOffset({100});
+  auto var_node = graph->AddNode(var_op_desc);
+  auto bc_op_desc = std::make_shared<ge::OpDesc>("bc_node", "HcomBroadcast");
+  GeTensorDesc bc_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(bc_desc, 16);
+  bc_op_desc->AddInputDesc("input", bc_desc);
+  bc_op_desc->AddOutputDesc("output", bc_desc);
+  bc_op_desc->SetOutputOffset({200});
+  auto bc_node = graph->AddNode(bc_op_desc);
+  EXPECT_EQ(var_node->GetOutDataAnchor(0)->LinkTo(bc_node->GetInDataAnchor(0)), GRAPH_SUCCESS);
+  auto in_data_anchor = bc_node->GetInDataAnchor(0);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  VarManager::Instance(session_id)->AssignVarMem("var_node", var_op_desc, tensor_desc, RT_MEMORY_HBM);
+  ASSERT_EQ(ge::VarMemAssignUtil::DealBroadCastNode(0, bc_node, in_data_anchor, var_node, session_id), ge::SUCCESS);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, DealVariableNode_CovEnhance_WithBroadCast) {
+  uint64_t session_id = 202311132112;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  graph->SetSessionID(session_id);
+  graph->SetGraphID(0);
+  auto var_op_desc = std::make_shared<ge::OpDesc>("var_node2", "Variable");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16);
+  var_op_desc->AddOutputDesc(tensor_desc);
+  var_op_desc->SetOutputOffset({100});
+  auto var_node = graph->AddNode(var_op_desc);
+  auto bc_op_desc = std::make_shared<ge::OpDesc>("bc_node2", "HcomBroadcast");
+  GeTensorDesc bc_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(bc_desc, 16);
+  bc_op_desc->AddInputDesc("input", bc_desc);
+  bc_op_desc->AddOutputDesc("output", bc_desc);
+  bc_op_desc->SetOutputOffset({200});
+  auto bc_node = graph->AddNode(bc_op_desc);
+  EXPECT_EQ(var_node->GetOutDataAnchor(0)->LinkTo(bc_node->GetInDataAnchor(0)), GRAPH_SUCCESS);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  VarManager::Instance(session_id)->AssignVarMem("var_node2", var_op_desc, tensor_desc, RT_MEMORY_HBM);
+  ASSERT_EQ(ge::VarMemAssignUtil::DealVariableNode(0, var_node, session_id), ge::SUCCESS);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, DealExportVariableNode_CovEnhance_RecursionLimit) {
+  uint64_t session_id = 202311132113;
+  auto op_desc = std::make_shared<ge::OpDesc>("assign_node", "Assign");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+  auto var_op_desc = std::make_shared<ge::OpDesc>("var_node3", "Variable");
+  var_op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  auto var_node = graph->AddNode(var_op_desc);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  ASSERT_EQ(ge::VarMemAssignUtil::DealExportVariableNode(node, var_node, session_id, 16U), ge::FAILED);
+  VarManager::Instance(session_id)->Destroy();
+}
+
+TEST_F(UtestVarMemAssignUtil, GetFinalTransNode_CovEnhance_RecursionLimit) {
+  auto op_desc = std::make_shared<ge::OpDesc>("trans_node", "TransData");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+  auto result = ge::VarMemAssignUtil::GetFinalTransNode(node, 16U);
+  EXPECT_EQ(result, node);
+}
+
+TEST_F(UtestVarMemAssignUtil, DealExportTransNode_CovEnhance_RecursionLimit) {
+  uint64_t session_id = 202311132114;
+  auto op_desc = std::make_shared<ge::OpDesc>("assign_node2", "Assign");
+  op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto node = graph->AddNode(op_desc);
+  auto trans_op_desc = std::make_shared<ge::OpDesc>("trans_node2", "TransData");
+  trans_op_desc->AddOutputDesc("output", GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  auto trans_node = graph->AddNode(trans_op_desc);
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  ASSERT_EQ(ge::VarMemAssignUtil::DealExportTransNode(node, trans_node, 16U), ge::FAILED);
+  VarManager::Instance(session_id)->Destroy();
+}

@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <climits>
 
 #include "common/datatype_transfer/datatype_transfer.h"
 #include "common/fp16_t/fp16_t.h"
@@ -431,6 +432,20 @@ TEST_F(UtestDataTypeTransfer, TransDataType_ZeroSize) {
   DataTypeTransfer transfer;
   EXPECT_EQ(transfer.TransDataType(args, result), SUCCESS);
   EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestDataTypeTransfer, TransTensorDataType_NullDataWithSize_CovEnhance) {
+  CastArgs args{nullptr, 10, DT_FLOAT, DT_FLOAT16};
+  TransResult result;
+  EXPECT_EQ(TransTensorDataType(args, result), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(UtestDataTypeTransfer, TransDataType_OverflowSrcSize_CovEnhance) {
+  int32_t data[4] = {1, 2, 3, 4};
+  CastArgs args{reinterpret_cast<uint8_t *>(data), SIZE_MAX, DT_INT32, DT_FLOAT};
+  TransResult result;
+  DataTypeTransfer transfer;
+  EXPECT_EQ(transfer.TransDataType(args, result), ACL_ERROR_GE_PARAM_INVALID);
 }
 }  // namespace formats
 }  // namespace ge

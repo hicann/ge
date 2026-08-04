@@ -1874,5 +1874,137 @@ TEST_F(FastValueHolderUt, ClearGraphFrameSucc) {
   EXPECT_EQ(ValueHolder::GetCurrentFrame(), nullptr);
   EXPECT_EQ(ValueHolder::PopGraphFrame(), nullptr);
 }
+
+TEST_F(FastValueHolderUt, IncCov_CreateSingleDataOutput_NoFrame) {
+  ValueHolder::ClearGraphFrameResource();
+  auto holder = ValueHolder::CreateSingleDataOutput("TestNode", {});
+  EXPECT_EQ(holder, nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_AddDependency_NullDst) {
+  auto data = ValueHolder::CreateFeed(0);
+  auto result = ValueHolder::AddDependency(data, nullptr);
+  EXPECT_FALSE(result.IsSuccess());
+  ValueHolderPtr null_holder;
+  auto result2 = ValueHolder::AddDependency(null_holder, data);
+  EXPECT_FALSE(result2.IsSuccess());
+}
+
+TEST_F(FastValueHolderUt, IncCov_AddDependency_NullFastNode) {
+  ValueHolderPtr null_holder = std::make_shared<ValueHolder>();
+  auto data = ValueHolder::CreateFeed(0);
+  auto result = ValueHolder::AddDependency(null_holder, data);
+  EXPECT_FALSE(result.IsSuccess());
+  auto result2 = ValueHolder::AddDependency(data, null_holder);
+  EXPECT_FALSE(result2.IsSuccess());
+}
+
+TEST_F(FastValueHolderUt, IncCov_PushGraphFrame_RootWhenNotEmpty) {
+  auto frame = ValueHolder::PushGraphFrame();
+  EXPECT_EQ(frame, nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_PushGraphFrame_NonRootWhenEmpty) {
+  auto data = ValueHolder::CreateFeed(0);
+  auto frame = ValueHolder::PopGraphFrame();
+  ASSERT_NE(frame, nullptr);
+  auto result = ValueHolder::PushGraphFrame(data, "subgraph");
+  EXPECT_EQ(result, nullptr);
+  ValueHolder::PushGraphFrame(frame.release());
+}
+
+TEST_F(FastValueHolderUt, IncCov_AddRelevantInputNode_NoFrame) {
+  ValueHolder::ClearGraphFrameResource();
+  auto node = FakeNode();
+  ValueHolder::AddRelevantInputNode(node);
+}
+
+TEST_F(FastValueHolderUt, IncCov_GetLastExecNodes_EmptyFrames) {
+  ValueHolder::ClearGraphFrameResource();
+  auto nodes = ValueHolder::GetLastExecNodes();
+  EXPECT_TRUE(nodes.empty());
+}
+
+TEST_F(FastValueHolderUt, IncCov_RefFrom_NegativeIndex) {
+  auto data = ValueHolder::CreateFeed(0);
+  auto holder = data->CreateMateFromNode(data->GetFastNode(), -1, ValueHolder::ValueHolderType::kOutput);
+  ASSERT_NE(holder, nullptr);
+  auto result = holder->RefFrom(data);
+  EXPECT_NE(result, ge::GRAPH_SUCCESS);
+
+  auto holder2 = data->CreateMateFromNode(data->GetFastNode(), 0, ValueHolder::ValueHolderType::kOutput);
+  ASSERT_NE(holder2, nullptr);
+  auto result2 = holder2->RefFrom(holder);
+  EXPECT_NE(result2, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(FastValueHolderUt, IncCov_SetCurrentComputeNode_NoFrame) {
+  ValueHolder::ClearGraphFrameResource();
+  auto node = FakeNode();
+  ValueHolder::SetCurrentComputeNode(node);
+}
+
+TEST_F(FastValueHolderUt, IncCov_PopGraphFrame_Empty) {
+  ValueHolder::ClearGraphFrameResource();
+  auto frame = ValueHolder::PopGraphFrame();
+  EXPECT_EQ(frame, nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_GetCurrentFrame_AfterClear) {
+  ValueHolder::ClearGraphFrameResource();
+  EXPECT_EQ(ValueHolder::GetCurrentFrame(), nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_GetCurrentExecuteGraph_NoFrame) {
+  ValueHolder::ClearGraphFrameResource();
+  EXPECT_EQ(ValueHolder::GetCurrentExecuteGraph(), nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_CreateError_VaList) {
+  auto holder = ValueHolder::CreateError("test error %d", 42);
+  ASSERT_NE(holder, nullptr);
+  EXPECT_FALSE(holder->IsOk());
+  EXPECT_EQ(holder->GetType(), ValueHolder::ValueHolderType::kValueHolderTypeEnd);
+}
+
+TEST_F(FastValueHolderUt, IncCov_GetGuarder_SetGuarder) {
+  auto data0 = ValueHolder::CreateFeed(0);
+  auto allocator0 = ValueHolder::CreateSingleDataOutput("CreateAllocator", {data0});
+  auto guarder = ValueHolder::CreateVoidGuarder("DestroyAllocator", allocator0, {});
+  ASSERT_NE(guarder, nullptr);
+  EXPECT_EQ(allocator0->GetGuarder(), guarder);
+  EXPECT_EQ(guarder->GetGuarder(), nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_ReleaseAfter_NoGuarder) {
+  auto data0 = ValueHolder::CreateFeed(0);
+  auto allocator0 = ValueHolder::CreateSingleDataOutput("CreateAllocator", {data0});
+  allocator0->ReleaseAfter(data0);
+}
+
+TEST_F(FastValueHolderUt, IncCov_GetLastExecNodes_WithRootFrame) {
+  auto data0 = ValueHolder::CreateFeed(0);
+  auto foo = ValueHolder::CreateSingleDataOutput("Foo", {data0});
+  auto frame = ValueHolder::PopGraphFrame({foo}, {});
+  ASSERT_NE(frame, nullptr);
+}
+
+TEST_F(FastValueHolderUt, IncCov_SetScopedCurrentComputeNode) {
+  auto op_desc = std::make_shared<ge::OpDesc>("node", "node");
+  ge::GeTensorDesc tensor_desc;
+  tensor_desc.SetOriginFormat(ge::FORMAT_NCHW);
+  tensor_desc.SetFormat(ge::FORMAT_NC1HWC0);
+  tensor_desc.SetDataType(ge::DT_FLOAT16);
+  tensor_desc.SetOriginDataType(ge::DT_FLOAT);
+  tensor_desc.SetShape(ge::GeShape({8, 1, 224, 224, 16}));
+  tensor_desc.SetOriginShape(ge::GeShape({8, 3, 224, 224}));
+  op_desc->AddInputDesc("x1", tensor_desc);
+  auto graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = graph->AddNode(op_desc);
+
+  ValueHolder::SetCurrentComputeNode(node);
+  auto guarder = ValueHolder::SetScopedCurrentComputeNode(node);
+  ASSERT_NE(guarder, nullptr);
+}
 }  // namespace bg
 }  // namespace gert

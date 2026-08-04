@@ -608,4 +608,348 @@ TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_WithMultiBatchDiffDtyp
   auto ret = ShapeRefiner::InferShapeAndType(if_node, op, false);
   EXPECT_EQ(ret, GRAPH_SUCCESS);
 }
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_MultiBatchShapeOverflow) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_overflow");
+  NodePtr if_node = CreateNodeIncCov2(root_graph, "if_overflow", "If", 1, 1);
+  auto op_desc = if_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_BATCH_NUM, 2);
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_overflow");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_ovf", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_ovf", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({std::numeric_limits<int64_t>::max(), 2}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, out_desc1);
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc if_input_desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateInputDesc(0, if_input_desc);
+  GeTensorDesc if_output_desc(GeShape({std::numeric_limits<int64_t>::max(), 2}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateOutputDesc(0, if_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(if_node);
+  auto ret = ShapeRefiner::InferShapeAndType(if_node, op, false);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_MultiBatchEmptyOutput) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_mb_empty");
+  NodePtr if_node = CreateNodeIncCov2(root_graph, "if_mb_empty", "If", 1, 2);
+  auto op_desc = if_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_BATCH_NUM, 2);
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_mb_empty");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_mb_empty", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_mb_empty", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, out_desc1);
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc if_input_desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateInputDesc(0, if_input_desc);
+  GeTensorDesc if_output_desc(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateOutputDesc(0, if_output_desc);
+  (void)if_node->GetOpDesc()->UpdateOutputDesc(1, if_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(if_node);
+  auto ret = ShapeRefiner::InferShapeAndType(if_node, op, false);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_UnknownGraph) {
+  auto graph = std::make_shared<ComputeGraph>("test_unknown_graph_flag");
+  graph->SetGraphUnknownFlag(true);
+  auto node = CreateNodeIncCov2(graph, "unknown_flag_node", "Relu", 1, 1);
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  auto ret = ShapeRefiner::InferShapeAndType(node);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_HasInferedVerified) {
+  auto graph = std::make_shared<ComputeGraph>("test_infered_verified");
+  auto input_node = CreateNodeIncCov2(graph, "input_verified", "Data", 1, 1);
+  auto relu_node = CreateNodeIncCov2(graph, "relu_verified", "Relu", 1, 1);
+
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)input_node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  (void)relu_node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)relu_node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  AttrUtils::SetBool(relu_node->GetOpDesc(), "has_infered_verified", true);
+
+  GraphUtils::AddEdge(input_node->GetOutDataAnchor(0), relu_node->GetInDataAnchor(0));
+  auto ret = ShapeRefiner::InferShapeAndType(relu_node);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_PostProcessAfterInfershape_UnknownGraph) {
+  auto graph = std::make_shared<ComputeGraph>("test_post_unknown");
+  auto node = CreateNodeIncCov2(graph, "post_unknown_node", "Relu", 1, 1);
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  auto ret = ShapeRefiner::PostProcessAfterInfershape(node, op, true);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_PostProcessAfterInfershape_KnownGraph) {
+  auto graph = std::make_shared<ComputeGraph>("test_post_known");
+  auto node = CreateNodeIncCov2(graph, "post_known_node", "Relu", 1, 1);
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  auto ret = ShapeRefiner::PostProcessAfterInfershape(node, op, false);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_WhileSameDimDiffValue) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_while_same_dim");
+  NodePtr while_node = CreateNodeIncCov2(root_graph, "while_sdv", "While", 1, 1);
+  auto op_desc = while_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_while_sdv");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_sdv", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_sdv", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+
+  GeTensorDesc netinput_desc1(GeShape({2, 4}), FORMAT_NCHW, DT_FLOAT);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, netinput_desc1);
+
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+
+  sub1->SetParentNode(while_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc while_input_desc(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)while_node->GetOpDesc()->UpdateInputDesc(0, while_input_desc);
+  GeTensorDesc while_output_desc(GeShape({2, 4}), FORMAT_NCHW, DT_FLOAT);
+  (void)while_node->GetOpDesc()->UpdateOutputDesc(0, while_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(while_node);
+  auto ret = ShapeRefiner::InferShapeAndType(while_node, op, false);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndTypeForRunning_GeLocalOp) {
+  auto graph = std::make_shared<ComputeGraph>("test_ge_local");
+  auto node = CreateNodeIncCov2(graph, "merge_node", "StreamMerge", 1, 1);
+
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+
+  auto op_desc = node->GetOpDesc();
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  auto ret = ShapeRefiner::InferShapeAndTypeForRunning(node, op, true);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_NullOpDesc) {
+  auto graph = std::make_shared<ComputeGraph>("test_null_opdesc");
+  auto node = CreateNodeIncCov2(graph, "null_opdesc_node", "Relu", 1, 1);
+  auto ret = ShapeRefiner::InferShapeAndType(node, true);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_CreateInferenceContext_WithEdge) {
+  auto graph = std::make_shared<ComputeGraph>("test_ctx_edge");
+  auto input_node = CreateNodeIncCov2(graph, "ctx_input", "Data", 1, 1);
+  auto relu_node = CreateNodeIncCov2(graph, "ctx_relu", "Relu", 1, 1);
+
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)input_node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+  (void)relu_node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+
+  GraphUtils::AddEdge(input_node->GetOutDataAnchor(0), relu_node->GetInDataAnchor(0));
+
+  ShapeRefiner::ClearContextMap();
+  auto ctx = std::shared_ptr<InferenceContext>(InferenceContext::Create());
+  ShapeRefiner::PushToContextMap(input_node, ctx);
+
+  InferenceContextPtr result_ctx;
+  auto ret = ShapeRefiner::CreateInferenceContext(relu_node, result_ctx);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(result_ctx, nullptr);
+  ShapeRefiner::ClearContextMap();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_BranchDiffDtype) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_branch_diff_dt2");
+  NodePtr if_node = CreateNodeIncCov2(root_graph, "if_diff_dt2", "If", 1, 1);
+  auto op_desc = if_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_diff_dt2");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_dt2", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_dt2", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+
+  GeTensorDesc netinput_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_INT32);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, netinput_desc1);
+
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc if_input_desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateInputDesc(0, if_input_desc);
+  GeTensorDesc if_output_desc(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateOutputDesc(0, if_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(if_node);
+  auto ret = ShapeRefiner::InferShapeAndType(if_node, op, false);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_WhileSameShape) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_while_same_shape");
+  NodePtr while_node = CreateNodeIncCov2(root_graph, "while_ss", "While", 1, 1);
+  auto op_desc = while_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_while_ss");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_ss", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_ss", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+
+  GeTensorDesc netinput_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, netinput_desc1);
+
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+
+  sub1->SetParentNode(while_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc while_input_desc(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)while_node->GetOpDesc()->UpdateInputDesc(0, while_input_desc);
+  GeTensorDesc while_output_desc(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)while_node->GetOpDesc()->UpdateOutputDesc(0, while_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(while_node);
+  auto ret = ShapeRefiner::InferShapeAndType(while_node, op, false);
+  SUCCEED();
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndTypeForRunning_FailedInferFunc) {
+  auto graph = std::make_shared<ComputeGraph>("test_running_fail");
+  auto node = CreateNodeIncCov2(graph, "running_fail_node", "Relu", 1, 1);
+
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, input_desc);
+
+  auto op_desc = node->GetOpDesc();
+  op_desc->AddInferFunc([](Operator &op) { return GRAPH_FAILED; });
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  auto ret = ShapeRefiner::InferShapeAndTypeForRunning(node, op, true);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_InferShapeAndType_SubgraphDataRefOutOfRange) {
+  auto root_graph = std::make_shared<ComputeGraph>("test_data_ref_oor");
+  NodePtr if_node = CreateNodeIncCov2(root_graph, "if_oor", "If", 1, 1);
+  auto op_desc = if_node->GetOpDesc();
+  op_desc->AddSubgraphName("sub1");
+  op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_oor");
+  NodePtr data1 = CreateNodeIncCov2(sub1, "data1_oor", "Data", 1, 1);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 5);
+  NodePtr netoutput1 = CreateNodeIncCov2(sub1, "netoutput1_oor", "NetOutput", 1, 0);
+
+  GeTensorDesc out_desc1(GeShape({2, 3}), FORMAT_NCHW, DT_FLOAT);
+  (void)data1->GetOpDesc()->UpdateOutputDesc(0, out_desc1);
+  AttrUtils::SetInt(netoutput1->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  (void)netoutput1->GetOpDesc()->UpdateInputDesc(0, out_desc1);
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), netoutput1->GetInDataAnchor(0));
+
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  GeTensorDesc if_input_desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateInputDesc(0, if_input_desc);
+  GeTensorDesc if_output_desc(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  (void)if_node->GetOpDesc()->UpdateOutputDesc(0, if_output_desc);
+
+  Operator op = OpDescUtils::CreateOperatorFromNode(if_node);
+  auto ret = ShapeRefiner::InferShapeAndType(if_node, op, false);
+  EXPECT_EQ(ret, GRAPH_FAILED);
+}
+
+TEST_F(UtestShapeRefinerIncCov, IncCov2_UpdateInputOutputDesc_WithShapeRange) {
+  auto graph = std::make_shared<ComputeGraph>("test_io_range");
+  auto node = CreateNodeIncCov2(graph, "io_range_node", "Relu", 1, 1);
+
+  GeTensorDesc input_desc(GeShape({1, 3, -1, -1}), FORMAT_NCHW, DT_FLOAT);
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  input_desc.SetOriginDataType(DT_FLOAT);
+  std::vector<std::pair<int64_t, int64_t>> shape_range = {{1, 1}, {3, 3}, {1, 224}, {1, 224}};
+  (void)input_desc.SetShapeRange(shape_range);
+  (void)node->GetOpDesc()->UpdateInputDesc(0, input_desc);
+
+  GeTensorDesc output_desc(GeShape({1, 3, -1, -1}), FORMAT_NCHW, DT_FLOAT);
+  output_desc.SetOriginFormat(FORMAT_NCHW);
+  output_desc.SetOriginDataType(DT_FLOAT);
+  (void)output_desc.SetShapeRange(shape_range);
+  (void)node->GetOpDesc()->UpdateOutputDesc(0, output_desc);
+
+  auto ret = ShapeRefiner::UpdateInputOutputDesc(node);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
 }  // namespace ge

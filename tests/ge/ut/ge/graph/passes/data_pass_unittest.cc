@@ -218,6 +218,43 @@ ComputeGraphPtr MakeGraph_While() {
   return root_graph;
 }
 
+ComputeGraphPtr MakeCompleteWhileGraph(bool use_legacy_subgraph_names) {
+  ut::GraphBuilder builder = ut::GraphBuilder("complete_while_root_graph");
+  auto data = builder.AddNode("Data", "Data", 1, 1);
+  auto while_node = builder.AddNode("While", "While", 1, 1);
+  auto netoutput = builder.AddNode("NetOutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(data, 0, while_node, 0);
+  builder.AddDataEdge(while_node, 0, netoutput, 0);
+  auto root_graph = builder.GetGraph();
+
+  const auto make_subgraph = [](const std::string &name) {
+    ut::GraphBuilder sub_builder = ut::GraphBuilder(name);
+    auto sub_data = sub_builder.AddNode("Data", "Data", 1, 1);
+    AttrUtils::SetInt(sub_data->GetOpDesc(), "index", 0);
+    auto identity = sub_builder.AddNode("Identity", "Identity", 1, 1);
+    auto sub_output = sub_builder.AddNode("NetOutput", "NetOutput", 1, 0);
+    sub_builder.AddDataEdge(sub_data, 0, identity, 0);
+    sub_builder.AddDataEdge(identity, 0, sub_output, 0);
+    return sub_builder.GetGraph();
+  };
+  const auto cond_graph = make_subgraph("cond_graph");
+  const auto body_graph = make_subgraph("body_graph");
+
+  const auto while_desc = while_node->GetOpDesc();
+  while_desc->AddSubgraphName(use_legacy_subgraph_names ? "cond_graph" : "cond");
+  while_desc->AddSubgraphName(use_legacy_subgraph_names ? "body_graph" : "body");
+  while_desc->SetSubgraphInstanceName(0, "cond_graph");
+  while_desc->SetSubgraphInstanceName(1, "body_graph");
+
+  cond_graph->SetParentNode(while_node);
+  cond_graph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("cond_graph", cond_graph);
+  body_graph->SetParentNode(while_node);
+  body_graph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("body_graph", body_graph);
+  return root_graph;
+}
+
 ComputeGraphPtr MakeGraph_For() {
   ut::GraphBuilder builder = ut::GraphBuilder("root_graph");
   auto data = builder.AddNode("Data1", "Data", 1, 1);
@@ -336,5 +373,67 @@ TEST_F(UtestDataPass, datapassRun) {
   EXPECT_EQ(pass.Run(sub_graph1_While), SUCCESS);
   EXPECT_EQ(pass.Run(sub_graph1_For), SUCCESS);
   EXPECT_EQ(pass.Run(sub), FAILED);
+}
+
+TEST_F(UtestDataPass, WhileCondWithLogicalNameDoesNotMapOutput) {
+  const auto root_graph = MakeCompleteWhileGraph(false);
+  const auto cond_graph = root_graph->GetSubgraph("cond_graph");
+  ASSERT_NE(cond_graph, nullptr);
+
+  DataPass pass;
+  ASSERT_EQ(pass.Run(cond_graph), SUCCESS);
+  const auto netoutput = cond_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(netoutput, nullptr);
+  const auto input_desc = netoutput->GetOpDesc()->GetInputDescPtr(0);
+  ASSERT_NE(input_desc, nullptr);
+  int32_t parent_index = -1;
+  EXPECT_FALSE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+}
+
+TEST_F(UtestDataPass, WhileBodyWithLogicalNameMapsOutput) {
+  const auto root_graph = MakeCompleteWhileGraph(false);
+  const auto body_graph = root_graph->GetSubgraph("body_graph");
+  ASSERT_NE(body_graph, nullptr);
+
+  DataPass pass;
+  ASSERT_EQ(pass.Run(body_graph), SUCCESS);
+  const auto netoutput = body_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(netoutput, nullptr);
+  const auto input_desc = netoutput->GetOpDesc()->GetInputDescPtr(0);
+  ASSERT_NE(input_desc, nullptr);
+  int32_t parent_index = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+  EXPECT_EQ(parent_index, 0);
+}
+
+TEST_F(UtestDataPass, WhileCondWithLegacyInstanceNameDoesNotMapOutput) {
+  const auto root_graph = MakeCompleteWhileGraph(true);
+  const auto cond_graph = root_graph->GetSubgraph("cond_graph");
+  ASSERT_NE(cond_graph, nullptr);
+
+  DataPass pass;
+  ASSERT_EQ(pass.Run(cond_graph), SUCCESS);
+  const auto netoutput = cond_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(netoutput, nullptr);
+  const auto input_desc = netoutput->GetOpDesc()->GetInputDescPtr(0);
+  ASSERT_NE(input_desc, nullptr);
+  int32_t parent_index = -1;
+  EXPECT_FALSE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+}
+
+TEST_F(UtestDataPass, WhileBodyWithLegacyInstanceNameMapsOutput) {
+  const auto root_graph = MakeCompleteWhileGraph(true);
+  const auto body_graph = root_graph->GetSubgraph("body_graph");
+  ASSERT_NE(body_graph, nullptr);
+
+  DataPass pass;
+  ASSERT_EQ(pass.Run(body_graph), SUCCESS);
+  const auto netoutput = body_graph->FindFirstNodeMatchType(NETOUTPUT);
+  ASSERT_NE(netoutput, nullptr);
+  const auto input_desc = netoutput->GetOpDesc()->GetInputDescPtr(0);
+  ASSERT_NE(input_desc, nullptr);
+  int32_t parent_index = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
+  EXPECT_EQ(parent_index, 0);
 }
 }  // namespace ge

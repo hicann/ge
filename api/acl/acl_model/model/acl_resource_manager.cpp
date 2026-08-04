@@ -268,7 +268,7 @@ std::shared_ptr<gert::Allocators> AclResourceManager::UpdateExternalAllocators(a
   bool new_desc_exist = aclrtAllocatorGetByStream(stream, &new_desc, &allocator, &allocFunc, &freeFunc,
                                                   &allocAdviseFunc, &getAddrFromBlockFunc) == ACL_SUCCESS;
   const auto iter_old_desc = streamExternalAllocator_.find(cacheKey);
-  bool old_desc_exist = iter_old_desc != streamExternalAllocator_.end();
+  const bool old_desc_exist = iter_old_desc != streamExternalAllocator_.end();
   // "old_desc_exist" indicates whether the external allocator stored by streamExternalAllocator_ exists (referred
   // to as the old allocator desc). "new_desc_exist" indicates whether the user has newly registered the desc
   // (referred to as the new "allocator desc"). Based on the old allocator description and whether the user has

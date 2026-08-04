@@ -259,5 +259,245 @@ TEST_F(UtestFP16, GetManSum_success) {
   EXPECT_EQ(GetManSum(0, m_a, 1, m_b), 0);
   EXPECT_EQ(GetManSum(1, m_a, 0, m_b), 0);
 }
+
+TEST_F(UtestFP16, Fp16ToFloat_Denormal_CovEnhance) {
+  fp16_t denorm;
+  denorm.val = 0x0001U;
+  float f = denorm.ToFloat();
+  EXPECT_NE(f, 0.0f);
+
+  fp16_t denorm2;
+  denorm2.val = 0x0200U;
+  float f2 = denorm2.ToFloat();
+  EXPECT_NE(f2, 0.0f);
+}
+
+TEST_F(UtestFP16, Fp16ToDouble_Denormal_CovEnhance) {
+  fp16_t denorm;
+  denorm.val = 0x0001U;
+  double d = denorm.ToDouble();
+  EXPECT_NE(d, 0.0);
+}
+
+TEST_F(UtestFP16, Int8_OverflowPaths_CovEnhance) {
+  fp16_t pos_val;
+  pos_val.val = 0x4C00U;  // 2^4 * 1.0 = 16.0
+  int8_t i8_pos = pos_val.ToInt8();
+  EXPECT_EQ(i8_pos, 16);
+
+  fp16_t neg_val;
+  neg_val.val = 0xCC00U;  // -16.0
+  int8_t i8_neg = neg_val.ToInt8();
+  EXPECT_EQ(i8_neg, -16);
+
+  fp16_t small_pos;
+  small_pos.val = 0x4180U;  // ~2.75
+  int8_t i8_small = small_pos.ToInt8();
+  EXPECT_EQ(i8_small, 3);
+}
+
+TEST_F(UtestFP16, Uint8_OverflowPath_CovEnhance) {
+  fp16_t large_val;
+  large_val.val = 0x5400U;  // 2^6 = 64.0
+  uint8_t u8 = large_val.ToUInt8();
+  EXPECT_EQ(u8, 64);
+
+  fp16_t normal_val;
+  normal_val.val = 0x4180U;  // ~2.75
+  uint8_t u8_normal = normal_val.ToUInt8();
+  EXPECT_EQ(u8_normal, 3);
+}
+
+TEST_F(UtestFP16, Int16_OverflowPaths_CovEnhance) {
+  fp16_t large_pos;
+  large_pos.val = 0x6C00U;  // 2^12 = 4096.0
+  int16_t i16 = large_pos.ToInt16();
+  EXPECT_EQ(i16, 4096);
+
+  fp16_t large_neg;
+  large_neg.val = 0xEC00U;  // -4096.0
+  int16_t i16_neg = large_neg.ToInt16();
+  EXPECT_EQ(i16_neg, -4096);
+
+  fp16_t mid_val;
+  mid_val.val = 0x4400U;  // 4.0
+  int16_t i16_mid = mid_val.ToInt16();
+  EXPECT_EQ(i16_mid, 4);
+}
+
+TEST_F(UtestFP16, Uint16_Conversion_CovEnhance) {
+  fp16_t val;
+  val.val = 0x4400U;  // 4.0
+  uint16_t u16 = val.ToUInt16();
+  EXPECT_EQ(u16, 4);
+
+  fp16_t large_val;
+  large_val.val = 0x6C00U;  // 2^12 = 4096.0
+  uint16_t u16_large = large_val.ToUInt16();
+  EXPECT_EQ(u16_large, 4096);
+}
+
+TEST_F(UtestFP16, Int32_Rounding_CovEnhance) {
+  fp16_t val;
+  val.val = 0x4180U;  // ~2.75
+  int32_t i32 = val.ToInt32();
+  EXPECT_EQ(i32, 3);
+
+  fp16_t neg_val;
+  neg_val.val = 0xC180U;  // ~-2.75
+  int32_t i32_neg = neg_val.ToInt32();
+  EXPECT_EQ(i32_neg, -3);
+}
+
+TEST_F(UtestFP16, Uint32_Conversion_CovEnhance) {
+  fp16_t val;
+  val.val = 0x4400U;  // 4.0
+  uint32_t u32 = val.ToUInt32();
+  EXPECT_EQ(u32, 4U);
+
+  fp16_t neg_val;
+  neg_val.val = 0xC400U;  // -4.0
+  uint32_t u32_neg = neg_val.ToUInt32();
+  EXPECT_EQ(u32_neg, 0U);
+}
+
+TEST_F(UtestFP16, OperatorGreaterThan_NegativeBoth_CovEnhance) {
+  fp16_t neg1;
+  neg1.val = 0xBC00U;  // -1.0
+  fp16_t neg2;
+  neg2.val = 0xBE00U;            // -1.5
+  EXPECT_EQ(neg1 > neg2, true);  // -1 > -1.5
+
+  fp16_t neg3;
+  neg3.val = 0xC000U;             // -2.0
+  EXPECT_EQ(neg3 > neg1, false);  // -2 > -1 is false (e_a >= e_b)
+}
+
+TEST_F(UtestFP16, OperatorGreaterThan_PositiveBoth_EDiff_CovEnhance) {
+  fp16_t pos1;
+  pos1.val = 0x4000U;  // 2.0
+  fp16_t pos2;
+  pos2.val = 0x4400U;             // 4.0
+  EXPECT_EQ(pos1 > pos2, false);  // 2 > 4 is false, e_a < e_b
+}
+
+TEST_F(UtestFP16, OperatorAssign_Int32_Zero_CovEnhance) {
+  fp16_t test(1);
+  test = 0;
+  EXPECT_EQ(test.val, 0U);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Int32_Negative_CovEnhance) {
+  fp16_t test(1);
+  test = -2;
+  EXPECT_EQ(test.val, 0xC000U);  // -2.0 in fp16_t
+
+  test = -1;
+  EXPECT_EQ(test.val, 0xBC00U);  // -1.0 in fp16_t
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float64_Denormal_CovEnhance) {
+  fp16_t test(1);
+  double tiny = 5.960464477539063e-08;  // 2^-24, denormal range
+  test = tiny;
+  EXPECT_NE(test.val, 0U);
+
+  fp16_t test2(1);
+  double tinier = 2.980232238769531e-08;  // 2^-25, smaller than smallest denormal
+  test2 = tinier;
+  EXPECT_EQ(test2.val, 0U);
+
+  fp16_t test3(1);
+  double very_tiny = 1.0e-45;  // smaller than smallest denormal
+  test3 = very_tiny;
+  EXPECT_EQ(test3.val, 0U);
+
+  fp16_t test4(1);
+  double normal = 2.0;
+  test4 = normal;
+  EXPECT_EQ(test4.val, 0x4000U);
+
+  fp16_t test5(1);
+  double overflow_val = 1e20;
+  test5 = overflow_val;
+  EXPECT_EQ(test5.val, 0x7BFFU);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float32_Denormal_CovEnhance) {
+  fp16_t test(1);
+  float tiny = 5.960464477539063e-08F;  // 2^-24, denormal
+  test = tiny;
+  EXPECT_NE(test.val, 0U);
+
+  fp16_t test2(1);
+  float tinier = 2.980232238769531e-08F;  // 2^-25, smaller than smallest denormal
+  test2 = tinier;
+  EXPECT_EQ(test2.val, 0U);
+
+  fp16_t test3(1);
+  float zero = 0.0F;
+  test3 = zero;
+  EXPECT_EQ(test3.val, 0U);
+
+  fp16_t test4(1);
+  float overflow_val = 1e20F;
+  test4 = overflow_val;
+  EXPECT_EQ(test4.val, 0x7BFFU);
+}
+
+TEST_F(UtestFP16, Fp16Add_DifferentExponents_CovEnhance) {
+  fp16_t a;
+  a.val = 0x4000U;  // 2.0
+  fp16_t b;
+  b.val = 0x3C00U;  // 1.0
+  fp16_t result = a + b;
+  EXPECT_EQ(result.val, 0x4200U);  // 3.0
+
+  fp16_t c;
+  c.val = 0x3C00U;  // 1.0
+  fp16_t d;
+  d.val = 0x4000U;  // 2.0
+  fp16_t result2 = c + d;
+  EXPECT_EQ(result2.val, 0x4200U);  // 3.0
+}
+
+TEST_F(UtestFP16, Fp16Mul_ShiftPaths_CovEnhance) {
+  fp16_t a;
+  a.val = 0x4000U;  // 2.0
+  fp16_t b;
+  b.val = 0x4000U;  // 2.0
+  fp16_t result = a * b;
+  EXPECT_EQ(result.val, 0x4400U);  // 4.0
+
+  fp16_t c;
+  c.val = 0x3C00U;  // 1.0
+  fp16_t d;
+  d.val = 0x3C00U;  // 1.0
+  fp16_t result2 = c * d;
+  EXPECT_EQ(result2.val, 0x3C00U);  // 1.0
+
+  fp16_t e;
+  e.val = 0x4400U;  // 4.0
+  fp16_t f;
+  f.val = 0x4400U;  // 4.0
+  fp16_t result3 = e * f;
+  EXPECT_EQ(result3.val, 0x4C00U);  // 16.0
+}
+
+TEST_F(UtestFP16, Fp16Sub_DifferentSign_CovEnhance) {
+  fp16_t a;
+  a.val = 0x4200U;  // 3.0
+  fp16_t b;
+  b.val = 0x4000U;  // 2.0
+  fp16_t result = a - b;
+  EXPECT_EQ(result.val, 0x3C00U);  // 1.0
+
+  fp16_t c;
+  c.val = 0x3C00U;  // 1.0
+  fp16_t d;
+  d.val = 0x4000U;  // 2.0
+  fp16_t result2 = c - d;
+  EXPECT_EQ(result2.val, 0xBC00U);  // -1.0
+}
 }  // namespace formats
 }  // namespace ge

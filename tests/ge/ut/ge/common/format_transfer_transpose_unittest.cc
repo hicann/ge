@@ -4960,5 +4960,47 @@ TEST_F(UtestFormatTranspose, invalid_src_data) {
   TransResult result2;
   EXPECT_EQ(transpose2.TransFormat(args2, result2), ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTranspose, duplicated_perm_arg) {
+  uint16_t data[4] = {1, 2, 3, 4};
+  TransResult result;
+  EXPECT_EQ(Transpose(reinterpret_cast<uint8_t *>(data), {2, 2}, DT_FLOAT16, {0, 0}, result),
+            ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(UtestFormatTranspose, invalid_data_type_transpose) {
+  uint8_t data[4] = {1, 2, 3, 4};
+  TransResult result;
+  auto ret = Transpose(data, {2, 2}, DT_STRING, {1, 0}, result);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestFormatTranspose, empty_tensor_transpose) {
+  uint8_t data[1] = {0};
+  TransResult result;
+  EXPECT_EQ(Transpose(data, {0, 2}, DT_FLOAT16, {1, 0}, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestFormatTranspose, transpose_with_shape_check_mismatch) {
+  uint16_t data[6] = {1, 2, 3, 4, 5, 6};
+  TransResult result;
+  auto ret = TransposeWithShapeCheck(reinterpret_cast<uint8_t *>(data), {2, 3}, {2, 3}, DT_FLOAT16, {1, 0}, result);
+  EXPECT_TRUE((ret == SUCCESS) || (ret == ACL_ERROR_GE_SHAPE_INVALID));
+}
+
+TEST_F(UtestFormatTranspose, get_perm_by_format_not_support_src) {
+  std::vector<int64_t> perm;
+  EXPECT_EQ(GetPermByForamt(FORMAT_ND, FORMAT_NHWC, perm), ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTranspose, get_perm_by_format_not_support_dst) {
+  std::vector<int64_t> perm;
+  EXPECT_EQ(GetPermByForamt(FORMAT_NCHW, FORMAT_ND, perm), ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTranspose, null_src_transpose) {
+  TransResult result;
+  EXPECT_EQ(Transpose(nullptr, {2, 2}, DT_FLOAT16, {1, 0}, result), ACL_ERROR_GE_PARAM_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

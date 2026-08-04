@@ -427,3 +427,115 @@ TEST_F(UtestCcm, testGetCompileCacheDescNotFound) {
   NodeCompileCacheModule ccm;
   ASSERT_EQ(ccm.GetCompileCacheDesc(node), nullptr);
 }
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_ListListInt) {
+  std::vector<std::vector<int64_t>> val = {{1, 2}, {3, 4, 5}};
+  auto any_value = ge::GeAttrValue::CreateFrom<std::vector<std::vector<int64_t>>>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1024] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), SUCCESS);
+  ASSERT_EQ(offset, sizeof(int64_t) * 5U);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_Int_SmallBuffer) {
+  int64_t val = 42;
+  auto any_value = ge::GeAttrValue::CreateFrom<int64_t>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), FAILED);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_String_SmallBuffer) {
+  std::string val = "hello";
+  auto any_value = ge::GeAttrValue::CreateFrom<std::string>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[2] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), FAILED);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_ListInt_SmallBuffer) {
+  std::vector<int64_t> val = {1, 2, 3};
+  auto any_value = ge::GeAttrValue::CreateFrom<std::vector<int64_t>>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), FAILED);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_ListString_WithEmpty) {
+  std::vector<std::string> val = {"", "ab", ""};
+  auto any_value = ge::GeAttrValue::CreateFrom<std::vector<std::string>>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1024] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), SUCCESS);
+  ASSERT_EQ(offset, 2U);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_ListString_SmallBuffer) {
+  std::vector<std::string> val = {"abc"};
+  auto any_value = ge::GeAttrValue::CreateFrom<std::vector<std::string>>(val);
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1] = {0};
+  size_t offset = 0;
+  ASSERT_EQ(ccm.CopyAttrValues(any_value, buffer, sizeof(buffer), offset), FAILED);
+}
+
+TEST_F(UtestCcm, CopyAttrValues_CovEnhance_AllTypes_Success) {
+  NodeCompileCacheModule ccm;
+  uint8_t buffer[1024] = {0};
+  size_t offset = 0;
+  bool bool_val = true;
+  ASSERT_EQ(ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<bool>(bool_val), buffer, sizeof(buffer), offset), SUCCESS);
+  float float_val = 1.0f;
+  ASSERT_EQ(ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<float>(float_val), buffer, sizeof(buffer), offset), SUCCESS);
+  DataType dt_val = DT_FLOAT;
+  ASSERT_EQ(ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<DataType>(dt_val), buffer, sizeof(buffer), offset), SUCCESS);
+  std::vector<bool> list_bool = {true, false};
+  ASSERT_EQ(
+      ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<std::vector<bool>>(list_bool), buffer, sizeof(buffer), offset),
+      SUCCESS);
+  std::vector<float> list_float = {1.0f, 2.0f};
+  ASSERT_EQ(
+      ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<std::vector<float>>(list_float), buffer, sizeof(buffer), offset),
+      SUCCESS);
+  std::vector<DataType> list_dt = {DT_FLOAT, DT_INT8};
+  ASSERT_EQ(
+      ccm.CopyAttrValues(ge::GeAttrValue::CreateFrom<std::vector<DataType>>(list_dt), buffer, sizeof(buffer), offset),
+      SUCCESS);
+}
+
+TEST_F(UtestCcm, CopyAttrToMem_CovEnhance_NameMemcpyFail) {
+  std::map<std::string, ge::AnyValue> all_attributes;
+  int64_t val = 0;
+  all_attributes["test_attr"] = ge::GeAttrValue::CreateFrom<int64_t>(val);
+  std::set<string> ordered_origin_attr_name = {"test_attr"};
+  size_t attr_size = 2U;
+  auto attr_mem = std::unique_ptr<uint8_t[]>(new uint8_t[attr_size]);
+  NodeCompileCacheModule ccm;
+  ASSERT_EQ(ccm.CopyAttrToMem(all_attributes, attr_mem, ordered_origin_attr_name, attr_size), FAILED);
+}
+
+TEST_F(UtestCcm, CopyAttrToMem_CovEnhance_CopyAttrFail) {
+  std::map<std::string, ge::AnyValue> all_attributes;
+  int64_t val = 0;
+  all_attributes["ab"] = ge::GeAttrValue::CreateFrom<int64_t>(val);
+  std::set<string> ordered_origin_attr_name = {"ab"};
+  size_t attr_size = 4U;
+  auto attr_mem = std::unique_ptr<uint8_t[]>(new uint8_t[attr_size]);
+  NodeCompileCacheModule ccm;
+  ASSERT_EQ(ccm.CopyAttrToMem(all_attributes, attr_mem, ordered_origin_attr_name, attr_size), FAILED);
+}
+
+TEST_F(UtestCcm, FindAddCompileCache_CovEnhance_UnregisteredOp) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("UnknownOp", "UnknownOpType123", 1, 1);
+  ASSERT_NE(node, nullptr);
+  NodeCompileCacheModule ccm;
+  ASSERT_EQ(ccm.FindCompileCache(node), nullptr);
+  NodeCompileCacheItem item;
+  ASSERT_EQ(ccm.AddCompileCache(node, item), nullptr);
+}

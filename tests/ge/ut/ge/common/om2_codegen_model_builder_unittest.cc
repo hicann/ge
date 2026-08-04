@@ -2083,4 +2083,108 @@ TEST_F(Om2CodegenModelBuilderUt, BuildModelIo_TwoNetOutputs_DenseIndexing) {
   EXPECT_EQ(doc.model_io.entries[3].index, 1U);
   EXPECT_EQ(doc.model_io.entries[3].memory_offset, 2048);
 }
+
+TEST_F(Om2CodegenModelBuilderUt, BuildRuntimeSemantic_StreamSwitch_Ok) {
+  GeModelPtr ge_model = CreateGeModelWithStreamSwitchTask();
+  ASSERT_NE(ge_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_model, doc), SUCCESS);
+
+  EXPECT_EQ(doc.runtime.stream_num, 2U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_UpdateShapeAndType_Success) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+  AicpuShapeAndType shape_and_type = {};
+  GeShape shape({1, 2, 3, 4});
+  EXPECT_EQ(builder.UpdateShapeAndType(shape, &shape_and_type), SUCCESS);
+  EXPECT_EQ(shape_and_type.dims[0], 1);
+  EXPECT_EQ(shape_and_type.dims[1], 2);
+  EXPECT_EQ(shape_and_type.dims[2], 3);
+  EXPECT_EQ(shape_and_type.dims[3], 4);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_UpdateShapeAndType_DimsOverMax) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+  AicpuShapeAndType shape_and_type = {};
+  std::vector<int64_t> dims;
+  for (size_t i = 0; i <= aicpu::FWKAdapter::kMaxShapeDims + 1; ++i) {
+    dims.push_back(static_cast<int64_t>(i));
+  }
+  GeShape shape(dims);
+  EXPECT_NE(builder.UpdateShapeAndType(shape, &shape_and_type), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_UpdateShapeAndType_EmptyShape) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+  AicpuShapeAndType shape_and_type = {};
+  GeShape shape;
+  EXPECT_EQ(builder.UpdateShapeAndType(shape, &shape_and_type), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_GetFuncName_NotEmpty) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+  EXPECT_FALSE(builder.GetFuncName().empty());
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_UnsupportedTaskType) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_FALSE(name_to_ge_model.empty());
+  const auto ge_model = name_to_ge_model.begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  ASSERT_NE(model_task_def, nullptr);
+
+  auto *unsupported_task = model_task_def->add_task();
+  ASSERT_NE(unsupported_task, nullptr);
+  unsupported_task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD));
+  unsupported_task->set_stream_id(0U);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_AicoreChain_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreChainOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_AicpuOp_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_TfAicpuOp_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithTfAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_MemcpyAsync_Ok) {
+  GeModelPtr ge_model = CreateGeModelWithMemcpyAsyncTask();
+  ASSERT_NE(ge_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_SimpleTasksWithStub_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithSimpleTasksAndStub();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
 }  // namespace ge

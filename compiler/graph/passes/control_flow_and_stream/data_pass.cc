@@ -16,6 +16,8 @@
 namespace ge {
 namespace {
 const int32_t kDataIndexOffset = 2;
+constexpr uint32_t kWhileCondSubgraphIndex = 0U;
+
 Status MappingSubgraphInput(const ComputeGraphPtr &graph, const std::function<int(int32_t data_index)> &input) {
   for (const auto &node : graph->GetDirectNode()) {
     if (node->GetType() != DATA) {
@@ -107,9 +109,29 @@ Status ParseSubgraphPostFnIf(const std::string &subgraph_name, const ComputeGrap
 }
 
 Status ParseSubgraphPostFnWhile(const std::string &subgraph_name, const ComputeGraphPtr &graph) {
+  GE_CHECK_NOTNULL(graph);
+  bool is_cond = false;
+  if (subgraph_name == "cond") {
+    GELOGD("Subgraph %s is cond subgraph of while node", graph->GetName().c_str());
+    is_cond = true;
+  } else if (subgraph_name == "body") {
+    GELOGD("Subgraph %s is body subgraph of while node", graph->GetName().c_str());
+    is_cond = false;
+  } else {
+    const auto &parent_node = graph->GetParentNode();
+    GE_CHECK_NOTNULL(parent_node);
+    const auto &parent_op_desc = parent_node->GetOpDesc();
+    GE_CHECK_NOTNULL(parent_op_desc);
+    const auto &name_indexes = parent_op_desc->GetSubgraphNameIndexes();
+    const auto iter = name_indexes.find(subgraph_name);
+    GELOGD("Subgraph %s %s cond subgraph of while node %s", graph->GetName().c_str(),
+           (iter != name_indexes.cend() && iter->second == kWhileCondSubgraphIndex) ? "is" : "is not",
+           parent_node->GetName().c_str());
+    is_cond = iter != name_indexes.cend() && iter->second == kWhileCondSubgraphIndex;
+  }
   return MappingSubgraphIndex(
       graph, [](int32_t data_index) { return data_index; },
-      [&subgraph_name](int32_t retval_index) { return (subgraph_name == "cond") ? -1 : retval_index; });
+      [is_cond](int32_t retval_index) { return is_cond ? -1 : retval_index; });
 }
 
 Status ParseSubgraphPostFnFor(const std::string &subgraph_name, const ComputeGraphPtr &graph) {

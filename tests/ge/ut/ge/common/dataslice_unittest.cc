@@ -796,4 +796,241 @@ TEST_F(DataSlice, Cov_DataSliceElementwiseImpl_NullOpDesc) {
   auto ret = impl.InferAxisSlice(op_proxy, axis_type_info, out_data_slice, in_data_slice);
   EXPECT_NE(ret, SUCCESS);
 }
+
+TEST_F(DataSlice, Cov_TransAxis_NDC1HWC0) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4, 5, 16}), FORMAT_NDC1HWC0);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4, 5}));
+  auto result = DataSliceAdapter::TransAxis(tensor, 0);
+  EXPECT_FALSE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxis_5DSet) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4, 5}), FORMAT_NCDHW);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4, 5}));
+  auto result = DataSliceAdapter::TransAxis(tensor, 0);
+  EXPECT_FALSE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxis_UnsupportedFormat) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2}), FORMAT_ND);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4}));
+  auto result = DataSliceAdapter::TransAxis(tensor, 0);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForSplit_CheckRankFail) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4, 5, 6}), FORMAT_NC1HWC0);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4, 5, 6, 7, 8}));
+  auto result = DataSliceAdapter::TransAxisForSplit(tensor, 0, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForSplit_FormatNotFound) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NC1HWC0);
+  tensor->SetOriginFormat(FORMAT_RESERVED);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4}));
+  auto result = DataSliceAdapter::TransAxisForSplit(tensor, 0, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForNoSplit_RankNotEqualDimNum) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4, 5}), FORMAT_NCHW);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4, 5}));
+  auto result = DataSliceAdapter::TransAxisForNoSplit(tensor, 0, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForNoSplit_OriFormatNotFound) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW);
+  tensor->SetOriginFormat(FORMAT_RESERVED);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4}));
+  auto result = DataSliceAdapter::TransAxisForNoSplit(tensor, 0, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForNoSplit_AxisOutOfRange) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_NCHW);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4}));
+  auto result = DataSliceAdapter::TransAxisForNoSplit(tensor, 10, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_TransAxisForNoSplit_FormatNotFound) {
+  auto tensor = std::make_shared<GeTensorDesc>(GeShape({1, 2, 3, 4}), FORMAT_RESERVED);
+  tensor->SetOriginFormat(FORMAT_NCHW);
+  tensor->SetOriginShape(GeShape({1, 2, 3, 4}));
+  auto result = DataSliceAdapter::TransAxisForNoSplit(tensor, 0, 4U);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(DataSlice, Cov_FixAxisTypeInfoToOne_DiffOutputSize) {
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisType(AxisType::REDUCESUM);
+  axis_type_info.SetRelateInputs({{0, {0}}});
+  axis_type_info.SetRelateOutputs({{0, {0, 1}}, {1, {0}}});
+  EXPECT_EQ(DataSliceAdapter::FixAxisTypeInfoToOne(axis_type_info), FAILED);
+}
+
+TEST_F(DataSlice, Cov_FixAxisTypeInfoToOne_ReduceEmpty) {
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisType(AxisType::REDUCESUM);
+  axis_type_info.SetRelateInputs({{0, {0}}});
+  axis_type_info.SetRelateOutputs({{0, {}}, {1, {0}}});
+  EXPECT_EQ(DataSliceAdapter::FixAxisTypeInfoToOne(axis_type_info), SUCCESS);
+}
+
+TEST_F(DataSlice, Cov_TransAxisForInputTensor_NullTensor) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  op_desc->AddInputDesc("input", GeTensorDesc());
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetRelateInputs({{5, {0}}});
+  EXPECT_EQ(DataSliceAdapter::TransAxisForInputTensor(op_desc, "element_type", axis_type_info), FAILED);
+}
+
+TEST_F(DataSlice, Cov_TransAxisForOutputTensor_NullTensor) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  op_desc->AddOutputDesc("output", GeTensorDesc());
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetRelateOutputs({{5, {0}}});
+  EXPECT_EQ(DataSliceAdapter::TransAxisForOutputTensor(op_desc, "element_type", axis_type_info), FAILED);
+}
+
+TEST_F(DataSlice, Cov_TransAxisByType_ValidateFail) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  AxisTypeInfo axis_type_info;
+  EXPECT_EQ(DataSliceAdapter::TransAxisByType(AxisType::ELEMENTWISE, op_desc, axis_type_info), FAILED);
+}
+
+TEST_F(DataSlice, Cov_GetAxisTypeForTransAxis_MultiType) {
+  AxisTypeInfo axis_type_info1;
+  axis_type_info1.SetAxisTypes({AxisType::ELEMENTWISE, AxisType::REDUCESUM, AxisType::REDUCEMAX});
+  EXPECT_EQ(DataSliceAdapter::GetAxisTypeForTransAxis(axis_type_info1), AxisType::UNSPLIT);
+  AxisTypeInfo axis_type_info2;
+  axis_type_info2.SetAxisTypes({AxisType::ELEMENTWISE, AxisType::REDUCESUM});
+  EXPECT_EQ(DataSliceAdapter::GetAxisTypeForTransAxis(axis_type_info2), AxisType::SLIDINGWINDOW);
+}
+
+TEST_F(DataSlice, Cov_GetAxisTypeForTransSlice_MultiType) {
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisTypes({AxisType::ELEMENTWISE, AxisType::REDUCESUM, AxisType::REDUCEMAX});
+  EXPECT_EQ(DataSliceAdapter::GetAxisTypeForTransSlice(axis_type_info), AxisType::UNSPLIT);
+}
+
+TEST_F(DataSlice, Cov_TransSliceInfo_UnsupportedType) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisTypes({AxisType::UNSPLIT});
+  DataSliceAdapter::DataSliceType slice_info;
+  DataSliceAdapter::DataSliceType out_slice;
+  EXPECT_EQ(DataSliceAdapter::TransSliceInfo(op_desc, axis_type_info, TransType::CUR_TO_ORI, slice_info, out_slice),
+            FAILED);
+}
+
+TEST_F(DataSlice, Cov_TransSliceInfo_SlidingWindow) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisTypes({AxisType::SLIDINGWINDOW});
+  DataSliceAdapter::DataSliceType slice_info = {{{0, 10}}};
+  DataSliceAdapter::DataSliceType out_slice;
+  EXPECT_EQ(DataSliceAdapter::TransSliceInfo(op_desc, axis_type_info, TransType::CUR_TO_ORI, slice_info, out_slice),
+            SUCCESS);
+  EXPECT_EQ(out_slice.size(), 1U);
+}
+
+TEST_F(DataSlice, Cov_TransSliceInfoToOri_EmptyOriOutputs) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  AxisTypeInfo axis_type_info;
+  DataSliceAdapter::DataSliceType slice_info = {{{0, 10}}};
+  DataSliceAdapter::DataSliceType out_slice;
+  EXPECT_EQ(DataSliceAdapter::TransSliceInfoToOriForElement(op_desc, axis_type_info, slice_info, out_slice), FAILED);
+}
+
+TEST_F(DataSlice, Cov_TransSliceInfoToCur_EmptyOriInputs) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  AxisTypeInfo axis_type_info;
+  DataSliceAdapter::DataSliceType slice_info = {{{0, 10}}};
+  DataSliceAdapter::DataSliceType out_slice;
+  EXPECT_EQ(DataSliceAdapter::TransSliceInfoToCurForElement(op_desc, axis_type_info, slice_info, out_slice), FAILED);
+}
+
+TEST_F(DataSlice, Cov_ValidateRelateInputOutput_False) {
+  AxisTypeInfo axis_type_info;
+  EXPECT_FALSE(DataSliceAdapter::ValidateRelateInputOutput(axis_type_info));
+}
+
+TEST_F(DataSlice, Cov_SetInputSlice_TensorIdxOutOfRange) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("Add", "Add");
+  op_desc->AddOutputDesc("output", GeTensorDesc());
+  op_desc->AddInputDesc("input", GeTensorDesc());
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisType(AxisType::ELEMENTWISE);
+  axis_type_info.SetRelateInputs({{0, {0}}, {1, {0}}, {2, {0}}, {5, {0}}});
+  axis_type_info.SetRelateOutputs({{0, {0}}});
+  Status ret = DataSliceHelper::InferAxisSlice(op_desc, axis_type_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(DataSlice, Cov_GetSliceInfo_NoAxisSliceFunc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("UnknownOp", "UnknownOpType");
+  op_desc->AddOutputDesc("output", GeTensorDesc());
+  op_desc->AddInputDesc("input", GeTensorDesc());
+  std::vector<AxisTypeInfo> axis_type_info;
+  Status ret = DataSliceHelper::GetSliceInfo(op_desc, axis_type_info);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(DataSlice, Cov_GetDavinciSliceInfo_NoAxisSliceFunc) {
+  ComputeGraphPtr test_graph = std::make_shared<ComputeGraph>("test_graph");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("UnknownOp2", "UnknownOpType2");
+  op_desc->AddOutputDesc("output", GeTensorDesc());
+  op_desc->AddInputDesc("input", GeTensorDesc());
+  NodePtr node = test_graph->AddNode(op_desc);
+  std::vector<AxisTypeInfo> axis_type_info;
+  Status ret = DataSliceHelper::GetDavinciSliceInfo(node, axis_type_info);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(DataSlice, Cov_GetDavinciSliceInfo_GetAxisSliceFail) {
+  ComputeGraphPtr test_graph = std::make_shared<ComputeGraph>("test_graph");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("Softmax", "Softmax");
+  GeTensorDesc output_desc(GeShape({10, 20}), FORMAT_NCHW);
+  output_desc.SetOriginShape(GeShape({10, 20}));
+  output_desc.SetOriginFormat(FORMAT_NCHW);
+  op_desc->AddOutputDesc("output", output_desc);
+  GeTensorDesc input_desc(GeShape({10, 20}), FORMAT_NCHW);
+  input_desc.SetOriginShape(GeShape({10, 20}));
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  op_desc->AddInputDesc("input", input_desc);
+  NodePtr node = test_graph->AddNode(op_desc);
+  std::vector<AxisTypeInfo> axis_type_info;
+  Status ret = DataSliceHelper::GetDavinciSliceInfo(node, axis_type_info);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(DataSlice, Cov_InferDavinciSpecialOpSlice_GetOriOutputFail) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("Add", "Add");
+  GeTensorDesc output_desc(GeShape({10, 20}), FORMAT_NCHW);
+  output_desc.SetOriginShape(GeShape({10, 20}));
+  output_desc.SetOriginFormat(FORMAT_NCHW);
+  op_desc->AddOutputDesc("output", output_desc);
+  GeTensorDesc input_desc(GeShape({10, 20}), FORMAT_NCHW);
+  input_desc.SetOriginShape(GeShape({10, 20}));
+  input_desc.SetOriginFormat(FORMAT_NCHW);
+  op_desc->AddInputDesc("input", input_desc);
+  AxisTypeInfo axis_type_info;
+  axis_type_info.SetAxisTypes({AxisType::UNSPLIT});
+  axis_type_info.SetAxisType(AxisType::UNSPLIT);
+  axis_type_info.SetRelateInputs({{0, {0}}});
+  axis_type_info.SetRelateOutputs({{0, {0}}});
+  axis_type_info.SetOriRelateInputs({{0, {0}}});
+  axis_type_info.SetOriRelateOutputs({{0, {0}}});
+  Status ret = DataSliceHelper::InferDavinciAxisSlice(op_desc, axis_type_info);
+  EXPECT_EQ(ret, FAILED);
+}
 }  // namespace ge

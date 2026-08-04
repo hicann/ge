@@ -571,4 +571,86 @@ TEST_F(UtestTensorTransUtils, RunGraphAsyncCallback_FullSimulation) {
 
   // 如果代码运行到这里没有 coredump，说明在这个场景下没有触发问题
 }
+
+TEST_F(UtestTensorTransUtils, ContructRtShapeFromShape_Success) {
+  Shape ge_shape({2, 3, 4});
+  auto rt_shape = TensorTransUtils::ContructRtShapeFromShape(ge_shape);
+  EXPECT_EQ(rt_shape.GetDimNum(), 3U);
+  EXPECT_EQ(rt_shape.GetDim(0), 2);
+  EXPECT_EQ(rt_shape.GetDim(1), 3);
+  EXPECT_EQ(rt_shape.GetDim(2), 4);
+}
+
+TEST_F(UtestTensorTransUtils, ContructRtShapeFromShape_Empty) {
+  Shape ge_shape;
+  auto rt_shape = TensorTransUtils::ContructRtShapeFromShape(ge_shape);
+  EXPECT_EQ(rt_shape.GetDimNum(), 0U);
+}
+
+TEST_F(UtestTensorTransUtils, TransTensorToGertTensor_Success) {
+  Tensor ge_tensor;
+  TensorDesc tensor_desc(Shape({2, 3}), FORMAT_ND, DT_FLOAT);
+  tensor_desc.SetOriginFormat(FORMAT_ND);
+  tensor_desc.SetOriginShape(Shape({2, 3}));
+  tensor_desc.SetPlacement(Placement::kPlacementHost);
+  ge_tensor.SetTensorDesc(tensor_desc);
+
+  gert::Tensor rt_tensor;
+  EXPECT_EQ(TensorTransUtils::TransTensorToGertTensor(ge_tensor, rt_tensor), SUCCESS);
+  EXPECT_EQ(rt_tensor.GetDataType(), DT_FLOAT);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDimNum(), 2U);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDim(0), 2);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDim(1), 3);
+}
+
+TEST_F(UtestTensorTransUtils, TransTensorToGertTensor_DevicePlacement) {
+  Tensor ge_tensor;
+  TensorDesc tensor_desc(Shape({1, 4}), FORMAT_NCHW, DT_FLOAT16);
+  tensor_desc.SetOriginFormat(FORMAT_NCHW);
+  tensor_desc.SetOriginShape(Shape({1, 4}));
+  tensor_desc.SetPlacement(Placement::kPlacementDevice);
+  ge_tensor.SetTensorDesc(tensor_desc);
+
+  gert::Tensor rt_tensor;
+  EXPECT_EQ(TensorTransUtils::TransTensorToGertTensor(ge_tensor, rt_tensor), SUCCESS);
+  EXPECT_EQ(rt_tensor.GetDataType(), DT_FLOAT16);
+  EXPECT_EQ(rt_tensor.GetPlacement(), gert::TensorPlacement::kOnDeviceHbm);
+}
+
+TEST_F(UtestTensorTransUtils, FillRtTensorDesc_Success) {
+  Tensor ge_tensor;
+  TensorDesc tensor_desc(Shape({2, 3}), FORMAT_ND, DT_INT32);
+  tensor_desc.SetOriginFormat(FORMAT_ND);
+  tensor_desc.SetOriginShape(Shape({2, 3}));
+  tensor_desc.SetPlacement(Placement::kPlacementHost);
+  ge_tensor.SetTensorDesc(tensor_desc);
+
+  gert::Tensor rt_tensor;
+  EXPECT_EQ(TensorTransUtils::FillRtTensorDesc(ge_tensor, rt_tensor), SUCCESS);
+  EXPECT_EQ(rt_tensor.GetDataType(), DT_INT32);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDimNum(), 2U);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDim(0), 2);
+  EXPECT_EQ(rt_tensor.GetStorageShape().GetDim(1), 3);
+}
+
+TEST_F(UtestTensorTransUtils, FillRtTensorDesc_DevicePlacement) {
+  Tensor ge_tensor;
+  TensorDesc tensor_desc(Shape({4, 5, 6}), FORMAT_NCHW, DT_FLOAT);
+  tensor_desc.SetOriginFormat(FORMAT_NCHW);
+  tensor_desc.SetOriginShape(Shape({4, 5, 6}));
+  tensor_desc.SetPlacement(Placement::kPlacementDevice);
+  ge_tensor.SetTensorDesc(tensor_desc);
+
+  gert::Tensor rt_tensor;
+  EXPECT_EQ(TensorTransUtils::FillRtTensorDesc(ge_tensor, rt_tensor), SUCCESS);
+  EXPECT_EQ(rt_tensor.GetPlacement(), gert::TensorPlacement::kOnDeviceHbm);
+}
+
+TEST_F(UtestTensorTransUtils, TransGertTensorToHost_EmptyShape_ZeroOutputSize) {
+  gert::Tensor src_tensor = {
+      {{0, 0, 0, 0}, {0, 0, 0, 0}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, gert::kOnHost, ge::DT_FLOAT, nullptr};
+  gert::Tensor dst_tensor;
+  EXPECT_EQ(TensorTransUtils::TransGertTensorToHost(src_tensor, dst_tensor), SUCCESS);
+  EXPECT_EQ(dst_tensor.GetSize(), 0U);
+}
 }  // namespace ge

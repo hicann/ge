@@ -31,6 +31,7 @@ using namespace testing;
 using namespace ge::dump;
 
 namespace ge {
+namespace dump {
 namespace {
 
 // 测试数据
@@ -120,7 +121,10 @@ TEST_F(DumpConfigTest, ParseValidDataDumpConfigTest) {
       DumpConfig::Instance().ParseAndValidate(kValidDataDumpConfig, static_cast<int32_t>(strlen(kValidDataDumpConfig)));
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(DumpConfig::Instance().IsDataDumpEnabled());
-  EXPECT_EQ(DumpConfig::Instance().GetDumpPath(), "/tmp/dump_test");
+  // 对齐 V1：dump_path 末尾会追加时间戳子目录（yyyyMMddHHmmss），此处断言前缀和目录格式
+  const auto &dump_path = DumpConfig::Instance().GetDumpPath();
+  EXPECT_THAT(dump_path, StartsWith("/tmp/dump_test/"));
+  EXPECT_EQ(dump_path.substr(dump_path.size() - 1U), "/");
   EXPECT_EQ(DumpConfig::Instance().GetDumpMode(), "all");
   EXPECT_EQ(DumpConfig::Instance().GetDumpLevel(), "op");
   EXPECT_TRUE(DumpConfig::Instance().NeedDump());
@@ -228,8 +232,11 @@ TEST_F(DumpConfigTest, ParseLiteExceptionConfigTest) {
 }
 
 // 测试 Dump 默认值
+// dump_path 为必填项（校验失败时返回 FAILED），其余字段缺省时应取默认值
 TEST_F(DumpConfigTest, DefaultValuesTest) {
-  Status ret = DumpConfig::Instance().ParseAndValidate(R"({"dump":{}})", 10);
+  const char *kDefaultDumpConfig = R"({"dump":{"dump_path":"/tmp/dump_default"}})";
+  Status ret =
+      DumpConfig::Instance().ParseAndValidate(kDefaultDumpConfig, static_cast<int32_t>(strlen(kDefaultDumpConfig)));
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(DumpConfig::Instance().GetDumpMode(), GE_DUMP_MODE_DEFAULT);
   EXPECT_EQ(DumpConfig::Instance().GetDumpStatus(), GE_DUMP_STATUS_DEFAULT);
@@ -817,12 +824,14 @@ TEST_F(ProfilingConfigTest, IgnoreUnsupportedCtrlType) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
   EXPECT_TRUE(ProfilingConfig::Instance().IsEnabled());
 
-  rtError_t ret = ProfilingCallbackManager::ProfilingCtrlCallback(0U, nullptr, 0U);
+  // 不支持的 ctrl type 应被忽略（返回成功），配置状态保持不变；
+  // ctrl_data 需为有效数据，null 数据由实现判定为参数无效
+  MsprofCommandHandle cmd = {};
+  cmd.type = 2U;
+  rtError_t ret = ProfilingCallbackManager::ProfilingCtrlCallback(0U, &cmd, sizeof(cmd));
   EXPECT_EQ(ret, RT_ERROR_NONE);
   EXPECT_TRUE(ProfilingConfig::Instance().IsEnabled());
 
-  MsprofCommandHandle cmd = {};
-  cmd.type = 2U;
   ret = ProfilingCallbackManager::ProfilingCtrlCallback(3U, &cmd, sizeof(cmd));
   EXPECT_EQ(ret, RT_ERROR_NONE);
   EXPECT_TRUE(ProfilingConfig::Instance().IsEnabled());
@@ -1087,6 +1096,62 @@ TEST_F(ProfilingImplTest, ReportLaunchInfo_NullOpName_ReturnsSuccess) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
+// 通过 profiling stub 捕获实际提交给 MsprofReportApi 的字段，断言各字段原样提交。
+TEST_F(ProfilingImplTest, ReportLaunchInfo_CapturesMsprofApiWithoutTruncation) {
+  ProfilingTestUtil::Instance().hash_func_ = [](const char *, size_t) { return 100UL; };
+
+  auto check_func = [](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    EXPECT_EQ(type, ge::InfoType::kApi);
+    if (data == nullptr) {
+      return 0;
+    }
+    auto api = static_cast<MsprofApi *>(data);
+    EXPECT_EQ(api->beginTime, 500UL);
+    EXPECT_EQ(api->endTime, 1000UL);
+    EXPECT_EQ(api->itemId, 100UL);
+    EXPECT_EQ(api->type, MSPROF_REPORT_NODE_LAUNCH_TYPE);
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(check_func);
+
+  ProfilingImpl impl;
+  Om2TaskInfo task_info = {};
+  task_info.op_name = "test_op";
+  task_info.launch_begin = 500UL;
+  task_info.thread_id = 1U;
+  Status ret = impl.ReportLaunchInfo(task_info, 1000UL);
+  EXPECT_EQ(ret, SUCCESS);
+  ProfilingTestUtil::Instance().hash_func_ = nullptr;
+}
+
+// 本次修复补充了 model load 事件上报结构体字段的一致性。
+// 通过 profiling stub 捕获实际提交给 MsprofReportEvent 的事件，
+// 断言 itemId 等字段原样提交。
+TEST_F(ProfilingImplTest, ReportModelLoadEnd_CapturesMsprofEventFields) {
+  ProfilingOptions options;
+  options.model_load_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  auto check_func = [](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    // ReportModelLoadEnd 先上报 graph_id_map(kInfo)，再上报 model load 事件(kEvent)
+    if (type != ge::InfoType::kEvent) {
+      return 0;
+    }
+    if (data == nullptr) {
+      return 0;
+    }
+    auto event = static_cast<MsprofEvent *>(data);
+    EXPECT_EQ(event->itemId, 42U);
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(check_func);
+
+  ProfilingImpl impl;
+  auto model_info = MakeModelInfo(42U);
+  Status ret = impl.ReportModelLoadEnd(model_info);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
 // --- ReportFusionOpInfo ---
 
 TEST_F(ProfilingImplTest, ReportFusionOpInfo_OriginalOpNamesNull_ReturnsSuccess) {
@@ -1166,7 +1231,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportDisabled_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportEnabled_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
   EXPECT_TRUE(ProfilingConfig::Instance().IsTaskReportEnabled());
 
@@ -1183,7 +1248,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportEnabled_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_InvalidTaskType_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1198,7 +1263,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_InvalidTaskType_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   int64_t shape[] = {1, 3, 224, 224};
@@ -1235,7 +1300,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_NullTensor_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   // tensor with null shape_dims but shape_dims_num != 0
@@ -1264,7 +1329,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_NullTensor_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_NullIoEntries_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1283,7 +1348,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_NullIoEntries_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_WithNullOpName_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1300,7 +1365,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_WithNullOpName_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_AicpuTaskType_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1316,7 +1381,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_AicpuTaskType_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_DsaTaskType_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1331,7 +1396,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_DsaTaskType_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_HcclTaskType_ReturnsSuccess) {
   ProfilingOptions options;
-  options.task_report_enabled = true;
+  options.task_time_enabled = true;
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
@@ -1407,4 +1472,5 @@ TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_WithStepId_Return
   Status ret = manager.ReportModelLevelProf(prof_info);
   EXPECT_EQ(ret, SUCCESS);
 }
+}  // namespace dump
 }  // namespace ge

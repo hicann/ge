@@ -927,5 +927,33 @@ TEST_F(UtestFormatTransferNhwc5d, invalid_data_shape) {
       transfer2.TransShape(args2.src_format, args2.src_shape, args2.src_data_type, args2.dst_format, args2.dst_shape),
       ACL_ERROR_GE_DATATYPE_INVALID);
 }
+TEST_F(UtestFormatTransferNhwc5d, empty_tensor_success) {
+  uint8_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NHWC, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NC1HWC0, FORMAT_RESERVED, 5));
+  TransArgs args{data, src_format, dst_format,     FORMAT_NHWC,       FORMAT_NC1HWC0, FORMAT_RESERVED, FORMAT_RESERVED,
+                 16,   16,         {0, 1, 16, 16}, {0, 1, 1, 16, 16}, DT_FLOAT16};
+  TransResult result;
+  FormatTransferNhwcNc1hwc0 transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestFormatTransferNhwc5d, invalid_dst_shape_trans_shape) {
+  FormatTransferNhwcNc1hwc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_NHWC, {1, 1, 1, 16}, DT_FLOAT, FORMAT_NC1HWC0, dst_shape), SUCCESS);
+  dst_shape.clear();
+  EXPECT_EQ(transfer.TransShape(FORMAT_NHWC, {1, 1}, DT_FLOAT, FORMAT_NC1HWC0, dst_shape), ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNhwc5d, invalid_src_dst_format_trans_shape) {
+  FormatTransferNhwcNc1hwc0 transfer;
+  std::vector<int64_t> dst_shape;
+  EXPECT_EQ(transfer.TransShape(FORMAT_NCHW, {1, 1, 1, 16}, DT_FLOAT, FORMAT_NC1HWC0, dst_shape),
+            ACL_ERROR_GE_FORMAT_INVALID);
+  EXPECT_EQ(transfer.TransShape(FORMAT_NHWC, {1, 1, 1, 16}, DT_STRING, FORMAT_NC1HWC0, dst_shape),
+            ACL_ERROR_GE_DATATYPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

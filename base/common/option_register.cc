@@ -35,6 +35,7 @@ bool ExportCompileStatChecker(const std::string &opt_value, std::string &reason)
   }
   return true;
 }
+
 }  // namespace
 REG_OPTION(OO_CONSTANT_FOLDING)
     .LEVELS(OoLevel::kO1)
@@ -82,4 +83,12 @@ REG_OPTION(OPTION_EXPORT_COMPILE_STAT)
     .HELP(
         "The option of configuring statistics of the graph compiler, 0: Not Generate; 1: Generated when the program "
         "exits(default); 2: Generated when graph compilation complete.");
+
+REG_OPTION(OPTION_AUTO_MULTISTREAM_PARALLEL_MODE)
+    .LEVELS(OoLevel::kO3)
+    .DEFAULT_VALUES({{OoLevel::kO3, ""}})
+    .VISIBILITY({OoEntryPoint::kSession, OoEntryPoint::kAtc})
+    .SHOW_NAME(OoEntryPoint::kAtc, "multi_stream_parallel_mode", OoCategory::kModelTuning)
+    .HELP(
+        "Auto multi-stream parallel mode: \"\"(default, disabled), cv, LoadBalance:N, MainStream:N (N range [1,64]).");
 }  // namespace ge

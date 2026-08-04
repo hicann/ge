@@ -2746,4 +2746,80 @@ TEST_F(UtestGeApiV2, GEInitialize_InvalidSocVersion) {
   (void)ret;
   GEFinalizeV2();
 }
+
+TEST_F(UtestGeApiV2, AreOptionsEqual_DifferentOptions_CovEnhance) {
+  std::map<AscendString, AscendString> options1;
+  options1[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  options1["ge.option_A"] = "value_A";
+  EXPECT_EQ(GEInitializeV2(options1), SUCCESS);
+
+  std::map<AscendString, AscendString> options2;
+  options2[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  options2["ge.option_B"] = "value_B";
+  EXPECT_EQ(GEInitializeV2(options2), SUCCESS);
+
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, AreOptionsEqual_DifferentSize_CovEnhance) {
+  std::map<AscendString, AscendString> options1;
+  options1[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options1), SUCCESS);
+
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(GEInitializeV2(options2), SUCCESS);
+
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, GeSessionConstructor_AllocFail_CovEnhance) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().Clear();
+  dlog_setlevel(GE_MODULE_NAME, 0, 0);
+
+  g_fail_nothrow_new = true;
+  std::map<AscendString, AscendString> options;
+  GeSession session(options);
+  g_fail_nothrow_new = false;
+
+  EXPECT_EQ(session.GetSessionId(), uint64_t{0});
+  dlog_setlevel(GE_MODULE_NAME, 3, 0);
+}
+
+TEST_F(UtestGeApiV2, GraphDebugJSONPrint_SuccessPath_CovEnhance) {
+  gert::GertRuntimeStub rtstub;
+  rtstub.GetRtsRuntimeStub().Clear();
+  rtstub.StubByNodeTypes({"Data", "Add", "NetOutput"});
+  rtstub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  OpsKernelBuilderPtr builder = MakeShared<GeFakeOpsKernelBuilder>();
+  OpsKernelBuilderRegistry::GetInstance().Register(kEngineNameAiCore, builder);
+  OpsKernelBuilderRegistry::GetInstance().Register(kEngineNameGeLocal, builder);
+
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  ComputeGraphPtr com_graph = gert::ShareGraph::AicoreGraph();
+  auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(com_graph);
+  (void)ge::AttrUtils::SetBool(com_graph, ge::ATTR_SINGLE_OP_SCENE, true);
+
+  GraphId graph_id = 1;
+  EXPECT_EQ(session.AddGraph(graph_id, graph, options), SUCCESS);
+  EXPECT_EQ(session.CompileGraph(graph_id, {}), SUCCESS);
+
+  AscendString json_result;
+  (void)session.GraphDebugJSONPrint(graph_id, 0U, json_result);
+
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, GetCompiledModel_NotInit_CovEnhance) {
+  GEFinalizeV2();
+  std::map<AscendString, AscendString> options;
+  GeSession session(options);
+  ModelBufferData model_buffer;
+  EXPECT_NE(session.GetCompiledModel(1U, model_buffer), SUCCESS);
+}
 }  // namespace ge

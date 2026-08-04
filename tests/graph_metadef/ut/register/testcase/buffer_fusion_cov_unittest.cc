@@ -561,4 +561,80 @@ TEST_F(BufferFusionCovUT, Pattern_SetHead_DescTotalMinOverflow) {
   desc1->repeate_min = std::numeric_limits<int64_t>::max();
   pattern.SetHead({"desc1", "desc2"});
 }
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_EmptyDescName) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_RepeatMinGreaterThanMax) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 2, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_DuplicateDescName) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc1", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_EmptyDescName) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("", {"desc1"});
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_DescNotExist) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("nonexistent", {"desc1"});
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_OutputDescNotExist) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"nonexistent"});
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetOutputs_SelfOutput) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetOutputs("desc1", {"desc1"});
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  EXPECT_TRUE(desc1->outputs.empty());
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetGraphModType) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.SetGraphModType(42);
+  EXPECT_EQ(pattern.GetGraphModType(), 42);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDesc_WithRepeatRange) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 3, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  auto *desc1 = pattern.GetOpDesc("desc1");
+  EXPECT_NE(desc1, nullptr);
+  EXPECT_EQ(desc1->multi_output_skip_status.size(), 2U);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_AddOpDescTypeRules_EmptyDescName) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDescTypeRules("", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, {ONLY_SUPPORT_STATIC}, false, true);
+  EXPECT_NE(pattern.GetErrorCnt(), 0);
+}
+
+TEST_F(BufferFusionCovUT, Pattern_SetRelation_NonRelativePosition) {
+  BufferFusionPattern pattern("test_pattern", 10);
+  pattern.AddOpDesc("desc1", {"Relu"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.AddOpDesc("desc2", {"Add"}, 1, 1, TBE_PATTERN_GROUPID_INVALID, IGNORE_SHAPE_TYPE);
+  pattern.SetRelation("desc1", "desc2", PatternRelation::RELATIVE_POSITION_CONSISTENT);
+  EXPECT_EQ(pattern.GetErrorCnt(), 0);
+}
 }  // namespace fe

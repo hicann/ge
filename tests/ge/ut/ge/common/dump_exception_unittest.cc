@@ -27,6 +27,7 @@
 #include "depends/profiler/src/dump_stub.h"
 #include "common/dump/dump_manager.h"
 #include "common/dump/adump_opinfo_builder.h"
+#include "mmpa/mmpa_api.h"
 
 namespace ge {
 class UTEST_dump_exception : public testing::Test {
@@ -481,5 +482,219 @@ TEST_F(UTEST_dump_exception, MutableOpDescInfo_found_and_not_found) {
 TEST_F(UTEST_dump_exception, DumpDevMem_size_zero) {
   const auto ret = ExceptionDumper::DumpDevMem("test_file", nullptr, 0);
   EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionTvmOpInfo_NonTvm_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.imply_type = 0U;
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  exception_dumper.LogExceptionTvmOpInfo(op_desc_info);
+  EXPECT_TRUE(CheckLogExpected(runtime_stub.GetSlogStub().GetLogs(), "not tvm"));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionTvmOpInfo_InputMismatch_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.imply_type = static_cast<uint32_t>(domi::ImplyType::TVM);
+  op_desc_info.input_format = {FORMAT_NCHW, FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  exception_dumper.LogExceptionTvmOpInfo(op_desc_info);
+  EXPECT_TRUE(CheckLogExpected(runtime_stub.GetSlogStub().GetLogs(), "not equal, skip log op info"));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionTvmOpInfo_OutputMismatch_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.imply_type = static_cast<uint32_t>(domi::ImplyType::TVM);
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.output_format = {FORMAT_NCHW, FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  exception_dumper.LogExceptionTvmOpInfo(op_desc_info);
+  EXPECT_TRUE(CheckLogExpected(runtime_stub.GetSlogStub().GetLogs(), "not equal, skip log op info"));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionTvmOpInfo_TvmSuccess_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "TestOp";
+  op_desc_info.op_type = "TestType";
+  op_desc_info.imply_type = static_cast<uint32_t>(domi::ImplyType::TVM);
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.input_addrs = {reinterpret_cast<void *>(5000)};
+  op_desc_info.output_format = {FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  op_desc_info.output_addrs = {reinterpret_cast<void *>(6000)};
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  exception_dumper.LogExceptionTvmOpInfo(op_desc_info);
+  EXPECT_TRUE(CheckLogExpected(runtime_stub.GetSlogStub().GetLogs(), "[AIC_INFO] node_name:"));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionArgs_HostArgs_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.args_before_execute = "test_args";
+  op_desc_info.args = reinterpret_cast<uintptr_t>(nullptr);
+  op_desc_info.is_host_args = true;
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  exception_dumper.LogExceptionArgs(op_desc_info);
+  EXPECT_TRUE(CheckLogExpected(runtime_stub.GetSlogStub().GetLogs(), "[AIC_INFO] test_args"));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UTEST_dump_exception, GetOpDescInfo_ZeroArgs_CovEnhance) {
+  ExceptionDumper exception_dumper;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("TestOp", "TestType");
+  ExtraOpInfo extra_op_info;
+  ge::OpDescInfoId id(10, 20, 0);
+  exception_dumper.SaveDumpOpInfo(op_desc, extra_op_info, id, false);
+  OpDescInfo result;
+  EXPECT_TRUE(exception_dumper.GetOpDescInfo(id, result));
+  EXPECT_EQ(result.op_name, "TestOp");
+}
+
+TEST_F(UTEST_dump_exception, GetOpDescInfo_HostArgs_CovEnhance) {
+  ExceptionDumper exception_dumper;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("TestOp2", "TestType2");
+  ExtraOpInfo extra_op_info;
+  extra_op_info.is_host_args = true;
+  extra_op_info.args = 1000U;
+  ge::OpDescInfoId id(20, 30, 0);
+  exception_dumper.SaveDumpOpInfo(op_desc, extra_op_info, id, false);
+  OpDescInfo result;
+  EXPECT_TRUE(exception_dumper.GetOpDescInfo(id, result));
+  EXPECT_EQ(result.op_name, "TestOp2");
+}
+
+TEST_F(UTEST_dump_exception, GetOpDescInfo_NotFound_CovEnhance) {
+  ExceptionDumper exception_dumper;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("TestOp3", "TestType3");
+  ExtraOpInfo extra_op_info;
+  ge::OpDescInfoId id(30, 40, 0);
+  exception_dumper.SaveDumpOpInfo(op_desc, extra_op_info, id, false);
+  OpDescInfo result;
+  ge::OpDescInfoId wrong_id(999, 999, 0);
+  EXPECT_FALSE(exception_dumper.GetOpDescInfo(wrong_id, result));
+}
+
+TEST_F(UTEST_dump_exception, DumpNodeInfo_FftsPlus_CovEnhance) {
+  ASSERT_TRUE(ge::CreateDirectory(temp_dump_path_) == 0);
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL_NEED_DUMP_AND_IT_IS_NOT_A_MODEL_NAME", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "Save";
+  op_desc_info.op_type = "Save";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.id.stream_id = 2;
+  op_desc_info.id.context_id = 1;
+  op_desc_info.id.thread_id = 1;
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.input_addrs = {nullptr};
+  op_desc_info.input_size = {2};
+  op_desc_info.output_format = {FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  op_desc_info.output_addrs = {nullptr};
+  op_desc_info.output_size = {2};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpNodeInfo(op_desc_info, temp_dump_path_, false, true, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, DumpDevMem_MallocHostFail_CovEnhance) {
+  auto ret = ExceptionDumper::DumpDevMem("test_file", reinterpret_cast<const void *>(5000), 123U);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, DumpDevMem_MemcpyFail_CovEnhance) {
+  mmSetEnv("CONSTANT_FOLDING_PASS", "mock_fail", 1);
+  auto ret = ExceptionDumper::DumpDevMem("test_file", reinterpret_cast<const void *>(5000), 64U);
+  EXPECT_NE(ret, ge::SUCCESS);
+  unsetenv("CONSTANT_FOLDING_PASS");
+}
+
+TEST_F(UTEST_dump_exception, DumpExceptionInput_WithException_CovEnhance) {
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL_NEED_DUMP_AND_IT_IS_NOT_A_MODEL_NAME", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "Save";
+  op_desc_info.op_type = "Save";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.input_addrs = {nullptr};
+  op_desc_info.input_size = {2};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpExceptionInput(op_desc_info, "/", true, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, DumpExceptionOutput_WithException_CovEnhance) {
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL_NEED_DUMP_AND_IT_IS_NOT_A_MODEL_NAME", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "Save";
+  op_desc_info.op_type = "Save";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.output_addrs = {nullptr};
+  op_desc_info.output_size = {2};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpExceptionOutput(op_desc_info, "/", true, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, SaveDumpOpInfo_WithExtraSizes_CovEnhance) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("GatherV2", "GatherV2");
+  GeTensorDesc tensor(GeShape(), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor, 512);
+  op_desc->AddInputDesc(tensor);
+  op_desc->AddOutputDesc(tensor);
+  ExtraOpInfo extra_op_info;
+  extra_op_info.input_sizes = {256};
+  extra_op_info.output_sizes = {256};
+  ExceptionDumper exception_dumper;
+  ge::OpDescInfoId id(1, 233, 0);
+  EXPECT_NO_THROW(exception_dumper.SaveDumpOpInfo(op_desc, extra_op_info, id, false));
+}
+
+TEST_F(UTEST_dump_exception, DumpExceptionWorkspace_WithException_CovEnhance) {
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "Save";
+  op_desc_info.op_type = "Save";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.space_addrs = {nullptr};
+  op_desc_info.workspace_bytes = {8};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpExceptionWorkspace(op_desc_info, "/", true, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, Clear_Empty_CovEnhance) {
+  ExceptionDumper exception_dumper;
+  EXPECT_NO_THROW(exception_dumper.Clear());
 }
 }  // namespace ge

@@ -1122,4 +1122,94 @@ TEST_F(GNodeTest, IncCov_GNodeGetInputDescOutOfRange) {
   EXPECT_EQ(gnode.GetOutputDesc(999, td), GRAPH_FAILED);
   EXPECT_EQ(gnode.UpdateOutputDesc(999, td), GRAPH_FAILED);
 }
+
+TEST_F(GNodeTest, IncCov_GNodeAttrTensorAndOpBytes) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AscendString name = "test_attr";
+
+  Tensor tensor;
+  std::vector<int64_t> shape{2};
+  TensorDesc tensor_desc(Shape(shape), FORMAT_ND, DT_UINT8);
+  tensor.SetTensorDesc(tensor_desc);
+  std::vector<uint8_t> data{1, 2};
+  tensor.SetData(data);
+  EXPECT_EQ(gnode.SetAttr(name, tensor), GRAPH_SUCCESS);
+  Tensor get_tensor;
+  EXPECT_EQ(gnode.GetAttr(name, get_tensor), GRAPH_SUCCESS);
+
+  OpBytes op_bytes = {10, 20, 30};
+  EXPECT_EQ(gnode.SetAttr(name, op_bytes), GRAPH_SUCCESS);
+  OpBytes get_bytes;
+  EXPECT_EQ(gnode.GetAttr(name, get_bytes), GRAPH_SUCCESS);
+
+  gnode.impl_ = nullptr;
+  EXPECT_EQ(gnode.SetAttr(name, tensor), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetAttr(name, tensor), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, op_bytes), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetAttr(name, op_bytes), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeAttrVectorVectorAndVectorTensor) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AscendString name = "test_attr";
+
+  std::vector<std::vector<int64_t>> vvi = {{1, 2}, {3, 4}};
+  EXPECT_EQ(gnode.SetAttr(name, vvi), GRAPH_SUCCESS);
+  std::vector<std::vector<int64_t>> gvvi;
+  EXPECT_EQ(gnode.GetAttr(name, gvvi), GRAPH_SUCCESS);
+  EXPECT_EQ(gvvi.size(), 2U);
+
+  std::vector<Tensor> vt;
+  vt.emplace_back(Tensor());
+  EXPECT_EQ(gnode.SetAttr(name, vt), GRAPH_SUCCESS);
+  std::vector<Tensor> gvt;
+  EXPECT_EQ(gnode.GetAttr(name, gvt), GRAPH_SUCCESS);
+
+  gnode.impl_ = nullptr;
+  EXPECT_EQ(gnode.SetAttr(name, vvi), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetAttr(name, vvi), GRAPH_FAILED);
+  EXPECT_EQ(gnode.SetAttr(name, vt), GRAPH_FAILED);
+  EXPECT_EQ(gnode.GetAttr(name, vt), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeAttrAttrValueType) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 1, 1);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AscendString name = "test_attr";
+
+  AttrValue av;
+  av.SetAttrValue(static_cast<int64_t>(42));
+  EXPECT_EQ(gnode.SetAttr(name, av), GRAPH_SUCCESS);
+  AttrValue gav;
+  EXPECT_EQ(gnode.GetAttr(name, gav), GRAPH_SUCCESS);
+
+  GNode empty_gnode;
+  AscendString empty_name = nullptr;
+  AttrValue empty_av;
+  EXPECT_EQ(empty_gnode.GetAttr(empty_name, empty_av), GRAPH_PARAM_INVALID);
+  EXPECT_EQ(empty_gnode.SetAttr(empty_name, empty_av), GRAPH_PARAM_INVALID);
+  empty_gnode.impl_ = nullptr;
+  EXPECT_EQ(empty_gnode.GetAttr(name, empty_av), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInputConstDataExpiredNodePtr) {
+  GNode gnode;
+  Tensor data;
+  EXPECT_EQ(gnode.GetInputConstData(0, data), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetInputConstDataConstNoValue) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto const_node = builder.AddNode("const_node", "Const", 0, 1);
+  const auto target_node = builder.AddNode("target_node", "target", 1, 0);
+  builder.AddDataEdge(const_node, 0, target_node, 0);
+  GNode gnode = NodeAdapter::Node2GNode(target_node);
+  Tensor data;
+  EXPECT_EQ(gnode.GetInputConstData(0, data), GRAPH_FAILED);
+}
 }  // namespace ge

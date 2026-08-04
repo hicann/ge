@@ -862,4 +862,108 @@ TEST_F(UtestGraphVarManagerTest, test_init_var_if_has_init_value_size_exceeds) {
 
   EXPECT_EQ(dev_addr, nullptr);
 }
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetSizeByTensoDataType_NoOutput) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_no_out", CONSTANTOP);
+  VarResource var_res(0);
+  EXPECT_EQ(var_res.GetSizeByTensoDataType(op_desc), -1);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetReuseAddr_NoWeight) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_no_weight", CONSTANTOP);
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT));
+  VarResource var_res(0);
+  uint8_t *mem_offset = nullptr;
+  rtMemType_t memory_type = RT_MEMORY_HBM;
+  EXPECT_EQ(var_res.GetReuseAddr(op_desc, &mem_offset, memory_type), FAILED);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_RenewCurVarDesc_NoVarInMap_OpDescVer) {
+  VarResource var_res(0);
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Add");
+  EXPECT_EQ(var_res.RenewCurVarDesc("nonexistent_var", op_desc), SUCCESS);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_RenewCurVarDesc_NullOpDesc) {
+  VarResource var_res(0);
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  var_res.SetVarAddr("test_var", tensor_desc, nullptr, RT_MEMORY_RDMA_HBM, nullptr);
+  OpDescPtr null_op_desc = nullptr;
+  EXPECT_EQ(var_res.RenewCurVarDesc("test_var", null_op_desc), FAILED);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetVarMemType_Reserved) {
+  VarResource var_res(0);
+  EXPECT_EQ(var_res.GetVarMemType(0), RT_MEMORY_RESERVED);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_CheckLogicAddrValid_Success) {
+  VarResource var_res(0);
+  GeTensorDesc tensor_desc;
+  TensorUtils::SetSize(tensor_desc, 1000);
+  VarDevAddrMgr addr_mgr = {tensor_desc, reinterpret_cast<uint8_t *>(500), nullptr, false};
+  var_res.device_id_to_var_dev_addr_mgr_map_[0][500] = addr_mgr;
+  uint64_t inner_offset = 0;
+  uint64_t logic_addr_tmp = 0;
+  EXPECT_EQ(var_res.CheckLogicAddrValid(0, reinterpret_cast<uint8_t *>(700), inner_offset, logic_addr_tmp), SUCCESS);
+  EXPECT_EQ(inner_offset, 200U);
+  EXPECT_EQ(logic_addr_tmp, 500U);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_SessionId) {
+  VarManager tmp_mgr(42);
+  EXPECT_EQ(tmp_mgr.SessionId(), 42U);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetVarMemSize_NullMemResource) {
+  VarManager tmp_mgr(0);
+  tmp_mgr.mem_resource_map_[RT_MEMORY_HBM] = nullptr;
+  EXPECT_EQ(tmp_mgr.GetVarMemSize(RT_MEMORY_HBM), 0);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetVarMemSize_NonHBM) {
+  VarManager tmp_mgr(0);
+  auto mem_res = std::make_shared<RdmaMemResource>();
+  tmp_mgr.mem_resource_map_[RT_MEMORY_RDMA_HBM] = mem_res;
+  EXPECT_EQ(tmp_mgr.GetVarMemSize(RT_MEMORY_RDMA_HBM), 0);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetRdmaPoolMemory_NullMemManager) {
+  VarManager tmp_mgr(0);
+  EXPECT_EQ(tmp_mgr.GetRdmaPoolMemory(RT_MEMORY_HBM, 1024), nullptr);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_SetChangedGraphId_NullVarResource) {
+  VarManager tmp_mgr(0);
+  EXPECT_EQ(tmp_mgr.SetChangedGraphId("test_var", 0), INTERNAL_ERROR);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_RemoveChangedGraphId_NullVarResource) {
+  VarManager tmp_mgr(0);
+  tmp_mgr.RemoveChangedGraphId("test_var");
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_SetAllMemoryMaxValue_Overflow) {
+  VarManager tmp_mgr(0);
+  tmp_mgr.graph_mem_max_size_ = 128UL * 1024UL * 1024UL * 1024UL + 1U;
+  tmp_mgr.var_mem_max_size_ = 128UL * 1024UL * 1024UL * 1024UL;
+  std::map<std::string, std::string> options;
+  EXPECT_NE(tmp_mgr.SetAllMemoryMaxValue(options), SUCCESS);
+}
+
+TEST_F(UtestGraphVarManagerTest, Cov_GetAllVariables_WithTransRoad) {
+  uint64_t session_id = 202311132120;
+  VarManager::Instance(session_id)->Init(0, session_id, 0, 0);
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16);
+  VarManager::Instance(session_id)->AssignVarMem("test_var_road", nullptr, tensor_desc, RT_MEMORY_HBM);
+  TransNodeInfo trans_node_info;
+  trans_node_info.input = GeTensorDesc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  VarTransRoad trans_road{trans_node_info};
+  VarManager::Instance(session_id)->SetTransRoad("test_var_road", trans_road);
+  std::map<std::string, GeTensorDesc> all_variables;
+  EXPECT_EQ(VarManager::Instance(session_id)->GetAllVariables(all_variables), SUCCESS);
+  EXPECT_EQ(all_variables.size(), 1U);
+  VarManager::Instance(session_id)->Destroy();
+}
 }  // namespace ge

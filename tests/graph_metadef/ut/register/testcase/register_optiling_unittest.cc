@@ -1059,6 +1059,18 @@ static CompileInfoPtr cov_atomic_parse_v4_null(const ge::Operator &op, const ge:
   return nullptr;
 }
 
+static bool cov_stub_v2(const ge::Operator &op, const utils::OpCompileInfo &compile_info, utils::OpRunInfo &run_info) {
+  return true;
+}
+
+static bool cov_stub_v2_fail(const ge::Operator &op, const utils::OpCompileInfo &compile_info,
+                             utils::OpRunInfo &run_info) {
+  return false;
+}
+
+REGISTER_OP_TILING_V2(CovV2Op, cov_stub_v2);
+REGISTER_OP_TILING_V2(CovV2FailOp, cov_stub_v2_fail);
+
 REGISTER_OP_TILING(CovV1Op, cov_stub_v1_with_ws);
 REGISTER_OP_TILING(CovV1FailOp, cov_stub_v1_fail);
 REGISTER_OP_TILING_V3(CovV3Op, cov_stub_v3, cov_parse_v3);
@@ -1697,5 +1709,382 @@ TEST_F(RegisterOpTilingUT, IncCov_OpTilingFuncInfo_SetAndGetAllFuncs) {
   OpParseFuncV4 p4_func = cov_parse_v4;
   info.SetOpTilingFuncV4(v4_func, p4_func);
   EXPECT_TRUE(info.IsFunctionV4());
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpParaCalculateV2_Success) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("v2_op", "CovV2Op", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_KEY, "cov_v2_success_key");
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_JSON, "{}");
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpParaCalculateV2_NoCompileInfoKey) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("v2_nokey", "CovV2Op", 1, 1);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpParaCalculateV2_NoCompileInfoJson) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("v2_nojson", "CovV2Op", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_KEY, "cov_v2_nojson_key");
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpParaCalculateV2_TilingFail) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("v2_fail", "CovV2FailOp", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_KEY, "cov_v2_fail_key");
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_JSON, "{}");
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_PostProcCalculateV2_EqualWorkspaces) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 1, 1);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpDescPtr op_desc = node->GetOpDesc();
+  std::vector<int64_t> workspaces = {1, 2, 3};
+  OpRunInfoV2 run_info;
+  run_info.SetWorkspaces(workspaces);
+  op_desc->SetWorkspaceBytes(workspaces);
+  ge::graphStatus ret = PostProcCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpParaCalculateV2_EmptyFuncInfo) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase("CovEmptyFuncOp");
+  OpTilingFuncInfo info("CovEmptyFuncOp");
+  func_map.emplace("CovEmptyFuncOp", info);
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("empty", "CovEmptyFuncOp", 1, 1);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase("CovEmptyFuncOp");
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpAtomicCalculateV1_NoCompileInfoJson) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFunc v1_func = cov_atomic_stub_v1;
+  info.SetOpTilingFunc(v1_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_nojson", "DynamicAtomicAddrClean", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_KEY, "cov_atomic_nojson_key");
+
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_AssembleWorkspaceList_AtomicWorkspaceOnly) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  op_desc->SetWorkspaceBytes({512, 1024});
+  std::map<int64_t, int64_t> index_2_workspace_size = {{0, 5}};
+  std::map<string, std::map<int64_t, int64_t>> atomic_workspace_info = {{"test", index_2_workspace_size}};
+  op_desc->SetExtAttr(ge::EXT_ATTR_ATOMIC_WORKSPACE_INFO, atomic_workspace_info);
+  int64_t first_clean_size = 0;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, first_clean_size, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  EXPECT_FALSE(workspace_size_list.empty());
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_AssembleWorkspaceList_V2_AtomicWorkspaceOnly) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  op_desc->SetWorkspaceBytes({512, 1024});
+  std::map<int64_t, int64_t> index_2_workspace_size = {{0, 5}};
+  std::map<string, std::map<int64_t, int64_t>> atomic_workspace_info = {{"test", index_2_workspace_size}};
+  op_desc->SetExtAttr(ge::EXT_ATTR_ATOMIC_WORKSPACE_INFO, atomic_workspace_info);
+  std::vector<int64_t> workspace_list;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, workspace_list, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  EXPECT_FALSE(workspace_size_list.empty());
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpAtomicCalculateV1_AssembleFail) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFunc v1_func = cov_atomic_stub_v1;
+  info.SetOpTilingFunc(v1_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_assemblefail", "DynamicAtomicAddrClean", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_KEY, "cov_atomic_assemblefail_key");
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_JSON, R"({"_workspace_size_list":[]})");
+
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpAtomicCalculateV2_TilingFail) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncV2 v2_func = [](const ge::Operator &op, const OpCompileInfoV2 &compile_info,
+                              OpRunInfoV2 &run_info) -> bool { return false; };
+  info.SetOpTilingFuncV2(v2_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_v2_fail", "DynamicAtomicAddrClean", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_KEY, "cov_atomic_v2_fail_key");
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_JSON, R"({"_workspace_size_list":[]})");
+
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpAtomicCalculateV3_TilingFail) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncV3 v3_func = [](const ge::Operator &op, const void *compile_info, OpRunInfoV2 &run_info) -> bool {
+    return false;
+  };
+  OpParseFuncV3 p3_func = cov_atomic_parse_v3;
+  info.SetOpTilingFuncV3(v3_func, p3_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_v3_fail", "DynamicAtomicAddrClean", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_KEY, "cov_atomic_v3_fail_key");
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_JSON, R"({"_workspace_size_list":[]})");
+
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TurnToOpAtomicCalculateV4_TilingFail) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncV4 v4_func = [](const ge::Operator &op, const CompileInfoPtr compile_info,
+                              OpRunInfoV2 &run_info) -> bool { return false; };
+  OpParseFuncV4 p4_func = cov_atomic_parse_v4;
+  info.SetOpTilingFuncV4(v4_func, p4_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_v4_fail", "DynamicAtomicAddrClean", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_KEY, "cov_atomic_v4_fail_key");
+  (void)ge::AttrUtils::SetStr(op_desc, ATOMIC_COMPILE_INFO_JSON, R"({"_workspace_size_list":[]})");
+
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_GetOpAtomicTilingInfo_Cached) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncV2 v2_func = op_tiling_stub;
+  info.SetOpTilingFuncV2(v2_func);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  OpDescPtr op_desc = make_shared<OpDesc>("atomic", "DynamicAtomicAddrClean");
+  OpTilingFuncInfo *first = GetOpAtomicTilingInfo(op_desc);
+  EXPECT_NE(first, nullptr);
+  OpTilingFuncInfo *second = GetOpAtomicTilingInfo(op_desc);
+  EXPECT_NE(second, nullptr);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_PostProcMemoryCheck_NoOriOpParaSize) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 2, 1);
+  GeShape shape({3, 4, 2, 1});
+  GeTensorDesc tensor_desc(shape);
+  OpDescPtr op_desc = node->GetOpDesc();
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  (void)ge::AttrUtils::SetBool(op_desc, kMemoryCheck, true);
+  ge::graphStatus ret = PostProcMemoryCheck(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpFftsPlusCalculate_SuccessSameShape) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "CovV2Op", 1, 1);
+  const auto &op_desc = node->GetOpDesc();
+  const Operator op = OpDescUtils::CreateOperatorFromNode(node);
+
+  ThreadSliceMapDyPtr slice_info_ptr = std::make_shared<ThreadSliceMapDy>();
+  vector<int64_t> vec_1;
+  vec_1.push_back(4);
+  vector<vector<int64_t>> vec_2;
+  vec_2.push_back(vec_1);
+  vec_2.push_back(vec_1);
+  slice_info_ptr->parallel_window_size = 2;
+  slice_info_ptr->slice_instance_num = 2;
+  slice_info_ptr->input_tensor_slice.push_back(vec_2);
+  slice_info_ptr->input_tensor_slice.push_back(vec_2);
+  slice_info_ptr->output_tensor_slice.push_back(vec_2);
+  slice_info_ptr->output_tensor_slice.push_back(vec_2);
+  slice_info_ptr->input_tensor_indexes.push_back(0);
+  slice_info_ptr->output_tensor_indexes.push_back(0);
+
+  (void)op_desc->SetExtAttr(ffts::kAttrSgtStructInfoDy, slice_info_ptr);
+  GeShape shape({4, 1, 3, 4, 16});
+  GeTensorDesc tensor_desc(shape);
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_KEY, "ffts_v2_key");
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_JSON, "{}");
+  std::vector<OpRunInfoV2> op_run_info;
+  EXPECT_EQ(OpFftsPlusCalculate(op, op_run_info), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpFftsPlusCalculate_NullSliceInfo) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "CovV2Op", 1, 1);
+  const auto &op_desc = node->GetOpDesc();
+  const Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  std::vector<OpRunInfoV2> op_run_info;
+  EXPECT_EQ(OpFftsPlusCalculate(op, op_run_info), ge::PARAM_INVALID);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_UpDateNodeShapeBySliceInfo_EmptyDim) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("relu", "ReluV2", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  ThreadSliceMapDyPtr slice_info_ptr = std::make_shared<ThreadSliceMapDy>();
+  vector<int64_t> vec_1;
+  vector<vector<int64_t>> vec_2;
+  vec_2.push_back(vec_1);
+  vec_2.push_back(vec_1);
+  slice_info_ptr->slice_instance_num = 2;
+  slice_info_ptr->input_tensor_slice.push_back(vec_2);
+  slice_info_ptr->input_tensor_slice.push_back(vec_2);
+  slice_info_ptr->output_tensor_slice.push_back(vec_2);
+  slice_info_ptr->output_tensor_slice.push_back(vec_2);
+  slice_info_ptr->input_tensor_indexes.push_back(0);
+  slice_info_ptr->output_tensor_indexes.push_back(0);
+  GeShape shape({4, 1, 3, 4, 16});
+  GeTensorDesc tensor_desc(shape);
+  op_desc->AddInputDesc("x", tensor_desc);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  vector<int64_t> ori_shape;
+  bool same_shape = false;
+  auto ret = UpDateNodeShapeBySliceInfo(slice_info_ptr, op_desc, 0, ori_shape, same_shape);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TeOpVarAttrArgs_GetData_ListNotFound) {
+  OpDescPtr op_desc = make_shared<OpDesc>("relu", "ReluV1");
+  TeOpParas op_param;
+  VarAttrHelper::InitTeOpVarAttr(op_desc, op_param.var_attrs);
+  size_t size = 0;
+  EXPECT_NO_THROW(op_param.var_attrs.GetData("nonexistent", "ListInt32", size););
+  EXPECT_EQ(size, 0U);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_TeOpVarAttrArgs_GetData_FloatNotFound) {
+  OpDescPtr op_desc = make_shared<OpDesc>("relu", "ReluV1");
+  TeOpParas op_param;
+  VarAttrHelper::InitTeOpVarAttr(op_desc, op_param.var_attrs);
+  size_t size = 0;
+  EXPECT_NO_THROW(op_param.var_attrs.GetData("nonexistent_float", "Float", size););
+  EXPECT_EQ(size, 0U);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_AssembleWorkspaceList_GetSizeFail) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  GeTensorDesc tensor_desc(GeShape({3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  int64_t first_clean_size = 0;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, first_clean_size, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_AssembleWorkspaceList_V2_GetSizeFail) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  GeTensorDesc tensor_desc(GeShape({3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc("y", tensor_desc);
+  std::vector<int64_t> atomic_indices = {0};
+  AttrUtils::SetListInt(op_desc, ge::ATOMIC_ATTR_OUTPUT_INDEX, atomic_indices);
+  std::vector<int64_t> workspace_list;
+  std::vector<int64_t> workspace_size_list;
+  graphStatus ret = AssembleWorkspaceList(op_desc, workspace_list, workspace_size_list);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpParaCalculateV2_PostProcFail) {
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("v2_postproc", "CovV2Op", 1, 1);
+  OpDescPtr op_desc = node->GetOpDesc();
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_KEY, "cov_v2_postproc_key");
+  (void)ge::AttrUtils::SetStr(op_desc, COMPILE_INFO_JSON, "{}");
+  (void)ge::AttrUtils::SetBool(op_desc, kMemoryCheck, true);
+  Operator op = OpDescUtils::CreateOperatorFromNode(node);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpParaCalculateV2(op, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingUT, IncCov_OpAtomicCalculateV2_EmptyFuncInfo) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  OpTilingFuncInfo info(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
+  func_map.emplace(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN, info);
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &node = root_builder.AddNode("atomic_empty", "DynamicAtomicAddrClean", 1, 1);
+  OpRunInfoV2 run_info;
+  ge::graphStatus ret = OpAtomicCalculateV2(*node, run_info);
+  EXPECT_EQ(ret, ge::GRAPH_FAILED);
+  func_map.erase(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
 }
 }  // namespace optiling

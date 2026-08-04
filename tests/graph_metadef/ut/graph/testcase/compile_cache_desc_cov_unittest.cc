@@ -748,4 +748,159 @@ TEST_F(UtestCompileCacheDescCov, TensorInfoSetShapeRange_Overwrite) {
   EXPECT_EQ(t.shape_range_.size(), 2U);
   EXPECT_EQ(t.shape_range_[1].second, 30);
 }
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderConstructor_NullData) {
+  BinaryHolder h(nullptr, 10);
+  EXPECT_EQ(h.GetDataPtr(), nullptr);
+  EXPECT_EQ(h.GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderConstructor_ZeroLength) {
+  uint8_t data = 42;
+  BinaryHolder h(&data, 0);
+  EXPECT_EQ(h.GetDataPtr(), nullptr);
+  EXPECT_EQ(h.GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderCreateFrom_NullPtr) {
+  std::unique_ptr<uint8_t[]> null_ptr;
+  auto holder = BinaryHolder::createFrom(std::move(null_ptr), 10);
+  ASSERT_NE(holder, nullptr);
+  EXPECT_EQ(holder->GetDataPtr(), nullptr);
+  EXPECT_EQ(holder->GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderCreateFrom_ZeroLength) {
+  auto ptr = std::unique_ptr<uint8_t[]>(new uint8_t[4]{1, 2, 3, 4});
+  auto holder = BinaryHolder::createFrom(std::move(ptr), 0);
+  ASSERT_NE(holder, nullptr);
+  EXPECT_EQ(holder->GetDataPtr(), nullptr);
+  EXPECT_EQ(holder->GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderCopyCtor_FromEmpty) {
+  BinaryHolder h1;
+  BinaryHolder h2(h1);
+  EXPECT_EQ(h2.GetDataPtr(), nullptr);
+  EXPECT_EQ(h2.GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderMoveCtor_Empty) {
+  BinaryHolder h1;
+  BinaryHolder h2(std::move(h1));
+  EXPECT_EQ(h2.GetDataPtr(), nullptr);
+  EXPECT_EQ(h2.GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, BinaryHolderGetDataPtr_NullHolder) {
+  BinaryHolder h;
+  EXPECT_EQ(h.GetDataPtr(), nullptr);
+  EXPECT_EQ(h.GetDataLen(), 0UL);
+}
+
+TEST_F(UtestCompileCacheDescCov, IsMatch_NullDesc) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  EXPECT_FALSE(desc1->IsMatch(nullptr));
+}
+
+TEST_F(UtestCompileCacheDescCov, IsEqual_NullDesc) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  EXPECT_FALSE(desc1->IsEqual(nullptr));
+}
+
+TEST_F(UtestCompileCacheDescCov, IsMatch_DirectCall_Fail) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  TensorInfoArgs t1(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> s1{1, 2};
+  t1.SetShape(s1);
+  t1.SetOriginShape(s1);
+  desc1->AddTensorInfo(t1);
+
+  CompileCacheDescPtr desc2 = std::make_shared<CompileCacheDesc>();
+  desc2->SetOpType("op_b");
+  TensorInfoArgs t2(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  t2.SetShape(s1);
+  t2.SetOriginShape(s1);
+  desc2->AddTensorInfo(t2);
+  EXPECT_FALSE(desc1->IsMatch(desc2));
+}
+
+TEST_F(UtestCompileCacheDescCov, IsEqual_DirectCall_Fail) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  TensorInfoArgs t1(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> s1{1, 2};
+  t1.SetShape(s1);
+  t1.SetOriginShape(s1);
+  desc1->AddTensorInfo(t1);
+
+  CompileCacheDescPtr desc2 = std::make_shared<CompileCacheDesc>();
+  desc2->SetOpType("op_b");
+  TensorInfoArgs t2(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  t2.SetShape(s1);
+  t2.SetOriginShape(s1);
+  desc2->AddTensorInfo(t2);
+  EXPECT_FALSE(desc1->IsEqual(desc2));
+}
+
+TEST_F(UtestCompileCacheDescCov, IsEqual_DirectCall_Success) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  TensorInfoArgs t1(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> s1{1, 2};
+  t1.SetShape(s1);
+  t1.SetOriginShape(s1);
+  desc1->AddTensorInfo(t1);
+
+  CompileCacheDescPtr desc2 = std::make_shared<CompileCacheDesc>();
+  desc2->SetOpType("op_a");
+  TensorInfoArgs t2(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  t2.SetShape(s1);
+  t2.SetOriginShape(s1);
+  desc2->AddTensorInfo(t2);
+  EXPECT_TRUE(desc1->IsEqual(desc2));
+}
+
+TEST_F(UtestCompileCacheDescCov, CheckWithoutTensorInfo_OpTypeMatch_BinaryMatch_Success) {
+  CompileCacheDescPtr desc1 = std::make_shared<CompileCacheDesc>();
+  desc1->SetOpType("op_a");
+  uint8_t v1 = 1;
+  BinaryHolder h1(&v1, 1);
+  desc1->AddBinary(h1);
+
+  CompileCacheDescPtr desc2 = std::make_shared<CompileCacheDesc>();
+  desc2->SetOpType("op_a");
+  uint8_t v2 = 1;
+  BinaryHolder h2(&v2, 1);
+  desc2->AddBinary(h2);
+  EXPECT_TRUE(desc1->IsMatch(desc2));
+}
+
+TEST_F(UtestCompileCacheDescCov, TensorInfoMatch_AllShapeMatch) {
+  TensorInfoArgs t1(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> shape{-2};
+  t1.SetShape(shape);
+  t1.SetOriginShape(shape);
+  TensorInfoArgs t2(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> shape2{1, 2};
+  t2.SetShape(shape2);
+  t2.SetOriginShape(shape2);
+  EXPECT_TRUE(t1.IsTensorInfoMatch(t2));
+}
+
+TEST_F(UtestCompileCacheDescCov, TensorInfoNeq_DifferentOriginShape) {
+  TensorInfoArgs t1(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  std::vector<int64_t> s1{1, 2};
+  t1.SetShape(s1);
+  std::vector<int64_t> o1{1, 2};
+  t1.SetOriginShape(o1);
+  TensorInfoArgs t2(FORMAT_ND, FORMAT_ND, DT_FLOAT16);
+  t2.SetShape(s1);
+  std::vector<int64_t> o2{3, 4};
+  t2.SetOriginShape(o2);
+  EXPECT_TRUE(t1 != t2);
+}
 }  // namespace ge

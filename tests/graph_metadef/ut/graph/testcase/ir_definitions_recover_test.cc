@@ -638,4 +638,175 @@ TEST_F(IrDefinitionsRecoverUT, DeriveCompatibilityStrategy_backward_input_only) 
   auto strategy = RecoverIrUtils::DeriveCompatibilityStrategy(op_desc, ir_def);
   EXPECT_EQ(strategy, ge::CompatibilityStrategy::kBackward);
 }
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_UnknownIrInputType) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  auto op = ge::OperatorFactory::CreateOperator("MatMulUt", "MatMulUt");
+  auto op_desc_origin = ge::OpDescUtils::GetOpDescFromOperator(op);
+
+  op_desc->impl_->meta_data_.ir_meta_.ir_attr_names_ = op_desc_origin->GetIrAttrNames();
+  op_desc->impl_->meta_data_.ir_meta_.ir_inputs_.ir_inputs = {{"x1", static_cast<ge::IrInputType>(999)}};
+  ASSERT_FALSE(op_desc->impl_->meta_data_.ir_meta_.ir_inputs_.ir_inputs.empty());
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph);
+  EXPECT_NE(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_UnknownIrOutputType) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  auto op = ge::OperatorFactory::CreateOperator("MatMulUt", "MatMulUt");
+  auto op_desc_origin = ge::OpDescUtils::GetOpDescFromOperator(op);
+
+  op_desc->impl_->meta_data_.ir_meta_.ir_attr_names_ = op_desc_origin->GetIrAttrNames();
+  op_desc->impl_->meta_data_.ir_meta_.ir_inputs_.ir_inputs = op_desc_origin->GetIrInputs();
+  op_desc->impl_->meta_data_.ir_meta_.ir_outputs_.ir_outputs = {{"y", static_cast<ge::IrOutputType>(999)}};
+  ASSERT_FALSE(op_desc->impl_->meta_data_.ir_meta_.ir_outputs_.ir_outputs.empty());
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph);
+  EXPECT_NE(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverOpDescIrDefinition_KFailedStrategy) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  op_desc->AppendIrAttrName("extra_attr1");
+  op_desc->AppendIrAttrName("extra_attr2");
+  op_desc->AppendIrAttrName("extra_attr3");
+  op_desc->AppendIrAttrName("extra_attr4");
+
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph);
+  EXPECT_NE(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverIrDefinitions_DataNode) {
+  auto op_desc = std::make_shared<ge::OpDesc>("data", "Data");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverIrDefinitions_NetOutputNode) {
+  auto op_desc = std::make_shared<ge::OpDesc>("netoutput", "NetOutput");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverOpDescIrDefinition_WithOpType) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+
+  auto op = ge::OperatorFactory::CreateOperator("MatMulUt", "MatMulUt");
+  auto op_desc_origin = ge::OpDescUtils::GetOpDescFromOperator(op);
+
+  for (const auto &attr : op_desc_origin->GetIrAttrNames()) {
+    op_desc->AppendIrAttrName(attr);
+  }
+  for (const auto &pair : op_desc_origin->GetIrInputs()) {
+    op_desc->AppendIrInput(pair.first, pair.second);
+  }
+
+  auto ret = RecoverIrUtils::RecoverOpDescIrDefinition(op_desc, "");
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_CheckIrSpec_Success) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+
+  auto op = ge::OperatorFactory::CreateOperator("MatMulUt", "MatMulUt");
+  auto op_desc_origin = ge::OpDescUtils::GetOpDescFromOperator(op);
+
+  for (const auto &attr : op_desc_origin->GetIrAttrNames()) {
+    op_desc->AppendIrAttrName(attr);
+  }
+  for (const auto &pair : op_desc_origin->GetIrInputs()) {
+    op_desc->AppendIrInput(pair.first, pair.second);
+  }
+  for (const auto &pair : op_desc_origin->GetIrOutputs()) {
+    op_desc->AppendIrOutput(pair.first, pair.second);
+  }
+
+  GeTensorDesc tensor_desc;
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetBool(op_desc, "transpose_x1", true);
+  (void)AttrUtils::SetBool(op_desc, "transpose_x2", false);
+  (void)AttrUtils::SetBool(op_desc, "loss_attr", true);
+
+  auto ret = CheckIrSpec(op_desc);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverIrDefinitions_SubgraphFailure) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+  auto computeGraph = std::make_shared<ge::ComputeGraph>("graph_name");
+  ASSERT_NE(computeGraph, nullptr);
+  ASSERT_NE(computeGraph->AddNode(op_desc), nullptr);
+
+  auto sub_op_desc = std::make_shared<ge::OpDesc>("sub_matmul", "MatMulUt");
+  ASSERT_NE(sub_op_desc, nullptr);
+  sub_op_desc->AppendIrAttrName("extra_attr1");
+  sub_op_desc->AppendIrAttrName("extra_attr2");
+  sub_op_desc->AppendIrAttrName("extra_attr3");
+  sub_op_desc->AppendIrAttrName("extra_attr4");
+
+  auto sub_graph = std::make_shared<ge::ComputeGraph>("sub_graph");
+  ASSERT_NE(sub_graph, nullptr);
+  sub_graph->AddNode(sub_op_desc);
+
+  (void)ge::AttrUtils::SetGraph(op_desc, "subgraph_attr", sub_graph);
+
+  auto ret = RecoverIrUtils::RecoverIrDefinitions(computeGraph, {"subgraph_attr"});
+  EXPECT_NE(ret, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(IrDefinitionsRecoverUT, IncCov_RecoverIrAttrDefaultValue_Success) {
+  auto op_desc = std::make_shared<ge::OpDesc>("matmul", "MatMulUt");
+  ASSERT_NE(op_desc, nullptr);
+
+  auto op = ge::OperatorFactory::CreateOperator("MatMulUt", "MatMulUt");
+  auto op_desc_origin = ge::OpDescUtils::GetOpDescFromOperator(op);
+
+  ge::RecoverIrUtils::IrDefinition ir_def;
+  ir_def.inited = false;
+  RecoverIrUtils::InitIrDefinitionsIfNeed("MatMulUt", ir_def);
+  ASSERT_TRUE(ir_def.inited);
+
+  for (const auto &attr : op_desc_origin->GetIrAttrNames()) {
+    op_desc->AppendIrAttrName(attr);
+  }
+  for (const auto &pair : op_desc_origin->GetIrInputs()) {
+    op_desc->AppendIrInput(pair.first, pair.second);
+  }
+
+  (void)AttrUtils::SetBool(op_desc, "transpose_x1", true);
+  auto ret = RecoverIrUtils::RecoverIrAttrDefaultValue(op_desc, "MatMulUt", ir_def);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  bool val = false;
+  EXPECT_TRUE(AttrUtils::GetBool(op_desc, "transpose_x2", val));
+  EXPECT_EQ(val, false);
+}
 }  // namespace gert

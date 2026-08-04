@@ -8641,5 +8641,62 @@ TEST_F(UtestFormatTransferNdFractZz, invalid_src_dst_shape_relation) {
   FormatTransferFractalZzND transfer;
   EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransferNdFractZz, invalid_data_type_trans_shape) {
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZz transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {32}, DT_STRING, dst_format, dst_shape), ACL_ERROR_GE_DATATYPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, invalid_format_trans_shape) {
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZz transfer;
+  EXPECT_EQ(transfer.TransShape(FORMAT_RESERVED, {32}, DT_UINT8, dst_format, dst_shape), ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, invalid_data_type_trans_format) {
+  uint8_t data[32] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  TransArgs args{data, src_format, dst_format, FORMAT_ND,      FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, FORMAT_RESERVED,
+                 32,   32,         {32},       {1, 1, 32, 32}, DT_STRING};
+  TransResult result;
+  FormatTransferFractalZz transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_DATATYPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, invalid_data_type_nd_trans_format) {
+  uint8_t data[1 * 1 * 32 * 32] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  TransArgs args{data, src_format,     dst_format, FORMAT_FRACTAL_ZZ, FORMAT_ND, FORMAT_RESERVED, FORMAT_RESERVED, 32,
+                 32,   {1, 1, 32, 32}, {32},       DT_STRING};
+  TransResult result;
+  FormatTransferFractalZzND transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_DATATYPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, nd_shape1_reverse_invalid_dst_shape_relation) {
+  uint8_t data[1 * 1 * 32 * 32] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  TransArgs args{data, src_format,     dst_format, FORMAT_FRACTAL_ZZ, FORMAT_ND, FORMAT_RESERVED, FORMAT_RESERVED, 32,
+                 32,   {1, 1, 32, 32}, {33},       DT_UINT8};
+  TransResult result;
+  FormatTransferFractalZzND transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, nd_trans_shape_fzz_to_nd_invalid) {
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 6));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZzND transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {1, 1, 32, 32}, DT_UINT8, dst_format, dst_shape),
+            ACL_ERROR_GE_FORMAT_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

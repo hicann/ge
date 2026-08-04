@@ -25,6 +25,7 @@
 #include <debug/ge_attr_define.h>
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
+#include "register/optimization_option_registry.h"
 #include "register/custom_pass_helper.h"
 #include "register/custom_pass_context_impl.h"
 #include "graph/build/stream/dag_adapter.h"
@@ -35,6 +36,13 @@
 namespace ge {
 
 namespace {
+void SetGraphOptionForTest(const std::map<std::string, std::string> &options) {
+  ge::GetThreadLocalContext().SetGraphOption(options);
+  ASSERT_EQ(ge::GetThreadLocalContext().GetOo().Initialize(ge::GetThreadLocalContext().GetAllOptions(),
+                                                           ge::OptionRegistry::GetInstance().GetRegisteredOptTable()),
+            ge::GRAPH_SUCCESS);
+}
+
 graphStatus CallFromGEGraph(const ConstGraphPtr &ge_graph, std::shared_ptr<minidag::DAGGraph> &dag) {
   bool has_profiled_node_cost = false;
   return DAGAdapter::FromGEGraph(ge_graph, dag, has_profiled_node_cost);
@@ -42,7 +50,7 @@ graphStatus CallFromGEGraph(const ConstGraphPtr &ge_graph, std::shared_ptr<minid
 
 struct GraphOptionGuard {
   ~GraphOptionGuard() {
-    ge::GetThreadLocalContext().SetGraphOption({});
+    SetGraphOptionForTest({});
   }
 };
 
@@ -51,7 +59,7 @@ struct ProfilingPathGuard {
   ~ProfilingPathGuard() {
     unsetenv("MINIDAG_PROFILING_PATH");
     std::remove(path_);
-    ge::GetThreadLocalContext().SetGraphOption({});
+    SetGraphOptionForTest({});
   }
   const char *path_;
 };
@@ -108,11 +116,11 @@ class MiniDAGStreamPassTest : public testing::Test {
   }
 
   void SetUp() override {
-    GetThreadLocalContext().SetGraphOption({});
+    SetGraphOptionForTest({});
   }
 
   void TearDown() override {
-    GetThreadLocalContext().SetGraphOption({});
+    SetGraphOptionForTest({});
   }
 };
 
@@ -126,7 +134,7 @@ class MiniDAGStreamPassTest : public testing::Test {
 TEST_F(MiniDAGStreamPassTest, Enable_WithLoadBalanceMode) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -165,7 +173,7 @@ TEST_F(MiniDAGStreamPassTest, Enable_WithLoadBalanceMode) {
 TEST_F(MiniDAGStreamPassTest, Fail_WithOtherValue) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "other_value";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -210,7 +218,7 @@ TEST_F(MiniDAGStreamPassTest, Skip_WithoutOption) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeProperties) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -244,7 +252,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeProperties) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGEdgeProperties) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -276,7 +284,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGEdgeProperties) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeEdgeRelations) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -311,7 +319,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeEdgeRelations) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeCostProperties) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -360,7 +368,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_DAGNodeCostProperties) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_CompleteGraphStructure) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -393,7 +401,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_CompleteGraphStructure) {
 TEST_F(MiniDAGStreamPassTest, EndToEnd_RefreshStreamIdsToGE) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -424,7 +432,7 @@ TEST_F(MiniDAGStreamPassTest, EndToEnd_RefreshStreamIdsToGE) {
 TEST_F(MiniDAGStreamPassTest, DirectCall_Success) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -452,7 +460,7 @@ TEST_F(MiniDAGStreamPassTest, DirectCall_NullGraph) {
 TEST_F(MiniDAGStreamPassTest, DirectCall_WithStreamContext) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -474,7 +482,7 @@ TEST_F(MiniDAGStreamPassTest, DirectCall_WithStreamContext) {
 TEST_F(MiniDAGStreamPassTest, DirectCall_DataNetOutputOnly) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto graph = std::make_shared<ge::Graph>("data_netoutput_only");
   ge::Operator data1_op("data1", "Data");
@@ -497,7 +505,7 @@ TEST_F(MiniDAGStreamPassTest, DirectCall_DataNetOutputOnly) {
 TEST_F(MiniDAGStreamPassTest, Adapter_ControlEdgeConversion) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto graph = std::make_shared<ge::Graph>("control_edge_test");
   ge::Operator data1_op("data1", "Data");
@@ -534,7 +542,7 @@ TEST_F(MiniDAGStreamPassTest, Adapter_ControlEdgeConversion) {
 TEST_F(MiniDAGStreamPassTest, Adapter_ControlEdgeNodeRelation) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto graph = std::make_shared<ge::Graph>("control_edge_relation");
   ge::Operator data1_op("data1", "Data");
@@ -576,7 +584,7 @@ TEST_F(MiniDAGStreamPassTest, Adapter_ControlEdgeNodeRelation) {
 TEST_F(MiniDAGStreamPassTest, RunPass_InvalidEmptyAlgoName) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = ":812";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -588,7 +596,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_InvalidEmptyAlgoName) {
   auto ret = RunMiniDAGStreamPass(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
-  ge::GetThreadLocalContext().SetGraphOption({});
+  SetGraphOptionForTest({});
 }
 
 /**
@@ -597,7 +605,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_InvalidEmptyAlgoName) {
 TEST_F(MiniDAGStreamPassTest, RunPass_InvalidUnknownAlgoName) {
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "UnknownAlgoABC:8";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -609,7 +617,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_InvalidUnknownAlgoName) {
   auto ret = RunMiniDAGStreamPass(graph, context);
   EXPECT_EQ(ret, ge::FAILED);
 
-  ge::GetThreadLocalContext().SetGraphOption({});
+  SetGraphOptionForTest({});
 }
 
 /**
@@ -623,7 +631,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_ProfileHitUsesWeightedLoadBalance) {
 
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:8";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -649,7 +657,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_WithWeightedLoadBalanceMode) {
   GraphOptionGuard guard;
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "WeightedLoadBalance:8";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -670,7 +678,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_WithWeightedLoadBalanceModeOnComplexGraph)
   GraphOptionGuard guard;
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "WeightedLoadBalance:4";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);
@@ -695,7 +703,7 @@ TEST_F(MiniDAGStreamPassTest, RunPass_ProfileMultiNodeHitUsesWeightedLoadBalance
 
   std::map<std::string, std::string> options;
   options["ge.autoMultistreamParallelMode"] = "LoadBalance:4";
-  ge::GetThreadLocalContext().SetGraphOption(options);
+  SetGraphOptionForTest(options);
 
   auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
   ASSERT_NE(compute_graph, nullptr);

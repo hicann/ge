@@ -44,6 +44,7 @@
 #include <google/protobuf/text_format.h>
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "proto/onnx/ge_onnx.pb.h"
+extern "C" void GeApiWrapper_RenameAllNodes(void *graph_ptr, const char *prefix);
 using namespace ge;
 namespace {
 std::stringstream GetFilePathWhenDumpPathSet(const string &ascend_work_path) {
@@ -2418,4 +2419,194 @@ TEST_F(UtestGraph, IncCov_Dump_InvalidGraph) {
   Graph graph("test");
   std::ostringstream stream;
   EXPECT_EQ(graph.Dump(Graph::DumpFormat::kOnnx, stream), ge::PARAM_INVALID);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputsString_NonExistentNode) {
+  ge::OpDescPtr add_op(new ge::OpDesc("add_0", "add"));
+  add_op->AddDynamicOutputDesc("output", 1);
+  std::shared_ptr<ge::ComputeGraph> compute_graph(new ge::ComputeGraph("test_graph"));
+  compute_graph->AddNode(add_op);
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  Operator op1 = Operator("nonexistent");
+  std::string out_name = "output0";
+  std::vector<std::pair<Operator, std::string>> outputs = {{op1, out_name}};
+  graph.SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetTargets_EmptyTargets) {
+  auto compute_graph = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::vector<Operator> empty_targets;
+  graph.SetTargets(empty_targets);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveNode_ContainSubgraph_NotInGraph) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+
+  ut::GraphBuilder builder = ut::GraphBuilder("other_graph");
+  auto data = builder.AddNode("OtherData", "Data", 0, 1);
+  auto other_cgp = builder.GetGraph();
+  Graph other_graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(other_cgp);
+
+  auto nodes = other_graph.GetAllNodes();
+  EXPECT_EQ(graph.RemoveNode(nodes[0], true), ge::GRAPH_FAILED);
+}
+
+TEST_F(UtestGraph, IncCov_RemoveEdge_ControlEdge) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data1 = builder.AddNode("Data1", "Data", 0, 1);
+  auto data2 = builder.AddNode("Data2", "Data", 0, 1);
+  auto cgp = builder.GetGraph();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+
+  auto nodes = graph.GetAllNodes();
+  graph.AddControlEdge(nodes[0], nodes[1]);
+  EXPECT_EQ(graph.RemoveEdge(nodes[0], -1, nodes[1], -1), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_ConstructFromInputs_NullName) {
+  std::vector<Operator> inputs;
+  AscendString null_name(nullptr);
+  auto result = Graph::ConstructFromInputs(inputs, null_name);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_ConstructFromInputs_EmptyInputs) {
+  std::vector<Operator> inputs;
+  auto result = Graph::ConstructFromInputs(inputs, AscendString("test"));
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_Dump_TxtFormat) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  std::ostringstream stream;
+  EXPECT_EQ(graph.Dump(Graph::DumpFormat::kTxt, stream), SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_Dump_ReadableFormat) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  std::ostringstream stream;
+  graph.Dump(Graph::DumpFormat::kReadable, stream);
+}
+
+TEST_F(UtestGraph, IncCov_DumpToFile_OnnxFormat) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  system("rm -rf ./ut_dump_onnx.*");
+  EXPECT_EQ(graph.DumpToFile(Graph::DumpFormat::kOnnx, AscendString("ut_dump_onnx")), SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_DumpToFile_TxtFormat) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  system("rm -rf ./ut_dump_txt.*");
+  EXPECT_EQ(graph.DumpToFile(Graph::DumpFormat::kTxt, AscendString("ut_dump_txt")), SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_DumpToFile_ReadableFormat) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  system("rm -rf ./ut_dump_readable.*");
+  EXPECT_EQ(graph.DumpToFile(Graph::DumpFormat::kReadable, AscendString("ut_dump_readable")), SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_GeApiWrapper_RenameAllNodes) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+
+  GeApiWrapper_RenameAllNodes(nullptr, "prefix");
+  GeApiWrapper_RenameAllNodes(static_cast<void *>(&graph), nullptr);
+
+  GeApiWrapper_RenameAllNodes(static_cast<void *>(&graph), "prefix");
+  auto nodes = graph.GetAllNodes();
+  EXPECT_FALSE(nodes.empty());
+}
+
+TEST_F(UtestGraph, IncCov_GraphNullName) {
+  Graph graph(nullptr);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_GetAllOpNameAscendString) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  std::vector<AscendString> names;
+  EXPECT_EQ(graph.GetAllOpName(names), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_RecoverGraphOperators) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  EXPECT_EQ(GraphUtilsEx::RecoverGraphOperators(graph), SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_CreateGraphFromComputeGraph_Null) {
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(nullptr);
+  EXPECT_FALSE(graph.IsValid());
+}
+
+TEST_F(UtestGraph, IncCov_FindOpByType_FrameworkOp) {
+  ge::OpDescPtr fw_op(new ge::OpDesc("fw_op", FRAMEWORKOP));
+  fw_op->AddOutputDesc(GeTensorDesc());
+  ge::AttrUtils::SetStr(fw_op, ge::ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "CustomOp");
+  std::shared_ptr<ge::ComputeGraph> compute_graph(new ge::ComputeGraph("test_graph"));
+  compute_graph->AddNode(fw_op);
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  GraphUtilsEx::RecoverGraphOperators(graph);
+
+  std::vector<Operator> ops;
+  graph.FindOpByType("CustomOp", ops);
+  EXPECT_EQ(ops.size(), 1U);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputsIndex_OutOfRange) {
+  ge::OpDescPtr add_op(new ge::OpDesc("add_0", "add"));
+  add_op->AddDynamicOutputDesc("output", 1);
+  std::shared_ptr<ge::ComputeGraph> compute_graph(new ge::ComputeGraph("test_graph"));
+  compute_graph->AddNode(add_op);
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  Operator op1 = Operator("add_0");
+  std::vector<std::pair<Operator, std::vector<size_t>>> outputs = {{op1, {10}}};
+  graph.SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SaveLoadFile_CharPtr) {
+  system("rm -rf ./ut_graph_charptr.txt");
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+
+  EXPECT_EQ(graph.SaveToFile(nullptr), GRAPH_FAILED);
+  EXPECT_EQ(graph.SaveToFile("./ut_graph_charptr.txt"), GRAPH_SUCCESS);
+
+  Graph graph2;
+  EXPECT_EQ(graph2.LoadFromFile(nullptr), GRAPH_FAILED);
+  EXPECT_EQ(graph2.LoadFromFile("./ut_graph_charptr.txt"), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraph, IncCov_GetComputeGraph_InvalidGraph) {
+  Graph graph("test");
+  EXPECT_EQ(GraphUtilsEx::GetComputeGraph(graph), nullptr);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_AscendString_NullName_InList) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  auto node = cgp->FindNode("Transdata1");
+  auto op = OpDescUtils::CreateOperatorFromNode(node);
+
+  std::vector<std::pair<ge::Operator, AscendString>> outputs;
+  AscendString null_str(nullptr);
+  outputs.emplace_back(op, null_str);
+  graph.SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_CreateGraphFromOperatorWithStableTopo) {
+  Operator op1 = Operator("data1");
+  Graph graph("test_stable");
+  EXPECT_EQ(GraphUtilsEx::CreateGraphFromOperatorWithStableTopo(graph, {op1}), SUCCESS);
 }

@@ -3818,5 +3818,50 @@ TEST_F(UtestFormatTransfer4DToFZC04, hwcn_fzc04_hwcn_success_4) {
   }
   delete[] ret;
 }
+TEST_F(UtestFormatTransfer4DToFZC04, fzc04_to_4d_trans_shape_invalid) {
+  std::vector<int64_t> dst_shape;
+  FormatTransferFZC04To4D transfer;
+  EXPECT_EQ(transfer.TransShape(FORMAT_FRACTAL_Z_C04, {1, 1, 16, 16}, DT_FLOAT16, FORMAT_HWCN, dst_shape),
+            ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTransfer4DToFZC04, fzc04_to_4d_invalid_src_format) {
+  uint8_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NCHW, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_HWCN, FORMAT_RESERVED, 5));
+  TransArgs args{data, src_format, dst_format,     FORMAT_NCHW,    FORMAT_HWCN, FORMAT_RESERVED, FORMAT_RESERVED,
+                 16,   16,         {1, 1, 16, 16}, {1, 1, 16, 16}, DT_FLOAT16};
+  TransResult result;
+  FormatTransferFZC04To4D transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTransfer4DToFZC04, trans_shape_invalid_dst_format) {
+  std::vector<int64_t> src_shape = {4, 4, 16, 16};
+  std::vector<int64_t> dst_shape;
+  FormatTransfer4DToFZC04 transfer;
+  EXPECT_EQ(transfer.TransShape(FORMAT_NCHW, src_shape, DT_UINT8, FORMAT_NCHW, dst_shape), ACL_ERROR_GE_FORMAT_INVALID);
+}
+
+TEST_F(UtestFormatTransfer4DToFZC04, nchw_to_fzc04_empty_tensor) {
+  uint8_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NCHW, sub_format_groups_1, 6));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z_C04, sub_format_groups_1, 6));
+  TransArgs args{data,
+                 src_format,
+                 dst_format,
+                 FORMAT_NCHW,
+                 FORMAT_FRACTAL_Z_C04,
+                 sub_format_groups_1,
+                 sub_format_groups_1,
+                 32,
+                 32,
+                 {0, 4, 16, 16},
+                 {0, 1, 16, 32},
+                 DT_UINT8};
+  TransResult result;
+  FormatTransfer4DToFZC04 transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

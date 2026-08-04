@@ -146,4 +146,124 @@ TEST_F(UtestFileUtils, GetSanitizedNameCase0) {
   std::string file_name = "ge_proto_a/b\\c";
   ASSERT_EQ(GetRegulatedName(file_name), "ge_proto_a_b_c");
 }
+
+TEST_F(UtestFileUtils, WriteBinToFileFdNullData) {
+  ASSERT_EQ(WriteBinToFile(1, nullptr, 10), GRAPH_FAILED);
+}
+
+TEST_F(UtestFileUtils, WriteBinToFileFdZeroLen) {
+  char data[4] = {'1', '2', '3'};
+  ASSERT_EQ(WriteBinToFile(1, reinterpret_cast<char_t *>(data), 0), GRAPH_FAILED);
+}
+
+TEST_F(UtestFileUtils, SaveBinToFileNullData) {
+  ASSERT_EQ(SaveBinToFile(nullptr, 10, "./test_file_for_ut.bin"), GRAPH_FAILED);
+}
+
+TEST_F(UtestFileUtils, SaveBinToFileZeroLen) {
+  char data[4] = {'1', '2', '3'};
+  ASSERT_EQ(SaveBinToFile(data, 0, "./test_file_for_ut.bin"), GRAPH_FAILED);
+}
+
+TEST_F(UtestFileUtils, GetBinDataFromFileNotOpen) {
+  uint32_t data_len = 0;
+  ASSERT_EQ(GetBinDataFromFile("./nonexistent_file_for_ut.bin", data_len), nullptr);
+}
+
+TEST_F(UtestFileUtils, GetBinFromFileBufferNotOpen) {
+  std::string dir_path = "./test_dir_for_ut_buffernotopen";
+  system(("mkdir -p " + dir_path).c_str());
+  size_t data_len = 10;
+  char buffer[10];
+  ASSERT_EQ(GetBinFromFile(dir_path, buffer, data_len), GRAPH_FAILED);
+  system(("rmdir " + dir_path).c_str());
+}
+
+TEST_F(UtestFileUtils, WriteBinToFileOpenFail) {
+  std::string dir_path = "./test_dir_for_ut_openfail";
+  system(("mkdir -p " + dir_path).c_str());
+  std::string subdir = dir_path + "/subdir";
+  system(("mkdir -p " + subdir).c_str());
+  uint32_t data_len = 4;
+  char data[4] = {'1', '2', '3'};
+  ASSERT_EQ(WriteBinToFile(subdir, data, data_len), GRAPH_FAILED);
+  system(("rmdir " + subdir).c_str());
+  system(("rmdir " + dir_path).c_str());
+}
+
+TEST_F(UtestFileUtils, CreateDirFailUnderFile) {
+  std::string file_path = "./test_file_for_ut_createdir";
+  system(("touch " + file_path).c_str());
+  std::string dir_path = file_path + "/subdir";
+  int32_t ret = ge::CreateDir(dir_path);
+  EXPECT_NE(ret, 0);
+  system(("rm -f " + file_path).c_str());
+}
+
+TEST_F(UtestFileUtils, ScandirInvalidPath) {
+  mmDirent **entry_list = nullptr;
+  int32_t count = Scandir("/nonexistent_path_for_ut_12345", &entry_list, nullptr, nullptr);
+  EXPECT_LT(count, 0);
+}
+
+TEST_F(UtestFileUtils, GetAscendWorkPathInvalid) {
+  setenv("ASCEND_WORK_PATH", "/dev/null/invalid_path_for_ut", 1);
+  std::string work_path;
+  Status ret = GetAscendWorkPath(work_path);
+  EXPECT_EQ(ret, FAILED);
+  unsetenv("ASCEND_WORK_PATH");
+}
+
+TEST_F(UtestFileUtils, GetAscendWorkPathNotSet) {
+  unsetenv("ASCEND_WORK_PATH");
+  std::string work_path;
+  Status ret = GetAscendWorkPath(work_path);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(work_path, "");
+}
+
+TEST_F(UtestFileUtils, CreateDirEExist) {
+  std::string dir_path = "./test_dir_for_ut_eexist";
+  system(("mkdir -p " + dir_path).c_str());
+  int32_t ret = ge::CreateDir(dir_path);
+  EXPECT_EQ(ret, 0);
+  system(("rmdir " + dir_path).c_str());
+}
+
+TEST_F(UtestFileUtils, GetSanitizedNameTest) {
+  std::string input = "file:/name\\with*bad?chars";
+  std::string result = GetSanitizedName(input);
+  EXPECT_EQ(result.find('/'), std::string::npos);
+  EXPECT_EQ(result.find('\\'), std::string::npos);
+  EXPECT_EQ(result.find(':'), std::string::npos);
+  EXPECT_EQ(result.find('*'), std::string::npos);
+  EXPECT_EQ(result.find('?'), std::string::npos);
+}
+
+TEST_F(UtestFileUtils, SplitFilePathTest) {
+  std::string dir_path;
+  std::string file_name;
+  SplitFilePath("/a/b/c.txt", dir_path, file_name);
+  EXPECT_EQ(dir_path, "/a/b");
+  EXPECT_EQ(file_name, "c.txt");
+
+  dir_path.clear();
+  file_name.clear();
+  SplitFilePath("filename_only", dir_path, file_name);
+  EXPECT_EQ(dir_path, "");
+  EXPECT_EQ(file_name, "filename_only");
+
+  dir_path.clear();
+  file_name.clear();
+  SplitFilePath("", dir_path, file_name);
+  EXPECT_EQ(dir_path, "");
+  EXPECT_EQ(file_name, "");
+}
+
+TEST_F(UtestFileUtils, CreateDirectoryTest) {
+  std::string dir_path = "./test_dir_for_ut_createdir_func";
+  int32_t ret = ge::CreateDirectory(dir_path);
+  EXPECT_EQ(ret, 0);
+  system(("rmdir " + dir_path).c_str());
+}
 }  // namespace ge

@@ -1001,4 +1001,102 @@ TEST_F(UTEST_dump_op, dump_input_tensor_size_fail) {
   EXPECT_NE(ret, ge::SUCCESS);
   g_acl_stub_mock.clear();
 }
+
+TEST_F(UTEST_dump_op, proto_malloc_memcpy_fail_CovEnhance) {
+  DumpOp dump_op;
+  DumpProperties dump_properties;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("GatherV2", "GatherV2");
+  GeTensorDesc tensor(GeShape({1, 2, 3}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(tensor);
+  op_desc->AddOutputDesc(tensor);
+  std::set<std::string> temp;
+  dump_properties.model_dump_properties_map_.emplace("model1", temp);
+  dump_properties.enable_dump_ = "1";
+  dump_properties.dump_mode_ = "output";
+  dump_op.SetDynamicModelInfo("model1", "model2", 1);
+  std::vector<uintptr_t> input_addrs = {0};
+  std::vector<uintptr_t> output_addrs = {0x1000};
+  dump_op.SetDumpInfo(dump_properties, op_desc, input_addrs, output_addrs, nullptr);
+  g_acl_stub_mock = "aclrtMemcpy";
+  auto ret = dump_op.LaunchDumpOp(false);
+  EXPECT_NE(ret, ge::SUCCESS);
+  g_acl_stub_mock.clear();
+}
+
+TEST_F(UTEST_dump_op, launch_dump_all_output_fail_CovEnhance) {
+  DumpOp dump_op;
+  DumpProperties dump_properties;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("conv", "conv");
+  GeTensorDesc tensor(GeShape({1, -1}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc(tensor);
+  std::set<std::string> temp;
+  dump_properties.model_dump_properties_map_.emplace("model1", temp);
+  dump_properties.enable_dump_ = "1";
+  dump_properties.dump_mode_ = "all";
+  dump_op.SetDynamicModelInfo("model1", "model2", 1);
+  std::vector<uintptr_t> output_addrs = {0x1000};
+  dump_op.SetDumpInfo(dump_properties, op_desc, {}, output_addrs, nullptr);
+  auto ret = dump_op.LaunchDumpOp(false);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_op, launch_dump_all_input_fail_CovEnhance) {
+  DumpOp dump_op;
+  DumpProperties dump_properties;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("conv", "conv");
+  GeTensorDesc out_tensor(GeShape({1, 2, 3}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc(out_tensor);
+  GeTensorDesc in_tensor(GeShape({INT64_MAX, 2}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(in_tensor);
+  std::set<std::string> temp;
+  dump_properties.model_dump_properties_map_.emplace("model1", temp);
+  dump_properties.enable_dump_ = "1";
+  dump_properties.dump_mode_ = "all";
+  dump_op.SetDynamicModelInfo("model1", "model2", 1);
+  int dummy = 0;
+  std::vector<uintptr_t> input_addrs = {reinterpret_cast<uintptr_t>(&dummy)};
+  std::vector<uintptr_t> output_addrs = {0x1000};
+  dump_op.SetDumpInfo(dump_properties, op_desc, input_addrs, output_addrs, nullptr);
+  auto ret = dump_op.LaunchDumpOp(false);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_op, update_addrs_output_fail_CovEnhance) {
+  DumpOp dump_op;
+  DumpProperties dump_properties;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("conv", "conv");
+  GeTensorDesc tensor(GeShape({1, -1}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddOutputDesc(tensor);
+  std::set<std::string> temp;
+  dump_properties.model_dump_properties_map_.emplace("model1", temp);
+  dump_properties.enable_dump_ = "1";
+  dump_properties.dump_mode_ = "output";
+  dump_op.SetDynamicModelInfo("model1", "model2", 1);
+  std::vector<uintptr_t> output_addrs = {0x1000};
+  dump_op.SetDumpInfo(dump_properties, op_desc, {}, output_addrs, nullptr);
+  toolkit::aicpu::dump::Task task;
+  dump_op.op_mapping_info_.mutable_task()->Add(std::move(task));
+  auto ret = dump_op.UpdateAddrs({}, output_addrs);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_op, update_addrs_input_fail_CovEnhance) {
+  DumpOp dump_op;
+  DumpProperties dump_properties;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("conv", "conv");
+  GeTensorDesc in_tensor(GeShape({INT64_MAX, 2}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(in_tensor);
+  std::set<std::string> temp;
+  dump_properties.model_dump_properties_map_.emplace("model1", temp);
+  dump_properties.enable_dump_ = "1";
+  dump_properties.dump_mode_ = "input";
+  dump_op.SetDynamicModelInfo("model1", "model2", 1);
+  int dummy = 0;
+  std::vector<uintptr_t> input_addrs = {reinterpret_cast<uintptr_t>(&dummy)};
+  dump_op.SetDumpInfo(dump_properties, op_desc, input_addrs, {}, nullptr);
+  toolkit::aicpu::dump::Task task;
+  dump_op.op_mapping_info_.mutable_task()->Add(std::move(task));
+  auto ret = dump_op.UpdateAddrs(input_addrs, {});
+  EXPECT_NE(ret, ge::SUCCESS);
+}
 }  // namespace ge

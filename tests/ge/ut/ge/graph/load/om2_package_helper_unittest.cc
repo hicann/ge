@@ -2153,4 +2153,242 @@ TEST_F(Om2PackageHelperUt, SaveModelInfo_MissingAippAttr_Skipped) {
   ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
 }
 
+TEST_F(Om2PackageHelperUt, SaveToOmRootModel_UnknownShape_ReturnsFailed) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_unknown_shape.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, true), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveToOmRootModel_NullRootModel_ReturnsFailed) {
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_null_root.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(nullptr, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveToOmRootModel_EmptyOutputFile_ReturnsFailed) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, "", model_data, false), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveToOmRootModel_EmptySubModels_ReturnsFailed) {
+  Om2PackageHelper om2_packager;
+  auto root_graph = std::make_shared<ComputeGraph>("empty_root");
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  ASSERT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_empty_sub.om2"});
+  EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveManifest_Ok_WritesManifestJson) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_manifest.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveManifest(zip_writer, ge_root_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  SimpleZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t manifest_size = 0;
+  const auto manifest_buf = archive.ExtractToMem("test_manifest/manifest.json", manifest_size);
+  ASSERT_NE(manifest_buf, nullptr);
+  const JsonFile manifest_json(reinterpret_cast<const uint8_t *>(manifest_buf.get()), manifest_size);
+  ASSERT_TRUE(manifest_json.IsValid());
+  std::string om2_version;
+  ASSERT_TRUE(manifest_json.Get("om2_version", om2_version));
+  EXPECT_EQ(om2_version, "0");
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithSpecialInputSize_WritesSpecialSize) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto data_node = graph->FindNode("data1");
+  ASSERT_NE(data_node, nullptr);
+  auto data_desc = data_node->GetOpDesc();
+  ASSERT_NE(data_desc, nullptr);
+  auto output_desc = data_desc->MutableOutputDesc(0U);
+  ASSERT_NE(output_desc, nullptr);
+  AttrUtils::SetInt(*output_desc, ATTR_NAME_SPECIAL_INPUT_SIZE, 1024);
+
+  AttrUtils::SetListInt(data_desc, ATTR_NAME_INPUT_DIMS, {1, 2, 3});
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_special_input.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithSpecialOutputSize_WritesSpecialSize) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto netoutput_node = graph->FindNode("NetOutput");
+  ASSERT_NE(netoutput_node, nullptr);
+  auto netoutput_desc = netoutput_node->GetOpDesc();
+  ASSERT_NE(netoutput_desc, nullptr);
+
+  auto input_desc = netoutput_desc->MutableInputDesc(0U);
+  ASSERT_NE(input_desc, nullptr);
+  AttrUtils::SetInt(*input_desc, ATTR_NAME_SPECIAL_OUTPUT_SIZE, 2048);
+
+  std::vector<std::string> out_node_names = {"case1:0"};
+  AttrUtils::SetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_names);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_special_output.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithDynamicOutputDims_WritesShapeInfo) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto netoutput_node = graph->FindNode("NetOutput");
+  ASSERT_NE(netoutput_node, nullptr);
+  auto netoutput_desc = netoutput_node->GetOpDesc();
+  ASSERT_NE(netoutput_desc, nullptr);
+
+  std::vector<std::string> dynamic_output_dims = {"data1_0_1_3_224_224", "data1_0_2_3_448_448"};
+  AttrUtils::SetListStr(netoutput_desc, ATTR_NAME_DYNAMIC_OUTPUT_DIMS, dynamic_output_dims);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_output.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithGetDynamicBatchInfoFail_ReturnsFailed) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto case_node = graph->FindNode("case1");
+  ASSERT_NE(case_node, nullptr);
+  auto case_desc = case_node->GetOpDesc();
+  ASSERT_NE(case_desc, nullptr);
+
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  // Do NOT set ATTR_NAME_PRED_VALUE_0, so GetListInt will fail
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_batch_fail.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  EXPECT_NE(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveVisualJson_Ok_WritesVisualJsonToZip) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_visual_json.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveVisualJson(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveOpAttrJson_WithMultipleOpsHavingAttr_GenValidOpAttrJson) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      continue;
+    }
+    std::vector<std::string> original_op_names = {"orig_" + op_desc->GetName()};
+    AttrUtils::SetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, original_op_names);
+  }
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_op_attr_multi.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveOpAttrJson(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, RelocateExternalWeights_NoExternalWeights_ReturnsSuccess) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_relocate.om2"});
+  Om2PackageHelper om2_packager;
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  ModelBufferData relocated_model;
+  bool relocated = false;
+  ASSERT_EQ(Om2PackageHelper::RelocateExternalWeights(output_file, model_data, relocated_model, relocated), SUCCESS);
+  EXPECT_FALSE(relocated);
+}
+
+TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_InvalidModelData) {
+  std::string json_out;
+  const uint8_t garbage[] = {0x01, 0x02, 0x03, 0x04};
+  EXPECT_NE(Om2PackageHelper::ExtractVisualJson(garbage, sizeof(garbage), json_out), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveCodegenArtifacts_Ok_GenArtifacts) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+  SyncKernelNameFromOpDesc(ge_model);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_codegen.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  std::vector<Om2ConstMeta> const_metas;
+  ASSERT_EQ(Om2PackageHelper::SaveCodegenArtifacts(zip_writer, ge_model, 0UL, const_metas), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SetSaveMode_Ok) {
+  Om2PackageHelper om2_packager;
+  om2_packager.SetSaveMode(true);
+  om2_packager.SetSaveMode(false);
+}
+
 }  // namespace ge

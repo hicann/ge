@@ -237,4 +237,156 @@ TEST_F(UtestIRDataTypeSymbolStore, CovIsSupportOrderedSymbolicInferDtypeNullptrS
   EXPECT_FALSE(store.IsSupportOrderedSymbolicInferDtype());
 }
 
+REG_OP(OpTestInferDtypeMultiOutput)
+    .INPUT(x, "T")
+    .OUTPUT(y, "T")
+    .OUTPUT(z, "T")
+    .DATATYPE(T, TensorType({DT_FLOAT, DT_INT32}))
+    .OP_END_FACTORY_REG(OpTestInferDtypeMultiOutput);
+
+TEST_F(UtestIRDataTypeSymbolStore, CovInferDtypeMultiOutputSameSym) {
+  auto op = op::OpTestInferDtypeMultiOutput();
+  auto desc = OpDescUtils::GetOpDescFromOperator(op);
+  GeTensorDesc input_desc(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  desc->UpdateInputDesc("x", input_desc);
+  desc->UpdateOutputDesc("y", GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT));
+  desc->UpdateOutputDesc("z", GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT));
+  const auto &sym_store = desc->impl_->GetIRMeta().GetIRDataTypeSymbolStore();
+  auto ret = sym_store.InferDtype(desc);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(desc->GetOutputDesc("y").GetDataType(), DT_FLOAT);
+  EXPECT_EQ(desc->GetOutputDesc("z").GetDataType(), DT_FLOAT);
+}
+
+REG_OP(OpTestInferDtypeIntInput)
+    .INPUT(x, "T")
+    .OUTPUT(y, "T")
+    .DATATYPE(T, TensorType({DT_FLOAT, DT_INT32}))
+    .OP_END_FACTORY_REG(OpTestInferDtypeIntInput);
+
+TEST_F(UtestIRDataTypeSymbolStore, CovInferDtypeIntInputType) {
+  auto op = op::OpTestInferDtypeIntInput();
+  auto desc = OpDescUtils::GetOpDescFromOperator(op);
+  GeTensorDesc input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  desc->UpdateInputDesc("x", input_desc);
+  desc->UpdateOutputDesc("y", GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT));
+  const auto &sym_store = desc->impl_->GetIRMeta().GetIRDataTypeSymbolStore();
+  auto ret = sym_store.InferDtype(desc);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(desc->GetOutputDesc("y").GetDataType(), DT_INT32);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovDeclareSymbolOrderedTensorTypeListDuplicate) {
+  IRDataTypeSymbolStore store;
+  OrderedTensorTypeList types({DT_FLOAT, DT_INT32});
+  auto *sym1 = store.DeclareSymbol("dup_ordered_sym", types);
+  ASSERT_NE(sym1, nullptr);
+  auto *sym2 = store.DeclareSymbol("dup_ordered_sym", types);
+  EXPECT_EQ(sym2, nullptr);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovIsSupportOrderedSymbolicInferDtypeAllNullptr) {
+  IRDataTypeSymbolStore store;
+  store.GetOrCreateSymbol("null_sym1");
+  store.GetOrCreateSymbol("null_sym2");
+  EXPECT_FALSE(store.IsSupportOrderedSymbolicInferDtype());
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovGetOrCreateSymbolExisting) {
+  IRDataTypeSymbolStore store;
+  auto *sym1 = store.GetOrCreateSymbol("existing_sym");
+  ASSERT_NE(sym1, nullptr);
+  auto *sym2 = store.GetOrCreateSymbol("existing_sym");
+  EXPECT_EQ(sym1, sym2);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovSetInputSymbol) {
+  IRDataTypeSymbolStore store;
+  auto *sym = store.SetInputSymbol("x", kIrInputRequired, "input_sym");
+  ASSERT_NE(sym, nullptr);
+  EXPECT_EQ(sym->Id(), "input_sym");
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovDeclareSymbolPromoteSelf) {
+  IRDataTypeSymbolStore store;
+  store.SetInputSymbol("x", kIrInputRequired, "self_sym");
+  Promote promote({"self_sym", "self_sym"});
+  auto *sym = store.DeclareSymbol("self_sym", promote);
+  EXPECT_EQ(sym, nullptr);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, CovIsSupportSymbolicInferDtypeEmpty) {
+  IRDataTypeSymbolStore store;
+  store.SetInputSymbol("x", kIrInputRequired, "input_only_sym");
+  EXPECT_FALSE(store.IsSupportSymbolicInferDtype());
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, IncCov_TypeOrTypesMethods) {
+  TypeOrTypes tot;
+  DataType dt;
+  EXPECT_EQ(tot.GetType(dt), GRAPH_FAILED);
+  std::vector<DataType> dts;
+  EXPECT_EQ(tot.GetTypes(dts), GRAPH_FAILED);
+  EXPECT_EQ(tot.UnsafeGetType(), DT_UNDEFINED);
+  EXPECT_TRUE(tot.UnsafeGetTypes().empty());
+  EXPECT_EQ(tot.DebugString(), "Uninitialized");
+
+  tot.SetType(DT_FLOAT);
+  EXPECT_EQ(tot.GetType(dt), GRAPH_SUCCESS);
+  EXPECT_EQ(dt, DT_FLOAT);
+  EXPECT_EQ(tot.GetTypes(dts), GRAPH_FAILED);
+
+  tot.SetTypes({DT_FLOAT, DT_INT32});
+  EXPECT_EQ(tot.GetType(dt), GRAPH_FAILED);
+  EXPECT_EQ(tot.GetTypes(dts), GRAPH_SUCCESS);
+  EXPECT_EQ(dts.size(), 2U);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, IncCov_SymDtypeExpressionMethods) {
+  IRDataTypeSymbolStore store;
+  TensorType types1({DT_FLOAT, DT_INT32});
+  TensorType types2({DT_FLOAT, DT_INT32});
+  store.DeclareSymbol("sym_x", types1);
+  store.DeclareSymbol("sym_y", types2);
+  store.SetInputSymbol("x", kIrInputRequired, "sym_x");
+  store.SetInputSymbol("y", kIrInputRequired, "sym_y");
+  Promote promote({"sym_x", "sym_y"});
+  auto *promote_sym = store.DeclareSymbol("promote_sym", promote);
+  ASSERT_NE(promote_sym, nullptr);
+  EXPECT_FALSE(promote_sym->IsListType());
+  EXPECT_EQ(promote_sym->Type(), ExpressionType::kPromote);
+  auto indexes = promote_sym->GetIrInputIndexes();
+  EXPECT_EQ(indexes.size(), 2U);
+}
+
+TEST_F(UtestIRDataTypeSymbolStore, IncCov_SymDtypeGetDirectIrInputIndexes) {
+  IRDataTypeSymbolStore store;
+  TensorType types({DT_FLOAT, DT_INT32});
+  auto *sym = store.DeclareSymbol("sym1", types);
+  ASSERT_NE(sym, nullptr);
+  store.SetInputSymbol("x", kIrInputRequired, "sym1");
+  store.SetInputSymbol("y", kIrInputDynamic, "sym1");
+  auto indexes = sym->GetIrInputIndexes();
+  EXPECT_EQ(indexes.size(), 2U);
+  EXPECT_EQ(sym->Type(), ExpressionType::kSingle);
+  EXPECT_FALSE(sym->IsLegacy());
+}
+
+REG_OP(OpTestInferDtypeOutOfRange)
+    .INPUT(x, "T")
+    .OUTPUT(y, "T")
+    .DATATYPE(T, TensorType({DT_FLOAT, DT_INT32}))
+    .OP_END_FACTORY_REG(OpTestInferDtypeOutOfRange);
+
+TEST_F(UtestIRDataTypeSymbolStore, IncCov_InferDtypeOutOfRange) {
+  auto op = op::OpTestInferDtypeOutOfRange();
+  auto desc = OpDescUtils::GetOpDescFromOperator(op);
+  GeTensorDesc input_desc(GeShape({1}), FORMAT_ND, DT_BOOL);
+  desc->UpdateInputDesc("x", input_desc);
+  desc->UpdateOutputDesc("y", GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT));
+  const auto &sym_store = desc->impl_->GetIRMeta().GetIRDataTypeSymbolStore();
+  auto ret = sym_store.InferDtype(desc);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
 }  // namespace ge

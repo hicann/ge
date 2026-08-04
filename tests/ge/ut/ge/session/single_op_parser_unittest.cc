@@ -871,4 +871,174 @@ TEST_F(UtestOmg, ParseSingleOpList_UnsupportedAttrType) {
   EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
   system(("rm " + file).c_str());
 }
+
+TEST_F(UtestOmg, ParseSingleOpList_InvalidJson_ParseException) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "invalid_json_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+{invalid json content}
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
+
+TEST_F(UtestOmg, Validate_EmptyOpName) {
+  SingleOpDesc op_desc;
+  op_desc.op = "";
+  EXPECT_EQ(SingleOpParser::Validate(op_desc), false);
+}
+
+TEST_F(UtestOmg, Validate_InputFormatReserved) {
+  SingleOpDesc op_desc;
+  op_desc.op = "test_op";
+  SingleOpTensorDesc input_tensor_desc;
+  input_tensor_desc.is_valid = true;
+  input_tensor_desc.type = ge::DT_FLOAT;
+  input_tensor_desc.format = ge::FORMAT_RESERVED;
+  op_desc.input_desc.push_back(input_tensor_desc);
+  EXPECT_EQ(SingleOpParser::Validate(op_desc), false);
+}
+
+TEST_F(UtestOmg, Validate_InputDataTypeUndefined) {
+  SingleOpDesc op_desc;
+  op_desc.op = "test_op";
+  SingleOpTensorDesc input_tensor_desc;
+  input_tensor_desc.is_valid = true;
+  input_tensor_desc.type = ge::DT_UNDEFINED;
+  input_tensor_desc.format = ge::FORMAT_NCHW;
+  op_desc.input_desc.push_back(input_tensor_desc);
+  EXPECT_EQ(SingleOpParser::Validate(op_desc), false);
+}
+
+TEST_F(UtestOmg, Validate_OutputInvalidFlag) {
+  SingleOpDesc op_desc;
+  op_desc.op = "test_op";
+  SingleOpTensorDesc output_tensor_desc;
+  output_tensor_desc.is_valid = false;
+  output_tensor_desc.type = ge::DT_FLOAT;
+  output_tensor_desc.format = ge::FORMAT_NCHW;
+  op_desc.output_desc.push_back(output_tensor_desc);
+  EXPECT_EQ(SingleOpParser::Validate(op_desc), false);
+}
+
+TEST_F(UtestOmg, TransConstValue_UnsupportedType) {
+  std::string type_str = "bool";
+  nlohmann::json j;
+  SingleOpTensorDesc desc;
+  desc.type = ge::DT_BOOL;
+  desc.const_value_size = 0U;
+  j["const_value"] = {true, false};
+  TransConstValue(type_str, j, desc);
+  EXPECT_EQ(desc.const_value_size, 0U);
+}
+
+TEST_F(UtestOmg, TransConstValue_NoConstValue) {
+  std::string type_str = "int32";
+  nlohmann::json j;
+  SingleOpTensorDesc desc;
+  desc.type = ge::DT_INT32;
+  desc.const_value_size = 0U;
+  TransConstValue(type_str, j, desc);
+  EXPECT_EQ(desc.const_value_size, 0U);
+}
+
+TEST_F(UtestOmg, FromJson_WithOriginShape) {
+  nlohmann::json j;
+  j["shape"] = {1, 2};
+  j["origin_shape"] = {1, 2, 3};
+  j["format"] = "ND";
+  j["type"] = "int32";
+  SingleOpTensorDesc desc;
+  from_json(j, desc);
+  EXPECT_EQ(desc.ori_dims.size(), 3U);
+  EXPECT_EQ(desc.ori_dims[0], 1);
+}
+
+TEST_F(UtestOmg, FromJson_AttrDataTypeWithIntValue) {
+  nlohmann::json j;
+  j["name"] = "test_attr";
+  j["type"] = "data_type";
+  j["value"] = 1;
+  SingleOpAttr attr;
+  from_json(j, attr);
+  EXPECT_EQ(attr.name, "test_attr");
+  EXPECT_EQ(attr.type, "data_type");
+}
+
+TEST_F(UtestOmg, UpdateDynamicTensorName_MultipleSameName) {
+  std::vector<SingleOpTensorDesc> desc;
+  SingleOpTensorDesc tensor1;
+  tensor1.dynamic_input_name = "input0";
+  desc.push_back(tensor1);
+  SingleOpTensorDesc tensor2;
+  tensor2.dynamic_input_name = "input0";
+  desc.push_back(tensor2);
+  SingleOpTensorDesc tensor3;
+  tensor3.dynamic_input_name = "input0";
+  desc.push_back(tensor3);
+  EXPECT_EQ(SingleOpParser::UpdateDynamicTensorName(desc), SUCCESS);
+  EXPECT_EQ(desc[0].name, "input00");
+  EXPECT_EQ(desc[1].name, "input01");
+  EXPECT_EQ(desc[2].name, "input02");
+}
+
+TEST_F(UtestOmg, ReadJsonFile_NotAJsonArray) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "not_array_json_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+{"op": "Add"}
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
+
+TEST_F(UtestOmg, ParseSingleOpList_ConstValueWithUnsupportedType) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "const_unsupported_type_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+[
+    {
+      "op": "Add",
+      "input_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32",
+          "is_const": true,
+          "const_value": [1, 2]
+        },
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1,2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_EQ(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
 }  // namespace ge
