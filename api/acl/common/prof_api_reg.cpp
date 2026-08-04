@@ -92,7 +92,7 @@ static const std::map<acl::AclProfType, std::string> PROF_TYPE_TO_NAMES = {
 
 static aclError RegisterProfType() {
   for (auto &iter : PROF_TYPE_TO_NAMES) {
-    uint32_t typeId = static_cast<uint32_t>(iter.first);
+    const uint32_t typeId = static_cast<uint32_t>(iter.first);
     const auto ret = MsprofRegTypeInfo(MSPROF_REPORT_ACL_LEVEL, typeId, iter.second.c_str());
     if (ret != MSPROF_ERROR_NONE) {
       ACL_LOG_CALL_ERROR("Registered api type [%u] failed = %d", typeId, ret);
@@ -213,7 +213,7 @@ AclProfilingReporter::~AclProfilingReporter() noexcept {
     MsprofApi api{};
     api.beginTime = startTime_;
     api.endTime = endTime;
-    thread_local static auto tid = mmGetTid();
+    thread_local static const auto tid = mmGetTid();
     api.threadId = static_cast<uint32_t>(tid);
     api.level = MSPROF_REPORT_ACL_LEVEL;
     api.type = static_cast<uint32_t>(aclApi_);
