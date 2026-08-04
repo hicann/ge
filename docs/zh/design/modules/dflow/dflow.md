@@ -1,9 +1,17 @@
 # DataFlow 异步流水框架——数据驱动的多模型串接下沉执行
 
-> 介绍 dflow 如何以数据驱动方式将多个计算处理点编排成异步流水线，实现模型下沉执行、device-device 直传和大吞吐并发。
+## 简介
+
+### 目的
+
+本文档面向 dflow 开发者，描述 dflow 的架构设计、核心模块实现和关键设计决策，涵盖从 FlowGraph 构图到编译、部署、执行的完整链路。
+
+### 范围
+
+涵盖模块：`flow_graph/`、`pydflow/`、`compiler/`、`base/`、`deployer/`、`executor/`、`udf/`。不涵盖 `llm_datadist` 子模块（大模型数据分发为独立特性）。
 
 相关文档：
-- [udf.md](udf.md) — UDF（用户自定义函数）子模块独立文档
+- [udf.md](udf.md) — UDF 子模块独立文档
 - [docs/zh/user_guides/dflow](../../../user_guides/dflow) — 用户开发指南
 - [examples/dflow](../../../../../examples/dflow) — 样例代码
 
@@ -36,42 +44,44 @@ DataFlow 以**数据队列**驱动方式将一个或多个计算处理点（Proc
 
 ### 1.3 模块全景
 
-dflow 代码位于 `dflow/` 目录（不含 `llm_datadist` 子目录），按职责分为七个模块：
+dflow 代码位于 `dflow/` 目录（不含 `llm_datadist` 子目录），核心模块及其交互关系如下：
 
 ```mermaid
 flowchart TD
     subgraph 用户接口
-        FG["flow_graph/<br/>构图核心：FlowGraph/FlowNode/ProcessPoint"]
         PYD["pydflow/<br/>Python 接口与装饰器"]
+        FG["flow_graph/<br/>构图核心：FlowGraph/FlowNode/ProcessPoint"]
+    end
+    subgraph session
+        SES["session/<br/>DFlowSession API入口<br/>编译/部署/执行协调"]
     end
     subgraph 编译
-        CMP["compiler/<br/>编译层：session/模型构建/PNE引擎"]
+        CMP["compiler/<br/>FlowModelBuilder/PNE引擎<br/>FlowGraph→FlowModel"]
     end
-    subgraph 模型抽象
-        BASE["base/<br/>模型抽象/部署规划/运行时环境"]
+    subgraph 部署
+        DEP["deployer/<br/>多节点部署/跨节点通信<br/>fork executor进程"]
     end
-    subgraph 部署与执行
-        DEP["deployer/<br/>多节点部署/跨节点通信/调度/子进程"]
-        EXEC["executor/<br/>异构执行器/数据对齐/异常处理"]
+    subgraph 执行
+        EXEC["executor/<br/>异构执行器/数据对齐<br/>Feed/Fetch"]
     end
-    subgraph UDF 子模块
+    subgraph UDF子模块
         UDF["udf/<br/>用户自定义函数框架<br/>（详见 udf.md）"]
     end
 
-    FG --> CMP
     PYD --> FG
-    CMP --> BASE
-    BASE --> DEP
-    DEP --> EXEC
-    CMP --> UDF
-    UDF --> DEP
+    FG --> SES
+    SES --> CMP
+    SES --> DEP
+    SES --> EXEC
+    DEP --> UDF
 ```
 
 | 模块 | 核心职责 |
 |------|----------|
 | `flow_graph/` | C++ 构图 API：FlowGraph/FlowNode/FlowData/ProcessPoint 体系 |
 | `pydflow/` | Python 封装、@pyflow 装饰器、PyTorch 集成、UDF 工程自动生成 |
-| `compiler/` | 编译 FlowGraph 为 FlowModel：session 管理、PNE 引擎机制、图优化 pass |
+| `session/` | DFlowSession API 入口，编译、部署、执行的协调中枢 |
+| `compiler/` | FlowModelBuilder/PNE 引擎机制、图优化 pass，将 FlowGraph 编译为 FlowModel |
 | `base/` | 模型抽象（FlowModel/GraphModel/PneModel）、ModelRelation、部署规划、OM 序列化 |
 | `deployer/` | 多节点主从部署、跨节点 gRPC/内存队列通信、子进程管理 |
 | `executor/` | 异构执行器、Feed/Fetch、数据对齐、异常处理 |
@@ -102,7 +112,7 @@ FlowData ──→ [GraphPp: ONNX模型] ──→ [FuncPp: UDF0] ──→ [Gra
 
 ### 2.2 UDF 自定义处理
 
-UDF 解决框架无法自动处理的场景：模型间格式转换（FP16→FP32）、数据拆分负载均衡、自定义预处理/后处理、多模型编排条件路由、批处理聚合。UDF 开发只需定义处理函数并构图，C++ 和 Python 均支持（详见 [udf.md](udf.md)）。
+UDF 解决框架无法自动处理的场景：模型间格式转换（FP16→FP32）、数据拆分负载均衡、自定义预处理/后处理、多模型编排条件路由、批处理聚合。UDF 开发只需定义处理函数并构图，C++ 侧通过 SO 加载注册机制集成，Python 侧通过 `@pyflow` 装饰器 + 自动代码生成 + cloudpickle 实现零 C++ 代码开发（详见 [udf.md](udf.md)）。
 
 ### 2.3 批处理聚合
 
@@ -309,6 +319,8 @@ CPU 引擎继承 NPU 引擎仅重写 `GetEngineName`，编译流程完全复用�
 - `ConvertBatchAttrToUdfPass`：将 TimeBatch/CountBatch 属性转为内置 UDF 节点，复用 UDF 编译执行机制
 
 **多级缓存**避免重复编译：root 模型缓存（graph_key 索引）+ 子模型缓存（SHA256 哈希匹配）+ UDF 缓存（release_info 匹配，避免重复 cmake/make）+ buildinfo 缓存。
+
+子图通过 `MultiThreadGraphBuilder` 多线程并行编译，FunctionPp 异步 cmake/make 编译，三级缓存协同保证增量编译效率。
 
 ### 4.2 模型抽象层：FlowModel 与 ModelRelation
 
@@ -517,9 +529,9 @@ sequenceDiagram
 **关键设计决策**：
 
 1. **队列解耦**：用户 Feed/Fetch 与子模型执行通过队列完全解耦，用户不感知内部子模型执行细节。
-2. **尽量零拷贝**：基于 rtMbuf 引用计数，同侧（host 侧或 device 侧）的数据传递尽量零拷贝。但涉及 host 队列与 device 队列交互时底层会自动拷贝，跨 device 传递时 flowGW 也会触发通信拷贝。
+2. **异步流水 + 尽量零拷贝**：子模型之间通过队列异步传递数据，生产者处理完即唤醒下游，不必等整条流水线同步。基于 rtMbuf 引用计数，同侧（host 侧或 device 侧）的数据传递尽量零拷贝。但涉及 host 队列与 device 队列交互时底层会自动拷贝，跨 device 传递时 flowGW 也会触发通信拷贝。
 3. **分段超时**：`DoDequeue` 将长超时分解为 1 秒循环，避免阻塞并支持设备异常检测和重部署状态检查。
-4. **事务追踪**：trans_id 贯穿整个数据流，对齐器按 trans_id 对齐，异常处理器按 trans_id 清理异常数据。
+4. **事务追踪**：`trans_id` 从用户 Feed 时分配，随 mbuf head 流经所有队列和子模型，对齐器按 trans_id 对齐多路输出，异常处理器按 trans_id 清理异常数据。这是异步流水线正确性和可恢复性的基础。
 
 ### 4.5 Python 接口层
 
@@ -649,37 +661,13 @@ input_queue → npu_executor(dequeue→模型执行→enqueue)
 
 ---
 
-## 6. 关键设计总结
-
-### 6.1 分层解耦，各司其职
-
-dflow 的七个模块遵循清晰的职责分离：构图层管 API 表达、编译层管图到模型的转换、模型抽象层管数据结构、部署层管多节点分发、执行层管运行时驱动。PNE 引擎机制通过 SO 插件 + 宏注册实现可扩展编译后端；base 层通过 dlopen 桥接具体部署实现（`base/exec_runtime/execution_runtime.cc`），使公共抽象不依赖具体实现。
-
-### 6.2 异步流水 + 尽量零拷贝
-
-dflow 的性能基础是两个机制：**队列驱动的异步流水**（生产者处理完即唤醒下游，不必等整条流水线同步）和 **rtMbuf 尽量零拷贝传递**（同侧数据传递通过引用计数免拷贝，host/device 交互和跨 device 传递会触发拷贝）。二者结合使多模型串接的吞吐接近单模型水平。
-
-### 6.3 事务追踪贯穿全链路
-
-`trans_id` 从用户 Feed 时分配，随 mbuf head 流经所有队列和子模型，到 Fetch 时用于对齐多路输出。异常处理也按 trans_id 清理。这种事务追踪机制是异步流水线正确性和可恢复性的基础。
-
-### 6.4 低门槛自定义：UDF
-
-UDF 让用户在数据流图中插入自定义逻辑，只需定义处理函数并构图。C++ 侧通过 SO 加载注册机制集成；Python 侧通过 `@pyflow` 装饰器 + 自动代码生成 + cloudpickle 实现零 C++ 代码开发。UDF 框架的完整设计详见 [udf.md](udf.md)。
-
-### 6.5 工程化保障：缓存、并行
-
-- **多级缓存**：root 模型、子模型、UDF release 包三级缓存，避免重复编译
-- **并行编译**：子图多线程并行编译，FunctionPp 异步 cmake 编译
-
----
-
 ## 附录：关键文件索引
 
 | 模块 | 核心文件 | 职责 |
 |------|----------|------|
 | flow_graph | `flow_graph.cc`, `process_point.cc` | C++ 构图核心 |
 | pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py` | Python 接口 |
+| session | `dflow_api.h`, `dflow_api.cc` | DFlowSession API 入口 |
 | compiler | `flow_model_builder.cc`, `process_node_engine_manager.cc` | 编译核心 |
 | compiler | `process_point_loader.cc`, `flow_model_cache.cc` | PP 加载、缓存 |
 | base | `model_relation.cc`, `flow_model_om_saver.cc`, `deploy_planner.cc` | 模型关系、序列化、部署规划 |

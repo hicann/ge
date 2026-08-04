@@ -1,9 +1,17 @@
 # DataFlow Asynchronous Pipeline Framework -- Data-driven Multi-model Concatenation with Sinked Execution
 
-> This document describes how dflow orchestrates multiple computation processing points into an asynchronous pipeline in a data-driven manner, achieving model sinked execution, device-device direct transfer, and high-throughput concurrency.
+## Introduction
+
+### Purpose
+
+This document is for dflow developers, describing the architecture design, core module implementation, and key design decisions of dflow, covering the complete chain from FlowGraph construction to compilation, deployment, and execution.
+
+### Scope
+
+Covered modules: `flow_graph/`, `pydflow/`, `compiler/`, `base/`, `deployer/`, `executor/`, `udf/`. Does not cover the `llm_datadist` submodule (large model data distribution is an independent feature).
 
 Related documents:
-- [udf.md](udf.md) -- UDF (User Defined Function) submodule independent document
+- [udf.md](udf.md) -- UDF submodule independent document
 - [docs/zh/user_guides/dflow](../../../../zh/user_guides/dflow/index.md) -- User development guide
 - [examples/dflow](../../../../../examples/dflow) -- Sample code
 
@@ -36,42 +44,44 @@ DataFlow organizes one or more computation processing points (ProcessPoint) into
 
 ### 1.3 Module Overview
 
-The dflow code is located in the `dflow/` directory (excluding the `llm_datadist` subdirectory), divided into seven modules by responsibility:
+The dflow code is located in the `dflow/` directory (excluding the `llm_datadist` subdirectory). The core modules and their interactions are as follows:
 
 ```mermaid
 flowchart TD
     subgraph User Interface
-        FG["flow_graph/<br/>Graph construction core: FlowGraph/FlowNode/ProcessPoint"]
         PYD["pydflow/<br/>Python interface and decorators"]
+        FG["flow_graph/<br/>Graph construction core: FlowGraph/FlowNode/ProcessPoint"]
+    end
+    subgraph session
+        SES["session/<br/>DFlowSession API entry<br/>compilation/deployment/execution coordination"]
     end
     subgraph Compilation
-        CMP["compiler/<br/>Compilation layer: session/model construction/PNE engine"]
+        CMP["compiler/<br/>FlowModelBuilder/PNE engine<br/>FlowGraph→FlowModel"]
     end
-    subgraph Model Abstraction
-        BASE["base/<br/>Model abstraction/deployment planning/runtime environment"]
+    subgraph Deployment
+        DEP["deployer/<br/>Multi-node deployment/cross-node communication<br/>fork executor processes"]
     end
-    subgraph Deployment and Execution
-        DEP["deployer/<br/>Multi-node deployment/cross-node communication/scheduling/subprocess"]
-        EXEC["executor/<br/>Heterogeneous executors/data alignment/exception handling"]
+    subgraph Execution
+        EXEC["executor/<br/>Heterogeneous executors/data alignment<br/>Feed/Fetch"]
     end
     subgraph UDF Submodule
         UDF["udf/<br/>User Defined Function framework<br/>(refer to udf.md)"]
     end
 
-    FG --> CMP
     PYD --> FG
-    CMP --> BASE
-    BASE --> DEP
-    DEP --> EXEC
-    CMP --> UDF
-    UDF --> DEP
+    FG --> SES
+    SES --> CMP
+    SES --> DEP
+    SES --> EXEC
+    DEP --> UDF
 ```
 
 | Module | Core Responsibility |
 |--------|---------------------|
 | `flow_graph/` | C++ graph construction API: FlowGraph/FlowNode/FlowData/ProcessPoint system |
 | `pydflow/` | Python wrapper, @pyflow decorator, PyTorch integration, UDF project auto-generation |
-| `compiler/` | Compile FlowGraph to FlowModel: session management, PNE engine mechanism, graph optimization passes |
+| `session/` | DFlowSession API entry, coordination hub for compilation, deployment, and execution |
+| `compiler/` | FlowModelBuilder/PNE engine mechanism, graph optimization passes, compiles FlowGraph to FlowModel |
 | `base/` | Model abstraction (FlowModel/GraphModel/PneModel), ModelRelation, deployment planning, OM serialization |
 | `deployer/` | Multi-node master-slave deployment, cross-node gRPC/memory queue communication, subprocess management |
 | `executor/` | Heterogeneous executors, Feed/Fetch, data alignment, exception handling |
@@ -102,7 +112,7 @@ FlowData ──→ [GraphPp: ONNX model] ──→ [FuncPp: UDF0] ──→ [Gra
 
 ### 2.2 UDF Custom Processing
 
-UDF solves scenarios the framework cannot automatically handle: inter-model format conversion (FP16 to FP32), data splitting load balancing, custom preprocessing/postprocessing, multi-model orchestration conditional routing, batch aggregation. UDF development only requires defining processing functions and constructing the graph; both C++ and Python are supported (refer to [udf.md](udf.md)).
+UDF solves scenarios the framework cannot automatically handle: inter-model format conversion (FP16 to FP32), data splitting load balancing, custom preprocessing/postprocessing, multi-model orchestration conditional routing, batch aggregation. UDF development only requires defining processing functions and constructing the graph; the C++ side integrates through SO loading and registration mechanisms, and the Python side achieves zero C++ code development through `@pyflow` decorator + automatic code generation + cloudpickle (refer to [udf.md](udf.md)).
 
 ### 2.3 Batch Aggregation
 
@@ -309,6 +319,8 @@ Engines are registered through `REGISTER_PROCESS_NODE_ENGINE` macro + SO plugin 
 - `ConvertBatchAttrToUdfPass`: Converts TimeBatch/CountBatch attributes to built-in UDF nodes, reusing the UDF compilation and execution mechanism
 
 **Multi-level caching** avoids repeated compilation: root model cache (graph_key index) + sub-model cache (SHA256 hash matching) + UDF cache (release_info matching, avoiding repeated cmake/make) + buildinfo cache.
+
+Subgraphs are compiled in parallel through `MultiThreadGraphBuilder` with multiple threads; FunctionPp uses async cmake/make compilation. The three-level caching coordination ensures incremental compilation efficiency.
 
 ### 4.2 Model Abstraction Layer: FlowModel and ModelRelation
 
@@ -517,9 +529,9 @@ After enabling, the aligner aligns multi-path outputs by `(trans_id, data_label)
 **Key design decisions**:
 
 1. **Queue decoupling**: User Feed/Fetch and sub-model execution are fully decoupled through queues; users are unaware of internal sub-model execution details.
-2. **Zero-copy where possible**: Based on rtMbuf reference counting, same-side (host-side or device-side) data transfer is zero-copy where possible. However, host queue and device queue interaction triggers automatic copying at the underlying level, and cross-device transfer triggers communication copying through flowGW.
+2. **Asynchronous pipeline + zero-copy where possible**: Sub-models pass data asynchronously through queues; producers wake downstream upon completion without waiting for the entire pipeline to synchronize. Based on rtMbuf reference counting, same-side (host-side or device-side) data transfer is zero-copy where possible. However, host queue and device queue interaction triggers automatic copying at the underlying level, and cross-device transfer triggers communication copying through flowGW.
 3. **Segmented timeout**: `DoDequeue` breaks long timeouts into 1-second loops, avoiding blocking and supporting device exception detection and redeployment status checking.
-4. **Transaction tracking**: trans_id runs through the entire data flow; the aligner aligns by trans_id, and the exception handler cleans exception data by trans_id.
+4. **Transaction tracking**: `trans_id` is assigned at user Feed time, flows through all queues and sub-models with the mbuf head; the aligner aligns multi-path outputs by trans_id, and the exception handler cleans exception data by trans_id. This is the foundation for asynchronous pipeline correctness and recoverability.
 
 ### 4.5 Python Interface Layer
 
@@ -649,37 +661,13 @@ Throughout the entire flow, the compilation, deployment, and execution phases ar
 
 ---
 
-## 6. Key Design Summary
-
-### 6.1 Layered Decoupling, Each with Its Role
-
-The seven dflow modules follow clear responsibility separation: the graph construction layer handles API expression, the compilation layer handles graph-to-model conversion, the model abstraction layer handles data structures, the deployment layer handles multi-node distribution, and the execution layer handles runtime driving. The PNE engine mechanism achieves extensible compilation backends through SO plugins + macro registration; the base layer bridges specific deployment implementations through dlopen (`base/exec_runtime/execution_runtime.cc`), keeping public abstractions independent of specific implementations.
-
-### 6.2 Asynchronous Pipeline + Zero-copy Where Possible
-
-dflow's performance foundation rests on two mechanisms: **queue-driven asynchronous pipeline** (producers wake downstream upon completion without waiting for the entire pipeline to synchronize) and **rtMbuf zero-copy transfer where possible** (same-side data transfer avoids copying through reference counting; host/device interaction and cross-device transfer trigger copying). The combination brings multi-model concatenation throughput close to single-model levels.
-
-### 6.3 Transaction Tracking Throughout the Entire Chain
-
-`trans_id` is assigned at user Feed time, flows through all queues and sub-models with the mbuf head, and is used at Fetch time for aligning multi-path outputs. Exception handling also cleans by trans_id. This transaction tracking mechanism is the foundation for asynchronous pipeline correctness and recoverability.
-
-### 6.4 Low-barrier Customization: UDF
-
-UDF allows users to insert custom logic into data flow graphs, only needing to define processing functions and construct the graph. The C++ side integrates through SO loading and registration mechanisms; the Python side achieves zero C++ code development through `@pyflow` decorator + automatic code generation + cloudpickle. The complete UDF framework design is detailed in [udf.md](udf.md).
-
-### 6.5 Engineering Guarantees: Caching, Parallelism
-
-- **Multi-level caching**: Root model, sub-model, UDF release package three-level caching to avoid repeated compilation
-- **Parallel compilation**: Sub-graphs compiled in parallel with multiple threads; FunctionPp async cmake compilation
-
----
-
 ## Appendix: Key File Index
 
 | Module | Core Files | Responsibility |
 |--------|-----------|----------------|
 | flow_graph | `flow_graph.cc`, `process_point.cc` | C++ graph construction core |
 | pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py` | Python interface |
+| session | `dflow_api.h`, `dflow_api.cc` | DFlowSession API entry |
 | compiler | `flow_model_builder.cc`, `process_node_engine_manager.cc` | Compilation core |
 | compiler | `process_point_loader.cc`, `flow_model_cache.cc` | PP loading, caching |
 | base | `model_relation.cc`, `flow_model_om_saver.cc`, `deploy_planner.cc` | Model relation, serialization, deployment planning |
