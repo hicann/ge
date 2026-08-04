@@ -449,6 +449,25 @@ TEST_F(GeIrBuildTest, TestBuildOptions) {
   aclgrphBuildInitialize(init_options);
 }
 
+TEST_F(GeIrBuildTest, TestDeterministicOptionsInvalid) {
+  std::map<std::string, std::string> init_options = {{ge::DETERMINISTIC, "abc"}};
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_PARAM_INVALID);
+
+  init_options[ge::DETERMINISTIC] = "2";
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_PARAM_INVALID);
+
+  init_options[ge::DETERMINISTIC] = "1";
+  init_options[ge::DETERMINISTIC_LEVEL] = "abc";
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_PARAM_INVALID);
+
+  init_options[ge::DETERMINISTIC_LEVEL] = "4";
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_PARAM_INVALID);
+
+  init_options[ge::DETERMINISTIC] = "0";
+  init_options[ge::DETERMINISTIC_LEVEL] = "2";
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_PARAM_INVALID);
+}
+
 TEST_F(GeIrBuildTest, TestBuildModelOm2UnsupportedGlobalOption) {
   aclgrphBuildFinalize();
   std::map<std::string, std::string> init_options = {

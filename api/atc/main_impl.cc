@@ -196,6 +196,7 @@ const char *const kRawCompileOptionsGraph = "graph";
 const char *const kCliOptionPrefix = "--";
 const char *const kMultiStreamParallelModeFlag = "multi_stream_parallel_mode";
 const char *const kMultiStreamParallelModeOption = "--multi_stream_parallel_mode";
+const char *const kDeterministicLevelFlag = "deterministic_level";
 const std::set<std::string> kRawNonReplaceableCliOptions = {"model", "output", "framework", "soc_version"};
 
 std::set<std::string> &GetRawAppliedFlagNames() {
@@ -208,11 +209,13 @@ std::map<std::string, std::string> &GetRawAppliedFlagOptions() {
   return raw_applied_flag_options;
 }
 
+bool IsDeterministicLevelExplicitlySet() {
+  return (flgs::GetUserOptions().count(kDeterministicLevelFlag) > 0U) ||
+         (GetRawAppliedFlagNames().count(kDeterministicLevelFlag) > 0U);
+}
+
 void AppendDeterministicLevelOption(std::map<std::string, std::string> &options) {
-  constexpr const char *kDeterministicLevelFlag = "deterministic_level";
-  const bool is_explicitly_set = (flgs::GetUserOptions().count(kDeterministicLevelFlag) > 0U) ||
-                                 (GetRawAppliedFlagNames().count(kDeterministicLevelFlag) > 0U);
-  if (is_explicitly_set) {
+  if (IsDeterministicLevelExplicitlySet()) {
     options.emplace("ge.deterministicLevel", FLAGS_deterministic_level);
   }
 }
@@ -2292,8 +2295,23 @@ Status CheckDeprecatedAutoTuneMode() {
   return FAILED;
 }
 
+static Status CheckDeterministicLevelOption() {
+  if (!IsDeterministicLevelExplicitlySet()) {
+    return SUCCESS;
+  }
+  int32_t deterministic = 0;
+  GE_ASSERT_SUCCESS(ConvertDeterministicOptionToInt32("--deterministic", FLAGS_deterministic, deterministic),
+                    "[Convert][Param:deterministic] failed.");
+  int32_t deterministic_level = 0;
+  GE_ASSERT_SUCCESS(
+      ConvertDeterministicOptionToInt32("--deterministic_level", FLAGS_deterministic_level, deterministic_level),
+      "[Convert][Param:deterministic_level] failed.");
+  return CheckDeterministicConfig(deterministic, deterministic_level);
+}
+
 Status CheckGlobalOptionsBeforeRun() {
   GE_ASSERT_SUCCESS(CheckDeprecatedAutoTuneMode(), "[Check][AutoTuneMode]failed.");
+  GE_ASSERT_SUCCESS(CheckDeterministicLevelOption(), "[Check][Deterministic]failed.");
   return SUCCESS;
 }
 

@@ -369,6 +369,7 @@ TEST_F(UtestMain, MainImplTest_global_options) {
                   const_cast<char *>(output_arg.c_str()),
                   "--soc_version=\"Ascend310\"",
                   "--deterministic=1",
+                  "--deterministic_level=2",
                   const_cast<char *>(op_arg.c_str()),
                   "--input_format=NCHW",
                   "--host_env_os=linux",

@@ -28,6 +28,7 @@
 #include "graph/ge_context.h"
 #include "common/checker.h"
 #include "graph/compute_graph.h"
+#include "register/op_tiling/op_tiling_constants.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/type_utils_inner.h"
 #include "graph/utils/tensor_utils.h"
@@ -951,6 +952,68 @@ Status CheckAttrCompressionParamValid(const std::string &enable_attr_compression
     return PARAM_INVALID;
   }
   return SUCCESS;
+}
+
+Status CheckDeterministicConfig(int32_t deterministic, int32_t deterministic_level) {
+  if ((deterministic == 0) != (deterministic_level == 0)) {
+    std::string val_str = std::to_string(deterministic) + " / " + std::to_string(deterministic_level);
+    const char *reason = "must both be 0 or both non-zero.";
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"ge.deterministic / ge.deterministicLevel", val_str.c_str(), reason}));
+    GELOGE(PARAM_INVALID, "[Check][Param:ge.deterministic/ge.deterministicLevel] value:%s is invalid. %s",
+           val_str.c_str(), reason);
+    return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
+Status ConvertDeterministicOptionToInt32(const std::string &parameter, const std::string &option_value,
+                                         int32_t &result) {
+  if (ge::ConvertToInt32(option_value, result) != SUCCESS) {
+    const char *reason = "must be an integer.";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({parameter.c_str(), option_value.c_str(), reason}));
+    GELOGE(PARAM_INVALID, "[Check][Param:%s] value:%s is invalid. %s", parameter.c_str(), option_value.c_str(), reason);
+    return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
+Status CheckDeterministicOptionsValid(const std::map<std::string, std::string> &options) {
+  int32_t deterministic = 0;
+  auto it_det = options.find(ge::DETERMINISTIC);
+  if (it_det != options.end()) {
+    GE_ASSERT_SUCCESS(ConvertDeterministicOptionToInt32(ge::DETERMINISTIC, it_det->second, deterministic),
+                      "[Convert][Param:%s] failed.", ge::DETERMINISTIC.c_str());
+    if (deterministic < 0 || deterministic > optiling::kMaxDeterministic) {
+      const char *reason = "must be in {0,1}.";
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                std::vector<const char *>({ge::DETERMINISTIC.c_str(), it_det->second.c_str(), reason}));
+      GELOGE(PARAM_INVALID, "[Check][Param:%s] value:%s is invalid. %s", ge::DETERMINISTIC.c_str(),
+             it_det->second.c_str(), reason);
+      return PARAM_INVALID;
+    }
+  }
+
+  auto it_det_level = options.find(ge::DETERMINISTIC_LEVEL);
+  if (it_det_level == options.end()) {
+    return SUCCESS;
+  }
+  int32_t deterministic_level = 0;
+  GE_ASSERT_SUCCESS(
+      ConvertDeterministicOptionToInt32(ge::DETERMINISTIC_LEVEL, it_det_level->second, deterministic_level),
+      "[Convert][Param:%s] failed.", ge::DETERMINISTIC_LEVEL.c_str());
+  if (deterministic_level < 0 || deterministic_level > optiling::kMaxDeterministicLevel) {
+    const char *reason = "must be in {0,1,2,3}.";
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({ge::DETERMINISTIC_LEVEL.c_str(), it_det_level->second.c_str(), reason}));
+    GELOGE(PARAM_INVALID, "[Check][Param:%s] value:%s is invalid. %s", ge::DETERMINISTIC_LEVEL.c_str(),
+           it_det_level->second.c_str(), reason);
+    return PARAM_INVALID;
+  }
+  return CheckDeterministicConfig(deterministic, deterministic_level);
 }
 
 Status CheckKeepTypeParamValid(const std::string &keep_dtype) {

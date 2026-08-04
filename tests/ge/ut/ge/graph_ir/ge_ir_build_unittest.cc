@@ -709,6 +709,59 @@ TEST(UtestIrCommon, check_external_weight_param_succ) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
+TEST(UtestIrCommon, check_deterministic_config) {
+  // Both zero → valid
+  Status ret = CheckDeterministicConfig(0, 0);
+  EXPECT_EQ(ret, SUCCESS);
+
+  // Both non-zero → valid
+  ret = CheckDeterministicConfig(1, 1);
+  EXPECT_EQ(ret, SUCCESS);
+  ret = CheckDeterministicConfig(1, 2);
+  EXPECT_EQ(ret, SUCCESS);
+  ret = CheckDeterministicConfig(1, 3);
+  EXPECT_EQ(ret, SUCCESS);
+
+  // Inconsistent (one zero, one non-zero) → invalid
+  ret = CheckDeterministicConfig(0, 1);
+  EXPECT_EQ(ret, PARAM_INVALID);
+  ret = CheckDeterministicConfig(1, 0);
+  EXPECT_EQ(ret, PARAM_INVALID);
+  ret = CheckDeterministicConfig(0, 2);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST(UtestIrCommon, convert_deterministic_option_to_int32) {
+  int32_t option_value = 0;
+  EXPECT_EQ(ConvertDeterministicOptionToInt32(ge::DETERMINISTIC, "1", option_value), SUCCESS);
+  EXPECT_EQ(option_value, 1);
+  EXPECT_EQ(ConvertDeterministicOptionToInt32(ge::DETERMINISTIC, "abc", option_value), PARAM_INVALID);
+}
+
+TEST(UtestIrCommon, check_deterministic_options_invalid) {
+  std::map<std::string, std::string> options = {{ge::DETERMINISTIC, "abc"}};
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC] = "1abc";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC] = "";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC] = "2";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC] = "1";
+  options[ge::DETERMINISTIC_LEVEL] = "";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC_LEVEL] = "3abc";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+
+  options[ge::DETERMINISTIC_LEVEL] = "4";
+  EXPECT_EQ(CheckDeterministicOptionsValid(options), PARAM_INVALID);
+}
+
 TEST(UtestIrBuild, test_subgraph) {
   auto graph = BuildSubGraph();
   WeightRefreshableGraphs split_graphs;
@@ -1371,6 +1424,46 @@ TEST(UtestIrBuild, aclgrphBuildInitialize_test_fail) {
   global_options2[ge::OPTION_HOST_ENV_OS] = "linux";
   global_options2[ge::OPTION_HOST_ENV_CPU] = "x86_64";
   EXPECT_EQ(ge::aclgrphBuildInitialize(global_options2), ge::GRAPH_SUCCESS);
+  ge::aclgrphBuildFinalize();
+}
+
+TEST(UtestIrBuild, aclgrphBuildInitialize_without_deterministic_level_succ) {
+  std::map<std::string, std::string> global_options;
+  global_options[ge::DETERMINISTIC] = "1";
+  global_options[ge::OPTION_HOST_ENV_OS] = "linux";
+  global_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  EXPECT_EQ(ge::aclgrphBuildInitialize(global_options), ge::GRAPH_SUCCESS);
+  ge::aclgrphBuildFinalize();
+}
+
+TEST(UtestIrBuild, aclgrphBuildInitialize_deterministic_inconsistent) {
+  // deterministic=0, level=2 → must fail (both must be 0 or both non-zero)
+  std::map<std::string, std::string> global_options;
+  global_options[ge::DETERMINISTIC] = "0";
+  global_options["ge.deterministicLevel"] = "2";
+  global_options[ge::OPTION_HOST_ENV_OS] = "linux";
+  global_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  EXPECT_EQ(ge::aclgrphBuildInitialize(global_options), ge::GRAPH_PARAM_INVALID);
+  ge::aclgrphBuildFinalize();
+}
+
+TEST(UtestIrBuild, aclgrphBuildInitialize_deterministic_level_nonzero_det_zero) {
+  // deterministic=1, level=0 → must fail
+  std::map<std::string, std::string> global_options;
+  global_options[ge::DETERMINISTIC] = "1";
+  global_options["ge.deterministicLevel"] = "0";
+  global_options[ge::OPTION_HOST_ENV_OS] = "linux";
+  global_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  EXPECT_EQ(ge::aclgrphBuildInitialize(global_options), ge::GRAPH_PARAM_INVALID);
+  ge::aclgrphBuildFinalize();
+}
+
+TEST(UtestIrBuild, aclgrphBuildInitialize_invalid_deterministic_value) {
+  std::map<std::string, std::string> global_options;
+  global_options[ge::DETERMINISTIC] = "abc";
+  global_options[ge::OPTION_HOST_ENV_OS] = "linux";
+  global_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  EXPECT_EQ(ge::aclgrphBuildInitialize(global_options), ge::GRAPH_PARAM_INVALID);
   ge::aclgrphBuildFinalize();
 }
 
