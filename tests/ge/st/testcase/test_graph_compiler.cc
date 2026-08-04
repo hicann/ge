@@ -33,6 +33,8 @@
 #include "graph/manager/graph_manager.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/build/memory/binary_block_mem_assigner.h"
+#include "graph/build/memory/graph_mem_assigner.h"
+#include "graph/debug/ge_util.h"
 #include "graph/build/memory/block_type_list.h"
 #include "hybrid/node_executor/node_executor.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -2658,6 +2660,8 @@ TEST_F(GraphCompilerTest, test_build_graph_memory_assign_fail_case) {
   GraphMemoryAssigner graph_mem_assigner(compute_graph);
   MemoryOffset mem_offset(2, 65UL * 1024UL * 1024UL * 1024UL);
   graph_mem_assigner.memory_offset_.insert({2, mem_offset});
+  graph_mem_assigner.atomic_memory_assigner_ =
+      ComGraphMakeUnique<AtomicMemoryAssigner>(compute_graph, graph_mem_assigner.memory_offset_, nullptr, nullptr);
   VarManager::Instance(0)->use_max_mem_size_ = 0;
 
   map<uint64_t, size_t> mem_type_to_offset = {};
@@ -5126,7 +5130,10 @@ TEST_F(GraphCompilerTest, ReAssignAtomicMemoryWithOutMergeNodesAttrs) {
   EXPECT_EQ(AttrUtils::SetListFloat(atomic_node1->GetOpDesc(), TBE_OP_ATOMIC_FLOAT_VALUES, {0.1}), true);
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node2->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, {0}), true);
   graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  auto priority_assigner = graph_mem_assigner.mem_assigner_->GetPriorityAssinger();
+  graph_mem_assigner.atomic_memory_assigner_ =
+      ComGraphMakeUnique<AtomicMemoryAssigner>(graph, graph_mem_assigner.memory_offset_, priority_assigner, nullptr);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
 }
 
 /*

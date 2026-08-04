@@ -13,6 +13,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/build/memory/binary_block_mem_assigner.h"
+#include "graph/build/memory/graph_mem_assigner.h"
 #include "framework/memory/memory_assigner.h"
 #include "graph/build/memory/hybrid_mem_assigner.h"
 #include "graph/build/memory/max_block_mem_assigner.h"
@@ -26,6 +27,7 @@
 #include "graph/normal_graph/ge_tensor_impl.h"
 #include "graph/attr_value.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
@@ -86,12 +88,6 @@ std::vector<int32_t> GetAtomicDataTypeList(const NodePtr &atomic_node) {
   return data_type_list;
 }
 
-std::vector<int32_t> GetMemsetDataTypeList(const NodePtr &atomic_node) {
-  std::vector<int32_t> data_type_list;
-  (void)AttrUtils::GetListInt(atomic_node->GetOpDesc(), ATTR_NAME_ATOMIC_MEMSET_DTYPES, data_type_list);
-  return data_type_list;
-}
-
 std::vector<int32_t> GetAtomicIntValList(const NodePtr &atomic_node) {
   std::vector<int32_t> int_list;
   (void)AttrUtils::GetListInt(atomic_node->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, int_list);
@@ -125,6 +121,10 @@ std::vector<int64_t> GetAtomicMemSizeList(const NodePtr &atomic_node) {
   std::vector<int64_t> mem_size_vector;
   (void)ge::AttrUtils::GetListInt(atomic_node->GetOpDesc(), ATTR_NAME_ATOMIC_MEMSET_SIZES, mem_size_vector);
   return mem_size_vector;
+}
+void InitAtomicMemoryAssigner(GraphMemoryAssigner &assigner, const ComputeGraphPtr &graph) {
+  assigner.atomic_memory_assigner_ =
+      ComGraphMakeUnique<AtomicMemoryAssigner>(graph, assigner.memory_offset_, nullptr, nullptr);
 }
 
 void SetTensorSize(const GeShape &shape, const Format format, const DataType data_type, GeTensorDesc &tensor_desc) {
@@ -196,8 +196,10 @@ NodePtr UtAddNode(ComputeGraphPtr &graph, std::string name, std::string type, in
 }
 
 TEST_F(UtestGraphMemAssigner, graph_memory_assign_fail_case) {
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.hardwareInfo", "memory_size:134217728"}});
   ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("");
   GraphMemoryAssigner graph_mem_assigner(compute_graph);
+  InitAtomicMemoryAssigner(graph_mem_assigner, compute_graph);
   MemoryOffset mem_offset(2, 65UL * 1024Ul * 1024UL * 1024UL);
   graph_mem_assigner.memory_offset_.insert({2, mem_offset});
   VarManager::Instance(0)->use_max_mem_size_ = 0;
@@ -205,6 +207,7 @@ TEST_F(UtestGraphMemAssigner, graph_memory_assign_fail_case) {
   map<uint64_t, size_t> mem_type_to_offset = {};
   Status ret = graph_mem_assigner.ReAssignMemory(mem_type_to_offset);
   EXPECT_EQ(ret, ACL_ERROR_GE_MEMORY_ALLOCATION);
+  ge::GetThreadLocalContext().SetGraphOption({{}});
 }
 
 TEST_F(UtestGraphMemAssigner, graph_memory_get_type_case) {
@@ -353,8 +356,9 @@ TEST_F(UtestGraphMemAssigner, CleanMemInfo_Success_MergeCleanMemInfos) {
   info_set.insert(mem2);
 
   ASSERT_TRUE(info_set.size() == 2U);
-  GraphMemoryAssigner assigner(nullptr);
-  const auto mem_vec = assigner.MergeCleanMemInfos(info_set, {});
+  MemoryOffsetMap memory_offset;
+  auto atomic_assigner = ComGraphMakeUnique<AtomicMemoryAssigner>(nullptr, memory_offset, nullptr, nullptr);
+  const auto mem_vec = atomic_assigner->MergeCleanMemInfos(info_set, {});
   ASSERT_TRUE(mem_vec.size() == 1U);
   ASSERT_TRUE(mem_vec.front().size == 12800);
 }
@@ -398,8 +402,9 @@ TEST_F(UtestGraphMemAssigner, CleanMemInfo_Success_MergeCleanMemInfos_SameOffset
     info_set.insert(mem);
   }
   ASSERT_TRUE(info_set.size() == 3U);
-  GraphMemoryAssigner assigner(nullptr);
-  const auto mem_vec = assigner.MergeCleanMemInfos(info_set, {});
+  MemoryOffsetMap memory_offset;
+  auto atomic_assigner = ComGraphMakeUnique<AtomicMemoryAssigner>(nullptr, memory_offset, nullptr, nullptr);
+  const auto mem_vec = atomic_assigner->MergeCleanMemInfos(info_set, {});
   ASSERT_TRUE(mem_vec.size() == 1U);
   ASSERT_TRUE(mem_vec.front().size == 1536);
 }
@@ -718,12 +723,12 @@ TEST_F(UtestGraphMemAssigner, CheckInputIsSupportAtomic) {
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
   auto node = UtAddNode(graph, "data", DATA, 1, 1);
   GraphMemoryAssigner graph_mem_assigner(graph);
-  EXPECT_EQ(graph_mem_assigner.CheckInputIsSupportAtomic(node.get()), true);
+  EXPECT_EQ(AtomicMemoryAssigner::CheckInputIsSupportAtomic(node.get()), true);
   auto node2 = UtAddNode(graph, "data2", DATA, 1, 1);
   EXPECT_EQ(node->GetInDataAnchor(0)->LinkFrom(node2->GetOutDataAnchor(0)), GRAPH_SUCCESS);
   auto op_desc = node2->GetOpDesc();
   ge::OpDescUtilsEx::SetType(op_desc, VARIABLE);
-  EXPECT_EQ(graph_mem_assigner.CheckInputIsSupportAtomic(node.get()), false);
+  EXPECT_EQ(AtomicMemoryAssigner::CheckInputIsSupportAtomic(node.get()), false);
 }
 
 /*
@@ -743,6 +748,7 @@ TEST_F(UtestGraphMemAssigner, SetAtomicCleanOffset_CheckAttrs_Success) {
   };
   auto root_graph = ToComputeGraph(graph);
   GraphMemoryAssigner graph_mem_assigner(root_graph);
+  InitAtomicMemoryAssigner(graph_mem_assigner, root_graph);
   UpdateGraphTensorSize(root_graph);
   auto atomic_node = root_graph->FindFirstNodeMatchType("AtomicNode");
   auto atomic_clean_node = root_graph->FindFirstNodeMatchType(MEMSET);
@@ -801,6 +807,7 @@ TEST_F(UtestGraphMemAssigner, SetAtomicCleanOffset_AppendAtomicCleanAttr) {
   auto root_graph = ToComputeGraph(graph);
   UpdateGraphTensorSize(root_graph);
   GraphMemoryAssigner graph_mem_assigner(root_graph);
+  InitAtomicMemoryAssigner(graph_mem_assigner, root_graph);
   auto atomic_node = root_graph->FindFirstNodeMatchType("AtomicNode");
   std::vector<int32_t> data_list = {ge::DataType::DT_INT16};
   std::vector<int32_t> int_list = {0x1};
@@ -835,6 +842,7 @@ TEST_F(UtestGraphMemAssigner, SetAtomicCleanOffset_AppendMultiAtomicCleanAttr) {
   auto root_graph = ToComputeGraph(graph);
   UpdateGraphTensorSize(root_graph);
   GraphMemoryAssigner graph_mem_assigner(root_graph);
+  InitAtomicMemoryAssigner(graph_mem_assigner, root_graph);
   auto atomic_node = root_graph->FindNode("atomic_node1");
   std::vector<int32_t> data_list = {ge::DataType::DT_INT16};
   std::vector<int32_t> int_list = {0x1};
@@ -1043,8 +1051,10 @@ TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemory) {
   AttrUtils::SetListInt(node2->GetOpDesc(), "atomic_output_index", value);
   EXPECT_EQ(node2->GetOpDesc()->GetOutputsSize(), 1);
   GraphMemoryAssigner graph_mem_assigner(graph);
-  EXPECT_FALSE(graph_mem_assigner.CheckAtomicNodeIsSupportRef(node2));
-  graph_mem_assigner.ReAssignAtomicMemory();
+  graph_mem_assigner.memory_offset_.emplace(RT_MEMORY_HBM, MemoryOffset(RT_MEMORY_HBM, 0));
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_FALSE(graph_mem_assigner.atomic_memory_assigner_->CheckAtomicNodeIsSupportRef(node2));
+  graph_mem_assigner.atomic_memory_assigner_->ReAssign();
 }
 
 TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryMergeNodesAttrs) {
@@ -1085,10 +1095,10 @@ TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryMergeNodesAttrs) {
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node1->GetOpDesc(), "atomic_output_index", value), true);
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node2->GetOpDesc(), "atomic_output_index", value), true);
   // init graph_mem_assigner
-  graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
   MemoryOffset memory_offset(RT_MEMORY_HBM, 0UL, 0x10);
   graph_mem_assigner.memory_offset_.emplace(RT_MEMORY_HBM, memory_offset);
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
   EXPECT_EQ(graph_mem_assigner.SetAtomicCleanOffset(), SUCCESS);
   EXPECT_EQ(GetAtomicMemSizeList(atomic_memset).size(), 1);
   EXPECT_EQ(GetAtomicAddrList(atomic_memset).size(), 1);
@@ -1149,9 +1159,9 @@ TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryWithOutMergeNodesAttrs) {
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node0->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, {0}), true);
   EXPECT_EQ(AttrUtils::SetListFloat(atomic_node1->GetOpDesc(), TBE_OP_ATOMIC_FLOAT_VALUES, {0.1}), true);
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node2->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, {0}), true);
-  graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
 
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
   EXPECT_EQ(graph_mem_assigner.SetAtomicCleanOffset(), SUCCESS);
   ASSERT_EQ(GetAtomicMemSizeList(atomic_memset).size(), 3);
   ASSERT_EQ(GetAtomicAddrList(atomic_memset).size(), 3);
@@ -1214,9 +1224,9 @@ TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryWithOutMergeNodesMultiAttrs) {
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node0->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, {0, 0}), true);
   EXPECT_EQ(AttrUtils::SetListFloat(atomic_node1->GetOpDesc(), TBE_OP_ATOMIC_FLOAT_VALUES, {0.1, 0.1}), true);
   EXPECT_EQ(AttrUtils::SetListInt(atomic_node2->GetOpDesc(), TBE_OP_ATOMIC_INT64_VALUES, {0, 0}), true);
-  graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
 
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
   EXPECT_EQ(graph_mem_assigner.SetAtomicCleanOffset(), SUCCESS);
   ASSERT_EQ(GetAtomicMemSizeList(atomic_memset).size(), 3);
   ASSERT_EQ(GetAtomicAddrList(atomic_memset).size(), 3);
@@ -1245,7 +1255,8 @@ TEST_F(UtestGraphMemAssigner, CheckAtomicNodeIsSupportRef) {
   AttrUtils::SetListInt(node2->GetOpDesc(), "_is_connected_to_netoutput", is_connecting_output);
   GraphMemoryAssigner graph_mem_assigner(graph);
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(2, MemoryOffset(1, 0)));
-  EXPECT_EQ(graph_mem_assigner.CheckAtomicNodeIsSupportRef(node2), true);
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->CheckAtomicNodeIsSupportRef(node2), true);
 }
 
 TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryConnectToNetoutput) {
@@ -1262,14 +1273,14 @@ TEST_F(UtestGraphMemAssigner, ReAssignAtomicMemoryConnectToNetoutput) {
   std::vector<int32_t> is_connecting_output;
   AttrUtils::SetListInt(node2->GetOpDesc(), "_is_connected_to_netoutput", is_connecting_output);
   GraphMemoryAssigner graph_mem_assigner(graph);
-  graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(2, MemoryOffset(1, 0)));
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(17, MemoryOffset(17, 2000)));
-  EXPECT_EQ(graph_mem_assigner.CheckAtomicNodeIsSupportRef(node2), true);
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->CheckAtomicNodeIsSupportRef(node2), true);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
   is_connecting_output.push_back(1);
   AttrUtils::SetListInt(node2->GetOpDesc(), "_is_connected_to_netoutput", is_connecting_output);
-  EXPECT_EQ(graph_mem_assigner.ReAssignAtomicMemory(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->ReAssign(), SUCCESS);
 }
 
 TEST_F(UtestGraphMemAssigner, ReAssignMemoryFailed) {
@@ -1320,9 +1331,12 @@ TEST_F(UtestGraphMemAssigner, GetMemoryAssignmentStatus) {
   int64_t output_index = 10;
   bool is_mem_assigned = true;
   GraphMemoryAssigner graph_mem_assigner(graph);
-  EXPECT_EQ(graph_mem_assigner.GetMemoryAssignmentStatus(node, output_index, is_mem_assigned), PARAM_INVALID);
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->GetMemoryAssignmentStatus(node, output_index, is_mem_assigned),
+            PARAM_INVALID);
   output_index = 0;
-  EXPECT_EQ(graph_mem_assigner.GetMemoryAssignmentStatus(node, output_index, is_mem_assigned), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->GetMemoryAssignmentStatus(node, output_index, is_mem_assigned),
+            SUCCESS);
 }
 
 TEST_F(UtestGraphMemAssigner, CheckContinuousMemTypeAll) {
@@ -1349,17 +1363,18 @@ TEST_F(UtestGraphMemAssigner, AssignAtomicOutputMemory) {
   ge::AttrUtils::SetListInt(node->GetOpDesc(), "atomic_output_index", atomic_output_index);
   GraphMemoryAssigner graph_mem_assigner(graph);
   std::vector<int64_t> real_atomic_sizes;
-
-  graph_mem_assigner.mem_assigner_.reset(new (std::nothrow) HybridMemAssigner(graph));
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
   std::map<int64_t, std::vector<int64_t>> mem_type_to_offset_end;
   std::map<int64_t, std::vector<int64_t>> mem_type_to_real_atomic_sizes;
-  EXPECT_EQ(graph_mem_assigner.AssignAtomicOutputMemory(node, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignAtomicOutputMemory(node, mem_type_to_offset_end,
+                                                                                 mem_type_to_real_atomic_sizes),
             PARAM_INVALID);
   atomic_output_index.push_back(2);
   ge::AttrUtils::SetListInt(node->GetOpDesc(), "atomic_output_index", atomic_output_index);
   mem_type_to_offset_end.clear();
   mem_type_to_real_atomic_sizes.clear();
-  EXPECT_EQ(graph_mem_assigner.AssignAtomicOutputMemory(node, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignAtomicOutputMemory(node, mem_type_to_offset_end,
+                                                                                 mem_type_to_real_atomic_sizes),
             FAILED);
 }
 
@@ -1376,7 +1391,9 @@ TEST_F(UtestGraphMemAssigner, AssignAtomicOutputMemoryParamInvalid) {
   ge::AttrUtils::SetListInt(node->GetOpDesc(), "atomic_output_index", atomic_output_index);
   GraphMemoryAssigner graph_mem_assigner(graph);
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(2, MemoryOffset(1, 0)));
-  EXPECT_EQ(graph_mem_assigner.AssignAtomicOutputMemory(node, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignAtomicOutputMemory(node, mem_type_to_offset_end,
+                                                                                 mem_type_to_real_atomic_sizes),
             PARAM_INVALID);
 }
 
@@ -1388,14 +1405,15 @@ TEST_F(UtestGraphMemAssigner, AssignOrdinaryAtomicWorkspaceMemory) {
   std::map<int64_t, std::vector<int64_t>> mem_type_to_real_atomic_sizes;
   GraphMemoryAssigner graph_mem_assigner(graph);
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(2, MemoryOffset(1, 0)));
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
   workspace_info["noname"] = std::map<int64_t, int64_t>();
-  EXPECT_EQ(graph_mem_assigner.AssignOrdinaryAtomicWorkspaceMemory(
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignOrdinaryAtomicWorkspaceMemory(
                 node->GetOpDesc(), workspace_info, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
             PARAM_INVALID);
   graph_mem_assigner.memory_offset_.clear();
   mem_type_to_offset_end.clear();
   mem_type_to_real_atomic_sizes.clear();
-  EXPECT_EQ(graph_mem_assigner.AssignOrdinaryAtomicWorkspaceMemory(
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignOrdinaryAtomicWorkspaceMemory(
                 node->GetOpDesc(), workspace_info, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
             FAILED);
 }
@@ -1411,8 +1429,9 @@ TEST_F(UtestGraphMemAssigner, AssignFusionAtomicWorkspaceMemory1) {
   GraphMemoryAssigner graph_mem_assigner(graph);
   graph_mem_assigner.memory_offset_.clear();
   graph_mem_assigner.memory_offset_.insert(std::make_pair<int64_t, MemoryOffset>(RT_MEMORY_HBM, MemoryOffset(1, 1024)));
-  EXPECT_EQ(graph_mem_assigner.AssignFusionAtomicWorkspaceMemory(node->GetOpDesc(), workspace_info,
-                                                                 mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignFusionAtomicWorkspaceMemory(
+                node->GetOpDesc(), workspace_info, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
             SUCCESS);
   for (auto size : mem_type_to_real_atomic_sizes[RT_MEMORY_HBM]) {
     EXPECT_EQ(size % 512, 0);
@@ -1426,8 +1445,9 @@ TEST_F(UtestGraphMemAssigner, AssignFusionAtomicWorkspaceMemory) {
   std::map<int64_t, std::vector<int64_t>> mem_type_to_offset_end;
   std::map<int64_t, std::vector<int64_t>> mem_type_to_real_atomic_sizes;
   GraphMemoryAssigner graph_mem_assigner(graph);
-  EXPECT_EQ(graph_mem_assigner.AssignFusionAtomicWorkspaceMemory(node->GetOpDesc(), workspace_info,
-                                                                 mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
+  InitAtomicMemoryAssigner(graph_mem_assigner, graph);
+  EXPECT_EQ(graph_mem_assigner.atomic_memory_assigner_->AssignFusionAtomicWorkspaceMemory(
+                node->GetOpDesc(), workspace_info, mem_type_to_offset_end, mem_type_to_real_atomic_sizes),
             FAILED);
 }
 
@@ -2298,39 +2318,40 @@ TEST_F(UtestGraphMemAssigner, AssignMemory_EmptyGraph_Success) {
   auto ret = assigner.AssignMemory();
 }
 
-TEST_F(UtestGraphMemAssigner, MemReuseUtils_IsNoPaddingContinuousInput_NotSet) {
-  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding");
-  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
-  op_desc->AddInputDesc(GeTensorDesc());
-  op_desc->AddInputDesc(GeTensorDesc());
-  auto node = compute_graph->AddNode(op_desc);
-  EXPECT_FALSE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
-}
+TEST_F(UtestGraphMemAssigner, Success) {
+  auto hcomallgather = OP_CFG(HCOMALLGATHER).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto cast = OP_CFG(CAST).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 112});
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", DATA)
+              ->NODE("cast", cast)
+              ->EDGE(0, 0)
+              ->NODE("hcomallgather", hcomallgather)
+              ->EDGE(0, 0)
+              ->NODE("add", ADD)
+              ->EDGE(0, 0)
+              ->NODE("netoutput", NETOUTPUT));
+  };
+  auto graph = ToComputeGraph(g1);
+  auto node = graph->FindNode("hcomallgather");
+  ASSERT_NE(node, nullptr);
+  (void)ge::AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_NOPADDING_CONTINUOUS_OUTPUT, true);
+  (void)ge::AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_OUTPUT_REUSE_INPUT, true);
+  (void)ge::AttrUtils::SetInt(node->GetOpDesc(), ge::ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, 0);
 
-TEST_F(UtestGraphMemAssigner, MemReuseUtils_IsNoPaddingContinuousInput_SetButSingleInput) {
-  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding2");
-  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
-  op_desc->AddInputDesc(GeTensorDesc());
-  AttrUtils::SetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, true);
-  auto node = compute_graph->AddNode(op_desc);
-  EXPECT_FALSE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
-}
+  UpdateGraphTensorSize(graph);
+  graph->TopologicalSorting();
 
-TEST_F(UtestGraphMemAssigner, MemReuseUtils_IsNoPaddingContinuousInput_SetMultiInput) {
-  auto compute_graph = std::make_shared<ComputeGraph>("test_nopadding3");
-  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
-  op_desc->AddInputDesc(GeTensorDesc());
-  op_desc->AddInputDesc(GeTensorDesc());
-  AttrUtils::SetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, true);
-  auto node = compute_graph->AddNode(op_desc);
-  EXPECT_TRUE(MemReuseUtils::IsNoPaddingContinuousInput(node.get()));
-}
-
-TEST_F(UtestGraphMemAssigner, MemReuseUtils_GetOutputNoAlignSize_Success) {
-  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
-  op_desc->AddOutputDesc(GeTensorDesc(GeShape({2, 3}), FORMAT_ND, DT_FLOAT));
-  size_t size = 0;
-  EXPECT_EQ(MemReuseUtils::GetOutputNoAlignSize(*op_desc, 0, size), SUCCESS);
-  EXPECT_GT(size, 0U);
+  std::map<uint64_t, size_t> mem_offset;
+  size_t zero_copy_mem_size = 10;
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  EXPECT_EQ(graph_mem_assigner.AssignMemory(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.ReAssignMemory(mem_offset), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.AssignZeroCopyMemory(mem_offset, zero_copy_mem_size), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.AssignMemory2HasRefAttrNode(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.AssignReferenceMemory(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.AssignVarAttr2Nodes(), SUCCESS);
+  EXPECT_EQ(graph_mem_assigner.SetInputOffset(), SUCCESS);
+  MemoryAssigner mem_assigner(graph);
+  EXPECT_EQ(mem_assigner.AssignMemory(mem_offset, zero_copy_mem_size), SUCCESS);
 }
 }  // namespace ge
