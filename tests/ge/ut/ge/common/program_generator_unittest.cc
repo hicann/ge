@@ -6803,4 +6803,255 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {
   EXPECT_NE(load_run.find("weight_mem_size"), std::string::npos);
 }
 
+void AppendShapeType(std::string &out, int32_t type_value) {
+  size_t len = sizeof(int32_t) + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_SHAPE_TYPE;
+  aicpu_ext_info->infoLen = sizeof(int32_t);
+  *(ge::PtrToPtr<char, int32_t>(aicpu_ext_info->infoMsg)) = type_value;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendShapeTypeWrongLen(std::string &out) {
+  size_t len = 2U + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_SHAPE_TYPE;
+  aicpu_ext_info->infoLen = 2U;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendUnknownInfoType(std::string &out) {
+  size_t len = sizeof(int32_t) + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = 9999;
+  aicpu_ext_info->infoLen = sizeof(int32_t);
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendWorkSpaceInfoWrongLen(std::string &out) {
+  size_t len = 2U + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_WORKSPACE_INFO;
+  aicpu_ext_info->infoLen = 2U;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendAsyncWaitWrongLen(std::string &out) {
+  size_t len = 2U + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_ASYNCWAIT;
+  aicpu_ext_info->infoLen = 2U;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendTopicTypeWrongLen(std::string &out) {
+  size_t len = 2U + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_TOPIC_TYPE;
+  aicpu_ext_info->infoLen = 2U;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendTopicTypeInvalid(std::string &out) {
+  size_t len = sizeof(int32_t) + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_TOPIC_TYPE;
+  aicpu_ext_info->infoLen = sizeof(int32_t);
+  *(ge::PtrToPtr<char, int32_t>(aicpu_ext_info->infoMsg)) = 0xFF;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseEmptyExtInfo) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string empty_ext_info;
+  EXPECT_EQ(handler.Parse(empty_ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseWithShapeType) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendShapeType(ext_info, static_cast<int32_t>(0));
+  EXPECT_EQ(handler.Parse(ext_info), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseWithShapeTypeWrongLen) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendShapeTypeWrongLen(ext_info);
+  EXPECT_EQ(handler.Parse(ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseWithShapeTypeWrongType) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendShapeType(ext_info, 999);
+  EXPECT_EQ(handler.Parse(ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseWithUnknownInfoType) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendUnknownInfoType(ext_info);
+  EXPECT_EQ(handler.Parse(ext_info), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseWorkSpaceInfoWrongLen) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendWorkSpaceInfoWrongLen(ext_info);
+  EXPECT_EQ(handler.Parse(ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseAsyncWaitWrongLen) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendAsyncWaitWrongLen(ext_info);
+  EXPECT_EQ(handler.Parse(ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_ParseTopicTypeWrongLen) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendTopicTypeWrongLen(ext_info);
+  EXPECT_EQ(handler.Parse(ext_info), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateExecuteMode_NoBitMap) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfoWithWorkSpace();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+  EXPECT_EQ(handler.UpdateExecuteMode(true), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateExecuteMode_WithBitMap) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+  EXPECT_EQ(handler.UpdateExecuteMode(false), SUCCESS);
+  EXPECT_EQ(handler.UpdateExecuteMode(true), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateSessionInfoId_WithSessionInfo) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+  EXPECT_EQ(handler.UpdateSessionInfoId(12345U), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateSessionInfoId_NoSessionInfo) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfoWithWorkSpace();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+  EXPECT_EQ(handler.UpdateSessionInfoId(12345U), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateWorkSpaceInfo_NoWorkspace) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+  EXPECT_EQ(handler.UpdateWorkSpaceInfo(1024U, 2048U), FAILED);
+}
+
+TEST_F(ProgramGeneratorUt, AicpuExtInfoHandler_UpdateShapeAndTypeGeShape_DimsOverMax) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  std::vector<int64_t> dims;
+  for (size_t i = 0; i <= aicpu::FWKAdapter::kMaxShapeDims + 1; ++i) {
+    dims.push_back(static_cast<int64_t>(i));
+  }
+  GeShape shape(dims);
+  AicpuShapeAndType shape_and_type = {};
+  EXPECT_EQ(om2::Om2AicpuExtInfoHandler::UpdateShapeAndType(shape, DT_FLOAT, &shape_and_type),
+            ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_GetWorkspaceMemTypeByPriority_AllTypes) {
+  auto p2p_type = Om2ModelUtils::GetWorkspaceMemTypeByPriority(true, false, false, false);
+  auto l1_type = Om2ModelUtils::GetWorkspaceMemTypeByPriority(false, true, false, false);
+  auto ub_type = Om2ModelUtils::GetWorkspaceMemTypeByPriority(false, false, true, false);
+  auto session_type = Om2ModelUtils::GetWorkspaceMemTypeByPriority(false, false, false, true);
+  auto hbm_type = Om2ModelUtils::GetWorkspaceMemTypeByPriority(false, false, false, false);
+  EXPECT_NE(p2p_type, hbm_type);
+  EXPECT_NE(l1_type, hbm_type);
+  EXPECT_NE(ub_type, hbm_type);
+  EXPECT_NE(session_type, hbm_type);
+  EXPECT_EQ(hbm_type, RT_MEMORY_HBM);
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_ValidateMemRange_Overflow) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  EXPECT_FALSE(Om2ModelUtils::ValidateMemRange(op_desc, 1024U, std::numeric_limits<int64_t>::max(), 1));
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_ValidateMemRange_OutOfRange) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  EXPECT_FALSE(Om2ModelUtils::ValidateMemRange(op_desc, 100U, 50, 200));
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_ValidateMemRange_Success) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Add");
+  EXPECT_TRUE(Om2ModelUtils::ValidateMemRange(op_desc, 1024U, 0, 512));
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_GetValidatedTensorMemType_InvalidType) {
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  AttrUtils::SetInt(tensor_desc, ATTR_NAME_TENSOR_MEM_TYPE, 9999);
+  std::vector<int64_t> mem_types;
+  uint64_t memory_type = 0U;
+  EXPECT_EQ(Om2ModelUtils::GetValidatedTensorMemType(tensor_desc, mem_types, 0, memory_type), FAILED);
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_GetValidatedTensorMemType_FromMemTypes) {
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  std::vector<int64_t> mem_types = {static_cast<int64_t>(RT_MEMORY_HBM)};
+  uint64_t memory_type = 0U;
+  EXPECT_EQ(Om2ModelUtils::GetValidatedTensorMemType(tensor_desc, mem_types, 0, memory_type), SUCCESS);
+  EXPECT_EQ(memory_type, RT_MEMORY_HBM);
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_GetValidatedTensorMemType_DefaultHBM) {
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  std::vector<int64_t> mem_types;
+  uint64_t memory_type = 0U;
+  EXPECT_EQ(Om2ModelUtils::GetValidatedTensorMemType(tensor_desc, mem_types, 0, memory_type), SUCCESS);
+  EXPECT_EQ(memory_type, RT_MEMORY_DEFAULT);
+}
+
+TEST_F(ProgramGeneratorUt, Om2ModelUtils_ArgsSizeAlign8_Success) {
+  EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint32_t>(1)), 8U);
+  EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint32_t>(8)), 8U);
+  EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint32_t>(9)), 16U);
+  EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(1)), 8UL);
+  EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(16)), 16UL);
+}
 }  // namespace ge

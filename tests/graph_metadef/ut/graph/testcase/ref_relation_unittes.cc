@@ -1141,4 +1141,103 @@ TEST_F(UTTEST_RefRelations, IncCov_Clear_Success) {
   EXPECT_EQ(status, GRAPH_SUCCESS);
   EXPECT_EQ(result.size(), 0U);
 }
+
+TEST_F(UTTEST_RefRelations, IncCov_BuildRefRelations_CallTwice) {
+  auto main_graph = BuildMainGraphWithIf();
+  RefRelations ref_builder;
+  auto status = ref_builder.BuildRefRelations(*main_graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+  status = ref_builder.BuildRefRelations(*main_graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
+
+ComputeGraphPtr BuildMainGraphWithSameVariable() {
+  ut::GraphBuilder builder("main_graph_var");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  auto var1 = builder.AddNode("shared_var", "Variable", 0, 1);
+  auto if1 = builder.AddNode("if", "If", 1, 1);
+  auto netoutput1 = builder.AddNode("netoutput", "NetOutput", 1, 1);
+
+  builder.AddDataEdge(data1, 0, if1, 0);
+  builder.AddDataEdge(if1, 0, netoutput1, 0);
+
+  auto main_graph = builder.GetGraph();
+
+  ut::GraphBuilder sub_builder("sub1_var");
+  auto sub_data1 = sub_builder.AddNode("sub1data1", "Data", 1, 1);
+  auto sub_var1 = sub_builder.AddNode("shared_var", "Variable", 0, 1);
+  auto sub_netoutput = sub_builder.AddNode("sub1netoutput", "NetOutput", 1, 1);
+
+  AttrUtils::SetInt(sub_data1->GetOpDesc(), "_parent_node_index", static_cast<int>(0));
+  AttrUtils::SetInt(sub_netoutput->GetOpDesc()->MutableInputDesc(0), "_parent_node_index", static_cast<int>(0));
+
+  sub_builder.AddDataEdge(sub_data1, 0, sub_netoutput, 0);
+
+  auto sub1 = sub_builder.GetGraph();
+  sub1->SetParentGraph(main_graph);
+  sub1->SetParentNode(main_graph->FindNode("if"));
+  main_graph->FindNode("if")->GetOpDesc()->AddSubgraphName("sub1");
+  main_graph->FindNode("if")->GetOpDesc()->SetSubgraphInstanceName(0, "sub1");
+  main_graph->AddSubgraph("sub1", sub1);
+
+  return main_graph;
+}
+
+TEST_F(UTTEST_RefRelations, IncCov_BuildRelationsForVariables) {
+  auto main_graph = BuildMainGraphWithSameVariable();
+  RefRelations ref_builder;
+  auto status = ref_builder.BuildRefRelations(*main_graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+
+  auto var1 = main_graph->FindNode("shared_var");
+  ASSERT_NE(var1, nullptr);
+  RefCell key("shared_var", var1, NODE_OUT, 0);
+  std::unordered_set<RefCell, RefCellHash> result;
+  status = ref_builder.LookUpRefRelations(key, result);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+  EXPECT_GE(result.size(), 1U);
+}
+
+TEST_F(UTTEST_RefRelations, IncCov_LookUpRefRelations_AfterClear) {
+  auto main_graph = BuildMainGraphWithIf();
+  RefRelations ref_builder;
+  auto status = ref_builder.BuildRefRelations(*main_graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+
+  (void)ref_builder.Clear();
+
+  auto if1 = main_graph->FindNode("if");
+  RefCell key("if", if1, NODE_IN, 0);
+  std::unordered_set<RefCell, RefCellHash> result;
+  status = ref_builder.LookUpRefRelations(key, result);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+  EXPECT_EQ(result.size(), 0U);
+}
+
+TEST_F(UTTEST_RefRelations, IncCov_BuildRefRelations_EmptyGraph) {
+  ut::GraphBuilder builder("empty_graph");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 1);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  RefRelations ref_builder;
+  auto status = ref_builder.BuildRefRelations(*graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
+
+TEST_F(UTTEST_RefRelations, IncCov_BuildRefRelations_WhileWithMultipleNetoutputs) {
+  auto main_graph = BuildMainGraphWithWhile2();
+  RefRelations ref_builder;
+  (void)ref_builder.Clear();
+  auto status = ref_builder.BuildRefRelations(*main_graph);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+
+  auto while1 = main_graph->FindNode("while1");
+  ASSERT_NE(while1, nullptr);
+  RefCell key("while1", while1, NODE_IN, 0);
+  std::unordered_set<RefCell, RefCellHash> result;
+  status = ref_builder.LookUpRefRelations(key, result);
+  EXPECT_EQ(status, GRAPH_SUCCESS);
+}
 }  // namespace ge

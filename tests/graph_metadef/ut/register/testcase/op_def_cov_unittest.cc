@@ -628,4 +628,55 @@ TEST_F(OpDefCovUT, OpDef_FollowListImpl) {
   std::vector<OpParamDef> output = opDef.GetOutputs();
   opDef.FollowListImpl(dfs_param, input, output);
 }
+
+TEST_F(OpDefCovUT, OpDef_CopyConstructor) {
+  OpDef opDef1("TestCopyCtor");
+  opDef1.Input("x").DataType({ge::DT_FLOAT16});
+  opDef1.Output("y").DataType({ge::DT_FLOAT16});
+  OpDef opDef2(opDef1);
+  EXPECT_EQ(opDef2.GetOpType(), ge::AscendString("TestCopyCtor"));
+  EXPECT_EQ(opDef2.GetInputs().size(), 1U);
+  EXPECT_EQ(opDef2.GetOutputs().size(), 1U);
+}
+
+TEST_F(OpDefCovUT, OpDef_CommentAndGetComments) {
+  OpDef opDef("TestComment");
+  opDef.Comment(CommentSection::CATEGORY, "TestCategory");
+  opDef.Comment(CommentSection::BRIEF, "TestBrief");
+  opDef.Comment(CommentSection::CONSTRAINTS, "TestConstraints");
+  opDef.Comment(CommentSection::RESTRICTIONS, "TestRestrictions");
+  opDef.Comment(CommentSection::SEE, "TestSee");
+  opDef.Comment(CommentSection::THIRDPARTYFWKCOMPAT, "TestCompat");
+  EXPECT_FALSE(opDef.GetBrief().empty());
+  EXPECT_FALSE(opDef.GetConstraints().empty());
+  EXPECT_FALSE(opDef.GetRestrictions().empty());
+  EXPECT_FALSE(opDef.GetSee().empty());
+  EXPECT_FALSE(opDef.GetThirdPartyFwkCopat().empty());
+}
+
+TEST_F(OpDefCovUT, OpDef_GetMergeInputsAndOutputs) {
+  OpDef opDef("TestMergeIO2");
+  opDef.Input("x").DataType({ge::DT_FLOAT16});
+  opDef.Output("y").DataType({ge::DT_FLOAT16});
+  opDef.AICore().AddConfig("ascend910");
+  auto aicoreMap = opDef.AICore().GetAICoreConfigs();
+  auto aicore = aicoreMap["ascend910"];
+  auto mergeInputs = opDef.GetMergeInputs(aicore);
+  EXPECT_FALSE(mergeInputs.empty());
+  auto mergeOutputs = opDef.GetMergeOutputs(aicore);
+  EXPECT_FALSE(mergeOutputs.empty());
+}
+
+TEST_F(OpDefCovUT, OpDef_FormatMatchMode) {
+  OpDef opDef("TestFormatMatchMode");
+  opDef.FormatMatchMode(FormatCheckOption::STRICT);
+  EXPECT_EQ(opDef.GetFormatMatchMode(), FormatCheckOption::STRICT);
+}
+
+TEST_F(OpDefCovUT, OpDef_EnableFallBack) {
+  OpDef opDef("TestEnableFallBack");
+  EXPECT_FALSE(opDef.IsEnableFallBack());
+  opDef.EnableFallBack();
+  EXPECT_TRUE(opDef.IsEnableFallBack());
+}
 }  // namespace ops

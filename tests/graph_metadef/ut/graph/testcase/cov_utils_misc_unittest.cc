@@ -1,11 +1,27 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
 #include <gtest/gtest.h>
 #include <thread>
 #include <chrono>
 #include "graph/utils/graph_thread_pool.h"
-#include "graph/utils/multi_thread_graph_builder.h"
-#include "graph/utils/type_utils.h"
 #include "graph/graph.h"
 #include "graph/utils/graph_utils.h"
+#define private public
+#define protected public
+#include "graph/utils/multi_thread_graph_builder.h"
+#undef private
+#undef protected
+#include "graph/utils/type_utils.h"
+#include "graph/normal_graph/operator_impl.h"
+#include "graph/debug/ge_util.h"
 
 namespace ge {
 
@@ -196,4 +212,107 @@ TEST_F(CovUtilsMiscTest, CovMultiThreadGraphBuilderMultipleInputsWithLinks) {
   SUCCEED();
 }
 
+TEST_F(CovUtilsMiscTest, CovMultiThreadGetGraphRelatedOperators) {
+  ge::Operator data_op = ge::Operator("CovRelData", "Data");
+  ge::Operator relu_op = ge::Operator("CovRelRelu", "Relu");
+  data_op.InputRegister("x");
+  data_op.OutputRegister("y");
+  relu_op.InputRegister("x");
+  relu_op.OutputRegister("y");
+  relu_op.SetInput(0U, data_op, 0U);
+  std::vector<ge::Operator> inputs{data_op};
+  std::vector<OperatorImplPtr> related_ops;
+  EXPECT_EQ(MultiThreadGraphBuilder::GetGraphRelatedOperators(inputs, related_ops), GRAPH_SUCCESS);
+  EXPECT_GE(related_ops.size(), 1U);
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadGetOutputLinkOps) {
+  ge::Operator data_op = ge::Operator("CovLinkData", "Data");
+  ge::Operator relu_op = ge::Operator("CovLinkRelu", "Relu");
+  data_op.InputRegister("x");
+  data_op.OutputRegister("y");
+  relu_op.InputRegister("x");
+  relu_op.OutputRegister("y");
+  relu_op.SetInput(0U, data_op, 0U);
+  relu_op.AddControlInput(data_op);
+  std::vector<OperatorImplPtr> output_ops;
+  MultiThreadGraphBuilder::GetOutputLinkOps(data_op.operator_impl_, output_ops);
+  EXPECT_GE(output_ops.size(), 1U);
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadWalkForwardOperators) {
+  ge::Operator data_op = ge::Operator("CovWalkData", "Data");
+  ge::Operator relu_op = ge::Operator("CovWalkRelu", "Relu");
+  ge::Operator add_op = ge::Operator("CovWalkAdd", "Add");
+  data_op.InputRegister("x");
+  data_op.OutputRegister("y");
+  relu_op.InputRegister("x");
+  relu_op.OutputRegister("y");
+  add_op.InputRegister("x1");
+  add_op.InputRegister("x2");
+  add_op.OutputRegister("y");
+  relu_op.SetInput(0U, data_op, 0U);
+  add_op.SetInput(0U, relu_op, 0U);
+  add_op.SetInput(1U, data_op, 0U);
+  std::vector<OperatorImplPtr> vec_ops{data_op.operator_impl_};
+  std::vector<OperatorImplPtr> related_ops;
+  EXPECT_EQ(MultiThreadGraphBuilder::WalkForwardOperators(vec_ops, related_ops), GRAPH_SUCCESS);
+  EXPECT_GE(related_ops.size(), 2U);
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadResetOpSubgraphBuilderNullBuilder) {
+  ge::Operator if_op = ge::Operator("CovNullBuilderIf", "If");
+  if_op.InputRegister("cond");
+  if_op.DynamicInputRegister("input", 1);
+  if_op.DynamicOutputRegister("output", 1);
+  if_op.SubgraphRegister("then_branch", false);
+  if_op.SubgraphCountRegister("then_branch", 1);
+
+  MultiThreadGraphBuilder builder(2);
+  auto op_desc = if_op.operator_impl_->op_desc_;
+  ASSERT_NE(op_desc, nullptr);
+  builder.ResetOpSubgraphBuilder(op_desc, if_op.operator_impl_);
+  SUCCEED();
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadSetInputsWithPoolDirectly) {
+  ge::Operator data_op = ge::Operator("CovPoolData", "Data");
+  ge::Operator relu_op = ge::Operator("CovPoolRelu", "Relu");
+  data_op.InputRegister("x");
+  data_op.OutputRegister("y");
+  relu_op.InputRegister("x");
+  relu_op.OutputRegister("y");
+  relu_op.SetInput(0U, data_op, 0U);
+
+  MultiThreadGraphBuilder builder(2);
+  builder.pool_ = ComGraphMakeUnique<GraphThreadPool>(2);
+  ASSERT_NE(builder.pool_, nullptr);
+  ge::Graph graph("cov_pool_direct");
+  std::vector<ge::Operator> inputs{data_op};
+  auto &result = builder.SetInputs(inputs, graph);
+  SUCCEED();
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadGetGraphRelatedOperatorsEmpty) {
+  std::vector<ge::Operator> inputs;
+  std::vector<OperatorImplPtr> related_ops;
+  EXPECT_EQ(MultiThreadGraphBuilder::GetGraphRelatedOperators(inputs, related_ops), GRAPH_SUCCESS);
+  EXPECT_EQ(related_ops.size(), 0U);
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadWalkForwardOperatorsEmpty) {
+  std::vector<OperatorImplPtr> vec_ops;
+  std::vector<OperatorImplPtr> related_ops;
+  EXPECT_EQ(MultiThreadGraphBuilder::WalkForwardOperators(vec_ops, related_ops), GRAPH_SUCCESS);
+  EXPECT_EQ(related_ops.size(), 0U);
+}
+
+TEST_F(CovUtilsMiscTest, CovMultiThreadGetOutputLinkOpsNoLinks) {
+  ge::Operator data_op = ge::Operator("CovNoLinkData", "Data");
+  data_op.InputRegister("x");
+  data_op.OutputRegister("y");
+  std::vector<OperatorImplPtr> output_ops;
+  MultiThreadGraphBuilder::GetOutputLinkOps(data_op.operator_impl_, output_ops);
+  EXPECT_EQ(output_ops.size(), 0U);
+}
 }  // namespace ge

@@ -14,6 +14,7 @@
 #include "common/om2/codegen/ast/ast_nodes.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/ast/ast_context.h"
+#include "framework/common/taskdown_common.h"
 
 namespace ge {
 
@@ -23,29 +24,35 @@ class UtestStreamSwitchTaskCodeBuilder : public ::testing::Test {
     builder_ = std::make_unique<StreamSwitchTaskCodeBuilder>(ast_);
   }
 
-  void TearDown() override {
-    // 清理测试残留
-  }
+  void TearDown() override {}
 
   AstContext ctx_;
   AstBuildContext ast_{ctx_};
   std::unique_ptr<StreamSwitchTaskCodeBuilder> builder_;
 };
 
-// 覆盖 RenderDistHelper 正常执行路径
 TEST_F(UtestStreamSwitchTaskCodeBuilder, RenderDistHelperSuccess) {
   std::vector<DeclNode *> items;
-
-  // 1. 调用目标函数
   Status ret = builder_->RenderDistHelper(items);
-
-  // 2. 验证返回值
   EXPECT_EQ(ret, SUCCESS);
-
-  // 3. 验证生成了函数定义节点（distribute + dispatch）
   ASSERT_GE(items.size(), 1U);
   ASSERT_NE(items[0], nullptr);
   items.clear();
+}
+
+TEST_F(UtestStreamSwitchTaskCodeBuilder, ParseOpIndex_Success) {
+  domi::TaskDef task_def;
+  task_def.mutable_stream_switch()->set_op_index(42);
+  EXPECT_EQ(builder_->ParseOpIndex(task_def), 42);
+}
+
+TEST_F(UtestStreamSwitchTaskCodeBuilder, ParseOpIndex_DefaultZero) {
+  domi::TaskDef task_def;
+  EXPECT_EQ(builder_->ParseOpIndex(task_def), 0);
+}
+
+TEST_F(UtestStreamSwitchTaskCodeBuilder, GetFuncName_NotEmpty) {
+  EXPECT_FALSE(builder_->GetFuncName().empty());
 }
 
 }  // namespace ge

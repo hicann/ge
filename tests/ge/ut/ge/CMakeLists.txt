@@ -747,6 +747,7 @@ target_link_libraries(ut_libge_multiparts_utest
     ge_runner
     udf_compiler
     ge_runner_v2
+    dflow_runner
     engine
     json
     minizip_static

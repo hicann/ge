@@ -514,6 +514,12 @@ VOID *mmDlsym(VOID *handle, const CHAR *funcName) {
     return (void *)&MockIsEnableMdeTopoSort;
   }
 
+  if ((handle == libcce_name.data()) || (handle == libopmaster_rt2_name.data()) ||
+      (handle == libopmaster_error_rt2_name.data()) || (handle == libmdat_name.data()) ||
+      (handle == libruntime_name.data())) {
+    return nullptr;
+  }
+
   if (reinterpret_cast<uintptr_t>(handle) < 0x8000 && handle != nullptr) {
     return nullptr;
   }

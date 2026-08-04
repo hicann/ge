@@ -3030,4 +3030,444 @@ TEST_F(UtestOperater, IncCov_OperatorImplSubgraph) {
   EXPECT_EQ(impl_ptr->GetSubgraphNamesCount(), 2UL);
   op.BreakConnect();
 }
+
+TEST_F(UtestOperater, IncCov_GetInputConstDataOut_StringNotFound) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  Tensor data;
+  EXPECT_EQ(impl->GetInputConstDataOut("nonexistent", data), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, IncCov_SetInputImpl_NullOutHandler) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddInputDesc("x", tensor_desc);
+  impl->GetOpDescImpl()->AddOutputDesc("y", tensor_desc);
+  Operator src_op(std::move(impl));
+  src_op.operator_impl_->GetOpDescImpl()->impl_->outputs_desc_.clear();
+  src_op.operator_impl_->GetOpDescImpl()->impl_->output_name_idx_.clear();
+  src_op.operator_impl_->GetOpDescImpl()->impl_->outputs_desc_.push_back(std::make_shared<GeTensorDesc>(tensor_desc));
+  EXPECT_EQ(src_op.GetOutputsSize(), 1U);
+  src_op.operator_impl_->SetInputImpl("x", src_op);
+}
+
+TEST_F(UtestOperater, IncCov_GetFromPeerNode_FileConstant) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto fileconst_node = builder.AddNode("FileConst", "FileConstant", 0, 1);
+  AttrUtils::SetStr(fileconst_node->GetOpDesc(), "location", "./nonexistent_file.bin");
+  AttrUtils::SetInt(fileconst_node->GetOpDesc(), "length", 4);
+  AttrUtils::SetDataType(fileconst_node->GetOpDesc(), "dtype", DT_UINT8);
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+  data_node->GetOpDesc()->impl_->input_name_idx_["x"] = 0;
+  builder.AddDataEdge(fileconst_node, 0, data_node, 0);
+  auto op = OpDescUtils::CreateOperatorFromNode(data_node);
+  Tensor tensor;
+  EXPECT_EQ(op.GetInputConstData("x", tensor), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, IncCov_GetFromPeerNode_PlaceholderFail) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto placeholder_node = builder.AddNode("Placeholder", "PlaceHolder", 0, 1);
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+  data_node->GetOpDesc()->impl_->input_name_idx_["x"] = 0;
+  builder.AddDataEdge(placeholder_node, 0, data_node, 0);
+  auto op = OpDescUtils::CreateOperatorFromNode(data_node);
+  Tensor tensor;
+  EXPECT_EQ(op.GetInputConstData("x", tensor), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, IncCov_GetFromPeerNode_EnterType) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto enter_node = builder.AddNode("Enter", "Enter", 1, 1);
+  auto const_node = builder.AddNode("Const", "Const", 0, 1);
+  auto ge_tensor = std::make_shared<GeTensor>();
+  AttrUtils::SetTensor(const_node->GetOpDesc(), "value", ge_tensor);
+  builder.AddDataEdge(const_node, 0, enter_node, 0);
+  auto data_node = builder.AddNode("Data", "Data", 1, 1);
+  data_node->GetOpDesc()->impl_->input_name_idx_["x"] = 0;
+  builder.AddDataEdge(enter_node, 0, data_node, 0);
+  auto op = OpDescUtils::CreateOperatorFromNode(data_node);
+  Tensor tensor;
+  EXPECT_EQ(op.GetInputConstData("x", tensor), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_UpdateOutputDesc_NullOwnerInLinks) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddOutputDesc("y", tensor_desc);
+  ge::OpIO null_io("y", 0, nullptr);
+  impl->UpdateLinkMapImpl("y", null_io);
+  EXPECT_EQ(impl->UpdateOutputDesc("y", tensor_desc), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorImpl_SetNodeTwice) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  EXPECT_EQ(impl->SetNode(nullptr), GRAPH_SUCCESS);
+  EXPECT_EQ(impl->SetNode(nullptr), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_GetInputConstDataOut_ConstantType) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Constant");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddOutputDesc("y", tensor_desc);
+  auto ge_tensor = std::make_shared<GeTensor>();
+  AttrUtils::SetTensor(impl->GetOpDescImpl(), "value", ge_tensor);
+  auto src_impl = std::make_shared<OperatorImpl>("src", "Test");
+  src_impl->GetOpDescImpl()->AddInputDesc("x", tensor_desc);
+  src_impl->GetOpDescImpl()->impl_->input_name_idx_["x"] = 0;
+  ge::OpIO out_handle("y", 0, impl);
+  src_impl->input_link_.insert({"x", out_handle});
+  ConstGeTensorPtr ge_tensor_ptr;
+  EXPECT_EQ(src_impl->GetInputConstDataOut(0U, ge_tensor_ptr), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_GetInputConstDataOut_StringConstantType) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Constant");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddOutputDesc("y", tensor_desc);
+  auto ge_tensor = std::make_shared<GeTensor>();
+  AttrUtils::SetTensor(impl->GetOpDescImpl(), "value", ge_tensor);
+  auto src_impl = std::make_shared<OperatorImpl>("src", "Test");
+  src_impl->GetOpDescImpl()->AddInputDesc("x", tensor_desc);
+  src_impl->GetOpDescImpl()->impl_->input_name_idx_["x"] = 0;
+  ge::OpIO out_handle("y", 0, impl);
+  src_impl->input_link_.insert({"x", out_handle});
+  Tensor data;
+  EXPECT_EQ(src_impl->GetInputConstDataOut("x", data), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_GetInputConstData_GeTensorAlreadyHasValue) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  ConstGeTensorPtr ge_tensor = std::make_shared<GeTensor>();
+  EXPECT_EQ(impl->GetInputConstData(0U, ge_tensor), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorImpl_ClearLinks) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddOutputDesc("y", tensor_desc);
+  ge::OpIO out_handle("y", 0, impl);
+  impl->UpdateLinkMapImpl("y", out_handle);
+  impl->ClearOutputLinks();
+  impl->ClearInputLinks();
+  EXPECT_EQ(impl->GetInputsSize(), 0UL);
+}
+
+TEST_F(UtestOperater, IncCov_AddControlInput_DuplicateInput) {
+  auto impl1 = std::make_shared<OperatorImpl>("test1", "Test");
+  auto impl2 = std::make_shared<OperatorImpl>("test2", "Test");
+  Operator op1(std::move(impl1));
+  Operator op2(std::move(impl2));
+  op1.AddControlInput(op2);
+  op1.AddControlInput(op2);
+  EXPECT_EQ(op1.operator_impl_->control_input_link_.size(), 1U);
+}
+
+TEST_F(UtestOperater, IncCov_GetInputImpl_ByIndex) {
+  auto impl = std::make_shared<OperatorImpl>("test", "Test");
+  GeTensorDesc tensor_desc;
+  impl->GetOpDescImpl()->AddInputDesc("x", tensor_desc);
+  impl->GetOpDescImpl()->impl_->input_name_idx_["x"] = 0;
+  ge::OpIO out_handle("", 0, nullptr);
+  EXPECT_EQ(impl->GetInputImpl(0U, out_handle), GRAPH_FAILED);
+  EXPECT_EQ(impl->GetInputImpl(100U, out_handle), GRAPH_FAILED);
+}
+
+TEST_F(UtestOperater, CovOpRegisterNullName) {
+  ge::Operator op("test_op", "Test");
+  op.InputRegister(nullptr);
+  op.OutputRegister(nullptr);
+  op.DynamicInputRegister(nullptr, 1);
+  op.DynamicOutputRegister(nullptr, 1);
+  op.DynamicInputRegisterByIndex(nullptr, 1, 0);
+  op.SubgraphRegister(nullptr, false);
+  op.AttrRegister(nullptr, "val");
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpRegisterNullImpl) {
+  ge::Operator op("test_op2", "Test");
+  op.operator_impl_ = nullptr;
+  op.InputRegister("x");
+  op.OutputRegister("y");
+  op.DynamicInputRegister("x", 1);
+  op.DynamicOutputRegister("y", 1);
+  op.DynamicInputRegisterByIndex("x", 1, 0);
+  op.SubgraphRegister("sub", false);
+  op.AttrRegister("attr", "val");
+  op.AttrRegister("attr", static_cast<int64_t>(42));
+  op.AttrRegister("attr", std::vector<int64_t>{1, 2});
+  op.AttrRegister("attr", 3.14F);
+  op.AttrRegister("attr", std::vector<float32_t>{1.0F, 2.0F});
+  op.AttrRegister("attr", true);
+  op.AttrRegister("attr", std::vector<bool>{true, false});
+  op.AttrRegister("attr", std::vector<std::vector<int64_t>>{{1}, {2}});
+  op.AttrRegister("attr", ge::NamedAttrs());
+  op.AttrRegister("attr", std::vector<ge::NamedAttrs>{});
+  op.AttrRegister("attr", AscendString("val"));
+  op.AttrRegister("attr", std::vector<AscendString>{AscendString("a")});
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpAttrRegisterNullNameChar) {
+  ge::Operator op("test_op3", "Test");
+  op.AttrRegister(static_cast<const char_t *>(nullptr), AscendString("val"));
+  op.AttrRegister(static_cast<const char_t *>(nullptr), std::vector<AscendString>{AscendString("a")});
+  op.AttrRegister(static_cast<const char_t *>(nullptr), AttrValue());
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpAttrRegisterInvalidAscendString) {
+  ge::Operator op("test_op4", "Test");
+  AscendString null_str;
+  op.AttrRegister("attr", null_str);
+  std::vector<AscendString> null_vec{AscendString()};
+  op.AttrRegister("attr", null_vec);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetAttrNullImpl) {
+  ge::Operator op("test_op5", "Test");
+  op.operator_impl_ = nullptr;
+  op.SetAttr("attr", std::string("val"));
+  op.SetAttr("attr", static_cast<int64_t>(42));
+  op.SetAttr("attr", std::vector<int64_t>{1});
+  op.SetAttr("attr", 3.14F);
+  op.SetAttr("attr", std::vector<float32_t>{1.0F});
+  op.SetAttr("attr", true);
+  op.SetAttr("attr", std::vector<bool>{true});
+  op.SetAttr("attr", AscendString("val"));
+  op.SetAttr("attr", std::vector<AscendString>{AscendString("a")});
+  op.SetAttr("attr", Tensor());
+  op.SetAttr("attr", std::vector<Tensor>{});
+  op.SetAttr("attr", ge::NamedAttrs());
+  op.SetAttr("attr", std::vector<ge::NamedAttrs>{});
+  op.SetAttr("attr", AttrValue());
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetAttrNullImpl) {
+  ge::Operator op("test_op6", "Test");
+  op.operator_impl_ = nullptr;
+  std::string str_val;
+  op.GetAttr("attr", str_val);
+  int64_t int_val = 0;
+  op.GetAttr("attr", int_val);
+  std::vector<int64_t> int_vec;
+  op.GetAttr("attr", int_vec);
+  float32_t float_val = 0;
+  op.GetAttr("attr", float_val);
+  std::vector<float32_t> float_vec;
+  op.GetAttr("attr", float_vec);
+  bool bool_val = false;
+  op.GetAttr("attr", bool_val);
+  std::vector<bool> bool_vec;
+  op.GetAttr("attr", bool_vec);
+  AscendString ascend_val;
+  op.GetAttr("attr", ascend_val);
+  std::vector<AscendString> ascend_vec;
+  op.GetAttr("attr", ascend_vec);
+  Tensor tensor_val;
+  op.GetAttr("attr", tensor_val);
+  std::vector<Tensor> tensor_vec;
+  op.GetAttr("attr", tensor_vec);
+  ge::NamedAttrs named_val;
+  op.GetAttr("attr", named_val);
+  std::vector<ge::NamedAttrs> named_vec;
+  op.GetAttr("attr", named_vec);
+  AttrValue attr_val;
+  op.GetAttr("attr", attr_val);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetAttrNullNameChar) {
+  ge::Operator op("test_op7", "Test");
+  op.SetAttr(static_cast<const char_t *>(nullptr), AscendString("val"));
+  op.SetAttr(static_cast<const char_t *>(nullptr), std::vector<AscendString>{AscendString("a")});
+  op.SetAttr(static_cast<const char_t *>(nullptr), Tensor());
+  op.SetAttr(static_cast<const char_t *>(nullptr), std::vector<Tensor>{});
+  op.SetAttr(static_cast<const char_t *>(nullptr), ge::NamedAttrs());
+  op.SetAttr(static_cast<const char_t *>(nullptr), std::vector<ge::NamedAttrs>{});
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetAttrNullNameChar) {
+  ge::Operator op("test_op8", "Test");
+  AscendString ascend_val;
+  op.GetAttr(static_cast<const char_t *>(nullptr), ascend_val);
+  std::vector<AscendString> ascend_vec;
+  op.GetAttr(static_cast<const char_t *>(nullptr), ascend_vec);
+  Tensor tensor_val;
+  op.GetAttr(static_cast<const char_t *>(nullptr), tensor_val);
+  std::vector<Tensor> tensor_vec;
+  op.GetAttr(static_cast<const char_t *>(nullptr), tensor_vec);
+  ge::NamedAttrs named_val;
+  op.GetAttr(static_cast<const char_t *>(nullptr), named_val);
+  std::vector<ge::NamedAttrs> named_vec;
+  op.GetAttr(static_cast<const char_t *>(nullptr), named_vec);
+  AttrValue attr_val;
+  op.GetAttr(static_cast<const char_t *>(nullptr), attr_val);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetGetAttrValid) {
+  ge::Operator op("test_op9", "Test");
+  op.AttrRegister("str_attr", "hello");
+  op.AttrRegister("int_attr", static_cast<int64_t>(42));
+  op.AttrRegister("float_attr", 3.14F);
+  op.AttrRegister("bool_attr", true);
+  op.SetAttr("str_attr", std::string("world"));
+  op.SetAttr("int_attr", static_cast<int64_t>(100));
+  op.SetAttr("float_attr", 2.71F);
+  op.SetAttr("bool_attr", false);
+  op.SetAttr("str_attr", AscendString("ascend_val"));
+  op.SetAttr("list_str", std::vector<AscendString>{AscendString("a"), AscendString("b")});
+  std::string str_val;
+  EXPECT_EQ(op.GetAttr("str_attr", str_val), GRAPH_SUCCESS);
+  int64_t int_val = 0;
+  EXPECT_EQ(op.GetAttr("int_attr", int_val), GRAPH_SUCCESS);
+  AscendString ascend_val;
+  op.GetAttr("str_attr", ascend_val);
+  std::vector<AscendString> ascend_vec;
+  op.GetAttr("list_str", ascend_vec);
+  Tensor t;
+  op.SetAttr("tensor_attr", t);
+  op.GetAttr("tensor_attr", t);
+  op.SetAttr("named_attr", ge::NamedAttrs());
+  ge::NamedAttrs na;
+  op.GetAttr("named_attr", na);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpNamedAttrsAndListNamedAttrs) {
+  ge::Operator op("test_op10", "Test");
+  ge::NamedAttrs named;
+  named.SetName("test_named");
+  AttrUtils::SetInt(&named, "key", static_cast<int64_t>(1));
+  op.SetAttr("named", named);
+  ge::NamedAttrs ret_named;
+  EXPECT_EQ(op.GetAttr("named", ret_named), GRAPH_SUCCESS);
+  std::vector<ge::NamedAttrs> list_named{named, named};
+  op.SetAttr("list_named", list_named);
+  std::vector<ge::NamedAttrs> ret_list;
+  EXPECT_EQ(op.GetAttr("list_named", ret_list), GRAPH_SUCCESS);
+  op.AttrRegister("reg_named", named);
+  op.AttrRegister("reg_list_named", list_named);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetInputAttrNullImpl) {
+  ge::Operator op("test_op11", "Test");
+  op.operator_impl_ = nullptr;
+  op.SetInputAttr(0, "attr", "val");
+  op.SetInputAttr(0, "attr", static_cast<int64_t>(42));
+  op.SetInputAttr(0, "attr", 3.14F);
+  op.SetInputAttr(0, "attr", true);
+  op.SetInputAttr(0, "attr", AscendString("val"));
+  op.SetInputAttr("input_name", "attr", "val");
+  op.SetInputAttr("input_name", "attr", static_cast<int64_t>(42));
+  op.SetInputAttr("input_name", "attr", 3.14F);
+  op.SetInputAttr("input_name", "attr", true);
+  op.SetInputAttr("input_name", "attr", AscendString("val"));
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetOutputAttrNullImpl) {
+  ge::Operator op("test_op12", "Test");
+  op.operator_impl_ = nullptr;
+  op.SetOutputAttr(0, "attr", "val");
+  op.SetOutputAttr(0, "attr", static_cast<int64_t>(42));
+  op.SetOutputAttr(0, "attr", 3.14F);
+  op.SetOutputAttr(0, "attr", true);
+  op.SetOutputAttr(0, "attr", AscendString("val"));
+  op.SetOutputAttr("output_name", "attr", "val");
+  op.SetOutputAttr("output_name", "attr", static_cast<int64_t>(42));
+  op.SetOutputAttr("output_name", "attr", 3.14F);
+  op.SetOutputAttr("output_name", "attr", true);
+  op.SetOutputAttr("output_name", "attr", AscendString("val"));
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetInputAttrNullImpl) {
+  ge::Operator op("test_op13", "Test");
+  op.operator_impl_ = nullptr;
+  AscendString str_val;
+  op.GetInputAttr(0, "attr", str_val);
+  op.GetInputAttr("input_name", "attr", str_val);
+  int64_t int_val = 0;
+  op.GetInputAttr(0, "attr", int_val);
+  op.GetInputAttr("input_name", "attr", int_val);
+  AscendString ascend_val;
+  op.GetInputAttr(0, "attr", ascend_val);
+  op.GetInputAttr("input_name", "attr", ascend_val);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetOutputAttrNullImpl) {
+  ge::Operator op("test_op14", "Test");
+  op.operator_impl_ = nullptr;
+  AscendString str_val;
+  op.GetOutputAttr(0, "attr", str_val);
+  op.GetOutputAttr("output_name", "attr", str_val);
+  int64_t int_val = 0;
+  op.GetOutputAttr(0, "attr", int_val);
+  op.GetOutputAttr("output_name", "attr", int_val);
+  AscendString ascend_val;
+  op.GetOutputAttr(0, "attr", ascend_val);
+  op.GetOutputAttr("output_name", "attr", ascend_val);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetDynamicSubgraphBuilderNullImpl) {
+  ge::Operator op("test_op15", "Test");
+  op.operator_impl_ = nullptr;
+  auto builder = op.GetDynamicSubgraphBuilder("sub", 0U);
+  EXPECT_EQ(builder, nullptr);
+}
+
+TEST_F(UtestOperater, CovOpGetSubgraphFailures) {
+  ge::Operator op("test_op16", "Test");
+  auto graph = op.GetSubgraph("nonexistent");
+  EXPECT_FALSE(graph.IsValid());
+  op.SubgraphRegister("sub", false);
+  op.SubgraphCountRegister("sub", 1);
+  graph = op.GetSubgraph("sub");
+  graph = op.GetSubgraph(static_cast<const char_t *>(nullptr));
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpAttrRegisterStringAndVector) {
+  ge::Operator op("test_op17", "Test");
+  op.AttrRegister("str_attr", AscendString("val"));
+  op.AttrRegister("list_str_attr", std::vector<AscendString>{AscendString("a"), AscendString("b")});
+  op.AttrRegister("tensor_attr", std::vector<Tensor>{});
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpSetAttrAttrValue) {
+  ge::Operator op("test_op18", "Test");
+  AttrValue av;
+  op.SetAttr("attr", std::move(av));
+  op.operator_impl_ = nullptr;
+  op.SetAttr("attr", AttrValue());
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpGetInputConstDataOutFail) {
+  ge::Operator op("test_op19", "Test");
+  Tensor data;
+  EXPECT_EQ(op.GetInputConstDataOut("nonexistent", data), GRAPH_FAILED);
+  EXPECT_EQ(op.GetInputConstDataOut(static_cast<const char_t *>(nullptr), data), GRAPH_FAILED);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, CovOpVerifyAll) {
+  ge::Operator op("test_op20", "Test");
+  op.InputRegister("x");
+  op.OutputRegister("y");
+  op.AttrRegister("attr", static_cast<int64_t>(1));
+  EXPECT_EQ(op.VerifyAll(), GRAPH_FAILED);
+  op.operator_impl_ = nullptr;
+  EXPECT_EQ(op.VerifyAll(), GRAPH_FAILED);
+}
+
 }  // namespace ge

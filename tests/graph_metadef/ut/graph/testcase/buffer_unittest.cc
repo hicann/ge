@@ -391,4 +391,98 @@ TEST_F(BufferUT, Cov_Buffer_FromProtoOwnerString) {
   ASSERT_NE(const_buf.GetData(), nullptr);
   EXPECT_EQ(const_buf.data()[0], static_cast<uint8_t>('t'));
 }
+
+TEST_F(BufferUT, Cov_BufferImpl_BadAlloc_LargeSize) {
+  try {
+    Buffer buf(std::numeric_limits<size_t>::max(), 0);
+    EXPECT_EQ(buf.GetSize(), 0UL);
+    EXPECT_EQ(buf.GetData(), nullptr);
+  } catch (const std::exception &) {
+    SUCCEED();
+  }
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_CopyFrom_BadAlloc) {
+  try {
+    std::vector<uint8_t> huge(std::numeric_limits<size_t>::max(), 0);
+    Buffer buf = Buffer::CopyFrom(huge.data(), huge.size());
+    EXPECT_EQ(buf.GetSize(), 0UL);
+  } catch (const std::exception &) {
+    SUCCEED();
+  }
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_CopyConstructor) {
+  uint8_t data[5] = {1, 2, 3, 4, 5};
+  BufferImpl impl1;
+  impl1.CopyFrom(data, sizeof(data));
+  BufferImpl impl2(impl1);
+  EXPECT_EQ(impl2.GetSize(), 5UL);
+  EXPECT_EQ(memcmp(impl2.GetData(), data, sizeof(data)), 0);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_OperatorAssign) {
+  uint8_t data[5] = {10, 20, 30, 40, 50};
+  BufferImpl impl1;
+  impl1.CopyFrom(data, sizeof(data));
+  BufferImpl impl2;
+  impl2 = impl1;
+  EXPECT_EQ(impl2.GetSize(), 5UL);
+  EXPECT_EQ(memcmp(impl2.GetData(), data, sizeof(data)), 0);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_OperatorAssign_SelfAssign) {
+  uint8_t data[3] = {1, 2, 3};
+  BufferImpl impl1;
+  impl1.CopyFrom(data, sizeof(data));
+  BufferImpl &ref = impl1;
+  impl1 = ref;
+  EXPECT_EQ(impl1.GetSize(), 3UL);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_OperatorIndex_Empty) {
+  BufferImpl impl;
+  EXPECT_EQ(impl[0], 0xffU);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_ClearBuffer) {
+  uint8_t data[5] = {1, 2, 3, 4, 5};
+  BufferImpl impl;
+  impl.CopyFrom(data, sizeof(data));
+  EXPECT_EQ(impl.GetSize(), 5UL);
+  impl.ClearBuffer();
+  EXPECT_EQ(impl.GetSize(), 0UL);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_GetDataMutable_WithData) {
+  uint8_t data[5] = {1, 2, 3, 4, 5};
+  BufferImpl impl;
+  impl.CopyFrom(data, sizeof(data));
+  uint8_t *ptr = impl.GetData();
+  ASSERT_NE(ptr, nullptr);
+  ptr[0] = 99;
+  EXPECT_EQ(impl[0], 99);
+}
+
+TEST_F(BufferUT, Cov_BufferImpl_GetDataMutable_EmptyBuffer) {
+  BufferImpl impl;
+  EXPECT_EQ(impl.GetData(), nullptr);
+}
+
+TEST_F(BufferUT, Cov_Buffer_CopyFrom_WithImpl) {
+  uint8_t data[5] = {1, 2, 3, 4, 5};
+  Buffer buf = Buffer::CopyFrom(data, sizeof(data));
+  EXPECT_EQ(buf.GetSize(), 5UL);
+  EXPECT_NE(buf.GetData(), nullptr);
+}
+
+TEST_F(BufferUT, Cov_Buffer_OperatorAssign_OverwriteExisting) {
+  uint8_t data1[3] = {1, 2, 3};
+  uint8_t data2[5] = {4, 5, 6, 7, 8};
+  Buffer buf1 = Buffer::CopyFrom(data1, sizeof(data1));
+  Buffer buf2 = Buffer::CopyFrom(data2, sizeof(data2));
+  buf1 = buf2;
+  EXPECT_EQ(buf1.GetSize(), 5UL);
+  EXPECT_EQ(buf1[0], 4);
+}
 }  // namespace ge

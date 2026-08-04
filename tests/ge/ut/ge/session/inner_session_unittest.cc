@@ -780,4 +780,112 @@ TEST_F(UtestInnerSession, DumpDebugJSONPrint_graph_not_exist) {
   EXPECT_EQ(inner_session.DumpDebugJSONPrint(1U, 0U, json_result), GE_GRAPH_GRAPH_NOT_EXIST);
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
 }
+
+TEST_F(UtestInnerSession, CopyGeOutputsMemToUserOutputs_NonEmptyOutputs_CovEnhance) {
+  std::vector<ge::Tensor> outputs;
+  std::vector<ge::GeTensor> ge_outputs;
+  ge::GeTensorDesc tensor_desc(ge::GeShape({1}), ge::FORMAT_ND, ge::DT_FLOAT16);
+  ge::GeTensor ge_tensor(tensor_desc);
+  ge_outputs.emplace_back(std::move(ge_tensor));
+  ge::Tensor t;
+  outputs.emplace_back(t);
+  CopyGeOutputsMemToUserOutputs(ge_outputs, outputs);
+  EXPECT_EQ(outputs.size(), 1U);
+}
+
+TEST_F(UtestInnerSession, RemoveGraph_NotExist_CovEnhance) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_NE(inner_session.RemoveGraph(999U), SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, SaveVariables_CovEnhance) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  Graph graph("test");
+  std::vector<std::string> var_names = {"var1"};
+  std::vector<ge::Tensor> outputs;
+  std::vector<ge::Tensor> var_values;
+  auto ret = inner_session.SaveVariables(graph, var_names, outputs, var_values);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestInnerSession, RegisterCallBackFunc_AllOverloads_CovEnhance) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  auto ret1 = inner_session.RegisterCallBackFunc("key1", Callback1);
+  EXPECT_EQ(ret1, SUCCESS);
+  auto ret2 = inner_session.RegisterCallBackFunc("key2", Callback2);
+  EXPECT_EQ(ret2, SUCCESS);
+  auto callback3 = [](uint32_t, const std::map<AscendString, gert::Tensor> &) -> Status { return SUCCESS; };
+  auto ret3 = inner_session.RegisterCallBackFunc("key3", callback3);
+  EXPECT_EQ(ret3, SUCCESS);
+}
+
+TEST_F(UtestInnerSession, BuildGraph_InputTensorInfo_CovEnhance) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  std::vector<InputTensorInfo> inputs;
+  InputTensorInfo info;
+  info.dims = {1, 2, 3};
+  info.data_type = 0U;
+  inputs.emplace_back(info);
+  auto ret = inner_session.BuildGraph(1U, inputs);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestInnerSession, RunGraphAsync_NotInit_CovEnhance) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  std::vector<gert::Tensor> inputs;
+  RunAsyncCallbackV2 callback = [](Status, std::vector<gert::Tensor> &) {};
+  auto ret = inner_session.RunGraphAsync(1U, std::move(inputs), callback);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestInnerSession, SetGraphConstMemoryBase_NotExist_CovEnhance) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_NE(inner_session.SetGraphConstMemoryBase(1U, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, UpdateGraphFeatureMemoryBase_NotExist_CovEnhance) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_NE(inner_session.UpdateGraphFeatureMemoryBase(1U, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, UpdateGraphRefreshableFeatureMemoryBase_NotExist_CovEnhance) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_NE(inner_session.UpdateGraphRefreshableFeatureMemoryBase(1U, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, SetGraphFixedFeatureMemoryBase_NotExist_CovEnhance) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_NE(inner_session.SetGraphFixedFeatureMemoryBase(1U, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
 }  // namespace ge

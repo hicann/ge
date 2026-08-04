@@ -5581,4 +5581,404 @@ TEST_F(UtestGraphUtils, CovWriteProtoToTextFileInvalidPath) {
   GraphUtils::WriteProtoToTextFile(model_proto, "/nonexistent_dir/cov_test.txt");
   SUCCEED();
 }
+
+TEST_F(UtestGraphUtils, CovRemoveJustNodeNullNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveJustNode(*graph, nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveJustNodeNotInGraph) {
+  ut::GraphBuilder builder1 = ut::GraphBuilder("graph1");
+  ut::GraphBuilder builder2 = ut::GraphBuilder("graph2");
+  auto node = builder1.AddNode("node1", "Relu", 1, 1);
+  auto graph2 = builder2.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveJustNode(*graph2, node), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveNodeWithoutRelinkNullNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveNodeWithoutRelink(graph, nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveNodesWithoutRelinkBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, relu, 0);
+  builder.AddDataEdge(relu, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+  std::unordered_set<NodePtr> nodes = {relu};
+  EXPECT_EQ(GraphUtils::RemoveNodesWithoutRelink(graph, nodes), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovRecordOriginalNamesWithAttr) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Relu", 1, 1);
+  auto dst = builder.AddNode("dst", "Cast", 1, 1);
+  AttrUtils::SetListStr(src->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, {"orig_name1", "orig_name2"});
+  AttrUtils::SetListStr(src->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_TYPES, {"Relu", "Data"});
+  std::vector<NodePtr> original_nodes = {src};
+  GraphUtils::RecordOriginalNames(original_nodes, dst);
+  std::vector<std::string> names;
+  AttrUtils::GetListStr(dst->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, names);
+  EXPECT_EQ(names.size(), 2U);
+}
+
+TEST_F(UtestGraphUtils, CovRecordOriginalNamesFromStr) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  std::vector<std::string> names = {"name1", "name2"};
+  GraphUtils::RecordOriginalNames(names, node);
+  std::vector<std::string> result;
+  AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, result);
+  EXPECT_EQ(result.size(), 2U);
+}
+
+TEST_F(UtestGraphUtils, CovRecordOriginalNamesEmptyStr) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  std::vector<std::string> names;
+  GraphUtils::RecordOriginalNames(names, node);
+  std::vector<std::string> result;
+  AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, result);
+  EXPECT_EQ(result.size(), 1U);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeNull) {
+  EXPECT_EQ(GraphUtils::IsolateNode(nullptr, {0}), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto cast = builder.AddNode("cast", "Cast", 1, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  builder.AddDataEdge(data, 0, cast, 0);
+  builder.AddDataEdge(cast, 0, relu, 0);
+  EXPECT_EQ(GraphUtils::IsolateNode(cast, {0}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeOneIONull) {
+  EXPECT_EQ(GraphUtils::IsolateNodeOneIO(nullptr), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeOneIOWrongCount) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 2, 2);
+  EXPECT_EQ(GraphUtils::IsolateNodeOneIO(node), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovReplaceNodeAnchorsNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::ReplaceNodeAnchors(nullptr, node, {}, {}), GRAPH_PARAM_INVALID);
+  EXPECT_EQ(GraphUtils::ReplaceNodeAnchors(node, nullptr, {}, {}), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovCopyInCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::CopyInCtrlEdges(nullptr, node), GRAPH_PARAM_INVALID);
+  EXPECT_EQ(GraphUtils::CopyInCtrlEdges(node, nullptr), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovCopyInCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddControlEdge(ctrl1, src);
+  EXPECT_EQ(GraphUtils::CopyInCtrlEdges(src, dst), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovMoveInCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::MoveInCtrlEdges(nullptr, node), GRAPH_FAILED);
+  EXPECT_EQ(GraphUtils::MoveInCtrlEdges(node, nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovMoveInCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddControlEdge(ctrl1, src);
+  EXPECT_EQ(GraphUtils::MoveInCtrlEdges(src, dst), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovCopyOutCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::CopyOutCtrlEdges(nullptr, node), GRAPH_FAILED);
+  EXPECT_EQ(GraphUtils::CopyOutCtrlEdges(node, nullptr), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovCopyOutCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddControlEdge(src, ctrl1);
+  EXPECT_EQ(GraphUtils::CopyOutCtrlEdges(src, dst), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovMoveOutCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::MoveOutCtrlEdges(node, node), GRAPH_SUCCESS);
+  NodePtr null_node;
+  EXPECT_EQ(GraphUtils::MoveOutCtrlEdges(null_node, node), GRAPH_FAILED);
+}
+
+TEST_F(UtestGraphUtils, CovMoveOutCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddControlEdge(src, ctrl1);
+  EXPECT_EQ(GraphUtils::MoveOutCtrlEdges(src, dst), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovConvertInDataEdgesToInCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::ConvertInDataEdgesToInCtrlEdges(nullptr, node, [](const Node &) { return true; }),
+            GRAPH_PARAM_INVALID);
+  EXPECT_EQ(GraphUtils::ConvertInDataEdgesToInCtrlEdges(node, nullptr, [](const Node &) { return true; }),
+            GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovConvertInDataEdgesToInCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto data2 = builder.AddNode("data2", "Data", 0, 1);
+  auto src = builder.AddNode("src", "AddN", 2, 1);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddDataEdge(data1, 0, src, 0);
+  builder.AddDataEdge(data2, 0, src, 1);
+  EXPECT_EQ(GraphUtils::ConvertInDataEdgesToInCtrlEdges(src, dst, [](const Node &) { return true; }), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovConvertOutDataEdgesToOutCtrlEdgesNull) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(GraphUtils::ConvertOutDataEdgesToOutCtrlEdges(nullptr, node, [](const Node &) { return true; }),
+            GRAPH_PARAM_INVALID);
+  EXPECT_EQ(GraphUtils::ConvertOutDataEdgesToOutCtrlEdges(node, nullptr, [](const Node &) { return true; }),
+            GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestGraphUtils, CovConvertOutDataEdgesToOutCtrlEdgesBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 1);
+  auto dst1 = builder.AddNode("dst1", "Relu", 1, 0);
+  auto dst2 = builder.AddNode("dst2", "Cast", 0, 0);
+  builder.AddDataEdge(src, 0, dst1, 0);
+  EXPECT_EQ(GraphUtils::ConvertOutDataEdgesToOutCtrlEdges(src, dst2, [](const Node &) { return true; }), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovFindRootGraph) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::FindRootGraph(graph), graph);
+  EXPECT_EQ(GraphUtils::FindRootGraph(nullptr), nullptr);
+}
+
+TEST_F(UtestGraphUtils, CovIsUnknownShapeGraphNull) {
+  EXPECT_EQ(GraphUtils::IsUnknownShapeGraph(nullptr), false);
+}
+
+TEST_F(UtestGraphUtils, CovIsUnknownShapeGraphBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::IsUnknownShapeGraph(graph), false);
+}
+
+TEST_F(UtestGraphUtils, CovAppendInputNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::AppendInputNode(graph, data), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveNodesByTypeWithoutRelinkBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, relu, 0);
+  builder.AddDataEdge(relu, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveNodesByTypeWithoutRelink(graph, std::string("Relu")), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovDumpGEGraphByPathNoSeparator) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  EXPECT_NE(GraphUtils::DumpGEGraphByPath(graph, "no_separator_file.txt", ge::DumpLevel::NO_DUMP), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovLoadGEGraphInvalidFile) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  EXPECT_EQ(GraphUtils::LoadGEGraph("./nonexistent_graph_file_12345.txt", *graph), false);
+}
+
+TEST_F(UtestGraphUtils, CovLoadGEGraphPtrInvalidFile) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  EXPECT_EQ(GraphUtils::LoadGEGraph("./nonexistent_graph_file_67890.txt", graph), false);
+}
+
+TEST_F(UtestGraphUtils, CovInsertNodeAfterNullSrc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Relu");
+  EXPECT_EQ(GraphUtils::InsertNodeAfter(nullptr, {}, op_desc, 0, 0), nullptr);
+}
+
+TEST_F(UtestGraphUtils, CovInsertNodeBeforeNullSrc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Relu");
+  EXPECT_EQ(GraphUtils::InsertNodeBefore(nullptr, op_desc, 0, 0), nullptr);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveJustNodePtrNull) {
+  ComputeGraphPtr null_graph;
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_NE(GraphUtils::RemoveJustNode(null_graph, node), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveJustNodePtrNullNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto graph = builder.GetGraph();
+  EXPECT_NE(GraphUtils::RemoveJustNode(graph, nullptr), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovCopyInCtrlEdgesWithFilter) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto ctrl2 = builder.AddNode("ctrl2", "Cast", 0, 0);
+  auto dst = builder.AddNode("dst", "AddN", 0, 0);
+  builder.AddControlEdge(ctrl1, src);
+  builder.AddControlEdge(ctrl2, src);
+  NodeFilter filter = [](const Node &n) { return n.GetType() == "Relu"; };
+  EXPECT_EQ(GraphUtils::CopyInCtrlEdges(src, dst, filter), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovCopyOutCtrlEdgesWithFilter) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 0);
+  auto ctrl1 = builder.AddNode("ctrl1", "Relu", 0, 0);
+  auto ctrl2 = builder.AddNode("ctrl2", "Cast", 0, 0);
+  auto dst = builder.AddNode("dst", "AddN", 0, 0);
+  builder.AddControlEdge(src, ctrl1);
+  builder.AddControlEdge(src, ctrl2);
+  NodeFilter filter = [](const Node &n) { return n.GetType() == "Relu"; };
+  EXPECT_EQ(GraphUtils::CopyOutCtrlEdges(src, dst, filter), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovConvertInDataEdgesToInCtrlEdgesWithFilter) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto data2 = builder.AddNode("data2", "Const", 0, 1);
+  auto src = builder.AddNode("src", "AddN", 2, 1);
+  auto dst = builder.AddNode("dst", "Cast", 0, 0);
+  builder.AddDataEdge(data1, 0, src, 0);
+  builder.AddDataEdge(data2, 0, src, 1);
+  NodeFilter filter = [](const Node &n) { return n.GetType() == "Data"; };
+  EXPECT_EQ(GraphUtils::ConvertInDataEdgesToInCtrlEdges(src, dst, filter), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovConvertOutDataEdgesToOutCtrlEdgesWithFilter) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto src = builder.AddNode("src", "Data", 0, 1);
+  auto dst1 = builder.AddNode("dst1", "Relu", 1, 0);
+  auto dst2 = builder.AddNode("dst2", "Cast", 1, 0);
+  auto dst3 = builder.AddNode("dst3", "AddN", 0, 0);
+  builder.AddDataEdge(src, 0, dst1, 0);
+  builder.AddDataEdge(src, 0, dst2, 0);
+  NodeFilter filter = [](const Node &n) { return n.GetType() == "Relu"; };
+  EXPECT_EQ(GraphUtils::ConvertOutDataEdgesToOutCtrlEdges(src, dst3, filter), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeWithControlEdge) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto cast = builder.AddNode("cast", "Cast", 1, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  auto ctrl = builder.AddNode("ctrl", "NoOp", 0, 0);
+  builder.AddDataEdge(data, 0, cast, 0);
+  builder.AddDataEdge(cast, 0, relu, 0);
+  builder.AddControlEdge(cast, ctrl);
+  EXPECT_EQ(GraphUtils::IsolateNode(cast, {0}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeNoIoMap) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto cast = builder.AddNode("cast", "Cast", 1, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  builder.AddDataEdge(data, 0, cast, 0);
+  builder.AddDataEdge(cast, 0, relu, 0);
+  EXPECT_EQ(GraphUtils::IsolateNode(cast, {}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovIsolateNodeOneIOBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto cast = builder.AddNode("cast", "Cast", 1, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  builder.AddDataEdge(data, 0, cast, 0);
+  builder.AddDataEdge(cast, 0, relu, 0);
+  EXPECT_EQ(GraphUtils::IsolateNodeOneIO(cast), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovWriteProtoToOStream) {
+  onnx::ModelProto model_proto;
+  model_proto.set_producer_name("test_ostream");
+  std::ostringstream os;
+  EXPECT_EQ(GraphUtils::WriteProtoToOStream(model_proto, os), SUCCESS);
+  EXPECT_TRUE(os.str().find("test_ostream") != std::string::npos);
+}
+
+TEST_F(UtestGraphUtils, CovWriteProtoToOStreamNullStream) {
+  onnx::ModelProto model_proto;
+  model_proto.set_producer_name("test_null_stream");
+  std::ostringstream os;
+  os.setstate(std::ios::badbit);
+  EXPECT_EQ(GraphUtils::WriteProtoToOStream(model_proto, os), SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovReplaceNodeAnchorsBasic) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto old_node = builder.AddNode("old", "Cast", 1, 1);
+  auto new_node = builder.AddNode("new", "Relu", 1, 1);
+  auto dst = builder.AddNode("dst", "AddN", 1, 1);
+  builder.AddDataEdge(data, 0, old_node, 0);
+  builder.AddDataEdge(old_node, 0, dst, 0);
+  EXPECT_EQ(GraphUtils::ReplaceNodeAnchors(new_node, old_node, {0}, {0}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveSubgraphRecursively) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  builder.AddDataEdge(data, 0, relu, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveNodeWithoutRelink(graph, relu), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestGraphUtils, CovRemoveNodeWithoutRelinkNotInGraph) {
+  ut::GraphBuilder builder1 = ut::GraphBuilder("graph1");
+  ut::GraphBuilder builder2 = ut::GraphBuilder("graph2");
+  auto node = builder1.AddNode("node", "Relu", 1, 1);
+  auto graph2 = builder2.GetGraph();
+  EXPECT_EQ(GraphUtils::RemoveNodeWithoutRelink(graph2, node), GRAPH_FAILED);
+}
 }  // namespace ge

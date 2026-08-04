@@ -992,4 +992,41 @@ TEST_F(TensorUT, IncCov_TensorDescSetNameAndExpandDims) {
   EXPECT_STREQ(rule.GetString(), "0011");
   desc.SetReuseInputIndex(5);
 }
+
+TEST_F(TensorUT, IncCov_TensorDescConstGetName) {
+  TensorDesc desc;
+  desc.SetName("const_name");
+  const TensorDesc &const_desc = desc;
+  AscendString name;
+  EXPECT_EQ(const_desc.GetName(name), GRAPH_SUCCESS);
+  EXPECT_STREQ(name.GetString(), "const_name");
+
+  TensorDesc null_desc;
+  null_desc.impl = nullptr;
+  const TensorDesc &const_null_desc = null_desc;
+  AscendString name2;
+  EXPECT_EQ(const_null_desc.GetName(name2), GRAPH_FAILED);
+}
+
+TEST_F(TensorUT, IncCov_TensorConstGetData) {
+  Tensor tensor;
+  const Tensor &const_tensor = tensor;
+  EXPECT_NE(const_tensor.GetData(), nullptr);
+
+  std::vector<uint8_t> data{1, 2, 3};
+  TensorDesc desc(Shape({3}), FORMAT_ND, DT_UINT8);
+  Tensor t2(desc, data);
+  const Tensor &const_t2 = t2;
+  EXPECT_NE(const_t2.GetData(), nullptr);
+}
+
+TEST_F(TensorUT, IncCov_TensorDescConstGetNameValidImpl) {
+  std::vector<int64_t> shape{3};
+  TensorDesc desc(Shape(shape), FORMAT_ND, DT_UINT8);
+  desc.SetName("my_name");
+  const TensorDesc const_desc(desc);
+  AscendString name;
+  EXPECT_EQ(const_desc.GetName(name), GRAPH_SUCCESS);
+  EXPECT_STREQ(name.GetString(), "my_name");
+}
 }  // namespace ge

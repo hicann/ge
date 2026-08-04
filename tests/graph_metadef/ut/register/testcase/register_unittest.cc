@@ -3852,3 +3852,243 @@ TEST_F(UtestRegister, IncCov_CheckDynamicInfoPortNameMismatch) {
   auto ret = AutoMappingByOpFnDynamic(op_src, op_dst, value);
   EXPECT_EQ(ret, domi::FAILED);
 }
+
+TEST_F(UtestRegister, IncCov_SetOpdescFormatWithSrcDstFormat) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_format");
+  auto node_src = builder.AddNode("src_node", "Add", 1, 1);
+  AttrUtils::SetStr(node_src->GetOpDesc(), "src_format", "NCHW");
+  AttrUtils::SetStr(node_src->GetOpDesc(), "dst_format", "NHWC");
+  AttrUtils::SetStr(node_src->GetOpDesc(), "data_format", "ND");
+  ge::Operator op_src = OpDescUtils::CreateOperatorFromNode(node_src);
+  ge::Operator op_dst = ge::Operator("Add");
+  auto ret = AutoMappingByOpFn(op_src, op_dst);
+  EXPECT_EQ(ret, domi::SUCCESS);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingByOpFnWithSubgraphs) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_sub");
+  auto node_src = builder.AddNode("src_node", "Add", 1, 1);
+  ge::Operator op_src = OpDescUtils::CreateOperatorFromNode(node_src);
+  op_src.SubgraphRegister("sub1", true);
+  auto op_desc_src = OpDescUtils::GetOpDescFromOperator(op_src);
+  op_desc_src->SetSubgraphInstanceName(0, "sub1_instance");
+  ge::Operator op_dst = ge::Operator("Add");
+  auto ret = AutoMappingByOpFn(op_src, op_dst);
+  EXPECT_EQ(ret, domi::SUCCESS);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingSubgraphIndexSimpleOverload) {
+  auto builder = ut::GraphBuilder("root_simple_overload");
+  auto input = builder.AddNode("index", DATA, 1, 1);
+  input->impl_->op_->impl_->meta_data_.type_ = "Data";
+  AttrUtils::SetInt(input->GetOpDesc(), "index", 0);
+  auto output = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  auto func_node = builder.AddNode("func_node", PARTITIONEDCALL, 1, 1);
+  builder.AddDataEdge(input, 0, func_node, 0);
+  builder.AddDataEdge(func_node, 0, output, 0);
+
+  auto computeGraph = builder.GetGraph();
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(computeGraph);
+  auto ret = AutoMappingSubgraphIndex(graph, AutoMappingSubgraphIndexInput, AutoMappingSubgraphIndexOutput);
+  EXPECT_EQ(ret, domi::SUCCESS);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingSubgraphOutputNoNetOutput) {
+  auto builder = ut::GraphBuilder("root_no_netoutput");
+  auto func_node = builder.AddNode("func_node", PARTITIONEDCALL, 0, 0);
+  auto computeGraph = builder.GetGraph();
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(computeGraph);
+  auto ret = AutoMappingSubgraphIndex(graph, AutoMappingSubgraphIndexInput2, AutoMappingSubgraphIndexOutput2);
+  EXPECT_EQ(ret, domi::SUCCESS);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingSubgraphIndexRetvalWithoutIndex) {
+  auto builder = ut::GraphBuilder("root_retval_no_idx");
+  auto func_node = builder.AddNode("func_node", PARTITIONEDCALL, 0, 0);
+  auto retval = builder.AddNode("retval", DATA, 0, 1);
+  retval->impl_->op_->impl_->meta_data_.type_ = "_Retval";
+  auto computeGraph = builder.GetGraph();
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(computeGraph);
+  auto ret = AutoMappingSubgraphIndex(graph, AutoMappingSubgraphIndexInput2, AutoMappingSubgraphIndexOutput2);
+  EXPECT_EQ(ret, domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_AutoMappingSubgraphIndexRetvalOutputFail) {
+  auto builder = ut::GraphBuilder("root_retval_out_fail");
+  auto func_node = builder.AddNode("func_node", PARTITIONEDCALL, 0, 0);
+  auto retval = builder.AddNode("retval", DATA, 0, 1);
+  retval->impl_->op_->impl_->meta_data_.type_ = "_Retval";
+  AttrUtils::SetInt(retval->GetOpDesc(), "retval_index", 0);
+  auto computeGraph = builder.GetGraph();
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(computeGraph);
+  auto ret = AutoMappingSubgraphIndex(graph, AutoMappingSubgraphIndexInput2, AutoMappingSubgraphIndexOutput2Failed);
+  EXPECT_EQ(ret, domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_FindNodesByTypeFrameworkOp) {
+  auto builder = ut::GraphBuilder("root_framework");
+  auto fw_node = builder.AddNode("fw_node", FRAMEWORKOP, 1, 1);
+  fw_node->impl_->op_->impl_->meta_data_.type_ = "FrameworkOp";
+  AttrUtils::SetStr(fw_node->GetOpDesc(), ge::ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "Data");
+  AttrUtils::SetInt(fw_node->GetOpDesc(), "index", 0);
+  auto output = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(fw_node, 0, output, 0);
+
+  auto computeGraph = builder.GetGraph();
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(computeGraph);
+  auto ret = AutoMappingSubgraphIndex(graph, AutoMappingSubgraphIndexInput2, AutoMappingSubgraphIndexOutput2);
+  EXPECT_EQ(ret, domi::SUCCESS);
+}
+
+TEST_F(UtestRegister, IncCov_GetSubgraphIOIndexFuncNotFound) {
+  FrameworkRegistry &cur = FrameworkRegistry::Instance();
+  auto func = cur.GetAutoMappingSubgraphIOIndexFunc(static_cast<domi::FrameworkType>(999));
+  EXPECT_EQ(func, nullptr);
+}
+
+TEST_F(UtestRegister, IncCov_OpRegistrationDataCharConstructor) {
+  OpRegistrationData opRegData(static_cast<const char_t *>("OmOptypeChar"));
+  EXPECT_EQ(opRegData.GetOmOptype(), "OmOptypeChar");
+
+  OpRegistrationData opRegDataNull(nullptr);
+  EXPECT_EQ(opRegDataNull.GetOmOptype(), "");
+}
+
+TEST_F(UtestRegister, IncCov_RegisterWithNullImpl) {
+  OpRegistrationData opRegData(std::string("OmOptypeNullImpl"));
+  opRegData.impl_.reset();
+  OpRegistry *opReg = OpRegistry::Instance();
+  EXPECT_EQ(opReg->Register(opRegData), false);
+}
+
+TEST_F(UtestRegister, IncCov_GetParseSubgraphPostFuncByOpType) {
+  OpRegistry *opReg = OpRegistry::Instance();
+  EXPECT_EQ(opReg->GetParseSubgraphPostFunc("NonExistentOpType"), nullptr);
+
+  domi::ParseSubgraphFuncV2 func;
+  EXPECT_EQ(opReg->GetParseSubgraphPostFunc("NonExistentOpType", func), domi::FAILED);
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_ConstValueVariousDtypes) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  const nlohmann::json input = R"([
+    {"name": "c_uint8", "dtype": "uint8", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_int16", "dtype": "int16", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_uint16", "dtype": "uint16", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_uint32", "dtype": "uint32", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_int64", "dtype": "int64", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_uint64", "dtype": "uint64", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "c_float32", "dtype": "float32", "const_value": [1.0,2.0,3.0,4.0], "shape": [4], "format": "ND"},
+    {"name": "c_double", "dtype": "double", "const_value": [1.0,2.0,3.0,4.0], "shape": [4], "format": "ND"}
+  ])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([{"name": "y_0","dtype": "int8","shape": [1],"format": "ND"}])"_json;
+  std::string output_str = output.dump();
+  std::string attrs_str = "[]";
+  std::string op_type = "ascendC_const_dtypes";
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  REG_CHECK_SUPPORT(ascendC_const_dtypes, check_supported_stub);
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), input_str.c_str(), output_str.c_str(),
+                                      attrs_str.c_str(), const_cast<char *>(res_info.c_str()), size),
+            1);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_DumpResultInfoTooLarge) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  const nlohmann::json input = R"([{"name": "t0","dtype": "int8","shape": [4],"format": "ND"}])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([{"name": "y_0","dtype": "int8","shape": [1],"format": "ND"}])"_json;
+  std::string output_str = output.dump();
+  std::string attrs_str = "[]";
+  std::string op_type = "ascendC_dump_large";
+  std::string res_info(5, 'a');
+  size_t size = 5;
+  REG_CHECK_SUPPORT(ascendC_dump_large, check_supported_stub);
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), input_str.c_str(), output_str.c_str(),
+                                      attrs_str.c_str(), const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_ConstTensorWithoutName) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  const nlohmann::json input = R"([
+    {"dtype": "int8", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "t1","dtype": "int32","shape": [5],"format": "ND"}
+  ])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([{"name": "y_0","dtype": "int8","shape": [1],"format": "ND"}])"_json;
+  std::string output_str = output.dump();
+  std::string attrs_str = "[]";
+  std::string op_type = "ascendC_const_no_name";
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  REG_CHECK_SUPPORT(ascendC_const_no_name, check_supported_stub);
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), input_str.c_str(), output_str.c_str(),
+                                      attrs_str.c_str(), const_cast<char *>(res_info.c_str()), size),
+            1);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_CheckOpParseFailure) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string op_type = "ascendC_parse_fail";
+  std::string res_info(100, 'a');
+  size_t size = 100;
+  REG_CHECK_SUPPORT(ascendC_parse_fail, check_supported_stub);
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), "invalid_json", "invalid_json", "[]",
+                                      const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_GeneralizeParseFailure) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string op_type = "ascendC_gen_parse_fail";
+  std::string res_info(100, 'a');
+  size_t size = 100;
+  REG_OP_PARAM_GENERALIZE(ascendC_gen_parse_fail, generalize_stub);
+  EXPECT_EQ(AscendCPyInterfaceGeneralized(op_type.c_str(), "invalid_json", "invalid_json", "[]", "keep_rank",
+                                          const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_UnknownConstDtype) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  const nlohmann::json input = R"([
+    {"name": "c_bad", "dtype": "unknown_type", "const_value": [1,2,3,4], "shape": [4], "format": "ND"},
+    {"name": "t1","dtype": "int32","shape": [5],"format": "ND"}
+  ])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([{"name": "y_0","dtype": "int8","shape": [1],"format": "ND"}])"_json;
+  std::string output_str = output.dump();
+  std::string attrs_str = "[]";
+  std::string op_type = "ascendC_unknown_dtype";
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  REG_CHECK_SUPPORT(ascendC_unknown_dtype, check_supported_stub);
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), input_str.c_str(), output_str.c_str(),
+                                      attrs_str.c_str(), const_cast<char *>(res_info.c_str()), size),
+            1);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendC_GeneralizedDumpFail) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  const nlohmann::json input = R"([{"name": "t0","dtype": "int8","shape": [4],"format": "ND"}])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([{"name": "y_0","dtype": "int8","shape": [1],"format": "ND"}])"_json;
+  std::string output_str = output.dump();
+  std::string attrs_str = "[]";
+  std::string op_type = "ascendC_gen_dump_fail";
+  std::string res_info(5, 'a');
+  size_t size = 5;
+  REG_OP_PARAM_GENERALIZE(ascendC_gen_dump_fail, generalize_stub);
+  EXPECT_EQ(AscendCPyInterfaceGeneralized(op_type.c_str(), input_str.c_str(), output_str.c_str(), attrs_str.c_str(),
+                                          "keep_rank", const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}

@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <fstream>
+#include <limits>
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/file_constant_utils/file_constant_utils.h"
@@ -896,6 +897,132 @@ TEST_F(UtestFileConstantUtilTransfer, ChangeFilePathAttr_EmptyAndNoTmpDir) {
   auto ret = FileConstantUtils::ChangeFilePath(graph, om_path);
   EXPECT_EQ(ret, SUCCESS);
   (void)mmRmdir("om_path");
+}
+
+TEST_F(UtestFileConstantUtilTransfer, SaveWeightToOneFile_AllExist_CovEnhance) {
+  ConstNodeWeightHashList list;
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  auto op_desc = std::make_shared<OpDesc>("const1", "Const");
+  auto node = graph->AddNode(op_desc);
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> data(4, 1);
+  tensor->SetData(data);
+  list.emplace_back(node, std::make_pair(tensor, "hash1"));
+
+  FileConstantMeta meta;
+  meta.hash_to_weight_file["hash1"] = "/tmp/weight1";
+
+  std::string weight_dir = "./test_all_exist_dir";
+  ASSERT_TRUE(CreateDirectory(weight_dir) == 0);
+  auto ret = FileConstantUtils::SaveWeightToOneFileWithReuse(list, weight_dir, meta);
+  EXPECT_EQ(ret, SUCCESS);
+  (void)mmRmdir(weight_dir.c_str());
+}
+
+TEST_F(UtestFileConstantUtilTransfer, SaveWeightToOneFile_OpenFail_CovEnhance) {
+  ConstNodeWeightHashList list;
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  auto op_desc = std::make_shared<OpDesc>("const1", "Const");
+  auto node = graph->AddNode(op_desc);
+  GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> data(4, 1);
+  tensor->SetData(data);
+  list.emplace_back(node, std::make_pair(tensor, "hash1"));
+
+  FileConstantMeta meta;
+  std::string weight_dir = "/nonexistent_dir/no_such_path";
+  auto ret = FileConstantUtils::SaveWeightToOneFileWithReuse(list, weight_dir, meta);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestFileConstantUtilTransfer, WriteWeightWithPadding_WriteFail_CovEnhance) {
+  std::ofstream ofs;
+  uint8_t data[] = {1, 2, 3, 4};
+  size_t offset = 0;
+  auto ret = FileConstantUtils::WriteWeightWithPadding(ofs, data, sizeof(data), offset);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestFileConstantUtilTransfer, WriteWeightWithPadding_WithPadding_CovEnhance) {
+  std::string file_name = "test_padding_write.bin";
+  std::ofstream ofs(file_name, std::ios::binary);
+  ASSERT_TRUE(ofs.is_open());
+  uint8_t data[] = {1, 2, 3, 4};
+  size_t offset = 0;
+  auto ret = FileConstantUtils::WriteWeightWithPadding(ofs, data, sizeof(data), offset);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(offset, 512U);
+  ofs.close();
+  (void)remove(file_name.c_str());
+}
+
+TEST_F(UtestFileConstantUtilTransfer, WriteWeightWithPadding_OffsetOverflow_CovEnhance) {
+  std::string file_name = "test_overflow_write.bin";
+  std::ofstream ofs(file_name, std::ios::binary);
+  ASSERT_TRUE(ofs.is_open());
+  uint8_t data[] = {1, 2, 3, 4};
+  size_t offset = std::numeric_limits<size_t>::max() - 10;
+  auto ret = FileConstantUtils::WriteWeightWithPadding(ofs, data, sizeof(data), offset);
+  EXPECT_EQ(ret, FAILED);
+  ofs.close();
+  (void)remove(file_name.c_str());
+}
+
+TEST_F(UtestFileConstantUtilTransfer, ChangeFilePathAttr_NoTmpDir_CovEnhance) {
+  std::string file_name = "test_no_tmp_dir_file.bin";
+  std::ofstream ofs(file_name, std::ios::binary);
+  ofs << "test";
+  ofs.close();
+
+  auto builder = ut::GraphBuilder("graph_no_tmp");
+  auto file_const = builder.AddNode("fc_notmp", FILECONSTANT, 0, 1, FORMAT_ND, DT_FLOAT, {3});
+  OpDescPtr op_desc = file_const->GetOpDesc();
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, file_name));
+
+  auto netoutput = builder.AddNode("out_notmp", "NetOutput", 1, 0);
+  builder.AddDataEdge(file_const, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  std::string om_path = "om_path_no_tmp/test.om";
+  auto ret = FileConstantUtils::ChangeFilePath(graph, om_path);
+  EXPECT_EQ(ret, SUCCESS);
+  (void)remove(file_name.c_str());
+  (void)mmRmdir("om_path_no_tmp");
+}
+
+TEST_F(UtestFileConstantUtilTransfer, ReadJsonFile_InvalidJson_CovEnhance) {
+  ExternalWeightManagerPool::Instance().Destroy();
+  GetContext().SetSessionId(0U);
+
+  std::string weight_dir = "./test_invalid_json/weight";
+  ASSERT_TRUE(CreateDirectory(weight_dir) == 0);
+  std::string meta_path = weight_dir + "/meta.json";
+  std::ofstream meta_ofs(meta_path);
+  meta_ofs << "{invalid json content";
+  meta_ofs.close();
+
+  const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(GetContext().SessionId());
+  ASSERT_NE(external_weight_manager, nullptr);
+  external_weight_manager->SetWeightPath(weight_dir);
+
+  ge::ut::GraphBuilder builder("graph_invalid_json");
+  auto const1 = builder.AddNode("const_invalid", "Const", 0, 1);
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value(4 * sizeof(float));
+  std::vector<int64_t> shape{4};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_FLOAT);
+  ConstantUtils::SetWeight(const1->GetOpDesc(), 0, tensor);
+  AttrUtils::SetStr(const1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "hash_invalid");
+
+  auto ret = FileConstantUtils::ConvertConstToFileConst(builder.GetGraph());
+  EXPECT_NE(ret, SUCCESS);
+
+  (void)remove(meta_path.c_str());
+  (void)mmRmdir(weight_dir.c_str());
+  (void)mmRmdir("./test_invalid_json");
+  ExternalWeightManagerPool::Instance().Destroy();
 }
 }  // namespace fileconstant
 }  // namespace ge

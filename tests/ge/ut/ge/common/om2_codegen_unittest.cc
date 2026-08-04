@@ -2149,4 +2149,97 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_NoConstIndex) {
   EXPECT_EQ(desc.type, OP_ARG_INPUT);
   EXPECT_EQ(desc.mem_src, 0U);
 }
+
+TEST_F(Om2CodegenUt, CppEmitter_ProtectedAccessAndConstCast) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto *protected_decl = AccessSectionDecl::Create(ctx, AccessSectionDecl::Kind::kProtected);
+  ASSERT_NE(protected_decl, nullptr);
+  auto *class_decl =
+      ClassDecl::Create(ctx, "ProtectedClass", {protected_decl, FieldDecl::Create(ctx, "int", "hidden")});
+  ASSERT_NE(class_decl, nullptr);
+
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+  auto *const_cast_expr = CppCastExpr::Create(ctx, CppCastExpr::Kind::kConst, "int &", ident_x);
+  ASSERT_NE(const_cast_expr, nullptr);
+
+  auto *tu = TranslationUnit::Create(ctx, {class_decl});
+  ASSERT_NE(tu, nullptr);
+  const auto class_output = EmitNode(*tu);
+  const auto cast_output = EmitNode(*const_cast_expr);
+  const std::string output = class_output + "\n" + cast_output;
+  ExpectContainsAll(output, {"protected:", "const_cast<int &>(x)"});
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_AllBuiltinTypes) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto count = ast.Var("size_t", "count");
+  const std::vector<std::pair<BuiltinType, std::string>> type_pairs = {
+      {BuiltinType::kVoid, "void"},       {BuiltinType::kBool, "bool"},       {BuiltinType::kChar, "char"},
+      {BuiltinType::kInt8, "int8_t"},     {BuiltinType::kUInt8, "uint8_t"},   {BuiltinType::kInt16, "int16_t"},
+      {BuiltinType::kUInt16, "uint16_t"}, {BuiltinType::kInt32, "int32_t"},   {BuiltinType::kUInt32, "uint32_t"},
+      {BuiltinType::kInt64, "int64_t"},   {BuiltinType::kUInt64, "uint64_t"}, {BuiltinType::kFloat, "float"},
+      {BuiltinType::kDouble, "double"},
+  };
+
+  std::vector<Stmt *> body;
+  for (const auto &pair : type_pairs) {
+    body.push_back(ast.VarDecl("auto", "buf_" + pair.second, ast.MakeUniqueArray(pair.first, count)));
+  }
+  body.push_back(ast.Return());
+
+  auto *fn = ast.DefineFunction("TestAllBuiltinTypes", {count}, "void", body);
+  ASSERT_NE(fn, nullptr);
+
+  const auto output = EmitNode(*fn);
+  for (const auto &pair : type_pairs) {
+    EXPECT_NE(output.find("std::make_unique<" + pair.second + "[]>(count)"), std::string::npos)
+        << "Missing builtin type: " << pair.second;
+  }
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_IntSuffixL) {
+  AstContext ctx;
+
+  auto *lit_l = LiteralExpr::CreateInt(ctx, 42, LiteralExpr::IntSuffix::kL);
+  ASSERT_NE(lit_l, nullptr);
+  EXPECT_EQ(lit_l->GetIntSuffix(), LiteralExpr::IntSuffix::kL);
+
+  auto *var_decl = VarDeclStmt::Create(ctx, "long", "val", lit_l);
+  ASSERT_NE(var_decl, nullptr);
+
+  const auto output = EmitNode(*var_decl);
+  EXPECT_NE(output.find("42L"), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ForLoopWithExprStmtInit) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto i = ast.Var("size_t", "i");
+  auto assign_init = ast.Assign(i, 0);
+  auto *for_stmt = ast.For(ExprStmt::Create(ctx, assign_init.Get()), i < 10, ast.PreInc(i), {ast.Assign(i, i + 1)});
+
+  auto *fn = ast.DefineFunction("TestForWithExprInit", std::vector<VarRef>{}, "void",
+                                std::vector<Stmt *>{for_stmt, ast.Return()});
+  ASSERT_NE(fn, nullptr);
+
+  const auto output = EmitNode(*fn);
+  EXPECT_NE(output.find("for (i = 0;"), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_EmptyTypeNameSeparator) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto *type_alias = TypeAliasDecl::Create(ctx, "", "EmptyTypeAlias");
+  ASSERT_NE(type_alias, nullptr);
+  auto *tu = TranslationUnit::Create(ctx, {type_alias});
+  ASSERT_NE(tu, nullptr);
+  const auto output = EmitNode(*tu);
+  EXPECT_NE(output.find("EmptyTypeAlias"), std::string::npos);
+}
 }  // namespace ge

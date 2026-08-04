@@ -2348,4 +2348,73 @@ TEST_F(UtestExpression, AsNumerDenomToStringTest) {
   auto e2 = r1 * s0 * s1;
   EXPECT_EQ(SymbolicUtils::AsNumerDenomToString(e2), "((2 * s0 * s1))/(3)");
 }
+
+TEST_F(UtestExpression, NullExpression_AllNullPaths) {
+  Expression e(nullptr);
+  EXPECT_EQ(e.IsVariableExpr(), false);
+  EXPECT_EQ(e.IsBooleanExpr(), false);
+  EXPECT_EQ(e.Hash(), std::numeric_limits<uint64_t>::max());
+  Expression e2(nullptr);
+  EXPECT_EQ(e.Compare(e2), std::numeric_limits<int64_t>::max());
+  auto var_b = Symbol("b");
+  EXPECT_EQ(e.ContainVar(var_b), false);
+  Expression numer;
+  Expression denom;
+  e.AsNumerDenom(numer, denom);
+  EXPECT_EQ(numer.IsValid(), false);
+  EXPECT_EQ(denom.IsValid(), false);
+  std::ostringstream os;
+  os << e;
+  EXPECT_TRUE(os.str().empty());
+}
+
+TEST_F(UtestExpression, NullExpression_ReplaceSubs) {
+  Expression e(nullptr);
+  auto var_b = Symbol("b");
+  auto var_c = Symbol("c");
+  auto replaced = e.Replace({{var_b, var_c}});
+  EXPECT_EQ(replaced.IsValid(), false);
+  auto subsed = e.Subs({{var_b, var_c}});
+  EXPECT_EQ(subsed.IsValid(), false);
+}
+
+TEST_F(UtestExpression, ComputeHint_NoShapeEnv_NonConstExpr) {
+  SetCurShapeEnvContext(nullptr);
+  auto s0 = Symbol("s0");
+  int64_t hint;
+  EXPECT_EQ(s0.GetHint(hint), false);
+  double hint_d;
+  EXPECT_EQ(s0.GetHint(hint_d), false);
+}
+
+TEST_F(UtestExpression, Expression_MoveConstructor) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  auto expr = Add(s0, s1);
+  Expression moved(std::move(expr));
+  EXPECT_EQ(moved.IsValid(), true);
+  EXPECT_EQ(moved, Add(s0, s1));
+}
+
+TEST_F(UtestExpression, Expression_MoveAssign) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  auto expr = Add(s0, s1);
+  Expression target;
+  target = std::move(expr);
+  EXPECT_EQ(target.IsValid(), true);
+  EXPECT_EQ(target, Add(s0, s1));
+}
+
+TEST_F(UtestExpression, Expression_CopyConstructor) {
+  auto s0 = Symbol("s0");
+  auto expr = Add(s0, Symbol(2));
+  Expression copied(expr);
+  EXPECT_EQ(copied, expr);
+}
+
+TEST_F(UtestExpression, Expression_GetName_EmptyImpl) {
+  Expression e(nullptr);
+  EXPECT_EQ(e.Str().get(), nullptr);
+}
 }  // namespace ge

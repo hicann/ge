@@ -50,6 +50,24 @@ class UtestPluginManagerCov : public testing::Test {
     model_path = model_path.substr(0, model_path.rfind('/') + 1U);
     return model_path;
   }
+
+  static std::string GetSoRunPkgPath() {
+    mmDlInfo dl_info{nullptr, nullptr, nullptr, nullptr, 0, 0, 0};
+    void *func_ptr = reinterpret_cast<void *>(&PluginManager::GetCurEnvPackageOsAndCpuType);
+    if ((mmDladdr(func_ptr, &dl_info) != EN_OK) || (dl_info.dli_fname == nullptr)) {
+      return GetRunPkgPath();
+    }
+    char_t path[MMPA_MAX_PATH] = {};
+    if (mmRealPath(dl_info.dli_fname, &path[0], MMPA_MAX_PATH) != EN_OK) {
+      return GetRunPkgPath();
+    }
+    std::string so_path = path;
+    so_path = so_path.substr(0U, so_path.rfind('/') + 1U);
+    so_path = so_path.substr(0U, so_path.rfind('/'));
+    so_path = so_path.substr(0U, so_path.rfind('/'));
+    so_path = so_path.substr(0U, so_path.rfind('/') + 1U);
+    return so_path;
+  }
 };
 
 // ---- ReversePathString ----
@@ -1449,4 +1467,168 @@ TEST_F(UtestPluginManagerCov, IncCov_GetOppPluginPathNew_NoVendors) {
   system(("mkdir -p " + opp_dir + "/built-in").c_str());
   std::string plugin_path;
   EXPECT_EQ(PluginManager::GetOppPluginPathNew(opp_dir, "%s/op_proto/", plugin_path, "custom/"), SUCCESS);
+}
+
+TEST_F(UtestPluginManagerCov, Load_DirWithSoFileValidateFail) {
+  std::string dir_path = kTmpDir + "/load_validate_fail";
+  system(("mkdir -p " + dir_path).c_str());
+  std::string big_so = dir_path + "/libbig.so";
+  system(("dd if=/dev/zero of=" + big_so + " bs=1 count=0 seek=838860801 2>/dev/null").c_str());
+  PluginManager mgr;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(mgr.Load(dir_path, func_check_list), SUCCESS);
+  EXPECT_EQ(mgr.so_list_.size(), 0U);
+  system(("rm -f " + big_so).c_str());
+}
+
+TEST_F(UtestPluginManagerCov, Load_DirWithBrokenSymlinkSo) {
+  std::string dir_path = kTmpDir + "/load_broken_symlink";
+  system(("mkdir -p " + dir_path).c_str());
+  system(("ln -s /nonexist/target " + dir_path + "/broken_link.so").c_str());
+  PluginManager mgr;
+  std::vector<std::string> func_check_list;
+  EXPECT_EQ(mgr.Load(dir_path, func_check_list), SUCCESS);
+  EXPECT_EQ(mgr.so_list_.size(), 0U);
+}
+
+TEST_F(UtestPluginManagerCov, ValidateSo_FileSizeExceedsIndividualMax) {
+  std::string so_path = kTmpDir + "/big_sparse.so";
+  system(("dd if=/dev/zero of=" + so_path + " bs=1 count=0 seek=838860801 2>/dev/null").c_str());
+  PluginManager mgr;
+  int64_t file_size = 0;
+  EXPECT_EQ(mgr.ValidateSo(so_path, 0, file_size), FAILED);
+  system(("rm -f " + so_path).c_str());
+}
+
+TEST_F(UtestPluginManagerCov, GetCurEnvPackageOsAndCpuType_UnknownKeyInScene) {
+  std::string run_pkg_path = GetSoRunPkgPath();
+  std::string opp_dir = run_pkg_path + "opp";
+  std::string scene_file = opp_dir + "/scene.info";
+  bool created = false;
+  if (system(("mkdir -p " + opp_dir).c_str()) == 0) {
+    system(("printf 'foo=bar\nos=linux\narch=x86_64\n' > " + scene_file).c_str());
+    created = true;
+  }
+  std::string os_type;
+  std::string cpu_type;
+  PluginManager::GetCurEnvPackageOsAndCpuType(os_type, cpu_type);
+  if (created) {
+    EXPECT_EQ(os_type, "linux");
+    EXPECT_EQ(cpu_type, "x86_64");
+    system(("rm -rf " + opp_dir).c_str());
+  }
+}
+
+TEST_F(UtestPluginManagerCov, GetRequiredOppAbiVersion_InvalidSingleVersionNum) {
+  std::string run_pkg_path = GetSoRunPkgPath();
+  std::string compiler_dir = run_pkg_path + "compiler";
+  std::string runtime_dir = run_pkg_path + "runtime";
+  system(("rm -rf " + runtime_dir).c_str());
+  bool created = false;
+  if (system(("mkdir -p " + compiler_dir).c_str()) == 0) {
+    std::string version_file = compiler_dir + "/version.info";
+    std::ofstream ofs(version_file);
+    if (ofs.is_open()) {
+      ofs << "required_opp_abi_version=abc.def";
+      ofs.close();
+      created = true;
+    }
+  }
+  PluginManager mgr;
+  std::vector<std::pair<uint32_t, uint32_t>> required;
+  bool result = mgr.GetRequiredOppAbiVersion(required);
+  if (created) {
+    EXPECT_FALSE(result);
+    system(("rm -rf " + compiler_dir).c_str());
+  }
+}
+
+TEST_F(UtestPluginManagerCov, GetRequiredOppAbiVersion_RangeInvalidFirst) {
+  std::string run_pkg_path = GetSoRunPkgPath();
+  std::string compiler_dir = run_pkg_path + "compiler";
+  std::string runtime_dir = run_pkg_path + "runtime";
+  system(("rm -rf " + runtime_dir).c_str());
+  bool created = false;
+  if (system(("mkdir -p " + compiler_dir).c_str()) == 0) {
+    std::string version_file = compiler_dir + "/version.info";
+    std::ofstream ofs(version_file);
+    if (ofs.is_open()) {
+      ofs << "required_opp_abi_version=>=abc, <=6.4";
+      ofs.close();
+      created = true;
+    }
+  }
+  PluginManager mgr;
+  std::vector<std::pair<uint32_t, uint32_t>> required;
+  bool result = mgr.GetRequiredOppAbiVersion(required);
+  if (created) {
+    EXPECT_FALSE(result);
+    system(("rm -rf " + compiler_dir).c_str());
+  }
+}
+
+TEST_F(UtestPluginManagerCov, GetRequiredOppAbiVersion_RangeInvalidSecond) {
+  std::string run_pkg_path = GetSoRunPkgPath();
+  std::string compiler_dir = run_pkg_path + "compiler";
+  std::string runtime_dir = run_pkg_path + "runtime";
+  system(("rm -rf " + runtime_dir).c_str());
+  bool created = false;
+  if (system(("mkdir -p " + compiler_dir).c_str()) == 0) {
+    std::string version_file = compiler_dir + "/version.info";
+    std::ofstream ofs(version_file);
+    if (ofs.is_open()) {
+      ofs << "required_opp_abi_version=>=6.3, <=def";
+      ofs.close();
+      created = true;
+    }
+  }
+  PluginManager mgr;
+  std::vector<std::pair<uint32_t, uint32_t>> required;
+  bool result = mgr.GetRequiredOppAbiVersion(required);
+  if (created) {
+    EXPECT_FALSE(result);
+    system(("rm -rf " + compiler_dir).c_str());
+  }
+}
+
+TEST_F(UtestPluginManagerCov, IsSplitOpp_WithRtSoFiles) {
+  std::string opp_dir = kTmpDir + "/opp_split";
+  std::string proto_lib_dir = opp_dir + "/built-in/op_proto/lib/linux/x86_64/";
+  std::string tiling_lib_dir = opp_dir + "/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/";
+  system(("mkdir -p " + proto_lib_dir).c_str());
+  system(("mkdir -p " + tiling_lib_dir).c_str());
+  system(("touch " + proto_lib_dir + "/libproto_rt.so").c_str());
+  system(("touch " + tiling_lib_dir + "/libtiling_rt.so").c_str());
+  setenv("ASCEND_OPP_PATH", opp_dir.c_str(), 1);
+
+  std::string run_pkg_path = GetSoRunPkgPath();
+  std::string scene_dir = run_pkg_path + "opp";
+  std::string scene_file = scene_dir + "/scene.info";
+  bool scene_created = false;
+  if (system(("mkdir -p " + scene_dir).c_str()) == 0) {
+    system(("printf 'os=linux\narch=x86_64\n' > " + scene_file).c_str());
+    scene_created = true;
+  }
+
+  if (scene_created) {
+    EXPECT_TRUE(PluginManager::IsSplitOpp());
+    system(("rm -rf " + scene_dir).c_str());
+  } else {
+    PluginManager::IsSplitOpp();
+  }
+}
+
+TEST_F(UtestPluginManagerCov, GetOppSupportedOsAndCpuType_PathTooLongFromEnv) {
+  std::string long_path(4100, 'a');
+  long_path = "/tmp/" + long_path;
+  setenv("ASCEND_OPP_PATH", long_path.c_str(), 1);
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu);
+  EXPECT_TRUE(opp_supported_os_cpu.empty());
+}
+
+TEST_F(UtestPluginManagerCov, CheckOppAndCompilerVersions_SuccessWithMultipleRanges) {
+  PluginManager mgr;
+  std::vector<std::pair<uint32_t, uint32_t>> required = {{630000, 640000}, {800000, 810000}};
+  EXPECT_TRUE(mgr.CheckOppAndCompilerVersions("6.3", "8.0,8.1", required));
 }

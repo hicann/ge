@@ -715,4 +715,139 @@ TEST_F(UtestTuningUtils, CovHandleConst) {
   EXPECT_EQ(TuningUtils::HandleConst(node3, ""), SUCCESS);
   system("rm -rf ./tmp_weight_*");
 }
+
+TEST_F(UtestTuningUtils, CovConvertGraphToFileExeFlagFalse) {
+  std::vector<ComputeGraphPtr> tuning_subgraphs;
+  auto builder = ut::GraphBuilder("tune_graph_exe_false");
+  const auto data = builder.AddNode("data", DATA, 0, 1);
+  const auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, netoutput, 0);
+  tuning_subgraphs.push_back(builder.GetGraph());
+  std::vector<ComputeGraphPtr> non_tuning_subgraphs;
+  EXPECT_EQ(TuningUtils::ConvertGraphToFile(tuning_subgraphs, non_tuning_subgraphs, false, "./", ""), GRAPH_SUCCESS);
+  system("rm -f ./aicore_subgraph_*.txt");
+}
+
+TEST_F(UtestTuningUtils, CovLoadGraphFromFileInvalidFile) {
+  std::map<int64_t, std::string> options;
+  options.emplace(0, "./nonexistent_file_12345.txt");
+  Graph g;
+  EXPECT_EQ(TuningUtils::ConvertFileToGraph(options, g), FAILED);
+}
+
+TEST_F(UtestTuningUtils, CovConvertConstToWeightAttrNoPlaceholder) {
+  auto builder = ut::GraphBuilder("graph_no_pld");
+  const auto data = builder.AddNode("data", DATA, 0, 1);
+  const auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(TuningUtils::ConvertConstToWeightAttr(graph), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovHandleConstNonConstNode) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data_node = builder.AddNode("data", DATA, 0, 1);
+  NodePtr node = data_node;
+  EXPECT_EQ(TuningUtils::HandleConst(node, ""), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovCreateDataNodeWithParentNodeName) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto pld = builder.AddNode("pld", PLACEHOLDER, 0, 1);
+  uint8_t val = 1;
+  auto const_tensor = std::make_shared<GeTensor>(GeTensorDesc(), &val, sizeof(val));
+  AttrUtils::SetTensor(pld->GetOpDesc(), "value", const_tensor);
+  AttrUtils::SetStr(pld->GetOpDesc(), "_parentNodeName", "parent_const");
+  NodePtr data_node;
+  EXPECT_EQ(TuningUtils::CreateDataNode(pld, "", data_node), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovChangePld2DataNotPlaceholder) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("data0", DATA, 0, 1);
+  auto node1 = builder.AddNode("data1", DATA, 1, 1);
+  EXPECT_EQ(TuningUtils::ChangePld2Data(node0, node1), FAILED);
+}
+
+TEST_F(UtestTuningUtils, CovChangePld2DataDataNotExeType) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto pld = builder.AddNode("pld", PLACEHOLDER, 0, 1);
+  auto relu = builder.AddNode("relu", "Relu", 1, 1);
+  EXPECT_EQ(TuningUtils::ChangePld2Data(pld, relu), FAILED);
+}
+
+TEST_F(UtestTuningUtils, CovChangeEnd2NetOutputNotEnd) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  EXPECT_EQ(TuningUtils::ChangeEnd2NetOutput(data, netoutput), FAILED);
+}
+
+TEST_F(UtestTuningUtils, CovChangeEnd2NetOutputNotNetOutput) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto end = builder.AddNode("end", END, 0, 1);
+  auto data = builder.AddNode("data", DATA, 1, 1);
+  EXPECT_EQ(TuningUtils::ChangeEnd2NetOutput(end, data), FAILED);
+}
+
+TEST_F(UtestTuningUtils, CovGetOrSaveReusableFileConstEmpty) {
+  TuningUtils::reusable_weight_files_.clear();
+  TuningUtils::hash_to_files_.clear();
+  auto tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value{1, 2, 3};
+  std::vector<int64_t> shape{3};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  std::string file_path1 = "./tmp_test_reuse_empty1.bin";
+  std::string file_path2 = "./tmp_test_reuse_empty2.bin";
+  EXPECT_EQ(TuningUtils::GetOrSaveReusableFileConst(tensor, file_path1), SUCCESS);
+  EXPECT_EQ(TuningUtils::GetOrSaveReusableFileConst(tensor, file_path2), SUCCESS);
+  EXPECT_EQ(TuningUtils::reusable_weight_files_.size(), 1U);
+  system("rm -f ./tmp_test_reuse_empty1.bin ./tmp_test_reuse_empty2.bin");
+}
+
+TEST_F(UtestTuningUtils, CovCheckFilesSameNonExistFile) {
+  bool is_same = false;
+  EXPECT_NE(TuningUtils::CheckFilesSame("./nonexistent_file_check.bin", "data", 4, is_same), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovMergeSubGraphDataWithPeerName) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto data = builder.AddNode("data", DATA, 1, 1);
+  auto graph = builder.GetGraph();
+  AttrUtils::SetStr(data->GetOpDesc(), "_peerNodeName", "end_node_name");
+  EXPECT_EQ(TuningUtils::MergeSubGraph(graph), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovMergeSubGraphConstantWithPeerName) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto const_node = builder.AddNode("const", CONSTANT, 1, 1);
+  auto graph = builder.GetGraph();
+  AttrUtils::SetStr(const_node->GetOpDesc(), "_peerNodeName", "end_node_name");
+  EXPECT_EQ(TuningUtils::MergeSubGraph(graph), SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovCreateNetOutputAlreadyExists) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  auto existing_out = builder.AddNode("existing_out", NETOUTPUT, 1, 1);
+  NodePtr node1;
+  auto graph = builder.GetGraph();
+  TuningUtils::create_output_[graph] = existing_out;
+  EXPECT_EQ(TuningUtils::CreateNetOutput(node0, node1), SUCCESS);
+  EXPECT_EQ(node1, existing_out);
+  TuningUtils::create_output_.clear();
+}
+
+TEST_F(UtestTuningUtils, CovPrintCheckLogWithNetoutput) {
+  TuningUtils::netoutput_nodes_.clear();
+  TuningUtils::data_2_end_.clear();
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto node0 = builder.AddNode("Data0", "Data", 0, 1);
+  TuningUtils::netoutput_nodes_.push_back(node0);
+  TuningUtils::data_2_end_["data"] = "end";
+  auto result = TuningUtils::PrintCheckLog();
+  EXPECT_FALSE(result.empty());
+}
 }  // namespace ge

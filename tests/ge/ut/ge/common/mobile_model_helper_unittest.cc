@@ -574,4 +574,50 @@ TEST_F(UtestMobileModelHelper, SaveToOmRootModelDoesNotWriteSoOrCustomOpsPartiti
   EXPECT_FALSE(FileContainsStringForTest(omc_file, "libmobile_custom_op_no_so_ut.so"));
   EXPECT_FALSE(FileContainsStringForTest(omc_file, kMobileCustomOpSoPayloadMarker));
 }
+
+TEST_F(UtestMobileModelHelper, ModelToMobileWithInvalidDataType) {
+  std::string output_file = "mobile_model_invalid.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel(true);
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_invalid.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SetSaveMode) {
+  MobileModelHelper model_save_helper;
+  model_save_helper.SetSaveMode(true);
+  model_save_helper.SetSaveMode(false);
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithConstNode) {
+  std::string output_file = "mobile_model_const.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  auto const_op_desc = std::make_shared<ge::OpDesc>("const_node", "Const");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({8}), ge::FORMAT_ND, ge::DT_INT64);
+  (void)const_op_desc->AddOutputDesc(tensor_desc);
+  (void)graph->AddNode(const_op_desc);
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_const.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithNetOutputMissingOutputDesc) {
+  std::string output_file = "mobile_model_netout.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "NetOutput") {
+      auto op_desc = node->GetOpDesc();
+      ge::GeTensorDesc extra_desc(ge::GeShape({8}), ge::FORMAT_ND, ge::DT_INT64);
+      (void)op_desc->AddInputDesc(extra_desc);
+    }
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_netout.omc");
+}
 }  // namespace ge

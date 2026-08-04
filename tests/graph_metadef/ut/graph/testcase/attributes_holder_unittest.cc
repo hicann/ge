@@ -357,4 +357,55 @@ TEST_F(AttrHolderUt, CovGetAllAttrsWithFilter) {
   EXPECT_EQ(filtered.size(), 1U);
   EXPECT_NE(filtered.find("keep_key"), filtered.end());
 }
+
+TEST_F(AttrHolderUt, Cov_GeIrProtoHelper_AttrDef_InitDefault) {
+  GeIrProtoHelper<proto::AttrDef> helper;
+  helper.InitDefault();
+  EXPECT_NE(helper.GetProtoMsg(), nullptr);
+}
+
+TEST_F(AttrHolderUt, Cov_GeIrProtoHelper_TensorDef_InitDefault) {
+  GeIrProtoHelper<proto::TensorDef> helper;
+  helper.InitDefault();
+  EXPECT_NE(helper.GetProtoMsg(), nullptr);
+}
+
+TEST_F(AttrHolderUt, Cov_GeIrProtoHelper_All_InitDefault) {
+  EXPECT_NO_THROW(GeIrProtoHelper<proto::AttrDef> h1; h1.InitDefault(); GeIrProtoHelper<proto::TensorDef> h2;
+                  h2.InitDefault(); GeIrProtoHelper<proto::TensorDescriptor> h3; h3.InitDefault();
+                  GeIrProtoHelper<proto::ShapeDef> h4; h4.InitDefault(); GeIrProtoHelper<proto::NamedAttrs> h5;
+                  h5.InitDefault(); GeIrProtoHelper<proto::ModelDef> h6; h6.InitDefault();
+                  GeIrProtoHelper<proto::OpDef> h7; h7.InitDefault(); GeIrProtoHelper<proto::GraphDef> h8;
+                  h8.InitDefault(););
+}
+
+TEST_F(AttrHolderUt, Cov_TrySetAttr_NewAttr) {
+  SubAttrHolder holder;
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.TrySetAttr("new_key", av), GRAPH_SUCCESS);
+  AnyValue got;
+  EXPECT_EQ(holder.GetAttr("new_key", got), GRAPH_SUCCESS);
+}
+
+TEST_F(AttrHolderUt, Cov_HasAttr_RequiredAttrOnly) {
+  SubAttrHolder holder;
+  EXPECT_EQ(holder.AddRequiredAttr("req_only"), GRAPH_SUCCESS);
+  EXPECT_TRUE(holder.HasAttr("req_only"));
+  EXPECT_FALSE(holder.HasAttr("nonexistent"));
+}
+
+TEST_F(AttrHolderUt, Cov_GetAllAttrs_Empty) {
+  SubAttrHolder holder;
+  auto all_attrs = holder.GetAllAttrs();
+  EXPECT_EQ(all_attrs.size(), 0U);
+}
+
+TEST_F(AttrHolderUt, Cov_CopyAttrsFrom_Self) {
+  SubAttrHolder holder;
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.SetAttr("self_key", av), GRAPH_SUCCESS);
+  holder.CopyAttrsFrom(holder);
+  AnyValue got;
+  EXPECT_EQ(holder.GetAttr("self_key", got), GRAPH_SUCCESS);
+}
 }  // namespace ge

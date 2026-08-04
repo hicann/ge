@@ -120,4 +120,24 @@ TEST_F(UtestAlignedPtr, BuildFromDataNullDeleter) {
   EXPECT_EQ(ptr, nullptr);
   delete[] data;
 }
+
+TEST_F(UtestAlignedPtr, BuildFromAllocFuncNullAllocOnly) {
+  auto deleter = [](uint8_t *ptr) { delete[] ptr; };
+  auto ptr = AlignedPtr::BuildFromAllocFunc(nullptr, deleter);
+  EXPECT_EQ(ptr, nullptr);
+}
+
+TEST_F(UtestAlignedPtr, ResetWithValidDeleterReturnsOld) {
+  auto aligned_ptr = MakeShared<AlignedPtr>(100U, 32U);
+  ASSERT_NE(aligned_ptr, nullptr);
+  auto old_addr = aligned_ptr->Get();
+  auto output = aligned_ptr->Reset();
+  EXPECT_NE(output, nullptr);
+  EXPECT_EQ(output.get(), old_addr);
+}
+
+TEST_F(UtestAlignedPtr, BuildFromDataBothNull) {
+  auto ptr = AlignedPtr::BuildFromData(nullptr, nullptr);
+  EXPECT_EQ(ptr, nullptr);
+}
 }  // namespace ge

@@ -547,5 +547,115 @@ TEST_F(UtestUtilTransfer, ReadBytesFromBinaryFile_BufferAllocFailed) {
   g_fail_nothrow_new = false;
   system("rm -f ut_test_buf_alloc");
 }
+
+TEST_F(UtestUtilTransfer, CheckInputPathValid_InvalidPathChars_CovEnhance) {
+  system("touch 'test file with spaces.txt'");
+  EXPECT_EQ(CheckInputPathValid("test file with spaces.txt", ""), false);
+  system("rm 'test file with spaces.txt'");
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_RootPath_CovEnhance) {
+  EXPECT_EQ(CheckOutputPathValid("/testfile", ""), true);
+}
+
+TEST_F(UtestUtilTransfer, ValidateStr_RegcompFail_CovEnhance) {
+  EXPECT_TRUE(ValidateStr("test", "["));
+}
+
+TEST_F(UtestUtilTransfer, ValidateStr_RegexecFail_CovEnhance) {
+  EXPECT_FALSE(ValidateStr("test!@#", "^[a-zA-Z0-9]+$"));
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_InvalidArg_CovEnhance) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("abc", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_OutOfRange_CovEnhance) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_PartialParse_CovEnhance) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("123abc", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt32_Success_CovEnhance) {
+  int32_t val = 0;
+  EXPECT_EQ(ConvertToInt32("42", val), SUCCESS);
+  EXPECT_EQ(val, 42);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_InvalidArg_CovEnhance) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("abc", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_OutOfRange_CovEnhance) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("99999999999999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToInt64_Success_CovEnhance) {
+  int64_t val = 0;
+  EXPECT_EQ(ConvertToInt64("42", val), SUCCESS);
+  EXPECT_EQ(val, 42);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_InvalidArg_CovEnhance) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("abc", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_OutOfRange_CovEnhance) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("99999999999999999999999999", val), FAILED);
+}
+
+TEST_F(UtestUtilTransfer, ConvertToUint64_Success_CovEnhance) {
+  uint64_t val = 0;
+  EXPECT_EQ(ConvertToUint64("42", val), SUCCESS);
+  EXPECT_EQ(val, 42U);
+}
+
+TEST_F(UtestUtilTransfer, CheckIoReuseAddrPairs_Success_CovEnhance) {
+  std::vector<std::pair<size_t, size_t>> pairs = {{0, 0}};
+  int32_t dummy = 0;
+  auto get_input = [&dummy](size_t) -> const void * { return &dummy; };
+  auto get_output = [&dummy](size_t) -> const void * { return &dummy; };
+  EXPECT_EQ(CheckIoReuseAddrPairs(pairs, get_input, 1, get_output, 1), SUCCESS);
+}
+
+TEST_F(UtestUtilTransfer, CheckIoReuseAddrPairs_AddrMismatch_CovEnhance) {
+  std::vector<std::pair<size_t, size_t>> pairs = {{0, 0}};
+  int32_t dummy1 = 0;
+  int32_t dummy2 = 1;
+  auto get_input = [&dummy1](size_t) -> const void * { return &dummy1; };
+  auto get_output = [&dummy2](size_t) -> const void * { return &dummy2; };
+  EXPECT_EQ(CheckIoReuseAddrPairs(pairs, get_input, 1, get_output, 1), PARAM_INVALID);
+}
+
+TEST_F(UtestUtilTransfer, CheckIoReuseAddrPairs_InputOutOfRange_CovEnhance) {
+  std::vector<std::pair<size_t, size_t>> pairs = {{5, 0}};
+  int32_t dummy = 0;
+  auto get_input = [&dummy](size_t) -> const void * { return &dummy; };
+  auto get_output = [&dummy](size_t) -> const void * { return &dummy; };
+  EXPECT_EQ(CheckIoReuseAddrPairs(pairs, get_input, 1, get_output, 1), PARAM_INVALID);
+}
+
+TEST_F(UtestUtilTransfer, CheckIoReuseAddrPairs_OutputOutOfRange_CovEnhance) {
+  std::vector<std::pair<size_t, size_t>> pairs = {{0, 5}};
+  int32_t dummy = 0;
+  auto get_input = [&dummy](size_t) -> const void * { return &dummy; };
+  auto get_output = [&dummy](size_t) -> const void * { return &dummy; };
+  EXPECT_EQ(CheckIoReuseAddrPairs(pairs, get_input, 1, get_output, 1), PARAM_INVALID);
+}
+
+TEST_F(UtestUtilTransfer, PrintOptionsWithLengthLimit_LongValue_CovEnhance) {
+  std::map<std::string, std::string> options;
+  options["key"] = std::string(200, 'x');
+  PrintOptionsWithLengthLimit(options, "prefix", 50U);
+}
 }  // namespace formats
 }  // namespace ge

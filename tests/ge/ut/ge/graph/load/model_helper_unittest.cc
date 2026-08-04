@@ -3010,4 +3010,145 @@ TEST_F(UtestModelHelper, ConfigureAttrCompressionMode) {
   EXPECT_EQ(model_helper.ConfigureAttrCompressionMode(""), PARAM_INVALID);
 }
 
+TEST_F(UtestModelHelper, SaveToOmModel_WithNullGeModel_ReturnsFailed) {
+  ModelHelper model_helper;
+  ModelBufferData model;
+  EXPECT_NE(model_helper.SaveToOmModel(nullptr, "output.om", model), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveToOmRootModel_WithNullRootModel_ReturnsFailed) {
+  ModelHelper model_helper;
+  ModelBufferData model;
+  EXPECT_NE(model_helper.SaveToOmRootModel(nullptr, "output.om", model, false), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveToOmRootModel_WithEmptyOutputFile_ReturnsFailed) {
+  ModelHelper model_helper;
+  GeRootModelPtr ge_root_model = ConstructGeRootModel(false);
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model;
+  EXPECT_NE(model_helper.SaveToOmRootModel(ge_root_model, "", model, false), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelTaskDef_WithNullModelTaskDef_ReturnsFailed) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge::Buffer task_buffer;
+  EXPECT_NE(model_helper.SaveModelTaskDef(om_file_save_helper, ge_model, task_buffer, 0U), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelTaskDef_WithEmptyTaskDef_ReturnsFailed) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  auto task_def = std::make_shared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(task_def);
+  ge::Buffer task_buffer;
+  EXPECT_EQ(model_helper.SaveModelTaskDef(om_file_save_helper, ge_model, task_buffer, 0U), FAILED);
+}
+
+TEST_F(UtestModelHelper, SaveModelWeights_WithWeightData_ReturnsSuccess) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  std::vector<uint8_t> weight_data(100, 1U);
+  ge_model->SetWeight(ge::Buffer::CopyFrom(weight_data.data(), weight_data.size()));
+  EXPECT_EQ(model_helper.SaveModelWeights(om_file_save_helper, ge_model, 0U), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelTbeKernel_WithKernelStore_ReturnsSuccess) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge::TBEKernelStore tbe_kernel_store;
+  const auto kernel = ge::MakeShared<ge::OpKernelBin>("test_kernel", std::vector<char>(10, 'a'));
+  tbe_kernel_store.AddTBEKernel(kernel);
+  ge_model->SetTBEKernelStore(tbe_kernel_store);
+  EXPECT_EQ(model_helper.SaveModelTbeKernel(om_file_save_helper, ge_model, 0U), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelCustAICPU_WithKernelStore_ReturnsSuccess) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  EXPECT_EQ(model_helper.SaveModelCustAICPU(om_file_save_helper, ge_model, 0U), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelHeader_WithValidModel_ReturnsSuccess) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge_model->SetName("test_model");
+  ge_model->SetPlatformVersion("1.0");
+  EXPECT_EQ(model_helper.SaveModelHeader(om_file_save_helper, ge_model, 1U, false, false), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveModelHeader_WithNeedCheckOsCpu_ReturnsSuccess) {
+  ModelHelper model_helper;
+  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge_model->SetName("test_model");
+  ge_model->SetPlatformVersion("1.0");
+  EXPECT_EQ(model_helper.SaveModelHeader(om_file_save_helper, ge_model, 1U, true, false), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SetModelAttributes_ReturnsSuccess) {
+  ModelHelper model_helper;
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  EXPECT_EQ(model_helper.SetModelAttributes(ge_model), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, LoadModel_WithInvalidData_ReturnsFailed) {
+  ModelHelper model_helper;
+  ModelData model_data;
+  model_data.model_data = nullptr;
+  model_data.model_len = 0U;
+  EXPECT_NE(model_helper.LoadModel(model_data), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, LoadModel_WithSmallData_ReturnsFailed) {
+  ModelHelper model_helper;
+  std::vector<uint8_t> small_data(10, 0);
+  ModelData model_data;
+  model_data.model_data = small_data.data();
+  model_data.model_len = small_data.size();
+  EXPECT_NE(model_helper.LoadModel(model_data), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, LoadRootModel_WithInvalidData_ReturnsFailed) {
+  ModelHelper model_helper;
+  ModelData model_data;
+  model_data.model_data = nullptr;
+  model_data.model_len = 0U;
+  EXPECT_NE(model_helper.LoadRootModel(model_data), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, GetBaseNameFromFileName_NoExtension) {
+  ModelHelper model_helper;
+  std::string base_name;
+  EXPECT_EQ(model_helper.GetBaseNameFromFileName("model_no_ext", base_name), SUCCESS);
+  EXPECT_EQ(base_name, "model_no_ext");
+}
+
+TEST_F(UtestModelHelper, SaveOriginalGraphToOmModel_WithEmptyGraph_ReturnsFailed) {
+  ModelHelper model_helper;
+  Graph graph("");
+  EXPECT_EQ(model_helper.SaveOriginalGraphToOmModel(graph, ""), FAILED);
+  EXPECT_EQ(model_helper.SaveOriginalGraphToOmModel(graph, "output.om"), FAILED);
+}
+
+TEST_F(UtestModelHelper, SaveBundleModelBufferToMem_WithEmptyBuffers_ReturnsSuccess) {
+  std::vector<ModelBufferData> model_buffers;
+  const uint64_t var_size = 0U;
+  ModelBufferData output;
+  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem(model_buffers, var_size, output), SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SetSaveMode_Test) {
+  ModelHelper model_helper;
+  model_helper.SetSaveMode(true);
+  model_helper.SetSaveMode(false);
+}
+
 }  // namespace ge

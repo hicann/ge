@@ -1183,4 +1183,116 @@ TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_SetFormatForUninferred)
   SetFirstInferFlag(graph, true);
   graph->SaveDataFormat(FORMAT_ND);
 }
+
+ut::GraphBuilder BuildGraphBiasAddNCHW5D() {
+  auto builder = ut::GraphBuilder("g_biasadd_nchw_5d");
+  auto var = builder.AddNode("var", "Variable", 0, 1);
+  auto square = builder.AddNode("square", "Square", 1, 1);
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1);
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0);
+
+  auto biasadd_data = biasadd->GetOpDesc()->GetInputDesc(0);
+  biasadd_data.SetFormat(FORMAT_NCHW);
+  biasadd_data.SetOriginFormat(FORMAT_NCHW);
+  biasadd_data.SetShape(GeShape(std::vector<int64_t>({1, 3, 3, 224, 224})));
+  biasadd->GetOpDesc()->UpdateInputDesc(0, biasadd_data);
+  auto biasadd_out = biasadd->GetOpDesc()->GetOutputDesc(0);
+  biasadd_out.SetFormat(FORMAT_NCHW);
+  biasadd_out.SetOriginFormat(FORMAT_NCHW);
+  biasadd_out.SetShape(GeShape(std::vector<int64_t>({1, 3, 256, 224, 224})));
+  biasadd->GetOpDesc()->UpdateOutputDesc(0, biasadd_out);
+
+  builder.AddDataEdge(var, 0, square, 0);
+  builder.AddDataEdge(square, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  return builder;
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_BiasAddFormatFixProcess_NCHW_5D) {
+  auto builder = BuildGraphBiasAddNCHW5D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto biasadd = graph->FindNode("biasadd");
+  EXPECT_EQ(biasadd->GetOpDesc()->GetInputDesc(0).GetOriginFormat(), FORMAT_NCDHW);
+  EXPECT_EQ(biasadd->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_NCDHW);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_AlreadyInferredDataNode) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto data1 = graph->FindNode("data1");
+  EXPECT_EQ(data1->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_NCHW);
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_AlreadyInferredGraph) {
+  auto builder = BuildGraph1();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  EXPECT_EQ(FormatRefiner::IsGraphInferred(graph), true);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_IsGraphInferred) {
+  auto builder = BuildGraph1();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, true);
+  EXPECT_EQ(FormatRefiner::IsGraphInferred(graph), false);
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::IsGraphInferred(graph), true);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_BiasAddFormatFixProcess_LessThan4Dims_Output) {
+  auto builder = ut::GraphBuilder("g_biasadd_lt4_out");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1, FORMAT_NCHW, DT_FLOAT, {3, 224});
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0, FORMAT_ND, DT_FLOAT, {3, 224});
+  auto biasadd_out = biasadd->GetOpDesc()->GetOutputDesc(0);
+  biasadd_out.SetOriginFormat(FORMAT_NCHW);
+  biasadd_out.SetShape(GeShape(std::vector<int64_t>({3, 224})));
+  biasadd->GetOpDesc()->UpdateOutputDesc(0, biasadd_out);
+  builder.AddDataEdge(data1, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto biasadd_node = graph->FindNode("biasadd");
+  EXPECT_EQ(biasadd_node->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_NCHW);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_NDFormat) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_ND);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto data1 = graph->FindNode("data1");
+  EXPECT_EQ(data1->GetOpDesc()->GetOutputDesc(0).GetOriginFormat(), FORMAT_ND);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_InternalFormat) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_FRACTAL_Z);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
 }  // namespace ge

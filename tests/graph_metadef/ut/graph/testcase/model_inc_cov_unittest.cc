@@ -314,4 +314,59 @@ TEST_F(ModelIncCovUt, IncCov2_SaveToFile_NoDirNoWorkPath) {
   EXPECT_EQ(md.SaveToFile("just_a_file_inc.air"), GRAPH_SUCCESS);
   system("rm -f just_a_file_inc.air");
 }
+
+TEST_F(ModelIncCovUt, IncCov2_SaveToFile_NoGraph) {
+  Model model("test_no_graph", "v1");
+  system("mkdir -p ./tmp_model_inc_cov");
+  EXPECT_NE(model.SaveToFile("./tmp_model_inc_cov/no_graph.air", false), GRAPH_SUCCESS);
+  system("rm -f ./tmp_model_inc_cov/no_graph.air");
+}
+
+TEST_F(ModelIncCovUt, IncCov2_SaveToFile_NoGraphForceSeparate) {
+  Model model("test_no_graph_sep", "v1");
+  system("mkdir -p ./tmp_model_inc_cov");
+  EXPECT_NE(model.SaveToFile("./tmp_model_inc_cov/no_graph_sep.air", true), GRAPH_SUCCESS);
+  system("rm -f ./tmp_model_inc_cov/no_graph_sep.air");
+}
+
+TEST_F(ModelIncCovUt, IncCov2_LoadFromFile_EmptyFile) {
+  system("mkdir -p ./tmp_model_inc_cov");
+  std::string file_path = "./tmp_model_inc_cov/empty.air";
+  std::ofstream ofs(file_path, std::ios::binary);
+  if (ofs.is_open()) {
+    ofs.close();
+  }
+  Model model;
+  EXPECT_EQ(model.LoadFromFile(file_path), GRAPH_FAILED);
+  system(("rm -f " + file_path).c_str());
+}
+
+TEST_F(ModelIncCovUt, IncCov2_LoadFromFile_PermissionDenied) {
+  system("mkdir -p ./tmp_model_inc_cov");
+  std::string file_path = "./tmp_model_inc_cov/noperm.air";
+  std::ofstream ofs(file_path, std::ios::binary);
+  if (ofs.is_open()) {
+    ofs.write("data", 4);
+    ofs.close();
+  }
+  system(("chmod 000 " + file_path).c_str());
+  Model model;
+  EXPECT_EQ(model.LoadFromFile(file_path), GRAPH_FAILED);
+  system(("chmod 644 " + file_path).c_str());
+  system(("rm -f " + file_path).c_str());
+}
+
+TEST_F(ModelIncCovUt, IncCov2_LoadFromFile_InvalidProtobufContent) {
+  system("mkdir -p ./tmp_model_inc_cov");
+  std::string file_path = "./tmp_model_inc_cov/invalid_proto.air";
+  std::ofstream ofs(file_path, std::ios::binary);
+  if (ofs.is_open()) {
+    std::string invalid_data(128, '\xFF');
+    ofs.write(invalid_data.data(), static_cast<std::streamsize>(invalid_data.size()));
+    ofs.close();
+  }
+  Model model;
+  EXPECT_EQ(model.LoadFromFile(file_path), GRAPH_FAILED);
+  system(("rm -f " + file_path).c_str());
+}
 }  // namespace ge

@@ -16,6 +16,7 @@
 #include "graph/tensor.h"
 #include "graph/ascend_string.h"
 #include "graph/types.h"
+#include "graph/compute_graph.h"
 #include <string>
 #include <limits>
 #include <functional>
@@ -728,5 +729,131 @@ TEST_F(UtestGeAttrValue, IncCov_NamedAttrsGetItem) {
   EXPECT_EQ(val, 42);
   auto item2 = named_attrs.GetItem("nonexistent");
   EXPECT_TRUE(item2.IsEmpty());
+}
+
+TEST_F(UtestGeAttrValue, IncCov_SetListIntWithUint32AndInitList) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+
+  std::vector<uint32_t> u32_vals = {1, 2, 3};
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "u32_list", u32_vals));
+  std::vector<int64_t> i64_out;
+  EXPECT_TRUE(AttrUtils::GetListInt(op_desc, "u32_list", i64_out));
+  EXPECT_EQ(i64_out.size(), 3U);
+
+  std::vector<int32_t> i32_vals = {10, 20};
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "i32_list", i32_vals));
+  std::vector<int32_t> i32_out;
+  EXPECT_TRUE(AttrUtils::GetListInt(op_desc, "i32_list", i32_out));
+  EXPECT_EQ(i32_out.size(), 2U);
+
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "init_list", {static_cast<int64_t>(100), static_cast<int64_t>(200)}));
+  std::vector<uint32_t> u32_out;
+  EXPECT_TRUE(AttrUtils::GetListInt(op_desc, "init_list", u32_out));
+  EXPECT_EQ(u32_out.size(), 2U);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_TensorAttrOperations) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+
+  GeTensor tensor(GeTensorDesc(GeShape({1}), FORMAT_NCHW, DT_FLOAT));
+  EXPECT_TRUE(AttrUtils::SetTensor(op_desc, "tensor_attr", tensor));
+
+  GeTensorPtr tensor_ptr = std::make_shared<GeTensor>(tensor);
+  EXPECT_TRUE(AttrUtils::SetTensor(op_desc, "tensor_ptr_attr", tensor_ptr));
+
+  ConstGeTensorPtr const_tensor_ptr = std::make_shared<const GeTensor>(tensor);
+  EXPECT_TRUE(AttrUtils::SetTensor(op_desc, "const_tensor_ptr_attr", const_tensor_ptr));
+
+  EXPECT_TRUE(AttrUtils::SetShareTensor(op_desc, "share_tensor_attr", tensor));
+
+  ConstGeTensorPtr get_tensor;
+  EXPECT_TRUE(AttrUtils::GetTensor(op_desc, "tensor_attr", get_tensor));
+  EXPECT_NE(get_tensor, nullptr);
+
+  GeTensorPtr mutable_tensor;
+  EXPECT_TRUE(AttrUtils::MutableTensor(op_desc, "tensor_attr", mutable_tensor));
+  EXPECT_NE(mutable_tensor, nullptr);
+
+  std::vector<GeTensor> tensor_vec = {tensor, tensor};
+  EXPECT_TRUE(AttrUtils::SetListTensor(op_desc, "tensor_list", tensor_vec));
+
+  std::vector<GeTensorPtr> tensor_ptr_vec = {tensor_ptr, tensor_ptr};
+  EXPECT_TRUE(AttrUtils::SetListTensor(op_desc, "tensor_ptr_list", tensor_ptr_vec));
+
+  std::vector<ConstGeTensorPtr> const_tensor_ptr_vec = {const_tensor_ptr, const_tensor_ptr};
+  EXPECT_TRUE(AttrUtils::SetListTensor(op_desc, "const_tensor_ptr_list", const_tensor_ptr_vec));
+
+  std::vector<ConstGeTensorPtr> get_tensor_list;
+  EXPECT_TRUE(AttrUtils::GetListTensor(op_desc, "tensor_list", get_tensor_list));
+  EXPECT_EQ(get_tensor_list.size(), 2U);
+
+  std::vector<GeTensorPtr> mutable_tensor_list;
+  EXPECT_TRUE(AttrUtils::MutableListTensor(op_desc, "tensor_list", mutable_tensor_list));
+  EXPECT_EQ(mutable_tensor_list.size(), 2U);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GraphAttrOperations) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  graph->AddNode(std::make_shared<OpDesc>("node", "Test"));
+  EXPECT_TRUE(AttrUtils::SetGraph(op_desc, "graph_attr", graph));
+
+  ComputeGraphPtr get_graph;
+  EXPECT_TRUE(AttrUtils::GetGraph(op_desc, "graph_attr", get_graph));
+  EXPECT_NE(get_graph, nullptr);
+
+  EXPECT_FALSE(AttrUtils::GetGraph(op_desc, "nonexistent_graph", get_graph));
+
+  std::vector<ComputeGraphPtr> graphs = {graph, graph};
+  EXPECT_TRUE(AttrUtils::SetListGraph(op_desc, "graph_list", graphs));
+
+  std::vector<ComputeGraphPtr> get_graphs;
+  EXPECT_TRUE(AttrUtils::GetListGraph(op_desc, "graph_list", get_graphs));
+  EXPECT_EQ(get_graphs.size(), 2U);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_BytesAttrOperations) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+
+  std::vector<uint8_t> data = {1, 2, 3, 4};
+  Buffer buffer = Buffer::CopyFrom(data.data(), data.size());
+  EXPECT_TRUE(AttrUtils::SetBytes(op_desc, "bytes_attr", buffer));
+
+  Buffer get_buffer;
+  EXPECT_TRUE(AttrUtils::GetBytes(op_desc, "bytes_attr", get_buffer));
+  EXPECT_EQ(get_buffer.GetSize(), data.size());
+
+  Buffer zero_copy_buffer = Buffer::CopyFrom(data.data(), data.size());
+  EXPECT_TRUE(AttrUtils::SetZeroCopyBytes(op_desc, "zero_bytes_attr", std::move(zero_copy_buffer)));
+  Buffer get_zero_buffer;
+  EXPECT_TRUE(AttrUtils::GetZeroCopyBytes(op_desc, "zero_bytes_attr", get_zero_buffer));
+  EXPECT_EQ(get_zero_buffer.GetSize(), data.size());
+
+  std::vector<Buffer> buffers = {buffer, buffer};
+  EXPECT_TRUE(AttrUtils::SetListBytes(op_desc, "bytes_list", buffers));
+  std::vector<Buffer> get_buffers;
+  EXPECT_TRUE(AttrUtils::GetListBytes(op_desc, "bytes_list", get_buffers));
+  EXPECT_EQ(get_buffers.size(), 2U);
+
+  std::vector<Buffer> zero_buffers = {buffer, buffer};
+  EXPECT_TRUE(AttrUtils::SetZeroCopyListBytes(op_desc, "zero_bytes_list", zero_buffers));
+  std::vector<Buffer> get_zero_buffers;
+  EXPECT_TRUE(AttrUtils::GetZeroCopyListBytes(op_desc, "zero_bytes_list", get_zero_buffers));
+  EXPECT_EQ(get_zero_buffers.size(), 2U);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetAllAttrsWithFilterNullptr) {
+  ConstOpDescPtr null_op;
+  auto result = AttrUtils::GetAllAttrsWithFilter(std::move(null_op), nullptr);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetAllAttrsStrWithTensorDesc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  GeTensorDesc td(GeShape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  AttrUtils::SetTensorDesc(op_desc, "td_attr", td);
+  auto result = AttrUtils::GetAllAttrsStr(op_desc);
+  EXPECT_FALSE(result.empty());
 }
 }  // namespace ge

@@ -175,4 +175,94 @@ TEST_F(UTEST_file_saver, SaveWithAlignFill1_success) {
   system("rm -rf ./test.om");
 }
 
+TEST_F(UTEST_file_saver, WriteData_null_or_zero_returns_param_invalid) {
+  int32_t fd = 0;
+  EXPECT_EQ(FileSaver::OpenFile(fd, "./test_write.om"), SUCCESS);
+  EXPECT_EQ(FileSaver::WriteData(nullptr, 100U, fd), PARAM_INVALID);
+  std::string data = "abc";
+  EXPECT_EQ(FileSaver::WriteData(data.data(), 0U, fd), PARAM_INVALID);
+  (void)mmClose(fd);
+  system("rm -rf ./test_write.om");
+}
+
+TEST_F(UTEST_file_saver, SaveToFile_with_null_model_data_returns_failed) {
+  ge::ModelData modelData;
+  modelData.model_data = nullptr;
+  modelData.model_len = 0U;
+  EXPECT_EQ(FileSaver::SaveToFile("./test_om.om", modelData), FAILED);
+
+  std::string model_data_str(256, '1');
+  modelData.model_data = reinterpret_cast<void *>(const_cast<char *>(model_data_str.c_str()));
+  modelData.model_len = model_data_str.size();
+  ModelFileHeader file_header;
+  EXPECT_EQ(FileSaver::SaveToFile("./test_om.om", modelData, &file_header), SUCCESS);
+  system("rm -rf ./test_om.om");
+}
+
+TEST_F(UTEST_file_saver, SaveToFile_data_null_or_zero_len_returns_failed) {
+  EXPECT_EQ(FileSaver::SaveToFile("./test_om.om", nullptr, 0U), FAILED);
+  std::string data = "test_data";
+  EXPECT_EQ(FileSaver::SaveToFile("./test_om.om", data.data(), data.size(), false), SUCCESS);
+  system("rm -rf ./test_om.om");
+}
+
+TEST_F(UTEST_file_saver, SaveWithFileHeader_null_data_returns_failed) {
+  ModelFileHeader file_header;
+  EXPECT_EQ(FileSaver::SaveWithFileHeader("./test_om.om", file_header, nullptr, 0U), FAILED);
+
+  std::string data = "test_data";
+  EXPECT_EQ(FileSaver::SaveWithFileHeader("./test_om.om", file_header, data.data(), data.size()), SUCCESS);
+  system("rm -rf ./test_om.om");
+}
+
+TEST_F(UTEST_file_saver, CheckPathValid_root_path_returns_success) {
+  EXPECT_EQ(FileSaver::CheckPathValid("/"), SUCCESS);
+  EXPECT_EQ(FileSaver::CheckPathValid("./test_path/file.om"), SUCCESS);
+  system("rm -rf ./test_path");
+}
+
+TEST_F(UTEST_file_saver, SaveToBuffWithFileHeader_mismatched_sizes_returns_param_invalid) {
+  ModelFileHeader file_header;
+  std::vector<char> data;
+  data.resize(sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo), 0);
+  ModelPartitionTable *partition_table = reinterpret_cast<ModelPartitionTable *>(data.data());
+  partition_table->num = 1;
+  partition_table->partition[0] = {MODEL_DEF, 0, 12};
+
+  std::vector<ModelPartitionTable *> partition_tables;
+  partition_tables.push_back(partition_table);
+  std::vector<ModelPartitionTable *> partition_tables2;
+  partition_tables2.push_back(partition_table);
+  partition_tables2.push_back(partition_table);
+
+  auto buff = reinterpret_cast<uint8_t *>(malloc(12));
+  struct ge::ModelPartition model_partition;
+  model_partition.type = MODEL_DEF;
+  model_partition.data = buff;
+  model_partition.size = 12;
+  std::vector<ModelPartition> model_partitions = {model_partition};
+  std::vector<std::vector<ModelPartition>> all_partition_datas = {model_partitions};
+
+  ge::ModelBufferData model;
+  EXPECT_EQ(FileSaver::SaveToBuffWithFileHeader(file_header, partition_tables2, all_partition_datas, model),
+            PARAM_INVALID);
+  free(buff);
+  model_partition.data = nullptr;
+}
+
+TEST_F(UTEST_file_saver, SaveToFile3_empty_partition_returns_failed) {
+  std::vector<ModelPartition> partition_datas;
+  std::vector<char> data;
+  data.resize(sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo), 0);
+  ModelPartitionTable *partition_table = reinterpret_cast<ModelPartitionTable *>(data.data());
+  partition_table->num = 1;
+  partition_table->partition[0] = {MODEL_DEF, 0, 12};
+  ModelFileHeader model_header;
+  EXPECT_EQ(FileSaver::SaveToFile("./test_om.om", model_header, *partition_table, partition_datas), FAILED);
+}
+
+TEST_F(UTEST_file_saver, PrintModelSaveLog_when_not_initialized) {
+  FileSaver::PrintModelSaveLog();
+}
+
 }  // namespace ge

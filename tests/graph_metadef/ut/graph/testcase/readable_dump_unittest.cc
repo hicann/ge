@@ -1220,3 +1220,43 @@ graph("Conv2D_17function_graph_1"):
   EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
   EXPECT_EQ(readable_dump, readable_ss.str());
 }
+
+REG_OP(phony_empty_str_attr)
+    .INPUT(x, TensorType::ALL())
+    .ATTR(empty_s, String, "")
+    .ATTR(empty_li, ListInt, {})
+    .OUTPUT(y, TensorType::NumberType())
+    .OP_END_FACTORY_REG(phony_empty_str_attr);
+
+TEST_F(UtestReadableDump, test_DumpNodeWithEmptyAttrValueStr) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_empty_attr");
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  auto compute_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  auto data_op = op::Data("data");
+  auto data_node = graph.AddNodeByOp(data_op);
+
+  auto empty_attr_op = op::phony_empty_str_attr("test_empty_attr");
+  auto empty_attr_node = graph.AddNodeByOp(empty_attr_op);
+  graph.AddDataEdge(data_node, 0, empty_attr_node, 0);
+
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(empty_attr_node, 0, netoutput_gnode, 0);
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
+  EXPECT_TRUE(readable_ss.str().find("phony_empty_str_attr") != std::string::npos);
+}
+
+TEST_F(UtestReadableDump, test_DumpNetOutputWithUnconnectedInput) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_unconnected");
+  auto data_node = builder.AddNode("Data", "Data", 0, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 2, 0);
+  builder.AddDataEdge(data_node, 0, netoutput, 0);
+
+  auto compute_graph = builder.GetGraph();
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
+  EXPECT_TRUE(readable_ss.str().find("return") != std::string::npos);
+}

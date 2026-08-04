@@ -392,4 +392,104 @@ TEST_F(ScopePatternUt, IncCov_ScopePattern_MatchEdgeCases) {
   ScopePattern scope_pat3;
   EXPECT_FALSE(scope_pat3.impl_->Match(&scope_retval));
 }
+
+TEST_F(ScopePatternUt, IncCov_ScopeAttrValue_SelfAssignment) {
+  ScopeAttrValue scope_attr_value;
+  scope_attr_value.SetIntValue(42);
+  scope_attr_value.SetFloatValue(1.5F);
+  scope_attr_value.SetStringValue("test");
+  scope_attr_value.SetBoolValue(true);
+  scope_attr_value = scope_attr_value;
+  EXPECT_EQ(scope_attr_value.impl_->GetIntValue(), 42);
+  EXPECT_EQ(scope_attr_value.impl_->GetStrValue(), string("test"));
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeAttrValue_AssignNullImpl) {
+  ScopeAttrValue src_val;
+  src_val.SetIntValue(42);
+  ScopeAttrValue null_val;
+  null_val.impl_ = nullptr;
+  null_val = src_val;
+  EXPECT_EQ(null_val.impl_, nullptr);
+}
+
+TEST_F(ScopePatternUt, IncCov_NodeOpTypeFeature_StepMatchSuccess) {
+  Scope scope;
+  scope.Init("step_scope", "sub_type", nullptr);
+  scope.impl_->OpsNumInc("Conv2D");
+  scope.impl_->OpsNumInc("Conv2D");
+  scope.impl_->OpsNumInc("Conv2D");
+  NodeOpTypeFeature notf("Conv2D", 1, 2);
+  EXPECT_TRUE(notf.Match(&scope));
+}
+
+TEST_F(ScopePatternUt, IncCov_NodeOpTypeFeature_AssignNullImpl) {
+  NodeOpTypeFeature notf1("add", 1, 0);
+  NodeOpTypeFeature notf2("sub", 2, 1);
+  notf2.impl_.reset();
+  notf2 = notf1;
+  EXPECT_EQ(notf2.impl_, nullptr);
+}
+
+TEST_F(ScopePatternUt, IncCov_NodeAttrFeature_MatchWithNodes) {
+  Scope scope;
+  scope.Init("attr_scope", "sub_type", nullptr);
+  OperatorPtr node(new ge::Operator("add1", "Add"));
+  auto op_desc = ge::OpDescUtils::GetOpDescFromOperator(*node);
+  ge::AttrUtils::SetBool(op_desc, "attr_name", true);
+  scope.impl_->AddNode(node);
+
+  ScopeAttrValue bool_val;
+  bool_val.SetBoolValue(true);
+  NodeAttrFeature naf_bool("Add", "attr_name", DT_BOOL, bool_val);
+  EXPECT_TRUE(naf_bool.Match(&scope));
+
+  ScopeAttrValue bool_val_false;
+  bool_val_false.SetBoolValue(false);
+  NodeAttrFeature naf_false("Add", "attr_name", DT_BOOL, bool_val_false);
+  EXPECT_FALSE(naf_false.Match(&scope));
+
+  ge::AttrUtils::SetInt(op_desc, "attr_name", 42);
+  ScopeAttrValue int_val;
+  int_val.SetIntValue(42);
+  NodeAttrFeature naf_int("Add", "attr_name", DT_INT32, int_val);
+  EXPECT_TRUE(naf_int.Match(&scope));
+
+  ge::AttrUtils::SetFloat(op_desc, "attr_name", 1.5F);
+  ScopeAttrValue float_val;
+  float_val.SetFloatValue(1.5F);
+  NodeAttrFeature naf_float("Add", "attr_name", DT_FLOAT, float_val);
+  EXPECT_TRUE(naf_float.Match(&scope));
+
+  ScopeAttrValue int8_val;
+  int8_val.SetBoolValue(true);
+  NodeAttrFeature naf_int8("Add", "attr_name", DT_INT8, int8_val);
+  EXPECT_TRUE(naf_int8.Match(&scope));
+
+  NodeAttrFeature naf_wrong("Mul", "attr_name", DT_BOOL, bool_val);
+  EXPECT_FALSE(naf_wrong.Match(&scope));
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeFeature_SuffixNotMatch) {
+  Scope scope;
+  scope.Init("parent/child", "", nullptr);
+  ScopeFeature sf("", 0, "wrong_suffix", "", 0);
+  EXPECT_FALSE(sf.Match(&scope));
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeFeature_AssignNullImpl) {
+  ScopeFeature sf1("sub_type", 1, "suffix", "mask", 0);
+  ScopeFeature sf2("other", 2, "other_suffix", "other_mask", 1);
+  sf2.impl_.reset();
+  sf2 = sf1;
+  EXPECT_EQ(sf2.impl_, nullptr);
+}
+
+TEST_F(ScopePatternUt, IncCov_ScopeFeature_MatchNullImpl) {
+  ScopeFeature sf("sub_type", 1, "suffix", "mask", 0);
+  sf.impl_.reset();
+  Scope scope;
+  scope.Init("name", "sub_type", nullptr);
+  EXPECT_FALSE(sf.Match(&scope));
+}
 }  // namespace ge

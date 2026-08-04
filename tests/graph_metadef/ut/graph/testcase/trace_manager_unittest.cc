@@ -76,4 +76,45 @@ TEST_F(UtestTraceManager, add_trace_basic_0) {
   remove(instance.current_saving_file_name_.c_str());
   remove(pre_file_name.c_str());
 }
+
+TEST_F(UtestTraceManager, CovAddTraceDisabled) {
+  auto &instance = TraceManager::GetInstance();
+  const bool saved_enabled = instance.enabled_;
+  instance.enabled_ = false;
+  instance.AddTrace("test_disabled");
+  instance.enabled_ = saved_enabled;
+}
+
+TEST_F(UtestTraceManager, CovSetTraceOwnerDisabled) {
+  auto &instance = TraceManager::GetInstance();
+  const bool saved_enabled = instance.enabled_;
+  instance.enabled_ = false;
+  instance.SetTraceOwner("owner", "stage", "graph");
+  instance.enabled_ = saved_enabled;
+}
+
+TEST_F(UtestTraceManager, CovClearTraceOwnerDisabled) {
+  auto &instance = TraceManager::GetInstance();
+  const bool saved_enabled = instance.enabled_;
+  instance.enabled_ = false;
+  instance.ClearTraceOwner();
+  instance.enabled_ = saved_enabled;
+}
+
+TEST_F(UtestTraceManager, CovInitializeInvalidPath) {
+  auto &instance = TraceManager::GetInstance();
+  const bool saved_enabled = instance.enabled_;
+  instance.enabled_ = true;
+  EXPECT_EQ(instance.Initialize("/dev/null/invalid_trace_path"), FAILED);
+  instance.enabled_ = saved_enabled;
+}
+
+TEST_F(UtestTraceManager, CovNextFileName) {
+  auto &instance = TraceManager::GetInstance();
+  instance.trace_save_file_path_ = "./";
+  const auto name1 = instance.NextFileName();
+  EXPECT_FALSE(name1.empty());
+  const auto name2 = instance.NextFileName();
+  EXPECT_NE(name1, name2);
+}
 }  // namespace ge

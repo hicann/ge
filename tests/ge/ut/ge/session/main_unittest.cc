@@ -2319,3 +2319,168 @@ TEST_F(UtestLegacySoPartition, SimilarButNotLegacySuffix_NotMoved) {
   EXPECT_EQ(fileList[2], "/path/_legacy.sox");
   EXPECT_EQ(fileList[3], "/path/real_legacy.so");
 }
+
+TEST_F(UtestMain, MainImplTest_invalid_mode_CovEnhance) {
+  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  char *argv[] = {"atc",
+                  "--mode=999",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_json_path_invalid_CovEnhance) {
+  char *argv[] = {"atc", "--mode=1", "--om=/nonexistent_dir/model.om", "--json=/nonexistent_dir/output.json"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+}
+
+TEST_F(UtestMain, MainImplTest_save_original_model_invalid_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--save_original_model=invalid"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_op_name_map_not_found_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--op_name_map=/nonexistent_dir/op_name_map.txt"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_static_model_ops_lower_limit_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--static_model_ops_lower_limit=10"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_save_original_model_true_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--save_original_model=true"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp_original.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_input_fp16_nodes_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--input_fp16_nodes=data1"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_optimization_switch_CovEnhance) {
+  const auto opp_path = ConstructOppEnv();
+  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_test_model.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64",
+                  "--optimization_switch=forbidden_close_pass:on"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.pb").c_str());
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_tmp.om").c_str());
+  system(("rm -rf " + opp_path).c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_display_model_info_mode6_CovEnhance) {
+  std::string om_arg = AtcFileFactory::GenerateModel("--om=", "cov_test_model.om");
+  char *argv[] = {"atc", "--mode=6", "--framework=-1", const_cast<char *>(om_arg.c_str())};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_test_model.om").c_str());
+}
+
+TEST_F(UtestMain, MainImplTest_auto_tune_mode_deprecated_CovEnhance) {
+  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--soc_version=Ascend910B",
+                  "--input_format=NCHW",
+                  "--auto_tune_mode=RA"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
+}

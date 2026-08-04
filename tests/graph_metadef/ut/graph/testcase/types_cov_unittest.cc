@@ -170,4 +170,67 @@ TEST_F(UtestTypesCov, PromoteMoveSelfAssignment) {
   EXPECT_EQ(syms.size(), 2U);
   EXPECT_STREQ(syms[0], "T1");
 }
+
+TEST_F(UtestTypesCov, GetSizeInBytesBitTypeZeroCount) {
+  int64_t result = GetSizeInBytes(0, DT_INT4);
+  EXPECT_EQ(result, 0);
+  result = GetSizeInBytes(0, DT_UINT1);
+  EXPECT_EQ(result, 0);
+  result = GetSizeInBytes(0, DT_INT2);
+  EXPECT_EQ(result, 0);
+  result = GetSizeInBytes(0, DT_UINT2);
+  EXPECT_EQ(result, 0);
+}
+
+TEST_F(UtestTypesCov, PromoteSymsAfterMove) {
+  Promote promote1({"T1", "T2", "T3"});
+  Promote promote2(std::move(promote1));
+  auto syms = promote1.Syms();
+  EXPECT_TRUE(syms.empty());
+  auto syms2 = promote2.Syms();
+  EXPECT_EQ(syms2.size(), 3U);
+  EXPECT_STREQ(syms2[0], "T1");
+}
+
+TEST_F(UtestTypesCov, PromoteMoveAssignmentClearsSource) {
+  Promote promote1({"A", "B"});
+  Promote promote2({"X", "Y", "Z"});
+  promote2 = std::move(promote1);
+  auto syms1 = promote1.Syms();
+  EXPECT_TRUE(syms1.empty());
+  auto syms2 = promote2.Syms();
+  EXPECT_EQ(syms2.size(), 2U);
+  EXPECT_STREQ(syms2[0], "A");
+}
+
+TEST_F(UtestTypesCov, GetFormatNameAllCommonFormats) {
+  EXPECT_STREQ(GetFormatName(FORMAT_NCHW), "NCHW");
+  EXPECT_STREQ(GetFormatName(FORMAT_NHWC), "NHWC");
+  EXPECT_STREQ(GetFormatName(FORMAT_ND), "ND");
+  EXPECT_STREQ(GetFormatName(FORMAT_NC1HWC0), "NC1HWC0");
+  EXPECT_STREQ(GetFormatName(FORMAT_FRACTAL_Z), "FRACTAL_Z");
+  EXPECT_STREQ(GetFormatName(FORMAT_HWCN), "HWCN");
+  EXPECT_STREQ(GetFormatName(FORMAT_NDHWC), "NDHWC");
+  EXPECT_STREQ(GetFormatName(FORMAT_FRACTAL_NZ), "FRACTAL_NZ");
+  EXPECT_STREQ(GetFormatName(FORMAT_NCDHW), "NCDHW");
+  EXPECT_STREQ(GetFormatName(FORMAT_CN), "CN");
+  EXPECT_STREQ(GetFormatName(FORMAT_NC), "NC");
+}
+
+TEST_F(UtestTypesCov, GetSizeInBytesAllBitTypes) {
+  int64_t result = GetSizeInBytes(1, DT_INT4);
+  EXPECT_GE(result, 0);
+  result = GetSizeInBytes(1, DT_UINT1);
+  EXPECT_GE(result, 0);
+  result = GetSizeInBytes(1, DT_INT2);
+  EXPECT_GE(result, 0);
+  result = GetSizeInBytes(1, DT_UINT2);
+  EXPECT_GE(result, 0);
+  result = GetSizeInBytes(7, DT_INT4);
+  EXPECT_EQ(result, 4);
+  result = GetSizeInBytes(8, DT_INT4);
+  EXPECT_EQ(result, 4);
+  result = GetSizeInBytes(9, DT_INT4);
+  EXPECT_EQ(result, 5);
+}
 }  // namespace ge

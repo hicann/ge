@@ -28,6 +28,9 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
 
+ge::ComputeGraphPtr GeApiWrapper_MakeComputeGraphPtr(const char *graph_name);
+size_t GeApiWrapper_GetAllNodesSize(const ge::ComputeGraphPtr &graph_ptr);
+
 namespace {
 constexpr const char *kDeterministicAttr = "_deterministic";
 constexpr const char *kDeterministicLevelAttr = "_deterministic_level";
@@ -2549,5 +2552,224 @@ TEST_F(UtestComputeGraph, IncCov_TopologicalSorting_WithSubgraph) {
   sub_graph->AddNode(op);
   graph->AddSubGraph(sub_graph);
   EXPECT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_FindFirstNodeMatchType_NotFound) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op_desc = std::make_shared<OpDesc>("node1", "Data");
+  op_desc->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op_desc);
+  EXPECT_EQ(graph->FindFirstNodeMatchType("NonExistent"), nullptr);
+  EXPECT_NE(graph->FindFirstNodeMatchType("Data"), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_VectorInputNodePtrIsEqual_DifferentNames) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  auto op2 = std::make_shared<OpDesc>("node2", "Data");
+  op2->AddOutputDesc(GeTensorDesc());
+  auto node1 = graph->AddNode(op1);
+  auto node2 = graph->AddNode(op2);
+  std::vector<NodePtr> left{node1};
+  std::vector<NodePtr> right{node2};
+  EXPECT_FALSE(graph->VectorInputNodePtrIsEqual(left, right));
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddOutputNodeByIndex_NullNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->AddOutputNodeByIndex(nullptr, 0), nullptr);
+
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = graph->AddNode(op);
+  auto result = graph->AddOutputNode(node);
+  EXPECT_NE(result, nullptr);
+
+  auto result2 = graph->AddOutputNodeByIndex(node, 0);
+  EXPECT_NE(result2, nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_UpdateInputMapping_WithDataNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("data1", DATA);
+  op->AddOutputDesc(GeTensorDesc());
+  AttrUtils::SetInt(op, ATTR_NAME_PARENT_NODE_INDEX, 0);
+  graph->AddNode(op);
+
+  std::map<uint32_t, uint32_t> input_mapping{{0, 5}};
+  EXPECT_EQ(graph->UpdateInputMapping(input_mapping), GRAPH_SUCCESS);
+
+  std::map<uint32_t, uint32_t> empty_mapping;
+  EXPECT_EQ(graph->UpdateInputMapping(empty_mapping), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_UpdateOutputMapping_WithNodeNoNetOutput) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op);
+
+  std::map<uint32_t, uint32_t> output_mapping{{0, 1}};
+  EXPECT_EQ(graph->UpdateOutputMapping(output_mapping), GRAPH_FAILED);
+}
+
+TEST_F(UtestComputeGraph, IncCov_SetGraphTargetNodesInfo_NullNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = graph->AddNode(op);
+
+  std::vector<NodePtr> targets{nullptr, node};
+  graph->SetGraphTargetNodesInfo(targets);
+  EXPECT_EQ(graph->GetGraphTargetNodesInfo().size(), 2U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_GetInEdgeSize_NullNode) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->GetInEdgeSize(nullptr), 0U);
+  EXPECT_EQ(graph->GetOutEdgeSize(nullptr), 0U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_Swap_TwoGraphs) {
+  auto graph1 = std::make_shared<ComputeGraph>("graph1");
+  auto graph2 = std::make_shared<ComputeGraph>("graph2");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  graph1->AddNode(op1);
+
+  graph1->Swap(*graph2);
+  EXPECT_EQ(graph1->GetName(), "graph2");
+  EXPECT_EQ(graph2->GetName(), "graph1");
+  EXPECT_EQ(graph2->GetDirectNodesSize(), 1U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_SetUserDefOutput_InvalidFormat) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  graph->SetUserDefOutput("invalidformat");
+  graph->SetUserDefOutput("node:abc");
+  graph->SetUserDefOutput("node:999999999999999999999999");
+  graph->SetUserDefOutput("");
+  graph->SetUserDefOutput("node:0");
+  graph->SetUserDefOutput("node:0");
+  EXPECT_FALSE(graph->GetOutput().empty());
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddSubgraph_NullSubgraph) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  EXPECT_EQ(graph->AddSubgraph(std::shared_ptr<ComputeGraph>()), GRAPH_PARAM_INVALID);
+
+  auto sub = std::make_shared<ComputeGraph>("sub");
+  EXPECT_NE(graph->AddSubgraph(sub), GRAPH_SUCCESS);
+  EXPECT_NE(graph->AddSubgraph(sub->GetName(), sub), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_SetGetGraphOpName) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  std::map<uint32_t, std::string> op_name_map{{0, "op0"}, {1, "op1"}};
+  graph->SetGraphOpName(op_name_map);
+  EXPECT_EQ(graph->GetGraphOpName().size(), 2U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_GeApiWrapper_Functions) {
+  auto graph = ::GeApiWrapper_MakeComputeGraphPtr("test_graph");
+  EXPECT_NE(graph, nullptr);
+  EXPECT_EQ(graph->GetName(), "test_graph");
+
+  EXPECT_EQ(::GeApiWrapper_GetAllNodesSize(nullptr), 0U);
+
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op);
+  EXPECT_EQ(::GeApiWrapper_GetAllNodesSize(graph), 1U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_GraphMembersAreEqual_Different) {
+  auto graph1 = std::make_shared<ComputeGraph>("graph1");
+  auto graph2 = std::make_shared<ComputeGraph>("graph2");
+  EXPECT_FALSE(graph1->GraphMembersAreEqual(*graph2));
+
+  auto graph3 = std::make_shared<ComputeGraph>("graph1");
+  EXPECT_TRUE(graph1->GraphMembersAreEqual(*graph3));
+  EXPECT_TRUE(graph1->GraphAttrsAreEqual(*graph3));
+}
+
+TEST_F(UtestComputeGraph, IncCov_Dump_Graph) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = graph->AddNode(op);
+  graph->Dump();
+
+  auto op2 = std::make_shared<OpDesc>("node2", "Data");
+  op2->AddOutputDesc(GeTensorDesc());
+  auto node2 = graph->AddNode(op2);
+  GraphUtils::AddEdge(node->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node->GetOutControlAnchor(), node2->GetInControlAnchor());
+  graph->Dump();
+}
+
+TEST_F(UtestComputeGraph, IncCov_ReorderByNodeId) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  auto op2 = std::make_shared<OpDesc>("node2", "Data");
+  op2->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op2);
+  graph->AddNode(op1);
+  graph->ReorderByNodeId();
+  auto nodes = graph->GetDirectNode();
+  EXPECT_EQ(nodes.size(), 2U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_IsolateNode_WithEdges) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  auto op2 = std::make_shared<OpDesc>("node2", "Relu");
+  op2->AddInputDesc(GeTensorDesc());
+  op2->AddOutputDesc(GeTensorDesc());
+  auto op3 = std::make_shared<OpDesc>("node3", "Relu");
+  op3->AddInputDesc(GeTensorDesc());
+
+  auto node1 = graph->AddNode(op1);
+  auto node2 = graph->AddNode(op2);
+  auto node3 = graph->AddNode(op3);
+
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node2->GetOutDataAnchor(0), node3->GetInDataAnchor(0));
+
+  EXPECT_EQ(graph->IsolateNode(node2), GRAPH_SUCCESS);
+  EXPECT_EQ(node2->GetOutDataNodesSize(), 0U);
+}
+
+TEST_F(UtestComputeGraph, IncCov_RemoveExtraOutEdge) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  auto op2 = std::make_shared<OpDesc>("node2", "Relu");
+  op2->AddInputDesc(GeTensorDesc());
+
+  auto node1 = graph->AddNode(op1);
+  auto node2 = graph->AddNode(op2);
+
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  EXPECT_EQ(graph->RemoveExtraOutEdge(node1), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestComputeGraph, IncCov_GetNetOutputNode_Null) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("node1", "Data");
+  op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(op);
+  EXPECT_EQ(graph->GetOrUpdateNetOutputNode(), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_SetNodesOwner) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto sub_graph = std::make_shared<ComputeGraph>("sub");
+  graph->AddSubGraph(sub_graph);
+  graph->SetNodesOwner();
+  graph->SetTopParentGraph();
 }
 }  // namespace ge

@@ -13,6 +13,8 @@
 #include <iostream>
 #include <string>
 #include <map>
+
+#define private public
 #include "graph/serialization/attr_serializer_registry.h"
 #include "graph/serialization/string_serializer.h"
 #include "graph/serialization/int_serializer.h"
@@ -36,6 +38,7 @@
 #include "graph/model_serialize.h"
 #include "graph_builder_utils.h"
 #include "test_std_structs.h"
+#undef private
 
 namespace ge {
 GeTensorPtr CreateTensor_1_1_224_224(float *tensor_data) {
@@ -744,5 +747,76 @@ TEST_F(AttrSerializerUt, IncCov_ListValueSerializerDeserializeListNamedAttrsFail
   AnyValue av;
   ListValueSerializer serializer;
   EXPECT_EQ(serializer.Deserialize(def, av), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListIntGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListInt(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListStringGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListString(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListFloatGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListFloat(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListBoolGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListBool(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListGeTensorDescGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListGeTensorDesc(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListGeTensorGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListGeTensor(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListBufferGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListBuffer(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListGraphDefGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListGraphDef(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListNamedAttrsGetValueFail) {
+  REG_GEIR_SERIALIZER(named_attr_serializer, NamedAttrsSerializer, GetTypeId<ge::NamedAttrs>(), proto::AttrDef::kFunc);
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListNamedAttrs(av, def), GRAPH_FAILED);
+}
+
+TEST_F(AttrSerializerUt, IncCov_SerializeListDataTypeGetValueFail) {
+  AnyValue av;
+  av.SetValue(static_cast<int64_t>(123));
+  proto::AttrDef def;
+  EXPECT_EQ(ListValueSerializer::SerializeListDataType(av, def), GRAPH_FAILED);
 }
 }  // namespace ge

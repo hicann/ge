@@ -594,4 +594,305 @@ TEST_F(UtestFftsGraphUtils, CovIsValueInvalid) {
   std::vector<uint32_t> upper_limit = {8};
   ASSERT_FALSE(FftsGraphUtils::IsValueValid(graph, upper_limit, node_value, graph_value));
 }
+
+TEST_F(UtestFftsGraphUtils, CovClipNoInputNode) {
+  ComputeGraphPtr graph;
+  ComputeGraphPtr subgraph;
+  BuildGraphForSplit_without_func_node(graph, subgraph);
+  const auto &data1 = FindNodeWithNamePattern(subgraph, "data1");
+  ASSERT_NE(data1, nullptr);
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, {data1}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCollectClipNullParentNode) {
+  auto nested_builder = ut::GraphBuilder("nested_sub");
+  const auto &nested_data = nested_builder.AddNode("nested_data", DATA, 1, 1);
+  const auto &nested_cast = nested_builder.AddNode("nested_cast", "Cast", 1, 1);
+  const auto &nested_netoutput = nested_builder.AddNode("nested_netoutput", NETOUTPUT, 1, 0);
+  nested_builder.AddDataEdge(nested_data, 0, nested_cast, 0);
+  nested_builder.AddDataEdge(nested_cast, 0, nested_netoutput, 0);
+  AttrUtils::SetInt(nested_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(nested_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto nested_sub = nested_builder.GetGraph();
+  AttrUtils::SetStr(nested_sub, "_session_graph_id", "_session_graph_id");
+
+  auto sub_builder = ut::GraphBuilder("ffts_subgraph");
+  const auto &data1 = sub_builder.AddNode("data1", DATA, 1, 1);
+  const auto &nested_func = sub_builder.AddNode("nested_func", PARTITIONEDCALL, 1, 1);
+  const auto &netoutput = sub_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  sub_builder.AddDataEdge(data1, 0, nested_func, 0);
+  sub_builder.AddDataEdge(nested_func, 0, netoutput, 0);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto subgraph = sub_builder.GetGraph();
+  AttrUtils::SetStr(subgraph, "_session_graph_id", "_session_graph_id");
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &input = root_builder.AddNode("input", DATA, 1, 1);
+  const auto &func_node = root_builder.AddNode("func_node", PARTITIONEDCALL, 1, 1);
+  const auto &output = root_builder.AddNode("output", NETOUTPUT, 1, 0);
+  root_builder.AddDataEdge(input, 0, func_node, 0);
+  root_builder.AddDataEdge(func_node, 0, output, 0);
+  auto graph = root_builder.GetGraph();
+  AttrUtils::SetStr(graph, "_session_graph_id", "_session_graph_id");
+
+  func_node->GetOpDesc()->AddSubgraphName("f");
+  func_node->GetOpDesc()->SetSubgraphInstanceName(0, subgraph->GetName());
+  AttrUtils::SetStr(func_node->GetOpDesc(), ATTR_NAME_FFTS_PLUS_SUB_GRAPH, "ffts_plus");
+  subgraph->SetParentNode(func_node);
+  subgraph->SetParentGraph(graph);
+  graph->AddSubGraph(subgraph);
+
+  nested_func->GetOpDesc()->AddSubgraphName("nf");
+  nested_func->GetOpDesc()->SetSubgraphInstanceName(0, nested_sub->GetName());
+  nested_sub->SetParentNode(nested_func);
+  nested_sub->SetParentGraph(subgraph);
+  graph->AddSubGraph(nested_sub);
+  nested_sub->SetParentNode(nullptr);
+
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, {nested_cast}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCollectEndNodeNoNetoutput) {
+  auto sub_builder = ut::GraphBuilder("ffts_subgraph");
+  const auto &data1 = sub_builder.AddNode("data1", DATA, 1, 1);
+  const auto &cast1 = sub_builder.AddNode("cast1", "Cast", 1, 1);
+  sub_builder.AddDataEdge(data1, 0, cast1, 0);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto subgraph = sub_builder.GetGraph();
+  AttrUtils::SetStr(subgraph, "_session_graph_id", "_session_graph_id");
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &input = root_builder.AddNode("input", DATA, 1, 1);
+  const auto &func_node = root_builder.AddNode("func_node", PARTITIONEDCALL, 1, 1);
+  const auto &output = root_builder.AddNode("output", NETOUTPUT, 1, 0);
+  root_builder.AddDataEdge(input, 0, func_node, 0);
+  root_builder.AddDataEdge(func_node, 0, output, 0);
+  auto graph = root_builder.GetGraph();
+  AttrUtils::SetStr(graph, "_session_graph_id", "_session_graph_id");
+
+  func_node->GetOpDesc()->AddSubgraphName("f");
+  func_node->GetOpDesc()->SetSubgraphInstanceName(0, subgraph->GetName());
+  AttrUtils::SetStr(func_node->GetOpDesc(), ATTR_NAME_FFTS_PLUS_SUB_GRAPH, "ffts_plus");
+  subgraph->SetParentNode(func_node);
+  subgraph->SetParentGraph(graph);
+  graph->AddSubGraph(subgraph);
+
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, {cast1}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCtrlGotoInSubgraph) {
+  auto sub_builder = ut::GraphBuilder("ffts_subgraph");
+  const auto &data1 = sub_builder.AddNode("data1", DATA, 1, 1);
+  const auto &labelgoto1 = sub_builder.AddNode("labelgoto1", LABELGOTOEX, 1, 1);
+  const auto &cast1 = sub_builder.AddNode("cast1", "Cast", 1, 2);
+  const auto &labelset1 = sub_builder.AddNode("labelset1", LABELSET, 1, 1);
+  const auto &labelswitch1 = sub_builder.AddNode("labelswitch1", LABELSWITCHBYINDEX, 1, 1);
+  const auto &netoutput = sub_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  sub_builder.AddDataEdge(data1, 0, labelgoto1, 0);
+  sub_builder.AddDataEdge(labelgoto1, 0, cast1, 0);
+  sub_builder.AddDataEdge(cast1, 0, netoutput, 0);
+  sub_builder.AddDataEdge(cast1, 1, labelset1, 0);
+  sub_builder.AddDataEdge(labelset1, 0, labelswitch1, 0);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto subgraph = sub_builder.GetGraph();
+  AttrUtils::SetStr(subgraph, "_session_graph_id", "_session_graph_id");
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &input = root_builder.AddNode("input", DATA, 1, 1);
+  const auto &func_node = root_builder.AddNode("func_node", PARTITIONEDCALL, 1, 1);
+  const auto &output = root_builder.AddNode("output", NETOUTPUT, 1, 0);
+  root_builder.AddDataEdge(input, 0, func_node, 0);
+  root_builder.AddDataEdge(func_node, 0, output, 0);
+  auto graph = root_builder.GetGraph();
+  AttrUtils::SetStr(graph, "_session_graph_id", "_session_graph_id");
+
+  func_node->GetOpDesc()->AddSubgraphName("f");
+  func_node->GetOpDesc()->SetSubgraphInstanceName(0, subgraph->GetName());
+  AttrUtils::SetStr(func_node->GetOpDesc(), ATTR_NAME_FFTS_PLUS_SUB_GRAPH, "ffts_plus");
+  subgraph->SetParentNode(func_node);
+  subgraph->SetParentGraph(graph);
+  graph->AddSubGraph(subgraph);
+
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, {cast1}), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestFftsGraphUtils, CovGetFftsPlusGraphSubgraphCountMismatch) {
+  auto sub1_builder = ut::GraphBuilder("sub1");
+  sub1_builder.AddNode("data1", DATA, 1, 1);
+  auto subgraph1 = sub1_builder.GetGraph();
+  AttrUtils::SetStr(subgraph1, "_session_graph_id", "_session_graph_id");
+
+  auto sub2_builder = ut::GraphBuilder("sub2");
+  sub2_builder.AddNode("data2", DATA, 1, 1);
+  auto subgraph2 = sub2_builder.GetGraph();
+  AttrUtils::SetStr(subgraph2, "_session_graph_id", "_session_graph_id");
+
+  auto root_builder = ut::GraphBuilder("root");
+  const auto &func_node = root_builder.AddNode("func", PARTITIONEDCALL, 1, 1);
+  auto graph = root_builder.GetGraph();
+  AttrUtils::SetStr(graph, "_session_graph_id", "_session_graph_id");
+
+  func_node->GetOpDesc()->AddSubgraphName("f1");
+  func_node->GetOpDesc()->SetSubgraphInstanceName(0, subgraph1->GetName());
+  func_node->GetOpDesc()->AddSubgraphName("f2");
+  func_node->GetOpDesc()->SetSubgraphInstanceName(1, subgraph2->GetName());
+  subgraph1->SetParentNode(func_node);
+  subgraph1->SetParentGraph(graph);
+  subgraph2->SetParentNode(func_node);
+  subgraph2->SetParentGraph(graph);
+  graph->AddSubGraph(subgraph1);
+  graph->AddSubGraph(subgraph2);
+
+  const auto &calc_func = [](const NodePtr &n) { return std::vector<uint32_t>{1}; };
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph1, calc_func, {8}), PARAM_INVALID);
+}
+
+TEST_F(UtestFftsGraphUtils, CovGraphPartitionValueInvalid) {
+  ComputeGraphPtr graph;
+  ComputeGraphPtr subgraph;
+  BuildGraphForSplit_without_func_node(graph, subgraph);
+  const auto &calc_func = [](const NodePtr &n) { return std::vector<uint32_t>{1, 2}; };
+  ASSERT_EQ(FftsGraphUtils::GraphPartition(*subgraph, calc_func, {8}), GRAPH_FAILED);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCalculateFuncNodeFailed) {
+  auto s1_builder = ut::GraphBuilder("s1");
+  const auto &s1_data = s1_builder.AddNode("s1_data", DATA, 1, 1);
+  const auto &s1_netoutput = s1_builder.AddNode("s1_netoutput", NETOUTPUT, 1, 0);
+  s1_builder.AddDataEdge(s1_data, 0, s1_netoutput, 0);
+  AttrUtils::SetInt(s1_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(s1_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto s1 = s1_builder.GetGraph();
+  AttrUtils::SetStr(s1, "_session_graph_id", "_session_graph_id");
+
+  auto s2_builder = ut::GraphBuilder("s2");
+  const auto &s2_data = s2_builder.AddNode("s2_data", DATA, 1, 1);
+  const auto &s2_netoutput = s2_builder.AddNode("s2_netoutput", NETOUTPUT, 1, 0);
+  s2_builder.AddDataEdge(s2_data, 0, s2_netoutput, 0);
+  AttrUtils::SetInt(s2_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(s2_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto s2 = s2_builder.GetGraph();
+  AttrUtils::SetStr(s2, "_session_graph_id", "_session_graph_id");
+
+  auto main_builder = ut::GraphBuilder("main");
+  const auto &main_data = main_builder.AddNode("main_data", DATA, 1, 1);
+  const auto &nested_func = main_builder.AddNode("nested_func", "If", 2, 1);
+  const auto &main_netoutput = main_builder.AddNode("main_netoutput", NETOUTPUT, 1, 0);
+  main_builder.AddDataEdge(main_data, 0, nested_func, 0);
+  main_builder.AddDataEdge(nested_func, 0, main_netoutput, 0);
+  AttrUtils::SetInt(main_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(main_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto main_graph = main_builder.GetGraph();
+  AttrUtils::SetStr(main_graph, "_session_graph_id", "_session_graph_id");
+
+  nested_func->GetOpDesc()->AddSubgraphName("then");
+  nested_func->GetOpDesc()->SetSubgraphInstanceName(0, s1->GetName());
+  nested_func->GetOpDesc()->AddSubgraphName("else");
+  nested_func->GetOpDesc()->SetSubgraphInstanceName(1, s2->GetName());
+  s1->SetParentNode(nested_func);
+  s1->SetParentGraph(main_graph);
+  s2->SetParentNode(nested_func);
+  s2->SetParentGraph(main_graph);
+  main_graph->AddSubGraph(s1);
+  main_graph->AddSubGraph(s2);
+
+  const auto &calc_func = [](const NodePtr &n) {
+    if (n->GetName().find("s1_") == 0U) {
+      return std::vector<uint32_t>{1};
+    }
+    return std::vector<uint32_t>{1, 2};
+  };
+
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  ASSERT_EQ(FftsGraphUtils::Calculate(main_graph, calc_func, node_value, graph_value, 1), GRAPH_FAILED);
+}
+
+TEST_F(UtestFftsGraphUtils, CovCalculateSubgraphFailed) {
+  auto s_builder = ut::GraphBuilder("s");
+  const auto &s_data = s_builder.AddNode("s_data", DATA, 1, 1);
+  const auto &s_cast = s_builder.AddNode("s_cast", "Cast", 1, 1);
+  const auto &s_netoutput = s_builder.AddNode("s_netoutput", NETOUTPUT, 1, 0);
+  s_builder.AddDataEdge(s_data, 0, s_cast, 0);
+  s_builder.AddDataEdge(s_cast, 0, s_netoutput, 0);
+  AttrUtils::SetInt(s_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(s_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto s_graph = s_builder.GetGraph();
+  AttrUtils::SetStr(s_graph, "_session_graph_id", "_session_graph_id");
+
+  auto main_builder = ut::GraphBuilder("main");
+  const auto &main_data = main_builder.AddNode("main_data", DATA, 1, 1);
+  const auto &nested_func = main_builder.AddNode("nested_func", PARTITIONEDCALL, 1, 1);
+  const auto &main_netoutput = main_builder.AddNode("main_netoutput", NETOUTPUT, 1, 0);
+  main_builder.AddDataEdge(main_data, 0, nested_func, 0);
+  main_builder.AddDataEdge(nested_func, 0, main_netoutput, 0);
+  AttrUtils::SetInt(main_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(main_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto main_graph = main_builder.GetGraph();
+  AttrUtils::SetStr(main_graph, "_session_graph_id", "_session_graph_id");
+
+  nested_func->GetOpDesc()->AddSubgraphName("f");
+  nested_func->GetOpDesc()->SetSubgraphInstanceName(0, s_graph->GetName());
+  s_graph->SetParentNode(nested_func);
+  s_graph->SetParentGraph(main_graph);
+  main_graph->AddSubGraph(s_graph);
+
+  const auto &calc_func = [](const NodePtr &n) {
+    if (n->GetName() == "s_data") {
+      return std::vector<uint32_t>{1};
+    }
+    return std::vector<uint32_t>{1, 2};
+  };
+
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  ASSERT_EQ(FftsGraphUtils::Calculate(main_graph, calc_func, node_value, graph_value, 1), GRAPH_FAILED);
+}
+
+TEST_F(UtestFftsGraphUtils, CovBuildFftsPlusSubgraphEmptyCalcNodes) {
+  auto sub_builder = ut::GraphBuilder("subgraph");
+  const auto &data1 = sub_builder.AddNode("data1", DATA, 1, 1);
+  const auto &netoutput = sub_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  sub_builder.AddDataEdge(data1, 0, netoutput, 0);
+  AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto subgraph = sub_builder.GetGraph();
+  AttrUtils::SetStr(subgraph, "_session_graph_id", "_session_graph_id");
+
+  ASSERT_EQ(FftsGraphUtils::BuildFftsPlusSubgraphWithAllNodes(subgraph), GRAPH_FAILED);
+}
+
+TEST_F(UtestFftsGraphUtils, CovIsValueValidGraphValueMissing) {
+  ComputeGraphPtr graph;
+  ComputeGraphPtr subgraph;
+  BuildGraphForSplit_without_func_node(graph, subgraph);
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  graph_value[graph] = {1};
+  ASSERT_FALSE(FftsGraphUtils::IsValueValid(graph, {1}, node_value, graph_value));
+}
+
+TEST_F(UtestFftsGraphUtils, CovIsValueValidNodeValueMissing) {
+  ComputeGraphPtr graph;
+  ComputeGraphPtr subgraph;
+  BuildGraphForSplit_without_func_node(graph, subgraph);
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  graph_value[graph] = {1};
+  graph_value[subgraph] = {1};
+  ASSERT_FALSE(FftsGraphUtils::IsValueValid(graph, {1}, node_value, graph_value));
+}
+
+TEST_F(UtestFftsGraphUtils, CovIsValueValidGraphSizeMismatch) {
+  auto builder = ut::GraphBuilder("root");
+  const auto &node1 = builder.AddNode("node1", "Relu", 1, 1);
+  auto graph = builder.GetGraph();
+  std::map<NodePtr, std::vector<uint32_t>> node_value;
+  node_value[node1] = {1};
+  std::map<ComputeGraphPtr, std::vector<uint32_t>> graph_value;
+  graph_value[graph] = {1, 2};
+  ASSERT_FALSE(FftsGraphUtils::IsValueValid(graph, {8}, node_value, graph_value));
+}
 }  // namespace ge

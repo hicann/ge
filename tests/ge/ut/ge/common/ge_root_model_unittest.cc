@@ -11,9 +11,12 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <vector>
+#include <fstream>
+#include <cstdio>
 #include "graph/utils/graph_utils.h"
 #include "graph/ge_tensor.h"
 #include "graph/op_desc.h"
+#include "graph/ge_context.h"
 #include "mmpa/mmpa_api.h"
 #include "framework/common/helper/model_helper.h"
 
@@ -294,6 +297,95 @@ TEST_F(UtestGeRootModel, ForkSharesOm2ModelData) {
   ASSERT_NE(forked, nullptr);
   EXPECT_NE(forked->GetOm2ModelData(), nullptr);
   EXPECT_EQ(forked->GetOm2ModelData(), ge_root_model->GetOm2ModelData());
+}
+
+TEST_F(UtestGeRootModel, GetOpSoStoreData_And_GetOpStoreDataSize) {
+  GeRootModel ge_root_model;
+  EXPECT_EQ(ge_root_model.GetOpSoStoreData(), nullptr);
+  EXPECT_EQ(ge_root_model.GetOpStoreDataSize(), 0U);
+}
+
+TEST_F(UtestGeRootModel, CheckIsUnknownShape_NullRootGraph) {
+  GeRootModel ge_root_model;
+  bool is_dynamic_shape = false;
+  EXPECT_EQ(ge_root_model.CheckIsUnknownShape(is_dynamic_shape), FAILED);
+}
+
+TEST_F(UtestGeRootModel, IsNeedMallocFixedFeatureMem_WithStaticModelAddrFixed) {
+  GeRootModel ge_root_model;
+  auto root_graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(ge_root_model.Initialize(root_graph), SUCCESS);
+  auto old_options = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption({{"ge.exec.static_model_addr_fixed", "1"}});
+  EXPECT_FALSE(ge_root_model.IsNeedMallocFixedFeatureMem());
+  GetThreadLocalContext().SetGraphOption(old_options);
+}
+
+TEST_F(UtestGeRootModel, CheckSoArchMatchesTarget_UnsupportedCpu) {
+  GeRootModel ge_root_model;
+  EXPECT_EQ(ge_root_model.CheckSoArchMatchesTarget("/nonexistent/path.so", "mips"), SUCCESS);
+}
+
+TEST_F(UtestGeRootModel, CheckSoArchMatchesTarget_NonExistentFile) {
+  GeRootModel ge_root_model;
+  EXPECT_EQ(ge_root_model.CheckSoArchMatchesTarget("/nonexistent/path.so", "x86_64"), FAILED);
+}
+
+TEST_F(UtestGeRootModel, CheckSoArchMatchesTarget_NotElfFile) {
+  std::string test_file = "/tmp/ge_ut_not_elf_test.txt";
+  std::ofstream ofs(test_file);
+  ofs << "not an elf file content";
+  ofs.close();
+
+  GeRootModel ge_root_model;
+  EXPECT_EQ(ge_root_model.CheckSoArchMatchesTarget(test_file, "x86_64"), FAILED);
+  std::remove(test_file.c_str());
+}
+
+TEST_F(UtestGeRootModel, LoadSoBinData_Success) {
+  GeRootModel ge_root_model;
+  std::vector<uint8_t> data(64, 0);
+  EXPECT_FALSE(ge_root_model.LoadSoBinData(data.data(), data.size()));
+}
+
+TEST_F(UtestGeRootModel, GetSoInOmFlag_Default) {
+  GeRootModel ge_root_model;
+  EXPECT_EQ(ge_root_model.GetSoInOmFlag(), 0U);
+}
+
+TEST_F(UtestGeRootModel, SetSoInOmInfo_And_Get) {
+  GeRootModel ge_root_model;
+  SoInOmInfo so_info;
+  so_info.cpu_info = "test_cpu";
+  ge_root_model.SetSoInOmInfo(so_info);
+  auto retrieved = ge_root_model.GetSoInOmInfo();
+  EXPECT_EQ(retrieved.cpu_info, "test_cpu");
+}
+
+TEST_F(UtestGeRootModel, GetAllSoBin_Empty) {
+  GeRootModel ge_root_model;
+  auto so_bins = ge_root_model.GetAllSoBin();
+  EXPECT_TRUE(so_bins.empty());
+}
+
+TEST_F(UtestGeRootModel, RemoveInstanceSubgraphModel) {
+  auto root_graph = std::make_shared<ComputeGraph>("root-graph");
+  auto root_model = std::make_shared<GeRootModel>();
+  EXPECT_EQ(root_model->Initialize(root_graph), SUCCESS);
+  auto ge_model = std::make_shared<GeModel>();
+  ge_model->SetGraph(root_graph);
+  ge_model->SetName("test_instance");
+  root_model->SetSubgraphInstanceNameToModel("test_instance", ge_model);
+  root_model->RemoveInstanceSubgraphModel("test_instance");
+  EXPECT_EQ(root_model->GetSubgraphInstanceNameToModel().size(), 0U);
+}
+
+TEST_F(UtestGeRootModel, CheckAndSetNeedOpMasterDeviceSo) {
+  auto root_graph = std::make_shared<ComputeGraph>("root-graph");
+  auto root_model = std::make_shared<GeRootModel>();
+  EXPECT_EQ(root_model->Initialize(root_graph), SUCCESS);
+  root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  EXPECT_EQ(root_model->CheckAndSetNeedOpMasterDeviceSo(), SUCCESS);
 }
 
 }  // namespace ge
