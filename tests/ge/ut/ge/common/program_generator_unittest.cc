@@ -2153,6 +2153,7 @@ struct AicoreDispatchInfo {
   uint32_t block_dim;        // Block 维度
   uint32_t func_idx;         // 函数句柄索引，用于查找 func_handles
   uint32_t stream_id;        // 执行流索引
+  uint32_t task_type;
   struct {                    // Launch 配置，构建 LaunchKernelConfig → AssembleLaunchConfig
     uint8_t schedule_mode;    // 调度模式
     uint32_t engine_type;     // 引擎类型
@@ -2965,10 +2966,10 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
     ordered_io_addrs.push_back(_addr);
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
   uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -3052,6 +3053,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
+      .task_type = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
@@ -3637,10 +3639,10 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
     ordered_io_addrs.push_back(_addr);
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
   uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -3724,6 +3726,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
+      .task_type = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
@@ -4341,10 +4344,10 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
     ordered_io_addrs.push_back(_addr);
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
   uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -5045,10 +5048,10 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
     ordered_io_addrs.push_back(_addr);
   }
   Om2L0TaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
+  OM2_CHK_STATUS(ReportOm2TaskPreprocess(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs, report_outputs, report_workspace_addrs, report_workspace_sizes, op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &l0_info, ctx.model_id, ctx.instance_handle));
   uint64_t _launch_begin = MsprofSysCycleTime();
   OM2_CHK_STATUS(KernelTaskDistribute(ordered_io_addrs, args_info, ctx.func_handles[op->dispatch_info.aicore.func_idx], op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], &cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), static_cast<uint32_t>(op->dispatch_type), op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 1U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task(op->op_name, op->dispatch_info.aicore.op_type, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_sizes.size()), op->dispatch_info.aicore.task_type, op->dispatch_info.aicore.block_dim, ctx.stream_list[op->dispatch_info.aicore.stream_id], ctx.model_id, ctx.instance_handle, 0U, _launch_begin, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   return ACL_SUCCESS;
 }
 
@@ -5152,6 +5155,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
+      .task_type = 0,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 9, (const Om2L0ArgSlotInfo[]){{OM2_L0_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
@@ -6492,6 +6496,21 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_AllKernel_Ok) {
 
   const auto &kernel_reg_source = outputs[GeneratedFileIndex::kKernelRegistryFile];
   EXPECT_NE(kernel_reg_source.find("ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE"), std::string::npos);
+}
+
+// 验证生成代码中 AicoreDispatchInfo 的 task_type 为真实的非零 ModelTaskType 值。
+// 本次修复将 profiling 上报类型从 dispatch_type 切换为 task_type，
+// 若未来回归为恒 0，此用例可以兜住。
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AllKernel_NonZeroTaskType) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAllKernelOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_and_run_source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  const auto expected_task_type = std::to_string(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
+  EXPECT_NE(load_and_run_source.find(".task_type = " + expected_task_type + ","), std::string::npos);
 }
 
 // Creates a model with an AICore op that has a separately-clean atomic task.

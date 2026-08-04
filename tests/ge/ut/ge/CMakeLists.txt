@@ -130,6 +130,7 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "executor/file_const_loader_unittest.cc"
     "executor/executor_utils_unittest.cc"
     "executor/runtime/om2_without_graph_dump_unittest.cc"
+    "executor/runtime/om2_dump_unittest.cc"
     "executor/runtime/model_rt_var_manager_unittest.cc"
     "executor/runtime/davinci_model_priority_test.cc"
     "graph/load/model_helper_unittest.cc"

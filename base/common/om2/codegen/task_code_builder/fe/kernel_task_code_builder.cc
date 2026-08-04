@@ -1692,7 +1692,7 @@ BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
 std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) {
   auto aicore = op.Arrow("dispatch_info").Attr("aicore");
   auto slot_args = aicore.Attr("slot_args");
-  auto dispatch_type = ast_.StaticCast("uint32_t", op.Arrow("dispatch_type"));
+  auto task_type = aicore.Attr("task_type");
   auto stream = ctx.Attr("stream_list")[aicore.Attr("stream_id")];
 
   return {
@@ -1706,7 +1706,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
                            ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
                            ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs"),
                            ast_.Var("", "report_outputs"), ast_.Var("", "report_workspace_addrs"),
-                           ast_.Var("", "report_workspace_sizes"), dispatch_type, aicore.Attr("block_dim"), stream,
+                           ast_.Var("", "report_workspace_sizes"), task_type, aicore.Attr("block_dim"), stream,
                            ast_.Var("", "l0_info").Addr(), ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
       ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
       ChkStatus(ast_.Call("KernelTaskDistribute",
@@ -1726,12 +1726,12 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
                            ast_.Var("", "report_workspace_addrs").Data(),
                            ast_.Var("", "report_workspace_sizes").Data(),
                            ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_sizes").Size()),
-                           dispatch_type,
+                           task_type,
                            aicore.Attr("block_dim"),
                            stream,
                            ctx.Attr("model_id"),
                            ctx.Attr("instance_handle"),
-                           ast_.UInt(1U),
+                           ast_.UInt(0U),
                            ast_.Var("uint64_t", "_launch_begin"),
                            aicore.Attr("fusion_op").Attr("original_op_names"),
                            aicore.Attr("fusion_op").Attr("input_mem_size"),
@@ -1899,6 +1899,7 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
       {"block_dim", build_data_.semantic.launch.block_dim},
       {"func_idx", static_cast<int64_t>(build_data_.semantic.launch.func_handle_index)},
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
+      {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
       {"launch", ast_.InitList(launch_values)},
       {"slot_args", ast_.InitList(l0_values)},
       {"fusion_op", ast_.InitList({

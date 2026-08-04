@@ -837,13 +837,13 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(run_model_info_.run_func(&run_model_info_.model_handle, inputs.size(),
                                                reinterpret_cast<void **>(inputs.data()), outputs.size(),
                                                reinterpret_cast<void **>(outputs.data()), timeout, prof_info_ptr));
-    ++step_id_;
     if (prof_info_ptr != nullptr) {
       GELOGD("[OM2][Prof] Run done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count, step_id_);
       dump_manager_->ReportModelLevelProf(prof_info);
     } else {
       GELOGD("[OM2][Prof] Run skip, dump_manager is null, model_id=%u", model_id_);
     }
+    ++step_id_;
     return ge::GRAPH_SUCCESS;
   }
 
@@ -857,7 +857,6 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(run_model_info_.run_async_func(&run_model_info_.model_handle, stream, inputs.size(),
                                                      reinterpret_cast<void **>(inputs.data()), outputs.size(),
                                                      reinterpret_cast<void **>(outputs.data()), prof_info_ptr));
-    ++step_id_;
     if (prof_info_ptr != nullptr) {
       GELOGD("[OM2][Prof] RunAsync done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count,
              step_id_);
@@ -865,6 +864,7 @@ class Om2ModelExecutor::Impl {
     } else {
       GELOGD("[OM2][Prof] RunAsync skip, dump_manager is null, model_id=%u", model_id_);
     }
+    ++step_id_;
     return ge::GRAPH_SUCCESS;
   }
 
