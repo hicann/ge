@@ -1,7 +1,7 @@
 name: PR-pipeline_ge
 
 concurrency:
-  max: 5
+  max: 15
   exceed-action: QUEUE
   enable: true
   preemption:
@@ -14,8 +14,8 @@ on:
     branches: [ '*' ]
     comments: [ '^(?:\/)?compile*' ]
   pr_comment:
-      types: [ created ]
-      keyword: '^(?:\/)?compile*'
+    types: [ created ]
+    keyword: '^(?:\/)?compile*'
 
 env:
   org_name: "cann"
@@ -23,8 +23,9 @@ env:
   MERGE_ID: ${{atomgit.event.pull_request.number}}
   TARGET_BRANCH: ${{atomgit.ref_name}}
   SOURCE_BRANCH: ${{atomgit.head_ref}}
-  obs_path: "test/ge/package/${{ env.MERGE_ID }}"
+  obs_path: "${{ vars.OBS_PATH }}/${{ env.MERGE_ID }}"
   obs_smoke_path: "presmoke/${{ env.repo_name }}/2/${{ env.MERGE_ID }}"
+  online: ${{ vars.APPLY_LABEL }}
 
 stages:
   stage1:
@@ -78,6 +79,7 @@ stages:
                 ${{ steps.process_checkout.outputs.path }}/pr_filelist_mod.txt
                 ${{ steps.process_checkout.outputs.path }}/pr_filelist_precommit.txt
                 ${{ steps.process_checkout.outputs.path }}/update_file_detail.txt
+                ${{ steps.process_checkout.outputs.path }}/gitdiff.txt
               object-prefix: ${{ env.obs_path }}/
         runs-on:
           - default
@@ -105,6 +107,23 @@ stages:
         if: "${{ default() }}"
         runs-on:
           - default
+      JOB_pre:
+        name: Test_pre_pipeline
+        steps:
+          - name: pre_pipeline
+            uses: cann/.gitcode/actions/pre-pipeline@master
+            with:
+              owner: ${{ env.org_name }}
+              repo: ${{ env.repo_name }}
+              pr_number: ${{ atomgit.event.pull_request.number }}
+              token: ${{ secrets.GIT_TOKEN }}
+              apply_label: ${{ vars.APPLY_LABEL }}
+          - name: associate-pr-comment
+            uses: associate-pr-comment
+            if: env.online == 'true'
+        runs-on: [dedicate-hosted, x64, small]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:k8s_v1.1006
     pre:
       - type: auto
     fail-fast: true
@@ -119,10 +138,6 @@ stages:
         with:
           precommit_image_version: ${{ jobs.JOB_image.outputs.precommit }}
           codecheck_image_version: ${{ jobs.JOB_image.outputs.codecheck }}
-          org: ${{ env.org_name }}
-          pr_number: ${{ env.MERGE_ID }}
-          repo_name: ${{ env.repo_name }}
-          commit_id: ${{ atomgit.event.pull_request.merge_commit_sha }}
 
       # ==================== X86 Compile ====================
       JOB_x86_compiler_ubuntu24:
@@ -223,40 +238,12 @@ stages:
           arch: 'arm64'
 
       # ==================== Static Checks ====================
-      # JOB_CodeCheck_staticcheck_markdown:
-      #   name: CodeCheck_staticcheck_markdown
-      #   uses: .gitcode/workflows/staticcheck_action.yml
-      #   with:
-      #     check_type: 'markdown'
-      #     image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-
-      # JOB_CodeCheck_staticcheck_codespell_check:
-      #   name: CodeCheck_staticcheck_codespell_check
-      #   uses: .gitcode/workflows/staticcheck_action.yml
-      #   with:
-      #     check_type: 'codespell_check'
-      #     image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-
-      # JOB_CodeCheck_staticcheck_tag_closed_check:
-      #   name: CodeCheck_staticcheck_tag_closed_check
-      #   uses: .gitcode/workflows/staticcheck_action.yml
-      #   with:
-      #     check_type: 'tag_closed_check'
-      #     image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-
-      # JOB_CodeCheck_staticcheck_resource_existence_check:
-      #   name: CodeCheck_staticcheck_resource_existence_check
-      #   uses: .gitcode/workflows/staticcheck_action.yml
-      #   with:
-      #     check_type: 'resource_existence_check'
-      #     image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-
-      # JOB_CodeCheck_staticcheck_link_validity_check:
-      #   name: CodeCheck_staticcheck_link_validity_check
-      #   uses: .gitcode/workflows/staticcheck_action.yml
-      #   with:
-      #     check_type: 'link_validity_check'
-      #     image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
+      JOB_staticcheck_md_check:
+        name: CodeCheck_staticcheck_md_check
+        uses: .gitcode/workflows/staticcheck_action.yml
+        with:
+          check_type: 'md_check'
+          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
 
     pre:
       - type: auto
@@ -889,6 +876,22 @@ stages:
   stage5:
     name: PreSmoke
     jobs:
+      JOB_api_check:
+        name: API_Check
+        steps:
+          -
+            name: api-check
+            identifier: api-check
+            uses: cann/.gitcode/actions/api-check@master
+            with:
+              org_name: ${{ env.org_name }}
+              mode: check
+              repo_name: ${{ env.repo_name }}
+              merge_id: ${{ env.MERGE_ID }}
+        if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
+        runs-on: [dedicate-hosted, x64, small]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.codecheck }}
       A2_smoke:
         name: PreSmoke_A2
         timeout-minutes: 30
@@ -971,5 +974,22 @@ stages:
         if: env.TARGET_BRANCH == 'master' || env.TARGET_BRANCH == 'develop'
         runs-on: ['self-hosted','arch=arm','smoke=204']
     pre:
-    - type: auto
+      - type: auto
     fail-fast: true
+post:
+  jobs:
+    job_post:
+      name: Test_finish
+      steps:
+        - name: query_pipeline
+          uses: cann/.gitcode/actions/query-pipeline@master
+          with:
+            owner: ${{ env.org_name }}
+            repo: ${{ env.repo_name }}
+            run_id: ${{ atomgit.workflow_run_id }}
+            token: ${{ secrets.GIT_TOKEN }}
+            pr_number: ${{ env.MERGE_ID }}
+            apply_label: ${{ vars.APPLY_LABEL }}
+      runs-on: [dedicate-hosted, x64, small]
+      container:
+        image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.codecheck }}
