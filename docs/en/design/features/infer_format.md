@@ -86,7 +86,7 @@ In the `TensorDescImpl` class in `graph_metadef/graph/normal_graph/tensor.cc`, y
 
 ### 3.2 StorageFormat Descriptor
 
-At runtime (gert namespace), `StorageFormat` is a descriptor that carries both Origin and Storage information (defined in `inc/graph_metadef/external/graph/types.h`), constructed as:
+At runtime (gert namespace), `StorageFormat` is a descriptor that carries both Origin and Storage information (defined in `exe_graph/runtime/storage_format.h`, referenced as an external dependency header via include path), constructed as:
 
 ```
 StorageFormat(origin_format, storage_format, expand_dims_type)
@@ -180,7 +180,7 @@ Specific steps:
 
 1. **Anchor Identification** (`GetAnchorPoints`): Traverse all nodes in the graph and find nodes with non-ND formats in their inputs/outputs as anchor points. These nodes are typically format-sensitive operators like Conv2D and Pooling, which already carry format information through attributes (such as `data_format`).
 
-2. **Anchor Refresh** (`RefreshOriginFormatOfAnchor`): For anchor nodes, if `origin_format` is still ND or RESERVED, copy the `format` value to `origin_format`. This ensures the anchor's own OriginFormat is correctly established.
+2. **Anchor Refresh** (`RefreshOriginFormatOfAnchor`): For anchor nodes, if `origin_format` is still ND or RESERVED, copy the `format` value to `origin_format`. Before copying, `TypeUtilsInner::IsInternalFormat(format)` (`format_refiner.cc`) is called to check whether `format` is an internal format—if it is an internal format (such as NC1HWC0 and other 5D formats), it is skipped and not set as `origin_format`. This ensures the anchor's own OriginFormat is correctly established and is not polluted by hardware-friendly internal formats.
 
 3. **Bidirectional Propagation** (`AnchorProcess`):
    - **Backward Inference** (`BackInferProcess`): Starting from the anchor's input end, propagate format backward along the data flow. For each upstream node, if its `origin_format` is ND and unlocked, pass the anchor's format to it.
@@ -204,7 +204,13 @@ For control flow operators like If/Case, GE establishes reflection relationships
 
 #### 4.2.4 Operator Custom Inference
 
-Besides the default format propagation mechanism, operators can also register custom InferFormat functions. In `NodeUtilsEx::InferOriginFormat`, `OpDescUtilsEx::CallInferFormatFunc` is called to preferentially use the operator's registered inference function; otherwise, `DefaultInferFormat` is used (propagating the first non-ND format to all inputs and outputs).
+Besides the default format propagation mechanism, operators can also register custom InferFormat functions. In `NodeUtilsEx::InferOriginFormat`, `OpDescUtilsEx::CallInferFormatFunc` is called, which has V1/V2 dispatch paths (`op_desc_utils_ex.cc`):
+
+1. First check whether a V2 interface is registered via `IsInferFormatV2RegisteredFunc`
+2. If a V2 interface is registered, call `CallInferFormatFuncV2` (via the `InferFormatOnCompile` path, i.e., the structured inference described in Section 3.3)
+3. Otherwise call `CallInferFormatFuncV1` (legacy V1 path); if the operator has no registered inference function, fall back to `DefaultInferFormat` (propagating the first non-ND format to all inputs and outputs)
+
+This is consistent with the V2 interface described in Section 3.3.
 
 ### 4.3 Storage Format Determination
 
@@ -278,9 +284,10 @@ input_desc->SetOriginFormat(input_desc_in_context->GetOriginFormat());
 
 This indicates that in RT1 (Runtime version 1) compatibility mode, InferShape can only access the `format` field, but actually needs OriginFormat. Therefore, OriginFormat needs to be correctly retrieved from Context and synchronously set to both `format` and `origin_format` fields.
 
-In the `TransformOutputShape` function in `runtime/v2/kernel/common_kernel_impl/infer_shape.h`, when OriginFormat differs from StorageFormat, `ShapeTransferAccordingToFormat::TransferShape` is called to convert OriginShape to StorageShape:
+In the `TransformOutputShape` function in `runtime/v2/kernel/common_kernel_impl/infer_shape.h`, `expand_dims.Expand()` (`infer_shape.h`) is first called to expand the dimensions of OriginShape, before proceeding with format comparison and shape transformation. When OriginFormat differs from StorageFormat, `ShapeTransferAccordingToFormat::TransferShape` is called to convert OriginShape to StorageShape:
 
 ```
+expand_dims.Expand()  // First expand OriginShape dimensions (`infer_shape.h`)
 if (output_td->GetOriginFormat() == output_td->GetStorageFormat()) {
     // Formats are the same, no conversion needed
     return GRAPH_SUCCESS;
@@ -301,12 +308,20 @@ PrepareRunningFormatRefiner  ← StorageFormat refresh
   → UpdateVariableFormats
 ```
 
-Before this, in GraphPrepare::GenerateInfershapeGraph:
+Before this, in `GraphPrepare::PrepareDynShape` (`compiler/graph/preprocess/graph_prepare.cc`), OriginFormat inference is called twice:
 
 ```
-InferOriginFormat  ← OriginFormat inference
-  → FormatRefiner::InferOrigineFormat
+PrepareDynShape
+  → FormatAndShapeProcess (`graph_prepare.cc`)
+    → InferOriginFormat  ← InferFormatStage1, first OriginFormat inference (`graph_prepare.cc`)
+      → FormatRefiner::InferOrigineFormat
+  → RunCustomPass (`graph_prepare.cc`)
+  → InferFormatStage2 (`graph_prepare.cc`)
+    → InferOriginFormat  ← second OriginFormat inference (`graph_prepare.cc`)
+      → FormatRefiner::InferOrigineFormat
 ```
+
+> Note: `GenerateInfershapeGraph` (`graph_prepare.cc`) is a standalone entry function used for dumping JSON, and is not part of the main compilation flow.
 
 ### 4.8 Format Optimization Pass
 
@@ -320,6 +335,8 @@ After OriginFormat inference and StorageFormat determination, multiple Passes un
 | `TransposeTransDataPass` | Merge and optimize Transpose with TransData |
 | `UnchangedTransposeRemovePass` | Remove Transpose that does not change data |
 | `CastRemovePass` | Remove unnecessary Cast |
+| `TransOpNearbyAllReduceFusionPass` | Handle TransOp fusion near AllReduce |
+| `Dim1TransposeToSqueezePass` | Convert 1-dimensional Transpose to Squeeze |
 
 ## 5. Key Design Decisions
 

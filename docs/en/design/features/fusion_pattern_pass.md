@@ -83,6 +83,8 @@ For example, `Add(x, Const)` topology can match all "input plus constant" struct
 - `true`: This match satisfies the conditions and can proceed to replacement.
 - `false`: Skip this match and continue searching for the next one.
 
+After `MeetRequirements` passes and before calling `Replacement`, GE will check whether the replacement would cause a cycle via `FusionUtils::WillCauseCycleIfFuse(match_result)`. If it would cause a cycle, this match is skipped (`pattern_fusion_run.cc`). Additionally, under DEBUG log level, a topological sort is performed on the entire graph after replacement as a safety net to prevent graphs with cycles from leaking into subsequent passes (`pattern_fusion_run.cc`).
+
 ### 2.4 Generate replacement graph with Replacement
 
 `Replacement` returns another small graph used to replace the matched real subgraph.
@@ -97,7 +99,6 @@ If the pattern is `MatMul + Add`, the replacement can return `GEMM`:
 
 ```text
 a ----\
-b ----- GEMM ---- replacement output
 b ----- GEMM ---- replacement output
 c ----/
 ```
@@ -254,9 +255,48 @@ Reference samples:
 - [C++ DecomposePass sample](../../../../examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/cpp/README.md)
 - [Python DecomposePass sample](../../../../examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/python/README.md)
 
-## 6. Pass Execution Stage
+## 6. V2 Version and CustomPassContext
+
+### 6.1 V2 Version: PatternFusionPassV2 and DecomposePassV2
+
+The `PatternFusionPass` and `DecomposePass` introduced above are the V1 versions (@since 8.5.0). GE also provides V2 versions: `PatternFusionPassV2` (`pattern_fusion_pass.h`, @since 9.1.0/2026-05) and `DecomposePassV2` (`decompose_pass.h`, @since 9.1.0/2026-05).
+
+The difference between V2 and V1 is: V2 additionally passes a `CustomPassContext &pass_context` parameter to the `MeetRequirements` and `Replacement` hooks, enabling subclasses to read configuration options (via `GetOptionValue`) or write error messages (via `SetErrorMessage`) within hooks before making decisions.
+
+V1 and V2 share the same registration macros (`REG_FUSION_PASS` / `REG_DECOMPOSE_PASS`), and the matching/replacement main loop also shares the same implementation (`pattern_fusion_run.h`, `decompose_pass_run.h`). The factory is version-agnostic.
+
+When a pass needs to read configuration options or write error messages within hooks, the V2 version should be used; otherwise V1 is sufficient.
+
+### 6.2 CustomPassContext
+
+`CustomPassContext` (`register_custom_pass.h`) is the context object for all fusion passes, providing the following capabilities:
+
+| Method | Effect | Since Version |
+|--------|--------|---------------|
+| `SetErrorMessage` / `GetErrorMessage` | Write/read error messages during pass execution | 8.5.0 |
+| `GetOptionValue` | Get configuration value from context by option key | 9.0.0 |
+| `SetPassName` / `GetPassName` | Set/get pass name | 9.0.0 |
+
+In V1, `CustomPassContext` is only passed as a parameter to the `Run` method, and subclasses cannot directly access it in the `MeetRequirements`/`Replacement` hooks. In V2, `pass_context` is further passed through to these two hooks, so subclasses can directly use the above capabilities within hooks.
+
+## 7. Pass Execution Stage
 
 Pass needs to specify execution stage when registering. Stage determines what graph state pass can see, also determines whether replacement needs to do shape derivation itself.
+
+Registration examples:
+
+```cpp
+// PatternFusionPass
+REG_FUSION_PASS(ClassName).Stage(CustomPassStage::kBeforeInferShape);
+
+// DecomposePass
+REG_DECOMPOSE_PASS(ClassName, {"Conv2D"}).Stage(CustomPassStage::kBeforeInferShape);
+```
+
+```python
+@register_fusion_pass(name="MyFusionPass", stage=PassStage.BEFORE_INFER_SHAPE)
+@register_decompose_pass(name="MyDecomposePass", stage=PassStage.BEFORE_INFER_SHAPE, op_types=["Conv2D"])
+```
 
 | Mechanism Stage | Python Enum | C++ Enum | Usage Recommendation |
 |----------------|-------------|----------|----------------------|
@@ -265,11 +305,23 @@ Pass needs to specify execution stage when registering. Stage determines what gr
 | After builtin fusion | `PassStage.AFTER_BUILTIN_FUSION_PASS` | `CustomPassStage::kAfterBuiltinFusionPass` | Use when want to handle after GE builtin fusion completes |
 | After original graph optimization | `PassStage.AFTER_ORIGIN_GRAPH_OPTIMIZE` | `CustomPassStage::kAfterOriginGraphOptimize` | Use when want to append custom handling after original graph optimization ends |
 
+Note: The C++ enum also includes the `kAfterAssignLogicStream` stage (@since 8.5.0), but this stage only supports stream allocation passes (`CustomAllocateStreamPassFunc`) and cannot be used for PatternFusionPass/DecomposePass. If a pass is mistakenly registered to this stage, it will be ignored.
+
 Initial development suggests first choosing before InferShape stage. Only consider after InferShape stage when your judgment must depend on already derived shapes, or replacement itself will explicitly call shape derivation.
 
-After constructing a replacement graph at `PassStage.AFTER_INFER_SHAPE` or a later stage, you can call `ge.passes.infer_shape` to complete its output descriptions. Pass `MatchResult`, `Node`, or `SubgraphBoundary` as `source` for PatternFusionPass, DecomposePass, or graph-based Pass scenarios, respectively. Do not continue with the replacement if inference fails.
+For passes registered at after InferShape and later stages, as mentioned above "replacement needs to ensure output shape etc. info correct itself". For this purpose GE provides the `InferShapeUtil` utility class (`infer_shape_util.h`, @since 9.1.0/2026-06), providing three `InferShape` overloads:
 
-## 7. Python and C++ Relationship
+| Overload Parameter | Applicable Scenario |
+|--------------------|---------------------|
+| `SubgraphBoundary` | General scenario |
+| `MatchResult` | PatternFusionPass convenience overload |
+| `GNode` | DecomposePass convenience overload |
+
+This utility will synchronize the shape/dtype/format from the original graph inputs to the corresponding Data nodes in the replacement graph based on subgraph boundaries, and perform full graph derivation. Just call it in `Replacement` after building the replacement graph, no need to derive node by node yourself.
+
+On the Python side, the same capability can be called via `ge.passes.infer_shape` ([API doc](../../../zh/api/graph_engine_api/python/ge/passes/infer_shape.md)), with the `source` parameter accepting `MatchResult`, `Node`, or `SubgraphBoundary` respectively; on call failure, must not proceed with replacement.
+
+## 8. Python and C++ Relationship
 
 Both Python and C++ passes will connect to GE's unified pass scheduling flow.
 
@@ -284,7 +336,7 @@ Main differences are in development experience and delivery method:
 
 If just adding one rule and verifying effect, suggest first write in Python. After rule stabilizes, if have delivery form or performance requirements, then consider C++ implementation.
 
-## 8. Pre-development Checklist
+## 9. Pre-development Checklist
 
 Answer these questions before writing pass:
 

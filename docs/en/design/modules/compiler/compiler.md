@@ -66,10 +66,18 @@ flowchart TD
     D1e --> D1f[OptimizeOriginalGraphForQuantize: Quantization Preparation]
     D1f --> D1g[PrepareDynShape: Dynamic Shape Preparation]
     D1g --> D1h[OptimizeOriginalGraph: Engine-level Optimization+Fusion]
-    D1h --> D1i[RefineRunningPrecision: Precision Adjustment]
+    D1h --> D1h1[PrepareRunningFormatRefiner: Format Inference Preparation]
+    D1h1 --> D1i[RefineRunningPrecision: Precision Adjustment]
     D1i --> D1j[AfterPrecisionRefine: Auto Fusion]
     D1j --> D1k[RefineRunningFormat: Format Adjustment]
-    D1k --> D1l[OptimizeStage1: Pass Batch 1]
+    D1k --> D1k1[SubexpressionMigration: Subexpression Migration]
+    D1k1 --> D1k2[RecordAIPPInfo: Record AIPP Info]
+    D1k2 --> D1k3[OptimizeSwitchOp: Switch Optimization]
+    D1k3 --> D1k4[IdentifyReference: Reference Identification]
+    D1k4 --> D1k5[RunCustomPassAfterOriginGraphOptimize: Custom Pass]
+    D1k5 --> D1k6[InferShape2: Second Shape Inference]
+    D1k6 --> D1k7[CtrlEdgeTransferPass: Control Edge Transfer]
+    D1k7 --> D1l[OptimizeStage1: Pass Batch 1]
     D1l --> D1m[OptimizeAfterStage1: Engine-level Post-optimization]
 
     D --> D2[PreRunOptimizeSubGraph]
@@ -87,8 +95,11 @@ flowchart TD
     D3 --> D3a[OptimizeWholeGraph: Whole Graph Engine Optimization]
     D3a --> D3b[OptimizeStage2: Pass Batch 2]
     D3b --> D3c[OptimizeGraphBeforeBuild: Pre-build Optimization]
-    D3c --> D3d[MemConflictProc: Memory Conflict Handling]
-    D3d --> D3e[Build: Build]
+    D3c --> D3c1[OptimizeTensorMove: TensorMove Optimization]
+    D3c1 --> D3d[MemConflictProc: Memory Conflict Handling]
+    D3d --> D3d1[TopologicalSorting: Topological Sorting]
+    D3d1 --> D3d2[UnfoldDynamicShapeGraph: Unfold Dynamic Shape Graph]
+    D3d2 --> D3e[Build: Build]
 
     E --> E1[Weight External Processing]
     E1 --> E2[IR Definition Recovery]
@@ -114,8 +125,12 @@ Three-stage optimization achieves a balance between generality and performance: 
 
 GE supports a special Build Mode (`BUILD_MODE_TUNING`), allowing pausing at different compilation stages:
 
+- `BUILD_STEP_BEFORE_BUILD`: Pause before build
 - `BUILD_STEP_BEFORE_UB_MATCH`: Pause before UB matching
 - `BUILD_STEP_AFTER_UB_MATCH`: Pause after UB matching
+- `BUILD_STEP_AFTER_BUILDER`: Pause after Builder
+- `BUILD_STEP_AFTER_BUILDER_SUB`: Pause after subgraph Builder
+- `BUILD_STEP_AFTER_MERGE`: Pause after merge
 - `BUILD_STEP_AFTER_BUILD`: Pause after build
 
 This enables AOE (Ascend Optimization Engine) to inject its own tuning logic at intermediate stages, and then resume compilation. This is a "compiler plugin" mechanism, similar to GCC's plugin interface or LLVM's pass insertion points.
@@ -143,7 +158,7 @@ GEPass::Run(names_to_passes) {
 }
 ```
 
-Optimization Pass may modify graph structure (add/delete nodes), causing subsequent nodes to see a graph different from before. GEPass's `AddRePassNode` and `AddImmediateRePassNode` mechanism allows Pass to declare "this new node needs to be processed again by other Passes". The "immediate re-traversal" (ImmediateRePass) capability enables certain modifications to be immediately seen by subsequent Passes in the current round, avoiding performance overhead of multiple rounds of iteration.
+Optimization Pass may modify graph structure (add/delete nodes), causing subsequent nodes to see a graph different from before. `BaseNodePass`'s `AddRePassNode` and `AddImmediateRePassNode` methods allow Pass to declare "this new node needs to be processed again by other Passes", and `GEPass` framework is responsible for handling these repass requests. The "immediate re-traversal" (ImmediateRePass) capability enables certain modifications to be immediately seen by subsequent Passes in the current round, avoiding performance overhead of multiple rounds of iteration.
 
 ### 2.2 Organization of Optimization Passes
 
@@ -313,7 +328,7 @@ In `SubgraphRewriter` added `Replace(subgraph, replacement, ctx)` overload, chai
 
 Auto fusion executes after precision adjustment and before format adjustment, timing choice is critical: precision is already determined (no more Cast insertion), but format is not yet fixed (still has transformation space).
 
-Auto fusion subsystem (`compiler/graph/optimize/autofuse/`) contains complete subdirectory structure: `ascendc/` (AscendC operator fusion), `ascir/`, `att/`, `codegen/`, `compiler/`, `optimize/` etc, indicating it not only makes fusion decisions, but also involves code generation of fused operators — this is a complete path from operator classification to code generation.
+Auto fusion subsystem (`compiler/graph/optimize/autofuse/`) contains complete subdirectory structure: `ascir/`, `autofuse/` (containing `autoschedule/`, `can_fuse/`, `fusion/`, `lowering/`, `pattern_fusion/`, `post_process/`), `cmake/`, `common/`, `examples/`, `graph/`, `inc/`, `proto/` etc, indicating it not only makes fusion decisions, but also involves code generation of fused operators — this is a complete path from operator classification to code generation.
 
 ## 4. Engine Partitioning
 
@@ -328,7 +343,7 @@ Ascend devices have multiple execution engines, each engine responsible for diff
 | cpu_engine (HostCpu) | Host CPU execution | Operators not supporting device execution |
 | hccl_engine | Collective communication | AllReduce, Broadcast |
 | dvpp_engine | Digital visual preprocessing | Image/video processing |
-| ffts_engine | FFT operations | Frequency domain transform |
+| ffts_engine | FFTS+ cross-engine fusion | AIC+AIV hybrid fusion operators |
 | rts_engine | Runtime services | StreamSwitch, StreamActive |
 
 Operators of different engines cannot be placed in same execution sequence, therefore need to assign operators to correct execution engine through engine partitioning.
@@ -360,6 +375,8 @@ Key step analysis:
 
 - `kCompositeEnginePartitioning`: First partition by composite engine (such as FE fusion engine)
 - `kAtomicEnginePartitioning`: Then partition by atomic engine
+- `kSecondPartitioning`: Second partitioning, used in graph build stage to handle custom operator engine assignment
+- `kMerging`: Merge mode
 
 Reason for two-level partitioning is: fusion engine needs to first see complete fusionable region, atomic engine partitioning is after fusion optimization.
 
@@ -395,21 +412,19 @@ Each thread independently calls engine's `OptimizeFusedGraph` method for one sub
 
 ```mermaid
 flowchart TD
-    GB[GraphBuilder.Build] --> B1[CalcOpParam: Calculate Operator Parameters]
-    B1 --> B2{Graph Type?}
+    GB[GraphBuilder.Build] --> B2{Graph Type?}
     B2 -->|Dynamic Shape| B3[BuildForDynamicShapeGraph]
     B2 -->|Known Shape| B4[BuildForKnownShapeGraph]
-    B2 -->|Unknown Shape| B5[BuildForUnknownShapeGraph]
 
-    B3 --> B6[ModelBuilder.PreBuildModel]
-    B6 --> B7[ModelBuilder.BuildModelForGetTask]
-    B7 --> B8[TaskGenerator.GetTaskInfo]
+    B3 --> B3a[BuildForUnknownShapeAllGraphs]
+    B3a --> B10[DynamicStreamAllocator]
+    B10 --> B11[TaskGenerator]
 
     B4 --> B9[SecondPartition: Second Partitioning]
-    B9 --> B6
-
-    B5 --> B10[DynamicStreamAllocator]
-    B10 --> B11[TaskGenerator]
+    B9 --> B6[ModelBuilder.PreBuildModel]
+    B6 --> B1[CalcOpParam: Calculate Operator Parameters]
+    B1 --> B7[ModelBuilder.BuildModelForGetTask]
+    B7 --> B8[TaskGenerator.GetTaskInfo]
 ```
 
 ### 5.2 ModelBuilder: Model Building
@@ -423,12 +438,12 @@ flowchart TD
 
 ### 5.3 Stream Allocation (StreamAllocator)
 
-`StreamAllocator` (`build/stream/stream_allocator.h`) is responsible for:
+`StreamAllocator` (`build/stream/graph_stream_allocator.h`) is responsible for:
 
 ```mermaid
 flowchart TD
     SA[StreamAllocator] --> SA1[AssignLogicalStreams: Logical Stream Allocation]
-    SA1 --> SA2[InsertSyncNodes: Insert Sync Nodes]
+    SA1 --> SA2[InsertSyncNodesByLogicStream: Insert Sync Nodes]
     SA2 --> SA3[SplitStreamAndRefreshTaskDef: Stream Split and Refresh]
 
     SA1 --> SA1a[Allocate logical streams by engine and parallelism]
@@ -487,11 +502,14 @@ flowchart TD
 
 ```tree
 MemAssigner (Interface)
-├── HybridMemAssigner (Hybrid Allocator)
-│   ├── MaxBlockMemAssigner (Max Block Allocator - Priority)
-│   └── BinaryBlockMemAssigner (Binary Block Allocator)
-├── DynamicBatchMemAssigner (Dynamic Batch Memory)
-└── VariableMemoryAssigner (Variable Memory)
+├── HybridMemAssigner (internally holds BlockMemAssigner, composition relationship)
+└── BlockMemAssigner
+    ├── MaxBlockMemAssigner
+    └── BinaryBlockMemAssigner
+
+Independent classes (not in MemAssigner inheritance hierarchy):
+├── DynamicBatchMemAssigner
+└── VariableMemoryAssigner
 ```
 
 **Memory Reuse Strategy**:
@@ -546,7 +564,7 @@ Operator compilation occurs at two timings:
 1. **During Engine Subgraph Optimization**: Fusion engine (FE) calls operator compiler at `OptimizeFusedGraph` stage
 2. **ModelBuilder Stage**: `CompileSingleOp` calls TBE/AscendC compiler for each operator needing compilation
 
-`OpCompileAdapter` under `opcompiler/` directory provides operator compilation adapter interface. Operator compilation detailed process is not inside GE — GE calls external compiler (such as TBE's `op_tiling` + `op_build`) to generate operator binary.
+`opcompiler/` directory's `opcompiler/op_compile_adapter/` directory provides operator compilation adapter functionality, which contains adapter classes such as `PythonAdapterManager`. Operator compilation detailed process is not inside GE — GE calls external compiler (such as TBE's `op_tiling` + `op_build`) to generate operator binary.
 
 ### 6.2 TBE Kernel Store
 

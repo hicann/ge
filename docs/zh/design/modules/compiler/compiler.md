@@ -66,10 +66,18 @@ flowchart TD
     D1e --> D1f[OptimizeOriginalGraphForQuantize: 量化准备]
     D1f --> D1g[PrepareDynShape: 动态 Shape 准备]
     D1g --> D1h[OptimizeOriginalGraph: 引擎级优化+融合]
-    D1h --> D1i[RefineRunningPrecision: 精度调整]
+    D1h --> D1h1[PrepareRunningFormatRefiner: 格式推导准备]
+    D1h1 --> D1i[RefineRunningPrecision: 精度调整]
     D1i --> D1j[AfterPrecisionRefine: 自动融合]
     D1j --> D1k[RefineRunningFormat: 格式调整]
-    D1k --> D1l[OptimizeStage1: Pass 批次1]
+    D1k --> D1k1[SubexpressionMigration: 子表达式迁移]
+    D1k1 --> D1k2[RecordAIPPInfo: 记录AIPP信息]
+    D1k2 --> D1k3[OptimizeSwitchOp: Switch优化]
+    D1k3 --> D1k4[IdentifyReference: 引用识别]
+    D1k4 --> D1k5[RunCustomPassAfterOriginGraphOptimize: 自定义Pass]
+    D1k5 --> D1k6[InferShape2: 二次Shape推导]
+    D1k6 --> D1k7[CtrlEdgeTransferPass: 控制边转移]
+    D1k7 --> D1l[OptimizeStage1: Pass 批次1]
     D1l --> D1m[OptimizeAfterStage1: 引擎级后优化]
 
     D --> D2[PreRunOptimizeSubGraph]
@@ -87,8 +95,11 @@ flowchart TD
     D3 --> D3a[OptimizeWholeGraph: 全图引擎优化]
     D3a --> D3b[OptimizeStage2: Pass 批次2]
     D3b --> D3c[OptimizeGraphBeforeBuild: 构建前优化]
-    D3c --> D3d[MemConflictProc: 内存冲突处理]
-    D3d --> D3e[Build: 构建]
+    D3c --> D3c1[OptimizeTensorMove: TensorMove优化]
+    D3c1 --> D3d[MemConflictProc: 内存冲突处理]
+    D3d --> D3d1[TopologicalSorting: 拓扑排序]
+    D3d1 --> D3d2[UnfoldDynamicShapeGraph: 展开动态Shape图]
+    D3d2 --> D3e[Build: 构建]
 
     E --> E1[权重外置处理]
     E1 --> E2[IR 定义恢复]
@@ -114,8 +125,12 @@ GE 将图优化分为三个阶段（`PreRunOptimizeOriginalGraph` → `PreRunOpt
 
 GE 支持一种特殊的 Build Mode（`BUILD_MODE_TUNING`），允许在编译的不同阶段暂停：
 
+- `BUILD_STEP_BEFORE_BUILD`：在构建前暂停
 - `BUILD_STEP_BEFORE_UB_MATCH`：在 UB 匹配前暂停
 - `BUILD_STEP_AFTER_UB_MATCH`：在 UB 匹配后暂停
+- `BUILD_STEP_AFTER_BUILDER`：在 Builder 后暂停
+- `BUILD_STEP_AFTER_BUILDER_SUB`：在子图 Builder 后暂停
+- `BUILD_STEP_AFTER_MERGE`：在合并后暂停
 - `BUILD_STEP_AFTER_BUILD`：在构建后暂停
 
 这使得 AOE（Ascend Optimization Engine）可以在中间阶段注入自己的调优逻辑，然后再恢复编译。这是一种"编译器插件"机制，类似于 GCC 的 plugin 接口或 LLVM 的 pass 插入点。
@@ -143,7 +158,7 @@ GEPass::Run(names_to_passes) {
 }
 ```
 
-优化 Pass 可能修改图结构（添加/删除节点），导致后续节点看到的图已经不同于之前。GEPass 的 `AddRePassNode` 和 `AddImmediateRePassNode` 机制让 Pass 可以声明"这个新节点需要被其他 Pass 再处理一遍"。其中"立即重遍"（ImmediateRePass）能力使得某些修改可以立即被当前轮次中的后续 Pass 看到，避免了多轮迭代的性能开销。
+优化 Pass 可能修改图结构（添加/删除节点），导致后续节点看到的图已经不同于之前。`BaseNodePass` 的 `AddRePassNode` 和 `AddImmediateRePassNode` 方法让 Pass 可以声明"这个新节点需要被其他 Pass 再处理一遍"，`GEPass` 框架负责处理这些 repass 请求。其中"立即重遍"（ImmediateRePass）能力使得某些修改可以立即被当前轮次中的后续 Pass 看到，避免了多轮迭代的性能开销。
 
 ### 2.2 优化 Pass 的组织
 
@@ -314,7 +329,7 @@ Python 层会自动创建 ES `GraphBuilder`、图输入、图输出和 pattern c
 
 自动融合在精度调整后、格式调整前执行，时机选择很关键：精度已经确定（不会再插入 Cast），但格式尚未固定（还有变换的空间）。
 
-自动融合子系统（`compiler/graph/optimize/autofuse/`）包含完整的子目录结构：`ascendc/`（AscendC 算子融合）、`ascir/`、`att/`、`codegen/`、`compiler/`、`optimize/` 等，表明它不仅做融合决策，还涉及融合后算子的代码生成——这是一条从算子分类到代码生成的完整路径。
+自动融合子系统（`compiler/graph/optimize/autofuse/`）包含完整的子目录结构：`ascir/`、`autofuse/`（内含 `autoschedule/`、`can_fuse/`、`fusion/`、`lowering/`、`pattern_fusion/`、`post_process/`）、`cmake/`、`common/`、`examples/`、`graph/`、`inc/`、`proto/` 等，表明它不仅做融合决策，还涉及融合后算子的代码生成——这是一条从算子分类到代码生成的完整路径。
 
 ## 4. 引擎分区
 
@@ -329,7 +344,7 @@ Python 层会自动创建 ES `GraphBuilder`、图输入、图输出和 pattern c
 | cpu_engine (HostCpu) | 主机 CPU 执行 | 不支持设备执行的算子 |
 | hccl_engine | 集合通信 | AllReduce, Broadcast |
 | dvpp_engine | 数字视觉预处理 | 图像/视频处理 |
-| ffts_engine | FFT 操作 | 频域变换 |
+| ffts_engine | FFTS+ 跨引擎融合 | AIC+AIV 混合融合算子 |
 | rts_engine | 运行时服务 | StreamSwitch, StreamActive |
 
 不同引擎的算子不能放在同一个执行序列中，因此需要通过引擎分区将算子分配到正确的执行引擎。
@@ -360,6 +375,8 @@ flowchart TD
 **两级分区（Composite + Atomic）**：
 - `kCompositeEnginePartitioning`：先按组合引擎（如 FE 融合引擎）分区
 - `kAtomicEnginePartitioning`：再按原子引擎分区
+- `kSecondPartitioning`：二次分区，用于图构建阶段处理自定义算子引擎归属
+- `kMerging`：合并模式
 
 两级分区的原因是：融合引擎需要先看到完整的可融合区域，原子引擎分区是在融合优化之后。
 
@@ -395,21 +412,19 @@ OptimizeSubGraphWithMultiThreads:
 
 ```mermaid
 flowchart TD
-    GB[GraphBuilder.Build] --> B1[CalcOpParam: 计算算子参数]
-    B1 --> B2{图类型?}
+    GB[GraphBuilder.Build] --> B2{图类型?}
     B2 -->|动态Shape| B3[BuildForDynamicShapeGraph]
     B2 -->|已知Shape| B4[BuildForKnownShapeGraph]
-    B2 -->|未知Shape| B5[BuildForUnknownShapeGraph]
 
-    B3 --> B6[ModelBuilder.PreBuildModel]
-    B6 --> B7[ModelBuilder.BuildModelForGetTask]
-    B7 --> B8[TaskGenerator.GetTaskInfo]
+    B3 --> B3a[BuildForUnknownShapeAllGraphs]
+    B3a --> B10[DynamicStreamAllocator]
+    B10 --> B11[TaskGenerator]
 
     B4 --> B9[SecondPartition: 二次分区]
-    B9 --> B6
-
-    B5 --> B10[DynamicStreamAllocator]
-    B10 --> B11[TaskGenerator]
+    B9 --> B6[ModelBuilder.PreBuildModel]
+    B6 --> B1[CalcOpParam: 计算算子参数]
+    B1 --> B7[ModelBuilder.BuildModelForGetTask]
+    B7 --> B8[TaskGenerator.GetTaskInfo]
 ```
 
 ### 5.2 ModelBuilder：模型构建
@@ -423,12 +438,12 @@ flowchart TD
 
 ### 5.3 流分配（StreamAllocator）
 
-`StreamAllocator`（`build/stream/stream_allocator.h`）负责：
+`StreamAllocator`（`build/stream/graph_stream_allocator.h`）负责：
 
 ```mermaid
 flowchart TD
     SA[StreamAllocator] --> SA1[AssignLogicalStreams: 逻辑流分配]
-    SA1 --> SA2[InsertSyncNodes: 插入同步节点]
+    SA1 --> SA2[InsertSyncNodesByLogicStream: 插入同步节点]
     SA2 --> SA3[SplitStreamAndRefreshTaskDef: 流拆分和刷新]
 
     SA1 --> SA1a[按引擎和并行度分配逻辑流]
@@ -486,11 +501,14 @@ flowchart TD
 
 ```
 MemAssigner (接口)
-├── HybridMemAssigner (混合分配器)
-│   ├── MaxBlockMemAssigner (最大块分配器 - 优先)
-│   └── BinaryBlockMemAssigner (二分块分配器)
-├── DynamicBatchMemAssigner (动态批处理内存)
-└── VariableMemoryAssigner (变量内存)
+├── HybridMemAssigner (内部持有 BlockMemAssigner，组合关系)
+└── BlockMemAssigner
+    ├── MaxBlockMemAssigner
+    └── BinaryBlockMemAssigner
+
+独立类（不属于 MemAssigner 继承体系）:
+├── DynamicBatchMemAssigner
+└── VariableMemoryAssigner
 ```
 
 **内存复用策略**：
@@ -544,7 +562,7 @@ GE 的内存规划是一种静态分析，需要处理多种内存类型（HBM�
 1. **引擎子图优化时**：融合引擎（FE）在 `OptimizeFusedGraph` 阶段调用算子编译器
 2. **ModelBuilder 阶段**：`CompileSingleOp` 为每个需要编译的算子调用 TBE/AscendC 编译器
 
-`opcompiler/` 目录下的 `OpCompileAdapter` 提供了算子编译的适配接口。算子编译的详细过程不在 GE 内部——GE 调用外部编译器（如 TBE 的 `op_tiling` + `op_build`）生成算子二进制。
+`opcompiler/` 目录下的 `opcompiler/op_compile_adapter/` 目录提供了算子编译的适配功能，其中包含 `PythonAdapterManager` 等适配类。算子编译的详细过程不在 GE 内部——GE 调用外部编译器（如 TBE 的 `op_tiling` + `op_build`）生成算子二进制。
 
 ### 6.2 TBE Kernel Store
 

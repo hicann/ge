@@ -86,7 +86,7 @@ GeTensorDesc
 
 ### 3.2 StorageFormat 描述体
 
-在运行时（gert 命名空间），`StorageFormat` 是一个同时携带 Origin 和 Storage 信息的描述体（定义于 `inc/graph_metadef/external/graph/types.h`），其构造方式为：
+在运行时（gert 命名空间），`StorageFormat` 是一个同时携带 Origin 和 Storage 信息的描述体（定义于 `exe_graph/runtime/storage_format.h`，通过 include 路径引用的外部依赖头文件），其构造方式为：
 
 ```
 StorageFormat(origin_format, storage_format, expand_dims_type)
@@ -180,7 +180,7 @@ flowchart TD
 
 1. **锚点识别**（`GetAnchorPoints`）：遍历图中所有节点，找到输入/输出中存在非 ND 格式的节点作为锚点。这些节点通常是 Conv2D、Pooling 等对格式敏感的算子，它们通过属性（如 `data_format`）已携带格式信息。
 
-2. **锚点刷新**（`RefreshOriginFormatOfAnchor`）：对锚点节点，如果 `origin_format` 仍为 ND 或 RESERVED，则将其 `format` 值复制到 `origin_format`。这确保锚点自身的 OriginFormat 被正确建立。
+2. **锚点刷新**（`RefreshOriginFormatOfAnchor`）：对锚点节点，如果 `origin_format` 仍为 ND 或 RESERVED，则将其 `format` 值复制到 `origin_format`。在复制之前，会先调用 `TypeUtilsInner::IsInternalFormat(format)`（`format_refiner.cc`）检查 `format` 是否为内部格式——若为内部格式（如 NC1HWC0 等 5D 格式），则跳过，不将其设为 `origin_format`。这确保锚点自身的 OriginFormat 被正确建立，且不会被硬件亲和的内部格式污染。
 
 3. **双向扩散**（`AnchorProcess`）：
    - **向后推导**（`BackInferProcess`）：从锚点的输入端出发，沿数据流反向传播格式。对每个上游节点，如果其 `origin_format` 为 ND 且未锁定，则将锚点的格式传递过去。
@@ -204,7 +204,13 @@ flowchart TD
 
 #### 4.2.4 算子自定义推导
 
-除了默认的格式传播机制，算子还可注册自定义的 InferFormat 函数。在 `NodeUtilsEx::InferOriginFormat` 中，会调用 `OpDescUtilsEx::CallInferFormatFunc`，优先使用算子注册的推导函数，否则使用 `DefaultInferFormat`（将第一个非 ND 格式传播到所有输入输出）。
+除了默认的格式传播机制，算子还可注册自定义的 InferFormat 函数。在 `NodeUtilsEx::InferOriginFormat` 中，会调用 `OpDescUtilsEx::CallInferFormatFunc`，该函数存在 V1/V2 两条分发路径（`op_desc_utils_ex.cc`）：
+
+1. 首先通过 `IsInferFormatV2RegisteredFunc` 检查是否注册了 V2 接口
+2. 若已注册 V2 接口，则调用 `CallInferFormatFuncV2`（走 `InferFormatOnCompile` 路径，即 3.3 节所述的结构化推导）
+3. 否则调用 `CallInferFormatFuncV1`（传统 V1 路径），若算子未注册推导函数则回退到 `DefaultInferFormat`（将第一个非 ND 格式传播到所有输入输出）
+
+这与 3.3 节描述的 V2 接口保持一致。
 
 ### 4.3 Storage Format 的确定
 
@@ -278,9 +284,10 @@ input_desc->SetOriginFormat(input_desc_in_context->GetOriginFormat());
 
 这表明在 RT1（运行时第一版）兼容模式下，InferShape 只能获取到 `format` 字段，但实际需要的是 OriginFormat。因此需要从 Context 中正确取出 OriginFormat 并同步设置到 `format` 和 `origin_format` 两个字段。
 
-在 `runtime/v2/kernel/common_kernel_impl/infer_shape.h` 的 `TransformOutputShape` 函数中，当 OriginFormat 与 StorageFormat 不同时，会调用 `ShapeTransferAccordingToFormat::TransferShape` 将 OriginShape 转换为 StorageShape：
+在 `runtime/v2/kernel/common_kernel_impl/infer_shape.h` 的 `TransformOutputShape` 函数中，首先调用 `expand_dims.Expand()`（`infer_shape.h`）对 OriginShape 进行维度扩展，然后再进行格式比较与形状转换。当 OriginFormat 与 StorageFormat 不同时，会调用 `ShapeTransferAccordingToFormat::TransferShape` 将 OriginShape 转换为 StorageShape：
 
 ```
+expand_dims.Expand()  // 先扩展 OriginShape 维度 (`infer_shape.h`)
 if (output_td->GetOriginFormat() == output_td->GetStorageFormat()) {
     // 格式相同，无需转换
     return GRAPH_SUCCESS;
@@ -301,12 +308,20 @@ PrepareRunningFormatRefiner  ← StorageFormat 刷新
   → UpdateVariableFormats
 ```
 
-在此之前的 GraphPrepare::GenerateInfershapeGraph 中：
+在此之前的 `GraphPrepare::PrepareDynShape`（`compiler/graph/preprocess/graph_prepare.cc`）中，OriginFormat 推导被调用两次：
 
 ```
-InferOriginFormat  ← OriginFormat 推导
-  → FormatRefiner::InferOrigineFormat
+PrepareDynShape
+  → FormatAndShapeProcess (`graph_prepare.cc`)
+    → InferOriginFormat  ← InferFormatStage1，首次 OriginFormat 推导 (`graph_prepare.cc`)
+      → FormatRefiner::InferOrigineFormat
+  → RunCustomPass (`graph_prepare.cc`)
+  → InferFormatStage2 (`graph_prepare.cc`)
+    → InferOriginFormat  ← 二次 OriginFormat 推导 (`graph_prepare.cc`)
+      → FormatRefiner::InferOrigineFormat
 ```
+
+> 注意：`GenerateInfershapeGraph`（`graph_prepare.cc`）是一个独立的入口函数，用于 dump JSON，并不在主编译流程中。
 
 ### 4.8 格式优化 Pass
 
@@ -320,6 +335,8 @@ InferOriginFormat  ← OriginFormat 推导
 | `TransposeTransDataPass` | 将 Transpose 与 TransData 合并优化 |
 | `UnchangedTransposeRemovePass` | 移除不改变数据的 Transpose |
 | `CastRemovePass` | 移除不必要的 Cast |
+| `TransOpNearbyAllReduceFusionPass` | 处理 AllReduce 附近的 TransOp 融合 |
+| `Dim1TransposeToSqueezePass` | 将 1 维 Transpose 转换为 Squeeze |
 
 其中 `TransOpWithoutReshapeFusionPass` 只处理 shape、format 和转换算子输入 dtype 均连续的转换链；如果转换算子输入 dtype 与上游输出 dtype 不一致，则保留原链路，避免误删转换节点。
 

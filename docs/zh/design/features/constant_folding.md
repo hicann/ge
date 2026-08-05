@@ -41,7 +41,7 @@ atc --model=model.onnx --output=model --framework=5 \
 
 典型收益场景：模型中包含大量用于动态 Shape 推断的辅助计算（如 Shape→Gather→Concat→Reshape 链路），这些在静态 Shape 场景下完全可以预计算，常量折叠能将其全部消除。
 
-### 2.2 在线编译场景（aclgrphBuildModel）
+### 2.2 IR 编译场景（aclgrphBuildModel）
 
 使用 ACL Graph Builder API 构建模型时，通过 `aclgrphBuildInitialize` 或 `aclgrphBuildModel` 的配置参数控制：
 
@@ -60,7 +60,29 @@ std::map<ge::AscendString, ge::AscendString> build_options = {
 aclgrphBuildModel(graph, build_options, modelBufferData);
 ```
 
-### 2.3 调试场景
+### 2.3 在线编译场景（GEInitialize + Session + CompileGraph）
+
+使用 `ge_api.h` / `ge_api_v2.h` 中的 `GEInitialize` + `Session` + `CompileGraph` 接口进行在线图编译时，通过初始化和 Session 的 options 参数控制：
+
+```cpp
+// V1 接口（ge_api.h）
+std::map<ge::AscendString, ge::AscendString> options = {
+    {ge::ir_option::OO_LEVEL, "O1"},
+    {ge::ir_option::OO_CONSTANT_FOLDING, "true"}
+};
+ge::GEInitialize(options);
+ge::Session session(options);
+session.AddGraph(graph_id, graph, options);
+session.CompileGraph(graph_id);
+
+// V2 接口（ge_api_v2.h）
+ge::GEInitializeV2(options);
+ge::GeSession session(options);
+session.AddGraph(graph_id, graph, options);
+session.CompileGraph(graph_id);
+```
+
+### 2.4 问题排查场景
 
 当用户怀疑常量折叠导致结果异常时，可以关闭该优化进行对比验证：
 
@@ -70,7 +92,7 @@ aclgrphBuildModel(graph, build_options, modelBufferData);
 
 关闭后，Size、Shape、ShapeN、Rank 等算子不会被折叠删除，运行时仍将在设备上执行。`ge_deleted_op.cc` 中的 `GeDeletedOp` 机制会针对这些算子给出清晰的错误提示，帮助用户定位问题。
 
-### 2.4 用户指定跳过折叠
+### 2.5 用户指定跳过折叠
 
 框架侧（如 TensorFlow 的 `_grappler_do_not_remove` 属性）或用户可通过设置节点属性 `_do_not_constant_folding` 来阻止特定节点被常量折叠。这为需要保留特定节点的场景提供了精细控制手段。
 
@@ -82,7 +104,7 @@ aclgrphBuildModel(graph, build_options, modelBufferData);
 
 | 参数键 | 参数值 | 配置入口 | 说明 |
 |--------|--------|----------|------|
-| `ge.oo.constantFolding` | `"true"` / `"false"` | aclgrphBuildInitialize, aclgrphBuildModel, atc | 控制常量折叠优化开关 |
+| `ge.oo.constantFolding` | `"true"` / `"false"` | aclgrphBuildInitialize, aclgrphBuildModel, GEInitialize, GEInitializeV2, Session, CompileGraph, atc | 控制常量折叠优化开关 |
 | `ge.oo.level` | `"O1"` / `"O2"` / `"O3"` | 同上 | 优化等级，O1 及以上默认启用常量折叠 |
 
 配置参数定义位于 `inc/graph_metadef/external/ge_common/ge_common_api_types.h`，常量名 `OO_CONSTANT_FOLDING`，实际配置键为 `"ge.oo.constantFolding"`。
@@ -112,7 +134,7 @@ REG_OPTION(OO_CONSTANT_FOLDING)
 | `_is_from_constant_folding` | 标记常量节点由常量折叠产生 | GE 常量折叠 Pass |
 | `ATTR_NAME_IS_INSERTED_BY_GE` | 标记节点由 GE 内部插入 | GE 内部 Pass |
 
-属性定义位于 `inc/graph_metadef/graph/debug/ge_attr_define.h`。
+属性定义位于 `inc/graph_metadef/graph/debug/ge_attr_define.h`。其中 `_is_from_constant_folding` 是在 `folding_pass.cc` 的 `FoldingPass` 类中直接使用的内联字符串字面量，并非在 `ge_attr_define.h` 中定义为命名常量。
 
 ### 3.3 工具类接口
 
@@ -124,7 +146,7 @@ REG_OPTION(OO_CONSTANT_FOLDING)
 
 ### 4.1 整体架构
 
-常量折叠采用 Pass 链式执行模式，通过 GE 的 Pass 管理框架驱动。核心实现集中在 `compiler/graph/passes/standard_optimize/constant_folding/` 目录下，由 7 个 Pass 和配套的基础设施组成：
+常量折叠采用 Pass 链式执行模式，通过 GE 的 Pass 管理框架驱动。核心实现集中在 `compiler/graph/passes/standard_optimize/constant_folding/` 目录下，由 5 个注册 Pass（ConstantFoldingPass、DimensionComputePass、DimensionAdjustPass、ReplaceWithEmptyConstPass、PotentialConstTakenEffectPass）和 2 个抽象基类（FoldingPass、PotentialFoldingPass）及配套的基础设施组成：
 
 ```
                          ┌──────────────────────────┐
@@ -238,7 +260,7 @@ REG_PASS_OPTION("ConstantFoldingPass").SWITCH_OPT(ge::OO_CONSTANT_FOLDING);
 - **支持标记但不折叠模式**：可通过构造参数 `need_fold` 控制是否只做计算标记（在预处理阶段以 `need_fold=false` 模式运行，只标记潜在常量不实际折叠）
 - 支持与 PotentialFoldingPass 的潜在常量机制配合
 
-在预处理阶段（`GraphPrepare::ComputeConstantShape`），DimensionComputePass 以 `need_fold=false` 模式运行，目的是先利用维度计算确定 Shape 信息，为后续的 InferShape 提供更准确的输入。
+在预处理阶段（`GraphPrepare::InferShapeForPreprocess`），DimensionComputePass 以 `need_fold=false` 模式运行，目的是先利用维度计算确定 Shape 信息，为后续的 InferShape 提供更准确的输入。
 
 Pass 注册宏：
 ```
@@ -358,8 +380,8 @@ ConstantFoldingPass / DimensionComputePass
 
 位于 `compiler/host_kernels/`，通过 `KernelFactory` 注册和创建。`Kernel` 基类定义了三种 Compute 接口：
 
-- `Compute(OpDescPtr, inputs, outputs)` — 基于输入张量计算输出张量，用于 ConstantFoldingPass 和 DimensionComputePass
-- `Compute(NodePtr, outputs)` — 基于节点信息计算输出，部分 Kernel 使用
+- `Compute(OpDescPtr, inputs, outputs)` — 基于输入张量计算输出张量，用于 ConstantFoldingPass
+- `Compute(NodePtr, outputs)` — 基于节点信息计算输出，用于 DimensionComputePass
 - `Compute(NodePtr)` — 仅修改节点属性，用于 DimensionAdjustPass
 
 已注册的 Host Kernel 按类别分布如下：
@@ -380,7 +402,7 @@ ConstantFoldingPass / DimensionComputePass
 
 #### 4.5.2 AICPU Host CPU 引擎
 
-作为 GE 内置 Kernel 的补充，通过 AICPU 引擎执行算子。位于 `runtime/v2/engine/aicpu/` 和 `runtime/v1/hybrid/node_executor/host_cpu/`。
+作为 GE 内置 Kernel 的补充，通过 AICPU 引擎执行算子。`HostCpuEngine` 实现位于 `base/host_cpu_engine/`（`host_cpu_engine.h`），运行时路径 `runtime/v2/engine/aicpu/kernel/aicpu_resource_manager.cc` 也引用了该 SO。
 
 加载路径为 `libconstant_folding_ops.so`，由 OPP（Operator Package）提供，包含更广泛的算子实现。`compiler/engines/cpu_engine/cpu_engine/constant_folding_stub/constant_folding_ops_stub.cpp` 是编译期的桩库（无实际实现），运行时由真正的 OPP 库替换。
 
@@ -394,13 +416,15 @@ ConstantFoldingPass / DimensionComputePass
 常量折叠在 GE 图编译的多个阶段被调用，形成多轮迭代优化：
 
 ```
-GraphPrepare::ComputeConstantShape (预处理阶段)
+GraphPrepare::InferShapeForPreprocess (预处理阶段)
   │
   ├── ReplaceWithEmptyConstPass (need_fold=false, 仅标记)
+  ├── SplitShapeNPass (graph_prepare.cc)
   ├── DimensionComputePass (need_fold=false, 仅标记)
   ├── ConstantClipPass
   ├── ConstantFoldingPass
-  └── InferValueRangePass
+  ├── InferValueRangePass
+  └── PotentialConstTakenEffectPass (OnFinishGraph 回调, graph_prepare.cc)
 
 GraphManager::OptimizeStage1_2 (优化阶段1)
   │
@@ -418,8 +442,9 @@ GraphManager::OptimizeStage2 (优化阶段2, 合并子图后)
   ├── AssignRemovePass
   └── DimensionAdjustPass
 
-GraphOptimizerBeforeAutofuse (自动融合前)
+GraphOptimizer2BeforeAutofuse (自动融合前)
   │
+  ├── ConstantClipPass
   └── ConstantFoldingPass
 ```
 

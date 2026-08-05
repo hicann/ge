@@ -96,7 +96,7 @@ Exposed through `api/atc/main_impl.cc`. The three dynamic shape options are mutu
 | `ge.exec.static_model_ops_lower_limit` | 4 (6 for ffts+ scenario) | Minimum operator count threshold for static subgraphs. Static subgraphs below this threshold downgrade to dynamic. Set to -1 to merge all subgraphs into a dynamic graph |
 | `ge.topoSortingMode` | Default | Set to `3` to enable stable RDFS sorting, which changes cluster merging strategy |
 | `ge.tiling_schedule_optimize` | `0` | Set to `1` to enable tiling offload (execute tiling on AICPU) |
-| `ge.host_scheduling_max_threshold` | `0` | When static graph node count is below this threshold, the entire graph goes through dynamic execution |
+| `ge.exec.hostSchedulingMaxThreshold` | `0` | When static graph node count is below this threshold, the entire graph goes through dynamic execution |
 
 ### 4.3 Graph Attribute Interface
 
@@ -109,6 +109,7 @@ Split results pass to downstream modules through graph and node attributes:
 | `_is_unknown_shape` | Node-level | Marks the dynamic or static property of a node |
 | `ATTR_STAGE_LEVEL` | Node-level | Pipeline stage number |
 | `ATTR_NAME_MEMORY_DISCONTIGUOUS_ALLOCATION` | Graph-level | Enable non-contiguous memory allocation (for dynamic subgraphs) |
+| `ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION` | Graph-level | If true, directly skip dynamic shape splitting (dynamic_shape_partition.cc) |
 
 ### 4.4 Python API
 
@@ -171,23 +172,28 @@ Key merge operations:
 The `MarkUnknownShapeNodes()` method determines whether a node belongs to dynamic shape according to the following rules:
 
 1. **Dynamic Shape Operator**: Tensor shape contains -1 (unknown dimension) or -2 (unknown rank)
-2. **Force Unknown Flag**: Node has `_force_unknown_shape=true` set
+2. **Force Unknown Flag**: Node has `_is_unknown_shape=true` or `_force_unknown_shape=true` set (code first checks `ATTR_NAME_IS_UNKNOWN_SHAPE`, then checks `ATTR_NAME_FORCE_UNKNOWN_SHAPE`, dynamic_shape_partition.cc)
 3. **Tiling Dependency Not Supported for Offload**: Node has dynamic tiling dependency but does not support executing tiling on AICPU
 4. **Address Refresh Not Supported**: Node has `_is_support_addr_refresh=false`
 5. **Host CPU Engine**: Node belongs to `DNN_VM_HOST_CPU` engine
 6. **Subgraph Propagation**: If a node's subgraph (control flow subgraph) contains dynamic shape operators, the node is also classified as dynamic
+7. **No Tiling Mechanism**: Dynamic shape nodes (shapes containing -1/-2) that support no-tiling can stay in static subgraphs. `IsNodeSupportNoTiling()` (dynamic_shape_partition.cc) checks conditions including engine supporting tiling inline and export shape, valid shape range, and so on. `MarkOpNoTiling()` (dynamic_shape_partition.cc) sets `ATTR_NAME_OP_NO_TILING` and `ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE` attributes for supported nodes. Nodes supporting no-tiling are placed into the `unknown_shape_no_tiling_nodes_` set instead of `unknown_shape_nodes_`, and therefore do not trigger dynamic splitting.
 
 #### 5.2.2 Cluster Merge Strategy
 
 `DynamicShapeCluster` inherits `BaseCluster` and divides by type into `KNOWN_SHAPE` (type_index=4) and `UNKNOWN_SHAPE` (type_index=5).
 
-Merge order in `MergeClustersNormal()`:
+Merge order in `MergeClustersNormal()` (non-ffts+ scenario):
 
 1. **Dynamic Path Absorption**: Traverse all `UNKNOWN_SHAPE` clusters. If a path exists between two dynamic clusters, merge all clusters on the path into dynamic. This ensures continuity of dynamic chains.
-2. **Static Single-path Merge**: Traverse `KNOWN_SHAPE` clusters. If only one unique path exists between two static clusters (acyclic), merge them.
-3. **Small Cluster Downgrade**: Static clusters with node count below the `ge.exec.static_model_ops_lower_limit` threshold downgrade to dynamic. This avoids producing overly small static subgraph fragments.
-4. **Control Flow Merge**: Control flow nodes belonging to the same `ATTR_NAME_CONTROL_FLOW_GROUP` (such as StreamActive, StreamSwitch) merge into the same cluster.
-5. **RefVariable Merge**: Reference-type Variable nodes merge with their consumers into the same cluster.
+2. **Static Single-path Merge** (including RefVariable merge): Traverse `KNOWN_SHAPE` clusters. If only one unique path exists between two static clusters (acyclic), merge them. `TryMergeClusters()` internally handles the merge of RefVariable nodes with their consumers.
+3. **Input Node Merge**: Merge input node clusters into adjacent clusters through `MergeClustersInputData()`.
+4. **Small Cluster Downgrade**: Static clusters with node count below the `ge.exec.static_model_ops_lower_limit` threshold downgrade to dynamic. This avoids producing overly small static subgraph fragments.
+5. **Dynamic Cluster Merge**: Further merge adjacent dynamic clusters through `TryMergeClusters(filter_unknown)`.
+
+> **Note**: Control flow merging is performed by `MergeClustersControlFlow()` **before** `MergeClustersNormal()`, and is not an internal step of `MergeClustersNormal()`.
+
+> **ffts+ scenario**: When `merge_known_first_=true` (ffts+ scenario), the merge order changes to: merge static clusters first → small cluster downgrade → merge input nodes → then merge dynamic clusters.
 
 #### 5.2.3 Re-split Mechanism
 
@@ -195,7 +201,11 @@ After initial splitting, `DynamicDataFlowPartitionerPass` checks whether data fl
 
 #### 5.2.4 Whole-graph Dynamic Determination
 
-`IsGraphNeedUnknownShapePartition()` determines whether the whole graph needs to go through the dynamic split workflow. If the graph has no dynamic shape nodes, set `_dynamic_shape_partitioned=false`, and the whole graph goes through the static compilation path. If the graph has very few static nodes (below `ge.host_scheduling_max_threshold`), the whole graph directly goes through Host scheduling mode.
+`IsGraphNeedUnknownShapePartition()` determines whether the whole graph needs to go through the dynamic split workflow. The actual condition is `(IsSubgraphMultiDims() || has_no_tiling_ || unknown_shape_no_tiling_nodes_.empty()) && unknown_shape_nodes_.empty()` (dynamic_shape_partition.cc), meaning the graph only needs to go through the dynamic split workflow when there are **dynamic nodes that do not support no-tiling** (`unknown_shape_nodes_` is non-empty). Dynamic nodes that support no-tiling (`unknown_shape_no_tiling_nodes_`) do not trigger dynamic splitting.
+
+If the graph has no dynamic shape nodes (i.e., the above condition is not met), set `_dynamic_shape_partitioned=false`, and the whole graph goes through the static compilation path.
+
+Additionally, `IsGraphNeedHostCpuSchedule()` determines whether the whole graph goes through Host scheduling mode. The actual condition is `(known_shape_nodes_.size() < max_threshold) && (!has_special_node_) && (!is_need_iteration)` (dynamic_shape_partition.cc), meaning that in addition to the static node count being below the `ge.exec.hostSchedulingMaxThreshold` threshold, the graph must also have no special nodes (control flow operators, nodes with subgraphs, etc.) and not require training iteration flow control, for the whole graph to go through Host scheduling mode.
 
 ### 5.3 Engine-level Splitting: EnginePartitioner
 
@@ -204,7 +214,7 @@ After initial splitting, `DynamicDataFlowPartitionerPass` checks whether data fl
 #### 5.3.1 Split Workflow
 
 1. **Initialize**: Assign engine to each node through `EnginePlacer`, create initial clusters (one per node, carrying engine name and stream label).
-2. **MarkClusters**: Traverse cluster pairs. If two clusters have the same engine + same stream label + no second path between them, merge.
+2. **MarkClusters**: Traverse cluster pairs. If two clusters have the same engine + same stream label (or same `user_stream_label`) + no second path between them, merge. When the parent cluster's `user_stream_label_` is non-empty and matches the child cluster, they can merge even if `stream_label_` differs (engine_partitioner.cc).
 3. **SplitSubGraphs**: Create `ComputeGraph` subgraph for each merged cluster. Insert `PlaceHolder`/`End` node pairs between different engine subgraphs.
 4. **SortSubGraphs**: Topologically sort subgraphs, merge Data nodes into a unified input subgraph.
 
@@ -217,12 +227,14 @@ Unlike `DynamicShapePartitioner` which uses `PartitionedCall`, `EnginePartitione
 
 After subgraph optimization completes, the `MergeAfterSubGraphOptimization()` method removes all PlaceHolder/End node pairs and re-merges subgraphs into a complete computation graph.
 
-#### 5.3.3 Two Split Modes
+#### 5.3.3 Split Modes
 
-`EnginePartitioner` supports two split modes:
+`EnginePartitioner` supports the following split modes:
 
 - **CompositeEnginePartitioning**: Split by composite engine, coarser granularity, used for large-scale engine-level separation.
 - **AtomicEnginePartitioning**: Split by atomic engine, finer granularity, used for more precise engine isolation.
+- **kSecondPartitioning**: Secondary engine splitting during graph building phase (graph_builder.cc), used to handle engine assignment for custom operators.
+- **kMerging**: Subgraph merging mode, used for re-merging after subgraph optimization.
 
 ### 5.4 Pipeline Stage Splitting: StagePartitioner
 
@@ -359,7 +371,7 @@ flowchart TD
 
 | File | Core Content |
 |------|--------------|
-| `docs/architecture/constraints/graph_split.md` | Graph split module design constraints document |
+| `docs/en/design/constraints/graph_split.md` | Graph split module design constraints document |
 | `compiler/graph/partition/base_partitioner.h/.cc` | Split framework base class, defines split pipeline |
 | `compiler/graph/partition/base_cluster.h/.cc` | Cluster base class, node merging and subgraph building |
 | `compiler/graph/partition/dynamic_shape_partition.h/.cc` | Dynamic-static shape split strategy implementation |
