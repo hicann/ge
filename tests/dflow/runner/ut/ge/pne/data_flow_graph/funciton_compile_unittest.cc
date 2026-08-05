@@ -10,9 +10,9 @@
 
 #include <fstream>
 #include <gtest/gtest.h>
-#include "dflow/compiler/data_flow_graph/function_compile.h"
+#include "dflow/runner/compiler/data_flow_graph/function_compile.h"
 #include "proto/dflow.pb.h"
-#include "dflow/compiler/data_flow_graph/compile_config_json.h"
+#include "dflow/runner/compiler/data_flow_graph/compile_config_json.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "graph/ge_global_options.h"
 #include "framework/common/ge_types.h"

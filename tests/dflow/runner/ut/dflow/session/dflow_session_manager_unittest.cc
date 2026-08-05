@@ -9,8 +9,8 @@
  */
 
 #include <gtest/gtest.h>
-#include "dflow/compiler/session/dflow_session_manager.h"
-#include "dflow/compiler/session/dflow_session_impl.h"
+#include "dflow/runner/session/dflow_session_manager.h"
+#include "dflow/runner/session/dflow_session_impl.h"
 
 namespace ge {
 namespace dflow {

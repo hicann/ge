@@ -10,7 +10,7 @@
 
 #include <fstream>
 #include "gtest/gtest.h"
-#include "dflow/compiler/data_flow_graph/compile_config_json.h"
+#include "dflow/runner/compiler/data_flow_graph/compile_config_json.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ge_global_options.h"
 #include "framework/common/ge_types.h"

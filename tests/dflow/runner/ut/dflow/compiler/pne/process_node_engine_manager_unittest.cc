@@ -12,10 +12,10 @@
 
 #include "api/gelib/gelib.h"
 #include "framework/omg/ge_init.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
 #include "graph/debug/ge_attr_define.h"
-#include "dflow/compiler/pne/npu/npu_process_node_engine.h"
-#include "dflow/compiler/pne/cpu/cpu_process_node_engine.h"
+#include "dflow/runner/compiler/pne/npu/npu_process_node_engine.h"
+#include "dflow/runner/compiler/pne/cpu/cpu_process_node_engine.h"
 
 namespace ge {
 class UtestProcessNodeEngineManager : public testing::Test {

@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
-#include "dflow/compiler/session/dflow_api.h"
+#include "dflow/runner/session/dflow_api.h"
 #include "graph/operator_factory_impl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/ge_common/ge_types.h"
@@ -24,14 +24,14 @@
 #include "ge_running_env/ge_running_env_faker.h"
 #include "ge_running_env/dir_env.h"
 #include "ge/ge_api.h"
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
-#include "dflow/executor/heterogeneous_model_executor.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/executor/heterogeneous_model_executor.h"
 #include "dflow/base/deploy/model_deployer.h"
 #include "dflow/base/deploy/exchange_service.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
-#include "dflow/compiler/session/dflow_session_impl.h"
-#include "dflow/compiler/pne/npu/npu_process_node_engine.h"
+#include "dflow/runner/session/dflow_session_impl.h"
+#include "dflow/runner/compiler/pne/npu/npu_process_node_engine.h"
 
 namespace ge {
 class MockExchangeService : public ExchangeService {

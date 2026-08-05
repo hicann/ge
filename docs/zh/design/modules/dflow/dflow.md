@@ -188,7 +188,7 @@ classDiagram
 
 ### 3.2 C++ 运行接口
 
-构图完成后，通过 `DFlowSession`（`compiler/session/dflow_api.h`）编译并运行：
+构图完成后，通过 `DFlowSession`（`runner/session/dflow_api.h`）编译并运行：
 
 - **编译+加载**：`BuildGraph`（编译与加载合一，首次 Feed 时惰性编译）
 - **数据输入**：`FeedDataFlowGraph`（支持 Tensor 和 FlowMsg 两种路径）
@@ -273,7 +273,7 @@ GraphPp 是否配置动态 shape 直接决定其走静态还是动态执行路�
 
 ### 4.1 编译层：从 FlowGraph 到 FlowModel
 
-编译层位于 `dflow/compiler/`，采用四层架构自上而下委托：
+编译层位于 `dflow/runner/compiler/`，采用四层架构自上而下委托：
 
 ```mermaid
 flowchart TD
@@ -488,7 +488,7 @@ executor 进程加载模型后，根据模型类型和部署位置采用不同�
 
 ### 4.4 执行层：异构执行器与数据对齐
 
-执行层位于 `dflow/executor/`，负责按部署计划驱动数据流动。
+执行层位于 `dflow/runner/executor/`，负责按部署计划驱动数据流动。
 
 **HeterogeneousModelExecutor** 是核心（`executor/heterogeneous_model_executor.cc`），管理 Feed → 内部执行 → Fetch 的完整闭环：
 

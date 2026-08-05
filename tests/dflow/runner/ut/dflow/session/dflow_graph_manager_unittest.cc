@@ -9,7 +9,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "dflow/compiler/model/dflow_graph_manager.h"
+#include "dflow/runner/compiler/model/dflow_graph_manager.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "ge/graph/ops_stub.h"

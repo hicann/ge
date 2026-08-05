@@ -10,7 +10,7 @@
 
 #include <cstring>
 #include "flow_graph/data_flow.h"
-#include "dflow/compiler/session/dflow_api.h"
+#include "dflow/runner/session/dflow_api.h"
 #include "parser/onnx_parser.h"
 #include "parser/tensorflow_parser.h"
 #include "dlog_pub.h"

@@ -12,7 +12,7 @@
 #include <gmock/gmock.h>
 #include <string.h>
 
-#include "dflow/executor/flow_model_manager.h"
+#include "dflow/runner/executor/flow_model_manager.h"
 #include "common/profiling/profiling_manager.h"
 #include "common/helper/om_file_helper.h"
 #include "common/op/ge_op_utils.h"

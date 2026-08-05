@@ -188,7 +188,7 @@ During `FlowGraph` construction, `MultiThreadGraphBuilder` (8 threads parallel b
 
 ### 3.2 C++ Runtime Interface
 
-After graph construction, compile and run through `DFlowSession` (`compiler/session/dflow_api.h`):
+After graph construction, compile and run through `DFlowSession` (`runner/session/dflow_api.h`):
 
 - **Compile+Load**: `BuildGraph` (compile and load combined, lazy compilation on first Feed)
 - **Data input**: `FeedDataFlowGraph` (supports Tensor and FlowMsg two paths)
@@ -273,7 +273,7 @@ Whether a GraphPp is configured with dynamic shape directly determines whether i
 
 ### 4.1 Compilation Layer: From FlowGraph to FlowModel
 
-The compilation layer is located in `dflow/compiler/`, adopting a four-layer architecture with top-down delegation:
+The compilation layer is located in `dflow/runner/compiler/`, adopting a four-layer architecture with top-down delegation:
 
 ```mermaid
 flowchart TD
@@ -488,7 +488,7 @@ After executor processes load models, they adopt different execution methods bas
 
 ### 4.4 Execution Layer: Heterogeneous Executors and Data Alignment
 
-The execution layer is located in `dflow/executor/`, responsible for driving data flow according to the deployment plan.
+The execution layer is located in `dflow/runner/executor/`, responsible for driving data flow according to the deployment plan.
 
 **HeterogeneousModelExecutor** is the core (`executor/heterogeneous_model_executor.cc`), managing the complete Feed to internal execution to Fetch closed loop:
 

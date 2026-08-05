@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "macro_utils/dt_public_scope.h"
-#include "dflow/executor/data_flow_data_aligner.h"
+#include "dflow/runner/executor/data_flow_data_aligner.h"
 
 using namespace std;
 using namespace testing;

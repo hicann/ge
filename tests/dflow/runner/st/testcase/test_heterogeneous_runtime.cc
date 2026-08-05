@@ -27,15 +27,15 @@
 #include "common/env_path.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "framework/common/runtime_tensor_desc.h"
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
 
 #include "macro_utils/dt_public_scope.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
 #include "macro_utils/dt_public_unscope.h"
 
 #include "ge_running_env/ge_running_env_faker.h"
 #include "ge_running_env/fake_op.h"
-#include "dflow/compiler/pne/npu/npu_process_node_engine.h"
+#include "dflow/runner/compiler/pne/npu/npu_process_node_engine.h"
 #include "graph/ge_global_options.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "graph/manager/mem_manager.h"

@@ -14,7 +14,7 @@
 #include <numeric>
 
 #include "macro_utils/dt_public_scope.h"
-#include "dflow/executor/heterogeneous_model_executor.h"
+#include "dflow/runner/executor/heterogeneous_model_executor.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "graph/utils/tensor_utils.h"

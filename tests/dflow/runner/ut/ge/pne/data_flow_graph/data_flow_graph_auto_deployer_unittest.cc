@@ -11,12 +11,12 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include "nlohmann/json.hpp"
-#include "dflow/compiler/data_flow_graph/data_flow_graph_auto_deployer.h"
+#include "dflow/runner/compiler/data_flow_graph/data_flow_graph_auto_deployer.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "flow_graph/data_flow.h"
 #include "graph/ge_local_context.h"
 #include "ge_graph_dsl/graph_dsl.h"
-#include "dflow/compiler/data_flow_graph/data_flow_graph.h"
+#include "dflow/runner/compiler/data_flow_graph/data_flow_graph.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
 
 using namespace testing;

@@ -13,14 +13,14 @@
 #include <thread>
 #include "graph/testcase/ge_graph/graph_builder_utils.h"
 #include "macro_utils/dt_public_scope.h"
-#include "dflow/compiler/pne/udf/udf_attr_utils.h"
-#include "dflow/compiler/pne/udf/udf_model.h"
-#include "dflow/compiler/pne/udf/udf_model_builder.h"
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/compiler/pne/udf/udf_attr_utils.h"
+#include "dflow/runner/compiler/pne/udf/udf_model.h"
+#include "dflow/runner/compiler/pne/udf/udf_model_builder.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
-#include "dflow/compiler/data_flow_graph/function_compile.h"
+#include "dflow/runner/compiler/data_flow_graph/function_compile.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
