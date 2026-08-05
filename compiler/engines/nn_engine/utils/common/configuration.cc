@@ -614,6 +614,8 @@ void Configuration::InitCustomOpStore() {
         FE_LOGD("Resolve op impl path(%s) unsuccessful, do next.", custom_path.c_str());
         continue;
       }
+      ResolveBinaryPath(custom_path, it.second, it.first, false, kOpCustomBinaryKey, true);
+      ResolveBinaryPath(custom_path, it.second, it.first, true, kOmCustomBinaryKey, true);
       op_store_priority_count_++;
     }
   }
@@ -748,21 +750,25 @@ bool Configuration::AddCustomOpStoreContent(const std::string &full_or_sub_path,
 
 // "op.binary.tbe-custom = impl_type1|path1,impl_type1|path1"
 void Configuration::ResolveBinaryPath(const string &sub_path, const string &path_type, const int64_t main_impl_type,
-                                      bool isOm, const std::string &binaryKey) {
+                                      bool isOm, const std::string &binaryKey, bool is_full_path) {
   std::stringstream ss;
-  ss << "/vendors/";
-  ss << sub_path;
+  if (is_full_path) {
+    ss << sub_path;
+  } else {
+    ss << "/vendors/";
+    ss << sub_path;
+  }
   ss << "/op_impl/" << path_type << "/tbe/";
   string sub_file = isOm ? "model/" : "kernel/";
   ss << sub_file;
   string file_path = ss.str();
   int64_t impl_type = main_impl_type | (op_store_priority_count_ << 32);
   std::string pri_str = std::to_string(op_store_priority_count_);
-  if (!IsPathExistedInOpp(file_path, false)) {
+  if (!IsPathExistedInOpp(file_path, is_full_path)) {
     return;
   }
   ss << "config";
-  if (!IsPathExistedInOpp(ss.str(), false)) {
+  if (!IsPathExistedInOpp(ss.str(), is_full_path)) {
     return;
   }
   ss.str("");
@@ -794,8 +800,8 @@ Status Configuration::LoadOppConfigFile() {
         FE_LOGD("Resolve op impl path(%s) unsuccessful, do next.", custom_path.c_str());
         continue;
       }
-      ResolveBinaryPath(custom_path, it.second, it.first, false, kOpCustomBinaryKey);
-      ResolveBinaryPath(custom_path, it.second, it.first, true, kOmCustomBinaryKey);
+      ResolveBinaryPath(custom_path, it.second, it.first, false, kOpCustomBinaryKey, false);
+      ResolveBinaryPath(custom_path, it.second, it.first, true, kOmCustomBinaryKey, false);
       op_store_priority_count_++;
     }
   }

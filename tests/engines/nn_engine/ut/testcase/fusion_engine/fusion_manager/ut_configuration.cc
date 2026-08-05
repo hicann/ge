@@ -28,7 +28,6 @@
 #include "common/config_parser/modify_mixlist_config_parser.h"
 #include "common/config_parser/op_debug_config_parser.h"
 #include "platform/platform_info.h"
-#include "common/platform_utils.h"
 #include "mmpa/src/mmpa_stub.h"
 #include "graph/ge_context.h"
 #include "ge/ge_api_types.h"
@@ -36,9 +35,9 @@
 #include "fusion_config_manager/fusion_config_parser.h"
 #include "graph/ge_local_context.h"
 #include "register/optimization_option_registry.h"
+#include "register/op_lib_register_impl.h"
 #undef private
 #undef protected
-#include "graph/ge_local_context.h"
 using namespace std;
 using namespace fe;
 
@@ -1182,6 +1181,25 @@ TEST_F(configuration_ut, OppNewPath_005_InvalidConfig) {
   config.op_store_priority_count_ = 0;
   config.LoadOppConfigFile();
   EXPECT_EQ(config.content_map_.size(), 0);
+}
+
+TEST_F(configuration_ut, init_custom_op_store_with_env) {
+  std::string custom_path = GetCurpath() + "../../../../../../tests/engines/nn_engine/config/customize/";
+  mmSetEnv("ASCEND_CUSTOM_OPP_PATH", custom_path.c_str(), MMPA_MAX_PATH);
+  auto &op_lib = ge::OpLibRegistry::GetInstance();
+  op_lib.is_init_ = false;
+  op_lib.op_lib_paths_.clear();
+
+  Configuration config(fe::AI_CORE_NAME);
+  config.op_binary_path_map_.clear();
+  config.op_store_priority_count_ = 0;
+
+  config.InitCustomOpStore();
+
+  EXPECT_GT(config.op_store_priority_count_, 0);
+  EXPECT_GT(config.op_binary_path_map_.size(), 0);
+
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
 }
 
 TEST_F(configuration_ut, parse_memory_check_001) {

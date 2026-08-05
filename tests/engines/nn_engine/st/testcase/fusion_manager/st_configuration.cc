@@ -37,6 +37,7 @@
 #include "fusion_manager/fusion_manager.h"
 #include "graph/ge_local_context.h"
 #include "register/optimization_option_registry.h"
+#include "register/op_lib_register_impl.h"
 #undef private
 #undef protected
 
@@ -1114,6 +1115,40 @@ TEST_F(configuration_st, init_custom_opp_path_2) {
 
   EXPECT_EQ(config.GetBinaryPathMap().size(), 2);
   unsetenv("ASCEND_CUSTOM_OPP_PATH");
+}
+
+TEST_F(configuration_st, init_custom_op_store_with_env) {
+  std::string custom_path = GetCurpath() + "../../../../../../tests/engines/nn_engine/config/customize/";
+  mmSetEnv("ASCEND_CUSTOM_OPP_PATH", custom_path.c_str(), MMPA_MAX_PATH);
+  auto &op_lib = ge::OpLibRegistry::GetInstance();
+  op_lib.is_init_ = false;
+  op_lib.op_lib_paths_.clear();
+
+  Configuration config(fe::AI_CORE_NAME);
+  config.op_binary_path_map_.clear();
+  config.op_store_priority_count_ = 0;
+
+  config.InitCustomOpStore();
+
+  EXPECT_GT(config.op_store_priority_count_, 0);
+  EXPECT_GT(config.op_binary_path_map_.size(), 0);
+
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
+}
+
+TEST_F(configuration_st, load_opp_config_file_custom_binary) {
+  Configuration config(fe::AI_CORE_NAME);
+  config.ascend_ops_path_ = GetCodeDir() + "/tests/engines/nn_engine/config/new_opp/";
+  config.op_binary_path_map_.clear();
+  config.op_store_priority_count_ = 0;
+
+  EXPECT_EQ(config.LoadOppConfigFile(), SUCCESS);
+
+  EXPECT_GT(config.op_store_priority_count_, 0);
+  EXPECT_EQ(config.op_binary_path_map_.count("op.binary.custom"), 1);
+  EXPECT_EQ(config.op_binary_path_map_.count("om.binary.custom"), 1);
+  EXPECT_FALSE(config.op_binary_path_map_.at("op.binary.custom").empty());
+  EXPECT_FALSE(config.op_binary_path_map_.at("om.binary.custom").empty());
 }
 
 TEST_F(configuration_st, parse_memory_check_001) {

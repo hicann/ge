@@ -41,7 +41,8 @@ const std::map<TeConfigInfo::EnvItem, std::string> TeConfigInfo::kEnvItemKeyMap{
     {TeConfigInfo::EnvItem::OpCompilerWorkPathInKernelMeta, "ASCEND_OP_COMPILER_WORK_PATH_IN_KERNEL_META"},
     {TeConfigInfo::EnvItem::HomePath, "ASCEND_HOME_PATH"},
     {TeConfigInfo::EnvItem::AscendCoreDumpSignal, "ASCEND_COREDUMP_SIGNAL"},
-    {TeConfigInfo::EnvItem::AscendSaveKernelMeta, "ASCEND_OP_COMPILE_SAVE_KERNEL_META"}};
+    {TeConfigInfo::EnvItem::AscendSaveKernelMeta, "ASCEND_OP_COMPILE_SAVE_KERNEL_META"},
+    {TeConfigInfo::EnvItem::AscendCustomOppPath, "ASCEND_CUSTOM_OPP_PATH"}};
 
 const std::map<TeConfigInfo::ConfigEnumItem, std::tuple<int64_t, std::string, std::map<std::string, int64_t>>>
     TeConfigInfo::kConfigEnumItemKeyMap{
@@ -349,6 +350,9 @@ const std::string &TeConfigInfo::GetEnvOpCompilerWorkPathInKernelMeta() const {
 }
 const std::string &TeConfigInfo::GetEnvAscendCoreDumpSignal() const {
   return env_item_vec_[static_cast<size_t>(EnvItem::AscendCoreDumpSignal)];
+}
+const std::string &TeConfigInfo::GetCustomOppPath() const {
+  return env_item_vec_[static_cast<size_t>(EnvItem::AscendCustomOppPath)];
 }
 CompileCacheMode TeConfigInfo::GetCompileCacheMode() const {
   return static_cast<CompileCacheMode>(config_enum_item_vec_[static_cast<size_t>(ConfigEnumItem::CacheMode)]);
