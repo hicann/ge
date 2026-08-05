@@ -824,53 +824,57 @@ UnloadPassPlugins()
 
 Unload 不触及 Python 解释器生命周期和 bridge so 句柄，确保下一轮 `Load()` 可以直接复用。
 
-##### ShutdownForProcess — 进程级关闭
+##### 进程级关闭
 
-进程退出时，GE 调用 `ShutdownPassPluginsForProcess()` 执行完整的资源释放。当前有 3 个入口可以触发：
+进程退出时，GE 通过 `UnloadPassPlugins()` 在引用计数归零时执行完整的资源释放。当前所有入口统一调用 `UnloadPassPlugins()`：
 
 - `GEFinalizeV2()` — 在线模式进程结束时
 - `aclgrphBuildFinalize()` — 离线编译结束时
 - `GeGenerator::Finalize()` — 生成器模式结束时
+- `atc main_impl` — ATC 结束时
 
-当前实现链路：
+`UnloadPassPlugins()` 内部在引用计数归零时执行进程级清理：
 
 ```
-ShutdownPassPluginsForProcess()
-  → PassPluginLoader::ShutdownForProcess()                   [pass_plugin_loader.cc]
-    ├─ 一次性守卫: if (shutdown_done_) return               // 确保进程级 shutdown 只执行一次
-    ├─ shutdown_done_ = true
-    │
-    ├─ if (python_pass_loaded_):
-    │   UnloadPythonFusionBasePasses()                       // 先清理注册态（同 Unload）
-    │     → BridgeLoader::Unload()
-    │       ├─ api_->reset_bridge_state()
-    │       ├─ ClearPythonFusionBasePassRuntimeRegistry()
-    │       └─ PassRegistry::ClearPythonPasses()
-    │   python_pass_loaded_ = false
-    │
-    ├─ ShutdownPythonFusionBasePassesForProcess()            // 无条件执行
-    │   → BridgeLoader::ShutdownForProcess()                 [bridge_loader.cc]
-    │     ├─ if (api_ != nullptr):
-    │     │   api_->shutdown_bridge()                        // 调用 bridge so 导出的 shutdown
-    │     │     → PybindBridge::Shutdown()                   [pybind_bridge.cc]
-    │     │       ├─ ResetBridgeStateUnlocked()              // 清理 Python 侧状态、释放 bridge 模块引用并 gc.collect()
-    │     │       └─ if (owns_interpreter_):                 // 仅当解释器由 bridge 自己拉起时
-    │     │           py::finalize_interpreter()             // 终结 Python 解释器
-    │     │     owns_interpreter_ = false
-    │     ├─ api_ = nullptr                                  // 置空，防止后续再调用
-    │     ├─ if (handle_ != nullptr):
-    │     │   dlclose(handle_)                               // 卸载 bridge so
-    │     │   handle_ = nullptr                              // 置空，防止 dlclose 重复
-    │     └─ loaded_path_.clear()
-    │
-    └─ CustomPassHelper::Unload()                            // 清理 C++ 自定义 pass
+UnloadPassPlugins()
+  → PassPluginLoader::Unload()                               [pass_plugin_loader.cc]
+    ├─ active_users_--
+    ├─ if (active_users_ == 0):
+    │   ├─ if (python_pass_loaded_):
+    │   │   UnloadPythonFusionBasePasses()                   // 先清理注册态
+    │   │     → BridgeLoader::Unload()
+    │   │       ├─ api_->reset_bridge_state()
+    │   │       ├─ ClearPythonFusionBasePassRuntimeRegistry()
+    │   │       └─ PassRegistry::ClearPythonPasses()
+    │   │   python_pass_loaded_ = false
+    │   │
+    │   ├─ if (cpp_pass_loaded_):
+    │   │   cpp_pass_loaded_ = false
+    │   │   CustomPassHelper::Unload()                        // 清理 C++ 自定义 pass
+    │   │
+    │   └─ if (!shutdown_done_):
+    │       shutdown_done_ = true
+    │       ShutdownPythonFusionBasePassesForProcess()        // 进程级 Python bridge 清理
+    │         → BridgeLoader::ShutdownForProcess()            [bridge_loader.cc]
+    │           ├─ if (api_ != nullptr):
+    │           │   api_->shutdown_bridge()
+    │           │     → PybindBridge::Shutdown()              [pybind_bridge.cc]
+    │           │       ├─ ResetBridgeStateUnlocked()
+    │           │       └─ if (owns_interpreter_):
+    │           │           py::finalize_interpreter()
+    │           │     owns_interpreter_ = false
+    │           ├─ api_ = nullptr
+    │           ├─ if (handle_ != nullptr):
+    │           │   dlclose(handle_)
+    │           │   handle_ = nullptr
+    │           └─ loaded_path_.clear()
 ```
 
 ##### 幂等性保证
 
-由于 `ShutdownPassPluginsForProcess()` 可能从多个入口被重复调用，整条链路通过以下守卫保证幂等：
+由于 `UnloadPassPlugins()` 可能从多个入口被重复调用，整条链路通过以下守卫保证幂等：
 
-1. **PassPluginLoader 层** — `shutdown_done_` 标志：首次执行后置为 `true`，后续调用直接返回 `SUCCESS`
+1. **PassPluginLoader 层** — `active_users_` 引用计数：每次调用递减，归零时才执行卸载；`shutdown_done_` 标志确保进程级清理只执行一次
 2. **BridgeLoader 层** — `api_` / `handle_` 空指针守卫：首次执行后置为 `nullptr`，后续调用跳过 shutdown 和 dlclose
 3. **PybindBridge 层** — `Py_IsInitialized()` 守卫：解释器已终结后不再进入 Python 清理逻辑；`owns_interpreter_` 守卫确保只终结自己初始化的解释器
 
@@ -1610,7 +1614,7 @@ TBE 初始化 Python
 
 ```text
 TBE 先初始化 Python:
-ShutdownPassPluginsForProcess()
+UnloadPassPlugins() (引用计数归零时)
   -> reset / clear Python pass holder、module、registry
 GELib::Finalize()
   -> TBE / op store finalize
@@ -1618,7 +1622,7 @@ GELib::Finalize()
   -> TBE 在自己拥有解释器时 Py_Finalize
 
 Python pass bridge 先初始化 Python:
-ShutdownPassPluginsForProcess()
+UnloadPassPlugins() (引用计数归零时)
   -> reset / clear Python pass holder、module、registry
   -> 不能立即 py::finalize_interpreter，除非确认 TBE 等其他 Python 用户尚未初始化
 GELib::Finalize()

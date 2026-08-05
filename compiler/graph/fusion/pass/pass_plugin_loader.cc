@@ -36,79 +36,58 @@ class PassPluginLoader {
 
   Status Load() {
     std::lock_guard<std::mutex> lock(mutex_);
-
-    if (!cpp_pass_loaded_) {
-      const auto ret = CustomPassHelper::Instance().Load();
-      if (ret != SUCCESS) {
-        GELOGE(ret, "Load C++ custom pass plugins failed.");
-        return ret;
+    if (active_users_ == 0U) {
+      if (!cpp_pass_loaded_) {
+        const auto ret = CustomPassHelper::Instance().Load();
+        if (ret != SUCCESS) {
+          GELOGE(ret, "Load C++ custom pass plugins failed.");
+          return ret;
+        }
+        cpp_pass_loaded_ = true;
       }
-      cpp_pass_loaded_ = true;
-    }
-
-    if ((!python_pass_loaded_) && NeedLoadPythonPasses()) {
-      const auto ret = RegisterPythonPassesFromPlugin();
-      if (ret != SUCCESS) {
-        GELOGE(ret, "Load Python fusion pass plugins failed.");
-        RollbackPythonPassesLoad();
-        return ret;
+      if ((!python_pass_loaded_) && NeedLoadPythonPasses()) {
+        const auto ret = RegisterPythonPassesFromPlugin();
+        if (ret != SUCCESS) {
+          GELOGE(ret, "Load Python fusion pass plugins failed.");
+          (void)CustomPassHelper::Instance().Unload();
+          cpp_pass_loaded_ = false;
+          return ret;
+        }
+        python_pass_loaded_ = true;
       }
-      python_pass_loaded_ = true;
     }
+    active_users_++;
     return SUCCESS;
   }
 
   Status Unload() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (python_pass_loaded_) {
-      UnloadPythonPasses();
-      python_pass_loaded_ = false;
-    }
-
-    if (!cpp_pass_loaded_) {
+    if (active_users_ == 0U) {
+      GELOGW("UnloadPassPlugins called with no active users, possible reference leak.");
       return SUCCESS;
     }
-
-    cpp_pass_loaded_ = false;
-    return CustomPassHelper::Instance().Unload();
-  }
-
-  Status ShutdownForProcess() {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    // 业务级状态 reset 必须在 shutdown_done_ 检查之前执行，
-    // 否则串行 GEInitialize/GEFinalize 场景下 cpp_pass_loaded_ 不会被 reset，
-    // 后续 Load() 会因 cpp_pass_loaded_=true 跳过实际加载。
-    if (python_pass_loaded_) {
-      GELOGI("[PythonPass] ShutdownForProcess unloading python passes.");
-      UnloadPythonPasses();
-      python_pass_loaded_ = false;
+    active_users_--;
+    if (active_users_ == 0U) {
+      if (python_pass_loaded_) {
+        UnloadPythonPasses();
+        python_pass_loaded_ = false;
+      }
+      if (cpp_pass_loaded_) {
+        cpp_pass_loaded_ = false;
+        (void)CustomPassHelper::Instance().Unload();
+      }
+      if (!shutdown_done_) {
+        shutdown_done_ = true;
+        ShutdownPythonPassesForProcess();
+        GELOGI("[PythonPass] ShutdownPythonPassesForProcess done.");
+      }
     }
-    if (cpp_pass_loaded_) {
-      cpp_pass_loaded_ = false;
-      (void)CustomPassHelper::Instance().Unload();
-    }
-
-    // 进程级资源（Python 解释器、bridge so）只清理一次
-    if (shutdown_done_) {
-      GELOGI("[PythonPass] ShutdownForProcess process-level cleanup already done, skip.");
-      return SUCCESS;
-    }
-    shutdown_done_ = true;
-
-    // 进程级 shutdown 额外负责关闭 bridge so。
-    ShutdownPythonPassesForProcess();
-    GELOGI("[PythonPass] ShutdownPythonPassesForProcess done.");
     return SUCCESS;
   }
 
  private:
-  void RollbackPythonPassesLoad() {
-    UnloadPythonPasses();
-    python_pass_loaded_ = false;
-  }
-
   std::mutex mutex_;
+  size_t active_users_{0U};
   bool cpp_pass_loaded_{false};
   bool python_pass_loaded_{false};
   bool shutdown_done_{false};
@@ -121,10 +100,6 @@ Status LoadPassPlugins() {
 
 Status UnloadPassPlugins() {
   return PassPluginLoader::GetInstance().Unload();
-}
-
-Status ShutdownPassPluginsForProcess() {
-  return PassPluginLoader::GetInstance().ShutdownForProcess();
 }
 }  // namespace fusion
 }  // namespace ge

@@ -824,53 +824,57 @@ UnloadPassPlugins()
 
 Unload does not touch the Python interpreter lifecycle or bridge so handle, ensuring the next `Load()` can directly reuse them.
 
-##### ShutdownForProcess -- Process-level Shutdown
+##### Process-level Shutdown
 
-When the process exits, GE calls `ShutdownPassPluginsForProcess()` to perform complete resource release. Currently there are 3 entry points that can trigger this:
+When the process exits, GE performs complete resource release through `UnloadPassPlugins()` when the reference count drops to zero. All entry points now uniformly call `UnloadPassPlugins()`:
 
 - `GEFinalizeV2()` -- when the online mode process ends
 - `aclgrphBuildFinalize()` -- when offline compilation ends
 - `GeGenerator::Finalize()` -- when the generator mode ends
+- `atc main_impl` -- when ATC ends
 
-Current implementation chain:
+`UnloadPassPlugins()` performs process-level cleanup when the reference count reaches zero:
 
 ```
-ShutdownPassPluginsForProcess()
-  → PassPluginLoader::ShutdownForProcess()                   [pass_plugin_loader.cc]
-    ├─ One-time guard: if (shutdown_done_) return            // Ensure process-level shutdown only executes once
-    ├─ shutdown_done_ = true
-    │
-    ├─ if (python_pass_loaded_):
-    │   UnloadPythonFusionBasePasses()                       // Clean up registration state first (same as Unload)
-    │     → BridgeLoader::Unload()
-    │       ├─ api_->reset_bridge_state()
-    │       ├─ ClearPythonFusionBasePassRuntimeRegistry()
-    │       └─ PassRegistry::ClearPythonPasses()
-    │   python_pass_loaded_ = false
-    │
-    ├─ ShutdownPythonFusionBasePassesForProcess()            // Unconditionally executed
-    │   → BridgeLoader::ShutdownForProcess()                 [bridge_loader.cc]
-    │     ├─ if (api_ != nullptr):
-    │     │   api_->shutdown_bridge()                        // Call bridge so exported shutdown
-    │     │     → PybindBridge::Shutdown()                   [pybind_bridge.cc]
-    │     │       ├─ ResetBridgeStateUnlocked()              // Clean up Python-side state, release bridge module references and gc.collect()
-    │     │       └─ if (owns_interpreter_):                 // Only when the interpreter was started by the bridge itself
-    │     │           py::finalize_interpreter()             // Finalize the Python interpreter
-    │     │     owns_interpreter_ = false
-    │     ├─ api_ = nullptr                                  // Set to null, prevent subsequent calls
-    │     ├─ if (handle_ != nullptr):
-    │     │   dlclose(handle_)                               // Unload bridge so
-    │     │   handle_ = nullptr                              // Set to null, prevent dlclose duplication
-    │     └─ loaded_path_.clear()
-    │
-    └─ CustomPassHelper::Unload()                            // Clean up C++ custom passes
+UnloadPassPlugins()
+  → PassPluginLoader::Unload()                               [pass_plugin_loader.cc]
+    ├─ active_users_--
+    ├─ if (active_users_ == 0):
+    │   ├─ if (python_pass_loaded_):
+    │   │   UnloadPythonFusionBasePasses()                   // Clean up registration state first
+    │   │     → BridgeLoader::Unload()
+    │   │       ├─ api_->reset_bridge_state()
+    │   │       ├─ ClearPythonFusionBasePassRuntimeRegistry()
+    │   │       └─ PassRegistry::ClearPythonPasses()
+    │   │   python_pass_loaded_ = false
+    │   │
+    │   ├─ if (cpp_pass_loaded_):
+    │   │   cpp_pass_loaded_ = false
+    │   │   CustomPassHelper::Unload()                        // Clean up C++ custom passes
+    │   │
+    │   └─ if (!shutdown_done_):
+    │       shutdown_done_ = true
+    │       ShutdownPythonFusionBasePassesForProcess()        // Process-level Python bridge cleanup
+    │         → BridgeLoader::ShutdownForProcess()            [bridge_loader.cc]
+    │           ├─ if (api_ != nullptr):
+    │           │   api_->shutdown_bridge()
+    │           │     → PybindBridge::Shutdown()              [pybind_bridge.cc]
+    │           │       ├─ ResetBridgeStateUnlocked()
+    │           │       └─ if (owns_interpreter_):
+    │           │           py::finalize_interpreter()
+    │           │     owns_interpreter_ = false
+    │           ├─ api_ = nullptr
+    │           ├─ if (handle_ != nullptr):
+    │           │   dlclose(handle_)
+    │           │   handle_ = nullptr
+    │           └─ loaded_path_.clear()
 ```
 
 ##### Idempotency Guarantee
 
-Since `ShutdownPassPluginsForProcess()` may be called repeatedly from multiple entry points, the entire chain guarantees idempotency through the following guards:
+Since `UnloadPassPlugins()` may be called repeatedly from multiple entry points, the entire chain guarantees idempotency through the following guards:
 
-1. **PassPluginLoader layer** -- `shutdown_done_` flag: set to `true` after first execution, subsequent calls directly return `SUCCESS`
+1. **PassPluginLoader layer** -- `active_users_` reference count: decremented on each call, unloading only occurs when it reaches zero; `shutdown_done_` flag ensures process-level cleanup only executes once
 2. **BridgeLoader layer** -- `api_` / `handle_` null pointer guard: set to `nullptr` after first execution, subsequent calls skip shutdown and dlclose
 3. **PybindBridge layer** -- `Py_IsInitialized()` guard: does not enter Python cleanup logic after the interpreter has been finalized; `owns_interpreter_` guard ensures only the self-initialized interpreter is finalized
 
@@ -1609,7 +1613,7 @@ Therefore, the shutdown constraints differ under different startup orders:
 
 ```text
 TBE initializes Python first:
-ShutdownPassPluginsForProcess()
+UnloadPassPlugins() (when reference count reaches zero)
   -> reset / clear Python pass holders, modules, registry
 GELib::Finalize()
   -> TBE / op store finalize
@@ -1617,7 +1621,7 @@ GELib::Finalize()
   -> TBE calls Py_Finalize when it owns the interpreter
 
 Python pass bridge initializes Python first:
-ShutdownPassPluginsForProcess()
+UnloadPassPlugins() (when reference count reaches zero)
   -> reset / clear Python pass holders, modules, registry
   -> Must not immediately py::finalize_interpreter unless confirmed TBE and other Python users have not initialized
 GELib::Finalize()

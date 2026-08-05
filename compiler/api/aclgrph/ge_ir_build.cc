@@ -439,7 +439,7 @@ static graphStatus aclgrphBuildInitializeImpl(std::map<std::string, std::string>
     GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", python_runtime_ret);
   }
   GE_DISMISSABLE_GUARD(release_python_resources, []() {
-    (void)fusion::ShutdownPassPluginsForProcess();
+    (void)fusion::UnloadPassPlugins();
     (void)ge::custom_op::ShutdownCustomOpsForProcess();
     (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   });
@@ -486,7 +486,7 @@ graphStatus aclgrphBuildInitialize(std::map<AscendString, AscendString> &global_
 
 void aclgrphBuildFinalize() {
   // ge_ir_build 生命周期结束时显式关闭 Python bridge so，避免进程退出前长期悬挂。
-  (void)fusion::ShutdownPassPluginsForProcess();
+  (void)fusion::UnloadPassPlugins();
   (void)custom_op::ShutdownCustomOpsForProcess();
   if (ge::GELib::GetInstance() != nullptr && ge::GELib::GetInstance()->InitFlag()) {
     (void)ge::GELib::GetInstance()->Finalize();

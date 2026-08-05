@@ -263,7 +263,7 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
     GELOGW("[Ensure][PythonRuntime] failed, continue initialization, ret[%u].", ret);
   }
   GE_DISMISSABLE_GUARD(release_python_resources, ([]() {
-                         (void)fusion::ShutdownPassPluginsForProcess();
+                         (void)fusion::UnloadPassPlugins();
                          (void)ge::custom_op::ShutdownCustomOpsForProcess();
                          (void)GePythonRuntimeManager::Instance().ShutdownProcess();
                        }));
@@ -401,7 +401,7 @@ Status GEFinalizeV2() {
   ShutDownProfiling();
 
   // 这里是 GE 的进程级 finalization，额外负责显式关闭 Python bridge so。
-  (void)fusion::ShutdownPassPluginsForProcess();
+  (void)fusion::UnloadPassPlugins();
   (void)custom_op::ShutdownCustomOpsForProcess();
   // call Finalize
   (void)GeExecutor::FinalizeEx();

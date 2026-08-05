@@ -428,6 +428,7 @@ class GeGenerator::Impl {
   bool is_singleop_unregistered_ = false;
   bool is_fuzz_compile_enable_ = false;
   bool jit_compile_ = true;
+  bool pass_plugins_loaded_ = false;
   std::string build_mode_;
   std::string build_step_;
   static std::mutex mutex_;
@@ -471,12 +472,18 @@ Status GeGenerator::Initialize(const std::map<std::string, std::string> &options
   option_tmp.emplace(std::pair<std::string, std::string>(string("ge.opsProtoLibPath"), opsproto_path));
   (void)manager->Initialize(option_tmp);
   GE_ASSERT_SUCCESS(fusion::LoadPassPlugins());
+  impl_->pass_plugins_loaded_ = true;
+  GE_DISMISSABLE_GUARD(release_pass_plugins, [this]() {
+    impl_->pass_plugins_loaded_ = false;
+    (void)fusion::UnloadPassPlugins();
+  });
 
   ret = impl_->graph_manager_.Initialize(options);
   if (ret != SUCCESS) {
     GELOGE(GE_GENERATOR_GRAPH_MANAGER_INIT_FAILED, "[Call][Initialize] Graph manager initialize failed.");
     return GE_GENERATOR_GRAPH_MANAGER_INIT_FAILED;
   }
+  GE_DISMISS_GUARD(release_pass_plugins);
   // 将备份的注册信息低优先级merge到当前map
   OperatorFactoryImpl::MergeBackupCreatorsOnce();
   // get build mode
@@ -496,14 +503,17 @@ Status GeGenerator::Finalize() {
   if (impl_ == nullptr) {
     return SUCCESS;
   }
-  // GeGenerator::Finalize 对应本轮构建流程结束，这里走进程级 shutdown。
-  (void)fusion::ShutdownPassPluginsForProcess();
+  if (impl_->pass_plugins_loaded_) {
+    impl_->pass_plugins_loaded_ = false;
+    (void)fusion::UnloadPassPlugins();
+  }
   (void)custom_op::ShutdownCustomOpsForProcess();
   Status ret = impl_->graph_manager_.Finalize();
   if (ret != SUCCESS) {
     GELOGE(GE_GENERATOR_GRAPH_MANAGER_FINALIZE_FAILED, "[Call][Finalize] Graph manager finalize failed.");
     return GE_GENERATOR_GRAPH_MANAGER_FINALIZE_FAILED;
   }
+  impl_ = nullptr;
   return SUCCESS;
 }
 

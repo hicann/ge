@@ -26,6 +26,8 @@
 #include "register/ops_kernel_builder_registry.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "framework/common/helper/model_helper.h"
+#include "graph/fusion/pass/pass_plugin_loader.h"
+#include "register/custom_pass_helper.h"
 using namespace std;
 
 namespace ge {
@@ -38,6 +40,12 @@ const string kOpsProtoPath = "/op_proto/lib/linux/x86_64/";
 const string kOpMasterPath = "/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/";
 graphStatus InferFunctionStub(Operator &op) {
   return GRAPH_SUCCESS;
+}
+
+size_t g_custom_pass_run_count = 0U;
+Status CountCustomPassRun(GraphPtr &, CustomPassContext &) {
+  g_custom_pass_run_count++;
+  return SUCCESS;
 }
 }  // namespace
 const char *const kKernelLibName = "DNN_VM_GE_LOCAL";
@@ -277,6 +285,24 @@ TEST_F(UtestGeGenerator, test_generate_online_model) {
   generator.Initialize({});
   std::string name;
   EXPECT_NE(generator.GenerateOfflineModel(graph, name, inputs), SUCCESS);
+}
+
+TEST_F(UtestGeGenerator, InitializeFailedReleasesPassPluginsImmediately) {
+  ASSERT_EQ(fusion::LoadPassPlugins(), SUCCESS);
+  PassRegistrationData pass_reg_data("CountCustomPassRun");
+  pass_reg_data.CustomPassFn(CountCustomPassRun);
+  CustomPassHelper::Instance().Insert(pass_reg_data);
+
+  GeGenerator generator;
+  const std::map<std::string, std::string> invalid_options = {{STREAM_NUM, "0"}};
+  EXPECT_EQ(generator.Initialize(invalid_options), GE_GENERATOR_GRAPH_MANAGER_INIT_FAILED);
+  EXPECT_EQ(fusion::UnloadPassPlugins(), SUCCESS);
+
+  g_custom_pass_run_count = 0U;
+  GraphPtr graph = std::make_shared<Graph>("graph");
+  CustomPassContext context;
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, context), SUCCESS);
+  EXPECT_EQ(g_custom_pass_run_count, 0U);
 }
 
 TEST_F(UtestGeGenerator, test_create_generalized_build_attrs) {

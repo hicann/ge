@@ -17,7 +17,6 @@ namespace ge {
 namespace fusion {
 Status LoadPassPlugins();
 Status UnloadPassPlugins();
-Status ShutdownPassPluginsForProcess();
 }  // namespace fusion
 }  // namespace ge
 

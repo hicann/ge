@@ -270,10 +270,14 @@ CustomPassHelper &CustomPassHelper::Instance() {
 }
 
 void CustomPassHelper::Insert(const PassRegistrationData &reg_data) {
+  // Insert is only called from PassReceiver constructor during dlopen in Load(),
+  // which already holds the unique_lock. Using a lock here would cause deadlock
+  // since std::shared_mutex is not recursive.
   (void)registration_datas_.emplace_back(reg_data);
 }
 
 Status CustomPassHelper::Load() {
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   GELOGD("[Load][CustomPassLibs] Start to load custom pass libs");
   std::string opp_path;
   GE_ASSERT_SUCCESS(ge::PluginManager::GetOppPath(opp_path));
@@ -305,6 +309,7 @@ Status CustomPassHelper::Load() {
 }
 
 Status CustomPassHelper::Unload() {
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   registration_datas_.clear();
   for (auto &handle : handles_) {
     if (handle != nullptr && dlclose(handle) != 0) {
@@ -323,6 +328,7 @@ Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_con
 
 Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_context,
                              const CustomPassStage stage) const {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   for (auto &item : registration_datas_) {
     if (item.GetStage() != stage) {
       continue;

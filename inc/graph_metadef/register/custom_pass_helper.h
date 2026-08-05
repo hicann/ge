@@ -12,6 +12,7 @@
 #define INC_REGISTER_CUSTOM_PASS_HELPER_H_
 
 #include <set>
+#include <shared_mutex>
 #include "external/ge_common/ge_api_error_codes.h"
 #include "register/register_custom_pass.h"
 #include "register/register_types.h"
@@ -35,6 +36,7 @@ class CustomPassHelper {
 
  private:
   CustomPassHelper() = default;
+  mutable std::shared_mutex mutex_;
   std::vector<PassRegistrationData> registration_datas_;
   std::vector<void *> handles_;
 };
