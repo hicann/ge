@@ -12,6 +12,7 @@
 #include "common/helper/visual_json_converter.h"
 #include "common/helper/om2/zip_archive_writer.h"
 #include "common/helper/om2/json_file.h"
+#include "common/util/error_manager/error_manager.h"
 #include "framework/omg/omg.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "generator/ge_generator.h"
@@ -2759,6 +2760,21 @@ TEST_F(Om2St, BuildConfig_QuotedAbsoluteMakeAndCxxFlags_Accepted) {
   const std::map<std::string, std::string> options = {
       {"ge.buildConfig", "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC' LDLIBS="}};
   EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "bc_quoted_make.om2"), SUCCESS);
+}
+
+TEST_F(Om2St, BuildConfig_MakeFailure_ReportsInternalError) {
+  ScopedTempDir temp_dir(test_work_dir);
+  ASSERT_TRUE(temp_dir.IsValid());
+  ASSERT_TRUE(temp_dir.WriteText("make", "#!/bin/sh\nexit 1\n", S_IRWXU));
+  const std::string build_config = temp_dir.Path("make");
+  const std::map<std::string, std::string> options = {{"ge.buildConfig", build_config}};
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "bc_make_failure.om2"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_EQ(error_message.find("E10001"), std::string::npos);
+  EXPECT_NE(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find(build_config), std::string::npos);
 }
 
 TEST_F(Om2St, HostEnvValidation_CoversOm2Directions) {

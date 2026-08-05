@@ -58,15 +58,8 @@ GraphNode::GraphNode(const GraphId graph_id) : graph_id_(graph_id), sem_(1U), co
   std::string opt;
   (void)GetContext().GetOption(GRAPH_MAX_PARALLEL_MODEL_NUM, opt);
   int32_t max_num = 0;
-  try {
-    max_num = std::stoi(opt);
-    if (max_num > 0) {
-      max_load_record_ = max_num;
-    } else {
-      GELOGW("Option %s param failed:%s", GRAPH_MAX_PARALLEL_MODEL_NUM.c_str(), opt.c_str());
-    }
-  } catch (...) {
-    GELOGW("Option %s param failed:%s", GRAPH_MAX_PARALLEL_MODEL_NUM.c_str(), opt.c_str());
+  if (!opt.empty() && (ConvertToInt32(opt, max_num) == SUCCESS) && max_num > 0) {
+    max_load_record_ = static_cast<uint32_t>(max_num);
   }
   GELOGD("[GraphManager] graphMaxParallelModelNum is %u", max_load_record_);
 }

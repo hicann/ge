@@ -12,13 +12,17 @@
 #include <memory>
 #include <numeric>
 #include <string>
+#include <limits>
 #include "common/share_graph.h"
 #include "faker/global_data_faker.h"
 #include "faker/fake_value.h"
+#include "faker/space_registry_faker.h"
 #include "acl/acl_rt.h"
 #include "ge/ge_api.h"
 #include "ge/ge_api_error_codes.h"
 #include "ge/ge_graph_compile_summary.h"
+#include "engines/custom_engine/custom_ops_kernel_builder.h"
+#include "exe_graph/runtime/annotated_args_context.h"
 #include "graph/execute/model_executor.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/op_desc_utils.h"
@@ -45,6 +49,7 @@
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op.h"
+#include "graph/ge_context.h"
 
 extern ge::SessionManager *GetSessionManager();
 namespace ge {
@@ -8453,6 +8458,336 @@ TEST_F(FmMemoryRefreshTest, hcom_all_to_all_test) {
 
   OpsKernelBuilderRegistry::GetInstance().Unregister("ops_kernel_info_hccl");
   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(default_space_registry);
+}
+
+namespace {
+constexpr const char *kKnownSubgraphAnnotatedArgsType = "KnownSubgraphAnnotatedArgsRefreshOp";
+constexpr const char *kKnownSubgraphAnnotatedArgsNode = "known_child_annotated_args";
+constexpr const char *kKnownSubgraphName = "known_child_annotated_args_graph";
+
+class KnownSubgraphAnnotatedArgsOp : public AnnotatedArgsOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0x51U, 0x52U};
+    const auto *input = ctx.GetInputTensor(0U);
+    const auto *output = ctx.GetOutputTensor(0U);
+    if ((input == nullptr) || (output == nullptr)) {
+      return GRAPH_FAILED;
+    }
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()}, gert::OutputAddr{0U, output->GetAddr()});
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"known_child_annotated_kernel", kBin, sizeof(kBin), 1U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
+bool RegisterKnownSubgraphAnnotatedArgsInfer() {
+  auto registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  if (registry == nullptr) {
+    return false;
+  }
+  auto impl = registry->CreateOrGetOpImpl(kKnownSubgraphAnnotatedArgsType);
+  if (impl == nullptr) {
+    return false;
+  }
+  impl->infer_shape = [](gert::InferShapeContext *ctx) -> graphStatus {
+    GE_ASSERT_NOTNULL(ctx);
+    const auto *input = ctx->GetInputShape(0U);
+    auto *output = ctx->GetOutputShape(0U);
+    GE_ASSERT_NOTNULL(input);
+    GE_ASSERT_NOTNULL(output);
+    output->SetDimNum(0U);
+    for (size_t i = 0U; i < input->GetDimNum(); ++i) {
+      output->AppendDim(input->GetDim(i));
+    }
+    return GRAPH_SUCCESS;
+  };
+  impl->infer_datatype = [](gert::InferDataTypeContext *ctx) -> graphStatus {
+    GE_ASSERT_NOTNULL(ctx);
+    return ctx->SetOutputDataType(0U, ctx->GetInputDataType(0U));
+  };
+  impl->infer_shape_range = [](gert::InferShapeRangeContext *ctx) -> graphStatus {
+    GE_ASSERT_NOTNULL(ctx);
+    const auto *input = ctx->GetInputShapeRange(0U);
+    auto *output = ctx->GetOutputShapeRange(0U);
+    GE_ASSERT_NOTNULL(input);
+    GE_ASSERT_NOTNULL(output);
+    output->SetMin(const_cast<gert::Shape *>(input->GetMin()));
+    output->SetMax(const_cast<gert::Shape *>(input->GetMax()));
+    return GRAPH_SUCCESS;
+  };
+  return true;
+}
+
+class ScopedKnownSubgraphAnnotatedArgsRegistration {
+ public:
+  ScopedKnownSubgraphAnnotatedArgsRegistration() {
+    previous_space_registry_ = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+    test_space_registry_ = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+    creator_status_ = CustomOpFactory::RegisterCustomOpCreator(
+        kKnownSubgraphAnnotatedArgsType,
+        []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<KnownSubgraphAnnotatedArgsOp>(); });
+    auto &builder_registry = OpsKernelBuilderRegistry::GetInstance();
+    const auto &builders = builder_registry.GetAll();
+    const auto builder_it = builders.find(kCustomOpKernelLibName);
+    had_previous_builder_ = builder_it != builders.end();
+    if (had_previous_builder_) {
+      previous_builder_ = builder_it->second;
+      builder_registry.Unregister(kCustomOpKernelLibName);
+    }
+    builder_registry.Register(kCustomOpKernelLibName, std::make_shared<custom::CustomOpsKernelBuilder>());
+  }
+
+  ~ScopedKnownSubgraphAnnotatedArgsRegistration() {
+    CustomOpFactory::RemoveCustomOps({AscendString(kKnownSubgraphAnnotatedArgsType)});
+    auto &builder_registry = OpsKernelBuilderRegistry::GetInstance();
+    builder_registry.Unregister(kCustomOpKernelLibName);
+    if (had_previous_builder_) {
+      builder_registry.Register(kCustomOpKernelLibName, previous_builder_);
+    }
+    gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(previous_space_registry_);
+  }
+
+  bool IsReady() const {
+    return (creator_status_ == GRAPH_SUCCESS) && (test_space_registry_ != nullptr);
+  }
+
+ private:
+  graphStatus creator_status_ = GRAPH_FAILED;
+  bool had_previous_builder_ = false;
+  OpsKernelBuilderPtr previous_builder_;
+  std::shared_ptr<gert::OpImplSpaceRegistryV2> previous_space_registry_;
+  std::shared_ptr<gert::OpImplSpaceRegistryV2> test_space_registry_;
+};
+
+OpDescPtr BuildKnownSubgraphAnnotatedArgsOpDesc(const std::vector<int64_t> &shape) {
+  auto custom_op = OP_CFG(kKnownSubgraphAnnotatedArgsType)
+                       .TensorDesc(FORMAT_ND, DT_FLOAT, shape)
+                       .InCnt(1)
+                       .OutCnt(1)
+                       .Build(kKnownSubgraphAnnotatedArgsNode);
+  custom_op->SetInputOffset({0});
+  custom_op->SetOutputOffset({0});
+  custom_op->SetOpEngineName(kEngineNameCustom);
+  custom_op->SetOpKernelLibName(kCustomOpKernelLibName);
+  (void)AttrUtils::SetStr(custom_op, ATTR_NAME_ENGINE_NAME_FOR_LX, kEngineNameCustom);
+  (void)AttrUtils::SetStr(custom_op, ATTR_NAME_KKERNEL_LIB_NAME_FOR_LX, kCustomOpKernelLibName);
+  (void)AttrUtils::SetStr(custom_op, ATTR_NAME_OP_SPECIFIED_ENGINE_NAME, kEngineNameCustom);
+  (void)AttrUtils::SetStr(custom_op, ATTR_NAME_OP_SPECIFIED_KERNEL_LIB_NAME, kCustomOpKernelLibName);
+  return custom_op;
+}
+
+bool ConfigureAnnotatedArgsKnownSubgraph(ComputeGraphPtr &root, const Graph &child_graph,
+                                         ComputeGraphPtr &known_child) {
+  known_child = GraphUtilsEx::GetComputeGraph(child_graph);
+  if (known_child == nullptr) {
+    return false;
+  }
+  known_child->SetName(kKnownSubgraphName);
+  known_child->SetGraphUnknownFlag(false);
+  auto child_netoutput = known_child->FindNode("known_child_output");
+  if ((child_netoutput == nullptr) || (child_netoutput->GetOpDesc() == nullptr)) {
+    return false;
+  }
+  child_netoutput->GetOpDesc()->SetSrcName({kKnownSubgraphAnnotatedArgsNode});
+  child_netoutput->GetOpDesc()->SetSrcIndex({0});
+  auto call_node = root->FindNode("known_child_call");
+  if (call_node == nullptr) {
+    return false;
+  }
+  SetSubGraph(root, call_node, known_child);
+  AddCompileResult(call_node, false);
+  return true;
+}
+
+Graph BuildAnnotatedArgsKnownSubgraphGraph(ComputeGraphPtr &known_child) {
+  const std::vector<int64_t> shape = {2, 2};
+  auto child_data = OP_CFG(DATA)
+                        .TensorDesc(FORMAT_ND, DT_FLOAT, shape)
+                        .InCnt(1)
+                        .OutCnt(1)
+                        .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
+                        .Attr(ATTR_NAME_INDEX, 0)
+                        .Build("known_child_data");
+  child_data->SetOutputOffset({0});
+
+  auto custom_op = BuildKnownSubgraphAnnotatedArgsOpDesc(shape);
+
+  auto child_output = OP_CFG(NETOUTPUT)
+                          .TensorDesc(FORMAT_ND, DT_FLOAT, shape)
+                          .InCnt(1)
+                          .OutCnt(1)
+                          .InputAttr(0, ATTR_NAME_PARENT_NODE_INDEX, 0)
+                          .Build("known_child_output");
+  child_output->SetInputOffset({0});
+
+  auto root_data = OP_CFG(DATA)
+                       .TensorDesc(FORMAT_ND, DT_FLOAT, shape)
+                       .InCnt(1)
+                       .OutCnt(1)
+                       .Attr(ATTR_NAME_INDEX, 0)
+                       .Build("known_root_data");
+  auto call =
+      OP_CFG(PARTITIONEDCALL).TensorDesc(FORMAT_ND, DT_FLOAT, shape).InCnt(1).OutCnt(1).Build("known_child_call");
+  auto root_output =
+      OP_CFG(NETOUTPUT).TensorDesc(FORMAT_ND, DT_FLOAT, shape).InCnt(1).OutCnt(1).Build("known_root_output");
+  root_output->SetSrcName({"known_child_call"});
+  root_output->SetSrcIndex({0});
+
+  DEF_GRAPH(child_graph) {
+    CHAIN(NODE(child_data)->NODE(custom_op)->NODE(child_output));
+  };
+  DEF_GRAPH(root_graph_def) {
+    CHAIN(NODE(root_data)->NODE(call)->NODE(root_output));
+  };
+
+  auto graph = ToGeGraph(root_graph_def);
+  auto root = GraphUtilsEx::GetComputeGraph(graph);
+  if (root == nullptr) {
+    return {};
+  }
+  root->SetGraphUnknownFlag(true);
+  auto child_ge_graph = ToGeGraph(child_graph);
+  if (!ConfigureAnnotatedArgsKnownSubgraph(root, child_ge_graph, known_child)) {
+    return {};
+  }
+  return graph;
+}
+
+template <typename Allocations>
+bool IsRangeInStubAllocations(const void *const addr, const size_t size, const Allocations &allocations) {
+  if (addr == nullptr) {
+    return false;
+  }
+  const uintptr_t begin = reinterpret_cast<uintptr_t>(addr);
+  if (size > (std::numeric_limits<uintptr_t>::max() - begin)) {
+    return false;
+  }
+  const uintptr_t end = begin + size;
+  for (const auto &allocation : allocations) {
+    const uintptr_t allocation_begin = reinterpret_cast<uintptr_t>(allocation.second.addr);
+    if (allocation.second.size > (std::numeric_limits<uintptr_t>::max() - allocation_begin)) {
+      continue;
+    }
+    const uintptr_t allocation_end = allocation_begin + allocation.second.size;
+    if ((begin >= allocation_begin) && (end <= allocation_end)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsReadableStubAllocation(const gert::GertRuntimeStub &stub, const void *const addr, const size_t size) {
+  return IsRangeInStubAllocations(addr, size, stub.GetRtsRuntimeStub().GetAllocatedRtsMemory()) ||
+         IsRangeInStubAllocations(addr, size, stub.GetAclRuntimeStub().GetAllocatedRtsMemory());
+}
+
+const GeFakeLaunchArgs *FindUniqueKnownChildAnnotatedLaunch(const gert::GertRuntimeStub &stub) {
+  const GeFakeLaunchArgs *matched = nullptr;
+  for (const auto &launch : stub.GetAclRuntimeStub().GetAllLaunchArgs()) {
+    if ((launch.GetArgSize() != (2U * sizeof(uint64_t))) || (launch.GetArgsAddr() == nullptr)) {
+      continue;
+    }
+    if (matched != nullptr) {
+      return nullptr;
+    }
+    matched = &launch;
+  }
+  return matched;
+}
+
+void CheckKnownChildAnnotatedArgsTaskDef(const std::shared_ptr<GeRootModel> &ge_root_model,
+                                         const ComputeGraphPtr &known_child) {
+  const auto &child_models = ge_root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_GE(child_models.size(), 1U);
+  const auto &child_model = child_models.begin()->second;
+  ASSERT_NE(child_model, nullptr);
+  const auto child_task_def = child_model->GetModelTaskDefPtr();
+  ASSERT_NE(child_task_def, nullptr);
+  const auto custom_node = known_child->FindNode(kKnownSubgraphAnnotatedArgsNode);
+  ASSERT_NE(custom_node, nullptr);
+
+  const domi::TaskDef *custom_task = nullptr;
+  for (const auto &task : child_task_def->task()) {
+    if ((task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL)) &&
+        (task.kernel().context().op_index() == custom_node->GetOpDesc()->GetId())) {
+      custom_task = &task;
+      break;
+    }
+  }
+  ASSERT_NE(custom_task, nullptr);
+  EXPECT_EQ(custom_task->kernel().context().args_format(), "{i_instance0*}{o_instance0*}");
+  EXPECT_EQ(custom_task->kernel().context().args_count(), 2U);
+  EXPECT_EQ(custom_task->kernel().args_size(), 2U * sizeof(uint64_t));
+}
+
+Status RunAnnotatedArgsGraphOnce(Session &session, const uint32_t graph_id, const TensorDesc &desc,
+                                 std::vector<uint8_t> &input_data, std::vector<uint8_t> &output_data) {
+  ge::Tensor input(desc);
+  ge::Tensor output(desc);
+  input.SetData(input_data.data(), input_data.size());
+  output.SetData(output_data.data(), output_data.size());
+  std::vector<ge::Tensor> inputs{input};
+  std::vector<ge::Tensor> outputs{output};
+  return session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs);
+}
+}  // namespace
+
+TEST_F(FmMemoryRefreshTest, annotated_args_in_dynamic_root_known_subgraph_refreshes_instance_io) {
+  gert::GertRuntimeStub runtime_stub;
+  ScopedKnownSubgraphAnnotatedArgsRegistration registration;
+  ASSERT_TRUE(registration.IsReady());
+  ASSERT_TRUE(RegisterKnownSubgraphAnnotatedArgsInfer());
+  std::map<AscendString, AscendString> options = {
+      {OPTION_FEATURE_BASE_REFRESHABLE, "1"}, {OPTION_CONST_LIFECYCLE, "graph"}, {OPTION_GRAPH_RUN_MODE, "1"}};
+  Session session(options);
+  ComputeGraphPtr known_child;
+  auto graph = BuildAnnotatedArgsKnownSubgraphGraph(known_child);
+  ASSERT_NE(known_child, nullptr);
+  constexpr uint32_t kGraphId = 1U;
+  ASSERT_EQ(session.AddGraph(kGraphId, graph), SUCCESS);
+  ASSERT_EQ(session.CompileGraph(kGraphId), SUCCESS);
+
+  auto *session_manager = GetSessionManager();
+  ASSERT_NE(session_manager, nullptr);
+  auto inner_session = session_manager->GetSession(session.sessionId_);
+  ASSERT_NE(inner_session, nullptr);
+  const auto &graph_manager = inner_session->getGraphManagerObj();
+  GraphNodePtr graph_node;
+  ASSERT_EQ(graph_manager.GetGraphNode(kGraphId, graph_node), SUCCESS);
+  ASSERT_NE(graph_node, nullptr);
+  const auto ge_root_model = graph_node->GetGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  ASSERT_NE(ge_root_model->GetRootGraph(), nullptr);
+  EXPECT_TRUE(ge_root_model->GetRootGraph()->GetGraphUnknownFlag());
+  EXPECT_FALSE(known_child->GetGraphUnknownFlag());
+
+  CheckKnownChildAnnotatedArgsTaskDef(ge_root_model, known_child);
+
+  TensorDesc desc(Shape({2, 2}));
+  desc.SetPlacement(Placement::kPlacementDevice);
+  std::vector<uint8_t> input_data_a(16U, 0U);
+  std::vector<uint8_t> output_data_a(16U, 0U);
+  std::vector<uint8_t> input_data_b(16U, 0U);
+  std::vector<uint8_t> output_data_b(16U, 0U);
+  ASSERT_EQ(RunAnnotatedArgsGraphOnce(session, kGraphId, desc, input_data_a, output_data_a), SUCCESS);
+  const auto *launch_a = FindUniqueKnownChildAnnotatedLaunch(runtime_stub);
+  ASSERT_NE(launch_a, nullptr);
+  ASSERT_NE(launch_a->GetArgsAddr(), nullptr);
+  void *const annotated_args_addr = launch_a->GetArgsAddr();
+  ASSERT_TRUE(IsReadableStubAllocation(runtime_stub, annotated_args_addr, 2U * sizeof(uint64_t)));
+  const auto *annotated_slots = reinterpret_cast<const uint64_t *>(annotated_args_addr);
+  const uint64_t input_slot_a = annotated_slots[0];
+  const uint64_t output_slot_a = annotated_slots[1];
+  EXPECT_NE(input_slot_a, 0U);
+  EXPECT_NE(output_slot_a, 0U);
+
+  ASSERT_EQ(RunAnnotatedArgsGraphOnce(session, kGraphId, desc, input_data_b, output_data_b), SUCCESS);
+  EXPECT_NE(annotated_slots[0], 0U);
+  EXPECT_NE(annotated_slots[1], 0U);
+
+  runtime_stub.Clear();
 }
 
 }  // namespace ge

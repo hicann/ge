@@ -127,6 +127,7 @@ set(COMPILER_SRC_LIST
     "graph/build/memory/binary_block_mem_assigner.cc"
     "graph/build/memory/continuous_mem.cc"
     "graph/build/memory/block_mem_assigner.cc"
+    "graph/build/memory/atomic_memory_assigner.cc"
     "graph/build/memory/memory_block.cc"
     "graph/build/memory/block_mem_stream.cc"
     "graph/build/memory/block_mem_zero_copy.cc"

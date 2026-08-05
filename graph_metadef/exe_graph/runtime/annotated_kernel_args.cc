@@ -30,7 +30,7 @@ void AppendSlot(const uint64_t value, internal::AnnotatedKernelArgsImpl &impl) {
   }
 }
 
-bool IsValidIrIndex(const uint32_t index) {
+bool IsValidIndex(const uint32_t index) {
   return index <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
 }
 
@@ -39,7 +39,7 @@ ge::graphStatus AppendAddrArg(const ge::AddrType addr_type, const uint32_t index
   if (impl == nullptr) {
     return ge::GRAPH_FAILED;
   }
-  if (!IsValidIrIndex(index)) {
+  if (!IsValidIndex(index)) {
     impl->status = ge::GRAPH_FAILED;
     return impl->status;
   }
@@ -99,12 +99,12 @@ AnnotatedKernelArgs::~AnnotatedKernelArgs() {
 }
 
 ge::graphStatus AnnotatedKernelArgs::AppendArg(const InputAddr &addr) {
-  return AppendAddrArg(ge::AddrType::INPUT, addr.index, addr.addr,
+  return AppendAddrArg(ge::AddrType::INPUT_INSTANCE, addr.index, addr.addr,
                        static_cast<internal::AnnotatedKernelArgsImpl *>(impl_));
 }
 
 ge::graphStatus AnnotatedKernelArgs::AppendArg(const OutputAddr &addr) {
-  return AppendAddrArg(ge::AddrType::OUTPUT, addr.index, addr.addr,
+  return AppendAddrArg(ge::AddrType::OUTPUT_INSTANCE, addr.index, addr.addr,
                        static_cast<internal::AnnotatedKernelArgsImpl *>(impl_));
 }
 

@@ -46,3 +46,14 @@ log/
 # python venv
 /venv
 /.venv
+
+# Build artifacts
+/opp
+/third_party
+
+# OpenCode
+.opencode/
+
+# Editor swap files
+*.swp
+*.swo

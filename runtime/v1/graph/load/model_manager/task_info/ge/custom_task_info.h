@@ -28,16 +28,12 @@
 #include "graph/custom_op/args_refresh.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include <deque>
-#include <map>
 #include <set>
-#include <utility>
 #include <vector>
 #include "framework/runtime/args_handler.h"
 
 namespace ge {
 struct CustomArgsFormatInfo {
-  std::map<size_t, std::pair<size_t, size_t>> ir_input_2_range;
-  std::map<size_t, std::pair<size_t, size_t>> ir_output_2_range;
   std::vector<ArgDesc> arg_descs;
 };
 class SinkOpArgsHandler;
@@ -112,7 +108,8 @@ class CustomTaskInfo : public TaskInfo {
   Status AssembleIoByArgsFormat();
   size_t GetArgsSizeByFormat() const;
   void AppendIoAddr(const uint64_t addr, const uint64_t addr_type);
-  Status AppendInputOutputAddr(size_t ir_idx, bool is_input);
+  Status ValidateIoWorkspaceAddrAndMemTypeSizes() const;
+  Status AppendInputOutputAddrByInstanceIndex(int32_t instance_index, bool is_input);
   Status AppendWorkspaceAddr(int32_t ir_idx);
 
   const gert::KernelArgs *MallocReadOnlyDevArgsImpl(void *host_args, size_t args_size);

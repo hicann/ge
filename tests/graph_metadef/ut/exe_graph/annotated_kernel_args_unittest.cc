@@ -36,16 +36,19 @@ struct HasGetImpl<T, decltype(static_cast<void>(std::declval<const T &>().GetImp
 static_assert(!HasGetStatus<AnnotatedKernelArgs>::value, "AnnotatedKernelArgs must not expose GetStatus");
 static_assert(!HasGetImpl<AnnotatedKernelArgs>::value, "AnnotatedKernelArgs must not expose GetImpl");
 
-TEST(AnnotatedKernelArgsUT, ExtractsArgsData) {
-  const AnnotatedKernelArgs args(InputAddr{0U, reinterpret_cast<void *>(0x1000U)});
+TEST(AnnotatedKernelArgsUT, ExtractsInstanceInputAndOutputArgs) {
+  const AnnotatedKernelArgs args(InputAddr{2U, reinterpret_cast<void *>(0x1000U)},
+                                 OutputAddr{1U, reinterpret_cast<void *>(0x2000U)});
   std::vector<uint8_t> args_data;
   std::vector<ge::ArgDesc> arg_descs;
 
-  EXPECT_EQ(args.ExtractArgsData(args_data, arg_descs), ge::GRAPH_SUCCESS);
-  EXPECT_EQ(args_data.size(), sizeof(uint64_t));
-  ASSERT_EQ(arg_descs.size(), 1U);
-  EXPECT_EQ(arg_descs[0].addr_type, ge::AddrType::INPUT);
-  EXPECT_EQ(arg_descs[0].ir_idx, 0);
+  ASSERT_EQ(args.ExtractArgsData(args_data, arg_descs), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(args_data.size(), 2U * sizeof(uint64_t));
+  ASSERT_EQ(arg_descs.size(), 2U);
+  EXPECT_EQ(arg_descs[0].addr_type, ge::AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[0].ir_idx, 2);
+  EXPECT_EQ(arg_descs[1].addr_type, ge::AddrType::OUTPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[1].ir_idx, 1);
 }
 
 TEST(AnnotatedKernelArgsUT, CopiesAndMovesRemainUsable) {
@@ -62,7 +65,7 @@ TEST(AnnotatedKernelArgsUT, CopiesAndMovesRemainUsable) {
   EXPECT_NE(copied.AppendArg(uint64_t{9U}), ge::GRAPH_SUCCESS);
 }
 
-TEST(AnnotatedKernelArgsUT, RejectsInvalidIrIndexes) {
+TEST(AnnotatedKernelArgsUT, RejectsIndexesAboveInt32Max) {
   constexpr uint32_t kInvalidIndex = static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) + 1U;
   AnnotatedKernelArgs invalid_input;
   AnnotatedKernelArgs invalid_output;

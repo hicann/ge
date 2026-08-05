@@ -18,7 +18,7 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from .base import BaseCustomOp, EagerExecuteOp, EagerOpExecutionContext
+from .base import EagerOpExecutionContext
 from .bootstrap import get_registered_op_impls, load_custom_op_plugins
 from .context import _execute_ctx_scope
 from .registry import get_registered_op_impl_by_descriptor_key
@@ -28,7 +28,7 @@ from .registry import get_registered_op_impl_by_descriptor_key
 class _OpImplHolder:
     descriptor_key: str
     instance_id: str
-    instance: BaseCustomOp
+    instance: object
 
 
 _HOLDER_LOCK = threading.RLock()
@@ -67,11 +67,11 @@ def _get_holder(instance_id: str) -> _OpImplHolder:
     return holder
 
 
-def _get_eager_execute_op(instance_id: str) -> EagerExecuteOp:
+def _get_eager_execute_op(instance_id: str) -> object:
     instance = _get_holder(instance_id).instance
-    if not isinstance(instance, EagerExecuteOp):
+    if not callable(getattr(instance, "execute", None)):
         raise TypeError(
-            f"python op impl does not implement EagerExecuteOp: {instance_id}"
+            f"python op impl does not implement callable execute: {instance_id}"
         )
     return instance
 

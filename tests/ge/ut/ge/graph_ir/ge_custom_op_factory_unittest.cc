@@ -96,10 +96,8 @@ void DestroyMockPythonCustomOpHolder(void *holder) {
   delete static_cast<MockPythonCustomOpHolder *>(holder);
 }
 
-graphStatus ExecuteMockPythonCustomOp(const void *holder, gert::EagerOpExecutionContext *ctx,
-                                      const PythonCustomOpIrMetaView *ir_meta) {
+graphStatus ExecuteMockPythonCustomOp(const void *holder, gert::EagerOpExecutionContext *ctx) {
   (void)ctx;
-  (void)ir_meta;
   auto *mock_holder = const_cast<MockPythonCustomOpHolder *>(static_cast<const MockPythonCustomOpHolder *>(holder));
   if (mock_holder == nullptr) {
     return GRAPH_FAILED;

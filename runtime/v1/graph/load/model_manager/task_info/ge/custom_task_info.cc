@@ -279,6 +279,7 @@ Status CustomTaskInfo::ParseTaskRunParam(const domi::TaskDef &task_def, DavinciM
   input_data_addrs_ = ModelUtils::GetInputAddrsValue(rts_param, op_desc_, input_mem_types_);
   output_data_addrs_ = ModelUtils::GetOutputAddrsValue(rts_param, op_desc_, output_mem_types_, true);
   workspace_addrs_ = ModelUtils::GetWorkspaceDataAddrsValue(rts_param, op_desc_, workspace_mem_types_);
+  GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
 
   AscendString op_type(op_desc_->GetType().c_str());
   const auto &custom_op_registry = davinci_model->GetCustomOpRegistry();
@@ -325,8 +326,7 @@ Status CustomTaskInfo::ParseAnnotatedArgsTaskRunParam(const domi::KernelDef &ker
   GE_ASSERT_TRUE(!args_format_str.empty(), "[CUSTOM OP] kAnnotatedArgs requires non-empty args_format for op %s",
                  op_desc_->GetNamePtr());
   GE_ASSERT_SUCCESS(ArgsFormatDesc::Parse(op_desc_, args_format_str, args_format_holder_.arg_descs));
-  (void)OpDescUtils::GetIrInputInstanceDescRange(op_desc_, args_format_holder_.ir_input_2_range);
-  (void)OpDescUtils::GetIrOutputDescRange(op_desc_, args_format_holder_.ir_output_2_range);
+  GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
 
   GE_ASSERT_TRUE(!kernel_def.kernel_name().empty(), "[CUSTOM OP] kAnnotatedArgs kernel_name is empty for op %s",
                  op_desc_->GetNamePtr());
@@ -365,7 +365,20 @@ Status CustomTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const d
   davinci_model_ = davinci_model;
   GE_CHK_STATUS_RET_NOLOG(SetStream(task_def.stream_id(), davinci_model_->GetStreamList()));
 
+  GE_ASSERT_TRUE(
+      iow_addrs.input_logic_addrs.empty() || (iow_addrs.input_logic_addrs.size() == input_data_addrs_.size()),
+      "Input IOW address size[%zu] does not match parsed input size[%zu].", iow_addrs.input_logic_addrs.size(),
+      input_data_addrs_.size());
+  GE_ASSERT_TRUE(
+      iow_addrs.output_logic_addrs.empty() || (iow_addrs.output_logic_addrs.size() == output_data_addrs_.size()),
+      "Output IOW address size[%zu] does not match parsed output size[%zu].", iow_addrs.output_logic_addrs.size(),
+      output_data_addrs_.size());
+  GE_ASSERT_TRUE(
+      iow_addrs.workspace_logic_addrs.empty() || (iow_addrs.workspace_logic_addrs.size() == workspace_addrs_.size()),
+      "Workspace IOW address size[%zu] does not match parsed workspace size[%zu].",
+      iow_addrs.workspace_logic_addrs.size(), workspace_addrs_.size());
   UpdateIoAndWorkspaceAddrs(iow_addrs);
+  GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
   stream_id_ = task_def.stream_id();
   GE_ASSERT_TRUE((args[static_cast<size_t>(args_placement_)].dev_addr != 0U),
                  "[Check][Param] Op:%s, dev addr is nullptr.", op_desc_->GetName().c_str());
@@ -519,25 +532,28 @@ void CustomTaskInfo::AppendIoAddr(const uint64_t addr, const uint64_t addr_type)
   io_addr_mem_types_.push_back(addr_type);
 }
 
-Status CustomTaskInfo::AppendInputOutputAddr(size_t ir_idx, bool is_input) {
-  const std::map<size_t, std::pair<size_t, size_t>> &ir_2_range =
-      is_input ? args_format_holder_.ir_input_2_range : args_format_holder_.ir_output_2_range;
-  const auto iter = ir_2_range.find(ir_idx);
-  GE_ASSERT(iter != ir_2_range.end(), "Ir idx [%zu] is not found, input flag %u.", ir_idx, is_input);
-  const auto &range_pair = iter->second;
-  // optional IR input with no instance (e.g. optional input not provided), use placeholder 0 addr
-  if (is_input && range_pair.second == 0UL) {
-    AppendIoAddr(0UL, kAbsoluteMemType);
-    return SUCCESS;
-  }
-  size_t begin_idx = range_pair.first;
-  const std::vector<uint64_t> &addrs = is_input ? input_data_addrs_ : output_data_addrs_;
-  const std::vector<uint64_t> &types = is_input ? input_mem_types_ : output_mem_types_;
-  for (size_t i = 0UL; i < range_pair.second; ++i, ++begin_idx) {
-    GE_ASSERT(begin_idx < addrs.size(), "ir_idx:[%zu], begin_index [%zu] is out of range, max_size:[%zu].", ir_idx,
-              begin_idx, addrs.size());
-    AppendIoAddr(addrs[begin_idx], types[begin_idx]);
-  }
+Status CustomTaskInfo::ValidateIoWorkspaceAddrAndMemTypeSizes() const {
+  GE_ASSERT_TRUE(input_data_addrs_.size() == input_mem_types_.size(),
+                 "Input address size[%zu] does not match memory type size[%zu] for op %s.", input_data_addrs_.size(),
+                 input_mem_types_.size(), op_desc_->GetNamePtr());
+  GE_ASSERT_TRUE(output_data_addrs_.size() == output_mem_types_.size(),
+                 "Output address size[%zu] does not match memory type size[%zu] for op %s.", output_data_addrs_.size(),
+                 output_mem_types_.size(), op_desc_->GetNamePtr());
+  GE_ASSERT_TRUE(workspace_addrs_.size() == workspace_mem_types_.size(),
+                 "Workspace address size[%zu] does not match memory type size[%zu] for op %s.", workspace_addrs_.size(),
+                 workspace_mem_types_.size(), op_desc_->GetNamePtr());
+  return SUCCESS;
+}
+
+Status CustomTaskInfo::AppendInputOutputAddrByInstanceIndex(const int32_t instance_index, const bool is_input) {
+  GE_ASSERT_TRUE(instance_index >= 0, "Instance index[%d] is negative, input flag[%u].", instance_index, is_input);
+  const size_t index = static_cast<size_t>(instance_index);
+  const auto &addrs = is_input ? input_data_addrs_ : output_data_addrs_;
+  const auto &mem_types = is_input ? input_mem_types_ : output_mem_types_;
+  GE_ASSERT_TRUE((index < addrs.size()) && (index < mem_types.size()),
+                 "Instance index[%zu] is out of range, input flag[%u], addr size[%zu], type size[%zu].", index,
+                 is_input, addrs.size(), mem_types.size());
+  AppendIoAddr(addrs[index], mem_types[index]);
   return SUCCESS;
 }
 
@@ -556,18 +572,25 @@ Status CustomTaskInfo::AppendWorkspaceAddr(int32_t ir_idx) {
 }
 
 Status CustomTaskInfo::AssembleIoByArgsFormat() {
+  GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
   const auto &arg_descs = args_format_holder_.arg_descs;
   io_addrs_.reserve(arg_descs.size());
   io_addr_mem_types_.reserve(arg_descs.size());
   for (const auto &arg_format : arg_descs) {
     switch (arg_format.addr_type) {
-      case AddrType::INPUT: {
-        GE_ASSERT_SUCCESS(AppendInputOutputAddr(static_cast<size_t>(arg_format.ir_idx), true));
+      case AddrType::INPUT_INSTANCE: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddrByInstanceIndex(arg_format.ir_idx, true));
         break;
       }
-      case AddrType::OUTPUT: {
-        GE_ASSERT_SUCCESS(AppendInputOutputAddr(static_cast<size_t>(arg_format.ir_idx), false));
+      case AddrType::OUTPUT_INSTANCE: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddrByInstanceIndex(arg_format.ir_idx, false));
         break;
+      }
+      case AddrType::INPUT:
+      case AddrType::OUTPUT: {
+        GELOGE(FAILED, "[CUSTOM OP] legacy IR-index addr_type %d is unsupported for AnnotatedArgs op %s",
+               static_cast<int32_t>(arg_format.addr_type), op_desc_->GetNamePtr());
+        return FAILED;
       }
       case AddrType::WORKSPACE: {
         GE_ASSERT_SUCCESS(AppendWorkspaceAddr(arg_format.ir_idx));

@@ -200,20 +200,55 @@ def test_register_op_impl_rejects_invalid_op_type():
         custom_op.register_op_impl(op_type=None)
 
 
-def test_register_op_impl_rejects_non_custom_op_class():
-    with pytest.raises(TypeError, match="expects a BaseCustomOp subclass"):
+def test_register_op_impl_supports_plain_class_with_execute():
+    @custom_op.register_op_impl(op_type="PlainCustom")
+    class PlainCustom:
+        def execute(self, ctx):
+            self.seen_ctx = ctx
 
-        @custom_op.register_op_impl(op_type="BadCustom")
-        class BadCustom:
-            pass
+    descriptors = custom_op.get_registered_op_impl_dicts()
+
+    assert descriptors[0]["op_type"] == "PlainCustom"
+    assert descriptors[0]["interfaces"] == ["eager_execute"]
+    instance = PlainCustom()
+    ctx = _FakeEagerContext()
+    instance.execute(ctx)
+    assert instance.seen_ctx is ctx
 
 
-def test_register_op_impl_rejects_unsupported_base_only_class():
-    with pytest.raises(TypeError, match="expects a supported BaseCustomOp subclass"):
+def test_register_op_impl_rejects_class_without_supported_method():
+    with pytest.raises(
+        TypeError,
+        match=r"BaseOnlyCustom' must implement at least one supported method: execute",
+    ):
 
         @custom_op.register_op_impl(op_type="BaseOnlyCustom")
-        class BaseOnlyCustom(custom_op.BaseCustomOp):
+        class BaseOnlyCustom:
             pass
+
+
+def test_register_op_impl_rejects_non_class():
+    with pytest.raises(TypeError, match="register_op_impl expects a class"):
+        custom_op.register_op_impl(op_type="NonClassCustom")(lambda: None)
+
+
+def test_register_op_impl_rejects_abstract_class():
+    with pytest.raises(TypeError, match="register_op_impl expects a concrete class"):
+        custom_op.register_op_impl(op_type="AbstractCustom")(custom_op.EagerExecuteOp)
+
+
+def test_register_op_impl_keeps_inherited_execute_compatibility():
+    class CustomOpBase:
+        def execute(self, ctx):
+            self.seen_ctx = ctx
+
+    @custom_op.register_op_impl(op_type="InheritedExecuteCustom")
+    class InheritedExecuteCustom(CustomOpBase):
+        pass
+
+    assert custom_op.get_registered_op_impl_dicts()[0]["interfaces"] == [
+        "eager_execute"
+    ]
 
 
 def test_bridge_custom_op_holder_and_execute():
@@ -259,14 +294,24 @@ def test_bridge_call_execute_ignores_return_value():
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
 
-def test_bridge_call_execute_binds_schema_inputs_and_attrs():
+@pytest.mark.parametrize("method_kind", ["staticmethod", "classmethod"])
+def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
     called = []
 
     @custom_op.register_op_impl(op_type="SchemaBoundCustom")
-    class SchemaBoundCustom(custom_op.EagerExecuteOp):
-        def execute(self, x, optional_y, dynamic_z, *, alpha, axes):
-            called.append((x, optional_y, dynamic_z, alpha, axes))
-            return True
+    class SchemaBoundCustom:
+        if method_kind == "staticmethod":
+
+            @staticmethod
+            def execute(x, optional_y, dynamic_z, *, alpha, axes):
+                called.append((x, optional_y, dynamic_z, alpha, axes))
+                return True
+        else:
+
+            @classmethod
+            def execute(cls, x, optional_y, dynamic_z, *, alpha, axes):
+                called.append((x, optional_y, dynamic_z, alpha, axes))
+                return True
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "SchemaBoundCustom#1"
@@ -546,6 +591,21 @@ def test_native_context_exposes_execute_binding_views():
 def test_bridge_rejects_unknown_descriptor_key():
     with pytest.raises(KeyError, match="descriptor_key not found"):
         bridge.create_op_impl_holder("unknown#1", "not-found")
+
+
+def test_bridge_rejects_holder_without_callable_execute():
+    instance_id = "InvalidExecute#1"
+    bridge._OP_IMPL_HOLDERS[instance_id] = bridge._OpImplHolder(
+        descriptor_key="invalid",
+        instance_id=instance_id,
+        instance=object(),
+    )
+
+    with pytest.raises(
+        TypeError,
+        match="python op impl does not implement callable execute",
+    ):
+        bridge._get_eager_execute_op(instance_id)
 
 
 def test_bridge_loads_custom_op_plugins_from_env_path(tmp_path, monkeypatch):

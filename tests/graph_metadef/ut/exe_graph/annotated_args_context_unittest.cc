@@ -80,8 +80,8 @@ TEST(AnnotatedArgsContextUT, AllocatesWorkspaceAndRecordsLaunchTask) {
   EXPECT_EQ(task->GetArgsSize(), 4U * sizeof(uint64_t));
   ASSERT_EQ(task->GetArgDescCount(), 4U);
   ASSERT_NE(task->GetArgDescs(), nullptr);
-  EXPECT_EQ(task->GetArgDescs()[0].addr_type, ge::AddrType::INPUT);
-  EXPECT_EQ(task->GetArgDescs()[1].addr_type, ge::AddrType::OUTPUT);
+  EXPECT_EQ(task->GetArgDescs()[0].addr_type, ge::AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(task->GetArgDescs()[1].addr_type, ge::AddrType::OUTPUT_INSTANCE);
   EXPECT_EQ(task->GetArgDescs()[2].addr_type, ge::AddrType::WORKSPACE);
   EXPECT_EQ(task->GetArgDescs()[3].addr_type, ge::AddrType::CUSTOM_VALUE);
 
@@ -179,8 +179,8 @@ TEST(AnnotatedArgsContextUT, RecordsMultipleLaunchesInOrder) {
   EXPECT_EQ(second_launch->GetKernelBinData()[0], 0x22U);
   EXPECT_EQ(first_launch->GetBlockDim(), 1U);
   EXPECT_EQ(second_launch->GetBlockDim(), 2U);
-  EXPECT_EQ(first_launch->GetArgDescs()[0].addr_type, ge::AddrType::INPUT);
-  EXPECT_EQ(second_launch->GetArgDescs()[0].addr_type, ge::AddrType::OUTPUT);
+  EXPECT_EQ(first_launch->GetArgDescs()[0].addr_type, ge::AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(second_launch->GetArgDescs()[0].addr_type, ge::AddrType::OUTPUT_INSTANCE);
 }
 
 TEST(AnnotatedArgsHandlerUT, RuntimeArgsInterfacesAreEmpty) {

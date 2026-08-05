@@ -34,6 +34,7 @@
 #include "graph/ge_local_context.h"
 #include "debug/ge_util.h"
 #include "graph/utils/args_format_desc_utils.h"
+#include "graph/args_format_desc.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "securec.h"
@@ -201,7 +202,7 @@ class MockAnnotatedArgsWithInvalidOptionalAndRequiredInputCustomOp : public Anno
       return GRAPH_FAILED;
     }
     gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()},
-                                   gert::InputAddr{2U, input_after_optional->GetAddr()},
+                                   gert::InputAddr{1U, input_after_optional->GetAddr()},
                                    gert::OutputAddr{0U, output->GetAddr()});
     return ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"custom_invalid_optional_required_kernel", kBin, sizeof(kBin),
                                                          8U, ctx.GetStreamId()},
@@ -226,12 +227,99 @@ class MockAnnotatedArgsWithInvalidOptionalAndConstInputCustomOp : public Annotat
     }
     const uint32_t stream_id = ctx.GetStreamId();
     gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()},
-                                   gert::InputAddr{2U, const_input_after_optional->GetAddr()},
+                                   gert::InputAddr{1U, const_input_after_optional->GetAddr()},
                                    gert::OutputAddr{0U, output->GetAddr()});
     return ctx.AddLaunch(
         gert::AnnotatedKernelLaunchInfo{"custom_invalid_optional_const_kernel", kBin, sizeof(kBin), 8U, stream_id},
         std::move(args));
   }
+};
+
+class MockAnnotatedArgsWithPresentOptionalInputCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0x31U};
+    const auto *input0 = ctx.GetInputTensor(0U);
+    const auto *input1 = ctx.GetInputTensor(1U);
+    const auto *input2 = ctx.GetInputTensor(2U);
+    const auto *output0 = ctx.GetOutputTensor(0U);
+    if ((input0 == nullptr) || (input1 == nullptr) || (input2 == nullptr) || (output0 == nullptr) ||
+        (ctx.GetOptionalInputTensor(1U) != input1) || (ctx.GetRequiredInputTensor(2U) != input2)) {
+      return GRAPH_FAILED;
+    }
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input0->GetAddr()}, gert::InputAddr{1U, input1->GetAddr()},
+                                   gert::InputAddr{2U, input2->GetAddr()}, gert::OutputAddr{0U, output0->GetAddr()});
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"present_optional_kernel", kBin, sizeof(kBin), 1U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
+class MockAnnotatedArgsWithExplicitOptionalZeroCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0x32U};
+    const auto *input = ctx.GetRequiredInputTensor(0U);
+    const auto *optional_input = ctx.GetOptionalInputTensor(1U);
+    const auto *input_after_optional = ctx.GetRequiredInputTensor(2U);
+    const auto *output = ctx.GetOutputTensor(0U);
+    if ((input == nullptr) || (optional_input != nullptr) || (input_after_optional == nullptr) || (output == nullptr)) {
+      return GRAPH_FAILED;
+    }
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()}, uint64_t{0U},
+                                   gert::InputAddr{1U, input_after_optional->GetAddr()},
+                                   gert::OutputAddr{0U, output->GetAddr()});
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"explicit_optional_zero_kernel", kBin, sizeof(kBin), 1U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
+class MockAnnotatedArgsWithDynamicIoCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0x41U};
+    const auto *input3 = ctx.GetInputTensor(3U);    // z: IR2, flat3
+    const auto *input1 = ctx.GetInputTensor(1U);    // dx0: IR1/relative0, flat1
+    const auto *output2 = ctx.GetOutputTensor(2U);  // dy1: IR1/relative1, flat2
+    const auto *output0 = ctx.GetOutputTensor(0U);  // y: IR0, flat0
+    if ((input3 == nullptr) || (input1 == nullptr) || (output2 == nullptr) || (output0 == nullptr) ||
+        (ctx.GetRequiredInputTensor(2U) != input3) || (ctx.GetDynamicInputTensor(1U, 0U) != input1) ||
+        (ctx.GetDynamicOutputTensor(1U, 1U) != output2)) {
+      return GRAPH_FAILED;
+    }
+    gert::AnnotatedKernelArgs args(gert::InputAddr{3U, input3->GetAddr()}, gert::InputAddr{1U, input1->GetAddr()},
+                                   gert::InputAddr{1U, input1->GetAddr()}, gert::OutputAddr{2U, output2->GetAddr()},
+                                   gert::OutputAddr{0U, output0->GetAddr()});
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"dynamic_instance_kernel", kBin, sizeof(kBin), 1U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
+class MockAnnotatedArgsWithSlotCountCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  explicit MockAnnotatedArgsWithSlotCountCustomOp(const size_t slot_count) : slot_count_(slot_count) {}
+
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0x1U};
+    const auto *input = ctx.GetInputTensor(0U);
+    const auto *output = ctx.GetOutputTensor(0U);
+    if ((slot_count_ < 2U) || (input == nullptr) || (output == nullptr)) {
+      return GRAPH_FAILED;
+    }
+    gert::AnnotatedKernelArgs args;
+    GE_ASSERT_SUCCESS(args.AppendArg(gert::InputAddr{0U, input->GetAddr()}));
+    GE_ASSERT_SUCCESS(args.AppendArg(gert::OutputAddr{0U, output->GetAddr()}));
+    for (size_t i = 2U; i < slot_count_; ++i) {
+      GE_ASSERT_SUCCESS(args.AppendArg(static_cast<uint64_t>(i)));
+    }
+    return ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"many_args_kernel", kBin, sizeof(kBin), 1U, ctx.GetStreamId()},
+                         std::move(args));
+  }
+
+ private:
+  size_t slot_count_;
 };
 
 class MockAnnotatedArgsWithWorkspaceCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
@@ -577,6 +665,76 @@ NodePtr BuildStaticCustomNodeWithInvalidOptionalInput(const std::string &op_type
   return node;
 }
 
+NodePtr BuildStaticCustomNodeWithPresentOptionalInput(const std::string &op_type, ComputeGraphPtr &graph) {
+  graph = std::make_shared<ComputeGraph>("custom_builder_present_optional_graph");
+  auto op_desc = std::make_shared<OpDesc>("custom_builder_present_optional_node", op_type);
+  op_desc->SetId(7);
+  op_desc->SetStreamId(3);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("optional", kIrInputOptional);
+  op_desc->AppendIrInput("z", kIrInputRequired);
+  op_desc->AppendIrOutput("y", kIrOutputRequired);
+
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({1, 16}));
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  output_desc.SetOriginShape(GeShape({1, 16}));
+  if ((op_desc->AddInputDesc("x", input_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddOptionalInputDesc("optional", input_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddInputDesc("z", input_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddOutputDesc("y", output_desc) != GRAPH_SUCCESS)) {
+    return nullptr;
+  }
+  op_desc->SetInputOffset({1024, 2048, 3072});
+  op_desc->SetOutputOffset({1280});
+
+  auto node = graph->AddNode(op_desc);
+  if (node != nullptr) {
+    node->GetOpDesc()->SetId(7);
+  }
+  return node;
+}
+
+NodePtr BuildStaticCustomNodeWithDynamicIo(const std::string &op_type, ComputeGraphPtr &graph) {
+  graph = std::make_shared<ComputeGraph>("custom_builder_dynamic_io_graph");
+  auto op_desc = std::make_shared<OpDesc>("custom_builder_dynamic_io_node", op_type);
+  op_desc->SetId(7);
+  op_desc->SetStreamId(3);
+
+  GeTensorDesc tensor_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  tensor_desc.SetOriginShape(GeShape({1, 16}));
+  if ((op_desc->AddInputDesc("x", tensor_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddDynamicInputDesc("dx", 2U, true) != GRAPH_SUCCESS) ||
+      (op_desc->AddInputDesc("z", tensor_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddOutputDesc("y", tensor_desc) != GRAPH_SUCCESS) ||
+      (op_desc->AddDynamicOutputDesc("dy", 2U, true) != GRAPH_SUCCESS)) {
+    return nullptr;
+  }
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("dx", kIrInputDynamic);
+  op_desc->AppendIrInput("z", kIrInputRequired);
+  op_desc->AppendIrOutput("y", kIrOutputRequired);
+  op_desc->AppendIrOutput("dy", kIrOutputDynamic);
+  for (uint32_t i = 0U; i < 4U; ++i) {
+    if (op_desc->UpdateInputDesc(i, tensor_desc) != GRAPH_SUCCESS) {
+      return nullptr;
+    }
+  }
+  for (uint32_t i = 0U; i < 3U; ++i) {
+    if (op_desc->UpdateOutputDesc(i, tensor_desc) != GRAPH_SUCCESS) {
+      return nullptr;
+    }
+  }
+  op_desc->SetInputOffset({256, 512, 768, 1024});
+  op_desc->SetOutputOffset({1280, 1536, 1792});
+
+  auto node = graph->AddNode(op_desc);
+  if (node != nullptr) {
+    node->GetOpDesc()->SetId(7);
+  }
+  return node;
+}
+
 Status GenerateTaskForNode(const NodePtr &node, std::vector<domi::TaskDef> &tasks) {
   CustomOpsKernelBuilder builder;
   RunContext context = {};
@@ -796,14 +954,16 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskDeclaresAnnotatedArgsAndFillsK
   EXPECT_EQ(ReadUint16Slot(kernel_context.args_offset(), 2U), 16U);
   EXPECT_EQ(ReadUint16Slot(kernel_context.args_offset(), 3U), 24U);
 
+  EXPECT_EQ(kernel_context.args_format(), "{i_instance0*}{i_instance1*}{o_instance0*}{#7}");
+
   std::vector<ArgDesc> parsed_arg_descs;
-  ASSERT_EQ(ArgsFormatDescUtils::Parse(kernel_context.args_format(), parsed_arg_descs), GRAPH_SUCCESS);
+  ASSERT_EQ(ArgsFormatDesc::Parse(node->GetOpDesc(), kernel_context.args_format(), parsed_arg_descs), GRAPH_SUCCESS);
   ASSERT_EQ(parsed_arg_descs.size(), 4U);
-  EXPECT_EQ(parsed_arg_descs[0].addr_type, AddrType::INPUT);
+  EXPECT_EQ(parsed_arg_descs[0].addr_type, AddrType::INPUT_INSTANCE);
   EXPECT_EQ(parsed_arg_descs[0].ir_idx, 0);
-  EXPECT_EQ(parsed_arg_descs[1].addr_type, AddrType::INPUT);
+  EXPECT_EQ(parsed_arg_descs[1].addr_type, AddrType::INPUT_INSTANCE);
   EXPECT_EQ(parsed_arg_descs[1].ir_idx, 1);
-  EXPECT_EQ(parsed_arg_descs[2].addr_type, AddrType::OUTPUT);
+  EXPECT_EQ(parsed_arg_descs[2].addr_type, AddrType::OUTPUT_INSTANCE);
   EXPECT_EQ(parsed_arg_descs[2].ir_idx, 0);
   EXPECT_EQ(parsed_arg_descs[3].addr_type, AddrType::CUSTOM_VALUE);
 
@@ -904,6 +1064,7 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsInvalidOptionalBeforeR
   ASSERT_EQ(kernel.args().size(), 24);
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 3072U));
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{i_instance1*}{o_instance0*}");
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsInvalidOptionalBeforeConstInput) {
@@ -925,6 +1086,134 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsInvalidOptionalBeforeC
   ASSERT_EQ(kernel.args().size(), 24);
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicWeightMemBase + 4096U));
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{i_instance1*}{o_instance0*}");
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsPresentOptionalInput) {
+  const std::string kTestOpType = "TestPresentOptionalInput_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithPresentOptionalInputCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNodeWithPresentOptionalInput(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+
+  ASSERT_EQ(tasks.size(), 1U);
+  const auto &kernel = tasks[0].kernel();
+  ASSERT_EQ(kernel.args().size(), 32);
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 2048U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 3072U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 1280U));
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{i_instance1*}{i_instance2*}{o_instance0*}");
+  EXPECT_EQ(kernel.context().args_count(), 4U);
+  EXPECT_EQ(kernel.args_size(), 4U * sizeof(uint64_t));
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsExplicitZeroSlotForMissingOptionalInput) {
+  const std::string kTestOpType = "TestExplicitOptionalZeroSlot_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithExplicitOptionalZeroCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNodeWithInvalidOptionalInput(kTestOpType, false, graph);
+  ASSERT_NE(node, nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+
+  ASSERT_EQ(tasks.size(), 1U);
+  const auto &kernel = tasks[0].kernel();
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{#0}{i_instance1*}{o_instance0*}");
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), 0U);
+  EXPECT_EQ(kernel.context().args_count(), 4U);
+  EXPECT_EQ(kernel.args_size(), 4U * sizeof(uint64_t));
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsDynamicIoWithReorderedRepeatedSubsetIndexes) {
+  const std::string kTestOpType = "TestDynamicIoCustomOp_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithDynamicIoCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNodeWithDynamicIo(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+
+  ASSERT_EQ(tasks.size(), 1U);
+  const auto &kernel = tasks[0].kernel();
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance3*}{i_instance1*}{i_instance1*}{o_instance2*}{o_instance0*}");
+  EXPECT_EQ(kernel.context().args_count(), 5U);
+  EXPECT_EQ(kernel.args_size(), 5U * sizeof(uint64_t));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 1792U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 4U), static_cast<uint64_t>(kLogicDataMemBase + 1280U));
+
+  std::vector<ArgDesc> parsed_arg_descs;
+  ASSERT_EQ(ArgsFormatDesc::Parse(node->GetOpDesc(), kernel.context().args_format(), parsed_arg_descs), GRAPH_SUCCESS);
+  ASSERT_EQ(parsed_arg_descs.size(), 5U);
+  EXPECT_EQ(parsed_arg_descs[0].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(parsed_arg_descs[0].ir_idx, 3);
+  EXPECT_EQ(parsed_arg_descs[1].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(parsed_arg_descs[1].ir_idx, 1);
+  EXPECT_EQ(parsed_arg_descs[2].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(parsed_arg_descs[2].ir_idx, 1);
+  EXPECT_EQ(parsed_arg_descs[3].addr_type, AddrType::OUTPUT_INSTANCE);
+  EXPECT_EQ(parsed_arg_descs[3].ir_idx, 2);
+  EXPECT_EQ(parsed_arg_descs[4].addr_type, AddrType::OUTPUT_INSTANCE);
+  EXPECT_EQ(parsed_arg_descs[4].ir_idx, 0);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskArgsOffsetLimit8192Success) {
+  const std::string kTestOpType = "TestAnnotatedArgsOffset8192";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithSlotCountCustomOp>(8192U);
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+  ASSERT_EQ(tasks.size(), 1U);
+
+  const auto &kernel = tasks[0].kernel();
+  EXPECT_EQ(kernel.context().args_count(), 8192U);
+  EXPECT_EQ(kernel.args_size(), 65536U);
+  EXPECT_EQ(kernel.context().args_offset().size(), static_cast<int>(8192U * sizeof(uint16_t)));
+  EXPECT_EQ(ReadUint16Slot(kernel.context().args_offset(), 8191U), 65528U);
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 8191U), 8191U);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskArgsOffsetLimit8193Failed) {
+  const std::string kTestOpType = "TestAnnotatedArgsOffset8193";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithSlotCountCustomOp>(8193U);
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  EXPECT_NE(GenerateTaskForNode(node, tasks), SUCCESS);
+  EXPECT_TRUE(tasks.empty());
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocFillsBasicCustomKernelTask) {
@@ -1052,6 +1341,7 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsMultipleWorkspaceArgs)
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 2048U));
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 4096U));
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 4096U + 512U));
+  EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{o_instance0*}{ws0*}{ws1*}");
 
   std::vector<ArgDesc> parsed_arg_descs;
   ASSERT_EQ(ArgsFormatDescUtils::Parse(kernel.context().args_format(), parsed_arg_descs), GRAPH_SUCCESS);

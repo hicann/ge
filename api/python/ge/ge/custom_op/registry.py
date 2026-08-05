@@ -15,12 +15,10 @@
 import inspect
 import threading
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Type
-
-from .base import BaseCustomOp, EagerExecuteOp
+from typing import Any, Dict, List, Optional, Type
 
 INTERFACE_EAGER_EXECUTE = "eager_execute"
-_INTERFACE_SPECS = ((INTERFACE_EAGER_EXECUTE, EagerExecuteOp),)
+_INTERFACE_SPECS = ((INTERFACE_EAGER_EXECUTE, "execute"),)
 
 
 @dataclass(frozen=True)
@@ -32,7 +30,7 @@ class OpImplDescriptor:
     module_name: str
     class_name: str
     interfaces: List[str] = field(default_factory=list)
-    cls: Type[BaseCustomOp] = field(compare=False, repr=False, default=BaseCustomOp)
+    cls: Type[Any] = field(compare=False, repr=False, default=object)
 
     def to_bridge_dict(self) -> dict:
         return {
@@ -91,20 +89,29 @@ def _normalize_op_type(op_type: str) -> str:
     return op_type
 
 
-def _collect_interfaces(cls: Type[BaseCustomOp]) -> List[str]:
-    return [name for name, base_cls in _INTERFACE_SPECS if issubclass(cls, base_cls)]
+def _collect_interfaces(cls: Type[Any]) -> List[str]:
+    return [
+        name
+        for name, method_name in _INTERFACE_SPECS
+        if callable(getattr(cls, method_name, None))
+    ]
 
 
-def _get_interfaces(cls: Type[BaseCustomOp]) -> List[str]:
+def _get_interfaces(cls: Type[Any]) -> List[str]:
     interfaces = _collect_interfaces(cls)
     if not interfaces:
-        raise TypeError("register_op_impl expects a supported BaseCustomOp subclass")
+        supported_methods = ", ".join(
+            method_name for _, method_name in _INTERFACE_SPECS
+        )
+        class_name = f"{cls.__module__}.{cls.__qualname__}"
+        raise TypeError(
+            f"register_op_impl class '{class_name}' must implement at least one "
+            f"supported method: {supported_methods}"
+        )
     return interfaces
 
 
-def _register_op_impl_class(
-    cls: Type[BaseCustomOp], *, op_type: str
-) -> Type[BaseCustomOp]:
+def _register_op_impl_class(cls: Type[Any], *, op_type: str) -> Type[Any]:
     module_name = cls.__module__
     class_name = cls.__name__
     descriptor = OpImplDescriptor(
@@ -125,9 +132,11 @@ def register_op_impl(*, op_type: str) -> callable:
 
     normalized_op_type = _normalize_op_type(op_type)
 
-    def decorator(cls: Type[BaseCustomOp]) -> Type[BaseCustomOp]:
-        if not inspect.isclass(cls) or not issubclass(cls, BaseCustomOp):
-            raise TypeError("register_op_impl expects a BaseCustomOp subclass")
+    def decorator(cls: Type[Any]) -> Type[Any]:
+        if not inspect.isclass(cls):
+            raise TypeError("register_op_impl expects a class")
+        if inspect.isabstract(cls):
+            raise TypeError("register_op_impl expects a concrete class")
         return _register_op_impl_class(cls, op_type=normalized_op_type)
 
     return decorator

@@ -373,6 +373,10 @@ static graphStatus CheckGlobalOptions(std::map<std::string, std::string> &global
   }
   GE_ASSERT_SUCCESS(CheckScreenPrinterOption(global_options), "[Check][ge.screen_print_mode]failed!");
   GE_ASSERT_GRAPH_SUCCESS(CheckOptimizationOptionValid(global_options));
+
+  // check deterministic and deterministic_level consistency
+  GE_ASSERT_SUCCESS(CheckDeterministicOptionsValid(global_options), "[Check][DeterministicConfig] failed!");
+
   return GRAPH_SUCCESS;
 }
 

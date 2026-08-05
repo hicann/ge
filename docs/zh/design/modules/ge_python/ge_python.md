@@ -732,6 +732,7 @@ custom_op/
 ├── base.py                  # BaseCustomOp、EagerExecuteOp 基类定义
 ├── registry.py              # Python 自定义算子实现注册中心与装饰器
 ├── bootstrap.py             # 插件发现与加载
+├── context.py               # schema-bound execute 的当前执行上下文绑定
 ├── _bridge.py               # Bridge 运行时辅助（实例管理，供 C++ bridge .so 回调）
 ├── _native.py               # native module 装载与 re-export
 ├── _artifact_utils.py       # 运行时 artifact 选择辅助
@@ -743,7 +744,7 @@ custom_op/
 
 #### 模块定位
 
-Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现所有基于 `BaseCustomOp` 的自定义算子能力。当前 V1 版本只先打通 `EagerExecuteOp.execute(ctx)` 执行闭环。
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前执行能力通过反射实现类上的可调用 `execute` 方法识别，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。
 
 #### 运行时 native artifact 选择
 
@@ -763,24 +764,27 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 
 **文件位置**: `base.py`
 
-**功能**: Python 自定义算子能力接口的公共基类。
+**功能**: 为已有 Python 自定义算子提供兼容的公共基类。新实现可直接使用普通 Python 类。
 
 **关系**:
 - `EagerExecuteOp` 的父类
-- 仅继承 `BaseCustomOp` 不能注册为有效 Python 自定义算子实现
+- 不是 `register_op_impl` 的强制继承要求；能力由实现类上的可调用方法反射得到
+- 仅继承 `BaseCustomOp` 且未实现受支持的方法，不能注册为有效 Python 自定义算子实现
 
 ##### 2. EagerExecuteOp 类
 
 **文件位置**: `base.py`
 
-**功能**: Python Eager 执行自定义算子基类。
+**功能**: 为已有 Python Eager 执行自定义算子提供兼容基类。普通 Python 类实现 `execute` 也可声明执行能力。
 
 **主要方法**:
-- `execute(ctx)` - 执行入口，`ctx` 为 `EagerOpExecutionContext`
+- `execute(*args, **kwargs)` - 执行入口，具体实参由所用调用形式决定
 
 **设计约束**:
-- 当前 V1 只支持 `execute(self, ctx)` 签名。
-- `ctx` 及其返回的 borrowed view 仅可在当前 `execute` 回调内使用。
+- 兼容形式为 `execute(self, ctx)`，`ctx` 为 `EagerOpExecutionContext`。
+- schema-bound 形式按照 canonical IR 顺序传入 required、optional、dynamic 输入，并按属性名传入 keyword argument。
+- schema-bound 回调需要访问执行上下文时，使用 `get_execute_ctx()`。
+- `ctx`、`RuntimeAttrs` 及其返回的 borrowed view 仅可在当前 `execute` 回调内使用。
 - 正常返回表示执行成功；失败时应抛出异常。
 
 ##### 3. EagerOpExecutionContext native-backed wrapper
@@ -792,6 +796,8 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 **主要方法**:
 - `get_input_tensor(index)` - 根据输入 index 获取输入 `Tensor`
 - `get_input_num()` - 获取当前计算节点的运行时输入 tensor 数量
+- `get_dynamic_input_num(ir_index)` - 获取动态输入 IR 槽位的运行时实例数
+- `get_attrs()` - 获取当前节点的 `RuntimeAttrs` borrowed view
 - `get_required_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `REQUIRED_INPUT` 类型的输入 `Tensor`
 - `get_optional_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `OPTIONAL_INPUT` 类型的输入 `Tensor`
 - `get_dynamic_input_tensor(ir_index, relative_index)` - 基于算子 IR 原型定义获取 `DYNAMIC_INPUT` 类型的输入 `Tensor`
@@ -801,7 +807,24 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 - `get_output_tensor(index)` - 获取 index 指定的输出 `Tensor`
 - `get_stream()` - 获取所属执行流地址整数
 
-##### 4. OpImplDescriptor 数据类
+##### 4. RuntimeAttrs native-backed wrapper
+
+**文件位置**: `_ge_custom_op_native.pyi`
+
+**功能**: 当前执行回调的运行时属性 borrowed view。schema-bound 调用由 bridge 根据 canonical IR 属性类型选择对应的 typed reader。
+
+**主要方法**:
+- 标量：`get_int`、`get_float`、`get_bool`、`get_str`、`get_data_type`、`get_tensor`
+- 列表：`get_list_int`、`get_list_float`、`get_list_bool`、`get_list_str`、`get_list_data_type`、`get_list_list_int`
+- `get_attr_num()` - 获取运行时属性数量
+
+##### 5. get_execute_ctx 函数
+
+**文件位置**: `context.py`
+
+**功能**: 获取当前 schema-bound `execute` 回调的 `EagerOpExecutionContext`。在回调外或回调结束后调用会抛出 `RuntimeError`。
+
+##### 6. OpImplDescriptor 数据类
 
 **文件位置**: `registry.py`
 
@@ -818,7 +841,7 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 #### 注册与发现
 
 **装饰器**:
-- `register_op_impl(op_type)` - 注册 `EagerExecuteOp` 实现类
+- `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；当前 `execute` 对应 `eager_execute`
 
 **发现机制**:
 - 复用环境变量 `ASCEND_CUSTOM_OPP_PATH` 指定 Python custom op 文件或目录路径
@@ -827,17 +850,18 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 
 **使用示例**:
 ```python
-from ge.custom_op import EagerExecuteOp, register_op_impl
+from ge.custom_op import get_execute_ctx, register_op_impl
 
 
 @register_op_impl(op_type="AddPythonCustomOp")
-class AddPythonCustomOp(EagerExecuteOp):
-    def execute(self, ctx):
-        x = ctx.get_input_tensor(0)
-        y = ctx.get_input_tensor(1)
+class AddPythonCustomOp:
+    def execute(self, x, y, *, alpha):
+        ctx = get_execute_ctx()
         z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
         ...
 ```
+
+原有 `class AddPythonCustomOp(EagerExecuteOp)` 和 `execute(self, ctx)` 写法继续兼容。
 
 加载 Python 自定义算子：
 ```bash

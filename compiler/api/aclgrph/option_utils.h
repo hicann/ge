@@ -119,6 +119,10 @@ Status CheckModifyMixlistParamValid(const std::map<std::string, std::string> &op
 Status CheckModifyMixlistParamValid(const std::string &precision_mode, const std::string &precision_mode_v2,
                                     const std::string &modify_mixlist);
 Status CheckAllowHF32ParamValid(const std::string &allow_hf32);
+Status ConvertDeterministicOptionToInt32(const std::string &parameter, const std::string &option_value,
+                                         int32_t &result);
+Status CheckDeterministicConfig(int32_t deterministic, int32_t deterministic_level);
+Status CheckDeterministicOptionsValid(const std::map<std::string, std::string> &options);
 Status CheckInputFormat(const std::string &input_format);
 Status CheckKeepTypeParamValid(const std::string &keep_dtype);
 void PrintOptionMap(const std::map<std::string, std::string> &options, std::string tips,

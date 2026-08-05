@@ -445,7 +445,6 @@ set(MULTI_PARTS_TEST_FILES
     "graph/build/memory/checker/special_node_checker_unittest.cc"
     "graph/build/memory/checker/atomic_clean_checker_unittest.cc"
     "graph/build/hybrid_mem_assigner_unittest.cc"
-    "graph/build/memory_assigner_unittest.cc"
     "common/analyzer_unittest.cc"
     "common/dnnengine_manager_unittest.cc"
     "graph/optimize/graph_optimize_unittest.cc"

@@ -347,6 +347,9 @@ void SetupModelForAnnotatedArgsOp(DavinciModel &model, OpDescPtr &op_desc, const
   op_desc->AddOutputDesc(desc);
   op_desc->AppendIrInput("input0", IrInputType::kIrInputRequired);
   op_desc->AppendIrOutput("output0", IrOutputType::kIrOutputRequired);
+  op_desc->SetInputOffset({0});
+  op_desc->SetOutputOffset({0});
+  op_desc->SetIsInputConst({false});
   op_desc->SetId(0);
   op_desc->SetStreamId(0);
   model.op_list_[0] = op_desc;
@@ -369,7 +372,7 @@ Status CallParseAnnotatedArgs(CustomTaskInfo &task_info, const domi::TaskDef &ta
  * 预置条件：
  *   1. 注册 TestAnnotatedArgsOp（实现 AnnotatedArgsOp 接口）
  *   2. 构造 DavinciModel 和 OpDesc，设置 input/output 地址
- *   3. 构造带 args_format="{i0}{o0}" 的 TaskDef
+ *   3. 构造带 args_format="{i_instance0*}{o_instance0*}" 的 TaskDef
  * 测试步骤：
  *   1. 调用 ParseTaskRunParam
  * 预期结果：
@@ -399,7 +402,7 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_Success) {
   args_ptr[0] = 0x1000;
   args_ptr[1] = 0x2000;
 
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "test_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "test_kernel", 1U, 2U, args_data);
   TaskRunParam task_run_param;
   EXPECT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
   EXPECT_EQ(task_info.kernel_name_, "test_kernel");
@@ -458,7 +461,7 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_EmptyKernelName_Fa
   task_info.output_mem_types_ = {0};
 
   std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "", 1U, 2U, args_data);
   TaskRunParam task_run_param;
   EXPECT_NE(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
 }
@@ -485,16 +488,16 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_ZeroBlockDim_Faile
   task_info.output_mem_types_ = {0};
 
   std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "test_kernel", 0U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "test_kernel", 0U, 2U, args_data);
   TaskRunParam task_run_param;
   EXPECT_NE(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
 }
 
 /**
- * 用例描述：测试 ir_idx 超出 input 范围时返回失败
+ * 用例描述：测试 instance index 超出 input 范围时返回失败
  * 预期结果：返回 FAILED
  */
-TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_InputIrIdxOutOfRange_Failed) {
+TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_InputInstanceIndexOutOfRangeFailed) {
   CustomOpFactory::RegisterCustomOpCreator("AnnotatedArgsIdxOorOp", []() -> std::unique_ptr<BaseCustomOp> {
     return std::make_unique<TestAnnotatedArgsOp>();
   });
@@ -511,9 +514,37 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_InputIrIdxOutOfRan
   task_info.output_data_addrs_ = {0x2000};
   task_info.output_mem_types_ = {0};
 
-  // {i5} but only 1 input exists
+  // {i_instance5*} but only 1 input exists
   std::vector<uint8_t> args_data(1U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i5}", "test_kernel", 1U, 1U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance5*}", "test_kernel", 1U, 1U, args_data);
+  TaskRunParam task_run_param;
+  EXPECT_NE(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
+}
+
+/**
+ * 用例描述：测试 instance index 超出 output 范围时返回失败
+ * 预期结果：返回 FAILED
+ */
+TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_OutputInstanceIndexOutOfRangeFailed) {
+  CustomOpFactory::RegisterCustomOpCreator("AnnotatedArgsOutIdxOorOp", []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<TestAnnotatedArgsOp>();
+  });
+
+  DavinciModel model(0, nullptr);
+  OpDescPtr op_desc;
+  SetupModelForAnnotatedArgsOp(model, op_desc, "AnnotatedArgsOutIdxOorOp");
+
+  CustomTaskInfo task_info;
+  task_info.davinci_model_ = &model;
+  task_info.op_desc_ = op_desc;
+  task_info.input_data_addrs_ = {0x1000};
+  task_info.input_mem_types_ = {0};
+  task_info.output_data_addrs_ = {0x2000};
+  task_info.output_mem_types_ = {0};
+
+  // {o_instance5*} but only 1 output exists
+  std::vector<uint8_t> args_data(1U * sizeof(uint64_t), 0);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{o_instance5*}", "test_kernel", 1U, 1U, args_data);
   TaskRunParam task_run_param;
   EXPECT_NE(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
 }
@@ -547,7 +578,7 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_CustomValueSkipped
   args_ptr[0] = 0x1000;
   args_ptr[2] = 0x2000;
 
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{#42}{o0}", "test_kernel", 1U, 3U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{#42}{o_instance0*}", "test_kernel", 1U, 3U, args_data);
   TaskRunParam task_run_param;
   EXPECT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
   ASSERT_EQ(task_run_param.parsed_input_addrs.size(), 1U);
@@ -658,7 +689,7 @@ TEST_F(CustomTaskInfoModeTest, DistributeAnnotatedArgs_Success) {
   auto *args_ptr = reinterpret_cast<uint64_t *>(args_data.data());
   args_ptr[0] = input_addr;
   args_ptr[1] = output_addr;
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "annotated_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "annotated_kernel", 1U, 2U, args_data);
 
   CustomTaskInfo task_info;
   task_info.op_desc_ = op_desc;
@@ -732,7 +763,7 @@ TEST_F(CustomTaskInfoModeTest, DistributeAnnotatedArgs_KernelNotFound_Failed) {
   task_info.stream_ = stream;
 
   std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "nonexistent_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "nonexistent_kernel", 1U, 2U, args_data);
   TaskRunParam task_run_param;
   ASSERT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
 
@@ -785,7 +816,7 @@ bool SetupForDistributeWithMagic(DavinciModel &model, OpDescPtr &op_desc, Custom
   auto *args_ptr = reinterpret_cast<uint64_t *>(args_data.data());
   args_ptr[0] = input_addr;
   args_ptr[1] = output_addr;
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "annotated_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "annotated_kernel", 1U, 2U, args_data);
 
   task_info.op_desc_ = op_desc;
   task_info.input_data_addrs_ = {input_addr};
@@ -827,9 +858,9 @@ TEST_F(CustomTaskInfoModeTest, ParseTaskRunParam_AnnotatedArgsDispatch) {
   task_info.output_mem_types_ = {0};
 
   std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "test_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "test_kernel", 1U, 2U, args_data);
   TaskRunParam task_run_param;
-  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+  EXPECT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
 }
 
 /**
@@ -854,7 +885,7 @@ TEST_F(CustomTaskInfoModeTest, ParseAnnotatedArgsTaskRunParam_WithWorkspace_Succ
   task_info.workspace_mem_types_ = {0};
 
   std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
-  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0}{o0}", "test_kernel", 1U, 2U, args_data);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i_instance0*}{o_instance0*}", "test_kernel", 1U, 2U, args_data);
   TaskRunParam task_run_param;
   EXPECT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
   ASSERT_EQ(task_run_param.parsed_workspace_addrs.size(), 1U);
@@ -965,17 +996,53 @@ TEST_F(CustomTaskInfoModeTest, AssembleIoByArgsFormat_InvalidAddrType_Failed) {
 }
 
 /**
- * 用例描述：测试 AppendInputOutputAddr 在可选输入无实例时使用占位地址 0
- * 预期结果：返回 SUCCESS，io_addrs_ 包含 0
+ * 用例描述：测试 optional input 缺失后 flat index 紧缩，直接访问压缩后的实例地址
+ * 预期结果：返回 SUCCESS，io_addrs_ 包含压缩后的地址
  */
-TEST_F(CustomTaskInfoModeTest, AppendInputOutputAddr_OptionalInputPlaceholder_Success) {
+TEST_F(CustomTaskInfoModeTest, AssembleIoByArgsFormatOptionalCompactionUsesFlatIndex) {
   CustomTaskInfo task_info;
-  task_info.op_desc_ = std::make_shared<OpDesc>("opt_input_op", "CustomOp");
-  task_info.args_format_holder_.ir_input_2_range[0] = {0, 0};
+  task_info.op_desc_ = std::make_shared<OpDesc>("optional_compact", "CustomOp");
+  task_info.input_data_addrs_ = {0x1000ULL, 0x3000ULL};
+  task_info.input_mem_types_ = {kFmMemType, kFixMemType};
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 1);
 
-  EXPECT_EQ(task_info.AppendInputOutputAddr(0, true), SUCCESS);
-  ASSERT_EQ(task_info.io_addrs_.size(), 1U);
-  EXPECT_EQ(task_info.io_addrs_[0], 0UL);
+  ASSERT_EQ(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_EQ(task_info.io_addrs_, (std::vector<uint64_t>{0x3000ULL}));
+  EXPECT_EQ(task_info.io_addr_mem_types_, (std::vector<uint64_t>{kFixMemType}));
+}
+
+/**
+ * 用例描述：测试旧 AnnotatedArgs IO 类型 ({i0*}/{o0*}) 在 Init 阶段失败
+ * 预期结果：Init 返回非 SUCCESS
+ */
+TEST_F(CustomTaskInfoModeTest, InitLegacyAnnotatedArgsIoTypeMustFail) {
+  CustomOpFactory::RegisterCustomOpCreator("AnnotatedArgsLegacyOp", []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<TestAnnotatedArgsOp>();
+  });
+
+  DavinciModel model(0, nullptr);
+  OpDescPtr op_desc;
+  SetupModelForAnnotatedArgsOp(model, op_desc, "AnnotatedArgsLegacyOp");
+
+  CustomTaskInfo task_info;
+  task_info.davinci_model_ = &model;
+  task_info.op_desc_ = op_desc;
+  task_info.input_data_addrs_ = {0x1000};
+  task_info.input_mem_types_ = {0};
+  task_info.output_data_addrs_ = {0x2000};
+  task_info.output_mem_types_ = {0};
+
+  std::vector<uint8_t> args_data(2U * sizeof(uint64_t), 0);
+  auto task_def = BuildAnnotatedArgsTaskDef(0, "{i0*}{o0*}", "test_kernel", 1U, 2U, args_data);
+  TaskRunParam task_run_param;
+  ASSERT_EQ(CallParseAnnotatedArgs(task_info, task_def, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+  IowAddrs iow_addrs;
+  iow_addrs.input_logic_addrs = {{0ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  iow_addrs.output_logic_addrs = {{0x40ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  EXPECT_NE(task_info.Init(task_def, &model, args, {}, iow_addrs), SUCCESS);
 }
 
 /**

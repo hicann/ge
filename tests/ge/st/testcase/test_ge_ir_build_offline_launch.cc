@@ -30,6 +30,7 @@
 #include "exe_graph/lowering/kernel_run_context_builder.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "faker/space_registry_faker.h"
+#include "framework/common/helper/om_file_helper.h"
 #include "framework/common/taskdown_common.h"
 #include "ge/ge_ir_build.h"
 #include "ge_graph_dsl/graph_dsl.h"
@@ -44,6 +45,7 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "ge_running_env/ge_running_env_faker.h"
 #include "init_ge.h"
+#include "proto/task.pb.h"
 #include "register/optimization_option_registry.h"
 #include "tests/depends/mmpa/src/mmpa_stub.h"
 #include "tests/graph_metadef/depends/faker/allocator_faker.h"
@@ -773,6 +775,54 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildFailsWhenDeclareLaunc
   EXPECT_NE(aclgrphBuildModel(graph, build_options, model_buffer_data), SUCCESS);
   EXPECT_EQ(model_buffer_data.data, nullptr);
   aclgrphBuildFinalize();
+}
+
+TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsStandardOmPersistsInstanceArgsFormat) {
+  PrepareCleanAclgrphBuildForSt();
+  ScopedGeOptionsForMobileSt ge_options_guard;
+  ScopedAnnotatedArgsOppForSt opp_guard;
+  ASSERT_TRUE(opp_guard.IsReady());
+  RegisterAnnotatedArgsOpForSt(kAnnotatedArgsMobileOpType, []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<StAnnotatedArgsMobileOp>();
+  });
+  RegisterAnnotatedArgsInferForSt(kAnnotatedArgsMobileOpType);
+
+  GeRunningEnvFaker env;
+  env.InstallDefault();
+  std::map<AscendString, AscendString> init_options = {{OPTION_EXEC_HCCL_FLAG, "0"},
+                                                       {OPTION_HOST_ENV_OS, kAnnotatedArgsMobileTargetOs},
+                                                       {OPTION_HOST_ENV_CPU, kAnnotatedArgsMobileTargetCpu},
+                                                       {configure_option::SOC_VERSION, "Ascend910B"}};
+  ASSERT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
+  ScopedRealCustomOpsKernelBuilderForSt custom_builder_guard;
+
+  auto graph = BuildAnnotatedArgsMobileGraphForSt();
+  std::map<AscendString, AscendString> build_options = {{ir_option::INPUT_FORMAT, "ND"}};
+  ModelBufferData model_buffer{};
+  ASSERT_EQ(aclgrphBuildModel(graph, build_options, model_buffer), SUCCESS);
+  aclgrphBuildFinalize();
+  ASSERT_NE(model_buffer.data, nullptr);
+
+  ModelData model_data;
+  model_data.model_data = model_buffer.data.get();
+  model_data.model_len = model_buffer.length;
+  OmFileLoadHelper loader;
+  ASSERT_EQ(loader.Init(model_data), SUCCESS);
+  ModelPartition task_partition;
+  ASSERT_EQ(loader.GetModelPartition(ModelPartitionType::TASK_INFO, task_partition), SUCCESS);
+  ASSERT_LE(task_partition.size, static_cast<uint64_t>(std::numeric_limits<int32_t>::max()));
+  domi::ModelTaskDef model_task_def;
+  ASSERT_TRUE(model_task_def.ParseFromArray(task_partition.data, static_cast<int32_t>(task_partition.size)));
+
+  bool found = false;
+  for (const auto &task : model_task_def.task()) {
+    if ((task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL)) &&
+        (task.kernel().kernel_name() == "st_offline_launch_mobile_kernel")) {
+      EXPECT_EQ(task.kernel().context().args_format(), "{i_instance0*}{o_instance0*}{#1}");
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
 }
 
 }  // namespace ge

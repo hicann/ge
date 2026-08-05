@@ -20,8 +20,6 @@
 
 namespace ge {
 namespace custom_op {
-class PythonCustomOpIrMetaViewStorage;
-
 class PythonCustomOpRuntimeRegistry {
  public:
   static PythonCustomOpRuntimeRegistry &GetInstance();
@@ -82,7 +80,6 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
   graphStatus ReportUnsupported(CustomOpCapability capability, const char *method_name) const;
 
   PythonCustomOpDescriptor desc_;
-  std::unique_ptr<PythonCustomOpIrMetaViewStorage> ir_meta_;
   std::unique_ptr<PythonCustomOpHolder> holder_;
 };
 

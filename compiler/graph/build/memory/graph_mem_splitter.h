@@ -60,5 +60,7 @@ class GraphMemSplitter {
   size_t split_size_;
 };
 
+using GraphMemSplitterPtr = std::shared_ptr<GraphMemSplitter>;
+
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_MEMORY_GRAPH_MEM_SPLITTER_H_

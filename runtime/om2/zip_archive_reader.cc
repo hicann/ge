@@ -28,6 +28,7 @@ constexpr int kMemZipOk = 0;
 constexpr int kMemZipError = -1;
 constexpr uint32_t kMaxFileNameLength = 4096U;  // same as UNZ_MAXFILENAMEINZIP
 constexpr int64_t kBufSize = 16384UL;           // same as UNZ_BUFSIZE
+constexpr uint64_t kMaxCompressedEntriesUncompressedSize = 10ULL * 1024ULL * 1024ULL * 1024ULL;
 
 voidpf ZCALLBACK MemOpenFileFuncReadonly(voidpf opaque, const void *filename, int mode) {
   (void)filename;
@@ -309,6 +310,7 @@ bool RAIIZipArchive::BuildEntryCache() {
   entry_cache_.clear();
   entry_names_.clear();
   entry_cache_ready_ = false;
+  uint64_t total_uncompressed_size = 0U;
   auto uz_ret = unzGoToFirstFile(zip_handle_);
   GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to go to the first file in the archive, ret = %d", uz_ret);
 
@@ -318,8 +320,18 @@ bool RAIIZipArchive::BuildEntryCache() {
     uz_ret =
         unzGetCurrentFileInfo64(zip_handle_, &file_info, name_buff.data(), name_buff.size(), nullptr, 0, nullptr, 0);
     GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get the current file information, ret = %d", uz_ret);
+    GE_ASSERT_TRUE(file_info.uncompressed_size <= std::numeric_limits<size_t>::max(),
+                   "Uncompressed size of entry exceeds size_t range, size = %llu",
+                   static_cast<unsigned long long>(file_info.uncompressed_size));
     const std::string file_name(name_buff.data());
     if (!file_name.empty() && file_name.back() != '/') {
+      if (file_info.compression_method != Z_NO_COMPRESSION) {
+        GE_ASSERT_TRUE(file_info.uncompressed_size <= kMaxCompressedEntriesUncompressedSize - total_uncompressed_size,
+                       "Total uncompressed size of compressed entries exceeds limit, current = %llu, limit = %llu",
+                       static_cast<unsigned long long>(file_info.uncompressed_size),
+                       static_cast<unsigned long long>(kMaxCompressedEntriesUncompressedSize));
+        total_uncompressed_size += file_info.uncompressed_size;
+      }
       GE_ASSERT_TRUE(CacheCurrentEntry(file_name, file_info));
       entry_names_.emplace_back(file_name);
     }
@@ -378,7 +390,8 @@ bool RAIIZipArchive::GetCachedRawData(const std::string &entry_name, size_t &buf
   }
 
   const auto &cached_entry = iter->second;
-  GE_ASSERT_TRUE(cached_entry.raw_data_offset + cached_entry.uncompressed_size <= mem_file_.length);
+  GE_ASSERT_TRUE(cached_entry.raw_data_offset <= mem_file_.length);
+  GE_ASSERT_TRUE(cached_entry.uncompressed_size <= mem_file_.length - cached_entry.raw_data_offset);
   buff_size = cached_entry.uncompressed_size;
   raw_data = ReadonlyByteBuffer(mem_file_.buffer + cached_entry.raw_data_offset, ConditionalDeleter{false});
   return true;
@@ -393,7 +406,8 @@ bool RAIIZipArchive::GetRawDataOffset(const size_t pos_in_central_dir, const siz
   GE_ASSERT_TRUE(buff_size == entry_info.uncompressed_size, "buff_size is %zu, but uncompressed_size is %zu", buff_size,
                  entry_info.uncompressed_size);
   GE_ASSERT_TRUE(LocateFileDataOffset(mem_file_, entry_info.local_file_header_offset, raw_data_offset));
-  GE_ASSERT_TRUE(raw_data_offset + entry_info.uncompressed_size <= mem_file_.length);
+  GE_ASSERT_TRUE(raw_data_offset <= mem_file_.length);
+  GE_ASSERT_TRUE(entry_info.uncompressed_size <= mem_file_.length - raw_data_offset);
   return true;
 }
 

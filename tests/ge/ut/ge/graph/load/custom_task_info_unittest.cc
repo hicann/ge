@@ -558,11 +558,13 @@ void SetUpMinimalDavinciModel(DavinciModel &model, const OpDescPtr &op_desc) {
 }
 
 IowAddrs BuildAnnotatedArgsIowAddrs(uint64_t input_addr = 0ULL, uint64_t output_addr = 0x40ULL,
-                                    uint64_t workspace_addr = 0x300ULL) {
+                                    uint64_t workspace_addr = 0x300ULL, bool with_workspace = true) {
   IowAddrs iow_addrs;
   iow_addrs.input_logic_addrs = {{input_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
   iow_addrs.output_logic_addrs = {{output_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
-  iow_addrs.workspace_logic_addrs = {{workspace_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  if (with_workspace) {
+    iow_addrs.workspace_logic_addrs = {{workspace_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  }
   return iow_addrs;
 }
 
@@ -587,8 +589,8 @@ void FillAnnotatedArgsTaskDef(domi::TaskDef &task_def, const int32_t op_index, c
 
 std::vector<ArgDesc> BuildInputOutputCustomArgDescs() {
   std::vector<ArgDesc> arg_descs;
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT_INSTANCE, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT_INSTANCE, 0);
   ArgsFormatDescUtils::Append(arg_descs, AddrType::CUSTOM_VALUE);
   return arg_descs;
 }
@@ -1459,6 +1461,116 @@ TEST_F(UtestCustomTaskInfoE2E, UpdateIoAndWorkspaceAddrs_EmptyIowAddrs_KeepsOrig
   EXPECT_EQ(task_info.workspace_mem_types_[0], static_cast<uint64_t>(MemoryAppType::kMemoryTypeFix));
 }
 
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatInstanceIndexPreservesOrderAndTypes) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("instance_io", "CustomOp");
+  task_info.input_data_addrs_ = {0x1000ULL, 0x1010ULL, 0x1020ULL};
+  task_info.input_mem_types_ = {kFmMemType, static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo), kFixMemType};
+  task_info.output_data_addrs_ = {0x2000ULL, 0x2010ULL};
+  task_info.output_mem_types_ = {kFmMemType, static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo)};
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 2);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::OUTPUT_INSTANCE, 1);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 0);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 2);
+
+  ASSERT_EQ(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_EQ(task_info.io_addrs_, (std::vector<uint64_t>{0x1020ULL, 0x2010ULL, 0x1000ULL, 0x1020ULL}));
+  EXPECT_EQ(task_info.io_addr_mem_types_,
+            (std::vector<uint64_t>{kFixMemType, static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo), kFmMemType,
+                                   kFixMemType}));
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatOptionalZeroSlotUsesAbsoluteMemory) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("optional_zero", "CustomOp");
+  task_info.input_data_addrs_ = {0x10000010ULL, 0x20000020ULL};
+  task_info.input_mem_types_ = {kFmMemType, kFmMemType};
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 0);
+  ASSERT_EQ(ArgsFormatDescUtils::InsertCustomValue(task_info.args_format_holder_.arg_descs, -1, 0U), GRAPH_SUCCESS);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 1);
+
+  EXPECT_EQ(ArgsFormatDescUtils::Serialize(task_info.args_format_holder_.arg_descs),
+            "{i_instance0*}{#0}{i_instance1*}");
+  ASSERT_EQ(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_EQ(task_info.io_addrs_, (std::vector<uint64_t>{0x10000010ULL, 0ULL, 0x20000020ULL}));
+  EXPECT_EQ(task_info.io_addr_mem_types_, (std::vector<uint64_t>{kFmMemType, kAbsoluteMemType, kFmMemType}));
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatInputInstanceOutOfRangeFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("input_oob", "CustomOp");
+  task_info.input_data_addrs_ = {0x1000ULL, 0x1010ULL};
+  task_info.input_mem_types_ = {kFmMemType, kFmMemType};
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 2);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatOutputInstanceOutOfRangeFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("output_oob", "CustomOp");
+  task_info.output_data_addrs_ = {0x2000ULL, 0x2010ULL};
+  task_info.output_mem_types_ = {kFmMemType, kFmMemType};
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::OUTPUT_INSTANCE, 2);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatNegativeInstanceIndexFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("negative_idx", "CustomOp");
+  task_info.input_data_addrs_ = {0x1000ULL};
+  task_info.input_mem_types_ = {kFmMemType};
+  ArgDesc neg_desc;
+  neg_desc.addr_type = AddrType::INPUT_INSTANCE;
+  neg_desc.ir_idx = -1;
+  task_info.args_format_holder_.arg_descs.push_back(neg_desc);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatInputAddrMemTypeSizeMismatchFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("input_mismatch", "CustomOp");
+  task_info.input_data_addrs_ = {0x1000ULL, 0x1010ULL};
+  task_info.input_mem_types_ = {kFmMemType};  // size mismatch
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 0);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatOutputAddrMemTypeSizeMismatchFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("output_mismatch", "CustomOp");
+  task_info.output_data_addrs_ = {0x2000ULL, 0x2010ULL};
+  task_info.output_mem_types_ = {kFmMemType};  // size mismatch
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::OUTPUT_INSTANCE, 0);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
+TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormatWorkspaceAddrMemTypeSizeMismatchFailed) {
+  CustomTaskInfo task_info;
+  task_info.op_desc_ = std::make_shared<OpDesc>("workspace_mismatch", "CustomOp");
+  task_info.workspace_addrs_ = {0x3000ULL, 0x4000ULL};
+  task_info.workspace_mem_types_ = {kFmMemType};  // size mismatch
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::WORKSPACE, 0);
+
+  EXPECT_NE(task_info.AssembleIoByArgsFormat(), SUCCESS);
+  EXPECT_TRUE(task_info.io_addrs_.empty());
+  EXPECT_TRUE(task_info.io_addr_mem_types_.empty());
+}
+
 TEST_F(UtestCustomTaskInfo, AssembleIoByArgsFormat_WorkspaceAndPlaceholder) {
   CustomTaskInfo task_info;
   task_info.workspace_addrs_ = {0x3000ULL, 0x4000ULL};
@@ -1569,7 +1681,7 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_DoesNotCallDeclareLaunch
   SetUpMinimalDavinciModel(model, op_desc);
 
   std::vector<ArgDesc> arg_descs;
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
+  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT_INSTANCE, 0);
   const std::string args_format_str = ArgsFormatDescUtils::Serialize(arg_descs);
 
   const size_t args_count = 1U;
@@ -1606,6 +1718,81 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_DoesNotCallDeclareLaunch
   model.runtime_param_.mem_base = 0U;
 }
 
+TEST_F(UtestCustomTaskInfoE2E, InitLegacyAnnotatedArgsIoTypeMustFail) {
+  const std::string op_type = GenerateUniqueOpType();
+  CustomOpFactory::RegisterCustomOpCreator(op_type.c_str(), []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<TestAnnotatedArgsDeclarativeOp>();
+  });
+
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+
+  std::vector<ArgDesc> legacy_arg_descs;
+  ArgsFormatDescUtils::Append(legacy_arg_descs, AddrType::INPUT, 0);
+  ArgsFormatDescUtils::Append(legacy_arg_descs, AddrType::OUTPUT, 0);
+  ArgsFormatDescUtils::Append(legacy_arg_descs, AddrType::CUSTOM_VALUE);
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), legacy_arg_descs, {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  ASSERT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+  EXPECT_NE(task_info.Init(task_def, &model, args, {}, BuildAnnotatedArgsIowAddrs(0ULL, 0x40ULL, 0x300ULL, false)),
+            SUCCESS)
+      << "Legacy AnnotatedArgs INPUT/OUTPUT types must fail in Init";
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, InitAnnotatedArgsIowAddrsCountMismatchFailed) {
+  const std::string op_type = GenerateUniqueOpType();
+  CustomOpFactory::RegisterCustomOpCreator(op_type.c_str(), []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<TestAnnotatedArgsDeclarativeOp>();
+  });
+
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  ASSERT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
+
+  // Input IowAddrs size mismatch: parsed has 1 input, but override provides 2
+  IowAddrs iow_input_mismatch;
+  iow_input_mismatch.input_logic_addrs = {{0ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)},
+                                          {0x10ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  EXPECT_NE(task_info.Init(task_def, &model, args, {}, iow_input_mismatch), SUCCESS)
+      << "Init must fail when input IowAddrs size does not match parsed input size";
+
+  // Output IowAddrs size mismatch: parsed has 1 output, but override provides 2
+  IowAddrs iow_output_mismatch;
+  iow_output_mismatch.output_logic_addrs = {{0x40ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)},
+                                            {0x50ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  EXPECT_NE(task_info.Init(task_def, &model, args, {}, iow_output_mismatch), SUCCESS)
+      << "Init must fail when output IowAddrs size does not match parsed output size";
+
+  // Workspace IowAddrs size mismatch: parsed has 0 workspace, but override provides 1
+  IowAddrs iow_workspace_mismatch;
+  iow_workspace_mismatch.workspace_logic_addrs = {
+      {0x300ULL, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  EXPECT_NE(task_info.Init(task_def, &model, args, {}, iow_workspace_mismatch), SUCCESS)
+      << "Init must fail when workspace IowAddrs size does not match parsed workspace size";
+
+  model.runtime_param_.mem_base = 0U;
+}
+
 TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_LaunchesTaskDefKernel) {
   const std::string op_type = GenerateUniqueOpType();
   CustomOpFactory::RegisterCustomOpCreator(op_type.c_str(), []() -> std::unique_ptr<BaseCustomOp> {
@@ -1625,7 +1812,8 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_LaunchesTaskDefKernel) {
 
   PisToArgs args;
   args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = 0xDEADBEEFULL;
-  ASSERT_EQ(task_info.Init(task_def, &model, args, {}, BuildAnnotatedArgsIowAddrs()), SUCCESS);
+  ASSERT_EQ(task_info.Init(task_def, &model, args, {}, BuildAnnotatedArgsIowAddrs(0ULL, 0x40ULL, 0x300ULL, false)),
+            SUCCESS);
 
   auto acl_runtime_stub = std::make_shared<AclMockAnnotatedLaunch>();
   AclRuntimeStub::SetInstance(acl_runtime_stub);

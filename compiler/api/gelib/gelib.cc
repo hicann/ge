@@ -28,6 +28,7 @@
 #include "graph/manager/graph_var_manager.h"
 #include "graph/manager/graph_external_weight_manager.h"
 #include "host_cpu_engine/host_cpu_engine.h"
+#include "api/aclgrph/option_utils.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "register/core_num_utils.h"
 #include "acl/acl_rt.h"
@@ -155,6 +156,7 @@ Status GELib::Initialize(const std::map<std::string, std::string> &options) {
 
   GE_INIT_TRACE_TIMESTAMP_END(GELibInitializePrepare, "GELib::InitializePrepare");
   GE_TRACE_START(Init);
+  GE_ASSERT_SUCCESS(CheckDeterministicOptionsValid(new_options), "[Check][DeterministicConfig]failed.");
   ret = instancePtr_->InnerInitialize(new_options);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Init][GeLib]GeLib initial failed.");

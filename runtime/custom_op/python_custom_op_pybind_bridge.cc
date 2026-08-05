@@ -15,16 +15,23 @@
 #undef PyCFunction_NewEx
 #endif
 
+#include <dlfcn.h>
+
 #include <atomic>
 #include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "common/checker.h"
 #include "common/ge_common/debug/ge_log.h"
+#include "ge/ge_api_v2.h"
+#include "graph/operator_factory.h"
 #include "pybind11/embed.h"
 #include "pybind11/stl.h"
 #include "runtime/custom_op/python_custom_op_bridge_types.h"
@@ -41,10 +48,155 @@ constexpr const char *kCustomOpModuleName = "ge.custom_op";
 constexpr const char *kCustomOpNativeModuleName = "ge.custom_op._ge_custom_op_native";
 constexpr const char *kEnvCustomOppPath = "ASCEND_CUSTOM_OPP_PATH";
 constexpr const char *kInterfaceEagerExecute = "eager_execute";
+constexpr const char *kGetRegisteredIrDefSymbol = "GetRegisteredIrDef";
+constexpr const char *kRunnerLibraryNames[] = {
+    "libge_runner_v2.so",
+    "libge_runner.so",
+};
+
+struct PythonCustomOpIrInputMeta {
+  std::string name;
+  uint32_t kind{0U};
+};
+
+struct PythonCustomOpIrAttrMeta {
+  std::string name;
+  std::string type;
+};
+
+struct PythonCustomOpIrOutputMeta {
+  std::string name;
+  uint32_t kind{0U};
+};
+
+struct PythonCustomOpIrMeta {
+  std::string op_type;
+  std::vector<PythonCustomOpIrInputMeta> inputs;
+  std::vector<PythonCustomOpIrAttrMeta> attrs;
+  std::vector<PythonCustomOpIrOutputMeta> outputs;
+};
+
+using GetRegisteredIrDefFn = decltype(&::GetRegisteredIrDef);
+
+// runner 已依赖 custom_op_runtime，bridge 又由 custom_op_runtime 动态加载，因此 bridge 不能反向硬链接 runner。
+// Python 可能以 RTLD_LOCAL 加载 runner 依赖组，这里使用正式公共头文件约束函数签名，
+// 并通过 RTLD_NOLOAD 获取已加载的 runner handle 查询公共符号，不重复加载或提升其全局可见性。
+bool GetRegisteredIrDefFromLoadedRunner(const char *op_type,
+                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
+                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
+                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {
+  for (const auto *runner_library : kRunnerLibraryNames) {
+    void *handle = dlopen(runner_library, RTLD_NOW | RTLD_NOLOAD);
+    if (handle == nullptr) {
+      continue;
+    }
+
+    (void)dlerror();
+    void *symbol = dlsym(handle, kGetRegisteredIrDefSymbol);
+    const char *error = dlerror();
+    if ((symbol == nullptr) || (error != nullptr)) {
+      (void)dlclose(handle);
+      continue;
+    }
+
+    const auto get_registered_ir_def = reinterpret_cast<GetRegisteredIrDefFn>(symbol);
+    const auto ret = get_registered_ir_def(op_type, inputs, outputs, attrs);
+    (void)dlclose(handle);
+    GE_ASSERT_SUCCESS(ret, "GetRegisteredIrDef failed for custom op[%s].", op_type);
+    return true;
+  }
+
+  GE_ASSERT_TRUE(false, "No loaded run package exports %s for custom op[%s].", kGetRegisteredIrDefSymbol, op_type);
+}
+
+bool CopyAscendString(const ge::AscendString &value, const char *field_name, std::string &result) {
+  const char *value_string = value.GetString();
+  GE_ASSERT_NOTNULL(value_string, "GetRegisteredIrDef returned null %s.", field_name);
+  result = value_string;
+  return true;
+}
+
+bool ConvertInputKind(const ge::AscendString &kind_string, const char *op_type, uint32_t &kind) {
+  std::string kind_name;
+  GE_ASSERT_TRUE(CopyAscendString(kind_string, "input kind", kind_name));
+  if (kind_name == "required") {
+    kind = 0U;
+    return true;
+  }
+  if (kind_name == "optional") {
+    kind = 1U;
+    return true;
+  }
+  if (kind_name == "dynamic") {
+    kind = 2U;
+    return true;
+  }
+  GE_ASSERT_TRUE(false, "Unsupported input kind[%s] for custom op[%s].", kind_name.c_str(), op_type);
+}
+
+bool ConvertOutputKind(const ge::AscendString &kind_string, const char *op_type, uint32_t &kind) {
+  std::string kind_name;
+  GE_ASSERT_TRUE(CopyAscendString(kind_string, "output kind", kind_name));
+  if (kind_name == "required") {
+    kind = 0U;
+    return true;
+  }
+  if (kind_name == "dynamic") {
+    kind = 1U;
+    return true;
+  }
+  GE_ASSERT_TRUE(false, "Unsupported output kind[%s] for custom op[%s].", kind_name.c_str(), op_type);
+}
+
+std::unique_ptr<PythonCustomOpIrMeta> CollectPythonCustomOpIrMeta(const std::string &op_type) {
+  if (!ge::OperatorFactory::IsExistOp(op_type.c_str())) {
+    return nullptr;
+  }
+
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> inputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> outputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> attrs;
+  GE_ASSERT_TRUE(GetRegisteredIrDefFromLoadedRunner(op_type.c_str(), inputs, outputs, attrs));
+
+  auto ir_meta = std::unique_ptr<PythonCustomOpIrMeta>(new (std::nothrow) PythonCustomOpIrMeta());
+  GE_ASSERT_NOTNULL(ir_meta, "Allocate IR meta failed for custom op[%s].", op_type.c_str());
+  ir_meta->op_type = op_type;
+  ir_meta->inputs.reserve(inputs.size());
+  for (const auto &input : inputs) {
+    std::string name;
+    GE_ASSERT_TRUE(CopyAscendString(input.first, "input name", name));
+    uint32_t kind = 0U;
+    GE_ASSERT_TRUE(ConvertInputKind(input.second, op_type.c_str(), kind));
+    ir_meta->inputs.emplace_back(PythonCustomOpIrInputMeta{std::move(name), kind});
+  }
+
+  ir_meta->attrs.reserve(attrs.size());
+  for (const auto &attr : attrs) {
+    std::string name;
+    std::string type;
+    GE_ASSERT_TRUE(CopyAscendString(attr.first, "attribute name", name));
+    GE_ASSERT_TRUE(CopyAscendString(attr.second, "attribute type", type));
+    ir_meta->attrs.emplace_back(PythonCustomOpIrAttrMeta{std::move(name), std::move(type)});
+  }
+
+  ir_meta->outputs.reserve(outputs.size());
+  for (const auto &output : outputs) {
+    std::string name;
+    GE_ASSERT_TRUE(CopyAscendString(output.first, "output name", name));
+    uint32_t kind = 0U;
+    GE_ASSERT_TRUE(ConvertOutputKind(output.second, op_type.c_str(), kind));
+    ir_meta->outputs.emplace_back(PythonCustomOpIrOutputMeta{std::move(name), kind});
+  }
+  return ir_meta;
+}
 
 struct PythonCustomOpBridgeHolder {
+  PythonCustomOpBridgeHolder(std::string key, std::string id, std::unique_ptr<PythonCustomOpIrMeta> meta)
+      : descriptor_key(std::move(key)), instance_id(std::move(id)), ir_meta(std::move(meta)) {}
+
   std::string descriptor_key;
   std::string instance_id;
+  std::unique_ptr<PythonCustomOpIrMeta> ir_meta;
 };
 
 CustomOpCapabilityMask ParseInterfaces(const py::object &interfaces_obj) {
@@ -149,6 +301,7 @@ class PythonCustomOpPybindBridge {
     }
     py::gil_scoped_acquire gil;
     const std::string instance_id = BuildInstanceId(desc.descriptor_key);
+    auto ir_meta = CollectPythonCustomOpIrMeta(desc.op_type);
     try {
       const bool created = bridge_module_.attr("create_op_impl_holder")(instance_id, desc.descriptor_key).cast<bool>();
       if (!created) {
@@ -161,7 +314,7 @@ class PythonCustomOpPybindBridge {
              desc.descriptor_key.c_str(), instance_id.c_str(), err.what());
       return nullptr;
     }
-    return new (std::nothrow) PythonCustomOpBridgeHolder{desc.descriptor_key, instance_id};
+    return new (std::nothrow) PythonCustomOpBridgeHolder{desc.descriptor_key, instance_id, std::move(ir_meta)};
   }
 
   void DestroyHolder(PythonCustomOpBridgeHolder *holder) {
@@ -181,8 +334,7 @@ class PythonCustomOpPybindBridge {
     delete holder;
   }
 
-  graphStatus Execute(const PythonCustomOpBridgeHolder *holder, gert::EagerOpExecutionContext *ctx,
-                      const PythonCustomOpIrMetaView *ir_meta) {
+  graphStatus Execute(const PythonCustomOpBridgeHolder *holder, gert::EagerOpExecutionContext *ctx) {
     if ((holder == nullptr) || (ctx == nullptr)) {
       GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
       return GRAPH_FAILED;
@@ -201,8 +353,8 @@ class PythonCustomOpPybindBridge {
                holder->descriptor_key.c_str(), holder->instance_id.c_str());
         return GRAPH_FAILED;
       }
-      py::object result =
-          bridge_module_.attr("call_execute")(holder->instance_id, BuildPythonIrMeta(ir_meta), BuildPythonContext(ctx));
+      py::object result = bridge_module_.attr("call_execute")(
+          holder->instance_id, BuildPythonIrMeta(holder->ir_meta.get()), BuildPythonContext(ctx));
       return TranslateStatusLike(result);
     } catch (const py::error_already_set &err) {
       GELOGE(GRAPH_FAILED, "Execute python custom op failed, descriptor key[%s], instance id[%s]: %s",
@@ -342,22 +494,13 @@ class PythonCustomOpPybindBridge {
     return (!desc.descriptor_key.empty() && !desc.op_type.empty()) ? SUCCESS : FAILED;
   }
 
-  static py::object BuildPythonIrMeta(const PythonCustomOpIrMetaView *ir_meta) {
+  static py::object BuildPythonIrMeta(const PythonCustomOpIrMeta *ir_meta) {
     if (ir_meta == nullptr) {
       return py::none();
     }
-    if ((ir_meta->op_type == nullptr) || ((ir_meta->input_count != 0U) && (ir_meta->inputs == nullptr)) ||
-        ((ir_meta->attr_count != 0U) && (ir_meta->attrs == nullptr)) ||
-        ((ir_meta->output_count != 0U) && (ir_meta->outputs == nullptr))) {
-      throw std::runtime_error("invalid custom op IR meta view");
-    }
 
     py::list inputs;
-    for (size_t i = 0U; i < ir_meta->input_count; ++i) {
-      const auto &input = ir_meta->inputs[i];
-      if (input.name == nullptr) {
-        throw std::runtime_error("invalid custom op IR input view");
-      }
+    for (const auto &input : ir_meta->inputs) {
       py::dict item;
       item["name"] = py::str(input.name);
       item["kind"] = py::int_(input.kind);
@@ -365,11 +508,7 @@ class PythonCustomOpPybindBridge {
     }
 
     py::list attrs;
-    for (size_t i = 0U; i < ir_meta->attr_count; ++i) {
-      const auto &attr = ir_meta->attrs[i];
-      if ((attr.name == nullptr) || (attr.type == nullptr)) {
-        throw std::runtime_error("invalid custom op IR attr view");
-      }
+    for (const auto &attr : ir_meta->attrs) {
       py::dict item;
       item["name"] = py::str(attr.name);
       item["type"] = py::str(attr.type);
@@ -377,11 +516,7 @@ class PythonCustomOpPybindBridge {
     }
 
     py::list outputs;
-    for (size_t i = 0U; i < ir_meta->output_count; ++i) {
-      const auto &output = ir_meta->outputs[i];
-      if (output.name == nullptr) {
-        throw std::runtime_error("invalid custom op IR output view");
-      }
+    for (const auto &output : ir_meta->outputs) {
       py::dict item;
       item["name"] = py::str(output.name);
       item["kind"] = py::int_(output.kind);
@@ -427,10 +562,9 @@ class PythonCustomOpPybindBridge {
     callbacks.destroy = [](void *holder) {
       PythonCustomOpPybindBridge::GetInstance().DestroyHolder(static_cast<PythonCustomOpBridgeHolder *>(holder));
     };
-    callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx,
-                           const PythonCustomOpIrMetaView *ir_meta) -> graphStatus {
+    callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().Execute(static_cast<const PythonCustomOpBridgeHolder *>(holder),
-                                                               ctx, ir_meta);
+                                                               ctx);
     };
     return callbacks;
   }
