@@ -88,7 +88,7 @@
         atc --singleop=$HOME/singleop/gemm.json --output=$HOME/singleop/out/op_model --soc_version=<soc_version>
         ```
 
-        关键参数解释如下，详细参数取值及约束说明请参见[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/cannCommunityATC)：
+        关键参数解释如下，详细参数取值及约束说明请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)：
 
         - --singleop：单算子描述文件（json格式）的路径。
         - --output：存放单算子模型文件的目录。

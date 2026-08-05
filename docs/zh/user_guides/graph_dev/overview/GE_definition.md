@@ -87,9 +87,9 @@ GE面向不同的用户场景，提供了不同的对接方案，便于用户更
         **图 3**  昇腾平台TensorFlow图模式软件架构
         ![图示](../figures/tensorflow_graph_arch.png "昇腾平台TensorFlow图模式软件架构")
 
-        将原始TensorFlow 1.15网络迁移到昇腾平台执行的详细使用方法请参见《TensorFlow 1.15模型迁移》。
+        将原始TensorFlow 1.15网络迁移到昇腾平台执行的详细使用方法请参见[《TensorFlow 1.15模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)。
 
-        将原始TensorFlow 2.6.5网络迁移到昇腾平台执行的详细使用方法请参见《TensorFlow 2.6.5模型迁移》。
+        将原始TensorFlow 2.6.5网络迁移到昇腾平台执行的详细使用方法请参见[《TensorFlow 2.6.5模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)。
 
     - MindSpore框架接入GE
 

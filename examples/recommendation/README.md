@@ -50,7 +50,7 @@
    ```shell
    ./recomand_exec
    ```
-5. 测试开启4个多实例、开启批量H2D、控核时的网络推理性能，其中aiCoreNum参考[GE图引擎接口 -> 数据类型 -> options参数说明](https://www.hiascend.com/document/redirect/CannCommunityAscendGraphApi)按照实际硬件信息调整。
+5. 测试开启4个多实例、开启批量H2D、控核时的网络推理性能，其中aiCoreNum参考[GE图引擎接口 -> 数据类型 -> options参数说明](../../docs/zh/api/graph_engine_api/cpp/ge/options_params/operator_and_graph_compilation.md#geaicorenum)按照实际硬件信息调整。
    ```shell
    ./recomand_exec --multiInstanceNum=4 --enableBatchH2D=true --aiCoreNum="16|16"
    ```

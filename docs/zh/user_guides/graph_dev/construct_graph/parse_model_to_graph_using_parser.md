@@ -34,7 +34,7 @@ Parser层目前为用户开放了自定义OpParser和自定义TensorFlow Scope�
 
 - 自定义OpParser：
 
-  如果用户需要将原始框架中算子直接映射到CANN中已实现的Ascend C算子或者已实现的TBE算子，可直接进行第三方框架的适配，需分别参见[《Ascend C算子开发指南》](https://hiascend.com/document/redirect/CannCommunityOpdevAscendC)中的“编程指南 \> 附录 \> AI框架算子适配”章节或者参见[《TBE&AI CPU算子开发》](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)中的“算子开发过程 \> 算子适配”章节，选择其中一种已实现的算子即可。
+  如果用户需要将原始框架中算子直接映射到CANN中已实现的Ascend C算子或者已实现的TBE算子，可直接进行第三方框架的适配，需分别参见[《Ascend C算子开发》](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.1/docs/zh/guide/index.md)中的“编程指南 \> 附录 \> AI框架算子适配”章节或者参见[《TBE&AI CPU算子开发》](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)中的“算子开发过程 \> 算子适配”章节，选择其中一种已实现的算子即可。
 
 - 自定义TensorFlow Scope融合规则：基于TensorFlow构建的神经网络计算图通常由大量的小算子组成，为了实现高性能的计算，往往需要对子图中的小算子进行融合，使得融合后的大算子可以充分利用硬件加速资源。具体请参见《TensorFlow Parser Scope融合规则开发》。
 

@@ -28,7 +28,7 @@
 
 从内存加载om模型文件数据，模型的输入、输出数据都存放在队列中。本接口只支持加载固定Shape输入的模型。
 
-关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/cannCommunityATC)中的“参数说明 \> 基础功能参数 \> 总体选项 \> --mode”。
+关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
 
 ## 函数原型
 

@@ -326,7 +326,7 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 
     如果要查看上述自定义Pass有没有生效，在编译模型前，需要dump图进行查看：在执行之前设置DUMP\_GE\_GRAPH（详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)）环境变量，然后使用如下入口编译模型：
 
-    - 使用ATC工具进行模型转换。ATC工具使用方法请参见[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/CannAPIReference)。
+    - 使用ATC工具进行模型转换。ATC工具使用方法请参见[《ATC离线模型编译工具》](../../atc_tools/README.md)。
     - [编译Graph为离线模型](../compile_and_run_graph/compile_graph_to_offline_model.md)。
     - [编译并运行Graph](../compile_and_run_graph/compile_and_run_graph.md)。
 
