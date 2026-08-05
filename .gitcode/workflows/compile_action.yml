@@ -19,7 +19,7 @@ on:
         value: ${{jobs.JOB_compile.outputs.primary-key}}
 
 jobs:
-  JOB_compile:
+  JOB_Compile:
     name: Compile
     steps:
       -

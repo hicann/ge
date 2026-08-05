@@ -8,14 +8,13 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-set -e
 
 # Usage:
 #    Command: sh ge_ut.sh
 #    Environment: WORKSPACE, GE_ST_RT2, GIT_TARGET_BRANCH, ASCEND_3RD_LIB_PATH
 
 source "${WORKSPACE}/common.sh"
-set +e
+
 function GE_ENV(){
     # Delete driver link
     echo "Delete driver link."

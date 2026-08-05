@@ -8,7 +8,6 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-set -e
 
 # Usage:
 #    Command: sh ge_compile.sh
@@ -32,18 +31,17 @@ else
         echo "source devtoolset"
         source /opt/rh/devtoolset-7/enable
     fi
-    cd  /home/jenkins/opensource/
+    cd  /home/jenkins/opensource/ || exit
     rm -rf lib_cache
     ln -s /home/jenkins/opensource/ubuntu20/lib_cache /home/jenkins/opensource/lib_cache
 fi
 gcc --version
 source /home/jenkins/Ascend/cann/bin/setenv.bash
-set +e
 
 #########
 # Build #
 #########
-cd ${WORKSPACE}
+cd ${WORKSPACE} || exit
 if [[ -f requirements.txt ]]; then
     pip3 install -r requirements.txt --retries 3 --timeout 60 \
         -i https://pypi.tuna.tsinghua.edu.cn/simple
