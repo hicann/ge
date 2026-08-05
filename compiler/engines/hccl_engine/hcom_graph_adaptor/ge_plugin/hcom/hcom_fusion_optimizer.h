@@ -51,6 +51,7 @@ class HcomFusionOptimizer : public ge::GraphOptimizer {
   HcclResult FuseHcomAllgatherNode(ge::ComputeGraph &graph);
   HcclResult FuseHcomReduceScatterNode(ge::ComputeGraph &graph);
   HcclResult HcomOptimizeSetAttr(ge::ComputeGraph &graph);
+  ge::Status OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph);
 };
 }  // namespace hccl
 #endif

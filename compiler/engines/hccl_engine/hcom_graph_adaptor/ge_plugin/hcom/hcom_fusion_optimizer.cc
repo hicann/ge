@@ -9,6 +9,7 @@
  */
 
 #include "hcom_fusion_optimizer.h"
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include "hcom_alltoallvc_fusion.h"
 #include "hcom_allgather_fusion.h"
@@ -20,6 +21,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_local_context.h"
+#include "graph/ge_context.h"
 #include "framework/memory/memory_api.h"
 #include "ge/ge_api_types.h"            // ge对内options
 #include "framework/common/ge_types.h"  // ge对外options
@@ -58,6 +60,11 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraph(ge::ComputeGraph &graph) {
 }
 
 HcclResult HcomFusionOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &graph) {
+  ge::Status status = OptimizeOriginalGraphJudgeInsert(graph);
+  CHK_PRT_RET(status != ge::SUCCESS,
+              HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: optimize original graph judge insert failed. ret[%d]",
+                         graph.GetName().c_str(), status),
+              HCCL_E_PARA);
   HcclResult ret = FuseHcomAlltoAllVCNode(graph);
   CHK_PRT_RET(ret != HCCL_SUCCESS,
               HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: fuse HcomAlltoAllVC node failed. ret[%d]",
@@ -79,6 +86,55 @@ HcclResult HcomFusionOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &grap
       HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: set attr node failed. ret[%d]", graph.GetName().c_str(), ret),
       HCCL_E_PARA);
   return HCCL_SUCCESS;
+}
+
+ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGraph &graph) {
+  std::string precision_mode_str;
+  ge::graphStatus status = ge::GetContext().GetOption(ge::PRECISION_MODE, precision_mode_str);
+  if (status != ge::GRAPH_SUCCESS || precision_mode_str.empty()) {
+    ge::GetContext().GetOption(ge::PRECISION_MODE_V2, precision_mode_str);
+  }
+  if (precision_mode_str != "force_fp16" && precision_mode_str != "fp16") {
+    HCCL_INFO("[Optimize][Precision]OptimizeOriginalGraphJudgeInsert precision_mode_str[%s]",
+              precision_mode_str.c_str());
+    return ge::SUCCESS;
+  }
+
+  for (auto nodePtr : graph.GetAllNodes()) {
+    if (!nodePtr) {
+      HCCL_WARNING("[Optimize][Precision]: null node exists.");
+      continue;
+    }
+    auto opDescPtr = nodePtr->GetOpDesc();
+    if (!opDescPtr) {
+      HCCL_WARNING("[Optimize][Precision]: desc of node[%s] is null.", nodePtr->GetName().c_str());
+      continue;
+    }
+
+    std::string opType = opDescPtr->GetType();
+    if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) ==
+        HCOM_SUPPORTED_OP_TYPE.end()) {
+      continue;
+    }
+    for (size_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {
+      auto inTensorDescPtr = opDescPtr->MutableInputDesc(i);
+      if (inTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
+        inTensorDescPtr->SetDataType(ge::DataType::DT_FLOAT16);
+        HCCL_DEBUG("[Optimize][Precision]node[%s] input[%zu] datatype changed from FP32 to FP16.",
+                   opDescPtr->GetName().c_str(), i);
+      }
+    }
+    for (size_t i = 0; i < opDescPtr->GetOutputsSize(); i++) {
+      auto outTensorDescPtr = opDescPtr->MutableOutputDesc(i);
+      if (outTensorDescPtr->GetDataType() == ge::DataType::DT_FLOAT) {
+        outTensorDescPtr->SetDataType(ge::DataType::DT_FLOAT16);
+        HCCL_DEBUG("[Optimize][Precision]node[%s] output[%zu] datatype changed from FP32 to FP16.",
+                   opDescPtr->GetName().c_str(), i);
+      }
+    }
+  }
+
+  return ge::SUCCESS;
 }
 
 HcclResult HcomFusionOptimizer::HcomOptimizeSetAttr(ge::ComputeGraph &graph) {
