@@ -95,7 +95,8 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
     ge::GetContext().GetOption(ge::PRECISION_MODE_V2, precision_mode_str);
   }
   if (precision_mode_str != "force_fp16" && precision_mode_str != "fp16") {
-    HCCL_INFO("[Optimize][Precision]OptimizeOriginalGraphJudgeInsert precision_mode_str[%s]", precision_mode_str.c_str());
+    HCCL_INFO("[Optimize][Precision]OptimizeOriginalGraphJudgeInsert precision_mode_str[%s]",
+              precision_mode_str.c_str());
     return ge::SUCCESS;
   }
 
@@ -111,7 +112,8 @@ ge::Status HcomFusionOptimizer::OptimizeOriginalGraphJudgeInsert(ge::ComputeGrap
     }
 
     std::string opType = opDescPtr->GetType();
-    if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) == HCOM_SUPPORTED_OP_TYPE.end()) {
+    if (std::find(HCOM_SUPPORTED_OP_TYPE.begin(), HCOM_SUPPORTED_OP_TYPE.end(), opType) ==
+        HCOM_SUPPORTED_OP_TYPE.end()) {
       continue;
     }
     for (size_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {

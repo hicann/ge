@@ -46,7 +46,7 @@ class HcomFusionOptimizer : public ge::GraphOptimizer {
  protected:
   HcclResult HcomOptimizeOriginalGraph(ge::ComputeGraph &graph);
 
-private:
+ private:
   HcclResult FuseHcomAlltoAllVCNode(ge::ComputeGraph &graph);
   HcclResult FuseHcomAllgatherNode(ge::ComputeGraph &graph);
   HcclResult FuseHcomReduceScatterNode(ge::ComputeGraph &graph);
