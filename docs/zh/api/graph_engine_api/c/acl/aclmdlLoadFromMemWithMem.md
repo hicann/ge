@@ -28,7 +28,7 @@
 
 从内存加载om模型文件数据，由用户自行管理模型运行的内存。
 
-关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/cannCommunityATC)中的“参数说明 \> 基础功能参数 \> 总体选项 \> --mode”。
+关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
 
 ## 函数原型
 
