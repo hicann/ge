@@ -19,6 +19,7 @@ This directory provides examples for implementing custom fusion passes by inheri
 | Custom pass example for flattening BatchMatMul to MatMul | [README](7_batch_matmul_flatten_pass/cpp/README.md) |
 | Custom pass example for BmmTile fusion (removing redundant Tile) | [README](8_bmm_tile_pass/cpp/README_en.md) |
 | Custom pass example for BatchMatMulV2 to Mul+ReduceSumD | [README](9_bmm_to_mul_reduce_pass/cpp/README_en.md) |
+| Custom pass example for Data+Transpose fusion (NCHW→NHWC) and ExtendConv2D+Transpose fusion | [README](10_transpose_fusion_pass/cpp/README.md) |
 
 ## Development Guide
 
