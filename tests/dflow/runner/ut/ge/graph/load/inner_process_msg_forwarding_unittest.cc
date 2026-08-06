@@ -15,7 +15,7 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/blocking_queue.h"
-#include "dflow/executor/inner_process_msg_forwarding.h"
+#include "dflow/runner/executor/inner_process_msg_forwarding.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "graph/utils/tensor_utils.h"

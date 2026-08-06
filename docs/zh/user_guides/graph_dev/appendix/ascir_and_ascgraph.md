@@ -2,7 +2,7 @@
 
 ## 简介
 
-AscendC IR（如下简称AscIR）是一套基于Ascend C语言定义的IR，专门负责自动融合软件栈的后端工作，AscIR与Ascend C API一一对应：AscIR的类型（type）用于区分对应的Ascend C API；AscIR定义中的输入、输出、属性等内容，分别映射到Ascend C API的各类参数。
+AscendC IR（如下简称AscIR）是一套基于Ascend C语言定义的IR，专门负责自动融合软件栈的后端工作，AscIR与[Ascend C API](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/api/README.md)一一对应：AscIR的类型（type）用于区分对应的Ascend C API；AscIR定义中的输入、输出、属性等内容，分别映射到Ascend C API的各类参数。
 
 从[融合原理](../autofuse/overview.md)中得知，如果融合范围用FusedGraph来表达，FusedGraph内部包含\>=1个AscBackend节点，一个AscBackend节点对应一个AscGraph，而一个AscGraph内包含多个AscIR节点。下面分别介绍AscIR和AscGraph。
 

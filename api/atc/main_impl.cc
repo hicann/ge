@@ -2379,7 +2379,7 @@ int32_t main_impl(int32_t argc, char *argv[]) {
     GELOGW("[Ensure][PythonRuntime] failed before running ATC, continue initialization, ret[%u].", python_runtime_ret);
   }
   GE_MAKE_GUARD(release_python_resources, []() {
-    (void)ge::fusion::ShutdownPassPluginsForProcess();
+    (void)ge::fusion::UnloadPassPlugins();
     (void)ge::custom_op::ShutdownCustomOpsForProcess();
     (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   });

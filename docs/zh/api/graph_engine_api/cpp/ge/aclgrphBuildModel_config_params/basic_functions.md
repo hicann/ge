@@ -101,7 +101,7 @@ aipp_op {
 
 > [!NOTE]说明
 >
->配置文件详细说明，请参考[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/CannCommunityAtc)。
+>配置文件详细说明，请参考[《ATC离线模型编译工具》](../../../../../user_guides/atc_tools/README.md)。
 
 **产品支持情况：**
 

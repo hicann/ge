@@ -15,7 +15,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "utils/mock_execution_runtime.h"
 
-#include "dflow/compiler/session/dflow_api.h"
+#include "dflow/runner/session/dflow_api.h"
 #include "depends/slog/src/slog_stub.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/ge_local_context.h"
@@ -28,8 +28,8 @@
 #include "api/gelib/gelib.h"
 #include "init_ge.h"
 #include "ge/ge_api.h"  // 等GE提供真正的依赖接口
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
 #include "common/env_path.h"
 
 using namespace testing;

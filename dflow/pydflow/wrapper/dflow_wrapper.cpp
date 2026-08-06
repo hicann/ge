@@ -22,7 +22,7 @@
 #include "pybind11/stl.h"
 #include "dlog_pub.h"
 #include "flow_graph/data_flow.h"
-#include "dflow/compiler/session/dflow_api.h"
+#include "dflow/runner/session/dflow_api.h"
 #include "ge/ge_api_v2.h"
 #include "parser/onnx_parser.h"
 #include "parser/tensorflow_parser.h"

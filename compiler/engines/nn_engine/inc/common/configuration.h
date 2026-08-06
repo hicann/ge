@@ -384,7 +384,7 @@ class Configuration {
   bool IsPathExistedInOpp(const std::string &path, bool is_full_path) const;
 
   void ResolveBinaryPath(const std::string &sub_path, const std::string &path_type, const int64_t main_impl_type,
-                         bool isOm, const std::string &binaryKey);
+                         bool isOm, const std::string &binaryKey, bool is_full_path);
 
   bool AddCustomOpStoreContent(const std::string &full_or_sub_path, const std::string &path_type,
                                const int64_t main_impl_type, const bool is_full_path);

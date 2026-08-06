@@ -96,7 +96,7 @@ StagePartition → EnginePlacer1 → HostcpuEngineUpdatePass
 | `ge.exec.static_model_ops_lower_limit` | 4（ffts+ 场景为 6） | 静态子图最少算子数阈值，低于此值的静态子图降级为动态。设为 -1 可将所有子图合并为动态图 |
 | `ge.topoSortingMode` | 默认 | 设为 `3` 启用稳定 RDFS 排序，会改变 cluster 合并策略 |
 | `ge.tiling_schedule_optimize` | `0` | 设为 `1` 启用 tiling 下沉（在 AICPU 上执行 tiling） |
-| `ge.host_scheduling_max_threshold` | `0` | 静态图节点数低于此阈值时整体走动态执行 |
+| `ge.exec.hostSchedulingMaxThreshold` | `0` | 静态图节点数低于此阈值时整体走动态执行 |
 
 ### 4.3 图属性接口
 
@@ -109,6 +109,7 @@ StagePartition → EnginePlacer1 → HostcpuEngineUpdatePass
 | `_is_unknown_shape` | 节点级 | 标记节点的动态/静态属性 |
 | `ATTR_STAGE_LEVEL` | 节点级 | 流水线阶段编号 |
 | `ATTR_NAME_MEMORY_DISCONTIGUOUS_ALLOCATION` | 图级 | 启用非连续内存分配（动态子图） |
+| `ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION` | 图级 | 若为 true 则直接跳过动态 Shape 拆分（dynamic_shape_partition.cc） |
 
 ### 4.4 Python API
 
@@ -171,23 +172,28 @@ InitClusters → MergeClusters → ProcessUniqueClusters
 `MarkUnknownShapeNodes()` 方法按以下规则判断节点是否属于动态 Shape：
 
 1. **动态 Shape 算子**：Tensor Shape 中存在 -1（未知维度）或 -2（未知 rank）
-2. **Force Unknown 标记**：节点被设置了 `_force_unknown_shape=true`
+2. **Force Unknown 标记**：节点被设置了 `_is_unknown_shape=true` 或 `_force_unknown_shape=true`（代码先检查 `ATTR_NAME_IS_UNKNOWN_SHAPE`，再检查 `ATTR_NAME_FORCE_UNKNOWN_SHAPE`，dynamic_shape_partition.cc）
 3. **Tiling 依赖不支持下沉**：节点存在动态 tiling 依赖，但不支持在 AICPU 上执行 tiling
 4. **地址刷新不支持**：节点 `_is_support_addr_refresh=false`
 5. **Host CPU 引擎**：节点属于 `DNN_VM_HOST_CPU` 引擎
 6. **子图传播**：若节点的子图（控制流子图）中存在动态 Shape 算子，则该节点也归为动态
+7. **免 Tiling 机制（No Tiling）**：动态 Shape 节点（Shape 含 -1/-2）如果支持免 tiling，可以留在静态子图中。`IsNodeSupportNoTiling()`（dynamic_shape_partition.cc）判断条件包括：引擎支持 tiling inline 和 export shape、shape range 有效等。`MarkOpNoTiling()`（dynamic_shape_partition.cc）为支持的节点设置 `ATTR_NAME_OP_NO_TILING` 和 `ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE` 属性。支持免 tiling 的节点放入 `unknown_shape_no_tiling_nodes_` 集合，而非 `unknown_shape_nodes_`，因此不会触发动态拆分。
 
 #### 5.2.2 Cluster 合并策略
 
 `DynamicShapeCluster` 继承 `BaseCluster`，按类型分为 `KNOWN_SHAPE`（type_index=4）和 `UNKNOWN_SHAPE`（type_index=5）。
 
-`MergeClustersNormal()` 的合并顺序：
+`MergeClustersNormal()` 的合并顺序（非 ffts+ 场景）：
 
 1. **动态路径吸附**：遍历所有 `UNKNOWN_SHAPE` cluster，若两个动态 cluster 之间存在路径，则将路径上所有 cluster 合并为动态。这保证了动态链路的连续性。
-2. **静态单路径合并**：遍历 `KNOWN_SHAPE` cluster，若两个静态 cluster 之间仅存在唯一路径（无环），则合并。
-3. **小 cluster 降级**：节点数低于 `ge.exec.static_model_ops_lower_limit` 阈值的静态 cluster 降级为动态，避免产生过小的静态子图碎片。
-4. **控制流合并**：属于同一 `ATTR_NAME_CONTROL_FLOW_GROUP` 的控制流节点（如 StreamActive、StreamSwitch）合并到同一 cluster。
-5. **RefVariable 合并**：引用类型的 Variable 节点与其消费者合并到同一 cluster。
+2. **静态单路径合并**（含 RefVariable 合并）：遍历 `KNOWN_SHAPE` cluster，若两个静态 cluster 之间仅存在唯一路径（无环），则合并。`TryMergeClusters()` 内部会处理 RefVariable 节点与其消费者的合并。
+3. **输入节点合并**：通过 `MergeClustersInputData()` 将输入节点 cluster 合并到相邻 cluster。
+4. **小 cluster 降级**：节点数低于 `ge.exec.static_model_ops_lower_limit` 阈值的静态 cluster 降级为动态，避免产生过小的静态子图碎片。
+5. **动态 cluster 合并**：通过 `TryMergeClusters(filter_unknown)` 进一步合并相邻的动态 cluster。
+
+> **注意**：控制流合并在 `MergeClustersNormal()` **之前**由 `MergeClustersControlFlow()` 执行，不属于 `MergeClustersNormal()` 的内部步骤。
+
+> **ffts+ 场景**：当 `merge_known_first_=true`（ffts+ 场景）时，合并顺序变为：先合并静态 cluster → 小 cluster 降级 → 合并输入节点 → 再合并动态 cluster。
 
 #### 5.2.3 重拆分机制
 
@@ -195,7 +201,11 @@ InitClusters → MergeClusters → ProcessUniqueClusters
 
 #### 5.2.4 整图动态判定
 
-`IsGraphNeedUnknownShapePartition()` 判断整图是否需要走动态拆分流程。如果图中没有任何动态 Shape 节点，则设置 `_dynamic_shape_partitioned=false`，整图走静态编译路径。如果图中静态节点数很少（低于 `ge.host_scheduling_max_threshold`），则整图直接走 Host 调度模式。
+`IsGraphNeedUnknownShapePartition()` 判断整图是否需要走动态拆分流程。实际判断条件为 `(IsSubgraphMultiDims() || has_no_tiling_ || unknown_shape_no_tiling_nodes_.empty()) && unknown_shape_nodes_.empty()`（dynamic_shape_partition.cc），即只有当存在**不支持免 tiling 的动态节点**（`unknown_shape_nodes_` 非空）时，图才需要走动态拆分流程。支持免 tiling 的动态节点（`unknown_shape_no_tiling_nodes_`）不会触发动态拆分。
+
+如果图中没有任何动态 Shape 节点（即上述条件不满足），则设置 `_dynamic_shape_partitioned=false`，整图走静态编译路径。
+
+此外，`IsGraphNeedHostCpuSchedule()` 判断整图是否走 Host 调度模式。实际判断条件为 `(known_shape_nodes_.size() < max_threshold) && (!has_special_node_) && (!is_need_iteration)`（dynamic_shape_partition.cc），即除了静态节点数低于 `ge.exec.hostSchedulingMaxThreshold` 阈值外，图中还必须没有特殊节点（控制流算子、带子图的节点等）且不需要训练迭代流控，才会整图走 Host 调度模式。
 
 ### 5.3 引擎级拆分：EnginePartitioner
 
@@ -204,7 +214,7 @@ InitClusters → MergeClusters → ProcessUniqueClusters
 #### 5.3.1 拆分流程
 
 1. **Initialize**：通过 `EnginePlacer` 为每个节点分配引擎，创建初始 cluster（每个节点一个，携带引擎名和 stream label）。
-2. **MarkClusters**：遍历 cluster 对，若两个 cluster 具有相同引擎 + 相同 stream label + 之间无第二条路径，则合并。
+2. **MarkClusters**：遍历 cluster 对，若两个 cluster 具有相同引擎 + 相同 stream label（或相同 `user_stream_label`）+ 之间无第二条路径，则合并。当父 cluster 的 `user_stream_label_` 非空且与子 cluster 匹配时，即使 `stream_label_` 不同也可合并（engine_partitioner.cc）。
 3. **SplitSubGraphs**：为每个合并后的 cluster 创建 `ComputeGraph` 子图，在不同引擎子图之间插入 `PlaceHolder`/`End` 节点对。
 4. **SortSubGraphs**：对子图拓扑排序，将 Data 节点合并到统一的输入子图。
 
@@ -217,12 +227,14 @@ InitClusters → MergeClusters → ProcessUniqueClusters
 
 子图优化完成后，`MergeAfterSubGraphOptimization()` 方法移除所有 PlaceHolder/End 节点对，将子图重新合并为完整的计算图。
 
-#### 5.3.3 两种拆分模式
+#### 5.3.3 拆分模式
 
-`EnginePartitioner` 支持两种拆分模式：
+`EnginePartitioner` 支持以下拆分模式：
 
 - **CompositeEnginePartitioning**：按组合引擎拆分，粒度较粗，用于大型引擎级别的分离。
 - **AtomicEnginePartitioning**：按原子引擎拆分，粒度更细，用于更精确的引擎隔离。
+- **kSecondPartitioning**：图构建阶段的二次引擎拆分（graph_builder.cc），用于处理自定义算子的引擎分配。
+- **kMerging**：子图合并模式，用于子图优化后的重新合并。
 
 ### 5.4 流水线阶段拆分：StagePartitioner
 
@@ -359,7 +371,7 @@ flowchart TD
 
 | 文件 | 核心内容 |
 |------|----------|
-| `docs/architecture/constraints/graph_split.md` | 图拆分模块设计约束文档 |
+| `docs/zh/design/constraints/graph_split.md` | 图拆分模块设计约束文档 |
 | `compiler/graph/partition/base_partitioner.h/.cc` | 拆分框架基类，定义拆分流水线 |
 | `compiler/graph/partition/base_cluster.h/.cc` | Cluster 基类，节点合并与子图构建 |
 | `compiler/graph/partition/dynamic_shape_partition.h/.cc` | 动静 Shape 拆分策略实现 |

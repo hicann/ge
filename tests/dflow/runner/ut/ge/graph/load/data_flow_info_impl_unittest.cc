@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "ge/ge_data_flow_api.h"
-#include "dflow/executor/data_flow_info_utils.h"
+#include "dflow/runner/executor/data_flow_info_utils.h"
 
 using namespace std;
 using namespace testing;

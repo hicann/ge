@@ -82,7 +82,7 @@ The same logic also exists in the runtime's `TransformOutputShape()`: the operat
 
 In the GE type system, `Shape` is a pure data structure without bound semantics—it can carry either OriginShape or StorageShape, depending on which interface returns it.
 
-The `StorageShape` class (defined in `exe_graph/runtime/storage_shape.h`) is actually a **composite descriptor that carries both Origin and Storage**, although its name may cause confusion:
+The `StorageShape` class (defined in `exe_graph/runtime/storage_shape.h`, an external dependency header referenced via include path) is actually a **composite descriptor that carries both Origin and Storage**, although its name may cause confusion:
 
 ```
 class StorageShape {
@@ -110,9 +110,9 @@ aclopInferShape(opType, numInputs, inputDesc, inputs, numOutputs, outputDesc, at
 → Call aclopExecuteV2 to execute the operator
 ```
 
-### 3.2 Automatic Inference During Graph Compilation (Offline Compilation/Online Graph Mode)
+### 3.2 Automatic Inference During Graph Compilation (Offline Compilation/IR Build/Online Graph Mode)
 
-When users build `ge::Graph` and compile the model through `aclgrphBuildModel`, the GE compiler automatically runs the InferShape Pass during the graph preparation stage, inferring output Shape for all operators. Users do not need to manually call InferShape.
+When users build `ge::Graph` and compile the model through `aclgrphBuildModel` (IR Build) or `Session` + `CompileGraph` (online compilation, see `ge_api.h` / `ge_api_v2.h`), the GE compiler automatically runs the InferShape Pass during the graph preparation stage, inferring output Shape for all operators. Users do not need to manually call InferShape.
 
 Under optimization level O1, GE disables all graph fusion and UB fusion Passes, but retains basic optimizations such as InferShape, constant folding, and dead edge elimination.
 
@@ -169,7 +169,7 @@ graphStatus InferShapeAndType();
 
 ### 4.3 Operator Development Interface: InferShapeContext
 
-**Header file**: `exe_graph/runtime/infer_shape_context.h`
+**Header file**: `exe_graph/runtime/infer_shape_context.h` (external dependency header, referenced via include path, not in GE repository)
 
 Operator developers implement Shape inference through `InferShapeContext`. This class inherits from `ExtendedKernelContext` and provides the following key interfaces:
 
@@ -349,7 +349,7 @@ InferStorageShape()  Dispatch entry
 | Regular InferShape | Operator has registered v2 infer_shape function | `InferShape(all_shapes, FindInferShapeFunc(node_type, space_registry))` |
 | CompatibleInferShape | Operator only has v1 InferShapeFunc | `CompatibleInferShape(CreateOpFromBuffer, FindCompatibleInferShapeFunc(node_type), shapes)` |
 | SymbolInferShape | autofuse node (AscBackend, etc.) | `InferShape(symbol_shapes, infer_shape_func)` |
-| InferShapeByRule | Operator has attached Shape inference rule | `InferShapeByRule(LoadShapeRule(binary))` |
+| InferShapeByRule | Operator has attached Shape inference rule | `InferShapeByRule(LoadShapeRuleFromBinary or LoadShapeRuleFromJson)` |
 
 #### Execution Flow
 
@@ -364,7 +364,7 @@ Taking Regular InferShape as an example, the runtime execution flow:
 
 #### FindInferShapeFunc Deduplication
 
-Multiple operators of the same type do not need to repeatedly create `FindInferShapeFunc` nodes. Through `LoweringGlobalData`'s `GetOrCreateUniqueValueHolder()` method, operators of the same optype share one function lookup node, reducing Const node count in the execution graph:
+Multiple operators of the same type do not need to repeatedly create `FindInferShapeFunc` nodes. Through `LoweringGlobalData`'s `GetOrCreateUniqueValueHolder()` method, operators with the same optype and the same OPP implementation version share one function lookup node, reducing Const node count in the execution graph (dedup key is `type + "_FindInferShapeFunc_" + to_string(opp_impl_version)`, see bg_infer_shape.cc):
 
 - Without optimization: Each operator node produces `Const(op_type) + FindInferShapeFunc`, N operators of same type produce 2N nodes
 - After optimization: N operators of same type share 1 `FindInferShapeFunc` node
@@ -413,17 +413,23 @@ Symbolic Shape inference introduces symbolic variables (such as `s0`, `s1`) and 
 ### 7.3 Inference Flow
 
 ```
-SymbolicInfoPreProcessor       // Preprocessing: eliminate control flow, fold constants
+PreProcess(compute_graph)              // Preprocessing wrapper: graph optimization (constant folding, Cast reduction, etc.)
   ↓
-SymbolicShapeSymbolizer::Symbolize  // Symbolize Shape of Data nodes
-  ↓                                  // Fixed dimension → constant symbol
-  ↓                                  // Dynamic dimension (-1) → variable symbol + Source
-SymbolicShapeInference::Infer       // Topological traversal, call symbolic inference function per node
+SymbolicShapeSymbolizer::Symbolize     // Symbolize Shape of Data nodes (executed first)
+  ↓                                    // Fixed dimension → constant symbol
+  ↓                                    // Dynamic dimension (-1) → variable symbol + Source
+SymbolicInfoPreProcessor::Run          // Preprocessing: eliminate control flow, fold constants
   ↓
-SymbolicShapeInference::Simplify    // Simplify all symbolic expressions
+AutoFusePass                           // Registered as Pass in PassManager (autofuse_optimize.cc)
+  ├─ SymbolicShapeInference::Infer     // Topological traversal, call symbolic inference function per node (auto_fuse_pass.cc)
+  │    └─ Simplify                     // Called internally by Infer (free function in anonymous namespace): simplify all symbolic expressions
+  └─ LoweringAndCanFuseWithCounter     // Automatic fusion
   ↓
-SymbolicInfoPostProcessor           // Post-processing: mark merge key, symbol count, generate guard function
+PostProcess(compute_graph)             // Post-processing wrapper
+  └─ SymbolicInfoPostProcessor::Run    // Mark merge key, symbol count, generate guard function
 ```
+
+> **Note**: The `SymbolicShapeInference` class (symbolic_shape_inference.h) has only one public method `Infer()`. `Simplify()` is a free function defined in an anonymous namespace (symbolic_shape_inference.cc), called internally by `Infer()` after inference completes (symbolic_shape_inference.cc), not an independent class method. `PreProcess()` and `PostProcess()` are wrapper functions of the `AutofuseOptimize` class, encapsulating preprocessing graph optimization and post-processing logic respectively.
 
 ### 7.4 Operator Implementation Examples
 
@@ -446,7 +452,7 @@ Symbolic inference uses `IMPL_OP_INFER_SYMBOL_SHAPE_INNER` macro for registratio
 
 ### 7.6 Merge Key Optimization
 
-`MarkInferShapeMergeKey()` generates a deterministic key based on output symbolic Shape for each autofuse node (format like `[dim1_dim2][dim3_dim4]`). During lowering, nodes with the same key can share one InferShape node, reducing runtime overhead.
+`MarkInferShapeMergeKey()` generates a deterministic key based on output symbolic Shape for all nodes with symbolic outputs (format like `[dim1_dim2][dim3_dim4]`). This function iterates all nodes in the graph (`graph->GetAllNodes()`), and only generates a non-empty key when the node output carries the `SymbolicDescAttr` attribute (that is, nodes that have undergone symbolic inference) (symbolic_info_post_processor.cc). During lowering, nodes with the same key can share one InferShape node, reducing runtime overhead.
 
 ## 8 aclopInferShape Implementation Mechanism
 
@@ -500,8 +506,8 @@ atc --model=model.onnx --dump_mode=1 --json=output.json
 | --------- | ------------------- | ----------- |
 | `GeTensorDesc` | `graph/ge_tensor_desc.h` | Tensor descriptor, carries both Origin and Storage information (Shape, Format, DataType, ShapeRange) |
 | `GeShape` | `graph/ge_shape.h` | Pure dimension data structure, can carry OriginShape or StorageShape |
-| `StorageShape` | `exe_graph/runtime/storage_shape.h` | Origin + Storage composite descriptor |
-| `InferShapeContext` | `exe_graph/runtime/infer_shape_context.h` | Context parameter for operator InferShape function |
+| `StorageShape` | `exe_graph/runtime/storage_shape.h` (external dependency) | Origin + Storage composite descriptor |
+| `InferShapeContext` | `exe_graph/runtime/infer_shape_context.h` (external dependency) | Context parameter for operator InferShape function |
 | `CtInferShapeContext` | `graph/ct_infer_shape_context.h` | Compile-time extended context, adds InferenceContext access |
 | `InferSymbolShapeContext` | `exe_graph/runtime/infer_symbol_shape_context.h` | Symbolic inference context |
 | `InferenceContext` | `graph/inference_context.h` | Compile-time resource association information (handle shape, marks, etc.) |
@@ -549,7 +555,7 @@ atc --model=model.onnx --dump_mode=1 --json=output.json
 
 | File | Description |
 | ---- | ----------- |
-| `inc/graph_metadef/exe_graph/runtime/infer_shape_context.h` | InferShapeContext interface definition |
-| `inc/graph_metadef/exe_graph/runtime/storage_shape.h` | StorageShape type definition |
+| `inc/graph_metadef/exe_graph/runtime/infer_shape_context.h` (external dependency, not in GE repository) | InferShapeContext interface definition |
+| `inc/graph_metadef/exe_graph/runtime/storage_shape.h` (external dependency, not in GE repository) | StorageShape type definition |
 | `inc/graph_metadef/exe_graph/runtime/infer_symbol_shape_context.h` | InferSymbolShapeContext interface definition |
 | `inc/graph_metadef/graph/symbolizer/symbolic.h` | Expression/Symbol symbolic expression |

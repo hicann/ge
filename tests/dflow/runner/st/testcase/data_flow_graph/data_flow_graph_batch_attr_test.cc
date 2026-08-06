@@ -17,14 +17,14 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/ge_global_options.h"
 #include "framework/common/ge_types.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
 #include "init_ge.h"
 #include "macro_utils/dt_public_scope.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "common/env_path.h"
-#include "compiler/session/dflow_api.h"
+#include "runner/session/dflow_api.h"
 
 using namespace testing;
 

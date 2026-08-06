@@ -82,7 +82,7 @@ Storage 由 GE 编译器根据算子能力、格式亲和性、全图数据流�
 
 在 GE 的类型系统中，`Shape` 是纯数据结构，不绑定语义——它可以承载 OriginShape 也可以承载 StorageShape，取决于由哪个接口返回。
 
-而 `StorageShape` 类（定义于 `exe_graph/runtime/storage_shape.h`）虽然名字容易引起混淆，但它实际上是**同时携带 Origin 和 Storage 的复合描述体**：
+而 `StorageShape` 类（定义于 `exe_graph/runtime/storage_shape.h`，外部依赖头文件，通过 include 路径引用）虽然名字容易引起混淆，但它实际上是**同时携带 Origin 和 Storage 的复合描述体**：
 
 ```
 class StorageShape {
@@ -110,9 +110,9 @@ aclopInferShape(opType, numInputs, inputDesc, inputs, numOutputs, outputDesc, at
 → 调用 aclopExecuteV2 执行算子
 ```
 
-### 3.2 图编译过程中的自动推导（离线编译/在线图模式）
+### 3.2 图编译过程中的自动推导（离线编译/IR 编译/在线图模式）
 
-用户构建 `ge::Graph` 并通过 `aclgrphBuildModel` 编译模型时，GE 编译器在图准备阶段自动运行 InferShape Pass，为所有算子推导输出 Shape。用户无需手动调用 InferShape。
+用户构建 `ge::Graph` 并通过 `aclgrphBuildModel`（IR 编译）或 `Session` + `CompileGraph`（在线编译，见 `ge_api.h` / `ge_api_v2.h`）编译模型时，GE 编译器在图准备阶段自动运行 InferShape Pass，为所有算子推导输出 Shape。用户无需手动调用 InferShape。
 
 优化级别 O1 下，GE 关闭所有图融合和 UB 融合 Pass，但保留 InferShape、常量折叠、死边消除等基础优化。
 
@@ -169,7 +169,7 @@ graphStatus InferShapeAndType();
 
 ### 4.3 算子开发接口：InferShapeContext
 
-**头文件**：`exe_graph/runtime/infer_shape_context.h`
+**头文件**：`exe_graph/runtime/infer_shape_context.h`（外部依赖头文件，通过 include 路径引用，不在 GE 仓库内）
 
 算子开发者通过 `InferShapeContext` 实现 Shape 推导。该类继承自 `ExtendedKernelContext`，提供以下关键接口：
 
@@ -349,7 +349,7 @@ InferStorageShape()  分发入口
 | Regular InferShape | 算子注册了 v2 infer_shape 函数 | `InferShape(all_shapes, FindInferShapeFunc(node_type, space_registry))` |
 | CompatibleInferShape | 算子仅有 v1 InferShapeFunc | `CompatibleInferShape(CreateOpFromBuffer, FindCompatibleInferShapeFunc(node_type), shapes)` |
 | SymbolInferShape | autofuse 节点（AscBackend 等） | `InferShape(symbol_shapes, infer_shape_func)` |
-| InferShapeByRule | 算子附带了 Shape 推导规则 | `InferShapeByRule(LoadShapeRule(binary))` |
+| InferShapeByRule | 算子附带了 Shape 推导规则 | `InferShapeByRule(LoadShapeRuleFromBinary 或 LoadShapeRuleFromJson)` |
 
 #### 执行流程
 
@@ -366,7 +366,7 @@ InferStorageShape()  分发入口
 
 #### FindInferShapeFunc 去重
 
-同一类型的多个算子不需要重复创建 `FindInferShapeFunc` 节点。通过 `LoweringGlobalData` 的 `GetOrCreateUniqueValueHolder()` 方法，相同 optype 的算子共享同一个函数查找节点，减少执行图中的 Const 节点数量：
+同一类型的多个算子不需要重复创建 `FindInferShapeFunc` 节点。通过 `LoweringGlobalData` 的 `GetOrCreateUniqueValueHolder()` 方法，相同 optype 且相同 OPP 实现版本的算子共享同一个函数查找节点，减少执行图中的 Const 节点数量（去重 key 为 `type + "_FindInferShapeFunc_" + to_string(opp_impl_version)`，见 bg_infer_shape.cc）：
 
 - 未优化：每个算子节点产生 `Const(op_type) + FindInferShapeFunc`，N 个同类型算子产生 2N 个节点
 - 优化后：N 个同类型算子共享 1 个 `FindInferShapeFunc` 节点
@@ -415,17 +415,23 @@ InferStorageShape()  分发入口
 ### 7.3 推导流程
 
 ```
-SymbolicInfoPreProcessor       // 预处理：消除控制流、折叠常量
+PreProcess(compute_graph)              // 预处理 wrapper：图优化（常量折叠、Cast 消减等）
   ↓
-SymbolicShapeSymbolizer::Symbolize  // 将 Data 节点的 Shape 符号化
-  ↓                                  // 固定维度 → 常量符号
-  ↓                                  // 动态维度（-1）→ 变量符号 + Source
-SymbolicShapeInference::Infer       // 拓扑遍历，逐节点调用符号化推导函数
+SymbolicShapeSymbolizer::Symbolize     // 将 Data 节点的 Shape 符号化（最先执行）
+  ↓                                    // 固定维度 → 常量符号
+  ↓                                    // 动态维度（-1）→ 变量符号 + Source
+SymbolicInfoPreProcessor::Run          // 预处理：消除控制流、折叠常量
   ↓
-SymbolicShapeInference::Simplify    // 简化所有符号表达式
+AutoFusePass                           // 注册为 PassManager 中的 Pass（autofuse_optimize.cc）
+  ├─ SymbolicShapeInference::Infer     // 拓扑遍历，逐节点调用符号化推导函数（auto_fuse_pass.cc）
+  │    └─ Simplify                     // Infer 内部调用（匿名命名空间自由函数）：简化所有符号表达式
+  └─ LoweringAndCanFuseWithCounter     // 自动融合
   ↓
-SymbolicInfoPostProcessor           // 后处理：标记 merge key、符号计数、生成 guard 函数
+PostProcess(compute_graph)             // 后处理 wrapper
+  └─ SymbolicInfoPostProcessor::Run    // 标记 merge key、符号计数、生成 guard 函数
 ```
+
+> **说明**：`SymbolicShapeInference` 类（symbolic_shape_inference.h）仅有一个公有方法 `Infer()`。`Simplify()` 是定义在匿名命名空间中的自由函数（symbolic_shape_inference.cc），由 `Infer()` 在推导结束后内部调用（symbolic_shape_inference.cc），并非独立的类方法。`PreProcess()` 和 `PostProcess()` 是 `AutofuseOptimize` 类的 wrapper 函数，分别封装了预处理图优化和后处理逻辑。
 
 ### 7.4 算子实现示例
 
@@ -448,7 +454,7 @@ SymbolicInfoPostProcessor           // 后处理：标记 merge key、符号计�
 
 ### 7.6 Merge Key 优化
 
-`MarkInferShapeMergeKey()` 为每个 autofuse 节点生成基于输出符号化 Shape 的确定性 key（格式如 `[dim1_dim2][dim3_dim4]`）。lowering 时，相同 key 的节点可以共享一个 InferShape 节点，减少运行时开销。
+`MarkInferShapeMergeKey()` 为所有拥有符号化输出的节点生成基于输出符号化 Shape 的确定性 key（格式如 `[dim1_dim2][dim3_dim4]`）。该函数遍历图中所有节点（`graph->GetAllNodes()`），仅当节点输出携带 `SymbolicDescAttr` 属性（即经过符号化推导的节点）时才生成非空 key（symbolic_info_post_processor.cc）。lowering 时，相同 key 的节点可以共享一个 InferShape 节点，减少运行时开销。
 
 ## 8 aclopInferShape 实现机制
 
@@ -502,8 +508,8 @@ atc --model=model.onnx --dump_mode=1 --json=output.json
 |--------|---------|------|
 | `GeTensorDesc` | `graph/ge_tensor_desc.h` | 张量描述，同时携带 Origin 和 Storage 信息（Shape、Format、DataType、ShapeRange） |
 | `GeShape` | `graph/ge_shape.h` | 纯维度数据结构，可承载 OriginShape 或 StorageShape |
-| `StorageShape` | `exe_graph/runtime/storage_shape.h` | Origin + Storage 的复合描述体 |
-| `InferShapeContext` | `exe_graph/runtime/infer_shape_context.h` | 算子 InferShape 函数的上下文参数 |
+| `StorageShape` | `exe_graph/runtime/storage_shape.h`（外部依赖） | Origin + Storage 的复合描述体 |
+| `InferShapeContext` | `exe_graph/runtime/infer_shape_context.h`（外部依赖） | 算子 InferShape 函数的上下文参数 |
 | `CtInferShapeContext` | `graph/ct_infer_shape_context.h` | 编译期扩展上下文，增加 InferenceContext 访问 |
 | `InferSymbolShapeContext` | `exe_graph/runtime/infer_symbol_shape_context.h` | 符号化推导上下文 |
 | `InferenceContext` | `graph/inference_context.h` | 编译期资源关联信息（handle shape、marks 等） |
@@ -551,7 +557,7 @@ atc --model=model.onnx --dump_mode=1 --json=output.json
 
 | 文件 | 说明 |
 |------|------|
-| `inc/graph_metadef/exe_graph/runtime/infer_shape_context.h` | InferShapeContext 接口定义 |
-| `inc/graph_metadef/exe_graph/runtime/storage_shape.h` | StorageShape 类型定义 |
+| `inc/graph_metadef/exe_graph/runtime/infer_shape_context.h`（外部依赖，不在 GE 仓库内） | InferShapeContext 接口定义 |
+| `inc/graph_metadef/exe_graph/runtime/storage_shape.h`（外部依赖，不在 GE 仓库内） | StorageShape 类型定义 |
 | `inc/graph_metadef/exe_graph/runtime/infer_symbol_shape_context.h` | InferSymbolShapeContext 接口定义 |
 | `inc/graph_metadef/graph/symbolizer/symbolic.h` | Expression/Symbol 符号表达式 |

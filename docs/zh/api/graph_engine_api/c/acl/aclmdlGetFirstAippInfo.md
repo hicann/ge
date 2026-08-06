@@ -42,7 +42,7 @@ aclError aclmdlGetFirstAippInfo(uint32_t modelId, size_t index, aclAippInfo *aip
 | --- | --- | --- |
 | modelId | 输入 | 模型ID。<br>调用[aclmdlLoadFromFile](aclmdlLoadFromFile.md)接口/[aclmdlLoadFromMem](aclmdlLoadFromMem.md)接口/[aclmdlLoadFromFileWithMem](aclmdlLoadFromFileWithMem.md)接口/[aclmdlLoadFromMemWithMem](aclmdlLoadFromMemWithMem.md)接口加载模型成功后，会返回模型ID。 |
 | index | 输入 | 模型中输入的index。 |
-| aippInfo | 输出 | 获取指定输入上AIPP配置信息的指针。类型定义请参见[aclAippInfo](aclAippInfo.md)。<br>详细说明及参数解释，请参考[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/cannCommunityATC)中的“高级功能 > 开启AIPP”。 |
+| aippInfo | 输出 | 获取指定输入上AIPP配置信息的指针。类型定义请参见[aclAippInfo](aclAippInfo.md)。<br>详细说明及参数解释，请参考[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“高级功能 > 开启AIPP”。 |
 
 ## 返回值说明
 

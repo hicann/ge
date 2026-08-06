@@ -14,13 +14,13 @@
 
 #include "common/env_path.h"
 #include "common/path_utils.h"
-#include "compiler/session/dflow_api.h"
+#include "runner/session/dflow_api.h"
 #include "nlohmann/json.hpp"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "utils/mock_execution_runtime.h"
-#include "dflow/compiler/pne/process_node_engine_manager.h"
-#include "dflow/compiler/pne/udf/udf_process_node_engine.h"
-#include "dflow/executor/flow_msg_internal.h"
+#include "dflow/runner/compiler/pne/process_node_engine_manager.h"
+#include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
+#include "dflow/runner/executor/flow_msg_internal.h"
 #include "ge/ge_api.h"
 #include "flow_graph/data_flow.h"
 

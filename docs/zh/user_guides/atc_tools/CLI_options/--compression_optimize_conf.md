@@ -167,7 +167,7 @@ atc --compression_optimize_conf=$HOME/module/compression_optimize.cfg ...
 - 使用该参数的压缩特性时，需要单独安装AMCT（acl）软件包，该包的获取以及安装方法请参见[《AMCT模型压缩工具》](https://hiascend.com/document/redirect/CannCommunityToolAmct)中的“准备环境 \> 获取软件包、上传软件包、安装工具”章节。
 - 使用该参数中的**enable\_first\_layer\_quantization**特性时，请确保使用的模型是由AMCT进行量化操作后输出的部署模型。
 <!-- npu="A3,910b,910,310p,310b" id13 -->
-- 使用配置文件中的**calibration**训练后量化功能时，只支持**带NPU设备**的安装场景，详细介绍请参见[《CANN 软件安装》](https://hiascend.com/document/redirect/CannCommunityInstSoftware)手册搭建对应产品环境。
+- 使用配置文件中的**calibration**训练后量化功能时，只支持**带NPU设备**的安装场景，详细介绍请参见[《软件安装》](https://hiascend.com/document/redirect/CannCommunityInstSoftware)手册搭建对应产品环境。
 <!-- end id13 -->
 <!-- npu="310b" id12 -->
 - Atlas 200I/500 A2 推理产品Ascend RC场景，还需要在运行环境上安装NCS软件，并配置密钥证书，请参见[《AOE调优工具》](https://hiascend.com/document/redirect/CannCommunityToolAoe)>AOE工具（Ascend RC）>环境准备。

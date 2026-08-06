@@ -20,7 +20,7 @@ For developers without Ascend devices, you can directly use CANNLab cloud develo
 
 1. Enter the open source project and click the "`CANNLab`" button, log in with a certified Huawei Cloud account. If not registered or certified, please follow the page prompts to register and certify.
 
-   <img src="../zh/figures/cloudIDE.png" alt="Cloud Platform"  width="750px" height="90px">
+   <img src="./figures/cloudIDE.png" alt="Cloud Platform"  width="750px" height="90px">
 
 2. Create NPU environment and configure specifications according to page prompts. After starting the cloud development environment, click "`Connect > WebIDE`" to enter the one-stop development platform.
 
@@ -28,7 +28,7 @@ For developers without Ascend devices, you can directly use CANNLab cloud develo
    - If created from the CANN community repository, resources are located in `/mnt/workspace/gitCode/cann`.
    - If created from a personally forked CANN repository, resources are located in `/mnt/workspace/gitCode/{forked_repository}`.
 
-   <img src="../zh/figures/webIDE.png" alt="Cloud Platform"  width="1000px" height="150px">
+   <img src="./figures/webIDE.png" alt="Cloud Platform"  width="1000px" height="150px">
 
 ### Method 2: Docker Deployment
 
@@ -38,7 +38,7 @@ For developers who do not depend on Ascend devices, if you want to quickly set u
 
 1. **Install Drivers and Firmware (Runtime Dependencies)**
 
-   For downloading and installing Ascend drivers and firmware on the host machine, please refer to the "Prepare Software Packages" and "Install NPU Driver and Firmware" chapters in the [CANN Software Installation Guide](https://www.hiascend.com/document/redirect/CannCommunityInstWizard). Drivers and firmware are runtime dependencies. If only compiling operators, you don't need to install them.
+   For downloading and installing Ascend drivers and firmware on the host machine, please refer to the "Prepare Software Packages" and "Install NPU Driver and Firmware" chapters in the [Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard). Drivers and firmware are runtime dependencies. If only compiling operators, you don't need to install them.
 
 2. **Download Image**
 
@@ -130,11 +130,11 @@ For developers who do not depend on Ascend devices, if you want to quickly set u
 
     1. **Install Drivers and Firmware (Optional, only required for running [samples](../../examples/README.md))**
 
-        Drivers and firmware are runtime dependencies. If only compiling source code, you don't need to install them. Use `npu-smi info` to check if there is NPU-related information. If not, please refer to [CANN Quick Installation](https://www.hiascend.com/cann/download) to complete driver and firmware installation.
+        Drivers and firmware are runtime dependencies. If only compiling source code, you don't need to install them. Use `npu-smi info` to check if there is NPU-related information. If not, please refer to [Quick Installation](https://www.hiascend.com/cann/download) to complete driver and firmware installation.
 
     2. **Install CANN Package**
 
-         Please click [download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) to get the latest timestamp version, and download the corresponding package according to product model and environment architecture. Installation commands are as follows, for more guidance please refer to [CANN Software Installation Guide](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
+         Please click [download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) to get the latest timestamp version, and download the corresponding package according to product model and environment architecture. Installation commands are as follows, for more guidance please refer to [Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
 
          - Install CANN Toolkit development suite package.
 

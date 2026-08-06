@@ -124,16 +124,18 @@ session.CompileGraph(graph_id);  // 首次编译会写入缓存
 - **ExecutionPoint（EP）**：执行切分点
 - **GuardedExecutionPoint（GEP）**：带守卫条件的执行点，每个 GEP 有独立的 `gep_graph_key`
 
-缓存目录结构：
+缓存目录结构（示例路径：`./cache_dir/jit/slicing_hierarchy/userGraphKey0/1/slice_graph.pb`）：
 
 ```
 {cache_dir}/
-├── jit/                              # CompiledModelCache 根目录
-│   ├── slicing_result.json           # 断图结果
-│   ├── {slice_graph_id}/             # 每个 slice graph 的子目录
-│   │   ├── gep_list.json             # GEP 列表
-│   │   ├── slice_graph.pb            # 子图序列化
-│   │   └── rem_graph.pb              # 剩余图序列化
+└── jit/                              # CompiledModelCache 根目录
+    └── slicing_hierarchy/            # 断图层级目录
+        └── {user_graph_key}/         # 每个 UserGraph 的子目录
+            ├── slicing_result.json   # 断图结果
+            └── {slice_graph_id}/     # 每个 slice graph 的子目录
+                ├── gep_list.json     # GEP 列表
+                ├── slice_graph.pb    # 子图序列化
+                └── rem_graph.pb      # 剩余图序列化
 ```
 
 ### 4.5 场景五：ACL 单算子缓存
@@ -272,11 +274,12 @@ flowchart TD
 1. **生成文件名**：`GenerateCacheFile()` 生成带时间戳的文件名，格式为 `{graph_key}_{timestamp}.om`
 2. **序列化模型**：`SerializeModel()` 将 `GeRootModel` 序列化为二进制数据（`ModelBufferData`），通过 `ModelHelper::SaveToOmRootModel()` 完成
 3. **保存到文件**：`SaveModelToGeRootModel()` 将序列化后的数据通过 `FileSaver::SaveToFile()` 写入 `.om` 文件
-4. **保存变量描述**：`SaveVarDescToFile()` 将编译前后的变量描述信息序列化为 protobuf 格式，写入 `.rdcpkt` 文件。具体包含：
-   - `desc_info_before_compile`：编译前的变量描述（在 `TryLoadModelFromCache` 入口处通过 `GE_DISMISSABLE_GUARD` 记录）
-   - `desc_info_after_compile`：编译后的变量描述
-   - `changed_var_names`：本次编译中发生变化的变量名列表
-   - `staged_var_tensor_desc_map`：staged 状态的变量描述
+4. **保存变量描述**：`SaveVarDescToFile()` 将编译前后的变量描述信息序列化为 protobuf 格式，写入 `.rdcpkt` 文件。结构为 `VarMatchInfo` 包含编译前后的 `VarDescInfo`：
+   - `VarMatchInfo`
+     - `desc_info_before_compile`（`VarDescInfo` 类型）：编译前的变量描述（在 `TryLoadModelFromCache` 入口处通过 `GE_DISMISSABLE_GUARD` 记录）
+     - `desc_info_after_compile`（`VarDescInfo` 类型）：编译后的变量描述，其内部包含：
+       - `changed_var_names`：本次编译中发生变化的变量名列表
+       - `staged_var_tensor_desc_map`：staged 状态的变量描述
 5. **更新索引文件**：`SaveCacheIndexFile()` 将新的缓存条目追加到 `.idx` 索引文件中
 
 ### 5.6 并发安全
@@ -311,12 +314,13 @@ CompiledModelCache 构造函数:
 
 #### 缓存恢复（RestoreCache）
 
-`RestoreCache()` 恢复 ExecutionOrder 的断图结果，包括：
-- 读取 `slicing_result.json` 获取断图策略
-- 为每个 ExecutionPoint 恢复 GEP 信息
-- 对每个 GEP，通过 `GuardedExecutionPointUtil::RestoreGuardedExecutionPoint()` 执行：
+`RestoreCache()` 恢复 ExecutionOrder 的断图结果，采用分层调用链：
+- `RestoreCache()` → `ExecutionOrderUtil::RestoreExecutionOrder()`：
+  - 读取 `slicing_result.json` 获取断图策略
+  - 为每个 ExecutionPoint 调用 `ExecutionPointUtil::RestoreExecutionPoint()` 恢复子图、剩余图（`slice_graph.pb`、`rem_graph.pb`）及 GEP 信息
+- `RestoreExecutionPoint()` → `GuardedExecutionPointUtil::RestoreGuardedExecutionPoint()` 对每个 GEP 执行：
   - 恢复 `gep_graph_key` 到当前线程上下文
-  - 通过 `ModelCache::TryLoadModelFromCache()` 从缓存加载已编译的子图
+  - 通过静态辅助函数 `TryLoadCompiledGraphFromCache()` 创建独立的 `ModelCache` 实例，再由 `ModelCache::TryLoadModelFromCache()` 从缓存加载已编译的子图
   - 加载 guard check 函数
 
 #### 缓存保存（SaveCache）
@@ -325,6 +329,7 @@ CompiledModelCache 构造函数:
 - 断图策略到 `slicing_result.json`
 - 每个 ExecutionPoint 下所有 GEP 的 `gep_graph_key` 到 `gep_list.json`
 - 子图序列化到 `slice_graph.pb`
+- 剩余图序列化到 `rem_graph.pb`
 
 #### GEP 级别的 graph_key 生成
 
@@ -342,12 +347,18 @@ gep_graph_key = user_graph_key + "_" + ep_id + "_" + timestamp_ns
 
 - **存储结构**：`unordered_map<uint64_t, OpModel>`，以 `opModelId` 为键
 - **线程安全**：使用 `recursive_mutex` 保护所有读写操作
-- **功能**：
+- **功能**（核心方法）：
   - `Add()`：缓存已加载的算子模型
   - `GetOpModel()`：按 ID 查找已缓存的算子模型
   - `Delete()`：删除缓存并卸载算子资源
   - `CreateCachedExecutor()`：基于缓存创建 RT2 执行器
   - `CleanCachedModels()`：清空所有缓存
+- **其他工具方法**：
+  - `GetCacheMutex()`：获取缓存互斥锁
+  - `GetRT2Executor()`：获取 RT2 执行器
+  - `UpdateCachedExecutor()`：更新已缓存的执行器
+  - `CleanCachedExecutor()`：清理指定流上已缓存的执行器
+  - `UnloadCachedModelData()`：卸载已缓存的模型数据
 
 ## 6. 缓存文件结构
 
@@ -363,11 +374,13 @@ gep_graph_key = user_graph_key + "_" + ep_id + "_" + timestamp_ns
 ├── weight/                                       # 外置权重目录（如启用）
 │   └── {weight_files}
 └── jit/                                          # JIT 缓存目录
-    ├── slicing_result.json                       # 断图结果
-    └── {slice_graph_id}/
-        ├── gep_list.json                         # GEP 列表
-        ├── slice_graph.pb                        # 子图序列化
-        └── rem_graph.pb                          # 剩余图序列化
+    └── slicing_hierarchy/                       # 断图层级目录
+        └── {user_graph_key}/                    # 每个 UserGraph 的子目录
+            ├── slicing_result.json              # 断图结果
+            └── {slice_graph_id}/
+                ├── gep_list.json                # GEP 列表
+                ├── slice_graph.pb               # 子图序列化
+                └── rem_graph.pb                 # 剩余图序列化
 ```
 
 ## 7. 关键数据结构
@@ -375,7 +388,7 @@ gep_graph_key = user_graph_key + "_" + ep_id + "_" + timestamp_ns
 | 结构 | 定义位置 | 用途 |
 |------|----------|------|
 | `CacheFileIdx` | `compiler/graph/build/model_cache.h` | 索引文件中的单条缓存记录，包含 graph_key、om 文件路径、变量描述文件路径 |
-| `VarDescCache` | `compiler/graph/build/model_cache.h` | 变量描述缓存，包含变量描述映射、转换路、变更变量名列表 |
+| `VarDescCache` | `compiler/graph/build/model_cache.h` | 变量描述缓存，包含变量描述映射、转换路、变更变量名列表、staged 状态的变量描述映射 |
 | `CacheConfig` | `compiler/graph/build/model_cache.h` | 缓存配置（manual_check、debug_mode） |
 | `VarMatchInfo` | protobuf 定义 | 缓存中的变量匹配信息，包含编译前后的变量描述 |
 | `VarDescInfo` | protobuf 定义 | 变量描述信息的序列化格式 |

@@ -31,11 +31,9 @@
 
 该参数适用于静态/动态shape图场景，开发者可通过配置此参数控制多流并行模式的自动分配策略，以提升图执行性能。
 
-其中，流（Stream）用于维护异步操作的执行顺序，同一条流内的任务严格按序执行，不同流之间的任务可以并行执行。开启自动多流并行后，GE在编译期将计算图转换为MiniDAG，结合节点依赖关系和设备资源执行分流策略，将无依赖的算子分配到不同流上并行执行，并将新的stream_id写回计算图。
-
 ## 关联参数
 
-该参数与[--enable\_single\_stream](--enable_single_stream.md)互斥，不可同时设置。若同时设置，编译会报错并终止。
+该参数与[--enable\_single\_stream](--enable_single_stream.md)互斥，不可同时开启。若同时开启，编译会报错并终止。
 
 动态shape场景下，需先通过环境变量ENABLE\_DYNAMIC\_SHAPE\_MULTI\_STREAM使能动态shape多流后，此参数才用于选择多流并行算法，不能单独开启动态shape多流。关于环境变量详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 
@@ -50,7 +48,6 @@
 
 **参数值约束：**
 
-- 该参数仅在O3优化级别下生效。
 - N为最大流数量，取值范围为\[1,64\]，超出范围会导致编译失败。
 
 ## 推荐配置及收益

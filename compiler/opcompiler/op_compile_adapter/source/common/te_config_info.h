@@ -47,6 +47,7 @@ class TeConfigInfo {
   const std::string &GetEnvHomePath() const;
   const std::string &GetEnvAscendCoreDumpSignal() const;
   const std::string &GetEnvSaveKernelMeta() const;
+  const std::string &GetCustomOppPath() const;
 
   std::string GetOppRealPath() const;
 
@@ -113,6 +114,7 @@ class TeConfigInfo {
     HomePath,
     AscendCoreDumpSignal,
     AscendSaveKernelMeta,
+    AscendCustomOppPath,
     ItemBottom
   };
   enum class ConfigEnumItem { CacheMode = 0, Deterministic, OpDebugLevel, ItemBottom };

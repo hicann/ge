@@ -111,37 +111,37 @@ Variable/Const -> TensorMove -> Netoutput/PartitionedCall/If/while...
 - 对新增控制边做自环和反向可达检查，避免把 DAG 改成有环图
 - 删除失败或补边失败时回滚本轮新增控制边
 
-## 4. 对外接口
+## 3. 对外接口
 
 TensorMove 消除特性不提供独立的 API 调用入口，而是作为 GE 编译流水线中的一个标准优化 Pass 自动运行。用户通过以下配置项间接控制其行为：
 
-### 4.1 图编译选项
+### 3.1 图编译选项
 
 | 配置项 | 说明 | 示例值 |
 |--------|------|--------|
-| `ge.exec.outputReuseInputMemIndexes` | 声明哪些输出复用哪些输入的内存，格式为 `output_index,input_index` 对，多个对之间用 `\|` 分隔 | `"0,0\|1,1"` |
+| `ge.exec.outputReuseInputMemIndexes` | 声明哪些输出复用哪些输入的内存，格式为 `input_index,output_index` 对，多个对之间用 `\|` 分隔 | `"0,0\|1,1"` |
 | `ge.exec.inputReuseMemIndexes` | 声明哪些输入参与内存复用，格式为逗号分隔的输入索引列表 | `"0"` 或 `"0,1"` |
 
 这两个配置项仅在场景二和场景三（源节点为 `Data` 的零拷贝场景）中起作用。当 `TensorMove` 的数据源头为普通计算节点或特殊节点（Variable/Const）且满足安全后继条件时，无需任何配置即可自动消除。
 
-### 4.2 节点保留属性
+### 3.2 节点保留属性
 
 其他优化 Pass 可通过以下属性标记某个 `TensorMove` 节点不可删除：
 
 | 属性名 | 说明 |
 |--------|------|
 | `_cannot_be_deleted` | 布尔属性，标记该节点不可被任何 Pass 删除 |
-| `no_need_constant_folding` | 布尔属性，标记该节点不参与常量折叠，隐含不可删除语义 |
+| `no_need_constant_folding` | 布尔属性，其存在即标记该节点不可被 TensorMoveDeletePass 删除（无论取值 true/false）。`HasReservedAttr` 检查的是属性存在性而非布尔值 |
 
 `InnerIdentityAddPass`、`SubgraphPass`、`HcclContinuousMemcpyPass` 等内存冲突处理 Pass 在插入 `Identity` 节点时，会同时设置这两个属性来防止新插入的节点被后续优化误删。
 
-### 4.3 优化级别
+### 3.3 优化级别
 
 `TensorMoveDeletePass` 注册在 O3 优化级别，属于最高优化等级。通过 `REG_PASS_OPTION("TensorMoveDeletePass").LEVELS(OoLevel::kO3)` 注册，默认启用。
 
-## 5. 具体实现
+## 4. 具体实现
 
-### 5.1 整体架构
+### 4.1 整体架构
 
 TensorMove 消除由 `TensorMoveDeletePass` 实现，继承自 `BaseNodePass`，以节点为单位遍历图中的所有算子。二期优化后，其核心逻辑分为三个阶段：
 
@@ -170,7 +170,7 @@ Pass 的注册和集成：
 - 调用入口：`compiler/graph/manager/graph_manager.cc` 中的 `OptimizeTensorMove` 函数
 - 编译阶段：在 `PreRunAfterOptimizeSubGraph` 中，紧跟 `OptimizeGraphBeforeBuild` 之后执行
 
-### 5.2 核心数据结构
+### 4.2 核心数据结构
 
 `TensorMoveDeleteContext` 结构体封装了一次消除决策所需的全部上下文信息：
 - `tensor_move`：当前待判定的 TensorMove 节点
@@ -182,7 +182,7 @@ Pass 的注册和集成：
 
 `DeleteRule` 是一个函数对象类型（`std::function<bool(TensorMoveDeleteContext&)>`），用于将每条判定规则抽象为独立的谓词函数，在 `Run` 方法中以规则链的形式顺序执行。
 
-### 5.3 阶段一：源头回溯（TraceRealSourceNode）
+### 4.3 阶段一：源头回溯（TraceRealSourceNode）
 
 这是整个特性最复杂的部分。`TensorMove` 的直接前驱节点未必是真正的数据源头——中间可能隔着子图边界、RefOp 透传、甚至其他 TensorMove。`TraceRealSourceNode` 函数负责从 TensorMove 的输入端口出发，逆向回溯数据流，找到真正产生数据的源头节点。
 
@@ -202,9 +202,9 @@ Pass 的注册和集成：
 
 **4. 控制流算子终止**
 
-当回溯路径上遇到 `IF`、`WHILE`、`CASE` 等多分支控制流算子时，视为追踪边界，停止追踪。这是因为控制流的存在意味着数据流存在不确定性，无法在编译期安全判断是否可以消除。
+当回溯路径上遇到 `IF`、`WHILE`、`FOR`、`Switch` 等多分支控制流算子时，视为追踪边界，停止追踪。这是因为控制流的存在意味着数据流存在不确定性，无法在编译期安全判断是否可以消除。
 
-### 5.4 阶段二：规则校验链
+### 4.4 阶段二：规则校验链
 
 二期优化后，回溯到源头后，系统通过五条规则的链式执行来判定是否可以安全删除：
 
@@ -221,7 +221,9 @@ flowchart LR
 
 - 路径不能为空（表示无法找到源头）
 - 源头节点不能是多分支控制流算子
-- 源头节点是特殊节点时（Variable/Const 等），仅当 TensorMove 后继不会覆写源内存时放行（二期放宽）
+- 源头节点是特殊节点时（Variable/Const 等），`CheckPathToSourceNodeValid`（tensor_move_delete_pass.cc）实际执行两项检查：
+  1. `IsSuccessorSafeAfterTensorMove`—— 当后继为 RefOp / NetOutput / wrapper 节点时拒绝删除
+  2. `WouldTMSuccessorsOverwriteSource`—— 检查后继是否会覆写源内存，仅当后继不会覆写源内存时放行（二期放宽）
 
 **Rule 2：CheckSourceNodeReuse — 内存复用校验**
 
@@ -234,7 +236,7 @@ flowchart LR
 该规则由 `IsSourceNodeWithSinglePath` 实现，用于证明删除 `TensorMove` 后，源内存的读写顺序仍然可控。校验对象是从真实源节点到当前 `TensorMove` 的回溯路径；路径上任一节点不满足条件时，保留 `TensorMove`。
 
 基础校验包括：
-- 路径节点不能是 `IF` / `CASE` / `WHILE` 等多分支控制流算子。
+- 路径节点不能是 `IF` / `WHILE` / `FOR` / `Switch` 等多分支控制流算子。
 - RefOp 不能存在多个已连接输出复用同一个输入（`HasMultipleOutputsSharingSameInput`）。否则同一块输入内存被多条输出路径继续引用，当前规则无法证明完整生命周期。
 - 输出锚点的消费者数量超过 1 时，进入"单输出多引用"分支处理（二期新增），而不是简单按单通路放行。
 
@@ -264,6 +266,8 @@ flowchart LR
 
 基于符号表和 `IsGraphExistMemConflictSymbol`，判断删除 TensorMove 后是否产生内存排布冲突。
 
+`CheckMemLayoutConflictOnDelete`（tensor_move_delete_pass.cc）在入口处有短路逻辑：`if (!ctx.has_symbol_table) { return true; }`——当符号表构建失败（`has_symbol_table` 为 false）时，直接放行，跳过内存排布冲突检查。
+
 检查流程：
 ```
 1. 获取 TM 输入锚点对应的符号: input_symbol = anchor_to_symbol[NodeIndexIO(tm, 0, kIn)]
@@ -274,9 +278,9 @@ flowchart LR
 6. has_conflict == true → 拒绝删除
 ```
 
-### 5.5 阶段三：拓扑重连与符号表维护
+### 4.5 阶段三：拓扑重连与符号表维护
 
-三条规则全部通过后，先调用 `ApplyPendingControlEdges` 落地待建的控制边，然后调用 `IsolateAndDeleteNode(node, {0})` 执行删除。
+五条规则全部通过后，先调用 `ApplyPendingControlEdges` 落地待建的控制边，然后调用 `IsolateAndDeleteNode(node, {0})` 执行删除。
 
 **拓扑重连**（`IsolateAndDeleteNode`）：
 - 将 TensorMove 的第 0 个输入锚点对应的上游输出锚点，直接连接到 TensorMove 的第 0 个输出锚点对应的所有下游输入锚点
@@ -291,9 +295,13 @@ flowchart LR
    a. 将 anchor_to_symbol 中所有值为 output_symbol 的条目改为 input_symbol
    b. 将 symbol_to_anchors[output_symbol] 合并到 symbol_to_anchors[input_symbol]
    c. 擦除 symbol_to_anchors[output_symbol]
+3. 清理 TM 自身锚点（MergeTensorMoveSymbolAfterDelete，tensor_move_delete_pass.cc）：
+   a. 从 symbol_to_anchors[input_symbol] 中移除 TM 的输入/输出锚点
+   b. 从 anchor_to_symbol 中擦除 TM 的 in_io_key 和 out_io_key
+   c. 原因：TM 节点已被删除，其锚点不应继续残留在符号表中
 ```
 
-### 5.6 与其他 Pass 的协作关系
+### 4.6 与其他 Pass 的协作关系
 
 TensorMove 消除并非孤立工作，它与编译流水线中的多个 Pass 存在协作关系：
 
@@ -322,7 +330,7 @@ OptimizeTensorMove 内部流程（二期新增）：
 
 TensorMove 消除在图结构优化完成之后、内存冲突处理之前执行。这个时序设计是合理的——先让其他优化 Pass 完成图结构的简化和变形，再在稳定后的图上执行 TensorMove 消除，最后由内存冲突处理 Pass 评估消除后的结果并在必要时插入保护节点。
 
-### 5.7 关键设计决策
+### 4.7 关键设计决策
 
 **为什么采用回溯而非正向传播？**
 

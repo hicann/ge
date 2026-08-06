@@ -1914,6 +1914,25 @@ TEST_F(UtestFusionPassExecutor, PythonPassPluginLoader_RollbackOnDuplicatePassNa
   EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
 }
 
+TEST_F(UtestFusionPassExecutor, LoadPassPlugins_RefCounting) {
+  // 多引用：Load×2 后第一次 Unload 不释放，第二次才真正卸载
+  EXPECT_EQ(LoadPassPlugins(), SUCCESS);
+  EXPECT_EQ(LoadPassPlugins(), SUCCESS);
+  EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
+  EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
+
+  // 无引用时 Unload 不崩溃
+  EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
+}
+
+TEST_F(UtestFusionPassExecutor, LoadPassPlugins_PythonPass) {
+  EnsureSharedPybindPassFile();
+  ScopedEnvVar scoped_py_pass_path(kEnvPythonPassPath, GetSharedPybindPassFilePath());
+
+  EXPECT_EQ(LoadPassPlugins(), SUCCESS);
+  EXPECT_EQ(UnloadPassPlugins(), SUCCESS);
+}
+
 TEST_F(UtestFusionPassExecutor, PythonPatternFusionPass_CreateRunHooksAndDestroy) {
   PythonPassDescriptor pass_desc;
   pass_desc.descriptor_key = "python.pattern.fusion.create";

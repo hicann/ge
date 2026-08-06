@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include "mmpa/mmpa_api.h"
-#include "dflow/compiler/model/flow_model_cache.h"
+#include "dflow/runner/compiler/model/flow_model_cache.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/ge_local_context.h"
 #include "graph/build/memory/var_mem_assign_util.h"
@@ -20,7 +20,7 @@
 #include "dflow/base/model/model_deploy_resource.h"
 #include "common/helper/model_parser_base.h"
 #include "framework/common/framework_types_internal.h"
-#include "dflow/compiler/pne/udf/udf_model.h"
+#include "dflow/runner/compiler/pne/udf/udf_model.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "depends/mmpa/src/mmpa_stub.h"

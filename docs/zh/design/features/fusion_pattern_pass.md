@@ -83,6 +83,8 @@ GE 会用 pattern 到真实图里搜索同构结构。可以把它理解为：
 - `true`：这次匹配满足条件，可以进入替换。
 - `false`：跳过这次匹配，继续查找下一处。
 
+在 `MeetRequirements` 通过后、调用 `Replacement` 前，GE 会通过 `FusionUtils::WillCauseCycleIfFuse(match_result)` 检查替换是否会导致环。如果会导致环，则跳过该匹配（`pattern_fusion_run.cc`）。此外，在 DEBUG 日志级别下，替换完成后还会对全图做一次拓扑排序兜底判环，防止局部判断漏网导致带环图流入后续 pass（`pattern_fusion_run.cc`）。
+
 ### 2.4 用 Replacement 生成替换图
 
 `Replacement` 返回另一张小图，用来替换匹配到的真实子图。
@@ -253,9 +255,48 @@ Split(input) + Split(filter) + Conv2D * N + Concat
 - [C++ DecomposePass 样例](../../../../examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/cpp/README.md)
 - [Python DecomposePass 样例](../../../../examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/python/README.md)
 
-## 6. Pass 执行阶段
+## 6. V2 版本与 CustomPassContext
+
+### 6.1 V2 版本：PatternFusionPassV2 与 DecomposePassV2
+
+前面介绍的 `PatternFusionPass` 和 `DecomposePass` 是 V1 版本（@since 8.5.0）。GE 还提供了 V2 版本：`PatternFusionPassV2`（`pattern_fusion_pass.h`，@since 9.1.0/2026-05）和 `DecomposePassV2`（`decompose_pass.h`，@since 9.1.0/2026-05）。
+
+V2 与 V1 的区别在于：V2 在 `MeetRequirements` 和 `Replacement` 钩子中额外透传了 `CustomPassContext &pass_context` 参数，使子类能在钩子内读取配置项（通过 `GetOptionValue`）或写入错误信息（通过 `SetErrorMessage`）后再决策。
+
+V1 与 V2 共用同一套注册宏（`REG_FUSION_PASS` / `REG_DECOMPOSE_PASS`），匹配/替换主循环也共享同一份实现（`pattern_fusion_run.h`、`decompose_pass_run.h`），工厂对版本无感知。
+
+当 pass 需要在钩子中读取配置项或写入错误信息时，应使用 V2 版本；否则 V1 即可。
+
+### 6.2 CustomPassContext 上下文
+
+`CustomPassContext`（`register_custom_pass.h`）是所有融合 pass 的上下文对象，提供以下能力：
+
+| 方法 | 作用 | 起始版本 |
+|------|------|----------|
+| `SetErrorMessage` / `GetErrorMessage` | 写入/读取 pass 执行过程中的错误信息 | 8.5.0 |
+| `GetOptionValue` | 通过 option key 从上下文中获取配置值 | 9.0.0 |
+| `SetPassName` / `GetPassName` | 设置/获取 pass 名称 | 9.0.0 |
+
+在 V1 中，`CustomPassContext` 仅作为 `Run` 方法的参数传入，子类无法在 `MeetRequirements`/`Replacement` 钩子中直接访问。在 V2 中，`pass_context` 进一步透传到这两个钩子，子类可在钩子内直接使用上述能力。
+
+## 7. Pass 执行阶段
 
 Pass 注册时需要指定执行阶段。阶段决定 pass 能看到的图状态，也决定 replacement 是否需要自行做 shape 推导。
+
+注册示例：
+
+```cpp
+// PatternFusionPass
+REG_FUSION_PASS(ClassName).Stage(CustomPassStage::kBeforeInferShape);
+
+// DecomposePass
+REG_DECOMPOSE_PASS(ClassName, {"Conv2D"}).Stage(CustomPassStage::kBeforeInferShape);
+```
+
+```python
+@register_fusion_pass(name="MyFusionPass", stage=PassStage.BEFORE_INFER_SHAPE)
+@register_decompose_pass(name="MyDecomposePass", stage=PassStage.BEFORE_INFER_SHAPE, op_types=["Conv2D"])
+```
 
 | 机制阶段 | Python 枚举 | C++ 枚举 | 使用建议 |
 |----------|-------------|----------|----------|
@@ -264,11 +305,23 @@ Pass 注册时需要指定执行阶段。阶段决定 pass 能看到的图状态
 | 内置融合后 | `PassStage.AFTER_BUILTIN_FUSION_PASS` | `CustomPassStage::kAfterBuiltinFusionPass` | 希望在 GE 内置融合完成后再处理时使用 |
 | 原图优化后 | `PassStage.AFTER_ORIGIN_GRAPH_OPTIMIZE` | `CustomPassStage::kAfterOriginGraphOptimize` | 希望在原图优化结束后追加自定义处理时使用 |
 
+注意：C++ 枚举中还包含 `kAfterAssignLogicStream` 阶段（@since 8.5.0），但该阶段仅支持流分配 Pass（`CustomAllocateStreamPassFunc`），不可用于 PatternFusionPass/DecomposePass。若误将 pass 注册到此阶段，将被忽略。
+
 初次开发建议优先选择 InferShape 前阶段。只有当你的判断必须依赖已经推导完成的 shape，或 replacement 本身明确会调用 shape 推导时，再考虑 InferShape 后阶段。
 
-在`PassStage.AFTER_INFER_SHAPE`及之后阶段构造replacement graph后，可调用[ge.passes.infer_shape](../../api/graph_engine_api/python/ge/passes/infer_shape.md)补齐输出描述。PatternFusionPass、DecomposePass和Graph-base Pass场景的`source`分别传入`MatchResult`、`Node`和`SubgraphBoundary`；接口调用失败时，不得继续执行替换。
+对于注册在 InferShape 后及之后阶段的 pass，上表提到"replacement 需要自行保证输出 shape 等信息正确"。为此 GE 提供了 `InferShapeUtil` 工具类（`infer_shape_util.h`，@since 9.1.0/2026-06），提供三个 `InferShape` 重载：
 
-## 7. Python 与 C++ 的关系
+| 重载入参 | 适用场景 |
+|----------|----------|
+| `SubgraphBoundary` | 通用场景 |
+| `MatchResult` | PatternFusionPass 便利重载 |
+| `GNode` | DecomposePass 便利重载 |
+
+该工具会根据子图边界将原图输入的 shape/dtype/format 同步到 replacement graph 对应的 Data 节点，并执行全图推导。在 `Replacement` 中构建完 replacement graph 后调用即可，无需自行逐节点推导。
+
+Python 侧可通过 `ge.passes.infer_shape`（[API 文档](../../api/graph_engine_api/python/ge/passes/infer_shape.md)）调用相同能力，`source` 参数分别传入 `MatchResult`、`Node`、`SubgraphBoundary`；调用失败时不得继续执行替换。
+
+## 8. Python 与 C++ 的关系
 
 Python 和 C++ 的 pass 都会接入 GE 的统一 pass 调度流程。
 
@@ -283,7 +336,7 @@ Python 和 C++ 的 pass 都会接入 GE 的统一 pass 调度流程。
 
 如果只是新增一个规则并验证效果，建议先用 Python 写。规则稳定后，如有交付形态或性能方面要求，再考虑 C++ 实现。
 
-## 8. 开发前检查清单
+## 9. 开发前检查清单
 
 写 pass 前先回答这些问题：
 

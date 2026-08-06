@@ -10,29 +10,30 @@ GE (Graph Engine) serves as the graph compiler and executor for Ascend. The core
 
 ### 1.2 Engine Overview
 
-| Engine | Registered Name | Typical Operators | Engine Directory |
+| Engine | DNNEngine Registered Name | Typical Operators | Engine Directory |
 |------|--------|---------|---------|
 | AI Core Fusion Engine | `AIcoreEngine` | Conv2D, MatMul, BiasAdd, ReLU, BatchNorm | `compiler/engines/nn_engine/` |
 | Vector Core Engine | `VectorEngine` | ElementWise, Sqrt, Exp, Log, Cast | `compiler/engines/nn_engine/` |
 | FFTS+ Composite Engine | `ffts_plus` | Cross-engine fusion operators, AIC+AIV mixed tasks | `compiler/engines/ffts_engine/` |
-| AI CPU Ascend Engine | `aicpu_ascend_kernel` | SparseToDense, Minimum, Maximum, Round | `compiler/engines/cpu_engine/aicpu_engine/` |
-| AI CPU TF Engine | `aicpu_tf_kernel` | TensorFlow-format AI CPU operators | `compiler/engines/cpu_engine/tf_engine/` |
-| Host CPU Engine | `DNN_VM_HOST_CPU_OP_STORE` | Constant folding operators, fallback operators not supported on Ascend devices | `compiler/engines/cpu_engine/hostcpu_engine/`, `base/host_cpu_engine/` |
-| HCCL Communication Engine | `ops_kernel_info_hccl` | AllReduce, Broadcast, AllGather, ReduceScatter | `compiler/engines/hccl_engine/` |
-| DVPP Preprocessing Engine | `dvpp_ops_kernel` | ImageDecode, Resize, Crop, ColorConvert | `compiler/engines/dvpp_engine/` |
-| RTS Runtime Service Engine | `DNN_VM_RTS_OP_STORE` | StreamSwitch, StreamActive, LabelGoto, LabelSet | `compiler/engines/rts_engine/` |
-| GE Local Engine | `DNN_VM_GE_LOCAL_OP_STORE` | NetOutput, NoOp, Const, PhonyConcat, PhonySplit | `compiler/engines/local_engine/` |
+| AI CPU Ascend Engine | `DNN_VM_AICPU_ASCEND` | SparseToDense, Minimum, Maximum, Round | `compiler/engines/cpu_engine/aicpu_engine/` |
+| AI CPU TF Engine | `DNN_VM_AICPU` | TensorFlow-format AI CPU operators | `compiler/engines/cpu_engine/tf_engine/` |
+| Host CPU Engine | `DNN_VM_HOST_CPU` | Constant folding operators, fallback operators not supported on Ascend devices | `compiler/engines/cpu_engine/hostcpu_engine/`, `base/host_cpu_engine/` |
+| HCCL Communication Engine | `DNN_HCCL` | AllReduce, Broadcast, AllGather, ReduceScatter | `compiler/engines/hccl_engine/` |
+| DVPP Preprocessing Engine | `DNN_VM_DVPP` | ImageDecode, Resize, Crop, ColorConvert | `compiler/engines/dvpp_engine/` |
+| RTS Runtime Service Engine | `DNN_VM_RTS` | StreamSwitch, StreamActive, LabelGoto, LabelSet | `compiler/engines/rts_engine/` |
+| GE Local Engine | `DNN_VM_GE_LOCAL` | NetOutput, NoOp, Const, PhonyConcat, PhonySplit | `compiler/engines/local_engine/` |
 | Custom Operator Engine | `DNN_VM_CUSTOM` | User-defined Ascend C operators | `compiler/engines/custom_engine/` |
 | DSA Engine | `DSAEngine` | DSA-specific operators | `compiler/engines/nn_engine/` (DSA submodule) |
 
-Note: The "AI Core Fusion Engine" and "Vector Core Engine" are collectively referred to as FE (Fusion Engine).
+- Note: The "AI Core Fusion Engine" and "Vector Core Engine" are collectively referred to as FE (Fusion Engine).
+- Note: The "DNNEngine Registered Name" in the table refers to the registration name of the `DNNEngine` system (see Section 4.2), which is different from the `OpsKernelInfoStore` name in each engine SO (for example, the OpsKernelInfoStore name for AI CPU Ascend Engine is `aicpu_ascend_kernel`, HCCL is `ops_kernel_info_hccl`, RTS is `DNN_VM_RTS_OP_STORE`, and so on).
 
 ### 1.3 Design Philosophy
 
 The Engine feature follows three core design principles:
 
 - **Pluggable Architecture**: Each engine compiles into an independent dynamic library (`.so`) and interacts with the GE framework through a unified C function interface. Engines can be developed, compiled, and deployed independently. The GE framework does not need to understand the internal implementation of engines.
-- **Priority-Driven Automatic Selection**: The system automatically selects the optimal engine for each operator through a cost model. Users do not need to specify manually. Engines with lower cost (`COST_0` to `COST_10`) are selected first. Higher priority selection means higher performance execution paths.
+- **Priority-Driven Automatic Selection**: The system automatically selects the optimal engine for each operator through a cost model. Users do not need to specify manually. Engines with lower cost (`COST_0` to `COST_10`) are selected first. Higher priority selection means higher performance execution paths. (Note: The `PriorityEnum` enumeration values are not continuous. The actual definitions are `COST_0`~`COST_5`, `COST_9`, `COST_10`, missing `COST_6`/`COST_7`/`COST_8`. See `dnnengine.h`.)
 - **Compile-Time Decision + Runtime Execution**: Engine selection and graph partitioning complete at compile time. Runtime directly executes according to the execution plan in the compilation output. This avoids runtime engine dispatch overhead.
 
 ---
@@ -73,7 +74,7 @@ When users develop custom operators, GE provides the `DNN_VM_CUSTOM` engine (hig
 
 ### 2.5 Scenario 5: Host CPU Fallback Execution
 
-When certain operators do not support execution on Ascend devices, users can fallback operators to host CPU execution through the `hostExecFlag` option. `HostcpuEngineUpdatePass` marks these operators as `DNN_VM_HOST_CPU` engine during the engine reassignment phase. The Host CPU engine has the lowest priority (`COST_10`) and is selected only when all device engines do not support the operator.
+When certain operators do not support execution on Ascend devices, users can fallback operators to host CPU execution through the `hostExecFlag` option. The check for this flag occurs during the initial engine selection phase — `DNNEngineManager::GetDNNEngineName` determines whether to fallback an operator to the `DNN_VM_HOST_CPU` engine through the `ExecOnHostCpu` function, not during the engine reassignment phase. Additionally, `HostcpuEngineUpdatePass` reassigns small-shape operators from device engines to the Host CPU engine in dynamic shape scenarios, based on a small shape propagation strategy. This Pass is controlled by the `HostShapeOptimizationPass` option and the runtime2 switch. The Host CPU engine has the lowest priority (`COST_10`) and is selected only when all device engines do not support the operator.
 
 ---
 
@@ -122,7 +123,7 @@ The ACL layer `aclopEngineType` converts to `ge::OpEngineType` internally in the
 | Option Key | Type | Meaning |
 |---------|------|------|
 | `ge.engineType` | string | Core engine type: `"AIcoreEngine"` (default) or `"VectorEngine"`, mutually exclusive |
-| `ge.exec.exclude_engines` | string | Excludes specified engines, comma-separated accelerator names |
+| `ge.exec.exclude_engines` | string | Excludes specified engines, pipe-separated (`\|`) accelerator names; supported accelerator names: `AiCore`, `AiVector`, `Dsa`, `Dvpp`, `AiCpuAscend`, `AiCpu`, `HostCpu`, `Hccl`, `FftsPlus` |
 | `ge.aicoreNum` | int32 | Configures AI Core quantity |
 | `ge.exec.enableEngineParallel` | string | Whether to enable engine parallel execution |
 | `ge.exec.engineParallelConfigPath` | string | Engine parallel configuration file path |
@@ -134,7 +135,7 @@ Defined in `inc/framework/engine/dnnengine.h`, `DNNEngine` class:
 
 | Interface | Description |
 |------|------|
-| `Initialize(options)` | Initializes engine (default empty implementation, overridden by subclass) |
+| `Initialize(options)` | Initializes engine (default empty implementation, is a const non-virtual method, cannot be overridden by subclasses) |
 | `Finalize()` | Finalizes engine |
 | `GetAttributes(attr)` | Gets engine attributes (`DNNEngineAttribute`) |
 | `IsAtomic()` | Whether it is an atomic engine |
@@ -145,7 +146,7 @@ The `DNNEngineAttribute` structure contains the following fields:
 |------|------|------|
 | `engine_name` | string | Engine name |
 | `mem_type` | vector\<string\> | Memory type (for example, HBM) |
-| `compute_cost` | PriorityEnum | Compute cost priority (`COST_0` ~ `COST_10`) |
+| `compute_cost` | PriorityEnum | Compute cost priority (`COST_0` ~ `COST_5`, `COST_9`, `COST_10`, enumeration is not continuous) |
 | `runtime_type` | RuntimeType | Runtime type: `HOST` or `DEVICE` |
 | `engine_input_format` | Format | Engine input format |
 | `engine_output_format` | Format | Engine output format |
@@ -193,7 +194,7 @@ The GE system contains three cooperating engine type systems:
 | `AICoreDNNEngine` | `AIcoreEngine` | COST_1 | DEVICE | Yes | AI Core matrix computing engine |
 | `FftsPlusDNNEngine` | `ffts_plus` | COST_1 | DEVICE | **No** | FFTS+ fusion engine (composite engine) |
 | `VectorCoreDNNEngine` | `VectorEngine` | COST_2 | DEVICE | Yes | Vector Core vector computing engine |
-| `DSADNNEngine` | `DSAEngine` | COST_2 | DEVICE | Yes | DSA engine |
+| `DSADNNEngine` | `DSAEngine` | COST_2 | DEVICE | Yes | DSA engine (Note: `DSAEngine` actually uses the `VectorCoreDNNEngine` class during registration, see `engine_manager.cc`; `DSADNNEngine` is defined but not used for registration) |
 | `AICpuDNNEngine` | `DNN_VM_AICPU_ASCEND` | COST_3 | DEVICE | Yes | AI CPU Ascend engine |
 | `AICpuTFDNNEngine` | `DNN_VM_AICPU` | COST_4 | DEVICE | Yes | AI CPU TensorFlow engine |
 | `DvppDNNEngine` | `DNN_VM_DVPP` | COST_5 | DEVICE | Yes | DVPP digital visual preprocessing engine |
@@ -288,12 +289,12 @@ REGISTER_NODE_CONVERTER_PLACEMENT(ge::kEngineNameHostCpu.c_str(), kOnHost, Lower
 | Core Method | Responsibility |
 |---------|------|
 | `Initialize()` | Loads engine SOs, calls `GetDNNEngineObjs()` to register all DNNEngines, parses `engine_conf.json` configuration |
-| `GetDNNEngineName(node, exclude_engines)` | Selects engine for operator - iterates through OpInfo list, calls `CheckSupported()`, returns the first supported engine |
+| `GetDNNEngineName(node, exclude_engines, matched_op_info)` | Selects engine for operator - iterates through OpInfo list, calls `CheckSupported()`, returns the first supported engine, and outputs the matched operator information through `matched_op_info` |
 | `GetExcludeEngines()` | Excludes specific engines according to configuration (`CORE_TYPE` mutual exclusion + `EXCLUDE_ENGINES` list) |
 | `GetCompositeEngineName()` | Checks whether subgraph belongs entirely to the same composite engine |
 | `IsStreamAssignSkip()` | Decides whether to skip stream assignment according to engine configuration |
 
-**OpsKernelManager** (`compiler/engines/manager/opskernel_manager/ops_kernel_manager.h`) connects engines and operator kernel libraries:
+**OpsKernelManager** (`compiler/engines/manager/opskernel_manager/dnn_ops_kernel_manager.h`) connects engines and operator kernel libraries:
 
 | Core Method | Responsibility |
 |---------|------|
@@ -337,7 +338,7 @@ Engine selection uses a greedy strategy - iterates from high to low priority, an
 Engine reassignment (`ReAssignEngine()`) implements through strategy pattern. `EngineReAssignPass` is the strategy interface, currently with two implementations:
 
 - `DynamicDataFlowEngineReassignPass`: Engine reassignment in dynamic data flow scenarios
-- `HostcpuEngineUpdatePass`: Reassigns operators marked with `hostExecFlag` to Host CPU engine
+- `HostcpuEngineUpdatePass`: In dynamic shape scenarios, reassigns small-shape operators from device engines to the Host CPU engine based on a small shape propagation strategy. This Pass is controlled by the `HostShapeOptimizationPass` option and the runtime2 switch (unrelated to `hostExecFlag`, which is handled by `ExecOnHostCpu` during the initial engine selection phase)
 
 #### 4.4.3 Partitioning Subgraphs by Engine (EnginePartitioner)
 
@@ -441,7 +442,7 @@ Sub-engines:
 
 - Handles runtime control flow operators (StreamSwitch, StreamActive, Label, and so on)
 - Contains two OpsKernelInfoStores: regular RTS and FFTS+ mode
-- Configured as `skip_assign_stream: true, attach: true` (attaches to other streams, does not need independent stream assignment)
+- Configured as `skip_assign_stream: false, attach: true` (attaches to other streams, does not need independent stream assignment)
 
 #### 4.5.6 local_engine (GeLocal Fallback Engine)
 
@@ -482,7 +483,7 @@ Sub-engines:
 
 - Complements the compiler-side `HostCpuEngine` (`BaseEngine` subclass), provides more basic host CPU execution capability
 - Singleton pattern (`HostCpuEngine::GetInstance()`)
-- Dynamically loads `libconstant_folding_ops.so` and `libops_host_cpu.so` through `dlopen`
+- Dynamically loads `libconstant_folding_ops.so`, `libops_host_cpu.so`, and `libaicpu_const_folding.so` through `dlopen`
 - Used for compile-time constant folding and runtime Host CPU operator execution
 
 ### 4.6 Runtime Engine Execution
@@ -516,6 +517,8 @@ Core difference: V1 dynamically dispatches `NodeExecutor` at runtime. V2 lowers 
 | `TopologicalExecutor` | Topological sort execution (dynamic graph) |
 | `MultiThreadTopologicalExecutor` | Multi-threaded topological execution |
 | `PriorityTopologicalExecutor` | Priority topological execution |
+
+> Note: The above executor classes are defined in external dependencies (`air_cxx` / `exe_graph` components), not in the GE source tree. The `runtime/v2/core/executor/` directory in GE only provides the corresponding C function execution interfaces (such as `SequentialExecute`, `TopologicalExecute`, and so on) and execution data construction logic.
 
 `StreamExecutor` (`runtime/v2/core/stream_executor.cc`) creates independent `ModelV2Executor` for each stream, implements stream-level execution isolation.
 

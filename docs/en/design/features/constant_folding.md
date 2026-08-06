@@ -41,7 +41,7 @@ atc --model=model.onnx --output=model --framework=5 \
 
 Typical benefit scenario: Model contains large amount of auxiliary computations for dynamic Shape inference (like Shape→Gather→Concat→Reshape chain). These can completely pre-compute in static Shape scenario. Constant folding can eliminate them all.
 
-### 2.2 Online Compilation Scenario (aclgrphBuildModel)
+### 2.2 IR Build Scenario (aclgrphBuildModel)
 
 When using ACL Graph Builder API to build models, control through `aclgrphBuildInitialize` or `aclgrphBuildModel` configuration parameters:
 
@@ -60,7 +60,29 @@ std::map<ge::AscendString, ge::AscendString> build_options = {
 aclgrphBuildModel(graph, build_options, modelBufferData);
 ```
 
-### 2.3 Debugging Scenario
+### 2.3 Online Compilation Scenario (GEInitialize + Session + CompileGraph)
+
+When using `GEInitialize` + `Session` + `CompileGraph` interfaces from `ge_api.h` / `ge_api_v2.h` for online graph compilation, control through initialization and Session options:
+
+```cpp
+// V1 interface (ge_api.h)
+std::map<ge::AscendString, ge::AscendString> options = {
+    {ge::ir_option::OO_LEVEL, "O1"},
+    {ge::ir_option::OO_CONSTANT_FOLDING, "true"}
+};
+ge::GEInitialize(options);
+ge::Session session(options);
+session.AddGraph(graph_id, graph, options);
+session.CompileGraph(graph_id);
+
+// V2 interface (ge_api_v2.h)
+ge::GEInitializeV2(options);
+ge::GeSession session(options);
+session.AddGraph(graph_id, graph, options);
+session.CompileGraph(graph_id);
+```
+
+### 2.4 Debugging Scenario
 
 When users suspect constant folding causes result abnormality, can disable this optimization for comparison verification:
 
@@ -70,7 +92,7 @@ When users suspect constant folding causes result abnormality, can disable this 
 
 After disabling, Size, Shape, ShapeN, Rank operators will not be folded and deleted, still execute on device at runtime. `GeDeletedOp` mechanism in `ge_deleted_op.cc` will give clear error indications for these operators, helping users locate problems.
 
-### 2.4 User Specified Skip Folding
+### 2.5 User Specified Skip Folding
 
 Framework side (like TensorFlow `_grappler_do_not_remove` attribute) or users can prevent specific nodes from being constant folded by setting node attribute `_do_not_constant_folding`. This provides fine control means for scenarios requiring preserving specific nodes.
 
@@ -82,7 +104,7 @@ Framework side (like TensorFlow `_grappler_do_not_remove` attribute) or users ca
 
 | Parameter Key | Parameter Value | Configuration Entry | Description |
 | --------------- | ---------------- | -------------------- | ------------- |
-| `ge.oo.constantFolding` | `"true"` / `"false"` | aclgrphBuildInitialize, aclgrphBuildModel, atc | Control constant folding optimization switch |
+| `ge.oo.constantFolding` | `"true"` / `"false"` | aclgrphBuildInitialize, aclgrphBuildModel, GEInitialize, GEInitializeV2, Session, CompileGraph, atc | Control constant folding optimization switch |
 | `ge.oo.level` | `"O1"` / `"O2"` / `"O3"` | Same as above | Optimization level, O1 and above default enable constant folding |
 
 Parameter definition located at `inc/graph_metadef/external/ge_common/ge_api_types.h`, constant name `OO_CONSTANT_FOLDING`, actual configuration key is `"ge.oo.constantFolding"`.
@@ -112,7 +134,7 @@ Option defaults to enable at O1 and O3 optimization levels, supports Session, IR
 | `_is_from_constant_folding` | Mark constant node produced by constant folding | GE constant folding Pass |
 | `ATTR_NAME_IS_INSERTED_BY_GE` | Mark node inserted by GE internally | GE internal Pass |
 
-Attribute definition located at `inc/graph_metadef/graph/debug/ge_attr_define.h`.
+Attribute definition located at `inc/graph_metadef/graph/debug/ge_attr_define.h`. Among them, `_is_from_constant_folding` is an inline string literal used directly in the `FoldingPass` class of `folding_pass.cc`, not defined as a named constant in `ge_attr_define.h`.
 
 ### 3.3 Tool Class Interface
 
@@ -124,7 +146,7 @@ Attribute definition located at `inc/graph_metadef/graph/debug/ge_attr_define.h`
 
 ### 4.1 Overall Architecture
 
-Constant folding adopts Pass chain execution mode, driven through GE Pass management framework. Core implementation concentrated in `compiler/graph/passes/standard_optimize/constant_folding/` directory, composed of 7 Passes and supporting infrastructure:
+Constant folding adopts Pass chain execution mode, driven through GE Pass management framework. Core implementation concentrated in `compiler/graph/passes/standard_optimize/constant_folding/` directory, composed of 5 registered Passes (ConstantFoldingPass, DimensionComputePass, DimensionAdjustPass, ReplaceWithEmptyConstPass, PotentialConstTakenEffectPass) and 2 abstract base classes (FoldingPass, PotentialFoldingPass) and supporting infrastructure:
 
 ```
                           ┌──────────────────────────┐
@@ -243,7 +265,7 @@ Specifically handles dimension-related computation operations (like Shape, Resha
 - **Supports mark but not fold mode**: Can through constructor parameter `need_fold` control whether only do computation marking (in preprocessing stage run in `need_fold=false` mode, only mark potential constant not actually fold)
 - Supports coordination with PotentialFoldingPass potential constant mechanism
 
-In preprocessing stage (`GraphPrepare::ComputeConstantShape`), DimensionComputePass runs in `need_fold=false` mode, purpose is first use dimension computation determine Shape information, provide more accurate input for subsequent InferShape.
+In preprocessing stage (`GraphPrepare::InferShapeForPreprocess`), DimensionComputePass runs in `need_fold=false` mode, purpose is first use dimension computation determine Shape information, provide more accurate input for subsequent InferShape.
 
 Pass registration macro:
 
@@ -369,8 +391,8 @@ Constant folding computation engine divides into two levels:
 
 Located at `compiler/host_kernels/`, through `KernelFactory` registration and creation. `Kernel` base class defines three Compute interfaces:
 
-- `Compute(OpDescPtr, inputs, outputs)` — Compute output tensors based on input tensors, for ConstantFoldingPass and DimensionComputePass
-- `Compute(NodePtr, outputs)` — Compute output based on node information, some Kernel use
+- `Compute(OpDescPtr, inputs, outputs)` — Compute output tensors based on input tensors, used by ConstantFoldingPass
+- `Compute(NodePtr, outputs)` — Compute output based on node information, used by DimensionComputePass
 - `Compute(NodePtr)` — Only modify node attributes, for DimensionAdjustPass
 
 Registered Host Kernel distributed by category:
@@ -391,7 +413,7 @@ Each Kernel registers to `KernelFactory` through `REGISTER_COMPUTE_NODE_KERNEL` 
 
 #### 4.5.2 AICPU Host CPU Engine
 
-As GE built-in Kernel supplement, through AICPU engine execute operators. Located at `runtime/v2/engine/aicpu/` and `runtime/v1/hybrid/node_executor/host_cpu/`.
+As GE built-in Kernel supplement, through AICPU engine execute operators. `HostCpuEngine` implementation located at `base/host_cpu_engine/` (`host_cpu_engine.h`), runtime path `runtime/v2/engine/aicpu/kernel/aicpu_resource_manager.cc` also references this SO.
 
 Load path is `libconstant_folding_ops.so`, provided by OPP (Operator Package), contains wider operator implementations. `compiler/engines/cpu_engine/cpu_engine/constant_folding_stub/constant_folding_ops_stub.cpp` is compilation stub library (no actual implementation), runtime replaced by real OPP library.
 
@@ -406,13 +428,15 @@ Load path is `libconstant_folding_ops.so`, provided by OPP (Operator Package), c
 Constant folding called in multiple stages of GE graph compilation, forming multiple-round iterative optimization:
 
 ```
-GraphPrepare::ComputeConstantShape (preprocessing stage)
+GraphPrepare::InferShapeForPreprocess (preprocessing stage)
   │
   ├── ReplaceWithEmptyConstPass (need_fold=false, only mark)
+  ├── SplitShapeNPass (graph_prepare.cc)
   ├── DimensionComputePass (need_fold=false, only mark)
   ├── ConstantClipPass
   ├── ConstantFoldingPass
-  └── InferValueRangePass
+  ├── InferValueRangePass
+  └── PotentialConstTakenEffectPass (OnFinishGraph callback, graph_prepare.cc)
 
 GraphManager::OptimizeStage1_2 (optimization stage1)
   │
@@ -430,8 +454,9 @@ GraphManager::OptimizeStage2 (optimization stage2, after subgraph merge)
   ├── AssignRemovePass
   └── DimensionAdjustPass
 
-GraphOptimizerBeforeAutofuse (before auto-fusion)
+GraphOptimizer2BeforeAutofuse (before auto-fusion)
   │
+  ├── ConstantClipPass
   └── ConstantFoldingPass
 ```
 

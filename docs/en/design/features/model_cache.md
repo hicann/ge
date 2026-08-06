@@ -124,16 +124,18 @@ In JIT (Just-In-Time) execution mode, `CompiledModelCache` manages the compilati
 - **ExecutionPoint (EP)**: Execution split points
 - **GuardedExecutionPoint (GEP)**: Execution points with guard conditions, each GEP has an independent `gep_graph_key`
 
-Cache directory structure:
+Cache directory structure (example path: `./cache_dir/jit/slicing_hierarchy/userGraphKey0/1/slice_graph.pb`):
 
 ```
 {cache_dir}/
-├── jit/                              # CompiledModelCache root directory
-│   ├── slicing_result.json           # Graph slicing result
-│   ├── {slice_graph_id}/             # Subdirectory for each slice graph
-│   │   ├── gep_list.json             # GEP list
-│   │   ├── slice_graph.pb            # Subgraph serialization
-│   │   └── rem_graph.pb              # Remaining graph serialization
+└── jit/                              # CompiledModelCache root directory
+    └── slicing_hierarchy/            # Graph slicing hierarchy directory
+        └── {user_graph_key}/         # Subdirectory for each UserGraph
+            ├── slicing_result.json   # Graph slicing result
+            └── {slice_graph_id}/     # Subdirectory for each slice graph
+                ├── gep_list.json     # GEP list
+                ├── slice_graph.pb    # Subgraph serialization
+                └── rem_graph.pb      # Remaining graph serialization
 ```
 
 ### 4.5 Case 5: ACL Single Operator Cache
@@ -272,11 +274,12 @@ After compilation completes, if cache is enabled and not in debug mode, cache wr
 1. **Generate Filename**: `GenerateCacheFile()` generates a timestamped filename in the format `{graph_key}_{timestamp}.om`
 2. **Serialize Model**: `SerializeModel()` serializes `GeRootModel` into binary data (`ModelBufferData`) via `ModelHelper::SaveToOmRootModel()`
 3. **Save to File**: `SaveModelToGeRootModel()` writes serialized data to `.om` file via `FileSaver::SaveToFile()`
-4. **Save Variable Description**: `SaveVarDescToFile()` serializes pre- and post-compilation variable description information into protobuf format and writes to `.rdcpkt` file. Specifically includes:
-   - `desc_info_before_compile`: Variable descriptions before compilation (recorded at `TryLoadModelFromCache` entry via `GE_DISMISSABLE_GUARD`)
-   - `desc_info_after_compile`: Variable descriptions after compilation
-   - `changed_var_names`: List of variable names that changed during this compilation
-   - `staged_var_tensor_desc_map`: Variable descriptions in staged state
+4. **Save Variable Description**: `SaveVarDescToFile()` serializes pre- and post-compilation variable description information into protobuf format and writes to `.rdcpkt` file. The structure is `VarMatchInfo` containing pre- and post-compilation `VarDescInfo`:
+   - `VarMatchInfo`
+     - `desc_info_before_compile` (`VarDescInfo` type): Variable descriptions before compilation (recorded at `TryLoadModelFromCache` entry via `GE_DISMISSABLE_GUARD`)
+     - `desc_info_after_compile` (`VarDescInfo` type): Variable descriptions after compilation, internally containing:
+       - `changed_var_names`: List of variable names that changed during this compilation
+       - `staged_var_tensor_desc_map`: Variable descriptions in staged state
 5. **Update Index File**: `SaveCacheIndexFile()` appends the new cache entry to the `.idx` index file
 
 ### 5.6 Concurrency Safety
@@ -311,12 +314,13 @@ CompiledModelCache Constructor:
 
 #### Cache Restore (RestoreCache)
 
-`RestoreCache()` restores ExecutionOrder graph slicing results, including:
-- Read `slicing_result.json` to get graph slicing strategy
-- Restore GEP information for each ExecutionPoint
-- For each GEP, execute via `GuardedExecutionPointUtil::RestoreGuardedExecutionPoint()`:
+`RestoreCache()` restores ExecutionOrder graph slicing results, using a layered call chain:
+- `RestoreCache()` → `ExecutionOrderUtil::RestoreExecutionOrder()`:
+  - Read `slicing_result.json` to get graph slicing strategy
+  - For each ExecutionPoint, call `ExecutionPointUtil::RestoreExecutionPoint()` to restore subgraph, remaining graph (`slice_graph.pb`, `rem_graph.pb`) and GEP information
+- `RestoreExecutionPoint()` → `GuardedExecutionPointUtil::RestoreGuardedExecutionPoint()` for each GEP:
   - Restore `gep_graph_key` to current thread context
-  - Load compiled subgraph from cache via `ModelCache::TryLoadModelFromCache()`
+  - Create an independent `ModelCache` instance through static helper function `TryLoadCompiledGraphFromCache()`, then load compiled subgraph from cache via `ModelCache::TryLoadModelFromCache()`
   - Load guard check function
 
 #### Cache Save (SaveCache)
@@ -325,6 +329,7 @@ CompiledModelCache Constructor:
 - Graph slicing strategy to `slicing_result.json`
 - All GEP `gep_graph_key` for each ExecutionPoint to `gep_list.json`
 - Subgraph serialization to `slice_graph.pb`
+- Remaining graph serialization to `rem_graph.pb`
 
 #### GEP-Level graph_key Generation
 
@@ -342,12 +347,18 @@ This ensures different GEPs in the same UserGraph have unique cache identifiers.
 
 - **Storage Structure**: `unordered_map<uint64_t, OpModel>`, with `opModelId` as key
 - **Thread Safety**: Uses `recursive_mutex` to protect all read/write operations
-- **Functions**:
+- **Functions** (core methods):
   - `Add()`: Cache loaded operator models
   - `GetOpModel()`: Find cached operator models by ID
   - `Delete()`: Delete cache and unload operator resources
   - `CreateCachedExecutor()`: Create RT2 executor based on cache
   - `CleanCachedModels()`: Clear all cache
+- **Other utility methods**:
+  - `GetCacheMutex()`: Get cache mutex
+  - `GetRT2Executor()`: Get RT2 executor
+  - `UpdateCachedExecutor()`: Update cached executor
+  - `CleanCachedExecutor()`: Clean cached executor on specified stream
+  - `UnloadCachedModelData()`: Unload cached model data
 
 ## 6. Cache File Structure
 
@@ -363,11 +374,13 @@ The complete cache directory structure is as follows:
 ├── weight/                                       # External weight directory (if enabled)
 │   └── {weight_files}
 └── jit/                                          # JIT cache directory
-    ├── slicing_result.json                       # Graph slicing result
-    └── {slice_graph_id}/
-        ├── gep_list.json                         # GEP list
-        ├── slice_graph.pb                        # Subgraph serialization
-        └── rem_graph.pb                          # Remaining graph serialization
+    └── slicing_hierarchy/                        # Graph slicing hierarchy directory
+        └── {user_graph_key}/                     # Subdirectory for each UserGraph
+            ├── slicing_result.json               # Graph slicing result
+            └── {slice_graph_id}/
+                ├── gep_list.json                 # GEP list
+                ├── slice_graph.pb                # Subgraph serialization
+                └── rem_graph.pb                  # Remaining graph serialization
 ```
 
 ## 7. Key Data Structures
@@ -375,7 +388,7 @@ The complete cache directory structure is as follows:
 | Structure | Definition Location | Purpose |
 |-----------|---------------------|---------|
 | `CacheFileIdx` | `compiler/graph/build/model_cache.h` | Single cache record in index file, containing graph_key, om file path, variable description file path |
-| `VarDescCache` | `compiler/graph/build/model_cache.h` | Variable description cache, containing variable description mapping, transformation path, changed variable name list |
+| `VarDescCache` | `compiler/graph/build/model_cache.h` | Variable description cache, containing variable description mapping, transformation path, changed variable name list, staged state variable description mapping |
 | `CacheConfig` | `compiler/graph/build/model_cache.h` | Cache configuration (manual_check, debug_mode) |
 | `VarMatchInfo` | protobuf definition | Variable matching information in cache, containing pre- and post-compilation variable descriptions |
 | `VarDescInfo` | protobuf definition | Serialization format of variable description information |

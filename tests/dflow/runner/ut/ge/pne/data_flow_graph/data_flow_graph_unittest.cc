@@ -12,7 +12,7 @@
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 #include "common/util/mem_utils.h"
-#include "dflow/compiler/data_flow_graph/data_flow_graph.h"
+#include "dflow/runner/compiler/data_flow_graph/data_flow_graph.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "proto/dflow.pb.h"
 #include "graph/utils/graph_utils.h"

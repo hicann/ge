@@ -19,7 +19,7 @@
 #include "graph/build/graph_builder.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/passes/graph_builder_utils.h"
-#include "dflow/compiler/data_flow_graph/process_point_loader.h"
+#include "dflow/runner/compiler/data_flow_graph/process_point_loader.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
 #include "framework/common/helper/model_save_helper.h"
 

@@ -92,7 +92,7 @@ ACL\_MDL\_LOAD\_TYPE\_SIZET（表示模型加载方式）的取值如下：
 
 ## ACL\_MDL\_PATH\_PTR取值说明
 
-om模型文件路径的指针，如果选择从文件加载模型，则该选项必选。关于如何获取模型文件，请参见[《ATC离线模型编译工具》](https://hiascend.com/document/redirect/cannCommunityATC)中的“参数说明 \> 基础功能参数 \> 总体选项 \> --mode”。
+om模型文件路径的指针，如果选择从文件加载模型，则该选项必选。关于如何获取模型文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
 
 <!-- npu="IPV350" id2 -->
 IPV350上还支持后缀为exeom的模型文件，关于om或exeom模型文件的区别如下：

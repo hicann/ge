@@ -21,7 +21,7 @@ export IGNORE_INFER_ERROR=1
 
 该环境变量不推荐使用，仅用于用户自定义算子入图交付件缺失且编译报错时，希望快速恢复用例的场景。
 
-如果自定义算子入图交付件缺失（比如缺少InferDataType实现），有可能导致编译失败或者精度问题，建议参考《Ascend C算子开发指南》手册的“编程指南 \> 附录 \> 算子入图（GE图）开发”章节进行补齐。
+如果自定义算子入图交付件缺失（比如缺少InferDataType实现），有可能导致编译失败或者精度问题，建议参考[《Ascend C算子开发》](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)手册的“编程指南 \> 附录 \> 算子入图（GE图）开发”章节进行补齐。
 
 ## 产品支持情况
 

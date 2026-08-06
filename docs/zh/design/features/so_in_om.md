@@ -31,31 +31,36 @@ graph TB
         E -->|SpaceRegistry| F[收集 tiling/infer shape so]
         E -->|OpMasterDevice| G[收集 op_master_device so]
         E -->|Autofuse| H[收集 autofuse so]
+        E -->|CustomOp| H2[收集 custom op so]
         F --> I[OpSoStore 打包]
         G --> I
         H --> I
+        H2 --> I
         I --> J[写入 OM 文件的 SO_BINS 分区]
     end
 
     subgraph "OM 文件结构"
         J --> K[ModelFileHeader]
         K --> L[MODEL_DEF 分区]
-        K --> M[MODEL_WEIGHTS 分区]
-        K --> N[MODEL_TBE_KERNEL 分区]
+        K --> M[WEIGHTS_DATA 分区]
+        K --> N[TBE_KERNELS 分区]
         K --> O[SO_BINS 分区]
         K --> P[TILING_DATA 分区]
+        K --> P2[CUSTOM_OPS 分区]
     end
 
     subgraph "运行时 (ModelManager)"
-        O --> Q[ModelHelper::LoadSoStoreModelPartitionInfo]
+        O --> Q[ModelHelper::LoadOpSoBin]
         Q --> R[OpSoStore::Load 解析]
         R --> S{按 SoBinType 分类}
         S -->|SpaceRegistry| T[注册到 OpImplSpaceRegistry]
-        S -->|OpMasterDevice| U[加载到 op_master_device_so_names_to_bin_]
-        S -->|Autofuse| V[加载到 autofuse so 缓存]
+        S -->|OpMasterDevice| U[加载到 built_in/cust_op_master<br/>_so_names_to_bin_]
+        S -->|Autofuse| V[guard_check.so 还原为 _guard_check_so_data<br/>其余写入 bin_file_buffer ext 属性]
+        S -->|CustomOp| V2[加载到 CustomOpSoLoader]
         T --> W[模型执行时动态调用]
         U --> W
         V --> W
+        V2 --> W
     end
 ```
 
@@ -66,14 +71,15 @@ SO in OM 特性在 OM 文件格式中新增了独立的分区类型 `SO_BINS`：
 | 分区类型 | 用途 | 与 SO in OM 的关系 |
 |---------|------|-------------------|
 | `MODEL_DEF` | 模型定义（图结构、算子属性） | 包含 `so_in_om_flag` 标记位 |
-| `MODEL_WEIGHTS` | 模型权重数据 | 独立 |
-| `MODEL_TBE_KERNEL` | TBE 算子二进制 | 与 SO_BINS 互补 |
+| `WEIGHTS_DATA` | 模型权重数据 | 独立 |
+| `TBE_KERNELS` | TBE 算子二进制 | 与 SO_BINS 互补 |
 | `SO_BINS` | 算子 .so 文件集合 | SO in OM 的核心载体 |
 | `TILING_DATA` | 预计算的 tiling 参数 | 与 SpaceRegistry SO 配合使用 |
+| `CUSTOM_OPS` | 自定义算子实例序列化数据 | 与 SO_BINS 中 kCustomOp 类型 SO 配合使用 |
 
-### 2.2 三种 SO 类型
+### 2.2 四种 SO 类型
 
-GE 将需要打包的 SO 分为三类，每种对应不同的使用场景和生命周期：
+GE 将需要打包的 SO 分为四类，每种对应不同的使用场景和生命周期：
 
 ```mermaid
 graph LR
@@ -81,18 +87,21 @@ graph LR
         A[kSpaceRegistry = 0] -->|bit 15| B[0x8000]
         C[kOpMasterDevice = 1] -->|bit 14| D[0x4000]
         E[kAutofuse = 2] -->|bit 13| F[0x2000]
+        E2[kCustomOp = 3] -->|bit 12| F2[0x1000]
     end
 
     subgraph "用途"
         B --> G[RT2 动态 shape<br/>infer shape / tiling so]
         D --> H[设备端 tiling so<br/>op_master_device]
         F --> I[Autofuse 融合算子 so<br/>离线保存和加载]
+        F2 --> I2[PortableOp 自定义算子 so<br/>离线保存和加载]
     end
 
     subgraph "触发条件"
-        G --> J[动态 shape 模型<br/>或 static_to_dynamic_softsync]
+        G --> J[动态 shape 模型<br/>或 _static_to_dynamic_softsync_op]
         H --> K[TaskDef 中存在<br/>PREPROCESS_KERNEL 类型任务]
-        I --> L[图节点包含<br/>bin_file_path 属性]
+        I --> L[图节点包含<br/>bin_file_path 属性<br/>或 _guard_check_so_data 非空]
+        I2 --> L2[图中存在 CustomOpRegistry<br/>可识别的 PortableOp 自定义算子]
     end
 ```
 
@@ -110,8 +119,10 @@ SO 打包发生在 `GeGenerator` 生成离线模型的流程末尾。关键入�
 GenerateOfflineModel()
   └── GenerateModel()
         └── impl_->SaveRootModel()
-              └── ModelHelper::SaveToOmRootModel()
-                    └── SaveSoStoreModelPartitionInfo()  ← SO 打包入口
+              └── ModelHelper::SaveToOmRootModel()            (model_helper.cc)
+                    └── SaveRootModelPartitions()             (model_helper.cc)
+                          ├── SaveSoStoreModelPartitionInfo()  ← SO 打包入口 (model_helper.cc)
+                          └── SaveCustomOpsPartition()         ← 自定义算子分区 (model_helper.cc)
 ```
 
 ### 3.2 检测阶段：CheckAndSetNeedSoInOM
@@ -126,7 +137,7 @@ GenerateOfflineModel()
 
 **触发条件**：
 - 模型包含动态 shape（`ATTR_NAME_DYNAMIC_SHAPE_PARTITIONED` 为 true 或 `GetGraphUnknownFlag()` 为 true）
-- 模型包含 `static_to_dynamic_softsync_op` 类型的算子
+- 模型包含 `_static_to_dynamic_softsync_op` 类型的算子
 
 **说明**：动态 shape 模型在运行时需要动态计算 tensor 的内存布局和 tiling 参数，这些计算逻辑由 SpaceRegistry 中的 .so 提供。打包后，运行时无需从外部 OPP 路径加载。
 
@@ -136,17 +147,21 @@ GenerateOfflineModel()
 
 **说明**：`PREPROCESS_KERNEL` 是算子在设备端执行前的预处理逻辑（如 tiling 计算），需要对应的 .so 提供实现。这些 so 通常位于 `/op_impl/ai_core/tbe/op_master_device/lib/` 路径下。
 
-#### 3.2.3 CheckAndSetAutofuse
+#### 3.2.3 CheckAndSetAutofuseSo
 
-**触发条件**：图节点包含 `bin_file_path` 属性。
+**触发条件**：
+- 图节点包含 `bin_file_path` 属性
+- 根图 `_guard_check_so_data` 属性非空（ge_root_model.cc）
 
-**说明**：Autofuse 是 GE 的算子自动融合优化特性，融合后的算子会生成独立的 .so 文件，需要随模型一起分发。
+**说明**：Autofuse 是 GE 的算子自动融合优化特性，融合后的算子会生成独立的 .so 文件，需要随模型一起分发。`CheckAndSetAutofuseSo()` 除了检查 `bin_file_path` 外，还会检查根图的 `_guard_check_so_data` 属性——当该属性非空时，同样设置 kAutofuse 标志位，确保 guard check 数据随模型一起保存和加载。
 
 #### 3.2.4 CheckAndSetCustomOpSo
 
 **触发条件**：图中存在当前 `GeRootModel` 持有的 `CustomOpRegistry` 能识别的 `PortableOp` 自定义算子。
 
 **说明**：`GraphManager::PreRun()` 在 `BuildModel()` 返回后会把编译期进程级全局 `CustomOpRegistry` 显式绑定到当前 `GeRootModel`。后续自定义算子 SO 收集和 `CUSTOM_OPS` 分区序列化均通过 `ge_root_model->GetCustomOpRegistry()` 访问自定义算子，保存流程不再直接访问 `CustomOpFactory`。已有 OM 重新打包时如果模型未携带 custom op registry，则仅跳过 custom op 分区处理，不回退到进程级全局 registry。
+
+**交叉编译场景**（ge_root_model.cc）：`CheckAndSetCustomOpSo()` 通过 `IsCrossCompileTarget()` 判断目标环境与编译环境是否不同（比较 OS 和 CPU 架构）。非交叉编译时，通过 `dladdr` 从 `PortableOp` 虚表解析实际 SO 路径，并用 `CheckSoArchMatchesTarget()` 进行 ELF 架构校验；交叉编译时跳过本机 SO 收集，改为调用 `CollectCustomOpSoFromCustomOppPath()` 从 `ASCEND_CUSTOM_OPP_PATH` 环境变量指向的目标环境算子包目录收集 SO，同样经过 `CheckSoArchMatchesTarget()` 校验 ELF 架构与目标 CPU 匹配。
 
 ### 3.3 收集阶段：LoadAndStoreOppSo
 
@@ -162,11 +177,18 @@ SaveSpaceRegistrySoBin()
 SaveOpMasterDeviceSoBin()
   └── LoadAndStoreOppSo(ge_root_model->GetOpMasterDeviceSoSet())
 
-SaveAutofuseSoBin()
+SaveAutofuseSoBin()  (model_helper.cc)
+  ├── 处理 _guard_check_so_data 属性 → 生成 guard_check.so OpSoBin
+  ├── 处理 bin_file_buffer ext 属性 → 同步已有 OpSoBin
   └── LoadAndStoreOppSo(ge_root_model->GetAutofuseSoSet())
+
+SaveCustomOpSoBin()  (model_helper.cc)
+  └── LoadAndStoreOppSo(ge_root_model->GetCustomOpSoSet(), SoBinType::kCustomOp)
 ```
 
 SpaceRegistry SO 的文件名会嵌入编译主机的 OS 和 CPU 信息（如 `_linux_x86_64` 后缀），因为 tiling/infer shape 逻辑在主机端执行，需与编译环境匹配。
+
+`SaveAutofuseSoBin()` 除了常规的 `LoadAndStoreOppSo()` 加载外，还有两步额外逻辑：首先将根图 `_guard_check_so_data` 属性内容包装为名为 `guard_check.so` 的 OpSoBin 加入 OpSoStore；然后检查根图的 `bin_file_buffer` ext 属性（已有 OM 重新打包时存在），若非空则直接将其中的 OpSoBin 同步到 OpSoStore，不再重复从磁盘加载。
 
 ### 3.4 序列化阶段：OpSoStore::Build
 
@@ -182,7 +204,7 @@ SpaceRegistry SO 的文件名会嵌入编译主机的 OS 和 CPU 信息（如 `_
 │ SoStoreItemHead (16 bytes)              │  ← 第 1 个 SO 的头
 │   magic:       0x5D776EFD               │
 │   so_name_len: uint16                   │
-│   so_bin_type: uint16                   │  ← SpaceRegistry/OpMasterDevice/Autofuse
+│   so_bin_type: uint16                   │  ← SpaceRegistry/OpMasterDevice/Autofuse/CustomOp
 │   vendor_name_len: uint32               │
 │   bin_len:     uint32                   │
 ├─────────────────────────────────────────┤
@@ -213,23 +235,26 @@ SpaceRegistry SO 的文件名会嵌入编译主机的 OS 和 CPU 信息（如 `_
 
 ### 4.1 加载入口
 
-**文件路径**: `base/common/helper/model_helper.cc`
+**文件路径**: `base/common/helper/model_custom_kernels_helper.cc`
 
-模型加载时，`ModelHelper` 按以下顺序处理 SO_BINS 分区：
+模型加载时，`ModelHelper` 按以下顺序处理 SO_BINS 分区。注意：`LoadModel()`（model_helper.cc）不处理 SO_BINS，SO 加载入口在 `LoadRootModel()`（model_helper.cc）流程中：
 
 ```
-ModelHelper::LoadModel()
-  └── LoadSoStoreModelPartitionInfo()
-        └── OpSoStore::Load(data, len)  ← 反序列化 SO_BINS 分区
-              └── 解析 SoStoreHead 和每个 SoStoreItemHead
-              └── 创建 OpSoBin 对象并加入 kernels_ 列表
+ModelHelper::LoadRootModel()                         (model_helper.cc)
+  └── GenerateGeRootModel()                           (model_helper.cc)
+        └── LoadCustomOpRegistry()                    (model_custom_kernels_helper.cc)
+              └── LoadOpSoBin()                       (model_custom_kernels_helper.cc)
+                    └── GeRootModel::LoadSoBinData()  (ge_root_model.cc)
+                          └── OpSoStore::Load(data, len)  ← 反序列化 SO_BINS 分区
+                                └── 解析 SoStoreHead 和每个 SoStoreItemHead
+                                └── 创建 OpSoBin 对象并加入 kernels_ 列表
 ```
 
 ### 4.2 按类型分流加载
 
-**文件路径**: `base/common/helper/model_helper.cc`
+**文件路径**: `base/common/helper/model_custom_kernels_helper.cc`、`runtime/v1/graph/load/model_manager/model_manager.cc`
 
-加载完成后，SO 按类型分流到不同的处理路径：
+`LoadOpSoBin()` 加载完成后，SO 按类型分流到不同的处理路径：
 
 #### 4.2.1 SpaceRegistry SO 加载
 
@@ -239,18 +264,27 @@ SpaceRegistry SO 被注册到 `OpImplSpaceRegistryV2Array` 中，这是 RT2（Ru
 
 **文件路径**: `runtime/v1/graph/load/model_manager/model_manager.cc`
 
-OpMasterDevice SO 的加载采用两套去重策略：
+OpMasterDevice SO 的加载（`InitOpMasterDeviceSo`，model_manager.cc）采用两套去重策略，分别存储在不同的 map 中：
 
-- **内置 SO**：通过 so 名称去重（类型+版本号保证唯一），相同名称的 SO 只保留一份
-- **自定义 SO**：通过二进制内容去重，将完整 SO 数据作为 key 建立映射。当多个模型引用内容相同但文件名不同的自定义算子时，系统能识别并复用已有 SO，避免重复加载
+- **内置 SO**：存入 `built_in_op_master_so_names_to_bin_`（model_manager.cc），通过 so 名称去重（类型+版本号保证唯一），相同名称的 SO 只保留一份
+- **自定义 SO**：存入 `cust_op_master_so_names_to_bin_`（model_manager.cc），通过二进制内容去重——以完整 SO 数据为 key 在 `cust_op_master_so_datas_to_name_`（model_manager.cc）中建立映射。当多个模型引用内容相同但文件名不同的自定义算子时，系统能识别并复用已有 SO，避免重复加载
 
-#### 4.2.3 CUSTOM_OPS 分区加载
+#### 4.2.3 Autofuse SO 加载
+
+**文件路径**: `base/common/helper/model_custom_kernels_helper.cc`
+
+`LoadOpSoBin()` 遍历所有 OpSoBin 时，对 kAutofuse 类型的 SO 并非简单缓存，而是按内容分别处理（model_custom_kernels_helper.cc）：
+
+- **`guard_check.so`**：将其二进制内容还原为根图的 `_guard_check_so_data` 字符串属性，供运行时 guard check 逻辑使用
+- **其他 Autofuse SO**：以 `vendor_name/so_name` 为 key 存入 `bin_file_buffer` 映射，并设置为根图的 ext 属性，供运行时按需加载
+
+#### 4.2.4 CUSTOM_OPS 分区加载
 
 **文件路径**: `base/common/helper/model_custom_kernels_helper.cc`
 
 离线 OM 中的 `CUSTOM_OPS` 分区承载自定义算子实例序列化数据。离线加载 root model 时，即使 OM 未携带自定义算子 SO 或非空 `CUSTOM_OPS` 分区，也会创建模型级空 `CustomOpRegistry` 并注入 `GeRootModel`，用于标识该模型的自定义算子查找域。加载非空 `CUSTOM_OPS` 分区时必须写入当前模型持有的 `CustomOpRegistry`，禁止回退到进程级全局 `CustomOpFactory`，避免多模型私有自定义算子状态互相污染。RT2 `ModelConverter::ConvertGeModelToExecuteGraph()` 只消费 `GeRootModel` 已注入的 registry；若 registry 为空则视为上游构造异常，不在 Convert 阶段回退全局 registry。
 
-#### 4.2.4 兼容性校验
+#### 4.2.5 兼容性校验
 
 **文件路径**: `base/common/helper/model_helper.cc`
 
@@ -304,12 +338,13 @@ Single Op OM 文件加载后，通过 `SingleOpModel` 类解析和执行，依�
 
 **文件路径**: `base/common/op_so_store/op_so_store_utils.h`
 
-位标志通过位移操作实现类型判断和设置，高位到低位依次排列：SpaceRegistry(15)、OpMasterDevice(14)、Autofuse(13)。
+位标志通过位移操作实现类型判断和设置，高位到低位依次排列：SpaceRegistry(15)、OpMasterDevice(14)、Autofuse(13)、CustomOp(12)。
 
 **位标志值**：
 - `kSpaceRegistry` (0): `0x8000`
 - `kOpMasterDevice` (1): `0x4000`
 - `kAutofuse` (2): `0x2000`
+- `kCustomOp` (3): `0x1000`
 
 组合示例：`0xC000` = SpaceRegistry + OpMasterDevice
 
@@ -335,6 +370,7 @@ Single Op OM 文件加载后，通过 `SingleOpModel` 类解析和执行，依�
 | `base/common/op_so_store/op_so_store_utils.h` | `OpSoStoreUtils` 位标志操作工具 |
 | `base/common/model/ge_root_model.cc` | `CheckAndSetNeedSoInOM` 检测逻辑 |
 | `base/common/helper/model_helper.cc` | SO 打包和加载的核心流程 |
+| `base/common/helper/model_custom_kernels_helper.cc` | `LoadOpSoBin`、`LoadCustomOpRegistry`、`SaveCustomOpsPartition` 实现 |
 | `compiler/api/generator/ge_generator.cc` | `BuildSingleOpModel` 编译入口 |
 | `runtime/v1/graph/load/model_manager/model_manager.cc` | `InitOpMasterDeviceSo` 运行时加载 |
 | `runtime/v1/single_op/single_op_model.cc` | Single Op 模型解析和执行 |

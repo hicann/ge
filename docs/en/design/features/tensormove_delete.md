@@ -111,37 +111,37 @@ After optimization:
 - Self-loop and reverse reachability checks are performed on new control edges to avoid converting the DAG into a cyclic graph.
 - When deletion or edge supplementation fails, the newly added control edges for the current round are rolled back.
 
-## 4. External Interfaces
+## 3. External Interfaces
 
 The TensorMove elimination feature does not provide an independent API call entry. It runs automatically as a standard optimization Pass in the GE compilation pipeline. Users indirectly control its behavior through the following configuration items:
 
-### 4.1 Graph Compilation Options
+### 3.1 Graph Compilation Options
 
 | Configuration Item | Description | Example Value |
 |--------|------|--------|
-| `ge.exec.outputReuseInputMemIndexes` | Declares which outputs reuse which inputs' memory. Format is `output_index,input_index` pairs, multiple pairs separated by `\|` | `"0,0\|1,1"` |
+| `ge.exec.outputReuseInputMemIndexes` | Declares which outputs reuse which inputs' memory. Format is `input_index,output_index` pairs, multiple pairs separated by `\|` | `"0,0\|1,1"` |
 | `ge.exec.inputReuseMemIndexes` | Declares which inputs participate in memory reuse. Format is a comma-separated input index list | `"0"` or `"0,1"` |
 
 These two configuration items only take effect in Scenario 2 and Scenario 3 (zero-copy scenarios where the source node is `Data`). When the data source of `TensorMove` is a normal computation node or a special node (Variable/Const) and the safe successor condition is met, elimination proceeds automatically without any configuration.
 
-### 4.2 Node Retention Attributes
+### 3.2 Node Retention Attributes
 
 Other optimization Passes can mark a `TensorMove` node as non-deletable through the following attributes:
 
 | Attribute Name | Description |
 |--------|------|
 | `_cannot_be_deleted` | Boolean attribute, marking this node as non-deletable by any Pass |
-| `no_need_constant_folding` | Boolean attribute, marking this node as not participating in constant folding, implying non-deletable semantics |
+| `no_need_constant_folding` | Boolean attribute whose mere existence marks the node as non-deletable by TensorMoveDeletePass (regardless of whether the value is true/false). `HasReservedAttr` checks attribute existence, not the boolean value |
 
 `InnerIdentityAddPass`, `SubgraphPass`, `HcclContinuousMemcpyPass`, and other memory conflict handling Passes set both of these attributes when inserting `Identity` nodes, preventing newly inserted nodes from being mistakenly deleted by subsequent optimizations.
 
-### 4.3 Optimization Level
+### 3.3 Optimization Level
 
 `TensorMoveDeletePass` is registered at the O3 optimization level, belonging to the highest optimization rank. Registered through `REG_PASS_OPTION("TensorMoveDeletePass").LEVELS(OoLevel::kO3)`, enabled by default.
 
-## 5. Specific Implementation
+## 4. Specific Implementation
 
-### 5.1 Overall Architecture
+### 4.1 Overall Architecture
 
 TensorMove elimination is implemented by `TensorMoveDeletePass`, which inherits from `BaseNodePass` and traverses all operators in the graph by node. After the Phase 2 optimization, its core logic consists of three phases:
 
@@ -170,7 +170,7 @@ Pass registration and integration:
 - Call entry: The `OptimizeTensorMove` function in `compiler/graph/manager/graph_manager.cc`
 - Compilation phase: Executed in `PreRunAfterOptimizeSubGraph`, immediately after `OptimizeGraphBeforeBuild`
 
-### 5.2 Core Data Structures
+### 4.2 Core Data Structures
 
 The `TensorMoveDeleteContext` structure encapsulates all context information needed for a single elimination decision:
 - `tensor_move`: The current TensorMove node to be evaluated
@@ -182,7 +182,7 @@ The `TensorMoveDeleteContext` structure encapsulates all context information nee
 
 `DeleteRule` is a function object type (`std::function<bool(TensorMoveDeleteContext&)>`), used to abstract each judgment rule as an independent predicate function, executing in rule chain form in the `Run` method.
 
-### 5.3 Phase 1: Source Traceback (TraceRealSourceNode)
+### 4.3 Phase 1: Source Traceback (TraceRealSourceNode)
 
 This is the most complex part of the entire feature. The direct predecessor node of `TensorMove` may not be the real data source — the middle may have subgraph boundaries, RefOp pass-through, or even other TensorMove nodes. The `TraceRealSourceNode` function is responsible for starting from the TensorMove input port, tracing back data flow in reverse, and finding the real source node that produces the data.
 
@@ -202,9 +202,9 @@ When traceback encounters a `PartitionedCall` node, it means data is produced in
 
 **4. Control Flow Operator Termination**
 
-When the traceback path encounters `IF`, `WHILE`, `CASE`, and other multi-branch control flow operators, it is treated as a traceback boundary, stopping tracking. This is because the existence of control flow means data flow has uncertainty, and it is not possible to safely judge at compilation time whether elimination is possible.
+When the traceback path encounters `IF`, `WHILE`, `FOR`, `Switch`, and other multi-branch control flow operators, it is treated as a traceback boundary, stopping tracking. This is because the existence of control flow means data flow has uncertainty, and it is not possible to safely judge at compilation time whether elimination is possible.
 
-### 5.4 Phase 2: Rule Validation Chain
+### 4.4 Phase 2: Rule Validation Chain
 
 After the Phase 2 optimization, once the source is traced, the system determines whether safe deletion is possible through chain execution of five rules:
 
@@ -221,7 +221,9 @@ flowchart LR
 
 - The path cannot be empty (indicating the source cannot be found)
 - The source node cannot be a multi-branch control flow operator
-- When the source node is a special node (Variable/Const and so on), passage is allowed only when the TensorMove successor does not overwrite source memory (relaxed in Phase 2)
+- When the source node is a special node (Variable/Const and so on), `CheckPathToSourceNodeValid` (tensor_move_delete_pass.cc) actually performs two checks:
+  1. `IsSuccessorSafeAfterTensorMove` — rejects deletion when the successor is a RefOp / NetOutput / wrapper node
+  2. `WouldTMSuccessorsOverwriteSource` — checks whether the successor overwrites source memory, allowing passage only when the successor does not overwrite source memory (relaxed in Phase 2)
 
 **Rule 2: CheckSourceNodeReuse — Memory Reuse Check**
 
@@ -234,7 +236,7 @@ The memory reuse check is implemented through the `IsMemoryReuseAllowed` functio
 This rule is implemented by `IsSourceNodeWithSinglePath`, used to prove that after deleting `TensorMove`, the read and write order of source memory remains controllable. The validation target is the traceback path from the real source node to the current `TensorMove`. When any node on the path does not meet the conditions, `TensorMove` is retained.
 
 Basic validation includes:
-- Path nodes cannot be `IF` / `CASE` / `WHILE` and other multi-branch control flow operators.
+- Path nodes cannot be `IF` / `WHILE` / `FOR` / `Switch` and other multi-branch control flow operators.
 - RefOp cannot have multiple connected outputs reusing the same input (`HasMultipleOutputsSharingSameInput`). Otherwise, the same input memory is referenced by multiple output paths, and the current rule cannot prove the complete lifecycle.
 - When the output anchor consumer count exceeds 1, the "single output multiple reference" branch is entered (new in Phase 2), instead of simply passing through as a single path.
 
@@ -264,6 +266,8 @@ For each successor node tm_succ of TM:
 
 Based on the symbol table and `IsGraphExistMemConflictSymbol`, determine whether deleting TensorMove would cause a memory layout conflict.
 
+`CheckMemLayoutConflictOnDelete` (tensor_move_delete_pass.cc) has short-circuit logic at the entry: `if (!ctx.has_symbol_table) { return true; }` — when the symbol table fails to construct (`has_symbol_table` is false), it directly passes, skipping the memory layout conflict check.
+
 Check flow:
 ```
 1. Get the symbol corresponding to the TM input anchor: input_symbol = anchor_to_symbol[NodeIndexIO(tm, 0, kIn)]
@@ -274,7 +278,7 @@ Check flow:
 6. has_conflict == true -> reject deletion
 ```
 
-### 5.5 Phase 3: Topology Reconnection and Symbol Table Maintenance
+### 4.5 Phase 3: Topology Reconnection and Symbol Table Maintenance
 
 After all five rules pass, first call `ApplyPendingControlEdges` to land the pending control edges, then call `IsolateAndDeleteNode(node, {0})` to execute deletion.
 
@@ -291,9 +295,13 @@ After deleting TensorMove, the anchors on the TM input side and output side are 
    a. Change all entries in anchor_to_symbol with value output_symbol to input_symbol
    b. Merge symbol_to_anchors[output_symbol] into symbol_to_anchors[input_symbol]
    c. Erase symbol_to_anchors[output_symbol]
+3. Clean up TM's own anchors (MergeTensorMoveSymbolAfterDelete, tensor_move_delete_pass.cc):
+   a. Remove TM's input/output anchors from symbol_to_anchors[input_symbol]
+   b. Erase TM's in_io_key and out_io_key from anchor_to_symbol
+   c. Reason: the TM node has been deleted, and its anchors should not remain in the symbol table
 ```
 
-### 5.6 Collaboration Relationship with Other Passes
+### 4.6 Collaboration Relationship with Other Passes
 
 TensorMove elimination does not work in isolation. It has collaboration relationships with multiple Passes in the compilation pipeline:
 
@@ -322,7 +330,7 @@ OptimizeTensorMove internal flow (new in Phase 2):
 
 TensorMove elimination executes after graph structure optimization completes and before memory conflict handling. This timing design is reasonable — let other optimization Passes complete graph structure simplification and transformation first, then execute TensorMove elimination on the stabilized graph, and finally let the memory conflict handling Pass evaluate the elimination result and insert protection nodes when necessary.
 
-### 5.7 Key Design Decisions
+### 4.7 Key Design Decisions
 
 **Why Use Traceback Instead of Forward Propagation?**
 

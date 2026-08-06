@@ -10,29 +10,30 @@ GE（Graph Engine）作为昇腾的图编译器和执行器，需要解决的核
 
 ### 1.2 引擎总览
 
-| 引擎 | 注册名 | 典型算子 | 引擎目录 |
+| 引擎 | DNNEngine 注册名 | 典型算子 | 引擎目录 |
 |------|--------|---------|---------|
 | AI Core 融合引擎 | `AIcoreEngine` | Conv2D、MatMul、BiasAdd、ReLU、BatchNorm | `compiler/engines/nn_engine/` |
 | Vector Core 引擎 | `VectorEngine` | ElementWise、Sqrt、Exp、Log、Cast | `compiler/engines/nn_engine/` |
 | FFTS+ 组合引擎 | `ffts_plus` | 跨引擎融合算子、AIC+AIV 混合任务 | `compiler/engines/ffts_engine/` |
-| AI CPU Ascend 引擎 | `aicpu_ascend_kernel` | SparseToDense、Minimum、Maximum、Round | `compiler/engines/cpu_engine/aicpu_engine/` |
-| AI CPU TF 引擎 | `aicpu_tf_kernel` | TensorFlow 格式的 AI CPU 算子 | `compiler/engines/cpu_engine/tf_engine/` |
-| Host CPU 引擎 | `DNN_VM_HOST_CPU_OP_STORE` | 常量折叠算子、不支持昇腾设备的回退算子 | `compiler/engines/cpu_engine/hostcpu_engine/`、`base/host_cpu_engine/` |
-| HCCL 通信引擎 | `ops_kernel_info_hccl` | AllReduce、Broadcast、AllGather、ReduceScatter | `compiler/engines/hccl_engine/` |
-| DVPP 预处理引擎 | `dvpp_ops_kernel` | ImageDecode、Resize、Crop、ColorConvert | `compiler/engines/dvpp_engine/` |
-| RTS 运行时服务引擎 | `DNN_VM_RTS_OP_STORE` | StreamSwitch、StreamActive、LabelGoto、LabelSet | `compiler/engines/rts_engine/` |
-| GE Local 引擎 | `DNN_VM_GE_LOCAL_OP_STORE` | NetOutput、NoOp、Const、PhonyConcat、PhonySplit | `compiler/engines/local_engine/` |
+| AI CPU Ascend 引擎 | `DNN_VM_AICPU_ASCEND` | SparseToDense、Minimum、Maximum、Round | `compiler/engines/cpu_engine/aicpu_engine/` |
+| AI CPU TF 引擎 | `DNN_VM_AICPU` | TensorFlow 格式的 AI CPU 算子 | `compiler/engines/cpu_engine/tf_engine/` |
+| Host CPU 引擎 | `DNN_VM_HOST_CPU` | 常量折叠算子、不支持昇腾设备的回退算子 | `compiler/engines/cpu_engine/hostcpu_engine/`、`base/host_cpu_engine/` |
+| HCCL 通信引擎 | `DNN_HCCL` | AllReduce、Broadcast、AllGather、ReduceScatter | `compiler/engines/hccl_engine/` |
+| DVPP 预处理引擎 | `DNN_VM_DVPP` | ImageDecode、Resize、Crop、ColorConvert | `compiler/engines/dvpp_engine/` |
+| RTS 运行时服务引擎 | `DNN_VM_RTS` | StreamSwitch、StreamActive、LabelGoto、LabelSet | `compiler/engines/rts_engine/` |
+| GE Local 引擎 | `DNN_VM_GE_LOCAL` | NetOutput、NoOp、Const、PhonyConcat、PhonySplit | `compiler/engines/local_engine/` |
 | 自定义算子引擎 | `DNN_VM_CUSTOM` | 用户自定义 Ascend C 算子 | `compiler/engines/custom_engine/` |
 | DSA 引擎 | `DSAEngine` | DSA 专用算子 | `compiler/engines/nn_engine/`（DSA 子模块） |
 
 - 注：“AI Core 融合引擎” 和 “Vector Core 引擎”统一称为FE（Fusion Engine, 融合引擎）
+- 注：表中"DNNEngine 注册名"为 `DNNEngine` 体系的注册名（见 4.2 节），与各引擎 SO 中的 `OpsKernelInfoStore` 名称不同（如 AI CPU Ascend 引擎的 OpsKernelInfoStore 名称为 `aicpu_ascend_kernel`、HCCL 为 `ops_kernel_info_hccl`、RTS 为 `DNN_VM_RTS_OP_STORE` 等）。
 
 ### 1.3 设计哲学
 
 Engine 特性遵循三个核心设计原则：
 
 - **插件化**：每种引擎编译为独立的动态库（`.so`），通过统一的 C 函数接口与 GE 框架交互。引擎可以独立开发、独立编译、独立部署，GE 框架无需感知引擎内部实现。
-- **优先级驱动自动选择**：系统通过代价模型（Cost Model）为每个算子自动选择最优引擎，用户无需手动指定。代价越低（`COST_0` 到 `COST_10`）的引擎越优先被选择，优先选择意味着更高性能的执行路径。
+- **优先级驱动自动选择**：系统通过代价模型（Cost Model）为每个算子自动选择最优引擎，用户无需手动指定。代价越低（`COST_0` 到 `COST_10`）的引擎越优先被选择，优先选择意味着更高性能的执行路径。（注：`PriorityEnum` 枚举值并不连续，实际定义为 `COST_0`~`COST_5`、`COST_9`、`COST_10`，缺省 `COST_6`/`COST_7`/`COST_8`，见 `dnnengine.h`）
 - **编译期决策 + 运行期执行**：引擎选择和图分区在编译期完成，运行期直接按编译产物的执行计划驱动。这避免了运行时的引擎分发开销。
 
 ---
@@ -73,7 +74,7 @@ Engine 特性遵循三个核心设计原则：
 
 ### 2.5 场景五：Host CPU 回退执行
 
-当某些算子不支持在昇腾设备上执行时，可以通过 `hostExecFlag` 选项将算子回退到主机 CPU 执行。`HostcpuEngineUpdatePass` 会在引擎重分配阶段标记这些算子为 `DNN_VM_HOST_CPU` 引擎。Host CPU 引擎的优先级最低（`COST_10`），只有在所有设备引擎都不支持时才会被选中。
+当某些算子不支持在昇腾设备上执行时，可以通过 `hostExecFlag` 选项将算子回退到主机 CPU 执行。该标记的检查发生在初始引擎选择阶段——`DNNEngineManager::GetDNNEngineName` 通过 `ExecOnHostCpu` 函数判断算子是否回退到 `DNN_VM_HOST_CPU` 引擎，而非在引擎重分配阶段。此外，`HostcpuEngineUpdatePass` 在动态 shape 场景下，基于小 shape 传播策略，将设备引擎上的小 shape 算子重新分配到 Host CPU 引擎执行；该 Pass 受 `HostShapeOptimizationPass` 选项和 runtime2 开关控制。Host CPU 引擎的优先级最低（`COST_10`），只有在所有设备引擎都不支持时才会被选中。
 
 ---
 
@@ -122,7 +123,7 @@ ACL 层的 `aclopEngineType` 在编译流水线内部转换为 `ge::OpEngineType
 | 选项 Key | 类型 | 含义 |
 |---------|------|------|
 | `ge.engineType` | string | 核心引擎类型：`"AIcoreEngine"`（默认）或 `"VectorEngine"`，两者互斥 |
-| `ge.exec.exclude_engines` | string | 排除指定引擎，逗号分隔的加速器名称 |
+| `ge.exec.exclude_engines` | string | 排除指定引擎，以竖线(`\|`)分隔的加速器名称；支持的加速器名称：`AiCore`、`AiVector`、`Dsa`、`Dvpp`、`AiCpuAscend`、`AiCpu`、`HostCpu`、`Hccl`、`FftsPlus` |
 | `ge.aicoreNum` | int32 | 配置 AI Core 数量 |
 | `ge.exec.enableEngineParallel` | string | 是否启用引擎并行执行 |
 | `ge.exec.engineParallelConfigPath` | string | 引擎并行配置文件路径 |
@@ -134,7 +135,7 @@ ACL 层的 `aclopEngineType` 在编译流水线内部转换为 `ge::OpEngineType
 
 | 接口 | 说明 |
 |------|------|
-| `Initialize(options)` | 初始化引擎（默认空实现，由子类覆盖） |
+| `Initialize(options)` | 初始化引擎（默认空实现，为 const 非虚函数，不可被子类覆盖） |
 | `Finalize()` | 终结引擎 |
 | `GetAttributes(attr)` | 获取引擎属性（`DNNEngineAttribute`） |
 | `IsAtomic()` | 是否为原子引擎 |
@@ -145,7 +146,7 @@ ACL 层的 `aclopEngineType` 在编译流水线内部转换为 `ge::OpEngineType
 |------|------|------|
 | `engine_name` | string | 引擎名称 |
 | `mem_type` | vector\<string\> | 内存类型（如 HBM） |
-| `compute_cost` | PriorityEnum | 计算代价优先级（`COST_0` ~ `COST_10`） |
+| `compute_cost` | PriorityEnum | 计算代价优先级（`COST_0` ~ `COST_5`、`COST_9`、`COST_10`，枚举不连续） |
 | `runtime_type` | RuntimeType | 运行时类型：`HOST` 或 `DEVICE` |
 | `engine_input_format` | Format | 引擎输入格式 |
 | `engine_output_format` | Format | 引擎输出格式 |
@@ -193,7 +194,7 @@ GE 系统中存在三套相互配合的引擎类型体系：
 | `AICoreDNNEngine` | `AIcoreEngine` | COST_1 | DEVICE | 是 | AI Core 矩阵计算引擎 |
 | `FftsPlusDNNEngine` | `ffts_plus` | COST_1 | DEVICE | **否** | FFTS+ 融合引擎（组合引擎） |
 | `VectorCoreDNNEngine` | `VectorEngine` | COST_2 | DEVICE | 是 | Vector Core 向量计算引擎 |
-| `DSADNNEngine` | `DSAEngine` | COST_2 | DEVICE | 是 | DSA 引擎 |
+| `DSADNNEngine` | `DSAEngine` | COST_2 | DEVICE | 是 | DSA 引擎（注：`DSAEngine` 注册时实际使用 `VectorCoreDNNEngine` 类，见 `engine_manager.cc`；`DSADNNEngine` 虽有定义但未用于注册） |
 | `AICpuDNNEngine` | `DNN_VM_AICPU_ASCEND` | COST_3 | DEVICE | 是 | AI CPU Ascend 引擎 |
 | `AICpuTFDNNEngine` | `DNN_VM_AICPU` | COST_4 | DEVICE | 是 | AI CPU TensorFlow 引擎 |
 | `DvppDNNEngine` | `DNN_VM_DVPP` | COST_5 | DEVICE | 是 | DVPP 数字视觉预处理引擎 |
@@ -288,12 +289,12 @@ REGISTER_NODE_CONVERTER_PLACEMENT(ge::kEngineNameHostCpu.c_str(), kOnHost, Lower
 | 核心方法 | 职责 |
 |---------|------|
 | `Initialize()` | 加载引擎 SO、调用 `GetDNNEngineObjs()` 注册所有 DNNEngine、解析 `engine_conf.json` 配置 |
-| `GetDNNEngineName(node, exclude_engines)` | 为算子选择引擎——遍历 OpInfo 列表，调用 `CheckSupported()`，返回第一个支持的引擎 |
+| `GetDNNEngineName(node, exclude_engines, matched_op_info)` | 为算子选择引擎——遍历 OpInfo 列表，调用 `CheckSupported()`，返回第一个支持的引擎，并通过 `matched_op_info` 输出匹配的算子信息 |
 | `GetExcludeEngines()` | 根据配置排除特定引擎（`CORE_TYPE` 互斥 + `EXCLUDE_ENGINES` 列表） |
 | `GetCompositeEngineName()` | 查找子图是否全部属于同一组合引擎 |
 | `IsStreamAssignSkip()` | 根据引擎配置决定是否跳过流分配 |
 
-**OpsKernelManager**（`compiler/engines/manager/opskernel_manager/ops_kernel_manager.h`）连接引擎和算子内核库：
+**OpsKernelManager**（`compiler/engines/manager/opskernel_manager/dnn_ops_kernel_manager.h`）连接引擎和算子内核库：
 
 | 核心方法 | 职责 |
 |---------|------|
@@ -337,7 +338,7 @@ flowchart TD
 引擎重分配（`ReAssignEngine()`）通过策略模式实现。`EngineReAssignPass` 是策略接口，当前有两种实现：
 
 - `DynamicDataFlowEngineReassignPass`：动态数据流场景下的引擎重分配
-- `HostcpuEngineUpdatePass`：将标记了 `hostExecFlag` 的算子重新分配到 Host CPU 引擎
+- `HostcpuEngineUpdatePass`：在动态 shape 场景下，基于小 shape 传播策略，将设备引擎上的小 shape 算子重新分配到 Host CPU 引擎执行；该 Pass 受 `HostShapeOptimizationPass` 选项和 runtime2 开关控制（与 `hostExecFlag` 无关，后者在初始引擎选择阶段由 `ExecOnHostCpu` 处理）
 
 #### 4.4.3 按引擎切分子图（EnginePartitioner）
 
@@ -441,7 +442,7 @@ nn_engine/
 
 - 处理运行时控制流算子（StreamSwitch、StreamActive、Label 等）
 - 包含两个 OpsKernelInfoStore：常规 RTS 和 FFTS+ 模式
-- 配置为 `skip_assign_stream: true, attach: true`（附着到其他流，不需要独立流分配）
+- 配置为 `skip_assign_stream: false, attach: true`（附着到其他流，不需要独立流分配）
 
 #### 4.5.6 local_engine（GeLocal 兜底引擎）
 
@@ -482,7 +483,7 @@ nn_engine/
 
 - 与 compiler 侧的 `HostCpuEngine`（`BaseEngine` 子类）互补，提供更基础的主机 CPU 执行能力
 - 单例模式（`HostCpuEngine::GetInstance()`）
-- 通过 `dlopen` 动态加载 `libconstant_folding_ops.so` 和 `libops_host_cpu.so`
+- 通过 `dlopen` 动态加载 `libconstant_folding_ops.so`、`libops_host_cpu.so` 和 `libaicpu_const_folding.so`
 - 用于编译期的常量折叠和运行期的 Host CPU 算子执行
 
 ### 4.6 运行时引擎执行
@@ -516,6 +517,8 @@ V2 采用 **编译期 Lowering + 运行时直接执行** 模式。
 | `TopologicalExecutor` | 拓扑排序执行（动态图） |
 | `MultiThreadTopologicalExecutor` | 多线程拓扑执行 |
 | `PriorityTopologicalExecutor` | 优先级拓扑执行 |
+
+> 注：上述执行器类定义在外部依赖（`air_cxx` / `exe_graph` 组件）中，并非位于 GE 源码树内。GE 的 `runtime/v2/core/executor/` 目录下仅提供对应的 C 函数执行接口（如 `SequentialExecute`、`TopologicalExecute` 等）及执行数据构造逻辑。
 
 `StreamExecutor`（`runtime/v2/core/stream_executor.cc`）为每个 stream 创建独立的 `ModelV2Executor`，实现 stream 级别的执行隔离。
 

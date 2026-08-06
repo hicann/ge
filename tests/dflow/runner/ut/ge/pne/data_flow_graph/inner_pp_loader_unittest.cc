@@ -17,7 +17,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/debug/ge_attr_define.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
-#include "dflow/compiler/data_flow_graph/inner_pp_loader.h"
+#include "dflow/runner/compiler/data_flow_graph/inner_pp_loader.h"
 #include "graph/ge_global_options.h"
 #include "common/env_path.h"
 

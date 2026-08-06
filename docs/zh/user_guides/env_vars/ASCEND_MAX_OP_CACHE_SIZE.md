@@ -40,8 +40,8 @@ export ASCEND_MAX_OP_CACHE_SIZE=500
 
     TF Adapter配置参数“op\_compiler\_cache\_dir”的详细说明可参见：
 
-  - [《TensorFlow 1.15模型迁移》](https://hiascend.com/document/redirect/CannCommunityTfWizard)中的TF Adapter 1.x接口参考 \> session配置 \> session配置参数说明。
-  - 《TensorFlow 2.6.5模型迁移》中的TF Adapter 2.x接口参考 \> npu.global\_options \> 配置参数说明。
+  - [《TensorFlow 1.15模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)中的TF Adapter 1.x接口参考 \> session配置 \> session配置参数说明。
+  - [《TensorFlow 2.6.5模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)中的TF Adapter 2.x接口参考 \> npu.global\_options \> 配置参数说明。
 
 > [!NOTE]说明
 >以上列举场景仅为示例，若无法覆盖您所使用的场景，请查看对应场景的用户手册。

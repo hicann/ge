@@ -371,7 +371,7 @@ void TeErrMessageReport(const std::string &errorCode, std::map<std::string, std:
 }
 
 void TeInnerErrMessageReport(const std::string &errorCode, const std::string &errorMsg) {
-  REPORT_INNER_ERR_MSG(errorCode.c_str(), errorMsg.c_str());
+  REPORT_INNER_ERR_MSG(errorCode.c_str(), "%s", errorMsg.c_str());
 }
 
 bool CheckPathValid(const std::string &path, const std::string &pathOwner) {

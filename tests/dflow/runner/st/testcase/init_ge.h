@@ -15,7 +15,7 @@
 #include "ge/ge_api.h"
 #include "ge/ge_api_v2.h"
 #include "ge_running_env/ge_running_env_faker.h"
-#include "compiler/session/dflow_api.h"
+#include "runner/session/dflow_api.h"
 namespace ge {
 
 inline void InitGe() {

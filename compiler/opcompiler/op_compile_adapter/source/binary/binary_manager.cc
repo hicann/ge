@@ -120,7 +120,12 @@ void BinaryManager::GetCustomBinaryPath(const std::map<std::string, std::string>
     std::string impl = pathVec[i].substr(0, pos);
     int64_t implType;
     std::istringstream(impl) >> implType;
-    std::string kernelPath = parentPath + pathVec[i].substr(pos + 1);
+    std::string kernelPath;
+    if (parentPath.empty()) {
+      kernelPath = pathVec[i].substr(pos + 1);
+    } else {
+      kernelPath = parentPath + pathVec[i].substr(pos + 1);
+    }
     SetBinaryConfigPaths(implType, kernelPath);
     SetRelocatableBinaryConfigPaths(implType, kernelPath);
     std::stringstream cfgPath;
@@ -184,6 +189,18 @@ void BinaryManager::GetBinaryOppPath(const std::map<std::string, std::string> &o
   std::string shortSocVersion = TeConfigInfo::Instance().GetShortSocVersion();
   std::transform(shortSocVersion.begin(), shortSocVersion.end(), shortSocVersion.begin(), ::tolower);
   TE_DBGLOGF("Get short soc version(%s)", shortSocVersion.c_str());
+  std::string customOppPath = TeConfigInfo::Instance().GetCustomOppPath();
+  TE_DBGLOGF("customOppPath is (%s)", customOppPath.c_str());
+  if (!customOppPath.empty()) {
+    const std::vector<std::string> pathVec = Split(customOppPath, ':');
+    for (auto &path : pathVec) {
+      if (!path.empty()) {
+        TE_DBGLOGF("Begin to assemble path[%s].", path.c_str());
+        GetCustomBinaryPath(options, "", true);
+        GetCustomBinaryPath(options, "", false);
+      }
+    }
+  }
   GetCustomBinaryPath(options, oppParentPath, true);
   GetCustomBinaryPath(options, oppParentPath, false);
 

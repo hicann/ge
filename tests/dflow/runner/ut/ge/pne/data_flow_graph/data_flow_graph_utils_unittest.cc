@@ -9,7 +9,7 @@
  */
 
 #include "gtest/gtest.h"
-#include "dflow/compiler/data_flow_graph/data_flow_graph_utils.h"
+#include "dflow/runner/compiler/data_flow_graph/data_flow_graph_utils.h"
 
 using namespace testing;
 namespace ge {

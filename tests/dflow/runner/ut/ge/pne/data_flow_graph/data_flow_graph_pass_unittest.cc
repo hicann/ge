@@ -10,8 +10,8 @@
 
 #include <gtest/gtest.h>
 
-#include "dflow/compiler/data_flow_graph/convert_batch_attr_to_udf_pass.h"
-#include "dflow/compiler/data_flow_graph/data_flow_graph_prune_pass.h"
+#include "dflow/runner/compiler/data_flow_graph/convert_batch_attr_to_udf_pass.h"
+#include "dflow/runner/compiler/data_flow_graph/data_flow_graph_prune_pass.h"
 #include "flow_graph/data_flow.h"
 #include "graph/utils/graph_utils_ex.h"
 
