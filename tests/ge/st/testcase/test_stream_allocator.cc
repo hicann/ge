@@ -2544,6 +2544,38 @@ TEST_F(STEST_stream_allocator, UserDefinedStreamLabel_with_SingleStreamOption_fa
 }
 
 /**
+ * Case description: Verify a stream-mode conflict uses caller-readable option names.
+ * Preconditions: Use a clean GE thread-local context and initialize the internal error manager.
+ * Test steps: Add and build a graph with both stream modes and caller option-name mappings.
+ * Expected result: AddGraph succeeds; BuildGraph fails and reports both mapped names in the expected order.
+ */
+TEST_F(STEST_stream_allocator, SingleStreamWithAutoMultiStreamReportsCallerReadableNames) {
+  const auto old_context = GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&old_context]() { GetThreadLocalContext() = old_context; });
+  GetThreadLocalContext() = GEThreadLocalContext();
+  error_message::ErrMgrInit(error_message::ErrorMessageMode::INTERNAL_MODE);
+  auto graph = BuildGenmaskGraph();
+  map<string, string> options = {
+      {"ge.enableSingleStream", "true"},
+      {"ge.autoMultistreamParallelMode", "LoadBalance:8"},
+      {OPTION_NAME_MAP,
+       R"({"ge.autoMultistreamParallelMode":"framework_auto_stream","ge.enableSingleStream":"framework_single_stream"})"}};
+  Session session(options);
+  ASSERT_EQ(session.AddGraph(0, graph, options), SUCCESS);
+  std::vector<InputTensorInfo> inputs;
+
+  EXPECT_EQ(session.BuildGraph(0, inputs), FAILED);
+  const auto error_msg_ptr = error_message::GetErrMgrErrorMessage();
+  ASSERT_NE(error_msg_ptr, nullptr);
+  const std::string error_msg(error_msg_ptr.get());
+  const auto auto_stream_pos = error_msg.find("framework_auto_stream");
+  const auto single_stream_pos = error_msg.find("framework_single_stream");
+  EXPECT_NE(auto_stream_pos, std::string::npos);
+  EXPECT_NE(single_stream_pos, std::string::npos);
+  EXPECT_LT(auto_stream_pos, single_stream_pos);
+}
+
+/**
  * 用例描述：测试动态shape多流与auto multi-stream并行模式同时开启时编译成功
  *
  * 预置条件：通过环境变量开启动态shape多流，Session选项设置auto multi-stream为LoadBalance模式 测试步骤：

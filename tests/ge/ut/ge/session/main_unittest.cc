@@ -191,33 +191,6 @@ static std::string ConstructOppEnv() {
 }
 }  // namespace
 
-TEST_F(UtestMain, MainImplTest_multi_stream_parallel_mode_conflicts_with_enable_single_stream) {
-  std::string model_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
-  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
-  char *argv[] = {"atc",
-                  "--mode=0",
-                  "--framework=3",
-                  const_cast<char *>(model_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  "--soc_version=Ascend310",
-                  "--input_format=NCHW",
-                  "--cal_conf=",
-                  "--multi_stream_parallel_mode=LoadBalance:8",
-                  "--enable_single_stream=true"};
-  testing::internal::CaptureStdout();
-  testing::internal::CaptureStderr();
-  const int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  const auto output = testing::internal::GetCapturedStdout() + testing::internal::GetCapturedStderr();
-  EXPECT_NE(ret, 0);
-  EXPECT_NE(output.find("Cannot configure both parameters --multi_stream_parallel_mode and --enable_single_stream "
-                        "simultaneously."),
-            std::string::npos)
-      << output;
-  EXPECT_NE(output.find("--multi_stream_parallel_mode"), std::string::npos) << output;
-  EXPECT_NE(output.find("--enable_single_stream"), std::string::npos) << output;
-  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
-}
-
 TEST_F(UtestMain, MainImplTest_socversion_and_mode_fail01) {
   std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
   std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
@@ -1667,6 +1640,27 @@ class GFlagUtils {
 std::set<std::string> &GetRawAppliedFlagNames();
 std::map<std::string, std::string> &GetRawAppliedFlagOptions();
 }  // namespace ge
+
+TEST_F(UtestMain, CheckFlagsDefersStreamModeConflictToBuild) {
+  FLAGS_mode = 0;
+  FLAGS_framework = 3;
+  FLAGS_model = AtcFileFactory::GetFileRealName("add.pb");
+  FLAGS_output = "tmp_stream_mode";
+  FLAGS_soc_version = "Ascend310";
+  FLAGS_input_format = "NCHW";
+  const std::string old_host_env_os = FLAGS_host_env_os;
+  const std::string old_host_env_cpu = FLAGS_host_env_cpu;
+  GE_MAKE_GUARD(restore_host_env, [&]() {
+    FLAGS_host_env_os = old_host_env_os;
+    FLAGS_host_env_cpu = old_host_env_cpu;
+  });
+  FLAGS_host_env_os = "linux";
+  FLAGS_host_env_cpu = "x86_64";
+  FLAGS_enable_single_stream = "true";
+  ge::flgs::GetUserOptions()["multi_stream_parallel_mode"] = "LoadBalance:8";
+
+  EXPECT_EQ(GFlagUtils::CheckFlags(), ge::SUCCESS);
+}
 
 TEST_F(UtestMain, MainImplTest_report_invalid_run_mode) {
   std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");

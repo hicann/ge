@@ -176,6 +176,10 @@ class ReusableStreamAllocator {
 
 单流模式与 `STREAM_LABEL` / `USER_STREAM_LABEL` 互斥；如果 `ge.enableSingleStream` 对应的对外参数被设置为 true 且子图带有 StreamLabel，逻辑流分配返回参数错误并上报 `E10055`。
 
+静态 Shape 下，单流模式还与自动多流模式互斥。当 `ge.enableSingleStream` 生效，且上下文合并后的 `ge.autoMultistreamParallelMode` 最终有效值非空时，`SingleStreamPass` 在修改图或流分配状态前上报 `E10056` 并返回 `PARAM_INVALID`；自动多流最终值为空或不存在时不触发该冲突。错误中的两个参数名通过 `GEContext::GetReadableName` 获取，因此 ATC、Session 和 TorchAir 可以通过 `ge.optionNameMap` 显示各自的用户侧名称，映射缺失时回退为 GE 内部 option 名。
+
+该校验仅属于静态 Shape 单流分配路径。动态 Shape 模型中按静态 Shape 路径编译的静态子图执行相同校验；纯未知 Shape 流分配路径不执行该校验，也不改变其多流开启条件或分配策略。
+
 ## 4 具体实现
 
 ### 4.1 静态 Shape 逻辑流分配
