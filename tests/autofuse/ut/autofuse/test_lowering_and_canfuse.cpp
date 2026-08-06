@@ -26,6 +26,7 @@
 #include "can_fuse/strategy/reduce_fusion_strategy.h"
 #include "post_process/asc_backend_post_processor.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
+#include "post_process/scheduler_adapter/adaption_reshape_axis_padding.h"
 #include "utils/auto_fuse_config.h"
 #include "fusion/autofuse_attrs.h"
 #include "common/autofuse_backend_spec_api.h"
@@ -107,6 +108,22 @@ NodePtr CreateReduceNodeWithOriginalAxis(const ComputeGraphPtr &graph, const std
   attr->SetReduceOriginalAxis(axis);
   attr->SetReduceOriginalRepeats(repeats);
   return node;
+}
+
+NodePtr CreateNodeWithOutputAttr(const ComputeGraphPtr &graph, const std::string &name,
+                                 const std::vector<int64_t> &axis, const std::vector<Expression> &repeats) {
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  tensor_desc->SetShape(GeShape({1, 1, 1}));
+  tensor_desc->SetFormat(FORMAT_ND);
+  tensor_desc->SetDataType(DT_FLOAT);
+  auto tensor_attr = tensor_desc->GetOrCreateAttrsGroup<AscTensorAttr>();
+  tensor_attr->axis = axis;
+  tensor_attr->repeats = repeats;
+
+  auto op_desc = std::make_shared<OpDesc>(name, kAscBackendType);
+  op_desc->AddInputDesc(tensor_desc->Clone());
+  op_desc->AddOutputDesc(tensor_desc->Clone());
+  return graph->AddNode(op_desc);
 }
 }  // namespace
 
@@ -318,16 +335,13 @@ class LoweringAndCanfuseUT : public testing::Test {
     }
   }
 
-  void VerifyAscNodeNoSizeOneAxis(const NodePtr &asc_node, bool is_concat) {
+  void VerifyAscNodeAxisAttrs(const NodePtr &asc_node) {
     asc_adapt::TensorInfo tensor_desc;
     ASSERT_EQ(asc_adapt::GetTensorInfo(asc_node, tensor_desc), SUCCESS);
     std::cout << "  AscNode: " << asc_node->GetName() << ", Type: " << asc_node->GetType()
               << ", Repeats: " << AutofuseUtils::VectorToStr(tensor_desc.repeats) << std::endl;
-    if (!is_concat) {
-      for (size_t i = 0; i < tensor_desc.repeats.size(); ++i) {
-        EXPECT_NE(tensor_desc.repeats[i], 1) << "Found size=1 axis in " << asc_node->GetName();
-      }
-    }
+    EXPECT_EQ(tensor_desc.axis.size(), tensor_desc.repeats.size());
+    EXPECT_EQ(tensor_desc.strides.size(), tensor_desc.repeats.size());
   }
 
   void VerifyAscBackendNode(const NodePtr &node) {
@@ -342,7 +356,7 @@ class LoweringAndCanfuseUT : public testing::Test {
     ASSERT_NE(attr->GetAscGraph(), nullptr);
 
     for (const auto &asc_node : attr->GetAscGraph()->GetAllNodes()) {
-      VerifyAscNodeNoSizeOneAxis(asc_node, is_concat);
+      VerifyAscNodeAxisAttrs(asc_node);
     }
   }
 
@@ -2110,6 +2124,32 @@ TEST_F(LoweringAndCanfuseUT, ReduceOriginalAxisCompatibleCanFuse) {
   const auto node2 = CreateReduceNodeWithOriginalAxis(graph, "reduce2", {0, 1}, {Symbol(64), Symbol(32)});
 
   EXPECT_TRUE(ReduceFusionStrategy().CanFuse(node1, node2));
+}
+
+TEST_F(LoweringAndCanfuseUT, ReshapePaddingAnchorAlignmentInsertBeforeExistingUnitAxis) {
+  auto graph = std::make_shared<ComputeGraph>("reshape_padding_anchor_alignment_graph");
+  const auto node1 = CreateNodeWithOutputAttr(graph, "node1", {0, 2}, {Symbol(4), Symbol(4)});
+  const auto node2 = CreateNodeWithOutputAttr(graph, "node2", {0, 1, 2}, {Symbol(1), Symbol(4), Symbol(4)});
+  std::vector<size_t> insert_indexes = {1U};
+
+  asc_adapt::AdjustInsertIndexesByAnchorAlignment(node1, {0, 2}, {Symbol(1), Symbol(4)}, false, node2, {0, 1, 2},
+                                                  {Symbol(1), Symbol(1), Symbol(4)}, true, insert_indexes);
+
+  ASSERT_EQ(insert_indexes.size(), 1U);
+  EXPECT_EQ(insert_indexes[0], 0U);
+}
+
+TEST_F(LoweringAndCanfuseUT, ReshapePaddingAnchorAlignmentFallbackWhenNoAnchorMatched) {
+  auto graph = std::make_shared<ComputeGraph>("reshape_padding_anchor_fallback_graph");
+  const auto node1 = CreateNodeWithOutputAttr(graph, "node1", {0, 2}, {Symbol(1), Symbol(4)});
+  const auto node2 = CreateNodeWithOutputAttr(graph, "node2", {0, 1, 2}, {Symbol(1), Symbol(1), Symbol(4)});
+  std::vector<size_t> insert_indexes = {1U};
+
+  asc_adapt::AdjustInsertIndexesByAnchorAlignment(node1, {0, 2}, {Symbol(1), Symbol(4)}, false, node2, {0, 1, 2},
+                                                  {Symbol(1), Symbol(1), Symbol(4)}, true, insert_indexes);
+
+  ASSERT_EQ(insert_indexes.size(), 1U);
+  EXPECT_EQ(insert_indexes[0], 1U);
 }
 
 }  // namespace ge

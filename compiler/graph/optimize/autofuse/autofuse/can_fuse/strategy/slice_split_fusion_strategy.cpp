@@ -99,6 +99,16 @@ bool CheckIfSubGraphLinksHaveSpecifiedLoadTypePairs(const NodePtr &node1, const 
   return false;
 }
 
+bool IsSingleDataInputAscBackend(const NodePtr &node) {
+  GE_ASSERT_NOTNULL(node);
+  if (node->GetType() != kAscBackendType) {
+    return false;
+  }
+  ComputeGraphPtr graph;
+  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node, graph));
+  return graph->GetInputNodes().size() == 1U;
+}
+
 bool CheckIfSliceEndDimIsOne(const NodePtr &node1) {
   GELOGI("node1 name is %s, type is %s.", node1->GetName().c_str(), node1->GetType().c_str());
   auto buffer = node1->GetOutDataAnchor(0).get();
@@ -226,6 +236,15 @@ bool SliceSplitFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node
         GELOGI(
             "node1 %s(%s) and node2 %s(%s) cannot fuse, the reason is [%s][In slice/split fusion occasion, "
             "node2 %s(%s) connected input contains slice/split]",
+            node1->GetNamePtr(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+            ge::NotFuseReasonCode(ge::NotFuseReason::kNodeInputHasSplit), node2->GetNamePtr(),
+            node2->GetType().c_str());
+        return false;
+      }
+      if (!attr1->HasFuseType(loop::FuseType::kSliceSplit) && IsSingleDataInputAscBackend(node2)) {
+        GELOGI(
+            "node1 %s(%s) and node2 %s(%s) cannot fuse, the reason is [%s][In slice/split fusion occasion, "
+            "node2 %s(%s) is single-input slice ascgraph]",
             node1->GetNamePtr(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
             ge::NotFuseReasonCode(ge::NotFuseReason::kNodeInputHasSplit), node2->GetNamePtr(),
             node2->GetType().c_str());

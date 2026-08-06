@@ -52,6 +52,13 @@ enum class SplitFusionRatioRequirementState : uint32_t {
   SATISFIED = 2U        // 融合比例满足阈值要求
 };
 
+struct ReshapeAxisChangeInfo {
+  std::vector<int64_t> before_axis;
+  std::vector<Expression> before_repeats;
+  std::vector<int64_t> after_axis;
+  std::vector<Expression> after_repeats;
+};
+
 struct AutofuseInnerAttrs {
   std::vector<const af::Node *> origin_nodes;       // Asc节点对应的原始节点，用于Dfx打印、获取融合前ComputeGraph片段等
   std::vector<af::OutDataAnchor *> output_buffers;  // Asc节点负责写入的原始输出anchor，用于lifting
@@ -71,12 +78,13 @@ struct AutofuseInnerAttrs {
   size_t reduce_fused_elementwise_node_num = 0U;                      // reduce节点向后融合的elementwise节点数量
   int64_t split_global_id = kNonSplitGlobalId;  // split op 在 lowering 之前的全局编号，不是split节点的话，这个编号为-1
   SplitFusionRatioRequirementState split_fusion_ratio_requirement_state =
-      SplitFusionRatioRequirementState::NOT_DETERMINED;  // 缓存对split融合比例是否超过阈值的预测结果
-  bool is_split_complete = false;                        // 缓存原split节点是否完全恢复的判断结果
-  bool is_fuse_from_lowering = false;                    // 标识融合节点来自lowering还是can_fuse
-  std::vector<int64_t> reduce_original_axis;             // reduce操作前的原始轴信息
-  std::vector<Expression> reduce_original_repeats;       // reduce操作前的原始repeats信息
-  int32_t is_reduce_all_load = REDUCE_ALL_LOAD_INIT;     // 标识reduce是否所有load都是norm-like
+      SplitFusionRatioRequirementState::NOT_DETERMINED;     // 缓存对split融合比例是否超过阈值的预测结果
+  bool is_split_complete = false;                           // 缓存原split节点是否完全恢复的判断结果
+  bool is_fuse_from_lowering = false;                       // 标识融合节点来自lowering还是can_fuse
+  std::vector<int64_t> reduce_original_axis;                // reduce操作前的原始轴信息
+  std::vector<Expression> reduce_original_repeats;          // reduce操作前的原始repeats信息
+  std::vector<ReshapeAxisChangeInfo> reshape_axis_changes;  // 每个reshape操作前后的轴变化信息
+  int32_t is_reduce_all_load = REDUCE_ALL_LOAD_INIT;        // 标识reduce是否所有load都是norm-like
 
   bool IsReduction() const {
     return HasFuseType(loop::FuseType::kReduction);
@@ -92,7 +100,11 @@ using AfAttrGroupsBase = af::AttrGroupsBase;
 class AutoFuseAttrs : public AfAttrGroupsBase {
  public:
   AutoFuseAttrs() = default;
-  AutoFuseAttrs(const AutoFuseAttrs &other) : fuse_type_(other.fuse_type_), asc_graph_(other.asc_graph_) {}
+  AutoFuseAttrs(const AutoFuseAttrs &other) : fuse_type_(other.fuse_type_), asc_graph_(other.asc_graph_) {
+    inner_attrs_.reduce_original_axis = other.inner_attrs_.reduce_original_axis;
+    inner_attrs_.reduce_original_repeats = other.inner_attrs_.reduce_original_repeats;
+    inner_attrs_.reshape_axis_changes = other.inner_attrs_.reshape_axis_changes;
+  }
   AutoFuseAttrs &operator=(const AutoFuseAttrs &other) = delete;
 
   [[nodiscard]] const std::shared_ptr<AscGraph> &GetAscGraph() const {
@@ -239,6 +251,18 @@ class AutoFuseAttrs : public AfAttrGroupsBase {
 
   [[nodiscard]] const std::vector<Expression> &GetReduceOriginalRepeats() const {
     return inner_attrs_.reduce_original_repeats;
+  }
+
+  void AddReshapeAxisChange(const ReshapeAxisChangeInfo &change) {
+    inner_attrs_.reshape_axis_changes.push_back(change);
+  }
+
+  void SetReshapeAxisChanges(const std::vector<ReshapeAxisChangeInfo> &changes) {
+    inner_attrs_.reshape_axis_changes = changes;
+  }
+
+  [[nodiscard]] const std::vector<ReshapeAxisChangeInfo> &GetReshapeAxisChanges() const {
+    return inner_attrs_.reshape_axis_changes;
   }
 
   void SetReduceAllLoadState(const int32_t state) {

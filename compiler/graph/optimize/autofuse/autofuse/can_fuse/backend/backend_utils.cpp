@@ -28,6 +28,7 @@
 #include "ascir_ops.h"
 #include "post_process/scheduler_adapter/torch_adaption_fallback_load.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
+#include "post_process/scheduler_adapter/adaption_reshape_axis_padding.h"
 #include "asc_graph_axis_mapping.h"
 #include "can_fuse/autofuse_graph_manager.h"
 #include "utils/not_fuse_reason_code.h"
@@ -2745,6 +2746,11 @@ Status BackendUtils::UpdateTransposeBeforeMerge(const NodePtr &node2, const Comp
   return SUCCESS;
 }
 
+Status BackendUtils::CompleteReshapeAxesForBackendCanFuse(const NodePtr &node1, const NodePtr &node2,
+                                                          const NodeFuseInfo &fuse_info) {
+  return asc_adapt::CompletePairReshapeAxes(node1, node2, fuse_info);
+}
+
 Status CompleteNodeAttrsBeforeMerge(const NodePtr &node1, const NodePtr &node2) {
   auto asc_graph1 = BackendUtils::GetNodeFusedAscGraph(node1);
   GE_ASSERT_NOTNULL(asc_graph1);
@@ -3304,6 +3310,11 @@ void BackendUtils::SetReduceOriginalAxisInfo(AutofuseInnerAttrs &attr_new, const
   }
 }
 
+void BackendUtils::SetReshapeAxisChangeInfo(AutofuseInnerAttrs &attr_new, const AutofuseInnerAttrs &attr1,
+                                            const AutofuseInnerAttrs &attr2) {
+  asc_adapt::InheritReshapeAxisChanges(attr_new, attr1, attr2);
+}
+
 // 融合存在轴映射之后index对应的axis变化的场景，则记录的reduce的原始axis也要相应变化
 Status BackendUtils::FlushReduceOriginalAxisIfIsReduceNode(const NodePtr &node, const NodePtr &asc_node,
                                                            const std::vector<int64_t> axis_before_Flush,
@@ -3358,6 +3369,13 @@ Status BackendUtils::FlushReduceOriginalAxisIfIsReduceNode(const NodePtr &node, 
          AutofuseUtils::VectorToStr(reduce_original_axis).c_str(), AutofuseUtils::VectorToStr(updated_axis).c_str());
 
   return SUCCESS;
+}
+
+// Keep AutoFuseAttrs reshape axis metadata in the current AscGraph axis space after axis mapping flush.
+Status BackendUtils::FlushReshapeAxisChanges(const NodePtr &node, const NodePtr &asc_node,
+                                             const std::vector<int64_t> axis_before_Flush,
+                                             const std::vector<int64_t> axis_after_Flush) {
+  return asc_adapt::FlushReshapeAxisChanges(node, asc_node, axis_before_Flush, axis_after_Flush);
 }
 
 Status GetNodeTransposeInfo(const NodePtr &node, const TensorAttrInfo &temp_graph_attr,

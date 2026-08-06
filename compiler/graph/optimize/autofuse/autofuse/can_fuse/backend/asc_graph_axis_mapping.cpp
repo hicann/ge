@@ -63,6 +63,12 @@ struct AxisIndexMatchState {
   std::vector<int32_t> base_to_node;
 };
 
+bool CanMapUnitRepeatAsSubset(const std::vector<Expression> &node_repeats, const std::vector<Expression> &base_repeats,
+                              const int32_t node_index, const int32_t base_index) {
+  return (BackendUtils::IsEqOne(node_repeats[node_index]) && !BackendUtils::IsEqOne(base_repeats[base_index])) ||
+         (!BackendUtils::IsEqOne(node_repeats[node_index]) && BackendUtils::IsEqOne(base_repeats[base_index]));
+}
+
 Status MapUniqueRepeatAxes(const std::vector<Expression> &node_repeats, const std::vector<Expression> &base_repeats,
                            AxisIndexMatchState &match_state) {
   for (size_t node_index = 0U; node_index < node_repeats.size(); ++node_index) {
@@ -122,6 +128,16 @@ Status FillUnmappedAxisIndex(const std::vector<Expression> &node_repeats, const 
         GE_ASSERT_SUCCESS(match_state.Insert(node_index, base_index));
         found = true;
         break;
+      }
+    }
+    if (!found) {
+      for (int32_t base_index = static_cast<int32_t>(base_repeats.size()) - 1; base_index >= 0; --base_index) {
+        if (!match_state.IsBaseMapped(base_index) &&
+            CanMapUnitRepeatAsSubset(node_repeats, base_repeats, node_index, base_index)) {
+          GE_ASSERT_SUCCESS(match_state.Insert(node_index, base_index));
+          found = true;
+          break;
+        }
       }
     }
     if (!found) {
@@ -842,6 +858,8 @@ Status AscGraphAxisMapping::FlushAscSubGraphAxisInfo(const NodePtr &node, const 
       }
       GE_ASSERT_SUCCESS(BackendUtils::FlushReduceOriginalAxisIfIsReduceNode(node, asc_node, axis_before_Flush,
                                                                             output_desc_tensor_attr->axis));
+      GE_ASSERT_SUCCESS(
+          BackendUtils::FlushReshapeAxisChanges(node, asc_node, axis_before_Flush, output_desc_tensor_attr->axis));
     }
   }
   auto graph_attr = graph->GetAttrsGroup<AscGraphAttr>();

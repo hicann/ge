@@ -114,8 +114,17 @@ class LoopOp {
     return inputs_;
   }
 
+  void AddReshapeAxisChange(const ReshapeAxisChangeInfo &change) {
+    reshape_axis_changes_.push_back(change);
+  }
+
+  [[nodiscard]] const std::vector<ReshapeAxisChangeInfo> &GetReshapeAxisChanges() const {
+    return reshape_axis_changes_;
+  }
+
   [[nodiscard]] LoopOpPtr Clone() const {
     auto op = CloneImpl();
+    op->reshape_axis_changes_ = reshape_axis_changes_;
     for (size_t i = 0U; i < inputs_.size(); ++i) {
       op->inputs_[i] = op->inputs_[i]->Clone();
     }
@@ -132,6 +141,7 @@ class LoopOp {
 
  private:
   static std::atomic<int64_t> global_id_;
+  std::vector<ReshapeAxisChangeInfo> reshape_axis_changes_;
 };
 
 class LoopVar {

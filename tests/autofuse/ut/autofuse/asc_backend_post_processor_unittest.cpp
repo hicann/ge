@@ -27,6 +27,7 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "can_fuse/backend/asc_backend_fusion_decider.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
+#include "post_process/scheduler_adapter/adaption_reshape_axis_padding.h"
 #include "graph/ascendc_ir/ascir_registry.h"
 #include "common/autofuse_platform_api.h"
 
@@ -15630,6 +15631,190 @@ TEST_F(AscBackendPostProcessorTest, GatherInsertCastImproveprecision) {
     cnt++;
   }
   EXPECT_NE(cnt, 2);
+}
+
+struct ReshapeAxisPaddingCase {
+  ComputeGraphPtr outer_graph;
+  NodePtr asc_backend;
+  AutoFuseAttrs *attr = nullptr;
+};
+
+void BuildBestOverlapReshapeCase(ReshapeAxisPaddingCase &test_case) {
+  GraphBuilder builder("best_overlap_reshape_outer");
+  test_case.asc_backend =
+      builder.AddNode("best_overlap_reshape_backend", kAscBackendType, 1, 1, FORMAT_ND, DT_FLOAT16, {4, 15120});
+  ASSERT_NE(test_case.asc_backend, nullptr);
+  test_case.attr = GetOrCreateAutoFuseAttrs(test_case.asc_backend->GetOpDesc());
+  ASSERT_NE(test_case.attr, nullptr);
+
+  ge::AscGraph graph("best_overlap_reshape_graph");
+  const auto one = Symbol(1);
+  const auto size0 = Symbol(4);
+  const auto size1 = Symbol(15120);
+  auto z0 = graph.CreateAxis("z0", size0);
+  auto z1 = graph.CreateAxis("z1", size1);
+  const std::vector<int64_t> graph_axis = {z0.id, z1.id};
+
+  af::ascir_op::Data data("best_overlap_data", graph);
+  data.attr.sched.axis = graph_axis;
+  data.y.dtype = DT_FLOAT16;
+  *data.y.axis = graph_axis;
+  *data.y.repeats = {size0, size1};
+  *data.y.strides = {size1, one};
+
+  af::ascir_op::Load load("best_overlap_load");
+  load.x = data.y;
+  load.attr.sched.axis = graph_axis;
+  load.y.dtype = DT_FLOAT16;
+  *load.y.axis = graph_axis;
+  *load.y.repeats = {size0, size1};
+  *load.y.strides = {size1, one};
+
+  af::ascir_op::Store store("best_overlap_store");
+  store.x = load.y;
+  store.attr.sched.axis = graph_axis;
+  store.y.dtype = DT_FLOAT16;
+  *store.y.axis = graph_axis;
+  *store.y.repeats = {size0, size1};
+  *store.y.strides = {size1, one};
+  test_case.attr->SetAscGraph(std::shared_ptr<ge::AscGraph>(new ge::AscGraph(graph)), loop::FuseType::kPointwise);
+
+  af::ReshapeAxisChangeInfo change;
+  change.before_axis = {0, 1, 2};
+  change.before_repeats = {one, one, one};
+  change.after_axis = {0, 1};
+  change.after_repeats = {one, one};
+  test_case.attr->AddReshapeAxisChange(change);
+  test_case.outer_graph = builder.GetGraph();
+}
+
+void CheckBestOverlapReshapeResult(const std::shared_ptr<ge::AscGraph> &asc_graph) {
+  const auto completed_graph_attr = AscGraphUtils::GetComputeGraph(*asc_graph)->GetAttrsGroup<AscGraphAttr>();
+  ASSERT_NE(completed_graph_attr, nullptr);
+  ASSERT_EQ(completed_graph_attr->axis.size(), 3U);
+  EXPECT_EQ(completed_graph_attr->axis[0]->id, 0);
+  EXPECT_EQ(completed_graph_attr->axis[1]->id, 1);
+  EXPECT_EQ(completed_graph_attr->axis[2]->id, 2);
+  EXPECT_TRUE(BackendUtils::IsEqOne(completed_graph_attr->axis[0]->size));
+  EXPECT_EQ(std::string(completed_graph_attr->axis[1]->size.Str().get()), "4");
+  EXPECT_EQ(std::string(completed_graph_attr->axis[2]->size.Str().get()), "15120");
+
+  auto store_node = asc_graph->FindNode("best_overlap_store");
+  ASSERT_NE(store_node, nullptr);
+  AscTensorAttr *store_attr = nullptr;
+  ASSERT_EQ(asc_adapt::GetOutputTensorAttr(store_node, store_attr), SUCCESS);
+  ASSERT_NE(store_attr, nullptr);
+  EXPECT_EQ(store_attr->axis, std::vector<int64_t>({0, 1, 2}));
+  ASSERT_EQ(store_attr->repeats.size(), 3U);
+  EXPECT_TRUE(BackendUtils::IsEqOne(store_attr->repeats[0]));
+  EXPECT_EQ(std::string(store_attr->repeats[1].Str().get()), "4");
+  EXPECT_EQ(std::string(store_attr->repeats[2].Str().get()), "15120");
+  ASSERT_EQ(store_attr->strides.size(), 3U);
+  EXPECT_TRUE(BackendUtils::IsEqZero(store_attr->strides[0]));
+  EXPECT_EQ(std::string(store_attr->strides[1].Str().get()), "15120");
+  EXPECT_TRUE(BackendUtils::IsEqOne(store_attr->strides[2]));
+}
+
+void BuildMultipleReshapeAxisChangesCase(ReshapeAxisPaddingCase &test_case) {
+  GraphBuilder builder("multi_reshape_outer");
+  test_case.asc_backend =
+      builder.AddNode("multi_reshape_backend", kAscBackendType, 1, 1, FORMAT_ND, DT_FLOAT16, {22, 15120, 1});
+  ASSERT_NE(test_case.asc_backend, nullptr);
+  test_case.attr = GetOrCreateAutoFuseAttrs(test_case.asc_backend->GetOpDesc());
+  ASSERT_NE(test_case.attr, nullptr);
+
+  ge::AscGraph graph("multi_reshape_axis_graph");
+  auto z0 = graph.CreateAxis("z0", Symbol(22));
+  auto z1 = graph.CreateAxis("z1", Symbol(15120));
+  auto z2 = graph.CreateAxis("z2", Symbol(1));
+  af::ascir_op::Data data("data", graph);
+  data.attr.sched.axis = {z0.id, z1.id, z2.id};
+  data.y.dtype = DT_FLOAT16;
+  *data.y.axis = {z0.id, z1.id, z2.id};
+  *data.y.repeats = {Symbol(22), Symbol(15120), Symbol(1)};
+  *data.y.strides = {Symbol(15120), Symbol(1), Symbol(0)};
+
+  af::ascir_op::Load load("load");
+  load.x = data.y;
+  load.attr.sched.axis = {z0.id, z1.id, z2.id};
+  load.y.dtype = DT_FLOAT16;
+  *load.y.axis = {z0.id, z1.id, z2.id};
+  *load.y.repeats = {Symbol(22), Symbol(15120), Symbol(1)};
+  *load.y.strides = {Symbol(15120), Symbol(1), Symbol(0)};
+
+  af::ascir_op::Store store("store");
+  store.x = load.y;
+  store.attr.sched.axis = {z0.id, z1.id, z2.id};
+  store.y.dtype = DT_FLOAT16;
+  *store.y.axis = {z0.id, z1.id, z2.id};
+  *store.y.repeats = {Symbol(22), Symbol(15120), Symbol(1)};
+  *store.y.strides = {Symbol(15120), Symbol(1), Symbol(0)};
+  test_case.attr->SetAscGraph(std::shared_ptr<ge::AscGraph>(new ge::AscGraph(graph)), loop::FuseType::kPointwise);
+
+  af::ReshapeAxisChangeInfo squeeze_change;
+  squeeze_change.before_axis = {0, 1, 2};
+  squeeze_change.before_repeats = {Symbol(1), Symbol(22), Symbol(15120)};
+  squeeze_change.after_axis = {0, 1};
+  squeeze_change.after_repeats = {Symbol(22), Symbol(15120)};
+  test_case.attr->AddReshapeAxisChange(squeeze_change);
+
+  af::ReshapeAxisChangeInfo unsqueeze_change;
+  unsqueeze_change.before_axis = {0, 1};
+  unsqueeze_change.before_repeats = {Symbol(22), Symbol(15120)};
+  unsqueeze_change.after_axis = {0, 1, 2};
+  unsqueeze_change.after_repeats = {Symbol(22), Symbol(15120), Symbol(1)};
+  test_case.attr->AddReshapeAxisChange(unsqueeze_change);
+  test_case.outer_graph = builder.GetGraph();
+}
+
+void CheckMultipleReshapeAxisChangesResult(const std::shared_ptr<ge::AscGraph> &asc_graph) {
+  const auto graph_attr = AscGraphUtils::GetComputeGraph(*asc_graph)->GetAttrsGroup<AscGraphAttr>();
+  ASSERT_NE(graph_attr, nullptr);
+  EXPECT_EQ(graph_attr->axis.size(), 4U);
+
+  std::vector<int64_t> graph_axis_after_second_pad;
+  for (const auto &axis : graph_attr->axis) {
+    ASSERT_NE(axis, nullptr);
+    graph_axis_after_second_pad.push_back(axis->id);
+  }
+  auto store_node = asc_graph->FindNode("store");
+  ASSERT_NE(store_node, nullptr);
+  AscTensorAttr *store_attr = nullptr;
+  ASSERT_EQ(asc_adapt::GetOutputTensorAttr(store_node, store_attr), SUCCESS);
+  ASSERT_NE(store_attr, nullptr);
+  EXPECT_EQ(store_attr->axis, graph_axis_after_second_pad);
+  EXPECT_EQ(store_attr->axis.size(), 4U);
+  EXPECT_EQ(store_attr->repeats.size(), 4U);
+  EXPECT_EQ(store_attr->strides.size(), 4U);
+}
+
+TEST_F(AscBackendPostProcessorTest, CompleteAttrs_RestoreReshapeAxisByBestOverlap) {
+  ReshapeAxisPaddingCase test_case;
+  ASSERT_NO_FATAL_FAILURE(BuildBestOverlapReshapeCase(test_case));
+  ASSERT_NE(test_case.outer_graph, nullptr);
+  ASSERT_EQ(asc_adapt::PadLeadingUnitAxisByInsertIndexesAndCompleteAttrs(*(test_case.attr->GetAscGraph()),
+                                                                         test_case.asc_backend, {0U}),
+            SUCCESS);
+  ASSERT_NO_FATAL_FAILURE(CheckBestOverlapReshapeResult(test_case.attr->GetAscGraph()));
+}
+
+TEST_F(AscBackendPostProcessorTest, CompleteAttrs_RestoreMultipleReshapeAxisChangesByInsertIndexes) {
+  ReshapeAxisPaddingCase test_case;
+  ASSERT_NO_FATAL_FAILURE(BuildMultipleReshapeAxisChangesCase(test_case));
+  ASSERT_NE(test_case.outer_graph, nullptr);
+  ASSERT_EQ(asc_adapt::PadLeadingUnitAxisByInsertIndexesAndCompleteAttrs(*(test_case.attr->GetAscGraph()),
+                                                                         test_case.asc_backend, {0U}),
+            SUCCESS);
+  const auto &reshape_axis_changes = test_case.attr->GetReshapeAxisChanges();
+  ASSERT_EQ(reshape_axis_changes.size(), 2U);
+  EXPECT_EQ(reshape_axis_changes[0].before_axis, std::vector<int64_t>({1, 2, 3}));
+  EXPECT_EQ(reshape_axis_changes[0].after_axis, std::vector<int64_t>({1, 2}));
+  EXPECT_EQ(reshape_axis_changes[1].before_axis, std::vector<int64_t>({1, 2}));
+  EXPECT_EQ(reshape_axis_changes[1].after_axis, std::vector<int64_t>({1, 2, 3}));
+  auto graph_attr = AscGraphUtils::GetComputeGraph(*(test_case.attr->GetAscGraph()))->GetAttrsGroup<AscGraphAttr>();
+  ASSERT_NE(graph_attr, nullptr);
+  ASSERT_EQ(graph_attr->axis.size(), 4U);
+  ASSERT_NO_FATAL_FAILURE(CheckMultipleReshapeAxisChangesResult(test_case.attr->GetAscGraph()));
 }
 
 TEST_F(AscBackendPostProcessorTest, CompleteAttrWithGraphInvalidAxisNodeValidAxis) {

@@ -28,6 +28,14 @@
 namespace ge {
 namespace loop {
 using Edge = std::pair<const ge::OutDataAnchor *, const ge::InDataAnchor *>;
+struct ReshapeAxisMeta {
+  std::vector<ReshapeAxisChangeInfo> axis_changes;
+};
+
+struct NodeAxisMeta {
+  ReshapeAxisMeta reshape;
+};
+
 // lazy init extra data, never hold any sharedptr of the node
 struct ExtraKernelBoxMeta {
   size_t num_ops = 0U;
@@ -37,6 +45,7 @@ struct ExtraKernelBoxMeta {
   std::set<const ge::OutDataAnchor *> used_ascend_buffers;
   std::set<const ge::OutDataAnchor *> optimized_ascend_buffers;
   std::set<loop::Edge> concrete_edges;  // edges consumed by this fused kernel
+  NodeAxisMeta node_axis_meta;
   std::string stream_label;
   std::string stream_priority;
   static ExtraKernelBoxMeta &Default() {
@@ -86,6 +95,10 @@ struct KernelBoxMeta {
       if (op->Type() == "ops.StoreStridedSlice") {
         extra->num_slices++;
       }
+      const auto &reshape_axis_changes = op->GetReshapeAxisChanges();
+      auto &reshape_meta = extra->node_axis_meta.reshape;
+      reshape_meta.axis_changes.insert(reshape_meta.axis_changes.end(), reshape_axis_changes.begin(),
+                                       reshape_axis_changes.end());
       const auto node = op->GetAscendIrNode();
       if (node != nullptr && seen_nodes.insert(node).second) {
         if (extra->stream_label.empty()) {
@@ -348,6 +361,10 @@ class KernelBox {
 
   const std::set<const ge::OutDataAnchor *> &GetOptimizedInputAscendBuffers() {
     return GetExtraMeta().optimized_ascend_buffers;
+  }
+
+  const std::vector<ReshapeAxisChangeInfo> &GetReshapeAxisChanges() {
+    return GetExtraMeta().node_axis_meta.reshape.axis_changes;
   }
 
   size_t NumOps() {
