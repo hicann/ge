@@ -36,7 +36,7 @@
 
 关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明转换成功。
 <!-- npu="950,A3,910b,910,310p,310b" id2 -->
-若模型转换失败，请参见[《故障处理》](https://hiascend.com/document/redirect/CannCommunitytrouble)\>“错误码参考”章节进行辅助定位。
+若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
 
 <!-- end id2 -->
 ```console
@@ -128,7 +128,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id3 -->
-    若模型转换失败，请参见[《故障处理》](https://hiascend.com/document/redirect/CannCommunitytrouble)\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
     <!-- end id3 -->
 
     ```console
@@ -169,7 +169,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id4 -->
-    若模型转换失败，请参见[《故障处理》](https://hiascend.com/document/redirect/CannCommunitytrouble)\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
     <!-- end id4 -->
 
     ```console
@@ -212,7 +212,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id5 -->
-    若模型转换失败，请参见[《故障处理》](https://hiascend.com/document/redirect/CannCommunitytrouble)\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
     <!-- end id5 -->
 
     ```console

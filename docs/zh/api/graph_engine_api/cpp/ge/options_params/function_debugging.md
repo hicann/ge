@@ -9,7 +9,7 @@
 **使用约束：**
 
 - 如果要自行指定算子编译的过程文件存放路径，需ge.debugDir参数与ge.opDebugLevel参数配合使用，且当ge.opDebugLevel取值为0时，不能使用ge.debugDir参数。
-- 算子编译生成的调试文件存储路径，除ge.debugDir参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“ge.debugDir”\> 环境变量ASCEND\_WORK\_PATH \> 默认存储路径。关于环境变量ASCEND\_WORK\_PATH的详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+- 算子编译生成的调试文件存储路径，除ge.debugDir参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“ge.debugDir”\> 环境变量ASCEND\_WORK\_PATH \> 默认存储路径。关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 **必选/可选**：可选
 
@@ -33,7 +33,7 @@
 >- 若配置了环境变量NPU\_COLLECT\_PATH，不论配置项“ge.exec.enable\_exception\_dump”的取值如何，仅收集普通exception dump信息，包括异常算子的输入数据和输出数据，且dump数据存储在环境变量NPU\_COLLECT\_PATH的指定目录下。
 >- L1 exception dump即普通exception dump，L0 exception dump即Lite exception dump（轻量化的exception dump），两者都会导出算子输入输出、workspace数据等信息，但相比L0 exception dump，L1 exception dump的信息更多，开启L1 exception dump时，会在Host应用类日志文件（即plog日志）中打印出来各tensor的dtype等信息，还会把算子相关的算子名、kernel都打印出来。
 
-关于环境变量的详细说明可参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+关于环境变量的详细说明可参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 配置示例：
 
@@ -74,7 +74,7 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {"ge.exec.enable_excep
 - 2：图编译完成时，生成算子融合信息结果文件。即如果图编译已完成，后续程序提前中断，也会生成算子融合信息结果文件。
 
 > [!NOTE]说明
->若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：$ASCEND\_WORK\_PATH/FE/$\{进程号\}/fusion\_result.json。环境变量详细说明请参见《环境变量参考》。
+>若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：$ASCEND\_WORK\_PATH/FE/$\{进程号\}/fusion\_result.json。环境变量详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 **配置示例：**
 

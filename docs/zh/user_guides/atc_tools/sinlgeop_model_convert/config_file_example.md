@@ -4,7 +4,7 @@
 
 不同输入或者不同Format场景，单算子描述文件配置不同，本章节给出各场景的配置示例。
 
-本章节中的单算子是基于Ascend IR定义的，描述文件为JSON格式。关于JSON描述文件中各参数的解释请参见[表1](singleop_desc_intro.md#table1)，关于单算子的Ascend IR定义请参见[《算子库》](https://hiascend.com/document/redirect/CannCommunityOplist)  \>“Ascend IR算子规格说明”  。
+本章节中的单算子是基于Ascend IR定义的，描述文件为JSON格式。关于JSON描述文件中各参数的解释请参见[表1](singleop_desc_intro.md#table1)，关于单算子的Ascend IR定义请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》\> “Ascend IR算子规格说明”  。
 
 - **Format为ND：**
 

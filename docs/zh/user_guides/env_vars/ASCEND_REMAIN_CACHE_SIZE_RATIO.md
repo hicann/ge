@@ -29,13 +29,13 @@ export ASCEND_REMAIN_CACHE_SIZE_RATIO=50
 - 基于AscendCL接口开发AI应用场景下，可在“aclCompileOpt”接口中通过编译选项ACL\_OP\_COMPILER\_CACHE\_DIR设置。
 - Ascend Graph构图场景下，可通过配置参数“ge.op\_compiler\_cache\_dir”设置。
 - ATC模型转换场景下，可通过参数“--op\_compiler\_cache\_dir”设置。
-- PyTorch框架场景下，可通过环境变量“ACL\_OP\_COMPILER\_CACHE\_DIR”设置，关于“ACL\_OP\_COMPILER\_CACHE\_DIR”的介绍可参见《[Ascend Extension for PyTorch 环境变量参考](https://www.hiascend.com/document/detail/zh/Pytorch/600/apiref/Envvariables/Envir_001.html)》。
+- PyTorch框架场景下，可通过环境变量“ACL\_OP\_COMPILER\_CACHE\_DIR”设置，关于“ACL\_OP\_COMPILER\_CACHE\_DIR”的介绍可参见《[TorchNPU环境变量](https://www.hiascend.com/document/detail/zh/Pytorch/latest/apiref/ENV/docs/zh/environment_variable_reference/env_variable_list.md)》。
 - TensorFlow框架场景下，可通过配置参数“op\_compiler\_cache\_dir”设置。
 
     TF Adapter配置参数“op\_compiler\_cache\_dir”的详细说明可参见：
 
-  - [《TensorFlow 1.15模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)中的TF Adapter 1.x接口参考 \> session配置 \> session配置参数说明。
-  - [《TensorFlow 2.6.5模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)中的TF Adapter 2.x接口参考 \> npu.global\_options \> 配置参数说明。
+  - 《[TensorFlow 1.15模型迁移](https://hiascend.com/document/redirect/tfcommunityguide)》中的TF Adapter 1.x接口参考 \> session配置 \> session配置参数说明。
+  - 《[TensorFlow 2.6.5模型迁移](https://hiascend.com/document/redirect/tfcommunityguide)》中的TF Adapter 2.x接口参考 \> npu.global\_options \> 配置参数说明。
 
 > [!NOTE]说明
 >

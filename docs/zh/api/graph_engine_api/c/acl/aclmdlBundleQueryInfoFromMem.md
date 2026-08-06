@@ -38,7 +38,7 @@ aclError aclmdlBundleQueryInfoFromMem(const void *model, size_t modelSize, aclmd
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| model | 输入 | 存放模型数据的内存地址指针。<br>此处的模型文件是基于构图接口构建出来的，调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，再由用户自行将保存出来的om模型文件读入内存，构图接口详细描述参见《图开发》中的“接口参考 > C++语言接口 > aclgrph接口 > aclgrphBundleBuildModel”。 |
+| model | 输入 | 存放模型数据的内存地址指针。<br>此处的模型文件是基于构图接口构建出来的，调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，再由用户自行将保存出来的om模型文件读入内存，构图接口详细描述参见[aclgrphBundleBuildModel](../../cpp/ge/aclgrphBundleBuildModel.md)。 |
 | modelSize | 输入 | 内存中的模型数据长度，单位Byte。 |
 | queryInfo | 输出 | 需提前调用[aclmdlBundleCreateQueryInfo](aclmdlBundleCreateQueryInfo.md)接口创建aclmdlBundleQueryInfo类型的数据。 |
 

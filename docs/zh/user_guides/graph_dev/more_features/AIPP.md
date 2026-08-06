@@ -15,7 +15,7 @@ AIPP（Artificial Intelligence Pre-Processing）人工智能预处理，用于�
 - 静态AIPP：模型编译时设置AIPP模式为静态，同时设置AIPP参数，模型生成后，AIPP参数值被保存在离线模型中，每次模型推理过程采用固定的AIPP预处理参数（无法修改）。
 - 动态AIPP：模型编译时设置AIPP模式为动态，每次模型推理前，根据需求，在执行模型前设置动态AIPP参数值，然后在模型执行时可使用不同的AIPP参数。动态AIPP在根据业务要求改变预处理参数的场合下使用（如不同摄像头采用不同的归一化参数，输入图片格式需要兼容YUV420和RGB等）。
 
-关于AIPP功能的详细介绍请参考[《ATC离线模型编译工具》](../../atc_tools/README.md)。
+关于AIPP功能的详细介绍请参考《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 
 ## 使用方法
 
@@ -34,7 +34,7 @@ AIPP（Artificial Intelligence Pre-Processing）人工智能预处理，用于�
     data.update_output_desc_y(desc_data);
     ```
 
-2. 准备AIPP配置文件，配置说明请参考[《ATC离线模型编译工具》](../../atc_tools/README.md)，下面给出一些配置示例：
+2. 准备AIPP配置文件，配置说明请参考《[ATC离线模型编译工具](../../atc_tools/README.md)》，下面给出一些配置示例：
 
     静态AIPP配置文件示例：
 

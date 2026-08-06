@@ -99,7 +99,7 @@
 <!-- end id3 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/precision_tuning_res.md#id1 -->
 
-- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见[《应用开发 \(C&C++\)》](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
+- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
 - 如果用户聚焦精度问题，可以修改为其他取值，比如**must\_keep\_origin\_dtype。**
 
 **配置示例：**
@@ -212,7 +212,7 @@
     Ascend 950PR/Ascend 950DT
 <!-- end id13 -->
 
-- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见[《应用开发 \(C&C++\)》](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
+- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
 - 如果用户聚焦精度问题，可以修改为其他取值，比如**origin。**
 
 **配置示例：**

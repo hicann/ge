@@ -18,7 +18,7 @@
 - 开源框架网络模型场景：
     1. 开源框架网络模型经过Parser解析后，转换为中间态IR Graph。
     2. 中间态IR经过图准备、图拆分、图优化、图编译等一系列操作后，转成适配AI处理器的离线模型（此处图指网络模型拓扑图）。
-    3. 转换后的离线模型上传到板端环境，通过**模型加载接口加载模型文件，再调用模型执行接口**实现推理过程，详细流程请参见[《应用开发 \(C&C++\)》](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)中的“模型推理”章节。
+    3. 转换后的离线模型上传到板端环境，通过**模型加载接口加载模型文件，再调用模型执行接口**实现推理过程，详细流程请参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理”章节。
 
 - 单算子描述文件场景：
 
@@ -140,7 +140,7 @@ ATC工具运行前需要准备环境和模型，本节给出ATC工具的运行�
 
 在AI Core算子、AI CPU算子的模型转换交互流程中，虽然都涉及图准备、图拆分、图优化、图编译等节点，但由于两者的计算单元不同，因此涉及交互的内部模块也有所不同，请参见下图。
 
-关于算子类型、基本概念等详细介绍请参见[《Ascend C算子开发》](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)或[《TBE&AI CPU算子开发》](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)（选择一种支持的方式即可）。如果用户使用的网络模型中有自定义算子，也请优先参见上述手册开发部署好自定义算子，模型转换时会优先去查找自定义算子库匹配模型文件中的算子；若匹配失败，则会去查找内置算子库。
+关于算子类型、基本概念等详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》或《[TBE&AI CPU算子开发](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)》（选择一种支持的方式即可）。如果用户使用的网络模型中有自定义算子，也请优先参见上述手册开发部署好自定义算子，模型转换时会优先去查找自定义算子库匹配模型文件中的算子；若匹配失败，则会去查找内置算子库。
 
 模型转换过程中，若遇到AI CPU算子不支持某种数据类型导致编译失败的场景，可通过启用Cast算子自动插入特性快速将输入转换为算子支持的数据类型，从而实现网络的快速打通，详细流程请参见[开启AI CPU Cast算子自动插入特性](../references/enable_ai_cpu_cast_auto_insert.md)。
 

@@ -255,7 +255,7 @@ typedef enum {
 
 如果设置了ACL\_OP\_DEBUG\_LEVEL编译选项，则只有编译选项值为0才会启用编译缓存功能，其它取值禁用编译缓存功能。
 
-关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见《[环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 ## ACL\_OP\_PERFORMANCE\_MODE取值说明
 
@@ -301,7 +301,7 @@ Atlas 训练系列产品，该选项默认值为enable。
 Atlas 推理系列产品，该选项默认值为enable。
 <!-- end id13 -->
 
-若本参数的取值为disable，则需要安装算子二进制文件包，请参见[《软件安装》](https://hiascend.com/document/redirect/CannCommunityInstSoftware)。
+若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》。
 
 ## ACL\_OP\_DETERMINISTIC取值说明
 
@@ -320,7 +320,7 @@ Atlas 推理系列产品，该选项默认值为enable。
 
 - 路径和文件名支持大小写字母（a-z，A-Z）、数字（0-9）、下划线（\_）、中划线（-）、句点（.）、英文冒号\(:\)、中文字符。
 - 配置文件中若为算子名称，以**Opname::InputDtype:dtype1,...,OutputDtype:dtype1,...**格式进行配置，每个Opname单独一行，dtype1，dtype2..需要与可设置计算精度的算子输入，算子输出的个数一一对应**。**
-- 配置文件中若为算子类型，以**OpType::TypeName:InputDtype:dtype1,...,OutputDtype:dtype1,...**格式进行配置，每个OpType单独一行，dtype1，dtype2..需要与可设置计算精度的算子输入，算子输出的个数一一对应，且算子OpType必须为基于Ascend IR定义的算子的OpType，OpType查看方法请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“FAQ \> [如何确定原始框架网络模型中的算子与AI处理器支持的算子的对应关系](../../../../user_guides/atc_tools/FAQ/operator_correspondence_guide.md)”。
+- 配置文件中若为算子类型，以**OpType::TypeName:InputDtype:dtype1,...,OutputDtype:dtype1,...**格式进行配置，每个OpType单独一行，dtype1，dtype2..需要与可设置计算精度的算子输入，算子输出的个数一一对应，且算子OpType必须为基于Ascend IR定义的算子的OpType，OpType查看方法请参见《[ATC离线模型编译工具](../../../../user_guides/atc_tools/README.md)》中的“FAQ \> [如何确定原始框架网络模型中的算子与AI处理器支持的算子的对应关系](../../../../user_guides/atc_tools/FAQ/operator_correspondence_guide.md)”。
 - 对于同一个算子，如果同时配置了**Opname**和**OpType**的配置项，编译时以**Opname**的配置项为准。
 - 使用该参数指定某个算子的计算精度时，如果模型转换过程中该算子被融合掉，则该算子指定的计算精度不生效。
 

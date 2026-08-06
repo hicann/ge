@@ -9,7 +9,7 @@
 **使用约束：**
 
 - 如果要自行指定算子编译的过程文件存放路径，需DEBUG\_DIR参数与OP\_DEBUG\_LEVEL参数配合使用，且当OP\_DEBUG\_LEVEL取值为0时，不能使用DEBUG\_DIR参数。
-- 算子编译生成的调试文件存储路径，除DEBUG\_DIR参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“DEBUG\_DIR”\>环境变量ASCEND\_WORK\_PATH \>默认存储路径。关于环境变量ASCEND\_WORK\_PATH的详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+- 算子编译生成的调试文件存储路径，除DEBUG\_DIR参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“DEBUG\_DIR”\>环境变量ASCEND\_WORK\_PATH \>默认存储路径。关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 **配置示例**：
 
@@ -250,7 +250,7 @@ op_debug_list=GatherV2,opType::ReduceSum
 
 > [!NOTE]说明
 >
->- 若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本的当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：`$ASCEND_WORK_PATH/FE/${进程号}/fusion_result.json`。环境变量详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+>- 若未设置ASCEND\_WORK\_PATH环境变量，结果文件默认生成在执行脚本的当前路径；若设置了ASCEND\_WORK\_PATH环境变量，则保存路径为：`$ASCEND_WORK_PATH/FE/${进程号}/fusion_result.json`。环境变量详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 >- 通过FUSION\_SWITCH\_FILE参数关闭的融合规则，不会在fusion\_result.json文件中呈现。
 
 **配置示例：**

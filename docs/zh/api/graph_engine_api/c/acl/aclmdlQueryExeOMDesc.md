@@ -29,7 +29,7 @@
 根据模型文件获取模型执行时所需的工作内存、权值内存、模型描述信息、静态和动态shape任务等的内存大小。
 
 <!-- npu="IPV350" id1 -->
-此处的模型文件是exeom模型文件。关于如何获取exeom文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
+此处的模型文件是exeom模型文件。关于如何获取exeom文件，请参见《[ATC离线模型编译工具](../../../../user_guides/atc_tools/README.md)》中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
 <!-- end id1 -->
 
 ## 函数原型

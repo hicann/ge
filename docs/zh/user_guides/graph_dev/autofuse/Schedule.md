@@ -16,7 +16,7 @@ for i in range(N):
         C[i][j] = A[i][j] + B[i][j]
 ```
 
-Add是纯elewise操作，所以可以合并成一个线性循环：
+Add是逐元素（elementwise）操作，所以可以合并成一个线性循环：
 
 ```python
 for fused in range(N * M):

@@ -32,7 +32,7 @@
 
 1. 基于构图接口编译并保存模型，模型中包含多个图，例如推理图、变量初始化图、变量更新图等。
 
-    此处是调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，接口详细描述参见[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)中的“接口参考 \> C++语言接口 \> aclgrph接口 \> aclgrphBundleBuildModel”、“接口参考 \> C++语言接口 \> aclgrph接口 \> aclgrphBundleSaveModel”。
+    此处是调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，接口详细描述参见[aclgrphBundleBuildModel](../../cpp/ge/aclgrphBundleBuildModel.md)、[aclgrphBundleSaveModel](../../cpp/ge/aclgrphBundleSaveModel.md)。
 
 2. 调用[aclmdlBundleLoadFromFile](aclmdlBundleLoadFromFile.md)或[aclmdlBundleLoadFromMem](aclmdlBundleLoadFromMem.md)接口加载模型。
 3. 调用[aclmdlBundleGetModelId](aclmdlBundleGetModelId.md)接口获取多个图的ID。

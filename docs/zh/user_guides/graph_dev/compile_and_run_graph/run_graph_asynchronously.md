@@ -11,9 +11,9 @@
 ![图示](../figures/feature_intro_4.png)
 
 1. 调用[GEInitializeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEInitializeV2.md)进行系统初始化（也可在Graph构建前调用），申请系统资源。
-2. 调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclinit)中的“初始化和去初始化 \> aclInit”接口，初始化acl。
+2. 调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclinit)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
 3. 调用[Session构造函数](../../../api/graph_engine_api/cpp/ge/GeSession/GESession.md)创建Session类对象，申请Session资源。
-4. 调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiacldevice)中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclmalloc)中的“内存管理 \> aclrtMallocHost/aclrtMalloc”分别申请Host和Device内存。
+4. 调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiacldevice)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclmalloc)》中的“内存管理 \> aclrtMallocHost/aclrtMalloc”分别申请Host和Device内存。
 5. 调用[AddGraph](../../../api/graph_engine_api/cpp/ge/GeSession/AddGraph.md)在Session类对象中添加定义好的图。
 6. （可选）调用[CompileGraph](../../../api/graph_engine_api/cpp/ge/GeSession/CompileGraph.md)完成图编译。
 7. （可选）调用[LoadGraph](../../../api/graph_engine_api/cpp/ge/GeSession/LoadGraph.md)（异步执行Graph场景），加载图模型到上面步骤创建的Stream上。
@@ -210,10 +210,10 @@
 ![图示](../figures/single_thread.png)
 
 1. 调用[GEInitializeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEInitializeV2.md)进行系统初始化（也可在Graph构建前调用），申请系统资源。
-2. 调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclinit)中的“初始化和去初始化 \> aclInit”接口，初始化acl。
+2. 调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclinit)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
 3. 调用[Session构造函数](../../../api/graph_engine_api/cpp/ge/GeSession/GESession.md)创建多个Session类对象，申请Session资源，每个Session传入不同的ge.session\_device\_id，将模型运行在不同的Device。
 4. 创建多个线程，每个线程传入不同的Session，下面以一个线程为例，描述简单的流程：
-    1. 调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiacldevice)中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用[《Runtime运行时 API》](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclmalloc)中的“内存管理 \> aclrtMalloc”申请Device内存。
+    1. 调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiacldevice)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclmalloc)》中的“内存管理 \> aclrtMalloc”申请Device内存。
     2. 调用[AddGraph](../../../api/graph_engine_api/cpp/ge/GeSession/AddGraph.md)在Session类对象中添加定义好的图。
     3. 调用[CompileGraph](../../../api/graph_engine_api/cpp/ge/GeSession/CompileGraph.md)完成图编译。
     4. 调用[LoadGraph](../../../api/graph_engine_api/cpp/ge/GeSession/LoadGraph.md)（异步执行Graph场景），将图模型加载到前面创建的Stream上。

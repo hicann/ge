@@ -320,7 +320,7 @@ x ----\
 
 2. 设置加载Pass环境变量
 
-    告诉GE从哪里加载Python Pass：
+    GE读取Python Pass文件目录：
 
     ```bash
     export ASCEND_GE_PY_PASS_PATH=/path/to/my_pass.py
@@ -338,11 +338,11 @@ x ----\
     export ASCEND_GE_PY_PASS_PATH=/path/to/a.py:/path/to/pass_dir/
     ```
 
-    ASCEND\_GE\_PY\_PASS\_PATH详细说明请参见《环境变量参考》。
+    环境变量详细说明请参见[ASCEND\_GE\_PY\_PASS\_PATH](../../../user_guides/env_vars/ASCEND_GE_PY_PASS_PATH.md)。
 
 3. 执行编译：支持但不限于如下几种入口编译模型文件：
 
-    如果要查看上述自定义Pass有没有生效，在编译模型前，需要dump图进行查看：在执行之前设置DUMP\_GE\_GRAPH（详细说明请参见《[环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)）环境变量，然后使用如下入口编译模型：
+    如果要查看上述自定义Pass有没有生效，在编译模型前，需要dump图进行查看：在执行之前设置[DUMP\_GE\_GRAPH](../../../user_guides/env_vars/DUMP_GE_GRAPH.md)环境变量，然后使用如下入口编译模型：
 
     - 离线编译：离线场景建议使用pyatc触发编译，pyatc和atc的命令行参数一致，但会在当前Python解释器进程中运行，便于加载Python Pass。命令如下：
 
