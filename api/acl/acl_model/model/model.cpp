@@ -474,7 +474,8 @@ static aclError ModelLoadFromFileWithQ(const char_t *const modelPath, uint32_t *
 }
 
 static aclError ModelLoadFromMemWithQ(const void *const model, const size_t modelSize, uint32_t *const modelId,
-                                      const ge::ModelQueueArg &args, const int32_t priority) {
+                                      const ge::ModelQueueArg &args, const char_t *const weightPath,
+                                      const int32_t priority) {
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
   ACL_LOG_INFO(
@@ -497,6 +498,10 @@ static aclError ModelLoadFromMemWithQ(const void *const model, const size_t mode
   data.model_data = const_cast<void *>(model);
   data.model_len = static_cast<uint64_t>(modelSize);
   data.priority = priority;
+  if (weightPath != nullptr) {
+    data.weight_path = std::string(weightPath);
+    ACL_LOG_INFO("Load weight path is [%s]", data.weight_path.c_str());
+  }
 
   ACL_LOG_INFO("call ge interface executor.LoadModelWithQ, modelSize[%zu]", modelSize);
   const ge::Status ret = executor.LoadModelWithQ(id, data, args);
@@ -1600,7 +1605,7 @@ aclError aclmdlLoadFromMemWithQImpl(const void *model, size_t modelSize, uint32_
   std::vector<uint32_t> inputQVec(inputQ, inputQ + inputQNum);
   std::vector<uint32_t> outputQVec(outputQ, outputQ + outputQNum);
   ge::ModelQueueArg args{std::move(inputQVec), std::move(outputQVec), {}, false};
-  const aclError ret = acl::ModelLoadFromMemWithQ(model, modelSize, modelId, args, 0);
+  const aclError ret = acl::ModelLoadFromMemWithQ(model, modelSize, modelId, args, nullptr, 0);
   if (ret != ACL_SUCCESS) {
     return ret;
   }
@@ -2233,7 +2238,8 @@ static aclError LoadFromMemWithQ(const aclmdlConfigHandle *handle,
   std::vector<uint32_t> inputQVec(handle->inputQ, handle->inputQ + handle->inputQNum);
   std::vector<uint32_t> outputQVec(handle->outputQ, handle->outputQ + handle->outputQNum);
   ge::ModelQueueArg que_args{std::move(inputQVec), std::move(outputQVec), fileConstantMems, handle->withoutGraph};
-  return acl::ModelLoadFromMemWithQ(handle->mdlAddr, handle->mdlSize, modelId, que_args, handle->priority);
+  return acl::ModelLoadFromMemWithQ(handle->mdlAddr, handle->mdlSize, modelId, que_args, handle->weightPath.c_str(),
+                                    handle->priority);
 }
 
 aclError aclmdlLoadWithConfigImpl(const aclmdlConfigHandle *handle, uint32_t *modelId) {

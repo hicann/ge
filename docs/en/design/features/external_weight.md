@@ -43,6 +43,18 @@ sequenceDiagram
 
 **Reverse Conversion** (`compiler/graph/preprocess/graph_prepare.cc`): `ConvertFileConstToConst` reads file → creates GeTensor → changes node type back to Const, used for ONNX import and similar scenarios.
 
+## Runtime: ACL Model Loading Entry
+
+`api/acl/acl_model/model/model.cpp` `aclmdlLoadWithConfigImpl`:
+
+When loading a OM model from memory, `ACL_MDL_LOAD_FROM_MEM`, `ACL_MDL_LOAD_FROM_MEM_WITH_MEM`, and
+`ACL_MDL_LOAD_FROM_MEM_WITH_Q` can all use `ACL_MDL_WEIGHT_PATH_PTR` to specify the external weight directory. The
+loading entry writes this directory to `ge::ModelData::weight_path`. If user Device memory is also configured through
+`aclmdlSetExternalWeightAddress`, the user-provided memory takes precedence.
+
+`aclmdlSetExternalWeightAddress` stores `{fileName, devPtr, size}` in `handle->fileConstantMem`, which is then passed to
+the corresponding executor during model loading.
+
 ## Runtime: Runtime V2 (Online Inference)
 
 ### Lowering Phase
@@ -62,11 +74,9 @@ flowchart TD
 
 Path resolution priority: `location private property > file_path IR attribute > file_id + ge.exec.value_bins`
 
-### Model Loading Process
-
-`api/acl/acl_model/model/model.cpp` `aclmdlLoadWithConfigImpl`:
-
-`aclmdlSetExternalWeightAddress` stores `{fileName, devPtr, size}` in `handle->fileConstantMem` → loading passes through `LoadExecutorArgs → LoweringGlobalData::SetFileConstantMem` → Lowering phase `GetUserDeviceAddress` matches user Device memory by filename.
+User Device memory configured through `aclmdlSetExternalWeightAddress` is passed through
+`LoadExecutorArgs → LoweringGlobalData::SetFileConstantMem`. During Lowering, `GetUserDeviceAddress` matches the memory
+by filename.
 
 ## Runtime: Runtime V1 (DavinciModel Offline Inference)
 
