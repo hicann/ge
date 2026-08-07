@@ -17,6 +17,7 @@
 #include "hcom_acl_adapter.h"
 #include "adapter_dlhcclfunc.h"
 #include "common/op_hcom_comm.h"
+#include "device_capability.h"
 
 namespace hccl {
 enum class HcomOpLaunchInput {
@@ -64,8 +65,7 @@ HcclResult GetCountByShape(const gert::Shape &shape, HcclDataType dataType, uint
 
 HcclResult HcomAllGatherKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomAllGatherKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -87,8 +87,7 @@ HcclResult HcomAllGatherKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *
 HcclResult HcomLaunchAllGatherKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                      std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchAllGatherKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -259,8 +258,7 @@ HcclResult HcomCopyCCLbuffToOutnputs(const HcomOpLaunchArgs &launchArgs, uint32_
 
 HcclResult HcomAllReduceKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomAllReduceKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -293,8 +291,7 @@ HcclResult HcomAllReduceKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *
 HcclResult HcomLaunchAllReduceKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                      std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchAllReduceKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -402,8 +399,7 @@ HcclResult HcomLaunchAllReduceKernelV2(const HcomOpInputStruct *inputStruct, std
 
 HcclResult HcomBroadcastKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomBroadcastKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -425,8 +421,7 @@ HcclResult HcomBroadcastKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *
 HcclResult HcomLaunchBroadcastKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                      std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchBroadcastKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -472,8 +467,7 @@ HcclResult HcomLaunchBroadcastKernelV2(const HcomOpInputStruct *inputStruct, std
 
 HcclResult HcomReduceScatterKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomReduceScatterKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -495,8 +489,7 @@ HcclResult HcomReduceScatterKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStru
 HcclResult HcomLaunchReduceScatterKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                          std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchReduceScatterKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -588,8 +581,7 @@ HcclResult HcomLaunchReduceScatterKernelV2(const HcomOpInputStruct *inputStruct,
 
 HcclResult HcomAllToAllVKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomAllToAllVKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -605,8 +597,7 @@ HcclResult HcomAllToAllVKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *
 HcclResult HcomLaunchAllToAllVKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                      std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchAllToAllVKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -646,8 +637,7 @@ HcclResult HcomLaunchAllToAllVKernelV2(const HcomOpInputStruct *inputStruct, std
 
 HcclResult HcomAllToAllVCKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomAllToAllVCKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -663,8 +653,7 @@ HcclResult HcomAllToAllVCKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct 
 HcclResult HcomLaunchAllToAllVCKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                       std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchAllToAllVCKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -793,8 +782,7 @@ HcclResult HcomSendKernelV2(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inp
 
 HcclResult HcomSendKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomSendKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -860,8 +848,7 @@ HcclResult HcomLaunchSendKernelV2(const HcomOpInputStruct *inputStruct, std::vec
 HcclResult HcomLaunchSendKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                 std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchSendKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -876,8 +863,7 @@ HcclResult HcomLaunchSendKernel(const HcomOpInputStruct *inputStruct, std::vecto
 
 HcclResult HcomReduceKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomReduceKernelV2(launchArgs, inputStruct);
   }
 #endif
@@ -899,8 +885,7 @@ HcclResult HcomReduceKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inp
 HcclResult HcomLaunchReduceKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                   std::vector<void *> &outputAddrs) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomLaunchReduceKernelV2(inputStruct, inputAddrs, outputAddrs);
   }
 #endif
@@ -1175,8 +1160,7 @@ ge::graphStatus HcomGetRecvBeforeKernelV2(HcomOpLaunchArgs &args, std::vector<in
 
 ge::graphStatus HcomGetRecvBeforeKernel(HcomOpLaunchArgs &args, std::vector<int64_t> &recvShape) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomGetRecvBeforeKernelV2(args, recvShape);
   }
 #endif
@@ -1312,8 +1296,7 @@ ge::graphStatus LaunchRecvKernelV2(gert::KernelContext *context) {
 
 ge::graphStatus LaunchRecvKernel(gert::KernelContext *context) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-  if (devType == DevType::DEV_TYPE_950 || devType == DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return LaunchRecvKernelV2(context);
   }
 #endif

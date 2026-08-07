@@ -17,7 +17,6 @@
 #include "hcom_log.h"
 
 namespace hccl {
-HcclResult GetOffDeviceTypeWithoutDev(DevType &devType);
 bool IsOfflineCompilation();
 HcclResult GetDeterministic(u8 &deterministic);
 }  // namespace hccl
