@@ -6,9 +6,6 @@
 
 - 若网络模型输入数据类型或权重数据类型为Float16或混合精度类型（Float32/Float16共存），会关闭如下算子的量化功能：
  AvgPool、Pooling、AvgPoolV2、MaxPool、MaxPoolV3、Add、Eltwise、BatchMatMulV2（两路输入都为变量tensor）。
-<!-- npu="IPV350" id1 -->
-- INT16数据量化过程中，发现整网精度下降，可以通过精度比对工具，逐层比对原始模型和量化后模型输出误差（例如以余弦相似度作为标准，需要相似度达到0.99以上），找到误差较大的层，然后通过简易配置文件中的**dst\_type**参数将该层修改为INT8量化，重新进行量化。
-<!-- end id1 -->
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/references/quantization_layers_constraints_res.md#id1 -->
 
 <!-- npu="A3,910b,IPV350" id17 -->
@@ -21,10 +18,6 @@
     <!-- npu="910b" id2 -->
     Atlas A2 训练系列产品/Atlas A2 推理系列产品
     <!-- end id2 -->
-
-    <!-- npu="IPV350" id16 -->
-    IPV350
-    <!-- end id16 -->
 <!-- end id17 -->
 
 ## 全量化
@@ -40,10 +33,6 @@
 | Eltwise | 只做tensor量化且operation=1 | Eltwise |
 
 ### 均匀量化支持的层及约束（TensorFlow框架）
-
-<!-- npu="IPV350" id18 -->
-如下表格不适用于IPV350，其约束请参见[IPV350支持的层及约束](#均匀量化支持的层及约束ipv350)。
-<!-- end id18 -->
 
 | 支持的层类型 | 约束 | 对应Ascend IR定义的层类型 |
 | --- | --- | --- |
@@ -77,10 +66,6 @@ Atlas 200I/500 A2 推理产品
 
 ### 均匀量化支持的层及约束（ONNX框架）
 
-<!-- npu="IPV350" id19 -->
-如下表格不适用于IPV350，其约束请参见[IPV350支持的层及约束](#均匀量化支持的层及约束ipv350)。
-<!-- end id19 -->
-
 | 支持的层类型 | 约束 | 对应Ascend IR定义的层类型 |
 | --- | --- | --- |
 | Conv：卷积层 | - filter维度为5的情况下，要求dilation_d为1<br>  - weight的输入来源不含有placeholder等可动态变化的节点 | Conv2D、Conv3D |
@@ -109,23 +94,7 @@ Atlas 200I/500 A2 推理产品
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/references/quantization_layers_constraints_res.md#id4 -->
 
-<!-- npu="IPV350" id20 -->
-### 均匀量化支持的层及约束（IPV350）
-
-| 框架 | 支持的层类型 | 约束 | 对应Ascend IR定义的层类型 |
-| --- | --- | --- | --- |
-| TensorFlow | MatMul：全连接层 | - transpose_a为False, transpose_b为False，adjoint_a为False，adjoint_b为False<br>  - weight的输入来源不含有placeholder等可动态变化的节点 | MatMulV2 |
-|TensorFlow| Conv2D：卷积层 | weight的输入来源不含有placeholder等可动态变化的节点 | Conv2D |
-|TensorFlow |Conv2DBackpropInput | dilation为1，weight的输入来源不含有placeholder等可动态变化的节点 |Conv2DBackpropInput |
-|TensorFlow |DepthwiseConv2dNative | weight的输入来源不含有placeholder等可动态变化的节点 | DepthwiseConv2D |
-| ONNX | ConvTranspose | - dilation为1、filter维度为4<br>  - weight的输入来源不含有placeholder等可动态变化的节点 | Conv2DTranspose |
-<!-- end id20 -->
-
 ## 仅权重量化
-
-<!-- npu="IPV350" id21 -->
-**该版本不支持仅权重量化特性。**
-<!-- end id21 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/references/quantization_layers_constraints_res.md#id2 -->
 

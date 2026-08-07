@@ -58,10 +58,6 @@ HF32是昇腾推出的专门用于算子内部计算的单精度浮点类型，�
 <!-- npu="910" id7 -->
 - Atlas 训练系列产品：不支持
 <!-- end id7 -->
-<!-- npu="IPV350" id8 -->
-- IPV350：不支持
-<!-- end id8 -->
-
 <!-- end id1 -->
 
 ## OO\_CONSTANT\_FOLDING

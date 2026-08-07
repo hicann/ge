@@ -2,10 +2,6 @@
 
 本节介绍什么是AIPP，AIPP分类以及包括的特性。
 
-<!-- npu="IPV350" id1 -->
-**IPV350不支持AIPP特性。**
-<!-- end id1 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/AIPP/aipp_intro_res.md#id1 -->
 
 AIPP（Artificial Intelligence Pre-Processing）人工智能预处理，用于在AI Core上完成数据预处理，包括改变图像尺寸、色域转换（转换图像格式）、减均值/乘系数（改变图像像素），数据预处理之后再进行真正的模型推理。

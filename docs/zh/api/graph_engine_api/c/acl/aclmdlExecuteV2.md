@@ -20,9 +20,6 @@
 <!-- npu="910" id1145 -->
 - Atlas 训练系列产品：支持
 <!-- end id1145 -->
-<!-- npu="IPV350" id1146 -->
-- IPV350：支持
-<!-- end id1146 -->
 
 ## 功能说明
 
@@ -60,10 +57,6 @@ aclError aclmdlExecuteV2(uint32_t modelId, const aclmdlDataset *input, aclmdlDat
 <!-- npu="950,A3,910b,910,310p,310b" id1 -->
 若此处传NULL，则通过[aclmdlSetExecConfigOpt](aclmdlSetExecConfigOpt.md)接口配置的属性值不生效。
 <!-- end id1 -->
-
-<!-- npu="IPV350" id2 -->
-不支持传NULL，否则返回报错。
-<!-- end id2 -->
 
 其它约束与[aclmdlExecute](aclmdlExecute.md)一致。
 

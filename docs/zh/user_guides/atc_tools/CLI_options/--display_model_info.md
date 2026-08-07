@@ -5,11 +5,6 @@
 <!-- npu="950,A3,910b,910,310p,310b" id2 -->
 全量芯片支持
 <!-- end id2 -->
-
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--display_model_info_res.md#id1 -->
 
 ## 功能说明

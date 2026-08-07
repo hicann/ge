@@ -43,9 +43,6 @@
     Atlas 训练系列产品
     <!-- end id6 -->
 
-    <!-- npu="IPV350" id7 -->
-    IPV350
-    <!-- end id7 -->
 <!-- end id12 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--aicore_num_res.md#id1 -->

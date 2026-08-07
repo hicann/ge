@@ -36,10 +36,6 @@
     <!-- npu="910" id8 -->
     Atlas 训练系列产品
     <!-- end id8 -->
-
-    <!-- npu="IPV350" id9 -->
-    IPV350
-    <!-- end id9 -->
 <!-- end id5 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/operator_and_graph_compilation_res.md#id1 -->
 
@@ -161,9 +157,6 @@
 <!-- npu="910" id22 -->
 - Atlas 训练系列产品：不支持
 <!-- end id22 -->
-<!-- npu="IPV350" id23 -->
-- IPV350：不支持
-<!-- end id23 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/operator_and_graph_compilation_res.md#id4 -->
 
 ## OP\_COMPILER\_CACHE\_MODE

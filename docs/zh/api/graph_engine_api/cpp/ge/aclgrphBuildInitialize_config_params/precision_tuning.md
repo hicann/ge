@@ -75,9 +75,6 @@
 
 **参数值约束：**
 
-<!-- npu="IPV350" id8 -->
-- **IPV350不支持bfloat16类型，对应选项也不支持。**
-<!-- end id8 -->
 <!-- npu="950,A3,910b,310b" id3 -->
 - **bfloat16数据类型仅支持以下产品类型**：
 
@@ -190,9 +187,6 @@
 
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/precision_tuning_res.md#id2 -->
 
-<!-- npu="IPV350" id14 -->
-- **IPV350不支持bfloat16、hif8类型，对应选项也不支持。**
-<!-- end id14 -->
 <!-- npu="950,A3,910b,310b" id12 -->
 - **bfloat16数据类型仅支持以下产品型号**：
 

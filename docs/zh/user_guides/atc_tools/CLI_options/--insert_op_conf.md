@@ -6,10 +6,6 @@
 全量芯片支持
 <!-- end id1 -->
 
-<!-- npu="IPV350" id7 -->
-IPV350：不支持
-<!-- end id7 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--insert_op_conf_res.md#id1 -->
 
 ## 功能说明

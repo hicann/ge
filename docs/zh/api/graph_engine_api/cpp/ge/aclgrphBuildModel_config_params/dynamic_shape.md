@@ -24,10 +24,6 @@
     Atlas 200I/500 A2 推理产品**不支持设置shape范围**。
     <!-- end id1 -->
 
-    <!-- npu="IPV350" id2 -->
-    IPV350**不支持设置shape范围**。
-    <!-- end id2 -->
-
     设置INPUT\_SHAPE参数时，可将对应维度的值设置为范围，例如1\~10，**设置的range值范围必须有效**。
 
     - 支持按照name设置："input\_name1:n1,c1,h1,w1;input\_name2:n2,c2,h2,w2"，例如："input\_name1:8\~20,3,5,-1;input\_name2:5,3\~9,10,-1"。指定的节点必须放在双引号中，节点中间使用英文分号分隔。input\_name必须是转换前的网络模型中的节点名称。如果用户知道data节点的name，推荐按照name设置。
@@ -169,9 +165,6 @@ INPUT\_SHAPE中的“-1”表示设置动态batch。
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id2 -->
 
 ## DYNAMIC\_IMAGE\_SIZE
@@ -250,9 +243,6 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 <!-- npu="910" id22 -->
 - Atlas 训练系列产品：支持
 <!-- end id22 -->
-<!-- npu="IPV350" id23 -->
-- IPV350：不支持
-<!-- end id23 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id4 -->
 
 ## DYNAMIC\_DIMS
@@ -334,9 +324,6 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 <!-- npu="910" id36 -->
 - Atlas 训练系列产品：支持
 <!-- end id36 -->
-<!-- npu="IPV350" id37 -->
-- IPV350：不支持
-<!-- end id37 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id6 -->
 
 ## AC\_PARALLEL\_ENABLE
@@ -380,7 +367,4 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 <!-- npu="910" id44 -->
 - Atlas 训练系列产品：支持
 <!-- end id44 -->
-<!-- npu="IPV350" id45 -->
-- IPV350：不支持
-<!-- end id45 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id8 -->

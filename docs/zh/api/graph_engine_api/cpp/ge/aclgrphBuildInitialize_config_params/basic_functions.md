@@ -85,9 +85,6 @@ cluster\_config.json配置示例如下：
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：不支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/basic_functions_res.md#id1 -->
 
 ## DETERMINISTIC
@@ -129,9 +126,6 @@ cluster\_config.json配置示例如下：
 <!-- npu="910" id13 -->
 - Atlas 训练系列产品：支持
 <!-- end id13 -->
-<!-- npu="IPV350" id14 -->
-- IPV350：不支持
-<!-- end id14 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/basic_functions_res.md#id2 -->
 
 ## ENABLE\_SINGLE\_STREAM
@@ -180,9 +174,6 @@ cluster\_config.json配置示例如下：
 <!-- npu="910" id20 -->
 - Atlas 训练系列产品：支持
 <!-- end id20 -->
-<!-- npu="IPV350" id21 -->
-- IPV350：不支持
-<!-- end id21 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/basic_functions_res.md#id3 -->
 
 ## HCCL\_SUB\_COMM\_CONFIG
@@ -243,9 +234,6 @@ sub\_comm\_config.json文件示例如下：
 <!-- npu="910" id27 -->
 - Atlas 训练系列产品：不支持
 <!-- end id27 -->
-<!-- npu="IPV350" id28 -->
-- IPV350：不支持
-<!-- end id28 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/basic_functions_res.md#id4 -->
 
 ## OPTION\_HOST\_ENV\_OS
@@ -382,8 +370,4 @@ sub\_comm\_config.json文件示例如下：
 <!-- npu="910" id42 -->
 - Atlas 训练系列产品：支持
 <!-- end id42 -->
-<!-- npu="IPV350" id43 -->
-- IPV350：不支持
-<!-- end id43 -->
-
 <!-- end id44 -->

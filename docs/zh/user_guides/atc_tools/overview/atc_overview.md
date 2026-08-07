@@ -162,10 +162,6 @@ ATC工具运行前需要准备环境和模型，本节给出ATC工具的运行�
 
 - AI CPU算子模型转换交互流程
 
-    <!-- npu="IPV350" id2 -->
-    **IPV350不支持AI CPU相关特性。**
-    <!-- end id2 -->
-
     **图 3**  AI CPU算子模型转换交互流程
     ![](../figures/ai_cpu_op_model_conv_flow.png "AI-CPU算子模型转换交互流程")
 

@@ -39,10 +39,6 @@
     Atlas 训练系列产品：支持
     <!-- end id6 -->
 
-   <!-- npu="IPV350" id7 -->
-   IPV350：不支持
-   <!-- end id7 -->
-
     <!-- @ref: ge/res/docs/zh/user_guides/graph_dev/scenario_introduction_res.md#id1 -->
 
 ## 编译Graph为离线模型

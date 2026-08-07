@@ -61,8 +61,4 @@ Tiling下沉调度优化开关。此参数实际对应的options参数为`ge.til
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：不支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
-
 <!-- end id8 -->

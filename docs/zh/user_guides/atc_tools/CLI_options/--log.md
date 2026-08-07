@@ -35,9 +35,6 @@ atc --log=debug ...
 ```
 
 如果模型转换失败，则可以通过分析日志定位问题。日志格式如下，更多日志信息请参见《日志参考》。
-<!-- npu="IPV350" id1 -->
-IPV350不支持该手册中的特性。
-<!-- end id1 -->
 
 ```console
 [Level] ModuleName(PID,PName):DateTimeMS [FileName:LineNumber]LogContent

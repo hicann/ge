@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--dynamic_batch_size_res.md#id1 -->
 
-<!-- npu="IPV350" id2 -->
-IPV350：不支持
-<!-- end id2 -->
-
 ## 功能说明
 
 设置动态batch\_size参数，适用于执行推理时，每次处理图片或者句子数量不固定的场景。
