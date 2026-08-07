@@ -3454,7 +3454,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcclUnfoldStream(const std::string &group,
       HCCL_INFO("[GetHcclUnfoldStream] Create new thread for ctx:%s", ctxName.c_str());
       ThreadHandle unfoldThread;
       ctxSize = sizeof(ThreadHandle);
-      CHK_RET(HcclThreadAcquire(comm, CommEngine::COMM_ENGINE_CPU, 1, 0, &unfoldThread));
+      CHK_RET(HcclThreadAcquire(comm, CommEngine::COMM_ENGINE_CPU, 1, 1, &unfoldThread));
       CHK_RET(HcclEngineCtxCreate(comm, ctxName.c_str(), CommEngine::COMM_ENGINE_CPU_TS, ctxSize, &ctx));
       HCCL_DEBUG("[GetHcclUnfoldStream] HcclEngineCtxCreate tag[%s], UnfoldThread[%lu]", ctxName.c_str(), unfoldThread);
       ThreadHandle *threadPtr = reinterpret_cast<ThreadHandle *>(ctx);
