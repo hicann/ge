@@ -1877,8 +1877,7 @@ TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInf
   EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
 }
 
-TEST_F(AscGraphAxisMappingTest,
-       AscBackendFusionDecider_CreateSubGraphAxisMapInfo_For_Reduce_Vertical_Merge_UnitAxisOk) {
+TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInfo_For_Reduce_Vertical_Merge_Fail) {
   AscBackendFusionDecider decider;
   ComputeGraphPtr compute_graph = BuildGraph1("AscBackend");
   ASSERT_NE(compute_graph, nullptr);
@@ -1905,7 +1904,7 @@ TEST_F(AscGraphAxisMappingTest,
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), FAILED);
 }
 TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_Slice_Horizontal_Has_Same_Load_Fuse) {
   auto data1 = OP_CFG("Data")

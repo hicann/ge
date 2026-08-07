@@ -310,6 +310,7 @@ class AscGraphAxisMapping {
     return open_log_;
   }
 
+ private:
   /**
    * 该函数用于获取指定节点的前置节点的属性信息，包括维度、轴和大小。。
    *
@@ -335,7 +336,6 @@ class AscGraphAxisMapping {
   Status GetCurNodeAttrs(const NodePtr &node, const int32_t index, std::vector<int64_t> &axis,
                          std::vector<ge::Expression> &repeats) const;
 
- private:
   /**
    * 该函数用于找到节点（node_repeats）在基准信息（base_repeats）中的索引。
    * 它会遍历node_repeats中的每个元素，并在base_repeats中查找匹配的元素，记录其索引。
