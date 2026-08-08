@@ -43,6 +43,16 @@ sequenceDiagram
 
 **逆向转换**（`compiler/graph/preprocess/graph_prepare.cc`）：`ConvertFileConstToConst` 读文件 → 创建 GeTensor → 节点类型改回 Const，用于 ONNX 导入等场景。
 
+## 运行期：ACL模型加载入口
+
+`api/acl/acl_model/model/model.cpp` `aclmdlLoadWithConfigImpl`：
+
+从内存加载OM时，`ACL_MDL_LOAD_FROM_MEM`、`ACL_MDL_LOAD_FROM_MEM_WITH_MEM` 和
+`ACL_MDL_LOAD_FROM_MEM_WITH_Q` 均可通过 `ACL_MDL_WEIGHT_PATH_PTR` 指定外置权重文件目录，加载入口将该目录写入
+`ge::ModelData::weight_path`。若同时通过 `aclmdlSetExternalWeightAddress` 配置了用户 Device 内存，则用户内存的优先级更高。
+
+`aclmdlSetExternalWeightAddress` 将 `{fileName, devPtr, size}` 存入 `handle->fileConstantMem`，加载时继续传递给对应执行器。
+
 ## 运行期：Runtime V2（在线推理）
 
 ### Lowering 阶段
@@ -62,11 +72,8 @@ flowchart TD
 
 路径解析优先级：`location 私有属性 > file_path IR属性 > file_id + ge.exec.value_bins`
 
-### 模型加载流程
-
-`api/acl/acl_model/model/model.cpp` `aclmdlLoadWithConfigImpl`：
-
-`aclmdlSetExternalWeightAddress` 将 `{fileName, devPtr, size}` 存入 `handle->fileConstantMem` → 加载时通过 `LoadExecutorArgs → LoweringGlobalData::SetFileConstantMem` 传递 → Lowering 阶段 `GetUserDeviceAddress` 按文件名匹配查找用户 Device 内存。
+`aclmdlSetExternalWeightAddress` 配置的用户 Device 内存通过
+`LoadExecutorArgs → LoweringGlobalData::SetFileConstantMem` 传递，Lowering 阶段由 `GetUserDeviceAddress` 按文件名匹配查找。
 
 ## 运行期：Runtime V1（DavinciModel 离线推理）
 

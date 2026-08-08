@@ -84,7 +84,7 @@ namespace ge{
 
 >[!NOTE]说明
 >
->DT\_FLOAT，DT\_UINT8_等数据类型对应关系请参见[《基础数据结构和接口》](https://hiascend.com/document/redirect/CannCommunitybasicopapi)\>"ge命名空间\>DataType"。
+>DT\_FLOAT，DT\_UINT8_等数据类型对应关系请参见《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》\>"ge命名空间\>DataType"。
 
 ## 如何获取算子原型
 
@@ -105,7 +105,7 @@ namespace ge{
 
 - 对于内置算子，用户可以通过如下两种方式获取算子原型：
 
-  - 从[《算子库》](https://hiascend.com/document/redirect/CannCommunityOplist)中的“Ascend IR算子规格说明”获取，如下图所示。
+  - 从《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”获取，如下图所示。
 
       **图 1**  查看算子原型信息
       ![算子原型信](../figures/view_op_prototype_info.png "查看算子原型信息")

@@ -38,7 +38,7 @@ aclError aclmdlBundleQueryInfoFromFile(const char* fileName, aclmdlBundleQueryIn
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| fileName | 输入 | 模型文件路径的指针，路径中包含文件名。运行程序（APP）的用户需要对该存储路径有访问权限。<br>此处的模型文件是基于构图接口构建出来的，调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，接口详细描述参见[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)中的“接口参考 > C++语言接口 > aclgrph接口 > aclgrphBundleBuildModel”。 |
+| fileName | 输入 | 模型文件路径的指针，路径中包含文件名。运行程序（APP）的用户需要对该存储路径有访问权限。<br>此处的模型文件是基于构图接口构建出来的，调用aclgrphBundleBuildModel接口编译模型、调用aclgrphBundleSaveModel接口保存模型，接口详细描述参见[aclgrphBundleBuildModel](../../cpp/ge/aclgrphBundleBuildModel.md)。 |
 | queryInfo | 输出 | 需提前调用[aclmdlBundleCreateQueryInfo](aclmdlBundleCreateQueryInfo.md)接口创建aclmdlBundleQueryInfo类型的数据。 |
 
 ## 返回值说明

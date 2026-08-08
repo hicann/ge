@@ -19,6 +19,7 @@
 | BatchMatMul展平为MatMul的自定义pass样例       | [README](7_batch_matmul_flatten_pass/cpp/README.md)                    |
 | BmmTile融合（删除冗余Tile）自定义pass样例       | [README](8_bmm_tile_pass/cpp/README.md)                              |
 | BatchMatMulV2转Mul+ReduceSumD自定义pass样例    | [README](9_bmm_to_mul_reduce_pass/cpp/README.md)                     |
+| Data+Transpose融合（NCHW→NHWC）及ExtendConv2D+Transpose融合的自定义pass样例   | [README](10_transpose_fusion_pass/cpp/README.md)                    |
 
 ## 开发指南
 

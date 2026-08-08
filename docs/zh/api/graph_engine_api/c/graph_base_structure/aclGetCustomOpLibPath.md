@@ -37,7 +37,7 @@ const char *aclGetCustomOpLibPath()
 
 返回自定义算子库的路径。多个路径之间用英文冒号分隔，路径已按照用户设置的算子优先级顺序排列好，优先级越高的位置越靠前。
 
-关于自定义算子的优先级设置请参考[《Ascend C算子开发》](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)中的“编程指南 \> 附录 \> 工程化算子开发 \>  算子动态库编译”章节。
+关于自定义算子的优先级设置请参考《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》中的“编程指南 \> 附录 \> 工程化算子开发 \>  算子动态库编译”章节。
 
 ## 约束说明
 

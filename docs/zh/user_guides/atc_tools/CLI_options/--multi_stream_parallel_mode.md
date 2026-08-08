@@ -25,6 +25,8 @@
 - IPV350：不支持
 <!-- end id7 -->
 
+<!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--multi_stream_parallel_mode_res.md#id1 -->
+
 ## 功能说明
 
 **调试功能扩展参数，暂不支持应用于生产环境，后续版本会作为正式功能更新发布。**
@@ -33,22 +35,22 @@
 
 ## 关联参数
 
-该参数与[--enable\_single\_stream](--enable_single_stream.md)互斥，不可同时开启。若同时开启，编译会报错并终止。
+- 该参数与[--enable\_single\_stream](--enable_single_stream.md)互斥，不可同时开启。若同时开启，编译会报错并终止。
 
-动态shape场景下，需先通过环境变量ENABLE\_DYNAMIC\_SHAPE\_MULTI\_STREAM使能动态shape多流后，此参数才用于选择多流并行算法，不能单独开启动态shape多流。关于环境变量详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+- 动态shape场景下，需先通过环境变量[ENABLE\_DYNAMIC\_SHAPE\_MULTI\_STREAM](../../env_vars/ENABLE_DYNAMIC_SHAPE_MULTI_STREAM.md)使能动态shape多流后，此参数才用于选择多流并行算法，不能单独开启动态shape多流。
 
 ## 参数取值
 
 **参数值：**
 
 - cv：开启Cube算子与Vector算子的并行执行功能。
-- LoadBalance:N：负载均衡算法，将所有算子均匀分布在N条流上执行。N为最大流数量，正整数，取值范围\[1,64\]。若N取值超过了实际可用核数，性能可能会降低。
-- MainStream:N：主流算法，串行算子分布在主流上执行，其他可并行算子分布在其他流上执行。N为最大流数量，正整数，取值范围\[1,64\]。若N取值超过了实际可用核数，性能可能会降低。
+- LoadBalance:N：负载均衡算法，将所有算子均匀分布在N条流上执行。
+- MainStream:N：主流算法，串行算子分布在主流上执行，其他可并行算子分布在其他流上执行。
 - 空字符串（默认值）：不启用任何多流并行优化。
 
 **参数值约束：**
 
-- N为最大流数量，取值范围为\[1,64\]，超出范围会导致编译失败。
+N为最大流数量，正整数，取值范围为\[1,64\]，超出范围会导致编译失败。
 
 ## 推荐配置及收益
 
@@ -63,5 +65,4 @@ atc --multi_stream_parallel_mode=LoadBalance:8 ...
 ## 使用约束
 
 - 该参数仅限于推荐类型网络使用。
-- 动态shape多流下使用此功能需要先通过ENABLE\_DYNAMIC\_SHAPE\_MULTI\_STREAM使能动态shape多流，再配置此参数。
-- 该参数与[--enable\_single\_stream](--enable_single_stream.md)互斥。
+- 动态shape多流场景下，使用此功能需要先通过[ENABLE\_DYNAMIC\_SHAPE\_MULTI\_STREAM](../../../user_guides/env_vars/ENABLE_DYNAMIC_SHAPE_MULTI_STREAM.md)使能动态shape多流，再配置此参数。

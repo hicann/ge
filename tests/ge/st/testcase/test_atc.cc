@@ -14,6 +14,7 @@
 #include "ge_running_env/op_reg.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_global_options.h"
+#include "framework/common/scope_guard.h"
 #include "graph/preprocess/insert_op/insert_aipp_op_util.h"
 
 #include "utils/model_factory.h"
@@ -2797,7 +2798,25 @@ TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_unsupported_failed) {
   ReInitGe();
 }
 
+/**
+ * Case description: Verify raw auto multi-stream mode conflicts with single-stream mode.
+ * Preconditions: Reset GE state and install the default ATC running environment.
+ * Test steps: Run ATC with raw LoadBalance:8 mode and enable single-stream mode.
+ * Expected result: ATC fails and reports the conflict plus both option names.
+ */
 TEST_F(AtcCommonSTest, GeFlags_raw_multi_stream_parallel_mode_conflicts_with_enable_single_stream) {
+  const auto old_context = GetThreadLocalContext();
+  const auto old_global_options = GetMutableGlobalOptions();
+  GE_MAKE_GUARD(restore_ge_state, [&]() {
+    (void)GEFinalize();
+    ReInitGe();
+    GetMutableGlobalOptions() = old_global_options;
+    GetThreadLocalContext() = old_context;
+  });
+  (void)GEFinalize();
+  GetMutableGlobalOptions().clear();
+  GetThreadLocalContext() = GEThreadLocalContext();
+  GeRunningEnvFaker().InstallDefault();
   const auto raw_path = WriteRawOptionsJson("raw_ge_options_multi_stream_parallel_mode.json", R"({
     "compile options": {
       "graph": {
@@ -2818,7 +2837,38 @@ TEST_F(AtcCommonSTest, GeFlags_raw_multi_stream_parallel_mode_conflicts_with_ena
   EXPECT_NE(output.find("--multi_stream_parallel_mode"), std::string::npos) << output;
   EXPECT_NE(output.find("--enable_single_stream"), std::string::npos) << output;
   (void)remove(raw_path.c_str());
-  ReInitGe();
+}
+
+/**
+ * Case description: Verify an empty CLI multi-stream mode overrides the raw mode.
+ * Preconditions: Reset GE state and install the default ATC running environment.
+ * Test steps: Run ATC with raw LoadBalance:8, an empty CLI mode, and single-stream enabled.
+ * Expected result: ATC succeeds.
+ */
+TEST_F(AtcCommonSTest, GeFlags_cli_empty_multi_stream_parallel_mode_overrides_raw_without_conflict) {
+  const auto old_context = GetThreadLocalContext();
+  const auto old_global_options = GetMutableGlobalOptions();
+  GE_MAKE_GUARD(restore_ge_state, [&]() {
+    (void)GEFinalize();
+    ReInitGe();
+    GetMutableGlobalOptions() = old_global_options;
+    GetThreadLocalContext() = old_context;
+  });
+  (void)GEFinalize();
+  GetMutableGlobalOptions().clear();
+  GetThreadLocalContext() = GEThreadLocalContext();
+  GeRunningEnvFaker().InstallDefault();
+  const auto raw_path = WriteRawOptionsJson("raw_ge_options_multi_stream_parallel_mode_overridden.json", R"({
+    "compile options": {
+      "graph": {
+        "ge.autoMultistreamParallelMode": "LoadBalance:8"
+      }
+    }
+  })");
+  const int32_t ret = RunAtcWithRawOptions("raw_ge_options_multi_stream_parallel_mode_overridden", raw_path,
+                                           {"--multi_stream_parallel_mode=", "--enable_single_stream=true"});
+  EXPECT_EQ(ret, 0);
+  (void)remove(raw_path.c_str());
 }
 
 TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_without_compile_options_failed) {

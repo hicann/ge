@@ -1,4 +1,4 @@
-﻿# GE图引擎接口
+﻿# GE图引擎 API
 
 - [头文件和库文件说明](header_and_library_files_description.md)
 - [C++语言接口](cpp/cpp_language_interface.md)
@@ -956,7 +956,7 @@
     - [FuseCheckResult](python/ge/passes/FuseCheckResult.md)
 
     - [Graph](python/ge/graph/Graph/Graph.md)
-      - [overv简介iew](python/ge/graph/Graph/overview.md)
+      - [简介](python/ge/graph/Graph/overview.md)
       - [Graph构造函数](python/ge/graph/Graph/Graph_constructor.md)
       - [add\_control\_edge](python/ge/graph/Graph/add_control_edge.md)
       - [add\_data\_edge](python/ge/graph/Graph/add_data_edge.md)
@@ -1049,7 +1049,7 @@
       - [is\_enable\_ir\_attr\_match](python/ge/passes/PatternMatcherConfig/is_enable_ir_attr_match.md)
 
     - [PatternMatcherConfigBuilder](python/ge/passes/PatternMatcherConfigBuilder/PatternMatcherConfigBuilder.md)
-      - [overview](python/ge/passes/PatternMatcherConfigBuilder/overview.md)
+      - [简介](python/ge/passes/PatternMatcherConfigBuilder/overview.md)
       - [\_\_init\_\_](python/ge/passes/PatternMatcherConfigBuilder//__init__.md)
       - [enable\_const\_value\_match](python/ge/passes/PatternMatcherConfigBuilder/enable_const_value_match.md)
       - [enable\_ir\_attr\_match](python/ge/passes/PatternMatcherConfigBuilder/enable_ir_attr_match.md)
@@ -1130,7 +1130,7 @@
     - [Placement](python/ge/Placement.md)
     - [异常类型](python/ge/exception_types.md)
 
-  - [C语言接口](c/c_language_interface.md)
+- [C语言接口](c/c_language_interface.md)
   - [图基础数据结构和接口](c/graph_base_structure/graph_basic_data_structure_and_interface.md)
     - [aclGetCustomOpLibPath](c/graph_base_structure/aclGetCustomOpLibPath.md)
     - [GeSessionExecuteGraphWithStreamAsync](c/graph_base_structure/GeSessionExecuteGraphWithStreamAsync.md)

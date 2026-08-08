@@ -28,7 +28,7 @@
 
 从文件加载离线模型数据，由用户自行管理模型运行的内存。
 
-本接口中通过modelPath参数传入的文件是\*.om模型文件。关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
+本接口中通过modelPath参数传入的文件是\*.om模型文件。关于如何获取om模型文件，请参见《[ATC离线模型编译工具](../../../../user_guides/atc_tools/README.md)》中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。
 
 ## 函数原型
 

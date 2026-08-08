@@ -31,7 +31,7 @@ pyatc与ATC命令行工具的区别是：
 
 ## 参数说明
 
-pyatc的参数与ATC命令行工具完全一致，详细功能介绍请参见[《ATC离线模型编译工具》](../../../../../user_guides/atc_tools/README.md)。
+pyatc的参数与ATC命令行工具完全一致，详细功能介绍请参见《[ATC离线模型编译工具](../../../../../user_guides/atc_tools/README.md)》。
 
 ## 返回值说明
 

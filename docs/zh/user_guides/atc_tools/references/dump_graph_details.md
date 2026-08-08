@@ -86,7 +86,7 @@ export DUMP_GRAPH_LEVEL=1   #控制dump图的个数
 | 62 | ge_proto_xxxx_Before_DSP.txt | GE | 动静模型拆分前的图 | - |
 | 63 | ge_proto_xxxx_After_DSP.txt | GE | 动静模型拆分后的图 | - |
 | 64 | ge_proto_xxxx_AfterDynamicShapePartition.txt | GE | 动态shape图拆分之后的图结构 | - |
-| 65 | ge_proto_xxxx_MergedComputeGraphAfterCompositeEnginePartition.txt | GE | 经历对立子图拆分与子图优化处理之后的合并图结构 | - |
+| 65 | ge_proto_xxxx_MergedComputeGraphAfterCompositeEnginePartition.txt | GE | 经历独立子图拆分与子图优化处理之后的合并图结构 | - |
 | 66 | ge_proto_xxxx_partition0_rank0_inputNodeGraph_AtomicEnginePartitioning.txt | GE | 原子引擎规则图拆分后，输入节点子图的图结构 | - |
 | 67 | ge_proto_xxxx_partition0_rank1_new_sub_graph1_AtomicEnginePartitioning.txt | GE | 原子引擎规则图拆分后，子图1的图结构 | - |
 | 68 | ge_proto_xxxx_partition0_rank2_new_sub_graph110_AtomicEnginePartitioning.txt | GE | 原子引擎规则图拆分后，子图110的图结构 | - |
@@ -101,7 +101,7 @@ export DUMP_GRAPH_LEVEL=1   #控制dump图的个数
 | 77 | ge_proto_xxxx_AIcoreEngine_OptimizeSubGraphAfter.txt | FE | AI Core子图优化出口图 | - |
 | 78 | ge_proto_xxxx_OptimizeSubgraphPostProc.txt | GE | 子图优化后处理出口图 | - |
 | 79 | ge_proto_xxxx_mergedComputeGraph.txt | GE | 图合并之后的图结构，与上图相同 | - |
-| 80 | ge_proto_xxxx_MergedComputeGraphAfterAtomicEnginePartition.txt | GE | 经历对立原子引擎拆分与子图优化处理之后的合并图结构 | - |
+| 80 | ge_proto_xxxx_MergedComputeGraphAfterAtomicEnginePartition.txt | GE | 经历独立原子引擎拆分与子图优化处理之后的合并图结构 | - |
 | 81 | ge_proto_xxxx_PreRunAfterOptimizeSubgraph.txt | GE | 子图优化处理之后的图结构 | 白名单 |
 | 82 | ge_proto_xxxx_OptimizeWholeGraphaicpu_tf_optimizer.txt | GE | 调用各引擎的原图优化接口后的图信息，OptimizeWholeGraph后为引擎名称 | - |
 | 83 | ge_proto_xxxx_OptimizeWholeGraphaicpu_ascend_optimizer.txt | GE | 调用各引擎的原图优化接口后的图信息，OptimizeWholeGraph后为引擎名称 | - |

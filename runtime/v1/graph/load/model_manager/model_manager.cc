@@ -1586,6 +1586,12 @@ Status ModelManager::LoadModelWithQ(uint32_t &model_id, const ModelData &model_d
     GELOGE(ret, "[Load][Model] failed.");
     return ret;
   }
+  const auto &root_model = model_helper.GetGeRootModel();
+  GE_CHECK_NOTNULL(root_model);
+  std::string file_constant_weight_dir;
+  GE_CHK_STATUS_RET(FileConstantUtils::GetExternalWeightDir(model_data, file_constant_weight_dir),
+                    "Failed to get external weight directory.");
+  root_model->SetFileConstantWeightDir(file_constant_weight_dir);
   ModelQueueParam model_queue_param{};
   model_queue_param.input_queues = arg.input_queue_ids;
   model_queue_param.output_queues = arg.output_queue_ids;
@@ -1600,7 +1606,7 @@ Status ModelManager::LoadModelWithQ(uint32_t &model_id, const ModelData &model_d
   model_queue_param.file_constant_mems = &arg.file_constant_mems;
   model_queue_param.need_clear_dfx_cache = arg.need_clear_dfx_cache;
 
-  return LoadModelWithQueueParam(model_id, model_helper.GetGeRootModel(), model_queue_param, model_data.priority);
+  return LoadModelWithQueueParam(model_id, root_model, model_queue_param, model_data.priority);
 }
 
 Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id, const ModelData &model_data,
@@ -1611,7 +1617,13 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id, const ModelData
     GELOGE(ret, "[Load][Model] failed.");
     return ret;
   }
-  return LoadModelWithQueueParam(model_id, model_helper.GetGeRootModel(), model_queue_param, model_data.priority);
+  const auto &root_model = model_helper.GetGeRootModel();
+  GE_CHECK_NOTNULL(root_model);
+  std::string file_constant_weight_dir;
+  GE_CHK_STATUS_RET(FileConstantUtils::GetExternalWeightDir(model_data, file_constant_weight_dir),
+                    "Failed to get external weight directory.");
+  root_model->SetFileConstantWeightDir(file_constant_weight_dir);
+  return LoadModelWithQueueParam(model_id, root_model, model_queue_param, model_data.priority);
 }
 
 Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id, const GeRootModelPtr &root_model,
@@ -1636,6 +1648,7 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id, const GeRootMod
   GE_CHECK_NOTNULL(ge_model);
   const auto davinci_model = CreateDavinciModelFromRootModel(root_model, ge_model, priority);
   GE_CHECK_NOTNULL(davinci_model);
+  davinci_model->SetFileConstantWeightDir(root_model->GetFileConstantWeightDir());
 
   Status ret = SUCCESS;
   if (need_update_session_id) {

@@ -108,7 +108,7 @@ IPV350不支持该手册中的特性。
 
   - atc模型转换命令中，设置[--log](--log.md)参数（不能设置为null）。
 
-    关于日志的更多信息请参见[《日志参考》](https://hiascend.com/document/redirect/CannCommunitylogref)。
+    关于日志的更多信息请参见《[日志参考](https://hiascend.com/document/redirect/CannCommunitylogref)》。
 <!-- end id3 -->
 
 - **日志重定向**：

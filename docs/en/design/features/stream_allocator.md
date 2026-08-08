@@ -174,6 +174,10 @@ Users can influence stream allocation behavior through the following methods:
 | `PARALLEL_GROUP` (Node Attribute) | Static Shape | Parallel group identifier, operators in same group are allocated to independent streams |
 | `ATTACHED_STREAM_INFO` (Node Attribute) | Static Shape | Attached stream information, one node can produce multiple streams |
 
+For Static Shape, single-stream mode and automatic multi-stream mode are mutually exclusive. When `ge.enableSingleStream` takes effect and the final effective value of `ge.autoMultistreamParallelMode` after context option merging is non-empty, `SingleStreamPass` reports `E10056` and returns `PARAM_INVALID` before modifying the graph or stream allocation state. An empty or absent final automatic multi-stream value does not trigger this conflict. The two parameter names in the error are obtained through `GEContext::GetReadableName`, allowing ATC, Session, and TorchAir to display their own user-facing names through `ge.optionNameMap`. If a mapping is absent, the GE internal option name is used.
+
+This validation belongs only to the Static Shape single-stream allocation path. A static subgraph in a Dynamic Shape model is validated when it is compiled through the Static Shape path. The pure Unknown Shape stream allocation path does not perform this validation, and its multi-stream enable conditions and allocation strategy remain unchanged.
+
 ## 4 Specific Implementation
 
 ### 4.1 Static Shape Logical Stream Allocation

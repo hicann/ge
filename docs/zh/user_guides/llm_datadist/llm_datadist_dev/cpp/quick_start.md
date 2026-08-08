@@ -33,7 +33,7 @@
 - Atlas A3 训练系列产品/Atlas A3 推理系列产品
 <!-- end id2 -->
 
-请参考[《软件安装》](https://hiascend.com/document/redirect/CannCommunityInstSoftware)安装好驱动固件以及CANN软件。
+请参考《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》安装好驱动固件以及CANN软件。
 
 使用hccn\_tool查询Device IP，并且进行卡间网络检测，要求各个集群上的卡间有RDMA链路连接，否则无法使能LLM-DataDist能力。hccn\_tool详细介绍请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。以下是常用命令参考。
 
@@ -43,7 +43,7 @@
 |hccn_tool [-i %d] -ip -g|获取IP地址和子网掩码。-i指定Device。样例：`hccn_tool -i 0 -ip -g`|
 |hccn_tool [-i %d] -ping -g [address %s ]|获取指定设备到目的地址的ping结果。-i指定当前server的某个Device， address指定ping的目的地址。样例：`hccn_tool -i 0 -ping -g address 192.168.2.1`|
 
-使用LLM-DataDist过程中，还涉及到如下环境变量，具体请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+使用LLM-DataDist过程中，还涉及到如下环境变量，具体请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
 
 |名称|使用场景|
 |--|--|

@@ -87,9 +87,9 @@ GE面向不同的用户场景，提供了不同的对接方案，便于用户更
         **图 3**  昇腾平台TensorFlow图模式软件架构
         ![图示](../figures/tensorflow_graph_arch.png "昇腾平台TensorFlow图模式软件架构")
 
-        将原始TensorFlow 1.15网络迁移到昇腾平台执行的详细使用方法请参见[《TensorFlow 1.15模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)。
+        将原始TensorFlow 1.15网络迁移到昇腾平台执行的详细使用方法请参见《[TensorFlow 1.15模型迁移](https://hiascend.com/document/redirect/tfcommunityguide)》。
 
-        将原始TensorFlow 2.6.5网络迁移到昇腾平台执行的详细使用方法请参见[《TensorFlow 2.6.5模型迁移》](https://hiascend.com/document/redirect/tfcommunityguide)。
+        将原始TensorFlow 2.6.5网络迁移到昇腾平台执行的详细使用方法请参见《[TensorFlow 2.6.5模型迁移](https://hiascend.com/document/redirect/tfcommunityguide)》。
 
     - MindSpore框架接入GE
 
@@ -97,7 +97,7 @@ GE面向不同的用户场景，提供了不同的对接方案，便于用户更
 
     - 飞桨（PaddlePaddle）框架接入GE
 
-        详细使用方法请参见[《PaddlePaddle教程文档》](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/hardware_support/npu/install_cn.html)。
+        详细使用方法请参见《[PaddlePaddle教程文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/hardware_support/npu/install_cn.html)》。
 
   - 对于其他三方框架，GE提供了统一的C++图引擎接口支持用户自行完成适配动作。详情请参见[使用图引擎接口全新构建Graph](../construct_graph/construct_graph_using_ge_api.md)。
 

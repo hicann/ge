@@ -52,6 +52,25 @@ const char *aclmdlGetOutputNameByIndex(const aclmdlDesc *modelDesc, size_t index
     输出算子名称 : 算子输出边下标 : top名称
 
 - TensorFlow网络
+  - 使用ATC工具构建om模型的场景下，返回值格式如下，各项之间以冒号分割：
+
+    输出算子名称 : 算子输出边下标
+
+  - 使用构图接口构建om模型的场景下，返回值格式如下，各项之间以下划线分割：
+
+    output_网络输出下标_输出算子名称_算子输出边下标
+
+    构图接口的详细说明请参见《[图开发](https://hiascend.com/document/redirect/CannCommunityGraphguide)》。
+
+- ONNX网络
+  - 在构建模型时，不指定输出节点名称（node\_name）或输出名称（output的name），或者仅指定输出名称，返回值格式如下，各项之间以冒号分割：
+
+    输出算子名称 : 算子输出边下标 : 输出名称
+
+  - 在构建模型时，指定输出节点名称（node\_name）：
+
+    输出算子名称可能是图融合后的算子名称，也可能是子图名称。
+
     - 使用ATC工具构建om模型的场景下，返回值格式如下，各项之间以冒号分割：
 
         输出算子名称 : 算子输出边下标
@@ -60,25 +79,6 @@ const char *aclmdlGetOutputNameByIndex(const aclmdlDesc *modelDesc, size_t index
 
         output_网络输出下标_输出算子名称_算子输出边下标
 
-        构图接口的详细说明请参见[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)。
+        构图接口的详细说明请参见《[图开发](https://hiascend.com/document/redirect/CannCommunityGraphguide)》。
 
-- ONNX网络
-    - 在构建模型时，不指定输出节点名称（node\_name）或输出名称（output的name），或者仅指定输出名称，返回值格式如下，各项之间以冒号分割：
-
-        输出算子名称 : 算子输出边下标 : 输出名称
-
-    - 在构建模型时，指定输出节点名称（node\_name）：
-
-        输出算子名称可能是图融合后的算子名称，也可能是子图名称。
-
-        - 使用ATC工具构建om模型的场景下，返回值格式如下，各项之间以冒号分割：
-
-            输出算子名称 : 算子输出边下标
-
-        - 使用构图接口构建om模型的场景下，返回值格式如下，各项之间以下划线分割：
-
-            output_网络输出下标_输出算子名称_算子输出边下标
-
-            构图接口的详细说明请参见[《图开发》](https://hiascend.com/document/redirect/CannCommunityGraphguide)。
-
-    - 同时指定输出节点名称（node\_name）和输出名称（output的name），接口返回报错。
+  - 同时指定输出节点名称（node\_name）和输出名称（output的name），接口返回报错。

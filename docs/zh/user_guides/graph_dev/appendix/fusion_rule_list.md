@@ -1,6 +1,6 @@
 # 融合规则列表
 
-如下融合规则关闭后可能会有功能使用上的风险；更多融合规则请参见[《图融合和UB融合规则参考》](https://hiascend.com/document/redirect/CannCommunitygraphubfusionref)。
+如下融合规则关闭后可能会有功能使用上的风险；更多融合规则请参见《[图融合和UB融合规则参考](https://hiascend.com/document/redirect/CannCommunitygraphubfusionref)》。
 
 <!-- npu="950" id1 -->
 Ascend 950PR/Ascend 950DT不支持UB融合。

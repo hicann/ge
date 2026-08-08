@@ -122,17 +122,6 @@ static bool CheckMdlLoadConfigFromMem(const aclmdlConfigHandle *const handle) {
         std::vector<const char *>({"handle", "inner model memory size", errMsg.c_str()}));
     return false;
   }
-  if ((handle->mdlLoadType == static_cast<size_t>(ACL_MDL_LOAD_FROM_MEM_WITH_MEM)) &&
-      (handle->attrState.find(ACL_MDL_WEIGHT_PATH_PTR) != handle->attrState.end())) {
-    ACL_LOG_ERROR("[Check][Type]model load type[%zu]: should not set ACL_MDL_WEIGHT_PATH_PTR", handle->mdlLoadType);
-    const std::string errMsg =
-        "should not set ACL_MDL_WEIGHT_PATH_PTR in aclmdlConfigHandle "
-        "when load type is ACL_MDL_LOAD_FROM_MEM_WITH_MEM";
-    acl::AclErrorLogManager::ReportInputError(
-        acl::INVALID_PARAM_MSG, std::vector<const char *>({"param", "value", "reason"}),
-        std::vector<const char *>({"handle", "inner weight path", errMsg.c_str()}));
-    return false;
-  }
   return true;
 }
 

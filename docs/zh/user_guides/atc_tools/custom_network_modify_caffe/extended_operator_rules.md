@@ -639,7 +639,7 @@ layer{
       // Variance for adjusting the prior bboxes.
       repeated float variance = 6;
       // By default, we calculate img_height, img_width, step_x, step_y based on
-      // bottom[0] (feat) and bottom[1] (img). Unless these values are explicitely
+      // bottom[0] (feat) and bottom[1] (img). Unless these values are explicitly
       // provided.
       // Explicitly provide the img_size.
       optional uint32 img_size = 7;

@@ -24,12 +24,15 @@
 #include "common/util.h"
 
 #include "graph/compute_graph.h"
+#include "graph/ge_local_context.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/share_graph.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "register/optimization_option_registry.h"
+#include "stub/gert_runtime_stub.h"
 using namespace std;
 
 namespace ge {
@@ -95,12 +98,24 @@ ComputeGraphPtr BuildGraphWithAicoreHcclSerial() {
 class UtestLogicalStreamAllocator : public testing::Test {
  protected:
   void SetUp() {
+    GetThreadLocalContext() = GEThreadLocalContext();
     InitGeLib();
+    SetGraphOptionsForTest({});
   }
 
   void TearDown() {
+    SetGraphOptionsForTest({});
     FinalizeGeLib();
+    GetThreadLocalContext() = GEThreadLocalContext();
   }
+
+  void SetGraphOptionsForTest(const std::map<std::string, std::string> &options) {
+    GetThreadLocalContext().SetGraphOption(options);
+    EXPECT_EQ(GetThreadLocalContext().GetOo().Initialize(GetThreadLocalContext().GetAllOptions(),
+                                                         OptionRegistry::GetInstance().GetRegisteredOptTable()),
+              GRAPH_SUCCESS);
+  }
+
   class MockMmpa : public MmpaStubApiGe {
    public:
     static bool IsEnableMdeTopoSort() {
@@ -605,6 +620,48 @@ TEST_F(UtestLogicalStreamAllocator, test_single_stream) {
   EXPECT_EQ(GetStream(subgraph1), 0);
   EXPECT_EQ(GetStream(subgraph2), 0);
   EXPECT_EQ(GetStream(subgraph3), 0);
+}
+
+TEST_F(UtestLogicalStreamAllocator, test_single_stream_conflicts_with_auto_multi_stream) {
+  gert::GertRuntimeStub runtime_stub;
+  SetGraphOptionsForTest({{OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, "LoadBalance:8"}});
+  SubGraphInfoPtr subgraph = CreateSubgraph("engine1");
+  runtime_stub.GetSlogStub().Clear();
+
+  const Status status = AssignLogicalStreams({subgraph}, vector<EngineConfPtr>(), true);
+
+  EXPECT_EQ(status, ge::PARAM_INVALID);
+  EXPECT_NE(runtime_stub.GetSlogStub().FindLog(
+                DLOG_ERROR,
+                "Cannot configure both parameters ge.autoMultistreamParallelMode and ge.enableSingleStream "
+                "simultaneously."),
+            -1);
+}
+
+TEST_F(UtestLogicalStreamAllocator, test_single_stream_and_auto_multi_stream_conflict_precedes_stream_label) {
+  gert::GertRuntimeStub runtime_stub;
+  SetGraphOptionsForTest({{OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, "LoadBalance:8"}});
+  SubGraphInfoPtr subgraph = CreateSubgraph("engine1", "label1");
+  runtime_stub.GetSlogStub().Clear();
+
+  const Status status = AssignLogicalStreams({subgraph}, vector<EngineConfPtr>(), true);
+
+  EXPECT_EQ(status, ge::PARAM_INVALID);
+  EXPECT_NE(runtime_stub.GetSlogStub().FindLog(
+                DLOG_ERROR,
+                "Cannot configure both parameters ge.autoMultistreamParallelMode and ge.enableSingleStream "
+                "simultaneously."),
+            -1);
+}
+
+TEST_F(UtestLogicalStreamAllocator, test_single_stream_allows_empty_auto_multi_stream) {
+  SetGraphOptionsForTest({{OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, ""}});
+  SubGraphInfoPtr subgraph = CreateSubgraph("engine1");
+
+  const Status status = AssignLogicalStreams({subgraph}, vector<EngineConfPtr>(), true);
+
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(GetStream(subgraph), 0);
 }
 
 // case of single subgraph (with streamlabel)

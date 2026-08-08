@@ -41,7 +41,7 @@ aclError aclmdlGetDescFromFile(aclmdlDesc *modelDesc, const char *modelPath)
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | modelDesc | 输出 | aclmdlDesc类型的指针。<br>需提前调用[aclmdlCreateDesc](aclmdlCreateDesc.md)接口创建aclmdlDesc类型的数据。 |
-| modelPath | 输入 | 模型文件路径的指针，路径中包含文件名。运行程序（APP）的用户需要对该存储路径有访问权限。<br>此处的模型文件是om模型文件。关于如何获取om模型文件，请参见[《ATC离线模型编译工具》](../../../../user_guides/atc_tools/README.md)中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。 |
+| modelPath | 输入 | 模型文件路径的指针，路径中包含文件名。运行程序（APP）的用户需要对该存储路径有访问权限。<br>此处的模型文件是om模型文件。关于如何获取om模型文件，请参见《[ATC离线模型编译工具](../../../../user_guides/atc_tools/README.md)》中的“[--mode](../../../../user_guides/atc_tools/CLI_options/--mode.md)”。 |
 
 ## 返回值说明
 

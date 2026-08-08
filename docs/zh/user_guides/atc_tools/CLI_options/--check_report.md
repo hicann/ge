@@ -45,4 +45,4 @@ atc --check_report=$HOME/module/out/check_result.json ...
 
 预检结果文件存储路径，除[--check\_report](--check_report.md)参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“--check\_report”\>环境变量ASCEND\_WORK\_PATH\>默认存储路径（执行atc命令当前路径）。
 
-关于环境变量ASCEND\_WORK\_PATH的详细说明请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。

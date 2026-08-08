@@ -1306,6 +1306,11 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadFromMemWithQ) {
   uint32_t *output = new (std::nothrow) uint32_t[1];
   const char *modelPath = "/";
   uint32_t modelId = 1;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelWithQ(_, _, _))
+      .WillOnce(Invoke([](uint32_t &, const ge::ModelData &model_data, const ge::ModelQueueArg &) {
+        EXPECT_TRUE(model_data.weight_path.empty());
+        return ge::SUCCESS;
+      }));
   ret = aclmdlLoadFromMemWithQ(modelPath, 1, &modelId, input, 1, output, 1);
   EXPECT_EQ(ret, ACL_SUCCESS);
 
@@ -1319,6 +1324,65 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadFromMemWithQ) {
 
   delete[] input;
   delete[] output;
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_FromMemWithMemWeightPath) {
+  auto *handle = aclmdlCreateConfigHandle();
+  ASSERT_NE(handle, nullptr);
+  ge::ModelFileHeader header{};
+  void *model_data = &header;
+  const size_t model_size = sizeof(header);
+  const size_t load_type = ACL_MDL_LOAD_FROM_MEM_WITH_MEM;
+  const char *weight_path = "/tmp/acl_external_weight";
+
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_MEM_ADDR_PTR, &model_data, sizeof(model_data)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_MEM_SIZET, &model_size, sizeof(model_size)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &load_type, sizeof(load_type)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WEIGHT_PATH_PTR, &weight_path, sizeof(weight_path)), ACL_SUCCESS);
+
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_, _, _))
+      .WillOnce(Invoke([weight_path](uint32_t &, const ge::ModelData &model_data, const ge::ModelLoadArg &) {
+        EXPECT_EQ(model_data.weight_path, weight_path);
+        return ge::SUCCESS;
+      }));
+  uint32_t model_id = 0U;
+  EXPECT_EQ(aclmdlLoadWithConfig(handle, &model_id), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlDestroyConfigHandle(handle), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_FromMemWithQWeightPath) {
+  auto *handle = aclmdlCreateConfigHandle();
+  ASSERT_NE(handle, nullptr);
+  ge::ModelFileHeader header{};
+  void *model_data = &header;
+  const size_t model_size = sizeof(header);
+  const size_t load_type = ACL_MDL_LOAD_FROM_MEM_WITH_Q;
+  const char *weight_path = "/tmp/acl_external_weight";
+  uint32_t input_queue[] = {0U};
+  uint32_t output_queue[] = {1U};
+  uint32_t *input_queue_ptr = input_queue;
+  uint32_t *output_queue_ptr = output_queue;
+  const size_t queue_num = 1U;
+
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_MEM_ADDR_PTR, &model_data, sizeof(model_data)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_MEM_SIZET, &model_size, sizeof(model_size)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &load_type, sizeof(load_type)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WEIGHT_PATH_PTR, &weight_path, sizeof(weight_path)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_INPUTQ_ADDR_PTR, &input_queue_ptr, sizeof(input_queue_ptr)),
+            ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_INPUTQ_NUM_SIZET, &queue_num, sizeof(queue_num)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_OUTPUTQ_ADDR_PTR, &output_queue_ptr, sizeof(output_queue_ptr)),
+            ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_OUTPUTQ_NUM_SIZET, &queue_num, sizeof(queue_num)), ACL_SUCCESS);
+
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelWithQ(_, _, _))
+      .WillOnce(Invoke([weight_path](uint32_t &, const ge::ModelData &model_data, const ge::ModelQueueArg &) {
+        EXPECT_EQ(model_data.weight_path, weight_path);
+        return ge::SUCCESS;
+      }));
+  uint32_t model_id = 0U;
+  EXPECT_EQ(aclmdlLoadWithConfig(handle, &model_id), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlDestroyConfigHandle(handle), ACL_SUCCESS);
 }
 
 TEST_F(UTEST_ACL_Model, aclmdlUnload) {
@@ -2883,7 +2947,7 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_ExternalAddress) {
   type = ACL_MDL_LOAD_FROM_MEM_WITH_MEM;
   aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &type, sizeof(type));
   ret = aclmdlLoadWithConfig(handle, &modelId);
-  EXPECT_NE(ret, ACL_SUCCESS);
+  EXPECT_EQ(ret, ACL_SUCCESS);
 
   type = ACL_MDL_LOAD_FROM_MEM;
   aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &type, sizeof(type));
@@ -3124,7 +3188,7 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig) {
   type = ACL_MDL_LOAD_FROM_MEM_WITH_MEM;
   aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &type, sizeof(type));
   ret = aclmdlLoadWithConfig(handle, &modelId);
-  EXPECT_NE(ret, ACL_SUCCESS);
+  EXPECT_EQ(ret, ACL_SUCCESS);
 
   type = ACL_MDL_LOAD_FROM_MEM;
   aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &type, sizeof(type));

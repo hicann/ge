@@ -4,7 +4,7 @@
 
 ### 前提条件
 
-- 安装软件包：准备带有AI处理器的硬件环境，并安装驱动固件和CANN软件包，具体安装步骤请参见[《软件安装》](https://hiascend.com/document/redirect/CannCommunityInstSoftware)。
+- 安装软件包：准备带有AI处理器的硬件环境，并安装驱动固件和CANN软件包，具体安装步骤请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》。
 - GCC版本：要求9.5.0及以上，建议使用9.5.0版本。
 - CMake：要求3.20.0版本及以上，建议使用3.20.0版本。
 - 安装mspti，mspti有两种获取方式（开启PGO特性时需要安装该依赖）：
@@ -85,9 +85,9 @@
 >
 >    使用acl接口加载生成的om模型，完成推理。
 >
->关于ATC工具详细使用方法请参见[《ATC离线模型编译工具》](../../atc_tools/README.md)。
+>关于ATC工具详细使用方法请参见《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 >
->关于acl接口推理详细说明请参见[《应用开发 \(C&C++\)》](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)中的“模型推理”。
+>关于acl接口推理详细说明请参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理”。
 
 ## AUTOFUSE\_FLAGS环境变量控制点
 
@@ -196,7 +196,7 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 - "Sum"、"Mean"、"Prod"不支持低精度类型，默认必须提升精度，因此不能配置到提升精度黑名单中，即使配置为all，仍旧提升精度。
 - 不提升精度可以获得更高性能，但可能会引发精度问题。因此，在配置不提升精度后，用户需确保精度满足业务要求。
-- Dump图的方法请参见《环境变量参考》  \> 图编译 \> DUMP\_GE\_GRAPH。
+- Dump图的方法请参见[DUMP\_GE\_GRAPH](../../../user_guides/env_vars/DUMP_GE_GRAPH.md)环境变量。
 
 ### --experimental\_enable\_jit\_executor\_v2
 

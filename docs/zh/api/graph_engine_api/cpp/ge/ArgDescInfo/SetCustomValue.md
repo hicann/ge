@@ -71,7 +71,7 @@ graphStatus Mc2GenTaskCallback(const gert::ExeResGenerationContext *context,
   // 设置自定义值
   custom_value_arg.SetCustomValue(desc.custom_value);
   // 将此结构体的内容转化成uint64_t的数字保存到ArgsFormat中
-  aicpu_args_format.emplace_back(custom_value_arg)
+  aicpu_args_format.emplace_back(custom_value_arg);
 ...
 }
 ```

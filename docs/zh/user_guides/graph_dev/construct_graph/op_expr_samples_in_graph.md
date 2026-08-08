@@ -365,7 +365,7 @@ REG_OP(Cast)
     .OP_END_FACTORY_REG(Cast)
 ```
 
-从Cast算子原型定义可以看到，有一个必选属性dst\_type，表示转换后的数据类型，设置为0表示转换后的数据类型为float32，值和数据类型对应关系请参见[《基础数据结构和接口》](https://hiascend.com/document/redirect/CannCommunitybasicopapi)中的"ge命名空间\>DataType"。
+从Cast算子原型定义可以看到，有一个必选属性dst\_type，表示转换后的数据类型，设置为0表示转换后的数据类型为float32，值和数据类型对应关系请参见《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》中的"ge命名空间\>DataType"。
 
 ```c++
 auto greater = op::Greater("greater").set_input_x1(const1).set_input_x2(const2);
