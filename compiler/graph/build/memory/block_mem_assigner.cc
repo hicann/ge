@@ -1331,14 +1331,14 @@ bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_inde
       return false;
     }
     // Data flow to unsupported zero copy task type eg. memcpy, can never zero copied
-    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index);
+    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index, is_feature_map_refreshable_);
   }
 
   // Only node output that flow to sure one output maybe zero copied
   if (GetOutputFlowToNetoutputNum(node, output_index, compute_graph_, symbol_to_anchors_, anchor_to_symbol_) ==
       1U) {  // 1U means output to only one netoutput
     // Output from unsupported task type eg. memcpy, can never zero copied
-    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index);
+    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index, is_feature_map_refreshable_);
   }
 
   return false;
@@ -1695,7 +1695,7 @@ Status BlockMemAssigner::ApplyContinuousMemWithMng(const NodePtr &n, int32_t idx
   if (iter != symbol_mem_reuse_info_.cend()) {
     block->is_fixed_addr_prior_ = (block->is_fixed_addr_prior_ || iter->second.is_fixed_addr_prior_);
   }
-  MarkReuseZeroCopyBlockFlag(n, block, idx);
+  MarkReuseZeroCopyBlockFlag(n, block, idx, is_feature_map_refreshable_);
   MarkZeroCopyBlockAttr(bool_attr_, op_desc, block->is_zero_copy_, kOutput, idx);
   GELOGI(
       "[ContinuousMem]Node name: %s index:%u size:%zu ref count: %d, zero copy:%d, fixed addr prior: %d, "
@@ -2026,7 +2026,7 @@ MemoryBlock *BlockMemAssigner::ApplyOutMemory(const NodePtr &n, uint32_t index, 
            block_size, block->ref_count_, out_count, block->is_zero_copy_, block->is_fixed_addr_prior_);
   }
 
-  MarkReuseZeroCopyBlockFlag(n, block, index);
+  MarkReuseZeroCopyBlockFlag(n, block, index, is_feature_map_refreshable_);
   MarkZeroCopyBlockAttr(bool_attr_, node_op_desc, block->is_zero_copy_, kOutput, index);
   GELOGI("Node name: %s index:%u size:%zu ref count: %d, out count: %d zero copy:%d, out node need continuous input %d",
          n->GetNamePtr(), index, block_size, block->ref_count_, out_count, block->is_zero_copy_,
