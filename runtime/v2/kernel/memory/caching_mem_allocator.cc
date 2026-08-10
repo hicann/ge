@@ -15,6 +15,7 @@
 #include "caching_mem_allocator.h"
 
 #include "rt_external.h"
+#include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler.h"
 
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
@@ -136,7 +137,19 @@ ge::Status CachingMemAllocator::Finalize(bool no_log) {
   return memory_pool_->Finalize(no_log);
 }
 
+ge::Status CachingMemAllocator::WaitForLaunchSubmissions() const {
+  auto scheduler = TaskScheduler::GetCurrentScheduler();
+  if (scheduler == nullptr) {
+    return ge::SUCCESS;
+  }
+  return scheduler->WaitForLaunchSubmissions();
+}
+
 ge::Status CachingMemAllocator::Synchronize() const {
+  const auto wait_status = WaitForLaunchSubmissions();
+  if (wait_status != ge::SUCCESS) {
+    return wait_status;
+  }
   // call aclrtSynchronizeStream
   GE_ASSERT_SUCCESS(DoRtStreamSyncWithTimeout(stream_));
   return ge::SUCCESS;

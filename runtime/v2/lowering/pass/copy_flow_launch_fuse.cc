@@ -10,6 +10,7 @@
 
 #include "copy_flow_launch_fuse.h"
 
+#include <map>
 #include <queue>
 #include <stack>
 #include "common/checker.h"
@@ -89,9 +90,9 @@ const std::unordered_map<std::string, int32_t> kLaunchKernelNamesToIoAddrIndexes
 struct CopyNode {
   ge::FastNode *copy_node;
   ge::FastNode *consumer_launch_node;
-  std::vector<int32_t> input_index_of_launch;  // which input of launch node, offset from io_start
-  std::unordered_map<size_t, size_t> out_idxs_2_copy_flow_out_indexes;
-  std::unordered_map<size_t, ge::FastNode *> out_idxs_2_guarders;
+  std::vector<std::vector<int32_t>> output_indexes_of_launch;
+  std::map<size_t, size_t> out_idxs_2_copy_flow_out_indexes;
+  std::map<size_t, ge::FastNode *> out_idxs_2_guarders;
 };
 
 void DebugInfoForCopyNode(const std::vector<CopyNode> &copy_nodes, int32_t io_addr_start_index) {
@@ -102,9 +103,11 @@ void DebugInfoForCopyNode(const std::vector<CopyNode> &copy_nodes, int32_t io_ad
   for (const auto &copy_node : copy_nodes) {
     ss << "\nsrc node[" << copy_node.copy_node->GetNamePtr() << "], kernel launch node["
        << copy_node.consumer_launch_node->GetNamePtr() << "].";
-    for (const auto &index : copy_node.input_index_of_launch) {
-      ss << "\nkernel launch input data idx[" << index << "],[" << index + io_addr_start_index << " - "
-         << io_addr_start_index << "].";
+    for (const auto &indexes : copy_node.output_indexes_of_launch) {
+      for (const auto index : indexes) {
+        ss << "\nkernel launch input data idx[" << index << "],[" << index + io_addr_start_index << " - "
+           << io_addr_start_index << "].";
+      }
     }
   }
   GELOGD("Copy nodes info:%s", ss.str().c_str());
@@ -159,7 +162,7 @@ ge::graphStatus FindCopyNodes(ge::FastNode *const kernel_launch_node, std::vecto
 
   for (const auto src_node : src_nodes) {
     bool need_optimize = true;
-    std::vector<int32_t> launch_index = {};
+    std::vector<std::vector<int32_t>> launch_indexes(src_node->GetDataOutNum());
     for (const auto &out_data_edges : src_node->GetAllOutDataEdgesRef()) {
       for (const auto out_data_edge : out_data_edges) {
         if (out_data_edge == nullptr) {
@@ -177,13 +180,16 @@ ge::graphStatus FindCopyNodes(ge::FastNode *const kernel_launch_node, std::vecto
                          "[Param][Invalid] src node[%s], dst node[%s:%d], expect greater than or equal to[%d].",
                          src_node->GetNamePtr(), kernel_launch_node->GetNamePtr(), out_data_edge->dst_input,
                          io_addr_start);
-          launch_index.emplace_back(out_data_edge->dst_input - io_addr_start);
+          GE_ASSERT_TRUE(out_data_edge->src_output >= 0);
+          const auto output_index = static_cast<size_t>(out_data_edge->src_output);
+          GE_ASSERT_TRUE(output_index < launch_indexes.size());
+          launch_indexes[output_index].emplace_back(out_data_edge->dst_input - io_addr_start);
         }
       }
     }
 
     if (need_optimize) {
-      CopyNode copy_node{src_node, kernel_launch_node, launch_index, {}, {}};
+      CopyNode copy_node{src_node, kernel_launch_node, std::move(launch_indexes), {}, {}};
       copy_nodes.emplace_back(std::move(copy_node));
     }
   }
@@ -311,9 +317,13 @@ ge::FastNode *CreateGuarder(ge::FastNode *const origin_guarder, const std::strin
 
 ge::graphStatus CopyGuarderNodes(const ge::FastNode *launch_node, CopyNode &src_copy_node,
                                  ge::FastNode *const copy_flow_launch_node) {
-  for (const auto &out_idx_2_guarder : src_copy_node.out_idxs_2_guarders) {
-    auto origin_guarder = out_idx_2_guarder.second;
-    auto copy_flow_out_idx = src_copy_node.out_idxs_2_copy_flow_out_indexes[out_idx_2_guarder.first];
+  for (const auto &out_idx_2_copy_flow_out_index : src_copy_node.out_idxs_2_copy_flow_out_indexes) {
+    const auto guarder_it = src_copy_node.out_idxs_2_guarders.find(out_idx_2_copy_flow_out_index.first);
+    if (guarder_it == src_copy_node.out_idxs_2_guarders.cend()) {
+      continue;
+    }
+    auto origin_guarder = guarder_it->second;
+    auto copy_flow_out_idx = out_idx_2_copy_flow_out_index.second;
     std::string new_guarder_name =
         origin_guarder->GetType() + "_" + copy_flow_launch_node->GetName() + std::to_string(copy_flow_out_idx);
     auto new_guarder = CreateGuarder(origin_guarder, new_guarder_name);
@@ -377,7 +387,7 @@ ge::graphStatus ReplaceCopyFlowLaunchNode(const ge::FastNode *launch_node, CopyN
                      copy_flow_launch_node->GetDataOutNum());
 
       GE_ASSERT_NOTNULL(graph->AddEdge(copy_flow_launch_node, output_index, dst_endpoint.node, dst_endpoint.index));
-      src_copy_node.out_idxs_2_copy_flow_out_indexes[src_index] = output_index;
+      src_copy_node.out_idxs_2_copy_flow_out_indexes.emplace(src_index, output_index);
       pass_changed_info.pass_changed_kernels.emplace_back(std::pair<KernelNameAndIdx, KernelNameAndIdx>{
           {src_copy_node.copy_node->GetName(), src_index, launch_node->GetName()},
           {copy_flow_launch_node->GetName(), output_index}});
@@ -498,9 +508,10 @@ ge::graphStatus FuseCopyNodes(ge::FastNode *const launch_node, std::vector<CopyN
         ge::AttrUtils::SetInt(copy_flow_launch_node->GetOpDescBarePtr(), kComputeNodeIndex, compute_node_index));
   }
 
-  std::vector<std::vector<int32_t>> host_inputs_addr_index(copy_nodes.size());
-  for (size_t idx = 0U; idx < copy_nodes.size(); ++idx) {
-    host_inputs_addr_index[idx] = copy_nodes[idx].input_index_of_launch;
+  std::vector<std::vector<int32_t>> host_inputs_addr_index;
+  for (const auto &copy_node : copy_nodes) {
+    host_inputs_addr_index.insert(host_inputs_addr_index.cend(), copy_node.output_indexes_of_launch.cbegin(),
+                                  copy_node.output_indexes_of_launch.cend());
   }
   GE_ASSERT_SUCCESS(AddConstInputNode(graph, copy_flow_launch_node, host_inputs_addr_index));
 

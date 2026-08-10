@@ -37,6 +37,7 @@ std::set<std::string> g_prune_nodes_white_list = {
     "CalcTensorSizeFromShape",
     "CalcTensorSizeFromStorage",
     "CalcUnalignedTensorSizeFromStorage",
+    "CalcDeviceCopySizes",
     "SplitTensor",
     "Const",
     "InferShape",
@@ -44,7 +45,8 @@ std::set<std::string> g_prune_nodes_white_list = {
     "EnsureTensorAtOutMemory",
     "InnerData",
 };
-std::set<std::string> g_resource_alloc_list = {"AllocBatchHbm", "AllocMemHbm", "AllocMemHost", "AllocMemory"};
+std::set<std::string> g_resource_alloc_list = {"AllocBatchHbm", "AllocCopyFlowHbm", "AllocMemHbm", "AllocMemHost",
+                                               "AllocMemory"};
 std::set<std::string> g_init_list = {"FindInferShapeFunc", "FindInferShapeRangeFunc", "FindCompatibleInferShapeFunc"};
 
 bool IsResourceAllocNode(const ge::FastNode *const node) {

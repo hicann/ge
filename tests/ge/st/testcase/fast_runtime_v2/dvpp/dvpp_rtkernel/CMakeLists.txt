@@ -30,6 +30,7 @@ target_compile_definitions(st_dvpp_runtime2_test PRIVATE
 
 target_include_directories(st_dvpp_runtime2_test PRIVATE
         ${ASCEND_INSTALL_PATH}/include
+        ${AIR_CODE_DIR}/runtime/v2
         ${AIR_CODE_DIR}/runtime/v2/engine/dvpp/kernel
         ${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/fast_v2/engine/dvpp/dvpp_rtkernel
         )

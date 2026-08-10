@@ -9,9 +9,19 @@
  */
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include <atomic>
+#include <chrono>
+#include <future>
+#include <thread>
 #include "kernel/memory/caching_mem_allocator.h"
 #include "kernel/memory/single_stream_l2_allocator.h"
 #include "kernel/memory/multi_stream_l2_allocator.h"
+#include "core/executor/multi_thread_topological/executor/schedule/config/task_scheduler_config.h"
+#include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler.h"
+#include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler_factory.h"
+#include "core/executor_error_code.h"
+#include "core/multi_thread_executor/schedule/fake_execution_data.h"
 #include "rt_external_mem.h"
 #include <cmath>
 #include "stub/gert_runtime_stub.h"
@@ -21,6 +31,48 @@
 
 namespace gert {
 namespace memory {
+namespace {
+std::unique_ptr<TaskScheduler> MakeTaskScheduler(FakeExecutionData &execution_data,
+                                                 const FreeLaunchRelationCsr &relation_csr) {
+  TaskSchedulerConfig config;
+  config.producer_cfg.type = TaskProducerType::SINGLE;
+  config.AddWorkers(1U, ExecTaskType::NORMAL, TaskThreadMode::LOW_LOAD, 1U);
+  auto scheduler = std::unique_ptr<TaskScheduler>(TaskSchedulerFactory::GetInstance().Create(config));
+  if ((scheduler == nullptr) ||
+      (scheduler->Prepare(TaskScheduler::ScheduleData(execution_data.Data(), relation_csr)) != ge::GRAPH_SUCCESS) ||
+      (scheduler->Schedule() != kStatusSuccess)) {
+    return nullptr;
+  }
+  return scheduler;
+}
+
+bool WaitForRelationWaiter(const TaskScheduler &scheduler) {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (scheduler.GetRelationWaiterCount() > 0U) {
+      return true;
+    }
+    std::this_thread::yield();
+  }
+  return false;
+}
+
+class CurrentTaskSchedulerGuard {
+ public:
+  explicit CurrentTaskSchedulerGuard(TaskScheduler *scheduler) {
+    TaskScheduler::SetCurrentScheduler(scheduler);
+  }
+  ~CurrentTaskSchedulerGuard() {
+    TaskScheduler::SetCurrentScheduler(nullptr);
+  }
+};
+
+class MockStreamSyncForCma : public ge::AclRuntimeStub {
+ public:
+  MOCK_METHOD2(aclrtSynchronizeStreamWithTimeout, int32_t(aclrtStream stm, int32_t timeout));
+};
+}  // namespace
+
 class MultiStreamL2AllocatorsFaker : public MultiStreamAllocatorFaker {
  public:
   MultiStreamL2AllocatorsFaker() : MultiStreamAllocatorFaker() {
@@ -251,6 +303,102 @@ TEST_F(CacheMemoryAllocatorTest, test_allocate_mem_block_try_recycle_other_then_
   ASSERT_EQ(ge::GRAPH_SUCCESS, allocator.Finalize());
   mem_block1->Free();
   ASSERT_EQ(ge::GRAPH_SUCCESS, allocator1.Finalize());
+  ge::AclRuntimeStub::Reset();
+}
+TEST_F(CacheMemoryAllocatorTest, Synchronize_WaitsForExactRelationBeforeStreamSync) {
+  std::atomic<bool> stream_synced{false};
+  auto runtime_stub = std::make_shared<MockStreamSyncForCma>();
+  ge::AclRuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, aclrtSynchronizeStreamWithTimeout)
+      .WillOnce(testing::Invoke([&stream_synced](aclrtStream, int32_t) -> int {
+        stream_synced.store(true, std::memory_order_release);
+        return 0;
+      }));
+
+  CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  allocator.SetStream(reinterpret_cast<aclrtStream>(0x20240707));
+  const NodeIdentity offsets[] = {0U, 1U, 1U};
+  const NodeIdentity launch_ids[] = {1U};
+  const FreeLaunchRelationCsr relation_csr{offsets, launch_ids, 2U, 1U};
+  FakeExecutionData execution_data(2U);
+  auto scheduler = MakeTaskScheduler(execution_data, relation_csr);
+  ASSERT_NE(scheduler, nullptr);
+  ASSERT_EQ(scheduler->OnFreeExecuted(0U), ge::SUCCESS);
+  auto wait_result = std::async(std::launch::async, [&allocator, &scheduler] {
+    CurrentTaskSchedulerGuard guard(scheduler.get());
+    return allocator.Synchronize();
+  });
+
+  ASSERT_TRUE(WaitForRelationWaiter(*scheduler));
+  EXPECT_EQ(wait_result.wait_for(std::chrono::milliseconds(100)), std::future_status::timeout);
+  EXPECT_FALSE(stream_synced.load(std::memory_order_acquire));
+  EXPECT_EQ(scheduler->OnLaunchSubmitted(1U), ge::SUCCESS);
+  EXPECT_EQ(wait_result.get(), ge::SUCCESS);
+  EXPECT_TRUE(stream_synced.load(std::memory_order_acquire));
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(CacheMemoryAllocatorTest, Synchronize_AbortedExactWaitSkipsStreamSync) {
+  auto runtime_stub = std::make_shared<MockStreamSyncForCma>();
+  ge::AclRuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, aclrtSynchronizeStreamWithTimeout).Times(0);
+
+  CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  allocator.SetStream(reinterpret_cast<aclrtStream>(0x20240708));
+  const NodeIdentity offsets[] = {0U, 1U, 1U};
+  const NodeIdentity launch_ids[] = {1U};
+  const FreeLaunchRelationCsr relation_csr{offsets, launch_ids, 2U, 1U};
+  FakeExecutionData execution_data(2U);
+  auto scheduler = MakeTaskScheduler(execution_data, relation_csr);
+  ASSERT_NE(scheduler, nullptr);
+  ASSERT_EQ(scheduler->OnFreeExecuted(0U), ge::SUCCESS);
+  scheduler->AbortExecution(ge::END_OF_SEQUENCE);
+
+  CurrentTaskSchedulerGuard guard(scheduler.get());
+  EXPECT_EQ(allocator.Synchronize(), ge::END_OF_SEQUENCE);
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(CacheMemoryAllocatorTest, Synchronize_UnrelatedPendingLaunchDoesNotBlock) {
+  auto runtime_stub = std::make_shared<MockStreamSyncForCma>();
+  ge::AclRuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, aclrtSynchronizeStreamWithTimeout).WillOnce(testing::Return(ACL_SUCCESS));
+
+  CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  allocator.SetStream(reinterpret_cast<aclrtStream>(0x20240709));
+  const NodeIdentity offsets[] = {0U, 1U, 1U, 1U};
+  const NodeIdentity launch_ids[] = {1U};
+  const FreeLaunchRelationCsr relation_csr{offsets, launch_ids, 3U, 1U};
+  FakeExecutionData execution_data(3U);
+  auto scheduler = MakeTaskScheduler(execution_data, relation_csr);
+  ASSERT_NE(scheduler, nullptr);
+
+  CurrentTaskSchedulerGuard guard(scheduler.get());
+  EXPECT_EQ(allocator.Synchronize(), ge::SUCCESS);
+  EXPECT_EQ(scheduler->relation_execution_state_.launch_submitted_gen[2U], 0U);
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(CacheMemoryAllocatorTest, MallocFastPathDoesNotWaitForExactRelation) {
+  auto runtime_stub = std::make_shared<MockStreamSyncForCma>();
+  ge::AclRuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, aclrtSynchronizeStreamWithTimeout).Times(0);
+
+  CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  allocator.SetStream(reinterpret_cast<aclrtStream>(0x20240710));
+  const NodeIdentity offsets[] = {0U, 1U, 1U};
+  const NodeIdentity launch_ids[] = {1U};
+  const FreeLaunchRelationCsr relation_csr{offsets, launch_ids, 2U, 1U};
+  FakeExecutionData execution_data(2U);
+  auto scheduler = MakeTaskScheduler(execution_data, relation_csr);
+  ASSERT_NE(scheduler, nullptr);
+  ASSERT_EQ(scheduler->OnFreeExecuted(0U), ge::SUCCESS);
+
+  CurrentTaskSchedulerGuard guard(scheduler.get());
+  auto block = allocator.Malloc(1024U);
+  ASSERT_NE(block, nullptr);
+  block->Free();
+  scheduler->AbortExecution(ge::FAILED);
   ge::AclRuntimeStub::Reset();
 }
 }  // namespace memory

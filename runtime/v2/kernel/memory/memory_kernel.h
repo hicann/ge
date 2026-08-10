@@ -17,6 +17,8 @@ namespace gert {
 namespace kernel {
 enum class AllocHbmMemInputs { kAllocator, kSizes, kEnds };
 constexpr ge::char_t const *kAllocHbmMemory = "AllocMemHbm";
+constexpr ge::char_t const *kAllocCopyFlowHbm = "AllocCopyFlowHbm";
+constexpr ge::char_t const *kCopyFlowCountAttr = "copy_flow_count";
 constexpr ge::char_t const *kAllocMemory = "AllocMemory";
 constexpr ge::char_t const *kAllocHostMemory = "AllocMemHost";
 const std::string kFreeMemory = "FreeMemory";

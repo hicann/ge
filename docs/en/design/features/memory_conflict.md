@@ -480,6 +480,7 @@ sequenceDiagram
 
 - Host memory: Directly `ShareFrom` (share pointer), no stream constraint
 - Device memory: Perform cross-stream wander through `WanderFrom`, call `MultiStreamMemBlock::NewAccessStream` to mark MIF
+- `AccessMemCrossStream` is registered with `kKernelUseMemory` because `ShareFrom`/`WanderFrom` changes shared TensorData, reference-count, or cross-stream MIF state. Its runtime-dependent placement makes it ineligible as a direct producer for `RemoveLaunchFreeEdge`, so the original Launch-to-Free edge is preserved.
 
 #### 4.2.5 Event-driven Stream Synchronization
 

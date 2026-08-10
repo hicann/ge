@@ -27,7 +27,7 @@ class MultiStreamL1Allocator : public DeviceMemAllocator {
         l2_stream_(l2_stream),
         all_l2_mem_pool_(all_l2_mem_pool),
         is_rt2_multi_thread_(false) {
-    if (IsEnableRmLaunchFreeEdge()) {
+    if (IsEnableRt2MultiThread()) {
       is_rt2_multi_thread_ = true;
     }
   }
@@ -70,6 +70,9 @@ class L2MemPool : public ge::Allocator, public MemSynchronizer {
   aclrtStream GetStream();
   void SetStream(aclrtStream stream);
   ge::MemBlock *MoveL2ToL1(ge::MemBlock *block);
+
+ private:
+  ge::Status WaitForLaunchSubmissions() const;
 
  private:
   MultiStreamL1Allocator first_level_pool_;

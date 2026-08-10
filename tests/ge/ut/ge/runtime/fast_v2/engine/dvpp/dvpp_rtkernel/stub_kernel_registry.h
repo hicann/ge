@@ -26,6 +26,7 @@ class KernelRegister {
 
   KernelRegister &RunFunc(KernelRegister::KernelFunc func);
   KernelRegister &OutputsCreator(KernelRegister::OutputCreator func);
+  KernelRegister &ConcurrentCriticalSectionKey(const std::string &critical_section_key);
 };
 
 KernelRegister::KernelRegister(const char *kernelType) {}
@@ -36,6 +37,10 @@ KernelRegister &KernelRegister::RunFunc(KernelRegister::KernelFunc func) {
 }
 
 KernelRegister &KernelRegister::OutputsCreator(KernelRegister::OutputCreator func) {
+  return *this;
+}
+
+KernelRegister &KernelRegister::ConcurrentCriticalSectionKey(const std::string &critical_section_key) {
   return *this;
 }
 

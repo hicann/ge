@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -8,21 +8,18 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_RUNTIME_V2_UTILS_H
-#define AIR_CXX_RUNTIME_V2_UTILS_H
+#ifndef AIR_CXX_RUNTIME_V2_LOWERING_PASS_SPLIT_MIXED_LAUNCH_MEMORY_H_
+#define AIR_CXX_RUNTIME_V2_LOWERING_PASS_SPLIT_MIXED_LAUNCH_MEMORY_H_
 
-#include "ge/ge_api_types.h"
-#include "acl/acl_rt.h"
-#include "core/executor/executor_base_def.h"
+#include "pass.h"
 
 namespace gert {
-ge::Status DoRtStreamSyncWithTimeout(aclrtStream stream);
-
-ge::Status GetKernelStream(const Node *node, aclrtStream &stream);
-
-bool IsInputPlacementOnDeviceHbm();
-
-bool IsEnableRt2MultiThread();
+namespace bg {
+class SplitMixedLaunchMemory : public Pass {
+ public:
+  ge::graphStatus Run(ge::ExecuteGraph *const graph, bool &changed) override;
+};
+}  // namespace bg
 }  // namespace gert
 
-#endif  // AIR_CXX_RUNTIME_V2_UTILS_H
+#endif  // AIR_CXX_RUNTIME_V2_LOWERING_PASS_SPLIT_MIXED_LAUNCH_MEMORY_H_

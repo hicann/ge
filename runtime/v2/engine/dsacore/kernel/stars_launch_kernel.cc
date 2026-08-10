@@ -21,6 +21,7 @@
 #include "common/checker.h"
 #include "common/runtime_api_wrapper.h"
 #include "engine/aicore/fe_rt2_common.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 using namespace ge;
 
@@ -51,7 +52,10 @@ ge::graphStatus StarsTaskLaunchKernel(KernelContext *context) {
 
   return SUCCESS;
 }
-REGISTER_KERNEL(StarsTaskLaunchKernel).RunFunc(StarsTaskLaunchKernel).TracePrinter(PrintStarsLaunchArgs);
+REGISTER_KERNEL(StarsTaskLaunchKernel)
+    .RunFunc(StarsTaskLaunchKernel)
+    .TracePrinter(PrintStarsLaunchArgs)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace
 }  // namespace kernel
 }  // namespace gert

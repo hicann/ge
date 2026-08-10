@@ -18,6 +18,7 @@
 #include "copy_flow_launch_fuse.h"
 #include "engine/aicpu/pass/aicpu_host_inputs_fuse_pass.h"
 #include "remove_launch_free_edge.h"
+#include "split_mixed_launch_memory.h"
 #include "trust_out_tensor.h"
 #include "graph/fast_graph/execute_graph.h"
 #include "utils/rt2_utils.h"
@@ -34,7 +35,9 @@ class OfflineOptimizer {
     AddPass("TrustOutTensor", ge::MakeUnique<TrustOutTensor>());
     // todo 这里不应该调用引擎的头文件，整改掉
     AddPass("AicpuFuseHostInputs", ge::MakeUnique<AicpuHostInputsFusePass>());
-    if (IsEnableRmLaunchFreeEdge()) {
+    if (IsEnableRt2MultiThread()) {
+      // Split separates memory materialization from launch before launch-to-free edges are removed.
+      AddOncePass("SplitMixedLaunchMemory", ge::MakeUnique<SplitMixedLaunchMemory>());
       AddOncePass("RemoveLaunchFreeEdge", ge::MakeUnique<RemoveLaunchFreeEdge>());
     }
   }

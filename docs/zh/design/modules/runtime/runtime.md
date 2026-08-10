@@ -382,7 +382,7 @@ flowchart TD
 1. **Init Graph 生成**：将所有初始化操作（常量加载、流分配、内存分配器创建）提取到一个独立的 Init 子图中。
 2. **Main Graph 生成**：对每个 ComputeGraph 节点，查找对应的 `NodeConverter`（通过 `NodeConverterRegistry`），调用其 lowering 函数生成一个或多个 ExecuteGraph 节点。
 3. **事件同步**：`LoweringEventSync` 处理跨流的 Send/Wait 事件同步。
-4. **优化**：`OfflineOptimizer` 对生成的 ExecuteGraph 进行优化（如常量折叠、死代码消除）。
+4. **优化**：`OfflineOptimizer` 对生成的 ExecuteGraph 进行优化（如常量折叠、死代码消除、解除符合条件的 Launch-to-Free 控制依赖）。`CopyFlowLaunchFuse` 始终注册，单线程路径保留其生成的 Legacy `CopyFlowLaunch`；仅当 `IsEnableRt2MultiThread()` 为 `true` 时，才依次注册 `SplitMixedLaunchMemory` 和 `RemoveLaunchFreeEdge`。动态 shape 多流会强制该判断返回 `false`，不执行拆分和关系优化，并保留原 Launch-to-Free 边。
 
 v1 在运行时通过 `DistributeTask` 将 Task 逐个下发到设备，而 v2 在编译期就已经将 ComputeGraph 转换为可以直接执行的 ExecuteGraph。运行时不需要任何"翻译"步骤。
 
@@ -456,6 +456,54 @@ streams_to_executor_: map<aclrtStream, unique_ptr<ModelV2Executor>>
 每个 Stream 一个 Executor 是因为在异步执行模式下，多个 Stream 可能并发执行同一个模型的不同推理请求。每个 Executor 维护自己的执行状态（输入/输出绑定、迭代计数等），互不干扰。
 
 这与昇腾 Stream 的设计理念一致——Stream 是设备端操作的有序队列，不同 Stream 之间可以并行。
+
+### 4.6 多线程内存回收与精确 Launch 提交关系
+
+RT2 多线程拓扑执行器会将内存类 Kernel 与 Launch 类 Kernel 分发到不同 worker group。stream 同步只能覆盖已经完成 Host 侧提交的异步任务，因此删除 Launch-to-Free 边后，需要同时建立清晰的结果所有权和精确的 Free-to-Launch 运行时保护。
+
+#### 4.6.1 Copy 拆分与提交顺序
+
+`OfflineOptimizer` 始终运行 `CopyFlowLaunchFuse`；仅 RT2 多线程单流模式继续运行 `SplitMixedLaunchMemory -> RemoveLaunchFreeEdge`。单线程模式保留 `CopyH2D`、`MakeSureTensorAtDevice` 和 Legacy `CopyFlowLaunch` 构图；`ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1` 时 `IsEnableRt2MultiThread()` 返回 `false`，既不拆分也不创建 Free-to-Launch 关系，原 Launch-to-Free 边保持不变。
+
+H2D 拆分拓扑为：
+
+```text
+CalcDeviceCopySizes -> AllocMemHbm -> ShareH2DCopyResult -> LaunchH2DCopy
+```
+
+`ShareH2DCopyResult` 在 memory worker 上产生 owning/shared `GertTensorData`，其输出供 Consumer 和 Free 使用；output-free `LaunchH2DCopy` 只提交必要的异步 memcpy。全局语义上的 Launch（包括 HCOM）或注册为 `kKernelLaunch` 的直接 Consumer 通过控制边等待 Copy Launch。经 `BuildRefTensor` 间接消费时，`BuildRefTensor` 和 ACLNN `ExecuteOpPrepare` 不等待 Copy Launch，其后的 ACLNN/CustomOp 语义 Launch 或 `kKernelLaunch` Consumer 等待，并在关系删除前控制对应 Free。
+
+CopyFlow 拆分拓扑为：
+
+```text
+CalcCopyFlowAllocSizes -> AllocCopyFlowHbm -> PrepareCopyFlowResult -> LaunchCopyFlowH2D
+```
+
+`PrepareCopyFlowResult` 在 memory worker 上拥有全部逐输出结果并完成 merged-copy 信息、host 参数和对齐处理，不提交 memcpy；output-free `LaunchCopyFlowH2D` 只为独立分配且非零的 H2D 输入提交 memcpy。四个节点使用相同的非零静态 `copy_flow_count`，运行时输入数、输出数、allocated-address 数以及输入索引 CVV 外层基数必须一致。Consumer、Free 和 Guarder 从 Prepare 取数，Guarder 仅按当前 Consumer Launch 的显式 source-output 映射复制，原输出控制边从 Copy Launch 链尾发出。
+
+当源节点存在 `kComputeNodeIndex` 时，`LaunchH2DCopy` 和 `LaunchCopyFlowH2D` 继承该索引。它们不属于 `IsLaunchNode` 定义的计算 Launch，但会通过注册的 `kKernelLaunch` 被 `IsLaunchOrHasSubGraphNode` 识别，参与 priority 计算和 strict-order 保序。DataDump 直接复用 `IsLaunchNode`，因此会自然跳过这两类内部 helper，避免同一计算算子被重复推进；真实 Consumer Launch 仍是 dump 边界。
+
+#### 4.6.2 Launch-to-Free 删除与 ExecutionData
+
+`RemoveLaunchFreeEdge` 按 Free 独立判定资格：目标必须是有 hold-address 变体的设备 Free，`ReleaseResourceIndex` 指向的直接 producer 必须位于非 Host 内存路径并注册为 `kKernelUseMemory`。对同一 Launch，Pass 先补齐全部 eligible producer 与全部 eligible Free 的笛卡尔积顺序；已有数据或控制依赖不重复添加。随后按 owner graph 记录并去重精确 `(Free*, Launch*)` 关系，替换 hold-address Free，最后才删除目标边。
+
+Host、normal、launch、未注册或缺失 producer，以及没有 hold-address 变体的 `FreeTensorMemory` 均保持原 Free 类型和 Launch-to-Free 边。既有 `EnsureNodeExeInOrderInSubgraph`、`IsCopyAsyncNode`、zero-copy 和地址复用保序语义不变。
+
+`MultiThreadExecutionDataBuilder` 在最终执行节点映射确定后，将各 owner graph 的 FastNode 关系转换为按 Free ID 索引、Launch ID 有序且去重的 CSR。嵌套 owner graph 从实际 mapped nodes 推导，不遍历并混入未映射的兄弟子图。offsets/Launch-ID 连续数组由 `MultiThreadResourceGuard` 持有；构建和 `TaskScheduler::Prepare` 会校验 owner、映射节点、hold-address Free/Launch 类型、ID 范围、节点数、offset 单调性和关系基数，执行期查询不扫描图且不分配内存。
+
+#### 4.6.3 Scheduler 与 Allocator
+
+每次 `Schedule` 使用隔离的 execution epoch，并维护逐节点 `launch_submitted_gen`、`free_executed_gen`、`required_launch_gen`、relation-Launch membership、`unmet_launch_count` 以及显式 abort 状态和原始返回值。Free 仅在 Kernel 成功后激活其 CSR 中的要求；关系 Launch 仅在自身 Kernel 成功完成 Host 提交后推进 generation。多个 Free 引用同一 Launch occurrence 时只计一个 unmet Launch。失败或 EOS 节点不推进 generation，scheduler 保存原状态并唤醒全部等待者；下一次 `Schedule` 原地重置关系状态。
+
+旧的批次 ready Launch 计数、TLS 批次阈值、混合 Kernel 执行前屏障和伪造完成值均已删除。`CachingMemAllocator` 与 `L2MemPool` 只在即将进行物理 stream 同步/回收时等待已成功执行 Free 激活的要求；成功 Malloc fast path 不调用 scheduler，未执行 Free 和无关 Launch 不会阻塞。回收顺序保持：`exact wait -> stream sync -> recycle -> retry`。
+
+多线程执行器的总线程数为 3 时（Hybrid RT2 路径通常由 `MAX_RUNTIME_CORE_NUMBER=3` 配置），`AllocHostCpuOutputMemory`、`SplitDataTensor`、`IdentityAddr`、`IdentityShapeAndAddr` 和 `AccessMemCrossStream` 保留注册的 `kKernelUseMemory` 分类，并在唯一的 MEMORY worker 上执行。`AccessMemCrossStream` 的 `ShareFrom`/`WanderFrom` 会修改共享 TensorData、引用计数或跨流 MIF 状态，必须与其它共享内存状态变更串行化。由于其 placement 在运行时才确定，`RemoveLaunchFreeEdge` 不将它作为可删边的直接 producer，保留原 Launch-to-Free 边。`BuildTensor`、`BuildTensorStorage` 和 `BuildTensorPureShape` 是仅有的 NORMAL worker 例外，从而保留既有三线程流水优化。Allocator 热路径不增加锁；执行图调度串行化 Host allocator 与 wrapper pool 的状态变更，以牺牲这些状态变更的并行度换取无锁热路径和安全的生命周期转换。
+
+#### 4.6.4 性能数据与活性限制
+
+现有测量来自保守的 **O0/GCOV + ASan/LSan stub build**，不是 Release 生产延迟：成功 Malloc 的 paired delta 中位数约 `+0.243%`，处于噪声范围；无关节点事件约 `33 ns`，立即返回的精确等待约 `44 ns`，一组 Free 激活加匹配 Launch 提交约 `146 ns`。100,000 节点、1,000,000 关系的 `Prepare` 中位数为 `6.313 ms`，结构内存为 `11,300,008 B`；无任务测量中关系状态数组 capacity 未增长，调用序列前后无净 live allocation。这些数据既不是 Release 指标，也不能证明调度活性。
+
+**当前限制：唯一 memory worker 场景的活性尚未解决。** 如果某个已激活的 Launch 仍依赖未完成的 memory-worker 前驱，而该前驱排在一个因 allocator 精确等待而阻塞的 memory task 之后，仍可能形成闭环。任务 1.1、1.2、4.6、7.4 由用户选择延期；当前实现不保证该场景活性。该场景进入生产验收前，必须增加保守证明门禁以对无法证明安全的关系保留原边，或改为不占用唯一 memory worker 的非阻塞 continuation。
 
 ---
 

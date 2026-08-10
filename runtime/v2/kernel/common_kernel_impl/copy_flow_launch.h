@@ -14,7 +14,13 @@
 namespace gert {
 namespace kernel {
 constexpr const ge::char_t *kCopyFlowLaunch = "CopyFlowLaunch";
+constexpr const ge::char_t *kCalcCopyFlowAllocSizes = "CalcCopyFlowAllocSizes";
+constexpr const ge::char_t *kPrepareCopyFlowResult = "PrepareCopyFlowResult";
+constexpr const ge::char_t *kLaunchCopyFlowH2D = "LaunchCopyFlowH2D";
 enum class CopyFlowLaunchInputs { kInputsNum, kInputsIndex, kRtArg, kStream, kAllocator, kAddrAndLengthStart };
+enum class CalcCopyFlowAllocSizesInputs { kInputsNum, kRtArg, kAddrAndLengthStart };
+enum class PrepareCopyFlowResultInputs { kInputsNum, kInputsIndex, kRtArg, kAllocatedAddrs, kAddrAndLengthStart };
+enum class LaunchCopyFlowH2DInputs { kInputsNum, kStream, kAllocatedAddrs, kAddrAndLengthStart };
 enum class CopyFlowLaunchOutputs { kAddress, kNum };
 }  // namespace kernel
 }  // namespace gert

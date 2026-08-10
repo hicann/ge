@@ -15,10 +15,14 @@
 #include "core/executor_error_code.h"
 #include "core/utils/rt2_executor_utils.h"
 #include "acl/acl_rt.h"
+#include <algorithm>
+#include <limits>
 #include "securectype.h"
 #include "runtime/subscriber/global_profiler.h"
 
 namespace gert {
+thread_local TaskScheduler *TaskScheduler::current_scheduler_ = nullptr;
+
 TaskScheduler::TaskScheduler(TaskProducer &producer) : task_producer_(&producer) {
   worker_group_index_.fill(ExecTaskType::NORMAL);
 
@@ -53,6 +57,10 @@ ge::Status TaskScheduler::LaunchWorkers() {
 }
 
 ge::Status TaskScheduler::StopWorkers() {
+  if (has_launched_) {
+    force_quit_.store(true, std::memory_order_release);
+    AbortExecution(ge::FAILED);
+  }
   for (size_t i = 0; i < static_cast<size_t>(ExecTaskType::MAX); i++) {
     TaskPackage completed_tasks;
     for (auto &worker_group : worker_groups_) {
@@ -82,11 +90,190 @@ ge::Status TaskScheduler::SleepWorkers() {
   return ge::SUCCESS;
 }
 
+ge::Status TaskScheduler::PrepareRelationExecutionState(const FreeLaunchRelationCsr &relation_csr) {
+  const std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+  free_launch_relation_csr_ = relation_csr;
+  relation_execution_state_.launch_submitted_gen.assign(relation_csr.node_num, 0U);
+  relation_execution_state_.free_executed_gen.assign(relation_csr.node_num, 0U);
+  relation_execution_state_.required_launch_gen.assign(relation_csr.node_num, 0U);
+  relation_execution_state_.relation_launch_membership.assign(relation_csr.node_num, 0U);
+  for (size_t i = 0U; i < relation_csr.relation_num; ++i) {
+    relation_execution_state_.relation_launch_membership[relation_csr.launch_ids[i]] = 1U;
+  }
+  relation_execution_state_.execution_epoch = 0U;
+  relation_execution_state_.unmet_launch_count = 0U;
+  relation_execution_state_.waiter_count = 0U;
+  relation_execution_state_.aborted = false;
+  relation_execution_state_.abort_status = ge::SUCCESS;
+  return ge::SUCCESS;
+}
+
+ge::Status TaskScheduler::OnFreeExecuted(NodeIdentity free_id) {
+  const auto launch_ids = free_launch_relation_csr_.GetLaunchIds(free_id);
+  if (launch_ids.size == 0U) {
+    return ge::SUCCESS;
+  }
+
+  std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+  if (relation_execution_state_.aborted) {
+    return relation_execution_state_.abort_status;
+  }
+  auto &free_generation = relation_execution_state_.free_executed_gen[free_id];
+  if (free_generation == std::numeric_limits<uint64_t>::max()) {
+    AbortExecutionLocked(ge::FAILED);
+    relation_execution_state_.cv.notify_all();
+    return ge::FAILED;
+  }
+  ++free_generation;
+  for (size_t i = 0U; i < launch_ids.size; ++i) {
+    const auto launch_id = launch_ids.data[i];
+    auto &required_generation = relation_execution_state_.required_launch_gen[launch_id];
+    if (required_generation >= free_generation) {
+      continue;
+    }
+    const auto submitted_generation = relation_execution_state_.launch_submitted_gen[launch_id];
+    const bool was_unmet = submitted_generation < required_generation;
+    required_generation = free_generation;
+    if (!was_unmet && (submitted_generation < required_generation)) {
+      if (relation_execution_state_.unmet_launch_count == std::numeric_limits<size_t>::max()) {
+        AbortExecutionLocked(ge::FAILED);
+        relation_execution_state_.cv.notify_all();
+        return ge::FAILED;
+      }
+      ++relation_execution_state_.unmet_launch_count;
+    }
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status TaskScheduler::OnLaunchSubmitted(NodeIdentity launch_id) {
+  if (free_launch_relation_csr_.relation_num == 0U) {
+    return ge::SUCCESS;
+  }
+
+  bool notify = false;
+  ge::Status status = ge::SUCCESS;
+  {
+    std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+    if (relation_execution_state_.aborted) {
+      return relation_execution_state_.abort_status;
+    }
+    if (launch_id >= relation_execution_state_.launch_submitted_gen.size()) {
+      AbortExecutionLocked(ge::FAILED);
+      status = ge::FAILED;
+      notify = true;
+    } else {
+      auto &submitted_generation = relation_execution_state_.launch_submitted_gen[launch_id];
+      if (submitted_generation == std::numeric_limits<uint64_t>::max()) {
+        AbortExecutionLocked(ge::FAILED);
+        status = ge::FAILED;
+        notify = true;
+      } else {
+        const auto required_generation = relation_execution_state_.required_launch_gen[launch_id];
+        const bool was_unmet = submitted_generation < required_generation;
+        ++submitted_generation;
+        if (was_unmet && (submitted_generation >= required_generation)) {
+          if (relation_execution_state_.unmet_launch_count == 0U) {
+            AbortExecutionLocked(ge::FAILED);
+            status = ge::FAILED;
+          } else {
+            --relation_execution_state_.unmet_launch_count;
+          }
+          notify = true;
+        }
+      }
+    }
+  }
+  if (notify) {
+    relation_execution_state_.cv.notify_all();
+  }
+  return status;
+}
+
+ge::Status TaskScheduler::OnNodeExecuted(NodeIdentity node_id) {
+  const auto status = OnFreeExecuted(node_id);
+  if (status != ge::SUCCESS) {
+    return status;
+  }
+  if ((node_id >= relation_execution_state_.relation_launch_membership.size()) ||
+      (relation_execution_state_.relation_launch_membership[node_id] == 0U)) {
+    return ge::SUCCESS;
+  }
+  return OnLaunchSubmitted(node_id);
+}
+
+ge::Status TaskScheduler::WaitForLaunchSubmissions() const {
+  std::unique_lock<std::mutex> lock(relation_execution_state_.mutex);
+  if (free_launch_relation_csr_.relation_num == 0U) {
+    return relation_execution_state_.aborted ? relation_execution_state_.abort_status : ge::SUCCESS;
+  }
+  if (relation_execution_state_.aborted || (relation_execution_state_.unmet_launch_count == 0U)) {
+    return relation_execution_state_.aborted ? relation_execution_state_.abort_status : ge::SUCCESS;
+  }
+  ++relation_execution_state_.waiter_count;
+  relation_execution_state_.cv.wait(lock, [this] {
+    return relation_execution_state_.aborted || (relation_execution_state_.unmet_launch_count == 0U);
+  });
+  --relation_execution_state_.waiter_count;
+  return relation_execution_state_.aborted ? relation_execution_state_.abort_status : ge::SUCCESS;
+}
+
+size_t TaskScheduler::GetRelationWaiterCount() const {
+  const std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+  return relation_execution_state_.waiter_count;
+}
+
+void TaskScheduler::AbortExecution(ge::Status status) {
+  bool notify = false;
+  {
+    const std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+    if (!relation_execution_state_.aborted && (status != ge::SUCCESS)) {
+      AbortExecutionLocked(status);
+      notify = true;
+    }
+  }
+  if (notify) {
+    relation_execution_state_.cv.notify_all();
+  }
+}
+
+void TaskScheduler::AbortExecutionLocked(ge::Status status) {
+  relation_execution_state_.aborted = true;
+  relation_execution_state_.abort_status = status;
+}
+
+ge::Status TaskScheduler::ResetRelationExecutionState() {
+  ge::Status status = ge::SUCCESS;
+  {
+    const std::lock_guard<std::mutex> lock(relation_execution_state_.mutex);
+    std::fill(relation_execution_state_.launch_submitted_gen.begin(),
+              relation_execution_state_.launch_submitted_gen.end(), 0U);
+    std::fill(relation_execution_state_.free_executed_gen.begin(), relation_execution_state_.free_executed_gen.end(),
+              0U);
+    std::fill(relation_execution_state_.required_launch_gen.begin(),
+              relation_execution_state_.required_launch_gen.end(), 0U);
+    relation_execution_state_.unmet_launch_count = 0U;
+    relation_execution_state_.aborted = false;
+    relation_execution_state_.abort_status = ge::SUCCESS;
+    if (relation_execution_state_.execution_epoch == std::numeric_limits<uint64_t>::max()) {
+      AbortExecutionLocked(ge::FAILED);
+      status = ge::FAILED;
+    } else {
+      ++relation_execution_state_.execution_epoch;
+    }
+  }
+  if (status != ge::SUCCESS) {
+    relation_execution_state_.cv.notify_all();
+  }
+  return status;
+}
+
 bool TaskScheduler::ExecuteTasks(TaskWorkerId *curr_worker_group_ids) {
   TaskPackage unprocessed_tasks = task_producer_->Produce();
   if (unprocessed_tasks.size() > 0) {
     while (auto task = unprocessed_tasks.pop_front()) {
       task->SetForceQuit(&force_quit_);
+      task->SetScheduler(this);
       auto exec_worker_group_id = static_cast<size_t>(worker_group_index_[static_cast<size_t>(task->GetType())]);
       TaskWorkerGroup &worker_group = worker_groups_[exec_worker_group_id];
 
@@ -124,7 +311,39 @@ ge::graphStatus TaskScheduler::Prepare(const ScheduleData &data) {
   GE_ASSERT_TRUE(data.execution_data != nullptr);
   GE_ASSERT_TRUE(data.schedule_limit > 0);
 
+  const auto &relation_csr = data.free_launch_relation_csr;
+  const bool is_legacy_empty = (relation_csr.offsets == nullptr) && (relation_csr.launch_ids == nullptr) &&
+                               (relation_csr.node_num == 0U) && (relation_csr.relation_num == 0U);
+  if (!is_legacy_empty) {
+    GE_ASSERT_NOTNULL(relation_csr.offsets);
+    GE_ASSERT_TRUE(relation_csr.node_num == data.schedule_limit,
+                   "Free-launch CSR node num %zu does not match schedule limit %zu", relation_csr.node_num,
+                   data.schedule_limit);
+    GE_ASSERT_TRUE(relation_csr.offsets[0U] == 0U, "Free-launch CSR first offset %zu is not zero",
+                   relation_csr.offsets[0U]);
+    for (size_t i = 0U; i <= relation_csr.node_num; ++i) {
+      GE_ASSERT_TRUE(relation_csr.offsets[i] <= relation_csr.relation_num,
+                     "Free-launch CSR offset %zu at index %zu exceeds relation num %zu", relation_csr.offsets[i], i,
+                     relation_csr.relation_num);
+      if (i > 0U) {
+        GE_ASSERT_TRUE(relation_csr.offsets[i - 1U] <= relation_csr.offsets[i],
+                       "Free-launch CSR offsets are not monotonic at index %zu", i);
+      }
+    }
+    GE_ASSERT_TRUE(relation_csr.offsets[relation_csr.node_num] == relation_csr.relation_num,
+                   "Free-launch CSR relation num is invalid");
+    if (relation_csr.relation_num > 0U) {
+      GE_ASSERT_NOTNULL(relation_csr.launch_ids);
+      for (size_t i = 0U; i < relation_csr.relation_num; ++i) {
+        GE_ASSERT_TRUE(relation_csr.launch_ids[i] < relation_csr.node_num,
+                       "Free-launch CSR launch id %zu at index %zu is out of range %zu", relation_csr.launch_ids[i], i,
+                       relation_csr.node_num);
+      }
+    }
+  }
+
   execution_data_ = static_cast<const ExecutionData *>(data.execution_data);
+  GE_ASSERT_SUCCESS(PrepareRelationExecutionState(relation_csr));
   GE_ASSERT_SUCCESS(task_producer_->Prepare(data.execution_data));
   GE_ASSERT_SUCCESS(LaunchWorkers());
 
@@ -175,8 +394,9 @@ void TaskScheduler::SetExecuteStreamForWorkers() {
   }
 }
 
-void TaskScheduler::RecycleTaskWhenExecuteFailed() {
-  force_quit_ = true;
+void TaskScheduler::RecycleTaskWhenExecuteFailed(ge::Status status) {
+  AbortExecution(status);
+  force_quit_.store(true, std::memory_order_release);
   while (ShouldScheduleMore()) {
     for (size_t i = 0; i < static_cast<size_t>(ExecTaskType::MAX); i++) {
       TaskPackage completed_tasks;
@@ -184,12 +404,18 @@ void TaskScheduler::RecycleTaskWhenExecuteFailed() {
         worker_group.FetchResult(completed_tasks);
       }
       total_completed_count_ += completed_tasks.size();
+      if (completed_tasks.size() > 0) {
+        (void)task_producer_->Recycle(completed_tasks);
+      }
     }
   }
 }
 
 KernelStatus TaskScheduler::Schedule() {
-  GE_ASSERT_SUCCESS(StartUp());
+  const auto start_up_status = StartUp();
+  if (start_up_status != ge::SUCCESS) {
+    return start_up_status;
+  }
   SetExecuteStreamForWorkers();
 
   TaskWorkerId exec_worker_group_ids[static_cast<size_t>(ExecTaskType::MAX)] = {0};
@@ -203,7 +429,9 @@ KernelStatus TaskScheduler::Schedule() {
     }
     auto ret = RecycleTasks();
     if (ret != ge::SUCCESS) {
-      RecycleTaskWhenExecuteFailed();
+      RecycleTaskWhenExecuteFailed(ret);
+      (void)EndUp();
+      SleepWorkers();
       return ret;
     }
   }
@@ -212,7 +440,10 @@ KernelStatus TaskScheduler::Schedule() {
 KernelStatus TaskScheduler::Schedule(int sub_graph_type, ExecutorSubscriber *es) {
   GE_ASSERT_NOTNULL(es);
   GE_ASSERT_NOTNULL(es->callback);
-  GE_ASSERT_SUCCESS(StartUp());
+  const auto start_up_status = StartUp();
+  if (start_up_status != ge::SUCCESS) {
+    return start_up_status;
+  }
   SetExecuteStreamForWorkers();
   for (auto &workerGroup : worker_groups_) {
     workerGroup.SetSubscriber(sub_graph_type, es);
@@ -249,7 +480,9 @@ KernelStatus TaskScheduler::Schedule(int sub_graph_type, ExecutorSubscriber *es)
     }
     auto ret = RecycleTasks();
     if (ret != ge::SUCCESS) {
-      RecycleTaskWhenExecuteFailed();
+      RecycleTaskWhenExecuteFailed(ret);
+      (void)EndUp();
+      SleepWorkers();
       return ret;
     }
   }
@@ -264,15 +497,26 @@ void TaskScheduler::GetAllThreadId(std::vector<uint32_t> &all_thread_id) {
 ge::Status TaskScheduler::StartUp() {
   GE_ASSERT_TRUE(has_launched_);
   GE_ASSERT_TRUE(schedule_limit_ != 0);
-  GE_ASSERT_SUCCESS(task_producer_->StartUp());
+  const auto reset_status = ResetRelationExecutionState();
+  if (reset_status != ge::SUCCESS) {
+    return reset_status;
+  }
+  const auto ret = task_producer_->StartUp();
+  if (ret != ge::SUCCESS) {
+    AbortExecution(ret);
+    (void)task_producer_->EndUp();
+    return ret;
+  }
   total_completed_count_ = 0U;
   total_submitted_count_ = 0U;
-  force_quit_ = false;
+  force_quit_.store(false, std::memory_order_release);
+  current_scheduler_ = this;
   return ge::SUCCESS;
 }
 
 ge::Status TaskScheduler::EndUp() {
   GE_ASSERT_SUCCESS(task_producer_->EndUp());
+  current_scheduler_ = nullptr;
   return ge::SUCCESS;
 }
 

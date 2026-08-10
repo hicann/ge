@@ -22,6 +22,7 @@
 #include "common/checker.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
 #include "engine/aicore/fe_rt2_common.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "aprof_pub.h"
 
 namespace gert {
@@ -72,7 +73,7 @@ ge::graphStatus FFTSPlusTaskLaunch(KernelContext *context) {
   GELOGW("[Launch_kernel][FFTSPlusTaskLaunch]Not used interface call.");
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(LaunchFFTSPlusTask).RunFunc(FFTSPlusTaskLaunch);
+REGISTER_KERNEL(LaunchFFTSPlusTask).RunFunc(FFTSPlusTaskLaunch).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus LaunchFFTSPlusTaskNoCopy(KernelContext *context) {
   auto need_launch = context->GetInputValue<uint32_t>(static_cast<size_t>(2));
@@ -104,6 +105,6 @@ ge::graphStatus LaunchFFTSPlusTaskNoCopy(KernelContext *context) {
   GELOGD("Update descbuf to origin: %lx.", ori_desc_buf);
   return DfxPrintProc(context, stream);
 }
-REGISTER_KERNEL(LaunchFFTSPlusTaskNoCopy).RunFunc(LaunchFFTSPlusTaskNoCopy);
+REGISTER_KERNEL(LaunchFFTSPlusTaskNoCopy).RunFunc(LaunchFFTSPlusTaskNoCopy).ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace kernel
 }  // namespace gert

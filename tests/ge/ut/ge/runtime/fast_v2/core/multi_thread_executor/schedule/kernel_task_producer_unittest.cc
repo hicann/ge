@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include "core/executor/multi_thread_topological/executor/schedule/producer/task_producer_factory.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/task_producer_type.h"
 #include "core/executor/multi_thread_topological/executor/schedule/config/task_producer_config.h"
@@ -101,7 +102,7 @@ TEST_F(KernelTaskProducerUnitTest, run_two_node_end_of_sequence) {
   TaskPackage package = producer->Produce();
   ASSERT_EQ(package.size(), 3);
   auto task = package.back();
-  bool force_quit = true;
+  std::atomic_bool force_quit{true};
   task->SetForceQuit(&force_quit);
   TaskRun(package);
   ASSERT_EQ(producer->Recycle(package), ge::END_OF_SEQUENCE);

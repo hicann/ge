@@ -11,12 +11,15 @@
 #define AIR_CXX_RUNTIME_V2_TASK_SCHEDULE_DATA_H
 
 #include <cstddef>
+#include "core/executor/multi_thread_topological/execution_data/free_launch_relation.h"
 
 namespace gert {
 struct TaskScheduleData {
   explicit TaskScheduleData(const void *execution_data);
+  TaskScheduleData(const void *execution_data, const FreeLaunchRelationCsr &free_launch_relation_csr);
   const void *execution_data;
   size_t schedule_limit;
+  FreeLaunchRelationCsr free_launch_relation_csr;
 };
 }  // namespace gert
 

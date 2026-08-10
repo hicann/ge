@@ -474,6 +474,7 @@ sequenceDiagram
 
 - Host 内存：直接 `ShareFrom`（共享指针），无流约束
 - Device 内存：通过 `WanderFrom` 进行跨流漫游，调用 `MultiStreamMemBlock::NewAccessStream` 标记 MIF
+- `AccessMemCrossStream` 注册为 `kKernelUseMemory`。其 `ShareFrom`/`WanderFrom` 会修改共享 TensorData、引用计数或跨流 MIF 状态，因此多线程执行器必须在 MEMORY worker 上串行处理该节点。由于 placement 在运行时才确定，`RemoveLaunchFreeEdge` 保留以它为直接 producer 的原 Launch-to-Free 边。
 
 #### 4.2.5 事件驱动的流同步
 

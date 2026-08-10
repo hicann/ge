@@ -14,7 +14,8 @@
 #include <string>
 
 namespace gert {
-const std::string kKernelUseMemory = "memory";
+inline const std::string kKernelUseMemory = "memory";
+inline const std::string kKernelLaunch = "launch";
 }  // namespace gert
 
 #endif  // AIR_CXX_RUNTIME_V2_CRITICAL_SECTION_CONFIG_H

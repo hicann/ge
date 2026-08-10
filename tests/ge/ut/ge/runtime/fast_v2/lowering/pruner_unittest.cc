@@ -277,6 +277,28 @@ TEST_F(PrunerUT, Prune_DeleteNodesFollowTopo_MultipleNodes3) {
   ASSERT_TRUE(changed);
   ASSERT_EQ(ExeGraphSummaryChecker(graph.get()).StrictDirectNodeTypes({{"Data", 3}}), "success");
 }
+
+TEST_F(PrunerUT, Prune_DeleteCalcDeviceCopySizes) {
+  auto src_address = bg::ValueHolder::CreateFeed(0);
+  auto allocator = bg::ValueHolder::CreateSingleDataOutput("SelectL1Allocator", {bg::ValueHolder::CreateFeed(1)});
+  auto dt = ge::DT_FLOAT;
+  auto dt_holder = bg::ValueHolder::CreateConst(&dt, sizeof(dt));
+  auto shape = bg::ValueHolder::CreateFeed(2);
+  auto stream = bg::ValueHolder::CreateFeed(3);
+  auto copy_sizes =
+      bg::ValueHolder::CreateDataOutput("CalcDeviceCopySizes", {src_address, allocator, dt_holder, shape, stream}, 2U);
+
+  auto frame = bg::ValueHolder::PopGraphFrame();
+  ASSERT_NE(frame, nullptr);
+  auto graph = frame->GetExecuteGraph();
+  ASSERT_NE(graph, nullptr);
+
+  bool changed = false;
+  ASSERT_EQ(bg::Pruner().PruneFromNodes({copy_sizes[0]->GetFastNode()}, changed), ge::GRAPH_SUCCESS);
+  ASSERT_TRUE(changed);
+  ASSERT_EQ(ExeGraphSummaryChecker(graph.get()).StrictDirectNodeTypes({{"Data", 4}}), "success");
+}
+
 /*
  *  LaunchKernelWithFlag
  *    /  \

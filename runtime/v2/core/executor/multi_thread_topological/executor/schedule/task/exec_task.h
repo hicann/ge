@@ -12,7 +12,6 @@
 #define AIR_CXX_RUNTIME_V2_EXEC_TASK_H
 
 #include <vector>
-#include <limits>
 #include <atomic>
 #include "exec_task_type.h"
 #include "ge/ge_api_types.h"
@@ -23,6 +22,7 @@
 #include "framework/common/debug/ge_log.h"
 
 namespace gert {
+class TaskScheduler;
 class ExecTask : public LinkNode<ExecTask> {
  public:
   ExecTask() = default;
@@ -61,9 +61,7 @@ class ExecTask : public LinkNode<ExecTask> {
   long long GetPriority() const {
     return priority_;
   }
-  void SetType(ExecTaskType type) {
-    this->type_ = type;
-  }
+  void SetType(ExecTaskType type);
   void SetTaskId(size_t id) {
     task_id_ = id;
   }
@@ -90,7 +88,7 @@ class ExecTask : public LinkNode<ExecTask> {
     indegree_.store(indegree, std::memory_order_release);
   }
   void SubIndegree();
-  bool IsReady();
+  bool IsReady() const;
   void ReInit() {
     is_gen_watcher_ = false;
     indegree_.store(indegree_backup_);
@@ -115,7 +113,7 @@ class ExecTask : public LinkNode<ExecTask> {
   int64_t GetRecoveryIndegree() const {
     return recovery_indegree_;
   }
-  void SetForceQuit(bool *force_quit) {
+  void SetForceQuit(std::atomic_bool *force_quit) {
     force_quit_ = force_quit;
   }
   void SetGenWatcherAfterExecute() {
@@ -126,16 +124,23 @@ class ExecTask : public LinkNode<ExecTask> {
     return is_gen_watcher_after_execute_;
   }
 
+  void SetScheduler(TaskScheduler *scheduler) {
+    scheduler_ = scheduler;
+  }
+
  private:
+  ge::Status UpdateRelationStateAfterExecute(const Node *node) const;
   size_t task_id_{0U};
   ExecTaskType type_{ExecTaskType::NORMAL};
   ge::graphStatus kernel_ret_{ge::GRAPH_FAILED};
   std::vector<Node *> task_node_list_;
   std::vector<ExecTask *> watcher_tasks_;
+  // 多线程执行中用于同步精确 Launch-Free 关系的调度器上下文。
+  TaskScheduler *scheduler_{nullptr};
   // 实际执行时的入度
   std::atomic<int64_t> indegree_{0U};
   // 判断是否退出
-  bool *force_quit_{nullptr};
+  std::atomic_bool *force_quit_{nullptr};
   // 执行结束用来恢复的入度
   int64_t indegree_backup_{0U};
   // 主线程调度时用来恢复的入度

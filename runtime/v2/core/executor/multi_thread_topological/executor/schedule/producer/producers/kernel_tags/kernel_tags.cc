@@ -17,16 +17,12 @@
 
 namespace gert {
 namespace {
-const std::map<const std::string, ExecTaskType> critical_to_types = {{kKernelUseMemory, ExecTaskType::MEMORY}};
-// 内存线程->普通线程断流水场景：
-// 1. AllocHostCpuOutputMemory -> PackHostKernel
-// 2. PackHostKernel ->IdentityAddr -> BuildTensor -> InferShape
-// 3. SplitDataTensor -> BuildTensor
-// 4. MakeSureTensorAtHost - > BuildTensor
-// 特别注意：MakeSureTensorAtHost包含内存申请操作，如果要挪到普通线程则要求所有host内存申请和释放的kernel都放到普通线程上，暂不实施
+const std::map<const std::string, ExecTaskType> critical_to_types = {{kKernelUseMemory, ExecTaskType::MEMORY},
+                                                                     {kKernelLaunch, ExecTaskType::LAUNCH}};
+// 三线程场景仅将纯BuildTensor转换节点放到普通线程，以打断MEMORY-to-NORMAL流水。
+// Host allocator和wrapper状态内核保留在内存线程，避免共享状态被并发修改。
 bool IsBrokenNormalToMemoryWaterFlowNode(const char *const node_type) {
-  return IsAllocHostCpuOutputMemoryNode(node_type) || IsSplitDataTensorNode(node_type) ||
-         IsBuildTensorNode(node_type) || IsIdentityNode(node_type);
+  return IsBuildTensorNode(node_type);
 }
 
 bool IsMemoryToNormalWaterFlowNode(const char *const node_type) {

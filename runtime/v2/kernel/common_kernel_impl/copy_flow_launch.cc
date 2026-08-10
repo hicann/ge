@@ -26,14 +26,51 @@
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "core/utils/rt2_tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
+#include "graph/utils/attr_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "kernel/memory/memory_kernel.h"
 
 using namespace ge;
 namespace gert {
 namespace kernel {
 namespace {
 constexpr size_t kAlignBytes4 = 4U;
+
+ge::graphStatus GetCopyFlowCount(const FastNode *node, size_t &copy_flow_count) {
+  GE_ASSERT_NOTNULL(node);
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  int64_t count = 0;
+  GE_ASSERT_TRUE(ge::AttrUtils::GetInt(op_desc, kCopyFlowCountAttr, count));
+  GE_ASSERT_TRUE(count > 0);
+  copy_flow_count = static_cast<size_t>(count);
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ValidateCopyFlowInputNum(const KernelContext *context, const size_t input_start,
+                                         const size_t copy_flow_count) {
+  size_t input_num = 0U;
+  GE_ASSERT_TRUE(!ge::MulOverflow(copy_flow_count, kSizeOfCopyToDevice, input_num));
+  GE_ASSERT_TRUE(!ge::AddOverflow(input_start, input_num, input_num));
+  if (input_num != context->GetInputNum()) {
+    GELOGE(ge::GRAPH_FAILED, "input num is not matched, input start %zu, copy flow count %zu, total input num %zu",
+           input_start, copy_flow_count, context->GetInputNum());
+    return ge::GRAPH_FAILED;
+  }
+  return ge::GRAPH_SUCCESS;
+}
 }  // namespace
+
+ge::graphStatus CreateCopyFlowAllocSizes(const FastNode *node, KernelContext *context) {
+  size_t copy_flow_count = 0U;
+  GE_ASSERT_SUCCESS(GetCopyFlowCount(node, copy_flow_count));
+  auto chain = context->GetOutput(0U);
+  GE_ASSERT_NOTNULL(chain);
+  auto sizes = ContinuousVector::Create<size_t>(copy_flow_count);
+  GE_ASSERT_NOTNULL(sizes);
+  chain->SetWithDefaultDeleter<uint8_t[]>(sizes.release());
+  return ge::GRAPH_SUCCESS;
+}
 
 ge::graphStatus CreateCopyFlowLaunchTensorData(const FastNode *node, KernelContext *context) {
   (void)node;
@@ -51,6 +88,14 @@ ge::graphStatus CreateCopyFlowLaunchTensorData(const FastNode *node, KernelConte
   }
 
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus CreatePrepareCopyFlowResultOutputs(const FastNode *node, KernelContext *context) {
+  size_t copy_flow_count = 0U;
+  GE_ASSERT_SUCCESS(GetCopyFlowCount(node, copy_flow_count));
+  GE_ASSERT_TRUE(context->GetOutputNum() == copy_flow_count, "copy flow output num %zu does not match count %zu",
+                 context->GetOutputNum(), copy_flow_count);
+  return CreateCopyFlowLaunchTensorData(node, context);
 }
 
 ge::graphStatus CopyTensorToDevice(KernelContext *context, const size_t copy_index) {
@@ -84,6 +129,189 @@ ge::graphStatus CopyTensorToDevice(KernelContext *context, const size_t copy_ind
   }
   out_tensor_data->SetPlacement(kOnDeviceHbm);
 
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus CalcCopyFlowAllocSizes(KernelContext *context) {
+  auto output_num = context->GetInputValue<size_t>(static_cast<size_t>(CalcCopyFlowAllocSizesInputs::kInputsNum));
+  auto args = context->MutableInputPointer<gert::RtKernelLaunchArgsEx>(
+      static_cast<size_t>(CalcCopyFlowAllocSizesInputs::kRtArg));
+  auto alloc_sizes = context->GetOutputPointer<TypedContinuousVector<size_t>>(0U);
+  GE_ASSERT_NOTNULL(args);
+  GE_ASSERT_NOTNULL(alloc_sizes);
+  GE_ASSERT_TRUE(output_num == alloc_sizes->GetCapacity(), "copy flow output num %zu does not match capacity %zu",
+                 output_num, alloc_sizes->GetCapacity());
+
+  alloc_sizes->SetSize(output_num);
+  auto sizes_data = alloc_sizes->MutableData();
+  GE_ASSERT_NOTNULL(sizes_data);
+  size_t host_input_data_size = args->GetMergedCopySize();
+  const auto max_host_input_data_len = kMaxHostInputDataLen + args->GetMergedCopySize();
+  if (ValidateCopyFlowInputNum(context, static_cast<size_t>(CalcCopyFlowAllocSizesInputs::kAddrAndLengthStart),
+                               output_num) != ge::GRAPH_SUCCESS) {
+    return ge::GRAPH_FAILED;
+  }
+  for (size_t i = 0U; i < output_num; ++i) {
+    sizes_data[i] = 0U;
+    auto addr_index = i * kSizeOfCopyToDevice + static_cast<size_t>(CalcCopyFlowAllocSizesInputs::kAddrAndLengthStart);
+    auto tensor_data = context->GetInputValue<gert::GertTensorData *>(addr_index);
+    auto tensor_size = context->GetInputValue<size_t>(addr_index + 1U);
+    auto src_storage_shape = context->GetInputPointer<StorageShape>(addr_index + 2U);
+    auto data_type = context->GetInputValue<ge::DataType>(addr_index + 3U);
+    GE_ASSERT_NOTNULL(tensor_data);
+    GE_ASSERT_NOTNULL(src_storage_shape);
+    if (!TensorPlacementUtils::IsOnHost(tensor_data->GetPlacement())) {
+      continue;
+    }
+
+    const auto host_tensor_size = ge::GetSizeInBytes(src_storage_shape->GetStorageShape().GetShapeSize(), data_type);
+    if (host_tensor_size < 0) {
+      GELOGE(ge::GRAPH_FAILED, "shape_size[%" PRId64 "], data_type[%s]",
+             src_storage_shape->GetStorageShape().GetShapeSize(),
+             ge::TypeUtils::DataTypeToSerialString(data_type).c_str());
+      return ge::GRAPH_FAILED;
+    }
+    const size_t align_size = ge::RoundUp(static_cast<uint64_t>(host_tensor_size), kAlignBytes4);
+    const auto new_host_input_data_size = host_input_data_size + align_size;
+    if (new_host_input_data_size > max_host_input_data_len) {
+      sizes_data[i] = tensor_size;
+    } else {
+      host_input_data_size = new_host_input_data_size;
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus PrepareCopyFlowResult(KernelContext *context) {
+  auto output_num = context->GetOutputNum();
+  if (ValidateCopyFlowInputNum(context, static_cast<size_t>(PrepareCopyFlowResultInputs::kAddrAndLengthStart),
+                               output_num) != ge::GRAPH_SUCCESS) {
+    return ge::GRAPH_FAILED;
+  }
+
+  auto input_num = context->GetInputPointer<size_t>(static_cast<size_t>(PrepareCopyFlowResultInputs::kInputsNum));
+  GE_CHECK_NOTNULL(input_num);
+  if (*input_num != output_num) {
+    GELOGE(ge::GRAPH_FAILED, "host input num %zu, is not match output num %zu,", *input_num, output_num);
+    return ge::GRAPH_FAILED;
+  }
+
+  auto args = context->MutableInputPointer<gert::RtKernelLaunchArgsEx>(
+      static_cast<size_t>(PrepareCopyFlowResultInputs::kRtArg));
+  auto allocated_addrs = context->GetInputPointer<TypedContinuousVector<GertTensorData *>>(
+      static_cast<size_t>(PrepareCopyFlowResultInputs::kAllocatedAddrs));
+  auto inputs_index_cvv =
+      context->GetInputValue<ContinuousVectorVector *>(static_cast<size_t>(PrepareCopyFlowResultInputs::kInputsIndex));
+  GE_ASSERT_NOTNULL(args);
+  GE_ASSERT_NOTNULL(allocated_addrs);
+  GE_ASSERT_NOTNULL(inputs_index_cvv);
+  GE_ASSERT_TRUE(allocated_addrs->GetSize() == output_num, "allocated addr num %zu is not match output num %zu",
+                 allocated_addrs->GetSize(), output_num);
+  GE_ASSERT_TRUE(inputs_index_cvv->GetSize() == output_num, "input index num %zu is not match output num %zu",
+                 inputs_index_cvv->GetSize(), output_num);
+  GE_ASSERT_SUCCESS(args->UpdateMergedCopyInfo());
+
+  auto allocated_data = allocated_addrs->GetData();
+  GE_ASSERT_NOTNULL(allocated_data);
+  for (size_t i = 0U; i < output_num; ++i) {
+    auto addr_index = i * kSizeOfCopyToDevice + static_cast<size_t>(PrepareCopyFlowResultInputs::kAddrAndLengthStart);
+    auto tensor_data = context->GetInputValue<gert::GertTensorData *>(addr_index);
+    auto src_storage_shape = context->GetInputPointer<StorageShape>(addr_index + 2U);
+    auto data_type = context->GetInputValue<ge::DataType>(addr_index + 3U);
+    auto out_tensor_data =
+        context->GetOutputPointer<gert::GertTensorData>(i + static_cast<size_t>(CopyFlowLaunchOutputs::kAddress));
+    GE_ASSERT_NOTNULL(tensor_data);
+    GE_ASSERT_NOTNULL(src_storage_shape);
+    GE_ASSERT_NOTNULL(out_tensor_data);
+    if (TensorPlacementUtils::IsOnDevice(tensor_data->GetPlacement())) {
+      out_tensor_data->ShareFrom(*tensor_data);
+      continue;
+    }
+    if (!TensorPlacementUtils::IsOnHost(tensor_data->GetPlacement())) {
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to device hbm",
+             static_cast<int32_t>(tensor_data->GetPlacement()));
+      return ge::GRAPH_FAILED;
+    }
+
+    const auto host_tensor_size = ge::GetSizeInBytes(src_storage_shape->GetStorageShape().GetShapeSize(), data_type);
+    if (host_tensor_size < 0) {
+      GELOGE(ge::GRAPH_FAILED, "shape_size[%" PRId64 "], data_type[%s]",
+             src_storage_shape->GetStorageShape().GetShapeSize(),
+             ge::TypeUtils::DataTypeToSerialString(data_type).c_str());
+      return ge::GRAPH_FAILED;
+    }
+    const auto allocated_tensor_data = allocated_data[i];
+    GE_ASSERT_NOTNULL(allocated_tensor_data);
+    if (allocated_tensor_data->GetAddr() != nullptr) {
+      out_tensor_data->ShareFrom(*allocated_tensor_data);
+      continue;
+    }
+
+    auto inputs_index_cv = inputs_index_cvv->Get(i);
+    GE_ASSERT_NOTNULL(inputs_index_cv);
+    RtKernelLaunchArgsEx::HostInputInfo host_input{tensor_data->GetAddr(), inputs_index_cv,
+                                                   static_cast<size_t>(host_tensor_size)};
+    GE_ASSERT_SUCCESS(args->UpdateHostInputArgs(host_input));
+  }
+  GE_ASSERT_GRAPH_SUCCESS(args->AlignHostInputSize());
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus LaunchCopyFlowH2D(KernelContext *context) {
+  GE_ASSERT_TRUE(context->GetOutputNum() == 0U, "LaunchCopyFlowH2D output num must be 0, but got %zu",
+                 context->GetOutputNum());
+  auto input_num = context->GetInputPointer<size_t>(static_cast<size_t>(LaunchCopyFlowH2DInputs::kInputsNum));
+  GE_CHECK_NOTNULL(input_num);
+  GE_ASSERT_TRUE(*input_num > 0U);
+  if (ValidateCopyFlowInputNum(context, static_cast<size_t>(LaunchCopyFlowH2DInputs::kAddrAndLengthStart),
+                               *input_num) != ge::GRAPH_SUCCESS) {
+    return ge::GRAPH_FAILED;
+  }
+
+  auto stream = context->GetInputValue<aclrtStream>(static_cast<size_t>(LaunchCopyFlowH2DInputs::kStream));
+  auto allocated_addrs = context->GetInputPointer<TypedContinuousVector<GertTensorData *>>(
+      static_cast<size_t>(LaunchCopyFlowH2DInputs::kAllocatedAddrs));
+  GE_ASSERT_NOTNULL(allocated_addrs);
+  GE_ASSERT_TRUE(allocated_addrs->GetSize() == *input_num, "allocated addr num %zu is not match input num %zu",
+                 allocated_addrs->GetSize(), *input_num);
+  auto allocated_data = allocated_addrs->GetData();
+  GE_ASSERT_NOTNULL(allocated_data);
+
+  for (size_t i = 0U; i < *input_num; ++i) {
+    const auto addr_index = i * kSizeOfCopyToDevice + static_cast<size_t>(LaunchCopyFlowH2DInputs::kAddrAndLengthStart);
+    auto tensor_data = context->GetInputValue<gert::GertTensorData *>(addr_index);
+    auto src_storage_shape = context->GetInputPointer<StorageShape>(addr_index + 2U);
+    auto data_type = context->GetInputValue<ge::DataType>(addr_index + 3U);
+    GE_ASSERT_NOTNULL(tensor_data);
+    GE_ASSERT_NOTNULL(src_storage_shape);
+    if (TensorPlacementUtils::IsOnDevice(tensor_data->GetPlacement())) {
+      continue;
+    }
+    if (!TensorPlacementUtils::IsOnHost(tensor_data->GetPlacement())) {
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to device hbm",
+             static_cast<int32_t>(tensor_data->GetPlacement()));
+      return ge::GRAPH_FAILED;
+    }
+
+    const auto host_tensor_size = ge::GetSizeInBytes(src_storage_shape->GetStorageShape().GetShapeSize(), data_type);
+    if (host_tensor_size < 0) {
+      GELOGE(ge::GRAPH_FAILED, "shape_size[%" PRId64 "], data_type[%s]",
+             src_storage_shape->GetStorageShape().GetShapeSize(),
+             ge::TypeUtils::DataTypeToSerialString(data_type).c_str());
+      return ge::GRAPH_FAILED;
+    }
+    const auto allocated_tensor_data = allocated_data[i];
+    GE_ASSERT_NOTNULL(allocated_tensor_data);
+    if ((allocated_tensor_data->GetAddr() == nullptr) || (host_tensor_size == 0)) {
+      continue;
+    }
+    GELOGD("StreamCopyH2D, host addr %p, host tensor size %zu, device addr %p, alloc device size %zu",
+           tensor_data->GetAddr(), static_cast<size_t>(host_tensor_size), allocated_tensor_data->GetAddr(),
+           allocated_tensor_data->GetSize());
+    GE_ASSERT_RT_OK(aclrtMemcpyAsync(allocated_tensor_data->GetAddr(), allocated_tensor_data->GetSize(),
+                                     tensor_data->GetAddr(), static_cast<size_t>(host_tensor_size),
+                                     ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE, stream));
+  }
   return ge::GRAPH_SUCCESS;
 }
 
@@ -161,9 +389,16 @@ ge::graphStatus CopyFlowLaunch(KernelContext *context) {
   GE_ASSERT_GRAPH_SUCCESS(args->AlignHostInputSize());
   return ge::GRAPH_SUCCESS;
 }
+// Legacy mixed CopyFlowLaunch remains for single-thread and dynamic-multistream execution.
 REGISTER_KERNEL(CopyFlowLaunch)
     .RunFunc(CopyFlowLaunch)
     .OutputsCreator(CreateCopyFlowLaunchTensorData)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(CalcCopyFlowAllocSizes).RunFunc(CalcCopyFlowAllocSizes).OutputsCreator(CreateCopyFlowAllocSizes);
+REGISTER_KERNEL(PrepareCopyFlowResult)
+    .RunFunc(PrepareCopyFlowResult)
+    .OutputsCreator(CreatePrepareCopyFlowResultOutputs)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(LaunchCopyFlowH2D).RunFunc(LaunchCopyFlowH2D).ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace kernel
 }  // namespace gert

@@ -12,9 +12,11 @@
 #define AIR_CXX_RUNTIME_V2_CORE_BUILDER_NODE_TYPES_H_
 #include <string>
 #include "common/framework_types_internal.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "graph/utils/node_utils.h"
 #include "exe_graph/lowering/builtin_node_types.h"
 #include "graph/fast_graph/fast_node.h"
+#include "register/kernel_registry.h"
 
 namespace gert {
 inline bool IsFeedType(const char *const node_type) {
@@ -124,6 +126,10 @@ inline bool IsCustomOpFuncNode(const char *const node_type) {
   return (strcmp(node_type, "ExecuteCustomOp") == 0);
 }
 
+inline bool IsCustomOpWithInferShapeNode(const char *const node_type) {
+  return (strcmp(node_type, "ExecuteCustomOpWithInferShape") == 0);
+}
+
 inline bool IsExecuteOpPrepareNode(const char *const node_type) {
   return (strcmp(node_type, "ExecuteOpPrepare") == 0);
 }
@@ -153,7 +159,7 @@ inline bool IsLaunchNode(const char *const node_type) {
   return IsAiCoreLaunchNode(node_type) || IsAiCpuLaunchNode(node_type) ||
          (strcmp(node_type, "StarsTaskLaunchKernel") == 0) || IsLaunchFFTSPlusTaskNode(node_type) ||
          IsHcomLaunchNode(node_type) || IsDavinciModelExecuteNode(node_type) || IsExecuteOpFuncNode(node_type) ||
-         IsExecuteOplaunchNode(node_type) || IsCustomOpFuncNode(node_type);
+         IsExecuteOplaunchNode(node_type) || IsCustomOpFuncNode(node_type) || IsCustomOpWithInferShapeNode(node_type);
 }
 
 inline bool IsCalcSizeNode(const char *const node_type) {
@@ -168,8 +174,8 @@ inline bool IsModelOutZeroCopyEnabledAllocNode(const char *const node_type) {
 
 inline bool IsAllocNode(const char *const node_type) {
   static std::vector<const char *> kAllocKernels = {
-      "AllocMemory",     "AllocMemHbm",           "AllocMemHost",           "AllocBatchHbm",
-      "AllocateFftsMem", "AllocateBatchFftsMems", "AllocFixedFeatureMemory"};
+      "AllocMemory",      "AllocMemHbm",     "AllocMemHost",          "AllocBatchHbm",
+      "AllocCopyFlowHbm", "AllocateFftsMem", "AllocateBatchFftsMems", "AllocFixedFeatureMemory"};
   auto func = [&node_type](const char *const type) { return (strcmp(node_type, type) == 0); };
   return std::any_of(kAllocKernels.begin(), kAllocKernels.end(), func);
 }
@@ -227,6 +233,10 @@ inline bool IsSubgraphCall(const char *const node_type) {
 }
 inline bool IsLaunchOrHasSubGraphNode(const ge::FastNode *const node) {
   if (IsLaunchNode(node->GetTypePtr())) {
+    return true;
+  }
+  const auto kernel_info = KernelRegistry::GetInstance().FindKernelInfo(node->GetTypePtr());
+  if ((kernel_info != nullptr) && (kernel_info->critical_section == kKernelLaunch)) {
     return true;
   }
   const auto &subgraph_names = node->GetOpDescBarePtr()->GetSubgraphInstanceNames();

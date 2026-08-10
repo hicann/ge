@@ -32,6 +32,7 @@
 #include "exe_graph/runtime/tensor_data_utils.h"
 #include "common/model/external_allocator_manager.h"
 #include "graph/manager/active_memory_allocator.h"
+#include "graph/utils/attr_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
@@ -373,6 +374,10 @@ ge::graphStatus AllocHbmMem(KernelContext *context) {
     auto gert_tensor_data =
         context->GetOutputPointer<GertTensorData>(i - static_cast<size_t>(AllocHbmMemInputs::kSizes));
     KERNEL_CHECK_NOTNULL(gert_tensor_data);
+    if (tensor_size == 0U) {
+      *gert_tensor_data = TensorUtils::ToGertTensorData(nullptr, placement, stream_id);
+      continue;
+    }
     auto gert_mem_block = reinterpret_cast<memory::MultiStreamMemBlock *>(gert_allocator->Malloc(tensor_size));
     KERNEL_CHECK((gert_mem_block != nullptr) && (gert_mem_block->GetAddr() != nullptr),
                  "malloc failed, stream %" PRId64 ", tensor size=%zu, index=%zu", stream_id, tensor_size, i);
@@ -488,12 +493,28 @@ ge::graphStatus AllocBatchHbm(KernelContext *context) {
       GELOGE(ge::GRAPH_FAILED, "Get nullptr %s", mem_block);
       return ge::GRAPH_FAILED;
     }
-    KERNEL_CHECK(mem_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu, index=%zu", sizes_data[i], i);
     *(addrs_data[i]) = TensorUtils::ToGertTensorData(mem_block, placement, stream_id);
+    if (mem_block->GetAddr() == nullptr) {
+      addrs->SetSize(i + 1U);
+      GE_ASSERT_SUCCESS(addrs_data[i]->Free());
+      addrs->SetSize(i);
+      GELOGE(ge::GRAPH_FAILED, "malloc failed, tensor size=%zu, index=%zu", sizes_data[i], i);
+      return ge::GRAPH_FAILED;
+    }
     KERNEL_TRACE(TRACE_STR_ALLOC_MEM ", index %zu", gert_allocator->GetStreamId(), mem_block, addrs_data[i]->GetAddr(),
                  sizes_data[i], i);
   }
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus AllocCopyFlowHbm(KernelContext *context) {
+  auto sizes = context->GetInputPointer<TypedContinuousVector<size_t>>(1U);
+  auto addrs = context->GetOutputPointer<TypedContinuousVector<GertTensorData *>>(0U);
+  GE_ASSERT_NOTNULL(sizes);
+  GE_ASSERT_NOTNULL(addrs);
+  GE_ASSERT_TRUE(sizes->GetSize() == addrs->GetCapacity(), "copy flow size count %zu does not match capacity %zu",
+                 sizes->GetSize(), addrs->GetCapacity());
+  return AllocBatchHbm(context);
 }
 
 static void BatchHbmDeleter(void *memories) {
@@ -503,6 +524,44 @@ static void BatchHbmDeleter(void *memories) {
     delete tensor_data_vec->MutableData()[i];
   }
   delete[] static_cast<uint8_t *>(memories);
+}
+
+static void CopyFlowHbmDeleter(void *memories) {
+  auto tensor_data_vec = static_cast<TypedContinuousVector<GertTensorData *> *>(memories);
+  FreeBatchHbm(tensor_data_vec);
+  for (size_t i = 0U; i < tensor_data_vec->GetCapacity(); ++i) {
+    delete tensor_data_vec->MutableData()[i];
+  }
+  delete[] static_cast<uint8_t *>(memories);
+}
+
+ge::graphStatus CreateAllocCopyFlowHbmOutputs(const ge::FastNode *node, KernelContext *context) {
+  GE_ASSERT_NOTNULL(node);
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  int64_t copy_flow_count = 0;
+  GE_ASSERT_TRUE(ge::AttrUtils::GetInt(op_desc, kCopyFlowCountAttr, copy_flow_count));
+  GE_ASSERT_TRUE(copy_flow_count > 0);
+
+  auto chain = context->GetOutput(0U);
+  GE_ASSERT_NOTNULL(chain);
+  auto addrs = ContinuousVector::Create<GertTensorData *>(static_cast<size_t>(copy_flow_count));
+  GE_ASSERT_NOTNULL(addrs);
+  auto tensor_data_vec = reinterpret_cast<TypedContinuousVector<GertTensorData *> *>(addrs.get());
+  auto tensor_data_addr = tensor_data_vec->MutableData();
+  GE_ASSERT_NOTNULL(tensor_data_addr);
+  for (size_t i = 0U; i < static_cast<size_t>(copy_flow_count); ++i) {
+    tensor_data_addr[i] = new (std::nothrow) GertTensorData();
+    if (tensor_data_addr[i] == nullptr) {
+      for (size_t j = 0U; j < i; ++j) {
+        delete tensor_data_addr[j];
+      }
+      return ge::GRAPH_FAILED;
+    }
+  }
+  tensor_data_vec->SetSize(static_cast<size_t>(copy_flow_count));
+  chain->Set(addrs.release(), CopyFlowHbmDeleter);
+  return ge::GRAPH_SUCCESS;
 }
 ge::graphStatus CreateAllocBatchHbmOutputs(const ge::FastNode *node, KernelContext *context) {
   (void)node;
@@ -686,6 +745,10 @@ REGISTER_KERNEL(AllocBatchHbm)
     .RunFunc(AllocBatchHbm)
     .OutputsCreator(CreateAllocBatchHbmOutputs)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(AllocCopyFlowHbm)
+    .RunFunc(AllocCopyFlowHbm)
+    .OutputsCreator(CreateAllocCopyFlowHbmOutputs)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
 
 REGISTER_KERNEL(FreeMemHbm).RunFunc(FreeHbmMem).ConcurrentCriticalSectionKey(kKernelUseMemory);
 REGISTER_KERNEL(FreeMemHbmHoldAddr).RunFunc(FreeHbmMemHoldAddr).ConcurrentCriticalSectionKey(kKernelUseMemory);
@@ -722,7 +785,10 @@ ge::graphStatus AccessMemCrossStreamOutputCreator(const ge::FastNode *, KernelCo
   chain->SetWithDefaultDeleter(td);
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(AccessMemCrossStream).RunFunc(AccessMemCrossStream).OutputsCreator(AccessMemCrossStreamOutputCreator);
+REGISTER_KERNEL(AccessMemCrossStream)
+    .RunFunc(AccessMemCrossStream)
+    .OutputsCreator(AccessMemCrossStreamOutputCreator)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
 
 ge::graphStatus EmptyTensorData(KernelContext *context) {
   (void)context;

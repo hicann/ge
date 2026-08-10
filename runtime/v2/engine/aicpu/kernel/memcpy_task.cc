@@ -28,6 +28,7 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "acl/acl_rt.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 namespace gert {
 namespace kernel {
@@ -89,7 +90,7 @@ ge::graphStatus PrepareCopyInputs(KernelContext *context) {
                                 RT_MEMCPY_HOST_TO_DEVICE_EX, stream));
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(PrepareCopyInputs).RunFunc(PrepareCopyInputs);
+REGISTER_KERNEL(PrepareCopyInputs).RunFunc(PrepareCopyInputs).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus GetOutputShapeFromHbmBuffer(KernelContext *context) {
   size_t output_num = context->GetOutputNum();
