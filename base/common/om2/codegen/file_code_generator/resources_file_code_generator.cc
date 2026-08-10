@@ -55,7 +55,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
       {ast_.MemberInit("constants_", constants), ast_.MemberInit("total_dev_mem_ptr_", work_ptr),
        ast_.MemberInit("session_id_", session_id), ast_.MemberInit("model_id_", model_id),
        ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("kernel_id_", 0),
-       ast_.MemberInit("session_scope_mem_ptr_", nullptr)},
+       ast_.MemberInit("session_scope_mem_ptr_", nullptr), ast_.MemberInit("sync_prof_stream_", "nullptr")},
       body);
 }
 
@@ -203,6 +203,9 @@ MethodDef *ResourcesFileCodeGenerator::BuildReleaseResourcesMethod(const Om2Code
                                               ChkStatus(AclrtDestroyStream(stream)),
                                           }));
   }
+  (void)body.emplace_back(ast_.If(sync_prof_stream_ != nullptr, {
+                                                                    ChkRt(AclrtDestroyStream(sync_prof_stream_)),
+                                                                }));
   if (runtime.kernel_bin_num > 0U) {
     auto bin_handle = ast_.Var("auto", "bin_handle");
     (void)body.emplace_back(ast_.RangeFor(bin_handle, bin_handles_,

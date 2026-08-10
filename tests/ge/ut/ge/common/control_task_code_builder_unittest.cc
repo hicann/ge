@@ -1064,6 +1064,7 @@ class Om2Model {
     void *overflow_addr_;
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
+    aclrtStream sync_prof_stream_;
 };
 } // namespace om2
 #ifdef __cplusplus
@@ -1088,7 +1089,7 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
-  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr) {
+  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1166,6 +1167,9 @@ aclError Om2Model::ReleaseResources() {
   }
   for (auto stream : stream_list_) {
     OM2_CHK_STATUS(aclrtDestroyStream(stream));
+  }
+  if ((sync_prof_stream_ != nullptr)) {
+    OM2_CHK_RT(aclrtDestroyStream(sync_prof_stream_));
   }
   for (auto &label : label_switch_label_list_) {
     if ((label.second != nullptr)) {

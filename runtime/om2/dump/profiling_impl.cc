@@ -140,6 +140,10 @@ void AppendTensorInfo(const Om2TaskIoEntry *entries, uint64_t entry_num, const c
 }
 }  // namespace
 
+bool ProfilingImpl::IsProfilingEnabled() const {
+  return ProfilingConfig::Instance().IsEnabled();
+}
+
 Status ProfilingImpl::ReportModelLoadBegin(const ModelDumpInfo &model_info) const {
   if (!ProfilingConfig::Instance().IsModelLoadEnabled()) {
     GELOGD("Skip reporting OM2 profiling model load begin, model_load profiling disabled, model_id=%u",

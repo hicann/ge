@@ -88,6 +88,10 @@ Status ModelDumpManager::ReportModelLoadEnd() const {
   return profiling_impl_->ReportModelLoadEnd(model_info_);
 }
 
+bool ModelDumpManager::IsProfilingEnabled() const {
+  return profiling_impl_ != nullptr && profiling_impl_->IsProfilingEnabled();
+}
+
 Status ModelDumpManager::ReportModelLevelProf(const Om2ProfInfos &prof_info) const {
   if (profiling_impl_ == nullptr) {
     GELOGW("[OM2][Prof] Skip ReportModelLevelProf, profiling_impl is null, model_id=%u", model_info_.model_id);
