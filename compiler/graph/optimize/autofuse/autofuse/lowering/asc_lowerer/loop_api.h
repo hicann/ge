@@ -163,6 +163,8 @@ LoopVar Transpose(const LoopVar &op, const std::vector<ge::Expression> &dims, co
 LoopVar Squeeze(const LoopVar &op, int64_t dim);
 LoopVar Unsqueeze(const LoopVar &op, int64_t dim);
 LoopVar Reshape(const LoopVar &op, const std::vector<Expression> &src_dims, const std::vector<Expression> &dst_dims);
+void AddReshapeAxisChange(const LoopVar &reshape, const std::vector<Expression> &src_dims,
+                          const std::vector<Expression> &dst_dims);
 LoopVar LoadSeed(const std::string &name, const LoopVar &offset);
 LoopVar ReduceThenBroadcast(ReduceType type, const LoopVar &op, int64_t dim);
 LoopVar ToDtypeBitcast(const LoopVar &x, ge::DataType dst_type, ge::DataType src_type);

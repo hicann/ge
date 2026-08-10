@@ -86,6 +86,17 @@ Status CacheGraphAfterMerge(const NodePtr &new_node, const NodePtr &node1, const
   return SUCCESS;
 }
 
+bool CompleteReshapeAxesForBackendCanFuse(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info) {
+  // Backend can-fuse checks rely on complete axis semantics. Complete axes recorded by no-op reshape lowering here
+  // so graph/node/tensor attrs are in the same axis space before evaluating fusion legality.
+  if (BackendUtils::CompleteReshapeAxesForBackendCanFuse(node1, node2, fuse_info) == SUCCESS) {
+    return true;
+  }
+  GELOGI("node1 %s(%s) and node2 %s(%s) cannot fuse, complete reshape axes before backend can-fuse failed.",
+         node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
+  return false;
+}
+
 bool AscBackendSubGraphFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2) const {
   uint32_t max_fusion_node_input_size = AutoFuseConfig::Config().GetFusionStrategySolver().max_input_nums_after_fuse;
   if (!BackendUtils::CanFuseByStrategy(node1, node2, max_fusion_node_input_size)) {
@@ -156,6 +167,7 @@ NodePtr AscBackendSubGraphFusionDecider::Fuse(const NodePtr &node1, const NodePt
          node2->GetType().c_str());
   // 子图融合流程异常时dump图的缓存融合前dump图流程
   GE_ASSERT_SUCCESS(CacheGraphBeforeSubGraphMerge(node1, node2, origin_graph));
+  GE_ASSERT_TRUE(CompleteReshapeAxesForBackendCanFuse(node1, node2, node_fuse_info));
 
   GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph1, node1));
   GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph2, node2));
@@ -413,6 +425,8 @@ Status AscBackendFusionDecider::UpdateNewNodeAttr(const OpDescPtr op, const Node
   GetInterAttrs(attr).fuse_type = fuse_type;
   BackendUtils::SetReduceOriginalAxisInfo(GetInterAttrs(attr), GetInterAttrs(autofuse_attr1),
                                           GetInterAttrs(autofuse_attr2));
+  BackendUtils::SetReshapeAxisChangeInfo(GetInterAttrs(attr), GetInterAttrs(autofuse_attr1),
+                                         GetInterAttrs(autofuse_attr2));
 
   // 处理is_reduce_all_load属性：按照优先级设置融合后的值
   // 优先级1：存在REDUCE_ALL_LOAD_NOT_ALL，则设置为REDUCE_ALL_LOAD_NOT_ALL
@@ -936,6 +950,7 @@ NodePtr AscBackendFusionDecider::Fuse(const NodePtr &node1, const NodePtr &node2
          node2->GetType().c_str());
   // 异常时dump图的缓存融合前dump图流程
   GE_ASSERT_SUCCESS(CacheGraphBeforeMerge(node1, node2));
+  GE_ASSERT_TRUE(CompleteReshapeAxesForBackendCanFuse(node1, node2, node_fuse_info));
 
   GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph1, node1));
   GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph2, node2));

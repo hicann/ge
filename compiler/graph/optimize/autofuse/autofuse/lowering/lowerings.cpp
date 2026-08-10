@@ -243,6 +243,21 @@ string CreateAscbackendName(loop::KernelBox &kernel_box, CounterPtr counter) {
   return ascbackend_name;
 }
 
+Status SaveReshapeAxisChangeInfo(loop::KernelBox &kernel_box, const std::shared_ptr<AscGraph> &asc_graph,
+                                 AutoFuseAttrs *fuse_attrs) {
+  (void)asc_graph;
+  const auto &reshape_axis_changes = kernel_box.GetReshapeAxisChanges();
+  for (const auto &loop_change : reshape_axis_changes) {
+    af::ReshapeAxisChangeInfo change;
+    change.before_axis = loop_change.before_axis;
+    change.before_repeats = loop_change.before_repeats;
+    change.after_axis = loop_change.after_axis;
+    change.after_repeats = loop_change.after_repeats;
+    fuse_attrs->AddReshapeAxisChange(change);
+  }
+  return SUCCESS;
+}
+
 graphStatus BuildOpForKernelBox(loop::KernelBox &kernel_box, CounterPtr counter,
                                 shared_ptr<loop::AscOverrides> asc_graph, af::Operator &asc_op) {
   std::string asc_op_name = CreateAscbackendName(kernel_box, counter);
@@ -424,6 +439,7 @@ OpDescPtr LoweringManager::BuildOpDescForKernelBox(loop::KernelBox &kernel_box,
   GE_ASSERT_NOTNULL(fuse_attrs);
   GE_ASSERT_NOTNULL(asc_graph->SharedGraph());
   fuse_attrs->SetAscGraph(asc_graph->SharedGraph(), kernel_box.Type());
+  GE_ASSERT_SUCCESS(SaveReshapeAxisChangeInfo(kernel_box, asc_graph->SharedGraph(), fuse_attrs));
   fuse_attrs->SetOriginOutputBuffers({anchor});
   fuse_attrs->SetOriginNodes(kernel_box.GetAscendIrNodes());
   fuse_attrs->SetOptimizedInputBuffers(kernel_box.GetOptimizedInputAscendBuffers());

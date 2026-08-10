@@ -543,11 +543,12 @@ inline Status SaveReduceOriginalAxisToFuseAttrPro(AscGraph &asc_graph, [[maybe_u
       GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(node, reduce_input_node, 0));
       TensorAttrInfo reduce_input_node_attr;
       GE_ASSERT_SUCCESS(BackendUtils::GetNodeTensorAttrInfo(reduce_input_node, reduce_input_node_attr));
-      autofuse_attr->SetReduceOriginalAxis(reduce_input_node_attr.axis);
-      autofuse_attr->SetReduceOriginalRepeats(reduce_input_node_attr.repeats);
-      GELOGI("graph %s has broadcast linkto reduce, save axis(axis:%s repeat:%s) between broadcast reduce .",
-             asc_graph.GetName().c_str(), AutofuseUtils::VectorToStr(autofuse_attr->GetReduceOriginalAxis()).c_str(),
-             AutofuseUtils::VectorToStr(autofuse_attr->GetReduceOriginalRepeats()).c_str());
+      autofuse_attr->SetReduceOriginalAxisInfo(node->GetName(), reduce_input_node_attr.axis,
+                                               reduce_input_node_attr.repeats);
+      GELOGI("graph %s has broadcast linkto reduce %s, save axis(axis:%s repeat:%s) between broadcast reduce .",
+             asc_graph.GetName().c_str(), node->GetNamePtr(),
+             AutofuseUtils::VectorToStr(reduce_input_node_attr.axis).c_str(),
+             AutofuseUtils::VectorToStr(reduce_input_node_attr.repeats).c_str());
     }
   }
   return SUCCESS;

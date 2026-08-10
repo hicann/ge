@@ -290,12 +290,9 @@ inline Status FlashContinueGraphAxis(std::vector<AxisPtr> &axis, const std::vect
   return SUCCESS;
 }
 
-inline Status RemoveReduceOriginalInvalidAxis(const NodePtr &asc_node,
+inline Status RemoveReduceOriginalInvalidAxis(std::vector<int64_t> &reduce_original_axis,
+                                              std::vector<Expression> &reduce_original_repeats, const NodePtr &asc_node,
                                               const std::vector<int64_t> &graph_invalid_axis_id) {
-  auto attr = BackendUtils::GetNodeAutoFuseAttr(asc_node);
-  GE_ASSERT_NOTNULL(attr);
-  auto reduce_original_axis = attr->GetReduceOriginalAxis();
-  auto reduce_original_repeats = attr->GetReduceOriginalRepeats();
   if (reduce_original_axis.empty() || reduce_original_repeats.empty()) {
     return SUCCESS;
   }
@@ -313,8 +310,25 @@ inline Status RemoveReduceOriginalInvalidAxis(const NodePtr &asc_node,
     reduce_original_repeats.erase(reduce_original_repeats.begin() + axis_idx);
   }
   GE_ASSERT_SUCCESS(FlashContinueNodeAxis(reduce_original_axis, graph_invalid_axis_id));
+  return SUCCESS;
+}
+
+inline Status RemoveReduceOriginalInvalidAxis(const NodePtr &asc_node,
+                                              const std::vector<int64_t> &graph_invalid_axis_id) {
+  auto attr = BackendUtils::GetNodeAutoFuseAttr(asc_node);
+  GE_ASSERT_NOTNULL(attr);
+
+  auto reduce_original_axis = attr->GetReduceOriginalAxis();
+  auto reduce_original_repeats = attr->GetReduceOriginalRepeats();
+  GE_ASSERT_SUCCESS(
+      RemoveReduceOriginalInvalidAxis(reduce_original_axis, reduce_original_repeats, asc_node, graph_invalid_axis_id));
   attr->SetReduceOriginalAxis(reduce_original_axis);
   attr->SetReduceOriginalRepeats(reduce_original_repeats);
+
+  for (auto &reduce_info : attr->GetMutableInterAttrs().reduce_original_axis_infos) {
+    GE_ASSERT_SUCCESS(RemoveReduceOriginalInvalidAxis(reduce_info.second.axis, reduce_info.second.repeats, asc_node,
+                                                      graph_invalid_axis_id));
+  }
   return SUCCESS;
 }
 

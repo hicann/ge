@@ -842,6 +842,8 @@ Status AscGraphAxisMapping::FlushAscSubGraphAxisInfo(const NodePtr &node, const 
       }
       GE_ASSERT_SUCCESS(BackendUtils::FlushReduceOriginalAxisIfIsReduceNode(node, asc_node, axis_before_Flush,
                                                                             output_desc_tensor_attr->axis));
+      GE_ASSERT_SUCCESS(
+          BackendUtils::FlushReshapeAxisChanges(node, asc_node, axis_before_Flush, output_desc_tensor_attr->axis));
     }
   }
   auto graph_attr = graph->GetAttrsGroup<AscGraphAttr>();
