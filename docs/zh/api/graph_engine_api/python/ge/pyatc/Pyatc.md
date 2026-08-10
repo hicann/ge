@@ -46,12 +46,4 @@ pyatc的参数与ATC命令行工具完全一致，详细功能介绍请参见《
 pyatc --model=resnet50.onnx --framework=5 --soc_version=<soc_version> --output=resnet50
 ```
 
-```bash
-pyatc --model=resnet50.onnx --framework=5 --soc_version=MC62CM12A* --output=resnet50
-```
-
-```bash
-pyatc --model=resnet50.onnx --framework=5 --soc_version=Ascend035 --output=resnet50
-```
-
 <soc\_version\>查询方法请参见[--soc_version](../../../../../user_guides/atc_tools/CLI_options/--soc_version.md)。

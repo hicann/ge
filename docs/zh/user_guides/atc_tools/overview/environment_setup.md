@@ -2,7 +2,7 @@
 
 ## 获取ATC工具
 
-进行模型转换前，请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（**针对8.5.0及之后版本，**必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败）。以root用户的默认安装路径为例，ATC工具安装在“/usr/local/Ascend/cann/bin”目录中。
+进行模型转换前，请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（针对8.5.0及之后版本，必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败）。以root用户的默认安装路径为例，ATC工具安装在“/usr/local/Ascend/cann/bin”目录中。
 
 支持在同一开发环境中部署多个芯片的算子包，实现多芯片场景下的模型转换，可通过在不同路径下分别安装CANN Toolkit开发套件及对应芯片（如芯片A、芯片B）的算子包，例如：
 
