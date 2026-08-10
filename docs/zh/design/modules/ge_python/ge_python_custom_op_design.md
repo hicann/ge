@@ -281,7 +281,7 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 - `LoadPythonCustomOps()` 解析已加载 Python runtime key，选择 `custom_op/python_custom_op_artifacts/<python_tag>-<platform>` 下的 bridge/native artifact。
 - `libge_python_custom_op_bridge.so` 通过 `GeGetPythonCustomOpBridgeApi()` 暴露 C ABI。
 - bridge 导入 `_ge_custom_op_native` 和 `ge.custom_op._bridge`，注册 descriptor，并为每个 adapter 创建 Python holder。
-- `ShutdownCustomOpsForProcess()` 先卸载 Python custom op、清理 Python holder/registry，再关闭 bridge。
+- `UnloadCustomOps()` 采用 `active_users_` 引用计数管理生命周期：每次 `LoadCustomOps()` 使计数 +1，每次 `UnloadCustomOps()` 使计数 -1，仅当计数归零时才卸载 Python custom op、清理 Python holder/registry 并关闭 bridge。`ShutdownCustomOpsForProcess()` 作为兼容 wrapper 保留，内部调用 `UnloadCustomOps()`。
 
 **输出**
 
@@ -550,7 +550,7 @@ PythonCustomOpAdapter::Execute(ctx)
 
 - Python API 测试入口：`ge.custom_op`、`ge.custom_op.proto`、`ge.custom_op._bridge`、`ge.custom_op.bootstrap`。
 - Native context 测试入口：`_borrow_eager_op_execution_context` 和 `EagerOpExecutionContext` 方法。
-- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`LoadPythonCustomOps()`、`ShutdownCustomOpsForProcess()`。
+- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`LoadPythonCustomOps()`、`LoadCustomOps()`/`UnloadCustomOps()`（引用计数配对）。
 - 端到端样例入口：`examples/custom_op/args_refresh_add_custom/python/run.sh`。
 
 ### 9.2 测试设计

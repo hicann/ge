@@ -281,7 +281,7 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 - `LoadPythonCustomOps()` resolves the loaded Python runtime key and selects the bridge/native artifact under `custom_op/python_custom_op_artifacts/<python_tag>-<platform>`.
 - `libge_python_custom_op_bridge.so` exposes the C ABI through `GeGetPythonCustomOpBridgeApi()`.
 - The bridge imports `_ge_custom_op_native` and `ge.custom_op._bridge`, registers descriptors, and creates Python holders for each adapter.
-- `ShutdownCustomOpsForProcess()` first unloads Python custom ops, cleans up Python holders and the registry, and then shuts down the bridge.
+- `UnloadCustomOps()` uses an `active_users_` reference count to manage the lifecycle: each `LoadCustomOps()` increments the count by 1, each `UnloadCustomOps()` decrements it by 1, and Python custom ops are only unloaded (holders/registry cleaned up and bridge closed) when the count reaches zero. `ShutdownCustomOpsForProcess()` is retained as a compatibility wrapper that internally calls `UnloadCustomOps()`.
 
 **Output**
 
@@ -550,7 +550,7 @@ The implementation follows the existing Python pass and GE runtime style:
 
 - Python API test entries: `ge.custom_op`, `ge.custom_op.proto`, `ge.custom_op._bridge`, `ge.custom_op.bootstrap`.
 - Native context test entries: `_borrow_eager_op_execution_context` and `EagerOpExecutionContext` methods.
-- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `LoadPythonCustomOps()`, `ShutdownCustomOpsForProcess()`.
+- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `LoadPythonCustomOps()`, `LoadCustomOps()`/`UnloadCustomOps()` (reference-counted pair).
 - End-to-end sample entry: `examples/custom_op/args_refresh_add_custom/python/run.sh`.
 
 ### 9.2 Test Design

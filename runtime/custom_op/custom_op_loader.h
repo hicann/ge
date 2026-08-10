@@ -18,7 +18,6 @@ namespace custom_op {
 Status LoadCustomOps();
 Status LoadPythonCustomOpsIfNeeded();
 Status UnloadCustomOps();
-Status ShutdownCustomOpsForProcess();
 }  // namespace custom_op
 }  // namespace ge
 

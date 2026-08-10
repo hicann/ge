@@ -2364,7 +2364,7 @@ int32_t main_impl(int32_t argc, char *argv[]) {
   }
   GE_MAKE_GUARD(release_python_resources, []() {
     (void)ge::fusion::UnloadPassPlugins();
-    (void)ge::custom_op::ShutdownCustomOpsForProcess();
+    (void)ge::custom_op::UnloadCustomOps();
     (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   });
 
