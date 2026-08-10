@@ -10,38 +10,32 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Load and re-export the selected Python runtime native module."""
+"""Canonical IR type identifiers shared by custom op prototypes and execution."""
 
-from __future__ import annotations
-
-__all__ = [
-    "ExpandDimsType",
-    "Shape",
-    "StorageFormat",
-    "StorageShape",
-    "Tensor",
-    "TensorDesc",
-    "TensorPlacement",
-]
-
-from importlib import import_module
-
-from ._artifact_utils import find_prebuilt_artifact, load_native_module
+from enum import IntEnum
 
 
-def _load_native_module():
-    artifact = find_prebuilt_artifact()
-    if artifact is not None:
-        return load_native_module(artifact.native_path)
-    return import_module("ge.runtime._ge_runtime_native")
+class InputType(IntEnum):
+    REQUIRED = 0
+    OPTIONAL = 1
+    DYNAMIC = 2
 
 
-_native = _load_native_module()
+class OutputType(IntEnum):
+    REQUIRED = 0
+    DYNAMIC = 1
 
-ExpandDimsType = _native.ExpandDimsType
-Shape = _native.Shape
-StorageFormat = _native.StorageFormat
-StorageShape = _native.StorageShape
-Tensor = _native.Tensor
-TensorDesc = _native.TensorDesc
-TensorPlacement = _native.TensorPlacement
+
+class AttrType:
+    INT = "VT_INT"
+    FLOAT = "VT_FLOAT"
+    BOOL = "VT_BOOL"
+    STRING = "VT_STRING"
+    DATA_TYPE = "VT_DATA_TYPE"
+    TENSOR = "VT_TENSOR"
+    LIST_INT = "VT_LIST_INT"
+    LIST_FLOAT = "VT_LIST_FLOAT"
+    LIST_BOOL = "VT_LIST_BOOL"
+    LIST_STRING = "VT_LIST_STRING"
+    LIST_DATA_TYPE = "VT_LIST_DATA_TYPE"
+    LIST_LIST_INT = "VT_LIST_LIST_INT"

@@ -23,6 +23,7 @@ try:
     bootstrap = importlib.import_module("ge.custom_op.bootstrap")
     bridge = importlib.import_module("ge.custom_op._bridge")
     custom_op = importlib.import_module("ge.custom_op")
+    ir_types = importlib.import_module("ge.custom_op._ir_types")
 except ImportError as exc:
     pytest.skip(f"无法导入 Python custom op 相关模块: {exc}", allow_module_level=True)
 
@@ -524,18 +525,18 @@ def test_bridge_call_execute_supports_zero_input_and_zero_attr_schema():
 @pytest.mark.parametrize(
     ("ir_type", "getter_name"),
     [
-        ("VT_INT", "get_int"),
-        ("VT_FLOAT", "get_float"),
-        ("VT_BOOL", "get_bool"),
-        ("VT_STRING", "get_str"),
-        ("VT_DATA_TYPE", "get_data_type"),
-        ("VT_TENSOR", "get_tensor"),
-        ("VT_LIST_INT", "get_list_int"),
-        ("VT_LIST_FLOAT", "get_list_float"),
-        ("VT_LIST_BOOL", "get_list_bool"),
-        ("VT_LIST_STRING", "get_list_str"),
-        ("VT_LIST_DATA_TYPE", "get_list_data_type"),
-        ("VT_LIST_LIST_INT", "get_list_list_int"),
+        (ir_types.AttrType.INT, "get_int"),
+        (ir_types.AttrType.FLOAT, "get_float"),
+        (ir_types.AttrType.BOOL, "get_bool"),
+        (ir_types.AttrType.STRING, "get_str"),
+        (ir_types.AttrType.DATA_TYPE, "get_data_type"),
+        (ir_types.AttrType.TENSOR, "get_tensor"),
+        (ir_types.AttrType.LIST_INT, "get_list_int"),
+        (ir_types.AttrType.LIST_FLOAT, "get_list_float"),
+        (ir_types.AttrType.LIST_BOOL, "get_list_bool"),
+        (ir_types.AttrType.LIST_STRING, "get_list_str"),
+        (ir_types.AttrType.LIST_DATA_TYPE, "get_list_data_type"),
+        (ir_types.AttrType.LIST_LIST_INT, "get_list_list_int"),
     ],
 )
 def test_bridge_reads_runtime_attr_by_canonical_type(ir_type, getter_name):

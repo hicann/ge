@@ -33,3 +33,9 @@ def load_custom_op_plugins() -> List[ModuleType]:
 
 def get_registered_op_impls() -> List[dict]:
     return get_registered_op_impl_dicts()
+
+
+def get_registered_op_protos() -> List[dict]:
+    from .proto import get_registered_op_proto_dicts
+
+    return get_registered_op_proto_dicts()

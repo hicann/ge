@@ -18,6 +18,7 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+from ._ir_types import AttrType, InputType
 from .base import EagerOpExecutionContext
 from .bootstrap import get_registered_op_impls, load_custom_op_plugins
 from .context import _execute_ctx_scope
@@ -34,23 +35,19 @@ class _OpImplHolder:
 _HOLDER_LOCK = threading.RLock()
 _OP_IMPL_HOLDERS: Dict[str, _OpImplHolder] = {}
 
-_IR_INPUT_REQUIRED = 0
-_IR_INPUT_OPTIONAL = 1
-_IR_INPUT_DYNAMIC = 2
-
 _RUNTIME_ATTR_GETTERS = {
-    "VT_INT": "get_int",
-    "VT_FLOAT": "get_float",
-    "VT_BOOL": "get_bool",
-    "VT_STRING": "get_str",
-    "VT_DATA_TYPE": "get_data_type",
-    "VT_TENSOR": "get_tensor",
-    "VT_LIST_INT": "get_list_int",
-    "VT_LIST_FLOAT": "get_list_float",
-    "VT_LIST_BOOL": "get_list_bool",
-    "VT_LIST_STRING": "get_list_str",
-    "VT_LIST_DATA_TYPE": "get_list_data_type",
-    "VT_LIST_LIST_INT": "get_list_list_int",
+    AttrType.INT: "get_int",
+    AttrType.FLOAT: "get_float",
+    AttrType.BOOL: "get_bool",
+    AttrType.STRING: "get_str",
+    AttrType.DATA_TYPE: "get_data_type",
+    AttrType.TENSOR: "get_tensor",
+    AttrType.LIST_INT: "get_list_int",
+    AttrType.LIST_FLOAT: "get_list_float",
+    AttrType.LIST_BOOL: "get_list_bool",
+    AttrType.LIST_STRING: "get_list_str",
+    AttrType.LIST_DATA_TYPE: "get_list_data_type",
+    AttrType.LIST_LIST_INT: "get_list_list_int",
 }
 
 
@@ -113,11 +110,11 @@ def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list
     args = []
     for ir_index, item in enumerate(ir_inputs):
         kind = item["kind"]
-        if kind == _IR_INPUT_REQUIRED:
+        if kind == InputType.REQUIRED:
             args.append(ctx.get_required_input_tensor(ir_index))
-        elif kind == _IR_INPUT_OPTIONAL:
+        elif kind == InputType.OPTIONAL:
             args.append(ctx.get_optional_input_tensor(ir_index))
-        elif kind == _IR_INPUT_DYNAMIC:
+        elif kind == InputType.DYNAMIC:
             instance_num = ctx.get_dynamic_input_num(ir_index)
             args.append(
                 [

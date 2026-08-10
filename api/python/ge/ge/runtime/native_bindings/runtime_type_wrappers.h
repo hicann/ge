@@ -185,6 +185,83 @@ class PYBIND11_EXPORT NativeStorageShape : public NativeObjectBase<gert::Storage
   NativeStorageShape(gert::StorageShape *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
 };
 
+struct NativeTensorDescValue {
+  gert::StorageShape shape;
+  ge::DataType data_type{ge::DT_UNDEFINED};
+};
+
+class PYBIND11_EXPORT NativeTensorDesc : public NativeObjectBase<NativeTensorDescValue> {
+ public:
+  NativeTensorDesc(const py::object &shape, const py::object &data_type)
+      : NativeObjectBase(CreateValue(shape, data_type)) {}
+
+  NativeStorageShape GetShape() const {
+    return NativeStorageShape::Borrow(&Get()->shape, GetValidity());
+  }
+
+  void SetShape(const py::object &shape) {
+    Get()->shape = ParseShape(shape);
+  }
+
+  py::object GetDataType() const {
+    return MakeGraphTypeEnum("DataType", static_cast<int32_t>(Get()->data_type));
+  }
+
+  void SetDataType(const py::object &data_type) {
+    Get()->data_type = ParseDataType(data_type);
+  }
+
+ private:
+  static std::unique_ptr<NativeTensorDescValue> CreateValue(const py::object &shape, const py::object &data_type) {
+    auto value = std::make_unique<NativeTensorDescValue>();
+    value->shape = ParseShape(shape);
+    value->data_type = ParseDataType(data_type);
+    return value;
+  }
+
+  static gert::StorageShape ParseShape(const py::object &shape) {
+    if (shape.is_none()) {
+      return gert::StorageShape();
+    }
+    if (py::isinstance<NativeStorageShape>(shape)) {
+      return *shape.cast<const NativeStorageShape &>().Get();
+    }
+    if (!py::isinstance<py::list>(shape)) {
+      throw py::type_error("shape must be a StorageShape, list of integers, or None");
+    }
+
+    const auto dims_list = shape.cast<py::list>();
+    if (dims_list.size() > gert::Shape::kMaxDimNum) {
+      throw std::invalid_argument("shape exceeds maximum dimension count");
+    }
+    std::vector<int64_t> dims;
+    dims.reserve(dims_list.size());
+    for (const auto &dim : dims_list) {
+      if (PyLong_CheckExact(dim.ptr()) == 0) {
+        throw py::type_error("shape must be a StorageShape, list of integers, or None");
+      }
+      dims.emplace_back(py::cast<int64_t>(dim));
+    }
+    const auto parsed_shape = DimsToShape(dims);
+    gert::StorageShape storage_shape;
+    storage_shape.MutableOriginShape() = parsed_shape;
+    storage_shape.MutableStorageShape() = parsed_shape;
+    return storage_shape;
+  }
+
+  static ge::DataType ParseDataType(const py::object &data_type) {
+    const auto data_type_class = py::module_::import("ge.graph").attr("DataType");
+    if (!py::isinstance(data_type, data_type_class)) {
+      throw py::type_error("data_type must be a DataType");
+    }
+    const auto value = data_type.attr("value").cast<int32_t>();
+    if (value >= static_cast<int32_t>(ge::DT_MAX)) {
+      throw py::value_error("data_type must be less than DataType.DT_MAX");
+    }
+    return static_cast<ge::DataType>(value);
+  }
+};
+
 class PYBIND11_EXPORT NativeExpandDimsType : public NativeObjectBase<gert::ExpandDimsType> {
  public:
   NativeExpandDimsType() : NativeObjectBase(std::make_unique<gert::ExpandDimsType>()) {}

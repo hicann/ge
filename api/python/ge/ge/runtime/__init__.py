@@ -18,6 +18,7 @@ __all__ = [
     "StorageFormat",
     "StorageShape",
     "Tensor",
+    "TensorDesc",
     "TensorPlacement",
 ]
 
@@ -26,4 +27,5 @@ from ._native import Shape
 from ._native import StorageFormat
 from ._native import StorageShape
 from ._native import Tensor
+from ._native import TensorDesc
 from ._native import TensorPlacement
