@@ -54,9 +54,15 @@ constexpr uint32_t kMaxCustomOpSqeNum = 5;
 constexpr uint32_t kKernelArgSlotSize = sizeof(uint64_t);
 constexpr const char_t *kCustomOmcAppendWs = "_custom_omc_append_ws";
 constexpr const char_t *kAppendWs = "_append_ws";
+constexpr const char_t *kAnnotatedArgsTaskPlan = "_custom_annotated_args_task_plan";
 constexpr const char_t *kCustomLaunchPrefix = "_custom_launch_";
 constexpr const char_t *kDefaultCustomKernelMagic = "RT_DEV_BINARY_MAGIC_ELF_AIVEC";
 constexpr size_t kWorkspaceAlignment = 512U;
+
+struct AnnotatedArgsTaskPlan {
+  std::vector<domi::TaskDef> task_templates;
+};
+using AnnotatedArgsTaskPlanPtr = std::shared_ptr<const AnnotatedArgsTaskPlan>;
 
 bool IsMobileSocVersion(const std::string &soc_version) {
   return (soc_version == "KirinX90") || (soc_version == "Kirin9030");
@@ -73,7 +79,7 @@ void GetStorageShape(const GeTensorDesc &tensor_desc, gert::StorageShape &storag
   }
 }
 
-std::vector<void *> GetHoldersRawPtr(const std::vector<std::unique_ptr<uint8_t[]>> &holders) {
+std::vector<void *> GetHoldersRawPtr(const std::vector<std::unique_ptr<gert::Tensor>> &holders) {
   std::vector<void *> holder_raw_ptr;
   holder_raw_ptr.reserve(holders.size());
   for (const auto &holder : holders) {
@@ -91,13 +97,13 @@ Status CheckStaticGraph(const Node &node) {
 }
 
 Status BuildTensorHolder(const GeTensorDesc &tensor_desc, void *const address,
-                         std::unique_ptr<uint8_t[]> &tensor_holder) {
+                         std::unique_ptr<gert::Tensor> &tensor_holder) {
   gert::StorageShape storage_shape;
   GetStorageShape(tensor_desc, storage_shape);
-  tensor_holder = ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
+  tensor_holder = ComGraphMakeUnique<gert::Tensor>(
+      storage_shape, gert::StorageFormat{tensor_desc.GetOriginFormat(), tensor_desc.GetFormat(), {}},
+      gert::kOnDeviceHbm, tensor_desc.GetDataType(), address);
   GE_ASSERT_NOTNULL(tensor_holder, "Create eager context tensor holder failed.");
-  new (tensor_holder.get()) gert::Tensor(storage_shape, {tensor_desc.GetOriginFormat(), tensor_desc.GetFormat(), {}},
-                                         gert::kOnDeviceHbm, tensor_desc.GetDataType(), address);
   return SUCCESS;
 }
 
@@ -139,7 +145,7 @@ Status GetInputLogicAddr(const OpDescPtr &op_desc, const RunContext &context, co
 }
 
 Status ConstructInputTensors(const OpDescPtr &op_desc, const RunContext &context,
-                             std::vector<std::unique_ptr<uint8_t[]>> &inputs) {
+                             std::vector<std::unique_ptr<gert::Tensor>> &inputs) {
   const auto input_offsets = op_desc->GetInputOffset();
   const auto is_input_const = op_desc->GetIsInputConst();
   size_t valid_input_index = 0U;
@@ -157,7 +163,7 @@ Status ConstructInputTensors(const OpDescPtr &op_desc, const RunContext &context
                    op_desc->GetNamePtr(), op_desc->GetTypePtr(), input_offsets.size(), valid_input_index,
                    raw_input_index);
     const int64_t offset = is_const_input ? 0 : input_offsets[valid_input_index];
-    std::unique_ptr<uint8_t[]> tensor_holder;
+    std::unique_ptr<gert::Tensor> tensor_holder;
     void *address = nullptr;
     GE_ASSERT_SUCCESS(GetInputLogicAddr(op_desc, context, raw_input_index, is_const_input, offset, address));
     GE_ASSERT_SUCCESS(BuildTensorHolder(input_desc, address, tensor_holder));
@@ -171,7 +177,7 @@ Status ConstructInputTensors(const OpDescPtr &op_desc, const RunContext &context
 }
 
 Status ConstructOutputTensors(const OpDescPtr &op_desc, const RunContext &context,
-                              std::vector<std::unique_ptr<uint8_t[]>> &outputs) {
+                              std::vector<std::unique_ptr<gert::Tensor>> &outputs) {
   GE_ASSERT_NOTNULL(context.dataMemBase, "Custom op %s(%s) dataMemBase is null.", op_desc->GetNamePtr(),
                     op_desc->GetTypePtr());
   const auto output_offsets = op_desc->GetOutputOffset();
@@ -181,7 +187,7 @@ Status ConstructOutputTensors(const OpDescPtr &op_desc, const RunContext &contex
   for (uint32_t i = 0U; i < op_desc->GetAllOutputsDescSize(); ++i) {
     const int64_t offset = output_offsets[i];
     GE_ASSERT_TRUE(offset >= 0, "Tensor offset %ld is invalid.", offset);
-    std::unique_ptr<uint8_t[]> tensor_holder;
+    std::unique_ptr<gert::Tensor> tensor_holder;
     GE_ASSERT_SUCCESS(
         BuildTensorHolder(op_desc->GetOutputDesc(i), GetLogicAddr(context.dataMemBase, offset), tensor_holder));
     (void)outputs.emplace_back(std::move(tensor_holder));
@@ -208,16 +214,10 @@ class OmcWorkspaceMemBlock : public gert::GertMemBlock {
 
 class WorkspaceAllocator : public gert::GertAllocator {
  public:
-  enum class Mode {
-    kProbe,
-    kFinal,
-  };
-
-  WorkspaceAllocator(const OpDescPtr &op_desc, const RunContext &context, const Mode mode)
+  WorkspaceAllocator(const OpDescPtr &op_desc, const RunContext &context)
       : GertAllocator(static_cast<int64_t>(op_desc->GetStreamId()), gert::kOnDeviceHbm),
         op_desc_(op_desc),
-        context_(context),
-        mode_(mode) {}
+        context_(context) {}
 
   ~WorkspaceAllocator() noexcept override {
     for (auto *block : blocks_) {
@@ -239,20 +239,12 @@ class WorkspaceAllocator : public gert::GertAllocator {
     return probe_workspace_sizes_;
   }
 
-  size_t GetFinalWorkspaceCount() const {
-    return final_workspace_index_;
-  }
-
  private:
   gert::GertMemBlock *CreateBlock(void *addr);
-  gert::GertMemBlock *MallocProbe(size_t size);
-  gert::GertMemBlock *MallocFinal(size_t size);
 
   OpDescPtr op_desc_;
   const RunContext &context_;
-  Mode mode_;
   int64_t probe_offset_ = 0;
-  size_t final_workspace_index_ = 0U;
   std::vector<int64_t> probe_workspace_sizes_;
   std::vector<gert::GertMemBlock *> blocks_;
 };
@@ -303,7 +295,9 @@ gert::GertMemBlock *WorkspaceAllocator::CreateBlock(void *addr) {
   return block;
 }
 
-gert::GertMemBlock *WorkspaceAllocator::MallocProbe(size_t size) {
+gert::GertMemBlock *WorkspaceAllocator::Malloc(size_t size) {
+  GE_ASSERT_TRUE(size > 0U, "Custom op %s(%s) MallocWorkSpace size is zero.", op_desc_->GetNamePtr(),
+                 op_desc_->GetTypePtr());
   int64_t aligned_size = 0;
   GE_ASSERT_SUCCESS(AlignWorkspaceSize(size, aligned_size));
   probe_workspace_sizes_.emplace_back(aligned_size);
@@ -322,81 +316,126 @@ gert::GertMemBlock *WorkspaceAllocator::MallocProbe(size_t size) {
   return CreateBlock(addr);
 }
 
-gert::GertMemBlock *WorkspaceAllocator::MallocFinal(size_t size) {
-  std::vector<int64_t> append_ws;
-  GE_ASSERT_TRUE(AttrUtils::GetListInt(op_desc_, kAppendWs, append_ws),
-                 "Custom op %s(%s) has no %s in final workspace capture.", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr(), kAppendWs);
-  GE_ASSERT_TRUE(final_workspace_index_ < append_ws.size(),
-                 "Custom op %s(%s) workspace malloc count %zu exceeds recorded count %zu.", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr(), final_workspace_index_, append_ws.size());
-
-  int64_t aligned_size = 0;
-  GE_ASSERT_SUCCESS(AlignWorkspaceSize(size, aligned_size));
-  GE_ASSERT_TRUE(aligned_size == append_ws[final_workspace_index_],
-                 "Custom op %s(%s) workspace[%zu] size mismatch, current %ld, recorded %ld.", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr(), final_workspace_index_, aligned_size, append_ws[final_workspace_index_]);
-
-  const auto workspace_offsets = op_desc_->GetWorkspace();
-  const auto workspace_bytes = op_desc_->GetWorkspaceBytes();
-  GE_ASSERT_TRUE(workspace_offsets.size() >= append_ws.size(),
-                 "Custom op %s(%s) workspace offset size %zu is less than append workspace size %zu.",
-                 op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), workspace_offsets.size(), append_ws.size());
-  GE_ASSERT_TRUE(workspace_bytes.size() >= append_ws.size(),
-                 "Custom op %s(%s) workspace byte size %zu is less than append workspace size %zu.",
-                 op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), workspace_bytes.size(), append_ws.size());
-  const size_t append_start = workspace_offsets.size() - append_ws.size();
-  const size_t append_bytes_start = workspace_bytes.size() - append_ws.size();
-  GE_ASSERT_TRUE(workspace_bytes[append_bytes_start + final_workspace_index_] == aligned_size,
-                 "Custom op %s(%s) workspace[%zu] byte size mismatch, current %ld, recorded %ld.",
-                 op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), final_workspace_index_,
-                 workspace_bytes[append_bytes_start + final_workspace_index_], aligned_size);
-  const int64_t offset = workspace_offsets[append_start + final_workspace_index_];
-  GE_ASSERT_TRUE(offset >= 0, "Custom op %s(%s) workspace offset %ld is invalid.", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr(), offset);
-  GE_ASSERT_TRUE(static_cast<uint64_t>(offset) <= context_.dataMemSize,
-                 "Custom op %s(%s) workspace offset %ld exceeds dataMemSize %" PRIu64 ".", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr(), offset, context_.dataMemSize);
-  GE_ASSERT_TRUE(static_cast<uint64_t>(aligned_size) <= context_.dataMemSize - static_cast<uint64_t>(offset),
-                 "Custom op %s(%s) workspace[%zu] range [%ld, %ld) exceeds dataMemSize %" PRIu64 ".",
-                 op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), final_workspace_index_, offset, offset + aligned_size,
-                 context_.dataMemSize);
-
-  ++final_workspace_index_;
-  return CreateBlock(GetLogicAddr(context_.dataMemBase, offset));
+Status ResolveTensorPlanAddr(const int32_t instance_index,
+                             const std::vector<std::unique_ptr<gert::Tensor>> &tensor_holders, uint64_t &addr) {
+  GE_ASSERT_TRUE(instance_index >= 0, "Annotated args tensor instance index %d is invalid.", instance_index);
+  const auto index = static_cast<size_t>(instance_index);
+  GE_ASSERT_TRUE(index < tensor_holders.size(),
+                 "Annotated args tensor instance index %zu exceeds tensor holder count %zu.", index,
+                 tensor_holders.size());
+  const auto *const tensor = tensor_holders[index].get();
+  GE_ASSERT_NOTNULL(tensor);
+  addr = PtrToValue(tensor->GetAddr());
+  return SUCCESS;
 }
 
-gert::GertMemBlock *WorkspaceAllocator::Malloc(size_t size) {
-  GE_ASSERT_TRUE(size > 0U, "Custom op %s(%s) MallocWorkSpace size is zero.", op_desc_->GetNamePtr(),
-                 op_desc_->GetTypePtr());
-  if (mode_ == Mode::kFinal) {
-    return MallocFinal(size);
-  }
-  return MallocProbe(size);
-}
-
-bool IsCustomOmcWorkspaceFinalMode(const OpDescPtr &op_desc) {
-  bool custom_append_ws = false;
-  if (!AttrUtils::GetBool(op_desc, kCustomOmcAppendWs, custom_append_ws) || !custom_append_ws) {
-    return false;
-  }
-  std::vector<int64_t> append_ws;
-  if (!AttrUtils::GetListInt(op_desc, kAppendWs, append_ws) || append_ws.empty()) {
-    return false;
-  }
-  return (op_desc->GetWorkspace().size() >= append_ws.size()) &&
-         (op_desc->GetWorkspaceBytes().size() >= append_ws.size());
-}
-
-Status CheckFinalWorkspaceCount(const OpDescPtr &op_desc, const WorkspaceAllocator &workspace_allocator) {
+Status ResolveWorkspacePlanAddr(const OpDescPtr &op_desc, const RunContext &context, const int32_t workspace_index,
+                                uint64_t &addr) {
+  GE_ASSERT_TRUE(workspace_index >= 0, "Annotated args workspace index %d is invalid.", workspace_index);
   std::vector<int64_t> append_ws;
   GE_ASSERT_TRUE(AttrUtils::GetListInt(op_desc, kAppendWs, append_ws),
-                 "Custom op %s(%s) has no %s in final workspace capture.", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
-                 kAppendWs);
-  GE_ASSERT_TRUE(workspace_allocator.GetFinalWorkspaceCount() == append_ws.size(),
-                 "Custom op %s(%s) final workspace malloc count %zu does not match recorded count %zu.",
-                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), workspace_allocator.GetFinalWorkspaceCount(),
-                 append_ws.size());
+                 "Custom op %s(%s) has no %s when materializing task plan.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), kAppendWs);
+  const auto index = static_cast<size_t>(workspace_index);
+  GE_ASSERT_TRUE(index < append_ws.size(), "Custom op %s(%s) workspace index %zu exceeds planned count %zu.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), index, append_ws.size());
+
+  const auto workspace_offsets = op_desc->GetWorkspace();
+  const auto workspace_bytes = op_desc->GetWorkspaceBytes();
+  GE_ASSERT_TRUE(workspace_offsets.size() >= append_ws.size(),
+                 "Custom op %s(%s) workspace offset size %zu is less than planned workspace size %zu.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), workspace_offsets.size(), append_ws.size());
+  GE_ASSERT_TRUE(workspace_bytes.size() >= append_ws.size(),
+                 "Custom op %s(%s) workspace byte size %zu is less than planned workspace size %zu.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), workspace_bytes.size(), append_ws.size());
+  const size_t append_start = workspace_offsets.size() - append_ws.size();
+  const size_t append_bytes_start = workspace_bytes.size() - append_ws.size();
+  GE_ASSERT_TRUE(workspace_bytes[append_bytes_start + index] == append_ws[index],
+                 "Custom op %s(%s) workspace[%zu] byte size mismatch, current %ld, planned %ld.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), index, workspace_bytes[append_bytes_start + index], append_ws[index]);
+  const int64_t offset = workspace_offsets[append_start + index];
+  GE_ASSERT_TRUE(offset >= 0, "Custom op %s(%s) workspace offset %ld is invalid.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), offset);
+  GE_ASSERT_NOTNULL(context.dataMemBase, "Custom op %s(%s) dataMemBase is null.", op_desc->GetNamePtr(),
+                    op_desc->GetTypePtr());
+  GE_ASSERT_TRUE(static_cast<uint64_t>(offset) <= context.dataMemSize,
+                 "Custom op %s(%s) workspace offset %ld exceeds dataMemSize %" PRIu64 ".", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), offset, context.dataMemSize);
+  GE_ASSERT_TRUE(static_cast<uint64_t>(append_ws[index]) <= context.dataMemSize - static_cast<uint64_t>(offset),
+                 "Custom op %s(%s) workspace[%zu] range [%ld, %ld) exceeds dataMemSize %" PRIu64 ".",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), index, offset, offset + append_ws[index],
+                 context.dataMemSize);
+  addr = PtrToValue(context.dataMemBase) + static_cast<uint64_t>(offset);
+  return SUCCESS;
+}
+
+Status PrepareAnnotatedArgsTaskForMaterialization(const OpDescPtr &op_desc, const uint32_t stream_id,
+                                                  const domi::TaskDef &task_template, domi::TaskDef &task,
+                                                  std::vector<ArgDesc> &arg_descs) {
+  GE_ASSERT_TRUE(task_template.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL),
+                 "Custom op %s(%s) task plan type %u is invalid.", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
+                 task_template.type());
+  task = task_template;
+  task.set_stream_id(stream_id);
+  auto *const kernel = task.mutable_kernel();
+  GE_ASSERT_NOTNULL(kernel);
+  kernel->mutable_context()->set_op_index(op_desc->GetId());
+  GE_ASSERT_GRAPH_SUCCESS(ArgsFormatDescUtils::Parse(kernel->context().args_format(), arg_descs));
+  GE_ASSERT_TRUE(arg_descs.size() <= (std::numeric_limits<size_t>::max() / kKernelArgSlotSize));
+  GE_ASSERT_TRUE(kernel->args().size() == (arg_descs.size() * kKernelArgSlotSize),
+                 "Custom op %s(%s) planned args size %zu does not match arg desc count %zu.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), kernel->args().size(), arg_descs.size());
+  return SUCCESS;
+}
+
+Status MaterializeAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const RunContext &context,
+                                        const AnnotatedArgsTaskPlan &plan, std::vector<domi::TaskDef> &tasks) {
+  std::vector<std::unique_ptr<gert::Tensor>> input_tensor_holders;
+  std::vector<std::unique_ptr<gert::Tensor>> output_tensor_holders;
+  GE_ASSERT_SUCCESS(ConstructInputTensors(op_desc, context, input_tensor_holders));
+  GE_ASSERT_SUCCESS(ConstructOutputTensors(op_desc, context, output_tensor_holders));
+
+  GE_ASSERT_TRUE((op_desc->GetStreamId() >= 0) &&
+                     (op_desc->GetStreamId() <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max())),
+                 "Custom op stream id %ld is invalid, op_name:%s, op_type:%s", op_desc->GetStreamId(),
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  const auto stream_id = static_cast<uint32_t>(op_desc->GetStreamId());
+  for (const auto &task_template : plan.task_templates) {
+    domi::TaskDef task;
+    std::vector<ArgDesc> arg_descs;
+    GE_CHK_STATUS_RET_NOLOG(
+        PrepareAnnotatedArgsTaskForMaterialization(op_desc, stream_id, task_template, task, arg_descs));
+    auto *const kernel = task.mutable_kernel();
+    std::string args = kernel->args();
+    for (size_t i = 0U; i < arg_descs.size(); ++i) {
+      uint64_t addr = 0U;
+      switch (arg_descs[i].addr_type) {
+        case AddrType::INPUT_INSTANCE:
+          GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, input_tensor_holders, addr));
+          break;
+        case AddrType::OUTPUT_INSTANCE:
+          GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, output_tensor_holders, addr));
+          break;
+        case AddrType::INPUT:
+        case AddrType::OUTPUT:
+          GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] uses unsupported legacy addr_type %d.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
+          return INTERNAL_ERROR;
+        case AddrType::WORKSPACE:
+          GE_ASSERT_SUCCESS(ResolveWorkspacePlanAddr(op_desc, context, arg_descs[i].ir_idx, addr));
+          break;
+        case AddrType::CUSTOM_VALUE:
+          continue;
+        default:
+          GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] type %d is not materializable.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
+          return INTERNAL_ERROR;
+      }
+      GE_ASSERT_EOK(memcpy_s(&args[i * kKernelArgSlotSize], kKernelArgSlotSize, &addr, sizeof(addr)));
+    }
+    kernel->set_args(args);
+    tasks.emplace_back(std::move(task));
+  }
   return SUCCESS;
 }
 
@@ -443,8 +482,8 @@ Status CheckAnnotatedArgsTaskPlanForMode(const OpDescPtr &op_desc, const gert::A
 }
 
 struct AnnotatedArgsCapture {
-  std::vector<std::unique_ptr<uint8_t[]>> input_tensor_holders;
-  std::vector<std::unique_ptr<uint8_t[]>> output_tensor_holders;
+  std::vector<std::unique_ptr<gert::Tensor>> input_tensor_holders;
+  std::vector<std::unique_ptr<gert::Tensor>> output_tensor_holders;
   gert::AnnotatedArgsHandler args_handler;
 };
 
@@ -489,7 +528,7 @@ std::string MakeCustomLaunchPrefix(const size_t launch_index) {
 Status SetKernelBinAttrs(const char *const kernel_name, const uint8_t *const kernel_bin_data,
                          const size_t kernel_bin_size, const OpDescPtr &op_desc, const std::string &prefix) {
   std::vector<char> kernel_bin(kernel_bin_data, kernel_bin_data + kernel_bin_size);
-  auto tbe_kernel = std::make_shared<OpKernelBin>(kernel_name, std::move(kernel_bin));
+  auto tbe_kernel = ge::ComGraphMakeShared<OpKernelBin>(kernel_name, std::move(kernel_bin));
   GE_ASSERT_NOTNULL(tbe_kernel, "Create OpKernelBin failed.");
   GE_ASSERT_TRUE(op_desc->SetExtAttr(prefix + OP_EXTATTR_NAME_TBE_KERNEL, tbe_kernel),
                  "Set ext attr %s failed for custom op %s(%s).", (prefix + OP_EXTATTR_NAME_TBE_KERNEL).c_str(),
@@ -585,7 +624,8 @@ Status DeclareLaunchArgsTaskPlan(const OpDescPtr &op_desc, AnnotatedArgsOp &anno
   std::vector<void *> inputs = GetHoldersRawPtr(capture.input_tensor_holders);
   inputs.push_back(&workspace_allocator);
 
-  auto workspace_mems = std::make_shared<std::vector<gert::GertMemBlock *>>();
+  auto workspace_mems = ge::ComGraphMakeShared<std::vector<gert::GertMemBlock *>>();
+  GE_ASSERT_NOTNULL(workspace_mems, "Create workspace memory list failed.");
   std::vector<void *> outputs = GetHoldersRawPtr(capture.output_tensor_holders);
   outputs.push_back(workspace_mems.get());
   outputs.push_back(static_cast<gert::ArgsHandler *>(&capture.args_handler));
@@ -617,11 +657,7 @@ Status DeclareLaunchArgsTaskPlan(const OpDescPtr &op_desc, AnnotatedArgsOp &anno
   return CheckAnnotatedArgsTaskPlanForMode(op_desc, capture.args_handler, stream_id, mode);
 }
 
-Status UpdateAnnotatedArgsWorkspaceAttrs(const OpDescPtr &op_desc, const WorkspaceAllocator &workspace_allocator,
-                                         const WorkspaceAllocator::Mode workspace_mode) {
-  if (workspace_mode == WorkspaceAllocator::Mode::kFinal) {
-    return CheckFinalWorkspaceCount(op_desc, workspace_allocator);
-  }
+Status UpdateAnnotatedArgsWorkspaceAttrs(const OpDescPtr &op_desc, const WorkspaceAllocator &workspace_allocator) {
   const auto &append_ws = workspace_allocator.GetProbeWorkspaceSizes();
   if (append_ws.empty()) {
     return SUCCESS;
@@ -633,18 +669,54 @@ Status UpdateAnnotatedArgsWorkspaceAttrs(const OpDescPtr &op_desc, const Workspa
   return SUCCESS;
 }
 
+Status CacheAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const std::vector<domi::TaskDef> &tasks,
+                                  const size_t task_start) {
+  GE_ASSERT_TRUE(task_start < tasks.size(), "Custom op %s(%s) generated no task for annotated args plan.",
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  auto mutable_plan = ge::ComGraphMakeShared<AnnotatedArgsTaskPlan>();
+  GE_ASSERT_NOTNULL(mutable_plan);
+  mutable_plan->task_templates.assign(tasks.cbegin() + static_cast<std::ptrdiff_t>(task_start), tasks.cend());
+  AnnotatedArgsTaskPlanPtr plan = std::move(mutable_plan);
+  GE_ASSERT_TRUE(op_desc->SetExtAttr(kAnnotatedArgsTaskPlan, plan),
+                 "Cache annotated args task plan failed for custom op %s(%s).", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr());
+  return SUCCESS;
+}
+
+Status GenerateMobileAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc,
+                                       const gert::AnnotatedArgsHandler &args_handler, const size_t task_start,
+                                       std::vector<domi::TaskDef> &tasks) {
+  domi::TaskDef task_def = {};
+  const auto *launch = args_handler.GetLaunch(0U);
+  GE_ASSERT_NOTNULL(launch);
+  GE_ASSERT_SUCCESS(FillKernelTask(node, *launch, "", task_def));
+  tasks.emplace_back(std::move(task_def));
+  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start));
+  return SUCCESS;
+}
+
 Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, RunContext &context,
                                  const OfflineLaunchGenMode mode, std::vector<domi::TaskDef> &tasks) {
   GE_ASSERT_SUCCESS(CheckStaticGraph(node));
+  const auto plan = op_desc->TryGetExtAttr(kAnnotatedArgsTaskPlan, AnnotatedArgsTaskPlanPtr());
+  if (plan != nullptr) {
+    if ((mode == OfflineLaunchGenMode::kMobileLegacySingleTask) && (plan->task_templates.size() != 1U)) {
+      GELOGE(INTERNAL_ERROR,
+             "Custom op planned task count %zu is not supported in mobile OMC scenario, op_name:%s, op_type:%s",
+             plan->task_templates.size(), op_desc->GetNamePtr(), op_desc->GetTypePtr());
+      return INTERNAL_ERROR;
+    }
+    return MaterializeAnnotatedArgsTaskPlan(op_desc, context, *plan, tasks);
+  }
+
   AnnotatedArgsOp *annotated_args_op = nullptr;
   GE_ASSERT_SUCCESS(GetAnnotatedArgsOp(op_desc, annotated_args_op));
 
+  const size_t task_start = tasks.size();
   AnnotatedArgsCapture capture;
   GE_ASSERT_SUCCESS(ConstructInputTensors(op_desc, context, capture.input_tensor_holders));
   GE_ASSERT_SUCCESS(ConstructOutputTensors(op_desc, context, capture.output_tensor_holders));
-  const auto workspace_mode =
-      IsCustomOmcWorkspaceFinalMode(op_desc) ? WorkspaceAllocator::Mode::kFinal : WorkspaceAllocator::Mode::kProbe;
-  WorkspaceAllocator workspace_allocator(op_desc, context, workspace_mode);
+  WorkspaceAllocator workspace_allocator(op_desc, context);
   uint32_t stream_id = 0U;
   GE_ASSERT_SUCCESS(GetCustomOpStreamId(op_desc, stream_id));
   const auto launch_task_plan_ret =
@@ -652,16 +724,11 @@ Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, Run
   if (launch_task_plan_ret != SUCCESS) {
     return launch_task_plan_ret;
   }
-  GE_ASSERT_SUCCESS(UpdateAnnotatedArgsWorkspaceAttrs(op_desc, workspace_allocator, workspace_mode));
+  GE_ASSERT_SUCCESS(UpdateAnnotatedArgsWorkspaceAttrs(op_desc, workspace_allocator));
 
   GE_ASSERT_SUCCESS(ValidateKernelBinNames(op_desc, capture.args_handler));
   if (mode == OfflineLaunchGenMode::kMobileLegacySingleTask) {
-    domi::TaskDef task_def = {};
-    const auto *launch = capture.args_handler.GetLaunch(0U);
-    GE_ASSERT_NOTNULL(launch);
-    GE_ASSERT_SUCCESS(FillKernelTask(node, *launch, "", task_def));
-    tasks.emplace_back(std::move(task_def));
-    return SUCCESS;
+    return GenerateMobileAnnotatedArgsTask(node, op_desc, capture.args_handler, task_start, tasks);
   }
 
   std::vector<std::string> prefixes;
@@ -678,6 +745,7 @@ Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, Run
   GE_ASSERT_TRUE(AttrUtils::SetListStr(op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, prefixes),
                  "Set %s failed for custom op %s(%s).", ATTR_NAME_KERNEL_NAMES_PREFIX.c_str(), op_desc->GetNamePtr(),
                  op_desc->GetTypePtr());
+  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start));
   return SUCCESS;
 }
 
@@ -721,6 +789,12 @@ Status CustomOpsKernelBuilder::Finalize() {
 Status CustomOpsKernelBuilder::CalcOpRunningParam(Node &node) {
   auto op_desc = node.GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
+  const auto args_refresh_strategy = CustomOpFactory::GetArgsRefreshStrategy(AscendString(op_desc->GetTypePtr()));
+  if (args_refresh_strategy == ArgsRefreshStrategy::kAnnotatedArgs) {
+    (void)op_desc->DelExtAttr(kAnnotatedArgsTaskPlan);
+    (void)op_desc->DelAttr(kAppendWs);
+    (void)op_desc->DelAttr(kCustomOmcAppendWs);
+  }
   for (size_t i = 0; i < op_desc->GetOutputsSize(); i++) {
     if (op_desc->GetOutputDesc(i).GetShape().IsUnknownShape()) {
       GELOGI("Node[%s] output[%zu] is unknown shape.", op_desc->GetName().c_str(), i);

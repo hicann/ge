@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -80,6 +81,7 @@ constexpr uint32_t kMobileAippCustomInfoPartition = 6U;
 constexpr uint32_t kMobileEncryptInfoPartition = 7U;
 constexpr uint32_t kMobileWeightInfoPartition = 8U;
 constexpr uint32_t kStandardOmCustomOpsPartition = static_cast<uint32_t>(ge::CUSTOM_OPS);
+std::atomic<uint32_t> g_annotated_args_workspace_declare_count{0U};
 
 void MockGenerateTask() {
   auto aicore_func = [](const ge::Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
@@ -319,6 +321,7 @@ class StAnnotatedArgsMobileOp : public AnnotatedArgsOp {
 class StAnnotatedArgsWorkspaceOp : public AnnotatedArgsOp {
  public:
   graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    (void)g_annotated_args_workspace_declare_count.fetch_add(1U, std::memory_order_relaxed);
     static const uint8_t kBin[] = {0x61U, 0x62U, 0x63U, 0x64U};
     const auto input = ctx.GetInputTensor(0U);
     const auto output = ctx.GetOutputTensor(0U);
@@ -327,7 +330,7 @@ class StAnnotatedArgsWorkspaceOp : public AnnotatedArgsOp {
     const auto workspace = ctx.MallocWorkSpace(100U);
     GE_ASSERT_NOTNULL(workspace.addr);
     gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()}, gert::OutputAddr{0U, output->GetAddr()},
-                                   workspace);
+                                   workspace, uint64_t{42U});
     return ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"st_offline_launch_workspace_kernel", kBin, sizeof(kBin), 1U,
                                                          ctx.GetStreamId()},
                          std::move(args));
@@ -448,6 +451,8 @@ Graph BuildAnnotatedArgsMobileGraphForSt(const char *const op_type) {
     auto custom_node = compute_graph->FindNode("custom_op");
     if ((custom_node != nullptr) && (custom_node->GetOpDesc() != nullptr)) {
       auto op_desc = custom_node->GetOpDesc();
+      op_desc->AppendIrInput("__input0", kIrInputRequired);
+      op_desc->AppendIrOutput("__output0", kIrOutputRequired);
       op_desc->SetOpEngineName(kEngineNameCustom);
       op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
       (void)AttrUtils::SetStr(op_desc, ATTR_NAME_ENGINE_NAME_FOR_LX, kEngineNameCustom);
@@ -671,6 +676,7 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildDoesNotWriteCustomOps
 }
 
 TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildSupportsWorkspaceProbeAndFinalTaskGeneration) {
+  g_annotated_args_workspace_declare_count.store(0U, std::memory_order_relaxed);
   PrepareCleanAclgrphBuildForSt();
   ScopedGeOptionsForMobileSt ge_options_guard;
   ScopedAnnotatedArgsOppForSt opp_guard;
@@ -694,6 +700,7 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildSupportsWorkspaceProb
   build_options.emplace(ge::ir_option::INPUT_FORMAT, "ND");
   ModelBufferData model_buffer_data{};
   EXPECT_EQ(aclgrphBuildModel(graph, build_options, model_buffer_data), SUCCESS);
+  EXPECT_EQ(g_annotated_args_workspace_declare_count.load(std::memory_order_relaxed), 1U);
   aclgrphBuildFinalize();
 
   const auto partitions = ParseMobilePartitionsForSt(omc_file);
