@@ -8,7 +8,7 @@
 
 ### 1.2 范围
 
-Python 自定义算子的完整定位是支持用户用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前 V1 版本先完成最小可用闭环，只覆盖以下能力：
+Python 自定义算子的完整定位是支持用户用 Python 描述自定义算子原型，并实现自定义算子的各类能力。V1 已完成最小可用的执行闭环，作为 V2 继续演进的基线，覆盖以下能力：
 
 - Python 用户通过 `ge.custom_op` 编写 `execute` 执行逻辑，用户类无需继承能力基类，原有 `EagerExecuteOp` 继承写法继续兼容。
 - `execute` 同时支持直接接收 `EagerOpExecutionContext` 的兼容形式，以及按 canonical IR 组装输入和属性的 schema-bound 形式。
@@ -18,12 +18,29 @@ Python 自定义算子的完整定位是支持用户用 Python 描述自定义�
 - Python native module `_ge_custom_op_native` 提供 `EagerOpExecutionContext` 和 `RuntimeAttrs` borrowed view。
 - `ge.runtime` 提供 context 返回或入参所需的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构。
 
-V1 暂不覆盖以下内容，但这些能力仍属于 Python 自定义算子的后续演进范围：
+V2 计划在 V1 执行能力的基础上扩展 Python 原型和 Meta 推导能力。
 
-- Python 版 `ShapeInferOp`、`CompilableOp`、`PortableOp`、`ArgsUpdater`、`AnnotatedArgsOp`。
-- Python 版算子原型定义和 op proto 生成/注册。
+V2 中，被 `register_op` 装饰的 Python 函数负责 Meta 推导，本文统一称为 `infer_meta`，但不要求函数名必须是 `infer_meta`。该函数按照算子原型接收输入 `TensorDesc`（包括可选输入和动态输入）及属性值，返回一个或多个描述输出 shape 和 data type 的 `TensorDesc`；它不读取输入 Tensor 数据，也不执行算子 kernel。
+
+V2 具体覆盖以下内容：
+
+- 提供 `ge.runtime.TensorDesc`，并通过 `ge.custom_op.register_op` 从 Python 函数签名声明、校验和收集自定义算子原型。
+- 将 Python 原型深拷贝到 C++ 并注册到 `OperatorFactory`，支持幂等注册、冲突检测、所有权管理、卸载和失败回滚。
+- 解耦原型与实现的注册顺序，以及 Adapter descriptor、回调和 holder 生命周期，支持只有 Python 原型和 Meta 推导、没有 Python `execute` 实现的 infer-only 算子。
+- 打通 `infer_meta` 执行链路，包括按 canonical IR 构造输入和属性、调用 Python 函数、校验全部返回结果并统一提交。
+- 编译期一次调用 `infer_meta` 得到全部输出 shape 和 dtype，并原子回写 shape、dtype 和 origin dtype；RT2 动态 shape 场景复用同一回调，但运行期只更新 shape。
+- 补齐公开 API、类型声明、样例、中英文资料和 NPU 端到端验证，并保证已有 schema-bound `execute`、C++ 原型配合 Python 实现和兼容形式 `execute(ctx)` 不回归。
+
+V2 完成后仍不覆盖以下内容：
+
+- 直接用 Python 类实现 `ShapeInferOp`、`CompilableOp`、`PortableOp`、`ArgsUpdater`、`AnnotatedArgsOp` 等 `BaseCustomOp` 能力接口；V2 的 Meta 推导通过 `infer_meta` 回调提供。
+- 读取输入 Tensor 数据的 data-dependent infer。
+- InferShapeRange、format、符号化推导和 shape rule 生成。
+- Python `compile`、`serialize`、`deserialize`、`declare_launch_args` 参数绑定，以及 ES API 自动生成。
+- 对 schema-bound `execute` 做新的功能扩展，或删除兼容形式 `execute(ctx)`。
 - Python 自定义算子随 OM 序列化、反序列化和跨进程加载。
 - Python 侧 `KernelArgs` / `MallocReadOnlyDevArgs` 对外封装。
+- Bridge、native 和 Adapter 的独立升级兼容；V2 仍按同批构建、整体替换和重启生效管理。
 
 ## 2. 总体概述
 
@@ -61,6 +78,7 @@ Python custom op 是 GE Python 体系的一部分，与 Python pass 共享以下
 V1 功能包括：
 
 - `@register_op_impl(op_type=...)` 注册 Python 自定义算子实现。
+- `@register_op(op_type=..., mutates_args=...)` 根据 Python 函数签名收集自定义算子原型。
 - `register_op_impl` 反射实现类上的可调用 `execute` 方法并声明执行能力，不要求继承 `BaseCustomOp` 或 `EagerExecuteOp`。
 - `execute(self, ctx)` 兼容形式直接接收 `EagerOpExecutionContext`；schema-bound 形式接收按 canonical IR 组装的输入和属性。
 - `EagerOpExecutionContext` 支持输入输出 tensor 查询、动态输入实例数、运行时属性读取、输出/工作区分配和 stream 获取。
@@ -263,7 +281,7 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 - `LoadPythonCustomOps()` 解析已加载 Python runtime key，选择 `custom_op/python_custom_op_artifacts/<python_tag>-<platform>` 下的 bridge/native artifact。
 - `libge_python_custom_op_bridge.so` 通过 `GeGetPythonCustomOpBridgeApi()` 暴露 C ABI。
 - bridge 导入 `_ge_custom_op_native` 和 `ge.custom_op._bridge`，注册 descriptor，并为每个 adapter 创建 Python holder。
-- `ShutdownCustomOpsForProcess()` 先卸载 Python custom op、清理 Python holder/registry，再关闭 bridge。
+- `UnloadCustomOps()` 采用 `active_users_` 引用计数管理生命周期：每次 `LoadCustomOps()` 使计数 +1，每次 `UnloadCustomOps()` 使计数 -1，仅当计数归零时才卸载 Python custom op、清理 Python holder/registry 并关闭 bridge。`ShutdownCustomOpsForProcess()` 作为兼容 wrapper 保留，内部调用 `UnloadCustomOps()`。
 
 **输出**
 
@@ -338,6 +356,7 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 | `EagerOpExecutionContext` | 执行上下文 borrowed view |
 | `RuntimeAttrs` | `EagerOpExecutionContext.get_attrs()` 返回的属性 borrowed view |
 | `get_execute_ctx` | 获取当前 schema-bound 回调的执行上下文 |
+| `register_op` | 声明并收集 Python 自定义算子原型 |
 | `register_op_impl` | 注册实现类并反射其能力方法 |
 | `get_registered_op_impls` | 获取 descriptor 对象列表 |
 | `get_registered_op_impl_dicts` | 获取 bridge 字典列表 |
@@ -488,6 +507,7 @@ PythonCustomOpAdapter::Execute(ctx)
 #### 接口错误
 
 - `op_type` 非字符串或空字符串：`register_op_impl` 抛 `TypeError`。
+- `register_op` 的 `op_type`、签名标注、属性默认值或 `mutates_args` 不合法：抛 `TypeError` 或 `ValueError`。
 - 被装饰对象不是 class 或是抽象 class：抛 `TypeError`。
 - 实现 class 未提供任何受支持的可调用方法：抛 `TypeError`，错误信息列出支持的方法。
 - 重复 `op_type` 或 `descriptor_key`：抛 `ValueError`。
@@ -528,9 +548,9 @@ PythonCustomOpAdapter::Execute(ctx)
 
 ### 9.1 测试边界
 
-- Python API 测试入口：`ge.custom_op`、`ge.custom_op._bridge`、`ge.custom_op.bootstrap`。
+- Python API 测试入口：`ge.custom_op`、`ge.custom_op.proto`、`ge.custom_op._bridge`、`ge.custom_op.bootstrap`。
 - Native context 测试入口：`_borrow_eager_op_execution_context` 和 `EagerOpExecutionContext` 方法。
-- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`LoadPythonCustomOps()`、`ShutdownCustomOpsForProcess()`。
+- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`LoadPythonCustomOps()`、`LoadCustomOps()`/`UnloadCustomOps()`（引用计数配对）。
 - 端到端样例入口：`examples/custom_op/args_refresh_add_custom/python/run.sh`。
 
 ### 9.2 测试设计
@@ -538,6 +558,7 @@ PythonCustomOpAdapter::Execute(ctx)
 | 测试类别 | 关键测试项 | 测试方法 | 用例类型 |
 |----------|------------|----------|----------|
 | 功能 | 普通 class、兼容基类、继承方法、`staticmethod`、`classmethod` 能力反射及非法注册 | Python pytest | UT |
+| 功能 | 原型签名解析、默认值、`mutates_args`、幂等与冲突注册 | Python pytest | UT |
 | 功能 | legacy `execute(ctx)` context 透传；schema-bound required/optional/dynamic 输入和 typed attrs 组装 | Python pytest fake context | UT |
 | 功能 | `get_execute_ctx()` 回调内访问、异常清理和嵌套调用恢复 | Python pytest | UT |
 | 功能 | bridge descriptor 获取、holder 创建/销毁、不可调用 `execute` 拦截和 context 失效 | Python pytest | UT |

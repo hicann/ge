@@ -8,7 +8,7 @@ This document is for dflow developers, describing the architecture design, core 
 
 ### Scope
 
-Covered modules: `flow_graph/`, `pydflow/`, `compiler/`, `base/`, `deployer/`, `executor/`, `udf/`. Does not cover the `llm_datadist` submodule (large model data distribution is an independent feature).
+Covered modules: `flow_graph/`, `pydflow/`, `runner/` (including `session/`, `compiler/`, `executor/`), `base/`, `deployer/`, `udf/`. Does not cover the `llm_datadist` submodule (large model data distribution is an independent feature).
 
 Related documents:
 - [udf.md](udf.md) -- UDF submodule independent document
@@ -53,16 +53,16 @@ flowchart TD
         FG["flow_graph/<br/>Graph construction core: FlowGraph/FlowNode/ProcessPoint"]
     end
     subgraph session
-        SES["session/<br/>DFlowSession API entry<br/>compilation/deployment/execution coordination"]
+        SES["runner/session/<br/>DFlowSession API entry<br/>compilation/deployment/execution coordination"]
     end
     subgraph Compilation
-        CMP["compiler/<br/>FlowModelBuilder/PNE engine<br/>FlowGraph→FlowModel"]
+        CMP["runner/compiler/<br/>FlowModelBuilder/PNE engine<br/>FlowGraph→FlowModel"]
     end
     subgraph Deployment
         DEP["deployer/<br/>Multi-node deployment/cross-node communication<br/>fork executor processes"]
     end
     subgraph Execution
-        EXEC["executor/<br/>Heterogeneous executors/data alignment<br/>Feed/Fetch"]
+        EXEC["runner/executor/<br/>Heterogeneous executors/data alignment<br/>Feed/Fetch"]
     end
     subgraph UDF Submodule
         UDF["udf/<br/>User Defined Function framework<br/>(refer to udf.md)"]
@@ -80,11 +80,11 @@ flowchart TD
 |--------|---------------------|
 | `flow_graph/` | C++ graph construction API: FlowGraph/FlowNode/FlowData/ProcessPoint system |
 | `pydflow/` | Python wrapper, @pyflow decorator, PyTorch integration, UDF project auto-generation |
-| `session/` | DFlowSession API entry, coordination hub for compilation, deployment, and execution |
-| `compiler/` | FlowModelBuilder/PNE engine mechanism, graph optimization passes, compiles FlowGraph to FlowModel |
+| `runner/session/` | DFlowSession API entry, coordination hub for compilation, deployment, and execution |
+| `runner/compiler/` | FlowModelBuilder/PNE engine mechanism, graph optimization passes, compiles FlowGraph to FlowModel |
 | `base/` | Model abstraction (FlowModel/GraphModel/PneModel), ModelRelation, deployment planning, OM serialization |
 | `deployer/` | Multi-node master-slave deployment, cross-node gRPC/memory queue communication, subprocess management |
-| `executor/` | Heterogeneous executors, Feed/Fetch, data alignment, exception handling |
+| `runner/executor/` | Heterogeneous executors, Feed/Fetch, data alignment, exception handling |
 | `udf/` | UDF framework: SO loading/registration, state machine scheduling, message abstraction, built-in UDFs (refer to independent document) |
 
 ---
@@ -184,7 +184,7 @@ The three externally provided ProcessPoint types correspond to different computa
 
 Additionally, `ModelPp` exists in the code (loads pre-compiled OM models, loads directly without compilation); it is an internal experimental feature and does not provide external interfaces.
 
-During `FlowGraph` construction, `MultiThreadGraphBuilder` (8 threads parallel building GraphPp subgraphs) builds the FlowOperator list into a GE `Graph`, and sets `ATTR_NAME_IS_DATA_FLOW_GRAPH = true` to mark this graph as a dflow graph.
+During `FlowGraph` construction, the FlowOperator list is built into a GE `Graph`, and `ATTR_NAME_IS_DATA_FLOW_GRAPH = true` is set to mark this graph as a dflow graph.
 
 ### 3.2 C++ Runtime Interface
 
@@ -277,7 +277,7 @@ The compilation layer is located in `dflow/runner/compiler/`, adopting a four-la
 
 ```mermaid
 flowchart TD
-    A["session/<br/>DFlowSession API entry<br/>+ lifecycle management"] --> B["model/<br/>FlowModelBuilder construction core<br/>+ FlowModelCache caching"]
+    A["runner/session/<br/>DFlowSession API entry<br/>+ lifecycle management"] --> B["model/<br/>FlowModelBuilder construction core<br/>+ FlowModelCache caching"]
     B --> C["pne/<br/>ProcessNodeEngine engine abstraction<br/>+ UDF/CPU/NPU three engines"]
     B --> D["data_flow_graph/<br/>Graph parsing + PP loading + compilation passes<br/>+ model relation construction + deployment planning"]
     C --> D
@@ -320,11 +320,11 @@ Engines are registered through `REGISTER_PROCESS_NODE_ENGINE` macro + SO plugin 
 
 **Multi-level caching** avoids repeated compilation: root model cache (graph_key index) + sub-model cache (SHA256 hash matching) + UDF cache (release_info matching, avoiding repeated cmake/make) + buildinfo cache.
 
-Subgraphs are compiled in parallel through `MultiThreadGraphBuilder` with multiple threads; FunctionPp uses async cmake/make compilation. The three-level caching coordination ensures incremental compilation efficiency.
+FunctionPp uses async cmake/make compilation. The three-level caching coordination ensures incremental compilation efficiency.
 
 ### 4.2 Model Abstraction Layer: FlowModel and ModelRelation
 
-`base/model/` defines the dflow model abstraction system, adopting a composition pattern inheritance hierarchy (`base/model/pne_model.h`):
+`base/model/` defines the dflow model abstraction system, adopting a composition pattern inheritance hierarchy (`inc/data_flow/model/pne_model.h`):
 
 ```mermaid
 classDiagram
@@ -546,7 +546,7 @@ For UDF Python development, refer to [udf.md](udf.md).
 
 #### 4.6.1 How UDF Execution Location (host/device) Is Determined
 
-The final UDF execution location is determined by the compilation-time attribute chain; the core logic is in `DataFlowGraphAutoDeployer::SelectResourceType` (`compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`):
+The final UDF execution location is determined by the compilation-time attribute chain; the core logic is in `DataFlowGraphAutoDeployer::SelectResourceType` (`runner/compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`):
 
 | Attribute | Meaning | Setting Location |
 |-----------|---------|-----------------|
@@ -567,9 +567,9 @@ Although heavy_load UDF executes on the host CPU, it still needs to specify logi
 
 #### 4.6.2 How Users Specify Deployment Location
 
-Users pass the deployment configuration JSON file through the compilation option `ge.experiment.data_flow_deploy_info_path` (`BuildModel` in `compiler/model/flow_model_builder.cc`). The configuration matches FlowNodes by node **deployment name** -- the deployment name preferentially uses the alias; if the node has no alias set, the original node name is used (`GetNodeDeployName` in `data_flow_graph_auto_deployer.cc`).
+Users pass the deployment configuration JSON file through the compilation option `ge.experiment.data_flow_deploy_info_path` (`BuildModel` in `runner/compiler/model/flow_model_builder.cc`). The configuration matches FlowNodes by node **deployment name** -- the deployment name preferentially uses the alias; if the node has no alias set, the original node name is used (`GetNodeDeployName` in `data_flow_graph_auto_deployer.cc`).
 
-**Deployment configuration JSON structure** (`ReadDeployInfoFromJsonFile` in `compiler/data_flow_graph/compile_config_json.cc`):
+**Deployment configuration JSON structure** (`ReadDeployInfoFromJsonFile` in `runner/compiler/data_flow_graph/compile_config_json.cc`):
 
 ```json
 {
@@ -625,7 +625,7 @@ Using a complete Python user workflow as an example, the full chain from code to
 flowchart TD
     subgraph Graph Construction Phase
         A1["df.init(options)"] --> A2["df.FlowData() / @df.pyflow / GraphProcessPoint"]
-        A2 --> A3["df.FlowGraph(outputs=[...])<br/>Reverse traversal extracts nodes+inputs<br/>MultiThreadGraphBuilder→ComputeGraph"]
+        A2 --> A3["df.FlowGraph(outputs=[...])<br/>Reverse traversal extracts nodes+inputs<br/>Build to ComputeGraph"]
     end
     subgraph Compilation Phase
         B1["graph.feed_data() triggers lazy compilation"] --> B2["DFlowSession.CompileAndLoadGraph"]

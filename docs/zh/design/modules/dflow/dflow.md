@@ -8,7 +8,7 @@
 
 ### 范围
 
-涵盖模块：`flow_graph/`、`pydflow/`、`compiler/`、`base/`、`deployer/`、`executor/`、`udf/`。不涵盖 `llm_datadist` 子模块（大模型数据分发为独立特性）。
+涵盖模块：`flow_graph/`、`pydflow/`、`runner/`（含 `session/`、`compiler/`、`executor/`）、`base/`、`deployer/`、`udf/`。不涵盖 `llm_datadist` 子模块（大模型数据分发为独立特性）。
 
 相关文档：
 - [udf.md](udf.md) — UDF 子模块独立文档
@@ -53,16 +53,16 @@ flowchart TD
         FG["flow_graph/<br/>构图核心：FlowGraph/FlowNode/ProcessPoint"]
     end
     subgraph session
-        SES["session/<br/>DFlowSession API入口<br/>编译/部署/执行协调"]
+        SES["runner/session/<br/>DFlowSession API入口<br/>编译/部署/执行协调"]
     end
     subgraph 编译
-        CMP["compiler/<br/>FlowModelBuilder/PNE引擎<br/>FlowGraph→FlowModel"]
+        CMP["runner/compiler/<br/>FlowModelBuilder/PNE引擎<br/>FlowGraph→FlowModel"]
     end
     subgraph 部署
         DEP["deployer/<br/>多节点部署/跨节点通信<br/>fork executor进程"]
     end
     subgraph 执行
-        EXEC["executor/<br/>异构执行器/数据对齐<br/>Feed/Fetch"]
+        EXEC["runner/executor/<br/>异构执行器/数据对齐<br/>Feed/Fetch"]
     end
     subgraph UDF子模块
         UDF["udf/<br/>用户自定义函数框架<br/>（详见 udf.md）"]
@@ -80,11 +80,11 @@ flowchart TD
 |------|----------|
 | `flow_graph/` | C++ 构图 API：FlowGraph/FlowNode/FlowData/ProcessPoint 体系 |
 | `pydflow/` | Python 封装、@pyflow 装饰器、PyTorch 集成、UDF 工程自动生成 |
-| `session/` | DFlowSession API 入口，编译、部署、执行的协调中枢 |
-| `compiler/` | FlowModelBuilder/PNE 引擎机制、图优化 pass，将 FlowGraph 编译为 FlowModel |
+| `runner/session/` | DFlowSession API 入口，编译、部署、执行的协调中枢 |
+| `runner/compiler/` | FlowModelBuilder/PNE 引擎机制、图优化 pass，将 FlowGraph 编译为 FlowModel |
 | `base/` | 模型抽象（FlowModel/GraphModel/PneModel）、ModelRelation、部署规划、OM 序列化 |
 | `deployer/` | 多节点主从部署、跨节点 gRPC/内存队列通信、子进程管理 |
-| `executor/` | 异构执行器、Feed/Fetch、数据对齐、异常处理 |
+| `runner/executor/` | 异构执行器、Feed/Fetch、数据对齐、异常处理 |
 | `udf/` | UDF 框架：SO 加载注册、状态机调度、消息抽象、内置 UDF（详见独立文档） |
 
 ---
@@ -184,7 +184,7 @@ classDiagram
 
 此外代码中还存在 `ModelPp`（加载预编译 OM 模型，直接加载不编译），它是内部实验性特性，未对外提供接口。
 
-`FlowGraph` 构建时通过 `MultiThreadGraphBuilder`（8 线程并行构建 GraphPp 子图）将 FlowOperator 列表构建为 GE `Graph`，并设置 `ATTR_NAME_IS_DATA_FLOW_GRAPH = true` 标记此图为 dflow 图。
+`FlowGraph` 构建时将 FlowOperator 列表构建为 GE `Graph`，并设置 `ATTR_NAME_IS_DATA_FLOW_GRAPH = true` 标记此图为 dflow 图。
 
 ### 3.2 C++ 运行接口
 
@@ -277,7 +277,7 @@ GraphPp 是否配置动态 shape 直接决定其走静态还是动态执行路�
 
 ```mermaid
 flowchart TD
-    A["session/<br/>DFlowSession API 入口<br/>+ 生命周期管理"] --> B["model/<br/>FlowModelBuilder 构建核心<br/>+ FlowModelCache 缓存"]
+    A["runner/session/<br/>DFlowSession API 入口<br/>+ 生命周期管理"] --> B["model/<br/>FlowModelBuilder 构建核心<br/>+ FlowModelCache 缓存"]
     B --> C["pne/<br/>ProcessNodeEngine 引擎抽象<br/>+ UDF/CPU/NPU 三引擎"]
     B --> D["data_flow_graph/<br/>图解析 + PP加载 + 编译Pass<br/>+ 模型关系构建 + 部署规划"]
     C --> D
@@ -320,11 +320,11 @@ CPU 引擎继承 NPU 引擎仅重写 `GetEngineName`，编译流程完全复用�
 
 **多级缓存**避免重复编译：root 模型缓存（graph_key 索引）+ 子模型缓存（SHA256 哈希匹配）+ UDF 缓存（release_info 匹配，避免重复 cmake/make）+ buildinfo 缓存。
 
-子图通过 `MultiThreadGraphBuilder` 多线程并行编译，FunctionPp 异步 cmake/make 编译，三级缓存协同保证增量编译效率。
+FunctionPp 异步 cmake/make 编译，三级缓存协同保证增量编译效率。
 
 ### 4.2 模型抽象层：FlowModel 与 ModelRelation
 
-`base/model/` 定义了 dflow 的模型抽象体系，采用组合模式的继承体系（`base/model/pne_model.h`）：
+`base/model/` 定义了 dflow 的模型抽象体系，采用组合模式的继承体系（`inc/data_flow/model/pne_model.h`）：
 
 ```mermaid
 classDiagram
@@ -546,7 +546,7 @@ UDF 的 Python 开发方式详见 [udf.md](udf.md)。
 
 #### 4.6.1 UDF 执行位置（host/device）如何决定
 
-UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataFlowGraphAutoDeployer::SelectResourceType`（`compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`）：
+UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataFlowGraphAutoDeployer::SelectResourceType`（`runner/compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`）：
 
 | 属性 | 含义 | 设置位置 |
 |------|------|----------|
@@ -567,9 +567,9 @@ heavy_load UDF 虽然在 host CPU 执行，但仍需指定 logic_device_id——
 
 #### 4.6.2 用户如何指定部署位置
 
-用户通过编译选项 `ge.experiment.data_flow_deploy_info_path` 传入部署配置 JSON 文件（`compiler/model/flow_model_builder.cc` 的 `BuildModel`）。配置以节点的**部署名**为 key 匹配 FlowNode——部署名优先取 alias，若节点未设置 alias 则用节点原名（`data_flow_graph_auto_deployer.cc` 的 `GetNodeDeployName`）。
+用户通过编译选项 `ge.experiment.data_flow_deploy_info_path` 传入部署配置 JSON 文件（`runner/compiler/model/flow_model_builder.cc` 的 `BuildModel`）。配置以节点的**部署名**为 key 匹配 FlowNode——部署名优先取 alias，若节点未设置 alias 则用节点原名（`data_flow_graph_auto_deployer.cc` 的 `GetNodeDeployName`）。
 
-**部署配置 JSON 结构**（`compiler/data_flow_graph/compile_config_json.cc` 的 `ReadDeployInfoFromJsonFile`）：
+**部署配置 JSON 结构**（`runner/compiler/data_flow_graph/compile_config_json.cc` 的 `ReadDeployInfoFromJsonFile`）：
 
 ```json
 {
@@ -625,7 +625,7 @@ heavy_load UDF 虽然在 host CPU 执行，但仍需指定 logic_device_id——
 flowchart TD
     subgraph 构图阶段
         A1["df.init(options)"] --> A2["df.FlowData() / @df.pyflow / GraphProcessPoint"]
-        A2 --> A3["df.FlowGraph(outputs=[...])<br/>反向遍历提取节点+输入<br/>MultiThreadGraphBuilder→ComputeGraph"]
+        A2 --> A3["df.FlowGraph(outputs=[...])<br/>反向遍历提取节点+输入<br/>构建为ComputeGraph"]
     end
     subgraph 编译阶段
         B1["graph.feed_data() 触发惰性编译"] --> B2["DFlowSession.CompileAndLoadGraph"]

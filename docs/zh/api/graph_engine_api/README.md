@@ -1119,6 +1119,7 @@
     - [pattern](python/ge/passes/pattern.md)
     - [register\_decompose\_pass](python/ge/passes/register_decompose_pass.md)
     - [register\_fusion\_pass](python/ge/passes/register_fusion_pass.md)
+    - [register\_op](python/ge/custom_op/register_op.md)
     - [report\_fuse](python/ge/passes/report_fuse.md)
 
     - [AttrValueType](python/ge/AttrValueType.md)
@@ -1148,7 +1149,7 @@
     - [GetRegisteredIrDef](c/graph_base_structure/GetRegisteredIrDef.md)
     - [IsIrRepSupport](c/graph_base_structure/IsIrRepSupport.md)
 
-  - [模型管理和单算子调用接口](c/graph_base_structure/graph_basic_data_structure_and_interface.md)
+  - [模型管理和单算子调用接口](c/acl/model_manage_sinlgle_op_invoke.md)
     - [废弃接口和返回码列表](c/acl/deprecated_APIs_and_return_codes_list.md)
     - [同步和异步API说明](c/acl/sync_and_async_APIs_desc.md)
     - [头文件和库文件说明](c/acl/header_and_library_files_desc.md)

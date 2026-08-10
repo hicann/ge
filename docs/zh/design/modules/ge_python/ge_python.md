@@ -730,6 +730,7 @@ export ASCEND_GE_PY_PASS_PATH=/path/to/my_pass.py:/path/to/pass_dir/
 custom_op/
 ├── __init__.py              # 模块初始化，导出公共 API
 ├── base.py                  # BaseCustomOp、EagerExecuteOp 基类定义
+├── proto.py                 # Python 自定义算子原型解析、描述符和注册中心
 ├── registry.py              # Python 自定义算子实现注册中心与装饰器
 ├── bootstrap.py             # 插件发现与加载
 ├── context.py               # schema-bound execute 的当前执行上下文绑定
@@ -841,6 +842,7 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 #### 注册与发现
 
 **装饰器**:
+- `register_op(op_type, mutates_args=())` - 根据被装饰函数的类型标注声明并收集 Python 自定义算子原型
 - `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；当前 `execute` 对应 `eager_execute`
 
 **发现机制**:

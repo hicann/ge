@@ -8,7 +8,7 @@ This document describes the requirements, design boundaries, runtime access meth
 
 ### 1.2 Scope
 
-The full positioning of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. The current V1 release completes the minimum viable closed loop and covers only the following capabilities:
+The long-term goal of Python custom operators is to let users describe custom operator prototypes and implement custom operator capabilities in Python. V1 completed the minimum viable execution loop and serves as the baseline for V2, covering the following capabilities:
 
 - Python users write `execute` logic through `ge.custom_op`. User classes do not need to inherit capability base classes, while the existing `EagerExecuteOp` inheritance form remains compatible.
 - `execute` supports both the legacy form that directly receives an `EagerOpExecutionContext` and a schema-bound form whose inputs and attributes are assembled from canonical IR.
@@ -18,12 +18,29 @@ The full positioning of the Python custom operator is to support users in descri
 - The Python native module `_ge_custom_op_native` provides `EagerOpExecutionContext` and `RuntimeAttrs` borrowed views.
 - `ge.runtime` provides runtime data structures required by the context for return values or input parameters, such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement`.
 
-V1 does not cover the following items, but these capabilities remain within the scope of subsequent Python custom operator evolution:
+V2 plans to add Python prototype and Meta inference capabilities on top of the V1 execution path.
 
-- Python versions of `ShapeInferOp`, `CompilableOp`, `PortableOp`, `ArgsUpdater`, and `AnnotatedArgsOp`.
-- Python operator prototype definition and op proto generation/registration.
+In V2, the Python function decorated with `register_op` performs Meta inference and is referred to as `infer_meta` throughout this document; the function itself does not have to be named `infer_meta`. Following the operator prototype, it receives input `TensorDesc` objects, including optional and dynamic inputs, together with attribute values, and returns one or more `TensorDesc` objects describing output shape and data type. It neither reads input Tensor data nor executes the operator kernel.
+
+V2 specifically covers the following capabilities:
+
+- Provide `ge.runtime.TensorDesc`, and use `ge.custom_op.register_op` to declare, validate, and collect custom operator prototypes from Python function signatures.
+- Deep-copy Python prototypes into C++ and register them with `OperatorFactory`, including idempotent registration, conflict detection, ownership, unloading, and rollback on failure.
+- Decouple prototype and implementation registration order, Adapter descriptors, callbacks, and holder lifecycles, and support infer-only operators that have a Python prototype and Meta inference but no Python `execute` implementation.
+- Complete the `infer_meta` execution path, including assembling inputs and attributes from canonical IR, invoking Python, validating all returned values, and committing the results as one transaction.
+- Invoke `infer_meta` once during compilation to obtain shape and dtype for all outputs, and atomically write back shape, dtype, and origin dtype. RT2 dynamic-shape inference reuses the same callback but updates only shape at runtime.
+- Complete the public APIs, type declarations, samples, Chinese and English documentation, and NPU end-to-end validation, while preserving existing schema-bound `execute`, C++ prototype with Python implementation, and legacy `execute(ctx)` behavior.
+
+The following items remain outside the V2 scope:
+
+- Direct Python class implementations of `BaseCustomOp` capability interfaces such as `ShapeInferOp`, `CompilableOp`, `PortableOp`, `ArgsUpdater`, and `AnnotatedArgsOp`; V2 provides Meta inference through the `infer_meta` callback instead.
+- Data-dependent inference that reads input Tensor data.
+- InferShapeRange, format inference, symbolic inference, and shape-rule generation.
+- Python argument binding for `compile`, `serialize`, `deserialize`, and `declare_launch_args`, as well as ES API generation.
+- New schema-bound `execute` features or removal of the legacy `execute(ctx)` form.
 - Python custom operator serialization and deserialization with OM and cross-process loading.
 - External encapsulation of `KernelArgs` / `MallocReadOnlyDevArgs` on the Python side.
+- Independent compatibility upgrades of the Bridge, native module, and Adapter. V2 still requires them to be built and replaced together, with changes taking effect after restart.
 
 ## 2. General Overview
 
@@ -61,6 +78,7 @@ The actual module boundaries are as follows:
 V1 functions include:
 
 - `@register_op_impl(op_type=...)` registers a Python custom operator implementation.
+- `@register_op(op_type=..., mutates_args=...)` collects a custom operator prototype from a Python function signature.
 - `register_op_impl` reflects a callable `execute` method on the implementation class and declares execution capability without requiring inheritance from `BaseCustomOp` or `EagerExecuteOp`.
 - The legacy `execute(self, ctx)` form directly receives an `EagerOpExecutionContext`; the schema-bound form receives inputs and attributes assembled from canonical IR.
 - `EagerOpExecutionContext` supports input and output tensor queries, dynamic input instance counts, runtime attribute access, output and workspace allocation, and stream retrieval.
@@ -263,7 +281,7 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 - `LoadPythonCustomOps()` resolves the loaded Python runtime key and selects the bridge/native artifact under `custom_op/python_custom_op_artifacts/<python_tag>-<platform>`.
 - `libge_python_custom_op_bridge.so` exposes the C ABI through `GeGetPythonCustomOpBridgeApi()`.
 - The bridge imports `_ge_custom_op_native` and `ge.custom_op._bridge`, registers descriptors, and creates Python holders for each adapter.
-- `ShutdownCustomOpsForProcess()` first unloads Python custom ops, cleans up Python holders and the registry, and then shuts down the bridge.
+- `UnloadCustomOps()` uses an `active_users_` reference count to manage the lifecycle: each `LoadCustomOps()` increments the count by 1, each `UnloadCustomOps()` decrements it by 1, and Python custom ops are only unloaded (holders/registry cleaned up and bridge closed) when the count reaches zero. `ShutdownCustomOpsForProcess()` is retained as a compatibility wrapper that internally calls `UnloadCustomOps()`.
 
 **Output**
 
@@ -338,6 +356,7 @@ For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/cu
 | `EagerOpExecutionContext` | Execution context borrowed view |
 | `RuntimeAttrs` | Attribute borrowed view returned by `EagerOpExecutionContext.get_attrs()` |
 | `get_execute_ctx` | Obtains the execution context of the active schema-bound callback |
+| `register_op` | Declares and collects a Python custom operator prototype |
 | `register_op_impl` | Registers an implementation class and reflects its capability methods |
 | `get_registered_op_impls` | Obtains the list of descriptor objects |
 | `get_registered_op_impl_dicts` | Obtains the bridge dictionary list |
@@ -488,6 +507,7 @@ PythonCustomOpAdapter::Execute(ctx)
 #### Interface Errors
 
 - `op_type` is not a string or is an empty string: `register_op_impl` raises `TypeError`.
+- The `register_op` `op_type`, signature annotations, attribute defaults, or `mutates_args` are invalid: `TypeError` or `ValueError` is raised.
 - The decorated object is not a class or is an abstract class: `TypeError` is raised.
 - The implementation class provides no supported callable method: `TypeError` is raised and the message lists the supported methods.
 - Duplicate `op_type` or `descriptor_key`: `ValueError` is raised.
@@ -528,9 +548,9 @@ The implementation follows the existing Python pass and GE runtime style:
 
 ### 9.1 Test Boundaries
 
-- Python API test entries: `ge.custom_op`, `ge.custom_op._bridge`, `ge.custom_op.bootstrap`.
+- Python API test entries: `ge.custom_op`, `ge.custom_op.proto`, `ge.custom_op._bridge`, `ge.custom_op.bootstrap`.
 - Native context test entries: `_borrow_eager_op_execution_context` and `EagerOpExecutionContext` methods.
-- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `LoadPythonCustomOps()`, `ShutdownCustomOpsForProcess()`.
+- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `LoadPythonCustomOps()`, `LoadCustomOps()`/`UnloadCustomOps()` (reference-counted pair).
 - End-to-end sample entry: `examples/custom_op/args_refresh_add_custom/python/run.sh`.
 
 ### 9.2 Test Design
@@ -538,6 +558,7 @@ The implementation follows the existing Python pass and GE runtime style:
 | Test Category | Key Test Items | Test Method | Case Type |
 |---------------|----------------|-------------|-----------|
 | Function | Capability reflection for plain classes, compatibility bases, inherited methods, `staticmethod`, and `classmethod`, plus invalid registration | Python pytest | UT |
+| Function | Prototype signature parsing, defaults, `mutates_args`, idempotent registration, and conflicts | Python pytest | UT |
 | Function | Legacy `execute(ctx)` context pass-through; schema-bound required/optional/dynamic input and typed attribute assembly | Python pytest fake context | UT |
 | Function | `get_execute_ctx()` access in callbacks, exception cleanup, and nested invocation restoration | Python pytest | UT |
 | Function | Bridge descriptor retrieval, holder creation/destruction, non-callable `execute` rejection, and context invalidation | Python pytest | UT |

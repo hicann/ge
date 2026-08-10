@@ -46,6 +46,13 @@ void BindStorageShape(py::module_ &m) {
       .def_property_readonly("storage_shape", &NativeStorageShape::GetStorageShape);
 }
 
+void BindTensorDesc(py::module_ &m) {
+  py::class_<NativeTensorDesc>(m, "TensorDesc", "Owning Tensor metadata for custom op inference")
+      .def(py::init<const py::object &, const py::object &>(), py::arg("shape"), py::arg("data_type"))
+      .def_property("shape", &NativeTensorDesc::GetShape, &NativeTensorDesc::SetShape)
+      .def_property("data_type", &NativeTensorDesc::GetDataType, &NativeTensorDesc::SetDataType);
+}
+
 void BindExpandDimsType(py::module_ &m) {
   py::class_<NativeExpandDimsType>(m, "ExpandDimsType", "Python view of gert::ExpandDimsType")
       .def(py::init<>())
@@ -90,6 +97,7 @@ void BindRuntimeTypes(py::module_ &m) {
   BindTensorPlacement(m);
   BindShape(m);
   BindStorageShape(m);
+  BindTensorDesc(m);
   BindExpandDimsType(m);
   BindStorageFormat(m);
   BindTensor(m);

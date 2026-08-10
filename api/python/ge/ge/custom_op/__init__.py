@@ -21,6 +21,7 @@ __all__ = [
     "get_registered_op_impl_by_descriptor_key",
     "get_registered_op_impl_dicts",
     "get_registered_op_impls",
+    "register_op",
     "register_op_impl",
 ]
 
@@ -33,6 +34,7 @@ _LAZY_EXPORTS = {
     "get_registered_op_impl_by_descriptor_key": ".registry",
     "get_registered_op_impl_dicts": ".registry",
     "get_registered_op_impls": ".registry",
+    "register_op": ".proto",
     "register_op_impl": ".registry",
 }
 

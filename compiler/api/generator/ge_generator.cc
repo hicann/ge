@@ -507,7 +507,7 @@ Status GeGenerator::Finalize() {
     impl_->pass_plugins_loaded_ = false;
     (void)fusion::UnloadPassPlugins();
   }
-  (void)custom_op::ShutdownCustomOpsForProcess();
+  (void)custom_op::UnloadCustomOps();
   Status ret = impl_->graph_manager_.Finalize();
   if (ret != SUCCESS) {
     GELOGE(GE_GENERATOR_GRAPH_MANAGER_FINALIZE_FAILED, "[Call][Finalize] Graph manager finalize failed.");

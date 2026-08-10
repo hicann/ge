@@ -2,16 +2,7 @@
 
 ## 产品支持情况
 
-- Ascend 950PR/Ascend 950DT：支持
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
-- Atlas 200I/500 A2 推理产品：不支持
-- Atlas 推理系列产品：支持
-- Atlas 训练系列产品：支持
-- MC62CM12A AI处理器：不支持
-- BS9SX2A AI处理器：不支持
-- BS9SX1A AI处理器：不支持
-- IPV350：不支持
+请参见[Session接口产品支持情况](../../cpp/ge/Session/overview.md)。
 
 ## 头文件
 

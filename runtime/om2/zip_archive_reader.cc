@@ -15,6 +15,7 @@
 #include <limits>
 #include <vector>
 
+#include "base/err_msg.h"
 #include "common/checker.h"
 #include "common/debug/log.h"
 #include "common/scope_guard.h"
@@ -326,10 +327,17 @@ bool RAIIZipArchive::BuildEntryCache() {
     const std::string file_name(name_buff.data());
     if (!file_name.empty() && file_name.back() != '/') {
       if (file_info.compression_method != Z_NO_COMPRESSION) {
-        GE_ASSERT_TRUE(file_info.uncompressed_size <= kMaxCompressedEntriesUncompressedSize - total_uncompressed_size,
-                       "Total uncompressed size of compressed entries exceeds limit, current = %llu, limit = %llu",
-                       static_cast<unsigned long long>(file_info.uncompressed_size),
-                       static_cast<unsigned long long>(kMaxCompressedEntriesUncompressedSize));
+        if (file_info.uncompressed_size > kMaxCompressedEntriesUncompressedSize - total_uncompressed_size) {
+          const std::string value = std::to_string(file_info.uncompressed_size);
+          const std::string reason = "Total uncompressed size of compressed entries exceeds the 10 GiB limit.";
+          (void)REPORT_PREDEFINED_ERR_MSG(
+              "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+              std::vector<const char_t *>({"uncompressed_size", value.c_str(), reason.c_str()}));
+          GELOGE(FAILED, "Total uncompressed size of compressed entries exceeds limit, current = %llu, limit = %llu",
+                 static_cast<unsigned long long>(file_info.uncompressed_size),
+                 static_cast<unsigned long long>(kMaxCompressedEntriesUncompressedSize));
+          return false;
+        }
         total_uncompressed_size += file_info.uncompressed_size;
       }
       GE_ASSERT_TRUE(CacheCurrentEntry(file_name, file_info));

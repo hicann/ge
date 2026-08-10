@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import List, overload
+from typing import List, Optional, Union, overload
 
 from ge.graph.types import DataType, Format
 
@@ -20,6 +20,7 @@ __all__: List[str] = [
     "StorageFormat",
     "StorageShape",
     "Tensor",
+    "TensorDesc",
     "TensorPlacement",
 ]
 
@@ -123,6 +124,38 @@ class StorageShape:
 
     def set_storage_shape(self, shape: Shape) -> None:
         """Replace the runtime/storage shape with ``shape``."""
+        ...
+
+
+class TensorDesc:
+    """Owning shape and data type metadata used by custom op inference."""
+
+    def __init__(
+        self,
+        shape: Union[StorageShape, Optional[List[int]]],
+        data_type: DataType,
+    ) -> None:
+        """Construct from a storage shape, dimensions, or ``None`` for scalar."""
+        ...
+
+    @property
+    def shape(self) -> StorageShape:
+        """Return a view valid while this ``TensorDesc`` remains alive."""
+        ...
+
+    @shape.setter
+    def shape(self, value: Union[StorageShape, Optional[List[int]]]) -> None:
+        """Replace shape metadata with an owning copy of ``value``."""
+        ...
+
+    @property
+    def data_type(self) -> DataType:
+        """Return the tensor data type."""
+        ...
+
+    @data_type.setter
+    def data_type(self, value: DataType) -> None:
+        """Set the tensor data type."""
         ...
 
 

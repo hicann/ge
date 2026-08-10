@@ -23,7 +23,7 @@
 <!-- npu="IPV350" id573 -->
 - IPV350：不支持
 <!-- end id573 -->
-- MC62CM12A AI处理器：不支持
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopSetAttrString_res.md#id1 -->
 
 ## 功能说明
 

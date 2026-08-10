@@ -28,26 +28,31 @@ class CustomOpLoader {
 
   Status Load() {
     std::lock_guard<std::mutex> lock(mutex_);
-    const auto cpp_load_ret = OpLibRegistry::GetInstance().PreProcessForCustomOp();
-    if (cpp_load_ret != GRAPH_SUCCESS) {
-      GELOGE(cpp_load_ret, "Load C++ custom ops failed.");
-      return cpp_load_ret;
-    }
-    bool need_load_python_custom_ops = false;
-    const auto check_ret = CheckNeedLoadPythonCustomOps(need_load_python_custom_ops);
-    if (check_ret != SUCCESS) {
-      GELOGE(check_ret, "Check Python custom ops failed.");
-      return check_ret;
-    }
-    if ((!python_custom_ops_loaded_) && need_load_python_custom_ops) {
-      const auto ret = LoadPythonCustomOps();
-      if (ret != SUCCESS) {
-        GELOGE(ret, "Load Python custom ops failed.");
-        RollbackPythonCustomOpsLoad();
-        return ret;
+    if (active_users_ == 0U) {
+      shutdown_done_ = false;
+      const auto cpp_load_ret = OpLibRegistry::GetInstance().PreProcessForCustomOp();
+      if (cpp_load_ret != GRAPH_SUCCESS) {
+        GELOGE(cpp_load_ret, "Load C++ custom ops failed.");
+        return cpp_load_ret;
       }
-      python_custom_ops_loaded_ = true;
+      bool need_load_python_custom_ops = false;
+      const auto check_ret = CheckNeedLoadPythonCustomOps(need_load_python_custom_ops);
+      if (check_ret != SUCCESS) {
+        GELOGE(check_ret, "Check Python custom ops failed.");
+        return check_ret;
+      }
+      if ((!python_custom_ops_loaded_) && need_load_python_custom_ops) {
+        const auto ret = LoadPythonCustomOps();
+        if (ret != SUCCESS) {
+          GELOGE(ret, "Load Python custom ops failed.");
+          RollbackPythonCustomOpsLoad();
+          return ret;
+        }
+        python_custom_ops_loaded_ = true;
+      }
     }
+    active_users_++;
+    GELOGI("LoadCustomOps active_users_=%zu", active_users_);
     return SUCCESS;
   }
 
@@ -74,29 +79,24 @@ class CustomOpLoader {
 
   Status Unload() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (python_custom_ops_loaded_) {
-      UnloadPythonCustomOps();
-      python_custom_ops_loaded_ = false;
-    }
-    return SUCCESS;
-  }
-
-  Status ShutdownForProcess() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (python_custom_ops_loaded_) {
-      GELOGI("[PythonCustomOp] ShutdownForProcess unloading python custom ops.");
-      UnloadPythonCustomOps();
-      python_custom_ops_loaded_ = false;
-    }
-
-    if (shutdown_done_) {
-      GELOGI("Python custom op process-level cleanup already done, skip.");
+    if (active_users_ == 0U) {
+      GELOGW("UnloadCustomOps called with no active users, possible reference leak.");
       return SUCCESS;
     }
-    shutdown_done_ = true;
-
-    ShutdownPythonCustomOpsForProcess();
-    GELOGI("ShutdownPythonCustomOpsForProcess done.");
+    active_users_--;
+    GELOGI("UnloadCustomOps active_users_=%zu", active_users_);
+    if (active_users_ == 0U) {
+      if (python_custom_ops_loaded_) {
+        GELOGI("[PythonCustomOp] Last user, unloading python custom ops.");
+        UnloadPythonCustomOps();
+        python_custom_ops_loaded_ = false;
+      }
+      if (!shutdown_done_) {
+        shutdown_done_ = true;
+        ShutdownPythonCustomOpsForProcess();
+        GELOGI("ShutdownPythonCustomOpsForProcess done.");
+      }
+    }
     return SUCCESS;
   }
 
@@ -107,6 +107,7 @@ class CustomOpLoader {
   }
 
   std::mutex mutex_;
+  size_t active_users_{0U};
   bool python_custom_ops_loaded_{false};
   bool shutdown_done_{false};
 };
@@ -122,10 +123,6 @@ Status LoadPythonCustomOpsIfNeeded() {
 
 Status UnloadCustomOps() {
   return CustomOpLoader::GetInstance().Unload();
-}
-
-Status ShutdownCustomOpsForProcess() {
-  return CustomOpLoader::GetInstance().ShutdownForProcess();
 }
 }  // namespace custom_op
 }  // namespace ge

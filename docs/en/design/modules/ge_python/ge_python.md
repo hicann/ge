@@ -805,6 +805,7 @@ For more design details please refer to [Python Pass Design Document](ge_python_
 custom_op/
 ├── __init__.py              # Module initialization, exports public API
 ├── base.py                  # BaseCustomOp and EagerExecuteOp base class definitions
+├── proto.py                 # Python custom operator prototype parser, descriptors, and registry
 ├── registry.py              # Python custom operator implementation registry and decorators
 ├── bootstrap.py             # Plugin discovery and loading
 ├── context.py               # Current execution context binding for schema-bound execute
@@ -923,6 +924,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 **Decorators**:
 
+- `register_op(op_type, mutates_args=())` - Declares and collects a Python custom operator prototype from annotations on the decorated function
 - `register_op_impl(op_type)` - Registers a Python implementation class and reflects its callable methods into a capability list; currently, `execute` maps to `eager_execute`
 
 **Discovery mechanism**:

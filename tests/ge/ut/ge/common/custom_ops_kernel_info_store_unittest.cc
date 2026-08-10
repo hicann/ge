@@ -340,6 +340,48 @@ class MockAnnotatedArgsWithWorkspaceCustomOp : public AnnotatedArgsOp, public Mo
   }
 };
 
+std::atomic_uint32_t g_single_declare_no_workspace_count{0U};
+
+class MockSingleDeclareNoWorkspaceCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    ++g_single_declare_no_workspace_count;
+    static const uint8_t kBin[] = {0x21U, 0x22U};
+    const auto *input = ctx.GetInputTensor(0U);
+    const auto *output = ctx.GetOutputTensor(0U);
+    GE_ASSERT_NOTNULL(input);
+    GE_ASSERT_NOTNULL(output);
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()}, gert::InputAddr{0U, input->GetAddr()},
+                                   gert::OutputAddr{0U, output->GetAddr()});
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"single_declare_no_workspace", kBin, sizeof(kBin), 4U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
+std::atomic_uint32_t g_single_declare_workspace_count{0U};
+
+class MockSingleDeclareWorkspaceCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    ++g_single_declare_workspace_count;
+    static const uint8_t kBin[] = {0x31U, 0x32U};
+    const auto *input0 = ctx.GetInputTensor(0U);
+    const auto *input1 = ctx.GetInputTensor(1U);
+    const auto *output = ctx.GetOutputTensor(0U);
+    GE_ASSERT_NOTNULL(input0);
+    GE_ASSERT_NOTNULL(input1);
+    GE_ASSERT_NOTNULL(output);
+    const auto workspace = ctx.MallocWorkSpace(100U);
+    GE_ASSERT_NOTNULL(workspace.addr);
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input0->GetAddr()}, gert::InputAddr{1U, input1->GetAddr()},
+                                   gert::OutputAddr{0U, output->GetAddr()}, workspace);
+    return ctx.AddLaunch(
+        gert::AnnotatedKernelLaunchInfo{"single_declare_workspace", kBin, sizeof(kBin), 4U, ctx.GetStreamId()},
+        std::move(args));
+  }
+};
+
 class MockAnnotatedArgsWithMultipleWorkspacesCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
  public:
   graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
@@ -447,25 +489,6 @@ class MockAnnotatedArgsWithMismatchStreamCustomOp : public AnnotatedArgsOp, publ
     return ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"custom_mismatch_stream_kernel", kBin, sizeof(kBin), 4U,
                                                          ctx.GetStreamId() + 1U},
                          std::move(args));
-  }
-};
-
-std::atomic_uint32_t g_mismatch_workspace_execute_count{0U};
-
-class MockAnnotatedArgsWithMismatchedWorkspaceCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
- public:
-  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
-    static const uint8_t kBin[] = {0x31U, 0x32U, 0x33U, 0x34U};
-    const uint32_t count = g_mismatch_workspace_execute_count.fetch_add(1U);
-    const size_t workspace_size = (count == 0U) ? 100U : 200U;
-    auto workspace = ctx.MallocWorkSpace(workspace_size);
-    GE_ASSERT_NOTNULL(workspace.addr);
-    auto input = ctx.GetInputTensor(0U);
-    GE_ASSERT_NOTNULL(input);
-    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()}, workspace);
-    return ctx.AddLaunch(
-        gert::AnnotatedKernelLaunchInfo{"custom_mismatch_workspace_kernel", kBin, sizeof(kBin), 4U, ctx.GetStreamId()},
-        std::move(args));
   }
 };
 
@@ -1015,6 +1038,69 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocDeclaresAnnotate
   EXPECT_FALSE(tasks[0].kernel().context().args_format().empty());
 }
 
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskReusesImmutablePlanWithoutWorkspace) {
+  const std::string kTestOpType = "TestSingleDeclareNoWorkspace_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockSingleDeclareNoWorkspaceCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  g_single_declare_no_workspace_count.store(0U);
+
+  std::vector<domi::TaskDef> first_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, first_tasks), SUCCESS);
+  ASSERT_EQ(first_tasks.size(), 1U);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetInputOffset({512U});
+  op_desc->SetOutputOffset({3072U});
+  op_desc->SetStreamId(9);
+  op_desc->SetId(11);
+
+  std::vector<domi::TaskDef> second_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, second_tasks), SUCCESS);
+  ASSERT_EQ(second_tasks.size(), 1U);
+  EXPECT_EQ(second_tasks[0].stream_id(), 9U);
+  EXPECT_EQ(second_tasks[0].kernel().context().op_index(), 11);
+  EXPECT_EQ(ReadUint64Slot(second_tasks[0].kernel().args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(second_tasks[0].kernel().args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(second_tasks[0].kernel().args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 3072U));
+
+  std::vector<domi::TaskDef> third_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, third_tasks), SUCCESS);
+  EXPECT_EQ(g_single_declare_no_workspace_count.load(), 1U);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CalcOpRunningParamStartsNewAnnotatedArgsPlanLifecycle) {
+  const std::string kTestOpType = "TestSingleDeclareNewLifecycle_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockSingleDeclareNoWorkspaceCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  g_single_declare_no_workspace_count.store(0U);
+  CustomOpsKernelBuilder builder;
+
+  ASSERT_EQ(builder.CalcOpRunningParam(*node), SUCCESS);
+  std::vector<domi::TaskDef> first_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, first_tasks), SUCCESS);
+  std::vector<domi::TaskDef> repeated_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, repeated_tasks), SUCCESS);
+  EXPECT_EQ(g_single_declare_no_workspace_count.load(), 1U);
+
+  ASSERT_EQ(builder.CalcOpRunningParam(*node), SUCCESS);
+  std::vector<domi::TaskDef> next_compile_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, next_compile_tasks), SUCCESS);
+  EXPECT_EQ(g_single_declare_no_workspace_count.load(), 2U);
+}
+
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocWritesPrefixedKernelAttrs) {
   GetThreadLocalContext().SetGraphOption({{ge::SOC_VERSION, "Ascend910B"}});
 
@@ -1065,6 +1151,19 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsInvalidOptionalBeforeR
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
   EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 3072U));
   EXPECT_EQ(kernel.context().args_format(), "{i_instance0*}{i_instance1*}{o_instance0*}");
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetInputOffset({512U, 3584U});
+  op_desc->SetOutputOffset({3840U});
+
+  std::vector<domi::TaskDef> materialized_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, materialized_tasks), SUCCESS);
+  ASSERT_EQ(materialized_tasks.size(), 1U);
+  const auto &materialized_kernel = materialized_tasks[0].kernel();
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 3584U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 3840U));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsInvalidOptionalBeforeConstInput) {
@@ -1175,6 +1274,21 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsDynamicIoWithReordered
   EXPECT_EQ(parsed_arg_descs[3].ir_idx, 2);
   EXPECT_EQ(parsed_arg_descs[4].addr_type, AddrType::OUTPUT_INSTANCE);
   EXPECT_EQ(parsed_arg_descs[4].ir_idx, 0);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetInputOffset({128U, 640U, 896U, 1152U});
+  op_desc->SetOutputOffset({1408U, 1664U, 1920U});
+
+  std::vector<domi::TaskDef> materialized_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, materialized_tasks), SUCCESS);
+  ASSERT_EQ(materialized_tasks.size(), 1U);
+  const auto &materialized_kernel = materialized_tasks[0].kernel();
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1152U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 1U), static_cast<uint64_t>(kLogicDataMemBase + 640U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 640U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 1920U));
+  EXPECT_EQ(ReadUint64Slot(materialized_kernel.args(), 4U), static_cast<uint64_t>(kLogicDataMemBase + 1408U));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskArgsOffsetLimit8192Success) {
@@ -1392,6 +1506,24 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskSupportsMultipleLaunches) {
   EXPECT_NE(tasks[0].kernel().kernel_name(), tasks[1].kernel().kernel_name());
   EXPECT_FALSE(tasks[0].kernel().context().args_format().empty());
   EXPECT_FALSE(tasks[1].kernel().context().args_format().empty());
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetInputOffset({512U});
+  op_desc->SetOutputOffset({3072U});
+  op_desc->SetStreamId(9);
+  op_desc->SetId(11);
+
+  std::vector<domi::TaskDef> materialized_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, materialized_tasks), SUCCESS);
+  ASSERT_EQ(materialized_tasks.size(), 2U);
+  EXPECT_EQ(materialized_tasks[0].stream_id(), 9U);
+  EXPECT_EQ(materialized_tasks[1].stream_id(), 9U);
+  EXPECT_EQ(materialized_tasks[0].kernel().context().op_index(), 11);
+  EXPECT_EQ(materialized_tasks[1].kernel().context().op_index(), 11);
+  EXPECT_EQ(ReadUint64Slot(materialized_tasks[0].kernel().args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 512U));
+  EXPECT_EQ(ReadUint64Slot(materialized_tasks[1].kernel().args(), 0U),
+            static_cast<uint64_t>(kLogicDataMemBase + 3072U));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskAllowsSameKernelNameWithDifferentBins) {
@@ -1529,14 +1661,47 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFinalDeclareUsesPlannedWorkspa
   EXPECT_EQ(parsed_arg_descs[2].ir_idx, 0);
 }
 
-TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenFinalWorkspaceSizeDiffersFromProbe) {
-  const std::string kTestOpType = "TestAnnotatedArgsWithWorkspaceMismatch_BuilderTest";
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskReusesImmutablePlanForFinalWorkspaceAndCurrentWeightBase) {
+  const std::string kTestOpType = "TestSingleDeclareWorkspaceFinal_BuilderTest";
   auto creator = []() -> std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<MockAnnotatedArgsWithMismatchedWorkspaceCustomOp>();
+    return std::make_unique<MockSingleDeclareWorkspaceCustomOp>();
   };
   ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
 
-  g_mismatch_workspace_execute_count.store(0U);
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNodeWithConstInput(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  g_single_declare_workspace_count.store(0U);
+
+  std::vector<domi::TaskDef> probe_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, probe_tasks), SUCCESS);
+  FinalizeCustomWorkspaceForDirectBuilderTest(node, 4096);
+
+  CustomOpsKernelBuilder builder;
+  RunContext final_context = {};
+  final_context.dataMemBase = reinterpret_cast<uint8_t *>(kLogicDataMemBase);
+  final_context.dataMemSize = 4608U;
+  final_context.weightMemBase = reinterpret_cast<uint8_t *>(kLogicWeightMemBase + 512U);
+  final_context.weightMemSize = 4096U;
+
+  std::vector<domi::TaskDef> final_tasks;
+  ASSERT_EQ(builder.GenerateTask(*node, final_context, final_tasks), SUCCESS);
+  ASSERT_EQ(final_tasks.size(), 1U);
+  EXPECT_EQ(ReadUint64Slot(final_tasks[0].kernel().args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
+  EXPECT_EQ(ReadUint64Slot(final_tasks[0].kernel().args(), 1U),
+            static_cast<uint64_t>(kLogicWeightMemBase + 512U + 4096U));
+  EXPECT_EQ(ReadUint64Slot(final_tasks[0].kernel().args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 2048U));
+  EXPECT_EQ(ReadUint64Slot(final_tasks[0].kernel().args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 4096U));
+  EXPECT_EQ(g_single_declare_workspace_count.load(), 1U);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenFinalWorkspaceLayoutDiffersFromPlan) {
+  const std::string kTestOpType = "TestAnnotatedArgsWithWorkspaceMismatch_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithWorkspaceCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
   ComputeGraphPtr graph;
   auto node = BuildStaticCustomNode(kTestOpType, graph);
   ASSERT_NE(node, nullptr);
@@ -1544,9 +1709,17 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenFinalWorkspaceSizeDif
   std::vector<domi::TaskDef> probe_tasks;
   ASSERT_EQ(GenerateTaskForNode(node, probe_tasks), SUCCESS);
   FinalizeCustomWorkspaceForDirectBuilderTest(node, 4096);
+  node->GetOpDesc()->SetWorkspaceBytes({1024});
+
+  CustomOpsKernelBuilder builder;
+  RunContext final_context = {};
+  final_context.dataMemBase = reinterpret_cast<uint8_t *>(kLogicDataMemBase);
+  final_context.dataMemSize = 5120U;
+  final_context.weightMemBase = reinterpret_cast<uint8_t *>(kLogicWeightMemBase);
+  final_context.weightMemSize = 4096U;
 
   std::vector<domi::TaskDef> final_tasks;
-  EXPECT_NE(GenerateTaskForNode(node, final_tasks), SUCCESS);
+  EXPECT_NE(builder.GenerateTask(*node, final_context, final_tasks), SUCCESS);
   EXPECT_TRUE(final_tasks.empty());
 }
 
