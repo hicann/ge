@@ -289,7 +289,7 @@ flowchart LR
 | 同步机制 | Event + Notify 双模式 | 仅 Event                                     |
 | Auto Multi-Stream | `ge.autoMultistreamParallelMode` 保持既有开启语义 | 仅由 `ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1` 开启，option 只选择算法 |
 
-动态 Shape 多流路径中的 stream_id 连续化分两步：先按引擎优先级、StreamLabel 等规则消除空洞；如果 `ge.autoMultistreamParallelMode` 为显式 `LoadBalance:N` 或 `MainStream:N` DAG 模式（`N` 为 `[1, 64]` 范围内的整数），再收集根图和未知 Shape 子图中节点实际使用的 stream_id，按从小到大的顺序重新映射为连续 ID，并重建 `stream_nodes_`。`cv` 模式不进入 DAG 按节点连续化分支，保持引擎优先级连续化结果。裸 `LoadBalance` 默认 8 流的兼容配置已下线。后续跨流 Event 插入基于最终 stream_id 执行，避免 auto multi-stream 改写节点流后留下空洞或错误的流内节点顺序。
+动态 Shape 多流路径中的 stream_id 连续化分两步：先按引擎优先级、StreamLabel 等规则消除空洞；如果 `ge.autoMultistreamParallelMode` 为显式 `LoadBalance:N` 或 `MainStream:N` DAG 模式（`N` 为 `[1, 64]` 范围内的整数），再统一收集根图和未知 Shape 子图中普通节点实际使用的有效 stream_id，按从小到大的顺序重新映射为连续 ID，并重建 `stream_nodes_`。无有效 stream_id 的节点、强制主流节点和包含子图实例的节点不保留自定义 Pass 写入的旧 stream_id，刷新时统一归入 stream 0，避免产生空流；没有普通节点时至少保留一条主流。`cv` 模式不进入 DAG 按节点连续化分支，保持引擎优先级连续化结果。裸 `LoadBalance` 默认 8 流的兼容配置已下线。后续跨流 Event 插入基于最终 stream_id 执行，避免 auto multi-stream 改写节点流后留下空洞或错误的流内节点顺序。
 
 ### 4.3 同步事件管理
 
