@@ -840,4 +840,27 @@ TEST_F(UtestGraphPassesSubgraphPass, hcom_to_netoutput_discard_reuse_input_attr)
                              after_reuse_flag);
   EXPECT_TRUE(after_reuse_flag == false);
 }
+
+TEST_F(UtestGraphPassesSubgraphPass, run_with_empty_graph_test) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("empty_graph");
+  PassManager pass_managers;
+  pass_managers.AddPass("SubgraphPass", new (std::nothrow) SubgraphPass);
+  EXPECT_EQ(pass_managers.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesSubgraphPass, run_with_simple_graph_test) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("simple_graph");
+  auto data_op = std::make_shared<OpDesc>("data", DATA);
+  data_op->AddOutputDesc(GeTensorDesc());
+  auto data = graph->AddNode(data_op);
+  auto netoutput_op = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
+  netoutput_op->AddInputDesc(GeTensorDesc());
+  auto netoutput = graph->AddNode(netoutput_op);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  graph->TopologicalSorting();
+
+  PassManager pass_managers;
+  pass_managers.AddPass("SubgraphPass", new (std::nothrow) SubgraphPass);
+  EXPECT_EQ(pass_managers.Run(graph), SUCCESS);
+}
 }  // namespace ge

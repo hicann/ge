@@ -417,3 +417,105 @@ TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, ParamInvalid) {
   ret = kernel.GetNumPriorAndDimSize(1U, 1U, 1U, 1024 * 1024 * 1024 - 1, 1, num_priors, dim_size);
   EXPECT_EQ(PARAM_INVALID, ret);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamNullOpDesc) {
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(nullptr, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamMissingImgH) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("SSDPriorBox", SSDPRIORBOX);
+  GeTensorDesc tensor_desc(GeShape({10, 10, 10, 10}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(0, tensor_desc);
+
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(op_desc, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamMissingImgW) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("SSDPriorBox", SSDPRIORBOX);
+  GeTensorDesc tensor_desc(GeShape({10, 10, 10, 10}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(0, tensor_desc);
+  AttrUtils::SetInt(op_desc, SSD_PRIOR_BOX_ATTR_IMG_H, 100);
+
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(op_desc, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamMissingStepH) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("SSDPriorBox", SSDPRIORBOX);
+  GeTensorDesc tensor_desc(GeShape({10, 10, 10, 10}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(0, tensor_desc);
+  AttrUtils::SetInt(op_desc, SSD_PRIOR_BOX_ATTR_IMG_H, 100);
+  AttrUtils::SetInt(op_desc, SSD_PRIOR_BOX_ATTR_IMG_W, 100);
+  AttrUtils::SetFloat(op_desc, SSD_PRIOR_BOX_ATTR_STEP_W, 1.0);
+
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(op_desc, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamWithStepValue) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("SSDPriorBox", SSDPRIORBOX);
+  GeTensorDesc tensor_desc(GeShape({10, 10, 10, 10}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(0, tensor_desc);
+  AttrUtils::SetInt(op_desc, SSD_PRIOR_BOX_ATTR_IMG_H, 100);
+  AttrUtils::SetInt(op_desc, SSD_PRIOR_BOX_ATTR_IMG_W, 100);
+  AttrUtils::SetFloat(op_desc, SSD_PRIOR_BOX_ATTR_STEP_H, 2.0);
+  AttrUtils::SetFloat(op_desc, SSD_PRIOR_BOX_ATTR_STEP_W, 2.0);
+
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(op_desc, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(SUCCESS, ret);
+  EXPECT_FLOAT_EQ(step_w, 2.0);
+  EXPECT_FLOAT_EQ(step_h, 2.0);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelSsdPriorboxKernel, GetPriorSizeParamZeroLayerHeight) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("SSDPriorBox", SSDPRIORBOX);
+  GeTensorDesc tensor_desc(GeShape({10, 10, 0, 10}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->AddInputDesc(0, tensor_desc);
+
+  SsdPriorboxKernel kernel;
+  int32_t img_width = 0;
+  int32_t img_height = 0;
+  float step_w = 0.0;
+  float step_h = 0.0;
+  int32_t layer_width = 0;
+  int32_t layer_height = 0;
+  Status ret = kernel.GetPriorSizeParam(op_desc, img_width, img_height, step_w, step_h, layer_width, layer_height);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}

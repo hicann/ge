@@ -888,4 +888,98 @@ TEST_F(UtestInnerSession, SetGraphFixedFeatureMemoryBase_NotExist_CovEnhance) {
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
   EXPECT_EQ(GEFinalize(), SUCCESS);
 }
+
+TEST_F(UtestInnerSession, RemoveDumpProperties_WithDumpServer_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  inner_session.is_dump_server_inited_ = true;
+  auto ret = inner_session.RemoveDumpProperties();
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, RegisterCallBackFunc_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  auto ret1 = inner_session.RegisterCallBackFunc("key1", Callback1);
+  EXPECT_EQ(ret1, SUCCESS);
+  auto ret2 = inner_session.RegisterCallBackFunc("key2", Callback2);
+  EXPECT_EQ(ret2, SUCCESS);
+  auto callback3 = [](uint32_t, const std::map<AscendString, gert::Tensor> &) -> Status { return SUCCESS; };
+  auto ret3 = inner_session.RegisterCallBackFunc("key3", callback3);
+  EXPECT_EQ(ret3, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, BuildGraph_WithInitAndInputs_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  std::vector<ge::Tensor> inputs;
+  ge::Tensor tensor;
+  inputs.emplace_back(tensor);
+  auto ret = inner_session.BuildGraph(1U, inputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, RunGraphAsync_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  std::vector<gert::Tensor> inputs;
+  RunAsyncCallbackV2 callback = [](Status, std::vector<gert::Tensor> &) { return SUCCESS; };
+  auto ret = inner_session.RunGraphAsync(1U, std::move(inputs), callback);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, SetGraphConstMemoryBase_WithGraph_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  uint32_t graph_id = 1U;
+  ComputeGraphPtr compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->ge_root_model_ = MakeShared<GeRootModel>();
+  graph_node->ge_root_model_->Initialize(compute_graph);
+  graph_node->SetCompiledFlag(true);
+  inner_session.graph_manager_.AddGraphNode(graph_id, graph_node);
+  auto ret = inner_session.SetGraphConstMemoryBase(graph_id, nullptr, 1024U);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, UpdateGraphFeatureMemoryBase_WithGraph_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  InnerSession inner_session(0U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  uint32_t graph_id = 1U;
+  ComputeGraphPtr compute_graph = MakeShared<ComputeGraph>("test_graph");
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->ge_root_model_ = MakeShared<GeRootModel>();
+  graph_node->ge_root_model_->Initialize(compute_graph);
+  graph_node->SetCompiledFlag(true);
+  inner_session.graph_manager_.AddGraphNode(graph_id, graph_node);
+  auto ret = inner_session.UpdateGraphFeatureMemoryBase(graph_id, nullptr, 1024U);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestInnerSession, IsGraphNeedRebuild_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  InnerSession inner_session(1U, options);
+  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  auto ret = inner_session.IsGraphNeedRebuild(1U);
+  EXPECT_EQ(ret, true);
+  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
 }  // namespace ge

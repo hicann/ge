@@ -1098,4 +1098,108 @@ TEST_F(GeIrUtilsIncCov2, IncCov2_DecodeNodeAttributeForOpOutDesc_OriginDtype) {
   SUCCEED();
 }
 
+TEST_F(GeIrUtilsIncCov2, IncCov2_AddAttrProto_NullNodeProto) {
+  OnnxUtils::AddAttrProto(nullptr, onnx::AttributeProto_AttributeType_INT, "test", nullptr);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_AddAttrProtoFromAttribute_NullNodeProto) {
+  std::pair<const std::string, ge::GeAttrValue> attr_pair("test", GeAttrValue());
+  OnnxUtils::AddAttrProtoFromAttribute(attr_pair, nullptr);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeValueInfo_NullProto) {
+  auto graph = std::make_shared<ComputeGraph>("test_vi_null");
+  auto node = CreateNodeIncCov2Helper(graph, "vi_node", "Relu", 1, 1);
+  OnnxUtils::EncodeValueInfo(node, nullptr);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeDataType_Unsupported) {
+  EXPECT_EQ(OnnxUtils::EncodeDataType(DT_UNDEFINED), onnx::TensorProto_DataType_UNDEFINED);
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_DecodeNodeAttributeForOpInDesc_NullTensorDesc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_null_td", "TestOp");
+  onnx::AttributeProto attr_proto;
+  attr_proto.set_name("input_desc_dtype:0");
+  OnnxUtils::DecodeNodeAttributeForOpInDesc(attr_proto, "input_desc_dtype", 0, op_desc);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_DecodeNodeAttributeForOpOutDesc_NullTensorDesc) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_null_td_out", "TestOp");
+  onnx::AttributeProto attr_proto;
+  attr_proto.set_name("output_desc_dtype:0");
+  OnnxUtils::DecodeNodeAttributeForOpOutDesc(attr_proto, "output_desc_dtype", 0, op_desc);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_DecodeNodeAttributeForOpInDesc_Unknown) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_in_unknown", "TestOp");
+  op_desc->AddInputDesc(GeTensorDesc(GeShape({1}), FORMAT_NCHW, DT_FLOAT));
+  onnx::AttributeProto attr_proto;
+  attr_proto.set_name("input_desc_unknown:0");
+  OnnxUtils::DecodeNodeAttributeForOpInDesc(attr_proto, "input_desc_unknown", 0, op_desc);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_DecodeNodeAttributeForOpOutDesc_Unknown) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_out_unknown", "TestOp");
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape({1}), FORMAT_NCHW, DT_FLOAT));
+  onnx::AttributeProto attr_proto;
+  attr_proto.set_name("output_desc_unknown:0");
+  OnnxUtils::DecodeNodeAttributeForOpOutDesc(attr_proto, "output_desc_unknown", 0, op_desc);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeTypeProtoTensorType_NullOpDesc) {
+  auto graph = std::make_shared<ComputeGraph>("test_tpt_null_opdesc");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("null_opdesc_node", "Relu");
+  auto node = graph->AddNode(op_desc);
+  onnx::TypeProto_Tensor tensor_type;
+  OnnxUtils::EncodeTypeProtoTensorType(node, &tensor_type);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_AddAttrProtoFromNodeMembers_NullNode) {
+  onnx::NodeProto node_proto;
+  OnnxUtils::AddAttrProtoFromNodeMembers(nullptr, &node_proto);
+  SUCCEED();
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeNode_WithControlEdge) {
+  auto graph = std::make_shared<ComputeGraph>("test_ctrl_edge");
+  auto node1 = CreateNodeIncCov2Helper(graph, "ctrl_src", "Relu", 0, 1);
+  auto node2 = CreateNodeIncCov2Helper(graph, "ctrl_dst", "Relu", 1, 1);
+  GraphUtils::AddEdge(node1->GetOutControlAnchor(), node2->GetInControlAnchor());
+  onnx::NodeProto node_proto;
+  EXPECT_TRUE(OnnxUtils::EncodeNode(node2, &node_proto));
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeNode_WithOutDescOnly) {
+  auto graph = std::make_shared<ComputeGraph>("test_out_only");
+  auto node = CreateNodeIncCov2Helper(graph, "out_only_node", "Relu", 0, 1);
+  onnx::NodeProto node_proto;
+  EXPECT_TRUE(OnnxUtils::EncodeNode(node, &node_proto));
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeNode_WithMultipleInputsOutputs) {
+  auto graph = std::make_shared<ComputeGraph>("test_multi_io");
+  auto node = CreateNodeIncCov2Helper(graph, "multi_io_node", "Relu", 3, 2);
+  onnx::NodeProto node_proto;
+  EXPECT_TRUE(OnnxUtils::EncodeNode(node, &node_proto));
+}
+
+TEST_F(GeIrUtilsIncCov2, IncCov2_EncodeGraph_Success) {
+  auto graph = std::make_shared<ComputeGraph>("test_encode_graph");
+  auto data = CreateNodeIncCov2Helper(graph, "data", "Data", 0, 1);
+  auto relu = CreateNodeIncCov2Helper(graph, "relu", "Relu", 1, 1);
+  auto netoutput = CreateNodeIncCov2Helper(graph, "netoutput", "NetOutput", 1, 0);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  onnx::GraphProto graph_proto;
+  EXPECT_TRUE(OnnxUtils::EncodeGraph(graph, &graph_proto));
+}
 }  // namespace ge

@@ -365,4 +365,486 @@ TEST_F(UtestAclGraphParser, test_ParseAclInputShape) {
   ret = acl_graph_parse_util.ParseParamsBeforeGraph(param4, graph_name);
   ASSERT_EQ(ret, SUCCESS);
 }
+
+TEST_F(UtestAclGraphParser, test_fp16_t_conversions) {
+  parser::fp16_t fp16;
+  fp16.val = 0x0001;
+  float f = fp16;
+  EXPECT_NE(f, 0.0f);
+
+  fp16.val = 0x8001;
+  f = fp16;
+  EXPECT_NE(f, 0.0f);
+
+  fp16.val = 0x3C00;
+  f = fp16;
+  EXPECT_FLOAT_EQ(f, 1.0f);
+
+  fp16.val = 0xBC00;
+  f = fp16;
+  EXPECT_FLOAT_EQ(f, -1.0f);
+
+  fp16.val = 0x4000;
+  f = fp16;
+  EXPECT_FLOAT_EQ(f, 2.0f);
+
+  fp16.val = 0x0000;
+  f = fp16;
+  EXPECT_FLOAT_EQ(f, 0.0f);
+
+  double d = fp16;
+  EXPECT_FLOAT_EQ(d, 0.0);
+
+  fp16.val = 0x3C00;
+  d = fp16;
+  EXPECT_FLOAT_EQ(d, 1.0);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_int_conversions) {
+  parser::fp16_t fp16;
+  fp16.val = 0x3C00;
+  int8_t i8 = fp16;
+  EXPECT_EQ(i8, 1);
+  uint8_t ui8 = fp16;
+  EXPECT_EQ(ui8, 1);
+  int16_t i16 = fp16;
+  EXPECT_EQ(i16, 1);
+  uint16_t ui16 = fp16;
+  EXPECT_EQ(ui16, 1);
+  int32_t i32 = fp16;
+  EXPECT_EQ(i32, 1);
+  uint32_t ui32 = fp16;
+  EXPECT_EQ(ui32, 1);
+
+  fp16.val = 0x4900;
+  i8 = fp16;
+  EXPECT_NE(i8, 0);
+  ui8 = fp16;
+  EXPECT_NE(ui8, 0);
+  i16 = fp16;
+  EXPECT_NE(i16, 0);
+  ui16 = fp16;
+  EXPECT_NE(ui16, 0);
+  i32 = fp16;
+  EXPECT_NE(i32, 0);
+  ui32 = fp16;
+  EXPECT_NE(ui32, 0);
+
+  fp16.val = 0x8900;
+  i8 = fp16;
+  ui8 = fp16;
+  EXPECT_EQ(ui8, 0);
+  i16 = fp16;
+  ui16 = fp16;
+  i32 = fp16;
+  ui32 = fp16;
+  EXPECT_EQ(ui32, 0);
+
+  fp16.val = 0x7C00;
+  i8 = fp16;
+  ui8 = fp16;
+  i16 = fp16;
+  ui16 = fp16;
+  i32 = fp16;
+  ui32 = fp16;
+  EXPECT_NE(ui32, 0);
+
+  fp16.val = 0xFC00;
+  i8 = fp16;
+  ui8 = fp16;
+  i16 = fp16;
+  ui16 = fp16;
+  i32 = fp16;
+  ui32 = fp16;
+
+  fp16.val = 0x0001;
+  i8 = fp16;
+  ui8 = fp16;
+  i16 = fp16;
+  ui16 = fp16;
+  i32 = fp16;
+  ui32 = fp16;
+
+  fp16.val = 0x0000;
+  i8 = fp16;
+  ui8 = fp16;
+  i16 = fp16;
+  ui16 = fp16;
+  i32 = fp16;
+  ui32 = fp16;
+  EXPECT_EQ(ui8, 0);
+  EXPECT_EQ(ui16, 0);
+  EXPECT_EQ(ui32, 0);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_assignment) {
+  parser::fp16_t fp16;
+
+  fp16 = 1.0f;
+  EXPECT_EQ(fp16.val, 0x3C00);
+  fp16 = -1.0f;
+  EXPECT_EQ(fp16.val, 0xBC00);
+  fp16 = 0.0f;
+  EXPECT_EQ(fp16.val, 0x0000);
+  fp16 = 2.0f;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 65504.0f;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = -65504.0f;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 5.960464477539063e-08f;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 1.0e-40f;
+  EXPECT_EQ(fp16.val, 0);
+
+  fp16 = (int8_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int8_t)-1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int8_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (int8_t)127;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = (uint8_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (uint8_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (uint8_t)255;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = (int16_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int16_t)-1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int16_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (int16_t)256;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int16_t)32767;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = (uint16_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (uint16_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (uint16_t)65535;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = (int32_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int32_t)-1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int32_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (int32_t)65536;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (int32_t)2147483647;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = (uint32_t)1;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = (uint32_t)0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = (uint32_t)4294967295U;
+  EXPECT_NE(fp16.val, 0);
+
+  fp16 = 1.0;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = -1.0;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 0.0;
+  EXPECT_EQ(fp16.val, 0);
+  fp16 = 2.0;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 65504.0;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = -65504.0;
+  EXPECT_NE(fp16.val, 0);
+  fp16 = 5.960464477539063e-08;
+  EXPECT_NE(fp16.val, 0);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_comparison) {
+  parser::fp16_t a, b;
+  a.val = 0x3C00;
+  b.val = 0x4000;
+  EXPECT_TRUE(a < b);
+  EXPECT_FALSE(a > b);
+  EXPECT_TRUE(b > a);
+  EXPECT_TRUE(b >= a);
+  EXPECT_TRUE(a <= b);
+  EXPECT_TRUE(a != b);
+  EXPECT_FALSE(a == b);
+
+  a.val = 0x3C00;
+  b.val = 0x3C00;
+  EXPECT_TRUE(a == b);
+  EXPECT_FALSE(a != b);
+  EXPECT_TRUE(a >= b);
+  EXPECT_TRUE(a <= b);
+  EXPECT_FALSE(a > b);
+  EXPECT_FALSE(a < b);
+
+  a.val = 0x0000;
+  b.val = 0x8000;
+  EXPECT_TRUE(a == b);
+
+  a.val = 0x3C00;
+  b.val = 0xBC00;
+  EXPECT_TRUE(a > b);
+  EXPECT_FALSE(a < b);
+
+  a.val = 0xBC00;
+  b.val = 0x4000;
+  EXPECT_TRUE(a < b);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_isinf) {
+  parser::fp16_t fp16;
+  fp16.val = 0x7C00;
+  EXPECT_EQ(fp16.IsInf(), 1);
+  fp16.val = 0xFC00;
+  EXPECT_EQ(fp16.IsInf(), -1);
+  fp16.val = 0x3C00;
+  EXPECT_EQ(fp16.IsInf(), 0);
+  fp16.val = 0x0000;
+  EXPECT_EQ(fp16.IsInf(), 0);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_to_methods) {
+  parser::fp16_t fp16;
+  fp16.val = 0x3C00;
+  EXPECT_FLOAT_EQ(fp16.ToFloat(), 1.0f);
+  EXPECT_FLOAT_EQ(fp16.ToDouble(), 1.0);
+  EXPECT_EQ(fp16.ToInt8(), 1);
+  EXPECT_EQ(fp16.ToUInt8(), 1);
+  EXPECT_EQ(fp16.ToInt16(), 1);
+  EXPECT_EQ(fp16.ToUInt16(), 1);
+  EXPECT_EQ(fp16.ToInt32(), 1);
+  EXPECT_EQ(fp16.ToUInt32(), 1);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_self_assignment) {
+  parser::fp16_t fp16;
+  fp16.val = 0x3C00;
+  fp16 = fp16;
+  EXPECT_EQ(fp16.val, 0x3C00);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_int64_conversion) {
+  parser::fp16_t fp16;
+  fp16.val = 0x3C00;
+  int64_t i64 = fp16;
+  EXPECT_EQ(i64, 0);
+  uint64_t ui64 = fp16;
+  EXPECT_EQ(ui64, 0);
+}
+
+TEST_F(UtestAclGraphParser, test_fp16_t_inequality_both_zero) {
+  parser::fp16_t a, b;
+  a.val = 0x0000;
+  b.val = 0x8000;
+  EXPECT_FALSE(a != b);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_set_output_node_info) {
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_graph");
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.SetOutputNodeInfo(graph, parser_params);
+  EXPECT_NE(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_set_output_node_info_with_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_graph2");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("output_node", "Relu");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node = compute_graph->AddNode(op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  ge::GetParserContext().user_out_nodes.push_back({"output_node", 0});
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.SetOutputNodeInfo(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_parse_params_after_graph) {
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_graph3");
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.ParseParamsAfterGraph(graph, parser_params);
+  EXPECT_NE(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_parse_params_after_graph_with_options) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_graph4");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("data1", "Data");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  compute_graph->AddNode(op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  std::map<AscendString, AscendString> parser_params;
+  parser_params[AscendString(ge::ir_option::INPUT_FP16_NODES)] = AscendString("data1");
+  parser_params[AscendString(ge::ir_option::IS_INPUT_ADJUST_HW_LAYOUT)] = AscendString("false");
+  parser_params[AscendString(ge::ir_option::IS_OUTPUT_ADJUST_HW_LAYOUT)] = AscendString("false");
+  parser_params[AscendString(ge::ir_option::ENABLE_SCOPE_FUSION_PASSES)] = AscendString("pass1;pass2");
+  auto ret = acl_graph_parse_util.ParseParamsAfterGraph(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_parse_params_before_graph_with_out_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  GetParserContext().type = domi::TENSORFLOW;
+  AclGraphParserUtil acl_graph_parse_util;
+  std::map<AscendString, AscendString> params = {
+      {AscendString(ge::ir_option::OUT_NODES), AscendString("node1:0;node2:1")},
+      {AscendString(ge::ir_option::OUTPUT), AscendString("node1:0")},
+      {AscendString(ge::ir_option::INPUT_FP16_NODES), AscendString("data1")},
+      {AscendString(ge::ir_option::IS_INPUT_ADJUST_HW_LAYOUT), AscendString("true")},
+      {AscendString(ge::ir_option::IS_OUTPUT_ADJUST_HW_LAYOUT), AscendString("true")},
+      {AscendString(ge::ir_option::ENABLE_SCOPE_FUSION_PASSES), AscendString("pass1")},
+      {AscendString(ge::ir_option::INPUT_SHAPE), AscendString("data1:1,3,224,224")},
+      {AscendString("invalid_key"), AscendString("value")}};
+  string graph_name;
+  auto ret = acl_graph_parse_util.ParseParamsBeforeGraph(params, graph_name);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_parse_params_before_graph_invalid_out_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  GetParserContext().type = domi::TENSORFLOW;
+  AclGraphParserUtil acl_graph_parse_util;
+  std::map<AscendString, AscendString> params = {{AscendString(ge::ir_option::OUT_NODES), AscendString("node1:abc")}};
+  string graph_name;
+  auto ret = acl_graph_parse_util.ParseParamsBeforeGraph(params, graph_name);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_parse_params_before_graph_out_nodes_overflow) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  GetParserContext().type = domi::TENSORFLOW;
+  AclGraphParserUtil acl_graph_parse_util;
+  std::map<AscendString, AscendString> params = {
+      {AscendString(ge::ir_option::OUT_NODES), AscendString("node1:99999999999999999999")}};
+  string graph_name;
+  auto ret = acl_graph_parse_util.ParseParamsBeforeGraph(params, graph_name);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_acl_parser_initialize) {
+  AclGraphParserUtil acl_graph_parse_util;
+  std::map<string, string> options;
+  options.insert(std::pair<string, string>(string(ge::FRAMEWORK_TYPE), to_string(domi::TENSORFLOW)));
+  auto ret = acl_graph_parse_util.AclParserInitialize(options);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_parse_nonexistent) {
+  ProtoFileParser op;
+  std::map<int, std::pair<string, string>> identifier_op_map;
+  std::map<std::string, std::pair<int, string>> op_identifier_map;
+  auto ret = op.ParseProtoFile("nonexistent_file.proto", identifier_op_map, op_identifier_map);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_find_conflict_line_nonexistent) {
+  ProtoFileParser op;
+  std::string dest_line;
+  auto ret = op.FindConflictLine("nonexistent_file.proto", 1, dest_line);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_record_proto_message_nonexistent) {
+  ProtoFileParser op;
+  auto ret = op.RecordProtoMessage("nonexistent_file.proto");
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_combine_proto_nonexistent) {
+  ProtoFileParser op;
+  std::string dest_proto_file;
+  auto ret = op.CombineProtoFile("nonexistent_caffe.proto", "nonexistent_custom.proto", dest_proto_file);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_combine_multi_custom_nonexistent) {
+  ProtoFileParser op("fusion_test.proto");
+  std::string dest_proto_file;
+  auto ret =
+      op.CombineProtoFileMultiCustomProto("nonexistent_caffe.proto", "nonexistent_custom.proto", dest_proto_file);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_add_custom_and_conflict_layer_nonexistent) {
+  ProtoFileParser op;
+  std::ofstream write_tmp;
+  write_tmp.open("test_write_tmp.proto", std::ios::out);
+  auto ret = op.AddCustomAndConflictLayer("nonexistent_custom.proto", write_tmp);
+  EXPECT_EQ(ret, FAILED);
+  write_tmp.close();
+  remove("test_write_tmp.proto");
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_add_custom_and_conflict_message_nonexistent) {
+  ProtoFileParser op;
+  std::ofstream write_tmp;
+  write_tmp.open("test_write_tmp2.proto", std::ios::out);
+  auto ret = op.AddCustomAndConflictMessage("nonexistent_custom.proto", write_tmp);
+  EXPECT_EQ(ret, FAILED);
+  write_tmp.close();
+  remove("test_write_tmp2.proto");
+}
+
+TEST_F(UtestAclGraphParser, test_proto_file_parser_reset_and_set) {
+  ProtoFileParser op("test_fusion.proto");
+  op.ResetParserStatus(true);
+  op.SetFusionProtoPath("test_path");
+  EXPECT_EQ(op.GetFusionProtoFile(), "test_path");
+  auto path = op.ResetFusionProtoPath();
+  EXPECT_EQ(path, "test_path");
+  EXPECT_EQ(op.GetFusionProtoFile(), "");
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_input_fp16_nodes_with_data) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_fp16");
+  ge::OpDescPtr data_op = std::make_shared<ge::OpDesc>("data_fp16", "Data");
+  data_op->AddInputDesc(ge::GeTensorDesc());
+  data_op->AddOutputDesc(ge::GeTensorDesc());
+  compute_graph->AddNode(data_op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  std::map<AscendString, AscendString> parser_params;
+  parser_params[AscendString(ge::ir_option::INPUT_FP16_NODES)] = AscendString("data_fp16");
+  parser_params[AscendString(ge::ir_option::IS_INPUT_ADJUST_HW_LAYOUT)] = AscendString("true");
+  auto ret = acl_graph_parse_util.ParseParamsAfterGraph(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestAclGraphParser, test_acl_graph_parser_util_input_fp16_nodes_not_data) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_fp16_not_data");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("not_data", "Relu");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  compute_graph->AddNode(op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  std::map<AscendString, AscendString> parser_params;
+  parser_params[AscendString(ge::ir_option::INPUT_FP16_NODES)] = AscendString("not_data");
+  parser_params[AscendString(ge::ir_option::IS_INPUT_ADJUST_HW_LAYOUT)] = AscendString("true");
+  auto ret = acl_graph_parse_util.ParseParamsAfterGraph(graph, parser_params);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
 }  // namespace ge

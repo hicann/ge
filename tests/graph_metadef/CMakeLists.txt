@@ -23,6 +23,7 @@ stub_module(mmpa mmpa_stub)
 stub_module(platform platform_stub)
 stub_module(runtime runtime_stub)
 
+add_cann_third_party(json)
 add_subdirectory(ut)
 
 if (ENABLE_BENCHMARK)

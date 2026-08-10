@@ -5886,4 +5886,48 @@ TEST_F(UtestGraphManagerTest, GraphManager_UpdateDynamicParams_ParsesFromGraphOp
   EXPECT_EQ(input_shape, "1,2,3");
   EXPECT_EQ(dynamic_node_type, 1);
 }
+
+TEST_F(UtestGraphManagerTest, GraphManager_Finalize_NoGraphs) {
+  GraphManager graph_manager;
+  auto ret = graph_manager.Finalize();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphManagerTest, GraphManager_GetGraphNode_NotExist) {
+  GraphManager graph_manager;
+  GraphNodePtr graph_node;
+  auto ret = graph_manager.GetGraphNode(999, graph_node);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphManagerTest, GraphManager_RemoveGraph_NotExist) {
+  GraphManager graph_manager;
+  auto ret = graph_manager.RemoveGraph(999);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphManagerTest, GraphManager_SetSessionGraphId_NullGraph) {
+  GraphManager graph_manager;
+  ComputeGraphPtr null_graph = nullptr;
+  graph_manager.SetSessionGraphId(null_graph, 42);
+  SUCCEED();
+}
+
+TEST_F(UtestGraphManagerTest, GraphManager_CheckModelLoad_LoadedModel) {
+  GraphManager graph_manager;
+  auto ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_TRUE(graph_manager.CheckModelLoad(ge_root_model, true));
+}
+
+TEST_F(UtestGraphManagerTest, GraphManager_UpdateDynamicParams_WithDynamicDims) {
+  GraphManager graph_manager;
+  std::string input_shape;
+  std::string dynamic_dims;
+  int32_t dynamic_node_type = 0;
+  std::map<std::string, std::string> graph_options;
+  graph_options["dynamic_dims"] = "1,2,3";
+  graph_options[DYNAMIC_NODE_TYPE] = "2";
+  graph_manager.UpdateDynamicParams(input_shape, dynamic_dims, dynamic_node_type, graph_options);
+  EXPECT_EQ(dynamic_node_type, 2);
+}
 }  // namespace ge

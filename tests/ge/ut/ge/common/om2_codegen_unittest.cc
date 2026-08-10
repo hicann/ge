@@ -2331,4 +2331,338 @@ TEST_F(Om2CodegenUt, CppEmitter_EmptyTypeNameSeparator) {
   const auto output = EmitNode(*tu);
   EXPECT_NE(output.find("EmptyTypeAlias"), std::string::npos);
 }
+
+TEST_F(Om2CodegenUt, CppEmitter_InvalidEnumDefaults) {
+  AstContext ctx;
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+  auto *ident_y = IdentifierExpr::Create(ctx, "y");
+  auto *ident_vec = IdentifierExpr::Create(ctx, "vec");
+  auto *count = IdentifierExpr::Create(ctx, "count");
+
+  CppEmitter emitter;
+  std::string output;
+
+  AccessSectionDecl invalid_access(static_cast<AccessSectionDecl::Kind>(99));
+  output.clear();
+  EXPECT_EQ(invalid_access.Accept(emitter, output), SUCCESS);
+
+  CppCastExpr invalid_cast_kind(static_cast<CppCastExpr::Kind>(99), StringRef("int"), ident_x);
+  output.clear();
+  EXPECT_EQ(invalid_cast_kind.Accept(emitter, output), SUCCESS);
+
+  BinaryExpr invalid_binary_op(static_cast<BinaryExpr::Op>(99), ident_x, ident_y);
+  output.clear();
+  EXPECT_EQ(invalid_binary_op.Accept(emitter, output), SUCCESS);
+
+  UnaryExpr invalid_unary_op(static_cast<UnaryExpr::Op>(99), ident_x);
+  output.clear();
+  EXPECT_EQ(invalid_unary_op.Accept(emitter, output), SUCCESS);
+
+  ContainerMethodExpr invalid_container_method(static_cast<ContainerMethodExpr::Method>(99), ident_vec,
+                                               ArrayRef<Expr *>());
+  output.clear();
+  EXPECT_EQ(invalid_container_method.Accept(emitter, output), SUCCESS);
+
+  MakeUniqueArrayExpr invalid_builtin_type(static_cast<BuiltinType>(99), count);
+  output.clear();
+  EXPECT_EQ(invalid_builtin_type.Accept(emitter, output), SUCCESS);
+
+  LiteralExpr invalid_literal_kind(static_cast<LiteralExpr::Kind>(99), 0, LiteralExpr::IntSuffix::kNone, false,
+                                   StringRef());
+  output.clear();
+  EXPECT_EQ(invalid_literal_kind.Accept(emitter, output), FAILED);
+
+  LiteralExpr invalid_int_suffix(LiteralExpr::Kind::kInt, 42, static_cast<LiteralExpr::IntSuffix>(99), false,
+                                 StringRef());
+  output.clear();
+  EXPECT_EQ(invalid_int_suffix.Accept(emitter, output), SUCCESS);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ForInitEdgeCases) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto i = ast.Var("size_t", "i");
+
+  auto *for_no_init = ast.For(VarDeclStmt::Create(ctx, "size_t", "j"), i < 4, ast.PreInc(i), {ast.Assign(i, 0)});
+  ASSERT_NE(for_no_init, nullptr);
+  const auto output1 = EmitNode(*for_no_init);
+  EXPECT_NE(output1.find("for (size_t j;"), std::string::npos);
+
+  auto *for_comment_init = ast.For(CommentStmt::Create(ctx, "init"), i < 4, ast.PreInc(i), {ast.Assign(i, 0)});
+  ASSERT_NE(for_comment_init, nullptr);
+  CppEmitter emitter;
+  std::string output2;
+  EXPECT_EQ(for_comment_init->Accept(emitter, output2), FAILED);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ErrorPropagationInExpressions) {
+  AstContext ctx;
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+  auto *ident_y = IdentifierExpr::Create(ctx, "y");
+  auto *ident_vec = IdentifierExpr::Create(ctx, "vec");
+  auto *ident_fn = IdentifierExpr::Create(ctx, "fn");
+  auto *count = IdentifierExpr::Create(ctx, "count");
+  auto *path = IdentifierExpr::Create(ctx, "path");
+
+  LiteralExpr failing(static_cast<LiteralExpr::Kind>(99), 0, LiteralExpr::IntSuffix::kNone, false, StringRef());
+
+  CppEmitter emitter;
+  std::string output;
+
+  AssignExpr assign_failing_lhs(&failing, ident_y);
+  output.clear();
+  EXPECT_EQ(assign_failing_lhs.Accept(emitter, output), FAILED);
+
+  BinaryExpr binary_failing_lhs(BinaryExpr::Op::kAdd, &failing, ident_y);
+  output.clear();
+  EXPECT_EQ(binary_failing_lhs.Accept(emitter, output), FAILED);
+
+  BinaryExpr binary_failing_rhs(BinaryExpr::Op::kAdd, ident_x, &failing);
+  output.clear();
+  EXPECT_EQ(binary_failing_rhs.Accept(emitter, output), FAILED);
+
+  UnaryExpr unary_failing(UnaryExpr::Op::kNegate, &failing);
+  output.clear();
+  EXPECT_EQ(unary_failing.Accept(emitter, output), FAILED);
+
+  auto *call_failing_callee = CallExpr::Create(ctx, &failing, {ident_x});
+  output.clear();
+  EXPECT_EQ(call_failing_callee->Accept(emitter, output), FAILED);
+
+  auto *call_failing_arg = CallExpr::Create(ctx, ident_fn, {ident_x, &failing});
+  output.clear();
+  EXPECT_EQ(call_failing_arg->Accept(emitter, output), FAILED);
+
+  MakeUniqueArrayExpr make_unique_failing(BuiltinType::kUInt8, &failing);
+  output.clear();
+  EXPECT_EQ(make_unique_failing.Accept(emitter, output), FAILED);
+
+  ToStrExpr to_str_failing(&failing);
+  output.clear();
+  EXPECT_EQ(to_str_failing.Accept(emitter, output), FAILED);
+
+  MemcpyExpr memcpy_failing_dst(&failing, ident_x, ident_y);
+  output.clear();
+  EXPECT_EQ(memcpy_failing_dst.Accept(emitter, output), FAILED);
+
+  MemcpyExpr memcpy_failing_src(ident_x, &failing, ident_y);
+  output.clear();
+  EXPECT_EQ(memcpy_failing_src.Accept(emitter, output), FAILED);
+
+  MemcpyExpr memcpy_failing_size(ident_x, ident_y, &failing);
+  output.clear();
+  EXPECT_EQ(memcpy_failing_size.Accept(emitter, output), FAILED);
+
+  SizeofExpr sizeof_failing(&failing);
+  output.clear();
+  EXPECT_EQ(sizeof_failing.Accept(emitter, output), FAILED);
+
+  RemoveFileExpr remove_file_failing(&failing);
+  output.clear();
+  EXPECT_EQ(remove_file_failing.Accept(emitter, output), FAILED);
+
+  IgnoreOutputExpr ignore_output_failing(&failing);
+  output.clear();
+  EXPECT_EQ(ignore_output_failing.Accept(emitter, output), FAILED);
+
+  std::vector<Expr *> container_args = {ident_x, &failing};
+  ContainerMethodExpr container_failing_arg(ContainerMethodExpr::Method::kAt, ident_vec,
+                                            ArrayRef<Expr *>(container_args.data(), container_args.size()));
+  output.clear();
+  EXPECT_EQ(container_failing_arg.Accept(emitter, output), FAILED);
+
+  SubscriptExpr subscript_failing_base(&failing, ident_x);
+  output.clear();
+  EXPECT_EQ(subscript_failing_base.Accept(emitter, output), FAILED);
+
+  SubscriptExpr subscript_failing_index(ident_vec, &failing);
+  output.clear();
+  EXPECT_EQ(subscript_failing_index.Accept(emitter, output), FAILED);
+
+  MemberExpr member_failing(&failing, StringRef("field"));
+  output.clear();
+  EXPECT_EQ(member_failing.Accept(emitter, output), FAILED);
+
+  CppArrowMemberExpr arrow_failing(&failing, StringRef("field"));
+  output.clear();
+  EXPECT_EQ(arrow_failing.Accept(emitter, output), FAILED);
+
+  CppCastExpr cast_failing(CppCastExpr::Kind::kStatic, StringRef("int"), &failing);
+  output.clear();
+  EXPECT_EQ(cast_failing.Accept(emitter, output), FAILED);
+
+  std::vector<Expr *> init_list_elems = {ident_x, &failing};
+  InitListExpr compact_init_failing(ArrayRef<Expr *>(init_list_elems.data(), init_list_elems.size()), true);
+  output.clear();
+  EXPECT_EQ(compact_init_failing.Accept(emitter, output), FAILED);
+
+  InitListExpr noncompact_init_failing(ArrayRef<Expr *>(init_list_elems.data(), init_list_elems.size()), false);
+  output.clear();
+  EXPECT_EQ(noncompact_init_failing.Accept(emitter, output), FAILED);
+
+  std::vector<StringRef> desig_names = {StringRef("a"), StringRef("b")};
+  std::vector<Expr *> desig_values = {ident_x, &failing};
+  DesignatedInitListExpr compact_desig_failing(ArrayRef<StringRef>(desig_names.data(), desig_names.size()),
+                                               ArrayRef<Expr *>(desig_values.data(), desig_values.size()), true);
+  output.clear();
+  EXPECT_EQ(compact_desig_failing.Accept(emitter, output), FAILED);
+
+  DesignatedInitListExpr noncompact_desig_failing(ArrayRef<StringRef>(desig_names.data(), desig_names.size()),
+                                                  ArrayRef<Expr *>(desig_values.data(), desig_values.size()), false);
+  output.clear();
+  EXPECT_EQ(noncompact_desig_failing.Accept(emitter, output), FAILED);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ErrorPropagationInStatements) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+  auto *ident_y = IdentifierExpr::Create(ctx, "y");
+
+  LiteralExpr failing(static_cast<LiteralExpr::Kind>(99), 0, LiteralExpr::IntSuffix::kNone, false, StringRef());
+
+  CppEmitter emitter;
+  std::string output;
+
+  VarDeclStmt var_decl_failing(StringRef("int"), StringRef("v"), &failing);
+  output.clear();
+  EXPECT_EQ(var_decl_failing.Accept(emitter, output), FAILED);
+
+  ExprStmt expr_stmt_failing(&failing);
+  output.clear();
+  EXPECT_EQ(expr_stmt_failing.Accept(emitter, output), FAILED);
+
+  ReturnStmt return_failing(&failing);
+  output.clear();
+  EXPECT_EQ(return_failing.Accept(emitter, output), FAILED);
+
+  std::vector<Stmt *> block_stmts = {ExprStmt::Create(ctx, ident_x), ExprStmt::Create(ctx, &failing)};
+  BlockStmt block_failing(ArrayRef<Stmt *>(block_stmts.data(), block_stmts.size()));
+  output.clear();
+  EXPECT_EQ(block_failing.Accept(emitter, output), FAILED);
+
+  auto *then_block = BlockStmt::Create(ctx, {ExprStmt::Create(ctx, ident_x)});
+  auto *else_block = BlockStmt::Create(ctx, {ExprStmt::Create(ctx, ident_y)});
+  IfStmt if_failing_cond(&failing, then_block, else_block);
+  output.clear();
+  EXPECT_EQ(if_failing_cond.Accept(emitter, output), FAILED);
+
+  std::vector<Stmt *> failing_then_stmts = {ExprStmt::Create(ctx, &failing)};
+  BlockStmt failing_then_block(ArrayRef<Stmt *>(failing_then_stmts.data(), failing_then_stmts.size()));
+  IfStmt if_failing_then(ident_x, &failing_then_block, else_block);
+  output.clear();
+  EXPECT_EQ(if_failing_then.Accept(emitter, output), FAILED);
+
+  IfStmt if_failing_else(ident_x, then_block, &failing_then_block);
+  output.clear();
+  EXPECT_EQ(if_failing_else.Accept(emitter, output), FAILED);
+
+  IfStmt pp_if_failing_cond(&failing, then_block, else_block, true);
+  output.clear();
+  EXPECT_EQ(pp_if_failing_cond.Accept(emitter, output), FAILED);
+
+  IfStmt pp_if_failing_then(ident_x, &failing_then_block, else_block, true);
+  output.clear();
+  EXPECT_EQ(pp_if_failing_then.Accept(emitter, output), FAILED);
+
+  IfStmt pp_if_failing_else(ident_x, then_block, &failing_then_block, true);
+  output.clear();
+  EXPECT_EQ(pp_if_failing_else.Accept(emitter, output), FAILED);
+
+  auto i = ast.Var("size_t", "i");
+  auto *for_failing_init =
+      ast.For(VarDeclStmt::Create(ctx, "int", "v", &failing), i < 4, ast.PreInc(i), {ast.Assign(i, 0)});
+  output.clear();
+  EXPECT_EQ(for_failing_init->Accept(emitter, output), FAILED);
+
+  auto *for_failing_cond = ast.For(ast.VarDecl(i, 0), &failing, ast.PreInc(i), {ast.Assign(i, 0)});
+  output.clear();
+  EXPECT_EQ(for_failing_cond->Accept(emitter, output), FAILED);
+
+  auto *for_failing_step = ast.For(ast.VarDecl(i, 0), i < 4, &failing, {ast.Assign(i, 0)});
+  output.clear();
+  EXPECT_EQ(for_failing_step->Accept(emitter, output), FAILED);
+
+  auto *for_failing_body =
+      ast.For(ast.VarDecl(i, 0), i < 4, ast.PreInc(i), {BodyItem(ExprStmt::Create(ctx, &failing))});
+  output.clear();
+  EXPECT_EQ(for_failing_body->Accept(emitter, output), FAILED);
+
+  auto values = ast.Var("std::vector<int>", "values");
+  auto range_body_stmts = ast.Body({BodyItem(ast.Assign(i, 0))});
+  RangeForStmt range_for_failing_range(StringRef("auto"), StringRef("item"), &failing,
+                                       BlockStmt::Create(ctx, range_body_stmts));
+  output.clear();
+  EXPECT_EQ(range_for_failing_range.Accept(emitter, output), FAILED);
+
+  RangeForStmt range_for_failing_body(StringRef("auto"), StringRef("item"), values.Get(), &failing_then_block);
+  output.clear();
+  EXPECT_EQ(range_for_failing_body.Accept(emitter, output), FAILED);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ErrorPropagationInDeclarations) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+
+  LiteralExpr failing(static_cast<LiteralExpr::Kind>(99), 0, LiteralExpr::IntSuffix::kNone, false, StringRef());
+
+  CppEmitter emitter;
+  std::string output;
+
+  FieldDecl field_failing(StringRef("int"), StringRef("v"), &failing);
+  output.clear();
+  EXPECT_EQ(field_failing.Accept(emitter, output), FAILED);
+
+  std::vector<DeclNode *> class_items = {AccessSectionDecl::Create(ctx, AccessSectionDecl::Kind::kPublic),
+                                         &field_failing};
+  ClassDecl class_failing(StringRef("Cls"), ArrayRef<DeclNode *>(class_items.data(), class_items.size()));
+  output.clear();
+  EXPECT_EQ(class_failing.Accept(emitter, output), FAILED);
+
+  StructDecl struct_failing(StringRef("S"), ArrayRef<DeclNode *>(class_items.data(), class_items.size()));
+  output.clear();
+  EXPECT_EQ(struct_failing.Accept(emitter, output), FAILED);
+
+  std::vector<DeclNode *> ns_items = {&field_failing};
+  NamespaceDecl ns_failing(StringRef("ns"), ArrayRef<DeclNode *>(ns_items.data(), ns_items.size()));
+  output.clear();
+  EXPECT_EQ(ns_failing.Accept(emitter, output), FAILED);
+
+  ExternBlockDecl extern_failing(StringRef("C"), ArrayRef<DeclNode *>(ns_items.data(), ns_items.size()));
+  output.clear();
+  EXPECT_EQ(extern_failing.Accept(emitter, output), FAILED);
+
+  auto *param_x = ParamDecl::Create(ctx, "int", "x");
+  auto *body = BlockStmt::Create(ctx, {ReturnStmt::Create(ctx, ident_x)});
+  std::vector<ParamDecl *> method_params = {param_x};
+  std::vector<StringRef> method_init_names = {StringRef("val_")};
+  std::vector<Expr *> method_init_exprs = {&failing};
+  MethodDef method_def_failing_init(StringRef("Worker"), StringRef("Worker"),
+                                    ArrayRef<ParamDecl *>(method_params.data(), method_params.size()), StringRef(""),
+                                    ArrayRef<StringRef>(method_init_names.data(), method_init_names.size()),
+                                    ArrayRef<Expr *>(method_init_exprs.data(), method_init_exprs.size()), body);
+  output.clear();
+  EXPECT_EQ(method_def_failing_init.Accept(emitter, output), FAILED);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_ContainerMethodMultiArgs) {
+  AstContext ctx;
+
+  auto *ident_vec = IdentifierExpr::Create(ctx, "vec");
+  auto *ident_x = IdentifierExpr::Create(ctx, "x");
+  auto *ident_y = IdentifierExpr::Create(ctx, "y");
+
+  std::vector<Expr *> multi_args = {ident_x, ident_y};
+  ContainerMethodExpr multi_arg_method(ContainerMethodExpr::Method::kAt, ident_vec,
+                                       ArrayRef<Expr *>(multi_args.data(), multi_args.size()));
+
+  CppEmitter emitter;
+  std::string output;
+  EXPECT_EQ(multi_arg_method.Accept(emitter, output), SUCCESS);
+  EXPECT_NE(output.find(", "), std::string::npos);
+}
 }  // namespace ge

@@ -1978,4 +1978,100 @@ TEST_F(UtestBlockMemAssigner, CanReuseZeroCopyBlock_unsupport_custom) {
   EXPECT_EQ(mem_assigner.GetAllRefCount(node_index_io, is_reuse_zero_copy), 1);
   EXPECT_EQ(is_reuse_zero_copy, false);
 }
+TEST_F(UtestBlockMemAssigner, AssignOutputMemory_IteratorV2_NoReuse) {
+  auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
+  auto node = builder->AddNode("node", "IteratorV2", 1, 1);
+  ComputeGraphPtr compute_graph = builder->GetGraph();
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = compute_graph;
+  auto ret =
+      GraphUtils::GetRefMapping(compute_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  BlockMemAssigner::PreparationForAssign(mem_assist_info);
+  BinaryBlockMemAssigner assigner(mem_assist_info);
+  assigner.SetReuseStrategy(ReuseStrategy{true, true, true, true});
+  std::vector<int64_t> ranges;
+  assigner.GetMemoryRanges(ranges);
+  EXPECT_EQ(assigner.AssignOutputMemoryWithReuse(node, ranges), SUCCESS);
+}
+
+TEST_F(UtestBlockMemAssigner, AssignOutputMemory_NullOpDesc_Handle) {
+  auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
+  auto node = builder->AddNode("node", DATA, 1, 1);
+  ComputeGraphPtr compute_graph = builder->GetGraph();
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = compute_graph;
+  auto ret =
+      GraphUtils::GetRefMapping(compute_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  BlockMemAssigner::PreparationForAssign(mem_assist_info);
+  BinaryBlockMemAssigner assigner(mem_assist_info);
+  std::vector<int64_t> ranges;
+  assigner.GetMemoryRanges(ranges);
+  EXPECT_EQ(assigner.AssignOutputMemoryWithReuse(node, ranges), SUCCESS);
+}
+
+TEST_F(UtestBlockMemAssigner, AssignOutputMemory_ZeroSizeOutput) {
+  auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
+  auto node = builder->AddNode("node", DATA, 1, 1);
+  ComputeGraphPtr compute_graph = builder->GetGraph();
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  auto output_desc = op_desc->MutableOutputDesc(0);
+  ASSERT_NE(output_desc, nullptr);
+  TensorUtils::SetSize(*output_desc, 0);
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = compute_graph;
+  auto ret =
+      GraphUtils::GetRefMapping(compute_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  BlockMemAssigner::PreparationForAssign(mem_assist_info);
+  BinaryBlockMemAssigner assigner(mem_assist_info);
+  std::vector<int64_t> ranges;
+  assigner.GetMemoryRanges(ranges);
+  EXPECT_EQ(assigner.AssignOutputMemoryWithReuse(node, ranges), SUCCESS);
+}
+
+TEST_F(UtestBlockMemAssigner, MemoryBlock_AddAndRelease) {
+  MemoryBlock block(reuse_strategy_, 512);
+  EXPECT_EQ(block.Size(), 512);
+  block.ref_count_ = 0;
+  EXPECT_NO_THROW(block.SetSize(1024));
+  EXPECT_EQ(block.Size(), 1024);
+}
+
+TEST_F(UtestBlockMemAssigner, MemoryBlock_ExtendAndResize) {
+  MemoryBlock block(reuse_strategy_, 256, 0, true, RT_MEMORY_HBM);
+  EXPECT_EQ(block.Size(), 256);
+  block.SetSize(512);
+  EXPECT_EQ(block.Size(), 512);
+  EXPECT_NO_THROW(block.Resize());
+  EXPECT_EQ(block.HeadOffset(), 0U);
+  EXPECT_EQ(block.TailOffset(), 0U);
+}
+
+TEST_F(UtestBlockMemAssigner, MemoryBlock_Clone) {
+  MemoryBlock block(reuse_strategy_, 1024, 1, true, RT_MEMORY_HBM);
+  auto cloned = block.Clone();
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_EQ(cloned->Size(), 1024);
+}
+
+TEST_F(UtestBlockMemAssigner, AssignWorkSpaceMemoryWithReuse_BasicOp) {
+  auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
+  auto node = builder->AddNode("node", ADD, 1, 1);
+  node->GetOpDesc()->SetWorkspaceBytes({1024, 2048});
+  ComputeGraphPtr compute_graph = builder->GetGraph();
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = compute_graph;
+  auto ret =
+      GraphUtils::GetRefMapping(compute_graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  BlockMemAssigner::PreparationForAssign(mem_assist_info);
+  BinaryBlockMemAssigner assigner(mem_assist_info);
+  std::vector<int64_t> ranges;
+  assigner.GetMemoryRanges(ranges);
+  EXPECT_EQ(assigner.AssignWorkSpaceMemoryWithReuse(node, ranges), SUCCESS);
+}
+
 }  // namespace ge

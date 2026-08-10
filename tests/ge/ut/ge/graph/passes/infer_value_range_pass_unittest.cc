@@ -803,4 +803,51 @@ TEST_F(UtestGraphInferValueRangePass, SkipInfer_WhenOutputShapeSizeTooLarge_InMe
 
   GetThreadLocalContext().SetGraphOption(options_back);
 }
+
+TEST_F(UtestGraphInferValueRangePass, run_node_without_value_range) {
+  auto builder = ut::GraphBuilder("g1");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+
+  InferValueRangePass pass;
+  EXPECT_EQ(pass.Run(add), SUCCESS);
+}
+
+TEST_F(UtestGraphInferValueRangePass, run_node_with_unknown_output_shape) {
+  auto builder = ut::GraphBuilder("g1");
+  GeTensorDesc unknown_desc(GeShape({-1, -1}), FORMAT_NCHW, DT_FLOAT);
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  data->GetOpDesc()->UpdateOutputDesc(0, unknown_desc);
+  auto shape_node = builder.AddNode("shape", SHAPE, 1, 1);
+  shape_node->GetOpDesc()->UpdateInputDesc(0, unknown_desc);
+  GeTensorDesc out_desc(GeShape({2}), FORMAT_NCHW, DT_INT64);
+  std::vector<std::pair<int64_t, int64_t>> value_range = {make_pair(1, 4), make_pair(1, 240)};
+  out_desc.SetValueRange(value_range);
+  shape_node->GetOpDesc()->UpdateOutputDesc(0, out_desc);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, shape_node, 0);
+  builder.AddDataEdge(shape_node, 0, netoutput, 0);
+
+  InferValueRangePass pass;
+  EXPECT_EQ(pass.Run(shape_node), SUCCESS);
+}
+
+TEST_F(UtestGraphInferValueRangePass, run_node_no_input_value_range) {
+  auto builder = ut::GraphBuilder("g1");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  GeTensorDesc desc(GeShape({1, 1}), FORMAT_NCHW, DT_INT32);
+  data->GetOpDesc()->UpdateOutputDesc(0, desc);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  add->GetOpDesc()->UpdateInputDesc(0, desc);
+  add->GetOpDesc()->UpdateOutputDesc(0, desc);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+
+  InferValueRangePass pass;
+  EXPECT_EQ(pass.Run(add), SUCCESS);
+}
 }  // namespace ge

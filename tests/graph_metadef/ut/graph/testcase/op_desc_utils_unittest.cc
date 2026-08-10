@@ -2286,4 +2286,55 @@ TEST_F(UtestOpDescUtils, CovClearWeightsNullGraph) {
   auto ret = OpDescUtils::ClearWeights(node);
   EXPECT_NE(ret, GRAPH_SUCCESS);
 }
+
+TEST_F(UtestOpDescUtils, IncCov_CreateOperatorFromNode) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto op = OpDescUtils::CreateOperatorFromNode(addn_node);
+  EXPECT_FALSE(op.IsEmpty());
+}
+
+TEST_F(UtestOpDescUtils, IncCov_GetConstInputsEmpty) {
+  auto graph = BuildGraph1();
+  auto data_node = graph->FindNode("Data");
+  auto result = OpDescUtils::GetConstInputs(*data_node);
+  EXPECT_EQ(result.size(), 0U);
+}
+
+TEST_F(UtestOpDescUtils, IncCov_SetWeightsVectorEmpty) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  std::vector<GeTensorPtr> weights;
+  auto ret = OpDescUtils::SetWeights(*addn_node, weights);
+  EXPECT_EQ(ret, GRAPH_PARAM_INVALID);
+}
+
+TEST_F(UtestOpDescUtils, IncCov_GetWeightsFromNode) {
+  auto graph = BuildGraph1();
+  auto const_node = graph->FindNode("const1");
+  auto weights = OpDescUtils::GetWeights(*const_node);
+  EXPECT_FALSE(weights.empty());
+}
+
+TEST_F(UtestOpDescUtils, IncCov_ClearWeightsSuccess) {
+  auto graph = BuildGraph1();
+  auto const_node = graph->FindNode("const1");
+  auto ret = OpDescUtils::ClearWeights(const_node);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, IncCov_SetWeightsNodeMapEmpty) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  std::map<int, GeTensorPtr> weights_map;
+  auto ret = OpDescUtils::SetWeights(*addn_node, weights_map);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOpDescUtils, IncCov_GetConstInputsExceedSize) {
+  auto graph = BuildGraph1();
+  auto addn_node = graph->FindNode("addn");
+  auto result = OpDescUtils::GetConstInputs(*addn_node, 10U);
+  EXPECT_EQ(result.size(), 1U);
+}
 }  // namespace ge

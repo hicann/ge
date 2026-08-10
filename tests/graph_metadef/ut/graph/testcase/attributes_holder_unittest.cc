@@ -408,4 +408,18 @@ TEST_F(AttrHolderUt, Cov_CopyAttrsFrom_Self) {
   AnyValue got;
   EXPECT_EQ(holder.GetAttr("self_key", got), GRAPH_SUCCESS);
 }
+
+TEST_F(AttrHolderUt, CovSetAttr_SetAnyValueByNameFailed) {
+  SubAttrHolder holder;
+  holder.attrs_.SetNameAndId("fail_key", GetAttrId(0U, 9999U));
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.SetAttr("fail_key", av), GRAPH_FAILED);
+}
+
+TEST_F(AttrHolderUt, CovTrySetAttr_SetAnyValueByNameFailed) {
+  SubAttrHolder holder;
+  holder.attrs_.SetNameAndId("fail_key2", GetAttrId(0U, 9999U));
+  AnyValue av = AnyValue::CreateFrom<int>(42);
+  EXPECT_EQ(holder.TrySetAttr("fail_key2", av), GRAPH_FAILED);
+}
 }  // namespace ge

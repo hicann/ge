@@ -761,4 +761,37 @@ TEST_F(UtestBufferPoolMemoryPass, run_without_buffer_pool_nodes_skip_test) {
   Status ret = buffer_pool_mem_pass.Run(graph);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+TEST_F(UtestBufferPoolMemoryPass, buffer_pool_cycle_detection_success_test) {
+  ut::BufferPoolGraphBuilder builder("GraphWithCycle");
+  ge::ComputeGraphPtr graph = builder.BuildGraphWithMultiPrefetch();
+
+  auto prefetch1 = graph->FindNode("prefetch1");
+  auto prefetch2 = graph->FindNode("prefetch2");
+  EXPECT_NE(prefetch1, nullptr);
+  EXPECT_NE(prefetch2, nullptr);
+
+  GraphUtils::AddEdge(prefetch2->GetOutControlAnchor(), prefetch1->GetInControlAnchor());
+
+  BufferPoolMemoryPass buffer_pool_mem_pass;
+  Status ret = buffer_pool_mem_pass.Run(graph);
+  EXPECT_EQ(ret, SUCCESS);
+
+  EXPECT_FALSE(prefetch2->GetOpDesc()->HasAttr(ATTR_NAME_BUFFER_POOL_ID));
+  EXPECT_FALSE(prefetch2->GetOpDesc()->HasAttr(ATTR_NAME_BUFFER_POOL_SIZE));
+}
+
+TEST_F(UtestBufferPoolMemoryPass, buffer_pool_multi_output_with_stream_label_success_test) {
+  ut::BufferPoolGraphBuilder builder("GraphWithMultiOutputAndStreamLabel");
+  ge::ComputeGraphPtr graph = builder.BuildGraphWithMultiOutputPrefetch();
+
+  auto prefetch1 = graph->FindNode("prefetch1");
+  EXPECT_NE(prefetch1, nullptr);
+  (void)AttrUtils::SetStr(prefetch1->GetOpDesc(), ATTR_NAME_STREAM_LABEL, "stream_0");
+
+  BufferPoolMemoryPass buffer_pool_mem_pass;
+  Status ret = buffer_pool_mem_pass.Run(graph);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(CheckAttr(graph), SUCCESS);
+}
 }  // namespace ge

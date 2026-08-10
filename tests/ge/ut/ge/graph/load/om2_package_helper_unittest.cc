@@ -2391,4 +2391,233 @@ TEST_F(Om2PackageHelperUt, SetSaveMode_Ok) {
   om2_packager.SetSaveMode(false);
 }
 
+TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithAtomicKernel_Success) {
+  auto ge_model = std::make_shared<GeModel>();
+  const char atomic_kernel_data[] = "fake_atomic_tbe_kernel_bin";
+  auto atomic_kernel = std::make_shared<ge::OpKernelBin>(
+      "atomic_kernel", std::vector<char>(atomic_kernel_data, atomic_kernel_data + strlen(atomic_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(atomic_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add_desc, "_kernelname", "atomic_kernel");
+  (void)AttrUtils::SetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "atomic_kernel");
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  Om2PackageHelper om2_packager;
+  std::vector<gert::Om2KernelBinary> kernel_binaries;
+  ASSERT_EQ(om2_packager.BuildKernelBinaries(ge_model, kernel_binaries), SUCCESS);
+  EXPECT_FALSE(kernel_binaries.empty());
+}
+
+TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithCustAicpuKernel_Success) {
+  auto ge_model = std::make_shared<GeModel>();
+  const char kernel_data[] = "fake_cust_aicpu_kernel_bin";
+  std::vector<char> kernel_bin(kernel_data, kernel_data + strlen(kernel_data));
+  auto cust_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
+  CustAICPUKernelStore cust_aicpu_kernel_store;
+  cust_aicpu_kernel_store.AddCustAICPUKernel(cust_kernel);
+  ASSERT_TRUE(cust_aicpu_kernel_store.Build());
+  ge_model->SetCustAICPUKernelStore(cust_aicpu_kernel_store);
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  add_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, cust_kernel);
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  Om2PackageHelper om2_packager;
+  std::vector<gert::Om2KernelBinary> kernel_binaries;
+  ASSERT_EQ(om2_packager.BuildKernelBinaries(ge_model, kernel_binaries), SUCCESS);
+  bool found_cust = false;
+  for (const auto &kb : kernel_binaries) {
+    if (kb.name.find("_CustAicpuKernel.o") != std::string::npos) {
+      found_cust = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_cust);
+}
+
+TEST_F(Om2PackageHelperUt, SaveGraphDebugFiles_ValidModel_Success) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_debug_files.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  Om2PackageHelper om2_packager;
+  ASSERT_EQ(om2_packager.SaveGraphDebugFiles(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_WithOutputNameContainingColon_Success) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  std::vector<std::string> out_node_names = {"add1:0"};
+  AttrUtils::SetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_names);
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  ASSERT_FALSE(model_meta.output_desc.empty());
+  EXPECT_EQ(model_meta.output_desc[0].GetName(), "add1:0");
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_WithOutputNameWithoutColon_Success) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  SyncKernelNameForAllModels(ge_root_model);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+
+  std::vector<std::string> out_node_names = {"add1"};
+  AttrUtils::SetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_names);
+
+  Om2PackageHelper om2_packager;
+  gert::Om2ModelMeta model_meta;
+  ASSERT_EQ(om2_packager.BuildModelMeta(ge_model, model_meta), SUCCESS);
+  ASSERT_FALSE(model_meta.output_desc.empty());
+  EXPECT_NE(model_meta.output_desc[0].GetName().find(":"), std::string::npos);
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithAippDataNameMap_Success) {
+  const auto ge_root_model = CreateGeRootModelWithStaticAipp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  for (const auto &node : ge_model->GetGraph()->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      (void)AttrUtils::SetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP, "data1");
+      break;
+    }
+  }
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_aipp_data_name_map.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithInvalidAippDimInfo_Fail) {
+  const auto ge_root_model = CreateGeRootModelWithStaticAipp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  for (const auto &node : ge_model->GetGraph()->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      std::vector<std::string> bad_aipp_inputs = {"invalid_dim_info_string"};
+      (void)AttrUtils::SetListStr(op_desc, ATTR_NAME_AIPP_INPUTS, bad_aipp_inputs);
+      break;
+    }
+  }
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_invalid_aipp_dim.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  EXPECT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithAippListIntAndListFloat_Success) {
+  const auto ge_root_model = CreateGeRootModelWithStaticAipp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  for (const auto &node : ge_model->GetGraph()->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      ge::NamedAttrs aipp_attr;
+      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
+      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
+      aipp_attr.SetAttr("csc_switch", ge::GeAttrValue::CreateFrom<bool>(true));
+      aipp_attr.SetAttr("matrix_r0c0", ge::GeAttrValue::CreateFrom<std::vector<int64_t>>({100}));
+      aipp_attr.SetAttr("matrix_r0c1", ge::GeAttrValue::CreateFrom<std::vector<int64_t>>({200}));
+      aipp_attr.SetAttr("matrix_r0c2", ge::GeAttrValue::CreateFrom<std::vector<int64_t>>({300}));
+      aipp_attr.SetAttr("output_bias_0", ge::GeAttrValue::CreateFrom<std::vector<int64_t>>({10}));
+      aipp_attr.SetAttr("output_bias_1", ge::GeAttrValue::CreateFrom<std::vector<int64_t>>({20}));
+      aipp_attr.SetAttr("var_reci_chn_0", ge::GeAttrValue::CreateFrom<std::vector<float>>({1.5f}));
+      aipp_attr.SetAttr("var_reci_chn_1", ge::GeAttrValue::CreateFrom<std::vector<float>>({2.5f}));
+      aipp_attr.SetAttr("min_chn_0", ge::GeAttrValue::CreateFrom<float>(0.5f));
+      aipp_attr.SetAttr("related_input_rank", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("max_src_image_size", ge::GeAttrValue::CreateFrom<int64_t>(8192));
+      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<bool>(false));
+      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
+      break;
+    }
+  }
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_aipp_list_attrs.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  EXPECT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  (void)zip_writer->SaveModelDataToFile();
+}
+
+TEST_F(Om2PackageHelperUt, BuildModelMeta_WithMbatchOriginInputDims_Success) {
+  const auto ge_root_model = CreateGeRootModelWithStaticAipp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  ASSERT_NE(ge_model, nullptr);
+  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+
+  for (const auto &node : ge_model->GetGraph()->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      std::vector<int64_t> origin_dims = {-1, 3, 224, 224};
+      (void)AttrUtils::SetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
+      break;
+    }
+  }
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_mbatch_dims.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+  SyncKernelNameFromOpDesc(ge_model);
+  EXPECT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  (void)zip_writer->SaveModelDataToFile();
+}
+
+TEST_F(Om2PackageHelperUt, SetSaveMode_False) {
+  Om2PackageHelper helper;
+  helper.SetSaveMode(false);
+  EXPECT_FALSE(helper.is_offline_);
+  helper.SetSaveMode(true);
+  EXPECT_TRUE(helper.is_offline_);
+}
 }  // namespace ge

@@ -1112,4 +1112,38 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_potential_folding_skip_constant
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_NE(graph->FindNode("add"), nullptr);
 }
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_folding_with_switch_input) {
+  auto builder = ut::GraphBuilder("test");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1);
+  SetWeightForConstNode(const1);
+  auto switch1 = builder.AddNode("switch1", SWITCH, 2, 2);
+  auto add1 = builder.AddNode("add1", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(const1, 0, switch1, 0);
+  builder.AddDataEdge(switch1, 0, add1, 0);
+  builder.AddDataEdge(add1, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  names_to_pass.push_back({"ConstantFoldingPass", new ConstantFoldingPass});
+  GEPass pass(graph);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_folding_with_data_input_no_output) {
+  auto builder = ut::GraphBuilder("test");
+  auto data1 = builder.AddNode("data1", DATA, 0, 1);
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1);
+  SetWeightForConstNode(const1);
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, add1, 0);
+  builder.AddDataEdge(const1, 0, add1, 1);
+  builder.AddDataEdge(add1, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  names_to_pass.push_back({"ConstantFoldingPass", new ConstantFoldingPass});
+  GEPass pass(graph);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
 }  // namespace ge

@@ -879,4 +879,63 @@ TEST_F(UTEST_graph_passes_var_is_initialized_op_pass, is_variable_initialized_su
 
   VarManagerPool::Instance().Destroy();
 }
+
+TEST_F(UTEST_graph_passes_var_is_initialized_op_pass, run_non_var_is_init_node_success) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc tensor_desc;
+  auto const_op = std::make_shared<OpDesc>("const", CONSTANT);
+  const_op->AddOutputDesc(tensor_desc);
+  auto const_node = graph->AddNode(const_op);
+
+  VarIsInitializedOpPass pass;
+  EXPECT_EQ(pass.Run(const_node), SUCCESS);
+}
+
+TEST_F(UTEST_graph_passes_var_is_initialized_op_pass, run_assign_node_no_input_desc) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto assign_op = std::make_shared<OpDesc>("assign", ASSIGN);
+  assign_op->AddOutputDesc(GeTensorDesc());
+  auto assign_node = graph->AddNode(assign_op);
+
+  VarIsInitializedOpPass pass;
+  EXPECT_EQ(pass.Run(assign_node), PARAM_INVALID);
+}
+
+TEST_F(UTEST_graph_passes_var_is_initialized_op_pass, run_assign_node_no_peer_edge) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc tensor_desc;
+  auto assign_op = std::make_shared<OpDesc>("assign", ASSIGN);
+  assign_op->AddInputDesc(tensor_desc);
+  assign_op->AddInputDesc(tensor_desc);
+  assign_op->AddOutputDesc(tensor_desc);
+  auto assign_node = graph->AddNode(assign_op);
+
+  VarIsInitializedOpPass pass;
+  EXPECT_EQ(pass.Run(assign_node), PARAM_INVALID);
+}
+
+TEST_F(UTEST_graph_passes_var_is_initialized_op_pass, run_assign_node_with_variable_success) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc tensor_desc;
+  auto var_op = std::make_shared<OpDesc>("variable", VARIABLE);
+  var_op->AddOutputDesc(tensor_desc);
+  auto var_node = graph->AddNode(var_op);
+
+  auto value_op = std::make_shared<OpDesc>("value", CONSTANTOP);
+  value_op->AddOutputDesc(tensor_desc);
+  auto value_node = graph->AddNode(value_op);
+
+  auto assign_op = std::make_shared<OpDesc>("assign", ASSIGN);
+  assign_op->AddInputDesc(tensor_desc);
+  assign_op->AddInputDesc(tensor_desc);
+  assign_op->AddOutputDesc(tensor_desc);
+  auto assign_node = graph->AddNode(assign_op);
+  (void)GraphUtils::AddEdge(var_node->GetOutDataAnchor(0), assign_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(value_node->GetOutDataAnchor(0), assign_node->GetInDataAnchor(1));
+
+  VarIsInitializedOpPass pass;
+  EXPECT_EQ(pass.Run(assign_node), SUCCESS);
+
+  VarManagerPool::Instance().Destroy();
+}
 }  // namespace ge

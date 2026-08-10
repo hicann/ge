@@ -827,5 +827,26 @@ TEST_F(UTEST_FormatTransferNc1hwc0ToNchw, invalid_src_data_type) {
   FormatTransferNc1hwc0Nchw transfer;
   EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_DATATYPE_INVALID);
 }
+TEST_F(UTEST_FormatTransferNc1hwc0ToNchw, nc1hwc0_to_nchw_zero_size) {
+  uint16_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NC1HWC0, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NCHW, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_NC1HWC0,
+                 FORMAT_NCHW,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {0, 1, 1, 1, 16},
+                 {0, 16, 1, 1},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferNc1hwc0Nchw transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
 }  // namespace formats
 }  // namespace ge

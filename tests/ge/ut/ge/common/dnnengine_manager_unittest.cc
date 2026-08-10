@@ -21,7 +21,7 @@
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "framework/engine/dnnengine.h"
 #include "graph/op_desc.h"
-#include "graph/node.h"
+#include "graph/debug/ge_attr_define.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/ge_local_context.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -325,5 +325,225 @@ TEST_F(UtestDnnengineManager, GetDNNEngineName_not_support_dynamic_shape) {
   std::map<std::string, std::string> options;
   okm.ops_kernel_store_["kernel_name"] = std::make_shared<SubOpsKernelInfoStore2>();
   EXPECT_EQ(instance.GetDNNEngineName(node), "");
+}
+
+TEST_F(UtestDnnengineManager, FinalizeNotInitialized) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.init_flag_ = false;
+  EXPECT_EQ(instance.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestDnnengineManager, GetCompositeEngineNameRecursiveDepthExceeded) {
+  auto &instance = DNNEngineManager::GetInstance();
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data1", "DATA", 0, 1);
+  OpsKernelManager::GetInstance().composite_engines_["com"] = std::set<std::string>{"engine1"};
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_["com"] = "kernel_lib";
+  EXPECT_EQ(instance.GetCompositeEngineName(node, 30), "");
+  OpsKernelManager::GetInstance().composite_engines_.clear();
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_.clear();
+}
+
+TEST_F(UtestDnnengineManager, GetCompositeEngineNameWithCompositeAttr) {
+  auto &instance = DNNEngineManager::GetInstance();
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data1", "DATA", 0, 1);
+  OpsKernelManager::GetInstance().composite_engines_["com"] = std::set<std::string>{"engine1"};
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_["com"] = "kernel_lib";
+  AttrUtils::SetStr(node->GetOpDesc(), ATTR_NAME_COMPOSITE_ENGINE_NAME, "com");
+  AttrUtils::SetStr(node->GetOpDesc(), ATTR_NAME_COMPOSITE_ENGINE_KERNEL_LIB_NAME, "kernel_lib");
+  EXPECT_EQ(instance.GetCompositeEngineName(node, 1), "com");
+  OpsKernelManager::GetInstance().composite_engines_.clear();
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_.clear();
+}
+
+TEST_F(UtestDnnengineManager, GetCompositeEngineNameAtomicFound) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.atomic_2_composite_["AIcoreEngine"] = "AIcoreComposite";
+  EXPECT_EQ(instance.GetCompositeEngineName("AIcoreEngine"), "AIcoreComposite");
+  EXPECT_EQ(instance.GetCompositeEngineName("nonexistent"), "");
+  instance.atomic_2_composite_.clear();
+}
+
+TEST_F(UtestDnnengineManager, GetCompositeEngineKernelLibNameFound) {
+  auto &instance = DNNEngineManager::GetInstance();
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_["com_engine"] = "kernel_lib";
+  EXPECT_EQ(instance.GetCompositeEngineKernelLibName("com_engine"), "kernel_lib");
+  EXPECT_EQ(instance.GetCompositeEngineKernelLibName("nonexistent"), "");
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_.clear();
+}
+
+TEST_F(UtestDnnengineManager, ReadJsonFileWithEnginesMapNotEmpty) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.engines_map_["engine"] = std::make_shared<DNNEngine>();
+  nlohmann::json json_obj;
+  EXPECT_EQ(instance.ReadJsonFile("/tmp/nonexistent_file_path.json", &json_obj), FAILED);
+  instance.engines_map_.clear();
+}
+
+TEST_F(UtestDnnengineManager, ReadJsonFileWithNullJson) {
+  auto &instance = DNNEngineManager::GetInstance();
+  EXPECT_EQ(instance.ReadJsonFile("/tmp/test.json", nullptr), FAILED);
+}
+
+TEST_F(UtestDnnengineManager, ParserJsonFileWithNullJsonContent) {
+  auto &instance = DNNEngineManager::GetInstance();
+  std::string path = GetModelPath();
+  path.append("../../../../compiler/plugin/nnengine/ge_config/");
+  std::string path_copy = path;
+  path_copy.append("engine_conf_backup.json");
+  string cmd = "mkdir -p " + path;
+  system(cmd.data());
+  path.append("engine_conf.json");
+  std::string backup_cmd = "cp " + path + " " + path_copy;
+  system(backup_cmd.data());
+  std::ofstream ofs(path.c_str(), std::ios::out);
+  ofs << "null";
+  ofs.close();
+  EXPECT_EQ(instance.ParserJsonFile(), SUCCESS);
+  std::string recover_cmd1 = "rm -rf " + path + ";mv " + path_copy + " " + path;
+  system(recover_cmd1.data());
+}
+
+TEST_F(UtestDnnengineManager, ParserJsonFileSchedulerUnitsNotArray) {
+  auto &instance = DNNEngineManager::GetInstance();
+  std::string path = GetModelPath();
+  path.append("../../../../compiler/plugin/nnengine/ge_config/");
+  std::string path_copy = path;
+  path_copy.append("engine_conf_backup.json");
+  string cmd = "mkdir -p " + path;
+  system(cmd.data());
+  path.append("engine_conf.json");
+  std::string backup_cmd = "cp " + path + " " + path_copy;
+  system(backup_cmd.data());
+  std::ofstream ofs(path.c_str(), std::ios::out);
+  ofs << "{\"schedule_units\":\"not_array\"}";
+  ofs.close();
+  EXPECT_EQ(instance.ParserJsonFile(), FAILED);
+  std::string recover_cmd1 = "rm -rf " + path + ";mv " + path_copy + " " + path;
+  system(recover_cmd1.data());
+}
+
+TEST_F(UtestDnnengineManager, ParserJsonFileCalEnginesNull) {
+  auto &instance = DNNEngineManager::GetInstance();
+  std::string path = GetModelPath();
+  path.append("../../../../compiler/plugin/nnengine/ge_config/");
+  std::string path_copy = path;
+  path_copy.append("engine_conf_backup.json");
+  string cmd = "mkdir -p " + path;
+  system(cmd.data());
+  path.append("engine_conf.json");
+  std::string backup_cmd = "cp " + path + " " + path_copy;
+  system(backup_cmd.data());
+  std::ofstream ofs(path.c_str(), std::ios::out);
+  ofs << "{\"schedule_units\":[{\"cal_engines\":null,\"id\":\"sch1\"}]}";
+  ofs.close();
+  EXPECT_EQ(instance.ParserJsonFile(), FAILED);
+  std::string recover_cmd1 = "rm -rf " + path + ";mv " + path_copy + " " + path;
+  system(recover_cmd1.data());
+}
+
+TEST_F(UtestDnnengineManager, ParserJsonFileEngineIdNull) {
+  auto &instance = DNNEngineManager::GetInstance();
+  std::string path = GetModelPath();
+  path.append("../../../../compiler/plugin/nnengine/ge_config/");
+  std::string path_copy = path;
+  path_copy.append("engine_conf_backup.json");
+  string cmd = "mkdir -p " + path;
+  system(cmd.data());
+  path.append("engine_conf.json");
+  std::string backup_cmd = "cp " + path + " " + path_copy;
+  system(backup_cmd.data());
+  std::ofstream ofs(path.c_str(), std::ios::out);
+  ofs << "{\"schedule_units\":[{\"cal_engines\":[{\"id\":\"\"}],\"id\":\"sch1\"}]}";
+  ofs.close();
+  EXPECT_EQ(instance.ParserJsonFile(), FAILED);
+  std::string recover_cmd1 = "rm -rf " + path + ";mv " + path_copy + " " + path;
+  system(recover_cmd1.data());
+}
+
+TEST_F(UtestDnnengineManager, ParserJsonFileCalEnginesNotArray) {
+  auto &instance = DNNEngineManager::GetInstance();
+  std::string path = GetModelPath();
+  path.append("../../../../compiler/plugin/nnengine/ge_config/");
+  std::string path_copy = path;
+  path_copy.append("engine_conf_backup.json");
+  string cmd = "mkdir -p " + path;
+  system(cmd.data());
+  path.append("engine_conf.json");
+  std::string backup_cmd = "cp " + path + " " + path_copy;
+  system(backup_cmd.data());
+  std::ofstream ofs(path.c_str(), std::ios::out);
+  ofs << "{\"schedule_units\":[{\"cal_engines\":\"not_array\",\"id\":\"sch1\"}]}";
+  ofs.close();
+  EXPECT_EQ(instance.ParserJsonFile(), FAILED);
+  std::string recover_cmd1 = "rm -rf " + path + ";mv " + path_copy + " " + path;
+  system(recover_cmd1.data());
+}
+
+TEST_F(UtestDnnengineManager, CheckJsonFileWithDuplicateEngine) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.engines_map_["engine1"] = std::make_shared<DNNEngine>();
+  instance.schedulers_["sch1"] = SchedulerConf();
+  instance.schedulers_["sch1"].cal_engines["engine1"] = std::make_shared<EngineConf>();
+  instance.schedulers_["sch2"] = SchedulerConf();
+  instance.schedulers_["sch2"].cal_engines["engine1"] = std::make_shared<EngineConf>();
+  EXPECT_EQ(instance.CheckJsonFile(), FAILED);
+}
+
+TEST_F(UtestDnnengineManager, CheckJsonFileEngineNotFound) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.engines_map_["engine_not_in_json"] = std::make_shared<DNNEngine>();
+  instance.schedulers_["sch"] = SchedulerConf();
+  instance.schedulers_["sch"].cal_engines["other_engine"] = std::make_shared<EngineConf>();
+  EXPECT_EQ(instance.CheckJsonFile(), FAILED);
+}
+
+TEST_F(UtestDnnengineManager, InitAtomicCompositeMappingWithEngines) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.engines_map_["composite_engine"] = std::make_shared<DNNEngine>();
+  instance.engines_map_["atomic_engine"] = std::make_shared<DNNEngine>();
+  OpsKernelManager::GetInstance().composite_engines_["composite_engine"] = std::set<std::string>{"atomic_engine"};
+  EXPECT_NO_THROW(instance.InitAtomicCompositeMapping());
+  OpsKernelManager::GetInstance().composite_engines_.clear();
+  instance.engines_map_.clear();
+  instance.atomic_2_composite_.clear();
+}
+
+TEST_F(UtestDnnengineManager, GetCompositeEngineWithSubgraph) {
+  auto &instance = DNNEngineManager::GetInstance();
+  auto parent_graph = std::make_shared<ComputeGraph>("parent_graph");
+  auto sub_graph = std::make_shared<ComputeGraph>("sub_graph");
+  auto parent_node = UtAddNode(parent_graph, "partitioned_call", "PartitionedCall", 1, 1);
+  auto sub_node = UtAddNode(sub_graph, "sub_data", "DATA", 0, 1);
+  sub_graph->SetParentGraph(parent_graph);
+  sub_graph->SetParentNode(parent_node);
+  parent_node->GetOpDesc()->AddSubgraphName(sub_graph->GetName());
+  parent_node->GetOpDesc()->SetSubgraphInstanceName(0, sub_graph->GetName());
+  parent_graph->AddSubGraph(sub_graph);
+  OpsKernelManager::GetInstance().composite_engines_["com"] = std::set<std::string>{"engine1"};
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_["com"] = "kernel_lib";
+  EXPECT_EQ(instance.GetCompositeEngineName(parent_node, 1), "");
+  OpsKernelManager::GetInstance().composite_engines_.clear();
+  OpsKernelManager::GetInstance().composite_engine_kernel_lib_names_.clear();
+}
+
+TEST_F(UtestDnnengineManager, IsStreamAssignSkip) {
+  auto &instance = DNNEngineManager::GetInstance();
+  instance.schedulers_["sch"] = SchedulerConf();
+  instance.schedulers_["sch"].cal_engines["engine1"] = std::make_shared<EngineConf>();
+  instance.schedulers_["sch"].cal_engines["engine1"]->skip_assign_stream = true;
+  EXPECT_EQ(instance.IsStreamAssignSkip("engine1"), true);
+  EXPECT_EQ(instance.IsStreamAssignSkip("nonexistent_engine"), false);
+  instance.schedulers_.clear();
+}
+
+TEST_F(UtestDnnengineManager, GetEngineAndEngineInfo) {
+  auto &instance = DNNEngineManager::GetInstance();
+  auto engine = std::make_shared<DNNEngine>();
+  instance.engines_map_["test_engine"] = engine;
+  EXPECT_EQ(instance.GetEngine("test_engine"), engine);
+  EXPECT_EQ(instance.GetEngine("nonexistent"), nullptr);
+  instance.engines_map_.clear();
 }
 }  // namespace ge

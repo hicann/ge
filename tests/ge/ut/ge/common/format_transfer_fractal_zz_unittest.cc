@@ -8698,5 +8698,80 @@ TEST_F(UtestFormatTransferNdFractZz, nd_trans_shape_fzz_to_nd_invalid) {
   EXPECT_EQ(transfer.TransShape(src_format, {1, 1, 32, 32}, DT_UINT8, dst_format, dst_shape),
             ACL_ERROR_GE_FORMAT_INVALID);
 }
+TEST_F(UtestFormatTransferNdFractZz, nd_shape1_zero_size) {
+  uint16_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_ND,
+                 FORMAT_FRACTAL_ZZ,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {0},
+                 {1, 0, 16, 16},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferFractalZz transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, nd_shape1_zero_size_reverse) {
+  uint16_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_FRACTAL_ZZ,
+                 FORMAT_ND,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {1, 0, 16, 16},
+                 {0},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferFractalZzND transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, nd_shape1_overflow_trans_shape) {
+  const int64_t kMaxShapeItem = 1099511627776LL;
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 5));
+  std::vector<int64_t> dst_shape;
+  FormatTransferFractalZz transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {kMaxShapeItem}, DT_FLOAT16, dst_format, dst_shape),
+            ACL_ERROR_GE_SHAPE_INVALID);
+}
+
+TEST_F(UtestFormatTransferNdFractZz, nd_reverse_overflow_dst_shape) {
+  uint16_t data[1] = {0};
+  const int64_t kMaxShapeItem = 1099511627776LL;
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_ZZ, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_ND, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_FRACTAL_ZZ,
+                 FORMAT_ND,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {1, 1, 16, 16},
+                 {kMaxShapeItem},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferFractalZzND transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

@@ -2813,4 +2813,28 @@ TEST_F(UtestTransopWithoutReshapeFusionPass, test_cast_fusion_has_precision_loss
   EXPECT_EQ(domi::SUCCESS, status);
   EXPECT_EQ(graph->GetDirectNodesSize(), 5);
 }
+
+TEST_F(UtestTransopWithoutReshapeFusionPass, set_remain_node_with_null_anchor) {
+  TransOpWithoutReshapeFusionPass pass;
+  std::vector<std::pair<OutDataAnchorPtr, InDataAnchorPtr>> nodes_anchor;
+  nodes_anchor.push_back({nullptr, nullptr});
+  pass.SetRemainNode(nodes_anchor);
+}
+
+TEST_F(UtestTransopWithoutReshapeFusionPass, set_remain_node_with_non_transop) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  auto data_op = std::make_shared<OpDesc>("data", DATA);
+  data_op->AddOutputDesc(GeTensorDesc());
+  auto data = graph->AddNode(data_op);
+  auto relu_op = std::make_shared<OpDesc>("relu", RELU);
+  relu_op->AddInputDesc(GeTensorDesc());
+  relu_op->AddOutputDesc(GeTensorDesc());
+  auto relu = graph->AddNode(relu_op);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+
+  TransOpWithoutReshapeFusionPass pass;
+  std::vector<std::pair<OutDataAnchorPtr, InDataAnchorPtr>> nodes_anchor;
+  nodes_anchor.push_back({data->GetOutDataAnchor(0), relu->GetInDataAnchor(0)});
+  pass.SetRemainNode(nodes_anchor);
+}
 }  // namespace ge

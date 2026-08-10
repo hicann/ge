@@ -648,3 +648,46 @@ TEST_F(UtestPluginManagerIncCov, IncCov2_ParseVersion_NoMatch) {
   std::string version;
   EXPECT_FALSE(PluginManager::ParseVersion(line, version, "Version="));
 }
+
+TEST_F(UtestPluginManagerIncCov, IncCov2_CheckOppAndCompilerVersions_CompilerOutOfRange) {
+  PluginManager mgr;
+  std::vector<std::pair<uint32_t, uint32_t>> required = {{800000, 801000}};
+  EXPECT_FALSE(mgr.CheckOppAndCompilerVersions("", "1.0", required));
+}
+
+TEST_F(UtestPluginManagerIncCov, IncCov2_IsVendorVersionValid_WithRequiredVersion) {
+  std::string run_pkg_path = GetRunPkgPath();
+  std::string compiler_dir = run_pkg_path + "compiler";
+  std::string runtime_dir = run_pkg_path + "runtime";
+  system(("rm -rf " + runtime_dir).c_str());
+  bool created = false;
+  if (system(("mkdir -p " + compiler_dir).c_str()) == 0) {
+    std::string version_file = compiler_dir + "/version.info";
+    std::ofstream ofs(version_file);
+    if (ofs.is_open()) {
+      ofs << "required_opp_abi_version=>=8.0, <=8.1";
+      ofs.close();
+      created = true;
+    }
+  }
+  PluginManager mgr;
+  bool result = mgr.IsVendorVersionValid("8.0", "8.0");
+  if (created) {
+    system(("rm -rf " + compiler_dir).c_str());
+  }
+}
+
+TEST_F(UtestPluginManagerIncCov, IncCov2_GetOppSupportedOsAndCpuType_RealPathNotDir) {
+  std::string file_path = kTmpDir2 + "/notdir_opp_file";
+  system(("touch " + file_path).c_str());
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu, file_path, "", 0U);
+  EXPECT_TRUE(opp_supported_os_cpu.empty());
+}
+
+TEST_F(UtestPluginManagerIncCov, IncCov2_GetOppSupportedOsAndCpuType_ScanDirFail) {
+  std::string nonexist = kTmpDir2 + "/nonexist_scan_opp";
+  std::unordered_map<std::string, std::unordered_set<std::string>> opp_supported_os_cpu;
+  PluginManager::GetOppSupportedOsAndCpuType(opp_supported_os_cpu, nonexist, "", 0U);
+  EXPECT_TRUE(opp_supported_os_cpu.empty());
+}

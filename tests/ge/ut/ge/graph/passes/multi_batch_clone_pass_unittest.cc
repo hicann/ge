@@ -642,4 +642,264 @@ TEST_F(UtestMultiBatchClonePass, MinDimsSizeCheck) {
   EXPECT_EQ(pass_manager.Run(graph), PARAM_INVALID);
 }
 
+TEST_F(UtestMultiBatchClonePass, EmptyGraphRun) {
+  PassManager pass_manager;
+  pass_manager.AddPass("MultiBatchClonePass", new (std::nothrow) MultiBatchClonePass(0));
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GetLocalOmgContext().dynamic_batch_size = "1,2,4";
+  EXPECT_EQ(pass_manager.Run(graph), INTERNAL_ERROR);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_InvalidFormat_ReturnsError) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("invalid_no_colon", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_EmptyValue_ReturnsError) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("data1:", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_FloatValue_ReturnsError) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("data1:1.5,2,3", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_InvalidNumber_ReturnsError) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("data1:abc,2,3", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_ValidInput_ReturnsSuccess) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_EQ(multibatch::ParseInputShapes("data1:1,2,3;data2:4,5,6", user_shape_map), SUCCESS);
+  ASSERT_EQ(user_shape_map.size(), 2U);
+  EXPECT_EQ(user_shape_map[0].first, "data1");
+  EXPECT_EQ(user_shape_map[1].first, "data2");
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicDims_Empty_ReturnsError) {
+  multibatch::DimsVector dynamic_dims_vec;
+  std::vector<std::vector<int64_t>> dynamic_dims_digit_vec;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseDynamicDims("", dynamic_dims_vec, dynamic_dims_digit_vec, user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicDims_MismatchedCount_ReturnsError) {
+  multibatch::DimsVector dynamic_dims_vec;
+  std::vector<std::vector<int64_t>> dynamic_dims_digit_vec;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  user_shape_map.push_back({"data1", {1, -1, 3}});
+  EXPECT_NE(multibatch::ParseDynamicDims("1,2,3", dynamic_dims_vec, dynamic_dims_digit_vec, user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicDims_ValidInput_ReturnsSuccess) {
+  multibatch::DimsVector dynamic_dims_vec;
+  std::vector<std::vector<int64_t>> dynamic_dims_digit_vec;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  user_shape_map.push_back({"data1", {1, -1, 3}});
+  EXPECT_EQ(multibatch::ParseDynamicDims("2;4", dynamic_dims_vec, dynamic_dims_digit_vec, user_shape_map), SUCCESS);
+  ASSERT_EQ(dynamic_dims_vec.size(), 2U);
+  ASSERT_EQ(dynamic_dims_digit_vec.size(), 2U);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicShapes_ValidInput_ReturnsSuccess) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_EQ(multibatch::ParseDynamicShapes("data1:1,2,3;data2:4,5,6", user_shape_map), SUCCESS);
+  ASSERT_EQ(user_shape_map.size(), 2U);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicShapes_InvalidFormat_ReturnsError) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseDynamicShapes("invalid_no_colon", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ChangeStrToNum_ValidInput) {
+  int64_t num = 0;
+  EXPECT_EQ(multibatch::ChangeStrToNum("123", num), SUCCESS);
+  EXPECT_EQ(num, 123);
+}
+
+TEST_F(UtestMultiBatchClonePass, ChangeStrToNum_InvalidInput) {
+  int64_t num = 0;
+  EXPECT_NE(multibatch::ChangeStrToNum("abc", num), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicBatchShape_ValidShape) {
+  EXPECT_FALSE(multibatch::CheckDynamicBatchShape({1, -1, 3, 224}, "data1"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicBatchShape_InvalidShape) {
+  EXPECT_FALSE(multibatch::CheckDynamicBatchShape({1, 2, 3, 224}, "data1"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CalcShape_ValidInput) {
+  GeShape data_shape({1, -1, 3, 224});
+  std::vector<int64_t> batch_shape = {2};
+  GeShape result(data_shape);
+  EXPECT_EQ(multibatch::CalcShape(batch_shape, result), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, CalcShape_MismatchedCount) {
+  GeShape data_shape({1, -1, 3, 224});
+  std::vector<int64_t> batch_shape = {2, 3};
+  GeShape result(data_shape);
+  EXPECT_NE(multibatch::CalcShape(batch_shape, result), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicImageSizeShape_NCHW) {
+  EXPECT_TRUE(multibatch::CheckDynamicImageSizeShape({1, 3, -1, -1}, "NCHW"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicImageSizeShape_NHWC) {
+  EXPECT_TRUE(multibatch::CheckDynamicImageSizeShape({1, -1, -1, 3}, "NHWC"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicImageSizeShape_UnsupportedFormat) {
+  EXPECT_FALSE(multibatch::CheckDynamicImageSizeShape({1, 3, -1, -1}, "NC1HWC0"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicImageSizeShape_InvalidShape) {
+  EXPECT_FALSE(multibatch::CheckDynamicImageSizeShape({1, 3, 224, 224}, "NCHW"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicParams_DuplicateShapes) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 2}, {1, 2}};
+  EXPECT_EQ(multibatch::CheckDynamicParams(shapes), PARAM_INVALID);
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicParams_NegativeDim) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 2}, {3, -1}};
+  EXPECT_EQ(multibatch::CheckDynamicParams(shapes), PARAM_INVALID);
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicParams_DifferentSize) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 2}, {3}};
+  EXPECT_EQ(multibatch::CheckDynamicParams(shapes), PARAM_INVALID);
+}
+
+TEST_F(UtestMultiBatchClonePass, InitDynamicParams_DynamicBatchSize) {
+  GetLocalOmgContext().dynamic_batch_size = "1,2,4";
+  std::vector<std::vector<int64_t>> shapes;
+  EXPECT_EQ(multibatch::InitDynamicParams(shapes), SUCCESS);
+  EXPECT_EQ(shapes.size(), 3U);
+  GetLocalOmgContext().dynamic_batch_size.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, InitDynamicParams_DynamicImageSize) {
+  GetLocalOmgContext().dynamic_image_size = "224,224;448,448";
+  std::vector<std::vector<int64_t>> shapes;
+  EXPECT_EQ(multibatch::InitDynamicParams(shapes), SUCCESS);
+  EXPECT_EQ(shapes.size(), 2U);
+  GetLocalOmgContext().dynamic_image_size.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, InitDynamicParams_DynamicDims) {
+  GetLocalOmgContext().dynamic_dims = "1,224,224;2,448,448";
+  std::vector<std::vector<int64_t>> shapes;
+  EXPECT_EQ(multibatch::InitDynamicParams(shapes), SUCCESS);
+  EXPECT_EQ(shapes.size(), 2U);
+  GetLocalOmgContext().dynamic_dims.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, StampDynamicType_Basic) {
+  auto op_desc = std::make_shared<OpDesc>("test_op", "Data");
+  GetLocalOmgContext().dynamic_batch_size = "1,2";
+  EXPECT_EQ(multibatch::StampDynamicType(op_desc), SUCCESS);
+  GetLocalOmgContext().dynamic_batch_size.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, StampDynamicType_DynamicImage) {
+  auto op_desc = std::make_shared<OpDesc>("test_op2", "Data");
+  GetLocalOmgContext().dynamic_image_size = "224,224;448,448";
+  EXPECT_EQ(multibatch::StampDynamicType(op_desc), SUCCESS);
+  GetLocalOmgContext().dynamic_image_size.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, StampDynamicType_DynamicDims) {
+  auto op_desc = std::make_shared<OpDesc>("test_op3", "Data");
+  GetLocalOmgContext().dynamic_dims = "1,2;3,4";
+  EXPECT_EQ(multibatch::StampDynamicType(op_desc), SUCCESS);
+  GetLocalOmgContext().dynamic_dims.clear();
+}
+
+TEST_F(UtestMultiBatchClonePass, ParserDataToDynamicInfo_Overflow) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 2, 3, 4}};
+  std::vector<std::pair<std::string, std::vector<int64_t>>> data_name_and_shape = {{"data1", {-1, -1, -1, -1, -1}}};
+  std::map<std::string, std::vector<std::vector<int64_t>>> data_to_dynamic_info;
+  EXPECT_EQ(multibatch::ParserDataToDynamicInfo(shapes, data_name_and_shape, data_to_dynamic_info), FAILED);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParserDataToDynamicInfo_Insufficient) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 2, 3, 4, 5}};
+  std::vector<std::pair<std::string, std::vector<int64_t>>> data_name_and_shape = {{"data1", {-1}}};
+  std::map<std::string, std::vector<std::vector<int64_t>>> data_to_dynamic_info;
+  EXPECT_EQ(multibatch::ParserDataToDynamicInfo(shapes, data_name_and_shape, data_to_dynamic_info), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParserDataToDynamicInfo_ValidMatch) {
+  std::vector<std::vector<int64_t>> shapes = {{1, 224, 224}, {2, 448, 448}};
+  std::vector<std::pair<std::string, std::vector<int64_t>>> data_name_and_shape = {{"data1", {-1, 3, -1, -1}}};
+  std::map<std::string, std::vector<std::vector<int64_t>>> data_to_dynamic_info;
+  EXPECT_EQ(multibatch::ParserDataToDynamicInfo(shapes, data_name_and_shape, data_to_dynamic_info), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, BuildSubgraphMuliDimsInput_Basic) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map = {{"data1", {-1, 3}}, {"data2", {-1, 4}}};
+  multibatch::DimsVector dynamic_dims_vec = {{"3", "3"}, {"4", "4"}};
+  std::vector<std::string> subgraph_multi_dims_input_shape;
+  std::vector<std::string> subgraph_multi_dims_input_dims;
+  EXPECT_EQ(multibatch::BuildSubgraphMuliDimsInput(user_shape_map, dynamic_dims_vec, subgraph_multi_dims_input_shape,
+                                                   subgraph_multi_dims_input_dims),
+            SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseMaxShapeRange_Basic) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map = {{"data1", {-1, 3, -1}}};
+  std::vector<std::vector<int64_t>> dynamic_dims_digit_vec = {{1, 224}, {2, 448}};
+  std::vector<std::pair<std::string, std::vector<int64_t>>> max_shape_range_map;
+  EXPECT_EQ(multibatch::ParseMaxShapeRange(user_shape_map, dynamic_dims_digit_vec, max_shape_range_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicShapes_NotSorted) {
+  std::string input_shapes = "data2:-1,3,224,224;data1:-1,3,224,224";
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseDynamicShapes(input_shapes, user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseDynamicDims_EmptyDim) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map = {{"data1", {-1, 3}}};
+  multibatch::DimsVector dynamic_dims_vec;
+  std::vector<std::vector<int64_t>> dynamic_dims_digit_vec;
+  EXPECT_NE(multibatch::ParseDynamicDims("", dynamic_dims_vec, dynamic_dims_digit_vec, user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicBatchShape_NoDynamicDim) {
+  EXPECT_FALSE(multibatch::CheckDynamicBatchShape({1, 2, 3, 224}, "data1"));
+}
+
+TEST_F(UtestMultiBatchClonePass, CheckDynamicBatchShape_WithNegativeAfterFirst) {
+  EXPECT_FALSE(multibatch::CheckDynamicBatchShape({-1, 2, -1, 224}, "data1"));
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_NoColon) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("invalid_no_colon", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ParseInputShapes_EmptyValue) {
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  EXPECT_NE(multibatch::ParseInputShapes("data1:", user_shape_map), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ChangeStrToNum_InvalidChar) {
+  int64_t num = 0;
+  EXPECT_NE(multibatch::ChangeStrToNum("abc", num), SUCCESS);
+}
+
+TEST_F(UtestMultiBatchClonePass, ChangeStrToNum_Valid) {
+  int64_t num = 0;
+  EXPECT_EQ(multibatch::ChangeStrToNum("123", num), SUCCESS);
+  EXPECT_EQ(num, 123);
+}
 }  // namespace ge

@@ -2354,4 +2354,55 @@ TEST_F(UtestGraphMemAssigner, Success) {
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_offset, zero_copy_mem_size), SUCCESS);
 }
+TEST_F(UtestGraphMemAssigner, AssignContinuousOutputMemory_GetTensorSizeFail) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data", DATA, 1, 1);
+  AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_CONTINUOUS_OUTPUT, true);
+  auto output_desc = node->GetOpDesc()->MutableOutputDesc(0);
+  ASSERT_NE(output_desc, nullptr);
+  TensorUtils::SetSize(*output_desc, 0);
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  graph_mem_assigner.memory_offset_.emplace(RT_MEMORY_HBM, MemoryOffset(RT_MEMORY_HBM, 0));
+  EXPECT_NE(graph_mem_assigner.AssignContinuousOutputMemory(node, 1, 4), SUCCESS);
+}
+
+TEST_F(UtestGraphMemAssigner, AssignMemory2HasRefAttrNode_Success) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data", DATA, 1, 1);
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  EXPECT_EQ(graph_mem_assigner.AssignMemory2HasRefAttrNode(), SUCCESS);
+}
+
+TEST_F(UtestGraphMemAssigner, AssignVarAttr2Nodes_Success) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data", DATA, 1, 1);
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  EXPECT_EQ(graph_mem_assigner.AssignVarAttr2Nodes(), SUCCESS);
+}
+
+TEST_F(UtestGraphMemAssigner, CalculateTensorRealSize_Success) {
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  SetDefaultTensorDesc(tensor_desc);
+  int64_t output_mem_size = 0;
+  int64_t batch_dim_num = 0;
+  int64_t out_size = 0;
+  EXPECT_EQ(CalculateTensorRealSizeAndOutSize(tensor_desc, 0, output_mem_size, batch_dim_num, out_size), SUCCESS);
+}
+
+TEST_F(UtestGraphMemAssigner, GetNodeMemoryType_InvalidInput) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "data", DATA, 1, 1);
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  int64_t memory_type = 0;
+  EXPECT_NE(graph_mem_assigner.GetNodeMemoryType(node, memory_type, "input"), SUCCESS);
+  EXPECT_NE(graph_mem_assigner.GetNodeMemoryType(node, memory_type, "output"), SUCCESS);
+}
+
+TEST_F(UtestGraphMemAssigner, AssignZeroCopyMemory_EmptyGraph) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("empty_zero_copy_test");
+  GraphMemoryAssigner graph_mem_assigner(graph);
+  map<uint64_t, size_t> mem_type_to_offset;
+  size_t zero_copy_mem_size = 0;
+  EXPECT_NE(graph_mem_assigner.AssignZeroCopyMemory(mem_type_to_offset, zero_copy_mem_size), SUCCESS);
+}
 }  // namespace ge

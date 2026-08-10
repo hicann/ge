@@ -476,4 +476,18 @@ TEST(UtestGraphPassesHcclContinuousMemcpyPass, testInputContinuousConflict_multi
     EXPECT_EQ(identity->GetOutDataNodes().at(0)->GetType(), HCOMALLREDUCE);
   }
 }
+
+TEST(UtestGraphPassesHcclContinuousMemcpyPass, clear_status_and_is_data_node_test) {
+  HcclContinuousMemcpyPass pass;
+  EXPECT_EQ(pass.ClearStatus(), SUCCESS);
+  EXPECT_TRUE(pass.IsDataNode(CONSTANTOP));
+  EXPECT_FALSE(pass.IsDataNode(RELU));
+}
+
+TEST(UtestGraphPassesHcclContinuousMemcpyPass, check_duplicate_name_test) {
+  HcclContinuousMemcpyPass pass;
+  pass.node_num_map_.insert(std::make_pair("ge", 1));
+  std::string name = pass.CheckDuplicateName("ge");
+  EXPECT_FALSE(name.empty());
+}
 }  // namespace ge

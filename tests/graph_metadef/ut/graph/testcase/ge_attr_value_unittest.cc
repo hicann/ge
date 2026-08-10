@@ -856,4 +856,28 @@ TEST_F(UtestGeAttrValue, IncCov_GetAllAttrsStrWithTensorDesc) {
   auto result = AttrUtils::GetAllAttrsStr(op_desc);
   EXPECT_FALSE(result.empty());
 }
+
+TEST_F(UtestGeAttrValue, IncCov_SetGraphSerializeFail) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_TRUE(AttrUtils::SetGraph(op_desc, "graph_attr", graph));
+  EXPECT_FALSE(AttrUtils::GetGraph(op_desc, "nonexistent", *(ComputeGraphPtr *)(nullptr)));
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetAttrsStrAfterRidWithUncomputeAttrs) {
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test", "Test");
+  op_desc->SetAttr("compute_attr", GeAttrValue::CreateFrom<int64_t>(100));
+  op_desc->SetAttr("uncompute_attr", GeAttrValue::CreateFrom<int64_t>(200));
+  std::set<std::string> un_compute = {"uncompute_attr"};
+  std::string result = AttrUtils::GetAttrsStrAfterRid(op_desc, un_compute);
+  EXPECT_TRUE(result.find("compute_attr") != std::string::npos);
+  EXPECT_TRUE(result.find("uncompute_attr") == std::string::npos);
+}
+
+TEST_F(UtestGeAttrValue, IncCov_GetAllAttrsStrEmptyMap) {
+  OpDescPtr null_desc;
+  EXPECT_EQ(AttrUtils::GetAllAttrsStr(
+                static_cast<const std::map<std::string, AnyValue> &>(std::map<std::string, AnyValue>{})),
+            "");
+}
 }  // namespace ge

@@ -4092,3 +4092,80 @@ TEST_F(UtestRegister, IncCov_AscendC_GeneralizedDumpFail) {
             0);
   unsetenv("ENABLE_RUNTIME_V2");
 }
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceCheckOp_NotRegistered) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string input_str = "[]";
+  std::string output_str = "[]";
+  std::string attrs_str = "[]";
+  std::string op_type = "NonExistentCheckOp";
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, op_type.c_str(), input_str.c_str(), output_str.c_str(),
+                                      attrs_str.c_str(), const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceGeneralized_NotRegistered) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string input_str = "[]";
+  std::string output_str = "[]";
+  std::string attrs_str = "[]";
+  std::string op_type = "NonExistentGenOp";
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceGeneralized(op_type.c_str(), input_str.c_str(), output_str.c_str(), attrs_str.c_str(),
+                                          "keep_rank", const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceGetTilingDefInfo_NotRegistered) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceGetTilingDefInfo("NonExistentTilingOp", const_cast<char *>(res_info.c_str()), size), 0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_RegisterOpTilingFuncV1) {
+  auto &func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
+  func_map.erase("TestRegisterV1");
+  OpTilingFuncInfo info("TestRegisterV1");
+  OpTilingFunc v1_func = [](const TeOpParas &op_paras, const OpCompileInfo &compile_info, OpRunInfo &run_info) -> bool {
+    return true;
+  };
+  info.SetOpTilingFunc(v1_func);
+  func_map.emplace("TestRegisterV1", info);
+  EXPECT_NE(func_map.find("TestRegisterV1"), func_map.end());
+  func_map.erase("TestRegisterV1");
+}
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceCheckOp_NullParams) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceCheckOp(FUNC_CHECK_SUPPORTED, nullptr, nullptr, nullptr, nullptr,
+                                      const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceGeneralized_NullParams) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceGeneralized(nullptr, nullptr, nullptr, nullptr, "keep_rank",
+                                          const_cast<char *>(res_info.c_str()), size),
+            0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, IncCov_AscendCPyInterfaceGetTilingDefInfo_NullParams) {
+  setenv("ENABLE_RUNTIME_V2", "1", 0);
+  std::string res_info(1024, 'a');
+  size_t size = 1024;
+  EXPECT_EQ(AscendCPyInterfaceGetTilingDefInfo(nullptr, const_cast<char *>(res_info.c_str()), size), 0);
+  unsetenv("ENABLE_RUNTIME_V2");
+}

@@ -1200,4 +1200,58 @@ TEST_F(UtestGeGenerator, generate_offline_model_with_attr_compression_default) {
   (void)generator.GenerateOfflineModel(graph, name, inputs);
   // Test passes if no crash or exception related to attr_compression
 }
+
+TEST_F(UtestGeGenerator, CheckForSingleOpWithMoreOutputsThanExpected) {
+  GeGenerator generator;
+  generator.Initialize({});
+  GeTensorDesc tensor_desc;
+  shared_ptr<OpDesc> op_desc = std::make_shared<OpDesc>("Add", "add");
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  GeTensor tensor(tensor_desc);
+  vector<GeTensor> inputs = {tensor, tensor};
+  vector<GeTensor> outputs = {tensor, tensor, tensor};
+  EXPECT_EQ(generator.CheckForSingleOp(op_desc, inputs, outputs), PARAM_INVALID);
+  EXPECT_EQ(generator.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestGeGenerator, GenerateModelWithNullImpl) {
+  auto &instance = GeGenerator::GetInstance();
+  Graph graph("graph");
+  std::vector<GeTensor> inputs;
+  ModelBufferData model;
+  EXPECT_NE(instance.GenerateOnlineModel(graph, inputs, model), SUCCESS);
+}
+
+TEST_F(UtestGeGenerator, GenerateInfershapeGraphWithNullImpl) {
+  GeGenerator generator;
+  Graph graph("graph");
+  EXPECT_EQ(generator.GenerateInfershapeGraph(graph), PARAM_INVALID);
+}
+
+TEST_F(UtestGeGenerator, RemoveConstWithEmptyInputs) {
+  GeGenerator generator;
+  std::vector<GeTensor> inputs;
+  std::vector<GeTensor> outputs;
+  EXPECT_NO_THROW(generator.RemoveConst(inputs, outputs));
+}
+
+TEST_F(UtestGeGenerator, GenerateModelWithNormalBuildMode) {
+  InitGeLib();
+  auto &instance = GeGenerator::GetInstance();
+  std::map<std::string, std::string> options;
+  options["ge.buildMode"] = BUILD_MODE_NORMAL;
+  instance.Initialize(options);
+  auto compute_graph = MakeGraph();
+  compute_graph->TopologicalSorting();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::string file_name_prefix = "prefix";
+  std::vector<GeTensor> inputs;
+  ModelBufferData model;
+  bool is_offline = true;
+  EXPECT_EQ(instance.GenerateModel(graph, file_name_prefix, inputs, model, is_offline), SUCCESS);
+  EXPECT_EQ(instance.Finalize(), SUCCESS);
+  FinalizeGeLib();
+}
 }  // namespace ge

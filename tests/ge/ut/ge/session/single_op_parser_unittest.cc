@@ -1041,4 +1041,49 @@ TEST_F(UtestOmg, ParseSingleOpList_ConstValueWithUnsupportedType) {
   EXPECT_EQ(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
   system(("rm " + file).c_str());
 }
+
+TEST_F(UtestOmg, ParseSingleOpList_NonExistentFile_CovEnhance) {
+  std::string file = "/nonexistent_path/single_op_test.json";
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+}
+
+TEST_F(UtestOmg, ParseSingleOpList_ShapeRangeMismatch_CovEnhance) {
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "shape_range_mismatch_test.json";
+  stringstream sstream;
+  sstream << R"(cat - << EOF > )" << file;
+  sstream << R"(
+[
+    {
+      "op": "Add",
+      "input_desc": [
+        {
+          "format": "ND",
+          "shape": [-1, 2],
+          "type": "int32",
+          "shape_range": [[1, 3], [1, 4]]
+        },
+        {
+          "format": "ND",
+          "shape": [1, 2],
+          "type": "int32"
+        }
+      ],
+      "output_desc": [
+        {
+          "format": "ND",
+          "shape": [1, 2],
+          "type": "int32"
+        }
+      ]
+    }
+]
+)";
+  sstream << R"(EOF)";
+  system(sstream.str().c_str());
+  std::vector<SingleOpBuildParam> op_list;
+  EXPECT_NE(SingleOpParser::ParseSingleOpList(file, op_list), SUCCESS);
+  system(("rm " + file).c_str());
+}
 }  // namespace ge

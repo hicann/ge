@@ -357,3 +357,353 @@ TEST_F(UtestFoldingKernelAddKernel, ComputeComplex64OverflowFailed) {
   Status status = kernel->Compute(op_desc_ptr, input, v_output);
   EXPECT_NE(status, SUCCESS);
 }
+
+TEST_F(UtestFoldingKernelAddKernel, AddInt8Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int8_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT8);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int8_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int8_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT8);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int8_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddInt16Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int16_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int16_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int16_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT16);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddInt32Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int32_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddInt64Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int64_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT64);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int64_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int64_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT64);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int64_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddUint8Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<uint8_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT8);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint8_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<uint8_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT8);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint8_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddUint16Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<uint16_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint16_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<uint16_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT16);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddUint32Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<uint32_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint32_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<uint32_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddUint64Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<uint64_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT64);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint64_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<uint64_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT64);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint64_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddFloat16Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<fp16_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(fp16_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<fp16_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_FLOAT16);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(fp16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddFloatWithOutputSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {4};
+  vector<float> data_vec_0 = {1.0, 2.0, 3.0, 4.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  vector<int64_t> dims_vec_1;
+  vector<float> data_vec_1 = {1.0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(float));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddDoubleSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<double> data_vec_0 = {2.0, 3.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_DOUBLE);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(double));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<double> data_vec_1 = {5.0, 6.0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_DOUBLE);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(double));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddUnsupportedDataType) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int64_t> data_vec_0 = {2, 3};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_BOOL);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int64_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int64_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_BOOL);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int64_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, NOT_CHANGED);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddEmptyDataSameType) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int32_t> data_vec_1 = {5, 6};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_EQ(status, NOT_CHANGED);
+}
+
+TEST_F(UtestFoldingKernelAddKernel, AddInt32OverflowFailed) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("Add", ADD);
+  GeTensorDesc output_desc1;
+  op_desc_ptr->AddOutputDesc("y", output_desc1);
+
+  vector<int64_t> dims_vec_0 = {1};
+  vector<int32_t> data_vec_0 = {std::numeric_limits<int32_t>::max()};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {1};
+  vector<int32_t> data_vec_1 = {std::numeric_limits<int32_t>::max()};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> v_output;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(ADD);
+  Status status = kernel->Compute(op_desc_ptr, input, v_output);
+  EXPECT_NE(status, SUCCESS);
+}

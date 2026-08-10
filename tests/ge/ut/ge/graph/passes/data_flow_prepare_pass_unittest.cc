@@ -15,6 +15,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/passes/feature/data_flow_prepare_pass.h"
+#include "graph/utils/op_desc_utils.h"
 
 namespace ge {
 class UtestDataFlowPreparePass : public testing::Test {
@@ -122,5 +123,93 @@ TEST_F(UtestDataFlowPreparePass, set_handle_succ) {
   int64_t max_size2 = -1;
   (void)AttrUtils::GetInt(stack2->GetOpDesc(), ATTR_NAME_DATA_FLOW_MAX_SIZE, max_size2);
   EXPECT_EQ(max_size2, 200);
+}
+
+TEST_F(UtestDataFlowPreparePass, data_flow_max_size_empty_weight_test) {
+  GeTensorDesc tensor_desc(GeShape(), FORMAT_ND, DT_INT32);
+  GeTensorPtr const_tensor = std::make_shared<GeTensor>(tensor_desc);
+  const auto const1 = OP_CFG(CONSTANT).OutCnt(1).Weight(const_tensor);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("const1", const1)->EDGE(0, 0)->NODE("stack1", STACK));
+  };
+  const auto graph = ToGeGraph(g1);
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  compute_graph->TopologicalSorting();
+  const map<string, uint32_t> name_index = {{"max_size", 0}};
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    if (node->GetType() == STACK && node->GetOpDesc() != nullptr) {
+      node->GetOpDesc()->UpdateInputName(name_index);
+    }
+  }
+  DataFlowPreparePass pass;
+  EXPECT_EQ(pass.Run(compute_graph), SUCCESS);
+}
+
+TEST_F(UtestDataFlowPreparePass, data_flow_max_size_not_int32_test) {
+  float val = 1.0f;
+  GeTensorDesc tensor_desc(GeShape(), FORMAT_ND, DT_FLOAT);
+  GeTensorPtr const_tensor = std::make_shared<GeTensor>(tensor_desc, reinterpret_cast<uint8_t *>(&val), sizeof(float));
+  const auto const1 = OP_CFG(CONSTANT).OutCnt(1).Weight(const_tensor);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("const1", const1)->EDGE(0, 0)->NODE("stack1", STACK));
+  };
+  const auto graph = ToGeGraph(g1);
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  compute_graph->TopologicalSorting();
+  const map<string, uint32_t> name_index = {{"max_size", 0}};
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    if (node->GetType() == STACK && node->GetOpDesc() != nullptr) {
+      node->GetOpDesc()->UpdateInputName(name_index);
+    }
+  }
+  DataFlowPreparePass pass;
+  EXPECT_EQ(pass.Run(compute_graph), SUCCESS);
+}
+
+TEST_F(UtestDataFlowPreparePass, data_flow_max_size_not_const_test) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data1", DATA)->EDGE(0, 0)->NODE("stack1", STACK));
+  };
+  const auto graph = ToGeGraph(g1);
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  compute_graph->TopologicalSorting();
+  const map<string, uint32_t> name_index = {{"max_size", 0}};
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    if (node->GetType() == STACK && node->GetOpDesc() != nullptr) {
+      node->GetOpDesc()->UpdateInputName(name_index);
+    }
+  }
+  DataFlowPreparePass pass;
+  EXPECT_EQ(pass.Run(compute_graph), SUCCESS);
+}
+
+TEST_F(UtestDataFlowPreparePass, data_flow_get_resource_input_fail_test) {
+  int32_t val = 100;
+  GeTensorDesc tensor_desc(GeShape(), FORMAT_ND, DT_INT32);
+  GeTensorPtr const_tensor =
+      std::make_shared<GeTensor>(tensor_desc, reinterpret_cast<uint8_t *>(&val), sizeof(int32_t));
+  const auto const1 = OP_CFG(CONSTANT).OutCnt(1).Weight(const_tensor);
+  const auto stackpush1 = OP_CFG(STACKPUSH).InCnt(2).OutCnt(1);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("const1", const1)->EDGE(0, 1)->NODE("stackpush1", stackpush1));
+  };
+  const auto graph = ToGeGraph(g1);
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  compute_graph->TopologicalSorting();
+  DataFlowPreparePass pass;
+  EXPECT_EQ(pass.Run(compute_graph), INTERNAL_ERROR);
+}
+
+TEST_F(UtestDataFlowPreparePass, data_flow_data_node_input_test) {
+  const auto data1 = OP_CFG(DATA).OutCnt(1);
+  const auto stackpush1 = OP_CFG(STACKPUSH).InCnt(2).OutCnt(1);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data1", data1)->EDGE(0, 0)->NODE("stackpush1", stackpush1));
+  };
+  const auto graph = ToGeGraph(g1);
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  compute_graph->TopologicalSorting();
+  DataFlowPreparePass pass;
+  EXPECT_EQ(pass.Run(compute_graph), SUCCESS);
 }
 }  // namespace ge

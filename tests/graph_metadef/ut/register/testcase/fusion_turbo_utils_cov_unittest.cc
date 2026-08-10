@@ -540,4 +540,105 @@ TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddWeights_WithZeroDataSize) {
   auto nodes = ft.AddWeights(node, {w});
   EXPECT_TRUE(nodes.empty());
 }
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddWeights_WithNullData) {
+  auto graph = std::make_shared<ge::ComputeGraph>("test_addweights_null_data");
+  auto op_desc = std::make_shared<ge::OpDesc>("node1_null", "Relu");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({1, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  FusionTurbo ft(graph);
+  WeightInfo w(tensor_desc, nullptr);
+  auto nodes = ft.AddWeights(node, {w});
+  EXPECT_FALSE(nodes.empty());
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_InstNodeBefore_Success) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto ret = ft.InsertNodeBefore("inst_before_node", "Relu", add_node, 1, 1);
+  EXPECT_EQ(ret, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_InstNodeAfter_Success) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto ret = ft.InsertNodeAfter("inst_after_node", "Relu", add_node, 1, 1);
+  EXPECT_EQ(ret, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkInput_Success) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto data_node = graph->FindNode("data1");
+  ASSERT_NE(data_node, nullptr);
+  Relations input_rel(0, NodeIndices{NodeIndex(data_node, 0)});
+  auto ret = ft.LinkInput(input_rel, add_node, UPDATE_NONE);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_LinkOutput_Success) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto output_node = graph->FindNode("output1");
+  ASSERT_NE(output_node, nullptr);
+  Relations output_rel(0, NodeIndices{NodeIndex(output_node, 0)});
+  auto ret = ft.LinkOutput(output_rel, add_node, UPDATE_NONE);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_RemoveNode_Success) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto relu_node = graph->FindNode("relu1");
+  ASSERT_NE(relu_node, nullptr);
+  auto ret = ft.RemoveNodeOnly(relu_node);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_RemoveNode_NullNode) {
+  auto graph = BuildGraph();
+  FusionTurbo ft(graph);
+  auto ret = ft.RemoveNodeOnly(nullptr);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_GetConstInput_Success) {
+  auto graph = BuildGraph();
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto result = FusionTurboUtils::GetConstInput(add_node, 0);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_GetConstInput_OutOfRange) {
+  auto graph = BuildGraph();
+  auto add_node = graph->FindNode("add1");
+  ASSERT_NE(add_node, nullptr);
+  auto result = FusionTurboUtils::GetConstInput(add_node, 100);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(FusionTurboUtilsCovUT, IncCov_FusionTurbo_AddWeights_WithValidData) {
+  auto graph = std::make_shared<ge::ComputeGraph>("test_addweights_valid");
+  auto op_desc = std::make_shared<ge::OpDesc>("node_valid", "Relu");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({1, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  op_desc->AddInputDesc(tensor_desc);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  FusionTurbo ft(graph);
+  auto data_ptr = std::make_unique<int32_t[]>(16);
+  WeightInfo w(tensor_desc, data_ptr.get());
+  auto nodes = ft.AddWeights(node, {w});
+  EXPECT_FALSE(nodes.empty());
+}
 }  // namespace fe

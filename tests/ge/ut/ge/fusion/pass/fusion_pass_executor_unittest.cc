@@ -2212,5 +2212,189 @@ TEST_F(UtestFusionPassExecutor, RunPasses_SkipOrphanSubgraph) {
   // 顶层图能正常处理，孤儿子图被安全跳过，不应崩溃。
   EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
 }
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_RegisterDuplicateDescriptorKey) {
+  PythonPassDescriptor pass_desc;
+  pass_desc.descriptor_key = "python.duplicate.register.test";
+  pass_desc.pass_name = "DuplicateRegisterPass";
+  pass_desc.module_name = "python.pass.sample";
+  pass_desc.class_name = "DuplicateRegisterPass";
+  pass_desc.stage = CustomPassStage::kAfterInferShape;
+  pass_desc.kind = PythonPassKind::kFusionBase;
+
+  PythonFusionPassCallbacks callbacks;
+  callbacks.create = CreatePythonFusionBasePassHolderForUt;
+  callbacks.destroy = DestroyPythonFusionBasePassHolderForUt;
+  callbacks.run = RunPythonFusionBasePassHolderForUt;
+
+  ASSERT_TRUE(RegisterPythonPass(pass_desc, callbacks));
+  EXPECT_FALSE(RegisterPythonPass(pass_desc, callbacks));
+  ClearPythonPassRuntimeRegistry();
+}
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_UnregisterNonExistentKey) {
+  EXPECT_FALSE(PythonFusionPassRuntimeRegistry::GetInstance().Unregister("non_existent_key"));
+}
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_AdapterWithUnregisteredDesc) {
+  PythonPassDescriptor pass_desc;
+  pass_desc.descriptor_key = "python.unregistered.adapter";
+  pass_desc.pass_name = "UnregisteredAdapterPass";
+  pass_desc.module_name = "python.pass.sample";
+  pass_desc.class_name = "UnregisteredAdapterPass";
+  pass_desc.stage = CustomPassStage::kAfterInferShape;
+  pass_desc.kind = PythonPassKind::kFusionBase;
+
+  auto adapter = std::make_unique<PythonFusionBasePassAdapter>(pass_desc);
+  EXPECT_FALSE(adapter->IsValid());
+
+  GraphPtr graph = std::make_shared<Graph>();
+  CustomPassContext context;
+  EXPECT_EQ(adapter->Run(graph, context), FAILED);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_RunWithInvalidCallback) {
+  PythonPassDescriptor pass_desc;
+  pass_desc.descriptor_key = "python.invalid.callback.test";
+  pass_desc.pass_name = "InvalidCallbackPass";
+  pass_desc.module_name = "python.pass.sample";
+  pass_desc.class_name = "InvalidCallbackPass";
+  pass_desc.stage = CustomPassStage::kAfterInferShape;
+  pass_desc.kind = PythonPassKind::kFusionBase;
+
+  PythonFusionPassCallbacks callbacks;
+  callbacks.create = CreatePythonFusionBasePassHolderForUt;
+  callbacks.destroy = DestroyPythonFusionBasePassHolderForUt;
+  callbacks.run = nullptr;
+
+  EXPECT_FALSE(RegisterPythonPass(pass_desc, callbacks));
+  ClearPythonPassRuntimeRegistry();
+}
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_GetPassDescriptor) {
+  PythonPassDescriptor pass_desc;
+  pass_desc.descriptor_key = "python.get.descriptor.test";
+  pass_desc.pass_name = "GetDescriptorPass";
+  pass_desc.module_name = "python.pass.sample";
+  pass_desc.class_name = "GetDescriptorPass";
+  pass_desc.stage = CustomPassStage::kAfterInferShape;
+  pass_desc.kind = PythonPassKind::kFusionBase;
+
+  PythonFusionPassCallbacks callbacks;
+  callbacks.create = CreatePythonFusionBasePassHolderForUt;
+  callbacks.destroy = DestroyPythonFusionBasePassHolderForUt;
+  callbacks.run = RunPythonFusionBasePassHolderForUt;
+
+  ASSERT_TRUE(RegisterPythonPass(pass_desc, callbacks));
+
+  auto holder = std::make_unique<PythonPassHolder>(pass_desc);
+  ASSERT_TRUE(holder->IsValid());
+  const auto &retrieved_desc = holder->GetPassDescriptor();
+  EXPECT_EQ(retrieved_desc.descriptor_key, pass_desc.descriptor_key);
+  EXPECT_EQ(retrieved_desc.pass_name, pass_desc.pass_name);
+
+  ClearPythonPassRuntimeRegistry();
+}
+
+TEST_F(UtestFusionPassExecutor, PythonFusionBasePass_CreatePythonPassAdapterWithMissingDescriptor) {
+  EXPECT_EQ(CreatePythonPassAdapter(), nullptr);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_RegisterPassesWithNullRegistrar_Fails) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  EXPECT_EQ(api->register_passes(nullptr), FAILED);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_SetArtifactConfigNull_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  EXPECT_EQ(api->set_artifact_config(nullptr), SUCCESS);
+  CleanupBridgeStateForUt(*api);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_ResetBridgeStateWhenPyNotInitialized_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  api->reset_bridge_state();
+  EXPECT_NE(api->reset_bridge_state, nullptr);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_ShutdownBridge_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  api->shutdown_bridge();
+  EXPECT_NE(api->shutdown_bridge, nullptr);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_SetArtifactConfigValid_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  PythonFusionPassBridgeArtifactConfig config;
+  config.artifact_root = "/tmp/test_artifact";
+  config.native_module_path = "/tmp/test_native";
+  EXPECT_EQ(api->set_artifact_config(&config), SUCCESS);
+  CleanupBridgeStateForUt(*api);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_SetArtifactConfigTwice_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  PythonFusionPassBridgeArtifactConfig config1;
+  config1.artifact_root = "/tmp/test1";
+  config1.native_module_path = "/tmp/native1";
+  EXPECT_EQ(api->set_artifact_config(&config1), SUCCESS);
+  PythonFusionPassBridgeArtifactConfig config2;
+  config2.artifact_root = "/tmp/test2";
+  config2.native_module_path = "/tmp/native2";
+  EXPECT_EQ(api->set_artifact_config(&config2), SUCCESS);
+  CleanupBridgeStateForUt(*api);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_ResetBridgeStateTwice_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  api->reset_bridge_state();
+  api->reset_bridge_state();
+  EXPECT_NE(api->reset_bridge_state, nullptr);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_ShutdownTwice_Succeeds) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  api->shutdown_bridge();
+  api->shutdown_bridge();
+  EXPECT_NE(api->shutdown_bridge, nullptr);
+}
+
+TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_RegisterPassesWithoutPython_Fails) {
+  const auto *api = LoadBridgeApiForUt();
+  if (api == nullptr) {
+    GTEST_SKIP() << "Bridge API not available";
+  }
+  PythonFusionPassRegistrar registrar;
+  registrar.register_pass = [](const PythonPassDescriptor *, const PythonFusionPassCallbacks *) -> bool {
+    return false;
+  };
+  EXPECT_NE(api->register_passes(&registrar), SUCCESS);
+  CleanupBridgeStateForUt(*api);
+}
+
 }  // namespace fusion
 }  // namespace ge

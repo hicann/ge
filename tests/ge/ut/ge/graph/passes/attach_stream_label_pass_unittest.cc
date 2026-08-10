@@ -13,6 +13,8 @@
 #include <gtest/gtest.h>
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/passes/control_flow_and_stream/attach_stream_label_pass.h"
+#include "graph/utils/graph_utils.h"
+#include "graph/utils/attr_utils.h"
 
 using namespace testing;
 using namespace ge;
@@ -121,5 +123,65 @@ TEST_F(UtestAttachStreamLabelPass, test_run_with_enter_node) {
   const auto graph = ToComputeGraph(g1);
   AttachStreamLabelPass pass(false);
   EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestAttachStreamLabelPass, test_stream_switch_no_data_input_fail) {
+  DEF_GRAPH(g1) {
+    auto sw_cfg = OP_CFG(STREAMSWITCH).Attr(ATTR_NAME_SWITCH_TRUE_BRANCH_FLAG, true);
+    CHAIN(NODE("sw", sw_cfg)->NODE("netoutput", NETOUTPUT));
+  };
+  const auto graph = ToComputeGraph(g1);
+  AttachStreamLabelPass pass(false);
+  EXPECT_EQ(pass.Run(graph), FAILED);
+}
+
+TEST_F(UtestAttachStreamLabelPass, test_enter_with_stream_active_label) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", DATA)->NODE("enter", ENTER)->NODE("add", ADD)->NODE("netoutput", NETOUTPUT));
+  };
+  const auto graph = ToComputeGraph(g1);
+  auto active_desc = std::make_shared<OpDesc>("active", STREAMACTIVE);
+  AttrUtils::SetStr(active_desc, ATTR_NAME_STREAM_LABEL, "test_label");
+  AttrUtils::SetListStr(active_desc, ATTR_NAME_ACTIVE_LABEL_LIST, {"test_label"});
+  auto active_node = graph->AddNode(active_desc);
+  auto enter_node = graph->FindNode("enter");
+  GraphUtils::AddEdge(enter_node->GetOutControlAnchor(), active_node->GetInControlAnchor());
+  AttachStreamLabelPass pass(false);
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestAttachStreamLabelPass, test_enter_with_non_stream_active_ctrl) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", DATA)->NODE("enter", ENTER)->NODE("netoutput", NETOUTPUT));
+  };
+  const auto graph = ToComputeGraph(g1);
+  auto add_desc = std::make_shared<OpDesc>("add_ctrl", ADD);
+  GeTensorDesc tensor_desc;
+  add_desc->AddInputDesc(tensor_desc);
+  add_desc->AddOutputDesc(tensor_desc);
+  auto add_node = graph->AddNode(add_desc);
+  auto enter_node = graph->FindNode("enter");
+  GraphUtils::AddEdge(enter_node->GetOutControlAnchor(), add_node->GetInControlAnchor());
+  AttachStreamLabelPass pass(false);
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestAttachStreamLabelPass, test_subgraph_with_active_label_list) {
+  DEF_GRAPH(sub_1) {
+    auto add_cfg = OP_CFG(ADD).Attr(ATTR_NAME_STREAM_LABEL, "label1");
+    CHAIN(NODE("const_0", CONSTANT)->NODE("add_0", add_cfg)->NODE("netoutput", NETOUTPUT));
+  };
+  DEF_GRAPH(g1) {
+    auto active_cfg = OP_CFG(STREAMACTIVE).Attr(ATTR_NAME_ACTIVE_LABEL_LIST, std::vector<std::string>{"label1"});
+    CHAIN(NODE("data_0", DATA)->NODE("case", CASE, sub_1)->NODE("netoutput", NETOUTPUT));
+    CHAIN(NODE("case")->NODE("active", active_cfg));
+  };
+  sub_1.Layout();
+  const auto graph = ToComputeGraph(g1);
+  AttachStreamLabelPass pass(true);
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+  for (auto &subgraph : graph->GetAllSubgraphs()) {
+    EXPECT_EQ(pass.Run(subgraph), SUCCESS);
+  }
 }
 }  // namespace ge

@@ -1016,3 +1016,64 @@ TEST_F(UtestGraphPassesNetOutputPass, TryToSetOutputMaxSizeInvalidOption) {
   status = pass_managers.Run(compute_graph);
   EXPECT_EQ(status, ge::PARAM_INVALID);
 }
+
+TEST_F(UtestGraphPassesNetOutputPass, set_user_def_dtype_by_output_type_test) {
+  ge::ComputeGraphPtr compute_graph = build_graph();
+  auto &omg_context = GetLocalOmgContext();
+  auto old_output_type = omg_context.output_type;
+  omg_context.output_type = "FP32";
+  omg_context.net_out_nodes.clear();
+
+  ge::PassManager pass_managers;
+  pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
+  Status status = pass_managers.Run(compute_graph);
+  EXPECT_EQ(status, ge::SUCCESS);
+
+  omg_context.output_type = old_output_type;
+  omg_context.net_out_nodes.clear();
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, set_user_def_dtype_by_attr_test) {
+  ge::ComputeGraphPtr compute_graph = build_graph();
+  auto mul1 = compute_graph->FindNode("Mul1");
+  ASSERT_NE(mul1, nullptr);
+  std::vector<std::string> dt_strs = {"0:FP16"};
+  AttrUtils::SetListStr(mul1->GetOpDesc(), "_user_defined_output_data_type", dt_strs);
+  GetLocalOmgContext().net_out_nodes.clear();
+
+  ge::PassManager pass_managers;
+  pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
+  Status status = pass_managers.Run(compute_graph);
+  EXPECT_EQ(status, ge::SUCCESS);
+  GetLocalOmgContext().net_out_nodes.clear();
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, set_user_def_dtype_invalid_split_test) {
+  ge::ComputeGraphPtr compute_graph = build_graph();
+  auto mul1 = compute_graph->FindNode("Mul1");
+  ASSERT_NE(mul1, nullptr);
+  std::vector<std::string> dt_strs = {"invalid_str"};
+  AttrUtils::SetListStr(mul1->GetOpDesc(), "_user_defined_output_data_type", dt_strs);
+  GetLocalOmgContext().net_out_nodes.clear();
+
+  ge::PassManager pass_managers;
+  pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
+  Status status = pass_managers.Run(compute_graph);
+  EXPECT_EQ(status, ge::SUCCESS);
+  GetLocalOmgContext().net_out_nodes.clear();
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, set_user_def_fp16_5hd_test) {
+  ge::ComputeGraphPtr compute_graph = build_graph();
+  auto mul1 = compute_graph->FindNode("Mul1");
+  ASSERT_NE(mul1, nullptr);
+  std::vector<std::string> fp16_strs = {"0:1"};
+  AttrUtils::SetListStr(mul1->GetOpDesc(), "_user_defined_output_fp16_5hd", fp16_strs);
+  GetLocalOmgContext().net_out_nodes.clear();
+
+  ge::PassManager pass_managers;
+  pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
+  Status status = pass_managers.Run(compute_graph);
+  EXPECT_EQ(status, ge::SUCCESS);
+  GetLocalOmgContext().net_out_nodes.clear();
+}

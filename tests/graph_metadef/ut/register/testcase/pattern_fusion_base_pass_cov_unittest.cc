@@ -1321,4 +1321,17 @@ TEST_F(PatternFusionBasePassCovUT, Impl_GetOutDataAnchors_Test) {
   PatternFusionBasePassImpl::GetOutDataAnchors(node1, anchors);
   EXPECT_EQ(anchors.size(), 1U);
 }
+
+TEST_F(PatternFusionBasePassCovUT, Impl_MatchAllEdges_ZeroSize) {
+  EXPECT_TRUE(PatternFusionBasePassImpl::MatchAllEdges(0, nullptr));
+}
+
+TEST_F(PatternFusionBasePassCovUT, Impl_BuildPatterns_Success) {
+  TestPatternFusionPassCov pass;
+  auto patterns = pass.DefinePatterns();
+  EXPECT_FALSE(patterns.empty());
+  for (auto p : patterns) {
+    delete p;
+  }
+}
 }  // namespace fe

@@ -873,4 +873,94 @@ TEST_F(ModelCacheTest, ReadCacheConfig_Failed) {
   }
   RemoveCacheConfig();
 }
+TEST_F(ModelCacheTest, Init_WithSubGraph_Success) {
+  DEF_GRAPH(sub) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {-1});
+    CHAIN(NODE("sub_data", data)->NODE("sub_add", add)->NODE("sub_output", net_output));
+  };
+  auto sub_graph = ToComputeGraph(sub);
+  sub_graph->SetName("sub_graph");
+
+  auto compute_graph = FakeGraphWithSubGraph("test_sub_graph", sub_graph);
+  ASSERT_NE(compute_graph, nullptr);
+
+  SetCacheDirOption("./ut_cache_dir");
+  SetGraphKeyOption("graph_key_sub");
+  GraphRebuildStateCtrl ctrl;
+  {
+    ModelCache model_cache;
+    auto ret = model_cache.Init(compute_graph, &ctrl);
+    EXPECT_EQ(ret, SUCCESS);
+  }
+  RemoveCacheConfig();
+}
+
+TEST_F(ModelCacheTest, TryLoadModelFromCache_NoCache_ReturnsSuccess) {
+  auto compute_graph = FakeComputeGraph("test_no_cache");
+  ASSERT_NE(compute_graph, nullptr);
+
+  SetCacheDirOption("./ut_cache_dir_nonexist");
+  SetGraphKeyOption("graph_key_no_cache");
+  GraphRebuildStateCtrl ctrl;
+  {
+    ModelCache model_cache;
+    auto ret = model_cache.Init(compute_graph, &ctrl);
+    GeRootModelPtr load_model;
+    ret = model_cache.TryLoadModelFromCache(compute_graph, load_model);
+    EXPECT_EQ(ret, SUCCESS);
+    EXPECT_EQ(load_model, nullptr);
+  }
+  RemoveCacheConfig();
+}
+
+TEST_F(ModelCacheTest, SaveCache_Failed_NoDir) {
+  auto compute_graph = FakeComputeGraph("test_save_fail");
+  ASSERT_NE(compute_graph, nullptr);
+
+  SetCacheDirOption("");
+  SetGraphKeyOption("graph_key_save_fail");
+  GraphRebuildStateCtrl ctrl;
+  {
+    ModelCache model_cache;
+    auto ret = model_cache.Init(compute_graph, &ctrl);
+    EXPECT_EQ(ret, SUCCESS);
+  }
+  RemoveCacheConfig();
+}
+
+TEST_F(ModelCacheTest, Init_WithConstantGraph_Success) {
+  auto compute_graph = FakeComputeGraphWithConstant("test_const_graph");
+  ASSERT_NE(compute_graph, nullptr);
+
+  SetCacheDirOption("./ut_cache_dir");
+  SetGraphKeyOption("graph_key_const");
+  GraphRebuildStateCtrl ctrl;
+  {
+    ModelCache model_cache;
+    auto ret = model_cache.Init(compute_graph, &ctrl);
+    EXPECT_EQ(ret, SUCCESS);
+  }
+  RemoveCacheConfig();
+}
+
+TEST_F(ModelCacheTest, ReadCacheConfig_EmptyFile) {
+  auto compute_graph = FakeComputeGraph("test_empty_config");
+  ASSERT_NE(compute_graph, nullptr);
+
+  std::string cache_config_file = "./ut_cache_dir/cache.conf";
+  {
+    std::ofstream json_file(cache_config_file);
+    json_file << "{}" << std::endl;
+  }
+  SetCacheDirOption("./ut_cache_dir");
+  SetGraphKeyOption("graph_key_empty_config");
+  GraphRebuildStateCtrl ctrl;
+  {
+    ModelCache model_cache;
+    auto ret = model_cache.Init(compute_graph, &ctrl);
+  }
+  RemoveCacheConfig();
+}
 }  // namespace ge

@@ -1830,5 +1830,60 @@ TEST_F(UtestDynamicShapePartition, not_single_op_scene_success_stable_topo_tail_
   graph_options = GetThreadLocalContext().GetAllGraphOptions();
   graph_options[OPTION_TOPOSORTING_MODE] = "0";
   GetThreadLocalContext().SetGraphOption(graph_options);
+  ReInitOo();
+}
+
+TEST_F(UtestDynamicShapePartition, GetPartitionName_ReturnsDynamicShapePartitioner) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  NodePtr data = NodeBuilder("data", DATA).AddInputDesc({1, 1, 224, 224}).AddOutputDesc({1, 1, 224, 224}).Build(graph);
+  NodePtr relu = NodeBuilder("relu", RELU).AddInputDesc({1, 1, 224, 224}).AddOutputDesc({1, 1, 224, 224}).Build(graph);
+  NodePtr netoutput = NodeBuilder("netoutput", NETOUTPUT).AddInputDesc({1, 1, 224, 224}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  DynamicShapePartitioner partitioner(graph);
+  EXPECT_EQ(partitioner.GetPartitionName(), "DynamicShapePartitioner");
+}
+
+TEST_F(UtestDynamicShapePartition, Partition_WithInvalidShapeRangeAttr) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  NodePtr data = NodeBuilder("data", DATA).AddInputDesc({1, 1, 224, 224}).AddOutputDesc({1, 1, 224, 224}).Build(graph);
+  auto data_op = data->GetOpDesc();
+  auto input_desc = data_op->MutableInputDesc(0);
+  input_desc->SetShape(GeShape({-1, 1, 224, 224}));
+  std::vector<std::pair<int64_t, int64_t>> invalid_range = {{1, 2}, {1, 2}};
+  input_desc->SetShapeRange(invalid_range);
+  NodePtr relu = NodeBuilder("relu", RELU).AddInputDesc({1, 1, 224, 224}).AddOutputDesc({1, 1, 224, 224}).Build(graph);
+  NodePtr netoutput = NodeBuilder("netoutput", NETOUTPUT).AddInputDesc({1, 1, 224, 224}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  (void)AttrUtils::SetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID, "0");
+  DynamicShapePartitioner partitioner(graph);
+  EXPECT_EQ(partitioner.Partition(), SUCCESS);
+}
+
+TEST_F(UtestDynamicShapePartition, Partition_WithVariableNode) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  NodePtr var_node = NodeBuilder("var", VARIABLE).AddInputDesc({1}).AddOutputDesc({1}).Build(graph);
+  NodePtr data = NodeBuilder("data", DATA).AddOutputDesc({1}).Build(graph);
+  NodePtr netoutput = NodeBuilder("netoutput", NETOUTPUT).AddInputDesc({1}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), var_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(var_node->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  DynamicShapePartitioner partitioner(graph);
+  EXPECT_EQ(partitioner.Partition(), SUCCESS);
+}
+
+TEST_F(UtestDynamicShapePartition, Partition_WithDynamicShapeAndTilingSink) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  NodePtr data =
+      NodeBuilder("data", DATA).AddInputDesc({-1, 1, 224, 224}).AddOutputDesc({-1, 1, 224, 224}).Build(graph);
+  NodePtr relu =
+      NodeBuilder("relu", RELU).AddInputDesc({-1, 1, 224, 224}).AddOutputDesc({-1, 1, 224, 224}).Build(graph);
+  NodePtr netoutput = NodeBuilder("netoutput", NETOUTPUT).AddInputDesc({-1, 1, 224, 224}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  GraphUtils::AddEdge(relu->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  graph->SetGraphUnknownFlag(true);
+  (void)AttrUtils::SetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID, "0");
+  DynamicShapePartitioner partitioner(graph);
+  EXPECT_EQ(partitioner.Partition(), SUCCESS);
 }
 }  // namespace ge

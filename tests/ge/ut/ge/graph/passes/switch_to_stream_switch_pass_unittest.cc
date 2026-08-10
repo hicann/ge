@@ -159,3 +159,55 @@ TEST_F(UtestSwitch2StreamSwitchPass, ClearStatusClearsAllMembers) {
   EXPECT_TRUE(switch2StrPass.switch_node_map_.empty());
   EXPECT_TRUE(switch2StrPass.node_num_map_.empty());
 }
+
+TEST_F(UtestSwitch2StreamSwitchPass, MarkCycleDependenceEmptyMap) {
+  SwitchToStreamSwitchPass switch2StrPass;
+  std::unordered_map<NodePtr, std::vector<NodePtr>> empty_map;
+  switch2StrPass.MarkCycleDependence(empty_map);
+  EXPECT_TRUE(switch2StrPass.switch_cyclic_map_.empty());
+}
+
+TEST_F(UtestSwitch2StreamSwitchPass, RunWithCompleteSwitchGraph) {
+  GeTensorDesc bool_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_BOOL);
+  GeTensorDesc scalar_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_FLOAT);
+
+  auto graph = std::make_shared<ComputeGraph>("test_complete_switch");
+
+  auto data_desc = std::make_shared<OpDesc>("data", DATA);
+  data_desc->AddOutputDesc(scalar_tensor);
+  auto data_node = graph->AddNode(data_desc);
+
+  auto less_desc = std::make_shared<OpDesc>("less", LESS);
+  less_desc->AddInputDesc(scalar_tensor);
+  less_desc->AddInputDesc(scalar_tensor);
+  less_desc->AddOutputDesc(bool_tensor);
+  auto less_node = graph->AddNode(less_desc);
+
+  auto switch_desc = std::make_shared<OpDesc>("switch1", SWITCH);
+  switch_desc->AddInputDesc(scalar_tensor);
+  switch_desc->AddInputDesc(bool_tensor);
+  switch_desc->AddOutputDesc(scalar_tensor);
+  switch_desc->AddOutputDesc(scalar_tensor);
+  auto switch_node = graph->AddNode(switch_desc);
+
+  auto identity_desc = std::make_shared<OpDesc>("identity", IDENTITY);
+  identity_desc->AddInputDesc(scalar_tensor);
+  identity_desc->AddOutputDesc(scalar_tensor);
+  auto identity_node = graph->AddNode(identity_desc);
+
+  auto netoutput_desc = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
+  netoutput_desc->AddInputDesc(scalar_tensor);
+  auto netoutput_node = graph->AddNode(netoutput_desc);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), less_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), less_node->GetInDataAnchor(1));
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), switch_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(less_node->GetOutDataAnchor(0), switch_node->GetInDataAnchor(1));
+  GraphUtils::AddEdge(switch_node->GetOutDataAnchor(0), identity_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(identity_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+
+  SwitchToStreamSwitchPass switch2StrPass;
+  auto ret = switch2StrPass.Run(graph);
+  switch2StrPass.ClearStatus();
+  EXPECT_EQ(ret, SUCCESS);
+}

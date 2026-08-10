@@ -17,6 +17,8 @@
 #include "tensorflow/iterator_fusion_pass.h"
 #include "parser/common/acl_graph_parser_util.h"
 #include "tensorflow/parser_graph_optimizer.h"
+#include "graph/utils/graph_utils.h"
+#include "graph/utils/op_desc_utils.h"
 
 namespace ge {
 class UtestGraphOptimizer : public testing::Test {
@@ -65,5 +67,93 @@ TEST_F(UtestGraphOptimizer, graph_optimizer_output) {
   ge::OpDescPtr fusion_op_desc;
   EXPECT_NE(parserGraphOptimizer.RebuildInputAnchors(input_anchors, fusion_op_desc), ge::SUCCESS);
   EXPECT_NE(parserGraphOptimizer.RebuildOutputAnchors(output_anchors, fusion_op_desc), ge::SUCCESS);
+}
+
+TEST_F(UtestGraphOptimizer, graph_optimizer_rebuild_anchors_with_data) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_graph");
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  op1->AddInputDesc("x", ge::GeTensorDesc());
+  op1->AddOutputDesc("y", ge::GeTensorDesc());
+  ge::NodePtr node1 = graph->AddNode(op1);
+
+  ge::OpDescPtr op2 = std::make_shared<ge::OpDesc>("node2", "Relu");
+  op2->AddInputDesc("x", ge::GeTensorDesc());
+  op2->AddOutputDesc("y", ge::GeTensorDesc());
+  ge::NodePtr node2 = graph->AddNode(op2);
+
+  ge::GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+
+  domi::FrameworkType type = domi::TENSORFLOW;
+  ge::ParserGraphOptimizer parserGraphOptimizer(graph, type);
+
+  vector<ge::OutDataAnchorPtr> output_anchors = {node1->GetOutDataAnchor(0)};
+  ge::OpDescPtr fusion_op_desc = std::make_shared<ge::OpDesc>("fusion", "Relu");
+  auto ret = parserGraphOptimizer.RebuildOutputAnchors(output_anchors, fusion_op_desc);
+  EXPECT_EQ(ret, ge::SUCCESS);
+
+  vector<ge::InDataAnchorPtr> input_anchors = {node2->GetInDataAnchor(0)};
+  fusion_op_desc = std::make_shared<ge::OpDesc>("fusion", "Relu");
+  ret = parserGraphOptimizer.RebuildInputAnchors(input_anchors, fusion_op_desc);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphOptimizer, graph_optimizer_fusion_fmkop_empty) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("empty_graph");
+  domi::FrameworkType type = domi::TENSORFLOW;
+  ge::ParserGraphOptimizer parserGraphOptimizer(graph, type);
+  auto ret = parserGraphOptimizer.FusionFmkop();
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphOptimizer, graph_optimizer_mark_for_fusion) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("fusion_graph");
+  ge::OpDescPtr iter_op = std::make_shared<ge::OpDesc>("iter", ge::parser::FRAMEWORKOP);
+  iter_op->AddInputDesc(ge::GeTensorDesc());
+  iter_op->AddOutputDesc(ge::GeTensorDesc());
+  ge::AttrUtils::SetStr(iter_op, ge::ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "IteratorV2");
+  ge::NodePtr iter_node = graph->AddNode(iter_op);
+
+  domi::FrameworkType type = domi::TENSORFLOW;
+  ge::ParserGraphOptimizer parserGraphOptimizer(graph, type);
+  std::unordered_map<std::string, std::vector<ge::NodePtr>> node_cluster_map;
+  auto ret = parserGraphOptimizer.MarkForFusion(node_cluster_map);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphOptimizer, graph_optimizer_find_fmk_node_cluster) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("cluster_graph");
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("fmk1", ge::parser::FRAMEWORKOP);
+  op1->AddInputDesc(ge::GeTensorDesc());
+  op1->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node1 = graph->AddNode(op1);
+
+  ge::OpDescPtr op2 = std::make_shared<ge::OpDesc>("fmk2", ge::parser::FRAMEWORKOP);
+  op2->AddInputDesc(ge::GeTensorDesc());
+  op2->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node2 = graph->AddNode(op2);
+
+  ge::OpDescPtr op3 = std::make_shared<ge::OpDesc>("data1", ge::parser::DATA_TYPE);
+  op3->AddInputDesc(ge::GeTensorDesc());
+  op3->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node3 = graph->AddNode(op3);
+
+  domi::FrameworkType type = domi::TENSORFLOW;
+  ge::ParserGraphOptimizer parserGraphOptimizer(graph, type);
+  std::unordered_map<std::string, std::vector<ge::NodePtr>> node_cluster_map;
+  auto ret = parserGraphOptimizer.FindFmkNodeCluser(node_cluster_map);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphOptimizer, graph_optimizer_dyn_get_next) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("dyn_graph");
+  ge::OpDescPtr dyn_op = std::make_shared<ge::OpDesc>("dyn_getnext", "DynamicGetNext");
+  dyn_op->AddInputDesc(ge::GeTensorDesc());
+  dyn_op->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr dyn_node = graph->AddNode(dyn_op);
+
+  domi::FrameworkType type = domi::TENSORFLOW;
+  ge::ParserGraphOptimizer parserGraphOptimizer(graph, type);
+  auto ret = parserGraphOptimizer.FusionFmkop();
+  EXPECT_EQ(ret, ge::SUCCESS);
 }
 }  // namespace ge

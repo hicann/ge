@@ -13979,5 +13979,26 @@ TEST_F(UtestFormatTransferHwcnC1hwncoc0, invalid_dst_shape_trans_shape_mismatch)
   EXPECT_EQ(transfer.TransShape(FORMAT_HWCN, {1, 1, 1, 1}, DT_FLOAT, FORMAT_C1HWNCoC0, dst_shape),
             ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransferHwcnC1hwncoc0, hwcn_to_c1hwncoc0_zero_size) {
+  uint16_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_HWCN, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_C1HWNCoC0, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_HWCN,
+                 FORMAT_C1HWNCoC0,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {1, 1, 16, 0},
+                 {1, 1, 1, 0, 16, 16},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferHwcnC1hwncoc0 transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
 }  // namespace formats
 }  // namespace ge

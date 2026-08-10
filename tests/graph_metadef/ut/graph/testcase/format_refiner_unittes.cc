@@ -1295,4 +1295,187 @@ TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_InternalFormat) {
   SetFirstInferFlag(graph, true);
   graph->SaveDataFormat(FORMAT_ND);
 }
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_BuildRefRelationsFailed) {
+  auto builder = ut::GraphBuilder("g_build_ref_fail");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  auto if1 = builder.AddNode("if1", "If", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(data1, 0, if1, 0);
+  builder.AddDataEdge(if1, 0, netoutput, 0);
+
+  if1->GetOpDesc()->AddSubgraphName("sub1");
+  if1->GetOpDesc()->SetSubgraphInstanceName(0, "sub1");
+
+  ut::GraphBuilder sub_builder("sub1");
+  auto sub_data = sub_builder.AddNode("sub_data", "Data", 1, 1);
+  auto sub_netoutput = sub_builder.AddNode("sub_netoutput", "NetOutput", 1, 0);
+  sub_builder.AddDataEdge(sub_data, 0, sub_netoutput, 0);
+  auto sub1 = sub_builder.GetGraph();
+  sub1->SetParentGraph(builder.GetGraph());
+  sub1->SetParentNode(if1);
+  builder.GetGraph()->AddSubgraph("sub1", sub1);
+
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, true);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_FAILED);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_ConstantNoValue) {
+  auto builder = ut::GraphBuilder("g_const_no_val");
+  auto constant = builder.AddNode("constant", "Constant", 0, 1);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(constant, 0, netoutput, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_FAILED);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_ConstantWithValue) {
+  auto builder = ut::GraphBuilder("g_const_with_val");
+  auto constant = builder.AddNode("constant", "Constant", 0, 1);
+  ge::GeTensorPtr value = std::make_shared<GeTensor>();
+  AttrUtils::SetTensor(constant->GetOpDesc(), "value", value);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(constant, 0, netoutput, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_RefreshConstantOutProcess_NotConstant) {
+  auto builder = ut::GraphBuilder("g_not_const");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  auto relu1 = builder.AddNode("relu1", "Relu", 1, 1);
+  builder.AddDataEdge(data1, 0, relu1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_AlreadyInferredDataFormat) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_DataNodeFormatProcess_DataAlreadyInferred) {
+  auto builder = BuildGraphDataNode4D();
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  graph->SaveDataFormat(FORMAT_NCHW);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  auto data1 = graph->FindNode("data1");
+  auto data1_out = data1->GetOpDesc()->MutableOutputDesc(0);
+  data1_out->SetOriginFormat(FORMAT_NCHW);
+  data1->GetOpDesc()->UpdateOutputDesc(0, *data1_out);
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+  graph->SaveDataFormat(FORMAT_ND);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_ForwardInferProcess_OutputDescNull) {
+  auto builder = ut::GraphBuilder("g_out_desc_null");
+  auto conv1 = builder.AddNode("conv1", "Conv2D", 0, 1);
+  auto conv_out = conv1->GetOpDesc()->MutableOutputDesc(0);
+  conv_out->SetFormat(FORMAT_NCHW);
+  conv_out->SetOriginFormat(FORMAT_NCHW);
+  conv_out->SetShape(GeShape(std::vector<int64_t>({1, 3, 224, 224})));
+  conv1->GetOpDesc()->UpdateOutputDesc(0, *conv_out);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(conv1, 0, netoutput, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_BiasAddGrad5D) {
+  auto builder = ut::GraphBuilder("g_biasadd_grad_5d");
+  auto var = builder.AddNode("var", "Variable", 0, 1);
+  auto square = builder.AddNode("square", "Square", 1, 1);
+  auto biasaddgrad = builder.AddNode("biasaddgrad", "BiasAddGrad", 1, 1);
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0);
+
+  auto biasaddgrad_data = biasaddgrad->GetOpDesc()->GetInputDesc(0);
+  biasaddgrad_data.SetFormat(FORMAT_NHWC);
+  biasaddgrad_data.SetOriginFormat(FORMAT_NHWC);
+  biasaddgrad_data.SetShape(GeShape(std::vector<int64_t>({1, 3, 3, 224, 224})));
+  biasaddgrad->GetOpDesc()->UpdateInputDesc(0, biasaddgrad_data);
+  auto biasaddgrad_out = biasaddgrad->GetOpDesc()->GetOutputDesc(0);
+  biasaddgrad_out.SetFormat(FORMAT_NHWC);
+  biasaddgrad_out.SetOriginFormat(FORMAT_NHWC);
+  biasaddgrad_out.SetShape(GeShape(std::vector<int64_t>({1, 3, 256, 224, 224})));
+  biasaddgrad->GetOpDesc()->UpdateOutputDesc(0, biasaddgrad_out);
+
+  builder.AddDataEdge(var, 0, square, 0);
+  builder.AddDataEdge(square, 0, biasaddgrad, 0);
+  builder.AddDataEdge(biasaddgrad, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_BiasAddNCDHW5D) {
+  auto builder = ut::GraphBuilder("g_biasadd_ncdhw_5d");
+  auto var = builder.AddNode("var", "Variable", 0, 1);
+  auto square = builder.AddNode("square", "Square", 1, 1);
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1);
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0);
+
+  auto biasadd_data = biasadd->GetOpDesc()->GetInputDesc(0);
+  biasadd_data.SetFormat(FORMAT_NCDHW);
+  biasadd_data.SetOriginFormat(FORMAT_NCDHW);
+  biasadd_data.SetShape(GeShape(std::vector<int64_t>({1, 3, 3, 224, 224})));
+  biasadd->GetOpDesc()->UpdateInputDesc(0, biasadd_data);
+  auto biasadd_out = biasadd->GetOpDesc()->GetOutputDesc(0);
+  biasadd_out.SetFormat(FORMAT_NCDHW);
+  biasadd_out.SetOriginFormat(FORMAT_NCDHW);
+  biasadd_out.SetShape(GeShape(std::vector<int64_t>({1, 3, 256, 224, 224})));
+  biasadd->GetOpDesc()->UpdateOutputDesc(0, biasadd_out);
+
+  builder.AddDataEdge(var, 0, square, 0);
+  builder.AddDataEdge(square, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+}
+
+TEST_F(UTEST_FormatRefiner, IncCov_InferOrigineFormat_BiasAddOutputNot5D) {
+  auto builder = ut::GraphBuilder("g_biasadd_out_not5d");
+  auto var = builder.AddNode("var", "Variable", 0, 1);
+  auto biasadd = builder.AddNode("biasadd", "BiasAdd", 1, 1);
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0);
+
+  auto biasadd_data = biasadd->GetOpDesc()->GetInputDesc(0);
+  biasadd_data.SetFormat(FORMAT_NHWC);
+  biasadd_data.SetOriginFormat(FORMAT_NHWC);
+  biasadd_data.SetShape(GeShape(std::vector<int64_t>({1, 3, 224, 224})));
+  biasadd->GetOpDesc()->UpdateInputDesc(0, biasadd_data);
+  auto biasadd_out = biasadd->GetOpDesc()->GetOutputDesc(0);
+  biasadd_out.SetFormat(FORMAT_NHWC);
+  biasadd_out.SetOriginFormat(FORMAT_NHWC);
+  biasadd_out.SetShape(GeShape(std::vector<int64_t>({1, 3, 224, 224})));
+  biasadd->GetOpDesc()->UpdateOutputDesc(0, biasadd_out);
+
+  builder.AddDataEdge(var, 0, biasadd, 0);
+  builder.AddDataEdge(biasadd, 0, netoutput1, 0);
+  SetFirstInferFlag(builder.GetGraph(), true);
+  auto graph = builder.GetGraph();
+  SetFirstInferFlag(graph, false);
+  EXPECT_EQ(FormatRefiner::InferOrigineFormat(graph), GRAPH_SUCCESS);
+  SetFirstInferFlag(graph, true);
+}
 }  // namespace ge

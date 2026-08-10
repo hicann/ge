@@ -1913,5 +1913,112 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenAnnotatedArgsRejectsP
   }
 }
 
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerInitializeAndFinalize) {
+  CustomGraphOptimizer optimizer;
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(optimizer.Initialize(options, nullptr), SUCCESS);
+  EXPECT_EQ(optimizer.Finalize(), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerOptimizeOriginalGraph) {
+  CustomGraphOptimizer optimizer;
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(optimizer.OptimizeOriginalGraph(*graph), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerOptimizeFusedGraph) {
+  CustomGraphOptimizer optimizer;
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(optimizer.OptimizeFusedGraph(*graph), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerOptimizeWholeGraphEmptyGraph) {
+  CustomGraphOptimizer optimizer;
+  auto graph = std::make_shared<ComputeGraph>("empty_graph");
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerOptimizeWholeGraphNonCustomOp) {
+  CustomGraphOptimizer optimizer;
+  auto graph = std::make_shared<ComputeGraph>("non_custom_graph");
+  auto op_desc = std::make_shared<OpDesc>("non_custom_node", "NonCustomType");
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  (void)op_desc->AddInputDesc("x", input_desc);
+  (void)op_desc->AddOutputDesc("y", output_desc);
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerOptimizeWholeGraphBaseOnlyOp) {
+  const std::string kTestOpType = "TestBaseOnlyOp_OptimizerTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockBaseOnlyCustomOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  auto graph = std::make_shared<ComputeGraph>("base_only_graph");
+  auto op_desc = std::make_shared<OpDesc>("base_only_node", kTestOpType);
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  (void)op_desc->AddInputDesc("x", input_desc);
+  (void)op_desc->AddOutputDesc("y", output_desc);
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+
+  CustomGraphOptimizer optimizer;
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerGetAttributes) {
+  CustomGraphOptimizer optimizer;
+  GraphOptimizerAttribute attrs;
+  EXPECT_EQ(optimizer.GetAttributes(attrs), SUCCESS);
+  EXPECT_EQ(attrs.engineName, "DNN_VM_CUSTOM");
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomOpsKernelBuilderCalcOpRunningParamKnownShape) {
+  const std::string kTestOpType = "TestCalcOpRunningParam_KnownShape";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockCompilableCustomOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  auto graph = std::make_shared<ComputeGraph>("calc_param_graph");
+  auto op_desc = std::make_shared<OpDesc>("calc_param_node", kTestOpType);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("y", kIrOutputRequired);
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  (void)op_desc->AddInputDesc("x", input_desc);
+  (void)op_desc->AddOutputDesc("y", output_desc);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  CustomOpsKernelBuilder builder;
+  EXPECT_EQ(builder.CalcOpRunningParam(*node), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomOpsKernelBuilderCalcOpRunningParamUnknownShape) {
+  const std::string kTestOpType = "TestCalcOpRunningParam_UnknownShape";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockCompilableCustomOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  auto graph = std::make_shared<ComputeGraph>("calc_param_graph_unknown");
+  auto op_desc = std::make_shared<OpDesc>("calc_param_node_unknown", kTestOpType);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("y", kIrOutputRequired);
+  GeTensorDesc input_desc(GeShape({-1, 16}), FORMAT_ND, DT_FLOAT16);
+  GeTensorDesc output_desc(GeShape({-1, 16}), FORMAT_ND, DT_FLOAT16);
+  (void)op_desc->AddInputDesc("x", input_desc);
+  (void)op_desc->AddOutputDesc("y", output_desc);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  CustomOpsKernelBuilder builder;
+  EXPECT_EQ(builder.CalcOpRunningParam(*node), SUCCESS);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomOpsKernelBuilderInitializeAndFinalize) {
+  CustomOpsKernelBuilder builder;
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(builder.Initialize(options), SUCCESS);
+  EXPECT_EQ(builder.Finalize(), SUCCESS);
+}
 }  // namespace custom
 }  // namespace ge

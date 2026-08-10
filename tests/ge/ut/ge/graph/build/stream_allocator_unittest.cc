@@ -2027,4 +2027,119 @@ TEST_F(UtestStreamAllocator, RefreshTaskDefStreamId_AttachedStream_success) {
   ASSERT_EQ(task_defs[2].stream_id(), 2);
   ASSERT_EQ(task_defs[3].stream_id(), 3);
 }
+TEST_F(UtestStreamAllocator, AssignLogicalStreams_SingleNode_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  std::map<std::string, int32_t> max_parallel_num;
+  auto ret = allocator.AssignLogicalStreams(max_parallel_num, false);
+}
+
+TEST_F(UtestStreamAllocator, InsertSyncEvents_SingleStream_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.InsertSyncEvents(EventType::kEvent);
+}
+
+TEST_F(UtestStreamAllocator, InsertSyncEvents_MultiBranch_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto add1 = OP_CFG(ADD).InCnt(1).OutCnt(1);
+    auto add2 = OP_CFG(ADD).InCnt(1).OutCnt(1);
+    auto concat = OP_CFG(CONCAT).InCnt(2).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->EDGE(0, 0)->NODE("add1", add1)->EDGE(0, 0)->NODE("concat", concat));
+    CHAIN(NODE("data", data)->EDGE(0, 0)->NODE("add2", add2)->EDGE(0, 1)->NODE("concat", concat));
+    CHAIN(NODE("concat", concat)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.InsertSyncEvents(EventType::kEvent);
+}
+
+TEST_F(UtestStreamAllocator, SetActiveStreamsByLabel_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto relu1 = OP_CFG(RELU).InCnt(1).OutCnt(1).Attr(public_attr::USER_STREAM_LABEL, "label_1");
+    auto relu2 = OP_CFG(RELU).InCnt(1).OutCnt(1).Attr(public_attr::USER_STREAM_LABEL, "label_2");
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(2).OutCnt(1);
+    CHAIN(NODE("data", data)->EDGE(0, 0)->NODE("relu1", relu1)->EDGE(0, 0)->NODE("Node_Output", net_output));
+    CHAIN(NODE("data", data)->EDGE(0, 0)->NODE("relu2", relu2)->EDGE(0, 1)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.SetActiveStreamsByLabel();
+}
+
+TEST_F(UtestStreamAllocator, CheckStreamActived_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.CheckStreamActived();
+}
+
+TEST_F(UtestStreamAllocator, InsertSyncNodesByLogicStream_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  int64_t stream_num = 0;
+  int64_t event_num = 0;
+  int64_t notify_num = 0;
+  auto ret = allocator.InsertSyncNodesByLogicStream(stream_num, event_num, notify_num);
+}
+
+TEST_F(UtestStreamAllocator, PreProcessOfInsertSyncNodes_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.PreProcessOfInsertSyncNodes();
+}
+
+TEST_F(UtestStreamAllocator, GenerateSyncEventNodes_Success) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  StreamAllocator allocator(graph, subgraphs);
+  auto ret = allocator.GenerateSyncEventNodes(false);
+}
 }  // namespace ge

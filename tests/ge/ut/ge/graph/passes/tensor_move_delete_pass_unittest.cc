@@ -2673,3 +2673,54 @@ TEST_F(UtestTensorMoveDeletePass, KeepTMWhenPendingOrderDoesNotBypassRWConflict)
   EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
   EXPECT_FALSE(sibling_node->GetOutControlAnchor()->IsLinkedWith(succ_node->GetInControlAnchor()));
 }
+
+TEST_F(UtestTensorMoveDeletePass, NoTensorMoveInGraph) {
+  auto builder = ut::GraphBuilder("g1");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
+
+TEST_F(UtestTensorMoveDeletePass, TensorMoveWithNoNeedConstantFoldingAttr) {
+  auto builder = ut::GraphBuilder("g1");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto tensor_move = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  AttrUtils::SetBool(tensor_move->GetOpDesc(), ATTR_NO_NEED_CONSTANT_FOLDING, true);
+  builder.AddDataEdge(data, 0, tensor_move, 0);
+  builder.AddDataEdge(tensor_move, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+  EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
+}
+
+TEST_F(UtestTensorMoveDeletePass, TensorMoveFromVariable) {
+  auto builder = ut::GraphBuilder("g1");
+  auto var = builder.AddNode("var", VARIABLE, 0, 1);
+  auto tensor_move = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(var, 0, tensor_move, 0);
+  builder.AddDataEdge(tensor_move, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}

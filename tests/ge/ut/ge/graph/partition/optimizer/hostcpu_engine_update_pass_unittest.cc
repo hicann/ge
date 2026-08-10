@@ -639,4 +639,203 @@ TEST_F(UtestHostcpuEngineUpdatePass, Run_RuntimeV2Disabled) {
   unsetenv("ENABLE_RUNTIME_V2");
 }
 
+TEST_F(UtestHostcpuEngineUpdatePass, IsExecOnHost_HostCpuKernelLib) {
+  HostcpuEngineUpdatePass pass;
+  ge::OpDescPtr op_desc = std::make_shared<OpDesc>("hostcpu_node", "Gather");
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  op_desc->SetOpKernelLibName("DNN_VM_HOST_CPU_OP_STORE");
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("default");
+  ge::NodePtr node = graph->AddNode(op_desc);
+  EXPECT_EQ(pass.IsExecOnHost(node), true);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, CheckInputForHostExec_NullInputDesc) {
+  HostcpuEngineUpdatePass pass;
+  ge::OpDescPtr op_desc = std::make_shared<OpDesc>("node", "Gather");
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("default");
+  ge::NodePtr node = graph->AddNode(op_desc);
+  EXPECT_EQ(pass.CheckInputForHostExec(node, 5), false);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, CheckInputForHostExec_NotSmallEnough) {
+  HostcpuEngineUpdatePass pass;
+  ge::OpDescPtr op_desc = std::make_shared<OpDesc>("node", "Gather");
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1, 1, 224, 224}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("default");
+  ge::NodePtr node = graph->AddNode(op_desc);
+  EXPECT_EQ(pass.CheckInputForHostExec(node, 0), false);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, CheckInputForHostExec_PeerNotHost) {
+  HostcpuEngineUpdatePass pass;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("default");
+  ge::OpDescPtr data_op_desc = std::make_shared<OpDesc>("data", "Data");
+  data_op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  data_op_desc->SetOpKernelLibName(kEngineNameAiCore);
+  ge::NodePtr data_node = graph->AddNode(data_op_desc);
+  ge::OpDescPtr op_desc = std::make_shared<OpDesc>("node", "Gather");
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  op_desc->SetOpKernelLibName(kEngineNameAiCore);
+  ge::NodePtr node = graph->AddNode(op_desc);
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node->GetInDataAnchor(0));
+  EXPECT_EQ(pass.CheckInputForHostExec(node, 0), false);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, CheckOutputForHostExec_NullOutputDesc) {
+  HostcpuEngineUpdatePass pass;
+  ge::OpDescPtr op_desc = std::make_shared<OpDesc>("node", "Gather");
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_NCHW, DT_INT32));
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("default");
+  ge::NodePtr node = graph->AddNode(op_desc);
+  EXPECT_EQ(pass.CheckAndMarkHostExec(node, *(new NodeEngineMap), *(new NodeEngineMap)), false);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, Run_WithIfGraph) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  DEF_GRAPH(root) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1});
+    auto shape = OP_CFG(SHAPE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {});
+    auto if_op = OP_CFG(IF).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1}).Build("if_op");
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("shape", shape)->NODE(if_op)->NODE("Node_Output", net_output));
+    CHAIN(NODE("data")->EDGE(0, 1)->NODE(if_op));
+  };
+  DEF_GRAPH(then_graph) {
+    auto data =
+        OP_CFG(DATA).InCnt(0).OutCnt(1).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {1});
+    CHAIN(NODE("then_data", data)->NODE("then_Node_Output", NETOUTPUT));
+  };
+  DEF_GRAPH(else_graph) {
+    auto data =
+        OP_CFG(DATA).InCnt(0).OutCnt(1).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {1});
+    CHAIN(NODE("else_data", data)->NODE("else_Node_Output", NETOUTPUT));
+  };
+  auto root_graph = ToComputeGraph(root);
+  root_graph->SetGraphUnknownFlag(true);
+  root_graph->FindNode("data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("shape")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  (void)ge::AttrUtils::SetBool(root_graph->FindNode("data")->GetOpDesc(), ge::ATTR_NAME_HOST_TENSOR, true);
+  auto if_node = root_graph->FindNode("if_op");
+  if_node->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  auto then_g = ToComputeGraph(then_graph);
+  then_g->SetGraphUnknownFlag(true);
+  then_g->FindNode("then_data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  then_g->FindNode("then_Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  auto else_g = ToComputeGraph(else_graph);
+  else_g->SetGraphUnknownFlag(true);
+  else_g->FindNode("else_data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  else_g->FindNode("else_Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  if_node->GetOpDesc()->RegisterSubgraphIrName("then", SubgraphType::kStatic);
+  if_node->GetOpDesc()->RegisterSubgraphIrName("else", SubgraphType::kStatic);
+  if_node->GetOpDesc()->AddSubgraphName(then_g->GetName());
+  if_node->GetOpDesc()->SetSubgraphInstanceName(0, then_g->GetName());
+  if_node->GetOpDesc()->AddSubgraphName(else_g->GetName());
+  if_node->GetOpDesc()->SetSubgraphInstanceName(1, else_g->GetName());
+  then_g->SetParentNode(if_node);
+  then_g->SetParentGraph(root_graph);
+  else_g->SetParentNode(if_node);
+  else_g->SetParentGraph(root_graph);
+  root_graph->AddSubgraph(then_g);
+  root_graph->AddSubgraph(else_g);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(root_graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, Run_WithCaseGraph) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  DEF_GRAPH(root) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1});
+    auto shape = OP_CFG(SHAPE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {});
+    auto case_op = OP_CFG(CASE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1}).Build("case_op");
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("shape", shape)->NODE(case_op)->NODE("Node_Output", net_output));
+  };
+  DEF_GRAPH(branch_graph) {
+    auto data =
+        OP_CFG(DATA).InCnt(0).OutCnt(1).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {1});
+    CHAIN(NODE("branch_data", data)->NODE("branch_Node_Output", NETOUTPUT));
+  };
+  auto root_graph = ToComputeGraph(root);
+  root_graph->SetGraphUnknownFlag(true);
+  root_graph->FindNode("data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("shape")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  (void)ge::AttrUtils::SetBool(root_graph->FindNode("data")->GetOpDesc(), ge::ATTR_NAME_HOST_TENSOR, true);
+  auto case_node = root_graph->FindNode("case_op");
+  case_node->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  auto branch_g = ToComputeGraph(branch_graph);
+  branch_g->SetGraphUnknownFlag(true);
+  branch_g->FindNode("branch_data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  branch_g->FindNode("branch_Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  case_node->GetOpDesc()->RegisterSubgraphIrName("branches", SubgraphType::kStatic);
+  case_node->GetOpDesc()->AddSubgraphName(branch_g->GetName());
+  case_node->GetOpDesc()->SetSubgraphInstanceName(0, branch_g->GetName());
+  branch_g->SetParentNode(case_node);
+  branch_g->SetParentGraph(root_graph);
+  root_graph->AddSubgraph(branch_g);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(root_graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, Run_WithStaticSubgraph) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  DEF_GRAPH(root) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1});
+    auto shape = OP_CFG(SHAPE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {});
+    auto if_op = OP_CFG(IF).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1}).Build("if_op");
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("shape", shape)->NODE(if_op)->NODE("Node_Output", net_output));
+    CHAIN(NODE("data")->EDGE(0, 1)->NODE(if_op));
+  };
+  DEF_GRAPH(then_graph) {
+    auto data =
+        OP_CFG(DATA).InCnt(0).OutCnt(1).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {1});
+    CHAIN(NODE("then_data", data)->NODE("then_Node_Output", NETOUTPUT));
+  };
+  auto root_graph = ToComputeGraph(root);
+  root_graph->SetGraphUnknownFlag(true);
+  root_graph->FindNode("data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("shape")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  root_graph->FindNode("Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  (void)ge::AttrUtils::SetBool(root_graph->FindNode("data")->GetOpDesc(), ge::ATTR_NAME_HOST_TENSOR, true);
+  auto if_node = root_graph->FindNode("if_op");
+  if_node->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  auto then_g = ToComputeGraph(then_graph);
+  then_g->FindNode("then_data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  then_g->FindNode("then_Node_Output")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+
+  if_node->GetOpDesc()->RegisterSubgraphIrName("then", SubgraphType::kStatic);
+  if_node->GetOpDesc()->RegisterSubgraphIrName("else", SubgraphType::kStatic);
+  if_node->GetOpDesc()->AddSubgraphName(then_g->GetName());
+  if_node->GetOpDesc()->SetSubgraphInstanceName(0, then_g->GetName());
+  then_g->SetParentNode(if_node);
+  then_g->SetParentGraph(root_graph);
+  root_graph->AddSubgraph(then_g);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(root_graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+  unsetenv("ENABLE_RUNTIME_V2");
+}
 }  // namespace ge

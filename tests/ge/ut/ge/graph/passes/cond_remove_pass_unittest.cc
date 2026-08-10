@@ -444,3 +444,62 @@ TEST_F(UtestCondRemovePass, case_cond_not_int32_skip) {
   auto ret = pass.Run(case_node);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+TEST_F(UtestCondRemovePass, case_cond_index_exceed_subgraph_size) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("g");
+  vector<int32_t> data_vec = {5};
+  GeTensorDesc tensor_desc(GeShape({1}), ge::FORMAT_NCHW, ge::DT_INT32);
+  GeTensorPtr value_tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+  auto op_value = CreateOpDesc("const", CONSTANTOP, tensor_desc, 1, tensor_desc, 1);
+  OpDescUtils::SetWeights(op_value, value_tensor);
+  NodePtr data_node = graph->AddNode(op_value);
+  NodePtr case_node = graph->AddNode(CreateOpDesc("case", CASE, tensor_desc, 3, tensor_desc, 1));
+  EXPECT_EQ(GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), case_node->GetInDataAnchor(0)), SUCCESS);
+
+  std::string case1_name = "case1";
+  ComputeGraphPtr case1_graph = std::make_shared<ComputeGraph>(case1_name);
+  case1_graph->SetParentNode(case_node);
+  case1_graph->SetParentGraph(graph);
+  case_node->GetOpDesc()->AddSubgraphName(case1_name);
+  case_node->GetOpDesc()->SetSubgraphInstanceName(0, case1_name);
+  EXPECT_EQ(graph->AddSubgraph(case1_name, case1_graph), GRAPH_SUCCESS);
+
+  CondRemovePass pass;
+  auto ret = pass.Run(case_node);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestCondRemovePass, if_no_subgraph_fail) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("g");
+  vector<int32_t> data_vec = {1};
+  GeTensorDesc tensor_desc(GeShape(), ge::FORMAT_NCHW, ge::DT_INT32);
+  GeTensorPtr value_tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+  auto op_value = CreateOpDesc("const", CONSTANTOP, tensor_desc, 1, tensor_desc, 1);
+  OpDescUtils::SetWeights(op_value, value_tensor);
+  NodePtr data_node = graph->AddNode(op_value);
+  NodePtr if_node = graph->AddNode(CreateOpDesc("if", IF, tensor_desc, 2, tensor_desc, 1));
+  EXPECT_EQ(GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), if_node->GetInDataAnchor(0)), SUCCESS);
+
+  CondRemovePass pass;
+  auto ret = pass.Run(if_node);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCondRemovePass, case_no_subgraph_fail) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("g");
+  vector<int32_t> data_vec = {1};
+  GeTensorDesc tensor_desc(GeShape(), ge::FORMAT_NCHW, ge::DT_INT32);
+  GeTensorPtr value_tensor =
+      std::make_shared<GeTensor>(tensor_desc, (uint8_t *)data_vec.data(), data_vec.size() * sizeof(int32_t));
+  auto op_value = CreateOpDesc("const", CONSTANTOP, tensor_desc, 1, tensor_desc, 1);
+  OpDescUtils::SetWeights(op_value, value_tensor);
+  NodePtr data_node = graph->AddNode(op_value);
+  NodePtr case_node = graph->AddNode(CreateOpDesc("case", CASE, tensor_desc, 2, tensor_desc, 1));
+  EXPECT_EQ(GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), case_node->GetInDataAnchor(0)), SUCCESS);
+
+  CondRemovePass pass;
+  auto ret = pass.Run(case_node);
+  EXPECT_EQ(ret, FAILED);
+}

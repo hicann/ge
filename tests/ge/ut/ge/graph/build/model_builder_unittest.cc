@@ -776,4 +776,71 @@ TEST_F(UtestModelBuilderTest, AssignStreamForDynamicShapeGraph_AutoMultistreamOp
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(builder.stream_num_, 0);
 }
+TEST_F(UtestModelBuilderTest, Build_SingleNodeGraph_Success) {
+  DEF_GRAPH(graph) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto compute_graph = ToComputeGraph(graph);
+  ASSERT_EQ(compute_graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ge::ModelBuilder builder(0, compute_graph, subgraphs, stream_max_parallel_num, false);
+  EXPECT_EQ(builder.AssignStreamForDynamicShapeGraph(compute_graph), SUCCESS);
+}
+
+TEST_F(UtestModelBuilderTest, Build_WithWorkspace) {
+  DEF_GRAPH(graph) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("add", add)->NODE("Node_Output", net_output));
+  };
+  auto compute_graph = ToComputeGraph(graph);
+  auto add_node = compute_graph->FindNode("add");
+  ASSERT_NE(add_node, nullptr);
+  add_node->GetOpDesc()->SetWorkspaceBytes({1024, 2048});
+  ASSERT_EQ(compute_graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ge::ModelBuilder builder(0, compute_graph, subgraphs, stream_max_parallel_num, false);
+  EXPECT_EQ(builder.AssignStreamForDynamicShapeGraph(compute_graph), SUCCESS);
+}
+
+TEST_F(UtestModelBuilderTest, AssignStreamForDynamicShapeGraph_SingleStream) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("add", add)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_NE(graph, nullptr);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ge::ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  auto ret = builder.AssignStreamForDynamicShapeGraph(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestModelBuilderTest, AssignStreamForDynamicShapeGraph_WithHcom) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto all_reduce = OP_CFG(HCOMALLREDUCE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("all_reduce", all_reduce)->NODE("add", add)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  ASSERT_NE(graph, nullptr);
+  ASSERT_EQ(graph->TopologicalSorting(), GRAPH_SUCCESS);
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  stream_max_parallel_num[HCOMALLREDUCE] = 1;
+  ge::ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  auto ret = builder.AssignStreamForDynamicShapeGraph(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace ge

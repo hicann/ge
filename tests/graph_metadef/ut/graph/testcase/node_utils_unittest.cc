@@ -12,6 +12,7 @@
 
 #include "graph/utils/node_utils.h"
 #include "graph/utils/node_utils_ex.h"
+#include "graph/utils/graph_utils.h"
 #include "graph/normal_graph/node_impl.h"
 #include "graph/normal_graph/op_desc_impl.h"
 #include "graph_builder_utils.h"
@@ -1453,5 +1454,74 @@ TEST_F(UtestNodeUtils, CovGetParentInputAndAnchorNullGraph) {
   auto result = NodeUtils::GetParentInputAndAnchor(node);
   EXPECT_EQ(result.first, nullptr);
   EXPECT_EQ(result.second, nullptr);
+}
+
+TEST_F(UtestNodeUtils, IncCov_GetSubgraphOutputNodes) {
+  auto root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto if_op_desc = std::make_shared<OpDesc>("if", "If");
+  if_op_desc->AddInputDesc(GeTensorDesc());
+  if_op_desc->AddOutputDesc(GeTensorDesc());
+  if_op_desc->AddSubgraphName("sub1");
+  if_op_desc->SetSubgraphInstanceName(0, "sub1");
+  auto if_node = root_graph->AddNode(if_op_desc);
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1");
+  auto data_op = std::make_shared<OpDesc>("sub_data", "Data");
+  data_op->AddInputDesc(GeTensorDesc());
+  data_op->AddOutputDesc(GeTensorDesc());
+  AttrUtils::SetInt(data_op, ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto data_node = sub1->AddNode(data_op);
+
+  auto net_op = std::make_shared<OpDesc>("sub_netoutput", "NetOutput");
+  net_op->AddInputDesc(GeTensorDesc());
+  auto net_node = sub1->AddNode(net_op);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), net_node->GetInDataAnchor(0));
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  auto outputs = NodeUtils::GetSubgraphOutputNodes(*if_node);
+  EXPECT_FALSE(outputs.empty());
+}
+
+TEST_F(UtestNodeUtils, IncCov_IsNodeInRootGraph_Subgraph) {
+  auto root_graph = std::make_shared<ComputeGraph>("root_graph2");
+  auto if_op_desc = std::make_shared<OpDesc>("if2", "If");
+  if_op_desc->AddInputDesc(GeTensorDesc());
+  if_op_desc->AddOutputDesc(GeTensorDesc());
+  if_op_desc->AddSubgraphName("sub1");
+  if_op_desc->SetSubgraphInstanceName(0, "sub1");
+  auto if_node = root_graph->AddNode(if_op_desc);
+
+  auto sub1 = std::make_shared<ComputeGraph>("sub1_2");
+  auto data_op = std::make_shared<OpDesc>("sub_data2", "Data");
+  data_op->AddInputDesc(GeTensorDesc());
+  data_op->AddOutputDesc(GeTensorDesc());
+  auto data_node = sub1->AddNode(data_op);
+
+  sub1->SetParentNode(if_node);
+  sub1->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub1", sub1);
+
+  EXPECT_EQ(NodeUtils::IsNodeInRootGraph(data_node), false);
+}
+
+TEST_F(UtestNodeUtils, IncCov_GetNodeType) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_node_type");
+  auto node = builder.AddNode("node", "Relu", 1, 1);
+  EXPECT_EQ(NodeUtils::GetNodeType(*node), "Relu");
+}
+
+TEST_F(UtestNodeUtils, IncCov_GetOutControlNodes) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_ctrl_out");
+  auto src = builder.AddNode("src", "Relu", 0, 0);
+  auto dst1 = builder.AddNode("dst1", "Relu", 0, 0);
+  auto dst2 = builder.AddNode("dst2", "Relu", 0, 0);
+  builder.AddControlEdge(src, dst1);
+  builder.AddControlEdge(src, dst2);
+  NodeFilter filter = [](const Node &n) { return true; };
+  auto result = NodeUtils::GetOutControlNodes(*src, filter);
+  EXPECT_EQ(result.size(), 2U);
 }
 }  // namespace ge

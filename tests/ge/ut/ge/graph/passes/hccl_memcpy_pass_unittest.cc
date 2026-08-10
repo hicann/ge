@@ -378,4 +378,9 @@ TEST_F(UtestGraphPassesHcclMemcpyPass, Noneed_insert_identity_ShapeComputingSibl
   EXPECT_EQ(graph->GetDirectNodesSize(), 5);
   GE_DUMP(graph, "mem_rw");
 }
+
+TEST_F(UtestGraphPassesHcclMemcpyPass, clear_status_test) {
+  HcclMemcpyPass pass;
+  EXPECT_EQ(pass.ClearStatus(), SUCCESS);
+}
 }  // namespace ge

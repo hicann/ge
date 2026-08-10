@@ -2318,4 +2318,139 @@ TEST_F(UtestGeApi, FetchDataFlowGraph_TensorNotInit_CovEnhance) {
   DataFlowInfo info;
   EXPECT_EQ(session.FetchDataFlowGraph(1U, outputs, info, 0), FAILED);
 }
+
+TEST_F(UtestGeApi, BuildGraph_WithInputs_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<InputTensorInfo> inputs;
+  InputTensorInfo input_info;
+  input_info.dims = {1, 3, 224, 224};
+  input_info.data_type = 0;
+  inputs.emplace_back(input_info);
+  auto ret = session.BuildGraph(1, inputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, LoadGraph_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::map<AscendString, AscendString> graph_options;
+  auto ret = session.LoadGraph(1, graph_options, nullptr);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, SetGraphConstMemoryBase_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.SetGraphConstMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, UpdateGraphFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.UpdateGraphFeatureMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, SetGraphFixedFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.SetGraphFixedFeatureMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, UpdateGraphRefreshableFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.UpdateGraphRefreshableFeatureMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, RegisterExternalAllocator_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.RegisterExternalAllocator(nullptr, nullptr);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, GetVariables_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<AscendString> var_names;
+  var_names.emplace_back(AscendString("var1"));
+  std::vector<Tensor> var_values;
+  auto ret = session.GetVariables(var_names, var_values);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, RunGraph_WithNonEmptyOutputs_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<Tensor> inputs;
+  std::vector<Tensor> outputs;
+  Tensor output_tensor;
+  outputs.emplace_back(output_tensor);
+  auto ret = session.RunGraph(1, inputs, outputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, RunGraphWithStreamAsync_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<Tensor> inputs;
+  std::vector<Tensor> outputs;
+  auto ret = session.RunGraphWithStreamAsync(1, nullptr, inputs, outputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, ExecuteGraphWithStreamAsync_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  std::vector<gert::Tensor> inputs;
+  std::vector<gert::Tensor> outputs;
+  auto ret = session.ExecuteGraphWithStreamAsync(1, nullptr, inputs, outputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, IsGraphNeedRebuild_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.IsGraphNeedRebuild(1);
+  EXPECT_EQ(ret, true);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, GraphDebugJSONPrint_WithInit_CovEnhance2) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+  AscendString json_result;
+  auto ret = session.GraphDebugJSONPrint(1, 0, json_result);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+}
 }  // namespace ge

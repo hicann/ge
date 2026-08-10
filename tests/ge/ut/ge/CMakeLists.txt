@@ -236,6 +236,7 @@ set(PASS_TEST_FILES
     "graph/passes/subgraph_multi_dims_clone_pass_unittest.cc"
     "graph/passes/create_subgraph_with_scope_pass_unittest.cc"
     "graph/passes/subgraph_const_migration_pass_unittest.cc"
+    "graph/passes/symbolic_cond_remove_pass_unittest.cc"
     "graph/passes/start_of_sequence_pass_unittest.cc"
     "graph/passes/replace_with_empty_const_pass_unittest.cc"
     "graph/passes/link_gen_mask_nodes_pass_unittest.cc"
@@ -1532,6 +1533,7 @@ target_link_libraries(ut_eager_style_builder
         aihac_symbolizer
         ge_running_env
         ge_compiler
+        cmd_flag_info_static
         GTestShared::gtest GTestShared::gtest_main GTestShared::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl ${AIR_COMMON_LINK_OPTION}
         -Wl,--no-as-needed GTestShared::gmock -Wl,--as-needed
         ascendcl_stub

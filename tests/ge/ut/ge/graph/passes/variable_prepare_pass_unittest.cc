@@ -19,6 +19,7 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/graph_utils.h"
+#include "graph_builder_utils.h"
 #include "macro_utils/dt_public_unscope.h"
 
 using namespace ge;
@@ -317,4 +318,29 @@ TEST_F(UtestGraphPassesVariablePreparePass, check_stream_label_with_attr) {
   auto var_ref = pass.CreateVariableRef("test_var_ref", variable);
   ASSERT_NE(var_ref, nullptr);
   EXPECT_EQ(pass.CheckStreamLabel(var_ref, variable), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesVariablePreparePass, run_with_ref_switch_and_no_var) {
+  auto builder = ut::GraphBuilder("g1");
+  GeTensorDesc tensor_desc(GeShape({2, 2}), FORMAT_NCHW, DT_FLOAT);
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto ref_switch = builder.AddNode("refswitch", REFSWITCH, 2, 2);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, ref_switch, 0);
+  builder.AddDataEdge(ref_switch, 0, netoutput, 0);
+
+  VariablePrepareOpPass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesVariablePreparePass, create_variable_ref_null_opdesc) {
+  auto graph = BuildGraphVariablePreparePass();
+  VariablePrepareOpPass pass;
+  auto variable = graph->FindNode("variable");
+  ASSERT_NE(variable, nullptr);
+  auto var_ref = pass.CreateVariableRef("test_var_ref", variable);
+  ASSERT_NE(var_ref, nullptr);
+  auto var_ref2 = pass.CreateVariableRef("test_var_ref2", variable);
+  ASSERT_NE(var_ref2, nullptr);
 }

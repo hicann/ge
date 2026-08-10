@@ -6443,4 +6443,432 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForFlashAttentionScoreExcepti
   // Expected output: GRAPH_FAILED
   TestFlashAttentionScoreException(builder, query_shape, key_shape, value_shape, head_num, "INVALID_LAYOUT");
 }
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_NhwcFilterFormat) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_NHWC);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_InvalidGroupsZero) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 0, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_GroupsDivisibleFail) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_InvalidDilations) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 0, 0, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_CutPads) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(1, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(1, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(1, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 2, 2, 1};
+  std::vector<int64_t> pads = {0, 2, 0, 2};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_SamePaddingTailsPositive) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(48, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(64, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 2, 2, 1};
+  std::vector<int64_t> pads = {-1, -1, -1, -1};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  AppendConv2DPaddingAttrs(builder.GetOrCreateOpDescPtr(), "SAME");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2DV2_SamePaddingPadNegative) {
+  auto func = GetInferFunc("Conv2DV2");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2DV2", "conv2DV2");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(48, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(64, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 4, 4, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  auto infer_context =
+      BuildConv2DV2InferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "SAME_UPPER");
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2DV2_ValidPadding) {
+  auto func = GetInferFunc("Conv2DV2");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2DV2", "conv2DV2");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(48, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(112, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(112, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(7, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(7, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(64, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 2, 2, 1};
+  std::vector<int64_t> pads = {-1, -1, -1, -1};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  auto infer_context =
+      BuildConv2DV2InferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "VALID");
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2DV2_GroupsDivisibleFail) {
+  auto func = GetInferFunc("Conv2DV2");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2DV2", "conv2DV2");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  auto infer_context =
+      BuildConv2DV2InferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "SPECIFIC");
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2D_ZeroTensorIcKcZero) {
+  auto func = GetInferFunc("Conv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Conv2D", "conv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(0, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(0, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  BuildConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, 1, FORMAT_NHWC,
+                          FORMAT_HWCN);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_NoArrow) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, "ab,bc");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_DotInEquation) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, "a.b,bc->ac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_DotWithEllipsis) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, "a...b.c,bc->ac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_NonAlphaLabel) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, "a1,bc->ac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_InputPartsSizeMismatch) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, "ab->ab");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EmptyInputPart) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1}), gert::SymbolShape({s1, s2})}, ",ab->ab");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_BothDuplicated) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1, s1}), gert::SymbolShape({s1, s2})}, "aab,bc->aac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisBroadcastEqualConst) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  BuildEinsumInferContext(
+      builder, {gert::SymbolShape({Symbol(2), Symbol(3), s0}), gert::SymbolShape({Symbol(2), Symbol(3), s0})},
+      "...a,...a->...a");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisBroadcastNewDimOne) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  BuildEinsumInferContext(
+      builder, {gert::SymbolShape({Symbol(2), Symbol(3), s0}), gert::SymbolShape({Symbol(1), Symbol(3), s0})},
+      "...a,...a->...a");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisBroadcastCurDimOne) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  BuildEinsumInferContext(
+      builder, {gert::SymbolShape({Symbol(1), Symbol(3), s0}), gert::SymbolShape({Symbol(2), Symbol(3), s0})},
+      "...a,...a->...a");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisBroadcastFail) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({Symbol(3), s0}), gert::SymbolShape({Symbol(4), s0})},
+                          "...a,...a->...a");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_MergeEqualDimConst) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, Symbol(3)}), gert::SymbolShape({Symbol(3), s2})},
+                          "ab,bc->ac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_DimMismatchWithoutEllipsis) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s1, s2}), gert::SymbolShape({s1, s2})}, "ab,bc->ac");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisWithPrefix) {
+  auto func = GetInferFunc("Einsum");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("Einsum", "einsum");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 4));
+  BuildEinsumInferContext(builder, {gert::SymbolShape({s0, s2, s1}), gert::SymbolShape({s1, s3})}, "a...b,bc->a...c");
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  auto out_shape = infer_context->GetOutputSymbolShape(0);
+  ASSERT_EQ(out_shape->GetDimNum(), 3U);
+  ASSERT_EQ(out_shape->GetDim(0), s0);
+  ASSERT_EQ(out_shape->GetDim(2), s3);
+}
 }  // namespace ge

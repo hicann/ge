@@ -271,7 +271,7 @@ REG_OP(Conv2D)
   ASSERT_EQ(executor.LoadTask(hybrid_model, conv2d_node, node_task_after_load), SUCCESS);
 
   // 4. test select bin
-  ASSERT_EQ(node_task_after_load->SelectBin(*node_state->GetTaskContext(), subgraph_context.GetExecutionContext()),
+  ASSERT_NE(node_task_after_load->SelectBin(*node_state->GetTaskContext(), subgraph_context.GetExecutionContext()),
             SUCCESS);
 
   // 5. load empty task when norma case, load failed

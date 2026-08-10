@@ -2259,3 +2259,282 @@ TEST(UtestIrBuild, CheckOm2HostEnvValid_PartialEmpty_Rejected) {
   EXPECT_NE(CheckOm2HostEnvValid("linux", ""), SUCCESS);
   EXPECT_NE(CheckOm2HostEnvValid("", "aarch64"), SUCCESS);
 }
+
+TEST(UtestIrBuild, ParseInputShapeRange_MapVersion_EmptyValue) {
+  std::string shape_range = "input1:";
+  std::map<std::string, std::vector<std::pair<int64_t, int64_t>>> range_map;
+  auto ret = ge::ParseInputShapeRange(shape_range, range_map);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, ParseInputShapeRange_MapVersion_InvalidPair) {
+  std::string shape_range = "invalid_no_colon";
+  std::map<std::string, std::vector<std::pair<int64_t, int64_t>>> range_map;
+  auto ret = ge::ParseInputShapeRange(shape_range, range_map);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, ParseInputShapeRange_MapVersion_InvalidRangeValue) {
+  std::string shape_range = "input1:[1~abc,3]";
+  std::map<std::string, std::vector<std::pair<int64_t, int64_t>>> range_map;
+  auto ret = ge::ParseInputShapeRange(shape_range, range_map);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, ParseInputShapeRange_MapVersion_InvalidPairSize) {
+  std::string shape_range = "input1:[1~2~3]";
+  std::map<std::string, std::vector<std::pair<int64_t, int64_t>>> range_map;
+  auto ret = ge::ParseInputShapeRange(shape_range, range_map);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, ParseInputShapeRange_IndexVersion_TooShort) {
+  std::string shape_range = "a";
+  std::vector<std::vector<std::pair<int64_t, int64_t>>> range;
+  auto ret = ge::ParseInputShapeRange(shape_range, range);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, ParseInputShapeRange_IndexVersion_NegativeRange) {
+  std::string shape_range = "[-1~-2,3]";
+  std::vector<std::vector<std::pair<int64_t, int64_t>>> range;
+  auto ret = ge::ParseInputShapeRange(shape_range, range);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckDynamicImagesizeInputShapeValid_InvalidFormat) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  shape_map["input1"] = shape;
+  std::string dynamic_image_size = "224;224";
+  std::string input_format = "INVALID_FORMAT";
+  auto ret = ge::CheckDynamicImagesizeInputShapeValid(shape_map, input_format, dynamic_image_size);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckDynamicImagesizeInputShapeValid_WrongDimsCount) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {1, 3, -1, -1};
+  shape_map["input1"] = shape;
+  std::string dynamic_image_size = "224";
+  std::string input_format = "NCHW";
+  auto ret = ge::CheckDynamicImagesizeInputShapeValid(shape_map, input_format, dynamic_image_size);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckDynamicImagesizeInputShapeValid_InvalidChars) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {1, 3, -1, -1};
+  shape_map["input1"] = shape;
+  std::string dynamic_image_size = "abc;def";
+  std::string input_format = "NCHW";
+  auto ret = ge::CheckDynamicImagesizeInputShapeValid(shape_map, input_format, dynamic_image_size);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckDynamicDimsInputShapeValid_NoDynamicDims) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  shape_map["input1"] = shape;
+  std::string dynamic_dims = "1;3";
+  auto ret = ge::CheckDynamicDimsInputShapeValid(shape_map, dynamic_dims);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, ParseInputShape_FloatNumber) {
+  std::string input_shape = "input1:[1.5,3,224]";
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  bool is_dynamic_input = true;
+  auto ret = ge::ParseInputShape(input_shape, shape_map, user_shape_map, is_dynamic_input);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, ParseInputShape_InvalidDigit) {
+  std::string input_shape = "input1:[abc,3,224]";
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  bool is_dynamic_input = true;
+  auto ret = ge::ParseInputShape(input_shape, shape_map, user_shape_map, is_dynamic_input);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, ParseInputShape_OutOfRange) {
+  std::string input_shape = "input1:[99999999999999999999999,3,224]";
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  bool is_dynamic_input = true;
+  auto ret = ge::ParseInputShape(input_shape, shape_map, user_shape_map, is_dynamic_input);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, ParseInputShape_NoColon) {
+  std::string input_shape = "input1_no_colon";
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<std::pair<std::string, std::vector<int64_t>>> user_shape_map;
+  bool is_dynamic_input = true;
+  auto ret = ge::ParseInputShape(input_shape, shape_map, user_shape_map, is_dynamic_input);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckCompressWeightParamValid_FileNotFound) {
+  std::string enable_compress_weight = "";
+  std::string compress_weight_conf = "/tmp/nonexistent_file.json";
+  auto ret = ge::CheckCompressWeightParamValid(enable_compress_weight, compress_weight_conf);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckKeepTypeParamValid_FileNotFound) {
+  std::string keep_dtype = "/tmp/nonexistent_keep_dtype_file.txt";
+  auto ret = ge::CheckKeepTypeParamValid(keep_dtype);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckLogParamValidAndSetLogLevel_InvalidLevel) {
+  auto ret = ge::CheckLogParamValidAndSetLogLevel("invalid_level");
+  EXPECT_EQ(ret, -1);
+}
+
+TEST(UtestIrBuild, CheckDynamicBatchSizeInputShapeValid_TrailingComma) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {-1, 3, 224, 224};
+  shape_map["input1"] = shape;
+  std::string dynamic_batch_size = "1,2,3,";
+  auto ret = ge::CheckDynamicBatchSizeInputShapeValid(shape_map, dynamic_batch_size);
+  EXPECT_EQ(ret, true);
+}
+
+TEST(UtestIrBuild, CheckDynamicBatchSizeInputShapeValid_InvalidChars) {
+  std::map<std::string, std::vector<int64_t>> shape_map;
+  std::vector<int64_t> shape = {-1, 3, 224, 224};
+  shape_map["input1"] = shape;
+  std::string dynamic_batch_size = "1,abc,3";
+  auto ret = ge::CheckDynamicBatchSizeInputShapeValid(shape_map, dynamic_batch_size);
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, UpdateDataOpFormat_Success) {
+  ge::OpDescPtr op_desc = CreateOpDesc("Data", "Data");
+  std::string input_format = "NCHW";
+  EXPECT_NO_THROW(ge::UpdateDataOpFormat(op_desc, input_format));
+}
+
+TEST(UtestIrBuild, UpdateDataOpShapeRange_NotFoundInMap) {
+  ge::OpDescPtr op_desc = CreateOpDesc("DataNotFound", "Data");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_INDEX, 0);
+  std::map<std::string, std::vector<std::pair<int64_t, int64_t>>> name_shape_range_map;
+  name_shape_range_map["other_op"] = {{1, 10}, {3, 3}};
+  auto ret = ge::UpdateDataOpShapeRange(op_desc, name_shape_range_map);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, UpdateDataOpShapeRange_IndexExceedsRange) {
+  ge::OpDescPtr op_desc = CreateOpDesc("Data", "Data");
+  AttrUtils::SetInt(op_desc, ATTR_NAME_INDEX, 5);
+  std::vector<std::vector<std::pair<int64_t, int64_t>>> index_shape_range_map;
+  index_shape_range_map.push_back({{1, 10}, {3, 3}});
+  auto ret = ge::UpdateDataOpShapeRange(op_desc, index_shape_range_map);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, AclgrphBuildInitialize_AscendString_NullptrOption) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  ge::AscendString key(nullptr);
+  ge::AscendString val("test");
+  options[key] = val;
+  auto ret = aclgrphBuildInitialize(options);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, AclgrphBuildInitialize_AscendString_NullptrValue) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  ge::AscendString key("test_key");
+  ge::AscendString val(nullptr);
+  options[key] = val;
+  auto ret = aclgrphBuildInitialize(options);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, AclgrphDumpGraph_Success) {
+  auto compute_graph = BuildComputeGraph();
+  auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::string dump_file = "/tmp/test_dump_graph";
+  auto ret = aclgrphDumpGraph(graph, dump_file.c_str(), dump_file.size());
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, AclgrphDumpGraph_InvalidPath) {
+  auto compute_graph = BuildComputeGraph();
+  auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  std::string dump_file = "/nonexistent_path/test_dump_graph";
+  auto ret = aclgrphDumpGraph(graph, dump_file.c_str(), dump_file.size());
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckInputFormat_ValidFormat) {
+  auto ret = ge::CheckInputFormat("NCHW");
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckInputFormat_InvalidFormat) {
+  auto ret = ge::CheckInputFormat("INVALID_FORMAT_TEST");
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckBufferOptimizeParamValid_InvalidValue) {
+  auto ret = ge::CheckBufferOptimizeParamValid("invalid_value");
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckBufferOptimizeParamValid_EmptyValue) {
+  auto ret = ge::CheckBufferOptimizeParamValid("");
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckSparseParamValid_InvalidValue) {
+  auto ret = ge::CheckSparseParamValid("2");
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckSparseParamValid_ValidZero) {
+  auto ret = ge::CheckSparseParamValid("0");
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckSparseParamValid_ValidOne) {
+  auto ret = ge::CheckSparseParamValid("1");
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST(UtestIrBuild, WeightCompressFunc_EmptyPath) {
+  auto compute_graph = BuildComputeGraph();
+  auto ret = ge::WeightCompressFunc(compute_graph, "");
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, KeepDtypeFunc_NonexistentFile) {
+  auto compute_graph = BuildComputeGraph();
+  auto ret = ge::KeepDtypeFunc(compute_graph, "/tmp/nonexistent_keep_dtype_file.txt");
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+}
+
+TEST(UtestIrBuild, CheckInputPathValid_NonexistentFile) {
+  auto ret = ge::CheckInputPathValid("/tmp/nonexistent_file_for_test.txt");
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckInputPathValid_EmptyPath) {
+  auto ret = ge::CheckInputPathValid("");
+  EXPECT_EQ(ret, false);
+}
+
+TEST(UtestIrBuild, CheckAndTransferInputShapeToRange_EmptyInputs) {
+  std::string input_shape;
+  std::string input_shape_range;
+  std::string dynamic_batch_size;
+  std::string dynamic_image_size;
+  std::string dynamic_dims;
+  auto ret = ge::CheckAndTransferInputShapeToRange(input_shape, input_shape_range, dynamic_batch_size,
+                                                   dynamic_image_size, dynamic_dims);
+  EXPECT_EQ(ret, SUCCESS);
+}

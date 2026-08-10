@@ -3863,5 +3863,14 @@ TEST_F(UtestFormatTransfer4DToFZC04, nchw_to_fzc04_empty_tensor) {
   FormatTransfer4DToFZC04 transfer;
   EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransfer4DToFZC04, nchw_to_fzc04_overflow_trans_shape) {
+  const int64_t kMaxShapeItem = 1099511627776LL;
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NCHW, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z_C04, FORMAT_RESERVED, 5));
+  std::vector<int64_t> dst_shape;
+  FormatTransfer4DToFZC04 transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {kMaxShapeItem, 1, 1, 1}, DT_FLOAT16, dst_format, dst_shape),
+            ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge

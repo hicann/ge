@@ -447,4 +447,37 @@ TEST_F(UtestGraphPassesFlowCtrlPass, multi_iter_success) {
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(graph->GetDirectNodesSize(), 8);
 }
+
+TEST_F(UtestGraphPassesFlowCtrlPass, check_multi_dataset_true) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_multi_dataset");
+  GeTensorDesc tensor_desc;
+  auto iter1_desc = std::make_shared<OpDesc>("iter1", FRAMEWORKOP);
+  iter1_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetStr(iter1_desc, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "IteratorV2");
+  graph->AddNode(iter1_desc);
+
+  auto iter2_desc = std::make_shared<OpDesc>("iter2", FRAMEWORKOP);
+  iter2_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetStr(iter2_desc, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "IteratorV2");
+  graph->AddNode(iter2_desc);
+
+  FlowCtrlPass flow_ctrl_pass;
+  EXPECT_EQ(flow_ctrl_pass.CheckMultiDataSet(graph), true);
+}
+
+TEST_F(UtestGraphPassesFlowCtrlPass, check_multi_dataset_false) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_single_dataset");
+  GeTensorDesc tensor_desc;
+  auto iter1_desc = std::make_shared<OpDesc>("iter1", FRAMEWORKOP);
+  iter1_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetStr(iter1_desc, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, "IteratorV2");
+  graph->AddNode(iter1_desc);
+
+  auto normal_desc = std::make_shared<OpDesc>("normal", DATA);
+  normal_desc->AddOutputDesc(tensor_desc);
+  graph->AddNode(normal_desc);
+
+  FlowCtrlPass flow_ctrl_pass;
+  EXPECT_EQ(flow_ctrl_pass.CheckMultiDataSet(graph), false);
+}
 }  // namespace ge
