@@ -1,5 +1,6 @@
 # UDF接口
 
+- [UDF头文件和库文件说明](udf_header_files_and_library_files.md)
 - [UDF接口列表](udf-api-list.md)
 - [AttrValue类](attrvalue-class.md)
 - [AscendString类](ascendstring-class.md)
