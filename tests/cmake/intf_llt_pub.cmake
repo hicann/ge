@@ -31,10 +31,12 @@ target_compile_options(intf_llt_pub INTERFACE
         -Werror -fno-common -Wextra -Wfloat-equal -Wall -fPIC
         -pipe
         -fno-access-control
+        $<$<BOOL:${ENABLE_GCOV}>:--coverage -fprofile-arcs -ftest-coverage>
         )
 
 target_link_options(intf_llt_pub INTERFACE
         $<$<BOOL:${ENABLE_ASAN}>:-fsanitize=address -fsanitize=leak -fsanitize-recover=address>
+        $<$<BOOL:${ENABLE_GCOV}>:--coverage -fprofile-arcs -ftest-coverage>
         )
 
 target_link_directories(intf_llt_pub INTERFACE
