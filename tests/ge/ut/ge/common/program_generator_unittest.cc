@@ -1582,7 +1582,7 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
-  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr) {
+  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1626,6 +1626,9 @@ aclError Om2Model::ReleaseResources() {
   }
   for (auto stream : stream_list_) {
     OM2_CHK_STATUS(aclrtDestroyStream(stream));
+  }
+  if ((sync_prof_stream_ != nullptr)) {
+    OM2_CHK_RT(aclrtDestroyStream(sync_prof_stream_));
   }
   for (auto bin_handle : bin_handles_) {
     OM2_CHK_STATUS(aclrtBinaryUnLoad(bin_handle));
@@ -2382,6 +2385,7 @@ class Om2Model {
     void *overflow_addr_;
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
+    aclrtStream sync_prof_stream_;
 };
 } // namespace om2
 #ifdef __cplusplus
@@ -3139,6 +3143,11 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
+  if ((sync_prof_stream_ == nullptr)) {
+    if ((prof_info != nullptr)) {
+      OM2_CHK_RT(rtStreamCreateWithFlags(&sync_prof_stream_, 0, RT_STREAM_DEFAULT));
+    }
+  }
   uint64_t _t_input_begin = 0U;
   uint64_t _t_exec_begin = 0U;
   uint64_t _t_output_begin = 0U;
@@ -3160,7 +3169,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_begin = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
-    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
@@ -3172,7 +3181,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_end = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
-    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
   }
   if ((prof_info != nullptr)) {
@@ -3812,6 +3821,11 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
+  if ((sync_prof_stream_ == nullptr)) {
+    if ((prof_info != nullptr)) {
+      OM2_CHK_RT(rtStreamCreateWithFlags(&sync_prof_stream_, 0, RT_STREAM_DEFAULT));
+    }
+  }
   uint64_t _t_input_begin = 0U;
   uint64_t _t_exec_begin = 0U;
   uint64_t _t_output_begin = 0U;
@@ -3833,7 +3847,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_begin = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
-    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
@@ -3845,7 +3859,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_end = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
-    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
   }
   if ((prof_info != nullptr)) {
@@ -4548,6 +4562,11 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
+  if ((sync_prof_stream_ == nullptr)) {
+    if ((prof_info != nullptr)) {
+      OM2_CHK_RT(rtStreamCreateWithFlags(&sync_prof_stream_, 0, RT_STREAM_DEFAULT));
+    }
+  }
   uint64_t _t_input_begin = 0U;
   uint64_t _t_exec_begin = 0U;
   uint64_t _t_output_begin = 0U;
@@ -4569,7 +4588,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_begin = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
-    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
@@ -4581,7 +4600,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_end = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
-    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
   }
   if ((prof_info != nullptr)) {
@@ -5241,6 +5260,11 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
   }
+  if ((sync_prof_stream_ == nullptr)) {
+    if ((prof_info != nullptr)) {
+      OM2_CHK_RT(rtStreamCreateWithFlags(&sync_prof_stream_, 0, RT_STREAM_DEFAULT));
+    }
+  }
   uint64_t _t_input_begin = 0U;
   uint64_t _t_exec_begin = 0U;
   uint64_t _t_output_begin = 0U;
@@ -5262,7 +5286,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_begin = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data = {prof_info->step_id, model_id_, 0U};
-    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
@@ -5274,7 +5298,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if (((prof_info != nullptr) && (prof_info->step_id != 0U))) {
     uint64_t _t_step_end = MsprofSysCycleTime();
     ProfTraceUserData _step_trace_data2 = {prof_info->step_id, model_id_, 1U};
-    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), stream_list_[0]);
+    aclrtProfTrace(&_step_trace_data2, sizeof(ProfTraceUserData), sync_prof_stream_);
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_END, _t_step_end);
   }
   if ((prof_info != nullptr)) {
@@ -7072,5 +7096,62 @@ TEST_F(ProgramGeneratorUt, Om2ModelUtils_ArgsSizeAlign8_Success) {
   EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint32_t>(9)), 16U);
   EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(1)), 8UL);
   EXPECT_EQ(Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(16)), 16UL);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_InVarRangeNotInFileConstMap_ReturnsParamInvalid) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t logic_addr = kMemoryVarLogicBase + 256U;
+  AddrSemantic addr_node;
+  EXPECT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, logic_addr, addr_node, true, 0U), PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_InputInMemRangeWithIoOffsets_SetsModelIo) {
+  GetRtAddressTestContext ctx;
+  const int64_t src_op_id = 1;
+  OpInputEdges &edges = ctx.op_id_to_input_edges[ctx.op_desc->GetId()];
+  edges.input_op_ids[0] = src_op_id;
+  edges.input_anchor_indices[0] = 0;
+  OpInputEdges src_edges;
+  src_edges.output_var_names = {"src_output0"};
+  ctx.op_id_to_input_edges[src_op_id] = src_edges;
+  ctx.model_io.io_offsets.insert(1024);
+  const uintptr_t logic_addr = ctx.runtime.logic_mem_base + 1024U;
+  AddrSemantic addr_node;
+  EXPECT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, logic_addr, addr_node, true, 0U), SUCCESS);
+  EXPECT_EQ(addr_node.memory_app, om2::MemoryAppType::kModelIo);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_UnconnectedOptionalInput_ReturnsFailed) {
+  GetRtAddressTestContext ctx;
+  auto input_desc = ctx.op_desc->MutableInputDesc(0U);
+  ASSERT_NE(input_desc, nullptr);
+  TensorUtils::SetSize(*input_desc, 128U);
+  ctx.runtime.total_mem_size = 4096;
+  ctx.runtime.total_weight_size = 1024;
+  std::vector<AddrSemantic> input_addrs;
+  EXPECT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, CopyTilingDataIfNeeded_EmptyTilingData_SkipsTiling) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_FALSE(name_to_ge_model.empty());
+  const auto ge_model = name_to_ge_model.begin()->second;
+  const auto compute_graph = ge_model->GetGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == "Add")) {
+      auto run_info = std::make_shared<optiling::utils::OpRunInfo>(8, false, 0);
+      (void)op_desc->SetExtAttr(ATTR_NAME_OP_RUN_INFO, run_info);
+      break;
+    }
+  }
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 }
 }  // namespace ge

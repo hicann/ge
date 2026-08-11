@@ -842,4 +842,183 @@ TEST_F(UtestUtilInsertAippOp, test_UpdateDataNodeByAipp3) {
   EXPECT_EQ(instance.RecordAIPPInfoToData(sub_graph), SUCCESS);
 }
 
+TEST_F(UtestUtilInsertAippOp, test_ConvertShape2Nhwc_NonNchWFormat) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  std::string aipp_cfg_path = "/root/";
+  auto ret = instance.InsertAippOps(graph, aipp_cfg_path);
+  ASSERT_EQ(ret, SUCCESS);
+  ge::OpDescPtr data_opdesc = std::make_shared<ge::OpDesc>("test_data", "data");
+  data_opdesc->AddInputDesc("x", GeTensorDesc(GeShape({1, 16, 16, 16}), FORMAT_NCHW));
+  data_opdesc->AddOutputDesc("y", GeTensorDesc(GeShape({1, 3, 224, 224}), FORMAT_NCHW));
+  std::vector<int64_t> origin_dims = {1, 3, 224, 224};
+  AttrUtils::SetListInt(data_opdesc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
+  ge::Format format = FORMAT_ND;
+  instance.UpdateMultiBatchInputDims(data_opdesc, format);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_CheckInputNamePositionNotRepeat_SameName) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  instance.Init();
+  instance.insert_op_conf_->Clear();
+  auto *aipp1 = instance.insert_op_conf_->add_aipp_op();
+  aipp1->set_related_input_name("data1");
+  auto *aipp2 = instance.insert_op_conf_->add_aipp_op();
+  aipp2->set_related_input_name("data1");
+  auto ret = instance.CheckPositionNotRepeat();
+  EXPECT_NE(ret, SUCCESS);
+  instance.insert_op_conf_->Clear();
+}
+
+TEST_F(UtestUtilInsertAippOp, test_CheckInputRankPositionNoRepeat_WithNameInSecond) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  instance.Init();
+  instance.insert_op_conf_->Clear();
+  auto *aipp1 = instance.insert_op_conf_->add_aipp_op();
+  aipp1->set_related_input_rank(0);
+  auto *aipp2 = instance.insert_op_conf_->add_aipp_op();
+  aipp2->set_related_input_name("data1");
+  auto ret = instance.CheckPositionNotRepeat();
+  EXPECT_NE(ret, SUCCESS);
+  instance.insert_op_conf_->Clear();
+}
+
+TEST_F(UtestUtilInsertAippOp, test_GetDataRelatedNode_WithAippNext) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  ge::NodePtr data1 = NodeBuilder("data1", DATA).AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  ge::AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_INDEX, 0);
+  ge::NodePtr aipp = NodeBuilder("aipp1", AIPP)
+                         .AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                         .AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                         .Build(graph);
+  ge::NodePtr netoutput =
+      NodeBuilder("Node_Output", NETOUTPUT).AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), aipp->GetInDataAnchor(0));
+  GraphUtils::AddEdge(aipp->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+
+  NamedAttrs aipp_attr;
+  aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+  AttrUtils::SetNamedAttrs(data1->GetOpDesc(), ATTR_NAME_AIPP, aipp_attr);
+
+  std::map<NodePtr, std::set<NodePtr>> data_next_node_map;
+  auto ret = instance.GetDataRelatedNode(data1, data_next_node_map);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(data_next_node_map.size(), 1U);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_SetModelInputDims_AlreadyHasAttr) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  ge::NodePtr data1 = NodeBuilder("data1", DATA).AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  ge::NodePtr aipp = NodeBuilder("aipp1", AIPP)
+                         .AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                         .AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                         .Build(graph);
+  AttrUtils::SetListInt(data1->GetOpDesc(), ATTR_NAME_INPUT_DIMS, {1, 3, 224, 224});
+  auto ret = instance.SetModelInputDims(data1, aipp);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_CheckInputRankPositionNotRepeat_WithNameInSecond) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  instance.Init();
+  domi::InsertNewOps *insert_ops = instance.insert_op_conf_.get();
+  ASSERT_NE(insert_ops, nullptr);
+  domi::AippOpParams *aipp1 = insert_ops->add_aipp_op();
+  aipp1->set_related_input_rank(0);
+  domi::AippOpParams *aipp2 = insert_ops->add_aipp_op();
+  aipp2->set_related_input_name("data1");
+  auto ret = instance.CheckPositionNotRepeat();
+  EXPECT_NE(ret, SUCCESS);
+  instance.ClearNewOps();
+}
+
+TEST_F(UtestUtilInsertAippOp, test_GetAippParams_WithAippAttr) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_get_aipp");
+  ge::NodePtr aipp_node = NodeBuilder("aipp1", AIPP)
+                              .AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                              .AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                              .Build(graph);
+  ge::NamedAttrs aipp_attr;
+  aipp_attr.SetName("aipp_params");
+  (void)AttrUtils::SetNamedAttrs(aipp_node->GetOpDesc(), ATTR_NAME_AIPP, aipp_attr);
+  std::unique_ptr<domi::AippOpParams> aipp_params(new domi::AippOpParams());
+  auto ret = instance.GetAippParams(aipp_params, aipp_node);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_UpdatePrevNodeByAipp_ZeroSize) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_zero_size");
+  ge::NodePtr data = NodeBuilder("data1", DATA).AddOutputDesc({0, 0, 0, 0}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  ge::NodePtr aipp = NodeBuilder("aipp1", AIPP)
+                         .AddInputDesc({0, 0, 0, 0}, FORMAT_NCHW, DT_FLOAT)
+                         .AddOutputDesc({0, 0, 0, 0}, FORMAT_NCHW, DT_FLOAT)
+                         .Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), aipp->GetInDataAnchor(0));
+  auto ret = instance.UpdatePrevNodeByAipp(aipp);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_ConvertShape2Nhwc_NDFormat) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_nd_fmt");
+  ge::NodePtr data = NodeBuilder("data1", DATA).AddOutputDesc({1, 2, 3, 4}, FORMAT_ND, DT_FLOAT).Build(graph);
+  EXPECT_NE(data, nullptr);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_CheckInputNamePositionNotRepeat_EmptyNameInSecond) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  instance.Init();
+  domi::InsertNewOps *insert_ops = instance.insert_op_conf_.get();
+  ASSERT_NE(insert_ops, nullptr);
+  domi::AippOpParams *aipp1 = insert_ops->add_aipp_op();
+  aipp1->set_related_input_name("data1");
+  domi::AippOpParams *aipp2 = insert_ops->add_aipp_op();
+  aipp2->set_related_input_rank(0);
+  auto ret = instance.CheckPositionNotRepeat();
+  EXPECT_NE(ret, SUCCESS);
+  instance.ClearNewOps();
+}
+
+TEST_F(UtestUtilInsertAippOp, test_InitAndClear) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  EXPECT_EQ(instance.Init(), SUCCESS);
+  instance.ClearNewOps();
+  EXPECT_EQ(instance.Init(), SUCCESS);
+  instance.ClearNewOps();
+}
+
+TEST_F(UtestUtilInsertAippOp, test_GetAippParams_NullNode) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  std::unique_ptr<domi::AippOpParams> aipp_params(new domi::AippOpParams());
+  NodePtr null_node = nullptr;
+  auto ret = instance.GetAippParams(aipp_params, null_node);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_GetAippParams_NoAippAttr) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_no_attr");
+  ge::NodePtr aipp_node = NodeBuilder("aipp1", AIPP)
+                              .AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                              .AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT)
+                              .Build(graph);
+  std::unique_ptr<domi::AippOpParams> aipp_params(new domi::AippOpParams());
+  auto ret = instance.GetAippParams(aipp_params, aipp_node);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestUtilInsertAippOp, test_UpdateDataNodeByAipp_NoAipp) {
+  InsertAippOpUtil &instance = InsertAippOpUtil::Instance();
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_no_aipp");
+  ge::NodePtr data = NodeBuilder("data1", DATA).AddOutputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  ge::NodePtr netoutput =
+      NodeBuilder("netoutput", NETOUTPUT).AddInputDesc({1, 3, 224, 224}, FORMAT_NCHW, DT_FLOAT).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  auto ret = instance.UpdateDataNodeByAipp(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace ge

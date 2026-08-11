@@ -191,4 +191,124 @@ TEST_F(UtestRefRelation, IncCov_BuildRefRelations_NetOutputNoRefIdx) {
   RefRelations ref;
   EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
 }
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelationsForWhile_NoNetoutput) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto while_op_desc = CreateOpDesc("while", WHILE, 1, 1);
+  auto while_node = root_graph->AddNode(while_op_desc);
+  while_op_desc->AddSubgraphName("cond");
+  while_op_desc->SetSubgraphInstanceName(0, "cond");
+  while_op_desc->AddSubgraphName("body");
+  while_op_desc->SetSubgraphInstanceName(1, "body");
+
+  auto cond_graph = std::make_shared<ComputeGraph>("cond");
+  cond_graph->SetParentGraph(root_graph);
+  cond_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(cond_graph);
+
+  auto body_graph = std::make_shared<ComputeGraph>("body");
+  auto body_data_op_desc = CreateOpDesc("body_data", DATA, 1, 1);
+  auto body_data_node = body_graph->AddNode(body_data_op_desc);
+  AttrUtils::SetInt(body_data_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 0);
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(body_graph);
+
+  RefRelations ref;
+  EXPECT_EQ(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelationsForWhile_NetOutputUnconnectedInput) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto while_op_desc = CreateOpDesc("while", WHILE, 2, 2);
+  auto while_node = root_graph->AddNode(while_op_desc);
+  while_op_desc->AddSubgraphName("cond");
+  while_op_desc->SetSubgraphInstanceName(0, "cond");
+  while_op_desc->AddSubgraphName("body");
+  while_op_desc->SetSubgraphInstanceName(1, "body");
+
+  auto cond_graph = std::make_shared<ComputeGraph>("cond");
+  cond_graph->SetParentGraph(root_graph);
+  cond_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(cond_graph);
+
+  auto body_graph = std::make_shared<ComputeGraph>("body");
+  auto body_data1_op_desc = CreateOpDesc("body_data1", DATA, 1, 1);
+  auto body_data1_node = body_graph->AddNode(body_data1_op_desc);
+  AttrUtils::SetInt(body_data1_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+  auto body_data2_op_desc = CreateOpDesc("body_data2", DATA, 1, 1);
+  auto body_data2_node = body_graph->AddNode(body_data2_op_desc);
+  AttrUtils::SetInt(body_data2_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 1);
+
+  auto body_netoutput_op_desc = CreateOpDesc("body_netoutput", NETOUTPUT, 2, 0);
+  auto body_netoutput_node = body_graph->AddNode(body_netoutput_op_desc);
+  AttrUtils::SetInt(body_netoutput_op_desc->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput_op_desc->MutableInputDesc(1), ATTR_NAME_PARENT_NODE_INDEX, 1);
+
+  GraphUtils::AddEdge(body_data1_node->GetOutDataAnchor(0), body_netoutput_node->GetInDataAnchor(0));
+
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(body_graph);
+
+  RefRelations ref;
+  EXPECT_EQ(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelations_NetOutputNoInputDesc) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto if_op_desc = CreateOpDesc("if", "If", 1, 1);
+  auto if_node = root_graph->AddNode(if_op_desc);
+  if_op_desc->AddSubgraphName("sub1");
+  if_op_desc->SetSubgraphInstanceName(0, "sub1");
+
+  auto sub_graph = std::make_shared<ComputeGraph>("sub1");
+  auto data1_op_desc = CreateOpDesc("sub1_data1", DATA, 1, 1);
+  auto data1_node = sub_graph->AddNode(data1_op_desc);
+  AttrUtils::SetInt(data1_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+  auto netoutput_op_desc = CreateOpDesc("sub1_netoutput", NETOUTPUT, 1, 1);
+  auto netoutput_node = sub_graph->AddNode(netoutput_op_desc);
+
+  GraphUtils::AddEdge(data1_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+  sub_graph->SetParentGraph(root_graph);
+  sub_graph->SetParentNode(if_node);
+  root_graph->AddSubGraph(sub_graph);
+
+  RefRelations ref;
+  EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
+
+TEST_F(UtestRefRelation, IncCov_BuildRefRelations_WhileSizeMismatch) {
+  ComputeGraphPtr root_graph = std::make_shared<ComputeGraph>("root_graph");
+  auto while_op_desc = CreateOpDesc("while", WHILE, 2, 1);
+  auto while_node = root_graph->AddNode(while_op_desc);
+  while_op_desc->AddSubgraphName("cond");
+  while_op_desc->SetSubgraphInstanceName(0, "cond");
+  while_op_desc->AddSubgraphName("body");
+  while_op_desc->SetSubgraphInstanceName(1, "body");
+
+  auto cond_graph = std::make_shared<ComputeGraph>("cond");
+  cond_graph->SetParentGraph(root_graph);
+  cond_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(cond_graph);
+
+  auto body_graph = std::make_shared<ComputeGraph>("body");
+  auto body_data_op_desc = CreateOpDesc("body_data", DATA, 1, 1);
+  auto body_data_node = body_graph->AddNode(body_data_op_desc);
+  AttrUtils::SetInt(body_data_op_desc, ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+  auto body_netoutput_op_desc = CreateOpDesc("body_netoutput", NETOUTPUT, 1, 0);
+  auto body_netoutput_node = body_graph->AddNode(body_netoutput_op_desc);
+  AttrUtils::SetInt(body_netoutput_op_desc->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+
+  GraphUtils::AddEdge(body_data_node->GetOutDataAnchor(0), body_netoutput_node->GetInDataAnchor(0));
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  root_graph->AddSubGraph(body_graph);
+
+  RefRelations ref;
+  EXPECT_NE(ref.BuildRefRelations(*root_graph.get()), ge::SUCCESS);
+}
 }  // namespace ge

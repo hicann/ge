@@ -1035,3 +1035,63 @@ TEST_F(UtestGraphPassesFoldingKernelStridedSliceKernel, CovEllipsisMaskExpand) {
   shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(STRIDEDSLICE);
   EXPECT_EQ(kernel->Compute(op_desc_ptr, input, outputs), ge::SUCCESS);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelStridedSliceKernel, NullAttr) {
+  vector<int64_t> dims_vec_0 = {2, 2};
+  vector<float> data_vec_0 = {1.0, 2.0, 3.0, 4.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  vector<int32_t> begin_data = {0, 0};
+  vector<int32_t> end_data = {2, 2};
+  vector<int32_t> stride_data = {1, 1};
+  GeTensorDesc idx_desc(GeShape({2}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)begin_data.data(), begin_data.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_2 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)end_data.data(), end_data.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_3 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)stride_data.data(), stride_data.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1, tensor_2, tensor_3};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(STRIDEDSLICE);
+  Status status = kernel->Compute(nullptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelStridedSliceKernel, MissingMaskAttr) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("StridedSlice", "StridedSlice");
+  GeTensorDesc dims_tensor_desc(GeShape({2, 2}), FORMAT_NCHW, DT_FLOAT);
+  op_desc_ptr->AddInputDesc(0, dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(1, dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(2, dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(3, dims_tensor_desc);
+  op_desc_ptr->AddOutputDesc(dims_tensor_desc);
+
+  vector<int64_t> dims_vec_0 = {2, 2};
+  vector<float> data_vec_0 = {1.0, 2.0, 3.0, 4.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  vector<int32_t> begin_data = {0, 0};
+  vector<int32_t> end_data = {2, 2};
+  vector<int32_t> stride_data = {1, 1};
+  GeTensorDesc idx_desc(GeShape({2}), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)begin_data.data(), begin_data.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_2 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)end_data.data(), end_data.size() * sizeof(int32_t));
+  ConstGeTensorPtr tensor_3 =
+      std::make_shared<GeTensor>(idx_desc, (uint8_t *)stride_data.data(), stride_data.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1, tensor_2, tensor_3};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(STRIDEDSLICE);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}

@@ -186,3 +186,124 @@ TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, OverflowDataNotChanged) {
 
   EXPECT_EQ(NOT_CHANGED, status);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32AxisOutOfRange) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int32_t> data_vec_0 = {1, 2, 5, 7, 3, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {1};
+  vector<int32_t> data_vec_1 = {3};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32KeepDimsSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+  AttrUtils::SetBool(op_desc_ptr, "keep_dims", true);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int32_t> data_vec_0 = {1, 2, 5, 7, 3, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {1};
+  vector<int32_t> data_vec_1 = {0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32ComputeNoAxisSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int32_t> data_vec_0 = {1, 2, 5, 7, 3, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32EmptyAxisSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int32_t> data_vec_0 = {1, 2, 5, 7, 3, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {1};
+  vector<int32_t> data_vec_1 = {};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32OverflowFailed) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {std::numeric_limits<int32_t>::max(), 2};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {1};
+  vector<int32_t> data_vec_1 = {0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelReduceProdKernel, Int32ComputeNoAxisEmptyData) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("ReduceProd", REDUCEPROD);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(REDUCEPROD);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}

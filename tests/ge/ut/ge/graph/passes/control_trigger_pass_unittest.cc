@@ -30,6 +30,23 @@ class UtestControlTriggerPass : public testing::Test {
   void SetUp() {}
   void TearDown() {}
 };
+
+TEST_F(UtestControlTriggerPass, RunEmptyGraph) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("empty");
+  ControlTriggerPass pass;
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestControlTriggerPass, ClearStatusSuccess) {
+  ControlTriggerPass pass;
+  EXPECT_EQ(pass.ClearStatus(), SUCCESS);
+}
+
+TEST_F(UtestControlTriggerPass, FindPredInputNullNode) {
+  ControlTriggerPass pass;
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(pass.FindPredInput(null_node), INTERNAL_ERROR);
+}
 namespace {
 ComputeGraphPtr BuildNormalGraph() {
   const auto sub1_data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);

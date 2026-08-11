@@ -1237,4 +1237,91 @@ TEST_F(GraphBuilderTest, Build_Ok_TrainingWithMemoryPriority) {
   GetThreadLocalContext().SetGraphOption(options_map_recovery);
 }
 
+TEST_F(GraphBuilderTest, Build_NullComputeGraph_ReturnsError) {
+  GraphBuilder graph_builder;
+  GeRootModelPtr root_model;
+  ComputeGraphPtr null_graph = nullptr;
+  auto ret = graph_builder.Build(null_graph, root_model);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(GraphBuilderTest, Build_EmptyGraph_ReturnsError) {
+  GraphBuilder graph_builder;
+  auto root_graph = std::make_shared<ComputeGraph>("empty_graph");
+  AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
+  GeRootModelPtr root_model;
+  VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
+  auto ret = graph_builder.Build(root_graph, root_model);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(GraphBuilderTest, Build_GenTaskWithFusionMode) {
+  GraphBuilder graph_builder;
+  auto root_graph = BuildGraphWithConst();
+  AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
+  GeRootModelPtr root_model;
+  VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
+  auto ret = graph_builder.Build(root_graph, root_model);
+}
+
+TEST_F(GraphBuilderTest, Build_DataNodeWithDynamicShape) {
+  GraphBuilder graph_builder;
+  DEF_GRAPH(graph) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1, -1});
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1, -1});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)->NODE("add", add)->NODE("Node_Output", net_output));
+  };
+  auto root_graph = ToComputeGraph(graph);
+  AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
+  GeRootModelPtr root_model;
+  VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
+  auto ret = graph_builder.Build(root_graph, root_model);
+}
+
+TEST_F(GraphBuilderTest, Build_GraphWithSubgraph) {
+  GraphBuilder graph_builder;
+  DEF_GRAPH(sub) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto add = OP_CFG(ADD).InCnt(1).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("sub_data", data)->NODE("sub_add", add)->NODE("sub_output", net_output));
+  };
+  auto sub_graph = ToComputeGraph(sub);
+  sub_graph->SetName("sub_graph");
+
+  DEF_GRAPH(root) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto partitioned_call = OP_CFG(PARTITIONEDCALL).InCnt(1).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("root_data", data)->NODE("partitioned_call", partitioned_call)->NODE("Node_Output", net_output));
+  };
+  auto root_graph = ToComputeGraph(root);
+  root_graph->SetName("root_graph");
+  root_graph->AddSubGraph(sub_graph);
+  sub_graph->SetParentGraph(root_graph);
+  AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
+  GeRootModelPtr root_model;
+  VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
+  auto ret = graph_builder.Build(root_graph, root_model);
+}
+
+TEST_F(GraphBuilderTest, Build_GraphWithWorkspaceUpdate) {
+  GraphBuilder graph_builder;
+  auto root_graph = BuildGraphWithConst();
+  AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
+  for (auto &node : root_graph->GetAllNodes()) {
+    if (node->GetType() == CONSTANT || node->GetType() == CONSTANTOP) {
+      continue;
+    }
+    auto op_desc = node->GetOpDesc();
+    if (op_desc != nullptr) {
+      std::vector<int64_t> ws_vec = {1024, 2048};
+      op_desc->SetWorkspace(ws_vec);
+    }
+  }
+  GeRootModelPtr root_model;
+  VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
+  auto ret = graph_builder.Build(root_graph, root_model);
+}
 }  // namespace ge

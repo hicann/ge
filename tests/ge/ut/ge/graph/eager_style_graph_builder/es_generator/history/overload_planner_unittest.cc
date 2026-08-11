@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "history/overload_planner.h"
+#include "history/attr_type_traits.h"
 #include "history/warning_formatter.h"
 
 using namespace ge::es::history;
@@ -748,4 +749,217 @@ TEST_F(OverloadPlannerUT, ValidationShouldNormalizeKeywordNamesForDynamicOutputA
   }
   EXPECT_TRUE(has_normalized_dynamic_output_name);
   EXPECT_TRUE(has_normalized_subgraph_name);
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenOutputsChanged) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {{"y", ge::kIrOutputRequired, {}}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {},
+                                  {{"y", ge::kIrOutputRequired, {}}, {"y2", ge::kIrOutputRequired, {}}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenOutputNameMismatch) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {{"y", ge::kIrOutputRequired, {}}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {{"z", ge::kIrOutputRequired, {}}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenSubgraphsChanged) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {}, {{"g1", ge::kStatic}});
+  const auto current =
+      BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {}, {{"g1", ge::kStatic}, {"g2", ge::kStatic}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenSubgraphNameMismatch) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {}, {{"g1", ge::kStatic}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {}, {}, {{"g2", ge::kStatic}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenAttrsShrink) {
+  const IrAttr a = {"a", "Int", false, "0"};
+  const IrAttr b = {"b", "Int", false, "0"};
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {a, b});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {a});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenAttrMismatch) {
+  const IrAttr a = {"a", "Int", false, "0"};
+  const IrAttr a_changed = {"a", "Float", false, "0.0"};
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}}, {a});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {a_changed});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenNewAttrIsRequired) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}});
+  const IrAttr req_attr = {"req", "Int", true, ""};
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}}, {req_attr});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenNewInputNotOptional) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}, {"y", ge::kIrInputRequired, {}}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenInputsShrink) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}, {"y", ge::kIrInputRequired, {}}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST_F(OverloadPlannerUT, PlanFallbackToA0WhenIncompatibleWithoutNewInputsAndNoAttrRisk) {
+  const auto v1 = BuildProto({{"x", ge::kIrInputRequired, {}}, {"y", ge::kIrInputRequired, {}}});
+  const auto current = BuildProto({{"x", ge::kIrInputRequired, {}}, {"z", ge::kIrInputRequired, {}}});
+  const auto plan = planner_.Plan(current, BuildHistory({v1}));
+  ASSERT_EQ(plan.signatures.size(), 1U);
+  EXPECT_TRUE(HasWarningCode(plan, WarningCode::kFallbackToA0));
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_FloatTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Float", "\"not_float\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for Float"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_BoolTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Bool", "\"not_bool\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for Bool"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_StringTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("String", "123");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for String"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_TypeTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Type", "123");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for Type"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_TensorTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Tensor", "123");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for Tensor"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_TensorNotTensorValue) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Tensor", "\"NotTensor()\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("only \"Tensor()\" is supported"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListIntTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListInt", "\"not_list\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListInt"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListFloatTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListFloat", "\"not_list\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListFloat"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListBoolTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListBool", "\"not_list\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListBool"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListTypeTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListType", "123");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListType"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListListIntTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListListInt", "\"not_list\"");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListListInt"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_ListStringTypeMismatch) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("ListString", "123");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("type mismatch for ListString"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_InvalidJson) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("Int", "not_valid_json");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("not valid json"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, ParseDefaultExpr_UnsupportedAttrType) {
+  auto result = AttrTypeTraits::ParseDefaultExpr("UnknownType", "1");
+  EXPECT_FALSE(result.success);
+  EXPECT_NE(result.error.find("unsupported attr type"), std::string::npos);
+}
+
+TEST(AttrTypeTraitsUT, TryGetParamKindByIrTypeInfo_ScalarTypes) {
+  ParamCxxKind kind;
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_INT", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kInt64);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_FLOAT", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kFloat);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_BOOL", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kBool);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_STRING", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kCString);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_DATA_TYPE", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kDataType);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_TENSOR", false, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kTensorUniquePtr);
+}
+
+TEST(AttrTypeTraitsUT, TryGetParamKindByIrTypeInfo_ListTypes) {
+  ParamCxxKind kind;
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_INT", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListIntRef);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_FLOAT", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListFloatRef);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_BOOL", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListBoolRef);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_DATA_TYPE", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListTypeRef);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_LIST_INT", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListListIntRef);
+  EXPECT_TRUE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_LIST_STRING", true, kind));
+  EXPECT_EQ(kind, ParamCxxKind::kListStringRef);
+}
+
+TEST(AttrTypeTraitsUT, TryGetParamKindByIrTypeInfo_Nullptr) {
+  ParamCxxKind kind;
+  EXPECT_FALSE(AttrTypeTraits::TryGetParamKindByIrTypeInfo(nullptr, false, kind));
+}
+
+TEST(AttrTypeTraitsUT, TryGetParamKindByIrTypeInfo_UnknownType) {
+  ParamCxxKind kind;
+  EXPECT_FALSE(AttrTypeTraits::TryGetParamKindByIrTypeInfo("VT_UNKNOWN", false, kind));
 }

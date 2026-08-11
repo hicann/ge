@@ -311,4 +311,100 @@ TEST_F(UtestRunContext, PrintMemInfo_NoCrash) {
   RunContextUtil run_util;
   EXPECT_NO_THROW(run_util.PrintMemInfo());
 }
+
+TEST_F(UtestRunContext, GetMemorySize_GetSizeFailed) {
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc = make_shared<OpDesc>("test_node", "BufferPool");
+  GeTensorDesc tensor_desc;
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  int64_t output_size = 0;
+  EXPECT_EQ(GetMemorySize(node, output_size), SUCCESS);
+}
+
+TEST_F(UtestRunContext, SetActiveLabelList_NullNode) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetActiveLabelList(null_node, {"label1"}), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetSwitchBranchNodeLabel_NullNode) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetSwitchBranchNodeLabel(null_node, "branch1"), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetSwitchTrueBranchFlag_NullNode) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetSwitchTrueBranchFlag(null_node, true), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetOriginalNodeName_NullNode) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetOriginalNodeName(null_node, "orig_name"), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetCyclicDependenceFlag_NullNode) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetCyclicDependenceFlag(null_node), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetNextIteration_NullNode) {
+  NodePtr null_node = nullptr;
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc = make_shared<OpDesc>("node1", "Merge");
+  auto node1 = graph->AddNode(op_desc);
+  EXPECT_EQ(SetNextIteration(null_node, node1), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, SetNextIteration_BothNull) {
+  NodePtr null_node = nullptr;
+  EXPECT_EQ(SetNextIteration(null_node, null_node), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, GetOriginalType_NullNode) {
+  NodePtr null_node = nullptr;
+  std::string type;
+  EXPECT_EQ(GetOriginalType(null_node, type), PARAM_INVALID);
+}
+
+TEST_F(UtestRunContext, AlignMemSize_LargePositive) {
+  int64_t mem_size = 1000;
+  AlignMemSize(mem_size, 512);
+  EXPECT_EQ(mem_size, 1024);
+}
+
+TEST_F(UtestRunContext, SetStreamLabel_WithEmptyLabel) {
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc = make_shared<OpDesc>("test_node", "Add");
+  auto node = graph->AddNode(op_desc);
+  EXPECT_EQ(SetStreamLabel(node, ""), SUCCESS);
+}
+
+TEST_F(UtestRunContext, SetActiveLabelList_WithEmptyList) {
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc = make_shared<OpDesc>("test_node", "Add");
+  auto node = graph->AddNode(op_desc);
+  std::vector<std::string> empty_labels;
+  EXPECT_EQ(SetActiveLabelList(node, empty_labels), SUCCESS);
+}
+
+TEST_F(UtestRunContext, SetNextIteration_BothValidNodes) {
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc1 = make_shared<OpDesc>("node1", "Merge");
+  auto op_desc2 = make_shared<OpDesc>("node2", "NextIteration");
+  auto node1 = graph->AddNode(op_desc1);
+  auto node2 = graph->AddNode(op_desc2);
+  EXPECT_EQ(SetNextIteration(node1, node2), SUCCESS);
+  EXPECT_EQ(SetNextIteration(node2, node1), SUCCESS);
+}
+
+TEST_F(UtestRunContext, GetMemorySize_WithSizeZero) {
+  auto graph = make_shared<ge::ComputeGraph>("test_graph");
+  auto op_desc = make_shared<OpDesc>("test_node", "BufferPool");
+  GeTensorDesc tensor_desc;
+  TensorUtils::SetSize(tensor_desc, 0);
+  op_desc->AddOutputDesc(tensor_desc);
+  auto node = graph->AddNode(op_desc);
+  int64_t output_size = 0;
+  EXPECT_EQ(GetMemorySize(node, output_size), SUCCESS);
+}
 }  // namespace ge

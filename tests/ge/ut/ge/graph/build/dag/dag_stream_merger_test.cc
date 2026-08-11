@@ -1217,5 +1217,296 @@ TEST_F(StreamMergerTest, Merge_UnitSortByPeakLevelLoad_LoadBalance) {
   EXPECT_EQ(logical_to_physical.size(), 3);
 }
 
+TEST_F(StreamMergerTest, Merge_CrossStreamMultiWeight_LoadBalance) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op1");
+  auto n3 = dag_->AddNode("n3", "Op2");
+  auto n4 = dag_->AddNode("n4", "Op3");
+  auto n5 = dag_->AddNode("n5", "NetOutput");
+
+  for (int i = 0; i < 6; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n3, 0);
+  dag_->AddEdge(n0, 0, n4, 0);
+  dag_->AddEdge(n1, 0, n4, 0);
+  dag_->AddEdge(n2, 0, n5, 0);
+  dag_->AddEdge(n3, 0, n5, 0);
+  dag_->AddEdge(n4, 0, n5, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 5}, {1}, {3, 4}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kLoadBalance;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 2;
+  options_.light_stream_limit = 2;
+  options_.repair_moves = 5;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 3);
+}
+
+TEST_F(StreamMergerTest, Merge_CrossStreamMultiWeight_MainStream) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op1");
+  auto n3 = dag_->AddNode("n3", "Op2");
+  auto n4 = dag_->AddNode("n4", "Op3");
+  auto n5 = dag_->AddNode("n5", "NetOutput");
+
+  for (int i = 0; i < 6; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n3, 0);
+  dag_->AddEdge(n0, 0, n4, 0);
+  dag_->AddEdge(n1, 0, n4, 0);
+  dag_->AddEdge(n2, 0, n5, 0);
+  dag_->AddEdge(n3, 0, n5, 0);
+  dag_->AddEdge(n4, 0, n5, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 5}, {1}, {3, 4}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 2;
+  options_.low_conflict_limit = 2;
+  options_.repair_moves = 5;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 3);
+}
+
+TEST_F(StreamMergerTest, Merge_CandidateLimitOne_LoadBalance) {
+  AddNodes(6);
+
+  std::vector<std::vector<int32_t>> logical_routes;
+  for (int i = 0; i < 6; ++i) {
+    logical_routes.push_back({i});
+  }
+
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kLoadBalance;
+  options_.physical_stream_limit = 4;
+  options_.candidate_limit = 1;
+  options_.light_stream_limit = 1;
+  options_.repair_moves = 3;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 6);
+}
+
+TEST_F(StreamMergerTest, Merge_CandidateLimitOne_MainStream) {
+  AddNodes(6);
+
+  std::vector<std::vector<int32_t>> logical_routes;
+  for (int i = 0; i < 6; ++i) {
+    logical_routes.push_back({i});
+  }
+
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 4;
+  options_.candidate_limit = 1;
+  options_.low_conflict_limit = 1;
+  options_.repair_moves = 3;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 6);
+}
+
+TEST_F(StreamMergerTest, Merge_UnitSortByEarliestLevel_MainStream) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op1");
+  auto n3 = dag_->AddNode("n3", "Op2");
+  auto n4 = dag_->AddNode("n4", "NetOutput");
+
+  for (int i = 0; i < 5; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n2, 0);
+  dag_->AddEdge(n1, 0, n3, 0);
+  dag_->AddEdge(n2, 0, n4, 0);
+  dag_->AddEdge(n3, 0, n4, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 4}, {1, 3}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 4;
+  options_.repair_moves = 3;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
+
+TEST_F(StreamMergerTest, Merge_DeepDAG_MultiLevel_CrossDependency_LoadBalance) {
+  const int count = 10;
+  for (int i = 0; i < count; ++i) {
+    auto node = dag_->AddNode("n" + std::to_string(i), "Op");
+    node->SetTopoId(i);
+  }
+
+  for (int i = 0; i < count - 1; ++i) {
+    dag_->AddEdge(dag_->GetAllNodes()[i], 0, dag_->GetAllNodes()[i + 1], 0);
+  }
+  dag_->AddEdge(dag_->GetAllNodes()[0], 0, dag_->GetAllNodes()[5], 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 1, 2, 3, 4}, {5, 6, 7, 8, 9}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kLoadBalance;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 3;
+  options_.light_stream_limit = 2;
+  options_.repair_moves = 10;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
+
+TEST_F(StreamMergerTest, Merge_DeepDAG_MultiLevel_CrossDependency_MainStream) {
+  const int count = 10;
+  for (int i = 0; i < count; ++i) {
+    auto node = dag_->AddNode("n" + std::to_string(i), "Op");
+    node->SetTopoId(i);
+  }
+
+  for (int i = 0; i < count - 1; ++i) {
+    dag_->AddEdge(dag_->GetAllNodes()[i], 0, dag_->GetAllNodes()[i + 1], 0);
+  }
+  dag_->AddEdge(dag_->GetAllNodes()[0], 0, dag_->GetAllNodes()[5], 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 1, 2, 3, 4}, {5, 6, 7, 8, 9}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 3;
+  options_.low_conflict_limit = 2;
+  options_.repair_moves = 10;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
+
+TEST_F(StreamMergerTest, Merge_MultiRouteSameLevel_DifferentSizes_LoadBalance) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op");
+  auto n3 = dag_->AddNode("n3", "Op");
+  auto n4 = dag_->AddNode("n4", "Op");
+  auto n5 = dag_->AddNode("n5", "NetOutput");
+
+  for (int i = 0; i < 6; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n2, 0);
+  dag_->AddEdge(n0, 0, n3, 0);
+  dag_->AddEdge(n1, 0, n4, 0);
+  dag_->AddEdge(n2, 0, n5, 0);
+  dag_->AddEdge(n3, 0, n5, 0);
+  dag_->AddEdge(n4, 0, n5, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 3, 5}, {1, 4}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kLoadBalance;
+  options_.physical_stream_limit = 2;
+  options_.candidate_limit = 2;
+  options_.light_stream_limit = 2;
+  options_.repair_moves = 5;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
+
+TEST_F(StreamMergerTest, Merge_MultiRouteSameLevel_DifferentSizes_MainStream) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op");
+  auto n3 = dag_->AddNode("n3", "Op");
+  auto n4 = dag_->AddNode("n4", "Op");
+  auto n5 = dag_->AddNode("n5", "NetOutput");
+
+  for (int i = 0; i < 6; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n2, 0);
+  dag_->AddEdge(n0, 0, n3, 0);
+  dag_->AddEdge(n1, 0, n4, 0);
+  dag_->AddEdge(n2, 0, n5, 0);
+  dag_->AddEdge(n3, 0, n5, 0);
+  dag_->AddEdge(n4, 0, n5, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 3, 5}, {1, 4}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 2;
+  options_.candidate_limit = 2;
+  options_.low_conflict_limit = 2;
+  options_.repair_moves = 5;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
+
+TEST_F(StreamMergerTest, Merge_SoloNodeLevel_MainStream) {
+  auto n0 = dag_->AddNode("n0", "Data");
+  auto n1 = dag_->AddNode("n1", "Data");
+  auto n2 = dag_->AddNode("n2", "Op");
+  auto n3 = dag_->AddNode("n3", "NetOutput");
+
+  for (int i = 0; i < 4; ++i) {
+    dag_->GetAllNodes()[i]->SetTopoId(i);
+  }
+
+  dag_->AddEdge(n0, 0, n2, 0);
+  dag_->AddEdge(n1, 0, n2, 0);
+  dag_->AddEdge(n2, 0, n3, 0);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2, 3}, {1}};
+  std::vector<int32_t> logical_to_physical;
+
+  options_.strategy = StreamMergeStrategy::kMainStream;
+  options_.physical_stream_limit = 2;
+  options_.candidate_limit = 2;
+  options_.low_conflict_limit = 2;
+  options_.repair_moves = 5;
+  StreamMerger merger(options_);
+
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+  EXPECT_EQ(status, graphStatus::SUCCESS);
+  EXPECT_EQ(logical_to_physical.size(), 2);
+}
 }  // namespace test
 }  // namespace minidag

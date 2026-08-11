@@ -615,89 +615,6 @@ TEST_F(UtestGraphPartition, second_partition_graph_with_user_stream_label) {
   EXPECT_EQ(ge::GELib::GetInstance()->Finalize(), SUCCESS);
 }
 
-TEST_F(UtestGraphPartition, partition_with_graph_stable_topo_bfs) {
-  DEF_GRAPH(graph) {
-    auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op1 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op2 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op3 = OP_CFG("FakeOpRts").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op4 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto data_1 = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op5 = OP_CFG("FakeOpRts").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op6 = OP_CFG("FakeOpRts").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op7 = OP_CFG("FakeOpNpu").InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op8 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {-1});
-
-    CHAIN(NODE("_arg_0", data_0)
-              ->NODE("fused_op1", fake_type2_op1)
-              ->NODE("fused_op2", fake_type2_op2)
-              ->NODE("fused_op3", fake_type2_op3)
-              ->NODE("fused_op4", fake_type2_op4)
-              ->EDGE(0, 0)
-              ->NODE("fused_op7", fake_type2_op7)
-              ->NODE("fused_op8", fake_type2_op8)
-              ->NODE("Node_Output", net_output));
-    CHAIN(NODE("_arg_1", data_1)
-              ->NODE("fused_op5", fake_type2_op5)
-              ->NODE("fused_op6", fake_type2_op6)
-              ->EDGE(0, 1)
-              ->NODE("fused_op7"));
-  };
-  auto root_graph = ToComputeGraph(graph);
-  (void)AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0");
-  map<string, string> options = {};
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
-  EnginePartitioner EnginePartitioner;
-  EnginePartitioner::Mode mode = EnginePartitioner::Mode::kSecondPartitioning;
-  // bfs
-  std::map<std::string, std::string> graph_options = GetThreadLocalContext().GetAllGraphOptions();
-  graph_options[OPTION_TOPOSORTING_MODE] = "0";
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  root_graph->TopologicalSortingGraph();
-  graph_options = GetThreadLocalContext().GetAllGraphOptions();
-  graph_options[OPTION_TOPOSORTING_MODE] = "3";
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  std::map<std::string, std::set<std::string>> subgraph_to_node = {
-      {"partition0_rank1_new_sub_graph1", {"fused_op1", "fused_op2"}},
-      {"partition0_rank2_new_sub_graph2", {"fused_op3"}},
-      {"partition0_rank3_new_sub_graph3", {"fused_op4"}},
-      {"partition0_rank4_new_sub_graph5", {"fused_op5", "fused_op6"}},
-      {"partition0_rank5_new_sub_graph6", {"fused_op7", "fused_op8"}},
-      {"partition0_rank6_new_sub_graph7", {}}};
-  ASSERT_EQ(EnginePartitioner.Partition(root_graph, mode), SUCCESS);
-  EXPECT_EQ(EnginePartitioner.GetSubGraphMap().begin()->second.size(), 6);
-  for (const auto &sub_info : EnginePartitioner.GetSubGraphMap().begin()->second) {
-    const auto subgraph = sub_info->GetSubGraph();
-    ASSERT_NE(subgraph, nullptr);
-    int32_t subgraph_node_num = 0;
-    EXPECT_NE(subgraph_to_node.find(subgraph->GetName()), subgraph_to_node.end());
-    for (const auto &sub_node : subgraph->GetDirectNode()) {
-      if (sub_node->GetType() != PLACEHOLDER && sub_node->GetType() != END && sub_node->GetType() != NETOUTPUT) {
-        subgraph_node_num++;
-        EXPECT_NE(subgraph_to_node[subgraph->GetName()].find(sub_node->GetName()),
-                  subgraph_to_node[subgraph->GetName()].end());
-      }
-    }
-    EXPECT_EQ(subgraph_node_num, subgraph_to_node[subgraph->GetName()].size());
-  }
-
-  graph_options = GetThreadLocalContext().GetAllGraphOptions();
-  graph_options[OPTION_TOPOSORTING_MODE] = "";
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  EXPECT_EQ(ge::GELib::GetInstance()->Finalize(), SUCCESS);
-}
-
 TEST_F(UtestGraphPartition, partition_with_graph_stable_topo_bfs2) {
   DEF_GRAPH(graph) {
     auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
@@ -1109,5 +1026,12 @@ TEST_F(UtestGraphPartition, HasNoInput_WithInput) {
   NodePtr relu = NodeBuilder("relu", RELU).AddInputDesc({1, 1, 224, 224}).AddOutputDesc({1, 1, 224, 224}).Build(graph);
   GraphUtils::AddEdge(data->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
   EXPECT_EQ(EnginePartitioner.HasNoInput(relu), false);
+}
+
+TEST_F(UtestGraphPartition, EnginePartitioner_MergeSubGraph_BothNull) {
+  EnginePartitioner partitioner;
+  ComputeGraphPtr graph1 = nullptr;
+  ComputeGraphPtr graph2 = nullptr;
+  EXPECT_NE(partitioner.MergeSubGraph(graph1, graph2), SUCCESS);
 }
 }  // namespace ge

@@ -11,6 +11,7 @@
 #include "l2_mem_pool.h"
 #include "caching_mem_allocator.h"
 #include "common/checker.h"
+#include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler.h"
 #include "rts_caching_mem_allocator.h"
 #include "utils/rt2_utils.h"
 
@@ -51,8 +52,20 @@ void L2MemPool::Recycle() {
 }
 
 ge::Status L2MemPool::Synchronize() const {
+  const auto wait_status = WaitForLaunchSubmissions();
+  if (wait_status != ge::SUCCESS) {
+    return wait_status;
+  }
   GE_ASSERT_SUCCESS(DoRtStreamSyncWithTimeout(stream_));
   return ge::SUCCESS;
+}
+
+ge::Status L2MemPool::WaitForLaunchSubmissions() const {
+  auto scheduler = TaskScheduler::GetCurrentScheduler();
+  if (scheduler == nullptr) {
+    return ge::SUCCESS;
+  }
+  return scheduler->WaitForLaunchSubmissions();
 }
 
 ge::Status L2MemPool::Finalize(bool no_log) {

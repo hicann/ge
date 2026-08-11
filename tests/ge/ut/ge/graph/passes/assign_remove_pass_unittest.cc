@@ -414,4 +414,15 @@ TEST_F(UtestGraphPassesAssignRemovePass, RefNodeHasOutControlNodes_RefNodeIdMore
   EXPECT_TRUE(assign_node_->GetOutAllNodes().empty());
   EXPECT_TRUE(assign_node_->GetInAllNodes().empty());
 }
+
+TEST_F(UtestGraphPassesAssignRemovePass, test_assign_peer_anchor_null) {
+  graph_ = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc tensor_desc(GeShape({2, 2, 2, 2}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  auto assign_desc = std::make_shared<OpDesc>("assign", ASSIGN);
+  assign_desc->AddInputDesc(tensor_desc);
+  assign_desc->AddInputDesc(tensor_desc);
+  assign_desc->AddOutputDesc(tensor_desc);
+  assign_node_ = graph_->AddNode(assign_desc);
+  EXPECT_EQ(pass_.Run(assign_node_), FAILED);
+}
 }  // namespace ge

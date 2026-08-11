@@ -436,4 +436,56 @@ TEST_F(UtestDataPass, WhileBodyWithLegacyInstanceNameMapsOutput) {
   ASSERT_TRUE(AttrUtils::GetInt(input_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index));
   EXPECT_EQ(parent_index, 0);
 }
+
+TEST_F(UtestDataPass, data_node_with_parent_index_returns_success) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root_graph");
+  auto data = builder.AddNode("Data1", "Data", 1, 1);
+  auto case1 = builder.AddNode("case1", "Case", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(data, 0, case1, 0);
+  builder.AddDataEdge(case1, 0, netoutput, 0);
+  auto root_graph = builder.GetGraph();
+
+  ut::GraphBuilder sub_builder = ut::GraphBuilder("sub_graph1");
+  auto sub_data = sub_builder.AddNode("sub_data1", "Data", 1, 1);
+  AttrUtils::SetInt(sub_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  auto sub_output = sub_builder.AddNode("sub_output1", "NetOutput", 1, 0);
+  sub_builder.AddDataEdge(sub_data, 0, sub_output, 0);
+  auto subgraph = sub_builder.GetGraph();
+
+  auto case_node = root_graph->FindNode("case1");
+  auto case_desc = case_node->GetOpDesc();
+  case_desc->AddSubgraphName("sub_graph1");
+  case_desc->SetSubgraphInstanceName(0, "sub_graph1");
+  subgraph->SetParentNode(case_node);
+  subgraph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub_graph1", subgraph);
+
+  DataPass pass;
+  EXPECT_EQ(pass.Run(subgraph), SUCCESS);
+}
+
+TEST_F(UtestDataPass, flow_node_subgraph_success) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root_graph");
+  auto flow_node = builder.AddNode("flow1", "FlowNode", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(flow_node, 0, netoutput, 0);
+  auto root_graph = builder.GetGraph();
+
+  ut::GraphBuilder sub_builder = ut::GraphBuilder("sub_flow");
+  auto sub_data = sub_builder.AddNode("sub_data", "Data", 1, 1);
+  auto sub_output = sub_builder.AddNode("sub_output", "NetOutput", 1, 0);
+  sub_builder.AddDataEdge(sub_data, 0, sub_output, 0);
+  auto subgraph = sub_builder.GetGraph();
+
+  auto flow_desc = root_graph->FindNode("flow1")->GetOpDesc();
+  flow_desc->AddSubgraphName("sub_flow");
+  flow_desc->SetSubgraphInstanceName(0, "sub_flow");
+  subgraph->SetParentNode(root_graph->FindNode("flow1"));
+  subgraph->SetParentGraph(root_graph);
+  root_graph->AddSubgraph("sub_flow", subgraph);
+
+  DataPass pass;
+  EXPECT_EQ(pass.Run(subgraph), SUCCESS);
+}
 }  // namespace ge

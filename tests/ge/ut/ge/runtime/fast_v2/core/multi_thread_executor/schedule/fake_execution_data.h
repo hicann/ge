@@ -78,6 +78,11 @@ struct FakeExecutionData {
     return *this;
   }
 
+  FakeExecutionData &Func(NodeIdentity id, UINT32 (*func)(KernelRunContext *)) {
+    kernel_nodes[id].func = func;
+    return *this;
+  }
+
   FakeExecutionData &KernelAttr(const std::map<NodeIdentity, KernelAttr> &kernel_attrs) {
     for (auto &iter : kernel_attrs) {
       NodeHolder fake_node = FakeNodeHelper::FakeNode(iter.second.op_name, iter.second.kernel_type, iter.first);

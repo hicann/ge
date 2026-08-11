@@ -418,4 +418,17 @@ TEST_F(UtestSwitchDataEdgesBypass, SwitchConnectToMerge) {
   EXPECT_EQ(merge1->GetInDataNodes().size(), 1);
   EXPECT_EQ(merge1->GetInDataNodes().at(0)->GetName(), memcpy1->GetName());
 }
+
+TEST_F(UtestSwitchDataEdgesBypass, SwitchWithOneInputAnchor) {
+  ut::GraphBuilder builder("g10");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  auto switch1 = builder.AddNode("switch1", "Switch", 1, 2);
+  auto addn1 = builder.AddNode("addn1", "AddN", 1, 1);
+  builder.AddDataEdge(data1, 0, switch1, 0);
+  builder.AddDataEdge(switch1, 0, addn1, 0);
+  auto graph = builder.GetGraph();
+
+  SwitchDataEdgesBypass pass;
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
 }  // namespace ge

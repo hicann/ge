@@ -1324,7 +1324,41 @@ TEST_F(UtestGeAipp, test_ConvertParamToJsonWithRawRgbir) {
   domi::GetContext().data_tensor_names = data_tensor_names_old;
 }
 
-TEST_F(UtestGeAipp, test_SetDefaultParamsStaticWithAllOpsEnabled) {
+TEST_F(UtestGeAipp, test_CreateAippDataNhwc) {
+  ge::ut::GraphBuilder builder("graph");
+  auto data1 = builder.AddNode("data1", "Data", 1, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_INDEX, 0);
+  auto aipp = builder.AddNode("aipp", "aipp", 2, 1);
+  auto netoutput = builder.AddNode("Node_Output", "NetOutput", 1, 0);
+
+  aipp->GetOpDesc()->AddInputDesc(ge::GeTensorDesc());
+  aipp->GetOpDesc()->AddInputDesc(ge::GeTensorDesc());
+  aipp->GetOpDesc()->AddOutputDesc(ge::GeTensorDesc());
+  data1->GetOpDesc()->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{8, 224, 224, 3}), FORMAT_NHWC, DT_FLOAT));
+  data1->GetOpDesc()->UpdateOutputDesc(
+      0, GeTensorDesc(GeShape(std::vector<int64_t>{8, 224, 224, 3}), FORMAT_ND, DT_FLOAT));
+  std::vector<int64_t> origin_input_dims = {8, 224, 224, 3};
+  AttrUtils::SetListInt(data1->GetOpDesc(), ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_input_dims);
+
+  builder.AddDataEdge(data1, 0, aipp, 0);
+  builder.AddDataEdge(aipp, 0, netoutput, 0);
+  ComputeGraphPtr computeGraph = builder.GetGraph();
+  AippOp aipp_op;
+  GetLocalOmgContext().format = domi::DOMI_TENSOR_NHWC;
+
+  domi::AippOpParams params;
+  std::vector<std::pair<OutDataAnchorPtr, InDataAnchorPtr>> target_edges;
+  params.set_aipp_mode(domi::AippOpParams::static_);
+  (void)aipp_op.Init(&params);
+  int32_t rank = 0;
+  NodePtr target;
+  std::set<uint32_t> edge_indexes;
+  aipp_op.GetAndCheckTarget(computeGraph, rank, target, edge_indexes);
+  EXPECT_EQ(aipp_op.CreateAippData(aipp), SUCCESS);
+  GetLocalOmgContext().format = domi::DOMI_TENSOR_NCHW;
+}
+
+TEST_F(UtestGeAipp, test_SetDefaultParams) {
   auto data_tensor_names_old = domi::GetContext().data_tensor_names;
   domi::GetContext().data_tensor_names.push_back("data0");
 

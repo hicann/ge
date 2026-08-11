@@ -2245,6 +2245,47 @@ TEST_F(UtestModelHelper, CustomOpSoLoaderDlopenFailureShouldNotPoisonWeakCache) 
   loader.Cleanup();
 }
 
+TEST_F(UtestModelHelper, CustomOpSoLoaderEmptyBinsReturnSuccess_CovEnhance) {
+  CustomOpSoLoader loader;
+  std::vector<CustomOpSoHandlePtr> loaded_handles;
+  EXPECT_EQ(loader.LoadCustomOpSoBins({}, loaded_handles), SUCCESS);
+  EXPECT_TRUE(loaded_handles.empty());
+}
+
+TEST_F(UtestModelHelper, CustomOpSoLoaderFinalizeWithAliveHandle_CovEnhance) {
+  auto &loader = CustomOpSoLoader::GetInstance();
+  loader.Cleanup();
+
+  std::string source_so_path;
+  ASSERT_TRUE(FindNotLoadedSystemSoForModelHelperUt(source_so_path));
+  std::vector<char_t> so_data;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(source_so_path, so_data));
+  const auto so_bin = BuildCustomOpSoBinForModelHelperUt("libcustom_op_loader_finalize_ut.so", "vendor_ut", so_data);
+  ASSERT_NE(so_bin, nullptr);
+
+  std::vector<CustomOpSoHandlePtr> loaded_handles;
+  ASSERT_EQ(loader.LoadCustomOpSoBins({so_bin}, loaded_handles), SUCCESS);
+  ASSERT_EQ(loaded_handles.size(), 1U);
+
+  EXPECT_NO_THROW(CustomOpSoLoader::Finalize());
+
+  loaded_handles.clear();
+  loader.Cleanup();
+}
+
+TEST_F(UtestModelHelper, CustomOpSoLoaderPublishOrReuseExpiredEntry_CovEnhance) {
+  CustomOpSoLoader loader;
+  const std::string fingerprint_key = "test_expired_fp_cov";
+  loader.loaded_states_[fingerprint_key] = std::weak_ptr<CustomOpSoHandle>();
+
+  auto candidate = std::make_shared<CustomOpSoHandle>(fingerprint_key, nullptr, "test.so", 0U, -1);
+  CustomOpSoHandlePtr loaded_handle;
+  loader.PublishOrReuseLoadedHandle(fingerprint_key, candidate, loaded_handle);
+  EXPECT_EQ(loaded_handle, candidate);
+  EXPECT_EQ(loader.loaded_states_.size(), 1U);
+  loader.Cleanup();
+}
+
 TEST_F(UtestModelHelper, LoadOpSoBinDataFail) {
   OmFileLoadHelper load_helper;
   ModelHelper model_helper;

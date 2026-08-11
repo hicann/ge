@@ -107,7 +107,7 @@
 
 4. **流连续性**：按引擎优先级排序后刷新流ID，保证流ID从0开始连续，消除空的流引用
 
-5. **Auto Multi-Stream 兼容**：动态shape多流仅由 `ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1` 开启。环境变量开关开启后，`ge.autoMultistreamParallelMode` 才用于选择 `cv` 或显式 DAG 模式；`cv`、`LoadBalance:N` 和 `MainStream:N` 不能单独开启动态shape多流。DAG 模式须配置为 `LoadBalance:N` 或 `MainStream:N`，`N` 为 `[1, 64]` 范围内的整数；裸 `LoadBalance` 默认8流的兼容配置已下线。DAG 模式会先执行按引擎复用和 StreamLabel 的既有规则，再运行自定义 Stream Pass。由于 DAG pass 会改写 stream id，需要按节点实际使用的 stream_id 重新连续化，并重建 stream_id 到节点列表的映射。后续 Event 插入必须基于该最终 stream_id，保证跨流依赖同步正确
+5. **Auto Multi-Stream 兼容**：动态shape多流仅由 `ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1` 开启。环境变量开关开启后，`ge.autoMultistreamParallelMode` 才用于选择 `cv` 或显式 DAG 模式；`cv`、`LoadBalance:N` 和 `MainStream:N` 不能单独开启动态shape多流。DAG 模式须配置为 `LoadBalance:N` 或 `MainStream:N`，`N` 为 `[1, 64]` 范围内的整数；裸 `LoadBalance` 默认8流的兼容配置已下线。DAG 模式会先执行按引擎复用和 StreamLabel 的既有规则，再运行自定义 Stream Pass。由于 DAG pass 会改写 stream id，需要统一收集根图和未知 Shape 子图中普通节点实际使用的有效 stream_id，重新连续化并重建 stream_id 到节点列表的映射。无有效 stream_id、强制主流或包含子图实例的节点不参与旧 ID 映射，刷新时统一归入 stream 0，不能为其保留空流。后续 Event 插入必须基于该最终 stream_id，保证跨流依赖同步正确
 
 **同步机制设计**
 

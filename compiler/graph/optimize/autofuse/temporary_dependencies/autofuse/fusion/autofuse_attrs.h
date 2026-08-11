@@ -52,6 +52,18 @@ enum class SplitFusionRatioRequirementState : uint32_t {
   SATISFIED = 2U        // 融合比例满足阈值要求
 };
 
+struct ReshapeAxisChangeInfo {
+  std::vector<int64_t> before_axis;
+  std::vector<Expression> before_repeats;
+  std::vector<int64_t> after_axis;
+  std::vector<Expression> after_repeats;
+};
+
+struct ReduceOriginalAxisInfo {
+  std::vector<int64_t> axis;
+  std::vector<Expression> repeats;
+};
+
 struct AutofuseInnerAttrs {
   std::vector<const af::Node *> origin_nodes;       // Asc节点对应的原始节点，用于Dfx打印、获取融合前ComputeGraph片段等
   std::vector<af::OutDataAnchor *> output_buffers;  // Asc节点负责写入的原始输出anchor，用于lifting
@@ -76,7 +88,9 @@ struct AutofuseInnerAttrs {
   bool is_fuse_from_lowering = false;                    // 标识融合节点来自lowering还是can_fuse
   std::vector<int64_t> reduce_original_axis;             // reduce操作前的原始轴信息
   std::vector<Expression> reduce_original_repeats;       // reduce操作前的原始repeats信息
-  int32_t is_reduce_all_load = REDUCE_ALL_LOAD_INIT;     // 标识reduce是否所有load都是norm-like
+  std::map<std::string, ReduceOriginalAxisInfo> reduce_original_axis_infos;  // 每个reduce节点操作前的原始轴信息
+  std::vector<ReshapeAxisChangeInfo> reshape_axis_changes;                   // 每个reshape操作前后的轴变化信息
+  int32_t is_reduce_all_load = REDUCE_ALL_LOAD_INIT;                         // 标识reduce是否所有load都是norm-like
 
   bool IsReduction() const {
     return HasFuseType(loop::FuseType::kReduction);
@@ -92,7 +106,12 @@ using AfAttrGroupsBase = af::AttrGroupsBase;
 class AutoFuseAttrs : public AfAttrGroupsBase {
  public:
   AutoFuseAttrs() = default;
-  AutoFuseAttrs(const AutoFuseAttrs &other) : fuse_type_(other.fuse_type_), asc_graph_(other.asc_graph_) {}
+  AutoFuseAttrs(const AutoFuseAttrs &other) : fuse_type_(other.fuse_type_), asc_graph_(other.asc_graph_) {
+    inner_attrs_.reduce_original_axis = other.inner_attrs_.reduce_original_axis;
+    inner_attrs_.reduce_original_repeats = other.inner_attrs_.reduce_original_repeats;
+    inner_attrs_.reduce_original_axis_infos = other.inner_attrs_.reduce_original_axis_infos;
+    inner_attrs_.reshape_axis_changes = other.inner_attrs_.reshape_axis_changes;
+  }
   AutoFuseAttrs &operator=(const AutoFuseAttrs &other) = delete;
 
   [[nodiscard]] const std::shared_ptr<AscGraph> &GetAscGraph() const {
@@ -229,16 +248,64 @@ class AutoFuseAttrs : public AfAttrGroupsBase {
     inner_attrs_.reduce_original_axis = axis;
   }
 
+  void SetReduceOriginalAxis(const std::string &node_name, const std::vector<int64_t> &axis) {
+    inner_attrs_.reduce_original_axis_infos[node_name].axis = axis;
+    SetReduceOriginalAxis(axis);
+  }
+
   [[nodiscard]] const std::vector<int64_t> &GetReduceOriginalAxis() const {
     return inner_attrs_.reduce_original_axis;
+  }
+
+  [[nodiscard]] const std::vector<int64_t> &GetReduceOriginalAxis(const std::string &node_name) const {
+    const auto it = inner_attrs_.reduce_original_axis_infos.find(node_name);
+    if (it != inner_attrs_.reduce_original_axis_infos.end()) {
+      return it->second.axis;
+    }
+    return GetReduceOriginalAxis();
   }
 
   void SetReduceOriginalRepeats(const std::vector<Expression> &repeats) {
     inner_attrs_.reduce_original_repeats = repeats;
   }
 
+  void SetReduceOriginalRepeats(const std::string &node_name, const std::vector<Expression> &repeats) {
+    inner_attrs_.reduce_original_axis_infos[node_name].repeats = repeats;
+    SetReduceOriginalRepeats(repeats);
+  }
+
   [[nodiscard]] const std::vector<Expression> &GetReduceOriginalRepeats() const {
     return inner_attrs_.reduce_original_repeats;
+  }
+
+  [[nodiscard]] const std::vector<Expression> &GetReduceOriginalRepeats(const std::string &node_name) const {
+    const auto it = inner_attrs_.reduce_original_axis_infos.find(node_name);
+    if (it != inner_attrs_.reduce_original_axis_infos.end()) {
+      return it->second.repeats;
+    }
+    return GetReduceOriginalRepeats();
+  }
+
+  void SetReduceOriginalAxisInfo(const std::string &node_name, const std::vector<int64_t> &axis,
+                                 const std::vector<Expression> &repeats) {
+    SetReduceOriginalAxis(node_name, axis);
+    SetReduceOriginalRepeats(node_name, repeats);
+  }
+
+  [[nodiscard]] const std::map<std::string, ReduceOriginalAxisInfo> &GetReduceOriginalAxisInfos() const {
+    return inner_attrs_.reduce_original_axis_infos;
+  }
+
+  void AddReshapeAxisChange(const ReshapeAxisChangeInfo &change) {
+    inner_attrs_.reshape_axis_changes.push_back(change);
+  }
+
+  void SetReshapeAxisChanges(const std::vector<ReshapeAxisChangeInfo> &changes) {
+    inner_attrs_.reshape_axis_changes = changes;
+  }
+
+  [[nodiscard]] const std::vector<ReshapeAxisChangeInfo> &GetReshapeAxisChanges() const {
+    return inner_attrs_.reshape_axis_changes;
   }
 
   void SetReduceAllLoadState(const int32_t state) {

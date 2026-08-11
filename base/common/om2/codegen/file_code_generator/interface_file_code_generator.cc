@@ -143,6 +143,7 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
   items.push_back(ast_.Field("void *", "overflow_addr_"));
   items.push_back(ast_.Field("std::vector<void *>", "dev_dynamic_mem_ptrs_"));
   items.push_back(ast_.Field("void *", "session_scope_mem_ptr_"));
+  items.push_back(ast_.Field("aclrtStream", "sync_prof_stream_"));
   return ast_.Class("Om2Model", items);
 }
 

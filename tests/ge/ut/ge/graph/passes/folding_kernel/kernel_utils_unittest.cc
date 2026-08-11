@@ -70,3 +70,41 @@ TEST_F(UtestGraphPassesFoldingKernelkernelUtils, IsUnknownShape) {
   GeShape dynamic_shape(shape);
   EXPECT_EQ(KernelUtils::IsUnknownShape(dynamic_shape), true);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelkernelUtils, ConstructTensorDescWithUnsupportedDataType) {
+  vector<int64_t> data = {1, 2, 3};
+  GeTensorDesc tensor_desc(GeShape({3}), FORMAT_NCHW, DT_FLOAT);
+  vector<GeTensorPtr> outputs;
+  Status status = KernelUtils::ConstructTensorDescWithData(tensor_desc, data, outputs, false);
+  EXPECT_EQ(PARAM_INVALID, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelkernelUtils, CheckSizeForTransOpUnsupportedDataType) {
+  vector<int64_t> dims_vec_0 = {2};
+  vector<float> data_vec_0 = {1.0, 2.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_BOOL);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("TransOp", "TransOp");
+  GeTensorDesc output_desc(GeShape(dims_vec_0), FORMAT_NCHW, DT_BOOL);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  bool ret = KernelUtils::CheckSizeForTransOp(tensor_0, op_desc_ptr);
+  EXPECT_EQ(false, ret);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelkernelUtils, CheckSizeForTransOpSizeMismatch) {
+  vector<int64_t> dims_vec_0 = {4};
+  vector<int32_t> data_vec_0 = {1, 2};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("TransOp", "TransOp");
+  GeTensorDesc output_desc(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddOutputDesc(output_desc);
+
+  bool ret = KernelUtils::CheckSizeForTransOp(tensor_0, op_desc_ptr);
+  EXPECT_EQ(false, ret);
+}

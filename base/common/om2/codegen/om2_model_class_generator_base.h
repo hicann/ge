@@ -46,6 +46,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef overflow_addr_;
   VarRef dev_dynamic_mem_ptrs_;
   VarRef session_scope_mem_ptr_;
+  VarRef sync_prof_stream_;
 };
 }  // namespace ge
 

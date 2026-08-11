@@ -6741,4 +6741,412 @@ TEST_F(UtestTensorflowParser, TrimGraph_with_out_nodes) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
+TEST_F(UtestTensorflowParser, ModelSaver_SaveJsonToFile_success) {
+  const Json model = {{"key", "value"}};
+  const char *file_path = "test_model_saver.json";
+  Status ret = ge::parser::ModelSaver::SaveJsonToFile(file_path, model);
+  EXPECT_EQ(ret, SUCCESS);
+  remove(file_path);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CheckPath_simple_filename) {
+  std::string path = "simple_file.txt";
+  Status ret = ge::parser::ModelSaver::CheckPath(path);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CheckPath_with_directory) {
+  std::string path = "test_dir/subdir/file.txt";
+  Status ret = ge::parser::ModelSaver::CheckPath(path);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CheckPath_too_long) {
+  std::string path(4097, 'a');
+  Status ret = ge::parser::ModelSaver::CheckPath(path);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CreateDirectory_empty) {
+  std::string path = "";
+  int ret = ge::parser::ModelSaver::CreateDirectory(path);
+  EXPECT_EQ(ret, -1);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CreateDirectory_too_long) {
+  std::string path(4097, 'a');
+  int ret = ge::parser::ModelSaver::CreateDirectory(path);
+  EXPECT_EQ(ret, -1);
+}
+
+TEST_F(UtestTensorflowParser, ModelSaver_CreateDirectory_valid) {
+  std::string path = "test_create_dir_sub";
+  int ret = ge::parser::ModelSaver::CreateDirectory(path);
+  EXPECT_EQ(ret, 0);
+  remove(path.c_str());
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_ParseShape_float_type) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("data1", "Data");
+  ge::AttrUtils::SetInt(op, ge::DATA_ATTR_NAME_DATA_TYPE, static_cast<int32_t>(ge::DT_FLOAT));
+  DataOpParser opParser;
+  Status ret = opParser.ParseShape(shape, op);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_ParseShape_int32_type) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("data2", "Data");
+  ge::AttrUtils::SetInt(op, ge::DATA_ATTR_NAME_DATA_TYPE, static_cast<int32_t>(ge::DT_INT32));
+  DataOpParser opParser;
+  Status ret = opParser.ParseShape(shape, op);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_ParseShape_default_type) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("data3", "Data");
+  DataOpParser opParser;
+  Status ret = opParser.ParseShape(shape, op);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_ParseShape_5d_format) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("data4", "Data");
+  ge::GetParserContext().input_nodes_format_map["data4"] = domi::DOMI_TENSOR_NC1HWC0;
+  DataOpParser opParser;
+  Status ret = opParser.ParseShape(shape, op);
+  EXPECT_EQ(ret, SUCCESS);
+  ge::GetParserContext().input_nodes_format_map.clear();
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_ParseShape_null_op) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::OpDescPtr op = nullptr;
+  DataOpParser opParser;
+  Status ret = opParser.ParseShape(shape, op);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_InitNDTensor) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::GeTensorDesc tensor_desc;
+  DataOpParser opParser;
+  Status ret = opParser.InitNDTensor(shape, ge::DT_INT32, tensor_desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_InitInputTensor) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::GeTensorDesc tensor_desc;
+  DataOpParser opParser;
+  Status ret = opParser.InitInputTensor(shape, tensor_desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_InitInputTensor_dynamic_batch) {
+  std::vector<int64_t> shape = {-1, 3, 224, 224};
+  ge::GeTensorDesc tensor_desc;
+  DataOpParser opParser;
+  Status ret = opParser.InitInputTensor(shape, tensor_desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_InitOutputTensor) {
+  std::vector<int64_t> shape = {1, 3, 224, 224};
+  ge::GeTensorDesc tensor_desc;
+  DataOpParser opParser;
+  Status ret = opParser.InitOutputTensor(shape, tensor_desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, DataOpParser_InitOutputTensor_empty_shape) {
+  std::vector<int64_t> shape = {};
+  ge::GeTensorDesc tensor_desc;
+  DataOpParser opParser;
+  Status ret = opParser.InitOutputTensor(shape, tensor_desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_GetOppPath) {
+  TBEPluginLoader tbe_plugin;
+  std::string opp_path;
+  Status ret = tbe_plugin.GetOppPath(opp_path);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_GetOpsProtoPath) {
+  TBEPluginLoader tbe_plugin;
+  std::string opsproto_path;
+  Status ret = tbe_plugin.GetOpsProtoPath(opsproto_path);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_GetCustomCaffeProtoPath) {
+  TBEPluginLoader tbe_plugin;
+  std::string customcaffe_path;
+  Status ret = tbe_plugin.GetCustomCaffeProtoPath(customcaffe_path);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_Finalize) {
+  TBEPluginLoader &tbe_plugin = TBEPluginLoader::Instance();
+  Status ret = tbe_plugin.Finalize();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_LoadPluginSo_empty) {
+  TBEPluginLoader &tbe_plugin = TBEPluginLoader::Instance();
+  std::map<string, string> options;
+  tbe_plugin.LoadPluginSo(options);
+}
+
+TEST_F(UtestTensorflowParser, TBEPluginLoader_GetOppPluginVendors_failed) {
+  TBEPluginLoader tbe_plugin;
+  std::vector<std::string> vendors;
+  Status ret = tbe_plugin.GetOppPluginVendors("nonexistent_config.ini", vendors);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_ConstructRegOpString) {
+  domi::tensorflow::OpDef opdef;
+  opdef.set_name("TestCustomOp");
+  auto *input_arg = opdef.add_input_arg();
+  input_arg->set_name("x");
+  input_arg->set_type(domi::tensorflow::DataType::DT_FLOAT);
+  auto *output_arg = opdef.add_output_arg();
+  output_arg->set_name("y");
+  output_arg->set_type(domi::tensorflow::DataType::DT_FLOAT);
+  auto *attr = opdef.add_attr();
+  attr->set_name("epsilon");
+  attr->set_type("float");
+  attr->mutable_default_value()->set_f(0.001f);
+
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.ConstructRegOpString(opdef, reg_op);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(reg_op.empty());
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_ConstructRegCustomOpString) {
+  domi::tensorflow::OpDef opdef;
+  opdef.set_name("TestCustomOp2");
+  auto *input_arg = opdef.add_input_arg();
+  input_arg->set_name("x");
+  input_arg->set_type(domi::tensorflow::DataType::DT_FLOAT);
+  auto *output_arg = opdef.add_output_arg();
+  output_arg->set_name("y");
+  output_arg->set_type(domi::tensorflow::DataType::DT_FLOAT);
+
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("test_node");
+  node_def.set_op("TestCustomOp2");
+
+  std::string reg_op_custom;
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.ConstructRegCustomOpString(opdef, node_def, reg_op_custom);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(reg_op_custom.empty());
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_ConstructRegOpString_with_dynamic) {
+  domi::tensorflow::OpDef opdef;
+  opdef.set_name("DynamicOp");
+  auto *input_arg = opdef.add_input_arg();
+  input_arg->set_name("inputs");
+  input_arg->set_number_attr("N");
+  auto *output_arg = opdef.add_output_arg();
+  output_arg->set_name("outputs");
+  output_arg->set_number_attr("N");
+  auto *attr = opdef.add_attr();
+  attr->set_name("N");
+  attr->set_type("int");
+  attr->mutable_default_value()->set_i(1);
+
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.ConstructRegOpString(opdef, reg_op);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_WriteTextFile) {
+  TensorFlowCustomOpParser parser;
+  std::string content = "test content";
+  Status ret = parser.WriteTextFile("test_write_text_file.txt", content);
+  EXPECT_EQ(ret, SUCCESS);
+  remove("test_write_text_file.txt");
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_WriteWrapperCc) {
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.WriteWrapperCc("test_wrapper.cc");
+  EXPECT_EQ(ret, SUCCESS);
+  remove("test_wrapper.cc");
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_DeleteTmpDirectoryContents) {
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.DeleteTmpDirectoryContents("nonexistent_dir_12345");
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_ParseCustomOp_empty) {
+  TensorFlowCustomOpParser parser;
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> empty_map;
+  Status ret = parser.ParseCustomOp(empty_map);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowCustomOpParser_RegisteredTfaOps) {
+  TensorFlowCustomOpParser parser;
+  Status ret = parser.RegisteredTfaOps();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_null_file) {
+  ge::Graph graph;
+  auto ret = aclgrphParseTensorFlow(nullptr, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_invalid_file) {
+  ge::Graph graph;
+  auto ret = aclgrphParseTensorFlow("nonexistent_tf_model.pb", graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_with_params_null) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseTensorFlow(nullptr, parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, aclgrphParseTensorFlow_with_params_invalid) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseTensorFlow("nonexistent_tf_model2.pb", parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_ToJson_null) {
+  TensorFlowModelParser parser;
+  auto ret = parser.ToJson(nullptr, "output.json");
+  EXPECT_NE(ret, SUCCESS);
+  ret = parser.ToJson("model.pb", nullptr);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_ToJson_invalid) {
+  TensorFlowModelParser parser;
+  auto ret = parser.ToJson("nonexistent_tf_model.json", "output.json");
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_ParseFromMemory_null) {
+  TensorFlowModelParser parser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  auto ret = parser.ParseFromMemory(nullptr, 0, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_ParseFromMemory_invalid_data) {
+  TensorFlowModelParser parser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  const char *data = "invalid data";
+  auto ret = parser.ParseFromMemory(data, 11, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, AclGraphParserUtil_SetOutputNodeInfo_with_out_nodes) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_tf_out");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("tf_output", "Identity");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node = compute_graph->AddNode(op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  ge::GetParserContext().user_out_nodes.push_back({"tf_output", 0});
+  ge::GetParserContext().type = domi::TENSORFLOW;
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.SetOutputNodeInfo(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, AclGraphParserUtil_SetOutputNodeInfo_default) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_tf_default_out");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("default_out", "Identity");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node = compute_graph->AddNode(op);
+  compute_graph->AddOutputNodeByIndex(node, 0);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  ge::GetParserContext().type = domi::TENSORFLOW;
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.SetOutputNodeInfo(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, AclGraphParserUtil_SetOutputNodeInfo_with_output_format) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  AclGraphParserUtil acl_graph_parse_util;
+  ge::ComputeGraphPtr compute_graph = std::make_shared<ge::ComputeGraph>("test_tf_format");
+  ge::OpDescPtr op = std::make_shared<ge::OpDesc>("format_out", "Identity");
+  op->AddInputDesc(ge::GeTensorDesc());
+  op->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node = compute_graph->AddNode(op);
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  ge::GetParserContext().user_out_nodes.push_back({"format_out", 0});
+  ge::GetParserContext().output_formats.push_back(domi::DOMI_TENSOR_NC1HWC0);
+  ge::GetParserContext().type = domi::TENSORFLOW;
+  std::map<AscendString, AscendString> parser_params;
+  auto ret = acl_graph_parse_util.SetOutputNodeInfo(graph, parser_params);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_TrimGraph_empty) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  TensorFlowModelParser parser;
+  domi::tensorflow::GraphDef input_graph;
+  domi::tensorflow::GraphDef output_graph;
+  auto ret = parser.TrimGraph(input_graph, &output_graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestTensorflowParser, TensorFlowModelParser_ParseFromMemory_valid_graph) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  TensorFlowModelParser parser;
+  domi::tensorflow::GraphDef graph_def;
+  auto *node = graph_def.add_node();
+  node->set_name("test_input");
+  node->set_op("Placeholder");
+  auto *attr = node->mutable_attr();
+  domi::tensorflow::AttrValue dtype_val;
+  dtype_val.set_type(domi::tensorflow::DT_FLOAT);
+  (*attr)["dtype"] = dtype_val;
+  domi::tensorflow::AttrValue shape_val;
+  auto *shape = shape_val.mutable_shape();
+  shape->add_dim()->set_size(-1);
+  shape->add_dim()->set_size(3);
+  shape->add_dim()->set_size(224);
+  shape->add_dim()->set_size(224);
+  (*attr)["shape"] = shape_val;
+
+  std::string buffer;
+  graph_def.SerializeToString(&buffer);
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_mem");
+  ge::GetParserContext().type = domi::TENSORFLOW;
+  ge::GetParserContext().input_dims["test_input"] = {1, 3, 224, 224};
+  auto ret = parser.ParseFromMemory(buffer.data(), static_cast<int>(buffer.size()), graph);
+  EXPECT_NE(ret, FAILED);
+}
 }  // namespace ge

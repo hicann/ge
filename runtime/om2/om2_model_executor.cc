@@ -833,7 +833,8 @@ class Om2ModelExecutor::Impl {
     int32_t timeout = GetOm2ThreadLocalContext().StreamSyncTimeout();
     Om2ProfUnit prof_units[OM2_PROF_TYPE_COUNT];
     Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
-    Om2ProfInfos *prof_info_ptr = dump_manager_ != nullptr ? &prof_info : nullptr;
+    Om2ProfInfos *prof_info_ptr =
+        (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
     GE_ASSERT_SUCCESS(run_model_info_.run_func(&run_model_info_.model_handle, inputs.size(),
                                                reinterpret_cast<void **>(inputs.data()), outputs.size(),
                                                reinterpret_cast<void **>(outputs.data()), timeout, prof_info_ptr));
@@ -841,7 +842,7 @@ class Om2ModelExecutor::Impl {
       GELOGD("[OM2][Prof] Run done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count, step_id_);
       dump_manager_->ReportModelLevelProf(prof_info);
     } else {
-      GELOGD("[OM2][Prof] Run skip, dump_manager is null, model_id=%u", model_id_);
+      GELOGD("[OM2][Prof] Run skip, dump_manager is null or profiling disabled, model_id=%u", model_id_);
     }
     ++step_id_;
     return ge::GRAPH_SUCCESS;
@@ -853,7 +854,8 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
     Om2ProfUnit prof_units[OM2_PROF_TYPE_COUNT];
     Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
-    Om2ProfInfos *prof_info_ptr = dump_manager_ != nullptr ? &prof_info : nullptr;
+    Om2ProfInfos *prof_info_ptr =
+        (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
     GE_ASSERT_SUCCESS(run_model_info_.run_async_func(&run_model_info_.model_handle, stream, inputs.size(),
                                                      reinterpret_cast<void **>(inputs.data()), outputs.size(),
                                                      reinterpret_cast<void **>(outputs.data()), prof_info_ptr));
@@ -862,7 +864,7 @@ class Om2ModelExecutor::Impl {
              step_id_);
       dump_manager_->ReportModelLevelProf(prof_info);
     } else {
-      GELOGD("[OM2][Prof] RunAsync skip, dump_manager is null, model_id=%u", model_id_);
+      GELOGD("[OM2][Prof] RunAsync skip, dump_manager is null or profiling disabled, model_id=%u", model_id_);
     }
     ++step_id_;
     return ge::GRAPH_SUCCESS;

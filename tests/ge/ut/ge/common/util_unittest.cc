@@ -657,5 +657,17 @@ TEST_F(UtestUtilTransfer, PrintOptionsWithLengthLimit_LongValue_CovEnhance) {
   options["key"] = std::string(200, 'x');
   PrintOptionsWithLengthLimit(options, "prefix", 50U);
 }
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValid_IncompleteUtf8_CovEnhance) {
+  EXPECT_EQ(CheckOutputPathValid(std::string({static_cast<char>(0xC2)}), ""), false);
+  EXPECT_EQ(CheckOutputPathValid(std::string({static_cast<char>(0xE0)}), ""), false);
+  EXPECT_EQ(CheckOutputPathValid(std::string({static_cast<char>(0xF0)}), ""), false);
+}
+
+TEST_F(UtestUtilTransfer, ReadBytesFromBinaryFile_NonExistentFile_CovEnhance) {
+  char_t *buffer = nullptr;
+  int32_t length = 0;
+  EXPECT_FALSE(ReadBytesFromBinaryFile("/nonexistent/path/file.bin", &buffer, length));
+}
 }  // namespace formats
 }  // namespace ge

@@ -1407,4 +1407,82 @@ TEST_F(UtestLogicalStreamAllocator, AicoreHcclSerial_AssignSameStream) {
   ASSERT_NE(relu2, nullptr);
   EXPECT_EQ(relu2->GetOpDesc()->GetStreamId(), 0);
 }
+TEST_F(UtestLogicalStreamAllocator, EmptyGraph_RunOptimizeSuccess) {
+  auto graph = std::make_shared<ComputeGraph>("empty_graph");
+  const std::map<std::string, int32_t> max_parallel_num;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLogicalStreamAllocator, SingleNodeGraph_RunOptimizeSuccess) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  const std::map<std::string, int32_t> max_parallel_num;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLogicalStreamAllocator, MultiStreamLabel_RunOptimizeSuccess) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1);
+    auto relu1 = OP_CFG(RELU).InCnt(1).OutCnt(1).Attr(public_attr::USER_STREAM_LABEL, "stream_a");
+    auto relu2 = OP_CFG(RELU).InCnt(1).OutCnt(1).Attr(public_attr::USER_STREAM_LABEL, "stream_b");
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1);
+    CHAIN(NODE("data", data)->NODE("relu1", relu1)->NODE("relu2", relu2)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  const std::map<std::string, int32_t> max_parallel_num;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLogicalStreamAllocator, GraphWithHcomAndAicore_RunOptimizeSuccess) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+    auto relu1 = OP_CFG(RELU).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+    auto all_reduce = OP_CFG(HCOMALLREDUCE).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+    auto relu2 = OP_CFG(RELU).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {-1});
+    CHAIN(NODE("data", data)
+              ->NODE("relu1", relu1)
+              ->NODE("all_reduce", all_reduce)
+              ->NODE("relu2", relu2)
+              ->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  std::map<std::string, int32_t> max_parallel_num;
+  max_parallel_num[HCOMALLREDUCE] = 1;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLogicalStreamAllocator, GraphWithStreamId_RunOptimizeSuccess) {
+  DEF_GRAPH(g1) {
+    auto data = OP_CFG(DATA).InCnt(0).OutCnt(1).StreamId(0);
+    auto relu = OP_CFG(RELU).InCnt(1).OutCnt(1).StreamId(0);
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).StreamId(0);
+    CHAIN(NODE("data", data)->NODE("relu", relu)->NODE("Node_Output", net_output));
+  };
+  auto graph = ToComputeGraph(g1);
+  const std::map<std::string, int32_t> max_parallel_num;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLogicalStreamAllocator, RunOptimizeByTopoPasses_EmptyGraph) {
+  auto graph = std::make_shared<ComputeGraph>("empty_topo_graph");
+  const std::map<std::string, int32_t> max_parallel_num;
+  LogicalStreamAllocator allocator(max_parallel_num);
+  auto ret = allocator.RunOptimizeByTopoPasses(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace ge

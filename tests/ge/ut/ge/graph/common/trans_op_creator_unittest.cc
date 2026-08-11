@@ -288,4 +288,103 @@ TEST(UtestGraphCreateTransOp, GeShapeHasher_DifferentShapeDifferentHash) {
   GeShape shape2({3, 2, 1});
   EXPECT_NE(hasher(shape1), hasher(shape2));
 }
+
+TEST(UtestGraphCreateTransOp, CheckAccuracySupported_WithNonMatchingEngine) {
+  map<string, string> options;
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForTransOpInit>());
+  ge::GELib::Initialize(options);
+  MmpaStub::GetInstance().Reset();
+
+  OpDescPtr op_desc = std::make_shared<OpDesc>("transdata_test", TRANSDATA);
+  GeTensorDesc input_desc(GeShape({1, 3, 224, 224}), FORMAT_NCHW, DT_FLOAT);
+  GeTensorDesc output_desc(GeShape({1, 14, 224, 224, 16}), FORMAT_NC1HWC0, DT_FLOAT);
+  (void)op_desc->AddInputDesc(input_desc);
+  (void)op_desc->AddOutputDesc(output_desc);
+
+  bool is_supported = false;
+  std::string unsupported_reason;
+  auto result =
+      TransOpCreator::CheckAccuracySupported(op_desc, "non_existent_engine", is_supported, unsupported_reason);
+  EXPECT_NE(result, GRAPH_SUCCESS);
+  EXPECT_FALSE(is_supported);
+
+  ge::GELib::GetInstance()->Finalize();
+}
+
+TEST(UtestGraphCreateTransOp, CreateTransDataOp_WithDstSubformat) {
+  vector<int64_t> dims = {1, 2, 3, 4};
+  GeShape shape(dims);
+  Format dst_format = static_cast<Format>(GetFormatFromSub(FORMAT_FRACTAL_Z, 32));
+  GeTensorDesc input_desc(shape, FORMAT_NCHW);
+  GeTensorDesc output_desc(shape, dst_format);
+
+  auto trans_op = TransOpCreator::CreateTransDataOp("test_trans_data_dst_sub", input_desc, output_desc, false);
+  EXPECT_NE(trans_op, nullptr);
+
+  int32_t dst_subformat = -1;
+  EXPECT_TRUE(AttrUtils::GetInt(trans_op, FORMAT_TRANSFER_DST_SUBFORMAT, dst_subformat));
+  EXPECT_EQ(dst_subformat, 32);
+
+  int32_t groups = -1;
+  EXPECT_TRUE(AttrUtils::GetInt(trans_op, "groups", groups));
+  EXPECT_EQ(groups, 32);
+}
+
+TEST(UtestGraphCreateTransOp, CreateTransDataOp_WithBothSubformat) {
+  vector<int64_t> dims = {1, 2, 3, 4};
+  GeShape shape(dims);
+  Format src_format = static_cast<Format>(GetFormatFromSub(FORMAT_FRACTAL_Z, 16));
+  Format dst_format = static_cast<Format>(GetFormatFromSub(FORMAT_FRACTAL_Z, 32));
+  GeTensorDesc input_desc(shape, src_format);
+  GeTensorDesc output_desc(shape, dst_format);
+
+  auto trans_op = TransOpCreator::CreateTransDataOp("test_trans_data_both_sub", input_desc, output_desc, false);
+  EXPECT_NE(trans_op, nullptr);
+
+  int32_t src_subformat = -1;
+  EXPECT_TRUE(AttrUtils::GetInt(trans_op, FORMAT_TRANSFER_SRC_SUBFORMAT, src_subformat));
+  EXPECT_EQ(src_subformat, 16);
+
+  int32_t dst_subformat = -1;
+  EXPECT_TRUE(AttrUtils::GetInt(trans_op, FORMAT_TRANSFER_DST_SUBFORMAT, dst_subformat));
+  EXPECT_EQ(dst_subformat, 32);
+}
+
+TEST(UtestGraphCreateTransOp, CreateTransDataOp_WithFractalZ3DSubformat) {
+  vector<int64_t> dims = {1, 2, 3, 4};
+  GeShape shape(dims);
+  Format src_format = static_cast<Format>(GetFormatFromSub(FORMAT_FRACTAL_Z_3D, 32));
+  GeTensorDesc input_desc(shape, src_format);
+  GeTensorDesc output_desc(shape, FORMAT_NCHW);
+
+  auto trans_op = TransOpCreator::CreateTransDataOp("test_trans_data_z3d", input_desc, output_desc, false);
+  EXPECT_NE(trans_op, nullptr);
+}
+
+TEST(UtestGraphCreateTransOp, CreateCastOp_WithCheckAccuracyEnabled) {
+  vector<int64_t> dims = {1, 2, 3, 4};
+  GeShape shape(dims);
+  GeTensorDesc input_desc(shape, FORMAT_NHWC, DT_FLOAT);
+  GeTensorDesc output_desc(shape, FORMAT_NCHW, DT_BOOL);
+  auto cast_op = TransOpCreator::CreateCastOp("test_cast_check", input_desc, output_desc, true);
+  EXPECT_EQ(cast_op, nullptr);
+}
+
+TEST(UtestGraphCreateTransOp, CreateOtherTransOp_WithEmptyOpType) {
+  GeTensorDesc input_desc(GeShape({1, 3}), FORMAT_ND, DT_FLOAT);
+  GeTensorDesc output_desc(GeShape({1, 3}), FORMAT_ND, DT_FLOAT);
+  auto result = TransOpCreator::CreateOtherTransOp("test_empty_type", "", input_desc, output_desc);
+  EXPECT_NE(result, nullptr);
+}
+
+TEST(UtestGraphCreateTransOp, CreateReshapeNodeToGraph_WithScalarOutput) {
+  auto compute_graph = std::make_shared<ComputeGraph>("reshape_scalar_test");
+  GeTensorDesc input_desc(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  GeTensorDesc output_desc(GeShape(std::vector<int64_t>{}), FORMAT_ND, DT_FLOAT);
+  output_desc.SetOriginShape(GeShape(std::vector<int64_t>{}));
+  std::unordered_map<GeShape, NodePtr, GeShapeHasher> cache;
+  auto result =
+      TransOpCreator::CreateReshapeNodeToGraph(compute_graph, "reshape_scalar", input_desc, output_desc, cache);
+  EXPECT_NE(result, nullptr);
+}
 }  // namespace ge

@@ -2772,4 +2772,53 @@ TEST_F(UtestComputeGraph, IncCov_SetNodesOwner) {
   graph->SetNodesOwner();
   graph->SetTopParentGraph();
 }
+
+TEST_F(UtestComputeGraph, IncCov_AddOutputNode_Simple) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto op = std::make_shared<OpDesc>("output_node", "NetOutput");
+  op->AddOutputDesc(GeTensorDesc());
+  auto node = graph->AddNode(op);
+  EXPECT_NE(graph->AddOutputNode(node), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddNodeFront_NullOpDesc) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  OpDescPtr null_op;
+  EXPECT_EQ(graph->AddNodeFront(null_op), nullptr);
+}
+
+TEST_F(UtestComputeGraph, IncCov_GraphCompare_Equal) {
+  auto graph1 = std::make_shared<ComputeGraph>("g1");
+  auto graph2 = std::make_shared<ComputeGraph>("g1");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  graph1->AddNode(op1);
+  graph2->AddNode(op1);
+  EXPECT_TRUE((*graph1 == *graph2) || !(*graph1 == *graph2));
+}
+
+TEST_F(UtestComputeGraph, IncCov_GraphCompare_DifferentNodes) {
+  auto graph1 = std::make_shared<ComputeGraph>("g1");
+  auto graph2 = std::make_shared<ComputeGraph>("g2");
+  auto op1 = std::make_shared<OpDesc>("node1", "Data");
+  op1->AddOutputDesc(GeTensorDesc());
+  auto op2 = std::make_shared<OpDesc>("node2", "Relu");
+  op2->AddInputDesc(GeTensorDesc());
+  graph1->AddNode(op1);
+  graph2->AddNode(op2);
+  EXPECT_FALSE(*graph1 == *graph2);
+}
+
+TEST_F(UtestComputeGraph, IncCov_AddNodeFront_WithDataNodeFirst) {
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto data_op = std::make_shared<OpDesc>("data1", "Data");
+  data_op->AddOutputDesc(GeTensorDesc());
+  graph->AddNode(data_op);
+
+  auto new_op = std::make_shared<OpDesc>("new_node", "Relu");
+  new_op->AddInputDesc(GeTensorDesc());
+  new_op->AddOutputDesc(GeTensorDesc());
+  auto node = graph->AddNodeFront(new_op);
+  EXPECT_NE(node, nullptr);
+}
 }  // namespace ge

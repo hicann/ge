@@ -464,3 +464,146 @@ TEST_F(CompliantNodeBuilderLLT, MultipleDynamicIO) {
       .CheckOutputIrInfo({{0, {0, 2}}, {1, {2, 3}}});
   EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
 }
+
+TEST_F(CompliantNodeBuilderLLT, IrInputDefV2_CopyAssignment) {
+  CompliantNodeBuilder::IrInputDefV2 src("in1", CompliantNodeBuilder::kEsIrInputOptional, "sym1");
+  CompliantNodeBuilder::IrInputDefV2 dst("old", CompliantNodeBuilder::kEsIrInputRequired, "oldsym");
+  dst = src;
+  EXPECT_STREQ(dst.GetName(), "in1");
+  EXPECT_EQ(dst.GetInputType(), CompliantNodeBuilder::kEsIrInputOptional);
+  EXPECT_STREQ(dst.GetSymbolId(), "sym1");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrInputDefV2_MoveConstructor) {
+  CompliantNodeBuilder::IrInputDefV2 src("move_in", CompliantNodeBuilder::kEsIrInputDynamic, "movesym");
+  CompliantNodeBuilder::IrInputDefV2 dst(std::move(src));
+  EXPECT_STREQ(dst.GetName(), "move_in");
+  EXPECT_EQ(dst.GetInputType(), CompliantNodeBuilder::kEsIrInputDynamic);
+  EXPECT_STREQ(dst.GetSymbolId(), "movesym");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrInputDefV2_MoveAssignment) {
+  CompliantNodeBuilder::IrInputDefV2 src("move_assign_in", CompliantNodeBuilder::kEsIrInputOptional, "movesym2");
+  CompliantNodeBuilder::IrInputDefV2 dst("old2", CompliantNodeBuilder::kEsIrInputRequired, "oldsym2");
+  dst = std::move(src);
+  EXPECT_STREQ(dst.GetName(), "move_assign_in");
+  EXPECT_EQ(dst.GetInputType(), CompliantNodeBuilder::kEsIrInputOptional);
+  EXPECT_STREQ(dst.GetSymbolId(), "movesym2");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrInputDefV2_SymbolId) {
+  CompliantNodeBuilder::IrInputDefV2 def("x", CompliantNodeBuilder::kEsIrInputRequired, "");
+  def.SymbolId("custom_sym");
+  EXPECT_STREQ(def.GetSymbolId(), "custom_sym");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrOutputDefV2_CopyAssignment) {
+  CompliantNodeBuilder::IrOutputDefV2 src("out1", CompliantNodeBuilder::kEsIrOutputDynamic, "outsym1");
+  CompliantNodeBuilder::IrOutputDefV2 dst("old", CompliantNodeBuilder::kEsIrOutputRequired, "oldsym");
+  dst = src;
+  EXPECT_STREQ(dst.GetName(), "out1");
+  EXPECT_EQ(dst.GetOutputType(), CompliantNodeBuilder::kEsIrOutputDynamic);
+  EXPECT_STREQ(dst.GetSymbolId(), "outsym1");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrOutputDefV2_MoveConstructor) {
+  CompliantNodeBuilder::IrOutputDefV2 src("move_out", CompliantNodeBuilder::kEsIrOutputRequired, "movesym");
+  CompliantNodeBuilder::IrOutputDefV2 dst(std::move(src));
+  EXPECT_STREQ(dst.GetName(), "move_out");
+  EXPECT_EQ(dst.GetOutputType(), CompliantNodeBuilder::kEsIrOutputRequired);
+  EXPECT_STREQ(dst.GetSymbolId(), "movesym");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrOutputDefV2_MoveAssignment) {
+  CompliantNodeBuilder::IrOutputDefV2 src("move_assign_out", CompliantNodeBuilder::kEsIrOutputDynamic, "movesym2");
+  CompliantNodeBuilder::IrOutputDefV2 dst("old2", CompliantNodeBuilder::kEsIrOutputRequired, "oldsym2");
+  dst = std::move(src);
+  EXPECT_STREQ(dst.GetName(), "move_assign_out");
+  EXPECT_EQ(dst.GetOutputType(), CompliantNodeBuilder::kEsIrOutputDynamic);
+  EXPECT_STREQ(dst.GetSymbolId(), "movesym2");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrOutputDefV2_SymbolId) {
+  CompliantNodeBuilder::IrOutputDefV2 def("y", CompliantNodeBuilder::kEsIrOutputRequired, "");
+  def.SymbolId("custom_out_sym");
+  EXPECT_STREQ(def.GetSymbolId(), "custom_out_sym");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrAttrDefV2_CopyAssignment) {
+  auto val = AttrValue();
+  val.SetAttrValue(static_cast<int64_t>(42));
+  CompliantNodeBuilder::IrAttrDefV2 src("attr1", CompliantNodeBuilder::kEsAttrRequired, "Int", val);
+  CompliantNodeBuilder::IrAttrDefV2 dst("old", CompliantNodeBuilder::kEsAttrOptional, "Float", AttrValue());
+  dst = src;
+  EXPECT_STREQ(dst.GetAttrName(), "attr1");
+  EXPECT_EQ(dst.GetAttrType(), CompliantNodeBuilder::kEsAttrRequired);
+  EXPECT_STREQ(dst.GetAttrDataType(), "Int");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrAttrDefV2_MoveConstructor) {
+  auto val = AttrValue();
+  val.SetAttrValue(static_cast<float>(3.14f));
+  CompliantNodeBuilder::IrAttrDefV2 src("move_attr", CompliantNodeBuilder::kEsAttrOptional, "Float", val);
+  CompliantNodeBuilder::IrAttrDefV2 dst(std::move(src));
+  EXPECT_STREQ(dst.GetAttrName(), "move_attr");
+  EXPECT_EQ(dst.GetAttrType(), CompliantNodeBuilder::kEsAttrOptional);
+  EXPECT_STREQ(dst.GetAttrDataType(), "Float");
+}
+
+TEST_F(CompliantNodeBuilderLLT, IrAttrDefV2_MoveAssignment) {
+  auto val = AttrValue();
+  val.SetAttrValue(static_cast<int64_t>(99));
+  CompliantNodeBuilder::IrAttrDefV2 src("move_assign_attr", CompliantNodeBuilder::kEsAttrRequired, "Int", val);
+  CompliantNodeBuilder::IrAttrDefV2 dst("old", CompliantNodeBuilder::kEsAttrOptional, "String", AttrValue());
+  dst = std::move(src);
+  EXPECT_STREQ(dst.GetAttrName(), "move_assign_attr");
+  EXPECT_EQ(dst.GetAttrType(), CompliantNodeBuilder::kEsAttrRequired);
+  EXPECT_STREQ(dst.GetAttrDataType(), "Int");
+}
+
+TEST_F(CompliantNodeBuilderLLT, InstanceOutputStorageShape) {
+  CompliantNodeBuilder builder(test_graph_.get());
+  builder.OpType("TestOp")
+      .Name("TestName")
+      .IrDefOutputsV2({{"output1", CompliantNodeBuilder::kEsIrOutputRequired, "out1"}})
+      .InstanceOutputStorageShape("output1", shape_);
+  auto node = builder.Build();
+  EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
+}
+
+TEST_F(CompliantNodeBuilderLLT, InstanceOutputOriginFormat) {
+  CompliantNodeBuilder builder(test_graph_.get());
+  builder.OpType("TestOp")
+      .Name("TestName")
+      .IrDefOutputsV2({{"output1", CompliantNodeBuilder::kEsIrOutputRequired, "out1"}})
+      .InstanceOutputOriginFormat("output1", FORMAT_NCHW);
+  auto node = builder.Build();
+  EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
+}
+
+TEST_F(CompliantNodeBuilderLLT, InstanceOutputStorageFormat) {
+  CompliantNodeBuilder builder(test_graph_.get());
+  builder.OpType("TestOp")
+      .Name("TestName")
+      .IrDefOutputsV2({{"output1", CompliantNodeBuilder::kEsIrOutputRequired, "out1"}})
+      .InstanceOutputStorageFormat("output1", FORMAT_NHWC);
+  auto node = builder.Build();
+  EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
+}
+
+TEST_F(CompliantNodeBuilderLLT, MoveConstructor) {
+  CompliantNodeBuilder builder1(test_graph_.get());
+  builder1.OpType("TestOp").Name("TestName").IrDefOutputsV2(output_defs_);
+  CompliantNodeBuilder builder2(std::move(builder1));
+  auto node = builder2.Build();
+  EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
+}
+
+TEST_F(CompliantNodeBuilderLLT, MoveAssignment) {
+  CompliantNodeBuilder builder1(test_graph_.get());
+  builder1.OpType("TestOp").Name("TestName").IrDefOutputsV2(output_defs_);
+  CompliantNodeBuilder builder2(test_graph_.get());
+  builder2 = std::move(builder1);
+  auto node = builder2.Build();
+  EXPECT_NE(ge::NodeAdapter::GNode2Node(node), nullptr);
+}

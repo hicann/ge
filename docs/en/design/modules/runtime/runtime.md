@@ -389,7 +389,7 @@ flowchart TD
 1. **Init Graph Generation**: Extract all initialization operations (constant loading, stream allocation, memory allocator creation) into an independent Init subgraph.
 2. **Main Graph Generation**: For each ComputeGraph node, find corresponding `NodeConverter` (through `NodeConverterRegistry`), call its lowering function to generate one or more ExecuteGraph nodes.
 3. **Event Synchronization**: `LoweringEventSync` handles cross-stream Send/Wait event synchronization.
-4. **Optimization**: `OfflineOptimizer` optimizes generated ExecuteGraph (such as constant folding, dead code elimination).
+4. **Optimization**: `OfflineOptimizer` optimizes the generated ExecuteGraph, including constant folding, dead code elimination, and removal of eligible Launch-to-Free control dependencies. `CopyFlowLaunchFuse` is always registered, and the single-thread path retains the Legacy `CopyFlowLaunch` that it generates. Only when `IsEnableRt2MultiThread()` is `true` does the optimizer register `SplitMixedLaunchMemory` followed by `RemoveLaunchFreeEdge`. Dynamic-shape multi-stream forces this check to return `false`, skips split/relation optimization, and retains the original Launch-to-Free edges.
 
 v1 at runtime through `DistributeTask` dispatches Task one by one to device, while v2 at compile time has already converted ComputeGraph to directly executable ExecuteGraph. Runtime does not need any "translation" step.
 
@@ -468,6 +468,54 @@ streams_to_executor_: map<aclrtStream, unique_ptr<ModelV2Executor>>
 Each Stream one Executor is because in async execution mode, multiple Streams may concurrently execute different inference requests of same model. Each Executor maintains its own execution state (input/output binding, iteration count etc.), mutually non-interfering.
 
 This is consistent with Ascend Stream's design philosophy — Stream is ordered queue of device-side operations, different Streams can parallelize.
+
+### 4.6 Multi-threaded Memory Recycling and Exact Launch Submission Relations
+
+The RT2 multi-thread topological executor dispatches memory Kernels and Launch Kernels to different worker groups. Stream synchronization covers only asynchronous work that has completed Host-side submission. Therefore, after an eligible Launch-to-Free edge is removed, the runtime needs both an explicit result-ownership boundary and exact Free-to-Launch protection.
+
+#### 4.6.1 Copy Splitting and Submission Order
+
+`OfflineOptimizer` always runs `CopyFlowLaunchFuse`. Only the RT2 multi-thread single-stream mode then runs `SplitMixedLaunchMemory -> RemoveLaunchFreeEdge`. The single-thread mode retains the `CopyH2D`, `MakeSureTensorAtDevice`, and Legacy `CopyFlowLaunch` graph shapes. When `ENABLE_DYNAMIC_SHAPE_MULTI_STREAM=1`, `IsEnableRt2MultiThread()` returns `false`; no copy splitting or Free-to-Launch relation is created, and the original Launch-to-Free edges remain.
+
+The H2D split topology is:
+
+```text
+CalcDeviceCopySizes -> AllocMemHbm -> ShareH2DCopyResult -> LaunchH2DCopy
+```
+
+`ShareH2DCopyResult` produces the owning/shared `GertTensorData` on the memory worker, and its output feeds Consumers and Free nodes. The output-free `LaunchH2DCopy` only submits the required asynchronous memcpy. A direct Consumer that is either a semantic Launch, including HCOM, or registered with `kKernelLaunch` waits for the Copy Launch through a control edge. For an indirect consumer through `BuildRefTensor`, `BuildRefTensor` and ACLNN `ExecuteOpPrepare` do not wait; the following ACLNN or CustomOp semantic Launch or `kKernelLaunch` Consumer waits and controls the corresponding Free before relation removal.
+
+The CopyFlow split topology is:
+
+```text
+CalcCopyFlowAllocSizes -> AllocCopyFlowHbm -> PrepareCopyFlowResult -> LaunchCopyFlowH2D
+```
+
+`PrepareCopyFlowResult` owns every per-output result on the memory worker and updates merged-copy information, host arguments, and alignment without submitting memcpy. The output-free `LaunchCopyFlowH2D` submits H2D only for independently allocated, nonzero inputs. All four nodes use the same nonzero static `copy_flow_count`; runtime input count, output count, allocated-address count, and the outer cardinality of the input-index CVV must agree. Consumers, Free nodes, and Guarders read from Prepare. Guarders are copied only for the current Consumer Launch's explicit source-output mapping, and original output control edges leave from the Copy Launch tail.
+
+When source metadata contains `kComputeNodeIndex`, both `LaunchH2DCopy` and `LaunchCopyFlowH2D` inherit it. They are not compute Launches as defined by `IsLaunchNode`, but their `kKernelLaunch` registrations make `IsLaunchOrHasSubGraphNode` include them in priority calculation and strict ordering. DataDump directly reuses `IsLaunchNode` and therefore naturally skips these internal helpers so that one compute operator is not advanced twice; the real Consumer Launch remains the dump boundary.
+
+#### 4.6.2 Launch-to-Free Removal and ExecutionData
+
+`RemoveLaunchFreeEdge` qualifies each Free independently. The target must be a device Free with a hold-address variant, and the direct producer selected by `ReleaseResourceIndex` must be on a non-Host memory path and registered with `kKernelUseMemory`. For each Launch, the pass first completes the Cartesian ordering between all eligible producers and all eligible Free nodes; an existing data or control dependency is not duplicated. It then records and deduplicates exact `(Free*, Launch*)` relations on the owner graph, replaces the Free with its hold-address variant, and only then removes the target edge.
+
+Host, normal, launch, unregistered, or missing producers remain ineligible, as does `FreeTensorMemory`, which has no hold-address variant. Their original Free types and Launch-to-Free edges are preserved. Existing `EnsureNodeExeInOrderInSubgraph`, `IsCopyAsyncNode`, zero-copy, and address-reuse ordering semantics are unchanged.
+
+After final execution-node mapping, `MultiThreadExecutionDataBuilder` converts the FastNode relations from each owner graph into a deterministic CSR indexed by Free ID with sorted, deduplicated Launch IDs. Nested owner graphs are derived from the actual mapped nodes rather than by collecting unmapped sibling subgraphs. `MultiThreadResourceGuard` owns the contiguous offsets and Launch-ID arrays. Builder and `TaskScheduler::Prepare` validate owners, mappings, hold-address Free/Launch types, ID ranges, node count, monotonic offsets, and relation cardinality. Runtime queries neither scan the graph nor allocate memory.
+
+#### 4.6.3 Scheduler and Allocator
+
+Each `Schedule` uses an isolated execution epoch and maintains per-node `launch_submitted_gen`, `free_executed_gen`, `required_launch_gen`, relation-Launch membership, `unmet_launch_count`, and explicit abort/original-status state. A Free activates its CSR requirements only after its Kernel succeeds. A relation Launch advances its generation only after its Kernel successfully completes Host-side submission. Multiple Free nodes that reference the same Launch occurrence contribute one unmet Launch. Failed or EOS nodes do not advance generations; the scheduler preserves the original status and wakes every waiter. The next `Schedule` resets relation state in place.
+
+The old batch ready-Launch count, TLS batch threshold, mixed-Kernel pre-execution barrier, and fabricated completion values have been removed. `CachingMemAllocator` and `L2MemPool` wait only immediately before physical stream synchronization/recycling, and only for requirements activated by successfully executed Free nodes. The successful Malloc fast path does not call the scheduler; unexecuted Free relations and unrelated Launches do not block. Recycling keeps the order `exact wait -> stream sync -> recycle -> retry`.
+
+When the multi-thread executor has a total of three threads, usually configured as `MAX_RUNTIME_CORE_NUMBER=3` on the Hybrid RT2 path, `AllocHostCpuOutputMemory`, `SplitDataTensor`, `IdentityAddr`, `IdentityShapeAndAddr`, and `AccessMemCrossStream` retain their registered `kKernelUseMemory` classification and execute on the sole MEMORY worker. `AccessMemCrossStream` changes shared TensorData, reference-count, or cross-stream MIF state through `ShareFrom`/`WanderFrom` and must be serialized with other shared-memory state changes. Because its placement is determined at runtime, `RemoveLaunchFreeEdge` does not treat it as an eligible direct producer and preserves the original Launch-to-Free edge. `BuildTensor`, `BuildTensorStorage`, and `BuildTensorPureShape` remain the only NORMAL-worker exceptions, preserving the existing three-thread pipeline optimization. Allocator hot paths add no lock; execution-graph scheduling serializes Host allocator and wrapper-pool state changes, trading parallelism between those state changes for lock-free hot paths and safe lifecycle transitions.
+
+#### 4.6.4 Performance Data and Liveness Limitation
+
+The available measurements come from a conservative **O0/GCOV + ASan/LSan stub build**, not Release production latency. The median paired delta for successful Malloc is about `+0.243%`, within measurement noise; an unrelated node event is about `33 ns`, an immediate exact wait about `44 ns`, and one Free activation plus matching Launch submission about `146 ns`. For 100,000 nodes and 1,000,000 relations, median `Prepare` time is `6.313 ms` and structural memory is `11,300,008 B`. In the no-task measurement, relation-state array capacity did not grow and the measured call sequence had no net live allocation. These results are neither Release metrics nor proof of scheduling liveness.
+
+**Liveness with a sole memory worker is not solved.** If an activated Launch still depends on an unfinished memory-worker predecessor that is queued behind a memory task blocked in the allocator's exact wait, a cycle can still form. Tasks 1.1, 1.2, 4.6, and 7.4 remain deferred by user choice; the current implementation does not guarantee liveness for this scenario. Production acceptance requires either a conservative proof gate that retains the original edge whenever safety cannot be established, or a non-blocking continuation that does not occupy the sole memory worker.
 
 ---
 

@@ -2077,4 +2077,342 @@ TEST_F(UtestGraphPreproces, graph_prepare_update_variable_formats_null_graph) {
   auto ret = graph_prepare.UpdateVariableFormats(nullptr);
   EXPECT_NE(ret, SUCCESS);
 }
+
+TEST_F(UtestGraphPreproces, AdjustDataOpOutput_NullNode_ReturnsError) {
+  ge::GraphPrepare graph_prepare;
+  NodePtr null_node = nullptr;
+  auto ret = graph_prepare.AdjustDataOpOutput(null_node);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckRefInputNode_NullNode_ReturnsError) {
+  ge::GraphPrepare graph_prepare;
+  NodePtr null_node = nullptr;
+  auto ret = graph_prepare.CheckRefInputNode(null_node, "input_name", {});
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, SaveOriginalGraphToOmModel_EmptyGraph_ReturnsSuccess) {
+  ge::GraphPrepare graph_prepare;
+  Graph graph("");
+  auto ret = graph_prepare.SaveOriginalGraphToOmModel();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, SetOptions_Test) {
+  ge::GraphPrepare graph_prepare;
+  GraphManagerOptions options;
+  graph_prepare.SetOptions(options);
+}
+
+TEST_F(UtestGraphPreproces, CheckAippInsert_NoAipp_ReturnsSuccess) {
+  auto builder = ut::GraphBuilder("g_no_aipp");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.CheckAippInsert();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, ProcessNetOutput_NoNetOutput_ReturnsSuccess) {
+  auto builder = ut::GraphBuilder("g_no_output");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto add1 = builder.AddNode("add1", "Add", 1, 1);
+  builder.AddDataEdge(data1, 0, add1, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.ProcessNetOutput();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckConstOp_NoConst_ReturnsSuccess) {
+  auto builder = ut::GraphBuilder("g_no_const");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.CheckConstOp();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, RemoveMagicCompiledAttrs_EmptyGraph) {
+  auto builder = ut::GraphBuilder("g_empty");
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  graph_prepare.RemoveMagicCompiledAttrs();
+  SUCCEED();
+}
+
+TEST_F(UtestGraphPreproces, TypeConversionOfConstant_NoConst) {
+  auto builder = ut::GraphBuilder("g_no_const2");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  graph_prepare.TypeConversionOfConstant();
+  SUCCEED();
+}
+
+TEST_F(UtestGraphPreproces, CheckGraphAndUpdateOriginShape_NullGraph) {
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = nullptr;
+  auto ret = graph_prepare.CheckGraphAndUpdateOriginShape();
+  EXPECT_EQ(ret, GE_GRAPH_INIT_FAILED);
+}
+
+TEST_F(UtestGraphPreproces, AdjustDataOpOutput_NullOpDesc) {
+  auto builder = ut::GraphBuilder("g_adj_null_op");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.AdjustDataOpOutput(data1);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, SwitchOpOptimize_NullGraph) {
+  ge::GraphPrepare graph_prepare;
+  ComputeGraphPtr null_graph = nullptr;
+  auto ret = graph_prepare.SwitchOpOptimize(null_graph);
+  EXPECT_EQ(ret, GE_GRAPH_NULL_INPUT);
+}
+
+TEST_F(UtestGraphPreproces, GenerateInfershapeGraph_NullGraph) {
+  ge::GraphPrepare graph_prepare;
+  ConstGraphPtr null_graph = nullptr;
+  auto ret = graph_prepare.GenerateInfershapeGraph(null_graph);
+  EXPECT_EQ(ret, GE_GRAPH_NULL_INPUT);
+}
+
+TEST_F(UtestGraphPreproces, CheckConstOp_FrameworkOpNullOpDesc) {
+  auto builder = ut::GraphBuilder("g_fw_null");
+  auto fw_node = builder.AddNode("fw1", FRAMEWORKOP, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.CheckConstOp();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, VerifyConstOp_NoWeights) {
+  auto builder = ut::GraphBuilder("g_no_weights");
+  auto const_node = builder.AddNode("const1", CONSTANT, 0, 1);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.VerifyConstOp(const_node);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestGraphPreproces, CheckUserInput_MissingIndexAttr) {
+  auto builder = ut::GraphBuilder("g_missing_idx");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  std::vector<GeTensor> user_input;
+  auto ret = graph_prepare.CheckUserInput(user_input);
+  EXPECT_EQ(ret, GE_GRAPH_INIT_FAILED);
+}
+
+TEST_F(UtestGraphPreproces, CheckUserInput_InvalidIndex) {
+  auto builder = ut::GraphBuilder("g_invalid_idx");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  (void)ge::AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_INDEX, 99);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  std::vector<GeTensor> user_input;
+  auto ret = graph_prepare.CheckUserInput(user_input);
+  EXPECT_EQ(ret, GE_GRAPH_INIT_FAILED);
+}
+
+TEST_F(UtestGraphPreproces, UpdateInput_InvalidIndex) {
+  auto builder = ut::GraphBuilder("g_upd_invalid_idx");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  (void)ge::AttrUtils::SetInt(data1->GetOpDesc(), ATTR_NAME_INDEX, 99);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  std::vector<GeTensor> user_input;
+  std::map<std::string, std::string> graph_option;
+  auto ret = graph_prepare.UpdateInput(user_input, graph_option);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestGraphPreproces, UpdateVariableFormats_WithVar) {
+  auto builder = ut::GraphBuilder("g_with_var");
+  auto var = builder.AddNode("var1", VARIABLEV2, 1, 1);
+  auto add = builder.AddNode("add1", "Add", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(var, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  auto ret = graph_prepare.UpdateVariableFormats(builder.GetGraph());
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckAndUpdateInput_Normalized) {
+  auto builder = ut::GraphBuilder("g_normalized");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  graph_prepare.SetGraphNormalized(true);
+  std::vector<GeTensor> user_input;
+  std::map<std::string, std::string> graph_option;
+  auto ret = graph_prepare.CheckAndUpdateInput(user_input, graph_option);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckRefInputNode_ConstInput) {
+  auto builder = ut::GraphBuilder("g_ref_const");
+  auto const1 = builder.AddNode("const1", CONSTANTOP, 0, 1);
+  auto ref_node = builder.AddNode("ref1", "RefOp", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(const1, 0, ref_node, 0);
+  builder.AddDataEdge(ref_node, 0, netoutput, 0);
+  (void)ref_node->GetOpDesc()->AddInputDesc("x", GeTensorDesc());
+  std::set<NodePtr> ref_nodes;
+  ge::GraphPrepare graph_prepare;
+  auto ret = graph_prepare.CheckRefInputNode(ref_node, "x", ref_nodes);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(UtestGraphPreproces, InferShapeForPreprocess_BasicGraph) {
+  auto builder = ut::GraphBuilder("g_infer_pre");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto add1 = builder.AddNode("add1", "Add", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, add1, 0);
+  builder.AddDataEdge(add1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  auto graph = builder.GetGraph();
+  auto ret = graph_prepare.InferShapeForPreprocess(graph, nullptr, nullptr);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckTensorIsValid_ScalarTensor) {
+  auto builder = ut::GraphBuilder("g_scalar");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  auto ret = graph_prepare.CheckTensorIsValid(data1, 0, 4, 0, DT_FLOAT);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckTensorIsValid_EmptyShapeWithData) {
+  auto builder = ut::GraphBuilder("g_empty_shape");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  auto ret = graph_prepare.CheckTensorIsValid(data1, 0, 10, 1, DT_FLOAT);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckTensorIsValid_ValidTensor) {
+  auto builder = ut::GraphBuilder("g_valid_tensor");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  auto ret = graph_prepare.CheckTensorIsValid(data1, 4, 16, 1, DT_FLOAT);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, IsDynamicDims_WithDynamicOption) {
+  auto builder = ut::GraphBuilder("g_dyn_dims");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto op_desc = data1->GetOpDesc();
+  GeTensorDesc desc(GeShape({-1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->UpdateOutputDesc(0, desc);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.options_.input_shape = "1,2,3,4";
+  graph_prepare.options_.dynamic_dims = "-1,2,3,4";
+  graph_prepare.options_.dynamic_node_type = 1;
+  auto ret = graph_prepare.IsDynamicDims(data1);
+  EXPECT_TRUE(ret);
+}
+
+TEST_F(UtestGraphPreproces, IsDynamicDims_WithCompileDynamicMode) {
+  auto builder = ut::GraphBuilder("g_dyn_mode");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto op_desc = data1->GetOpDesc();
+  GeTensorDesc desc(GeShape({-1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  op_desc->UpdateOutputDesc(0, desc);
+  ge::GraphPrepare graph_prepare;
+  (void)ge::GetThreadLocalContext().SetGraphOption({{"ge.compile_dynamic_mode", "1"}});
+  auto ret = graph_prepare.IsDynamicDims(data1);
+  EXPECT_TRUE(ret);
+  (void)ge::GetThreadLocalContext().SetGraphOption({{"ge.compile_dynamic_mode", ""}});
+}
+
+TEST_F(UtestGraphPreproces, UpdateInputOutputByOptions_TrainMode) {
+  auto builder = ut::GraphBuilder("g_train_mode");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  graph_prepare.options_.train_graph_flag = true;
+  auto ret = graph_prepare.UpdateInputOutputByOptions();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, TryDoAipp_WithInsertOpFile) {
+  auto builder = ut::GraphBuilder("g_aipp_insert");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  graph_prepare.options_.insert_op_file = "/nonexistent/aipp.cfg";
+  auto ret = graph_prepare.TryDoAipp();
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, PrepareDynShape_BasicGraph) {
+  auto builder = ut::GraphBuilder("g_prep_dyn");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto add1 = builder.AddNode("add1", "Add", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, add1, 0);
+  builder.AddDataEdge(add1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.PrepareDynShape();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, CheckGraphAndUpdateOriginShape_EmptyGraph) {
+  auto builder = ut::GraphBuilder("g_empty_nodes");
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.CheckGraphAndUpdateOriginShape();
+  EXPECT_EQ(ret, GE_GRAPH_INIT_FAILED);
+}
+
+TEST_F(UtestGraphPreproces, CheckInternalFormat_BasicCheck) {
+  auto builder = ut::GraphBuilder("g_internal_fmt");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  GeTensorDesc desc(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_FLOAT);
+  auto ret = graph_prepare.CheckInternalFormat(data1, desc);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPreproces, UpdateDataInputOutputDesc_InvalidDataType) {
+  auto builder = ut::GraphBuilder("g_invalid_dt");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  ge::GraphPrepare graph_prepare;
+  GeTensorDesc desc(GeShape({1, 2, 3, 4}), FORMAT_NCHW, DT_UNDEFINED);
+  auto ret = graph_prepare.UpdateDataInputOutputDesc(0, data1->GetOpDesc(), desc);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestGraphPreproces, CopyVarIntoSubgraph_BasicGraph) {
+  auto builder = ut::GraphBuilder("g_copy_var");
+  auto data1 = builder.AddNode("data1", DATA, 1, 1);
+  auto add1 = builder.AddNode("add1", "Add", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, add1, 0);
+  builder.AddDataEdge(add1, 0, netoutput, 0);
+  ge::GraphPrepare graph_prepare;
+  graph_prepare.compute_graph_ = builder.GetGraph();
+  auto ret = graph_prepare.CopyVarIntoSubgraph();
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace ge

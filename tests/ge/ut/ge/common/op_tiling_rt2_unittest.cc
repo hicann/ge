@@ -1238,4 +1238,13 @@ TEST_F(RegisterOpTilingRT2UT, GetDeterministicLevel_WithSessionOption) {
   EXPECT_TRUE(has_deterministic_level);
   ge::GetThreadLocalContext().SetSessionOption({});
 }
+
+TEST_F(RegisterOpTilingRT2UT, GetDeterministicLevel_NoSessionOption_CovEnhance) {
+  ge::GetThreadLocalContext().SetSessionOption({});
+  int32_t deterministic_level = -1;
+  bool has_deterministic_level = true;
+  EXPECT_EQ(GetDeterministicLevel(deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
+  EXPECT_FALSE(has_deterministic_level);
+}
+
 }  // namespace optiling

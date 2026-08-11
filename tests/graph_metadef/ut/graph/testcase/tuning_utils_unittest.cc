@@ -850,4 +850,42 @@ TEST_F(UtestTuningUtils, CovPrintCheckLogWithNetoutput) {
   auto result = TuningUtils::PrintCheckLog();
   EXPECT_FALSE(result.empty());
 }
+
+TEST_F(UtestTuningUtils, CovGetNodeNameByAnchorNullAnchor) {
+  auto result = TuningUtils::GetNodeNameByAnchor(nullptr);
+  EXPECT_EQ(result, "Null");
+}
+
+TEST_F(UtestTuningUtils, CovGetNodeNameByAnchorValidAnchor) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_anchor");
+  auto node = builder.AddNode("test_node", "Relu", 1, 1);
+  auto anchor = node->GetOutDataAnchor(0);
+  auto result = TuningUtils::GetNodeNameByAnchor(anchor.get());
+  EXPECT_EQ(result, "test_node");
+}
+
+TEST_F(UtestTuningUtils, CovConvertGraphToFileEmptyVectors) {
+  std::vector<ComputeGraphPtr> tuning_subgraphs;
+  std::vector<ComputeGraphPtr> non_tuning_subgraphs;
+  auto ret = TuningUtils::ConvertGraphToFile(tuning_subgraphs, non_tuning_subgraphs, false);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+}
+
+TEST_F(UtestTuningUtils, CovCreateNetOutputWithGraph) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph_create_output");
+  auto node0 = builder.AddNode("Data0", "Data", 1, 1);
+  NodePtr node1;
+  auto graph = builder.GetGraph();
+  TuningUtils::create_output_[graph] = nullptr;
+  auto ret = TuningUtils::CreateNetOutput(node0, node1);
+  EXPECT_EQ(ret, SUCCESS);
+  TuningUtils::create_output_.clear();
+}
+
+TEST_F(UtestTuningUtils, CovPrintCheckLogEmpty) {
+  TuningUtils::netoutput_nodes_.clear();
+  TuningUtils::data_2_end_.clear();
+  auto result = TuningUtils::PrintCheckLog();
+  EXPECT_FALSE(result.empty());
+}
 }  // namespace ge

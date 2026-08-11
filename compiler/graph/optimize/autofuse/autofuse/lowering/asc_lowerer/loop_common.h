@@ -68,6 +68,13 @@ struct LoopAxis {
  */
 using Index = std::vector<ge::Expression>;
 
+struct ReshapeAxisChangeInfo {
+  std::vector<int64_t> before_axis;
+  std::vector<Expression> before_repeats;
+  std::vector<int64_t> after_axis;
+  std::vector<Expression> after_repeats;
+};
+
 /**
  * TensorLoopDesc用于表达一个Loop lowering后的Ascend IR输出值的循环描述，其包含了一个Loop的所有信息。
  * 包括循环的遍历范围、循环的步长。

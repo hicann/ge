@@ -32,6 +32,22 @@ enum class MakeSureTensorAtHostInputs {
 
 enum class MakeSureTensorAtDeviceInputs { kStream, kAllocator, kAddrAndLengthStart };
 
+enum class LaunchH2DCopyInputs { kDstAddress, kStream, kSrcAddress, kTensorSize, kNum };
+
+using ShareH2DCopyResultInputs = LaunchH2DCopyInputs;
+
+enum class CalcDeviceCopySizesInputs {
+  kSrcAddress,
+  kAllocator,
+  kDataType,
+  kStorageShape,
+  kStream,
+  kOriginalTensorSize,
+  kNum
+};
+
+enum class CalcDeviceCopySizesOutputs { kAllocSize, kCopySize, kNum };
+
 enum class MemoryCopyH2HInputs { kSrcAddress, kSrcShape, kSrcDataType, kAllocator, kNum };
 
 enum class MemoryCopyD2DInputs { kSrcAddress, kDstAddress, kTensorSize, kStream, kNum };
@@ -47,6 +63,7 @@ ge::graphStatus EnsureTensorAtOutMemory(KernelContext *context);
 constexpr const char *kEnsureTensorAtOutMemory = "EnsureTensorAtOutMemory";
 constexpr const ge::char_t *kMakeSureTensorAtDevice = "MakeSureTensorAtDevice";
 constexpr const ge::char_t *kCopyH2D = "CopyH2D";
+constexpr const ge::char_t *kShareH2DCopyResult = "ShareH2DCopyResult";
 constexpr size_t kSizeOfCopyToDevice = 4U;
 }  // namespace kernel
 }  // namespace gert

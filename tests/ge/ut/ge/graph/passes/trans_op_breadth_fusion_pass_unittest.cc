@@ -576,3 +576,39 @@ TEST_F(UtestGraphPassesTransOpBreadthFusionPass, cast_fusion_with_same_type) {
   EXPECT_EQ(SUCCESS, status);
   EXPECT_EQ(graph->GetDirectNodesSize(), 4);
 }
+
+TEST_F(UtestGraphPassesTransOpBreadthFusionPass, transpose_d_with_perm_test) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  auto data = NodeBuilder("data", DATA).AddOutputDesc({1, 1, 1, 1}).Build(graph);
+  auto transposed =
+      NodeBuilder("transposed", TRANSPOSED).AddInputDesc({1, 1, 1, 1}).AddOutputDesc({1, 1, 1, 1}).Build(graph);
+  AttrUtils::SetListInt(transposed->GetOpDesc(), "perm", {0, 2, 1, 3});
+  auto relu = NodeBuilder("relu", RELU).AddInputDesc({1, 1, 1, 1}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), transposed->GetInDataAnchor(0));
+  GraphUtils::AddEdge(transposed->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+
+  TransOpBreadthFusionPass pass;
+  Status status = pass.Run(graph);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestGraphPassesTransOpBreadthFusionPass, transpose_without_const_perm_test) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  auto data = NodeBuilder("data", DATA).AddOutputDesc({1, 1, 1, 1}).Build(graph);
+  auto perm_data = NodeBuilder("perm_data", DATA).AddOutputDesc({4}).Build(graph);
+  auto transpose = NodeBuilder("transpose", TRANSPOSE)
+                       .AddInputDesc({1, 1, 1, 1})
+                       .AddInputDesc({4})
+                       .AddOutputDesc({1, 1, 1, 1})
+                       .Build(graph);
+  auto relu = NodeBuilder("relu", RELU).AddInputDesc({1, 1, 1, 1}).Build(graph);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), transpose->GetInDataAnchor(0));
+  GraphUtils::AddEdge(perm_data->GetOutDataAnchor(0), transpose->GetInDataAnchor(1));
+  GraphUtils::AddEdge(transpose->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  std::map<std::string, uint32_t> input_names = {{"x", 0}, {"perm", 1}};
+  transpose->GetOpDesc()->UpdateInputName(input_names);
+
+  TransOpBreadthFusionPass pass;
+  Status status = pass.Run(graph);
+  EXPECT_EQ(status, SUCCESS);
+}

@@ -12,9 +12,20 @@
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "common/checker.h"
 #include "core/executor_error_code.h"
+#include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler.h"
 #include "core/priority_queue.h"
 namespace gert {
-namespace {}
+namespace {
+class CurrentSchedulerGuard {
+ public:
+  explicit CurrentSchedulerGuard(TaskScheduler *scheduler) {
+    TaskScheduler::SetCurrentScheduler(scheduler);
+  }
+  ~CurrentSchedulerGuard() {
+    TaskScheduler::SetCurrentScheduler(nullptr);
+  }
+};
+}  // namespace
 ExecTask::ExecTask(size_t task_id, ExecTaskType type, Node *kernel) : task_id_(task_id), type_(type) {
   task_node_list_.reserve(10U);
   task_node_list_.emplace_back(kernel);
@@ -62,17 +73,34 @@ void ExecTask::SubIndegree() {
   }
 }
 
-bool ExecTask::IsReady() {
+bool ExecTask::IsReady() const {
   auto current = indegree_.load(std::memory_order_relaxed);
   return current == 0U;
 }
 
+void ExecTask::SetType(ExecTaskType type) {
+  type_ = type;
+}
+
+ge::Status ExecTask::UpdateRelationStateAfterExecute(const Node *node) const {
+  if (scheduler_ == nullptr) {
+    return ge::SUCCESS;
+  }
+  return scheduler_->OnNodeExecuted(node->node_id);
+}
+
 ge::Status ExecTask::Execute() {
+  CurrentSchedulerGuard scheduler_guard(scheduler_);
   for (auto &node : task_node_list_) {
     while (true) {
-      if ((force_quit_ != nullptr) && *force_quit_) {
+      if ((force_quit_ != nullptr) && force_quit_->load(std::memory_order_acquire)) {
         GELOGD("kernel %s is forced quit",
                reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName());
+        indegree_.store(indegree_backup_);
+        kernel_ret_ = ge::FAILED;
+        if (scheduler_ != nullptr) {
+          scheduler_->AbortExecution(kernel_ret_);
+        }
         return ge::FAILED;
       }
       if (IsReady()) {
@@ -80,26 +108,39 @@ ge::Status ExecTask::Execute() {
       }
     }
     kernel_ret_ = node->func(&node->context);
-    for (auto watcher_task : watcher_tasks_) {
-      watcher_task->SubIndegree();
+    if (kernel_ret_ == kStatusSuccess) {
+      kernel_ret_ = UpdateRelationStateAfterExecute(node);
+    } else if (scheduler_ != nullptr) {
+      scheduler_->AbortExecution(kernel_ret_);
     }
     indegree_.store(indegree_backup_);
-    if ((kernel_ret_ != kStatusSuccess) && (kernel_ret_ != ge::END_OF_SEQUENCE)) {
-      GELOGE(ge::FAILED, "kernel exec failed, kernel name: %s, kernel type: %s",
-             reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName(),
-             reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelType());
-      return ge::FAILED;
+    if (kernel_ret_ != kStatusSuccess) {
+      if (kernel_ret_ != ge::END_OF_SEQUENCE) {
+        GELOGE(ge::FAILED, "kernel exec failed, kernel name: %s, kernel type: %s",
+               reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName(),
+               reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelType());
+      }
+      return (kernel_ret_ == ge::END_OF_SEQUENCE) ? ge::SUCCESS : ge::FAILED;
+    }
+    for (auto watcher_task : watcher_tasks_) {
+      watcher_task->SubIndegree();
     }
   }
   return ge::SUCCESS;
 }
 
 ge::Status ExecTask::Execute(int sub_graph_type, ExecutorSubscriber *es) {
+  CurrentSchedulerGuard scheduler_guard(scheduler_);
   for (auto &node : task_node_list_) {
     while (true) {
-      if ((force_quit_ != nullptr) && *force_quit_) {
+      if ((force_quit_ != nullptr) && force_quit_->load(std::memory_order_acquire)) {
         GELOGD("kernel %s is forced quit",
                reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName());
+        indegree_.store(indegree_backup_);
+        kernel_ret_ = ge::FAILED;
+        if (scheduler_ != nullptr) {
+          scheduler_->AbortExecution(kernel_ret_);
+        }
         return ge::FAILED;
       }
       if (IsReady()) {
@@ -108,16 +149,23 @@ ge::Status ExecTask::Execute(int sub_graph_type, ExecutorSubscriber *es) {
     }
     es->callback(sub_graph_type, es->arg, kExecuteStart, node, kStatusSuccess);
     kernel_ret_ = node->func(&node->context);
+    if (kernel_ret_ == kStatusSuccess) {
+      kernel_ret_ = UpdateRelationStateAfterExecute(node);
+    } else if (scheduler_ != nullptr) {
+      scheduler_->AbortExecution(kernel_ret_);
+    }
     es->callback(sub_graph_type, es->arg, kExecuteEnd, node, kernel_ret_);
+    indegree_.store(indegree_backup_);
+    if (kernel_ret_ != kStatusSuccess) {
+      if (kernel_ret_ != ge::END_OF_SEQUENCE) {
+        GELOGE(ge::FAILED, "kernel exec failed, kernel name: %s, kernel type: %s",
+               reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName(),
+               reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelType());
+      }
+      return (kernel_ret_ == ge::END_OF_SEQUENCE) ? ge::SUCCESS : ge::FAILED;
+    }
     for (auto watcher_task : watcher_tasks_) {
       watcher_task->SubIndegree();
-    }
-    indegree_.store(indegree_backup_);
-    if ((kernel_ret_ != kStatusSuccess) && (kernel_ret_ != ge::END_OF_SEQUENCE)) {
-      GELOGE(ge::FAILED, "kernel exec failed, kernel name: %s, kernel type: %s",
-             reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelName(),
-             reinterpret_cast<const ExtendedKernelContext *>(&node->context)->GetKernelType());
-      return ge::FAILED;
     }
   }
   return ge::SUCCESS;
@@ -136,6 +184,8 @@ const char *ExecTaskType_ToString(ExecTaskType type) {
       return "normal";
     case ExecTaskType::MEMORY:
       return "memory";
+    case ExecTaskType::LAUNCH:
+      return "launch";
     default:
       break;
   }

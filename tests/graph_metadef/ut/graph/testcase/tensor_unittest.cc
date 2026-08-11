@@ -525,4 +525,60 @@ TEST_F(TensorUtilsUT, IncCov_TensorAdapterAllMethods) {
   auto from_null = TensorAdapter::GeTensor2Tensor(nullptr);
   EXPECT_EQ(from_null.GetSize(), 0U);
 }
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescSetName) {
+  TensorDesc desc;
+  desc.SetName("test_tensor_name");
+  EXPECT_EQ(desc.GetName(), "test_tensor_name");
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescGetNameAscendString) {
+  TensorDesc desc;
+  desc.SetName("test_ascend_name");
+  AscendString name;
+  EXPECT_EQ(desc.GetName(name), GRAPH_SUCCESS);
+  EXPECT_STREQ(name.GetString(), "test_ascend_name");
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorSetDataNullCharPtr) {
+  Tensor tensor;
+  EXPECT_EQ(tensor.SetData(static_cast<const char_t *>(nullptr)), GRAPH_FAILED);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorSetDataNullAscendString) {
+  Tensor tensor;
+  AscendString null_str(nullptr);
+  std::vector<AscendString> datas = {null_str};
+  EXPECT_EQ(tensor.SetData(datas), GRAPH_SUCCESS);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorSetDataCharPtr) {
+  Tensor tensor;
+  EXPECT_EQ(tensor.SetData("hello"), GRAPH_SUCCESS);
+  EXPECT_EQ(tensor.GetSize(), 22U);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorGetData) {
+  Tensor tensor;
+  const uint8_t *data = tensor.GetData();
+  EXPECT_NE(data, nullptr);
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescSetNameCharPtr) {
+  TensorDesc desc;
+  desc.SetName(static_cast<const char_t *>("char_name"));
+  EXPECT_EQ(desc.GetName(), "char_name");
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorDescSetNameNullCharPtr) {
+  TensorDesc desc;
+  desc.SetName(static_cast<const char_t *>(nullptr));
+  EXPECT_EQ(desc.GetName(), "");
+}
+
+TEST_F(TensorUtilsUT, IncCov_TensorResetData) {
+  Tensor tensor;
+  auto data = tensor.ResetData();
+  EXPECT_EQ(data, nullptr);
+}
 }  // namespace ge

@@ -15,6 +15,7 @@
 
 #include "common/debug/log.h"
 #include "common/debug/memory_dumper.h"
+#include "common/fp16_t/fp16_t.h"
 #include "common/op/ge_op_utils.h"
 #include "common/framework_types_internal.h"
 #include "graph/debug/ge_attr_define.h"
@@ -115,4 +116,81 @@ TEST_F(UtestFoldingKernelRsqrtKernel, DoubleSuccess) {
   shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
   Status status = kernel->Compute(op_desc_ptr, input, outputs);
   EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestFoldingKernelRsqrtKernel, Float16Success) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("RSQRT", RSQRT);
+
+  vector<int64_t> dims_vec_0 = {3};
+  vector<fp16_t> data_vec_0 = {4, 16, 100};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(fp16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestFoldingKernelRsqrtKernel, Float16HasZero) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("RSQRT", RSQRT);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<fp16_t> data_vec_0 = {4, 0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(fp16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestFoldingKernelRsqrtKernel, UnsupportedDataType) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("RSQRT", RSQRT);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {4, 16};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestFoldingKernelRsqrtKernel, NullInputTensor) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("RSQRT", RSQRT);
+
+  vector<ConstGeTensorPtr> input = {nullptr};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_NE(SUCCESS, status);
+}
+
+TEST_F(UtestFoldingKernelRsqrtKernel, NullOpDesc) {
+  vector<int64_t> dims_vec_0 = {2};
+  vector<float> data_vec_0 = {4.0, 16.0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  vector<ConstGeTensorPtr> input = {tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(RSQRT);
+  Status status = kernel->Compute(nullptr, input, outputs);
+  EXPECT_NE(SUCCESS, status);
 }

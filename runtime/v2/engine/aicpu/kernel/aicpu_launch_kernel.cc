@@ -295,7 +295,10 @@ ge::graphStatus AicpuLaunchTfKernel(KernelContext *context) {
   }
   return DistributeAsyncWaitTask(stream, op_name, args_handler);
 }
-REGISTER_KERNEL(AicpuLaunchTfKernel).RunFunc(AicpuLaunchTfKernel).TracePrinter(PrintTfLaunchArgs);
+REGISTER_KERNEL(AicpuLaunchTfKernel)
+    .RunFunc(AicpuLaunchTfKernel)
+    .TracePrinter(PrintTfLaunchArgs)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus AicpuLaunchCCKernelWithNewInterface(const KernelContext *context) {
   auto args_handler = context->GetInputPointer<AicpuArgsHandler>(static_cast<size_t>(AicpuLaunchCommon::kArgsHandler));
@@ -355,7 +358,10 @@ ge::graphStatus AicpuLaunchCCKernel(KernelContext *context) {
 
   return DistributeAsyncWaitTask(stream, op_name, args_handler);
 }
-REGISTER_KERNEL(AicpuLaunchCCKernel).RunFunc(AicpuLaunchCCKernel).TracePrinter(PrintCCLaunchArgs);
+REGISTER_KERNEL(AicpuLaunchCCKernel)
+    .RunFunc(AicpuLaunchCCKernel)
+    .TracePrinter(PrintCCLaunchArgs)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 struct SharedPtrNoDeleter {
   void operator()(ge::OpKernelBin *) {}

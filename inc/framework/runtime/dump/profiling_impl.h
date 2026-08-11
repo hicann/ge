@@ -19,6 +19,7 @@ namespace dump {
 
 class ProfilingImpl {
  public:
+  bool IsProfilingEnabled() const;
   Status ReportModelLoadBegin(const ModelDumpInfo &model_info) const;
   Status ReportModelLoadEnd(const ModelDumpInfo &model_info) const;
   Status ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32_t model_id) const;

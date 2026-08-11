@@ -42,7 +42,10 @@ void KernelSpy::Clear() {
 
 void TaskRun(TaskPackage &package) {
   for (auto &task : package) {
-    task.Execute();
+    if (!task.IsReady()) {
+      continue;
+    }
+    (void)task.Execute();
   }
 }
 

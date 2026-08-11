@@ -309,3 +309,25 @@ TEST_F(UTEST_graph_passes_set_input_output_offset_pass, SetOutputOffsetNoTaskNot
   SetInputOutputOffsetPass pass;
   EXPECT_EQ(pass.Run(graph), ge::SUCCESS);
 }
+
+TEST_F(UTEST_graph_passes_set_input_output_offset_pass, run_with_connect_input_attr) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_connect_input");
+  auto op_desc = std::make_shared<OpDesc>("node1", RELU);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddOutputDesc(GeTensorDesc());
+  AttrUtils::SetListInt(op_desc, ATTR_NAME_NODE_CONNECT_INPUT, {0});
+  auto node = graph->AddNode(op_desc);
+  SetInputOutputOffsetPass pass2;
+  EXPECT_EQ(pass2.Run(graph), ge::SUCCESS);
+}
+
+TEST_F(UTEST_graph_passes_set_input_output_offset_pass, run_with_connect_output_attr) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_connect_output");
+  auto op_desc = std::make_shared<OpDesc>("node1", RELU);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddOutputDesc(GeTensorDesc());
+  AttrUtils::SetListInt(op_desc, ATTR_NAME_NODE_CONNECT_OUTPUT, {0});
+  auto node = graph->AddNode(op_desc);
+  SetInputOutputOffsetPass pass3;
+  EXPECT_EQ(pass3.Run(graph), ge::SUCCESS);
+}

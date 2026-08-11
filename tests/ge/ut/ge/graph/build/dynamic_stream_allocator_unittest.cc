@@ -1046,4 +1046,47 @@ TEST_F(UtestDynamicStreamAllocator, auto_multistream_invalid_mode_returns_failed
   EXPECT_NE(ret, SUCCESS);
   ClearAutoMultistreamMode();
 }
+
+TEST_F(UtestDynamicStreamAllocator, refresh_continuous_streams_by_node_ids_includes_dynamic_subgraphs) {
+  DEF_GRAPH(sub_then) {
+    CHAIN(NODE("data_then", DATA)->NODE("relu_then", RELU)->NODE("output_then", NETOUTPUT));
+  };
+  DEF_GRAPH(sub_else) {
+    CHAIN(NODE("data_else", DATA)->NODE("relu_else", RELU)->NODE("output_else", NETOUTPUT));
+  };
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("relu", RELU)->NODE("if", IF, sub_then, sub_else)->NODE("output", NETOUTPUT));
+  };
+  auto graph = ToComputeGraph(g1);
+  auto graph_then = graph->GetSubgraph("sub_then");
+  auto graph_else = graph->GetSubgraph("sub_else");
+  ASSERT_NE(graph_then, nullptr);
+  ASSERT_NE(graph_else, nullptr);
+  graph_then->SetGraphUnknownFlag(true);
+  graph_else->SetGraphUnknownFlag(false);
+
+  graph->FindNode("relu")->GetOpDesc()->SetStreamId(2);
+  graph->FindNode("if")->GetOpDesc()->SetStreamId(0);
+  graph->FindNode("output")->GetOpDesc()->SetStreamId(0);
+  graph_then->FindNode("data_then")->GetOpDesc()->SetStreamId(3);
+  graph_then->FindNode("relu_then")->GetOpDesc()->SetStreamId(4);
+  graph_then->FindNode("output_then")->GetOpDesc()->SetStreamId(0);
+  graph_else->FindNode("data_else")->GetOpDesc()->SetStreamId(0);
+  graph_else->FindNode("relu_else")->GetOpDesc()->SetStreamId(6);
+  graph_else->FindNode("output_else")->GetOpDesc()->SetStreamId(0);
+
+  DynamicStreamAllocator allocator;
+  ASSERT_EQ(allocator.RefreshContinuousStreamsByNodeIds(graph), SUCCESS);
+  ASSERT_EQ(allocator.GetStreamNum(), 2);
+  EXPECT_EQ(GetStreamId(graph, "relu"), 0);
+  EXPECT_EQ(GetStreamId(graph, "if"), 0);
+  EXPECT_EQ(GetStreamId(graph, "output"), 0);
+  EXPECT_EQ(GetStreamId(graph_then, "data_then"), 0);
+  EXPECT_EQ(GetStreamId(graph_then, "relu_then"), 1);
+  EXPECT_EQ(GetStreamId(graph_then, "output_then"), 0);
+  EXPECT_EQ(GetStreamId(graph_else, "relu_else"), 6);
+  ASSERT_EQ(allocator.stream_nodes_.size(), 2U);
+  ASSERT_EQ(allocator.stream_nodes_.at(1).size(), 1U);
+  EXPECT_EQ(allocator.stream_nodes_.at(1).front()->GetName(), "relu_then");
+}
 }  // namespace ge

@@ -12,13 +12,24 @@
 #define AIR_CXX_RUNTIME_V2_MULTI_THREAD_EXE_GRAPH_RESOURCE_GUARD_H
 #include "framework/runtime/exe_graph_resource_guard.h"
 #include "core/executor/multi_thread_topological/executor/schedule/scheduler/task_scheduler.h"
+#include "free_launch_relation.h"
 
 namespace gert {
 class VISIBILITY_EXPORT MultiThreadResourceGuard : public TopologicalResourceGuard {
  public:
   TaskScheduler *ResetTaskScheduler(std::unique_ptr<TaskScheduler> scheduler);
+  const FreeLaunchRelationCsr &ResetFreeLaunchRelationCsr(std::unique_ptr<uint8_t[]> offsets,
+                                                          std::unique_ptr<uint8_t[]> launch_ids, size_t node_num,
+                                                          size_t relation_num);
+
+  const FreeLaunchRelationCsr &GetFreeLaunchRelationCsr() const {
+    return free_launch_relation_csr_;
+  }
 
  private:
+  std::unique_ptr<uint8_t[]> free_launch_offsets_guarder_{nullptr};
+  std::unique_ptr<uint8_t[]> free_launch_ids_guarder_{nullptr};
+  FreeLaunchRelationCsr free_launch_relation_csr_{};
   std::unique_ptr<TaskScheduler> task_scheduler_guarder_{nullptr};
 };
 }  // namespace gert

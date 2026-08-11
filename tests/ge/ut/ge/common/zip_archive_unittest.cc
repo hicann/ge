@@ -558,4 +558,122 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToBufferWithLargeData)
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
 }
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_ArchivePathEndsWithSlash) {
+  ZipArchiveWriter zip_writer(test_work_dir + "/");
+  EXPECT_FALSE(zip_writer.IsMemFileOpened());
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoExtension) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, "no_ext_archive"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const std::string buffer = "test_data_no_ext";
+  EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+  ASSERT_FALSE(zip_writer.IsMemFileOpened());
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoSlash) {
+  const std::string zipfile_name = "no_slash.zip";
+  ZipArchiveWriter zip_writer(zipfile_name);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const std::string buffer = "test_data_no_slash";
+  EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+  ASSERT_FALSE(zip_writer.IsMemFileOpened());
+  (void)std::remove(zipfile_name.c_str());
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathDotOnly) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, ".zip"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const std::string buffer = "test_data_dot";
+  EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+  ASSERT_FALSE(zip_writer.IsMemFileOpened());
+}
+
+TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Fail_NullStream) {
+  SimpleZipArchiveReader reader(nullptr, 0);
+  EXPECT_FALSE(reader.IsGood());
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesNoCompressionLargeData) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, "large_nocompress.zip"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+
+  constexpr size_t kDataSize = 200UL * 1024UL;
+  std::vector<uint8_t> data(kDataSize, 0x42);
+  EXPECT_TRUE(zip_writer.WriteBytes("large_data.bin", data.data(), data.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  const auto file_buf = ReadFileToVector(zipfile_path);
+  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+  ASSERT_EQ(file_names.size(), 1U);
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleEntriesWithGrowth) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, "multi_growth.zip"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+
+  for (int i = 0; i < 10; ++i) {
+    std::vector<uint8_t> data(32UL * 1024UL, static_cast<uint8_t>(i));
+    EXPECT_TRUE(zip_writer.WriteBytes("entry_" + std::to_string(i) + ".bin", data.data(), data.size(), false));
+  }
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  const auto file_buf = ReadFileToVector(zipfile_path);
+  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+  ASSERT_EQ(file_names.size(), 10U);
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteEndOfFileTwice) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, "double_close.zip"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const std::string buffer = "test_double_close";
+  EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
+  EXPECT_TRUE(zip_writer.WriteEndOfFile());
+  EXPECT_TRUE(zip_writer.WriteEndOfFile());
+}
+
+TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToFileWithCompressedData) {
+  const std::string zipfile_path = PathUtils::Join({test_work_dir, "compressed_save.zip"});
+  ZipArchiveWriter zip_writer(zipfile_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+
+  std::string data(50000, 'A');
+  EXPECT_TRUE(zip_writer.WriteBytes("compressed.bin", data.data(), data.size(), true));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  const auto file_buf = ReadFileToVector(zipfile_path);
+  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+  ASSERT_EQ(file_names.size(), 1U);
+}
+
+TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Ok_ListFilesFromCompressedArchive) {
+  const std::string archive_path = PathUtils::Join({test_work_dir, "__compressed_reader.zip"});
+  const std::vector<std::pair<std::string, std::string>> entries = {
+      {"file1.txt", std::string(10000, 'X')},
+      {"file2.txt", std::string(5000, 'Y')},
+  };
+  CreateTestZipArchive(archive_path, entries, true);
+
+  const auto file_buf = ReadFileToVector(archive_path);
+  SimpleZipArchiveReader reader(file_buf.data(), file_buf.size());
+  ASSERT_TRUE(reader.IsGood());
+
+  const auto file_names = reader.ListFiles();
+  ASSERT_EQ(file_names.size(), 2U);
+}
 }  // namespace ge

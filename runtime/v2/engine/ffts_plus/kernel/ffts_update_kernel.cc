@@ -21,6 +21,7 @@
 #include "register/kernel_registry_impl.h"
 #include "common/checker.h"
 #include "common/sgt_slice_type.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "engine/aicore/fe_rt2_common.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
 #include "engine/ffts_plus/converter/ffts_plus_common.h"
@@ -156,7 +157,11 @@ std::vector<std::string> CheckMemGuard(const KernelContext *context) {
   msgs.emplace_back(ss.str());
   return msgs;
 }
-REGISTER_KERNEL(FFTSTaskAndArgsCopy).RunFunc(FFTSTaskAndArgsCopy).TracePrinter(CheckMemGuard);
+
+REGISTER_KERNEL(FFTSTaskAndArgsCopy)
+    .RunFunc(FFTSTaskAndArgsCopy)
+    .TracePrinter(CheckMemGuard)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace
 }  // namespace kernel
 }  // namespace gert

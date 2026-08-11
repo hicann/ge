@@ -82,6 +82,7 @@ struct CachingMemAllocator : public ge::Allocator, public MemSynchronizer {
   void RecallMemBlocks(size_t start_queue_index = 0);
   ge::Status TryExtendCache(size_t queue_index);
   ge::MemBlock *AllocateWithTryRecycle(size_t size);
+  ge::Status WaitForLaunchSubmissions() const;
 
  private:
   RtsFirstLevelPool rts_mem_allocator_;

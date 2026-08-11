@@ -1606,4 +1606,53 @@ TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_EmptyFuncInfo) {
   EXPECT_EQ(ret, 0);
   func_map.erase("ReluPyEmpty");
 }
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_NotRegistered) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterface("NonExistentOp", "compile_info", "hash", inputs, outputs, nullptr, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_NullInputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  int ret = TbeOpTilingPyInterface("NonExistentOp", "compile_info", "hash", nullptr, nullptr, nullptr, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_SmallBuffer) {
+  char run_info_json[10] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  int ret = TbeOpTilingPyInterface("NonExistentOp", "compile_info", "hash", inputs, outputs, nullptr, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_WithAttrs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *attrs = R"([{"name":"attr1","dtype":"int64","value":1}])";
+  int ret = TbeOpTilingPyInterface("NonExistentOp", "compile_info", "hash", inputs, outputs, attrs, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
+
+TEST_F(RegisterOpTilingPyCovUT, IncCov_TbeOpTilingPyInterface_InvalidOutputs) {
+  char run_info_json[4096] = {0};
+  uint64_t elapse[2] = {0};
+  const char *inputs = R"([{"shape":[1,4],"ori_shape":[1,4],"format":"NCHW","ori_format":"NCHW","dtype":"float32"}])";
+  const char *outputs = "invalid_json";
+  int ret = TbeOpTilingPyInterface("NonExistentOp", "compile_info", "hash", inputs, outputs, nullptr, run_info_json,
+                                   sizeof(run_info_json), elapse);
+  EXPECT_EQ(ret, 0);
+}
 }  // namespace optiling

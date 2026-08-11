@@ -369,4 +369,19 @@ TEST_F(ModelIncCovUt, IncCov2_LoadFromFile_InvalidProtobufContent) {
   EXPECT_EQ(model.LoadFromFile(file_path), GRAPH_FAILED);
   system(("rm -f " + file_path).c_str());
 }
+
+TEST_F(ModelIncCovUt, IncCov2_SaveToFile_InvalidDir) {
+  auto graph = BuildTestGraph();
+  Model model("test_model", "v1");
+  model.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  EXPECT_EQ(model.SaveToFile("/nonexist_dir_xyz/sub/test.air", false), GRAPH_SUCCESS);
+  system("rm -rf /nonexist_dir_xyz");
+}
+
+TEST_F(ModelIncCovUt, IncCov2_SaveToFile_EmptyPath) {
+  auto graph = BuildTestGraph();
+  Model model("test_model", "v1");
+  model.SetGraph(GraphUtilsEx::GetComputeGraph(graph));
+  EXPECT_NE(model.SaveToFile("", false), GRAPH_SUCCESS);
+}
 }  // namespace ge

@@ -361,4 +361,68 @@ TEST_F(UtestGraphInferBasePassStub, TestUpdateParentNodeOutputForMultiDims_WhenA
   EXPECT_EQ(stub_base_pass.call_update_from_subgraph_times, 0);
   EXPECT_EQ(stub_base_pass.call_update_from_subgraph_multi_dims_times, 1);
 }
+
+TEST_F(UtestGraphInferBasePassStub, TestNoSubgraphNode) {
+  auto builder = NoSubgraphBuilder();
+  auto graph = builder.GetGraph();
+  auto add1 = graph->FindNode("add1");
+  EXPECT_NE(add1, nullptr);
+
+  ChildPassBuilder pass_builder;
+  auto stub_base_pass = pass_builder.Build();
+  EXPECT_EQ(stub_base_pass.Run(add1), SUCCESS);
+  EXPECT_EQ(stub_base_pass.call_infer_times, 1);
+}
+
+TEST_F(UtestGraphInferBasePassStub, TestSubgraphWithoutNetoutput) {
+  ut::GraphBuilder builder = ut::GraphBuilder("root_graph");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto case1 = builder.AddNode("case1", CASE, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data1, 0, case1, 0);
+  builder.AddDataEdge(case1, 0, netoutput, 0);
+
+  auto parent_graph = builder.GetGraph();
+
+  ut::GraphBuilder sub_builder = ut::GraphBuilder("sub_no_netoutput");
+  auto sub_data = sub_builder.AddNode("sub_data", "Data", 1, 1, FORMAT_NCHW, DT_INT32, {1, 1});
+  AttrUtils::SetInt(sub_data->GetOpDesc(), "_parent_node_index", 0);
+  auto sub_add = sub_builder.AddNode("sub_add", "Add", 1, 1);
+  builder.AddDataEdge(sub_data, 0, sub_add, 0);
+  auto subgraph = sub_builder.GetGraph();
+  case1->GetOpDesc()->AddSubgraphName(subgraph->GetName());
+  case1->GetOpDesc()->SetSubgraphInstanceName(0, subgraph->GetName());
+  subgraph->SetParentNode(case1);
+  subgraph->SetParentGraph(parent_graph);
+  EXPECT_EQ(parent_graph->AddSubgraph(subgraph->GetName(), subgraph), GRAPH_SUCCESS);
+
+  ChildPassBuilder pass_builder;
+  auto stub_base_pass = pass_builder.Build();
+  stub_base_pass.SetOption(kOptimizeAfterSubGraph, "");
+  EXPECT_NE(stub_base_pass.Run(case1), SUCCESS);
+}
+
+TEST_F(UtestGraphInferBasePassStub, TestInferResultNeedRepass) {
+  auto builder = NoSubgraphBuilder();
+  auto graph = builder.GetGraph();
+  auto add1 = graph->FindNode("add1");
+  EXPECT_NE(add1, nullptr);
+
+  ChildPassBuilder pass_builder;
+  pass_builder.SetInferResult(static_cast<graphStatus>(50331647));
+  auto stub_base_pass = pass_builder.Build();
+  EXPECT_EQ(stub_base_pass.Run(add1), SUCCESS);
+}
+
+TEST_F(UtestGraphInferBasePassStub, TestInferResultFailed) {
+  auto builder = NoSubgraphBuilder();
+  auto graph = builder.GetGraph();
+  auto add1 = graph->FindNode("add1");
+  EXPECT_NE(add1, nullptr);
+
+  ChildPassBuilder pass_builder;
+  pass_builder.SetInferResult(static_cast<graphStatus>(1));
+  auto stub_base_pass = pass_builder.Build();
+  EXPECT_NE(stub_base_pass.Run(add1), SUCCESS);
+}
 }  // namespace ge

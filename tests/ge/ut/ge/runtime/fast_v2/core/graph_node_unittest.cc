@@ -14,8 +14,10 @@
 #include "graph/utils/graph_dump_utils.h"
 
 #include "core/builder/graph_node.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "graph_builder/bg_condition.h"
 #include "exe_graph/lowering/value_holder_utils.h"
+#include "register/kernel_registry.h"
 
 namespace gert {
 class GraphNodeUT : public bg::BgTest {
@@ -364,5 +366,49 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph2) {
   EXPECT_EQ(graph_node.additional_add_info[waitAnyone][0], node4->GetFastNode());
   EXPECT_EQ(graph_node.additional_add_info[node4->GetFastNode()].size(), 0);
   EXPECT_EQ(graph_node.additional_add_info[node5->GetFastNode()].size(), 0);
+}
+
+TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RemoveLaunchFreeEdgeAlloc_UsesCopyD2D) {
+  auto size = bg::ValueHolder::CreateFeed(0);
+  auto allocator = bg::ValueHolder::CreateFeed(1);
+  auto stream = bg::ValueHolder::CreateFeed(2);
+  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {stream});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(previous_launch), "priority", 1);
+
+  auto alloc = bg::ValueHolder::CreateSingleDataOutput("AllocMemory", {size, allocator});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(alloc), "priority", 2);
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(alloc), "remove_launch_free_edge_alloc", 1);
+  auto copy_d2d = bg::ValueHolder::CreateSingleDataOutput("CopyD2D", {alloc});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(copy_d2d), "priority", 2);
+  auto next_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {copy_d2d});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(next_launch), "priority", 2);
+
+  auto main_frame = bg::ValueHolder::PopGraphFrame({previous_launch, next_launch}, {}, "NetOutput");
+  GraphNode graph_node;
+  ASSERT_EQ(graph_node.EnsureNodeExeInOrder(main_frame->GetExecuteGraph().get()), ge::GRAPH_SUCCESS);
+
+  EXPECT_EQ(graph_node.additional_add_info[previous_launch->GetFastNode()].size(), 1);
+  EXPECT_EQ(graph_node.additional_add_info[previous_launch->GetFastNode()][0], copy_d2d->GetFastNode());
+  EXPECT_EQ(graph_node.additional_indegree_info[copy_d2d->GetFastNode()], 1);
+  EXPECT_EQ(graph_node.additional_add_info[next_launch->GetFastNode()].size(), 0);
+}
+
+TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RegistryLaunchStartsNextPriorityGroup) {
+  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(previous_launch), "priority", 1);
+  auto copy_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchH2DCopy", {});
+  ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(copy_launch), "priority", 2);
+  auto main_frame = bg::ValueHolder::PopGraphFrame({previous_launch, copy_launch}, {}, "NetOutput");
+
+  EXPECT_FALSE(IsLaunchNode(copy_launch->GetFastNode()->GetTypePtr()));
+  const auto kernel_info = KernelRegistry::GetInstance().FindKernelInfo(copy_launch->GetFastNode()->GetTypePtr());
+  ASSERT_NE(kernel_info, nullptr);
+  ASSERT_EQ(kernel_info->critical_section, kKernelLaunch);
+
+  GraphNode graph_node;
+  ASSERT_EQ(graph_node.EnsureNodeExeInOrder(main_frame->GetExecuteGraph().get()), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(graph_node.additional_add_info[previous_launch->GetFastNode()].size(), 1U);
+  EXPECT_EQ(graph_node.additional_add_info[previous_launch->GetFastNode()][0], copy_launch->GetFastNode());
+  EXPECT_EQ(graph_node.additional_indegree_info[copy_launch->GetFastNode()], 1);
 }
 }  // namespace gert

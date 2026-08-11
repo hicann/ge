@@ -46,18 +46,6 @@ bool IsAutoMultistreamModeEnabled() {
          (!multi_stream_mode.empty()) && (multi_stream_mode != "cv");
 }
 
-Status CollectUsedStreamIds(const ComputeGraphPtr &graph, std::set<int64_t> &used_streams) {
-  GE_ASSERT_NOTNULL(graph);
-  for (const auto &node : graph->GetDirectNode()) {
-    const auto &op_desc = node->GetOpDesc();
-    GE_ASSERT_NOTNULL(op_desc);
-    const int64_t stream_id = op_desc->GetStreamId();
-    if (stream_id != kInvalidStream) {
-      used_streams.emplace(stream_id);
-    }
-  }
-  return SUCCESS;
-}
 }  // namespace
 
 Status DynamicStreamAllocator::AssignStreamsForDynamicShapeGraph(const ComputeGraphPtr &root_graph,
@@ -561,7 +549,26 @@ Status DynamicStreamAllocator::RefreshContinuousStreams(const ComputeGraphPtr &r
 
 Status DynamicStreamAllocator::RefreshContinuousStreamsByNodeIds(const ComputeGraphPtr &root_graph) {
   std::set<int64_t> used_streams;
-  GE_ASSERT_SUCCESS(CollectUsedStreamIds(root_graph, used_streams));
+  const auto collect_used_stream_ids = [this, &used_streams](const ComputeGraphPtr &graph) -> Status {
+    GE_ASSERT_NOTNULL(graph);
+    for (const auto &node : graph->GetDirectNode()) {
+      const auto &op_desc = node->GetOpDesc();
+      GE_ASSERT_NOTNULL(op_desc);
+      const int64_t stream_id = op_desc->GetStreamId();
+      if ((stream_id == kInvalidStream) || IsForcedAssignMainStream(node) ||
+          (!op_desc->GetSubgraphInstanceNames().empty())) {
+        continue;
+      }
+      used_streams.emplace(stream_id);
+    }
+    return SUCCESS;
+  };
+  GE_ASSERT_SUCCESS(collect_used_stream_ids(root_graph));
+  for (const auto &subgraph : root_graph->GetAllSubgraphs()) {
+    if (subgraph->GetGraphUnknownFlag()) {
+      GE_ASSERT_SUCCESS(collect_used_stream_ids(subgraph));
+    }
+  }
 
   stream_num_ = 0;
   std::map<int64_t, int64_t> old_to_new_streams;
@@ -576,6 +583,11 @@ Status DynamicStreamAllocator::RefreshContinuousStreamsByNodeIds(const ComputeGr
 
   stream_nodes_.clear();
   GE_ASSERT_SUCCESS(RefreshStreamsForGraphByNodeIds(root_graph, old_to_new_streams));
+  for (const auto &subgraph : root_graph->GetAllSubgraphs()) {
+    if (subgraph->GetGraphUnknownFlag()) {
+      GE_ASSERT_SUCCESS(RefreshStreamsForGraphByNodeIds(subgraph, old_to_new_streams));
+    }
+  }
   return SUCCESS;
 }
 

@@ -72,14 +72,15 @@ inline Status InsertBroadcastBeforeNode(AscGraph &asc_graph, const NodePtr &node
   return SUCCESS;
 }
 
-inline Status UpdateReduceNodeRepeats(const NodePtr &asc_node, TensorAttrInfo &temp_cur_attr) {
+inline Status UpdateReduceNodeRepeats(const NodePtr &asc_node, const NodePtr &reduce_node,
+                                      TensorAttrInfo &temp_cur_attr) {
   auto reduce_attrs = BackendUtils::GetNodeAutoFuseAttr(asc_node);
   if (reduce_attrs == nullptr) {
     return SUCCESS;
   }
 
-  const auto &original_axis = reduce_attrs->GetReduceOriginalAxis();
-  const auto &original_repeats = reduce_attrs->GetReduceOriginalRepeats();
+  const auto &original_axis = reduce_attrs->GetReduceOriginalAxis(reduce_node->GetName());
+  const auto &original_repeats = reduce_attrs->GetReduceOriginalRepeats(reduce_node->GetName());
 
   if (original_axis.empty() ||
       original_repeats.empty()) {  // 如果为空，说明前面是lowering出来不需要反推broadcast（load后或者融合点）的计算节点
@@ -108,7 +109,7 @@ inline Status GetBroadcastInfoForNode(const NodePtr &cur_node, TensorAttrInfo &t
   attr_info.broadcast_info.clear();
 
   if (IsReduceNode(cur_node)) {
-    GE_ASSERT_SUCCESS(UpdateReduceNodeRepeats(asc_node, temp_cur_attr));
+    GE_ASSERT_SUCCESS(UpdateReduceNodeRepeats(asc_node, cur_node, temp_cur_attr));
   }
 
   TensorAttrInfo temp_peer_out_attr;

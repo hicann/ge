@@ -138,6 +138,7 @@ ge::Status KernelTaskProducer::ReInit() {
   }
   GE_ASSERT_TRUE(ordered_task_id_ == start_tasks_.size());
   has_generate_task_num_ = 0U;
+  latest_target_task_ = nullptr;
   return ge::SUCCESS;
 }
 

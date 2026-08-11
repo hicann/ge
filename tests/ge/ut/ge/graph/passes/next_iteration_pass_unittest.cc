@@ -137,3 +137,31 @@ TEST_F(UtestGraphPassesNextIterationPass, FindTargetNodeFailed) {
   auto ret = pass_.FindTargetNode(null_node, std::string(), false, null_node);
   EXPECT_EQ(PARAM_INVALID, ret);
 }
+
+TEST_F(UtestGraphPassesNextIterationPass, CreateActiveNodeSuccess) {
+  auto graph = BuildGraphNextIterationPass();
+  ge::NextIterationPass pass_;
+  auto active_node = pass_.CreateActiveNode(graph, "test_active");
+  EXPECT_NE(active_node, nullptr);
+  EXPECT_EQ(active_node->GetType(), STREAMACTIVE);
+}
+
+TEST_F(UtestGraphPassesNextIterationPass, ClearStatusSuccess) {
+  ge::NextIterationPass pass_;
+  EXPECT_EQ(pass_.ClearStatus(), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesNextIterationPass, RunEmptyGraph) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("empty");
+  ge::NextIterationPass pass_;
+  EXPECT_EQ(pass_.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesNextIterationPass, FindTargetNodeLoopCondNotFound) {
+  auto graph = BuildGraphNextIterationPass();
+  ge::NextIterationPass pass_;
+  auto merge_node = graph->FindNode("merge");
+  NodePtr target_node = nullptr;
+  auto ret = pass_.FindTargetNode(merge_node, LOOPCOND, true, target_node);
+  EXPECT_EQ(INTERNAL_ERROR, ret);
+}

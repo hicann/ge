@@ -265,4 +265,45 @@ TEST_F(UTEST_file_saver, PrintModelSaveLog_when_not_initialized) {
   FileSaver::PrintModelSaveLog();
 }
 
+TEST_F(UTEST_file_saver, OpenFile_TooLongPath_CovEnhance) {
+  int32_t fd = 0;
+  std::string long_path(MMPA_MAX_PATH + 1, 'a');
+  EXPECT_EQ(FileSaver::OpenFile(fd, long_path), FAILED);
+}
+
+TEST_F(UTEST_file_saver, SaveWithFileHeader_Data_InvalidPath_CovEnhance) {
+  ModelFileHeader file_header;
+  std::string data = "test_data";
+  std::string long_path(MMPA_MAX_PATH + 1, 'a');
+  EXPECT_EQ(FileSaver::SaveWithFileHeader(long_path, file_header, data.data(), data.size()), FAILED);
+}
+
+TEST_F(UTEST_file_saver, SaveWithFileHeader_PartitionTable_InvalidPath_CovEnhance) {
+  ModelFileHeader file_header;
+  std::vector<char> data;
+  data.resize(sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo), 0);
+  ModelPartitionTable *partition_table = reinterpret_cast<ModelPartitionTable *>(data.data());
+  partition_table->num = 1;
+  partition_table->partition[0] = {MODEL_DEF, 0, 12};
+  auto buff = reinterpret_cast<uint8_t *>(malloc(12));
+  struct ge::ModelPartition model_partition;
+  model_partition.type = MODEL_DEF;
+  model_partition.data = buff;
+  model_partition.size = 12;
+  std::vector<ModelPartition> model_partitions = {model_partition};
+  std::string long_path(MMPA_MAX_PATH + 1, 'a');
+  EXPECT_EQ(FileSaver::SaveWithFileHeader(long_path, file_header, *partition_table, model_partitions), FAILED);
+  free(buff);
+  model_partition.data = nullptr;
+}
+
+TEST_F(UTEST_file_saver, SaveToFile_ModelData_InvalidPath_CovEnhance) {
+  std::string model_data_str(256, '1');
+  ge::ModelData modelData;
+  modelData.model_data = reinterpret_cast<void *>(const_cast<char *>(model_data_str.c_str()));
+  modelData.model_len = model_data_str.size();
+  ModelFileHeader file_header;
+  std::string long_path(MMPA_MAX_PATH + 1, 'a');
+  EXPECT_EQ(FileSaver::SaveToFile(long_path, modelData, &file_header), FAILED);
+}
 }  // namespace ge

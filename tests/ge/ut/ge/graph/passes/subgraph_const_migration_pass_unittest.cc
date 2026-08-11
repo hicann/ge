@@ -389,4 +389,23 @@ TEST_F(UtestSubgraphConstMigrationPass, subgraph_expression_migration) {
   make_multibatch_graph_subexpression(graph);
   EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
 }
+
+TEST_F(UtestSubgraphConstMigrationPass, run_empty_graph) {
+  PassManager pass_manager;
+  pass_manager.AddPass("SubgraphConstMigrationPass", new (std::nothrow) SubgraphConstMigrationPass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestSubgraphConstMigrationPass, run_graph_without_subgraph) {
+  PassManager pass_manager;
+  pass_manager.AddPass("SubgraphConstMigrationPass", new (std::nothrow) SubgraphConstMigrationPass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto data = MakeNode(graph, 0, 1, "data", "Data");
+  auto add = MakeNode(graph, 1, 1, "add", ADD);
+  auto netoutput = MakeNode(graph, 1, 0, "netoutput", NETOUTPUT);
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), add->GetInDataAnchor(0));
+  GraphUtils::AddEdge(add->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
 }  // namespace ge

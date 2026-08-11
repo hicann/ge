@@ -15,6 +15,7 @@
 
 #include "proto/onnx/ge_onnx.pb.h"
 #include "parser/common/convert/pb2json.h"
+#include "proto/caffe/caffe.pb.h"
 
 namespace ge {
 class UtestMessage2Operator : public testing::Test {
@@ -98,5 +99,101 @@ TEST_F(UtestMessage2Operator, enum_to_json_success) {
   nlohmann::json json = {{"attr1", "attr1"}};
   ge::Pb2Json::EnumJson2Json(json);
   EXPECT_NE(json.size(), 0U);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_int64_field) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("int_attr");
+  attribute->set_type(onnx::AttributeProto::AttributeType(2));
+  attribute->set_i(42);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(attribute, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_string_field) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("str_attr");
+  attribute->set_type(onnx::AttributeProto::AttributeType(3));
+  attribute->set_s("hello");
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(attribute, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_float_field) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("floats_attr");
+  attribute->add_floats(1.0f);
+  attribute->add_floats(2.0f);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(attribute, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_int32_field) {
+  ge::onnx::TensorProto tensor;
+  tensor.add_int32_data(10);
+  tensor.add_int32_data(20);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&tensor, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_float_via_tensor) {
+  ge::onnx::TensorProto tensor;
+  tensor.add_float_data(1.0f);
+  tensor.add_float_data(2.0f);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&tensor, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_uint32_field) {
+  domi::caffe::ConvolutionParameter conv_param;
+  conv_param.set_num_output(64U);
+  ge::Operator op_src("conv", "Convolution");
+  auto ret = Message2Operator::ParseOperatorAttrs(&conv_param, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_bool_field) {
+  domi::caffe::ConvolutionParameter conv_param;
+  conv_param.set_bias_term(true);
+  conv_param.set_num_output(32U);
+  ge::Operator op_src("conv", "Convolution");
+  auto ret = Message2Operator::ParseOperatorAttrs(&conv_param, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_float_via_caffe_blob) {
+  domi::caffe::BlobProto blob;
+  blob.add_data(1.0f);
+  blob.add_data(2.0f);
+  ge::Operator op_src("blob", "Blob");
+  auto ret = Message2Operator::ParseOperatorAttrs(&blob, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_int32_via_caffe_blob) {
+  domi::caffe::BlobProto blob;
+  blob.add_int32_data(10);
+  blob.add_int32_data(20);
+  ge::Operator op_src("blob", "Blob");
+  auto ret = Message2Operator::ParseOperatorAttrs(&blob, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_repeated_message_field) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("tensors_attr");
+  attribute->mutable_tensors()->Add();
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(attribute, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
 }
 }  // namespace ge

@@ -829,4 +829,26 @@ TEST_F(UtestGraphPassesAtomicAddrCleanPass, test_ge_init_fail) {
   GEInitialize(options);
 }
 
+TEST_F(UtestGraphPassesAtomicAddrCleanPass, check_atomic_ops_kernel_ge_not_init) {
+  GEFinalize();
+  AtomicAddrCleanPass pass;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_node", RELU);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddOutputDesc(GeTensorDesc());
+  NodePtr node = graph->AddNode(op_desc);
+  EXPECT_FALSE(pass.CheckAtomicFromOpsKernel(node));
+  std::map<AscendString, AscendString> options;
+  GEInitialize(options);
+}
+
+TEST_F(UtestGraphPassesAtomicAddrCleanPass, is_hcom_atomic_node_test) {
+  AtomicAddrCleanPass pass;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("hcom_node", HCOMALLREDUCE);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddOutputDesc(GeTensorDesc());
+  NodePtr node = graph->AddNode(op_desc);
+  EXPECT_FALSE(pass.IsHcomAtomicNode(node));
+}
 }  // namespace ge

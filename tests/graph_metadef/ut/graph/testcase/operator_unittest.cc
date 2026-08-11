@@ -3470,4 +3470,39 @@ TEST_F(UtestOperater, CovOpVerifyAll) {
   EXPECT_EQ(op.VerifyAll(), GRAPH_FAILED);
 }
 
+TEST_F(UtestOperater, IncCov_CreateOperatorFromNode_NullNode) {
+  ge::ConstNodePtr null_node;
+  ge::Operator op = OpDescUtils::CreateOperatorFromNode(null_node);
+  SUCCEED();
+}
+
+TEST_F(UtestOperater, IncCov_OperatorGetInputConstData_NullImpl) {
+  ge::Operator op("test_op21", "Test");
+  op.operator_impl_ = nullptr;
+  Tensor data;
+  EXPECT_NE(op.GetInputConstData("x", data), GRAPH_SUCCESS);
+  EXPECT_NE(op.GetInputConstData(0, data), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorSetAttr_NullImpl) {
+  ge::Operator op("test_op22", "Test");
+  op.operator_impl_ = nullptr;
+  op.SetAttr("attr", static_cast<int64_t>(42));
+  int64_t val = 0;
+  EXPECT_NE(op.GetAttr("attr", val), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorGetName_NullImpl) {
+  ge::Operator op("test_op23", "Test");
+  op.operator_impl_ = nullptr;
+  AscendString name;
+  EXPECT_EQ(op.GetName(name), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestOperater, IncCov_OperatorGetType_NullImpl) {
+  ge::Operator op("test_op24", "Test");
+  op.operator_impl_ = nullptr;
+  AscendString type;
+  EXPECT_NE(op.GetOpType(type), GRAPH_SUCCESS);
+}
 }  // namespace ge

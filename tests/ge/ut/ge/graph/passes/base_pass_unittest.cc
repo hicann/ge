@@ -1264,4 +1264,40 @@ TEST_F(UTESTGraphPassesBasePass, run_with_filter_disabled_all) {
   EXPECT_EQ(ge_pass.Run(passes, true), SUCCESS);
   GetThreadLocalContext().SetGraphOption(origin_graph_options);
 }
+
+class TestNullRepassPass : public BaseNodePass {
+ public:
+  Status Run(NodePtr &node) override {
+    AddRePassNode(NodePtr(nullptr));
+    AddImmediateRePassNode(NodePtr(nullptr));
+    return SUCCESS;
+  }
+};
+REG_PASS_OPTION("TestNullRepassPass").LEVELS(OoLevel::kO3);
+
+TEST_F(UTESTGraphPassesBasePass, null_repass_node_test) {
+  NamesToPass names_to_pass;
+  auto test_pass = TestNullRepassPass();
+  names_to_pass.push_back(std::make_pair("TestNullRepassPass", &test_pass));
+  auto graph = BuildGraph1();
+  auto ge_pass = GEPass(graph);
+  EXPECT_EQ(ge_pass.Run(names_to_pass), SUCCESS);
+}
+
+class TestFailPass : public BaseNodePass {
+ public:
+  Status Run(NodePtr &node) override {
+    return FAILED;
+  }
+};
+REG_PASS_OPTION("TestFailPass").LEVELS(OoLevel::kO3);
+
+TEST_F(UTESTGraphPassesBasePass, run_pass_on_node_failed) {
+  NamesToPass names_to_pass;
+  auto test_pass = TestFailPass();
+  names_to_pass.push_back(std::make_pair("TestFailPass", &test_pass));
+  auto graph = BuildGraph1();
+  auto ge_pass = GEPass(graph);
+  EXPECT_EQ(ge_pass.Run(names_to_pass), FAILED);
+}
 }  // namespace ge

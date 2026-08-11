@@ -188,5 +188,11 @@ TEST_F(MultiBatchGraphCopyerUnitTest, ProcessMultiBatch_EnvNoNeed) {
   EXPECT_EQ(GetNames(graph->GetAllNodes()), std::set<std::string>({"data1", "addn1", "netoutput1"}));
   GetLocalOmgContext().need_multi_batch = true;
 }
+
+TEST_F(MultiBatchGraphCopyerUnitTest, GetDynamicOutputShapeNoMultiBatch) {
+  auto graph = BuildGraph1();
+  auto ret = GetDynamicOutputShape(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
 }  // namespace multibatch
 }  // namespace ge

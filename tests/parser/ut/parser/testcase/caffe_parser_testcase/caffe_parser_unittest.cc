@@ -1801,4 +1801,241 @@ TEST_F(UtestCaffeParser, CaffeModelParser_ToJson_null_json) {
   EXPECT_EQ(ret, FAILED);
 }
 
+TEST_F(UtestCaffeParser, CaffeModelParser_ParseNetModelByCustomProto_test) {
+  CaffeModelParser modelParser;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
+  std::string model_file = case_dir + "/caffe_model/caffe_add.pbtxt";
+  std::string custom_proto_path = case_dir + "/caffe_model";
+  std::string custom_proto_name = "project_root/caffe_add.pbtxt";
+
+  vector<ge::Operator> operators;
+  Status ret =
+      modelParser.ParseNetModelByCustomProto(model_file.c_str(), custom_proto_path, custom_proto_name, operators);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_CustomProtoParse_no_slash_test) {
+  CaffeModelParser modelParser;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
+  std::string model_file = case_dir + "/caffe_model/caffe_add.pbtxt";
+
+  std::string custom_proto = case_dir + "/../../../../../graph_metadef/proto/caffe/caffe.proto";
+  std::string caffe_proto = case_dir + "/../../../../../graph_metadef/proto/caffe/caffe.proto";
+  vector<ge::Operator> operators;
+  ge::OpDescPtr op_desc_src = std::make_shared<ge::OpDesc>("Data", "Input");
+  ge::Operator op_src = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc_src);
+  operators.emplace_back(op_src);
+
+  Status ret = modelParser.CustomProtoParse(model_file.c_str(), custom_proto, caffe_proto, operators);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestCaffeParser, aclgrphParseCaffe_4param_parse_before_fail) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
+  std::string model_file = case_dir + "/caffe_model/caffe_add.pbtxt";
+  std::string weight_file = case_dir + "/caffe_model/caffe_add.caffemodel";
+
+  std::map<ge::AscendString, ge::AscendString> parser_params;
+  parser_params[ge::AscendString(ge::ir_option::OUT_NODES)] = ge::AscendString("InvalidNode:0;InvalidNode2:1");
+  ge::Graph graph;
+  auto ret = ge::aclgrphParseCaffe(model_file.c_str(), weight_file.c_str(), parser_params, graph);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddEdges_success) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_edges");
+
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  op1->AddInputDesc(ge::GeTensorDesc());
+  op1->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node1 = graph->AddNode(op1);
+
+  ge::OpDescPtr op2 = std::make_shared<ge::OpDesc>("node2", "Relu");
+  op2->AddInputDesc(ge::GeTensorDesc());
+  op2->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node2 = graph->AddNode(op2);
+
+  modelParser.top_blobs_map_["blob1"].emplace_back(std::make_pair("node1", 0));
+  modelParser.bottom_blobs_map_["blob1"].emplace_back(std::make_pair("node2", 0));
+  modelParser.node_map["node1"] = node1;
+  modelParser.node_map["node2"] = node2;
+
+  Status ret = modelParser.AddEdges(graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddEdges_top_node_not_found) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_edges2");
+
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  op1->AddInputDesc(ge::GeTensorDesc());
+  op1->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node1 = graph->AddNode(op1);
+
+  modelParser.top_blobs_map_["blob1"].emplace_back(std::make_pair("nonexistent_top", 0));
+  modelParser.bottom_blobs_map_["blob1"].emplace_back(std::make_pair("node1", 0));
+  modelParser.node_map["node1"] = node1;
+
+  Status ret = modelParser.AddEdges(graph);
+  EXPECT_EQ(ret, ge::FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddEdges_bottom_node_not_found) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_edges3");
+
+  ge::OpDescPtr op1 = std::make_shared<ge::OpDesc>("node1", "Relu");
+  op1->AddInputDesc(ge::GeTensorDesc());
+  op1->AddOutputDesc(ge::GeTensorDesc());
+  ge::NodePtr node1 = graph->AddNode(op1);
+
+  modelParser.top_blobs_map_["blob1"].emplace_back(std::make_pair("node1", 0));
+  modelParser.bottom_blobs_map_["blob1"].emplace_back(std::make_pair("nonexistent_bottom", 0));
+  modelParser.node_map["node1"] = node1;
+
+  Status ret = modelParser.AddEdges(graph);
+  EXPECT_EQ(ret, ge::FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_IsOutputTop_not_found) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  bool ret = modelParser.IsOutputTop("nonexistent_node", 0);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_IsOutputTop_index_not_match) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  ge::GetParserContext().out_nodes_map["test_node"] = {1, 2, 3};
+  bool ret = modelParser.IsOutputTop("test_node", 0);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_ParseInput_input_dim_and_shape_both_exist) {
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.add_input("data");
+  net.add_input_dim(1);
+  net.add_input_dim(2);
+  net.add_input_dim(3);
+  net.add_input_dim(4);
+  net.add_input_shape();
+  bool input_data_flag = false;
+  Status ret = modelParser.ParseInput(net, input_data_flag);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_ParseInput_input_dim_invalid_size) {
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.add_input("data");
+  net.add_input_dim(1);
+  net.add_input_dim(2);
+  bool input_data_flag = false;
+  Status ret = modelParser.ParseInput(net, input_data_flag);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_ParseInput_no_input_dim_no_shape) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.add_input("data");
+  bool input_data_flag = false;
+  Status ret = modelParser.ParseInput(net, input_data_flag);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_ParseInput_no_input_dim_no_shape_with_ctx) {
+  ParerUTestsUtils::ClearParserInnerCtx();
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.add_input("data");
+  ge::GetParserContext().input_dims["data"] = {1, 3, 224, 224};
+  bool input_data_flag = false;
+  Status ret = modelParser.ParseInput(net, input_data_flag);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(input_data_flag);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddTensorDescToOpDescByIr_netoutput) {
+  CaffeModelParser modelParser;
+  ge::OpDescPtr op_desc;
+  domi::caffe::LayerParameter layer;
+  layer.set_name("netoutput");
+  layer.set_type("NetOutput");
+  layer.add_bottom("input");
+  layer.add_top("output");
+  Status ret = modelParser.AddTensorDescToOpDescByIr(op_desc, layer, "NetOutput");
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(op_desc, nullptr);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddTensorDescToOpDescByIr_yolo) {
+  CaffeModelParser modelParser;
+  ge::OpDescPtr op_desc;
+  domi::caffe::LayerParameter layer;
+  layer.set_name("yolo");
+  layer.set_type("YoloDetectionOutput");
+  layer.add_bottom("input");
+  layer.add_top("output");
+  Status ret = modelParser.AddTensorDescToOpDescByIr(op_desc, layer, "YoloDetectionOutput");
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(op_desc, nullptr);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_PreCheck_success) {
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.set_name("test_net");
+  auto *layer = net.add_layer();
+  layer->set_name("conv1");
+  layer->set_type("Convolution");
+  layer->add_bottom("data");
+  layer->add_top("conv1_out");
+  Status ret = modelParser.PreCheck(net);
+  EXPECT_NE(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_PreCheck_empty_name) {
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  net.set_name("test_net");
+  auto *layer = net.add_layer();
+  layer->set_name("");
+  layer->set_type("Convolution");
+  Status ret = modelParser.PreCheck(net);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeModelParser_AddNode_unsupported_type) {
+  CaffeModelParser modelParser;
+  domi::caffe::NetParameter net;
+  domi::caffe::LayerParameter *layer = net.add_layer();
+  layer->set_name("unknown");
+  layer->set_type("UnknownOpType");
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  Status ret = modelParser.AddNode(*layer, graph);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseWeightByFusionProto_null) {
+  CaffeWeightsParser weightParser;
+  const char *weight_path = nullptr;
+  std::string fusion_proto_path = "test";
+  std::string fusion_proto_name = "test";
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  Status ret = weightParser.ParseWeightByFusionProto(weight_path, fusion_proto_path, fusion_proto_name, graph);
+  EXPECT_EQ(ret, FAILED);
+}
 }  // namespace ge

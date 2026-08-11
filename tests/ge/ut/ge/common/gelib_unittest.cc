@@ -205,4 +205,52 @@ TEST_F(UtestGeLib, set_OptionNameMap) {
   EXPECT_EQ(GEInit::Finalize(), SUCCESS);
 }
 
+TEST_F(UtestGeLib, InitializeWithInvalidAicoreNum) {
+  std::map<std::string, std::string> options;
+  options[AICORE_NUM] = "2|i";
+  options[SOC_VERSION] = "Ascend910";
+  EXPECT_NE(GELib::Initialize(options), SUCCESS);
+  EXPECT_EQ(GELib::GetInstance(), nullptr);
+}
+
+TEST_F(UtestGeLib, InitializeWithOverflowAicoreNum) {
+  std::map<std::string, std::string> options;
+  options[AICORE_NUM] = "100|100";
+  options[SOC_VERSION] = "Ascend910";
+  EXPECT_NE(GELib::Initialize(options), SUCCESS);
+  EXPECT_EQ(GELib::GetInstance(), nullptr);
+}
+
+TEST_F(UtestGeLib, GeInitFinalizeWithoutInstance) {
+  GELib::GetInstance();
+  EXPECT_EQ(GEInit::Finalize(), SUCCESS);
+}
+
+TEST_F(UtestGeLib, GetInstanceWhenNotInitialized) {
+  auto instance = GELib::GetInstance();
+  EXPECT_EQ(instance, nullptr);
+}
+
+TEST_F(UtestGeLib, GetPath) {
+  EXPECT_FALSE(GELib::GetPath().empty());
+}
+
+TEST_F(UtestGeLib, RollbackInit) {
+  auto p1 = std::make_shared<GELib>();
+  EXPECT_NO_THROW(p1->RollbackInit());
+}
+
+TEST_F(UtestGeLib, SystemFinalize) {
+  auto p1 = std::make_shared<GELib>();
+  p1->is_system_inited = false;
+  p1->is_train_mode_ = false;
+  EXPECT_NO_THROW(p1->SystemFinalize());
+}
+
+TEST_F(UtestGeLib, SetRTSocVersionWithSocVersion) {
+  auto p1 = std::make_shared<GELib>();
+  std::map<std::string, std::string> options;
+  options[SOC_VERSION] = "Ascend910";
+  EXPECT_EQ(p1->SetRTSocVersion(options), SUCCESS);
+}
 }  // namespace ge

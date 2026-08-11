@@ -458,4 +458,29 @@ TEST_F(UtestGraphPassesMergePass, IsMergeInputNeedOptimized2) {
   EXPECT_EQ(ret, true);
 }
 
+TEST_F(UtestGraphPassesMergePass, IsMergeInputNeedOptimized_variable_input) {
+  auto memcpy_node = NewNode("memcpy", MEMCPYASYNC, 1, 1);
+  auto var_node = NewNode("var", VARIABLE, 0, 1);
+  GraphUtils::AddEdge(var_node->GetOutDataAnchor(0), memcpy_node->GetInDataAnchor(0));
+  bool ret = pass_.IsMergeInputNeedOptimized(memcpy_node);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(UtestGraphPassesMergePass, IsMergeInputNeedOptimized_non_memcpy_type) {
+  auto relu_node = NewNode("relu", RELU, 1, 1);
+  auto data_node = NewNode("data", DATA, 0, 1);
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), relu_node->GetInDataAnchor(0));
+  bool ret = pass_.IsMergeInputNeedOptimized(relu_node);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(UtestGraphPassesMergePass, IsMergeInputNeedOptimized_multi_inputs) {
+  auto memcpy_node = NewNode("memcpy", MEMCPYASYNC, 2, 1);
+  auto data1 = NewNode("data1", DATA, 0, 1);
+  auto data2 = NewNode("data2", DATA, 0, 1);
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), memcpy_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(data2->GetOutDataAnchor(0), memcpy_node->GetInDataAnchor(1));
+  bool ret = pass_.IsMergeInputNeedOptimized(memcpy_node);
+  EXPECT_EQ(ret, false);
+}
 }  // namespace ge

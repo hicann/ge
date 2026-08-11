@@ -479,4 +479,48 @@ TEST_F(UtestTransopSymmetryEliminationPass, test_reshape_remove_with_transdata_5
   EXPECT_EQ(compute_graph->FindNode("trans1"), nullptr);
   EXPECT_EQ(compute_graph->FindNode("trans2"), nullptr);
 }
+
+TEST_F(UtestTransopSymmetryEliminationPass, non_symmetric_transpose_d_test) {
+  auto builder = ut::GraphBuilder("test_non_symm");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto trans1 = builder.AddNode("trans1", TRANSPOSED, 1, 1);
+  auto trans2 = builder.AddNode("trans2", TRANSPOSED, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+
+  AttrUtils::SetListInt(trans1->GetOpDesc(), PERMUTE_ATTR_PERM, {0, 2, 1, 3});
+  AttrUtils::SetListInt(trans2->GetOpDesc(), PERMUTE_ATTR_PERM, {0, 2, 1, 3});
+
+  builder.AddDataEdge(data, 0, trans1, 0);
+  builder.AddDataEdge(trans1, 0, trans2, 0);
+  builder.AddDataEdge(trans2, 0, netoutput, 0);
+
+  auto graph = builder.GetGraph();
+  TransOpSymmetryEliminationPass transop_symmetry_elimination_pass;
+  NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TransOpSymmetryEliminationPass", &transop_symmetry_elimination_pass);
+  GEPass pass(graph);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
+
+TEST_F(UtestTransopSymmetryEliminationPass, transpose_d_different_perm_size_test) {
+  auto builder = ut::GraphBuilder("test_diff_perm_size");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto trans1 = builder.AddNode("trans1", TRANSPOSED, 1, 1);
+  auto trans2 = builder.AddNode("trans2", TRANSPOSED, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+
+  AttrUtils::SetListInt(trans1->GetOpDesc(), PERMUTE_ATTR_PERM, {0, 2, 1, 3});
+  AttrUtils::SetListInt(trans2->GetOpDesc(), PERMUTE_ATTR_PERM, {0, 1});
+
+  builder.AddDataEdge(data, 0, trans1, 0);
+  builder.AddDataEdge(trans1, 0, trans2, 0);
+  builder.AddDataEdge(trans2, 0, netoutput, 0);
+
+  auto graph = builder.GetGraph();
+  TransOpSymmetryEliminationPass transop_symmetry_elimination_pass;
+  NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TransOpSymmetryEliminationPass", &transop_symmetry_elimination_pass);
+  GEPass pass(graph);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
 }  // namespace ge

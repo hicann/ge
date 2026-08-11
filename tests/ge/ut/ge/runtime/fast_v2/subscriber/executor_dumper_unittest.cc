@@ -41,7 +41,9 @@
 #include "engine/aicore/kernel/mixl2_update_kernel.h"           //todo: to be deleted
 #include "engine/aicpu/kernel/ffts_plus/aicpu_update_kernel.h"  // todo: to be deleted
 #include "depends/profiler/src/dump_stub.h"
+#include "exe_graph/lowering/exe_graph_attrs.h"
 #include "exe_graph/lowering/lowering_definitions.h"
+#include "lowering/pass_changed_kernels_info.h"
 
 namespace gert {
 namespace {
@@ -166,6 +168,37 @@ TEST_F(ExecutorDumperUT, DumperConstruct_Ok) {
   ExecutorDumper dumper(extend_info);
   EXPECT_NE(dumper.extend_info_->executor, nullptr);
   EXPECT_NE(dumper.extend_info_->exe_graph, nullptr);
+}
+
+TEST_F(ExecutorDumperUT, PassChangedInfoResolvesLaunchSpecificPrepareOutput) {
+  GertRuntimeStub stub;
+  stub.GetSlogStub().NoConsoleOut();
+  auto exe_graph = std::make_shared<ge::ExecuteGraph>("pass_changed_info");
+  const auto extend_info = ge::MakeShared<const SubscriberExtendInfo>(nullptr, exe_graph, nullptr, ge::ModelData{},
+                                                                      nullptr, SymbolsToValue{}, 0U, "", nullptr,
+                                                                      std::unordered_map<std::string, TraceAttr>{});
+  ExecutorDumper dumper(extend_info);
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("compute_graph");
+  auto compute_op_desc = ge::MakeShared<ge::OpDesc>("compute", "Compute");
+  ASSERT_NE(compute_op_desc, nullptr);
+  NodeDumpUnit dump_unit;
+  dump_unit.node = compute_graph->AddNode(compute_op_desc);
+  ASSERT_NE(dump_unit.node, nullptr);
+  dumper.compute_node_name_to_launch_kernel_name_["compute"] = "LaunchKernelWithFlag_target";
+
+  auto copy_op_desc = ge::MakeShared<ge::OpDesc>("copy", "CopyH2D");
+  ASSERT_NE(copy_op_desc, nullptr);
+  PassChangedKernels pass_changed_info;
+  pass_changed_info.pass_changed_kernels = {
+      {{"copy", 0, "LaunchKernelWithFlag_other"}, {"OtherPrepare", 0}},
+      {{"copy", 0, "LaunchKernelWithFlag_target"}, {"CopyFlowPrepare", 1}},
+  };
+  ASSERT_TRUE(copy_op_desc->SetExtAttr(kPassChangedInfo, pass_changed_info));
+
+  const auto resolved = dumper.GetKernelNameAndIdxAfterPass(copy_op_desc.get(), {"copy", 0}, &dump_unit);
+  EXPECT_EQ(resolved.kernel_name, "CopyFlowPrepare");
+  EXPECT_EQ(resolved.idx, 1);
 }
 
 TEST_F(ExecutorDumperUT, DumperInit_InitKernelNamesToExeNodes_WithSingleNodeGraph) {

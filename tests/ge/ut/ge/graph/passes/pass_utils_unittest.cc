@@ -248,3 +248,26 @@ TEST_F(UtestGraphPassesPassUtils, update_ref_attr_no_ref_nodes) {
   EXPECT_EQ(PassUtils::UpdateRefAttr(graph), SUCCESS);
   EXPECT_FALSE(node_relu->GetOpDesc()->HasAttr(ATTR_NAME_REFERENCE));
 }
+
+TEST_F(UtestGraphPassesPassUtils, is_constant_null_node) {
+  EXPECT_FALSE(PassUtils::IsConstant(nullptr));
+}
+
+TEST_F(UtestGraphPassesPassUtils, set_out_node_weight_null_src) {
+  OutDataAnchorPtr anchor = nullptr;
+  EXPECT_EQ(PassUtils::SetOutNodeWeight(anchor, nullptr), PARAM_INVALID);
+}
+
+TEST_F(UtestGraphPassesPassUtils, set_out_node_weight_empty_weights) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_empty_weights");
+  ge::NodePtr const_node = NodeBuilder("const1", CONSTANT).AddOutputDesc({1}).Build(graph);
+  ge::NodePtr relu = NodeBuilder("relu1", RELU).AddInputDesc({1}).Build(graph);
+  GraphUtils::AddEdge(const_node->GetOutDataAnchor(0), relu->GetInDataAnchor(0));
+  EXPECT_EQ(PassUtils::SetOutNodeWeight(const_node->GetOutDataAnchor(0), const_node), PARAM_INVALID);
+}
+
+TEST_F(UtestGraphPassesPassUtils, set_out_node_weight_not_const) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_not_const");
+  ge::NodePtr relu = NodeBuilder("relu1", RELU).AddInputDesc({1}).AddOutputDesc({1}).Build(graph);
+  EXPECT_EQ(PassUtils::SetOutNodeWeight(relu->GetOutDataAnchor(0), relu), SUCCESS);
+}

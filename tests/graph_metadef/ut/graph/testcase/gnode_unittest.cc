@@ -1212,4 +1212,59 @@ TEST_F(GNodeTest, IncCov_GNodeGetInputConstDataConstNoValue) {
   Tensor data;
   EXPECT_EQ(gnode.GetInputConstData(0, data), GRAPH_FAILED);
 }
+
+TEST_F(GNodeTest, IncCov_GetALLSubgraphs_NullImpl) {
+  GNode gnode;
+  gnode.impl_ = nullptr;
+  std::vector<GraphPtr> subgraphs;
+  EXPECT_EQ(gnode.GetALLSubgraphs(subgraphs), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GetALLSubgraphs_ExpiredNodePtr) {
+  GNode gnode;
+  std::vector<GraphPtr> subgraphs;
+  EXPECT_EQ(gnode.GetALLSubgraphs(subgraphs), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GetSubgraph_InvalidIndex) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 0, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  GraphPtr graph;
+  EXPECT_EQ(gnode.GetSubgraph(99, graph), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetType_NullImpl) {
+  GNode gnode;
+  gnode.impl_ = nullptr;
+  AscendString type;
+  EXPECT_EQ(gnode.GetType(type), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_GNodeGetName_NullImpl) {
+  GNode gnode;
+  gnode.impl_ = nullptr;
+  AscendString name;
+  EXPECT_EQ(gnode.GetName(name), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_Node2GNodePtr_Success) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto node = builder.AddNode("node", "node", 0, 0);
+  GNodePtr gnode_ptr = NodeAdapter::Node2GNodePtr(node);
+  EXPECT_NE(gnode_ptr, nullptr);
+}
+
+TEST_F(GNodeTest, IncCov_Node2GNode_NullNode) {
+  NodePtr null_node;
+  GNode gnode = NodeAdapter::Node2GNode(null_node);
+  AscendString name;
+  EXPECT_EQ(gnode.GetName(name), GRAPH_FAILED);
+}
+
+TEST_F(GNodeTest, IncCov_Node2GNodePtr_NullNode) {
+  NodePtr null_node;
+  GNodePtr gnode_ptr = NodeAdapter::Node2GNodePtr(null_node);
+  EXPECT_EQ(gnode_ptr, nullptr);
+}
 }  // namespace ge

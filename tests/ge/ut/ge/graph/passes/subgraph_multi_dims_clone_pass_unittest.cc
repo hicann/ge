@@ -152,4 +152,23 @@ TEST_F(SubgraphMultiDimsPassTest, base_test_success) {
 
   EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
 }
+
+TEST_F(SubgraphMultiDimsPassTest, run_without_multi_dims_index) {
+  PassManager pass_manager;
+  pass_manager.AddPass("SubgraphMultiDimsClonePass", new (std::nothrow) SubgraphMultiDimsClonePass);
+  pass_manager.AddPass("SubgraphMultiDimsPass", new (std::nothrow) SubgraphMultiDimsPass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+
+  CreateRootGraph(graph);
+  CreateSubGraph(graph);
+
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
+
+TEST_F(SubgraphMultiDimsPassTest, run_with_empty_graph) {
+  PassManager pass_manager;
+  pass_manager.AddPass("SubgraphMultiDimsClonePass", new (std::nothrow) SubgraphMultiDimsClonePass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
 }  // namespace ge

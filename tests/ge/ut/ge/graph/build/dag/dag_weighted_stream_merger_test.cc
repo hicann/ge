@@ -394,5 +394,162 @@ TEST_F(WeightedStreamMergerTest, Merge_LargeScaleIndependentGraph_ReturnsValidMa
   ExpectValidMapping(logical_to_physical, logical_routes.size());
 }
 
+TEST_F(WeightedStreamMergerTest, Merge_MultiOriginHints_MultipleFlowsPerOrigin) {
+  BuildIndependentGraph(8, 10.0F);
+  std::vector<std::vector<int32_t>> logical_routes = {{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 4;
+  options_.light_stream_limit = 3;
+  options_.repair_moves = 3;
+  options_.resim_candidate_limit = 2;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_SameDurationDifferentResources_SortTieBreaks) {
+  auto n0 = AddNode("n0", 10.0F, 2U, 1U);
+  auto n1 = AddNode("n1", 10.0F, 1U, 2U);
+  auto n2 = AddNode("n2", 10.0F, 1U, 1U);
+  auto n3 = AddNode("n3", 10.0F, 1U, 1U);
+  n0->SetStreamId(0);
+  n1->SetStreamId(1);
+  n2->SetStreamId(0);
+  n3->SetStreamId(1);
+  ASSERT_EQ(dag_->AddEdge(n0, 0, n2, 0), graphStatus::SUCCESS);
+  ASSERT_EQ(dag_->AddEdge(n1, 0, n3, 0), graphStatus::SUCCESS);
+
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 2}, {1, 3}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 2;
+  options_.candidate_limit = 4;
+  options_.light_stream_limit = 2;
+  options_.resim_candidate_limit = 2;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_CandidateLimitOne_TriggersBreakAndFallback) {
+  BuildIndependentGraph(6, 5.0F);
+  std::vector<std::vector<int32_t>> logical_routes = {{0}, {1}, {2}, {3}, {4}, {5}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 2;
+  options_.candidate_limit = 1;
+  options_.light_stream_limit = 1;
+  options_.resim_candidate_limit = 0;
+  options_.repair_moves = 2;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_DiamondWithRepairAndResim_ReturnsValidMapping) {
+  BuildDiamondGraph();
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 1}, {2, 3}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 4;
+  options_.light_stream_limit = 3;
+  options_.repair_moves = 5;
+  options_.resim_candidate_limit = 3;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_CrossDependencyWithCosts_RepairTriggersSortComparators) {
+  BuildCrossStreamDependencyGraph();
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 3, 5}, {1}, {2, 4}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 3;
+  options_.light_stream_limit = 2;
+  options_.repair_moves = 5;
+  options_.resim_candidate_limit = 2;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_LargeGraph_MultiLevel_WithStreamHints) {
+  const int32_t count = 12;
+  for (int32_t i = 0; i < count; ++i) {
+    auto node = AddNode("n" + std::to_string(i), static_cast<float>(i + 1) * 2.0F, static_cast<size_t>((i % 3) + 1),
+                        static_cast<size_t>((i % 2) + 1));
+    node->SetStreamId(i % 3);
+  }
+  for (int32_t i = 0; i < count - 1; ++i) {
+    ASSERT_EQ(dag_->AddEdge(dag_->GetAllNodes()[i], 0, dag_->GetAllNodes()[i + 1], 0), graphStatus::SUCCESS);
+  }
+
+  std::vector<std::vector<int32_t>> logical_routes;
+  for (int32_t i = 0; i < count; i += 3) {
+    logical_routes.push_back({i, i + 1, i + 2});
+  }
+
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 4;
+  options_.candidate_limit = 4;
+  options_.light_stream_limit = 3;
+  options_.repair_moves = 5;
+  options_.resim_candidate_limit = 3;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_MissingCostWithRepair_TriggersWarnPath) {
+  BuildMissingAndExtremeCostGraph();
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 1}, {2}, {3}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 3;
+  options_.candidate_limit = 3;
+  options_.light_stream_limit = 2;
+  options_.repair_moves = 3;
+  options_.resim_candidate_limit = 2;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
+
+TEST_F(WeightedStreamMergerTest, Merge_TwoStageParallelWithRepair_TriggersSimulationComparators) {
+  BuildTwoStageParallelGraph();
+  std::vector<std::vector<int32_t>> logical_routes = {{0, 4}, {1, 5}, {2}, {3}};
+  std::vector<int32_t> logical_to_physical;
+  options_.physical_stream_limit = 4;
+  options_.candidate_limit = 4;
+  options_.light_stream_limit = 3;
+  options_.repair_moves = 5;
+  options_.resim_candidate_limit = 3;
+
+  WeightedStreamMerger merger(options_);
+  auto status = merger.Merge(*dag_, logical_routes, logical_to_physical);
+
+  ASSERT_EQ(status, graphStatus::SUCCESS);
+  ExpectValidMapping(logical_to_physical, logical_routes.size());
+}
 }  // namespace test
 }  // namespace minidag

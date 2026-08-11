@@ -5612,5 +5612,26 @@ TEST_F(UtestFormatTransferNhwcFz, nhwc_invalid_dst_shape_relation) {
   FormatTransferFractalZ transfer;
   EXPECT_EQ(transfer.TransFormat(args, result), ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransferNhwcFz, nhwc_to_fz_zero_size) {
+  uint16_t data[1] = {0};
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NHWC, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_FRACTAL_Z, FORMAT_RESERVED, 5));
+  TransArgs args{reinterpret_cast<uint8_t *>(data),
+                 src_format,
+                 dst_format,
+                 FORMAT_NHWC,
+                 FORMAT_FRACTAL_Z,
+                 FORMAT_RESERVED,
+                 FORMAT_RESERVED,
+                 16,
+                 16,
+                 {0, 1, 1, 16},
+                 {1, 0, 16, 16},
+                 DT_FLOAT16};
+  TransResult result;
+  FormatTransferFractalZ transfer;
+  EXPECT_EQ(transfer.TransFormat(args, result), SUCCESS);
+  EXPECT_EQ(result.length, 0U);
+}
 }  // namespace formats
 }  // namespace ge

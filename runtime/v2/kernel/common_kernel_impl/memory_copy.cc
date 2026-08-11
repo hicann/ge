@@ -349,8 +349,109 @@ ge::graphStatus MakeSureTensorAtDevice(KernelContext *context) {
   }
   return ge::GRAPH_SUCCESS;
 }
+
+ge::graphStatus CalcDeviceCopySizes(KernelContext *context) {
+  auto src_tensor_data =
+      context->GetInputValue<gert::GertTensorData *>(static_cast<size_t>(CalcDeviceCopySizesInputs::kSrcAddress));
+  auto gert_allocator =
+      context->GetInputValue<GertAllocator *>(static_cast<size_t>(CalcDeviceCopySizesInputs::kAllocator));
+  auto data_type = context->GetInputValue<ge::DataType>(static_cast<size_t>(CalcDeviceCopySizesInputs::kDataType));
+  auto storage_shape =
+      context->GetInputPointer<StorageShape>(static_cast<size_t>(CalcDeviceCopySizesInputs::kStorageShape));
+  auto stream = context->GetInputValue<aclrtStream>(static_cast<size_t>(CalcDeviceCopySizesInputs::kStream));
+  auto original_tensor_size =
+      context->GetInputValue<size_t>(static_cast<size_t>(CalcDeviceCopySizesInputs::kOriginalTensorSize));
+  auto alloc_size = context->GetOutputPointer<size_t>(static_cast<size_t>(CalcDeviceCopySizesOutputs::kAllocSize));
+  auto copy_size = context->GetOutputPointer<size_t>(static_cast<size_t>(CalcDeviceCopySizesOutputs::kCopySize));
+  GE_ASSERT_NOTNULL(src_tensor_data);
+  GE_ASSERT_NOTNULL(gert_allocator);
+  GE_ASSERT_NOTNULL(storage_shape);
+  GE_ASSERT_NOTNULL(alloc_size);
+  GE_ASSERT_NOTNULL(copy_size);
+
+  const auto src_placement = src_tensor_data->GetPlacement();
+  const auto dst_placement = gert_allocator->GetPlacement();
+  const bool need_copy = IsNeedMallocWhenMakeSureAtDevice(src_placement, dst_placement);
+  if (!need_copy) {
+    if (TensorPlacementUtils::IsOnDevice(src_placement)) {
+      *alloc_size = 0U;
+      *copy_size = 0U;
+      return ge::GRAPH_SUCCESS;
+    }
+    GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %s to %s", GetPlacementStr(src_placement),
+           GetPlacementStr(dst_placement));
+    return ge::GRAPH_FAILED;
+  }
+
+  uint64_t tensor_size = 0UL;
+  if (data_type != ge::DT_STRING) {
+    GE_ASSERT_GRAPH_SUCCESS(CalcUnalignedTensorSizeByShape(storage_shape->GetStorageShape(), data_type, tensor_size));
+  } else {
+    GE_ASSERT_GRAPH_SUCCESS(CalcStringTensorSize(src_tensor_data, stream, storage_shape, data_type, tensor_size));
+  }
+  *copy_size = static_cast<size_t>(tensor_size);
+  if (tensor_size == 0UL) {
+    *alloc_size = 0U;
+    return ge::GRAPH_SUCCESS;
+  }
+  GE_ASSERT_TRUE(CalcSize(original_tensor_size, *alloc_size));
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus LaunchH2DCopy(KernelContext *context) {
+  auto dst_tensor_data =
+      context->MutableInputPointer<gert::GertTensorData>(static_cast<size_t>(LaunchH2DCopyInputs::kDstAddress));
+  auto stream = context->GetInputValue<aclrtStream>(static_cast<size_t>(LaunchH2DCopyInputs::kStream));
+  auto src_tensor_data =
+      context->GetInputValue<gert::GertTensorData *>(static_cast<size_t>(LaunchH2DCopyInputs::kSrcAddress));
+  auto tensor_size = context->GetInputValue<size_t>(static_cast<size_t>(LaunchH2DCopyInputs::kTensorSize));
+  GE_ASSERT_NOTNULL(dst_tensor_data);
+  GE_ASSERT_NOTNULL(src_tensor_data);
+
+  if (tensor_size > 0U) {
+    const auto copy_direction = TensorPlacementUtils::IsOnHost(src_tensor_data->GetPlacement())
+                                    ? ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE
+                                    : ACL_MEMCPY_DEVICE_TO_DEVICE;
+    GE_CHK_RT_RET(aclrtMemcpyAsync(dst_tensor_data->GetAddr(), dst_tensor_data->GetSize(), src_tensor_data->GetAddr(),
+                                   tensor_size, copy_direction, stream));
+    KERNEL_TRACE(
+        "[MEM]StreamCopy, src addr %p, src tensor size %zu, src placement %s, dst addr %p,"
+        " alloc device size %zu, dst placement %s",
+        src_tensor_data->GetAddr(), tensor_size, GetPlacementStr(src_tensor_data->GetPlacement()),
+        dst_tensor_data->GetAddr(), dst_tensor_data->GetSize(), GetPlacementStr(dst_tensor_data->GetPlacement()));
+  }
+
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ShareH2DCopyResult(KernelContext *context) {
+  auto dst_tensor_data =
+      context->MutableInputPointer<gert::GertTensorData>(static_cast<size_t>(ShareH2DCopyResultInputs::kDstAddress));
+  auto src_tensor_data =
+      context->GetInputValue<gert::GertTensorData *>(static_cast<size_t>(ShareH2DCopyResultInputs::kSrcAddress));
+  auto tensor_size = context->GetInputValue<size_t>(static_cast<size_t>(ShareH2DCopyResultInputs::kTensorSize));
+  GE_ASSERT_NOTNULL(dst_tensor_data);
+  GE_ASSERT_NOTNULL(src_tensor_data);
+
+  auto out_tensor_data = context->GetOutputPointer<gert::GertTensorData>(0U);
+  GE_ASSERT_NOTNULL(out_tensor_data);
+  if ((tensor_size == 0U) && TensorPlacementUtils::IsOnDevice(src_tensor_data->GetPlacement()) &&
+      !IsNeedMallocWhenMakeSureAtDevice(src_tensor_data->GetPlacement(), dst_tensor_data->GetPlacement())) {
+    out_tensor_data->ShareFrom(*src_tensor_data);
+  } else {
+    out_tensor_data->ShareFrom(*dst_tensor_data);
+  }
+  return ge::GRAPH_SUCCESS;
+}
+// Legacy mixed CopyH2D is replaced by CalcDeviceCopySizes + AllocMemHbm + ShareH2DCopyResult + LaunchH2DCopy.
 REGISTER_KERNEL(CopyH2D)
     .RunFunc(CopyH2D)
+    .OutputsCreator(CreateTensorDataAtDeviceHbm)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(CalcDeviceCopySizes).RunFunc(CalcDeviceCopySizes);
+REGISTER_KERNEL(LaunchH2DCopy).RunFunc(LaunchH2DCopy).ConcurrentCriticalSectionKey(kKernelLaunch);
+REGISTER_KERNEL(ShareH2DCopyResult)
+    .RunFunc(ShareH2DCopyResult)
     .OutputsCreator(CreateTensorDataAtDeviceHbm)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
 REGISTER_KERNEL(MakeSureTensorAtHost)
@@ -361,6 +462,8 @@ REGISTER_KERNEL(MakeSureTensorAtHostWithoutSync)
     .RunFunc(MakeSureTensorAtHostWithoutSync)
     .OutputsCreator(CreateTensorDataAtHost)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
+// Legacy mixed MakeSureTensorAtDevice is replaced by
+// CalcDeviceCopySizes + AllocMemHbm + ShareH2DCopyResult + LaunchH2DCopy.
 REGISTER_KERNEL(MakeSureTensorAtDevice)
     .RunFunc(MakeSureTensorAtDevice)
     .OutputsCreator(CreateTensorDataAtDeviceHbm)
@@ -414,7 +517,10 @@ ge::graphStatus CopyD2D(KernelContext *context) {
   dst_tensor_data->SetPlacement(kOnDeviceHbm);
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(CopyD2D).RunFunc(CopyD2D).OutputsCreator(CreateTensorDataAtDeviceHbm);
+REGISTER_KERNEL(CopyD2D)
+    .RunFunc(CopyD2D)
+    .OutputsCreator(CreateTensorDataAtDeviceHbm)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 static auto g_copy_type = TableDriven2<kTensorPlacementEnd, kTensorPlacementEnd, aclrtMemcpyKind>(ACL_MEMCPY_DEFAULT)
                               .Add(kOnHost, kOnDeviceHbm, ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE)

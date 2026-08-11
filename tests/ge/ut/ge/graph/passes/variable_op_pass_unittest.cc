@@ -1186,3 +1186,30 @@ TEST_F(UtestVariableOpPassUnit, CheckVarAndVarRefAreAlikeFailed) {
   auto status = pass.CheckVarAndVarRefAreAlike(node, node, flag);
   EXPECT_EQ(GE_GRAPH_VARIABLE_OP_PASS_FAILED, status);
 }
+
+TEST_F(UtestVariableOpPassUnit, RunEmptyGraph) {
+  GraphRebuildStateCtrl ctrl;
+  VariableOpPass pass(&ctrl);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("empty_graph");
+  auto status = pass.Run(graph);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestVariableOpPassUnit, RunGraphWithVarAndTransOp) {
+  GraphRebuildStateCtrl ctrl;
+  VariableOpPass pass(&ctrl);
+  auto graph = BuildGraph2();
+  auto status = pass.Run(graph);
+  EXPECT_EQ(status, SUCCESS);
+}
+
+TEST_F(UtestVariableOpPassUnit, UpdateVarAndRefOutputFormatInfoSuccess) {
+  GraphRebuildStateCtrl ctrl;
+  VariableOpPass pass(&ctrl);
+  auto graph = BuildGraphVariableOpPass();
+  auto node = graph->FindNode("translate0");
+  ASSERT_NE(node, nullptr);
+  auto same_vars = MakeShared<SameVariable>();
+  auto status = pass.UpdateVarAndRefOutputFormatInfo(node->GetOpDesc()->GetOutputDesc(0U), node, same_vars);
+  EXPECT_EQ(status, SUCCESS);
+}

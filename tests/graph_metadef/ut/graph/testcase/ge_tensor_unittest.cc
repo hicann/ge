@@ -1029,3 +1029,24 @@ TEST_F(UtestGeTensor, IncCov_GeTensorMisc2) {
   TensorData &mutable_data = tensor.MutableData();
   (void)mutable_data;
 }
+
+TEST_F(UtestGeTensor, IncCov_GeTensorAsProto_WithProtoOwner) {
+  GeTensorDesc desc(GeShape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  GeTensor tensor(desc);
+  proto::TensorDef tensor_def;
+  GeTensorSerializeUtils::GeTensorAsProto(tensor, &tensor_def);
+  EXPECT_TRUE(tensor_def.has_desc());
+}
+
+TEST_F(UtestGeTensor, IncCov_GetOriginFormatFromDescProto_NullProto) {
+  Format format = FORMAT_NCHW;
+  GeTensorSerializeUtils::GetOriginFormatFromDescProto(nullptr, format);
+  EXPECT_EQ(format, FORMAT_NCHW);
+}
+
+TEST_F(UtestGeTensor, IncCov_GeTensorDescImpl_SetShape) {
+  GeTensorDesc desc(GeShape({1, 2}), FORMAT_NCHW, DT_FLOAT);
+  GeShape new_shape({3, 4});
+  desc.SetShape(new_shape);
+  EXPECT_EQ(desc.GetShape().GetDims(), std::vector<int64_t>({3, 4}));
+}

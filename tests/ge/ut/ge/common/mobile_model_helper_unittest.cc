@@ -620,4 +620,200 @@ TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithNetOutputMissingOutputDesc) 
   EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
   system("rm -rf mobile_model_netout.omc");
 }
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithVariousAttrTypes_CovEnhance) {
+  std::string output_file = "mobile_model_attrs.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      continue;
+    }
+    if (node->GetType() == "Add") {
+      std::vector<float> float_list = {1.0F, 2.0F, 3.0F};
+      ge::AttrUtils::SetListFloat(op_desc, "test_list_float_attr", float_list);
+      std::vector<bool> bool_list = {true, false, true};
+      ge::AttrUtils::SetListBool(op_desc, "test_list_bool_attr", bool_list);
+      std::vector<ge::Buffer> bytes_list = {ge::Buffer(10, 1), ge::Buffer(5, 0)};
+      ge::AttrUtils::SetListBytes(op_desc, "test_list_bytes_attr", bytes_list);
+      ge::GeTensorDesc tensor_desc(ge::GeShape({8}), ge::FORMAT_ND, ge::DT_INT64);
+      ge::GeTensor tensor(tensor_desc);
+      ge::AttrUtils::SetTensor(op_desc, "test_tensor_attr", tensor);
+      std::vector<ge::GeTensor> tensor_list = {tensor};
+      ge::AttrUtils::SetListTensor(op_desc, "test_list_tensor_attr", tensor_list);
+      op_desc->SetWorkspace({1024, 2048});
+      op_desc->SetWorkspaceBytes({1024, 2048});
+      break;
+    }
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_attrs.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithConnectedNodes_CovEnhance) {
+  std::string output_file = "mobile_model_connected.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  ge::NodePtr data_node = nullptr;
+  ge::NodePtr add_node = nullptr;
+  ge::NodePtr netoutput_node = nullptr;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "Data") {
+      data_node = node;
+    } else if (node->GetType() == "Add") {
+      add_node = node;
+    } else if (node->GetType() == "NetOutput") {
+      netoutput_node = node;
+    }
+  }
+  if ((data_node != nullptr) && (add_node != nullptr)) {
+    (void)ge::GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), add_node->GetInDataAnchor(0));
+  }
+  if ((add_node != nullptr) && (netoutput_node != nullptr)) {
+    (void)ge::GraphUtils::AddEdge(add_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_connected.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithNullRootModel) {
+  std::string output_file = "mobile_model_null.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr null_root_model = nullptr;
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(null_root_model, output_file, model, false), ge::SUCCESS);
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithEmptyOutputFile) {
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(ge_root_model, "", model, false), ge::SUCCESS);
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmModelWithEmptyOutputFile) {
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  auto &model_root = name_to_ge_model.begin()->second;
+  EXPECT_EQ(model_save_helper.SaveToOmModel(model_root, "", model, ge_root_model), ge::FAILED);
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithEmptySubgraphModels) {
+  std::string output_file = "mobile_model_empty_sub.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = std::make_shared<ge::GeRootModel>();
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithKernelArgsSizeZero) {
+  std::string output_file = "mobile_model_zero_args.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto model_task = ge_model->GetModelTaskDefPtr();
+  if (model_task != nullptr && model_task->task_size() > 0) {
+    auto *task = model_task->mutable_task(0);
+    auto *kernel = task->mutable_kernel();
+    kernel->set_args_size(0);
+    kernel->clear_args();
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_zero_args.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithNoKernelNameAttr) {
+  std::string output_file = "mobile_model_no_kernelname.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "Add") {
+      (void)node->GetOpDesc()->DelAttr("_kernelname");
+      break;
+    }
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_no_kernelname.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithTaskDefAttrs) {
+  std::string output_file = "mobile_model_task_attrs.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto model_task = ge_model->GetModelTaskDefPtr();
+  if (model_task != nullptr) {
+    auto *attr_map = model_task->mutable_attr();
+    (*attr_map)["test_attr_key"] = "test_attr_value";
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_task_attrs.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithMultipleDynamicInputs) {
+  std::string output_file = "mobile_model_multi_dynamic.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "Add") {
+      auto op_desc = node->GetOpDesc();
+      std::vector<std::vector<int64_t>> dynamic_inputs_indexes = {{0, 1}, {0}};
+      ge::AttrUtils::SetListListInt(op_desc, "_dynamic_inputs_indexes", dynamic_inputs_indexes);
+      std::vector<std::vector<int64_t>> dynamic_outputs_indexes = {{0}, {0}};
+      ge::AttrUtils::SetListListInt(op_desc, "_dynamic_outputs_indexes", dynamic_outputs_indexes);
+      break;
+    }
+  }
+  EXPECT_EQ(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_multi_dynamic.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithInvalidDynamicInputIndex) {
+  std::string output_file = "mobile_model_invalid_dynamic.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "Add") {
+      auto op_desc = node->GetOpDesc();
+      std::vector<std::vector<int64_t>> dynamic_inputs_indexes = {{99}};
+      ge::AttrUtils::SetListListInt(op_desc, "_dynamic_inputs_indexes", dynamic_inputs_indexes);
+      break;
+    }
+  }
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_invalid_dynamic.omc");
+}
+
+TEST_F(UtestMobileModelHelper, SaveToOmRootModelWithInvalidDynamicOutputIndex) {
+  std::string output_file = "mobile_model_invalid_dynamic_out.om";
+  ModelBufferData model;
+  MobileModelHelper model_save_helper;
+  GeRootModelPtr ge_root_model = GenGeRootModel();
+  auto graph = ge_root_model->GetRootGraph();
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "Add") {
+      auto op_desc = node->GetOpDesc();
+      std::vector<std::vector<int64_t>> dynamic_outputs_indexes = {{99}};
+      ge::AttrUtils::SetListListInt(op_desc, "_dynamic_outputs_indexes", dynamic_outputs_indexes);
+      break;
+    }
+  }
+  EXPECT_NE(model_save_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), ge::SUCCESS);
+  system("rm -rf mobile_model_invalid_dynamic_out.omc");
+}
 }  // namespace ge

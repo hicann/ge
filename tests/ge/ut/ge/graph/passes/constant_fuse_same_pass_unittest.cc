@@ -350,3 +350,141 @@ TEST_F(UtestGraphPassesConstantFuseSamePass, success_const_has_data_5) {
   auto const4 = graph->FindNode("const4");
   EXPECT_EQ(const4, nullptr);
 }
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_node_without_weight_attr) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_FLOAT);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 1;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 1);
+
+  ConstantFuseSamePass pass;
+  EXPECT_EQ(pass.Run(builder.GetGraph()), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_node_origin_element_num_not_one) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_FLOAT);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 2;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+  OpDescUtils::SetWeights(const2, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 1);
+
+  ConstantFuseSamePass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+  EXPECT_EQ(graph->GetDirectNodesSize(), 3);
+}
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_node_unsupported_dtype) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_UNDEFINED, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_UNDEFINED, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_UNDEFINED);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 1;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+  OpDescUtils::SetWeights(const2, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 1);
+
+  ConstantFuseSamePass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+  EXPECT_EQ(graph->GetDirectNodesSize(), 3);
+}
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_node_no_out_data_edge) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_FLOAT);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 1;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+  OpDescUtils::SetWeights(const2, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 1);
+
+  auto const3 = builder.AddNode("const3", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  OpDescUtils::SetWeights(const3, {tensor});
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+
+  ConstantFuseSamePass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_node_with_in_control_edge) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+  auto ctrl_node = builder.AddNode("ctrl_node", NOOP, 0, 0);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_FLOAT);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 1;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+  OpDescUtils::SetWeights(const2, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 1);
+  builder.AddControlEdge(ctrl_node, const1);
+
+  ConstantFuseSamePass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesConstantFuseSamePass, const_fuse_with_duplication_exclusion) {
+  auto builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto const2 = builder.AddNode("const2", CONSTANT, 0, 1, FORMAT_NCHW, DT_FLOAT, {1});
+  auto add1 = builder.AddNode("add1", ADD, 2, 1);
+
+  float weight[] = {0.0f};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_FLOAT);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  int64_t origin_val_size = 1;
+  (void)ge::AttrUtils::SetInt(tensor->MutableTensorDesc(), kOriginElementNumAttrName, origin_val_size);
+  OpDescUtils::SetWeights(const1, {tensor});
+  OpDescUtils::SetWeights(const2, {tensor});
+
+  builder.AddDataEdge(const1, 0, add1, 0);
+  builder.AddDataEdge(const2, 0, add1, 0);
+
+  ConstantFuseSamePass pass;
+  auto graph = builder.GetGraph();
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}

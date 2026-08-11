@@ -298,3 +298,159 @@ TEST_F(UtestLabelMaker, other_lable_maker_func) {
   ret = maker->AddLabelGotoEnter(cond_graph, "goto_enter", index);
   EXPECT_NE(ret, nullptr);
 }
+
+TEST_F(UtestLabelMaker, label_maker_get_active_label_list_with_activated_labels) {
+  DEF_GRAPH(g2, "active_label_graph/") {
+    auto data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);
+    auto conv_0 = OP_CFG(CONV2D).Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM));
+    auto relu_0 = OP_CFG(RELU)
+                      .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU))
+                      .Attr(ATTR_NAME_STREAM_LABEL, "stream_label");
+    auto add_0 = OP_CFG(ADD)
+                     .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU))
+                     .Attr(ATTR_NAME_ACTIVE_LABEL_LIST, std::vector<std::string>{"other_label"});
+    CHAIN(NODE("active_label_graph/_arg_0", data_0)
+              ->EDGE(0, 0)
+              ->NODE("active_label_graph/Conv2D", conv_0)
+              ->EDGE(0, 0)
+              ->NODE("active_label_graph/Relu", relu_0)
+              ->EDGE(0, 0)
+              ->NODE("active_label_graph/Add", add_0)
+              ->EDGE(0, 0)
+              ->NODE("active_label_graph/Node_Output", NETOUTPUT));
+  };
+  const auto &sub_graph = ToComputeGraph(g2);
+  auto func_node_name = "While_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, WHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  auto stream_active = maker->AddStreamActive(sub_graph, "test_stream_active");
+  EXPECT_NE(stream_active, nullptr);
+}
+
+TEST_F(UtestLabelMaker, if_label_maker_statelessif_type) {
+  std::string func_node_name = "StatelessIf_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, STATELESSIF);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  auto index = 0U;
+  auto ret = maker->Run(index);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestLabelMaker, if_label_maker_underscore_if_type) {
+  std::string func_node_name = "_If_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, _IF);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  auto index = 0U;
+  auto ret = maker->Run(index);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestLabelMaker, if_label_maker_statelessif_run_success) {
+  std::string func_node_name = "StatelessIf_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, STATELESSIF);
+  const auto &sub_graph = MakeSubGraph("sub_graph_0/");
+  ut::GraphBuilder::AddPartitionedCall(root_graph, func_node_name, sub_graph);
+  const auto &sub_graph_true = MakeSubGraph("sub_graph_true/");
+  ut::GraphBuilder::AddPartitionedCall(root_graph, func_node_name, sub_graph_true);
+  LabelAllocator label_allocator(root_graph);
+  auto ret = label_allocator.AssignFunctionalLabels();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLabelMaker, while_label_maker_statelesswhile_type) {
+  std::string func_node_name = "StatelessWhile_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, STATELESSWHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  auto index = 0U;
+  auto ret = maker->Run(index);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestLabelMaker, while_label_maker_underscore_while_type) {
+  std::string func_node_name = "_While_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, _WHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  auto index = 0U;
+  auto ret = maker->Run(index);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestLabelMaker, while_label_maker_statelesswhile_run_success) {
+  std::string func_node_name = "StatelessWhile_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, STATELESSWHILE);
+  const auto &cond_graph = MakeSubGraph("sub_graph_0/");
+  ut::GraphBuilder::AddPartitionedCall(root_graph, func_node_name, cond_graph);
+  const auto &body_graph = MakeSubGraph("sub_graph_1/");
+  ut::GraphBuilder::AddPartitionedCall(root_graph, func_node_name, body_graph);
+  LabelAllocator label_allocator(root_graph);
+  auto ret = label_allocator.AssignFunctionalLabels();
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestLabelMaker, label_maker_add_label_set_leave_success) {
+  std::string func_node_name = "While_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, WHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  const auto &sub_graph = MakeSubGraph("sub_graph_0/");
+  auto index = 1U;
+  auto ret = maker->AddLabelSetLeave(sub_graph, "label_set_leave", index);
+  EXPECT_NE(ret, nullptr);
+}
+
+TEST_F(UtestLabelMaker, label_maker_add_label_goto_leave_success) {
+  std::string func_node_name = "While_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, WHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  const auto &sub_graph = MakeSubGraph("sub_graph_0/");
+  auto index = 1U;
+  auto ret = maker->AddLabelGotoLeave(sub_graph, "label_goto_leave", index);
+  EXPECT_NE(ret, nullptr);
+}
+
+TEST_F(UtestLabelMaker, label_maker_add_label_switch_leave_success) {
+  std::string func_node_name = "While_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, WHILE);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  const auto &sub_graph = MakeSubGraph("sub_graph_0/");
+  auto index = 1U;
+  auto ret = maker->AddLabelSwitchLeave(sub_graph, "label_switch_leave", GeTensorDesc(), {index});
+  EXPECT_NE(ret, nullptr);
+}
+
+TEST_F(UtestLabelMaker, label_maker_add_label_switch_index_success) {
+  std::string func_node_name = "If_0";
+  const auto &root_graph = MakeFunctionGraph(func_node_name, IF);
+  auto func_node = root_graph->FindNode(func_node_name);
+  EXPECT_NE(func_node, nullptr);
+  auto maker = LabelMakerFactory::Instance().Create(func_node->GetType(), root_graph, func_node);
+  EXPECT_NE(maker, nullptr);
+  const auto &sub_graph = MakeSubGraph("sub_graph_0/");
+  auto switch_node = maker->AddLabelSwitchEnter(sub_graph, "switch_node", GeTensorDesc(), {0U, 1U});
+  EXPECT_NE(switch_node, nullptr);
+  auto ret = maker->AddLabelSwitchIndex(sub_graph, "switch_index", GeTensorDesc(), switch_node, 0U);
+  EXPECT_NE(ret, nullptr);
+}

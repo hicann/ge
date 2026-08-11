@@ -1229,5 +1229,26 @@ TEST_F(VisualizationTest, LoadFromVisualJson_ListValueWithObjectElementsFallback
   EXPECT_EQ((*list_td)["list"]["td"][0]["name"], "td_f0");
 }
 
+TEST(VisualJsonConverterCovEnhance, LoadFromVisualJson_MalformedJson_CovEnhance) {
+  nlohmann::json pb_json;
+  std::string malformed = R"({"format":"ge_visual_json","model":)";
+  EXPECT_NE(VisualJsonConverter::LoadFromVisualJson(malformed, pb_json), SUCCESS);
+}
+
+TEST(VisualJsonConverterCovEnhance, SerializeFromModelDef_WithDoubleAttr_CovEnhance) {
+  ge::proto::ModelDef model_def;
+  model_def.set_name("double_attr_model");
+  auto *graph_def = model_def.add_graph();
+  auto *op_def = graph_def->add_op();
+  op_def->set_name("double_op");
+  op_def->set_type("DoubleTest");
+  auto *attr = op_def->mutable_attr();
+  ge::proto::AttrDef attr_def;
+  attr_def.set_f(3.14);
+  (*attr)["double_attr"] = attr_def;
+  std::string json_str;
+  ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(model_def, json_str), SUCCESS);
+  EXPECT_FALSE(json_str.empty());
+}
 }  // namespace
 }  // namespace ge

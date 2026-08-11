@@ -19,6 +19,7 @@
 #include "exe_graph/runtime/storage_shape.h"
 #include "graph/node.h"
 #include "acl/acl_rt.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 namespace gert {
 namespace kernel {
@@ -85,6 +86,9 @@ static std::vector<std::string> LaunchCmoTracer(const KernelContext *context) {
   return {ss.str()};
 }
 
-REGISTER_KERNEL(LaunchCmoTask).RunFunc(LaunchCmoTask).TracePrinter(LaunchCmoTracer);
+REGISTER_KERNEL(LaunchCmoTask)
+    .RunFunc(LaunchCmoTask)
+    .TracePrinter(LaunchCmoTracer)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace kernel
 }  // namespace gert

@@ -2610,3 +2610,44 @@ TEST_F(UtestGraph, IncCov_CreateGraphFromOperatorWithStableTopo) {
   Graph graph("test_stable");
   EXPECT_EQ(GraphUtilsEx::CreateGraphFromOperatorWithStableTopo(graph, {op1}), SUCCESS);
 }
+
+TEST_F(UtestGraph, IncCov_SetOutputs_EmptyVector) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  std::vector<std::pair<Operator, AscendString>> empty_outputs;
+  graph.SetOutputs(empty_outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_EmptyIndexVector) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  auto node = cgp->FindNode("Transdata1");
+  auto op = OpDescUtils::CreateOperatorFromNode(node);
+  std::vector<std::pair<Operator, std::vector<size_t>>> output_indexs;
+  output_indexs.emplace_back(op, std::vector<size_t>{});
+  graph.SetOutputs(output_indexs);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_OutputIndexOutOfRange) {
+  auto cgp = BuildComputeGraphWithNetOutput();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cgp);
+  auto node = cgp->FindNode("Transdata1");
+  auto op = OpDescUtils::CreateOperatorFromNode(node);
+  std::vector<std::pair<Operator, std::vector<size_t>>> output_indexs;
+  output_indexs.emplace_back(op, std::vector<size_t>{999});
+  graph.SetOutputs(output_indexs);
+}
+
+TEST_F(UtestGraph, IncCov_SetOutputs_InvalidGraph) {
+  Graph graph("invalid_graph");
+  std::vector<std::pair<Operator, AscendString>> outputs;
+  Operator op("test_op");
+  AscendString name("test");
+  outputs.emplace_back(op, name);
+  graph.SetOutputs(outputs);
+}
+
+TEST_F(UtestGraph, IncCov_SetNeedIteration_InvalidGraph) {
+  Graph graph("invalid_graph");
+  graph.SetNeedIteration(true);
+}

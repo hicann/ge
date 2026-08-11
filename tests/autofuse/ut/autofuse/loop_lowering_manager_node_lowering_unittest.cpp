@@ -43,6 +43,26 @@ class LoopNodeLoweringUT : public testing::Test {
   std::unique_ptr<es::Graph> es_graph_;
 };
 
+std::vector<std::string> ToExpressionStrings(const std::vector<Expression> &expressions) {
+  std::vector<std::string> result;
+  result.reserve(expressions.size());
+  for (const auto &expression : expressions) {
+    result.emplace_back(expression.Str().get());
+  }
+  return result;
+}
+
+void ExpectReshapeAxisChange(loop::KernelBox &kernel, const std::vector<int64_t> &before_axis,
+                             const std::vector<std::string> &before_repeats, const std::vector<int64_t> &after_axis,
+                             const std::vector<std::string> &after_repeats) {
+  const auto &axis_changes = kernel.GetReshapeAxisChanges();
+  ASSERT_EQ(axis_changes.size(), 1U);
+  EXPECT_EQ(axis_changes[0].before_axis, before_axis);
+  EXPECT_EQ(ToExpressionStrings(axis_changes[0].before_repeats), before_repeats);
+  EXPECT_EQ(axis_changes[0].after_axis, after_axis);
+  EXPECT_EQ(ToExpressionStrings(axis_changes[0].after_repeats), after_repeats);
+}
+
 TEST_F(LoopNodeLoweringUT, In2Out1Lowering) {
   [this]() {
     auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
@@ -1763,6 +1783,7 @@ TEST_F(LoopNodeLoweringUT, LoweringUnsqueeze) {
             "tmp1 = ops.Unsqueeze(tmp0, 0)\n"
             "tmp2 = ops.Unsqueeze(tmp1, 1)\n"
             "tmp3 = ops.StoreReshape(\"Unsqueeze_0:0\", tmp2)\n");
+  ExpectReshapeAxisChange(kernel, {0, 1}, {"s0", "2"}, {0, 1, 2, 3}, {"1", "1", "s0", "2"});
 }
 
 TEST_F(LoopNodeLoweringUT, LoweringSqueeze) {
@@ -1788,6 +1809,7 @@ TEST_F(LoopNodeLoweringUT, LoweringSqueeze) {
             "tmp2 = ops.Squeeze(tmp1, 2)\n"
             "tmp3 = ops.Squeeze(tmp2, 2)\n"
             "tmp4 = ops.Store(\"Squeeze_0:0\", tmp3)\n");
+  ExpectReshapeAxisChange(kernel, {0, 1, 2, 3, 4}, {"s0", "1", "2", "1", "1"}, {0, 1}, {"s0", "2"});
 }
 
 TEST_F(LoopNodeLoweringUT, LoweringSqueezeLowerAxisIsNull) {
@@ -2279,6 +2301,8 @@ TEST_F(LoopNodeLoweringUT, LoweringExpandDims) {
             "tmp0 = ops.Load(\"data0:0\")\n"
             "tmp1 = ops.Unsqueeze(tmp0, 2)\n"
             "tmp2 = ops.StoreReshape(\"ExpandDims_3:0\", tmp1)\n");
+  ExpectReshapeAxisChange(kernel, {0, 1}, {"s0", "2"}, {0, 1, 2}, {"s0", "2", "1"});
+  ExpectReshapeAxisChange(kernel1, {0, 1}, {"s0", "2"}, {0, 1, 2}, {"s0", "2", "1"});
 
   auto kernel2 = ge::loop::GetKernelBox(expanddims2->GetOutDataAnchor(0));
   ASSERT_TRUE(kernel2.IsExternKernel());

@@ -496,5 +496,28 @@ TEST_F(UtestGraphPassesParallelGgroupPass, ctrl_edge_skip_data) {
   auto ret = pass_.AddCtrlEdge(input_node1, input_node2);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+TEST_F(UtestGraphPassesParallelGgroupPass, ctrl_edge_same_node) {
+  NodePtr node1 = NewNode("node1", RELU, 0, 1);
+  auto ret = pass_.AddCtrlEdge(node1, node1);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPassesParallelGgroupPass, ctrl_edge_already_linked) {
+  NodePtr node1 = NewNode("node1", RELU, 0, 1);
+  NodePtr node2 = NewNode("node2", RELU, 1, 1);
+  GraphUtils::AddEdge(node1->GetOutControlAnchor(), node2->GetInControlAnchor());
+  auto ret = pass_.AddCtrlEdge(node1, node2);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPassesParallelGgroupPass, topo_sort_cycle_failed) {
+  NodePtr node1 = NewNode("node1", RELU, 1, 1);
+  NodePtr node2 = NewNode("node2", RELU, 1, 1);
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node2->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
+  auto ret = pass_.Run(graph_);
+  EXPECT_EQ(ret, FAILED);
+}
 }  // namespace
 }  // namespace ge

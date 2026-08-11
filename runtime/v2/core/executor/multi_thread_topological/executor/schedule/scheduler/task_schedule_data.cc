@@ -10,9 +10,15 @@
 #include "task_schedule_data.h"
 #include "core/execution_data.h"
 namespace gert {
-TaskScheduleData::TaskScheduleData(const void *exec_data) : execution_data(exec_data), schedule_limit(0) {
+TaskScheduleData::TaskScheduleData(const void *exec_data)
+    : execution_data(exec_data), schedule_limit(0), free_launch_relation_csr() {
   if (execution_data != nullptr) {
     schedule_limit = reinterpret_cast<const ExecutionData *>(execution_data)->base_ed.node_num;
   }
+}
+
+TaskScheduleData::TaskScheduleData(const void *exec_data, const FreeLaunchRelationCsr &relation_csr)
+    : TaskScheduleData(exec_data) {
+  free_launch_relation_csr = relation_csr;
 }
 }  // namespace gert

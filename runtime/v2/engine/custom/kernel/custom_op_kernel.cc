@@ -21,6 +21,7 @@
 #include "graph/utils/type_utils.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "rt_external_kernel.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "runtime/v2/engine/custom/kernel/eager_args_handler.h"
 
 namespace gert {
@@ -293,13 +294,17 @@ REGISTER_KERNEL(ExecuteCustomOp)
     .OutputsCreator(CreateCustomOpOutputs)
     .RunFunc(ExecuteCustomOpFunc)
     .TracePrinter(CustomOpExecuteKernelTrace)
-    .ProfilingInfoFiller(CustomOpProfilingDataFill);
+    .ProfilingInfoFiller(CustomOpProfilingDataFill)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
 REGISTER_KERNEL(ExecuteCustomOpWithInferShape)
     .OutputsCreator(CreateCustomOpOutputs)
     .RunFunc(ExecuteCustomOpWithInferShapeFunc)
     .TracePrinter(CustomOpExecuteKernelTrace)
-    .ProfilingInfoFiller(CustomOpProfilingDataFill);
-REGISTER_KERNEL(FreeCustomOpWorkspaces).RunFunc(FreeCustomOpWorkspacesFunc);
-REGISTER_KERNEL(FreeArgsGuarder).RunFunc(FreeArgsGuarderFunc);
+    .ProfilingInfoFiller(CustomOpProfilingDataFill)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(FreeCustomOpWorkspaces)
+    .RunFunc(FreeCustomOpWorkspacesFunc)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(FreeArgsGuarder).RunFunc(FreeArgsGuarderFunc).ConcurrentCriticalSectionKey(kKernelUseMemory);
 }  // namespace kernel
 }  // namespace gert

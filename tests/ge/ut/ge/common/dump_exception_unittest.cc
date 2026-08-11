@@ -697,4 +697,115 @@ TEST_F(UTEST_dump_exception, Clear_Empty_CovEnhance) {
   ExceptionDumper exception_dumper;
   EXPECT_NO_THROW(exception_dumper.Clear());
 }
+
+TEST_F(UTEST_dump_exception, DumpNodeInfo_ReplaceStringElem_CovEnhance) {
+  ASSERT_TRUE(ge::CreateDirectory(temp_dump_path_) == 0);
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL_NEED_DUMP_AND_IT_IS_NOT_A_MODEL_NAME", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "test.op name";
+  op_desc_info.op_type = "test/type\\type";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.id.stream_id = 2;
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.input_addrs = {nullptr};
+  op_desc_info.input_size = {2};
+  op_desc_info.output_format = {FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  op_desc_info.output_addrs = {nullptr};
+  op_desc_info.output_size = {2};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpNodeInfo(op_desc_info, temp_dump_path_, false, false, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, RefreshAddrs_Success_WithRelevantOffset_CovEnhance) {
+  ExceptionDumper exception_dumper;
+  OpDescPtr op_desc = std::make_shared<OpDesc>("TestOp", "TestType");
+  ExtraOpInfo extra_op_info;
+  extra_op_info.is_host_args = false;
+  std::vector<uint8_t> args_data(32, 0);
+  extra_op_info.args = reinterpret_cast<uintptr_t>(args_data.data());
+  extra_op_info.input_addrs = {reinterpret_cast<void *>(5000), reinterpret_cast<void *>(6000)};
+  extra_op_info.output_addrs = {reinterpret_cast<void *>(7000)};
+  extra_op_info.cust_to_relevant_offset_ = {{0, 1}};
+  ge::OpDescInfoId id(40, 50, 0);
+  exception_dumper.SaveDumpOpInfo(op_desc, extra_op_info, id, false);
+  gert::GertRuntimeStub runtime_stub;
+  OpDescInfo result;
+  EXPECT_TRUE(exception_dumper.GetOpDescInfo(id, result));
+}
+
+TEST_F(UTEST_dump_exception, DumpNodeInfo_WorkspaceNullAddr_CovEnhance) {
+  ASSERT_TRUE(ge::CreateDirectory(temp_dump_path_) == 0);
+  ge::DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("ALL_MODEL_NEED_DUMP_AND_IT_IS_NOT_A_MODEL_NAME", {"test"});
+  dump_properties.SetDumpMode("all");
+
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "Save";
+  op_desc_info.op_type = "Save";
+  op_desc_info.id.task_id = 1;
+  op_desc_info.id.stream_id = 2;
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.input_addrs = {nullptr};
+  op_desc_info.input_size = {2};
+  op_desc_info.output_format = {FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  op_desc_info.output_addrs = {nullptr};
+  op_desc_info.output_size = {2};
+  op_desc_info.space_addrs = {nullptr};
+  op_desc_info.workspace_bytes = {8};
+  ExceptionDumper exception_dumper;
+  EXPECT_EQ(exception_dumper.DumpNodeInfo(op_desc_info, temp_dump_path_, false, false, dump_properties), ge::SUCCESS);
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionArgs_MallocHostFail_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.args_size = 123U;
+  op_desc_info.is_host_args = false;
+  ExceptionDumper exception_dumper{};
+  EXPECT_NO_THROW(exception_dumper.LogExceptionArgs(op_desc_info));
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionArgs_MemcpyFail_CovEnhance) {
+  OpDescInfo op_desc_info;
+  auto args_holder = std::unique_ptr<uint8_t[]>(new uint8_t[64]);
+  op_desc_info.args = reinterpret_cast<uintptr_t>(args_holder.get());
+  op_desc_info.args_size = 64U;
+  op_desc_info.is_host_args = false;
+  ExceptionDumper exception_dumper{};
+  mmSetEnv("CONSTANT_FOLDING_PASS", "mock_fail", 1);
+  EXPECT_NO_THROW(exception_dumper.LogExceptionArgs(op_desc_info));
+  unsetenv("CONSTANT_FOLDING_PASS");
+}
+
+TEST_F(UTEST_dump_exception, LogExceptionTvmOpInfo_RealPath_CovEnhance) {
+  OpDescInfo op_desc_info;
+  op_desc_info.op_name = "TestOp";
+  op_desc_info.op_type = "TestType";
+  op_desc_info.imply_type = static_cast<uint32_t>(domi::ImplyType::TVM);
+  op_desc_info.input_format = {FORMAT_NCHW};
+  op_desc_info.input_shape = {{1}};
+  op_desc_info.input_data_type = {DT_FLOAT};
+  op_desc_info.input_addrs = {reinterpret_cast<void *>(5000)};
+  op_desc_info.output_format = {FORMAT_NCHW};
+  op_desc_info.output_shape = {{1}};
+  op_desc_info.output_data_type = {DT_FLOAT};
+  op_desc_info.output_addrs = {reinterpret_cast<void *>(6000)};
+  op_desc_info.op_file_path = ".";
+  op_desc_info.dev_func = "test_kernel__0";
+  ExceptionDumper exception_dumper{};
+  gert::GertRuntimeStub runtime_stub;
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  EXPECT_NO_THROW(exception_dumper.LogExceptionTvmOpInfo(op_desc_info));
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
 }  // namespace ge

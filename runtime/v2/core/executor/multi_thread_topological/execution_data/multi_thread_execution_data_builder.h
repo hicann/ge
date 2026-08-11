@@ -14,6 +14,7 @@
 #include "core/executor/multi_thread_topological/executor/schedule/config/task_scheduler_config.h"
 #include "core/executor/multi_thread_topological/executor/multi_thread_topological_executor.h"
 namespace gert {
+class MultiThreadResourceGuard;
 class MultiThreadExecutionDataBuilder : public ExecutionDataBuilder {
  public:
   explicit MultiThreadExecutionDataBuilder(GraphExecutorBuilder &executor_builder);
@@ -27,6 +28,8 @@ class MultiThreadExecutionDataBuilder : public ExecutionDataBuilder {
  private:
   ge::graphStatus CreateExecutionData(GraphNode &graph_node, TopologicalExecutionData *topo_execution_data,
                                       ResourceGuard *resource_guard) const;
+  ge::graphStatus BuildFreeLaunchRelationCsr(const std::vector<std::pair<ge::FastNode *, Node *>> &graph_to_exe_nodes,
+                                             MultiThreadResourceGuard &resource_guard);
 
  private:
   SequentialExecutionDataBuilder base_ed_builder_;

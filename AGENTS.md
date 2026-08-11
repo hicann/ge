@@ -60,6 +60,11 @@ bash build.sh --output_path=<PATH>  # 设置自定义输出路径
 rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 ```
 
+## ACL 接口开发
+
+**使用技能**: `acl-mdl-api-creator`
+**适用场景**: 新增 acl_mdl.h / acl_base_mdl.h 公开 API 接口，包括模型加载、执行、查询、Desc/Dataset/Config 操作等。
+
 ## 需求开发与新增功能
 > **触发词**：新增功能/需求/特性、开发新功能/需求/特性、实现功能/需求/特性
 

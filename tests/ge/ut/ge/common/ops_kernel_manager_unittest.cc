@@ -35,6 +35,20 @@ class SubOpsKernelInfoStore : public OpsKernelInfoStore {
   virtual bool CheckSupported(const OpDescPtr &opDescPtr, std::string &un_supported_reason) const;
 };
 
+class SubOpsKernelInfoStoreFinalizeFail : public OpsKernelInfoStore {
+ public:
+  Status Initialize(const std::map<std::string, std::string> &options) override {
+    return SUCCESS;
+  }
+  Status Finalize() override {
+    return FAILED;
+  }
+  void GetAllOpsKernelInfo(std::map<std::string, OpInfo> &infos) const override {}
+  bool CheckSupported(const OpDescPtr &opDescPtr, std::string &un_supported_reason) const override {
+    return true;
+  }
+};
+
 Status SubOpsKernelInfoStore::Initialize(const std::map<std::string, std::string> &options) {
   return FAILED;
 }
@@ -189,5 +203,78 @@ TEST_F(UtestOpsKernelManager, RefreshOpsKernelInfo) {
   auto &instance = OpsKernelManager::GetInstance();
   instance.ops_kernel_store_["kernel"] = std::make_shared<SubOpsKernelInfoStore>();
   EXPECT_EQ(instance.RefreshOpsKernelInfo(), SUCCESS);
+}
+
+TEST_F(UtestOpsKernelManager, GetExternalEnginePathFromEnv) {
+  auto &instance = OpsKernelManager::GetInstance();
+  setenv("ASCEND_ENGINE_PATH", "/tmp/test_engine_path", 1);
+  std::string extern_engine_path;
+  std::map<std::string, std::string> options;
+  instance.GetExternalEnginePath(extern_engine_path, options);
+  EXPECT_EQ(extern_engine_path, "/tmp/test_engine_path");
+  unsetenv("ASCEND_ENGINE_PATH");
+}
+
+TEST_F(UtestOpsKernelManager, InitGraphOptimizersFailed) {
+  auto &instance = OpsKernelManager::GetInstance();
+  instance.graph_optimizers_["opt"] = std::make_shared<SubGraphOptimizer>();
+  auto store_map = DNNEngineManager::GetInstance().engines_map_;
+  DNNEngineManager::GetInstance().engines_map_[""] = MakeShared<DNNEngine>();
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(instance.InitGraphOptimizers(options), SUCCESS);
+  DNNEngineManager::GetInstance().engines_map_ = store_map;
+  instance.graph_optimizers_.clear();
+  instance.init_flag_ = false;
+}
+
+TEST_F(UtestOpsKernelManager, FinalizeOpsKernelStoreFailed) {
+  auto &instance = OpsKernelManager::GetInstance();
+  instance.init_flag_ = true;
+  instance.ops_kernel_store_["kernel"] = std::make_shared<SubOpsKernelInfoStoreFinalizeFail>();
+  EXPECT_EQ(instance.Finalize(), FAILED);
+  instance.ops_kernel_store_.clear();
+  instance.init_flag_ = false;
+}
+
+TEST_F(UtestOpsKernelManager, FinalizeGraphOptimizerFailed) {
+  auto &instance = OpsKernelManager::GetInstance();
+  instance.init_flag_ = true;
+  instance.ops_kernel_store_.clear();
+  auto p = std::make_shared<SubGraphOptimizer>();
+  p->final_flag_ = false;
+  instance.graph_optimizers_["opt"] = p;
+  EXPECT_EQ(instance.Finalize(), FAILED);
+  instance.graph_optimizers_.clear();
+  instance.init_flag_ = false;
+}
+
+TEST_F(UtestOpsKernelManager, GetGraphOptimizerByEngineWithAttrs) {
+  auto &instance = OpsKernelManager::GetInstance();
+  instance.graph_optimizers_["opt"] = std::make_shared<SubGraphOptimizer>();
+  std::vector<GraphOptimizerPtr> graph_optimizer;
+  EXPECT_NO_THROW(instance.GetGraphOptimizerByEngine("", graph_optimizer));
+}
+
+TEST_F(UtestOpsKernelManager, ClassifyGraphOptimizersWithComposite) {
+  auto &instance = OpsKernelManager::GetInstance();
+  std::set<std::string> engine_set = {"AIcoreEngine"};
+  instance.composite_engines_["AIcoreEngine"] = engine_set;
+  instance.graph_optimizers_["opt"] = std::make_shared<SubGraphOptimizer>();
+  EXPECT_NO_THROW(instance.ClassifyGraphOptimizers());
+  instance.composite_engines_.clear();
+  instance.graph_optimizers_.clear();
+  instance.atomic_graph_optimizers_.clear();
+  instance.composite_graph_optimizers_.clear();
+}
+
+TEST_F(UtestOpsKernelManager, GetOpsKernelInfoNotFound) {
+  auto &instance = OpsKernelManager::GetInstance();
+  auto result = instance.GetOpsKernelInfo("nonexistent_op_type");
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UtestOpsKernelManager, GetOpsKernelInfoStoreNotFound) {
+  auto &instance = OpsKernelManager::GetInstance();
+  EXPECT_EQ(instance.GetOpsKernelInfoStore("nonexistent_kernel"), nullptr);
 }
 }  // namespace ge

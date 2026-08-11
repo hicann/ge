@@ -11,14 +11,17 @@
 #include "kernel/memory/memory_kernel.h"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <limits>
 #include "register/kernel_registry.h"
 #include "faker/kernel_run_context_facker.h"
+#include "faker/node_faker.h"
 #include "faker/multi_stream_allocator_faker.h"
 #include "kernel/memory/caching_mem_allocator.h"
 #include "core/debug/kernel_tracing.h"
 #include "exe_graph/runtime/continuous_vector.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "kernel/memory/single_stream_l2_allocator.h"
+#include "kernel/memory/multi_stream_mem_block.h"
 #include "kernel/memory/host_mem_allocator.h"
 #include "kernel/memory/ffts_mem_allocator.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
@@ -42,10 +45,113 @@ ge::graphStatus AllocBatchHbm(KernelContext *context);
 ge::graphStatus AllocHbmMem(KernelContext *context);
 }  // namespace kernel
 namespace {
-class MockStreamSync : public ge::RuntimeStub {
+class MockRtStreamSync : public ge::RuntimeStub {
  public:
   MOCK_METHOD2(rtStreamSynchronizeWithTimeout, int32_t(rtStream_t stm, int32_t timeout));
 };
+
+class CountingMemBlock : public memory::MultiStreamMemBlock {
+ public:
+  CountingMemBlock(size_t &free_count, size_t &duplicate_free_count, bool has_address)
+      : free_count_(free_count), duplicate_free_count_(duplicate_free_count), has_address_(has_address) {}
+
+  void Free(int64_t stream_id) override {
+    (void)stream_id;
+    if (freed_) {
+      ++duplicate_free_count_;
+      return;
+    }
+    ++free_count_;
+    freed_ = true;
+  }
+
+  void *GetAddr() override {
+    return has_address_ ? this : nullptr;
+  }
+
+ private:
+  size_t &free_count_;
+  size_t &duplicate_free_count_;
+  bool has_address_;
+  bool freed_ = false;
+};
+
+class CountingGertAllocator : public GertAllocator {
+ public:
+  CountingGertAllocator(size_t fail_index = std::numeric_limits<size_t>::max(),
+                        size_t null_address_index = std::numeric_limits<size_t>::max())
+      : GertAllocator(0, kOnDeviceHbm), fail_index_(fail_index), null_address_index_(null_address_index) {}
+
+  GertMemBlock *Malloc(size_t size) override {
+    (void)size;
+    const auto index = alloc_count_++;
+    if (index == fail_index_) {
+      return nullptr;
+    }
+    blocks_.emplace_back(
+        std::make_unique<CountingMemBlock>(free_count_, duplicate_free_count_, index != null_address_index_));
+    return blocks_.back().get();
+  }
+
+  GertTensorData MallocTensorData(size_t size) override {
+    auto block = reinterpret_cast<memory::MultiStreamMemBlock *>(Malloc(size));
+    return TensorUtils::ToGertTensorData(block, GetPlacement(), GetStreamId());
+  }
+
+  TensorData MallocTensorDataFromL1(size_t size) override {
+    (void)size;
+    return {};
+  }
+
+  void Free(GertMemBlock *block) override {
+    if (block != nullptr) {
+      block->Free(GetStreamId());
+    }
+  }
+
+  ge::graphStatus FreeAt(int64_t stream_id, GertMemBlock *block) override {
+    if (block != nullptr) {
+      block->Free(stream_id);
+    }
+    return ge::GRAPH_SUCCESS;
+  }
+
+  ge::graphStatus ShareFromTensorData(const TensorData &td, GertTensorData &gtd) override {
+    (void)td;
+    (void)gtd;
+    return ge::GRAPH_SUCCESS;
+  }
+
+  int64_t GetStreamNum() override {
+    return 1;
+  }
+
+  ge::graphStatus SetL1Allocator(ge::Allocator *allocator) override {
+    (void)allocator;
+    return ge::GRAPH_SUCCESS;
+  }
+
+  size_t GetAllocCount() const {
+    return alloc_count_;
+  }
+
+  size_t GetFreeCount() const {
+    return free_count_;
+  }
+
+  size_t GetDuplicateFreeCount() const {
+    return duplicate_free_count_;
+  }
+
+ private:
+  size_t fail_index_;
+  size_t null_address_index_;
+  size_t alloc_count_ = 0U;
+  size_t free_count_ = 0U;
+  size_t duplicate_free_count_ = 0U;
+  std::vector<std::unique_ptr<CountingMemBlock>> blocks_;
+};
+
 KernelRegistry &registry = KernelRegistry::GetInstance();
 std::unique_ptr<gert::Allocators> CreateDefaultAllocators() {
   std::shared_ptr<ge::Allocator> device_allocator(AllocatorFactory::Create(kOnDeviceHbm).release());
@@ -129,6 +235,32 @@ TEST_F(MemoryKernelUT, AllocFreeSuccess) {
   free_context_holder.FreeAll();
 }
 
+TEST_F(MemoryKernelUT, AllocSizeZeroSuccess) {
+  memory::CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  memory::SingleStreamL2Allocator single_stream_l2_allocator(&allocator);
+
+  auto alloc_context_holder = KernelRunContextFaker()
+                                  .KernelIONum(2, 1)
+                                  .Inputs({&single_stream_l2_allocator, reinterpret_cast<void *>(0UL)})
+                                  .Build();
+  auto alloc_context = alloc_context_holder.GetContext<KernelContext>();
+
+  ASSERT_NE(registry.FindKernelFuncs("AllocMemHbm"), nullptr);
+  ASSERT_NE(registry.FindKernelFuncs("AllocMemHbm")->outputs_creator, nullptr);
+  ASSERT_NE(registry.FindKernelFuncs("AllocMemHbm")->run_func, nullptr);
+  ASSERT_EQ(registry.FindKernelFuncs("AllocMemHbm")->outputs_creator(nullptr, alloc_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(kernel::AllocHbmMem(alloc_context), ge::GRAPH_SUCCESS);
+
+  auto tensor_data = alloc_context->GetOutputPointer<GertTensorData>(0);
+  ASSERT_NE(tensor_data, nullptr);
+  EXPECT_EQ(tensor_data->GetAddr(), nullptr);
+  EXPECT_EQ(tensor_data->GetSize(), 0U);
+  EXPECT_EQ(tensor_data->GetPlacement(), kOnDeviceHbm);
+
+  allocator.Finalize();
+  alloc_context_holder.FreeAll();
+}
+
 TEST_F(MemoryKernelUT, FreeHoldAddrSuccess) {
   memory::CachingMemAllocator allocator(0, RT_MEMORY_HBM);
   memory::SingleStreamL2Allocator single_stream_l2_allocator(&allocator);
@@ -152,6 +284,146 @@ TEST_F(MemoryKernelUT, BatchAllocCreateOutputOk) {
   auto run_context = BuildKernelRunContext(2, 1);
   ASSERT_EQ(registry.FindKernelFuncs("AllocBatchHbm")->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
   run_context.FreeValue(2);
+}
+
+TEST_F(MemoryKernelUT, AllocCopyFlowHbmCreateOutputUsesCopyFlowCount) {
+  auto funcs = registry.FindKernelFuncs("AllocCopyFlowHbm");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->outputs_creator, nullptr);
+  ASSERT_NE(funcs->run_func, nullptr);
+  memory::CachingMemAllocator allocator(0, RT_MEMORY_HBM);
+  memory::SingleStreamL2Allocator single_stream_l2_allocator(&allocator);
+  for (const int64_t copy_flow_count : {1, 16, 17, 32}) {
+    auto sizes_holder = ContinuousVector::Create<size_t>(copy_flow_count);
+    auto sizes = reinterpret_cast<TypedContinuousVector<size_t> *>(sizes_holder.get());
+    sizes->SetSize(copy_flow_count);
+    for (size_t i = 0U; i < static_cast<size_t>(copy_flow_count); ++i) {
+      sizes->MutableData()[i] = 0U;
+    }
+    auto context_holder =
+        KernelRunContextFaker().KernelIONum(2, 1).Inputs({&single_stream_l2_allocator, sizes_holder.get()}).Build();
+    auto run_context = context_holder.GetContext<KernelContext>();
+    auto graph = std::make_shared<ge::ExecuteGraph>("copy_flow_alloc_test");
+    auto node = FastNodeFaker(graph)
+                    .NameAndType("alloc_copy_flow_hbm", "AllocCopyFlowHbm")
+                    .Attr("copy_flow_count", copy_flow_count)
+                    .Build();
+    ASSERT_NE(node, nullptr);
+
+    ASSERT_EQ(funcs->outputs_creator(node, run_context), ge::GRAPH_SUCCESS);
+    ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+    auto addresses = run_context->GetOutputPointer<TypedContinuousVector<GertTensorData *>>(0U);
+    ASSERT_NE(addresses, nullptr);
+    EXPECT_EQ(addresses->GetCapacity(), static_cast<size_t>(copy_flow_count));
+    EXPECT_EQ(addresses->GetSize(), static_cast<size_t>(copy_flow_count));
+    context_holder.FreeAll();
+  }
+  allocator.Finalize();
+}
+
+TEST_F(MemoryKernelUT, AllocCopyFlowHbmHandlesZeroSizeAndRepeatedExecution) {
+  constexpr int64_t kCopyFlowCount = 2;
+  CountingGertAllocator allocator;
+  auto sizes_holder = ContinuousVector::Create<size_t>(kCopyFlowCount);
+  auto sizes = reinterpret_cast<TypedContinuousVector<size_t> *>(sizes_holder.get());
+  sizes->SetSize(kCopyFlowCount);
+  sizes->MutableData()[0] = 128U;
+  sizes->MutableData()[1] = 128U;
+
+  auto context_holder = KernelRunContextFaker().KernelIONum(2, 1).Inputs({&allocator, sizes_holder.get()}).Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto graph = std::make_shared<ge::ExecuteGraph>("copy_flow_alloc_repeat_test");
+  auto node = FastNodeFaker(graph).Attr("copy_flow_count", kCopyFlowCount).Build();
+  auto funcs = registry.FindKernelFuncs("AllocCopyFlowHbm");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(node, run_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(allocator.GetAllocCount(), 2U);
+  EXPECT_EQ(allocator.GetFreeCount(), 0U);
+  sizes->MutableData()[0] = 256U;
+  sizes->MutableData()[1] = 0U;
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(allocator.GetAllocCount(), 3U);
+  EXPECT_EQ(allocator.GetFreeCount(), 2U);
+
+  auto addresses = run_context->GetOutputPointer<TypedContinuousVector<GertTensorData *>>(0U);
+  ASSERT_NE(addresses, nullptr);
+  ASSERT_EQ(addresses->GetSize(), static_cast<size_t>(kCopyFlowCount));
+  ASSERT_NE(addresses->GetData()[0], nullptr);
+  EXPECT_NE(addresses->GetData()[0]->GetAddr(), nullptr);
+  ASSERT_NE(addresses->GetData()[1], nullptr);
+  EXPECT_EQ(addresses->GetData()[1]->GetAddr(), nullptr);
+  context_holder.FreeAll();
+  EXPECT_EQ(allocator.GetFreeCount(), 3U);
+  EXPECT_EQ(allocator.GetDuplicateFreeCount(), 0U);
+}
+
+TEST_F(MemoryKernelUT, AllocCopyFlowHbmKeepsSuccessfulRangeWhenLaterAllocationFails) {
+  constexpr int64_t kCopyFlowCount = 2;
+  CountingGertAllocator allocator(1U);
+  auto sizes_holder = ContinuousVector::Create<size_t>(kCopyFlowCount);
+  auto sizes = reinterpret_cast<TypedContinuousVector<size_t> *>(sizes_holder.get());
+  sizes->SetSize(kCopyFlowCount);
+  sizes->MutableData()[0] = 128U;
+  sizes->MutableData()[1] = 128U;
+
+  auto context_holder = KernelRunContextFaker().KernelIONum(2, 1).Inputs({&allocator, sizes_holder.get()}).Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto graph = std::make_shared<ge::ExecuteGraph>("copy_flow_alloc_failure_test");
+  auto node = FastNodeFaker(graph).Attr("copy_flow_count", kCopyFlowCount).Build();
+  auto funcs = registry.FindKernelFuncs("AllocCopyFlowHbm");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(node, run_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_FAILED);
+  EXPECT_EQ(allocator.GetAllocCount(), 2U);
+  EXPECT_EQ(allocator.GetFreeCount(), 0U);
+
+  auto addresses = run_context->GetOutputPointer<TypedContinuousVector<GertTensorData *>>(0U);
+  ASSERT_NE(addresses, nullptr);
+  ASSERT_EQ(addresses->GetSize(), 1U);
+  ASSERT_NE(addresses->GetData()[0], nullptr);
+  EXPECT_NE(addresses->GetData()[0]->GetAddr(), nullptr);
+  context_holder.FreeAll();
+  EXPECT_EQ(allocator.GetFreeCount(), 1U);
+  EXPECT_EQ(allocator.GetDuplicateFreeCount(), 0U);
+}
+
+TEST_F(MemoryKernelUT, AllocCopyFlowHbmRejectsCountMismatchBeforeAllocation) {
+  CountingGertAllocator allocator;
+  auto sizes_holder = ContinuousVector::Create<size_t>(1U);
+  auto sizes = reinterpret_cast<TypedContinuousVector<size_t> *>(sizes_holder.get());
+  sizes->SetSize(1U);
+  sizes->MutableData()[0] = 128U;
+  auto context_holder = KernelRunContextFaker().KernelIONum(2, 1).Inputs({&allocator, sizes_holder.get()}).Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto graph = std::make_shared<ge::ExecuteGraph>("copy_flow_alloc_count_mismatch_test");
+  auto node = FastNodeFaker(graph).Attr("copy_flow_count", static_cast<int64_t>(2)).Build();
+  auto funcs = registry.FindKernelFuncs("AllocCopyFlowHbm");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(node, run_context), ge::GRAPH_SUCCESS);
+  EXPECT_NE(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(allocator.GetAllocCount(), 0U);
+  context_holder.FreeAll();
+}
+
+TEST_F(MemoryKernelUT, AllocCopyFlowHbmFreesBlockWithNullAddress) {
+  CountingGertAllocator allocator(std::numeric_limits<size_t>::max(), 0U);
+  auto sizes_holder = ContinuousVector::Create<size_t>(1U);
+  auto sizes = reinterpret_cast<TypedContinuousVector<size_t> *>(sizes_holder.get());
+  sizes->SetSize(1U);
+  sizes->MutableData()[0] = 128U;
+  auto context_holder = KernelRunContextFaker().KernelIONum(2, 1).Inputs({&allocator, sizes_holder.get()}).Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto graph = std::make_shared<ge::ExecuteGraph>("copy_flow_alloc_null_address_test");
+  auto node = FastNodeFaker(graph).Attr("copy_flow_count", static_cast<int64_t>(1)).Build();
+  auto funcs = registry.FindKernelFuncs("AllocCopyFlowHbm");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(node, run_context), ge::GRAPH_SUCCESS);
+  EXPECT_NE(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(allocator.GetAllocCount(), 1U);
+  context_holder.FreeAll();
+  EXPECT_EQ(allocator.GetFreeCount(), 1U);
+  EXPECT_EQ(allocator.GetDuplicateFreeCount(), 0U);
 }
 TEST_F(MemoryKernelUT, BatchAlloc_Success) {
   // fake allocator -- adapt multistream
@@ -952,7 +1224,7 @@ TEST_F(MemoryKernelUT, SelectL1Allocator_ExternalCachingMemAllocator_SetStreamSu
     std::cerr << " stream not correct! " << std::endl;
     return -1;
   };
-  auto runtime_stub = std::make_shared<MockStreamSync>();
+  auto runtime_stub = std::make_shared<MockRtStreamSync>();
   ge::RuntimeStub::SetInstance(runtime_stub);
   EXPECT_CALL(*runtime_stub, rtStreamSynchronizeWithTimeout).WillRepeatedly(testing::Invoke(mock_memcpy));
   EXPECT_EQ(reinterpret_cast<memory::CachingMemAllocator *>(created_allocator.get())->Synchronize(), ge::SUCCESS);

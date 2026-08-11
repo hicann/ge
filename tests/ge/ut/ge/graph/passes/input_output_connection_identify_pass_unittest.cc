@@ -337,4 +337,61 @@ TEST_F(UtestGraphPassesInputOutputIdentifyPass, UpdateNodeIdxMap_failed) {
   delete my_pass;
   my_pass = nullptr;
 }
+
+TEST_F(UtestGraphPassesInputOutputIdentifyPass, topo_sort_cycle_failed) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("root_graph");
+  NodePtr data_node = graph->AddNode(CreateOpDesc("data", DATA, 1, 1));
+  NodePtr add_node = graph->AddNode(CreateOpDesc("add", ADD, 2, 1));
+  EXPECT_EQ(GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), add_node->GetInDataAnchor(0)), SUCCESS);
+  EXPECT_EQ(GraphUtils::AddEdge(add_node->GetOutDataAnchor(0), data_node->GetInDataAnchor(0)), SUCCESS);
+
+  InputOutputConnectionIdentifyPass pass;
+  EXPECT_EQ(pass.Run(graph), INTERNAL_ERROR);
+}
+
+TEST_F(UtestGraphPassesInputOutputIdentifyPass, process_input_node_anchor_not_found) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("root_graph");
+  NodePtr data_node = graph->AddNode(CreateOpDesc("data", DATA, 0, 1));
+  Node2Indexs in_map;
+  Node2Indexs out_map;
+  auto my_pass = new (std::nothrow) InputOutputConnectionIdentifyPass;
+  EXPECT_EQ(my_pass->ProcessInputNode(data_node, in_map, out_map), SUCCESS);
+  delete my_pass;
+  my_pass = nullptr;
+}
+
+TEST_F(UtestGraphPassesInputOutputIdentifyPass, process_output_node_anchor_not_found) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("root_graph");
+  NodePtr output_node = graph->AddNode(CreateOpDesc("netoutput", NETOUTPUT, 1, 0));
+  Node2Indexs in_map;
+  Node2Indexs out_map;
+  auto my_pass = new (std::nothrow) InputOutputConnectionIdentifyPass;
+  EXPECT_EQ(my_pass->ProcessOutputNode(output_node, in_map, out_map), SUCCESS);
+  delete my_pass;
+  my_pass = nullptr;
+}
+
+TEST_F(UtestGraphPassesInputOutputIdentifyPass, process_input_node_update_idx_map_failed) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("root_graph");
+  NodePtr data_node = graph->AddNode(CreateOpDesc("data", DATA, 0, 1));
+  auto my_pass = new (std::nothrow) InputOutputConnectionIdentifyPass;
+  my_pass->anchor_to_symbol_[NodeIndexIO(data_node, 0, kOut).ToString()] = "fake_symbol";
+  Node2Indexs in_map;
+  Node2Indexs out_map;
+  EXPECT_EQ(my_pass->ProcessInputNode(data_node, in_map, out_map), PARAM_INVALID);
+  delete my_pass;
+  my_pass = nullptr;
+}
+
+TEST_F(UtestGraphPassesInputOutputIdentifyPass, process_output_node_update_idx_map_failed) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("root_graph");
+  NodePtr output_node = graph->AddNode(CreateOpDesc("netoutput", NETOUTPUT, 1, 0));
+  auto my_pass = new (std::nothrow) InputOutputConnectionIdentifyPass;
+  my_pass->anchor_to_symbol_[NodeIndexIO(output_node, 0, kIn).ToString()] = "fake_symbol";
+  Node2Indexs in_map;
+  Node2Indexs out_map;
+  EXPECT_EQ(my_pass->ProcessOutputNode(output_node, in_map, out_map), PARAM_INVALID);
+  delete my_pass;
+  my_pass = nullptr;
+}
 }  // namespace ge

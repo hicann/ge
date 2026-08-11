@@ -498,3 +498,157 @@ TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, DoubleSuccess) {
   Status status = kernel->Compute(op_desc_ptr, input, outputs);
   EXPECT_EQ(SUCCESS, status);
 }
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, Uint8VectorVectorSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<uint8_t> data_vec_0 = {1, 6, 32, 9, 10, 7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT8);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint8_t));
+
+  vector<int64_t> dims_vec_1 = {2, 3};
+  vector<uint8_t> data_vec_1 = {2, 9, 9, 9, 9, 9};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT8);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint8_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, Int8VectorVectorSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int8_t> data_vec_0 = {1, 6, 32, 9, -10, -7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT8);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int8_t));
+
+  vector<int64_t> dims_vec_1 = {2, 3};
+  vector<int8_t> data_vec_1 = {2, -9, -9, -9, -9, -9};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT8);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int8_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, Uint16VectorVectorSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<uint16_t> data_vec_0 = {1, 6, 32, 9, 10, 7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint16_t));
+
+  vector<int64_t> dims_vec_1 = {2, 3};
+  vector<uint16_t> data_vec_1 = {2, 9, 9, 9, 9, 9};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT16);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, Int16VectorVectorSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int16_t> data_vec_0 = {1, 6, 32, 9, -10, -7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT16);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int16_t));
+
+  vector<int64_t> dims_vec_1 = {2, 3};
+  vector<int16_t> data_vec_1 = {2, -9, -9, -9, -9, -9};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT16);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int16_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, UnsupportedTypeSameTypeFailed) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<uint32_t> data_vec_0 = {3, 36};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_UINT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(uint32_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<uint32_t> data_vec_1 = {2, 9};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_UINT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(uint32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, FloatZeroBroadcastFailed) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<float> data_vec_0 = {1, 6, 32, 9, 10, 7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(float));
+
+  vector<int64_t> dims_vec_1 = {};
+  vector<float> data_vec_1 = {0.0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_FLOAT);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(float));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassedFoldingKernelFloorDivKernel, DoubleZeroBroadcastFailed) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("floor_div", FLOORDIV);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<double> data_vec_0 = {1, 6, 32, 9, 10, 7};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_DOUBLE);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(double));
+
+  vector<int64_t> dims_vec_1 = {};
+  vector<double> data_vec_1 = {0.0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_DOUBLE);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(double));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(FLOORDIV);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}

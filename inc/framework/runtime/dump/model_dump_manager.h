@@ -79,6 +79,7 @@ class VISIBILITY_EXPORT ModelDumpManager {
   Status ReportModelLoadBegin() const;
   Status ReportModelLoadEnd() const;
   Status ReportModelLevelProf(const Om2ProfInfos &prof_info) const;
+  bool IsProfilingEnabled() const;
 
   // ========================================================================
   // Task 级信息接口

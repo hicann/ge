@@ -35,6 +35,7 @@
 #include "engine/node_converter_utils.h"
 #include "common/dump/exception_dumper.h"
 #include "framework/runtime/subscriber/global_dumper.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "graph/small_vector.h"
 #include "rt_external_stream.h"
 #include "aprof_pub.h"
@@ -660,7 +661,8 @@ ge::graphStatus AiCoreLaunchKernelWithHandle(KernelContext *context) {
 REGISTER_KERNEL(LaunchKernelWithHandle)
     .RunFunc(AiCoreLaunchKernelWithHandle)
     .TracePrinter(PrintLaunchArgs)
-    .ExceptionDumpInfoFiller(AicoreHandleUpdateGeExceptionDumpInfo);
+    .ExceptionDumpInfoFiller(AicoreHandleUpdateGeExceptionDumpInfo)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus AiCoreLaunchMixKernelWithHandle(KernelContext *context) {
   auto stream = context->GetInputValue<void *>(static_cast<int32_t>(InputCommon::kStream));
@@ -704,7 +706,8 @@ REGISTER_KERNEL(LaunchMixKernelWithHandle)
     .RunFunc(AiCoreLaunchMixKernelWithHandle)
     .TracePrinter(PrintLaunchArgs)
     .ExceptionDumpInfoFiller(AicoreHandleUpdateGeExceptionDumpInfo)
-    .ProfilingInfoFiller(FillMixVectorProfilingInfo);
+    .ProfilingInfoFiller(FillMixVectorProfilingInfo)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus AiCoreLaunchKernelWithFlag(KernelContext *context) {
   auto stream = context->GetInputValue<void *>(static_cast<int32_t>(InputCommon::kStream));
@@ -726,7 +729,10 @@ ge::graphStatus AiCoreLaunchKernelWithFlag(KernelContext *context) {
   FE_CHK_RT_RET(rtKernelLaunchWithFlagV2(handle, *block_dim, args->GetBase(), nullptr, stream, 0U, cfg));
   return AICoreDfxPrintProc(context, stream);
 }
-REGISTER_KERNEL(LaunchKernelWithFlag).RunFunc(AiCoreLaunchKernelWithFlag).TracePrinter(PrintLaunchArgs);
+REGISTER_KERNEL(LaunchKernelWithFlag)
+    .RunFunc(AiCoreLaunchKernelWithFlag)
+    .TracePrinter(PrintLaunchArgs)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus AiCoreLaunchMixKernelWithFlag(KernelContext *context) {
   auto stream = context->GetInputValue<void *>(static_cast<int32_t>(InputCommon::kStream));
@@ -753,7 +759,8 @@ ge::graphStatus AiCoreLaunchMixKernelWithFlag(KernelContext *context) {
 REGISTER_KERNEL(LaunchMixKernelWithFlag)
     .RunFunc(AiCoreLaunchMixKernelWithFlag)
     .TracePrinter(PrintLaunchArgs)
-    .ProfilingInfoFiller(FillMixVectorProfilingInfo);
+    .ProfilingInfoFiller(FillMixVectorProfilingInfo)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus FillAtomicAiCoreProfilingInfo(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
   auto block_dim = context->GetInputPointer<uint64_t>(static_cast<int32_t>(InputCommon::kBlockDim));
@@ -790,7 +797,8 @@ ge::graphStatus AtomicAiCoreLaunchKernelWithHandle(KernelContext *context) {
 REGISTER_KERNEL(AtomicLaunchKernelWithHandle)
     .RunFunc(AtomicAiCoreLaunchKernelWithHandle)
     .TracePrinter(PrintLaunchArgs)
-    .ProfilingInfoFiller(FillAtomicAiCoreProfilingInfo);
+    .ProfilingInfoFiller(FillAtomicAiCoreProfilingInfo)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus AtomicAiCoreLaunchKernelWithFlag(KernelContext *context) {
   auto stream = context->GetInputValue<void *>(static_cast<int32_t>(InputCommon::kStream));
@@ -815,6 +823,7 @@ ge::graphStatus AtomicAiCoreLaunchKernelWithFlag(KernelContext *context) {
 REGISTER_KERNEL(AtomicLaunchKernelWithFlag)
     .RunFunc(AtomicAiCoreLaunchKernelWithFlag)
     .TracePrinter(PrintLaunchArgs)
-    .ProfilingInfoFiller(FillAtomicAiCoreProfilingInfo);
+    .ProfilingInfoFiller(FillAtomicAiCoreProfilingInfo)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace kernel
 }  // namespace gert

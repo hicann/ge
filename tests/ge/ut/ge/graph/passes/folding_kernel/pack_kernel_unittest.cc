@@ -373,3 +373,166 @@ TEST_F(UtestGraphPassesFoldingKernelPackKernel, PackOptimizerFailedErrtype) {
   shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
   EXPECT_NE(kernel->Compute(op_desc_ptr, input, outputs), ge::SUCCESS);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, AxisOutOfRange) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)5);
+
+  vector<int64_t> dims_vec_0;
+  vector<int32_t> data_vec_0 = {0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1;
+  vector<int32_t> data_vec_1 = {0};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, NullInput) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)0);
+
+  vector<int64_t> dims_vec_0;
+  vector<int32_t> data_vec_0 = {0};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, nullptr};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, EmptyInput) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)0);
+
+  vector<ConstGeTensorPtr> input = {};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, ShapeMismatch) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)0);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {1, 2};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {3};
+  vector<int32_t> data_vec_1 = {1, 2, 3};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, EmptyDataWithShape) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)0);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {1, 2};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {2};
+  vector<int32_t> data_vec_1 = {};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, AxisMiddleWithMultiDimSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)1);
+
+  vector<int64_t> dims_vec_0 = {2, 3};
+  vector<int32_t> data_vec_0 = {1, 2, 3, 4, 5, 6};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {2, 3};
+  vector<int32_t> data_vec_1 = {7, 8, 9, 10, 11, 12};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  GeTensorDesc dims_tensor_desc(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, dims_tensor_desc);
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelPackKernel, ZeroInShapeSuccess) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("pack", "Pack");
+  AttrUtils::SetInt(op_desc_ptr, PACK_ATTR_NAME_NUM, (int64_t)2);
+  AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_AXIS, (int64_t)0);
+
+  vector<int64_t> dims_vec_0 = {0};
+  vector<int32_t> data_vec_0 = {};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<int64_t> dims_vec_1 = {0};
+  vector<int32_t> data_vec_1 = {};
+  GeTensorDesc tensor_desc_1(GeShape(dims_vec_1), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_1 =
+      std::make_shared<GeTensor>(tensor_desc_1, (uint8_t *)data_vec_1.data(), data_vec_1.size() * sizeof(int32_t));
+
+  GeTensorDesc dims_tensor_desc(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(0, dims_tensor_desc);
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_1};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(PACK);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_EQ(SUCCESS, status);
+}

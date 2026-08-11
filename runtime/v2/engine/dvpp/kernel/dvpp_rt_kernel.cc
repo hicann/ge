@@ -22,6 +22,7 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "debug/ge_log.h"
 #endif
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "dvpp_rt_kernel.h"
 
 namespace gert {
@@ -321,7 +322,8 @@ ge::graphStatus CalcOpWorkSpaceSize(KernelContext *context) {
 
 REGISTER_KERNEL(GenerateSqeAndLaunchTask)
     .RunFunc(GenerateSqeAndLaunchTask)
-    .OutputsCreator(CreateGenerateDvppSqeOutputs);
+    .OutputsCreator(CreateGenerateDvppSqeOutputs)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 REGISTER_KERNEL(CalcDvppWorkSpaceSize).RunFunc(CalcOpWorkSpaceSize).OutputsCreator(CreateCalcWorkspaceSizeOutputs);
 }  // namespace kernel
 }  // namespace gert

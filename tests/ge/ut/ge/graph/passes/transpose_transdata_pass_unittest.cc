@@ -462,4 +462,18 @@ TEST_F(UtestGraphPassesTransposeTransdataPass, check_in_out_data_anchor_valid_fa
   EXPECT_EQ(ret, FAILED);
 }
 
+TEST_F(UtestGraphPassesTransposeTransdataPass, fusion_transpose_with_non_transdata_output) {
+  auto compute_graph = BuildGraphTransposeD();
+  auto transpose = compute_graph->FindNode("transpose1");
+  ASSERT_NE(transpose, nullptr);
+  TransposeTransDataPass pass;
+  Status ret = pass.FusionTranspose(transpose);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestGraphPassesTransposeTransdataPass, check_in_out_data_anchor_valid_null_node) {
+  TransposeTransDataPass pass;
+  Status ret = pass.CheckInOutDataAnchorValid(nullptr, 1U, 1U);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
 }  // namespace ge

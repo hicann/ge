@@ -2187,4 +2187,258 @@ TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_SimpleTasksWithStub_Ok) {
   Om2CodegenModel doc;
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
 }
+
+static GeRootModelPtr CreateGeRootModelWithUnsupportedTask() {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  if (name_to_ge_model.empty()) {
+    return nullptr;
+  }
+  const auto ge_model = name_to_ge_model.begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def == nullptr) {
+    return nullptr;
+  }
+  auto *bad_task = model_task_def->add_task();
+  if (bad_task == nullptr) {
+    return nullptr;
+  }
+  bad_task->set_type(999U);
+  bad_task->set_stream_id(0U);
+  return ge_root_model;
+}
+
+static GeModelPtr CreateGeModelWithStreamActiveMissingAttr() {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 512U);
+
+  auto data0_desc = std::make_shared<OpDesc>("data0", DATA);
+  (void)data0_desc->AddOutputDesc(tensor_desc);
+  auto data0 = graph->AddNode(data0_desc);
+
+  auto sa_desc = std::make_shared<OpDesc>("sa", STREAMACTIVE);
+  (void)sa_desc->AddInputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(sa_desc, ATTR_NAME_SWITCH_BRANCH_NODE_LABEL, "label_0");
+  auto sa = graph->AddNode(sa_desc);
+
+  if ((data0 == nullptr) || (sa == nullptr)) {
+    return nullptr;
+  }
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), sa->GetInDataAnchor(0));
+  graph->TopologicalSorting();
+  graph->SetGraphUnknownFlag(false);
+  data0_desc->SetOutputOffset({1024});
+
+  auto ge_model = MakeShared<GeModel>();
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  ge_model->SetGraph(graph);
+  ge_model->SetModelTaskDef(MakeShared<domi::ModelTaskDef>());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 4096);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, 0);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 2);
+  return ge_model;
+}
+
+static GeModelPtr CreateGeModelWithStreamSwitchWrongSize() {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 512U);
+
+  auto data0_desc = std::make_shared<OpDesc>("data0", DATA);
+  (void)data0_desc->AddOutputDesc(tensor_desc);
+  auto data0 = graph->AddNode(data0_desc);
+
+  auto data1_desc = std::make_shared<OpDesc>("data1", DATA);
+  (void)data1_desc->AddOutputDesc(tensor_desc);
+  auto data1 = graph->AddNode(data1_desc);
+
+  auto ss_desc = std::make_shared<OpDesc>("ss", STREAMSWITCH);
+  (void)ss_desc->AddInputDesc("pred", tensor_desc);
+  (void)ss_desc->AddInputDesc("value", tensor_desc);
+  ss_desc->SetInputOffset({1024, 2048});
+  (void)AttrUtils::SetInt(ss_desc, ATTR_NAME_STREAM_SWITCH_COND, 1);
+  (void)AttrUtils::SetListInt(ss_desc, ATTR_NAME_ACTIVE_STREAM_LIST, {1, 2});
+  (void)AttrUtils::SetInt(ss_desc, ATTR_NAME_SWITCH_DATA_TYPE, 0);
+  auto ss = graph->AddNode(ss_desc);
+
+  if ((data0 == nullptr) || (data1 == nullptr) || (ss == nullptr)) {
+    return nullptr;
+  }
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), ss->GetInDataAnchor(0));
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), ss->GetInDataAnchor(1));
+  graph->TopologicalSorting();
+  graph->SetGraphUnknownFlag(false);
+  data0_desc->SetOutputOffset({1024});
+  data1_desc->SetOutputOffset({2048});
+
+  auto ge_model = MakeShared<GeModel>();
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  ge_model->SetGraph(graph);
+  ge_model->SetModelTaskDef(MakeShared<domi::ModelTaskDef>());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 4096);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, 0);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 3);
+  return ge_model;
+}
+
+static GeModelPtr CreateGeModelWithStreamActiveOk() {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 512U);
+
+  auto data0_desc = std::make_shared<OpDesc>("data0", DATA);
+  (void)data0_desc->AddOutputDesc(tensor_desc);
+  auto data0 = graph->AddNode(data0_desc);
+
+  auto sa_desc = std::make_shared<OpDesc>("sa", STREAMACTIVE);
+  (void)sa_desc->AddInputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(sa_desc, ATTR_NAME_SWITCH_BRANCH_NODE_LABEL, "label_0");
+  (void)AttrUtils::SetListInt(sa_desc, ATTR_NAME_ACTIVE_STREAM_LIST, {1});
+  auto sa = graph->AddNode(sa_desc);
+
+  if ((data0 == nullptr) || (sa == nullptr)) {
+    return nullptr;
+  }
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), sa->GetInDataAnchor(0));
+  graph->TopologicalSorting();
+  graph->SetGraphUnknownFlag(false);
+  data0_desc->SetOutputOffset({1024});
+
+  auto ge_model = MakeShared<GeModel>();
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  ge_model->SetGraph(graph);
+  ge_model->SetModelTaskDef(MakeShared<domi::ModelTaskDef>());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 4096);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, 0);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 2);
+  return ge_model;
+}
+
+static GeRootModelPtr CreateGeRootModelWithHugeStream() {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  if (name_to_ge_model.empty()) {
+    return nullptr;
+  }
+  const auto ge_model = name_to_ge_model.begin()->second;
+  (void)AttrUtils::SetListInt(ge_model, ATTR_MODEL_HUGE_STREAM_LIST, {0});
+  return ge_root_model;
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_UnsupportedTaskType_ReturnsFailed) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithUnsupportedTask();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_StreamActiveMissingAttr_ReturnsError) {
+  GeModelPtr ge_model = CreateGeModelWithStreamActiveMissingAttr();
+  ASSERT_NE(ge_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_StreamSwitchWrongSize_ReturnsError) {
+  GeModelPtr ge_model = CreateGeModelWithStreamSwitchWrongSize();
+  ASSERT_NE(ge_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_StreamActiveOk) {
+  GeModelPtr ge_model = CreateGeModelWithStreamActiveOk();
+  ASSERT_NE(ge_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_HugeStream_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithHugeStream();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_RuntimeAttrs_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithRuntimeAttrs();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+static GeRootModelPtr CreateGeRootModelWithOpNeedPrint() {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  if (name_to_ge_model.empty()) {
+    return nullptr;
+  }
+  const auto ge_model = name_to_ge_model.begin()->second;
+  const auto compute_graph = ge_model->GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == "Add")) {
+      (void)AttrUtils::SetListStr(op_desc, "_op_dfx_options", {"printf"});
+      break;
+    }
+  }
+  return ge_root_model;
+}
+
+static GeRootModelPtr CreateGeRootModelWithBlockingAicpuOp() {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicpuOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  if (name_to_ge_model.empty()) {
+    return nullptr;
+  }
+  const auto ge_model = name_to_ge_model.begin()->second;
+  const auto compute_graph = ge_model->GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == "Add")) {
+      (void)AttrUtils::SetBool(op_desc, ATTR_NAME_IS_BLOCKING_OP, true);
+      break;
+    }
+  }
+  return ge_root_model;
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_OpNeedPrint_ReturnsFailed) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithOpNeedPrint();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_BlockingAicpuOp_ReturnsFailed) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithBlockingAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
 }  // namespace ge

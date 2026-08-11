@@ -74,4 +74,9 @@ TEST_F(UtestModelSaver, SaveJsonToFile_nested_json_success) {
   system("rm -rf ./test_nested_json.pb");
 }
 
+TEST_F(UtestModelSaver, SaveJsonToFile_dump_exception_CovEnhance) {
+  Json discarded_json = Json::value_t::discarded;
+  EXPECT_EQ(ModelSaver::SaveJsonToFile("./test_dump_exception.pb", discarded_json), SUCCESS);
+  system("rm -f ./test_dump_exception.pb");
+}
 }  // namespace ge

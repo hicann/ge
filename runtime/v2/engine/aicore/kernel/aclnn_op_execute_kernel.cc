@@ -246,7 +246,7 @@ REGISTER_KERNEL(ExecuteOpFunc)
     .OutputsCreator(CreateBlockMemoryOutput)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
 REGISTER_KERNEL(ExecuteOpPrepare).RunFunc(ExecuteOpPrepare);
-REGISTER_KERNEL(ExecuteOpLaunch).RunFunc(ExecuteOpLaunch);
+REGISTER_KERNEL(ExecuteOpLaunch).RunFunc(ExecuteOpLaunch).ConcurrentCriticalSectionKey(kKernelLaunch);
 REGISTER_KERNEL(BuildDualStageAclnnOpFwkData)
     .RunFunc(BuildDualStageAclnnOpFwkData)
     .OutputsCreator(CreateDualStageAclnnOpFwkDataOutput);

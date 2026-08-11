@@ -668,6 +668,28 @@ bool CheckAndGetDims(const std::vector<Expression> &long_dims, const std::vector
   return !dims.empty();
 }
 
+std::vector<int64_t> MakeAxisByRank(const size_t rank) {
+  std::vector<int64_t> axis;
+  axis.reserve(rank);
+  for (size_t i = 0U; i < rank; ++i) {
+    axis.push_back(static_cast<int64_t>(i));
+  }
+  return axis;
+}
+
+void AddReshapeAxisChange(const LoopVar &reshape, const std::vector<Expression> &src_dims,
+                          const std::vector<Expression> &dst_dims) {
+  if (!reshape.IsValid()) {
+    return;
+  }
+  ReshapeAxisChangeInfo change;
+  change.before_axis = MakeAxisByRank(src_dims.size());
+  change.before_repeats = src_dims;
+  change.after_axis = MakeAxisByRank(dst_dims.size());
+  change.after_repeats = dst_dims;
+  reshape.Op()->AddReshapeAxisChange(change);
+}
+
 // Reshape只做attr为默认参数，且不进行轴转换，能进行unsqueeze/squeeze的情况。[3,4]->[1,3,4]/[2,1,3]->[2,3]
 // 新增支持 [A*B, C]->[A,B,C]/[A,B,C]->[A*B,C]
 LoopVar Reshape(const LoopVar &op, const std::vector<Expression> &src_dims, const std::vector<Expression> &dst_dims) {

@@ -27,6 +27,9 @@
 #include "parser/onnx/onnx_file_constant_parser.h"
 #include "parser/onnx/onnx_util.h"
 #include "parser/onnx/onnx_parser_internal.h"
+#include "graph/utils/attr_utils.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/graph_utils.h"
 
 namespace ge {
 class UtestOnnxParser : public testing::Test {
@@ -1425,5 +1428,286 @@ TEST_F(UtestOnnxParser, onnx_test_no_input_op_in_root_graph) {
   ASSERT_NE(compute_graph, nullptr);
   auto node_found = compute_graph->FindNode("RandomNormal_0");
   EXPECT_NE(node_found, nullptr);
+}
+
+TEST_F(UtestOnnxParser, auto_mapping_subgraph_with_output_nodes) {
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("test_auto_map_out");
+  auto data_op = std::make_shared<ge::OpDesc>("data_out_1", "Data");
+  data_op->AddInputDesc(ge::GeTensorDesc());
+  data_op->AddOutputDesc(ge::GeTensorDesc());
+  ge::AttrUtils::SetInt(data_op, ge::ATTR_NAME_INDEX, 0);
+  auto data_node = compute_graph->AddNode(data_op);
+
+  auto netoutput_op = std::make_shared<ge::OpDesc>("netoutput_out_1", "NetOutput");
+  netoutput_op->AddInputDesc(ge::GeTensorDesc());
+  netoutput_op->AddOutputDesc(ge::GeTensorDesc());
+  auto netoutput_node = compute_graph->AddNode(netoutput_op);
+
+  ge::GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+  compute_graph->AddOutputNodeByIndex(netoutput_node, 0);
+
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  auto func = domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
+  ASSERT_NE(func, nullptr);
+  auto ret = func(
+      graph,
+      [&](int data_index, int &parent_index) -> Status {
+        parent_index = data_index;
+        return SUCCESS;
+      },
+      [&](int output_index, int &parent_index) -> Status {
+        parent_index = output_index;
+        return SUCCESS;
+      });
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, auto_mapping_subgraph_data_without_index_attr) {
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("test_auto_map_no_idx");
+  auto data_op = std::make_shared<ge::OpDesc>("data_no_idx", "Data");
+  data_op->AddInputDesc(ge::GeTensorDesc());
+  data_op->AddOutputDesc(ge::GeTensorDesc());
+  compute_graph->AddNode(data_op);
+
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  auto func = domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
+  ASSERT_NE(func, nullptr);
+  auto ret = func(
+      graph,
+      [&](int data_index, int &parent_index) -> Status {
+        parent_index = data_index;
+        return SUCCESS;
+      },
+      [&](int output_index, int &parent_index) -> Status {
+        parent_index = output_index;
+        return SUCCESS;
+      });
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, auto_mapping_subgraph_input_callback_failure) {
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("test_auto_map_cb_fail");
+  auto data_op = std::make_shared<ge::OpDesc>("data_cb_fail", "Data");
+  data_op->AddInputDesc(ge::GeTensorDesc());
+  data_op->AddOutputDesc(ge::GeTensorDesc());
+  ge::AttrUtils::SetInt(data_op, ge::ATTR_NAME_INDEX, 0);
+  compute_graph->AddNode(data_op);
+
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  auto func = domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
+  ASSERT_NE(func, nullptr);
+  auto ret = func(
+      graph, [&](int data_index, int &parent_index) -> Status { return FAILED; },
+      [&](int output_index, int &parent_index) -> Status {
+        parent_index = output_index;
+        return SUCCESS;
+      });
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, auto_mapping_subgraph_output_callback_failure) {
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("test_auto_map_out_cb_fail");
+  auto data_op = std::make_shared<ge::OpDesc>("data_out_cb", "Data");
+  data_op->AddInputDesc(ge::GeTensorDesc());
+  data_op->AddOutputDesc(ge::GeTensorDesc());
+  ge::AttrUtils::SetInt(data_op, ge::ATTR_NAME_INDEX, 0);
+  auto data_node = compute_graph->AddNode(data_op);
+
+  auto netoutput_op = std::make_shared<ge::OpDesc>("netoutput_cb", "NetOutput");
+  netoutput_op->AddInputDesc(ge::GeTensorDesc());
+  netoutput_op->AddOutputDesc(ge::GeTensorDesc());
+  auto netoutput_node = compute_graph->AddNode(netoutput_op);
+
+  ge::GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+  compute_graph->AddOutputNodeByIndex(netoutput_node, 0);
+
+  ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  auto func = domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
+  ASSERT_NE(func, nullptr);
+  auto ret = func(
+      graph,
+      [&](int data_index, int &parent_index) -> Status {
+        parent_index = data_index;
+        return SUCCESS;
+      },
+      [&](int output_index, int &parent_index) -> Status { return FAILED; });
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, auto_mapping_subgraph_null_input_output) {
+  ge::Graph graph;
+  auto func = domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
+  ASSERT_NE(func, nullptr);
+  std::function<Status(int, int &)> null_input = nullptr;
+  std::function<Status(int, int &)> null_output = nullptr;
+  auto ret = func(graph, null_input, null_output);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, aclgrphParseONNX_null_file) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseONNX(nullptr, parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, aclgrphParseONNX_invalid_file) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseONNX("nonexistent_model.onnx", parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, aclgrphParseONNX_with_params_null_file) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseONNX(nullptr, parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, aclgrphParseONNX_with_params_invalid_file) {
+  std::map<AscendString, AscendString> parser_params;
+  ge::Graph graph;
+  auto ret = aclgrphParseONNX("nonexistent_model2.onnx", parser_params, graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_parser_to_json_invalid) {
+  OnnxModelParser parser;
+  auto ret = parser.ToJson("nonexistent_model.onnx", "output.json");
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_parser_to_json_null) {
+  OnnxModelParser parser;
+  auto ret = parser.ToJson(nullptr, "output.json");
+  EXPECT_NE(ret, SUCCESS);
+  ret = parser.ToJson("model.onnx", nullptr);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_parser_parse_from_memory_null) {
+  OnnxModelParser parser;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  auto ret = parser.ParseFromMemory(nullptr, 0, graph);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_empty_graph) {
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  model_proto.mutable_graph();
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_empty");
+  auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_with_const_node) {
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  auto *graph = model_proto.mutable_graph();
+  auto *node = graph->add_node();
+  node->set_name("const_0");
+  node->set_op_type("Constant");
+  auto *attr = node->add_attribute();
+  attr->set_name("value");
+  attr->set_type(ge::onnx::AttributeProto::TENSOR);
+  auto *tensor = attr->mutable_t();
+  tensor->set_data_type(1);
+  tensor->add_dims(1);
+  node->add_output("const_output");
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_const");
+  auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_with_unsupported_op) {
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  auto *graph = model_proto.mutable_graph();
+  auto *node = graph->add_node();
+  node->set_name("unsupported_0");
+  node->set_op_type("UnsupportedOpType");
+  node->add_input("input");
+  node->add_output("output");
+
+  ge::onnx::ValueInfoProto *input = graph->add_input();
+  input->set_name("input");
+  auto tensor_type = input->mutable_type()->mutable_tensor_type();
+  tensor_type->set_elem_type(1);
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_unsupported");
+  auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_parser_clear_and_error) {
+  OnnxModelParser parser;
+  parser.Clear();
+  EXPECT_FALSE(parser.HasError());
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_with_initializer) {
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  auto *graph = model_proto.mutable_graph();
+  auto *initializer = graph->add_initializer();
+  initializer->set_name("init_0");
+  initializer->set_data_type(1);
+  initializer->add_dims(2);
+  initializer->add_dims(3);
+  initializer->set_raw_data("\001\002\003\004\005\006");
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_init");
+  auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_with_multiple_inputs) {
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  auto *graph = model_proto.mutable_graph();
+
+  ge::onnx::ValueInfoProto *input1 = graph->add_input();
+  input1->set_name("X1");
+  auto tensor_type1 = input1->mutable_type()->mutable_tensor_type();
+  tensor_type1->set_elem_type(1);
+
+  ge::onnx::ValueInfoProto *input2 = graph->add_input();
+  input2->set_name("X2");
+  auto tensor_type2 = input2->mutable_type()->mutable_tensor_type();
+  tensor_type2->set_elem_type(1);
+
+  ge::onnx::ValueInfoProto *output = graph->add_output();
+  output->set_name("Y");
+  auto tensor_type_y = output->mutable_type()->mutable_tensor_type();
+  tensor_type_y->set_elem_type(1);
+
+  auto *node = graph->add_node();
+  node->set_name("add_0");
+  node->set_op_type("Add");
+  node->add_input("X1");
+  node->add_input("X2");
+  node->add_output("Y");
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_multi_input");
+  auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_EQ(ret, SUCCESS);
 }
 }  // namespace ge

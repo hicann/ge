@@ -27,6 +27,7 @@
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/ffts_plus/aicpu_update_kernel.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 namespace {
 constexpr int32_t kSoNameAddrLIndex = 0;
@@ -595,6 +596,6 @@ ge::graphStatus FFTSInitAicpuCtxUserData(KernelContext *context) {
   return ge::GRAPH_SUCCESS;
 }
 
-REGISTER_KERNEL(FFTSInitAicpuCtxUserData).RunFunc(FFTSInitAicpuCtxUserData);
+REGISTER_KERNEL(FFTSInitAicpuCtxUserData).RunFunc(FFTSInitAicpuCtxUserData).ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace kernel
 }  // namespace gert

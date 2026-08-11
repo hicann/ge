@@ -1007,4 +1007,10 @@ TEST_F(UtestMemcpyAddrAsyncPass, RefData2Hccl_success) {
   // 清理环境变量
   mmSetEnv(kEnvValue, "", 1);
 }
+
+TEST_F(UtestMemcpyAddrAsyncPass, run_with_empty_graph_test) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("empty_graph");
+  MemcpyAddrAsyncPass pass;
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
 }  // namespace ge

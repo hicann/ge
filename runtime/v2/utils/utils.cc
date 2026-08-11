@@ -76,7 +76,13 @@ bool IsInputPlacementOnDeviceHbm() {
   return input_placement == "DeviceHbm";
 }
 
-bool IsEnableRmLaunchFreeEdge() {
+bool IsEnableRt2MultiThread() {
+  const char_t *enable_multi_stream_env = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_ENABLE_DYNAMIC_SHAPE_MULTI_STREAM, enable_multi_stream_env);
+  if ((enable_multi_stream_env != nullptr) && (std::string(enable_multi_stream_env) == "1")) {
+    return false;
+  }
+
   const char_t *max_runtime_core_num = nullptr;
   MM_SYS_GET_ENV(MM_ENV_MAX_RUNTIME_CORE_NUMBER, max_runtime_core_num);
   int32_t max_core_num;

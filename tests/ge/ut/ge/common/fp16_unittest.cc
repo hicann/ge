@@ -499,5 +499,136 @@ TEST_F(UtestFP16, Fp16Sub_DifferentSign_CovEnhance) {
   fp16_t result2 = c - d;
   EXPECT_EQ(result2.val, 0xBC00U);  // -1.0
 }
+
+TEST_F(UtestFP16, Int8_WhileLoopOverflow_CovEnhance) {
+  fp16_t neg_val;
+  neg_val.val = 0xD800U;
+  EXPECT_EQ(neg_val.ToInt8(), -128);
+
+  fp16_t pos_val;
+  pos_val.val = 0x5800U;
+  EXPECT_EQ(pos_val.ToInt8(), 127);
+}
+
+TEST_F(UtestFP16, Uint8_WhileLoopOverflow_CovEnhance) {
+  fp16_t val;
+  val.val = 0x5C00U;
+  EXPECT_EQ(val.ToUInt8(), 255);
+}
+
+TEST_F(UtestFP16, Int16_WhileLoopOverflow_CovEnhance) {
+  fp16_t neg_val;
+  neg_val.val = 0xF801U;
+  EXPECT_EQ(neg_val.ToInt16(), -32768);
+
+  fp16_t pos_val;
+  pos_val.val = 0x7800U;
+  EXPECT_EQ(pos_val.ToInt16(), 32767);
+}
+
+TEST_F(UtestFP16, Int16_SmallExpRoundingAndSignReset_CovEnhance) {
+  fp16_t val;
+  val.val = 0x3880U;
+  EXPECT_EQ(val.ToInt16(), 1);
+
+  fp16_t neg_val;
+  neg_val.val = 0xC140U;
+  EXPECT_EQ(neg_val.ToInt16(), -3);
+
+  fp16_t zero_neg;
+  zero_neg.val = 0xB800U;
+  EXPECT_EQ(zero_neg.ToInt16(), 0);
+}
+
+TEST_F(UtestFP16, Uint16_SmallExpAndRounding_CovEnhance) {
+  fp16_t val;
+  val.val = 0x3880U;
+  EXPECT_EQ(val.ToUInt16(), 1);
+}
+
+TEST_F(UtestFP16, Int32_SmallExpAndRounding_CovEnhance) {
+  fp16_t val;
+  val.val = 0x3880U;
+  EXPECT_EQ(val.ToInt32(), 1);
+}
+
+TEST_F(UtestFP16, Int8_NegativeRoundingCondition_CovEnhance) {
+  fp16_t val;
+  val.val = 0xC140U;
+  EXPECT_EQ(val.ToInt8(), -3);
+}
+
+TEST_F(UtestFP16, OperatorGreaterThan_NegativeExpDiff_CovEnhance) {
+  fp16_t lhs;
+  lhs.val = 0xBC00U;
+  fp16_t rhs;
+  rhs.val = 0xC000U;
+  EXPECT_EQ(lhs > rhs, true);
+}
+
+TEST_F(UtestFP16, Fp16Add_SameExpMantissaOverflow_CovEnhance) {
+  fp16_t a;
+  a.val = 0x3C00U;
+  fp16_t b;
+  b.val = 0x3C00U;
+  fp16_t result = a + b;
+  EXPECT_EQ(result.val, 0x4000U);
+}
+
+TEST_F(UtestFP16, Fp16Mul_NormalizeDenormalBoundary_CovEnhance) {
+  fp16_t a;
+  a.val = 0x0001U;
+  fp16_t b;
+  b.val = 0x6000U;
+  fp16_t result = a * b;
+  EXPECT_NE(result.val, 0U);
+}
+
+TEST_F(UtestFP16, Fp16Mul_ZeroShiftPath_CovEnhance) {
+  fp16_t a;
+  a.val = 0x0000U;
+  fp16_t b;
+  b.val = 0x7800U;
+  fp16_t result = a * b;
+  EXPECT_EQ(result.val, 0U);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float32_DenormalRounding_CovEnhance) {
+  fp16_t test(1);
+  test = 8.940696716308594e-08F;
+  EXPECT_NE(test.val, 0U);
+
+  fp16_t test2(1);
+  test2 = 3.0e-08F;
+  EXPECT_NE(test2.val, 0U);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float32_RoundingOverflow_CovEnhance) {
+  fp16_t test(1);
+  test = 1.9990234375F;
+  EXPECT_EQ(test.val, 0x3FFFU);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float64_DenormalRounding_CovEnhance) {
+  fp16_t test(1);
+  test = 8.940696716308594e-08;
+  EXPECT_NE(test.val, 0U);
+
+  fp16_t test2(1);
+  test2 = 3.0e-08;
+  EXPECT_NE(test2.val, 0U);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Float64_RoundingOverflow_CovEnhance) {
+  fp16_t test(1);
+  test = 1.9990234375;
+  EXPECT_EQ(test.val, 0x3FFFU);
+}
+
+TEST_F(UtestFP16, OperatorAssign_Int32_LargeOverflow_CovEnhance) {
+  fp16_t test(1);
+  test = 2147483647;
+  EXPECT_EQ(test.val, 0x7BFFU);
+}
 }  // namespace formats
 }  // namespace ge

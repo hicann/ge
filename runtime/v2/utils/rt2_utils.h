@@ -22,7 +22,7 @@ ge::Status GetKernelStream(const Node *node, aclrtStream &stream);
 
 bool IsInputPlacementOnDeviceHbm();
 
-bool IsEnableRmLaunchFreeEdge();
+bool IsEnableRt2MultiThread();
 }  // namespace gert
 
 #endif  // AIR_CXX_RUNTIME_V2_UTILS_H

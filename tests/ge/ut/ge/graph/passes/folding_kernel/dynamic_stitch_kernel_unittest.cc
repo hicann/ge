@@ -323,3 +323,43 @@ TEST_F(UtestGraphPassesFoldingKernelDynamicStitchKernel, RepeatedIndiceInt64Succ
   EXPECT_EQ(output_data[2], 8);
   EXPECT_EQ(output_data[3], 6);
 }
+
+TEST_F(UtestGraphPassesFoldingKernelDynamicStitchKernel, NullOpDesc) {
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {0, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  vector<ConstGeTensorPtr> input = {tensor_0, tensor_0, tensor_0, tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(DYNAMICSTITCH);
+  Status status = kernel->Compute(nullptr, input, outputs);
+  EXPECT_EQ(NOT_CHANGED, status);
+}
+
+TEST_F(UtestGraphPassesFoldingKernelDynamicStitchKernel, NullInputTensor) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("dynamicstitch", "DynamicStitch");
+  AttrUtils::SetInt(op_desc_ptr, "N", (int64_t)2);
+
+  vector<int64_t> dims_vec_0 = {2};
+  vector<int32_t> data_vec_0 = {0, 1};
+  GeTensorDesc tensor_desc_0(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  ConstGeTensorPtr tensor_0 =
+      std::make_shared<GeTensor>(tensor_desc_0, (uint8_t *)data_vec_0.data(), data_vec_0.size() * sizeof(int32_t));
+
+  GeTensorDesc dims_tensor_desc(GeShape(dims_vec_0), FORMAT_NCHW, DT_INT32);
+  op_desc_ptr->AddInputDesc(dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(dims_tensor_desc);
+  op_desc_ptr->AddInputDesc(dims_tensor_desc);
+  op_desc_ptr->AddOutputDesc(dims_tensor_desc);
+
+  vector<ConstGeTensorPtr> input = {nullptr, nullptr, tensor_0, tensor_0};
+  vector<GeTensorPtr> outputs;
+
+  shared_ptr<Kernel> kernel = KernelFactory::Instance().Create(DYNAMICSTITCH);
+  Status status = kernel->Compute(op_desc_ptr, input, outputs);
+  EXPECT_NE(ge::SUCCESS, status);
+}

@@ -828,6 +828,118 @@ TEST_F(MemCopyKernelTest, CalcStringTensorSize_SizeExceedError) {
   EXPECT_NE(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
 }
 
+TEST_F(MemCopyKernelTest, ShareH2DCopyResult_ZeroCopySizeSharesSrc) {
+  auto src_tensor_holder = TensorFaker().Placement(kOnDeviceHbm).Shape({10, 20}).Build();
+  GertTensorData src_tensor_data;
+  TensorUtils::RefTdToGtd(src_tensor_holder.GetTensor()->GetTensorData(), -1, src_tensor_data);
+  GertTensorData dst_tensor_data = {0U, kOnDeviceHbm, single_stream_l2_allocator_.GetStreamId(), nullptr};
+  rtStream_t stream = reinterpret_cast<rtStream_t>(0x11);
+  auto copy_size = 0U;
+
+  auto run_context = BuildKernelRunContext(static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kNum), 1);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kDstAddress)].Set(&dst_tensor_data,
+                                                                                                   nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kStream)].Set(stream, nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kSrcAddress)].Set(&src_tensor_data,
+                                                                                                   nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kTensorSize)].Set(
+      reinterpret_cast<void *>(copy_size), nullptr);
+
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("ShareH2DCopyResult");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->outputs_creator, nullptr);
+  ASSERT_NE(funcs->run_func, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
+
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  auto output_tensor_data = run_context.GetContext<KernelContext>()->GetOutputPointer<GertTensorData>(0U);
+  ASSERT_NE(output_tensor_data, nullptr);
+  EXPECT_EQ(output_tensor_data->GetAddr(), src_tensor_data.GetAddr());
+  EXPECT_EQ(output_tensor_data->GetSize(), src_tensor_data.GetSize());
+  EXPECT_EQ(output_tensor_data->GetPlacement(), src_tensor_data.GetPlacement());
+}
+
+TEST_F(MemCopyKernelTest, ShareH2DCopyResult_ZeroHostCopySizeSharesDst) {
+  GertTensorData src_tensor_data = {nullptr, 0U, kOnHost, -1};
+  GertTensorData dst_tensor_data = {0U, kOnDeviceHbm, single_stream_l2_allocator_.GetStreamId(), nullptr};
+  rtStream_t stream = reinterpret_cast<rtStream_t>(0x11);
+  auto copy_size = 0U;
+
+  auto run_context = BuildKernelRunContext(static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kNum), 1);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kDstAddress)].Set(&dst_tensor_data,
+                                                                                                   nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kStream)].Set(stream, nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kSrcAddress)].Set(&src_tensor_data,
+                                                                                                   nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::ShareH2DCopyResultInputs::kTensorSize)].Set(
+      reinterpret_cast<void *>(copy_size), nullptr);
+
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("ShareH2DCopyResult");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->outputs_creator, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
+
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  auto output_tensor_data = run_context.GetContext<KernelContext>()->GetOutputPointer<GertTensorData>(0U);
+  ASSERT_NE(output_tensor_data, nullptr);
+  EXPECT_EQ(output_tensor_data->GetAddr(), dst_tensor_data.GetAddr());
+  EXPECT_EQ(output_tensor_data->GetSize(), dst_tensor_data.GetSize());
+  EXPECT_EQ(output_tensor_data->GetPlacement(), dst_tensor_data.GetPlacement());
+}
+
+TEST_F(MemCopyKernelTest, LaunchH2DCopy_OutputFreeAndSubmitsHostCopy) {
+  std::vector<uint8_t> src(4U, 1U);
+  std::vector<uint8_t> dst(src.size(), 0U);
+  GertTensorData src_tensor_data = {src.data(), src.size(), kOnHost, -1};
+  GertTensorData dst_tensor_data = {dst.data(), dst.size(), kOnDeviceHbm, -1};
+  rtStream_t stream = reinterpret_cast<rtStream_t>(0x11);
+
+  auto run_context = BuildKernelRunContext(static_cast<size_t>(kernel::LaunchH2DCopyInputs::kNum), 0U);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kDstAddress)].Set(&dst_tensor_data,
+                                                                                              nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kStream)].Set(stream, nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kSrcAddress)].Set(&src_tensor_data,
+                                                                                              nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kTensorSize)].Set(
+      reinterpret_cast<void *>(src.size()), nullptr);
+
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("LaunchH2DCopy");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->run_func, nullptr);
+
+  auto acl_runtime_stub = std::make_shared<MyMockAclRuntime>();
+  ge::AclRuntimeStub::SetInstance(acl_runtime_stub);
+  EXPECT_CALL(*acl_runtime_stub, aclrtMemcpyAsync(dst.data(), dst.size(), src.data(), src.size(),
+                                                  ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE, stream))
+      .WillOnce(testing::Return(0));
+  const auto result = funcs->run_func(run_context);
+  ge::AclRuntimeStub::Reset();
+  EXPECT_EQ(result, ge::GRAPH_SUCCESS);
+}
+
+TEST_F(MemCopyKernelTest, LaunchH2DCopy_ZeroCopySizeSkipsMemcpy) {
+  GertTensorData src_tensor_data = {nullptr, 0U, kOnHost, -1};
+  GertTensorData dst_tensor_data = {nullptr, 0U, kOnDeviceHbm, -1};
+  rtStream_t stream = reinterpret_cast<rtStream_t>(0x11);
+
+  auto run_context = BuildKernelRunContext(static_cast<size_t>(kernel::LaunchH2DCopyInputs::kNum), 0U);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kDstAddress)].Set(&dst_tensor_data,
+                                                                                              nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kStream)].Set(stream, nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kSrcAddress)].Set(&src_tensor_data,
+                                                                                              nullptr);
+  run_context.value_holder[static_cast<size_t>(kernel::LaunchH2DCopyInputs::kTensorSize)].Set(nullptr, nullptr);
+
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("LaunchH2DCopy");
+  ASSERT_NE(funcs, nullptr);
+  auto acl_runtime_stub = std::make_shared<MyMockAclRuntime>();
+  ge::AclRuntimeStub::SetInstance(acl_runtime_stub);
+  EXPECT_CALL(*acl_runtime_stub, aclrtMemcpyAsync).Times(0);
+  const auto result = funcs->run_func(run_context);
+  ge::AclRuntimeStub::Reset();
+  EXPECT_EQ(result, ge::GRAPH_SUCCESS);
+}
+
 TEST_F(MemCopyKernelTest, SinkWeightDataTestFail) {
   ASSERT_NE(registry.FindKernelFuncs("SinkWeightData"), nullptr);
   int64_t weight_size = 110;
@@ -918,5 +1030,97 @@ TEST_F(MemCopyKernelTest, SinkWeightDataZeroStillSuccess) {
   ASSERT_EQ(registry.FindKernelFuncs("SinkWeightData")->outputs_creator(nullptr, valid_context), ge::GRAPH_SUCCESS);
   ASSERT_EQ(registry.FindKernelFuncs("SinkWeightData")->run_func(valid_context), ge::GRAPH_SUCCESS);
   free(device_mem2);
+}
+
+TEST_F(MemCopyKernelTest, CalcDeviceCopySizes_DeviceToDevice) {
+  auto tensor_holder = TensorFaker().Placement(kOnDeviceHbm).Shape({10, 20}).Build();
+  auto shape = tensor_holder.GetTensor()->GetShape();
+  auto data_type = tensor_holder.GetTensor()->GetDataType();
+  GertTensorData src_tensor_data;
+  TensorUtils::RefTdToGtd(tensor_holder.GetTensor()->GetTensorData(), -1, src_tensor_data);
+  memory::SingleStreamL2Allocator p2p_allocator(kOnDeviceP2p, &caching_mem_allocator_);
+
+  auto outputs = OutputsHolder::Fake(2);
+  auto context_holder =
+      KernelRunContextFaker()
+          .KernelIONum(static_cast<size_t>(kernel::CalcDeviceCopySizesInputs::kNum), 2)
+          .Inputs({&src_tensor_data, &p2p_allocator, reinterpret_cast<void *>(data_type), &shape,
+                   reinterpret_cast<void *>(0x11), reinterpret_cast<void *>(tensor_holder.GetTensor()->GetSize())})
+          .Outputs({outputs.pointer[0], outputs.pointer[1]})
+          .Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("CalcDeviceCopySizes");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->run_func, nullptr);
+  EXPECT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  auto alloc_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kAllocSize));
+  auto copy_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kCopySize));
+  ASSERT_NE(alloc_size, nullptr);
+  ASSERT_NE(copy_size, nullptr);
+  EXPECT_GT(*alloc_size, 0U);
+  EXPECT_GT(*copy_size, 0U);
+}
+
+TEST_F(MemCopyKernelTest, CalcDeviceCopySizes_UsesOriginalTensorSizeForAllocation) {
+  auto tensor_holder = TensorFaker().Placement(kOnHost).Shape({1}).DataType(ge::DT_INT32).Build();
+  auto shape = tensor_holder.GetTensor()->GetShape();
+  auto data_type = tensor_holder.GetTensor()->GetDataType();
+  GertTensorData src_tensor_data;
+  TensorUtils::RefTdToGtd(tensor_holder.GetTensor()->GetTensorData(), -1, src_tensor_data);
+  constexpr size_t kOriginalTensorSize = 1024U;
+
+  auto outputs = OutputsHolder::Fake(2);
+  auto context_holder =
+      KernelRunContextFaker()
+          .KernelIONum(static_cast<size_t>(kernel::CalcDeviceCopySizesInputs::kNum), 2U)
+          .Inputs({&src_tensor_data, &single_stream_l2_allocator_, reinterpret_cast<void *>(data_type), &shape,
+                   reinterpret_cast<void *>(0x11), reinterpret_cast<void *>(kOriginalTensorSize)})
+          .Outputs({outputs.pointer[0], outputs.pointer[1]})
+          .Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("CalcDeviceCopySizes");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_NE(funcs->run_func, nullptr);
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+
+  auto alloc_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kAllocSize));
+  auto copy_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kCopySize));
+  ASSERT_NE(alloc_size, nullptr);
+  ASSERT_NE(copy_size, nullptr);
+  EXPECT_GT(*alloc_size, kOriginalTensorSize);
+  EXPECT_EQ(*copy_size, sizeof(int32_t));
+}
+
+TEST_F(MemCopyKernelTest, CalcDeviceCopySizes_EmptyHostTensorProducesZeroSizes) {
+  auto tensor_holder = TensorFaker().Placement(kOnHost).Shape({0}).DataType(ge::DT_INT32).Build();
+  auto shape = tensor_holder.GetTensor()->GetShape();
+  auto data_type = tensor_holder.GetTensor()->GetDataType();
+  GertTensorData src_tensor_data;
+  TensorUtils::RefTdToGtd(tensor_holder.GetTensor()->GetTensorData(), -1, src_tensor_data);
+
+  auto outputs = OutputsHolder::Fake(2);
+  auto context_holder =
+      KernelRunContextFaker()
+          .KernelIONum(static_cast<size_t>(kernel::CalcDeviceCopySizesInputs::kNum), 2U)
+          .Inputs({&src_tensor_data, &single_stream_l2_allocator_, reinterpret_cast<void *>(data_type), &shape,
+                   reinterpret_cast<void *>(0x11), reinterpret_cast<void *>(0U)})
+          .Outputs({outputs.pointer[0], outputs.pointer[1]})
+          .Build();
+  auto run_context = context_holder.GetContext<KernelContext>();
+  auto funcs = KernelRegistry::GetInstance().FindKernelFuncs("CalcDeviceCopySizes");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  auto alloc_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kAllocSize));
+  auto copy_size =
+      run_context->GetOutputPointer<size_t>(static_cast<size_t>(kernel::CalcDeviceCopySizesOutputs::kCopySize));
+  ASSERT_NE(alloc_size, nullptr);
+  ASSERT_NE(copy_size, nullptr);
+  EXPECT_EQ(*alloc_size, 0U);
+  EXPECT_EQ(*copy_size, 0U);
 }
 }  // namespace gert

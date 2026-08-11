@@ -31,6 +31,7 @@
 #include "framework/common/ge_types.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "core/debug/kernel_tracing.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/ge_context.h"
 #include "acl/acl_rt.h"
@@ -502,7 +503,10 @@ ge::graphStatus DavinciModelCreateV2(KernelContext *context) {
 REGISTER_KERNEL(DavinciModelCreate).RunFunc(DavinciModelCreate).TracePrinter(PrintModelCreate);
 REGISTER_KERNEL(DavinciModelCreateV2).RunFunc(DavinciModelCreateV2).TracePrinter(PrintModelCreate);
 REGISTER_KERNEL(DavinciModelUpdateWorkspaces).RunFunc(DavinciModelUpdateWorkspaces).TracePrinter(PrintWorkspaces);
-REGISTER_KERNEL(DavinciModelExecute).RunFunc(DavinciModelExecute).TracePrinter(PrintModelExecute);
+REGISTER_KERNEL(DavinciModelExecute)
+    .RunFunc(DavinciModelExecute)
+    .TracePrinter(PrintModelExecute)
+    .ConcurrentCriticalSectionKey(kKernelLaunch);
 REGISTER_KERNEL(DavinciModelGetRunAddress)
     .RunFunc(GetRunAddress)
     .OutputsCreator(CreateGetRunAddressOutputs)

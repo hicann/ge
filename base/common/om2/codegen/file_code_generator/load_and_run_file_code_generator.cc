@@ -202,6 +202,13 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
   body.push_back(ast_.If((input_count != "om2::INPUT_NUM") || (output_count != "om2::OUTPUT_NUM"),
                          {ast_.Return("ACL_ERROR_FAILURE")}));
 
+  if (!is_async) {
+    body.push_back(ast_.If(sync_prof_stream_ == nullptr,
+                           {ast_.If(prof_info != "nullptr",
+                                    {ChkRt(RtStreamCreateWithFlags(sync_prof_stream_.Addr(), 0,
+                                                                   ast_.Var("uint32_t", "RT_STREAM_DEFAULT")))})}));
+  }
+
   // Phase timing variables — declared at function scope, captured inside if blocks
   auto t_input_begin = ast_.Var("uint64_t", "_t_input_begin");
   auto t_exec_begin = ast_.Var("uint64_t", "_t_exec_begin");
@@ -243,7 +250,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseInputCopy(std::vector<BodyIte
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream,
                                                                 bool is_async, VarRef prof_info, VarRef exec_begin) {
-  auto trace_stream = is_async ? exe_stream : stream_list_[0];
+  auto trace_stream = is_async ? exe_stream : sync_prof_stream_;
   auto prof_step_cond = (prof_info != "nullptr") && (ast_.Var("", "prof_info->step_id") != "0U");
   body.push_back(ast_.If((prof_info != "nullptr"), {ast_.Assign(exec_begin, ast_.Call("MsprofSysCycleTime", {}))}));
 

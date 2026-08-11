@@ -1914,11 +1914,21 @@ REGISTER_LOWERING(SquareSumV1) {
 
 REGISTER_LOWERING(Unsqueeze) {
   auto x = loop::Load(node->GetInDataAnchor(0));
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  std::vector<ge::Expression> dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-input symbol shape.");
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-output symbol shape.");
   std::vector<int64_t> vec_axes;
   GE_ASSERT_TRUE(AttrUtils::GetListInt(node->GetOpDesc(), "axes", vec_axes));
   for (const auto vec_axe : vec_axes) {
     x = loop::Unsqueeze(x, vec_axe);
   }
+  loop::AddReshapeAxisChange(x, dims, output_dims);
   loop::StoreReshape(node->GetOutDataAnchor(0), x);
   return GRAPH_SUCCESS;
 }
@@ -1950,6 +1960,10 @@ REGISTER_LOWERING(Squeeze) {
   for (size_t i = 0; i < vec_axes.size(); i++) {
     x = loop::Squeeze(x, vec_axes[i] - static_cast<int64_t>(i));
   }
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-output symbol shape.");
+  loop::AddReshapeAxisChange(x, dims, output_dims);
   loop::Store(node->GetOutDataAnchor(0), x);
   return GRAPH_SUCCESS;
 }
@@ -2121,8 +2135,6 @@ REGISTER_LOWERING(Reshape) {
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
   auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
   GE_ASSERT_NOTNULL(src);
-  auto desc = src->GetOwnerNode()->GetOpDesc()->GetOutputDescPtr(src->GetIdx());
-  GE_ASSERT_NOTNULL(desc);
   std::vector<Expression> dims;
   LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS, node,
                               "Failed to get 0th-input symbol shape");
@@ -2143,12 +2155,22 @@ REGISTER_LOWERING(Reshape) {
   auto x = loop::Load(node->GetInDataAnchor(0));
   auto reshape = loop::Reshape(x, dims, output_dims);
   LOWERING_WARN_RECORD_REASON(reshape.IsValid(), node, "no specific reshape pattern matched");
+  loop::AddReshapeAxisChange(reshape, dims, output_dims);
   loop::StoreReshape(node->GetOutDataAnchor(0), reshape);
   return GRAPH_SUCCESS;
 }
 
 REGISTER_LOWERING(ExpandDims) {
   auto x = loop::Load(node->GetInDataAnchor(0));
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  std::vector<ge::Expression> input_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, input_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-input symbol shape.");
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-output symbol shape.");
   const auto op = ge::OpDescUtils::CreateOperatorFromNode(node);
   ge::Tensor axis_tensor;
   LOWERING_WARN_RECORD_REASON(op.GetInputConstData("axis", axis_tensor) == ge::SUCCESS, node, "Input is dynamic axis");
@@ -2172,6 +2194,7 @@ REGISTER_LOWERING(ExpandDims) {
   }
 
   x = loop::Unsqueeze(x, dim);
+  loop::AddReshapeAxisChange(x, input_dims, output_dims);
   loop::StoreReshape(node->GetOutDataAnchor(0), x);
   return GRAPH_SUCCESS;
 }

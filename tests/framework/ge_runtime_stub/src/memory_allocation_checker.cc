@@ -13,9 +13,12 @@
 #include "core/builder/node_types.h"
 #include "exe_graph/runtime/context_extend.h"
 #include "exe_graph/runtime/extended_kernel_context.h"
+#include "exe_graph/runtime/gert_tensor_data.h"
 #include "graph/utils/graph_utils.h"
 #include "common/checker.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "lowering/pass/utils/resource_guarder.h"
+#include "register/kernel_registry.h"
 
 namespace gert {
 namespace {
@@ -27,10 +30,18 @@ bool IsAllocWorkspaceMemory(const char *node_type) {
   return strcmp(node_type, "AllocBatchHbm") == 0;
 }
 bool IsFreeOutputMemory(const char *node_type) {
-  return strcmp(node_type, "FreeMemory") == 0 || strcmp(node_type, "FreeMemHbm") == 0;
+  return strcmp(node_type, "FreeMemory") == 0 || strcmp(node_type, "FreeMemHbm") == 0 ||
+         strcmp(node_type, "FreeMemoryHoldAddr") == 0 || strcmp(node_type, "FreeMemHbmHoldAddr") == 0;
 }
 bool IsFreeWorkspaceMemory(const char *node_type) {
-  return strcmp(node_type, "FreeBatchHbm") == 0;
+  return strcmp(node_type, "FreeBatchHbm") == 0 || strcmp(node_type, "FreeBatchHbmHoldAddr") == 0;
+}
+bool IsLaunchCriticalSectionKernel(const char *node_type) {
+  if (node_type == nullptr) {
+    return false;
+  }
+  const auto kernel_info = KernelRegistry::GetInstance().FindKernelInfo(node_type);
+  return (kernel_info != nullptr) && (kernel_info->critical_section == kKernelLaunch);
 }
 }  // namespace
 void MemoryAllocationChecker::OnExecuteEvent(int type, void *void_arg, ExecutorEvent event, const void *node,
@@ -52,7 +63,7 @@ ge::graphStatus MemoryAllocationChecker::OnEvent(ExecutorEvent event, const ::No
       return ge::GRAPH_SUCCESS;
     }
     if (IsAllocWorkspaceMemory(kernel_type)) {
-      auto addrs = context->GetOutputPointer<TypedContinuousVector<ge::MemBlock *>>(0);
+      auto addrs = context->GetOutputPointer<TypedContinuousVector<GertTensorData *>>(0);
       for (size_t i = 0U; i < addrs->GetSize(); ++i) {
         AddOperation(MemoryOperationType::kAlloc, addrs->GetData()[i]->GetAddr(), extended_context->GetKernelName());
       }
@@ -67,7 +78,7 @@ ge::graphStatus MemoryAllocationChecker::OnEvent(ExecutorEvent event, const ::No
       return ge::GRAPH_SUCCESS;
     }
     if (IsFreeWorkspaceMemory(kernel_type)) {
-      auto addrs = context->MutableInputPointer<TypedContinuousVector<ge::MemBlock *>>(0);
+      auto addrs = context->MutableInputPointer<TypedContinuousVector<GertTensorData *>>(0);
       for (size_t i = 0U; i < addrs->GetSize(); ++i) {
         AddOperation(MemoryOperationType::kFree, addrs->GetData()[i]->GetAddr(), extended_context->GetKernelName());
       }
@@ -75,7 +86,7 @@ ge::graphStatus MemoryAllocationChecker::OnEvent(ExecutorEvent event, const ::No
     }
   }
 
-  if (IsLaunchNode(kernel_type)) {
+  if (IsLaunchCriticalSectionKernel(kernel_type)) {
     AddOperation(MemoryOperationType::kLaunch, nullptr, extended_context->GetKernelName());
     return ge::GRAPH_SUCCESS;
   }
@@ -96,7 +107,7 @@ MemoryAllocationChecker::MemoryAllocationChecker(ge::ExecuteGraphPtr exe_graph) 
           normal_nodes.insert(out_node->GetName());
         }
 
-        if (IsLaunchNode(out_node->GetTypePtr())) {
+        if (IsLaunchCriticalSectionKernel(out_node->GetTypePtr())) {
           launch_nodes_to_relevant_alloc_nodes_[out_node->GetName()].insert(alloc_node->GetName());
         }
       }
@@ -104,6 +115,9 @@ MemoryAllocationChecker::MemoryAllocationChecker(ge::ExecuteGraphPtr exe_graph) 
   }
 }
 void MemoryAllocationChecker::AddOperation(MemoryOperationType op_type, const void *addr, const char *kernel_name) {
+  if ((addr == nullptr) && ((op_type == MemoryOperationType::kAlloc) || (op_type == MemoryOperationType::kFree))) {
+    return;
+  }
   memory_operations_.push_back({op_type, addr, kernel_name});
   if (addr != nullptr) {
     addresses_to_operations_[addr].push_back({op_type, addr, kernel_name});
@@ -174,7 +188,10 @@ bool MemoryAllocationChecker::CheckFreeEarlyEnough() const {
       executed_normal_names.insert(op.kernel_name);
 
       if (executed_normal_names == *addrs_to_all_normal_names[iter->second]) {
-        ready_to_free.insert(iter->second);
+        const auto &all_free_names = *addrs_to_all_free_names[iter->second];
+        if (all_free_names.empty() || (addrs_to_executed_free_names[iter->second] != all_free_names)) {
+          ready_to_free.insert(iter->second);
+        }
       }
     }
   }

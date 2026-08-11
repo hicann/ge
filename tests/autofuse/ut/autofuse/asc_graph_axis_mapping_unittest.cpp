@@ -1877,7 +1877,8 @@ TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInf
   EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
 }
 
-TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInfo_For_Reduce_Vertical_Merge_Fail) {
+TEST_F(AscGraphAxisMappingTest,
+       AscBackendFusionDecider_CreateSubGraphAxisMapInfo_For_Reduce_Vertical_Merge_UnitAxisFailed) {
   AscBackendFusionDecider decider;
   ComputeGraphPtr compute_graph = BuildGraph1("AscBackend");
   ASSERT_NE(compute_graph, nullptr);

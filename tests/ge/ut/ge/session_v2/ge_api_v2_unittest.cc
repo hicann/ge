@@ -2822,4 +2822,107 @@ TEST_F(UtestGeApiV2, GetCompiledModel_NotInit_CovEnhance) {
   ModelBufferData model_buffer;
   EXPECT_NE(session.GetCompiledModel(1U, model_buffer), SUCCESS);
 }
+
+TEST_F(UtestGeApiV2, SetGraphConstMemoryBase_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  auto ret = session.SetGraphConstMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, UpdateGraphFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  auto ret = session.UpdateGraphFeatureMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, SetGraphFixedFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  auto ret = session.SetGraphFixedFeatureMemoryBaseWithType(1, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, UpdateGraphRefreshableFeatureMemoryBase_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  auto ret = session.UpdateGraphRefreshableFeatureMemoryBase(1, nullptr, 1024);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, RegisterExternalAllocator_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  auto ret = session.RegisterExternalAllocator(nullptr, nullptr);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, RunGraph_WithNonEmptyOutputs_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  std::vector<gert::Tensor> inputs;
+  std::vector<gert::Tensor> outputs(1);
+  auto ret = session.RunGraph(1, inputs, outputs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, RunGraphAsync_WithInit_CovEnhance2) {
+  std::map<AscendString, AscendString> options;
+  options[ge::OPTION_GRAPH_RUN_MODE] = "0";
+  options[ge::SOC_VERSION.c_str()] = "Ascend910B";
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  std::vector<gert::Tensor> inputs;
+  auto ret = session.RunGraphAsync(1, inputs, nullptr);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
 }  // namespace ge
+
+extern "C" ge::Status GetRegisteredIrDef(const char *op_type,
+                                         std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
+                                         std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
+                                         std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs);
+
+class UtestGeApiV2IrDef : public testing::Test {};
+
+TEST_F(UtestGeApiV2IrDef, GetRegisteredIrDef_NullOpType_CovEnhance2) {
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> inputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> outputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> attrs;
+  auto ret = GetRegisteredIrDef(nullptr, inputs, outputs, attrs);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+TEST_F(UtestGeApiV2IrDef, GetRegisteredIrDef_InvalidOpType_CovEnhance2) {
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> inputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> outputs;
+  std::vector<std::pair<ge::AscendString, ge::AscendString>> attrs;
+  auto ret = GetRegisteredIrDef("NonExistentOp", inputs, outputs, attrs);
+  EXPECT_NE(ret, ge::SUCCESS);
+}

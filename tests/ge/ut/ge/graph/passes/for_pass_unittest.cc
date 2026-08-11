@@ -97,4 +97,25 @@ TEST_F(UTEST_graph_passes_for_pass, run_success) {
   EXPECT_EQ(graph->GetAllSubgraphs().size(), 3);
 }
 
+TEST_F(UTEST_graph_passes_for_pass, find_input_with_index_null_node) {
+  ForPass for_pass;
+  NodePtr null_node = nullptr;
+  auto result = for_pass.FindInputWithIndex(null_node, 0);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(UTEST_graph_passes_for_pass, run_no_subgraph_fail) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  NodePtr start_node = graph->AddNode(CreateOpDesc("start", DATA, 1, 1));
+  NodePtr limit_node = graph->AddNode(CreateOpDesc("limit", DATA, 1, 1));
+  NodePtr delta_node = graph->AddNode(CreateOpDesc("delta", DATA, 1, 1));
+  NodePtr for_node = graph->AddNode(CreateOpDesc("for", FOR, 4, 1));
+
+  EXPECT_EQ(GraphUtils::AddEdge(start_node->GetOutDataAnchor(0), for_node->GetInDataAnchor(0)), SUCCESS);
+  EXPECT_EQ(GraphUtils::AddEdge(limit_node->GetOutDataAnchor(0), for_node->GetInDataAnchor(1)), SUCCESS);
+  EXPECT_EQ(GraphUtils::AddEdge(delta_node->GetOutDataAnchor(0), for_node->GetInDataAnchor(2)), SUCCESS);
+
+  ForPass for_pass;
+  EXPECT_EQ(for_pass.Run(for_node), FAILED);
+}
 }  // namespace ge

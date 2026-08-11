@@ -420,4 +420,35 @@ TEST_F(CreateSubgraphWithScopePassTest, data_node_with_scope_index_failed) {
   AttrUtils::SetInt(data0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INDEX, 0);
   EXPECT_EQ(pass_manager.Run(graph), PARAM_INVALID);
 }
+
+TEST_F(CreateSubgraphWithScopePassTest, run_with_two_nodes_in_graph) {
+  std::map<std::string, std::string> options;
+  GetThreadLocalContext().SetGlobalOption(options);
+  PassManager pass_manager;
+  pass_manager.AddPass("CreateSubGraphWithScopePass", new (std::nothrow) CreateSubGraphWithScopePass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto data0 = MakeNode(graph, 0, 1, "data_0", DATA);
+  GeTensorDesc tensor_desc0(GeShape({-1, 3, 224, 224}));
+  data0->GetOpDesc()->UpdateOutputDesc(0, tensor_desc0);
+  auto netoutput = MakeNode(graph, 1, 0, "netoutput", NETOUTPUT);
+  netoutput->GetOpDesc()->UpdateInputDesc(0, tensor_desc0);
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
+
+TEST_F(CreateSubgraphWithScopePassTest, run_with_multibatch_config) {
+  std::map<std::string, std::string> options;
+  GetThreadLocalContext().SetGlobalOption(options);
+  PassManager pass_manager;
+  pass_manager.AddPass("CreateSubGraphWithScopePass", new (std::nothrow) CreateSubGraphWithScopePass);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto data0 = MakeNode(graph, 0, 1, "data_0", DATA);
+  GeTensorDesc tensor_desc0(GeShape({-1, 3, 224, 224}));
+  data0->GetOpDesc()->UpdateOutputDesc(0, tensor_desc0);
+  auto netoutput = MakeNode(graph, 1, 0, "netoutput", NETOUTPUT);
+  netoutput->GetOpDesc()->UpdateInputDesc(0, tensor_desc0);
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  AttrUtils::SetListStr(data0->GetOpDesc(), "_user_defined_batch_info", {"1", "2", "4"});
+  EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
+}
 }  // namespace ge

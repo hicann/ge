@@ -10,6 +10,9 @@
 
 #include <gtest/gtest.h>
 #include "func_to_graph/func2graph.h"
+#include "tensorflow/graph_to_function_def.h"
+#include "graph/utils/attr_utils.h"
+#include "graph/debug/ge_attr_define.h"
 #include <vector>
 #include <sstream>
 
@@ -118,5 +121,65 @@ TEST_F(UtestFuncToGraph, GraphDefLibGetGraphDef_success) {
   EXPECT_NE(GraphDefLibGetGraphDef(graphDefLib, index), nullptr);
 
   GraphDefLibDestroy(&graphDefLib);
+}
+
+TEST_F(UtestFuncToGraph, GraphToFunctionDef_FindAttrValue_null_node) {
+  domi::tensorflow::AttrValue attr_value;
+  bool ret = GraphToFunctionDef::FindAttrValue(nullptr, "test_attr", attr_value);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(UtestFuncToGraph, GraphToFunctionDef_FindAttrValue_success) {
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("test_node");
+  domi::tensorflow::AttrValue attr_value;
+  attr_value.set_i(42);
+  (*node_def.mutable_attr())["test_attr"] = attr_value;
+
+  domi::tensorflow::AttrValue result;
+  bool ret = GraphToFunctionDef::FindAttrValue(&node_def, "test_attr", result);
+  EXPECT_TRUE(ret);
+  EXPECT_EQ(result.i(), 42);
+
+  ret = GraphToFunctionDef::FindAttrValue(&node_def, "nonexistent", result);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(UtestFuncToGraph, GraphToFunctionDef_AddNodeAttr_null_node) {
+  domi::tensorflow::AttrValue value;
+  value.set_i(10);
+  GraphToFunctionDef::AddNodeAttr("test_attr", value, nullptr);
+}
+
+TEST_F(UtestFuncToGraph, GraphToFunctionDef_AddNodeAttr_success) {
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("test_node");
+  domi::tensorflow::AttrValue value;
+  value.set_i(10);
+  GraphToFunctionDef::AddNodeAttr("test_attr", value, &node_def);
+  EXPECT_TRUE(node_def.attr().find("test_attr") != node_def.attr().end());
+}
+
+TEST_F(UtestFuncToGraph, NameMapHelper_GetUniqueName) {
+  NameMapHelper helper;
+  EXPECT_EQ(helper.GetUniqueName("name1"), "name1");
+  EXPECT_EQ(helper.GetUniqueName("name1"), "name1_0");
+  EXPECT_EQ(helper.GetUniqueName("name1"), "name1_1");
+}
+
+TEST_F(UtestFuncToGraph, NameMapHelper_UniqueInputOrOutputName) {
+  NameMapHelper helper;
+  EXPECT_EQ(helper.UniqueInputOrOutputName("TestName"), "TestName");
+  EXPECT_EQ(helper.UniqueInputOrOutputName(""), "unknown");
+  EXPECT_EQ(helper.UniqueInputOrOutputName("test@name#"), "test@name#");
+}
+
+TEST_F(UtestFuncToGraph, NameMapHelper_UniqueNodeName) {
+  NameMapHelper helper;
+  EXPECT_EQ(helper.UniqueNodeName("node1"), "node1");
+  std::string result = helper.Renormalize("node1");
+  EXPECT_EQ(result, "node1");
+  result = helper.Renormalize("nonexistent");
+  EXPECT_EQ(result, "");
 }
 }  // namespace ge

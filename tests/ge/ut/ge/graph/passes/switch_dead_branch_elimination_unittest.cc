@@ -419,4 +419,67 @@ TEST_F(UtestSwitchDeadBranchElimination, ParsePred_DT_FLOAT3) {
   }
 }
 
+TEST_F(UtestSwitchDeadBranchElimination, switch_no_out_nodes) {
+  ut::GraphBuilder builder = ut::GraphBuilder("g1");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto const1 = builder.AddNode("const1", "Const", 0, 1);
+  auto switch1 = builder.AddNode("switch1", "Switch", 2, 2);
+  builder.AddDataEdge(data1, 0, switch1, 0);
+  builder.AddDataEdge(const1, 0, switch1, 1);
+  auto graph = builder.GetGraph();
+
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const1, {tensor});
+
+  SwitchDeadBranchElimination switch_pass;
+  EXPECT_EQ(switch_pass.Run(switch1), SUCCESS);
+}
+
+TEST_F(UtestSwitchDeadBranchElimination, switch_pred_not_const) {
+  ut::GraphBuilder builder = ut::GraphBuilder("g1");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto data2 = builder.AddNode("data2", "Data", 0, 1);
+  auto switch1 = builder.AddNode("switch1", "Switch", 2, 2);
+  auto relu1 = builder.AddNode("relu1", "Relu", 1, 1);
+  builder.AddDataEdge(data1, 0, switch1, 0);
+  builder.AddDataEdge(data2, 0, switch1, 1);
+  builder.AddDataEdge(switch1, 0, relu1, 0);
+  auto graph = builder.GetGraph();
+
+  SwitchDeadBranchElimination switch_pass;
+  EXPECT_EQ(switch_pass.Run(switch1), SUCCESS);
+}
+
+TEST_F(UtestSwitchDeadBranchElimination, switch_pred_null) {
+  ut::GraphBuilder builder = ut::GraphBuilder("g1");
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  auto switch1 = builder.AddNode("switch1", "Switch", 2, 2);
+  auto relu1 = builder.AddNode("relu1", "Relu", 1, 1);
+  builder.AddDataEdge(data1, 0, switch1, 0);
+  builder.AddDataEdge(switch1, 0, relu1, 0);
+  auto graph = builder.GetGraph();
+
+  SwitchDeadBranchElimination switch_pass;
+  EXPECT_EQ(switch_pass.Run(switch1), SUCCESS);
+}
+
+TEST_F(UtestSwitchDeadBranchElimination, switch_data_input_null) {
+  ut::GraphBuilder builder = ut::GraphBuilder("g1");
+  auto const1 = builder.AddNode("const1", "Const", 0, 1);
+  auto switch1 = builder.AddNode("switch1", "Switch", 2, 2);
+  auto relu1 = builder.AddNode("relu1", "Relu", 1, 1);
+  builder.AddDataEdge(const1, 0, switch1, 1);
+  builder.AddDataEdge(switch1, 0, relu1, 0);
+  auto graph = builder.GetGraph();
+
+  int32_t weight[1] = {1};
+  GeTensorDesc weight_desc(GeShape({1}), FORMAT_NHWC, DT_INT32);
+  GeTensorPtr tensor = std::make_shared<GeTensor>(weight_desc, (uint8_t *)weight, sizeof(weight));
+  OpDescUtils::SetWeights(const1, {tensor});
+
+  SwitchDeadBranchElimination switch_pass;
+  EXPECT_EQ(switch_pass.Run(switch1), SUCCESS);
+}
 }  // namespace ge

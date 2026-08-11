@@ -378,4 +378,148 @@ TEST_F(UtestRecomputePass, test_graph_with_no_recompute_nodes) {
   graph->AddNode(x_desc);
   EXPECT_EQ(recompute_pass.Run(graph), SUCCESS);
 }
+
+TEST_F(UtestRecomputePass, test_recompute_node_with_resource_output) {
+  map<std::string, std::string> options{{RESOURCE_CONFIG_PATH, "/tmp"}};
+  GetThreadLocalContext().SetSessionOption(options);
+  map<std::string, std::string> graph_options{{RECOMPUTE, "manual"}};
+  GetThreadLocalContext().SetGraphOption(graph_options);
+  RecomputePass recompute_pass;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc scalar_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  GeTensorDesc resource_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_RESOURCE);
+
+  auto x_desc = std::make_shared<OpDesc>("x", DATA);
+  x_desc->AddOutputDesc(scalar_tensor);
+  auto x_node = graph->AddNode(x_desc);
+
+  auto pow_desc = std::make_shared<OpDesc>("pow", POW);
+  (void)ge::AttrUtils::SetBool(pow_desc, "_recompute", true);
+  pow_desc->AddInputDesc(scalar_tensor);
+  pow_desc->AddOutputDesc(resource_tensor);
+  auto pow_node = graph->AddNode(pow_desc);
+
+  auto bp_desc = std::make_shared<OpDesc>("gradients/bp", SQRT);
+  (void)ge::AttrUtils::SetBool(bp_desc, "_backward", true);
+  bp_desc->AddInputDesc(resource_tensor);
+  bp_desc->AddOutputDesc(resource_tensor);
+  auto bp_node = graph->AddNode(bp_desc);
+
+  auto output_desc = std::make_shared<OpDesc>("NetOutput", "NetOutput");
+  output_desc->AddInputDesc(resource_tensor);
+  output_desc->AddOutputDesc(resource_tensor);
+  auto output_node = graph->AddNode(output_desc);
+
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), pow_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(pow_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(bp_node->GetOutDataAnchor(0), output_node->GetInDataAnchor(0));
+
+  EXPECT_EQ(recompute_pass.Run(graph), SUCCESS);
+  bool is_recompute = true;
+  (void)ge::AttrUtils::GetBool(pow_node->GetOpDesc(), "_recompute", is_recompute);
+  EXPECT_TRUE(is_recompute);
+}
+
+TEST_F(UtestRecomputePass, test_multiple_recompute_to_same_backward) {
+  map<std::string, std::string> options{{RESOURCE_CONFIG_PATH, "/tmp"}};
+  GetThreadLocalContext().SetSessionOption(options);
+  map<std::string, std::string> graph_options{{RECOMPUTE, "manual"}};
+  GetThreadLocalContext().SetGraphOption(graph_options);
+  RecomputePass recompute_pass;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc scalar_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_FLOAT);
+
+  auto x_desc = std::make_shared<OpDesc>("x", DATA);
+  x_desc->AddOutputDesc(scalar_tensor);
+  auto x_node = graph->AddNode(x_desc);
+
+  auto pow_a_desc = std::make_shared<OpDesc>("pow_a", POW);
+  (void)ge::AttrUtils::SetBool(pow_a_desc, "_recompute", true);
+  pow_a_desc->AddInputDesc(scalar_tensor);
+  pow_a_desc->AddOutputDesc(scalar_tensor);
+  auto pow_a_node = graph->AddNode(pow_a_desc);
+
+  auto pow_b_desc = std::make_shared<OpDesc>("pow_b", POW);
+  (void)ge::AttrUtils::SetBool(pow_b_desc, "_recompute", true);
+  pow_b_desc->AddInputDesc(scalar_tensor);
+  pow_b_desc->AddOutputDesc(scalar_tensor);
+  auto pow_b_node = graph->AddNode(pow_b_desc);
+
+  auto bp3_desc = std::make_shared<OpDesc>("gradients/bp3", SQRT);
+  (void)ge::AttrUtils::SetBool(bp3_desc, "_backward", true);
+  bp3_desc->AddInputDesc(scalar_tensor);
+  bp3_desc->AddOutputDesc(scalar_tensor);
+  auto bp3_node = graph->AddNode(bp3_desc);
+
+  auto bp_desc = std::make_shared<OpDesc>("gradients/bp", ADDN);
+  (void)ge::AttrUtils::SetBool(bp_desc, "_backward", true);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddOutputDesc(scalar_tensor);
+  auto bp_node = graph->AddNode(bp_desc);
+
+  auto output_desc = std::make_shared<OpDesc>("NetOutput", "NetOutput");
+  output_desc->AddInputDesc(scalar_tensor);
+  output_desc->AddOutputDesc(scalar_tensor);
+  auto output_node = graph->AddNode(output_desc);
+
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), pow_a_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), pow_b_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), bp3_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(pow_a_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(pow_b_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(1));
+  (void)GraphUtils::AddEdge(bp3_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(2));
+  (void)GraphUtils::AddEdge(bp_node->GetOutDataAnchor(0), output_node->GetInDataAnchor(0));
+
+  EXPECT_EQ(recompute_pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestRecomputePass, test_single_recompute_multi_anchor_to_same_backward) {
+  map<std::string, std::string> options{{RESOURCE_CONFIG_PATH, "/tmp"}};
+  GetThreadLocalContext().SetSessionOption(options);
+  map<std::string, std::string> graph_options{{RECOMPUTE, "manual"}};
+  GetThreadLocalContext().SetGraphOption(graph_options);
+  RecomputePass recompute_pass;
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  GeTensorDesc scalar_tensor(GeShape(), ge::FORMAT_NCHW, ge::DT_FLOAT);
+
+  auto x_desc = std::make_shared<OpDesc>("x", DATA);
+  x_desc->AddOutputDesc(scalar_tensor);
+  auto x_node = graph->AddNode(x_desc);
+
+  auto pow_a_desc = std::make_shared<OpDesc>("pow_a", POW);
+  (void)ge::AttrUtils::SetBool(pow_a_desc, "_recompute", true);
+  pow_a_desc->AddInputDesc(scalar_tensor);
+  pow_a_desc->AddOutputDesc(scalar_tensor);
+  auto pow_a_node = graph->AddNode(pow_a_desc);
+
+  auto bp3_desc = std::make_shared<OpDesc>("gradients/bp3", SQRT);
+  (void)ge::AttrUtils::SetBool(bp3_desc, "_backward", true);
+  bp3_desc->AddInputDesc(scalar_tensor);
+  bp3_desc->AddOutputDesc(scalar_tensor);
+  auto bp3_node = graph->AddNode(bp3_desc);
+
+  auto bp_desc = std::make_shared<OpDesc>("gradients/bp", ADDN);
+  (void)ge::AttrUtils::SetBool(bp_desc, "_backward", true);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddInputDesc(scalar_tensor);
+  bp_desc->AddOutputDesc(scalar_tensor);
+  auto bp_node = graph->AddNode(bp_desc);
+
+  auto output_desc = std::make_shared<OpDesc>("NetOutput", "NetOutput");
+  output_desc->AddInputDesc(scalar_tensor);
+  output_desc->AddOutputDesc(scalar_tensor);
+  auto output_node = graph->AddNode(output_desc);
+
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), pow_a_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(x_node->GetOutDataAnchor(0), bp3_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(pow_a_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(0));
+  (void)GraphUtils::AddEdge(pow_a_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(1));
+  (void)GraphUtils::AddEdge(bp3_node->GetOutDataAnchor(0), bp_node->GetInDataAnchor(2));
+  (void)GraphUtils::AddEdge(bp_node->GetOutDataAnchor(0), output_node->GetInDataAnchor(0));
+
+  EXPECT_EQ(recompute_pass.Run(graph), SUCCESS);
+}
 }  // namespace ge

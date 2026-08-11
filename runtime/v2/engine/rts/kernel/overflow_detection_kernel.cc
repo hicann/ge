@@ -16,6 +16,7 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "common/runtime_api_wrapper.h"
 #include "acl/acl_rt.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 
 namespace gert {
 namespace kernel {
@@ -44,7 +45,7 @@ ge::graphStatus NpuGetFloatStatus(KernelContext *const context) {
 
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(NpuGetFloatStatus).RunFunc(NpuGetFloatStatus);
+REGISTER_KERNEL(NpuGetFloatStatus).RunFunc(NpuGetFloatStatus).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus NpuGetFloatStatusArgs(KernelContext *const context) {
   auto output_tensor = context->GetInputValue<gert::GertTensorData *>(0UL);
@@ -72,7 +73,7 @@ ge::graphStatus NpuClearFloatStatus(KernelContext *const context) {
   GE_ASSERT_RT_OK(ge::rtNpuClearFloatStatus(0UL, stream));
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(NpuClearFloatStatus).RunFunc(NpuClearFloatStatus);
+REGISTER_KERNEL(NpuClearFloatStatus).RunFunc(NpuClearFloatStatus).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus NpuGetFloatDebugStatus(KernelContext *const context) {
   auto args_dev = context->GetInputValue<gert::GertTensorData *>(kGetFloatDevArgsIdx);
@@ -87,14 +88,14 @@ ge::graphStatus NpuGetFloatDebugStatus(KernelContext *const context) {
 
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(NpuGetFloatDebugStatus).RunFunc(NpuGetFloatDebugStatus);
+REGISTER_KERNEL(NpuGetFloatDebugStatus).RunFunc(NpuGetFloatDebugStatus).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 ge::graphStatus NpuClearFloatDebugStatus(KernelContext *const context) {
   auto stream = context->GetInputValue<aclrtStream>(0UL);
   GE_ASSERT_RT_OK(ge::rtNpuClearFloatDebugStatus(0UL, stream));
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(NpuClearFloatDebugStatus).RunFunc(NpuClearFloatDebugStatus);
+REGISTER_KERNEL(NpuClearFloatDebugStatus).RunFunc(NpuClearFloatDebugStatus).ConcurrentCriticalSectionKey(kKernelLaunch);
 
 }  // namespace kernel
 }  // namespace gert

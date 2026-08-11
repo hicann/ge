@@ -511,3 +511,21 @@ TEST_F(UtestSubexpressionMigrationPass, graph_no_need_migration_data_anchor_inde
   ASSERT_NE(case_node, nullptr);
   EXPECT_EQ(case_node->GetAllInDataAnchorsSize(), 2);
 }
+
+TEST_F(UtestSubexpressionMigrationPass, run_empty_graph_success) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  SubexpressionMigrationPass pass;
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+}
+
+TEST_F(UtestSubexpressionMigrationPass, run_graph_without_case_node) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
+  auto builder = ut::GraphBuilder("g1");
+  auto data = builder.AddNode("data", DATA, 0, 1);
+  auto add = builder.AddNode("add", ADD, 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+  SubexpressionMigrationPass pass;
+  EXPECT_EQ(pass.Run(builder.GetGraph()), SUCCESS);
+}

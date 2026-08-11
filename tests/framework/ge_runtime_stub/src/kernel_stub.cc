@@ -102,6 +102,7 @@ KernelStub &KernelStub::StubCalcDvppWorkSpaceSize() {
 
 KernelStub &KernelStub::StubAllocDvppWorkSpaceMem() {
   SetUp("AllocBatchHbm", FakeAllocDvppWorkSpaceMem);
+  SetUp("AllocCopyFlowHbm", FakeAllocDvppWorkSpaceMem);
   return *this;
 }
 

@@ -154,5 +154,88 @@ TEST_F(UtestFusionUtils, WillCauseCycleIfFuse_GraphWithControlEdgeCycle_ReturnTr
   ASSERT_NE(match_result, nullptr);
   EXPECT_TRUE(FusionUtils::WillCauseCycleIfFuse(match_result));
 }
+
+TEST_F(UtestFusionUtils, ParseFusionSwitch_NonExistentFile_ReturnsEmpty) {
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, "/nonexistent/path/fusion_switch.json"}});
+  auto result = FusionUtils::ParseFusionSwitch();
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(UtestFusionUtils, WillCauseCycleIfFuse_EmptyNodesVector_ReturnFalse) {
+  std::vector<NodePtr> empty_nodes;
+  EXPECT_FALSE(FusionUtils::WillCauseCycleIfFuse(empty_nodes));
+}
+
+TEST_F(UtestFusionUtils, WillCauseCycleIfFuse_AllNullNodes_ReturnFalse) {
+  std::vector<NodePtr> null_nodes = {nullptr, nullptr};
+  EXPECT_FALSE(FusionUtils::WillCauseCycleIfFuse(null_nodes));
+}
+
+TEST_F(UtestFusionUtils, BuildSubgraphBoundaryFromNode_NodeWithNoInputs) {
+  using namespace ge::es;
+  auto graph_builder = EsGraphBuilder("boundary_test");
+  auto esb_graph = graph_builder.GetCGraphBuilder();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  auto relu = EsRelu(data);
+  esb_graph->SetGraphOutput(relu, 0);
+  auto graph = graph_builder.BuildAndReset();
+
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node_ptr = compute_graph->GetDirectNode().at(1);
+  auto boundary = FusionUtils::BuildSubgraphBoundaryFromNode(node_ptr);
+  EXPECT_NE(boundary, nullptr);
+}
+
+TEST_F(UtestFusionUtils, ParseFusionSwitch_InvalidJsonFormat_ReturnsEmpty) {
+  std::string json_str = "not a valid json";
+  std::ofstream json_file("./fusion_switch_invalid.json");
+  json_file << json_str << std::endl;
+  json_file.close();
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_invalid.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+  auto result = FusionUtils::ParseFusionSwitch();
+  EXPECT_TRUE(result.empty());
+  remove("./fusion_switch_invalid.json");
+}
+
+TEST_F(UtestFusionUtils, ParseFusionSwitch_TopLevelNotObject_ReturnsEmpty) {
+  std::string json_str = "[1, 2, 3]";
+  std::ofstream json_file("./fusion_switch_array.json");
+  json_file << json_str << std::endl;
+  json_file.close();
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_array.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+  auto result = FusionUtils::ParseFusionSwitch();
+  EXPECT_TRUE(result.empty());
+  remove("./fusion_switch_array.json");
+}
+
+TEST_F(UtestFusionUtils, ParseFusionSwitch_NoSwitchKey_ReturnsEmpty) {
+  std::string json_str = "{\"key\": \"value\"}";
+  std::ofstream json_file("./fusion_switch_no_switch.json");
+  json_file << json_str << std::endl;
+  json_file.close();
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_no_switch.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+  auto result = FusionUtils::ParseFusionSwitch();
+  EXPECT_TRUE(result.empty());
+  remove("./fusion_switch_no_switch.json");
+}
+
+TEST_F(UtestFusionUtils, ParseFusionSwitch_GraphFusionNotObject_ReturnsEmpty) {
+  std::string json_str = "{\"Switch\": {\"GraphFusion\": \"not_object\"}}";
+  std::ofstream json_file("./fusion_switch_not_obj.json");
+  json_file << json_str << std::endl;
+  json_file.close();
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_not_obj.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+  auto result = FusionUtils::ParseFusionSwitch();
+  EXPECT_TRUE(result.empty());
+  remove("./fusion_switch_not_obj.json");
+}
 }  // namespace fusion
 }  // namespace ge

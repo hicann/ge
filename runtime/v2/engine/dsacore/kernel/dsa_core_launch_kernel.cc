@@ -23,6 +23,7 @@
 #include "core/debug/kernel_tracing.h"
 #include "common/dump/kernel_tracing_utils.h"
 #include "common/checker.h"
+#include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "engine/aicore/fe_rt2_common.h"
 
 using namespace ge;
@@ -182,6 +183,6 @@ ge::graphStatus DsaCoreUpdateSqeArg(KernelContext *context) {
 
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(UpdateSqeArg).RunFunc(DsaCoreUpdateSqeArg);
+REGISTER_KERNEL(UpdateSqeArg).RunFunc(DsaCoreUpdateSqeArg).ConcurrentCriticalSectionKey(kKernelLaunch);
 }  // namespace
 }  // namespace gert

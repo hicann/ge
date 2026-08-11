@@ -848,5 +848,14 @@ TEST_F(UtestFormatTransferNchw5d, invalid_src_shape_trans_shape) {
   std::vector<int64_t> dst_shape;
   EXPECT_EQ(transfer.TransShape(FORMAT_NCHW, {1, 1}, DT_FLOAT, FORMAT_NC1HWC0, dst_shape), ACL_ERROR_GE_SHAPE_INVALID);
 }
+TEST_F(UtestFormatTransferNchw5d, nchw_to_nc1hwc0_overflow_trans_shape) {
+  const int64_t kMaxShapeItem = 1099511627776LL;
+  const Format src_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NCHW, FORMAT_RESERVED, 5));
+  const Format dst_format = static_cast<Format>(GetFormatFromSubAndC0(FORMAT_NC1HWC0, FORMAT_RESERVED, 5));
+  std::vector<int64_t> dst_shape;
+  FormatTransferNchwNc1hwc0 transfer;
+  EXPECT_EQ(transfer.TransShape(src_format, {1, 1, kMaxShapeItem, 1}, DT_FLOAT16, dst_format, dst_shape),
+            ACL_ERROR_GE_SHAPE_INVALID);
+}
 }  // namespace formats
 }  // namespace ge
