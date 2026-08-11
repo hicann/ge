@@ -679,10 +679,10 @@ TEST_F(SymbolicShapeInferenceUT, test_unsupport_subgraph) {
  *          DoInferAndUpdate is never reached → inference succeeds.
  */
 TEST_F(SymbolicShapeInferenceUT, StaticShapePriorityOverInferCallback) {
-  auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr,
-                                             C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND, nullptr, 0);
-  auto data1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", nullptr,
-                                             C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND, nullptr, 0);
+  auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr, C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND,
+                                             nullptr, 0);
+  auto data1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", nullptr, C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND,
+                                             nullptr, 0);
   ASSERT_NE(data0, nullptr);
   ASSERT_NE(data1, nullptr);
 
@@ -2059,7 +2059,7 @@ REG_OP(MultisliceConcat)
     .DYNAMIC_OUTPUT(y, TensorType({DT_FLOAT, DT_FLOAT16}))
     .OP_END_FACTORY_REG(MultisliceConcat)
 
-TEST_F(SymbolicShapeInferenceUT, test_multisliceconcat) {
+        TEST_F(SymbolicShapeInferenceUT, test_multisliceconcat) {
   vector<int64_t> vec_concatsize = {2, 4};
   vector<int64_t> vec_slicebegin = {4, 5, 12, 5, 20, 28};
   vector<int64_t> vec_slicesize = {1, 1, 2, 2, 2, 4};
@@ -3724,6 +3724,68 @@ TEST_F(SymbolicShapeInferenceUT, InferShapeForDynamicStitch_InvalidConstantDims)
   std::vector<ExpectNodeInfo> expect_node_vec;
   expect_node_vec.push_back(expect_node);
   ASSERT_NE(RunSymbolInferenceTest(cg, expect_node_vec, {}), SUCCESS);
+}
+
+/*
+ * 测试DynamicStitch在符号化形状下，使用ASSERT_SYMBOL_EQ对比std::equal的优势。
+ *
+ * 为什么现有用例没有验证到这个问题：
+ * InferShapeForDynamicStitch使用字面量整数形状({"1"},{"2"})，EsSetOriginSymbolShape解析后
+ * 产生相同结构的Symbol对象(如各输入的"2"维度均解析为Symbol(2))，operator==的structural
+ * comparison可正确判断std::equal。
+ *
+ * 真实场景(也是本次commit fd21251af修改要修复的)：
+ * 不同优化路径可能为同一语义维度生成结构不同但语义等价的Expression对象，例如:
+ * - x0携带维度s2，x1携带维度(s2 + 0)，两者语义值相同但Expression树结构不同
+ * - std::equal进行structural comparison，Symbol("s2") != Symbol("s2")+Symbol(0)，失败
+ * - ASSERT_SYMBOL_EQ通过Eq表达式化简(s2+0→s2)后比较语义等价性，正确通过
+ */
+TEST_F(SymbolicShapeInferenceUT, InferShapeForDynamicStitch_SymbolicExprShape) {
+  auto indices0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr, C_DataType::C_DT_INT32,
+                                                C_Format::C_FORMAT_ND, nullptr, 0);
+  ASSERT_EQ(EsSetOriginSymbolShape(indices0, std::vector<const char *>({"s0"}).data(), 1), 0);
+  auto indices1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", nullptr, C_DataType::C_DT_INT32,
+                                                C_Format::C_FORMAT_ND, nullptr, 0);
+  ASSERT_EQ(EsSetOriginSymbolShape(indices1, std::vector<const char *>({"s1"}).data(), 1), 0);
+
+  auto x0 = EsCreateGraphInputWithDetails(graph_, 2, "data2", nullptr, C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND,
+                                          nullptr, 0);
+  ASSERT_EQ(EsSetOriginSymbolShape(x0, std::vector<const char *>({"s0", "s2"}).data(), 2), 0);
+  auto x1 = EsCreateGraphInputWithDetails(graph_, 3, "data3", nullptr, C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND,
+                                          nullptr, 0);
+  ASSERT_EQ(EsSetOriginSymbolShape(x1, std::vector<const char *>({"s1", "(s2 + 0)"}).data(), 2), 0);
+
+  EsCTensorHolder *indices_list[] = {indices0, indices1};
+  EsCTensorHolder *x_list[] = {x0, x1};
+  ASSERT_EQ(EsSetGraphOutput(EsDynamicStitch(indices_list, 2, x_list, 2, 2), 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  ASSERT_NE(graph, nullptr);
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  auto ptr0 = std::make_unique<std::vector<ge::Expression>>();
+  ptr0->emplace_back(Symbol(6));
+  cg->FindNode("data0")
+      ->GetOpDesc()
+      ->MutableOutputDesc(0)
+      ->template GetOrCreateAttrsGroup<SymbolicDescAttr>()
+      ->symbolic_tensor.SetSymbolicValue(std::move(ptr0));
+
+  auto ptr1 = std::make_unique<std::vector<ge::Expression>>();
+  ptr1->emplace_back(Symbol("s3"));
+  ptr1->emplace_back(Symbol("s4"));
+  cg->FindNode("data1")
+      ->GetOpDesc()
+      ->MutableOutputDesc(0)
+      ->template GetOrCreateAttrsGroup<SymbolicDescAttr>()
+      ->symbolic_tensor.SetSymbolicValue(std::move(ptr1));
+
+  std::vector<Expression> expect_dim = {sym::Max(Symbol(6), sym::Max(Symbol("s3"), Symbol("s4"))) + Symbol(1),
+                                        Symbol("s2")};
+  ExpectNodeInfo expect_node("DynamicStitch", expect_dim, {}, {}, {});
+  std::vector<ExpectNodeInfo> expect_node_vec;
+  expect_node_vec.push_back(expect_node);
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_node_vec, {}), SUCCESS);
 }
 
 TEST_F(SymbolicShapeInferenceUT, InferShapeForBroadCastToGraphWithGuard) {
