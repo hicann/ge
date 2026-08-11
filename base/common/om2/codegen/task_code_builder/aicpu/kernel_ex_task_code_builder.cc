@@ -260,7 +260,7 @@ FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExKernelIdInfo() cons
   auto tf_ai_cpu_ex_info = ast_.Var("TfAiCpuExInfo *", "tf_ai_cpu_ex_info");
   return ast_.DefineFunction("AssembleTfAicpuExKernelIdInfo", {kernel_id, tf_ai_cpu_ex_info}, "aclError",
                              {ast_.Assign(tf_ai_cpu_ex_info.Arrow("kernelID"), ast_.Deref(kernel_id)),
-                              ast_.PostInc(ast_.Deref(kernel_id)), ast_.Return("ACL_SUCCESS")});
+                              ast_.PreInc(ast_.Deref(kernel_id)), ast_.Return("ACL_SUCCESS")});
 }
 
 FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExWorkSpaceAddrInfo() const {

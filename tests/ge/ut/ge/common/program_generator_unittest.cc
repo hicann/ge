@@ -2828,7 +2828,7 @@ aclError UpdateExtInfoSession(uint8_t *extInfo, size_t session_info_offset, uint
   session_info->sessionId = *session_id;
   session_info->kernelId = *kernel_id;
   session_info->sessFlag = true;
-  *kernel_id++;
+  ++*kernel_id;
   return ACL_SUCCESS;
 }
 
@@ -3506,7 +3506,7 @@ aclError UpdateExtInfoSession(uint8_t *extInfo, size_t session_info_offset, uint
   session_info->sessionId = *session_id;
   session_info->kernelId = *kernel_id;
   session_info->sessFlag = true;
-  *kernel_id++;
+  ++*kernel_id;
   return ACL_SUCCESS;
 }
 
@@ -4216,7 +4216,7 @@ aclError UpdateExtInfoSession(uint8_t *extInfo, size_t session_info_offset, uint
   session_info->sessionId = *session_id;
   session_info->kernelId = *kernel_id;
   session_info->sessFlag = true;
-  *kernel_id++;
+  ++*kernel_id;
   return ACL_SUCCESS;
 }
 
@@ -4925,7 +4925,7 @@ aclError UpdateExtInfoSession(uint8_t *extInfo, size_t session_info_offset, uint
   session_info->sessionId = *session_id;
   session_info->kernelId = *kernel_id;
   session_info->sessFlag = true;
-  *kernel_id++;
+  ++*kernel_id;
   return ACL_SUCCESS;
 }
 
