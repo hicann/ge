@@ -16,7 +16,11 @@ from ge.graph.types import DataType
 from ge.runtime import StorageFormat, StorageShape, Tensor
 
 __all__: List[str] = [
+    "AnnotatedArgsContext",
+    "AnnotatedKernelArgs",
+    "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "WorkspaceAddr",
 ]
 
 
@@ -156,3 +160,54 @@ class EagerOpExecutionContext:
         GE bridge only; user custom op code should not call this method.
         """
         ...
+
+
+class WorkspaceAddr:
+    """Borrowed workspace address allocated by ``AnnotatedArgsContext``."""
+
+    @property
+    def index(self) -> int: ...
+
+    @property
+    def addr(self) -> int: ...
+
+
+class AnnotatedKernelLaunchInfo:
+    """Owned kernel launch metadata used by ``AnnotatedArgsContext.add_launch``."""
+
+    def __init__(
+        self,
+        *,
+        kernel_name: str,
+        kernel_bin: bytes,
+        block_dim: int,
+        stream_id: int,
+    ) -> None: ...
+
+
+class AnnotatedKernelArgs:
+    """Borrowed builder for one annotated kernel launch's argument sequence."""
+
+    def append_input(self, instance_index: int, tensor: Tensor) -> None: ...
+
+    def append_output(self, instance_index: int, tensor: Tensor) -> None: ...
+
+    def append_workspace(self, workspace: WorkspaceAddr) -> None: ...
+
+    def append_scalar(self, value: int) -> None: ...
+
+
+class AnnotatedArgsContext:
+    """Borrowed declaration context available only in ``declare_launch_args``."""
+
+    def malloc_workspace(self, size: int) -> WorkspaceAddr: ...
+
+    def get_stream_id(self) -> int: ...
+
+    def create_kernel_args(self) -> AnnotatedKernelArgs: ...
+
+    def add_launch(
+        self,
+        launch_info: AnnotatedKernelLaunchInfo,
+        args: AnnotatedKernelArgs,
+    ) -> None: ...

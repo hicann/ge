@@ -12,12 +12,14 @@
 
 """Execution context access for schema-bound Python custom ops."""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Iterator, Optional
 
-from ._native import EagerOpExecutionContext
+from ._native import AnnotatedArgsContext, EagerOpExecutionContext
 
 
 @dataclass
@@ -51,3 +53,36 @@ def _execute_ctx_scope(ctx: EagerOpExecutionContext) -> Iterator[None]:
     finally:
         binding.active = False
         _CURRENT_EXECUTE_CONTEXT.reset(token)
+
+
+@dataclass
+class _DeclareLaunchArgsContextBinding:
+    ctx: AnnotatedArgsContext
+    active: bool = True
+
+
+_CURRENT_DECLARE_LAUNCH_ARGS_CONTEXT: ContextVar[
+    Optional[_DeclareLaunchArgsContextBinding]
+] = ContextVar("ge_custom_op_declare_launch_args_context", default=None)
+
+
+def get_declare_launch_args_ctx() -> AnnotatedArgsContext:
+    """Return the borrowed context of the active declare_launch_args callback."""
+
+    binding = _CURRENT_DECLARE_LAUNCH_ARGS_CONTEXT.get()
+    if binding is None or not binding.active:
+        raise RuntimeError(
+            "get_declare_launch_args_ctx() is only available inside declare_launch_args"
+        )
+    return binding.ctx
+
+
+@contextmanager
+def _declare_launch_args_ctx_scope(ctx: AnnotatedArgsContext) -> Iterator[None]:
+    binding = _DeclareLaunchArgsContextBinding(ctx=ctx)
+    token = _CURRENT_DECLARE_LAUNCH_ARGS_CONTEXT.set(binding)
+    try:
+        yield
+    finally:
+        binding.active = False
+        _CURRENT_DECLARE_LAUNCH_ARGS_CONTEXT.reset(token)

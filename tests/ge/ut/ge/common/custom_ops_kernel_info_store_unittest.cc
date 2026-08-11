@@ -24,11 +24,13 @@
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "graph/compute_graph.h"
 #include "graph/custom_op_factory.h"
+#include "graph/custom_op/args_refresh.h"
 #include "graph/ascend_string.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_tensor.h"
 #include "graph/op_kernel_bin.h"
 #include "graph/op_desc.h"
+#include "graph/operator_reg.h"
 #include "graph/custom_op.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
@@ -37,7 +39,16 @@
 #include "graph/args_format_desc.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
+#include "runtime/custom_op/python_custom_op_adapter.h"
 #include "securec.h"
+
+namespace ge {
+REG_OP(TestPythonAnnotatedArgsCustomOp_BuilderTest)
+    .INPUT(x, TensorType::ALL())
+    .INPUT(w, TensorType::ALL())
+    .OUTPUT(y, TensorType::ALL())
+    .OP_END_FACTORY_REG(TestPythonAnnotatedArgsCustomOp_BuilderTest);
+}  // namespace ge
 
 namespace ge {
 namespace custom {
@@ -92,6 +103,41 @@ class MockPortableCustomOp : public PortableOp {
   }
 };
 
+std::atomic_uint32_t g_python_annotated_args_declare_count{0U};
+
+struct MockPythonAnnotatedArgsHolder {};
+
+void *CreateMockPythonAnnotatedArgsHolder(const custom_op::PythonCustomOpDescriptor *desc) {
+  return (desc == nullptr) ? nullptr : new (std::nothrow) MockPythonAnnotatedArgsHolder();
+}
+
+void DestroyMockPythonAnnotatedArgsHolder(void *holder) {
+  delete static_cast<MockPythonAnnotatedArgsHolder *>(holder);
+}
+
+graphStatus DeclareMockPythonAnnotatedArgs(const void *holder, gert::AnnotatedArgsContext *ctx) {
+  if ((holder == nullptr) || (ctx == nullptr)) {
+    return GRAPH_FAILED;
+  }
+  const auto *x = ctx->GetInputTensor(0U);
+  const auto *w = ctx->GetInputTensor(1U);
+  const auto *y = ctx->GetOutputTensor(0U);
+  if ((x == nullptr) || (w == nullptr) || (y == nullptr)) {
+    return GRAPH_FAILED;
+  }
+  ++g_python_annotated_args_declare_count;
+  const auto workspace = ctx->MallocWorkSpace(64U);
+  if (workspace.addr == nullptr) {
+    return GRAPH_FAILED;
+  }
+  gert::AnnotatedKernelArgs args(gert::InputAddr{0U, x->GetAddr()}, gert::InputAddr{1U, w->GetAddr()},
+                                 gert::OutputAddr{0U, y->GetAddr()}, workspace, uint64_t{7U});
+  static const uint8_t kBin[] = {0x91U, 0x92U};
+  return ctx->AddLaunch(
+      gert::AnnotatedKernelLaunchInfo{"python_annotated_args_ut", kBin, sizeof(kBin), 1U, ctx->GetStreamId()},
+      std::move(args));
+}
+
 std::atomic_bool g_compile_context_output_called{false};
 constexpr uintptr_t kLogicDataMemBase = 0x80000000UL;
 constexpr uintptr_t kLogicWeightMemBase = 0x90000000UL;
@@ -106,6 +152,29 @@ uint16_t ReadUint16Slot(const std::string &args, const size_t index) {
   uint16_t value = 0U;
   EXPECT_EQ(memcpy_s(&value, sizeof(value), args.data() + (index * sizeof(value)), sizeof(value)), EOK);
   return value;
+}
+
+void ExpectPythonAnnotatedArgsKernel(const domi::KernelDef &kernel) {
+  EXPECT_EQ(kernel.kernel_name(), "python_annotated_args_ut");
+  EXPECT_EQ(kernel.args_size(), 40U);
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 0U), static_cast<uint64_t>(kLogicDataMemBase + 1024U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 1U), static_cast<uint64_t>(kLogicWeightMemBase + 4096U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 2U), static_cast<uint64_t>(kLogicDataMemBase + 2048U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 3U), static_cast<uint64_t>(kLogicDataMemBase + 4096U));
+  EXPECT_EQ(ReadUint64Slot(kernel.args(), 4U), 7U);
+
+  std::vector<ArgDesc> arg_descs;
+  ASSERT_EQ(ArgsFormatDescUtils::Parse(kernel.context().args_format(), arg_descs), GRAPH_SUCCESS);
+  ASSERT_EQ(arg_descs.size(), 5U);
+  EXPECT_EQ(arg_descs[0].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[0].ir_idx, 0);
+  EXPECT_EQ(arg_descs[1].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[1].ir_idx, 1);
+  EXPECT_EQ(arg_descs[2].addr_type, AddrType::OUTPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[2].ir_idx, 0);
+  EXPECT_EQ(arg_descs[3].addr_type, AddrType::WORKSPACE);
+  EXPECT_EQ(arg_descs[3].ir_idx, 0);
+  EXPECT_EQ(arg_descs[4].addr_type, AddrType::CUSTOM_VALUE);
 }
 
 class MockCompileContextOutputOp : public EagerExecuteOp, public CompilableOp {
@@ -991,6 +1060,9 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskDeclaresAnnotatedArgsAndFillsK
   EXPECT_EQ(parsed_arg_descs[3].addr_type, AddrType::CUSTOM_VALUE);
 
   auto op_desc = node->GetOpDesc();
+  int64_t task_args_mode = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE, task_args_mode));
+  EXPECT_EQ(task_args_mode, static_cast<int64_t>(CustomTaskArgsMode::kAnnotatedArgs));
   std::vector<std::string> prefixes;
   EXPECT_FALSE(AttrUtils::GetListStr(op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, prefixes));
   const std::string prefixed_attr = "_custom_launch_0_";
@@ -1014,6 +1086,46 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskDeclaresAnnotatedArgsAndFillsK
   ASSERT_NE(kernel_buffer.GetData(), nullptr);
   EXPECT_EQ(std::memcmp(kernel_buffer.GetData(), expected_bin, sizeof(expected_bin)), 0);
   EXPECT_EQ(std::memcmp(tbe_kernel->GetBinData(), expected_bin, sizeof(expected_bin)), 0);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskUsesPythonAnnotatedArgsAdapter) {
+  GetThreadLocalContext().SetGraphOption({{ge::SOC_VERSION, "Ascend910B"}});
+  const std::string kTestOpType = "TestPythonAnnotatedArgsCustomOp_BuilderTest";
+  custom_op::PythonCustomOpDescriptor desc;
+  desc.descriptor_key = "python_annotated_args_custom_engine";
+  desc.op_type = kTestOpType;
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kAnnotatedArgs);
+
+  custom_op::PythonCustomOpCallbacks callbacks;
+  callbacks.create = CreateMockPythonAnnotatedArgsHolder;
+  callbacks.destroy = DestroyMockPythonAnnotatedArgsHolder;
+  callbacks.declare_launch_args = DeclareMockPythonAnnotatedArgs;
+  ASSERT_TRUE(custom_op::PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  const auto creator = [desc]() -> std::unique_ptr<BaseCustomOp> {
+    auto adapter = std::make_unique<custom_op::PythonCustomOpAdapter>(desc);
+    if (!adapter->IsValid()) {
+      return nullptr;
+    }
+    return adapter;
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNodeWithConstInput(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  EXPECT_EQ(CustomOpFactory::GetArgsRefreshStrategy(AscendString(kTestOpType.c_str())),
+            ArgsRefreshStrategy::kAnnotatedArgs);
+
+  g_python_annotated_args_declare_count.store(0U);
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+  ASSERT_EQ(tasks.size(), 1U);
+  EXPECT_EQ(g_python_annotated_args_declare_count.load(), 1U);
+
+  ExpectPythonAnnotatedArgsKernel(tasks[0].kernel());
+
+  CustomOpFactory::RemoveCustomOps({AscendString(kTestOpType.c_str())});
+  EXPECT_TRUE(custom_op::PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocDeclaresAnnotatedArgsOp) {
@@ -1346,6 +1458,9 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocFillsBasicCustom
   EXPECT_EQ(task.type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
   EXPECT_EQ(task.sqe_num(), 5U);
   EXPECT_EQ(task.kernel().context().op_index(), 7);
+  int64_t task_args_mode = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_CUSTOM_TASK_ARGS_MODE, task_args_mode));
+  EXPECT_EQ(task_args_mode, static_cast<int64_t>(CustomTaskArgsMode::kNone));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocUsesUpdateCallbackWhenBothRefreshInterfacesExist) {
@@ -1375,6 +1490,9 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocUsesUpdateCallba
   EXPECT_TRUE(task.kernel().kernel_name().empty());
   EXPECT_TRUE(task.kernel().context().args_format().empty());
   EXPECT_EQ(g_both_refresh_interfaces_declare_count.load(), 0U);
+  int64_t task_args_mode = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_CUSTOM_TASK_ARGS_MODE, task_args_mode));
+  EXPECT_EQ(task_args_mode, static_cast<int64_t>(CustomTaskArgsMode::kUpdateCallback));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnMobileSocRejectsUpdateCallbackWhenBothRefreshInterfacesExist) {
@@ -1852,6 +1970,9 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnUnknownGraphDoesNotValidateE
   EXPECT_EQ(task.kernel().context().op_index(), 7);
   EXPECT_TRUE(task.kernel().kernel_name().empty());
   EXPECT_TRUE(task.kernel().context().args_format().empty());
+  int64_t task_args_mode = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_CUSTOM_TASK_ARGS_MODE, task_args_mode));
+  EXPECT_EQ(task_args_mode, static_cast<int64_t>(CustomTaskArgsMode::kNone));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnUnknownGraphUsesBasicTaskForAnnotatedEagerOp) {
@@ -1891,6 +2012,9 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnUnknownGraphUsesBasicTaskFor
     EXPECT_EQ(task.kernel().context().op_index(), 7);
     EXPECT_TRUE(task.kernel().kernel_name().empty());
     EXPECT_TRUE(task.kernel().context().args_format().empty());
+    int64_t task_args_mode = -1;
+    ASSERT_TRUE(AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_CUSTOM_TASK_ARGS_MODE, task_args_mode));
+    EXPECT_EQ(task_args_mode, static_cast<int64_t>(CustomTaskArgsMode::kNone));
   }
 }
 

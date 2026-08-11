@@ -15,7 +15,11 @@
 from __future__ import annotations
 
 __all__ = [
+    "AnnotatedArgsContext",
+    "AnnotatedKernelArgs",
+    "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "WorkspaceAddr",
 ]
 
 from importlib import import_module
@@ -35,3 +39,7 @@ def _load_native_module():
 _native = _load_native_module()
 
 EagerOpExecutionContext = _native.EagerOpExecutionContext
+AnnotatedArgsContext = _native.AnnotatedArgsContext
+AnnotatedKernelArgs = _native.AnnotatedKernelArgs
+AnnotatedKernelLaunchInfo = _native.AnnotatedKernelLaunchInfo
+WorkspaceAddr = _native.WorkspaceAddr

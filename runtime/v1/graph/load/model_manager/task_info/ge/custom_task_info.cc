@@ -174,6 +174,54 @@ Status GetCustomKernelBinaryMagic(const OpDescPtr &op_desc, int32_t &binary_magi
 std::string MakeCustomKernelBinName(const uint32_t model_id, const OpDescPtr &op_desc, const std::string &kernel_name) {
   return std::to_string(model_id) + "_" + op_desc->GetName() + "_" + kernel_name;
 }
+
+ArgsRefreshStrategy GetLegacyCustomTaskArgsRefreshStrategy(const AscendString &op_type,
+                                                           const domi::KernelContext &context,
+                                                           const CustomOpRegistryPtr &custom_op_registry) {
+  const auto registry_strategy = custom_op_registry->GetArgsRefreshStrategy(op_type);
+  if ((registry_strategy == ArgsRefreshStrategy::kNone) && (!context.args_format().empty())) {
+    return ArgsRefreshStrategy::kAnnotatedArgs;
+  }
+  return registry_strategy;
+}
+
+Status GetCustomTaskArgsRefreshStrategy(const OpDescPtr &op_desc, const domi::KernelContext &context,
+                                        const CustomOpRegistryPtr &custom_op_registry,
+                                        ArgsRefreshStrategy &args_refresh_strategy) {
+  GE_ASSERT_NOTNULL(op_desc);
+  GE_ASSERT_NOTNULL(custom_op_registry);
+  const AscendString op_type(op_desc->GetTypePtr());
+  if (!op_desc->HasAttr(ATTR_NAME_CUSTOM_TASK_ARGS_MODE)) {
+    args_refresh_strategy = GetLegacyCustomTaskArgsRefreshStrategy(op_type, context, custom_op_registry);
+    return SUCCESS;
+  }
+
+  int64_t args_mode = 0;
+  GE_ASSERT_TRUE(AttrUtils::GetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE, args_mode),
+                 "[CUSTOM OP] get %s failed for op %s(%s).", ATTR_NAME_CUSTOM_TASK_ARGS_MODE.c_str(),
+                 op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  switch (static_cast<CustomTaskArgsMode>(args_mode)) {
+    case CustomTaskArgsMode::kUnspecified:
+      args_refresh_strategy = GetLegacyCustomTaskArgsRefreshStrategy(op_type, context, custom_op_registry);
+      return SUCCESS;
+    case CustomTaskArgsMode::kNone:
+      args_refresh_strategy = ArgsRefreshStrategy::kNone;
+      return SUCCESS;
+    case CustomTaskArgsMode::kAnnotatedArgs:
+      args_refresh_strategy = ArgsRefreshStrategy::kAnnotatedArgs;
+      return SUCCESS;
+    case CustomTaskArgsMode::kUpdateCallback:
+      GE_ASSERT_TRUE(custom_op_registry->GetArgsRefreshStrategy(op_type) == ArgsRefreshStrategy::kUpdateCallback,
+                     "[CUSTOM OP] update callback is not registered for op %s(%s).", op_desc->GetNamePtr(),
+                     op_desc->GetTypePtr());
+      args_refresh_strategy = ArgsRefreshStrategy::kUpdateCallback;
+      return SUCCESS;
+    default:
+      GELOGE(PARAM_INVALID, "[CUSTOM OP] invalid %s value %" PRId64 " for op %s(%s).",
+             ATTR_NAME_CUSTOM_TASK_ARGS_MODE.c_str(), args_mode, op_desc->GetNamePtr(), op_desc->GetTypePtr());
+      return PARAM_INVALID;
+  }
+}
 }  // namespace
 
 void CustomTaskInfo::SetCustomDumpInfo(const DumpProperties &dump_properties, DumpOp &dump_op) const {
@@ -281,11 +329,10 @@ Status CustomTaskInfo::ParseTaskRunParam(const domi::TaskDef &task_def, DavinciM
   workspace_addrs_ = ModelUtils::GetWorkspaceDataAddrsValue(rts_param, op_desc_, workspace_mem_types_);
   GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
 
-  AscendString op_type(op_desc_->GetType().c_str());
   const auto &custom_op_registry = davinci_model->GetCustomOpRegistry();
   GE_ASSERT_NOTNULL(custom_op_registry, "[CUSTOM OP] custom op registry is nullptr for op %s.",
                     op_desc_->GetName().c_str());
-  args_refresh_strategy_ = custom_op_registry->GetArgsRefreshStrategy(op_type);
+  GE_ASSERT_SUCCESS(GetCustomTaskArgsRefreshStrategy(op_desc_, context, custom_op_registry, args_refresh_strategy_));
   is_args_refreshable_ = args_refresh_strategy_ != ArgsRefreshStrategy::kNone;
 
   if (args_refresh_strategy_ == ArgsRefreshStrategy::kAnnotatedArgs) {

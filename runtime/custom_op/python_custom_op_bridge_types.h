@@ -18,8 +18,9 @@
 #include "graph/error_codes.h"
 
 namespace gert {
+class AnnotatedArgsContext;
 class EagerOpExecutionContext;
-}
+}  // namespace gert
 
 namespace ge {
 namespace custom_op {
@@ -35,14 +36,17 @@ struct PythonCustomOpDescriptor {
 using PythonCustomOpHolderCreateFn = void *(*)(const PythonCustomOpDescriptor *desc);
 using PythonCustomOpHolderDestroyFn = void (*)(void *holder);
 using PythonCustomOpExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx);
+using PythonCustomOpDeclareLaunchArgsFn = graphStatus (*)(const void *holder, gert::AnnotatedArgsContext *ctx);
 
 struct PythonCustomOpCallbacks {
   PythonCustomOpHolderCreateFn create{nullptr};
   PythonCustomOpHolderDestroyFn destroy{nullptr};
   PythonCustomOpExecuteFn execute{nullptr};
+  PythonCustomOpDeclareLaunchArgsFn declare_launch_args{nullptr};
 
   bool IsValid(CustomOpCapabilityMask capabilities) const {
-    const auto supported_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute);
+    const auto supported_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute) |
+                                        static_cast<CustomOpCapabilityMask>(CustomOpCapability::kAnnotatedArgs);
     if ((capabilities == 0U) || ((capabilities & (~supported_capabilities)) != 0U)) {
       return false;
     }
@@ -50,6 +54,9 @@ struct PythonCustomOpCallbacks {
       return false;
     }
     if (HasCustomOpCapability(capabilities, CustomOpCapability::kEagerExecute) && (execute == nullptr)) {
+      return false;
+    }
+    if (HasCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs) && (declare_launch_args == nullptr)) {
       return false;
     }
     return true;

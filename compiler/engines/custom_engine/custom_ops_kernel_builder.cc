@@ -38,6 +38,8 @@
 #include "exe_graph/runtime/storage_shape.h"
 #include "graph/buffer.h"
 #include "graph/custom_op.h"
+#include "graph/custom_op/args_refresh.h"
+#include "graph/custom_op/cast.h"
 #include "graph/custom_op_factory.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_context.h"
@@ -491,7 +493,7 @@ Status GetAnnotatedArgsOp(const OpDescPtr &op_desc, AnnotatedArgsOp *&annotated_
   auto *const base_custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(op_desc->GetTypePtr()));
   GE_ASSERT_NOTNULL(base_custom_op, "Create custom op failed, op_name:%s, op_type:%s", op_desc->GetNamePtr(),
                     op_desc->GetTypePtr());
-  annotated_args_op = dynamic_cast<AnnotatedArgsOp *>(base_custom_op);
+  annotated_args_op = CustomOpCast<AnnotatedArgsOp>(base_custom_op);
   GE_ASSERT_NOTNULL(annotated_args_op, "Custom op does not implement AnnotatedArgsOp, op_name:%s, op_type:%s",
                     op_desc->GetNamePtr(), op_desc->GetTypePtr());
   return SUCCESS;
@@ -761,11 +763,14 @@ Status FillBasicCustomKernelTask(const Node &node, domi::TaskDef &task_def) {
 }
 
 Status GenerateBasicCustomKernelTask(const Node &node, const OpDescPtr &op_desc, const std::string &soc_version,
-                                     std::vector<domi::TaskDef> &tasks) {
+                                     const CustomTaskArgsMode args_mode, std::vector<domi::TaskDef> &tasks) {
   GELOGI("Custom op %s(%s) generate basic custom kernel task, soc_version: %s", op_desc->GetNamePtr(),
          op_desc->GetTypePtr(), soc_version.c_str());
   domi::TaskDef task_def = {};
   GE_ASSERT_SUCCESS(FillBasicCustomKernelTask(node, task_def));
+  GE_ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE, static_cast<int64_t>(args_mode)),
+                 "Set %s failed for custom op %s(%s).", ATTR_NAME_CUSTOM_TASK_ARGS_MODE.c_str(), op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr());
   tasks.push_back(task_def);
   return SUCCESS;
 }
@@ -818,15 +823,24 @@ Status CustomOpsKernelBuilder::GenerateTask(const Node &node, RunContext &contex
 
   const auto *const owner_graph = node.GetOwnerComputeGraphBarePtr();
   GE_ASSERT_NOTNULL(owner_graph, "Owner graph of custom op %s(%s) is null.", node.GetNamePtr(), node.GetTypePtr());
+  ArgsRefreshStrategy args_refresh_strategy = ArgsRefreshStrategy::kNone;
   if (!owner_graph->GetGraphUnknownFlag()) {
     const bool is_mobile_omc = IsMobileSocVersion(soc_version);
-    const auto args_refresh_strategy = CustomOpFactory::GetArgsRefreshStrategy(AscendString(op_desc->GetTypePtr()));
+    args_refresh_strategy = CustomOpFactory::GetArgsRefreshStrategy(AscendString(op_desc->GetTypePtr()));
     if (args_refresh_strategy == ArgsRefreshStrategy::kAnnotatedArgs) {
       // 端侧场景下的自定义算子只支持单任务的 AnnotatedArgsOp 生成方式，非端侧场景下的自定义算子支持多任务的
       // AnnotatedArgsOp 生成方式
       const auto mode =
           is_mobile_omc ? OfflineLaunchGenMode::kMobileLegacySingleTask : OfflineLaunchGenMode::kStandardOmMultiTask;
-      return GenerateAnnotatedArgsTask(node, op_desc, context, mode, tasks);
+      const auto status = GenerateAnnotatedArgsTask(node, op_desc, context, mode, tasks);
+      if (status != SUCCESS) {
+        return status;
+      }
+      GE_ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE,
+                                       static_cast<int64_t>(CustomTaskArgsMode::kAnnotatedArgs)),
+                     "Set %s failed for custom op %s(%s).", ATTR_NAME_CUSTOM_TASK_ARGS_MODE.c_str(),
+                     op_desc->GetNamePtr(), op_desc->GetTypePtr());
+      return SUCCESS;
     }
     // 端侧场景下的自定义算子必须实现 AnnotatedArgsOp 接口，其他生成方式不支持
     if (is_mobile_omc) {
@@ -837,7 +851,10 @@ Status CustomOpsKernelBuilder::GenerateTask(const Node &node, RunContext &contex
   }
   // 全部动态图场景的自定义算子或者在非端侧场景中没有实现 AnnotatedArgsOp 的自定义算子，使用最基础的 CustomKernelTask
   // 生成方式
-  return GenerateBasicCustomKernelTask(node, op_desc, soc_version, tasks);
+  const auto basic_args_mode = (args_refresh_strategy == ArgsRefreshStrategy::kUpdateCallback)
+                                   ? CustomTaskArgsMode::kUpdateCallback
+                                   : CustomTaskArgsMode::kNone;
+  return GenerateBasicCustomKernelTask(node, op_desc, soc_version, basic_args_mode, tasks);
 }
 }  // namespace custom
 }  // namespace ge

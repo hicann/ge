@@ -18,7 +18,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type
 
 INTERFACE_EAGER_EXECUTE = "eager_execute"
-_INTERFACE_SPECS = ((INTERFACE_EAGER_EXECUTE, "execute"),)
+INTERFACE_ANNOTATED_ARGS = "annotated_args"
+_INTERFACE_SPECS = (
+    (INTERFACE_EAGER_EXECUTE, "execute"),
+    (INTERFACE_ANNOTATED_ARGS, "declare_launch_args"),
+)
 
 
 @dataclass(frozen=True)

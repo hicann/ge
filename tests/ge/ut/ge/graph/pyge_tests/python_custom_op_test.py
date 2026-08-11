@@ -24,6 +24,7 @@ try:
     bridge = importlib.import_module("ge.custom_op._bridge")
     custom_op = importlib.import_module("ge.custom_op")
     ir_types = importlib.import_module("ge.custom_op._ir_types")
+    from ge.runtime import Tensor
 except ImportError as exc:
     pytest.skip(f"无法导入 Python custom op 相关模块: {exc}", allow_module_level=True)
 
@@ -125,6 +126,18 @@ def _create_holder(instance_id: str, op_type: str) -> None:
     )
 
 
+def _get_descriptor_key(op_type: str) -> str:
+    descriptors = {
+        item["op_type"]: item for item in bridge.load_and_get_op_impl_descriptors()
+    }
+    return descriptors[op_type]["descriptor_key"]
+
+
+def test_bridge_validate_op_impl_descriptor_rejects_unknown_descriptor():
+    with pytest.raises(KeyError, match="descriptor_key not found"):
+        bridge.validate_op_impl_descriptor("missing-descriptor", None)
+
+
 def test_register_op_impl_exports_descriptor_dict():
     @custom_op.register_op_impl(op_type="AddCustom")
     class AddCustom(custom_op.EagerExecuteOp):
@@ -179,6 +192,61 @@ def test_ctx_execute_keeps_context_argument():
     assert instance.seen_ctx is ctx
 
 
+def test_bridge_validates_descriptor_signature_without_constructing_instance():
+    constructed = []
+
+    @custom_op.register_op_impl(op_type="RegistrationValidatedCustom")
+    class RegistrationValidatedCustom(custom_op.EagerExecuteOp):
+        def __init__(self):
+            constructed.append(True)
+
+        def execute(self, x: Tensor, *, alpha: float):
+            pass
+
+    assert (
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("RegistrationValidatedCustom"),
+            {
+                "op_type": "RegistrationValidatedCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [{"name": "alpha", "type": ir_types.AttrType.FLOAT}],
+                "outputs": [],
+            },
+        )
+        is True
+    )
+    assert constructed == []
+
+
+def test_bridge_validates_legacy_execute_without_canonical_ir():
+    @custom_op.register_op_impl(op_type="RegistrationLegacyCustom")
+    class RegistrationLegacyCustom(custom_op.EagerExecuteOp):
+        def execute(self, ctx):
+            pass
+
+    assert (
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("RegistrationLegacyCustom"), None
+        )
+        is True
+    )
+
+
+def test_bridge_requires_canonical_ir_to_validate_schema_execute():
+    @custom_op.register_op_impl(op_type="MissingRegistrationSchemaCustom")
+    class MissingRegistrationSchemaCustom(custom_op.EagerExecuteOp):
+        def execute(self, x):
+            pass
+
+    with pytest.raises(
+        RuntimeError,
+        match="canonical IR not found for schema-bound execute",
+    ):
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("MissingRegistrationSchemaCustom"), None
+        )
+
+
 def test_register_op_impl_rejects_duplicate_op_type():
     @custom_op.register_op_impl(op_type="AddCustom")
     class AddCustom(custom_op.EagerExecuteOp):
@@ -220,7 +288,7 @@ def test_register_op_impl_supports_plain_class_with_execute():
 def test_register_op_impl_rejects_class_without_supported_method():
     with pytest.raises(
         TypeError,
-        match=r"BaseOnlyCustom' must implement at least one supported method: execute",
+        match=r"BaseOnlyCustom' must implement at least one supported method: execute, declare_launch_args",
     ):
 
         @custom_op.register_op_impl(op_type="BaseOnlyCustom")
@@ -331,6 +399,7 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
         "outputs": [],
     }
 
+    assert bridge.validate_op_impl_descriptor(descriptor_key, ir_meta) is True
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
     assert bridge.call_execute(instance_id, ir_meta, ctx) is None
     assert called == [
@@ -355,6 +424,111 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
     ]
     assert ctx.attrs_requested is True
     assert ctx.invalidated is True
+
+
+def test_bridge_validate_op_impl_descriptor_rejects_mismatched_attr_name():
+    @custom_op.register_op_impl(op_type="WrongExecuteAttrNameCustom")
+    class WrongExecuteAttrNameCustom(custom_op.EagerExecuteOp):
+        def execute(self, x, *, beta):
+            pass
+
+    with pytest.raises(
+        TypeError,
+        match=r"invalid execute signature.*expected attr name alpha.*actual attr name beta",
+    ):
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("WrongExecuteAttrNameCustom"),
+            {
+                "op_type": "WrongExecuteAttrNameCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [{"name": "alpha", "type": ir_types.AttrType.FLOAT}],
+                "outputs": [],
+            },
+        )
+
+
+def test_bridge_validate_op_impl_descriptor_rejects_mismatched_input_annotation():
+    @custom_op.register_op_impl(op_type="WrongExecuteAnnotationCustom")
+    class WrongExecuteAnnotationCustom(custom_op.EagerExecuteOp):
+        def execute(self, x: list[Tensor], *, alpha: float):
+            pass
+
+    with pytest.raises(
+        TypeError,
+        match=r"invalid execute signature.*input parameter at index 0 annotation",
+    ):
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("WrongExecuteAnnotationCustom"),
+            {
+                "op_type": "WrongExecuteAnnotationCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [{"name": "alpha", "type": ir_types.AttrType.FLOAT}],
+                "outputs": [],
+            },
+        )
+
+
+def test_bridge_call_execute_ignores_ir_outputs_and_return_annotation():
+    called = []
+
+    @custom_op.register_op_impl(op_type="CompatibleExecuteSignatureCustom")
+    class CompatibleExecuteSignatureCustom(custom_op.EagerExecuteOp):
+        def execute(
+            self, x: Tensor, *, alpha: float
+        ) -> "CompatibleExecuteSignatureCustom":
+            called.append((x, alpha))
+            return True
+
+    instance_id = "CompatibleExecuteSignatureCustom#1"
+    ctx = _FakeEagerContext()
+    _create_holder(instance_id, "CompatibleExecuteSignatureCustom")
+
+    assert (
+        bridge.call_execute(
+            instance_id,
+            {
+                "op_type": "CompatibleExecuteSignatureCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [{"name": "alpha", "type": ir_types.AttrType.FLOAT}],
+                "outputs": [{"name": "y", "kind": ir_types.OutputType.REQUIRED}],
+            },
+            ctx,
+        )
+        is None
+    )
+
+    assert called == [(("required", 0), ("get_float", 0))]
+    assert ctx.invalidated is True
+
+
+def test_bridge_call_execute_does_not_validate_signature_at_runtime(monkeypatch):
+    execute_calls = []
+
+    @custom_op.register_op_impl(op_type="CachedExecuteSignatureCustom")
+    class CachedExecuteSignatureCustom(custom_op.EagerExecuteOp):
+        def execute(self, x: Tensor):
+            execute_calls.append(x)
+
+    descriptor_key = _get_descriptor_key("CachedExecuteSignatureCustom")
+    instance_id = "CachedExecuteSignatureCustom#1"
+    ir_meta = {
+        "op_type": "CachedExecuteSignatureCustom",
+        "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+        "attrs": [],
+        "outputs": [],
+    }
+
+    assert bridge.validate_op_impl_descriptor(descriptor_key, ir_meta) is True
+    assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
+
+    def fail_on_runtime_validation(*args, **kwargs):
+        _ = (args, kwargs)
+        pytest.fail("schema execute must not validate its signature at runtime")
+
+    monkeypatch.setattr(bridge, "_validate_args_signature", fail_on_runtime_validation)
+    bridge.call_execute(instance_id, ir_meta, _FakeEagerContext())
+
+    assert execute_calls == [("required", 0)]
 
 
 def test_schema_bound_execute_can_get_current_context():
@@ -409,6 +583,41 @@ def test_get_execute_ctx_is_not_bound_for_legacy_execute():
 
     assert errors == ["get_execute_ctx() is only available inside schema-bound execute"]
     assert ctx.invalidated is True
+
+
+def test_bridge_call_execute_rechecks_legacy_signature_after_method_change():
+    calls = []
+
+    @custom_op.register_op_impl(op_type="ReplaceableExecuteCustom")
+    class ReplaceableExecuteCustom(custom_op.EagerExecuteOp):
+        def execute(self, ctx):
+            calls.append(("legacy", ctx))
+
+    instance_id = "ReplaceableExecuteCustom#1"
+    legacy_ctx = _FakeEagerContext()
+    _create_holder(instance_id, "ReplaceableExecuteCustom")
+
+    bridge.call_execute(instance_id, None, legacy_ctx)
+
+    def schema_execute(self, x):
+        calls.append(("schema", x))
+
+    ReplaceableExecuteCustom.execute = schema_execute
+    schema_ctx = _FakeEagerContext()
+    bridge.call_execute(
+        instance_id,
+        {
+            "op_type": "ReplaceableExecuteCustom",
+            "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+            "attrs": [],
+            "outputs": [],
+        },
+        schema_ctx,
+    )
+
+    assert calls == [("legacy", legacy_ctx), ("schema", ("required", 0))]
+    assert legacy_ctx.invalidated is True
+    assert schema_ctx.invalidated is True
 
 
 def test_schema_execute_context_is_deactivated_after_exception():
