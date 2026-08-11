@@ -12,6 +12,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 #include <map>
 #include "../../common/sampleDevice.h"
 #include "../../common/sampleModel.h"
@@ -140,7 +141,7 @@ class SampleYolov13 {
 
   Result InitResource(const char *aclConfigPath);
   Result PrepareModel(const char *modelPath);
-  Result Process(const std::vector<std::string> &inputFiles);
+  Result Process(const std::vector<std::string> &inputFiles, int warmupRuns, int runs);
 
  private:
   void OutputResult(const std::vector<Detection> &dets);
@@ -276,7 +277,7 @@ bool SampleYolov13::PostProcessOutput(const std::string &filePath) {
   return true;
 }
 
-Result SampleYolov13::Process(const std::vector<std::string> &inputFiles) {
+Result SampleYolov13::Process(const std::vector<std::string> &inputFiles, int warmupRuns, int runs) {
   void *picDevBuffer = nullptr;
   size_t devBufferSize = aclmdlGetInputSizeByIndex(modelDesc_->GetModelDesc(), 0);
   aclError aclRet = aclrtMalloc(&picDevBuffer, devBufferSize, ACL_MEM_MALLOC_HUGE_FIRST);
@@ -299,14 +300,41 @@ Result SampleYolov13::Process(const std::vector<std::string> &inputFiles) {
       continue;
     }
 
-    // Execute model inference on device.
-    aclError aclRet = aclmdlExecute(modelId_, modelInput_->GetDataSet(), modelOutput_->GetDataSet());
-    if (aclRet != ACL_SUCCESS) {
-      ERROR_LOG("aclmdlExecute failed");
+    bool executeSuccess = true;
+    for (int run = 0; run < warmupRuns; ++run) {
+      aclRet = aclmdlExecute(modelId_, modelInput_->GetDataSet(), modelOutput_->GetDataSet());
+      if (aclRet != ACL_SUCCESS) {
+        ERROR_LOG("aclmdlExecute failed during warmup, run=%d", run);
+        executeSuccess = false;
+        break;
+      }
+    }
+    if (!executeSuccess) {
       continue;
     }
 
-    if (PostProcessOutput(inputFiles[idx])) {
+    long long totalLatencyUs = 0;
+    int successfulRuns = 0;
+    for (int run = 0; run < runs; ++run) {
+      const auto executeStart = std::chrono::steady_clock::now();
+      aclRet = aclmdlExecute(modelId_, modelInput_->GetDataSet(), modelOutput_->GetDataSet());
+      const auto executeEnd = std::chrono::steady_clock::now();
+      if (aclRet != ACL_SUCCESS) {
+        ERROR_LOG("aclmdlExecute failed, run=%d", run);
+        executeSuccess = false;
+        break;
+      }
+      const auto latencyUs = std::chrono::duration_cast<std::chrono::microseconds>(executeEnd - executeStart).count();
+      totalLatencyUs += latencyUs;
+      ++successfulRuns;
+      INFO_LOG("BENCHMARK aclmdlExecute run=%d latency_us=%lld", run, static_cast<long long>(latencyUs));
+    }
+    if (successfulRuns > 0) {
+      const double avgLatencyMs = static_cast<double>(totalLatencyUs) / successfulRuns / 1000.0;
+      INFO_LOG("Average aclmdlExecute latency: %.3f ms", avgLatencyMs);
+    }
+
+    if (executeSuccess && PostProcessOutput(inputFiles[idx])) {
       anySuccess = true;
     }
   }
@@ -315,7 +343,121 @@ Result SampleYolov13::Process(const std::vector<std::string> &inputFiles) {
   return anySuccess ? SUCCESS : FAILED;
 }
 
-int main() {
+struct Args {
+  std::string modelPath{"../model/yolov13.om"};
+  std::string inputPath{"../data/bus.bin"};
+  int warmupRuns{0};
+  int runs{1};
+  bool help{false};
+};
+
+static void PrintHelpInfo() {
+  std::cout << "Usage: ./yolov13_main [options]" << std::endl;
+  std::cout << "  --model=<path>         OM model path (default: ../model/yolov13.om)" << std::endl;
+  std::cout << "  --input=<path>         Input file path (default: ../data/bus.bin)" << std::endl;
+  std::cout << "  --warmup-runs=<number> Number of warmup runs (default: 0)" << std::endl;
+  std::cout << "  --runs=<number>        Number of measured runs (default: 1)" << std::endl;
+  std::cout << "  --help                 Show this help message" << std::endl;
+}
+
+static bool ParseRunCount(const std::string &value, bool allowZero, int &result) {
+  try {
+    size_t parsedSize = 0U;
+    const int parsedValue = std::stoi(value, &parsedSize);
+    if (parsedSize != value.size() || parsedValue < (allowZero ? 0 : 1)) {
+      return false;
+    }
+    result = parsedValue;
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+enum class OptionParseResult { kNotMatched, kMatched, kMissingValue };
+
+static OptionParseResult ParseOptionValue(const std::vector<std::string> &arguments, size_t &index,
+                                          const std::string &longOption, const std::string &shortOption,
+                                          std::string &value) {
+  const std::string &argument = arguments[index];
+  if (argument == longOption || argument == shortOption) {
+    if (++index >= arguments.size()) {
+      return OptionParseResult::kMissingValue;
+    }
+    value = arguments[index];
+    return OptionParseResult::kMatched;
+  }
+  const std::string longOptionPrefix = longOption + "=";
+  if (argument.compare(0, longOptionPrefix.size(), longOptionPrefix) == 0) {
+    value = argument.substr(longOptionPrefix.size());
+    return OptionParseResult::kMatched;
+  }
+  if (argument.compare(0, shortOption.size(), shortOption) == 0 && argument.size() > shortOption.size()) {
+    value = argument.substr(shortOption.size());
+    return OptionParseResult::kMatched;
+  }
+  return OptionParseResult::kNotMatched;
+}
+
+static bool ParseArgs(const std::vector<std::string> &arguments, Args &args) {
+  for (size_t index = 1U; index < arguments.size(); ++index) {
+    if (arguments[index] == "--help" || arguments[index] == "-h") {
+      args.help = true;
+      return true;
+    }
+    std::string value;
+    OptionParseResult result = ParseOptionValue(arguments, index, "--model", "-m", value);
+    if (result != OptionParseResult::kNotMatched) {
+      if (result == OptionParseResult::kMissingValue) {
+        return false;
+      }
+      args.modelPath = value;
+      continue;
+    }
+    result = ParseOptionValue(arguments, index, "--input", "-i", value);
+    if (result != OptionParseResult::kNotMatched) {
+      if (result == OptionParseResult::kMissingValue) {
+        return false;
+      }
+      args.inputPath = value;
+      continue;
+    }
+    result = ParseOptionValue(arguments, index, "--warmup-runs", "-w", value);
+    if (result != OptionParseResult::kNotMatched) {
+      if (result == OptionParseResult::kMissingValue || !ParseRunCount(value, true, args.warmupRuns)) {
+        ERROR_LOG("invalid --warmup-runs value: %s", value.c_str());
+        return false;
+      }
+      continue;
+    }
+    result = ParseOptionValue(arguments, index, "--runs", "-r", value);
+    if (result != OptionParseResult::kNotMatched) {
+      if (result == OptionParseResult::kMissingValue || !ParseRunCount(value, false, args.runs)) {
+        ERROR_LOG("invalid --runs value: %s", value.c_str());
+        return false;
+      }
+      continue;
+    }
+    ERROR_LOG("invalid command-line argument: %s", arguments[index].c_str());
+    return false;
+  }
+  if (args.modelPath.empty() || args.inputPath.empty()) {
+    ERROR_LOG("invalid command-line arguments");
+    return false;
+  }
+  return true;
+}
+
+int main(int argc, char *argv[]) {
+  Args args;
+  std::vector<std::string> arguments(argv, argv + argc);
+  if (!ParseArgs(arguments, args)) {
+    return FAILED;
+  }
+  if (args.help) {
+    PrintHelpInfo();
+    return SUCCESS;
+  }
   INFO_LOG("YOLOv13 SAMPLE start to execute.");
 
   // To better demonstrate the core usage of the acl interface, the sample encapsulates
@@ -332,14 +474,14 @@ int main() {
       return FAILED;
     }
 
-    ret = sample.PrepareModel("../model/yolov13.om");
+    ret = sample.PrepareModel(args.modelPath.c_str());
     if (ret != SUCCESS) {
       ERROR_LOG("SAMPLE NOT PASSED: sample prepare model failed.");
       return FAILED;
     }
 
-    std::vector<std::string> inputFiles = {"../data/bus.bin"};
-    ret = sample.Process(inputFiles);
+    std::vector<std::string> inputFiles = {args.inputPath};
+    ret = sample.Process(inputFiles, args.warmupRuns, args.runs);
     if (ret != SUCCESS) {
       ERROR_LOG("SAMPLE NOT PASSED: sample process failed.");
       return FAILED;

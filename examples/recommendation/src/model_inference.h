@@ -29,6 +29,7 @@ struct InferenceParams {
   std::string model_type_;
   int32_t multi_instance_num_{1};
   std::string ai_core_num_;
+  std::string multi_stream_parallel_mode_;
   std::map<ge::AscendString, ge::AscendString> parser_params_;
   bool enable_input_batch_cpy_{false};
   size_t global_max_queue_size_{50000};
@@ -43,7 +44,8 @@ class ModelInference {
   ge::Status Init();
   using Callback = std::function<void(std::shared_ptr<std::vector<gert::Tensor>> outputs,
                                       std::shared_ptr<std::vector<gert::Tensor>> inputs, bool status,
-                                      long long exec_us  // 执行时延（微秒）
+                                      long long exec_us,           // 原始执行时延（微秒）
+                                      long long benchmark_exec_us  // 图执行与流同步时延（微秒）
                                       )>;
 
   ge::Status RunGraphAsync(const std::shared_ptr<std::vector<gert::Tensor>> &host_inputs,
@@ -53,6 +55,7 @@ class ModelInference {
    public:
     explicit Builder(const std::string &modelPath, const std::string &modelType);
     Builder &AiCoreNum(const std::string &aiCoreNum);
+    Builder &MultiStreamParallelMode(const std::string &multiStreamParallelMode);
     Builder &InputBatchCopy(bool enableBatchH2D);
     Builder &MultiInstanceNum(int32_t multiInstanceNum);
     Builder &MaxQueueSize(size_t maxSize);
@@ -96,6 +99,7 @@ class ModelInference {
   std::string model_type_;
   int32_t multi_instance_num_{1};
   std::string ai_core_num_;
+  std::string multi_stream_parallel_mode_;
   std::shared_ptr<ge::Session> session_;
   std::map<ge::AscendString, ge::AscendString> parser_params_;
   bool enable_input_batch_cpy_{false};

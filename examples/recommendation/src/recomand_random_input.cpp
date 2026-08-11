@@ -16,6 +16,7 @@
 #include <atomic>
 #include <complex>
 #include <iostream>
+#include <mutex>
 #include <vector>
 #include <map>
 #include "model_inference.h"
@@ -45,11 +46,13 @@ void PrintHelpInfo() {
   std::cout << "  --multiInstanceNum   Multi-instance number (default: 1)" << std::endl;
   std::cout << "  --enableBatchH2D     Enable batch H2D (true/false, 1/0) (default: false)" << std::endl;
   std::cout << "  --aiCoreNum          AI core numbers (default:\"\")" << std::endl;
+  std::cout << "  --multiStreamParallelMode  cv, LoadBalance:N, or MainStream:N (N in [1,64])" << std::endl;
   std::cout << "  --help               Show this help message" << std::endl;
   std::cout << std::endl;
   std::cout << "Examples:" << std::endl;
   std::cout << "  ./recomand_exec --runs=1000 --batchSize=128" << std::endl;
   std::cout << "  ./recomand_exec --multiInstanceNum=4 --enableBatchH2D=true --aiCoreNum=\"16|16\"" << std::endl;
+  std::cout << "  ./recomand_exec --runs=100 --multiInstanceNum=1 --multiStreamParallelMode=LoadBalance:8" << std::endl;
   std::cout << "  ./recomand_exec --help" << std::endl;
 }
 
@@ -165,8 +168,37 @@ struct Args {
   int32_t multiInstanceNum{1};
   bool enableBatchH2D{false};
   std::string aiCoreNum;
+  std::string multiStreamParallelMode;
   bool help{false};
 };
+
+constexpr int kMinMultiStreamNum = 1;
+constexpr int kMaxMultiStreamNum = 64;
+
+bool IsValidMultiStreamParallelMode(const std::string &mode) {
+  if (mode == "cv") {
+    return true;
+  }
+  const auto separator = mode.find(':');
+  if (separator == std::string::npos || mode.find(':', separator + 1U) != std::string::npos) {
+    return false;
+  }
+  const auto algorithm = mode.substr(0U, separator);
+  if (algorithm != "LoadBalance" && algorithm != "MainStream") {
+    return false;
+  }
+  const auto stream_limit = mode.substr(separator + 1U);
+  if (stream_limit.empty() || stream_limit.find_first_not_of("0123456789") != std::string::npos) {
+    return false;
+  }
+  try {
+    size_t parsed_size = 0U;
+    const auto value = std::stoi(stream_limit, &parsed_size);
+    return parsed_size == stream_limit.size() && value >= kMinMultiStreamNum && value <= kMaxMultiStreamNum;
+  } catch (...) {
+    return false;
+  }
+}
 
 inline bool ParseArgs(Args &args, int argc, char **argv) {
   static struct option long_options[] = {{"help", no_argument, 0, 'h'},
@@ -175,11 +207,12 @@ inline bool ParseArgs(Args &args, int argc, char **argv) {
                                          {"multiInstanceNum", required_argument, 0, 'm'},
                                          {"enableBatchH2D", required_argument, 0, 'e'},
                                          {"aiCoreNum", required_argument, 0, 'a'},
+                                         {"multiStreamParallelMode", required_argument, 0, 'p'},
                                          {nullptr, 0, nullptr, 0}};
 
   while (true) {
     int option_index = 0;
-    int arg = getopt_long(argc, argv, "hr:b:m:e:a:", long_options, &option_index);
+    int arg = getopt_long(argc, argv, "hr:b:m:e:a:p:", long_options, &option_index);
     if (arg == -1) break;
     switch (arg) {
       case 'h':
@@ -230,6 +263,14 @@ inline bool ParseArgs(Args &args, int argc, char **argv) {
         args.aiCoreNum = optarg;
         break;
 
+      case 'p':
+        args.multiStreamParallelMode = optarg;
+        if (!IsValidMultiStreamParallelMode(args.multiStreamParallelMode)) {
+          std::cerr << "ERROR: invalid --multiStreamParallelMode value: " << optarg << std::endl;
+          return false;
+        }
+        break;
+
       default:
         return false;
     }
@@ -238,7 +279,8 @@ inline bool ParseArgs(Args &args, int argc, char **argv) {
   std::cout << "recomand config: runs=" << args.runs << ", batchSize=" << args.batchSize
             << ", multiInstanceNum=" << args.multiInstanceNum
             << ", enableBatchH2D=" << (args.enableBatchH2D ? "true" : "false")
-            << ", aiCoreNum=" << (args.aiCoreNum.empty() ? "\"\"" : args.aiCoreNum) << std::endl;
+            << ", aiCoreNum=" << (args.aiCoreNum.empty() ? "\"\"" : args.aiCoreNum) << ", multiStreamParallelMode="
+            << (args.multiStreamParallelMode.empty() ? "\"\"" : args.multiStreamParallelMode) << std::endl;
 
   return true;
 }
@@ -290,10 +332,11 @@ ModelConfig BuildDCNV2Config(const std::string &model_path, const std::string &m
 }
 
 ge::Status RunInference(const ModelConfig &cfg, int num_runs, int32_t multiInstanceNum, bool enableBatchH2D,
-                        const std::string &aiCoreNum) {
+                        const std::string &aiCoreNum, const std::string &multiStreamParallelMode) {
   auto model_inference = gerec::ModelInference::Builder(cfg.model_path, cfg.model_type)
                              .InputBatchCopy(enableBatchH2D)
                              .AiCoreNum(aiCoreNum)
+                             .MultiStreamParallelMode(multiStreamParallelMode)
                              .MultiInstanceNum(multiInstanceNum)
                              .GraphParserParams(cfg.parser_params)
                              .Build();
@@ -317,14 +360,26 @@ ge::Status RunInference(const ModelConfig &cfg, int num_runs, int32_t multiInsta
 
   std::atomic<int> success_count{0};
   std::atomic<long long> total_exec_us{0};
+  constexpr int kBenchmarkWarmupRuns = 10;
+  std::atomic<int> benchmark_success_count{0};
+  std::atomic<long long> total_benchmark_exec_us{0};
+  std::mutex benchmark_mutex;
 
   auto global_start = std::chrono::high_resolution_clock::now();
 
   auto callback = [&](std::shared_ptr<std::vector<gert::Tensor>> outputs,
-                      std::shared_ptr<std::vector<gert::Tensor>> inputs, bool status, long long exec_us) {
+                      std::shared_ptr<std::vector<gert::Tensor>> inputs, bool status, long long exec_us,
+                      long long benchmark_exec_us) {
     if (status) {
-      success_count.fetch_add(1, std::memory_order_relaxed);
+      std::lock_guard<std::mutex> lock(benchmark_mutex);
+      const int completed_run = success_count.fetch_add(1, std::memory_order_relaxed);
       total_exec_us.fetch_add(exec_us, std::memory_order_relaxed);
+      if (completed_run >= kBenchmarkWarmupRuns) {
+        const int benchmark_run = benchmark_success_count.fetch_add(1, std::memory_order_relaxed);
+        total_benchmark_exec_us.fetch_add(benchmark_exec_us, std::memory_order_relaxed);
+        std::cout << "BENCHMARK ExecuteGraphWithStreamAsync run=" << benchmark_run
+                  << " latency_us=" << benchmark_exec_us << std::endl;
+      }
     }
     FreeHostTensors(outputs);
     FreeHostTensors(inputs);
@@ -347,6 +402,11 @@ ge::Status RunInference(const ModelConfig &cfg, int num_runs, int32_t multiInsta
 
   double avg_ms = static_cast<double>(total_exec_us.load()) / success_count.load() / 1000.0;
   std::cout << "Average execution latency: " << avg_ms << " ms" << std::endl;
+
+  const int benchmark_runs = benchmark_success_count.load();
+  const double avg_benchmark_ms =
+      benchmark_runs == 0 ? 0.0 : static_cast<double>(total_benchmark_exec_us.load()) / benchmark_runs / 1000.0;
+  std::cout << "Average ExecuteGraphWithStreamAsync latency: " << avg_benchmark_ms << " ms" << std::endl;
 
   return ge::SUCCESS;
 }
@@ -377,7 +437,8 @@ int main(int argc, char *argv[]) {
   const std::string model_path = "../data/DCN_v2.pb";
   const std::string model_type = "TensorFlow";
   ModelConfig cfg = BuildDCNV2Config(model_path, model_type, args.batchSize);
-  ge::Status status = RunInference(cfg, args.runs, args.multiInstanceNum, args.enableBatchH2D, args.aiCoreNum);
+  ge::Status status = RunInference(cfg, args.runs, args.multiInstanceNum, args.enableBatchH2D, args.aiCoreNum,
+                                   args.multiStreamParallelMode);
   aclFinalize();
   if (status != ge::SUCCESS) {
     std::cerr << "RunInference failed" << std::endl;
