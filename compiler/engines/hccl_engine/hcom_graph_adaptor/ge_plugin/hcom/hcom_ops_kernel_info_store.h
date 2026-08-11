@@ -78,9 +78,9 @@ class HcomOpsKernelInfoStore : public HCCLOpsKernelInfoStore {
                               u64 inputMemSize, rtStream_t stream);
   HcclResult RefreshOutputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup, void *outputAddr,
                                u64 outputMemSize, rtStream_t stream);
-  HcclResult RefreshOutputAddr(DevType deviceType, u32 shapeType, const std::string &sCollectiveType,
-                               const int64_t &hcomComm, const std::string &sGroup, void *outputAddr, u64 outputOffset,
-                               u64 curSize, u64 outputMaxSize, bool secAddrCopyWithoutOffset,
+  HcclResult RefreshOutputAddr(u32 shapeType, const std::string &sCollectiveType, const int64_t &hcomComm,
+                               const std::string &sGroup, void *outputAddr, u64 outputOffset, u64 curSize,
+                               u64 outputMaxSize, bool secAddrCopyWithoutOffset,
                                rtStream_t stream);  // 输入地址等于输出地址
   HcclResult GetHcomOpMemSize(u32 shapeType, const std::string &sCollectiveType, const int64_t &hcomComm,
                               const std::string &sGroup, HcclDataType dataType, u64 count, u64 &inputMemSize,
@@ -162,16 +162,14 @@ class HcomOpsKernelInfoStore : public HCCLOpsKernelInfoStore {
                                const int64_t &comm, const std::string &group, void *&inputDataPtr, void *&outputDataPtr,
                                u64 count, HcclDataType dataType, HcclReduceOp reduceType, rtStream_t streamMain,
                                HcclOpExecResParams &resParams);
-  HcclResult RefreshAllgatherOutputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm,
-                                        const std::string &sGroup, void *&outputAddr, u64 outputOffset, u64 curSize,
-                                        u64 count, u32 unitSize, u32 rankSize, bool secAddrCopyWithoutOffset,
-                                        rtStream_t stream);
-  HcclResult RefreshInputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
-                              const void *inputAddr, u64 inputOffset, u64 curSize, bool secAddrCopyWithoutOffset,
-                              rtStream_t stream);
-  HcclResult RefreshOutputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
-                               void *outputAddr, u64 outputOffset, u64 curSize, u64 outputMaxSize,
-                               bool secAddrCopyWithoutOffset, rtStream_t stream);
+  HcclResult RefreshAllgatherOutputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
+                                        void *&outputAddr, u64 outputOffset, u64 curSize, u64 count, u32 unitSize,
+                                        u32 rankSize, bool secAddrCopyWithoutOffset, rtStream_t stream);
+  HcclResult RefreshInputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup, const void *inputAddr,
+                              u64 inputOffset, u64 curSize, bool secAddrCopyWithoutOffset, rtStream_t stream);
+  HcclResult RefreshOutputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup, void *outputAddr,
+                               u64 outputOffset, u64 curSize, u64 outputMaxSize, bool secAddrCopyWithoutOffset,
+                               rtStream_t stream);
   HcclResult GetHcomOutCCLbufferSize(u64 &commOutputSize, u32 shapeType, const int64_t &hcomComm,
                                      const std::string &sGroup) const;
   HcclResult GetHcomInCCLbufferSize(u64 &commInputSize, u32 shapeType, const int64_t &hcomComm,
@@ -180,10 +178,9 @@ class HcomOpsKernelInfoStore : public HCCLOpsKernelInfoStore {
                                    const int64_t &comm, const std::string &group, void *&inputDataPtr,
                                    void *&outputDataPtr, u64 count, HcclDataType dataType, HcclReduceOp reduceType,
                                    rtStream_t streamMain, HcclOpExecResParams &resParams);
-  HcclResult RefreshReduceScatterInputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm,
-                                           const std::string &sGroup, void *&inputAddr, u64 inputOffset, u64 curSize,
-                                           u64 count, u32 unitSize, u32 rankSize, bool secAddrCopyWithoutOffset,
-                                           rtStream_t stream);
+  HcclResult RefreshReduceScatterInputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
+                                           void *&inputAddr, u64 inputOffset, u64 curSize, u64 count, u32 unitSize,
+                                           u32 rankSize, bool secAddrCopyWithoutOffset, rtStream_t stream);
   HcclResult HcomReduceLoop(const ge::GETaskInfo &task, const std::vector<std::string> &tagVec, u32 shapeType,
                             const int64_t &comm, const std::string &group, void *&inputDataPtr, void *&outputDataPtr,
                             u64 count, HcclDataType dataType, HcclReduceOp reduceType, u32 root, rtStream_t streamMain,
@@ -199,7 +196,7 @@ class HcomOpsKernelInfoStore : public HCCLOpsKernelInfoStore {
   HcclResult HcomBroadcastLoop(const std::vector<std::string> &tagVec, u32 shapeType, const int64_t &comm,
                                const std::string &group, void *&inputDataPtr, u64 count, HcclDataType dataType,
                                u32 root, rtStream_t streamMain, HcclOpExecResParams &resParams);
-  HcclResult CheckHcomOpMemSize(DevType deviceType, u64 countLeft, u32 unitSize, u64 cclBufferSize);
+  HcclResult CheckHcomOpMemSize(u64 countLeft, u32 unitSize, u64 cclBufferSize);
   HcclResult CheckTensorNumAndTensorSize(const ge::GETaskInfo &task, u64 count, u32 unitSize, u64 commInputSize) const;
   HcclResult CreateIndirectCCLbuf();
   HcclResult GetIndirectInCCLbuf(void *&ptr, u64 &size);

@@ -28,40 +28,13 @@
 #include "hcom_op_utils.h"
 #include "ops_kernel_builder_base.h"
 #include "op_hcom_comm.h"
+#include "device_capability.h"
 #include "mmpa/mmpa_api.h"
 
 using namespace std;
 
 namespace hccl {
 static std::mutex g_taskNumCalModeMutex;
-
-const std::unordered_map<std::string, DevType> SOC_VER_CONVERT{
-    {"Ascend310P1", DevType::DEV_TYPE_310P3},
-    {"Ascend310P3", DevType::DEV_TYPE_310P3},
-    {"Ascend310P5", DevType::DEV_TYPE_310P3},
-    {"Ascend310P7", DevType::DEV_TYPE_310P3},
-    {"Ascend310B1", DevType::DEV_TYPE_310P3},  // 临时映射，规避当前Ascend310B1
-                                               // torch_npu未与hccl的so解耦；计划20250630完成解耦，解耦后删除
-    {"Ascend910", DevType::DEV_TYPE_910},
-    {"Ascend910A", DevType::DEV_TYPE_910},
-    {"Ascend910B", DevType::DEV_TYPE_910},
-    {"Ascend910ProA", DevType::DEV_TYPE_910},
-    {"Ascend910ProB", DevType::DEV_TYPE_910},
-    {"Ascend910PremiumA", DevType::DEV_TYPE_910},
-    {"Ascend910B1", DevType::DEV_TYPE_910B},
-    {"Ascend910B2", DevType::DEV_TYPE_910B},
-    {"Ascend910B2C", DevType::DEV_TYPE_910B},
-    {"Ascend910B3", DevType::DEV_TYPE_910B},
-    {"Ascend910B4", DevType::DEV_TYPE_910B},
-    {"Ascend910B4-1", DevType::DEV_TYPE_910B},
-    {"Ascend910_9391", DevType::DEV_TYPE_910_93},
-    {"Ascend910_9381", DevType::DEV_TYPE_910_93},
-    {"Ascend910_9392",
-     DevType::DEV_TYPE_910_93},  // Ascend910_9392、Ascend910_9382为预留类型，当前版本暂不支持，待跟随后续版本节奏交付
-    {"Ascend910_9382", DevType::DEV_TYPE_910_93},
-    {"Ascend910_9372", DevType::DEV_TYPE_910_93},
-    {"Ascend910_9362", DevType::DEV_TYPE_910_93},
-    {"nosoc", DevType::DEV_TYPE_NOSOC}};
 
 bool IsOfflineCompilation() {
   std::string offlineString;
@@ -71,65 +44,8 @@ bool IsOfflineCompilation() {
   return false;
 }
 
-HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
-  // 离线编译第一阶段获取devType从SOC_VERSION里获取
-  std::string socVersion;
-  if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
-    HCCL_ERROR("[offline][compilation] get soc version failed.");
-    return HCCL_E_NOT_FOUND;
-  }
-
-  DevType tempDevType = DevType::DEV_TYPE_COUNT;
-  if (socVersion == "Ascend310B1") {
-    HCCL_WARNING("[GetOffDeviceTypeWithoutDev] Ascend310B1 not support! please check usage");
-  }
-  if (socVersion.find("Ascend950") != std::string::npos) {
-    tempDevType = DevType::DEV_TYPE_950;
-    devType = tempDevType;
-    return HCCL_SUCCESS;
-  }
-
-  if (socVersion.find("Ascend960") != std::string::npos || socVersion.find("ascend960") != std::string::npos ||
-      socVersion.find("Ascend910_96") != std::string::npos) {
-    tempDevType = DevType::DEV_TYPE_960;
-    devType = tempDevType;
-    return HCCL_SUCCESS;
-  }
-
-  if (socVersion.find("MC62") != std::string::npos) {
-    devType = DevType::DEV_TYPE_MC62;
-    return HCCL_SUCCESS;
-  }
-
-  auto iter = SOC_VER_CONVERT.find(socVersion);
-  if (iter == SOC_VER_CONVERT.end()) {
-    HCCL_ERROR("[Get][DeviceType]errNo[0x%016llx] rtGetSocVersion get illegal chipver, chip_ver[%s].",
-               HCCL_ERROR_CODE(HCCL_E_RUNTIME), socVersion.c_str());
-    return HCCL_E_RUNTIME;
-  }
-  tempDevType = iter->second;
-
-  if (tempDevType != DevType::DEV_TYPE_910 && tempDevType != DevType::DEV_TYPE_910B &&
-      tempDevType != DevType::DEV_TYPE_310P1 && tempDevType != DevType::DEV_TYPE_310P3 &&
-      tempDevType != DevType::DEV_TYPE_910_93 && tempDevType != DevType::DEV_TYPE_950 &&
-      tempDevType != DevType::DEV_TYPE_960) {
-    HCCL_ERROR("[offline][compilation] cur dev type[%u] is not support.", tempDevType);
-    return HCCL_E_RUNTIME;
-  }
-  devType = tempDevType;
-  HCCL_DEBUG("[offline] Get devtype[%u]....", devType);
-  return HCCL_SUCCESS;
-}
-
-static bool IsStrictDeterministicSupported(DevType devType) {
-  return devType == DevType::DEV_TYPE_910B || devType == DevType::DEV_TYPE_910_93 || devType == DevType::DEV_TYPE_950 ||
-         devType == DevType::DEV_TYPE_960;
-}
-
 HcclResult GetDeterministic(u8 &deterministic) {
   deterministic = DETERMINISTIC_DISABLE;  // 默认为不支持
-  DevType devType;
-  CHK_RET(GetOffDeviceTypeWithoutDev(devType));
 
   char *mmSysGetEnvValue = nullptr;
   MM_SYS_GET_ENV(MM_ENV_HCCL_DETERMINISTIC, mmSysGetEnvValue);
@@ -142,10 +58,8 @@ HcclResult GetDeterministic(u8 &deterministic) {
     } else if (hcclDeterministicEnv == "TRUE") {
       deterministic = DETERMINISTIC_ENABLE;
     } else if (hcclDeterministicEnv == "STRICT") {
-      CHK_PRT_RET(!IsStrictDeterministicSupported(devType),
-                  HCCL_ERROR("ParserHcclDeterministic: "
-                             "reduce order preservation is not supported for devType[%d]",
-                             devType),
+      CHK_PRT_RET(!DeviceCapability::Instance().SupportsStrictDeterministic(),
+                  HCCL_ERROR("ParserHcclDeterministic: reduce order preservation is not supported"),
                   HCCL_E_NOT_SUPPORT);
       deterministic = DETERMINISTIC_STRICT;
     } else {
@@ -160,10 +74,8 @@ HcclResult GetDeterministic(u8 &deterministic) {
       if (geOption == "1") {
         deterministic = DETERMINISTIC_ENABLE;
       } else if (geOption == "2") {
-        CHK_PRT_RET(!IsStrictDeterministicSupported(devType),
-                    HCCL_ERROR("ParserHcclDeterministic: "
-                               "reduce order preservation is not supported for devType[%d]",
-                               devType),
+        CHK_PRT_RET(!DeviceCapability::Instance().SupportsStrictDeterministic(),
+                    HCCL_ERROR("ParserHcclDeterministic: reduce order preservation is not supported"),
                     HCCL_E_NOT_SUPPORT);
         deterministic = DETERMINISTIC_STRICT;
       }

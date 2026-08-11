@@ -34,6 +34,7 @@
 #include "hccl/hcom.h"
 #include "register/ops_kernel_builder_registry.h"
 #include "offline_build_config_parse.h"
+#include "device_capability.h"
 #include "acl/acl_rt.h"
 #include "mmpa/mmpa_api.h"
 
@@ -302,10 +303,10 @@ HcclResult HcomOpsKernelBuilder::CheckSuperKernelEligibility(ge::Node &node, con
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrFor950(const ge::OpDescPtr &opDescPtr, HcclCMDType opType,
-                                                                   HcclDataType dataType, const std::string &algName,
-                                                                   std::string &funcName,
-                                                                   const std::string &binPath) const {
+HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrForV2(const ge::OpDescPtr &opDescPtr, HcclCMDType opType,
+                                                                  HcclDataType dataType, const std::string &algName,
+                                                                  std::string &funcName,
+                                                                  const std::string &binPath) const {
   auto itMap = AivSuperKernelMapV2.find(opType);
   auto it = (itMap->second).find(algName);
   if (it != (itMap->second).end()) {
@@ -354,17 +355,10 @@ HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrs(const ge::OpDescPt
   ge::AttrUtils::SetBool(opDescPtr, "_hccl", true);
   std::string binPath;
   CHK_RET(SKGetAlgPath(opType, binPath));
-  // 步骤2：获取SOC_VERSION
-  std::string socVersion{};
-  if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
-    HCCL_ERROR("[HcomOpsKernelBuilder][SetAivSuperKernelBinaryAttrs] get soc version failed");
-    return HCCL_E_NOT_FOUND;
-  }
-  // 步骤3：根据SOC_VERSION和确定性配置选择不同的二进制文件路径
-  if (socVersion.find("Ascend950") != std::string::npos || socVersion.find("Ascend960") != std::string::npos ||
-      socVersion.find("Ascend910_96") != std::string::npos || socVersion.find("ascend960") != std::string::npos) {
-    // 950或960架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
-    CHK_RET(SetAivSuperKernelBinaryAttrFor950(opDescPtr, opType, dataType, algName, funcName, binPath));
+  // 步骤2：根据设备能力和确定性配置选择不同的二进制文件路径
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
+    // 950/960 架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
+    CHK_RET(SetAivSuperKernelBinaryAttrForV2(opDescPtr, opType, dataType, algName, funcName, binPath));
   } else {
     u8 deterministic = DETERMINISTIC_DISABLE;
     CHK_RET(GetDeterministic(deterministic));
@@ -653,8 +647,22 @@ ge::Status HcomOpsKernelBuilder::GenerateTask([[maybe_unused]] const ge::Node &n
 
   if (IsOfflineCompilation()) {
     privateDefBuf.isOfflineComp = true;
-    CHK_RET(GetOffDeviceTypeWithoutDev(privateDefBuf.devType));
-    HCCL_DEBUG("GenerateTask: isOfflineComp[%u] devType[%u]", privateDefBuf.isOfflineComp, privateDefBuf.devType);
+    // 离线编译: 填充新 OM socVersion 字段 + 旧 OM devType 兼容字段
+    const int devType = DeviceCapability::Instance().GetDeviceIdentity();
+    CHK_PRT_RET(devType == -1,
+                HCCL_ERROR("[Generate][Task] offline build reject unknown SOC, devType=-1, socVersion[%s].",
+                           DeviceCapability::Instance().GetSocVersionString().c_str()),
+                ge::INTERNAL_ERROR);
+    privateDefBuf.devType = devType;
+    const std::string &socVersion = DeviceCapability::Instance().GetSocVersionString();
+    errno_t secRet =
+        strncpy_s(privateDefBuf.socVersion, sizeof(privateDefBuf.socVersion), socVersion.c_str(), socVersion.size());
+    CHK_PRT_RET(secRet != EOK,
+                HCCL_ERROR("[Generate][Task] strncpy_s socVersion failed, srcLen[%zu], dstLen[%zu]", socVersion.size(),
+                           sizeof(privateDefBuf.socVersion)),
+                HCCL_E_INTERNAL);
+    HCCL_DEBUG("GenerateTask: isOfflineComp[%u] devType[%d] socVersion[%s]", privateDefBuf.isOfflineComp,
+               privateDefBuf.devType, privateDefBuf.socVersion);
   }
 
   CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, privateDefBuf.aivCoreLimit));
@@ -1058,8 +1066,7 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, const std::strin
   CHK_RET(PrepareSelectAivParam(node, sCollectiveType, hcomComm, sGroup, rankSize, count, counts, dataType, opType,
                                 reduction, aivCoreLimit));
   // 判断是否走 Aiv
-  DevType devType = HcomGetDeviceType();
-  if (devType != DevType::DEV_TYPE_950 && devType != DevType::DEV_TYPE_960) {
+  if (DeviceCapability::Instance().UsesHcomSelectAlgForAiv()) {
     void *countsPtr = counts.data();
 #ifdef HCOM_SELECT_ALG_POINTER_MODE
     CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, countsPtr, dataType, reduction, opType, aivCoreLimit, &ifAiv,
