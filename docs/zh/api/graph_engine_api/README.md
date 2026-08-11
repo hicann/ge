@@ -944,6 +944,24 @@
       - [malloc](python/ge/allocator/Allocator/malloc.md)
       - [free](python/ge/allocator/Allocator/free.md)
 
+    - [AnnotatedArgsContext](python/ge/custom_op/AnnotatedArgsContext/AnnotatedArgsContext.md)
+      - [简介](python/ge/custom_op/AnnotatedArgsContext/overview.md)
+      - [add\_launch](python/ge/custom_op/AnnotatedArgsContext/add_launch.md)
+      - [create\_kernel\_args](python/ge/custom_op/AnnotatedArgsContext/create_kernel_args.md)
+      - [get\_stream\_id](python/ge/custom_op/AnnotatedArgsContext/get_stream_id.md)
+      - [malloc\_workspace](python/ge/custom_op/AnnotatedArgsContext/malloc_workspace.md)
+
+    - [AnnotatedKernelArgs](python/ge/custom_op/AnnotatedKernelArgs/AnnotatedKernelArgs.md)
+      - [简介](python/ge/custom_op/AnnotatedKernelArgs/overview.md)
+      - [append\_input](python/ge/custom_op/AnnotatedKernelArgs/append_input.md)
+      - [append\_output](python/ge/custom_op/AnnotatedKernelArgs/append_output.md)
+      - [append\_scalar](python/ge/custom_op/AnnotatedKernelArgs/append_scalar.md)
+      - [append\_workspace](python/ge/custom_op/AnnotatedKernelArgs/append_workspace.md)
+
+    - [AnnotatedKernelLaunchInfo](python/ge/custom_op/AnnotatedKernelLaunchInfo/AnnotatedKernelLaunchInfo.md)
+      - [简介](python/ge/custom_op/AnnotatedKernelLaunchInfo/overview.md)
+      - [\_\_init\_\_](python/ge/custom_op/AnnotatedKernelLaunchInfo/__init__.md)
+
     - [DecomposePass](python/ge/passes/DecomposePass/DecomposePass.md)
       - [简介](python/ge/passes/DecomposePass/overview.md)
       - [meet\_requirements](python/ge/passes/DecomposePass/meet_requirements.md)
@@ -1107,10 +1125,16 @@
       - [get\_data\_type](python/ge/graph/TensorDesc/get_data_type.md)
       - [set\_data\_type](python/ge/graph/TensorDesc/set_data_type.md)
 
+    - [WorkspaceAddr](python/ge/custom_op/WorkspaceAddr/WorkspaceAddr.md)
+      - [简介](python/ge/custom_op/WorkspaceAddr/overview.md)
+      - [addr](python/ge/custom_op/WorkspaceAddr/addr.md)
+      - [index](python/ge/custom_op/WorkspaceAddr/index.md)
+
     - [clear\_registered\_passes](python/ge/passes/clear_registered_passes.md)
     - [can\_fuse](python/ge/passes/can_fuse.md)
     - [create\_replacement](python/ge/passes/create_replacement.md)
     - [create\_pattern](python/ge/passes/create_pattern.md)
+    - [get\_declare\_launch\_args\_ctx](python/ge/custom_op/get_declare_launch_args_ctx.md)
     - [get\_registered\_passes](python/ge/passes/get_registered_passes.md)
     - [get\_registered\_pass\_dicts](python/ge/passes/get_registered_pass_dicts.md)
     - [get\_registered\_pass\_by\_descriptor\_key](python/ge/passes/get_registered_pass_by_descriptor_key.md)
@@ -1120,6 +1144,7 @@
     - [register\_decompose\_pass](python/ge/passes/register_decompose_pass.md)
     - [register\_fusion\_pass](python/ge/passes/register_fusion_pass.md)
     - [register\_op](python/ge/custom_op/register_op.md)
+    - [register\_op\_impl](python/ge/custom_op/register_op_impl.md)
     - [report\_fuse](python/ge/passes/report_fuse.md)
 
     - [AttrValueType](python/ge/AttrValueType.md)
