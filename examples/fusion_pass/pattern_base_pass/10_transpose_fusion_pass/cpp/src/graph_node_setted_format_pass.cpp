@@ -789,6 +789,76 @@ bool ApplyFormatAndCheck(const GraphPtr &graph, GNode &node, const FormatConfig 
   return true;
 }
 
+// ---------- Format 连续性检查 ----------
+
+/**
+ * @brief 检查配置文件中修改了 format 的节点，其输入/输出端口与直连节点之间的 format 是否连续。
+ *
+ * 仅检查配置文件中配置过的节点：
+ *   - 对于配置了 input.<idx> 的端口：获取该输入的数据源节点对应输出的 format，比较是否一致
+ *   - 对于配置了 output.<idx> 的端口：获取该输出的所有消费者节点对应输入的 format，比较是否一致
+ * 若不一致则说明 format 修改后出现了断裂，记录日志并返回 false。
+ *
+ * @param graph 图指针
+ * @param op_configs 配置文件中解析的 node_name → FormatConfig 映射
+ * @return true 所有被修改端口的 format 与直连节点连续, false 存在 format 不连续
+ */
+bool CheckFormatContinuity(const GraphPtr &graph, const std::unordered_map<std::string, FormatConfig> &op_configs) {
+  for (const auto &[node_name, config] : op_configs) {
+    GNodePtr node = graph->FindNodeByName(AscendString(node_name.c_str()));
+    if (node == nullptr) {
+      continue;
+    }
+
+    // 检查配置过的 input 端口：与数据源节点的输出 format 比对
+    for (const auto &[idx, expected_fmt] : config.input_formats) {
+      auto [src_node, src_port] = node->GetInDataNodesAndPortIndexs(static_cast<int32_t>(idx));
+      if (src_node == nullptr) {
+        continue;
+      }
+      TensorDesc src_desc;
+      if (src_node->GetOutputDesc(src_port, src_desc) != GRAPH_SUCCESS) {
+        continue;
+      }
+      Format src_format = src_desc.GetFormat();
+      if (src_format != expected_fmt) {
+        AscendString src_name_asc;
+        std::string src_name =
+            (src_node->GetName(src_name_asc) == GRAPH_SUCCESS) ? src_name_asc.GetString() : "unknown";
+        std::cout << "[GraphNodeSettedFormatPass] Format discontinuity at input: Node[" << node_name << "] input."
+                  << idx << " format=" << static_cast<int>(expected_fmt) << " != src Node[" << src_name << "] output."
+                  << src_port << " format=" << static_cast<int>(src_format) << std::endl;
+        return false;
+      }
+    }
+
+    // 检查配置过的 output 端口：与所有消费者节点的输入 format 比对
+    for (const auto &[idx, expected_fmt] : config.output_formats) {
+      auto successors = node->GetOutDataNodesAndPortIndexs(static_cast<int32_t>(idx));
+      for (const auto &[succ_node, succ_in_idx] : successors) {
+        if (succ_node == nullptr) {
+          continue;
+        }
+        TensorDesc succ_desc;
+        if (succ_node->GetInputDesc(succ_in_idx, succ_desc) != GRAPH_SUCCESS) {
+          continue;
+        }
+        Format succ_format = succ_desc.GetFormat();
+        if (succ_format != expected_fmt) {
+          AscendString succ_name_asc;
+          std::string succ_name =
+              (succ_node->GetName(succ_name_asc) == GRAPH_SUCCESS) ? succ_name_asc.GetString() : "unknown";
+          std::cout << "[GraphNodeSettedFormatPass] Format discontinuity at output: Node[" << node_name << "] output."
+                    << idx << " format=" << static_cast<int>(expected_fmt) << " != dst Node[" << succ_name << "] input."
+                    << succ_in_idx << " format=" << static_cast<int>(succ_format) << std::endl;
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 // =============================================================================
@@ -863,6 +933,13 @@ class GraphNodeSettedFormatPass : public FusionBasePass {
     // ----- 4. 如果任一个节点失败，回滚整个图并返回 FAILED -----
     if (any_failed) {
       std::cout << "[GraphNodeSettedFormatPass] Some nodes failed check, rolling back entire graph" << std::endl;
+      *graph = origin_graph;
+      return FAILED;
+    }
+
+    // ----- 5. 配置节点 format 连续性检查 -----
+    if (!CheckFormatContinuity(graph, op_configs)) {
+      std::cout << "[GraphNodeSettedFormatPass] Format continuity check failed, rolling back entire graph" << std::endl;
       *graph = origin_graph;
       return FAILED;
     }
