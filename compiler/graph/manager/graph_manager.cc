@@ -143,6 +143,7 @@
 #include "runtime/custom_op/custom_op_loader.h"
 #include "common/om2/om2_model_data.h"
 #include "common/helper/om2/om2_zip_saver.h"
+#include "common/om2/rt_var_resource.h"
 #include "framework/common/helper/om2_package_helper.h"
 
 namespace ge {
@@ -468,6 +469,8 @@ ge::Status BuildOm2PackageIfNeeded(const GraphNodePtr &graph_node, const GeRootM
   auto model_data = std::make_shared<gert::Om2ModelData>();
   Om2PackageHelper package_helper;
   GE_ASSERT_SUCCESS(package_helper.BuildOm2ModelData(ge_model, *model_data, ge_root_model));
+  GELOGI("[OM2] BuildOm2PackageIfNeeded entries=%zu",
+         (model_data->rt_var_resource != nullptr) ? model_data->rt_var_resource->GetAllEntries().size() : 0U);
   ge_root_model->SetOm2ModelData(std::move(model_data));
 
   GELOGI("OM2 model data built successfully for graph %u", graph_node->GetGraphId());
@@ -2876,6 +2879,8 @@ Status GraphManager::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_
   if (IsOm2OnlineMode()) {
     const auto &om2_model_data = ge_root_model->GetOm2ModelData();
     GE_ASSERT_NOTNULL(om2_model_data, "[OM2] Missing Om2ModelData in OM2 online mode.");
+    GELOGI("[OM2] SaveModel online entries=%zu",
+           (om2_model_data->rt_var_resource != nullptr) ? om2_model_data->rt_var_resource->GetAllEntries().size() : 0U);
     return ge::Om2ZipSaver::Save(*om2_model_data, model_buffer, false);
   }
 

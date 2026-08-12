@@ -19,6 +19,7 @@
 #include "common/om2/om2_model_data.h"
 #include "graph/utils/type_utils.h"
 #include "nlohmann/json.hpp"
+#include "common/om2/rt_var_resource.h"
 
 namespace ge {
 
@@ -40,6 +41,17 @@ std::string SerializeOpAttrMapToJson(const std::map<std::string, std::map<std::s
   }
 
   return json_obj.dump();
+}
+
+JsonFile SerializeTensorDesc(const ge::Om2TensorDesc &desc) {
+  JsonFile json;
+  (void)json.Set("name", desc.GetName());
+  (void)json.Set("shape", desc.GetShape());
+  (void)json.Set("data_type", TypeUtils::DataTypeToSerialString(desc.GetDataType()));
+  (void)json.Set("format", TypeUtils::FormatToSerialString(desc.GetFormat()));
+  (void)json.Set("size", desc.GetSize());
+  (void)json.Set("shape_range", desc.GetShapeRange());
+  return json;
 }
 
 Status SerializeCodegenArtifacts(const gert::Om2ModelData &model_data,
@@ -104,6 +116,85 @@ Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
       FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, std::to_string(model_index).c_str());
   GE_ASSERT_TRUE(
       zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), false));
+  return SUCCESS;
+}
+
+Status SerializeVarResource(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
+  if (model_data.rt_var_resource == nullptr) {
+    return SUCCESS;
+  }
+  const auto &entries = model_data.rt_var_resource->GetAllEntries();
+  if (entries.empty()) {
+    return SUCCESS;
+  }
+  JsonFile json_file;
+  auto entries_json = JsonFile::json::object();
+  std::vector<uint8_t> weight_buffer;
+  for (const auto &[var_key, entry] : entries) {
+    JsonFile entry_json;
+    (void)entry_json.Set("var_name", entry.var_name);
+    (void)entry_json.Set("var_key", entry.var_key);
+    (void)entry_json.Set("op_type", entry.op_type);
+    (void)entry_json.Set("logic_addr", entry.logic_addr);
+    (void)entry_json.Set("size", entry.size);
+    (void)entry_json.Set("memory_type", entry.memory_type);
+    (void)entry_json.Set("changed_graph_id", entry.changed_graph_id);
+    (void)entry_json.Set("allocated_graph_id", entry.allocated_graph_id);
+    (void)entry_json.Set("tensor_desc", SerializeTensorDesc(entry.tensor_desc).Raw());
+    auto trans_road_json = JsonFile::json::array();
+    for (const auto &node : entry.trans_road) {
+      JsonFile node_json;
+      (void)node_json.Set("node_type", node.node_type);
+      (void)node_json.Set("input", SerializeTensorDesc(node.input).Raw());
+      (void)node_json.Set("output", SerializeTensorDesc(node.output).Raw());
+      trans_road_json.push_back(node_json.Raw());
+    }
+    (void)entry_json.Set("trans_road", trans_road_json);
+    JsonFile copy_info_json;
+    (void)copy_info_json.Set("src_var_name", entry.copy_info.src_var_name);
+    (void)copy_info_json.Set("src_tensor_desc", SerializeTensorDesc(entry.copy_info.src_tensor_desc).Raw());
+    (void)entry_json.Set("copy_info", copy_info_json.Raw());
+    size_t init_data_offset = 0U;
+    size_t init_data_size = 0U;
+    if (!entry.init_data.empty()) {
+      init_data_offset = weight_buffer.size();
+      init_data_size = entry.init_data.size();
+      weight_buffer.insert(weight_buffer.end(), entry.init_data.begin(), entry.init_data.end());
+    }
+    (void)entry_json.Set("init_data_offset", init_data_offset);
+    (void)entry_json.Set("init_data_size", init_data_size);
+    entries_json[var_key] = entry_json.Raw();
+  }
+  (void)json_file.Set("entries", entries_json);
+  const std::string json_str = json_file.Dump();
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_VAR_RESOURCE_PATH, json_str.data(), json_str.size(), false));
+  if (!weight_buffer.empty()) {
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_VAR_WEIGHT_FILE, weight_buffer.data(), weight_buffer.size(), false));
+  }
+  return SUCCESS;
+}
+
+Status SerializeVarMetas(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer,
+                         const std::string &model_index_str) {
+  if (model_data.var_metas.empty()) {
+    return SUCCESS;
+  }
+  JsonFile json_file;
+  (void)json_file.Set("graph_id", model_data.graph_id);
+  auto var_metas_json = JsonFile::json::array();
+  for (const auto &meta : model_data.var_metas) {
+    JsonFile meta_json;
+    (void)meta_json.Set("index", meta.index);
+    (void)meta_json.Set("var_name", meta.var_name);
+    (void)meta_json.Set("op_type", meta.op_type);
+    (void)meta_json.Set("op_name", meta.op_name);
+    (void)meta_json.Set("tensor_desc", SerializeTensorDesc(meta.tensor_desc).Raw());
+    var_metas_json.push_back(meta_json.Raw());
+  }
+  (void)json_file.Set("var_metas", var_metas_json);
+  const std::string json_str = json_file.Dump();
+  const auto config_path = FormatOm2Path(OM2_VARIABLES_CONFIG_PATH_FORMAT, model_index_str.c_str());
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(config_path, json_str.data(), json_str.size(), false));
   return SUCCESS;
 }
 
@@ -317,6 +408,8 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
   GE_ASSERT_SUCCESS(SerializeCodegenArtifacts(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeWeightData(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeConstantsConfig(model_data, zip_writer, is_offline));
+  GE_ASSERT_SUCCESS(SerializeVarResource(model_data, zip_writer));
+  GE_ASSERT_SUCCESS(SerializeVarMetas(model_data, zip_writer, "0"));
   GE_ASSERT_SUCCESS(SerializeKernelBinaries(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeModelMeta(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeDebugInfo(model_data, zip_writer));

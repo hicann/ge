@@ -10,6 +10,7 @@
 
 #include "common/om2/codegen/om2_model_utils.h"
 #include <cinttypes>
+#include <iterator>
 #include <limits>
 #include "common/checker.h"
 #include "common/om2/codegen/ast/ast_nodes.h"
@@ -17,6 +18,7 @@
 #include "common/plugin/datatype_util.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "common/math/ge_math_util.h"
+#include "graph/ge_context.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/framework_types_internal.h"
@@ -219,6 +221,33 @@ Status Om2ModelUtils::ConstructAddrSemanticForCommon(const TaskSemanticContribut
   return SUCCESS;
 }
 
+bool Om2ModelUtils::FindVarAddress(const VarAddrRangeMap &var_addr_ranges, const uint64_t effective,
+                                   VarAddressMatch &match) {
+  const auto iter = var_addr_ranges.upper_bound(effective);
+  if (iter == var_addr_ranges.begin()) {
+    return false;
+  }
+  const auto candidate = std::prev(iter);
+  const uint64_t inner = effective - candidate->first;
+  if (inner >= candidate->second.size) {
+    return false;
+  }
+  match.root_logic_addr = candidate->first;
+  match.inner_offset = inner;
+  match.root_size = candidate->second.size;
+  match.var_index = candidate->second.var_index;
+  match.symbol_hint = candidate->second.symbol_hint;
+  return true;
+}
+
+void Om2ModelUtils::ConstructVariableAddr(const VarAddressMatch &match, AddrSemantic &addr_node) {
+  addr_node.kind = AddrValueKind::kVariable;
+  addr_node.symbol_hint = match.symbol_hint;
+  addr_node.var_index = match.var_index;
+  addr_node.mem_offset = static_cast<int64_t>(match.inner_offset);
+  addr_node.is_reused_from_upstream = true;
+}
+
 Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &context,
                                         std::vector<AddrSemantic> &input_addrs) {
   GE_ASSERT_NOTNULL(context.op_desc);
@@ -226,6 +255,7 @@ Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &con
   GE_ASSERT_NOTNULL(context.model_io);
   GE_ASSERT_NOTNULL(context.weight_offset_to_varname);
   GE_ASSERT_NOTNULL(context.fileconst_output_offset_to_varname);
+  GE_ASSERT_NOTNULL(context.var_addr_ranges);
   GE_ASSERT_NOTNULL(context.op_id_to_input_edges);
   size_t input_offset_index = 0U;
   for (size_t i = 0U; i < context.op_desc->GetAllInputsSize(); ++i) {
@@ -259,6 +289,46 @@ Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &con
         GE_ASSERT_SUCCESS(ResolveConstIndex(input_addr.symbol_hint, input_addr.const_index.emplace()));
         input_addr.mem_offset = input_offset;
         input_addr.is_reused_from_upstream = true;
+        (void)input_addr.tensor_info.emplace();
+        GE_ASSERT_SUCCESS(BuildInputTensorInfo(tensor_desc, *input_addr.tensor_info));
+        input_addrs.push_back(std::move(input_addr));
+        ++input_offset_index;
+        continue;
+      }
+      int64_t declared_inner = 0;
+      (void)AttrUtils::GetInt(tensor_desc, ATTR_NAME_INNER_OFFSET, declared_inner);
+      GE_ASSERT_TRUE(declared_inner >= 0, "[OM2] Input %zu of op %s has negative inner offset %" PRId64, i,
+                     context.op_desc->GetName().c_str(), declared_inner);
+      VarAddressMatch match;
+      bool is_variable = false;
+      if (declared_inner == 0) {
+        const auto iter = context.var_addr_ranges->find(static_cast<uint64_t>(input_offset));
+        if (iter != context.var_addr_ranges->end()) {
+          match = VarAddressMatch{iter->first, 0U, iter->second.size, iter->second.var_index, iter->second.symbol_hint};
+          is_variable = true;
+        }
+      } else {
+        GE_ASSERT_TRUE(input_offset >= declared_inner,
+                       "[OM2] Input %zu of op %s inner offset underflows effective offset", i,
+                       context.op_desc->GetName().c_str());
+        GE_ASSERT_SUCCESS(CheckInt64SubOverflow(input_offset, declared_inner));
+        const uint64_t declared_root = static_cast<uint64_t>(input_offset - declared_inner);
+        const auto iter = context.var_addr_ranges->find(declared_root);
+        GE_ASSERT_TRUE(iter != context.var_addr_ranges->end(),
+                       "[OM2] Input %zu of op %s declared variable root is not registered", i,
+                       context.op_desc->GetName().c_str());
+        GE_ASSERT_TRUE(FindVarAddress(*context.var_addr_ranges, static_cast<uint64_t>(input_offset), match) &&
+                           match.root_logic_addr == declared_root &&
+                           match.inner_offset == static_cast<uint64_t>(declared_inner),
+                       "[OM2] Input %zu of op %s inner offset is inconsistent", i, context.op_desc->GetName().c_str());
+        is_variable = true;
+      }
+      if (is_variable) {
+        GELOGI("[OM2][ResolveInputAddrs] op=%s, input_index=%zu, hit variable=%s, root_addr=0x%" PRIx64
+               ", inner_offset=%" PRIu64,
+               context.op_desc->GetName().c_str(), i, match.symbol_hint.c_str(), match.root_logic_addr,
+               match.inner_offset);
+        ConstructVariableAddr(match, input_addr);
         (void)input_addr.tensor_info.emplace();
         GE_ASSERT_SUCCESS(BuildInputTensorInfo(tensor_desc, *input_addr.tensor_info));
         input_addrs.push_back(std::move(input_addr));
@@ -299,6 +369,7 @@ Status Om2ModelUtils::ResolveOutputAddrs(const TaskSemanticContributeContext &co
   GE_ASSERT_NOTNULL(context.op_desc);
   GE_ASSERT_NOTNULL(context.runtime);
   GE_ASSERT_NOTNULL(context.model_io);
+  GE_ASSERT_NOTNULL(context.var_addr_ranges);
   GE_ASSERT_NOTNULL(context.op_id_to_input_edges);
   const size_t outputs_size = context.op_desc->GetOutputsSize();
   const auto v_output_offset = context.op_desc->GetOutputOffset();
@@ -333,8 +404,43 @@ Status Om2ModelUtils::ResolveOutputAddrs(const TaskSemanticContributeContext &co
       }
       continue;
     }
-    GE_ASSERT_SUCCESS(
-        ConstructOutputAddrForCommon(context, output_addr, tensor_desc, v_memory_type, v_output_offset, i));
+    GE_ASSERT_TRUE(i < v_output_offset.size(), "[OM2] Output offset index %zu out of range, op=%s", i,
+                   context.op_desc->GetName().c_str());
+    const int64_t output_offset = v_output_offset[i];
+    int64_t declared_inner = 0;
+    (void)AttrUtils::GetInt(tensor_desc, ATTR_NAME_INNER_OFFSET, declared_inner);
+    GE_ASSERT_TRUE(declared_inner >= 0, "[OM2] Output %zu of op %s has negative inner offset %" PRId64, i,
+                   context.op_desc->GetName().c_str(), declared_inner);
+    VarAddressMatch match;
+    bool is_variable = false;
+    if (declared_inner == 0) {
+      const auto iter = context.var_addr_ranges->find(static_cast<uint64_t>(output_offset));
+      if (iter != context.var_addr_ranges->end()) {
+        match = VarAddressMatch{iter->first, 0U, iter->second.size, iter->second.var_index, iter->second.symbol_hint};
+        is_variable = true;
+      }
+    } else {
+      GE_ASSERT_TRUE(output_offset >= declared_inner,
+                     "[OM2] Output %zu of op %s inner offset underflows effective offset", i,
+                     context.op_desc->GetName().c_str());
+      GE_ASSERT_SUCCESS(CheckInt64SubOverflow(output_offset, declared_inner));
+      const uint64_t declared_root = static_cast<uint64_t>(output_offset - declared_inner);
+      const auto iter = context.var_addr_ranges->find(declared_root);
+      GE_ASSERT_TRUE(iter != context.var_addr_ranges->end(),
+                     "[OM2] Output %zu of op %s declared variable root is not registered", i,
+                     context.op_desc->GetName().c_str());
+      GE_ASSERT_TRUE(FindVarAddress(*context.var_addr_ranges, static_cast<uint64_t>(output_offset), match) &&
+                         match.root_logic_addr == declared_root &&
+                         match.inner_offset == static_cast<uint64_t>(declared_inner),
+                     "[OM2] Output %zu of op %s inner offset is inconsistent", i, context.op_desc->GetName().c_str());
+      is_variable = true;
+    }
+    if (is_variable) {
+      ConstructVariableAddr(match, output_addr);
+    } else {
+      GE_ASSERT_SUCCESS(
+          ConstructOutputAddrForCommon(context, output_addr, tensor_desc, v_memory_type, v_output_offset, i));
+    }
     (void)output_addr.tensor_info.emplace();
     GE_ASSERT_SUCCESS(BuildOutputTensorInfo(tensor_desc, *output_addr.tensor_info));
     current_edges.output_var_names[i] = output_addr.symbol_hint;
@@ -453,8 +559,16 @@ Status Om2ModelUtils::GetRtAddress(const TaskSemanticContributeContext &context,
     return SUCCESS;
   }
 
-  constexpr uint64_t max_var_mem_size = kMemoryVarAddressSize;
-  const bool is_check_var_manager = (context.runtime->var_size > 0U);
+  uint64_t max_var_mem_size = 0U;
+  const auto var_manager = VarManager::Instance(GetContext().SessionId());
+  if (var_manager != nullptr) {
+    max_var_mem_size = static_cast<uint64_t>(var_manager->GetVarMemSize(RT_MEMORY_HBM)) +
+                       static_cast<uint64_t>(var_manager->GetVarConstPlaceHolderMemSize(RT_MEMORY_HBM));
+  }
+  max_var_mem_size = (max_var_mem_size == 0LU) ? kMemoryVarAddressSize : max_var_mem_size;
+  const bool is_check_var_manager =
+      (var_manager != nullptr && var_manager->GetVarConstPlaceHolderMemSize(RT_MEMORY_HBM) > 0) ||
+      (context.runtime->var_size > 0U);
 
   if ((context.runtime->logic_mem_base <= logic_addr) &&
       (logic_addr < (context.runtime->logic_mem_base + context.runtime->total_mem_size))) {
@@ -543,7 +657,8 @@ Status Om2ModelUtils::GetRtWeightAddress(const TaskSemanticContributeContext &co
 
 Status Om2ModelUtils::GetRtVarAddress(const TaskSemanticContributeContext &context, const uintptr_t logic_addr,
                                       AddrSemantic &addr_node) {
-  const auto iter = context.fileconst_output_offset_to_varname->find(logic_addr);
+  GE_ASSERT_NOTNULL(context.fileconst_output_offset_to_varname);
+  const auto iter = context.fileconst_output_offset_to_varname->find(static_cast<int64_t>(logic_addr));
   if (iter != context.fileconst_output_offset_to_varname->end()) {
     addr_node.symbol_hint = iter->second;
     addr_node.kind = AddrValueKind::kConstTensor;
@@ -551,10 +666,16 @@ Status Om2ModelUtils::GetRtVarAddress(const TaskSemanticContributeContext &conte
     addr_node.mem_offset = static_cast<int64_t>(logic_addr);
     return SUCCESS;
   }
+  GE_ASSERT_NOTNULL(context.var_addr_ranges);
+  VarAddressMatch match;
+  if (FindVarAddress(*context.var_addr_ranges, static_cast<uint64_t>(logic_addr), match)) {
+    ConstructVariableAddr(match, addr_node);
+    return SUCCESS;
+  }
   REPORT_INNER_ERR_MSG("E19999", "Var Manager is not implemented, logic addr:0x%" PRIx64 " abnormal",
                        static_cast<uint64_t>(logic_addr));
   GELOGE(PARAM_INVALID, "[Check][Param] Var Manager is not implemented, logic addr:0x%" PRIx64 " is abnormal",
-         logic_addr);
+         static_cast<uint64_t>(logic_addr));
   return PARAM_INVALID;
 }
 

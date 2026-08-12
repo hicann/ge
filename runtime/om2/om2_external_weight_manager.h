@@ -34,7 +34,7 @@ class Om2ExternalWeightManager {
 
 using Om2ExternalWeightManagerPtr = std::shared_ptr<Om2ExternalWeightManager>;
 
-class Om2ExternalWeightManagerPool {
+class __attribute__((visibility("default"))) Om2ExternalWeightManagerPool {
  public:
   static Om2ExternalWeightManagerPool &Instance();
 

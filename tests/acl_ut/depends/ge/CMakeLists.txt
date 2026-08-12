@@ -18,6 +18,8 @@ file(GLOB_RECURSE SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 add_library(ge_stub SHARED ${SRC_FILES})
 
 target_include_directories(ge_stub PRIVATE
+    ${BASE_DIR}
+    ${BASE_DIR}/base
     ${BASE_DIR}/inc
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/ge

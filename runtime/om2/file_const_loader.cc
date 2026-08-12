@@ -22,7 +22,7 @@
 #include "common/ge_common/scope_guard.h"
 #include "common/ge_inner_error_codes.h"
 #include "om2_external_weight_manager.h"
-#include "om2_var_manager.h"
+#include "om2_rt_var_manager.h"
 #include "om2_file_utils.h"
 #include "om2_malloc_helper.h"
 #include "om2_thread_pool.h"
@@ -117,11 +117,11 @@ std::string MakeFileConstKey(const std::string &file_name, const size_t offset) 
   return file_name + ":" + std::to_string(offset);
 }
 
-Om2VarManagerPtr GetVarManager(const FileConstContext &ctx) {
+Om2RTVarManagerPtr GetVarManager(const FileConstContext &ctx) {
   if (ctx.device_id < 0) {
     return nullptr;
   }
-  return Om2VarManagerPool::Instance().GetManager(ctx.session_id);
+  return Om2RTVarManagerPool::Instance().GetManager(ctx.session_id);
 }
 
 Om2ExternalWeightManagerPtr GetExternalWeightManager(const FileConstContext &ctx) {
@@ -290,7 +290,7 @@ ge::Status LoadIndividualConstToAddr(const Om2ConstItem &const_item, const FileC
 
 ge::Status LoadUniqueIndividualConsts(const std::map<std::string, const Om2ConstItem *> &unique_file_consts,
                                       const FileConstContext &ctx, const int32_t device_id,
-                                      const Om2VarManagerPtr &var_manager,
+                                      const Om2RTVarManagerPtr &var_manager,
                                       const Om2ExternalWeightManagerPtr &external_weight_manager) {
   if (unique_file_consts.empty()) {
     return ge::SUCCESS;

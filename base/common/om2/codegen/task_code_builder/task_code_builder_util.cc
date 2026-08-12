@@ -89,6 +89,8 @@ const char *OpArgTypeName(int32_t type) {
       return "OP_ARG_TILING";
     case OP_ARG_RAW_ADDR:
       return "OP_ARG_RAW_ADDR";
+    case OP_ARG_VAR_TENSOR:
+      return "OP_ARG_VAR_TENSOR";
     default:
       REPORT_INNER_ERR_MSG("E19999", "Unknown OpArgType %d, fallback to OP_ARG_INPUT.", type);
       GELOGE(FAILED, "Unknown OpArgType %d, fallback to OP_ARG_INPUT.", type);
@@ -282,6 +284,7 @@ Arg TaskCodeBuilderUtil::BuildAddrField(AstBuildContext &ast, const OpArgDesc &a
   return ast.DesignatedInit(
       std::vector<std::pair<std::string, Arg>>{
           {"mem_src", a.mem_src},
+          {"index", a.index},
           {"offset", static_cast<int64_t>(a.offset)},
       },
       true);
@@ -365,6 +368,7 @@ Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector
       {OP_ARG_OUTPUT, &TaskCodeBuilderUtil::BuildTensorDataField},
       {OP_ARG_WORKSPACE, &TaskCodeBuilderUtil::BuildWorkspaceDataField},
       {OP_ARG_CONST_TENSOR, &TaskCodeBuilderUtil::BuildTensorDataField},
+      {OP_ARG_VAR_TENSOR, &TaskCodeBuilderUtil::BuildTensorDataField},
       {OP_ARG_LEVEL1_DESC, &TaskCodeBuilderUtil::BuildCustomValueDataField},
       {OP_ARG_SHAPE_INFO, &TaskCodeBuilderUtil::BuildCustomValueDataField},
       {OP_ARG_CUSTOM_VALUE, &TaskCodeBuilderUtil::BuildCustomValueDataField},
@@ -379,7 +383,7 @@ Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector
     fields.push_back({"type", OpArgTypeName(a.type)});
 
     const bool needs_addr = (a.type == OP_ARG_INPUT || a.type == OP_ARG_OUTPUT || a.type == OP_ARG_WORKSPACE ||
-                             a.type == OP_ARG_CONST_TENSOR);
+                             a.type == OP_ARG_CONST_TENSOR || a.type == OP_ARG_VAR_TENSOR);
     if (needs_addr) {
       fields.push_back({"addr", BuildAddrField(ast, a)});
     }
@@ -400,26 +404,24 @@ Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector
 OpArgDesc TaskCodeBuilderUtil::ConvertAddrDesc(const AddrSemantic &addr) {
   OpArgDesc arg;
   if (addr.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM)) {
-    arg.mem_src = 0xFFFFFFFFU;
+    arg.mem_src = MEM_SRC_SESSION;
   } else if (addr.const_index.has_value()) {
-    arg.mem_src = static_cast<uint32_t>(*addr.const_index + 1);
+    arg.mem_src = MEM_SRC_CONST;
+    arg.index = static_cast<uint32_t>(*addr.const_index);
+  } else if (addr.var_index.has_value()) {
+    arg.mem_src = MEM_SRC_VAR;
+    arg.index = static_cast<uint32_t>(*addr.var_index);
   }
   arg.offset = static_cast<uint64_t>(addr.mem_offset);
 
   static const std::unordered_map<AddrValueKind, OpArgType> kTypeMap = {
-      {AddrValueKind::kInputInstance, OP_ARG_INPUT},
-      {AddrValueKind::kOutputInstance, OP_ARG_OUTPUT},
-      {AddrValueKind::kWorkspace, OP_ARG_WORKSPACE},
-      {AddrValueKind::kConstTensor, OP_ARG_CONST_TENSOR},
-      {AddrValueKind::kLevel1DescPtr, OP_ARG_LEVEL1_DESC},
-      {AddrValueKind::kCustomValue, OP_ARG_CUSTOM_VALUE},
-      {AddrValueKind::kPlaceholder, OP_ARG_PLACEHOLDER},
-      {AddrValueKind::kOptionalEmpty, OP_ARG_OPTIONAL_EMPTY},
-      {AddrValueKind::kEmptyAddr, OP_ARG_OPTIONAL_EMPTY},
-      {AddrValueKind::kFftsAddr, OP_ARG_FFTS_ADDR},
-      {AddrValueKind::kEventAddr, OP_ARG_EVENT_ADDR},
-      {AddrValueKind::kOverflowAddr, OP_ARG_OVERFLOW_ADDR},
-      {AddrValueKind::kTiling, OP_ARG_TILING},
+      {AddrValueKind::kInputInstance, OP_ARG_INPUT},          {AddrValueKind::kOutputInstance, OP_ARG_OUTPUT},
+      {AddrValueKind::kWorkspace, OP_ARG_WORKSPACE},          {AddrValueKind::kConstTensor, OP_ARG_CONST_TENSOR},
+      {AddrValueKind::kVariable, OP_ARG_VAR_TENSOR},          {AddrValueKind::kLevel1DescPtr, OP_ARG_LEVEL1_DESC},
+      {AddrValueKind::kCustomValue, OP_ARG_CUSTOM_VALUE},     {AddrValueKind::kPlaceholder, OP_ARG_PLACEHOLDER},
+      {AddrValueKind::kOptionalEmpty, OP_ARG_OPTIONAL_EMPTY}, {AddrValueKind::kEmptyAddr, OP_ARG_OPTIONAL_EMPTY},
+      {AddrValueKind::kFftsAddr, OP_ARG_FFTS_ADDR},           {AddrValueKind::kEventAddr, OP_ARG_EVENT_ADDR},
+      {AddrValueKind::kOverflowAddr, OP_ARG_OVERFLOW_ADDR},   {AddrValueKind::kTiling, OP_ARG_TILING},
   };
   auto it = kTypeMap.find(addr.kind);
   arg.type = (it != kTypeMap.end()) ? it->second : OP_ARG_RAW_ADDR;

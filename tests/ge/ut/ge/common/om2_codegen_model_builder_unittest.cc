@@ -9,7 +9,9 @@
  */
 
 #include <algorithm>
+#include <limits>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -2082,6 +2084,261 @@ TEST_F(Om2CodegenModelBuilderUt, BuildModelIo_TwoNetOutputs_DenseIndexing) {
   EXPECT_EQ(doc.model_io.entries[3].is_input, false);
   EXPECT_EQ(doc.model_io.entries[3].index, 1U);
   EXPECT_EQ(doc.model_io.entries[3].memory_offset, 2048);
+}
+struct VariableNodeSpec {
+  std::string name;
+  std::string type;
+  int64_t effective_offset{0};
+  std::vector<int64_t> shape;
+  std::optional<int64_t> inner_offset;
+  bool has_output_offset{true};
+  bool has_output_desc{true};
+};
+
+GeRootModelPtr CreateGeRootModelWithVariableOps(const std::vector<VariableNodeSpec> &specs) {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  for (const auto &spec : specs) {
+    auto var_desc = std::make_shared<OpDesc>(spec.name, spec.type);
+    GeTensorDesc tensor_desc(GeShape(spec.shape), FORMAT_ND, DT_UINT8);
+    if (spec.inner_offset.has_value()) {
+      (void)AttrUtils::SetInt(tensor_desc, ATTR_NAME_INNER_OFFSET, *spec.inner_offset);
+    }
+    if (spec.has_output_desc) {
+      (void)var_desc->AddOutputDesc(tensor_desc);
+    }
+    if (spec.has_output_offset) {
+      var_desc->SetOutputOffset({spec.effective_offset});
+    }
+    if (graph->AddNode(var_desc) == nullptr) {
+      return nullptr;
+    }
+  }
+  graph->TopologicalSorting();
+
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model = builder.BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 8192);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, 0);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_ThreeVariableTypesKeepRootSizeAndUniqueIndex) {
+  const std::vector<VariableNodeSpec> specs{{"variable", VARIABLE, 1024, {16}},
+                                            {"constant", CONSTANTOP, 2048, {32}},
+                                            {"placeholder", CONSTPLACEHOLDER, 4096, {64}}};
+  auto ge_root_model = CreateGeRootModelWithVariableOps(specs);
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  ASSERT_EQ(doc.var_metas.size(), specs.size());
+  for (size_t i = 0U; i < specs.size(); ++i) {
+    EXPECT_EQ(doc.var_metas[i].index, i);
+    EXPECT_EQ(doc.var_metas[i].var_name, specs[i].name);
+    EXPECT_EQ(doc.var_metas[i].op_type, specs[i].type);
+    EXPECT_EQ(doc.var_metas[i].tensor_desc.GetSize(), static_cast<size_t>(specs[i].shape[0]));
+  }
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_MissingOutputOffsetKeepsSkipBehavior) {
+  auto ge_root_model = CreateGeRootModelWithVariableOps(
+      {{"skipped", VARIABLE, 0, {16}, std::nullopt, false}, {"kept", CONSTANTOP, 1024, {32}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  ASSERT_EQ(doc.var_metas.size(), 1U);
+  EXPECT_EQ(doc.var_metas[0].index, 0U);
+  EXPECT_EQ(doc.var_metas[0].var_name, "kept");
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_AdjacentRangesSucceed) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"left", VARIABLE, 1024, {16}}, {"right", CONSTANTOP, 1040, {32}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  ASSERT_EQ(doc.var_metas.size(), 2U);
+  EXPECT_EQ(doc.var_metas[0].index, 0U);
+  EXPECT_EQ(doc.var_metas[1].index, 1U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_DifferentRootsOverlappingFails) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"left", VARIABLE, 1024, {32}}, {"overlap", CONSTANTOP, 1040, {32}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_SameRootSameSizeKeepsUniqueMetadataIndices) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"first", CONSTANTOP, 1024, {32}}, {"last", CONSTANTOP, 1024, {32}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  ASSERT_EQ(doc.var_metas.size(), 2U);
+  EXPECT_EQ(doc.var_metas[0].index, 0U);
+  EXPECT_EQ(doc.var_metas[0].var_name, "first");
+  EXPECT_EQ(doc.var_metas[1].index, 1U);
+  EXPECT_EQ(doc.var_metas[1].var_name, "last");
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_SameRootDifferentSizeFails) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"small", CONSTANTOP, 1024, {16}}, {"large", CONSTANTOP, 1024, {32}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_OutputOffsetWithoutDescFails) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"missing_desc", VARIABLE, 1024, {16}, std::nullopt, true, false}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_NegativeInnerOffsetFails) {
+  auto ge_root_model = CreateGeRootModelWithVariableOps({{"negative_inner", VARIABLE, 1024, {16}, -1}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_DeclaredInnerCausingRootUnderflowFails) {
+  auto ge_root_model = CreateGeRootModelWithVariableOps({{"underflow", VARIABLE, 7, {16}, 8}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_NegativeEffectiveOffsetFails) {
+  auto ge_root_model = CreateGeRootModelWithVariableOps({{"negative_root", VARIABLE, -1, {16}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_ZeroSizeFails) {
+  auto ge_root_model = CreateGeRootModelWithVariableOps({{"empty", VARIABLE, 1024, {0}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  EXPECT_NE(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_HighSignedRootAndSizeFitUint64) {
+  auto ge_root_model =
+      CreateGeRootModelWithVariableOps({{"high_root", VARIABLE, std::numeric_limits<int64_t>::max() - 7, {16}}});
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  ASSERT_EQ(doc.var_metas.size(), 1U);
+  EXPECT_EQ(doc.var_metas[0].tensor_desc.GetSize(), 16U);
+}
+
+GeRootModelPtr CreateGeRootModelWithVariableOp() {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  auto data_desc = std::make_shared<OpDesc>("data_x", DATA);
+  (void)data_desc->AddOutputDesc(tensor_desc);
+  auto data_node = graph->AddNode(data_desc);
+
+  auto var_desc = std::make_shared<OpDesc>("var1", "Variable");
+  (void)var_desc->AddOutputDesc(tensor_desc);
+  auto var_node = graph->AddNode(var_desc);
+
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc("x", tensor_desc);
+  (void)add_desc->AddInputDesc("y", tensor_desc);
+  (void)add_desc->AddOutputDesc("z", tensor_desc);
+  add_desc->AppendIrInput("x", kIrInputRequired);
+  add_desc->AppendIrInput("y", kIrInputRequired);
+  add_desc->AppendIrOutput("z", kIrOutputRequired);
+  auto add_node = graph->AddNode(add_desc);
+
+  auto netoutput_desc = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
+  (void)netoutput_desc->AddInputDesc(tensor_desc);
+  auto netoutput = graph->AddNode(netoutput_desc);
+
+  if ((data_node == nullptr) || (var_node == nullptr) || (add_node == nullptr) || (netoutput == nullptr)) {
+    return nullptr;
+  }
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), add_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(var_node->GetOutDataAnchor(0), add_node->GetInDataAnchor(1));
+  GraphUtils::AddEdge(add_node->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  graph->TopologicalSorting();
+
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == "Variable") {
+      op_desc->SetOutputOffset({2048});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({4096});
+    } else {
+      op_desc->SetInputOffset({1024, 2048});
+      op_desc->SetOutputOffset({4096});
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  std::vector<uint8_t> weights_value(512, 0);
+  const size_t weight_size = weights_value.size();
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weight_size));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 8192);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_WithVariableNode_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithVariableOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+
+  ASSERT_GE(doc.var_metas.size(), 1U);
+  bool found_var = false;
+  for (const auto &meta : doc.var_metas) {
+    if (meta.var_name == "var1") {
+      found_var = true;
+      EXPECT_EQ(meta.op_type, "Variable");
+      EXPECT_EQ(meta.op_name, "var1");
+      EXPECT_EQ(meta.tensor_desc.GetDataType(), DT_FLOAT);
+      EXPECT_EQ(meta.tensor_desc.GetFormat(), FORMAT_ND);
+    }
+  }
+  EXPECT_TRUE(found_var) << "Variable node 'var1' not found in var_metas";
 }
 
 TEST_F(Om2CodegenModelBuilderUt, BuildRuntimeSemantic_StreamSwitch_Ok) {

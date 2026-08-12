@@ -12,14 +12,12 @@
 #define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_UTILS_H
 
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "graph/manager/graph_var_manager.h"
 #include "graph/op_desc.h"
 #include "graph/utils/attr_utils.h"
 
 namespace ge {
 struct TaskSemanticContributeContext;
-constexpr uint64_t kMemoryVarLogicBase = 34359738368U;             // 32UL * 1024UL * 1024UL * 1024UL;
-constexpr uint64_t kMemoryHostFeatureMapLogicBase = 68719476736U;  // 64UL * 1024UL * 1024UL * 1024UL;
-constexpr uint64_t kMemoryVarAddressSize = kMemoryHostFeatureMapLogicBase - kMemoryVarLogicBase;
 
 class Om2ModelUtils {
  public:
@@ -37,6 +35,8 @@ class Om2ModelUtils {
 
   static Status GetRtAddress(const TaskSemanticContributeContext &context, const uintptr_t logic_addr,
                              AddrSemantic &addr_node, bool isInput, uint32_t index);
+
+  static bool FindVarAddress(const VarAddrRangeMap &var_addr_ranges, uint64_t effective, VarAddressMatch &match);
 
   static uint32_t ArgsSizeAlign8(uint32_t args_size);
   static uint64_t ArgsSizeAlign8(uint64_t args_size);
@@ -84,6 +84,7 @@ class Om2ModelUtils {
                                    AddrSemantic &addr_node, uint32_t index);
   static Status GetRtVarAddress(const TaskSemanticContributeContext &context, const uintptr_t logic_addr,
                                 AddrSemantic &addr_node);
+  static void ConstructVariableAddr(const VarAddressMatch &match, AddrSemantic &addr_node);
   static Status GetRtUnknownAddress(const TaskSemanticContributeContext &context, const uintptr_t logic_addr);
   static Status GetRtEmptyAddress(const TaskSemanticContributeContext &context, AddrSemantic &addr_node, bool is_input,
                                   uint32_t index);

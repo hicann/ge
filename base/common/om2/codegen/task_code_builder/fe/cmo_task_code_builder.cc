@@ -78,9 +78,10 @@ Status CmoTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
       ast_.Var("", "cmo_info").Attr("sourceAddr"),
       ast_.ReinterpretCast("uint64_t",
                            ast_.Call("ResolveOpAddr", {d.Attr("args_info")[ast_.UInt(0)].Attr("addr").Attr("mem_src"),
+                                                       d.Attr("args_info")[ast_.UInt(0)].Attr("addr").Attr("index"),
                                                        d.Attr("args_info")[ast_.UInt(0)].Attr("addr").Attr("offset"),
                                                        ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
-                                                       ctx.Attr("constants")}))));
+                                                       ctx.Attr("constants"), ctx.Attr("var_addrs")}))));
   body.push_back(ChkStatus(ast_.Call("KernelCmoTaskDistribute", {
                                                                     ast_.Var("", "cmo_info"),
                                                                     ctx.Attr("stream_list")[d.Attr("stream_id")],

@@ -23,12 +23,15 @@
 #include "framework/runtime/rt_session.h"
 #include "ge/ge_ir_build.h"
 #include "common/env_path.h"
+#include "common/helper/om2/json_file.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "common/helper/om2/zip_archive_writer.h"
 #include "common/path_utils.h"
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "ge/ge_error_codes.h"
+#include "rt_external_mem.h"
 #include "runtime/om2/om2_aipp_utils.h"
 
 namespace ge {
@@ -326,6 +329,62 @@ std::string MakeModelMetaJsonWithoutInputShapeV2() {
 })";
 }
 
+std::string MakeVariablesConfigJson() {
+  ge::JsonFile tensor_desc;
+  (void)tensor_desc.Set("name", "var_0");
+  (void)tensor_desc.Set("shape", std::vector<int64_t>{1});
+  (void)tensor_desc.Set("data_type", "DT_FLOAT");
+  (void)tensor_desc.Set("format", "ND");
+  (void)tensor_desc.Set("size", 4U);
+  (void)tensor_desc.Set("shape_range", std::vector<std::pair<int64_t, int64_t>>{});
+
+  ge::JsonFile meta;
+  (void)meta.Set("index", 0U);
+  (void)meta.Set("var_name", "var_0");
+  (void)meta.Set("op_type", "VARIABLE");
+  (void)meta.Set("op_name", "var_0");
+  (void)meta.Set("tensor_desc", tensor_desc.Raw());
+  auto metas = ge::JsonFile::json::array();
+  metas.push_back(meta.Raw());
+
+  ge::JsonFile root;
+  (void)root.Set("graph_id", 7U);
+  (void)root.Set("var_metas", metas);
+  return root.Dump();
+}
+
+std::string MakeVarResourceJson(const size_t init_data_offset, const size_t init_data_size) {
+  ge::JsonFile tensor_desc;
+  (void)tensor_desc.Set("name", "var_0");
+  (void)tensor_desc.Set("shape", std::vector<int64_t>{1});
+  (void)tensor_desc.Set("data_type", "DT_FLOAT");
+  (void)tensor_desc.Set("format", "ND");
+  (void)tensor_desc.Set("size", 4U);
+  (void)tensor_desc.Set("shape_range", std::vector<std::pair<int64_t, int64_t>>{});
+
+  const std::string var_key = "var_00_0";
+  ge::JsonFile entry;
+  (void)entry.Set("var_name", "var_0");
+  (void)entry.Set("var_key", var_key);
+  (void)entry.Set("op_type", "VARIABLE");
+  (void)entry.Set("logic_addr", 0U);
+  (void)entry.Set("size", 4U);
+  (void)entry.Set("memory_type", static_cast<uint32_t>(RT_MEMORY_HBM));
+  (void)entry.Set("changed_graph_id", 7U);
+  (void)entry.Set("allocated_graph_id", 7U);
+  (void)entry.Set("tensor_desc", tensor_desc.Raw());
+  (void)entry.Set("trans_road", ge::JsonFile::json::array());
+  (void)entry.Set("copy_info", ge::JsonFile::json::object());
+  (void)entry.Set("init_data_offset", init_data_offset);
+  (void)entry.Set("init_data_size", init_data_size);
+
+  auto entries = ge::JsonFile::json::object();
+  entries[var_key] = entry.Raw();
+  ge::JsonFile root;
+  (void)root.Set("entries", entries);
+  return root.Dump();
+}
+
 std::string MakeInterfaceHeader() {
   return R"(#pragma once
 
@@ -340,7 +399,7 @@ struct FakeModel {
 
 extern "C" {
 int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **bin_files, const void **bin_data,
-                   size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+                   size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
 int Om2ModelLoad(void **model_handle);
 int Om2ModelRunAsync(void **model_handle, void *stream, int input_count, void **input_data, int output_count,
                      void **output_data);
@@ -444,6 +503,14 @@ bool CheckConstPtrEqual(void **constants) {
   return constants[1] == constants[2];
 }
 
+bool CheckVar0(void **var_addrs) {
+  const char *mode = std::getenv("OM2_EXPECT_VAR0_MODE");
+  if ((mode == nullptr) || (mode[0] == '\0')) {
+    return true;
+  }
+  return std::string(mode) == "NON_NULL" && var_addrs != nullptr && var_addrs[0] != nullptr;
+}
+
 bool CheckSessionId(uint64_t *session_id) {
   const char *value = std::getenv("OM2_EXPECT_SESSION_ID");
   if ((value == nullptr) || (value[0] == '\0')) {
@@ -478,7 +545,7 @@ bool CheckInstanceHandle(void *instance_handle) {
 }  // namespace
 
 extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **, size_t *, int,
-                              void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id,
+                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id,
                               void *instance_handle) {
   if ((model_handle == nullptr) || (rt_model_handle == nullptr)) {
     return 1;
@@ -486,7 +553,7 @@ extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const
   if (!CheckWorkPtr(work_ptr) || !CheckConst0(constants) || !CheckConst0Ptr(constants) ||
       !CheckConstByIndex(constants, 1U, "OM2_EXPECT_CONST1_MODE", "OM2_EXPECT_CONST1_FIRST_BYTE") ||
       !CheckConstByIndex(constants, 2U, "OM2_EXPECT_CONST2_MODE", "OM2_EXPECT_CONST2_FIRST_BYTE") ||
-      !CheckConstPtrEqual(constants) ||
+      !CheckConstPtrEqual(constants) || !CheckVar0(var_addrs) ||
       !CheckSessionId(session_id) || !CheckModelId(model_id) || !CheckInstanceHandle(instance_handle)) {
     return 1;
   }
@@ -717,6 +784,51 @@ class EnvValueGuard {
   bool had_value_ = false;
 };
 
+class AclRuntimeStubGuard {
+ public:
+  explicit AclRuntimeStubGuard(AclRuntimeStub *stub) : stub_(stub) {
+    AclRuntimeStub::Install(stub_);
+  }
+
+  ~AclRuntimeStubGuard() {
+    AclRuntimeStub::UnInstall(stub_);
+  }
+
+ private:
+  AclRuntimeStub *stub_;
+};
+
+class VarInitDataRecordingAclRuntimeStub : public AclRuntimeStub {
+ public:
+  struct MemcpyRecord {
+    void *dst = nullptr;
+    size_t dest_max = 0U;
+    std::vector<uint8_t> data;
+    aclrtMemcpyKind kind = ACL_MEMCPY_HOST_TO_DEVICE;
+  };
+
+  aclError aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) override {
+    MemcpyRecord record;
+    record.dst = dst;
+    record.dest_max = dest_max;
+    record.kind = kind;
+    if ((src != nullptr) && (count > 0U)) {
+      const auto *src_bytes = static_cast<const uint8_t *>(src);
+      record.data.assign(src_bytes, src_bytes + count);
+    }
+    memcpy_records.emplace_back(std::move(record));
+    return AclRuntimeStub::aclrtMemcpy(dst, dest_max, src, count, kind);
+  }
+
+  std::vector<MemcpyRecord> memcpy_records;
+};
+
+enum class VarWeightOrder {
+  kAbsent,
+  kBeforeResource,
+  kAfterResource,
+};
+
 gert::Om2ModelLoadArg MakeOm2LoadArg() {
   gert::Om2ModelLoadArg load_arg;
   load_arg.device_id = 0;
@@ -749,6 +861,7 @@ class Om2ModelExecutorUt : public testing::Test {
     unsetenv("OM2_EXPECT_CONST2_MODE");
     unsetenv("OM2_EXPECT_CONST2_FIRST_BYTE");
     unsetenv("OM2_EXPECT_CONST1_CONST2_PTR_EQUAL");
+    unsetenv("OM2_EXPECT_VAR0_MODE");
     unsetenv("OM2_EXPECT_SESSION_ID");
     unsetenv("OM2_EXPECT_MODEL_ID");
     unsetenv("OM2_EXPECT_INSTANCE_HANDLE_MODE");
@@ -767,6 +880,7 @@ class Om2ModelExecutorUt : public testing::Test {
     unsetenv("OM2_EXPECT_CONST2_MODE");
     unsetenv("OM2_EXPECT_CONST2_FIRST_BYTE");
     unsetenv("OM2_EXPECT_CONST1_CONST2_PTR_EQUAL");
+    unsetenv("OM2_EXPECT_VAR0_MODE");
     unsetenv("OM2_EXPECT_SESSION_ID");
     unsetenv("OM2_EXPECT_MODEL_ID");
     unsetenv("OM2_EXPECT_INSTANCE_HANDLE_MODE");
@@ -1154,6 +1268,45 @@ class Om2ModelExecutorUt : public testing::Test {
     outputs = {&output_tensors[0]};
   }
 
+  static ModelDataHolder MakeVariableArchiveModelData(const std::string &case_suffix,
+                                                      const std::string &var_resource_json,
+                                                      const std::vector<uint8_t> *var_weight_data,
+                                                      const std::string &variables_config_json,
+                                                      const VarWeightOrder weight_order) {
+    PrepareOm2File();
+    ge::ModelBufferData model_buf;
+    const auto om_path = PathUtils::Join({test_work_dir_, "variable_archive_" + case_suffix + ".om2"});
+    const auto so_path = PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"});
+    ZipArchiveWriter zip_writer(om_path);
+    EXPECT_TRUE(zip_writer.IsMemFileOpened());
+    const auto model_meta = MakeModelMetaJson();
+    EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+    EXPECT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+
+    const auto write_weight = [&]() {
+      EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_weight_data", var_weight_data->data(),
+                                        var_weight_data->size(), false));
+    };
+    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kBeforeResource) {
+      write_weight();
+    }
+    EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_resource.json", var_resource_json.data(),
+                                      var_resource_json.size(), false));
+    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kAfterResource) {
+      write_weight();
+    }
+    EXPECT_TRUE(zip_writer.WriteBytes("data/variables/model_0_variables_config.json", variables_config_json.data(),
+                                      variables_config_json.size(), false));
+    EXPECT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+    ModelDataHolder holder;
+    holder.model_data.model_data = model_buf.data.get();
+    holder.model_data.model_len = model_buf.length;
+    holder.model_data.om_path = om_path;
+    holder.shared_buffer = model_buf.data;
+    return holder;
+  }
+
   static std::string test_work_dir_;
   static std::string om2_file_path_;
   static std::string om2_fileconst_file_path_;
@@ -1224,6 +1377,59 @@ TEST_F(Om2ModelExecutorUt, load_ok_with_zip_archive_writer_base_name_prefix) {
   gert::Om2ModelExecutor executor;
   const auto load_arg = MakeOm2LoadArg();
   EXPECT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_deserializes_variable_entries_regardless_of_weight_order) {
+  const auto resource_json = MakeVarResourceJson(0U, 4U);
+  const auto config_json = MakeVariablesConfigJson();
+  const std::vector<uint8_t> weight{1U, 2U, 3U, 4U};
+  const std::vector<std::pair<const char *, VarWeightOrder>> cases{
+      {"weight_before", VarWeightOrder::kBeforeResource},
+      {"weight_after", VarWeightOrder::kAfterResource},
+  };
+  uint64_t session_id = 1001U;
+  for (const auto &[suffix, order] : cases) {
+    auto holder = MakeVariableArchiveModelData(suffix, resource_json, &weight, config_json, order);
+    ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+    VarInitDataRecordingAclRuntimeStub runtime_stub;
+    AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+    gert::Om2ModelExecutor executor;
+    ASSERT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), session_id++), SUCCESS) << suffix;
+    ASSERT_EQ(runtime_stub.memcpy_records.size(), 1U) << suffix;
+    EXPECT_EQ(runtime_stub.memcpy_records[0].dest_max, weight.size()) << suffix;
+    EXPECT_EQ(runtime_stub.memcpy_records[0].data, weight) << suffix;
+    EXPECT_EQ(runtime_stub.memcpy_records[0].kind, ACL_MEMCPY_HOST_TO_DEVICE) << suffix;
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, load_skips_invalid_variable_init_data) {
+  struct VariableWeightCase {
+    const char *suffix;
+    size_t offset;
+    size_t size;
+    const std::vector<uint8_t> *weight;
+    VarWeightOrder order;
+    uint64_t session_id;
+  };
+
+  const auto config_json = MakeVariablesConfigJson();
+  const std::vector<uint8_t> short_weight{1U, 2U};
+  const std::vector<VariableWeightCase> cases{
+      {"missing_weight", 0U, 4U, nullptr, VarWeightOrder::kAbsent, 1003U},
+      {"size_out_of_range", 1U, 4U, &short_weight, VarWeightOrder::kAfterResource, 1004U},
+      {"offset_out_of_range", 3U, 1U, &short_weight, VarWeightOrder::kBeforeResource, 1005U},
+  };
+  for (const auto &test_case : cases) {
+    const auto resource_json = MakeVarResourceJson(test_case.offset, test_case.size);
+    auto holder =
+        MakeVariableArchiveModelData(test_case.suffix, resource_json, test_case.weight, config_json, test_case.order);
+    ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+    VarInitDataRecordingAclRuntimeStub runtime_stub;
+    AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+    gert::Om2ModelExecutor executor;
+    ASSERT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), test_case.session_id), SUCCESS) << test_case.suffix;
+    EXPECT_TRUE(runtime_stub.memcpy_records.empty()) << test_case.suffix;
+  }
 }
 
 TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_model_meta) {

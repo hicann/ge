@@ -21,6 +21,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
 
  protected:
   VarRef constants_;
+  VarRef var_addrs_;
   VarRef model_handle_;
   VarRef bin_handles_;
   VarRef func_handles_;

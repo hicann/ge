@@ -68,14 +68,9 @@ void MemcpyAsyncTaskCodeBuilder::ResolveInternalIndex(TaskSemanticContributeCont
 }
 
 void MemcpyAsyncTaskCodeBuilder::CheckIoRefresh(TaskSemanticContributeContext &context) {
-  for (auto &item : context.model_io->entries) {
-    if (item.memory_offset == input_addr_node_.mem_offset || item.memory_offset == output_addr_node_.mem_offset) {
-      build_data_.io_refresh = true;
-      GELOGI("memcpy async is linked to io. input offset[%ld], output offset[%ld]", input_addr_node_.mem_offset,
-             output_addr_node_.mem_offset);
-      break;
-    }
-  }
+  (void)context;
+  build_data_.io_refresh = (input_addr_node_.memory_app == om2::MemoryAppType::kModelIo) ||
+                           (output_addr_node_.memory_app == om2::MemoryAppType::kModelIo);
 }
 
 void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContext &context) {
@@ -136,12 +131,14 @@ BodyItem MemcpyAsyncTaskCodeBuilder::RenderIoRefreshDispatch(const VarRef &op, c
   // ResolveOpAddr for src / dst
   auto resolve_src =
       ast_.Call("ResolveOpAddr", {td.Attr("args_info")[0U].Attr("addr").Attr("mem_src"),
+                                  td.Attr("args_info")[0U].Attr("addr").Attr("index"),
                                   td.Attr("args_info")[0U].Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
-                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")});
+                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")});
   auto resolve_dst =
       ast_.Call("ResolveOpAddr", {td.Attr("args_info")[1U].Attr("addr").Attr("mem_src"),
+                                  td.Attr("args_info")[1U].Attr("addr").Attr("index"),
                                   td.Attr("args_info")[1U].Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
-                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")});
+                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")});
 
   auto args_table_key = ast_.Var("auto", "args_table_key");
   auto iow_addr = ast_.Var("std::vector<uint64_t>", "iow_addr");
@@ -176,12 +173,14 @@ BodyItem MemcpyAsyncTaskCodeBuilder::RenderDirectDispatch(const VarRef &op, cons
 
   auto resolve_src =
       ast_.Call("ResolveOpAddr", {td.Attr("args_info")[0].Attr("addr").Attr("mem_src"),
+                                  td.Attr("args_info")[0].Attr("addr").Attr("index"),
                                   td.Attr("args_info")[0].Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
-                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")});
+                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")});
   auto resolve_dst =
       ast_.Call("ResolveOpAddr", {td.Attr("args_info")[1].Attr("addr").Attr("mem_src"),
+                                  td.Attr("args_info")[1].Attr("addr").Attr("index"),
                                   td.Attr("args_info")[1].Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
-                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")});
+                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")});
 
   return ChkStatus(ast_.Call("KernelMemcpyAsyncDistribute", {
                                                                 op.Arrow("op_name"),

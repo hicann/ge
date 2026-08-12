@@ -245,9 +245,10 @@ Status DSATaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &body, 
                  {addrs.Attr("push_back")(ast_.ReinterpretCast(
                      "uint64_t", ast_.Call("ResolveOpAddr",
                                            {dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("mem_src"),
+                                            dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("index"),
                                             dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("offset"),
                                             ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
-                                            ctx.Attr("constants")})))})}));
+                                            ctx.Attr("constants"), ctx.Attr("var_addrs")})))})}));
   return SUCCESS;
 }
 

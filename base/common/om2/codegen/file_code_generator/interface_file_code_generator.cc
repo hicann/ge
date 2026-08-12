@@ -106,8 +106,8 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
           "Om2Model",
           {ast_.Var("const char **", "bin_files"), ast_.Var("const void **", "bin_data"),
            ast_.Var("size_t *", "bin_size"), ast_.Var("size_t", "bin_num"), ast_.Var("void **", "constants"),
-           ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"), ast_.Var("uint32_t", "model_id"),
-           ast_.Var("void *", "instance_handle")},
+           ast_.Var("void **", "var_addrs"), ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"),
+           ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle")},
           ""),
       ast_.DeclareMethod("~Om2Model", {}, ""),
       ast_.DeclareMethod("InitResources", {}, "aclError"),
@@ -127,6 +127,7 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
       ast_.DeclareMethod("ReleaseResources", {}, "aclError"),
       ast_.Private(),
       ast_.Field("void **", "constants_"),
+      ast_.Field("void **", "var_addrs_"),
       ast_.Field("aclmdlRI", "model_handle_"),
   };
   DealParamForOm2ModelClass(items, runtime);
@@ -205,8 +206,8 @@ std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildExternalApiDecls() {
           {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("aclmdlRI *", "rt_model_handle"),
            ast_.Var("const char **", "bin_files"), ast_.Var("const void **", "bin_data"),
            ast_.Var("size_t *", "bin_size"), ast_.Var("int", "bin_num"), ast_.Var("void **", "constants"),
-           ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"), ast_.Var("uint32_t", "model_id"),
-           ast_.Var("void *", "instance_handle")},
+           ast_.Var("void **", "var_addrs"), ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"),
+           ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle")},
           "aclError"),
       ast_.DeclareFunction("Om2ModelLoad", {ast_.Var("om2::Om2ModelHandle *", "model_handle")}, "aclError"),
       ast_.DeclareFunction(

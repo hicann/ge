@@ -19,6 +19,14 @@ add_library(om2_executor SHARED
         # 此处仅添加执行时依赖的源文件
 )
 
+file(GLOB_RECURSE OM2_FORMAT_SRCS CONFIGURE_DEPENDS
+        "${AIR_CODE_DIR}/runtime/om2/formats/*.cc"
+        "${AIR_CODE_DIR}/runtime/om2/common/*.cc"
+)
+set_source_files_properties(${OM2_FORMAT_SRCS} PROPERTIES
+        COMPILE_FLAGS "-fvisibility=hidden"
+)
+
 add_dependencies(om2_executor graphengine_protos)
 
 target_compile_definitions(om2_executor PRIVATE

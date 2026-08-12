@@ -56,25 +56,8 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   static Status ExtractVisualJson(const void *model_data, size_t model_len, std::string &json_out);
 
  private:
-  static Status SaveConstants(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                              const size_t model_index, const std::vector<Om2ConstMeta> &const_metas,
-                              const bool save_file_path);
-  static Status SaveTbeKernels(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model);
-  static Status SaveCustAICpuKernels(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model);
-  static Status SaveModelInfo(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                              const size_t model_index);
-  static Status SaveOpAttrJson(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                               const size_t model_index);
-  static Status SaveVisualJson(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                               const size_t model_index);
-  static Status SaveGraphDebugFiles(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                                    const size_t model_index);
-  static Status SaveManifest(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeRootModelPtr &ge_root_model);
-  static Status SaveCodegenArtifacts(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                                     const size_t model_index, std::vector<Om2ConstMeta> &const_metas);
-
   static Status BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ProgramBody &body,
-                                 std::vector<Om2ConstMeta> &const_metas);
+                                 std::vector<Om2ConstMeta> &const_metas, std::vector<Om2VarMeta> &var_metas);
   static Status BuildKernelBinaries(const GeModelPtr &ge_model, std::vector<gert::Om2KernelBinary> &kernel_binaries);
   static Status BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelMeta &model_meta);
   static Status BuildConstantsData(const GeModelPtr &ge_model, const std::vector<Om2ConstMeta> &const_metas,

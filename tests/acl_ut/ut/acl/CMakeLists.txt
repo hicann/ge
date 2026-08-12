@@ -112,7 +112,9 @@ add_library(ut_acl_model_src SHARED
     ${MODEL_SRC_FILES}
 )
 
-target_include_directories(ut_acl_model_src PRIVATE
+ target_include_directories(ut_acl_model_src PRIVATE
+    ${BASE_DIR}
+    ${BASE_DIR}/base
     ${BASE_DIR}/inc
     ${BASE_DIR}/inc/framework
     ${BASE_DIR}/inc/graph_metadef

@@ -238,9 +238,14 @@ Status CmoAddrTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items
                                                       .Attr("cmo_addr")
                                                       .Attr("args_info")[ast_.Var("", "_i")]
                                                       .Attr("addr")
+                                                      .Attr("index"),
+                                                  op.Arrow("dispatch_info")
+                                                      .Attr("cmo_addr")
+                                                      .Attr("args_info")[ast_.Var("", "_i")]
+                                                      .Attr("addr")
                                                       .Attr("offset"),
                                                   ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
-                                                  ctx.Attr("constants")})))}));
+                                                  ctx.Attr("constants"), ctx.Attr("var_addrs")})))}));
   GE_ASSERT_SUCCESS(RenderKernelLaunch(body, op, ctx, dev_addr_off, host_addr_off));
   GE_ASSERT_SUCCESS(RenderArgsWriteback(body, op, ctx, iow_addr, args_table_idx));
 

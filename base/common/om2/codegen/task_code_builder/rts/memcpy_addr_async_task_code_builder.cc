@@ -237,11 +237,12 @@ std::vector<BodyItem> MemcpyAddrAsyncTaskCodeBuilder::RenderIoAddrResolveLoop(co
           ast_.VarDecl("uint32_t", "_i", ast_.UInt(0U)), ast_.Var("", "_i") < memcpy_addr.Attr("args_info_num"),
           ast_.PostInc(ast_.Var("", "_i")),
           std::initializer_list<BodyItem>{iow_addr.PushBack(ast_.ReinterpretCast(
-              "uint64_t",
-              ast_.Call("ResolveOpAddr",
-                        {memcpy_addr.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("mem_src"),
-                         memcpy_addr.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("offset"),
-                         ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")})))}),
+              "uint64_t", ast_.Call("ResolveOpAddr",
+                                    {memcpy_addr.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("mem_src"),
+                                     memcpy_addr.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("index"),
+                                     memcpy_addr.Attr("args_info")[ast_.Var("", "_i")].Attr("addr").Attr("offset"),
+                                     ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
+                                     ctx.Attr("constants"), ctx.Attr("var_addrs")})))}),
   };
 }
 

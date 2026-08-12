@@ -169,7 +169,7 @@ void KernelTaskCodeBuilder::HandleShapeInfoBufferArg(const AddrSemantic &addr, u
     shape_arg.type = OP_ARG_SHAPE_INFO;
     shape_arg.custom_value = static_cast<uint64_t>(dim);
     if (addr.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM)) {
-      shape_arg.mem_src = 0xFFFFFFFFU;
+      shape_arg.mem_src = MEM_SRC_SESSION;
     }
     shape_arg.args_offset = current_args_offset;
     current_args_offset += kAddressLen;
@@ -1509,9 +1509,10 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
   auto data_t = v_a.Attr("data").Attr("tensor");
 
   auto resolve_addr = ast_.ReinterpretCast(
-      "uint64_t", ast_.Call("ResolveOpAddr",
-                            {v_a.Attr("addr").Attr("mem_src"), v_a.Attr("addr").Attr("offset"),
-                             ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")}));
+      "uint64_t",
+      ast_.Call("ResolveOpAddr", {v_a.Attr("addr").Attr("mem_src"), v_a.Attr("addr").Attr("index"),
+                                  v_a.Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
+                                  ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")}));
 
   auto build_tensor = ast_.Call("BuildOm2Tensor",
                                 {ast_.ReinterpretCast("void *", v_addr), data_t.Attr("size"), data_t.Attr("data_type"),
@@ -1654,6 +1655,7 @@ BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
                                       ast_.Case(ast_.Var("", "OP_ARG_INPUT")),
                                       ast_.Case(ast_.Var("", "OP_ARG_OUTPUT")),
                                       ast_.Case(ast_.Var("", "OP_ARG_CONST_TENSOR")),
+                                      ast_.Case(ast_.Var("", "OP_ARG_VAR_TENSOR")),
                                       ast_.Block(HandleInputOutputArg(a, ctx)),
                                       // WORKSPACE
                                       ast_.Case(ast_.Var("", "OP_ARG_WORKSPACE")),
@@ -1745,10 +1747,11 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &
   return {
       ast_.Assign(
           ast_.Var("", "_addr"),
-          ast_.ReinterpretCast(
-              "uint64_t", ast_.Call("ResolveOpAddr", {a.Attr("addr").Attr("mem_src"), a.Attr("addr").Attr("offset"),
-                                                      ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
-                                                      ctx.Attr("constants")}))),
+          ast_.ReinterpretCast("uint64_t",
+                               ast_.Call("ResolveOpAddr", {a.Attr("addr").Attr("mem_src"), a.Attr("addr").Attr("index"),
+                                                           a.Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
+                                                           ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"),
+                                                           ctx.Attr("var_addrs")}))),
       ast_.Var("", "io_tensors")
           .PushBack(ast_.Call(
               "BuildOm2Tensor",
@@ -1769,10 +1772,11 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleWorkspaceArg(const VarRef &a,
   return {
       ast_.Assign(
           ast_.Var("", "_addr"),
-          ast_.ReinterpretCast(
-              "uint64_t", ast_.Call("ResolveOpAddr", {a.Attr("addr").Attr("mem_src"), a.Attr("addr").Attr("offset"),
-                                                      ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
-                                                      ctx.Attr("constants")}))),
+          ast_.ReinterpretCast("uint64_t",
+                               ast_.Call("ResolveOpAddr", {a.Attr("addr").Attr("mem_src"), a.Attr("addr").Attr("index"),
+                                                           a.Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
+                                                           ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"),
+                                                           ctx.Attr("var_addrs")}))),
       ast_.Var("", "report_workspace_addrs").PushBack(ast_.Var("", "_addr")),
       ast_.Var("", "report_workspace_sizes").PushBack(a.Attr("data").Attr("tensor").Attr("size")),
       ast_.Break(),

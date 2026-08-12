@@ -480,17 +480,21 @@ inline uint64_t PtrToU64(const void *ptr) {
   return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr));
 }
 
-inline void *ResolveOpAddr(uint32_t mem_src, uint64_t offset,
+inline void *ResolveOpAddr(uint32_t mem_src, uint32_t index, uint64_t offset,
                           void *total_dev_mem_ptr, void *session_scope_mem_ptr,
-                          void **constants) {
+                          void **constants, void **var_addrs) {
   void *base_ptr;
-  if (mem_src == 0xFFFFFFFFU) {
-    base_ptr = session_scope_mem_ptr;
-  } else if (mem_src == 0U) {
-    base_ptr = total_dev_mem_ptr;
-  } else {
-    base_ptr = constants[mem_src - 1U];
-    return GET_ADDR(base_ptr, 0);
+  switch (mem_src) {
+    case 1U:  // MEM_SRC_SESSION
+      base_ptr = session_scope_mem_ptr;
+      break;
+    case 2U:  // MEM_SRC_CONST
+      return constants[index];
+    case 3U:  // MEM_SRC_VAR
+      return GET_ADDR(var_addrs[index], offset);
+    default:  // MEM_SRC_DEVICE (0)
+      base_ptr = total_dev_mem_ptr;
+      break;
   }
   return GET_ADDR(base_ptr, offset);
 }
@@ -790,13 +794,15 @@ enum OpArgType : int32_t {
     OP_ARG_OVERFLOW_ADDR = 11, // 溢出地址
     OP_ARG_TILING = 12,        // Tiling 数据
     OP_ARG_RAW_ADDR = 13,      // 原始地址
+    OP_ARG_VAR_TENSOR = 14,    // 变量张量
 };
 
 // 算子参数信息结构体
 struct OpArgInfo {
   int32_t type;                      // 参数类型（OpArgType，switch 条件）
-  struct {                           // 地址解析（INPUT/OUTPUT/WORKSPACE/CONST_TENSOR）
-    uint32_t mem_src;                // 内存来源（0=设备内存，0xFFFFFFFF=session，≥1=常量数组索引）
+  struct {                           // 地址解析（INPUT/OUTPUT/WORKSPACE/CONST_TENSOR/VAR_TENSOR）
+    uint32_t mem_src;                // 内存来源（0=设备，1=session，2=常量，3=变量）
+    uint32_t index;                  // 常量/变量数组索引
     uint64_t offset;                 // 内存偏移量
   } addr;
   union {
@@ -1002,6 +1008,7 @@ struct DispatchOpContext {
   void *total_dev_mem_ptr;   // 设备总内存指针
   void *session_scope_mem_ptr; // Session 作用域内存指针
   void **constants;          // 常量数组
+  void **var_addrs;          // 变量地址数组
   Om2ArgsTable &args_table;  // 参数表
   aclrtFuncHandle *func_handles; // 函数句柄数组
   uint32_t model_id;         // 模型 ID
@@ -1026,7 +1033,7 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
@@ -1037,6 +1044,7 @@ class Om2Model {
     aclError ReleaseResources();
   private:
     void **constants_;
+    void **var_addrs_;
     aclmdlRI model_handle_;
     std::vector<aclrtFuncHandle> func_handles_;
     std::vector<aclrtStream> stream_list_;
@@ -1071,7 +1079,7 @@ class Om2Model {
 extern "C" {
 #endif
 
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
 
@@ -1088,8 +1096,8 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
 #include "_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
-  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }

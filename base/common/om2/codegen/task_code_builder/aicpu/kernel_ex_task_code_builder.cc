@@ -385,24 +385,29 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &b
 
   auto iow_addr = ast_.Var("std::vector<uint64_t>", "iow_addr");
   (void)body.emplace_back(ast_.VarDecl(iow_addr));
-  (void)body.emplace_back(
-      ast_.For(ast_.VarDecl("uint32_t", "i", ast_.UInt(0)), ast_.Var("", "i") < num_io, ast_.PostInc(ast_.Var("", "i")),
-               {
-                   ast_.VarDecl(ast_.Var("void *", "addr"),
-                                ast_.Call("ResolveOpAddr", {op.Arrow("dispatch_info")
-                                                                .Attr("kernel_ex")
-                                                                .Attr("args_info")[ast_.Var("", "i")]
-                                                                .Attr("addr")
-                                                                .Attr("mem_src"),
-                                                            op.Arrow("dispatch_info")
-                                                                .Attr("kernel_ex")
-                                                                .Attr("args_info")[ast_.Var("", "i")]
-                                                                .Attr("addr")
-                                                                .Attr("offset"),
-                                                            ctx.Attr("total_dev_mem_ptr"),
-                                                            ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")})),
-                   iow_addr.PushBack(ast_.ReinterpretCast("uint64_t", ast_.Var("", "addr"))),
-               }));
+  (void)body.emplace_back(ast_.For(
+      ast_.VarDecl("uint32_t", "i", ast_.UInt(0)), ast_.Var("", "i") < num_io, ast_.PostInc(ast_.Var("", "i")),
+      {
+          ast_.VarDecl(ast_.Var("void *", "addr"),
+                       ast_.Call("ResolveOpAddr", {op.Arrow("dispatch_info")
+                                                       .Attr("kernel_ex")
+                                                       .Attr("args_info")[ast_.Var("", "i")]
+                                                       .Attr("addr")
+                                                       .Attr("mem_src"),
+                                                   op.Arrow("dispatch_info")
+                                                       .Attr("kernel_ex")
+                                                       .Attr("args_info")[ast_.Var("", "i")]
+                                                       .Attr("addr")
+                                                       .Attr("index"),
+                                                   op.Arrow("dispatch_info")
+                                                       .Attr("kernel_ex")
+                                                       .Attr("args_info")[ast_.Var("", "i")]
+                                                       .Attr("addr")
+                                                       .Attr("offset"),
+                                                   ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"),
+                                                   ctx.Attr("constants"), ctx.Attr("var_addrs")})),
+          iow_addr.PushBack(ast_.ReinterpretCast("uint64_t", ast_.Var("", "addr"))),
+      }));
   return SUCCESS;
 }
 

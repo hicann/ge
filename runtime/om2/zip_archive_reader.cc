@@ -448,6 +448,13 @@ bool RAIIZipArchive::ExtractToFile(const std::string &entry_name, const std::str
   return true;
 }
 
+bool RAIIZipArchive::HasEntry(const std::string &entry_name) const {
+  if (!IsGood()) {
+    return false;
+  }
+  return entry_cache_.find(entry_name) != entry_cache_.end();
+}
+
 ReadonlyByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, size_t &buff_size) const {
   GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
 

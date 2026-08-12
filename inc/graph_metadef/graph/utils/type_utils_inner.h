@@ -34,6 +34,8 @@ class TypeUtilsInner {
 
   static DataType SerialStringToDataType(const std::string &str);
   static Format SerialStringToFormat(const std::string &str);
+  static std::string FormatToSerialString(const Format format);
+  static std::string DataTypeToSerialString(const DataType data_type);
 };
 }  // namespace ge
 #endif  // INC_GRAPH_UTILS_TYPE_UTILS_INNER_H_

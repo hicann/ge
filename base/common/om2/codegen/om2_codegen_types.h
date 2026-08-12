@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -26,6 +27,7 @@
 #include "graph/op_desc.h"
 #include "proto/task.pb.h"
 #include "common/math/ge_math_util.h"
+#include "framework/common/om2_tensor_desc.h"
 
 namespace ge {
 constexpr int64_t kInvalidOpIndex = -1;
@@ -33,6 +35,22 @@ constexpr int64_t kInvalidOpId = -1;
 constexpr int32_t kInvalidAnchorIndex = -1;
 constexpr uint64_t kSessionScopeMemoryMask = 0x100000000UL;
 constexpr int32_t kWidthPerChar = 3;  // 转八进制字符串时每个字符的宽度
+
+struct VarAddrInfo {
+  uint64_t size{0U};
+  size_t var_index{0U};
+  std::string symbol_hint;
+};
+
+using VarAddrRangeMap = std::map<uint64_t, VarAddrInfo>;
+
+struct VarAddressMatch {
+  uint64_t root_logic_addr{0U};
+  uint64_t inner_offset{0U};
+  uint64_t root_size{0U};
+  size_t var_index{0U};
+  std::string symbol_hint;
+};
 
 struct OpInputEdges {
   std::vector<int64_t> input_op_ids;
@@ -166,6 +184,14 @@ struct Om2ConstMeta {
 
 using Om2ConstMetas = std::vector<Om2ConstMeta>;
 
+struct Om2VarMeta {
+  size_t index = 0U;
+  std::string var_name;
+  std::string op_type;
+  Om2TensorDesc tensor_desc;
+  std::string op_name;
+};
+
 struct Om2CodegenArtifact {
   std::string file_name;
   std::string data;
@@ -220,6 +246,7 @@ enum class AddrValueKind : int32_t {
   kOutputInstance,
   kWorkspace,
   kConstTensor,
+  kVariable,
   kCustomValue,
   kPlaceholder,
   kLevel1DescPtr,
@@ -295,6 +322,7 @@ struct AddrSemantic {
   uint64_t custom_value{0U};
   uint32_t event_id{0U};
   std::optional<size_t> const_index;
+  std::optional<size_t> var_index;
   int64_t compile_state_io_addr_offset{0};
   bool is_reused_from_upstream{false};
   std::optional<std::vector<int64_t>> shape_info;
@@ -363,11 +391,19 @@ struct Om2CodegenModel {
   KernelRegistrySemantic kernel_registry;
   ArgsTableSemantic args_table;
   std::vector<ConstInputEntry> const_inputs;
+  std::vector<Om2VarMeta> var_metas;
   uint32_t aicpu_task_count{0U};
 };
 
 // shape 维度数的上限（与 OpArgInfo.tensor.shape 数组大小一致）
 constexpr size_t kShapeMaxDims = 8U;
+
+enum OpArgMemSrcType : uint32_t {
+  MEM_SRC_DEVICE = 0U,
+  MEM_SRC_SESSION = 1U,
+  MEM_SRC_CONST = 2U,
+  MEM_SRC_VAR = 3U,
+};
 
 // OpArgType 枚举 - 与 generated code 中的 OpArgType 保持一致
 enum OpArgType : int32_t {
@@ -385,12 +421,14 @@ enum OpArgType : int32_t {
   OP_ARG_OVERFLOW_ADDR = 11,
   OP_ARG_TILING = 12,
   OP_ARG_RAW_ADDR = 13,
+  OP_ARG_VAR_TENSOR = 14,
 };
 
 // 算子参数构建数据 —— TaskCodeBuilder 子类填充后，由 BuildOpArgList() 转换为 OpArgInfo 数组 AST
 struct OpArgDesc {
-  int32_t type{0};                       // OpArgType 枚举值（INPUT/OUTPUT/WORKSPACE/TILING/...）
-  uint32_t mem_src{0U};                  // 内存来源（0=设备内存，0xFFFFFFFF=session，≥1=常量数组索引）
+  int32_t type{0};       // OpArgType 枚举值（INPUT/OUTPUT/WORKSPACE/TILING/...）
+  uint32_t mem_src{0U};  // 内存来源（OpArgMemSrcType: 0=设备内存，1=session，2=常量，3=变量）
+  uint32_t index{0U};
   uint64_t offset{0U};                   // 内存偏移量
   uint64_t size{0U};                     // 数据大小（字节），INPUT/OUTPUT/WORKSPACE 使用
   int32_t data_type{0};                  // 数据类型（INPUT/OUTPUT）
@@ -424,6 +462,7 @@ struct TaskSemanticContributeContext {
   const std::unordered_map<std::string, uint32_t> *func_handle_indices{nullptr};
   const std::unordered_map<int64_t, std::string> *weight_offset_to_varname{nullptr};
   const std::unordered_map<int64_t, std::string> *fileconst_output_offset_to_varname{nullptr};
+  const VarAddrRangeMap *var_addr_ranges{nullptr};
   std::unordered_map<int64_t, OpInputEdges> *op_id_to_input_edges{nullptr};
   std::unordered_map<uint32_t, uint32_t> *op_index_to_count_map{nullptr};
   uint64_t *next_args_table_index{nullptr};
