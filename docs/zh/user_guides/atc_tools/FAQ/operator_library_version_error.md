@@ -5,7 +5,7 @@
 加载单算子报错失败，日志显示如下类似信息：
 
 ```console
-E19999: Inner Error
+E19999: Internal Error
 E19999 The opp version of the model does not match the current opp run package, Model is [6.4.T11.0.B300], opp run package is [7.0.T3.0.B107], try to convert the om again!
 ```
 
