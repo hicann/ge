@@ -65,7 +65,8 @@ struct ReuseNode {
 
   std::string ToString() {
     std::stringstream ss;
-    ss << "Node:" << name << " type:" << mem_type << " index:" << index << " offset:" << offset << " size:" << size;
+    ss << "Node:" << name << " type:" << static_cast<int>(mem_type) << " index:" << index << " offset:" << offset
+       << " size:" << size;
     return ss.str();
   }
 };
@@ -2096,10 +2097,10 @@ class UtestMemoryAssignerTest : public testing::Test {
       auto node = graph->FindNode(reuse_node.name);
       int64_t size = 0;
       int64_t offset = 0;
-      if (reuse_node.mem_type == kOutput) {
+      if (reuse_node.mem_type == OpMemoryType::kOutput) {
         ge::TensorUtils::GetSize(*(node->GetOpDesc()->MutableOutputDesc(reuse_node.index)), size);
         offset = node->GetOpDesc()->GetOutputOffset()[reuse_node.index];
-      } else if (reuse_node.mem_type == kWorkspace) {
+      } else if (reuse_node.mem_type == OpMemoryType::kWorkspace) {
         offset = node->GetOpDesc()->GetWorkspace()[reuse_node.index];
         size = node->GetOpDesc()->GetWorkspaceBytes()[reuse_node.index];
       } else {
@@ -2342,7 +2343,7 @@ TEST_F(UtestMemoryAssignerTest, block_memory_assign_continuous_memory_out_diff_s
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "E") {
@@ -2964,8 +2965,8 @@ TEST_F(UtestMemoryAssignerTest, graph_hccl_ws_no_reuse_io) {
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
 
   MemoryBlock *reuse_block = nullptr;
-  EXPECT_EQ(GetReuseBlock(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph, {"B", kWorkspace, 0},
-                          &reuse_block),
+  EXPECT_EQ(GetReuseBlock(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
+                          {"B", OpMemoryType::kWorkspace, 0}, &reuse_block),
             GRAPH_SUCCESS);
 
   EXPECT_NE(reuse_block, nullptr);
@@ -3060,7 +3061,7 @@ TEST_F(UtestMemoryAssignerTest, DiffStreamNoPaddingContinuousInputHasEdgeCanReus
   size_t zero_memory_size = 0;
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"E", kOutput, 1}, {"B", kOutput, 0}}),
+                       {{"E", OpMemoryType::kOutput, 1}, {"B", OpMemoryType::kOutput, 0}}),
             GRAPH_SUCCESS);
 }
 
@@ -3087,7 +3088,7 @@ TEST_F(UtestMemoryAssignerTest, DiffStreamNoPaddingContinuousInput_CanNotReuse_H
   size_t zero_memory_size = 0;
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"G", kOutput, 1}, {"C", kOutput, 0}}),
+                       {{"G", OpMemoryType::kOutput, 1}, {"C", OpMemoryType::kOutput, 0}}),
             GRAPH_SUCCESS);
 }
 
@@ -3109,7 +3110,7 @@ TEST_F(UtestMemoryAssignerTest, graph_diff_stream_memory_reuse) {
   size_t zero_memory_size = 0;
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"C", kOutput, 0}, {"F", kOutput, 0}}),
+                       {{"C", OpMemoryType::kOutput, 0}, {"F", OpMemoryType::kOutput, 0}}),
             GRAPH_SUCCESS);
 }
 
@@ -3657,7 +3658,7 @@ TEST_F(UtestMemoryAssignerTest, graph_continuous_input_memory_reuse) {
     offset = it->second;
   }
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"A", kOutput, 0}, {"D", kOutput, 0}}),
+                       {{"A", OpMemoryType::kOutput, 0}, {"D", OpMemoryType::kOutput, 0}}),
             GRAPH_SUCCESS);
   EXPECT_EQ(offset, 9216);
 }
@@ -3677,7 +3678,10 @@ TEST_F(UtestMemoryAssignerTest, graph_continuous_input_memory_reuse_multi_ref) {
     offset = it->second;
   }
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"A", kOutput, 0}, {"B", kOutput, 0}, {"F", kOutput, 0}, {"I", kOutput, 0}}),
+                       {{"A", OpMemoryType::kOutput, 0},
+                        {"B", OpMemoryType::kOutput, 0},
+                        {"F", OpMemoryType::kOutput, 0},
+                        {"I", OpMemoryType::kOutput, 0}}),
             GRAPH_SUCCESS);
   EXPECT_EQ(offset, 17408);
 }
@@ -4117,9 +4121,10 @@ TEST_F(UtestMemoryAssignerTest, SingleOutDiffStreamOptimize) {
   EXPECT_EQ(GetStreamId(graph, "C"), GetStreamId(graph, "A"));
 
   // A,C,E可以复用
-  EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"A", kOutput, 0}, {"C", kOutput, 0}, {"E", kOutput, 0}}),
-            GRAPH_SUCCESS);
+  EXPECT_EQ(
+      CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
+                 {{"A", OpMemoryType::kOutput, 0}, {"C", OpMemoryType::kOutput, 0}, {"E", OpMemoryType::kOutput, 0}}),
+      GRAPH_SUCCESS);
   EXPECT_EQ(offset, 1250304);
 }
 /*
@@ -4199,9 +4204,9 @@ TEST_F(UtestMemoryAssignerTest, SingleOutDiffStream) {
   // A,C,F可以复用
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
                        {
-                           {"A", kOutput, 0},
-                           {"C", kOutput, 0},
-                           {"F", kOutput, 0},
+                           {"A", OpMemoryType::kOutput, 0},
+                           {"C", OpMemoryType::kOutput, 0},
+                           {"F", OpMemoryType::kOutput, 0},
                        }),
             GRAPH_SUCCESS);
   EXPECT_EQ(offset, 3346944);
@@ -4238,7 +4243,7 @@ TEST_F(UtestMemoryAssignerTest, SingleOutDiffStreamWithMerge) {
   bool has_checked = false;
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "A") {
@@ -4278,7 +4283,7 @@ TEST_F(UtestMemoryAssignerTest, AtomicCleanNotReuseWithSubGraphData) {
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
   // a c 不复用
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"a", kOutput, 0}, {"c", kOutput, 0}}, false),
+                       {{"a", OpMemoryType::kOutput, 0}, {"c", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 
@@ -4320,7 +4325,7 @@ TEST_F(UtestMemoryAssignerTest, DiffStreamEdgeExcludeData) {
   }
   // A,E不复用
   EXPECT_EQ(CheckReuse(memory_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"A", kOutput, 0}, {"E", kOutput, 0}}, false),
+                       {{"A", OpMemoryType::kOutput, 0}, {"E", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 
   EXPECT_EQ(offset, 1456128);
@@ -4426,7 +4431,7 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_OutAsHeader_SeparateClea
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"hcom1", kOutput, 0}, {"c", kOutput, 0}}, true),
+                       {{"hcom1", OpMemoryType::kOutput, 0}, {"c", OpMemoryType::kOutput, 0}}, true),
             GRAPH_SUCCESS);
 }
 
@@ -4450,7 +4455,7 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_OutAsHeaderAndTail_Separ
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"hcom1", kOutput, 0}, {"c", kOutput, 0}}, false),
+                       {{"hcom1", OpMemoryType::kOutput, 0}, {"c", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 
@@ -4474,10 +4479,10 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_InAsHeader_SeparateClean
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"hcom1", kOutput, 0}, {"c", kOutput, 0}}, false),
+                       {{"hcom1", OpMemoryType::kOutput, 0}, {"c", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"a", kOutput, 0}, {"c", kOutput, 0}}, false),
+                       {{"a", OpMemoryType::kOutput, 0}, {"c", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 
@@ -4516,13 +4521,13 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_InAsHeaderAndTail_Separa
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"c", kOutput, 0}, {"b", kOutput, 0}}, false),
+                       {{"c", OpMemoryType::kOutput, 0}, {"b", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"c", kOutput, 0}, {"hcom1", kOutput, 0}}, false),
+                       {{"c", OpMemoryType::kOutput, 0}, {"hcom1", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"c", kOutput, 0}, {"a", kOutput, 0}}, false),
+                       {{"c", OpMemoryType::kOutput, 0}, {"a", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 
@@ -4561,7 +4566,7 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_TwoContinuousInNode_Sepa
   MemoryAssigner mem_assigner(graph);
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"c", kOutput, 0}, {"hcom1", kOutput, 0}}, false),
+                       {{"c", OpMemoryType::kOutput, 0}, {"hcom1", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 
@@ -4586,7 +4591,7 @@ TEST_F(UtestMemoryAssignerTest, ContinuousOutIn_SUCCESS_TwoContinuousInNodeAndRe
   InfoLog log;  // 打印info日志才能覆盖到一些分支
   EXPECT_EQ(mem_assigner.AssignMemory(mem_type_to_mem_offset, zero_copy_mem_size), SUCCESS);
   EXPECT_EQ(CheckReuse(mem_assigner.GetGraphMemoryAssigner()->GetMemAssignerPtr(), graph,
-                       {{"e", kOutput, 0}, {"hcom1", kOutput, 0}}, false),
+                       {{"e", OpMemoryType::kOutput, 0}, {"hcom1", OpMemoryType::kOutput, 0}}, false),
             GRAPH_SUCCESS);
 }
 /*

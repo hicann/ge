@@ -109,8 +109,8 @@ size_t GetOutputFlowToNetoutputNum(const ge::NodePtr &node, uint32_t output_inde
 }
 
 void MarkZeroCopyBlockAttr(std::vector<TAttr<bool>> &bool_attr, const OpDesc *const op_desc, bool is_zero_copy,
-                           bool mem_type, uint32_t out_index) {
-  if (is_zero_copy && (mem_type == kOutput)) {
+                           OpMemoryType mem_type, uint32_t out_index) {
+  if (is_zero_copy && (mem_type == OpMemoryType::kOutput)) {
     auto output_desc = op_desc->MutableOutputDesc(out_index);
     if (output_desc != nullptr) {
       bool_attr.emplace_back(output_desc.get(), op_desc, out_index, ATTR_IS_ZERO_COPY_BLOCK, true);

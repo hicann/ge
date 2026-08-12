@@ -491,7 +491,8 @@ void GraphMemoryAssigner::RecordSubsequentReuseNodeInfo(const MemoryBlock *const
       MemReuseInfo reuse_info;
       reuse_info.node.reset(const_cast<Node *>(node_type_index.node_), [](Node *) {});
       reuse_info.index = node_type_index.index_;
-      reuse_info.mem_type = (node_type_index.mem_type_ == kOutput) ? MemType::OUTPUT_MEM : MemType::WORKSPACE_MEM;
+      reuse_info.mem_type =
+          (node_type_index.mem_type_ == OpMemoryType::kOutput) ? MemType::OUTPUT_MEM : MemType::WORKSPACE_MEM;
       GELOGD("Level[%u] node[%s], op memory type[%s], index[%u], id[%" PRId64 "]", depth,
              reuse_info.node->GetName().c_str(), node_type_index.GetMemType().c_str(), node_type_index.index_,
              reuse_info.node->GetOpDesc()->GetId());

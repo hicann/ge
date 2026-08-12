@@ -152,7 +152,7 @@ void SetChildTailOffset(size_t offset, std::vector<MemoryBlock *> &blocks) {
 bool CanBlockLifeReuse(const BlockMemAssigner *const mem_assigner, const MemoryBlock &in_block,
                        const MemoryBlock &out_block, DiffStreamEdgeLife &diff_stream_edge_life) {
   const auto first_node = out_block.NodeTypeIndexList().front();
-  if ((first_node.mem_type_ == kOutput) &&
+  if ((first_node.mem_type_ == OpMemoryType::kOutput) &&
       mem_assigner->HasSameOutAnchorWithDiffStream(first_node.node_, first_node.index_)) {
     GELOGD("out_block first node %s(topoid: %lld) output %u use same memory with node on other stream, return false.",
            first_node.node_->GetNamePtr(), first_node.node_->GetOpDescBarePtr()->GetId(), first_node.index_);
@@ -356,11 +356,9 @@ bool MemoryBlock::IsSameBatchLabel() const {
     if (node_type_index_list_[index].node_ == nullptr) {
       continue;
     }
-    std::string batch_label;
     const auto index_op_desc = node_type_index_list_[index].node_->GetOpDescBarePtr();
     GE_IF_BOOL_EXEC(index_op_desc == nullptr, continue);
-    // not all op has ATTR_NAME_BATCH_LABEL, no need check return value, only check out parameter
-    (void)ge::AttrUtils::GetStr(index_op_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+    const auto &batch_label = GetBatchLabel(index_op_desc);
     if (batch_label_ != batch_label) {
       all_same_label = false;
       break;

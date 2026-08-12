@@ -469,11 +469,11 @@ TEST_F(UtestBlockMemAssigner, GetLifeEnd) {
   size_t block_size = 512;
   int64_t stream_id = 0;
   bool is_reuse_mem = false;
-  OpMemoryType memory_type = kOutput;
+  uint64_t memory_type = RT_MEMORY_HBM;
   MemoryBlock block(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
   auto n = builder->AddNode("node", DATA, 1, 1);
-  NodeTypeIndex node_type_index{n.get(), memory_type, 0, false, 0, -1};
+  NodeTypeIndex node_type_index{n.get(), OpMemoryType::kOutput, 0, false, 0, -1};
   block.AddNodeTypeIndex(node_type_index, 512, 512, 0);
   block.SetLifeTimeEnd(0, 1);
   EXPECT_EQ(block.GetLifeEnd(1), 0);
@@ -563,7 +563,7 @@ TEST_F(UtestBlockMemAssigner, SubgraphDataStreamIsDifferentWithInput_CheckReuse)
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "a") {
@@ -618,7 +618,7 @@ TEST_F(UtestBlockMemAssigner, SingleOutputConnectMultiStreamAndRefNode_CheckBloc
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "a") {
@@ -671,7 +671,7 @@ TEST_F(UtestBlockMemAssigner, SingleOutputConnectMultiStreamAndRefNode_LastRefNo
   auto f = graph->FindNode("f");
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "a") {
@@ -718,7 +718,7 @@ TEST_F(UtestBlockMemAssigner, SingleOutputConnectMultiStreamAndRefNode_LifeEndIs
   auto e = graph->FindNode("e");
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "a") {
@@ -786,7 +786,7 @@ TEST_F(UtestBlockMemAssigner, SeperateAtomicCleanAndContinousInput) {
   bool has_checked = false;
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if ((node.node_->GetOpDesc()->GetName() == "A") && (node.index_ == 1)) {
@@ -884,7 +884,7 @@ TEST_F(UtestBlockMemAssigner, ContinousOutputResueLifeCheck) {
   bool has_checked = false;
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if ((node.node_->GetOpDesc()->GetName() == "A") && (node.index_ == 0)) {
@@ -987,7 +987,7 @@ TEST_F(UtestBlockMemAssigner, DT_VARIANT_NotPostReuse) {
   bool has_checked = false;
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       std::cout << block->String() << std::endl;
@@ -1007,7 +1007,7 @@ TEST_F(UtestBlockMemAssigner, Resize) {
   size_t block_size = 1024;
   int64_t stream_id = 0;
   bool is_reuse_mem = false;
-  OpMemoryType memory_type = kOutput;
+  uint64_t memory_type = RT_MEMORY_HBM;
   MemoryBlock parent(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   MemoryBlock child(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   child.first_continuous_block_ = true;
@@ -1015,7 +1015,7 @@ TEST_F(UtestBlockMemAssigner, Resize) {
   parent.child_blocks_.emplace_back(&child);
   auto builder = std::make_shared<block_mem_ut::GraphBuilder>("graph");
   auto n = builder->AddNode("node", DATA, 1, 1);
-  NodeTypeIndex node_type_index{n.get(), memory_type, 0, false, 0, -1};
+  NodeTypeIndex node_type_index{n.get(), OpMemoryType::kOutput, 0, false, 0, -1};
   parent.AddNodeTypeIndex(node_type_index, 1024, 1024, 0);
   child.AddNodeTypeIndex(node_type_index, 1024, 1024, 0);
   parent.Resize();
@@ -1108,7 +1108,7 @@ TEST_F(UtestBlockMemAssigner, ContinousInputToDiffStreamsNotPostReuse) {
   bool has_checked = false;
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if ((node.node_->GetOpDesc()->GetName() == "A") && (node.index_ == 1)) {
@@ -1148,7 +1148,7 @@ TEST_F(UtestBlockMemAssigner, ContinuousOutputCanNotZeroCpy) {
   size_t block_size = 1024;
   int64_t stream_id = 0;
   bool is_reuse_mem = false;
-  OpMemoryType memory_type = kOutput;
+  uint64_t memory_type = RT_MEMORY_HBM;
   MemoryBlock parent(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   MemoryBlock child(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
   child.is_reuse_zero_copy_ = true;
@@ -1223,9 +1223,9 @@ TEST_F(UtestBlockMemAssigner, BlockContinueFlagCheck) {
   size_t block_size = 1024;
   int64_t stream_id = 0;
   bool is_reuse_mem = false;
-  OpMemoryType memory_type = kOutput;
+  uint64_t memory_type = RT_MEMORY_HBM;
   MemoryBlock parent(reuse_strategy_, block_size, stream_id, is_reuse_mem, memory_type);
-  NodeTypeIndex node_type_index{b.get(), memory_type, 0, false, 0, stream_id};
+  NodeTypeIndex node_type_index{b.get(), OpMemoryType::kOutput, 0, false, 0, stream_id};
   node_type_index.SetFirstContinuousNode(true);
   node_type_index.SetLastContinuousNode(true);
   node_type_index.SetContinuousNode(true);
@@ -1301,7 +1301,7 @@ TEST_F(UtestBlockMemAssigner, GetRealStreamIdForParentNode_Success) {
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "partitioncall0") {
@@ -1346,7 +1346,7 @@ TEST_F(UtestBlockMemAssigner, KnownSubGraphOutputReuse) {
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "d") {
@@ -1384,7 +1384,7 @@ TEST_F(UtestBlockMemAssigner, RefNodeConnectContinuousNode) {
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "b") {
@@ -1422,7 +1422,7 @@ TEST_F(UtestBlockMemAssigner, SingleNoPaddingContinuousConnectContinuousNode) {
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "a" || node.node_->GetOpDesc()->GetName() == "b") {
@@ -1571,7 +1571,7 @@ TEST_F(UtestBlockMemAssigner, GetRealStreamIdForParentNode_NestingAndDiffStream)
   assigner.SetOpMemOffset(false);
   for (const auto block : blocks) {
     for (const auto &node : block->node_type_index_list_) {
-      if (node.mem_type_ != kOutput) {
+      if (node.mem_type_ != OpMemoryType::kOutput) {
         continue;
       }
       if (node.node_->GetOpDesc()->GetName() == "if") {

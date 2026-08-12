@@ -205,8 +205,8 @@ Status AtomicMemoryAssigner::CollectAtomicNodeCleanMemInfos(const NodePtr &memse
   for (const auto &in_ctl_anchor : all_peer_in_ctrl_anchors) {
     const auto atomic_node = in_ctl_anchor->GetOwnerNode();
     GE_ASSERT_NOTNULL(atomic_node);
-    GE_ASSERT_NOTNULL(atomic_node->GetOpDescBarePtr());
     const auto atomic_op_desc = atomic_node->GetOpDescBarePtr();
+    GE_ASSERT_NOTNULL(atomic_op_desc);
     bool is_atomic_node = false;
     // If GetBool fail, is_atomic_node is false.
     (void)ge::AttrUtils::GetBool(atomic_op_desc, ATOMIC_ATTR_IS_ATOMIC_NODE, is_atomic_node);
@@ -539,12 +539,12 @@ Status AtomicMemoryAssigner::FilterAtomicNodes(
     std::map<std::string, std::vector<NodePtr>> tmp_normal_atomic_nodes;
     const auto &out_control_anchor = node->GetOutControlAnchor();
     GE_CHECK_NOTNULL(out_control_anchor);
-    for (const auto &peer_in_control_anchor : out_control_anchor->GetPeerInControlAnchors()) {
+    for (const auto peer_in_control_anchor : out_control_anchor->GetPeerInControlAnchorsPtr()) {
       GE_ASSERT_NOTNULL(peer_in_control_anchor);
       auto peer_in_node = peer_in_control_anchor->GetOwnerNode();
       GE_ASSERT_NOTNULL(peer_in_node);
-      GE_ASSERT_NOTNULL(peer_in_node->GetOpDesc());
-      auto peer_in_node_desc = peer_in_node->GetOpDesc();
+      auto peer_in_node_desc = peer_in_node->GetOpDescBarePtr();
+      GE_ASSERT_NOTNULL(peer_in_node_desc);
       bool is_atomic_node = false;
       // If GetBool fail, is_atomic_node is false.
       (void)ge::AttrUtils::GetBool(peer_in_node_desc, ATOMIC_ATTR_IS_ATOMIC_NODE, is_atomic_node);
@@ -559,8 +559,7 @@ Status AtomicMemoryAssigner::FilterAtomicNodes(
         return ge::PARAM_INVALID;
       }
 
-      std::string batch_label;
-      (void)ge::AttrUtils::GetStr(peer_in_node_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+      const auto &batch_label = GetBatchLabel(peer_in_node_desc);
       tmp_normal_atomic_nodes[batch_label].emplace_back(peer_in_node);
     }
 
@@ -641,12 +640,12 @@ Status AtomicMemoryAssigner::AssignAtomicOutputAndWorkspaceMemory(
 }
 
 bool AtomicMemoryAssigner::CheckInputIsSupportAtomic(const ge::Node *node) {
-  for (auto &in_data_anchor : node->GetAllInDataAnchors()) {
+  for (const auto in_data_anchor : node->GetAllInDataAnchorsPtr()) {
     auto peer_out_data_anchor = in_data_anchor->GetPeerOutAnchor();
     if (peer_out_data_anchor == nullptr) {
       continue;
     }
-    auto peer_op_desc = peer_out_data_anchor->GetOwnerNode()->GetOpDesc();
+    auto peer_op_desc = peer_out_data_anchor->GetOwnerNodeBarePtr()->GetOpDescBarePtr();
     if (peer_op_desc == nullptr) {
       continue;
     }
@@ -781,8 +780,7 @@ Status AtomicMemoryAssigner::AssignAtomicOutputMemory(
                    "graph_id:%u, graph_name:%s",
                    compute_graph_->GetGraphID(), compute_graph_->GetName().c_str());
     output_list[output_index] = iter->second.mem_offset_;
-    std::string batch_label;
-    (void)ge::AttrUtils::GetStr(op_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+    const auto &batch_label = GetBatchLabel(op_desc.get());
     iter->second.mem_offset_ += size;
     AlignMemOffset(MEM_ALIGN_SIZE, memory_type);
     mem_type_to_offset_end[memory_type].emplace_back(iter->second.mem_offset_);
@@ -846,8 +844,7 @@ Status AtomicMemoryAssigner::AssignOrdinaryAtomicWorkspaceMemory(
       }
 
       workspace_vector[workspace_index] = mem_type_iter->second.mem_offset_;
-      std::string batch_label;
-      (void)ge::AttrUtils::GetStr(op_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+      const auto &batch_label = GetBatchLabel(op_desc.get());
       size_t tmp_mem_offset = mem_type_iter->second.mem_offset_;
       mem_type_iter->second.mem_offset_ += workspace_size;
       AlignMemOffset(MEM_ALIGN_SIZE, RT_MEMORY_HBM);
@@ -899,8 +896,7 @@ Status AtomicMemoryAssigner::AssignFusionAtomicWorkspaceMemory(
       auto workspace_size = info_iter.second;
 
       size_t workspace_offset = mem_type_iter->second.mem_offset_;
-      std::string batch_label;
-      (void)ge::AttrUtils::GetStr(op_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+      const auto &batch_label = GetBatchLabel(op_desc.get());
       GELOGI("[AtomicClean][IMAS]Atomic fusion workspace : Set %s name[%s] optype[%s] workspace[%" PRIu64
              "] offset to [%zu]"
              " stream_id[%" PRId64 "] memtype[%u] ssize[%" PRId64 "] real_size[%" PRId64 "] batch[%s].",
@@ -1115,9 +1111,9 @@ Status AtomicMemoryAssigner::GetMemoryAssignmentStatus(const ge::NodePtr &node, 
   }
   auto out_data_anchor = node->GetAllOutDataAnchors().at(output_index);
   GE_CHECK_NOTNULL(out_data_anchor);
-  auto input_anchors = out_data_anchor->GetPeerInDataAnchors();
-  for (auto &input_anchor : input_anchors) {
-    auto output_node = input_anchor->GetOwnerNode();
+  const auto input_anchors = out_data_anchor->GetPeerInDataAnchorsPtr();
+  for (auto const input_anchor : input_anchors) {
+    auto output_node = input_anchor->GetOwnerNodeBarePtr();
     GE_CHECK_NOTNULL(output_node->GetOpDesc());
     const auto continous_input = MemLayoutConflictUtil::IsContinuousInput(output_node);
     if (!continous_input) {

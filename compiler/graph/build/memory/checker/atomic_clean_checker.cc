@@ -132,7 +132,7 @@ Status GetWorkspaceCleanAddrs(const Node *const node, AtomicNodeCleanTypeVals &t
       if (has_workspace_type_list_attr && (index < workspace_type_list.size())) {
         mem_info.memory_type = workspace_type_list.at(index) == RT_MEMORY_P2P_DDR ? RT_MEMORY_P2P_DDR : RT_MEMORY_HBM;
       }
-      clean_addrs.emplace_back(CleanAddrSizeType{kWorkspace, static_cast<int64_t>(index), mem_info});
+      clean_addrs.emplace_back(CleanAddrSizeType{OpMemoryType::kWorkspace, static_cast<int64_t>(index), mem_info});
     }
   }
   return SUCCESS;
@@ -317,7 +317,7 @@ Status AtomicCleanChecker::GetInputCleanAddrs(const Node *const node,
     GE_ASSERT_SUCCESS(NodeCheckerUtils::GetInputSize(node, index, clean_mem.size));
     GE_ASSERT_SUCCESS(GetMemType(node, kIn, index, clean_mem.memory_type),
                       "node %s get output memory type failed, index: %lld", node->GetNamePtr(), index);
-    clean_addrs.emplace_back(CleanAddrSizeType{kInput, index, clean_mem});
+    clean_addrs.emplace_back(CleanAddrSizeType{OpMemoryType::kInput, index, clean_mem});
   }
   return SUCCESS;
 }
@@ -342,7 +342,7 @@ Status AtomicCleanChecker::GetOutputCleanAddrs(const Node *const node, AtomicNod
     GE_ASSERT_SUCCESS(GetMemType(node, kOut, index, mem_info.memory_type),
                       "node %s get input memory type failed, index: %lld", node->GetNamePtr(), index);
     GE_ASSERT_SUCCESS(type_vals.GetNextAttr(mem_info.type_val), "get next attr failed");
-    clean_addrs.emplace_back(CleanAddrSizeType{kOutput, index, mem_info});
+    clean_addrs.emplace_back(CleanAddrSizeType{OpMemoryType::kOutput, index, mem_info});
   }
   return SUCCESS;
 }
