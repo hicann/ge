@@ -42,14 +42,16 @@ graphStatus InferShapeForDynamicStitch(gert::InferSymbolShapeContext *context) {
     const auto x_dims = x_shape->GetDims();
     GE_ASSERT_TRUE(x_dims.size() >= indices_dims.size(), "Op %s: x rank %zu is smaller than indices rank %zu.",
                    context->GetNodeName(), x_dims.size(), indices_dims.size());
-    GE_ASSERT_TRUE(std::equal(indices_dims.begin(), indices_dims.end(), x_dims.begin()),
-                   "Op %s: x dims and indices dims are corrupt at input index %zu.", context->GetNodeName(), i);
+    for (size_t j = 0U; j < indices_dims.size(); ++j) {
+      ASSERT_SYMBOL_EQ(x_dims[j], indices_dims[j]);
+    }
     if (i == 0U) {
       out_shape_dims.push_back(kSymbolZero);
       out_shape_dims.insert(out_shape_dims.end(), x_dims.begin() + indices_dims.size(), x_dims.end());
     } else {
-      GE_ASSERT_TRUE(std::equal(x_dims.begin() + indices_dims.size(), x_dims.end(), out_shape_dims.begin() + 1),
-                     "Op %s: the constant dims is inconstant at input index %zu.", context->GetNodeName(), i);
+      for (size_t j = indices_dims.size(); j < x_dims.size(); ++j) {
+        ASSERT_SYMBOL_EQ(x_dims[j], out_shape_dims[j - indices_dims.size() + 1]);
+      }
     }
 
     const auto indices_tensor = context->GetDynamicInputSymbolTensor(0, i);

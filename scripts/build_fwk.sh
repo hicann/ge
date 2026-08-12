@@ -253,6 +253,8 @@ run_pyge_pytests() {
   PYGE_SRC_PATH=${BASEPATH}/api/python/ge
   PYGE_COVERAGE_RCFILE=${BUILD_PATH}/pyge.coveragerc
   ORIGINAL_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+  ORIGINAL_LD_PRELOAD=$LD_PRELOAD
+  PYGE_USE_LIBSTDCXX=$(LD_PRELOAD= gcc -print-file-name=libstdc++.so.6)
   cat > ${PYGE_COVERAGE_RCFILE} <<EOF
 [run]
 source =
@@ -268,8 +270,10 @@ EOF
   # 先走安装目录，确保 ge.passes 能导到安装产物里的 _ge_pass_native.so；
   # 覆盖率通过 coveragerc 的 [paths] 映射回源码目录。
   export PYTHONPATH=${PYGE_INSTALL_PATH}:${PYGE_SRC_PATH}:$PYTHON_ORIGINAL_PATH
+  export LD_PRELOAD=${USE_ASAN}:${PYGE_USE_LIBSTDCXX}
   ASAN_OPTIONS=detect_leaks=0:detect_container_overflow=0 ${HI_PYTHON} -m coverage run --rcfile=${PYGE_COVERAGE_RCFILE} --data-file=coverage_pyge -m pytest ${BASEPATH}/tests/ge/ut/ge/graph/pyge_tests/*_test.py -vv -rs -s
   export LD_LIBRARY_PATH=${ORIGINAL_LD_LIBRARY_PATH}
+  export LD_PRELOAD=${ORIGINAL_LD_PRELOAD}
   export PYTHONPATH=$PYTHON_ORIGINAL_PATH
 }
 

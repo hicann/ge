@@ -153,6 +153,25 @@ Workflow:
     bash run.sh
     ```
 
+    The sample supports the following test arguments:
+
+    | Argument | Description |
+    |:---|:---|
+    | `--model` | OM model path. The default is `../model/yolov13.om` |
+    | `--input` | Input file path. The default is `../data/bus.bin` |
+    | `--warmup-runs` | Number of warmup runs. The default is `0` |
+    | `--runs` | Number of measured runs. The default is `1` |
+
+    For example:
+
+    ```bash
+    ./out/yolov13_main \
+        --model=./model/yolov13.om \
+        --input=./data/bus.bin \
+        --warmup-runs=5 \
+        --runs=10
+    ```
+
 3. Expected output:
 
     ```
@@ -162,6 +181,8 @@ Workflow:
     [INFO] create stream success
     [INFO] load model ../model/yolov13.om success.
     [INFO] start to process file: ../data/bus.bin
+    [INFO] BENCHMARK aclmdlExecute run=0 latency_us=1526
+    [INFO] Average aclmdlExecute latency: 1.526 ms
     [INFO] detected 5 objects:
     [INFO]   [0] bus (0.94)  bbox: [92,136,559,435]
     [INFO]   [1] person (0.92)  bbox: [110,236,222,535]
@@ -180,6 +201,124 @@ Workflow:
     ```
 
     This generates `bus_out.jpg` with detection boxes and labels drawn on the image.
+
+## Multi-stream Parameter Tuning Task
+
+### Feature Description
+
+In CANN Community Edition 9.2.0, the GE advanced tuning feature Multi-Stream Enhancement can automatically allocate execution streams within a graph to expose opportunities for parallel execution among operators.
+
+> [!NOTE]
+> Multi-Stream Enhancement requires CANN Community Edition 9.2.0. Go to the [CANN Software Download page](https://www.hiascend.com/cann/download?versionId=770&ids=d806%2Ch0501%2Ch0601%2Ch0703) and select the installation package using the following criteria:
+>
+> - Version type: `Weekly`
+> - Product series: A3 series
+> - CPU architecture: AArch64
+> - Operating system: openEuler
+> - Installation method: Offline installation
+>
+> After downloading the package, follow the installation instructions on the page to deploy the environment.
+
+This sample uses Static Shape offline compilation. It configures the multi-stream parallel mode through the ATC option `--multi_stream_parallel_mode` and generates a separate OM for each candidate value.
+
+| Value | Description |
+|:---|:---|
+| `cv` | Enables parallel execution of Cube and Vector operators |
+| `LoadBalance:N` | Uses the load-balancing algorithm to distribute operators across at most `N` streams |
+| `MainStream:N` | Uses the main-stream algorithm, where serial operators run on the main stream and other parallelizable operators are distributed across other streams |
+| Not configured | Disables automatic multi-stream parallelism and serves as the default performance baseline |
+
+`N` is a positive integer in the range `[1, 64]`. Performance may degrade if the configured stream count exceeds the available compute resources. For details, see the [`--multi_stream_parallel_mode` parameter description](../../../docs/zh/user_guides/atc_tools/CLI_options/--multi_stream_parallel_mode.md).
+
+### Command-line Argument
+
+ATC accepts the multi-stream strategy through `--multi_stream_parallel_mode=<mode>` and writes the corresponding configuration to the generated OM:
+
+```text
+--multi_stream_parallel_mode=<mode>
+```
+
+If `--multi_stream_parallel_mode` is omitted, automatic multi-stream parallelism is disabled and the generated OM is used as the default performance baseline.
+
+### TODO: Find the Optimal Multi-Stream Enhancement Parameter
+
+In CANN Community Edition 9.2.0, test different multi-stream parallel modes, determine the optimal value for this sample under the specified environment and test conditions, and submit a PR with the following result:
+
+```text
+--multi_stream_parallel_mode=<to-be-determined>
+```
+
+For example, to use `cv` mode, first compile the corresponding OM:
+
+```bash
+atc --model=yolov13n.onnx \
+    --framework=5 \
+    --output=./model/yolov13_cv \
+    --soc_version=Ascend910_9362 \
+    --input_shape="images:1,3,640,640" \
+    --output_type=FP32 \
+    --multi_stream_parallel_mode=cv
+```
+
+Before tuning for the first time, build the inference program once from the latest source code:
+
+```bash
+bash scripts/build.sh
+```
+
+After the build is complete, run the sample with the same input:
+
+```bash
+./out/yolov13_main \
+    --model=./model/yolov13_cv.om \
+    --input=./data/bus.bin \
+    --warmup-runs=10 \
+    --runs=90
+```
+
+Build `yolov13_main` from the latest source code only once. When testing other `--multi_stream_parallel_mode` candidates, rerun ATC to generate the corresponding OM and test it with the same `yolov13_main`; rebuilding the inference program is unnecessary.
+
+#### Performance Evaluation Criteria
+
+Use the average `aclmdlExecute` latency reported by the sample as the primary metric for multi-stream parameter tuning. A lower value indicates better performance:
+
+```text
+Average aclmdlExecute latency: <average latency> ms
+```
+
+Run 100 inferences for each `--multi_stream_parallel_mode` candidate. Use `--warmup-runs=10` for the first 10 warmup runs and exclude them from the statistics, then use `--runs=90` for 90 measured runs. Evaluate each candidate using the arithmetic mean of the 90 successful measured runs, and select the candidate with the lowest average latency as the recommended value for the current test environment.
+
+The per-run latency is measured with `std::chrono::steady_clock`. Timing starts immediately before `aclmdlExecute` and ends immediately after the call returns, so the measured scope covers only `aclmdlExecute`. ATC compilation, ACL initialization, model loading, input copy, and post-processing are excluded. Warmup runs execute `aclmdlExecute` but are neither measured nor logged.
+
+The average latency is calculated as:
+
+```text
+Average aclmdlExecute latency = total aclmdlExecute latency of successful measured runs / number of successful measured runs
+```
+
+The sample also reports the per-run latency of the 90 measured runs so that the average can be verified and latency variation can be observed:
+
+```text
+BENCHMARK aclmdlExecute run=<zero-based measured-run index> latency_us=<latency>
+```
+
+> [!NOTE]
+> The current sample supports the `--model`, `--input`, `--warmup-runs`, and `--runs` test arguments and reports both per-run and average `aclmdlExecute` latency. `--multi_stream_parallel_mode` is the only tuning variable. Compile a separate OM for each candidate and test all candidates in the same environment using 10 warmup runs followed by 90 measured runs.
+
+Parameter consistency requirements:
+
+- ONNX model and input data: Keep the model structure, input shape, and computational workload consistent.
+- `soc_version`: Keep the target chip configuration of the OM consistent.
+- `--warmup-runs=10`: Use exactly 10 warmup runs and exclude them from the statistics.
+- `--runs=90`: Use exactly 90 measured runs to keep the average-latency sample count consistent.
+- `--multi_stream_parallel_mode`: Use this as the only variable during tuning.
+
+Log field meanings:
+
+- `BENCHMARK`: Fixed marker that allows scripts to locate performance logs.
+- `run`: Execution index of a measured inference after warmup, not the number of streams or the batch size.
+- `latency_us`: Per-run `aclmdlExecute` latency in microseconds.
+- `Average aclmdlExecute latency`: Average `aclmdlExecute` latency of all successful measured runs in milliseconds.
 
 ## Notes
 

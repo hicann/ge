@@ -659,7 +659,7 @@ FunctionDef *KernelTaskCodeBuilder::RenderUpdateExtInfoSession() const {
           ast_.Assign(session_info.Arrow("sessionId"), ast_.Deref(session_id)),
           ast_.Assign(session_info.Arrow("kernelId"), ast_.Deref(kernel_id)),
           ast_.Assign(session_info.Arrow("sessFlag"), true),
-          ast_.PostInc(ast_.Deref(kernel_id)),
+          ast_.PreInc(ast_.Deref(kernel_id)),
           ast_.Return("ACL_SUCCESS"),
       });
 }

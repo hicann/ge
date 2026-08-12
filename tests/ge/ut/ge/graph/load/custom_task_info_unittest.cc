@@ -28,6 +28,7 @@
 #include "depends/runtime/src/runtime_stub.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "graph/custom_op.h"
+#include "graph/custom_op/args_refresh.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op_registry.h"
 #include "exe_graph/runtime/kernel_args.h"
@@ -1061,6 +1062,8 @@ TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_ArgsUpdater_SupportRefreshTrue)
 
   DavinciModel model(0, nullptr);
   const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE,
+                                static_cast<int64_t>(CustomTaskArgsMode::kUpdateCallback)));
   SetUpMinimalDavinciModel(model, op_desc);
 
   domi::TaskDef task_def;
@@ -1095,7 +1098,15 @@ TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_AnnotatedArgsOp_UsesAnnotatedAr
 
   DavinciModel model(0, nullptr);
   const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE,
+                                static_cast<int64_t>(CustomTaskArgsMode::kAnnotatedArgs)));
   SetUpMinimalDavinciModel(model, op_desc);
+  auto registry = std::make_shared<CustomOpRegistry>();
+  ASSERT_EQ(registry->RegisterCreator(
+                op_type.c_str(),
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestArgsUpdaterCustomOp>(); }),
+            GRAPH_SUCCESS);
+  model.SetCustomOpRegistry(registry);
 
   domi::TaskDef task_def;
   FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
@@ -1108,6 +1119,107 @@ TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_AnnotatedArgsOp_UsesAnnotatedAr
   EXPECT_FALSE(task_info.NeedReserveArgsTable());
   ASSERT_FALSE(task_run_param.parsed_input_addrs.empty());
   EXPECT_TRUE(task_run_param.parsed_input_addrs[0].support_refresh);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_AnnotatedArgsTaskDef_UsesTaskMetadataWithoutRegistryCreator) {
+  const std::string op_type = GenerateUniqueOpType();
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  SetUpMinimalDavinciModel(model, op_desc);
+  model.SetCustomOpRegistry(std::make_shared<CustomOpRegistry>());
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+  EXPECT_EQ(task_info.GetArgsRefreshStrategy(), ArgsRefreshStrategy::kAnnotatedArgs);
+  EXPECT_FALSE(task_info.NeedReserveArgsTable());
+  ASSERT_FALSE(task_run_param.parsed_input_addrs.empty());
+  EXPECT_TRUE(task_run_param.parsed_input_addrs[0].support_refresh);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_ExplicitNoneMode_IgnoresLegacyArgsFormat) {
+  const std::string op_type = GenerateUniqueOpType();
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(
+      AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE, static_cast<int64_t>(CustomTaskArgsMode::kNone)));
+  SetUpMinimalDavinciModel(model, op_desc);
+  model.SetCustomOpRegistry(std::make_shared<CustomOpRegistry>());
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+  EXPECT_EQ(task_info.GetArgsRefreshStrategy(), ArgsRefreshStrategy::kNone);
+  ASSERT_FALSE(task_run_param.parsed_input_addrs.empty());
+  EXPECT_FALSE(task_run_param.parsed_input_addrs[0].support_refresh);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_UnspecifiedMode_UsesLegacyArgsFormatFallback) {
+  const std::string op_type = GenerateUniqueOpType();
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE,
+                                static_cast<int64_t>(CustomTaskArgsMode::kUnspecified)));
+  SetUpMinimalDavinciModel(model, op_desc);
+  model.SetCustomOpRegistry(std::make_shared<CustomOpRegistry>());
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_EQ(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+  EXPECT_EQ(task_info.GetArgsRefreshStrategy(), ArgsRefreshStrategy::kAnnotatedArgs);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_ExplicitUpdateCallbackWithoutRegistryCreator_Fails) {
+  const std::string op_type = GenerateUniqueOpType();
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE,
+                                static_cast<int64_t>(CustomTaskArgsMode::kUpdateCallback)));
+  SetUpMinimalDavinciModel(model, op_desc);
+  model.SetCustomOpRegistry(std::make_shared<CustomOpRegistry>());
+
+  domi::TaskDef task_def;
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  task_def.mutable_kernel()->mutable_context()->set_op_index(op_desc->GetId());
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_NE(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
+
+  model.runtime_param_.mem_base = 0U;
+}
+
+TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_InvalidExplicitMode_Fails) {
+  const std::string op_type = GenerateUniqueOpType();
+  DavinciModel model(0, nullptr);
+  const auto op_desc = CreateOpDesc(op_type, op_type, 1, 1);
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_CUSTOM_TASK_ARGS_MODE, 99));
+  SetUpMinimalDavinciModel(model, op_desc);
+  model.SetCustomOpRegistry(std::make_shared<CustomOpRegistry>());
+
+  domi::TaskDef task_def;
+  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), BuildInputOutputCustomArgDescs(), {0ULL, 0x40ULL, 0x1234ULL});
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  EXPECT_NE(task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
 
   model.runtime_param_.mem_base = 0U;
 }
@@ -1873,12 +1985,10 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_NonTensorInput_D2HToHost) {
   auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
   model.SetSpaceRegistries(space_registries);
 
-  std::vector<ArgDesc> arg_descs;
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
   domi::TaskDef task_def;
-  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  task_def.set_stream_id(0);
+  task_def.mutable_kernel()->mutable_context()->set_op_index(op_desc->GetId());
 
   CustomTaskInfo task_info;
   TaskRunParam task_run_param;
@@ -1917,12 +2027,10 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_WithoutInputKinds_AllDeviceHbm) {
   auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
   model.SetSpaceRegistries(space_registries);
 
-  std::vector<ArgDesc> arg_descs;
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
   domi::TaskDef task_def;
-  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  task_def.set_stream_id(0);
+  task_def.mutable_kernel()->mutable_context()->set_op_index(op_desc->GetId());
 
   CustomTaskInfo task_info;
   TaskRunParam task_run_param;
@@ -1958,12 +2066,10 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_WithExplicitNonTensorKindBase_D2HOnlyF
   auto space_registries = gert::SpaceRegistryFaker().BuildMainSpaceRegistryArray();
   model.SetSpaceRegistries(space_registries);
 
-  std::vector<ArgDesc> arg_descs;
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 0);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::INPUT, 1);
-  ArgsFormatDescUtils::Append(arg_descs, AddrType::OUTPUT, 0);
   domi::TaskDef task_def;
-  FillAnnotatedArgsTaskDef(task_def, op_desc->GetId(), arg_descs, {0ULL, 0x40ULL, 0x80ULL});
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  task_def.set_stream_id(0);
+  task_def.mutable_kernel()->mutable_context()->set_op_index(op_desc->GetId());
 
   CustomTaskInfo task_info;
   TaskRunParam task_run_param;

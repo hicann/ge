@@ -14,9 +14,14 @@
 
 __all__ = [
     "BaseCustomOp",
+    "AnnotatedArgsContext",
+    "AnnotatedKernelArgs",
+    "AnnotatedKernelLaunchInfo",
     "EagerExecuteOp",
     "EagerOpExecutionContext",
+    "WorkspaceAddr",
     "clear_registered_op_impls",
+    "get_declare_launch_args_ctx",
     "get_execute_ctx",
     "get_registered_op_impl_by_descriptor_key",
     "get_registered_op_impl_dicts",
@@ -27,15 +32,20 @@ __all__ = [
 
 _LAZY_EXPORTS = {
     "BaseCustomOp": ".base",
+    "AnnotatedArgsContext": "._native",
+    "AnnotatedKernelArgs": "._native",
+    "AnnotatedKernelLaunchInfo": "._native",
     "EagerExecuteOp": ".base",
     "EagerOpExecutionContext": ".base",
     "clear_registered_op_impls": ".registry",
+    "get_declare_launch_args_ctx": ".context",
     "get_execute_ctx": ".context",
     "get_registered_op_impl_by_descriptor_key": ".registry",
     "get_registered_op_impl_dicts": ".registry",
     "get_registered_op_impls": ".registry",
     "register_op": ".proto",
     "register_op_impl": ".registry",
+    "WorkspaceAddr": "._native",
 }
 
 

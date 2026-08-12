@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <dlfcn.h>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <numeric>
@@ -29,6 +30,8 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/load/model_manager/model_utils.h"
+#include "graph/load/model_manager/davinci_model.h"
+#include "graph/load/model_manager/task_info/ge/custom_task_info.h"
 #include "ge_graph_dsl/assert/graph_assert.h"
 #include "utils/mock_ops_kernel_builder.h"
 #include "utils/taskdef_builder.h"
@@ -50,11 +53,32 @@
 #include "hcom/hcom_topo_info.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "engines/custom_engine/custom_graph_optimizer.h"
+#include "engines/custom_engine/custom_ops_kernel_builder.h"
+#include "graph/compute_graph.h"
+#include "graph/custom_op/cast.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op.h"
+#include "graph/ge_tensor.h"
+#include "graph/operator_reg.h"
+#include "graph/op_desc.h"
+#include "graph/utils/args_format_desc_utils.h"
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "runtime/custom_op/custom_op_loader.h"
 #include "runtime/custom_op/python_custom_op_bridge_loader.h"
+
+namespace ge {
+REG_OP(StPythonAnnotatedArgsCustomOp)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(z, TensorType::ALL())
+    .REQUIRED_ATTR(alpha, Int)
+    .OP_END_FACTORY_REG(StPythonAnnotatedArgsCustomOp);
+
+REG_OP(StPythonAnnotatedArgsBadAttrCustomOp)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(z, TensorType::ALL())
+    .REQUIRED_ATTR(alpha, Int)
+    .OP_END_FACTORY_REG(StPythonAnnotatedArgsBadAttrCustomOp);
+}  // namespace ge
 
 namespace ge {
 using namespace gert;
@@ -149,8 +173,117 @@ void MockGenerateTask() {
 void *output_addr = nullptr;
 void **args_table = nullptr;
 constexpr const char *kPythonCustomOpTypeForSt = "StPythonPybindRemoveCoverageCustomOp";
+constexpr const char *kPythonAnnotatedArgsOpTypeForSt = "StPythonAnnotatedArgsCustomOp";
+constexpr const char *kPythonAnnotatedArgsBadAttrOpTypeForSt = "StPythonAnnotatedArgsBadAttrCustomOp";
 constexpr const char *kEnvPythonCustomOpPath = "ASCEND_CUSTOM_OPP_PATH";
 constexpr const char *kEnvPythonPath = "PYTHONPATH";
+constexpr char kSharedPybindCustomOpPreambleForSt[] = R"PY(from pathlib import Path
+from ge.custom_op import (
+    AnnotatedKernelLaunchInfo,
+    EagerExecuteOp,
+    get_declare_launch_args_ctx,
+    register_op_impl,
+)
+from ge.runtime import Tensor
+
+MARKER_FILE = r')PY";
+constexpr char kSharedPybindEagerCustomOpForSt[] = R"PY('
+
+@register_op_impl(op_type=')PY";
+constexpr char kSharedPybindAnnotatedArgsPrefixForSt[] = R"PY(')
+class StPythonPybindRemoveCoverageCustomOp(EagerExecuteOp):
+    def execute(self, ctx):
+        Path(MARKER_FILE).write_text('executed', encoding='utf-8')
+
+@register_op_impl(op_type=')PY";
+constexpr char kSharedPybindAnnotatedArgsBodyForSt[] = R"PY(')
+class StPythonAnnotatedArgsCustomOp:
+    def __init__(self):
+        self.saved = None
+
+    def declare_launch_args(self, x: Tensor, z: Tensor, *, alpha: int) -> None:
+        ctx = get_declare_launch_args_ctx()
+        args = ctx.create_kernel_args()
+        if alpha == 1:
+            args.append_input(2, x)
+        if alpha == 2:
+            args.append_input(-1, x)
+        if alpha == 3:
+            args.append_scalar(-1)
+        if alpha == 9:
+            try:
+                args.append_input(2, x)
+            except IndexError as error:
+                if 'index 2' not in str(error):
+                    raise AssertionError('input index is missing from error')
+            else:
+                raise AssertionError('invalid input index was accepted')
+            try:
+                args.append_output(3, z)
+            except IndexError as error:
+                if 'index 3' not in str(error):
+                    raise AssertionError('output index is missing from error')
+            else:
+                raise AssertionError('invalid output index was accepted')
+        if alpha == 7:
+            saved_tensor, saved_workspace, saved_args = self.saved
+            for access in (
+                lambda: saved_tensor.addr,
+                lambda: saved_workspace.index,
+                lambda: saved_args.append_scalar(0),
+            ):
+                try:
+                    access()
+                except RuntimeError:
+                    pass
+                else:
+                    raise AssertionError('borrowed DLA object did not expire')
+        args.append_input(0, x)
+        args.append_output(0, z)
+        args.append_scalar(alpha)
+        workspace = None
+        if alpha == 6:
+            workspace = ctx.malloc_workspace(64)
+            for name in ('index', 'addr'):
+                try:
+                    setattr(workspace, name, 0)
+                except AttributeError:
+                    pass
+                else:
+                    raise AssertionError('workspace property is writable')
+            args.append_workspace(workspace)
+        stream_id = ctx.get_stream_id()
+        if alpha == 4:
+            stream_id += 1
+        ctx.add_launch(
+            AnnotatedKernelLaunchInfo(
+                kernel_name='st_python_dla',
+                kernel_bin=b'\x01\x02',
+                block_dim=1,
+                stream_id=stream_id,
+            ),
+            args,
+        )
+        if alpha == 5:
+            args.append_scalar(0)
+        if alpha == 6:
+            self.saved = (x, workspace, args)
+)PY";
+constexpr char kSharedPybindBadAttrCustomOpForSt[] = R"PY(')
+class StPythonAnnotatedArgsBadAttrCustomOp:
+    def declare_launch_args(self, x: Tensor, z: Tensor, *, beta: int) -> None:
+        pass
+)PY";
+constexpr char kInvalidSignaturePybindPreambleForSt[] = R"PY(from ge.custom_op import register_op_impl
+from ge.runtime import Tensor
+
+@register_op_impl(op_type=')PY";
+constexpr char kValidBeforeInvalidPybindCustomOpForSt[] = R"PY(')
+class StPythonValidBeforeInvalidCustomOp:
+    def execute(self, ctx):
+        pass
+
+@register_op_impl(op_type=')PY";
 
 class ScopedTempDirForCustomOpSt {
  public:
@@ -210,6 +343,76 @@ class ScopedEnvVarForCustomOpSt {
   bool has_old_value_{false};
 };
 
+class ScopedGraphOptionsForCustomOpSt {
+ public:
+  explicit ScopedGraphOptionsForCustomOpSt(const std::map<std::string, std::string> &options)
+      : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {
+    GetThreadLocalContext().SetGraphOption(options);
+  }
+
+  ~ScopedGraphOptionsForCustomOpSt() {
+    GetThreadLocalContext().SetGraphOption(old_options_);
+  }
+
+ private:
+  std::map<std::string, std::string> old_options_;
+};
+
+Status GeneratePythonAnnotatedArgsTaskForSt(const char *const op_type, const int64_t alpha,
+                                            const std::string &soc_version, std::vector<domi::TaskDef> &tasks,
+                                            const bool is_unknown_shape = false) {
+  const std::map<std::string, std::string> graph_options = {{SOC_VERSION, soc_version}};
+  ScopedGraphOptionsForCustomOpSt scoped_graph_options(graph_options);
+  auto graph = std::make_shared<ComputeGraph>(std::string("st_python_annotated_args_") + std::to_string(alpha));
+  GE_ASSERT_NOTNULL(graph);
+  graph->SetGraphUnknownFlag(is_unknown_shape);
+  auto op_desc = std::make_shared<OpDesc>("st_python_annotated_args_node", op_type);
+  GE_ASSERT_NOTNULL(op_desc);
+  op_desc->SetId(7);
+  op_desc->SetStreamId(3);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("z", kIrOutputRequired);
+  op_desc->AppendIrAttrName("alpha");
+  GE_ASSERT_TRUE(AttrUtils::SetInt(op_desc, "alpha", alpha));
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({1, 16}));
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  output_desc.SetOriginShape(GeShape({1, 16}));
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddInputDesc("x", input_desc));
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddOutputDesc("z", output_desc));
+  op_desc->SetInputOffset({1024});
+  op_desc->SetOutputOffset({2048});
+  const auto node = graph->AddNode(op_desc);
+  GE_ASSERT_NOTNULL(node);
+
+  RunContext run_context = {};
+  run_context.dataMemBase = reinterpret_cast<uint8_t *>(0x80000000UL);
+  run_context.dataMemSize = 4096U;
+  custom::CustomOpsKernelBuilder builder;
+  return builder.GenerateTask(*node, run_context, tasks);
+}
+
+Status AddPythonAnnotatedArgsOpToModelForSt(DavinciModel &model, const uint32_t op_index, OpDescPtr &op_desc) {
+  op_desc = std::make_shared<OpDesc>("st_python_annotated_args_loaded", kPythonAnnotatedArgsOpTypeForSt);
+  GE_ASSERT_NOTNULL(op_desc);
+  op_desc->SetId(op_index);
+  op_desc->SetStreamId(3);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("z", kIrOutputRequired);
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({1, 16}));
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  output_desc.SetOriginShape(GeShape({1, 16}));
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddInputDesc("x", input_desc));
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddOutputDesc("z", output_desc));
+  op_desc->SetInputOffset({1024});
+  op_desc->SetOutputOffset({2048});
+  GE_ASSERT_TRUE(AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC"));
+  model.op_list_[op_index] = op_desc;
+  model.SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  return SUCCESS;
+}
+
 void WriteTextFileForCustomOpSt(const std::string &file_path, const std::string &content) {
   std::ofstream file(file_path, std::ios::out | std::ios::trunc);
   ASSERT_TRUE(file.is_open());
@@ -235,21 +438,30 @@ const std::string &GetSharedPybindCustomOpMarkerFilePathForSt() {
   return path;
 }
 
+const std::string &GetInvalidSignaturePybindCustomOpFilePathForSt() {
+  static ScopedTempDirForCustomOpSt dir;
+  static const std::string path = dir.CreateFilePath("pybind_invalid_signature_custom_op.py");
+  return path;
+}
+
 void EnsureSharedPybindCustomOpFileForSt() {
   static std::once_flag once;
   std::call_once(once, []() {
-    WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(),
-                               "from pathlib import Path\n"
-                               "from ge.custom_op import EagerExecuteOp, register_op_impl\n\n"
-                               "MARKER_FILE = r'" +
-                                   GetSharedPybindCustomOpMarkerFilePathForSt() +
-                                   "'\n\n"
-                                   "@register_op_impl(op_type='" +
-                                   std::string(kPythonCustomOpTypeForSt) +
-                                   "')\n"
-                                   "class StPythonPybindRemoveCoverageCustomOp(EagerExecuteOp):\n"
-                                   "    def execute(self, ctx):\n"
-                                   "        Path(MARKER_FILE).write_text('executed', encoding='utf-8')\n");
+    const auto python_file = std::string(kSharedPybindCustomOpPreambleForSt) +
+                             GetSharedPybindCustomOpMarkerFilePathForSt() + kSharedPybindEagerCustomOpForSt +
+                             kPythonCustomOpTypeForSt + kSharedPybindAnnotatedArgsPrefixForSt +
+                             kPythonAnnotatedArgsOpTypeForSt + kSharedPybindAnnotatedArgsBodyForSt;
+    WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(), python_file);
+  });
+}
+
+void EnsureInvalidSignaturePybindCustomOpFileForSt() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    const auto python_file = std::string(kInvalidSignaturePybindPreambleForSt) + kPythonCustomOpTypeForSt +
+                             kValidBeforeInvalidPybindCustomOpForSt + kPythonAnnotatedArgsBadAttrOpTypeForSt +
+                             kSharedPybindBadAttrCustomOpForSt;
+    WriteTextFileForCustomOpSt(GetInvalidSignaturePybindCustomOpFilePathForSt(), python_file);
   });
 }
 
@@ -1541,6 +1753,29 @@ TEST_F(CustomOpRefreshTest, eager_only_op_with_malloc_read_only_dev_args) {
 }
 
 /**
+ * 用例描述：测试Python自定义算子在注册阶段拒绝与IR不匹配的回调签名。
+ * 预置条件：
+ * 1. 构造一个合法legacy实现和一个属性名与REG_OP定义不一致的Python实现。
+ * 测试步骤：
+ * 1. 通过LoadPythonCustomOps加载Python实现。
+ * 2. 查询CustomOpFactory中是否存在该Python自定义算子creator。
+ * 预期结果：
+ * 1. 注册阶段签名校验失败，LoadPythonCustomOps返回FAILED。
+ * 2. CustomOpFactory中不存在合法或非法Python自定义算子creator。
+ */
+TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringRegistration) {
+  EnsureInvalidSignaturePybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath,
+                                                   GetInvalidSignaturePybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  EXPECT_EQ(custom_op::LoadPythonCustomOps(), FAILED);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt)), nullptr);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt)), nullptr);
+  custom_op::UnloadPythonCustomOps();
+}
+
+/**
  * 用例描述：测试Python自定义算子通过loader注册、执行后，可以按类型移除注册信息和已创建实例。
  * 预置条件：
  * 1. 构造Python自定义算子实现文件，并配置到ASCEND_CUSTOM_OPP_PATH。
@@ -1579,6 +1814,165 @@ TEST_F(CustomOpFactoryStTest, remove_python_custom_ops_clears_creator_and_create
 
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
+}
+
+TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef) {
+  EnsureSharedPybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  const AscendString op_type(kPythonAnnotatedArgsOpTypeForSt);
+  ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
+  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  ASSERT_NE(base_op, nullptr);
+  EXPECT_NE(CustomOpCast<AnnotatedArgsOp>(base_op), nullptr);
+  EXPECT_EQ(CustomOpCast<EagerExecuteOp>(base_op), nullptr);
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 0, "Ascend910B", tasks), SUCCESS);
+
+  ASSERT_EQ(tasks.size(), 1U);
+  const auto &task = tasks[0];
+  EXPECT_EQ(task.stream_id(), 3U);
+  const auto &kernel = task.kernel();
+  EXPECT_EQ(kernel.kernel_name(), "st_python_dla");
+  EXPECT_EQ(kernel.stub_func(), "st_python_dla");
+  EXPECT_EQ(kernel.block_dim(), 1U);
+  EXPECT_EQ(kernel.args_size(), 24U);
+  std::vector<ArgDesc> arg_descs;
+  ASSERT_EQ(ArgsFormatDescUtils::Parse(kernel.context().args_format(), arg_descs), GRAPH_SUCCESS);
+  ASSERT_EQ(arg_descs.size(), 3U);
+  EXPECT_EQ(arg_descs[0].addr_type, AddrType::INPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[0].ir_idx, 0);
+  EXPECT_EQ(arg_descs[1].addr_type, AddrType::OUTPUT_INSTANCE);
+  EXPECT_EQ(arg_descs[1].ir_idx, 0);
+  EXPECT_EQ(arg_descs[2].addr_type, AddrType::CUSTOM_VALUE);
+
+  custom_op::UnloadPythonCustomOps();
+  loaded_python_custom_ops.Dismiss();
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
+}
+
+TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsUnknownShapeGeneratesBasicTaskDef) {
+  EnsureSharedPybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 0, "Ascend910B", tasks, true),
+            SUCCESS);
+
+  ASSERT_EQ(tasks.size(), 1U);
+  const auto &task = tasks[0];
+  EXPECT_EQ(task.stream_id(), 3U);
+  EXPECT_EQ(task.type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  EXPECT_EQ(task.sqe_num(), 5U);
+  EXPECT_EQ(task.kernel().context().op_index(), 0U);
+  EXPECT_TRUE(task.kernel().kernel_name().empty());
+  EXPECT_TRUE(task.kernel().context().args_format().empty());
+}
+
+TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsRealCallbackRejectsInvalidNativeUsage) {
+  EnsureSharedPybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  for (const int64_t alpha : {1, 2, 3, 4, 5}) {
+    std::vector<domi::TaskDef> tasks;
+    EXPECT_NE(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, alpha, "Ascend910B", tasks),
+              SUCCESS)
+        << "alpha=" << alpha;
+    EXPECT_TRUE(tasks.empty()) << "alpha=" << alpha;
+  }
+
+  std::vector<domi::TaskDef> index_message_tasks;
+  EXPECT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 9, "Ascend910B", index_message_tasks),
+            SUCCESS);
+  EXPECT_EQ(index_message_tasks.size(), 1U);
+}
+
+TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsRealCallbackEnforcesBorrowedLifetime) {
+  EnsureSharedPybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  std::vector<domi::TaskDef> capture_tasks;
+  ASSERT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 6, "Ascend910B", capture_tasks),
+            SUCCESS);
+  ASSERT_EQ(capture_tasks.size(), 1U);
+  EXPECT_EQ(capture_tasks[0].kernel().args_size(), 32U);
+
+  std::vector<domi::TaskDef> verify_tasks;
+  ASSERT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 7, "Ascend910B", verify_tasks),
+            SUCCESS);
+  ASSERT_EQ(verify_tasks.size(), 1U);
+  EXPECT_EQ(verify_tasks[0].kernel().args_size(), 24U);
+}
+
+TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsMobileOmcAcceptsSingleLaunch) {
+  EnsureSharedPybindCustomOpFileForSt();
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  std::vector<domi::TaskDef> tasks;
+  ASSERT_EQ(GeneratePythonAnnotatedArgsTaskForSt(kPythonAnnotatedArgsOpTypeForSt, 8, "KirinX90", tasks), SUCCESS);
+  ASSERT_EQ(tasks.size(), 1U);
+  EXPECT_EQ(tasks[0].type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  EXPECT_EQ(tasks[0].kernel().kernel_name(), "st_python_dla");
+  EXPECT_EQ(tasks[0].kernel().args_size(), 24U);
+  const auto op_index = tasks[0].kernel().context().op_index();
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> feature_mem(4096U, 0U);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(feature_mem.data());
+  model.runtime_param_.mem_size = feature_mem.size();
+  OpDescPtr op_desc;
+  ASSERT_EQ(AddPythonAnnotatedArgsOpToModelForSt(model, op_index, op_desc), SUCCESS);
+  ASSERT_EQ(model.GetOpByIndex(op_index), op_desc);
+
+  auto ge_model = MakeShared<GeModel>();
+  ASSERT_NE(ge_model, nullptr);
+  std::vector<char> kernel_bin = {0x01, 0x02};
+  ge_model->GetTBEKernelStore().AddTBEKernel(MakeShared<OpKernelBin>("st_python_dla", std::move(kernel_bin)));
+  model.ge_model_ = ge_model;
+
+  const uint64_t input_addr = model.runtime_param_.mem_base + 1024U;
+  const uint64_t output_addr = model.runtime_param_.mem_base + 2048U;
+  model.logical_mem_allocations_.push_back({0U, input_addr, 32U, MemAllocation::INPUT, 0U, 0U, 0U, 32U});
+  model.logical_mem_allocations_.push_back({1U, output_addr, 32U, MemAllocation::OUTPUT, 0U, 0U, 0U, 0U});
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  std::vector<rtStream_t> streams(4U, nullptr);
+  for (auto &stream : streams) {
+    ASSERT_EQ(model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0U, 0, 0U), SUCCESS);
+  }
+  model.stream_list_ = streams;
+
+  CustomTaskInfo task_info;
+  TaskRunParam task_run_param;
+  ASSERT_EQ(task_info.ParseTaskRunParam(tasks[0], &model, task_run_param), SUCCESS);
+  std::vector<uint8_t> loaded_args(tasks[0].kernel().args().cbegin(), tasks[0].kernel().args().cend());
+  PisToArgs args;
+  args[static_cast<size_t>(ArgsPlacement::kArgsPlacementHbm)].dev_addr = reinterpret_cast<uint64_t>(loaded_args.data());
+  IowAddrs iow_addrs;
+  iow_addrs.input_logic_addrs = {{input_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  iow_addrs.output_logic_addrs = {{output_addr, static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)}};
+  ASSERT_EQ(task_info.Init(tasks[0], &model, args, {}, iow_addrs), SUCCESS);
+  EXPECT_EQ(task_info.Distribute(), SUCCESS);
 }
 
 TEST_F(CustomOpFactoryStTest, load_python_custom_ops_if_needed_fails_for_missing_python_file) {

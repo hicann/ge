@@ -220,6 +220,19 @@ graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
   return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx);
 }
 
+graphStatus PythonCustomOpAdapter::DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) {
+  if (!HasCapability(CustomOpCapability::kAnnotatedArgs)) {
+    return ReportUnsupported(CustomOpCapability::kAnnotatedArgs, "DeclareLaunchArgs");
+  }
+  if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
+      (holder_->GetCallbacks().declare_launch_args == nullptr)) {
+    GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
+           desc_.descriptor_key.c_str(), desc_.op_type.c_str());
+    return GRAPH_FAILED;
+  }
+  return holder_->GetCallbacks().declare_launch_args(holder_->GetHolder(), &ctx);
+}
+
 graphStatus PythonCustomOpAdapter::Compile(gert::OpCompileContext *ctx) {
   (void)ctx;
   return ReportUnsupported(CustomOpCapability::kCompilable, "Compile");

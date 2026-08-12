@@ -741,11 +741,11 @@ custom_op/
 └── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
 ```
 注：下划线开头的为 Python 风格下的对内模块。
-注：`EagerOpExecutionContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期返回或接收的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
+注：`EagerOpExecutionContext` 和 `AnnotatedArgsContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期返回或接收的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
 
 #### 模块定位
 
-Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前执行能力通过反射实现类上的可调用 `execute` 方法识别，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。
 
 #### 运行时 native artifact 选择
 
@@ -825,27 +825,61 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 
 **功能**: 获取当前 schema-bound `execute` 回调的 `EagerOpExecutionContext`。在回调外或回调结束后调用会抛出 `RuntimeError`。
 
-##### 6. OpImplDescriptor 数据类
+##### 6. AnnotatedArgsContext 与声明式 kernel 参数
+
+**文件位置**: `_native.py`、`_ge_custom_op_native.pyi`
+
+`declare_launch_args` 是静态图编译期 callback。它通过 `get_declare_launch_args_ctx()` 取得当前 `AnnotatedArgsContext`，再用 `create_kernel_args()` 和 `add_launch()` 声明 kernel。
+
+```python
+@register_op_impl(op_type="AnnotatedAddCustom")
+class AnnotatedAddCustom:
+    def declare_launch_args(self, x: Tensor, y: Tensor, z: Tensor) -> None:
+        ctx = get_declare_launch_args_ctx()
+        args = ctx.create_kernel_args()
+        args.append_input(0, x)
+        args.append_input(1, y)
+        args.append_output(0, z)
+        ctx.add_launch(
+            AnnotatedKernelLaunchInfo(
+                kernel_name="add_custom",
+                kernel_bin=kernel_bin,
+                block_dim=8,
+                stream_id=ctx.get_stream_id(),
+            ),
+            args,
+        )
+```
+
+方法参数按 IR schema 绑定：inputs 在前、outputs 次之、attrs 作为 keyword-only 参数。required input/output 使用 `Tensor`，optional input 使用 `Optional[Tensor]`，dynamic input/output 使用 `List[Tensor]`。返回注解和返回值都必须为 `None`。
+
+`append_input(instance_index, tensor)` 和 `append_output(instance_index, tensor)` 的 index 是当前计算节点输入、输出的实例平铺 index。对于动态输入或输出，同一 IR 槽位展开出的多个 tensor 实例分别占用连续 index。`AnnotatedArgsContext`、Tensor、workspace 和 `AnnotatedKernelArgs` 在 callback 结束后失效；`add_launch` 会消费 builder。
+
+同一 AnnotatedArgs task-plan 生命周期只调用一次 `declare_launch_args`，并缓存本次声明形成的 task plan；后续生成阶段只根据当前 `RunContext` 物化缓存的 task plan，不再回调 Python。新的 task-plan 生命周期会重新调用声明方法。每次回调中的 borrowed object 只能在该次回调内使用，不得跨回调复用。编译期把最终选择的刷新方式保存到 `_custom_task_args_mode`，模型加载时以该属性为第一事实来源；没有该属性的旧 OM 保留 registry 查询和 `args_format` 兼容兜底。模型执行路径不调用 Python。
+
+##### 7. OpImplDescriptor 数据类
 
 **文件位置**: `registry.py`
 
 **功能**: 规范化的 Python 自定义算子实现描述符。
 
 **属性**:
+
 - `descriptor_key` - 描述符唯一键（格式：`模块名:类名:算子类型`）
 - `op_type` - 自定义算子类型
 - `module_name` - 所属模块名
 - `class_name` - 类名
-- `interfaces` - 能力接口列表，V1 为 `["eager_execute"]`
+- `interfaces` - 能力接口列表，可包含 `"eager_execute"` 和 `"annotated_args"`
 - `cls` - Python 实现类引用
 
 #### 注册与发现
 
 **装饰器**:
 - `register_op(op_type, mutates_args=())` - 根据被装饰函数的类型标注声明并收集 Python 自定义算子原型
-- `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；当前 `execute` 对应 `eager_execute`
+- `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；`execute` 对应 `eager_execute`，`declare_launch_args` 对应 `annotated_args`
 
 **发现机制**:
+
 - 复用环境变量 `ASCEND_CUSTOM_OPP_PATH` 指定 Python custom op 文件或目录路径
 - `bootstrap.py` 负责扫描路径并动态加载 Python 模块
 - 支持单个 `.py` 文件、普通目录下的 `.py` 文件和包含 `__init__.py` 的 Python 包

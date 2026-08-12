@@ -18,11 +18,16 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from ._ir_types import AttrType, InputType
+from ._ir_types import InputType, OutputType
+from ._signature import _get_runtime_attr_spec, _validate_args_signature
 from .base import EagerOpExecutionContext
 from .bootstrap import get_registered_op_impls, load_custom_op_plugins
-from .context import _execute_ctx_scope
-from .registry import get_registered_op_impl_by_descriptor_key
+from .context import _declare_launch_args_ctx_scope, _execute_ctx_scope
+from .registry import (
+    INTERFACE_ANNOTATED_ARGS,
+    INTERFACE_EAGER_EXECUTE,
+    get_registered_op_impl_by_descriptor_key,
+)
 
 
 @dataclass
@@ -34,21 +39,6 @@ class _OpImplHolder:
 
 _HOLDER_LOCK = threading.RLock()
 _OP_IMPL_HOLDERS: Dict[str, _OpImplHolder] = {}
-
-_RUNTIME_ATTR_GETTERS = {
-    AttrType.INT: "get_int",
-    AttrType.FLOAT: "get_float",
-    AttrType.BOOL: "get_bool",
-    AttrType.STRING: "get_str",
-    AttrType.DATA_TYPE: "get_data_type",
-    AttrType.TENSOR: "get_tensor",
-    AttrType.LIST_INT: "get_list_int",
-    AttrType.LIST_FLOAT: "get_list_float",
-    AttrType.LIST_BOOL: "get_list_bool",
-    AttrType.LIST_STRING: "get_list_str",
-    AttrType.LIST_DATA_TYPE: "get_list_data_type",
-    AttrType.LIST_LIST_INT: "get_list_list_int",
-}
 
 
 def load_and_get_op_impl_descriptors() -> list:
@@ -64,13 +54,17 @@ def _get_holder(instance_id: str) -> _OpImplHolder:
     return holder
 
 
-def _get_eager_execute_op(instance_id: str) -> object:
-    instance = _get_holder(instance_id).instance
-    if not callable(getattr(instance, "execute", None)):
+def _get_eager_execute_holder(instance_id: str) -> _OpImplHolder:
+    holder = _get_holder(instance_id)
+    if not callable(getattr(holder.instance, "execute", None)):
         raise TypeError(
             f"python op impl does not implement callable execute: {instance_id}"
         )
-    return instance
+    return holder
+
+
+def _get_eager_execute_op(instance_id: str) -> object:
+    return _get_eager_execute_holder(instance_id).instance
 
 
 def create_op_impl_holder(instance_id: str, descriptor_key: str) -> bool:
@@ -106,19 +100,63 @@ def _is_legacy_execute(method) -> bool:
     )
 
 
-def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list:
+def _get_callback_for_signature(cls, method_name: str):
+    method = inspect.getattr_static(cls, method_name)
+    if isinstance(method, staticmethod):
+        return method.__func__
+    if isinstance(method, classmethod):
+        return method.__get__(None, cls)
+    if inspect.isfunction(method):
+        return method.__get__(object(), cls)
+    return getattr(cls, method_name)
+
+
+def validate_op_impl_descriptor(descriptor_key: str, ir_meta: Optional[dict]) -> bool:
+    descriptor = get_registered_op_impl_by_descriptor_key(descriptor_key)
+    if descriptor is None:
+        raise KeyError(f"python op impl descriptor_key not found: {descriptor_key}")
+
+    if INTERFACE_EAGER_EXECUTE in descriptor.interfaces:
+        method = _get_callback_for_signature(descriptor.cls, "execute")
+        if not _is_legacy_execute(method):
+            if ir_meta is None:
+                raise RuntimeError(
+                    "canonical IR not found for schema-bound execute: "
+                    f"{descriptor.op_type}"
+                )
+            _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
+
+    if INTERFACE_ANNOTATED_ARGS in descriptor.interfaces:
+        if ir_meta is None:
+            raise RuntimeError(
+                "canonical IR not found for schema-bound declare_launch_args"
+            )
+        method = _get_callback_for_signature(descriptor.cls, "declare_launch_args")
+        _validate_args_signature(
+            method, ir_meta, descriptor, method_name="declare_launch_args"
+        )
+    return True
+
+
+def _build_inputs(
+    ir_inputs: list,
+    get_required_input,
+    get_optional_input,
+    get_dynamic_input_num,
+    get_dynamic_input,
+) -> list:
     args = []
     for ir_index, item in enumerate(ir_inputs):
         kind = item["kind"]
         if kind == InputType.REQUIRED:
-            args.append(ctx.get_required_input_tensor(ir_index))
+            args.append(get_required_input(ir_index))
         elif kind == InputType.OPTIONAL:
-            args.append(ctx.get_optional_input_tensor(ir_index))
+            args.append(get_optional_input(ir_index))
         elif kind == InputType.DYNAMIC:
-            instance_num = ctx.get_dynamic_input_num(ir_index)
+            instance_num = get_dynamic_input_num(ir_index)
             args.append(
                 [
-                    ctx.get_dynamic_input_tensor(ir_index, relative_index)
+                    get_dynamic_input(ir_index, relative_index)
                     for relative_index in range(instance_num)
                 ]
             )
@@ -129,12 +167,18 @@ def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list
     return args
 
 
+def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list:
+    return _build_inputs(
+        ir_inputs,
+        ctx.get_required_input_tensor,
+        ctx.get_optional_input_tensor,
+        ctx.get_dynamic_input_num,
+        ctx.get_dynamic_input_tensor,
+    )
+
+
 def _read_runtime_attr(attrs, index: int, ir_type: str):
-    getter_name = _RUNTIME_ATTR_GETTERS.get(ir_type)
-    if getter_name is None:
-        raise ValueError(
-            f"unsupported custom op runtime attr type: {ir_type}, attr index: {index}"
-        )
+    getter_name, _ = _get_runtime_attr_spec(ir_type, index)
     return getattr(attrs, getter_name)(index)
 
 
@@ -148,13 +192,53 @@ def _build_execute_attrs(ctx: EagerOpExecutionContext, ir_attrs: list) -> dict:
     }
 
 
+def _build_declare_inputs(ctx, ir_inputs: list) -> list:
+    return _build_inputs(
+        ir_inputs,
+        ctx._get_required_input_tensor,
+        ctx._get_optional_input_tensor,
+        ctx._get_dynamic_input_num,
+        ctx._get_dynamic_input_tensor,
+    )
+
+
+def _build_declare_outputs(ctx, ir_outputs: list) -> list:
+    args = []
+    for ir_index, item in enumerate(ir_outputs):
+        kind = item["kind"]
+        if kind == OutputType.REQUIRED:
+            args.append(ctx._get_required_output_tensor(ir_index))
+        elif kind == OutputType.DYNAMIC:
+            instance_num = ctx._get_dynamic_output_num(ir_index)
+            args.append(
+                [
+                    ctx._get_dynamic_output_tensor(ir_index, relative_index)
+                    for relative_index in range(instance_num)
+                ]
+            )
+        else:
+            raise ValueError(f"unsupported custom op IR output kind: {kind}")
+    return args
+
+
+def _build_declare_attrs(ctx, ir_attrs: list) -> dict:
+    if not ir_attrs:
+        return {}
+    attrs = ctx._get_attrs()
+    return {
+        item["name"]: _read_runtime_attr(attrs, index, item["type"])
+        for index, item in enumerate(ir_attrs)
+    }
+
+
 def call_execute(
     instance_id: str,
     ir_meta: Optional[dict],
     ctx: EagerOpExecutionContext,
 ) -> None:
     try:
-        custom_op = _get_eager_execute_op(instance_id)
+        holder = _get_eager_execute_holder(instance_id)
+        custom_op = holder.instance
         method = custom_op.execute
         if _is_legacy_execute(method):
             method(ctx)
@@ -168,6 +252,29 @@ def call_execute(
         kwargs = _build_execute_attrs(ctx, ir_meta["attrs"])
         with _execute_ctx_scope(ctx):
             method(*args, **kwargs)
+    finally:
+        ctx._invalidate()
+
+
+def call_declare_launch_args(instance_id: str, ir_meta: Optional[dict], ctx) -> None:
+    try:
+        holder = _get_holder(instance_id)
+        method = getattr(holder.instance, "declare_launch_args", None)
+        if not callable(method):
+            raise TypeError(
+                f"python op impl does not implement declare_launch_args: {instance_id}"
+            )
+        if ir_meta is None:
+            raise RuntimeError(
+                "canonical IR not found for schema-bound declare_launch_args"
+            )
+        args = _build_declare_inputs(ctx, ir_meta["inputs"])
+        args.extend(_build_declare_outputs(ctx, ir_meta["outputs"]))
+        kwargs = _build_declare_attrs(ctx, ir_meta["attrs"])
+        with _declare_launch_args_ctx_scope(ctx):
+            result = method(*args, **kwargs)
+        if result is not None:
+            raise TypeError("declare_launch_args must return None")
     finally:
         ctx._invalidate()
 

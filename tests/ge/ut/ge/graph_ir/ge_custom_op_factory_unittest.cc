@@ -106,6 +106,11 @@ graphStatus ExecuteMockPythonCustomOp(const void *holder, gert::EagerOpExecution
   return GRAPH_SUCCESS;
 }
 
+graphStatus DeclareMockPythonCustomOp(const void *holder, gert::AnnotatedArgsContext *ctx) {
+  (void)ctx;
+  return (holder == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
+}
+
 std::vector<uint8_t> BuildCustomOpPartition(const std::string &name, const std::vector<uint8_t> &bin) {
   ge::CustomKernelItemHeader header{ge::kCustomKernelItemMagic, static_cast<uint32_t>(name.size()),
                                     static_cast<uint32_t>(bin.size())};
@@ -237,6 +242,7 @@ TEST(UtestCustomOpCast, filters_python_adapter_by_capability) {
 
     BaseCustomOp *base = &adapter;
     EXPECT_NE(nullptr, CustomOpCast<EagerExecuteOp>(base));
+    EXPECT_EQ(nullptr, CustomOpCast<AnnotatedArgsOp>(base));
     EXPECT_EQ(nullptr, CustomOpCast<CompilableOp>(base));
     EXPECT_EQ(nullptr, CustomOpCast<ShapeInferOp>(base));
     EXPECT_EQ(nullptr, CustomOpCast<PortableOp>(base));
@@ -248,6 +254,54 @@ TEST(UtestCustomOpCast, filters_python_adapter_by_capability) {
     PythonCustomOpRuntimeRegistry::Clear();
   }
   EXPECT_FALSE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+}
+
+TEST(UtestCustomOpCast, filters_python_adapter_annotated_args_by_capability) {
+  PythonCustomOpDescriptor desc;
+  desc.descriptor_key = "python_adapter_annotated_args_only";
+  desc.op_type = "PythonAdapterAnnotatedArgsOnly";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kAnnotatedArgs);
+
+  PythonCustomOpCallbacks callbacks;
+  callbacks.create = CreateMockPythonCustomOpHolder;
+  callbacks.destroy = DestroyMockPythonCustomOpHolder;
+  callbacks.declare_launch_args = DeclareMockPythonCustomOp;
+
+  ASSERT_TRUE(PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  {
+    PythonCustomOpAdapter adapter(desc);
+    EXPECT_TRUE(adapter.IsValid());
+
+    BaseCustomOp *base = &adapter;
+    EXPECT_EQ(nullptr, CustomOpCast<EagerExecuteOp>(base));
+    EXPECT_NE(nullptr, CustomOpCast<AnnotatedArgsOp>(base));
+    EXPECT_EQ(nullptr, CustomOpCast<CompilableOp>(base));
+  }
+  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+}
+
+TEST(UtestCustomOpCast, exposes_each_python_adapter_capability_in_dual_mode) {
+  PythonCustomOpDescriptor desc;
+  desc.descriptor_key = "python_adapter_dual_capability";
+  desc.op_type = "PythonAdapterDualCapability";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kEagerExecute);
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kAnnotatedArgs);
+
+  PythonCustomOpCallbacks callbacks;
+  callbacks.create = CreateMockPythonCustomOpHolder;
+  callbacks.destroy = DestroyMockPythonCustomOpHolder;
+  callbacks.execute = ExecuteMockPythonCustomOp;
+  callbacks.declare_launch_args = DeclareMockPythonCustomOp;
+
+  ASSERT_TRUE(PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  {
+    PythonCustomOpAdapter adapter(desc);
+    EXPECT_TRUE(adapter.IsValid());
+    BaseCustomOp *base = &adapter;
+    EXPECT_NE(nullptr, CustomOpCast<EagerExecuteOp>(base));
+    EXPECT_NE(nullptr, CustomOpCast<AnnotatedArgsOp>(base));
+  }
+  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
 }
 
 TEST(UtestCustomOpCast, rejects_unsupported_python_adapter_capability) {

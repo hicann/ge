@@ -11,11 +11,21 @@
 #ifndef METADEF_CXX_INC_GRAPH_CUSTOM_OP_ARGS_REFRESH_H_
 #define METADEF_CXX_INC_GRAPH_CUSTOM_OP_ARGS_REFRESH_H_
 
+#include <cstdint>
+
 namespace ge {
 enum class ArgsRefreshStrategy {
   kNone = 0,
   kAnnotatedArgs,
   kUpdateCallback,
+};
+
+// Serialized in ATTR_NAME_CUSTOM_TASK_ARGS_MODE. Keep the numeric values stable for OM compatibility.
+enum class CustomTaskArgsMode : int64_t {
+  kUnspecified = 0,
+  kNone = 1,
+  kAnnotatedArgs = 2,
+  kUpdateCallback = 3,
 };
 }  // namespace ge
 

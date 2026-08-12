@@ -24,6 +24,11 @@ ModelInference::Builder &ModelInference::Builder::AiCoreNum(const std::string &a
   return *this;
 }
 
+ModelInference::Builder &ModelInference::Builder::MultiStreamParallelMode(const std::string &multiStreamParallelMode) {
+  infer_params_.multi_stream_parallel_mode_ = multiStreamParallelMode;
+  return *this;
+}
+
 ModelInference::Builder &ModelInference::Builder::InputBatchCopy(bool enableBatchH2D) {
   infer_params_.enable_input_batch_cpy_ = enableBatchH2D;
   return *this;
@@ -54,6 +59,7 @@ ModelInference::ModelInference(const InferenceParams &inference_params)
       model_type_(inference_params.model_type_),
       multi_instance_num_(inference_params.multi_instance_num_),
       ai_core_num_(inference_params.ai_core_num_),
+      multi_stream_parallel_mode_(inference_params.multi_stream_parallel_mode_),
       parser_params_(inference_params.parser_params_),
       enable_input_batch_cpy_(inference_params.enable_input_batch_cpy_),
       global_max_queue_size_(inference_params.global_max_queue_size_) {}
@@ -229,9 +235,10 @@ void ModelInference::GraphTask::operator()() {
   auto exec_start = std::chrono::high_resolution_clock::now();
 
   auto safe_callback = [&](std::shared_ptr<std::vector<gert::Tensor>> outputs,
-                           std::shared_ptr<std::vector<gert::Tensor>> inputs, bool status, long long exec_us) {
+                           std::shared_ptr<std::vector<gert::Tensor>> inputs, bool status, long long exec_us,
+                           long long benchmark_exec_us) {
     try {
-      if (callback) callback(outputs, inputs, status, exec_us);
+      if (callback) callback(outputs, inputs, status, exec_us, benchmark_exec_us);
     } catch (const std::exception &ex) {
       std::cerr << "Callback exception: " << ex.what() << std::endl;
     } catch (...) {
@@ -241,27 +248,28 @@ void ModelInference::GraphTask::operator()() {
   std::vector<gert::Tensor> device_outputs;
   std::vector<gert::Tensor> device_inputs;
   if (!MakeDeviceTensorFromHost(*host_inputs, device_inputs)) {
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
   if (!MakeDeviceTensorFromHost(*host_outputs, device_outputs)) {
     FreeDevice(device_inputs);
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
   if (!CopyH2D(*host_inputs, device_inputs, worker->batchCopy)) {
     FreeDevice(device_inputs);
     FreeDevice(device_outputs);
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
 
+  const auto benchmark_exec_start = std::chrono::steady_clock::now();
   ge::Status ret = session->ExecuteGraphWithStreamAsync(worker->graphId, worker->stream, device_inputs, device_outputs);
   if (ret != ge::SUCCESS) {
     std::cerr << "ExecuteGraphWithStreamAsync failed!" << std::endl;
     FreeDevice(device_inputs);
     FreeDevice(device_outputs);
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
 
@@ -270,14 +278,17 @@ void ModelInference::GraphTask::operator()() {
     std::cerr << "Synchronize stream failed after executeGraphWithStreamAsync, ret=" << aerr << std::endl;
     FreeDevice(device_inputs);
     FreeDevice(device_outputs);
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
+  const auto benchmark_exec_end = std::chrono::steady_clock::now();
+  const long long benchmark_exec_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(benchmark_exec_end - benchmark_exec_start).count();
 
   if (!CopyD2H(device_outputs, *host_outputs, worker->batchCopy)) {
     FreeDevice(device_inputs);
     FreeDevice(device_outputs);
-    safe_callback(host_outputs, host_inputs, false, 0);
+    safe_callback(host_outputs, host_inputs, false, 0, 0);
     return;
   }
 
@@ -287,7 +298,7 @@ void ModelInference::GraphTask::operator()() {
   auto exec_end = std::chrono::high_resolution_clock::now();
   long long exec_us = std::chrono::duration_cast<std::chrono::microseconds>(exec_end - exec_start).count();
 
-  safe_callback(host_outputs, host_inputs, true, exec_us);
+  safe_callback(host_outputs, host_inputs, true, exec_us, benchmark_exec_us);
 }
 
 ModelInference::~ModelInference() {
@@ -315,6 +326,10 @@ ge::Status ModelInference::Init() {
       {ge::AscendString("ge.exec.precision_mode"), ge::AscendString("allow_fp32_to_fp16")}};
   if (!ai_core_num_.empty()) {
     session_options.emplace(ge::AscendString("ge.aicoreNum"), ge::AscendString(ai_core_num_.c_str()));
+  }
+  if (!multi_stream_parallel_mode_.empty()) {
+    session_options.emplace(ge::AscendString("ge.autoMultistreamParallelMode"),
+                            ge::AscendString(multi_stream_parallel_mode_.c_str()));
   }
 
   std::map<ge::AscendString, ge::AscendString> global_options = {

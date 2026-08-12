@@ -155,6 +155,25 @@
     bash run.sh
     ```
 
+    样例支持以下测试参数：
+
+    | 参数 | 说明 |
+    |:---|:---|
+    | `--model` | OM 模型路径，默认为 `../model/yolov13.om` |
+    | `--input` | 输入文件路径，默认为 `../data/bus.bin` |
+    | `--warmup-runs` | 预热次数，默认为 `0` |
+    | `--runs` | 正式测试次数，默认为 `1` |
+
+    例如：
+
+    ```bash
+    ./out/yolov13_main \
+        --model=./model/yolov13.om \
+        --input=./data/bus.bin \
+        --warmup-runs=5 \
+        --runs=10
+    ```
+
 3. 执行结果：
 
     执行成功后，关键提示信息示例如下（置信度和 bbox 坐标会根据模型版本、环境有所不同）：
@@ -166,6 +185,8 @@
     [INFO] create stream success
     [INFO] load model ../model/yolov13.om success.
     [INFO] start to process file: ../data/bus.bin
+    [INFO] BENCHMARK aclmdlExecute run=0 latency_us=1526
+    [INFO] Average aclmdlExecute latency: 1.526 ms
     [INFO] detected 5 objects:
     [INFO]   [0] bus (0.94)  bbox: [92,136,559,435]
     [INFO]   [1] person (0.92)  bbox: [110,236,222,535]
@@ -184,6 +205,124 @@
     ```
 
     执行后生成 `bus_out.jpg`，图片上绘制了检测框和类别标签。
+
+## 多流参数寻优任务
+
+### 功能说明
+
+在 CANN 社区版 9.2.0 环境中，可使用 GE 高级调优功能“多流增强”，通过自动分配图内执行流，挖掘算子之间的并行执行空间。
+
+> [!NOTE]
+> 多流增强功能需在 CANN 社区版 9.2.0 环境中使用。请前往 [CANN 软件下载页面](https://www.hiascend.com/cann/download?versionId=770&ids=d806%2Ch0501%2Ch0601%2Ch0703)，按以下条件选择安装包：
+>
+> - 版本类型：`Weekly`
+> - 产品系列：A3 系列产品
+> - CPU 架构：AArch64
+> - 操作系统：openEuler
+> - 安装方式：离线安装
+>
+> 下载完成后，请按照页面中的安装指导部署环境。
+
+本样例属于静态 Shape 离线编译场景，通过 ATC 参数 `--multi_stream_parallel_mode` 配置多流并行模式，并为每个候选参数生成独立的 OM。
+
+| 参数值 | 说明 |
+|:---|:---|
+| `cv` | 开启 Cube 算子与 Vector 算子的并行执行 |
+| `LoadBalance:N` | 采用负载均衡算法，将算子分配到最多 `N` 条流上执行 |
+| `MainStream:N` | 采用主流算法，串行算子在主流执行，其他可并行算子分配到其他流 |
+| 不配置 | 不启用自动多流并行优化，作为默认性能基线 |
+
+其中，`N` 为正整数，取值范围为 `[1, 64]`。配置的流数量超过实际可用计算资源时，性能可能下降。详细说明请参见 [`--multi_stream_parallel_mode` 参数说明](../../../docs/zh/user_guides/atc_tools/CLI_options/--multi_stream_parallel_mode.md)。
+
+### 命令行参数
+
+ATC 通过 `--multi_stream_parallel_mode=<模式>` 接收多流策略，并将对应配置写入生成的 OM：
+
+```text
+--multi_stream_parallel_mode=<模式>
+```
+
+不传入 `--multi_stream_parallel_mode` 时，不启用自动多流并行优化，并将生成的 OM 作为默认性能基线。
+
+### TODO：寻找最优多流增强参数
+
+请在 CANN 社区版 9.2.0 环境中测试不同的多流并行模式，找到本样例在指定环境和测试条件下的最优参数，并填写以下结论后提交 PR：
+
+```text
+--multi_stream_parallel_mode=<待填写>
+```
+
+例如，使用 `cv` 模式时，先编译对应的 OM：
+
+```bash
+atc --model=yolov13n.onnx \
+    --framework=5 \
+    --output=./model/yolov13_cv \
+    --soc_version=Ascend910_9362 \
+    --input_shape="images:1,3,640,640" \
+    --output_type=FP32 \
+    --multi_stream_parallel_mode=cv
+```
+
+首次寻优前，基于最新源码构建一次推理程序：
+
+```bash
+bash scripts/build.sh
+```
+
+构建完成后，使用相同输入执行样例：
+
+```bash
+./out/yolov13_main \
+    --model=./model/yolov13_cv.om \
+    --input=./data/bus.bin \
+    --warmup-runs=10 \
+    --runs=90
+```
+
+`yolov13_main` 只需基于最新源码构建一次。遍历其他 `--multi_stream_parallel_mode` 候选参数时，重新执行 ATC 生成对应的 OM，然后使用同一个 `yolov13_main` 测试即可，无需重复构建推理程序。
+
+#### 性能评价标准
+
+多流参数寻优以样例输出的平均 `aclmdlExecute` 时延作为主评价指标，数值越小表示性能越优：
+
+```text
+Average aclmdlExecute latency: <平均耗时> ms
+```
+
+每个 `--multi_stream_parallel_mode` 候选参数共执行 100 次推理：前 10 次通过 `--warmup-runs=10` 进行预热，不计入统计；后 90 次通过 `--runs=90` 进行正式测试。以这 90 次成功正式推理的算术平均时延作为评价结果，并将平均时延最小者作为当前测试环境下的推荐参数。
+
+单次耗时使用 `std::chrono::steady_clock` 统计，起点位于 `aclmdlExecute` 调用前，终点位于调用返回后，统计范围仅覆盖 `aclmdlExecute`。ATC 编译、ACL 初始化、模型加载、输入拷贝和后处理均不计入统计。预热阶段会执行 `aclmdlExecute`，但不统计和输出耗时。
+
+平均时延计算方式为：
+
+```text
+Average aclmdlExecute latency = 成功正式推理的 aclmdlExecute 耗时总和 / 成功正式推理次数
+```
+
+样例同时输出后 90 次正式推理的单次耗时，便于核对平均值和观察时延波动：
+
+```text
+BENCHMARK aclmdlExecute run=<从 0 开始的正式推理序号> latency_us=<耗时>
+```
+
+> [!NOTE]
+> 当前样例已支持 `--model`、`--input`、`--warmup-runs` 和 `--runs` 测试参数，并输出单次及平均 `aclmdlExecute` 耗时。`--multi_stream_parallel_mode` 是唯一寻优变量，各候选参数应独立编译 OM，并在相同环境下按照“预热 10 次、正式测试 90 次”的方式进行测试。
+
+参数固定原则：
+
+- ONNX 模型和输入数据：保持模型结构、输入 Shape 和计算量一致。
+- `soc_version`：保持 OM 的目标芯片配置一致。
+- `--warmup-runs=10`：固定预热 10 次，预热不参与统计。
+- `--runs=90`：固定正式测试 90 次，保持平均时延样本数一致。
+- `--multi_stream_parallel_mode`：作为寻优过程中的唯一变量。
+
+日志字段含义：
+
+- `BENCHMARK`：便于脚本检索性能日志的固定标识。
+- `run`：预热结束后正式推理的执行序号，不是多流数量或 batch size。
+- `latency_us`：单次 `aclmdlExecute` 耗时，单位为微秒。
+- `Average aclmdlExecute latency`：所有成功正式推理的平均 `aclmdlExecute` 时延，单位为毫秒。
 
 ## 说明
 
