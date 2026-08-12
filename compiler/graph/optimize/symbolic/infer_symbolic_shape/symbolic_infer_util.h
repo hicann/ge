@@ -139,6 +139,7 @@ class SymbolicInferUtil {
   static std::string DumpSymbolTensor(const gert::SymbolTensor &symbolic_tensor);
   static bool IsSupportCondNode(const NodePtr &node);
   static NodePtr GetCondInput(const NodePtr &node);
+  static bool IsValueDependentDataNode(const NodePtr &data_node);
 };
 }  // namespace ge
 

@@ -394,14 +394,23 @@ std::vector<int64_t> GetDimsFromGertShape(const gert::Shape &gert_shape) {
   return dims;
 }
 
-TensorDesc GetTensorDescFromGertTensor(const gert::Tensor &gert_tensor) {
+ge::Tensor GetTensorDescFromGertTensor(const gert::Tensor &gert_tensor) {
   ge::Shape storage_shape{GetDimsFromGertShape(gert_tensor.GetStorageShape())};
   TensorDesc tensor_desc{std::move(storage_shape), gert_tensor.GetStorageFormat(), gert_tensor.GetDataType()};
   const ge::Shape origin_shape{GetDimsFromGertShape(gert_tensor.GetOriginShape())};
 
   tensor_desc.SetOriginFormat(gert_tensor.GetOriginFormat());
   tensor_desc.SetOriginShape(origin_shape);
-  return tensor_desc;
+  tensor_desc.SetPlacement(gert::TensorPlacementUtils::IsOnHost(gert_tensor.GetPlacement())
+                               ? ge::Placement::kPlacementHost
+                               : ge::Placement::kPlacementDevice);
+
+  ge::Tensor ge_tensor(tensor_desc);
+  if ((tensor_desc.GetPlacement() == ge::Placement::kPlacementHost) && (gert_tensor.GetAddr() != nullptr) &&
+      (gert_tensor.GetSize() > 0U)) {
+    (void)ge_tensor.SetData(reinterpret_cast<const uint8_t *>(gert_tensor.GetAddr()), gert_tensor.GetSize());
+  }
+  return ge_tensor;
 }
 
 Status SaveRootModel(const GeRootModelPtr &ge_root_model, ModelBufferData &model_buff) {
@@ -3804,8 +3813,7 @@ Status GraphManager::CheckIncreBuildAndPreRun(const std::shared_ptr<RunArgs> &ar
 
   std::vector<ge::Tensor> inputs_desc;
   for (const auto &gert_tensor : args->input_tensor) {
-    const auto tensor_desc = GetTensorDescFromGertTensor(gert_tensor);
-    inputs_desc.emplace_back(ge::Tensor(tensor_desc));
+    inputs_desc.emplace_back(GetTensorDescFromGertTensor(gert_tensor));
   }
 
   const auto ret = CompileGraph(graph_node->GetGraphId(), args->session_id, inputs_desc);

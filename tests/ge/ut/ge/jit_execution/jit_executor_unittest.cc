@@ -411,8 +411,9 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_one_reshape_node) {
   td.SetOriginShape(Shape(shape_dim));
   Tensor tensor(td);
   std::vector<int64_t> input_data_2{2, 3, 3, 2};
-  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT32);
+  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT64);
   desc_2.SetOriginShape(Shape({4}));
+  desc_2.SetPlacement(Placement::kPlacementHost);
   Tensor input_tensor_2{desc_2};
   input_tensor_2.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(int64_t));
   std::vector<Tensor> inputs{tensor, input_tensor_2};
@@ -567,8 +568,9 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_one_reshape_two_relu_
   std::vector<int64_t> input_data_1(36, 0);
   tensor.SetData(reinterpret_cast<uint8_t *>(input_data_1.data()), 36 * sizeof(int64_t));
   std::vector<int64_t> input_data_2{2, 3, 3, 2};
-  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT32);
+  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT64);
   desc_2.SetOriginShape(Shape({4}));
+  desc_2.SetPlacement(Placement::kPlacementHost);
   Tensor input_tensor_2{desc_2};
   input_tensor_2.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(int64_t));
   std::vector<int64_t> data3_shape_dim = {2, 3, 3};
@@ -625,8 +627,9 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_two_reshape_node) {
   td.SetOriginShape(Shape(shape_dim));
   Tensor tensor(td);
   std::vector<int64_t> input_data_2{2, 3, 3, 2};
-  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT32);
+  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT64);
   desc_2.SetOriginShape(Shape({4}));
+  desc_2.SetPlacement(Placement::kPlacementHost);
   Tensor input_tensor_2{desc_2};
   input_tensor_2.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(int64_t));
   std::vector<Tensor> inputs{tensor, input_tensor_2};
@@ -680,8 +683,9 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_two_reshape_one_const
   td.SetOriginShape(Shape(shape_dim));
   Tensor tensor(td);
   std::vector<int64_t> input_data_2 = {2, 3, 3, 2};
-  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT32);
+  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT64);
   desc_2.SetOriginShape(Shape({4}));
+  desc_2.SetPlacement(Placement::kPlacementHost);
   Tensor input_tensor_2{desc_2};
   input_tensor_2.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(int64_t));
   std::vector<Tensor> inputs{tensor, input_tensor_2};

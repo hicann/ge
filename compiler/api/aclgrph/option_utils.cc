@@ -113,6 +113,7 @@ const char *const kInputShapeRangeSample5 = "\"16\"";
 const char *const kInputShapeRangeSample6 = "\"input_name1:n1~n2,c1,h1,w1\"";
 const char *const kInputShapeRangeSample7 = "\"n1~n2,c1,h1,w1;n3,c2,h2,w2\"";
 const char *const kHintInputShape = "ge.inputHintShape";
+const char *const kHintInputValue = "ge.inputHintValue";
 
 const std::unordered_set<std::string> kSupportedPrintMode = {"enable", "disable"};
 const std::unordered_set<std::string> kValidHostEnvOs = {"minios", "linux"};
@@ -148,6 +149,65 @@ Status ConstructShapeFromStr(const std::string &shape_str, GeShape &shape) {
                       shape_str.c_str(), kHintInputShape);
     GE_ASSERT_TRUE(dim >= 0L, "Shape in ge.inputHintOption should not less than 0, but get: %lld.", dim);
     shape.AppendDim(dim);
+  }
+  return GRAPH_SUCCESS;
+}
+
+Status ConstructValueListFromStr(const std::string &value_str, std::vector<int64_t> &values) {
+  GE_ASSERT_TRUE(value_str.length() >= kLeastStrElementNum && value_str.front() == '[' && value_str.back() == ']');
+  auto value_content_str = value_str.substr(1, value_str.length() - kLeastStrElementNum);
+  auto val_strs = ge::StringUtils::Split(value_content_str, ',');
+  values.clear();
+  for (auto &str : val_strs) {
+    if (str.empty()) {
+      continue;
+    }
+    int64_t val = -1;
+    GE_ASSERT_SUCCESS(ConvertToInt64(ge::StringUtils::Trim(str), val), "Value: %s is invalid in option",
+                      value_str.c_str());
+    GE_ASSERT_TRUE(val >= 0L, "Value in %s should not less than 0, but get: %lld.", kHintInputValue, val);
+    values.push_back(val);
+  }
+  return GRAPH_SUCCESS;
+}
+
+template <typename ElemType, typename ElemParser>
+Status ParseIndexedListOption(const std::string &option_name, const std::string &option_value,
+                              std::vector<std::pair<int64_t, ElemType>> &result, ElemParser parse_elem) {
+  std::vector<std::string> input_option_strs = ge::StringUtils::Split(option_value, ';');
+  result.reserve(input_option_strs.size());
+  std::set<int64_t> index_set;
+  for (size_t i = 0U; i < input_option_strs.size(); i++) {
+    auto &input_option_local = StringUtils::Trim(input_option_strs[i]);
+    if (input_option_local.empty()) {
+      GELOGW("Options[%s] is invalid, Input[%zu] is empty.", option_name.c_str(), i);
+      continue;
+    }
+    std::vector<std::string> index_and_value_str = ge::StringUtils::Split(input_option_local, ':');
+    if (index_and_value_str.size() != kLeastStrElementNum) {
+      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
+                                std::vector<const char *>({option_name.c_str(), option_value.c_str()}));
+      GELOGE(PARAM_INVALID, "Options[%s] is invalid, input[%zu][%s] not match pattern: input_index:[v0,v1,...]",
+             option_name.c_str(), i, input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+    int64_t index = -1;
+    if (ConvertToInt64(index_and_value_str.front(), index) != SUCCESS || index < 0 || !index_set.insert(index).second) {
+      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
+                                std::vector<const char *>({option_name.c_str(), option_value.c_str()}));
+      GELOGE(PARAM_INVALID, "Option[%s] is invalid, input[%zu][%s] check index fail.", option_name.c_str(), i,
+             input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+    ElemType elem;
+    if (parse_elem(StringUtils::Trim(index_and_value_str.back()), elem) != GRAPH_SUCCESS) {
+      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
+                                std::vector<const char *>({option_name.c_str(), option_value.c_str()}));
+      GELOGE(PARAM_INVALID, "Option[%s] is invalid, Input[%zu] parse value[%s] failed.", option_name.c_str(), i,
+             input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+    result.emplace_back(std::make_pair(index, elem));
   }
   return GRAPH_SUCCESS;
 }
@@ -1067,54 +1127,36 @@ Status ParseHintInputShape(std::vector<GeShape> &option_shape) {
     return GRAPH_SUCCESS;
   }
   GELOGI("Option %s is set, value: %s.", INPUT_HINT_SHAPE, input_option.c_str());
-  std::vector<std::string> input_option_strs = ge::StringUtils::Split(input_option, ';');
+  std::vector<std::pair<int64_t, GeShape>> parse_shape;
+  GE_ASSERT_SUCCESS(ParseIndexedListOption<GeShape>(
+      "ge.inputHintShape", input_option, parse_shape,
+      [](const std::string &s, GeShape &shape) { return ConstructShapeFromStr(s, shape); }));
 
-  std::vector<pair<int64_t, GeShape>> parse_shape;
-  parse_shape.reserve(input_option_strs.size());
-  std::set<int64_t> index_set;
   int64_t max_index = 0L;
-  for (size_t i = 0U; i < input_option_strs.size(); i++) {
-    auto &input_option_local = StringUtils::Trim(input_option_strs[i]);
-    // 如果配置的input是空跳过解析
-    if (input_option_local.empty()) {
-      GELOGW("Options[%s] is invalid, Input[%u] is empty.", INPUT_HINT_SHAPE);
-      continue;
-    }
-    std::vector<std::string> index_and_shape_str = ge::StringUtils::Split(input_option_local, ':');
-    // 的左右两边必须是有元素的，key和value元素
-    if (index_and_shape_str.size() != kLeastStrElementNum) {
-      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
-                                std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
-      GELOGE(PARAM_INVALID,
-             "Options[--input_hint_shape] is invalid, input[%u][%s] not match pattern: input_index:[n,c,h,w]", i,
-             input_option_local.c_str());
-      return PARAM_INVALID;
-    }
-
-    int64_t index = -1;
-    if (ConvertToInt64(index_and_shape_str.front(), index) != SUCCESS || index < 0 || !index_set.insert(index).second) {
-      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
-                                std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
-      GELOGE(PARAM_INVALID, "Option[--input_hint_shape] is invalid, input[%u][%s] check index fail.", i,
-             input_option_local.c_str());
-      return PARAM_INVALID;
-    }
-    max_index = index > max_index ? index : max_index;
-
-    GeShape shape;
-    if (ConstructShapeFromStr(StringUtils::Trim(index_and_shape_str.back()), shape) != GRAPH_SUCCESS) {
-      REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
-                                std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
-      GELOGE(PARAM_INVALID, "Option[--input_hint_shape] is invalid, Input[%u] parse shape[%s] failed.", i,
-             input_option_local.c_str());
-      return PARAM_INVALID;
-    }
-    parse_shape.emplace_back(std::make_pair(index, shape));
+  for (const auto &item : parse_shape) {
+    max_index = item.first > max_index ? item.first : max_index;
   }
-
   option_shape.resize(max_index + 1, GeShape(DUMMY_SHAPE));
   for (const auto &shape : parse_shape) {
     option_shape[shape.first] = shape.second;
+  }
+  return GRAPH_SUCCESS;
+}
+
+Status ParseHintInputValue(std::map<int64_t, std::vector<int64_t>> &option_value) {
+  std::string input_option;
+  (void)ge::GetContext().GetOption(kHintInputValue, input_option);
+  if (input_option.empty()) {
+    GELOGI("Option %s is not set, skip parse hint value.", kHintInputValue);
+    return GRAPH_SUCCESS;
+  }
+  GELOGI("Option %s is set, value: %s.", kHintInputValue, input_option.c_str());
+  std::vector<std::pair<int64_t, std::vector<int64_t>>> parse_values;
+  GE_ASSERT_SUCCESS(ParseIndexedListOption<std::vector<int64_t>>(
+      "ge.inputHintValue", input_option, parse_values,
+      [](const std::string &s, std::vector<int64_t> &values) { return ConstructValueListFromStr(s, values); }));
+  for (auto &item : parse_values) {
+    option_value[item.first] = std::move(item.second);
   }
   return GRAPH_SUCCESS;
 }

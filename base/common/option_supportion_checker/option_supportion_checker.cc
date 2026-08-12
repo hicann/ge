@@ -224,8 +224,8 @@ const std::set<std::string> graph_options = {
     OPTION_BUILD_GRAPH_MODE, OPTION_BUILD_CONFIG, OPTION_EXEC_FORMAT_MODEL, AICORE_NUM, OPTION_EXEC_INPUT_FUSION_SIZE,
     OPTION_EXEC_DYNAMIC_GRAPH_PARALLEL_MODE, OO_LEVEL, OO_CONSTANT_FOLDING, OO_DEAD_CODE_ELIMINATION,
     OPTION_EXPORT_COMPILE_STAT, OPTION_ALL_TENSOR_NOT_EMPTY, OPTION_EXEC_HOST_INPUT_INDEXES, "ge.inputHintShape",
-    configure_option::INPUT_BATCH_CPY, OPTIMIZATION_SWITCH, OUTPUT_DATATYPE, OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES,
-    TILING_SCHEDULE_OPTIMIZE};
+    "ge.inputHintValue", configure_option::INPUT_BATCH_CPY, OPTIMIZATION_SWITCH, OUTPUT_DATATYPE,
+    OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, TILING_SCHEDULE_OPTIMIZE};
 
 static Status CheckSupportedOptions(const std::map<std::string, std::string> &input_options,
                                     const std::set<std::string> &supported_options, const std::string &level) {
