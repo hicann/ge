@@ -2850,7 +2850,13 @@ TEST_F(Om2St, CrossCompileCompilerMissing_Rejected) {
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
   EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_compiler_missing.om2"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("cross-compiler not found"), std::string::npos);
 }
 
 TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
@@ -2867,7 +2873,13 @@ TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
   EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_devlib_missing.om2"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("devlib not found"), std::string::npos);
 }
 
 // ============================================================================

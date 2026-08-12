@@ -1374,8 +1374,13 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCompilerMissing_Rejecte
   ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
 
   EXPECT_NE(CompileBuildConfigArtifacts("cross_compiler_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("cross-compiler not found"), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileDevlibMissing_Rejected) {
@@ -1394,8 +1399,13 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileDevlibMissing_Rejected)
   ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
 
   EXPECT_NE(CompileBuildConfigArtifacts("cross_devlib_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("devlib not found"), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileAscendHomeMissing_Rejected) {

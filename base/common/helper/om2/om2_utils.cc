@@ -351,9 +351,15 @@ Status AppendCrossCompilerIfNeeded(std::string &command) {
   // 目标是 ARM 且与当前架构不同，查找交叉编译器
   const std::string compiler = FindAarch64LinuxCrossCompiler();
   if (compiler.empty()) {
-    GELOGE(FAILED,
-           "[OM2] aarch64-linux cross-compiler not found. "
-           "Please install gcc-aarch64-linux-gnu or ensure ASCEND_HOME_PATH is set correctly.");
+    const std::string value = "--host_env_os=" + host_env_os + ", --host_env_cpu=" + host_env_cpu;
+    const std::string reason =
+        "aarch64-linux cross-compiler not found. "
+        "Please install an AArch64 C++ cross-compiler that provides aarch64-linux-gnu-g++ or ensure "
+        "ASCEND_HOME_PATH is set correctly.";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+        std::vector<const char_t *>({"--host_env_os/--host_env_cpu", value.c_str(), reason.c_str()}));
+    GELOGE(FAILED, "[OM2] %s", reason.c_str());
     return FAILED;
   }
   // 注入 CXX
@@ -362,9 +368,14 @@ Status AppendCrossCompilerIfNeeded(std::string &command) {
   // 查找并注入 LIB_PATH
   const std::string devlib = FindAarch64Devlib();
   if (devlib.empty()) {
-    GELOGE(FAILED,
-           "[OM2] aarch64 devlib not found. "
-           "Please ensure ASCEND_HOME_PATH is set correctly and devlib/linux/aarch64 exists.");
+    const std::string value = "--host_env_os=" + host_env_os + ", --host_env_cpu=" + host_env_cpu;
+    const std::string reason =
+        "aarch64 devlib not found. "
+        "Please ensure ASCEND_HOME_PATH is set correctly and devlib/linux/aarch64 exists.";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+        std::vector<const char_t *>({"--host_env_os/--host_env_cpu", value.c_str(), reason.c_str()}));
+    GELOGE(FAILED, "[OM2] %s", reason.c_str());
     return FAILED;
   }
   command += " LIB_PATH=" + devlib;
