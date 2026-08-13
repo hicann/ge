@@ -45,12 +45,12 @@ TEST_F(OpAttrDefUT, AttrTest) {
   EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "10");
   attr.AttrType(Option::OPTIONAL).String("test");
   EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "test");
-  attr.AttrType(Option::OPTIONAL).Float(0.1);
-  EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "0.1");
+  attr.AttrType(Option::OPTIONAL).Float(0.5F);
+  EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "0.5");
   attr.AttrType(Option::OPTIONAL).ListBool({true, false});
   EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "[true,false]");
-  attr.AttrType(Option::OPTIONAL).ListFloat({0.1, 0.1});
-  EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "[0.1,0.1]");
+  attr.AttrType(Option::OPTIONAL).ListFloat({0.5F, 0.25F});
+  EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "[0.5,0.25]");
   attr.AttrType(Option::OPTIONAL).ListInt({1, 2});
   EXPECT_EQ(attr.GetAttrDefaultVal("[]"), "[1,2]");
   attr.AttrType(Option::OPTIONAL).ListListInt({{1, 2}, {3, 4}});
