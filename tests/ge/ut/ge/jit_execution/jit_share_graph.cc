@@ -28,14 +28,6 @@ void AddCompileResultByGNode(ComputeGraphPtr &cg, ge::GNode *gnode, bool atomic,
     JitShareGraph::AddCompileResult(node, atomic, compile_info_json);
   }
 }
-
-void SetDataNodeDtype(ComputeGraphPtr &cg, const std::string &name, DataType dt) {
-  auto node = cg->FindNode(name);
-  if (node != nullptr) {
-    node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(dt);
-    node->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(dt);
-  }
-}
 }  // namespace
 
 void JitShareGraph::AddCompileResult(const ge::NodePtr &node, bool atomic, const char *compile_info_json) {
@@ -176,7 +168,6 @@ UniqueGraphPtr JitShareGraph::OneReshapeNodeWithHostInput(const std::vector<int6
   es::EsGraphBuilder::SetOutput(relu1, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data2", DT_INT64);
   AddCompileResultByGNode(
       cg, relu1.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
@@ -215,7 +206,6 @@ UniqueGraphPtr JitShareGraph::OneReshapeNode(const std::vector<int64_t> &input1_
   es::EsGraphBuilder::SetOutput(relu1, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data1", DT_INT64);
   AddCompileResultByGNode(
       cg, relu.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
@@ -250,7 +240,6 @@ UniqueGraphPtr JitShareGraph::OneReshapeNodeTwoRelu() {
   es::EsGraphBuilder::SetOutput(relu1, 1);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data1", DT_INT64);
   AddCompileResultByGNode(
       cg, relu.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
@@ -287,7 +276,6 @@ UniqueGraphPtr JitShareGraph::TwoReshapeNodeTwoRelu() {
   es::EsGraphBuilder::SetOutput(relu1, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data1", DT_INT64);
   AddCompileResultByGNode(
       cg, relu.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
@@ -335,7 +323,6 @@ UniqueGraphPtr JitShareGraph::ThreeReshapeNodeThreeRelu() {
   es::EsGraphBuilder::SetOutput(relu3, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data1", DT_INT64);
   AddCompileResultByGNode(
       cg, relu0.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
@@ -437,7 +424,6 @@ UniqueGraphPtr JitShareGraph::OneConstTwoReshapeNodeTwoRelu() {
   es::EsGraphBuilder::SetOutput(relu1, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  SetDataNodeDtype(cg, "data1", DT_INT64);
   AddCompileResultByGNode(
       cg, relu.GetProducer(), true,
       "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "

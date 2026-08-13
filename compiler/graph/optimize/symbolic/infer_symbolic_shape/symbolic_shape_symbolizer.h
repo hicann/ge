@@ -46,19 +46,6 @@ class InputValueSumSource : public ge::Source {
   ge::DataType dtype_;      // 描述value的数据类型，用于后续执行时取值
 };
 
-class InputValueElementSource : public ge::Source {
- public:
-  InputValueElementSource(int32_t input_data_idx, size_t elem_idx, ge::DataType dtype)
-      : input_data_idx_(input_data_idx), elem_idx_(elem_idx), dtype_(dtype) {}
-
-  [[nodiscard]] std::string GetSourceStr() const override;
-
- private:
-  int32_t input_data_idx_;  // Data的index，描述symbol来自于graph输入中第几个输入data
-  size_t elem_idx_;         // 描述symbol来自于tensor data中第几个元素
-  ge::DataType dtype_;      // 描述value的数据类型，用于后续执行时取值
-};
-
 class InputRankSource final : public ge::Source {
  public:
   explicit InputRankSource(const int32_t input_data_idx) : input_data_idx_(input_data_idx) {}

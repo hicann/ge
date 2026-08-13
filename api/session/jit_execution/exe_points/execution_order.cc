@@ -20,7 +20,6 @@ namespace ge {
 namespace {
 const std::unordered_set<std::string> kFirstEPOptions = {INPUT_SHAPE,
                                                          INPUT_HINT_SHAPE,
-                                                         INPUT_HINT_VALUE,
                                                          INPUT_SHAPE_RANGE,
                                                          INPUT_FORMAT,
                                                          ge::OPTION_INPUT_REUSE_MEM_INDEXES,

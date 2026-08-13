@@ -10,10 +10,7 @@
 
 #include "symbolic_infer_util.h"
 
-#include <algorithm>
 #include "graph/utils/node_utils.h"
-#include "graph/utils/op_desc_utils.h"
-#include "base/registry/op_impl_space_registry_v2.h"
 
 #include <op_type_utils.h>
 
@@ -121,47 +118,6 @@ NodePtr SymbolicInferUtil::GetCondInput(const NodePtr &node) {
   // 如果是data节点找根图的节点
   auto parent_input = NodeUtils::GetParentInput(*cond_input);
   return parent_input == nullptr ? cond_input : parent_input;
-}
-
-bool SymbolicInferUtil::IsValueDependentDataNode(const NodePtr &data_node) {
-  for (const auto &out_anchor : data_node->GetAllOutDataAnchors()) {
-    for (const auto &peer_anchor : out_anchor->GetPeerInDataAnchors()) {
-      if (peer_anchor->GetOwnerNode() == nullptr || peer_anchor->GetOwnerNode()->GetOpDesc() == nullptr) {
-        continue;
-      }
-      auto consumer_op = peer_anchor->GetOwnerNode()->GetOpDesc();
-      const size_t input_idx = static_cast<size_t>(peer_anchor->GetIdx());
-
-      auto functions = gert::OpImplInferSymbolShapeRegistry::GetInstance().GetOpImpl(consumer_op->GetType().c_str());
-      if (functions != nullptr) {
-        const gert::OpImplKernelRegistry::OpImplFunctionsV2 *function_new = nullptr;
-        auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
-        if (space_registry != nullptr) {
-          function_new = space_registry->GetOpImpl(consumer_op->GetType().c_str());
-        }
-        if (function_new == nullptr) {
-          function_new = const_cast<gert::OpImplKernelRegistry::OpImplFunctionsV2 *>(functions);
-        }
-        size_t ir_index = 0UL;
-        if (ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
-          ir_index = input_idx;
-        }
-        if (function_new->IsInputDataDependency(ir_index)) {
-          return true;
-        }
-      }
-
-      const auto &op_infer_depends = consumer_op->GetOpInferDepends();
-      if (op_infer_depends.empty()) {
-        continue;
-      }
-      auto input_name = consumer_op->GetValidInputNameByIndex(static_cast<uint32_t>(input_idx));
-      if (std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend()) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 }  // namespace ge

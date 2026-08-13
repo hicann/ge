@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 #include <set>
-#include <map>
 
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/ge_inner_error_codes.h"
@@ -80,13 +79,6 @@ Status CheckAndTransferInputShapeToRange(std::string &input_shape, std::string &
  * @return 成功返回GRAPH_SUCCESS, 失败返回FAILED
  */
 Status ParseHintInputShape(std::vector<GeShape> &option_shape);
-
-/*
- * @brief 获取ge.inputHintValue中对应option的值, 并将其转化为map<int64_t, vector<int64_t>>
- * @out_param option_value 从option中解析的字符串转成成的value map
- * @return 成功返回GRAPH_SUCCESS, 失败返回FAILED
- */
-Status ParseHintInputValue(std::map<int64_t, std::vector<int64_t>> &option_value);
 
 Status ParserShapeRangeByName(std::string &input_shape, std::string &input_shape_range);
 

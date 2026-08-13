@@ -5968,4 +5968,20 @@ TEST_F(UtestGraphManagerTest, CheckIncreBuild_PreRun_HostTensor_NoCrash) {
   Status status = graph_manager.CheckIncreBuildAndPreRun(arg, graph_node);
   EXPECT_NE(status, ge::SUCCESS);
 }
+
+TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_empty_element_skip) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[1,2];"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), SUCCESS);
+  ASSERT_EQ(option_shape.size(), 1U);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_invalid_pattern) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
 }  // namespace ge
