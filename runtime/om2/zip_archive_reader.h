@@ -55,6 +55,12 @@ class RAIIZipArchive {
    */
   bool ExtractToFile(const std::string &entry_name, const std::string &output_dir) const;
   ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buff_size) const;
+  /**
+   * Checks if an entry exists in the ZIP archive.
+   * @param entry_name Filename (relative path) within the ZIP archive.
+   * @return true if the entry exists, false otherwise.
+   */
+  bool HasEntry(const std::string &entry_name) const;
 
  private:
   struct CachedZipEntry {

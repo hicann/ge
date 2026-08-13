@@ -26,7 +26,6 @@
 #include "om2_file_utils.h"
 #include "om2_malloc_helper.h"
 #include "om2_thread_pool.h"
-#include "om2_var_manager.h"
 
 namespace ge {
 namespace {
@@ -298,7 +297,6 @@ TEST_F(FileConstLoaderUt, prepare_individual_consts_reuses_same_file_and_offset_
   for (auto *buffer : owned_buffers) {
     (void)aclrtFree(buffer);
   }
-  gert::Om2VarManagerPool::Instance().RemoveManager(ctx.session_id);
   gert::Om2ExternalWeightManagerPool::Instance().RemoveManager(ctx.session_id);
 }
 
@@ -330,7 +328,6 @@ TEST_F(FileConstLoaderUt, prepare_individual_consts_rejects_same_key_with_differ
   for (auto *buffer : owned_buffers) {
     (void)aclrtFree(buffer);
   }
-  gert::Om2VarManagerPool::Instance().RemoveManager(ctx.session_id);
   gert::Om2ExternalWeightManagerPool::Instance().RemoveManager(ctx.session_id);
 }
 
@@ -360,7 +357,6 @@ TEST_F(FileConstLoaderUt, prepare_individual_consts_supports_zero_size_file_cons
   for (auto *buffer : owned_buffers) {
     (void)aclrtFree(buffer);
   }
-  gert::Om2VarManagerPool::Instance().RemoveManager(ctx.session_id);
   gert::Om2ExternalWeightManagerPool::Instance().RemoveManager(ctx.session_id);
 }
 

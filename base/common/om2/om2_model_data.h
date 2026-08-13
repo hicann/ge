@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "common/om2/rt_var_resource.h"
 #include "common/ge_common/ge_types.h"
 #include "framework/common/om2_tensor_desc.h"
 
@@ -85,6 +86,9 @@ struct Om2ModelData {
   std::vector<Om2KernelBinary> kernel_binaries;
   Om2DebugInfo debug_info;
   std::map<std::string, std::string> manifest;
+  std::unique_ptr<RTVarResource> rt_var_resource;
+  std::vector<ge::Om2VarMeta> var_metas;
+  uint32_t graph_id = 0U;
 };
 
 }  // namespace gert

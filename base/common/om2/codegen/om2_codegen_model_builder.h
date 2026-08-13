@@ -53,6 +53,7 @@ class Om2CodegenModelBuilder {
   Status BuildConstInputs(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                           Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
   Status BuildFileConstInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
+  Status BuildVarInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model, std::vector<Om2VarMeta> &var_metas);
   Status BuildKernelRegistry(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                              Om2CodegenModel &codegen_model);
   Status BuildTaskSemantics(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
@@ -83,6 +84,7 @@ class Om2CodegenModelBuilder {
   std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges_;
   std::unordered_map<int64_t, std::string> weight_offset_to_varname_;
   std::unordered_map<int64_t, std::string> fileconst_output_offset_to_varname_;
+  VarAddrRangeMap var_addr_ranges_;
   std::unordered_map<uint32_t, uint32_t> op_index_to_count_map_;
 };
 }  // namespace ge

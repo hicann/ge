@@ -45,7 +45,7 @@ aclError OpModelCache::Add(const uint64_t opId, OpModel &operModel) {
   auto mtx = std::make_shared<std::mutex>();
   ACL_REQUIRES_NOT_NULL(mtx);
   auto ret = cachedModels_.insert(std::make_pair(opId, operModel));
-  ACL_REQUIRES_TRUE(ret.second, ACL_ERROR_FAILURE, "ACL inner Error: OpModelCache Add has same opId!");
+  ACL_REQUIRES_TRUE(ret.second, ACL_ERROR_FAILURE, "ACL internal error: OpModelCache Add has same opId!");
   ret.first->second.mtx = std::move(mtx);
   return ACL_SUCCESS;
 }

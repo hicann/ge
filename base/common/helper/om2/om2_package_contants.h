@@ -32,6 +32,10 @@ namespace ge {
   DO(OM2_CONSTANTS_DIR, "data/constants/");                                              \
   DO(OM2_CONSTANTS_FILE_PREFIX, "constant_");                                            \
   DO(OM2_CONSTANTS_CONFIG_PATH_FORMAT, "data/constants/model_%s_constants_config.json"); \
+  DO(OM2_VARIABLES_DIR, "data/variables/");                                              \
+  DO(OM2_VAR_RESOURCE_PATH, "data/variables/var_resource.json");                         \
+  DO(OM2_VAR_WEIGHT_FILE, "data/variables/var_weight_data");                             \
+  DO(OM2_VARIABLES_CONFIG_PATH_FORMAT, "data/variables/model_%s_variables_config.json"); \
   DO(OM2_VISUAL_JSON_PATH_FORMAT, "data/model_%s/debug/ge_visual_00000000_graph_0.json")
 
 #define DEFINE_OM2_CONST(name, value) inline constexpr const char *name = (value)

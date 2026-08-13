@@ -36,7 +36,7 @@ aicpu::State OpsJsonFile::ParseUnderPath(const string &file_path, json &json_rea
     AICPUE_LOGW("Read kernel json file failed, file_path[%s].", file_path.c_str());
     return aicpu::State(ge::SUCCESS);
   }
-  // inner error
+  // internal error
   return ConvertJsonFormat(json_read) ? aicpu::State(ge::SUCCESS) : aicpu::State(ge::FAILED);
 }
 

@@ -259,7 +259,7 @@ std::string MakeFakeOm2SoSource() {
 #include <cstddef>
 extern "C" {
 int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **,
-                   size_t *, int, void **, void *, uint64_t *, unsigned int, void *) {
+                   size_t *, int, void **, void **, void *, uint64_t *, unsigned int, void *) {
   if (model_handle) *model_handle = (void*)0x1;
   if (rt_model_handle) *rt_model_handle = (void*)0x2;
   return 0;

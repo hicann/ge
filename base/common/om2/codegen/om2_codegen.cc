@@ -56,9 +56,10 @@ void DumpGeneratedFiles(const Om2CodegenArtifacts &artifacts) {
 }  // namespace
 
 Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts,
-                                        Om2ConstMetas &const_metas) const {
+                                        Om2ConstMetas &const_metas, std::vector<Om2VarMeta> &var_metas) const {
   artifacts.clear();
   const_metas.clear();
+  var_metas.clear();
   AstContext ast_ctx;
   AstBuildContext ast(ast_ctx);
   Om2CodegenModel codegen_model;
@@ -66,6 +67,7 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2Codeg
   GE_ASSERT_SUCCESS(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model));
   Om2CodegenModelBuilder builder;
   GE_ASSERT_SUCCESS(builder.Build(ge_model, task_code_builders, codegen_model, const_metas));
+  var_metas = codegen_model.var_metas;
   ProgramGenerator generator(ast, task_code_builders, codegen_model);
 
   Om2CodePrinter code_printer(ge_model->GetName());
@@ -86,5 +88,11 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2Codeg
   artifacts = std::move(source_artifacts);
   artifacts.push_back(std::move(so_artifact));
   return SUCCESS;
+}
+
+Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts,
+                                        Om2ConstMetas &const_metas) const {
+  std::vector<Om2VarMeta> var_metas;
+  return Om2CodegenAndCompile(ge_model, artifacts, const_metas, var_metas);
 }
 }  // namespace ge

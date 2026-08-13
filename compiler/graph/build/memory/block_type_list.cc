@@ -123,7 +123,7 @@ NodeMemAttrVector NodeMemAttrUtils::GetNodeMemAttrs(const NodeTypeIndex &node_ty
     attrs.emplace_back(NodeMemAttr::kData);
   }
 
-  if ((node_type_index.mem_type_ == kOutput) &&
+  if ((node_type_index.mem_type_ == OpMemoryType::kOutput) &&
       IsConcentrateAtomic(node_type_index.node_, static_cast<int32_t>(node_type_index.index_))) {
     attrs.emplace_back(NodeMemAttr::kConcentrateAtomic);
   }

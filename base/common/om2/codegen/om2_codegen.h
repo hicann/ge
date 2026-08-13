@@ -20,6 +20,8 @@ class Om2Codegen {
  public:
   Status Om2CodegenAndCompile(const GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts,
                               Om2ConstMetas &const_metas) const;
+  Status Om2CodegenAndCompile(const GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts, Om2ConstMetas &const_metas,
+                              std::vector<Om2VarMeta> &var_metas) const;
 };
 }  // namespace ge
 

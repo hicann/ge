@@ -73,6 +73,7 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   ge::Status SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                 const kAippDynamicPara &aipp_parms);
+  uint64_t SessionId() const;
 
  private:
   class Impl;

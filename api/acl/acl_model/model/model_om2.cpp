@@ -26,6 +26,8 @@
 #include "model_config.h"
 #include "utils/math_utils.h"
 #include "utils/acl_string_utils.h"
+#include "runtime/om2/om2_rt_var_manager.h"
+#include "runtime/om2/om2_external_weight_manager.h"
 
 namespace {
 constexpr int32_t DEFAULT_SYNC_TIMEOUT = -1;
@@ -1257,7 +1259,19 @@ aclError aclmdlUnloadImplOm2(uint32_t modelId) {
     return ACL_ERROR_INVALID_PARAM;
   }
 
-  return resourceManagerV2.DeleteOm2Executor(modelId);
+  auto executor = resourceManagerV2.GetOm2Executor(modelId);
+  if (executor == nullptr) {
+    ACL_LOG_ERROR("[OM2] executor not found, modelId[%u]", modelId);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  const uint64_t session_id = executor->SessionId();
+  executor.reset();
+  ACL_REQUIRES_OK(resourceManagerV2.DeleteOm2Executor(modelId));
+
+  gert::Om2RTVarManagerPool::Instance().RemoveManager(session_id);
+  gert::Om2ExternalWeightManagerPool::Instance().RemoveManager(session_id);
+
+  return ACL_SUCCESS;
 }
 
 aclError aclmdlBundleUnloadImplOm2(uint32_t bundleId) {

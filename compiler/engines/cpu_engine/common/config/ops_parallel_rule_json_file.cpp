@@ -28,7 +28,7 @@ aicpu::State OpsParallelRuleJsonFile::ParseUnderPath(const string &file_path, js
     AICPUE_LOGW("Read kernel json file failed, file_path[%s].", file_path.c_str());
     return aicpu::State(ge::SUCCESS);
   }
-  // inner error
+  // internal error
   return ConvertOpsParallelRuleJsonFormat(json_read) ? aicpu::State(ge::SUCCESS) : aicpu::State(ge::FAILED);
 }
 

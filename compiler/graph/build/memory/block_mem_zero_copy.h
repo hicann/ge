@@ -29,7 +29,7 @@ bool IsOutputBlock(const ge::InDataAnchor *const in_data_anchor);
 bool IsKnownSubgraphData(const ge::Node *node);
 void SetReleaseBlockLifeEnd(ge::MemoryBlock *to_release, int64_t stream_id);
 void MarkZeroCopyBlockAttr(std::vector<TAttr<bool>> &bool_attr, const ge::OpDesc *const op_desc, bool is_zero_copy,
-                           bool mem_type, uint32_t out_index);
+                           OpMemoryType mem_type, uint32_t out_index);
 void MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block, const uint32_t index,
                                 bool is_feature_map_refreshable);
 bool IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index,

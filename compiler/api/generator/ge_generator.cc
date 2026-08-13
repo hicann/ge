@@ -421,6 +421,7 @@ class GeGenerator::Impl {
   Status CheckHostEnvOsAndCpuForUnknownShapeModel(
       const GeRootModelPtr &ge_root_model, OfflineModelFormat om_format = OfflineModelFormat::OM_FORMAT_DEFAULT) const;
   Status GenerateInfershapeGraph(const Graph &graph);
+  void CleanupPendingSession();
 
   OmgContext &omg_context_;
   GraphManager graph_manager_;
@@ -433,6 +434,7 @@ class GeGenerator::Impl {
   std::string build_step_;
   static std::mutex mutex_;
   uint64_t session_id_ = UINT64_MAX;
+  SessionId pending_cleanup_session_id_ = UINT64_MAX;  // session_id to cleanup after Save
   std::shared_ptr<GraphRebuildStateCtrl> rebuild_ctrl_;
 
  private:
@@ -682,6 +684,15 @@ Status GeGenerator::GenerateModel(const Graph &graph, const std::string &file_na
   GeRootModelPtr ge_root_model = nullptr;
   GE_CHECK_NOTNULL_EXEC(impl_, return PARAM_INVALID);
   impl_->is_offline_ = is_offline;
+  impl_->pending_cleanup_session_id_ = UINT64_MAX;  // reset
+
+  struct SessionCleanupGuard {
+    GeGenerator::Impl *impl;
+    ~SessionCleanupGuard() {
+      impl->CleanupPendingSession();
+    }
+  } guard{impl_.get()};
+
   std::string soc_version;
   std::string hccl_sub_comm_config;
   std::string cluster_config;
@@ -1630,6 +1641,7 @@ Status GeGenerator::Impl::BuildModelWithGraphId(const GraphId &graph_id, const s
   // This is a temporary add for graph with variable
   auto version = static_cast<int32_t>(SessionVersion::ClOUD_VERSION);
   const auto manager = VarManager::Instance(session_id);
+  GetContext().SetSessionId(session_id);
   GE_CHECK_NOTNULL(manager);
   Status ret = manager->Init(version, session_id, kDefaultDeviceId, kDefaultJobId);
   if (ret != SUCCESS) {
@@ -1650,10 +1662,8 @@ Status GeGenerator::Impl::BuildModelWithGraphId(const GraphId &graph_id, const s
     REPORT_INNER_ERR_MSG("E19999", "build graph failed, graph id:%u, ret:%u", graph_id, ret);
     GELOGE(GE_GENERATOR_GRAPH_MANAGER_BUILD_GRAPH_FAILED, "[Build][Graph] fail, graph id: %u", graph_id);
   }
-  if (session_id_ == UINT64_MAX) {  // default session_id_ need to destroy session resource internal
-    RtContextUtil::GetInstance().DestroyRtContexts(session_id);
-    Analyzer::GetInstance()->DestroySessionJsonObject(session_id);
-    VarManagerPool::Instance().RemoveVarManager(session_id);
+  if (session_id_ == UINT64_MAX) {             // default session_id_ need to destroy session resource internal
+    pending_cleanup_session_id_ = session_id;  // defer cleanup to after Save
   }
   return ret;
 }
@@ -1679,5 +1689,15 @@ Status GeGenerator::Impl::GenerateInfershapeGraph(const Graph &graph) {
   }
 
   return SUCCESS;
+}
+
+void GeGenerator::Impl::CleanupPendingSession() {
+  if (pending_cleanup_session_id_ != UINT64_MAX) {
+    GELOGI("[OM2] CleanupPendingSession session_id=%lu", pending_cleanup_session_id_);
+    RtContextUtil::GetInstance().DestroyRtContexts(pending_cleanup_session_id_);
+    Analyzer::GetInstance()->DestroySessionJsonObject(pending_cleanup_session_id_);
+    VarManagerPool::Instance().RemoveVarManager(pending_cleanup_session_id_);
+    pending_cleanup_session_id_ = UINT64_MAX;
+  }
 }
 }  // namespace ge

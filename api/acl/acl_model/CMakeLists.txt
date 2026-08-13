@@ -122,6 +122,8 @@ target_include_directories(acl_mdl_impl_om2 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR}/../utils
 
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/base/
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/external/acl
@@ -130,6 +132,8 @@ target_include_directories(acl_mdl_impl_om2 PRIVATE
     ${AIR_CODE_DIR}/base/metadef/pkg_inc
     ${AIR_CODE_DIR}/inc/framework
 
+    ${TOP_DIR}/air
+    ${TOP_DIR}/air/base
     ${TOP_DIR}/air/inc
     ${TOP_DIR}/air/inc/framework
     ${TOP_DIR}/air/inc/external

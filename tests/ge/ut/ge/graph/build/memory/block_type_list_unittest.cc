@@ -62,14 +62,14 @@ TEST_F(UtestBlockTypeListTest, NodeMemAttrUtils_GetNodeMemAttrs) {
   ASSERT_NE(c, nullptr);
   ASSERT_NE(data, nullptr);
   {
-    NodeTypeIndex node_type_index{data, kOutput, 0};
+    NodeTypeIndex node_type_index{data, OpMemoryType::kOutput, 0};
     auto attrs = NodeMemAttrUtils::GetNodeMemAttrs(node_type_index);
     ASSERT_EQ(attrs.size(), 1U);
     EXPECT_EQ(attrs.front(), NodeMemAttr::kData);
   }
 
   {
-    NodeTypeIndex node_type_index{c, kOutput, 0};
+    NodeTypeIndex node_type_index{c, OpMemoryType::kOutput, 0};
     auto attrs = NodeMemAttrUtils::GetNodeMemAttrs(node_type_index);
     ASSERT_EQ(attrs.size(), 1U);
     EXPECT_EQ(attrs.front(), NodeMemAttr::kConcentrateAtomic);
@@ -161,11 +161,11 @@ TEST_F(UtestBlockTypeListTest, BlockTypeList_CheckConflict) {
   BlockTypeList data_type;
   BlockTypeList atomic_clean_type;
 
-  NodeTypeIndex data_node_type_index{data, kOutput, 0};
+  NodeTypeIndex data_node_type_index{data, OpMemoryType::kOutput, 0};
   data_type.WithAdded(data_node_type_index);
   EXPECT_STREQ(data_type.ToString().c_str(), "data ");
 
-  NodeTypeIndex atomic_node_type_index{c, kOutput, 0};
+  NodeTypeIndex atomic_node_type_index{c, OpMemoryType::kOutput, 0};
   atomic_clean_type.WithAdded(atomic_node_type_index);
   EXPECT_STREQ(atomic_clean_type.ToString().c_str(), "concentrate_atomic ");
   EXPECT_STREQ(NodeMemAttrUtils::GetAttrStr(atomic_node_type_index).c_str(), "concentrate_atomic ");
@@ -176,7 +176,7 @@ TEST_F(UtestBlockTypeListTest, BlockTypeList_CheckConflict) {
 
   ReuseStrategy strategy;
   MemoryBlock block{strategy, 1};
-  NodeTypeIndex normal{a, kOutput, 0};
+  NodeTypeIndex normal{a, OpMemoryType::kOutput, 0};
   block.AddNodeTypeIndex(normal, 1, 1, 1);
   data_type.WithDeleted(block, data_node_type_index);
   EXPECT_STREQ(data_type.ToString().c_str(), "");

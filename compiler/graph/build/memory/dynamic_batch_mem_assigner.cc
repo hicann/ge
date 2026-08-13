@@ -155,8 +155,9 @@ MemoryBlock *DynamicBatchMemAssigner::CreateContinuousBlock(std::vector<MemoryBl
   continuous_block->stream_id_ = parent_node_stream_id;
   continuous_block->batch_label_ = batch_label;
   continuous_block->memory_type_ = memory_type;
-  continuous_block->AddNodeTypeIndex({parent_node, kWorkspace, 0, false, life_begin, parent_node_stream_id, true},
-                                     continuous_block_size, continuous_block_size, parent_node_stream_id);
+  continuous_block->AddNodeTypeIndex(
+      {parent_node, OpMemoryType::kWorkspace, 0, false, life_begin, parent_node_stream_id, true}, continuous_block_size,
+      continuous_block_size, parent_node_stream_id);
   continuous_block->SetLifeTimeEnd(life_end, parent_node_stream_id);
   GELOGI("%s continuous block size:%zu memory_type:%lu", continuous_block->batch_label_.c_str(),
          continuous_block->Size(), memory_type);

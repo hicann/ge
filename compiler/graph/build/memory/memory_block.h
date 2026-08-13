@@ -30,8 +30,16 @@
 #include "common/sgt_slice_type.h"
 #include "graph/build/memory/mem_reuse_strategy.h"
 #include "block_type_list.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/attr_utils.h"
 
 namespace ge {
+
+inline const std::string &GetBatchLabel(const ge::OpDesc *op_desc) {
+  const auto *ptr = ge::AttrUtils::GetStr(op_desc, ATTR_NAME_BATCH_LABEL);
+  static const std::string empty;
+  return (ptr != nullptr) ? *ptr : empty;
+}
 
 constexpr size_t kMaxLifeTime = 0xffffffffUL;
 constexpr size_t kMinLifeTime = 1U;
@@ -42,7 +50,7 @@ constexpr size_t kMaxLogLen = 512UL;
 constexpr uint32_t kMaxDepthNum = 100U;
 constexpr int64_t kParentNodeDefaultStreamId = -2;
 
-enum MemoryNoReuseScope { kReuse, kSessionNoReuse, kGraphNoReuse };
+enum class MemoryNoReuseScope { kReuse, kSessionNoReuse, kGraphNoReuse };
 
 using DependStreamLife = std::map<int32_t, std::map<int64_t, std::map<int64_t, size_t>>>;
 
@@ -59,7 +67,7 @@ struct CompareEdgeLife {
 
 using DiffStreamEdgeLife = std::map<int64_t, std::map<int64_t, std::set<EdgeLife, CompareEdgeLife>>>;
 
-enum OpMemoryType { kOutput, kWorkspace, kOutputDesc, kInput };
+enum class OpMemoryType { kOutput, kWorkspace, kOutputDesc, kInput };
 
 struct ReuseStrategy {
   explicit ReuseStrategy(bool use_range = false, bool ascending_sort = true, bool reuse_first_release = false,
@@ -116,7 +124,7 @@ struct NodeTypeIndex {
         symbol_max_life_time_end_(symbol_end_time),
         stream_id_(stream_id) {
     if ((node_ != nullptr) && (node_->GetOpDesc() != nullptr)) {
-      is_subgraph_out_ = (node_->GetOpDesc()->GetType() == ge::PARTITIONEDCALL) && (mem_type_ == kOutput);
+      is_subgraph_out_ = (node_->GetOpDesc()->GetType() == ge::PARTITIONEDCALL) && (mem_type_ == OpMemoryType::kOutput);
       node_id_ = static_cast<size_t>(node_->GetOpDesc()->GetId());
       life_time_begin_is_min_ = (life_time_begin_ > 0) && (life_time_begin_ < node_id_);
     } else {
@@ -129,13 +137,13 @@ struct NodeTypeIndex {
   }
   static std::string GetMemType(const OpMemoryType &mem_type) {
     switch (mem_type) {
-      case kOutput:
+      case OpMemoryType::kOutput:
         return "output";
-      case kWorkspace:
+      case OpMemoryType::kWorkspace:
         return "workspace";
-      case kOutputDesc:
+      case OpMemoryType::kOutputDesc:
         return "output_desc";
-      case kInput:
+      case OpMemoryType::kInput:
         return "input";
       default:
         return "unknown";
@@ -221,7 +229,7 @@ struct NodeTypeIndex {
   }
 
   const ge::Node *node_ = nullptr;
-  OpMemoryType mem_type_ = kOutput;
+  OpMemoryType mem_type_ = OpMemoryType::kOutput;
   uint32_t index_ = 0;
   bool ref_input_ = false;
   bool is_subgraph_workspace_ = false;

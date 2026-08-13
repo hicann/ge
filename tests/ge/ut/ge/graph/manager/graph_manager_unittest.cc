@@ -5930,4 +5930,58 @@ TEST_F(UtestGraphManagerTest, GraphManager_UpdateDynamicParams_WithDynamicDims) 
   graph_manager.UpdateDynamicParams(input_shape, dynamic_dims, dynamic_node_type, graph_options);
   EXPECT_EQ(dynamic_node_type, 2);
 }
+
+TEST_F(UtestGraphManagerTest, CheckIncreBuild_PreRun_DeviceTensor_NoCrash) {
+  GraphId graph_id = 1;
+  GraphManager graph_manager;
+  graph_manager.graph_rebuild_state_ctrl_ = MakeShared<GraphRebuildStateCtrl>();
+  std::shared_ptr<RunArgs> arg = std::make_shared<RunArgs>();
+  ASSERT_TRUE(arg != nullptr);
+  arg->callback = [](Status, std::vector<gert::Tensor> &) {};
+  std::vector<gert::Tensor> inputs;
+  inputs.emplace_back(gert::StorageShape({2, 3}, {2, 3}),
+                      gert::StorageFormat(FORMAT_ND, FORMAT_ND, gert::ExpandDimsType()), DT_FLOAT16);
+  inputs[0].SetPlacement(gert::TensorPlacement::kOnDeviceHbm);
+  arg->input_tensor = std::move(inputs);
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetBuildFlag(false);
+  graph_node->Lock();
+  Status status = graph_manager.CheckIncreBuildAndPreRun(arg, graph_node);
+  EXPECT_NE(status, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphManagerTest, CheckIncreBuild_PreRun_HostTensor_NoCrash) {
+  GraphId graph_id = 2;
+  GraphManager graph_manager;
+  graph_manager.graph_rebuild_state_ctrl_ = MakeShared<GraphRebuildStateCtrl>();
+  std::shared_ptr<RunArgs> arg = std::make_shared<RunArgs>();
+  ASSERT_TRUE(arg != nullptr);
+  arg->callback = [](Status, std::vector<gert::Tensor> &) {};
+  const std::vector<int64_t> data = {100, 20};
+  std::vector<gert::Tensor> inputs;
+  inputs.emplace_back(gert::StorageShape({2}, {2}), gert::StorageFormat(FORMAT_ND, FORMAT_ND, gert::ExpandDimsType()),
+                      gert::TensorPlacement::kOnHost, DT_INT64, const_cast<int64_t *>(data.data()));
+  arg->input_tensor = std::move(inputs);
+  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
+  graph_node->SetBuildFlag(false);
+  graph_node->Lock();
+  Status status = graph_manager.CheckIncreBuildAndPreRun(arg, graph_node);
+  EXPECT_NE(status, ge::SUCCESS);
+}
+
+TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_empty_element_skip) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[1,2];"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), SUCCESS);
+  ASSERT_EQ(option_shape.size(), 1U);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_invalid_pattern) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
 }  // namespace ge

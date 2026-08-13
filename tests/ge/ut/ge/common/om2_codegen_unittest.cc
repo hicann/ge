@@ -19,6 +19,7 @@
 #include "common/ge_common/ge_types.h"
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
+#include "common/om2/rt_var_resource.h"
 
 #include <gtest/gtest.h>
 
@@ -1373,8 +1374,13 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCompilerMissing_Rejecte
   ScopedEnvVar path_guard("PATH", temp_dir.Path("empty_bin").c_str());
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
 
   EXPECT_NE(CompileBuildConfigArtifacts("cross_compiler_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("cross-compiler not found"), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileDevlibMissing_Rejected) {
@@ -1393,8 +1399,13 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileDevlibMissing_Rejected)
   ScopedEnvVar path_guard("PATH", temp_dir.Path("bin").c_str());
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "aarch64"}});
+  (void)ErrorManager::GetInstance().GetErrorMessage();
 
   EXPECT_NE(CompileBuildConfigArtifacts("cross_devlib_missing"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("devlib not found"), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileAscendHomeMissing_Rejected) {
@@ -2080,7 +2091,8 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_InputInstance) {
   EXPECT_EQ(desc.type, OP_ARG_INPUT);
   EXPECT_TRUE(desc.has_tensor_info);
   EXPECT_EQ(desc.size, 128U);
-  EXPECT_EQ(desc.mem_src, 1U);
+  EXPECT_EQ(desc.mem_src, MEM_SRC_CONST);
+  EXPECT_EQ(desc.index, 0U);
   EXPECT_EQ(desc.offset, 64U);
 }
 
@@ -2117,7 +2129,25 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_ConstTensor) {
   auto desc = TaskCodeBuilderUtil::ConvertAddrDesc(addr);
   EXPECT_EQ(desc.type, OP_ARG_CONST_TENSOR);
   EXPECT_TRUE(desc.has_tensor_info);
-  EXPECT_EQ(desc.mem_src, 3U);
+  EXPECT_EQ(desc.mem_src, MEM_SRC_CONST);
+  EXPECT_EQ(desc.index, 2U);
+}
+
+TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_Variable) {
+  AddrSemantic addr;
+  addr.kind = AddrValueKind::kVariable;
+  addr.tensor_info = Om2TensorInfo{};
+  addr.tensor_info->size = 128U;
+  addr.var_index = 2U;
+  addr.mem_offset = 512;
+
+  auto desc = TaskCodeBuilderUtil::ConvertAddrDesc(addr);
+  EXPECT_EQ(desc.type, OP_ARG_VAR_TENSOR);
+  EXPECT_EQ(desc.mem_src, MEM_SRC_VAR);
+  EXPECT_EQ(desc.index, 2U);
+  EXPECT_EQ(desc.offset, 512U);
+  EXPECT_TRUE(desc.has_tensor_info);
+  EXPECT_EQ(desc.size, 128U);
 }
 
 TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_Level1DescPtr) {
@@ -2207,7 +2237,7 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_ConvertAddrDesc_SessionScopeMemory) {
   addr.mem_offset = 256;
 
   auto desc = TaskCodeBuilderUtil::ConvertAddrDesc(addr);
-  EXPECT_EQ(desc.mem_src, 0xFFFFFFFFU);
+  EXPECT_EQ(desc.mem_src, MEM_SRC_SESSION);
   EXPECT_EQ(desc.offset, 256U);
 }
 
@@ -2330,6 +2360,63 @@ TEST_F(Om2CodegenUt, CppEmitter_EmptyTypeNameSeparator) {
   ASSERT_NE(tu, nullptr);
   const auto output = EmitNode(*tu);
   EXPECT_NE(output.find("EmptyTypeAlias"), std::string::npos);
+}
+
+class RTVarResourceCoverageTest : public testing::Test {
+ protected:
+  gert::RTVarEntry MakeEntry(const std::string &var_name, int format, int dtype) {
+    gert::RTVarEntry entry;
+    entry.var_name = var_name;
+    ge::Om2TensorDesc desc;
+    desc.SetFormat(static_cast<ge::Format>(format));
+    desc.SetDataType(static_cast<ge::DataType>(dtype));
+    entry.var_key = gert::RTVarResource::BuildVarKey(var_name, desc);
+    entry.tensor_desc = desc;
+    return entry;
+  }
+};
+
+TEST_F(RTVarResourceCoverageTest, GetEntryFound) {
+  gert::RTVarResource resource;
+  auto entry = MakeEntry("weight1", 1, 0);
+  ASSERT_EQ(resource.AddEntry(std::move(entry)), ge::SUCCESS);
+  const auto *result = resource.GetEntry("weight11_0");
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->var_name, "weight1");
+}
+
+TEST_F(RTVarResourceCoverageTest, GetEntryNotFound) {
+  gert::RTVarResource resource;
+  EXPECT_EQ(resource.GetEntry("nonexistent"), nullptr);
+}
+
+TEST_F(RTVarResourceCoverageTest, GetEntryByNameFound) {
+  gert::RTVarResource resource;
+  auto entry = MakeEntry("weight1", 1, 0);
+  ASSERT_EQ(resource.AddEntry(std::move(entry)), ge::SUCCESS);
+  const auto *result = resource.GetEntryByName("weight1");
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->var_key, "weight11_0");
+}
+
+TEST_F(RTVarResourceCoverageTest, GetEntryByNameNotFound) {
+  gert::RTVarResource resource;
+  EXPECT_EQ(resource.GetEntryByName("nonexistent"), nullptr);
+}
+
+TEST_F(RTVarResourceCoverageTest, GetAllVarKeys) {
+  gert::RTVarResource resource;
+  ASSERT_EQ(resource.AddEntry(MakeEntry("a", 1, 0)), ge::SUCCESS);
+  ASSERT_EQ(resource.AddEntry(MakeEntry("b", 1, 0)), ge::SUCCESS);
+  auto keys = resource.GetAllVarKeys();
+  EXPECT_EQ(keys.size(), 2U);
+}
+
+TEST_F(RTVarResourceCoverageTest, AddEntryEmptyKeyFails) {
+  gert::RTVarResource resource;
+  gert::RTVarEntry entry;
+  entry.var_key = "";
+  EXPECT_NE(resource.AddEntry(std::move(entry)), ge::SUCCESS);
 }
 
 TEST_F(Om2CodegenUt, CppEmitter_InvalidEnumDefaults) {

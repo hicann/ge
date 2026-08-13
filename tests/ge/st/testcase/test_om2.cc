@@ -41,11 +41,13 @@
 #include "graph/utils/file_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph/manager/graph_var_manager.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "proto/ge_ir.pb.h"
 #include "proto/insert_op.pb.h"
 
 #include "graph/ge_local_context.h"
+#include "graph/ge_context.h"
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
@@ -807,7 +809,7 @@ std::string MakeFakeOm2InterfaceHeader() {
 
 extern "C" {
 int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **bin_files, const void **bin_data,
-                   size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id,
+                   size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id,
                    uint32_t model_id, void *instance_handle);
 int Om2ModelLoad(void **model_handle);
 int Om2ModelRunAsync(void **model_handle, void *stream, int input_count, void **input_data, int output_count,
@@ -830,7 +832,7 @@ struct FakeModel {
 }
 
 extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **, size_t *, int,
-                              void **constants, void *work_ptr, uint64_t *session_id, uint32_t, void *) {
+                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t, void *) {
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (work_ptr == nullptr) || (constants == nullptr) ||
       (constants[0] == nullptr)) {
     return 1;
@@ -2848,7 +2850,13 @@ TEST_F(Om2St, CrossCompileCompilerMissing_Rejected) {
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
   EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_compiler_missing.om2"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("cross-compiler not found"), std::string::npos);
 }
 
 TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
@@ -2865,7 +2873,13 @@ TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
   ScopedEnvVar ascend_home_guard("ASCEND_HOME_PATH", temp_dir.Path("ascend").c_str());
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "aarch64"}};
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
   EXPECT_NE(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "cross_devlib_missing.om2"), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10001"), std::string::npos);
+  EXPECT_EQ(error_message.find("E19999"), std::string::npos);
+  EXPECT_NE(error_message.find("devlib not found"), std::string::npos);
 }
 
 // ============================================================================
@@ -3050,197 +3064,413 @@ TEST_F(Om2St, ConvertOm2Model_WithoutAipp_HasNoAippSection) {
   EXPECT_EQ(model_meta_json.find("\"aipp\""), std::string::npos) << "aipp section should NOT exist in model_meta.json";
 }
 
-// 创建带指定 AIPP mode 的模型，用于 SaveModelInfo 分支覆盖
-static GeRootModelPtr CreateGeRootModelWithAippMode(const std::string &aipp_mode, bool set_aipp_attr = true,
-                                                    const std::string &data_name = "") {
-  auto graph = gert::ShareGraph::AicoreStaticGraph();
-  graph->TopologicalSorting();
-  for (const auto &node : graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
-      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, aipp_mode);
-      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
-      if (!data_name.empty()) {
-        (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_AIPP_DATA_NAME_MAP, data_name);
-      }
-      if (set_aipp_attr) {
-        ge::NamedAttrs aipp_attr;
-        aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
-        aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
-        aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
-        aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
-        aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
-        (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
-      }
-      break;
+// ============================================================================
+// OM2 Variable Manager System Tests
+// ============================================================================
+
+class Om2VarSt : public Om2St {
+ public:
+  void SetUp() override {
+    Om2St::SetUp();
+    ge::VarManagerPool::Instance().Destroy();
+  }
+  void TearDown() override {
+    ge::VarManagerPool::Instance().Destroy();
+    Om2St::TearDown();
+  }
+};
+
+static void AddVariableNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                   const GeTensorDesc &tensor_desc, const std::vector<float> &init_values) {
+  auto op_desc = std::make_shared<OpDesc>(name, VARIABLE);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({1024});
+  if (!init_values.empty()) {
+    auto init_tensor = std::make_shared<GeTensor>();
+    init_tensor->SetData(reinterpret_cast<const uint8_t *>(init_values.data()), init_values.size() * sizeof(float));
+    init_tensor->MutableTensorDesc() = tensor_desc;
+    auto output_desc = op_desc->MutableOutputDesc(0U);
+    if (output_desc != nullptr) {
+      (void)AttrUtils::SetTensor(*output_desc, ATTR_NAME_INIT_VALUE, init_tensor);
     }
   }
-  gert::GeModelBuilder builder(graph);
-  auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
-          .FakeTbeBin({"Add"})
-          .BuildGeRootModel();
-  if (ge_root_model == nullptr) {
-    return nullptr;
-  }
-  auto &compute_graph = ge_root_model->GetRootGraph();
-  compute_graph->SetGraphUnknownFlag(false);
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    if (op_desc == nullptr) {
-      return nullptr;
-    }
-    if ((op_desc->GetType() == DATA)) {
-      op_desc->SetOutputOffset({1024});
-    } else if (op_desc->GetType() == NETOUTPUT) {
-      op_desc->SetInputOffset({3072});
-    } else {
-      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
-      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
-    }
-  }
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  if (ge_model == nullptr) {
-    return nullptr;
-  }
-  std::vector<uint8_t> weights_value(401408, 1U);
-  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  return ge_root_model;
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
 }
 
-// 通过 SaveModelInfo 调用 FillAippModelMetaInfo，覆盖 AIPP 函数的 ST 覆盖率
-TEST_F(Om2St, SaveModelInfo_WithStaticAipp_WritesAippJson) {
-  auto graph = gert::ShareGraph::AicoreStaticGraph();
-  graph->TopologicalSorting();
-  for (const auto &node : graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
-      ge::NamedAttrs aipp_attr;
-      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
-      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
-      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
-      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, "static_aipp");
-      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
-      break;
-    }
+static void AddConstantOpNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                     const GeTensorDesc &tensor_desc, const std::vector<float> &weight_values) {
+  auto op_desc = std::make_shared<OpDesc>(name, CONSTANTOP);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({2048});
+  if (!weight_values.empty()) {
+    auto weight_tensor = std::make_shared<GeTensor>();
+    weight_tensor->SetData(reinterpret_cast<const uint8_t *>(weight_values.data()),
+                           weight_values.size() * sizeof(float));
+    weight_tensor->MutableTensorDesc() = tensor_desc;
+    (void)AttrUtils::SetTensor(*op_desc, ATTR_NAME_WEIGHTS, weight_tensor);
   }
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+}
 
-  gert::GeModelBuilder builder(graph);
-  auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
-          .FakeTbeBin({"Add"})
-          .BuildGeRootModel();
+static void AddConstPlaceHolderNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                           const GeTensorDesc &tensor_desc, int64_t device_addr) {
+  auto op_desc = std::make_shared<OpDesc>(name, CONSTPLACEHOLDER);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({3072});
+  (void)AttrUtils::SetListInt(op_desc, "storage_shape", tensor_desc.GetShape().GetDims());
+  (void)AttrUtils::SetDataType(op_desc, "dtype", tensor_desc.GetDataType());
+  (void)AttrUtils::SetInt(op_desc, "size", 16L);
+  (void)AttrUtils::SetInt(op_desc, "placement", static_cast<int64_t>(Placement::kPlacementDevice));
+  (void)AttrUtils::SetInt(op_desc, "addr", device_addr);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+}
+
+/**
+ * 用例描述：测试包含Variable节点的模型通过OM2编译流程，验证变量资源正确构建和序列化
+ * 预置条件：
+ *   1. 基于AiCore静态图模型，添加Variable节点
+ *   2. 在VarManager中注册变量
+ * 测试步骤：
+ *   1. 构造带Variable节点的GeRootModel
+ *   2. 调用SaveToOmRootModel
+ *   3. 解析输出OM2文件
+ * 预期结果：
+ *   1. OM2文件生成成功
+ *   2. 包含data/variables/var_resource.json
+ *   3. 包含data/variables/model_0_variables_config.json
+ *   4. var_resource.json中包含Variable节点的条目
+ *   5. variables_config.json中包含var_metas信息
+ */
+TEST_F(Om2VarSt, GenOm2WithVariableNodes_VarResourceSerialized) {
+  constexpr uint64_t kSessionId = 100U;
+  GetContext().SetSessionId(kSessionId);
+  auto var_manager = VarManager::Instance(kSessionId);
+  ASSERT_NE(var_manager, nullptr);
+  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
+
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
   ASSERT_NE(ge_root_model, nullptr);
   auto &compute_graph = ge_root_model->GetRootGraph();
-  compute_graph->SetGraphUnknownFlag(false);
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    ASSERT_NE(op_desc, nullptr);
-    if ((op_desc->GetType() == DATA)) {
-      op_desc->SetOutputOffset({1024});
-    } else if (op_desc->GetType() == NETOUTPUT) {
-      op_desc->SetInputOffset({3072});
-    } else {
-      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
-      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
-    }
-  }
 
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  std::vector<uint8_t> weights_value(401408, 1U);
-  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root_g1"));
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16L);
 
-  const std::string output_file = PathUtils::Join({test_work_dir, "st_smi_aipp.om2"});
-  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
-  ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  SyncKernelNameFromOpDesc(ge_model);
-  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
-  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+  std::vector<float> init_values(4, 2.0f);
+  AddVariableNodeToGraph(compute_graph, "test_var", tensor_desc, init_values);
+  ASSERT_EQ(var_manager->SetVarAddr("test_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
 
-  uint32_t model_buf_size = 0U;
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "var_test.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  ASSERT_NE(model_buf, nullptr);
-
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
-  size_t model_meta_size = 0U;
-  const auto model_meta_buf = archive.ExtractToMem("st_smi_aipp/data/model_0/model_meta.json", model_meta_size);
-  ASSERT_NE(model_meta_buf, nullptr);
-  const std::string model_meta_json(reinterpret_cast<const char *>(model_meta_buf.get()), model_meta_size);
-  EXPECT_FALSE(model_meta_json.empty());
+
+  const auto file_names = archive.ListFiles();
+  bool found_var_resource = false;
+  bool found_var_config = false;
+  for (const auto &f : file_names) {
+    if (f.find("data/variables/var_resource.json") != std::string::npos) {
+      found_var_resource = true;
+    }
+    if (f.find("data/variables/model_0_variables_config.json") != std::string::npos) {
+      found_var_config = true;
+    }
+  }
+  EXPECT_TRUE(found_var_resource) << "var_resource.json not found in OM2 archive";
+  EXPECT_TRUE(found_var_config) << "variables_config.json not found in OM2 archive";
+
+  if (found_var_resource) {
+    size_t var_resource_size = 0;
+    const auto var_resource_buf = archive.ExtractToMem("var_test/data/variables/var_resource.json", var_resource_size);
+    ASSERT_NE(var_resource_buf, nullptr);
+    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
+    ASSERT_TRUE(var_resource_json.IsValid());
+    ASSERT_TRUE(var_resource_json.Raw().contains("entries"));
+    const auto &entries = var_resource_json.Raw().at("entries");
+    EXPECT_FALSE(entries.empty()) << "var_resource entries should not be empty";
+  }
+
+  if (found_var_config) {
+    size_t var_config_size = 0;
+    const auto var_config_buf =
+        archive.ExtractToMem("var_test/data/variables/model_0_variables_config.json", var_config_size);
+    ASSERT_NE(var_config_buf, nullptr);
+    JsonFile var_config_json(reinterpret_cast<const uint8_t *>(var_config_buf.get()), var_config_size);
+    ASSERT_TRUE(var_config_json.IsValid());
+    ASSERT_TRUE(var_config_json.Raw().contains("var_metas"));
+    const auto &var_metas = var_config_json.Raw().at("var_metas");
+    EXPECT_FALSE(var_metas.empty()) << "var_metas should not be empty";
+    bool found_test_var = false;
+    for (const auto &meta : var_metas) {
+      if (meta.contains("var_name") && meta.at("var_name") == "test_var") {
+        found_test_var = true;
+        EXPECT_EQ(meta.at("op_type"), JsonFile::json("Variable"));
+      }
+    }
+    EXPECT_TRUE(found_test_var) << "test_var not found in var_metas";
+  }
 }
 
-// 覆盖 dynamic_aipp 分支
-TEST_F(Om2St, SaveModelInfo_DynamicAipp_WritesAippJson) {
-  const auto ge_root_model = CreateGeRootModelWithAippMode("dynamic_aipp");
-  ASSERT_NE(ge_root_model, nullptr);
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+/**
+ * 用例描述：测试包含ConstantOp节点的模型通过OM2编译流程，验证权重数据正确序列化
+ * 预置条件：
+ *   1. 基于AiCore静态图模型，添加ConstantOp节点（带权重数据）
+ *   2. 在VarManager中注册变量
+ * 测试步骤：
+ *   1. 构造带ConstantOp节点的GeRootModel
+ *   2. 调用SaveToOmRootModel
+ *   3. 解析输出OM2文件中的var_resource.json
+ * 预期结果：
+ *   1. OM2文件生成成功
+ *   2. var_resource.json中包含ConstantOp节点的条目
+ *   3. 条目的init_data_size大于0（权重数据被序列化）
+ */
+TEST_F(Om2VarSt, GenOm2WithConstantOpNodes_InitDataSerialized) {
+  constexpr uint64_t kSessionId = 101U;
+  GetContext().SetSessionId(kSessionId);
+  auto var_manager = VarManager::Instance(kSessionId);
+  ASSERT_NE(var_manager, nullptr);
+  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
 
-  const std::string output_file = PathUtils::Join({test_work_dir, "st_dyn_aipp.om2"});
-  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
-  ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  SyncKernelNameFromOpDesc(ge_model);
-  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 8L);
+
+  std::vector<float> weight_values(2, 3.0f);
+  AddConstantOpNodeToGraph(compute_graph, "test_const", tensor_desc, weight_values);
+  ASSERT_EQ(var_manager->SetVarAddr("test_const", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "const_test.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t var_resource_size = 0;
+  const auto var_resource_buf = archive.ExtractToMem("const_test/data/variables/var_resource.json", var_resource_size);
+  if (var_resource_buf != nullptr) {
+    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
+    ASSERT_TRUE(var_resource_json.IsValid());
+    const auto &entries = var_resource_json.Raw().at("entries");
+    bool found_const_entry = false;
+    for (const auto &[key, entry] : entries.items()) {
+      if (entry.contains("var_name") && entry.at("var_name") == "test_const") {
+        found_const_entry = true;
+        EXPECT_EQ(entry.at("op_type"), JsonFile::json("Constant"));
+        EXPECT_GT(entry.at("init_data_size").get<size_t>(), 0U) << "ConstantOp init_data should be serialized";
+      }
+    }
+    EXPECT_TRUE(found_const_entry) << "test_const entry not found in var_resource.json";
+  }
 }
 
-// 覆盖 unknown mode 分支
-TEST_F(Om2St, SaveModelInfo_UnknownAippMode_Skipped) {
-  const auto ge_root_model = CreateGeRootModelWithAippMode("unknown_aipp_mode");
-  ASSERT_NE(ge_root_model, nullptr);
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+/**
+ * 用例描述：测试包含ConstPlaceHolder节点的模型通过OM2编译流程
+ * 预置条件：
+ *   1. 基于AiCore静态图模型，添加ConstPlaceHolder节点
+ *   2. 在VarManager中注册变量（带设备地址）
+ * 测试步骤：
+ *   1. 构造带ConstPlaceHolder节点的GeRootModel
+ *   2. 调用SaveToOmRootModel
+ *   3. 解析输出OM2文件中的var_resource.json
+ * 预期结果：
+ *   1. OM2文件生成成功
+ *   2. var_resource.json中包含ConstPlaceHolder节点的条目
+ *   3. 条目的op_type为ConstPlaceHolder
+ */
+TEST_F(Om2VarSt, GenOm2WithConstPlaceHolderNodes_ExternalAddrSerialized) {
+  constexpr uint64_t kSessionId = 102U;
+  constexpr int64_t kDeviceAddr = 0x2000L;
+  GetContext().SetSessionId(kSessionId);
+  auto var_manager = VarManager::Instance(kSessionId);
+  ASSERT_NE(var_manager, nullptr);
+  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
 
-  const std::string output_file = PathUtils::Join({test_work_dir, "st_unknown_aipp.om2"});
-  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
-  ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  SyncKernelNameFromOpDesc(ge_model);
-  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  GeTensorDesc tensor_desc(GeShape({1}), FORMAT_ND, DT_UINT8);
+  TensorUtils::SetSize(tensor_desc, 1L);
+
+  AddConstPlaceHolderNodeToGraph(compute_graph, "test_placeholder", tensor_desc, kDeviceAddr);
+  ASSERT_EQ(var_manager->SetVarAddr("test_placeholder", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "placeholder_test.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t var_resource_size = 0;
+  const auto var_resource_buf =
+      archive.ExtractToMem("placeholder_test/data/variables/var_resource.json", var_resource_size);
+  if (var_resource_buf != nullptr) {
+    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
+    ASSERT_TRUE(var_resource_json.IsValid());
+    const auto &entries = var_resource_json.Raw().at("entries");
+    bool found_placeholder = false;
+    for (const auto &[key, entry] : entries.items()) {
+      if (entry.contains("var_name") && entry.at("var_name") == "test_placeholder") {
+        found_placeholder = true;
+        EXPECT_EQ(entry.at("op_type"), JsonFile::json("ConstPlaceHolder"));
+      }
+    }
+    EXPECT_TRUE(found_placeholder) << "test_placeholder entry not found in var_resource.json";
+  }
 }
 
-// 覆盖缺 ATTR_NAME_AIPP 分支
-TEST_F(Om2St, SaveModelInfo_MissingAippAttr_Skipped) {
-  const auto ge_root_model = CreateGeRootModelWithAippMode("static_aipp", false);
-  ASSERT_NE(ge_root_model, nullptr);
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+/**
+ * 用例描述：测试包含多种类型变量节点（Variable+ConstantOp+ConstPlaceHolder）的模型，
+ *           验证TransRoad和CopyInfo的序列化
+ * 预置条件：
+ *   1. 基于AiCore静态图模型，添加多种类型的变量节点
+ *   2. 在VarManager中注册变量，并设置TransRoad
+ * 测试步骤：
+ *   1. 构造带多种变量节点的GeRootModel
+ *   2. 设置TransRoad和ChangedGraphId
+ *   3. 调用SaveToOmRootModel
+ *   4. 解析输出OM2文件
+ * 预期结果：
+ *   1. OM2文件生成成功
+ *   2. var_resource.json中包含所有变量节点的条目
+ *   3. TransRoad信息被正确序列化
+ *   4. var_weight_data文件存在（因为有init_data）
+ */
+TEST_F(Om2VarSt, GenOm2WithMixedVarNodes_TransRoadAndCopyInfoSerialized) {
+  constexpr uint64_t kSessionId = 103U;
+  GetContext().SetSessionId(kSessionId);
+  auto var_manager = VarManager::Instance(kSessionId);
+  ASSERT_NE(var_manager, nullptr);
+  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
 
-  const std::string output_file = PathUtils::Join({test_work_dir, "st_missing_aipp.om2"});
-  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
-  ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  SyncKernelNameFromOpDesc(ge_model);
-  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16L);
+
+  std::vector<float> init_values(4, 1.0f);
+  AddVariableNodeToGraph(compute_graph, "mixed_var", tensor_desc, init_values);
+  ASSERT_EQ(var_manager->SetVarAddr("mixed_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  VarTransRoad road;
+  TransNodeInfo node_info;
+  node_info.node_type = "TransData";
+  node_info.input = GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  node_info.output = GeTensorDesc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  road.push_back(node_info);
+  ASSERT_EQ(var_manager->SetTransRoad("mixed_var", road), SUCCESS);
+  ASSERT_EQ(var_manager->SetChangedGraphId("mixed_var", 42U), SUCCESS);
+  ASSERT_EQ(var_manager->SetAllocatedGraphId("mixed_var", 7U), SUCCESS);
+
+  GeTensorDesc const_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(const_desc, 8L);
+  std::vector<float> weight_values(2, 5.0f);
+  AddConstantOpNodeToGraph(compute_graph, "mixed_const", const_desc, weight_values);
+  ASSERT_EQ(var_manager->SetVarAddr("mixed_const", const_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "mixed_var_test.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t var_resource_size = 0;
+  const auto var_resource_buf =
+      archive.ExtractToMem("mixed_var_test/data/variables/var_resource.json", var_resource_size);
+  if (var_resource_buf != nullptr) {
+    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
+    ASSERT_TRUE(var_resource_json.IsValid());
+    const auto &entries = var_resource_json.Raw().at("entries");
+    bool found_var = false;
+    bool found_const = false;
+    for (const auto &[key, entry] : entries.items()) {
+      if (entry.contains("var_name") && entry.at("var_name") == "mixed_var") {
+        found_var = true;
+        EXPECT_EQ(entry.at("op_type"), JsonFile::json("Variable"));
+        ASSERT_TRUE(entry.contains("trans_road"));
+        EXPECT_FALSE(entry.at("trans_road").empty()) << "TransRoad should be serialized";
+        if (!entry.at("trans_road").empty()) {
+          EXPECT_EQ(entry.at("trans_road")[0].at("node_type"), JsonFile::json("TransData"));
+        }
+        EXPECT_EQ(entry.at("changed_graph_id"), JsonFile::json(42U));
+        EXPECT_EQ(entry.at("allocated_graph_id"), JsonFile::json(7U));
+      }
+      if (entry.contains("var_name") && entry.at("var_name") == "mixed_const") {
+        found_const = true;
+        EXPECT_EQ(entry.at("op_type"), JsonFile::json("Constant"));
+      }
+    }
+    EXPECT_TRUE(found_var) << "mixed_var entry not found";
+    EXPECT_TRUE(found_const) << "mixed_const entry not found";
+  }
+
+  bool found_var_weight = false;
+  for (const auto &f : archive.ListFiles()) {
+    if (f.find("data/variables/var_weight_data") != std::string::npos) {
+      found_var_weight = true;
+    }
+  }
+  EXPECT_TRUE(found_var_weight) << "var_weight_data file should exist when init_data is present";
 }
 
-// 覆盖 ResolveAippDataIndex found-in-map 分支 (设置 ATTR_DATA_AIPP_DATA_NAME_MAP)
-TEST_F(Om2St, SaveModelInfo_WithAippDataNameMap_WritesAippJson) {
-  const auto ge_root_model = CreateGeRootModelWithAippMode("static_aipp", true, "data1");
-  ASSERT_NE(ge_root_model, nullptr);
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  ge_model->GetGraph()->SetParentGraph(std::make_shared<ComputeGraph>("root"));
+/**
+ * 用例描述：测试无变量节点的模型不生成变量资源文件
+ * 预置条件：
+ *   1. 使用标准AiCore静态图模型（无Variable/ConstantOp/ConstPlaceHolder节点）
+ * 测试步骤：
+ *   1. 调用SaveToOmRootModel
+ *   2. 解析输出OM2文件
+ * 预期结果：
+ *   1. OM2文件生成成功
+ *   2. 不包含data/variables/var_resource.json
+ */
+TEST_F(Om2VarSt, GenOm2WithoutVarNodes_NoVarResourceFiles) {
+  constexpr uint64_t kSessionId = 104U;
+  GetContext().SetSessionId(kSessionId);
 
-  const std::string output_file = PathUtils::Join({test_work_dir, "st_datamap_aipp.om2"});
-  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
-  ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  SyncKernelNameFromOpDesc(ge_model);
-  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "no_var_test.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  for (const auto &f : archive.ListFiles()) {
+    EXPECT_EQ(f.find("data/variables/"), std::string::npos)
+        << "Unexpected variable file in model without variables: " << f;
+  }
 }
 
 }  // namespace ge

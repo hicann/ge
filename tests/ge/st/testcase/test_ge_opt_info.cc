@@ -15,6 +15,8 @@
 #include "graph/ge_local_context.h"
 
 #include "ge_graph_dsl/graph_dsl.h"
+#include "ge_common/ge_common_api_types.h"
+#include "api/aclgrph/option_utils.h"
 
 namespace ge {
 class STEST_opt_info : public testing::Test {
@@ -103,5 +105,48 @@ TEST_F(STEST_opt_info, get_opt_info_success) {
   itr = graph_options.find("opt_module.op_tune");
   EXPECT_NE(itr, graph_options.end());
   EXPECT_EQ(itr->second, "ALL");
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_empty_element) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[1,2];"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), SUCCESS);
+  ASSERT_EQ(option_shape.size(), 1U);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_invalid_pattern) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_invalid_index) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "abc:[1,2]"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_negative_index) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "-1:[1,2]"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_duplicate_index) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[1,2];0:[3,4]"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(STEST_opt_info, parse_hint_input_shape_invalid_shape) {
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:abc"}});
+  std::vector<GeShape> option_shape;
+  EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
+  GetThreadLocalContext().SetGraphOption({});
 }
 }  // namespace ge

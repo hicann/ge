@@ -370,6 +370,9 @@ const std::string INPUT_SHAPE = "ge.inputShape";
 // Configure shape hint of dynamic shape
 const char_t *const INPUT_HINT_SHAPE = "ge.inputHintShape";
 
+// Configure value hint of dynamic shape
+const char_t *const INPUT_HINT_VALUE = "ge.inputHintValue";
+
 const std::string OUTPUT_MAX_SIZE = "ge.outputMaxSize";
 
 const std::string DYNAMIC_NODE_TYPE = "ge.dynamicNodeType";
@@ -686,6 +689,7 @@ static const char_t *const OO_DEAD_CODE_ELIMINATION = ge::OO_DEAD_CODE_ELIMINATI
 static const char_t *const OPTION_EXPORT_COMPILE_STAT = ge::OPTION_EXPORT_COMPILE_STAT;
 static const char_t *const OPTIMIZATION_SWITCH = ge::OPTIMIZATION_SWITCH;
 static const char_t *const INPUT_HINT_SHAPE = ge::INPUT_HINT_SHAPE;
+static const char_t *const INPUT_HINT_VALUE = ge::INPUT_HINT_VALUE;
 static const char_t *const OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES = ge::OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES;
 static const char_t *const OPTION_H2D_OVERLAPPED_WITH_COMPUTE = ge::OPTION_H2D_OVERLAPPED_WITH_COMPUTE;
 static const char_t *const OFFLINE_MODE = "ge.offlineMode";
@@ -742,6 +746,7 @@ const std::set<std::string> ir_builder_suppported_options = {INPUT_FORMAT,
                                                              OPTION_EXPORT_COMPILE_STAT,
                                                              OPTIMIZATION_SWITCH,
                                                              INPUT_HINT_SHAPE,
+                                                             INPUT_HINT_VALUE,
                                                              OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES,
                                                              OPTION_H2D_OVERLAPPED_WITH_COMPUTE,
                                                              OFFLINE_MODE,

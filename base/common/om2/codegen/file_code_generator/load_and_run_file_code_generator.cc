@@ -98,6 +98,7 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
   auto ctx_init_list = ast_.InitList({total_dev_mem_ptr_,
                                       session_scope_mem_ptr_,
                                       constants_,
+                                      var_addrs_,
                                       args_table_,
                                       func_handles_.Attr("data")(),
                                       model_id_,

@@ -25,6 +25,8 @@ export IGNORE_INFER_ERROR=1
 
 ## 产品支持情况
 
+<!-- npu="950,A3,910b,910,310p,310b" id1 -->
 全量芯片支持
+<!-- end id1 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/env_vars/IGNORE_INFER_ERROR_res.md#id1 -->

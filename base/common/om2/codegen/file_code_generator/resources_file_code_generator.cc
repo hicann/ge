@@ -20,6 +20,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   auto bin_size = ast_.Var("size_t *", "bin_size");
   auto bin_num = ast_.Var("size_t", "bin_num");
   auto constants = ast_.Var("void **", "constants");
+  auto var_addrs = ast_.Var("void **", "var_addrs");
   auto work_ptr = ast_.Var("void *", "work_ptr");
   auto session_id = ast_.Var("uint64_t *", "session_id");
   auto model_id = ast_.Var("uint32_t", "model_id");
@@ -51,11 +52,13 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   (void)body.emplace_back(ast_.Call("OM2_LOGD", {ast_.Str("Om2Model created")}));
   return ast_.DefineMethod(
       "Om2Model", "Om2Model",
-      {bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id, model_id, instance_handle}, "",
-      {ast_.MemberInit("constants_", constants), ast_.MemberInit("total_dev_mem_ptr_", work_ptr),
-       ast_.MemberInit("session_id_", session_id), ast_.MemberInit("model_id_", model_id),
-       ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("kernel_id_", 0),
-       ast_.MemberInit("session_scope_mem_ptr_", nullptr), ast_.MemberInit("sync_prof_stream_", "nullptr")},
+      {bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle},
+      "",
+      {ast_.MemberInit("constants_", constants), ast_.MemberInit("var_addrs_", var_addrs),
+       ast_.MemberInit("total_dev_mem_ptr_", work_ptr), ast_.MemberInit("session_id_", session_id),
+       ast_.MemberInit("model_id_", model_id), ast_.MemberInit("instance_handle_", instance_handle),
+       ast_.MemberInit("kernel_id_", 0), ast_.MemberInit("session_scope_mem_ptr_", nullptr),
+       ast_.MemberInit("sync_prof_stream_", "nullptr")},
       body);
 }
 

@@ -69,8 +69,10 @@ Status LabelSwitchByIndexTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode 
   (void)body.push_back(ChkStatus(AclrtSwitchLabelByIndex(
       ast_.Call("ResolveOpAddr",
                 {op.Arrow("dispatch_info").Attr("label_switch").Attr("args_info")[0].Attr("addr").Attr("mem_src"),
+                 op.Arrow("dispatch_info").Attr("label_switch").Attr("args_info")[0].Attr("addr").Attr("index"),
                  op.Arrow("dispatch_info").Attr("label_switch").Attr("args_info")[0].Attr("addr").Attr("offset"),
-                 ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants")}),
+                 ctx.Attr("total_dev_mem_ptr"), ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"),
+                 ctx.Attr("var_addrs")}),
       op.Arrow("dispatch_info").Attr("label_switch").Attr("branch_max"),
       ctx.Attr("label_switch_label_list")[op.Arrow("dispatch_info").Attr("label_switch").Attr("op_idx")],
       ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("label_switch").Attr("stream_id")])));

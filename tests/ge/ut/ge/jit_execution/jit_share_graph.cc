@@ -323,18 +323,22 @@ UniqueGraphPtr JitShareGraph::ThreeReshapeNodeThreeRelu() {
   es::EsGraphBuilder::SetOutput(relu3, 0);
   auto graph = es_graph.BuildAndReset();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  AddCompileResultByGNode(cg, relu0.GetProducer(), true,
-                   "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
-                   "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
-  AddCompileResultByGNode(cg, relu1.GetProducer(), true,
-                   "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
-                   "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
-  AddCompileResultByGNode(cg, relu2.GetProducer(), true,
-                   "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
-                   "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
-  AddCompileResultByGNode(cg, relu3.GetProducer(), true,
-                   "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
-                   "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
+  AddCompileResultByGNode(
+      cg, relu0.GetProducer(), true,
+      "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
+      "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
+  AddCompileResultByGNode(
+      cg, relu1.GetProducer(), true,
+      "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
+      "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
+  AddCompileResultByGNode(
+      cg, relu2.GetProducer(), true,
+      "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
+      "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
+  AddCompileResultByGNode(
+      cg, relu3.GetProducer(), true,
+      "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
+      "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
   return graph;
 }
 

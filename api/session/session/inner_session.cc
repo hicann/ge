@@ -30,6 +30,8 @@
 #include "common/context/local_context.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/utils/tensor_adapter.h"
+#include "runtime/om2/om2_rt_var_manager.h"
+#include "runtime/om2/om2_external_weight_manager.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "api/aclgrph/option_utils.h"
 #include "common/profiling/profiling_manager.h"
@@ -255,6 +257,8 @@ Status InnerSession::Finalize() {
   GE_CHK_RT(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
   GE_CHK_STATUS_RET(RemoveDumpProperties(), "[Remove][DumpProperties] failed.");
   VarManagerPool::Instance().RemoveVarManager(session_id_);
+  gert::Om2RTVarManagerPool::Instance().RemoveManager(session_id_);
+  gert::Om2ExternalWeightManagerPool::Instance().RemoveManager(session_id_);
   SessionMemAllocator<ExpandableActiveMemoryAllocator>::Instance().RemoveAllocator(session_id_);
   SessionMemAllocator<FixedBaseExpandableAllocator>::Instance().RemoveAllocator(session_id_);
   SessionMemAllocator<ActiveMemoryAllocator>::Instance().RemoveAllocator(session_id_);

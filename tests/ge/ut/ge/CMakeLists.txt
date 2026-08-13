@@ -126,6 +126,8 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/model_parser_base_unittest.cc"
     "executor/ge_executor_unittest.cc"
     "executor/om2_model_executor_unittest.cc"
+    "executor/om2_rt_var_manager_unittest.cc"
+    "executor/rt_var_resource_unittest.cc"
     "executor/om2_model_manager_unittest.cc"
     "executor/file_const_loader_unittest.cc"
     "executor/executor_utils_unittest.cc"
@@ -423,6 +425,7 @@ set(BASE_COMMON_TEST_FILES
     "common/om2_codegen_model_builder_unittest.cc"
     "common/control_task_code_builder_unittest.cc"
     "common/program_generator_unittest.cc"
+    "common/om2_var_resource_builder_unittest.cc"
     "om2/codegen/stream_switch_task_code_builder_unittest.cc"
 )
 

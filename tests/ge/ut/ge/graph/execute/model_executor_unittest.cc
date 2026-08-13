@@ -77,7 +77,7 @@ std::string MakeFakeOm2SoSource() {
 #include <cstddef>
 extern "C" {
 int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **,
-                   size_t *, int, void **, void *, uint64_t *, unsigned int, void *) {
+                   size_t *, int, void **, void **, void *, uint64_t *, unsigned int, void *) {
   if (model_handle) *model_handle = (void*)0x1;
   if (rt_model_handle) *rt_model_handle = (void*)0x2;
   return 0;
@@ -1879,9 +1879,9 @@ TEST_F(UtestModelExecutorOm2Test, RunGraph_HostInput_ReturnsUnsupported) {
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
+  std::vector<uint8_t> data(16U, 0U);
   gert::Tensor host_input;
   host_input.SetPlacement(gert::kOnHost);
-  std::vector<uint8_t> data(16U, 0U);
   host_input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnHost));
 
   gert::Tensor output;

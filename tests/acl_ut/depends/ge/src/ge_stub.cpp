@@ -23,6 +23,8 @@
 #include "framework/runtime/om2_model_executor.h"
 #include "framework/runtime/mem_allocator.h"
 #include "framework/memory/allocator_desc.h"
+#include "runtime/om2/om2_rt_var_manager.h"
+#include "runtime/om2/om2_external_weight_manager.h"
 
 #include "framework/common/util.h"
 #include "common/helper/om_file_helper.h"
@@ -1726,6 +1728,10 @@ int32_t GEContext::EventSyncTimeout() const {
   return ge_context_event_sync_timeout;
 }
 
+uint64_t GEContext::SessionId() const {
+  return 0U;
+}
+
 bool TypeUtilsInner::IsInternalFormat(ge::Format format) {
   if (format == FORMAT_NCHW) {
     return false;
@@ -2164,6 +2170,10 @@ ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, uint64
   return ge::SUCCESS;
 }
 
+uint64_t Om2ModelExecutor::SessionId() const {
+  return 0U;
+}
+
 class Om2ModelExecutor::Impl {
  public:
   int dummy;
@@ -2274,3 +2284,41 @@ void PlatFormInfos::SetPlatformResWithLock(const std::string &label, std::map<st
   return;
 }
 }  // namespace fe
+
+namespace gert {
+Om2RTVarManagerPool &Om2RTVarManagerPool::Instance() {
+  static Om2RTVarManagerPool pool;
+  return pool;
+}
+
+Om2RTVarManagerPool::~Om2RTVarManagerPool() = default;
+
+Om2RTVarManagerPtr Om2RTVarManagerPool::GetManager(uint64_t session_id) {
+  (void)session_id;
+  return nullptr;
+}
+
+void Om2RTVarManagerPool::RemoveManager(uint64_t session_id) {
+  (void)session_id;
+}
+
+void Om2RTVarManagerPool::Destroy() noexcept {}
+
+Om2ExternalWeightManagerPool &Om2ExternalWeightManagerPool::Instance() {
+  static Om2ExternalWeightManagerPool pool;
+  return pool;
+}
+
+Om2ExternalWeightManagerPool::~Om2ExternalWeightManagerPool() = default;
+
+Om2ExternalWeightManagerPtr Om2ExternalWeightManagerPool::GetManager(const uint64_t session_id) {
+  (void)session_id;
+  return nullptr;
+}
+
+void Om2ExternalWeightManagerPool::RemoveManager(const uint64_t session_id) {
+  (void)session_id;
+}
+
+void Om2ExternalWeightManagerPool::Destroy() noexcept {}
+}  // namespace gert

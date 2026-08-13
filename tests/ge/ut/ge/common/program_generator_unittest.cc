@@ -785,6 +785,17 @@ GeRootModelPtr CreateGeRootModelWithArgs() {
   return ge_root_model;
 }
 
+void ConfigureVariableRange(const GeRootModelPtr &ge_root_model, const int64_t root, const int64_t size) {
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto var_desc = std::make_shared<OpDesc>("raw_var", VARIABLE);
+  GeTensorDesc tensor_desc(GeShape({size}), FORMAT_ND, DT_UINT8);
+  (void)var_desc->AddOutputDesc(tensor_desc);
+  var_desc->SetOutputOffset({root});
+  (void)ge_model->GetGraph()->AddNode(var_desc);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_VAR_SIZE, 4096);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_TASK_GEN_VAR_ADDR, kMemoryVarLogicBase);
+}
+
 GeRootModelPtr CreateGeRootModelWithMemcpyAddrAsync() {
   auto graph = gert::ShareGraph::AicoreStaticGraph();
   graph->TopologicalSorting();
@@ -1581,8 +1592,8 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
 #include "g1_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
-  : constants_(constants), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1804,17 +1815,21 @@ inline uint64_t PtrToU64(const void *ptr) {
   return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr));
 }
 
-inline void *ResolveOpAddr(uint32_t mem_src, uint64_t offset,
+inline void *ResolveOpAddr(uint32_t mem_src, uint32_t index, uint64_t offset,
                           void *total_dev_mem_ptr, void *session_scope_mem_ptr,
-                          void **constants) {
+                          void **constants, void **var_addrs) {
   void *base_ptr;
-  if (mem_src == 0xFFFFFFFFU) {
-    base_ptr = session_scope_mem_ptr;
-  } else if (mem_src == 0U) {
-    base_ptr = total_dev_mem_ptr;
-  } else {
-    base_ptr = constants[mem_src - 1U];
-    return GET_ADDR(base_ptr, 0);
+  switch (mem_src) {
+    case 1U:  // MEM_SRC_SESSION
+      base_ptr = session_scope_mem_ptr;
+      break;
+    case 2U:  // MEM_SRC_CONST
+      return constants[index];
+    case 3U:  // MEM_SRC_VAR
+      return GET_ADDR(var_addrs[index], offset);
+    default:  // MEM_SRC_DEVICE (0)
+      base_ptr = total_dev_mem_ptr;
+      break;
   }
   return GET_ADDR(base_ptr, offset);
 }
@@ -2114,13 +2129,15 @@ enum OpArgType : int32_t {
     OP_ARG_OVERFLOW_ADDR = 11, // 溢出地址
     OP_ARG_TILING = 12,        // Tiling 数据
     OP_ARG_RAW_ADDR = 13,      // 原始地址
+    OP_ARG_VAR_TENSOR = 14,    // 变量张量
 };
 
 // 算子参数信息结构体
 struct OpArgInfo {
   int32_t type;                      // 参数类型（OpArgType，switch 条件）
-  struct {                           // 地址解析（INPUT/OUTPUT/WORKSPACE/CONST_TENSOR）
-    uint32_t mem_src;                // 内存来源（0=设备内存，0xFFFFFFFF=session，≥1=常量数组索引）
+  struct {                           // 地址解析（INPUT/OUTPUT/WORKSPACE/CONST_TENSOR/VAR_TENSOR）
+    uint32_t mem_src;                // 内存来源（0=设备，1=session，2=常量，3=变量）
+    uint32_t index;                  // 常量/变量数组索引
     uint64_t offset;                 // 内存偏移量
   } addr;
   union {
@@ -2326,6 +2343,7 @@ struct DispatchOpContext {
   void *total_dev_mem_ptr;   // 设备总内存指针
   void *session_scope_mem_ptr; // Session 作用域内存指针
   void **constants;          // 常量数组
+  void **var_addrs;          // 变量地址数组
   Om2ArgsTable &args_table;  // 参数表
   aclrtFuncHandle *func_handles; // 函数句柄数组
   uint32_t model_id;         // 模型 ID
@@ -2350,7 +2368,7 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
@@ -2361,6 +2379,7 @@ class Om2Model {
     aclError ReleaseResources();
   private:
     void **constants_;
+    void **var_addrs_;
     aclmdlRI model_handle_;
     std::vector<aclrtBinHandle> bin_handles_;
     std::vector<aclrtFuncHandle> func_handles_;
@@ -2392,7 +2411,7 @@ class Om2Model {
 extern "C" {
 #endif
 
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
 
@@ -2897,8 +2916,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_INPUT:
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
+      case OP_ARG_VAR_TENSOR:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
         Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
@@ -2910,7 +2930,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_WORKSPACE:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         report_workspace_addrs.push_back(_addr);
         report_workspace_sizes.push_back(a.data.tensor.size);
         break;
@@ -2995,7 +3015,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
     if ((a.type == OP_ARG_OPTIONAL_EMPTY)) {
       _addr = 0U;
     } else {
-      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
       aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
       Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
@@ -3046,10 +3066,10 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicore = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
-        {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
       },
       .args_info_num = 4,
       .op_type = "Add",
@@ -3072,7 +3092,7 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 aclError Om2Model::Load() {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
-  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -3195,14 +3215,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
-                                model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -3575,8 +3594,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_INPUT:
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
+      case OP_ARG_VAR_TENSOR:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
         Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
@@ -3588,7 +3608,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_WORKSPACE:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         report_workspace_addrs.push_back(_addr);
         report_workspace_sizes.push_back(a.data.tensor.size);
         break;
@@ -3673,7 +3693,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
     if ((a.type == OP_ARG_OPTIONAL_EMPTY)) {
       _addr = 0U;
     } else {
-      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
       aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
       Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
@@ -3724,10 +3744,10 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicore = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
-        {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
       },
       .args_info_num = 4,
       .op_type = "Add",
@@ -3750,7 +3770,7 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 aclError Om2Model::Load() {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
-  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -3873,14 +3893,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
-                                model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -4285,8 +4304,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_INPUT:
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
+      case OP_ARG_VAR_TENSOR:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
         Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
@@ -4298,7 +4318,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_WORKSPACE:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         report_workspace_addrs.push_back(_addr);
         report_workspace_sizes.push_back(a.data.tensor.size);
         break;
@@ -4383,7 +4403,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
     if ((a.type == OP_ARG_OPTIONAL_EMPTY)) {
       _addr = 0U;
     } else {
-      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
       aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
       Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
@@ -4434,9 +4454,9 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicpu = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
       },
       .args_info_num = 3,
       .op_type = "Add",
@@ -4460,9 +4480,9 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicpu = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
       },
       .args_info_num = 3,
       .op_type = "Add",
@@ -4489,7 +4509,7 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 aclError Om2Model::Load() {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(2);
-  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -4614,14 +4634,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
-                                model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -4994,8 +5013,9 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_INPUT:
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
+      case OP_ARG_VAR_TENSOR:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
         Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
@@ -5007,7 +5027,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_WORKSPACE:
       {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
         report_workspace_addrs.push_back(_addr);
         report_workspace_sizes.push_back(a.data.tensor.size);
         break;
@@ -5092,7 +5112,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
     if ((a.type == OP_ARG_OPTIONAL_EMPTY)) {
       _addr = 0U;
     } else {
-      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants));
+      _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
       aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
       Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
@@ -5152,21 +5172,21 @@ const TaskDispatchInfo kOpDefs[] = {{
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 72U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 72U}}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 48}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 4294967300}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 128U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 128U}}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 48}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 4294967300}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 184U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 184U}}},
       },
       .args_info_num = 24,
       .op_type = "Add",
@@ -5189,7 +5209,7 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 aclError Om2Model::Load() {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
-  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -5312,14 +5332,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, work_ptr, session_id,
-                                model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -5369,6 +5388,15 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
+TEST_F(ProgramGeneratorUt, GeneratedResolverAddsVariableRelativeOffset) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+  EXPECT_NE(outputs[GeneratedFileIndex::kInterfaceHeaderFile].find("return GET_ADDR(var_addrs[index], offset);"),
+            std::string::npos);
+}
+
 TEST_F(ProgramGeneratorUt, DoesNotDependOnGeModel_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
   auto generator = CreateProgramGenerator(ge_root_model);
@@ -5388,6 +5416,57 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForArgs_Ok) {
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_EVENT_ADDR"), std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_OVERFLOW_ADDR"), std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_FFTS_ADDR"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_RawVariableRangesUseRelativeOffsets) {
+  GeRootModelPtr memcpy_model = CreateGeRootModelWithMemcpyAsync();
+  ASSERT_NE(memcpy_model, nullptr);
+  ConfigureVariableRange(memcpy_model, static_cast<int64_t>(kMemoryVarLogicBase + 256U), 2048);
+  auto memcpy_ge_model = memcpy_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *memcpy_task =
+      memcpy_ge_model->GetModelTaskDefPtr()->mutable_task(memcpy_ge_model->GetModelTaskDefPtr()->task_size() - 1);
+  memcpy_task->mutable_memcpy_async()->set_src(kMemoryVarLogicBase + 263U);
+  memcpy_task->mutable_memcpy_async()->set_dst_max(std::numeric_limits<uint64_t>::max());
+  memcpy_task->mutable_memcpy_async()->set_count(std::numeric_limits<uint64_t>::max());
+  auto memcpy_generator = CreateProgramGenerator(memcpy_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(memcpy_generator, outputs), SUCCESS);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(".mem_src = 3, .index = 0, .offset = 7"),
+            std::string::npos);
+
+  GeRootModelPtr memcpy_addr_model = CreateGeRootModelWithMemcpyAddrAsync();
+  ASSERT_NE(memcpy_addr_model, nullptr);
+  ConfigureVariableRange(memcpy_addr_model, static_cast<int64_t>(kMemoryVarLogicBase + 512U), 64);
+  auto memcpy_addr_ge_model = memcpy_addr_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *memcpy_addr_task = memcpy_addr_ge_model->GetModelTaskDefPtr()->mutable_task(
+      memcpy_addr_ge_model->GetModelTaskDefPtr()->task_size() - 1);
+  memcpy_addr_task->mutable_memcpy_async()->set_dst(kMemoryVarLogicBase + 521U);
+  memcpy_addr_task->mutable_memcpy_async()->set_dst_max(std::numeric_limits<uint64_t>::max());
+  memcpy_addr_task->mutable_memcpy_async()->set_count(std::numeric_limits<uint64_t>::max());
+  auto memcpy_addr_generator = CreateProgramGenerator(memcpy_addr_model);
+  outputs.clear();
+  ASSERT_EQ(GenerateProgramFiles(memcpy_addr_generator, outputs), SUCCESS);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(".mem_src = 3, .index = 0, .offset = 9"),
+            std::string::npos);
+
+  GeRootModelPtr cmo_model = CreateGeRootModelWithCmoTask(1U, 3U);
+  ASSERT_NE(cmo_model, nullptr);
+  ConfigureVariableRange(cmo_model, static_cast<int64_t>(kMemoryVarLogicBase + 768U), 64);
+  auto cmo_ge_model = cmo_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *cmo_task =
+      cmo_ge_model->GetModelTaskDefPtr()->mutable_task(cmo_ge_model->GetModelTaskDefPtr()->task_size() - 1);
+  auto *cmo = cmo_task->mutable_cmo_task();
+  cmo->set_source_addr(kMemoryVarLogicBase + 779U);
+  cmo->set_num_inner(std::numeric_limits<uint32_t>::max());
+  cmo->set_num_outer(std::numeric_limits<uint32_t>::max());
+  cmo->set_length_inner(std::numeric_limits<uint32_t>::max());
+  cmo->set_strider_inner(std::numeric_limits<uint32_t>::max());
+  cmo->set_strider_outer(std::numeric_limits<uint32_t>::max());
+  auto cmo_generator = CreateProgramGenerator(cmo_model);
+  outputs.clear();
+  ASSERT_EQ(GenerateProgramFiles(cmo_generator, outputs), SUCCESS);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(".mem_src = 3, .index = 0, .offset = 11"),
+            std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAddrAsync_Ok) {
@@ -5468,6 +5547,22 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAsync_Ok) {
   EXPECT_EQ(load_run.find("ioaddr_var"), std::string::npos);
   // io_refresh field should be present in dispatch info (set to 0 for non-refresh)
   EXPECT_NE(load_run.find("io_refresh"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_MemcpyVariableOffsetDoesNotCollideWithModelIo) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithMemcpyAsync();
+  ASSERT_NE(ge_root_model, nullptr);
+  ConfigureVariableRange(ge_root_model, static_cast<int64_t>(kMemoryVarLogicBase + 256U), 2048);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *memcpy_task = ge_model->GetModelTaskDefPtr()->mutable_task(ge_model->GetModelTaskDefPtr()->task_size() - 1);
+  memcpy_task->mutable_memcpy_async()->set_src(kMemoryVarLogicBase + 256U + 1024U);
+
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(load_run.find(".mem_src = 3, .index = 0, .offset = 1024"), std::string::npos);
+  EXPECT_EQ(load_run.find("FlattenHostArgs"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAsync_IoRefresh_Ok) {
@@ -5559,6 +5654,21 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTask_Ok) {
   EXPECT_NE(load_run.find("DispatchCmoAddr"), std::string::npos);
   // aclrtMemcpy with DEVICE_TO_HOST
   EXPECT_NE(load_run.find("ACL_MEMCPY_DEVICE_TO_HOST"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_CmoAddrInnerVariableUsesRelativeOffset) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoAddrTask(false);
+  ASSERT_NE(ge_root_model, nullptr);
+  ConfigureVariableRange(ge_root_model, static_cast<int64_t>(kMemoryVarLogicBase + 256U), 64);
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *cmo_addr_task = ge_model->GetModelTaskDefPtr()->mutable_task(ge_model->GetModelTaskDefPtr()->task_size() - 1);
+  cmo_addr_task->mutable_cmo_addr_task()->set_src(kMemoryVarLogicBase + 257U);
+
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(".mem_src = 3, .index = 0, .offset = 1"),
+            std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTaskExplicitFormat_Ok) {
@@ -5757,6 +5867,7 @@ struct GetRtAddressTestContext {
   ModelIoSemantic model_io;
   std::unordered_map<int64_t, std::string> weight_offset_to_varname;
   std::unordered_map<int64_t, std::string> fileconst_output_offset_to_varname;
+  VarAddrRangeMap var_addr_ranges;
   std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges;
   domi::TaskDef task_def;
   std::unique_ptr<TaskSemanticContributeContext> context;
@@ -5778,11 +5889,255 @@ struct GetRtAddressTestContext {
     edges.input_anchor_indices = {kInvalidAnchorIndex};
     edges.output_var_names = {"op0_output0"};
     op_id_to_input_edges[op_desc->GetId()] = edges;
-    context = std::make_unique<TaskSemanticContributeContext>(TaskSemanticContributeContext{
-        ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc, &runtime, &model_io, nullptr, &weight_offset_to_varname,
-        &fileconst_output_offset_to_varname, &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
+    context = std::make_unique<TaskSemanticContributeContext>(
+        TaskSemanticContributeContext{ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc, &runtime, &model_io,
+                                      nullptr, &weight_offset_to_varname, &fileconst_output_offset_to_varname,
+                                      &var_addr_ranges, &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
   }
 };
+
+struct ResolveOutputAddrsTestContext {
+  OpDescPtr op_desc;
+  RuntimeResourceSemantic runtime;
+  ModelIoSemantic model_io;
+  std::unordered_map<int64_t, std::string> weight_offset_to_varname;
+  std::unordered_map<int64_t, std::string> fileconst_output_offset_to_varname;
+  VarAddrRangeMap var_addr_ranges;
+  std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges;
+  domi::TaskDef task_def;
+  std::unique_ptr<TaskSemanticContributeContext> context;
+
+  explicit ResolveOutputAddrsTestContext(const std::vector<int64_t> &output_offsets) {
+    op_desc = std::make_shared<OpDesc>("test_op", "TestOp");
+    GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+    for (size_t i = 0U; i < output_offsets.size(); ++i) {
+      (void)op_desc->AddOutputDesc(tensor_desc);
+    }
+    op_desc->SetOutputOffset(output_offsets);
+    runtime.total_mem_size = 4096U;
+    OpInputEdges current_edges;
+    current_edges.output_var_names.resize(output_offsets.size());
+    op_id_to_input_edges[op_desc->GetId()] = std::move(current_edges);
+    context = std::make_unique<TaskSemanticContributeContext>(
+        TaskSemanticContributeContext{ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc, &runtime, &model_io,
+                                      nullptr, &weight_offset_to_varname, &fileconst_output_offset_to_varname,
+                                      &var_addr_ranges, &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
+  }
+};
+
+struct ResolveInputAddrsTestContext {
+  OpDescPtr op_desc;
+  RuntimeResourceSemantic runtime;
+  ModelIoSemantic model_io;
+  std::unordered_map<int64_t, std::string> weight_offset_to_varname;
+  std::unordered_map<int64_t, std::string> fileconst_output_offset_to_varname;
+  VarAddrRangeMap var_addr_ranges;
+  std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges;
+  domi::TaskDef task_def;
+  std::unique_ptr<TaskSemanticContributeContext> context;
+
+  explicit ResolveInputAddrsTestContext(const std::vector<int64_t> &input_offsets) {
+    op_desc = std::make_shared<OpDesc>("test_op", "TestOp");
+    GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+    for (size_t i = 0U; i < input_offsets.size(); ++i) {
+      (void)op_desc->AddInputDesc(tensor_desc);
+    }
+    op_desc->SetInputOffset(input_offsets);
+    runtime.total_mem_size = 4096U;
+
+    OpInputEdges current_edges;
+    for (size_t i = 0U; i < input_offsets.size(); ++i) {
+      const int64_t src_op_id = static_cast<int64_t>(100U + i);
+      current_edges.input_op_ids.push_back(src_op_id);
+      current_edges.input_anchor_indices.push_back(0);
+      OpInputEdges src_edges;
+      src_edges.output_var_names = {"upstream_" + std::to_string(i)};
+      op_id_to_input_edges[src_op_id] = std::move(src_edges);
+    }
+    op_id_to_input_edges[op_desc->GetId()] = std::move(current_edges);
+    context = std::make_unique<TaskSemanticContributeContext>(
+        TaskSemanticContributeContext{ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc, &runtime, &model_io,
+                                      nullptr, &weight_offset_to_varname, &fileconst_output_offset_to_varname,
+                                      &var_addr_ranges, &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
+  }
+};
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_ExactVariableRootsSetVarIndicesAndZeroRelativeOffsets) {
+  ResolveInputAddrsTestContext ctx({128, 512});
+  ctx.var_addr_ranges = {{128, VarAddrInfo{16U, 0U, "var_0"}}, {512, VarAddrInfo{16U, 1U, "var_1"}}};
+
+  std::vector<AddrSemantic> input_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+  ASSERT_EQ(input_addrs.size(), 2U);
+  EXPECT_EQ(input_addrs[0].kind, AddrValueKind::kVariable);
+  ASSERT_TRUE(input_addrs[0].var_index.has_value());
+  EXPECT_EQ(*input_addrs[0].var_index, 0U);
+  EXPECT_EQ(input_addrs[0].mem_offset, 0);
+  EXPECT_TRUE(input_addrs[0].is_reused_from_upstream);
+  ASSERT_TRUE(input_addrs[0].tensor_info.has_value());
+  EXPECT_EQ(input_addrs[1].kind, AddrValueKind::kVariable);
+  ASSERT_TRUE(input_addrs[1].var_index.has_value());
+  EXPECT_EQ(*input_addrs[1].var_index, 1U);
+  EXPECT_EQ(input_addrs[1].mem_offset, 0);
+  EXPECT_TRUE(input_addrs[1].is_reused_from_upstream);
+  ASSERT_TRUE(input_addrs[1].tensor_info.has_value());
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_FileConstantPrecedesVariable) {
+  ResolveInputAddrsTestContext ctx({128});
+  ctx.fileconst_output_offset_to_varname[128] = "const_3";
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+
+  std::vector<AddrSemantic> input_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+  ASSERT_EQ(input_addrs.size(), 1U);
+  EXPECT_EQ(input_addrs[0].kind, AddrValueKind::kConstTensor);
+  ASSERT_TRUE(input_addrs[0].const_index.has_value());
+  EXPECT_EQ(*input_addrs[0].const_index, 3U);
+  EXPECT_FALSE(input_addrs[0].var_index.has_value());
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_InnerAddressWithoutDeclaredInnerFallsBackToFeatureMemory) {
+  ResolveInputAddrsTestContext ctx({132});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+
+  std::vector<AddrSemantic> input_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+  ASSERT_EQ(input_addrs.size(), 1U);
+  EXPECT_EQ(input_addrs[0].kind, AddrValueKind::kInputInstance);
+  EXPECT_EQ(input_addrs[0].symbol_hint, "upstream_0");
+  EXPECT_EQ(input_addrs[0].mem_offset, 132);
+  EXPECT_TRUE(input_addrs[0].is_reused_from_upstream);
+  EXPECT_FALSE(input_addrs[0].var_index.has_value());
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_ZeroDeclaredInnerAtInnerAddressFallsBackToFeatureMemory) {
+  ResolveInputAddrsTestContext ctx({132});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableInputDesc(0U), ATTR_NAME_INNER_OFFSET, 0));
+
+  std::vector<AddrSemantic> input_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+  ASSERT_EQ(input_addrs.size(), 1U);
+  EXPECT_EQ(input_addrs[0].kind, AddrValueKind::kInputInstance);
+  EXPECT_FALSE(input_addrs[0].var_index.has_value());
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_PositiveDeclaredInnerSetsRelativeVariableOffset) {
+  ResolveInputAddrsTestContext ctx({135});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 2U, "var_2"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableInputDesc(0U), ATTR_NAME_INNER_OFFSET, 7));
+
+  std::vector<AddrSemantic> input_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+  ASSERT_EQ(input_addrs.size(), 1U);
+  EXPECT_EQ(input_addrs[0].kind, AddrValueKind::kVariable);
+  ASSERT_TRUE(input_addrs[0].var_index.has_value());
+  EXPECT_EQ(*input_addrs[0].var_index, 2U);
+  EXPECT_EQ(input_addrs[0].mem_offset, 7);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_DeclaredInnerOutsideVariableRangeFails) {
+  ResolveInputAddrsTestContext ctx({148});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableInputDesc(0U), ATTR_NAME_INNER_OFFSET, 20));
+
+  std::vector<AddrSemantic> input_addrs;
+  EXPECT_NE(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_NegativeDeclaredInnerFails) {
+  ResolveInputAddrsTestContext ctx({128});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableInputDesc(0U), ATTR_NAME_INNER_OFFSET, -1));
+
+  std::vector<AddrSemantic> input_addrs;
+  EXPECT_NE(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveInputAddrs_DeclaredInnerCausingRootUnderflowFails) {
+  ResolveInputAddrsTestContext ctx({7});
+  ctx.var_addr_ranges[0] = VarAddrInfo{16U, 0U, "var_0"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableInputDesc(0U), ATTR_NAME_INNER_OFFSET, 8));
+
+  std::vector<AddrSemantic> input_addrs;
+  EXPECT_NE(Om2ModelUtils::ResolveInputAddrs(*ctx.context, input_addrs), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, FindVarAddress_UsesHalfOpenIntervals) {
+  const VarAddrRangeMap ranges{{128U, VarAddrInfo{16U, 2U, "var_2"}}, {160U, VarAddrInfo{8U, 3U, "var_3"}}};
+  VarAddressMatch match;
+  ASSERT_TRUE(Om2ModelUtils::FindVarAddress(ranges, 128U, match));
+  EXPECT_EQ(match.root_logic_addr, 128U);
+  EXPECT_EQ(match.inner_offset, 0U);
+  EXPECT_EQ(match.root_size, 16U);
+  EXPECT_EQ(match.var_index, 2U);
+  EXPECT_EQ(match.symbol_hint, "var_2");
+  ASSERT_TRUE(Om2ModelUtils::FindVarAddress(ranges, 143U, match));
+  EXPECT_EQ(match.inner_offset, 15U);
+  EXPECT_FALSE(Om2ModelUtils::FindVarAddress(ranges, 144U, match));
+  EXPECT_FALSE(Om2ModelUtils::FindVarAddress(ranges, 159U, match));
+  ASSERT_TRUE(Om2ModelUtils::FindVarAddress(ranges, 160U, match));
+  EXPECT_EQ(match.var_index, 3U);
+  EXPECT_FALSE(Om2ModelUtils::FindVarAddress(ranges, 168U, match));
+}
+
+TEST_F(ProgramGeneratorUt, ResolveOutputAddrs_PositiveDeclaredInnerSetsRelativeVariableOffset) {
+  ResolveOutputAddrsTestContext ctx({135});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 2U, "var_2"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableOutputDesc(0U), ATTR_NAME_INNER_OFFSET, 7));
+
+  std::vector<AddrSemantic> output_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveOutputAddrs(*ctx.context, false, output_addrs), SUCCESS);
+  ASSERT_EQ(output_addrs.size(), 1U);
+  EXPECT_EQ(output_addrs[0].kind, AddrValueKind::kVariable);
+  ASSERT_TRUE(output_addrs[0].var_index.has_value());
+  EXPECT_EQ(*output_addrs[0].var_index, 2U);
+  EXPECT_EQ(output_addrs[0].mem_offset, 7);
+  EXPECT_EQ(ctx.op_id_to_input_edges.at(ctx.op_desc->GetId()).output_var_names[0], "var_2");
+}
+
+TEST_F(ProgramGeneratorUt, ResolveOutputAddrs_ExactVariableRootUsesZeroRelativeOffset) {
+  ResolveOutputAddrsTestContext ctx({128});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 1U, "var_1"};
+
+  std::vector<AddrSemantic> output_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveOutputAddrs(*ctx.context, false, output_addrs), SUCCESS);
+  ASSERT_EQ(output_addrs.size(), 1U);
+  EXPECT_EQ(output_addrs[0].kind, AddrValueKind::kVariable);
+  EXPECT_EQ(output_addrs[0].mem_offset, 0);
+  ASSERT_TRUE(output_addrs[0].var_index.has_value());
+  EXPECT_EQ(*output_addrs[0].var_index, 1U);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveOutputAddrs_InnerAddressWithoutDeclaredInnerFallsBackToFeatureMemory) {
+  ResolveOutputAddrsTestContext ctx({132});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+
+  std::vector<AddrSemantic> output_addrs;
+  ASSERT_EQ(Om2ModelUtils::ResolveOutputAddrs(*ctx.context, false, output_addrs), SUCCESS);
+  ASSERT_EQ(output_addrs.size(), 1U);
+  EXPECT_EQ(output_addrs[0].kind, AddrValueKind::kOutputInstance);
+  EXPECT_EQ(output_addrs[0].mem_offset, 132);
+  EXPECT_FALSE(output_addrs[0].var_index.has_value());
+}
+
+TEST_F(ProgramGeneratorUt, ResolveOutputAddrs_NegativeDeclaredInnerFails) {
+  ResolveOutputAddrsTestContext ctx({128});
+  ctx.var_addr_ranges[128] = VarAddrInfo{16U, 0U, "var_0"};
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableOutputDesc(0U), ATTR_NAME_INNER_OFFSET, -1));
+
+  std::vector<AddrSemantic> output_addrs;
+  EXPECT_NE(Om2ModelUtils::ResolveOutputAddrs(*ctx.context, false, output_addrs), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, ResolveOutputAddrs_DeclaredInnerWithoutRegisteredRootFails) {
+  ResolveOutputAddrsTestContext ctx({135});
+  ASSERT_TRUE(AttrUtils::SetInt(ctx.op_desc->MutableOutputDesc(0U), ATTR_NAME_INNER_OFFSET, 7));
+
+  std::vector<AddrSemantic> output_addrs;
+  EXPECT_NE(Om2ModelUtils::ResolveOutputAddrs(*ctx.context, false, output_addrs), SUCCESS);
+}
 
 TEST_F(ProgramGeneratorUt, GetRtAddress_Placeholder_ReturnsSuccess) {
   GetRtAddressTestContext ctx;
@@ -5836,6 +6191,22 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_InConstantRange_SetsConstTensor) {
   EXPECT_EQ(addr_node.kind, AddrValueKind::kConstTensor);
   EXPECT_EQ(addr_node.symbol_hint, "const_256");
   EXPECT_EQ(addr_node.mem_offset, addr_key);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_FileConstantPrecedesVariableRange) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.fileconst_output_offset_to_varname[static_cast<int64_t>(root)] = "const_3";
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 0U, "var_0"};
+
+  AddrSemantic addr_node;
+  ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, root, addr_node, true, 0U), SUCCESS);
+  EXPECT_EQ(addr_node.kind, AddrValueKind::kConstTensor);
+  ASSERT_TRUE(addr_node.const_index.has_value());
+  EXPECT_EQ(*addr_node.const_index, 3U);
+  EXPECT_FALSE(addr_node.var_index.has_value());
 }
 
 TEST_F(ProgramGeneratorUt, GetRtAddress_MatchedMemoryInfo_ReturnsParamInvalid) {
@@ -6844,6 +7215,91 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {
   EXPECT_NE(load_run.find("output_mem_size"), std::string::npos);
   EXPECT_NE(load_run.find("workspace_mem_size"), std::string::npos);
   EXPECT_NE(load_run.find("weight_mem_size"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_VariableHalfOpenRangeUsesRelativeOffsets) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 3U, "var_3"};
+
+  const std::vector<std::pair<uintptr_t, int64_t>> matches{{root, 0}, {root + 1U, 1}, {root + 15U, 15}};
+  for (const auto &match : matches) {
+    AddrSemantic addr_node;
+    ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, match.first, addr_node, true, 0U), SUCCESS);
+    EXPECT_EQ(addr_node.kind, AddrValueKind::kVariable);
+    EXPECT_EQ(addr_node.symbol_hint, "var_3");
+    EXPECT_EQ(addr_node.mem_offset, match.second);
+    ASSERT_TRUE(addr_node.var_index.has_value());
+    EXPECT_EQ(*addr_node.var_index, 3U);
+  }
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_InnerVariableAddressUsesRelativeOffset) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 3U, "var_3"};
+
+  AddrSemantic exact_addr;
+  ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, root, exact_addr, true, 0U), SUCCESS);
+  EXPECT_EQ(exact_addr.mem_offset, 0);
+  AddrSemantic inner_addr;
+  ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, root + 1U, inner_addr, true, 0U), SUCCESS);
+  EXPECT_EQ(inner_addr.kind, AddrValueKind::kVariable);
+  EXPECT_EQ(inner_addr.mem_offset, 1);
+  ASSERT_TRUE(inner_addr.var_index.has_value());
+  EXPECT_EQ(*inner_addr.var_index, 3U);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_VariableRangeEndAndGapDoNotMatch) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 0U, "var_0"};
+  ctx.var_addr_ranges[root + 32U] = VarAddrInfo{16U, 1U, "var_1"};
+
+  for (const uintptr_t address : {root + 16U, root + 24U}) {
+    AddrSemantic addr_node;
+    EXPECT_NE(Om2ModelUtils::GetRtAddress(*ctx.context, address, addr_node, true, 0U), SUCCESS);
+    EXPECT_FALSE(addr_node.var_index.has_value());
+  }
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_AdjacentVariableRangeRootMatchesNextVariable) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 0U, "var_0"};
+  ctx.var_addr_ranges[root + 16U] = VarAddrInfo{32U, 1U, "var_1"};
+
+  AddrSemantic addr_node;
+  ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, root + 16U, addr_node, true, 0U), SUCCESS);
+  EXPECT_EQ(addr_node.kind, AddrValueKind::kVariable);
+  EXPECT_EQ(addr_node.symbol_hint, "var_1");
+  EXPECT_EQ(addr_node.mem_offset, 0);
+  ASSERT_TRUE(addr_node.var_index.has_value());
+  EXPECT_EQ(*addr_node.var_index, 1U);
+}
+
+TEST_F(ProgramGeneratorUt, GetRtAddress_SameRootRangeUsesLastRegisteredMetadata) {
+  GetRtAddressTestContext ctx;
+  ctx.runtime.var_size = 1024U;
+  ctx.runtime.logic_var_base = kMemoryVarLogicBase;
+  const uintptr_t root = kMemoryVarLogicBase + 256U;
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 0U, "var_0"};
+  ctx.var_addr_ranges[root] = VarAddrInfo{16U, 1U, "var_1"};
+
+  AddrSemantic addr_node;
+  ASSERT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, root + 7U, addr_node, true, 0U), SUCCESS);
+  EXPECT_EQ(addr_node.symbol_hint, "var_1");
+  EXPECT_EQ(addr_node.mem_offset, 7);
+  ASSERT_TRUE(addr_node.var_index.has_value());
+  EXPECT_EQ(*addr_node.var_index, 1U);
 }
 
 void AppendShapeType(std::string &out, int32_t type_value) {
