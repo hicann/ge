@@ -51,7 +51,7 @@ bool OpsParallelRuleJsonFile::ConvertOpsParallelRuleJsonFormat(json &json_read) 
     return true;
   }
 
-  AICPUE_LOGI("Convert ops parallel json [rule:%s] fail.", kOpsParallelRule.c_str());
+  AICPUE_LOGI("Convert ops parallel json [rule:%s] failed.", kOpsParallelRule.c_str());
   return false;
 }
 

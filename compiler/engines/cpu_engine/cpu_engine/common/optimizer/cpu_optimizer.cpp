@@ -213,7 +213,7 @@ ge::Status CpuOptimizer::BuildAndSetFusedAicpuNodeDef(const ge::NodePtr &node, c
     is_ffts_plus = true;
     ge::Status state = BuildFftsPlusAicpuNodeDef(op_desc_ptr, ffts_info);
     if (state != ge::SUCCESS) {
-      AICPU_REPORT_INNER_ERR_MSG("[%s]BuildFftsInfoAicpuNodeDef fail state[%u]", node->GetName().c_str(), state);
+      AICPU_REPORT_INNER_ERR_MSG("[%s]BuildFftsInfoAicpuNodeDef failed, state[%u]", node->GetName().c_str(), state);
       return state;
     }
     return ge::SUCCESS;
