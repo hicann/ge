@@ -457,6 +457,49 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_EmptyOutputs_PrepareOm2Outputs) {
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
 }
 
+TEST_F(Om2OnlineModelExecutorTest, RunGraph_HostInput_ReturnsUnsupported) {
+  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
+  EnableOm2OnlineMode();
+
+  ModelExecutor model_executor;
+  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
+
+  auto compute_graph = std::make_shared<ComputeGraph>("test_graph");
+  GeRootModelPtr ge_root_model = std::make_shared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
+
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge_model->SetGraph(compute_graph);
+  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
+
+  GraphId graph_id = 5004;
+  GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
+  graph_node->SetGeRootModel(ge_root_model);
+
+  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  ge_root_model->SetOm2ModelData(model_data);
+
+  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
+
+  gert::Tensor host_input;
+  host_input.SetPlacement(gert::kOnHost);
+  std::vector<uint8_t> data(16U, 0U);
+  host_input.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnHost));
+
+  gert::Tensor output;
+  output.SetPlacement(gert::kOnDeviceHbm);
+  output.SetData(gert::TensorData(data.data(), nullptr, data.size(), gert::kOnDeviceHbm));
+
+  std::vector<gert::Tensor> inputs;
+  inputs.push_back(std::move(host_input));
+  std::vector<gert::Tensor> outputs;
+  outputs.push_back(std::move(output));
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), GE_GRAPH_UNSUPPORTED);
+
+  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
+  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+}
+
 TEST_F(Om2OnlineModelExecutorTest, RunGraph_NotLoaded_ReturnsGraphNotExist) {
   EnvValueGuard guard("ENABLE_RUNTIME_OM2");
   EnableOm2OnlineMode();
