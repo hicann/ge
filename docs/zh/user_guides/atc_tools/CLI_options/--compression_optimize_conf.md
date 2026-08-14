@@ -50,9 +50,10 @@
 
 **参数值约束：**
 
+<!-- npu="310p,310b" id9 -->
 当前仅支持配置如下两种压缩方式，用户根据实际情况决定配置哪种压缩方式：
+<!-- end id9 -->
 
-<!-- npu="A3,910b,910,310p,310b" id8 -->
 ```textproto
 enable_first_layer_quantization: true
 calibration:
@@ -68,19 +69,18 @@ calibration:
     log: info
 }
 ```
-<!-- end id8 -->
-
-<!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--compression_optimize_conf_res.md#id3 -->
 
 其中：
 
-<!-- npu="310p,310b" id9 -->
 - **enable\_first\_layer\_quantization**：用于控制AIPP首层卷积是否进行优化（AIPP会与量化后模型首层卷积Conv2D前的Quant算子进行融合），配置文件中冒号前面表示压缩优化特性名称，冒号后面表示是否开启该特性，true表示开启，false表示关闭，默认关闭。
 
     **开启enable\_first\_layer\_quantization**特性时，只有网络结构中存在AIPP+Conv2D结构，并且在atc命令中将[--enable\_small\_channel](--enable_small_channel.md)参数设置为1时，才有可能获得性能收益。由于量化后的模型存在一定程度上的精度损失，用户根据实际情况决定是否开启该特性。
 
+    <!-- npu="310p,310b" id8 -->
     只有Atlas 推理系列产品和Atlas 200I/500 A2 推理产品支持该特性。
-<!-- end id9 -->
+    <!-- end id8 -->
+
+    <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--compression_optimize_conf_res.md#id3 -->
 
 - **calibration**：训练后量化，是指在模型训练结束之后进行的量化，对训练后模型中的权重由浮点数（当前支持float32/float16）量化到低比特整数（比如int8），并通过少量校准数据基于推理过程对数据（activation）进行校准量化，进而加速模型推理速度。训练后量化简单易用，只需少量校准数据，适用于追求高易用性和缺乏训练资源的场景。训练后量化的样例请单击[Link](https://gitee.com/ascend/samples/tree/master/python/level1_single_api/9_amct/atc)获取。
 
@@ -140,6 +140,7 @@ calibration:
 假设压缩优化功能配置文件名称为compression\_optimize.cfg，文件内容配置示例如下：
 
 ```textproto
+enable_first_layer_quantization: true
 calibration:
 {
     input_data_dir: ./data.bin,d2.bin

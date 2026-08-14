@@ -37,15 +37,19 @@ IPV350：不支持
     <!-- npu="A3" id5 -->
     Atlas A3 训练系列产品/Atlas A3 推理系列产品
     <!-- end id5 -->
+
     <!-- npu="910b" id6 -->
     Atlas A2 训练系列产品/Atlas A2 推理系列产品
     <!-- end id6 -->
+
     <!-- npu="310b" id7 -->
     Atlas 200I/500 A2 推理产品
     <!-- end id7 -->
+
     <!-- npu="310p" id8 -->
     Atlas 推理系列产品
     <!-- end id8 -->
+
     <!-- npu="910" id9 -->
     Atlas 训练系列产品
     <!-- end id9 -->

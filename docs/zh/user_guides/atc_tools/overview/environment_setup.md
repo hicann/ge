@@ -71,6 +71,7 @@
         <!-- end id1 -->
         <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/overview/environment_setup_res.md#id2 -->
 
+        <!-- npu="950,A3,910b,910,310p,310b" id2 -->
         - **日志打屏**：
 
             atc命令执行过程中，日志默认不打屏，如需打屏显示，则请：
@@ -83,7 +84,8 @@
 
             - atc模型转换命令中，设置[--log](../CLI_options/--log.md)参数（不能设置为null）。
 
-            关于日志的更多信息请参见《日志参考》。
+            关于日志的更多信息请参见《[日志参考](https://gitcode.com/cann/runtime/blob/master/docs/zh/log_ref/README.md)》。
+        <!-- end id2 -->
 
         - **日志重定向**：
 

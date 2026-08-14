@@ -26,6 +26,20 @@
 
 参数值查询方法如下：
 
+<!-- npu="950" id9 -->
+- 针对Ascend 950PR/Ascend 950DT，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。
+
+    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
+<!-- end id9 -->
+
+<!-- npu="A3" id8 -->
+- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i ***id*** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。其中：
+
+  - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
+
+  - chip\_id：芯片id，通过**npu-smi info -m**命令查出的Chip ID即为芯片id。
+<!-- end id8 -->
+
 <!-- npu="910b,910,310p,310b" id6 -->
 - 针对如下产品：在安装AI处理器的服务器执行**npu-smi info**命令进行查询，获取**Name**信息。实际配置值为AscendName，例如**Name**取值为*xxxyy*，实际配置值为Ascendxxxyy。
 
@@ -45,20 +59,6 @@
     Atlas 训练系列产品
     <!-- end id4 -->
 <!-- end id6 -->
-
-<!-- npu="A3" id8 -->
-- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i ***id*** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。其中：
-
-  - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-
-  - chip\_id：芯片id，通过**npu-smi info -m**命令查出的Chip ID即为芯片id。
-<!-- end id8 -->
-
-<!-- npu="950" id9 -->
-- 针对Ascend 950PR/Ascend 950DT，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。
-
-    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
-<!-- end id9 -->
 
 <!-- end id5 -->
 

@@ -1,5 +1,6 @@
 # 参数说明
 
+- [总体约束](./general_restrictions.md)
 - [基础功能参数](basic_function_parameters.md)
   - [总体选项](general_options.md)
     - [--help或--h](--help_or_h.md)
