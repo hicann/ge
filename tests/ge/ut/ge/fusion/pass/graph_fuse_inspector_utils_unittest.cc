@@ -15,6 +15,7 @@
 #include "graph/op_desc.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/utils/graph_utils.h"
 #include "graph/utils/node_adapter.h"
 #include "graph_builder_utils.h"
 #include "graph/fusion/fusion_utils.h"
@@ -225,6 +226,55 @@ TEST_F(UtestGraphFuseInspectorUtils, ReportFuseWithAfterFuseFailedOnNodesBelongT
   CustomPassContext ctx;
   ctx.SetPassName("ut_pass");
   EXPECT_EQ(GraphFuseInspectorUtils::ReportFuse(ToGNodes({graph1_nodes[0]}), ToGNodes({graph2_nodes[0]}), ctx), FAILED);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportFuseWritesDatadumpAttrs) {
+  ut::GraphBuilder builder("rewrite_graph");
+  const auto data = builder.AddNode("data", "Data", 0, 1);
+  const auto matmul = builder.AddNode("matmul", "MatMul", 1, 1);
+  const auto add = builder.AddNode("add", "Add", 1, 1);
+  const auto netoutput = builder.AddNode("netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(data, 0, matmul, 0);
+  builder.AddDataEdge(matmul, 0, add, 0);
+  builder.AddDataEdge(add, 0, netoutput, 0);
+  const auto graph = builder.GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  // 模拟 GraphBasedPass 手动改图：新建 GEMM 替换 MatMul+Add
+  const auto gemm = graph->AddNode(std::make_shared<OpDesc>("gemm", "GEMM"));
+  ASSERT_NE(gemm, nullptr);
+  GraphUtils::RemoveEdge(data->GetOutDataAnchor(0), matmul->GetInDataAnchor(0));
+  GraphUtils::RemoveEdge(matmul->GetOutDataAnchor(0), add->GetInDataAnchor(0));
+  GraphUtils::RemoveEdge(add->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  GraphUtils::AddEdge(data->GetOutDataAnchor(0), gemm->GetInDataAnchor(0));
+  GraphUtils::AddEdge(gemm->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+
+  const std::vector<NodePtr> before_nodes = {matmul, add};
+  const std::vector<NodePtr> after_nodes = {gemm};
+
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_rewrite_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportFuse(ToGNodes(before_nodes), ToGNodes(after_nodes), ctx), SUCCESS);
+
+  // 验证 _datadump_original_op_names
+  std::vector<std::string> original_names;
+  EXPECT_TRUE(AttrUtils::GetListStr(gemm->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, original_names));
+  EXPECT_EQ(original_names.size(), 2U);
+  EXPECT_EQ(original_names[0], "matmul");
+  EXPECT_EQ(original_names[1], "add");
+
+  // 验证 _datadump_original_op_types
+  std::vector<std::string> original_types;
+  EXPECT_TRUE(AttrUtils::GetListStr(gemm->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_TYPES, original_types));
+  EXPECT_EQ(original_types.size(), 2U);
+  EXPECT_EQ(original_types[0], "MatMul");
+  EXPECT_EQ(original_types[1], "Add");
+
+  // 验证 pass_name
+  std::vector<std::string> pass_names;
+  EXPECT_TRUE(AttrUtils::GetListStr(gemm->GetOpDesc(), "pass_name", pass_names));
+  ASSERT_FALSE(pass_names.empty());
+  EXPECT_EQ(pass_names.back(), "ut_rewrite_pass");
 }
 }  // namespace fusion
 }  // namespace ge
