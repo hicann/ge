@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 创建一个用于声明单个kernel launch参数顺序的`AnnotatedKernelArgs`。可通过该对象追加输入、输出、workspace和标量参数，再传入`add_launch`提交声明。
@@ -28,6 +23,21 @@ create_kernel_args() -> AnnotatedKernelArgs
 | 类型 | 说明 |
 | :--- | :--- |
 | AnnotatedKernelArgs | 当前`AnnotatedArgsContext`创建的kernel参数构造器。 |
+
+## 调用示例
+
+```python
+from ge.custom_op import get_declare_launch_args_ctx
+from ge.runtime import Tensor
+
+
+def declare_launch_args(self, x1: Tensor, x2: Tensor, y: Tensor) -> None:
+    ctx = get_declare_launch_args_ctx()
+    args = ctx.create_kernel_args()
+    args.append_input(0, x1)
+    args.append_input(1, x2)
+    args.append_output(0, y)
+```
 
 ## 约束说明
 

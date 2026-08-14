@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 获取当前编译回调中workspace的地址整数。
@@ -29,6 +24,18 @@ def addr(self) -> int
 | 类型 | 说明 |
 | :--- | :--- |
 | int | 当前编译回调中workspace的地址整数。 |
+
+## 调用示例
+
+```python
+from ge.custom_op import get_declare_launch_args_ctx
+
+
+def declare_launch_args(self, x1, x2, y) -> None:
+    ctx = get_declare_launch_args_ctx()
+    workspace = ctx.malloc_workspace(256)
+    workspace_addr = workspace.addr
+```
 
 ## 约束说明
 

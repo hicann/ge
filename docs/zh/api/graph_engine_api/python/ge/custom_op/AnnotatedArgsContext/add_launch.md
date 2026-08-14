@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 提交一个kernel launch的元数据和参数声明。调用后，GE记录该launch的参数顺序，用于静态模型的地址刷新。
@@ -29,6 +24,29 @@ add_launch(launch_info: AnnotatedKernelLaunchInfo, args: AnnotatedKernelArgs) ->
 ## 返回值说明
 
 无
+
+## 调用示例
+
+```python
+from ge.custom_op import AnnotatedKernelLaunchInfo, get_declare_launch_args_ctx
+from ge.runtime import Tensor
+
+
+def declare_launch_args(self, x1: Tensor, x2: Tensor, y: Tensor) -> None:
+    ctx = get_declare_launch_args_ctx()
+    args = ctx.create_kernel_args()
+    args.append_input(0, x1)
+    args.append_input(1, x2)
+    args.append_output(0, y)
+    kernel_bin = b"..."
+    launch_info = AnnotatedKernelLaunchInfo(
+        kernel_name="add_custom",
+        kernel_bin=kernel_bin,
+        block_dim=8,
+        stream_id=ctx.get_stream_id(),
+    )
+    ctx.add_launch(launch_info, args)
+```
 
 ## 约束说明
 

@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 获取当前`declare_launch_args`回调的声明式参数上下文。通过返回的`AnnotatedArgsContext`可以申请逻辑workspace、获取stream标识、创建`AnnotatedKernelArgs`，并提交`AnnotatedKernelLaunchInfo`和kernel参数。
@@ -28,6 +23,18 @@ get_declare_launch_args_ctx() -> AnnotatedArgsContext
 | 类型 | 说明 |
 | :--- | :--- |
 | AnnotatedArgsContext | 当前`declare_launch_args`回调的借用上下文。 |
+
+## 调用示例
+
+```python
+from ge.custom_op import get_declare_launch_args_ctx
+from ge.runtime import Tensor
+
+
+def declare_launch_args(self, x1: Tensor, x2: Tensor, y: Tensor) -> None:
+    ctx = get_declare_launch_args_ctx()
+    args = ctx.create_kernel_args()
+```
 
 ## 约束说明
 

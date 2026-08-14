@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 向当前kernel参数序列追加一个64位无符号标量参数。追加位置由调用顺序决定。
@@ -28,6 +23,18 @@ append_scalar(value: int) -> None
 ## 返回值说明
 
 无
+
+## 调用示例
+
+```python
+from ge.custom_op import get_declare_launch_args_ctx
+
+
+def declare_launch_args(self, x1, x2, y) -> None:
+    ctx = get_declare_launch_args_ctx()
+    args = ctx.create_kernel_args()
+    args.append_scalar(8)
+```
 
 ## 约束说明
 

@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 获取当前`AnnotatedArgsContext`的stream标识。创建`AnnotatedKernelLaunchInfo`时可使用该标识设置`stream_id`。
@@ -28,6 +23,24 @@ get_stream_id() -> int
 | 类型 | 说明 |
 | :--- | :--- |
 | int | 当前`AnnotatedArgsContext`的stream标识。 |
+
+## 调用示例
+
+```python
+from ge.custom_op import AnnotatedKernelLaunchInfo, get_declare_launch_args_ctx
+
+
+def declare_launch_args(self, x1, x2, y) -> None:
+    ctx = get_declare_launch_args_ctx()
+    stream_id = ctx.get_stream_id()
+    kernel_bin = b"..."
+    launch_info = AnnotatedKernelLaunchInfo(
+        kernel_name="add_custom",
+        kernel_bin=kernel_bin,
+        block_dim=8,
+        stream_id=stream_id,
+    )
+```
 
 ## 约束说明
 

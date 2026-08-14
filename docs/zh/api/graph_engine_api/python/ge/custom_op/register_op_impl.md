@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 注册Python自定义算子实现类。实现类中的可调用`declare_launch_args`方法会注册为`annotated_args`能力。GE在静态图编译阶段调用该能力，由实现类声明kernel launch参数。
@@ -30,6 +25,39 @@ register_op_impl(*, op_type: str) -> callable
 | 类型 | 说明 |
 | :--- | :--- |
 | callable | 返回类装饰器。装饰器注册实现类后返回该类，并设置`__ge_op_impl_descriptor__`属性。 |
+
+## 调用示例
+
+```python
+from ge.custom_op import (
+    AnnotatedKernelLaunchInfo,
+    get_declare_launch_args_ctx,
+    register_op_impl,
+)
+from ge.runtime import Tensor
+
+
+kernel_bin = b"..."
+
+
+@register_op_impl(op_type="AnnotatedAddCustom")
+class AnnotatedAddCustom:
+    def declare_launch_args(self, x1: Tensor, x2: Tensor, y: Tensor) -> None:
+        ctx = get_declare_launch_args_ctx()
+        args = ctx.create_kernel_args()
+        args.append_input(0, x1)
+        args.append_input(1, x2)
+        args.append_output(0, y)
+        ctx.add_launch(
+            AnnotatedKernelLaunchInfo(
+                kernel_name="add_custom",
+                kernel_bin=kernel_bin,
+                block_dim=8,
+                stream_id=ctx.get_stream_id(),
+            ),
+            args,
+        )
+```
 
 ## 约束说明
 
