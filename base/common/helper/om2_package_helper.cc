@@ -616,7 +616,8 @@ Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model,
     if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
       gert::Om2KernelBinary kb;
       kb.name = Om2CodegenUtils::GetKernelNameWithExtension(kernel_name);
-      kb.data.assign(kernel_bin->GetBinData(), kernel_bin->GetBinData() + kernel_bin->GetBinDataSize());
+      kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+      kb.data_size = kernel_bin->GetBinDataSize();
       kernel_binaries.push_back(std::move(kb));
       (void)added_kernels.insert(kernel_name);
     }
@@ -631,8 +632,8 @@ Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model,
       if ((atomic_kernel_bin != nullptr) && (added_kernels.count(atomic_kernel_name) == 0)) {
         gert::Om2KernelBinary kb;
         kb.name = Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name);
-        kb.data.assign(atomic_kernel_bin->GetBinData(),
-                       atomic_kernel_bin->GetBinData() + atomic_kernel_bin->GetBinDataSize());
+        kb.data = ge::ReadonlyByteBuffer(atomic_kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+        kb.data_size = atomic_kernel_bin->GetBinDataSize();
         kernel_binaries.push_back(std::move(kb));
         (void)added_kernels.insert(atomic_kernel_name);
       }
@@ -654,7 +655,8 @@ Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model,
             std::string(reinterpret_cast<const char *>(kernel_bin->GetBinData()), kernel_bin->GetBinDataSize()));
         gert::Om2KernelBinary kb;
         kb.name = std::to_string(hash_id) + "_CustAicpuKernel.o";
-        kb.data.assign(kernel_bin->GetBinData(), kernel_bin->GetBinData() + kernel_bin->GetBinDataSize());
+        kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+        kb.data_size = kernel_bin->GetBinDataSize();
         kernel_binaries.push_back(std::move(kb));
         (void)added_kernels.insert(cust_aicpu_kernel->GetName());
       }
@@ -816,10 +818,9 @@ Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, const st
   }
 
   if (has_internal_const) {
-    const size_t weight_size = ge_model->GetWeightSize();
     const uint8_t *weight_ptr = ge_model->GetWeightData();
     GE_ASSERT_NOTNULL(weight_ptr, "[OM2] Weight data pointer is null");
-    data.weight_data.assign(weight_ptr, weight_ptr + weight_size);
+    data.weight_data = ge::ReadonlyByteBuffer(weight_ptr, ge::ConditionalDeleter{false});
   }
 
   GELOGI("[OM2] Successfully built constants data, internal_weight_size=%zu, consts count=%zu",
@@ -844,8 +845,10 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Deb
       for (const auto &op_name : original_op_names) {
         serialized_value += "[" + std::to_string(op_name.size()) + "]" + op_name;
       }
-      op_attrs[ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES] = serialized_value;
-      debug_info.op_attr_map[op_desc->GetName()] = op_attrs;
+      if (!serialized_value.empty()) {
+        op_attrs[ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES] = serialized_value;
+        debug_info.op_attr_map[op_desc->GetName()] = op_attrs;
+      }
     }
   }
 

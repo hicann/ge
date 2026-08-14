@@ -28,7 +28,8 @@ namespace gert {
 /// Kernel 二进制信息
 struct Om2KernelBinary {
   std::string name;
-  std::vector<uint8_t> data;
+  ge::ReadonlyByteBuffer data;
+  size_t data_size = 0U;
 };
 
 struct Om2ProgramBody {
@@ -68,7 +69,7 @@ struct Om2ModelMeta {
 };
 
 struct Om2ConstantsData {
-  std::vector<uint8_t> weight_data;
+  ge::ReadonlyByteBuffer weight_data;
   size_t internal_weight_size = 0;
   std::vector<ge::Om2ConstMeta> consts;
 };

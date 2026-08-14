@@ -77,13 +77,13 @@ Status SerializeCodegenArtifacts(const gert::Om2ModelData &model_data,
 
 Status SerializeWeightData(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const bool has_internal_const = (model_data.constants_data.internal_weight_size > 0U);
-  if (!has_internal_const || model_data.constants_data.weight_data.empty()) {
+  if (!has_internal_const || model_data.constants_data.weight_data == nullptr) {
     return SUCCESS;
   }
   const size_t model_index = 0UL;
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, model_data.constants_data.weight_data.data(),
-                                        model_data.constants_data.weight_data.size(), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, model_data.constants_data.weight_data.get(),
+                                        model_data.constants_data.internal_weight_size, false));
   return SUCCESS;
 }
 
@@ -203,7 +203,7 @@ Status SerializeKernelBinaries(const gert::Om2ModelData &model_data,
   const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
   for (const auto &kb : model_data.kernel_binaries) {
     const auto entry_path = kernel_bin_dir + kb.name;
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.data(), kb.data.size(), false));
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.get(), kb.data_size, false));
   }
   return SUCCESS;
 }
@@ -399,7 +399,7 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
       "inputs:%zu, outputs:%zu, kernels:%zu, weight_size:%zu",
       model_data.model_meta.model_name.c_str(), model_data.model_meta.root_graph_name.c_str(),
       model_data.model_meta.input_desc.size(), model_data.model_meta.output_desc.size(),
-      model_data.kernel_binaries.size(), model_data.constants_data.weight_data.size());
+      model_data.kernel_binaries.size(), model_data.constants_data.internal_weight_size);
   const std::string path = writer_path.empty() ? "om2_model" : writer_path;
   auto zip_writer = std::make_shared<ZipArchiveWriter>(path);
   GE_ASSERT_NOTNULL(zip_writer);

@@ -47,7 +47,7 @@ TEST_F(Om2ModelDataTest, DefaultConstruction) {
   EXPECT_EQ(model_data.constants_data.internal_weight_size, 0U);
   EXPECT_TRUE(model_data.constants_data.consts.empty());
 
-  EXPECT_TRUE(model_data.constants_data.weight_data.empty());
+  EXPECT_EQ(model_data.constants_data.weight_data, nullptr);
   EXPECT_TRUE(model_data.kernel_binaries.empty());
 
   // Verify debug_info
@@ -155,12 +155,18 @@ TEST_F(Om2ModelDataTest, PopulateConstantsConfig) {
 TEST_F(Om2ModelDataTest, PopulateWeightData) {
   Om2ModelData model_data;
 
-  std::vector<uint8_t> weights = {0x01, 0x02, 0x03, 0x04, 0x05};
-  model_data.constants_data.weight_data = weights;
+  auto buf = std::make_unique<uint8_t[]>(5);
+  buf[0] = 0x01;
+  buf[1] = 0x02;
+  buf[2] = 0x03;
+  buf[3] = 0x04;
+  buf[4] = 0x05;
+  model_data.constants_data.weight_data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+  model_data.constants_data.internal_weight_size = 5U;
 
-  EXPECT_EQ(model_data.constants_data.weight_data.size(), 5U);
-  EXPECT_EQ(model_data.constants_data.weight_data[0], 0x01);
-  EXPECT_EQ(model_data.constants_data.weight_data[4], 0x05);
+  EXPECT_NE(model_data.constants_data.weight_data, nullptr);
+  EXPECT_EQ(model_data.constants_data.weight_data.get()[0], 0x01);
+  EXPECT_EQ(model_data.constants_data.weight_data.get()[4], 0x05);
 }
 
 // Test populating kernel binaries
@@ -169,18 +175,28 @@ TEST_F(Om2ModelDataTest, PopulateKernelBinaries) {
 
   Om2KernelBinary kernel1;
   kernel1.name = "kernel_add";
-  kernel1.data = {0x10, 0x20, 0x30};
-  model_data.kernel_binaries.push_back(kernel1);
+  auto buf1 = std::make_unique<uint8_t[]>(3);
+  buf1[0] = 0x10;
+  buf1[1] = 0x20;
+  buf1[2] = 0x30;
+  kernel1.data = ge::ReadonlyByteBuffer(buf1.release(), ge::ConditionalDeleter{true});
+  kernel1.data_size = 3U;
+  model_data.kernel_binaries.push_back(std::move(kernel1));
 
   Om2KernelBinary kernel2;
   kernel2.name = "kernel_mul";
-  kernel2.data = {0x40, 0x50, 0x60};
-  model_data.kernel_binaries.push_back(kernel2);
+  auto buf2 = std::make_unique<uint8_t[]>(3);
+  buf2[0] = 0x40;
+  buf2[1] = 0x50;
+  buf2[2] = 0x60;
+  kernel2.data = ge::ReadonlyByteBuffer(buf2.release(), ge::ConditionalDeleter{true});
+  kernel2.data_size = 3U;
+  model_data.kernel_binaries.push_back(std::move(kernel2));
 
   // Verify
   EXPECT_EQ(model_data.kernel_binaries.size(), 2U);
   EXPECT_EQ(model_data.kernel_binaries[0].name, "kernel_add");
-  EXPECT_EQ(model_data.kernel_binaries[0].data.size(), 3U);
+  EXPECT_EQ(model_data.kernel_binaries[0].data_size, 3U);
   EXPECT_EQ(model_data.kernel_binaries[1].name, "kernel_mul");
 }
 
@@ -216,13 +232,150 @@ TEST_F(Om2ModelDataTest, PopulateManifest) {
 TEST_F(Om2ModelDataTest, MoveSemantics) {
   Om2ModelData model_data1;
   model_data1.model_meta.model_name = "test_model";
-  model_data1.constants_data.weight_data = {0x01, 0x02, 0x03};
+  auto buf = std::make_unique<uint8_t[]>(3);
+  buf[0] = 0x01;
+  buf[1] = 0x02;
+  buf[2] = 0x03;
+  model_data1.constants_data.weight_data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+  model_data1.constants_data.internal_weight_size = 3U;
 
   Om2ModelData model_data2 = std::move(model_data1);
 
   EXPECT_EQ(model_data2.model_meta.model_name, "test_model");
-  EXPECT_EQ(model_data2.constants_data.weight_data.size(), 3U);
-  EXPECT_TRUE(model_data1.constants_data.weight_data.empty());
+  EXPECT_EQ(model_data2.constants_data.internal_weight_size, 3U);
+  EXPECT_EQ(model_data1.constants_data.weight_data, nullptr);
+}
+
+TEST_F(Om2ModelDataTest, KernelBinary_DefaultConstruction) {
+  Om2KernelBinary kernel;
+  EXPECT_EQ(kernel.data, nullptr);
+  EXPECT_EQ(kernel.data_size, 0U);
+  EXPECT_TRUE(kernel.name.empty());
+}
+
+TEST_F(Om2ModelDataTest, KernelBinary_MoveSemantics) {
+  Om2KernelBinary kernel1;
+  kernel1.name = "kernel_move";
+  auto buf = std::make_unique<uint8_t[]>(4);
+  buf[0] = 0xAA;
+  buf[1] = 0xBB;
+  buf[2] = 0xCC;
+  buf[3] = 0xDD;
+  kernel1.data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+  kernel1.data_size = 4U;
+
+  Om2KernelBinary kernel2 = std::move(kernel1);
+  EXPECT_EQ(kernel1.data, nullptr);
+  EXPECT_EQ(kernel2.name, "kernel_move");
+  EXPECT_EQ(kernel2.data_size, 4U);
+  EXPECT_NE(kernel2.data, nullptr);
+  EXPECT_EQ(kernel2.data.get()[0], 0xAA);
+  EXPECT_EQ(kernel2.data.get()[3], 0xDD);
+}
+
+TEST_F(Om2ModelDataTest, KernelBinary_NonOwningBuffer) {
+  uint8_t raw_data[] = {0x10, 0x20, 0x30, 0x40};
+  Om2KernelBinary kernel;
+  kernel.name = "non_owning_kernel";
+  kernel.data = ge::ReadonlyByteBuffer(raw_data, ge::ConditionalDeleter{false});
+  kernel.data_size = sizeof(raw_data);
+
+  EXPECT_NE(kernel.data, nullptr);
+  EXPECT_EQ(kernel.data.get(), raw_data);
+  EXPECT_EQ(kernel.data_size, 4U);
+  EXPECT_EQ(kernel.data.get()[0], 0x10);
+  EXPECT_EQ(kernel.data.get()[3], 0x40);
+}
+
+TEST_F(Om2ModelDataTest, WeightData_NonOwningBuffer) {
+  uint8_t raw_weights[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+  Om2ModelData model_data;
+  model_data.constants_data.weight_data = ge::ReadonlyByteBuffer(raw_weights, ge::ConditionalDeleter{false});
+  model_data.constants_data.internal_weight_size = sizeof(raw_weights);
+
+  EXPECT_NE(model_data.constants_data.weight_data, nullptr);
+  EXPECT_EQ(model_data.constants_data.weight_data.get(), raw_weights);
+  EXPECT_EQ(model_data.constants_data.internal_weight_size, 6U);
+  EXPECT_EQ(model_data.constants_data.weight_data.get()[0], 0x01);
+  EXPECT_EQ(model_data.constants_data.weight_data.get()[5], 0x06);
+}
+
+TEST_F(Om2ModelDataTest, KernelBinaries_WithNullData) {
+  Om2ModelData model_data;
+
+  Om2KernelBinary kernel_with_data;
+  kernel_with_data.name = "has_data";
+  auto buf = std::make_unique<uint8_t[]>(2);
+  buf[0] = 0xFF;
+  buf[1] = 0xFE;
+  kernel_with_data.data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+  kernel_with_data.data_size = 2U;
+  model_data.kernel_binaries.push_back(std::move(kernel_with_data));
+
+  Om2KernelBinary kernel_without_data;
+  kernel_without_data.name = "no_data";
+  model_data.kernel_binaries.push_back(std::move(kernel_without_data));
+
+  EXPECT_EQ(model_data.kernel_binaries.size(), 2U);
+  EXPECT_NE(model_data.kernel_binaries[0].data, nullptr);
+  EXPECT_EQ(model_data.kernel_binaries[0].data_size, 2U);
+  EXPECT_EQ(model_data.kernel_binaries[1].data, nullptr);
+  EXPECT_EQ(model_data.kernel_binaries[1].data_size, 0U);
+}
+
+TEST_F(Om2ModelDataTest, WeightData_ContentVerification) {
+  Om2ModelData model_data;
+  constexpr size_t kSize = 8U;
+  auto buf = std::make_unique<uint8_t[]>(kSize);
+  for (size_t i = 0; i < kSize; ++i) {
+    buf[i] = static_cast<uint8_t>(i * 0x11);
+  }
+  model_data.constants_data.weight_data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+  model_data.constants_data.internal_weight_size = kSize;
+
+  EXPECT_NE(model_data.constants_data.weight_data, nullptr);
+  const uint8_t *ptr = model_data.constants_data.weight_data.get();
+  for (size_t i = 0; i < kSize; ++i) {
+    EXPECT_EQ(ptr[i], static_cast<uint8_t>(i * 0x11));
+  }
+}
+
+TEST_F(Om2ModelDataTest, ModelData_MoveWithKernelBinaries) {
+  Om2ModelData model_data1;
+  model_data1.model_meta.model_name = "move_kernels";
+
+  for (int i = 0; i < 3; ++i) {
+    Om2KernelBinary kb;
+    kb.name = "kernel_" + std::to_string(i);
+    auto buf = std::make_unique<uint8_t[]>(2);
+    buf[0] = static_cast<uint8_t>(i);
+    buf[1] = static_cast<uint8_t>(i + 1);
+    kb.data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
+    kb.data_size = 2U;
+    model_data1.kernel_binaries.push_back(std::move(kb));
+  }
+
+  auto wbuf = std::make_unique<uint8_t[]>(3);
+  wbuf[0] = 0xAA;
+  wbuf[1] = 0xBB;
+  wbuf[2] = 0xCC;
+  model_data1.constants_data.weight_data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
+  model_data1.constants_data.internal_weight_size = 3U;
+
+  Om2ModelData model_data2 = std::move(model_data1);
+
+  EXPECT_EQ(model_data2.model_meta.model_name, "move_kernels");
+  EXPECT_EQ(model_data2.kernel_binaries.size(), 3U);
+  EXPECT_EQ(model_data2.kernel_binaries[0].name, "kernel_0");
+  EXPECT_EQ(model_data2.kernel_binaries[0].data_size, 2U);
+  EXPECT_EQ(model_data2.kernel_binaries[0].data.get()[0], 0x00);
+  EXPECT_EQ(model_data2.kernel_binaries[2].name, "kernel_2");
+  EXPECT_EQ(model_data2.kernel_binaries[2].data.get()[0], 0x02);
+  EXPECT_NE(model_data2.constants_data.weight_data, nullptr);
+  EXPECT_EQ(model_data2.constants_data.internal_weight_size, 3U);
+
+  EXPECT_EQ(model_data1.constants_data.weight_data, nullptr);
+  EXPECT_TRUE(model_data1.kernel_binaries.empty());
 }
 
 }  // namespace
