@@ -138,6 +138,70 @@ Status BuildAxisIndex(const AxisIndexMatchState &match_state, std::vector<uint32
   }
   return SUCCESS;
 }
+
+Status BuildUnitRepeatAxisIndex(const std::vector<Expression> &node_repeats,
+                                const std::vector<Expression> &base_repeats, std::vector<uint32_t> &axis_index) {
+  axis_index.clear();
+  std::vector<int32_t> node_to_base(node_repeats.size(), -1);
+  std::vector<int32_t> base_to_node(base_repeats.size(), -1);
+
+  for (int32_t node_index = static_cast<int32_t>(node_repeats.size()) - 1; node_index >= 0; --node_index) {
+    int32_t matched_base_index = -1;
+    for (int32_t base_index = static_cast<int32_t>(base_repeats.size()) - 1; base_index >= 0; --base_index) {
+      if (base_to_node[base_index] != -1) {
+        continue;
+      }
+      if (node_repeats[node_index] == base_repeats[base_index]) {
+        matched_base_index = base_index;
+        break;
+      }
+    }
+
+    if (matched_base_index == -1) {
+      for (int32_t base_index = static_cast<int32_t>(base_repeats.size()) - 1; base_index >= 0; --base_index) {
+        if (base_to_node[base_index] != -1) {
+          continue;
+        }
+        if ((node_repeats[node_index] == 1) || (base_repeats[base_index] == 1)) {
+          matched_base_index = base_index;
+          break;
+        }
+      }
+    }
+
+    if (matched_base_index == -1) {
+      return FAILED;
+    }
+
+    node_to_base[node_index] = matched_base_index;
+    base_to_node[matched_base_index] = node_index;
+  }
+
+  for (const auto base_index : node_to_base) {
+    GE_ASSERT_TRUE(base_index >= 0);
+    axis_index.emplace_back(static_cast<uint32_t>(base_index));
+  }
+  return SUCCESS;
+}
+
+Status FillUnitRepeatAxisMap(const std::vector<int64_t> &node_axis, const std::vector<int64_t> &base_axis,
+                             const std::vector<uint32_t> &axis_index, AxisPairSet &temp_node_map,
+                             AxisPairSet &temp_base_map) {
+  if (axis_index.size() != node_axis.size()) {
+    return FAILED;
+  }
+
+  temp_node_map.clear();
+  temp_base_map.clear();
+  for (size_t i = 0U; i < axis_index.size(); ++i) {
+    GE_ASSERT_TRUE(static_cast<size_t>(axis_index[i]) < base_axis.size());
+    temp_node_map.insert(std::pair<int64_t, int64_t>(node_axis[i], base_axis[axis_index[i]]));
+  }
+  for (const auto axis : base_axis) {
+    temp_base_map.insert(std::pair<int64_t, int64_t>(axis, axis));
+  }
+  return SUCCESS;
+}
 }  // namespace
 
 Status NodeFuseInfo::GetSubgraphSameInputIndex(const NodePtr &node1, const NodePtr &node2,
@@ -653,6 +717,65 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
   return true;
 }
 
+bool AscGraphAxisMapping::CanAxisMapWithUnitRepeatFallback(
+    std::vector<int64_t> &node1_axis, std::vector<ge::Expression> &node1_repeats, std::vector<int64_t> &node2_axis,
+    std::vector<ge::Expression> &node2_repeats, bool need_flash, AxisPairSet &node1_map, AxisPairSet &node2_map,
+    AxisPairSet &temp_node1_map, AxisPairSet &temp_node2_map) const {
+  if (CanAxisMap(node1_axis, node1_repeats, node2_axis, node2_repeats, node1_map, node2_map, temp_node1_map,
+                 temp_node2_map)) {
+    return true;
+  }
+  if (!need_flash) {
+    return false;
+  }
+  return CanAxisMapAllowUnitRepeat(node1_axis, node1_repeats, node2_axis, node2_repeats, node1_map, node2_map,
+                                   temp_node1_map, temp_node2_map);
+}
+
+bool AscGraphAxisMapping::CanAxisMapAllowUnitRepeat(std::vector<int64_t> &node1_axis,
+                                                    std::vector<ge::Expression> &node1_repeats,
+                                                    std::vector<int64_t> &node2_axis,
+                                                    std::vector<ge::Expression> &node2_repeats, AxisPairSet &node1_map,
+                                                    AxisPairSet &node2_map, AxisPairSet &temp_node1_map,
+                                                    AxisPairSet &temp_node2_map) const {
+  if (node1_repeats.size() >= node2_repeats.size()) {
+    std::vector<uint32_t> axis_index;
+    if (BuildUnitRepeatAxisIndex(node2_repeats, node1_repeats, axis_index) != SUCCESS) {
+      return false;
+    }
+    if (!node1_map.empty()) {
+      if (BackendUtils::ConvertAxis(node1_map, node1_axis) != SUCCESS) {
+        return false;
+      }
+    }
+    if (FillUnitRepeatAxisMap(node2_axis, node1_axis, axis_index, temp_node2_map, temp_node1_map) != SUCCESS) {
+      return false;
+    }
+  } else {
+    std::vector<uint32_t> axis_index;
+    if (BuildUnitRepeatAxisIndex(node1_repeats, node2_repeats, axis_index) != SUCCESS) {
+      return false;
+    }
+    if (!node2_map.empty()) {
+      if (BackendUtils::ConvertAxis(node2_map, node2_axis) != SUCCESS) {
+        return false;
+      }
+    }
+    if (FillUnitRepeatAxisMap(node1_axis, node2_axis, axis_index, temp_node1_map, temp_node2_map) != SUCCESS) {
+      return false;
+    }
+  }
+
+  GELOGD_IF(open_log_,
+            "find axis map with unit repeat fallback: left axis(%s), repeats(%s), right axis(%s), repeats(%s), "
+            "axis map1(%s), axis map2(%s).",
+            AutofuseUtils::VectorToStr(node1_axis).c_str(), AutofuseUtils::VectorToStr(node1_repeats).c_str(),
+            AutofuseUtils::VectorToStr(node2_axis).c_str(), AutofuseUtils::VectorToStr(node2_repeats).c_str(),
+            AutofuseUtils::VectorPairToStr(temp_node1_map).c_str(),
+            AutofuseUtils::VectorPairToStr(temp_node2_map).c_str());
+  return true;
+}
+
 bool AscGraphAxisMapping::IsSameMapAxis(AxisPairSet &map1, AxisPairSet &map2) const {
   GELOGD_IF(open_log_, "check axis map(%s) and axis map(%s).", AutofuseUtils::VectorPairToStr(map1).c_str(),
             AutofuseUtils::VectorPairToStr(map2).c_str());
@@ -716,7 +839,7 @@ Status AscGraphAxisMapping::FlashContinueAxisId() {
 
 Status AscGraphAxisMapping::CheckSubGraphtVerticalAxisMapping(const NodePtr &node, AscNodeAxisInfo &pre_axis_info,
                                                               AscNodeAxisInfo &cur_axis_info, AxisPairSet &node1_map,
-                                                              AxisPairSet &node2_map) {
+                                                              AxisPairSet &node2_map, bool need_flash) {
   AxisPairSet temp_node1_map;
   AxisPairSet temp_node2_map;
 
@@ -726,8 +849,9 @@ Status AscGraphAxisMapping::CheckSubGraphtVerticalAxisMapping(const NodePtr &nod
     GELOGD_IF(open_log_, "node %s(%s) pre store and cur data axis can axis map.", node->GetNamePtr(),
               node->GetType().c_str());
     if (pre_node_is_reduction_ &&
-        !CanAxisMap(pre_axis_info.node_axis, pre_axis_info.node_repeats, cur_axis_info.graph_axis,
-                    cur_axis_info.graph_size, node1_map_, node2_map_, temp_node1_map, temp_node2_map)) {
+        !CanAxisMapWithUnitRepeatFallback(pre_axis_info.node_axis, pre_axis_info.node_repeats, cur_axis_info.graph_axis,
+                                          cur_axis_info.graph_size, need_flash, node1_map_, node2_map_, temp_node1_map,
+                                          temp_node2_map)) {
       GELOGI_IF(open_log_, "pre node is reduction, norm like state: (%d).", pre_node_reduce_all_load_state_);
       if (pre_node_reduce_all_load_state_ != REDUCE_ALL_LOAD_ALL) {
         GELOGI_IF(open_log_, "pre node is reduction, only allow norm like fuse, can't fuse.");
@@ -742,8 +866,9 @@ Status AscGraphAxisMapping::CheckSubGraphtVerticalAxisMapping(const NodePtr &nod
                 node->GetType().c_str());
     } else {
       // 3.graph1 和 graph2调度轴是否能映射
-      if (!CanAxisMap(pre_axis_info.graph_axis, pre_axis_info.graph_size, cur_axis_info.graph_axis,
-                      cur_axis_info.graph_size, node1_map, node2_map, temp_node1_map, temp_node2_map)) {
+      if (!CanAxisMapWithUnitRepeatFallback(pre_axis_info.graph_axis, pre_axis_info.graph_size,
+                                            cur_axis_info.graph_axis, cur_axis_info.graph_size, need_flash, node1_map,
+                                            node2_map, temp_node1_map, temp_node2_map)) {
         GELOGI_IF(open_log_,
                   "store and graph can't map, store and data can map, graph sched axis can't map, can't fuse.");
         return FAILED;
@@ -785,7 +910,9 @@ Status AscGraphAxisMapping::CheckAndFillAxisMap(AxisPairSet &node1_map, AxisPair
 }
 
 Status AscGraphAxisMapping::GetVerticalAxisMapInfo(const NodePtr &node, const int32_t index, AxisPairSet &node1_map,
-                                                   AxisPairSet &node2_map, NodePtr &asc_node1, NodePtr &asc_node2) {
+                                                   AxisPairSet &node2_map, NodePtr &asc_node1, NodePtr &asc_node2,
+                                                   bool need_flash) {
+  (void)need_flash;
   AscNodeAxisInfo pre_node_axis_info;
   std::vector<ge::Expression> dims;
   GE_ASSERT_SUCCESS(GetPreNodeAttrs(node, index, dims, pre_node_axis_info.node_axis, pre_node_axis_info.node_repeats));
@@ -813,8 +940,8 @@ Status AscGraphAxisMapping::GetVerticalAxisMapInfo(const NodePtr &node, const in
             node->GetType().c_str(), index, AutofuseUtils::VectorToStr(cur_node_axis_info.graph_size).c_str(),
             AutofuseUtils::VectorToStr(cur_node_axis_info.graph_axis).c_str());
 
-  if (CheckSubGraphtVerticalAxisMapping(node, pre_node_axis_info, cur_node_axis_info, node1_map, node2_map) !=
-      SUCCESS) {
+  if (CheckSubGraphtVerticalAxisMapping(node, pre_node_axis_info, cur_node_axis_info, node1_map, node2_map,
+                                        need_flash) != SUCCESS) {
     return FAILED;
   }
   return SUCCESS;
@@ -933,7 +1060,7 @@ bool AscGraphAxisMapping::CanLoopMerge(const NodePtr &node1, const NodePtr &node
 
 Status AscGraphAxisMapping::CheckSubGraphHorizontalAxisMapping(const NodePtr &node1, const NodePtr &node2,
                                                                AscNodeAxisInfo &node1_cur_info,
-                                                               AscNodeAxisInfo &node2_cur_info) {
+                                                               AscNodeAxisInfo &node2_cur_info, bool need_flash) {
   AxisPairSet temp_node1_map;
   AxisPairSet temp_node2_map;
   // 1.graph1 data节点和graph2 data节点轴是否能直接映射
@@ -944,8 +1071,14 @@ Status AscGraphAxisMapping::CheckSubGraphHorizontalAxisMapping(const NodePtr &no
     // 2.graph1 和 graph2调度轴是否能映射
     if (!CanAxisMap(node1_cur_info.graph_axis, node1_cur_info.graph_size, node2_cur_info.graph_axis,
                     node2_cur_info.graph_size, node1_map_, node2_map_, temp_node1_map, temp_node2_map)) {
-      GELOGI("data node can map, but graph sched axis can't, can't fuse.");
-      return FAILED;
+      if (need_flash && CanAxisMapAllowUnitRepeat(node1_cur_info.graph_axis, node1_cur_info.graph_size,
+                                                  node2_cur_info.graph_axis, node2_cur_info.graph_size, node1_map_,
+                                                  node2_map_, temp_node1_map, temp_node2_map)) {
+        GELOGD_IF(open_log_, "data node can map, graph sched axis use unit repeat fallback.");
+      } else {
+        GELOGI("data node can map, but graph sched axis can't, can't fuse.");
+        return FAILED;
+      }
     }
     GELOGD_IF(open_log_, "node %s(%s) ascgraph sched axis and node %s(%s) ascgraph sched axis can axis map.",
               node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
@@ -963,7 +1096,7 @@ Status AscGraphAxisMapping::CheckSubGraphHorizontalAxisMapping(const NodePtr &no
 }
 
 Status AscGraphAxisMapping::ProcessSubGraphHorizontalMapInfo(const NodePtr &node1, const NodePtr &node2,
-                                                             const NodeFuseInfo &fuse_info) {
+                                                             const NodeFuseInfo &fuse_info, bool need_flash) {
   for (const auto &same_input : fuse_info.GetSameInputMap()) {
     AscNodeAxisInfo cur_node1_info;
     GE_ASSERT_SUCCESS(GetCurNodeAttrs(node1, same_input.first, cur_node1_info.node_axis, cur_node1_info.node_repeats));
@@ -994,7 +1127,7 @@ Status AscGraphAxisMapping::ProcessSubGraphHorizontalMapInfo(const NodePtr &node
               AutofuseUtils::VectorToStr(cur_node2_info.graph_size).c_str(),
               AutofuseUtils::VectorToStr(cur_node2_info.graph_axis).c_str());
 
-    if (CheckSubGraphHorizontalAxisMapping(node1, node2, cur_node1_info, cur_node2_info) != SUCCESS) {
+    if (CheckSubGraphHorizontalAxisMapping(node1, node2, cur_node1_info, cur_node2_info, need_flash) != SUCCESS) {
       return FAILED;
     }
 
@@ -1026,7 +1159,7 @@ Status AscGraphAxisMapping::ProcessSubGraphHorizontalMapInfo(const NodePtr &node
 
 Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1, const NodePtr &node2,
                                                            const NodeFuseInfo &fuse_info, AxisPairSet &node1_map,
-                                                           AxisPairSet &node2_map) {
+                                                           AxisPairSet &node2_map, bool need_flash) {
   auto is_reduction = false;
   for (const auto &subgraph_link : fuse_info.GetNode1ToNode2LinkMap()) {
     auto autofuse_attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
@@ -1035,7 +1168,8 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
     pre_node_is_reduction_ = is_reduction;
     pre_node_reduce_all_load_state_ = autofuse_attr1->GetReduceAllLoadState();
     NodePtr asc_node1, asc_node2;
-    if (GetVerticalAxisMapInfo(node2, subgraph_link.second, node1_map, node2_map, asc_node1, asc_node2) != SUCCESS) {
+    if (GetVerticalAxisMapInfo(node2, subgraph_link.second, node1_map, node2_map, asc_node1, asc_node2, need_flash) !=
+        SUCCESS) {
       return FAILED;
     }
     GELOGD_IF(open_log_, "node %s(%s) axis map info=%s and node %s(%s) axis map info=%s.", node1->GetNamePtr(),
@@ -1111,13 +1245,13 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
 }
 
 Status AscGraphAxisMapping::CreateSubGraphAxisMapInfo(const NodePtr &node1, const NodePtr &node2,
-                                                      const NodeFuseInfo &fuse_info) {
+                                                      const NodeFuseInfo &fuse_info, bool need_flash) {
   node1_map_.clear();
   node2_map_.clear();
   pre_node_is_reduction_ = false;
   pre_node_reduce_all_load_state_ = 0;
   // 垂直融合轴映射
-  if (ProcessSubGraphVerticalMapInfo(node1, node2, fuse_info, node1_map_, node2_map_) != SUCCESS) {
+  if (ProcessSubGraphVerticalMapInfo(node1, node2, fuse_info, node1_map_, node2_map_, need_flash) != SUCCESS) {
     return FAILED;
   }
 
@@ -1134,7 +1268,7 @@ Status AscGraphAxisMapping::CreateSubGraphAxisMapInfo(const NodePtr &node1, cons
   }
   if (fuse_info.CanDoHorizontalMapping() && !is_both_horizontal_and_vertical) {
     // 水平融合轴映射
-    if (ProcessSubGraphHorizontalMapInfo(node1, node2, fuse_info) != SUCCESS) {
+    if (ProcessSubGraphHorizontalMapInfo(node1, node2, fuse_info, need_flash) != SUCCESS) {
       return FAILED;
     }
   }
