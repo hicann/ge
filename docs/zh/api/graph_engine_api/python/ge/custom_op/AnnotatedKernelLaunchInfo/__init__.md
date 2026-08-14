@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 创建一个kernel launch的元数据对象，用于向`AnnotatedArgsContext.add_launch`提交kernel名称、二进制、block数和stream标识。
@@ -31,6 +26,25 @@ __init__(*, kernel_name: str, kernel_bin: bytes, block_dim: int, stream_id: int)
 ## 返回值说明
 
 无
+
+## 调用示例
+
+`kernel_bin`示例中表示已经准备好的kernel二进制字节串。
+
+```python
+from ge.custom_op import AnnotatedKernelLaunchInfo, get_declare_launch_args_ctx
+
+
+def declare_launch_args(self, x1, x2, y) -> None:
+    ctx = get_declare_launch_args_ctx()
+    kernel_bin = b"..."
+    launch_info = AnnotatedKernelLaunchInfo(
+        kernel_name="add_custom",
+        kernel_bin=kernel_bin,
+        block_dim=8,
+        stream_id=ctx.get_stream_id(),
+    )
+```
 
 ## 约束说明
 

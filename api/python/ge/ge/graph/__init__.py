@@ -17,6 +17,7 @@ graph模块 - 图操作接口
 这个模块提供了对Graph Engine核心图操作功能的Python封装，包括：
 - Graph: 图对象
 - Node: 节点对象
+- Operator: 算子对象，用于读写算子的属性及输入输出等定义信息
 - Tensor: 张量对象
 - DataType: 数据类型
 - Format: 数据格式
@@ -28,6 +29,7 @@ graph模块 - 图操作接口
 
 from .graph import DumpFormat, Graph
 from .node import Node
+from .operator import Operator
 from .tensor import Tensor
 from .tensor_desc import Shape, TensorDesc
 from .types import DataType, Format, Placement
@@ -35,6 +37,7 @@ from .types import DataType, Format, Placement
 __all__ = [
     "Graph",
     "Node",
+    "Operator",
     "DataType",
     "Format",
     "Placement",

@@ -49,6 +49,7 @@ void LinkReqHandler::SetUpdateLinkReqInfo(UpdateLinkReqInfo *link_req, int32_t *
   update_link_start_ticks_.assign(kUpdateLinkMaxCount, 0UL);
   update_link_requests_.assign(kUpdateLinkMaxCount, nullptr);
   update_link_states_.assign(kUpdateLinkMaxCount, DoLinkState::kLinkInit);
+  update_link_client_infos_.assign(kUpdateLinkMaxCount, ClientClusterInfo{});
 }
 
 FsmStatus LinkReqHandler::HandleReq(uint64_t start_tick) {

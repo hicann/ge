@@ -3814,6 +3814,7 @@ void SetSubGraph(OpDesc &op_desc, const std::string &name) {
 
 TEST_F(STEST_helper_runtime, TestBuiltinExecutorClient_host) {
   SubprocessManager::GetInstance().executable_paths_[PNE_ID_NPU] = "npu_executor";
+  MemoryGroupManager::GetInstance().SetQsMemGroupName("DM_QS_GROUP_test");
   RuntimeStub::SetInstance(std::make_shared<MockRuntimeForClient>());
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaUdfClient>());
 
@@ -5449,6 +5450,7 @@ TEST_F(STEST_helper_runtime, UpdateAbnormalInstanceInTrimmingModel) {
   (void)system(cmd.c_str());
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config.json";
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   std::map<std::string, std::string> options;
   EXPECT_EQ(InitializeHeterogeneousRuntime(options), SUCCESS);
 
@@ -5753,6 +5755,8 @@ TEST_F(STEST_helper_runtime, destroy_valid_handle) {
 
 TEST_F(STEST_helper_runtime, run_exception) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  SubprocessManager::GetInstance().executable_paths_["queue_schedule"] = "flowgw";
+  MemoryGroupManager::GetInstance().SetQsMemGroupName("DM_QS_GROUP_test");
   FlowGwClient flowgw_client(0, 0, {0}, false);
   EXPECT_EQ(flowgw_client.GetSubProcStat(), ProcStatus::INVALID);
   EXPECT_EQ(flowgw_client.Initialize(), SUCCESS);

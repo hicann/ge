@@ -875,7 +875,7 @@ ComputeGraphPtr AscBackendFusionDecider::MergeGraphToFusedAscBackendNode(const C
 Status AscBackendFusionDecider::UnifySubgraphAxis(const NodePtr &node1, const NodePtr &node2,
                                                   const NodeFuseInfo &fuse_info, AscGraphAxisMapping &graph_axis_map,
                                                   bool need_flash) const {
-  if (graph_axis_map.CreateSubGraphAxisMapInfo(node1, node2, fuse_info) != SUCCESS) {
+  if (graph_axis_map.CreateSubGraphAxisMapInfo(node1, node2, fuse_info, need_flash) != SUCCESS) {
     GELOGD_IF(graph_axis_map.IsOpenLog(), "node %s(%s) and node %s(%s) can't align axis info, can fuse false.",
               node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
     return FAILED;

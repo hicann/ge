@@ -1089,7 +1089,6 @@ void FlowFuncProcessor::CachedBufferClear() {
     }
     out_list.clear();
   }
-  cache_output_data_.clear();
 }
 
 void FlowFuncProcessor::ResetProcessor() {

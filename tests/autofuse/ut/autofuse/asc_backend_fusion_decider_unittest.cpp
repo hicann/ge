@@ -1906,6 +1906,54 @@ TEST_F(AscBackendFusionDeciderTest, AscBackendFusionDecider_CanFuse_Nok) {
   EXPECT_EQ(post_processor.Do(graph), SUCCESS);
 }
 
+TEST_F(AscBackendFusionDeciderTest, AscBackendFusionDecider_Fuse_Reduce_Vertical_UnitAxisFallbackOk) {
+  AscBackendFusionDecider decider;
+  auto data1 = OP_CFG("Data")
+                   .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
+                   .InCnt(0)
+                   .OutCnt(1)
+                   .InNames({"x"})
+                   .OutNames({"y"})
+                   .Build("Data1");
+  auto reduce1 = OP_CFG(kAscBackendType)
+                     .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
+                     .InCnt(1)
+                     .OutCnt(1)
+                     .InNames({"x"})
+                     .OutNames({"y"})
+                     .Build("Reduce");
+  auto abs1 = OP_CFG(kAscBackendType)
+                  .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
+                  .InCnt(1)
+                  .OutCnt(1)
+                  .InNames({"x"})
+                  .OutNames({"y"})
+                  .Build("AbsBroadCastAfterReduce");
+  DEF_GRAPH(g) {
+    CHAIN(NODE(data1)->EDGE(0, 0)->NODE(reduce1));
+    CHAIN(NODE(reduce1)->EDGE(0, 0)->NODE(abs1));
+    CHAIN(NODE(abs1)->EDGE(0, 0)->NODE("NetOutput", kNetOutputType));
+  };
+  auto graph = ToComputeGraph(g);
+  for (const auto &node : graph->GetAllNodes()) {
+    SetAttrsGroup(node);
+  }
+
+  auto node1 = graph->FindNode("Reduce");
+  ASSERT_NE(node1, nullptr);
+  auto node2 = graph->FindNode("AbsBroadCastAfterReduce");
+  ASSERT_NE(node2, nullptr);
+
+  ASSERT_EQ(decider.CanFuseVertical(node1, node2), true);
+  auto fused_node = decider.Fuse(node1, node2, nullptr);
+  ASSERT_NE(fused_node, nullptr);
+
+  auto shape_env_attr = graph->GetOrCreateAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env_attr, nullptr);
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(graph), SUCCESS);
+}
+
 /**
  *
  *       netoutput

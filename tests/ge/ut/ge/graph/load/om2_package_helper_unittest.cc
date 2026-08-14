@@ -926,12 +926,8 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_EmptyOriginalOpNames_GenValidOpAttrJso
   const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
   ASSERT_TRUE(op_attr_json.IsValid());
 
-  // 验证value为空编码字符串
   const auto &raw_json = op_attr_json.Raw();
-  EXPECT_TRUE(raw_json.contains("add1"));
-  const auto &attr_value = raw_json.at("add1").at("_datadump_original_op_names");
-  EXPECT_TRUE(attr_value.is_string());
-  EXPECT_EQ(attr_value.get<std::string>(), "");
+  EXPECT_FALSE(raw_json.contains("add1"));
 }
 
 // ============================================================================
@@ -1576,6 +1572,46 @@ TEST_F(Om2PackageHelperUt, SerializeVarResource_NullAndEmpty) {
   const std::string writer_path2 = PathUtils::Join({test_work_dir, "var_empty.om2"});
   ModelBufferData buf2;
   ASSERT_EQ(Om2ZipSaver::Save(model_data, buf2, false, writer_path2), SUCCESS);
+}
+
+TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithAtomicKernel_Ok) {
+  auto ge_model = std::make_shared<GeModel>();
+  const char normal_kernel_data[] = "fake_normal_tbe_kernel_bin";
+  const char atomic_kernel_data[] = "fake_atomic_tbe_kernel_bin";
+  auto normal_kernel = std::make_shared<ge::OpKernelBin>(
+      "normal_kernel", std::vector<char>(normal_kernel_data, normal_kernel_data + strlen(normal_kernel_data)));
+  auto atomic_kernel = std::make_shared<ge::OpKernelBin>(
+      "atomic_kernel", std::vector<char>(atomic_kernel_data, atomic_kernel_data + strlen(atomic_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(normal_kernel);
+  ge_model->GetTBEKernelStore().AddKernel(atomic_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add_desc, "_kernelname", "normal_kernel");
+  (void)AttrUtils::SetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "atomic_kernel");
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  std::vector<gert::Om2KernelBinary> kernel_binaries;
+  ASSERT_EQ(Om2PackageHelper::BuildKernelBinaries(ge_model, kernel_binaries), SUCCESS);
+
+  ASSERT_EQ(kernel_binaries.size(), 2U);
+  EXPECT_EQ(kernel_binaries[0].name, "normal_kernel.o");
+  EXPECT_NE(kernel_binaries[0].data, nullptr);
+  EXPECT_EQ(kernel_binaries[0].data_size, strlen(normal_kernel_data));
+  EXPECT_EQ(memcmp(kernel_binaries[0].data.get(), normal_kernel_data, kernel_binaries[0].data_size), 0);
+
+  EXPECT_EQ(kernel_binaries[1].name, "atomic_kernel.o");
+  EXPECT_NE(kernel_binaries[1].data, nullptr);
+  EXPECT_EQ(kernel_binaries[1].data_size, strlen(atomic_kernel_data));
+  EXPECT_EQ(memcmp(kernel_binaries[1].data.get(), atomic_kernel_data, kernel_binaries[1].data_size), 0);
 }
 
 TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithAtomicKernel_Success) {

@@ -4,11 +4,6 @@
 
 全量芯片支持。
 
-## 头文件/库文件
-
-- 头文件：无
-- 库文件：ge_custom_op_native.so、libge_python_custom_op_bridge.so
-
 ## 功能说明
 
 向当前kernel参数序列追加一个workspace地址参数。追加位置由调用顺序决定。
@@ -28,6 +23,20 @@ append_workspace(workspace: WorkspaceAddr) -> None
 ## 返回值说明
 
 无
+
+## 调用示例
+
+```python
+from ge.custom_op import get_declare_launch_args_ctx
+from ge.runtime import Tensor
+
+
+def declare_launch_args(self, x1: Tensor, x2: Tensor, y: Tensor) -> None:
+    ctx = get_declare_launch_args_ctx()
+    args = ctx.create_kernel_args()
+    workspace = ctx.malloc_workspace(256)
+    args.append_workspace(workspace)
+```
 
 ## 约束说明
 

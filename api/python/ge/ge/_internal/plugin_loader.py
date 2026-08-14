@@ -20,7 +20,10 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Iterable, List
+from typing import Dict, Iterable, List, Optional
+
+
+_MODULE_NAME_BY_CANONICAL_PATH: Dict[Path, str] = {}
 
 
 def normalize_path_list(path_value: str) -> List[str]:
@@ -29,9 +32,23 @@ def normalize_path_list(path_value: str) -> List[str]:
     return [item.strip() for item in path_value.split(os.pathsep) if item.strip()]
 
 
+def _get_loaded_module(canonical_path: Path) -> Optional[ModuleType]:
+    module_name = _MODULE_NAME_BY_CANONICAL_PATH.get(canonical_path)
+    if module_name is None:
+        return None
+    module = sys.modules.get(module_name)
+    if module is None:
+        del _MODULE_NAME_BY_CANONICAL_PATH[canonical_path]
+    return module
+
+
 def load_module_from_file(
     file_path: Path, *, module_prefix: str, plugin_kind: str
 ) -> ModuleType:
+    file_path = file_path.resolve()
+    loaded_module = _get_loaded_module(file_path)
+    if loaded_module is not None:
+        return loaded_module
     module_name = f"{module_prefix}{file_path.stem}_{abs(hash(str(file_path)))}"
     if module_name in sys.modules:
         return sys.modules[module_name]
@@ -40,14 +57,19 @@ def load_module_from_file(
         raise ImportError(f"cannot load {plugin_kind} file: {file_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        del sys.modules[module_name]
+        raise
+    _MODULE_NAME_BY_CANONICAL_PATH[file_path] = module_name
     return module
 
 
 def scan_modules_from_path(
     path_item: str, *, module_prefix: str, plugin_kind: str
 ) -> List[ModuleType]:
-    path = Path(path_item)
+    path = Path(path_item).resolve()
     if not path.exists():
         raise FileNotFoundError(f"{plugin_kind} path does not exist: {path}")
     if path.is_file():
@@ -73,7 +95,12 @@ def scan_modules_from_path(
             )
             continue
         if child.is_dir() and (child / "__init__.py").exists():
-            modules.append(importlib.import_module(child.name))
+            package_init = (child / "__init__.py").resolve()
+            module = _get_loaded_module(package_init)
+            if module is None:
+                module = importlib.import_module(child.name)
+                _MODULE_NAME_BY_CANONICAL_PATH[package_init] = module.__name__
+            modules.append(module)
     return modules
 
 

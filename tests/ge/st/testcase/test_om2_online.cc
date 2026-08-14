@@ -163,17 +163,28 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_StructureIntegrity) {
   // Populate kernel binaries
   gert::Om2KernelBinary kernel;
   kernel.name = "test_kernel";
-  kernel.data = {0x01, 0x02, 0x03};
-  model_data.kernel_binaries.push_back(kernel);
+  auto kbuf = std::make_unique<uint8_t[]>(3);
+  kbuf[0] = 0x01;
+  kbuf[1] = 0x02;
+  kbuf[2] = 0x03;
+  kernel.data = ge::ReadonlyByteBuffer(kbuf.release(), ge::ConditionalDeleter{true});
+  kernel.data_size = 3U;
+  model_data.kernel_binaries.push_back(std::move(kernel));
 
-  model_data.constants_data.weight_data = {0xAA, 0xBB, 0xCC, 0xDD};
+  auto wbuf = std::make_unique<uint8_t[]>(4);
+  wbuf[0] = 0xAA;
+  wbuf[1] = 0xBB;
+  wbuf[2] = 0xCC;
+  wbuf[3] = 0xDD;
+  model_data.constants_data.weight_data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
+  model_data.constants_data.internal_weight_size = 4U;
 
   EXPECT_EQ(model_data.program_body.so_artifact.file_name, "libtest.so");
   EXPECT_EQ(model_data.program_body.so_artifact.data.size(), 4U);
   EXPECT_EQ(model_data.model_meta.work_size, 4096U);
   EXPECT_EQ(model_data.kernel_binaries.size(), 1U);
   EXPECT_EQ(model_data.kernel_binaries[0].name, "test_kernel");
-  EXPECT_EQ(model_data.constants_data.weight_data.size(), 4U);
+  EXPECT_EQ(model_data.constants_data.internal_weight_size, 4U);
 }
 
 // Test: Multiple GeRootModel instances with OM2 data
@@ -210,7 +221,12 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
 
   auto om2_data = std::make_shared<gert::Om2ModelData>();
   om2_data->model_meta.model_name = "shared_model";
-  om2_data->constants_data.weight_data = {0x01, 0x02, 0x03};
+  auto wbuf2 = std::make_unique<uint8_t[]>(3);
+  wbuf2[0] = 0x01;
+  wbuf2[1] = 0x02;
+  wbuf2[2] = 0x03;
+  om2_data->constants_data.weight_data = ge::ReadonlyByteBuffer(wbuf2.release(), ge::ConditionalDeleter{true});
+  om2_data->constants_data.internal_weight_size = 3U;
   ge_root_model->SetOm2ModelData(om2_data);
 
   // Simulate fork: shared_ptr copy
@@ -218,7 +234,7 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
 
   EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
   EXPECT_EQ(forked_data->model_meta.model_name, "shared_model");
-  EXPECT_EQ(forked_data->constants_data.weight_data.size(), 3U);
+  EXPECT_EQ(forked_data->constants_data.internal_weight_size, 3U);
 
   // Both point to the same data
   EXPECT_EQ(ge_root_model->GetOm2ModelData().get(), forked_data.get());

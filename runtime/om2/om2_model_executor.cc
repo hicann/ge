@@ -153,16 +153,6 @@ ge::Status ExtractEntryToString(const ge::RAIIZipArchive &archive, const std::st
   return ge::SUCCESS;
 }
 
-ge::Status ExtractEntryToBytes(const ge::RAIIZipArchive &archive, const std::string &entry_name,
-                               std::vector<uint8_t> &out) {
-  size_t buffer_size{0U};
-  const auto buffer = archive.ExtractToMem(entry_name, buffer_size);
-  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry_name.c_str());
-  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry_name.c_str());
-  out.assign(buffer.get(), buffer.get() + buffer_size);
-  return ge::SUCCESS;
-}
-
 ge::Status ParseTensorDescFromJson(const ge::JsonFile &json_file, ge::Om2TensorDesc &desc) {
   ge::JsonFile::TryGetAndApply<std::string>(json_file, "name", [&](const std::string &v) { desc.SetName(v); });
   ge::JsonFile::TryGetAndApply<std::vector<int64_t>>(json_file, "shape",
@@ -222,7 +212,11 @@ ge::Status DeserializeCodegenEntry(const ge::RAIIZipArchive &archive, const std:
 
 ge::Status DeserializeWeightEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
                                   gert::Om2ModelData &model_data) {
-  GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, model_data.constants_data.weight_data));
+  size_t buffer_size{0U};
+  auto buffer = archive.ExtractToMem(entry, buffer_size);
+  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry.c_str());
+  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry.c_str());
+  model_data.constants_data.weight_data = std::move(buffer);
   return ge::SUCCESS;
 }
 
@@ -399,7 +393,12 @@ ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::
                                   gert::Om2ModelData &model_data) {
   gert::Om2KernelBinary kernel_binary;
   kernel_binary.name = ExtractParentDirAndFileName(entry).second;
-  GE_ASSERT_SUCCESS(ExtractEntryToBytes(archive, entry, kernel_binary.data));
+  size_t buffer_size{0U};
+  auto buffer = archive.ExtractToMem(entry, buffer_size);
+  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry.c_str());
+  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry.c_str());
+  kernel_binary.data = std::move(buffer);
+  kernel_binary.data_size = buffer_size;
   (void)model_data.kernel_binaries.emplace_back(std::move(kernel_binary));
   return ge::SUCCESS;
 }
@@ -479,12 +478,6 @@ ge::Status DeserializeOpAttrEntry(const ge::RAIIZipArchive &archive, const std::
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeVisualEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  gert::Om2ModelData &model_data) {
-  GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, model_data.debug_info.visual_json));
-  return ge::SUCCESS;
-}
-
 ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
                               gert::Om2ModelData &model_data) {
   if (entry.find("/runtime/") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
@@ -494,11 +487,6 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
   if (entry.find("/debug/") != std::string::npos) {
     if (IsFileNameEndsWith(entry, "op_attr.json")) {
       GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
-    } else {
-      const std::string debug_file = ExtractParentDirAndFileName(entry).second;
-      if ((debug_file.find("ge_visual_") != std::string::npos) && IsFileNameEndsWith(debug_file, ".json")) {
-        GE_ASSERT_SUCCESS(DeserializeVisualEntry(archive, entry, model_data));
-      }
     }
     return ge::SUCCESS;
   }
@@ -763,9 +751,8 @@ class Om2ModelExecutor::Impl {
       run_model_info_.op_attr_map = om2_data.debug_info.op_attr_map;
     }
 
-    // Create a non-owning ReadonlyByteBuffer from the weight_data vector
-    if (!om2_data.constants_data.weight_data.empty()) {
-      weight_buf = ge::ReadonlyByteBuffer(om2_data.constants_data.weight_data.data(), ge::ConditionalDeleter{false});
+    if (om2_data.constants_data.weight_data != nullptr) {
+      weight_buf = ge::ReadonlyByteBuffer(om2_data.constants_data.weight_data.get(), ge::ConditionalDeleter{false});
     }
 
     return ge::SUCCESS;
@@ -802,14 +789,14 @@ class Om2ModelExecutor::Impl {
     for (const auto &k : kernels) {
       KernelBinInfo bin_info;
       bin_info.file = k.name;
-      // 创建非拥有引用：指向 Om2KernelBinary::data (vector<uint8_t>) 的内部缓冲区。
+      // 创建非拥有引用：指向 Om2KernelBinary::data 的内部缓冲区。
       // 生命周期约束：调用方必须保证 Om2ModelData 在 kernel 二进制使用期间保持存活。
       // 当前调用链：LoadOm2Graph → Om2ModelManager::LoadModel → executor->Load(model_data, ...)
       // 其中 model_data 通过 const & 传递，指向 GeRootModel 持有的 shared_ptr<Om2ModelData>，
       // 因此只要 GeRootModel 存活（通常在整个 Session 生命周期内），数据就安全。
-      if (!k.data.empty()) {
-        bin_info.data = ge::ReadonlyByteBuffer(k.data.data(), ge::ConditionalDeleter{false});
-        bin_info.data_size = k.data.size();
+      if (k.data != nullptr) {
+        bin_info.data = ge::ReadonlyByteBuffer(k.data.get(), ge::ConditionalDeleter{false});
+        bin_info.data_size = k.data_size;
       } else {
         bin_info.data_size = 0U;
       }

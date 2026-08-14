@@ -8,10 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-file(GLOB_RECURSE LLM_FLOW_FUNC_SRC_FILES
-        ${UDF_SRC_PATH}/built_in/*.cpp
-)
-
 set(LOCAL_TEST_CASE_FILES
         ../../main.cpp
         time_batch_flow_func_stest.cpp
@@ -32,7 +28,6 @@ add_executable(st_built_in_flow_func
         ${PROTO_SRCS}
         ${LOCAL_SRC_FILES}
         ${LOCAL_STUB_FILES}
-        ${LLM_FLOW_FUNC_SRC_FILES}
         ${BUILT_IN_LOCAL_STUB_FILES}
         ${LOCAL_TEST_CASE_FILES}
 )

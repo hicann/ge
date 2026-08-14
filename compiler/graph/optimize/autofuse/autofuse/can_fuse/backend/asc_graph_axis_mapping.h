@@ -278,7 +278,8 @@ class AscGraphAxisMapping {
    * @param fuse_info node1和node2的链接信息。
    * @return 如果轴映射信息创建成功，则返回 SUCCESS；否则返回 FAILED。
    */
-  Status CreateSubGraphAxisMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info);
+  Status CreateSubGraphAxisMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info,
+                                   bool need_flash);
 
   const AxisPairSet &GetNode1AxisMap() const {
     return node1_map_;
@@ -362,7 +363,7 @@ class AscGraphAxisMapping {
    * @return 如果轴映射成功，返回 SUCCESS；否则返回 FAILED。
    */
   Status GetVerticalAxisMapInfo(const NodePtr &node, const int32_t index, AxisPairSet &node1_map,
-                                AxisPairSet &node2_map, NodePtr &asc_node1, NodePtr &asc_node2);
+                                AxisPairSet &node2_map, NodePtr &asc_node1, NodePtr &asc_node2, bool need_flash);
 
   /**
    * 该函数用于刷新子图中的轴信息。它会遍历子图中的所有节点，并根据给定的轴映射关系（node_map）
@@ -467,7 +468,8 @@ class AscGraphAxisMapping {
    * @param fuse_info node1和node2的链接信息。
    * @return 如果轴映射成功且可以进行循环合并，则返回 SUCCESS；否则返回 FAILED。
    */
-  Status ProcessSubGraphHorizontalMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info);
+  Status ProcessSubGraphHorizontalMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info,
+                                          bool need_flash);
 
   /**
    * 该函数用于获取子图的垂直轴映射信息。它会根据给定的节点和链接映射关系，
@@ -480,7 +482,7 @@ class AscGraphAxisMapping {
    * @return 如果轴映射信息获取成功且满足融合条件，则返回 SUCCESS；否则返回 FAILED。
    */
   Status ProcessSubGraphVerticalMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info,
-                                        AxisPairSet &node1_map, AxisPairSet &node2_map);
+                                        AxisPairSet &node1_map, AxisPairSet &node2_map, bool need_flash);
 
   /**
    * 该函数用于检查两个子图的水平轴映射关系，确保它们的节点轴和调度轴能够正确映射。
@@ -494,7 +496,7 @@ class AscGraphAxisMapping {
    * @return 返回 SUCCESS 表示映射检查成功，返回 FAILED 表示映射失败，无法进行后续融合操作。
    */
   Status CheckSubGraphHorizontalAxisMapping(const NodePtr &node1, const NodePtr &node2, AscNodeAxisInfo &node1_cur_info,
-                                            AscNodeAxisInfo &node2_cur_info);
+                                            AscNodeAxisInfo &node2_cur_info, bool need_flash);
 
   /**
    * 该函数用于检查两个子图的垂直轴映射关系，确保前序节点的存储轴与当前节点的数据轴或调度轴能够正确映射。
@@ -509,7 +511,7 @@ class AscGraphAxisMapping {
    */
   Status CheckSubGraphtVerticalAxisMapping(const NodePtr &node, AscNodeAxisInfo &pre_axis_info,
                                            AscNodeAxisInfo &cur_axis_info, AxisPairSet &node1_map,
-                                           AxisPairSet &node2_map);
+                                           AxisPairSet &node2_map, bool need_flash);
 
   /**
    * 该函数用于检查或填充轴映射信息
@@ -521,6 +523,16 @@ class AscGraphAxisMapping {
    */
   Status CheckAndFillAxisMap(AxisPairSet &node1_map, AxisPairSet &node2_map, AxisPairSet &temp_node1_map,
                              AxisPairSet &temp_node2_map) const;
+
+  bool CanAxisMapWithUnitRepeatFallback(std::vector<int64_t> &node1_axis, std::vector<ge::Expression> &node1_repeats,
+                                        std::vector<int64_t> &node2_axis, std::vector<ge::Expression> &node2_repeats,
+                                        bool need_flash, AxisPairSet &node1_map, AxisPairSet &node2_map,
+                                        AxisPairSet &temp_node1_map, AxisPairSet &temp_node2_map) const;
+
+  bool CanAxisMapAllowUnitRepeat(std::vector<int64_t> &node1_axis, std::vector<ge::Expression> &node1_repeats,
+                                 std::vector<int64_t> &node2_axis, std::vector<ge::Expression> &node2_repeats,
+                                 AxisPairSet &node1_map, AxisPairSet &node2_map, AxisPairSet &temp_node1_map,
+                                 AxisPairSet &temp_node2_map) const;
 
  private:
   AxisPairSet node1_map_;

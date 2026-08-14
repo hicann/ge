@@ -1587,7 +1587,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_Fo
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(add1, assign1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(add1, assign1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(add1, assign1, node_fuse_info, false), SUCCESS);
   EXPECT_EQ(asc_graph_axis_map.FlushSubGraphAxisInfo(add1, asc_graph_axis_map.GetNode1AxisMap(), true), SUCCESS);
   EXPECT_EQ(asc_graph_axis_map.FlushSubGraphAxisInfo(assign1, asc_graph_axis_map.GetNode2AxisMap(), true), SUCCESS);
 }
@@ -1616,7 +1616,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_Fo
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), SUCCESS);
   EXPECT_EQ(asc_graph_axis_map.FlushSubGraphAxisInfo(addn1, asc_graph_axis_map.GetNode1AxisMap(), true), SUCCESS);
   EXPECT_EQ(asc_graph_axis_map.FlushSubGraphAxisInfo(shape1, asc_graph_axis_map.GetNode2AxisMap(), true), SUCCESS);
 }
@@ -1646,7 +1646,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_Fo
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), SUCCESS);
 }
 
 // 测试包含FusedAscBackend node的场景,前置node是FusedAscBackend node，可以循环融合
@@ -1692,7 +1692,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_fa
 
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(fused_node, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(fused_node, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(fused_node, shape1, node_fuse_info, false), SUCCESS);
 }
 
 // 测试包含FusedAscBackend node的场景,前置node是const, merge const1 -> fused_graph_0, graph_attr2 is nullptr
@@ -1732,7 +1732,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_fa
   ASSERT_NE(attr4, nullptr);
   ge::AscGraph add_graph2("add");
   attr4->SetAscGraph(CreatAddAscGraph(add_graph2));
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(const1, fused_node, node_fuse_info), FAILED);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(const1, fused_node, node_fuse_info, false), FAILED);
   EXPECT_EQ(asc_graph_axis_map.FlushSubGraphAxisInfo(fused_node, asc_graph_axis_map.GetNode2AxisMap(), false), SUCCESS);
 }
 
@@ -1844,7 +1844,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_CreateSubGraphAxisMapInfo_Fo
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), FAILED);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), FAILED);
 }
 
 TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInfo_For_Reduce_Vertical_Merge_Ok) {
@@ -1874,7 +1874,7 @@ TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInf
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), SUCCESS);
 }
 
 TEST_F(AscGraphAxisMappingTest,
@@ -1905,8 +1905,9 @@ TEST_F(AscGraphAxisMappingTest,
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), FAILED);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), FAILED);
 }
+
 TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_Slice_Horizontal_Has_Same_Load_Fuse) {
   auto data1 = OP_CFG("Data")
                    .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4})
@@ -1989,7 +1990,7 @@ TEST_F(AscGraphAxisMappingTest, AscGraphAxisMapping_UniqueAxisSizeAnchor_KeepLea
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info, false), SUCCESS);
   EXPECT_EQ(asc_graph_axis_map.GetNode1AxisMap(), (AxisPairSet{{0, 0}, {1, 1}, {2, 2}}));
   EXPECT_EQ(asc_graph_axis_map.GetNode2AxisMap(), (AxisPairSet{{0, 0}, {1, 1}, {2, 2}, {3, 3}}));
 }

@@ -134,10 +134,8 @@ AIPP配置文件支持定义多组AIPP配置，对不同的模型输入进行不
 
 > [!NOTE]说明
 >
->- 如果模型转换时，用户设置了[--dynamic\_batch\_size](../CLI_options/--dynamic_batch_size.md)动态Batch档位参数，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数配置了动态AIPP功能：
-> 实际推理时，调用**aclmdlSetInputAIPP**接口，设置动态AIPP相关参数值时，需确保batch\_size要设置为最大Batch数。接口详细说明请参见[aclmdlSetInputAIPP](../../../api/graph_engine_api/c/acl/aclmdlSetInputAIPP.md)。
->- 如果模型转换时，用户设置了[--dynamic\_image\_size](../CLI_options/--dynamic_image_size.md)动态分辨率参数，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数配置了动态AIPP功能：
-> 实际推理时，调用**aclmdlSetInputAIPP**接口，设置动态AIPP相关参数值时，不能开启Crop和Padding功能。该场景下，还需要确保通过aclmdlSetInputAIPP接口设置的宽和高与**aclmdlSetDynamicHWSize**接口设置的宽、高相等，都必须设置成动态分辨率最大档位的宽、高。接口详细说明请参见[模型执行](../../../api/graph_engine_api/c/acl/model_execute_APIs.md)章节。
+>- 如果模型转换时，用户设置了[--dynamic\_batch\_size](../CLI_options/--dynamic_batch_size.md)动态Batch档位参数，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数配置了动态AIPP功能：实际推理时，调用**aclmdlSetInputAIPP**接口，设置动态AIPP相关参数值时，需确保batch\_size要设置为最大Batch数。接口详细说明请参见[aclmdlSetInputAIPP](../../../api/graph_engine_api/c/acl/aclmdlSetInputAIPP.md)。
+>- 如果模型转换时，用户设置了[--dynamic\_image\_size](../CLI_options/--dynamic_image_size.md)动态分辨率参数，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数配置了动态AIPP功能：实际推理时，调用**aclmdlSetInputAIPP**接口，设置动态AIPP相关参数值时，不能开启Crop和Padding功能。该场景下，还需要确保通过aclmdlSetInputAIPP接口设置的宽和高与**aclmdlSetDynamicHWSize**接口设置的宽、高相等，都必须设置成动态分辨率最大档位的宽、高。接口详细说明请参见[模型执行](../../../api/graph_engine_api/c/acl/model_execute_APIs.md)章节。
 >- 如果模型转换时，用户设置了[--input\_shape](../CLI_options/--input_shape.md)动态shape范围参数，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数配置了AIPP功能，则AIPP输出的宽和高要在[--input\_shape](../CLI_options/--input_shape.md)所设置的范围内。
 
 动态AIPP场景下，用户无需手动配置csc\_switch、rbuv\_swap\_switch等参数，根据如下配置文件配置好相关参数后，模型转换时，ATC会为动态AIPP新增一个模型输入（以下简称AippData）。

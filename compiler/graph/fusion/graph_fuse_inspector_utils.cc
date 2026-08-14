@@ -15,6 +15,7 @@
 #include "graph/utils/node_adapter.h"
 #include "graph/utils/op_type_utils.h"
 #include "ge/fusion/graph_fuse_inspector_utils.h"
+#include "graph/debug/ge_attr_define.h"
 #include "register/graph_optimizer/fusion_common/graph_pass_util.h"
 
 namespace ge {
@@ -64,6 +65,15 @@ bool MarkPassNameOnReplacementNodes(const std::vector<NodePtr> &before_nodes, co
     }
   }
   return true;
+}
+
+void RecordDatadumpAttrsIdempotently(const std::vector<NodePtr> &before_nodes, const std::vector<NodePtr> &after_nodes,
+                                     const std::string &pass_name) {
+  for (const auto &node : after_nodes) {
+    const auto op_desc = node->GetOpDesc();
+    fe::GraphPassUtil::RecordOriginalNames(before_nodes, node);
+    fe::GraphPassUtil::RecordOriginalOpAttrs(before_nodes, op_desc, pass_name);
+  }
 }
 }  // namespace
 
@@ -132,6 +142,7 @@ Status GraphFuseInspectorUtils::ReportFuse(const std::vector<GNode> &nodes_befor
   if (!MarkPassNameOnReplacementNodes(before_nodes, after_nodes, pass_name_str)) {
     return FAILED;
   }
+  RecordDatadumpAttrsIdempotently(before_nodes, after_nodes, pass_name_str);
   FusionUtils::RecordFusionStatistic(owner_graph->GetSessionID(), std::to_string(owner_graph->GetGraphID()),
                                      pass_name_str, 1, 1);
   return SUCCESS;
