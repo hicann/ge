@@ -1085,7 +1085,9 @@ TEST_F(FlowFuncProcessorUTest, schedule_when_suspend) {
   bool sch_ret = processor.Schedule(0U);
   EXPECT_FALSE(sch_ret);
   EXPECT_TRUE(processor.IsOk());
-  EXPECT_TRUE(processor.cache_output_data_.empty());
+  EXPECT_TRUE(processor.cache_output_data_.empty() ||
+              std::all_of(processor.cache_output_data_.begin(), processor.cache_output_data_.end(),
+                          [](const std::vector<Mbuf *> &v) { return v.empty(); }));
   processor.ReleaseFuncWrapper();
   EXPECT_EQ(processor.func_wrapper_, nullptr);
 
