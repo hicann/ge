@@ -10,6 +10,7 @@
 
 #include "label_switch_by_index_task_code_builder.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 
 #include <algorithm>
 
@@ -19,6 +20,8 @@
 #include "graph/utils/attr_utils.h"
 
 namespace ge {
+constexpr size_t kLabelSwitchIndexNum = 1U;
+
 Status LabelSwitchByIndexTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
   FillTaskSemanticHeader(context, header_);
   // labelList
@@ -98,6 +101,41 @@ Status LabelSwitchByIndexTaskCodeBuilder::RenderOpDefTableFields(std::vector<std
            {{"label_switch", ast_.InitList({TaskCodeBuilderUtil::RenderOpArgDesc(ast_, build_data_.ordered_args),
                                             static_cast<int64_t>(header_.op_index), build_data_.branch_max,
                                             build_data_.stream_id})}})});
+  return SUCCESS;
+}
+
+Status LabelSwitchByIndexTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def,
+                                                            const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                                                            om2::TaskRunParam &task_run_param) {
+  GE_CHECK_NOTNULL(&rts_param);
+  const auto label_switch = task_def.label_switch_by_index();
+  const uint32_t op_index = label_switch.op_index();
+  GELOGI("[OM2] Begin to calculate args, op_index is: %u", op_index);
+  GE_CHECK_NOTNULL(op_desc);
+  GELOGI("[OM2] Calc opType[%s] args size. Node name is [%s]", op_desc->GetType().c_str(), op_desc->GetName().c_str());
+  const size_t input_size = op_desc->GetInputsSize();
+  std::vector<uint64_t> mem_types;
+  const auto input_data_addrs = om2::ModelUtils::GetInputAddrsValue(rts_param, op_desc, mem_types);
+  if ((input_data_addrs.size() != kLabelSwitchIndexNum) || (input_size != kLabelSwitchIndexNum)) {
+    REPORT_INNER_ERR_MSG("E19999", "[OM2] Op:%s, input_data_addrs.size():%zu or input size:%zu != %u, check invalid",
+                         op_desc->GetName().c_str(), input_data_addrs.size(), input_size, STREAM_SWITCH_INPUT_NUM);
+    GELOGE(FAILED, "[OM2][Check][Param] Op:%s, input_data_addrs.size():%zu, input size:%zu != %u.",
+           op_desc->GetName().c_str(), input_data_addrs.size(), input_size, STREAM_SWITCH_INPUT_NUM);
+    return FAILED;
+  }
+
+  task_run_param.parsed_input_addrs.push_back({input_data_addrs[0U], mem_types[0U], true, {0}});
+  GELOGD("[OM2] parse task param, input_data_addrs %llu, mem_types %llu", input_data_addrs[0U], mem_types[0U]);
+  return SUCCESS;
+}
+
+Status LabelSwitchByIndexTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                               std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                               const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  (void)logical_mem_allocations;
+  (void)args;
+  (void)iow_addrs;
   return SUCCESS;
 }
 

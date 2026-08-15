@@ -102,6 +102,7 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
                  interface_handler.BuildAicpuSessionInfoStruct(),
                  interface_handler.BuildArgsInfoStruct(),
                  interface_handler.BuildTfAiCpuExInfoStruct(),
+                 interface_handler.BuildArgsRefreshInfoStruct(),
                  ast_.StablePart(StablePartId::kScopeGuard, StablePartPlacement::kNamespace),
                  interface_handler.BuildOm2ArgsTableClass(),
                  ast_.StablePart(StablePartId::kOpDefStructs, StablePartPlacement::kNamespace),

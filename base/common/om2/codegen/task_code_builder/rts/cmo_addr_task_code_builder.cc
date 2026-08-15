@@ -10,6 +10,7 @@
 
 #include "cmo_addr_task_code_builder.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 
 #include <cinttypes>
 
@@ -28,7 +29,7 @@ constexpr char_t const *kAttrAddrOffset = "offset";
 
 namespace ge {
 void CmoAddrTaskCodeBuilder::AppendOrderedArgValue(const AddrSemantic &semantic, uint64_t current_host_offset) {
-  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(semantic.compile_state_io_addr_offset), current_host_offset});
     GELOGI("[OM2]append addr offset map: compile offset[%lu], args info offset[%lu]",
@@ -290,6 +291,101 @@ Status CmoAddrTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std:
                                         build_data_.cmo_op_code, build_data_.stream_id, build_data_.args_table_idx,
                                         build_data_.io_offset,
                                         static_cast<uint32_t>(build_data_.custom_value_args.size()), cv_init})}})});
+  return SUCCESS;
+}
+
+Status CmoAddrTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                                 OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  GE_CHECK_NOTNULL(&rts_param);
+  op_desc_ = op_desc;
+  GE_CHECK_NOTNULL(op_desc_);
+  auto format_str = task_def.cmo_addr_task().args_format();
+  if (format_str.empty()) {
+    const GeTensorDesc &tensor_desc = op_desc_->GetInputDesc(0U);
+    int64_t num_cnt = tensor_desc.GetShape().IsScalar() ? 1 : tensor_desc.GetShape().GetShapeSize();
+    int64_t shape_len = GetSizeInBytes(num_cnt, tensor_desc.GetDataType());
+    GE_ASSERT_TRUE(shape_len > 0);
+    int64_t offset{0};
+    (void)AttrUtils::GetInt(op_desc_, kAttrAddrOffset, offset);
+    if ((offset < 0) || (offset >= shape_len)) {
+      REPORT_INNER_ERR_MSG("E19999", "[OM2]The offset %" PRId64 " should be within the range of [0, %" PRId64 ").",
+                           offset, shape_len);
+      GELOGE(ge::PARAM_INVALID, "[OM2]The offset [%" PRId64 "] should be within the range of [0, %" PRId64 ").", offset,
+             shape_len);
+      return ge::PARAM_INVALID;
+    }
+    shape_len -= offset;
+
+    uint32_t max_size{0U};
+    (void)AttrUtils::GetInt(op_desc_, kAttrMaxSize, max_size);
+    if (max_size == 0) {
+      max_size = kMaxPrefetchLen;
+    }
+    uint32_t len_inner = std::min(static_cast<uint32_t>(shape_len), max_size);
+    format_str = "{}{.32b}{#.32b" + std::to_string(len_inner) + "}{i_instance0*}{}";
+    GELOGI("Generating format_str for op: %s, shape_len: %" PRId64 ", offset: %" PRId64
+           ", max_size: %u, len_inner: %u, format_str: %s",
+           op_desc_->GetName().c_str(), shape_len, offset, max_size, len_inner, format_str.c_str());
+  }
+  GE_ASSERT_GRAPH_SUCCESS(ArgsFormatDesc::FromString(format_, op_desc_, format_str));
+  GELOGI("[OM2]op:%s, args format: %s", op_desc_->GetName().c_str(), format_str.c_str());
+
+  GE_ASSERT_GRAPH_SUCCESS(format_.GetArgsSize(op_desc_, format_args_size_));
+
+  std::vector<uint64_t> mem_type;
+  std::vector<uint64_t> input_addrs = om2::ModelUtils::GetInputAddrsValue(rts_param, op_desc_, mem_type);
+  GE_ASSERT_TRUE(input_addrs.size() == 1UL, "[OM2]Input_addr size [%zu] is invalid, op: %s", input_addrs.size(),
+                 op_desc_->GetNamePtr());
+  GE_ASSERT_TRUE(mem_type.size() == 1UL, "[OM2]Input_addr size [%zu] is invalid, op: %s", mem_type.size(),
+                 op_desc_->GetNamePtr());
+  args_size_ = format_args_size_ + kAlignment;
+  task_run_param.parsed_input_addrs.push_back({input_addrs[0UL], mem_type[0UL], true, {0}});
+  GELOGI("[OM2] args size:%" PRIu64 ", args placement:%d", args_size_, args_placement_);
+  task_run_param.args_descs.push_back({static_cast<int64_t>(args_size_), args_placement_});
+  GELOGI("[OM2] CmoAddrTaskInfo::ParseTaskRunParam success, op: %s", op_desc_->GetNamePtr());
+  return SUCCESS;
+}
+
+Status CmoAddrTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                    std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                    const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  GE_CHECK_NOTNULL(op_desc_);
+
+  const uint64_t args_base = args[static_cast<size_t>(args_placement_)].dev_addr;
+  GE_ASSERT_TRUE((args_base != 0UL), "[OM2][Check][Param] Op:%s, args_placement:%d, dev addr is nullptr.",
+                 op_desc_->GetNamePtr(), args_placement_);
+  const uint64_t align_addr = ((args_base / kAlignment) + 1U) * kAlignment;
+  const size_t align_offset = static_cast<size_t>(align_addr - args_base);
+
+  GE_ASSERT(static_cast<size_t>(args[static_cast<size_t>(args_placement_)].len) >= args_size_);
+  io_addrs_.clear();
+  io_addr_mem_types_.clear();
+  size_t io_offset = 0;
+  bool io_encountered = false;
+  for (const auto &iter : format_) {
+    if ((iter.addr_type == AddrType::INPUT_INSTANCE) && !io_encountered) {
+      GELOGI("[OM2]align_offset: %zu, io_offset: %zu", align_offset, io_offset);
+      io_align_offset_ = align_offset + io_offset;
+      io_encountered = true;
+    }
+    if (iter.addr_type == AddrType::INPUT_INSTANCE) {
+      GE_ASSERT_TRUE(static_cast<size_t>(iter.ir_idx) < iow_addrs.input_logic_addrs.size());
+      uint64_t base_addr = iow_addrs.input_logic_addrs[iter.ir_idx].logic_addr;
+      io_addrs_.push_back(base_addr);
+      io_addr_mem_types_.push_back(iow_addrs.input_logic_addrs[iter.ir_idx].memory_type);
+    }
+    GE_ASSERT_SUCCESS(ArgsFormatDesc::GetArgSize(op_desc_, iter, io_offset));
+  }
+  GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, io_addrs_, io_addr_mem_types_,
+                                                {op_desc_->GetName(), op_desc_->GetType()}),
+                    "[OM2]args io addrs updater init failed.");
+  return SUCCESS;
+}
+
+Status CmoAddrTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  args_io_addrs_updater_.GenArgsRefreshInfos(infos, static_cast<uint64_t>(io_align_offset_), args_placement_);
+  GELOGI("[OM2]CmoAddrTaskInfo::GetTaskArgsRefreshInfos success.");
   return SUCCESS;
 }
 

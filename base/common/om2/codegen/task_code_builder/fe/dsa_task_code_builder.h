@@ -46,6 +46,11 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
 
  public:
   using TaskCodeBuilder::TaskCodeBuilder;
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
+  Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -85,6 +90,12 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
 
   // HBM args table entry (for IO refresh)
   std::optional<ArgsTableEntrySemantic> hbm_entry_;
+
+  bool support_refresh_{false};
+  std::vector<uint64_t> input_data_addrs_;
+  std::vector<uint64_t> output_data_addrs_;
+  std::vector<uint64_t> workspace_data_addrs_;
+  int64_t hbm_args_len_{0};
 };
 }  // namespace ge
 

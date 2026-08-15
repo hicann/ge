@@ -14,6 +14,7 @@
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
 #include "graph/args_format_desc.h"
 #include "graph/utils/args_format_desc_utils.h"
+#include "common/om2/codegen/task_args_manager/om2_task_args_io_addrs_updater.h"
 
 namespace ge {
 struct MemcpyAddrBuildData {
@@ -31,6 +32,11 @@ class MemcpyAddrAsyncTaskCodeBuilder : public TaskCodeBuilder {
  public:
   using TaskCodeBuilder::TaskCodeBuilder;
   std::string GetFuncName() const override;
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
+  Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -58,6 +64,13 @@ class MemcpyAddrAsyncTaskCodeBuilder : public TaskCodeBuilder {
   std::string args_format_str_;
 
   ArgsTableEntrySemantic entry_;
+
+  OpDescPtr op_desc_{nullptr};
+  ArgsFormatDesc format_;
+  size_t args_size_{0U};
+  om2::ArgsPlacement pls_{om2::ArgsPlacement::kArgsPlacementHbm};
+  om2::ArgsIoAddrsUpdater args_io_addrs_updater_;
+  size_t aligned_io_offset_{0U};
 };
 }  // namespace ge
 

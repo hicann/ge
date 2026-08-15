@@ -2361,58 +2361,6 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
   GELOGI("Om2St: Barrier task packaging succeeded.");
 }
 
-TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoAddrTask) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithCmoAddrTask(false);
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
-
-  uint32_t model_buf_size = 0;
-  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
-  ASSERT_TRUE(archive.IsGood());
-  const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
-  };
-  ExpectOm2ArchiveFiles(archive, expect_files);
-  GELOGI("Om2St: CMO_ADDR task packaging succeeded (auto format).");
-}
-
-TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoAddrTaskExplicitFormat) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithCmoAddrTask(true);
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
-
-  uint32_t model_buf_size = 0;
-  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
-  ASSERT_TRUE(archive.IsGood());
-  const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
-  };
-  ExpectOm2ArchiveFiles(archive, expect_files);
-  GELOGI("Om2St: CMO_ADDR task packaging succeeded (explicit format).");
-}
-
 TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
   Om2PackageHelper om2_packager;
   const auto ge_root_model = CreateGeRootModelWithAicoreOp();

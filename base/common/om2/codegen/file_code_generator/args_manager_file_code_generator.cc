@@ -13,44 +13,97 @@
 namespace ge {
 ArgsManagerFileCodeGenerator::ArgsManagerFileCodeGenerator(AstBuildContext &ast)
     : CodeGeneratorBase(ast),
-      args_size_(ast_.Var("int64_t", "args_size_")),
+      args_sizes_(ast_.Var("std::array<int64_t,  static_cast<size_t>(4)>", "args_sizes_")),
       args_info_(ast_.Var("std::vector<ArgsInfo>", "args_info_")),
       host_args_(ast_.Var("std::vector<uint8_t>", "host_args_")),
       dev_args_(ast_.Var("void *", "dev_args_")),
-      iow_args_addrs_(ast_.Var("std::vector<std::vector<void *>>", "iow_args_addrs_")) {}
+      input_index_to_allocation_ids_(ast_.Var("std::vector<uint32_t>", "input_index_to_allocation_ids_")),
+      output_index_to_allocation_ids_(ast_.Var("std::vector<uint32_t>", "output_index_to_allocation_ids_")),
+      allocation_ids_to_model_args_refresh_infos_addr_all_(ast_.Var(
+          "std::vector<std::vector<ArgsRefreshInfo>>", "allocation_ids_to_model_args_refresh_infos_addr_all_")) {}
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildInitMethod(const Om2CodegenModel &codegen_model) {
+  std::vector<Arg> args_size_items;
+  args_size_items.reserve(codegen_model.args_table.model_args_semantic.size());
+  std::vector<Arg> args_size_temp_items;
+  for (const auto &model_arg : codegen_model.args_table.model_args_semantic) {
+    args_size_temp_items.push_back(model_arg.len);
+  }
+  args_size_items.push_back(args_size_temp_items);
+
   std::vector<Arg> args_info_items;
   args_info_items.reserve(codegen_model.args_table.entries.size());
   for (const auto &entry : codegen_model.args_table.entries) {
-    args_info_items.push_back({GetHostArgAddr(entry.host_offset), GetDevArgAddr(entry.host_offset), entry.args_size});
+    args_info_items.push_back(
+        {GetHostArgAddr(entry.host_offset, 0), GetDevArgAddr(entry.host_offset, 0), entry.args_size});
   }
 
-  std::vector<Arg> refresh_group_items;
-  refresh_group_items.reserve(codegen_model.args_table.host_args_offsets.size());
-  for (const auto &group : codegen_model.args_table.host_args_offsets) {
-    std::vector<Arg> host_offsets;
-    host_offsets.reserve(group.size());
-    for (const uint64_t host_offset : group) {
-      (void)host_offsets.push_back(GetHostArgAddr(host_offset));
+  std::vector<Arg> input_index_to_allocation_ids_items;
+  for (const auto &entry : codegen_model.args_table.input_index_to_allocation_ids) {
+    input_index_to_allocation_ids_items.push_back(entry);
+  }
+
+  std::vector<Arg> output_index_to_allocation_ids_items;
+  for (const auto &entry : codegen_model.args_table.output_index_to_allocation_ids) {
+    output_index_to_allocation_ids_items.push_back(entry);
+  }
+
+  std::vector<Arg> allocation_ids_to_model_args_refresh_infos_items;
+  for (const auto &entry : codegen_model.args_table.allocation_ids_to_model_args_refresh_infos_addr_all_semantic) {
+    std::vector<Arg> temp_items;
+    temp_items.reserve(entry.size());
+    for (const auto &entry2 : entry) {
+      temp_items.push_back({entry2.base_args_offset, entry2.offset, static_cast<int32_t>(entry2.placement)});
     }
-    (void)refresh_group_items.push_back(host_offsets);
+    allocation_ids_to_model_args_refresh_infos_items.push_back(temp_items);
   }
 
-  return ast_.DefineMethod("Om2ArgsTable", "Init", {}, "aclError",
-                           {
-                               ast_.Assign(args_size_, codegen_model.args_table.total_host_args_len),
-                               host_args_.Clear(),
-                               host_args_.Resize(args_size_),
-                               ChkStatus(AclrtMalloc(dev_args_.Addr(), args_size_, "ACL_MEM_MALLOC_HUGE_FIRST")),
-                               ast_.Assign(args_info_, args_info_items),
-                               ast_.Assign(iow_args_addrs_, refresh_group_items),
-                               ast_.Return("ACL_SUCCESS"),
-                           });
+  auto i = ast_.Var("size_t", "i");
+
+  return ast_.DefineMethod(
+      "Om2ArgsTable", "Init", {}, "aclError",
+      {
+          ast_.Assign(args_sizes_, args_size_items),
+          ast_.For(
+              ast_.VarDecl(i, 0), i < args_sizes_.Size(), ast_.PostInc(i),
+              {
+                  ast_.If(args_sizes_[i] > 0,
+                          {
+                              host_args_[i].Clear(),
+                              host_args_[i].Resize(args_sizes_[i]),
+                              ChkStatus(AclrtMalloc(dev_args_[i].Addr(), args_sizes_[i], "ACL_MEM_MALLOC_HUGE_FIRST")),
+                          }),
+              }),
+          ast_.Assign(args_info_, args_info_items),
+
+          input_index_to_allocation_ids_.Clear(),
+          input_index_to_allocation_ids_.Resize(codegen_model.args_table.input_index_to_allocation_ids.size()),
+          ast_.Assign(input_index_to_allocation_ids_, input_index_to_allocation_ids_items),
+
+          output_index_to_allocation_ids_.Clear(),
+          output_index_to_allocation_ids_.Resize(codegen_model.args_table.output_index_to_allocation_ids.size()),
+          ast_.Assign(output_index_to_allocation_ids_, output_index_to_allocation_ids_items),
+
+          allocation_ids_to_model_args_refresh_infos_addr_all_.Clear(),
+          allocation_ids_to_model_args_refresh_infos_addr_all_.Resize(
+              codegen_model.args_table.allocation_ids_to_model_args_refresh_infos_addr_all_semantic.size()),
+          ast_.Assign(allocation_ids_to_model_args_refresh_infos_addr_all_,
+                      allocation_ids_to_model_args_refresh_infos_items),
+          //
+          ast_.Return("ACL_SUCCESS"),
+      });
 }
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildDestructor() {
-  return ast_.DefineMethod("Om2ArgsTable", "~Om2ArgsTable", {}, "", {});
+  auto i = ast_.Var("size_t", "i");
+  return ast_.DefineMethod("Om2ArgsTable", "~Om2ArgsTable", {}, "",
+                           {
+                               ast_.For(ast_.VarDecl(i, 0), i < args_sizes_.Size(), ast_.PostInc(i),
+                                        {
+                                            ast_.If(dev_args_[i] != nullptr, {AclrtFree(dev_args_[i])}),
+                                        }),
+
+                           });
 }
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildGetArgsInfoMethod() {
@@ -64,51 +117,87 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildGetArgsInfoMethod() {
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildGetDevArgAddrMethod() {
   auto offset = ast_.Var("size_t", "offset");
-  return ast_.DefineMethod("Om2ArgsTable", "GetDevArgAddr", {offset}, "void *",
+  auto args_type = ast_.Var("int32_t", "args_type");
+  return ast_.DefineMethod("Om2ArgsTable", "GetDevArgAddr", {offset, args_type}, "void *",
                            {
-                               ast_.If(offset >= args_size_, {ast_.Return(nullptr)}),
-                               ast_.Return(GetAddr(dev_args_, offset)),
+                               ast_.If(offset >= args_sizes_[args_type], {ast_.Return(nullptr)}),
+                               ast_.Return(GetAddr(dev_args_[args_type], offset)),
                            });
 }
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildGetHostArgAddrMethod() {
   auto offset = ast_.Var("size_t", "offset");
-  return ast_.DefineMethod("Om2ArgsTable", "GetHostArgAddr", {offset}, "void *",
+  auto args_type = ast_.Var("int32_t", "args_type");
+  return ast_.DefineMethod("Om2ArgsTable", "GetHostArgAddr", {offset, args_type}, "void *",
                            {
-                               ast_.If(offset >= args_size_, {ast_.Return(nullptr)}),
-                               ast_.Return(GetAddr(host_args_.Data(), offset)),
+                               ast_.If(offset >= args_sizes_[args_type], {ast_.Return(nullptr)}),
+                               ast_.Return(GetAddr(host_args_[args_type].Data(), offset)),
                            });
 }
 
 MethodDef *ArgsManagerFileCodeGenerator::BuildUpdateHostArgsMethod() {
+  auto type = ast_.Var("int32_t", "type");
   auto index = ast_.Var("size_t", "index");
   auto addr = ast_.Var("const uintptr_t", "addr");
   auto host_addr = ast_.Var("void *", "host_addr");
-  return ast_.DefineMethod("Om2ArgsTable", "UpdateHostArgs", {index, addr}, "aclError",
-                           {
-                               ast_.If(index >= iow_args_addrs_.Size(), {ast_.Return("ACL_ERROR_FAILURE")}),
-                               ast_.RangeFor(host_addr, iow_args_addrs_.At(index),
-                                             {
-                                                 BodyItem(ast_.Memcpy(host_addr, addr.Addr(), ast_.Sizeof(addr))),
-                                             }),
-                               ast_.Return("ACL_SUCCESS"),
-                           });
-}
 
-MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod() {
+  auto allocation_id = ast_.Var("int32_t", "allocation_id");
+  auto infos = ast_.Var("const auto&", "infos");
+  auto info = ast_.Var("const auto&", "info");
+  auto base_ptr = ast_.Var("const uint8_t*", "base_ptr");
+  auto target_addr = ast_.Var("const uint8_t*", "target_addr");
+
   return ast_.DefineMethod(
-      "Om2ArgsTable", "CopyArgsToDevice", {}, "aclError",
+      "Om2ArgsTable", "UpdateHostArgs", {type, index, addr}, "aclError",
       {
-          ChkStatus(AclrtMemcpy(dev_args_, args_size_, host_args_.Data(), args_size_, "ACL_MEMCPY_HOST_TO_DEVICE")),
+          ast_.If(
+              type == 0,
+              {
+                  ast_.VarDecl(allocation_id, input_index_to_allocation_ids_.At(index)),
+                  ast_.VarDecl(infos, allocation_ids_to_model_args_refresh_infos_addr_all_.At(allocation_id)),
+                  ast_.VarDecl(base_ptr, ast_.ReinterpretCast("const uint8_t*", addr)),
+                  ast_.RangeFor(info, infos,
+                                {
+                                    BodyItem(ast_.VarDecl(host_addr, GetAddr(host_args_[info.Attr("args_type")].Data(),
+                                                                             info.Attr("args_offset")))),
+                                    BodyItem(ast_.VarDecl(target_addr, base_ptr + info.Attr("offset"))),
+                                    BodyItem(MemcpyS(host_addr, ast_.Sizeof(target_addr), target_addr.Addr(),
+                                                     ast_.Sizeof(target_addr))),
+                                }),
+              }),
+          ast_.If(
+              type == 1,
+              {
+                  ast_.VarDecl(allocation_id, output_index_to_allocation_ids_.At(index)),
+                  ast_.VarDecl(infos, allocation_ids_to_model_args_refresh_infos_addr_all_.At(allocation_id)),
+                  ast_.VarDecl(base_ptr, ast_.ReinterpretCast("const uint8_t*", addr)),
+                  ast_.RangeFor(info, infos,
+                                {
+                                    BodyItem(ast_.VarDecl(host_addr, GetAddr(host_args_[info.Attr("args_type")].Data(),
+                                                                             info.Attr("args_offset")))),
+                                    BodyItem(ast_.VarDecl(target_addr, base_ptr + info.Attr("offset"))),
+                                    BodyItem(MemcpyS(host_addr, ast_.Sizeof(target_addr), target_addr.Addr(),
+                                                     ast_.Sizeof(target_addr))),
+                                }),
+              }),
           ast_.Return("ACL_SUCCESS"),
       });
 }
 
-ExprRef ArgsManagerFileCodeGenerator::GetHostArgAddr(Arg offset) {
-  return ast_.Call("GetHostArgAddr", {offset});
+MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod() {
+  return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice", {}, "aclError",
+                           {
+                               ChkStatus(AclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].Data(), args_sizes_[0],
+                                                     "ACL_MEMCPY_HOST_TO_DEVICE")),
+                               ast_.Return("ACL_SUCCESS"),
+                           });
 }
 
-ExprRef ArgsManagerFileCodeGenerator::GetDevArgAddr(Arg offset) {
-  return ast_.Call("GetDevArgAddr", {offset});
+ExprRef ArgsManagerFileCodeGenerator::GetHostArgAddr(Arg offset, Arg args_type) {
+  return ast_.Call("GetHostArgAddr", {offset, args_type});
+}
+
+ExprRef ArgsManagerFileCodeGenerator::GetDevArgAddr(Arg offset, Arg args_type) {
+  return ast_.Call("GetDevArgAddr", {offset, args_type});
 }
 }  // namespace ge

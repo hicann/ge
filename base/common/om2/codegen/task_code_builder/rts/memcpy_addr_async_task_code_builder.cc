@@ -15,6 +15,7 @@
 
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 
 namespace {
 constexpr uint64_t kAlignment = 64U;
@@ -22,7 +23,7 @@ constexpr uint64_t kAlignment = 64U;
 
 namespace ge {
 void MemcpyAddrAsyncTaskCodeBuilder::AppendOrderedArgValue(const AddrSemantic &semantic, uint64_t current_host_offset) {
-  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(semantic.compile_state_io_addr_offset), current_host_offset});
     GELOGI("[OM2]append addr offset map: compile offset[%lu], args info offset[%lu]",
@@ -309,6 +310,72 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderCustomValueWriteback(std::vector<Bo
                   std::initializer_list<BodyItem>{
                       ast_.Assign(ast_.Deref(ast_.ReinterpretCast("uint64_t *", ast_.Var("", "host_base"))),
                                   ast_.Var("", "cv").Attr("value"))})}));
+  return SUCCESS;
+}
+
+Status MemcpyAddrAsyncTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def,
+                                                         const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                                                         om2::TaskRunParam &task_run_param) {
+  const auto &memcpy_async = task_def.memcpy_async();
+  op_desc_ = op_desc;
+  GE_ASSERT_NOTNULL(op_desc_);
+  const auto &format_str =
+      !memcpy_async.args_format().empty() ? memcpy_async.args_format() : "{}{}{i_instance0*}{o_instance0*}";
+  GE_ASSERT_GRAPH_SUCCESS(ArgsFormatDesc::FromString(format_, op_desc_, format_str));
+  GELOGD("args format: %s", format_str.c_str());
+  GE_ASSERT_GRAPH_SUCCESS(format_.GetArgsSize(op_desc_, args_size_));
+  uint8_t *src = nullptr;
+  uint8_t *dst = nullptr;
+  uint64_t src_mem_type = om2::IowMemoryType::kFixMemType;
+  uint64_t dst_mem_type = om2::IowMemoryType::kFixMemType;
+  GE_ASSERT_SUCCESS(om2::ModelUtils::GetRtAddress(rts_param, memcpy_async.src(), src, src_mem_type));
+  GE_ASSERT_SUCCESS(om2::ModelUtils::GetRtAddress(rts_param, memcpy_async.dst(), dst, dst_mem_type));
+
+  task_run_param.parsed_input_addrs.push_back({PtrToValue(src), src_mem_type, true, {0U}});
+  task_run_param.parsed_output_addrs.push_back({PtrToValue(dst), dst_mem_type, true, {0U}});
+  task_run_param.args_descs.push_back({static_cast<int64_t>(args_size_ + kAlignment), pls_});
+  return SUCCESS;
+}
+
+Status MemcpyAddrAsyncTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                            std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                            const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  GE_ASSERT_TRUE(!iow_addrs.input_logic_addrs.empty(), "[OM2]Op:%s, empty input", op_desc_->GetName().c_str());
+  GE_ASSERT_TRUE(!iow_addrs.output_logic_addrs.empty(), "[OM2]Op:%s, empty output", op_desc_->GetName().c_str());
+
+  const auto &arg = args[static_cast<size_t>(pls_)];
+  size_t align_offset = (arg.dev_addr + kAlignment - 1) / kAlignment * kAlignment - arg.dev_addr;
+  std::vector<uint64_t> io_addrs;
+  std::vector<uint64_t> io_addr_mem_types;
+  size_t io_offset = 0;
+  bool io_encountered = false;
+  for (const auto &iter : format_) {
+    if ((iter.addr_type == AddrType::INPUT_INSTANCE || iter.addr_type == AddrType::OUTPUT_INSTANCE) &&
+        !io_encountered) {
+      GELOGI("[OM2]align_offset: %zu, io_offset: %zu", align_offset, io_offset);
+      aligned_io_offset_ = align_offset + io_offset;
+      io_encountered = true;
+    }
+    if (iter.addr_type == AddrType::INPUT_INSTANCE) {
+      GE_ASSERT_TRUE(static_cast<size_t>(iter.ir_idx) < iow_addrs.input_logic_addrs.size());
+      io_addrs.push_back(iow_addrs.input_logic_addrs[iter.ir_idx].logic_addr);
+      io_addr_mem_types.push_back(iow_addrs.input_logic_addrs[iter.ir_idx].memory_type);
+    } else if (iter.addr_type == AddrType::OUTPUT_INSTANCE) {
+      GE_ASSERT_TRUE(static_cast<size_t>(iter.ir_idx) < iow_addrs.output_logic_addrs.size());
+      io_addrs.push_back(iow_addrs.output_logic_addrs[iter.ir_idx].logic_addr);
+      io_addr_mem_types.push_back(iow_addrs.output_logic_addrs[iter.ir_idx].memory_type);
+    }
+    GE_ASSERT_SUCCESS(ArgsFormatDesc::GetArgSize(op_desc_, iter, io_offset));
+  }
+  GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, io_addrs, io_addr_mem_types,
+                                                {op_desc_->GetName(), op_desc_->GetType()}),
+                    "[OM2]args io addrs updater init failed.");
+  return SUCCESS;
+}
+
+Status MemcpyAddrAsyncTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  args_io_addrs_updater_.GenArgsRefreshInfos(infos, aligned_io_offset_, pls_);
   return SUCCESS;
 }
 

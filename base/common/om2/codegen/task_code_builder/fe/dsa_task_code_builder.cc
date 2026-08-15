@@ -16,6 +16,7 @@
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "common/ge_common/ge_types.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 
 namespace ge {
 namespace {
@@ -101,13 +102,13 @@ Status DSATaskCodeBuilder::InitHbmArgsTable(TaskSemanticContributeContext &conte
   *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(hbm_entry_->args_size));
 
   for (auto &addr : input_addrs_) {
-    if (addr.memory_app == om2::MemoryAppType::kModelIo) {
+    if (addr.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
       (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset), hbm_entry_->host_offset});
     }
   }
   for (auto &addr : output_addrs_) {
-    if (addr.memory_app == om2::MemoryAppType::kModelIo) {
+    if (addr.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
       (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset), hbm_entry_->host_offset});
     }
@@ -487,6 +488,60 @@ std::string DSATaskCodeBuilder::GetFuncName() const {
 int64_t DSATaskCodeBuilder::ParseOpIndex(const domi::TaskDef &task_def) {
   const domi::DSATaskDef &dsa_task = task_def.dsa_task();
   return static_cast<int64_t>(dsa_task.op_index());
+}
+Status DSATaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                             OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  (void)task_def;
+  GE_CHECK_NOTNULL(op_desc);
+  support_refresh_ = true;
+  std::vector<uint64_t> input_addr_mem_types;
+  input_data_addrs_ = om2::ModelUtils::GetInputDataAddrsValue(rts_param, op_desc, input_addr_mem_types);
+  GE_ASSERT_TRUE((input_data_addrs_.size() >= kDSAInputAddrSize), "[OM2]Node %s input addr size %zu is wrong",
+                 op_desc->GetName().c_str(), input_data_addrs_.size());
+  std::vector<uint64_t> output_addr_mem_types;
+  output_data_addrs_ = om2::ModelUtils::GetOutputDataAddrsValue(rts_param, op_desc, output_addr_mem_types);
+  GE_ASSERT_TRUE((output_data_addrs_.size() == kDSAOutputAddrSize), "[OM2]Node %s output addr size %zu is wrong",
+                 op_desc->GetName().c_str(), output_data_addrs_.size());
+  std::vector<uint64_t> wkspace_addr_mem_types;
+  workspace_data_addrs_ =
+      om2::ModelUtils::ModelUtils::GetWorkspaceDataAddrsValue(rts_param, op_desc, wkspace_addr_mem_types);
+  GE_ASSERT_TRUE((!workspace_data_addrs_.empty()), "[OM2]Node %s workspace addr size %zu is wrong",
+                 op_desc->GetName().c_str(), workspace_data_addrs_.size());
+  for (size_t i = 0U; i < input_data_addrs_.size(); i++) {
+    task_run_param.parsed_input_addrs.push_back({input_data_addrs_[i], input_addr_mem_types[i], support_refresh_, {0}});
+  }
+  for (size_t i = 0U; i < output_data_addrs_.size(); i++) {
+    task_run_param.parsed_output_addrs.push_back(
+        {output_data_addrs_[i], output_addr_mem_types[i], support_refresh_, {0}});
+  }
+  for (size_t i = 0U; i < workspace_data_addrs_.size(); i++) {
+    task_run_param.parsed_workspace_addrs.push_back(
+        {workspace_data_addrs_[i], wkspace_addr_mem_types[i], support_refresh_, {0}});
+  }
+  const auto workspace_size = om2::ModelUtils::GetWorkspaceSize(op_desc);
+  GE_CHECK_GE(workspace_size.size(), workspace_data_addrs_.size());
+  if (support_refresh_) {
+    hbm_args_len_ =
+        static_cast<int64_t>(MemSizeAlign(static_cast<size_t>(workspace_size[workspace_data_addrs_.size() - 1U]),
+                                          static_cast<uint32_t>(sizeof(uint64_t)))) +
+        static_cast<int64_t>(sizeof(uint64_t) * (input_data_addrs_.size() + output_data_addrs_.size()));
+    task_run_param.args_descs.push_back({hbm_args_len_, om2::ArgsPlacement::kArgsPlacementHbm});
+  }
+  return SUCCESS;
+}
+
+Status DSATaskCodeBuilder::Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  (void)logical_mem_allocations;
+  (void)args;
+  (void)iow_addrs;
+  return SUCCESS;
+}
+
+Status DSATaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  (void)infos;
+  return SUCCESS;
 }
 
 REGISTER_TASK_CODE_BUILDER(MODEL_TASK_DSA, DSATaskCodeBuilder);

@@ -12,6 +12,7 @@
 #define AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_BUILDER_RTS_CMO_ADDR_TASK_CODE_BUILDER_H_
 
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
+#include "common/om2/codegen/task_args_manager/om2_task_args_io_addrs_updater.h"
 #include "graph/args_format_desc.h"
 
 namespace ge {
@@ -30,6 +31,11 @@ class CmoAddrTaskCodeBuilder : public TaskCodeBuilder {
  public:
   using TaskCodeBuilder::TaskCodeBuilder;
   std::string GetFuncName() const override;
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
+  Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -56,6 +62,18 @@ class CmoAddrTaskCodeBuilder : public TaskCodeBuilder {
 
   std::vector<size_t> arg_sizes_;
   std::optional<ArgsTableEntrySemantic> entry_;
+
+  OpDescPtr op_desc_;
+  ArgsFormatDesc format_;
+  size_t format_args_size_{0UL};
+  size_t args_size_{0UL};
+  om2::ArgsPlacement args_placement_{om2::ArgsPlacement::kArgsPlacementHbm};
+  void *args_{nullptr};
+  void *host_args_{nullptr};
+  std::vector<uint64_t> io_addrs_;
+  std::vector<uint64_t> io_addr_mem_types_;
+  size_t io_align_offset_{0UL};
+  om2::ArgsIoAddrsUpdater args_io_addrs_updater_;
 };
 }  // namespace ge
 

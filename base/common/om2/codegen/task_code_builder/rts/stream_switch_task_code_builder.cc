@@ -10,7 +10,7 @@
 
 #include "stream_switch_task_code_builder.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
-
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "graph/debug/ge_attr_define.h"
@@ -112,6 +112,43 @@ Status StreamSwitchTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair
            {{"stream_switch", ast_.InitList({TaskCodeBuilderUtil::RenderOpArgDesc(ast_, build_data_.ordered_args),
                                              build_data_.true_stream_id, build_data_.stream_id, build_data_.cond,
                                              build_data_.data_type})}})});
+  return SUCCESS;
+}
+
+Status StreamSwitchTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                                      OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  GE_CHECK_NOTNULL(&rts_param);
+  const auto &stream_switch_def = task_def.stream_switch();
+  const uint32_t op_index = stream_switch_def.op_index();
+  GELOGI("[OM2] Begin to calculate args, op_index is: %u", op_index);
+  GE_CHECK_NOTNULL(op_desc);
+  op_desc_ = op_desc;
+  GELOGI("[OM2] Calc opType[%s] args size. Node name is [%s]", op_desc->GetType().c_str(), op_desc->GetName().c_str());
+  const size_t input_size = op_desc->GetInputsSize();
+  std::vector<uint64_t> mem_types;
+  const auto input_data_addrs = om2::ModelUtils::GetInputAddrsValue(rts_param, op_desc, mem_types);
+  if ((input_data_addrs.size() != STREAM_SWITCH_INPUT_NUM) || (input_size != STREAM_SWITCH_INPUT_NUM)) {
+    REPORT_INNER_ERR_MSG("E19999", "[OM2] Op:%s, input_data_addrs.size():%zu or input size:%zu != %u, check invalid",
+                         op_desc->GetName().c_str(), input_data_addrs.size(), input_size, STREAM_SWITCH_INPUT_NUM);
+    GELOGE(FAILED, "[OM2][Check][Param] Op:%s, input_data_addrs.size():%zu, input size:%zu != %u.",
+           op_desc->GetName().c_str(), input_data_addrs.size(), input_size, STREAM_SWITCH_INPUT_NUM);
+    return FAILED;
+  }
+
+  task_run_param.parsed_input_addrs.push_back({input_data_addrs[0U], mem_types[0U], true, {0}});
+  task_run_param.parsed_input_addrs.push_back({input_data_addrs[1U], mem_types[1U], true, {0}});
+  GELOGD("[OM2]parse task param, input_addrs[0] %llu, mem_types[0] %llu, input_addrs[1] %llu, mem_types[1] %llu",
+         input_data_addrs[0U], mem_types[0U], input_data_addrs[1U], mem_types[1U]);
+  return SUCCESS;
+}
+
+Status StreamSwitchTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                         std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                         const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  (void)logical_mem_allocations;
+  (void)args;
+  (void)iow_addrs;
   return SUCCESS;
 }
 
