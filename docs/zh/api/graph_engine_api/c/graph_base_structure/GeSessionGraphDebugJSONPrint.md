@@ -1,5 +1,9 @@
 # GeSessionGraphDebugJSONPrint
 
+## 产品支持情况
+
+请参见[Session接口产品支持情况](../../cpp/ge/Session/overview.md)。
+
 ## 头文件/库文件
 
 - 头文件：\#include <ge/ge\_api.h\>

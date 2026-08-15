@@ -128,7 +128,9 @@ batch\_size即每次模型推理处理的图片数，对于每次推理图片数
 
 用户可以在模型构建时，设置ND格式下动态维度的档位。适用于执行推理时，每次处理任意维度的场景。
 
+<!-- npu="IPV350" id5 -->
 **IPV350不支持动态维度特性。**
+<!-- end id5 -->
 
 #### 使用方法
 
@@ -285,4 +287,4 @@ Atlas 200I/500 A2 推理产品不支持该特性。
 
 ### 使用注意事项
 
-如果模型编译时通过该参数设置了动态输入的shape范围，使用应用工程进行模型推理时，需在模型执行aclmdlExecute接口之前，调用aclmdlSetDatasetTensorDesc接口，用于设置真实的输入Tensor描述信息（输入shape范围）；模型执行之后，调用aclmdlGetDatasetTensorDesc接口获取模型动态输出的Tensor描述信息；再进一步调用aclTensorDesc下的操作接口获取输出Tensor数据占用的内存大小、Tensor的Format信息、Tensor的维度信息等。
+如果模型编译时通过该参数设置了动态输入的shape范围，使用应用工程进行模型推理时，需在模型执行[aclmdlExecute](../../../api/graph_engine_api/c/acl/aclmdlExecute.md)接口之前，调用[aclmdlSetDatasetTensorDesc](../../../api/graph_engine_api/c/acl/aclmdlSetDatasetTensorDesc.md)接口，用于设置真实的输入Tensor描述信息（输入shape范围）；模型执行之后，调用[aclmdlGetDatasetTensorDesc](../../../api/graph_engine_api/c/acl/aclmdlGetDatasetTensorDesc.md)接口获取模型动态输出的Tensor描述信息；再进一步调用[aclTensorDesc](../../../api/graph_engine_api/c/acl/aclTensorDesc.md)下的操作接口获取输出Tensor数据占用的内存大小、Tensor的Format信息、Tensor的维度信息等。

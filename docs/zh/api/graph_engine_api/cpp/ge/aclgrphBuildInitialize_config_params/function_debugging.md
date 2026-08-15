@@ -46,15 +46,16 @@
 - 3：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹中**生成**\*.o（算子二进制文件）和\*.json文件（算子描述文件），分析算子问题时可参考。
 - 4：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）、TBE指令映射文件（算子cce文件\*.cce）和UB融合计算描述文件（\{$kernel\_name\}\_compute.json），可在分析算子问题时进行问题复现、精度比对时使用。
 
+    <!-- npu="950" id5 -->
     Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件和UB融合计算描述文件。
+    <!-- end id5 -->
 
 > [!NOTE]说明
 >
 >- 若OP\_DEBUG\_LEVEL配置为0，同时配置了OP\_DEBUG\_CONFIG参数，该场景下在当前执行路径**会保留**算子编译目录kernel\_meta。
 >- 若OP\_DEBUG\_LEVEL配置为0，同时设置了NPU\_COLLECT\_PATH环境变量，则会**始终保留**编译目录kernel\_meta；若设置了ASCEND\_WORK\_PATH环境变量，则保留在该环境变量指定路径下，若无ASCEND\_WORK\_PATH环境变量，则保留在当前执行路径。
 >- 训练执行时，建议配置为0或3。如果需要进行问题定位，再选择调试开关选项1和2，是因为加入了调试功能会导致网络性能下降。
->- 配置为2（即开启ccec编译选项）时，会导致算子Kernel（\*.o文件）大小增大。动态Shape场景下，由于算子编译时会遍历可能的Shape场景，因此可能会导致算子Kernel文件过大而无法进行编译，此种场景下，建议不要配置ccec编译选项。
-> 由于算子Kernel文件过大而无法编译的报错日志示例如下：
+>- 配置为2（即开启ccec编译选项）时，会导致算子Kernel（\*.o文件）大小增大。动态Shape场景下，由于算子编译时会遍历可能的Shape场景，因此可能会导致算子Kernel文件过大而无法进行编译，此种场景下，建议不要配置ccec编译选项。由于算子Kernel文件过大而无法编译的报错日志示例如下：
 >
 >   ```text
 >   message:link error ld.lld: error: InputSection too large for range extension thunk ./kernel_meta_xxxxx.o

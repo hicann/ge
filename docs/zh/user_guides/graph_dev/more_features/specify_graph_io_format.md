@@ -14,6 +14,8 @@
 
 用户创建Graph实例后，对Data节点的输出TensorDesc，或模型输出的TensorDesc调用SetStorageFormat接口，设置运行时格式，调用SetExpandDimsRule接口，设置补维规则，然后在Graph中设置输入算子、输出算子，完成Graph构建。
 
+SetStorageFormat接口和SetExpandDimsRule接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)》。
+
 **使用约束：**
 
 - 设置Graph输入的内部格式，当前仅支持Data节点和RefData节点，其他类型节点暂不支持。
