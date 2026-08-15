@@ -156,6 +156,15 @@ add_library(autofuse SHARED
    ${AUTOFUSE_SOURCES}
 )
 add_dependencies(autofuse ge_autofuse_metadef_graph_protos_obj_af)
+
+# Coverage-only hook for the ApplyAdamD three-variant std::visit. It is
+# force-included only in the UT build and does not alter production sources.
+set_source_files_properties(
+    ${CODE_ROOT_DIR}/autofuse/lowering/op_lowering_impl/lowering_impl.cpp
+    PROPERTIES COMPILE_OPTIONS
+    "-include${CMAKE_CURRENT_SOURCE_DIR}/ut/autofuse/apply_adamd_variant_coverage_hook.h"
+)
+
 target_compile_definitions(autofuse PRIVATE
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
         google=ascend_private

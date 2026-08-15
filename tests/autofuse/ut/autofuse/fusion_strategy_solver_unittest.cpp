@@ -28,10 +28,14 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "post_process/asc_backend_post_processor.h"
 #include "lowering/op_helper/lower_concat_helper.h"
+#include "lowering/op_helper/lower_split_helper.h"
+#include "can_fuse/strategy/concat_fusion_strategy.h"
 #include "can_fuse/autofuse_graph_manager.h"
 #include "op_creator_register.h"
 #include "all_ops_cpp.h"
 #include "esb_graph.h"
+#include "graph/ascendc_ir/utils/asc_graph_utils.h"
+#include "graph/utils/graph_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -239,7 +243,7 @@ class UtestFusionStrategySolver : public testing::Test {
   }
   static std::shared_ptr<ge::AscGraph> CreatSplitDoubleOutPutsAscGraph(ge::AscGraph &graph,
                                                                        const std::vector<int64_t> &split_dims,
-                                                                       size_t split_dim) {
+                                                                       size_t split_dim, bool non_store_peer = false) {
     auto ONE = Symbol(1);
     const Expression A = graph.CreateSizeVar("A");
     const Expression B = graph.CreateSizeVar("B");
@@ -288,6 +292,15 @@ class UtestFusionStrategySolver : public testing::Test {
     *split.y[0].axis = {a.id, b.id, c.id, d.id, e.id};
     *split.y[0].repeats = output_dim_sizes[0];
     *split.y[0].strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    if (non_store_peer) {
+      af::ascir_op::Add add((graph.GetName() + "_non_store_peer").c_str());
+      add.x1 = split.y[0];
+      add.x2 = split.y[0];
+      add.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+      *add.y.axis = {a.id, b.id, c.id, d.id, e.id};
+      *add.y.repeats = output_dim_sizes[0];
+      *add.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    }
     af::ascir_op::Store x_store((graph.GetName() + "_store0").c_str());
     x_store.x = split.y[0];
     x_store.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
@@ -5905,6 +5918,210 @@ TEST_F(UtestFusionStrategySolver, Reduce_Can_Not_Fuse_With_Elementwise_Has_Scala
   EXPECT_EQ(fusion_strategy_solver.Fuse(graph), SUCCESS);
   const auto post_nodes_size = graph->GetAllNodesSize();
   EXPECT_EQ(pre_nodes_size - 1, post_nodes_size);
+}
+
+TEST_F(UtestFusionStrategySolver, LowerSplitHelperNeedLiftingCoversSplitCases) {
+  const auto create_split_backend = [&](const size_t split_dim, const size_t output_num, const std::string &name,
+                                        const bool use_non_split_origin, const bool same_shape = false,
+                                        const bool constant_tail = false, const bool non_store_peer = false) {
+    ge::AscGraph split_graph_builder(name.c_str());
+    const auto split_graph = CreatSplitDoubleOutPutsAscGraph(split_graph_builder, {3, 3}, split_dim, non_store_peer);
+    EXPECT_NE(split_graph, nullptr);
+    if (split_graph == nullptr) {
+      return NodePtr();
+    }
+
+    auto op_desc = OP_CFG(kAscBackendType)
+                       .TensorDesc(FORMAT_ND, DT_FLOAT, {6, 1, 1, 1, 1})
+                       .InCnt(1)
+                       .OutCnt(1)
+                       .InNames({"x"})
+                       .OutNames({"y"})
+                       .Build(name);
+    if (output_num > 1U) {
+      EXPECT_EQ(op_desc->AddOutputDescForward("y", static_cast<uint32_t>(output_num - 1U)), GRAPH_SUCCESS);
+      if (op_desc->GetOutputsSize() != output_num) {
+        return NodePtr();
+      }
+    }
+    auto graph = std::make_shared<ComputeGraph>(name);
+    auto backend_node = graph->AddNode(op_desc);
+    EXPECT_NE(backend_node, nullptr);
+    if (backend_node == nullptr) {
+      return NodePtr();
+    }
+
+    auto attr = GetOrCreateAutoFuseAttrs(op_desc);
+    EXPECT_NE(attr, nullptr);
+    if (attr == nullptr) {
+      return NodePtr();
+    }
+    attr->SetAscGraph(split_graph, loop::FuseType::kSplit);
+
+    AscNodePtr split_node;
+    AscNodePtr non_split_node;
+    for (const auto &node : split_graph->GetAllNodes()) {
+      if (AutofuseUtils::IsSplitType(node->GetType())) {
+        split_node = node;
+      } else if (non_split_node == nullptr) {
+        non_split_node = node;
+      }
+    }
+    EXPECT_NE(split_node, nullptr);
+    EXPECT_NE(non_split_node, nullptr);
+    if ((split_node == nullptr) || (non_split_node == nullptr)) {
+      return NodePtr();
+    }
+    if (same_shape) {
+      split_node->outputs[0].attr.repeats = split_node->inputs[0].attr.repeats;
+    }
+    if (constant_tail) {
+      for (size_t i = split_dim + 1U; i < split_node->inputs[0].attr.repeats.size(); ++i) {
+        split_node->inputs[0].attr.repeats[i] = Symbol(2);
+        split_node->outputs[0].attr.repeats[i] = Symbol(2);
+      }
+    }
+    attr->SetOriginNodes({(use_non_split_origin ? non_split_node : split_node).get()});
+    return backend_node;
+  };
+
+  auto first_dim_backend = create_split_backend(0U, 2U, "split_first_dim", false);
+  bool need_lifting = true;
+  LowerSplitHelper first_dim_helper(first_dim_backend);
+  EXPECT_EQ(first_dim_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+
+  auto other_dim_backend = create_split_backend(4U, 2U, "split_other_dim", false, false, false, true);
+  need_lifting = false;
+  LowerSplitHelper other_dim_helper(other_dim_backend);
+  EXPECT_EQ(other_dim_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+
+  auto same_shape_backend = create_split_backend(4U, 2U, "split_same_shape", false, true);
+  need_lifting = true;
+  LowerSplitHelper same_shape_helper(same_shape_backend);
+  EXPECT_EQ(same_shape_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+
+  auto constant_tail_backend = create_split_backend(0U, 2U, "split_constant_tail", false, false, true);
+  need_lifting = false;
+  LowerSplitHelper constant_tail_helper(constant_tail_backend);
+  EXPECT_EQ(constant_tail_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+
+  auto non_split_origin_backend = create_split_backend(4U, 2U, "split_non_split_origin", true);
+  need_lifting = true;
+  LowerSplitHelper non_split_origin_helper(non_split_origin_backend);
+  EXPECT_EQ(non_split_origin_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_FALSE(need_lifting);
+
+  auto output_limit_backend = create_split_backend(4U, 64U, "split_output_limit", false);
+  need_lifting = false;
+  LowerSplitHelper output_limit_helper(output_limit_backend);
+  EXPECT_EQ(output_limit_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+
+  auto lifting_backend = create_split_backend(4U, 128U, "split_lifting", false);
+  need_lifting = false;
+  LowerSplitHelper lifting_helper(lifting_backend);
+  EXPECT_EQ(lifting_helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+  EXPECT_TRUE(need_lifting);
+}
+
+TEST_F(UtestFusionStrategySolver, LowerSplitHelperRejectsGraphWithoutSplit) {
+  ge::AscGraph graph_builder("without_split");
+  const auto asc_graph = CreatAddAscGraph(graph_builder);
+  ASSERT_NE(asc_graph, nullptr);
+
+  auto op_desc = OP_CFG(kAscBackendType)
+                     .TensorDesc(FORMAT_ND, DT_FLOAT, {1, 1, 1, 1, 1})
+                     .InCnt(1)
+                     .OutCnt(1)
+                     .InNames({"x"})
+                     .OutNames({"y"})
+                     .Build("without_split_backend");
+  auto graph = std::make_shared<ComputeGraph>("without_split_graph");
+  auto backend_node = graph->AddNode(op_desc);
+  ASSERT_NE(backend_node, nullptr);
+
+  auto attr = GetOrCreateAutoFuseAttrs(op_desc);
+  ASSERT_NE(attr, nullptr);
+  attr->SetAscGraph(asc_graph, loop::FuseType::kSplit);
+  AscNodePtr origin_node;
+  for (const auto &node : asc_graph->GetAllNodes()) {
+    origin_node = node;
+    break;
+  }
+  ASSERT_NE(origin_node, nullptr);
+  attr->SetOriginNodes({origin_node.get()});
+
+  bool need_lifting = false;
+  LowerSplitHelper helper(backend_node);
+  EXPECT_NE(helper.NeedLifting(need_lifting), GRAPH_SUCCESS);
+}
+
+TEST_F(UtestFusionStrategySolver, ConcatStrategyCoversBackwardSplitLinkHelpers) {
+  ge::AscGraph split_graph_builder("strategy_split");
+  const auto split_graph = CreatSplitDoubleOutPutsAscGraph(split_graph_builder, {3, 3}, 4U);
+  ASSERT_NE(split_graph, nullptr);
+
+  ge::AscGraph concat_graph_builder("strategy_concat");
+  const auto concat_graph = CreatConcatAscGraph(concat_graph_builder, {3, 3}, 0U);
+  ASSERT_NE(concat_graph, nullptr);
+
+  auto graph = std::make_shared<ComputeGraph>("concat_strategy_graph");
+  auto split_desc = OP_CFG(kAscBackendType)
+                        .TensorDesc(FORMAT_ND, DT_FLOAT, {6, 1, 1, 1, 1})
+                        .InCnt(1)
+                        .OutCnt(2)
+                        .InNames({"x"})
+                        .OutNames({"y"})
+                        .Build("strategy_split_backend");
+  auto fused_desc = OP_CFG(kFusedAscBackendType)
+                        .TensorDesc(FORMAT_ND, DT_FLOAT, {6, 1, 1, 1, 1})
+                        .InCnt(1)
+                        .OutCnt(1)
+                        .InNames({"x"})
+                        .OutNames({"y"})
+                        .Build("strategy_fused_backend");
+  auto split_backend = graph->AddNode(split_desc);
+  auto fused_backend = graph->AddNode(fused_desc);
+  ASSERT_NE(split_backend, nullptr);
+  ASSERT_NE(fused_backend, nullptr);
+  ASSERT_EQ(GraphUtils::AddEdge(split_backend->GetOutDataAnchor(0), fused_backend->GetInDataAnchor(0)), GRAPH_SUCCESS);
+
+  auto split_attr = GetOrCreateAutoFuseAttrs(split_desc);
+  ASSERT_NE(split_attr, nullptr);
+  split_attr->SetAscGraph(split_graph, loop::FuseType::kSplit);
+  AscNodePtr split_origin;
+  for (const auto &node : split_graph->GetAllNodes()) {
+    if (AutofuseUtils::IsSplitType(node->GetType())) {
+      split_origin = node;
+      break;
+    }
+  }
+  ASSERT_NE(split_origin, nullptr);
+  split_attr->SetOriginNodes({split_origin.get()});
+
+  AscNodePtr concat_node;
+  for (const auto &node : concat_graph->GetAllNodes()) {
+    if (node->GetType() == kConcatType) {
+      concat_node = node;
+      break;
+    }
+  }
+  ASSERT_NE(concat_node, nullptr);
+  auto concat_attr = GetOrCreateAutoFuseAttrs(concat_node->GetOpDescBarePtr());
+  ASSERT_NE(concat_attr, nullptr);
+  concat_attr->SetFuseType(loop::FuseType::kConcat);
+
+  auto fused_attr = GetOrCreateAutoFuseAttrs(fused_desc);
+  ASSERT_NE(fused_attr, nullptr);
+  fused_attr->SetFuseType(loop::FuseType::kConcat);
+  fused_attr->SetFuseComputeGraph(af::AscGraphUtils::GetComputeGraph(*concat_graph));
+
+  ConcatFusionStrategy strategy;
+  EXPECT_TRUE(strategy.CanFuse(split_backend, fused_backend));
 }
 
 }  // namespace ge
