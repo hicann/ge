@@ -45,6 +45,29 @@ class TaskCodeBuilder : public Om2ModelClassGeneratorBase {
     return SUCCESS;
   }
 
+  virtual Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                                   om2::TaskRunParam &task_run_param) {
+    (void)task_def;
+    (void)rts_param;
+    (void)op_desc;
+    (void)task_run_param;
+    return SUCCESS;
+  }
+
+  virtual Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+                      const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) {
+    (void)task_def;
+    (void)logical_mem_allocations;
+    (void)args;
+    (void)iow_addrs;
+    return SUCCESS;
+  }
+
+  virtual Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+    (void)infos;
+    return SUCCESS;
+  }
+
   virtual std::string GetFuncName() const = 0;
 
   const std::string &GetOpName() const {

@@ -15,6 +15,8 @@
 
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
+#include "graph/debug/ge_attr_define.h"
 
 namespace ge {
 constexpr uint64_t ioAddrArgSize = 16;
@@ -69,19 +71,19 @@ void MemcpyAsyncTaskCodeBuilder::ResolveInternalIndex(TaskSemanticContributeCont
 
 void MemcpyAsyncTaskCodeBuilder::CheckIoRefresh(TaskSemanticContributeContext &context) {
   (void)context;
-  build_data_.io_refresh = (input_addr_node_.memory_app == om2::MemoryAppType::kModelIo) ||
-                           (output_addr_node_.memory_app == om2::MemoryAppType::kModelIo);
+  build_data_.io_refresh = (input_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) ||
+                           (output_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo);
 }
 
 void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContext &context) {
   const uint64_t addr_offset = *context.next_host_args_offset;
-  if (input_addr_node_.memory_app == om2::MemoryAppType::kModelIo) {
+  if (input_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(input_addr_node_.compile_state_io_addr_offset), addr_offset});
     GELOGI("[OM2]append input addr offset map: compile offset[%lu], args info offset[%lu]",
            static_cast<uint64_t>(input_addr_node_.compile_state_io_addr_offset), addr_offset);
   }
-  if (output_addr_node_.memory_app == om2::MemoryAppType::kModelIo) {
+  if (output_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     io_addr_refresh_records_.push_back(IoAddrRefreshRecord{
         static_cast<uint64_t>(output_addr_node_.compile_state_io_addr_offset), addr_offset + sizeof(uint64_t)});
     GELOGI("[OM2]append output addr offset map: compile offset[%lu], args info offset[%lu]",
@@ -227,6 +229,67 @@ Status MemcpyAsyncTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<
                             static_cast<int64_t>(build_data_.dst_max), static_cast<int64_t>(build_data_.count),
                             build_data_.kind, build_data_.stream_id, build_data_.args_table_idx,
                             build_data_.io_refresh})}})});
+  return SUCCESS;
+}
+
+Status MemcpyAsyncTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                                     OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  const domi::MemcpyAsyncDef &memcpy_async = task_def.memcpy_async();
+  GE_ASSERT_NOTNULL(op_desc);
+  op_desc_ = op_desc;
+  uint8_t *src = nullptr;
+  uint8_t *dst = nullptr;
+  const Status ret1 =
+      om2::ModelUtils::GetRtAddress(rts_param, static_cast<uintptr_t>(memcpy_async.src()), src, logical_src_mem_type_);
+  const Status ret2 =
+      om2::ModelUtils::GetRtAddress(rts_param, static_cast<uintptr_t>(memcpy_async.dst()), dst, logical_dst_mem_type_);
+  if ((ret1 != SUCCESS) || (ret2 != SUCCESS)) {
+    return PARAM_INVALID;
+  }
+  task_run_param.parsed_input_addrs.push_back({PtrToValue(src), logical_src_mem_type_, true, {0}});
+
+  // dst_ needs different address for different chips
+  std::vector<int64_t> memory_type_list;
+  (void)AttrUtils::GetListInt(op_desc_, ATTR_NAME_OUTPUT_MEM_TYPE_LIST, memory_type_list);
+  if ((!memory_type_list.empty()) && (memory_type_list[0U] == static_cast<int64_t>(RT_MEMORY_TS))) {
+    GELOGE(FAILED, "[OM2] Unsupported output_memory_type attr");
+    return FAILED;
+  }
+  task_run_param.parsed_output_addrs.push_back({PtrToValue(dst), logical_dst_mem_type_, true, {0}});
+
+  constexpr uint32_t args_size = static_cast<uint32_t>(sizeof(void *) * 2U);
+  task_run_param.args_descs.push_back({static_cast<int64_t>(args_size), pls_});
+  return SUCCESS;
+}
+
+Status MemcpyAsyncTaskCodeBuilder::SetIoAddrs(const om2::IowAddrs &iow_addrs) {
+  io_addrs_.emplace_back(ValueToPtr(iow_addrs.input_logic_addrs[0U].logic_addr));
+  io_addrs_.emplace_back(ValueToPtr(iow_addrs.output_logic_addrs[0U].logic_addr));
+  io_addr_mem_types_.emplace_back(iow_addrs.input_logic_addrs[0U].memory_type);
+  io_addr_mem_types_.emplace_back(iow_addrs.output_logic_addrs[0U].memory_type);
+  return SUCCESS;
+}
+
+Status MemcpyAsyncTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                        std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                        const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)args;
+  (void)task_def;
+  GE_ASSERT_TRUE((!(iow_addrs.input_logic_addrs.empty())), "[OM2][Check][Param] Op:%s, input logic addr list is empty.",
+                 op_desc_->GetName().c_str());
+
+  GE_ASSERT_TRUE((!(iow_addrs.output_logic_addrs.empty())),
+                 "[OM2][Check][Param] Op:%s, output logic addr list is empty.", op_desc_->GetName().c_str());
+
+  GE_CHK_STATUS_RET(SetIoAddrs(iow_addrs), "[OM2][Set][Addrs] failed, op:%s", op_desc_->GetName().c_str());
+  const auto addrs = VPtrToValue(io_addrs_);
+  GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, addrs, io_addr_mem_types_,
+                                                {op_desc_->GetName(), op_desc_->GetType()}));
+  return SUCCESS;
+}
+
+Status MemcpyAsyncTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  args_io_addrs_updater_.GenArgsRefreshInfos(infos, 0UL, pls_);
   return SUCCESS;
 }
 

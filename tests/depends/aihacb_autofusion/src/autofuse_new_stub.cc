@@ -19,6 +19,7 @@ std::unique_ptr<AutofuseBackendSpec> GetAutofuseBackendSpec() {
   auto instance = std::make_unique<AutofuseBackendSpec>();
   instance->concat_max_input_num = 0;
   instance->concat_alg = 0;
+  instance->slice_split_spec.enable_split_flatten = true;
   return instance;
 }
 }  // namespace ge

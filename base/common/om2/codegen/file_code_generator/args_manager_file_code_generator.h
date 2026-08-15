@@ -28,14 +28,18 @@ class ArgsManagerFileCodeGenerator : public CodeGeneratorBase {
   MethodDef *BuildCopyArgsToDeviceMethod();
 
  private:
-  ExprRef GetHostArgAddr(Arg offset);
-  ExprRef GetDevArgAddr(Arg offset);
+  ExprRef GetHostArgAddr(Arg offset, Arg args_type);
+  ExprRef GetDevArgAddr(Arg offset, Arg args_type);
 
-  VarRef args_size_;
+  VarRef args_sizes_;
   VarRef args_info_;
   VarRef host_args_;
   VarRef dev_args_;
-  VarRef iow_args_addrs_;
+
+  VarRef input_index_to_allocation_ids_;
+  VarRef output_index_to_allocation_ids_;
+  VarRef allocation_ids_to_model_args_refresh_infos_addr_all_;
+  //
 };
 }  // namespace ge
 

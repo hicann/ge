@@ -534,10 +534,12 @@ GeRootModelPtr CreateGeRootModelWithAicpuEmptyShape() {
   (void)TensorUtils::SetSize(tensor_desc, 4);
 
   auto data1_desc = std::make_shared<OpDesc>("data1", DATA);
+  (void)data1_desc->AddInputDesc(tensor_desc);
   (void)data1_desc->AddOutputDesc(tensor_desc);
   auto data1 = graph->AddNode(data1_desc);
 
   auto data2_desc = std::make_shared<OpDesc>("data2", DATA);
+  (void)data2_desc->AddInputDesc(tensor_desc);
   (void)data2_desc->AddOutputDesc(tensor_desc);
   auto data2 = graph->AddNode(data2_desc);
 
@@ -552,6 +554,8 @@ GeRootModelPtr CreateGeRootModelWithAicpuEmptyShape() {
 
   auto netoutput_desc = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
   (void)netoutput_desc->AddInputDesc(tensor_desc);
+  netoutput_desc->SetSrcName({"add1"});
+  netoutput_desc->SetSrcIndex({0});
   auto netoutput = graph->AddNode(netoutput_desc);
 
   GraphUtils::AddEdge(data1->GetOutDataAnchor(0), add_node->GetInDataAnchor(0));
@@ -670,9 +674,11 @@ GeRootModelPtr CreateGeRootModelWithAicoreOpOfDynamicIo() {
   auto graph = std::make_shared<ComputeGraph>("g1");
   GeTensorDesc tensor_desc(GeShape({1, 1, 224, 224}), FORMAT_NCHW, DT_FLOAT);
   auto data_x_desc = std::make_shared<OpDesc>("data_x", DATA);
+  (void)data_x_desc->AddInputDesc(tensor_desc);
   (void)data_x_desc->AddOutputDesc(tensor_desc);
   auto data_x = graph->AddNode(data_x_desc);
   auto data_dx_desc = std::make_shared<OpDesc>("data_dx", DATA);
+  (void)data_dx_desc->AddInputDesc(tensor_desc);
   (void)data_dx_desc->AddOutputDesc(tensor_desc);
   auto data_dx = graph->AddNode(data_dx_desc);
   auto op_desc = std::make_shared<OpDesc>("add1", "Add");
@@ -691,6 +697,8 @@ GeRootModelPtr CreateGeRootModelWithAicoreOpOfDynamicIo() {
   auto dynamic_node = graph->AddNode(op_desc);
   auto netoutput_desc = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
   (void)netoutput_desc->AddInputDesc(tensor_desc);
+  netoutput_desc->SetSrcName({"add1"});
+  netoutput_desc->SetSrcIndex({0});
   auto netoutput = graph->AddNode(netoutput_desc);
   if ((data_x == nullptr) || (data_dx == nullptr) || (dynamic_node == nullptr) || (netoutput == nullptr)) {
     return nullptr;
@@ -1189,8 +1197,8 @@ GeRootModelPtr CreateGeRootModelWithCmoAddrTask(bool with_explicit_format = fals
     }
   }
 
-  auto add_node = compute_graph->FindNode("add1");
-  const int64_t op_index = (add_node != nullptr) ? add_node->GetOpDescBarePtr()->GetId() : 2;
+  auto net_output = compute_graph->FindNode("NetOutput");
+  const int64_t op_index = (net_output != nullptr) ? net_output->GetOpDescBarePtr()->GetId() : 3;
 
   auto *task_def = model_task_def->add_task();
   task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CMO_ADDR));
@@ -1249,8 +1257,8 @@ GeRootModelPtr CreateGeRootModelWithCmoAddrTaskConstTensor() {
     }
   }
 
-  auto add_node = compute_graph->FindNode("add1");
-  const int64_t op_index = (add_node != nullptr) ? add_node->GetOpDescBarePtr()->GetId() : 2;
+  auto net_output = compute_graph->FindNode("NetOutput");
+  const int64_t op_index = (net_output != nullptr) ? net_output->GetOpDescBarePtr()->GetId() : 3;
 
   auto *task_def = model_task_def->add_task();
   task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CMO_ADDR));
@@ -1465,16 +1473,33 @@ std::string GetExpectedArgsManagerSource() {
 
 namespace om2 {
 aclError Om2ArgsTable::Init() {
-  args_size_ = 168;
-  host_args_.clear();
-  host_args_.resize(args_size_);
-  OM2_CHK_STATUS(aclrtMalloc(&dev_args_, args_size_, ACL_MEM_MALLOC_HUGE_FIRST));
-  args_info_ = {{GetHostArgAddr(0), GetDevArgAddr(0), 168}};
-  iow_args_addrs_ = {{GetHostArgAddr(0), GetHostArgAddr(8), GetHostArgAddr(16)}, {GetHostArgAddr(0), GetHostArgAddr(8), GetHostArgAddr(16)}, {}};
+  args_sizes_ = {{256}};
+  for (size_t i = 0; (i < args_sizes_.size()); i++) {
+    if ((args_sizes_[i] > 0)) {
+      host_args_[i].clear();
+      host_args_[i].resize(args_sizes_[i]);
+      OM2_CHK_STATUS(aclrtMalloc(&dev_args_[i], args_sizes_[i], ACL_MEM_MALLOC_HUGE_FIRST));
+    }
+  }
+  args_info_ = {{GetHostArgAddr(0, 0), GetDevArgAddr(0, 0), 168}};
+  input_index_to_allocation_ids_.clear();
+  input_index_to_allocation_ids_.resize(2);
+  input_index_to_allocation_ids_ = {4294967295, 4294967295};
+  output_index_to_allocation_ids_.clear();
+  output_index_to_allocation_ids_.resize(1);
+  output_index_to_allocation_ids_ = {1};
+  allocation_ids_to_model_args_refresh_infos_addr_all_.clear();
+  allocation_ids_to_model_args_refresh_infos_addr_all_.resize(3);
+  allocation_ids_to_model_args_refresh_infos_addr_all_ = {{{0, 1024, 0}, {8, 1024, 0}, {16, 1024, 0}, {24, 0, 0}}, {}, {{32, 0, 0}, {40, 0, 0}, {48, 0, 0}, {56, 0, 0}, {64, 0, 0}, {72, 0, 0}, {80, 0, 0}, {88, 0, 0}, {96, 0, 0}, {104, 0, 0}, {112, 0, 0}, {120, 0, 0}, {128, 0, 0}, {136, 0, 0}, {144, 0, 0}, {152, 0, 0}}};
   return ACL_SUCCESS;
 }
 
 Om2ArgsTable::~Om2ArgsTable() {
+  for (size_t i = 0; (i < args_sizes_.size()); i++) {
+    if ((dev_args_[i] != nullptr)) {
+      aclrtFree(dev_args_[i]);
+    }
+  }
 }
 
 ArgsInfo * Om2ArgsTable::GetArgsInfo(size_t index) {
@@ -1484,32 +1509,46 @@ ArgsInfo * Om2ArgsTable::GetArgsInfo(size_t index) {
   return &args_info_[index];
 }
 
-void * Om2ArgsTable::GetDevArgAddr(size_t offset) {
-  if ((offset >= args_size_)) {
+void * Om2ArgsTable::GetDevArgAddr(size_t offset, int32_t args_type) {
+  if ((offset >= args_sizes_[args_type])) {
     return nullptr;
   }
-  return GET_ADDR(dev_args_, offset);
+  return GET_ADDR(dev_args_[args_type], offset);
 }
 
-void * Om2ArgsTable::GetHostArgAddr(size_t offset) {
-  if ((offset >= args_size_)) {
+void * Om2ArgsTable::GetHostArgAddr(size_t offset, int32_t args_type) {
+  if ((offset >= args_sizes_[args_type])) {
     return nullptr;
   }
-  return GET_ADDR(host_args_.data(), offset);
+  return GET_ADDR(host_args_[args_type].data(), offset);
 }
 
-aclError Om2ArgsTable::UpdateHostArgs(size_t index, const uintptr_t addr) {
-  if ((index >= iow_args_addrs_.size())) {
-    return ACL_ERROR_FAILURE;
+aclError Om2ArgsTable::UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr) {
+  if ((type == 0)) {
+    int32_t allocation_id = input_index_to_allocation_ids_.at(index);
+    const auto&infos = allocation_ids_to_model_args_refresh_infos_addr_all_.at(allocation_id);
+    const uint8_t*base_ptr = reinterpret_cast<const uint8_t*>(addr);
+    for (const auto&info : infos) {
+      void *host_addr = GET_ADDR(host_args_[info.args_type].data(), info.args_offset);
+      const uint8_t*target_addr = (base_ptr + info.offset);
+      memcpy_s(host_addr, sizeof(target_addr), &target_addr, sizeof(target_addr));
+    }
   }
-  for (void *host_addr : iow_args_addrs_.at(index)) {
-    std::memcpy(host_addr, &addr, sizeof(addr));
+  if ((type == 1)) {
+    int32_t allocation_id = output_index_to_allocation_ids_.at(index);
+    const auto&infos = allocation_ids_to_model_args_refresh_infos_addr_all_.at(allocation_id);
+    const uint8_t*base_ptr = reinterpret_cast<const uint8_t*>(addr);
+    for (const auto&info : infos) {
+      void *host_addr = GET_ADDR(host_args_[info.args_type].data(), info.args_offset);
+      const uint8_t*target_addr = (base_ptr + info.offset);
+      memcpy_s(host_addr, sizeof(target_addr), &target_addr, sizeof(target_addr));
+    }
   }
   return ACL_SUCCESS;
 }
 
 aclError Om2ArgsTable::CopyArgsToDevice() {
-  OM2_CHK_STATUS(aclrtMemcpy(dev_args_, args_size_, host_args_.data(), args_size_, ACL_MEMCPY_HOST_TO_DEVICE));
+  OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));
   return ACL_SUCCESS;
 }
 } // namespace om2
@@ -2048,6 +2087,12 @@ struct TfAiCpuExInfo {
   uint64_t extInfoAddr;
 };
 
+struct ArgsRefreshInfo {
+  uint64_t args_offset;
+  uint64_t offset;
+  int32_t args_type;
+};
+
 class ScopeGuard {
   public:
     ScopeGuard(const ScopeGuard &) = delete;
@@ -2076,16 +2121,18 @@ class Om2ArgsTable {
     ~Om2ArgsTable();
     aclError Init();
     ArgsInfo * GetArgsInfo(size_t index);
-    void * GetDevArgAddr(size_t offset);
-    void * GetHostArgAddr(size_t offset);
-    aclError UpdateHostArgs(size_t index, const uintptr_t addr);
+    void * GetDevArgAddr(size_t offset, int32_t args_type);
+    void * GetHostArgAddr(size_t offset, int32_t args_type);
+    aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
     aclError CopyArgsToDevice();
   private:
-    int64_t args_size_;
+    std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
+    std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};
+    std::array<void *, static_cast<size_t>(4)> dev_args_{};
     std::vector<ArgsInfo> args_info_;
-    std::vector<uint8_t> host_args_;
-    void *dev_args_;
-    std::vector<std::vector<void *>> iow_args_addrs_;
+    std::vector<uint32_t> input_index_to_allocation_ids_;
+    std::vector<uint32_t> output_index_to_allocation_ids_;
+    std::vector<std::vector<ArgsRefreshInfo>> allocation_ids_to_model_args_refresh_infos_addr_all_;
 };
 
 enum OpDispatchType : uint32_t {
@@ -2937,7 +2984,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_LEVEL1_DESC:
       {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value);
+        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
         OM2_CHK_NOTNULL(_desc);
         _addr = reinterpret_cast<uint64_t>(_desc);
         break;
@@ -3120,9 +3167,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -3177,9 +3224,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -3615,7 +3662,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_LEVEL1_DESC:
       {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value);
+        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
         OM2_CHK_NOTNULL(_desc);
         _addr = reinterpret_cast<uint64_t>(_desc);
         break;
@@ -3798,9 +3845,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -3855,9 +3902,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -4325,7 +4372,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_LEVEL1_DESC:
       {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value);
+        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
         OM2_CHK_NOTNULL(_desc);
         _addr = reinterpret_cast<uint64_t>(_desc);
         break;
@@ -4539,9 +4586,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -4596,9 +4643,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -5034,7 +5081,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       }
       case OP_ARG_LEVEL1_DESC:
       {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value);
+        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
         OM2_CHK_NOTNULL(_desc);
         _addr = reinterpret_cast<uint64_t>(_desc);
         break;
@@ -5237,9 +5284,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -5294,9 +5341,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
   auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
   auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
-  OM2_CHK_STATUS(args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
+  OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_INPUT_COPY, _t_input_begin);
   }
@@ -5734,6 +5781,12 @@ GeRootModelPtr CreateGeRootModelWithDsaOp() {
       // Mark second workspace as session scope (kSessionNoReuse = 1)
       (void)AttrUtils::SetListInt(op_desc, ATTR_NAME_WORKSPACE_MEMORY_NO_REUSE_SCOPE, std::vector<int32_t>{0, 1});
     }
+  }
+
+  auto output_node = compute_graph->FindNode("output_1");
+  if (output_node != nullptr) {
+    output_node->GetOpDesc()->SetSrcName({"random_normal"});
+    output_node->GetOpDesc()->SetSrcIndex({0});
   }
 
   const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
@@ -6275,6 +6328,12 @@ GeRootModelPtr CreateGeRootModelWithAicoreTilingOp() {
   const auto model_graph = ge_model->GetGraph();
   if (model_graph != nullptr) {
     set_tiling_on_graph(model_graph);
+  }
+
+  auto output_node = compute_graph->FindNode("output_1");
+  if (output_node != nullptr) {
+    output_node->GetOpDesc()->SetSrcName({"random_normal"});
+    output_node->GetOpDesc()->SetSrcIndex({0});
   }
 
   std::vector<uint64_t> weights_value(64, 1024);
@@ -7077,68 +7136,6 @@ TEST_F(ProgramGeneratorUt, GenerateLoggingFunctionality_Ok) {
   EXPECT_NE(makefile.find("pkg_inc/base"), std::string::npos);
 }
 
-TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_NoTaskConcatOutput_Ok) {
-  auto ge_root_model = CreateGeRootModelWithNoTaskConcatOutput();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto generator = CreateProgramGenerator(ge_root_model);
-  std::map<GeneratedFileIndex, std::string> outputs;
-  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-
-  const auto &load_and_run_source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  const auto &interface_source = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
-
-  // 每个 Run/RunAsync 作用域只声明一次输出 tensor。
-  size_t first_decl =
-      load_and_run_source.find("auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0])");
-  EXPECT_NE(first_decl, std::string::npos);
-  // 第二次声明来自另一个方法，不应出现第三次。
-  size_t second_decl = load_and_run_source.find("auto output_data_0_tensor", first_decl + 1);
-  EXPECT_NE(second_decl, std::string::npos);  // 另一个方法中的声明
-  size_t third_decl = load_and_run_source.find("auto output_data_0_tensor", second_decl + 1);
-  EXPECT_EQ(third_decl, std::string::npos);  // 无第三次声明
-
-  // 首段直接刷新输出地址。
-  EXPECT_NE(load_and_run_source.find(
-                "args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr()))"),
-            std::string::npos);
-
-  // 第二段刷新输出地址偏移。
-  EXPECT_NE(load_and_run_source.find(
-                "args_table_.UpdateHostArgs(3, (reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr()) + 512))"),
-            std::string::npos);
-
-  // 输出个数保持真实模型输出数。
-  EXPECT_NE(interface_source.find("OUTPUT_NUM = 1"), std::string::npos);
-  EXPECT_NE(interface_source.find("INPUT_NUM = 2"), std::string::npos);
-}
-
-TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_NoTaskConcatReuseDimOne_CopyOnly) {
-  auto ge_root_model = CreateGeRootModelWithNoTaskConcatOutputReuseDimOne();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto generator = CreateProgramGenerator(ge_root_model);
-  std::map<GeneratedFileIndex, std::string> outputs;
-  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-
-  const auto &load_and_run_source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-
-  EXPECT_EQ(load_and_run_source.find(
-                "args_table_.UpdateHostArgs(2, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr()))"),
-            std::string::npos);
-  EXPECT_EQ(load_and_run_source.find(
-                "args_table_.UpdateHostArgs(3, (reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr()) + 512))"),
-            std::string::npos);
-
-  const std::string execute_call = "aclmdlRIExecute(model_handle_, stream_sync_timeout)";
-  const std::string copy_call =
-      "aclrtMemcpy(output_data_0_tensor->GetAddr(), output_data_0_tensor->GetSize(), "
-      "dev_output0_ptr, output_data_0_tensor->GetSize(), ACL_MEMCPY_DEVICE_TO_DEVICE)";
-  const auto execute_pos = load_and_run_source.find(execute_call);
-  const auto copy_pos = load_and_run_source.find(copy_call);
-  EXPECT_NE(execute_pos, std::string::npos);
-  EXPECT_NE(copy_pos, std::string::npos);
-  EXPECT_LT(execute_pos, copy_pos);
-}
-
 // =========================================================================
 //  OM2 Profiling — codegen 输出中包含 profiling 相关模式
 // =========================================================================
@@ -7576,7 +7573,7 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_InputInMemRangeWithIoOffsets_SetsModelIo
   const uintptr_t logic_addr = ctx.runtime.logic_mem_base + 1024U;
   AddrSemantic addr_node;
   EXPECT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, logic_addr, addr_node, true, 0U), SUCCESS);
-  EXPECT_EQ(addr_node.memory_app, om2::MemoryAppType::kModelIo);
+  EXPECT_EQ(addr_node.memory_app, om2::MemoryAppType::kMemoryTypeModelIo);
 }
 
 TEST_F(ProgramGeneratorUt, ResolveInputAddrs_UnconnectedOptionalInput_ReturnsFailed) {

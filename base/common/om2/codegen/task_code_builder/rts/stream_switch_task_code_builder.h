@@ -31,6 +31,10 @@ class StreamSwitchTaskCodeBuilder : public TaskCodeBuilder {
  public:
   using TaskCodeBuilder::TaskCodeBuilder;
   std::string GetFuncName() const override;
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -39,6 +43,7 @@ class StreamSwitchTaskCodeBuilder : public TaskCodeBuilder {
  private:
   StreamSwitchBuildData build_data_;
   std::vector<AddrSemantic> input_addr_nodes_;
+  OpDescPtr op_desc_;
 };
 }  // namespace ge
 

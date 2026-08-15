@@ -13,6 +13,7 @@
 
 #include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
+#include "common/om2/codegen/task_args_manager/om2_task_args_io_addrs_updater.h"
 
 namespace ge {
 struct KernelExBuildData {
@@ -34,6 +35,11 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   std::string GetFuncName() const override {
     return kDispatchFuncName;
   }
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
+  Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -62,6 +68,18 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   FunctionDef *RenderAssembleTfAicpuExWorkSpaceAddrInfo() const;
   FunctionDef *RenderAssembleTfAicpuExInputOutputAddrInfo() const;
   FunctionDef *RenderAssembleTfAicpuExExtInfo() const;
+  Status InitInputOutputAddr(const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs);
+
+  std::vector<void *> input_data_addrs_;
+  std::vector<void *> output_data_addrs_;
+  std::vector<uint64_t> input_addr_mem_types_;
+  std::vector<uint64_t> output_addr_mem_types_;
+  std::vector<void *> workspace_data_addrs_;
+  om2::ArgsIoAddrsUpdater args_io_addrs_updater_;
+  om2::ArgsPlacement pls_{om2::ArgsPlacement::kArgsPlacementHbm};
+  OpDescPtr op_desc_;
+  std::vector<uint64_t> io_addr_mem_types_;
+  std::vector<void *> io_addrs_;
 };
 
 }  // namespace ge

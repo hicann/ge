@@ -76,6 +76,14 @@ StructDecl *InterfaceFileCodeGenerator::BuildArgsInfoStruct() {
                                  });
 }
 
+StructDecl *InterfaceFileCodeGenerator::BuildArgsRefreshInfoStruct() {
+  return ast_.Struct("ArgsRefreshInfo", {
+                                            ast_.Field("uint64_t", "args_offset"),
+                                            ast_.Field("uint64_t", "offset"),
+                                            ast_.Field("int32_t", "args_type"),
+                                        });
+}
+
 ClassDecl *InterfaceFileCodeGenerator::BuildOm2ArgsTableClass() {
   std::vector<DeclNode *> items = {
       ast_.Public(),
@@ -83,17 +91,22 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ArgsTableClass() {
       ast_.DeclareMethod("~Om2ArgsTable", {}, ""),
       ast_.DeclareMethod("Init", {}, "aclError"),
       ast_.DeclareMethod("GetArgsInfo", {ast_.Var("size_t", "index")}, "ArgsInfo *"),
-      ast_.DeclareMethod("GetDevArgAddr", {ast_.Var("size_t", "offset")}, "void *"),
-      ast_.DeclareMethod("GetHostArgAddr", {ast_.Var("size_t", "offset")}, "void *"),
-      ast_.DeclareMethod("UpdateHostArgs", {ast_.Var("size_t", "index"), ast_.Var("const uintptr_t", "addr")},
-                         "aclError"),
+      ast_.DeclareMethod("GetDevArgAddr", {ast_.Var("size_t", "offset"), ast_.Var("int32_t", "args_type")}, "void *"),
+      ast_.DeclareMethod("GetHostArgAddr", {ast_.Var("size_t", "offset"), ast_.Var("int32_t", "args_type")}, "void *"),
+
+      ast_.DeclareMethod(
+          "UpdateHostArgs",
+          {ast_.Var("int32_t", "type"), ast_.Var("size_t", "index"), ast_.Var("const uintptr_t", "addr")}, "aclError"),
       ast_.DeclareMethod("CopyArgsToDevice", {}, "aclError"),
       ast_.Private(),
-      ast_.Field("int64_t", "args_size_"),
+      ast_.Field("std::array<int64_t,  static_cast<size_t>(4)>", "args_sizes_{}"),
+      ast_.Field("std::array<std::vector<uint8_t>, static_cast<size_t>(4)>", "host_args_{}"),
+      ast_.Field("std::array<void *, static_cast<size_t>(4)>", "dev_args_{}"),
       ast_.Field("std::vector<ArgsInfo>", "args_info_"),
-      ast_.Field("std::vector<uint8_t>", "host_args_"),
-      ast_.Field("void *", "dev_args_"),
-      ast_.Field("std::vector<std::vector<void *>>", "iow_args_addrs_"),
+      ast_.Field("std::vector<uint32_t>", "input_index_to_allocation_ids_"),
+      ast_.Field("std::vector<uint32_t>", "output_index_to_allocation_ids_"),
+      ast_.Field("std::vector<std::vector<ArgsRefreshInfo>>", "allocation_ids_to_model_args_refresh_infos_addr_all_"),
+      //
   };
   return ast_.Class("Om2ArgsTable", items);
 }

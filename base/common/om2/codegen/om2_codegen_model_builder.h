@@ -17,6 +17,8 @@
 #include "common/model/ge_model.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "task_args_manager/om2_model_adapter.h"
+#include "task_args_manager/om2_model_args_manager.h"
 
 namespace ge {
 struct InputModelIoItem {
@@ -59,6 +61,8 @@ class Om2CodegenModelBuilder {
   Status BuildTaskSemantics(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                             Om2CodegenModel &codegen_model);
   Status AggregateArgsTable(const std::vector<TaskCodeBuilderPtr> &task_builders, Om2CodegenModel &codegen_model) const;
+  Status GenerateArgsData(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
+                          Om2CodegenModel &codegen_model);
   Status BuildHostArgsOffsets(const std::multimap<uint64_t, uint64_t> &io_addr_offset_map,
                               Om2CodegenModel &codegen_model) const;
   Status CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
@@ -86,6 +90,7 @@ class Om2CodegenModelBuilder {
   std::unordered_map<int64_t, std::string> fileconst_output_offset_to_varname_;
   VarAddrRangeMap var_addr_ranges_;
   std::unordered_map<uint32_t, uint32_t> op_index_to_count_map_;
+  om2::ModelArgsManager args_manager_;
 };
 }  // namespace ge
 

@@ -21,6 +21,9 @@
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "register/op_tiling_registry.h"
 #include "common/op_tiling/tiling_dfx.h"
+#include "graph/node.h"
+#include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
+#include "common/om2/codegen/task_args_manager/om2_task_args_io_addrs_updater.h"
 
 namespace ge {
 using AicpuShapeAndType = aicpu::FWKAdapter::ShapeAndType;
@@ -53,6 +56,11 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   explicit KernelTaskCodeBuilder(AstBuildContext &ast) : TaskCodeBuilder(ast) {}
 
   // ── Public overrides & accessors ──
+  Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
+                           om2::TaskRunParam &task_run_param) override;
+  Status Init(const domi::TaskDef &task_def, std::vector<om2::MemAllocation> &logical_mem_allocations,
+              const om2::PisToArgs &args = {}, const om2::IowAddrs &iow_addrs = {{}, {}, {}}) override;
+  Status GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) override;
   Status Contribute(TaskSemanticContributeContext &context) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
   std::string GetFuncName() const override;
@@ -73,6 +81,14 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
     size_t level1_addr_cnt{0UL};
   };
 
+  struct CustomizedKernelInfo {
+    uint32_t kernel_def_args_size{0};
+    uint32_t input_addr_size{0};
+    uint32_t input_addr_offset{0};
+    uint32_t output_addr_size{0};
+    uint32_t output_addr_offset{0};
+    bool customized_aligned{false};
+  };
   // ── Build data assembly ──
   Status AssembleBuildData();
   Status CheckTaskSupport() const;
@@ -198,6 +214,27 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status GetKernelTaskMeta(const domi::TaskDef &task_def, domi::KernelContext &kernel_context, uint32_t &args_size,
                            uint32_t &kernel_type) const;
   std::string SerializeBytesToOctalString(const std::vector<uint8_t> &buffer) const;
+  Status ParseAicpuExtInfoHandler(const OpDescPtr &op_desc, const std::string &ext_info,
+                                  std::unique_ptr<om2::Om2AicpuExtInfoHandler> &ex_handle) const;
+  Status UpdateArgsSizeWithCustomized(const OpDescPtr &op_desc);
+  void UpdateIoAndWorkspaceAddrs(const om2::IowAddrs &iow_addrs);
+  Status InitKernel(const domi::TaskDef &task_def, const om2::PisToArgs &args);
+  Status InitKernelByContext(const domi::TaskDef &task_def, const domi::KernelContext &context,
+                             const om2::PisToArgs &args);
+  Status SetIoAddrs();
+  Status SetIoAddrsForCustomized();
+  Status AssembleIoByArgsFormat();
+  Status AppendInputOutputAddrByInstanceIndex(size_t ins_idx, bool is_input);
+  void AppendIoAddr(const uint64_t addr, const uint64_t addr_type);
+  Status AppendInputOutputAddr(size_t ir_idx, bool is_input);
+  Status AppendWorkspaceAddr(int32_t ir_idx);
+  Status AssembleShapeInfoAddrs(const std::vector<ArgDesc> &dynamic_args_desc,
+                                const std::vector<size_t> &level2_addr_idx);
+  Status InitTVMTask(const domi::KernelDef &kernel_def);
+  Status InitTVMContext(const domi::KernelContext &context);
+  Status InitAicpuTask(const OpDescPtr &op_desc, const domi::KernelDef &kernel_def);
+  Status InitKernelWithHandle(const domi::TaskDef &task_def, const om2::PisToArgs &args);
+  Status InitTVMTask(const domi::KernelDefWithHandle &kernel_def);
 
   // ── Member variables ──
   KernelBuildData build_data_;
@@ -214,6 +251,30 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   bool is_soft_sync_op_{false};
   bool is_separately_clean_task_{false};
   bool is_blocking_aicpu_op_{false};
+
+  ModelTaskType task_type_ = ModelTaskType::MODEL_TASK_KERNEL;
+  uint32_t args_size_{0U};
+  ccKernelType kernel_type_{ccKernelType::CCE_AI_CORE};
+  OpDescPtr op_desc_;
+  ArgsFormatInfo args_format_holder_;
+  std::vector<uint64_t> input_data_addrs_;
+  std::vector<uint64_t> input_mem_types_;
+  std::vector<uint64_t> output_data_addrs_;
+  std::vector<uint64_t> output_mem_types_;
+  std::vector<uint64_t> workspace_mem_types_;
+  std::vector<uint64_t> workspace_addrs_;
+  CustomizedKernelInfo customized_args_info_;
+  om2::ArgsPlacement args_placement_{om2::ArgsPlacement::kArgsPlacementHbm};
+  om2::ArgsIoAddrsUpdater args_io_addrs_updater_;
+  size_t io_addr_offset_{0U};
+  int64_t args_offset_from_pls_{0};
+  std::vector<uint64_t> io_addr_mem_types_;
+  std::vector<uint64_t> io_addrs_;
+  bool is_optional_input_placeholder_ = false;
+  OpDescPtr super_kernel_op_desc_;
+  bool is_addrs_folded_ = false;
+  std::map<uint64_t, uint64_t> cust_to_relevant_offset_;
+  void *args_{nullptr};
 };
 
 }  // namespace ge

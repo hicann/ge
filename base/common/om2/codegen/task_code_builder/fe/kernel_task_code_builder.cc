@@ -27,6 +27,8 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "common/op_tiling/op_tiling_rt2.h"
 #include "graph/utils/math_util.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
+#include "aicpu_task_struct.h"
 
 namespace ge {
 namespace {
@@ -44,6 +46,7 @@ constexpr uint32_t kUBAlignedLen = 32U;
 constexpr int32_t kSessionInfoOffset = 8;
 constexpr uint32_t kAicpuArgsExtInfoAddrOffset = 12U;
 constexpr uint32_t kAicpuArgsioAddrOffset = 20U;
+const std::string kOptionalInputPlaceholder = "optional_input_placeholder";
 
 void AppendShapeDesc(const ge::GeTensorDesc &tensor_desc, std::vector<int64_t> &shape_infos) {
   const auto &shape = tensor_desc.GetShape();
@@ -110,7 +113,7 @@ void KernelTaskCodeBuilder::AppendOrderedArgValue(const AddrSemantic &semantic) 
     GELOGE(FAILED, "[OM2] Args table entry is required before append ordered arg.");
     return;
   }
-  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     uint64_t current_offset = args_table_entry_->host_offset;
     for (const auto &ordered_arg : build_data_.semantic.ordered_arg_values) {
       current_offset += (ordered_arg.kind == AddrValueKind::kShapeInfoBuffer && ordered_arg.shape_info.has_value())
@@ -195,7 +198,7 @@ AicpuTaskData KernelTaskCodeBuilder::BuildAicpuTaskData() const {
 }
 
 Status KernelTaskCodeBuilder::AppendOrderedArgValueForCommon(const AddrSemantic &semantic, const uint64_t addr_offset) {
-  if (semantic.memory_app == om2::MemoryAppType::kModelIo) {
+  if (semantic.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
     io_addr_refresh_records_.push_back(
         IoAddrRefreshRecord{static_cast<uint64_t>(semantic.compile_state_io_addr_offset), addr_offset});
     GELOGI("[OM2]append input addr offset map: compile offset[%lu], args info offset[%lu]",
@@ -1785,7 +1788,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleWorkspaceArg(const VarRef &a,
 std::vector<BodyItem> KernelTaskCodeBuilder::HandleLevel1DescArg(const VarRef &a, const VarRef &ctx) {
   return {
       ast_.VarDecl(ast_.Var("void *", "_desc"),
-                   ctx.Attr("args_table").Attr("GetDevArgAddr")(a.Attr("data").Attr("custom_value"))),
+                   ctx.Attr("args_table").Attr("GetDevArgAddr")(a.Attr("data").Attr("custom_value"), 0)),
       ChkNotNull(ast_.Var("", "_desc")),
       ast_.Assign(ast_.Var("", "_addr"), ast_.ReinterpretCast("uint64_t", ast_.Var("", "_desc"))),
       ast_.Break(),
@@ -1954,6 +1957,542 @@ Arg KernelTaskCodeBuilder::RenderAicpuOpDefFields(const AicpuTaskData &data) {
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
   };
   return ast_.DesignatedInit({{"aicpu", ast_.DesignatedInit(aicpu_fields)}});
+}
+
+Status KernelTaskCodeBuilder::ParseAicpuExtInfoHandler(const OpDescPtr &op_desc, const string &ext_info,
+                                                       std::unique_ptr<om2::Om2AicpuExtInfoHandler> &ex_handle) const {
+  if (ext_info.empty()) {
+    return SUCCESS;
+  }
+  int32_t unknown_shape_type_val = 0;
+  (void)AttrUtils::GetInt(op_desc, ATTR_NAME_UNKNOWN_SHAPE_TYPE, unknown_shape_type_val);
+  const auto unknown_type = static_cast<UnknowShapeOpType>(unknown_shape_type_val);
+  const uint32_t num_inputs =
+      static_cast<uint32_t>(is_optional_input_placeholder_ ? op_desc->GetAllInputsSize() : op_desc->GetInputsSize());
+  const uint32_t num_outputs = static_cast<uint32_t>(op_desc->GetOutputsSize());
+
+  ex_handle = MakeUnique<om2::Om2AicpuExtInfoHandler>(op_desc->GetName(), num_inputs, num_outputs, unknown_type);
+  GE_CHECK_NOTNULL(ex_handle);
+  GE_CHK_STATUS_RET(ex_handle->Parse(ext_info), "[OM2][Parse][KernelExtInfo] failed, kernel_ext_info_size=%zu, op:%s.",
+                    ext_info.size(), op_desc_->GetName().c_str());
+  return SUCCESS;
+};
+
+Status KernelTaskCodeBuilder::UpdateArgsSizeWithCustomized(const OpDescPtr &op_desc) {
+  GE_ASSERT_NOTNULL(op_desc);
+  args_size_ = static_cast<uint32_t>(MemSizeAlign(static_cast<size_t>(args_size_)));
+  customized_args_info_.customized_aligned = true;
+
+  GE_ASSERT_TRUE(!ge::MulOverflow(om2::ModelUtils::GetInputDescs(op_desc).size(), kAddressLen,
+                                  customized_args_info_.input_addr_size));
+  customized_args_info_.input_addr_offset = args_size_;
+  GE_ASSERT_TRUE(!AddOverflow(args_size_, customized_args_info_.input_addr_size, args_size_));
+
+  GE_ASSERT_TRUE(!ge::MulOverflow(om2::ModelUtils::GetOutputDescs(op_desc).size(), kAddressLen,
+                                  customized_args_info_.output_addr_size));
+  customized_args_info_.output_addr_offset = args_size_;
+  GE_ASSERT_TRUE(!AddOverflow(args_size_, customized_args_info_.input_addr_size, args_size_));
+
+  std::stringstream ss;
+  ss << "customized_args_info: args/after_align:" << customized_args_info_.kernel_def_args_size << "/ " << args_size_
+     << ", is aligned: " << customized_args_info_.customized_aligned << ", input_addr_size/offset is "
+     << customized_args_info_.input_addr_size << " / " << customized_args_info_.input_addr_offset
+     << ", output_addr_size/offset is " << customized_args_info_.output_addr_size << " / "
+     << customized_args_info_.output_addr_offset;
+  GELOGD("[OM2]%s ", ss.str().c_str());
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                                OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  task_type_ = static_cast<ModelTaskType>(task_def.type());
+  GE_CHECK_NOTNULL(&rts_param);
+  domi::KernelContext context;
+  size_t extra_name_size = 0U;
+  if (Om2CodegenUtils::IsAllKernel(task_type_)) {
+    const domi::KernelDefWithHandle &kernel_def = task_def.kernel_with_handle();
+    args_size_ = static_cast<uint32_t>(kernel_def.args().size());
+    context = kernel_def.context();
+    kernel_type_ = static_cast<ccKernelType>(context.kernel_type());
+  } else {
+    const domi::KernelDef &kernel_def = task_def.kernel();
+    args_size_ = static_cast<uint32_t>(kernel_def.args().size());
+    context = kernel_def.context();
+    kernel_type_ = static_cast<ccKernelType>(context.kernel_type());
+    if (kernel_type_ == ccKernelType::AI_CPU_KFC) {
+      GELOGE(FAILED, "[OM2] Unsupported ai cpu kfc");
+      return FAILED;
+    }
+  }
+  GE_CHECK_NOTNULL(op_desc);
+  op_desc_ = op_desc;
+  super_kernel_op_desc_ = (op_desc_->GetType() == "SuperKernel") ? op_desc_ : nullptr;
+  if (super_kernel_op_desc_ != nullptr) {
+    GE_ASSERT_TRUE(!context.args_format().empty());
+    GELOGE(FAILED, "[OM2] Unsupported SuperKernel");
+    return FAILED;
+  }
+  (void)AttrUtils::GetBool(op_desc_, kOptionalInputPlaceholder, is_optional_input_placeholder_);
+  if (is_optional_input_placeholder_) {
+    GELOGE(FAILED, "[OM2] Unsupported optional_input_placeholder");
+    return FAILED;
+  }
+  if (!context.args_format().empty()) {
+    GE_ASSERT_SUCCESS(ArgsFormatDesc::Parse(op_desc_, context.args_format(), args_format_holder_.arg_descs),
+                      "[OM2]Formatted args [%s] parsed failed.", context.args_format().c_str());
+    GE_ASSERT_SUCCESS(ParseArgsFormat(op_desc_, args_format_holder_), "[OM2]ParseArgsFormat failed, op:[%s].",
+                      op_desc_->GetNamePtr());
+    const size_t format_args_size = GetArgsSizeByFormat(op_desc_, args_format_holder_) + extra_name_size;
+    args_size_ = std::max(args_size_, static_cast<uint32_t>(format_args_size));
+    if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL && kernel_type_ == ccKernelType::CUST_AI_CPU) {
+      GELOGE(FAILED, "[OM2] Unsupported preprocess kernel");
+      return FAILED;
+    }
+    GELOGI("[OM2]OP [%s] has formatted args_format:[%s], args size by format is [%" PRIu64 "], final size is [%u]",
+           op_desc_->GetNamePtr(), context.args_format().c_str(), format_args_size, args_size_);
+  }
+
+  const size_t extra_args_size = GetExtraArgsSize(op_desc_, kernel_type_, args_format_holder_);
+  GELOGD("[OM2]Op:[%s] args size from_task:[%u], extra_size:[%zu]", op_desc_->GetNamePtr(), args_size_,
+         extra_args_size);
+  GE_ASSERT_TRUE(!AddOverflow(args_size_, static_cast<uint32_t>(extra_args_size), args_size_));
+
+  input_data_addrs_ =
+      om2::ModelUtils::GetInputAddrsValue(rts_param, op_desc_, input_mem_types_, is_optional_input_placeholder_);
+  if (!context.args_format().empty()) {
+    output_data_addrs_ = om2::ModelUtils::GetOutputAddrsValue(rts_param, op_desc_, output_mem_types_, true);
+  } else {
+    output_data_addrs_ = om2::ModelUtils::GetOutputAddrsValue(rts_param, op_desc_, output_mem_types_);
+  }
+  workspace_addrs_ = om2::ModelUtils::GetWorkspaceDataAddrsValue(rts_param, op_desc_, workspace_mem_types_);
+  for (size_t i = 0UL; i < input_data_addrs_.size(); i++) {
+    task_run_param.parsed_input_addrs.push_back({input_data_addrs_[i], input_mem_types_[i], true, {0}});
+  }
+  for (size_t i = 0UL; i < output_data_addrs_.size(); i++) {
+    task_run_param.parsed_output_addrs.push_back({output_data_addrs_[i], output_mem_types_[i], true, {0}});
+  }
+  for (size_t i = 0UL; i < workspace_addrs_.size(); i++) {
+    task_run_param.parsed_workspace_addrs.push_back({workspace_addrs_[i], workspace_mem_types_[i], true, {0}});
+  }
+
+  size_t append_size = 0U;
+  if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU)) {
+    std::unique_ptr<om2::Om2AicpuExtInfoHandler> ex_handle = nullptr;
+    const auto &kernel_def = task_def.kernel();
+    const auto &ext_info = kernel_def.kernel_ext_info();
+    GE_ASSERT_SUCCESS(ParseAicpuExtInfoHandler(op_desc_, ext_info, ex_handle));
+    if ((ex_handle != nullptr) && (ex_handle->GetDeployTypeFlag() == static_cast<int32_t>(RT_KERNEL_HOST_ONLY))) {
+      args_placement_ = om2::ArgsPlacement::kArgsPlacementHostSvm;
+    }
+    append_size = sizeof(uintptr_t);  // 多申请8字节，用来做aicpuhead结构体的对齐
+  } else if (kernel_type_ == ccKernelType::CUSTOMIZED) {
+    customized_args_info_.kernel_def_args_size = args_size_;
+    GE_ASSERT_SUCCESS(UpdateArgsSizeWithCustomized(op_desc_));
+  }
+  task_run_param.args_descs.push_back(
+      {static_cast<int64_t>(MemSizeAlign(static_cast<size_t>(args_size_), static_cast<uint32_t>(sizeof(uintptr_t))) +
+                            append_size),
+       args_placement_});
+  return SUCCESS;
+}
+
+void KernelTaskCodeBuilder::UpdateIoAndWorkspaceAddrs(const om2::IowAddrs &iow_addrs) {
+  for (size_t i = 0UL; i < input_data_addrs_.size(); i++) {
+    input_data_addrs_[i] =
+        (iow_addrs.input_logic_addrs.empty()) ? input_data_addrs_[i] : iow_addrs.input_logic_addrs[i].logic_addr;
+    input_mem_types_[i] =
+        (iow_addrs.input_logic_addrs.empty()) ? input_mem_types_[i] : iow_addrs.input_logic_addrs[i].memory_type;
+  }
+
+  for (size_t i = 0UL; i < output_data_addrs_.size(); i++) {
+    output_data_addrs_[i] =
+        (iow_addrs.output_logic_addrs.empty()) ? output_data_addrs_[i] : iow_addrs.output_logic_addrs[i].logic_addr;
+    output_mem_types_[i] =
+        (iow_addrs.output_logic_addrs.empty()) ? output_mem_types_[i] : iow_addrs.output_logic_addrs[i].memory_type;
+  }
+
+  for (size_t i = 0UL; i < workspace_addrs_.size(); i++) {
+    workspace_addrs_[i] =
+        (iow_addrs.workspace_logic_addrs.empty()) ? workspace_addrs_[i] : iow_addrs.workspace_logic_addrs[i].logic_addr;
+    workspace_mem_types_[i] = (iow_addrs.workspace_logic_addrs.empty())
+                                  ? workspace_mem_types_[i]
+                                  : iow_addrs.workspace_logic_addrs[i].memory_type;
+  }
+}
+
+void KernelTaskCodeBuilder::AppendIoAddr(const uint64_t addr, const uint64_t addr_type) {
+  io_addrs_.push_back(addr);
+  io_addr_mem_types_.push_back(addr_type);
+}
+
+Status KernelTaskCodeBuilder::AppendInputOutputAddrByInstanceIndex(size_t ins_idx, bool is_input) {
+  if (is_input) {
+    GE_ASSERT_TRUE(ins_idx < input_data_addrs_.size(), "[OM2]Instance idx [%zu] is invalid, input_size:[%zu]", ins_idx,
+                   input_data_addrs_.size());
+    cust_to_relevant_offset_[ins_idx] = io_addrs_.size();
+    AppendIoAddr(input_data_addrs_[ins_idx], input_mem_types_[ins_idx]);
+  } else {
+    GE_ASSERT_TRUE(ins_idx < output_data_addrs_.size(), "[OM2]Instance idx [%zu] is invalid, output_size:[%zu]",
+                   ins_idx, output_data_addrs_.size());
+    cust_to_relevant_offset_[input_data_addrs_.size() + ins_idx] = io_addrs_.size();
+    AppendIoAddr(output_data_addrs_[ins_idx], output_mem_types_[ins_idx]);
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::AppendInputOutputAddr(size_t ir_idx, bool is_input) {
+  const std::map<size_t, std::pair<size_t, size_t>> &ir_2_range =
+      is_input ? args_format_holder_.ir_input_2_range : args_format_holder_.ir_output_2_range;
+  const auto iter = ir_2_range.find(ir_idx);
+  GE_ASSERT(iter != ir_2_range.end(), "[OM2]Ir idx [%zu] is not found, input flag %u.", ir_idx, is_input);
+  const auto &range_pair = iter->second;
+  if (is_input && range_pair.second == 0UL) {
+    AppendIoAddr(0UL, om2::IowMemoryType::kAbsoluteMemType);
+    return SUCCESS;
+  }
+  size_t begin_idx = range_pair.first;
+  std::vector<uint64_t> &addrs = is_input ? input_data_addrs_ : output_data_addrs_;
+  std::vector<uint64_t> &types = is_input ? input_mem_types_ : output_mem_types_;
+  const size_t cust_offset = is_input ? 0U : input_data_addrs_.size();
+  for (size_t i = 0UL; i < range_pair.second; ++i, ++begin_idx) {
+    GE_ASSERT(begin_idx < addrs.size(), "[OM2]ir_idx:[%zu], begin_index [%zu] is out of range, max_size:[%zu].", ir_idx,
+              begin_idx, addrs.size());
+    cust_to_relevant_offset_[begin_idx + cust_offset] = io_addrs_.size();
+    AppendIoAddr(addrs[begin_idx], types[begin_idx]);
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::AppendWorkspaceAddr(int32_t ir_idx) {
+  if (ir_idx < 0) {
+    (void)io_addrs_.insert(io_addrs_.cend(), workspace_addrs_.cbegin(), workspace_addrs_.cend());
+    (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), workspace_mem_types_.cbegin(),
+                                    workspace_mem_types_.cend());
+  } else {
+    const size_t idx = static_cast<size_t>(ir_idx);
+    GE_ASSERT(idx < workspace_addrs_.size(), "[OM2]workspace index[%zu] is output of workspace addrs range[%zu]", idx,
+              workspace_addrs_.size());
+    AppendIoAddr(workspace_addrs_[idx], workspace_mem_types_[idx]);
+    GELOGI("[OM2]op[%s], workspace_addrs_[%zu] = 0x%" PRIx64 ", workspace_mem_types_[%zu] = %" PRIu64,
+           op_desc_->GetName().c_str(), idx, workspace_addrs_[idx], idx, workspace_mem_types_[idx]);
+    if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL && kernel_type_ == ccKernelType::CUST_AI_CPU) {
+      const std::vector<int64_t> v_workspace_bytes = op_desc_->GetWorkspaceBytes();
+      GE_ASSERT(idx < v_workspace_bytes.size(), "[OM2]workspace index[%zu] is output of workspace bytes range[%zu]",
+                idx, v_workspace_bytes.size());
+      AppendIoAddr(v_workspace_bytes[idx], om2::IowMemoryType::kAbsoluteMemType);
+      GELOGI("[OM2]preprocess custom op[%s], v_workspace_bytes[%zu] = %" PRId64, op_desc_->GetName().c_str(), idx,
+             v_workspace_bytes[idx]);
+    }
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::AssembleShapeInfoAddrs(const std::vector<ArgDesc> &dynamic_args_desc,
+                                                     const std::vector<size_t> &level2_addr_idx) {
+  std::map<size_t, std::pair<size_t, size_t>> &ir_input_2_range = args_format_holder_.ir_input_2_range;
+  std::map<size_t, std::pair<size_t, size_t>> &ir_output_2_range = args_format_holder_.ir_output_2_range;
+  // append additional level1 addr
+  GE_ASSERT(dynamic_args_desc.size() == args_format_holder_.shape_infos.size());
+  for (size_t i = 0UL; i < dynamic_args_desc.size(); ++i) {
+    auto &shape_info = args_format_holder_.shape_infos[i];
+    const size_t ptr_offset_idx = io_addrs_.size();
+    GE_ASSERT(level2_addr_idx[i] < io_addrs_.size());
+    io_addrs_[level2_addr_idx[i]] = PtrToValue(args_) + static_cast<uint64_t>(ptr_offset_idx * sizeof(uint64_t));
+    GELOGD("[OM2]Set ptr_offset idx:[%zu], addr:[%" PRIx64 "] io index:[%zu]", ptr_offset_idx,
+           io_addrs_[level2_addr_idx[i]], level2_addr_idx[i]);
+    (void)io_addrs_.insert(io_addrs_.cend(), shape_info.cbegin(), shape_info.cend());
+    (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), shape_info.size(), om2::IowMemoryType::kAbsoluteMemType);
+
+    if (dynamic_args_desc[i].addr_type == AddrType::INPUT_DESC) {
+      const size_t ir_idx = static_cast<size_t>(dynamic_args_desc[i].ir_idx);
+      const auto &range_pair = ir_input_2_range[ir_idx];
+      size_t begin_idx = range_pair.first;
+      for (size_t idx = 0UL; idx < range_pair.second; ++idx) {
+        GE_ASSERT(begin_idx < input_data_addrs_.size(),
+                  "[OM2]ir_idx:[%zu], begin_index [%zu] is out of range, max_size:[%zu].", ir_idx, begin_idx,
+                  input_data_addrs_.size());
+        cust_to_relevant_offset_[begin_idx] = io_addrs_.size();
+        AppendIoAddr(input_data_addrs_[begin_idx], input_mem_types_[begin_idx]);
+        ++begin_idx;
+      }
+    } else if (dynamic_args_desc[i].addr_type == AddrType::OUTPUT_DESC) {
+      const size_t ir_idx = static_cast<size_t>(dynamic_args_desc[i].ir_idx);
+      const auto &range_pair = ir_output_2_range[ir_idx];
+      size_t begin_idx = range_pair.first;
+      for (size_t idx = 0UL; idx < range_pair.second; ++idx) {
+        GE_ASSERT(begin_idx < output_data_addrs_.size(),
+                  "[OM2]ir_idx:[%zu], begin_index [%zu] is out of range, max_size:[%zu].", ir_idx, begin_idx,
+                  output_data_addrs_.size());
+        cust_to_relevant_offset_[begin_idx + input_data_addrs_.size()] = io_addrs_.size();
+        AppendIoAddr(output_data_addrs_[begin_idx], output_mem_types_[begin_idx]);
+        ++begin_idx;
+      }
+    } else {
+    }
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::AssembleIoByArgsFormat() {
+  const auto &arg_descs = args_format_holder_.arg_descs;
+  io_addrs_.reserve(arg_descs.size());
+  io_addr_mem_types_.reserve(arg_descs.size());
+  std::vector<ArgDesc> dynamic_args_desc;
+  std::vector<size_t> level_addr_idx;
+  std::vector<void *> context_addrs;
+  for (const auto &arg_format : arg_descs) {
+    switch (arg_format.addr_type) {
+      case AddrType::INPUT_INSTANCE: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddrByInstanceIndex(static_cast<size_t>(arg_format.ir_idx), true));
+        break;
+      }
+      case AddrType::OUTPUT_INSTANCE: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddrByInstanceIndex(static_cast<size_t>(arg_format.ir_idx), false));
+        break;
+      }
+      case AddrType::INPUT_DESC:
+      case AddrType::OUTPUT_DESC: {
+        level_addr_idx.push_back(io_addrs_.size());
+        dynamic_args_desc.push_back(arg_format);
+        AppendIoAddr(0UL, om2::IowMemoryType::kAbsoluteMemType);
+        break;
+      }
+      case AddrType::INPUT: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddr(static_cast<size_t>(arg_format.ir_idx), true));
+        break;
+      }
+      case AddrType::OUTPUT: {
+        GE_ASSERT_SUCCESS(AppendInputOutputAddr(static_cast<size_t>(arg_format.ir_idx), false));
+        break;
+      }
+      case AddrType::WORKSPACE: {
+        GE_ASSERT_SUCCESS(AppendWorkspaceAddr(arg_format.ir_idx));
+        break;
+      }
+      case AddrType::PLACEHOLDER: {
+        AppendIoAddr(0UL, om2::IowMemoryType::kAbsoluteMemType);
+        break;
+      }
+      case AddrType::CUSTOM_VALUE: {
+        AppendIoAddr(*reinterpret_cast<const uint64_t *>(arg_format.reserved), om2::IowMemoryType::kAbsoluteMemType);
+        break;
+      }
+      case AddrType::FFTS_ADDR: {
+        AppendIoAddr(0UL, om2::IowMemoryType::kAbsoluteMemType);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  GE_ASSERT_SUCCESS(AssembleShapeInfoAddrs(dynamic_args_desc, level_addr_idx));
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::SetIoAddrsForCustomized() {
+  if (kernel_type_ != ccKernelType::CUSTOMIZED) {
+    return SUCCESS;
+  }
+  std::vector<uint64_t> mem_types;
+  std::vector<uint64_t> tensor_device_addrs;
+  const size_t kernel_def_args_size_align =
+      MemSizeAlign(static_cast<size_t>(customized_args_info_.kernel_def_args_size), kAddressLen);
+  const size_t args_num = kernel_def_args_size_align / kAddressLen;
+  (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), args_num, 0);
+  (void)mem_types.insert(mem_types.cend(), args_num, static_cast<uint64_t>(om2::MemoryAppType::kMemoryTypeFix));
+  GELOGD("[OM2]customized has kernel_def_args_size:%u, after align:%u, args num:%zu",
+         customized_args_info_.kernel_def_args_size, kernel_def_args_size_align, args_num);
+
+  (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), input_data_addrs_.cbegin(), input_data_addrs_.cend());
+  (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), output_data_addrs_.cbegin(), output_data_addrs_.cend());
+  (void)mem_types.insert(mem_types.cend(), input_mem_types_.cbegin(), input_mem_types_.cend());
+  (void)mem_types.insert(mem_types.cend(), output_mem_types_.cbegin(), output_mem_types_.cend());
+
+  io_addrs_.resize(tensor_device_addrs.size());
+  (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), mem_types.cbegin(), mem_types.cend());
+  size_t args_size = 0UL;
+  GE_ASSERT_TRUE(!ge::MulOverflow(io_addrs_.size(), kAddressLen, args_size));
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::SetIoAddrs() {
+  if (kernel_type_ == ccKernelType::CUSTOMIZED) {
+    return SetIoAddrsForCustomized();
+  }
+  std::vector<uint64_t> mem_types;
+  std::vector<uint64_t> tensor_device_addrs;
+  if (!is_separately_clean_task_) {
+    (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), input_data_addrs_.cbegin(), input_data_addrs_.cend());
+    (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), output_data_addrs_.cbegin(),
+                                     output_data_addrs_.cend());
+    (void)mem_types.insert(mem_types.cend(), input_mem_types_.cbegin(), input_mem_types_.cend());
+    (void)mem_types.insert(mem_types.cend(), output_mem_types_.cbegin(), output_mem_types_.cend());
+  }
+
+  if (Om2CodegenUtils::IsAICoreKernel(kernel_type_)) {
+    if (!is_separately_clean_task_) {
+      (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), workspace_addrs_.cbegin(), workspace_addrs_.cend());
+      (void)mem_types.insert(mem_types.cend(), workspace_mem_types_.cbegin(), workspace_mem_types_.cend());
+    }
+  }
+
+  size_t io_addrs_element_num = tensor_device_addrs.size();
+  if (is_addrs_folded_) {
+    io_addrs_element_num += 1UL;
+  }
+  io_addrs_.resize(io_addrs_element_num);
+  (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), mem_types.cbegin(), mem_types.cend());
+  size_t args_size = 0UL;
+  GE_ASSERT_TRUE(!ge::MulOverflow(io_addrs_.size(), kAddressLen, args_size));
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitKernelByContext(const domi::TaskDef &task_def, const domi::KernelContext &context,
+                                                  const om2::PisToArgs &args) {
+  (void)task_def;
+  kernel_type_ = static_cast<ccKernelType>(context.kernel_type());
+  if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU)) {
+    args_offset_from_pls_ =
+        ge::MemSizeAlign(sizeof(aicpu::AicpuParamHead), sizeof(uintptr_t)) - sizeof(aicpu::AicpuParamHead);
+  }
+  GE_ASSERT_TRUE((args[static_cast<size_t>(args_placement_)].dev_addr != 0U),
+                 "[OM2][Check][Param] Op:%s, dev addr is nullptr.", op_desc_->GetName().c_str());
+  args_ = ValueToPtr(args[static_cast<size_t>(args_placement_)].dev_addr + args_offset_from_pls_);
+  const bool assemble_by_args_manager =
+      (!args_format_holder_.arg_descs.empty()) && (kernel_type_ != ccKernelType::CUSTOMIZED) && (!is_addrs_folded_);
+  if (assemble_by_args_manager) {
+    GE_ASSERT_SUCCESS(AssembleIoByArgsFormat(), "[OM2][Assemble][Addresses] failed, op = %s.", op_desc_->GetNamePtr());
+  } else {
+    GE_ASSERT_SUCCESS(SetIoAddrs(), "[OM2][Set][Addresses] failed, op = %s.", op_desc_->GetName().c_str());
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitTVMContext(const domi::KernelContext &context) {
+  if ((context.args_offset().size() / sizeof(uint16_t)) < 1U) {
+    REPORT_INNER_ERR_MSG("E19999",
+                         "[OM2]args_offset().size():%zu / sizeof(uint16_t) less than 1, op:%s(%s), check invalid",
+                         context.args_offset().size(), op_desc_->GetName().c_str(), op_desc_->GetType().c_str());
+    GELOGE(FAILED, "[OM2][Check][Param]invalid, args_offset().size():%zu / sizeof(uint16_t) less than 1, op:%s(%s)",
+           context.args_offset().size(), op_desc_->GetName().c_str(), op_desc_->GetType().c_str());
+    return FAILED;
+  }
+
+  uint16_t args_offset = 0U;
+  GE_ASSERT_EOK(memcpy_s(&args_offset, sizeof(uint16_t), context.args_offset().data(), sizeof(uint16_t)));
+  GE_CHECK_LE(args_offset, args_size_);
+  io_addr_offset_ = static_cast<size_t>(args_offset);
+  GELOGD("[OM2]Get args_offset[%u] of op[%s]", static_cast<uint32_t>(args_offset), op_desc_->GetName().c_str());
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitTVMTask(const domi::KernelDef &kernel_def) {
+  GELOGD("[OM2]Do InitTVMTask of %s.", op_desc_->GetName().c_str());
+  GE_CHK_STATUS_RET_NOLOG(InitTVMContext(kernel_def.context()));
+  GELOGI("[OM2]io_addrs_size:%zu, args_size:%zu", io_addrs_.size(), kernel_def.args().size() / kAddressLen);
+  if ((io_addrs_.size() * kAddressLen) < kernel_def.args().size()) {
+    const size_t offset = io_addrs_.size() * kAddressLen;
+    const size_t len = kernel_def.args().size() - offset;
+    io_addrs_.resize(MemSizeAlign(static_cast<size_t>(kernel_def.args().size()), kAddressLen) / kAddressLen);
+    uint8_t *dst_addr = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(io_addrs_.data())) + offset;
+    uint8_t *src_addr = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(kernel_def.args().data())) + offset;
+    const errno_t sec_ret = memcpy_s(dst_addr, len, src_addr, len);
+    GE_ASSERT_TRUE(sec_ret == EOK);
+    io_addr_mem_types_.resize(io_addrs_.size(), static_cast<uint64_t>(om2::MemoryAppType::kMemoryTypeFix));
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitAicpuTask(const OpDescPtr &op_desc, const domi::KernelDef &kernel_def) {
+  (void)op_desc;
+  (void)kernel_def;
+  GE_CHECK_GE(args_size_, sizeof(aicpu::AicpuParamHead));
+  io_addr_offset_ = sizeof(aicpu::AicpuParamHead);
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitKernel(const domi::TaskDef &task_def, const om2::PisToArgs &args) {
+  const domi::KernelDef &kernel_def = task_def.kernel();
+  const domi::KernelContext &context = kernel_def.context();
+  is_addrs_folded_ = IsWspAddrFolded(op_desc_);
+  GE_CHK_STATUS_RET_NOLOG(InitKernelByContext(task_def, context, args));
+  Status ret = FAILED;
+  if (Om2CodegenUtils::IsAICoreKernel(kernel_type_)) {
+    ret = InitTVMTask(kernel_def);
+  } else if (kernel_type_ == ccKernelType::CUSTOMIZED) {
+    ret = SUCCESS;
+  } else if (kernel_type_ == ccKernelType::AI_CPU_KFC) {
+    GELOGE(FAILED, "[OM2] Unsupported ai cpu kfc");
+    ret = FAILED;
+  } else if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU)) {
+    ret = InitAicpuTask(op_desc_, kernel_def);
+  } else {
+    REPORT_INNER_ERR_MSG("E19999", "[OM2]Node op:%s(%s) kernel type invalid", op_desc_->GetName().c_str(),
+                         op_desc_->GetType().c_str());
+    GELOGE(FAILED, "[OM2][Check][Param] Node op:%s(%s) kernel type invalid", op_desc_->GetName().c_str(),
+           op_desc_->GetType().c_str());
+    return ret;
+  }
+  GELOGD("[OM2]KernelTaskInfo %s init finish, result=%u.", op_desc_->GetNamePtr(), ret);
+  return ret;
+}
+
+Status KernelTaskCodeBuilder::InitTVMTask(const domi::KernelDefWithHandle &kernel_def) {
+  GELOGD("[OM2]Do InitTVMTask with handle of %s.", op_desc_->GetName().c_str());
+  GE_CHK_STATUS_RET_NOLOG(InitTVMContext(kernel_def.context()));
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::InitKernelWithHandle(const domi::TaskDef &task_def, const om2::PisToArgs &args) {
+  const domi::KernelDefWithHandle &kernel_def = task_def.kernel_with_handle();
+  const domi::KernelContext &context = kernel_def.context();
+  GE_CHK_STATUS_RET_NOLOG(InitKernelByContext(task_def, context, args));
+
+  if (!Om2CodegenUtils::IsAICoreKernel(kernel_type_)) {
+    GELOGE(FAILED, "[OM2]Op[%s] kernel type[%d] invalid.", op_desc_->GetName().c_str(),
+           static_cast<int32_t>(kernel_type_));
+    return FAILED;
+  }
+  GE_CHK_STATUS_RET_NOLOG(InitTVMTask(kernel_def));
+  GELOGD("[OM2]KernelTaskInfo %s init with handle finish.", op_desc_->GetNamePtr());
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                   std::vector<om2::MemAllocation> &logical_mem_allocations, const om2::PisToArgs &args,
+                                   const om2::IowAddrs &iow_addrs) {
+  (void)task_def;
+  UpdateIoAndWorkspaceAddrs(iow_addrs);
+  if (Om2CodegenUtils::IsAllKernel(task_type_)) {
+    GE_CHK_STATUS_RET_NOLOG(InitKernelWithHandle(task_def, args));
+  } else {
+    GE_CHK_STATUS_RET_NOLOG(InitKernel(task_def, args));
+  }
+  io_addr_mem_types_.resize(io_addrs_.size(), static_cast<uint64_t>(om2::MemoryAppType::kMemoryTypeFix));
+  GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, io_addrs_, io_addr_mem_types_,
+                                                {op_desc_->GetName(), op_desc_->GetType()}));
+
+  if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU) ||
+      (kernel_type_ == ccKernelType::AI_CPU_KFC)) {
+    uint32_t pls = static_cast<uint32_t>(args_placement_);
+    GE_ASSERT_TRUE(args[pls].len >= args_offset_from_pls_);
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  GELOGI("[OM2]KernelTaskCodeBuilder::GetTaskArgsRefreshInfos in.");
+  if (Om2CodegenUtils::IsAICoreKernel(kernel_type_) || kernel_type_ == ccKernelType::CUSTOMIZED) {
+    args_io_addrs_updater_.GenArgsRefreshInfos(infos, 0UL, args_placement_);
+    return SUCCESS;
+  }
+
+  if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU) ||
+      (kernel_type_ == ccKernelType::AI_CPU_KFC)) {
+    args_io_addrs_updater_.GenArgsRefreshInfos(infos, io_addr_offset_ + args_offset_from_pls_, args_placement_);
+    return SUCCESS;
+  }
+  return SUCCESS;
 }
 
 REGISTER_TASK_CODE_BUILDER(MODEL_TASK_KERNEL, KernelTaskCodeBuilder);

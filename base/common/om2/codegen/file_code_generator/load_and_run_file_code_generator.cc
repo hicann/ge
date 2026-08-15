@@ -335,7 +335,12 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyProcessInputsAndAddrRefresh(std::v
       if (entry.addr_offset != 0) {
         addr_expr = addr_expr + entry.addr_offset;
       }
-      body.push_back(ChkStatus(args_table_.Attr("UpdateHostArgs")(entry.update_host_args_index, addr_expr)));
+
+      if (entry.is_input) {
+        body.push_back(ChkStatus(args_table_.Attr("UpdateHostArgs")(0, entry.update_host_args_index, addr_expr)));
+      } else {
+        body.push_back(ChkStatus(args_table_.Attr("UpdateHostArgs")(1, entry.update_host_args_index, addr_expr)));
+      }
     } else if (entry.is_input) {
       const std::string addr_var_name = "dev_input" + std::to_string(entry.index) + "_ptr";
       auto dev_addr = ast_.Var("auto", addr_var_name);

@@ -713,6 +713,12 @@ struct TfAiCpuExInfo {
   uint64_t extInfoAddr;
 };
 
+struct ArgsRefreshInfo {
+  uint64_t args_offset;
+  uint64_t offset;
+  int32_t args_type;
+};
+
 class ScopeGuard {
   public:
     ScopeGuard(const ScopeGuard &) = delete;
@@ -741,16 +747,18 @@ class Om2ArgsTable {
     ~Om2ArgsTable();
     aclError Init();
     ArgsInfo * GetArgsInfo(size_t index);
-    void * GetDevArgAddr(size_t offset);
-    void * GetHostArgAddr(size_t offset);
-    aclError UpdateHostArgs(size_t index, const uintptr_t addr);
+    void * GetDevArgAddr(size_t offset, int32_t args_type);
+    void * GetHostArgAddr(size_t offset, int32_t args_type);
+    aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
     aclError CopyArgsToDevice();
   private:
-    int64_t args_size_;
+    std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
+    std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};
+    std::array<void *, static_cast<size_t>(4)> dev_args_{};
     std::vector<ArgsInfo> args_info_;
-    std::vector<uint8_t> host_args_;
-    void *dev_args_;
-    std::vector<std::vector<void *>> iow_args_addrs_;
+    std::vector<uint32_t> input_index_to_allocation_ids_;
+    std::vector<uint32_t> output_index_to_allocation_ids_;
+    std::vector<std::vector<ArgsRefreshInfo>> allocation_ids_to_model_args_refresh_infos_addr_all_;
 };
 
 enum OpDispatchType : uint32_t {

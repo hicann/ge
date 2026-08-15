@@ -28,6 +28,7 @@
 #include "proto/task.pb.h"
 #include "common/math/ge_math_util.h"
 #include "framework/common/om2_tensor_desc.h"
+#include "task_args_manager/om2_codegen_arg_types.h"
 
 namespace ge {
 constexpr int64_t kInvalidOpIndex = -1;
@@ -57,71 +58,6 @@ struct OpInputEdges {
   std::vector<int32_t> input_anchor_indices;
   std::vector<std::string> output_var_names;
 };
-
-namespace om2 {
-struct MemInfo {
-  int64_t logic_memory_base;
-  int64_t memory_size;
-  uint8_t *memory_base;
-  uint64_t memory_type;
-  std::string memory_key;
-  bool is_fixed_addr_prior;
-  MemInfo() : MemInfo(0, 0, nullptr, false) {}
-
-  MemInfo(int64_t logic_memory_base_tmp, int64_t memory_size_tmp, uint8_t *const memory_base_tmp,
-          bool is_fixed_addr_prior_tmp = false)
-      : logic_memory_base(logic_memory_base_tmp),
-        memory_size(memory_size_tmp),
-        memory_base(memory_base_tmp),
-        memory_type(RT_MEMORY_HBM),
-        is_fixed_addr_prior(is_fixed_addr_prior_tmp) {}
-
-  friend bool operator<(const MemInfo &left, const MemInfo &right) noexcept {
-    // 加上大小是为了地址段匹配处理，不要擅自修改
-    // 如logic_memory_base=0, memory_size=100, logic_memory_base=100, memory_size=300
-    // logic_addr为[0, 100)匹配到的基地址就是logic_memory_base=0
-    // logic_addr为[100, 400)匹配到的基地址就是logic_memory_base=100
-    return (left.logic_memory_base + left.memory_size) < (right.logic_memory_base + right.memory_size);
-  }
-
-  std::string ToString() const {
-    std::stringstream ss;
-    ss << "memory_size:" << memory_size << ", logic_memory_base:" << logic_memory_base << ", memory_base:0x"
-       << &std::hex << PtrToValue(PtrToPtr<uint8_t, void>(memory_base)) << ", memory_type:" << memory_type
-       << ", memory_key:" << memory_key << ", is_fixed_addr_prior:" << is_fixed_addr_prior;
-    return ss.str();
-  }
-
-  void *GetMemory(const int64_t offset, const int64_t bytes) const {
-    if (bytes <= 0) {
-      return nullptr;
-    }
-    GE_CHK_STATUS_EXEC(CheckInt64SubOverflow(offset, logic_memory_base), return nullptr,
-                       "[Get][Memory] failed,Out of range, total size:%" PRId64 ", offset:%" PRId64
-                       ", logic_memory_base:%" PRId64 ".",
-                       memory_size, offset, logic_memory_base);
-    const int64_t real_offset = offset - logic_memory_base;
-
-    GE_CHK_STATUS_EXEC(CheckInt64AddOverflow(real_offset, bytes), return nullptr,
-                       "[Get][Memory] failed,Out of range, total size:%" PRId64 ", offset:%" PRId64 ", bytes:%" PRId64
-                       ".",
-                       memory_size, real_offset, bytes);
-
-    if ((real_offset + bytes) <= memory_size) {
-      return ValueToPtr(PtrToValue(memory_base) + static_cast<uint64_t>(real_offset));
-    }
-
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Out of range, total size:%" PRId64 ", offset:%" PRId64
-                         ", bytes:"
-                         "%" PRId64 ".",
-                         memory_size, real_offset, bytes);
-    GELOGE(OUT_OF_MEMORY, "Out of range, total size:%" PRId64 ", offset:%" PRId64 ", bytes:%" PRId64 ".", memory_size,
-           real_offset, bytes);
-    return nullptr;
-  }
-};
-}  // namespace om2
 
 struct RuntimeResourceSemantic {
   uint64_t total_mem_size{0U};
@@ -259,14 +195,6 @@ enum class AddrValueKind : int32_t {
   kEmptyAddr,
 };
 
-namespace om2 {
-enum class MemoryAppType : int32_t {
-  kFix,
-  kFeatureMap,
-  kModelIo,
-};
-}  // namespace om2
-
 struct OpDispatchType {
   enum Value : uint32_t {
     DISPATCH_AICORE = 0,
@@ -315,7 +243,7 @@ struct OpDispatchType {
 
 struct AddrSemantic {
   AddrValueKind kind{AddrValueKind::kInputInstance};
-  om2::MemoryAppType memory_app{om2::MemoryAppType::kFix};
+  om2::MemoryAppType memory_app{om2::MemoryAppType::kMemoryTypeFix};
   std::string symbol_hint;
   int64_t mem_offset{0};
   uint64_t byte_size{0U};
@@ -380,8 +308,15 @@ struct TaskSemanticHeader {
 
 struct ArgsTableSemantic {
   std::vector<ArgsTableEntrySemantic> entries;
-  uint64_t total_host_args_len{0UL};
   std::vector<std::vector<uint64_t>> host_args_offsets;
+
+  std::vector<om2::ModelArgsSemantic> model_args_semantic;
+  std::vector<om2::PlacementToArgsSemantic> task_indexes_to_args_semantic;
+  std::vector<std::vector<om2::ModelArgsRefreshInfoSemantic>>
+      allocation_ids_to_model_args_refresh_infos_addr_all_semantic;
+  std::vector<uint32_t> input_index_to_allocation_ids;
+
+  std::vector<uint32_t> output_index_to_allocation_ids;
 };
 
 struct Om2CodegenModel {

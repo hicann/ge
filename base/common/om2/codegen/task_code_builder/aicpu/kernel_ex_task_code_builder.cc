@@ -17,6 +17,7 @@
 #include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/math_util.h"
+#include "common/om2/codegen/task_args_manager/om2_model_args_utils.h"
 
 namespace ge {
 namespace {
@@ -61,7 +62,7 @@ Status KernelExTaskCodeBuilder::InitTaskExInfo(const TaskSemanticContributeConte
 
 Status KernelExTaskCodeBuilder::InitIowAddrRefreshInfo(uint64_t current_offset) {
   for (const auto &input_addr : build_data_.semantic.input_addrs) {
-    if (input_addr.memory_app == om2::MemoryAppType::kModelIo) {
+    if (input_addr.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
       io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(input_addr.compile_state_io_addr_offset), current_offset});
       current_offset += static_cast<uint32_t>(sizeof(uint64_t));
@@ -69,7 +70,7 @@ Status KernelExTaskCodeBuilder::InitIowAddrRefreshInfo(uint64_t current_offset) 
     build_data_.semantic.ordered_arg_values.push_back(input_addr);
   }
   for (const auto &out_addr : build_data_.semantic.output_addrs) {
-    if (out_addr.memory_app == om2::MemoryAppType::kModelIo) {
+    if (out_addr.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) {
       io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(out_addr.compile_state_io_addr_offset), current_offset});
       current_offset += static_cast<uint32_t>(sizeof(uint64_t));
@@ -591,6 +592,101 @@ Status KernelExTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std
   };
   fields.push_back(
       {"dispatch_info", ast_.DesignatedInit({{"kernel_ex", ast_.DesignatedInit(kernel_ex_fields, true)}})});
+  return SUCCESS;
+}
+
+Status KernelExTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param,
+                                                  OpDescPtr op_desc, om2::TaskRunParam &task_run_param) {
+  (void)task_def;
+  (void)task_run_param;
+  GE_CHECK_NOTNULL(op_desc);
+  op_desc_ = op_desc;
+  input_data_addrs_ = om2::ModelUtils::GetInputAddrs(rts_param, op_desc, input_addr_mem_types_);
+  output_data_addrs_ = om2::ModelUtils::GetOutputAddrs(rts_param, op_desc, output_addr_mem_types_);
+  for (size_t i = 0U; i < input_data_addrs_.size(); i++) {
+    task_run_param.parsed_input_addrs.push_back(
+        {PtrToValue(input_data_addrs_[i]), input_addr_mem_types_[i], true, {0}});
+  }
+  for (size_t i = 0U; i < output_data_addrs_.size(); i++) {
+    task_run_param.parsed_output_addrs.push_back(
+        {PtrToValue(output_data_addrs_[i]), output_addr_mem_types_[i], true, {0}});
+  }
+
+  const size_t inputs_size = op_desc->GetInputsSize();
+  const size_t outputs_size = op_desc->GetOutputsSize();
+  REQUIRE_COMPAT_UINT32(sizeof(uint64_t) * (inputs_size + outputs_size));
+
+  uint32_t mem_size = static_cast<uint32_t>(sizeof(uint64_t) * (inputs_size + outputs_size));
+  const uint32_t mem_size_t =
+      static_cast<uint32_t>(sizeof(uint64_t) * (input_data_addrs_.size() + output_data_addrs_.size()));
+
+  GELOGD("[OM2]mem_size %u, inputs_size %zu, outputs_size %zu, input_data_addrs size %zu, output_data_addrs size %zu.",
+         mem_size, inputs_size, outputs_size, input_data_addrs_.size(), output_data_addrs_.size());
+
+  mem_size = (mem_size > mem_size_t) ? mem_size : mem_size_t;
+
+  int32_t deploy_type_flag = static_cast<int32_t>(RT_KERNEL_DEVICE_FIRST);
+  task_run_param.args_descs.push_back({static_cast<int64_t>(mem_size) + 8, pls_});
+  GELOGI("[OM2] kernel task name %s, args_size %u, args_size_t %u pls %u, deploy_type_flag %d",
+         op_desc->GetName().c_str(), mem_size, mem_size_t, static_cast<uint32_t>(pls_), deploy_type_flag);
+
+  return SUCCESS;
+}
+
+Status KernelExTaskCodeBuilder::InitInputOutputAddr(const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)args;
+  for (size_t i = 0U; i < input_data_addrs_.size(); i++) {
+    input_data_addrs_[i] = ValueToPtr(iow_addrs.input_logic_addrs[i].logic_addr);
+    input_addr_mem_types_[i] = iow_addrs.input_logic_addrs[i].memory_type;
+  }
+
+  for (size_t i = 0U; i < output_data_addrs_.size(); i++) {
+    output_data_addrs_[i] = ValueToPtr(iow_addrs.output_logic_addrs[i].logic_addr);
+    output_addr_mem_types_[i] = iow_addrs.output_logic_addrs[i].memory_type;
+  }
+
+  (void)io_addrs_.insert(io_addrs_.cend(), input_data_addrs_.cbegin(), input_data_addrs_.cend());
+  (void)io_addrs_.insert(io_addrs_.cend(), output_data_addrs_.cbegin(), output_data_addrs_.cend());
+  (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), input_addr_mem_types_.cbegin(),
+                                  input_addr_mem_types_.cend());
+  (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), output_addr_mem_types_.cbegin(),
+                                  output_addr_mem_types_.cend());
+  return SUCCESS;
+}
+
+Status KernelExTaskCodeBuilder::Init(const domi::TaskDef &task_def,
+                                     std::vector<om2::MemAllocation> &logical_mem_allocations,
+                                     const om2::PisToArgs &args, const om2::IowAddrs &iow_addrs) {
+  (void)args;
+  const auto &kernel_ex_def = task_def.kernel_ex();
+  const size_t args_size = kernel_ex_def.args().size();
+  if (args_size > sizeof(STR_FWK_OP_KERNEL)) {
+    REPORT_INNER_ERR_MSG("E19999",
+                         "[OM2]Param kernel_ex_def.args().size():%zu > sizeof(STR_FWK_OP_KERNEL):%zu, check invalid",
+                         args_size, sizeof(STR_FWK_OP_KERNEL));
+    GELOGE(FAILED, "[OM2][Check][Param] kernel_ex_def.args().size():%zu > sizeof(STR_FWK_OP_KERNEL):%zu", args_size,
+           sizeof(STR_FWK_OP_KERNEL));
+    return FAILED;
+  }
+  GE_ASSERT_TRUE((iow_addrs.input_logic_addrs.size() == input_data_addrs_.size()),
+                 "[OM2][Check][Param] Op:%s(%s) input logic addrs list size:%zu != input data addr list size:%zu",
+                 op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), iow_addrs.input_logic_addrs.size(),
+                 input_data_addrs_.size());
+
+  GE_ASSERT_TRUE((iow_addrs.output_logic_addrs.size() == output_data_addrs_.size()),
+                 "[OM2][Check][Param] Op:%s(%s) output logic addrs list size:%zu != output data addr list size:%zu",
+                 op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), iow_addrs.output_logic_addrs.size(),
+                 output_data_addrs_.size());
+  GE_CHK_STATUS_RET(InitInputOutputAddr(args, iow_addrs), "[OM2][Init][Param] failed for [%s].",
+                    op_desc_->GetName().c_str());
+  io_addr_mem_types_.resize(io_addrs_.size(), om2::IowMemoryType::kFixMemType);
+  GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, VPtrToValue(io_addrs_), io_addr_mem_types_,
+                                                {op_desc_->GetName(), op_desc_->GetType()}));
+  return SUCCESS;
+}
+
+Status KernelExTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsRefreshInfo> &infos) {
+  args_io_addrs_updater_.GenArgsRefreshInfos(infos, 0UL, pls_);
   return SUCCESS;
 }
 
