@@ -10,11 +10,6 @@
 
 #include "framework/common/profiling/ge_profiling.h"
 #include "common/profiling/profiling_manager.h"
-
-#include "rt_external.h"
-#include "framework/common/debug/log.h"
-#include "graph/load/graph_loader.h"
-#include "graph/ge_context.h"
 #include "framework/common/ge_types.h"
 
 ge::Status ProfGetDeviceFormGraphId(const uint32_t graph_id, uint32_t &device_id) {

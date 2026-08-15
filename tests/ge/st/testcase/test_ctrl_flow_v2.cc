@@ -16,6 +16,7 @@
 #include "ge/ge_ir_build.h"
 #include "framework/executor/ge_executor.h"
 #include "graph/execute/model_executor.h"
+#include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 
 using namespace std;

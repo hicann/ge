@@ -11,24 +11,12 @@
 #ifndef GE_GRAPH_EXECUTE_GRAPH_EXECUTOR_H_
 #define GE_GRAPH_EXECUTE_GRAPH_EXECUTOR_H_
 
-#include <cstdarg>
-
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <vector>
 
-#include "framework/common/debug/log.h"
 #include "framework/common/ge_types.h"
-#include "framework/common/string_util.h"
-#include "framework/common/framework_types_internal.h"
-#include "framework/common/util.h"
-#include "ge/ge_api_types.h"
-#include "graph/compute_graph.h"
 #include "graph/manager/graph_manager_utils.h"
-#include "graph/model.h"
-#include "graph/utils/graph_utils.h"
-#include "graph/utils/tensor_utils.h"
 #include "common/model/executor.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "base/err_mgr.h"

@@ -39,6 +39,7 @@
 #include "graph/manager/graph_mem_allocator.h"
 #include "graph/manager/graph_manager.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/utils/tensor_utils.h"
 #include "proto/ge_ir.pb.h"
 #include "graph/manager/graph_var_manager.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"

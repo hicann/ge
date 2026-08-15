@@ -57,11 +57,6 @@ ge::Status Om2ModelManager::RunModel(uint32_t model_id, void *stream, std::vecto
     executor = iter->second;
   }
 
-  if (executor == nullptr) {
-    GELOGE(GE_GRAPH_PARAM_NULLPTR, "[OM2] Executor is null for model %u", model_id);
-    return GE_GRAPH_PARAM_NULLPTR;
-  }
-
   if (stream == nullptr) {
     return executor->Run(inputs, outputs);
   }
