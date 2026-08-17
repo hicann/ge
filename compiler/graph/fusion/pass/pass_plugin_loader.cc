@@ -57,6 +57,7 @@ class PassPluginLoader {
       }
     }
     active_users_++;
+    GELOGD("LoadPassPlugins active_users_=%zu", active_users_);
     return SUCCESS;
   }
 
@@ -67,6 +68,7 @@ class PassPluginLoader {
       return SUCCESS;
     }
     active_users_--;
+    GELOGD("UnloadPassPlugins active_users_=%zu", active_users_);
     if (active_users_ == 0U) {
       if (python_pass_loaded_) {
         UnloadPythonPasses();
