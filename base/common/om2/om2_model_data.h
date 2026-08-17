@@ -85,6 +85,8 @@ struct Om2ModelData {
   Om2ModelMeta model_meta;
   Om2ConstantsData constants_data;
   std::vector<Om2KernelBinary> kernel_binaries;
+  std::vector<Om2KernelBinary> custom_kernel_binaries;
+  std::vector<Om2KernelBinary> custom_shared_libs;
   Om2DebugInfo debug_info;
   std::map<std::string, std::string> manifest;
   std::unique_ptr<RTVarResource> rt_var_resource;

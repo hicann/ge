@@ -12,9 +12,6 @@
 #define INC_FRAMEWORK_COMMON_HELPER_OM2_PACKAGE_HELPER_H
 
 #include "framework/common/helper/model_save_helper.h"
-#include "common/om2/codegen/om2_codegen_types.h"
-#include <map>
-#include <memory>
 #include <string>
 
 namespace gert {
@@ -48,6 +45,8 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
 
   static Status RelocateExternalWeights(const std::string &output_file_name, const ModelBufferData &model,
                                         ModelBufferData &relocated_model, bool &relocated);
+  static Status ReadCustomOpSoToBuffer(const std::unordered_set<std::string> &ops_so_set,
+                                       std::vector<gert::Om2KernelBinary> &shared_lib_binaries);
 
   /// @brief 从 OM2 ZIP 模型内提取 visual JSON 内容。
   /// @param model_data  OM2 ZIP 数据内存地址。
@@ -56,16 +55,18 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   static Status ExtractVisualJson(const void *model_data, size_t model_len, std::string &json_out);
 
  private:
-  static Status BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ProgramBody &body,
-                                 std::vector<Om2ConstMeta> &const_metas, std::vector<Om2VarMeta> &var_metas);
-  static Status BuildKernelBinaries(const GeModelPtr &ge_model, std::vector<gert::Om2KernelBinary> &kernel_binaries);
-  static Status BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelMeta &model_meta);
-  static Status BuildConstantsData(const GeModelPtr &ge_model, const std::vector<Om2ConstMeta> &const_metas,
-                                   gert::Om2ConstantsData &data);
-  static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2DebugInfo &debug_info);
-  static Status BuildManifest(const GeRootModelPtr &ge_root_model, std::map<std::string, std::string> &manifest);
+  static Status BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
+  static Status BuildKernelBinaries(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
+  static Status BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
+  static Status BuildConstantsData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
+  static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
+  static Status BuildManifest(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
 
- private:
+  static Status CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model,
+                                         std::set<std::string> &used_custom_op_types);
+  static Status BuildCustomKernelBinaries(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
+  static Status BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
+
   bool is_offline_{true};
 };
 }  // namespace ge

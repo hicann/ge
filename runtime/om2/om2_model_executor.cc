@@ -25,6 +25,7 @@
 #include "mmpa/mmpa_api.h"
 #include "../../inc/framework/runtime/om2_context.h"
 #include "graph/utils/type_utils_inner.h"
+#include "graph/custom_op_factory.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "rt_external_mem.h"
 #include "common/helper/om2/json_file.h"
@@ -39,6 +40,8 @@
 #include "zip_archive_reader.h"
 #include "common/om2/om2_model_data.h"
 #include "om2_aipp_utils.h"
+#include <fstream>
+#include <vector>
 
 namespace gert {
 namespace {
@@ -54,6 +57,12 @@ using DestroyFunc = ge::graphStatus (*)(Om2ModelHandle *);
 using RunFunc = ge::graphStatus (*)(Om2ModelHandle *, int, void **, int, void **, int32_t, Om2ProfInfos *);
 using RunAsyncFunc = ge::graphStatus (*)(Om2ModelHandle *, rtStream_t, int, void **, int, void **, Om2ProfInfos *);
 
+struct CustSharedLibInfo {
+  std::string so_file;
+  int32_t so_fd = -1;
+  void *so_handle = nullptr;
+};
+
 struct RunModelInfo {
   std::string so_file;
   int32_t so_fd = -1;
@@ -61,6 +70,7 @@ struct RunModelInfo {
   void *so_handle = nullptr;
   std::string model_name;
   std::string root_graph_name;
+  std::vector<CustSharedLibInfo> cust_shared_libs;
   Om2ModelHandle model_handle = nullptr;
   rtModel_t rt_model_handle = nullptr;
   CreateFunc create_func = nullptr;
@@ -389,8 +399,8 @@ ge::Status DeserializeVariablesConfigEntry(const ge::RAIIZipArchive &archive, co
   return ge::SUCCESS;
 }
 
-ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  gert::Om2ModelData &model_data) {
+ge::Status DeserializeBinaryEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  std::vector<Om2KernelBinary> &binaries) {
   gert::Om2KernelBinary kernel_binary;
   kernel_binary.name = ExtractParentDirAndFileName(entry).second;
   size_t buffer_size{0U};
@@ -399,8 +409,13 @@ ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::
   GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry.c_str());
   kernel_binary.data = std::move(buffer);
   kernel_binary.data_size = buffer_size;
-  (void)model_data.kernel_binaries.emplace_back(std::move(kernel_binary));
+  (void)binaries.emplace_back(std::move(kernel_binary));
   return ge::SUCCESS;
+}
+
+ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
+                                  gert::Om2ModelData &model_data) {
+  return DeserializeBinaryEntry(archive, entry, model_data.kernel_binaries);
 }
 
 ge::Status DeserializeModelMetaEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
@@ -512,6 +527,15 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
   }
   if (entry.find("data/kernels_") != std::string::npos && IsFileNameEndsWith(entry, ".o")) {
     GE_ASSERT_SUCCESS(DeserializeKernelEntry(archive, entry, model_data));
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/custom_ops/shared_libs") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
+    GE_ASSERT_SUCCESS(DeserializeBinaryEntry(archive, entry, model_data.custom_shared_libs));
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/custom_ops/binaries_") != std::string::npos && IsFileNameEndsWith(entry, ".bin")) {
+    GE_ASSERT_SUCCESS(DeserializeBinaryEntry(archive, entry, model_data.custom_kernel_binaries));
+    return ge::SUCCESS;
   }
   return ge::SUCCESS;
 }
@@ -743,6 +767,26 @@ class Om2ModelExecutor::Impl {
     has_model_ = true;
 
     GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.kernel_binaries, kernel_bin_info));
+
+    // Add custom kernel binaries
+    GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.custom_kernel_binaries, kernel_bin_info));
+
+    // dlopen custom kernel shared libraries
+    for (auto &kb : om2_data.custom_shared_libs) {
+      CustSharedLibInfo so_info;
+      GE_ASSERT_SUCCESS(CreateSoMemFd(kb.name, kb.data.get(), kb.data_size, so_info.so_file, so_info.so_fd));
+      so_info.so_handle = mmDlopen(so_info.so_file.c_str(), MMPA_RTLD_NOW);
+      if (so_info.so_handle == nullptr) {
+        CloseMemFd(so_info.so_fd);
+        const char_t *error = mmDlerror();
+        error = (error == nullptr) ? "" : error;
+        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+               so_info.so_file.c_str(), error);
+        return ge::FAILED;
+      }
+      run_model_info_.cust_shared_libs.emplace_back(so_info);
+    }
+
     GE_ASSERT_SUCCESS(LoadSoFromBuffer(om2_data.program_body.so_artifact));
     GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found in Om2ModelData.");
 
@@ -785,7 +829,6 @@ class Om2ModelExecutor::Impl {
 
   ge::Status BuildKernelBinInfoFromStruct(const std::vector<gert::Om2KernelBinary> &kernels,
                                           std::vector<KernelBinInfo> &info) {
-    info.clear();
     for (const auto &k : kernels) {
       KernelBinInfo bin_info;
       bin_info.file = k.name;

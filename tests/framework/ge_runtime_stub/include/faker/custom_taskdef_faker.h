@@ -7,18 +7,30 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
-#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
 
-#include "common/model/ge_model.h"
-#include "ge_common/ge_common_api_types.h"
-#include "common/om2/om2_model_data.h"
+#ifndef INC_CUSTOM_TASKDEF_FAKER_H
+#define INC_CUSTOM_TASKDEF_FAKER_H
 
-namespace ge {
-class Om2Codegen {
- public:
-  Status Om2CodegenAndCompile(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) const;
+#include "task_def_faker.h"
+namespace gert {
+
+struct CustomTaskDefFaker : public TaskDefFaker {
+  CustomTaskDefFaker(std::string stub_name = "");
+  CustomTaskDefFaker &BinData(uint64_t data);
+  CustomTaskDefFaker &ArgsFormat(const std::string &args_format);
+
+ private:
+  vector<domi::TaskDef> CreateTaskDef(uint64_t op_index = 0) override;
+  std::unique_ptr<TaskDefFaker> Clone() const override;
+
+ private:
+  void Init();
+  bool inited_;
+  uint64_t bin_data = 0;
+  std::string stub_name_;
+  std::string args_format_;
 };
-}  // namespace ge
 
-#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
+}  // namespace gert
+
+#endif

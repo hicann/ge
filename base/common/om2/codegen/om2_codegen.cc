@@ -16,7 +16,6 @@
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/ast/ast_context.h"
 #include "common/om2/codegen/om2_codegen_model_builder.h"
-#include "common/om2/codegen/om2_codegen_utils.h"
 #include "program_generator.h"
 #include "om2_code_printer.h"
 
@@ -55,8 +54,11 @@ void DumpGeneratedFiles(const Om2CodegenArtifacts &artifacts) {
 }
 }  // namespace
 
-Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts,
-                                        Om2ConstMetas &const_metas, std::vector<Om2VarMeta> &var_metas) const {
+Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, gert::Om2ModelData &model_data) const {
+  Om2CodegenArtifacts &artifacts = model_data.program_body.source_artifacts;
+  auto &const_metas = model_data.constants_data.consts;
+  std::vector<Om2VarMeta> &var_metas = model_data.var_metas;
+  bool has_custom_kernel = !model_data.custom_kernel_binaries.empty();
   artifacts.clear();
   const_metas.clear();
   var_metas.clear();
@@ -68,7 +70,7 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2Codeg
   Om2CodegenModelBuilder builder;
   GE_ASSERT_SUCCESS(builder.Build(ge_model, task_code_builders, codegen_model, const_metas));
   var_metas = codegen_model.var_metas;
-  ProgramGenerator generator(ast, task_code_builders, codegen_model);
+  ProgramGenerator generator(ast, task_code_builders, codegen_model, has_custom_kernel);
 
   Om2CodePrinter code_printer(ge_model->GetName());
   GE_ASSERT_SUCCESS(generator.GenerateProgram(code_printer));
@@ -88,11 +90,5 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2Codeg
   artifacts = std::move(source_artifacts);
   artifacts.push_back(std::move(so_artifact));
   return SUCCESS;
-}
-
-Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, Om2CodegenArtifacts &artifacts,
-                                        Om2ConstMetas &const_metas) const {
-  std::vector<Om2VarMeta> var_metas;
-  return Om2CodegenAndCompile(ge_model, artifacts, const_metas, var_metas);
 }
 }  // namespace ge

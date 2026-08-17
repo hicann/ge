@@ -49,6 +49,7 @@ const std::map<std::string, std::vector<OpDispatchType::Value>> &GetDispatchFunc
       {"DispatchCmoAddr", {OpDispatchType::DISPATCH_CMO_ADDR}},
       {"DispatchDsa", {OpDispatchType::DISPATCH_DSA}},
       {"DispatchKernelEx", {OpDispatchType::DISPATCH_KERNEL_EX}},
+      {"DispatchCustomKernel", {OpDispatchType::DISPATCH_CUSTOM_KERNEL}},
   };
   return kMap;
 }
@@ -92,6 +93,9 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
 Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,
                                                   const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   body.push_back(ast_.Call("OM2_LOGI", {ast_.Str("Load begin")}));
+  if (has_custom_kernel_) {
+    body.push_back(ChkStatus(ast_.Call("DeserializeCustKernelBinaries", {ast_.Var("", "bin_info_map_")})));
+  }
   body.push_back(dev_ext_info_mem_ptrs_.Resize(codegen_model.aicpu_task_count));
 
   // 公共 DispatchOpContext 初始化列表（for 循环版和展开版共享）

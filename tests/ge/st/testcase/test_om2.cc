@@ -53,7 +53,10 @@
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
 #include "ge_runtime_stub/include/faker/aicpu_taskdef_faker.h"
+#include "ge_runtime_stub/include/faker/custom_taskdef_faker.h"
 
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 #include <cinttypes>
 #include <securec.h>
 #include <sys/stat.h>
@@ -1410,6 +1413,99 @@ GeRootModelPtr CreateGeRootModelWithCmoAddrTask(bool with_explicit_format = fals
   if (with_explicit_format) {
     cmo_addr->set_args_format("{}{.32b}{#.32b64}{i_instance0*}{}");
   }
+  return ge_root_model;
+}
+
+class TestPortableCustomOp : public PortableOp, public EagerExecuteOp {
+ public:
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    return SUCCESS;
+  }
+
+  graphStatus Serialize(std::vector<uint8_t> &buffer) override {
+    const std::string payload = "test_portable_custom_op_kernel_bin";
+    buffer.assign(payload.begin(), payload.end());
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus Deserialize(const std::vector<uint8_t> &buffer) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
+static ComputeGraphPtr BuildCustomOpGraph() {
+  auto graph = std::make_shared<ComputeGraph>("custom_op_om2_graph");
+  GeTensorDesc tensor_desc(GeShape({2, 2, 2}), FORMAT_ND, DT_FLOAT);
+
+  auto data0_desc = std::make_shared<OpDesc>("data0", DATA);
+  (void)data0_desc->AddInputDesc(tensor_desc);
+  (void)data0_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetInt(data0_desc, ATTR_NAME_INDEX, 0);
+  auto data0 = graph->AddNode(data0_desc);
+
+  auto data1_desc = std::make_shared<OpDesc>("data1", DATA);
+  (void)data1_desc->AddInputDesc(tensor_desc);
+  (void)data1_desc->AddOutputDesc(tensor_desc);
+  AttrUtils::SetInt(data1_desc, ATTR_NAME_INDEX, 1);
+  auto data1 = graph->AddNode(data1_desc);
+
+  auto custom_op_desc = std::make_shared<OpDesc>("custom_op", "TestPortableOp");
+  (void)custom_op_desc->AddInputDesc("x0", tensor_desc);
+  (void)custom_op_desc->AddInputDesc("x1", tensor_desc);
+  (void)custom_op_desc->AddOutputDesc("y", tensor_desc);
+  custom_op_desc->AppendIrInput("x0", kIrInputRequired);
+  custom_op_desc->AppendIrInput("x1", kIrInputRequired);
+  custom_op_desc->AppendIrOutput("y", kIrOutputRequired);
+  auto custom_op_node = graph->AddNode(custom_op_desc);
+
+  auto netoutput_desc = std::make_shared<OpDesc>("netoutput", NETOUTPUT);
+  (void)netoutput_desc->AddInputDesc(tensor_desc);
+  auto netoutput = graph->AddNode(netoutput_desc);
+
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), custom_op_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(data1->GetOutDataAnchor(0), custom_op_node->GetInDataAnchor(1));
+  GraphUtils::AddEdge(custom_op_node->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  netoutput_desc->SetSrcName({"custom_op"});
+  netoutput_desc->SetSrcIndex({0});
+  graph->TopologicalSorting();
+  return graph;
+}
+
+GeRootModelPtr CreateGeRootModelWithCustomOp() {
+  auto graph = BuildCustomOpGraph();
+
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef(
+              "custom_op",
+              gert::CustomTaskDefFaker("custom_op_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"custom_op"})
+          .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  std::vector<uint8_t> weights_value(512, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weights_value.size());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
   return ge_root_model;
 }
 
@@ -3479,6 +3575,58 @@ TEST_F(Om2VarSt, GenOm2WithoutVarNodes_NoVarResourceFiles) {
     EXPECT_EQ(f.find("data/variables/"), std::string::npos)
         << "Unexpected variable file in model without variables: " << f;
   }
+}
+
+/**
+ * 用例描述：包含自定义算子的计算图打包为 OM2 模型，验证自定义算子 kernel bin 被序列化写入 OM2 包
+ *
+ * 预置条件：
+ * 1. 注册一个实现 PortableOp 接口的自定义算子 TestPortableOp
+ * 2. 构造计算图：data0 -> custom_op <- data1, custom_op -> netoutput
+ *
+ * 测试步骤：
+ * 1. 通过 CustomOpFactory 注册 TestPortableOp
+ * 2. 构造包含 TestPortableOp 节点的 GeRootModel
+ * 3. 调用 Om2PackageHelper::SaveToOmRootModel 打包为 OM2
+ * 4. 验证 OM2 包中存在自定义算子 kernel bin 文件
+ *
+ * 预期结果：
+ * 1. OM2 打包成功
+ * 2. OM2 包中包含 custom_op 的序列化 kernel bin 文件
+ */
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
+  const AscendString kOpType("TestPortableOp");
+  CustomOpFactory::RegisterCustomOpCreator(
+      kOpType, []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPortableCustomOp>(); });
+
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithCustomOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_custom_op.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ASSERT_GT(model_buf_size, 0U);
+
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+
+  bool has_custom_kernel_bin = false;
+  for (const auto &f : file_names) {
+    if (f.find("CustomKernel.bin") != std::string::npos) {
+      has_custom_kernel_bin = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_custom_kernel_bin) << "OM2 archive should contain custom op kernel binary";
+
+  CustomOpFactory::RemoveCustomOps({kOpType});
 }
 
 }  // namespace ge

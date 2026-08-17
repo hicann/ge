@@ -30,6 +30,7 @@ std::array<ge::ModelTaskType, TaskDefFaker::kTaskTypeEnd> task_types_map = {
     ge::ModelTaskType::MODEL_TASK_MEMCPY_ASYNC,                  // kRts
     ge::ModelTaskType::MODEL_TASK_STREAM_LABEL_SWITCH_BY_INDEX,  // kLabelSwitch
     ge::ModelTaskType::MODEL_TASK_EVENT_RECORD,                  // kEvent
+    ge::ModelTaskType::MODEL_TASK_CUSTOM_KERNEL,                 // kCustom
 };
 }  // namespace
 
@@ -53,7 +54,7 @@ std::vector<domi::TaskDef> TaskDefFaker::CreateTaskDef(uint64_t op_index) {
       task_defs[i].mutable_kernel_with_handle()->mutable_context()->set_args_offset(&offset, sizeof(offset));
       task_defs[i].mutable_kernel_with_handle()->set_args(addrs, sizeof(addrs));
       task_defs[i].mutable_kernel_with_handle()->set_block_dim(8);
-    } else if (task_type == kWithoutHandle || task_type == kCCAicpu) {
+    } else if (task_type == kWithoutHandle || task_type == kCCAicpu || task_type == kCustom) {
       task_defs[i].mutable_kernel()->mutable_context()->set_op_index(op_index);
       task_defs[i].mutable_kernel()->mutable_context()->set_kernel_type(
           static_cast<uint32_t>(kernel_types_map[kernel_type]));

@@ -27,11 +27,12 @@
 #include "graph/utils/type_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph_metadef/graph/utils/file_utils.h"
-#include "graph/model.h"
+#include "graph/custom_op_factory.h"
 #include "common/helper/visual_json_converter.h"
 #include "graph/ge_context.h"
 #include "graph/manager/graph_var_manager.h"
 #include "common/helper/om2/rt_var_resource_builder.h"
+#include "common/op_so_store/op_so_store_utils.h"
 
 namespace ge {
 namespace {
@@ -593,11 +594,11 @@ Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ProgramBody &body,
-                                          std::vector<Om2ConstMeta> &const_metas, std::vector<Om2VarMeta> &var_metas) {
+Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build program body");
+  auto &body = model_data.program_body;
   Om2Codegen codegen;
-  GE_ASSERT_SUCCESS(codegen.Om2CodegenAndCompile(ge_model, body.source_artifacts, const_metas, var_metas));
+  GE_ASSERT_SUCCESS(codegen.Om2CodegenAndCompile(ge_model, model_data));
   GE_ASSERT_TRUE(!body.source_artifacts.empty());
 
   for (const auto &artifact : body.source_artifacts) {
@@ -607,16 +608,159 @@ Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::Om2P
     }
   }
 
+  auto &const_metas = model_data.constants_data.consts;
+  auto &var_metas = model_data.var_metas;
   GELOGI("[OM2] Successfully built program body, artifacts count=%zu, const_metas count=%zu, var_metas count=%zu",
          body.source_artifacts.size(), const_metas.size(), var_metas.size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model,
-                                             std::vector<gert::Om2KernelBinary> &kernel_binaries) {
+Status Om2PackageHelper::BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data) {
+  GELOGI("[OM2] Begin to build custom kernel shared libraries");
+  GE_ASSERT_NOTNULL(ge_root_model);
+  if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kCustomOp)) {
+    return SUCCESS;
+  }
+  GE_ASSERT_SUCCESS(ReadCustomOpSoToBuffer(ge_root_model->GetCustomOpSoSet(), model_data.custom_shared_libs));
+  GELOGI("[OM2] Save %zu custom op so to OpSoStore success.", ge_root_model->GetCustomOpSoSet().size());
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::ReadCustomOpSoToBuffer(const std::unordered_set<std::string> &ops_so_set,
+                                                std::vector<gert::Om2KernelBinary> &shared_lib_binaries) {
+  for (const auto &op_so : ops_so_set) {
+    uint32_t bin_len = 0U;
+    auto op_so_bin = GetBinDataFromFile(op_so, bin_len);
+    GE_ASSERT_NOTNULL(op_so_bin, "open so fail, path=%s", op_so.c_str());
+    const auto &pos = op_so.find_last_of("/");
+    GE_ASSERT_TRUE(pos != std::string::npos);
+    const auto &so_name = op_so.substr(pos + 1UL);
+    const auto &vendor_name = op_so.substr(0, pos);
+    const size_t hash_id = std::hash<std::string>{}(std::string(op_so_bin.get(), op_so_bin.get() + bin_len));
+    gert::Om2KernelBinary kb;
+    kb.name = std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name;
+    kb.data = ge::ReadonlyByteBuffer(reinterpret_cast<uint8_t *>(op_so_bin.release()), ge::ConditionalDeleter{true});
+    kb.data_size = bin_len;
+    shared_lib_binaries.emplace_back(std::move(kb));
+
+    GELOGD("[OM2] Serialized custom op so '%s', bin size:%zu", so_name.c_str(), bin_len);
+  }
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model,
+                                                  std::set<std::string> &used_custom_op_types) {
+  if (ge_root_model->GetRootGraph() != nullptr) {
+    const auto &root_graph = ge_root_model->GetRootGraph();
+    for (const auto &node : root_graph->GetAllNodes()) {
+      const std::string op_type = node->GetType();
+      if (CustomOpFactory::IsExistOp(AscendString(op_type.c_str()))) {
+        used_custom_op_types.insert(op_type);
+      }
+    }
+  }
+
+  // subgraph_instance_name_to_model_ 中的 GeModel 可能持有独立的 ComputeGraph 对象，
+  // 这些子图未必通过 AddSubgraph 挂入 root_graph 的子图树，因此无法被上方 GetAllNodes() 遍历到。
+  // 典型场景：编译分区后各分区独立持有自己的 ComputeGraph，或反序列化时每个 GeModel 单独还原图对象。
+  // 此处需额外遍历，以确保这类游离子图中的自定义算子也被收集到。
+  const auto &subgraph_map = ge_root_model->GetSubgraphInstanceNameToModel();
+  for (const auto &subgraph_pair : subgraph_map) {
+    const auto &ge_model = subgraph_pair.second;
+    if (ge_model == nullptr || ge_model->GetGraph() == nullptr) {
+      continue;
+    }
+    const auto &graph = ge_model->GetGraph();
+    if (graph == ge_root_model->GetRootGraph()) {
+      continue;
+    }
+    for (const auto &node : graph->GetAllNodes()) {
+      const std::string op_type = node->GetType();
+      if (CustomOpFactory::IsExistOp(AscendString(op_type.c_str()))) {
+        used_custom_op_types.insert(op_type);
+      }
+    }
+  }
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root_model,
+                                                   gert::Om2ModelData &model_data) {
+  GELOGI("[OM2] Begin to build custom kernel binaries");
+  auto &kernel_binaries = model_data.custom_kernel_binaries;
+
+  std::set<std::string> used_custom_op_types;
+  GE_ASSERT_SUCCESS(CollectUsedCustomOpTypes(ge_root_model, used_custom_op_types));
+
+  if (used_custom_op_types.empty()) {
+    GELOGI("[OM2] No custom ops used in graph, skip building custom kernels.");
+    return SUCCESS;
+  }
+
+  bool has_serializable_custom_op = false;
+  bool has_non_serializable_custom_op = false;
+  std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
+  serializable_ops.reserve(used_custom_op_types.size());
+  for (const auto &op_type_str : used_custom_op_types) {
+    auto op = CustomOpFactory::CreateOrGetCustomOp(AscendString(op_type_str.c_str()));
+    if (op == nullptr) {
+      GELOGE(FAILED, "[OM2] create custom op failed, op_type:%s", op_type_str.c_str());
+      return FAILED;
+    }
+    auto *serializable_op = dynamic_cast<PortableOp *>(op);
+    if (serializable_op == nullptr) {
+      has_non_serializable_custom_op = true;
+    } else {
+      has_serializable_custom_op = true;
+      serializable_ops.emplace_back(op_type_str, serializable_op);
+    }
+    if (has_serializable_custom_op && has_non_serializable_custom_op) {
+      GELOGE(FAILED, "[OM2] graph contains both serializable and non-serializable custom ops.");
+      return FAILED;
+    }
+  }
+
+  for (const auto &[op_type, serializable_op] : serializable_ops) {
+    if (serializable_op == nullptr) {
+      GELOGE(FAILED, "[OM2] serializable custom op is null, op_type:%s", op_type.c_str());
+      return FAILED;
+    }
+
+    std::vector<uint8_t> buffer;
+    const auto ret = serializable_op->Serialize(buffer);
+    if (ret != GRAPH_SUCCESS) {
+      GELOGE(ret, "[OM2] serialize failed, op_type:%s", op_type.c_str());
+      return ret;
+    }
+    if (buffer.empty()) {
+      GELOGW("[OM2] serialized buffer is empty, skip, op_type:%s", op_type.c_str());
+      continue;
+    }
+
+    auto bin_data = new (std::nothrow) uint8_t[buffer.size()];
+    if (bin_data == nullptr) {
+      GELOGE(FAILED, "[Allocate][Mem]Allocate mem failed");
+      return FAILED;
+    }
+    GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
+    gert::Om2KernelBinary kb;
+    kb.data = ge::ReadonlyByteBuffer(bin_data, ge::ConditionalDeleter{true});
+    kb.data_size = buffer.size();
+    const size_t hash_id = std::hash<std::string>{}(std::string(kb.data.get(), kb.data.get() + kb.data_size));
+    const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
+    kb.name = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
+    kernel_binaries.push_back(std::move(kb));
+    GELOGD("[OM2] Serialized custom op '%s', bin size:%zu", op_type.c_str(), kb.data_size);
+  }
+  GELOGI("[OM2] Successfully built custom kernel binaries, count=%zu", kernel_binaries.size());
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build kernel binaries");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
+  std::vector<gert::Om2KernelBinary> &kernel_binaries = model_data.kernel_binaries;
 
   // Collect TBE kernels
   const auto &tbe_kernel_store = ge_model->GetTBEKernelStore();
@@ -682,10 +826,11 @@ Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model,
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelMeta &model_meta) {
+Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build model meta");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
+  gert::Om2ModelMeta &model_meta = model_data.model_meta;
 
   ModelIoNodes io_nodes;
   GE_ASSERT_SUCCESS(CollectModelIoNodes(graph, io_nodes));
@@ -815,9 +960,11 @@ Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2Mod
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, const std::vector<Om2ConstMeta> &const_metas,
-                                            gert::Om2ConstantsData &data) {
+Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build constants data");
+  gert::Om2ConstantsData &data = model_data.constants_data;
+  auto &const_metas = data.consts;
+
   bool has_internal_const = false;
   for (const auto &const_meta : const_metas) {
     if (const_meta.type == "INTERNAL") {
@@ -827,11 +974,6 @@ Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, const st
   }
 
   data.internal_weight_size = has_internal_const ? ge_model->GetWeightSize() : 0U;
-
-  for (const auto &const_meta : const_metas) {
-    data.consts.push_back(const_meta);
-  }
-
   if (has_internal_const) {
     const uint8_t *weight_ptr = ge_model->GetWeightData();
     GE_ASSERT_NOTNULL(weight_ptr, "[OM2] Weight data pointer is null");
@@ -843,10 +985,11 @@ Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, const st
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2DebugInfo &debug_info) {
+Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build debug info");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
+  gert::Om2DebugInfo &debug_info = model_data.debug_info;
 
   // Build op_attr_map
   for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
@@ -874,9 +1017,9 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Deb
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildManifest(const GeRootModelPtr &ge_root_model,
-                                       std::map<std::string, std::string> &manifest) {
+Status Om2PackageHelper::BuildManifest(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build manifest");
+  std::map<std::string, std::string> &manifest = model_data.manifest;
   manifest[OM2_ARCHIVE_VERSION] = OM2_ARCHIVE_VERSION_VALUE;
   if (ge_root_model != nullptr) {
     manifest[OM2_MODEL_NUM] = std::to_string(ge_root_model->GetSubgraphInstanceNameToModel().size());
@@ -905,13 +1048,13 @@ Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2
     GELOGW("[OM2] Ge model set opp version unsuccessful!");
   }
 
-  std::vector<Om2ConstMeta> const_metas;
-  std::vector<Om2VarMeta> var_metas;
-  GE_ASSERT_SUCCESS(BuildProgramBody(ge_model, model_data.program_body, const_metas, var_metas));
-  GE_ASSERT_SUCCESS(BuildKernelBinaries(ge_model, model_data.kernel_binaries));
-  GE_ASSERT_SUCCESS(BuildModelMeta(ge_model, model_data.model_meta));
-  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, const_metas, model_data.constants_data));
-  model_data.var_metas = std::move(var_metas);
+  GE_ASSERT_SUCCESS(BuildCustomKernelBinaries(ge_root_model, model_data));
+  GE_ASSERT_SUCCESS(BuildCustomSharedLibs(ge_root_model, model_data));
+  GE_ASSERT_SUCCESS(BuildProgramBody(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildKernelBinaries(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildModelMeta(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, model_data));
+
   const auto compute_graph = ge_model->GetGraph();
   model_data.graph_id = (compute_graph != nullptr) ? compute_graph->GetGraphID() : 0U;
   const auto session_id = GetContext().SessionId();
@@ -920,8 +1063,8 @@ Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2
     GE_ASSERT_SUCCESS(
         gert::BuildRTVarResource(*var_manager, ge_model->GetGraph(), model_data.var_metas, model_data.rt_var_resource));
   }
-  GE_ASSERT_SUCCESS(BuildDebugInfo(ge_model, model_data.debug_info));
-  GE_ASSERT_SUCCESS(BuildManifest(ge_root_model, model_data.manifest));
+  GE_ASSERT_SUCCESS(BuildDebugInfo(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildManifest(ge_root_model, model_data));
 
   GELOGI("[OM2] Successfully built Om2ModelData");
   return SUCCESS;

@@ -1402,13 +1402,13 @@ GeRootModelPtr CreateGeRootModelWithNoTaskConcatOutputReuseDimOne() {
   return ge_root_model;
 }
 
-ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model) {
+ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_custom_kernel = false) {
   static AstContext ast_ctx;
   static AstBuildContext ast(ast_ctx);
   const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
   if (name_to_ge_model.empty()) {
     ADD_FAILURE() << "[OM2] No subgraphs found in ge_root_model";
-    return ProgramGenerator(ast, {}, Om2CodegenModel());
+    return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
   const auto &ge_model = name_to_ge_model.begin()->second;
   SyncKernelNameFromOpDesc(ge_model);
@@ -1416,15 +1416,15 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model) {
   Om2CodegenModel codegen_model;
   if (Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model) != SUCCESS) {
     ADD_FAILURE() << "[OM2] Failed to create task code handlers";
-    return ProgramGenerator(ast, {}, Om2CodegenModel());
+    return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
   Om2CodegenModelBuilder builder;
   Om2ConstMetas const_metas;
   if (builder.Build(ge_model, task_code_builders, codegen_model, const_metas) != SUCCESS) {
     ADD_FAILURE() << "[OM2] Failed to build om2 codegen model";
-    return ProgramGenerator(ast, {}, Om2CodegenModel());
+    return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
-  return ProgramGenerator(ast, task_code_builders, codegen_model);
+  return ProgramGenerator(ast, task_code_builders, codegen_model, has_custom_kernel);
 }
 
 const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
@@ -2157,6 +2157,7 @@ enum OpDispatchType : uint32_t {
     DISPATCH_CMO_ADDR = 18,
     DISPATCH_DSA = 19,
     DISPATCH_KERNEL_EX = 20,
+    DISPATCH_CUSTOM_KERNEL = 21,
     DISPATCH_TYPE_COUNT
 };
 
@@ -2268,6 +2269,15 @@ struct AicpuDispatchInfo {
   uint32_t task_type;
 };
 
+struct CustomDispatchInfo {
+  const OpArgInfo *args_info;  // IO 地址解析数组
+  uint32_t args_info_num;      // args_info 数组长度
+  const char *op_type;         // 算子类型名，用于 Report 上报
+  uint32_t args_idx;           // 参数表索引，用于 GetArgsInfo 查找
+  uint32_t stream_id;          // 执行流索引
+  uint32_t task_type;
+};
+
 struct DsaDispatchInfo {
   const OpArgInfo *args_info;          // IO 地址解析数组
   const char *op_type;         // 算子类型名，用于 Report 上报
@@ -2363,6 +2373,7 @@ struct TaskDispatchInfo {
   union {
     AicoreDispatchInfo aicore;
     AicpuDispatchInfo aicpu;
+    CustomDispatchInfo custom;
     CmoDispatchInfo cmo;
     MemcpyAsyncDispatchInfo memcpy_async;
     MemcpyAddrDispatchInfo memcpy_addr;
@@ -7606,5 +7617,57 @@ TEST_F(ProgramGeneratorUt, CopyTilingDataIfNeeded_EmptyTilingData_SkipsTiling) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+}
+
+// 校验 has_custom_kernel = true 时，load_and_run 源文件生成自定义算子内核所需代码
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_WithCustomKernel_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model, true);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+
+  // has_custom_kernel 为 true 时应额外包含自定义算子相关头文件
+  EXPECT_NE(load_run.find("#include \"graph/custom_op.h\""), std::string::npos);
+  EXPECT_NE(load_run.find("#include \"exe_graph/runtime/gert_mem_allocator.h\""), std::string::npos);
+
+  // ge 命名空间内应包含 CustomOpFactory 类定义（kCreateClassCustomOpFactory）
+  EXPECT_NE(load_run.find("namespace ge {"), std::string::npos);
+  EXPECT_NE(load_run.find("class CustomOpFactory"), std::string::npos);
+  EXPECT_NE(load_run.find("CreateOrGetCustomOp"), std::string::npos);
+  EXPECT_NE(load_run.find("} // namespace ge"), std::string::npos);
+
+  // om2 匿名命名空间内应包含 kCustomTaskHelpers 提供的自定义内核辅助代码
+  EXPECT_NE(load_run.find("BuildGeTensor(const Om2Tensor &om2_tensor)"), std::string::npos);
+  EXPECT_NE(load_run.find("class CustKernelContextHolder"), std::string::npos);
+  EXPECT_NE(load_run.find("CustKernelContextHolder BuildKernelContextHolder"), std::string::npos);
+  EXPECT_NE(load_run.find("class AllocatorFaker : public gert::GertAllocator"), std::string::npos);
+  EXPECT_NE(load_run.find("aclError KernelCustTaskDistribute("), std::string::npos);
+  EXPECT_NE(load_run.find("aclError DeserializeCustKernelBinaries("), std::string::npos);
+
+  // Load 方法中应调用 DeserializeCustKernelBinaries 反序列化自定义内核二进制
+  EXPECT_NE(load_run.find("DeserializeCustKernelBinaries(bin_info_map_)"), std::string::npos);
+
+  // ge 命名空间应在 om2 命名空间之前生成
+  EXPECT_LT(load_run.find("namespace ge {"), load_run.find("namespace om2 {"));
+}
+
+// 校验 has_custom_kernel 默认为 false 时，不生成自定义算子内核相关代码
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_WithoutCustomKernel_Omitted) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+
+  // has_custom_kernel 为 false 时不应包含自定义算子相关头文件与辅助代码
+  EXPECT_EQ(load_run.find("#include \"graph/custom_op.h\""), std::string::npos);
+  EXPECT_EQ(load_run.find("#include \"exe_graph/runtime/gert_mem_allocator.h\""), std::string::npos);
+  EXPECT_EQ(load_run.find("class CustomOpFactory"), std::string::npos);
+  EXPECT_EQ(load_run.find("BuildGeTensor(const Om2Tensor &om2_tensor)"), std::string::npos);
+  EXPECT_EQ(load_run.find("KernelCustTaskDistribute"), std::string::npos);
+  EXPECT_EQ(load_run.find("DeserializeCustKernelBinaries"), std::string::npos);
 }
 }  // namespace ge

@@ -44,6 +44,7 @@ const std::unordered_set<ModelTaskType> kSupportedTaskTypes = {
     ModelTaskType::MODEL_TASK_CMO,
     ModelTaskType::MODEL_TASK_CMO_ADDR,
     ModelTaskType::MODEL_TASK_BARRIER,
+    ModelTaskType::MODEL_TASK_CUSTOM_KERNEL,
 };
 }  // namespace
 std::string Om2CodegenUtils::GetKernelNameWithExtension(const std::string &kernel_name) {
