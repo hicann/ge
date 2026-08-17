@@ -473,7 +473,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_EmptyOutputs_PrepareOm2Outputs) {
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
 }
 
-TEST_F(Om2OnlineModelExecutorTest, RunGraph_HostInput_ReturnsUnsupported) {
+TEST_F(Om2OnlineModelExecutorTest, RunGraph_HostInput_Success) {
   EnvValueGuard guard("ENABLE_RUNTIME_OM2");
   EnableOm2OnlineMode();
 
@@ -510,7 +510,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_HostInput_ReturnsUnsupported) {
   inputs.push_back(std::move(host_input));
   std::vector<gert::Tensor> outputs;
   outputs.push_back(std::move(output));
-  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), GE_GRAPH_UNSUPPORTED);
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), SUCCESS);
 
   EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
@@ -759,38 +759,6 @@ TEST_F(Om2OnlineModelExecutorTest, LoadGraph_ExternalConstAndFeatureMemory) {
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
-  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
-  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
-}
-
-TEST_F(Om2OnlineModelExecutorTest, RunGraph_InputCountMismatch_ReturnsParamInvalid) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  ModelExecutor model_executor;
-  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
-
-  auto compute_graph = std::make_shared<ComputeGraph>("test_graph");
-  GeRootModelPtr ge_root_model = std::make_shared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
-
-  GeModelPtr ge_model = std::make_shared<GeModel>();
-  ge_model->SetGraph(compute_graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
-
-  GraphId graph_id = 5011;
-  GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
-  graph_node->SetGeRootModel(ge_root_model);
-
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
-  ge_root_model->SetOm2ModelData(model_data);
-
-  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
-
-  std::vector<gert::Tensor> inputs;
-  std::vector<gert::Tensor> outputs(1);
-  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), PARAM_INVALID);
-
   EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
 }

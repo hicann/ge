@@ -24,7 +24,6 @@
 #include "graph/load/model_manager/model_manager.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "hybrid/common/npu_memory_allocator.h"
-#include "graph/utils/tensor_adapter.h"
 #include "acl/acl_rt.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "om2/om2_model_manager.h"
@@ -162,18 +161,9 @@ Status ModelExecutor::UnloadGraph(const GeRootModelPtr &ge_root_model, const uin
   GE_CHECK_NOTNULL(ge_root_model);
   GE_CHK_ACL_RET(aclrtSetDevice(static_cast<int32_t>(GetContext().DeviceId())));
 
-  GraphNodePtr graph_node;
-  {
-    const std::lock_guard<std::mutex> lk(mutex_);
-    auto it = graph_nodes_.find(graph_id);
-    if (it != graph_nodes_.end()) {
-      graph_node = it->second;
-    }
-  }
-
   Status unload_ret;
-  if (graph_node != nullptr && IsOm2OnlineMode()) {
-    unload_ret = UnloadOm2Graph(graph_id);
+  if (IsOm2OnlineMode()) {
+    unload_ret = UnloadOm2Graph(ge_root_model, graph_id);
   } else {
     unload_ret = UnloadModel(ge_root_model, graph_id);
   }
@@ -261,14 +251,6 @@ void ModelExecutor::RunThread() {
     error_message::SetErrMgrContext(args->error_context);
     GetContext().SetSessionId(args->session_id);
     GetThreadLocalContext() = args->context;
-    bool is_continue = false;
-    if (is_continue) {
-      GELOGI("graph [%u] is suspended, return success", args->graph_id);
-      std::vector<gert::Tensor> outputs;
-      args->callback(SUCCESS, outputs);
-      args->graph_node->SetRunFlag(false);
-      continue;
-    }
 
     auto ge_root_model = args->graph_node->GetGeRootModel();
     if (ge_root_model == nullptr) {
@@ -860,7 +842,7 @@ Status ModelExecutor::CheckAndReleaseMemory(const GeRootModelPtr &ge_root_model,
       continue;
     }
     GeRootModelPtr tmp_ge_root_model = it.second->GetGeRootModel();
-    if (!DoReleaseModel(tmp_ge_root_model, it.second)) {
+    if (!ReleaseMemory(tmp_ge_root_model, it.second)) {
       continue;
     }
     it.second->SetLoadFlag(false);
@@ -881,10 +863,6 @@ Status ModelExecutor::CheckAndReleaseMemory(const GeRootModelPtr &ge_root_model,
   (void)MemManager::Instance().CachingInstance(RT_MEMORY_HBM).TryFreeBlocks();
   (void)hybrid::NpuMemoryAllocator::FreeCachedMem();
   return SUCCESS;
-}
-
-bool ModelExecutor::DoReleaseModel(const GeRootModelPtr &ge_root_model, const GraphNodePtr &loaded_graph_node) const {
-  return ReleaseMemory(ge_root_model, loaded_graph_node);
 }
 
 Status ModelExecutor::GetStreamNum(const GeRootModelPtr &ge_root_model, uint32_t &stream_num,
@@ -1061,6 +1039,8 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
   // NOTE: Load 阶段不需要 stream。stream 在 Execute 阶段通过 RunOm2Graph 传递给 RunAsync。
   // OM1 路径中 ModelLoad 也不使用 stream 参数（仅 MallocFixedFeatureMemoryIfNeed 使用）。
   (void)stream;
+  uint32_t device_id = GetContext().DeviceId();
+  GE_CHK_STATUS_RET(ModelUtils::SetDevice(device_id), "[Call][SetDevice] failed, device_id:%u", device_id);
   const auto &model_data = ge_root_model->GetOm2ModelData();
   GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing Om2ModelData.");
 
@@ -1069,7 +1049,6 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
   if (model_id == INVALID_MODEL_ID) {
     model_id = Om2ModelManager::GetInstance().GenModelId();
     ge_root_model->SetModelId(model_id);
-    GELOGI("[OM2] Generated model_id %u for graph %u", model_id, graph_id);
   }
 
   // NOTE: OM2 路径不需要调用 MallocFixedFeatureMemoryIfNeed。
@@ -1100,8 +1079,6 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
 
   const ge::Status ret = Om2ModelManager::GetInstance().LoadModel(model_id, *model_data, load_arg, session_id_);
   if (ret == SUCCESS) {
-    std::lock_guard<std::mutex> lock(om2_map_mutex_);
-    om2_graph_to_model_map_[graph_id] = model_id;
     graph_node->SetLoaded();
     AddGraphNode(graph_id, graph_node);
   }
@@ -1119,29 +1096,6 @@ Status ModelExecutor::GetOm2ModelTensorDesc(const GraphNodePtr &graph_node,
   const auto &model_meta = model_data->model_meta;
   input_desc = &model_meta.input_desc;
   output_desc = &model_meta.output_desc;
-  return SUCCESS;
-}
-
-Status ModelExecutor::ValidateOm2Tensors(const std::vector<ge::Om2TensorDesc> &descs,
-                                         const std::vector<gert::Tensor> &tensors, const char *kind,
-                                         uint32_t graph_id) const {
-  if (descs.size() != tensors.size()) {
-    GELOGE(PARAM_INVALID, "[OM2][Check] Invalid %s tensor count, expected=%zu, actual=%zu, graph_id=%u.", kind,
-           descs.size(), tensors.size(), graph_id);
-    return PARAM_INVALID;
-  }
-  for (size_t i = 0U; i < descs.size(); ++i) {
-    const size_t required_size = descs[i].GetByteSize();
-    if ((required_size > 0U) && (tensors[i].GetAddr() == nullptr)) {
-      GELOGE(PARAM_INVALID, "[OM2][Check] %s tensor[%zu] addr is null, graph_id=%u.", kind, i, graph_id);
-      return PARAM_INVALID;
-    }
-    if (tensors[i].GetSize() < required_size) {
-      GELOGE(PARAM_INVALID, "[OM2][Check] %s tensor[%zu] size is insufficient, expected=%zu, actual=%zu, graph_id=%u.",
-             kind, i, required_size, tensors[i].GetSize(), graph_id);
-      return PARAM_INVALID;
-    }
-  }
   return SUCCESS;
 }
 
@@ -1173,62 +1127,92 @@ Status ModelExecutor::PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vec
 
 Status ModelExecutor::RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph_id, const aclrtStream stream,
                                   const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) {
-  uint32_t model_id;
-  {
-    std::lock_guard<std::mutex> lock(om2_map_mutex_);
-    auto it = om2_graph_to_model_map_.find(graph_id);
-    if (it == om2_graph_to_model_map_.end()) {
-      GELOGE(GE_GRAPH_GRAPH_NOT_EXIST, "OM2 graph %u not loaded", graph_id);
-      return GE_GRAPH_GRAPH_NOT_EXIST;
-    }
-    model_id = it->second;
+  const auto ge_root_model = graph_node->GetGeRootModel();
+  GE_CHECK_NOTNULL(ge_root_model);
+  const uint32_t model_id = ge_root_model->GetModelId();
+  if (model_id == INVALID_MODEL_ID) {
+    GELOGE(GE_GRAPH_GRAPH_NOT_EXIST, "OM2 graph %u not loaded", graph_id);
+    return GE_GRAPH_GRAPH_NOT_EXIST;
   }
 
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
-  GE_ASSERT_SUCCESS(GetOm2ModelTensorDesc(graph_node, input_desc, output_desc));
-  GE_ASSERT_NOTNULL(input_desc);
-  GE_ASSERT_NOTNULL(output_desc);
-  GE_ASSERT_SUCCESS(ValidateOm2Tensors(*input_desc, inputs, "input", graph_id));
-  GE_ASSERT_SUCCESS(ValidateOm2Tensors(*output_desc, outputs, "output", graph_id));
+  std::vector<void *> temp_device_buffers;
+  GE_MAKE_GUARD(cleanup, [&temp_device_buffers]() {
+    for (auto *buf : temp_device_buffers) {
+      if (buf != nullptr) {
+        (void)aclrtFree(buf);
+      }
+    }
+  });
 
+  std::vector<gert::Tensor> host_input_tensors(inputs.size());
+  std::vector<gert::Tensor *> input_ptrs(inputs.size());
   for (size_t i = 0U; i < inputs.size(); ++i) {
     if (gert::TensorPlacementUtils::IsOnHost(inputs[i].GetPlacement())) {
-      GELOGE(GE_GRAPH_UNSUPPORTED,
-             "[OM2][Check] Input tensor[%zu] is on host, OM2 executor does not support host input, graph_id=%u.", i,
-             graph_id);
-      return GE_GRAPH_UNSUPPORTED;
+      const size_t size = inputs[i].GetSize();
+      void *device_addr = nullptr;
+      if (size > 0U) {
+        GE_ASSERT_RT_OK(aclrtMalloc(&device_addr, size, ACL_MEM_MALLOC_HUGE_FIRST));
+        temp_device_buffers.push_back(device_addr);
+        GE_ASSERT_RT_OK(aclrtMemcpy(device_addr, size, inputs[i].GetAddr(), size, ACL_MEMCPY_HOST_TO_DEVICE));
+      }
+      host_input_tensors[i].MutableFormat() = inputs[i].GetFormat();
+      host_input_tensors[i].MutableOriginShape() = inputs[i].GetOriginShape();
+      host_input_tensors[i].MutableStorageShape() = inputs[i].GetStorageShape();
+      host_input_tensors[i].SetDataType(inputs[i].GetDataType());
+      host_input_tensors[i].SetData(gert::TensorData(device_addr, nullptr, size, gert::kOnDeviceHbm));
+      input_ptrs[i] = &host_input_tensors[i];
+    } else {
+      input_ptrs[i] = const_cast<gert::Tensor *>(&inputs[i]);
     }
   }
 
-  std::vector<gert::Tensor *> input_ptrs;
-  std::vector<gert::Tensor *> output_ptrs;
-  // NOTE: RunAsync 仅读取 input tensor 的地址和数据，不会修改其内容。
-  // const_cast 与 OM1 路径 ExecuteGraphWithStream 保持一致。
-  for (const auto &t : inputs) {
-    input_ptrs.push_back(const_cast<gert::Tensor *>(&t));
-  }
-  for (auto &t : outputs) {
-    output_ptrs.push_back(&t);
+  std::vector<gert::Tensor> host_output_tensors(outputs.size());
+  std::vector<gert::Tensor *> output_ptrs(outputs.size());
+  std::vector<size_t> host_output_indices;
+  for (size_t i = 0U; i < outputs.size(); ++i) {
+    if (gert::TensorPlacementUtils::IsOnHost(outputs[i].GetPlacement())) {
+      const size_t size = outputs[i].GetSize();
+      void *device_addr = nullptr;
+      if (size > 0U) {
+        GE_ASSERT_RT_OK(aclrtMalloc(&device_addr, size, ACL_MEM_MALLOC_HUGE_FIRST));
+        temp_device_buffers.push_back(device_addr);
+      }
+      host_output_indices.push_back(i);
+      host_output_tensors[i].MutableFormat() = outputs[i].GetFormat();
+      host_output_tensors[i].MutableOriginShape() = outputs[i].GetOriginShape();
+      host_output_tensors[i].MutableStorageShape() = outputs[i].GetStorageShape();
+      host_output_tensors[i].SetDataType(outputs[i].GetDataType());
+      host_output_tensors[i].SetData(gert::TensorData(device_addr, nullptr, size, gert::kOnDeviceHbm));
+      output_ptrs[i] = &host_output_tensors[i];
+    } else {
+      output_ptrs[i] = &outputs[i];
+    }
   }
 
   const ge::Status ret = Om2ModelManager::GetInstance().RunModel(model_id, stream, input_ptrs, output_ptrs);
+  if (ret == SUCCESS) {
+    for (const size_t i : host_output_indices) {
+      const size_t size = outputs[i].GetSize();
+      if (size > 0U) {
+        GE_ASSERT_RT_OK(
+            aclrtMemcpy(outputs[i].GetAddr(), size, host_output_tensors[i].GetAddr(), size, ACL_MEMCPY_DEVICE_TO_HOST));
+      }
+    }
+  }
+
   graph_node->SetRunFlag(false);
   return ret;
 }
 
-Status ModelExecutor::UnloadOm2Graph(uint32_t graph_id) {
-  uint32_t model_id;
-  {
-    std::lock_guard<std::mutex> lock(om2_map_mutex_);
-    auto it = om2_graph_to_model_map_.find(graph_id);
-    if (it == om2_graph_to_model_map_.end()) {
-      return SUCCESS;  // idempotent
-    }
-    model_id = it->second;
-    om2_graph_to_model_map_.erase(it);
+Status ModelExecutor::UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id) {
+  GE_CHECK_NOTNULL(ge_root_model);
+  const uint32_t model_id = ge_root_model->GetModelId();
+  if (model_id == INVALID_MODEL_ID) {
+    return SUCCESS;  // idempotent
   }
-  return Om2ModelManager::GetInstance().UnloadModel(model_id);
+  GE_CHK_STATUS_RET(Om2ModelManager::GetInstance().UnloadModel(model_id),
+                    "[OM2] Unload model failed, modelId=%u, graphId=%u.", model_id, graph_id);
+  return SUCCESS;
 }
 
 }  // namespace ge

@@ -37,6 +37,7 @@
 #include "graph/utils/file_utils.h"
 #include "graph/utils/graph_utils.h"
 #include <cstdio>
+#include <cstring>
 #include <sstream>
 #include <system_error>
 
@@ -44,6 +45,7 @@
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
 #include "common/tbe_handle_store/tbe_kernel_store.h"
+#include "common/util/error_manager/error_manager.h"
 
 namespace ge {
 namespace {
@@ -992,7 +994,9 @@ TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_ZeroLen) {
 TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_InvalidZip) {
   const uint8_t garbage[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01, 0x02, 0x03};
   std::string json_out;
+  (void)ErrorManager::GetInstance().GetErrorMessage();
   EXPECT_NE(Om2PackageHelper::ExtractVisualJson(garbage, sizeof(garbage), json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
 }
 
 TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_NoVisualJson) {
@@ -1011,7 +1015,39 @@ TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_NoVisualJson) {
   ASSERT_NE(file_buf, nullptr);
 
   std::string json_out;
+  (void)ErrorManager::GetInstance().GetErrorMessage();
   EXPECT_NE(Om2PackageHelper::ExtractVisualJson(file_buf.get(), file_size, json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
+}
+
+TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_CorruptedVisualJsonEntry) {
+  const std::string zip_path = PathUtils::Join({test_work_dir, "corrupted_visual_json.om2"});
+  ZipArchiveWriter writer(zip_path);
+  ASSERT_TRUE(writer.IsMemFileOpened());
+  const std::string visual_json = "{}";
+  ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
+                                visual_json.size(), true));
+
+  ModelBufferData model;
+  ASSERT_TRUE(writer.SaveModelData(model, false));
+  ASSERT_NE(model.data, nullptr);
+
+  constexpr uint8_t kLocalFileHeaderMagic[] = {0x50U, 0x4BU, 0x03U, 0x04U};
+  bool corrupted = false;
+  for (size_t i = 0U; i + sizeof(kLocalFileHeaderMagic) + 6U < model.length; ++i) {
+    if (std::memcmp(model.data.get() + i, kLocalFileHeaderMagic, sizeof(kLocalFileHeaderMagic)) == 0) {
+      model.data.get()[i + 8U] = 0xFFU;
+      model.data.get()[i + 9U] = 0U;
+      corrupted = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(corrupted);
+
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+  std::string json_out;
+  EXPECT_NE(Om2PackageHelper::ExtractVisualJson(model.data.get(), model.length, json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
 }
 
 TEST_F(Om2PackageHelperUt, BuildModelMeta_SpecialInputSize) {

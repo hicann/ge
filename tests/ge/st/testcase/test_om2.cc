@@ -24,6 +24,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cerrno>
+#include <cstring>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -1665,6 +1666,65 @@ TEST_F(Om2St, Om2PackageHelper_Ok_ExtractVisualJsonFromMinimalOm2) {
   ASSERT_TRUE(extracted.IsValid());
   EXPECT_EQ(extracted.Raw().at("format"), JsonFile::json("ge_visual_json"));
   EXPECT_EQ(extracted.Raw().at("model").at("name"), JsonFile::json("visual_model"));
+}
+
+TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonFromInvalidZip) {
+  const uint8_t garbage[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01, 0x02, 0x03};
+  std::string json_out;
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+
+  EXPECT_NE(Om2PackageHelper::ExtractVisualJson(garbage, sizeof(garbage), json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
+}
+
+TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonWithoutVisualJson) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "no_visual_json.om2"});
+  ModelBufferData model;
+  {
+    ZipArchiveWriter writer(output_file);
+    ASSERT_TRUE(writer.IsMemFileOpened());
+    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+    ASSERT_TRUE(writer.SaveModelData(model, false));
+  }
+  ASSERT_NE(model.data, nullptr);
+  ASSERT_GT(model.length, 0U);
+
+  std::string json_out;
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(Om2PackageHelper::ExtractVisualJson(model.data.get(), model.length, json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
+}
+
+TEST_F(Om2St, Om2PackageHelper_Fail_ExtractCorruptedVisualJson) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "corrupted_visual_json.om2"});
+  const std::string visual_json = "{}";
+  ModelBufferData model;
+  {
+    ZipArchiveWriter writer(output_file);
+    ASSERT_TRUE(writer.IsMemFileOpened());
+    ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
+                                  visual_json.size(), true));
+    ASSERT_TRUE(writer.SaveModelData(model, false));
+  }
+  ASSERT_NE(model.data, nullptr);
+
+  constexpr uint8_t kLocalFileHeaderMagic[] = {0x50U, 0x4BU, 0x03U, 0x04U};
+  bool corrupted = false;
+  for (size_t i = 0U; i + sizeof(kLocalFileHeaderMagic) + 6U < model.length; ++i) {
+    if (std::memcmp(model.data.get() + i, kLocalFileHeaderMagic, sizeof(kLocalFileHeaderMagic)) == 0) {
+      model.data.get()[i + 8U] = 0xFFU;
+      model.data.get()[i + 9U] = 0U;
+      corrupted = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(corrupted);
+
+  std::string json_out;
+  (void)ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(Om2PackageHelper::ExtractVisualJson(model.data.get(), model.length, json_out), SUCCESS);
+  EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_ConvertMinimalVisualOm2ToJson) {

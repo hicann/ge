@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <dlfcn.h>
 #include <fstream>
 #include <map>

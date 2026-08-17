@@ -19,6 +19,7 @@
 #include "graph/compute_graph.h"
 #include "graph/execute/model_executor.h"
 #include "graph/ge_local_context.h"
+#include "graph/utils/tensor_utils.h"
 #include "graph/op_desc.h"
 #include "ge/ut/ge/test_tools_task_info.h"
 #include "runtime/subscriber/global_profiler.h"

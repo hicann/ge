@@ -9,6 +9,7 @@
  */
 
 #include "common/ge_common/string_util.h"
+#include "base/err_msg.h"
 #include "framework/common/helper/om2_package_helper.h"
 #include "framework/common/helper/model_save_helper_factory.h"
 #include "common/file_constant_utils/file_constant_utils.h"
@@ -550,12 +551,21 @@ Status Om2PackageHelper::RelocateExternalWeights(const std::string &output_file_
 }
 
 Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_len, std::string &json_out) {
+  const auto report_extract_failed = [](const char *reason) {
+    (void)REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                    std::vector<const char *>({"ExtractVisualJson", reason}));
+    GELOGE(FAILED, "[OM2] ExtractVisualJson failed. Reason: %s", reason);
+  };
+
   GE_ASSERT_NOTNULL(model_data, "[OM2] model_data is nullptr");
   GE_ASSERT_TRUE(model_len > 0U, "[OM2] model_len is 0");
 
   const auto *data = static_cast<const uint8_t *>(model_data);
   SimpleZipArchiveReader reader(data, model_len);
-  GE_ASSERT_TRUE(reader.IsGood(), "[OM2] Failed to open OM2 ZIP archive");
+  if (!reader.IsGood()) {
+    report_extract_failed("Failed to open OM2 ZIP archive.");
+    return FAILED;
+  }
 
   const auto file_list = reader.ListFiles();
   std::string entry_path;
@@ -566,12 +576,17 @@ Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_
       break;
     }
   }
-  GE_ASSERT_TRUE(!entry_path.empty(), "[OM2] visual JSON not found in OM2 archive");
+  if (entry_path.empty()) {
+    report_extract_failed("visual JSON not found in OM2 archive.");
+    return FAILED;
+  }
 
   size_t json_size = 0U;
   auto json_buf = reader.ExtractToMem(entry_path, json_size);
-  GE_ASSERT_NOTNULL(json_buf, "[OM2] Failed to extract %s from OM2 archive", entry_path.c_str());
-  GE_ASSERT_TRUE(json_size > 0U, "[OM2] Extracted visual JSON is empty");
+  if ((json_buf == nullptr) || (json_size == 0U)) {
+    report_extract_failed("Failed to extract visual JSON from OM2 archive.");
+    return FAILED;
+  }
 
   json_out.assign(reinterpret_cast<const char *>(json_buf.get()), json_size);
   GELOGI("[OM2] Extracted visual JSON, entry:%s, size:%zu", entry_path.c_str(), json_out.size());

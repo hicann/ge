@@ -76,6 +76,7 @@ ComputeGraphPtr FakeGraphWithSubGraph(const string &graph_name, ComputeGraphPtr 
   root_graph->SetSessionID(0);
   root_graph->AddSubGraph(sub_graph);
   sub_graph->SetParentGraph(root_graph);
+  sub_graph->SetParentNode(root_graph->FindNode("partitioned_call_op"));
   AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0_1");
   return root_graph;
 }

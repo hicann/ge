@@ -91,5 +91,7 @@ AMCT（昇腾模型压缩工具）4选2结构化稀疏后输出的模型，可�
 <!-- npu="910" id14 -->
 - Atlas 训练系列产品：不支持
 <!-- end id14 -->
+<!-- npu="IPV350" id15 -->
 - IPV350：不支持
+<!-- end id15 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/quantization_compression_res.md#id1 -->

@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <iostream>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -25,6 +26,7 @@
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "graph/execute/model_executor.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph/utils/tensor_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "ge_graph_dsl/assert/graph_assert.h"

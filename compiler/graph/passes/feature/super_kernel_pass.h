@@ -11,9 +11,30 @@
 #ifndef GE_GRAPH_PASSES_SUPER_KERNEL_PASS_H_
 #define GE_GRAPH_PASSES_SUPER_KERNEL_PASS_H_
 
+#include <cstdint>
 #include "graph/passes/graph_pass.h"
+#include "super_kernel/super_kernel.h"
+
+using AclskScopeVerifyFunc = aclError (*)(const aclskScopeVerifyGraphInfo *, size_t, aclskScopeVerifySplitResult *,
+                                          size_t *);
 
 namespace ge {
+class AclskVerifyHandle {
+ public:
+  AclskVerifyHandle() = default;
+  ~AclskVerifyHandle();
+  AclskVerifyHandle(const AclskVerifyHandle &) = delete;
+  AclskVerifyHandle &operator=(const AclskVerifyHandle &) = delete;
+
+  void *handle = nullptr;
+  AclskScopeVerifyFunc func = nullptr;
+};
+
+struct ScopeCutPoint {
+  int64_t topo_id;
+  bool is_exclusive;
+};
+
 struct InputNodeInfo {
   std::string node_name;
   NodePtr cur_node;
@@ -55,24 +76,50 @@ class SuperKernelPass : public GraphPass {
  public:
   SuperKernelPass() {}
 
-  virtual ~SuperKernelPass() {}
-
   Status Run(ge::ComputeGraphPtr graph) override;
 
  private:
+  Status CollectSuperKernelNodes(const ComputeGraphPtr &graph);
+  Status CollectSkNode(const NodePtr &node, const std::string &super_scope_name, int64_t stream_id, size_t cur_pos);
+  Status MergeAllScopes(const ComputeGraphPtr &root_graph, const ComputeGraphPtr &graph);
   Status SelectFusionScope();
   Status AutomaticSplitScope(const std::set<std::string> &no_fusion_scope,
-                             std::map<std::string, std::vector<int64_t>> &scope_cut_id);
+                             std::map<std::string, std::vector<ScopeCutPoint>> &scope_cut_id);
 
   Status RefreshAllNodesTopoId(ge::ComputeGraphPtr root_graph) const;
   Status ParseSuperKernelOptions(const std::string &super_kernel_scope, const std::string &super_kernel_options,
                                  std::string &check_val);
+
+  Status DeadlockCheckAndSplit(const ComputeGraphPtr &graph);
+  Status InitAclskVerify();
+  void BuildScopeNameToIdMap();
+  Status BuildVerifyGraph(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &nodes,
+                          std::vector<NodePtr> &node_mapping);
+  bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info);
+  Status CallAclskVerify(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &verify_nodes,
+                         std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results);
+  bool IsFirstNodeInScope(const std::string &scope_name, int64_t topo_id);
+  Status ProcessSplitResults(const std::vector<aclskScopeVerifySplitResult> &results,
+                             const aclskScopeVerifyNodeInfo *verify_nodes_base,
+                             const std::vector<NodePtr> &node_mapping, std::set<std::string> &need_split_scopes,
+                             std::map<std::string, std::vector<ScopeCutPoint>> &scope_cut_id);
+  aclskScopeVerifyKernelType GetKernelType(const NodePtr &node);
+  int32_t GetScopeId(const NodePtr &node);
+  int32_t GetScopeIdByCtrlEdge(const NodePtr &node, bool is_send);
+  uint32_t GetEventId(const NodePtr &node);
 
   std::map<std::string, std::vector<NodePtr>> ori_super_nodes_;
   std::map<std::string, std::map<int64_t, std::vector<size_t>>> ori_super_nodes_id_;
   std::map<std::string, std::map<int64_t, std::vector<int64_t>>> ori_super_nodes_delete_id_;
   std::map<int64_t, std::vector<NodePtr>> ori_stream_ordered_nodes_;
   std::map<std::string, std::string> super_kernel_scope_options_;
+
+  std::map<std::string, int32_t> scope_name_to_id_;
+  std::map<int32_t, std::string> scope_id_to_name_;
+  std::set<std::string> excluded_send_rcv_nodes_;
+  std::map<std::string, std::string> scope_original_name_map_;
+  AclskVerifyHandle aclsk_verify_;
+  bool aclsk_initialized_ = false;
 };
 
 class SuperKernelScope {

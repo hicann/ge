@@ -69,6 +69,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "faker/global_data_faker.h"
 #include "ge_running_env/ge_running_env_faker.h"
+#include "graph/passes/feature/super_kernel_pass.h"
 #include "ge_running_env/fake_op.h"
 #include "utils/mock_ops_kernel_builder.h"
 #include "common/share_graph.h"
@@ -111,6 +112,15 @@ class MockMmpa : public MmpaStubApiGe {
  public:
   void *DlSym(void *handle, const char *func_name) override {
     return dlsym(handle, func_name);
+  }
+};
+class MockMmpaDlOpenFail : public MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    if (std::string("libascendsk.so") == file_name) {
+      return nullptr;
+    }
+    return MmpaStubApiGe::DlOpen(file_name, mode);
   }
 };
 class FakeAicoreMemSetOptimizer : public FakeGraphOptimizer {
@@ -188,19 +198,17 @@ class MockGraphOptimizer {
  public:
   explicit MockGraphOptimizer(kGraphOptimizerOption option) {
     auto infer_fun = [](Operator &op) -> graphStatus {
-      auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
-      *op_desc->MutableOutputDesc(0) = *op_desc->GetInputDescPtr(0);
+      *OpDescUtils::GetOpDescFromOperator(op)->MutableOutputDesc(0) =
+          *OpDescUtils::GetOpDescFromOperator(op)->GetInputDescPtr(0);
       return GRAPH_SUCCESS;
     };
-    auto cast_infer_fun = [](Operator &op) -> graphStatus { return GRAPH_SUCCESS; };
-    auto ge_env = GeRunningEnvFaker();
-    auto fake_aicore_memset_optimizer = MakeShared<FakeAicoreMemSetOptimizer>();
-    auto fake_hccl_optimizer = MakeShared<FakeHcclOptimizer>();
+    auto cast_infer_fun = [](Operator &) -> graphStatus { return GRAPH_SUCCESS; };
+    GeRunningEnvFaker ge_env;
     ge_env.Reset()
         .Install(FakeEngine("DNN_VM_GE_LOCAL").KernelInfoStore("DNN_VM_GE_LOCAL_OP_STORE"))
         .Install(FakeEngine(kAIcoreEngine)
                      .KernelInfoStore(kAIcoreEngine)
-                     .GraphOptimizer(kAIcoreEngine, fake_aicore_memset_optimizer))
+                     .GraphOptimizer(kAIcoreEngine, MakeShared<FakeAicoreMemSetOptimizer>()))
         .Install(FakeEngine("DNN_VM_HOST_CPU").KernelInfoStore("DNN_VM_HOST_CPU"))
         .Install(FakeEngine(kEngineNameAiCpu).KernelInfoStore(kEngineNameAiCpu))
         .Install(FakeEngine(kEngineNameAiCpuTf).KernelInfoStore(kEngineNameAiCpuTf))
@@ -208,7 +216,7 @@ class MockGraphOptimizer {
         .Install(FakeEngine("DNN_VM_RTS").KernelInfoStore("DNN_VM_RTS_OP_STORE"))
         .Install(FakeEngine("DNN_HCCL")
                      .KernelInfoStore("ops_kernel_info_hccl")
-                     .GraphOptimizer("DNN_HCCL", fake_hccl_optimizer))
+                     .GraphOptimizer("DNN_HCCL", MakeShared<FakeHcclOptimizer>()))
         .Install(FakeOp(RELU).InfoStoreAndBuilder(kAIcoreEngine).InferShape(infer_fun))
         .Install(FakeOp(CONV2D).InfoStoreAndBuilder(kAIcoreEngine).InferShape(infer_fun))
         .Install(FakeOp(CAST).InfoStoreAndBuilder(kAIcoreEngine).InferShape(cast_infer_fun))
@@ -233,7 +241,9 @@ class MockGraphOptimizer {
         .Install(FakeOp(DEQUANTIZE).InfoStoreAndBuilder(kAIcoreEngine))
         .Install(FakeOp(BATCHMATMUL).InfoStoreAndBuilder(kAIcoreEngine))
         .Install(FakeOp(SEND).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
-        .Install(FakeOp(RECV).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"));
+        .Install(FakeOp(RECV).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(SENDNOTIFY).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(RECVNOTIFY).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"));
     graph_optimizer_option = option;
   }
 
@@ -1330,7 +1340,121 @@ static void MockAIcoreEngineEnGenerateTask() {
   };
 
   MockForGenerateTask("AIcoreEngine", aicore_func);
+  auto rts_func = [](const ge::Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
+    domi::TaskDef task_def;
+    task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+    tasks.emplace_back(task_def);
+    return SUCCESS;
+  };
+  MockForGenerateTask("DNN_VM_RTS_OP_STORE", rts_func);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenFail>());
 }
+
+// SuperKernel 死锁检测 ST mock
+class MockMmpaDlOpenSuccessSk : public ge::MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    if (std::string("libascendsk.so") == file_name) {
+      return reinterpret_cast<void *>(0x9001);
+    }
+    return MmpaStubApiGe::DlOpen(file_name, mode);
+  }
+  void *DlSym(void *handle, const char *func_name) override {
+    if (handle == reinterpret_cast<void *>(0x9001)) {
+      return reinterpret_cast<void *>(&VerifyNoDeadlock);
+    }
+    return MmpaStubApiGe::DlSym(handle, func_name);
+  }
+  int32_t DlClose(void *handle) override {
+    if (handle == reinterpret_cast<void *>(0x9001)) {
+      return 0;
+    }
+    return MmpaStubApiGe::DlClose(handle);
+  }
+  static aclError VerifyNoDeadlock(const aclskScopeVerifyGraphInfo *, size_t, aclskScopeVerifySplitResult *,
+                                   size_t *realCount) {
+    *realCount = 0U;
+    return 0;
+  }
+};
+
+static int g_sk_deadlock_complex_call_count = 0;
+class MockMmpaDlOpenDeadlockComplex : public ge::MmpaStubApiGe {
+ public:
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    if (std::string("libascendsk.so") == file_name) {
+      return reinterpret_cast<void *>(0x9002);
+    }
+    return MmpaStubApiGe::DlOpen(file_name, mode);
+  }
+  void *DlSym(void *handle, const char *func_name) override {
+    if (handle == reinterpret_cast<void *>(0x9002)) {
+      return reinterpret_cast<void *>(&VerifyComplex);
+    }
+    return MmpaStubApiGe::DlSym(handle, func_name);
+  }
+  int32_t DlClose(void *handle) override {
+    if (handle == reinterpret_cast<void *>(0x9002)) {
+      return 0;
+    }
+    return MmpaStubApiGe::DlClose(handle);
+  }
+  static aclError VerifyComplex(const aclskScopeVerifyGraphInfo *verifyGraph, size_t,
+                                aclskScopeVerifySplitResult *splitResults, size_t *realCount) {
+    g_sk_deadlock_complex_call_count++;
+    if (g_sk_deadlock_complex_call_count == 1) {
+      // 收集 scope 内所有计算算子，按 taskId 排序
+      std::vector<const aclskScopeVerifyNodeInfo *> scope_compute_nodes;
+      const aclskScopeVerifyNodeInfo *rcv_node = nullptr;
+      for (size_t i = 0U; i < verifyGraph->nodeCount; ++i) {
+        const auto &node_info = verifyGraph->nodes[i];
+        if (node_info.taskType == ACLSK_SCOPE_VERIFY_NODE_COMPUTE && node_info.scopeId > 0) {
+          scope_compute_nodes.push_back(&node_info);
+        }
+        if (node_info.taskType == ACLSK_SCOPE_VERIFY_NODE_WAIT) {
+          rcv_node = &node_info;
+        }
+      }
+      // 按 taskId 排序
+      std::sort(
+          scope_compute_nodes.begin(), scope_compute_nodes.end(),
+          [](const aclskScopeVerifyNodeInfo *a, const aclskScopeVerifyNodeInfo *b) { return a->taskId < b->taskId; });
+
+      size_t count = 0U;
+      // 第 2 个节点（索引 1）：SPLIT_BEFORE_NODE
+      if (scope_compute_nodes.size() > 1U) {
+        splitResults[count].splitNode = const_cast<aclskScopeVerifyNodeInfo *>(scope_compute_nodes[1U]);
+        splitResults[count].splitType = ACLSK_SCOPE_VERIFY_SPLIT_BEFORE_NODE;
+        splitResults[count].splitReason = ACLSK_SCOPE_VERIFY_DEADLOCK_DETECTED;
+        splitResults[count].extendType = 0;
+        splitResults[count].extendInfo = nullptr;
+        count++;
+      }
+      // 第 3 个节点（索引 2）：SPLIT_EXCLUDE_NODE
+      if (scope_compute_nodes.size() > 2U) {
+        splitResults[count].splitNode = const_cast<aclskScopeVerifyNodeInfo *>(scope_compute_nodes[2U]);
+        splitResults[count].splitType = ACLSK_SCOPE_VERIFY_SPLIT_EXCLUDE_NODE;
+        splitResults[count].splitReason = ACLSK_SCOPE_VERIFY_DEADLOCK_DETECTED;
+        splitResults[count].extendType = 0;
+        splitResults[count].extendInfo = nullptr;
+        count++;
+      }
+      // Recv 节点（可选）：SPLIT_EXCLUDE_NODE
+      if (rcv_node != nullptr) {
+        splitResults[count].splitNode = const_cast<aclskScopeVerifyNodeInfo *>(rcv_node);
+        splitResults[count].splitType = ACLSK_SCOPE_VERIFY_SPLIT_EXCLUDE_NODE;
+        splitResults[count].splitReason = ACLSK_SCOPE_VERIFY_DEADLOCK_DETECTED;
+        splitResults[count].extendType = 0;
+        splitResults[count].extendInfo = nullptr;
+        count++;
+      }
+      *realCount = count;
+      return 0;
+    }
+    *realCount = 0U;
+    return 0;
+  }
+};
 
 class GraphCompilerTest : public testing::Test {
   void SetUp() {
@@ -1364,6 +1488,13 @@ class GraphCompilerTest : public testing::Test {
     REGISTER_OPS_KERNEL_BUILDER("DNN_VM_GE_LOCAL_OP_STORE", ge::ge_local::GeLocalOpsKernelBuilder);
   }
 };
+
+static void CheckSkNodeScope(const ComputeGraphPtr &graph, const std::string &node_name, bool should_have_scope) {
+  auto node = graph->FindNode(node_name);
+  ASSERT_NE(node, nullptr);
+  std::string scope_attr;
+  EXPECT_EQ(AttrUtils::GetStr(node->GetOpDesc(), "_super_kernel_scope", scope_attr), should_have_scope);
+}
 
 /**
  *      data1  data2
@@ -1996,6 +2127,97 @@ TEST_F(GraphCompilerTest, test_build_super_kernel_cmo) {
 
   auto ret = session.CompileGraph(1);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(GraphCompilerTest, test_build_super_kernel_deadlock_check_no_deadlock) {
+  MockAIcoreEngineEnGenerateTask();
+  auto add1 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1")
+                  .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC");
+  auto add2 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1")
+                  .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIV");
+  auto add3 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1")
+                  .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "MIX_AIC");
+  auto data1 = OP_CFG(DATA);
+  auto data2 = OP_CFG(DATA);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("add_1", add1));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_1", add1));
+    CHAIN(NODE("add_1", add1)->EDGE(0, 0)->NODE("add_2", add2));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_2", add2));
+    CHAIN(NODE("add_2", add2)->EDGE(0, 0)->NODE("add_3", add3));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_3", add3));
+    CHAIN(NODE("add_3", add3)->NODE("net_output", NETOUTPUT));
+    CHAIN(NODE("add_2", add2)->CTRL_EDGE()->NODE("add_3", add3));
+  };
+  auto graph = ToGeGraph(g1);
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  AttrUtils::SetStr(compute_graph->FindNode("add_1")->GetOpDesc(), ATTR_NAME_STREAM_LABEL, "1");
+  AttrUtils::SetStr(compute_graph->FindNode("add_2")->GetOpDesc(), ATTR_NAME_STREAM_LABEL, "1");
+  AttrUtils::SetStr(compute_graph->FindNode("add_3")->GetOpDesc(), ATTR_NAME_STREAM_LABEL, "2");
+  map<AscendString, AscendString> options;
+  Session session(options);
+  session.AddGraph(1, graph, options);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenSuccessSk>());
+  auto ret = session.CompileGraph(1);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MmpaStubApiGe>());
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(GraphCompilerTest, test_build_super_kernel_deadlock_check_complex_split) {
+  MockAIcoreEngineEnGenerateTask();
+  g_sk_deadlock_complex_call_count = 0;
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenDeadlockComplex>());
+
+  auto add1 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1");
+  auto add2 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1");
+  auto add3 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1");
+  auto add4 = OP_CFG(ADD)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224})
+                  .Attr("supportSuperKernel", 1)
+                  .Attr("_super_kernel_scope", "scope1");
+  auto data1 = OP_CFG(DATA);
+  auto data2 = OP_CFG(DATA);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("add_1", add1));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_1", add1));
+    CHAIN(NODE("add_1", add1)->EDGE(0, 0)->NODE("add_2", add2));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_2", add2));
+    CHAIN(NODE("add_2", add2)->EDGE(0, 0)->NODE("add_3", add3));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_3", add3));
+    CHAIN(NODE("add_3", add3)->EDGE(0, 0)->NODE("add_4", add4));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_4", add4));
+    CHAIN(NODE("add_4", add4)->NODE("net_output", NETOUTPUT));
+  };
+  auto graph = ToGeGraph(g1);
+  map<AscendString, AscendString> options;
+  Session session(options);
+  session.AddGraph(1, graph, options);
+  auto ret = session.CompileGraph(1);
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MmpaStubApiGe>());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(g_sk_deadlock_complex_call_count, 2);
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  CheckSkNodeScope(compute_graph, "add_3", false);
+  CheckSkNodeScope(compute_graph, "add_1", true);
+  CheckSkNodeScope(compute_graph, "add_4", true);
 }
 
 TEST_F(GraphCompilerTest, test_partiton_stable_topo) {

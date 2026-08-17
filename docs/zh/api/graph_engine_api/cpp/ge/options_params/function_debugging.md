@@ -114,8 +114,7 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {"ge.exec.enable_excep
 >
 >- 若ge.opDebugLevel配置为0，同时又配置了op\_debug\_config参数，该场景下在当前执行路径**仍旧会生成**算子编译目录kernel\_meta。
 >- 训练执行时，建议配置为0或3。如果需要进行问题定位，再选择调试开关选项1和2，是因为加入了调试功能会导致网络性能下降。
->- 配置为2（即开启ccec编译选项）时，会导致算子Kernel（\*.o文件）大小增大。动态Shape场景下，由于算子编译时会遍历可能的Shape场景，因此可能会导致算子Kernel文件过大而无法进行编译，此种场景下，建议不要配置ccec编译选项。
-> 由于算子Kernel文件过大而无法编译的报错日志示例如下：
+>- 配置为2（即开启ccec编译选项）时，会导致算子Kernel（\*.o文件）大小增大。动态Shape场景下，由于算子编译时会遍历可能的Shape场景，因此可能会导致算子Kernel文件过大而无法进行编译，此种场景下，建议不要配置ccec编译选项。由于算子Kernel文件过大而无法编译的报错日志示例如下：
 >
 >   ```text
 >   message:link error ld.lld: error: InputSection too large for range extension thunk ./kernel_meta_xxxxx.o
