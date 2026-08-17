@@ -140,6 +140,10 @@ class DataDumper {
     root_graph_name_ = name;
   }
 
+  const std::string &GetRootGraphName() const {
+    return root_graph_name_;
+  }
+
  private:
   void PrintCheckLog(std::string &dump_list_key);
 
