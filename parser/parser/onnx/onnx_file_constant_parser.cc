@@ -84,7 +84,7 @@ void OnnxFileConstantParser::ParseShape(const ge::onnx::TensorProto &tensor_prot
 Status OnnxFileConstantParser::ParseDataType(const ge::onnx::TensorProto &tensor_proto, ge::Operator &op_def) const {
   int64_t data_type = tensor_proto.data_type();
   ge::DataType type = ge::OnnxUtil::ConvertOnnxDataType(data_type);
-  if (type >= ge::DataType::DT_UNDEFINED) {
+  if (type == ge::DataType::DT_UNDEFINED) {
     REPORT_INNER_ERR_MSG("E19999", "tensor_proto data type %" PRId64 " is undefined.", data_type);
     GELOGE(domi::PARAM_INVALID, "[Check][Param] tensor_proto data type %" PRId64 " is undefined.", data_type);
     return FAILED;

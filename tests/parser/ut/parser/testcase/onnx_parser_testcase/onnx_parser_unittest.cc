@@ -1710,4 +1710,108 @@ TEST_F(UtestOnnxParser, onnx_model_parse_with_multiple_inputs) {
   auto ret = model_parser.ModelParseToGraph(model_proto, root_graph);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+// ============ DT_INT4 support tests ============
+
+TEST_F(UtestOnnxParser, ParseConvertDataType_Int4) {
+  OnnxConstantParser constant_parser;
+  ge::onnx::TensorProto tensor_proto;
+  tensor_proto.set_data_type(OnnxDataType::INT4);
+  ge::Tensor tensor;
+  Status ret = constant_parser.ParseConvertDataType(tensor_proto, tensor);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(tensor.GetTensorDesc().GetDataType(), ge::DataType::DT_INT4);
+}
+
+TEST_F(UtestOnnxParser, ParseConvertData_Int4_RawData) {
+  OnnxConstantParser constant_parser;
+  ge::onnx::TensorProto tensor_proto;
+  tensor_proto.set_data_type(OnnxDataType::INT4);
+  // 2 int4 values packed in 1 byte: 0x21 => low nibble=1, high nibble=2
+  tensor_proto.set_raw_data(std::string(1, static_cast<char>(0x21)));
+  ge::Tensor tensor;
+  TensorDesc tensor_desc = tensor.GetTensorDesc();
+  tensor_desc.SetDataType(ge::DataType::DT_INT4);
+  tensor.SetTensorDesc(tensor_desc);
+  int count = 2;
+  Status ret = constant_parser.ParseConvertData(tensor_proto, tensor, count);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(tensor.GetSize(), 1U);
+  auto data = tensor.GetData();
+  ASSERT_NE(data, nullptr);
+  EXPECT_EQ(data[0], 0x21);
+}
+
+TEST_F(UtestOnnxParser, ParseConvertData_Int4_Int32Data) {
+  OnnxConstantParser constant_parser;
+  ge::onnx::TensorProto tensor_proto;
+  tensor_proto.set_data_type(OnnxDataType::INT4);
+  // 1 int32 = 8 packed int4 values: 0x76543210
+  tensor_proto.add_int32_data(0x76543210);
+  ge::Tensor tensor;
+  TensorDesc tensor_desc = tensor.GetTensorDesc();
+  tensor_desc.SetDataType(ge::DataType::DT_INT4);
+  tensor.SetTensorDesc(tensor_desc);
+  int count = 8;
+  Status ret = constant_parser.ParseConvertData(tensor_proto, tensor, count);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(tensor.GetSize(), sizeof(int32_t));
+  auto data = tensor.GetData();
+  ASSERT_NE(data, nullptr);
+  // little-endian: 0x10, 0x32, 0x54, 0x76
+  EXPECT_EQ(data[0], 0x10);
+  EXPECT_EQ(data[1], 0x32);
+  EXPECT_EQ(data[2], 0x54);
+  EXPECT_EQ(data[3], 0x76);
+}
+
+TEST_F(UtestOnnxParser, ParseConvertData_Int4_Int32Data_OddCount) {
+  OnnxConstantParser constant_parser;
+  ge::onnx::TensorProto tensor_proto;
+  tensor_proto.set_data_type(OnnxDataType::INT4);
+  // 2 int32s = 16 packed int4 slots, but count=9 (7 padding slots)
+  tensor_proto.add_int32_data(0x76543210);
+  tensor_proto.add_int32_data(0xFEDCBA98);
+  ge::Tensor tensor;
+  TensorDesc tensor_desc = tensor.GetTensorDesc();
+  tensor_desc.SetDataType(ge::DataType::DT_INT4);
+  tensor.SetTensorDesc(tensor_desc);
+  int count = 9;
+  Status ret = constant_parser.ParseConvertData(tensor_proto, tensor, count);
+  EXPECT_EQ(ret, SUCCESS);
+  // GE expects ceil(9*4/8) = 5 bytes, not 8 (2 int32s)
+  EXPECT_EQ(tensor.GetSize(), 5U);
+  auto data = tensor.GetData();
+  ASSERT_NE(data, nullptr);
+  // first 4 bytes from int32[0] (little-endian)
+  EXPECT_EQ(data[0], 0x10);
+  EXPECT_EQ(data[1], 0x32);
+  EXPECT_EQ(data[2], 0x54);
+  EXPECT_EQ(data[3], 0x76);
+  // 5th byte = low nibble of int32[1] = 0x98
+  EXPECT_EQ(data[4], 0x98);
+}
+
+TEST_F(UtestOnnxParser, ParseConvertData_Int4_Int32Data_InsufficientData) {
+  OnnxConstantParser constant_parser;
+  ge::onnx::TensorProto tensor_proto;
+  tensor_proto.set_data_type(OnnxDataType::INT4);
+  // 1 int32 = 4 bytes available, but count=16 expects 8 bytes
+  tensor_proto.add_int32_data(0x76543210);
+  ge::Tensor tensor;
+  TensorDesc tensor_desc = tensor.GetTensorDesc();
+  tensor_desc.SetDataType(ge::DataType::DT_INT4);
+  tensor.SetTensorDesc(tensor_desc);
+  int count = 16;
+  Status ret = constant_parser.ParseConvertData(tensor_proto, tensor, count);
+  EXPECT_EQ(ret, SUCCESS);
+  // copy_size = min(8, 4) = 4 bytes, no over-read
+  EXPECT_EQ(tensor.GetSize(), 4U);
+  auto data = tensor.GetData();
+  ASSERT_NE(data, nullptr);
+  EXPECT_EQ(data[0], 0x10);
+  EXPECT_EQ(data[1], 0x32);
+  EXPECT_EQ(data[2], 0x54);
+  EXPECT_EQ(data[3], 0x76);
+}
 }  // namespace ge
