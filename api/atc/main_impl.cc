@@ -130,26 +130,28 @@ void SetOptionNameMap(std::map<std::string, std::string> &options) {
 }
 }  // namespace
 
-const std::unordered_set<std::string> kOm2UnsuppotedFlag = {
-    "input_hint_shape",
-    "om",
-    "singleop",
-    "check_report",
-    "json",
-    "virtual_type",
-    "op_name_map",
-    "quant_dumpable",
-    "ac_parallel_enable",
-    "tiling_schedule_optimize",
-    "dump_mode",
-    "display_model_info",
-    "status_check",
-    "save_original_model",
-    "compress_weight_conf",
-    "enable_compress_weight",
-    "enable_attr_compression",
-    "h2d_overlapped_with_compute",
-};
+const std::unordered_set<std::string> kOm2UnsuppotedFlag = {"input_hint_shape",
+                                                            "om",
+                                                            "singleop",
+                                                            "check_report",
+                                                            "json",
+                                                            "virtual_type",
+                                                            "op_name_map",
+                                                            "quant_dumpable",
+                                                            "ac_parallel_enable",
+                                                            "tiling_schedule_optimize",
+                                                            "dump_mode",
+                                                            "display_model_info",
+                                                            "status_check",
+                                                            "save_original_model",
+                                                            "compress_weight_conf",
+                                                            "enable_compress_weight",
+                                                            "enable_attr_compression",
+                                                            "h2d_overlapped_with_compute",
+                                                            "cluster_config",
+                                                            "hccl_sub_comm_config",
+                                                            "input_shape_range",
+                                                            "static_model_ops_lower_limit"};
 
 namespace ge {
 const std::string kAtcUsageCommand = "atc";
