@@ -15,7 +15,7 @@ set(_ge_runtime_native_sources
 
 set(_ge_runtime_native_headers
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_common.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/bindings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/runtime_bindings.h
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/runtime_type_wrappers.h
 )
 

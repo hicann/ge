@@ -12,7 +12,7 @@
 #include <string>
 
 #include "binding_utils.h"
-#include "bindings.h"
+#include "pass_bindings.h"
 #include "ge_common/ge_api_error_codes.h"
 #include "ge/fusion/infer_shape_util.h"
 #include "ge/fusion/subgraph_boundary.h"

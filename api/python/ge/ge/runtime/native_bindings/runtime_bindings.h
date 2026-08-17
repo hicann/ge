@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
-#define API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
+#ifndef API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_
+#define API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_
 
 #include "binding_common.h"
 
@@ -21,4 +21,4 @@ void BindRuntimeTypes(py::module_ &m);
 }  // namespace python_runtime_native
 }  // namespace ge
 
-#endif  // API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
+#endif  // API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_
