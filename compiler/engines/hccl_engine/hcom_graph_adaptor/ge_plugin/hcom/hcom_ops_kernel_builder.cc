@@ -155,20 +155,20 @@ std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKern
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAlltoAllSuperKernelMapV2 = {
-    {"AivAlltoAllMesh1D", {"/hccl_a2a_superkernel_mesh_1d", "sk_alltoall_mesh_1d"}},
+    {"AivAllToAllSoleMesh", {"/hccl_a2a_superkernel_mesh_1d", "sk_alltoall_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllGatherSuperKernelMapV2 = {
-    {"AivAllGatherMesh1D", {"/hccl_ag_superkernel_mesh_1d", "sk_allgather_mesh_1d"}},
+    {"AivAllGatherSoleMesh", {"/hccl_ag_superkernel_mesh_1d", "sk_allgather_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelMapV2 = {
-    {"AivReduceScatterMesh1D", {"/hccl_rs_superkernel_mesh_1d", "sk_reducescatter_mesh_1d"}},
+    {"AivReduceScatterSoleMesh", {"/hccl_rs_superkernel_mesh_1d", "sk_reducescatter_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelMapV2 = {
-    {"AivAllReduceMesh1DOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot", "sk_allreduce_mesh_1d_oneshot"}},
-    {"AivAllReduceMesh1DTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot", "sk_allreduce_mesh_1d_twoshot"}},
+    {"AivAllReduceSoleMeshOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot", "sk_allreduce_mesh_1d_oneshot"}},
+    {"AivAllReduceSoleMeshTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot", "sk_allreduce_mesh_1d_twoshot"}},
 };
 
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelMap = {
