@@ -33,17 +33,20 @@ namespace {
 const std::string kOffline = "offline";
 }
 
+// 地址不可刷新时不能做零拷贝，也不能和零拷贝节点内存进行复用
+// 和Data、Netoutput连接时用于判断是否可零拷贝，和其他节点连接是用于判断是否可以和零拷贝节点进行复用
 bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
   bool is_support_zero_copy = ge::MemLayoutConflictUtil::IsAddressRefreshable(node);
   if (!is_support_zero_copy) {
     GELOGI("Op[%s] not support zero copy", node->GetName().c_str());
   } else {
-    // 1.IsAddressRefreshable在动态shape静态子图场景认为hccl算子是可刷新的，实际上因为处理阶段有差异，
-    //   比如hccl判断时还未拆图，可能导致结果不一致
-    // 2.静态shape根图图场景，把hccl搞成可刷新会导致性能劣化
-    // 因此IsGraphFeatureMapRefreshable为true时，这里还是统一使用IsHcomNodeNotSupportAddrRefresh的结果，和原有处理保持一致
-    if (ge::MemLayoutConflictUtil::IsGraphFeatureMapRefreshable(node->GetOwnerComputeGraph()) &&
-        ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
+    // IsAddressRefreshable在动态shape静态子图场景认为hccl算子是可刷新的，实际上因为处理阶段有差异，
+    // 比如hccl判断时还未拆图，可能导致结果不一致，这里还是统一使用IsHcomNodeNotSupportAddrRefresh的结果
+    // 另外静态子图里hccl支持刷新会有性能劣化，hccl内部会做数据拷贝等额外处理
+    const auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
+    const bool is_dynamic_shape_sub_graph = (root_graph != nullptr) && root_graph->GetGraphUnknownFlag() &&
+                                            (!node->GetOwnerComputeGraph()->GetGraphUnknownFlag());
+    if (is_dynamic_shape_sub_graph && ge::OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
       GELOGI("hccl engine op[%s] not support zero copy", node->GetName().c_str());
       is_support_zero_copy = false;
     }
@@ -211,8 +214,7 @@ void SetReleaseBlockLifeEnd(MemoryBlock *to_release, int64_t stream_id) {
   to_release->SetLifeTimeEnd(max_end_life_time, to_release->stream_id_);
 }
 
-void MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block, const uint32_t index,
-                                bool is_feature_map_refreshable) {
+void MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block, const uint32_t index) {
   auto node_op_desc = n->GetOpDescBarePtr();
 
   // 输出连续内存不能做零拷贝，同时NoPadding且Reuse的也不能做零拷贝
@@ -235,35 +237,12 @@ void MarkReuseZeroCopyBlockFlag(const NodePtr &n, MemoryBlock *const block, cons
     block->is_reuse_zero_copy_ = false;
   }
 
-  // data直连特殊的rts算子且不可刷新状态下，不能做零拷贝
-  const static std::set<std::string> kTaskUnsupportZeroCopyOp{ge::STREAMSWITCH, ge::LABELSWITCHBYINDEX};
-  auto out_anchor = n->GetOutDataAnchor(static_cast<int32_t>(index));
-  bool data_connect_unsupport_zero_copy = false;
-  if (OpTypeUtils::IsDataNode(node_op_desc->GetType()) && (!is_feature_map_refreshable) && (out_anchor != nullptr)) {
-    auto peer_anchors = out_anchor->GetPeerInDataAnchorsPtr();
-    data_connect_unsupport_zero_copy =
-        std::any_of(peer_anchors.begin(), peer_anchors.end(), [](const ge::InDataAnchor *anchor) {
-          return ((anchor != nullptr) && (anchor->GetOwnerNodeBarePtr() != nullptr) &&
-                  (kTaskUnsupportZeroCopyOp.count(anchor->GetOwnerNodeBarePtr()->GetTypePtr()) > 0U));
-        });
-  }
-
-  if (data_connect_unsupport_zero_copy) {
-    block->is_reuse_zero_copy_ = false;
-    block->is_zero_copy_ = false;
-  }
-
-  GELOGD("Node name: %s index: %d, can_reuse_zero_copy: %s, data_connect_unsupport_zero_copy: %s ", n->GetNamePtr(),
-         index, can_reuse_zero_copy ? "true" : "false", data_connect_unsupport_zero_copy ? "true" : "false");
+  GELOGD("Node name: %s index: %d, can_reuse_zero_copy: %s.", n->GetNamePtr(), index,
+         can_reuse_zero_copy ? "true" : "false");
 }
 
-bool IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index,
-                                          bool is_feature_map_refreshable) {
+bool IsNodeAndPeerNodeTaskSupportZeroCopy(const ge::NodePtr &node, uint32_t output_index) {
   GELOGD("Check node %s and peer node of output %u task zero copy supported", node->GetNamePtr(), output_index);
-  if (is_feature_map_refreshable) {
-    return true;
-  }
-
   if (!IsNodeSupportZeroCopy(node)) {
     return false;
   }

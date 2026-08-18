@@ -1283,13 +1283,19 @@ void BlockMemAssigner::UpdateOpTensorMemType(const std::list<NodeIndexIO> &node_
     }
   }
 }
+
 bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_index, bool continuous,
                                        size_t output_size) const {
   std::string op_type(node->GetTypePtr());
+
+  // 现状：
+  // 动态shape静态子图的输入，按零拷贝处理(ge执行流程不支持输入做拷贝处理，搞成非零拷贝会有精度问题，输入数据错误)
+  // 动态shape静态子图的输出，按非零拷贝处理(搞成零拷贝需要hccl算子支持地址刷新，会导致性能劣化)
   if (NodeUtils::IsDynamicShape(node)) {
     if (compute_graph_.get() != node->GetOwnerComputeGraphBarePtr()) {
       return false;
     }
+
     if (OpTypeUtils::IsDataNode(op_type)) {
       return (!continuous);
     }
@@ -1331,14 +1337,14 @@ bool BlockMemAssigner::IsZeroCopyBlock(const NodePtr &node, uint32_t output_inde
       return false;
     }
     // Data flow to unsupported zero copy task type eg. memcpy, can never zero copied
-    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index, is_feature_map_refreshable_);
+    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index);
   }
 
   // Only node output that flow to sure one output maybe zero copied
   if (GetOutputFlowToNetoutputNum(node, output_index, compute_graph_, symbol_to_anchors_, anchor_to_symbol_) ==
       1U) {  // 1U means output to only one netoutput
     // Output from unsupported task type eg. memcpy, can never zero copied
-    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index, is_feature_map_refreshable_);
+    return IsNodeAndPeerNodeTaskSupportZeroCopy(node, output_index);
   }
 
   return false;
@@ -1698,7 +1704,7 @@ Status BlockMemAssigner::ApplyContinuousMemWithMng(const NodePtr &n, int32_t idx
   if (iter != symbol_mem_reuse_info_.cend()) {
     block->is_fixed_addr_prior_ = (block->is_fixed_addr_prior_ || iter->second.is_fixed_addr_prior_);
   }
-  MarkReuseZeroCopyBlockFlag(n, block, idx, is_feature_map_refreshable_);
+  MarkReuseZeroCopyBlockFlag(n, block, idx);
   MarkZeroCopyBlockAttr(bool_attr_, op_desc, block->is_zero_copy_, OpMemoryType::kOutput, idx);
   GELOGI(
       "[ContinuousMem]Node name: %s index:%u size:%zu ref count: %d, zero copy:%d, fixed addr prior: %d, "
@@ -2030,7 +2036,7 @@ MemoryBlock *BlockMemAssigner::ApplyOutMemory(const NodePtr &n, uint32_t index, 
            block_size, block->ref_count_, out_count, block->is_zero_copy_, block->is_fixed_addr_prior_);
   }
 
-  MarkReuseZeroCopyBlockFlag(n, block, index, is_feature_map_refreshable_);
+  MarkReuseZeroCopyBlockFlag(n, block, index);
   MarkZeroCopyBlockAttr(bool_attr_, node_op_desc, block->is_zero_copy_, OpMemoryType::kOutput, index);
   GELOGI("Node name: %s index:%u size:%zu ref count: %d, out count: %d zero copy:%d, out node need continuous input %d",
          n->GetNamePtr(), index, block_size, block->ref_count_, out_count, block->is_zero_copy_,
