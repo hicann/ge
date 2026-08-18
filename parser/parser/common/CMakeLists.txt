@@ -32,7 +32,6 @@ set(SRC_LIST
     "parser_types.cc"
     "pass_manager.cc"
     "parser_fp16_t.cc"
-    "thread_pool.cc"
     "parser_utils.cc"
     "auto_mapping_subgraph_io_index_func.cc"
     "prototype_pass_manager.cc"

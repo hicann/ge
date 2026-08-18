@@ -30,7 +30,6 @@
 #include "omg/parser/parser_factory.h"
 #include "parser/common/model_saver.h"
 #include "parser/common/parser_fp16_t.h"
-#include "parser/common/thread_pool.h"
 #include "parser/common/util.h"
 #include "parser/tensorflow/tensorflow_util.h"
 #include "register/auto_mapping_util.h"

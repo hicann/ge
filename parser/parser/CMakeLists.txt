@@ -72,6 +72,7 @@ target_include_directories(fmk_parser PRIVATE
     ${AIR_CODE_DIR}/inc/parser
     ${AIR_CODE_DIR}/parser/parser
     ${AIR_CODE_DIR}/parser/
+    ${AIR_CODE_DIR}/base
 )
 
 target_link_options(fmk_parser PRIVATE
@@ -83,6 +84,7 @@ target_link_libraries(fmk_parser
         ge_intf_pub
         air_headers
         json
+        ge_common_base
     PUBLIC
         static_mmpa
         -Wl,--no-as-needed

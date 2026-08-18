@@ -726,6 +726,10 @@ add_executable(ut_libge_multiparts_utest
     ${AIR_CODE_DIR}/tests/ge/st/stubs/src/mock_ops_kernel_builder.cc
 )
 
+add_dependencies(ut_libge_multiparts_utest
+    fmk_parser
+)
+
 target_compile_options(ut_libge_multiparts_utest PRIVATE
     -Werror=format
     -Wno-deprecated-declarations
@@ -801,7 +805,10 @@ target_link_libraries(ut_libge_multiparts_utest
     -Wl,--no-as-needed GTestShared::gmock -Wl,--as-needed
 )
 
-set_target_properties(ut_libge_multiparts_utest PROPERTIES CXX_STANDARD 17)
+set_target_properties(ut_libge_multiparts_utest PROPERTIES
+    CXX_STANDARD 17
+    BUILD_RPATH "$<TARGET_FILE_DIR:fmk_parser>;$<TARGET_FILE_DIR:_caffe_parser>"
+)
 
 add_test(NAME ut_libge_multiparts_utest COMMAND ut_libge_multiparts_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_multiparts_utest.xml)
 set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest"
