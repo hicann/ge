@@ -14,9 +14,9 @@ on:
         type: string
     outputs:
       compile_run_url:
-        value: ${{jobs.JOB_compile.outputs.primary-url}}
+        value: ${{jobs.JOB_Compile.outputs.primary-url}}
       compile_run_key:
-        value: ${{jobs.JOB_compile.outputs.primary-key}}
+        value: ${{jobs.JOB_Compile.outputs.primary-key}}
 
 jobs:
   JOB_Compile:
@@ -74,9 +74,6 @@ jobs:
           artifact-path: "${{ steps.process_checkout.outputs.path }}/build_out/*"
           object-prefix: ${{ env.obs_path }}/
     if: "${{ default() }}"
-    runs-on:
-      - dedicate-hosted
-      - ${{ inputs.arch }}
-      - xlarge
+    runs-on: ['self-hosted', "arch=${{ inputs.arch }}", 'spec=xlarge']
     container:
       image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
