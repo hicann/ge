@@ -550,7 +550,7 @@ UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataF
 
 | 属性 | 含义 | 设置位置 |
 |------|------|----------|
-| `_dflow_runnable_resource` | UDF 成功编译出的资源类型集合（Ascend/Aarch/x86_64） | `process_point_loader.cc` 的 `SetCompileResultToNode` |
+| `_dflow_runnable_resource` | UDF 成功编译出的资源类型集合（Ascend/X86/Aarch） | `process_point_loader.cc` 的 `SetCompileResultToNode` |
 | `_dflow_heavy_load` | 是否重载（重载必须 host） | `process_point_loader.cc` 的 `SetUserFunctionProcessPointAttrs` |
 | `_dflow_final_location` | 自动部署器选定的最终资源类型 | `data_flow_graph_auto_deployer.cc` 的 `AutoDeployDataFlowGraph` |
 

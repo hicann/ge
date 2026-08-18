@@ -19,8 +19,6 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/op_desc_utils.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
-#include "graph/ge_global_options.h"
-#include "framework/common/ge_types.h"
 
 using namespace testing;
 namespace ge {
@@ -48,15 +46,7 @@ class DataFlowGraphTest : public Test {
     std::string cmd = "rm -rf temp";
     (void)system(cmd.c_str());
   }
-  void SetUp() override {
-    {
-      auto &global_options_mutex = GetGlobalOptionsMutex();
-      const std::lock_guard<std::mutex> lock(global_options_mutex);
-      auto &global_options = GetMutableGlobalOptions();
-      global_options[OPTION_NUMA_CONFIG] =
-          R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-    }
-  }
+  void SetUp() override {}
   void TearDown() override {}
 };
 

@@ -18,7 +18,6 @@
 #include "graph/debug/ge_attr_define.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "dflow/runner/compiler/data_flow_graph/inner_pp_loader.h"
-#include "graph/ge_global_options.h"
 #include "common/env_path.h"
 
 using namespace testing;
@@ -115,22 +114,9 @@ class InnerPpLoaderTest : public Test {
  protected:
   static void SetUpTestSuite() {
     PrepareForUdf();
-    {
-      auto &global_options_mutex = GetGlobalOptionsMutex();
-      const std::lock_guard<std::mutex> lock(global_options_mutex);
-      auto &global_options = GetMutableGlobalOptions();
-      global_options[OPTION_NUMA_CONFIG] =
-          R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-    }
   }
   static void TearDownTestSuite() {
     system("rm -fr model_pp_udf");
-    {
-      auto &global_options_mutex = GetGlobalOptionsMutex();
-      const std::lock_guard<std::mutex> lock(global_options_mutex);
-      auto &global_options = GetMutableGlobalOptions();
-      global_options[OPTION_NUMA_CONFIG] = "";
-    }
   }
   void SetUp() {}
   void TearDown() {}

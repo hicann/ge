@@ -20,7 +20,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "common/config/config_parser.h"
 #include "macro_utils/dt_public_unscope.h"
-#include "dflow/deployer/common/utils/deploy_location.h"
+#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
 using namespace std;
@@ -58,10 +58,10 @@ TEST_F(UtConfigParser, parse_server_info_success) {
   ASSERT_EQ(information.remote_node_config_list.size(), 0);
   ASSERT_EQ(information.node_config.device_list.size(), 9);
   ASSERT_EQ(information.node_config.node_type, "TestNodeType1");
-  ASSERT_EQ(information.node_config.resource_type, DeployLocation::IsX86() ? "X86" : "Aarch");
+  ASSERT_EQ(information.node_config.resource_type, ExecutionRuntime::IsX86() ? "X86" : "Aarch");
   for (const auto &device_config : information.node_config.device_list) {
     if (device_config.device_type == CPU) {
-      ASSERT_EQ(device_config.resource_type, DeployLocation::IsX86() ? "X86" : "Aarch");
+      ASSERT_EQ(device_config.resource_type, ExecutionRuntime::IsX86() ? "X86" : "Aarch");
     } else {
       ASSERT_EQ(device_config.resource_type, "Ascend");
     }
@@ -88,10 +88,10 @@ TEST_F(UtConfigParser, parse_config_without_resource_success) {
   ASSERT_EQ(information.remote_node_config_list.size(), 1);
   ASSERT_EQ(information.node_config.device_list.size(), 3);
   ASSERT_EQ(information.node_config.node_type, "TestNodeType1");
-  ASSERT_EQ(information.node_config.resource_type, DeployLocation::IsX86() ? "X86" : "Aarch");
+  ASSERT_EQ(information.node_config.resource_type, ExecutionRuntime::IsX86() ? "X86" : "Aarch");
   for (const auto &device_config : information.node_config.device_list) {
     if (device_config.device_type == CPU) {
-      ASSERT_EQ(device_config.resource_type, DeployLocation::IsX86() ? "X86" : "Aarch");
+      ASSERT_EQ(device_config.resource_type, ExecutionRuntime::IsX86() ? "X86" : "Aarch");
     } else {
       ASSERT_EQ(device_config.resource_type, "Ascend");
     }

@@ -11,8 +11,6 @@
 #include "dflow/runner/compiler/data_flow_graph/compile_config_json.h"
 #include <fstream>
 #include "graph/utils/type_utils.h"
-#include "graph/ge_global_options.h"
-#include "framework/common/ge_types.h"
 
 namespace {
 // FunctionPpConfig json key
@@ -475,44 +473,5 @@ void from_json(const nlohmann::json &json_buff, CompileConfigJson::FlowNodeBatch
   if (json_buff.contains("invoke_list")) {
     Assign(batch_deploy_info.invoke_deploy_infos, "invoke_list", json_buff);
   }
-}
-
-Status CompileConfigJson::GetResourceTypeFromNumaConfig(std::set<std::string> &resource_types) {
-  auto &global_options_mutex = GetGlobalOptionsMutex();
-  const std::lock_guard<std::mutex> lock(global_options_mutex);
-  auto &global_options = GetMutableGlobalOptions();
-  const auto &numa_config_json_string = global_options[OPTION_NUMA_CONFIG];
-  GELOGD("Numa config json:%s", numa_config_json_string.c_str());
-  try {
-    const nlohmann::json numa_config_json = nlohmann::json::parse(numa_config_json_string.c_str());
-    GE_CHK_BOOL_RET_STATUS(numa_config_json.contains("node_def"), FAILED,
-                           "Failed to get node_def, numa config json:%s.", numa_config_json_string.c_str());
-    for (auto &node_def : numa_config_json["node_def"]) {
-      GE_CHK_BOOL_RET_STATUS(node_def.contains("resource_type"), FAILED,
-                             "Failed to get resource_type, numa config json:%s.", numa_config_json_string.c_str());
-      std::string resource_type;
-      Assign(resource_type, "resource_type", node_def);
-      GE_CHK_BOOL_RET_STATUS(!resource_type.empty(), FAILED,
-                             "Failed to get resource_type from node_def, numa config json:%s.",
-                             numa_config_json_string.c_str());
-      resource_types.insert(resource_type);
-    }
-    GE_CHK_BOOL_RET_STATUS(numa_config_json.contains("item_def"), FAILED,
-                           "Failed to get item_def, numa config json:%s.", numa_config_json_string.c_str());
-    for (auto &item_def : numa_config_json["item_def"]) {
-      GE_CHK_BOOL_RET_STATUS(item_def.contains("resource_type"), FAILED,
-                             "Failed to get resource_type, numa config json:%s.", numa_config_json_string.c_str());
-      std::string resource_type;
-      Assign(resource_type, "resource_type", item_def);
-      GE_CHK_BOOL_RET_STATUS(!resource_type.empty(), FAILED,
-                             "Failed to get resource_type from item_def, numa config json:%s.",
-                             numa_config_json_string.c_str());
-      resource_types.insert(resource_type);
-    }
-  } catch (const nlohmann::json::exception &e) {
-    GELOGE(FAILED, "Invalid numa config json string[%s], err msg: %s.", numa_config_json_string.c_str(), e.what());
-    return FAILED;
-  }
-  return SUCCESS;
 }
 }  // namespace ge

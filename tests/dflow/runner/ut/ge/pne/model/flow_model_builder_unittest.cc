@@ -28,7 +28,6 @@
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "flow_graph/data_flow.h"
 #include "graph/ge_context.h"
-#include "graph/ge_global_options.h"
 #include "dflow/runner/compiler/model/flow_model_cache.h"
 #include "common/env_path.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
@@ -442,13 +441,6 @@ TEST_F(FlowModelBuilderTest, FlowModelBuild) {
 }
 
 TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_SUCCESS) {
-  {
-    auto &global_options_mutex = GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = GetMutableGlobalOptions();
-    global_options[OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   DEF_GRAPH(flow_graph) {
     auto data0 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto data1 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
@@ -660,13 +652,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_SUCCESS) {
 }
 
 TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_FAILED) {
-  {
-    auto &global_options_mutex = GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = GetMutableGlobalOptions();
-    global_options[OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   DEF_GRAPH(flow_graph) {
     auto data0 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto node0 = OP_CFG("FlowNode").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
@@ -784,13 +769,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_FAILED) {
 }
 
 TEST_F(FlowModelBuilderTest, BuildModel_Invoke_modelpp_SUCCESS) {
-  {
-    auto &global_options_mutex = GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = GetMutableGlobalOptions();
-    global_options[OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   constexpr const char *compiler_config = "./temp/compiler_config.json";
   {
     nlohmann::json cpu_compiler_json = {
@@ -933,13 +911,6 @@ TEST_F(FlowModelBuilderTest, MakeInputTensors_by_inputshape_range_success) {
 }
 
 TEST_F(FlowModelBuilderTest, BuildModel_Failed) {
-  {
-    auto &global_options_mutex = GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = GetMutableGlobalOptions();
-    global_options[OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   class MockMmpaOpen : public MockMmpa {
    public:
     MOCK_METHOD(INT32, Open2, (const CHAR *path_name, INT32 flags, MODE mode));

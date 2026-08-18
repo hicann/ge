@@ -12,8 +12,6 @@
 #include "gtest/gtest.h"
 #include "dflow/runner/compiler/data_flow_graph/compile_config_json.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/ge_global_options.h"
-#include "framework/common/ge_types.h"
 
 using namespace testing;
 namespace ge {
@@ -428,16 +426,5 @@ TEST_F(CompileConfigJsonTest, ReadGraphPpConfigFromJsonFile_InvalidFormat) {
   CompileConfigJson::GraphPpConfig graph_pp_cfg = {};
   EXPECT_EQ(CompileConfigJson::ReadGraphPpConfigFromJsonFile("./graph_pp_config.json", graph_pp_cfg), FAILED);
   remove("./graph_pp_config.json");
-}
-
-TEST_F(CompileConfigJsonTest, GetResourceTypeFromNumaConfig_Failed) {
-  {
-    auto &global_options_mutex = GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = GetMutableGlobalOptions();
-    global_options[OPTION_NUMA_CONFIG] = "xxxxx";
-  }
-  std::set<std::string> resource_types;
-  EXPECT_EQ(CompileConfigJson::GetResourceTypeFromNumaConfig(resource_types), FAILED);
 }
 }  // namespace ge

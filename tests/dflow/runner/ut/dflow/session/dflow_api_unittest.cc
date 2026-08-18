@@ -15,7 +15,6 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/ge_local_context.h"
-#include "graph/ge_global_options.h"
 #include "register/optimization_option_registry.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "register/ops_kernel_builder_registry.h"
@@ -148,13 +147,6 @@ ge::dflow::FlowGraph BuildFlowGraph() {
     cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
     cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
   }
-  {
-    auto &global_options_mutex = ge::GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = ge::GetMutableGlobalOptions();
-    global_options[ge::OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   auto data0 = ge::dflow::FlowData("Data0", 0);
   auto node0 = ge::dflow::FlowNode("node0", 1, 1).SetInput(0, data0);
   // function pp
@@ -267,14 +259,6 @@ class UtestDflowApi : public testing::Test {
     ge::OperatorFactoryImpl::operator_infershape_funcs_->erase("Add");
     ge::OperatorFactoryImpl::operator_infershape_funcs_->erase("NetOutput");
     EXPECT_EQ(DFlowFinalize(), SUCCESS);
-    {
-      auto &global_options_mutex = ge::GetGlobalOptionsMutex();
-      const std::lock_guard<std::mutex> lock(global_options_mutex);
-      auto &global_options = ge::GetMutableGlobalOptions();
-      if (global_options.find(ge::OPTION_NUMA_CONFIG) == global_options.end()) {
-        global_options.erase(ge::OPTION_NUMA_CONFIG);
-      }
-    }
     ge::ExecutionRuntime::SetExecutionRuntime(nullptr);
     ge::OpsKernelBuilderRegistry::GetInstance().UnregisterAll();
   }
