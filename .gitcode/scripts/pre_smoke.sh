@@ -12,8 +12,7 @@
 set -euo pipefail
 
 echo "start run test case, please wait ..."
-cd /home/taskspace
-WORKSPACE=/home/taskspace
+cd ${WORKSPACE}
 
 export ASCEND_GLOBAL_LOG_LEVEL=2
 export ASCEND_SLOG_PRINT_TO_STDOUT=0
@@ -69,20 +68,21 @@ echo "y" | bash "${arm_package_executor}" --full --install-path=/usr/local/Ascen
 # source ~/.bashrc
 log "start run test case, please wait ..."
 source /usr/local/Ascend/cann/set_env.sh
-cd examples/es/operator_overload_async/python && bash run_sample.sh -t sample_and_run_python 2>&1 | tee -a /home/taskspace/run_test.log
+cd examples/es/operator_overload_async/python && bash run_sample.sh -t sample_and_run_python 2>&1 | tee -a ${WORKSPACE}/run_test.log
 cd - || exit 1
 
 # ==============================
 # 打包log
 # ==============================
 mkdir -p /root/ascend
+cd ${WORKSPACE}
 slog_name="slog.tar.gz"
 tar -zcf "${slog_name}" -C /root/ascend log
 
 # upload plog
-if python3 /home/upload.py --bucket-name "ascend-ci" --action upload  --local-file "slog.tar.gz" --obs-object-key "${repo_name}/package/${pr_id}/${slog_name}"; then
-  echo "::set-output var=plog_url:https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${repo_name}/package/${pr_id}/slog.tar.gz"
-fi
+# if python3 /home/upload.py --bucket-name "ascend-ci" --action upload  --local-file "slog.tar.gz" --obs-object-key "${repo_name}/package/${pr_id}/${slog_name}"; then
+#   echo "::set-output var=plog_url:https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${repo_name}/package/${pr_id}/slog.tar.gz"
+# fi
 
 # ==============================
 # 检查 NPU 状态
@@ -97,7 +97,7 @@ npu-smi info  2>&1 | tee ./npu_log/npu_info.log
 log "checking test results ..."
 
 date_time=$(date +%Y%m%d)"."$(date +%H%M%S)
-if grep -iE '\b(FAIL|failed|error:)\b' "/home/taskspace/run_test.log" | grep -viE "error\)"; then
+if grep -iE '\b(FAIL|failed|error:)\b' "${WORKSPACE}/run_test.log" | grep -viE "error\)"; then
     echo "$date_time : run test case failed"
     exit 1
 fi
