@@ -13,6 +13,7 @@
 #include <fstream>
 #include "nlohmann/json.hpp"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "utils/mock_execution_runtime.h"
 
 #include "dflow/runner/session/dflow_api.h"
@@ -120,6 +121,30 @@ ge::dflow::FlowGraph BuildFlowGraph() {
   flow_graph.SetInputs(inputsOperator).SetOutputs(outputsOperator);
   return flow_graph;
 }
+
+class MockAclApiStubRepeatInit : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_REPEAT_INITIALIZE;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
+class MockAclApiStubFail : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
 }  // namespace
 class DataFlowApiTest : public testing::Test {
  protected:
@@ -300,6 +325,27 @@ TEST_F(DataFlowApiTest, FeedRawData) {
   EXPECT_EQ(session3.BuildGraph(graph_id, inputs), SUCCESS);
   EXPECT_NE(session3.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
   EXPECT_EQ(DFlowFinalize(), SUCCESS);
+}
+
+TEST_F(DataFlowApiTest, DFlowInitialize_acl_repeat_init) {
+  DFlowFinalize();
+  auto mock_acl = std::make_shared<MockAclApiStubRepeatInit>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  EXPECT_EQ(DFlowInitialize(options), SUCCESS);
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
+}
+
+TEST_F(DataFlowApiTest, DFlowInitialize_acl_init_failed) {
+  DFlowFinalize();
+  auto mock_acl = std::make_shared<MockAclApiStubFail>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  EXPECT_EQ(DFlowInitialize(options), FAILED);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
 }
 }  // namespace dflow
 }  // namespace ge

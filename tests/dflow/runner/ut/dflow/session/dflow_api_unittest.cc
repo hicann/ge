@@ -13,6 +13,7 @@
 #include "dflow/runner/session/dflow_api.h"
 #include "graph/operator_factory_impl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/ge_local_context.h"
 #include "register/optimization_option_registry.h"
@@ -216,6 +217,30 @@ class MockMmpa : public ge::MmpaStubApiGe {
   }
 };
 
+class MockAclApiStubRepeatInit : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_REPEAT_INITIALIZE;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
+class MockAclApiStubFail : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
 class UtestDflowApi : public testing::Test {
  protected:
   static void SetUpTestSuite() {
@@ -283,6 +308,31 @@ TEST_F(UtestDflowApi, DFlowInitialize) {
   ASSERT_EQ(ret, SUCCESS);
   ret = DFlowFinalize();
   ASSERT_EQ(ret, SUCCESS);
+  ge::MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(UtestDflowApi, DFlowInitialize_acl_repeat_init) {
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  auto mock_acl = std::make_shared<MockAclApiStubRepeatInit>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  EXPECT_EQ(DFlowInitialize(options), SUCCESS);
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
+  ge::MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(UtestDflowApi, DFlowInitialize_acl_init_failed) {
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  auto mock_acl = std::make_shared<MockAclApiStubFail>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  EXPECT_EQ(DFlowInitialize(options), FAILED);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
   ge::MmpaStub::GetInstance().Reset();
 }
 

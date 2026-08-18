@@ -42,6 +42,7 @@ const char_t *const kArgsKeyDeviceId = "--device_id";
 const char_t *const kArgsKeyMsgQueueDeviceId = "--msg_queue_device_id";
 std::atomic<bool> kLoopFlag(true);
 std::atomic<bool> acl_initialized{false};
+std::atomic<bool> acl_owned_by_dflow{false};
 }  // namespace
 
 EngineDaemon::EngineDaemon(bool is_host_cpu) : is_host_cpu_(is_host_cpu) {}
@@ -77,12 +78,14 @@ Status EngineDaemon::InitializeWithArgs(int32_t argc, char_t **argv) {
   MemoryStatisticManager::Instance().Initialize(mem_group_name_);
   if (!acl_initialized) {
     aclError ret = aclInit(nullptr);
-    if (ret != ACL_SUCCESS) {
-      GELOGE(FAILED, "ACL init failed.");
+    if (ret != ACL_SUCCESS && ret != ACL_ERROR_REPEAT_INITIALIZE) {
+      GELOGE(FAILED, "ACL init failed, ret = %d.", static_cast<int32_t>(ret));
       return FAILED;
-    } else {
-      GELOGI("ACL init success.");
-      acl_initialized.store(true);
+    }
+    GELOGI("ACL init success.");
+    acl_initialized.store(true);
+    if (ret == ACL_SUCCESS) {
+      acl_owned_by_dflow.store(true);
     }
   }
   return SUCCESS;
@@ -116,10 +119,11 @@ Status EngineDaemon::InitializeExecutor() {
 }
 
 void EngineDaemon::Finalize() {
-  if (acl_initialized) {
+  if (acl_owned_by_dflow) {
     aclFinalize();
-    acl_initialized.store(false);
+    acl_owned_by_dflow.store(false);
   }
+  acl_initialized.store(false);
   MemoryStatisticManager::Instance().Finalize();
   (void)FinalizeMaintenance();
   (void)ge_executor_.Finalize();
