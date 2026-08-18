@@ -32,6 +32,7 @@
 #include "runtime/subscriber/global_dumper.h"
 #include "graph/utils/execute_graph_utils.h"
 #include "graph/utils/graph_dump_utils.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 using namespace ge;
 using namespace gert::bg;
 
@@ -64,10 +65,16 @@ class AclnnNodeConverterUT : public bg::BgTestAutoCreate3StageFrame {
   void SetUp() override {
     // BgTest::SetUp();
     BgTestAutoCreate3StageFrame::SetUp();
+    acl_runtime_stub_ = std::make_shared<ge::AclRuntimeStub>();
+    ge::AclRuntimeStub::SetInstance(acl_runtime_stub_);
   }
   void TearDown() override {
+    ge::AclRuntimeStub::Reset();
+    acl_runtime_stub_.reset();
     BgTestAutoCreate3StageFrame::TearDown();
   }
+
+  std::shared_ptr<ge::AclRuntimeStub> acl_runtime_stub_;
 };
 
 TEST_F(AclnnNodeConverterUT, TestHgl) {
@@ -99,12 +106,13 @@ TEST_F(AclnnNodeConverterUT, TestHgl) {
       gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kExceptionDump}));
 
   gert::OpImplSpaceRegistryV2Ptr space_registry_stub = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto funcs = space_registry_stub->CreateOrGetOpImpl("FOO_OP_EXEC");
+  auto funcs = space_registry_stub->CreateOrGetOpImpl(add_node->GetTypePtr());
   funcs->op_execute_func = OpExecuteFuncStub;
   auto space_registry_array = ge::MakeShared<gert::OpImplSpaceRegistryV2Array>();
   space_registry_array->at(static_cast<size_t>(ge::OppImplVersion::kOpp)) = space_registry_stub;
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
+  ASSERT_TRUE(add_ret.result.IsSuccess());
 }
 
 TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
@@ -154,8 +162,9 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
   ge::DumpGraph(exe_graph, "AclnnNodeConverterUT");
 
   // check main 图中节点数量, 由于没走CEM, main图上有俩InnerData连给PrepareCacheableTilingFwkData
+  // 确定性配置新增一个Const和一个InnerData输入
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
-                                                                  {"Const", 9},
+                                                                  {"Const", 10},
                                                                   {"AllocBatchHbm", 1},
                                                                   {"AllocMemHbm", 1},
                                                                   {"BuildDualStageAclnnOpFwkData", 1},
@@ -168,7 +177,7 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
                                                                   {"FreeBatchHbm", 1},
                                                                   {"FreeMemory", 3},
                                                                   {"InferShape", 1},
-                                                                  {"InnerData", 9},
+                                                                  {"InnerData", 10},
                                                                   {"MakeSureTensorAtDevice", 2},
                                                                   {"SelectL1Allocator", 1},
                                                                   {"SelectL2Allocator", 1},
@@ -217,5 +226,125 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages_Failed) {
   bg::LowerConstDataNode(global_data);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_EQ(strcmp(add_ret.result.GetErrorMessage(), "Do not find op execute function."), 0);
+}
+
+TEST_F(AclnnNodeConverterUT, LoweringWithDeterministicAttr) {
+  auto graph = ShareGraph::AicoreGraph();
+  auto add_node = graph->FindNode("add1");
+  (void)ge::AttrUtils::SetStr(add_node->GetOpDesc(), "_deterministic", "1");
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  bg::LowerConstDataNode(global_data);
+  LowerInput data_input = {{}, {}, &global_data};
+
+  auto data1_ret = LoweringDataNode(graph->FindNode("data1"), data_input);
+  auto data2_ret = LoweringDataNode(graph->FindNode("data2"), data_input);
+  ASSERT_TRUE(data1_ret.result.IsSuccess());
+  ASSERT_TRUE(data2_ret.result.IsSuccess());
+
+  LowerInput add_input = {{data1_ret.out_shapes[0], data2_ret.out_shapes[0]},
+                          {data1_ret.out_addrs[0], data2_ret.out_addrs[0]},
+                          &global_data};
+
+  graph->FindNode("data1")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data1"), std::move(data1_ret)));
+  graph->FindNode("data2")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data2"), std::move(data2_ret)));
+  auto data_guarder = bg::DevMemValueHolder::CreateSingleDataOutput("FreeAdd", {add_input.input_addrs[1]}, 0);
+  add_input.input_addrs[0]->SetGuarder(data_guarder);
+
+  gert::OpImplSpaceRegistryV2Ptr space_registry_stub = std::make_shared<gert::OpImplSpaceRegistryV2>();
+  auto funcs = space_registry_stub->CreateOrGetOpImpl(add_node->GetTypePtr());
+  funcs->op_execute_func = OpExecuteFuncStub;
+  auto space_registry_array = ge::MakeShared<gert::OpImplSpaceRegistryV2Array>();
+  space_registry_array->at(static_cast<size_t>(ge::OppImplVersion::kOpp)) = space_registry_stub;
+  global_data.SetSpaceRegistriesV2(*space_registry_array);
+
+  auto add_ret = LoweringAclnnNode(add_node, add_input);
+  ASSERT_TRUE(add_ret.result.IsSuccess());
+  EXPECT_EQ(acl_runtime_stub_->GetSysParamSetRecords().size(), 2U);
+}
+
+TEST_F(AclnnNodeConverterUT, LoweringUsesLatestDeterministicConfig) {
+  auto graph = ShareGraph::AicoreGraph();
+  auto add_node = graph->FindNode("add1");
+  (void)ge::AttrUtils::SetStr(add_node->GetOpDesc(), "_deterministic", "1");
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  bg::LowerConstDataNode(global_data);
+  LowerInput data_input = {{}, {}, &global_data};
+
+  auto data1_ret = LoweringDataNode(graph->FindNode("data1"), data_input);
+  auto data2_ret = LoweringDataNode(graph->FindNode("data2"), data_input);
+  ASSERT_TRUE(data1_ret.result.IsSuccess());
+  ASSERT_TRUE(data2_ret.result.IsSuccess());
+
+  LowerInput add_input = {{data1_ret.out_shapes[0], data2_ret.out_shapes[0]},
+                          {data1_ret.out_addrs[0], data2_ret.out_addrs[0]},
+                          &global_data};
+
+  graph->FindNode("data1")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data1"), std::move(data1_ret)));
+  graph->FindNode("data2")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data2"), std::move(data2_ret)));
+  auto data_guarder = bg::DevMemValueHolder::CreateSingleDataOutput("FreeAdd", {add_input.input_addrs[1]}, 0);
+  add_input.input_addrs[0]->SetGuarder(data_guarder);
+
+  gert::OpImplSpaceRegistryV2Ptr space_registry_stub = std::make_shared<gert::OpImplSpaceRegistryV2>();
+  auto funcs = space_registry_stub->CreateOrGetOpImpl(add_node->GetTypePtr());
+  funcs->op_execute_func = OpExecuteFuncStub;
+  auto space_registry_array = ge::MakeShared<gert::OpImplSpaceRegistryV2Array>();
+  space_registry_array->at(static_cast<size_t>(ge::OppImplVersion::kOpp)) = space_registry_stub;
+  global_data.SetSpaceRegistriesV2(*space_registry_array);
+
+  auto add_ret = LoweringAclnnNode(add_node, add_input);
+  ASSERT_TRUE(add_ret.result.IsSuccess());
+  const auto &records = acl_runtime_stub_->GetSysParamSetRecords();
+  ASSERT_EQ(records.size(), 2U);
+  EXPECT_FALSE(records[0].is_context);
+  EXPECT_EQ(records[0].opt, ACL_OPT_DETERMINISTIC);
+  EXPECT_EQ(records[0].value, 0);
+  EXPECT_TRUE(records[1].is_context);
+  EXPECT_EQ(records[1].opt, ACL_OPT_DETERMINISTIC);
+  EXPECT_EQ(records[1].value, 0);
+}
+
+TEST_F(AclnnNodeConverterUT, LoweringWithDeterministicLevelAttr) {
+  auto graph = ShareGraph::AicoreGraph();
+  auto add_node = graph->FindNode("add1");
+  (void)ge::AttrUtils::SetStr(add_node->GetOpDesc(), "_deterministic_level", "3");
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  bg::LowerConstDataNode(global_data);
+  LowerInput data_input = {{}, {}, &global_data};
+
+  auto data1_ret = LoweringDataNode(graph->FindNode("data1"), data_input);
+  auto data2_ret = LoweringDataNode(graph->FindNode("data2"), data_input);
+  ASSERT_TRUE(data1_ret.result.IsSuccess());
+  ASSERT_TRUE(data2_ret.result.IsSuccess());
+
+  LowerInput add_input = {{data1_ret.out_shapes[0], data2_ret.out_shapes[0]},
+                          {data1_ret.out_addrs[0], data2_ret.out_addrs[0]},
+                          &global_data};
+
+  graph->FindNode("data1")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data1"), std::move(data1_ret)));
+  graph->FindNode("data2")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data2"), std::move(data2_ret)));
+  auto data_guarder = bg::DevMemValueHolder::CreateSingleDataOutput("FreeAdd", {add_input.input_addrs[1]}, 0);
+  add_input.input_addrs[0]->SetGuarder(data_guarder);
+
+  gert::OpImplSpaceRegistryV2Ptr space_registry_stub = std::make_shared<gert::OpImplSpaceRegistryV2>();
+  auto funcs = space_registry_stub->CreateOrGetOpImpl(add_node->GetTypePtr());
+  funcs->op_execute_func = OpExecuteFuncStub;
+  auto space_registry_array = ge::MakeShared<gert::OpImplSpaceRegistryV2Array>();
+  space_registry_array->at(static_cast<size_t>(ge::OppImplVersion::kOpp)) = space_registry_stub;
+  global_data.SetSpaceRegistriesV2(*space_registry_array);
+
+  auto add_ret = LoweringAclnnNode(add_node, add_input);
+  ASSERT_TRUE(add_ret.result.IsSuccess());
 }
 }  // namespace gert

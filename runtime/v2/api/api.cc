@@ -8,7 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <map>
+#include <mutex>
 #include "runtime/gert_api.h"
+#include "base/err_msg.h"
 #include "lowering/model_converter.h"
 #include "framework/common/helper/model_helper.h"
 #include "common/helper/model_parser_base.h"
@@ -17,6 +20,8 @@
 #include "core/builder/model_v2_executor_builder.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/ge_global_options.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "exe_graph/runtime/allocator.h"
 #include "kernel/memory/host_mem_allocator.h"
 #include "kernel/memory/caching_mem_allocator.h"
@@ -28,8 +33,45 @@
 
 namespace gert {
 namespace {
+ge::Status CheckGlobalDeterministicOption(std::map<std::string, std::string> &global_options,
+                                          const std::string &option_name, const int32_t model_value) {
+  int32_t process_value = 0;
+  const auto iter = global_options.find(option_name);
+  if (iter == global_options.cend()) {
+    global_options.emplace(option_name, std::to_string(model_value));
+    return ge::SUCCESS;
+  }
+  const std::string &process_value_str = iter->second;
+  if ((ge::ConvertToInt32(process_value_str, process_value) == ge::SUCCESS) && (process_value == model_value)) {
+    return ge::SUCCESS;
+  }
+
+  const std::string value = std::to_string(model_value);
+  const char *reason = "the offline model configuration differs from the process global configuration.";
+  REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                            std::vector<const char *>({option_name.c_str(), value.c_str(), reason}));
+  GELOGE(ge::PARAM_INVALID, "The offline model option[%s]=%d conflicts with process option[%s]=%s.",
+         option_name.c_str(), model_value, option_name.c_str(), process_value_str.c_str());
+  return ge::PARAM_INVALID;
+}
+
+ge::Status CheckGlobalDeterministicConfig(const ge::ComputeGraphPtr &root_graph) {
+  GE_ASSERT_NOTNULL(root_graph);
+  int32_t deterministic = 0;
+  int32_t deterministic_level = 0;
+  (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC, deterministic);
+  (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC_LEVEL, deterministic_level);
+
+  const std::lock_guard<std::mutex> lock(ge::GetGlobalOptionsMutex());
+  auto &global_options = ge::GetMutableGlobalOptions();
+  GE_ASSERT_SUCCESS(CheckGlobalDeterministicOption(global_options, ge::DETERMINISTIC, deterministic));
+  GE_ASSERT_SUCCESS(CheckGlobalDeterministicOption(global_options, ge::DETERMINISTIC_LEVEL, deterministic_level));
+  return ge::SUCCESS;
+}
+
 ge::graphStatus LoadToModelV2ExecutorBuilder(const ge::ModelData &model_data, const ModelConverter::Args &args,
-                                             ModelV2ExecutorBuilder &builder) {
+                                             ModelV2ExecutorBuilder &builder,
+                                             const bool check_global_deterministic_config) {
   ge::ModelHelper model_helper;
   auto error_code = model_helper.LoadRootModel(model_data);
   if (error_code != ge::GRAPH_SUCCESS) {
@@ -41,6 +83,9 @@ ge::graphStatus LoadToModelV2ExecutorBuilder(const ge::ModelData &model_data, co
   GE_ASSERT_NOTNULL(root_model);
   auto root_graph = root_model->GetRootGraph();
   GE_ASSERT_NOTNULL(root_graph);
+  if (check_global_deterministic_config) {
+    GE_ASSERT_SUCCESS(CheckGlobalDeterministicConfig(root_graph));
+  }
 
   if (ge::GraphUtils::IsSingleOpScene(root_graph)) {
     GELOGD("single op scene, set ge model as root model");
@@ -108,7 +153,7 @@ std::unique_ptr<ModelV2Executor> LoadExecutorFromModelDataWithRtSession(const ge
                                                                         RtSession *const rt_session,
                                                                         ge::graphStatus &error_code) {
   ModelV2ExecutorBuilder builder(rt_session);
-  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, builder);
+  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, builder, false);
   GE_ASSERT_SUCCESS(error_code);
   ExecutorOption option{};
   return builder.Build(option);
@@ -118,7 +163,7 @@ std::unique_ptr<ModelV2Executor> LoadExecutorFromModelData(const ge::ModelData &
                                                            const LoadExecutorArgs &args, ge::graphStatus &error_code) {
   ModelV2ExecutorBuilder builder(args.rt_session);
   ModelConverter::Args converter_args{{}, nullptr, nullptr, nullptr, &args.file_constant_mems};
-  error_code = LoadToModelV2ExecutorBuilder(model_data, converter_args, builder);
+  error_code = LoadToModelV2ExecutorBuilder(model_data, converter_args, builder, true);
   GE_ASSERT_SUCCESS(error_code);
   ExecutorOption option{};
   return builder.Build(option);
@@ -128,7 +173,7 @@ std::unique_ptr<ModelV2Executor> LoadExecutorFromModelData(const ge::ModelData &
                                                            const ExecutorOption &executor_option,
                                                            ge::graphStatus &error_code) {
   ModelV2ExecutorBuilder builder;
-  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, builder);
+  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, builder, false);
   GE_ASSERT_SUCCESS(error_code);
   return builder.Build(executor_option);
 }
@@ -138,7 +183,7 @@ std::unique_ptr<ModelV2Executor> LoadExecutorFromModelData(
     EventAllocator *const event_allocator, NotifyAllocator *const notify_allocator, ge::graphStatus &error_code) {
   ModelV2ExecutorBuilder builder;
   ModelConverter::Args args{{}, stream_allocator, event_allocator, notify_allocator, nullptr};
-  error_code = LoadToModelV2ExecutorBuilder(model_data, args, builder);
+  error_code = LoadToModelV2ExecutorBuilder(model_data, args, builder, false);
   GE_ASSERT_SUCCESS(error_code);
   return builder.Build(executor_option);
 }
@@ -149,7 +194,7 @@ std::unique_ptr<StreamExecutor> LoadStreamExecutorFromModelData(const ge::ModelD
   auto builder = ge::MakeUnique<ModelV2ExecutorBuilder>();
   GE_ASSERT_NOTNULL(builder);
   error_code = LoadToModelV2ExecutorBuilder(
-      model_data, ModelConverter::Args{optimize_option, nullptr, nullptr, nullptr, nullptr}, *builder);
+      model_data, ModelConverter::Args{optimize_option, nullptr, nullptr, nullptr, nullptr}, *builder, false);
   GE_ASSERT_SUCCESS(error_code);
   return ge::MakeUnique<StreamExecutor>(builder.release());
 }
@@ -166,7 +211,7 @@ std::unique_ptr<StreamExecutor> LoadStreamExecutorFromModelData(const ge::ModelD
   (void)weight_size;
   auto builder = ge::MakeUnique<ModelV2ExecutorBuilder>();
   GE_ASSERT_NOTNULL(builder);
-  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, *builder);
+  error_code = LoadToModelV2ExecutorBuilder(model_data, {}, *builder, false);
   GE_ASSERT_SUCCESS(error_code);
   return ge::MakeUnique<StreamExecutor>(builder.release());
 }

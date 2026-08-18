@@ -33,6 +33,7 @@
 #include "common/sgt_slice_type.h"
 #include "faker/space_registry_faker.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 using namespace std;
 using namespace ge;
@@ -67,14 +68,21 @@ constexpr const char *kDeterministicLevelAttr = "_deterministic_level";
 
 class RegisterOpTilingRT2UT : public testing::Test {
  protected:
-  void SetUp() {}
+  void SetUp() {
+    acl_runtime_stub_ = std::make_shared<ge::AclRuntimeStub>();
+    ge::AclRuntimeStub::SetInstance(acl_runtime_stub_);
+  }
 
   void TearDown() {
     expected_deterministic = -1;
     expected_deterministic_level = -1;
     ge::GetThreadLocalContext().SetGlobalOption({});
+    ge::AclRuntimeStub::SetErrorResultApiName("");
+    ge::AclRuntimeStub::Reset();
   }
+  std::shared_ptr<ge::AclRuntimeStub> acl_runtime_stub_;
 };
+
 uint32_t tiling_parse_count = 0;
 struct DummyTilingParams {
   int64_t x;
@@ -346,7 +354,7 @@ TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingSuccessTwice) {
 TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithGraphDeterministicLevel) {
   SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
   for (const auto level : {0, 1, 2, 3}) {
-    expected_deterministic = level >= 1 ? 1 : 0;
+    expected_deterministic = 0;
     expected_deterministic_level = level;
     ge::GetThreadLocalContext().SetGlobalOption({{"ge.deterministicLevel", std::to_string(level)}});
     auto graph = ShareGraph::ConcatV2ConstDependencyGraph();
@@ -400,7 +408,7 @@ TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithNodeDeterministicLevel) {
   ASSERT_NE(concatv2_node, nullptr);
   (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), COMPILE_INFO_JSON, "testst");
   (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), kDeterministicLevelAttr, "3");
-  expected_deterministic = 1;
+  expected_deterministic = 0;
   expected_deterministic_level = 3;
   utils::OpRunInfo run_info2;
   op = ge::OpDescUtils::CreateOperatorFromNode(concatv2_node);
@@ -436,7 +444,7 @@ TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithoutDeterministicLevelOptio
   EXPECT_EQ(AicoreRtParseAndTiling(op, platform_infos, run_info), GRAPH_SUCCESS);
 }
 
-TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithNodeDeterministicAlignedByLevel) {
+TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithNodeDeterministicIndependentFromLevel) {
   SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
   auto graph = ShareGraph::ConcatV2ConstDependencyGraph();
   auto concatv2_node = graph->FindNode("concatv2");
@@ -444,7 +452,7 @@ TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithNodeDeterministicAlignedBy
   (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), COMPILE_INFO_JSON, "testst");
   (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), kDeterministicAttr, "0");
   (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), kDeterministicLevelAttr, "2");
-  expected_deterministic = 1;
+  expected_deterministic = 0;
   expected_deterministic_level = 2;
   utils::OpRunInfo run_info;
   auto op = ge::OpDescUtils::CreateOperatorFromNode(concatv2_node);
@@ -1245,6 +1253,115 @@ TEST_F(RegisterOpTilingRT2UT, GetDeterministicLevel_NoSessionOption_CovEnhance) 
   bool has_deterministic_level = true;
   EXPECT_EQ(GetDeterministicLevel(deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
   EXPECT_FALSE(has_deterministic_level);
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetNodeDeterministicWithoutAttrKeepsDefault) {
+  auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+  int32_t deterministic = 7;
+  bool has_deterministic = true;
+  EXPECT_EQ(GetNodeDeterministic(op_desc, deterministic, has_deterministic), GRAPH_SUCCESS);
+  EXPECT_EQ(deterministic, 7);
+  EXPECT_FALSE(has_deterministic);
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetNodeDeterministicAcceptsValidValues) {
+  for (const auto value : {0, 1}) {
+    auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+    ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, kDeterministicAttr, std::to_string(value)));
+    int32_t deterministic = -1;
+    bool has_deterministic = false;
+    EXPECT_EQ(GetNodeDeterministic(op_desc, deterministic, has_deterministic), GRAPH_SUCCESS);
+    EXPECT_EQ(deterministic, value);
+    EXPECT_TRUE(has_deterministic);
+  }
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetNodeDeterministicRejectsInvalidValuesAndType) {
+  for (const auto *value : {"-1", "2", "abc"}) {
+    auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+    ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, kDeterministicAttr, value));
+    int32_t deterministic = 0;
+    bool has_deterministic = false;
+    EXPECT_NE(GetNodeDeterministic(op_desc, deterministic, has_deterministic), GRAPH_SUCCESS);
+  }
+  auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+  ASSERT_TRUE(ge::AttrUtils::SetInt(op_desc, kDeterministicAttr, 1));
+  int32_t deterministic = 0;
+  bool has_deterministic = false;
+  EXPECT_NE(GetNodeDeterministic(op_desc, deterministic, has_deterministic), GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetNodeDeterministicLevelAcceptsValidValues) {
+  for (const auto value : {0, 1, 2, 3}) {
+    auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+    ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, kDeterministicLevelAttr, std::to_string(value)));
+    int32_t deterministic_level = -1;
+    bool has_deterministic_level = false;
+    EXPECT_EQ(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
+    EXPECT_EQ(deterministic_level, value);
+    EXPECT_TRUE(has_deterministic_level);
+  }
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetNodeDeterministicLevelRejectsInvalidValuesAndType) {
+  for (const auto *value : {"-1", "4", "abc"}) {
+    auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+    ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, kDeterministicLevelAttr, value));
+    int32_t deterministic_level = 0;
+    bool has_deterministic_level = false;
+    EXPECT_NE(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
+  }
+  auto op_desc = std::make_shared<ge::OpDesc>("node", "Node");
+  ASSERT_TRUE(ge::AttrUtils::SetInt(op_desc, kDeterministicLevelAttr, 2));
+  int32_t deterministic_level = 0;
+  bool has_deterministic_level = false;
+  EXPECT_NE(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level), GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingRT2UT, GetGraphDeterministicConfigUsesIndependentDefaultsAndValues) {
+  auto graph = std::make_shared<ge::ComputeGraph>("graph");
+  int32_t deterministic = -1;
+  int32_t deterministic_level = -1;
+  ASSERT_EQ(GetGraphDeterministicConfig(graph, deterministic, deterministic_level), GRAPH_SUCCESS);
+  EXPECT_EQ(deterministic, 0);
+  EXPECT_EQ(deterministic_level, 0);
+
+  ASSERT_TRUE(ge::AttrUtils::SetInt(graph, ge::DETERMINISTIC, 0));
+  ASSERT_TRUE(ge::AttrUtils::SetInt(graph, ge::DETERMINISTIC_LEVEL, 3));
+  ASSERT_EQ(GetGraphDeterministicConfig(graph, deterministic, deterministic_level), GRAPH_SUCCESS);
+  EXPECT_EQ(deterministic, 0);
+  EXPECT_EQ(deterministic_level, 3);
+}
+
+TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigPassesThroughLevel) {
+  for (const auto level : {0, 1, 2, 3}) {
+    acl_runtime_stub_->ClearDeterministicConfigStub();
+    ASSERT_EQ(SetDeterministicConfig(level == 0 ? 0 : 1, level), GRAPH_SUCCESS);
+    const auto &records = acl_runtime_stub_->GetSysParamSetRecords();
+    ASSERT_EQ(records.size(), 2U);
+    EXPECT_FALSE(records[0].is_context);
+    EXPECT_EQ(records[0].value, level);
+    EXPECT_TRUE(records[1].is_context);
+    EXPECT_EQ(records[1].value, level);
+  }
+}
+
+TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigRejectsInconsistentConfig) {
+  EXPECT_NE(SetDeterministicConfig(1, 0), GRAPH_SUCCESS);
+  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
+
+  EXPECT_NE(SetDeterministicConfig(0, 1), GRAPH_SUCCESS);
+  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
+}
+
+TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigPropagatesAclFailures) {
+  ge::AclRuntimeStub::SetErrorResultApiName("aclrtSetSysParamOpt");
+  EXPECT_NE(SetDeterministicConfig(1, 2), GRAPH_SUCCESS);
+  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
+
+  ge::AclRuntimeStub::SetErrorResultApiName("aclrtCtxSetSysParamOpt");
+  EXPECT_NE(SetDeterministicConfig(1, 2), GRAPH_SUCCESS);
+  ASSERT_EQ(acl_runtime_stub_->GetSysParamSetRecords().size(), 1U);
 }
 
 }  // namespace optiling

@@ -18,21 +18,44 @@
 
 namespace gert {
 namespace kernel {
-enum class SingleStageAclnnOpFwkDataIndex { kCoreNumInfos };
+struct AclnnDeterministicConfig {
+  bool has_op_deterministic = false;
+  int32_t op_deterministic = 0;
+  bool has_op_deterministic_level = false;
+  int32_t op_deterministic_level = 0;
+};
 
-struct SingleStageAclnnOpFwkData {
-  const CoreNumInfos *core_num_infos;
+struct AclnnOriginalDeterministicConfig {
+  int32_t deterministic = 0;
+  int32_t deterministic_level = 0;
   int8_t reserved[4];  // 填充以确保sizeof > 8。若 <=
                        // 8字节，框架会启用Inplace优化导致GetPointer解析错误，此处强制走指针模式
 };
 
-enum class DualStageAclnnOpFwkDataIndex { kExecutePrepareFunc, kExecuteLaunchFunc, kPlatformInfo, kCoreNumInfos };
+enum class SingleStageAclnnOpFwkDataIndex { kCoreNumInfos, kDeterministicConfig, kOriginalDeterministicConfig };
+
+struct SingleStageAclnnOpFwkData {
+  const CoreNumInfos *core_num_infos;
+  const AclnnDeterministicConfig *deterministic_config;
+  const AclnnOriginalDeterministicConfig *original_deterministic_config;
+};
+
+enum class DualStageAclnnOpFwkDataIndex {
+  kExecutePrepareFunc,
+  kExecuteLaunchFunc,
+  kPlatformInfo,
+  kCoreNumInfos,
+  kDeterministicConfig,
+  kOriginalDeterministicConfig
+};
 
 struct DualStageAclnnOpFwkData {
   void *op_execute_prepare_func;
   void *op_execute_launch_func;
   fe::PlatFormInfos *platform_info;
   const CoreNumInfos *core_num_infos;
+  const AclnnDeterministicConfig *deterministic_config;
+  const AclnnOriginalDeterministicConfig *original_deterministic_config;
 };
 
 ge::graphStatus FindOpExeFunc(KernelContext *context);
