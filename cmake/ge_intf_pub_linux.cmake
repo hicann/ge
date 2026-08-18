@@ -34,9 +34,6 @@ add_cann_target_options()
 
 ########## ge_intf_pub_base ##########
 add_library(ge_intf_pub_base INTERFACE)
-target_link_libraries(ge_intf_pub_base INTERFACE
-    $<BUILD_INTERFACE:intf_pub_base>
-)
 target_compile_options(ge_intf_pub_base INTERFACE
     -Werror
     $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:${CMAKE_CXX_COMPILER_VERSION},14.0>>:-Wno-free-nonheap-object>
@@ -49,8 +46,6 @@ target_compile_options(ge_intf_pub_base INTERFACE
         -DFWK_SUPPORT_TRAINING_TRACE>
 )
 target_compile_definitions(ge_intf_pub_base INTERFACE
-    $<$<OR:$<STREQUAL:${PRODUCT_SIDE},device>,$<BOOL:${MDC_COMPILE_RUNTIME}>>:_GLIBCXX_USE_CXX11_ABI=1>
-    $<$<AND:$<NOT:$<STREQUAL:${PRODUCT_SIDE},device>>,$<NOT:$<BOOL:${MDC_COMPILE_RUNTIME}>>>:_GLIBCXX_USE_CXX11_ABI=0>
     $<$<BOOL:${ENABLE_TEST}>:SUPPORT_LARGE_MODEL_ENABLE=1>
 )
 target_link_options(ge_intf_pub_base INTERFACE

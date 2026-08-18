@@ -23,7 +23,6 @@ target_compile_definitions(func2graph PRIVATE
 )
 
 target_compile_options(func2graph PRIVATE
-        -D_GLIBCXX_USE_CXX11_ABI=0
         -fstack-protector-all
         -fvisibility-inlines-hidden
 )
