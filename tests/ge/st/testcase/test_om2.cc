@@ -814,7 +814,7 @@ std::string MakeFakeOm2InterfaceHeader() {
 extern "C" {
 int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **bin_files, const void **bin_data,
                    size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id,
-                   uint32_t model_id, void *instance_handle);
+                   uint32_t model_id, void *instance_handle, int32_t priority);
 int Om2ModelLoad(void **model_handle);
 int Om2ModelRunAsync(void **model_handle, void *stream, int input_count, void **input_data, int output_count,
                      void **output_data);
@@ -836,7 +836,7 @@ struct FakeModel {
 }
 
 extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **, size_t *, int,
-                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t, void *) {
+                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t, void *, int32_t) {
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (work_ptr == nullptr) || (constants == nullptr) ||
       (constants[0] == nullptr)) {
     return 1;

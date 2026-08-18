@@ -40,5 +40,6 @@ Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase(AstBuildContext &ast)
       overflow_addr_(ast_.Var("void *", "overflow_addr_")),
       dev_dynamic_mem_ptrs_(ast_.Var("std::vector<void *>", "dev_dynamic_mem_ptrs_")),
       session_scope_mem_ptr_(ast_.Var("void *", "session_scope_mem_ptr_")),
+      priority_(ast_.Var("int32_t", "priority_")),
       sync_prof_stream_(ast_.Var("aclrtStream", "sync_prof_stream_")) {}
 }  // namespace ge
