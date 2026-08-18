@@ -189,23 +189,36 @@ Status ProgramGenerator::GenerateKernelRegSource(Om2CodePrinter &code_printer) {
 
 Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) {
   LoadAndRunFileCodeGenerator load_and_run_handler(ast_);
+  load_and_run_handler.SetHasCustomKernel(has_custom_kernel_);
   auto anonymous_items = load_and_run_handler.BuildAnonymousNamespaceItems(codegen_model_, task_code_builder_list_);
+  if (has_custom_kernel_) {
+    anonymous_items.insert(anonymous_items.begin(),
+                           ast_.StablePart(StablePartId::kCustomTaskHelpers, StablePartPlacement::kNamespace));
+  }
   (void)anonymous_items.insert(anonymous_items.begin(),
                                ast_.StablePart(StablePartId::kLoadAndRunDumpHelpers, StablePartPlacement::kNamespace));
   anonymous_items.push_back(load_and_run_handler.BuildOpDefTable(codegen_model_, task_code_builder_list_));
-  auto *translation_unit = ast_.File({
-      ast_.Include(codegen_model_.model_name + "_interface.h"),
-      ast_.Space(),
-      ast_.Namespace("om2",
-                     {
-                         ast_.Namespace("", anonymous_items),
-                         load_and_run_handler.BuildGetRtModelHandleMethod(),
-                         load_and_run_handler.BuildLoadMethod(codegen_model_, task_code_builder_list_),
-                         load_and_run_handler.BuildRunAsyncMethod(codegen_model_),
-                         load_and_run_handler.BuildRunMethod(codegen_model_),
-                     }),
-      ast_.StablePart(StablePartId::kLoadAndRunExternalApis),
-  });
+  std::vector<DeclNode *> body_items = {ast_.Include(codegen_model_.model_name + "_interface.h")};
+  if (has_custom_kernel_) {
+    body_items.emplace_back(ast_.Include("graph/custom_op.h"));
+    body_items.emplace_back(ast_.Include("exe_graph/runtime/gert_mem_allocator.h"));
+  }
+  body_items.emplace_back(ast_.Space());
+  if (has_custom_kernel_) {
+    body_items.emplace_back(ast_.Namespace(
+        "ge", {ast_.StablePart(StablePartId::kCreateClassCustomOpFactory, StablePartPlacement::kNamespace)}));
+    body_items.emplace_back(ast_.Space());
+  }
+  body_items.emplace_back(
+      ast_.Namespace("om2", {
+                                ast_.Namespace("", anonymous_items),
+                                load_and_run_handler.BuildGetRtModelHandleMethod(),
+                                load_and_run_handler.BuildLoadMethod(codegen_model_, task_code_builder_list_),
+                                load_and_run_handler.BuildRunAsyncMethod(codegen_model_),
+                                load_and_run_handler.BuildRunMethod(codegen_model_),
+                            }));
+  body_items.emplace_back(ast_.StablePart(StablePartId::kLoadAndRunExternalApis));
+  auto *translation_unit = ast_.File(body_items);
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kLoadingAndRunningFile, translation_unit, code_printer));
   GELOGD("[OM2] Load and run source file code is generated.");
   return SUCCESS;

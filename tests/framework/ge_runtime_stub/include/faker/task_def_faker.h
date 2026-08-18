@@ -28,6 +28,7 @@ class TaskDefFaker {
     kRts,              // ModelTaskType::MODEL_TASK_MEMCPY_ASYNC
     kLabelSwitch,      // ModelTaskType::MODEL_TASK_STREAM_LABEL_SWITCH_BY_INDEX
     kEvent,            // ModelTaskType::MODEL_TASK_EVENT_RECORD
+    kCustom,           // ModelTaskType::MODEL_TASK_CUSTOM_KERNEL
     kTaskTypeEnd
   };
 

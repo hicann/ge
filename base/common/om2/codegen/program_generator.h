@@ -28,8 +28,11 @@ namespace ge {
 class ProgramGenerator {
  public:
   ProgramGenerator(AstBuildContext &ast, const std::vector<TaskCodeBuilderPtr> &task_code_builders,
-                   const Om2CodegenModel &codegen_model)
-      : ast_(ast), task_code_builder_list_(task_code_builders), codegen_model_(codegen_model) {}
+                   const Om2CodegenModel &codegen_model, bool has_custom_kernel = false)
+      : ast_(ast),
+        task_code_builder_list_(task_code_builders),
+        codegen_model_(codegen_model),
+        has_custom_kernel_(has_custom_kernel) {}
   Status GenerateProgram(Om2CodePrinter &code_printer);
 
  private:
@@ -45,6 +48,7 @@ class ProgramGenerator {
   std::vector<TaskCodeBuilderPtr> task_code_builder_list_;
   uint64_t args_table_index_ = 0U;
   Om2CodegenModel codegen_model_;
+  bool has_custom_kernel_ = false;
 };
 }  // namespace ge
 

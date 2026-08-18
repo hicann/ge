@@ -32,6 +32,7 @@ const std::map<uint32_t, ge::DataType> onnx_data_type_map = {
     {OnnxDataType::BFLOAT16, ge::DataType::DT_BF16},
     {OnnxDataType::FLOAT8E5M2, ge::DataType::DT_FLOAT8_E5M2},
     {OnnxDataType::FLOAT8E4M3FN, ge::DataType::DT_FLOAT8_E4M3FN},
+    {OnnxDataType::INT4, ge::DataType::DT_INT4},
 };
 }
 

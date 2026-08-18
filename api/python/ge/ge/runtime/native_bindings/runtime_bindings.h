@@ -8,24 +8,17 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_BINDINGS_H_
-#define API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_BINDINGS_H_
+#ifndef API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_
+#define API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_
 
 #include "binding_common.h"
 
 namespace ge {
-namespace python_pass_native {
+namespace python_runtime_native {
 
-void BindPassContext(py::module_ &m);
-void BindPattern(py::module_ &m);
-void BindMatchResult(py::module_ &m);
-void BindInferShape(py::module_ &m);
-void BindPatternMatcherConfig(py::module_ &m);
-void BindGraphHandleHelpers(py::module_ &m);
-void BindGraphRewriter(py::module_ &m);
-void BindGraphFuseInspector(py::module_ &m);
+void BindRuntimeTypes(py::module_ &m);
 
-}  // namespace python_pass_native
+}  // namespace python_runtime_native
 }  // namespace ge
 
-#endif  // API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_BINDINGS_H_
+#endif  // API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_RUNTIME_BINDINGS_H_

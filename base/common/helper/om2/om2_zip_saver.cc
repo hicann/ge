@@ -208,6 +208,26 @@ Status SerializeKernelBinaries(const gert::Om2ModelData &model_data,
   return SUCCESS;
 }
 
+Status SerializeCustomKernelBinaries(const gert::Om2ModelData &model_data,
+                                     const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
+  const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "binaries_npu_arch");
+  for (const auto &kb : model_data.custom_kernel_binaries) {
+    const auto entry_path = kernel_bin_dir + kb.name;
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.get(), kb.data_size, false));
+  }
+  return SUCCESS;
+}
+
+Status SerializeCustomKernelSharedLibs(const gert::Om2ModelData &model_data,
+                                       const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
+  const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "shared_libs");
+  for (const auto &kb : model_data.custom_shared_libs) {
+    const auto entry_path = kernel_bin_dir + kb.name;
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.get(), kb.data_size, false));
+  }
+  return SUCCESS;
+}
+
 JsonFile SerializeAippDimsToJson(const std::vector<ge::InputOutputDims> &dims_list, const std::string &fmt_str,
                                  const std::string &dt_str) {
   JsonFile::json arr = JsonFile::json::array();
@@ -396,10 +416,11 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
                          const std::string &writer_path) {
   GELOGI(
       "[OM2] Begin to serialize Om2ModelData to ZIP, model_name:%s, root_graph:%s, "
-      "inputs:%zu, outputs:%zu, kernels:%zu, weight_size:%zu",
+      "inputs:%zu, outputs:%zu, kernels:%zu, custom kernels: %zu, weight_size:%zu",
       model_data.model_meta.model_name.c_str(), model_data.model_meta.root_graph_name.c_str(),
       model_data.model_meta.input_desc.size(), model_data.model_meta.output_desc.size(),
-      model_data.kernel_binaries.size(), model_data.constants_data.internal_weight_size);
+      model_data.kernel_binaries.size(), model_data.custom_kernel_binaries.size(),
+      model_data.constants_data.internal_weight_size);
   const std::string path = writer_path.empty() ? "om2_model" : writer_path;
   auto zip_writer = std::make_shared<ZipArchiveWriter>(path);
   GE_ASSERT_NOTNULL(zip_writer);
@@ -411,6 +432,8 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
   GE_ASSERT_SUCCESS(SerializeVarResource(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeVarMetas(model_data, zip_writer, "0"));
   GE_ASSERT_SUCCESS(SerializeKernelBinaries(model_data, zip_writer));
+  GE_ASSERT_SUCCESS(SerializeCustomKernelBinaries(model_data, zip_writer));
+  GE_ASSERT_SUCCESS(SerializeCustomKernelSharedLibs(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeModelMeta(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeDebugInfo(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeManifest(model_data, zip_writer));

@@ -23,7 +23,7 @@ set(_ge_pass_native_sources
 set(_ge_pass_native_headers
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_common.h
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_utils.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/bindings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/pass_bindings.h
 )
 
 set(GE_PYTHON_PASS_NATIVE_SOURCES ${_ge_pass_native_sources} PARENT_SCOPE)

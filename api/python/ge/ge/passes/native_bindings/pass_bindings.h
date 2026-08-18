@@ -7,18 +7,25 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
-#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
 
-#include "common/model/ge_model.h"
-#include "ge_common/ge_common_api_types.h"
-#include "common/om2/om2_model_data.h"
+#ifndef API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_PASS_BINDINGS_H_
+#define API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_PASS_BINDINGS_H_
+
+#include "binding_common.h"
 
 namespace ge {
-class Om2Codegen {
- public:
-  Status Om2CodegenAndCompile(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) const;
-};
+namespace python_pass_native {
+
+void BindPassContext(py::module_ &m);
+void BindPattern(py::module_ &m);
+void BindMatchResult(py::module_ &m);
+void BindInferShape(py::module_ &m);
+void BindPatternMatcherConfig(py::module_ &m);
+void BindGraphHandleHelpers(py::module_ &m);
+void BindGraphRewriter(py::module_ &m);
+void BindGraphFuseInspector(py::module_ &m);
+
+}  // namespace python_pass_native
 }  // namespace ge
 
-#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_CODEGEN_H_
+#endif  // API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_PASS_BINDINGS_H_

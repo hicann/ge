@@ -9,7 +9,7 @@
  */
 
 #include "binding_utils.h"
-#include "bindings.h"
+#include "pass_bindings.h"
 
 namespace ge {
 namespace python_pass_native {

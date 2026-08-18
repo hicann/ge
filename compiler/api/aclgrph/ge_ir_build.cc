@@ -87,21 +87,21 @@ constexpr int32_t kOfflineModeOm2 = 7;
 const std::unordered_set<std::string> kSupportedOfflineMode = {"0", "7"};
 constexpr size_t kZipMagicSize = 4U;
 const uint8_t kZipLocalFileHeaderMagic[kZipMagicSize] = {0x50U, 0x4BU, 0x03U, 0x04U};
-const std::set<std::string> kOm2UnsupportedOptions = {
-    ge::ir_option::OP_NAME_MAP,
-    ge::ir_option::AC_PARALLEL_ENABLE,
-    ge::ir_option::QUANT_DUMPABLE,
-    ge::ir_option::TILING_SCHEDULE_OPTIMIZE,
-    ge::ir_option::BUILD_INNER_MODEL,
-    ge::ir_option::INPUT_SHAPE_RANGE,
-    ge::ir_option::SHAPE_GENERALIZED_BUILD_MODE,
-    ge::OPTION_HOST_ENV_OS,
-    ge::OPTION_HOST_ENV_CPU,
-    ge::ir_option::VIRTUAL_TYPE,
-    ge::ir_option::ENABLE_COMPRESS_WEIGHT,
-    ge::ir_option::COMPRESS_WEIGHT_CONF,
-    ge::ir_option::TUNE_DEVICE_IDS,
-};
+const std::set<std::string> kOm2UnsupportedOptions = {ge::ir_option::OP_NAME_MAP,
+                                                      ge::ir_option::AC_PARALLEL_ENABLE,
+                                                      ge::ir_option::QUANT_DUMPABLE,
+                                                      ge::ir_option::TILING_SCHEDULE_OPTIMIZE,
+                                                      ge::ir_option::BUILD_INNER_MODEL,
+                                                      ge::ir_option::INPUT_SHAPE_RANGE,
+                                                      ge::ir_option::SHAPE_GENERALIZED_BUILD_MODE,
+                                                      ge::OPTION_HOST_ENV_OS,
+                                                      ge::OPTION_HOST_ENV_CPU,
+                                                      ge::ir_option::VIRTUAL_TYPE,
+                                                      ge::ir_option::ENABLE_COMPRESS_WEIGHT,
+                                                      ge::ir_option::COMPRESS_WEIGHT_CONF,
+                                                      ge::ir_option::TUNE_DEVICE_IDS,
+                                                      ge::ir_option::CLUSTER_CONFIG,
+                                                      ge::ir_option::HCCL_SUB_COMM_CONFIG};
 /**
  * @name  SetOpAttrFun
  * @brief set attribute for operators in the configuration file

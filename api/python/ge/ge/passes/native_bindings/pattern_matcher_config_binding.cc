@@ -12,7 +12,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "bindings.h"
+#include "pass_bindings.h"
 #include "ge/fusion/pattern_matcher_config.h"
 
 namespace ge {

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "bindings.h"
+#include "custom_op_bindings.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "exe_graph/runtime/continuous_vector.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"

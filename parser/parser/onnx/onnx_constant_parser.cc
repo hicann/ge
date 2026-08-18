@@ -68,6 +68,8 @@ Status OnnxConstantParser::ParseConvertData(const ge::onnx::TensorProto &tensor_
       // for uint64 and uint32 values
       {OnnxDataType::UINT64, tensor_proto.uint64_data_size()},
       {OnnxDataType::UINT32, tensor_proto.uint64_data_size()},
+      // for int4 values (packed: 8 int4 per int32)
+      {OnnxDataType::INT4, tensor_proto.int32_data_size()},
   };
 
   int32_t datatype_val_size = 0;
@@ -151,6 +153,19 @@ void OnnxConstantParser::ParseConvertDataElements(const ge::onnx::TensorProto &t
     case OnnxDataType::UINT32:
       (void)SetTensorData(tensor_proto.uint64_data_size(), tensor_proto.uint64_data(), count, tensor);
       break;
+    // for int4 values (packed: 8 int4 per int32, little-endian, lower index in lower nibble).
+    // int32_data stores packed int4 values; direct byte copy since GE DT_INT4 is also packed.
+    // Use GetSizeInBytes to get exact packed byte count (int32_data may have padding slots).
+    case OnnxDataType::INT4: {
+      int64_t byte_size = ge::GetSizeInBytes(static_cast<int64_t>(count), ge::DataType::DT_INT4);
+      int64_t available = static_cast<int64_t>(tensor_proto.int32_data_size()) * static_cast<int64_t>(sizeof(int32_t));
+      if (byte_size > 0 && available > 0) {
+        int64_t copy_size = (byte_size < available) ? byte_size : available;
+        tensor.SetData(PtrToPtr<const int32_t, const uint8_t>(tensor_proto.int32_data().data()),
+                       static_cast<size_t>(copy_size));
+      }
+      break;
+    }
     default:
       break;
   }

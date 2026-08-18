@@ -11459,6 +11459,11 @@ TEST_F(UtestDavinciModel, IsRootGraphNeedDump_True) {
   model.dump_model_name_ = "subgraph";
   model.om_name_ = "test_om";
 
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  g_runtime_stub_mock = "rtGetDevice";
+  model.SetDataDumperArgs(subgraph, std::map<std::string, OpDescPtr>());
+  ge::ExecutionRuntimeUtils::in_heterogeneous_executor_ = false;
+
   // Configure dump for root graph using SetDumpProperties
   DumpProperties dump_properties;
   (void)dump_properties.InitByOptions();  // Initialize from context options
@@ -11494,6 +11499,11 @@ TEST_F(UtestDavinciModel, OpNeedDump_WithRootGraphConfig) {
   model.dump_model_name_ = "subgraph";
   model.om_name_ = "test_om";
 
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  g_runtime_stub_mock = "rtGetDevice";
+  model.SetDataDumperArgs(subgraph, std::map<std::string, OpDescPtr>());
+  ge::ExecutionRuntimeUtils::in_heterogeneous_executor_ = false;
+
   // Configure dump for root graph only using SetDumpProperties
   DumpProperties dump_properties;
   (void)dump_properties.InitByOptions();  // Initialize from context options
@@ -11503,6 +11513,146 @@ TEST_F(UtestDavinciModel, OpNeedDump_WithRootGraphConfig) {
 
   EXPECT_TRUE(model.OpNeedDump("test_op"));
   EXPECT_FALSE(model.OpNeedDump("other_op"));
+}
+
+TEST_F(UtestDavinciModel, ModelNeedDump_MatchByRootGraphName) {
+  // 验证InitNodes（含SetDataDumperArgs）+ Shrink后，data_dumper_.root_graph_name_不丢失
+  // 直接调InitNodes跳过DoTaskSink（依赖完整runtime环境），Shrink验证root_graph_name_保留
+  ComputeGraphPtr root_graph = MakeShared<ComputeGraph>("root_graph");
+  ComputeGraphPtr subgraph = MakeShared<ComputeGraph>("subgraph");
+  subgraph->SetParentGraph(root_graph);
+
+  GeTensorDesc tensor(GeShape({1}), FORMAT_NCHW, DT_FLOAT);
+  NodePtr data_node;
+  {
+    OpDescPtr op_desc = CreateOpDesc("data", DATA);
+    op_desc->AddInputDesc(tensor);
+    op_desc->AddOutputDesc(tensor);
+    op_desc->SetInputOffset({0});
+    op_desc->SetOutputOffset({0});
+    data_node = subgraph->AddNode(op_desc);
+  }
+  {
+    OpDescPtr op_desc = CreateOpDesc("output", NETOUTPUT);
+    op_desc->AddInputDesc(tensor);
+    op_desc->SetInputOffset({512});
+    op_desc->SetSrcName({"data"});
+    op_desc->SetSrcIndex({0});
+    auto out_node = subgraph->AddNode(op_desc);
+    GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), out_node->GetInDataAnchor(0));
+  }
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(subgraph);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2560);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  ge_model->SetModelTaskDef(MakeShared<domi::ModelTaskDef>());
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  model.om_name_ = "test_om";
+
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  g_runtime_stub_mock = "rtGetDevice";
+  EXPECT_EQ(model.InitNodes(subgraph), SUCCESS);
+  ge::ExecutionRuntimeUtils::in_heterogeneous_executor_ = false;
+
+  // InitNodes中SetDataDumperArgs设置了root_graph_name_
+  EXPECT_EQ(model.data_dumper_.GetRootGraphName(), "root_graph");
+
+  // Shrink()会reset ge_model_和DumpShrink，但root_graph_name_应保留
+  model.Shrink();
+  EXPECT_EQ(model.ge_model_, nullptr);
+  EXPECT_EQ(model.data_dumper_.GetRootGraphName(), "root_graph");
+
+  // dump 配置根图名字，dump_model_name_ 是子图名字，通过根图名字匹配
+  DumpProperties dump_properties;
+  std::set<std::string> dump_ops = {"test_op"};
+  dump_properties.AddPropertyValue("root_graph", dump_ops);
+  model.SetDumpProperties(dump_properties);
+
+  EXPECT_TRUE(model.ModelNeedDump());
+}
+
+TEST_F(UtestDavinciModel, ModelNeedDump_MatchByDumpModelName) {
+  DavinciModel model(0, nullptr);
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_graph");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  model.ge_model_ = ge_model;
+  model.dump_model_name_ = "test_graph";
+  model.om_name_ = "test_om";
+
+  DumpProperties dump_properties;
+  std::set<std::string> dump_ops = {"test_op"};
+  dump_properties.AddPropertyValue("test_graph", dump_ops);
+  model.SetDumpProperties(dump_properties);
+
+  EXPECT_TRUE(model.ModelNeedDump());
+}
+
+TEST_F(UtestDavinciModel, ModelNeedDump_NoMatch) {
+  DavinciModel model(0, nullptr);
+  ComputeGraphPtr root_graph = MakeShared<ComputeGraph>("root_graph");
+  ComputeGraphPtr subgraph = MakeShared<ComputeGraph>("subgraph");
+  subgraph->SetParentGraph(root_graph);
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(subgraph);
+  model.ge_model_ = ge_model;
+  model.dump_model_name_ = "subgraph";
+  model.om_name_ = "test_om";
+
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  g_runtime_stub_mock = "rtGetDevice";
+  model.SetDataDumperArgs(subgraph, std::map<std::string, OpDescPtr>());
+  ge::ExecutionRuntimeUtils::in_heterogeneous_executor_ = false;
+
+  // dump 配置的是其他图名字，不匹配根图、子图、om 名
+  DumpProperties dump_properties;
+  std::set<std::string> dump_ops = {"test_op"};
+  dump_properties.AddPropertyValue("other_graph", dump_ops);
+  model.SetDumpProperties(dump_properties);
+
+  EXPECT_FALSE(model.ModelNeedDump());
+}
+
+TEST_F(UtestDavinciModel, OpNeedDump_ByDumpModelName) {
+  // dump_model_name_匹配，走IsLayerNeedDump(dump_model_name_)路径
+  DavinciModel model(0, nullptr);
+  ComputeGraphPtr root_graph = MakeShared<ComputeGraph>("root_graph");
+  ComputeGraphPtr subgraph = MakeShared<ComputeGraph>("subgraph");
+  subgraph->SetParentGraph(root_graph);
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(subgraph);
+  model.ge_model_ = ge_model;
+  model.dump_model_name_ = "subgraph";
+  model.om_name_ = "test_om";
+
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  g_runtime_stub_mock = "rtGetDevice";
+  model.SetDataDumperArgs(subgraph, std::map<std::string, OpDescPtr>());
+  ge::ExecutionRuntimeUtils::in_heterogeneous_executor_ = false;
+
+  DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("subgraph", {"test_op"});
+  model.SetDumpProperties(dump_properties);
+
+  EXPECT_TRUE(model.OpNeedDump("test_op"));
+  EXPECT_FALSE(model.OpNeedDump("other_op"));
+}
+
+TEST_F(UtestDavinciModel, OpNeedDump_NoRootGraphName) {
+  // data_dumper_未设置root_graph_name，IsRootGraphNeedDump返回false，
+  // dump配置根图名不生效，走dump_model_name_路径也不匹配
+  DavinciModel model(0, nullptr);
+  model.dump_model_name_ = "subgraph";
+  model.om_name_ = "test_om";
+
+  DumpProperties dump_properties;
+  dump_properties.AddPropertyValue("root_graph", {"test_op"});
+  model.SetDumpProperties(dump_properties);
+
+  EXPECT_FALSE(model.OpNeedDump("test_op"));
 }
 
 TEST_F(UtestDavinciModel, AllocateArgsBuffer_ForwardsToArgsManager) {

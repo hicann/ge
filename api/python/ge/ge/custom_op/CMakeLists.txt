@@ -15,7 +15,7 @@ set(_ge_custom_op_native_sources
 
 set(_ge_custom_op_native_headers
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_common.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/bindings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/custom_op_bindings.h
 )
 
 set(GE_PYTHON_CUSTOM_OP_NATIVE_SOURCES ${_ge_custom_op_native_sources} PARENT_SCOPE)

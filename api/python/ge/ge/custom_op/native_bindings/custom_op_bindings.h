@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_BINDINGS_H_
-#define API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_BINDINGS_H_
+#ifndef API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_
+#define API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_
 
 #include "binding_common.h"
 
@@ -22,4 +22,4 @@ void BindAnnotatedArgsContext(py::module_ &m);
 }  // namespace python_custom_op_native
 }  // namespace ge
 
-#endif  // API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_BINDINGS_H_
+#endif  // API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_

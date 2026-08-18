@@ -783,6 +783,7 @@ enum OpDispatchType : uint32_t {
     DISPATCH_CMO_ADDR = 18,
     DISPATCH_DSA = 19,
     DISPATCH_KERNEL_EX = 20,
+    DISPATCH_CUSTOM_KERNEL = 21,
     DISPATCH_TYPE_COUNT
 };
 
@@ -894,6 +895,15 @@ struct AicpuDispatchInfo {
   uint32_t task_type;
 };
 
+struct CustomDispatchInfo {
+  const OpArgInfo *args_info;  // IO 地址解析数组
+  uint32_t args_info_num;      // args_info 数组长度
+  const char *op_type;         // 算子类型名，用于 Report 上报
+  uint32_t args_idx;           // 参数表索引，用于 GetArgsInfo 查找
+  uint32_t stream_id;          // 执行流索引
+  uint32_t task_type;
+};
+
 struct DsaDispatchInfo {
   const OpArgInfo *args_info;          // IO 地址解析数组
   const char *op_type;         // 算子类型名，用于 Report 上报
@@ -989,6 +999,7 @@ struct TaskDispatchInfo {
   union {
     AicoreDispatchInfo aicore;
     AicpuDispatchInfo aicpu;
+    CustomDispatchInfo custom;
     CmoDispatchInfo cmo;
     MemcpyAsyncDispatchInfo memcpy_async;
     MemcpyAddrDispatchInfo memcpy_addr;

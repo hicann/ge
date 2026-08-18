@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "bindings.h"
+#include "custom_op_bindings.h"
 
 namespace ge {
 PYBIND11_MODULE(_ge_custom_op_native, m) {

@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "binding_utils.h"
-#include "bindings.h"
+#include "pass_bindings.h"
 #include "ge/fusion/pattern.h"
 
 namespace ge {

@@ -8,17 +8,29 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
-#define API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
+#ifndef INC_CUSTOM_TASKDEF_FAKER_H
+#define INC_CUSTOM_TASKDEF_FAKER_H
 
-#include "binding_common.h"
+#include "task_def_faker.h"
+namespace gert {
 
-namespace ge {
-namespace python_runtime_native {
+struct CustomTaskDefFaker : public TaskDefFaker {
+  CustomTaskDefFaker(std::string stub_name = "");
+  CustomTaskDefFaker &BinData(uint64_t data);
+  CustomTaskDefFaker &ArgsFormat(const std::string &args_format);
 
-void BindRuntimeTypes(py::module_ &m);
+ private:
+  vector<domi::TaskDef> CreateTaskDef(uint64_t op_index = 0) override;
+  std::unique_ptr<TaskDefFaker> Clone() const override;
 
-}  // namespace python_runtime_native
-}  // namespace ge
+ private:
+  void Init();
+  bool inited_;
+  uint64_t bin_data = 0;
+  std::string stub_name_;
+  std::string args_format_;
+};
 
-#endif  // API_PYTHON_GE_GE_RUNTIME_NATIVE_BINDINGS_BINDINGS_H_
+}  // namespace gert
+
+#endif

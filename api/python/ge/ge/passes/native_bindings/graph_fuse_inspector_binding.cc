@@ -9,7 +9,7 @@
  */
 
 #include "binding_utils.h"
-#include "bindings.h"
+#include "pass_bindings.h"
 
 #include <string>
 #include <vector>

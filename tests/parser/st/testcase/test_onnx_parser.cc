@@ -301,4 +301,94 @@ TEST_F(STestOnnxParser, onnx_test_SetExternalPath) {
   auto ret = modelParser.SetExternalPath("/usr/local", model_proto);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+static ge::onnx::ModelProto CreateInt4ModelProto(bool use_raw_data) {
+  ge::onnx::ModelProto model_proto;
+  auto *onnx_graph = model_proto.mutable_graph();
+
+  auto *input = onnx_graph->add_input();
+  input->set_name("A");
+  auto *in_type = input->mutable_type()->mutable_tensor_type();
+  in_type->set_elem_type(OnnxDataType::FLOAT);
+  in_type->mutable_shape()->add_dim()->set_dim_value(8);
+
+  auto *output = onnx_graph->add_output();
+  output->set_name("Y");
+  auto *out_type = output->mutable_type()->mutable_tensor_type();
+  out_type->set_elem_type(OnnxDataType::FLOAT);
+  out_type->mutable_shape()->add_dim()->set_dim_value(8);
+
+  auto *const_node = onnx_graph->add_node();
+  const_node->set_op_type(kOpTypeConstant);
+  const_node->add_output("const_int4_out");
+  auto *attr = const_node->add_attribute();
+  attr->set_name(ge::kAttrNameValue);
+  auto *tensor_proto = attr->mutable_t();
+  tensor_proto->set_data_type(OnnxDataType::INT4);
+  tensor_proto->add_dims(8);
+  if (use_raw_data) {
+    tensor_proto->set_raw_data(std::string("\x10\x32\x54\x76", 4));
+  } else {
+    tensor_proto->add_int32_data(0x76543210);
+  }
+
+  auto *identity_node = onnx_graph->add_node();
+  identity_node->set_op_type("Identity");
+  identity_node->add_input("A");
+  identity_node->add_output("Y");
+
+  auto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  return model_proto;
+}
+
+static void VerifyInt4ConstantNode(const ge::Graph &graph) {
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
+  ASSERT_NE(compute_graph, nullptr);
+  ge::NodePtr constant_node = nullptr;
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    if (node->GetType() == "Const") {
+      constant_node = node;
+      break;
+    }
+  }
+  ASSERT_NE(constant_node, nullptr);
+  std::shared_ptr<const ge::GeTensor> tensor = nullptr;
+  EXPECT_EQ(ge::AttrUtils::GetTensor(constant_node->GetOpDesc(), ge::kAttrNameValue, tensor), true);
+  ASSERT_NE(tensor, nullptr);
+  EXPECT_EQ(tensor->GetTensorDesc().GetDataType(), ge::DataType::DT_INT4);
+  const ge::TensorData &tensor_data = tensor->GetData();
+  EXPECT_EQ(tensor_data.GetSize(), 4U);
+  const uint8_t *data = tensor_data.GetData();
+  ASSERT_NE(data, nullptr);
+  EXPECT_EQ(data[0], 0x10);
+  EXPECT_EQ(data[1], 0x32);
+  EXPECT_EQ(data[2], 0x54);
+  EXPECT_EQ(data[3], 0x76);
+}
+
+/**
+ * 用例描述：测试ONNX INT4类型Constant节点raw_data路径的解析
+ * 预期结果：解析成功，DataType为DT_INT4，数据为packed字节 0x10,0x32,0x54,0x76
+ */
+TEST_F(STestOnnxParser, onnx_parser_int4_const_raw_data) {
+  OnnxModelParser modelParser;
+  auto model_proto = CreateInt4ModelProto(true);
+  ge::Graph graph;
+  EXPECT_EQ(modelParser.ModelParseToGraph(model_proto, graph), SUCCESS);
+  VerifyInt4ConstantNode(graph);
+}
+
+/**
+ * 用例描述：测试ONNX INT4类型Constant节点int32_data路径的解析
+ * 预期结果：解析成功，DataType为DT_INT4，数据为packed字节（little-endian）
+ */
+TEST_F(STestOnnxParser, onnx_parser_int4_const_int32_data) {
+  OnnxModelParser modelParser;
+  auto model_proto = CreateInt4ModelProto(false);
+  ge::Graph graph;
+  EXPECT_EQ(modelParser.ModelParseToGraph(model_proto, graph), SUCCESS);
+  VerifyInt4ConstantNode(graph);
+}
 }  // namespace ge

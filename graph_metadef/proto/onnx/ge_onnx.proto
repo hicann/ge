@@ -350,6 +350,10 @@ message TensorProto {
     FLOAT8E4M3FN = 17;    // float 8, mostly used for coefficients, supports nan, not inf
     FLOAT8E5M2 = 19;      // follows IEEE 754, supports nan, inf, mostly used for gradients
 
+    // 4-bit signed integer type (ONNX IR v9, opset 21+).
+    // Packed storage: 2 int4 values per byte (lower index in lower nibble).
+    INT4 = 22;
+
     // Future extensions go here.
   }
 

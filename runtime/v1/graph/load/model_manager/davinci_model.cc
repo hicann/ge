@@ -6306,7 +6306,7 @@ bool DavinciModel::OpNeedDump(const OpDescPtr &op_desc) {
 }
 
 bool DavinciModel::IsRootGraphNeedDump(const std::string &op_name) const {
-  const std::string root_graph_name = GetRootGraphName();
+  const std::string root_graph_name = data_dumper_.GetRootGraphName();
   if (root_graph_name.empty()) {
     GELOGD("root_graph_name is empty, return false");
     return false;
@@ -6395,9 +6395,11 @@ void DavinciModel::SaveDfxInfo(const uint32_t op_idx, const domi::TaskDef &task_
 }
 
 bool DavinciModel::ModelNeedDump() const {
+  // 动态shape静态子图，如果dump配置根图名字，dump_model_name_是子图名字会匹配不上，用根图名字再匹配一下
   const auto all_dump_model = GetDumpProperties().GetAllDumpModel();
   return (all_dump_model.find(DUMP_ALL_MODEL) != all_dump_model.end()) ||
          (all_dump_model.find(dump_model_name_) != all_dump_model.end()) ||
+         (all_dump_model.find(data_dumper_.GetRootGraphName()) != all_dump_model.end()) ||
          (all_dump_model.find(om_name_) != all_dump_model.end());
 }
 
