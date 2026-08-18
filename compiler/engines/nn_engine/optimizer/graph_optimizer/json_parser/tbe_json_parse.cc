@@ -408,8 +408,6 @@ Status TbeJsonFileParse::ParseTvmTaskRatio() {
                     op_desc_->GetName().c_str());
     return FAILED;
   }
-  (void)SetRelatedNodesListInt("_task_ratio_cube_vector", std::vector<int64_t>{static_cast<int64_t>(cube_ratio_),
-                                                                               static_cast<int64_t>(vector_ratio_)});
   if (cube_ratio_ == 0 && vector_ratio_ == 0) {
     return SUCCESS;
   }
