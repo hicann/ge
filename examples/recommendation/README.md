@@ -98,13 +98,13 @@ session_options["ge.autoMultistreamParallelMode"] = "<模式>";
 请在 CANN 社区版 9.2.0 环境中测试不同的多流并行模式，找到本样例在指定环境和测试条件下的最优参数，并填写以下结论后提交 PR：
 
 ```text
-ge.autoMultistreamParallelMode=<待填写>
+ge.autoMultistreamParallelMode=MainStream:9
 ```
 
 对应的样例命令行参数为：
 
 ```text
---multiStreamParallelMode=<待填写>
+--multiStreamParallelMode=MainStream:9
 ```
 
 例如，使用 `cv` 模式时执行：
