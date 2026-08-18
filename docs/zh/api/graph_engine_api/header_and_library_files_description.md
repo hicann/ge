@@ -3,18 +3,18 @@
 GE图引擎接口头文件在如下目录：
 
 - 编译类接口：
-  - $\{INSTALL\_DIR\}/include/ge/
-  - $\{INSTALL\_DIR\}/include/parser/
-  - $\{INSTALL\_DIR\}/include/acl/
+  - `${INSTALL_DIR}/include/ge/`
+  - `${INSTALL_DIR}/include/parser/`
+  - `${INSTALL_DIR}/include/acl/`
 
 - 执行类接口：
-  - $\{INSTALL\_DIR\}/include/ge/
-  - $\{INSTALL\_DIR\}/include/graph/
-  - $\{INSTALL\_DIR\}/include/external/
-  - $\{INSTALL\_DIR\}/include/acl/
-  - $\{INSTALL\_DIR\}/include/register/
-  - $\{INSTALL\_DIR\}/include/transformer/
-  - $\{INSTALL\_DIR\}/pkg\_inc/register
+  - `${INSTALL_DIR}}/include/ge/`
+  - `${INSTALL_DIR}/include/graph/`
+  - `${INSTALL_DIR}/include/external/`
+  - `${INSTALL_DIR}/include/acl/`
+  - `${INSTALL_DIR}/include/register/`
+  - `${INSTALL_DIR}/include/transformer/`
+  - `${INSTALL_DIR}/pkg_inc/register`
 
 库文件在`${INSTALL_DIR}/lib64/`目录下，`${INSTALL_DIR}`请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 

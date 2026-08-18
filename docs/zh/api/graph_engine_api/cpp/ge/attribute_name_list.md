@@ -26,7 +26,7 @@
 
 参数取值：整数类型，整数需要大于0，小于等于AI处理器包含的最大Cube Core。
 
-不同AI处理器包含的最大CubeCore的数量可从"$\{INSTALL\_DIR\}/_<arch\>_-linux/data/platform\_config/_xxx_.ini"文件查看，如下所示，说明AI处理器上存在24个Cube Core。
+不同AI处理器包含的最大CubeCore的数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在24个Cube Core。
 
 ```ini
 [SoCInfo]
@@ -55,7 +55,7 @@ vector_core_cnt=48
 
 参数取值：整数类型，整数需要大于0，小于等于AI处理器包含的最大Vector Core。
 
-不同AI处理器包含的最大VectorCore的数量可从"$\{INSTALL\_DIR\}/_<arch\>_-linux/data/platform\_config/_xxx_.ini"文件查看，如下所示，说明AI处理器上存在48个Vector Core。
+不同AI处理器包含的最大VectorCore的数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在48个Vector Core。
 
 ```ini
 [SoCInfo]

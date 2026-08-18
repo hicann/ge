@@ -47,8 +47,8 @@
 - DT\_INT32
 - DT\_UINT64
 - DT\_INT64
-<!-- npu="950" id2 -->
 - DT\_DOUBLE
+<!-- npu="950" id2 -->
 - DT\_HIFLOAT8
 - DT\_FLOAT8\_E5M2
 - DT\_FLOAT8\_E4M3FN

@@ -15,7 +15,7 @@
 
 1. 打开AutoCast开关。
 
-    修改“$\{INSTALL\_DIR\}/lib64/plugin/opskernel/config/init.conf”文件，将“AutoCastMode”参数的值修改为1，如下所示：
+    修改`${INSTALL_DIR}/lib64/plugin/opskernel/config/init.conf`文件，将“AutoCastMode”参数的值修改为1，如下所示：
 
     ```textproto
     ...

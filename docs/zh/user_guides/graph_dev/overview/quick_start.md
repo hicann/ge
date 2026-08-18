@@ -26,7 +26,7 @@
 
     - --model：原始网络模型文件路径与文件名。
     - --framework：原始网络模型框架类型，“3”代表TensorFlow模型，“5”代表ONNX模型，“1”代表MindSpore框架\*.air格式的模型文件或TorchAir通过export导出的标准\*.air格式文件
-    - --output：存放转换后的离线模型的路径以及文件名，例如，若配置为“$HOME/module/out/tf\_resnet50”，则转换后的离线模型存储路径为“$HOME/module/out/”，转换后的离线模型名称为“tf\_resnet50.om”。
+    - --output：存放转换后的离线模型的路径以及文件名，例如，若配置为`$HOME/module/out/tf_resnet50`，则转换后的离线模型存储路径为`$HOME/module/out/`，转换后的离线模型名称为“tf\_resnet50.om”。
     <!-- npu="950,A3,910b,910,310p,310b" id1 -->
     - --soc\_version：AI处理器的型号。取值查询方法如下：
         <!-- npu="910b,910,310p,310b" id3 -->

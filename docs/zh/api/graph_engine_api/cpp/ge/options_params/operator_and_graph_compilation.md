@@ -39,7 +39,7 @@
 <!-- npu="950,A3,910b" id8 -->
 - 针对参数值中的场景1：
 
-    不同AI处理器包含的最大Cube Core与Vector Core的数量可从"$\{INSTALL\_DIR\}/_<arch\>_-linux/data/platform\_config/_xxx_.ini"文件查看，如下所示，说明AI处理器上存在24个Cube Core，存在48个Vector Core。
+    不同AI处理器包含的最大Cube Core与Vector Core的数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在24个Cube Core，存在48个Vector Core。
 
     ```ini
     [SoCInfo]
@@ -53,7 +53,7 @@
 <!-- npu="910,310p" id9 -->
 - 针对参数值中的场景2：
 
-    不同AI处理器包含的最大AI Core数量可从"$\{INSTALL\_DIR\}/_<arch\>_-linux/data/platform\_config/_xxx_.ini"文件查看，如下所示，说明AI处理器上存在10个AI Core。
+    不同AI处理器包含的最大AI Core数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在10个AI Core。
 
     ```ini
     [SoCInfo]
