@@ -24,6 +24,8 @@ try:
     bridge = importlib.import_module("ge.custom_op._bridge")
     custom_op = importlib.import_module("ge.custom_op")
     ir_types = importlib.import_module("ge.custom_op._ir_types")
+    proto = importlib.import_module("ge.custom_op.proto")
+    runtime = importlib.import_module("ge.runtime")
     from ge.runtime import Tensor
 except ImportError as exc:
     pytest.skip(f"无法导入 Python custom op 相关模块: {exc}", allow_module_level=True)
@@ -33,12 +35,14 @@ except ImportError as exc:
 def clear_python_custom_op_runtime(monkeypatch):
     monkeypatch.delenv(bootstrap.ENV_PY_CUSTOM_OP_PATH, raising=False)
     custom_op.clear_registered_op_impls()
+    proto.clear_registered_op_protos()
     bridge.clear_op_impl_holders()
     bridge.clear_loaded_op_impl_modules()
     yield
     bridge.clear_op_impl_holders()
     bridge.clear_loaded_op_impl_modules()
     custom_op.clear_registered_op_impls()
+    proto.clear_registered_op_protos()
 
 
 def _write_custom_op_module(
@@ -136,6 +140,33 @@ def _get_descriptor_key(op_type: str) -> str:
 def test_bridge_validate_op_impl_descriptor_rejects_unknown_descriptor():
     with pytest.raises(KeyError, match="descriptor_key not found"):
         bridge.validate_op_impl_descriptor("missing-descriptor", None)
+
+
+def test_bridge_descriptor_snapshot_contains_proto_and_impl():
+    @proto.register_op(op_type="SnapshotCustom")
+    def infer_meta(x: runtime.TensorDesc, *, alpha: float = 1.0) -> runtime.TensorDesc:
+        raise AssertionError("prototype registration must not execute infer_meta")
+
+    @custom_op.register_op_impl(op_type="SnapshotCustom")
+    class SnapshotCustom(custom_op.EagerExecuteOp):
+        def execute(self, x: Tensor, *, alpha: float) -> None:
+            pass
+
+    snapshot = bridge.load_and_get_op_descriptors()
+
+    assert [item["op_type"] for item in snapshot["protos"]] == ["SnapshotCustom"]
+    assert [item["op_type"] for item in snapshot["impls"]] == ["SnapshotCustom"]
+
+
+def test_bridge_descriptor_snapshot_supports_proto_only():
+    @proto.register_op(op_type="ProtoOnlyCustom")
+    def infer_meta(x: runtime.TensorDesc) -> runtime.TensorDesc:
+        raise AssertionError("prototype registration must not execute infer_meta")
+
+    snapshot = bridge.load_and_get_op_descriptors()
+
+    assert [item["op_type"] for item in snapshot["protos"]] == ["ProtoOnlyCustom"]
+    assert snapshot["impls"] == []
 
 
 def test_register_op_impl_exports_descriptor_dict():

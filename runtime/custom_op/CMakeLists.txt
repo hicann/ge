@@ -12,6 +12,7 @@ add_library(custom_op_runtime SHARED
     "custom_op_loader.cc"
     "python_custom_op_adapter.cc"
     "python_custom_op_bridge_loader.cc"
+    "python_custom_op_proto.cc"
 )
 
 target_compile_definitions(custom_op_runtime PRIVATE
@@ -54,6 +55,7 @@ target_link_libraries(custom_op_runtime
 )
 
 add_library(ge_python_custom_op_bridge SHARED
+    "python_custom_op_bridge_descriptors.cc"
     "python_custom_op_pybind_bridge.cc"
 )
 

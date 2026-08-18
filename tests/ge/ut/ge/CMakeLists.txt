@@ -401,13 +401,6 @@ set(BASE_COMMON_TEST_FILES
     "common/ge_root_model_unittest.cc"
     "common/om2_utils_unittest.cc"
     "common/om2_model_data_unittest.cc"
-    "common/om2_task_node_map_unittest.cc"
-    "common/om2_task_args_refresh_type_classifier_unittest.cc"
-    "common/om2_model_args_utils_unittest.cc"
-    "common/om2_task_args_io_addrs_updater_unittest.cc"
-    "common/om2_memory_app_type_classifier_unittest.cc"
-    "common/om2_model_args_layout_planner_unittest.cc"
-    "common/om2_model_args_manager_unittest.cc"
     "common/thread_pool_unittest.cc"
     "common/nano_dbg_data_unittest.cc"
     "common/nano_model_save_helper_unittest.cc"
@@ -481,6 +474,8 @@ set(MULTI_PARTS_TEST_FILES
     "common/helper/custom_op_registry_builder_unittest.cc"
     "runtime/custom_op/python_custom_op_ir_meta_unittest.cc"
     "runtime/custom_op/custom_op_loader_unittest.cc"
+    "runtime/custom_op/python_custom_op_bridge_loader_unittest.cc"
+    "runtime/custom_op/python_custom_op_proto_unittest.cc"
     "graph_ir/ge_custom_op_factory_unittest.cc"
     "graph_ir/ge_custom_op_pull_registry_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"
@@ -699,6 +694,30 @@ target_link_libraries(ge_ut_common PUBLIC
 
 # ut binary
 file(GLOB_RECURSE JIT_EXECUTION_SRC_FILES CONFIGURE_DEPENDS "${AIR_CODE_DIR}/api/session/jit_execution/*.cc")
+add_library(python_custom_op_bridge_loader_ut_fake SHARED
+    "runtime/custom_op/python_custom_op_bridge_loader_fake_bridge.cc"
+)
+
+target_compile_definitions(python_custom_op_bridge_loader_ut_fake PRIVATE
+    google=ascend_private
+)
+
+target_compile_options(python_custom_op_bridge_loader_ut_fake PRIVATE
+    ${AIR_COMMON_DYNAMIC_COMPILE_OPTION}
+    -Werror=format
+    -Wall -Wfloat-equal -Werror
+)
+
+target_include_directories(python_custom_op_bridge_loader_ut_fake PRIVATE
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/inc/graph_metadef
+)
+
+target_link_libraries(python_custom_op_bridge_loader_ut_fake PRIVATE
+    ge_intf_pub
+    ge_metadef_headers
+)
+
 # libge_mutiparts_utest
 add_executable(ut_libge_multiparts_utest
     ${COMMON_TEST_FILES}
@@ -717,6 +736,11 @@ target_compile_options(ut_libge_multiparts_utest PRIVATE
 target_compile_definitions(ut_libge_multiparts_utest PRIVATE
     google=ascend_private
     FUNC_VISIBILITY
+    PYTHON_CUSTOM_OP_LOADER_UT_FAKE_BRIDGE_PATH="$<TARGET_FILE:python_custom_op_bridge_loader_ut_fake>"
+)
+
+add_dependencies(ut_libge_multiparts_utest
+    python_custom_op_bridge_loader_ut_fake
 )
 
 target_include_directories(ut_libge_multiparts_utest PRIVATE

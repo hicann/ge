@@ -15,11 +15,14 @@
 
 namespace ge {
 namespace custom_op {
-struct PythonCustomOpDescriptor;
-struct PythonCustomOpCallbacks;
+struct PythonCustomOpProtoDescriptorView;
+struct PythonCustomOpAdapterDescriptorView;
+struct PythonCustomOpAdapterCallbacks;
 
 struct PythonCustomOpRegistrar {
-  bool (*register_custom_op)(const PythonCustomOpDescriptor *desc, const PythonCustomOpCallbacks *callbacks);
+  bool (*register_op_proto)(const PythonCustomOpProtoDescriptorView *desc);
+  bool (*register_op_adapter)(const PythonCustomOpAdapterDescriptorView *desc,
+                              const PythonCustomOpAdapterCallbacks *callbacks);
 };
 
 struct PythonCustomOpBridgeArtifactConfig {

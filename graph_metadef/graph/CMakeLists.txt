@@ -116,6 +116,7 @@ SET(GRAPH_SOURCE_LIST
     "context/runtime_inference_context.cc"
     "refiner/shape_refiner.cc"
     "ir/ir_definitions_recover.cc"
+    "ir/ir_definitions_query.cc"
     "opsproto/opsproto_manager.cc"
     "utils/op_desc_utils.cc"
     "utils/tuning_utils.cc"

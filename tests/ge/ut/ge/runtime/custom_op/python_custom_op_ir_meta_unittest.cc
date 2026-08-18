@@ -26,8 +26,10 @@ namespace bridge_loader = ::ge::python_bridge_loader;
 
 struct MockPythonCustomOpHolder {};
 
-void *CreateMockPythonCustomOpHolder(const PythonCustomOpDescriptor *desc) {
-  return (desc == nullptr) ? nullptr : new (std::nothrow) MockPythonCustomOpHolder();
+void *CreateMockPythonCustomOpHolder(const PythonCustomOpAdapterDescriptorView *desc) {
+  return ((desc == nullptr) || (desc->impl_descriptor_key.data == nullptr)) ? nullptr
+                                                                            : new (std::nothrow)
+                                                                                  MockPythonCustomOpHolder();
 }
 
 void DestroyMockPythonCustomOpHolder(void *holder) {
@@ -145,60 +147,60 @@ bridge_loader::BridgeLoadStatus LoadMockPythonCustomOpBridge(
 }  // namespace
 
 TEST(PythonCustomOpAdapter, forwards_execute_without_ir_meta_pod) {
-  PythonCustomOpDescriptor desc;
-  desc.descriptor_key = "python_adapter_without_ir_meta";
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_without_ir_meta";
   desc.op_type = "PythonCustomOpAdapterUt";
   AddCustomOpCapability(desc.capabilities, CustomOpCapability::kEagerExecute);
 
-  PythonCustomOpCallbacks callbacks;
-  callbacks.create = CreateMockPythonCustomOpHolder;
-  callbacks.destroy = DestroyMockPythonCustomOpHolder;
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
   callbacks.execute = ExecuteMockPythonCustomOp;
 
-  ASSERT_TRUE(PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
   {
     PythonCustomOpAdapter adapter(desc);
     ASSERT_TRUE(adapter.IsValid());
     EXPECT_EQ(adapter.Execute(nullptr), GRAPH_SUCCESS);
   }
-  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
 
 TEST(PythonCustomOpAdapter, keeps_legacy_execute_without_registered_ir) {
-  PythonCustomOpDescriptor desc;
-  desc.descriptor_key = "python_adapter_legacy_without_ir";
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_legacy_without_ir";
   desc.op_type = "PythonCustomOpLegacyWithoutIrUt";
   AddCustomOpCapability(desc.capabilities, CustomOpCapability::kEagerExecute);
 
-  PythonCustomOpCallbacks callbacks;
-  callbacks.create = CreateMockPythonCustomOpHolder;
-  callbacks.destroy = DestroyMockPythonCustomOpHolder;
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
   callbacks.execute = ExecuteMockPythonCustomOp;
 
-  ASSERT_TRUE(PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
   {
     PythonCustomOpAdapter adapter(desc);
     ASSERT_TRUE(adapter.IsValid());
     EXPECT_EQ(adapter.Execute(nullptr), GRAPH_SUCCESS);
   }
-  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
 
 TEST(PythonCustomOpAdapter, validates_annotated_args_callback_by_capability) {
-  PythonCustomOpDescriptor desc;
-  desc.descriptor_key = "python_adapter_annotated_args_callback";
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_annotated_args_callback";
   desc.op_type = "PythonCustomOpIrMetaUt";
   AddCustomOpCapability(desc.capabilities, CustomOpCapability::kAnnotatedArgs);
 
-  PythonCustomOpCallbacks callbacks;
-  callbacks.create = CreateMockPythonCustomOpHolder;
-  callbacks.destroy = DestroyMockPythonCustomOpHolder;
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
   EXPECT_FALSE(callbacks.IsValid(desc.capabilities));
 
   callbacks.declare_launch_args = DeclareMockPythonCustomOp;
   EXPECT_TRUE(callbacks.IsValid(desc.capabilities));
-  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
-  EXPECT_TRUE(PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
 
 TEST(PythonCustomOpBridgeAbi, rejects_mismatched_abi_before_registration_and_accepts_current) {
@@ -218,5 +220,6 @@ TEST(PythonCustomOpBridgeAbi, rejects_mismatched_abi_before_registration_and_acc
   EXPECT_EQ(loaded_bridge.api->register_custom_ops(nullptr), SUCCESS);
   EXPECT_EQ(g_mock_python_custom_op_bridge_load_state.register_count, 1U);
 }
+
 }  // namespace custom_op
 }  // namespace ge

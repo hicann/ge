@@ -745,7 +745,7 @@ custom_op/
 
 #### 模块定位
 
-Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。当前阶段还将 Python 原型注册到 `OperatorFactory`，但不调用 Python `infer_meta`，也不提供编译期或 RT2 Meta 推导。
 
 #### 运行时 native artifact 选择
 
@@ -883,6 +883,14 @@ class AnnotatedAddCustom:
 - 复用环境变量 `ASCEND_CUSTOM_OPP_PATH` 指定 Python custom op 文件或目录路径
 - `bootstrap.py` 负责扫描路径并动态加载 Python 模块
 - 支持单个 `.py` 文件、普通目录下的 `.py` 文件和包含 `__init__.py` 的 Python 包
+
+**原型注册**:
+
+- `register_op` 收集 required/optional/dynamic input、12 类 attr、required/dynamic output 和 `mutates_args`
+- bridge 在同一加载事务中先注册 Python proto creator、收集生效的 canonical IR，再注册 impl runtime entry 和 Adapter creator
+- 支持 Python proto-only、Python proto + impl、C++ proto + Python impl、无 proto legacy impl；无 proto schema-bound impl 注册失败
+- Python 原型可以覆盖同名内置原型；与已加载的同名 C++/Python 自定义算子冲突时注册失败
+- 批次失败按 Adapter creator、impl runtime entry、proto creator 的逆序回滚；卸载只清理当前 loader 持有的对象
 
 **使用示例**:
 ```python

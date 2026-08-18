@@ -107,8 +107,14 @@ std::atomic_uint32_t g_python_annotated_args_declare_count{0U};
 
 struct MockPythonAnnotatedArgsHolder {};
 
-void *CreateMockPythonAnnotatedArgsHolder(const custom_op::PythonCustomOpDescriptor *desc) {
-  return (desc == nullptr) ? nullptr : new (std::nothrow) MockPythonAnnotatedArgsHolder();
+bool ValidateMockPythonAnnotatedArgs(const custom_op::PythonCustomOpAdapterDescriptorView *desc) {
+  return (desc != nullptr) && (desc->impl_descriptor_key.data != nullptr) && (desc->impl_descriptor_key.size != 0U);
+}
+
+void *CreateMockPythonAnnotatedArgsHolder(const custom_op::PythonCustomOpAdapterDescriptorView *desc) {
+  return ((desc == nullptr) || (desc->impl_descriptor_key.data == nullptr)) ? nullptr
+                                                                            : new (std::nothrow)
+                                                                                  MockPythonAnnotatedArgsHolder();
 }
 
 void DestroyMockPythonAnnotatedArgsHolder(void *holder) {
@@ -1091,16 +1097,16 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskDeclaresAnnotatedArgsAndFillsK
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskUsesPythonAnnotatedArgsAdapter) {
   GetThreadLocalContext().SetGraphOption({{ge::SOC_VERSION, "Ascend910B"}});
   const std::string kTestOpType = "TestPythonAnnotatedArgsCustomOp_BuilderTest";
-  custom_op::PythonCustomOpDescriptor desc;
-  desc.descriptor_key = "python_annotated_args_custom_engine";
+  custom_op::PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_annotated_args_custom_engine";
   desc.op_type = kTestOpType;
   AddCustomOpCapability(desc.capabilities, CustomOpCapability::kAnnotatedArgs);
 
-  custom_op::PythonCustomOpCallbacks callbacks;
-  callbacks.create = CreateMockPythonAnnotatedArgsHolder;
-  callbacks.destroy = DestroyMockPythonAnnotatedArgsHolder;
+  custom_op::PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonAnnotatedArgsHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonAnnotatedArgsHolder;
   callbacks.declare_launch_args = DeclareMockPythonAnnotatedArgs;
-  ASSERT_TRUE(custom_op::PythonCustomOpRuntimeRegistry::Register(desc, callbacks));
+  ASSERT_TRUE(custom_op::PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
   const auto creator = [desc]() -> std::unique_ptr<BaseCustomOp> {
     auto adapter = std::make_unique<custom_op::PythonCustomOpAdapter>(desc);
     if (!adapter->IsValid()) {
@@ -1125,7 +1131,7 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskUsesPythonAnnotatedArgsAdapter
   ExpectPythonAnnotatedArgsKernel(tasks[0].kernel());
 
   CustomOpFactory::RemoveCustomOps({AscendString(kTestOpType.c_str())});
-  EXPECT_TRUE(custom_op::PythonCustomOpRuntimeRegistry::Unregister(desc.descriptor_key));
+  EXPECT_TRUE(custom_op::PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskOnNonMobileSocDeclaresAnnotatedArgsOp) {

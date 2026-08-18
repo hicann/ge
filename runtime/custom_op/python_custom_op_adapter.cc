@@ -21,12 +21,12 @@
 namespace ge {
 namespace custom_op {
 namespace {
-struct PythonCustomOpRuntimeEntry {
-  explicit PythonCustomOpRuntimeEntry(PythonCustomOpDescriptor d, PythonCustomOpCallbacks cb)
+struct PythonCustomOpImplRuntimeEntry {
+  explicit PythonCustomOpImplRuntimeEntry(PythonCustomOpAdapterDescriptor d, PythonCustomOpAdapterCallbacks cb)
       : desc(std::move(d)), callbacks(cb) {}
 
-  PythonCustomOpDescriptor desc;
-  PythonCustomOpCallbacks callbacks;
+  PythonCustomOpAdapterDescriptor desc;
+  PythonCustomOpAdapterCallbacks callbacks;
   // A descriptor_key maps to one shared runtime entry. Multiple adapters may
   // reference it, while each adapter owns one Python custom op instance.
   // active_adapter_count prevents unregister while callbacks are still in use.
@@ -34,27 +34,27 @@ struct PythonCustomOpRuntimeEntry {
   std::mutex mutex;
 };
 
-class PythonCustomOpRuntimeRegistryImpl {
+class PythonCustomOpImplRuntimeRegistryImpl {
  public:
-  bool Register(const PythonCustomOpDescriptor &desc, const PythonCustomOpCallbacks &callbacks) {
-    if (desc.descriptor_key.empty() || desc.op_type.empty() || (!callbacks.IsValid(desc.capabilities))) {
-      GELOGW("Register python custom op runtime failed, descriptor key[%s], op type[%s].", desc.descriptor_key.c_str(),
-             desc.op_type.c_str());
+  bool Register(const PythonCustomOpAdapterDescriptor &desc, const PythonCustomOpAdapterCallbacks &callbacks) {
+    if (desc.impl_descriptor_key.empty() || desc.op_type.empty() || (!callbacks.IsValid(desc.capabilities))) {
+      GELOGW("Register python custom op runtime failed, descriptor key[%s], op type[%s].",
+             desc.impl_descriptor_key.c_str(), desc.op_type.c_str());
       return false;
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    if (descriptor_key_to_runtime_entry_.find(desc.descriptor_key) != descriptor_key_to_runtime_entry_.cend()) {
-      GELOGW("Python custom op runtime descriptor key[%s] has already registered.", desc.descriptor_key.c_str());
+    if (descriptor_key_to_runtime_entry_.find(desc.impl_descriptor_key) != descriptor_key_to_runtime_entry_.cend()) {
+      GELOGW("Python custom op runtime descriptor key[%s] has already registered.", desc.impl_descriptor_key.c_str());
       return false;
     }
-    auto runtime_entry = ComGraphMakeShared<PythonCustomOpRuntimeEntry>(desc, callbacks);
+    auto runtime_entry = ComGraphMakeShared<PythonCustomOpImplRuntimeEntry>(desc, callbacks);
     if (runtime_entry == nullptr) {
       GELOGE(GRAPH_FAILED, "Create python custom op runtime entry failed, descriptor key[%s], op type[%s].",
-             desc.descriptor_key.c_str(), desc.op_type.c_str());
+             desc.impl_descriptor_key.c_str(), desc.op_type.c_str());
       return false;
     }
-    descriptor_key_to_runtime_entry_.emplace(desc.descriptor_key, std::move(runtime_entry));
+    descriptor_key_to_runtime_entry_.emplace(desc.impl_descriptor_key, std::move(runtime_entry));
     return true;
   }
 
@@ -74,22 +74,31 @@ class PythonCustomOpRuntimeRegistryImpl {
     return true;
   }
 
-  bool Acquire(const PythonCustomOpDescriptor &desc, PythonCustomOpCallbacks &callbacks) {
-    auto runtime_entry = Get(desc.descriptor_key);
-    if (runtime_entry == nullptr) {
+  bool Acquire(const PythonCustomOpAdapterDescriptor &desc, PythonCustomOpAdapterCallbacks &callbacks) {
+    const std::lock_guard<std::mutex> map_lock(mutex_);
+    const auto iter = descriptor_key_to_runtime_entry_.find(desc.impl_descriptor_key);
+    if (iter == descriptor_key_to_runtime_entry_.cend()) {
       GELOGW("Acquire python custom op runtime failed because descriptor key[%s] is not registered.",
-             desc.descriptor_key.c_str());
+             desc.impl_descriptor_key.c_str());
       return false;
     }
 
-    std::lock_guard<std::mutex> lock(runtime_entry->mutex);
+    const auto &runtime_entry = iter->second;
+    std::lock_guard<std::mutex> runtime_lock(runtime_entry->mutex);
+    if ((runtime_entry->desc.op_type != desc.op_type) ||
+        (runtime_entry->desc.impl_descriptor_key != desc.impl_descriptor_key) ||
+        (runtime_entry->desc.capabilities != desc.capabilities)) {
+      GELOGW("Acquire python custom op runtime descriptor mismatch, descriptor key[%s].",
+             desc.impl_descriptor_key.c_str());
+      return false;
+    }
     ++runtime_entry->active_adapter_count;
     callbacks = runtime_entry->callbacks;
     return true;
   }
 
-  void Release(const PythonCustomOpDescriptor &desc) {
-    auto runtime_entry = Get(desc.descriptor_key);
+  void Release(const PythonCustomOpAdapterDescriptor &desc) {
+    auto runtime_entry = Get(desc.impl_descriptor_key);
     if (runtime_entry == nullptr) {
       return;
     }
@@ -107,7 +116,7 @@ class PythonCustomOpRuntimeRegistryImpl {
   }
 
  private:
-  std::shared_ptr<PythonCustomOpRuntimeEntry> Get(const std::string &descriptor_key) {
+  std::shared_ptr<PythonCustomOpImplRuntimeEntry> Get(const std::string &descriptor_key) {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto iter = descriptor_key_to_runtime_entry_.find(descriptor_key);
     if (iter == descriptor_key_to_runtime_entry_.cend()) {
@@ -117,85 +126,95 @@ class PythonCustomOpRuntimeRegistryImpl {
   }
 
   std::mutex mutex_;
-  std::map<std::string, std::shared_ptr<PythonCustomOpRuntimeEntry>> descriptor_key_to_runtime_entry_;
+  std::map<std::string, std::shared_ptr<PythonCustomOpImplRuntimeEntry>> descriptor_key_to_runtime_entry_;
 };
 
-PythonCustomOpRuntimeRegistryImpl &GetPythonCustomOpRuntimeRegistryImpl() {
-  static PythonCustomOpRuntimeRegistryImpl runtime_registry;
+PythonCustomOpImplRuntimeRegistryImpl &GetPythonCustomOpImplRuntimeRegistryImpl() {
+  static PythonCustomOpImplRuntimeRegistryImpl runtime_registry;
   return runtime_registry;
 }
+
 }  // namespace
 
-PythonCustomOpHolder::PythonCustomOpHolder(const PythonCustomOpDescriptor &desc) : desc_(desc) {
-  if (!PythonCustomOpRuntimeRegistry::GetInstance().Acquire(desc_, callbacks_)) {
+PythonCustomOpImplHolder::PythonCustomOpImplHolder(const PythonCustomOpAdapterDescriptor &desc) : desc_(desc) {
+  if (!PythonCustomOpImplRuntimeRegistry::GetInstance().Acquire(desc_, callbacks_)) {
     return;
   }
-  if (callbacks_.create == nullptr) {
-    PythonCustomOpRuntimeRegistry::GetInstance().Release(desc_);
+  if (callbacks_.create_impl_holder == nullptr) {
+    PythonCustomOpImplRuntimeRegistry::GetInstance().Release(desc_);
     return;
   }
-  holder_ = callbacks_.create(&desc_);
+  const PythonCustomOpAdapterDescriptorView descriptor_view = {
+      {desc_.op_type.data(), desc_.op_type.size()},
+      {desc_.impl_descriptor_key.data(), desc_.impl_descriptor_key.size()},
+      desc_.capabilities};
+  holder_ = callbacks_.create_impl_holder(&descriptor_view);
   if (holder_ == nullptr) {
-    PythonCustomOpRuntimeRegistry::GetInstance().Release(desc_);
+    PythonCustomOpImplRuntimeRegistry::GetInstance().Release(desc_);
     return;
   }
   valid_ = true;
 }
 
-PythonCustomOpHolder::~PythonCustomOpHolder() {
+PythonCustomOpImplHolder::~PythonCustomOpImplHolder() {
   if (valid_) {
-    if ((holder_ != nullptr) && (callbacks_.destroy != nullptr)) {
-      callbacks_.destroy(holder_);
+    if ((holder_ != nullptr) && (callbacks_.destroy_impl_holder != nullptr)) {
+      callbacks_.destroy_impl_holder(holder_);
       holder_ = nullptr;
     }
-    PythonCustomOpRuntimeRegistry::GetInstance().Release(desc_);
+    PythonCustomOpImplRuntimeRegistry::GetInstance().Release(desc_);
   }
 }
 
-bool PythonCustomOpHolder::IsValid() const {
+bool PythonCustomOpImplHolder::IsValid() const {
   return valid_;
 }
 
-void *PythonCustomOpHolder::GetHolder() const {
+void *PythonCustomOpImplHolder::GetHolder() const {
   return holder_;
 }
 
-const PythonCustomOpCallbacks &PythonCustomOpHolder::GetCallbacks() const {
+const PythonCustomOpAdapterCallbacks &PythonCustomOpImplHolder::GetCallbacks() const {
   return callbacks_;
 }
 
-const PythonCustomOpDescriptor &PythonCustomOpHolder::GetDescriptor() const {
+const PythonCustomOpAdapterDescriptor &PythonCustomOpImplHolder::GetDescriptor() const {
   return desc_;
 }
 
-PythonCustomOpRuntimeRegistry &PythonCustomOpRuntimeRegistry::GetInstance() {
-  static PythonCustomOpRuntimeRegistry runtime_registry;
+PythonCustomOpImplRuntimeRegistry &PythonCustomOpImplRuntimeRegistry::GetInstance() {
+  static PythonCustomOpImplRuntimeRegistry runtime_registry;
   return runtime_registry;
 }
 
-bool PythonCustomOpRuntimeRegistry::Register(const PythonCustomOpDescriptor &desc,
-                                             const PythonCustomOpCallbacks &callbacks) {
-  return GetPythonCustomOpRuntimeRegistryImpl().Register(desc, callbacks);
+bool PythonCustomOpImplRuntimeRegistry::Register(const PythonCustomOpAdapterDescriptor &desc,
+                                                 const PythonCustomOpAdapterCallbacks &callbacks) {
+  return GetPythonCustomOpImplRuntimeRegistryImpl().Register(desc, callbacks);
 }
 
-bool PythonCustomOpRuntimeRegistry::Unregister(const std::string &descriptor_key) {
-  return GetPythonCustomOpRuntimeRegistryImpl().Unregister(descriptor_key);
+bool PythonCustomOpImplRuntimeRegistry::Unregister(const std::string &descriptor_key) {
+  return GetPythonCustomOpImplRuntimeRegistryImpl().Unregister(descriptor_key);
 }
 
-bool PythonCustomOpRuntimeRegistry::Acquire(const PythonCustomOpDescriptor &desc, PythonCustomOpCallbacks &callbacks) {
-  return GetPythonCustomOpRuntimeRegistryImpl().Acquire(desc, callbacks);
+bool PythonCustomOpImplRuntimeRegistry::Acquire(const PythonCustomOpAdapterDescriptor &desc,
+                                                PythonCustomOpAdapterCallbacks &callbacks) {
+  return GetPythonCustomOpImplRuntimeRegistryImpl().Acquire(desc, callbacks);
 }
 
-void PythonCustomOpRuntimeRegistry::Release(const PythonCustomOpDescriptor &desc) {
-  GetPythonCustomOpRuntimeRegistryImpl().Release(desc);
+void PythonCustomOpImplRuntimeRegistry::Release(const PythonCustomOpAdapterDescriptor &desc) {
+  GetPythonCustomOpImplRuntimeRegistryImpl().Release(desc);
 }
 
-void PythonCustomOpRuntimeRegistry::Clear() {
-  GetPythonCustomOpRuntimeRegistryImpl().Clear();
+void PythonCustomOpImplRuntimeRegistry::Clear() {
+  GetPythonCustomOpImplRuntimeRegistryImpl().Clear();
 }
 
-PythonCustomOpAdapter::PythonCustomOpAdapter(PythonCustomOpDescriptor desc)
-    : desc_(std::move(desc)), holder_(new (std::nothrow) PythonCustomOpHolder(desc_)) {}
+void ClearPythonCustomOpRuntimeRegistry() {
+  PythonCustomOpImplRuntimeRegistry::GetInstance().Clear();
+}
+
+PythonCustomOpAdapter::PythonCustomOpAdapter(PythonCustomOpAdapterDescriptor desc)
+    : desc_(std::move(desc)), holder_(new (std::nothrow) PythonCustomOpImplHolder(desc_)) {}
 
 PythonCustomOpAdapter::~PythonCustomOpAdapter() = default;
 
@@ -214,7 +233,7 @@ graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().execute == nullptr)) {
     GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
-           desc_.descriptor_key.c_str(), desc_.op_type.c_str());
+           desc_.impl_descriptor_key.c_str(), desc_.op_type.c_str());
     return GRAPH_FAILED;
   }
   return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx);
@@ -227,7 +246,7 @@ graphStatus PythonCustomOpAdapter::DeclareLaunchArgs(gert::AnnotatedArgsContext 
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().declare_launch_args == nullptr)) {
     GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
-           desc_.descriptor_key.c_str(), desc_.op_type.c_str());
+           desc_.impl_descriptor_key.c_str(), desc_.op_type.c_str());
     return GRAPH_FAILED;
   }
   return holder_->GetCallbacks().declare_launch_args(holder_->GetHolder(), &ctx);
@@ -269,8 +288,5 @@ graphStatus PythonCustomOpAdapter::ReportUnsupported(CustomOpCapability capabili
   return GRAPH_FAILED;
 }
 
-void ClearPythonCustomOpRuntimeRegistry() {
-  PythonCustomOpRuntimeRegistry::GetInstance().Clear();
-}
 }  // namespace custom_op
 }  // namespace ge

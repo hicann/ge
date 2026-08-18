@@ -38,6 +38,7 @@
 #include "graph/opsproto_manager.h"
 #include "base/registry/opp_package_utils.h"
 #include "graph/utils/type_utils.h"
+#include "graph/utils/ir_definitions_query.h"
 #include "api/gelib/gelib.h"
 #include "api/aclgrph/option_utils.h"
 #include "graph/fusion/pass/pass_plugin_loader.h"
@@ -1163,44 +1164,6 @@ bool IsIrRepSupport(const char *rep) {
 ge::Status GetRegisteredIrDef(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {
-  GE_ASSERT_NOTNULL(op_type);
-  const auto op = ge::OperatorFactory::CreateOperator("_", op_type);
-  GE_WARN_ASSERT(!op.IsEmpty(), "No operator found for type: %s", op_type);
-  const auto desc = ge::OpDescUtils::GetOpDescFromOperator(op);
-
-  static const auto kInputTypeString = []() {
-    std::map<ge::IrInputType, ge::AscendString> typeStr;
-    typeStr[ge::IrInputType::kIrInputRequired] = "required";
-    typeStr[ge::IrInputType::kIrInputOptional] = "optional";
-    typeStr[ge::IrInputType::kIrInputDynamic] = "dynamic";
-    return typeStr;
-  }();
-
-  static const auto kOutputTypeString = []() {
-    std::map<ge::IrOutputType, ge::AscendString> typeStr;
-    typeStr[ge::IrOutputType::kIrOutputRequired] = "required";
-    typeStr[ge::IrOutputType::kIrOutputDynamic] = "dynamic";
-    return typeStr;
-  }();
-
-  GE_ASSERT_NOTNULL(desc, "Failed to get OpDesc from operator: %s", op_type);
-  for (const auto &name2type : desc->GetIrInputs()) {
-    auto iter = kInputTypeString.find(name2type.second);
-    GE_ASSERT(iter != kInputTypeString.end(), "Unknown input type: %d for operator: %s", name2type.second, op_type);
-    inputs.emplace_back(ConvertToAscendString(name2type.first), iter->second);
-  }
-  for (const auto &name2type : desc->GetIrOutputs()) {
-    auto iter = kOutputTypeString.find(name2type.second);
-    GE_ASSERT(iter != kOutputTypeString.end(), "Unknown output type: %d for operator: %s", name2type.second, op_type);
-    outputs.emplace_back(ConvertToAscendString(name2type.first), iter->second);
-  }
-
-  std::map<ge::AscendString, ge::AscendString> attrs_and_types;
-  GE_ASSERT_GRAPH_SUCCESS(op.GetAllIrAttrNamesAndTypes(attrs_and_types),
-                          "Failed to get attr names and types for operator: %s", op_type);
-  for (const auto &attr : desc->GetIrAttrNames()) {
-    attrs.emplace_back(ConvertToAscendString(attr), attrs_and_types[ConvertToAscendString(attr)]);
-  }
-  return ge::SUCCESS;
+  return GetRegisteredIrDefFromGraph(op_type, inputs, outputs, attrs);
 }
 }
