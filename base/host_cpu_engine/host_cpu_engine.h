@@ -37,6 +37,8 @@ class HostCpuEngine {
     return constant_folding_handle_;
   }
 
+  bool IsFusedCpuKernelSupported(const std::string &op_type) const;
+
  private:
   HostCpuEngine() = default;
 
@@ -61,6 +63,7 @@ class HostCpuEngine {
   std::mutex mu_;
   std::vector<void *> lib_handles_;
   void *constant_folding_handle_ = nullptr;
+  int32_t (*is_fused_cpu_kernel_supported_)(const char *) = nullptr;
   bool initialized_ = false;
 };
 }  // namespace ge

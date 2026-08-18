@@ -534,6 +534,7 @@ set(MULTI_PARTS_TEST_FILES
     "graph/partition/graph_partition_unittest.cc"
     "graph/partition/stage_partition_unittest.cc"
     "graph/partition/optimizer/dynamic_data_flow_engine_reassign_unittest.cc"
+    "graph/partition/optimizer/host_cpu_fusion_pass_unittest.cc"
     "graph/partition/optimizer/hostcpu_engine_update_pass_unittest.cc"
     "graph/manager/graph_manager_unittest.cc"
     "graph/manager/graph_var_manager_unittest.cc"

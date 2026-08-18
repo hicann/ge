@@ -206,6 +206,8 @@ set(COMPILER_SRC_LIST
     "graph/partition/stage_partitioner.cc"
     "graph/partition/optimizer/dynamic_data_flow_engine_reassign_pass.cc"
     "graph/partition/optimizer/dynamic_data_flow_partitioner_pass.cc"
+    "graph/partition/optimizer/host_cpu_fusion_codegen.cc"
+    "graph/partition/optimizer/host_cpu_fusion_pass.cc"
     "graph/partition/optimizer/hostcpu_engine_update_pass.cc"
     "graph/passes/feature/set_ffts_plus_attr_pass.cc"
     "graph/passes/standard_optimize/addn_pass.cc"

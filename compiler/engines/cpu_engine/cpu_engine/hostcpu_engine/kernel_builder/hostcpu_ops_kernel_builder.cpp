@@ -13,9 +13,11 @@
 #include <memory>
 #include <vector>
 #include "common/config/config_file.h"
+#include "common/util/cpu_engine_util.h"
 #include "base/err_msg.h"
 #include "common/util/util.h"
 #include "error_code/error_code.h"
+#include "framework/common/host_cpu_fusion_attr.h"
 #include "ge/ge_api_types.h"
 #include "register/ops_kernel_builder_registry.h"
 #include "graph/utils/op_desc_utils_ex.h"
@@ -61,7 +63,6 @@ ge::Status HostCpuOpsKernelBuilder::CalcOpRunningParam(ge::Node &node) {
     ge::OpDescUtilsEx::SetType(op_desc_ptr, *op_original_type);
     op_type = *op_original_type;
   }
-
   FACTORY_ENGINE::FactoryType host_engine_ptr = FACTORY_ENGINE::Produce(engine_name_);
   AICPU_CHECK_NOTNULL_ERRCODE(host_engine_ptr, ErrorCode::INPUT_PARAM_NULL)
   AicpuOpsKernelInfoStorePtr host_ops_kernel_info_store_ptr = host_engine_ptr->GetAicpuOpsKernelInfoStore();
@@ -77,7 +78,17 @@ ge::Status HostCpuOpsKernelBuilder::CalcOpRunningParam(ge::Node &node) {
     AICPUE_LOGI("Node[%s] set attr optional_input_placeholder is [%s]", node.GetName().c_str(),
                 optional_input ? "true" : "false");
   }
-
+  if ((op_type == ge::kFusedHostCpuOpType) && !ge::AttrUtils::HasAttr(op_desc_ptr, kCustomizedOpDef)) {
+    // 首次构建时将动态注册名和完整 IO 描述写入 NodeDef，后续沿用通用 HostCPU TaskDef 生成流程。
+    AICPUE_LOGD("Build customized NodeDef for fused HostCPU node[%s], inputs[%zu], outputs[%zu].",
+                node.GetName().c_str(), op_desc_ptr->GetAllInputsSize(), op_desc_ptr->GetOutputsSize());
+    aicpuops::NodeDef node_def;
+    AICPU_CHECK_RES_WITH_LOG(BuildAicpuNodeDef(op_desc_ptr, node_def), "Build NodeDef for fused HostCPU op[%s] failed.",
+                             node.GetName().c_str());
+    AICPU_CHECK_RES_WITH_LOG(InsertAicpuNodeDefAttrToOp(op_desc_ptr, node_def, kCustomizedOpDef),
+                             "Serialize NodeDef for fused HostCPU op[%s] failed.", node.GetName().c_str());
+    AICPUE_LOGD("Customized NodeDef is ready for fused HostCPU node[%s].", node.GetName().c_str());
+  }
   const KernelBuilderPtr &kernel_builder = kernel_builder_map_["HOSTCPUBuilder"];
   AICPU_CHECK_NOTNULL_ERRCODE(kernel_builder, ErrorCode::NONE_KERNEL_BUILDER);
   return kernel_builder->CalcOpRunningParam(node);
@@ -101,6 +112,10 @@ ge::Status HostCpuOpsKernelBuilder::GenerateTask(const ge::Node &ge_node, ge::Ru
 
   const KernelBuilderPtr &kernel_builder = kernel_builder_map_["HOSTCPUBuilder"];
   AICPU_CHECK_NOTNULL_ERRCODE(kernel_builder, ErrorCode::NONE_KERNEL_BUILDER);
+  if (op_type == ge::kFusedHostCpuOpType) {
+    // TaskDef 仍走通用 HOSTCPUBuilder；其中的 NodeDef 已将公共类型替换为 JIT kernel 注册名。
+    AICPUE_LOGD("Generate generic HostCPU task for fused node[%s].", ge_node.GetName().c_str());
+  }
   return kernel_builder->GenerateTask(ge_node, context, tasks);
 }
 

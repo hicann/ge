@@ -18,6 +18,7 @@
 #include "engine/aicpu/kernel/aicpu_args_handler.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
 #include "engine/aicpu/kernel/aicpu_resource_manager.h"
+#include "engine/aicpu/kernel/fused_host_cpu_compute.h"
 #include "graph/op_desc.h"
 #include "graph/compute_graph.h"
 #include "graph/op_kernel_bin.h"
@@ -27,6 +28,7 @@
 #include "core/utils/rt2_tensor_utils.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "subscriber/dumper/executor_dumper.h"
+#include "exe_graph/runtime/storage_shape.h"
 
 namespace gert {
 using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
@@ -38,6 +40,34 @@ struct AicpuTaskStruct {
   aicpu::AicpuParamHead head;
   uint64_t io_addrp[6];
 } __attribute__((packed));
+
+bool g_last_fused_bindings_changed = false;
+uint32_t g_last_fused_binding_flags = 0U;
+bool g_fused_kernel_state_destroyed = false;
+
+void DestroyFusedHostCpuKernelStateStub(void *kernel_state) {
+  g_fused_kernel_state_destroyed = (kernel_state == reinterpret_cast<void *>(1U));
+}
+
+uint32_t RunFusedHostCpuKernelStub(void *kernel_state, const void *binding_data, const uint32_t binding_flags) {
+  const auto *bindings = static_cast<const FusedHostCpuTensorBinding *>(binding_data);
+  if ((kernel_state == nullptr) || (bindings == nullptr) || (bindings[0].data_size != sizeof(int32_t)) ||
+      (bindings[1].data_size != sizeof(int32_t)) || (bindings[0].dim_num != 1U) || (bindings[1].dim_num != 1U) ||
+      (bindings[0].dims == nullptr) || (bindings[1].dims == nullptr) || (bindings[0].dims[0] != bindings[1].dims[0]) ||
+      ((bindings[0].flags | bindings[1].flags) != binding_flags)) {
+    return 1U;
+  }
+  const auto &input = bindings[0];
+  const auto &output = bindings[1];
+  if ((input.data == nullptr) || (output.data == nullptr)) {
+    return 1U;
+  }
+  g_last_fused_binding_flags = binding_flags;
+  g_last_fused_bindings_changed = binding_flags != 0U;
+  *reinterpret_cast<int32_t *>(output.data) = *reinterpret_cast<const int32_t *>(input.data) + 1;
+  return 0U;
+}
+
 }  // namespace
 
 class AicpuKernelLaunchUT : public testing::Test {
@@ -268,6 +298,77 @@ TEST_F(AicpuKernelLaunchUT, test_alloc_hostcpu_output_memory) {
   ASSERT_EQ(registry.FindKernelFuncs("AllocHostCpuOutputMemory")->outputs_creator(nullptr, run_context),
             ge::GRAPH_SUCCESS);
   ASSERT_EQ(registry.FindKernelFuncs("AllocHostCpuOutputMemory")->run_func(run_context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(AicpuKernelLaunchUT, test_fused_hostcpu_private_entry_compute) {
+  constexpr size_t kInputNum = 1U;
+  constexpr size_t kOutputNum = 1U;
+  void *kernel_state = reinterpret_cast<void *>(1U);
+  FusedHostCpuRunFunc run_func = &RunFusedHostCpuKernelStub;
+  const FusedHostCpuTensorMeta tensor_metas[kInputNum + kOutputNum] = {{1U}, {1U}};
+  void *compute_state = kernel::CreateFusedHostCpuComputeState("FusedHostCpu_ut_private_entry", kernel_state,
+                                                               &DestroyFusedHostCpuKernelStateStub, run_func,
+                                                               tensor_metas, kInputNum + kOutputNum);
+  ASSERT_NE(compute_state, nullptr);
+  struct FusedHostCpuMetaBuffer {
+    FusedHostCpuComputeMeta compute_meta;
+  } meta_buffer{{compute_state, kInputNum, kOutputNum}};
+  StorageShape input_shape{{1}, {1}};
+  StorageShape output_shape{{1}, {1}};
+  int32_t input_value = 41;
+  int32_t output_value = 0;
+  GertTensorData input_data{reinterpret_cast<uint8_t *>(&input_value), sizeof(input_value), kOnHost, -1};
+  GertTensorData output_data{reinterpret_cast<uint8_t *>(&output_value), sizeof(output_value), kOnHost, -1};
+
+  auto run_context = BuildKernelRunContext(5U, 1U);
+  size_t index = 0U;
+  run_context.value_holder[index++].Set(&meta_buffer, nullptr);
+  run_context.value_holder[index++].Set(&input_shape, nullptr);
+  run_context.value_holder[index++].Set(&input_data, nullptr);
+  run_context.value_holder[index++].Set(&output_shape, nullptr);
+  run_context.value_holder[index++].Set(&output_data, nullptr);
+
+  const auto funcs = registry.FindKernelFuncs("FusedHostCpuCompute");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(output_value, 42);
+  EXPECT_TRUE(g_last_fused_bindings_changed);
+  EXPECT_EQ(g_last_fused_binding_flags, kFusedHostCpuShapeChanged | kFusedHostCpuDataChanged);
+  auto kernel_context = run_context.GetContext<KernelContext>();
+  ASSERT_NE(kernel_context, nullptr);
+  auto returned_output_data = kernel_context->GetOutputPointer<GertTensorData>(0U);
+  ASSERT_NE(returned_output_data, nullptr);
+  EXPECT_EQ(returned_output_data, &output_data);
+  EXPECT_EQ(returned_output_data->GetAddr(), output_data.GetAddr());
+  input_value = 99;
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(output_value, 100);
+  EXPECT_FALSE(g_last_fused_bindings_changed);
+  EXPECT_EQ(g_last_fused_binding_flags, 0U);
+  int32_t rebound_input_value = 7;
+  int32_t rebound_output_value = 0;
+  input_data =
+      GertTensorData{reinterpret_cast<uint8_t *>(&rebound_input_value), sizeof(rebound_input_value), kOnHost, -1};
+  output_data =
+      GertTensorData{reinterpret_cast<uint8_t *>(&rebound_output_value), sizeof(rebound_output_value), kOnHost, -1};
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(rebound_output_value, 8);
+  EXPECT_TRUE(g_last_fused_bindings_changed);
+  EXPECT_EQ(g_last_fused_binding_flags, kFusedHostCpuDataChanged);
+  input_shape = StorageShape{{2}, {2}};
+  output_shape = StorageShape{{2}, {2}};
+  ASSERT_EQ(funcs->run_func(run_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(rebound_output_value, 8);
+  EXPECT_EQ(g_last_fused_binding_flags, kFusedHostCpuShapeChanged);
+
+  auto destroy_context = BuildKernelRunContext(1U, 0U);
+  destroy_context.value_holder[0].Set(compute_state, nullptr);
+  const auto destroy_funcs = registry.FindKernelFuncs("ReleaseFusedHostCpuKernelState");
+  ASSERT_NE(destroy_funcs, nullptr);
+  g_fused_kernel_state_destroyed = false;
+  ASSERT_EQ(destroy_funcs->run_func(destroy_context), ge::GRAPH_SUCCESS);
+  EXPECT_TRUE(g_fused_kernel_state_destroyed);
 }
 
 TEST_F(AicpuKernelLaunchUT, test_launch_cust_aicpu_kernel) {

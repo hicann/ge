@@ -17,7 +17,9 @@
 #include "stub.h"
 
 #include "ge/ge_api_types.h"
+#include "framework/common/host_cpu_fusion_attr.h"
 #include "graph/utils/op_desc_utils_ex.h"
+#include "proto/aicpu/cpu_node_def.pb.h"
 
 using namespace aicpu;
 using namespace ge;
@@ -147,6 +149,41 @@ TEST(HostCpuOpsKernelBuilder, GenerateTask_SUCCESS) {
   printf("end===================\n");
 }
 
+TEST(HostCpuOpsKernelBuilder, CalcOpRunningParamBuildsFusedNodeDef) {
+  HostCpuOpsKernelBuilder hostCpuKernelBuilder;
+  map<string, string> options;
+  options[SOC_VERSION] = "Ascend910";
+  ASSERT_EQ(hostCpuKernelBuilder.Initialize(options), SUCCESS);
+
+  auto graph = make_shared<ComputeGraph>("fused_host_cpu_graph");
+  auto op_desc = make_shared<OpDesc>("fused", kFusedHostCpuOpType);
+  GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_INT64);
+  ASSERT_EQ(op_desc->AddInputDesc("input_0", tensor_desc), GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc("output_0", tensor_desc), GRAPH_SUCCESS);
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, kFusedHostCpuRegisterName, "FusedHostCpu_builder_test"));
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, "opKernelLib", "HOSTCPUKernel"));
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_UNKNOWN_SHAPE_TYPE, DEPEND_IN_SHAPE));
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(hostCpuKernelBuilder.CalcOpRunningParam(*node), SUCCESS);
+  Buffer node_def_buffer;
+  ASSERT_TRUE(AttrUtils::GetZeroCopyBytes(op_desc, kCustomizedOpDef, node_def_buffer));
+  aicpuops::NodeDef node_def;
+  ASSERT_TRUE(node_def.ParseFromArray(node_def_buffer.GetData(), static_cast<int32_t>(node_def_buffer.GetSize())));
+  EXPECT_EQ(node_def.op(), "FusedHostCpu_builder_test");
+  ASSERT_EQ(node_def.inputs_size(), 1);
+  ASSERT_EQ(node_def.outputs_size(), 1);
+  EXPECT_EQ(node_def.inputs(0).name(), "input_0");
+  EXPECT_EQ(node_def.outputs(0).name(), "output_0");
+
+  RunContext context = CreateContext();
+  vector<domi::TaskDef> tasks;
+  ASSERT_EQ(hostCpuKernelBuilder.GenerateTask(*node, context, tasks), SUCCESS);
+  ASSERT_EQ(tasks.size(), 1U);
+  EXPECT_EQ(tasks[0].kernel().context().kernel_type(), 8U);
+  DestroyContext(context);
+}
 TEST(HostCpuOpsKernelBuilder, CalcOpRunningParam_Original_Unknown_FAIL) {
   HostCpuOpsKernelBuilder hostCpuKernelBuilder;
   map<string, string> options;
