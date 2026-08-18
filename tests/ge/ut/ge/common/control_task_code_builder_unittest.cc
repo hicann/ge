@@ -750,7 +750,7 @@ class Om2ArgsTable {
     void * GetDevArgAddr(size_t offset, int32_t args_type);
     void * GetHostArgAddr(size_t offset, int32_t args_type);
     aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
-    aclError CopyArgsToDevice();
+    aclError CopyArgsToDevice(void *stream, bool is_async);
   private:
     std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
     std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};

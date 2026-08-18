@@ -2003,6 +2003,15 @@ TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_SimpleTasksWithStub_Ok) {
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
 }
 
+TEST_F(Om2CodegenModelBuilderUt, BuildCodegenModel_SetsNeedVa2PaFromRuntime_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  EXPECT_TRUE(doc.is_need_va2pa);
+}
+
 static GeRootModelPtr CreateGeRootModelWithUnsupportedTask() {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
   if (ge_root_model == nullptr) {

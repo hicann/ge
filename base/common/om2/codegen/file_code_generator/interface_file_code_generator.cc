@@ -97,7 +97,7 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ArgsTableClass() {
       ast_.DeclareMethod(
           "UpdateHostArgs",
           {ast_.Var("int32_t", "type"), ast_.Var("size_t", "index"), ast_.Var("const uintptr_t", "addr")}, "aclError"),
-      ast_.DeclareMethod("CopyArgsToDevice", {}, "aclError"),
+      ast_.DeclareMethod("CopyArgsToDevice", {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError"),
       ast_.Private(),
       ast_.Field("std::array<int64_t,  static_cast<size_t>(4)>", "args_sizes_{}"),
       ast_.Field("std::array<std::vector<uint8_t>, static_cast<size_t>(4)>", "host_args_{}"),

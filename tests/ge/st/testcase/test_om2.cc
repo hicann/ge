@@ -1557,6 +1557,28 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
   ExpectGeneratedMakefileSupportsEnvCompiler(archive, kZipFileBaseName);
+
+  size_t args_manager_size = 0U;
+  const auto args_manager_buf =
+      archive.ExtractToMem("fake_test/data/model_0/runtime/g1_args_manager.cpp", args_manager_size);
+  ASSERT_NE(args_manager_buf, nullptr);
+  const std::string args_manager(reinterpret_cast<const char *>(args_manager_buf.get()), args_manager_size);
+  EXPECT_NE(args_manager.find("aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async)"),
+            std::string::npos);
+
+  size_t load_and_run_size = 0U;
+  const auto load_and_run_buf =
+      archive.ExtractToMem("fake_test/data/model_0/runtime/g1_load_and_run.cpp", load_and_run_size);
+  ASSERT_NE(load_and_run_buf, nullptr);
+  const std::string load_and_run(reinterpret_cast<const char *>(load_and_run_buf.get()), load_and_run_size);
+  EXPECT_NE(load_and_run.find("OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));"), std::string::npos);
+
+  size_t interface_size = 0U;
+  const auto interface_buf = archive.ExtractToMem("fake_test/data/model_0/runtime/g1_interface.h", interface_size);
+  ASSERT_NE(interface_buf, nullptr);
+  const std::string interface_header(reinterpret_cast<const char *>(interface_buf.get()), interface_size);
+  EXPECT_NE(interface_header.find("CopyArgsToDevice(void *stream, bool is_async)"), std::string::npos);
+
   const JsonFile visual_json = ExtractVisualJson(archive, kZipFileBaseName);
   ExpectVisualJsonMatchesGraph(visual_json, ge_root_model->GetRootGraph());
 }

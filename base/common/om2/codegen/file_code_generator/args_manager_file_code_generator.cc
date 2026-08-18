@@ -184,13 +184,28 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildUpdateHostArgsMethod() {
       });
 }
 
-MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod() {
-  return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice", {}, "aclError",
-                           {
-                               ChkStatus(AclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].Data(), args_sizes_[0],
-                                                     "ACL_MEMCPY_HOST_TO_DEVICE")),
-                               ast_.Return("ACL_SUCCESS"),
-                           });
+MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model) {
+  if (codegen_model.is_need_va2pa) {
+    return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice",
+                             {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError",
+                             {
+                                 ChkStatus(AclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].Data(),
+                                                       args_sizes_[0], "ACL_MEMCPY_HOST_TO_DEVICE")),
+                                 ChkStatus(RtDevVA2PA(ast_.CCast("uint64_t", dev_args_[0]), args_sizes_[0],
+                                                      ast_.Var("void *", "stream"), ast_.Var("bool", "is_async"))),
+                                 ast_.Return("ACL_SUCCESS"),
+                             });
+  } else {
+    return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice",
+                             {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError",
+                             {
+                                 ast_.IgnoreOutput(ast_.Var("(void)", "stream")),
+                                 ast_.IgnoreOutput(ast_.Var("(void)", "is_async")),
+                                 ChkStatus(AclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].Data(),
+                                                       args_sizes_[0], "ACL_MEMCPY_HOST_TO_DEVICE")),
+                                 ast_.Return("ACL_SUCCESS"),
+                             });
+  }
 }
 
 ExprRef ArgsManagerFileCodeGenerator::GetHostArgAddr(Arg offset, Arg args_type) {

@@ -199,6 +199,9 @@ class CodeGeneratorBase {
   };
   ExprRef AclrtCtxGetFloatOverflowAddr(Arg addr) const {
     return ast_.Call("aclrtCtxGetFloatOverflowAddr", {addr});
+  };
+  ExprRef RtDevVA2PA(Arg dev_addr, Arg len, Arg stream, Arg is_async) const {
+    return ast_.Call("rtDevVA2PA", {dev_addr, len, stream, is_async});
   }
 
   AstBuildContext &ast_;

@@ -61,6 +61,7 @@ class Om2CodegenModelBuilder {
   Status BuildTaskSemantics(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                             Om2CodegenModel &codegen_model);
   Status AggregateArgsTable(const std::vector<TaskCodeBuilderPtr> &task_builders, Om2CodegenModel &codegen_model) const;
+  Status BuildVA2PAInfo(Om2CodegenModel &codegen_model) const;
   Status GenerateArgsData(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                           Om2CodegenModel &codegen_model);
   Status BuildHostArgsOffsets(const std::multimap<uint64_t, uint64_t> &io_addr_offset_map,

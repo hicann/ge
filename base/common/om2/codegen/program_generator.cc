@@ -151,7 +151,7 @@ Status ProgramGenerator::GenerateArgsManagerSource(Om2CodePrinter &code_printer)
                          args_manager_handler.BuildGetDevArgAddrMethod(),
                          args_manager_handler.BuildGetHostArgAddrMethod(),
                          args_manager_handler.BuildUpdateHostArgsMethod(),
-                         args_manager_handler.BuildCopyArgsToDeviceMethod(),
+                         args_manager_handler.BuildCopyArgsToDeviceMethod(codegen_model_),
                      }),
   });
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kArgsManagerFile, translation_unit, code_printer));

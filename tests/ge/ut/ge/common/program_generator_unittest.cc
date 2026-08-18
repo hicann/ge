@@ -1547,8 +1547,9 @@ aclError Om2ArgsTable::UpdateHostArgs(int32_t type, size_t index, const uintptr_
   return ACL_SUCCESS;
 }
 
-aclError Om2ArgsTable::CopyArgsToDevice() {
+aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {
   OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));
+  OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[0], args_sizes_[0], stream, is_async));
   return ACL_SUCCESS;
 }
 } // namespace om2
@@ -2124,7 +2125,7 @@ class Om2ArgsTable {
     void * GetDevArgAddr(size_t offset, int32_t args_type);
     void * GetHostArgAddr(size_t offset, int32_t args_type);
     aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
-    aclError CopyArgsToDevice();
+    aclError CopyArgsToDevice(void *stream, bool is_async);
   private:
     std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
     std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};
@@ -3194,7 +3195,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, true));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3251,7 +3252,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3872,7 +3873,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, true));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3929,7 +3930,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -4613,7 +4614,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, true));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -4670,7 +4671,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -5311,7 +5312,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, true));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -5368,7 +5369,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
