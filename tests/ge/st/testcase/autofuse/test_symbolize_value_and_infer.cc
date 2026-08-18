@@ -301,4 +301,101 @@ TEST_F(SymbolizeValueST, test_symbolize_value_and_repeat_infer) {
   EXPECT_EQ(symbol_expr3.GetHint(hint), true);
   EXPECT_EQ(hint, 16 * 2);
 }
+
+// ============ Reshape + hint value helpers ============
+ComputeGraphPtr BuildReshapeGraphForTest() {
+  auto data0 = OP_CFG("Data")
+                   .InCnt(1)
+                   .Attr(ATTR_NAME_INDEX, 0)
+                   .TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1, -1, -1})
+                   .OutCnt(1)
+                   .OutNames({"y"})
+                   .Build("data0");
+  auto data1 = OP_CFG("Data")
+                   .InCnt(1)
+                   .Attr(ATTR_NAME_INDEX, 1)
+                   .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                   .OutCnt(1)
+                   .OutNames({"y"})
+                   .Build("data1");
+  auto reshape =
+      OP_CFG("Reshape").TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1}).InCnt(2).OutCnt(1).OutNames({"y"}).Build("reshape");
+  DEF_GRAPH(g1) {
+    CHAIN(NODE(data0)->EDGE(0, 0)->NODE(reshape)->NODE("NetOutput", "NetOutput"));
+    CHAIN(NODE(data1)->EDGE(0, 1)->NODE(reshape));
+  };
+  auto graph = ToComputeGraph(g1);
+  graph->TopologicalSorting();
+  for (auto &node : graph->GetAllNodes()) {
+    if (node->GetType() == DATA) {
+      node->GetOpDesc()->MutableOutputDesc(0)->SetPlacement(kPlacementHost);
+    }
+  }
+  // 设置 Reshape 的 shape 输入为 DT_INT64，与 data1 一致，避免 autofuse 插入 Cast
+  auto reshape_node = graph->FindNode("reshape");
+  if (reshape_node != nullptr) {
+    reshape_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT64);
+    reshape_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT64);
+    reshape_node->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+    reshape_node->GetOpDesc()->AppendIrInput("shape", ge::kIrInputRequired);
+  }
+  return graph;
+}
+
+// 空 graph_inputs data + option → Reshape 符号化推导成功
+TEST_F(SymbolizeValueST, reshape_symbolize_infer_with_input_hint_value) {
+  dlog_setlevel(0, 0, 0);
+  auto graph = BuildReshapeGraphForTest();
+  ASSERT_NE(graph, nullptr);
+  GeTensor tensor0(GeTensorDesc(GeShape({5, 1, 20, 20}), FORMAT_ND, DT_FLOAT16));
+  GeTensor tensor1(GeTensorDesc(GeShape({2}), FORMAT_ND, DT_INT64));
+  GetThreadLocalContext().SetGraphOption({
+      {INPUT_HINT_SHAPE, "0:[5, 1, 20, 20]"},
+      {INPUT_HINT_VALUE, "1:[5, 400]"},
+  });
+  AutofuseOptimize autofuser;
+  ASSERT_EQ(autofuser.Run(graph, {tensor0, tensor1}), ge::GRAPH_SUCCESS);
+
+  auto shape_env = graph->GetAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env, nullptr);
+  ShapeEnvGuarder guarder(shape_env);
+  auto reshape_sym = graph->FindNode("reshape")->GetOpDesc()->MutableOutputDesc(0)->GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(reshape_sym, nullptr);
+  auto out_shape = reshape_sym->symbolic_tensor.GetOriginSymbolShape();
+  ASSERT_EQ(out_shape.GetDimNum(), 2U);
+  int64_t hint = -1;
+  EXPECT_EQ(out_shape.GetDim(0).GetHint(hint), true);
+  EXPECT_EQ(hint, 5);
+  hint = -1;
+  EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
+  EXPECT_EQ(hint, 400);
+}
+
+// graph_inputs 有真实 data → 以真实 data 为准
+TEST_F(SymbolizeValueST, reshape_symbolize_infer_with_real_data) {
+  dlog_setlevel(0, 0, 0);
+  auto graph = BuildReshapeGraphForTest();
+  ASSERT_NE(graph, nullptr);
+  GeTensor tensor0(GeTensorDesc(GeShape({5, 1, 20, 20}), FORMAT_ND, DT_FLOAT16));
+  GeTensor tensor1(GeTensorDesc(GeShape({2}), FORMAT_ND, DT_INT64));
+  vector<int64_t> shape_val = {100, 20};
+  tensor1.SetData(reinterpret_cast<uint8_t *>(shape_val.data()), shape_val.size() * sizeof(int64_t));
+  AutofuseOptimize autofuser;
+  ASSERT_EQ(autofuser.Run(graph, {tensor0, tensor1}), ge::GRAPH_SUCCESS);
+
+  auto shape_env = graph->GetAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env, nullptr);
+  ShapeEnvGuarder guarder(shape_env);
+  auto reshape_sym = graph->FindNode("reshape")->GetOpDesc()->MutableOutputDesc(0)->GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(reshape_sym, nullptr);
+  auto out_shape = reshape_sym->symbolic_tensor.GetOriginSymbolShape();
+  ASSERT_EQ(out_shape.GetDimNum(), 2U);
+  int64_t hint = -1;
+  EXPECT_EQ(out_shape.GetDim(0).GetHint(hint), true);
+  EXPECT_EQ(hint, 100);
+  hint = -1;
+  EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
+  EXPECT_EQ(hint, 20);
+}
+
 }  // namespace ge
