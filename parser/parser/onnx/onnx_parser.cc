@@ -533,8 +533,28 @@ Status OnnxModelParser::SetOperatorInputs() {
         GE_CHECK_NOTNULL(dst_op_desc);
         auto src_op_desc = ge::OpDescUtils::GetOpDescFromOperator(src_op);
         GE_CHECK_NOTNULL(src_op_desc);
-        dst_op.SetInput(dst_op_desc->GetInputNameByIndex(dst_index).c_str(), src_op,
-                        src_op_desc->GetOutputNameByIndex(src_index).c_str());
+        const std::string dst_op_name = ParserUtils::GetOperatorName(dst_op);
+        const std::string dst_op_type = ParserUtils::GetOperatorType(dst_op);
+        const std::string src_op_name = ParserUtils::GetOperatorName(src_op);
+        const std::string src_op_type = ParserUtils::GetOperatorType(src_op);
+        const std::string dst_name = dst_op_desc->GetInputNameByIndex(dst_index);
+        const std::string src_name = src_op_desc->GetOutputNameByIndex(src_index);
+        if (dst_name.empty() || src_name.empty()) {
+          REPORT_INNER_ERR_MSG("E19999",
+                               "Resolve operator IO name failed, tensor[%s], "
+                               "src op[%s:%s], src index[%d], src name[%s], "
+                               "dst op[%s:%s], dst index[%d], dst name[%s].",
+                               in_iter->first.c_str(), src_op_name.c_str(), src_op_type.c_str(), src_index,
+                               src_name.c_str(), dst_op_name.c_str(), dst_op_type.c_str(), dst_index, dst_name.c_str());
+          GELOGE(PARAM_INVALID,
+                 "[Get][IOName] failed, tensor[%s], "
+                 "src op[%s:%s], src index[%d], src name[%s], "
+                 "dst op[%s:%s], dst index[%d], dst name[%s].",
+                 in_iter->first.c_str(), src_op_name.c_str(), src_op_type.c_str(), src_index, src_name.c_str(),
+                 dst_op_name.c_str(), dst_op_type.c_str(), dst_index, dst_name.c_str());
+          return PARAM_INVALID;
+        }
+        dst_op.SetInput(dst_name.c_str(), src_op, src_name.c_str());
       }
     }
   }
