@@ -41,13 +41,21 @@ cd ../output
 ```
 
 ## 运行样例
-下文中numa_config.json文件配置参考[numa_config字段说明及样例](https://www.hiascend.com/document/detail/zh/canncommercial/800/developmentguide/graph/dataflowcdevg/dfdevc_23_0031.html)
+numa_config.json文件用于配置dflow运行所需的设备资源信息，可使用tools目录下的脚本自动生成单机配置，如需自定义可参考[numa_config字段说明及样例](../../../docs/zh/user_guides/dflow/dflow_dev/cpp/appendices.md#numa_configjson配置)：
+
+```bash
+# 生成单机numa_config.json（默认自动探测芯片型号和设备数量，使用所有设备）
+# 也可指定设备列表：python3 ../../tools/create_numa_config.py --device-list 0,1,2
+python3 ../../tools/create_numa_config.py
+# 生成后会在当前目录下生成numa_config.json
+```
+
 ```bash
 # 可选
 export ASCEND_GLOBAL_LOG_LEVEL=3       #0 debug 1 info 2 warn 3 error 不设置默认error级别
 # 必选
 source {HOME}/Ascend/cann/set_env.sh # "{HOME}/Ascend"为CANN软件包安装目录，请根据实际安装路径进行替换。
-export RESOURCE_CONFIG_PATH=xxx/xxx/xxx/numa_config.json
+export RESOURCE_CONFIG_PATH=./numa_config.json # 请根据实际生成的文件路径指定
 
 ./sample_base
 ./sample_timebatch
