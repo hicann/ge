@@ -28,7 +28,7 @@
 #include "graph/utils/node_utils.h"
 #include "iterator_fusion_pass.h"
 #include "omg/parser/parser_factory.h"
-#include "parser/common/model_saver.h"
+#include "parser/common/parser_model_saver.h"
 #include "parser/common/parser_fp16_t.h"
 #include "parser/common/util.h"
 #include "parser/tensorflow/tensorflow_util.h"

@@ -29,7 +29,7 @@
 #include "base/err_msg.h"
 #include "parser/common/op_parser_factory.h"
 #include "parser/common/acl_graph_parser_util.h"
-#include "parser/common/model_saver.h"
+#include "parser/common/parser_model_saver.h"
 #include "parser/common/parser_utils.h"
 #include "parser/common/prototype_pass_manager.h"
 #include "parser/onnx/onnx_custom_parser_adapter.h"

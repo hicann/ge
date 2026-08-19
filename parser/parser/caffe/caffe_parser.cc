@@ -44,7 +44,7 @@
 #include "parser/common/op_parser_factory.h"
 #include "parser/common/prototype_pass_manager.h"
 #include "framework/omg/parser/parser_types.h"
-#include "parser/common/model_saver.h"
+#include "parser/common/parser_model_saver.h"
 #include "parser/common/acl_graph_parser_util.h"
 #include "parser/common/proto_file_parser.h"
 #include "register/op_registry.h"
