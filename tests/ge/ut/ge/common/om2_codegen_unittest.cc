@@ -2812,7 +2812,7 @@ TEST_F(Om2CodegenUt, LoadAndRunFileCodeGenerator_PhaseModelExecute_CoverBranches
   generator.BuildRunBodyPhaseModelExecute(async_body, exe_stream, true, prof_info, exec_begin, true);
   EXPECT_FALSE(async_body.empty());
   const auto async_output = EmitBodyItems(ast, async_body);
-  ExpectContainsAll(async_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, true));\n",
+  ExpectContainsAll(async_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));\n",
                                    "OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));\n"});
 
   std::vector<BodyItem> sync_body;

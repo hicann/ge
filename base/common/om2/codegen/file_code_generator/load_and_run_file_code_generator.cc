@@ -272,9 +272,9 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
   body.push_back(ast_.BlankLine());
   if (is_need_va2pa) {
     if (is_async) {
-      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(trace_stream, is_async)));
+      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(trace_stream, false)));
     } else {
-      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, is_async)));
+      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, false)));
     }
   } else {
     body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, is_async)));
