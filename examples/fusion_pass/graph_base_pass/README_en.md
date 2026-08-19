@@ -11,6 +11,7 @@ This directory provides examples for implementing custom fusion passes by inheri
 | Modify Conv operator data format custom pass example (Python version) | [README](3_modify_conv_data_format_pass/python/README.md) |
 | MMOE network MatMul fusion (Pack+BatchMatMulV2+Split) custom pass example | [README](4_mmoe_bmm_split_pass/cpp/README_en.md) |
 | MMOE network first-layer MatMul fusion (Concat+MatMul+SplitV) custom pass example | [README](5_mmoe_matmul_pass/cpp/README_en.md) |
+| Custom pass example for Data+Transpose fusion (NCHW→NHWC) and ExtendConv2D+Transpose fusion | [README](6_transpose_fusion_pass/cpp/README.md) |
 
 ## Development Guide
 

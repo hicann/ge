@@ -40,14 +40,14 @@ input.0=FORMAT_NCHW
 output.0=FORMAT_NHWC
 
 [matmul_custom]
-input.0=FORMAT_FRACTAL_NZ
-input.1=FORMAT_FRACTAL_NZ
-output.0=FORMAT_FRACTAL_NZ
+input.0=FORMAT_ND
+input.1=FORMAT_ND
+output.0=FORMAT_ND
 ```
 
 - `[NodeName]` starts a section; `NodeName` must match the node name in the graph
 - `input.<index>=<format>` or `output.<index>=<format>` configures the format of a specific port
-- Format values follow the `ge::Format` enum (e.g., `FORMAT_ND`, `FORMAT_NCHW`, `FORMAT_NHWC`)
+- Format values are limited to: `FORMAT_ND`, `FORMAT_NCHW`, `FORMAT_NHWC`
 - Blank lines and lines starting with `#` are ignored
 
 ### Pass Execution Flow
@@ -68,6 +68,8 @@ Run()
   │                       └─ On failure → return false (triggers full graph rollback)
   └─ 4. If any node failed:
          └─ Full rollback *graph = origin_graph, return FAILED
+  └─ 5. CheckFormatContinuity()    Verify format continuity between configured nodes and their neighbors
+         └─ On failure → Full rollback *graph = origin_graph, return FAILED
 ```
 
 ### Rollback Mechanism
@@ -75,7 +77,7 @@ Run()
 | Level | Trigger | Mechanism |
 |-------|---------|-----------|
 | **Node-level rollback** | CheckOpSupported failed / format modification failed | `RollbackFormats` + `RollbackNetOutput` restore the current node and associated NetOutput format and shape |
-| **Full graph rollback** | Any node's `ApplyFormatAndCheck` returned false (including Transpose removal failure) | `*graph = origin_graph` restores all modifications |
+| **Full graph rollback** | Any node's `ApplyFormatAndCheck` returned false (including Transpose removal failure), or `CheckFormatContinuity` check failed | `*graph = origin_graph` restores all modifications |
 
 ### Known Limitations
 
@@ -115,6 +117,7 @@ Run()
    - Validate the modified format combination via `GeUtils::CheckNodeSupportOnAicore` (Data nodes skip validation).
    - On validation failure, roll back the current node and associated NetOutput changes; on Transpose removal failure, trigger full graph rollback.
    - After successful validation, detect and remove Transpose nodes that have become redundant due to the format change.
+   - After all nodes are processed, call `CheckFormatContinuity` to verify format continuity between configured nodes and their connected neighbors; rollback the entire graph if discontinuity is detected.
 3. Register `GraphNodeSettedFormatPass` as a custom fusion pass at the `kAfterOriginGraphOptimize` stage.
 
 ## Compilation

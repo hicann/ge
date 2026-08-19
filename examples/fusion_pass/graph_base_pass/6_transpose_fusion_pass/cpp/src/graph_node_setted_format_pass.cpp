@@ -648,6 +648,8 @@ bool RemoveTransposeAndRelink(const GraphPtr &graph, const GNodePtr &transpose_n
     }
   }
 
+  AscendString name;
+  std::string name_str = (transpose_node->GetName(name) == GRAPH_SUCCESS) ? name.GetString() : "unknown";
   // 移除 Transpose 节点
   if (graph->RemoveNode(*transpose_node) != GRAPH_SUCCESS) {
     std::cout << "[GraphNodeSettedFormatPass] Remove transpose node failed" << std::endl;
@@ -663,9 +665,8 @@ bool RemoveTransposeAndRelink(const GraphPtr &graph, const GNodePtr &transpose_n
     }
   }
 
-  AscendString name;
-  std::string name_str = (transpose_node->GetName(name) == GRAPH_SUCCESS) ? name.GetString() : "unknown";
   std::cout << "[GraphNodeSettedFormatPass] Removed redundant Transpose[" << name_str << "]" << std::endl;
+
   return true;
 }
 
