@@ -2203,7 +2203,7 @@ int32_t OutputErrMessageToStdout() {
   auto msg_ptr = error_message::GetErrMgrErrorMessage();
   if (msg_ptr == nullptr) {
     std::stringstream err_stream;
-    err_stream << "E19999: Inner Error!" << std::endl;
+    err_stream << "E19999: Internal Error!" << std::endl;
     err_stream << "        " << "An unknown error occurred. Please check the log." << std::endl;
     std::cout << err_stream.str() << std::endl;
   } else {
