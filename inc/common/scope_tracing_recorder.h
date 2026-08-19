@@ -39,7 +39,7 @@ void ReportTracingRecordDuration(const ge::TracingModule stage);
 #define CONCAT_(x, y) x##y
 // 记录函数级打点
 #define TRACING_PERF_SCOPE(module, ...) \
-  ge::ScopeTracingRecorder scope##__COUNTER__(module, std::vector<std::string>{__VA_ARGS__})
+  ge::ScopeTracingRecorder scope##__COUNTER__((module), std::vector<std::string>{__VA_ARGS__})
 
 // 记录代码片段耗时,START和END需要成对使用
 #define TRACING_DURATION_START(tag) const uint64_t CONCAT_(startUsec, tag) = CurrentTimeNanos()

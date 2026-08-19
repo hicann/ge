@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACL_UTILS_HASH_UTILS_H
-#define ACL_UTILS_HASH_UTILS_H
+#ifndef ACL_UTILS_ACL_HASH_UTILS_H
+#define ACL_UTILS_ACL_HASH_UTILS_H
 #include "acl/acl_base.h"
 #include "utils/acl_string_utils.h"
 #include "utils/acl_attr_utils.h"
@@ -118,4 +118,4 @@ bool CheckModelAndAttrMatchDynamic(const AclOp &aclOp, const aclopAttr *const op
 }  // namespace hash_utils
 }  // namespace acl
 
-#endif  // ACL_UTILS_HASH_UTILS_H
+#endif  // ACL_UTILS_ACL_HASH_UTILS_H

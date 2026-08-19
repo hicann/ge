@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_REGISTER_OP_EXTRA_GENTASK_REGISTRY_H
-#define INC_REGISTER_OP_EXTRA_GENTASK_REGISTRY_H
+#ifndef INC_GRAPH_METADEF_REGISTER_OP_EXT_GENTASK_REGISTRY_H
+#define INC_GRAPH_METADEF_REGISTER_OP_EXT_GENTASK_REGISTRY_H
 #include <string>
 #include <functional>
 #include <vector>
@@ -68,19 +68,20 @@ class ExtTaskTypeRegister {
 #define REGISTER_NODE_EXT_GENTASK_COUNTER2(type, func, counter)                         \
   static const fe::OpExtGenTaskRegister g_reg_op_ext_gentask_##counter ATTRIBUTE_USED = \
       fe::OpExtGenTaskRegister(type, func)
-#define REGISTER_NODE_EXT_GENTASK_COUNTER(type, func, counter) REGISTER_NODE_EXT_GENTASK_COUNTER2(type, func, counter)
-#define REGISTER_NODE_EXT_GENTASK(type, func) REGISTER_NODE_EXT_GENTASK_COUNTER(type, func, __COUNTER__)
+#define REGISTER_NODE_EXT_GENTASK_COUNTER(type, func, counter) \
+  REGISTER_NODE_EXT_GENTASK_COUNTER2((type), (func), counter)
+#define REGISTER_NODE_EXT_GENTASK(type, func) REGISTER_NODE_EXT_GENTASK_COUNTER((type), (func), __COUNTER__)
 
 #define REGISTER_SK_EXT_GENTASK_COUNTER2(type, func, counter)                           \
   static const fe::SKExtGenTaskRegister g_reg_op_ext_gentask_##counter ATTRIBUTE_USED = \
       fe::SKExtGenTaskRegister(type, func)
-#define REGISTER_SK_EXT_GENTASK_COUNTER(type, func, counter) REGISTER_SK_EXT_GENTASK_COUNTER2(type, func, counter)
-#define REGISTER_SK_EXT_GENTASK(type, func) REGISTER_SK_EXT_GENTASK_COUNTER(type, func, __COUNTER__)
+#define REGISTER_SK_EXT_GENTASK_COUNTER(type, func, counter) REGISTER_SK_EXT_GENTASK_COUNTER2((type), (func), counter)
+#define REGISTER_SK_EXT_GENTASK(type, func) REGISTER_SK_EXT_GENTASK_COUNTER((type), (func), __COUNTER__)
 
 #define REGISTER_EXT_TASK_TYPE_COUNTER2(type, task_type, counter)                      \
   static const fe::ExtTaskTypeRegister g_reg_op_ext_gentask_##counter ATTRIBUTE_USED = \
       fe::ExtTaskTypeRegister(#type, task_type)
 #define REGISTER_EXT_TASK_TYPE_COUNTER(type, task_type, counter) \
   REGISTER_EXT_TASK_TYPE_COUNTER2(type, task_type, counter)
-#define REGISTER_EXT_TASK_TYPE(type, task_type) REGISTER_EXT_TASK_TYPE_COUNTER(type, task_type, __COUNTER__)
-#endif  // INC_REGISTER_OP_EXTRA_GENTASK_REGISTRY_H
+#define REGISTER_EXT_TASK_TYPE(type, task_type) REGISTER_EXT_TASK_TYPE_COUNTER(type, (task_type), __COUNTER__)
+#endif  // INC_GRAPH_METADEF_REGISTER_OP_EXT_GENTASK_REGISTRY_H

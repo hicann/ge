@@ -197,6 +197,9 @@ target_link_libraries(graph_base
 )
 
 target_link_libraries(graph_base PRIVATE ascend_protobuf error_manager)
+if(TARGET third_party_json)
+    add_dependencies(graph_base third_party_json)
+endif()
 target_compile_options(graph_base PRIVATE ${OPTIMIZE_OPTION} -DNO_METADEF_ABI_COMPATIABLE)
 
 ######### libgraph_base.a #############

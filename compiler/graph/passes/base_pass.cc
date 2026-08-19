@@ -13,7 +13,6 @@
 #include <queue>
 #include <unordered_set>
 
-#include "common/debug/log.h"
 #include "common/checker.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/type_utils_inner.h"

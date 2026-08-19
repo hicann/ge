@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_EXTERNAL_ACL_ACL_BASE_MODEL_H_
-#define INC_EXTERNAL_ACL_ACL_BASE_MODEL_H_
+#ifndef INC_EXTERNAL_ACL_ACL_BASE_MDL_H_
+#define INC_EXTERNAL_ACL_ACL_BASE_MDL_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -352,4 +352,4 @@ ACL_FUNC_VISIBILITY aclError aclSetTensorPlaceMent(aclTensorDesc *desc, aclMemTy
 }
 #endif
 
-#endif  // INC_EXTERNAL_ACL_ACL_BASE_MODEL_H_
+#endif  // INC_EXTERNAL_ACL_ACL_BASE_MDL_H_

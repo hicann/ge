@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CCE_RUNTIME_ACL_RT_MODEL_H
-#define CCE_RUNTIME_ACL_RT_MODEL_H
+#ifndef FRAMEWORK_COMMON_RUNTIME_MODEL_GE_H
+#define FRAMEWORK_COMMON_RUNTIME_MODEL_GE_H
 
 typedef enum acltagModelTaskType {
   ACL_RT_MODEL_TASK_KERNEL = 0,
@@ -111,5 +111,5 @@ typedef aclrtModelTaskType_t rtModelTaskType_t;
 #define RT_MODEL_TASK_MEM_EVENT_RECORD ACL_RT_MODEL_TASK_MEM_EVENT_RECORD
 #define RT_MODEL_TASK_MEM_EVENT_WAIT ACL_RT_MODEL_TASK_MEM_EVENT_WAIT
 #define RT_MODEL_TASK_FUSION_KERNEL (ACL_RT_MODEL_TASK_MEM_EVENT_WAIT + 1)
-#endif
-#endif
+#endif  // CCE_RUNTIME_RT_MODEL_H
+#endif  // FRAMEWORK_COMMON_RUNTIME_MODEL_GE_H

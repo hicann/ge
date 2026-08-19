@@ -18,8 +18,6 @@
 #include "proto/af_ir.pb.h"
 #endif
 
-#include "graph/any_value.h"
-
 namespace af {
 using ge::AnyValue;
 using ge::GetTypeId;

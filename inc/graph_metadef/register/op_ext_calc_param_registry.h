@@ -47,5 +47,5 @@ class OpExtGenCalcParamRegister {
       fe::OpExtGenCalcParamRegister(type, func)
 #define REGISTER_NODE_EXT_CALC_PARAM_COUNTER(type, func, counter) \
   REGISTER_NODE_EXT_CALC_PARAM_COUNTER2(type, func, counter)
-#define REGISTER_NODE_EXT_CALC_PARAM(type, func) REGISTER_NODE_EXT_CALC_PARAM_COUNTER(type, func, __COUNTER__)
+#define REGISTER_NODE_EXT_CALC_PARAM(type, func) REGISTER_NODE_EXT_CALC_PARAM_COUNTER((type), (func), __COUNTER__)
 #endif  // INC_REGISTER_OP_EXT_CALC_PARAM_REGISTRY_H_

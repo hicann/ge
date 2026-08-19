@@ -41,12 +41,12 @@ std::mutex aclLoadOpsProtoMutex;
 }  // namespace
 
 struct aclopHandle {
-  aclopHandle() : opHandle(nullptr) {}
+  aclopHandle() {}
   ~aclopHandle() {
     ACL_DELETE_AND_SET_NULL(opHandle);
   }
 
-  acl::OpHandle *opHandle;
+  acl::OpHandle *opHandle = nullptr;
 };
 
 aclError aclopSetModelDirImpl(const char *modelDir) {

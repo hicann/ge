@@ -43,7 +43,7 @@ class ExternalAllocatorDesc {
         freeFunc(freeFunction),
         allocAdviseFunc(allocAdviseFunction),
         getAddrFromBlockFunc(getAddrFromBlockFunction) {}
-  ~ExternalAllocatorDesc() {}
+  ~ExternalAllocatorDesc() = default;
   bool operator==(const ExternalAllocatorDesc &allocatorDesc) const {
     return obj == allocatorDesc.obj && allocFunc == allocatorDesc.allocFunc && freeFunc == allocatorDesc.freeFunc &&
            allocAdviseFunc == allocatorDesc.allocAdviseFunc &&

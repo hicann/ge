@@ -17,7 +17,6 @@
 
 #include "common/profiling/profiling_properties.h"
 #include "framework/common/ge_inner_error_codes.h"
-#include "aprof_pub.h"
 
 struct MsprofOptions {
   char jobId[2048];

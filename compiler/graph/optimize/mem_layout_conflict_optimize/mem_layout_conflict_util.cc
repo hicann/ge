@@ -1467,7 +1467,8 @@ void MemLayoutConflictUtil::ConstructSingleNodeSymbolTable(const std::string &in
                                                            AnchorToSymbol &out_anchor_to_symbol,
                                                            SymbolToAnchors &out_symbol_to_anchors) {
   // 直接从 symbol_to_anchors 精确提取，不遍历整个 anchor_to_symbol
-  auto copy_symbol_anchors = [&](const std::string &symbol, const std::string &target_symbol) {
+  auto copy_symbol_anchors = [&orig_symbol_to_anchors, &orig_anchor_to_symbol, &out_anchor_to_symbol,
+                              &out_symbol_to_anchors](const std::string &symbol, const std::string &target_symbol) {
     auto sym_iter = orig_symbol_to_anchors.find(symbol);
     if (sym_iter == orig_symbol_to_anchors.end()) {
       return;

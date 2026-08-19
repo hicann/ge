@@ -25,7 +25,7 @@
 namespace acl {
 aclError AippScfSizeCheck(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex);
 uint64_t GetSrcImageSize(const aclmdlAIPP *const aippParmsSet);
-aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &socVersion);
+aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &npuArch);
 aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex, const std::string &socVersion,
                          int32_t &aippOutputW, int32_t &aippOutputH);
 }  // namespace acl

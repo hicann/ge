@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INC_EXTERNAL_REGISTER_KERNEL_REGISTER_IMPL_H_
-#define INC_EXTERNAL_REGISTER_KERNEL_REGISTER_IMPL_H_
+#ifndef INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_IMPL_H_
+#define INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_IMPL_H_
 #include <unordered_map>
 #include <string>
 
@@ -30,4 +30,4 @@ class KernelRegistryImpl : public KernelRegistry {
 };
 }  // namespace gert
 
-#endif  // INC_EXTERNAL_REGISTER_KERNEL_REGISTER_IMPL_H_
+#endif  // INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_IMPL_H_
