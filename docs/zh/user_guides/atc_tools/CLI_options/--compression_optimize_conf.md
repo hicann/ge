@@ -92,11 +92,13 @@ calibration:
 
   - config\_file：可选配置，训练后量化简易配置文件，该文件配置示例以及参数解释请参见[简易配置文件](../references/quantization_simple_config.md)。
 
+  <!-- npu="A3,910b,910,310p,310b" id11 -->
   - infer\_soc：必选配置，进行训练后量化校准推理时，所使用的芯片名称，查询方法请参见[参数取值](../CLI_options/--soc_version.md)。
 
   - infer\_aicore\_num：可选配置，进行训练后量化校准推理时，使用的AI Core数目，查询方法请参见[--aicore\_num](--aicore_num.md)。
 
   - infer\_device\_id：可选配置，进行训练后量化校准推理时所使用AI处理器设备的ID，默认为0。
+  <!-- end id11 -->
 
   <!-- npu="310b" id10 -->
   - infer\_ip：Atlas 200I/500 A2 推理产品Ascend RC场景必选，NCS软件包所在服务器IP地址。
