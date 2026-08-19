@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "framework/common/ge_visibility.h"
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_common_api_types.h"
 
 extern "C" VISIBILITY_EXPORT ge::Status GetRegisteredIrDefFromGraph(
     const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
