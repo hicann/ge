@@ -446,6 +446,8 @@ target_include_directories(ge_compiler SYSTEM PRIVATE
     ${TOP_DIR}/metadef/inc
     ${TOP_DIR}/runtime/include/external/
     ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/graph-autofusion/super_kernel/include
+    ${CANN_TOP_DIR}/graph-autofusion/super_kernel/include
 )
 
 target_link_options(ge_compiler PRIVATE

@@ -30,6 +30,7 @@
 #include "framework/memory/memory_api.h"
 #include "stub/gert_runtime_stub.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 namespace ge {
 namespace {
@@ -40,7 +41,17 @@ bool need_sk_append_ws = false;
 
 class GraphBuilderTest : public testing::Test {
  protected:
+  class MockMmpaDlOpenFail : public MmpaStubApiGe {
+   public:
+    void *DlOpen(const char *file_name, int32_t mode) override {
+      if (std::string("libascendsk.so") == file_name) {
+        return nullptr;
+      }
+      return MmpaStubApiGe::DlOpen(file_name, mode);
+    }
+  };
   void SetUp() override {
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDlOpenFail>());
     InitGeLib();
   }
   void TearDown() override {
