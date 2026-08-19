@@ -20,19 +20,12 @@
 ## 函数原型
 
 > [!NOTE]说明
->数据类型为string的接口后续版本会废弃，建议使用数据类型为非string的接口。
+> 数据类型为string的接口后续版本会废弃，建议使用数据类型为非string的接口。
 
 ```c++
-
-> [!NOTE]说明
->数据类型为string的接口后续版本会废弃，建议使用数据类型为非string的接口。
-
-```c++
-
 template<typename T, typename DT>
 graphStatus GetValue(DT &val) const
 graphStatus GetValue(AscendString &val)
-
 ```
 
 ## 参数说明

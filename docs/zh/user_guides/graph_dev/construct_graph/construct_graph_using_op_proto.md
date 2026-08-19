@@ -24,7 +24,7 @@
     #include "ops_proto_transformer.h"
     ```
 
-    - 对于内置算子，定义内置算子类型，可使用内置算子类型相关的接口，头文件所在路径为“${INSTALL_DIR}/opp/built-in/op_graph/inc/”。
+    - 对于内置算子，定义内置算子类型，可使用内置算子类型相关的接口，头文件所在路径为`${INSTALL_DIR}/opp/built-in/op_graph/inc/`。
 
         开发时必须包含ops_proto_legacy.h头文件。此外，请根据具体算子按需包含对应的可选头文件。例如，若使用SoftmaxV2算子，则需额外包含 ops_proto_nn.h。
 
@@ -33,7 +33,7 @@
         #include "ops_proto_nn.h"
         ```
 
-    - 对于自定义算子，需要包括自定义算子的原型定义头文件，头文件所在路径为“$\{INSTALL\_DIR\}/opp/vendors/<vendor\_name\>/op\_proto/inc”。
+    - 对于自定义算子，需要包括自定义算子的原型定义头文件，头文件所在路径为`${INSTALL_DIR}/opp/vendors/<vendor_name>/op_proto/inc`。
 
     其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 

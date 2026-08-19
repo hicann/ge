@@ -314,9 +314,9 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 完成上述自定义Pass后，本节简单介绍如何把改图函数编译成动态库插件方式，以便注册的Pass在图编译阶段被框架调用。详细使用说明请参见[样例使用指导](https://gitcode.com/cann/ge/tree/master/examples/fusion_pass/1_fuse_matmul_add_pass)。
 
 1. 把[开发示例](#开发示例)中的改图函数编译成仅以".so"结尾的动态库文件。
-2. 编译成功后，执行**make install**命令，将上述".so"动态库文件安装到$\{INSTALL\_DIR\}/opp/vendors/_xxx_/custom\_fusion\_passes/目录下。（支持设置软链接的方式；".so"文件对执行用户，需要有可读权限）
+2. 编译成功后，执行**make install**命令，将上述".so"动态库文件安装到`${INSTALL_DIR}/opp/vendors/xxx/custom_fusion_passes/`目录下。（支持设置软链接的方式；".so"文件对执行用户，需要有可读权限）
 
-    多个"$\{INSTALL\_DIR\}/opp/vendors/_xxx_"目录按照字母序排序后遍历寻找"custom\_fusion\_passes/"子目录，单个子目录内的".so"按照字母序加载，非".so"结尾的文件在加载时跳过。
+    多个`${INSTALL_DIR}/opp/vendors/xxx`目录按照字母序排序后遍历寻找"custom\_fusion\_passes/"子目录，单个子目录内的".so"按照字母序加载，非".so"结尾的文件在加载时跳过。
 
     - 其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
     - _xxx_：有且仅有一层自定义目录。

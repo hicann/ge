@@ -24,7 +24,7 @@
 
 1. 如果模型编译前，通过**TUNE\_BANK\_PATH**环境变量指定了子图调优自定义知识库路径，模型编译时又通过MDL\_BANK\_PATH参数加载了自定义知识库路径，该场景下以MDL\_BANK\_PATH参数加载的路径为准，**TUNE\_BANK\_PATH**环境变量设置的路径不生效。
 2. MDL\_BANK\_PATH参数和环境变量指定路径都不生效或无可用自定义知识库，则使用默认自定义知识库路径。
-3. 如果上述路径下都无可用的自定义知识库，则会查找子图调优内置知识库，该路径为：$\{INSTALL\_DIR\}/_<arch\>_-linux/data/fusion\_strategy/built-in，<arch\>表示具体操作系统架构。
+3. 如果上述路径下都无可用的自定义知识库，则会查找子图调优内置知识库，该路径为：`${INSTALL_DIR}/<arch>-linux/data/fusion_strategy/built-in`，<arch\>表示具体操作系统架构。
 
 **产品支持情况：**
 
