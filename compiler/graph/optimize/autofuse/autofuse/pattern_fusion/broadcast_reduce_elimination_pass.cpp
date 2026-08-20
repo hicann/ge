@@ -14,6 +14,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
+#include "graph/attribute_group/attr_group_symbolic_desc.h"
 #include "operator_reg.h"
 #include "common/checker.h"
 #include "debug/ge_util.h"
@@ -25,6 +26,7 @@ constexpr auto kOpTypeBroadcastTo = "BroadcastTo";
 constexpr auto kOpTypeFill = "Fill";
 constexpr auto kOpTypeTile = "Tile";
 constexpr auto kOpTypeTileD = "TileD";
+constexpr auto kOpTypeReshape = "Reshape";
 
 // 归约操作类型（仅支持直接消除的操作，避免数值精度问题）
 // 注意：ReduceSum 和 ReduceProd 不支持，因为：
@@ -34,7 +36,6 @@ const std::unordered_set<std::string> kReduceOpTypes = {"ReduceMax",  "ReduceMin
                                                         "ReduceMaxD", "ReduceMinD", "ReduceMeanD"};
 
 constexpr auto kAttrNameAxes = "axes";
-constexpr auto kAttrNameShape = "shape";
 constexpr auto kAttrNameMultiples = "multiples";
 constexpr auto kAttrNameKeepDims = "keep_dims";
 
@@ -328,22 +329,47 @@ Status ReplaceAndCleanup(const ComputeGraphPtr &graph, const NodePtr &brc_node, 
 // 创建 Reshape 节点
 NodePtr CreateReshapeNode(const ComputeGraphPtr &graph, const NodePtr &input, const std::vector<int64_t> &target_shape,
                           const std::string &name) {
-  auto op_desc = std::make_shared<OpDesc>(name, "Reshape");
-  GE_ASSERT_NOTNULL(op_desc);
-
   GeTensorDesc input_desc = input->GetOpDesc()->GetOutputDesc(0);
-  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddInputDesc(input_desc));
-
-  // 设置输出 shape
   GeTensorDesc output_desc(input_desc);
   output_desc.SetShape(GeShape(target_shape));
-  GE_ASSERT_GRAPH_SUCCESS(op_desc->AddOutputDesc(output_desc));
+  output_desc.SetOriginShape(GeShape(target_shape));
 
-  // 设置 shape 属性
-  GE_ASSERT_TRUE(AttrUtils::SetListInt(op_desc, kAttrNameShape, target_shape));
+  // 输入描述可能携带原始张量的符号化 shape。替换节点是真实的 Reshape，
+  // 因此符号化 shape 的 rank 必须与目标 shape 以及静态 GeShape 保持一致。
+  auto symbolic_attr = output_desc.GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  GE_ASSERT_NOTNULL(symbolic_attr);
+  std::vector<Expression> symbolic_shape;
+  symbolic_shape.reserve(target_shape.size());
+  for (const auto dim : target_shape) {
+    symbolic_shape.emplace_back(Symbol(dim));
+  }
+  symbolic_attr->symbolic_tensor.MutableOriginSymbolShape().MutableDims() = symbolic_shape;
 
-  auto reshape_node = graph->AddNode(op_desc);
+  // Reshape 有两个输入：数据 x 和目标 shape。创建目标 shape 常量并连接到第二个输入。
+  const auto shape_tensor = ComGraphMakeShared<GeTensor>();
+  GE_ASSERT_NOTNULL(shape_tensor);
+  auto &shape_desc = shape_tensor->MutableTensorDesc();
+  const GeShape shape_tensor_shape({static_cast<int64_t>(target_shape.size())});
+  shape_desc.Update(shape_tensor_shape, FORMAT_ND, DT_INT64);
+  shape_desc.SetOriginShape(shape_tensor_shape);
+  if (!target_shape.empty()) {
+    GE_ASSERT_GRAPH_SUCCESS(shape_tensor->SetData(reinterpret_cast<const uint8_t *>(target_shape.data()),
+                                                  target_shape.size() * sizeof(int64_t)));
+  }
+  const auto shape_op_desc = OpDescUtils::CreateConstOpZeroCopy(shape_tensor);
+  GE_ASSERT_NOTNULL(shape_op_desc);
+  const auto shape_node = graph->AddNode(shape_op_desc);
+  GE_ASSERT_NOTNULL(shape_node);
+
+  const auto reshape_op_desc = ComGraphMakeShared<OpDesc>(name, kOpTypeReshape);
+  GE_ASSERT_NOTNULL(reshape_op_desc);
+  GE_ASSERT_GRAPH_SUCCESS(reshape_op_desc->AddInputDesc("x", input_desc));
+  GE_ASSERT_GRAPH_SUCCESS(reshape_op_desc->AddInputDesc("shape", shape_desc));
+  GE_ASSERT_GRAPH_SUCCESS(reshape_op_desc->AddOutputDesc("y", output_desc));
+  auto reshape_node = graph->AddNode(reshape_op_desc);
   GE_ASSERT_NOTNULL(reshape_node);
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(shape_node->GetOutDataAnchor(0), reshape_node->GetInDataAnchor(1)),
+                          "Failed to add shape edge to Reshape node %s", reshape_node->GetNamePtr());
   GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(input->GetOutDataAnchor(0), reshape_node->GetInDataAnchor(0)),
                           "Failed to add edge to Reshape node %s", reshape_node->GetNamePtr());
 

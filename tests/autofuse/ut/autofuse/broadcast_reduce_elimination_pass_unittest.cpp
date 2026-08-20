@@ -23,6 +23,9 @@
 #include "graph_utils_ex.h"
 #include "op_creator_register.h"
 #include "pattern_fusion/broadcast_reduce_elimination_pass.h"
+#include "graph/attribute_group/attr_group_symbolic_desc.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/node_utils.h"
 #include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
@@ -77,6 +80,50 @@ class BroadcastReduceEliminationPassTest : public testing::Test {
     EXPECT_EQ(broadcast_node->GetOpDesc()->UpdateInputDesc(0, input_desc), GRAPH_SUCCESS);
     return {compute_graph, data.GetEsbTensor()->GetProducer(), broadcast_node, reduce.GetEsbTensor()->GetProducer(),
             relu.GetEsbTensor()->GetProducer()};
+  }
+
+  static void CheckReshapeResult(const ComputeGraphPtr &graph, const std::vector<int64_t> &expected_shape) {
+    const auto reshape_node = graph->FindNode("data_reduce_max_reshape");
+    ASSERT_NE(reshape_node, nullptr);
+    EXPECT_EQ(reshape_node->GetType(), "Reshape");
+    ASSERT_EQ(reshape_node->GetAllInDataAnchorsSize(), 2U);
+
+    const auto shape_node = NodeUtils::GetInDataNodeByIndex(*reshape_node, 1);
+    ASSERT_NE(shape_node, nullptr);
+    EXPECT_EQ(shape_node->GetType(), CONSTANT);
+    ConstGeTensorPtr shape_tensor;
+    ASSERT_TRUE(AttrUtils::GetTensor(shape_node->GetOpDesc(), ATTR_NAME_WEIGHTS, shape_tensor));
+    ASSERT_NE(shape_tensor, nullptr);
+    ASSERT_EQ(shape_tensor->GetTensorDesc().GetDataType(), DT_INT64);
+    ASSERT_EQ(shape_tensor->GetTensorDesc().GetShape().GetDims(),
+              std::vector<int64_t>({static_cast<int64_t>(expected_shape.size())}));
+    ASSERT_EQ(shape_tensor->GetData().GetSize(), expected_shape.size() * sizeof(int64_t));
+    ASSERT_NE(shape_tensor->GetData().GetData(), nullptr);
+    const auto shape_data = reinterpret_cast<const int64_t *>(shape_tensor->GetData().GetData());
+    for (size_t i = 0; i < expected_shape.size(); ++i) {
+      EXPECT_EQ(shape_data[i], expected_shape[i]);
+    }
+
+    const auto &output_desc = reshape_node->GetOpDesc()->GetOutputDesc(0);
+    EXPECT_EQ(output_desc.GetShape().GetDims(), expected_shape);
+    EXPECT_EQ(output_desc.GetOriginShape().GetDims(), expected_shape);
+    const auto symbolic_attr = output_desc.GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(symbolic_attr, nullptr);
+    const auto &symbolic_dims = symbolic_attr->symbolic_tensor.GetOriginSymbolShape().GetDims();
+    ASSERT_EQ(symbolic_dims.size(), expected_shape.size());
+    for (size_t i = 0; i < expected_shape.size(); ++i) {
+      EXPECT_EQ(symbolic_dims[i], Symbol(expected_shape[i]));
+    }
+
+    const auto data_node = graph->FindNode("data");
+    const auto relu_node = graph->FindNode("relu");
+    ASSERT_NE(data_node, nullptr);
+    ASSERT_NE(relu_node, nullptr);
+    EXPECT_EQ(NodeUtils::GetInDataNodeByIndex(*reshape_node, 0), data_node);
+    const auto reshape_out_anchor = reshape_node->GetOutDataAnchor(0);
+    const auto relu_in_anchor = relu_node->GetInDataAnchor(0);
+    EXPECT_EQ(reshape_out_anchor->GetPeerInDataAnchors().size(), 1);
+    EXPECT_EQ(*reshape_out_anchor->GetPeerInDataAnchors().begin(), relu_in_anchor);
   }
 
   std::unique_ptr<es::Graph> es_graph_;
@@ -299,21 +346,7 @@ TEST_F(BroadcastReduceEliminationPassTest, BroadcastReduceMax_EliminateWithSquee
   EXPECT_EQ(graph->FindNode("broadcast"), nullptr);
   EXPECT_EQ(graph->FindNode("reduce_max"), nullptr);
 
-  // 验证创建了 Reshape 节点
-  auto reshape_node = graph->FindNode("data_reduce_max_reshape");
-  ASSERT_NE(reshape_node, nullptr);
-  EXPECT_EQ(reshape_node->GetType(), "Reshape");
-
-  // 验证 data -> Reshape -> relu 的连接
-  auto data_node = graph->FindNode("data");
-  auto relu_node = graph->FindNode("relu");
-  ASSERT_NE(data_node, nullptr);
-  ASSERT_NE(relu_node, nullptr);
-
-  auto reshape_out_anchor = reshape_node->GetOutDataAnchor(0);
-  auto relu_in_anchor = relu_node->GetInDataAnchor(0);
-  EXPECT_EQ(reshape_out_anchor->GetPeerInDataAnchors().size(), 1);
-  EXPECT_EQ(*reshape_out_anchor->GetPeerInDataAnchors().begin(), relu_in_anchor);
+  CheckReshapeResult(graph, {10});
 }
 
 // ========== Fill + Reduce 测试用例 ==========
