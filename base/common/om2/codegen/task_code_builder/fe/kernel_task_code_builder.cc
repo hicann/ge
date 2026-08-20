@@ -448,8 +448,8 @@ Status KernelTaskCodeBuilder::CopyTilingDataIfNeeded(const TaskSemanticContribut
                         "Append memcheck data for node: %s failed.", context.op_desc->GetNamePtr());
       tiling_data_ += dfx_info;
     }
-    GELOGI("Success to update tiling data to io_addr of %s, tiling data %s, size: %zu.", context.op_desc->GetNamePtr(),
-           tiling_data_.c_str(), tiling_data_.size());
+    GELOGI("Success to update tiling data to io_addr of %s, size: %zu.", context.op_desc->GetNamePtr(),
+           tiling_data_.size());
   }
   return SUCCESS;
 }
