@@ -19,8 +19,8 @@
 #include "common/ge_common/debug/ge_log.h"
 #include "om2_thread_pool.h"
 #include "graph_metadef/common/ge_common/util.h"
-#include "formats/formats.h"
-#include "common/datatype_transfer/datatype_transfer.h"
+#include "formats/om2_formats.h"
+#include "common/datatype_transfer/om2_datatype_transfer.h"
 #include "om2_malloc_helper.h"
 #include "rt_external_mem.h"
 
