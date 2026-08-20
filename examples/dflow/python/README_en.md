@@ -45,7 +45,14 @@
 
 ## Running Samples
 
-The numa_config.json file configuration below refers to [numa_config Field Description and Samples](https://www.hiascend.com/document/detail/zh/canncommercial/800/developmentguide/graph/dataflowcdevg/dfdevc_23_0031.html)
+The numa_config.json file configures device resource information required by dflow. You can use the script in the tools directory to auto-generate a single-node configuration. For custom configuration, refer to [numa_config Field Description and Samples](../../../docs/zh/user_guides/dflow/dflow_dev/python/appendices.md#numa_configjson配置):
+
+```bash
+# Generate single-node numa_config.json (auto-detects chip type and device count, uses all devices by default)
+# You can also specify a device list: python3 ../tools/create_numa_config.py --device-list 0,1,2
+python3 ../tools/create_numa_config.py
+# After generation, numa_config.json will be created in the current directory
+```
 
 ```bash
 # Execute the tensorflow raw model generation script in the config directory:
@@ -56,7 +63,7 @@ python3 config/model_generator.py
 export ASCEND_GLOBAL_LOG_LEVEL=3       #0 debug 1 info 2 warn 3 error. Default is error level if not set
 # Required
 source {HOME}/Ascend/cann/set_env.sh #{HOME} is the CANN software package installation directory, please replace according to the actual installation path
-export RESOURCE_CONFIG_PATH=xxx/xxx/xxx/numa_config.json
+export RESOURCE_CONFIG_PATH=./numa_config.json # Please specify according to the actual generated file path
 
 python3.11 sample_base.py
 python3.11 sample_udf_python.py

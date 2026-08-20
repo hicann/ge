@@ -8,7 +8,9 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <set>
 #include <string>
+#include <map>
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/context/local_context.h"
@@ -26,6 +28,8 @@
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/symbolizer/guard_dfx_context.h"
 #include "graph/debug/ge_attr_define.h"
+#include "api/aclgrph/option_utils.h"
+#include "base/registry/op_impl_space_registry_v2.h"
 
 namespace ge {
 namespace {
@@ -74,6 +78,10 @@ std::map<ge::DataType, std::string> kGeDType2CppDtype = {
     {ge::DT_UINT32, "uint32_t"},
     {ge::DT_UINT64, "uint64_t"},
 };
+
+// 值符号化仅针对shape/索引类小tensor，元素个数超过该阈值时不进行值符号化，
+// 与 symbolic_shape_inference.cc 中的 kMaxSymbolicValueSize 保持一致
+constexpr int64_t kMaxSymbolizeValueElemNum = 200;
 
 // 泛化value的类型，可扩展为：只泛化value、泛化value并且求和，泛化value并且求平均
 const char_t *const kSymbolizeValueType = "_symbolize_value_type";
@@ -153,7 +161,7 @@ Status SymbolizeInputValueForRepeat(const GeTensor &tensor, SymbolicDescAttr *at
   return GRAPH_SUCCESS;
 }
 
-bool SupportSymbolizeValueSum(const GeTensor &ge_tensor) {
+bool SupportSymbolizeValue(const GeTensor &ge_tensor) {
   const auto &tensor_desc = ge_tensor.GetTensorDesc();
   if (tensor_desc.GetPlacement() != kPlacementHost) {
     GELOGI("tensor data is on %d, Current we do not support symbolize tensor data value which is not on host",
@@ -170,6 +178,83 @@ bool SupportSymbolizeValueSum(const GeTensor &ge_tensor) {
     return false;
   }
   return true;
+}
+
+template <typename T>
+std::vector<Expression> CreateSymbolValueElement(const GeTensor &tensor, int32_t data_index, ge::DataType dtype,
+                                                 ShapeEnvAttr *shape_env_attr) {
+  std::vector<Expression> result;
+  const T *const data = reinterpret_cast<const T *>(tensor.GetData().GetData());
+  GE_ASSERT_NOTNULL(data);
+  const size_t elem_num = tensor.GetData().size() / sizeof(T);
+  for (size_t i = 0UL; i < elem_num; i++) {
+    auto source = MakeShared<InputValueElementSource>(data_index, i, dtype);
+    auto symbol = shape_env_attr->CreateSymbol<int64_t>(static_cast<int64_t>(data[i]), source);
+    result.emplace_back(symbol);
+    GELOGT(TRACE_RUNNING,
+           "symbolize value from data, data_index %d, elem_idx %zu, value %lld, symbol name %s, "
+           "source str is %s",
+           data_index, i, static_cast<int64_t>(data[i]), symbol.GetName().get(), source->GetSourceStr().c_str());
+  }
+  return result;
+}
+
+Status SymbolizeInputValue(const GeTensor &tensor, int32_t data_index, const NodePtr &data_node,
+                           const std::map<int64_t, std::vector<int64_t>> &hint_value_map,
+                           const std::set<size_t> &value_dependent_idxs, ShapeEnvAttr *shape_env_attr,
+                           SymbolicDescAttr *symbolic_desc_attr) {
+  if (symbolic_desc_attr->symbolic_tensor.GetSymbolicValue() != nullptr) {
+    return SUCCESS;
+  }
+
+  std::vector<Expression> sym_value;
+  if (SupportSymbolizeValue(tensor) && value_dependent_idxs.count(static_cast<size_t>(data_index)) > 0U) {
+    const int64_t shape_size = tensor.GetTensorDesc().GetShape().GetShapeSize();
+    if (shape_size >= 0 && shape_size <= kMaxSymbolizeValueElemNum) {
+      GELOGI("symbolize input[%d] value from real host data, data size %zu.", data_index, data_node->GetNamePtr(),
+             tensor.GetData().size());
+      const auto dtype = tensor.GetTensorDesc().GetDataType();
+      switch (dtype) {
+        case DT_INT32:
+          sym_value = CreateSymbolValueElement<int32_t>(tensor, data_index, dtype, shape_env_attr);
+          break;
+        case DT_INT64:
+          sym_value = CreateSymbolValueElement<int64_t>(tensor, data_index, dtype, shape_env_attr);
+          break;
+        case DT_UINT32:
+          sym_value = CreateSymbolValueElement<uint32_t>(tensor, data_index, dtype, shape_env_attr);
+          break;
+        case DT_UINT64:
+          sym_value = CreateSymbolValueElement<uint64_t>(tensor, data_index, dtype, shape_env_attr);
+          break;
+        default:
+          GELOGW("hint value unsupported data type %s, skip.",
+                 TypeUtils::DataTypeToSerialString(tensor.GetTensorDesc().GetDataType()).c_str());
+          break;
+      }
+    } else {
+      GELOGW("input[%d] shape size %lld is invalid or exceeds value symbolize limit %lld, skip.", data_index,
+             shape_size, kMaxSymbolizeValueElemNum);
+    }
+  } else {
+    auto it = hint_value_map.find(data_index);
+    if (it != hint_value_map.end()) {
+      GELOGI("symbolize input[%d] value from hint option, elem num %zu.", data_index, it->second.size());
+      for (size_t elem_idx = 0; elem_idx < it->second.size(); ++elem_idx) {
+        auto source = MakeShared<InputValueElementSource>(data_index, elem_idx, tensor.GetTensorDesc().GetDataType());
+        auto symbol = shape_env_attr->CreateSymbol<int64_t>(it->second[elem_idx], source);
+        sym_value.emplace_back(symbol);
+        GELOGD(
+            "symbolize value from option, data_index %d, elem_idx %zu, value %lld, symbol name %s, "
+            "source str is %s",
+            data_index, elem_idx, it->second[elem_idx], symbol.GetName().get(), source->GetSourceStr().c_str());
+      }
+    }
+  }
+  if (!sym_value.empty()) {
+    symbolic_desc_attr->symbolic_tensor.SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(std::move(sym_value)));
+  }
+  return SUCCESS;
 }
 
 bool IsAippInput(const NodePtr &data_node) {
@@ -318,6 +403,12 @@ Status SymbolizeRootGraph(const ComputeGraphPtr &graph, const std::vector<GeTens
   GE_ASSERT_SUCCESS(GetSupportSymbolizeInputDataNodes(graph, data_nodes, graph_inputs.size()));
   auto shape_env_attr = graph->GetAttrsGroup<ShapeEnvAttr>();
   GE_ASSERT_NOTNULL(shape_env_attr);
+  std::map<int64_t, std::vector<int64_t>> hint_value_map;
+  GE_ASSERT_SUCCESS(ParseHintInputValue(hint_value_map));
+  std::set<size_t> value_dependent_idxs;
+  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, value_dependent_idxs));
+  GELOGI("symbolize root graph %s, hint value map size %zu, value dependent idx count %zu.", graph->GetName().c_str(),
+         hint_value_map.size(), value_dependent_idxs.size());
   for (auto &data_node : data_nodes) {
     auto op_desc = data_node->GetOpDescBarePtr();
     DataSymbolizeInfo info;
@@ -339,10 +430,14 @@ Status SymbolizeRootGraph(const ComputeGraphPtr &graph, const std::vector<GeTens
     const auto symbolic_desc_attr = op_desc->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
     GE_ASSERT_SUCCESS(SymbolizeShape(info, op_desc, shape_env_attr, symbolic_desc_attr, ge_shape));
 
-    int64_t symbolize_value_type = SYMBOLIZE_VALUE_TYPE_NONE;
     const auto &tensor = graph_inputs.at(data_index);
+    GE_ASSERT_SUCCESS(SymbolizeInputValue(tensor, data_index, data_node, hint_value_map, value_dependent_idxs,
+                                          shape_env_attr, symbolic_desc_attr));
+
+    int64_t symbolize_value_type = SYMBOLIZE_VALUE_TYPE_NONE;
     if (AttrUtils::GetInt(op_desc, kSymbolizeValueType, symbolize_value_type) &&
-        symbolize_value_type == static_cast<ino64_t>(SYMBOLIZE_VALUE_TYPE_SUM) && SupportSymbolizeValueSum(tensor)) {
+        symbolize_value_type == static_cast<int64_t>(SYMBOLIZE_VALUE_TYPE_SUM) && SupportSymbolizeValue(tensor) &&
+        symbolic_desc_attr->symbolic_tensor.GetSymbolicValue() == nullptr) {
       GELOGI("Symbolize value sum for node %s[%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
       GE_ASSERT_SUCCESS(SymbolizeInputValueForRepeat(tensor, symbolic_desc_attr, shape_env_attr, data_index));
     }
@@ -379,6 +474,23 @@ std::string InputValueSumSource::GetSourceStr() const {
                 return sum;
             }()
         )";
+}
+
+std::string InputValueElementSource::GetSourceStr() const {
+  return R"([&]() -> int64_t {
+      const auto* tensor = context->GetGraphInputTensor()" +
+         std::to_string(input_data_idx_) + R"();
+        if (tensor == nullptr) {
+          return -1;
+        }
+        const auto* data = tensor->GetData<)" +
+         kGeDType2CppDtype[dtype_] + R"(>();
+        if (data == nullptr) {
+          return -1;
+        }
+        return static_cast<int64_t>(data[)" +
+         std::to_string(elem_idx_) + R"(]);
+      }())";
 }
 
 std::string InputRankSource::GetSourceStr() const {

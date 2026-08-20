@@ -341,6 +341,40 @@ aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtCtxGetSysParamOpt(aclSysParamOpt opt, int64_t *value) {
+  (void)opt;
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  if (value == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *value = 0;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCtxSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  const std::lock_guard<std::mutex> lock(mtx_);
+  sys_param_set_records_.push_back({true, opt, value});
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetSysParamOpt(aclSysParamOpt opt, int64_t *value) {
+  return aclrtCtxGetSysParamOpt(opt, value);
+}
+
+aclError AclRuntimeStub::aclrtSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  const std::lock_guard<std::mutex> lock(mtx_);
+  sys_param_set_records_.push_back({false, opt, value});
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
   if (*taskId == 999) {
     return -1;
@@ -1459,6 +1493,22 @@ aclError aclrtSetCurrentContext(aclrtContext context) {
 
 aclError aclrtGetCurrentContext(aclrtContext *context) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetCurrentContext(context);
+}
+
+aclError aclrtCtxGetSysParamOpt(aclSysParamOpt opt, int64_t *value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCtxGetSysParamOpt(opt, value);
+}
+
+aclError aclrtCtxSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCtxSetSysParamOpt(opt, value);
+}
+
+aclError aclrtGetSysParamOpt(aclSysParamOpt opt, int64_t *value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetSysParamOpt(opt, value);
+}
+
+aclError aclrtSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetSysParamOpt(opt, value);
 }
 
 aclError aclrtCreateEvent(aclrtEvent *event) {

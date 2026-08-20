@@ -19,7 +19,7 @@ The long-term goal of Python custom operators is to let users describe custom op
 - Python users implement the compile-time `AnnotatedArgsOp` callback through `declare_launch_args` and declare kernel launch arguments with `AnnotatedArgsContext`, `AnnotatedKernelArgs`, and `AnnotatedKernelLaunchInfo`.
 - `ge.runtime` provides runtime data structures required by the context for return values or input parameters, such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement`.
 
-V2 plans to add Python prototype and Meta inference capabilities on top of the V1 execution path.
+V2 extends the V1 execution path with Python prototype and Meta inference capabilities. The current stage provides Python prototype creators, Adapter registration transactions, and ownership management, but does not yet invoke Python `infer_meta`.
 
 In V2, the Python function decorated with `register_op` performs Meta inference and is referred to as `infer_meta` throughout this document; the function itself does not have to be named `infer_meta`. Following the operator prototype, it receives input `TensorDesc` objects, including optional and dynamic inputs, together with attribute values, and returns one or more `TensorDesc` objects describing output shape and data type. It neither reads input Tensor data nor executes the operator kernel.
 
@@ -71,6 +71,7 @@ The actual module boundaries are as follows:
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | Unified loading of C++ custom ops and Python custom ops |
 | Bridge loader | `runtime/custom_op/python_custom_op_bridge_loader.cc` | Artifact selection, loading `libge_python_custom_op_bridge.so`, and creator registration |
 | Pybind bridge | `runtime/custom_op/python_custom_op_pybind_bridge.cc` | Importing the Python bridge module, creating holders, and calling back `execute` / `declare_launch_args` |
+| Proto runtime | `runtime/custom_op/python_custom_op_proto.*` | Deep-copying C POD prototypes and registering `OperatorFactory` creators |
 | Adapter | `runtime/custom_op/python_custom_op_adapter.*` | Serving as a C++ `BaseCustomOp` instance to access the existing runtime |
 | Capability helper | `inc/graph_metadef/graph/custom_op/` | `CustomOpCapability` and `CustomOpCast<T>` |
 
@@ -80,6 +81,7 @@ V1 functions include:
 
 - `@register_op_impl(op_type=...)` registers a Python custom operator implementation.
 - `@register_op(op_type=..., mutates_args=...)` collects a custom operator prototype from a Python function signature.
+- The bridge registers Python prototypes as `OperatorFactory` creators and collects canonical IR from the effective creators. It does not invoke `infer_meta` at this stage.
 - `register_op_impl` reflects callable `execute` and `declare_launch_args` methods and declares the corresponding capabilities without requiring inheritance from `BaseCustomOp`, `EagerExecuteOp`, or `AnnotatedArgsOp`.
 - The legacy `execute(self, ctx)` form directly receives an `EagerOpExecutionContext`; the schema-bound form receives inputs and attributes assembled from canonical IR.
 - `EagerOpExecutionContext` supports input and output tensor queries, dynamic input instance counts, runtime attribute access, output and workspace allocation, and stream retrieval.
@@ -96,6 +98,8 @@ V1 functions include:
 - The return value of the Python `execute` method is not used as a status code. A normal return indicates success, and an exception indicates failure.
 - The Python custom op currently declares `EagerExecuteOp` and `AnnotatedArgsOp` capabilities. Other C++ capability interfaces are retained as overrides in the adapter but are treated as unsupported.
 - The schema-bound form depends on canonical IR from the existing operator prototype. While loading descriptors, the bridge collects canonical IR and calls `validate_op_impl_descriptor` before holder creation or any business callback to validate schema-bound signatures once. `execute` validates IR inputs and attributes, excludes IR outputs from its parameters, and does not constrain its return annotation or return value. `declare_launch_args` validates inputs, outputs, and attributes and requires a `None` return annotation. Runtime callbacks only assemble arguments and invoke business methods; they do not validate signatures, and validation state does not enter the holder lifecycle.
+- Cross-SO prototype and Adapter descriptors are synchronously borrowed C POD views. Runtime callbacks must finish validation and deep copying before returning.
+- A Python prototype may replace a built-in prototype. If `CustomOpFactory` already contains a C++ or Python custom operator with the same name, registration reports a custom-operator conflict.
 - A schema-bound callback obtains the current context through `get_execute_ctx()`. The binding is valid only in the dynamic scope of that callback.
 - The Python custom op native/bridge is related to the Python ABI at build time. Cross-Python minor version compatibility is not guaranteed.
 - The bridge C ABI remains v1. The `execute` and `declare_launch_args` callbacks pass only the holder and corresponding context. The bridge queries canonical IR through the public run-package API instead of passing a private ABI projection.
@@ -325,14 +329,16 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 - `NeedLoadPythonCustomOps()` returns true only when Python files or packages are found under `ASCEND_CUSTOM_OPP_PATH`.
 - `LoadPythonCustomOps()` resolves the loaded Python runtime key and selects the bridge/native artifact under `custom_op/python_custom_op_artifacts/<python_tag>-<platform>`.
 - `libge_python_custom_op_bridge.so` exposes C ABI v1 through `GeGetPythonCustomOpBridgeApi()`.
-- The bridge imports `_ge_custom_op_native` and `ge.custom_op._bridge`, registers descriptors, and creates Python holders for each adapter.
+- The bridge imports `_ge_custom_op_native` and `ge.custom_op._bridge` and obtains one prototype/implementation snapshot. It registers all prototypes first, then validates and registers Adapters.
+- `CustomOpLoader::LoadCustomOps()` records whether Python custom ops are loaded, so repeated lifecycle load requests return success without invoking the bridge registration entry again. The dynamic `LoadPythonCustomOpsIfNeeded()` path intentionally does not use this flag, allowing newly added Python custom op paths to be discovered during runtime. The lower-level `LoadPythonCustomOps()` function performs one bridge registration attempt; callers are responsible for invoking `UnloadPythonCustomOps()` after a failed attempt so that partial registrations are cleaned up.
+- `UnloadPythonCustomOps()` removes registered Adapter creators, clears the Python custom-op runtime registry in one operation, and then removes registered proto creators. It does not perform per-entry runtime unregistration or maintain pending-cleanup state in the bridge loader.
 - `UnloadCustomOps()` uses an `active_users_` reference count to manage the lifecycle: each `LoadCustomOps()` increments the count by 1, each `UnloadCustomOps()` decrements it by 1, and Python custom ops are only unloaded (holders/registry cleaned up and bridge closed) when the count reaches zero. `ShutdownCustomOpsForProcess()` is retained as a compatibility wrapper that internally calls `UnloadCustomOps()`.
 
 **Output**
 
-- Python descriptors are registered as `CustomOpFactory` creators.
+- Python prototypes are registered as `OperatorFactory` creators, and Python implementations are registered as `CustomOpFactory` creators.
 - When the adapter is destructed, the Python holder is destroyed and the runtime registry entry is released.
-- The runtime registry does not allow unregistration while active adapters exist.
+- Individual runtime registry unregistration remains guarded by active adapters; process unload removes Adapter creators first and clears the registry in bulk.
 
 ### 3.3 Non-Functional Requirements
 
@@ -450,21 +456,21 @@ The Python-version-sensitive bridge uses the official `GetRegisteredIrDef` signa
 
 Runtime symbol resolution is used because `libge_runner.so`/`libge_runner_v2.so` already depend on `custom_op_runtime`, while the bridge is dynamically loaded by `custom_op_runtime`; directly linking the bridge back to a runner would create a reverse SO dependency. The function signature and data types are still governed by official public run-package headers, with only symbol binding deferred until after the bridge is loaded.
 
-#### PythonCustomOpDescriptor
+#### PythonCustomOpProto and PythonCustomOpAdapterDescriptor
 
-The C++ runtime uses `PythonCustomOpDescriptor`:
+The C++ runtime stores an owning prototype and an Adapter descriptor separately; the Adapter descriptor stores only the implementation key:
 
 ```cpp
-struct PythonCustomOpDescriptor {
-  std::string descriptor_key;
+struct PythonCustomOpAdapterDescriptor {
   std::string op_type;
+  std::string impl_descriptor_key;
   CustomOpCapabilityMask capabilities{0U};
 };
 ```
 
-#### PythonCustomOpCallbacks
+#### PythonCustomOpAdapterCallbacks
 
-The bridge registers create/destroy/execute/declare_launch_args callbacks to the runtime. `IsValid()` accepts `kEagerExecute`, `kAnnotatedArgs`, or both; it requires create/destroy and verifies execute/declare_launch_args according to the capability mask.
+The bridge registers create/destroy/execute/declare_launch_args callbacks to the runtime. Schema-bound signature validation is not a C++ callback; the bridge calls `validate_op_impl_descriptor` internally before registering an Adapter. `IsValid()` accepts `kEagerExecute`, `kAnnotatedArgs`, or both; it requires create/destroy and verifies execute/declare_launch_args according to the capability mask.
 
 #### BorrowedEagerOpExecutionContext
 
@@ -481,6 +487,7 @@ The native binding holds a `gert::AnnotatedArgsContext *` and an independent val
 - **Capability reflection**: The registry applies `getattr` and `callable` checks to the implementation class, maps `execute` to `eager_execute`, and maps `declare_launch_args` to `annotated_args`. The inheritance hierarchy of the Python user class does not participate in capability detection.
 - **Capability filtering**: `CustomOpCast<T>()` first identifies `CustomOpCapabilityProvider` and then checks the bitmask to determine whether the target interface is supported.
 - **IR argument assembly**: The bridge queries canonical IR through the public run-package API during descriptor loading for signature validation, then queries it again at holder creation and owns the resulting runtime snapshot. Callbacks read required, optional, and dynamic inputs/outputs and typed runtime attributes in that IR order, then construct positional and keyword arguments.
+- **Registration transaction**: The runtime synchronously deep-copies prototype C POD data and registers its creator, collects canonical IR, and finally registers the implementation runtime entry and Adapter creator. If any step fails, the upper-level loader invokes unload to roll the completed steps back in reverse order.
 - **Callback signature validation**: While loading a descriptor, the bridge calls `validate_op_impl_descriptor` to validate schema-bound signatures once, before holder creation or any business callback. For `execute`, it validates the total parameter count, the positional form and supplied type annotations of inputs, and the keyword-only form, names, and supplied type annotations of attributes. Outputs, the return annotation, and the return value are not validated. `declare_launch_args` validates inputs, outputs, attributes, and a `None` return annotation. Runtime callbacks do not validate signatures, and validation state does not enter the holder lifecycle.
 - **Holder lifecycle**: The C++ adapter owns `PythonCustomOpHolder`. The Python side uses `_OP_IMPL_HOLDERS` to save instances by `instance_id`. When the adapter is destructed, the Python holder is destroyed.
 - **Context binding**: Schema-bound callbacks establish dynamic scopes with `ContextVar`, and `get_execute_ctx()` / `get_declare_launch_args_ctx()` read their corresponding bindings. Resetting the token restores the outer context after nested invocation.
@@ -500,10 +507,11 @@ Entry EnsureReady()
         -> BuildPrebuiltBridgeLibraryCandidates()
         -> dlopen libge_python_custom_op_bridge.so
         -> set_artifact_config(native_module_path)
-        -> load_and_get_op_impl_descriptors()
-        -> Collect canonical IR and call validate_op_impl_descriptor
+        -> load_and_get_op_descriptors()
         -> register_custom_ops(registrar)
-        -> CustomOpFactory::RegisterCustomOpCreator()
+        -> Register Python prototype creators and collect canonical IR
+        -> Call validate_op_impl_descriptor
+        -> Register implementation runtime entries and Adapter creators
 ```
 
 #### PreRun Idempotent Reload Process
@@ -521,7 +529,7 @@ This path ensures that when the user sets the Python custom op path only after i
 ```text
 CustomOpRegistry::CreateOrGetCustomOp(op_type)
   -> PythonCustomOpAdapter(desc)
-  -> PythonCustomOpHolder(desc)
+  -> PythonCustomOpImplHolder(desc)
   -> callbacks.create(desc)
   -> The bridge resolves the public GetRegisteredIrDef symbol and queries canonical IR
   -> The bridge holder stores PythonCustomOpIrMeta without validating signatures again

@@ -81,7 +81,7 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFuncReportSubmit(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                         const ExprRef &dsa_data, const VarRef &dsa_report_inputs,
                                         const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
-                                        const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin);
+                                        const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) const;
 
   // Address semantics
   std::vector<AddrSemantic> input_addrs_;

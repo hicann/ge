@@ -21,7 +21,11 @@ from typing import Dict, Optional
 from ._ir_types import InputType, OutputType
 from ._signature import _get_runtime_attr_spec, _validate_args_signature
 from .base import EagerOpExecutionContext
-from .bootstrap import get_registered_op_impls, load_custom_op_plugins
+from .bootstrap import (
+    get_registered_op_impls,
+    get_registered_op_protos,
+    load_custom_op_plugins,
+)
 from .context import _declare_launch_args_ctx_scope, _execute_ctx_scope
 from .registry import (
     INTERFACE_ANNOTATED_ARGS,
@@ -44,6 +48,14 @@ _OP_IMPL_HOLDERS: Dict[str, _OpImplHolder] = {}
 def load_and_get_op_impl_descriptors() -> list:
     load_custom_op_plugins()
     return get_registered_op_impls()
+
+
+def load_and_get_op_descriptors() -> dict:
+    load_custom_op_plugins()
+    return {
+        "protos": get_registered_op_protos(),
+        "impls": get_registered_op_impls(),
+    }
 
 
 def _get_holder(instance_id: str) -> _OpImplHolder:

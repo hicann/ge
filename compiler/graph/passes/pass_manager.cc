@@ -11,7 +11,6 @@
 #include "graph/passes/pass_manager.h"
 #include "framework/common/debug/log.h"
 #include "framework/common/framework_types_internal.h"
-#include "framework/common/util.h"
 #include "graph/ge_context.h"
 #include "graph/passes/pass_utils.h"
 #include "graph/utils/node_utils.h"

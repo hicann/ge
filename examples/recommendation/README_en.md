@@ -109,13 +109,13 @@ If `--multiStreamParallelMode` is omitted, the Session option is not set and the
 In CANN Community Edition 9.2.0, test different multi-stream parallel modes, determine the optimal value for this sample under the specified environment and test conditions, and submit a PR with the following result:
 
 ```text
-ge.autoMultistreamParallelMode=<to-be-determined>
+ge.autoMultistreamParallelMode=MainStream:9
 ```
 
 The corresponding sample command-line argument is:
 
 ```text
---multiStreamParallelMode=<to-be-determined>
+--multiStreamParallelMode=MainStream:9
 ```
 
 For example, to use `cv` mode, run:

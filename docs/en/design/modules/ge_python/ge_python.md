@@ -821,7 +821,7 @@ Note: `EagerOpExecutionContext` and `AnnotatedArgsContext` are provided by `_ge_
 
 #### Module Positioning
 
-The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order.
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order. The current stage also registers Python prototypes with `OperatorFactory`, but does not invoke Python `infer_meta` or provide compile-time or RT2 Meta inference.
 
 #### Runtime Native Artifact Selection
 
@@ -964,6 +964,14 @@ Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked e
 - Reuses the environment variable `ASCEND_CUSTOM_OPP_PATH` to specify Python custom op file or directory paths
 - `bootstrap.py` scans paths and dynamically loads Python modules
 - Supports single `.py` files, `.py` files in plain directories, and Python packages containing `__init__.py`
+
+**Prototype registration**:
+
+- `register_op` collects required, optional, and dynamic inputs, 12 attribute types, required and dynamic outputs, and `mutates_args`.
+- In one loading transaction, the bridge first registers Python prototype creators and collects the effective canonical IR, then registers implementation runtime entries and Adapter creators.
+- Python proto-only, Python proto with implementation, C++ proto with Python implementation, and prototype-free legacy implementations are supported. A schema-bound implementation without a prototype is rejected.
+- A Python prototype may replace a built-in prototype with the same name. Registration fails when a loaded C++ or Python custom operator already owns that name.
+- A failed batch is rolled back in reverse order: Adapter creators, implementation runtime entries, and prototype creators. Unloading removes only objects owned by the current loader.
 
 **Usage sample**:
 

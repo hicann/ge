@@ -22,6 +22,7 @@
 #include "ge/ge_api.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "common/util/sanitizer_options.h"
 
 using namespace std;
@@ -252,6 +253,30 @@ class MockRuntime2 : public RuntimeStub {
   std::vector<void *> mem_bufs_;
   MbufStub mbuf_stub_;
 };
+
+class MockAclApiStubRepeatInit : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_REPEAT_INITIALIZE;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
+class MockAclApiStubFail : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
 }  // namespace
 class EngineDaemonTest : public testing::Test {
  protected:
@@ -376,5 +401,47 @@ TEST_F(EngineDaemonTest, TestEngineDaemonHost) {
   engine_daemon.Finalize();
   RuntimeStub::Reset();
   GetThreadLocalContext() = back_up_context;
+}
+
+TEST_F(EngineDaemonTest, TestEngineDaemonAclRepeatInit) {
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  RuntimeStub::SetInstance(std::make_shared<MockRuntime2>());
+  auto mock_acl = std::make_shared<MockAclApiStubRepeatInit>();
+  AclApiStub::SetInstance(mock_acl);
+  EngineDaemon engine_daemon;
+  auto device_id = std::to_string(0);
+  auto queue_id = std::to_string(0);
+  auto event_group_id = std::to_string(1);
+  const std::string process_name = "npu_executor";
+  const char_t *argv[] = {
+      process_name.c_str(),   "BufferGroupName", queue_id.c_str(), device_id.c_str(),
+      event_group_id.c_str(), "--base_dir=./",   "--device_id=0",  "--msg_queue_device_id=0",
+  };
+  EXPECT_EQ(engine_daemon.InitializeWithArgs(8, (char **)argv), SUCCESS);
+  engine_daemon.Finalize();
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
+  MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(EngineDaemonTest, TestEngineDaemonAclInitFailed) {
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  RuntimeStub::SetInstance(std::make_shared<MockRuntime2>());
+  auto mock_acl = std::make_shared<MockAclApiStubFail>();
+  AclApiStub::SetInstance(mock_acl);
+  EngineDaemon engine_daemon;
+  auto device_id = std::to_string(0);
+  auto queue_id = std::to_string(0);
+  auto event_group_id = std::to_string(1);
+  const std::string process_name = "npu_executor";
+  const char_t *argv[] = {
+      process_name.c_str(),   "BufferGroupName", queue_id.c_str(), device_id.c_str(),
+      event_group_id.c_str(), "--base_dir=./",   "--device_id=0",  "--msg_queue_device_id=0",
+  };
+  EXPECT_EQ(engine_daemon.InitializeWithArgs(8, (char **)argv), FAILED);
+  engine_daemon.Finalize();
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
+  MmpaStub::GetInstance().Reset();
 }
 }  // namespace ge

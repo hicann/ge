@@ -329,6 +329,7 @@ struct Om2CodegenModel {
   std::vector<ConstInputEntry> const_inputs;
   std::vector<Om2VarMeta> var_metas;
   uint32_t aicpu_task_count{0U};
+  bool is_need_va2pa{false};
 };
 
 // shape 维度数的上限（与 OpArgInfo.tensor.shape 数组大小一致）

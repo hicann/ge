@@ -1,3 +1,4 @@
+
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
@@ -28,9 +29,11 @@
 #include "register/kernel_registry.h"
 #include "graph_builder/bg_rt_session.h"
 #include "engine/aicpu/kernel/aicpu_resource_manager.h"
+#include "engine/aicpu/kernel/fused_host_cpu_compute.h"
 #include "graph/utils/graph_utils.h"
 #include "rt_external_mem.h"
 #include "exe_graph/lowering/frame_selector.h"
+#include "framework/common/host_cpu_fusion_attr.h"
 
 namespace gert {
 namespace {
@@ -243,36 +246,196 @@ LowerResult LoweringAiCpuCCNode(const ge::NodePtr &node, const LowerInput &lower
   return {HyperStatus::Success(), {cc_launch_holder, launch_holder}, node_output.shapes, out_addrs};
 }
 
-LowerResult LoweringHostAiCpuNode(const ge::NodePtr &node, const LowerInput &lower_input) {
+bool GetFusedHostCpuSoData(const ge::NodePtr &node, std::string &fused_register_name, ge::Buffer &so_data,
+                           const char *&error_message, std::string &so_key, ge::ComputeGraphPtr &root_graph) {
+  error_message = "Load fused HostCPU kernel failed";
+  if (!ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), ge::kFusedHostCpuRegisterName, fused_register_name)) {
+    error_message = "Load fused HostCPU kernel failed";
+    GELOGE(ge::INTERNAL_ERROR, "Load fused HostCPU kernel failed for node %s: register name is missing.",
+           node->GetNamePtr());
+    return false;
+  }
+  if (!ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), ge::kFusedHostCpuSoKey, so_key)) {
+    error_message = "Load fused HostCPU kernel failed";
+    GELOGE(ge::INTERNAL_ERROR, "Load fused HostCPU kernel failed for node %s: so key is missing.", node->GetNamePtr());
+    return false;
+  }
+  const auto owner_graph = node->GetOwnerComputeGraph();
+  root_graph = ge::GraphUtils::FindRootGraph(owner_graph);
+  if (root_graph == nullptr) {
+    error_message = "Load fused HostCPU kernel failed";
+    GELOGE(ge::INTERNAL_ERROR, "Load fused HostCPU kernel failed for node %s: root graph was not found.",
+           node->GetNamePtr());
+    return false;
+  }
+  if (!ge::AttrUtils::GetBytes(root_graph, so_key, so_data)) {
+    error_message = "Load fused HostCPU kernel failed";
+    GELOGE(ge::INTERNAL_ERROR,
+           "Load fused HostCPU kernel failed for node %s: so key[%s] was not found in root graph[%s], "
+           "owner graph[%s].",
+           node->GetNamePtr(), so_key.c_str(), root_graph->GetName().c_str(),
+           owner_graph == nullptr ? "null" : owner_graph->GetName().c_str());
+    return false;
+  }
+  return true;
+}
+
+bool LoadFusedHostCpuKernel(const ge::NodePtr &node, std::string &fused_register_name,
+                            FusedHostCpuKernelFunctions &kernel_funcs, void *&fused_kernel_state,
+                            const char *&error_message) {
+  std::string so_key;
+  ge::Buffer so_data;
+  ge::ComputeGraphPtr root_graph;
+  if (!GetFusedHostCpuSoData(node, fused_register_name, so_data, error_message, so_key, root_graph)) {
+    return false;
+  }
+  GELOGD("Load fused HostCPU kernel for node[%s]: register_name[%s], so_key[%s], so_graph[%s], so_size=%zu.",
+         node->GetNamePtr(), fused_register_name.c_str(), so_key.c_str(), root_graph->GetName().c_str(),
+         so_data.GetSize());
+  auto &resource_manager = AicpuResourceManager::GetInstance();
+  if (resource_manager.LoadFusedHostCpuSo(fused_register_name, so_data.GetData(), so_data.GetSize()) !=
+      ge::GRAPH_SUCCESS) {
+    GELOGE(ge::INTERNAL_ERROR, "Load fused HostCPU kernel failed for node %s.", node->GetNamePtr());
+    return false;
+  }
+  kernel_funcs = resource_manager.GetFusedHostCpuKernelFunctions(fused_register_name);
+  if ((kernel_funcs.create_func == nullptr) || (kernel_funcs.destroy_func == nullptr) ||
+      (kernel_funcs.run_func == nullptr)) {
+    error_message = "Resolve fused HostCPU entry failed";
+    GELOGE(ge::INTERNAL_ERROR, "Resolve fused HostCPU private entry failed for node %s.", node->GetNamePtr());
+    return false;
+  }
+  fused_kernel_state = kernel_funcs.create_func();
+  if (fused_kernel_state == nullptr) {
+    error_message = "Prepare fused HostCPU state failed";
+    (void)resource_manager.ReleaseFusedHostCpuSo(fused_register_name);
+    GELOGE(ge::INTERNAL_ERROR, "Prepare fused HostCPU execution state failed for node %s.", node->GetNamePtr());
+    return false;
+  }
+  return true;
+}
+
+void *CreateFusedHostCpuComputeState(const ge::NodePtr &node, const size_t in_num, const size_t io_num,
+                                     const std::string &fused_register_name,
+                                     const FusedHostCpuKernelFunctions &kernel_funcs, void *fused_kernel_state) {
+  std::vector<FusedHostCpuTensorMeta> tensor_metas;
+  tensor_metas.reserve(io_num);
+  for (size_t i = 0U; i < in_num; ++i) {
+    const ge::GeTensorDesc desc = node->GetOpDescBarePtr()->GetInputDesc(i);
+    tensor_metas.emplace_back(FusedHostCpuTensorMeta{desc.GetShape().GetDimNum()});
+  }
+  for (size_t i = 0U; i < node->GetAllOutDataAnchorsSize(); ++i) {
+    const ge::GeTensorDesc desc = node->GetOpDescBarePtr()->GetOutputDesc(i);
+    tensor_metas.emplace_back(FusedHostCpuTensorMeta{desc.GetShape().GetDimNum()});
+  }
+  void *fused_compute_state =
+      kernel::CreateFusedHostCpuComputeState(fused_register_name.c_str(), fused_kernel_state, kernel_funcs.destroy_func,
+                                             kernel_funcs.run_func, tensor_metas.data(), tensor_metas.size());
+  if (fused_compute_state == nullptr) {
+    kernel_funcs.destroy_func(fused_kernel_state);
+    (void)AicpuResourceManager::GetInstance().ReleaseFusedHostCpuSo(fused_register_name);
+    GELOGE(ge::INTERNAL_ERROR, "Prepare fused HostCPU compute state failed for node %s.", node->GetNamePtr());
+    return nullptr;
+  }
+  const FusedHostCpuDestroyMeta destroy_meta = {fused_compute_state};
+  bg::FrameSelector::OnDeInitRoot([destroy_meta]() -> std::vector<bg::ValueHolderPtr> {
+    auto meta_holder = bg::ValueHolder::CreateConst(&destroy_meta, sizeof(destroy_meta));
+    return {bg::ValueHolder::CreateVoidGuarder("ReleaseFusedHostCpuKernelState", meta_holder, {})};
+  });
+  bg::FrameSelector::OnDeInitRoot([fused_register_name]() -> std::vector<bg::ValueHolderPtr> {
+    auto name_holder = bg::ValueHolder::CreateConst(fused_register_name.c_str(), fused_register_name.size() + 1U, true);
+    return {bg::ValueHolder::CreateVoidGuarder("ReleaseFusedHostCpuSo", name_holder, {})};
+  });
+  GELOGD("Fused HostCPU kernel[%s] is ready for node[%s].", fused_register_name.c_str(), node->GetNamePtr());
+  return fused_compute_state;
+}
+
+void *PrepareFusedHostCpuComputeState(const ge::NodePtr &node, const size_t in_num, const size_t io_num,
+                                      std::string &fused_register_name, const char *&error_message) {
+  FusedHostCpuKernelFunctions kernel_funcs;
+  void *fused_kernel_state = nullptr;
+  if (!LoadFusedHostCpuKernel(node, fused_register_name, kernel_funcs, fused_kernel_state, error_message)) {
+    return nullptr;
+  }
+  void *fused_compute_state =
+      CreateFusedHostCpuComputeState(node, in_num, io_num, fused_register_name, kernel_funcs, fused_kernel_state);
+  if (fused_compute_state == nullptr) {
+    error_message = "Prepare fused HostCPU compute state failed";
+  }
+  return fused_compute_state;
+}
+
+struct HostAiCpuLoweringData {
+  const domi::KernelDef *kernel_def = nullptr;
+  bg::ValueHolderPtr session_id;
+  bg::AicpuArgs aicpu_args;
+  size_t in_num = 0U;
+  bool is_fused_host_cpu = false;
+  std::string fused_register_name;
+  void *fused_compute_state = nullptr;
+};
+
+const char *PrepareHostAiCpuLowering(const ge::NodePtr &node, const LowerInput &lower_input,
+                                     HostAiCpuLoweringData &lowering_data) {
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICpu);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find host AI cpu taskdef.")), {}, {}, {}};
+    return "Not find host AI cpu taskdef.";
   }
-  auto &kernel_def = task_def->kernel();
-  auto session_id = bg::GetSessionId(*lower_input.global_data);
+  lowering_data.kernel_def = &task_def->kernel();
+  lowering_data.session_id = bg::GetSessionId(*lower_input.global_data);
+  lowering_data.is_fused_host_cpu = node->GetType() == ge::kFusedHostCpuOpType;
+  if (lowering_data.is_fused_host_cpu) {
+    GELOGD("Lower fused HostCPU node[%s]: inputs=%zu, outputs=%zu.", node->GetNamePtr(),
+           node->GetAllInDataAnchorsSize(), node->GetAllOutDataAnchorsSize());
+  }
+
+  // 融合 so 只注册编排 kernel，原始 HostCPU kernel 仍由基础库提供，必须先加载基础库。
+  if (lowering_data.is_fused_host_cpu &&
+      (AicpuResourceManager::GetInstance().LoadConstantFoldingLib() != ge::GRAPH_SUCCESS)) {
+    GELOGE(ge::INTERNAL_ERROR, "Load HostCPU base library failed for fused node %s.", node->GetNamePtr());
+    return "Load HostCPU base library failed";
+  }
 
   // alloc args
-  auto in_num = node->GetInDataNodesAndAnchors().size();
+  lowering_data.in_num = node->GetInDataNodesAndAnchors().size();
   bool optional_input_placeholder = false;
   (void)ge::AttrUtils::GetBool(node->GetOpDescBarePtr(), bg::kOptionalInputPlaceholder, optional_input_placeholder);
   if (optional_input_placeholder) {
-    in_num = node->GetOpDescBarePtr()->GetAllInputsSize();
+    lowering_data.in_num = node->GetOpDescBarePtr()->GetAllInputsSize();
     GELOGI("Op %s type %s in all input size is %zu, all input data anchors size is %zu.", node->GetName().c_str(),
-           ge::NodeUtils::GetNodeType(node).c_str(), in_num, node->GetInDataNodesAndAnchors().size());
+           ge::NodeUtils::GetNodeType(node).c_str(), lowering_data.in_num, node->GetInDataNodesAndAnchors().size());
   }
-  auto io_num = in_num + node->GetAllOutDataAnchorsSize();
-  auto aicpu_args = bg::BuildHostCCAicpuArg(node, kernel_def, io_num, session_id);
+  const auto io_num = lowering_data.in_num + node->GetAllOutDataAnchorsSize();
+  lowering_data.aicpu_args = bg::BuildHostCCAicpuArg(node, *lowering_data.kernel_def, io_num, lowering_data.session_id);
 
+  if (lowering_data.is_fused_host_cpu) {
+    const char *fused_state_error = nullptr;
+    lowering_data.fused_compute_state = PrepareFusedHostCpuComputeState(
+        node, lowering_data.in_num, io_num, lowering_data.fused_register_name, fused_state_error);
+    if (lowering_data.fused_compute_state == nullptr) {
+      return fused_state_error;
+    }
+  }
+  return nullptr;
+}
+
+LowerResult BuildHostAiCpuLoweringResult(const ge::NodePtr &node, const LowerInput &lower_input,
+                                         const HostAiCpuLoweringData &lowering_data) {
   // get output shape and addr
   auto output_shapes = bg::GetMemAllocShape(node, lower_input.input_shapes, *(lower_input.global_data));
   auto output_sizes = bg::CalcTensorSize(node, output_shapes);
 
-  // compute
   std::vector<bg::DevMemValueHolderPtr> output_addrs;
-  auto compute_holder = bg::AicpuHostCompute(
-      node, aicpu_args, {lower_input.input_addrs, lower_input.input_shapes, output_sizes, output_shapes},
-      *lower_input.global_data, output_addrs);
+  const bg::IoInfo io_info{lower_input.input_addrs, lower_input.input_shapes, output_sizes, output_shapes};
+  if (lowering_data.is_fused_host_cpu) {
+    auto compute_holder = bg::BuildFusedHostCpuComputeNode(node, lowering_data.fused_compute_state, io_info,
+                                                           *lower_input.global_data, output_addrs);
+    SetReleaseAfter(lower_input.input_addrs, compute_holder);
+    return {HyperStatus::Success(), {}, output_shapes, output_addrs};
+  }
+  auto compute_holder =
+      bg::AicpuHostCompute(node, lowering_data.aicpu_args, io_info, *lower_input.global_data, output_addrs);
 
   auto after_compute_addrs = IdentityAddr(output_addrs, node->GetOpDescBarePtr()->GetStreamId());
   for (auto addr : after_compute_addrs) {
@@ -280,6 +443,15 @@ LowerResult LoweringHostAiCpuNode(const ge::NodePtr &node, const LowerInput &low
   }
   SetReleaseAfter(lower_input.input_addrs, compute_holder);
   return {HyperStatus::Success(), {}, output_shapes, after_compute_addrs};
+}
+
+LowerResult LoweringHostAiCpuNode(const ge::NodePtr &node, const LowerInput &lower_input) {
+  HostAiCpuLoweringData lowering_data;
+  const char *error_message = PrepareHostAiCpuLowering(node, lower_input, lowering_data);
+  if (error_message != nullptr) {
+    return {HyperStatus::ErrorStatus(error_message), {}, {}, {}};
+  }
+  return BuildHostAiCpuLoweringResult(node, lower_input, lowering_data);
 }
 
 LowerResult LoweringAiCpuNode(const ge::NodePtr &node, const LowerInput &lower_input) {

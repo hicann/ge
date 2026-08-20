@@ -71,6 +71,34 @@ TEST_F(FlowFuncManagerSTest, register_func_null) {
   EXPECT_FALSE(ret);
 }
 
+TEST_F(FlowFuncManagerSTest, register_multi_func_name_null) {
+  MULTI_FUNC_CREATOR_FUNC func = [](std::shared_ptr<MetaMultiFunc> &,
+                                    std::map<AscendString, PROC_FUNC_WITH_CONTEXT> &) -> int32_t {
+    return FLOW_FUNC_SUCCESS;
+  };
+  auto ret = RegisterMultiFunc(nullptr, func);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(FlowFuncManagerSTest, register_multi_func_null) {
+  auto ret = RegisterMultiFunc("test_multi_func_null", MULTI_FUNC_CREATOR_FUNC());
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(FlowFuncManagerSTest, register_multi_func_with_q_name_null) {
+  MULTI_FUNC_WITH_Q_CREATOR_FUNC func = [](std::shared_ptr<MetaMultiFunc> &,
+                                           std::map<AscendString, PROC_FUNC_WITH_CONTEXT_Q> &) -> int32_t {
+    return FLOW_FUNC_SUCCESS;
+  };
+  auto ret = RegisterMultiFunc(nullptr, func);
+  EXPECT_FALSE(ret);
+}
+
+TEST_F(FlowFuncManagerSTest, register_multi_func_with_q_null) {
+  auto ret = RegisterMultiFunc("test_multi_func_with_q_null", MULTI_FUNC_WITH_Q_CREATOR_FUNC());
+  EXPECT_FALSE(ret);
+}
+
 TEST_F(FlowFuncManagerSTest, not_register) {
   FlowFuncManager &instance = FlowFuncManager::Instance();
   std::string instance_name = "pp0";

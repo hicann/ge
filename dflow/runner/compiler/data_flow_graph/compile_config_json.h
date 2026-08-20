@@ -20,6 +20,8 @@
 
 namespace ge {
 constexpr const char *kResourceTypeAscend = "Ascend";
+constexpr const char *kResourceTypeX86 = "X86";
+constexpr const char *kResourceTypeAarch = "Aarch";
 class CompileConfigJson {
  public:
   struct FunctionDesc {
@@ -103,7 +105,6 @@ class CompileConfigJson {
   static Status ReadToolchainFromJsonFile(const std::string &file_path,
                                           std::map<std::string, std::string> &toolchain_map);
   static Status ReadDeployInfoFromJsonFile(const std::string &file_path, DeployConfigInfo &deploy_conf);
-  static Status GetResourceTypeFromNumaConfig(std::set<std::string> &resource_types);
 
  private:
   static Status ReadCompileConfigJsonFile(const std::string &file_path, nlohmann::json &json_buff);

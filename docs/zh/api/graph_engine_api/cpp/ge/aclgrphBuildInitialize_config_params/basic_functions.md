@@ -262,7 +262,7 @@ sub\_comm\_config.json文件示例如下：
 
 **参数默认值：**
 
-查看$\{INSTALL\_DIR\}/opp/scene.info文件中的取值。
+查看`${INSTALL_DIR}/opp/scene.info`文件中的取值。
 
 `${INSTALL_DIR}`请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 
@@ -289,7 +289,7 @@ sub\_comm\_config.json文件示例如下：
 
 查看`${INSTALL_DIR}/opp/built-in/op_graph/lib/`下打包的算子so的OS/CPU类型。
 
-**参数默认值**：查看$\{INSTALL\_DIR\}/opp/scene.info文件中的取值。
+**参数默认值**：查看`${INSTALL_DIR}/opp/scene.info`文件中的取值。
 
 `${INSTALL_DIR}`请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 

@@ -41,29 +41,29 @@ bool RegisterFlowFunc(const char *flow_func_name, const FLOW_FUNC_CREATOR_FUNC &
   return true;
 }
 
-bool RegisterMultiFunc(const char *flow_func_name, const MULTI_FUNC_CREATOR_FUNC &func_creator) noexcept {
-  if (flow_func_name == nullptr) {
-    UDF_LOG_ERROR("flow_func_name is null.");
+bool RegisterMultiFunc(const char *flowFuncName, const MULTI_FUNC_CREATOR_FUNC &funcCreator) noexcept {
+  if (flowFuncName == nullptr) {
+    UDF_LOG_ERROR("flowFuncName is null.");
     return false;
   }
-  if (func_creator == nullptr) {
-    UDF_LOG_ERROR("func_creator is null, flow_func_name=%s.", flow_func_name);
+  if (funcCreator == nullptr) {
+    UDF_LOG_ERROR("funcCreator is null, flowFuncName=%s.", flowFuncName);
     return false;
   }
-  FlowFuncManager::Instance().Register(flow_func_name, func_creator);
+  FlowFuncManager::Instance().Register(flowFuncName, funcCreator);
   return true;
 }
 
-bool RegisterMultiFunc(const char *flow_func_name, const MULTI_FUNC_WITH_Q_CREATOR_FUNC &func_with_q_creator) noexcept {
-  if (flow_func_name == nullptr) {
-    UDF_LOG_ERROR("flow_func_name is null.");
+bool RegisterMultiFunc(const char *flowFuncName, const MULTI_FUNC_WITH_Q_CREATOR_FUNC &funcWithQCreator) noexcept {
+  if (flowFuncName == nullptr) {
+    UDF_LOG_ERROR("flowFuncName is null.");
     return false;
   }
-  if (func_with_q_creator == nullptr) {
-    UDF_LOG_ERROR("func_creator is null, flow_func_name=%s.", flow_func_name);
+  if (funcWithQCreator == nullptr) {
+    UDF_LOG_ERROR("funcCreator is null, flowFuncName=%s.", flowFuncName);
     return false;
   }
-  FlowFuncManager::Instance().Register(flow_func_name, func_with_q_creator);
+  FlowFuncManager::Instance().Register(flowFuncName, funcWithQCreator);
   return true;
 }
 

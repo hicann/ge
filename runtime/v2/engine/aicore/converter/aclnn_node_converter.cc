@@ -24,13 +24,14 @@
 #include "graph/anchor.h"
 #include "lowering/placement/placed_lowering_result.h"
 #include "engine/aicore/fe_rt2_common.h"
+#include "common/op_tiling/op_tiling_rt2.h"
 #include "register/op_tiling/op_tiling_constants.h"
+#include "engine/aicore/kernel/aclnn_op_execute_kernel.h"
 
 namespace gert {
 namespace {
 constexpr char const *kAclnnLoweringFunc = "AclnnLoweringFunc";
 constexpr char const *kAttrPrecisionModeEnum = "_precision_mode_enum";
-
 const OpImplKernelRegistry::OpImplFunctionsV2 *GetOpImplFunctions(const LowerInput &lower_input,
                                                                   const ge::NodePtr &node) {
   FE_ASSERT_NOTNULL(node);
@@ -145,6 +146,58 @@ std::vector<bg::ValueHolderPtr> FindOpExecute2PhaseFunc(const ge::NodePtr &node,
       node->GetType() + "_FindOpExe2PhaseFunc_" + std::to_string(static_cast<int32_t>(opp_impl_version)), builder);
 }
 
+ge::graphStatus CreateAclnnDeterministicConfig(const ge::NodePtr &node, const LowerInput &lower_input,
+                                               bg::ValueHolderPtr &config_holder) {
+  kernel::AclnnDeterministicConfig config;
+  const ge::OpDescPtr op_desc = node->GetOpDesc();
+  GE_ASSERT_SUCCESS(optiling::GetNodeDeterministic(op_desc, config.op_deterministic, config.has_op_deterministic));
+  GE_ASSERT_SUCCESS(
+      optiling::GetNodeDeterministicLevel(op_desc, config.op_deterministic_level, config.has_op_deterministic_level));
+  const std::string key = "AclnnDeterministicConfig_" +
+                          std::to_string(static_cast<int32_t>(config.has_op_deterministic)) + "_" +
+                          std::to_string(config.op_deterministic) + "_" +
+                          std::to_string(static_cast<int32_t>(config.has_op_deterministic_level)) + "_" +
+                          std::to_string(config.op_deterministic_level);
+  config_holder = lower_input.global_data->GetOrCreateUniqueValueHolder(
+      key, [&config]() { return bg::ValueHolder::CreateConst(&config, sizeof(config)); });
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus BuildAclnnOriginalDeterministicConfig(const ge::NodePtr &node,
+                                                      kernel::AclnnOriginalDeterministicConfig &config) {
+  const auto compute_graph = node->GetOwnerComputeGraph();
+  GE_ASSERT_NOTNULL(compute_graph);
+  const auto root_compute_graph = ge::GraphUtils::FindRootGraph(compute_graph);
+  GE_ASSERT_NOTNULL(root_compute_graph);
+
+  GE_ASSERT_SUCCESS(
+      optiling::GetGraphDeterministicConfig(root_compute_graph, config.deterministic, config.deterministic_level));
+
+  return optiling::SetGlobalDeterministicConfig(config.deterministic, config.deterministic_level);
+}
+
+ge::graphStatus CreateAclnnOriginalDeterministicConfig(const ge::NodePtr &node, const LowerInput &lower_input,
+                                                       bg::ValueHolderPtr &config_holder) {
+  constexpr char kOriginalConfigKey[] = "AclnnOriginalDeterministicConfig";
+  ge::graphStatus ret = ge::GRAPH_SUCCESS;
+  const auto holders = lower_input.global_data->GetOrCreateUniqueValueHolder(
+      kOriginalConfigKey, [&]() -> std::vector<bg::ValueHolderPtr> {
+        kernel::AclnnOriginalDeterministicConfig config;
+        ret = BuildAclnnOriginalDeterministicConfig(node, config);
+        if (ret != ge::GRAPH_SUCCESS) {
+          return {nullptr};
+        }
+        return bg::FrameSelector::OnInitRoot([&config]() -> std::vector<bg::ValueHolderPtr> {
+          return {bg::ValueHolder::CreateConst(&config, sizeof(config))};
+        });
+      });
+  GE_ASSERT_SUCCESS(ret);
+  GE_ASSERT_TRUE(!holders.empty());
+  GE_ASSERT_NOTNULL(holders[0]);
+  config_holder = holders[0];
+  return ge::GRAPH_SUCCESS;
+}
+
 bg::ValueHolderPtr CreateOpExecuteOption(const ge::NodePtr &node) {
   OpExecuteOptions execute_option = {};
   // precision_mode
@@ -199,10 +252,15 @@ bg::ValueHolderPtr OpExecute(const ge::NodePtr &node, const LowerInput &lower_in
 
   auto assembled_platform_info_holders = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
   GE_ASSERT(assembled_platform_info_holders.size() == static_cast<size_t>(bg::AssemblePlatformInfoIndex::kNums));
+  bg::ValueHolderPtr deterministic_config_holder;
+  GE_ASSERT_SUCCESS(CreateAclnnDeterministicConfig(node, lower_input, deterministic_config_holder));
+  bg::ValueHolderPtr original_deterministic_config_holder;
+  GE_ASSERT_SUCCESS(CreateAclnnOriginalDeterministicConfig(node, lower_input, original_deterministic_config_holder));
 
   auto aclnn_op_fwk_data_holder = bg::ValueHolder::CreateSingleDataOutput(
       "BuildSingleStageAclnnOpFwkData",
-      {assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)]});
+      {assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)],
+       deterministic_config_holder, original_deterministic_config_holder});
   op_exe_inputs.emplace_back(aclnn_op_fwk_data_holder);
   return bg::ValueHolder::CreateSingleDataOutput("ExecuteOpFunc", op_exe_inputs);
 }
@@ -223,11 +281,16 @@ bg::ValueHolderPtr Op2PhaseExecute(const ge::NodePtr &node, const LowerInput &lo
   // platform info
   auto assembled_platform_info_holders = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
   GE_ASSERT(assembled_platform_info_holders.size() == static_cast<size_t>(bg::AssemblePlatformInfoIndex::kNums));
+  bg::ValueHolderPtr deterministic_config_holder;
+  GE_ASSERT_SUCCESS(CreateAclnnDeterministicConfig(node, lower_input, deterministic_config_holder));
+  bg::ValueHolderPtr original_deterministic_config_holder;
+  GE_ASSERT_SUCCESS(CreateAclnnOriginalDeterministicConfig(node, lower_input, original_deterministic_config_holder));
   auto aclnn_op_fwk_data_holder = bg::ValueHolder::CreateSingleDataOutput(
       "BuildDualStageAclnnOpFwkData",
       {op_exe_funcs[0], op_exe_funcs[1],
        assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)],
-       assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)]});
+       assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)],
+       deterministic_config_holder, original_deterministic_config_holder});
 
   // stream，不能放在fwk_data中，否则会导致CEM失效
   const auto stream = lower_input.global_data->GetStream();

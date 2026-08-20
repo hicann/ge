@@ -11,7 +11,6 @@
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstdlib>
-#include <iostream>
 #include <dlfcn.h>
 #include <fstream>
 #include <map>
@@ -59,6 +58,7 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op.h"
+#include "graph/operator_factory.h"
 #include "graph/ge_tensor.h"
 #include "graph/operator_reg.h"
 #include "graph/op_desc.h"
@@ -183,12 +183,18 @@ from ge.custom_op import (
     AnnotatedKernelLaunchInfo,
     EagerExecuteOp,
     get_declare_launch_args_ctx,
+    register_op,
     register_op_impl,
 )
-from ge.runtime import Tensor
+from ge.runtime import Tensor, TensorDesc
 
 MARKER_FILE = r')PY";
 constexpr char kSharedPybindEagerCustomOpForSt[] = R"PY('
+
+@register_op(op_type=')PY";
+constexpr char kSharedPybindEagerCustomOpImplForSt[] = R"PY(')
+def infer_meta(x: TensorDesc, *, axis: int = 0) -> TensorDesc:
+    return x
 
 @register_op_impl(op_type=')PY";
 constexpr char kSharedPybindAnnotatedArgsPrefixForSt[] = R"PY(')
@@ -450,8 +456,9 @@ void EnsureSharedPybindCustomOpFileForSt() {
   std::call_once(once, []() {
     const auto python_file = std::string(kSharedPybindCustomOpPreambleForSt) +
                              GetSharedPybindCustomOpMarkerFilePathForSt() + kSharedPybindEagerCustomOpForSt +
-                             kPythonCustomOpTypeForSt + kSharedPybindAnnotatedArgsPrefixForSt +
-                             kPythonAnnotatedArgsOpTypeForSt + kSharedPybindAnnotatedArgsBodyForSt;
+                             kPythonCustomOpTypeForSt + kSharedPybindEagerCustomOpImplForSt + kPythonCustomOpTypeForSt +
+                             kSharedPybindAnnotatedArgsPrefixForSt + kPythonAnnotatedArgsOpTypeForSt +
+                             kSharedPybindAnnotatedArgsBodyForSt;
     WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(), python_file);
   });
 }
@@ -1759,10 +1766,11 @@ TEST_F(CustomOpRefreshTest, eager_only_op_with_malloc_read_only_dev_args) {
  * 1. 构造一个合法legacy实现和一个属性名与REG_OP定义不一致的Python实现。
  * 测试步骤：
  * 1. 通过LoadPythonCustomOps加载Python实现。
- * 2. 查询CustomOpFactory中是否存在该Python自定义算子creator。
+ * 2. 调用UnloadPythonCustomOps清理失败注册产生的部分状态。
+ * 3. 查询CustomOpFactory中是否存在该Python自定义算子creator。
  * 预期结果：
  * 1. 注册阶段签名校验失败，LoadPythonCustomOps返回FAILED。
- * 2. CustomOpFactory中不存在合法或非法Python自定义算子creator。
+ * 2. 卸载后CustomOpFactory中不存在合法或非法Python自定义算子creator。
  */
 TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringRegistration) {
   EnsureInvalidSignaturePybindCustomOpFileForSt();
@@ -1771,25 +1779,25 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringR
 
   ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
   EXPECT_EQ(custom_op::LoadPythonCustomOps(), FAILED);
+  custom_op::UnloadPythonCustomOps();
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt)), nullptr);
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt)), nullptr);
-  custom_op::UnloadPythonCustomOps();
 }
 
 /**
- * 用例描述：测试Python自定义算子通过loader注册、执行后，可以按类型移除注册信息和已创建实例。
+ * 用例描述：测试Python自定义算子原型和实现通过loader注册、执行后，可以按类型移除注册信息。
  * 预置条件：
- * 1. 构造Python自定义算子实现文件，并配置到ASCEND_CUSTOM_OPP_PATH。
+ * 1. 构造Python自定义算子原型和实现文件，并配置到ASCEND_CUSTOM_OPP_PATH。
  * 测试步骤：
- * 1. 通过LoadPythonCustomOps加载Python实现并注册到CustomOpFactory。
- * 2. 通过CustomOpFactory创建Python自定义算子实例并执行。
+ * 1. 通过LoadPythonCustomOps将原型和实现分别注册到OperatorFactory和CustomOpFactory。
+ * 2. 校验原型creator生效，并通过CustomOpFactory创建Python自定义算子实例执行。
  * 3. 校验Python execute写入的标记文件。
  * 4. 调用UnloadPythonCustomOps移除该算子并清理runtime descriptor。
  * 预期结果：
  * 1. Python自定义算子execute被成功调用。
- * 2. creator被移除，后续查询不存在，再次创建返回空指针，runtime descriptor可成功注销。
+ * 2. 原型和实现creator均被移除，后续查询不存在，再次创建返回空指针。
  */
-TEST_F(CustomOpFactoryStTest, remove_python_custom_ops_clears_creator_and_created_instance) {
+TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_impl) {
   EnsureSharedPybindCustomOpFileForSt();
   const auto &marker_file = GetSharedPybindCustomOpMarkerFilePathForSt();
   (void)remove(marker_file.c_str());
@@ -1798,6 +1806,9 @@ TEST_F(CustomOpFactoryStTest, remove_python_custom_ops_clears_creator_and_create
   ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
   ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
   ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  ASSERT_TRUE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
+  EXPECT_FALSE(OperatorFactory::CreateOperator("st_python_proto", kPythonCustomOpTypeForSt).IsEmpty());
 
   const AscendString op_type(kPythonCustomOpTypeForSt);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
@@ -1813,6 +1824,7 @@ TEST_F(CustomOpFactoryStTest, remove_python_custom_ops_clears_creator_and_create
   custom_op::UnloadPythonCustomOps();
   loaded_python_custom_ops.Dismiss();
 
+  EXPECT_FALSE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
 }

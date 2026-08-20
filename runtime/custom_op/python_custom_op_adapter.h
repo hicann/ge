@@ -20,37 +20,43 @@
 
 namespace ge {
 namespace custom_op {
-class PythonCustomOpRuntimeRegistry {
- public:
-  static PythonCustomOpRuntimeRegistry &GetInstance();
+struct PythonCustomOpAdapterDescriptor {
+  std::string op_type;
+  std::string impl_descriptor_key;
+  CustomOpCapabilityMask capabilities{0U};
+};
 
-  static bool Register(const PythonCustomOpDescriptor &desc, const PythonCustomOpCallbacks &callbacks);
+class PythonCustomOpImplRuntimeRegistry {
+ public:
+  static PythonCustomOpImplRuntimeRegistry &GetInstance();
+
+  static bool Register(const PythonCustomOpAdapterDescriptor &desc, const PythonCustomOpAdapterCallbacks &callbacks);
   static bool Unregister(const std::string &descriptor_key);
-  static bool Acquire(const PythonCustomOpDescriptor &desc, PythonCustomOpCallbacks &callbacks);
-  static void Release(const PythonCustomOpDescriptor &desc);
+  static bool Acquire(const PythonCustomOpAdapterDescriptor &desc, PythonCustomOpAdapterCallbacks &callbacks);
+  static void Release(const PythonCustomOpAdapterDescriptor &desc);
   static void Clear();
 
  private:
-  PythonCustomOpRuntimeRegistry() = default;
-  ~PythonCustomOpRuntimeRegistry() = default;
+  PythonCustomOpImplRuntimeRegistry() = default;
+  ~PythonCustomOpImplRuntimeRegistry() = default;
 };
 
-class PythonCustomOpHolder {
+class PythonCustomOpImplHolder {
  public:
-  explicit PythonCustomOpHolder(const PythonCustomOpDescriptor &desc);
-  ~PythonCustomOpHolder();
+  explicit PythonCustomOpImplHolder(const PythonCustomOpAdapterDescriptor &desc);
+  ~PythonCustomOpImplHolder();
 
-  PythonCustomOpHolder(const PythonCustomOpHolder &) = delete;
-  PythonCustomOpHolder &operator=(const PythonCustomOpHolder &) = delete;
+  PythonCustomOpImplHolder(const PythonCustomOpImplHolder &) = delete;
+  PythonCustomOpImplHolder &operator=(const PythonCustomOpImplHolder &) = delete;
 
   bool IsValid() const;
   void *GetHolder() const;
-  const PythonCustomOpCallbacks &GetCallbacks() const;
-  const PythonCustomOpDescriptor &GetDescriptor() const;
+  const PythonCustomOpAdapterCallbacks &GetCallbacks() const;
+  const PythonCustomOpAdapterDescriptor &GetDescriptor() const;
 
  private:
-  PythonCustomOpDescriptor desc_;
-  PythonCustomOpCallbacks callbacks_;
+  PythonCustomOpAdapterDescriptor desc_;
+  PythonCustomOpAdapterCallbacks callbacks_;
   void *holder_{nullptr};
   bool valid_{false};
 };
@@ -63,7 +69,7 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
                                     public ArgsUpdater,
                                     public CustomOpCapabilityProvider {
  public:
-  explicit PythonCustomOpAdapter(PythonCustomOpDescriptor desc);
+  explicit PythonCustomOpAdapter(PythonCustomOpAdapterDescriptor desc);
   ~PythonCustomOpAdapter() override;
 
   bool IsValid() const;
@@ -81,8 +87,8 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
  private:
   graphStatus ReportUnsupported(CustomOpCapability capability, const char *method_name) const;
 
-  PythonCustomOpDescriptor desc_;
-  std::unique_ptr<PythonCustomOpHolder> holder_;
+  PythonCustomOpAdapterDescriptor desc_;
+  std::unique_ptr<PythonCustomOpImplHolder> holder_;
 };
 
 void ClearPythonCustomOpRuntimeRegistry();

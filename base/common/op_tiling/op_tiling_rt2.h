@@ -11,6 +11,8 @@
 #ifndef GE_COMMON_TILING_OP_TILING_RT2_H_
 #define GE_COMMON_TILING_OP_TILING_RT2_H_
 
+#include <cstdint>
+
 #include "graph/operator.h"
 #include "graph/op_desc.h"
 #include "graph/compute_graph.h"
@@ -41,6 +43,13 @@ ge::graphStatus SoftSyncOpRtParseAndTiling(const ge::Operator &op, fe::PlatFormI
 ge::graphStatus FftsRtParseAndTiling(const ge::Operator &op, const fe::PlatFormInfos &platform_infos,
                                      std::vector<OpRunInfoV2> &op_run_infos);
 ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level, bool &has_deterministic_level);
+ge::graphStatus GetNodeDeterministic(const ge::OpDescPtr &op_desc, int32_t &deterministic, bool &has_deterministic);
+ge::graphStatus GetNodeDeterministicLevel(const ge::OpDescPtr &op_desc, int32_t &deterministic_level,
+                                          bool &has_deterministic_level);
+ge::graphStatus GetGraphDeterministicConfig(const ge::ComputeGraphPtr &root_compute_graph, int32_t &deterministic,
+                                            int32_t &deterministic_level);
+ge::graphStatus SetDeterministicConfig(int32_t deterministic, int32_t deterministic_level);
+ge::graphStatus SetGlobalDeterministicConfig(int32_t deterministic, int32_t deterministic_level);
 ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, int32_t &deterministic,
                                        int32_t &deterministic_level);
 ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, const ge::ComputeGraphPtr &root_compute_graph,

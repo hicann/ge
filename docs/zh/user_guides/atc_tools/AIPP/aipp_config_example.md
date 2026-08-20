@@ -8,8 +8,7 @@ AIPP配置文件支持定义多组AIPP配置，对不同的模型输入进行不
 
 > [!NOTE]说明
 >
->- 静态AIPP+动态shape场景：模型转换时，通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数设置了静态AIPP，又通过[--input\_shape](../CLI_options/--input_shape.md)设置了动态shape，则：
-> 如果模型只有一个输入，该场景不支持；如果模型有多个输入，则必须对不同的输入节点进行设置，比如一个输入节点设置静态AIPP，另一个节点设置动态shape。
+>- 静态AIPP+动态shape场景：模型转换时，通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数设置了静态AIPP，又通过[--input\_shape](../CLI_options/--input_shape.md)设置了动态shape，则：如果模型只有一个输入，该场景不支持；如果模型有多个输入，则必须对不同的输入节点进行设置，比如一个输入节点设置静态AIPP，另一个节点设置动态shape。
 >- 如果模型转换时，用户设置了[--dynamic\_image\_size](../CLI_options/--dynamic_image_size.md)动态分辨率参数，即输入图片的宽和高不确定，同时又通过[--insert\_op\_conf](../CLI_options/--insert_op_conf.md)参数设置了静态AIPP功能：该场景下，AIPP配置文件中不能开启Crop和Padding功能，并且需要将配置文件中的src\_image\_size\_w和src\_image\_size\_h取值设置为0。
 
 - 使用related\_input\_rank参数标识，对模型第几个输入进行AIPP处理，如下配置定义了两组AIPP参数，分别对模型第一个和第二个输入进行AIPP处理：

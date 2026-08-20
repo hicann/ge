@@ -922,28 +922,6 @@ TEST_F(UserGraphsManagerlUT, add_graph_verify_options_flow_to_ep_after_slicing) 
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
-static void VerifyEpOptions(const std::vector<std::unique_ptr<ge::ExecutionPoint>> &slice_graphs) {
-  EXPECT_GE(slice_graphs.size(), 2U) << "should have first + last EPs";
-
-  auto &first_opts = slice_graphs.front()->GetEpGraphOptions();
-  EXPECT_NE(first_opts.find("ge.inputShape"), first_opts.end());
-  EXPECT_EQ(first_opts.size(), 3U);
-
-  for (size_t i = 1; i < slice_graphs.size() - 1; ++i) {
-    auto &mid_opts = slice_graphs[i]->GetEpGraphOptions();
-    EXPECT_EQ(mid_opts.find("ge.inputShape"), mid_opts.end());
-    EXPECT_EQ(mid_opts.find("ge.outputDatatype"), mid_opts.end());
-    EXPECT_NE(mid_opts.find("my.custom"), mid_opts.end());
-    EXPECT_EQ(mid_opts.size(), 1U);
-  }
-
-  auto &last_opts = slice_graphs.back()->GetEpGraphOptions();
-  EXPECT_EQ(last_opts.find("ge.inputShape"), last_opts.end());
-  EXPECT_NE(last_opts.find("ge.outputDatatype"), last_opts.end());
-  EXPECT_NE(last_opts.find("my.custom"), last_opts.end());
-  EXPECT_EQ(last_opts.size(), 2U);
-}
-
 TEST_F(UserGraphsManagerlUT, add_graph_verify_multi_ep_options_seperation) {
   ModelExecutor model_executor;
   model_executor.Initialize({}, 0);
@@ -967,8 +945,7 @@ TEST_F(UserGraphsManagerlUT, add_graph_verify_multi_ep_options_seperation) {
                gert::kOnDeviceHbm,
                ge::DT_FLOAT,
                data0.data()};
-  inputs[1] = {
-      {{4}, {4}}, {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}}, gert::kOnDeviceHbm, ge::DT_INT64, shape_data.data()};
+  inputs[1] = {{{4}, {4}}, {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}}, gert::kOnHost, ge::DT_INT64, shape_data.data()};
 
   std::promise<Status> promise;
   auto future = promise.get_future();
@@ -980,7 +957,12 @@ TEST_F(UserGraphsManagerlUT, add_graph_verify_multi_ep_options_seperation) {
       promise.set_value(FAILED);
       return FAILED;
     }
-    VerifyEpOptions(ctrl->order_.slice_graphs_);
+    EXPECT_EQ(ctrl->order_.slice_graphs_.size(), 1U) << "reshape not break since value symbolization";
+    auto &opts = ctrl->order_.slice_graphs_.front()->GetEpGraphOptions();
+    EXPECT_NE(opts.find("ge.inputShape"), opts.end());
+    EXPECT_NE(opts.find("ge.outputDatatype"), opts.end());
+    EXPECT_NE(opts.find("my.custom"), opts.end());
+    EXPECT_EQ(opts.size(), 3U);
     promise.set_value(status);
     return SUCCESS;
   };
@@ -990,24 +972,6 @@ TEST_F(UserGraphsManagerlUT, add_graph_verify_multi_ep_options_seperation) {
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
-}
-
-static void VerifyThreeEpOptions(const std::vector<std::unique_ptr<ge::ExecutionPoint>> &slice_graphs) {
-  ASSERT_GE(slice_graphs.size(), 3U) << "should have at least 3 EPs (first + middle + ...)";
-
-  auto &first_opts = slice_graphs.front()->GetEpGraphOptions();
-  EXPECT_NE(first_opts.find("ge.inputShape"), first_opts.end());
-  EXPECT_EQ(first_opts.size(), 3U);
-
-  for (size_t i = 1; i < slice_graphs.size(); ++i) {
-    auto &mid_opts = slice_graphs[i]->GetEpGraphOptions();
-    EXPECT_EQ(mid_opts.find("ge.inputShape"), mid_opts.end());
-    EXPECT_NE(mid_opts.find("my.custom"), mid_opts.end());
-    if (i < slice_graphs.size() - 1) {
-      EXPECT_EQ(mid_opts.find("ge.outputDatatype"), mid_opts.end());
-      EXPECT_EQ(mid_opts.size(), 1U);
-    }
-  }
 }
 
 TEST_F(UserGraphsManagerlUT, add_graph_verify_three_ep_middle_options) {
@@ -1033,19 +997,23 @@ TEST_F(UserGraphsManagerlUT, add_graph_verify_three_ep_middle_options) {
                gert::kOnDeviceHbm,
                ge::DT_FLOAT,
                data0.data()};
-  inputs[1] = {
-      {{4}, {4}}, {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}}, gert::kOnDeviceHbm, ge::DT_INT64, shape_data.data()};
+  inputs[1] = {{{4}, {4}}, {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}}, gert::kOnHost, ge::DT_INT64, shape_data.data()};
 
   std::promise<Status> promise;
   auto future = promise.get_future();
   auto *ugm_ptr = &user_graph_manager;
   const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     auto *ctrl = ugm_ptr->ids_to_user_graph_ctrl_[user_graph_id].get();
-    if (ctrl == nullptr || ctrl->order_.slice_graphs_.size() < 3U) {
+    if (ctrl == nullptr || ctrl->order_.slice_graphs_.empty()) {
       promise.set_value(FAILED);
       return FAILED;
     }
-    VerifyThreeEpOptions(ctrl->order_.slice_graphs_);
+    EXPECT_EQ(ctrl->order_.slice_graphs_.size(), 1U) << "reshape not break since value symbolization";
+    auto &opts = ctrl->order_.slice_graphs_.front()->GetEpGraphOptions();
+    EXPECT_NE(opts.find("ge.inputShape"), opts.end());
+    EXPECT_NE(opts.find("ge.outputDatatype"), opts.end());
+    EXPECT_NE(opts.find("my.custom"), opts.end());
+    EXPECT_EQ(opts.size(), 3U);
     promise.set_value(SUCCESS);
     return SUCCESS;
   };

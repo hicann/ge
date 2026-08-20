@@ -61,6 +61,7 @@ aclError SetMdlLoadPriority(aclmdlConfigHandle *const handle, const void *const 
   ACL_LOG_INFO("start to execute SetMdlLoadPriority.");
   const int32_t priority = *static_cast<const int32_t *>(attrValue);
   handle->priority = priority;
+  (void)handle->attrState.insert(ACL_MDL_PRIORITY_INT32);
   ACL_LOG_INFO("successfully execute SetMdlLoadPriority");
   return ACL_SUCCESS;
 }
@@ -216,6 +217,7 @@ aclError SetMdlLoadWeightSize(aclmdlConfigHandle *const handle, const void *cons
   ACL_LOG_INFO("start to execute SetMdlLoadWeightSize");
   const size_t weightSize = *static_cast<const size_t *>(attrValue);
   handle->weightSize = weightSize;
+  (void)handle->attrState.insert(ACL_MDL_WEIGHT_SIZET);
   ACL_LOG_INFO("successfully execute SetMdlLoadWeightSize to set weightSize[%zu]", weightSize);
   return ACL_SUCCESS;
 }
@@ -224,6 +226,7 @@ aclError SetMdlLoadWorkspaceSize(aclmdlConfigHandle *const handle, const void *c
   ACL_LOG_INFO("start to execute SetMdlLoadWorkspaceSize");
   const size_t workSize = *static_cast<const size_t *>(attrValue);
   handle->workSize = workSize;
+  (void)handle->attrState.insert(ACL_MDL_WORKSPACE_SIZET);
   ACL_LOG_INFO("successfully execute SetMdlLoadWorkspaceSize to set workSize[%zu]", workSize);
   return ACL_SUCCESS;
 }
@@ -274,6 +277,7 @@ aclError SetMdlLoadWeightPtr(aclmdlConfigHandle *const handle, const void *const
   ACL_LOG_INFO("start to execute SetMdlLoadWeightPtr");
   void *const val = *static_cast<void *const *>(attrValue);
   handle->weightPtr = val;
+  (void)handle->attrState.insert(ACL_MDL_WEIGHT_ADDR_PTR);
   ACL_LOG_INFO("successfully execute SetMdlLoadWeightPtr");
   return ACL_SUCCESS;
 }
@@ -282,6 +286,7 @@ aclError SetMdlLoadWorkPtr(aclmdlConfigHandle *const handle, const void *const a
   ACL_LOG_INFO("start to execute SetMdlLoadWorkPtr");
   void *const val = *static_cast<void *const *>(attrValue);
   handle->workPtr = val;
+  (void)handle->attrState.insert(ACL_MDL_WORKSPACE_ADDR_PTR);
   ACL_LOG_INFO("successfully execute SetMdlLoadWorkPtr");
   return ACL_SUCCESS;
 }
@@ -315,6 +320,7 @@ aclError SetMdlLoadReuseZeroCopy(aclmdlConfigHandle *const handle, const void *c
   ACL_LOG_INFO("start to execute SetMdlLoadReuseZeroCopy");
   const size_t val = *static_cast<const size_t *>(attrValue);
   handle->reuseZeroCopy = val;
+  (void)handle->attrState.insert(ACL_MDL_WORKSPACE_MEM_OPTIMIZE);
   ACL_LOG_INFO("successfully execute SetMdlLoadReuseZeroCopy");
   return ACL_SUCCESS;
 }

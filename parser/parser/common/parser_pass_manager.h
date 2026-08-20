@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef PARSER_COMMON_PASS_MANAGER_H_
-#define PARSER_COMMON_PASS_MANAGER_H_
+#ifndef PARSER_COMMON_PARSER_PASS_MANAGER_H_
+#define PARSER_COMMON_PARSER_PASS_MANAGER_H_
 
 #include <vector>
 
@@ -58,4 +58,4 @@ class PassManager {
 };
 }  // namespace parser
 }  // namespace ge
-#endif  // PARSER_COMMON_PASS_MANAGER_H_
+#endif  // PARSER_COMMON_PARSER_PASS_MANAGER_H_

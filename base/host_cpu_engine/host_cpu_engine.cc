@@ -25,6 +25,7 @@ namespace {
 const std::string kConstantFoldingName = "libconstant_folding_ops.so";
 const std::string kOpsHostCpuName = "libops_host_cpu.so";
 const std::string kAicpuConstFoldingName = "libaicpu_const_folding.so";
+const char *const kIsFusedCpuKernelSupported = "IsCpuConstantFoldingFusedOpSupported";
 
 Status GetDataNumber(const GeTensorDesc &out_desc, uint64_t &data_num) {
   int64_t num_size = out_desc.GetShape().IsScalar() ? 1 : out_desc.GetShape().GetShapeSize();
@@ -138,6 +139,18 @@ ge::Status HostCpuEngine::Initialize(const std::string &path_base) {
 
 void HostCpuEngine::Finalize() const {
   GELOGI("start HostCpuEngine::Finalize");
+}
+
+bool HostCpuEngine::IsFusedCpuKernelSupported(const std::string &op_type) const {
+  if (is_fused_cpu_kernel_supported_ == nullptr) {
+    GELOGD("HostCPU fused-kernel support query is unavailable for op[%s].", op_type.c_str());
+    return false;
+  }
+  const bool supported = is_fused_cpu_kernel_supported_(op_type.c_str()) == 1;
+  if (!supported) {
+    GELOGD("HostCPU fused-kernel support query rejected op[%s].", op_type.c_str());
+  }
+  return supported;
 }
 
 Status HostCpuEngine::PrepareInputs(const ge::ConstOpDescPtr &op_desc, const std::vector<ConstGeTensorPtr> &inputs,
@@ -295,6 +308,15 @@ Status HostCpuEngine::LoadLib(const std::string &lib_path, bool invoke_init) {
   GELOGI("Lib: %s has been opened", lib_path.c_str());
   if (lib_path.find(kConstantFoldingName) != lib_path.npos) {
     constant_folding_handle_ = handle;
+  }
+  if (lib_path.find(kAicpuConstFoldingName) != lib_path.npos) {
+    is_fused_cpu_kernel_supported_ =
+        reinterpret_cast<int32_t (*)(const char *)>(mmDlsym(handle, kIsFusedCpuKernelSupported));
+    if (is_fused_cpu_kernel_supported_ == nullptr) {
+      const char_t *reason = mmDlerror();
+      reason = (reason == nullptr) ? "" : reason;
+      GELOGW("Fused HostCPU support query symbol is unavailable in lib: %s, reason = %s", lib_path.c_str(), reason);
+    }
   }
   (void)lib_handles_.emplace_back(handle);
   return SUCCESS;

@@ -13,6 +13,9 @@ include(cmake/fetch_cann_cmake.cmake)
 project(CANN-GRAPH-ENGINE)
 
 init_cann_project()
+if(NOT DEFINED USE_CXX11_ABI)
+    set(USE_CXX11_ABI 0)
+endif()
 set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH})
 set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH})
 set(BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -80,21 +83,16 @@ cmake_print_variables(BUILD_COMPONENT)
 cmake_print_variables(ENABLE_BUILD_DEVICE USE_CXX11_ABI CMAKE_TOOLCHAIN_FILE)
 cmake_print_variables(CMAKE_CXX_COMPILER_ID)
 
-if(ENABLE_BUILD_DEVICE)
-    # 非MDC编译流程
-    set(USE_CXX11_ABI 0)
-else()
+if(NOT ENABLE_BUILD_DEVICE)
     string(FIND "${CMAKE_TOOLCHAIN_FILE}" "ubuntu18.04-x86_64-llvm-toolchain.cmake" SUBSTRING_FOUND)
     if(SUBSTRING_FOUND GREATER_EQUAL 0)
         set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY false)
         # MDC编译运行态
         message("[MDC compile] MDC compile runtime state.")
-        add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
         set(MDC_COMPILE_RUNTIME ON)
     else()
         # MDC编译开发态
         message("[MDC compile] MDC compile develop state.")
-        set(USE_CXX11_ABI 0)
     endif()
 endif()
 

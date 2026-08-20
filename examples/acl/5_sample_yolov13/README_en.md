@@ -245,7 +245,7 @@ If `--multi_stream_parallel_mode` is omitted, automatic multi-stream parallelism
 In CANN Community Edition 9.2.0, test different multi-stream parallel modes, determine the optimal value for this sample under the specified environment and test conditions, and submit a PR with the following result:
 
 ```text
---multi_stream_parallel_mode=<to-be-determined>
+--multi_stream_parallel_mode=LoadBalance:55
 ```
 
 For example, to use `cv` mode, first compile the corresponding OM:

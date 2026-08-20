@@ -33,6 +33,14 @@ class ExecutionRuntime {
 
   static void SetExecutionRuntime(const std::shared_ptr<ExecutionRuntime> &instance);
 
+  static bool IsX86() {
+#ifdef __x86_64__
+    return true;
+#else
+    return false;
+#endif
+  }
+
   /// Initialize ExecutionRuntime
   /// @param execution_runtime    instance of execution runtime
   /// @param options              options for initialization

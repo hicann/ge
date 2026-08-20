@@ -190,6 +190,7 @@ Status Om2CodegenModelBuilder::Build(const GeModelPtr &model, const std::vector<
   GE_ASSERT_SUCCESS(GenerateArgsData(model, task_builders, codegen_model));
   GE_ASSERT_SUCCESS(BuildTaskSemantics(model, task_builders, codegen_model));
   GE_ASSERT_SUCCESS(AggregateArgsTable(task_builders, codegen_model));
+  GE_ASSERT_SUCCESS(BuildVA2PAInfo(codegen_model));
   return SUCCESS;
 }
 
@@ -925,6 +926,14 @@ Status Om2CodegenModelBuilder::GenerateArgsData(const GeModelPtr &model,
 
   GE_ASSERT_SUCCESS(args_manager_.GenerateArgsDataForProgramGenerator(codegen_model));
 
+  return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::BuildVA2PAInfo(Om2CodegenModel &codegen_model) const {
+  bool is_need_va2pa = false;
+  GE_CHK_RT_RET(rtNeedDevVA2PA(&is_need_va2pa));
+  GELOGI("[OM2] rtNeedDevVA2PA result: need_va2pa=%d", static_cast<int>(is_need_va2pa));
+  codegen_model.is_need_va2pa = is_need_va2pa;
   return SUCCESS;
 }
 }  // namespace ge

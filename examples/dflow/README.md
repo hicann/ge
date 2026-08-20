@@ -6,3 +6,4 @@
 | --------------------------------------------------------- | ------------------------------------------------------------ |
 | Dflow样例                                                 | [C++样例](cpp/README.md)<br>[Python样例](python/README.md) |
 | Dflow样例依赖的udf工程                                     | [README](udf_workspace/README.md)                            |
+| numa_config生成工具                                        | [tools/](tools/)                                             |

@@ -17,7 +17,7 @@
 #include "dflow/base/utils/process_utils.h"
 #include "common/subprocess/subprocess_manager.h"
 #include "dflow_deployer_json_parser.h"
-#include "common/utils/deploy_location.h"
+#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "deploy/resource/device_info.h"
 #include "graph/ge_context.h"
 #include "acl/acl.h"
@@ -128,7 +128,7 @@ static void from_json(const nlohmann::json &j, ItemConfig &item_config) {
 
 static void from_json(const nlohmann::json &j, NodeDefConfig &node_def_config) {
   AssignOptionalField(node_def_config.node_type, kConfigNodeType, j);
-  auto default_resource_type = DeployLocation::IsX86() ? kResoureTypeX86 : kResoureTypeAarch;
+  auto default_resource_type = ExecutionRuntime::IsX86() ? kResoureTypeX86 : kResoureTypeAarch;
   AssignOptionalField(node_def_config.resource_type, kConfigResourceType, j, default_resource_type);
   AssignOptionalField(node_def_config.item_config_list, kConfigItem, j);
 }
@@ -246,7 +246,7 @@ Status ConfigParser::InitNodeResourceType(const std::map<std::string, std::strin
                                           const std::map<std::string, std::string> &node_type_to_item_resource_type,
                                           NodeConfig &node_config) {
   const auto &node_it = node_type_to_node_resource_type.find(node_config.node_type);
-  node_config.resource_type = DeployLocation::IsX86() ? kResoureTypeX86 : kResoureTypeAarch;
+  node_config.resource_type = ExecutionRuntime::IsX86() ? kResoureTypeX86 : kResoureTypeAarch;
   if (node_it != node_type_to_node_resource_type.cend()) {
     node_config.resource_type = node_it->second;
   }

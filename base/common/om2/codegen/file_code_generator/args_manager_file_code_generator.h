@@ -25,7 +25,7 @@ class ArgsManagerFileCodeGenerator : public CodeGeneratorBase {
   MethodDef *BuildGetDevArgAddrMethod();
   MethodDef *BuildGetHostArgAddrMethod();
   MethodDef *BuildUpdateHostArgsMethod();
-  MethodDef *BuildCopyArgsToDeviceMethod();
+  MethodDef *BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model);
 
  private:
   ExprRef GetHostArgAddr(Arg offset, Arg args_type);

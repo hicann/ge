@@ -56,7 +56,6 @@
 #include "model_args_layout_planner.h"
 #include "proto/task.pb.h"
 #include "task_args_refresh_type_classifier.h"
-#include "aprof_pub.h"
 
 namespace ge {
 constexpr uint32_t kAddrRefreshOpParamOffset = 48U;

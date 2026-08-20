@@ -249,7 +249,7 @@ ATC 通过 `--multi_stream_parallel_mode=<模式>` 接收多流策略，并将�
 请在 CANN 社区版 9.2.0 环境中测试不同的多流并行模式，找到本样例在指定环境和测试条件下的最优参数，并填写以下结论后提交 PR：
 
 ```text
---multi_stream_parallel_mode=<待填写>
+--multi_stream_parallel_mode=LoadBalance:55
 ```
 
 例如，使用 `cv` 模式时，先编译对应的 OM：

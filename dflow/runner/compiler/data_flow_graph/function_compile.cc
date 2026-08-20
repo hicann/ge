@@ -14,6 +14,7 @@
 #include <mutex>
 #include "framework/common/scope_guard.h"
 #include "dflow/runner/compiler/data_flow_graph/compile_config_json.h"
+#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "mmpa/mmpa_api.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "dflow/base/utils/data_flow_utils.h"
@@ -164,9 +165,8 @@ Status FunctionCompile::GetToolchainByResourceType(const std::string &resource_t
 }
 
 Status FunctionCompile::CompileAllResourceType() {
-  std::set<std::string> resource_types;
-  GE_CHK_STATUS_RET(CompileConfigJson::GetResourceTypeFromNumaConfig(resource_types),
-                    "Failed to get resource types from numa config.");
+  const std::set<std::string> resource_types = {kResourceTypeAscend,
+                                                ExecutionRuntime::IsX86() ? kResourceTypeX86 : kResourceTypeAarch};
 
   const std::string &workspace = func_pp_cfg_.workspace;
   std::regex workspace_pattern(R"([A-Za-z0-9./+\-_]+)");
@@ -241,9 +241,8 @@ Status FunctionCompile::GetBuiltInFuncCompileResult(CompileResult &compile_resul
   resource_info.resource_num = kDefaultMemorySize;
   built_in_func_compile_result.running_resources_info.emplace_back(resource_info);
   // set default runnable resources info
-  std::set<std::string> resource_types;
-  GE_CHK_STATUS_RET(CompileConfigJson::GetResourceTypeFromNumaConfig(resource_types),
-                    "Failed to get resource types from numa config.");
+  const std::set<std::string> resource_types = {kResourceTypeAscend,
+                                                ExecutionRuntime::IsX86() ? kResourceTypeX86 : kResourceTypeAarch};
   for (const auto &resource_type : resource_types) {
     // the internal udf supports all resource types, and not need to set bin
     built_in_func_compile_result.compile_bin_info[resource_type] = "";

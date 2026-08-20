@@ -226,7 +226,7 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
   BuildRunBodyPhaseInputCopy(body, codegen_model.model_io.entries, exe_stream, is_async, prof_info, t_input_begin);
 
   // Phase 2: ModelExecute + StepInfo
-  BuildRunBodyPhaseModelExecute(body, exe_stream, is_async, prof_info, t_exec_begin);
+  BuildRunBodyPhaseModelExecute(body, exe_stream, is_async, prof_info, t_exec_begin, codegen_model.is_need_va2pa);
 
   // Phase 3: OutputCopy
   BuildRunBodyPhaseOutputCopy(body, codegen_model.model_io.entries, exe_stream, is_async, prof_info, t_output_begin);
@@ -254,7 +254,8 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseInputCopy(std::vector<BodyIte
 }
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream,
-                                                                bool is_async, VarRef prof_info, VarRef exec_begin) {
+                                                                bool is_async, VarRef prof_info, VarRef exec_begin,
+                                                                bool is_need_va2pa) {
   auto trace_stream = is_async ? exe_stream : sync_prof_stream_;
   auto prof_step_cond = (prof_info != "nullptr") && (ast_.Var("", "prof_info->step_id") != "0U");
   body.push_back(ast_.If((prof_info != "nullptr"), {ast_.Assign(exec_begin, ast_.Call("MsprofSysCycleTime", {}))}));
@@ -269,7 +270,15 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
                                                        ast_.Var("uint64_t", "_t_step_begin")})}));
 
   body.push_back(ast_.BlankLine());
-  body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")()));
+  if (is_need_va2pa) {
+    if (is_async) {
+      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(trace_stream, false)));
+    } else {
+      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, false)));
+    }
+  } else {
+    body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, is_async)));
+  }
   if (is_async) {
     body.push_back(ChkStatus(AclmdlRIExecuteAsync(model_handle_, exe_stream)));
   } else {

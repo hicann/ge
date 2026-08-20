@@ -1547,8 +1547,9 @@ aclError Om2ArgsTable::UpdateHostArgs(int32_t type, size_t index, const uintptr_
   return ACL_SUCCESS;
 }
 
-aclError Om2ArgsTable::CopyArgsToDevice() {
+aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {
   OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));
+  OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[0], args_sizes_[0], stream, is_async));
   return ACL_SUCCESS;
 }
 } // namespace om2
@@ -1631,8 +1632,8 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
 #include "g1_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle)
-  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), sync_prof_stream_(nullptr) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1658,7 +1659,7 @@ aclError Om2Model::InitResources() {
   // 3. 创建其他资源
   // 创建下沉Stream并绑定模型
   uint32_t stream0_flag = RT_STREAM_PERSISTENT;
-  OM2_CHK_RT(rtStreamCreateWithFlags(&stream_list_[0], 0, stream0_flag));
+  OM2_CHK_RT(rtStreamCreateWithFlags(&stream_list_[0], priority_, stream0_flag));
   auto bind0_flag = RT_HEAD_STREAM;
   OM2_CHK_STATUS(aclmdlRIBindStream(model_handle_, stream_list_[0], bind0_flag));
   is_stream_list_bind_ = true;
@@ -2124,7 +2125,7 @@ class Om2ArgsTable {
     void * GetDevArgAddr(size_t offset, int32_t args_type);
     void * GetHostArgAddr(size_t offset, int32_t args_type);
     aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
-    aclError CopyArgsToDevice();
+    aclError CopyArgsToDevice(void *stream, bool is_async);
   private:
     std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
     std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};
@@ -2426,7 +2427,7 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
@@ -2462,6 +2463,7 @@ class Om2Model {
     void *overflow_addr_;
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
+    int32_t priority_;
     aclrtStream sync_prof_stream_;
 };
 } // namespace om2
@@ -2469,7 +2471,7 @@ class Om2Model {
 extern "C" {
 #endif
 
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
 
@@ -3194,7 +3196,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3251,7 +3253,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3273,13 +3275,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -3872,7 +3874,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3929,7 +3931,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -3951,13 +3953,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -4613,7 +4615,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -4670,7 +4672,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -4692,13 +4694,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
@@ -5311,7 +5313,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));
   OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -5368,7 +5370,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
     CommitProfUnit(prof_info, OM2_PROF_STEP_INFO_START, _t_step_begin);
   }
 
-  OM2_CHK_STATUS(args_table_.CopyArgsToDevice());
+  OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));
   OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));
   if ((prof_info != nullptr)) {
     CommitProfUnit(prof_info, OM2_PROF_MODEL_EXECUTE, _t_exec_begin);
@@ -5390,13 +5392,13 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle) {
+aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;

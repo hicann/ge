@@ -11,6 +11,8 @@
 #include "nlohmann/json.hpp"
 #include "op_tiling_rt2.h"
 
+#include <mutex>
+
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/sgt_slice_type.h"
@@ -57,9 +59,9 @@ using TilingFunc = ge::graphStatus (*)(TilingSymbolEvalContext *);
 using GetTilingDataFunc = size_t (*)();
 using TilingParse = ge::graphStatus (*)(SymbolTilingParseContext *);
 namespace {
-const std::string kCompileInfoJson = "compile_info_json";
 constexpr const char *kDeterministicAttr = "_deterministic";
 constexpr const char *kDeterministicLevelAttr = "_deterministic_level";
+const std::string kCompileInfoJson = "compile_info_json";
 constexpr size_t kMaxTilingDataSize = 16UL * 1024UL;
 constexpr size_t kMaxWorkspaceCount = 16;
 const std::string kMaxTilingSize = "op_para_size";
@@ -396,11 +398,15 @@ void UpdateCoreNumByCoreType(const ge::OpDescPtr &op_desc, fe::PlatFormInfos &pl
 #endif
 }
 
-ge::graphStatus GetNodeDeterministic(const ge::OpDescPtr &op_desc, int32_t &deterministic) {
+}  // namespace
+
+ge::graphStatus GetNodeDeterministic(const ge::OpDescPtr &op_desc, int32_t &deterministic, bool &has_deterministic) {
   GE_ASSERT_NOTNULL(op_desc);
+  has_deterministic = false;
   if (!ge::AttrUtils::HasAttr(op_desc, kDeterministicAttr)) {
     return ge::GRAPH_SUCCESS;
   }
+  has_deterministic = true;
 
   const std::string *const node_deterministic_str = ge::AttrUtils::GetStr(op_desc, kDeterministicAttr);
   if (node_deterministic_str == nullptr) {
@@ -442,14 +448,6 @@ ge::graphStatus GetNodeDeterministicLevel(const ge::OpDescPtr &op_desc, int32_t 
   has_deterministic_level = true;
   return ge::GRAPH_SUCCESS;
 }
-
-void AlignDeterministicByLevel(const bool has_deterministic_level, const int32_t deterministic_level,
-                               int32_t &deterministic) {
-  if (has_deterministic_level) {
-    deterministic = deterministic_level >= 1 ? 1 : 0;
-  }
-}
-}  // namespace
 
 bool EnableRt2Tiling(const ge::OpDescPtr &op_desc) {
   GE_ASSERT_NOTNULL(op_desc);
@@ -1063,19 +1061,56 @@ ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level, bool &has_de
   return ge::GRAPH_SUCCESS;
 }
 
+ge::graphStatus CheckDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level) {
+  if ((deterministic == 0) != (deterministic_level == 0)) {
+    const std::string value = std::to_string(deterministic) + " / " + std::to_string(deterministic_level);
+    const char *reason = "must both be 0 or both non-zero.";
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"deterministic / deterministic_level", value.c_str(), reason}));
+    GELOGE(ge::PARAM_INVALID, "Deterministic[%d] and deterministic level[%d] are inconsistent.", deterministic,
+           deterministic_level);
+    return ge::PARAM_INVALID;
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus SetDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level) {
+  GE_ASSERT_SUCCESS(CheckDeterministicConfig(deterministic, deterministic_level));
+  GE_CHK_ACL_RET(aclrtSetSysParamOpt(ACL_OPT_DETERMINISTIC, deterministic_level));
+  GE_CHK_ACL_RET(aclrtCtxSetSysParamOpt(ACL_OPT_DETERMINISTIC, deterministic_level));
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus SetGlobalDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level) {
+  static std::mutex deterministic_mutex;
+  const std::lock_guard<std::mutex> lock(deterministic_mutex);
+  return SetDeterministicConfig(deterministic, deterministic_level);
+}
+
 ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, int32_t &deterministic,
                                        int32_t &deterministic_level) {
   std::string deterministic_str;
   (void)ge::GetThreadLocalContext().GetOption(ge::DETERMINISTIC, deterministic_str);
   deterministic = deterministic_str == "1" ? 1 : 0;
-  GE_ASSERT_SUCCESS(GetNodeDeterministic(op_desc, deterministic));
+  bool has_deterministic = false;
+  GE_ASSERT_SUCCESS(GetNodeDeterministic(op_desc, deterministic, has_deterministic));
 
   bool has_deterministic_level = false;
   GE_ASSERT_SUCCESS(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level));
   if (!has_deterministic_level) {
     GE_ASSERT_SUCCESS(GetDeterministicLevel(deterministic_level, has_deterministic_level));
   }
-  AlignDeterministicByLevel(has_deterministic_level, deterministic_level, deterministic);
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus GetGraphDeterministicConfig(const ge::ComputeGraphPtr &root_compute_graph, int32_t &deterministic,
+                                            int32_t &deterministic_level) {
+  GE_ASSERT_NOTNULL(root_compute_graph);
+  deterministic = 0;
+  deterministic_level = 0;
+  (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC, deterministic);
+  (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC_LEVEL, deterministic_level);
   return ge::GRAPH_SUCCESS;
 }
 
@@ -1085,7 +1120,8 @@ ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, const ge::C
   deterministic = 0;
   deterministic_level = 0;
   (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC, deterministic);
-  GE_ASSERT_SUCCESS(GetNodeDeterministic(op_desc, deterministic));
+  bool has_deterministic = false;
+  GE_ASSERT_SUCCESS(GetNodeDeterministic(op_desc, deterministic, has_deterministic));
 
   bool has_deterministic_level = false;
   GE_ASSERT_SUCCESS(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level));
@@ -1093,7 +1129,6 @@ ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, const ge::C
     (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC_LEVEL, deterministic_level);
     has_deterministic_level = true;
   }
-  AlignDeterministicByLevel(has_deterministic_level, deterministic_level, deterministic);
   return ge::GRAPH_SUCCESS;
 }
 }  // namespace optiling

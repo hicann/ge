@@ -303,7 +303,7 @@ std::vector<size_t> OverloadPlanner::CollectBaselineIndices(const size_t version
 }
 
 bool OverloadPlanner::TryAdoptModeSignatures(const IrOpProto &current, const std::vector<const IrOpProto *> &versions,
-                                             const std::vector<BoundaryInfo> &boundaries, const MultiBaselineMode mode,
+                                             const std::vector<BoundaryInfo> &boundaries, MultiBaselineMode mode,
                                              std::vector<Warning> *warnings,
                                              std::vector<Signature> &accepted_signatures) const {
   std::vector<Warning> mode_warnings;

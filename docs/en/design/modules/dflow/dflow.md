@@ -550,7 +550,7 @@ The final UDF execution location is determined by the compilation-time attribute
 
 | Attribute | Meaning | Setting Location |
 |-----------|---------|-----------------|
-| `_dflow_runnable_resource` | Set of resource types UDF successfully compiled to (Ascend/Aarch/x86_64) | `SetCompileResultToNode` in `process_point_loader.cc` |
+| `_dflow_runnable_resource` | Set of resource types UDF successfully compiled to (Ascend/X86/Aarch) | `SetCompileResultToNode` in `process_point_loader.cc` |
 | `_dflow_heavy_load` | Whether heavy-load (heavy-load must be host) | `SetUserFunctionProcessPointAttrs` in `process_point_loader.cc` |
 | `_dflow_final_location` | Final resource type selected by auto deployer | `AutoDeployDataFlowGraph` in `data_flow_graph_auto_deployer.cc` |
 

@@ -19,7 +19,7 @@ Python 自定义算子的完整定位是支持用户用 Python 描述自定义�
 - Python 用户通过 `declare_launch_args` 实现 `AnnotatedArgsOp` 编译期回调，使用 `AnnotatedArgsContext`、`AnnotatedKernelArgs` 和 `AnnotatedKernelLaunchInfo` 声明 kernel 启动参数。
 - `ge.runtime` 提供 context 返回或入参所需的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构。
 
-V2 计划在 V1 执行能力的基础上扩展 Python 原型和 Meta 推导能力。
+V2 在 V1 执行能力的基础上扩展 Python 原型和 Meta 推导能力。当前阶段已经实现 Python 原型 creator、Adapter 注册事务和所有权管理，但尚不调用 Python `infer_meta`。
 
 V2 中，被 `register_op` 装饰的 Python 函数负责 Meta 推导，本文统一称为 `infer_meta`，但不要求函数名必须是 `infer_meta`。该函数按照算子原型接收输入 `TensorDesc`（包括可选输入和动态输入）及属性值，返回一个或多个描述输出 shape 和 data type 的 `TensorDesc`；它不读取输入 Tensor 数据，也不执行算子 kernel。
 
@@ -71,6 +71,7 @@ Python custom op 是 GE Python 体系的一部分，与 Python pass 共享以下
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | 统一加载 C++ custom op 和 Python custom op |
 | Bridge loader | `runtime/custom_op/python_custom_op_bridge_loader.cc` | 选择 artifact、加载 `libge_python_custom_op_bridge.so`、注册 creator |
 | Pybind bridge | `runtime/custom_op/python_custom_op_pybind_bridge.cc` | 导入 Python bridge 模块、创建 holder、回调 `execute` / `declare_launch_args` |
+| Proto runtime | `runtime/custom_op/python_custom_op_proto.*` | 深拷贝 C POD 原型并注册 `OperatorFactory` creator |
 | Adapter | `runtime/custom_op/python_custom_op_adapter.*` | 作为 C++ `BaseCustomOp` 实例接入现有运行时 |
 | Capability helper | `inc/graph_metadef/graph/custom_op/` | `CustomOpCapability` 和 `CustomOpCast<T>` |
 
@@ -80,6 +81,7 @@ V1 功能包括：
 
 - `@register_op_impl(op_type=...)` 注册 Python 自定义算子实现。
 - `@register_op(op_type=..., mutates_args=...)` 根据 Python 函数签名收集自定义算子原型。
+- bridge 将 Python 原型同步注册为 `OperatorFactory` creator，并从生效 creator 收集 canonical IR；当前不调用 `infer_meta`。
 - `register_op_impl` 反射实现类上的可调用 `execute`、`declare_launch_args` 方法并声明对应能力，不要求继承 `BaseCustomOp`、`EagerExecuteOp` 或 `AnnotatedArgsOp`。
 - `execute(self, ctx)` 兼容形式直接接收 `EagerOpExecutionContext`；schema-bound 形式接收按 canonical IR 组装的输入和属性。
 - `EagerOpExecutionContext` 支持输入输出 tensor 查询、动态输入实例数、运行时属性读取、输出/工作区分配和 stream 获取。
@@ -96,6 +98,8 @@ V1 功能包括：
 - Python `execute` 的返回值当前不作为状态码使用；正常返回表示成功，抛出异常表示失败。
 - Python custom op 当前声明 `EagerExecuteOp` 和 `AnnotatedArgsOp` capability；其它 C++ 能力接口由 adapter 保留 override 但按不支持处理。
 - schema-bound 形式依赖已有算子原型的 canonical IR。bridge 加载 descriptor 时收集 canonical IR，并在创建 holder 和调用业务 callback 之前调用 `validate_op_impl_descriptor`，一次性校验 schema-bound 签名：`execute` 校验 IR 输入和属性，不把输出参数纳入签名，也不限制返回注解或返回值；`declare_launch_args` 校验输入、输出、属性并要求 `-> None`。runtime callback 只组装实参并调用业务方法，不再校验签名；校验结果属于 descriptor 加载阶段，不进入 holder 生命周期。
+- 跨 SO 的 proto/Adapter descriptor 是同步借用的 C POD view，runtime callback 返回前必须完成校验和深拷贝。
+- Python 原型允许覆盖内置原型；若 `CustomOpFactory` 已存在同名 C++ 或 Python 自定义算子，则视为自定义算子冲突。
 - schema-bound 回调通过 `get_execute_ctx()` 获取当前 context；该绑定只在当前回调动态作用域内有效。
 - Python custom op native/bridge 与构建时 Python ABI 相关，不提供跨 Python minor version 兼容承诺。
 - bridge C ABI 保持为 v1，`execute` 和 `declare_launch_args` 回调只传 holder 与对应 context；canonical IR 由 bridge 通过 run 包公共接口查询，不通过私有 ABI 投影传递。
@@ -325,14 +329,16 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 - `NeedLoadPythonCustomOps()` 仅在 `ASCEND_CUSTOM_OPP_PATH` 下发现 Python 文件或包时返回 true。
 - `LoadPythonCustomOps()` 解析已加载 Python runtime key，选择 `custom_op/python_custom_op_artifacts/<python_tag>-<platform>` 下的 bridge/native artifact。
 - `libge_python_custom_op_bridge.so` 通过 `GeGetPythonCustomOpBridgeApi()` 暴露 C ABI v1。
-- bridge 导入 `_ge_custom_op_native` 和 `ge.custom_op._bridge`，注册 descriptor，并为每个 adapter 创建 Python holder。
+- bridge 导入 `_ge_custom_op_native` 和 `ge.custom_op._bridge`，一次获取 proto/impl snapshot；先注册全部 proto，再校验并注册 Adapter。
+- `CustomOpLoader::LoadCustomOps()` 记录 Python custom op 是否已经加载，因此生命周期加载请求重复调用时会直接返回成功，不重复调用 bridge 注册入口。动态 `LoadPythonCustomOpsIfNeeded()` 路径不使用该状态，运行期间可以继续发现新增加的 Python custom op 路径。底层 `LoadPythonCustomOps()` 负责执行一次 bridge 注册尝试；注册失败后由调用方调用 `UnloadPythonCustomOps()` 清理本次产生的部分注册。
+- `UnloadPythonCustomOps()` 先移除已注册的 Adapter creator，再一次性清理 Python 自定义算子 runtime registry，最后清理已注册的 proto creator。bridge loader 不再逐项注销 runtime entry，也不维护待清理状态。
 - `UnloadCustomOps()` 采用 `active_users_` 引用计数管理生命周期：每次 `LoadCustomOps()` 使计数 +1，每次 `UnloadCustomOps()` 使计数 -1，仅当计数归零时才卸载 Python custom op、清理 Python holder/registry 并关闭 bridge。`ShutdownCustomOpsForProcess()` 作为兼容 wrapper 保留，内部调用 `UnloadCustomOps()`。
 
 **输出**
 
-- Python descriptor 注册为 `CustomOpFactory` creator。
+- Python proto 注册为 `OperatorFactory` creator，Python impl 注册为 `CustomOpFactory` creator。
 - adapter 析构时销毁 Python holder，并 release runtime registry entry。
-- active adapter 存在时 runtime registry 不允许 unregister。
+- 单项 runtime registry 注销仍受 active adapter 保护；进程卸载时先移除 Adapter creator，再批量清理 registry。
 
 ### 3.3 非功能需求
 
@@ -450,21 +456,21 @@ Python 版本敏感的 bridge 使用 run 包公开头文件中 `GetRegisteredIrD
 
 这里采用运行时符号解析，是因为 `libge_runner.so`/`libge_runner_v2.so` 已依赖 `custom_op_runtime`，而 bridge 由 `custom_op_runtime` 动态加载；若 bridge 再直接链接 runner，会形成反向 SO 依赖。该方式仍以 run 包正式公共头文件约束函数签名和数据类型，只把符号绑定推迟到 bridge 加载后执行。
 
-#### PythonCustomOpDescriptor
+#### PythonCustomOpProto 与 PythonCustomOpAdapterDescriptor
 
-C++ runtime 使用 `PythonCustomOpDescriptor`：
+C++ runtime 分别保存 owning proto 和 Adapter descriptor；Adapter descriptor 只保存实现 key：
 
 ```cpp
-struct PythonCustomOpDescriptor {
-  std::string descriptor_key;
+struct PythonCustomOpAdapterDescriptor {
   std::string op_type;
+  std::string impl_descriptor_key;
   CustomOpCapabilityMask capabilities{0U};
 };
 ```
 
-#### PythonCustomOpCallbacks
+#### PythonCustomOpAdapterCallbacks
 
-bridge 向 runtime 注册 create/destroy/execute/declare_launch_args 回调。`IsValid()` 接受 `kEagerExecute`、`kAnnotatedArgs` 或两者组合，要求 create/destroy 非空，并按 capability 校验 execute/declare_launch_args 回调。
+bridge 向 runtime 注册 create/destroy/execute/declare_launch_args 回调。schema-bound 签名校验不是 C++ callback，而是 bridge 在注册 Adapter 前内部调用 `validate_op_impl_descriptor` 完成。`IsValid()` 接受 `kEagerExecute`、`kAnnotatedArgs` 或两者组合，要求 create/destroy 非空，并按 capability 校验 execute/declare_launch_args 回调。
 
 #### BorrowedEagerOpExecutionContext
 
@@ -481,6 +487,7 @@ native binding 保存 `gert::AnnotatedArgsContext *` 和独立 validity 标记�
 - **能力反射**：registry 对实现 class 执行 `getattr` 和 `callable` 检查，把 `execute` 映射为 `eager_execute`，把 `declare_launch_args` 映射为 `annotated_args`；Python 用户类的继承关系不参与能力判断。
 - **capability 过滤**：`CustomOpCast<T>()` 先识别 `CustomOpCapabilityProvider`，再按 bitmask 判断是否支持目标接口。
 - **IR 实参组装**：bridge 在 descriptor 加载阶段通过 run 包公共接口查询 canonical IR 以校验签名，holder 创建时再次查询并持有运行期 IR 快照；runtime callback 按该快照的 IR 顺序读取 required/optional/dynamic 输入输出和 typed runtime attrs，分别构造 positional arguments 和 keyword arguments。
+- **注册事务**：先同步深拷贝 proto C POD 并注册 creator，再收集 canonical IR，最后注册 impl runtime entry 和 Adapter creator；任一步失败由上层 loader 调用卸载，按相反顺序回滚已完成的步骤。
 - **回调签名校验**：bridge 加载 descriptor 时调用 `validate_op_impl_descriptor` 一次性校验 schema-bound 签名，并在创建 holder 和业务 callback 之前完成。`execute` 校验总参数数量、输入的位置形式及已提供的类型注解，以及属性的 keyword-only 形式、名称和已提供的类型注解；输出参数、返回注解和返回值不参与校验。`declare_launch_args` 校验输入、输出、属性及 `None` 返回注解。runtime callback 不再校验签名，校验状态也不进入 holder 生命周期。
 - **holder 生命周期**：C++ adapter 拥有 `PythonCustomOpHolder`，Python 侧 `_OP_IMPL_HOLDERS` 以 `instance_id` 保存实例；adapter 析构时销毁 Python holder。
 - **上下文绑定**：schema-bound 回调使用 `ContextVar` 建立动态作用域，`get_execute_ctx()` / `get_declare_launch_args_ctx()` 读取对应绑定；token reset 支持嵌套调用后恢复外层 context。
@@ -500,10 +507,11 @@ native binding 保存 `gert::AnnotatedArgsContext *` 和独立 validity 标记�
         -> BuildPrebuiltBridgeLibraryCandidates()
         -> dlopen libge_python_custom_op_bridge.so
         -> set_artifact_config(native_module_path)
-        -> load_and_get_op_impl_descriptors()
-        -> 收集 canonical IR 并调用 validate_op_impl_descriptor
+        -> load_and_get_op_descriptors()
         -> register_custom_ops(registrar)
-        -> CustomOpFactory::RegisterCustomOpCreator()
+        -> 注册 Python proto creator 并收集 canonical IR
+        -> 调用 validate_op_impl_descriptor
+        -> 注册 impl runtime entry 和 Adapter creator
 ```
 
 #### PreRun 幂等补加载流程
@@ -521,7 +529,7 @@ GraphManager::PreRun()
 ```text
 CustomOpRegistry::CreateOrGetCustomOp(op_type)
   -> PythonCustomOpAdapter(desc)
-  -> PythonCustomOpHolder(desc)
+  -> PythonCustomOpImplHolder(desc)
   -> callbacks.create(desc)
   -> bridge 解析 GetRegisteredIrDef 公共符号并查询 canonical IR
   -> bridge holder 保存 PythonCustomOpIrMeta；不再校验签名

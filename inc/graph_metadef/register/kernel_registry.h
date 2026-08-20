@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef B369E37D560547C2B8DC137404F9713E_H
-#define B369E37D560547C2B8DC137404F9713E_H
+#ifndef INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_H
+#define INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_H
 #include <functional>
 #include <string>
 #include <memory>
@@ -89,4 +89,4 @@ class KernelRegisterV2 {
 #define REGISTER_KERNEL_COUNTER(type, counter) REGISTER_KERNEL_COUNTER2(type, counter)
 #define REGISTER_KERNEL(type) REGISTER_KERNEL_COUNTER(type, __COUNTER__)
 
-#endif
+#endif  // INC_GRAPH_METADEF_REGISTER_KERNEL_REGISTRY_H

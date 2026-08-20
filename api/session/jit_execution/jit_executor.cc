@@ -20,6 +20,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "acl/acl_rt.h"
+#include <set>
 
 #define JIT_ASSERT(exp, tsk, ...)                \
   do {                                           \
@@ -78,18 +79,65 @@ bool IsEnableBatchCpy(const std::vector<gert::Tensor> &inputs) {
 
 // todo if host exec option, remember to handle
 Status CopyHostInputsToDevice(UserGraphExecution &execution_task, Allocator *const allocator,
-                              std::vector<gert::Tensor> &device_gert_tensors) {
+                              std::vector<gert::Tensor> &device_gert_tensors,
+                              const std::set<size_t> &keep_on_host_idxs = {}) {
   const auto *external_rt_inputs = execution_task.external_rt_inputs;
   auto &inputs_memblocks = execution_task.inputs_memblocks;
   bool enable_input_batch_cpy = IsEnableBatchCpy(*external_rt_inputs);
-  GE_ASSERT_SUCCESS(TensorTransUtils::TransHostGertTensorsToDevice(allocator, *external_rt_inputs, device_gert_tensors,
-                                                                   inputs_memblocks, enable_input_batch_cpy));
+  if (keep_on_host_idxs.empty()) {
+    GE_ASSERT_SUCCESS(TensorTransUtils::TransHostGertTensorsToDevice(
+        allocator, *external_rt_inputs, device_gert_tensors, inputs_memblocks, enable_input_batch_cpy));
+    return SUCCESS;
+  }
+
+  std::vector<gert::Tensor> to_device_src;
+  std::vector<gert::Tensor> host_vec;
+  to_device_src.reserve(external_rt_inputs->size());
+  host_vec.reserve(keep_on_host_idxs.size());
+  GELOGI("copy host inputs to device, keep_on_host_idxs size %zu, external inputs size %zu.", keep_on_host_idxs.size(),
+         external_rt_inputs->size());
+  for (size_t i = 0U; i < external_rt_inputs->size(); ++i) {
+    gert::Tensor src((*external_rt_inputs)[i].GetShape(), (*external_rt_inputs)[i].GetFormat(),
+                     (*external_rt_inputs)[i].GetDataType());
+    src.MutableOriginShape() = (*external_rt_inputs)[i].GetOriginShape();
+    src.MutableStorageShape() = (*external_rt_inputs)[i].GetStorageShape();
+    src.MutableTensorData().ShareFrom((*external_rt_inputs)[i].GetTensorData());
+    if (keep_on_host_idxs.count(i) > 0U) {
+      GELOGI("input[%zu] keep on host, not transfer to device.", i);
+      host_vec.emplace_back(std::move(src));
+    } else {
+      to_device_src.emplace_back(std::move(src));
+    }
+  }
+
+  std::vector<gert::Tensor> to_device_dst;
+  std::vector<MemBlock *> to_device_blocks(to_device_src.size(), nullptr);
+  if (!to_device_src.empty()) {
+    GE_ASSERT_SUCCESS(TensorTransUtils::TransHostGertTensorsToDevice(allocator, to_device_src, to_device_dst,
+                                                                     to_device_blocks, enable_input_batch_cpy));
+  }
+
+  device_gert_tensors.resize(external_rt_inputs->size());
+  inputs_memblocks.resize(external_rt_inputs->size(), nullptr);
+  size_t host_pos = 0U;
+  size_t device_pos = 0U;
+  for (size_t i = 0U; i < external_rt_inputs->size(); ++i) {
+    if (keep_on_host_idxs.count(i) > 0U) {
+      device_gert_tensors[i] = std::move(host_vec[host_pos++]);
+    } else {
+      device_gert_tensors[i] = std::move(to_device_dst[device_pos]);
+      inputs_memblocks[i] = to_device_blocks[device_pos];
+      ++device_pos;
+    }
+  }
   return SUCCESS;
 }
 
 Status FreeInputsAllocByJit(std::vector<MemBlock *> &input_blocks) {
   for (auto &mem_block : input_blocks) {
-    GE_ASSERT_NOTNULL(mem_block);
+    if (mem_block == nullptr) {
+      continue;
+    }
     mem_block->Free();
   }
   return SUCCESS;
@@ -117,11 +165,16 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
                           std::vector<gert::Tensor> &compile_inputs) {
   std::set<size_t> need_host_data_idx;
   GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx));
+  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, need_host_data_idx));
 
   compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
   for (size_t data_idx : need_host_data_idx) {
-    GELOGD("input[%u] need copy data to host.", data_idx);
     GE_ASSERT_TRUE(data_idx < compile_inputs.size());
+    if (gert::TensorPlacementUtils::IsOnHost(compile_inputs[data_idx].GetPlacement())) {
+      GELOGI("input[%zu] already on host, skip copy.", data_idx);
+      continue;
+    }
+    GELOGI("input[%zu] need copy data to host.", data_idx);
     gert::Tensor host_tensor;
     GE_ASSERT_SUCCESS(TensorTransUtils::TransGertTensorToHost(compile_inputs[data_idx], host_tensor));
     compile_inputs[data_idx] = std::move(host_tensor);
@@ -129,12 +182,11 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
   return SUCCESS;
 }
 
-void MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ExecutionPoint &ep) {
-  auto sliced_graph = ep.GetSlicedGraph();
-  if (sliced_graph == nullptr) {
+void MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ComputeGraphPtr &graph) {
+  if (graph == nullptr) {
     return;
   }
-  for (const auto &node : sliced_graph->GetDirectNode()) {
+  for (const auto &node : graph->GetDirectNode()) {
     if (!OpTypeUtils::IsDataNode(node->GetType())) {
       continue;
     }
@@ -143,8 +195,9 @@ void MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const Ex
     if (data_index < 0 || static_cast<size_t>(data_index) >= inputs.size()) {
       continue;
     }
-    if (inputs[data_index].GetPlacement() == gert::TensorPlacement::kOnHost) {
+    if (gert::TensorPlacementUtils::IsOnHost(inputs[data_index].GetPlacement())) {
       (void)AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, true);
+      GELOGI("mark data node %s input index %d as host tensor.", node->GetNamePtr(), data_index);
     }
   }
 }
@@ -267,7 +320,14 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
 
   std::vector<gert::Tensor> tensors0;
   GE_MAKE_GUARD(free_input_mem, [&task]() { (void)FreeInputsAllocByJit(task.inputs_memblocks); });
-  JIT_ASSERT_SUCCESS(CopyHostInputsToDevice(task, device_allocator_.get(), tensors0), task);
+  std::set<size_t> keep_on_host_idxs;
+  if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
+    JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs), task);
+  }
+  JIT_ASSERT_SUCCESS(CopyHostInputsToDevice(task, device_allocator_.get(), tensors0, keep_on_host_idxs), task);
+  if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
+    MarkHostTensorOnDataNodes(tensors0, ep->GetSlicedGraph());
+  }
 
   std::vector<gert::Tensor> tensors1;
   auto inputs = &tensors0;
@@ -282,7 +342,7 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
     JIT_ASSERT_SUCCESS(order_.NextPoint(*ep, ge_tensors, ep), task);
     if (ep != nullptr) {
       std::swap(inputs, outputs);
-      MarkHostTensorOnDataNodes(*inputs, *ep);
+      MarkHostTensorOnDataNodes(*inputs, ep->GetSlicedGraph());
     }
   }
   JIT_ASSERT_RT_OK(aclrtSynchronizeStream(stream_), task);

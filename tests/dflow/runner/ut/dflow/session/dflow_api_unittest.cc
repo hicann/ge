@@ -13,9 +13,9 @@
 #include "dflow/runner/session/dflow_api.h"
 #include "graph/operator_factory_impl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/ge_local_context.h"
-#include "graph/ge_global_options.h"
 #include "register/optimization_option_registry.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "register/ops_kernel_builder_registry.h"
@@ -148,13 +148,6 @@ ge::dflow::FlowGraph BuildFlowGraph() {
     cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
     cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
   }
-  {
-    auto &global_options_mutex = ge::GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = ge::GetMutableGlobalOptions();
-    global_options[ge::OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
-  }
   auto data0 = ge::dflow::FlowData("Data0", 0);
   auto node0 = ge::dflow::FlowNode("node0", 1, 1).SetInput(0, data0);
   // function pp
@@ -224,6 +217,30 @@ class MockMmpa : public ge::MmpaStubApiGe {
   }
 };
 
+class MockAclApiStubRepeatInit : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_REPEAT_INITIALIZE;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
+class MockAclApiStubFail : public AclApiStub {
+ public:
+  bool acl_finalize_called = false;
+  aclError aclInit(const char *configPath) override {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  aclError aclFinalize() override {
+    acl_finalize_called = true;
+    return ACL_SUCCESS;
+  }
+};
+
 class UtestDflowApi : public testing::Test {
  protected:
   static void SetUpTestSuite() {
@@ -267,14 +284,6 @@ class UtestDflowApi : public testing::Test {
     ge::OperatorFactoryImpl::operator_infershape_funcs_->erase("Add");
     ge::OperatorFactoryImpl::operator_infershape_funcs_->erase("NetOutput");
     EXPECT_EQ(DFlowFinalize(), SUCCESS);
-    {
-      auto &global_options_mutex = ge::GetGlobalOptionsMutex();
-      const std::lock_guard<std::mutex> lock(global_options_mutex);
-      auto &global_options = ge::GetMutableGlobalOptions();
-      if (global_options.find(ge::OPTION_NUMA_CONFIG) == global_options.end()) {
-        global_options.erase(ge::OPTION_NUMA_CONFIG);
-      }
-    }
     ge::ExecutionRuntime::SetExecutionRuntime(nullptr);
     ge::OpsKernelBuilderRegistry::GetInstance().UnregisterAll();
   }
@@ -299,6 +308,31 @@ TEST_F(UtestDflowApi, DFlowInitialize) {
   ASSERT_EQ(ret, SUCCESS);
   ret = DFlowFinalize();
   ASSERT_EQ(ret, SUCCESS);
+  ge::MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(UtestDflowApi, DFlowInitialize_acl_repeat_init) {
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  auto mock_acl = std::make_shared<MockAclApiStubRepeatInit>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  EXPECT_EQ(DFlowInitialize(options), SUCCESS);
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
+  ge::MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(UtestDflowApi, DFlowInitialize_acl_init_failed) {
+  EXPECT_EQ(DFlowFinalize(), SUCCESS);
+  auto mock_acl = std::make_shared<MockAclApiStubFail>();
+  AclApiStub::SetInstance(mock_acl);
+  std::map<AscendString, AscendString> options = {};
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  EXPECT_EQ(DFlowInitialize(options), FAILED);
+  EXPECT_FALSE(mock_acl->acl_finalize_called);
+  AclApiStub::Reset();
   ge::MmpaStub::GetInstance().Reset();
 }
 

@@ -1,0 +1,99 @@
+{
+  "cluster": [
+    {
+      "cluster_nodes": [
+        {
+          "node_id": 0,
+          "node_type": "ATLAS900",
+          "ipaddr": "xx.xx.xx.xx",
+          "port": 2509,
+          "memory": 25165824,
+          "is_local": true,
+          "deploy_res_path": "/home/",
+          "item_list": [
+            {
+              "item_id": 0,
+              "device_id": 0,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 1,
+              "device_id": 1,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 2,
+              "device_id": 2,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 3,
+              "device_id": 3,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 4,
+              "device_id": 4,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 5,
+              "device_id": 5,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 6,
+              "device_id": 6,
+              "ipaddr": "xx.xx.xx.xx"
+            },
+            {
+              "item_id": 7,
+              "device_id": 7,
+              "ipaddr": "xx.xx.xx.xx"
+            }
+          ]
+        }
+      ],
+      "nodes_topology": {
+        "type": "star",
+        "topos": [
+          {
+            "plane_id": 0,
+            "devices": [0, 1, 2, 3, 4, 5, 6, 7]
+          }
+        ]
+      }
+    }
+  ],
+  "node_def": [
+    {
+      "node_type": "ATLAS900",
+      "resource_type": "Aarch",
+      "support_links": "[HCCS,PCIE,ROCE]",
+      "item_type": "Ascend910B1",
+      "inter_item_memory_access_mode": "[NUMA]",
+      "item_topology": [
+        {
+          "links_mode": "HCCS",
+          "links": [
+            [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7],
+            [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7],
+            [2, 3], [2, 4], [2, 5], [2, 6], [2, 7],
+            [3, 4], [3, 5], [3, 6], [3, 7],
+            [4, 5], [4, 6], [4, 7],
+            [5, 6], [5, 7],
+            [6, 7]
+          ]
+        }
+      ]
+    }
+  ],
+  "item_def": [
+    {
+      "item_type": "Ascend910B1",
+      "resource_type": "Ascend",
+      "memory": "[DDR:32GB]",
+      "aic_type": "[DAVINCI_V100:32]"
+    }
+  ]
+}

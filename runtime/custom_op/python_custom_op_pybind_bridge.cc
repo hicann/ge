@@ -30,10 +30,11 @@
 
 #include "common/checker.h"
 #include "common/ge_common/debug/ge_log.h"
-#include "ge/ge_api_v2.h"
+#include "graph/utils/ir_definitions_query.h"
 #include "graph/operator_factory.h"
 #include "pybind11/embed.h"
 #include "pybind11/stl.h"
+#include "runtime/custom_op/python_custom_op_bridge_descriptors.h"
 #include "runtime/custom_op/python_custom_op_bridge_types.h"
 
 #undef PYBIND11_CHECK_PYTHON_VERSION
@@ -45,15 +46,11 @@ namespace py = pybind11;
 namespace {
 constexpr const char *kBridgeModuleName = "ge.custom_op._bridge";
 constexpr const char *kCustomOpModuleName = "ge.custom_op";
+constexpr const char *kCustomOpProtoModuleName = "ge.custom_op.proto";
 constexpr const char *kCustomOpNativeModuleName = "ge.custom_op._ge_custom_op_native";
 constexpr const char *kEnvCustomOppPath = "ASCEND_CUSTOM_OPP_PATH";
-constexpr const char *kInterfaceAnnotatedArgs = "annotated_args";
-constexpr const char *kInterfaceEagerExecute = "eager_execute";
-constexpr const char *kGetRegisteredIrDefSymbol = "GetRegisteredIrDef";
-constexpr const char *kRunnerLibraryNames[] = {
-    "libge_runner_v2.so",
-    "libge_runner.so",
-};
+constexpr const char *kGetRegisteredIrDefFromGraphSymbol = "GetRegisteredIrDefFromGraph";
+constexpr const char *kGraphLibraryName = "libgraph.so";
 
 struct PythonCustomOpIrInputMeta {
   std::string name;
@@ -77,37 +74,33 @@ struct PythonCustomOpIrMeta {
   std::vector<PythonCustomOpIrOutputMeta> outputs;
 };
 
-using GetRegisteredIrDefFn = decltype(&::GetRegisteredIrDef);
+using GetRegisteredIrDefFromGraphFn = decltype(&::GetRegisteredIrDefFromGraph);
 
-// runner 已依赖 custom_op_runtime，bridge 又由 custom_op_runtime 动态加载，因此 bridge 不能反向硬链接 runner。
-// Python 可能以 RTLD_LOCAL 加载 runner 依赖组，这里使用正式公共头文件约束函数签名，
-// 并通过 RTLD_NOLOAD 获取已加载的 runner handle 查询公共符号，不重复加载或提升其全局可见性。
-bool GetRegisteredIrDefFromLoadedRunner(const char *op_type,
-                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
-                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
-                                        std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {
-  for (const auto *runner_library : kRunnerLibraryNames) {
-    void *handle = dlopen(runner_library, RTLD_NOW | RTLD_NOLOAD);
-    if (handle == nullptr) {
-      continue;
-    }
-
-    (void)dlerror();
-    void *symbol = dlsym(handle, kGetRegisteredIrDefSymbol);
-    const char *error = dlerror();
-    if ((symbol == nullptr) || (error != nullptr)) {
-      (void)dlclose(handle);
-      continue;
-    }
-
-    const auto get_registered_ir_def = reinterpret_cast<GetRegisteredIrDefFn>(symbol);
-    const auto ret = get_registered_ir_def(op_type, inputs, outputs, attrs);
-    (void)dlclose(handle);
-    GE_ASSERT_SUCCESS(ret, "GetRegisteredIrDef failed for custom op[%s].", op_type);
-    return true;
+bool GetRegisteredIrDefFromLoadedGraph(const char *op_type,
+                                       std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
+                                       std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
+                                       std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {
+  void *handle = dlopen(kGraphLibraryName, RTLD_NOW | RTLD_NOLOAD);
+  if (handle == nullptr) {
+    GELOGE(FAILED, "Graph library is not loaded when querying IR for custom op[%s].", op_type);
+    return false;
   }
-
-  GE_ASSERT_TRUE(false, "No loaded run package exports %s for custom op[%s].", kGetRegisteredIrDefSymbol, op_type);
+  (void)dlerror();
+  void *symbol = dlsym(handle, kGetRegisteredIrDefFromGraphSymbol);
+  const char *error = dlerror();
+  if ((symbol == nullptr) || (error != nullptr)) {
+    (void)dlclose(handle);
+    GELOGE(FAILED, "Failed to find graph IR query symbol[%s].", kGetRegisteredIrDefFromGraphSymbol);
+    return false;
+  }
+  const auto get_registered_ir_def = reinterpret_cast<GetRegisteredIrDefFromGraphFn>(symbol);
+  const auto ret = get_registered_ir_def(op_type, inputs, outputs, attrs);
+  (void)dlclose(handle);
+  if (ret != ge::SUCCESS) {
+    GELOGE(ret, "GetRegisteredIrDefFromGraph failed for custom op[%s].", op_type);
+    return false;
+  }
+  return true;
 }
 
 bool CopyAscendString(const ge::AscendString &value, const char *field_name, std::string &result) {
@@ -157,7 +150,7 @@ std::unique_ptr<PythonCustomOpIrMeta> CollectPythonCustomOpIrMeta(const std::str
   std::vector<std::pair<ge::AscendString, ge::AscendString>> inputs;
   std::vector<std::pair<ge::AscendString, ge::AscendString>> outputs;
   std::vector<std::pair<ge::AscendString, ge::AscendString>> attrs;
-  GE_ASSERT_TRUE(GetRegisteredIrDefFromLoadedRunner(op_type.c_str(), inputs, outputs, attrs));
+  GE_ASSERT_TRUE(GetRegisteredIrDefFromLoadedGraph(op_type.c_str(), inputs, outputs, attrs));
 
   auto ir_meta = std::unique_ptr<PythonCustomOpIrMeta>(new (std::nothrow) PythonCustomOpIrMeta());
   GE_ASSERT_NOTNULL(ir_meta, "Allocate IR meta failed for custom op[%s].", op_type.c_str());
@@ -200,17 +193,12 @@ struct PythonCustomOpBridgeHolder {
   std::unique_ptr<PythonCustomOpIrMeta> ir_meta;
 };
 
-CustomOpCapabilityMask ParseInterfaces(const py::object &interfaces_obj) {
-  CustomOpCapabilityMask capabilities = 0U;
-  for (const auto &item : interfaces_obj.cast<py::list>()) {
-    const std::string interface_name = py::str(item);
-    if (interface_name == kInterfaceEagerExecute) {
-      AddCustomOpCapability(capabilities, CustomOpCapability::kEagerExecute);
-    } else if (interface_name == kInterfaceAnnotatedArgs) {
-      AddCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs);
-    }
+bool CopyStringView(const PythonCustomOpStringView &view, std::string &value) {
+  if ((view.size != 0U) && (view.data == nullptr)) {
+    return false;
   }
-  return capabilities;
+  value.assign(view.data == nullptr ? "" : view.data, view.size);
+  return (!value.empty()) && (value.find('\0') == std::string::npos);
 }
 
 class PythonCustomOpPybindBridge {
@@ -244,49 +232,30 @@ class PythonCustomOpPybindBridge {
     py::gil_scoped_acquire gil;
     py::object descriptors_obj;
     try {
-      descriptors_obj = bridge_module_.attr("load_and_get_op_impl_descriptors")();
+      descriptors_obj = bridge_module_.attr("load_and_get_op_descriptors")();
     } catch (const py::error_already_set &err) {
       GELOGE(FAILED, "Load python custom op descriptors failed: %s", err.what());
       return FAILED;
     }
 
-    const py::list descriptor_list = descriptors_obj.cast<py::list>();
-    std::vector<PythonCustomOpDescriptor> descriptors;
-    descriptors.reserve(descriptor_list.size());
-    for (const auto &item : descriptor_list) {
-      PythonCustomOpDescriptor desc;
-      const auto parse_ret = ParseDescriptor(item.cast<py::dict>(), desc);
-      if (parse_ret != SUCCESS) {
-        GELOGE(parse_ret, "Parse python custom op descriptor failed.");
-        return parse_ret;
-      }
-      auto ir_meta = CollectPythonCustomOpIrMeta(desc.op_type);
-      try {
-        const bool validated =
-            bridge_module_.attr("validate_op_impl_descriptor")(desc.descriptor_key, BuildPythonIrMeta(ir_meta.get()))
-                .cast<bool>();
-        if (!validated) {
-          GELOGE(FAILED, "Validate python custom op[%s] descriptor[%s] failed.", desc.op_type.c_str(),
-                 desc.descriptor_key.c_str());
-          return FAILED;
-        }
-      } catch (const py::error_already_set &err) {
-        GELOGE(FAILED, "Validate python custom op[%s] descriptor[%s] failed: %s", desc.op_type.c_str(),
-               desc.descriptor_key.c_str(), err.what());
-        return FAILED;
-      }
-      descriptors.emplace_back(std::move(desc));
+    py::dict descriptors;
+    try {
+      descriptors = descriptors_obj.cast<py::dict>();
+    } catch (const py::error_already_set &err) {
+      GELOGE(FAILED, "Parse python custom op descriptor snapshot failed: %s", err.what());
+      return FAILED;
+    } catch (const std::exception &err) {
+      GELOGE(FAILED, "Parse python custom op descriptor snapshot failed: %s", err.what());
+      return FAILED;
     }
 
-    const auto callbacks = GetCallbacks();
-    for (const auto &desc : descriptors) {
-      if ((registrar.register_custom_op == nullptr) || (!registrar.register_custom_op(&desc, &callbacks))) {
-        GELOGE(FAILED, "Register python custom op[%s] failed.", desc.op_type.c_str());
-        return FAILED;
-      }
-      GELOGI("Python custom op[%s] is registered from pybind bridge.", desc.op_type.c_str());
+    if ((registrar.register_op_proto == nullptr) || (registrar.register_op_adapter == nullptr)) {
+      return FAILED;
     }
-    return SUCCESS;
+    if (CollectAndRegisterProtoDescriptors(descriptors, registrar) != SUCCESS) {
+      return FAILED;
+    }
+    return CollectAndRegisterImplDescriptorsWithCheck(descriptors, registrar);
   }
 
   void ResetBridgeState() {
@@ -318,30 +287,74 @@ class PythonCustomOpPybindBridge {
     owns_interpreter_ = false;
   }
 
-  void *CreateHolder(const PythonCustomOpDescriptor &desc) {
+  void *CreateImplHolder(const PythonCustomOpAdapterDescriptorView *desc_view) {
+    if (desc_view == nullptr) {
+      return nullptr;
+    }
+    std::string descriptor_key;
+    std::string op_type;
+    if ((!CopyStringView(desc_view->impl_descriptor_key, descriptor_key)) ||
+        (!CopyStringView(desc_view->op_type, op_type))) {
+      GELOGW("Create python custom op holder failed because adapter descriptor view is invalid.");
+      return nullptr;
+    }
     if (EnsureBridgeReady() != SUCCESS) {
       GELOGW("Prepare python custom op bridge failed when creating holder.");
       return nullptr;
     }
     py::gil_scoped_acquire gil;
-    const std::string instance_id = BuildInstanceId(desc.descriptor_key);
-    auto ir_meta = CollectPythonCustomOpIrMeta(desc.op_type);
+    const std::string instance_id = BuildInstanceId(descriptor_key);
+    auto ir_meta = CollectPythonCustomOpIrMeta(op_type);
     try {
-      const bool created = bridge_module_.attr("create_op_impl_holder")(instance_id, desc.descriptor_key).cast<bool>();
+      const bool created = bridge_module_.attr("create_op_impl_holder")(instance_id, descriptor_key).cast<bool>();
       if (!created) {
-        GELOGW("Create python custom op holder failed, descriptor key[%s], instance id[%s].",
-               desc.descriptor_key.c_str(), instance_id.c_str());
+        GELOGW("Create python custom op holder failed, descriptor key[%s], instance id[%s].", descriptor_key.c_str(),
+               instance_id.c_str());
         return nullptr;
       }
     } catch (const py::error_already_set &err) {
-      GELOGW("Create python custom op holder failed, descriptor key[%s], instance id[%s]: %s",
-             desc.descriptor_key.c_str(), instance_id.c_str(), err.what());
+      GELOGW("Create python custom op holder failed, descriptor key[%s], instance id[%s]: %s", descriptor_key.c_str(),
+             instance_id.c_str(), err.what());
+      return nullptr;
+    } catch (const std::exception &err) {
+      GELOGW("Create python custom op holder failed, descriptor key[%s], instance id[%s]: %s", descriptor_key.c_str(),
+             instance_id.c_str(), err.what());
+      return nullptr;
+    } catch (...) {
+      GELOGW("Create python custom op holder failed with unknown exception, descriptor key[%s], instance id[%s].",
+             descriptor_key.c_str(), instance_id.c_str());
       return nullptr;
     }
-    return new (std::nothrow) PythonCustomOpBridgeHolder{desc.descriptor_key, instance_id, std::move(ir_meta)};
+    return new (std::nothrow) PythonCustomOpBridgeHolder{descriptor_key, instance_id, std::move(ir_meta)};
   }
 
-  void DestroyHolder(PythonCustomOpBridgeHolder *holder) {
+  bool ValidateImpl(const PythonCustomOpAdapterDescriptorView *desc_view) {
+    if (desc_view == nullptr) {
+      return false;
+    }
+    std::string descriptor_key;
+    std::string op_type;
+    if ((!CopyStringView(desc_view->impl_descriptor_key, descriptor_key)) ||
+        (!CopyStringView(desc_view->op_type, op_type))) {
+      return false;
+    }
+    py::gil_scoped_acquire gil;
+    try {
+      const auto ir_meta = CollectPythonCustomOpIrMeta(op_type);
+      return bridge_module_.attr("validate_op_impl_descriptor")(descriptor_key, BuildPythonIrMeta(ir_meta.get()))
+          .cast<bool>();
+    } catch (const py::error_already_set &err) {
+      GELOGE(FAILED, "Validate python custom op impl failed, descriptor key[%s]: %s", descriptor_key.c_str(),
+             err.what());
+      return false;
+    } catch (const std::exception &err) {
+      GELOGE(FAILED, "Validate python custom op impl failed, descriptor key[%s]: %s", descriptor_key.c_str(),
+             err.what());
+      return false;
+    }
+  }
+
+  void DestroyImplHolder(PythonCustomOpBridgeHolder *holder) {
     if (holder == nullptr) {
       return;
     }
@@ -353,6 +366,12 @@ class PythonCustomOpPybindBridge {
       } catch (const py::error_already_set &err) {
         GELOGW("Destroy python custom op holder failed, descriptor key[%s], instance id[%s]: %s",
                holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
+      } catch (const std::exception &err) {
+        GELOGW("Destroy python custom op holder failed, descriptor key[%s], instance id[%s]: %s",
+               holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
+      } catch (...) {
+        GELOGW("Destroy python custom op holder failed with unknown exception, descriptor key[%s], instance id[%s].",
+               holder->descriptor_key.c_str(), holder->instance_id.c_str());
       }
     }
     delete holder;
@@ -416,15 +435,68 @@ class PythonCustomOpPybindBridge {
     } catch (const py::error_already_set &err) {
       GELOGE(GRAPH_FAILED, "DeclareLaunchArgs python custom op failed, descriptor key[%s], instance id[%s]: %s",
              holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
-      return GRAPH_FAILED;
     } catch (const std::exception &err) {
       GELOGE(GRAPH_FAILED, "DeclareLaunchArgs python custom op failed, descriptor key[%s], instance id[%s]: %s",
              holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
-      return GRAPH_FAILED;
     }
+    return GRAPH_FAILED;
   }
 
  private:
+  Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors, const PythonCustomOpRegistrar &registrar) {
+    try {
+      for (const auto &item : descriptors["protos"].cast<py::list>()) {
+        ProtoDescriptorStorage proto;
+        if (proto.Parse(item.cast<py::dict>()) != SUCCESS) {
+          return FAILED;
+        }
+        const auto view = proto.BuildView();
+        if (!registrar.register_op_proto(&view)) {
+          GELOGE(FAILED, "Register python custom op proto[%s] failed.", proto.op_type.c_str());
+          return FAILED;
+        }
+        GELOGI("Python custom op proto[%s] is registered from pybind bridge.", proto.op_type.c_str());
+      }
+    } catch (const py::error_already_set &err) {
+      GELOGE(FAILED, "Collect python custom op proto descriptors failed: %s", err.what());
+      return FAILED;
+    } catch (const std::exception &err) {
+      GELOGE(FAILED, "Collect python custom op proto descriptors failed: %s", err.what());
+      return FAILED;
+    }
+    return SUCCESS;
+  }
+
+  Status CollectAndRegisterImplDescriptorsWithCheck(const py::dict &descriptors,
+                                                    const PythonCustomOpRegistrar &registrar) {
+    const auto callbacks = GetCallbacks();
+    try {
+      for (const auto &item : descriptors["impls"].cast<py::list>()) {
+        AdapterDescriptorStorage adapter;
+        if (adapter.Parse(item.cast<py::dict>()) != SUCCESS) {
+          return FAILED;
+        }
+        const auto view = adapter.BuildView();
+        if (!ValidateImpl(&view)) {
+          GELOGE(FAILED, "Validate python custom op adapter[%s] failed.", adapter.op_type.c_str());
+          return FAILED;
+        }
+        if (!registrar.register_op_adapter(&view, &callbacks)) {
+          GELOGE(FAILED, "Register python custom op adapter[%s] failed.", adapter.op_type.c_str());
+          return FAILED;
+        }
+        GELOGI("Python custom op adapter[%s] is registered from pybind bridge.", adapter.op_type.c_str());
+      }
+    } catch (const py::error_already_set &err) {
+      GELOGE(FAILED, "Collect python custom op impl descriptors failed: %s", err.what());
+      return FAILED;
+    } catch (const std::exception &err) {
+      GELOGE(FAILED, "Collect python custom op impl descriptors failed: %s", err.what());
+      return FAILED;
+    }
+    return SUCCESS;
+  }
+
   Status EnsureBridgeReady() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (Py_IsInitialized() == 0) {
@@ -498,6 +570,7 @@ class PythonCustomOpPybindBridge {
       (void)bridge_module_.attr("clear_op_impl_holders")();
       (void)bridge_module_.attr("clear_loaded_op_impl_modules")();
       (void)py::module_::import(kCustomOpModuleName).attr("clear_registered_op_impls")();
+      (void)py::module_::import(kCustomOpProtoModuleName).attr("clear_registered_op_protos")();
     } catch (const py::error_already_set &err) {
       GELOGW("Reset python custom op bridge state failed: %s", err.what());
     }
@@ -533,22 +606,6 @@ class PythonCustomOpPybindBridge {
     std::ostringstream oss;
     oss << descriptor_key << "#" << sequence;
     return oss.str();
-  }
-
-  static Status ParseDescriptor(const py::dict &descriptor_dict, PythonCustomOpDescriptor &desc) {
-    try {
-      desc.descriptor_key = py::str(descriptor_dict["descriptor_key"]);
-      desc.op_type = py::str(descriptor_dict["op_type"]);
-      desc.capabilities = ParseInterfaces(descriptor_dict["interfaces"]);
-      if (desc.capabilities == 0U) {
-        GELOGE(FAILED, "Python custom op[%s] has no supported interface.", desc.op_type.c_str());
-        return FAILED;
-      }
-    } catch (const py::error_already_set &err) {
-      GELOGE(FAILED, "Parse python custom op descriptor failed: %s", err.what());
-      return FAILED;
-    }
-    return (!desc.descriptor_key.empty() && !desc.op_type.empty()) ? SUCCESS : FAILED;
   }
 
   static py::object BuildPythonIrMeta(const PythonCustomOpIrMeta *ir_meta) {
@@ -613,16 +670,13 @@ class PythonCustomOpPybindBridge {
     return GRAPH_FAILED;
   }
 
-  static PythonCustomOpCallbacks GetCallbacks() {
-    PythonCustomOpCallbacks callbacks;
-    callbacks.create = [](const PythonCustomOpDescriptor *desc) -> void * {
-      if (desc == nullptr) {
-        return nullptr;
-      }
-      return PythonCustomOpPybindBridge::GetInstance().CreateHolder(*desc);
+  static PythonCustomOpAdapterCallbacks GetCallbacks() {
+    PythonCustomOpAdapterCallbacks callbacks;
+    callbacks.create_impl_holder = [](const PythonCustomOpAdapterDescriptorView *desc) -> void * {
+      return PythonCustomOpPybindBridge::GetInstance().CreateImplHolder(desc);
     };
-    callbacks.destroy = [](void *holder) {
-      PythonCustomOpPybindBridge::GetInstance().DestroyHolder(static_cast<PythonCustomOpBridgeHolder *>(holder));
+    callbacks.destroy_impl_holder = [](void *holder) {
+      PythonCustomOpPybindBridge::GetInstance().DestroyImplHolder(static_cast<PythonCustomOpBridgeHolder *>(holder));
     };
     callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().Execute(static_cast<const PythonCustomOpBridgeHolder *>(holder),

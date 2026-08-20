@@ -39,13 +39,13 @@
 #include "omg/parser/op_parser.h"
 #include "omg/parser/parser_factory.h"
 #include "parser/common/acl_graph_parser_util.h"
-#include "parser/common/model_saver.h"
+#include "parser/common/parser_model_saver.h"
 #include "parser/common/op_map.h"
 #include "parser/common/op_parser_factory.h"
 #include "parser/common/parser_fp16_t.h"
-#include "parser/common/pass_manager.h"
+#include "parser/common/parser_pass_manager.h"
 #include "parser/common/prototype_pass_manager.h"
-#include "parser/common/thread_pool.h"
+#include "common/thread_pool/thread_pool.h"
 #include "parser/common/parser_utils.h"
 #include "parser/common/util.h"
 #include "parser/tensorflow/tensorflow_custom_parser_adapter.h"
@@ -92,9 +92,9 @@ using ge::TENSORFLOWF_TENSOR_NHWC;
 using ge::TensorFlowFusionCustomParserAdapter;
 using ge::TensorFlowFusionOpParser;
 using ge::TensorFlowOpParser;
+using ge::ThreadPool;
 using ge::parser::fp16_t;
 using ge::parser::ModelSaver;
-using ge::parser::ThreadPool;
 
 namespace ge {
 graphStatus aclgrphParseTensorFlow(const char *model_file, ge::Graph &graph) {
@@ -1138,7 +1138,7 @@ Status TensorFlowModelParser::AddFmkNode(ge::ComputeGraphPtr &graph, shared_ptr<
   GELOGD("Add fusion nodedef and Adapt op type success");
 
   // Multithreading parallel parsing nodedef
-  ThreadPool executor("ge_parsnode", kThreadNum);
+  ThreadPool executor("ge_parsnode", kThreadNum, false);
   std::mutex graphMutex;
   std::vector<std::future<Status>> vectorFuture(op_node_list_size);
   ge::ComputeGraphPtr graph_tmp = ge::parser::MakeShared<ge::ComputeGraph>("tmpGraph");

@@ -12,10 +12,15 @@
 #include "common/om2/codegen/ast/ast_context.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/ast/ast_nodes.h"
+#include "common/om2/codegen/file_code_generator/args_manager_file_code_generator.h"
+#define private public
+#include "common/om2/codegen/file_code_generator/load_and_run_file_code_generator.h"
+#undef private
 #include "common/om2/codegen/emitter/stable_parts/stable_part_provider.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
+#include "common/om2/codegen/om2_codegen_types.h"
 #include "common/ge_common/ge_types.h"
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
@@ -250,6 +255,22 @@ std::string EmitNode(const AstNode &node) {
   std::string output;
   EXPECT_EQ(node.Accept(emitter, output), SUCCESS);
   return output;
+}
+
+std::string EmitBodyItems(AstBuildContext &ast, const std::vector<BodyItem> &items) {
+  CppEmitter emitter;
+  std::stringstream output;
+  const auto nodes = ast.Body(items);
+  for (const auto *node : nodes) {
+    if (node == nullptr) {
+      ADD_FAILURE() << "unexpected null stmt";
+      continue;
+    }
+    std::string code;
+    EXPECT_EQ(node->Accept(emitter, code), SUCCESS);
+    output << code << '\n';
+  }
+  return output.str();
 }
 
 void ExpectContainsAll(const std::string &output, const std::vector<std::string> &snippets) {
@@ -2751,5 +2772,54 @@ TEST_F(Om2CodegenUt, CppEmitter_ContainerMethodMultiArgs) {
   std::string output;
   EXPECT_EQ(multi_arg_method.Accept(emitter, output), SUCCESS);
   EXPECT_NE(output.find(", "), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, ArgsManagerFileCodeGenerator_CopyArgsToDevice_CoverBranches) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+  ArgsManagerFileCodeGenerator generator(ast);
+
+  Om2CodegenModel with_va2pa_model;
+  with_va2pa_model.is_need_va2pa = true;
+  auto *with_va2pa_method = generator.BuildCopyArgsToDeviceMethod(with_va2pa_model);
+  ASSERT_NE(with_va2pa_method, nullptr);
+  const auto with_va2pa_output = EmitNode(*with_va2pa_method);
+  ExpectContainsAll(with_va2pa_output,
+                    {"aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {\n",
+                     "OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[0], args_sizes_[0], stream, is_async));\n"});
+
+  Om2CodegenModel without_va2pa_model;
+  without_va2pa_model.is_need_va2pa = false;
+  auto *without_va2pa_method = generator.BuildCopyArgsToDeviceMethod(without_va2pa_model);
+  ASSERT_NE(without_va2pa_method, nullptr);
+  const auto without_va2pa_output = EmitNode(*without_va2pa_method);
+  ExpectContainsAll(without_va2pa_output, {"aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {\n",
+                                           "(void)stream;\n", "(void)is_async;\n",
+                                           "OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], "
+                                           "host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));\n"});
+}
+
+TEST_F(Om2CodegenUt, LoadAndRunFileCodeGenerator_PhaseModelExecute_CoverBranches) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+  LoadAndRunFileCodeGenerator generator(ast);
+
+  auto exe_stream = ast.Var("aclrtStream &", "exe_stream");
+  auto prof_info = ast.Var("Om2ProfInfos *", "prof_info");
+  auto exec_begin = ast.Var("uint64_t", "_t_exec_begin");
+
+  std::vector<BodyItem> async_body;
+  generator.BuildRunBodyPhaseModelExecute(async_body, exe_stream, true, prof_info, exec_begin, true);
+  EXPECT_FALSE(async_body.empty());
+  const auto async_output = EmitBodyItems(ast, async_body);
+  ExpectContainsAll(async_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));\n",
+                                   "OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));\n"});
+
+  std::vector<BodyItem> sync_body;
+  generator.BuildRunBodyPhaseModelExecute(sync_body, exe_stream, false, prof_info, exec_begin, false);
+  EXPECT_FALSE(sync_body.empty());
+  const auto sync_output = EmitBodyItems(ast, sync_body);
+  ExpectContainsAll(sync_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));\n",
+                                  "OM2_CHK_STATUS(aclmdlRIExecute(model_handle_, stream_sync_timeout));\n"});
 }
 }  // namespace ge

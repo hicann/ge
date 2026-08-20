@@ -29,7 +29,6 @@
 #include "ge_running_env/fake_engine.h"
 #include "nlohmann/json.hpp"
 #include "graph/ge_local_context.h"
-#include "graph/ge_global_options.h"
 #include "dflow/runner/compiler/pne/udf/udf_process_node_engine.h"
 #include "dflow/runner/compiler/pne/process_node_engine_manager.h"
 #include "flow_graph/flow_graph.h"
@@ -213,13 +212,6 @@ ge::dflow::FlowGraph BuildFlowGraph() {
     cmakefile << ")\n";
     cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
     cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
-  }
-  {
-    auto &global_options_mutex = ge::GetGlobalOptionsMutex();
-    const std::lock_guard<std::mutex> lock(global_options_mutex);
-    auto &global_options = ge::GetMutableGlobalOptions();
-    global_options[ge::OPTION_NUMA_CONFIG] =
-        R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
   }
   auto data0 = ge::dflow::FlowData("Data0", 0);
   auto node0 = ge::dflow::FlowNode("node0", 1, 1).SetInput(0, data0);

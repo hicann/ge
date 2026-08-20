@@ -8,14 +8,9 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACL_UTILS_ATTR_UTILS_H_
-#define ACL_UTILS_ATTR_UTILS_H_
+#ifndef ACL_UTILS_ACL_ATTR_UTILS_H_
+#define ACL_UTILS_ACL_ATTR_UTILS_H_
 
-#include <string>
-#include <sstream>
-#include <map>
-
-#include "graph/op_desc.h"
 #include "utils/acl_string_utils.h"
 #include "types/op_attr.h"
 #include "types/acl_op_inner.h"
@@ -49,4 +44,4 @@ bool IsListFloatEquals(const std::vector<float32_t> &lhsValue, const std::vector
 }  // namespace attr_utils
 }  // namespace acl
 
-#endif  // ACL_UTILS_ATTR_UTILS_H_
+#endif  // ACL_UTILS_ACL_ATTR_UTILS_H_

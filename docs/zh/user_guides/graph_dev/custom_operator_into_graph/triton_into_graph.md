@@ -235,7 +235,6 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
         // args的前3个参数和后3个参数是固定的，中间的是用户自定义的，要求是和kernel函数的签名以及类型严格一致
         // 按照当前的样例中的Kernel实现，要求AddCustom的两个输入的shape必须相同，不支持BroadCast的方式，例如Shape1 = [2,3,4],Shape2=[4]，这种就不支持
         struct __attribute__((packed)) {
-          // void *ffts_addr __attribute__((aligned(8)));  // 注意：如果设备是Atlas A3 训练系列产品/Atlas A3 推理系列产品，则需要加上这个参数
           void *sync_block_lock __attribute__((aligned(8)));
           void *workspace_addr __attribute__((aligned(8)));
           const void *arg0 __attribute__((aligned(8)));
@@ -246,7 +245,6 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
           int32_t grid_y __attribute__((aligned(4)));
           int32_t grid_z __attribute__((aligned(4)));
         } args = {
-           // nullptr, // 如果设备是Atlas A3 训练系列产品/Atlas A3 推理系列产品则需要传递这个参数
             nullptr, nullptr, input_x->GetAddr(), input_y->GetAddr(), z_addr, static_cast<int32_t>(n_elements),
         };
         // 获取stream
@@ -277,9 +275,32 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
         return GRAPH_SUCCESS;
       }
     };
-    // 注册该自定义算子，使其在图编译时能被识别和调用，注册名 "AddCustom" 将对应图中的算子名称，需与前端配置一致
+    // 注册该自定义算子，使其在图编译时能被识别和调用，注册名"AddCustom"将对应图中的算子名称，需与前端配置一致
     REG_AUTO_MAPPING_OP(AddCustom);
     ```
+
+    <!-- npu="A3" id1 -->
+    **说明：**
+
+    如果设备是Atlas A3 训练系列产品/Atlas A3 推理系列产品，则上述代码中的部分结构体片段，需替换为如下形式，其他产品型号无需修改：
+
+    ```c++
+    struct __attribute__((packed)) {
+    void *ffts_addr __attribute__((aligned(8)));
+    void *sync_block_lock __attribute__((aligned(8)));
+    void *workspace_addr __attribute__((aligned(8)));
+    const void *arg0 __attribute__((aligned(8)));
+    const void *arg1 __attribute__((aligned(8)));
+    void *arg2 __attribute__((aligned(8)));
+    int32_t arg3 __attribute__((aligned(4)));
+    int32_t grid_x __attribute__((aligned(4)));
+    int32_t grid_y __attribute__((aligned(4)));
+    int32_t grid_z __attribute__((aligned(4)));
+    } args = {
+    nullptr, nullptr, nullptr, input_x->GetAddr(), input_y->GetAddr(), z_addr, static_cast<int32_t>(n_elements),
+    };
+    ```
+    <!-- end id1 -->
 
     其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclkernel)》中的“Kernel加载与执行”。
 

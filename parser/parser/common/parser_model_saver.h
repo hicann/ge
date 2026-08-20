@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef PARSER_COMMON_FILE_SAVER_H_
-#define PARSER_COMMON_FILE_SAVER_H_
+#ifndef PARSER_COMMON_PARSER_MODEL_SAVER_H_
+#define PARSER_COMMON_PARSER_MODEL_SAVER_H_
 
 #include <string>
 
@@ -45,4 +45,4 @@ class ModelSaver {
 }  // namespace parser
 }  // namespace ge
 
-#endif  // PARSER_COMMON_FILE_SAVER_H_
+#endif  // PARSER_COMMON_PARSER_MODEL_SAVER_H_

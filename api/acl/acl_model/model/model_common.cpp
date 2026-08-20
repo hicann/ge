@@ -574,7 +574,7 @@ ACL_FUNC_VISIBILITY aclError SetIODims(const ge::InputOutputDims &oriDims, aclmd
   return ACL_SUCCESS;
 }
 
-ACL_FUNC_VISIBILITY std::string AippInfoDebugString(const aclAippInfo *const aippInfo) {
+ACL_FUNC_VISIBILITY std::string AippInfoDebugString(const aclAippInfo *aippInfo) {
   if (aippInfo == nullptr) {
     ACL_LOG_INNER_ERROR("[Check][aippInfo]param aippInfo must not be null");
     return "";
@@ -656,7 +656,7 @@ ACL_FUNC_VISIBILITY std::string DimsDebugString(const aclmdlIODims &ioDims) {
   return ss.str();
 }
 
-ACL_FUNC_VISIBILITY std::string AippDimsDebugString(const aclAippDims *const aippDims, const size_t shapeCount) {
+ACL_FUNC_VISIBILITY std::string AippDimsDebugString(const aclAippDims *aippDims, size_t shapeCount) {
   if (aippDims == nullptr) {
     ACL_LOG_INNER_ERROR("[Check][aippDims]param aippDims must not be null");
     return "";
@@ -721,66 +721,66 @@ static float32_t Fp16ToFloat(const uint16_t val) {
   return type_union.fVal;
 }
 
-ACL_FUNC_VISIBILITY std::string AippParmsDebugString(const kAippDynamicPara &aipp_parms) {
+ACL_FUNC_VISIBILITY std::string AippParmsDebugString(const kAippDynamicPara &aippParms) {
   std::stringstream ss;
   ss << "kAippDynamicPara[";
-  ss << " inputFormat:" << static_cast<uint32_t>(aipp_parms.inputFormat);
-  ss << " cscSwitch:" << static_cast<int32_t>(aipp_parms.cscSwitch);
-  ss << " rbuvSwapSwitch:" << static_cast<int32_t>(aipp_parms.rbuvSwapSwitch);
-  ss << " axSwapSwitch:" << static_cast<int32_t>(aipp_parms.axSwapSwitch);
-  ss << " batchNum:" << static_cast<int32_t>(aipp_parms.batchNum);
-  ss << " srcImageSizeW:" << aipp_parms.srcImageSizeW;
-  ss << " srcImageSizeH:" << aipp_parms.srcImageSizeH;
-  ss << " cscMatrixR0C0:" << static_cast<int32_t>(aipp_parms.cscMatrixR0C0);
-  ss << " cscMatrixR0C1:" << static_cast<int32_t>(aipp_parms.cscMatrixR0C1);
-  ss << " cscMatrixR0C2:" << static_cast<int32_t>(aipp_parms.cscMatrixR0C2);
-  ss << " cscMatrixR1C0:" << static_cast<int32_t>(aipp_parms.cscMatrixR1C0);
-  ss << " cscMatrixR1C1:" << static_cast<int32_t>(aipp_parms.cscMatrixR1C1);
-  ss << " cscMatrixR1C2:" << static_cast<int32_t>(aipp_parms.cscMatrixR1C2);
-  ss << " cscMatrixR2C0:" << static_cast<int32_t>(aipp_parms.cscMatrixR2C0);
-  ss << " cscMatrixR2C1:" << static_cast<int32_t>(aipp_parms.cscMatrixR2C1);
-  ss << " cscMatrixR2C2:" << static_cast<int32_t>(aipp_parms.cscMatrixR2C2);
-  ss << " cscOutputBiasR0:" << static_cast<uint32_t>(aipp_parms.cscOutputBiasR0);
-  ss << " cscOutputBiasR1:" << static_cast<uint32_t>(aipp_parms.cscOutputBiasR1);
-  ss << " cscOutputBiasR2:" << static_cast<uint32_t>(aipp_parms.cscOutputBiasR2);
-  ss << " cscInputBiasR0:" << static_cast<uint32_t>(aipp_parms.cscInputBiasR0);
-  ss << " cscInputBiasR1:" << static_cast<uint32_t>(aipp_parms.cscInputBiasR1);
-  ss << " cscInputBiasR2:" << static_cast<uint32_t>(aipp_parms.cscInputBiasR2);
+  ss << " inputFormat:" << static_cast<uint32_t>(aippParms.inputFormat);
+  ss << " cscSwitch:" << static_cast<int32_t>(aippParms.cscSwitch);
+  ss << " rbuvSwapSwitch:" << static_cast<int32_t>(aippParms.rbuvSwapSwitch);
+  ss << " axSwapSwitch:" << static_cast<int32_t>(aippParms.axSwapSwitch);
+  ss << " batchNum:" << static_cast<int32_t>(aippParms.batchNum);
+  ss << " srcImageSizeW:" << aippParms.srcImageSizeW;
+  ss << " srcImageSizeH:" << aippParms.srcImageSizeH;
+  ss << " cscMatrixR0C0:" << static_cast<int32_t>(aippParms.cscMatrixR0C0);
+  ss << " cscMatrixR0C1:" << static_cast<int32_t>(aippParms.cscMatrixR0C1);
+  ss << " cscMatrixR0C2:" << static_cast<int32_t>(aippParms.cscMatrixR0C2);
+  ss << " cscMatrixR1C0:" << static_cast<int32_t>(aippParms.cscMatrixR1C0);
+  ss << " cscMatrixR1C1:" << static_cast<int32_t>(aippParms.cscMatrixR1C1);
+  ss << " cscMatrixR1C2:" << static_cast<int32_t>(aippParms.cscMatrixR1C2);
+  ss << " cscMatrixR2C0:" << static_cast<int32_t>(aippParms.cscMatrixR2C0);
+  ss << " cscMatrixR2C1:" << static_cast<int32_t>(aippParms.cscMatrixR2C1);
+  ss << " cscMatrixR2C2:" << static_cast<int32_t>(aippParms.cscMatrixR2C2);
+  ss << " cscOutputBiasR0:" << static_cast<uint32_t>(aippParms.cscOutputBiasR0);
+  ss << " cscOutputBiasR1:" << static_cast<uint32_t>(aippParms.cscOutputBiasR1);
+  ss << " cscOutputBiasR2:" << static_cast<uint32_t>(aippParms.cscOutputBiasR2);
+  ss << " cscInputBiasR0:" << static_cast<uint32_t>(aippParms.cscInputBiasR0);
+  ss << " cscInputBiasR1:" << static_cast<uint32_t>(aippParms.cscInputBiasR1);
+  ss << " cscInputBiasR2:" << static_cast<uint32_t>(aippParms.cscInputBiasR2);
   ss << " ]";
   return ss.str();
 }
 
-ACL_FUNC_VISIBILITY std::string AippBatchParaDebugString(const kAippDynamicBatchPara &aipp_batch_para) {
+ACL_FUNC_VISIBILITY std::string AippBatchParaDebugString(const kAippDynamicBatchPara &aippBatchPara) {
   std::stringstream ss;
   ss << "kAippDynamicBatchPara[";
-  ss << " cropSwitch:" << static_cast<int32_t>(aipp_batch_para.cropSwitch);
-  ss << " cropStartPosW:" << aipp_batch_para.cropStartPosW;
-  ss << " cropStartPosH:" << aipp_batch_para.cropStartPosH;
-  ss << " cropSizeW:" << aipp_batch_para.cropSizeW;
-  ss << " cropSizeH:" << aipp_batch_para.cropSizeH;
-  ss << " scfSwitch:" << static_cast<int32_t>(aipp_batch_para.scfSwitch);
-  ss << " scfInputSizeW:" << aipp_batch_para.scfInputSizeW;
-  ss << " scfInputSizeH:" << aipp_batch_para.scfInputSizeH;
-  ss << " scfOutputSizeW:" << aipp_batch_para.scfOutputSizeW;
-  ss << " scfOutputSizeH:" << aipp_batch_para.scfOutputSizeH;
-  ss << " paddingSwitch:" << static_cast<int32_t>(aipp_batch_para.paddingSwitch);
-  ss << " paddingSizeTop:" << aipp_batch_para.paddingSizeTop;
-  ss << " paddingSizeBottom:" << aipp_batch_para.paddingSizeBottom;
-  ss << " paddingSizeLeft:" << aipp_batch_para.paddingSizeLeft;
-  ss << " paddingSizeRight:" << aipp_batch_para.paddingSizeRight;
-  ss << " rotateSwitch:" << static_cast<int32_t>(aipp_batch_para.rotateSwitch);
-  ss << " dtcPixelMeanChn0:" << static_cast<int32_t>(aipp_batch_para.dtcPixelMeanChn0);
-  ss << " dtcPixelMeanChn1:" << static_cast<int32_t>(aipp_batch_para.dtcPixelMeanChn1);
-  ss << " dtcPixelMeanChn2:" << static_cast<int32_t>(aipp_batch_para.dtcPixelMeanChn2);
-  ss << " dtcPixelMeanChn3:" << static_cast<int32_t>(aipp_batch_para.dtcPixelMeanChn3);
-  ss << " dtcPixelMinChn0:" << static_cast<uint32_t>(aipp_batch_para.dtcPixelMinChn0);
-  ss << " dtcPixelMinChn1:" << static_cast<uint32_t>(aipp_batch_para.dtcPixelMinChn1);
-  ss << " dtcPixelMinChn2:" << static_cast<uint32_t>(aipp_batch_para.dtcPixelMinChn2);
-  ss << " dtcPixelMinChn3:" << static_cast<uint32_t>(aipp_batch_para.dtcPixelMinChn3);
-  ss << " dtcPixelVarReciChn0:" << Fp16ToFloat(aipp_batch_para.dtcPixelVarReciChn0);
-  ss << " dtcPixelVarReciChn1:" << Fp16ToFloat(aipp_batch_para.dtcPixelVarReciChn1);
-  ss << " dtcPixelVarReciChn2:" << Fp16ToFloat(aipp_batch_para.dtcPixelVarReciChn2);
-  ss << " dtcPixelVarReciChn3:" << Fp16ToFloat(aipp_batch_para.dtcPixelVarReciChn3);
+  ss << " cropSwitch:" << static_cast<int32_t>(aippBatchPara.cropSwitch);
+  ss << " cropStartPosW:" << aippBatchPara.cropStartPosW;
+  ss << " cropStartPosH:" << aippBatchPara.cropStartPosH;
+  ss << " cropSizeW:" << aippBatchPara.cropSizeW;
+  ss << " cropSizeH:" << aippBatchPara.cropSizeH;
+  ss << " scfSwitch:" << static_cast<int32_t>(aippBatchPara.scfSwitch);
+  ss << " scfInputSizeW:" << aippBatchPara.scfInputSizeW;
+  ss << " scfInputSizeH:" << aippBatchPara.scfInputSizeH;
+  ss << " scfOutputSizeW:" << aippBatchPara.scfOutputSizeW;
+  ss << " scfOutputSizeH:" << aippBatchPara.scfOutputSizeH;
+  ss << " paddingSwitch:" << static_cast<int32_t>(aippBatchPara.paddingSwitch);
+  ss << " paddingSizeTop:" << aippBatchPara.paddingSizeTop;
+  ss << " paddingSizeBottom:" << aippBatchPara.paddingSizeBottom;
+  ss << " paddingSizeLeft:" << aippBatchPara.paddingSizeLeft;
+  ss << " paddingSizeRight:" << aippBatchPara.paddingSizeRight;
+  ss << " rotateSwitch:" << static_cast<int32_t>(aippBatchPara.rotateSwitch);
+  ss << " dtcPixelMeanChn0:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn0);
+  ss << " dtcPixelMeanChn1:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn1);
+  ss << " dtcPixelMeanChn2:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn2);
+  ss << " dtcPixelMeanChn3:" << static_cast<int32_t>(aippBatchPara.dtcPixelMeanChn3);
+  ss << " dtcPixelMinChn0:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn0);
+  ss << " dtcPixelMinChn1:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn1);
+  ss << " dtcPixelMinChn2:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn2);
+  ss << " dtcPixelMinChn3:" << static_cast<uint32_t>(aippBatchPara.dtcPixelMinChn3);
+  ss << " dtcPixelVarReciChn0:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn0);
+  ss << " dtcPixelVarReciChn1:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn1);
+  ss << " dtcPixelVarReciChn2:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn2);
+  ss << " dtcPixelVarReciChn3:" << Fp16ToFloat(aippBatchPara.dtcPixelVarReciChn3);
   ss << " ]";
   return ss.str();
 }

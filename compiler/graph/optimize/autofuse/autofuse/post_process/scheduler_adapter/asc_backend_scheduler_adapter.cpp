@@ -41,10 +41,6 @@ Status AscBackendSchedulerAdapter::DoBeforePass(const ComputeGraphPtr &graph) co
   // 把fp16和bf16的node改为fp32，以提高精度
   GE_ASSERT_SUCCESS(PrecisionImprover::ImprovePrecisionToFp32(graph));
 
-  // 为scalar增加broadcast
-  // GE_ASSERT_SUCCESS(asc_adapt::FallbackScalarToBroadcastWithoutCheckType(graph));
-  // 统一在OptimizedFallback中插入broadcast
-
   return SUCCESS;
 }
 

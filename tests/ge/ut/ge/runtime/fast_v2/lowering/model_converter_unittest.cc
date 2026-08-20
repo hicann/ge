@@ -24,6 +24,7 @@
 #include "lowering/model_converter.h"
 #include "exe_graph/lowering/lowering_global_data.h"
 #include "graph/custom_op_registry.h"
+#include "graph/ge_global_options.h"
 
 using namespace ge;
 namespace gert {
@@ -50,6 +51,17 @@ std::unique_ptr<uint8_t[]> ReadBufferFromAttr(const ge::ExecuteGraph *const exe_
   }
   return buffer_data;
 }
+
+ge::GeRootModelPtr BuildDeterministicRootModel(const int32_t deterministic, const int32_t deterministic_level) {
+  auto graph = ShareGraph::BuildTwoAddNodeGraph();
+  graph->TopologicalSorting();
+  ge::AttrUtils::SetInt(graph, ge::DETERMINISTIC, deterministic);
+  ge::AttrUtils::SetInt(graph, ge::DETERMINISTIC_LEVEL, deterministic_level);
+  return GeModelBuilder(graph)
+      .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
+      .FakeTbeBin({"Add"})
+      .BuildGeRootModel();
+}
 }  // namespace
 extern ge::ExecuteGraphPtr LoadExecuteGraphFromModelFile(const ge::char_t *const model_path,
                                                          ge::graphStatus &error_code);
@@ -58,12 +70,21 @@ class ModelConverterUT : public bg::BgTest {
   void SetUp() override {
     bg::BgTest::SetUp();
     aclrtSetDevice(0);
+    const std::lock_guard<std::mutex> lock(ge::GetGlobalOptionsMutex());
+    global_options_backup_ = ge::GetMutableGlobalOptions();
+    ge::GetMutableGlobalOptions().clear();
   }
   void TearDown() override {
+    {
+      const std::lock_guard<std::mutex> lock(ge::GetGlobalOptionsMutex());
+      ge::GetMutableGlobalOptions() = global_options_backup_;
+    }
     Test::TearDown();
     while (bg::ValueHolder::PopGraphFrame() != nullptr) {
     }
   }
+
+  std::map<std::string, std::string> global_options_backup_;
 };
 
 TEST_F(ModelConverterUT, LoadExecuteGraphFromModelFile) {
@@ -289,5 +310,17 @@ TEST_F(ModelConverterUT, ConvertWithRollBackSingleStreamWithStaticSubModelForStr
 
   gert::DestroyVersionInfo();
   unsetenv("MOCK_AVAIL_STREAM_NUM");
+}
+
+TEST_F(ModelConverterUT, ConvertDoesNotValidateProcessDeterministicConfig) {
+  ge::GetMutableGlobalOptions()[ge::DETERMINISTIC] = "1";
+  ge::GetMutableGlobalOptions()[ge::DETERMINISTIC_LEVEL] = "2";
+  gert::CreateVersionInfo();
+
+  ModelConverter model_converter;
+  ASSERT_NE(model_converter.ConvertGeModelToExecuteGraph(BuildDeterministicRootModel(0, 0)), nullptr);
+  EXPECT_EQ(ge::GetMutableGlobalOptions().at(ge::DETERMINISTIC), "1");
+  EXPECT_EQ(ge::GetMutableGlobalOptions().at(ge::DETERMINISTIC_LEVEL), "2");
+  gert::DestroyVersionInfo();
 }
 }  // namespace gert

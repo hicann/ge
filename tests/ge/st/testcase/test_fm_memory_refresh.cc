@@ -179,7 +179,6 @@ class FakeOpsKernelInfoStore : public OpsKernelInfoStore {
   }
 };
 FakeOpsKernelInfoStore g_fake_ops_kernel_info_store;
-
 Status GenerateTaskForHcomAllReduce(const Node &node, RunContext &run_context, std::vector<domi::TaskDef> &tasks) {
   std::cout << "======node.GetType():" << node.GetType() << std::endl;
   if (node.GetType() != "HcomAllReduce") {
@@ -8790,6 +8789,188 @@ TEST_F(FmMemoryRefreshTest, annotated_args_in_dynamic_root_known_subgraph_refres
   EXPECT_NE(annotated_slots[1], 0U);
 
   runtime_stub.Clear();
+}
+
+/*
+ * 动态shape图有两个静态子图，静态子图里有hccl算子
+ * 子图1: data -> hcom_1 -> netoutput (hcom输出作为子图输出)
+ * 子图2: data(子图输入) -> hcom_2 (hcom输入是子图输入)
+ * root:  data_1 -> known_op1 -> root_netoutput
+ *        data_2 -> known_op2 -> root_netoutput
+ */
+namespace {
+void VerifyZeroCopyInSubgraphs(const ComputeGraphPtr &root_graph) {
+  for (const auto &sub_graph : root_graph->GetAllSubgraphs()) {
+    if (sub_graph->GetGraphUnknownFlag()) {
+      continue;
+    }
+    for (const auto &node : sub_graph->GetAllNodes()) {
+      const auto &op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) {
+        continue;
+      }
+      bool is_zero_copy = false;
+      (void)AttrUtils::GetBool(op_desc->GetOutputDescPtr(0), ATTR_IS_ZERO_COPY_BLOCK, is_zero_copy);
+      if (OpTypeUtils::IsDataNode(op_desc->GetType())) {
+        EXPECT_TRUE(is_zero_copy) << "data node " << op_desc->GetName() << " should be zero copy";
+      } else if (op_desc->GetType() == HCOMALLREDUCE) {
+        EXPECT_FALSE(is_zero_copy) << "hccl node " << op_desc->GetName() << " should not be zero copy";
+      }
+    }
+  }
+}
+
+std::vector<ge::Tensor> MakeTensor(const std::vector<int64_t> &data) {
+  TensorDesc desc(Shape({2, 2}));
+  desc.SetPlacement(Placement::kPlacementDevice);
+  ge::Tensor tensor{desc};
+  tensor.SetData(reinterpret_cast<uint8_t *>(const_cast<int64_t *>(data.data())), data.size() * sizeof(int64_t));
+  return {tensor};
+}
+
+OpDescPtr BuildHcclNode(const std::string &hcom_name, int64_t hcom_input_offset, int64_t data_output_offset) {
+  std::vector<int64_t> shape{2, 2};
+  std::vector<int64_t> memtype_list = {RT_MEMORY_HBM};
+  auto hcom = OP_CFG(HCOMALLREDUCE)
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, shape)
+                  .InCnt(1)
+                  .OutCnt(1)
+                  .Attr(ATTR_NAME_MODIFY_INPUT, true)
+                  .Attr(ATTR_NAME_INPUT_MEM_TYPE_LIST, memtype_list)
+                  .Attr(ATTR_NAME_OUTPUT_MEM_TYPE_LIST, memtype_list)
+                  .Build(hcom_name);
+  hcom->SetOpKernelLibName("ops_kernel_info_hccl");
+  hcom->SetWorkspace({0});
+  hcom->SetWorkspaceBytes({512});
+  hcom->SetInputOffset({hcom_input_offset});
+  hcom->SetOutputOffset({data_output_offset});
+  ge::AttrUtils::SetBool(hcom, ATTR_NAME_IS_FIXED_ADDR_PRIOR, true);
+  return hcom;
+}
+
+OpDescPtr BuildSubgraphDataNode(const std::string &name, int64_t output_offset) {
+  std::vector<int64_t> shape{2, 2};
+  auto data = OP_CFG("Data")
+                  .TensorDesc(FORMAT_NCHW, DT_FLOAT, shape)
+                  .InCnt(1)
+                  .OutCnt(1)
+                  .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
+                  .Attr(ATTR_NAME_INDEX, 0)
+                  .Build(name);
+  data->SetOutputOffset({output_offset});
+  return data;
+}
+
+OpDescPtr BuildSubgraphNetOutputNode(const std::string &name, int64_t input_offset) {
+  std::vector<int64_t> shape{2, 2};
+  auto netoutput = OP_CFG(ge::NETOUTPUT)
+                       .TensorDesc(FORMAT_NCHW, DT_FLOAT, shape)
+                       .InCnt(1)
+                       .OutCnt(1)
+                       .InputAttr(0, ATTR_NAME_PARENT_NODE_INDEX, 0)
+                       .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                       .Build(name);
+  netoutput->SetInputOffset({input_offset});
+  return netoutput;
+}
+
+ComputeGraphPtr SetupSubgraph(const Graph &sub_graph, const std::string &netoutput_name, const std::string &hcom_name) {
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(sub_graph);
+  compute_graph->SetGraphUnknownFlag(false);
+  compute_graph->FindNode(netoutput_name)->GetOpDesc()->SetSrcName({hcom_name});
+  compute_graph->FindNode(netoutput_name)->GetOpDesc()->SetSrcIndex({0});
+  return compute_graph;
+}
+void RunAndVerify(Session &session, uint32_t graph_id, const ComputeGraphPtr &root_graph,
+                  GertRuntimeStub &runtime_stub) {
+  std::vector<int64_t> input_data(2 * 2, 0);
+  for (size_t i = 0; i < input_data.size(); ++i) {
+    input_data[i] = static_cast<int64_t>(i + 1) * 0x1000;
+  }
+  auto inputs = MakeTensor(input_data);
+  auto outputs = MakeTensor(std::vector<int64_t>(2 * 2, 0));
+  const auto summary = session.GetCompiledGraphSummary(graph_id);
+  EXPECT_NE(summary, nullptr);
+  size_t fix_feature_size = 0;
+  EXPECT_EQ(SUCCESS, summary->GetFixedFeatureMemorySize(fix_feature_size));
+  std::vector<uint8_t> fixed_feature_mem(fix_feature_size, 0);
+  EXPECT_EQ(SUCCESS, session.SetGraphFixedFeatureMemoryBase(graph_id, fixed_feature_mem.data(), fix_feature_size));
+  VerifyZeroCopyInSubgraphs(root_graph);
+  runtime_stub.Clear();
+  EXPECT_EQ(SUCCESS, session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs));
+  OpsKernelBuilderRegistry::GetInstance().Unregister("ops_kernel_info_hccl");
+  runtime_stub.Clear();
+}
+OpDescPtr BuildRootDataNode(const std::vector<int64_t> &shape) {
+  return OP_CFG("Data")
+      .TensorDesc(FORMAT_NCHW, DT_FLOAT, shape)
+      .InCnt(1)
+      .OutCnt(1)
+      .Attr(ATTR_NAME_INDEX, 0)
+      .Build("data_1");
+}
+
+OpDescPtr BuildPartitionedCallNode(const std::string &name, const std::vector<int64_t> &shape) {
+  return OP_CFG(ge::PARTITIONEDCALL).TensorDesc(FORMAT_NCHW, DT_FLOAT, shape).InCnt(1).OutCnt(1).Build(name);
+}
+
+OpDescPtr BuildRootNetOutputNode(const std::vector<int64_t> &shape) {
+  auto netoutput =
+      OP_CFG(ge::NETOUTPUT).TensorDesc(FORMAT_NCHW, DT_FLOAT, shape).InCnt(1).OutCnt(1).Build("root_netoutput");
+  netoutput->SetSrcName({"known_op2"});
+  netoutput->SetSrcIndex({0});
+  return netoutput;
+}
+}  // namespace
+
+TEST_F(FmMemoryRefreshTest, hccl_zero_copy_dynamic_shape_two_static_subgraph) {
+  GertRuntimeStub runtime_stub;
+  MockForGenerateTask("ops_kernel_info_hccl", GenerateTaskForHcomAllReduce);
+  std::vector<int64_t> shape{2, 2};
+
+  auto data_sub1 = BuildSubgraphDataNode("data_sub1", 32);
+  auto hcom_1 = BuildHcclNode("hcom_1", 0, 32);
+  auto sub_1_netoutput = BuildSubgraphNetOutputNode("sub_1_netoutput", 0);
+  auto data_sub2 = BuildSubgraphDataNode("data_sub2", 64);
+  auto hcom_2 = BuildHcclNode("hcom_2", 16, 64);
+  auto sub_2_netoutput = BuildSubgraphNetOutputNode("sub_2_netoutput", 16);
+  auto known_op1 = BuildPartitionedCallNode("known_op1", shape);
+  auto known_op2 = BuildPartitionedCallNode("known_op2", shape);
+  auto data_1 = BuildRootDataNode(shape);
+  auto root_netoutput = BuildRootNetOutputNode(shape);
+
+  DEF_GRAPH(sub_1) {
+    CHAIN(NODE(data_sub1)->NODE(hcom_1)->NODE(sub_1_netoutput));
+  };
+  DEF_GRAPH(sub_2) {
+    CHAIN(NODE(data_sub2)->NODE(hcom_2)->NODE(sub_2_netoutput));
+  };
+  DEF_GRAPH(root) {
+    CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(known_op1)->EDGE(0, 0)->NODE(known_op2)->EDGE(0, 0)->NODE(root_netoutput));
+  };
+
+  auto graph = ToGeGraph(root);
+  auto root_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
+  root_graph->SetGraphUnknownFlag(true);
+  (void)AttrUtils::SetBool(root_graph, ATTR_NAME_DYNAMIC_SHAPE_PARTITIONED, true);
+  auto sub_graph1 = ToGeGraph(sub_1);
+  auto compute_graph1 = SetupSubgraph(sub_graph1, "sub_1_netoutput", "hcom_1");
+  auto sub_graph2 = ToGeGraph(sub_2);
+  auto compute_graph2 = SetupSubgraph(sub_graph2, "sub_2_netoutput", "hcom_2");
+
+  auto known_node1 = root_graph->FindNode("known_op1");
+  auto known_node2 = root_graph->FindNode("known_op2");
+  (void)AttrUtils::SetBool(known_node1->GetOpDesc(), ATTR_NAME_IS_UNKNOWN_SHAPE, true);
+  SetSubGraph(root_graph, known_node1, compute_graph1);
+  SetSubGraph(root_graph, known_node2, compute_graph2);
+  AddCompileResult(known_node1, false);
+  AddCompileResult(known_node2, false);
+
+  std::map<AscendString, AscendString> options;
+  Session session(options);
+  session.AddGraph(1U, graph);
+  EXPECT_EQ(session.CompileGraph(1U), SUCCESS);
+  RunAndVerify(session, 1U, root_graph, runtime_stub);
 }
 
 }  // namespace ge

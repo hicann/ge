@@ -206,6 +206,8 @@ set(COMPILER_SRC_LIST
     "graph/partition/stage_partitioner.cc"
     "graph/partition/optimizer/dynamic_data_flow_engine_reassign_pass.cc"
     "graph/partition/optimizer/dynamic_data_flow_partitioner_pass.cc"
+    "graph/partition/optimizer/host_cpu_fusion_codegen.cc"
+    "graph/partition/optimizer/host_cpu_fusion_pass.cc"
     "graph/partition/optimizer/hostcpu_engine_update_pass.cc"
     "graph/passes/feature/set_ffts_plus_attr_pass.cc"
     "graph/passes/standard_optimize/addn_pass.cc"
@@ -444,6 +446,8 @@ target_include_directories(ge_compiler SYSTEM PRIVATE
     ${TOP_DIR}/metadef/inc
     ${TOP_DIR}/runtime/include/external/
     ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/graph-autofusion/super_kernel/include
+    ${CANN_TOP_DIR}/graph-autofusion/super_kernel/include
 )
 
 target_link_options(ge_compiler PRIVATE

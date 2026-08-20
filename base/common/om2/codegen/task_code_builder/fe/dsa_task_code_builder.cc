@@ -131,7 +131,7 @@ void DSATaskCodeBuilder::InitBuildDataFields(const uint32_t task_type) {
   build_data_.hbm_table_index = static_cast<uint32_t>(hbm_entry_.has_value() ? hbm_entry_->table_index : 0U);
   build_data_.hbm_args_size = static_cast<uint32_t>(hbm_entry_.has_value() ? hbm_entry_->args_size : 0U);
   build_data_.idx_output = num_inputs;
-  build_data_.state_addr_idx = state_from_ws ? ws_base : (num_inputs - 1U);
+  build_data_.state_addr_idx = (state_from_ws > 0U) ? ws_base : (num_inputs - 1U);
   build_data_.idx_seed = 1U;
   build_data_.idx_count = 0U;
   build_data_.idx_input1 = kDSAInput1AddrIndex;
@@ -169,7 +169,7 @@ Status DSATaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
   GELOGI("DSA Task Codegen: op[%s], sqe_type[%u], stream_id[%u].", header_.op_name.c_str(), build_data_.sqe_type,
          header_.stream_id);
   uint64_t current_args_offset = 0U;
-  auto add_addr_entries = [&](const std::vector<AddrSemantic> &addrs) {
+  auto add_addr_entries = [&current_args_offset, this](const std::vector<AddrSemantic> &addrs) {
     for (const auto &addr : addrs) {
       OpArgDesc arg = TaskCodeBuilderUtil::ConvertAddrDesc(addr);
       arg.args_offset = current_args_offset;
@@ -226,7 +226,7 @@ Status DSATaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
   GE_ASSERT_SUCCESS(RenderSqeAddrFields(body, dsa_data, ctx, sqe, addrs));
   GE_ASSERT_SUCCESS(RenderHbmIoArgs(body, dsa_data, ctx, addrs));
   auto launch_begin = ast_.Var("uint64_t", "_launch_begin");
-  body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
+  (void)body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunch(body, op, ctx, dsa_data, sqe));
   GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, dsa_data, addrs, launch_begin));
 
@@ -426,7 +426,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
 Status DSATaskCodeBuilder::RenderDispatchFuncReportSubmit(
     std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx, const ExprRef &dsa_data,
     const VarRef &dsa_report_inputs, const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
-    const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) {
+    const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) const {
   auto hbm_ai = ast_.Var("ArgsInfo *", "hbm_ai");
   (void)body.push_back(
       ast_.VarDecl(hbm_ai, ctx.Attr("args_table").Attr("GetArgsInfo")(dsa_data.Attr("hbm_table_index"))));

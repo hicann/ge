@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include "faker/fake_value.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_dump_utils.h"
@@ -44,9 +46,35 @@
 #include "register/kernel_registry.h"
 #include "common/topo_checker.h"
 #include "graph/ge_local_context.h"
+#include "graph/ge_global_options.h"
 
 using namespace ge;
 namespace gert {
+namespace {
+class ScopedDeterministicOptions {
+ public:
+  explicit ScopedDeterministicOptions(const bool set_process_options = true) {
+    const std::lock_guard<std::mutex> lock(GetGlobalOptionsMutex());
+    global_options_backup_ = GetMutableGlobalOptions();
+    if (set_process_options) {
+      GetMutableGlobalOptions()[DETERMINISTIC] = "1";
+      GetMutableGlobalOptions()[DETERMINISTIC_LEVEL] = "2";
+    } else {
+      GetMutableGlobalOptions().erase(DETERMINISTIC);
+      GetMutableGlobalOptions().erase(DETERMINISTIC_LEVEL);
+    }
+  }
+
+  ~ScopedDeterministicOptions() {
+    const std::lock_guard<std::mutex> lock(GetGlobalOptionsMutex());
+    GetMutableGlobalOptions() = global_options_backup_;
+  }
+
+ private:
+  std::map<std::string, std::string> global_options_backup_;
+};
+}  // namespace
+
 void CheckModelOutputManagerIsNull(ComputeGraphPtr graph, size_t input_num, bool is_need_fake_add = true) {
   graph->TopologicalSorting();
   GeModelBuilder builder(graph);
@@ -282,6 +310,71 @@ TEST_F(GraphExecutorWithKernelUnitTest, save_and_load_static_model) {
   executor_model = gert::LoadExecutorFromFile(save_om_file_name.c_str(), error_code);
   ASSERT_NE(error_code, ge::GRAPH_SUCCESS);
   ASSERT_EQ(executor_model, nullptr);
+}
+
+TEST_F(GraphExecutorWithKernelUnitTest, LoadExecutorFromModelDataWithLoadArgsChecksProcessDeterministicConfig) {
+  ScopedDeterministicOptions deterministic_options;
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC, 0);
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC_LEVEL, 0);
+  graph->TopologicalSorting();
+  auto ge_root_model = GeModelBuilder(graph)
+                           .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
+                           .FakeTbeBin({"Add"})
+                           .BuildGeRootModel();
+  auto model_data = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
+
+  graphStatus error_code = GRAPH_SUCCESS;
+  LoadExecutorArgs args{nullptr, {}};
+  auto executor = LoadExecutorFromModelData(model_data.Get(), args, error_code);
+  EXPECT_EQ(error_code, PARAM_INVALID);
+  EXPECT_EQ(executor, nullptr);
+}
+
+TEST_F(GraphExecutorWithKernelUnitTest,
+       LoadExecutorFromModelDataWithLoadArgsInitializesMissingProcessDeterministicConfig) {
+  ScopedDeterministicOptions deterministic_options(false);
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC, 1);
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC_LEVEL, 2);
+  graph->TopologicalSorting();
+  auto ge_root_model = GeModelBuilder(graph)
+                           .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
+                           .FakeTbeBin({"Add"})
+                           .BuildGeRootModel();
+  auto model_data = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
+
+  graphStatus error_code = GRAPH_FAILED;
+  LoadExecutorArgs args{nullptr, {}};
+  auto executor = LoadExecutorFromModelData(model_data.Get(), args, error_code);
+  EXPECT_EQ(error_code, GRAPH_SUCCESS);
+  EXPECT_NE(executor, nullptr);
+
+  const std::lock_guard<std::mutex> lock(GetGlobalOptionsMutex());
+  const auto &global_options = GetMutableGlobalOptions();
+  ASSERT_NE(global_options.find(DETERMINISTIC), global_options.cend());
+  ASSERT_NE(global_options.find(DETERMINISTIC_LEVEL), global_options.cend());
+  EXPECT_EQ(global_options.at(DETERMINISTIC), "1");
+  EXPECT_EQ(global_options.at(DETERMINISTIC_LEVEL), "2");
+}
+
+TEST_F(GraphExecutorWithKernelUnitTest, LoadStreamExecutorFromModelDataDoesNotCheckProcessDeterministicConfig) {
+  ScopedDeterministicOptions deterministic_options;
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  (void)AttrUtils::SetBool(graph, ATTR_SINGLE_OP_SCENE, true);
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC, 0);
+  (void)AttrUtils::SetInt(graph, DETERMINISTIC_LEVEL, 0);
+  graph->TopologicalSorting();
+  auto ge_root_model = GeModelBuilder(graph)
+                           .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
+                           .FakeTbeBin({"Add"})
+                           .BuildGeRootModel();
+  auto model_data = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
+
+  graphStatus error_code = GRAPH_FAILED;
+  auto executor = LoadStreamExecutorFromModelData(model_data.Get(), error_code);
+  EXPECT_EQ(error_code, GRAPH_SUCCESS);
+  EXPECT_NE(executor, nullptr);
 }
 
 LowerResult LoweringAdd(const ge::NodePtr &node, const LowerInput &lower_input) {

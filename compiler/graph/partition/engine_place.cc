@@ -19,6 +19,7 @@
 #include "base/err_mgr.h"
 #include "api/gelib/gelib.h"
 #include "graph/partition/optimizer/dynamic_data_flow_engine_reassign_pass.h"
+#include "graph/partition/optimizer/host_cpu_fusion_pass.h"
 #include "graph/partition/optimizer/hostcpu_engine_update_pass.h"
 
 namespace ge {
@@ -238,6 +239,8 @@ Status EnginePlacer::ReAssignEngine() {
   passes.emplace_back(
       std::make_pair("DynamicDataFlowEngineReassignPass", MakeShared<DynamicDataFlowEngineReassignPass>()));
   passes.emplace_back(std::make_pair("HostcpuEngineUpdatePass", MakeShared<HostcpuEngineUpdatePass>()));
+  // 融合 Pass 依赖 HostcpuEngineUpdatePass 最终确定的 SmallShapeHostcpu 标记和引擎归属。
+  passes.emplace_back(std::make_pair("HostCpuFusionPass", MakeShared<HostCpuFusionPass>()));
 
   for (const auto &pass_item : passes) {
     Status ret = RunSinglePass(pass_item.first, pass_item.second);

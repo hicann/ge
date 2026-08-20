@@ -10,6 +10,7 @@
 
 #include "bg_launch.h"
 #include "bg_ext_info.h"
+#include <algorithm>
 #include <mutex>
 #include "framework/common/taskdown_common.h"
 #include "register/kernel_registry.h"
@@ -22,6 +23,7 @@
 #include "graph_builder/bg_condition.h"
 #include "graph/utils/node_utils.h"
 #include "exe_graph/lowering/frame_selector.h"
+#include "engine/aicpu/kernel/fused_host_cpu_compute.h"
 
 namespace gert {
 namespace bg {
@@ -45,6 +47,7 @@ DevMemValueHolderPtr AllocHostCpuOutputMemory(const ge::NodePtr &node, const IoI
   inputs.insert(inputs.cend(), io_info.input_addrs.cbegin(), io_info.input_addrs.cend());
   auto output = DevMemValueHolder::CreateSingleDataOutput("AllocHostCpuOutputMemory", inputs,
                                                           node->GetOpDescBarePtr()->GetStreamId());
+  GE_ASSERT_NOTNULL(output);
   output->SetPlacement(kOnHost);
   return output;
 }
@@ -268,6 +271,47 @@ ValueHolderPtr AicpuHostCompute(const ge::NodePtr &node, const AicpuArgs &args, 
     ValueHolder::AddDependency(expanded_input_addrs_holder, compute_holder);
   }
   return compute_holder;
+}
+
+ValueHolderPtr BuildFusedHostCpuComputeNode(const ge::NodePtr &node, void *compute_state, const IoInfo &io_info,
+                                            LoweringGlobalData &global_data,
+                                            std::vector<DevMemValueHolderPtr> &output_addrs) {
+  GE_ASSERT_NOTNULL(node);
+  GE_ASSERT_NOTNULL(compute_state);
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  GE_ASSERT_TRUE(io_info.input_shapes.size() == io_info.input_addrs.size());
+  GE_ASSERT_TRUE(io_info.output_shapes.size() == io_info.output_sizes.size());
+
+  output_addrs = AllocHostCpuOutputsMemory(node, io_info, global_data);
+  GE_ASSERT_TRUE(io_info.output_shapes.size() == output_addrs.size());
+
+  const size_t input_num = io_info.input_shapes.size();
+  const size_t output_num = io_info.output_shapes.size();
+  GE_ASSERT_TRUE(input_num == op_desc->GetAllInputsSize());
+  GE_ASSERT_TRUE(output_num == op_desc->GetOutputsSize());
+  GE_ASSERT_TRUE(output_num != 0U);
+
+  const FusedHostCpuComputeMeta compute_meta = {compute_state, input_num, output_num};
+
+  std::vector<ValueHolderPtr> inputs;
+  inputs.emplace_back(ValueHolder::CreateConst(&compute_meta, sizeof(compute_meta)));
+  inputs.insert(inputs.cend(), io_info.input_shapes.cbegin(), io_info.input_shapes.cend());
+  inputs.insert(inputs.cend(), io_info.input_addrs.cbegin(), io_info.input_addrs.cend());
+  inputs.insert(inputs.cend(), io_info.output_shapes.cbegin(), io_info.output_shapes.cend());
+  inputs.insert(inputs.cend(), output_addrs.cbegin(), output_addrs.cend());
+
+  const auto allocated_output_addrs = output_addrs;
+  output_addrs = DevMemValueHolder::CreateDataOutput("FusedHostCpuCompute", inputs, output_num, op_desc->GetStreamId());
+  GE_ASSERT_EQ(output_addrs.size(), allocated_output_addrs.size());
+  for (size_t i = 0U; i < output_addrs.size(); ++i) {
+    GE_ASSERT_NOTNULL(output_addrs[i]);
+    GE_ASSERT_NOTNULL(allocated_output_addrs[i]);
+    output_addrs[i]->SetPlacement(allocated_output_addrs[i]->GetPlacement());
+  }
+  GELOGD("Build fused HostCPU private-entry compute: node[%s], inputs=%zu, outputs=%zu.", node->GetNamePtr(), input_num,
+         output_num);
+  return output_addrs[0U];
 }
 }  // namespace bg
 }  // namespace gert

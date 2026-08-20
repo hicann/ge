@@ -13,7 +13,6 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 #include "framework/common/fmk_error_codes.h"
 #include "framework/common/framework_types_internal.h"

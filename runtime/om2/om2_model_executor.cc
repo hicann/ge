@@ -51,7 +51,7 @@ constexpr uint8_t OM2_MAGIC[] = {0x50, 0x4B, 0x03, 0x04};
 
 using Om2ModelHandle = void *;
 using CreateFunc = ge::graphStatus (*)(Om2ModelHandle *, rtModel_t *, const char **, const void **, size_t *, int,
-                                       void **, void **, void *, uint64_t *, uint32_t, void *);
+                                       void **, void **, void *, uint64_t *, uint32_t, void *, int32_t);
 using LoadFunc = ge::graphStatus (*)(Om2ModelHandle *);
 using DestroyFunc = ge::graphStatus (*)(Om2ModelHandle *);
 using RunFunc = ge::graphStatus (*)(Om2ModelHandle *, int, void **, int, void **, int32_t, Om2ProfInfos *);
@@ -965,8 +965,8 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(run_model_info_.create_func(
         &run_model_info_.model_handle, &run_model_info_.rt_model_handle, bin_files.data(), bin_data.data(),
         bin_sizes.data(), static_cast<int>(bin_data.size()), constants.empty() ? nullptr : constants.data(),
-        var_addrs.empty() ? nullptr : var_addrs.data(), work_ptr, &session_id_, load_arg.model_id,
-        dump_manager_.get()));
+        var_addrs.empty() ? nullptr : var_addrs.data(), work_ptr, &session_id_, load_arg.model_id, dump_manager_.get(),
+        load_arg.priority));
     return ge::GRAPH_SUCCESS;
   }
 

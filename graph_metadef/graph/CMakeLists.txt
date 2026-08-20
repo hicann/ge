@@ -116,6 +116,7 @@ SET(GRAPH_SOURCE_LIST
     "context/runtime_inference_context.cc"
     "refiner/shape_refiner.cc"
     "ir/ir_definitions_recover.cc"
+    "ir/ir_definitions_query.cc"
     "opsproto/opsproto_manager.cc"
     "utils/op_desc_utils.cc"
     "utils/tuning_utils.cc"
@@ -196,6 +197,9 @@ target_link_libraries(graph_base
 )
 
 target_link_libraries(graph_base PRIVATE ascend_protobuf error_manager)
+if(TARGET third_party_json)
+    add_dependencies(graph_base third_party_json)
+endif()
 target_compile_options(graph_base PRIVATE ${OPTIMIZE_OPTION} -DNO_METADEF_ABI_COMPATIABLE)
 
 ######### libgraph_base.a #############

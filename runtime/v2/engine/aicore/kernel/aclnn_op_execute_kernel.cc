@@ -20,6 +20,8 @@
 #include "acl/acl_rt.h"
 #include "runtime/rt_external_stream.h"
 #include "kernel/common_kernel_impl/platform.h"
+#include "common/op_tiling/op_tiling_rt2.h"
+#include "common/ge_common/scope_guard.h"
 
 namespace gert {
 namespace kernel {
@@ -70,6 +72,34 @@ ge::graphStatus ResetStreamCoreNumLimit(const rtStream stream, const int64_t glo
   return ge::GRAPH_SUCCESS;
 }
 
+namespace {
+bool NeedUpdateDeterministicConfig(const AclnnDeterministicConfig &deterministic_config) {
+  return deterministic_config.has_op_deterministic || deterministic_config.has_op_deterministic_level;
+}
+
+ge::graphStatus SetOpDeterministicConfig(const bool need_update_deterministic,
+                                         const AclnnDeterministicConfig &deterministic_config,
+                                         const AclnnOriginalDeterministicConfig &original_deterministic_config) {
+  if (!need_update_deterministic) {
+    return ge::GRAPH_SUCCESS;
+  }
+  const int32_t deterministic = deterministic_config.has_op_deterministic ? deterministic_config.op_deterministic
+                                                                          : original_deterministic_config.deterministic;
+  const int32_t deterministic_level = deterministic_config.has_op_deterministic_level
+                                          ? deterministic_config.op_deterministic_level
+                                          : original_deterministic_config.deterministic_level;
+  return optiling::SetDeterministicConfig(deterministic, deterministic_level);
+}
+
+void ResetDeterministicConfig(const bool need_update_deterministic,
+                              const AclnnOriginalDeterministicConfig &original_deterministic_config) {
+  if (need_update_deterministic) {
+    (void)optiling::SetDeterministicConfig(original_deterministic_config.deterministic,
+                                           original_deterministic_config.deterministic_level);
+  }
+}
+}  // namespace
+
 ge::graphStatus FindOpExeFunc(KernelContext *context) {
   auto op_fun_ptr = context->GetOutputPointer<OpImplKernelRegistry::OpExecuteFunc>(0);
   auto functions = GetOpImplFunctions(context);
@@ -117,7 +147,17 @@ ge::graphStatus ExecuteOpFunc(KernelContext *context) {
   GE_ASSERT_SUCCESS(SetStreamCoreNumLimit(stream, core_num_infos->op_aicore_num, core_num_infos->op_vec_core_num,
                                           need_set_stream_aicore_num, need_set_stream_vec_core_num));
   FE_ASSERT_NOTNULL(op_execute_func);
-  FE_ASSERT_SUCCESS(op_execute_func(op_execute_context));
+  const auto deterministic_config = single_stage_aclnn_op_fwk_data->deterministic_config;
+  const auto original_deterministic_config = single_stage_aclnn_op_fwk_data->original_deterministic_config;
+  GE_ASSERT_NOTNULL(deterministic_config);
+  GE_ASSERT_NOTNULL(original_deterministic_config);
+  const bool need_update_deterministic = NeedUpdateDeterministicConfig(*deterministic_config);
+  GE_MAKE_GUARD(reset_deterministic, ([need_update_deterministic, original_deterministic_config]() {
+                  ResetDeterministicConfig(need_update_deterministic, *original_deterministic_config);
+                }));
+  GE_ASSERT_SUCCESS(
+      SetOpDeterministicConfig(need_update_deterministic, *deterministic_config, *original_deterministic_config));
+  GE_ASSERT_SUCCESS(op_execute_func(op_execute_context));
   GE_ASSERT_SUCCESS(ResetStreamCoreNumLimit(stream, core_num_infos->global_aicore_num,
                                             core_num_infos->global_vec_core_num, need_set_stream_aicore_num,
                                             need_set_stream_vec_core_num));
@@ -127,10 +167,18 @@ ge::graphStatus ExecuteOpFunc(KernelContext *context) {
 ge::graphStatus BuildSingleStageAclnnOpFwkData(KernelContext *context) {
   const auto core_num_infos =
       context->GetInputValue<CoreNumInfos *>(static_cast<size_t>(SingleStageAclnnOpFwkDataIndex::kCoreNumInfos));
+  const auto deterministic_config = context->GetInputValue<AclnnDeterministicConfig *>(
+      static_cast<size_t>(SingleStageAclnnOpFwkDataIndex::kDeterministicConfig));
+  const auto original_deterministic_config = context->GetInputValue<AclnnOriginalDeterministicConfig *>(
+      static_cast<size_t>(SingleStageAclnnOpFwkDataIndex::kOriginalDeterministicConfig));
   GE_ASSERT_NOTNULL(core_num_infos);
+  GE_ASSERT_NOTNULL(deterministic_config);
+  GE_ASSERT_NOTNULL(original_deterministic_config);
   const auto fwk_data = context->GetOutputPointer<SingleStageAclnnOpFwkData>(0UL);
   GE_ASSERT_NOTNULL(fwk_data);
   fwk_data->core_num_infos = core_num_infos;
+  fwk_data->deterministic_config = deterministic_config;
+  fwk_data->original_deterministic_config = original_deterministic_config;
   return ge::GRAPH_SUCCESS;
 }
 
@@ -176,6 +224,16 @@ ge::graphStatus ExecuteOpPrepare(KernelContext *context) {
   const auto op_execute_prepare_func =
       reinterpret_cast<OpImplRegisterV2::OpExecPrepareFunc>(dual_stage_aclnn_op_fwk_data->op_execute_prepare_func);
   GE_ASSERT_NOTNULL(op_execute_prepare_func);
+  const auto deterministic_config = dual_stage_aclnn_op_fwk_data->deterministic_config;
+  const auto original_deterministic_config = dual_stage_aclnn_op_fwk_data->original_deterministic_config;
+  GE_ASSERT_NOTNULL(deterministic_config);
+  GE_ASSERT_NOTNULL(original_deterministic_config);
+  const bool need_update_deterministic = NeedUpdateDeterministicConfig(*deterministic_config);
+  GE_MAKE_GUARD(reset_deterministic, ([need_update_deterministic, original_deterministic_config]() {
+                  ResetDeterministicConfig(need_update_deterministic, *original_deterministic_config);
+                }));
+  GE_ASSERT_SUCCESS(
+      SetOpDeterministicConfig(need_update_deterministic, *deterministic_config, *original_deterministic_config));
   GE_ASSERT_SUCCESS(op_execute_prepare_func(op_prepare_context));
 
   GE_ASSERT_SUCCESS(ResetStreamCoreNumLimit(stream, core_num_infos->global_aicore_num,
@@ -208,13 +266,21 @@ ge::graphStatus BuildDualStageAclnnOpFwkData(KernelContext *context) {
   GE_ASSERT_NOTNULL(platform_info);
   const auto core_num_infos =
       context->GetInputValue<CoreNumInfos *>(static_cast<size_t>(DualStageAclnnOpFwkDataIndex::kCoreNumInfos));
+  const auto deterministic_config = context->GetInputValue<AclnnDeterministicConfig *>(
+      static_cast<size_t>(DualStageAclnnOpFwkDataIndex::kDeterministicConfig));
+  const auto original_deterministic_config = context->GetInputValue<AclnnOriginalDeterministicConfig *>(
+      static_cast<size_t>(DualStageAclnnOpFwkDataIndex::kOriginalDeterministicConfig));
   GE_ASSERT_NOTNULL(core_num_infos);
+  GE_ASSERT_NOTNULL(deterministic_config);
+  GE_ASSERT_NOTNULL(original_deterministic_config);
   const auto fwk_data = context->GetOutputPointer<DualStageAclnnOpFwkData>(0UL);
   GE_ASSERT_NOTNULL(fwk_data);
   fwk_data->op_execute_prepare_func = execute_op_prepare_func;
   fwk_data->op_execute_launch_func = execute_op_launch_func;
   fwk_data->platform_info = platform_info;
   fwk_data->core_num_infos = core_num_infos;
+  fwk_data->deterministic_config = deterministic_config;
+  fwk_data->original_deterministic_config = original_deterministic_config;
   return ge::GRAPH_SUCCESS;
 }
 

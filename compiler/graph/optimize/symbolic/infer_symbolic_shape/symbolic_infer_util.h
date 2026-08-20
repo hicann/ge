@@ -10,6 +10,8 @@
 
 #ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_SYMBOLIC_INFER_SYMBOLIC_SHAPE_SYMBOLIC_SHAPE_INFER_UTIL_H_
 #define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_SYMBOLIC_INFER_SYMBOLIC_SHAPE_SYMBOLIC_SHAPE_INFER_UTIL_H_
+#include <set>
+
 #include "ge_common/ge_common_api_types.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 #include "common/checker.h"
@@ -139,6 +141,8 @@ class SymbolicInferUtil {
   static std::string DumpSymbolTensor(const gert::SymbolTensor &symbolic_tensor);
   static bool IsSupportCondNode(const NodePtr &node);
   static NodePtr GetCondInput(const NodePtr &node);
+  static bool IsValueDependentDataNode(const NodePtr &data_node);
+  static Status GetValueDependentInputIdxs(const ComputeGraphPtr &graph, std::set<size_t> &value_dependent_idxs);
 };
 }  // namespace ge
 

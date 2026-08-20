@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include <regex>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -47,10 +49,29 @@
 #include "framework/executor/ge_executor.h"
 #include "utils/model_data_builder.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "graph/ge_global_options.h"
 #include "runtime/gert_api.h"
 
 namespace ge {
 namespace {
+class ScopedDeterministicOptions {
+ public:
+  ScopedDeterministicOptions() {
+    const std::lock_guard<std::mutex> lock(GetGlobalOptionsMutex());
+    global_options_backup_ = GetMutableGlobalOptions();
+    GetMutableGlobalOptions().erase(DETERMINISTIC);
+    GetMutableGlobalOptions().erase(DETERMINISTIC_LEVEL);
+  }
+
+  ~ScopedDeterministicOptions() {
+    const std::lock_guard<std::mutex> lock(GetGlobalOptionsMutex());
+    GetMutableGlobalOptions() = global_options_backup_;
+  }
+
+ private:
+  std::map<std::string, std::string> global_options_backup_;
+};
+
 static FakeOpsKernelInfoStore g_fake_hccl_ops_kernel_info_store;
 bool test_callback_called = false;
 
@@ -1685,6 +1706,7 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_Success_LoadAndExec) {
  * 3. 模型卸载，检查变量内存释放
  */
 TEST_F(GeApiV2Test, GetCompileGraphModel_Success_Dynamic) {
+  ScopedDeterministicOptions deterministic_options;
   ModelBufferData model_buff;
   {
     std::map<AscendString, AscendString> options;
@@ -1818,6 +1840,7 @@ TEST_F(GeApiV2Test, GeSessionUnloadDynamicModel_NotReleaseVarMemory) {
  * 2. 离线模型加载成功，执行成功
  */
 TEST_F(GeApiV2Test, GetCompileGraphModel_Success_Dynamic_LoadWithoutRtSession) {
+  ScopedDeterministicOptions deterministic_options;
   ModelBufferData model_buff;
   {
     std::map<AscendString, AscendString> options;

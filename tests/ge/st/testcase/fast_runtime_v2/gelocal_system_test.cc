@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include "faker/fake_value.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_dump_utils.h"
@@ -33,6 +35,7 @@
 #include "graph_builder/bg_infer_shape_range.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
+#include "graph/ge_global_options.h"
 #include "lowering/placement/placed_lowering_result.h"
 #include "exe_graph/lowering/lowering_definitions.h"
 #include "graph_metadef/common/ge_common/util.h"
@@ -40,6 +43,24 @@
 using namespace ge;
 namespace gert {
 namespace {
+class ScopedDeterministicOptions {
+ public:
+  ScopedDeterministicOptions() {
+    const std::lock_guard<std::mutex> lock(ge::GetGlobalOptionsMutex());
+    global_options_backup_ = ge::GetMutableGlobalOptions();
+    ge::GetMutableGlobalOptions().erase(ge::DETERMINISTIC);
+    ge::GetMutableGlobalOptions().erase(ge::DETERMINISTIC_LEVEL);
+  }
+
+  ~ScopedDeterministicOptions() {
+    const std::lock_guard<std::mutex> lock(ge::GetGlobalOptionsMutex());
+    ge::GetMutableGlobalOptions() = global_options_backup_;
+  }
+
+ private:
+  std::map<std::string, std::string> global_options_backup_;
+};
+
 ge::graphStatus CreateFakeOMAndFileConstantWeightFile(const std::string &om_dir, const std::string &weight_file_name,
                                                       const size_t weight_data_length) {
   // fileconstant weight file
@@ -69,6 +90,7 @@ void TestFileConstantLoadStatus(const std::string &om_dir, const std::string &om
                                 const ge::graphStatus load_status, bool is_weight_dir_concat_expected,
                                 bool is_from_location_attr_expected, bool use_user_device_mem = false,
                                 bool size_too_small = false) {
+  ScopedDeterministicOptions deterministic_options;
   gert::CreateVersionInfo();
   const std::string weight_file_name = "test_weight_xxxxxx.bin";
   const size_t weight_data_length = 25U;

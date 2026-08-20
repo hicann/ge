@@ -82,25 +82,32 @@ def scan_modules_from_path(
         ]
 
     modules: List[ModuleType] = []
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-    for child in sorted(path.iterdir(), key=lambda item: item.name):
-        if child.name.startswith("_"):
-            continue
-        if child.is_file() and child.suffix == ".py":
-            modules.append(
-                load_module_from_file(
-                    child, module_prefix=module_prefix, plugin_kind=plugin_kind
+    path_str = str(path)
+    path_inserted = False
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+        path_inserted = True
+    try:
+        for child in sorted(path.iterdir(), key=lambda item: item.name):
+            if child.name.startswith("_"):
+                continue
+            if child.is_file() and child.suffix == ".py":
+                modules.append(
+                    load_module_from_file(
+                        child, module_prefix=module_prefix, plugin_kind=plugin_kind
+                    )
                 )
-            )
-            continue
-        if child.is_dir() and (child / "__init__.py").exists():
-            package_init = (child / "__init__.py").resolve()
-            module = _get_loaded_module(package_init)
-            if module is None:
-                module = importlib.import_module(child.name)
-                _MODULE_NAME_BY_CANONICAL_PATH[package_init] = module.__name__
-            modules.append(module)
+                continue
+            if child.is_dir() and (child / "__init__.py").exists():
+                package_init = (child / "__init__.py").resolve()
+                module = _get_loaded_module(package_init)
+                if module is None:
+                    module = importlib.import_module(child.name)
+                    _MODULE_NAME_BY_CANONICAL_PATH[package_init] = module.__name__
+                modules.append(module)
+    finally:
+        if path_inserted:
+            sys.path.remove(path_str)
     return modules
 
 

@@ -24,8 +24,6 @@ set(common_compile_definitions
 )
 message(STATUS "ASCEND_PATH: ${ASCEND_PATH}")
 
-add_subdirectory(gen_es_api)
-
 ############ libdata_transpose_fusion_pass.so ############
 add_library(${PROJECT_NAME} SHARED ${SRC_LIST})
 
@@ -46,7 +44,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${INCLUDE_DIR}/register
     ${INCLUDE_DIR}
     ${INCLUDE_DIR}/external
-    ${CMAKE_CURRENT_BINARY_DIR}/es_output/include/es_all
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../inc/external
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../inc/graph_metadef/external
 )
@@ -62,13 +59,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     graph
     register
     ge_compiler
-    es_all
     -Wl,--as-needed
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    INSTALL_RPATH "$ORIGIN:${CMAKE_CURRENT_BINARY_DIR}/es_output/lib64"
-    BUILD_RPATH "$ORIGIN:${CMAKE_CURRENT_BINARY_DIR}/es_output/lib64"
+    INSTALL_RPATH "$ORIGIN"
+    BUILD_RPATH "$ORIGIN"
 )
 
 install(TARGETS ${PROJECT_NAME}

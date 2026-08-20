@@ -13,7 +13,7 @@
 #include "parser/common/acl_graph_parser_util.h"
 #include "graph/utils/node_utils.h"
 #include "omg/omg_inner_types.h"
-#include "parser/common/pass_manager.h"
+#include "parser/common/parser_pass_manager.h"
 #include "base/err_msg.h"
 
 namespace ge {

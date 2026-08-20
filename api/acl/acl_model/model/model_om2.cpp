@@ -87,12 +87,10 @@ aclError CreateAclTensorDescFromOpDescInfo(const ge::OpDescInfo &opDescInfo, acl
 
 // OM2 supported load config options
 const std::unordered_set<aclmdlConfigAttr> kOm2SupportedLoadConfigOpts = {
-    ACL_MDL_LOAD_TYPE_SIZET,       ACL_MDL_PATH_PTR,
-    ACL_MDL_MEM_ADDR_PTR,          ACL_MDL_MEM_SIZET,
-    ACL_MDL_WEIGHT_ADDR_PTR,       ACL_MDL_WEIGHT_SIZET,
-    ACL_MDL_WORKSPACE_ADDR_PTR,    ACL_MDL_WORKSPACE_SIZET,
-    ACL_MDL_WEIGHT_PATH_PTR,       ACL_MDL_WITHOUT_GRAPH_INT32,
-    ACL_MDL_WORKSPACE_MEM_OPTIMIZE};
+    ACL_MDL_PRIORITY_INT32,  ACL_MDL_LOAD_TYPE_SIZET,     ACL_MDL_PATH_PTR,
+    ACL_MDL_MEM_ADDR_PTR,    ACL_MDL_MEM_SIZET,           ACL_MDL_WEIGHT_ADDR_PTR,
+    ACL_MDL_WEIGHT_SIZET,    ACL_MDL_WORKSPACE_ADDR_PTR,  ACL_MDL_WORKSPACE_SIZET,
+    ACL_MDL_WEIGHT_PATH_PTR, ACL_MDL_WITHOUT_GRAPH_INT32, ACL_MDL_WORKSPACE_MEM_OPTIMIZE};
 
 aclError PrepareOm2Tensor(std::vector<gert::Tensor> &tensor, std::vector<gert::Tensor *> &vec, const size_t inputNum,
                           const aclmdlDataset *const dataset, const std::vector<ge::Om2TensorDesc> &tensorDesc,
@@ -225,8 +223,8 @@ aclError Om2UpdateOutputTensorDesc(aclmdlDataset *const &output, std::vector<ger
 
 // Internal OM2 model loading functions
 aclError ConstructOm2ModelLoadArg(
-    void *workPtr, size_t workSize, void *weightPtr, size_t weightSize, gert::Om2ModelLoadArg &loadArgs,
-    gert::RtSession *rtSession = nullptr,
+    void *workPtr, size_t workSize, void *weightPtr, size_t weightSize, int32_t priority,
+    gert::Om2ModelLoadArg &loadArgs, gert::RtSession *rtSession = nullptr,
     const std::vector<ge::FileConstantMem> &fileConstantMems = std::vector<ge::FileConstantMem>(),
     bool needClearDfxCache = false, bool reuseZeroCopy = false) {
   loadArgs = {};
@@ -234,6 +232,7 @@ aclError ConstructOm2ModelLoadArg(
   loadArgs.work_size = workSize;
   loadArgs.weight_ptr = weightPtr;
   loadArgs.weight_size = weightSize;
+  loadArgs.priority = priority;
   loadArgs.rt_session = rtSession;
   loadArgs.file_constant_mems = fileConstantMems;
   loadArgs.need_clear_dfx_cache = needClearDfxCache;
@@ -668,8 +667,8 @@ static aclError LoadFromFile(const aclmdlConfigHandle *handle, const std::vector
                              uint32_t *const modelId) {
   ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems,
-                                           handle->withoutGraph, (handle->reuseZeroCopy != 0U)));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, handle->priority, loadArgs, nullptr,
+                                           fileConstantMems, handle->withoutGraph, (handle->reuseZeroCopy != 0U)));
   return Om2ModelLoadFromFileWithMem(handle->loadPath.c_str(), modelId, loadArgs);
 }
 
@@ -678,7 +677,7 @@ static aclError LoadFromFileWithMem(const aclmdlConfigHandle *handle,
   ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
   gert::Om2ModelLoadArg loadArgs;
   ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr, handle->weightSize,
-                                           loadArgs, nullptr, fileConstantMems, handle->withoutGraph,
+                                           handle->priority, loadArgs, nullptr, fileConstantMems, handle->withoutGraph,
                                            (handle->reuseZeroCopy != 0U)));
   return Om2ModelLoadFromFileWithMem(handle->loadPath.c_str(), modelId, loadArgs);
 }
@@ -688,8 +687,8 @@ static aclError LoadFromMem(const aclmdlConfigHandle *handle, const std::vector<
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle->mdlAddr);
   ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs, nullptr, fileConstantMems,
-                                           handle->withoutGraph, (handle->reuseZeroCopy != 0U)));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, handle->priority, loadArgs, nullptr,
+                                           fileConstantMems, handle->withoutGraph, (handle->reuseZeroCopy != 0U)));
   return Om2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, modelId, loadArgs, handle->weightPath.c_str());
 }
 
@@ -700,7 +699,7 @@ static aclError LoadFromMemWithMem(const aclmdlConfigHandle *handle,
   ACL_REQUIRES_OK(CheckOm2UserLoadConfigOptValid(handle));
   gert::Om2ModelLoadArg loadArgs;
   ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr, handle->weightSize,
-                                           loadArgs, nullptr, fileConstantMems, handle->withoutGraph,
+                                           handle->priority, loadArgs, nullptr, fileConstantMems, handle->withoutGraph,
                                            (handle->reuseZeroCopy != 0U)));
   return Om2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, modelId, loadArgs, nullptr);
 }
@@ -1009,7 +1008,7 @@ aclError aclmdlLoadFromFileImplOm2(const char *modelPath, uint32_t *modelId) {
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
 
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, 0, loadArgs));
 
   const aclError ret = Om2ModelLoadFromFileWithMem(modelPath, modelId, loadArgs);
   if (ret != ACL_SUCCESS) {
@@ -1029,7 +1028,7 @@ aclError aclmdlLoadFromFileWithMemImplOm2(const char *modelPath, uint32_t *model
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
 
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(workPtr, workSize, weightPtr, weightSize, loadArgs));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(workPtr, workSize, weightPtr, weightSize, 0, loadArgs));
 
   const auto ret = Om2ModelLoadFromFileWithMem(modelPath, modelId, loadArgs);
   if (ret != ACL_SUCCESS) {
@@ -1048,7 +1047,7 @@ aclError aclmdlLoadFromMemImplOm2(const void *model, size_t modelSize, uint32_t 
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
 
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, loadArgs));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(nullptr, 0U, nullptr, 0U, 0, loadArgs));
 
   return Om2ModelLoadFromMemWithMem(model, modelSize, modelId, loadArgs, nullptr);
 }
@@ -1179,7 +1178,7 @@ aclError aclmdlLoadFromMemWithMemImplOm2(const void *model, size_t modelSize, ui
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
 
   gert::Om2ModelLoadArg loadArgs;
-  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(workPtr, workSize, weightPtr, weightSize, loadArgs));
+  ACL_REQUIRES_OK(ConstructOm2ModelLoadArg(workPtr, workSize, weightPtr, weightSize, 0, loadArgs));
 
   const aclError ret = Om2ModelLoadFromMemWithMem(model, modelSize, modelId, loadArgs, nullptr);
   if (ret != ACL_SUCCESS) {

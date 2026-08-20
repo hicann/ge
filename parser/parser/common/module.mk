@@ -33,7 +33,6 @@ COMMON_LOCAL_SRC_FILES := \
     parser_types.cc \
     pass_manager.cc \
     parser_fp16_t.cc \
-    thread_pool.cc \
     parser_utils.cc \
 
 FMK_COMMON_SRC_FILES := \
@@ -47,7 +46,6 @@ FMK_COMMON_SRC_FILES := \
     ../../common/util.cc \
     ../../common/model_saver.cc \
     ../../common/fp16_t.cc \
-    ../../common/thread_pool.cc \
 
 LOCAL_SRC_FILES := $(COMMON_LOCAL_SRC_FILES)
 LOCAL_SRC_FILES += $(FMK_COMMON_SRC_FILES)

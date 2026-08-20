@@ -16,6 +16,7 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <map>
 #include <set>
 #include "mmpa/mmpa_api.h"
 #include "acl/acl.h"
@@ -29,6 +30,12 @@
 namespace ge {
 class AclRuntimeStub {
  public:
+  struct SysParamSetRecord {
+    bool is_context;
+    aclSysParamOpt opt;
+    int64_t value;
+  };
+
   virtual ~AclRuntimeStub() = default;
 
   static AclRuntimeStub *GetInstance();
@@ -40,6 +47,15 @@ class AclRuntimeStub {
 
   static void Install(AclRuntimeStub *);
   static void UnInstall(AclRuntimeStub *);
+
+  std::vector<SysParamSetRecord> GetSysParamSetRecords() const {
+    const std::lock_guard<std::mutex> lock(mtx_);
+    return sys_param_set_records_;
+  }
+  void ClearDeterministicConfigStub() {
+    const std::lock_guard<std::mutex> lock(mtx_);
+    sys_param_set_records_.clear();
+  }
 
   static void Reset() {
     instance_.reset();
@@ -75,6 +91,10 @@ class AclRuntimeStub {
   virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetCurrentContext(aclrtContext context);
   virtual aclError aclrtGetCurrentContext(aclrtContext *context);
+  virtual aclError aclrtCtxGetSysParamOpt(aclSysParamOpt opt, int64_t *value);
+  virtual aclError aclrtCtxSetSysParamOpt(aclSysParamOpt opt, int64_t value);
+  virtual aclError aclrtGetSysParamOpt(aclSysParamOpt opt, int64_t *value);
+  virtual aclError aclrtSetSysParamOpt(aclSysParamOpt opt, int64_t value);
   virtual aclError aclrtCreateEvent(aclrtEvent *event);
   virtual aclError aclrtDestroyEvent(aclrtEvent event);
   virtual aclError aclrtRecordEvent(aclrtEvent event, aclrtStream stream);
@@ -184,13 +204,14 @@ class AclRuntimeStub {
   static std::shared_ptr<AclRuntimeStub> instance_;
   static thread_local AclRuntimeStub *fake_instance_;
   size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
-  std::mutex mtx_;
+  mutable std::mutex mtx_;
   int64_t device_id_{0L};
   std::vector<aclrtStream> model_bind_streams_;
   std::vector<aclrtStream> model_unbind_streams_;
   size_t input_mem_copy_batch_count_{0UL};
   int32_t cur_device_id = 0;
   int32_t batch_memcpy_device_id = 0;
+  std::vector<SysParamSetRecord> sys_param_set_records_;
 };
 
 class AclApiStub {

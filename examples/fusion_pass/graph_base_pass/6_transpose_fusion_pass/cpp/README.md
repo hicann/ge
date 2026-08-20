@@ -37,14 +37,14 @@ input.0=FORMAT_NCHW
 output.0=FORMAT_NHWC
 
 [matmul_custom]
-input.0=FORMAT_FRACTAL_NZ
-input.1=FORMAT_FRACTAL_NZ
-output.0=FORMAT_FRACTAL_NZ
+input.0=FORMAT_ND
+input.1=FORMAT_ND
+output.0=FORMAT_ND
 ```
 
 - 以 `[NodeName]` 作为 section 分隔，`NodeName` 为图中节点的名称（node_name）
 - `input.<index>=<format>` 或 `output.<index>=<format>` 配置指定端口的格式
-- format 值参考 `ge::Format` 枚举（如 `FORMAT_ND`, `FORMAT_NCHW`, `FORMAT_NHWC` 等）
+- format 值仅支持以下三种：`FORMAT_ND`、`FORMAT_NCHW`、`FORMAT_NHWC`
 - 空行和 `#` 开头的注释行会被忽略
 
 ### Pass 执行流程
@@ -65,6 +65,8 @@ Run()
   │                       └─ 失败 → return false（触发整图回滚）
   └─ 4. if 任一节点失败:
          └─ 整图回滚 *graph = origin_graph，返回 FAILED
+  └─ 5. CheckFormatContinuity()    检查配置节点的 format 与直连节点是否连续
+         └─ 失败 → 整图回滚 *graph = origin_graph，返回 FAILED
 ```
 
 ### 回滚机制
@@ -72,7 +74,7 @@ Run()
 | 层级 | 触发条件 | 机制 |
 |------|---------|------|
 | **节点级回退** | CheckOpSupported 失败 / format 修改失败 | `RollbackFormats` + `RollbackNetOutput` 恢复当前节点及关联 NetOutput 的 format 和 shape |
-| **整图回滚** | 任一节点 `ApplyFormatAndCheck` 返回 false（含 Transpose 删除失败） | `*graph = origin_graph` 恢复全部修改 |
+| **整图回滚** | 任一节点 `ApplyFormatAndCheck` 返回 false（含 Transpose 删除失败），或 `CheckFormatContinuity` 检查不通过 | `*graph = origin_graph` 恢复全部修改 |
 
 ### 已知限制
 
@@ -112,6 +114,7 @@ Run()
    - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data 节点跳过校验）。
    - 校验失败时回退当前节点及关联 NetOutput 的修改；Transpose 删除失败时触发整图回滚。
    - 校验通过后检查并删除前后因 format 变更而变冗余的 Transpose 节点。
+   - 所有节点处理完成后，调用 `CheckFormatContinuity` 检查配置节点的 format 与直连节点之间的 format 连续性，不连续则整图回滚。
 3. 注册 `GraphNodeSettedFormatPass` 为自定义融合 pass，执行阶段为 `kAfterOriginGraphOptimize`。
 
 ## 程序编译
@@ -137,12 +140,6 @@ Run()
    cmake ..
    make -j$(nproc) data_transpose_fusion_pass
    make install
-   ```
-
-4. 若 build 目录被删除或 pass so 迁移，需将 es so 拷贝到安装目录：
-
-   ```bash
-   cp build/es_output/lib64/libes_all.so ${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes/
    ```
 
 ## 程序运行
