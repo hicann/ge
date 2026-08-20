@@ -156,7 +156,7 @@ def test_canonical_package_is_imported_once_for_symlink_alias(tmp_path, monkeypa
 
 
 def test_shared_path_is_imported_once_across_plugin_kinds(tmp_path, monkeypatch):
-    module_path = tmp_path / "mixed_plugin.py"
+    module_path = tmp_path / "ge_py_mixed_plugin.py"
     module_path.write_text(
         textwrap.dedent("""
         from ge.custom_op import EagerExecuteOp, register_op_impl

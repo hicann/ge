@@ -15,7 +15,7 @@
 from ge.graph.operator import create_operator
 
 from .bootstrap import load_onnx_plugins
-from .onnx_node import create_onnx_node
+from ._native import OnnxNode
 from .registry import (
     get_registered_onnx_plugin_by_origin_type,
     get_registered_onnx_plugin_dicts,
@@ -27,15 +27,18 @@ def load_and_get_onnx_plugin_descriptors() -> list:
     return get_registered_onnx_plugin_dicts()
 
 
-def call_parse_node(origin_type: str, node_values: dict, operator_backend) -> None:
-    """Dispatch one flattened ONNX node to its registered parse_node callback."""
+def call_parse_node(origin_type: str, node: OnnxNode, operator_handle) -> None:
+    """Dispatch one parser-owned ONNX node to its registered parse_node callback.
+
+    ``node`` and ``operator_handle`` are borrowed objects supplied by the C++
+    bridge for the duration of the callback.
+    """
 
     descriptor = get_registered_onnx_plugin_by_origin_type(origin_type)
     if descriptor is None:
         raise KeyError(f"python ONNX Plugin is not registered: {origin_type}")
 
-    node = create_onnx_node(**node_values)
-    with create_operator(operator_backend) as target:
+    with create_operator(operator_handle) as target:
         result = descriptor.parser_node(node, target)
         if result is not None:
             raise TypeError("ONNX Plugin parse_node callback must return None")

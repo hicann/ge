@@ -13,125 +13,141 @@
 """Contract tests for ONNX Plugin Python source and target objects."""
 
 import copy
+import ctypes
 
 import pytest
 
 from ge.graph import Operator
+from ge.graph._attr import _AttrValue
+from ge.graph.operator import graph_lib
 from ge.graph.operator import create_operator
 from ge.onnx_plugin import OnnxNode
-from ge.onnx_plugin.onnx_node import create_onnx_node
+from ge.onnx_plugin import _native
+from python_onnx_plugin_test_utils import FakeOperatorCapi
 
 
-class _FakeOperatorBackend:
-    def __init__(self):
-        self.attrs = {}
-        self.dynamic_inputs = []
-        self.dynamic_outputs = []
-        self.invalidated = False
-
-    @staticmethod
-    def get_name():
-        return "target_node"
-
-    @staticmethod
-    def get_type():
-        return "TargetOp"
-
-    def set_attr(self, name, value):
-        self.attrs[name] = value
-
-    def register_dynamic_input(self, name, count):
-        self.dynamic_inputs.append((name, count))
-
-    def register_dynamic_output(self, name, count):
-        self.dynamic_outputs.append((name, count))
-
-    def invalidate(self):
-        self.invalidated = True
+@pytest.fixture
+def operator_capi(monkeypatch):
+    capi = FakeOperatorCapi()
+    capi.install(monkeypatch)
+    return capi
 
 
-def test_onnx_node_exposes_immutable_flattened_values():
-    attrs = {"alpha": 1.0, "axis": 1}
-    node = create_onnx_node(
-        name="elu",
-        origin_type="ai.onnx::13::Elu",
-        inputs=["x", ""],
-        outputs=["y"],
-        attrs=attrs,
-    )
-    attrs["alpha"] = 2.0
-
-    assert node.name == "elu"
-    assert node.origin_type == "ai.onnx::13::Elu"
-    assert node.inputs == ("x", "")
-    assert node.outputs == ("y",)
-    assert dict(node.attrs) == {"alpha": 1.0, "axis": 1}
-
-    with pytest.raises(AttributeError, match="read-only"):
-        node.name = "changed"
+def test_onnx_node_is_only_created_by_native_bridge():
+    assert not hasattr(_native, "create_onnx_node")
     with pytest.raises(TypeError):
-        node.attrs["alpha"] = 3.0
-
-
-def test_onnx_node_cannot_be_created_by_plugin_author():
-    with pytest.raises(RuntimeError, match="should not be created directly"):
         OnnxNode()
 
 
-@pytest.mark.parametrize("value", [True, "value", [1], None])
-def test_onnx_node_rejects_unsupported_attribute_values(value):
-    with pytest.raises(TypeError, match="only supports int and float"):
-        create_onnx_node(
-            name="node",
-            origin_type="test.domain::1::Source",
-            inputs=[],
-            outputs=[],
-            attrs={"value": value},
-        )
-
-
-def test_operator_mutates_callback_backend():
-    backend = _FakeOperatorBackend()
-    target = create_operator(backend)
+def test_operator_mutates_borrowed_handle(operator_capi):
+    target = create_operator(operator_capi.handle)
 
     assert target.name == "target_node"
     assert target.type == "TargetOp"
 
     target.set_attr("alpha", 1.0)
     target.set_attr("N", 2)
+    target.set_attr("mode", "nearest")
+    target.set_attr("axes", [1, 2])
+    target.register_input("x")
+    target.register_optional_input("bias")
+    target.register_output("y")
     target.register_dynamic_input("x", 2)
     target.register_dynamic_output("y", 1)
 
-    assert backend.attrs == {"alpha": 1.0, "N": 2}
-    assert backend.dynamic_inputs == [("x", 2)]
-    assert backend.dynamic_outputs == [("y", 1)]
+    assert operator_capi.attrs == {
+        "alpha": 1.0,
+        "N": 2,
+        "mode": "nearest",
+        "axes": [1, 2],
+    }
+    assert operator_capi.inputs == ["x"]
+    assert operator_capi.optional_inputs == ["bias"]
+    assert operator_capi.outputs == ["y"]
+    assert operator_capi.dynamic_inputs == [("x", 2)]
+    assert operator_capi.dynamic_outputs == [("y", 1)]
+
+
+def test_operator_uses_borrowed_ctypes_handle(monkeypatch):
+    calls = []
+    buffers = []
+
+    def string_value(value):
+        buffer = ctypes.create_string_buffer(value)
+        buffers.append(buffer)
+        return ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char))
+
+    monkeypatch.setattr(
+        graph_lib,
+        "GeApiWrapper_Operator_GetName",
+        lambda handle: string_value(b"target"),
+    )
+    monkeypatch.setattr(
+        graph_lib,
+        "GeApiWrapper_Operator_GetType",
+        lambda handle: string_value(b"TargetOp"),
+    )
+    monkeypatch.setattr(graph_lib, "GeApiWrapper_FreeString", lambda value: None)
+    monkeypatch.setattr(
+        graph_lib, "GeApiWrapper_AttrValue_Create", lambda: ctypes.c_void_p(1)
+    )
+    monkeypatch.setattr(graph_lib, "GeApiWrapper_AttrValue_Destroy", lambda value: None)
+    monkeypatch.setattr(_AttrValue, "set_list_int", lambda self, value: True)
+
+    def record(name):
+        def call(*args):
+            calls.append(name)
+            return 0
+
+        return call
+
+    for name in (
+        "GeApiWrapper_Operator_SetAttr",
+        "GeApiWrapper_Operator_InputRegister",
+        "GeApiWrapper_Operator_OptionalInputRegister",
+        "GeApiWrapper_Operator_OutputRegister",
+        "GeApiWrapper_Operator_DynamicInputRegister",
+        "GeApiWrapper_Operator_DynamicOutputRegister",
+    ):
+        monkeypatch.setattr(graph_lib, name, record(name))
+
+    with create_operator(ctypes.c_void_p(0x123)) as target:
+        assert target.name == "target"
+        assert target.type == "TargetOp"
+        target.set_attr("axes", [1, 2])
+        target.register_input("x")
+        target.register_optional_input("bias")
+        target.register_output("y")
+        target.register_dynamic_input("args", 2)
+        target.register_dynamic_output("outs", 1)
+
+    assert calls == [
+        "GeApiWrapper_Operator_SetAttr",
+        "GeApiWrapper_Operator_InputRegister",
+        "GeApiWrapper_Operator_OptionalInputRegister",
+        "GeApiWrapper_Operator_OutputRegister",
+        "GeApiWrapper_Operator_DynamicInputRegister",
+        "GeApiWrapper_Operator_DynamicOutputRegister",
+    ]
+    with pytest.raises(RuntimeError, match="only valid inside parse_node"):
+        _ = target.name
 
 
 def test_operator_cannot_be_created_or_copied_by_plugin_author():
     with pytest.raises(RuntimeError, match="should not be created directly"):
         Operator()
 
-    target = create_operator(_FakeOperatorBackend())
+    target = create_operator(ctypes.c_void_p(0x123))
     with pytest.raises(RuntimeError, match="does not support copy"):
         copy.copy(target)
     with pytest.raises(RuntimeError, match="does not support deepcopy"):
         copy.deepcopy(target)
 
 
-@pytest.mark.parametrize("value", [True, "value", [1], None])
-def test_operator_rejects_unsupported_attribute_values(value):
-    target = create_operator(_FakeOperatorBackend())
-
-    with pytest.raises(TypeError, match="only supports int and float"):
-        target.set_attr("value", value)
-
-
-@pytest.mark.parametrize("value", [-(1 << 63) - 1, 1 << 63])
-def test_operator_rejects_integer_attribute_outside_int64(value):
-    target = create_operator(_FakeOperatorBackend())
-
-    with pytest.raises(ValueError, match="int64 range"):
-        target.set_attr("value", value)
+@pytest.mark.parametrize("handle", [None, 0, ctypes.c_void_p()])
+def test_operator_rejects_null_borrowed_handle(handle):
+    with pytest.raises(ValueError, match="handle cannot be (None|null)"):
+        create_operator(handle)
 
 
 @pytest.mark.parametrize(
@@ -144,7 +160,7 @@ def test_operator_rejects_integer_attribute_outside_int64(value):
     ],
 )
 def test_operator_validates_dynamic_port_count(count, exception):
-    target = create_operator(_FakeOperatorBackend())
+    target = create_operator(ctypes.c_void_p(0x123))
 
     with pytest.raises(exception, match="count"):
         target.register_dynamic_input("x", count)

@@ -10,9 +10,12 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Python ONNX Plugin public package."""
+"""Load the native ONNX plugin value module."""
 
-from ._native import OnnxNode
-from .plugin import OnnxPlugin, onnx_plugin
+from __future__ import annotations
 
-__all__ = ["OnnxNode", "OnnxPlugin", "onnx_plugin"]
+from importlib import import_module
+
+_native = import_module("ge.onnx_plugin._ge_onnx_plugin_native")
+
+OnnxNode = _native.OnnxNode

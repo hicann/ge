@@ -12,6 +12,7 @@ add_subdirectory(ge_api_c_wrapper)
 add_subdirectory(ge/passes)
 add_subdirectory(ge/runtime)
 add_subdirectory(ge/custom_op)
+add_subdirectory(ge/onnx_plugin)
 file(GLOB_RECURSE GE_API_C_WRAPPER CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.py")
 
 execute_process(
@@ -184,6 +185,8 @@ add_custom_command(
          && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts
          && ${CMAKE_COMMAND} -E remove ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/CMakeLists.txt
          && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/native_bindings
+         && ${CMAKE_COMMAND} -E remove ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/CMakeLists.txt
+         && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/native_bindings
          && mkdir -p ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}
          && cp ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/manifest.json
          && cp $<TARGET_FILE:_ge_runtime_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/_ge_runtime_native.so
@@ -191,6 +194,7 @@ add_custom_command(
          && cp ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/manifest.json
          && cp $<TARGET_FILE:ge_python_custom_op_bridge> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/libge_python_custom_op_bridge.so
          && cp $<TARGET_FILE:_ge_custom_op_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/_ge_custom_op_native.so
+         && cp $<TARGET_FILE:_ge_onnx_plugin_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/_ge_onnx_plugin_native.so
          && ${CMAKE_COMMAND} -E copy_directory ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/fallback_codegen
          && find ${GE_PYTHON_MAIN_WHEEL_DIR}/ge -name __pycache__ -type d -exec rm -rf {} +
          && cp $<TARGET_FILE:graph_wrapper> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/_capi/
@@ -203,7 +207,7 @@ add_custom_command(
          && cp -f dist/ge_py-0.0.1-py3-none-any.whl ${GE_PYTHON_MAIN_WHEEL}
          && echo "Build ge-py wheel package end"
          DEPENDS eager_style_graph_builder_base ge_api_c_wrapper graph_wrapper
-                 _ge_runtime_native _ge_custom_op_native ge_python_custom_op_bridge
+                 _ge_runtime_native _ge_custom_op_native _ge_onnx_plugin_native ge_python_custom_op_bridge
                  ${GE_API_C_WRAPPER}
                  ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST}
                  ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST}

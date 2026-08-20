@@ -22,6 +22,10 @@
 #include "ge/eager_style_graph_builder/c/esb_funcs.h"
 
 namespace ge {
+class Operator;
+}
+
+namespace ge {
 namespace c_wrapper {
 
 // 通用释放函数
@@ -253,6 +257,19 @@ ge::GNode **GeApiWrapper_Graph_GetAllNodes(const ge::Graph *graph, size_t *node_
 ge::GNode **GeApiWrapper_Graph_GetDirectNode(const ge::Graph *graph, size_t *node_num);
 ge::graphStatus GeApiWrapper_Graph_Dump_To_Onnx(ge::Graph *graph, const char *path, const char *suffix);
 ge::Graph **GeApiWrapper_Graph_GetAllSubgraphs(const ge::Graph *graph, size_t *subgraph_num);
+// Operator wrappers borrow the C++ object; they never create or destroy it.
+// GetName/GetType return an allocated string or nullptr on failure. Mutating
+// wrappers return GRAPH_SUCCESS after argument checks and a non-zero status
+// for invalid arguments; the underlying SetAttr/port APIs return a reference
+// or void and therefore do not expose an additional operation status.
+const char *GeApiWrapper_Operator_GetName(const ge::Operator *op);
+const char *GeApiWrapper_Operator_GetType(const ge::Operator *op);
+ge::graphStatus GeApiWrapper_Operator_SetAttr(ge::Operator *op, const char *key, void *attr_value);
+ge::graphStatus GeApiWrapper_Operator_InputRegister(ge::Operator *op, const char *name);
+ge::graphStatus GeApiWrapper_Operator_OptionalInputRegister(ge::Operator *op, const char *name);
+ge::graphStatus GeApiWrapper_Operator_OutputRegister(ge::Operator *op, const char *name);
+ge::graphStatus GeApiWrapper_Operator_DynamicInputRegister(ge::Operator *op, const char *name, uint32_t count);
+ge::graphStatus GeApiWrapper_Operator_DynamicOutputRegister(ge::Operator *op, const char *name, uint32_t count);
 ge::Graph *GeApiWrapper_Graph_GetSubGraph(const ge::Graph *graph, const char *name);
 ge::graphStatus GeApiWrapper_Graph_AddSubGraph(ge::Graph *graph, const ge::Graph *subgraph);
 ge::graphStatus GeApiWrapper_Graph_RemoveSubgraph(ge::Graph *graph, const char *name);
