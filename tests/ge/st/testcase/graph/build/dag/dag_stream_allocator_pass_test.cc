@@ -721,4 +721,133 @@ TEST_F(MiniDAGStreamPassTest, RunPass_ProfileMultiNodeHitUsesWeightedLoadBalance
   EXPECT_GT(context.GetCurrMaxStreamId(), 0);
 }
 
+// --------------------
+// 场景 6：图属性注入与策略分支覆盖率补充
+// --------------------
+
+/**
+ * 场景 6-1: 通过根图属性注入多流模式，option 兜底不设置（寻优工具的注入方式）
+ * 覆盖：stream_utils GetAutoMultistreamParallelMode 图属性命中分支
+ */
+TEST_F(MiniDAGStreamPassTest, GraphAttr_LoadBalanceMode) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(compute_graph, "ge.autoMultistreamParallelMode", "LoadBalance:8"));
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+/**
+ * 场景 6-2: 图属性注入 default，pass 跳过（default 仅允许图属性设置）
+ * 覆盖：stream_utils ParseAutoMultistreamParallelMode default-from-graph 分支、
+ *       dag_stream_allocator_pass default 跳过分支
+ */
+TEST_F(MiniDAGStreamPassTest, GraphAttr_DefaultModeSkips) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(compute_graph, "ge.autoMultistreamParallelMode", "default"));
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+/**
+ * 场景 6-3: option 设置 MainStream 策略，走 kMainStream 分支
+ * 覆盖：ToMiniDagStrategy kMainStream 分支、ParseAutoMultistreamParallelMode MainStream 分支
+ */
+TEST_F(MiniDAGStreamPassTest, Option_MainStreamMode) {
+  GraphOptionGuard guard;
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "MainStream:4";
+  SetGraphOptionForTest(options);
+
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::SUCCESS);
+  EXPECT_GT(context.GetCurrMaxStreamId(), 0);
+}
+
+/**
+ * 场景 6-4: 图属性注入 MainStream 策略
+ * 覆盖：图属性读取 + ToMiniDagStrategy kMainStream 的组合路径
+ */
+TEST_F(MiniDAGStreamPassTest, GraphAttr_MainStreamMode) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(compute_graph, "ge.autoMultistreamParallelMode", "MainStream:4"));
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+/**
+ * 场景 6-5: 图属性注入非法流数量，解析失败返回 FAILED
+ * 覆盖：ParseAutoMultistreamParallelMode 流数量非法报错分支
+ */
+TEST_F(MiniDAGStreamPassTest, GraphAttr_InvalidStreamNumFails) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(compute_graph, "ge.autoMultistreamParallelMode", "MainStream:0"));
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+/**
+ * 场景 6-6: default 从 option 设置，解析失败返回 FAILED
+ * 覆盖：ParseAutoMultistreamParallelMode default-from-option 报错分支
+ */
+TEST_F(MiniDAGStreamPassTest, Option_DefaultFromOptionFails) {
+  GraphOptionGuard guard;
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "default";
+  SetGraphOptionForTest(options);
+
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_NE(ret, ge::SUCCESS);
+}
+
+/**
+ * 场景 6-7: 无 option 且无图属性，直接调用 RunMiniDAGStreamPass 跳过
+ * 覆盖：dag_stream_allocator_pass 模式未设置跳过分支
+ */
+TEST_F(MiniDAGStreamPassTest, DirectCall_NoModeSkips) {
+  auto compute_graph = gert::ShareGraph::BuildTwoAddNodeKnownShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
+
 }  // namespace ge

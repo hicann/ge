@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <climits>
+#include <cstdlib>
 #include <fstream>
 
 #include "register/register_custom_pass.h"
@@ -18,11 +19,19 @@
 #include "register/custom_pass_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "graph/ge_local_context.h"
+#include "graph/utils/graph_utils_ex.h"
 
 namespace ge {
 namespace {
 const char *const kEnvName = "ASCEND_OPP_PATH";
+
+void SetAutoMultistreamMode(const GraphPtr &graph, const char *const mode) {
+  ASSERT_EQ(graph->SetValid(), GRAPH_SUCCESS);
+  AttrValue attr_value;
+  ASSERT_EQ(attr_value.SetAttrValue(AscendString(mode)), GRAPH_SUCCESS);
+  ASSERT_EQ(graph->SetAttr(AscendString("ge.autoMultistreamParallelMode"), attr_value), GRAPH_SUCCESS);
 }
+}  // namespace
 class UtestRegisterPass : public testing::Test {
  protected:
   void SetUp() {}
@@ -317,6 +326,67 @@ TEST_F(UtestRegisterPass, ConstGraph_AfterBuiltinFusionCustomPass_AndRun_Failed_
   EXPECT_NE(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterBuiltinFusionPass),
             SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterBuiltinFusionPass);
+}
+
+TEST_F(UtestRegisterPass, MiniDAGStreamPass_GraphAttributeOverridesOption) {
+  const auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "cv"}});
+
+  bool pass_called = false;
+  CustomAllocateStreamPassFunc alloc_fn = [&pass_called](const ConstGraphPtr &, StreamPassContext &) -> Status {
+    pass_called = true;
+    return SUCCESS;
+  };
+  PassRegistrationData pass_data("MiniDAGStreamPass");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_cv");
+  StreamPassContext stream_ctx(0);
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
+  EXPECT_FALSE(pass_called);
+
+  SetAutoMultistreamMode(graph, "LoadBalance:8");
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
+  EXPECT_TRUE(pass_called);
+
+  pass_called = false;
+  GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "LoadBalance:8"}});
+  SetAutoMultistreamMode(graph, "default");
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
+  EXPECT_FALSE(pass_called);
+
+  GetThreadLocalContext().SetGraphOption(option_bak);
+}
+
+TEST_F(UtestRegisterPass, MiniDAGStreamPass_WithoutModeSkipsPass) {
+  const auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption({});
+
+  bool pass_called = false;
+  CustomAllocateStreamPassFunc alloc_fn = [&pass_called](const ConstGraphPtr &, StreamPassContext &) -> Status {
+    pass_called = true;
+    return SUCCESS;
+  };
+  PassRegistrationData pass_data("MiniDAGStreamPass");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_without_mode");
+  StreamPassContext stream_ctx(0);
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
+  EXPECT_FALSE(pass_called);
+
+  ASSERT_EQ(graph->SetValid(), GRAPH_SUCCESS);
+  AttrValue invalid_mode;
+  ASSERT_EQ(invalid_mode.SetAttrValue(static_cast<int64_t>(8)), GRAPH_SUCCESS);
+  ASSERT_EQ(graph->SetAttr(AscendString("ge.autoMultistreamParallelMode"), invalid_mode), GRAPH_SUCCESS);
+  EXPECT_EQ(CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
+  EXPECT_FALSE(pass_called);
+
+  GetThreadLocalContext().SetGraphOption(option_bak);
 }
 
 TEST_F(UtestRegisterPass, CustomPassContext_GetOptionValue) {

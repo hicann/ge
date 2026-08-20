@@ -33,9 +33,50 @@ const std::map<CustomPassStage, std::string> kCustomPassStageToStringMap = {
     {CustomPassStage::kInvalid, "InvalidStage"}};
 
 namespace {
+constexpr const char_t *const kMiniDagStreamPass = "MiniDAGStreamPass";
+constexpr const char_t *const kAutoMultistreamParallelModeOption = "ge.autoMultistreamParallelMode";
+
 std::string CustomPassStageToString(CustomPassStage stage) {
   GE_ASSERT_TRUE(stage <= CustomPassStage::kInvalid);
   return kCustomPassStageToStringMap.find(stage)->second;
+}
+
+bool GetAutoMultistreamModeFromGraph(const GraphPtr &graph, std::string &multi_stream_mode) {
+  if (graph == nullptr) {
+    return false;
+  }
+  AttrValue attr_value;
+  if (graph->GetAttr(AscendString(kAutoMultistreamParallelModeOption), attr_value) != GRAPH_SUCCESS) {
+    return false;
+  }
+  AscendString value;
+  if (attr_value.GetAttrValue(value) != GRAPH_SUCCESS) {
+    return false;
+  }
+  const char_t *const value_str = value.GetString();
+  multi_stream_mode = (value_str == nullptr) ? "" : value_str;
+  return true;
+}
+
+bool ShouldSkipMiniDagStreamPass(const PassRegistrationData &reg_data, const GraphPtr &graph) {
+  if (reg_data.GetPassName() != kMiniDagStreamPass) {
+    return false;
+  }
+
+  std::string multi_stream_mode;
+  const bool from_graph = GetAutoMultistreamModeFromGraph(graph, multi_stream_mode);
+  if ((!from_graph) &&
+      (GetContext().GetOption(kAutoMultistreamParallelModeOption, multi_stream_mode) != GRAPH_SUCCESS)) {
+    GELOGI("MiniDAGStreamPass skipped: auto multistream parallel mode not set.");
+    return true;
+  }
+
+  const bool should_skip =
+      multi_stream_mode.empty() || (multi_stream_mode == "cv") || (from_graph && (multi_stream_mode == "default"));
+  if (should_skip) {
+    GELOGI("MiniDAGStreamPass skipped for auto multistream parallel mode %s.", multi_stream_mode.c_str());
+  }
+  return should_skip;
 }
 
 Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPtr &graph,
@@ -54,18 +95,8 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
     return FAILED;
   }
 
-  // DAG 模块开关判断：仅判断 option 是否存在，具体解析和错误处理由 RunMiniDAGStreamPass 负责
-  if (reg_data.GetPassName() == "MiniDAGStreamPass") {
-    std::string multi_stream_mode;
-    if (GetContext().GetOption("ge.autoMultistreamParallelMode", multi_stream_mode) != GRAPH_SUCCESS ||
-        multi_stream_mode.empty()) {
-      GELOGI("MiniDAGStreamPass skipped: ge.autoMultistreamParallelMode not set.");
-      return SUCCESS;
-    }
-    if (multi_stream_mode == "cv") {
-      GELOGI("MiniDAGStreamPass skipped: MiniDAGStreamPass not handle cv parallel.");
-      return SUCCESS;
-    }
+  if (ShouldSkipMiniDagStreamPass(reg_data, graph)) {
+    return SUCCESS;
   }
 
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);

@@ -40,10 +40,13 @@ bool TopoOrderCompare(const NodePtr &n0, const NodePtr &n1) {
   return (n0->GetOpDesc()->GetId() < n1->GetOpDesc()->GetId());
 }
 
-bool IsAutoMultistreamModeEnabled() {
+bool IsAutoMultistreamModeEnabled(const ComputeGraphPtr &graph) {
   std::string multi_stream_mode;
-  return (GetContext().GetOption("ge.autoMultistreamParallelMode", multi_stream_mode) == GRAPH_SUCCESS) &&
-         (!multi_stream_mode.empty()) && (multi_stream_mode != "cv");
+  bool from_graph = false;
+  AutoMultistreamConfig config;
+  return (StreamUtils::GetAutoMultistreamParallelMode(graph, multi_stream_mode, from_graph) == GRAPH_SUCCESS) &&
+         (StreamUtils::ParseAutoMultistreamParallelMode(multi_stream_mode, config, from_graph) == GRAPH_SUCCESS) &&
+         config.IsDagMode();
 }
 
 }  // namespace
@@ -120,7 +123,7 @@ Status DynamicStreamAllocator::AssignStreams(const ComputeGraphPtr &root_graph,
   GE_ASSERT_SUCCESS(RefreshContinuousStreams(root_graph));
 
   GE_ASSERT_SUCCESS(StreamUtils::RunCustomStreamPass(root_graph, stream_num_));
-  if (IsAutoMultistreamModeEnabled()) {
+  if (IsAutoMultistreamModeEnabled(root_graph)) {
     GE_ASSERT_SUCCESS(RefreshContinuousStreamsByNodeIds(root_graph));
   }
   return SUCCESS;

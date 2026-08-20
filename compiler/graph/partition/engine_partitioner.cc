@@ -125,7 +125,7 @@ bool IsLinkedInGraph(const NodePtr &src_node, const NodePtr &dst_node) {
 
 // 根据topo序找到aiv前后相邻的aic节点，如果aiv和其中至少1个aic在图上没有通路则可以并发
 void MarkCvParallelAivNodes(const ComputeGraphPtr &graph) {
-  if (!StreamUtils::EnableCvParallel()) {
+  if (!StreamUtils::EnableCvParallel(graph)) {
     return;
   }
   std::map<NodePtr, std::pair<NodePtr, NodePtr>> aiv_to_adjacent_aic_nodes;

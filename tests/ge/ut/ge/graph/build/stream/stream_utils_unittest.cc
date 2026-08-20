@@ -12,6 +12,8 @@
 
 #include <cstdlib>
 #include <string>
+#include <tuple>
+#include <vector>
 
 #include "graph/build/stream/stream_utils.h"
 
@@ -89,6 +91,74 @@ TEST_F(UtestStreamUtils, EnableDynamicShapeMultiStream_WithOptionModesAndNoEnv_R
     (void)setenv(env_name, env_backup.c_str(), 1);
   } else {
     (void)unsetenv(env_name);
+  }
+}
+
+TEST_F(UtestStreamUtils, GetAutoMultistreamParallelMode_ReadsOptionMode) {
+  const auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "LoadBalance:8"}});
+  std::string mode;
+  EXPECT_EQ(StreamUtils::GetAutoMultistreamParallelMode(mode), GRAPH_SUCCESS);
+  EXPECT_EQ(mode, "LoadBalance:8");
+  GetThreadLocalContext().SetGraphOption(option_bak);
+}
+
+TEST_F(UtestStreamUtils, GetAutoMultistreamParallelMode_GraphAttributeHasPriorityOverOption) {
+  const auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "MainStream:4"}});
+  const auto graph = std::make_shared<ComputeGraph>("graph_attr_priority");
+  ASSERT_TRUE(AttrUtils::SetStr(graph, "ge.autoMultistreamParallelMode", "LoadBalance:8"));
+
+  std::string mode;
+  bool from_graph = false;
+  EXPECT_EQ(StreamUtils::GetAutoMultistreamParallelMode(graph, mode, from_graph), GRAPH_SUCCESS);
+  EXPECT_EQ(mode, "LoadBalance:8");
+  EXPECT_TRUE(from_graph);
+
+  GetThreadLocalContext().SetGraphOption(option_bak);
+}
+
+TEST_F(UtestStreamUtils, ParseAutoMultistreamParallelMode_ValidModes) {
+  const std::vector<std::tuple<std::string, AutoMultistreamMode, int32_t>> cases = {
+      {"", AutoMultistreamMode::kUnset, 0},
+      {"cv", AutoMultistreamMode::kCv, 0},
+      {"LoadBalance:1", AutoMultistreamMode::kLoadBalance, 1},
+      {"MainStream:64", AutoMultistreamMode::kMainStream, 64},
+      {"WeightedLoadBalance:8", AutoMultistreamMode::kWeightedLoadBalance, 8},
+  };
+  for (const auto &test_case : cases) {
+    AutoMultistreamConfig config;
+    EXPECT_EQ(StreamUtils::ParseAutoMultistreamParallelMode(std::get<0>(test_case), config), GRAPH_SUCCESS)
+        << std::get<0>(test_case);
+    EXPECT_EQ(config.mode, std::get<1>(test_case)) << std::get<0>(test_case);
+    EXPECT_EQ(config.max_stream_num, std::get<2>(test_case)) << std::get<0>(test_case);
+  }
+}
+
+TEST_F(UtestStreamUtils, ParseAutoMultistreamParallelMode_DefaultOnlyAllowedForGraphAttribute) {
+  AutoMultistreamConfig config;
+  EXPECT_NE(StreamUtils::ParseAutoMultistreamParallelMode("default", config), GRAPH_SUCCESS);
+  // The third argument marks the value as coming from the graph attribute set by a custom pass.
+  EXPECT_EQ(StreamUtils::ParseAutoMultistreamParallelMode("default", config, true), GRAPH_SUCCESS);
+  EXPECT_EQ(config.mode, AutoMultistreamMode::kDefault);
+  EXPECT_EQ(config.max_stream_num, 0);
+}
+
+TEST_F(UtestStreamUtils, ParseAutoMultistreamParallelMode_InvalidModes) {
+  const std::vector<std::string> cases = {
+      "LoadBalance",         "MainStream",
+      "WeightedLoadBalance", "default",
+      "default:2",           "cv:2",
+      "Unknown:2",           "LoadBalance:0",
+      "LoadBalance:65",      "LoadBalance:-1",
+      "LoadBalance:+1",      "LoadBalance:1.0",
+      "LoadBalance:",        ":2",
+      "LoadBalance:2:3",     " LoadBalance:2",
+      "LoadBalance:2 ",      "LoadBalance:99999999999999999999",
+  };
+  for (const auto &mode : cases) {
+    AutoMultistreamConfig config;
+    EXPECT_NE(StreamUtils::ParseAutoMultistreamParallelMode(mode, config), GRAPH_SUCCESS) << mode;
   }
 }
 }  // namespace ge

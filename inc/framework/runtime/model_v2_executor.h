@@ -244,6 +244,9 @@ class VISIBILITY_EXPORT ModelV2Executor {
   ExecutorSubscribersScheduler subscribers_;
   ExecutorState state_ = ExecutorState::kInit;
   std::string file_constant_weight_dir_;
+  // 自动多流寻优标识，空表示不打点；本执行器无 model_id，由打点模块分配
+  std::string auto_multistream_tuning_mode_;
+  uint32_t auto_multistream_tuning_id_ = 0U;
   /*
     * 背景：对于aipp离线推理场景下，acl需要获取编译时期很多aipp的相关信息，rt2场景下需要适配
     * 临时规避方案：因为是客户问题，时间比较紧，所以当前简单仿照静态shape下获取aipp的逻辑，

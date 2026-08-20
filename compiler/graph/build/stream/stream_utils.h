@@ -25,6 +25,25 @@ constexpr int64_t kInvalidStream = -1;
 constexpr int64_t kMainStream = 0;
 constexpr int64_t kDefaultMaxParalleNum = 1;
 
+enum class AutoMultistreamMode : uint32_t {
+  kUnset = 0U,
+  kDefault,
+  kCv,
+  kLoadBalance,
+  kMainStream,
+  kWeightedLoadBalance
+};
+
+struct AutoMultistreamConfig {
+  AutoMultistreamMode mode = AutoMultistreamMode::kUnset;
+  int32_t max_stream_num = 0;
+
+  bool IsDagMode() const {
+    return (mode == AutoMultistreamMode::kLoadBalance) || (mode == AutoMultistreamMode::kMainStream) ||
+           (mode == AutoMultistreamMode::kWeightedLoadBalance);
+  }
+};
+
 struct Subgraph {
   std::string name;
   int64_t stream_id = kInvalidStream;
@@ -66,7 +85,12 @@ class StreamUtils {
 
   static bool EnableSingleStream();
   static bool EnableDynamicShapeMultiStream();
-  static bool EnableCvParallel();
+  static graphStatus GetAutoMultistreamParallelMode(std::string &multi_stream_mode);
+  static graphStatus GetAutoMultistreamParallelMode(const ComputeGraphPtr &graph, std::string &multi_stream_mode,
+                                                    bool &from_graph);
+  static graphStatus ParseAutoMultistreamParallelMode(const std::string &multi_stream_mode,
+                                                      AutoMultistreamConfig &config, bool from_graph = false);
+  static bool EnableCvParallel(const ComputeGraphPtr &graph);
   static bool IsAivNode(const NodePtr &node);
   static bool IsAicNode(const NodePtr &node);
 

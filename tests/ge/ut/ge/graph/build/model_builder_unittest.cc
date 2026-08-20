@@ -16,6 +16,8 @@
 #include "macro_utils/dt_public_scope.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "common/context/local_context.h"
+#include "common/model/ge_root_model.h"
+#include "common/multi_stream_tuning/model_tuning_config.h"
 #include "common/share_graph.h"
 #include "graph/anchor.h"
 #include "graph/attr_value.h"
@@ -509,6 +511,37 @@ void SetTbeKernelAttrs(const OpDescPtr &op_desc, const std::string &kernel_name,
   ASSERT_TRUE(AttrUtils::SetBytes(op_desc, ATTR_NAME_TBE_KERNEL_BUFFER, kernel_buffer));
 }
 }  // namespace
+
+TEST_F(UtestModelBuilderTest, AutoMultistreamTuningModeIsCopiedFromGraphToGeModel) {
+  const auto graph = std::make_shared<ComputeGraph>("auto_multistream_tuning_graph");
+  ASSERT_TRUE(AttrUtils::SetStr(graph, ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, "LoadBalance:8"));
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ModelBuilder builder(0U, graph, subgraphs, stream_max_parallel_num, false);
+  Model model;
+  model.SetGraph(graph);
+
+  ASSERT_EQ(builder.BuildModelDefForStream(model), SUCCESS);
+  std::string mode;
+  EXPECT_TRUE(AttrUtils::GetStr(&model, ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, mode));
+  EXPECT_EQ(mode, "LoadBalance:8");
+
+  SetDummyModelTaskDef(model);
+  const auto ge_model = MakeShared<GeModel>();
+  ASSERT_NE(ge_model, nullptr);
+  ASSERT_EQ(builder.SaveDataToModel(model, *ge_model), SUCCESS);
+  mode.clear();
+  EXPECT_TRUE(multistream_tune::GetTuningMode(ge_model, mode));
+  EXPECT_EQ(mode, "LoadBalance:8");
+
+  const auto root_model = MakeShared<GeRootModel>();
+  ASSERT_NE(root_model, nullptr);
+  root_model->SetRootGraph(graph);
+  root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
+  mode.clear();
+  EXPECT_TRUE(multistream_tune::GetTuningMode(root_model, mode));
+  EXPECT_EQ(mode, "LoadBalance:8");
+}
 
 TEST_F(UtestModelBuilderTest, SaveDataToModelUsesLastBinForSameKernelNameWithDifferentBins) {
   auto graph = std::make_shared<ComputeGraph>("duplicate_tbe_kernel_graph");

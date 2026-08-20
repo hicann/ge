@@ -18,6 +18,7 @@
 
 #include "graph/build/stream/dag_stream_allocator_pass.h"
 #include "graph/build/stream/dag_adapter.h"
+#include "graph/build/stream/stream_utils.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "external/graph/graph.h"
 #include "external/graph/operator.h"
@@ -25,6 +26,8 @@
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "register/optimization_option_registry.h"
+#include "graph/utils/attr_utils.h"
+#include "graph/utils/graph_utils_ex.h"
 
 namespace minidag {
 
@@ -117,6 +120,12 @@ ge::ConstGraphPtr BuildGraphWithControlEdge() {
   graph->AddControlEdge(add1, netoutput);
 
   return graph;
+}
+
+void SetAutoMultistreamMode(const ge::ConstGraphPtr &graph, const std::string &mode) {
+  const auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(compute_graph, nullptr);
+  ASSERT_TRUE(ge::AttrUtils::SetStr(compute_graph, "ge.autoMultistreamParallelMode", mode));
 }
 }  // namespace
 
@@ -404,6 +413,17 @@ TEST_F(DagStreamAllocatorPassTest, RunPass_OnlyDataNode) {
 // 场景 C：ge.autoMultistreamParallelMode 配置测试
 // --------------------
 
+TEST_F(DagStreamAllocatorPassTest, RunPass_WithoutAutoMultistreamMode_SkipsAllocation) {
+  GraphOptionGuard graph_option_guard;
+  SetGraphOptionForTest({});
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  EXPECT_EQ(RunMiniDAGStreamPassForTest(graph, context), ge::SUCCESS);
+  EXPECT_EQ(context.GetCurrMaxStreamId(), 0);
+}
+
 /**
  * 场景 C1: 设置 ge.autoMultistreamParallelMode="LoadBalance:8" - 解析冒号格式
  */
@@ -420,6 +440,44 @@ TEST_F(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_LoadBalance) 
   EXPECT_EQ(ret, ge::SUCCESS);
 
   ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(DagStreamAllocatorPassTest, RunPass_GraphAttributeHasPriorityOverOption) {
+  GraphOptionGuard graph_option_guard;
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+  SetAutoMultistreamMode(graph, "LoadBalance:8");
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "MainStream:65"}});
+
+  ge::StreamPassContext graph_context(0);
+  EXPECT_EQ(RunMiniDAGStreamPass(graph, graph_context), ge::SUCCESS);
+
+  SetAutoMultistreamMode(graph, "LoadBalance:65");
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "MainStream:4"}});
+  ge::StreamPassContext invalid_graph_context(0);
+  EXPECT_EQ(RunMiniDAGStreamPass(graph, invalid_graph_context), ge::FAILED);
+
+  SetAutoMultistreamMode(graph, "cv");
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "LoadBalance:8"}});
+  const auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(compute_graph, nullptr);
+  EXPECT_TRUE(ge::StreamUtils::EnableCvParallel(compute_graph));
+  ge::StreamPassContext cv_context(0);
+  EXPECT_EQ(RunMiniDAGStreamPass(graph, cv_context), ge::SUCCESS);
+  EXPECT_EQ(cv_context.GetCurrMaxStreamId(), 0);
+}
+
+TEST_F(DagStreamAllocatorPassTest, RunPass_DefaultSkipsMiniDagAllocation) {
+  GraphOptionGuard graph_option_guard;
+  ge::GetThreadLocalContext().SetGraphOption({{"ge.autoMultistreamParallelMode", "LoadBalance:8"}});
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+  SetAutoMultistreamMode(graph, "default");
+
+  ge::StreamPassContext context(0);
+  EXPECT_EQ(RunMiniDAGStreamPass(graph, context), ge::SUCCESS);
+  EXPECT_EQ(context.GetCurrMaxStreamId(), 0);
 }
 
 /**

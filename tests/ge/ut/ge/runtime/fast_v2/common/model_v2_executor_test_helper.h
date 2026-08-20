@@ -22,6 +22,12 @@ class ModelV2ExecutorTestHelper {
   static void *GetExecutionData(ModelV2Executor *executor, SubExeGraphType graph_type) {
     return executor->graphs_[graph_type].execution_data_;
   }
+  static const std::string &GetAutoMultistreamTuningMode(const ModelV2Executor *executor) {
+    return executor->auto_multistream_tuning_mode_;
+  }
+  static uint32_t GetAutoMultistreamTuningId(const ModelV2Executor *executor) {
+    return executor->auto_multistream_tuning_id_;
+  }
   static Node *GetNodeByKernelName(void *execution_data, const char *kernel_name) {
     auto edata = reinterpret_cast<ExecutionData *>(execution_data);
     for (size_t i = 0; i < edata->base_ed.node_num; ++i) {

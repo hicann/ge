@@ -1224,6 +1224,14 @@ Status ModelBuilder::BuildModelDefForStream(ge::Model &model) {
                  ATTR_MODEL_EVENT_NUM.c_str());
   GE_ASSERT_TRUE(ge::AttrUtils::SetListInt(&model, ATTR_MODEL_HUGE_STREAM_LIST, huge_streams_),
                  "[Set][Attr] %s in model failed", ATTR_MODEL_HUGE_STREAM_LIST.c_str());
+  const auto root_graph = GraphUtils::FindRootGraph(compute_graph_);
+  GE_ASSERT_NOTNULL(root_graph);
+  std::string tuning_mode;
+  if (ge::AttrUtils::GetStr(root_graph, ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, tuning_mode) &&
+      (!tuning_mode.empty())) {
+    GE_ASSERT_TRUE(ge::AttrUtils::SetStr(&model, ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, tuning_mode),
+                   "[Set][Attr] %s in model failed", ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE.c_str());
+  }
   const auto graph = model.GetGraph();
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_TRUE(ge::AttrUtils::SetStr(graph, "_split_logic_stream_2_origin_logic_stream",

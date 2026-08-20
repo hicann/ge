@@ -751,6 +751,8 @@ const std::string ATTR_MODEL_NOTIFY_TYPES = "notify_types";
 
 const std::string ATTR_MODEL_HUGE_STREAM_LIST = "huge_stream_list";
 
+const std::string ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE = "_auto_multistream_tuning_mode";
+
 const std::string ATTR_MODEL_LABEL_NUM = "label_num";
 
 const std::string ATTR_MODEL_MEMORY_SIZE = "memory_size";

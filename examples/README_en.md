@@ -13,3 +13,4 @@ This project provides call samples for different scenarios. After setting up the
 | Recommendation network high-performance inference sample | [README](recommendation/README.md) |
 | Custom operator graph integration sample | [README](custom_op/README_en.md) |
 | YOLOv13 object detection sample | [README](acl/5_sample_yolov13/README_en.md) |
+| Multi-stream autotune sample | [README](multi_stream_autotune/README_en.md) |

@@ -548,6 +548,7 @@ set(MULTI_PARTS_TEST_FILES
     "session/omg_omg_unittest.cc"
     "session/single_op_parser_unittest.cc"
     "session/ge_api_unittest.cc"
+    "common/multi_stream_tuning_step_recorder_unittest.cc"
     "session/inner_session_unittest.cc"
     "session/user_hybrid_graph_manager_unittest.cc"
     "session/session_manager_unittest.cc"
@@ -778,6 +779,7 @@ target_link_libraries(ut_libge_multiparts_utest
     custom_op_registry_static
     graph
     graph_base
+    ge_common_base
     ge_executor_shared
     hybrid_executor
     davinci_executor
