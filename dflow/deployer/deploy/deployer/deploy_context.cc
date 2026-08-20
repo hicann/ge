@@ -81,20 +81,28 @@ void DeployContext::Finalize() {
                                                         flowgw_client_manager_);
   }
   submodel_routes_.clear();
-  for (const auto &it : tansfer_routes_) {
+  std::map<int64_t, ExchangeRoute> tansfer_routes_to_destroy;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    tansfer_routes_to_destroy.swap(tansfer_routes_);
+  }
+  for (const auto &it : tansfer_routes_to_destroy) {
     (void)HeterogeneousExchangeDeployer::Undeploy(HService::GetInstance(), it.second, flowgw_client_manager_);
   }
-  tansfer_routes_.clear();
   flow_model_receiver_.DestroyAllDeployStates();
   for (const auto &device_id_and_var_manager : var_managers_) {
     for (const auto &session_id_and_var_manager : device_id_and_var_manager.second) {
       session_id_and_var_manager.second->Finalize();
     }
   }
-  for (const auto &it : transfer_queues_) {
+  std::map<int32_t, uint32_t> transfer_queues_to_destroy;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    transfer_queues_to_destroy.swap(transfer_queues_);
+  }
+  for (const auto &it : transfer_queues_to_destroy) {
     (void)HService::GetInstance().DestroyQueue(it.first, it.second);
   }
-  transfer_queues_.clear();
   Clear();
   (void)flowgw_client_manager_.Finalize();
   GEEVENT("[%s] DeployContext finalized.", name_.c_str());
@@ -153,6 +161,7 @@ Status DeployContext::ProcessMultiVarManager(const deployer::MultiVarManagerRequ
 }
 
 Status DeployContext::GetOrCreateTransferQueue(int32_t device_id, uint32_t &queue_id) {
+  std::lock_guard<std::mutex> lk(mu_);
   const auto &it = transfer_queues_.find(device_id);
   if (it != transfer_queues_.end()) {
     queue_id = it->second;
@@ -184,6 +193,7 @@ Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequ
   auto local_route =
       FlowRouteManager::GetInstance().QueryRoute(FlowRouteType::kTransferFlowRoute, flow_route.route_id());
   if (local_route == nullptr) {
+    std::lock_guard<std::mutex> lk(mu_);
     GE_CHECK_LE(tansfer_routes_.size() + 1, kMaxFlowRouteSize);
     const auto &it = tansfer_routes_.find(flow_route.route_id());
     if (it == tansfer_routes_.cend()) {
