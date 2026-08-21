@@ -37,7 +37,15 @@ PythonCustomOpProtoDescriptorView MakeProtoView(const char *descriptor_key, cons
                                                 const PythonCustomOpProtoOutputView *outputs,
                                                 const size_t output_count) {
   return PythonCustomOpProtoDescriptorView{
-      StringView(descriptor_key), StringView(op_type), inputs, input_count, attrs, attr_count, outputs, output_count,
+      StringView(descriptor_key),
+      StringView(op_type),
+      inputs,
+      input_count,
+      attrs,
+      attr_count,
+      outputs,
+      output_count,
+      nullptr,
   };
 }
 

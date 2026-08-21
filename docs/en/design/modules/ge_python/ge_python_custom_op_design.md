@@ -19,7 +19,7 @@ The long-term goal of Python custom operators is to let users describe custom op
 - Python users implement the compile-time `AnnotatedArgsOp` callback through `declare_launch_args` and declare kernel launch arguments with `AnnotatedArgsContext`, `AnnotatedKernelArgs`, and `AnnotatedKernelLaunchInfo`.
 - `ge.runtime` provides runtime data structures required by the context for return values or input parameters, such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement`.
 
-V2 extends the V1 execution path with Python prototype and Meta inference capabilities. The current stage provides Python prototype creators, Adapter registration transactions, and ownership management, but does not yet invoke Python `infer_meta`.
+V2 extends the V1 execution path with Python prototype and Meta inference capabilities. The current stage provides Python prototype creators, Adapter registration transactions, ownership management, and a Python `infer_meta` callback connected to both compile-time and RT2 dynamic-shape inference.
 
 In V2, the Python function decorated with `register_op` performs Meta inference and is referred to as `infer_meta` throughout this document; the function itself does not have to be named `infer_meta`. Following the operator prototype, it receives input `TensorDesc` objects, including optional and dynamic inputs, together with attribute values, and returns one or more `TensorDesc` objects describing output shape and data type. It neither reads input Tensor data nor executes the operator kernel.
 
@@ -67,7 +67,7 @@ The actual module boundaries are as follows:
 |--------|----------|----------------|
 | Python API | `api/python/ge/ge/custom_op/` | Implementation method reflection, registration, compatibility base classes, plugin discovery, bridge helper |
 | Runtime types | `api/python/ge/ge/runtime/` | Runtime data structures such as `Tensor`, `StorageShape`, and `StorageFormat` |
-| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`, binding Eager and AnnotatedArgs contexts, argument builders, and `RuntimeAttrs` |
+| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`, binding Eager, AnnotatedArgs, and InferShape contexts, argument builders, and `RuntimeAttrs` |
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | Unified loading of C++ custom ops and Python custom ops |
 | Bridge loader | `runtime/custom_op/python_custom_op_bridge_loader.cc` | Artifact selection, loading `libge_python_custom_op_bridge.so`, and creator registration |
 | Pybind bridge | `runtime/custom_op/python_custom_op_pybind_bridge.cc` | Importing the Python bridge module, creating holders, and calling back `execute` / `declare_launch_args` |
@@ -108,7 +108,7 @@ V1 functions include:
 
 - The GE / ATC / Executor entry calls `GePythonRuntimeManager::EnsureReady()` before `LoadCustomOps()`. If interpreter initialization fails, the system continues with a warning according to the existing entry strategy.
 - Python entries in `ASCEND_CUSTOM_OPP_PATH` are `.py` files, non-underscore-prefixed `.py` files one level deep in a directory, or package directories with `__init__.py`.
-- In V1, operator prototypes and shape/dtype inference are still provided by users through the existing C++ / OPP method.
+- For operators that do not use Python `register_op`, the V1 compatibility path still obtains the operator prototype and shape/dtype inference through the existing C++ / OPP method. Python `register_op` operators use the V2 `infer_meta` path.
 - The Python custom op sample depends on the ACL Python runtime and a Python environment that matches the run package.
 - `declare_launch_args` depends on the Python registration environment only during compilation. A new OM stores the selected refresh mode in `_custom_task_args_mode` and the launch layout in `args_format`; static-model loading uses the explicit mode and does not load the Python implementation again. An OM without the attribute keeps the legacy registry lookup and `args_format` fallback.
 
@@ -251,7 +251,7 @@ Each descriptor contains at least:
 
 **Introduction**
 
-`_ge_custom_op_native` binds `EagerOpExecutionContext`, `AnnotatedArgsContext`, `AnnotatedKernelArgs`, `AnnotatedKernelLaunchInfo`, and `RuntimeAttrs`. Types such as `Tensor`, `StorageShape`, and `StorageFormat` returned by context methods are provided by `ge.runtime`.
+`_ge_custom_op_native` binds `EagerOpExecutionContext`, `AnnotatedArgsContext`, `InferShapeContext`, `AnnotatedKernelArgs`, `AnnotatedKernelLaunchInfo`, and `RuntimeAttrs`. Types such as `Tensor`, `TensorDesc`, `StorageShape`, and `StorageFormat` returned by context methods are provided by `ge.runtime`.
 
 **Input**
 
@@ -276,6 +276,8 @@ The bridge layer injects the Python borrowed view at the execution entry.
 | `get_output_tensor(index)` | Obtains the output `Tensor` specified by index |
 | `get_stream()` | Obtains the address integer of the associated execution stream |
 
+`InferShapeContext` is used by the `register_op` decorated function when it runs as `infer_meta`. It reads shapes and data types for required, optional, and dynamic inputs, reads typed runtime attributes, and queries dynamic output instance counts. This context is valid only during the current `infer_meta` callback; output shapes and data types are carried together by the `TensorDesc` objects returned from `infer_meta`.
+
 `AnnotatedArgsContext` exposes workspace allocation, stream-id query, kernel-argument builder creation, and launch addition. Its input/output tensor and attribute queries are used by the internal schema-bound assembly logic. `AnnotatedKernelArgs` exposes `append_input`, `append_output`, `append_workspace`, and `append_scalar`.
 
 `RuntimeAttrs` provides the following typed readers by attribute IR index:
@@ -289,6 +291,7 @@ The bridge layer injects the Python borrowed view at the execution entry.
 **Output**
 
 - Tensor-related methods return `ge.runtime.Tensor`.
+- `infer_meta` inputs and return values use `ge.runtime.TensorDesc`; `TensorDesc.shape` uses `StorageShape`, and `TensorDesc.data_type` uses `ge.graph.DataType`.
 - Shape and format input parameters use `ge.runtime.StorageShape` and `ge.runtime.StorageFormat`.
 - dtype uses `ge.graph.DataType`.
 - Stream and workspace addresses are represented as Python `int`.
@@ -405,6 +408,7 @@ For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/cu
 | `EagerExecuteOp` | Compatibility Eager execution base class; new implementations may use a plain class |
 | `execute` | User-implemented execution entry supporting both legacy and schema-bound forms |
 | `EagerOpExecutionContext` | Execution context borrowed view |
+| `InferShapeContext` | Input metadata access context for `infer_meta` callbacks |
 | `RuntimeAttrs` | Attribute borrowed view returned by `EagerOpExecutionContext.get_attrs()` |
 | `get_execute_ctx` | Obtains the execution context of the active schema-bound callback |
 | `register_op` | Declares and collects a Python custom operator prototype |

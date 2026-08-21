@@ -303,6 +303,7 @@ PythonCustomOpProtoDescriptorView ProtoDescriptorStorage::BuildView() {
       attr_views.size(),
       output_views.empty() ? nullptr : output_views.data(),
       output_views.size(),
+      nullptr,
   };
 }
 

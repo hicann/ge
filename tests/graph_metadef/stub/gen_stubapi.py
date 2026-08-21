@@ -65,6 +65,7 @@ RETURN_STATEMENTS = {
     "SubgraphBuilder": "    return nullptr;",
     "OperatorImplPtr": "    return nullptr;",
     "CustomOpRegistryPtr": "    return nullptr;",
+    "CustomOpInferMetaFunc": "    return nullptr;",
     "OutHandler": "    return nullptr;",
     "std::vector<int64_t>": "    return {};",
     "std::vector<std::string>": "    return {};",

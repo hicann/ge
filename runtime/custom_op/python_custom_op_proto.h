@@ -58,6 +58,7 @@ struct PythonCustomOpProto {
   std::vector<PythonCustomOpInput> inputs;
   std::vector<PythonCustomOpAttr> attrs;
   std::vector<PythonCustomOpOutput> outputs;
+  PythonCustomOpInferMetaFn infer_meta{nullptr};
 };
 
 graphStatus ParsePythonCustomOpProto(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto);

@@ -13,13 +13,14 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ge.graph.types import DataType
-from ge.runtime import StorageFormat, StorageShape, Tensor
+from ge.runtime import StorageFormat, StorageShape, Tensor, TensorDesc
 
 __all__: List[str] = [
     "AnnotatedArgsContext",
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "InferMetaContext",
     "WorkspaceAddr",
 ]
 
@@ -211,3 +212,26 @@ class AnnotatedArgsContext:
         launch_info: AnnotatedKernelLaunchInfo,
         args: AnnotatedKernelArgs,
     ) -> None: ...
+
+
+class InferMetaContext:
+    """Borrowed context for the Python infer_meta callback.
+
+    Input readers return ``TensorDesc`` objects containing shape and dtype.
+    The context is only valid during the infer_meta callback; calling
+    ``_invalidate()`` expires all derived borrowed views.
+    """
+
+    def get_required_input_tensor(self, ir_index: int) -> TensorDesc: ...
+
+    def get_optional_input_tensor(self, ir_index: int) -> Optional[TensorDesc]: ...
+
+    def get_dynamic_input_num(self, ir_index: int) -> int: ...
+
+    def get_dynamic_input_tensor(self, ir_index: int, relative_index: int) -> TensorDesc: ...
+
+    def get_attrs(self) -> RuntimeAttrs: ...
+
+    def get_dynamic_output_num(self, ir_index: int) -> int: ...
+
+    def _invalidate(self) -> None: ...

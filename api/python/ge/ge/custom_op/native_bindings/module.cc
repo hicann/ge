@@ -14,5 +14,6 @@ namespace ge {
 PYBIND11_MODULE(_ge_custom_op_native, m) {
   python_custom_op_native::BindEagerOpExecutionContext(m);
   python_custom_op_native::BindAnnotatedArgsContext(m);
+  python_custom_op_native::BindInferMetaContext(m);
 }
 }  // namespace ge

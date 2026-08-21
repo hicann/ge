@@ -11,11 +11,13 @@
 set(_ge_custom_op_native_sources
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/module.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/context_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/infer_meta_context_binding.cc
 )
 
 set(_ge_custom_op_native_headers
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_common.h
         ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/custom_op_bindings.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/runtime_attrs_binding.h
 )
 
 set(GE_PYTHON_CUSTOM_OP_NATIVE_SOURCES ${_ge_custom_op_native_sources} PARENT_SCOPE)

@@ -56,6 +56,7 @@
 #include "engines/custom_engine/custom_ops_kernel_builder.h"
 #include "graph/compute_graph.h"
 #include "graph/custom_op/cast.h"
+#include "graph/custom_op/infer_meta.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op.h"
 #include "graph/operator_factory.h"
@@ -66,6 +67,10 @@
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "runtime/custom_op/custom_op_loader.h"
 #include "runtime/custom_op/python_custom_op_bridge_loader.h"
+#include "exe_graph/runtime/storage_shape.h"
+#include "faker/kernel_run_context_facker.h"
+#include "register/kernel_registry.h"
+#include "runtime/v2/kernel/common_kernel_impl/infer_shape.h"
 
 namespace ge {
 REG_OP(StPythonAnnotatedArgsCustomOp)
@@ -176,6 +181,8 @@ void **args_table = nullptr;
 constexpr const char *kPythonCustomOpTypeForSt = "StPythonPybindRemoveCoverageCustomOp";
 constexpr const char *kPythonAnnotatedArgsOpTypeForSt = "StPythonAnnotatedArgsCustomOp";
 constexpr const char *kPythonAnnotatedArgsBadAttrOpTypeForSt = "StPythonAnnotatedArgsBadAttrCustomOp";
+constexpr const char *kPythonRt2InferMetaOpTypeForSt = "StPythonRt2InferMetaCustomOp";
+constexpr const char *kInferMetaCoverageOpTypeForSt = "StInferMetaCoverageCustomOp";
 constexpr const char *kEnvPythonCustomOpPath = "ASCEND_CUSTOM_OPP_PATH";
 constexpr const char *kEnvPythonPath = "PYTHONPATH";
 constexpr char kSharedPybindCustomOpPreambleForSt[] = R"PY(from pathlib import Path
@@ -291,6 +298,32 @@ class StPythonValidBeforeInvalidCustomOp:
         pass
 
 @register_op_impl(op_type=')PY";
+constexpr char kRt2InferMetaPreambleForSt[] = R"PY(from pathlib import Path
+from typing import List
+
+from ge.custom_op import register_op
+from ge.graph import DataType
+from ge.runtime import StorageShape, Tensor, TensorDesc
+
+MARKER_FILE = r')PY";
+constexpr char kRt2InferMetaOpTypePrefixForSt[] = R"PY('
+
+@register_op(op_type=')PY";
+constexpr char kRt2InferMetaFunctionForSt[] = R"PY(')
+def infer_meta(x: TensorDesc, *, attr_int: int, attr_float: float, attr_bool: bool, attr_str: str,
+               attr_dtype: DataType, attr_tensor: Tensor, attr_list_int: List[int],
+               attr_list_float: List[float], attr_list_bool: List[bool], attr_list_str: List[str],
+               attr_list_dtype: List[DataType], attr_list_list_int: List[List[int]]) -> TensorDesc:
+    if (attr_int != 7 or abs(attr_float - 1.5) > 1e-6 or not attr_bool or attr_str != 'native' or
+            attr_dtype != DataType.DT_INT32 or attr_tensor.data_type != DataType.DT_FLOAT16 or
+            attr_list_int != [1, 2] or attr_list_float != [2.5, 3.5] or attr_list_bool != [True, False] or
+            attr_list_str != ['a', 'b'] or attr_list_dtype != [DataType.DT_FLOAT, DataType.DT_INT32] or
+            attr_list_list_int != [[3, 4], [5]]):
+        raise AssertionError('native RuntimeAttrs values were not decoded correctly')
+    dims = list(x.shape.storage_shape.dims)
+    Path(MARKER_FILE).write_text(str(dims), encoding='utf-8')
+    return TensorDesc(StorageShape([dims[0], attr_int], [dims[0], attr_int]), attr_dtype)
+)PY";
 
 class ScopedTempDirForCustomOpSt {
  public:
@@ -445,6 +478,18 @@ const std::string &GetSharedPybindCustomOpMarkerFilePathForSt() {
   return path;
 }
 
+const std::string &GetRt2InferMetaCustomOpFilePathForSt() {
+  static ScopedTempDirForCustomOpSt dir;
+  static const std::string path = dir.CreateFilePath("rt2_infer_meta_custom_op.py");
+  return path;
+}
+
+const std::string &GetRt2InferMetaMarkerFilePathForSt() {
+  static ScopedTempDirForCustomOpSt dir;
+  static const std::string path = dir.CreateFilePath("rt2_infer_meta_marker.txt");
+  return path;
+}
+
 const std::string &GetInvalidSignaturePybindCustomOpFilePathForSt() {
   static ScopedTempDirForCustomOpSt dir;
   static const std::string path = dir.CreateFilePath("pybind_invalid_signature_custom_op.py");
@@ -470,6 +515,16 @@ void EnsureInvalidSignaturePybindCustomOpFileForSt() {
                              kValidBeforeInvalidPybindCustomOpForSt + kPythonAnnotatedArgsBadAttrOpTypeForSt +
                              kSharedPybindBadAttrCustomOpForSt;
     WriteTextFileForCustomOpSt(GetInvalidSignaturePybindCustomOpFilePathForSt(), python_file);
+  });
+}
+
+void EnsureRt2InferMetaCustomOpFileForSt() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    const auto python_file = std::string(kRt2InferMetaPreambleForSt) + GetRt2InferMetaMarkerFilePathForSt() +
+                             kRt2InferMetaOpTypePrefixForSt + kPythonRt2InferMetaOpTypeForSt +
+                             kRt2InferMetaFunctionForSt;
+    WriteTextFileForCustomOpSt(GetRt2InferMetaCustomOpFilePathForSt(), python_file);
   });
 }
 
@@ -630,6 +685,16 @@ class CustomOpFactoryStTest : public testing::Test {
 
   std::string python_path_bak_;
   bool has_python_path_bak_{false};
+};
+
+class InferMetaCoverageCustomOpForSt final : public CustomOpInferMetaProvider {
+ public:
+  graphStatus InferMeta(gert::InferShapeContext *, CustomOpInferMetaResult *result) override {
+    result->outputs.resize(1U);
+    result->outputs[0U].shape = gert::StorageShape{{4, 5}, {4, 5}};
+    result->outputs[0U].data_type = DT_FLOAT;
+    return GRAPH_SUCCESS;
+  }
 };
 
 class TestBaseCustomOp : public EagerExecuteOp {
@@ -1827,6 +1892,84 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
   EXPECT_FALSE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
+}
+
+/**
+ * 验证 Python infer_meta 通过真实 RT2 InferShape kernel 使用运行时 shape，
+ * 并从 native RuntimeAttrs 读取设计支持的全部 12 类属性。
+ */
+TEST_F(CustomOpFactoryStTest, PythonCustomOpInferMetaRunsThroughRt2WithNativeAttrs) {
+  EnsureRt2InferMetaCustomOpFileForSt();
+  const auto &marker_file = GetRt2InferMetaMarkerFilePathForSt();
+  (void)remove(marker_file.c_str());
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetRt2InferMetaCustomOpFilePathForSt());
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  auto *base_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt));
+  ASSERT_NE(base_op, nullptr);
+
+  gert::StorageShape input_shape({7, 13}, {7, 13});
+  gert::Tensor output;
+  auto attr_tensor = FakeGeTensorHolder()
+                         .DataType(DT_FLOAT16)
+                         .OriginFormat(FORMAT_ND)
+                         .StorageFormat(FORMAT_ND)
+                         .OriginShape({1})
+                         .StorageShape({1})
+                         .Build();
+  auto infer_shape_func = kernel::InferCustomOpShapeFromInput;
+  auto run_context =
+      gert::KernelRunContextFaker()
+          .KernelIONum(3, 1)
+          .NodeIoNum(1, 1)
+          .IrInputNum(1)
+          .NodeInputTd(0, DT_FLOAT16, FORMAT_ND, FORMAT_ND)
+          .NodeOutputTd(0, DT_INT32, FORMAT_ND, FORMAT_ND)
+          .NodeAttrs({{"attr_int", AnyValue::CreateFrom<int64_t>(7)},
+                      {"attr_float", AnyValue::CreateFrom<float>(1.5F)},
+                      {"attr_bool", AnyValue::CreateFrom<bool>(true)},
+                      {"attr_str", AnyValue::CreateFrom<std::string>("native")},
+                      {"attr_dtype", AnyValue::CreateFrom<DataType>(DT_INT32)},
+                      {"attr_tensor", AnyValue::CreateFrom<GeTensor>(*attr_tensor)},
+                      {"attr_list_int", AnyValue::CreateFrom<std::vector<int64_t>>({1, 2})},
+                      {"attr_list_float", AnyValue::CreateFrom<std::vector<float>>({2.5F, 3.5F})},
+                      {"attr_list_bool", AnyValue::CreateFrom<std::vector<bool>>({true, false})},
+                      {"attr_list_str", AnyValue::CreateFrom<std::vector<std::string>>({"a", "b"})},
+                      {"attr_list_dtype", AnyValue::CreateFrom<std::vector<DataType>>({DT_FLOAT, DT_INT32})},
+                      {"attr_list_list_int", AnyValue::CreateFrom<std::vector<std::vector<int64_t>>>({{3, 4}, {5}})}})
+          .Inputs({&input_shape, base_op, reinterpret_cast<void *>(infer_shape_func)})
+          .Outputs({&output})
+          .Build();
+
+  const auto funcs = gert::KernelRegistry::GetInstance().FindKernelFuncs("InferShape");
+  ASSERT_NE(funcs, nullptr);
+  ASSERT_EQ(funcs->run_func(run_context), GRAPH_SUCCESS);
+  EXPECT_EQ(output.GetOriginShape(), gert::Shape({7, 7}));
+  EXPECT_EQ(ReadTextFileForCustomOpSt(marker_file), "[7, 13]");
+}
+
+TEST_F(CustomOpFactoryStTest, CustomOpInferMetaCompilePath) {
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                AscendString(kInferMetaCoverageOpTypeForSt),
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<InferMetaCoverageCustomOpForSt>(); }),
+            GRAPH_SUCCESS);
+
+  auto op_desc = std::make_shared<OpDesc>("st_infer_meta", kInferMetaCoverageOpTypeForSt);
+  ASSERT_EQ(op_desc->AddInputDesc(GeTensorDesc(GeShape({2, 3}), FORMAT_ND, DT_FLOAT)), GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc(GeTensorDesc(GeShape({1}), FORMAT_ND, DT_UNDEFINED)), GRAPH_SUCCESS);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("y", kIrOutputRequired);
+  op_desc->AddInferFunc([](Operator &) { return GRAPH_SUCCESS; });
+  auto op = OpDescUtils::CreateOperatorFromOpDesc(op_desc);
+
+  EXPECT_EQ(op.InferShapeAndType(), GRAPH_SUCCESS);
+  EXPECT_EQ(op_desc->GetOutputDesc(0U).GetShape(), GeShape({4, 5}));
+  EXPECT_EQ(op_desc->GetOutputDesc(0U).GetDataType(), DT_FLOAT);
+
+  CustomOpFactory::RemoveCustomOps({AscendString(kInferMetaCoverageOpTypeForSt)});
 }
 
 TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef) {

@@ -30,6 +30,7 @@
 
 #include "common/checker.h"
 #include "common/ge_common/debug/ge_log.h"
+#include "graph/custom_op/infer_meta.h"
 #include "graph/utils/ir_definitions_query.h"
 #include "graph/operator_factory.h"
 #include "pybind11/embed.h"
@@ -201,6 +202,37 @@ bool CopyStringView(const PythonCustomOpStringView &view, std::string &value) {
   return (!value.empty()) && (value.find('\0') == std::string::npos);
 }
 
+graphStatus ParseInferMetaOutputs(const py::list &output_metas, const size_t expected_count,
+                                  std::vector<CustomOpInferMetaOutput> &outputs) {
+  if (output_metas.size() != expected_count) {
+    return GRAPH_FAILED;
+  }
+  outputs.reserve(expected_count);
+  for (size_t i = 0U; i < expected_count; ++i) {
+    const auto output_meta = output_metas[i].cast<py::tuple>();
+    const auto origin_dims = output_meta[0].cast<std::vector<int64_t>>();
+    const auto storage_dims = output_meta[1].cast<std::vector<int64_t>>();
+    CustomOpInferMetaOutput output;
+    for (const auto dim : origin_dims) {
+      (void)output.shape.MutableOriginShape().AppendDim(dim);
+    }
+    for (const auto dim : storage_dims) {
+      (void)output.shape.MutableStorageShape().AppendDim(dim);
+    }
+    output.data_type = static_cast<ge::DataType>(output_meta[2].cast<int32_t>());
+    outputs.emplace_back(std::move(output));
+  }
+  return GRAPH_SUCCESS;
+}
+
+void AssignInferMetaOutputs(std::vector<CustomOpInferMetaOutput> &outputs,
+                            PythonCustomOpInferMetaResultView *result_view) {
+  for (size_t i = 0U; i < result_view->output_count; ++i) {
+    *result_view->outputs[i].shape = std::move(outputs[i].shape);
+    result_view->outputs[i].data_type = outputs[i].data_type;
+  }
+}
+
 class PythonCustomOpPybindBridge {
  public:
   static PythonCustomOpPybindBridge &GetInstance() {
@@ -249,7 +281,7 @@ class PythonCustomOpPybindBridge {
       return FAILED;
     }
 
-    if ((registrar.register_op_proto == nullptr) || (registrar.register_op_adapter == nullptr)) {
+    if ((registrar.register_op_proto == nullptr) || (registrar.register_op_impl == nullptr)) {
       return FAILED;
     }
     if (CollectAndRegisterProtoDescriptors(descriptors, registrar) != SUCCESS) {
@@ -410,6 +442,53 @@ class PythonCustomOpPybindBridge {
     }
   }
 
+  graphStatus InferMeta(const std::string &op_type, gert::InferShapeContext *ctx,
+                        PythonCustomOpInferMetaResultView *result_view) {
+    if ((ctx == nullptr) || (result_view == nullptr) ||
+        ((result_view->output_count != 0U) && (result_view->outputs == nullptr))) {
+      GELOGE(GRAPH_FAILED, "Python custom op infer_meta context or result is null, op type[%s].", op_type.c_str());
+      return GRAPH_FAILED;
+    }
+    const auto prepare_ret = EnsureBridgeReady();
+    if (prepare_ret != SUCCESS) {
+      GELOGE(prepare_ret, "Prepare python custom op bridge failed for infer_meta, op type[%s].", op_type.c_str());
+      return GRAPH_FAILED;
+    }
+    py::gil_scoped_acquire gil;
+    try {
+      py::object ir_meta_obj = py::none();
+      const auto ir_meta = CollectPythonCustomOpIrMeta(op_type);
+      if (ir_meta != nullptr) {
+        ir_meta_obj = BuildPythonIrMeta(ir_meta.get());
+      }
+      py::object infer_ctx = BuildPythonInferMetaContext(ctx);
+      py::object ret = bridge_module_.attr("call_infer_meta")(py::str(op_type), ir_meta_obj, infer_ctx);
+      if (ret.is_none()) {
+        GELOGE(GRAPH_FAILED, "Python custom op infer_meta returned None, op type[%s].", op_type.c_str());
+        return GRAPH_FAILED;
+      }
+      py::list output_metas = ret.cast<py::list>();
+      std::vector<CustomOpInferMetaOutput> outputs;
+      if (ParseInferMetaOutputs(output_metas, result_view->output_count, outputs) != GRAPH_SUCCESS) {
+        GELOGE(GRAPH_FAILED,
+               "Python custom op infer_meta result count[%zu] does not match output count[%zu], op type[%s].",
+               output_metas.size(), result_view->output_count, op_type.c_str());
+        return GRAPH_FAILED;
+      }
+      AssignInferMetaOutputs(outputs, result_view);
+      return GRAPH_SUCCESS;
+    } catch (const py::error_already_set &err) {
+      GELOGE(GRAPH_FAILED, "Python custom op infer_meta failed, op type[%s]: %s", op_type.c_str(), err.what());
+      return GRAPH_FAILED;
+    } catch (const std::exception &err) {
+      GELOGE(GRAPH_FAILED, "Python custom op infer_meta failed, op type[%s]: %s", op_type.c_str(), err.what());
+      return GRAPH_FAILED;
+    } catch (...) {
+      GELOGE(GRAPH_FAILED, "Python custom op infer_meta failed with unknown exception, op type[%s].", op_type.c_str());
+      return GRAPH_FAILED;
+    }
+  }
+
   graphStatus DeclareLaunchArgs(const PythonCustomOpBridgeHolder *holder, gert::AnnotatedArgsContext *ctx) {
     if ((holder == nullptr) || (ctx == nullptr)) {
       GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
@@ -444,13 +523,15 @@ class PythonCustomOpPybindBridge {
 
  private:
   Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors, const PythonCustomOpRegistrar &registrar) {
+    const auto callbacks = GetCallbacks();
     try {
       for (const auto &item : descriptors["protos"].cast<py::list>()) {
         ProtoDescriptorStorage proto;
         if (proto.Parse(item.cast<py::dict>()) != SUCCESS) {
           return FAILED;
         }
-        const auto view = proto.BuildView();
+        auto view = proto.BuildView();
+        view.infer_meta = callbacks.infer_meta;
         if (!registrar.register_op_proto(&view)) {
           GELOGE(FAILED, "Register python custom op proto[%s] failed.", proto.op_type.c_str());
           return FAILED;
@@ -481,7 +562,7 @@ class PythonCustomOpPybindBridge {
           GELOGE(FAILED, "Validate python custom op adapter[%s] failed.", adapter.op_type.c_str());
           return FAILED;
         }
-        if (!registrar.register_op_adapter(&view, &callbacks)) {
+        if (!registrar.register_op_impl(&view, &callbacks)) {
           GELOGE(FAILED, "Register python custom op adapter[%s] failed.", adapter.op_type.c_str());
           return FAILED;
         }
@@ -655,6 +736,11 @@ class PythonCustomOpPybindBridge {
     return native_module.attr("_borrow_annotated_args_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
   }
 
+  static py::object BuildPythonInferMetaContext(gert::InferShapeContext *ctx) {
+    py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
+    return native_module.attr("_borrow_infer_meta_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+  }
+
   static graphStatus TranslateStatusLike(const py::object &result) {
     if (result.is_none()) {
       return GRAPH_SUCCESS;
@@ -685,6 +771,14 @@ class PythonCustomOpPybindBridge {
     callbacks.declare_launch_args = [](const void *holder, gert::AnnotatedArgsContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().DeclareLaunchArgs(
           static_cast<const PythonCustomOpBridgeHolder *>(holder), ctx);
+    };
+    callbacks.infer_meta = [](const PythonCustomOpStringView *op_type, gert::InferShapeContext *ctx,
+                              PythonCustomOpInferMetaResultView *result) -> graphStatus {
+      if ((op_type == nullptr) || ((op_type->size != 0U) && (op_type->data == nullptr))) {
+        return GRAPH_FAILED;
+      }
+      const std::string op_type_value(op_type->data == nullptr ? "" : op_type->data, op_type->size);
+      return PythonCustomOpPybindBridge::GetInstance().InferMeta(op_type_value, ctx, result);
     };
     return callbacks;
   }

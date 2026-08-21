@@ -18,6 +18,7 @@ namespace python_custom_op_native {
 
 void BindEagerOpExecutionContext(py::module_ &m);
 void BindAnnotatedArgsContext(py::module_ &m);
+void BindInferMetaContext(py::module_ &m);
 
 }  // namespace python_custom_op_native
 }  // namespace ge

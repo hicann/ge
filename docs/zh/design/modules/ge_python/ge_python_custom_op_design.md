@@ -19,7 +19,7 @@ Python 自定义算子的完整定位是支持用户用 Python 描述自定义�
 - Python 用户通过 `declare_launch_args` 实现 `AnnotatedArgsOp` 编译期回调，使用 `AnnotatedArgsContext`、`AnnotatedKernelArgs` 和 `AnnotatedKernelLaunchInfo` 声明 kernel 启动参数。
 - `ge.runtime` 提供 context 返回或入参所需的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构。
 
-V2 在 V1 执行能力的基础上扩展 Python 原型和 Meta 推导能力。当前阶段已经实现 Python 原型 creator、Adapter 注册事务和所有权管理，但尚不调用 Python `infer_meta`。
+V2 在 V1 执行能力的基础上扩展 Python 原型和 Meta 推导能力。当前阶段已经实现 Python 原型 creator、Adapter 注册事务和所有权管理，并打通编译期与 RT2 动态 Shape 的 Python `infer_meta` 调用链。
 
 V2 中，被 `register_op` 装饰的 Python 函数负责 Meta 推导，本文统一称为 `infer_meta`，但不要求函数名必须是 `infer_meta`。该函数按照算子原型接收输入 `TensorDesc`（包括可选输入和动态输入）及属性值，返回一个或多个描述输出 shape 和 data type 的 `TensorDesc`；它不读取输入 Tensor 数据，也不执行算子 kernel。
 
@@ -67,7 +67,7 @@ Python custom op 是 GE Python 体系的一部分，与 Python pass 共享以下
 |------|------|------|
 | Python API | `api/python/ge/ge/custom_op/` | 实现方法反射、注册实现、兼容基类、插件发现、bridge helper |
 | Runtime types | `api/python/ge/ge/runtime/` | `Tensor`、`StorageShape`、`StorageFormat` 等运行时数据结构 |
-| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`，绑定 Eager 和 AnnotatedArgs context、参数 builder 及 `RuntimeAttrs` |
+| Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`，绑定 Eager、AnnotatedArgs、InferShape context、参数 builder 及 `RuntimeAttrs` |
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | 统一加载 C++ custom op 和 Python custom op |
 | Bridge loader | `runtime/custom_op/python_custom_op_bridge_loader.cc` | 选择 artifact、加载 `libge_python_custom_op_bridge.so`、注册 creator |
 | Pybind bridge | `runtime/custom_op/python_custom_op_pybind_bridge.cc` | 导入 Python bridge 模块、创建 holder、回调 `execute` / `declare_launch_args` |
@@ -81,7 +81,7 @@ V1 功能包括：
 
 - `@register_op_impl(op_type=...)` 注册 Python 自定义算子实现。
 - `@register_op(op_type=..., mutates_args=...)` 根据 Python 函数签名收集自定义算子原型。
-- bridge 将 Python 原型同步注册为 `OperatorFactory` creator，并从生效 creator 收集 canonical IR；当前不调用 `infer_meta`。
+- bridge 将 Python 原型同步注册为 `OperatorFactory` creator，并从生效 creator 收集 canonical IR；编译期和 RT2 通过统一 callback 调用 `infer_meta`。
 - `register_op_impl` 反射实现类上的可调用 `execute`、`declare_launch_args` 方法并声明对应能力，不要求继承 `BaseCustomOp`、`EagerExecuteOp` 或 `AnnotatedArgsOp`。
 - `execute(self, ctx)` 兼容形式直接接收 `EagerOpExecutionContext`；schema-bound 形式接收按 canonical IR 组装的输入和属性。
 - `EagerOpExecutionContext` 支持输入输出 tensor 查询、动态输入实例数、运行时属性读取、输出/工作区分配和 stream 获取。
@@ -108,7 +108,7 @@ V1 功能包括：
 
 - GE / ATC / Executor 入口在 `LoadCustomOps()` 前调用 `GePythonRuntimeManager::EnsureReady()`，解释器初始化失败按现有入口策略告警继续。
 - `ASCEND_CUSTOM_OPP_PATH` 中的 Python 入口是 `.py` 文件，或目录下一层非 `_` 开头 `.py` 文件，或带 `__init__.py` 的包目录。
-- V1 阶段算子原型、shape/dtype 推导等仍由用户按现有 C++ / OPP 方式提供。
+- 对未使用 Python `register_op` 的算子，V1 兼容路径中的算子原型和 shape/dtype 推导仍由用户按现有 C++ / OPP 方式提供；Python `register_op` 算子使用本 V2 的 `infer_meta` 路径。
 - Python custom op 样例依赖 ACL Python runtime 和与 run 包匹配的 Python 环境。
 - `declare_launch_args` 仅在编译期依赖 Python 注册环境。新 OM 通过 `_custom_task_args_mode` 保存最终选择的刷新方式，并通过 `args_format` 保存 launch 布局；静态模型加载时以显式模式为准，不需要再次加载 Python 实现。没有该属性的旧 OM 保留 registry 查询和 `args_format` 兼容兜底。
 
@@ -251,7 +251,7 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 
 **介绍**
 
-`_ge_custom_op_native` 绑定 `EagerOpExecutionContext`、`AnnotatedArgsContext`、`AnnotatedKernelArgs`、`AnnotatedKernelLaunchInfo` 和 `RuntimeAttrs`。context 方法返回的 `Tensor`、`StorageShape`、`StorageFormat` 等类型由 `ge.runtime` 提供。
+`_ge_custom_op_native` 绑定 `EagerOpExecutionContext`、`AnnotatedArgsContext`、`InferShapeContext`、`AnnotatedKernelArgs`、`AnnotatedKernelLaunchInfo` 和 `RuntimeAttrs`。context 方法返回的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat` 等类型由 `ge.runtime` 提供。
 
 **输入**
 
@@ -276,6 +276,8 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 | `get_output_tensor(index)` | 获取 index 指定的输出 `Tensor` |
 | `get_stream()` | 获取所属执行流地址整数 |
 
+`InferShapeContext` 供 `register_op` 装饰函数执行 `infer_meta` 时使用：读取 required、optional、dynamic 输入的 shape 和 data type，读取 typed runtime attrs，并查询 dynamic output 实例数。该 context 只在当前 `infer_meta` 回调内有效；输出 shape 和 data type 由 `infer_meta` 返回的 `TensorDesc` 统一承载。
+
 `AnnotatedArgsContext` 暴露 workspace 申请、stream id 查询、kernel 参数 builder 创建和 launch 添加能力；输入输出 tensor 与属性查询由内部 schema-bound 组装逻辑使用。`AnnotatedKernelArgs` 暴露 `append_input`、`append_output`、`append_workspace` 和 `append_scalar`。
 
 `RuntimeAttrs` 按属性 IR index 提供以下 typed reader：
@@ -289,6 +291,7 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 **输出**
 
 - tensor 相关方法返回 `ge.runtime.Tensor`。
+- `infer_meta` 的输入和返回值使用 `ge.runtime.TensorDesc`；`TensorDesc.shape` 使用 `StorageShape`，`TensorDesc.data_type` 使用 `ge.graph.DataType`。
 - shape/format 入参使用 `ge.runtime.StorageShape`、`ge.runtime.StorageFormat`。
 - dtype 使用 `ge.graph.DataType`。
 - stream、workspace 地址以 Python `int` 表示。
@@ -405,6 +408,7 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 | `EagerExecuteOp` | 兼容已有实现的 Eager 执行基类，新实现可使用普通 class |
 | `execute` | 用户实现的执行入口，支持 legacy 和 schema-bound 两种形式 |
 | `EagerOpExecutionContext` | 执行上下文 borrowed view |
+| `InferShapeContext` | `infer_meta` 回调的输入元信息读取上下文 |
 | `RuntimeAttrs` | `EagerOpExecutionContext.get_attrs()` 返回的属性 borrowed view |
 | `get_execute_ctx` | 获取当前 schema-bound 回调的执行上下文 |
 | `register_op` | 声明并收集 Python 自定义算子原型 |
@@ -635,7 +639,9 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 | 功能 | descriptor 加载阶段的 schema-bound `declare_launch_args` 签名校验，以及 runtime 输入输出/属性组装、返回值校验、实例平铺 index 及 builder 消费语义 | Python pytest fake/native context | UT |
 | 功能 | `get_execute_ctx()` / `get_declare_launch_args_ctx()` 回调内访问、异常清理和嵌套调用恢复 | Python pytest | UT |
 | 功能 | bridge descriptor 获取、holder 创建/销毁、不可调用方法拦截和 context 失效 | Python pytest | UT |
-| 功能 | canonical IR 查询缓存、bridge ABI v1 和 adapter execute/declare 转发 | C++ gtest | UT |
+| 功能 | canonical IR 查询缓存、bridge ABI v1 和 adapter execute/declare/infer-meta 转发 | C++ gtest | UT |
+| 功能 | 编译期第 N 个输出失败、返回数量不匹配时原始输出元信息不变，以及 dynamic/required 多输出完整提交 | Graph Metadef gtest | UT |
+| 功能 | Python infer-meta 使用真实 RT2 InferShape kernel，并通过 native RuntimeAttrs 读取 12 类属性 | C++/Python 联合回调 | ST |
 | 功能 | capability bitmask 和 `CustomOpCast<T>()` 行为 | C++ gtest | UT |
 | 功能 | loader 在无 Python 入口时跳过，有入口时加载 bridge | C++ gtest / stub | UT |
 | 兼容性 | C++ custom op 裸能力继承仍可正常 cast | C++ gtest | UT |

@@ -58,6 +58,7 @@ IsInferFormatV2RegisteredFunc OperatorFactoryImpl::is_infer_format_v2_registered
 IsInferShapeV2RegisteredFunc OperatorFactoryImpl::is_infer_shape_v2_registered_func_ = nullptr;
 CustomOpInferShapeFunc OperatorFactoryImpl::custom_op_infer_shape_func_ = nullptr;
 CustomOpInferDataTypeFunc OperatorFactoryImpl::custom_op_infer_datatype_func_ = nullptr;
+CustomOpInferMetaFunc OperatorFactoryImpl::custom_op_infer_meta_func_ = nullptr;
 
 Operator OperatorFactoryImpl::CreateOperator(const std::string &operator_name, const std::string &operator_type) {
   if (operator_creators_v2_ != nullptr) {
@@ -456,6 +457,17 @@ void OperatorFactoryImpl::RegisterCustomOpInferDataTypeFunc(
 
 CustomOpInferDataTypeFunc OperatorFactoryImpl::GetCustomOpInferDataTypeFunc() {
   return custom_op_infer_datatype_func_;
+}
+
+void OperatorFactoryImpl::RegisterCustomOpInferMetaFunc(CustomOpInferMetaFunc const custom_op_infer_meta_func) {
+  if (custom_op_infer_meta_func_ == nullptr) {
+    GELOGI("operator custom op infer meta func init");
+    custom_op_infer_meta_func_ = custom_op_infer_meta_func;
+  }
+}
+
+CustomOpInferMetaFunc OperatorFactoryImpl::GetCustomOpInferMetaFunc() {
+  return custom_op_infer_meta_func_;
 }
 
 void OperatorFactoryImpl::ReleaseRegInfo() {

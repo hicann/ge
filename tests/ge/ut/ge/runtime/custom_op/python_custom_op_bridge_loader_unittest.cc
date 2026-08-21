@@ -345,19 +345,20 @@ TEST_F(PythonCustomOpBridgeLoaderTest, keeps_partial_proto_registration_until_un
 
   EXPECT_EQ(LoadPythonCustomOps(), FAILED);
   EXPECT_TRUE(OperatorFactory::IsExistOp(kMultiProtoOp));
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(AscendString(kMultiProtoOp)));
   UnloadPythonCustomOps();
   EXPECT_FALSE(OperatorFactory::IsExistOp(kMultiProtoOp));
   EXPECT_EQ(GetRegisterCount(), 1U);
   EXPECT_EQ(GetResetCount(), 1U);
 }
 
-TEST_F(PythonCustomOpBridgeLoaderTest, rolls_back_proto_adapter_and_runtime_entry_after_adapter_failure) {
+TEST_F(PythonCustomOpBridgeLoaderTest, does_not_register_adapter_creator_when_impl_registration_fails) {
   SetScenario(kAdapterFailure);
 
   EXPECT_EQ(LoadPythonCustomOps(), FAILED);
   EXPECT_TRUE(OperatorFactory::IsExistOp(kAdapterOpA));
   EXPECT_TRUE(OperatorFactory::IsExistOp(kAdapterOpB));
-  EXPECT_TRUE(CustomOpFactory::IsExistOp(AscendString(kAdapterOpA)));
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(AscendString(kAdapterOpA)));
   UnloadPythonCustomOps();
   EXPECT_FALSE(OperatorFactory::IsExistOp(kAdapterOpA));
   EXPECT_FALSE(OperatorFactory::IsExistOp(kAdapterOpB));
@@ -403,7 +404,16 @@ TEST_F(PythonCustomOpBridgeLoaderTest, direct_load_registers_each_call_and_unloa
   EXPECT_EQ(GetRegisterCount(), 2U);
   EXPECT_TRUE(OperatorFactory::IsExistOp(kSuccessOp));
   EXPECT_TRUE(CustomOpFactory::IsExistOp(AscendString(kSuccessOp)));
-  EXPECT_NE(CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp)), nullptr);
+  auto *custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp));
+  ASSERT_NE(custom_op, nullptr);
+  EXPECT_NE(CustomOpCast<ShapeInferOp>(custom_op), nullptr);
+  auto *eager_op = CustomOpCast<EagerExecuteOp>(custom_op);
+  ASSERT_NE(eager_op, nullptr);
+  EXPECT_EQ(eager_op->Execute(nullptr), GRAPH_SUCCESS);
+  PythonCustomOpAdapterCallbacks loaded_callbacks;
+  const auto loaded_desc = MakeAdapterDescriptor(kSuccessOp, kSuccessImplKey);
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Acquire(loaded_desc, loaded_callbacks));
+  PythonCustomOpImplRuntimeRegistry::Release(loaded_desc);
 
   UnloadPythonCustomOps();
   EXPECT_FALSE(OperatorFactory::IsExistOp(kSuccessOp));

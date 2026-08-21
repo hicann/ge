@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from ._ir_types import InputType, OutputType
+from ._infer_meta import call_infer_meta  # noqa: F401
 from ._signature import _get_runtime_attr_spec, _validate_args_signature
 from .base import EagerOpExecutionContext
 from .bootstrap import (

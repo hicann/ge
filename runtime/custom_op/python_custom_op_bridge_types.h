@@ -16,10 +16,13 @@
 
 #include "graph/custom_op/capability.h"
 #include "graph/error_codes.h"
+#include "graph/types.h"
 
 namespace gert {
 class AnnotatedArgsContext;
 class EagerOpExecutionContext;
+class InferShapeContext;
+class StorageShape;
 }  // namespace gert
 
 namespace ge {
@@ -93,6 +96,19 @@ struct PythonCustomOpProtoOutputView {
   uint32_t kind;
 };
 
+struct PythonCustomOpInferMetaOutputView {
+  gert::StorageShape *shape;
+  ge::DataType data_type;
+};
+
+struct PythonCustomOpInferMetaResultView {
+  PythonCustomOpInferMetaOutputView *outputs;
+  size_t output_count;
+};
+
+using PythonCustomOpInferMetaFn = graphStatus (*)(const PythonCustomOpStringView *op_type, gert::InferShapeContext *ctx,
+                                                  PythonCustomOpInferMetaResultView *result);
+
 struct PythonCustomOpProtoDescriptorView {
   PythonCustomOpStringView descriptor_key;
   PythonCustomOpStringView op_type;
@@ -102,6 +118,7 @@ struct PythonCustomOpProtoDescriptorView {
   size_t attr_count;
   const PythonCustomOpProtoOutputView *outputs;
   size_t output_count;
+  PythonCustomOpInferMetaFn infer_meta;
 };
 
 struct PythonCustomOpAdapterDescriptorView {
@@ -114,12 +131,12 @@ using PythonCustomOpImplHolderCreateFn = void *(*)(const PythonCustomOpAdapterDe
 using PythonCustomOpImplHolderDestroyFn = void (*)(void *holder);
 using PythonCustomOpImplExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx);
 using PythonCustomOpImplDeclareLaunchArgsFn = graphStatus (*)(const void *holder, gert::AnnotatedArgsContext *ctx);
-
 struct PythonCustomOpAdapterCallbacks {
   PythonCustomOpImplHolderCreateFn create_impl_holder{nullptr};
   PythonCustomOpImplHolderDestroyFn destroy_impl_holder{nullptr};
   PythonCustomOpImplExecuteFn execute{nullptr};
   PythonCustomOpImplDeclareLaunchArgsFn declare_launch_args{nullptr};
+  PythonCustomOpInferMetaFn infer_meta{nullptr};
 
   bool IsValid(CustomOpCapabilityMask capabilities) const {
     const auto supported_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute) |

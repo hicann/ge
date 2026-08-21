@@ -34,6 +34,8 @@
 #include "graph/utils/tensor_adapter.h"
 #include "faker/space_registry_faker.h"
 #include "graph/custom_op_factory.h"
+#include "graph/custom_op/infer_meta.h"
+#include "graph/utils/transformer_utils.h"
 
 namespace ge {
 REG_OP(Const)
@@ -70,6 +72,83 @@ class CustomShapeInferAddImpl : public ShapeInferOp {
 static const CustomOpCreatorRegister g_custom_shape_infer_add_register(
     "CustomShapeInferAdd",
     []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<CustomShapeInferAddImpl>(); });
+
+enum class InferMetaAtomicMode { kSuccess, kFailOnSecondOutput, kResultCountMismatch };
+InferMetaAtomicMode g_infer_meta_atomic_mode = InferMetaAtomicMode::kSuccess;
+
+class CustomInferMetaAtomicImpl : public CustomOpInferMetaProvider {
+ public:
+  graphStatus InferMeta(gert::InferShapeContext *ctx, CustomOpInferMetaResult *result) override {
+    for (size_t i = 0U; i < ctx->GetComputeNodeOutputNum(); ++i) {
+      CustomOpInferMetaOutput output;
+      output.shape = gert::StorageShape{{static_cast<int64_t>(i + 2U), static_cast<int64_t>(i + 10U)},
+                                        {static_cast<int64_t>(i + 2U), static_cast<int64_t>(i + 10U)}};
+      output.data_type = (i == 0U) ? DT_FLOAT : ((i == 1U) ? DT_INT32 : DT_BOOL);
+      result->outputs.emplace_back(std::move(output));
+      if ((g_infer_meta_atomic_mode == InferMetaAtomicMode::kFailOnSecondOutput) && (i == 1U)) {
+        return GRAPH_FAILED;
+      }
+    }
+    if (g_infer_meta_atomic_mode == InferMetaAtomicMode::kResultCountMismatch) {
+      result->outputs.pop_back();
+    }
+    return GRAPH_SUCCESS;
+  }
+};
+
+static const CustomOpCreatorRegister g_custom_infer_meta_atomic_register(
+    "CustomInferMetaAtomic",
+    []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<CustomInferMetaAtomicImpl>(); });
+
+REG_OP(CustomInferMetaAtomic)
+    .INPUT(x, TensorType::ALL())
+    .DYNAMIC_OUTPUT(ys, TensorType::ALL())
+    .OUTPUT(z, TensorType::ALL())
+    .OP_END_FACTORY_REG(CustomInferMetaAtomic);
+
+std::pair<Operator, OpDescPtr> CreateCustomInferMetaAtomicOp(const std::string &name) {
+  auto op = op::CustomInferMetaAtomic(name);
+  op.create_dynamic_output_ys(2U);
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  if (op_desc == nullptr) {
+    return {op, nullptr};
+  }
+  GeTensorDesc input_desc(GeShape({4, 5}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({4, 5}));
+  input_desc.SetOriginDataType(DT_FLOAT16);
+  (void)op_desc->UpdateInputDesc(0U, input_desc);
+  for (size_t i = 0U; i < op_desc->GetOutputsSize(); ++i) {
+    GeTensorDesc output_desc(GeShape({static_cast<int64_t>(100U + i)}), FORMAT_ND, DT_FLOAT16);
+    output_desc.SetOriginShape(GeShape({static_cast<int64_t>(200U + i)}));
+    output_desc.SetOriginDataType(DT_FLOAT16);
+    (void)op_desc->UpdateOutputDesc(static_cast<uint32_t>(i), output_desc);
+  }
+  return {op, op_desc};
+}
+
+void ExpectOutputMetaUnchanged(const OpDescPtr &op_desc, const std::vector<GeTensorDesc> &before) {
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_EQ(op_desc->GetOutputsSize(), before.size());
+  for (size_t i = 0U; i < before.size(); ++i) {
+    const auto &actual = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
+    EXPECT_EQ(actual.GetShape(), before[i].GetShape());
+    EXPECT_EQ(actual.GetOriginShape(), before[i].GetOriginShape());
+    EXPECT_EQ(actual.GetDataType(), before[i].GetDataType());
+    EXPECT_EQ(actual.GetOriginDataType(), before[i].GetOriginDataType());
+  }
+}
+
+std::vector<GeTensorDesc> GetOutputMeta(const OpDescPtr &op_desc) {
+  std::vector<GeTensorDesc> outputs;
+  if (op_desc == nullptr) {
+    return outputs;
+  }
+  outputs.reserve(op_desc->GetOutputsSize());
+  for (size_t i = 0U; i < op_desc->GetOutputsSize(); ++i) {
+    outputs.emplace_back(op_desc->GetOutputDesc(static_cast<uint32_t>(i)));
+  }
+  return outputs;
+}
 
 class ShapeInferenceUT : public testing::Test {};
 // infer from output
@@ -1488,6 +1567,93 @@ REG_OP(TwoOptionalInputsOp)
     ASSERT_EQ(status, GRAPH_SUCCESS);
     EXPECT_EQ(op_desc->GetOutputDesc(0U).GetDataType(), DT_INT64);
     EXPECT_EQ(op_desc->GetOutputDesc(0U).GetOriginDataType(), DT_INT64);
+  }
+
+  TEST_F(ShapeInferenceUT, CustomOpInferMetaFailureOnSecondOutputKeepsAllOutputMeta) {
+    auto op_and_desc = CreateCustomInferMetaAtomicOp("infer_meta_second_output_failure");
+    auto &op = op_and_desc.first;
+    const auto &op_desc = op_and_desc.second;
+    ASSERT_NE(op_desc, nullptr);
+    const auto before = GetOutputMeta(op_desc);
+
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+    const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+    ASSERT_NE(space_registry, nullptr);
+    (void)space_registry->CreateOrGetOpImpl("CustomInferMetaAtomic");
+
+    g_infer_meta_atomic_mode = InferMetaAtomicMode::kFailOnSecondOutput;
+    EXPECT_EQ(OpDescUtilsEx::CallInferFunc(op_desc, op), GRAPH_FAILED);
+    ExpectOutputMetaUnchanged(op_desc, before);
+    g_infer_meta_atomic_mode = InferMetaAtomicMode::kSuccess;
+  }
+
+  TEST_F(ShapeInferenceUT, CustomOpInferMetaResultCountMismatchKeepsAllOutputMeta) {
+    auto op_and_desc = CreateCustomInferMetaAtomicOp("infer_meta_result_count_mismatch");
+    auto &op = op_and_desc.first;
+    const auto &op_desc = op_and_desc.second;
+    ASSERT_NE(op_desc, nullptr);
+    const auto before = GetOutputMeta(op_desc);
+
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+    const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+    ASSERT_NE(space_registry, nullptr);
+    (void)space_registry->CreateOrGetOpImpl("CustomInferMetaAtomic");
+
+    g_infer_meta_atomic_mode = InferMetaAtomicMode::kResultCountMismatch;
+    EXPECT_EQ(OpDescUtilsEx::CallInferFunc(op_desc, op), GRAPH_FAILED);
+    ExpectOutputMetaUnchanged(op_desc, before);
+    g_infer_meta_atomic_mode = InferMetaAtomicMode::kSuccess;
+  }
+
+  TEST_F(ShapeInferenceUT, CustomOpInferMetaCommitsDynamicAndRequiredOutputsTogether) {
+    auto op_and_desc = CreateCustomInferMetaAtomicOp("infer_meta_complete_commit");
+    auto &op = op_and_desc.first;
+    const auto &op_desc = op_and_desc.second;
+    ASSERT_NE(op_desc, nullptr);
+
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+    const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+    ASSERT_NE(space_registry, nullptr);
+    (void)space_registry->CreateOrGetOpImpl("CustomInferMetaAtomic");
+
+    g_infer_meta_atomic_mode = InferMetaAtomicMode::kSuccess;
+    ASSERT_EQ(OpDescUtilsEx::CallInferFunc(op_desc, op), GRAPH_SUCCESS);
+    const std::vector<DataType> expected_dtypes = {DT_FLOAT, DT_INT32, DT_BOOL};
+    ASSERT_EQ(op_desc->GetOutputsSize(), expected_dtypes.size());
+    for (size_t i = 0U; i < expected_dtypes.size(); ++i) {
+      const auto &output_desc = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
+      EXPECT_EQ(output_desc.GetShape().GetDims(),
+                std::vector<int64_t>({static_cast<int64_t>(i + 2U), static_cast<int64_t>(i + 10U)}));
+      EXPECT_EQ(output_desc.GetOriginShape(), output_desc.GetShape());
+      EXPECT_EQ(output_desc.GetDataType(), expected_dtypes[i]);
+      EXPECT_EQ(output_desc.GetOriginDataType(), expected_dtypes[i]);
+    }
+  }
+
+  TEST_F(ShapeInferenceUT, CustomOpInferMetaStagedDescKeepsOriginalWhenFormatUpdateFails) {
+    auto op_and_desc = CreateCustomInferMetaAtomicOp("infer_meta_format_failure");
+    const auto &op_desc = op_and_desc.second;
+    ASSERT_NE(op_desc, nullptr);
+    GeTensorDesc transformed_desc(GeShape({3, 224, 224}), FORMAT_NCHW, DT_FLOAT16);
+    transformed_desc.SetOriginShape(GeShape({3, 224, 224}));
+    transformed_desc.SetOriginFormat(FORMAT_ND);
+    transformed_desc.SetOriginDataType(DT_FLOAT16);
+    ASSERT_EQ(op_desc->UpdateOutputDesc(0U, transformed_desc), GRAPH_SUCCESS);
+    const auto original_output = op_desc->GetOutputDesc(0U);
+
+    const auto staged_op_desc = std::make_shared<OpDesc>(*op_desc);
+    ASSERT_NE(staged_op_desc, nullptr);
+    NodeShapeTransUtils transformer(staged_op_desc);
+    ASSERT_TRUE(transformer.Init());
+    ASSERT_TRUE(transformer.CatchFormatAndShape());
+    staged_op_desc->MutableOutputDesc(0U)->SetFormat(FORMAT_HWCN);
+    EXPECT_FALSE(transformer.UpdateFormatAndShape());
+
+    const auto &actual = op_desc->GetOutputDesc(0U);
+    EXPECT_EQ(actual.GetShape(), original_output.GetShape());
+    EXPECT_EQ(actual.GetOriginShape(), original_output.GetOriginShape());
+    EXPECT_EQ(actual.GetDataType(), original_output.GetDataType());
+    EXPECT_EQ(actual.GetOriginDataType(), original_output.GetOriginDataType());
   }
 
   TEST_F(ShapeInferenceUT, CallInferFunc_CustomOp_Without_InferShape_Success) {

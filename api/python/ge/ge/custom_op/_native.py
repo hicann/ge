@@ -19,6 +19,7 @@ __all__ = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "InferMetaContext",
     "WorkspaceAddr",
 ]
 
@@ -43,3 +44,4 @@ AnnotatedArgsContext = _native.AnnotatedArgsContext
 AnnotatedKernelArgs = _native.AnnotatedKernelArgs
 AnnotatedKernelLaunchInfo = _native.AnnotatedKernelLaunchInfo
 WorkspaceAddr = _native.WorkspaceAddr
+InferMetaContext = _native.InferMetaContext

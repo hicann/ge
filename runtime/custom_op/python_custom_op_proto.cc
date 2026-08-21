@@ -365,38 +365,30 @@ ge::Operator CreateOperatorFromProto(const AscendString &name, const PythonCusto
 
 }  // namespace
 
-graphStatus ParsePythonCustomOpProto(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto) {
-  if ((!IsValidArray(view.inputs, view.input_count)) || (!IsValidArray(view.attrs, view.attr_count)) ||
-      (!IsValidArray(view.outputs, view.output_count))) {
-    return GRAPH_PARAM_INVALID;
-  }
-  PythonCustomOpProto parsed;
-  if ((!CopyString(view.descriptor_key, false, parsed.descriptor_key)) ||
-      (!CopyString(view.op_type, false, parsed.op_type))) {
-    return GRAPH_PARAM_INVALID;
-  }
-
-  std::set<std::string> input_names;
-  parsed.inputs.reserve(view.input_count);
+namespace {
+graphStatus ParseProtoInputs(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto) {
+  std::set<std::string> names;
+  proto.inputs.reserve(view.input_count);
   for (size_t i = 0U; i < view.input_count; ++i) {
     PythonCustomOpInput input;
-    if ((!CopyString(view.inputs[i].name, false, input.name)) || (!input_names.insert(input.name).second) ||
+    if ((!CopyString(view.inputs[i].name, false, input.name)) || (!names.insert(input.name).second) ||
         (ConvertInputKind(view.inputs[i].kind, input.kind) != GRAPH_SUCCESS)) {
       return GRAPH_PARAM_INVALID;
     }
-    parsed.inputs.emplace_back(std::move(input));
+    proto.inputs.emplace_back(std::move(input));
   }
+  return GRAPH_SUCCESS;
+}
 
-  std::set<std::string> attr_names;
-  parsed.attrs.reserve(view.attr_count);
+graphStatus ParseProtoAttrs(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto) {
+  std::set<std::string> names;
+  proto.attrs.reserve(view.attr_count);
   for (size_t i = 0U; i < view.attr_count; ++i) {
     const auto &source = view.attrs[i];
     PythonCustomOpAttr attr;
-    if ((!CopyString(source.name, false, attr.name)) || (!attr_names.insert(attr.name).second) ||
-        (source.is_required > 1U) || (source.default_value.has_value > 1U)) {
-      return GRAPH_PARAM_INVALID;
-    }
-    if (GetRequiredAttrToken(source.kind) == nullptr) {
+    if ((!CopyString(source.name, false, attr.name)) || (!names.insert(attr.name).second) ||
+        (source.is_required > 1U) || (source.default_value.has_value > 1U) ||
+        (GetRequiredAttrToken(source.kind) == nullptr)) {
       return GRAPH_PARAM_INVALID;
     }
     attr.kind = source.kind;
@@ -407,18 +399,40 @@ graphStatus ParsePythonCustomOpProto(const PythonCustomOpProtoDescriptorView &vi
     if ((!attr.is_required) && (ParseOptionalAttrDefinition(source, attr) != GRAPH_SUCCESS)) {
       return GRAPH_PARAM_INVALID;
     }
-    parsed.attrs.emplace_back(std::move(attr));
+    proto.attrs.emplace_back(std::move(attr));
   }
+  return GRAPH_SUCCESS;
+}
 
-  std::set<std::string> output_names;
-  parsed.outputs.reserve(view.output_count);
+graphStatus ParseProtoOutputs(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto) {
+  std::set<std::string> names;
+  proto.outputs.reserve(view.output_count);
   for (size_t i = 0U; i < view.output_count; ++i) {
     PythonCustomOpOutput output;
-    if ((!CopyString(view.outputs[i].name, false, output.name)) || (!output_names.insert(output.name).second) ||
+    if ((!CopyString(view.outputs[i].name, false, output.name)) || (!names.insert(output.name).second) ||
         (ConvertOutputKind(view.outputs[i].kind, output.kind) != GRAPH_SUCCESS)) {
       return GRAPH_PARAM_INVALID;
     }
-    parsed.outputs.emplace_back(std::move(output));
+    proto.outputs.emplace_back(std::move(output));
+  }
+  return GRAPH_SUCCESS;
+}
+}  // namespace
+
+graphStatus ParsePythonCustomOpProto(const PythonCustomOpProtoDescriptorView &view, PythonCustomOpProto &proto) {
+  if ((!IsValidArray(view.inputs, view.input_count)) || (!IsValidArray(view.attrs, view.attr_count)) ||
+      (!IsValidArray(view.outputs, view.output_count))) {
+    return GRAPH_PARAM_INVALID;
+  }
+  PythonCustomOpProto parsed;
+  if ((!CopyString(view.descriptor_key, false, parsed.descriptor_key)) ||
+      (!CopyString(view.op_type, false, parsed.op_type))) {
+    return GRAPH_PARAM_INVALID;
+  }
+  parsed.infer_meta = view.infer_meta;
+  if ((ParseProtoInputs(view, parsed) != GRAPH_SUCCESS) || (ParseProtoAttrs(view, parsed) != GRAPH_SUCCESS) ||
+      (ParseProtoOutputs(view, parsed) != GRAPH_SUCCESS)) {
+    return GRAPH_PARAM_INVALID;
   }
   proto = std::move(parsed);
   return GRAPH_SUCCESS;

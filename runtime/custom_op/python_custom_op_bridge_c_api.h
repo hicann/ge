@@ -21,8 +21,8 @@ struct PythonCustomOpAdapterCallbacks;
 
 struct PythonCustomOpRegistrar {
   bool (*register_op_proto)(const PythonCustomOpProtoDescriptorView *desc);
-  bool (*register_op_adapter)(const PythonCustomOpAdapterDescriptorView *desc,
-                              const PythonCustomOpAdapterCallbacks *callbacks);
+  bool (*register_op_impl)(const PythonCustomOpAdapterDescriptorView *desc,
+                           const PythonCustomOpAdapterCallbacks *callbacks);
 };
 
 struct PythonCustomOpBridgeArtifactConfig {
