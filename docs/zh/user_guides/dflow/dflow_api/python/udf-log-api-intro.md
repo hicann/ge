@@ -16,7 +16,7 @@ import dataflow.flow_func as ff
 ff.logger.info("This is a test info log :%s %d %f.", "test_str", 100, 0.1)
 ```
 
-日志级别修改请参考《环境变量参考》中ASCEND\_GLOBAL\_LOG\_LEVEL及ASCEND\_MODULE\_LOG\_LEVEL的使用，用户UDF日志对应的模块为APP，可以根据模块单独控制APP日志级别。
+日志级别修改请参考[《环境变量参考》](https://gitcode.com/cann/docs/blob/9.2.0-beta.2/docs/zh/env-vars/README.md)中ASCEND\_GLOBAL\_LOG\_LEVEL及ASCEND\_MODULE\_LOG\_LEVEL的使用，用户UDF日志对应的模块为APP，可以根据模块单独控制APP日志级别。
 
 例如：用户想开启自定义UDF的Info级别日志，可以使用下面命令单独打开APP模块的info级别日志
 

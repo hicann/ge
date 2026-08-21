@@ -8,6 +8,8 @@ DataFlow错误码含义如下。
 | SHAPE_INVALID=145021U | 输入tensor的shape异常 | 请结合日志修改输入的shape。 |
 | DATATYPE_INVALID=145022U | 输入tensor的datatype异常 | 请结合日志修改输入的datatype。 |
 | NOT_INIT=145001U | dataflow未初始化 | 请参照资料和样例代码在使用dataflow接口前先调用[init](dataflow-init.md)接口。 |
-| INNER_ERROR=545000U | Python层内部错误 | 请根据日志排查问题，或联系工程师处理（您可以获取日志后单击[Support](https://www.hiascend.com/support)联系技术支持。）。<br>日志的详细介绍，请参见《日志参考》。 |
-| FAILED=0xFFFFFFFF | C++层内部错误 | 请根据日志排查问题，或联系工程师处理（您可以获取日志后单击[Support](https://www.hiascend.com/support)联系技术支持。）。<br>日志的详细介绍，请参见《日志参考》。 |
+| INNER_ERROR=545000U | Python层内部错误 | 请根据日志排查问题，或联系工程师处理（您可以获取日志后单击[Support](https://www.hiascend.com/support)联系技术支持。）。|
+| FAILED=0xFFFFFFFF | C++层内部错误 | 请根据日志排查问题，或联系工程师处理（您可以获取日志后单击[Support](https://www.hiascend.com/support)联系技术支持。）。|
 | SUCCESS=0 | 执行成功 | - |
+
+错误码中涉及到的日志详细信息，请参考[《日志参考》](https://gitcode.com/cann/runtime/blob/9.2.0-beta.2/docs/zh/log_ref/README.md)。
