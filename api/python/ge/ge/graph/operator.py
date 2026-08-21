@@ -12,11 +12,23 @@
 
 """GE operator object for reading and updating definition information."""
 
+from __future__ import annotations
+
+import ctypes
+
+from ge._capi.pygraph_wrapper import graph_lib
+
+from ._attr import _AttrValue
+
 _OPERATOR_FACTORY_TOKEN = object()
 
 
 class Operator:
-    """GE operator borrowed for the duration of a callback."""
+    """GE operator borrowed for the duration of a callback.
+
+    The ctypes handle is borrowed from the C++ callback owner and is never
+    created or destroyed by this wrapper.
+    """
 
     __slots__ = ("_handle", "_valid")
 
@@ -25,6 +37,11 @@ class Operator:
             raise RuntimeError("Operator objects should not be created directly.")
         if handle is None:
             raise ValueError("Operator handle cannot be None")
+
+        if isinstance(handle, int):
+            handle = ctypes.c_void_p(handle)
+        if not isinstance(handle, ctypes.c_void_p) or not handle:
+            raise ValueError("Operator handle cannot be null")
         self._handle = handle
         self._valid = True
 
@@ -41,7 +58,7 @@ class Operator:
         if not self._valid:
             return
         self._valid = False
-        self._handle.invalidate()
+        self._handle = ctypes.c_void_p()
 
     @staticmethod
     def _validate_name(name: str, kind: str) -> None:
@@ -51,28 +68,65 @@ class Operator:
     @property
     def name(self) -> str:
         self._ensure_valid()
-        return self._handle.get_name()
+        return self._get_string(graph_lib.GeApiWrapper_Operator_GetName)
 
     @property
     def type(self) -> str:
         self._ensure_valid()
-        return self._handle.get_type()
+        return self._get_string(graph_lib.GeApiWrapper_Operator_GetType)
 
     def set_attr(self, name: str, value: object) -> None:
         self._ensure_valid()
         self._validate_name(name, "attribute")
-        if type(value) is int:
-            if value < -(1 << 63) or value >= 1 << 63:
-                raise ValueError("Operator int attribute must be in int64 range")
-        elif type(value) is not float:
-            raise TypeError("Operator set_attr only supports int and float values")
-        self._handle.set_attr(name, value)
+
+        attr_value = _AttrValue()
+        attr_value.set_value(value)
+        ret = graph_lib.GeApiWrapper_Operator_SetAttr(
+            self._handle, name.encode("utf-8"), attr_value._av_ptr
+        )
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to set attribute '{name}' on Operator {self.name}"
+            )
+
+    def register_input(self, name: str) -> None:
+        self._register_port(
+            name,
+            "input",
+            "register_input",
+            graph_lib.GeApiWrapper_Operator_InputRegister,
+        )
+
+    def register_optional_input(self, name: str) -> None:
+        self._register_port(
+            name,
+            "optional input",
+            "register_optional_input",
+            graph_lib.GeApiWrapper_Operator_OptionalInputRegister,
+        )
+
+    def register_output(self, name: str) -> None:
+        self._register_port(
+            name,
+            "output",
+            "register_output",
+            graph_lib.GeApiWrapper_Operator_OutputRegister,
+        )
 
     def register_dynamic_input(self, name: str, count: int) -> None:
         self._register_dynamic_port(name, count, is_input=True)
 
     def register_dynamic_output(self, name: str, count: int) -> None:
         self._register_dynamic_port(name, count, is_input=False)
+
+    def _register_port(self, name: str, kind: str, method_name: str, c_func) -> None:
+        self._ensure_valid()
+        self._validate_name(name, kind)
+        ret = c_func(self._handle, name.encode("utf-8"))
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to {method_name} '{name}' on Operator {self.name}"
+            )
 
     def _register_dynamic_port(self, name: str, count: int, *, is_input: bool) -> None:
         self._ensure_valid()
@@ -81,10 +135,26 @@ class Operator:
             raise TypeError("Operator dynamic port count must be an integer")
         if count < 0 or count >= 1 << 32:
             raise ValueError("Operator dynamic port count must be in uint32 range")
-        if is_input:
-            self._handle.register_dynamic_input(name, count)
-        else:
-            self._handle.register_dynamic_output(name, count)
+        c_func = (
+            graph_lib.GeApiWrapper_Operator_DynamicInputRegister
+            if is_input
+            else graph_lib.GeApiWrapper_Operator_DynamicOutputRegister
+        )
+        ret = c_func(self._handle, name.encode("utf-8"), ctypes.c_uint32(count))
+        if ret != 0:
+            direction = "input" if is_input else "output"
+            raise RuntimeError(
+                f"Failed to register dynamic {direction} '{name}' on Operator {self.name}"
+            )
+
+    def _get_string(self, c_func) -> str:
+        c_str = c_func(self._handle)
+        if not c_str:
+            raise RuntimeError("Failed to get Operator name or type")
+        try:
+            return ctypes.string_at(c_str).decode("utf-8")
+        finally:
+            graph_lib.GeApiWrapper_FreeString(c_str)
 
     def _ensure_valid(self) -> None:
         if not self._valid:

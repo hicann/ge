@@ -12,9 +12,9 @@
 
 #include "graph/build/stream/dag_stream_allocator_pass.h"
 #include "graph/build/stream/dag_adapter.h"
+#include "graph/build/stream/stream_utils.h"
 #include "graph/build/dag/dag_stream_allocator.h"
 #include "register/register_custom_pass.h"
-#include "graph/ge_context.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/node_adapter.h"
@@ -23,8 +23,6 @@
 
 namespace ge {
 namespace {
-constexpr int32_t kMaxStreamLimit = 64;
-
 const char_t *GetStrategyName(const minidag::StreamMergeStrategy strategy) {
   switch (strategy) {
     case minidag::StreamMergeStrategy::kLoadBalance:
@@ -38,62 +36,16 @@ const char_t *GetStrategyName(const minidag::StreamMergeStrategy strategy) {
   }
 }
 
-bool ParseStreamConfig(const std::string &multi_stream_mode, int64_t &out_max_stream_id,
-                       minidag::StreamMergeStrategy &out_strategy) {
-  auto readable = GetContext().GetReadableName("ge.autoMultistreamParallelMode");
-
-  auto colon_pos = multi_stream_mode.find(':');
-  if (colon_pos == std::string::npos) {
-    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
-                                    std::vector<const char_t *>({multi_stream_mode.c_str(), readable.c_str(),
-                                                                 "Format error: missing colon separator."}));
-    GELOGE(FAILED, "%s format error: missing colon separator, value=%s.", readable.c_str(), multi_stream_mode.c_str());
-    return false;
+minidag::StreamMergeStrategy ToMiniDagStrategy(const AutoMultistreamMode mode) {
+  switch (mode) {
+    case AutoMultistreamMode::kMainStream:
+      return minidag::StreamMergeStrategy::kMainStream;
+    case AutoMultistreamMode::kWeightedLoadBalance:
+      return minidag::StreamMergeStrategy::kWeightedLoadBalance;
+    case AutoMultistreamMode::kLoadBalance:
+    default:
+      return minidag::StreamMergeStrategy::kLoadBalance;
   }
-
-  std::string algo = multi_stream_mode.substr(0, colon_pos);
-  if (algo.empty()) {
-    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
-                                    std::vector<const char_t *>({multi_stream_mode.c_str(), readable.c_str(),
-                                                                 "Format error: algo name is empty."}));
-    GELOGE(FAILED, "%s format error: algo name is empty.", readable.c_str());
-    return false;
-  }
-
-  if (algo == "MainStream") {
-    out_strategy = minidag::StreamMergeStrategy::kMainStream;
-  } else if (algo == "LoadBalance") {
-    out_strategy = minidag::StreamMergeStrategy::kLoadBalance;
-  } else if (algo == "WeightedLoadBalance") {
-    out_strategy = minidag::StreamMergeStrategy::kWeightedLoadBalance;
-  } else {
-    const auto invalid_strategy = static_cast<minidag::StreamMergeStrategy>(-1);
-    const auto *strategy_name = GetStrategyName(invalid_strategy);
-    const std::string reason = "Unknown merge strategy: algo=" + algo + ", strategy=" + strategy_name +
-                               " (expected LoadBalance or MainStream).";
-    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
-                                    std::vector<const char_t *>({algo.c_str(), readable.c_str(), reason.c_str()}));
-    GELOGE(FAILED, "Unknown merge strategy in %s: algo=%s, strategy=%s (expected LoadBalance or MainStream).",
-           readable.c_str(), algo.c_str(), strategy_name);
-    return false;
-  }
-
-  std::string max_str = multi_stream_mode.substr(colon_pos + 1);
-  int32_t max_val_int32 = 0;
-  std::string range_msg = "Invalid max_stream value, must be in range [1, " + std::to_string(kMaxStreamLimit) + "].";
-  if (ge::ConvertToInt32(max_str, max_val_int32) != SUCCESS || max_val_int32 <= 0 || max_val_int32 > kMaxStreamLimit) {
-    (void)REPORT_PREDEFINED_ERR_MSG(
-        "E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
-        std::vector<const char_t *>({max_str.c_str(), readable.c_str(), range_msg.c_str()}));
-    GELOGE(FAILED, "Invalid max_stream value in %s: %s (must be in range [1, %d]).", readable.c_str(), max_str.c_str(),
-           kMaxStreamLimit);
-    return false;
-  }
-
-  out_max_stream_id = static_cast<int64_t>(max_val_int32) - 1;
-  const auto *strategy_name = GetStrategyName(out_strategy);
-  GELOGI("Parsed config: strategy=%s, max_stream_id=%ld.", strategy_name, out_max_stream_id);
-  return true;
 }
 
 Status RunMiniDAGStreamPassForComputGraph(const ConstGraphPtr &graph, StreamPassContext &context,
@@ -118,7 +70,7 @@ Status RunMiniDAGStreamPassForComputGraph(const ConstGraphPtr &graph, StreamPass
     GELOGI("MiniDAGStreamPass graph %s final strategy=%s, reason=matched profiling node cost (override from %s).",
            dag->GetName().c_str(), final_strategy_name, input_strategy_name);
   } else {
-    GELOGD("MiniDAGStreamPass graph %s final strategy=%s, reason=no matched profiling node cost.",
+    GELOGI("MiniDAGStreamPass graph %s final strategy=%s, reason=no matched profiling node cost.",
            dag->GetName().c_str(), final_strategy_name);
   }
   minidag::DagStreamAllocator::ByPathCover(*dag, config);
@@ -141,16 +93,32 @@ Status RunMiniDAGStreamPass(const ConstGraphPtr &graph, StreamPassContext &conte
   // 1. 空图检查
   GE_ASSERT_NOTNULL(graph);
 
-  // 2. 读取 ge.autoMultistreamParallelMode（主配置）
+  // 2. 读取图属性或 ge.autoMultistreamParallelMode option，图属性优先
+  const auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
+  GE_ASSERT_NOTNULL(compute_graph);
   std::string multi_stream_mode;
-  GE_ASSERT_SUCCESS(GetContext().GetOption("ge.autoMultistreamParallelMode", multi_stream_mode),
-                    "Failed to get ge.autoMultistreamParallelMode option");
-
-  int64_t effective_max_stream_id = -1;
-  minidag::StreamMergeStrategy strategy;
-  if (!ParseStreamConfig(multi_stream_mode, effective_max_stream_id, strategy)) {
+  bool from_graph = false;
+  if ((StreamUtils::GetAutoMultistreamParallelMode(compute_graph, multi_stream_mode, from_graph) != GRAPH_SUCCESS) ||
+      multi_stream_mode.empty()) {
+    GELOGI("MiniDAGStreamPass skipped: auto multistream parallel mode not set.");
+    return SUCCESS;
+  }
+  AutoMultistreamConfig config;
+  if (StreamUtils::ParseAutoMultistreamParallelMode(multi_stream_mode, config, from_graph) != GRAPH_SUCCESS) {
     return FAILED;
   }
+  if ((config.mode == AutoMultistreamMode::kDefault) || (config.mode == AutoMultistreamMode::kCv)) {
+    GELOGI("MiniDAGStreamPass skipped for auto multistream parallel mode %s.", multi_stream_mode.c_str());
+    return SUCCESS;
+  }
+
+  if (!config.IsDagMode()) {
+    return FAILED;
+  }
+  const int64_t effective_max_stream_id = static_cast<int64_t>(config.max_stream_num) - 1L;
+  const auto strategy = ToMiniDagStrategy(config.mode);
+  GELOGI("Auto multistream requested mode=%s, strategy=%s, max_stream_num=%d.", multi_stream_mode.c_str(),
+         GetStrategyName(strategy), config.max_stream_num);
 
   GE_ASSERT_SUCCESS(RunMiniDAGStreamPassForComputGraph(graph, context, effective_max_stream_id, strategy),
                     "root graph RunMiniDAGStreamPass failed");

@@ -12,7 +12,7 @@
 
 """Python ONNX Plugin public package."""
 
-from .onnx_node import OnnxNode
+from ._native import OnnxNode
 from .plugin import OnnxPlugin, onnx_plugin
 
 __all__ = ["OnnxNode", "OnnxPlugin", "onnx_plugin"]

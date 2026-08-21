@@ -404,7 +404,8 @@ void AssignByDependencyPass::UpdateReusedSubgraphs() {
 
 Status SingleStreamPass::Run(ComputeGraphPtr graph, const std::vector<SubgraphPtr> &subgraphs, Context &context) {
   std::string auto_multi_stream_mode;
-  (void)GetContext().GetOption(OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, auto_multi_stream_mode);
+  bool from_graph = false;
+  (void)StreamUtils::GetAutoMultistreamParallelMode(graph, auto_multi_stream_mode, from_graph);
   if (!auto_multi_stream_mode.empty()) {
     const std::string auto_multi_stream_name = GetContext().GetReadableName(OPTION_AUTO_MULTISTREAM_PARALLEL_MODE);
     const std::string single_stream_name = GetContext().GetReadableName(ENABLE_SINGLE_STREAM);
@@ -415,7 +416,6 @@ Status SingleStreamPass::Run(ComputeGraphPtr graph, const std::vector<SubgraphPt
     return PARAM_INVALID;
   }
 
-  (void)graph;
   // context.default_stream can be kInvalidStream only when graph is the root graph.
   int64_t new_stream = context.default_stream;
   if (new_stream == kInvalidStream) {

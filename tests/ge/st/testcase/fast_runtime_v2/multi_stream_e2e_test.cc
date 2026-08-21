@@ -26,6 +26,7 @@
 #include "op_impl/data_flow_op_impl.h"
 #include "lowering/model_converter.h"
 #include "securec.h"
+#include "graph/debug/ge_attr_define.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/ge_context.h"
 #include "check/executor_statistician.h"
@@ -697,6 +698,13 @@ TEST_F(GraphExecutorMultiStreamSystemTest, Case06_TwoStream_WithStaticSubGraph_o
                            .SetRootModelStreamNum(stream_num)
                            .SetRootModelEventNum(event_num)
                            .BuildGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto &root_graph = ge_root_model->GetRootGraph();
+  ASSERT_NE(root_graph, nullptr);
+  auto &models = ge_root_model->GetSubgraphInstanceNameToModel();
+  const auto root_model = models.find(root_graph->GetName());
+  ASSERT_NE(root_model, models.end());
+  ASSERT_TRUE(ge::AttrUtils::SetStr(root_model->second, ge::ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, "LoadBalance:8"));
 
   bg::ValueHolder::PopGraphFrame();  // 不需要BgTest自带的Frame
   auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model);
@@ -717,6 +725,8 @@ TEST_F(GraphExecutorMultiStreamSystemTest, Case06_TwoStream_WithStaticSubGraph_o
     auto i3 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
     RtSession rt_session;
     EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+    runtime_stub.GetSlogStub().SetLevelDebug();
+    runtime_stub.GetSlogStub().Clear();
 
     auto outputs = FakeTensors({3, 4, 5, 6}, 2);
     auto inputs = FakeTensors({3, 4, 5, 6}, 1);
@@ -724,6 +734,14 @@ TEST_F(GraphExecutorMultiStreamSystemTest, Case06_TwoStream_WithStaticSubGraph_o
     ASSERT_EQ(model_executor->Execute({i3.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(),
                                       outputs.size()),
               ge::GRAPH_SUCCESS);
+
+    // 动态根图执行包含静态子图的 DavinciModelExecute；一次根图执行只允许输出根图的 STEP 记录。
+    constexpr char kStepTag[] = "[GE_MS_TUNE][STEP]";
+    EXPECT_EQ(runtime_stub.GetSlogStub().CountLog(-1, kStepTag), 1);
+    EXPECT_NE(runtime_stub.GetSlogStub().FindLog(-1, "[GE_MS_TUNE][STEP] api=ModelV2Executor"), -1);
+    EXPECT_EQ(runtime_stub.GetSlogStub().CountLog(-1, "[GE_MS_TUNE][STEP] api=NnExecute"), 0);
+    EXPECT_EQ(runtime_stub.GetSlogStub().CountLog(-1, "[GE_MS_TUNE][STEP] api=Run"), 0);
+    runtime_stub.GetSlogStub().Clear();
 
     // check stream in launch arg
     auto all_rt_streams = runtime_stub.GetRtsRuntimeStub().GetAllRtStreams();

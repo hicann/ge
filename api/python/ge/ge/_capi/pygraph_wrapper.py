@@ -377,6 +377,39 @@ graph_lib.GeApiWrapper_GNode_GetOutputDesc.argtypes = [c_void_p, c_int32]
 graph_lib.GeApiWrapper_GNode_UpdateOutputDesc.restype = c_int
 graph_lib.GeApiWrapper_GNode_UpdateOutputDesc.argtypes = [c_void_p, c_int32, c_void_p]
 
+# ============ Borrowed Operator C API ============
+graph_lib.GeApiWrapper_Operator_GetName.restype = c_char_ptr
+graph_lib.GeApiWrapper_Operator_GetName.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_Operator_GetType.restype = c_char_ptr
+graph_lib.GeApiWrapper_Operator_GetType.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_Operator_SetAttr.restype = c_int
+graph_lib.GeApiWrapper_Operator_SetAttr.argtypes = [c_void_p, c_char_p, c_void_p]
+
+graph_lib.GeApiWrapper_Operator_InputRegister.restype = c_int
+graph_lib.GeApiWrapper_Operator_InputRegister.argtypes = [c_void_p, c_char_p]
+
+graph_lib.GeApiWrapper_Operator_OptionalInputRegister.restype = c_int
+graph_lib.GeApiWrapper_Operator_OptionalInputRegister.argtypes = [c_void_p, c_char_p]
+
+graph_lib.GeApiWrapper_Operator_OutputRegister.restype = c_int
+graph_lib.GeApiWrapper_Operator_OutputRegister.argtypes = [c_void_p, c_char_p]
+
+graph_lib.GeApiWrapper_Operator_DynamicInputRegister.restype = c_int
+graph_lib.GeApiWrapper_Operator_DynamicInputRegister.argtypes = [
+    c_void_p,
+    c_char_p,
+    c_uint32,
+]
+
+graph_lib.GeApiWrapper_Operator_DynamicOutputRegister.restype = c_int
+graph_lib.GeApiWrapper_Operator_DynamicOutputRegister.argtypes = [
+    c_void_p,
+    c_char_p,
+    c_uint32,
+]
+
 
 # ============ TensorDesc C API ============
 graph_lib.GeApiWrapper_TensorDesc_Create.restype = c_void_p

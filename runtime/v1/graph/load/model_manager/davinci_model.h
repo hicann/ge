@@ -974,6 +974,10 @@ class DavinciModel {
     return ge_model_->GetGraph();
   }
 
+  const std::string &GetAutoMultistreamTuningMode() const {
+    return auto_multistream_tuning_mode_;
+  }
+
   uint64_t GetReportedProfCount() const {
     return prof_count_.load();
   }
@@ -1545,6 +1549,7 @@ class DavinciModel {
 
   uint32_t version_{0U};
   GeModelPtr ge_model_;  // release after DavinciModel::Init
+  std::string auto_multistream_tuning_mode_;
 
   std::map<int64_t, OpDescPtr> op_list_;  // release after DavinciModel::Init
   std::map<int64_t, std::shared_ptr<Operator>> operator_list_;

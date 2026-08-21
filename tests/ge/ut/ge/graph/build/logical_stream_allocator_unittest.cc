@@ -638,6 +638,25 @@ TEST_F(UtestLogicalStreamAllocator, test_single_stream_conflicts_with_auto_multi
             -1);
 }
 
+TEST_F(UtestLogicalStreamAllocator, test_single_stream_conflicts_with_auto_multi_stream_graph_attr) {
+  gert::GertRuntimeStub runtime_stub;
+  SubGraphInfoPtr subgraph = CreateSubgraph("engine1");
+  ComputeGraphPtr whole_graph = std::make_shared<ComputeGraph>("whole_graph");
+  ASSERT_TRUE(AttrUtils::SetStr(whole_graph, OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, "MainStream:8"));
+  vector<EngineConfPtr> confs;
+  std::map<std::string, int> max_parallel_num;
+  runtime_stub.GetSlogStub().Clear();
+
+  const Status status = AssignLogicalStreams({subgraph}, confs, max_parallel_num, whole_graph, true);
+
+  EXPECT_EQ(status, ge::PARAM_INVALID);
+  EXPECT_NE(runtime_stub.GetSlogStub().FindLog(
+                DLOG_ERROR,
+                "Cannot configure both parameters ge.autoMultistreamParallelMode and ge.enableSingleStream "
+                "simultaneously."),
+            -1);
+}
+
 TEST_F(UtestLogicalStreamAllocator, test_single_stream_and_auto_multi_stream_conflict_precedes_stream_label) {
   gert::GertRuntimeStub runtime_stub;
   SetGraphOptionsForTest({{OPTION_AUTO_MULTISTREAM_PARALLEL_MODE, "LoadBalance:8"}});

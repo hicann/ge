@@ -17,6 +17,7 @@
 #include "builder/model_v2_executor_builder.h"
 #include "register/kernel_registry.h"
 #include "common/model/ge_root_model.h"
+#include "common/multi_stream_tuning/step_recorder.h"
 #include "core/utils/rt2_tensor_utils.h"
 #include "executor_error_code.h"
 #include "framework/runtime/gert_const_types.h"
@@ -243,11 +244,16 @@ ge::graphStatus ModelV2Executor::Execute(const ModelExecuteArg &arg, Tensor **in
 
   GE_RETURN_IF_ERROR(CheckIoReuseAddrs(inputs, input_num, outputs, output_num));
 
+  ge::multistream_tune::StepScope step(ge::multistream_tune::kSiteModelV2Executor, auto_multistream_tuning_mode_,
+                                       auto_multistream_tuning_id_, arg.stream);
+  ge::graphStatus ret = ge::GRAPH_FAILED;
   if (subscribers_.IsEnable()) {
-    return graph_executor.Execute(kMainExeGraph, &subscribers_.GetSubscriber(kMainExeGraph));
+    ret = graph_executor.Execute(kMainExeGraph, &subscribers_.GetSubscriber(kMainExeGraph));
   } else {
-    return graph_executor.Execute();
+    ret = graph_executor.Execute();
   }
+  step.Stop(static_cast<uint32_t>(ret));
+  return ret;
 }
 ge::graphStatus ModelV2Executor::ExecuteSync(Tensor **inputs, size_t input_num, Tensor **outputs, size_t output_num) {
   if (default_stream_ == nullptr) {

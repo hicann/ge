@@ -18,6 +18,8 @@
 #include "depends/profiler/src/profiling_auto_checker.h"
 
 #include "graph/utils/graph_utils.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/attr_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "common/profiling/profiling_manager.h"
 #include "framework/common/runtime_model_ge.h"
@@ -169,6 +171,17 @@ TEST(DavinciModelCustomOpRegistry, SetAndGetCustomOpRegistry) {
 
   model.SetCustomOpRegistryRaw(registry.get());
   EXPECT_EQ(model.GetCustomOpRegistry().get(), registry.get());
+}
+
+TEST(DavinciModelAutoMultistreamTuning, AssignCachesTuningMode) {
+  DavinciModel model(0U, nullptr);
+  const auto ge_model = MakeShared<GeModel>();
+  ASSERT_NE(ge_model, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(ge_model, ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, "LoadBalance:8"));
+
+  model.Assign(ge_model);
+
+  EXPECT_EQ(model.GetAutoMultistreamTuningMode(), "LoadBalance:8");
 }
 
 void TestNnExecuteWithGertTensor() {

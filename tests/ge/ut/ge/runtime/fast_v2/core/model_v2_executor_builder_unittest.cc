@@ -21,6 +21,7 @@
 #include "exe_graph/runtime/tiling_context.h"
 #include "stub/gert_runtime_stub.h"
 #include "framework/runtime/executor_option/multi_thread_executor_option.h"
+#include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_dump_utils.h"
 #include "kernel/common_kernel_impl/tiling.h"
 #include "graph/debug/ge_attr_define.h"
@@ -98,6 +99,31 @@ TEST_F(ModelV2ExecutorBuilderUT, BuildFromSingleNodeGraph) {
                                         reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, BuildCachesAutoMultistreamTuningMode) {
+  auto compute_graph = ShareGraph::BuildSingleNodeGraph();
+  ASSERT_EQ(compute_graph->TopologicalSorting(), ge::GRAPH_SUCCESS);
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  ASSERT_NE(root_model, nullptr);
+  const auto &models = root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_FALSE(models.empty());
+  ASSERT_TRUE(
+      ge::AttrUtils::SetStr(models.begin()->second, ge::ATTR_MODEL_AUTO_MULTISTREAM_TUNING_MODE, "LoadBalance:8"));
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  ModelDescHolder model_desc_holder = ModelDescHolderFaker().Build();
+  model_desc_holder.SetSpaceRegistry(SpaceRegistryFaker().Build());
+  auto exe_graph = GraphConverter()
+                       .SetModelDescHolder(&model_desc_holder)
+                       .ConvertComputeGraphToExecuteGraph(compute_graph, global_data);
+  ASSERT_NE(exe_graph, nullptr);
+
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+
+  ASSERT_NE(model_executor, nullptr);
+  EXPECT_EQ(ModelV2ExecutorTestHelper::GetAutoMultistreamTuningMode(model_executor.get()), "LoadBalance:8");
+  // 打点标识非空时才分配执行对象标识
+  EXPECT_NE(ModelV2ExecutorTestHelper::GetAutoMultistreamTuningId(model_executor.get()), 0U);
 }
 
 TEST_F(ModelV2ExecutorBuilderUT, RefsHasTheSameAddr) {

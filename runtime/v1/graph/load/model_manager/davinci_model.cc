@@ -19,6 +19,8 @@
 #include "common/utils/executor_utils.h"
 #include "common/runtime_api_wrapper.h"
 #include "common/aclrt_malloc_helper.h"
+#include "common/multi_stream_tuning/model_tuning_config.h"
+#include "common/multi_stream_tuning/step_recorder.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "rt_error_codes.h"
 #include "common/file_constant_utils/file_constant_utils.h"
@@ -499,6 +501,7 @@ void DavinciModel::Assign(const GeModelPtr &ge_model) {
     GELOGW("Assign null to ge_model");
   }
   ge_model_ = ge_model;
+  (void)multistream_tune::GetTuningMode(ge_model, auto_multistream_tuning_mode_);
 }
 
 ///
@@ -5636,6 +5639,8 @@ void DavinciModel::Run() {
     }
     GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_END));
     GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_START));
+    // 自动多流寻优打点：本函数内已无条件做流同步，无需再传 stream
+    multistream_tune::StepScope step(multistream_tune::kSiteRun, auto_multistream_tuning_mode_, model_id_);
     GE_TIMESTAMP_START(aclmdlRIExecuteAsync);
     GELOGI("aclmdlRIExecuteAsync start, model id:%u.", model_id_);
     CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 0U, rt_model_stream_);
@@ -5678,6 +5683,7 @@ void DavinciModel::Run() {
            model_abort ? "abort" : "normal");
     GE_IF_BOOL_EXEC(is_first_execute_, GE_TIMESTAMP_EVENT_END(aclrtSynchronizeStreamWithTimeout,
                                                               "Wait for aclrtSynchronizeStreamWithTimeout"));
+    step.Stop(SUCCESS);
     GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_END));
     GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
     GE_TIMESTAMP_START(ReturnResult);
@@ -7731,6 +7737,9 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
   GE_IF_BOOL_EXEC(is_dump_to_std_enable_,
                   davinci_model_stage_time_[kStageBeforeRtExecute] = std::chrono::system_clock::now());
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_END));
+  // 自动多流寻优打点：口径为「任务下发 -> 流同步完成」，不含 H2D / D2H 拷贝
+  multistream_tune::StepScope step(multistream_tune::kSiteNnExecute, auto_multistream_tuning_mode_, model_id_,
+                                   rt_model_stream_);
   if (!task_list_.empty()) {
     // used for debug resource manager
     if (GetDumpProperties().IsDumpOpen() || GetDumpProperties().IsOpDebugOpen()) {
@@ -7776,6 +7785,7 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
       return FAILED;
     }
   }
+  step.Stop(SUCCESS);
   GE_IF_BOOL_EXEC(is_dump_to_std_enable_,
                   davinci_model_stage_time_[kStageAfterRtExecute] = std::chrono::system_clock::now());
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
@@ -7837,6 +7847,9 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
 
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_END));
 
+  // 自动多流寻优打点：口径为「任务下发 -> 流同步完成」，不含 H2D / D2H 拷贝
+  multistream_tune::StepScope step(multistream_tune::kSiteNnExecute, auto_multistream_tuning_mode_, model_id_,
+                                   rt_model_stream_);
   if (!task_list_.empty()) {
     // used for debug resource manager
     if (GetDumpProperties().IsDumpOpen() || GetDumpProperties().IsOpDebugOpen()) {
@@ -7886,6 +7899,7 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
     }
   }
 
+  step.Stop(SUCCESS);
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
   output_data.index = input_data.index;
   output_data.model_id = model_id_;

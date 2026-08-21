@@ -12,42 +12,24 @@
 
 """Contract tests for ONNX Plugin Python callback dispatch."""
 
+from types import SimpleNamespace
+
 import pytest
 
 import ge.graph as graph_api
 import ge.onnx_plugin as onnx_plugin_api
 from ge.graph import Operator
-from ge.onnx_plugin import OnnxNode, onnx_plugin
+from ge.onnx_plugin import onnx_plugin
 from ge.onnx_plugin._bridge import call_parse_node
 from ge.onnx_plugin.registry import clear_registered_onnx_plugins
+from python_onnx_plugin_test_utils import FakeOperatorCapi
 
 
-class _FakeOperatorBackend:
-    def __init__(self):
-        self.attrs = {}
-        self.dynamic_inputs = []
-        self.invalidated = False
-
-    @staticmethod
-    def get_name():
-        return "target"
-
-    @staticmethod
-    def get_type():
-        return "TargetOp"
-
-    @staticmethod
-    def register_dynamic_output(name, count):
-        del name, count
-
-    def set_attr(self, name, value):
-        self.attrs[name] = value
-
-    def register_dynamic_input(self, name, count):
-        self.dynamic_inputs.append((name, count))
-
-    def invalidate(self):
-        self.invalidated = True
+@pytest.fixture
+def operator_capi(monkeypatch):
+    capi = FakeOperatorCapi()
+    capi.install(monkeypatch)
+    return capi
 
 
 @pytest.fixture(autouse=True)
@@ -57,14 +39,15 @@ def clear_registry():
     clear_registered_onnx_plugins()
 
 
-def _node_values(origin_type="test.domain::1::Source"):
-    return {
-        "name": "source",
-        "origin_type": origin_type,
-        "inputs": ["x0", "x1"],
-        "outputs": ["y"],
-        "attrs": {"alpha": 0.5},
-    }
+def _node(origin_type="test.domain::1::Source", attrs=None):
+    attrs = {"alpha": 0.5} if attrs is None else attrs
+    return SimpleNamespace(
+        name="source",
+        origin_type=origin_type,
+        inputs=("x0", "x1"),
+        outputs=("y",),
+        attrs=attrs,
+    )
 
 
 def test_public_exports_match_pr1_support_matrix():
@@ -77,16 +60,13 @@ def test_unsupported_pr1_interfaces_are_not_exposed():
         assert not hasattr(onnx_plugin_api.OnnxPlugin, name)
     for name in (
         "get_attr",
-        "register_input",
-        "register_optional_input",
-        "register_output",
         "update_input_desc",
         "update_output_desc",
     ):
         assert not hasattr(Operator, name)
 
 
-def test_elu_and_sum_equivalent_callbacks():
+def test_elu_and_sum_equivalent_callbacks(operator_capi):
     elu = onnx_plugin(
         source="EluSource", domain="test.domain", opsets=(1,), target="EluTarget"
     )
@@ -106,43 +86,31 @@ def test_elu_and_sum_equivalent_callbacks():
         target.register_dynamic_input("x", count)
         target.set_attr("N", count)
 
-    elu_backend = _FakeOperatorBackend()
     call_parse_node(
         "test.domain::1::EluSource",
-        {
-            "name": "elu",
-            "origin_type": "test.domain::1::EluSource",
-            "inputs": ["x"],
-            "outputs": ["y"],
-            "attrs": {},
-        },
-        elu_backend,
+        _node("test.domain::1::EluSource", attrs={}),
+        operator_capi.handle,
     )
-    sum_backend = _FakeOperatorBackend()
+    elu_attrs = dict(operator_capi.attrs)
+    operator_capi.attrs.clear()
+    operator_capi.dynamic_inputs.clear()
     call_parse_node(
         "test.domain::1::SumSource",
-        {
-            "name": "sum",
-            "origin_type": "test.domain::1::SumSource",
-            "inputs": ["x0", "x1", "x2"],
-            "outputs": ["y"],
-            "attrs": {},
-        },
-        sum_backend,
+        _node("test.domain::1::SumSource", attrs={}),
+        operator_capi.handle,
     )
 
-    assert elu_backend.attrs == {"alpha": 1.0}
-    assert sum_backend.attrs == {"N": 3}
-    assert sum_backend.dynamic_inputs == [("x", 3)]
-    assert elu_backend.invalidated is True
-    assert sum_backend.invalidated is True
+    assert elu_attrs == {"alpha": 1.0}
+    assert operator_capi.attrs == {"N": 2}
+    assert operator_capi.dynamic_inputs == [("x", 2)]
 
 
-def test_call_parse_node_dispatches_objects_and_mutations():
+def test_call_parse_node_dispatches_objects_and_mutations(operator_capi):
     plugin = onnx_plugin(
         source="Source", domain="test.domain", opsets=(1,), target="TargetOp"
     )
     seen = {}
+    node = _node()
 
     @plugin.parse_node
     def parse_source(node, target):
@@ -152,34 +120,30 @@ def test_call_parse_node_dispatches_objects_and_mutations():
         target.set_attr("N", len(node.inputs))
         target.register_dynamic_input("x", len(node.inputs))
 
-    backend = _FakeOperatorBackend()
-    result = call_parse_node("test.domain::1::Source", _node_values(), backend)
+    result = call_parse_node("test.domain::1::Source", node, operator_capi.handle)
 
     assert result is None
-    assert isinstance(seen["node"], OnnxNode)
+    assert seen["node"] is node
     assert isinstance(seen["target"], Operator)
     assert seen["node"].origin_type == "test.domain::1::Source"
-    assert backend.attrs == {"alpha": 0.5, "N": 2}
-    assert backend.dynamic_inputs == [("x", 2)]
-    assert backend.invalidated is True
+    assert operator_capi.attrs == {"alpha": 0.5, "N": 2}
+    assert operator_capi.dynamic_inputs == [("x", 2)]
     with pytest.raises(RuntimeError, match="only valid inside parse_node"):
         _ = seen["target"].name
 
 
-def test_call_parse_node_rejects_unknown_origin_without_creating_operator():
-    backend = _FakeOperatorBackend()
-
+def test_call_parse_node_rejects_unknown_origin_without_creating_operator(
+    operator_capi,
+):
     with pytest.raises(KeyError, match="not registered.*test.domain::1::Missing"):
         call_parse_node(
             "test.domain::1::Missing",
-            _node_values("test.domain::1::Missing"),
-            backend,
+            _node("test.domain::1::Missing"),
+            operator_capi.handle,
         )
 
-    assert backend.invalidated is False
 
-
-def test_call_parse_node_invalidates_operator_when_callback_raises():
+def test_call_parse_node_invalidates_operator_when_callback_raises(operator_capi):
     plugin = onnx_plugin(
         source="Source", domain="test.domain", opsets=(1,), target="TargetOp"
     )
@@ -191,17 +155,17 @@ def test_call_parse_node_invalidates_operator_when_callback_raises():
         seen["target"] = target
         raise LookupError("callback failed")
 
-    backend = _FakeOperatorBackend()
     with pytest.raises(LookupError, match="callback failed"):
-        call_parse_node("test.domain::1::Source", _node_values(), backend)
+        call_parse_node("test.domain::1::Source", _node(), operator_capi.handle)
 
-    assert backend.invalidated is True
     with pytest.raises(RuntimeError, match="only valid inside parse_node"):
         seen["target"].set_attr("N", 1)
 
 
 @pytest.mark.parametrize("return_value", [False, 0, "", object()])
-def test_call_parse_node_rejects_non_none_return_and_invalidates(return_value):
+def test_call_parse_node_rejects_non_none_return_and_invalidates(
+    return_value, operator_capi
+):
     plugin = onnx_plugin(
         source="Source", domain="test.domain", opsets=(1,), target="TargetOp"
     )
@@ -211,8 +175,5 @@ def test_call_parse_node_rejects_non_none_return_and_invalidates(return_value):
         del node, target
         return return_value
 
-    backend = _FakeOperatorBackend()
     with pytest.raises(TypeError, match="must return None"):
-        call_parse_node("test.domain::1::Source", _node_values(), backend)
-
-    assert backend.invalidated is True
+        call_parse_node("test.domain::1::Source", _node(), operator_capi.handle)

@@ -28,6 +28,8 @@
 #include "exe_graph/lowering/buffer_pool.h"
 #include "common/checker.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
+#include "common/multi_stream_tuning/model_tuning_config.h"
+#include "common/multi_stream_tuning/step_recorder.h"
 #include "runtime/subscriber/executor_subscribers_scheduler.h"
 #include "graph/utils/node_utils.h"
 #include "core/executor/sequential/execution_data/sequential_execution_data_builder.h"
@@ -140,6 +142,9 @@ std::unique_ptr<ModelV2Executor> ModelV2ExecutorBuilder::Build(const ExecutorOpt
   }
   GE_TIMESTAMP_EVENT_END(BuildGraph, "ModelV2ExecutorBuilderBuild::BuildGraph");
   GE_ASSERT_NOTNULL(root_model_);
+  if (ge::multistream_tune::GetTuningMode(root_model_, executor->auto_multistream_tuning_mode_)) {
+    executor->auto_multistream_tuning_id_ = ge::multistream_tune::AllocateExecutionId();
+  }
   executor->custom_op_registry_ = root_model_->GetCustomOpRegistry();
 
   ge::ComputeGraphPtr root_graph = root_model_->GetRootGraph();

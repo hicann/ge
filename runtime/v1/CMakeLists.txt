@@ -25,6 +25,8 @@ set(EXECUTOR_SRC_LIST
 set(DAVINCI_SRC_LIST
     common/runtime/model_rt_var_manager.cc
     common/runtime/rt_session.cc
+    common/multi_stream_tuning/model_tuning_config.cc
+    common/multi_stream_tuning/step_recorder.cc
     common/dump/opdebug_register.cc
     common/dump/data_dumper.cc
     common/runtime_api_wrapper.cc
@@ -361,6 +363,7 @@ target_compile_options(davinci_executor PRIVATE ${AIR_COMMON_DYNAMIC_COMPILE_OPT
 target_compile_definitions(davinci_executor PRIVATE
     PROTOBUF_INLINE_NOT_IN_HEADERS=0
     google=ascend_private
+    FUNC_VISIBILITY
     $<$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>:SECUREC_USING_STD_SECURE_LIB=0 NOMINMAX>
 )
 

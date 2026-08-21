@@ -13,3 +13,4 @@
 | 推荐网络高性能推理样例                            | [README](recommendation/README.md)                           |
 | 自定义算子入图样例                              | [README](custom_op/README.md)                           |
 | YOLOv13目标检测样例                           | [README](acl/5_sample_yolov13/README.md)                |
+| 多流自动寻优样例                              | [README](multi_stream_autotune/README.md)               |

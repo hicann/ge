@@ -10,6 +10,9 @@
 
 #include "stream_utils.h"
 
+#include <algorithm>
+#include <cctype>
+
 #include "graph/utils/node_adapter.h"
 #include "register/custom_pass_helper.h"
 #include "graph/utils/graph_utils_ex.h"
@@ -23,6 +26,8 @@
 namespace {
 constexpr const ge::char_t *const kTrueStr = "true";
 constexpr const ge::char_t *const kFalseStr = "false";
+constexpr const ge::char_t *const kAutoMultistreamParallelModeOption = "ge.autoMultistreamParallelMode";
+constexpr int32_t kMaxAutoMultistreamNum = 64;
 const std::set<std::string> hccl_op_types({ge::HCOMBROADCAST, ge::HCOMALLGATHER, ge::HCOMALLREDUCE,
                                            ge::HCOMREDUCESCATTER, ge::HCOMREDUCE, ge::HCOMALLTOALLV,
                                            ge::HCOMGATHERALLTOALLV, ge::HCOMALLTOALLVC, ge::HCOMALLTOALL});
@@ -31,6 +36,16 @@ const std::set<std::string> hccl_op_types({ge::HCOMBROADCAST, ge::HCOMALLGATHER,
 namespace ge {
 std::mutex StreamUtils::mutex_;
 std::map<std::string, PriorityEnum> StreamUtils::engine_priority_;
+
+namespace {
+graphStatus ReportInvalidAutoMultistreamMode(const std::string &value, const std::string &reason) {
+  const auto readable = GetContext().GetReadableName(kAutoMultistreamParallelModeOption);
+  (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
+                                  std::vector<const char_t *>({value.c_str(), readable.c_str(), reason.c_str()}));
+  GELOGE(FAILED, "%s is invalid, value=%s, reason=%s", readable.c_str(), value.c_str(), reason.c_str());
+  return GRAPH_FAILED;
+}
+}  // namespace
 
 Status StreamUtils::ConvertSubgraphs(const ComputeGraphPtr &graph, const Graph2SubGraphInfoList &subgraph_map,
                                      const std::map<std::string, EngineConfPtr> &engine_confs,
@@ -258,10 +273,88 @@ bool StreamUtils::EnableDynamicShapeMultiStream() {
   return false;
 }
 
-bool StreamUtils::EnableCvParallel() {
+graphStatus StreamUtils::GetAutoMultistreamParallelMode(std::string &multi_stream_mode) {
+  multi_stream_mode.clear();
+  const auto ret = GetContext().GetOption(kAutoMultistreamParallelModeOption, multi_stream_mode);
+  return ((ret == GRAPH_SUCCESS) && (!multi_stream_mode.empty())) ? GRAPH_SUCCESS : ret;
+}
+
+graphStatus StreamUtils::GetAutoMultistreamParallelMode(const ComputeGraphPtr &graph, std::string &multi_stream_mode,
+                                                        bool &from_graph) {
+  multi_stream_mode.clear();
+  from_graph = false;
+
+  if (graph != nullptr) {
+    const auto root_graph = GraphUtils::FindRootGraph(graph);
+    if ((root_graph != nullptr) &&
+        AttrUtils::GetStr(root_graph, kAutoMultistreamParallelModeOption, multi_stream_mode)) {
+      from_graph = true;
+      GELOGI("Use auto multistream parallel mode %s from graph attribute.", multi_stream_mode.c_str());
+      return GRAPH_SUCCESS;
+    }
+  }
+
+  const auto ret = GetContext().GetOption(kAutoMultistreamParallelModeOption, multi_stream_mode);
+  return ((ret == GRAPH_SUCCESS) && (!multi_stream_mode.empty())) ? GRAPH_SUCCESS : ret;
+}
+
+graphStatus StreamUtils::ParseAutoMultistreamParallelMode(const std::string &multi_stream_mode,
+                                                          AutoMultistreamConfig &config, const bool from_graph) {
+  config = AutoMultistreamConfig{};
+  if (multi_stream_mode.empty()) {
+    return GRAPH_SUCCESS;
+  }
+  if (multi_stream_mode == "default") {
+    if (!from_graph) {
+      return ReportInvalidAutoMultistreamMode(
+          multi_stream_mode, "The default mode is supported only by the graph attribute set by a custom pass.");
+    }
+    config.mode = AutoMultistreamMode::kDefault;
+    return GRAPH_SUCCESS;
+  }
+  if (multi_stream_mode == "cv") {
+    config.mode = AutoMultistreamMode::kCv;
+    return GRAPH_SUCCESS;
+  }
+
+  const auto colon_pos = multi_stream_mode.find(':');
+  if ((colon_pos == std::string::npos) || (colon_pos != multi_stream_mode.rfind(':'))) {
+    return ReportInvalidAutoMultistreamMode(multi_stream_mode, "The format must be Strategy:N with one colon.");
+  }
+
+  const std::string strategy = multi_stream_mode.substr(0U, colon_pos);
+  if (strategy == "LoadBalance") {
+    config.mode = AutoMultistreamMode::kLoadBalance;
+  } else if (strategy == "MainStream") {
+    config.mode = AutoMultistreamMode::kMainStream;
+  } else if (strategy == "WeightedLoadBalance") {
+    config.mode = AutoMultistreamMode::kWeightedLoadBalance;
+  } else {
+    return ReportInvalidAutoMultistreamMode(multi_stream_mode,
+                                            "The strategy must be LoadBalance, MainStream, or WeightedLoadBalance.");
+  }
+
+  const std::string max_stream_str = multi_stream_mode.substr(colon_pos + 1U);
+  const bool is_decimal =
+      !max_stream_str.empty() && std::all_of(max_stream_str.begin(), max_stream_str.end(), [](const char_t value) {
+        return std::isdigit(static_cast<unsigned char>(value)) != 0;
+      });
+  int32_t max_stream_num = 0;
+  if ((!is_decimal) || (ConvertToInt32(max_stream_str, max_stream_num) != SUCCESS) || (max_stream_num < 1) ||
+      (max_stream_num > kMaxAutoMultistreamNum)) {
+    return ReportInvalidAutoMultistreamMode(multi_stream_mode, "The stream number must be an integer in [1, 64].");
+  }
+  config.max_stream_num = max_stream_num;
+  return GRAPH_SUCCESS;
+}
+
+bool StreamUtils::EnableCvParallel(const ComputeGraphPtr &graph) {
   std::string multi_stream_mode;
-  if ((ge::GetContext().GetOption("ge.autoMultistreamParallelMode", multi_stream_mode) == ge::GRAPH_SUCCESS) &&
-      (multi_stream_mode == "cv")) {
+  bool from_graph = false;
+  AutoMultistreamConfig config;
+  if ((GetAutoMultistreamParallelMode(graph, multi_stream_mode, from_graph) == GRAPH_SUCCESS) &&
+      (ParseAutoMultistreamParallelMode(multi_stream_mode, config, from_graph) == GRAPH_SUCCESS) &&
+      (config.mode == AutoMultistreamMode::kCv)) {
     GELOGI("auto multistream parallel mode is %s", multi_stream_mode.c_str());
     return true;
   }

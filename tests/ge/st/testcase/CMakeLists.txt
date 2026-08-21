@@ -109,6 +109,7 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_stream_allocator_pass_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_weighted_stream_merger_public_st_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/ir/named_io_node_builder_test.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_multi_stream_tuning_step_recorder.cc"
 )
 
 add_dependencies(graph_engine_test
@@ -155,6 +156,7 @@ target_link_libraries(graph_engine_test
     ge_runner_v2
     om2_executor
     ge_common_base
+    davinci_executor
     custom_op_runtime
     gert
     cpu_compiler
