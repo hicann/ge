@@ -100,16 +100,16 @@
 
 | 特性 | 获取链接 | 备注 |
 | --- | --- | --- |
-| 控制边场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/control_edge/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/control_edge/python) | 参见README执行相关操作。 |
-| 控制算子场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/control_op/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/control_op/python) | 参见README执行相关操作。 |
-| 动态输入场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/dynamic_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/dynamic_input/python) | 参见README执行相关操作。 |
-| 动态输出场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/dynamic_output/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/dynamic_output/python) | 参见README执行相关操作。 |
-| 设置普通属性的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/normal_attributes/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/normal_attributes/python) | 参见README执行相关操作。 |
-| 普通输入的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/normal_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/normal_input/python) | 参见README执行相关操作。 |
-| 操作符重载的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/operator_overload/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/operator_overload/python) | 参见README执行相关操作。 |
-| 可选输入场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/optional_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/optional_input/python) | 参见README执行相关操作。 |
-| 私有属性场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/private_attributes/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/private_attributes/python) | 参见README执行相关操作。 |
-| transformer场景（部分片段）的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/transformer/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/transformer/python) | 参见README执行相关操作。 |
-| 集合通信EP场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/hccl_ep/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/hccl_ep/python) | 说明：EP（Expert Parallel）图是指通过专家并行方式在多卡上运行的图结构。 |
-| 集合通信TP场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/hccl_tp/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/master/examples/es/hccl_tp/python) | 说明： TP（Tensor Parallel）图是指通过张量并行方式在多卡上运行的图结构。 |
-| 自定义ES API并构图 | 单击[custom_es_api](https://gitcode.com/cann/ge/blob/master/examples/custom_es_api)获取样例，参见README执行相关操作。 | - |
+| 控制边场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/control_edge/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/control_edge/python) | 参见README执行相关操作。 |
+| 控制算子场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/control_op/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/control_op/python) | 参见README执行相关操作。 |
+| 动态输入场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/dynamic_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/dynamic_input/python) | 参见README执行相关操作。 |
+| 动态输出场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/dynamic_output/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/dynamic_output/python) | 参见README执行相关操作。 |
+| 设置普通属性的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/normal_attributes/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/normal_attributes/python) | 参见README执行相关操作。 |
+| 普通输入的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/normal_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/normal_input/python) | 参见README执行相关操作。 |
+| 操作符重载的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/operator_overload/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/operator_overload/python) | 参见README执行相关操作。 |
+| 可选输入场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/optional_input/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/optional_input/python) | 参见README执行相关操作。 |
+| 私有属性场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/private_attributes/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/private_attributes/python) | 参见README执行相关操作。 |
+| transformer场景（部分片段）的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/transformer/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/transformer/python) | 参见README执行相关操作。 |
+| 集合通信EP场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/hccl_ep/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/hccl_ep/python) | 说明：EP（Expert Parallel）图是指通过专家并行方式在多卡上运行的图结构。 |
+| 集合通信TP场景的ES构图 | [C++代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/hccl_tp/cpp)<br>[Python代码示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/es/hccl_tp/python) | 说明： TP（Tensor Parallel）图是指通过张量并行方式在多卡上运行的图结构。 |
+| 自定义ES API并构图 | 单击[custom_es_api](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/custom_es_api)获取样例，参见README执行相关操作。 | - |

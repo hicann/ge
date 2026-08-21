@@ -101,10 +101,6 @@ typedef enum {
 当前版本设置无效。
 <!-- end id3 -->
 
-<!-- npu="IPV350" id4 -->
-当前版本设置无效。
-<!-- end id4 -->
-
 ## ACL\_AUTO\_TUNE\_MODE取值说明
 
 用于配置算子的自动调优模式。**该参数后续废弃，请勿配置，否则后续版本可能存在兼容性问题。**
@@ -301,7 +297,7 @@ Atlas 训练系列产品，该选项默认值为enable。
 Atlas 推理系列产品，该选项默认值为enable。
 <!-- end id13 -->
 
-若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》。
+若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 
 ## ACL\_OP\_DETERMINISTIC取值说明
 

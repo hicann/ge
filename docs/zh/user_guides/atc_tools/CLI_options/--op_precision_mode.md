@@ -99,20 +99,6 @@ nodename4=support_out_of_bound_index
 ```
 <!-- end id7 -->
 
-<!-- npu="IPV350" id8 -->
-```text
-[ByOpType]
-optype1=high_precision
-optype2=high_performance
-optype4=support_out_of_bound_index
-
-[ByNodeName]
-nodename1=high_precision
-nodename2=high_performance
-nodename4=support_out_of_bound_index
-```
-<!-- end id8 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--op_precision_mode_res.md#id1 -->
 
 将配置好的_op\_precision.ini_文件上传到ATC工具所在服务器任意目录，例如上传到$HOME/conf，使用示例如下：

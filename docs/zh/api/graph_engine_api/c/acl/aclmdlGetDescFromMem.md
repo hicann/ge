@@ -20,9 +20,6 @@
 <!-- npu="910" id412 -->
 - Atlas 训练系列产品：支持
 <!-- end id412 -->
-<!-- npu="IPV350" id413 -->
-- IPV350：支持
-<!-- end id413 -->
 
 ## 功能说明
 
@@ -61,7 +58,3 @@ Ascend RC形态下，model处需申请Device上的内存。
 <!-- npu="310p" id3 -->
 Control CPU开放形态下，model处需申请Device上的内存。
 <!-- end id3 -->
-
-<!-- npu="IPV350" id4 -->
-model处需申请Device上的内存。
-<!-- end id4 -->

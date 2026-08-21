@@ -38,7 +38,7 @@ For developers who do not depend on Ascend devices, if you want to quickly set u
 
 1. **Install Drivers and Firmware (Runtime Dependencies)**
 
-   For downloading and installing Ascend drivers and firmware on the host machine, please refer to the "Prepare Software Packages" and "Install NPU Driver and Firmware" chapters in the [Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard). Drivers and firmware are runtime dependencies. If only compiling operators, you don't need to install them.
+   For downloading and installing Ascend drivers and firmware on the host machine, please refer to the "Prepare Software Packages" and "Install NPU Driver and Firmware" chapters in the [Software Installation](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum). Drivers and firmware are runtime dependencies. If only compiling operators, you don't need to install them.
 
 2. **Download Image**
 
@@ -134,7 +134,7 @@ For developers who do not depend on Ascend devices, if you want to quickly set u
 
     2. **Install CANN Package**
 
-         Please click [download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) to get the latest timestamp version, and download the corresponding package according to product model and environment architecture. Installation commands are as follows, for more guidance please refer to [Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
+         Please click [download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) to get the latest timestamp version, and download the corresponding package according to product model and environment architecture. Installation commands are as follows, for more guidance please refer to [Software Installation](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum).
 
          - Install CANN Toolkit development suite package.
 

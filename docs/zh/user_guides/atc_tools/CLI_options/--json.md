@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--json_res.md#id1 -->
 
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 ## 功能说明
 
 离线模型、原始模型文件、GE dump图结构文件转换为JSON文件的路径和文件名。

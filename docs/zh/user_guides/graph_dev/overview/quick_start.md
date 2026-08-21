@@ -97,9 +97,9 @@ GE的C++图引擎接口提供了两种构图方式：
     1. 如果**使用图引擎接口全新构建Graph**，需要根据原始网络，明确如下信息：
         1. 网络中包含哪些算子，以及这些算子的输入、输出、属性等信息。
         2. 网络中算子之间的关联关系。
-        3. 确认原始网络中的算子在AI处理器是否支持，当前支持的算子请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”章节。如果不支持或不满足实际需要，开发者可以《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》自定义Ascend C算子，或者参见《[TBE&AI CPU算子开发](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)》自定义TBE算子，选定一种方式后，将算子部署到硬件环境即可。
+        3. 确认原始网络中的算子在AI处理器是否支持，当前支持的算子请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”章节。如果不支持或不满足实际需要，开发者可以《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/guide/index.md)》自定义Ascend C算子，或者参见《[TBE&AI CPU算子开发](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)》自定义TBE算子，选定一种方式后，将算子部署到硬件环境即可。
 
-    2. 如果**使用Parser接口将原始模型解析为Graph**，需要确认原始网络中的算子在AI处理器是否支持，当前支持的算子请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”章节。如果不支持或不满足实际需要，可参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》自定义Ascend C算子，或者参见《[TBE&AI CPU算子开发](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)》自定义TBE算子，选定一种方式后，将算子部署至硬件环境即可。
+    2. 如果**使用Parser接口将原始模型解析为Graph**，需要确认原始网络中的算子在AI处理器是否支持，当前支持的算子请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”章节。如果不支持或不满足实际需要，可参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/guide/index.md)》自定义Ascend C算子，或者参见《[TBE&AI CPU算子开发](https://hiascend.com/document/redirect/CannCommunityOpdevWizard)》自定义TBE算子，选定一种方式后，将算子部署至硬件环境即可。
 
 2. 构建Graph，开发者可以使用图引擎接口全新构建Graph，也可以使用Parser接口将原始模型解析为Graph。
 3. 修改Graph，如果开发者想要优化Graph结构，则可以基于构建好的Graph直接将Graph修改为期望的结构。

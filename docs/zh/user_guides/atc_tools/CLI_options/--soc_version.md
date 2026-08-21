@@ -66,27 +66,11 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--soc_version_res.md#id1 -->
 
-<!-- npu="IPV350" id10 -->
-## 参数取值
-
-Ascend035
-<!-- end id10 -->
-
 ## 推荐配置及收益
 
 无。
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--soc_version_res.md#id2 -->
-
-<!-- npu="IPV350" id7 -->
-## 示例
-
-IPV350使用示例：
-
-```bash
-atc --soc_version=Ascend035 ...
-```
-<!-- end id7 -->
 
 ## 依赖约束
 

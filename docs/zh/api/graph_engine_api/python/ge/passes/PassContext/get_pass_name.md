@@ -39,4 +39,4 @@ class MyPass(FusionBasePass):
         return True
 ```
 
-更多用法可参考[融合pass样例](https://gitcode.com/cann/ge/tree/master/examples/fusion_pass)。
+更多用法可参考[融合pass样例](../../../../../../../../examples/fusion_pass)。

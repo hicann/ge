@@ -28,7 +28,7 @@
     <!-- end id3 -->
 <!-- end id11 -->
 
-<!-- npu="910,310p,310b,IPV350" id12 -->
+<!-- npu="910,310p,310b" id12 -->
 - **场景2**：针对如下产品，仅需配置整数1，配置格式为："整数1|"，配置整数2不会生效，表示算子编译时使用的AI Core核数：
 
     <!-- npu="310b" id4 -->
@@ -43,9 +43,6 @@
     Atlas 训练系列产品
     <!-- end id6 -->
 
-    <!-- npu="IPV350" id7 -->
-    IPV350
-    <!-- end id7 -->
 <!-- end id12 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--aicore_num_res.md#id1 -->
@@ -66,7 +63,7 @@
     ```
 <!-- end id13 -->
 
-<!-- npu="910,310p,310b,IPV350" id14 -->
+<!-- npu="910,310p,310b" id14 -->
 - 针对参数值中的场景2：
 
     不同AI处理器包含的最大AI Core数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在10个AI Core。
@@ -99,7 +96,7 @@
     ```
 <!-- end id15 -->
 
-<!-- npu="910,310p,310b,IPV350" id16 -->
+<!-- npu="910,310p,310b" id16 -->
 - 场景2配置示例
 
     ```bash

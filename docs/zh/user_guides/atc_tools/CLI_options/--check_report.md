@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--check_report_res.md#id1 -->
 
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 ## 功能说明
 
 用于配置预检结果保存文件路径和文件名。

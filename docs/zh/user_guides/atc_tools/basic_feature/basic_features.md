@@ -89,10 +89,6 @@ ATC run success, welcome to the next use.
 
 ## 离线模型支持动态batch\_size/动态分辨率
 
-<!-- npu="IPV350" id1 -->
-**IPV350不支持动态batch\_size和动态分辨率特性。**
-<!-- end id1 -->
-
 ### 场景介绍
 
 某些推理场景，如检测出目标后再执行目标识别网络，由于目标个数不固定导致目标识别网络输入batch\_size不固定。如果每次推理都按照最大的batch\_size或最大分辨率进行计算，会造成计算资源浪费。

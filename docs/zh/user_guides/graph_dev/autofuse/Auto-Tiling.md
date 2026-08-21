@@ -15,7 +15,7 @@ Kernel的执行逻辑会在AscIR中表达，Auto Tiling会根据AscIR图的表�
 
     Auto Tiling求解需确保每一级LocalBuffer的占用在硬件允许的范围内，比如，Kernel申请的TQue/TBuf及临时Buf申请大小之和不能超过硬件的UB大小限制，AscIR会表达出每个Tensor的Location是在GM/UB上，Tensor间的复用关系，自动Tiling根据这些信息将各级LocalBuffer的约束进行符号化表达。
 
-    关于TQue/TBuf详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》。
+    关于TQue/TBuf详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/guide/index.md)》。
 
 2. 耗时公式建模
 

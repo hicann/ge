@@ -20,9 +20,6 @@
 <!-- npu="910" id377 -->
 - Atlas 训练系列产品：不支持
 <!-- end id377 -->
-<!-- npu="IPV350" id378 -->
-- IPV350：支持
-<!-- end id378 -->
 
 ## 功能说明
 
@@ -56,9 +53,5 @@ aclError aclmdlExecuteAsyncV2(uint32_t modelId, const aclmdlDataset *input, aclm
 返回0表示成功，返回其他值表示失败，请参见[aclError](aclError.md)。
 
 ## 约束说明
-
-<!-- npu="IPV350" id1 -->
-stream参数不支持传NULL，否则返回报错。
-<!-- end id1 -->
 
 其它约束与[aclmdlExecuteAsync](aclmdlExecuteAsync.md)一致。

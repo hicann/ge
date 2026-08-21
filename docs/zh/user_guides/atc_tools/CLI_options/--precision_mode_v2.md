@@ -82,10 +82,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--precision_mode_v2_res.md#id1 -->
 
-<!-- npu="IPV350" id9 -->
-- **IPV350不支持bfloat16、hif8类型，对应选项也不支持。**
-<!-- end id9 -->
-
 <!-- npu="950,A3,910b,310b" id8 -->
 - **bfloat16数据类型仅支持以下产品型号**：
 

@@ -22,7 +22,7 @@
     <!-- end id4 -->
 <!-- end id1 -->
 
-<!-- npu="910,310p,310b,IPV350" id5 -->
+<!-- npu="910,310p,310b" id5 -->
 - **场景2**：针对如下产品，仅需配置整数1，配置格式为："整数1|"，配置整数2不会生效，表示算子编译时使用的AI Core核数：
 
     <!-- npu="310b" id6 -->
@@ -37,9 +37,6 @@
     Atlas 训练系列产品
     <!-- end id8 -->
 
-    <!-- npu="IPV350" id9 -->
-    IPV350
-    <!-- end id9 -->
 <!-- end id5 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/operator_and_graph_compilation_res.md#id1 -->
 
@@ -59,7 +56,7 @@
     ```
 <!-- end id10 -->
 
-<!-- npu="910,310p,310b,IPV350" id11 -->
+<!-- npu="910,310p,310b" id11 -->
 - 针对参数值中的场景2：
 
     不同AI处理器包含的最大AI Core数量可从`${INSTALL_DIR}/<arch>-linux/data/platform_config/xxx.ini`文件查看，如下所示，说明AI处理器上存在10个AI Core。
@@ -87,7 +84,7 @@
     ```
 <!-- end id12 -->
 
-<!-- npu="910,310p,310b,IPV350" id13 -->
+<!-- npu="910,310p,310b" id13 -->
 - 场景2配置示例
 
     ```c++
@@ -161,9 +158,6 @@
 <!-- npu="910" id22 -->
 - Atlas 训练系列产品：不支持
 <!-- end id22 -->
-<!-- npu="IPV350" id23 -->
-- IPV350：不支持
-<!-- end id23 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/operator_and_graph_compilation_res.md#id4 -->
 
 ## OP\_COMPILER\_CACHE\_MODE

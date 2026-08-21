@@ -232,12 +232,12 @@
 
 ## 开发示例
 
-此处以删除Add\(x, 0\)结构为例（使用@pattern装饰器），详细介绍如何通过Python自定义融合Pass修改Graph。完整样例代码可参见[AddZeroPass Python样例](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/4_add_zero_pass/python/README.md)。源码仓还给出了如下各种场景的样例，供用户参考：
+此处以删除Add\(x, 0\)结构为例（使用@pattern装饰器），详细介绍如何通过Python自定义融合Pass修改Graph。完整样例代码可参见[AddZeroPass Python样例](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/fusion_pass/pattern_base_pass/4_add_zero_pass/python/README.md)。源码仓还给出了如下各种场景的样例，供用户参考：
 
-- [MatMul+Add Python样例](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/1_fuse_matmul_add_pass/python/README.md)
-- [capture tensor Python样例](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/python/README.md)
-- [PatternMatcherConfig Python样例](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/3_fuse_matmul_add_pass_with_pattern_matcher_config/python/README.md)
-- [DecomposePass Python样例](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/python/README.md)
+- [MatMul+Add Python样例](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/fusion_pass/pattern_base_pass/1_fuse_matmul_add_pass/python/README.md)
+- [capture tensor Python样例](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/fusion_pass/pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/python/README.md)
+- [PatternMatcherConfig Python样例](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/fusion_pass/pattern_base_pass/3_fuse_matmul_add_pass_with_pattern_matcher_config/python/README.md)
+- [DecomposePass Python样例](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/examples/fusion_pass/pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/python/README.md)
 
 修改前后的图结构如下：
 
@@ -388,4 +388,4 @@ x ----\
 | 类已加载但pass不执行 | 没有使用注册装饰器，或注册阶段不对 | 检查@register_fusion_pass/@register_decompose_pass |
 | pattern不命中 | 算子类型、输入个数或输出边界不一致 | 对比dump图中的真实拓扑 |
 | 命中了但不替换 | meet_requirements返回False | 打印命中节点属性 |
-| 替换后图异常 | replacement输出没有覆盖外部消费者需要的Tensor | 回到[机制文档](https://gitcode.com/cann/ge/blob/master/docs/zh/design/features/fusion_pattern_pass.md)检查边界规则 |
+| 替换后图异常 | replacement输出没有覆盖外部消费者需要的Tensor | 回到[机制文档](https://gitcode.com/cann/ge/blob/9.2.0-beta.2/docs/zh/design/features/fusion_pattern_pass.md)检查边界规则 |

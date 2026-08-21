@@ -37,7 +37,7 @@ REGISTER_CUSTOM_PASS("pass_name").CustomPassFn(CustomPassFunc).Stage(CustomPassS
 >
 >如果用户在改图过程中，需要替换成其他功能的算子，但是该算子CANN不支持，可以通过如下方式自定义该算子：
 >
->通过Ascend C自定义该算子，详情请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》。
+>通过Ascend C自定义该算子，详情请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/guide/index.md)》。
 >
 >通过TBE自定义该算子，详情请参见《TBE&AI CPU算子开发》。
 >

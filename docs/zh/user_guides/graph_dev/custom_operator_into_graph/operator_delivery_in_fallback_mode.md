@@ -64,7 +64,7 @@ OpExecuteContext指针入参中主要包含计算fallback所需的信息，例�
     OP_ADD(CustomOp);
     ```
 
-    当前fallback函数支持support\_aclnn和aclnn\_only两种调用模式，可通过ExtendCfgInfo接口的aclnnSupport.value参数进行配置，详细可参见《[Ascend C API](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/api/README.md)》。
+    当前fallback函数支持support\_aclnn和aclnn\_only两种调用模式，可通过ExtendCfgInfo接口的aclnnSupport.value参数进行配置，详细可参见《[Ascend C API](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/api/README.md)》。
 
     - support\_aclnn：此模式下，静态Shape场景中该算子通过模型下沉执行，动态Shape场景则在Host侧调用fallback函数下发算子。如果调用了EnableFallBack则默认采用该模式。
     - aclnn\_only：此模式下，动静态Shape场景中该算子均以fallback形式下发。不建议用户使用该模式，后续版本将被废弃。

@@ -242,7 +242,7 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 
 ## 开发示例
 
-此处以MatMul+Add结构融合为GEMM自定义Pass为例（对应上述一般场景下的融合Pass开发），详细介绍如何通过自定义融合Pass修改Graph，详细可以参见[样例源码](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/pattern_base_pass/1_fuse_matmul_add_pass/cpp)。样例仓还提供了更多样例，用户可以单击[融合Pass样例](https://gitcode.com/cann/ge/tree/master/examples/fusion_pass/pattern_base_pass)进行查看。
+此处以MatMul+Add结构融合为GEMM自定义Pass为例（对应上述一般场景下的融合Pass开发），详细介绍如何通过自定义融合Pass修改Graph，详细可以参见[样例源码](../../../../../examples/fusion_pass/pattern_base_pass/1_fuse_matmul_add_pass/cpp)。样例仓还提供了更多样例，用户可以单击[融合Pass样例](../../../../../examples/fusion_pass/pattern_base_pass)进行查看。
 
 修改前后的图结构如下，本例识别图中左边的MatMul+Add结构并通过图修改接口替换为右边的单个GEMM节点：
 
@@ -311,7 +311,7 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 
 ## 如何使用自定义Pass
 
-完成上述自定义Pass后，本节简单介绍如何把改图函数编译成动态库插件方式，以便注册的Pass在图编译阶段被框架调用。详细使用说明请参见[样例使用指导](https://gitcode.com/cann/ge/tree/master/examples/fusion_pass/1_fuse_matmul_add_pass)。
+完成上述自定义Pass后，本节简单介绍如何把改图函数编译成动态库插件方式，以便注册的Pass在图编译阶段被框架调用。详细使用说明请参见[样例使用指导](../../../../../examples/fusion_pass/cpp_fusion_pass_development_guide.md)。
 
 1. 把[开发示例](#开发示例)中的改图函数编译成仅以".so"结尾的动态库文件。
 2. 编译成功后，执行**make install**命令，将上述".so"动态库文件安装到`${INSTALL_DIR}/opp/vendors/xxx/custom_fusion_passes/`目录下。（支持设置软链接的方式；".so"文件对执行用户，需要有可读权限）
@@ -332,7 +332,7 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 
 ## 结果验证
 
-请参见[样例使用指导](https://gitcode.com/cann/ge/blob/master/examples/fusion_pass/1_fuse_matmul_add_pass/cpp)\>程序运行\>查看运行结果。
+请参见[样例使用指导](../../../../../examples/fusion_pass/cpp_fusion_pass_development_guide.md)\>程序运行\>查看运行结果。
 
 设置了dump环境变量后，程序执行完毕，会在当前路径生成ge\_onnx\*.pbtxt等图文件，用户可以获取如下两张图（以指定Pass执行阶段在InferShape之前为例），然后使用Netron等可视化软件查看：
 

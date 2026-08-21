@@ -41,7 +41,4 @@
 <!-- npu="910" id7 -->
 - Atlas 训练系列产品：支持
 <!-- end id7 -->
-<!-- npu="IPV350" id8 -->
-- IPV350：不支持
-<!-- end id8 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildInitialize_config_params/dynamic_shape_res.md#id2 -->

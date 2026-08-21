@@ -38,7 +38,7 @@
 
 1.**安装驱动与固件（运行态依赖）**
 
-宿主机上昇腾驱动与固件的下载和安装操作请参考《[软件安装](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)》中“准备软件包”和“安装NPU驱动和固件”章节。驱动与固件是运行态依赖，若仅编译算子，可以不安装。
+宿主机上昇腾驱动与固件的下载和安装操作请参考《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》中“准备软件包”和“安装NPU驱动和固件”章节。驱动与固件是运行态依赖，若仅编译算子，可以不安装。
 
 2.**下载镜像**
 
@@ -130,7 +130,7 @@ docker run --name cann_container \
 
    2. **安装CANN包**
 
-         请单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取最新时间版本，并根据产品型号和环境架构下载对应包。安装命令如下，更多指导请参考《[软件安装](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)》。
+         请单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取最新时间版本，并根据产品型号和环境架构下载对应包。安装命令如下，更多指导请参考《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 
          - 安装CANN Toolkit开发套件包。
 

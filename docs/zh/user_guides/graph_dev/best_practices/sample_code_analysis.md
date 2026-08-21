@@ -1,6 +1,6 @@
 # 样例代码解析
 
-本实践采用模块化设计，基于C++语言结合GE图引擎 API与acl（Ascend Computing Language）API实现，完整代码请单击[推荐网络高性能示例](https://gitcode.com/cann/ge/tree/master/examples/recommendation)获取，核心组件构成如下：
+本实践采用模块化设计，基于C++语言结合GE图引擎 API与acl（Ascend Computing Language）API实现，完整代码请单击[推荐网络高性能示例](https://gitcode.com/cann/ge/tree/9.2.0-beta.2/examples/recommendation)获取，核心组件构成如下：
 
 1. **ModelInference::Builder**：构建器，配置模型参数；封装ModelInference对象的构建过程，提供链式配置接口。
 2. **ModelInference**：核心类，提供模型初始化、资源管理、任务调度等核心能力。

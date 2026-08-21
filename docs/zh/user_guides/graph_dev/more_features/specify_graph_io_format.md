@@ -4,7 +4,7 @@
 
 在了解本章节特性之前，需要先了解什么是原始格式和内部格式（或称运行时格式）：
 
-原始格式是指未经任何转换的原始图像格式，对应脚本上使用的格式，常见的如NCHW、NHWC等；而为了确保算子在不同硬件规格上表现出最高效率，内部格式应运而生（对应Device上计算使用的格式），常用的有NC1HWC0、FRACTAL\_NZ、FRACTAL\_Z等。例如，脚本开发者模型中使用了NCHW格式的Tensor，经过图编译框架优化后，该Tensor可能被转换为运行时格式NC1HWC0。关于格式的详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》中的“编程指南 \> 概念原理和术语 \> 神经网络和算子\> 数据排布格式”。
+原始格式是指未经任何转换的原始图像格式，对应脚本上使用的格式，常见的如NCHW、NHWC等；而为了确保算子在不同硬件规格上表现出最高效率，内部格式应运而生（对应Device上计算使用的格式），常用的有NC1HWC0、FRACTAL\_NZ、FRACTAL\_Z等。例如，脚本开发者模型中使用了NCHW格式的Tensor，经过图编译框架优化后，该Tensor可能被转换为运行时格式NC1HWC0。关于格式的详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0-beta.2/docs/zh/guide/index.md)》中的“编程指南 \> 概念原理和术语 \> 神经网络和算子\> 数据排布格式”。
 
 将原始格式转换为运行时格式，相对于原始脚本来说是一种额外开销，因此提供本章节的功能，支持用户指定模型输入输出的内部格式，从而减少Tensor在图边界传递过程中产生的额外格式转换开销，获取更大的性能收益。
 
@@ -14,7 +14,7 @@
 
 用户创建Graph实例后，对Data节点的输出TensorDesc，或模型输出的TensorDesc调用SetStorageFormat接口，设置运行时格式，调用SetExpandDimsRule接口，设置补维规则，然后在Graph中设置输入算子、输出算子，完成Graph构建。
 
-SetStorageFormat接口和SetExpandDimsRule接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)》。
+SetStorageFormat接口和SetExpandDimsRule接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/9.2.0-beta.2/docs/zh/api/README.md)》。
 
 **使用约束：**
 
