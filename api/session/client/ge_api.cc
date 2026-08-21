@@ -1262,13 +1262,13 @@ Status Session::SetGraphConstMemoryBase(uint32_t graph_id, const void *const mem
                                    "correctly executed before setting the graph const memory base"}));
     return FAILED;
   }
-  if (EnableSliceSchedule()) {
+  if (EnableAutoFuse()) {
     GELOGE(UNSUPPORTED,
-           "[Construct][Session]SetGraphConstMemoryBase does not support the slice scheduler currently, "
+           "[Construct][Session]SetGraphConstMemoryBase does not support the JIT executor currently, "
            "session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
     REPORT_INNER_ERR_MSG("E19999",
-                         "SetGraphConstMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64
+                         "SetGraphConstMemoryBase does not support the JIT executor currently, session_id:%" PRIu64
                          ", graph_id:%u, memory:%p, size:%zu",
                          sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
@@ -1306,16 +1306,15 @@ Status Session::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *cons
                                    "correctly executed before updating the graph feature memory base"}));
     return FAILED;
   }
-  if (EnableSliceSchedule()) {
+  if (EnableAutoFuse()) {
     GELOGE(UNSUPPORTED,
-           "[Construct][Session]UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, "
+           "[Construct][Session]UpdateGraphFeatureMemoryBase does not support the JIT executor currently, "
            "session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
-    REPORT_INNER_ERR_MSG(
-        "E19999",
-        "UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64
-        ", graph_id:%u, memory:%p, size:%zu",
-        sessionId_, graph_id, memory, size);
+    REPORT_INNER_ERR_MSG("E19999",
+                         "UpdateGraphFeatureMemoryBase does not support the JIT executor currently, session_id:%" PRIu64
+                         ", graph_id:%u, memory:%p, size:%zu",
+                         sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
   }
   const auto inner_session = g_session_manager->GetSession(sessionId_);
@@ -1356,14 +1355,14 @@ Status Session::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memory
                                    "correctly executed before setting the graph fixed feature memory base with type"}));
     return FAILED;
   }
-  if (EnableSliceSchedule()) {
+  if (EnableAutoFuse()) {
     GELOGE(UNSUPPORTED,
-           "[Construct][Session]SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, "
+           "[Construct][Session]SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently, "
            "session_id:%" PRIu64 ", graph_id:%u, type:%d, memory:%p, size:%zu",
            sessionId_, graph_id, type, memory, size);
     REPORT_INNER_ERR_MSG(
         "E19999",
-        "SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, session_id:%" PRIu64
+        "SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently, session_id:%" PRIu64
         ", graph_id:%u, memory:%p, size:%zu",
         sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
@@ -1403,14 +1402,14 @@ Status Session::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const
                                    "correctly executed before updating the graph refreshable feature memory base"}));
     return FAILED;
   }
-  if (EnableSliceSchedule()) {
+  if (EnableAutoFuse()) {
     GELOGE(UNSUPPORTED,
-           "[Construct][Session]UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler "
+           "[Construct][Session]UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor "
            "currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
     REPORT_INNER_ERR_MSG(
         "E19999",
-        "UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64
+        "UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor currently, session_id:%" PRIu64
         ", graph_id:%u, memory:%p, size:%zu",
         sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
