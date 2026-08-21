@@ -322,10 +322,11 @@ HcclResult HcomOpsKernelInfoStore::CheckPrivateDef(const ge::GETaskInfo &task) {
   }
   HCCL_KERNEL_INFO_PRIVATE_DEF *privateDefBuf = reinterpret_cast<HCCL_KERNEL_INFO_PRIVATE_DEF *>(task.privateDef);
   size_t crackNum = privateDefBuf->tensorNum;
+  size_t compatSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) - privateDefBuf->privateDefSize;
   // 表示有tensor间脏数据需要清零
   if (crackNum != 0) {
     uint32_t privateDefLenwithCrackClear =
-        sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + crackNum * sizeof(int64_t) + crackNum * sizeof(int64_t);
+        sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + crackNum * sizeof(int64_t) + crackNum * sizeof(int64_t) - compatSize;
     if (task.privateDefLen != privateDefLenwithCrackClear) {
       HCCL_ERROR("[Check][PrivateDef]errNo[0x%016llx] privateDefLen[%u] is not equal to [%zu]",
                  HCOM_ERROR_CODE(HCCL_E_PARA), task.privateDefLen, privateDefLenwithCrackClear);
@@ -344,6 +345,7 @@ HcclResult HcomOpsKernelInfoStore::CheckPrivateDef(const ge::GETaskInfo &task) {
     } else {
       privateDefLen = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
     }
+    privateDefLen -= compatSize;
     if (task.privateDefLen != privateDefLen) {
       HCCL_ERROR("[Check][PrivateDef]errNo[0x%016llx] privateDefLen[%u] is not equal to [%zu]",
                  HCOM_ERROR_CODE(HCCL_E_PARA), task.privateDefLen, privateDefLen);
