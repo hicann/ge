@@ -41,15 +41,33 @@ void ConvertAscendStringMap(const std::map<ge::AscendString, ge::AscendString> &
 }
 
 std::atomic_bool g_dflow_ge_initialized{false};
-std::mutex g_dflow_ge_release_mutex;  // GEFinalize and ~DFlowSession use
+std::mutex g_dflow_ge_release_mutex;  // DFlowInitialize, DFlowFinalize and ~DFlowSession use
 std::shared_ptr<DFlowSessionManager> g_dflow_session_manager;
+
+void DFlowFinalizeImpl() {
+  GELOGT(TRACE_INIT, "DFlowFinalize start.");
+  if (g_dflow_session_manager != nullptr) {
+    g_dflow_session_manager->Finalize();
+  }
+  (void)malloc_trim(0);
+  g_dflow_ge_initialized = false;
+  ge::DFlowFinalizeInner();
+  if (acl_owned_by_dflow) {
+    aclFinalize();
+    acl_owned_by_dflow.store(false);
+  }
+  acl_initialized.store(false);
+  GELOGT(TRACE_STOP, "DFlowFinalize finished");
+}
 }  // namespace
 
 Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
+  std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
   if (g_dflow_ge_initialized) {
     GELOGW("DFlowInitialize is called more than once");
     return SUCCESS;
   }
+  GE_DISMISSABLE_GUARD(rollback, ([]() { DFlowFinalizeImpl(); }));
   if (!acl_initialized) {
     aclError ret = aclInit(nullptr);
     if (ret != ACL_SUCCESS && ret != ACL_ERROR_REPEAT_INITIALIZE) {
@@ -62,7 +80,6 @@ Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
       acl_owned_by_dflow.store(true);
     }
   }
-  // todo call GEInitialize in new so
   GE_TIMESTAMP_START(DflowInitializeAll);
   GELOGI("sessionManager initial.");
   GE_TIMESTAMP_START(DflowSessionManagerInitialize);
@@ -76,6 +93,7 @@ Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
 
   GE_CHK_STATUS_RET(ge::DFlowInitializeInner(options), "Failed to call dflow initialize inner");
   g_dflow_ge_initialized = true;
+  GE_DISMISS_GUARD(rollback);
   GELOGT(TRACE_STOP, "DFlowInitialize finished");
   GE_TIMESTAMP_EVENT_END(DflowInitializeAll, "DflowInitialize::All");
   return SUCCESS;
@@ -84,28 +102,8 @@ Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
 // DFlow finalize, releasing all resources
 Status DFlowFinalize() {
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kGEFinalize);
-  // check init status
-  if (!g_dflow_ge_initialized) {
-    GELOGW("[FINAL]DFlowFinalize is called before DFlowInitialize");
-    return SUCCESS;
-  }
-  if (acl_owned_by_dflow) {
-    aclFinalize();
-    acl_owned_by_dflow.store(false);
-  }
-  acl_initialized.store(false);
   std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
-  GELOGT(TRACE_INIT, "DFlowFinalize start.");
-
-  GELOGI("DflowSessionManager finalization.");
-  if (g_dflow_session_manager != nullptr) {
-    g_dflow_session_manager->Finalize();  // always success.
-  }
-  (void)malloc_trim(0);
-  g_dflow_ge_initialized = false;
-  ge::DFlowFinalizeInner();
-  // todo GEFinalize
-  GELOGT(TRACE_STOP, "DFlowFinalize finished");
+  DFlowFinalizeImpl();
   return SUCCESS;
 }
 
