@@ -96,7 +96,7 @@ Status ConcatTileFusionPass::GetShapeLimited(const ge::DataType &data_type) {
   }
   FE_MUL_OVERFLOW(val_size, val_core, shape_limited_);
   shape_limited_ /= data_type_size;
-  FE_LOGD("Current soc has vecor_core_num is [%s], vector_calculate_size is [%s], shape_limited_size is [%lu].",
+  FE_LOGD("Current soc has vector_core_num is [%s], vector_calculate_size is [%s], shape_limited_size is [%lu].",
           val_core_str.c_str(), val_size_str.c_str(), shape_limited_);
   return SUCCESS;
 }
@@ -745,7 +745,7 @@ Status ConcatTileFusionPass::ParseConcatNode(const ge::NodePtr &concat_node) {
       FE_CHECK(!GetConcatV2ConstantNode(concat_node, indx), FE_LOGW("Can't find const node"), return NOT_CHANGED);
     }
     FE_CHECK(CheckControlEdge(concat_dim_input_node_),
-             FE_LOGW("Concat node's concat_dim with conctrl edges, Couldn't be supported."), return NOT_CHANGED);
+             FE_LOGW("Concat node's concat_dim with control edges, Couldn't be supported."), return NOT_CHANGED);
     if (!GetConcatDim(concat_node, indx)) {
       return NOT_CHANGED;
     }

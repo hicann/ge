@@ -1422,7 +1422,7 @@ bool AssembleOpPrivateAttrs(const TbeOpInfo &opInfo, PyObject *&pyPrivateAttrs, 
   int32_t index = 0;
   bool result = AddAttrArgs(privateAttrs, pyPrivateAttrs, index, isSingleOpBuild, variableAttrs);
   TE_FUSION_CHECK((!result), {
-    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to add op pirvate attrs.");
+    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to add op private attrs.");
     return false;
   });
   return true;

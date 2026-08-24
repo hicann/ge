@@ -1086,7 +1086,7 @@ Status QuantUtilImpl::SetAttrForRequantHostCpuOp(ge::OpDescPtr &req_host_op_desc
   const uint64_t *req_scale_data_int = reinterpret_cast<const uint64_t *>(req_scale_data_tmp);
   for (int64_t i = 0; i < req_co; i++) {
     const int8_t req_n = static_cast<int8_t>(GET_REQUANT_N(req_scale_data_int[i]));
-    GELOGD("Qeq_scale N value[%ld] is %d", i, req_n);
+    GELOGD("Req_scale N value[%ld] is %d", i, req_n);
     if (req_n != 0) {
       (void)ge::AttrUtils::SetStr(req_host_op_desc, kAttrQuantMode, kQuantHighPerformance);
       break;

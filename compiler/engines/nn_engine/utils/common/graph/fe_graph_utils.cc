@@ -139,7 +139,8 @@ Status FeGraphUtils::GetNextInAnchorsOfSubNetOutput(const ge::NodePtr &net_outpu
   auto input_desc = op_desc_ptr->GetInputDescPtr(input_index);
   uint32_t parent_index = -1;
   if (!ge::AttrUtils::GetInt(input_desc, ge::ATTR_NAME_PARENT_NODE_INDEX, parent_index)) {
-    FE_LOGE("");
+    FE_LOGE("Node[%s] failed to get attr %s for input index %d.", op_desc_ptr->GetName().c_str(),
+            ge::ATTR_NAME_PARENT_NODE_INDEX.c_str(), input_index);
     return FAILED;
   }
 

@@ -47,7 +47,7 @@ Status TbeKernelLaunch::DealKernelLaunch(const ge::Node &node, const void *args,
     return TASK_BUILDER_STATUS_INTERNAL_ERROR;
   }
   // 5. call KernelLaunch
-  FE_LOGD("Op[name=%s,type=%s]: args_size:%u bytes, append_args_size:%zu bytes, total_args_size:%u bytes.",
+  FE_LOGD("Op[name=%s, type=%s]: args_size: %u bytes, append_args_size: %zu bytes, total_args_size: %u bytes.",
           op_name.c_str(), op_type.c_str(), args_size, append_args_size, total_args_size);
   if (append_args_size > 0) {
     PrintAllArgs(op_name, op_type, args_buff.data(), args_size);
@@ -56,7 +56,7 @@ Status TbeKernelLaunch::DealKernelLaunch(const ge::Node &node, const void *args,
   bool ret = false;
   std::string first_kernel_name;
   if (ge::AttrUtils::GetStr(op_desc, ATTR_NAME_KERNEL_LIST_FIRST_NAME, first_kernel_name)) {
-    FE_LOGD("Node name is[%s], first kernel name is[%s].", op_name.c_str(), first_kernel_name.c_str());
+    FE_LOGD("Node name is [%s], first kernel name is [%s].", op_name.c_str(), first_kernel_name.c_str());
     ret = KernelLaunchWithHandle(core_dim, args_buff.data(), total_args_size, nullptr, task_def);
   } else {
     ret = KernelLaunch(stub_func, core_dim, args_buff.data(), total_args_size, nullptr, task_def);
@@ -72,13 +72,13 @@ void TbeKernelLaunch::PrintAllArgs(const string &op_name, const string &op_type,
                                    uint32_t args_size) {
   for (size_t i = 0; i != args_size / sizeof(uint64_t); ++i) {
     uint64_t value = *(reinterpret_cast<uint64_t *>(reinterpret_cast<uintptr_t>(all_args_buff) + i * sizeof(uint64_t)));
-    FE_LOGD("Op[name=%s,type=%s]: args[%zu]=[%lu].", op_name.c_str(), op_type.c_str(), i, value);
+    FE_LOGD("Op[name=%s, type=%s]: args[%zu]=[%lu].", op_name.c_str(), op_type.c_str(), i, value);
   }
 
   for (size_t i = 0; i != GetAppendArgsNum(); ++i) {
     uint64_t value = *(reinterpret_cast<uint64_t *>(reinterpret_cast<uintptr_t>(all_args_buff) + args_size +
                                                     i * GetAppendArgsSizeOf()));
-    FE_LOGD("Op[name=%s,type=%s]: append_args[%zu]=[%lu].", op_name.c_str(), op_type.c_str(), i, value);
+    FE_LOGD("Op[name=%s, type=%s]: append_args[%zu]=[%lu].", op_name.c_str(), op_type.c_str(), i, value);
   }
 }
 
@@ -104,7 +104,7 @@ bool TbeKernelLaunch::KernelLaunch(const std::string &stub_func, const uint32_t 
     return false;
   }
 
-  FE_LOGD("[GenTask][KernelLaunch] stub_func_name is [%s].", stub_func.c_str());
+  FE_LOGD("[GenTask][KernelLaunch] stub_func_name is [%s]", stub_func.c_str());
   kernel_def->set_stub_func(stub_func);
   if (sm_desc != nullptr) {
     uintptr_t sm_desc_data = reinterpret_cast<uintptr_t>(sm_desc);

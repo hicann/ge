@@ -26,14 +26,14 @@ L2Optimizer::~L2Optimizer() {}
 
 Status L2Optimizer::UpdateInputForL2Fusion(const ge::ComputeGraph &stream_graph) const {
   for (auto &node : stream_graph.GetDirectNode()) {
-    FE_LOGD("update input for node:%s.", node->GetName().c_str());
+    FE_LOGD("update input for node: %s.", node->GetName().c_str());
     uint64_t input_idx = 0;
     for (uint8_t i = 0; i < node->GetAllInDataAnchors().size(); ++i) {
       auto in_anchor = node->GetInDataAnchor(i);
       FE_CHECK_NOTNULL(in_anchor);
       auto peer_out_anchor = in_anchor->GetPeerOutAnchor();
       if (peer_out_anchor == nullptr) {
-        FE_LOGD("peer_out_anchor is empty.");
+        FE_LOGD("peer_out_anchor is nullptr.");
         continue;
       }
       auto input_node = peer_out_anchor->GetOwnerNode();
@@ -93,7 +93,7 @@ Status L2Optimizer::UpdateInputForL2Fusion(const ge::ComputeGraph &stream_graph)
     }
     ge::OpDescPtr node_desc = node->GetOpDesc();
     L2FusionInfoPtr l2_info = GetL2FusionInfoFromJson(node_desc);
-    FE_LOGD("Set all l2fusion information to node: [%s].", node_desc->GetName().c_str());
+    FE_LOGD("Set all l2fusion information to node [%s].", node_desc->GetName().c_str());
     SetL2FusionInfoToNode(node_desc, l2_info);
   }
   return SUCCESS;
@@ -171,24 +171,24 @@ Status L2Optimizer::GetL2DataAlloc(ge::ComputeGraph &stream_graph, uint64_t mem_
   // l2 buffer
   if ((CheckL2BufferFusionStrategy(stream_graph) && Configuration::Instance(engine_name_).IsEnableL2Buffer() &&
        build_mode_value != ge::BUILD_MODE_TUNING)) {
-    FE_LOGD("L2 buffer enabled. Build mode is %s, graph name: %s.", build_mode_value.c_str(),
+    FE_LOGD("L2 buffer enabled. Build mode is %s, graph name: %s", build_mode_value.c_str(),
             stream_graph.GetName().c_str());
     TaskL2InfoMap l2_info_map;
     FE_CHECK(L2FusionHandler::GetL2DataAlloc(mem_base, stream_graph, l2_info_map) != fe::SUCCESS,
              REPORT_FE_ERROR("[StreamOpt][L2Opt][GetL2DataAlloc] Allocate L2 Buffer Address failed!"),
              return fe::FAILED);
-    FE_LOGD("Allocate L2 Buffer Address for stream graph successfully.");
+    FE_LOGD("Allocate L2 Buffer Address for stream graph successfully");
 
     FE_CHECK(!SetFunctionState(fe::FuncParamType::FUSION_L2, true),
              REPORT_FE_ERROR("[StreamOpt][L2Opt][GetL2DataAlloc] Failed to set Func State to true!"),
              return fe::FAILED);
 
-    FE_LOGD("Set function state successfully.");
+    FE_LOGD("Set function state successfully");
     std::string batch_label = "Batch_-1";
     (void)ge::AttrUtils::GetStr(stream_graph, ge::ATTR_NAME_BATCH_LABEL, batch_label);
     FE_CHECK(StreamL2Info::Instance().SetStreamL2Info(stream_id, l2_info_map, batch_label) != fe::SUCCESS,
              REPORT_FE_ERROR("[StreamOpt][L2Opt][UpdL2FusIn] Failed to set Stream L2 Map!"), return fe::FAILED);
-    FE_LOGD("Set stream L2 map successfully.");
+    FE_LOGD("Set stream L2 map successfully");
   }
   if (build_mode_value == ge::BUILD_MODE_TUNING ||
       (Configuration::Instance(engine_name_).EnableL2Fusion() && CheckL2FusionFusionStrategy(stream_graph))) {

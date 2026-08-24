@@ -76,7 +76,7 @@ ge::ComputeGraphPtr GetOriginGraphFromUbNode(const ge::NodePtr &node) {
 
 inline bool NodeSupportRollback(const ge::NodePtr &node) {
   if (IsThirdClassOp(node->GetOpDesc())) {
-    GELOGD("Node[%s] is third class op, jump rollback aicpu.", node->GetName().c_str());
+    GELOGD("Node [%s] is third class op, jump rollback aicpu.", node->GetName().c_str());
     return false;
   }
   if (!node->GetOpDesc()->HasAttr(optiling::COMPILE_INFO_JSON)) {
@@ -169,7 +169,7 @@ bool IsSingleOpScene(const ge::NodePtr &node) {
   (void)ge::AttrUtils::GetBool(root_graph, ge::ATTR_SINGLE_OP_SCENE, is_single_op_scene);
   bool is_single_op_graph = false;
   (void)ge::AttrUtils::GetBool(owner_graph, kFESingleOpScene, is_single_op_graph);
-  GELOGD("Node[%s] single op flag %d, single op graph flag %d.", node->GetName().c_str(), is_single_op_scene,
+  GELOGD("Node [%s] single op flag %d, single op graph flag %d", node->GetName().c_str(), is_single_op_scene,
          is_single_op_graph);
   return (is_single_op_scene && is_single_op_graph);
 }
@@ -484,7 +484,7 @@ ge::NodePtr BuildAtomicNode(const ge::NodePtr &origin_node, const bg::AtomicLowe
   for (const auto &clean_size : output_clean_sizes) {
     ss << clean_size << ",";
   }
-  GELOGI("[AIC_INFO] atomic node %s", ss.str().c_str());
+  GELOGI("[AIC_INFO] atomic node %s.", ss.str().c_str());
   return clean_node;
 }
 
@@ -684,10 +684,10 @@ bg::ValueHolderPtr LaunchAtomicByType(const ge::NodePtr &node, const LowerInput 
   std::shared_ptr<optiling::utils::OpRunInfo> tiling_info = nullptr;
   tiling_info = node->GetOpDesc()->TryGetExtAttr(ge::ATTR_NAME_OP_RUN_INFO, tiling_info);
   if (!ge::AttrUtils::HasAttr(node->GetOpDesc(), optiling::ATOMIC_COMPILE_INFO_JSON) && tiling_info != nullptr) {
-    GELOGD("Node %s has no ATOMIC_COMPILE_INFO_JSON.", node->GetName().c_str());
+    GELOGD("Node %s has no ATOMIC_COMPILE_INFO_JSON", node->GetName().c_str());
     atomic_launch_holder = LaunchStaticAtomic(node, lower_input, compile_result, atomic_lowering_arg);
   } else {
-    GELOGD("Node %s has an ATOMIC_COMPILE_INFO_JSON.", node->GetNamePtr());
+    GELOGD("Node %s has an ATOMIC_COMPILE_INFO_JSON", node->GetNamePtr());
     atomic_launch_holder = LaunchAtomic(node, lower_input, compile_result, atomic_lowering_arg);
   }
   return atomic_launch_holder;

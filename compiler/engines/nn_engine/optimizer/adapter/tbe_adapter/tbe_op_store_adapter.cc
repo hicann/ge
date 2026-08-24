@@ -130,10 +130,10 @@ void SetSgtSliceShaeForEachTensor(size_t tensor_idx, int32_t thread_idx, const g
   slice_dims_head_tail.emplace_back(slice_shape.GetDims());
   auto tensor = tensors.at(tensor_idx);
   (void)ge::AttrUtils::SetListListInt(tensor, attr_name, slice_dims_head_tail);
-  FE_LOGD("Optype:%s, opname:%s, set thread %d's slice shape %s for tensor %s, tensor index %zu.",
+  FE_LOGD("Optype: %s, opname: %s, set thread %d's slice shape %s for tensor %s, tensor index %zu.",
           node->GetType().c_str(), node->GetName().c_str(), thread_idx,
           StringUtils::IntegerVecToString(slice_shape.GetDims()).c_str(), tensor->GetName().c_str(), tensor_idx);
-  FE_LOGD("Original shape is %s, shape is %s.",
+  FE_LOGD("Original shape is %s, shape is %s",
           StringUtils::IntegerVecToString(tensor->GetOriginShape().GetDims()).c_str(),
           StringUtils::IntegerVecToString(tensor->MutableShape().GetDims()).c_str());
 }
@@ -196,7 +196,7 @@ Status TbeOpStoreAdapter::SerialPreCompileOp(vector<PreCompileNodePara> &compile
   for (auto &comp_para : compile_para_vec) {
     FE_CHECK(comp_para.node == nullptr,
              REPORT_FE_ERROR("[SubGraphOpt][Compile][SerialPreComOp] compPara.node is nullptr."), return FAILED);
-    FE_LOGD("TbeOpStoreAdapter::PreCompile Op begin, node name: %s, node type %s.",
+    FE_LOGD("TbeOpStoreAdapter::PreCompile Op begin, node name: %s, node type: %s.",
             comp_para.node->GetOpDesc()->GetName().c_str(), comp_para.node->GetOpDesc()->GetType().c_str());
 
     TbeOpInfoPtr tbe_op_info_ptr = PreCompSetTbeOpInfo(comp_para);

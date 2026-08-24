@@ -43,7 +43,7 @@ Status GenerateCMOPrefetchTask::GenerateTask(std::vector<domi::TaskDef> &task_de
     // gen cmo id
     uint32_t cmo_id = static_cast<uint32_t>(CMOIdGenStrategy::Instance().GenerateCMOId(node_));
     if (cmo_id == 0) {
-      FE_LOGW("Failed to generate cmo id for mode [%s], cmo task not launched.", node_.GetName().c_str());
+      FE_LOGW("Failed to generate cmo id for node [%s], cmo task not launched.", node_.GetName().c_str());
       return FAILED;
     }
     FE_LOGD("Generate prefetch cmo task id[%u] for node[%s] success.", cmo_id, node_.GetName().c_str());

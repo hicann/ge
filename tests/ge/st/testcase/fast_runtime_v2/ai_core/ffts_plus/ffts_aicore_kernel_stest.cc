@@ -591,4 +591,37 @@ TEST_F(FFTSAICoreKernelTestST, test_atomic_aicore_update_context) {
             ge::GRAPH_SUCCESS);
 }
 
+TEST_F(FFTSAICoreKernelTestST, test_calc_atomic_out_shape_size_output_index_exceeds_slice_size) {
+  auto run_context = KernelRunContextFaker()
+                         .KernelIONum(2, 2)
+                         .NodeIoNum(2, 3)
+                         .IrInputNum(2)
+                         .NodeInputTd(0, ge::DT_FLOAT16, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                         .NodeInputTd(1, ge::DT_FLOAT16, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                         .NodeOutputTd(0, ge::DT_FLOAT16, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                         .NodeOutputTd(1, ge::DT_FLOAT16, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                         .NodeOutputTd(2, ge::DT_FLOAT, ge::FORMAT_NCHW, ge::FORMAT_NC1HWC0)
+                         .Build();
+
+  auto clear_index = ContinuousVector::Create<int64_t>(2);
+  auto clear_index_vec = reinterpret_cast<ContinuousVector *>(clear_index.get());
+  clear_index_vec->SetSize(2);
+  auto clear_index_ptr = reinterpret_cast<int64_t *>(clear_index_vec->MutableData());
+  clear_index_ptr[0] = 0;
+  clear_index_ptr[1] = 5;
+
+  auto slice_shape = ContinuousVector::Create<Shape>(3);
+  auto slice_shape_vec = reinterpret_cast<ContinuousVector *>(slice_shape.get());
+  slice_shape_vec->SetSize(3);
+  auto slice_shape_ptr = reinterpret_cast<Shape *>(slice_shape_vec->MutableData());
+  Shape shape({3, 2, 2});
+  slice_shape_ptr[0] = shape;
+  slice_shape_ptr[1] = shape;
+  slice_shape_ptr[2] = shape;
+  run_context.value_holder[0].Set(clear_index_vec, nullptr);
+  run_context.value_holder[1].Set(slice_shape_vec, nullptr);
+
+  ASSERT_EQ(registry.FindKernelFuncs("FFTSCalcAtomicOutputShapeSize")->run_func(run_context), ge::GRAPH_FAILED);
+}
+
 }  // namespace gert

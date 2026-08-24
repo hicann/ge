@@ -595,3 +595,33 @@ TEST_F(FFTSTaskBuilderAdapterUTest, gen_dyn_and_opt_mix_l2_taskdef_exception) {
   ret = ffts_task_builder->GenMixL2CtxDef(node->GetOpDesc(), ctx);
   EXPECT_EQ(ret, fe::SUCCESS);
 }
+
+TEST_F(FFTSTaskBuilderAdapterUTest, GenCtxParamAndCtxType_AutoModeInitFailed) {
+  auto node = CreateNode();
+  ffts::ThreadSliceMapPtr slice_info_ptr;
+  slice_info_ptr = node->GetOpDesc()->TryGetExtAttr(ffts::kAttrSgtStructInfo, slice_info_ptr);
+  ASSERT_NE(slice_info_ptr, nullptr);
+  slice_info_ptr->thread_mode = static_cast<uint32_t>(ffts::ThreadMode::AUTO_THREAD);
+  (void)ge::AttrUtils::SetInt(node->GetOpDesc(), fe::NON_TAIL_WORKSPACE_SIZE, 10);
+  node->GetOpDesc()->SetWorkspaceBytes({100000});
+
+  FftsTaskBuilderPtr ffts_task_builder = std::make_shared<FftsTaskBuilder>();
+  ffts_task_builder->context_ = context_;
+
+  ffts::TaskBuilderType ctx_type;
+  Status ret = ffts_task_builder->GenCtxParamAndCtxType(*node, ctx_type);
+  EXPECT_NE(fe::SUCCESS, ret);
+}
+
+TEST_F(FFTSTaskBuilderAdapterUTest, GenCtxParamAndCtxType_ManualModeInitFailed) {
+  auto node = CreateNode();
+  (void)ge::AttrUtils::SetInt(node->GetOpDesc(), fe::NON_TAIL_WORKSPACE_SIZE, 10);
+  node->GetOpDesc()->SetWorkspaceBytes({100000});
+
+  FftsTaskBuilderPtr ffts_task_builder = std::make_shared<FftsTaskBuilder>();
+  ffts_task_builder->context_ = context_;
+
+  ffts::TaskBuilderType ctx_type;
+  Status ret = ffts_task_builder->GenCtxParamAndCtxType(*node, ctx_type);
+  EXPECT_NE(fe::SUCCESS, ret);
+}

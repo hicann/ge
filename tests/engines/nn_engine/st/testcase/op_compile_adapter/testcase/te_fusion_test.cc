@@ -374,7 +374,7 @@ TEST(TEST_TEFUSION_ST, OpSetArgsToNode) {
   std::string jsonPath = currentFilePath + "/test_files/kernel_meta/accumulate.json";
 
   if (te::fusion::RealPath(jsonPath).empty()) {
-    printf("jsonPath=%s is not exist!\n", jsonPath.c_str());
+    printf("jsonPath=%s does not exist!\n", jsonPath.c_str());
   } else {
     std::ifstream ifs(jsonPath);
     if (!ifs.is_open()) {

@@ -73,15 +73,15 @@ bool BuildOpInputTensors(const ge::NodePtr &node, const LowerInput &lower_input,
              op_desc->GetTypePtr(), index);
       return false;
     }
-    GELOGD("ir input index of node [%s, %s]'s input[%zu] is [%zu].", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
-           index, ir_input_index);
+    GELOGD("ir input index of node[%s, %s]'s input[%zu] is [%zu]", op_desc->GetNamePtr(), op_desc->GetTypePtr(), index,
+           ir_input_index);
     int32_t input_placement = functions->IsHostInput(ir_input_index) ? kOnHost : kOnDeviceHbm;
     // remove last true
     const OutputLowerResult *result = lower_result->GetOutputTensorResult(
         *lower_input.global_data, out_data_anchor->GetIdx(), {input_placement, node->GetOpDesc()->GetStreamId()});
     if (result == nullptr || result->shape == nullptr) {
-      GELOGE(ge::FAILED, "Lowering result or its shape of node [%s, %s] output[%d] is not null.",
-             peer_node->GetNamePtr(), peer_node->GetTypePtr(), out_data_anchor->GetIdx());
+      GELOGE(ge::FAILED, "Lowering result or its shape of node[%s, %s] output[%d] is null.", peer_node->GetNamePtr(),
+             peer_node->GetTypePtr(), out_data_anchor->GetIdx());
       return false;
     }
     op_exe_tensors.emplace_back(result->shape);
@@ -209,7 +209,7 @@ bg::ValueHolderPtr CreateOpExecuteOption(const ge::NodePtr &node) {
   // precision_mode
   execute_option.precision_mode = 0;
   if (!ge::AttrUtils::GetInt(node->GetOpDesc(), kAttrPrecisionModeEnum, execute_option.precision_mode)) {
-    GELOGD("Do not get attr precision_mode_enum from node[%s, %s].", node->GetNamePtr(), node->GetTypePtr());
+    GELOGD("Do not get attr precision_mode_enum from node [%s, %s].", node->GetNamePtr(), node->GetTypePtr());
   }
   GELOGD("Precision mode is [%d]", execute_option.precision_mode);
 
@@ -221,7 +221,7 @@ bg::ValueHolderPtr CreateOpExecuteOption(const ge::NodePtr &node) {
     execute_option.deterministic = attr_value == "1" ? 1 : 0;
     attr_value.clear();
   }
-  GELOGD("Deterministic is [%d]!", execute_option.deterministic);
+  GELOGD("Deterministic is [%d]", execute_option.deterministic);
 
   // allow_hf32
   if (ge::AttrUtils::GetStr(node->GetOpDesc(), ge::ALLOW_HF32, attr_value) && !attr_value.empty()) {
@@ -237,7 +237,7 @@ bg::ValueHolderPtr CreateOpExecuteOption(const ge::NodePtr &node) {
 
 bg::ValueHolderPtr OpExecute(const ge::NodePtr &node, const LowerInput &lower_input,
                              const std::vector<bg::ValueHolderPtr> &op_exe_tensors) {
-  GELOGI("Begin to do lowering for aclnn node[%s, %s], enter OpExecute.", node->GetNamePtr(), node->GetTypePtr());
+  GELOGI("Begin to do lowering for aclnn node[%s, %s], enter OpExecute", node->GetNamePtr(), node->GetTypePtr());
   // Allocate
   auto allocator_holder =
       lower_input.global_data->GetOrCreateAllocator({kOnDeviceHbm, AllocatorUsage::kAllocNodeWorkspace});
@@ -273,7 +273,7 @@ bg::ValueHolderPtr OpExecute(const ge::NodePtr &node, const LowerInput &lower_in
 
 bg::ValueHolderPtr Op2PhaseExecute(const ge::NodePtr &node, const LowerInput &lower_input,
                                    const std::vector<bg::ValueHolderPtr> &op_exe_tensors) {
-  GELOGI("Begin to do lowering for aclnn node[%s, %s], enter Op2PhaseExecute.", node->GetNamePtr(), node->GetTypePtr());
+  GELOGI("Begin to do lowering for aclnn node[%s, %s], enter Op2PhaseExecute", node->GetNamePtr(), node->GetTypePtr());
   // Allocate
   auto allocator_holder =
       lower_input.global_data->GetOrCreateAllocator({kOnDeviceHbm, AllocatorUsage::kAllocNodeWorkspace});
@@ -328,7 +328,7 @@ bg::ValueHolderPtr Op2PhaseExecute(const ge::NodePtr &node, const LowerInput &lo
 }  // namespace
 
 LowerResult LoweringAclnnNode(const ge::NodePtr &node, const LowerInput &lower_input) {
-  GELOGI("Begin to do lowering for aclnn node[%s, %s].", node->GetNamePtr(), node->GetTypePtr());
+  GELOGI("Begin to do lowering for aclnn node[%s, %s]", node->GetNamePtr(), node->GetTypePtr());
   HyperStatus ret = CheckLowerInput(lower_input);
   if (!ret.IsSuccess()) {
     return {ret, {}, {}, {}};
@@ -348,7 +348,7 @@ LowerResult LoweringAclnnNode(const ge::NodePtr &node, const LowerInput &lower_i
   std::vector<bg::ValueHolderPtr> op_exe_tensors;
   std::vector<bg::ValueHolderPtr> op_exe_input_output_addrs;
   if (!BuildOpInputTensors(node, lower_input, functions, op_exe_tensors, op_exe_input_output_addrs)) {
-    GELOGE(ge::FAILED, "Failed to build input tensors for node[%s, %s].", node->GetNamePtr(), node->GetTypePtr());
+    GELOGE(ge::FAILED, "Failed to build input tensors for node[%s, %s]!", node->GetNamePtr(), node->GetTypePtr());
     return {HyperStatus::ErrorStatus(static_cast<const char *>("Failed to build op input tensor.")), {}, {}, {}};
   }
   if (!BuildOpOutputTensors(node, output_shapes, output_addrs, op_exe_tensors, op_exe_input_output_addrs)) {

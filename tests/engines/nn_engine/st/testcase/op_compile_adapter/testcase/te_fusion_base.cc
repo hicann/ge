@@ -87,7 +87,7 @@ void CreateDir(const std::string &kernelMetaTempDir) {
   if (realPath.empty()) {
     int32_t ret = mkdir(const_cast<char *>(kernelMetaTempDir.c_str()), S_IRWXU | S_IRGRP | S_IXGRP);
     if (ret != 0) {
-      printf("Creat dir[%s] failed, %s.", kernelMetaTempDir.c_str(), strerror(errno));
+      printf("Create dir[%s] failed, %s.", kernelMetaTempDir.c_str(), strerror(errno));
       return;
     }
   }

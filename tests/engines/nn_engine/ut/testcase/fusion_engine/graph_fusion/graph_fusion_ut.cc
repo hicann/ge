@@ -816,4 +816,16 @@ TEST_F(GRAPH_FUSION_UT, converage_20) {
   // EXPECT_EQ(fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key].size(), 528);
   system(("rm -rf " + current_dir + "plugin").c_str());
 }
+
+TEST_F(GRAPH_FUSION_UT, GetNextInAnchorsOfSubNetOutput_NoParentNodeIndex) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  ge::OpDescPtr netoutput_op = std::make_shared<ge::OpDesc>("netoutput", "NetOutput");
+  GeTensorDesc tensor_desc(GeShape({1}), ge::FORMAT_NCHW, ge::DT_FLOAT);
+  netoutput_op->AddInputDesc(tensor_desc);
+  ge::NodePtr netoutput_node = graph->AddNode(netoutput_op);
+
+  std::vector<ge::InDataAnchorPtr> next_in_data_anchors;
+  Status ret = FeGraphUtils::GetNextInAnchorsOfSubNetOutput(netoutput_node, 0, next_in_data_anchors);
+  EXPECT_EQ(ret, FAILED);
+}
 }  // namespace fe

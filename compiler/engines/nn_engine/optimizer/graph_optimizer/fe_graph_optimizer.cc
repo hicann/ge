@@ -59,7 +59,7 @@ bool NeedDisableVector(const ge::NodePtr node_ptr) {
     return true;
   }
   if (ge::AttrUtils::HasAttr(node_ptr->GetOpDesc(), ge::ATTR_NAME_DISABLE_ATTACHED_RESOURCE)) {
-    FE_LOGD("Node [%s] has been set to disabled.", node_ptr->GetNamePtr());
+    FE_LOGD("Node [%s] has been set to disabled", node_ptr->GetNamePtr());
     return true;
   }
   return false;
@@ -172,9 +172,9 @@ Status FEGraphOptimizer::Initialize(const std::map<string, string> &options,
 
   init_flag_ = true;
   optimize_utility_ = optimize_utility;
-  FE_LOGD("Begin to init FEGraphOptimizer in engine[%s].", graph_optimizer_attr_.engineName.c_str());
+  FE_LOGD("Begin to init FEGraphOptimizer in engine [%s].", graph_optimizer_attr_.engineName.c_str());
   // initialize op compiler
-  FE_CHECK(ops_kernel_info_store_ptr_ == nullptr, FE_LOGE("[GraphOpt][Init] opsKernelInfoStorePtr_ is NULL."),
+  FE_CHECK(ops_kernel_info_store_ptr_ == nullptr, FE_LOGE("[GraphOpt][Init] opsKernelInfoStorePtr_ is nullptr."),
            return FAILED);
   ops_kernel_info_store_ptr_->SetGeneralizeRelatedParam(optimize_utility, fusion_priority_mgr_ptr_);
 
@@ -338,7 +338,7 @@ Status FEGraphOptimizer::OptimizeOriginalGraph(ge::ComputeGraph &graph) {
     op_setter_ptr_->SetOpImplMode(graph);
   }
   FE_TIMECOST_START(OptimizeOriginalGraph);
-  FE_LOGD("Begin to optimize the original graph [%s] in engine [%s], with node size: %zu.", graph.GetName().c_str(),
+  FE_LOGD("Begin to optimize the original graph [%s] in engine [%s], with node size [%zu].", graph.GetName().c_str(),
           graph_optimizer_attr_.engineName.c_str(), graph.GetAllNodesSize());
 
   FE_TIMECOST_START(PruningPassFusion);

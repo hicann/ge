@@ -1655,7 +1655,7 @@ TEST_F(UBFUSION_UT, fusion_test_tefusion_bifurcated_with_circle_nesting2) {
     uint32_t id = 0;
 
     cerr << endl;
-    cerr << "UB fusion befre" << endl;
+    cerr << "UB fusion before" << endl;
     for (auto node : model_graph->GetDirectNode()) {
       cerr << " id:" << id << endl;
       uint32_t scope_id = 0;
