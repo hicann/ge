@@ -12,6 +12,7 @@
 #define USER_GRAPHS_MANAGER_H
 #include <cstdint>
 #include <map>
+#include <set>
 
 #include "graph/graph.h"
 #include "exe_graph/runtime/runtime_tensor.h"
@@ -43,6 +44,7 @@ class UserGraphsManager {
 
  private:
   UserGraphControl *GetUserGraphControl(uint32_t user_graph_id);
+  bool ShouldUseSliceSchedule(uint32_t user_graph_id) const;
 
  private:
   CompileContext compile_context_;
@@ -50,6 +52,7 @@ class UserGraphsManager {
 
   mutable std::mutex user_graph_ctrl_mutex_;
   std::map<uint32_t, std::unique_ptr<UserGraphControl>> ids_to_user_graph_ctrl_;
+  std::set<uint32_t> slice_schedule_unsupported_set_;  // 黑名单：不支持 slice schedule 的 graph_id
 };
 using UserGraphsManagerPtr = std::shared_ptr<UserGraphsManager>;
 }  // namespace ge

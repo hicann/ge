@@ -3159,7 +3159,7 @@ ge::ComputeGraphPtr ShareGraph::BuildStaticTwoReduceNodeGraph() {
 
   auto data1 = graph->FindNode("data1");
   AttrUtils::SetInt(data1->GetOpDesc(), "index", 0);
-  SetNoStorage(data1->GetOpDesc(), ge::FORMAT_ND, DT_FLOAT, {2, 2, 16});
+  SetNoStorage(data1->GetOpDesc(), ge::FORMAT_ND, DT_FLOAT, {2, 2, 2});
   data1->GetOpDesc()->MutableAllInputName() = {{"x", 0}};
   data1->GetOpDesc()->MutableAllOutputName() = {{"y", 0}};
 

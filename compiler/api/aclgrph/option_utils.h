@@ -165,7 +165,6 @@ bool ParseSingleShapeRange(std::string &shape_range, std::vector<std::pair<int64
 std::string SupportedHostEnvCpuList(std::unordered_set<std::string> &supported_os_cpu);
 std::string SupportedHostEnvOsList(
     std::unordered_map<std::string, std::unordered_set<std::string>> &opp_supported_os_cpu);
-bool EnableAutoFuse();
 bool EnableSliceSchedule();
 bool IsGraphSupportSliceSchedule(const ComputeGraphPtr &graph, const std::map<std::string, std::string> &options);
 }  // namespace ge

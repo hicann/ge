@@ -1988,12 +1988,6 @@ Status CheckOptimizationOptionValid(const std::map<std::string, std::string> &op
   }
   return SUCCESS;
 }
-
-bool EnableAutoFuse() {
-  static const bool kEnableAutoFuse = (ge::GetAutofuseFlagValue(kAutoFuseEnableOption) == "true");
-  return kEnableAutoFuse;
-}
-
 bool EnableSliceSchedule() {
   static const bool kSliceSheduleEnable = ((ge::GetAutofuseFlagValue(kAutoFuseEnableOption) == "true") &&
                                            (ge::GetAutofuseFlagValue(kSliceScheduleOption) == "true"));
