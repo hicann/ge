@@ -24,7 +24,7 @@ CompliantNodeBuilder &InstanceOutputOriginFormat(const char_t *name, ge::Format 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | name | 输入 | 输出名称。 |
-| format | 输入 | 原始格式。详细内容请参见[Format](https://hiascend.com/document/redirect/CannCommunitybasicopapi)。 |
+| format | 输入 | 原始格式。详细内容请参见[Format](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

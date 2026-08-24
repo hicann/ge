@@ -6,7 +6,7 @@
 
 |场景|功能说明|
 |--|--|
-|[编译Graph为离线模型](#编译graph为离线模型)|**将Graph编译并保存为om离线模型**，编译生成的离线模型通过模型加载接口加载，然后通过模型执行接口进行推理。详细介绍请参考《[应用开发 (C&C++)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理”章节。|
+|[编译Graph为离线模型](#编译graph为离线模型)|**将Graph编译并保存为om离线模型**，编译生成的离线模型通过模型加载接口加载，然后通过模型执行接口进行推理。详细介绍请参考《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理”章节。|
 |[编译并运行Graph](#编译并运行graph)|构建完Graph之后，**直接编译并运行Graph**，使用AddGraph接口加载Graph对象；运行Graph时，根据调用接口不同，分为如下两种情况：<br>- 同步运行Graph：加载完后，使用RunGraph同步运行Graph，**得到图的执行结果**。<br>- 异步运行Graph：加载完后，使用RunGraphWithStreamAsync异步运行Graph，**得到图的执行结果**。|
 
 说明：

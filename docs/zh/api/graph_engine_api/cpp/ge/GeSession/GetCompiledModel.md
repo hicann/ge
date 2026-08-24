@@ -25,7 +25,7 @@
 
 推荐使用用法一：因为生成om离线模型后，调用GetCompiledModel接口和调用aclmdlLoadFromFile接口的CANN软件包版本号**可以不一致**；而如果使用用法二，由于内存缓冲区的序列化模型数据ModelBufferData不保证版本兼容性，要求调用GetCompiledModel接口和调用aclmdlLoadFromMem接口的CANN软件包版本号**一致**，否则可能引发未定义行为。
 
-接口详细介绍请参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理”章节。
+接口详细介绍请参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理”章节。
 
 ## 函数原型
 

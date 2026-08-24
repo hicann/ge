@@ -4,7 +4,7 @@
 
 支持的产品型号：Atlas A2 训练系列产品/Atlas A2 推理系列产品和Atlas A3 训练系列产品/Atlas A3 推理系列产品。
 
-已经安装CANN软件，详细操作请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》。
+已经安装CANN软件，详细操作请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 
 > [!NOTE]说明
 >AI Server场景下，安装节点应采用容器/虚拟机隔离，容器/虚拟机的生命周期与业务进程/租户保持一致。容器/虚拟机生命周期结束时要清理持久化数据，避免对下一个业务进程/租户的影响。
@@ -27,7 +27,7 @@
     export ASCEND_SLOG_PRINT_TO_STDOUT=1 #是否开启日志打印。1表示开启日志打印。
     ```
 
-    具体说明请参考《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+    具体说明请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 上述环境变量只在当前窗口生效，用户可以将上述命令写入\~/.bashrc文件，使其永久生效，方法如下：
 
@@ -41,4 +41,4 @@
 
 1. 网络包含几个输入，通过FlowData表示。
 2. 网络包含几个计算节点，通过FlowNode表示。
-3. FlowNode里的实际计算由ProcessPoint表示，ProcessPoint有两种，GraphPp和FunctionPp，如果是GraphPp请参考《[图开发](https://hiascend.com/document/redirect/CannCommunityGraphguide)》进行AscendGraph开发。如果是FunctionPp参考[专题](special_topics.md)中的“UDF开发”自定义用户功能。
+3. FlowNode里的实际计算由ProcessPoint表示，ProcessPoint有两种，GraphPp和FunctionPp，如果是GraphPp请参考《[图开发](../../../graph_dev/README.md)》进行AscendGraph开发。如果是FunctionPp参考[专题](special_topics.md)中的“UDF开发”自定义用户功能。

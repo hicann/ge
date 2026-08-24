@@ -63,7 +63,7 @@ GE提供了两种构图方式：
     **图 1**  Parser解析计算图
     ![Parser解析计算图](../figures/parser_parse_compute_graph.png "Parser解析计算图")
 
-    ATC命令行工具详细说明请参见《[ATC离线模型编译工具](https://hiascend.com/document/redirect/CannCommunityAtc)》。
+    ATC命令行工具详细说明请参见《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 
     使用Parser接口构建图请参见[使用Parser接口将原始模型解析为Graph](../construct_graph/parse_model_to_graph_using_parser.md)。
 

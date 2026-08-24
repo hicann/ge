@@ -23,7 +23,7 @@ EsTensorHolder &SetDataType(const ge::DataType data_type)
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| data_type | 输入 | 数据类型。详细数据类型请参见[DataType](https://hiascend.com/document/redirect/CannCommunitybasicopapi)。 |
+| data_type | 输入 | 数据类型。详细数据类型请参见[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

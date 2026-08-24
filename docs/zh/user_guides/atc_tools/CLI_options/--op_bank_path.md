@@ -30,7 +30,7 @@
 
 加载算子调优后自定义知识库的路径。
 
-算子调优详情请参见《[AOE调优工具](https://hiascend.com/document/redirect/CannCommunityToolAoe)》。
+算子调优详情请参见《[AOE调优工具](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/devaids/aoe/auxiliarydevtool_aoe_0001.html)》。
 
 ## 参数取值
 

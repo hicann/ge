@@ -10,7 +10,7 @@ GE提供了两种常规的模型调度模式（下沉调度和Host调度）用�
 
 Host调度模式通常适用于动态shape模型，由于输入tensor的shape不确定，必须在上一个算子完成shape推导后，才能确定下一个算子的输入shape等信息，因此整个模型无法下沉执行，通常需要将每个算子Kernel逐一下发到Device执行。
 
-基于fallback形式下发算子属于Host调度模式的一种，用户可以在Host侧通过fallback函数执行算子，例如可直接调用aclnnXX单算子API执行算子。用户仅需在算子开发过程中调用Ascend C的[EnableFallBack](https://hiascend.com/document/redirect/CannCommunityAscendCApi)接口，即可自动生成fallback函数供GE自动回调，fallback函数的主要任务就是将GE的输入输出及属性转换为aclnnXX单算子API所需的参数格式，然后调用aclnnXX接口执行算子。
+基于fallback形式下发算子属于Host调度模式的一种，用户可以在Host侧通过fallback函数执行算子，例如可直接调用aclnnXX单算子API执行算子。用户仅需在算子开发过程中调用Ascend C的[EnableFallBack](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/api/README.md)接口，即可自动生成fallback函数供GE自动回调，fallback函数的主要任务就是将GE的输入输出及属性转换为aclnnXX单算子API所需的参数格式，然后调用aclnnXX接口执行算子。
 
 **图 1**  常规Host调度模式和fallback下发的对比
 ![图示](../figures/compare.png "常规Host调度模式和fallback下发的对比")
@@ -36,7 +36,7 @@ fallback函数的主要任务是将GE的输入输出及属性转换为aclnn单�
 static graphStatus ConcatExecuteFunc(OpExecuteContext* host_api_ctx)
 ```
 
-OpExecuteContext指针入参中主要包含计算fallback所需的信息，例如输入输出的shape和datatype等，具体请参考《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》\>"gert命名空间\>OpImplSpaceRegistryV2类"。
+OpExecuteContext指针入参中主要包含计算fallback所需的信息，例如输入输出的shape和datatype等，具体请参考《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)》\>"gert命名空间\>OpImplSpaceRegistryV2类"。
 
 用户无需手动实现fallback函数，在算子原型注册过程中，只需调用EnableFallBack接口，系统将自动生成fallback函数并注册到GE。
 

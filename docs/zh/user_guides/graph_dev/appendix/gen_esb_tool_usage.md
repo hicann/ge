@@ -8,7 +8,7 @@ gen\_esb是ES API的代码生成二进制工具，根据ASCEND\_OPP\_PATH环境�
 - 聚合头文件，方便用户一次性包含所有算子。
 - 聚合Python文件，方便用户一次性导入所有算子。
 
-ASCEND\_OPP\_PATH环境变量详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+ASCEND\_OPP\_PATH环境变量详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 ## 使用前提
 

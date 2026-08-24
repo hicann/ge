@@ -11,7 +11,7 @@ GE退出，释放GE相关资源。
 
 在该接口内，默认增加2000ms延时（实际最大延时可达2000ms），用于Device业务日志回传，保证ERROR级别和EVENT级别日志不丢失，您可以将**ASCEND\_LOG\_DEVICE\_FLUSH\_TIMEOUT**环境变量设置为0（命令示例：**export ASCEND\_LOG\_DEVICE\_FLUSH\_TIMEOUT=0**），去除该默认延时。
 
-关于**ASCEND\_LOG\_DEVICE\_FLUSH\_TIMEOUT**环境变量的详细描述请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+关于**ASCEND\_LOG\_DEVICE\_FLUSH\_TIMEOUT**环境变量的详细描述请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 ## 函数原型
 

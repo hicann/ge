@@ -13,7 +13,7 @@
 > - 若开发环境架构为Arm（aarch64），模型转换耗时较长，则可以参考[开发环境架构为Arm（aarch64）时模型转换耗时较长](../FAQ/arm_aarch64_conversion_slow.md)解决。
 >   <!-- end id1 -->
 > - 如果模型转换时，用户使用了设置网络模型精度参数[--precision\_mode](../CLI_options/--precision_mode.md)或[--precision\_mode\_v2](../CLI_options/--precision_mode_v2.md)：
->   - 上述两个参数默认都为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
+>   - 上述两个参数默认都为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
 >   - 如果用户聚焦精度问题，可以修改为其他取值，比如--precision\_mode设置为must\_keep\_origin\_dtype或--precision\_mode\_v2设置为origin。
 
 ## 开源框架的TensorFlow网络模型转换成离线模型
@@ -43,7 +43,7 @@
 
     成功执行命令后，在--output参数指定的路径下，可查看离线模型（如：tf\_resnet50.om）。
     <!-- npu="950,A3,910b,910,310p,310b" id2 -->
-    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id2 -->
 
 ## ONNX网络模型转换成离线模型
@@ -73,7 +73,7 @@
 
     成功执行命令后，在--output参数指定的路径下，可查看离线模型（如：onnx\_resnet50.om）。
     <!-- npu="950,A3,910b,910,310p,310b" id3 -->
-    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id3 -->
 
 ## 开源框架的Caffe网络模型转换成离线模型
@@ -107,7 +107,7 @@
 
     成功执行命令后，在--output参数指定的路径下，可查看离线模型（如：caffe\_resnet50.om）。
     <!-- npu="950,A3,910b,910,310p,310b" id4 -->
-    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id4 -->
 
 ## \*.air格式的模型文件转换成离线模型
@@ -137,5 +137,5 @@
 
     成功执行命令后，在--output参数指定的路径下，可查看离线模型（如：_resnet50_\_air.om）。
     <!-- npu="950,A3,910b,910,310p,310b" id5 -->
-    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id5 -->

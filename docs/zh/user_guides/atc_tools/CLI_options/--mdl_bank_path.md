@@ -30,7 +30,7 @@
 
 加载子图调优后自定义知识库的路径。
 
-子图调优详情请参见《[AOE调优工具](https://hiascend.com/document/redirect/CannCommunityToolAoe)》。
+子图调优详情请参见《[AOE调优工具](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/devaids/aoe/auxiliarydevtool_aoe_0001.html)》。
 
 ## 关联参数
 

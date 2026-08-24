@@ -31,4 +31,4 @@ atc --topo_sorting_mode=3 ...
 
 ## 使用约束
 
-模型转换过程中如果加载了自定义知识库路径，上述图遍历模式的改变可能会影响调优结果，建议重新进行调优，详情请参见《[AOE调优工具](https://hiascend.com/document/redirect/CannCommunityToolAoe)》。
+模型转换过程中如果加载了自定义知识库路径，上述图遍历模式的改变可能会影响调优结果，建议重新进行调优，详情请参见《[AOE调优工具](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/devaids/aoe/auxiliarydevtool_aoe_0001.html)》。

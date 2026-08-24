@@ -116,7 +116,7 @@ EXCLUDE\_ENGINES提供了排除某个引擎的功能，比如在一次训练过�
 - 如果参数指定的路径存在且有效，则在指定的路径下自动创建子目录kernel\_cache；如果指定的路径不存在但路径有效，则先自动创建目录，然后在该路径下自动创建子目录kernel\_cache。
 - 用户请不要在**默认缓存目录**下存放其他自有内容，自有内容在软件包安装或升级时会同默认缓存目录一并被删除。
 - 通过该参数指定的**非默认缓存目录**无法删除（软件包安装或升级时不会被删除）。
-- 算子编译磁盘缓存路径，除OP\_COMPILER\_CACHE\_DIR参数设置的方式外，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式优先级为：配置参数“OP\_COMPILER\_CACHE\_DIR”\>环境变量ASCEND\_CACHE\_PATH\>默认存储路径。关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+- 算子编译磁盘缓存路径，除OP\_COMPILER\_CACHE\_DIR参数设置的方式外，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式优先级为：配置参数“OP\_COMPILER\_CACHE\_DIR”\>环境变量ASCEND\_CACHE\_PATH\>默认存储路径。关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 **产品支持情况：**
 

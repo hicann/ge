@@ -22,7 +22,7 @@ Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocato
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | stream | 输入 | 指定Allocator注册在哪个Stream上。 |
-| allocator | 输入 | 用户Allocator对象的智能指针。Allocator基于[Allocator](https://hiascend.com/document/redirect/CannCommunitybasicopapi)派生。 |
+| allocator | 输入 | 用户Allocator对象的智能指针。Allocator基于[Allocator](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)派生。 |
 
 ## 返回值说明
 

@@ -54,7 +54,7 @@
 
 如果profiling trace中显示模型计算存在明显的H2D等待，说明被等待的拷贝组过长，此时可手动调整分组边界，减少本组的拷贝数量。
 
-> 注：GE INFO日志通过环境变量`ASCEND_GLOBAL_LOG_LEVEL`设置，取值为`1`表示INFO级别（0=DEBUG，1=INFO，2=WARN，3=ERROR），详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+> 注：GE INFO日志通过环境变量`ASCEND_GLOBAL_LOG_LEVEL`设置，取值为`1`表示INFO级别（0=DEBUG，1=INFO，2=WARN，3=ERROR），详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 ## 示例
 

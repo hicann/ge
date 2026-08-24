@@ -15,7 +15,7 @@
 - 该参数需要与[--precision\_mode](--precision_mode.md)或[--precision\_mode\_v2](--precision_mode_v2.md)参数配合使用，但当[--precision\_mode](--precision_mode.md)取值为must\_keep\_origin\_dtype或[--precision\_mode\_v2](--precision_mode_v2.md)取值为origin时，--keep\_dtype参数不生效。
 - [--customize\_dtypes](--customize_dtypes.md)参数与[--keep\_dtype](--keep_dtype.md)参数都用于设置算子的计算精度，若涉及需提升模型推理精度的场景，建议先使用[--keep\_dtype](--keep_dtype.md)参数保持原图精度，若精度依然得不到提升，可以尝试使用[--customize\_dtypes](--customize_dtypes.md)参数自定义某个或某些算子的计算精度。
 
-    但需注意，使用[--customize\_dtypes](--customize_dtypes.md)参数且通过配置算子名称的方式，可能会由于内部模型优化过程中的融合、拆分等操作导致算子名称发生变化，进而导致配置不生效，未达到提升精度的目的，可进一步获取日志定位问题，关于日志的详细说明请参见《[日志参考](https://hiascend.com/document/redirect/CannCommunitylogref)》。
+    但需注意，使用[--customize\_dtypes](--customize_dtypes.md)参数且通过配置算子名称的方式，可能会由于内部模型优化过程中的融合、拆分等操作导致算子名称发生变化，进而导致配置不生效，未达到提升精度的目的，可进一步获取日志定位问题，关于日志的详细说明请参见《[日志参考](https://gitcode.com/cann/runtime/blob/master/docs/zh/log_ref/README.md)》。
 
 - 若同时使用了[--customize\_dtypes](--customize_dtypes.md)参数与[--keep\_dtype](--keep_dtype.md)参数，则以[--customize\_dtypes](--customize_dtypes.md)参数设置的精度为准。
 

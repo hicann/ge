@@ -31,7 +31,7 @@ Triton-Ascend是面向昇腾平台构建的Triton编译框架，旨在让Triton�
 - **CANN软件包安装**：参见[环境准备](../overview/environment_setup.md)安装CANN软件包，并设置环境变量。
 - **Triton-Ascend 安装**：参见[Triton-Ascend安装指南](https://gitcode.com/Ascend/triton-ascend/blob/master/docs/sources/getting-started/installation.md)进行安装。
 
-详细Sample示例请单击[Triton自定义算子入图样例](https://gitcode.com/cann/ge/tree/master/examples/custom_op/triton_add_custom)获取。
+详细Sample示例请单击[Triton自定义算子入图样例](../../../../../examples/custom_op/triton_add_custom/README.md)获取。
 
 ### 生成npubin文件
 
@@ -302,9 +302,9 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
     ```
     <!-- end id1 -->
 
-    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclkernel)》中的“Kernel加载与执行”。
+    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Kernel加载与执行”。
 
-    GetAddr、GetShape、GetSize、GetDataType、GetFormat、GetShapeSize接口详细说明请参见《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》。
+    GetAddr、GetShape、GetSize、GetDataType、GetFormat、GetShapeSize接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)》。
 
     其他接口详细说明请参见[EagerExecuteOp](../../../api/graph_engine_api/cpp/ge/EagerExecuteOp/EagerExecuteOp.md/)、[Execute](../../../api/graph_engine_api/cpp/ge/EagerExecuteOp/Execute.md)、[GetInputTensor](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/GetInputTensor.md)、[MallocOutputTensor](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/MallocOutputTensor.md)、[GetStream](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/GetStream.md)、[REG\_AUTO\_MAPPING\_OP](../../../api/graph_engine_api/cpp/ge/REG_AUTO_MAPPING_OP.md)。
 
