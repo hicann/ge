@@ -1160,6 +1160,7 @@ Status ModelBuilder::BuildModelForGetTask(ge::Model &model) {
   GE_ASSERT_SUCCESS(stream_allocator_.AssignLogicalStreams(stream_max_parallel_num_, hcom_parallel_),
                     "[Assign][LogicalStreams] failed. graph:%s", compute_graph_->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(AssignLogicalStreams, "GraphBuilder::AssignLogicalStreams");
+  GE_DUMP(compute_graph_, "AfterAssignLogicalStreams");
 
   // Assign functional op labels.
   auto root_graph = GraphUtils::FindRootGraph(compute_graph_);
