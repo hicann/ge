@@ -8,12 +8,34 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
+
 namespace ge {
+class Operator;
+class AscendString;
+using OpCreatorV2 = std::function<Operator(const AscendString &)>;
+using graphStatus = int32_t;
+constexpr graphStatus GRAPH_SUCCESS = 0;
+
 class OperatorFactoryImpl {
  public:
+  static void SetRegisterOverridable(const bool &is_overridable);
+  static graphStatus RegisterOperatorCreator(const std::string &operator_type, OpCreatorV2 const &op_creator);
+  static void RemoveCustomOpCreators(const std::vector<std::string> &op_types);
   static void MergeBackupCreatorsOnce();
   static void BackupAndClearRegInfoOnce();
 };
+
+void OperatorFactoryImpl::SetRegisterOverridable(const bool &) {}
+
+graphStatus OperatorFactoryImpl::RegisterOperatorCreator(const std::string &, OpCreatorV2 const &) {
+  return GRAPH_SUCCESS;
+}
+
+void OperatorFactoryImpl::RemoveCustomOpCreators(const std::vector<std::string> &) {}
 
 void OperatorFactoryImpl::MergeBackupCreatorsOnce() {}
 
