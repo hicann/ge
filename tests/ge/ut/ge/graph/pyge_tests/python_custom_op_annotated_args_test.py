@@ -141,7 +141,7 @@ def test_plain_class_declares_annotated_args_capability():
 def test_plain_execute_and_declare_registers_both_capabilities():
     @custom_op.register_op_impl(op_type="PlainExecuteAndDlaCustom")
     class PlainExecuteAndDlaCustom:
-        def execute(self):
+        def execute(self) -> None:
             pass
 
         def declare_launch_args(self) -> None:
@@ -155,8 +155,8 @@ def test_plain_execute_and_declare_registers_both_capabilities():
 
 def test_dual_capability_is_registered_in_stable_order():
     @custom_op.register_op_impl(op_type="DualCapabilityCustom")
-    class DualCapabilityCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
+    class DualCapabilityCustom:
+        def execute(self) -> None:
             pass
 
         def declare_launch_args(self) -> None:
@@ -181,7 +181,7 @@ def test_non_callable_declare_launch_args_is_ignored_with_valid_execute():
     class ExecuteWithBadDlaCustom:
         declare_launch_args = 1
 
-        def execute(self):
+        def execute(self) -> None:
             pass
 
     assert ExecuteWithBadDlaCustom.__ge_op_impl_descriptor__.interfaces == [

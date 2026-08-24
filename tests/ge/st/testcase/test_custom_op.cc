@@ -188,7 +188,6 @@ constexpr const char *kEnvPythonPath = "PYTHONPATH";
 constexpr char kSharedPybindCustomOpPreambleForSt[] = R"PY(from pathlib import Path
 from ge.custom_op import (
     AnnotatedKernelLaunchInfo,
-    EagerExecuteOp,
     get_declare_launch_args_ctx,
     register_op,
     register_op_impl,
@@ -205,8 +204,8 @@ def infer_meta(x: TensorDesc, *, axis: int = 0) -> TensorDesc:
 
 @register_op_impl(op_type=')PY";
 constexpr char kSharedPybindAnnotatedArgsPrefixForSt[] = R"PY(')
-class StPythonPybindRemoveCoverageCustomOp(EagerExecuteOp):
-    def execute(self, ctx):
+class StPythonPybindRemoveCoverageCustomOp:
+    def execute(self, x: Tensor, *, axis: int) -> None:
         Path(MARKER_FILE).write_text('executed', encoding='utf-8')
 
 @register_op_impl(op_type=')PY";
@@ -294,7 +293,7 @@ from ge.runtime import Tensor
 @register_op_impl(op_type=')PY";
 constexpr char kValidBeforeInvalidPybindCustomOpForSt[] = R"PY(')
 class StPythonValidBeforeInvalidCustomOp:
-    def execute(self, ctx):
+    def execute(self, x: Tensor) -> None:
         pass
 
 @register_op_impl(op_type=')PY";
@@ -1881,8 +1880,21 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
   ASSERT_NE(op, nullptr);
   auto *eager_op = dynamic_cast<EagerExecuteOp *>(op);
   ASSERT_NE(eager_op, nullptr);
-  int32_t dummy_context = 0;
-  auto *ctx = reinterpret_cast<gert::EagerOpExecutionContext *>(&dummy_context);
+
+  gert::Tensor input;
+  gert::Tensor output;
+  // Eager context 在 1 个输入/输出之外还携带 4 个附加输入和 1 个附加输出。
+  auto context_holder = gert::KernelRunContextFaker()
+                            .NodeIoNum(1, 1)
+                            .IrInputNum(1)
+                            .NodeInputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .NodeOutputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .NodeAttrs({{"axis", AnyValue::CreateFrom<int64_t>(0)}})
+                            .Inputs({&input, nullptr, nullptr, nullptr, nullptr})
+                            .Outputs({&output, nullptr})
+                            .Build();
+  auto *ctx = context_holder.GetContext<gert::EagerOpExecutionContext>();
+  ASSERT_NE(ctx, nullptr);
   EXPECT_EQ(eager_op->Execute(ctx), SUCCESS);
   EXPECT_EQ(ReadTextFileForCustomOpSt(marker_file), "executed");
 

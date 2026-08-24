@@ -15,6 +15,7 @@
 import contextvars
 import importlib
 import textwrap
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 import pytest
@@ -51,11 +52,11 @@ def _write_custom_op_module(
     file_path = dir_path / f"{module_name}.py"
     file_path.write_text(
         textwrap.dedent(f"""
-        from ge.custom_op import EagerExecuteOp, register_op_impl
+        from ge.custom_op import register_op_impl
 
         @register_op_impl(op_type="{op_type}")
-        class {class_name}(EagerExecuteOp):
-            def execute(self, ctx):
+        class {class_name}:
+            def execute(self) -> None:
                 pass
     """).strip()
         + "\n",
@@ -148,7 +149,7 @@ def test_bridge_descriptor_snapshot_contains_proto_and_impl():
         raise AssertionError("prototype registration must not execute infer_meta")
 
     @custom_op.register_op_impl(op_type="SnapshotCustom")
-    class SnapshotCustom(custom_op.EagerExecuteOp):
+    class SnapshotCustom:
         def execute(self, x: Tensor, *, alpha: float) -> None:
             pass
 
@@ -171,8 +172,8 @@ def test_bridge_descriptor_snapshot_supports_proto_only():
 
 def test_register_op_impl_exports_descriptor_dict():
     @custom_op.register_op_impl(op_type="AddCustom")
-    class AddCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
+    class AddCustom:
+        def execute(self) -> None:
             pass
 
     descriptors = custom_op.get_registered_op_impl_dicts()
@@ -186,7 +187,7 @@ def test_register_op_impl_exports_descriptor_dict():
 
 def test_schema_bound_execute_class_definition_is_supported():
     @custom_op.register_op_impl(op_type="AutoExecuteCustom")
-    class AutoExecuteCustom(custom_op.EagerExecuteOp):
+    class AutoExecuteCustom:
         def __init__(self):
             self.seen_args = None
 
@@ -207,31 +208,15 @@ def test_get_execute_ctx_is_unavailable_outside_schema_execute():
         custom_op.get_execute_ctx()
 
 
-def test_ctx_execute_keeps_context_argument():
-    @custom_op.register_op_impl(op_type="ContextExecuteCustom")
-    class ContextExecuteCustom(custom_op.EagerExecuteOp):
-        def __init__(self):
-            self.seen_ctx = None
-
-        def execute(self, ctx) -> None:
-            self.seen_ctx = ctx
-
-    ctx = _FakeEagerContext(inputs=["x"])
-    instance = ContextExecuteCustom()
-
-    assert instance.execute(ctx) is None
-    assert instance.seen_ctx is ctx
-
-
 def test_bridge_validates_descriptor_signature_without_constructing_instance():
     constructed = []
 
     @custom_op.register_op_impl(op_type="RegistrationValidatedCustom")
-    class RegistrationValidatedCustom(custom_op.EagerExecuteOp):
+    class RegistrationValidatedCustom:
         def __init__(self):
             constructed.append(True)
 
-        def execute(self, x: Tensor, *, alpha: float):
+        def execute(self, x: Tensor, *, alpha: float) -> None:
             pass
 
     assert (
@@ -249,24 +234,43 @@ def test_bridge_validates_descriptor_signature_without_constructing_instance():
     assert constructed == []
 
 
-def test_bridge_validates_legacy_execute_without_canonical_ir():
-    @custom_op.register_op_impl(op_type="RegistrationLegacyCustom")
-    class RegistrationLegacyCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
+def test_bridge_rejects_execute_without_return_annotation():
+    @custom_op.register_op_impl(op_type="MissingExecuteReturnAnnotationCustom")
+    class MissingExecuteReturnAnnotationCustom:
+        def execute(self, x):
             pass
 
-    assert (
+    with pytest.raises(
+        TypeError,
+        match=r"invalid execute signature.*missing return annotation",
+    ):
         bridge.validate_op_impl_descriptor(
-            _get_descriptor_key("RegistrationLegacyCustom"), None
+            _get_descriptor_key("MissingExecuteReturnAnnotationCustom"),
+            {
+                "op_type": "MissingExecuteReturnAnnotationCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [],
+                "outputs": [],
+            },
         )
-        is True
-    )
+
+
+def test_bridge_rejects_execute_without_canonical_ir():
+    @custom_op.register_op_impl(op_type="RegistrationWithoutIrCustom")
+    class RegistrationWithoutIrCustom:
+        def execute(self) -> None:
+            pass
+
+    with pytest.raises(RuntimeError, match="canonical IR not found"):
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("RegistrationWithoutIrCustom"), None
+        )
 
 
 def test_bridge_requires_canonical_ir_to_validate_schema_execute():
     @custom_op.register_op_impl(op_type="MissingRegistrationSchemaCustom")
-    class MissingRegistrationSchemaCustom(custom_op.EagerExecuteOp):
-        def execute(self, x):
+    class MissingRegistrationSchemaCustom:
+        def execute(self, x) -> None:
             pass
 
     with pytest.raises(
@@ -280,15 +284,15 @@ def test_bridge_requires_canonical_ir_to_validate_schema_execute():
 
 def test_register_op_impl_rejects_duplicate_op_type():
     @custom_op.register_op_impl(op_type="AddCustom")
-    class AddCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
+    class AddCustom:
+        def execute(self) -> None:
             pass
 
     with pytest.raises(ValueError, match="op impl type already exists"):
 
         @custom_op.register_op_impl(op_type="AddCustom")
-        class AddCustomAgain(custom_op.EagerExecuteOp):
-            def execute(self, ctx):
+        class AddCustomAgain:
+            def execute(self) -> None:
                 pass
 
 
@@ -303,17 +307,16 @@ def test_register_op_impl_rejects_invalid_op_type():
 def test_register_op_impl_supports_plain_class_with_execute():
     @custom_op.register_op_impl(op_type="PlainCustom")
     class PlainCustom:
-        def execute(self, ctx):
-            self.seen_ctx = ctx
+        def execute(self) -> None:
+            self.called = True
 
     descriptors = custom_op.get_registered_op_impl_dicts()
 
     assert descriptors[0]["op_type"] == "PlainCustom"
     assert descriptors[0]["interfaces"] == ["eager_execute"]
     instance = PlainCustom()
-    ctx = _FakeEagerContext()
-    instance.execute(ctx)
-    assert instance.seen_ctx is ctx
+    instance.execute()
+    assert instance.called is True
 
 
 def test_register_op_impl_rejects_class_without_supported_method():
@@ -334,13 +337,19 @@ def test_register_op_impl_rejects_non_class():
 
 def test_register_op_impl_rejects_abstract_class():
     with pytest.raises(TypeError, match="register_op_impl expects a concrete class"):
-        custom_op.register_op_impl(op_type="AbstractCustom")(custom_op.EagerExecuteOp)
+
+        class AbstractCustom(ABC):
+            @abstractmethod
+            def execute(self) -> None:
+                pass
+
+        custom_op.register_op_impl(op_type="AbstractCustom")(AbstractCustom)
 
 
-def test_register_op_impl_keeps_inherited_execute_compatibility():
+def test_register_op_impl_keeps_inherited_execute_method():
     class CustomOpBase:
-        def execute(self, ctx):
-            self.seen_ctx = ctx
+        def execute(self) -> None:
+            pass
 
     @custom_op.register_op_impl(op_type="InheritedExecuteCustom")
     class InheritedExecuteCustom(CustomOpBase):
@@ -353,13 +362,12 @@ def test_register_op_impl_keeps_inherited_execute_compatibility():
 
 def test_bridge_custom_op_holder_and_execute():
     @custom_op.register_op_impl(op_type="AddCustom")
-    class AddCustom(custom_op.EagerExecuteOp):
+    class AddCustom:
         def __init__(self):
             self.called_ctx = None
 
-        def execute(self, ctx):
-            self.called_ctx = ctx
-            assert ctx.stream == "fake_stream"
+        def execute(self, x, *, alpha) -> None:
+            self.called_ctx = (x, alpha)
 
     descriptors = bridge.load_and_get_op_impl_descriptors()
     assert len(descriptors) == 1
@@ -379,17 +387,22 @@ def test_bridge_custom_op_holder_and_execute():
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
 
-def test_bridge_call_execute_ignores_return_value():
+def test_bridge_call_execute_rejects_return_value():
     @custom_op.register_op_impl(op_type="ReturnCustom")
-    class ReturnCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
+    class ReturnCustom:
+        def execute(self) -> None:
             return True
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "ReturnCustom#1"
     ctx = _FakeEagerContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
-    assert bridge.call_execute(instance_id, None, ctx) is None
+    with pytest.raises(TypeError, match="execute must return None"):
+        bridge.call_execute(
+            instance_id,
+            {"op_type": "ReturnCustom", "inputs": [], "attrs": [], "outputs": []},
+            ctx,
+        )
     assert ctx.invalidated is True
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
@@ -403,15 +416,15 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
         if method_kind == "staticmethod":
 
             @staticmethod
-            def execute(x, optional_y, dynamic_z, *, alpha, axes):
+            def execute(x, optional_y, dynamic_z, *, alpha, axes) -> None:
                 called.append((x, optional_y, dynamic_z, alpha, axes))
-                return True
+                return None
         else:
 
             @classmethod
-            def execute(cls, x, optional_y, dynamic_z, *, alpha, axes):
+            def execute(cls, x, optional_y, dynamic_z, *, alpha, axes) -> None:
                 called.append((x, optional_y, dynamic_z, alpha, axes))
-                return True
+                return None
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "SchemaBoundCustom#1"
@@ -459,8 +472,8 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
 
 def test_bridge_validate_op_impl_descriptor_rejects_mismatched_attr_name():
     @custom_op.register_op_impl(op_type="WrongExecuteAttrNameCustom")
-    class WrongExecuteAttrNameCustom(custom_op.EagerExecuteOp):
-        def execute(self, x, *, beta):
+    class WrongExecuteAttrNameCustom:
+        def execute(self, x, *, beta) -> None:
             pass
 
     with pytest.raises(
@@ -480,8 +493,8 @@ def test_bridge_validate_op_impl_descriptor_rejects_mismatched_attr_name():
 
 def test_bridge_validate_op_impl_descriptor_rejects_mismatched_input_annotation():
     @custom_op.register_op_impl(op_type="WrongExecuteAnnotationCustom")
-    class WrongExecuteAnnotationCustom(custom_op.EagerExecuteOp):
-        def execute(self, x: list[Tensor], *, alpha: float):
+    class WrongExecuteAnnotationCustom:
+        def execute(self, x: list[Tensor], *, alpha: float) -> None:
             pass
 
     with pytest.raises(
@@ -499,16 +512,35 @@ def test_bridge_validate_op_impl_descriptor_rejects_mismatched_input_annotation(
         )
 
 
-def test_bridge_call_execute_ignores_ir_outputs_and_return_annotation():
+def test_bridge_validate_op_impl_descriptor_rejects_execute_return_annotation():
+    @custom_op.register_op_impl(op_type="WrongExecuteReturnAnnotationCustom")
+    class WrongExecuteReturnAnnotationCustom:
+        def execute(self, x) -> int:
+            return 0
+
+    with pytest.raises(
+        TypeError,
+        match=r"invalid execute signature.*None return annotation",
+    ):
+        bridge.validate_op_impl_descriptor(
+            _get_descriptor_key("WrongExecuteReturnAnnotationCustom"),
+            {
+                "op_type": "WrongExecuteReturnAnnotationCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [],
+                "outputs": [],
+            },
+        )
+
+
+def test_bridge_call_execute_supports_ir_outputs():
     called = []
 
     @custom_op.register_op_impl(op_type="CompatibleExecuteSignatureCustom")
-    class CompatibleExecuteSignatureCustom(custom_op.EagerExecuteOp):
-        def execute(
-            self, x: Tensor, *, alpha: float
-        ) -> "CompatibleExecuteSignatureCustom":
+    class CompatibleExecuteSignatureCustom:
+        def execute(self, x: Tensor, *, alpha: float) -> None:
             called.append((x, alpha))
-            return True
+            return None
 
     instance_id = "CompatibleExecuteSignatureCustom#1"
     ctx = _FakeEagerContext()
@@ -536,8 +568,8 @@ def test_bridge_call_execute_does_not_validate_signature_at_runtime(monkeypatch)
     execute_calls = []
 
     @custom_op.register_op_impl(op_type="CachedExecuteSignatureCustom")
-    class CachedExecuteSignatureCustom(custom_op.EagerExecuteOp):
-        def execute(self, x: Tensor):
+    class CachedExecuteSignatureCustom:
+        def execute(self, x: Tensor) -> None:
             execute_calls.append(x)
 
     descriptor_key = _get_descriptor_key("CachedExecuteSignatureCustom")
@@ -566,8 +598,8 @@ def test_schema_bound_execute_can_get_current_context():
     called = []
 
     @custom_op.register_op_impl(op_type="SchemaContextCustom")
-    class SchemaContextCustom(custom_op.EagerExecuteOp):
-        def execute(self, x):
+    class SchemaContextCustom:
+        def execute(self, x) -> None:
             current_ctx = custom_op.get_execute_ctx()
             called.append((x, current_ctx, current_ctx.get_stream()))
 
@@ -595,68 +627,12 @@ def test_schema_bound_execute_can_get_current_context():
         custom_op.get_execute_ctx()
 
 
-def test_get_execute_ctx_is_not_bound_for_legacy_execute():
-    errors = []
-
-    @custom_op.register_op_impl(op_type="LegacyContextCustom")
-    class LegacyContextCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
-            try:
-                custom_op.get_execute_ctx()
-            except RuntimeError as exc:
-                errors.append(str(exc))
-
-    instance_id = "LegacyContextCustom#1"
-    ctx = _FakeEagerContext()
-    _create_holder(instance_id, "LegacyContextCustom")
-
-    bridge.call_execute(instance_id, None, ctx)
-
-    assert errors == ["get_execute_ctx() is only available inside schema-bound execute"]
-    assert ctx.invalidated is True
-
-
-def test_bridge_call_execute_rechecks_legacy_signature_after_method_change():
-    calls = []
-
-    @custom_op.register_op_impl(op_type="ReplaceableExecuteCustom")
-    class ReplaceableExecuteCustom(custom_op.EagerExecuteOp):
-        def execute(self, ctx):
-            calls.append(("legacy", ctx))
-
-    instance_id = "ReplaceableExecuteCustom#1"
-    legacy_ctx = _FakeEagerContext()
-    _create_holder(instance_id, "ReplaceableExecuteCustom")
-
-    bridge.call_execute(instance_id, None, legacy_ctx)
-
-    def schema_execute(self, x):
-        calls.append(("schema", x))
-
-    ReplaceableExecuteCustom.execute = schema_execute
-    schema_ctx = _FakeEagerContext()
-    bridge.call_execute(
-        instance_id,
-        {
-            "op_type": "ReplaceableExecuteCustom",
-            "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
-            "attrs": [],
-            "outputs": [],
-        },
-        schema_ctx,
-    )
-
-    assert calls == [("legacy", legacy_ctx), ("schema", ("required", 0))]
-    assert legacy_ctx.invalidated is True
-    assert schema_ctx.invalidated is True
-
-
 def test_schema_execute_context_is_deactivated_after_exception():
     copied_contexts = []
 
     @custom_op.register_op_impl(op_type="FailingSchemaContextCustom")
-    class FailingSchemaContextCustom(custom_op.EagerExecuteOp):
-        def execute(self, x):
+    class FailingSchemaContextCustom:
+        def execute(self, x) -> None:
             assert custom_op.get_execute_ctx() is not None
             copied_contexts.append(contextvars.copy_context())
             raise ValueError("schema execute failed")
@@ -691,13 +667,13 @@ def test_schema_execute_context_restores_outer_binding_after_nested_call():
     inner_ctx = _FakeEagerContext()
 
     @custom_op.register_op_impl(op_type="InnerSchemaContextCustom")
-    class InnerSchemaContextCustom(custom_op.EagerExecuteOp):
-        def execute(self, x):
+    class InnerSchemaContextCustom:
+        def execute(self, x) -> None:
             called.append(("inner", custom_op.get_execute_ctx()))
 
     @custom_op.register_op_impl(op_type="OuterSchemaContextCustom")
-    class OuterSchemaContextCustom(custom_op.EagerExecuteOp):
-        def execute(self, x):
+    class OuterSchemaContextCustom:
+        def execute(self, x) -> None:
             called.append(("outer_before", custom_op.get_execute_ctx()))
             bridge.call_execute(
                 "InnerSchemaContextCustom#1",
@@ -738,8 +714,8 @@ def test_bridge_call_execute_supports_zero_input_and_zero_attr_schema():
     called = []
 
     @custom_op.register_op_impl(op_type="NoArgCustom")
-    class NoArgCustom(custom_op.EagerExecuteOp):
-        def execute(self):
+    class NoArgCustom:
+        def execute(self) -> None:
             called.append(True)
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
@@ -788,8 +764,8 @@ def test_bridge_reads_runtime_attr_by_canonical_type(ir_type, getter_name):
 
 def test_bridge_rejects_schema_bound_execute_without_ir_meta():
     @custom_op.register_op_impl(op_type="MissingSchemaCustom")
-    class MissingSchemaCustom(custom_op.EagerExecuteOp):
-        def execute(self, inputs):
+    class MissingSchemaCustom:
+        def execute(self, inputs) -> None:
             pass
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
@@ -846,7 +822,7 @@ def test_bridge_rejects_holder_without_callable_execute():
         TypeError,
         match="python op impl does not implement callable execute",
     ):
-        bridge._get_eager_execute_op(instance_id)
+        bridge._get_eager_execute_holder(instance_id)
 
 
 def test_bridge_loads_custom_op_plugins_from_env_path(tmp_path, monkeypatch):

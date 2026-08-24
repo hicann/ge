@@ -951,6 +951,14 @@
       - [get\_stream\_id](python/ge/custom_op/AnnotatedArgsContext/get_stream_id.md)
       - [malloc\_workspace](python/ge/custom_op/AnnotatedArgsContext/malloc_workspace.md)
 
+    - [EagerOpExecutionContext](python/ge/custom_op/EagerOpExecutionContext/EagerOpExecutionContext.md)
+      - [简介](python/ge/custom_op/EagerOpExecutionContext/overview.md)
+      - [malloc\_output\_tensor](python/ge/custom_op/EagerOpExecutionContext/malloc_output_tensor.md)
+      - [make\_output\_ref\_input](python/ge/custom_op/EagerOpExecutionContext/make_output_ref_input.md)
+      - [malloc\_workspace](python/ge/custom_op/EagerOpExecutionContext/malloc_workspace.md)
+      - [get\_output\_tensor](python/ge/custom_op/EagerOpExecutionContext/get_output_tensor.md)
+      - [get\_stream](python/ge/custom_op/EagerOpExecutionContext/get_stream.md)
+
     - [AnnotatedKernelArgs](python/ge/custom_op/AnnotatedKernelArgs/AnnotatedKernelArgs.md)
       - [简介](python/ge/custom_op/AnnotatedKernelArgs/overview.md)
       - [append\_input](python/ge/custom_op/AnnotatedKernelArgs/append_input.md)
@@ -1135,6 +1143,7 @@
     - [create\_replacement](python/ge/passes/create_replacement.md)
     - [create\_pattern](python/ge/passes/create_pattern.md)
     - [get\_declare\_launch\_args\_ctx](python/ge/custom_op/get_declare_launch_args_ctx.md)
+    - [get\_execute\_ctx](python/ge/custom_op/get_execute_ctx.md)
     - [get\_registered\_passes](python/ge/passes/get_registered_passes.md)
     - [get\_registered\_pass\_dicts](python/ge/passes/get_registered_pass_dicts.md)
     - [get\_registered\_pass\_by\_descriptor\_key](python/ge/passes/get_registered_pass_by_descriptor_key.md)

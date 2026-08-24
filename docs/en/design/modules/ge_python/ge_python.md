@@ -804,7 +804,6 @@ For more design details please refer to [Python Pass Design Document](ge_python_
 ```
 custom_op/
 ├── __init__.py              # Module initialization, exports public API
-├── base.py                  # BaseCustomOp and EagerExecuteOp base class definitions
 ├── proto.py                 # Python custom operator prototype parser, descriptors, and registry
 ├── registry.py              # Python custom operator implementation registry and decorators
 ├── bootstrap.py             # Plugin discovery and loading
@@ -821,7 +820,7 @@ Note: `EagerOpExecutionContext`, `AnnotatedArgsContext`, and `InferShapeContext`
 
 #### Module Positioning
 
-The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order. After a Python prototype is registered with `OperatorFactory` through `register_op`, the compile-time and RT2 dynamic-shape paths invoke the same Python `infer_meta` callback. Compile-time inference writes output shape, dtype, and origin dtype; RT2 updates output shape only.
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes do not inherit from capability base classes. The execution entry uses a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order; callbacks access the execution context through `get_execute_ctx()`. After a Python prototype is registered with `OperatorFactory` through `register_op`, the compile-time and RT2 dynamic-shape paths invoke the same Python `infer_meta` callback. Compile-time inference writes output shape, dtype, and origin dtype; RT2 updates output shape only.
 
 #### Runtime Native Artifact Selection
 
@@ -837,37 +836,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 #### Detailed Class Descriptions
 
-##### 1. BaseCustomOp Class
-
-**File location**: `base.py`
-
-**Function**: Compatibility base class for existing Python custom operator implementations. New implementations may use plain Python classes.
-
-**Relationships**:
-
-- Parent class of `EagerExecuteOp`
-- It is not a mandatory base class for `register_op_impl`; capabilities are reflected from callable methods on the implementation class
-- A class that only inherits `BaseCustomOp` without implementing a supported method cannot be registered as a valid implementation
-
-##### 2. EagerExecuteOp Class
-
-**File location**: `base.py`
-
-**Function**: Compatibility base class for existing Python Eager execution custom operators. A plain Python class that implements `execute` can also declare execution capability.
-
-**Main methods**:
-
-- `execute(*args, **kwargs)` - Execution entry whose arguments depend on the selected invocation form
-
-**Design constraints**:
-
-- The legacy form is `execute(self, ctx)`, where `ctx` is an `EagerOpExecutionContext`.
-- The schema-bound form passes required, optional, and dynamic inputs in canonical IR order and passes attributes as keyword arguments by name.
-- A schema-bound callback uses `get_execute_ctx()` when it needs the execution context.
-- `ctx`, `RuntimeAttrs`, and their derived borrowed views can be used only within the current `execute` callback.
-- A normal return indicates successful execution. Exceptions should be raised on failure.
-
-##### 3. EagerOpExecutionContext Native-Backed Wrapper
+##### 1. EagerOpExecutionContext Native-Backed Wrapper
 
 **File location**: `_native.py`, `_ge_custom_op_native.pyi`
 
@@ -888,7 +857,7 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 - `get_output_tensor(index)` - Obtains the output `Tensor` specified by index
 - `get_stream()` - Obtains the address integer of the associated execution stream
 
-##### 4. RuntimeAttrs Native-Backed Wrapper
+##### 2. RuntimeAttrs Native-Backed Wrapper
 
 **File location**: `_ge_custom_op_native.pyi`
 
@@ -899,13 +868,13 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 - Lists: `get_list_int`, `get_list_float`, `get_list_bool`, `get_list_str`, `get_list_data_type`, and `get_list_list_int`
 - `get_attr_num()` - Obtains the number of runtime attributes
 
-##### 5. get_execute_ctx Function
+##### 3. get_execute_ctx Function
 
 **File location**: `context.py`
 
 **Function**: Obtains the `EagerOpExecutionContext` of the active schema-bound `execute` callback. Calling it outside the callback or after the callback ends raises `RuntimeError`.
 
-##### 6. AnnotatedArgsContext and Declarative Kernel Arguments
+##### 4. AnnotatedArgsContext and Declarative Kernel Arguments
 
 **File location**: `_native.py`, `_ge_custom_op_native.pyi`
 
@@ -937,7 +906,7 @@ The index accepted by `append_input(instance_index, tensor)` and `append_output(
 
 Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked exactly once and the resulting task plan is cached. Later generation phases only materialize the cached task plan from the current `RunContext` and do not call back into Python. A new task-plan lifecycle performs a new declaration. Borrowed objects from one callback must not be reused across callbacks. Compilation stores the selected refresh mode in `_custom_task_args_mode`; model loading treats it as the source of truth, while OMs without the attribute retain the legacy registry lookup and `args_format` fallback. The model execution path does not invoke Python.
 
-##### 7. OpImplDescriptor Data Class
+##### 5. OpImplDescriptor Data Class
 
 **File location**: `registry.py`
 
@@ -969,7 +938,7 @@ Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked e
 
 - `register_op` collects required, optional, and dynamic inputs, 12 attribute types, required and dynamic outputs, and `mutates_args`.
 - In one loading transaction, the bridge first registers Python prototype creators and collects the effective canonical IR, then registers implementation runtime entries and Adapter creators.
-- Python proto-only, Python proto with implementation, C++ proto with Python implementation, and prototype-free legacy implementations are supported. A schema-bound implementation without a prototype is rejected.
+- Python proto-only, Python proto with implementation, and C++ proto with a Python implementation are supported. A Python implementation without canonical IR is rejected.
 - A Python prototype may replace a built-in prototype with the same name. Registration fails when a loaded C++ or Python custom operator already owns that name.
 - A failed batch is rolled back in reverse order: Adapter creators, implementation runtime entries, and prototype creators. Unloading removes only objects owned by the current loader.
 
@@ -986,8 +955,6 @@ class AddPythonCustomOp:
         z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
         ...
 ```
-
-The existing `class AddPythonCustomOp(EagerExecuteOp)` and `execute(self, ctx)` forms remain compatible.
 
 Load Python custom operators:
 

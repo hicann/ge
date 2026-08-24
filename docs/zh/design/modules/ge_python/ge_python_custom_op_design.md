@@ -10,8 +10,8 @@
 
 Python 自定义算子的完整定位是支持用户用 Python 描述自定义算子原型，并实现自定义算子的各类能力。V1 已完成执行和静态模型地址刷新闭环，并作为 V2 继续演进的基线，覆盖以下能力：
 
-- Python 用户通过 `ge.custom_op` 编写 `execute` 执行逻辑，用户类无需继承能力基类，原有 `EagerExecuteOp` 继承写法继续兼容。
-- `execute` 同时支持直接接收 `EagerOpExecutionContext` 的兼容形式，以及按 canonical IR 组装输入和属性的 schema-bound 形式。
+- Python 用户通过 `ge.custom_op` 编写 `execute` 执行逻辑，用户类无需继承能力基类。
+- `execute` 统一按 canonical IR 组装输入和属性；执行上下文通过 `get_execute_ctx()` 在回调内访问。
 - Python 插件通过 `ASCEND_CUSTOM_OPP_PATH` 发现和导入。
 - GE 初始化、在线编译和执行前幂等加载 Python custom op。
 - C++ runtime 通过 `PythonCustomOpAdapter` 接入现有 `CustomOpFactory` / `CustomOpRegistry`。
@@ -30,15 +30,15 @@ V2 具体覆盖以下内容：
 - 解耦原型与实现的注册顺序，以及 Adapter descriptor、回调和 holder 生命周期，支持只有 Python 原型和 Meta 推导、没有 Python `execute` 实现的 infer-only 算子。
 - 打通 `infer_meta` 执行链路，包括按 canonical IR 构造输入和属性、调用 Python 函数、校验全部返回结果并统一提交。
 - 编译期一次调用 `infer_meta` 得到全部输出 shape 和 dtype，并原子回写 shape、dtype 和 origin dtype；RT2 动态 shape 场景复用同一回调，但运行期只更新 shape。
-- 补齐公开 API、类型声明、样例、中英文资料和 NPU 端到端验证，并保证已有 schema-bound `execute`、C++ 原型配合 Python 实现和兼容形式 `execute(ctx)` 不回归。
+- 补齐公开 API、类型声明、样例、中英文资料和 NPU 端到端验证，并保证已有 schema-bound `execute` 和 C++ 原型配合 Python 实现不回归。
 
 V2 完成后仍不覆盖以下内容：
 
-- 直接用 Python 类实现 `ShapeInferOp`、`CompilableOp`、`PortableOp`、`ArgsUpdater` 等 `BaseCustomOp` 能力接口；V2 的 Meta 推导通过 `infer_meta` 回调提供。
+- 不向 Python 直接暴露 `ShapeInferOp`、`CompilableOp`、`PortableOp`、`ArgsUpdater` 等 C++ `BaseCustomOp` 能力接口；V2 的 Meta 推导通过 `infer_meta` 回调提供。
 - 读取输入 Tensor 数据的 data-dependent infer。
 - InferShapeRange、format、符号化推导和 shape rule 生成。
 - Python `compile`、`serialize`、`deserialize` 参数绑定，以及 ES API 自动生成。
-- 对 schema-bound `execute` 做新的功能扩展，或删除兼容形式 `execute(ctx)`。
+- 对 schema-bound `execute` 做新的功能扩展。
 - Python 自定义算子随 OM 序列化、反序列化和跨进程加载。
 - Python 侧 `KernelArgs` / `MallocReadOnlyDevArgs` 对外封装。
 - Bridge、native 和 Adapter 的独立升级兼容；V2 仍按同批构建、整体替换和重启生效管理。
@@ -51,7 +51,7 @@ GE 支持通过自定义算子扩展算子原型、编译期能力和运行期�
 
 Python 自定义算子目标是让自定义算子的原型和各类能力逐步具备 Python 实现形态。当前 V1 版本开放执行和静态模型地址刷新能力：用户仍按现有 OPP / op proto 机制提供算子定义和 kernel。Eager 路径把运行时 `EagerOpExecutionContext` 包装成 Python borrowed view，并回调用户的 Python `execute` 方法完成 host 侧调度；AnnotatedArgs 路径在编译期把 `AnnotatedArgsContext` 包装成 Python borrowed view，回调 `declare_launch_args` 生成 `args_format`，供静态模型加载时刷新地址。
 
-执行入口支持两种形式：`execute(ctx)` 直接对齐 C++ `EagerExecuteOp::Execute(gert::EagerOpExecutionContext *)`；schema-bound `execute` 则由 bridge 根据 canonical IR 和运行时 context 组装输入、属性实参。两种形式共用相同的 adapter、holder 和 borrowed view 生命周期。
+执行入口统一为 schema-bound `execute`，由 bridge 根据 canonical IR 和运行时 context 组装输入、属性实参；方法需要上下文能力时通过 `get_execute_ctx()` 获取 borrowed view。该形式共用 adapter、holder 和 borrowed view 生命周期。
 
 ### 2.2 产品环境介绍
 
@@ -65,7 +65,7 @@ Python custom op 是 GE Python 体系的一部分，与 Python pass 共享以下
 
 | 模块 | 位置 | 职责 |
 |------|------|------|
-| Python API | `api/python/ge/ge/custom_op/` | 实现方法反射、注册实现、兼容基类、插件发现、bridge helper |
+| Python API | `api/python/ge/ge/custom_op/` | 实现方法反射、注册实现、插件发现、bridge helper |
 | Runtime types | `api/python/ge/ge/runtime/` | `Tensor`、`StorageShape`、`StorageFormat` 等运行时数据结构 |
 | Native context | `api/python/ge/ge/custom_op/native_bindings/` | `_ge_custom_op_native`，绑定 Eager、AnnotatedArgs、InferShape context、参数 builder 及 `RuntimeAttrs` |
 | Runtime loader | `runtime/custom_op/custom_op_loader.cc` | 统一加载 C++ custom op 和 Python custom op |
@@ -82,8 +82,8 @@ V1 功能包括：
 - `@register_op_impl(op_type=...)` 注册 Python 自定义算子实现。
 - `@register_op(op_type=..., mutates_args=...)` 根据 Python 函数签名收集自定义算子原型。
 - bridge 将 Python 原型同步注册为 `OperatorFactory` creator，并从生效 creator 收集 canonical IR；编译期和 RT2 通过统一 callback 调用 `infer_meta`。
-- `register_op_impl` 反射实现类上的可调用 `execute`、`declare_launch_args` 方法并声明对应能力，不要求继承 `BaseCustomOp`、`EagerExecuteOp` 或 `AnnotatedArgsOp`。
-- `execute(self, ctx)` 兼容形式直接接收 `EagerOpExecutionContext`；schema-bound 形式接收按 canonical IR 组装的输入和属性。
+- `register_op_impl` 反射实现类上的可调用 `execute`、`declare_launch_args` 方法并声明对应能力，不要求继承任何能力基类。
+- `execute` 接收按 canonical IR 组装的输入和属性；上下文通过 `get_execute_ctx()` 获取。
 - `EagerOpExecutionContext` 支持输入输出 tensor 查询、动态输入实例数、运行时属性读取、输出/工作区分配和 stream 获取。
 - `declare_launch_args` 支持按 canonical IR 将输入和输出组装为位置参数，并将属性组装为 keyword-only 参数；回调通过 `get_declare_launch_args_ctx()` 创建参数 builder、申请 workspace、添加 kernel launch。`append_input` / `append_output` 的 index 使用计算节点输入输出的实例平铺 index。
 - `ASCEND_CUSTOM_OPP_PATH` 同时承载现有 C++ custom op OPP 路径和 Python custom op 文件/包路径。
@@ -96,8 +96,8 @@ V1 功能包括：
 - Python 入口失败只在实际存在 Python custom op 入口时影响加载；没有 Python 文件/包时直接跳过。
 - `EagerOpExecutionContext`、`AnnotatedArgsContext`、`RuntimeAttrs` 以及由它们返回的 `Tensor` 等 borrowed view 只能在当前回调内使用；`AnnotatedKernelArgs` 被 `add_launch` 消费后不可复用。
 - Python `execute` 的返回值当前不作为状态码使用；正常返回表示成功，抛出异常表示失败。
-- Python custom op 当前声明 `EagerExecuteOp` 和 `AnnotatedArgsOp` capability；其它 C++ 能力接口由 adapter 保留 override 但按不支持处理。
-- schema-bound 形式依赖已有算子原型的 canonical IR。bridge 加载 descriptor 时收集 canonical IR，并在创建 holder 和调用业务 callback 之前调用 `validate_op_impl_descriptor`，一次性校验 schema-bound 签名：`execute` 校验 IR 输入和属性，不把输出参数纳入签名，也不限制返回注解或返回值；`declare_launch_args` 校验输入、输出、属性并要求 `-> None`。runtime callback 只组装实参并调用业务方法，不再校验签名；校验结果属于 descriptor 加载阶段，不进入 holder 生命周期。
+- Python custom op 当前由 C++ adapter 声明 `EagerExecuteOp` 和 `AnnotatedArgsOp` capability；其它 C++ 能力接口由 adapter 保留 override 但按不支持处理。
+- schema-bound 形式依赖已有算子原型的 canonical IR。bridge 加载 descriptor 时收集 canonical IR，并在创建 holder 和调用业务 callback 之前调用 `validate_op_impl_descriptor`，一次性校验 schema-bound 签名：`execute` 校验 IR 输入和属性，不把输出参数纳入签名；两个 callback 都必须显式声明 `-> None`，实际返回值也必须为 `None`；`declare_launch_args` 额外校验输出参数。runtime callback 只组装实参并调用业务方法，不再校验签名；校验结果属于 descriptor 加载阶段，不进入 holder 生命周期。
 - 跨 SO 的 proto/Adapter descriptor 是同步借用的 C POD view，runtime callback 返回前必须完成校验和深拷贝。
 - Python 原型允许覆盖内置原型；若 `CustomOpFactory` 已存在同名 C++ 或 Python 自定义算子，则视为自定义算子冲突。
 - schema-bound 回调通过 `get_execute_ctx()` 获取当前 context；该绑定只在当前回调动态作用域内有效。
@@ -139,7 +139,7 @@ GE 初始化 / PreRun
   -> CustomOpCast<EagerExecuteOp>()
   -> PythonCustomOpAdapter::Execute(ctx)
   -> ge.custom_op._bridge.call_execute(instance_id, ir_meta, python_ctx)
-  -> legacy execute(ctx) 或 schema-bound execute(*inputs, **attrs)
+  -> schema-bound execute(*inputs, **attrs)
 
 离线编译地址声明
   -> CustomOpCast<AnnotatedArgsOp>()
@@ -161,13 +161,9 @@ GE 初始化 / PreRun
 
 **介绍**
 
-用户在普通 Python 类或兼容基类子类中实现可调用的 `execute` 方法。bridge 根据绑定后方法的签名选择调用形式：唯一位置参数名为 `ctx` 时走兼容形式，其余签名走 schema-bound 形式。`staticmethod`、`classmethod` 和继承得到的可调用 `execute` 均按相同规则处理。
+用户在普通 Python 类中实现可调用的 schema-bound `execute` 方法。bridge 根据 canonical IR 绑定输入和属性；`staticmethod`、`classmethod` 和继承得到的可调用 `execute` 均按相同规则处理。
 
 ```python
-# 兼容形式
-def execute(self, ctx: EagerOpExecutionContext) -> None:
-    ...
-
 # schema-bound 形式，参数顺序与 canonical IR 一致
 def execute(self, x, optional_y, dynamic_z, *, alpha, axes) -> None:
     ...
@@ -175,13 +171,12 @@ def execute(self, x, optional_y, dynamic_z, *, alpha, axes) -> None:
 
 **输入**
 
-- 兼容形式：`ctx` 为 `EagerOpExecutionContext` borrowed view。
 - schema-bound 输入：`REQUIRED_INPUT` 传单个 `Tensor`，`OPTIONAL_INPUT` 传 `Tensor` 或 `None`，`DYNAMIC_INPUT` 传按实例顺序排列的 `Tensor` 列表。
 - schema-bound 属性：bridge 按 canonical IR 属性顺序读取运行时属性，再以 IR 属性名作为 keyword argument。
 
 **处理**
 
-- bridge 加载 descriptor 时通过 run 包正式公共接口 `GetRegisteredIrDef(op_type)` 收集 canonical IR，并在创建 holder 和业务 callback 之前调用 `validate_op_impl_descriptor` 校验 Python `execute` 的输入和属性签名。IR 输出不纳入 `execute` 签名，返回注解和返回值也不参与校验。
+- bridge 加载 descriptor 时通过 run 包正式公共接口 `GetRegisteredIrDef(op_type)` 收集 canonical IR，并在创建 holder 和业务 callback 之前调用 `validate_op_impl_descriptor` 校验 Python `execute` 的输入和属性签名。IR 输出不纳入 `execute` 签名，返回注解必须为 `None`，实际返回值也必须为 `None`。
 - holder 创建时再次收集并持有运行期所需的 canonical IR 快照；runtime schema-bound 调用只按该快照的 IR 顺序从 `EagerOpExecutionContext` 读取输入和属性并调用 Python，不再校验签名。
 - schema-bound 回调期间，`get_execute_ctx()` 返回当前 context；嵌套调用结束后恢复外层绑定。
 - Python bridge 在 `finally` 中调用 `ctx._invalidate()`，使 context 及其派生 borrowed view 失效。
@@ -209,7 +204,7 @@ def execute(self, x, optional_y, dynamic_z, *, alpha, axes) -> None:
 - 回调使用 `create_kernel_args()` 为一次 launch 创建有序参数 builder，可追加输入、输出、workspace 和 scalar。
 - `malloc_workspace(size)` 每次返回带 workspace index 的地址对象；`append_workspace` 按该 index 记录刷新项。
 - `add_launch(launch_info, args)` 消费参数 builder 并写入 AnnotatedArgs 描述；已消费 builder 不可复用。
-- bridge 在 descriptor 加载阶段调用 `validate_op_impl_descriptor`，校验 Python 方法签名与 canonical IR 一致且带有 `None` 返回注解；runtime callback 不再校验签名。每次回调结束后仍检查实际返回值为 `None`，并始终在 `finally` 中使 context 及派生 borrowed view 失效。
+- bridge 在 descriptor 加载阶段调用 `validate_op_impl_descriptor`，校验 Python 方法签名与 canonical IR 一致；runtime callback 不再校验签名，但会检查实际返回值必须为 `None`。每次回调结束后始终在 `finally` 中使 context 及派生 borrowed view 失效。
 
 **输出**
 
@@ -229,7 +224,7 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 
 **处理**
 
-- `register_op_impl` 装饰阶段只校验被装饰对象是具体（非抽象）class，并反射其能力；不要求是 `BaseCustomOp` 子类。holder 创建时通过无参构造实例化该 class。
+- `register_op_impl` 装饰阶段只校验被装饰对象是具体（非抽象）class，并反射其能力。holder 创建时通过无参构造实例化该 class。
 - registry 通过反射收集类上的可调用方法；`execute` 映射为 `eager_execute`，`declare_launch_args` 映射为 `annotated_args`，并生成 `descriptor_key = module_name:class_name:op_type`。
 - 未实现任何受支持方法的 class 注册失败。装饰阶段不做 schema-bound 业务签名校验；随后 bridge 加载 descriptor、收集 canonical IR，并调用 `validate_op_impl_descriptor` 完成一次性签名校验，校验通过后才注册 C++ creator。
 - `ge.custom_op.bootstrap.load_custom_op_plugins()` 通过 `ge._internal.plugin_loader` 导入环境变量路径下的 Python 插件。
@@ -353,7 +348,7 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 
 #### 3.3.2 可测试性
 
-- Python UT 覆盖普通 class/兼容基类注册、两类能力反射、descriptor 加载阶段的 schema-bound 签名校验、legacy/schema-bound 调用、`declare_launch_args` 返回值校验、实例平铺 index、context 作用域、holder 生命周期和环境变量插件加载。
+- Python UT 覆盖普通 class 注册、两类能力反射、descriptor 加载阶段的 schema-bound 签名校验、schema-bound 调用、`declare_launch_args` 返回值校验、实例平铺 index、context 作用域、holder 生命周期和环境变量插件加载。
 - C++ UT 应覆盖 capability helper、canonical IR 查询、adapter 的 execute/declare 转发、loader 跳过/加载路径、bridge ABI v1 校验和 shutdown 顺序。
 - 样例 `examples/custom_op/annotated_args_refresh_add_custom/python` 验证离线编译、无 Python 环境加载和地址刷新执行。
 
@@ -404,9 +399,7 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 
 | 接口 | 说明 |
 |------|------|
-| `BaseCustomOp` | 兼容已有实现的 Python custom op 基类，新实现不强制继承 |
-| `EagerExecuteOp` | 兼容已有实现的 Eager 执行基类，新实现可使用普通 class |
-| `execute` | 用户实现的执行入口，支持 legacy 和 schema-bound 两种形式 |
+| `execute` | 用户实现的 schema-bound 执行入口 |
 | `EagerOpExecutionContext` | 执行上下文 borrowed view |
 | `InferShapeContext` | `infer_meta` 回调的输入元信息读取上下文 |
 | `RuntimeAttrs` | `EagerOpExecutionContext.get_attrs()` 返回的属性 borrowed view |
@@ -427,7 +420,7 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 | 接口说明 | 是否需要评审，评审需关注接口兼容和接口约束 | 涉及，新增 Python 对外 API |
 | 接口说明 | 是否需要补充资料说明 | 涉及，已补 API 文档和样例 |
 | 接口说明 | 是否明确接口原型、功能、返回值等说明 | 涉及，见 API 文档 |
-| 接口兼容 | 修改前后行为是否发生变化 | 涉及；保留已有继承和 `execute(ctx)` 行为，新增普通 class 注册和 schema-bound 调用形式 |
+| 接口兼容 | 修改前后行为是否发生变化 | 涉及；移除 Python 能力基类，统一为 schema-bound 调用形式 |
 | 接口兼容 | 新接口在老版本上是否能正常工作 | 涉及，旧 run 包无对应 native/bridge 时不可用 |
 | 接口约束 | 是否涉及使用场景、调用时序等约束 | 涉及，context/attrs 仅可在当前回调内使用，schema-bound 调用依赖 canonical IR |
 | 接口约束 | 调用不满足约束时是否能清晰报错 | 涉及，Python 侧抛 `TypeError` / `ValueError` / `RuntimeError` |
@@ -492,7 +485,7 @@ native binding 保存 `gert::AnnotatedArgsContext *` 和独立 validity 标记�
 - **capability 过滤**：`CustomOpCast<T>()` 先识别 `CustomOpCapabilityProvider`，再按 bitmask 判断是否支持目标接口。
 - **IR 实参组装**：bridge 在 descriptor 加载阶段通过 run 包公共接口查询 canonical IR 以校验签名，holder 创建时再次查询并持有运行期 IR 快照；runtime callback 按该快照的 IR 顺序读取 required/optional/dynamic 输入输出和 typed runtime attrs，分别构造 positional arguments 和 keyword arguments。
 - **注册事务**：先同步深拷贝 proto C POD 并注册 creator，再收集 canonical IR，最后注册 impl runtime entry 和 Adapter creator；任一步失败由上层 loader 调用卸载，按相反顺序回滚已完成的步骤。
-- **回调签名校验**：bridge 加载 descriptor 时调用 `validate_op_impl_descriptor` 一次性校验 schema-bound 签名，并在创建 holder 和业务 callback 之前完成。`execute` 校验总参数数量、输入的位置形式及已提供的类型注解，以及属性的 keyword-only 形式、名称和已提供的类型注解；输出参数、返回注解和返回值不参与校验。`declare_launch_args` 校验输入、输出、属性及 `None` 返回注解。runtime callback 不再校验签名，校验状态也不进入 holder 生命周期。
+- **回调签名校验**：bridge 加载 descriptor 时调用 `validate_op_impl_descriptor` 一次性校验 schema-bound 签名，并在创建 holder 和业务 callback 之前完成。两个 callback 都校验返回注解为 `None`；`execute` 校验总参数数量、输入的位置形式及已提供的类型注解，以及属性的 keyword-only 形式、名称和已提供的类型注解；`declare_launch_args` 额外校验输出参数。runtime callback 不再校验签名，但会检查实际返回值必须为 `None`，校验状态也不进入 holder 生命周期。
 - **holder 生命周期**：C++ adapter 拥有 `PythonCustomOpHolder`，Python 侧 `_OP_IMPL_HOLDERS` 以 `instance_id` 保存实例；adapter 析构时销毁 Python holder。
 - **上下文绑定**：schema-bound 回调使用 `ContextVar` 建立动态作用域，`get_execute_ctx()` / `get_declare_launch_args_ctx()` 读取对应绑定；token reset 支持嵌套调用后恢复外层 context。
 - **上下文失效**：bridge 的 execute/declare 调用都使用 `finally` 确保 context 失效，不依赖用户正常返回。
@@ -544,8 +537,7 @@ PythonCustomOpAdapter::Execute(ctx)
   -> _borrow_eager_op_execution_context(ctx_handle)
   -> bridge holder 构造 Python ir_meta
   -> ge.custom_op._bridge.call_execute(instance_id, ir_meta, py_ctx)
-  -> legacy: user_op.execute(ctx)
-  -> schema-bound: user_op.execute(*inputs, **attrs)
+  -> user_op.execute(*inputs, **attrs)
   -> py_ctx._invalidate()
 
 PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
@@ -611,7 +603,7 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 
 ## 8. 兼容性检查
 
-- Python 用户已有的 `EagerExecuteOp` 继承和 `execute(ctx)` 实现继续按原路径调用；能力反射只放宽注册条件，不改变兼容形式的参数和生命周期语义。
+- Python 用户直接使用普通 class 实现 `execute`；能力反射不依赖继承关系。
 - C++ custom op 原有 `dynamic_cast` 语义通过 `CustomOpCast<T>()` 对普通 C++ op 退化保持兼容。
 - 不改变 OM 格式，老 OM 在新版本下仍按原有 custom op 分区和 registry 逻辑加载。
 - 新 OM 不携带 Python 实现，不能假设在老版本上复现 Python custom op 执行能力。
@@ -632,9 +624,9 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 
 | 测试类别 | 关键测试项 | 测试方法 | 用例类型 |
 |----------|------------|----------|----------|
-| 功能 | 普通 class、兼容基类、继承方法、`staticmethod`、`classmethod` 的 Eager/AnnotatedArgs 能力反射及非法注册 | Python pytest | UT |
+| 功能 | 普通 class、继承方法、`staticmethod`、`classmethod` 的 Eager/AnnotatedArgs 能力反射及非法注册 | Python pytest | UT |
 | 功能 | 原型签名解析、默认值、`mutates_args`、幂等与冲突注册 | Python pytest | UT |
-| 功能 | legacy `execute(ctx)` context 透传；schema-bound required/optional/dynamic 输入和 typed attrs 组装 | Python pytest fake context | UT |
+| 功能 | schema-bound required/optional/dynamic 输入和 typed attrs 组装、`get_execute_ctx()` 作用域 | Python pytest fake context | UT |
 | 功能 | descriptor 加载阶段的 schema-bound `execute` 输入/属性签名校验、输出/返回兼容，以及 runtime callback 不重复校验 | Python pytest fake context | UT |
 | 功能 | descriptor 加载阶段的 schema-bound `declare_launch_args` 签名校验，以及 runtime 输入输出/属性组装、返回值校验、实例平铺 index 及 builder 消费语义 | Python pytest fake/native context | UT |
 | 功能 | `get_execute_ctx()` / `get_declare_launch_args_ctx()` 回调内访问、异常清理和嵌套调用恢复 | Python pytest | UT |
@@ -646,7 +638,7 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 | 功能 | loader 在无 Python 入口时跳过，有入口时加载 bridge | C++ gtest / stub | UT |
 | 兼容性 | C++ custom op 裸能力继承仍可正常 cast | C++ gtest | UT |
 | 特性交叉 | 在线 PreRun 加载后刷新 ops kernel info | GE 图执行相关测试 | UT/ST |
-| 样例 | Python custom op legacy/schema-bound 构图执行，以及 AnnotatedArgs 离线编译后无 Python 环境的地址刷新执行 | `annotated_args_refresh_add_custom/python` | ST/真机 |
+| 样例 | Python custom op schema-bound 构图执行，以及 AnnotatedArgs 离线编译后无 Python 环境的地址刷新执行 | `annotated_args_refresh_add_custom/python` | ST/真机 |
 
 ### 9.3 测试框架设计
 

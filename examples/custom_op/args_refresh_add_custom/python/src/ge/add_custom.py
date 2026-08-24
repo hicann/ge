@@ -137,7 +137,7 @@ def _launch_kernel(
 
 @register_op_impl(op_type="AddPythonCustomOp")
 class AddPythonCustomOp:
-    def execute(self, x, y):
+    def execute(self, x, y) -> None:
         ctx = get_execute_ctx()
         output_z = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
         num_blocks = _get_num_blocks(x)
