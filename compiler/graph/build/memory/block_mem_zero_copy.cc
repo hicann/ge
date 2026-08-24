@@ -29,10 +29,6 @@
 #include "block_mem_zero_copy.h"
 
 namespace ge {
-namespace {
-const std::string kOffline = "offline";
-}
-
 // 地址不可刷新时不能做零拷贝，也不能和零拷贝节点内存进行复用
 // 和Data、Netoutput连接时用于判断是否可零拷贝，和其他节点连接是用于判断是否可以和零拷贝节点进行复用
 bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
@@ -40,9 +36,9 @@ bool IsNodeSupportZeroCopy(const ge::NodePtr &node) {
   if (!is_support_zero_copy) {
     GELOGI("Op[%s] not support zero copy", node->GetName().c_str());
   } else {
-    // IsAddressRefreshable在动态shape静态子图场景认为hccl算子是可刷新的，实际上因为处理阶段有差异，
-    // 比如hccl判断时还未拆图，可能导致结果不一致，这里还是统一使用IsHcomNodeNotSupportAddrRefresh的结果
-    // 另外静态子图里hccl支持刷新会有性能劣化，hccl内部会做数据拷贝等额外处理
+    // IsAddressRefreshable在动态shape静态子图场景认为hccl算子都是可刷新的，实际上因为处理阶段有差异，
+    // 比如hccl判断时还未拆图，可能导致结果不一致，另外静态子图里hccl支持刷新会有性能劣化（hccl内部会做数据拷贝等额外处理）
+    // 这里还是保持原有处理，统一使用IsHcomNodeNotSupportAddrRefresh的结果（不可刷新）
     const auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
     const bool is_dynamic_shape_sub_graph = (root_graph != nullptr) && root_graph->GetGraphUnknownFlag() &&
                                             (!node->GetOwnerComputeGraph()->GetGraphUnknownFlag());
