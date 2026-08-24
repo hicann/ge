@@ -25,6 +25,7 @@
 <!-- npu="IPV350" id455 -->
 - IPV350：不支持
 <!-- end id455 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclGetTensorDescDim_deprecated_res.md#id1 -->
 
 ## 功能说明
 

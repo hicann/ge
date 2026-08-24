@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id413 -->
 - IPV350：支持
 <!-- end id413 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetDescFromMem_res.md#id1 -->
 
 ## 功能说明
 
@@ -65,3 +66,5 @@ Control CPU开放形态下，model处需申请Device上的内存。
 <!-- npu="IPV350" id4 -->
 model处需申请Device上的内存。
 <!-- end id4 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetDescFromMem_res.md#id2 -->

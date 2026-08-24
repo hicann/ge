@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id210 -->
 - IPV350：不支持
 <!-- end id210 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclblasS8gemm_res.md#id1 -->
 
 ## 功能说明
 

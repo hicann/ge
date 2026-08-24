@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id441 -->
 - IPV350：不支持
 <!-- end id441 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorPlaceMent_res.md#id1 -->
 
 ## 功能说明
 

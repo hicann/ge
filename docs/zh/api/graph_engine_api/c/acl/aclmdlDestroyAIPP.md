@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id838 -->
 - IPV350：不支持
 <!-- end id838 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlDestroyAIPP_res.md#id1 -->
 
 ## 功能说明
 

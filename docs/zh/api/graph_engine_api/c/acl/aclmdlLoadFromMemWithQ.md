@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id670 -->
 - IPV350：不支持
 <!-- end id670 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlLoadFromMemWithQ_res.md#id1 -->
 
 ## 功能说明
 

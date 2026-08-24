@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id691 -->
 - IPV350：不支持
 <!-- end id691 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopRegisterCompileFunc_res.md#id1 -->
 
 ## 功能说明
 

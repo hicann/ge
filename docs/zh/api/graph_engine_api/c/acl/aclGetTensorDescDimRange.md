@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id698 -->
 - IPV350：不支持
 <!-- end id698 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclGetTensorDescDimRange_res.md#id1 -->
 
 ## 功能说明
 

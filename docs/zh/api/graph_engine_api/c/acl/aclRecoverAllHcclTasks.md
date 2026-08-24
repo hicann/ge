@@ -25,7 +25,6 @@
 <!-- npu="IPV350" id7 -->
 - IPV350：不支持
 <!-- end id7 -->
-
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclRecoverAllHcclTasks_res.md#id1 -->
 
 ## 功能说明

@@ -21,8 +21,9 @@
 - Atlas 训练系列产品：支持
 <!-- end id482 -->
 <!-- npu="IPV350" id483 -->
-- IPV350：x
+- IPV350：不支持
 <!-- end id483 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorOriginShape_res.md#id1 -->
 
 ## 功能说明
 

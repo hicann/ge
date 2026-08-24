@@ -141,6 +141,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id5 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id1 -->
+
 ## ACL\_MDL\_INPUTQ\_ADDR\_PTR取值说明
 
 模型输入队列ID的指针，带队列加载模型时，该选项必选，一个模型输入对应一个队列ID。
@@ -148,6 +150,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="IPV350" id6 -->
 当前版本不支持该配置。
 <!-- end id6 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id2 -->
 
 ## ACL\_MDL\_OUTPUTQ\_NUM\_SIZET取值说明
 
@@ -157,6 +161,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id7 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id3 -->
+
 ## ACL\_MDL\_OUTPUTQ\_ADDR\_PTR取值说明
 
 模型输出队列ID的指针，带队列加载模型时，该选项必选，一个模型输出对应一个队列ID。
@@ -164,6 +170,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="IPV350" id8 -->
 当前版本不支持该配置。
 <!-- end id8 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id4 -->
 
 ## ACL\_MDL\_WORKSPACE\_MEM\_OPTIMIZE取值说明
 
@@ -191,6 +199,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id10 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id5 -->
+
 ## ACL\_MDL\_MODEL\_DESC\_SIZET取值说明
 
 存放模型描述信息所需的内存大小，单位Byte。该选项对应的值为size\_t类型。
@@ -201,6 +211,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id11 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id6 -->
+
 ## ACL\_MDL\_KERNEL\_PTR取值说明
 
 存放TBE算子kernel（算子的\*.o与\*.json）的内存指针。
@@ -208,6 +220,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id12 -->
 当前版本不支持该配置。
 <!-- end id12 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id7 -->
 
 ## ACL\_MDL\_KERNEL\_SIZET取值说明
 
@@ -219,6 +233,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id13 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id8 -->
+
 ## ACL\_MDL\_KERNEL\_ARGS\_PTR取值说明
 
 存放TBE算子kernel参数的内存指针。
@@ -226,6 +242,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id14 -->
 当前版本不支持该配置。
 <!-- end id14 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id9 -->
 
 ## ACL\_MDL\_KERNEL\_ARGS\_SIZET取值说明
 
@@ -237,6 +255,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id15 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id10 -->
+
 ## ACL\_MDL\_STATIC\_TASK\_PTR取值说明
 
 存放静态shape任务描述信息的内存指针。
@@ -244,6 +264,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id16 -->
 当前版本不支持该配置。
 <!-- end id16 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id11 -->
 
 ## ACL\_MDL\_STATIC\_TASK\_SIZET取值说明
 
@@ -255,6 +277,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id17 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id12 -->
+
 ## ACL\_MDL\_DYNAMIC\_TASK\_PTR取值说明
 
 存放动态shape任务描述信息的内存指针。
@@ -262,6 +286,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id18 -->
 当前版本不支持该配置。
 <!-- end id18 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id13 -->
 
 ## ACL\_MDL\_DYNAMIC\_TASK\_SIZET取值说明
 
@@ -273,6 +299,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id19 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id14 -->
+
 ## ACL\_MDL\_MEM\_MALLOC\_POLICY\_SIZET取值说明
 
 内存分配规则，该选项对应的值为size\_t类型。
@@ -280,6 +308,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id20 -->
 当前版本不支持该配置。
 <!-- end id20 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id15 -->
 
 <!-- npu="IPV350" id21 -->
 **支持如下取值：**
@@ -323,6 +353,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 当前版本不支持该配置。
 <!-- end id22 -->
 
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id16 -->
+
 <!-- npu="IPV350" id23 -->
 若某个模型在推理时，其每一层的输入来自上一层的输出以及前面几轮推理结果拼接而成时，则需使用模型级别的全局内存将该模型所需的输入数据保存下来，供后续推理使用。
 
@@ -336,6 +368,8 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 <!-- npu="950,A3,910b,910,310p,310b" id24 -->
 当前版本不支持该配置。
 <!-- end id24 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlConfigAttr_res.md#id17 -->
 
 <!-- npu="IPV350" id25 -->
 可提前调用[aclmdlQueryExeOMDesc](aclmdlQueryExeOMDesc.md)接口获取模型级别全局内存的大小。

@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id733 -->
 - IPV350：不支持
 <!-- end id733 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetCurOutputDims_res.md#id1 -->
 
 ## 功能说明
 

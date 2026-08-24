@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id154 -->
 - IPV350：不支持
 <!-- end id154 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclblasCreateHandleForGemmEx_res.md#id1 -->
 
 ## 功能说明
 

@@ -23,7 +23,6 @@
 <!-- npu="IPV350" id448 -->
 - IPV350：不支持
 <!-- end id448 -->
-
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopSetAttrListDataType_res.md#id1 -->
 
 ## 功能说明

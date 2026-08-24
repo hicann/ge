@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id803 -->
 - IPV350：不支持
 <!-- end id803 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopLoad_res.md#id1 -->
 
 ## 功能说明
 
@@ -62,3 +63,4 @@ aclError aclopLoad(const void *model,  size_t modelSize)
 <!-- npu="310p" id4 -->
 - 对于Atlas 推理系列产品，Ascend EP形态下，上限是40000000；Control CPU开放形态下，上限是2000000。
 <!-- end id4 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopLoad_res.md#id2 -->

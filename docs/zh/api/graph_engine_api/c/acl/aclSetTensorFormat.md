@@ -18,11 +18,12 @@
 - Atlas 推理系列产品：支持
 <!-- end id682 -->
 <!-- npu="910" id683 -->
-- Atlas 训练系列产品：x
+- Atlas 训练系列产品：不支持
 <!-- end id683 -->
 <!-- npu="IPV350" id684 -->
-- IPV350：x
+- IPV350：不支持
 <!-- end id684 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorFormat_res.md#id1 -->
 
 ## 功能说明
 

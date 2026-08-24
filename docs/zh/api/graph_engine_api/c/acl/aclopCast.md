@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id656 -->
 - IPV350：不支持
 <!-- end id656 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopCast_res.md#id1 -->
 
 ## 功能说明
 

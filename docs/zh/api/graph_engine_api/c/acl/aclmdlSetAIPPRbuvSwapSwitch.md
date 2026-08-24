@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id273 -->
 - IPV350：不支持
 <!-- end id273 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetAIPPRbuvSwapSwitch_res.md#id1 -->
 
 ## 功能说明
 

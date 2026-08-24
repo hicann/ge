@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id642 -->
 - IPV350：不支持
 <!-- end id642 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlBundleInitFromMem_res.md#id1 -->
 
 ## 功能说明
 
@@ -61,3 +62,5 @@ Ascend RC形态下，model参数处需申请Device上的内存。
 <!-- npu="310p" id3 -->
 Control CPU开放形态下，model参数处需申请Device上的内存。
 <!-- end id3 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlBundleInitFromMem_res.md#id2 -->

@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id908 -->
 - IPV350：不支持
 <!-- end id908 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetAIPPCscParams_res.md#id1 -->
 
 ## 功能说明
 
