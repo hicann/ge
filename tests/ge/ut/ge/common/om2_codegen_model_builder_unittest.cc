@@ -113,6 +113,16 @@ OpDescPtr MakeKernelOpDesc(const std::string &name, const std::string &type, siz
   return op_desc;
 }
 
+void SetAtomicOutputIndices(const OpDescPtr &op_desc, const std::vector<int64_t> &indices) {
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, ATOMIC_ATTR_OUTPUT_INDEX, indices));
+}
+
+void SetAtomicWorkspaceInfo(const OpDescPtr &op_desc, const std::string &op_name, const std::vector<int64_t> &values) {
+  GeAttrValue::NAMED_ATTRS workspaces;
+  workspaces.SetAttr(op_name, GeAttrValue::CreateFrom<GeAttrValue::LIST_INT>(values));
+  EXPECT_TRUE(AttrUtils::SetNamedAttrs(op_desc, EXT_ATTR_ATOMIC_WORKSPACE_INFO, workspaces));
+}
+
 TaskSemanticContributeContext MakeContext(const domi::TaskDef &task_def, const OpDescPtr &op_desc,
                                           ModelTaskType task_type = ModelTaskType::MODEL_TASK_KERNEL) {
   return TaskSemanticContributeContext{task_type, task_def, 0,       op_desc, nullptr, nullptr, nullptr, nullptr,
@@ -2400,6 +2410,132 @@ TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_CustomizedArgs_CoverBranc
   EXPECT_EQ(custom_builder.customized_args_info_.output_addr_size, 8U);
   EXPECT_EQ(custom_builder.customized_args_info_.output_addr_offset, 40U);
   EXPECT_EQ(custom_builder.args_size_, 48U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_AtomicAddrHelpers_CoverBranches) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+
+  auto op_desc = MakeKernelOpDesc("atomic_add", "Add", 1U, 2U);
+  builder.op_desc_ = op_desc;
+  SetAtomicOutputIndices(op_desc, {1, 3});
+
+  std::vector<uint64_t> output_data_addrs = {11U, 22U};
+  std::vector<uint64_t> output_mem_types = {101U, 202U};
+  std::vector<uint64_t> atomic_output_data_addrs;
+  std::vector<uint64_t> atomic_output_mem_types;
+  builder.GetAtomicOutAddrs(output_data_addrs, output_mem_types, atomic_output_data_addrs, atomic_output_mem_types);
+  ASSERT_EQ(atomic_output_data_addrs.size(), 1U);
+  ASSERT_EQ(atomic_output_mem_types.size(), 1U);
+  EXPECT_EQ(atomic_output_data_addrs[0], 22U);
+  EXPECT_EQ(atomic_output_mem_types[0], 202U);
+
+  std::vector<uint64_t> workspace_data_addrs = {33U, 44U};
+  std::vector<uint64_t> workspace_mem_types = {303U, 404U};
+  std::vector<uint64_t> atomic_workspace_data_addrs;
+  std::vector<uint64_t> atomic_workspace_mem_types;
+  SetAtomicWorkspaceInfo(op_desc, op_desc->GetName(), {1, 3});
+  builder.GetAtomicWorkspaceAddrs(workspace_data_addrs, workspace_mem_types, atomic_workspace_data_addrs,
+                                  atomic_workspace_mem_types);
+  ASSERT_EQ(atomic_workspace_data_addrs.size(), 1U);
+  ASSERT_EQ(atomic_workspace_mem_types.size(), 1U);
+  EXPECT_EQ(atomic_workspace_data_addrs[0], 44U);
+  EXPECT_EQ(atomic_workspace_mem_types[0], 404U);
+
+  auto empty_op_desc = MakeKernelOpDesc("atomic_add_empty", "Add", 1U, 2U);
+  builder.op_desc_ = empty_op_desc;
+  atomic_workspace_data_addrs.clear();
+  atomic_workspace_mem_types.clear();
+  builder.GetAtomicWorkspaceAddrs(workspace_data_addrs, workspace_mem_types, atomic_workspace_data_addrs,
+                                  atomic_workspace_mem_types);
+  EXPECT_TRUE(atomic_workspace_data_addrs.empty());
+  EXPECT_TRUE(atomic_workspace_mem_types.empty());
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_SetIoAddrs_SeparatelyCleanTask_CoverBranches) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+
+  auto op_desc = MakeKernelOpDesc("atomic_add", "Add", 1U, 2U);
+  builder.op_desc_ = op_desc;
+  builder.kernel_type_ = ccKernelType::AI_CPU;
+  builder.is_separately_clean_task_ = true;
+  builder.is_addrs_folded_ = true;
+  SetAtomicOutputIndices(op_desc, {1, 3});
+  SetAtomicWorkspaceInfo(op_desc, op_desc->GetName(), {1, 3});
+
+  builder.input_data_addrs_ = {11U};
+  builder.output_data_addrs_ = {22U, 33U};
+  builder.workspace_addrs_ = {44U, 55U};
+  builder.input_mem_types_ = {101U};
+  builder.output_mem_types_ = {202U, 303U};
+  builder.workspace_mem_types_ = {404U, 505U};
+
+  EXPECT_EQ(builder.SetIoAddrs(), SUCCESS);
+  ASSERT_EQ(builder.io_addrs_.size(), 3U);
+  ASSERT_EQ(builder.io_addr_mem_types_.size(), 2U);
+  EXPECT_EQ(builder.io_addr_mem_types_[0], 303U);
+  EXPECT_EQ(builder.io_addr_mem_types_[1], 505U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_SetIoAddrs_NonSeparatelyCleanAicore_CoverBranches) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+
+  auto op_desc = MakeKernelOpDesc("aicore_add", "Add", 1U, 1U);
+  builder.op_desc_ = op_desc;
+  builder.kernel_type_ = ccKernelType::TE;
+  builder.is_separately_clean_task_ = false;
+  builder.is_addrs_folded_ = false;
+
+  builder.input_data_addrs_ = {11U};
+  builder.output_data_addrs_ = {22U};
+  builder.workspace_addrs_ = {33U};
+  builder.input_mem_types_ = {101U};
+  builder.output_mem_types_ = {202U};
+  builder.workspace_mem_types_ = {303U};
+
+  EXPECT_EQ(builder.SetIoAddrs(), SUCCESS);
+  ASSERT_EQ(builder.io_addrs_.size(), 3U);
+  ASSERT_EQ(builder.io_addr_mem_types_.size(), 3U);
+  EXPECT_EQ(builder.io_addr_mem_types_[0], 101U);
+  EXPECT_EQ(builder.io_addr_mem_types_[1], 202U);
+  EXPECT_EQ(builder.io_addr_mem_types_[2], 303U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_Init_PreprocessCustomAicpu_ReturnsFailed) {
+  AstContext ast_ctx;
+  AstBuildContext ast(ast_ctx);
+  KernelTaskCodeBuilder builder(ast);
+
+  auto op_desc = MakeKernelOpDesc("aicpu_preprocess", "Add", 1U, 1U);
+  op_desc->SetId(0);
+  builder.op_desc_ = op_desc;
+  builder.task_type_ = ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL;
+  builder.args_size_ = static_cast<uint32_t>(sizeof(aicpu::AicpuParamHead));
+
+  domi::TaskDef task_def;
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL));
+  auto *kernel_def = task_def.mutable_kernel();
+  auto *context = kernel_def->mutable_context();
+  context->set_op_index(op_desc->GetId());
+  context->set_kernel_type(static_cast<uint32_t>(ccKernelType::CUST_AI_CPU));
+  std::string args_buf(sizeof(aicpu::AicpuParamHead), '\0');
+  kernel_def->set_args(args_buf.data(), args_buf.size());
+  kernel_def->set_args_size(static_cast<uint32_t>(sizeof(aicpu::AicpuParamHead)));
+
+  std::vector<om2::MemAllocation> logical_mem_allocations;
+  om2::PisToArgs args;
+  args[0].dev_addr = reinterpret_cast<uint64_t>(malloc(sizeof(aicpu::AicpuParamHead)));
+  args[0].len = sizeof(aicpu::AicpuParamHead);
+  const om2::IowAddrs iow_addrs;
+
+  EXPECT_EQ(builder.Init(task_def, logical_mem_allocations, args, iow_addrs), FAILED);
+
+  free(reinterpret_cast<void *>(args[0].dev_addr));
 }
 
 TEST_F(Om2CodegenModelBuilderUt, KernelTaskCodeBuilder_ExtInfo_CoverBranches) {

@@ -221,6 +221,14 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status InitKernel(const domi::TaskDef &task_def, const om2::PisToArgs &args);
   Status InitKernelByContext(const domi::TaskDef &task_def, const domi::KernelContext &context,
                              const om2::PisToArgs &args);
+  void GetAtomicOutAddrs(const std::vector<uint64_t> &output_data_addrs,
+                         const std::vector<uint64_t> &output_addr_mem_types,
+                         std::vector<uint64_t> &atomic_output_data_addrs,
+                         std::vector<uint64_t> &atomic_output_addr_mem_types) const;
+  void GetAtomicWorkspaceAddrs(const std::vector<uint64_t> &workspace_data_addrs,
+                               const std::vector<uint64_t> &workspace_addr_types,
+                               std::vector<uint64_t> &atomic_workspace_data_addrs,
+                               std::vector<uint64_t> &atomic_workspace_addr_types) const;
   Status SetIoAddrs();
   Status SetIoAddrsForCustomized();
   Status AssembleIoByArgsFormat();
