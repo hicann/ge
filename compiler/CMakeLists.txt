@@ -49,7 +49,7 @@ set(GRAPHENGINE_PROTO_LIST
     "${METADEF_PROTO_DIR}/task_mobile.proto"
 )
 
-protobuf_generate(graphengine_protos GRAPHENGINE_PROTO_SRCS GRAPHENGINE_PROTO_HDRS ${GRAPHENGINE_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
+generate_cann_protobuf(graphengine_protos GRAPHENGINE_PROTO_SRCS GRAPHENGINE_PROTO_HDRS ${GRAPHENGINE_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
 
 set(GE_FUSION_MODEL_PROTO_SRCS
     "${CMAKE_BINARY_DIR}/proto/graphengine_protos/proto/fusion_model.pb.cc"

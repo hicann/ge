@@ -46,7 +46,7 @@ set(proto_src_files
         ${UDF_SRC_PATH}/proto/ff_dynamic_sched.proto
 )
 
-protobuf_generate(udf_exe PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(udf_exe PROTO_SRCS PROTO_HDRS ${proto_src_files})
 
 add_executable(ut_flow_func_executor
         ${PROTO_SRCS}

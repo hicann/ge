@@ -1,5 +1,5 @@
 #------------------------- public ----------------------------
-protobuf_generate(rts_engine_proto rts_engine_proto_c rts_engine_proto_h
+generate_cann_protobuf(rts_engine_proto rts_engine_proto_c rts_engine_proto_h
                 ${METADEF_PROTO_DIR}/task.proto
                 ${METADEF_PROTO_DIR}/om.proto
                 TARGET)

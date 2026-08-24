@@ -34,7 +34,7 @@ set(proto_src_files
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/ff_dynamic_sched.proto
 )
 
-protobuf_generate(udf_exe PROTO_SRCS PROTO_HDRS ${proto_src_files} TARGET)
+generate_cann_protobuf(udf_exe PROTO_SRCS PROTO_HDRS ${proto_src_files} TARGET)
 
 set(udf_src_file
     ${PROTO_SRCS}

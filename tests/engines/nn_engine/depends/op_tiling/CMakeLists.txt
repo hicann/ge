@@ -14,7 +14,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/op_mapping.proto"
         "${METADEF_PROTO_DIR}/task.proto")
 
-protobuf_generate(op_tiling_rt2_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
+generate_cann_protobuf(op_tiling_rt2_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
 
 set(FE_TILING_CPP
     op_tiling_rt2_stub.cc)

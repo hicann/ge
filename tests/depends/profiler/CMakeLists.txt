@@ -13,7 +13,7 @@ set(PROTO_LIST
         "${METADEF_PROTO_DIR}/dump_task.proto"
         )
 
-protobuf_generate(dump_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
+generate_cann_protobuf(dump_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
 
 add_library(profiler_stub SHARED src/profiler_stub.cc src/dump_stub.cc ${PROTO_SRCS})
 

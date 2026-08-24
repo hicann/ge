@@ -14,7 +14,7 @@ set(proto_src_files
 
 add_subdirectory(constant_folding_stub)
 
-protobuf_generate(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
 
 set(local_aicpu_src_files
     ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_engine/engine/aicpu_engine.cpp

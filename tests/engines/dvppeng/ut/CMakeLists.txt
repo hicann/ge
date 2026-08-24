@@ -19,8 +19,8 @@ set(proto_dvpp_src_files
     ${AIR_CODE_DIR}/compiler/engines/dvpp_engine/proto/dvpp_tensor_shape.proto
 )
 
-protobuf_generate(dvpp PROTO_SRCS PROTO_HDRS ${proto_src_files})
-protobuf_generate(dvpp PROTO_DVPP_SRCS PROTO_DVPP_HDRS ${proto_dvpp_src_files})
+generate_cann_protobuf(dvpp PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(dvpp PROTO_DVPP_SRCS PROTO_DVPP_HDRS ${proto_dvpp_src_files})
 
 set(dvpp_engine_src_file
     ${AIR_CODE_DIR}/compiler/engines/dvpp_engine/adapter/dvpp_engine.cc

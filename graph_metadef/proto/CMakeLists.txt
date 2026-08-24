@@ -41,7 +41,7 @@ set(METADEF_ATTR_GROUP_PROTO_LIST
         "${METADEF_PROTO_DIR}/attr_group_base.proto"
         )
 
-protobuf_generate(metadef_protos METADEF_PROTO_SRCS METADEF_PROTO_HDRS ${METADEF_PROTO_LIST} ${METADEF_ATTR_GROUP_PROTO_LIST} TARGET)
+generate_cann_protobuf(metadef_protos METADEF_PROTO_SRCS METADEF_PROTO_HDRS ${METADEF_PROTO_LIST} ${METADEF_ATTR_GROUP_PROTO_LIST} TARGET)
 
 set(METADEF_GRAPH_PROTO_SRCS
         "${CMAKE_BINARY_DIR}/proto/metadef_protos/proto/om.pb.cc"

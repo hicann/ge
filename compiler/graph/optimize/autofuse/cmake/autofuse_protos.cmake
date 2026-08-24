@@ -22,7 +22,7 @@ if (NOT TARGET ge_autofuse_metadef_protos_af)
         "${AUTOFUSE_PROTO_DIR}/af_ir.proto"
         "${AUTOFUSE_PROTO_DIR}/ascendc_ir.proto"
     )
-    protobuf_generate(ge_autofuse_metadef_protos_af AUTOFUSE_PROTO_SRCS AUTOFUSE_PROTO_HDRS ${AUTOFUSE_PROTO_LIST} TARGET)
+    generate_cann_protobuf(ge_autofuse_metadef_protos_af AUTOFUSE_PROTO_SRCS AUTOFUSE_PROTO_HDRS ${AUTOFUSE_PROTO_LIST} TARGET)
 endif ()
 
 if (NOT TARGET ge_autofuse_metadef_graph_protos_obj_af)

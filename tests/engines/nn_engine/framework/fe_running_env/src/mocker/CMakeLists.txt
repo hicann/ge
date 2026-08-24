@@ -11,7 +11,7 @@
 file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/task.proto"
         )
-protobuf_generate(mocker_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
+generate_cann_protobuf(mocker_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
 
 set(FE_ENV_MOCKER_SRC_CPP
     mock_plugin_manager.cc

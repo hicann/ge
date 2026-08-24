@@ -32,7 +32,7 @@ set(PROTO_LIST
     "${METADEF_PROTO_DIR}/task_mobile.proto"
 )
 
-protobuf_generate(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
+generate_cann_protobuf(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
 
 # include directories
 include_directories(${CMAKE_CURRENT_LIST_DIR})

@@ -35,8 +35,8 @@ set(proto_context_src_files
     ${METADEF_PROTO_DIR}/aicpu/cpu_tensor_shape.proto
 )
 
-protobuf_generate(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
-protobuf_generate(aicpu PROTO_CONTEXT_SRCS PROTO_CONTEXT_HDRS ${proto_context_src_files})
+generate_cann_protobuf(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(aicpu PROTO_CONTEXT_SRCS PROTO_CONTEXT_HDRS ${proto_context_src_files})
 
 set(engine_common_src_path ${AIR_CODE_DIR}/compiler/engines/cpu_engine/common)
 

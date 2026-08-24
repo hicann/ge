@@ -49,7 +49,7 @@ set(GERT_DEPEND_PROTO
         "${METADEF_PROTO_DIR}/op_mapping.proto"
         "${METADEF_PROTO_DIR}/var_manager.proto"
         )
-protobuf_generate(gert_proto GERT_DEPEND_PROTO_SRCS GERT_DEPEND_PROTO_HDRS ${GERT_DEPEND_PROTO} TARGET)
+generate_cann_protobuf(gert_proto GERT_DEPEND_PROTO_SRCS GERT_DEPEND_PROTO_HDRS ${GERT_DEPEND_PROTO} TARGET)
 
 add_library(gert_static STATIC ${RUNTIME2_SRCS})
 target_include_directories(gert_static PUBLIC

@@ -13,7 +13,7 @@ set(proto_src_files
         proto/udf_def.proto
 )
 
-protobuf_generate(data_flow_base_proto PROTO_SRCS PROTO_HDRS ${proto_src_files} TARGET)
+generate_cann_protobuf(data_flow_base_proto PROTO_SRCS PROTO_HDRS ${proto_src_files} TARGET)
 
 set(DATA_FLOW_BASE_SRC_LIST
     ${PROTO_SRCS}

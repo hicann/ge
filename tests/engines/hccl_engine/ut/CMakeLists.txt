@@ -14,7 +14,7 @@ set(proto_src_files
     ${METADEF_PROTO_DIR}/task.proto
 )
 
-protobuf_generate(hcce PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(hcce PROTO_SRCS PROTO_HDRS ${proto_src_files})
 
 set(hccl_engine_src_file
     #/hccl/hcom_graph_adaptor/ge_plugin
