@@ -5500,4 +5500,77 @@ TEST_F_LOWER_REDUCE_ASCBACKEND_INST1(Max, ReduceMaxD)
 TEST_F_LOWER_REDUCE_ASCBACKEND_INST1(Mean, ReduceMeanD)
 TEST_F_LOWER_REDUCE_ASCBACKEND_INST1(Min, ReduceMinD)
 TEST_F_LOWER_REDUCE_ASCBACKEND_INST1(Prod, ReduceProdD)
+
+TEST_F(LoopLoweringToAscBackendUT, AscendQuantLoweringToAscBackend) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1", "s2"});
+    auto quant = es::AscendQuant(data0, 0.02f, 0.9f, false, "Round", static_cast<int64_t>(ge::DT_FLOAT16));
+    quant.SetSymbolShape({"s0", "s1", "s2"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT16);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT16);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  ASSERT_FALSE(kernel.IsPointwise() == false);
+}
+
+TEST_F(LoopLoweringToAscBackendUT, AscendQuantFuseWithAbs) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1", "s2"});
+    auto abs = es::Abs(data0);
+    abs.SetSymbolShape({"s0", "s1", "s2"});
+    auto quant = es::AscendQuant(abs, 0.02f, 0.9f, false, "Round", static_cast<int64_t>(ge::DT_FLOAT16));
+    quant.SetSymbolShape({"s0", "s1", "s2"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT16);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT16);
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetType() == "AscendQuant") {
+      ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+    }
+  }
+  auto quant_node = cg->FindFirstNodeMatchType("AscendQuant");
+  ASSERT_NE(quant_node, nullptr);
+  auto kernel = ge::loop::GetKernelBox(quant_node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+}
+
+TEST_F(LoopLoweringToAscBackendUT, AscendQuantSqrtModeLoweringToAscBackend) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1"});
+    auto quant = es::AscendQuant(data0, 4.0f, 1.0f, true, "Round", static_cast<int64_t>(ge::DT_FLOAT16));
+    quant.SetSymbolShape({"s0", "s1"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT16);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT16);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+}
 }  // namespace ge

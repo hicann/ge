@@ -3623,4 +3623,123 @@ TEST_F_LOWER_REDUCE(Max, ReduceMaxD)
 TEST_F_LOWER_REDUCE(Mean, ReduceMeanD)
 TEST_F_LOWER_REDUCE(Min, ReduceMinD)
 TEST_F_LOWER_REDUCE(Prod, ReduceProdD)
+
+TEST_F(LoopNodeLoweringUT, AscendQuantLowering) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1", "s2"});
+    auto quant = es::AscendQuant(data0, 0.02f, 0.9f);
+    quant.SetSymbolShape({"s0", "s1", "s2"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT16);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT16);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::LoweringGraph(cg), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  EXPECT_EQ(kernel.Readable(),
+            "tmp0 = ops.Load(\"data0:0\")\n"
+            "tmp1 = ops.Scalar(\"DT_FLOAT16(0.01999999955296516418)\")\n"
+            "tmp2 = ops.Scalar(\"DT_FLOAT16(0.89999997615814208984)\")\n"
+            "tmp3 = ops.Broadcast(tmp1, \"[]->[d0, d1, d2]\")\n"
+            "tmp4 = ops.Broadcast(tmp2, \"[]->[d0, d1, d2]\")\n"
+            "tmp5 = ops.Mul(tmp0, tmp3)\n"
+            "tmp6 = ops.Add(tmp5, tmp4)\n"
+            "tmp7 = ops.Round(tmp6)\n"
+            "tmp8 = ops.Cast(tmp7, DT_INT8)\n"
+            "tmp9 = ops.Store(\"AscendQuant_0:0\", tmp8)\n");
+}
+
+TEST_F(LoopNodeLoweringUT, AscendQuantLoweringSqrtMode) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1"});
+    auto quant = es::AscendQuant(data0, 4.0f, 1.0f, true);
+    quant.SetSymbolShape({"s0", "s1"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT16);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT16);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::LoweringGraph(cg), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  EXPECT_EQ(kernel.Readable(),
+            "tmp0 = ops.Load(\"data0:0\")\n"
+            "tmp1 = ops.Scalar(\"DT_FLOAT16(2.00000000000000000000)\")\n"
+            "tmp2 = ops.Scalar(\"DT_FLOAT16(1.00000000000000000000)\")\n"
+            "tmp3 = ops.Broadcast(tmp1, \"[]->[d0, d1]\")\n"
+            "tmp4 = ops.Broadcast(tmp2, \"[]->[d0, d1]\")\n"
+            "tmp5 = ops.Mul(tmp0, tmp3)\n"
+            "tmp6 = ops.Add(tmp5, tmp4)\n"
+            "tmp7 = ops.Round(tmp6)\n"
+            "tmp8 = ops.Cast(tmp7, DT_INT8)\n"
+            "tmp9 = ops.Store(\"AscendQuant_0:0\", tmp8)\n");
+}
+
+TEST_F(LoopNodeLoweringUT, AscendQuantLoweringNonDefaultRoundMode) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1"});
+    auto quant = es::AscendQuant(data0, 0.02f, 0.9f, false, "Floor");
+    quant.SetSymbolShape({"s0", "s1"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_NE(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+}
+
+TEST_F(LoopNodeLoweringUT, AscendQuantLoweringDstTypeFloat16) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0", "s1"});
+    auto quant = es::AscendQuant(data0, 0.02f, 0.9f, false, "Round", static_cast<int64_t>(ge::DT_FLOAT16));
+    quant.SetSymbolShape({"s0", "s1"});
+    es_graph_->SetOutput(quant, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto data = cg->FindNode("data0");
+  ASSERT_NE(data, nullptr);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
+  auto node = cg->FindNode("AscendQuant_0");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::LoweringGraph(cg), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  EXPECT_EQ(kernel.Readable(),
+            "tmp0 = ops.Load(\"data0:0\")\n"
+            "tmp1 = ops.Scalar(\"DT_FLOAT(0.01999999955296516418)\")\n"
+            "tmp2 = ops.Scalar(\"DT_FLOAT(0.89999997615814208984)\")\n"
+            "tmp3 = ops.Broadcast(tmp1, \"[]->[d0, d1]\")\n"
+            "tmp4 = ops.Broadcast(tmp2, \"[]->[d0, d1]\")\n"
+            "tmp5 = ops.Mul(tmp0, tmp3)\n"
+            "tmp6 = ops.Add(tmp5, tmp4)\n"
+            "tmp7 = ops.Round(tmp6)\n"
+            "tmp8 = ops.Cast(tmp7, DT_FLOAT16)\n"
+            "tmp9 = ops.Store(\"AscendQuant_0:0\", tmp8)\n");
+}
 }  // namespace ge

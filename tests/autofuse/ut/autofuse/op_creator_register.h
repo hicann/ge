@@ -185,6 +185,7 @@ void RegisterUnaryAndBinaryOps() {
   RegisterOpCreatorV2("ReduceMinD", {"x"}, ge::kIrInputRequired, {"y"}, kIrOutputRequired, {});
   RegisterOpCreatorV2("ReduceProdD", {"x"}, ge::kIrInputRequired, {"y"}, kIrOutputRequired, {});
   RegisterOpCreatorV2("Axpy", {"x1", "x2"}, ge::kIrInputRequired, {"y"}, kIrOutputRequired, {});
+  RegisterOpCreatorV2("AscendQuant", {"x"}, ge::kIrInputRequired, {"y"}, kIrOutputRequired, {});
 }
 
 void RegisterMatMulAndBatchMatMulOps() {

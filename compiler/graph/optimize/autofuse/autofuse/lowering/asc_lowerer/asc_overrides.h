@@ -674,7 +674,7 @@ class AscOverrides final : public OpOverrides {
   }
 
   CseVar Round(const CseVar &x) override {
-    GE_WARN_ASSERT(false, "Round %s", CseKey<UnimplementOp>(x).c_str());
+    return AscOp<ascir_op::Round>(x);
   }
 
   CseVar Rsqrt(const CseVar &x) override {
