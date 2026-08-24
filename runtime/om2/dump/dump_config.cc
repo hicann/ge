@@ -394,15 +394,6 @@ void DumpConfig::CheckUnsupportedConfigs(const nlohmann::json &jsDumpConfig) {
       }
     }
   }
-  if (jsDumpConfig.contains(GE_DUMP_SCENE)) {
-    std::string dumpScene = jsDumpConfig[GE_DUMP_SCENE].get<std::string>();
-    if ((dumpScene == GE_DUMP_EXCEPTION_AIC_ERR_BRIEF) || (dumpScene == GE_DUMP_LITE_EXCEPTION)) {
-      GELOGW(
-          "[OM2 Dump] dump_scene value '%s' (L0 exception dump) is not supported in OM2, only L1 (aic_err_norm_dump) "
-          "and L2 (aic_err_detail_dump) exception dump are supported",
-          dumpScene.c_str());
-    }
-  }
 }
 
 bool DumpConfig::CheckDumpSceneSwitch(const nlohmann::json &jsDumpConfig, std::string &dumpScene) {

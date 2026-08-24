@@ -525,6 +525,38 @@ bool IsTransposeNode(const GNode &node) {
 }
 
 /**
+ * @brief 判断 Transpose 节点的 perm 输入（input.1）是否为 Const 节点。
+ *
+ * 只有 perm 为 Const 时才能安全删除 Transpose 并清理 perm 节点，
+ * 非 Const perm（如运行时计算得到的 perm）删除后会导致语义错误。
+ *
+ * @param transpose_node 待检查的 Transpose 节点
+ * @return true perm 输入为 Const, false perm 输入不存在或非 Const
+ */
+bool IsTransposePermConst(const GNode &transpose_node) {
+  auto [perm_node, perm_port] = transpose_node.GetInDataNodesAndPortIndexs(kTransposePermInput);
+  if (perm_node == nullptr) {
+    AscendString tp_name;
+    std::string name_str = (transpose_node.GetName(tp_name) == GRAPH_SUCCESS) ? tp_name.GetString() : "unknown";
+    std::cout << "[GraphNodeSettedFormatPass] Transpose[" << name_str << "] has no perm input, skip removal"
+              << std::endl;
+    return false;
+  }
+  AscendString perm_type;
+  if (perm_node->GetType(perm_type) != GRAPH_SUCCESS || std::string(perm_type.GetString()) != "Const") {
+    AscendString tp_name;
+    std::string tp_name_str = (transpose_node.GetName(tp_name) == GRAPH_SUCCESS) ? tp_name.GetString() : "unknown";
+    AscendString perm_name;
+    std::string perm_name_str = (perm_node->GetName(perm_name) == GRAPH_SUCCESS) ? perm_name.GetString() : "unknown";
+    std::cout << "[GraphNodeSettedFormatPass] Transpose[" << tp_name_str << "] perm input node[" << perm_name_str
+              << "] is not Const (type=" << (perm_type.GetString() == nullptr ? "unknown" : perm_type.GetString())
+              << "), skip removal" << std::endl;
+    return false;
+  }
+  return true;
+}
+
+/**
  * @brief 判断 Transpose 节点是否冗余：输入侧 format 与输出侧 format 是否一致。
  *
  * 修改节点 format 后，与该节点直连的 Transpose 两侧的 format 可能变为一致，
@@ -693,7 +725,7 @@ bool RemoveRedundantTranspose(const GraphPtr &graph, GNode &node, const std::str
     if (src_node == nullptr) {
       continue;
     }
-    if (IsTransposeNode(*src_node) && IsTransposeRedundant(*src_node)) {
+    if (IsTransposeNode(*src_node) && IsTransposePermConst(*src_node) && IsTransposeRedundant(*src_node)) {
       transposes_to_remove.push_back(src_node);
     }
   }
@@ -705,7 +737,7 @@ bool RemoveRedundantTranspose(const GraphPtr &graph, GNode &node, const std::str
       if (succ_node == nullptr) {
         continue;
       }
-      if (IsTransposeNode(*succ_node) && IsTransposeRedundant(*succ_node)) {
+      if (IsTransposeNode(*succ_node) && IsTransposePermConst(*succ_node) && IsTransposeRedundant(*succ_node)) {
         transposes_to_remove.push_back(succ_node);
       }
     }
@@ -935,14 +967,14 @@ class GraphNodeSettedFormatPass : public FusionBasePass {
     if (any_failed) {
       std::cout << "[GraphNodeSettedFormatPass] Some nodes failed check, rolling back entire graph" << std::endl;
       *graph = origin_graph;
-      return FAILED;
+      return SUCCESS;
     }
 
     // ----- 5. 配置节点 format 连续性检查 -----
     if (!CheckFormatContinuity(graph, op_configs)) {
       std::cout << "[GraphNodeSettedFormatPass] Format continuity check failed, rolling back entire graph" << std::endl;
       *graph = origin_graph;
-      return FAILED;
+      return SUCCESS;
     }
 
     std::cout << "GraphNodeSettedFormatPass completed successfully" << std::endl;

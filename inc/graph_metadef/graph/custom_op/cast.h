@@ -13,6 +13,7 @@
 
 #include "graph/custom_op.h"
 #include "graph/custom_op/capability.h"
+#include "graph/custom_op/infer_meta.h"
 
 namespace ge {
 class CustomOpCapabilityProvider {
@@ -37,6 +38,11 @@ struct CustomOpCapabilityTrait<CompilableOp> {
 template <>
 struct CustomOpCapabilityTrait<ShapeInferOp> {
   static constexpr CustomOpCapability kCapability = CustomOpCapability::kShapeInfer;
+};
+
+template <>
+struct CustomOpCapabilityTrait<CustomOpInferMetaProvider> {
+  static constexpr CustomOpCapability kCapability = CustomOpCapability::kInferMeta;
 };
 
 template <>

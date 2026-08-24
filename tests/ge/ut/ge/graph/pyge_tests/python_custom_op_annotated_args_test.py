@@ -491,6 +491,7 @@ def test_native_module_exposes_annotated_args_types():
         "AnnotatedArgsContext",
         "AnnotatedKernelArgs",
         "AnnotatedKernelLaunchInfo",
+        "InferMetaContext",
         "WorkspaceAddr",
     ):
         assert hasattr(native_module, type_name)
@@ -505,7 +506,9 @@ def test_native_module_exposes_annotated_args_types():
 def test_public_stub_hides_bridge_private_attr_readers():
     stub_path = Path(custom_op.__file__).with_name("_ge_custom_op_native.pyi")
     stub_text = stub_path.read_text(encoding="utf-8")
-    annotated_context_stub = stub_text.split("class AnnotatedArgsContext:", 1)[1]
+    annotated_context_stub = stub_text.split("class AnnotatedArgsContext:", 1)[1].split(
+        "class InferMetaContext:", 1
+    )[0]
     assert "def _get_attrs" not in annotated_context_stub
     assert "def get_attrs" not in annotated_context_stub
     assert "def get_attr" not in annotated_context_stub

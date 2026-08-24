@@ -50,7 +50,7 @@ Status InsertReshapeIfNeed(const NodePtr &node,
       const auto &dst_tensor_dims = dst_tensor->GetShape().GetDims();
       if ((std::any_of(src_tensor_dims.begin(), src_tensor_dims.end(), [](int64_t val) { return val < 0; })) ||
           (std::any_of(dst_tensor_dims.begin(), dst_tensor_dims.end(), [](int64_t val) { return val < 0; }))) {
-        GELOGD("No need to insert reshape node between %s nad %s.", node->GetName().c_str(),
+        GELOGD("No need to insert reshape node between %s and %s.", node->GetName().c_str(),
                dst_node->GetName().c_str());
         is_dynamic = true;
       }

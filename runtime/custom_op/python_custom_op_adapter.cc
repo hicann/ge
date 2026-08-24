@@ -17,19 +17,41 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "graph_metadef/graph/debug/ge_util.h"
+#include "graph/custom_op/infer_meta.h"
 
 namespace ge {
 namespace custom_op {
 namespace {
+graphStatus InvokePythonCustomOpInferMeta(PythonCustomOpInferMetaFn infer_meta, const std::string &op_type,
+                                          gert::InferShapeContext *ctx, CustomOpInferMetaResult *result) {
+  if ((infer_meta == nullptr) || (ctx == nullptr) || (result == nullptr)) {
+    return GRAPH_FAILED;
+  }
+  result->outputs.clear();
+  result->outputs.resize(ctx->GetComputeNodeOutputNum());
+  std::vector<PythonCustomOpInferMetaOutputView> output_views;
+  output_views.reserve(result->outputs.size());
+  for (auto &output : result->outputs) {
+    output_views.emplace_back(PythonCustomOpInferMetaOutputView{&output.shape, ge::DT_UNDEFINED});
+  }
+  const PythonCustomOpStringView op_type_view{op_type.data(), op_type.size()};
+  PythonCustomOpInferMetaResultView result_view{output_views.data(), output_views.size()};
+  const auto ret = infer_meta(&op_type_view, ctx, &result_view);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  for (size_t i = 0U; i < output_views.size(); ++i) {
+    result->outputs[i].data_type = output_views[i].data_type;
+  }
+  return GRAPH_SUCCESS;
+}
+
 struct PythonCustomOpImplRuntimeEntry {
   explicit PythonCustomOpImplRuntimeEntry(PythonCustomOpAdapterDescriptor d, PythonCustomOpAdapterCallbacks cb)
       : desc(std::move(d)), callbacks(cb) {}
 
   PythonCustomOpAdapterDescriptor desc;
   PythonCustomOpAdapterCallbacks callbacks;
-  // A descriptor_key maps to one shared runtime entry. Multiple adapters may
-  // reference it, while each adapter owns one Python custom op instance.
-  // active_adapter_count prevents unregister while callbacks are still in use.
   size_t active_adapter_count{0U};
   std::mutex mutex;
 };
@@ -137,6 +159,8 @@ PythonCustomOpImplRuntimeRegistryImpl &GetPythonCustomOpImplRuntimeRegistryImpl(
 }  // namespace
 
 PythonCustomOpImplHolder::PythonCustomOpImplHolder(const PythonCustomOpAdapterDescriptor &desc) : desc_(desc) {
+  desc_.capabilities &= ~static_cast<CustomOpCapabilityMask>(CustomOpCapability::kShapeInfer);
+  desc_.capabilities &= ~static_cast<CustomOpCapabilityMask>(CustomOpCapability::kInferMeta);
   if (!PythonCustomOpImplRuntimeRegistry::GetInstance().Acquire(desc_, callbacks_)) {
     return;
   }
@@ -214,16 +238,37 @@ void ClearPythonCustomOpRuntimeRegistry() {
 }
 
 PythonCustomOpAdapter::PythonCustomOpAdapter(PythonCustomOpAdapterDescriptor desc)
-    : desc_(std::move(desc)), holder_(new (std::nothrow) PythonCustomOpImplHolder(desc_)) {}
+    : op_type_(desc.op_type),
+      impl_descriptor_key_(desc.impl_descriptor_key),
+      capabilities_(desc.capabilities),
+      infer_meta_(desc.infer_meta) {
+  if (!desc.impl_descriptor_key.empty()) {
+    holder_ = std::make_unique<PythonCustomOpImplHolder>(desc);
+  }
+}
 
 PythonCustomOpAdapter::~PythonCustomOpAdapter() = default;
 
 bool PythonCustomOpAdapter::IsValid() const {
-  return (holder_ != nullptr) && holder_->IsValid();
+  if (capabilities_ == 0U) {
+    return false;
+  }
+  if ((HasCustomOpCapability(capabilities_, CustomOpCapability::kShapeInfer) ||
+       HasCustomOpCapability(capabilities_, CustomOpCapability::kInferMeta)) &&
+      (infer_meta_ == nullptr)) {
+    return false;
+  }
+  const auto infer_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kShapeInfer) |
+                                  static_cast<CustomOpCapabilityMask>(CustomOpCapability::kInferMeta);
+  const auto impl_capabilities = capabilities_ & ~infer_capabilities;
+  if (impl_capabilities == 0U) {
+    return impl_descriptor_key_.empty() && (holder_ == nullptr);
+  }
+  return (!impl_descriptor_key_.empty()) && (holder_ != nullptr) && holder_->IsValid();
 }
 
 bool PythonCustomOpAdapter::HasCapability(CustomOpCapability capability) const {
-  return HasCustomOpCapability(desc_.capabilities, capability);
+  return HasCustomOpCapability(capabilities_, capability);
 }
 
 graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
@@ -233,7 +278,7 @@ graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().execute == nullptr)) {
     GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
-           desc_.impl_descriptor_key.c_str(), desc_.op_type.c_str());
+           impl_descriptor_key_.c_str(), op_type_.c_str());
     return GRAPH_FAILED;
   }
   return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx);
@@ -246,7 +291,7 @@ graphStatus PythonCustomOpAdapter::DeclareLaunchArgs(gert::AnnotatedArgsContext 
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().declare_launch_args == nullptr)) {
     GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
-           desc_.impl_descriptor_key.c_str(), desc_.op_type.c_str());
+           impl_descriptor_key_.c_str(), op_type_.c_str());
     return GRAPH_FAILED;
   }
   return holder_->GetCallbacks().declare_launch_args(holder_->GetHolder(), &ctx);
@@ -258,13 +303,36 @@ graphStatus PythonCustomOpAdapter::Compile(gert::OpCompileContext *ctx) {
 }
 
 graphStatus PythonCustomOpAdapter::InferShape(gert::InferShapeContext *ctx) {
-  (void)ctx;
-  return ReportUnsupported(CustomOpCapability::kShapeInfer, "InferShape");
+  if (!HasCapability(CustomOpCapability::kShapeInfer) || (infer_meta_ == nullptr)) {
+    return ReportUnsupported(CustomOpCapability::kShapeInfer, "InferShape");
+  }
+  CustomOpInferMetaResult result;
+  const auto ret = InferMeta(ctx, &result);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  for (size_t i = 0U; i < result.outputs.size(); ++i) {
+    *ctx->GetOutputShape(i) = result.outputs[i].shape.GetStorageShape();
+  }
+  return GRAPH_SUCCESS;
 }
 
 graphStatus PythonCustomOpAdapter::InferDataType(gert::InferDataTypeContext *ctx) {
   (void)ctx;
   return ReportUnsupported(CustomOpCapability::kShapeInfer, "InferDataType");
+}
+
+graphStatus PythonCustomOpAdapter::InferMeta(gert::InferShapeContext *ctx, CustomOpInferMetaResult *result) {
+  if ((ctx == nullptr) || (result == nullptr)) {
+    GELOGE(GRAPH_FAILED, "Python custom op infer_meta context or result is null, op type[%s].", op_type_.c_str());
+    return GRAPH_FAILED;
+  }
+  if (!HasCapability(CustomOpCapability::kInferMeta) || (infer_meta_ == nullptr)) {
+    GELOGE(GRAPH_FAILED, "Python custom op infer_meta capability or callback is not registered, op type[%s].",
+           op_type_.c_str());
+    return GRAPH_FAILED;
+  }
+  return InvokePythonCustomOpInferMeta(infer_meta_, op_type_, ctx, result);
 }
 
 graphStatus PythonCustomOpAdapter::Serialize(std::vector<uint8_t> &buffer) {
@@ -283,7 +351,7 @@ graphStatus PythonCustomOpAdapter::UpdateHostArgs(gert::UpdateArgsContext *ctx) 
 }
 
 graphStatus PythonCustomOpAdapter::ReportUnsupported(CustomOpCapability capability, const char *method_name) const {
-  GELOGE(GRAPH_FAILED, "Python custom op[%s] does not support %s capability[%u].", desc_.op_type.c_str(), method_name,
+  GELOGE(GRAPH_FAILED, "Python custom op[%s] does not support %s capability[%u].", op_type_.c_str(), method_name,
          static_cast<uint32_t>(capability));
   return GRAPH_FAILED;
 }

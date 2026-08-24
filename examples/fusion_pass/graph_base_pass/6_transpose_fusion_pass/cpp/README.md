@@ -61,8 +61,10 @@ Run()
   │           ├─ Step3: 传播 output format 到直连 NetOutput 节点
   │           ├─ Step4: CheckOpSupported 校验算子是否支持（Data 节点跳过）
   │           │           └─ 失败 → 节点级回退（RollbackFormats + RollbackNetOutput）
-  │           └─ Step5: 检查并删除前后变冗余的 Transpose 节点
-  │                       └─ 失败 → return false（触发整图回滚）
+   │           └─ Step5: 检查并删除前后变冗余的 Transpose 节点
+   │                       ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → IsTransposeRedundant
+   │                       │    └─ perm 非 Const → 记录日志，不加入待删除列表
+   │                       └─ 删除失败 → return false（触发整图回滚）
   └─ 4. if 任一节点失败:
          └─ 整图回滚 *graph = origin_graph，返回 FAILED
   └─ 5. CheckFormatContinuity()    检查配置节点的 format 与直连节点是否连续
@@ -78,7 +80,7 @@ Run()
 
 ### 已知限制
 
-- **控制边不处理**：删除冗余 Transpose 节点时，仅处理数据边（data edge）的移除和重连，不处理控制边（control edge）。若 Transpose 节点存在控制边输入或输出，直接删除节点会导致控制依赖关系丢失，可能影响图的执行语义。因此，当前实现仅适用于 Transpose 无控制边的场景。
+- **非 Const perm 不删除**：Transpose 的 perm 输入（input.1）必须为 Const 节点才会被删除。若 perm 由非 Const 节点提供（如运行时计算得到），删除 Transpose 后无法清理 perm 节点且可能导致语义错误，因此在收集阶段即被过滤，不执行删除。
 
 ## 目录结构
 

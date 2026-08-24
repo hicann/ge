@@ -817,11 +817,11 @@ custom_op/
 ```
 
 Note: Files prefixed with underscores are internal modules in the Python style.
-Note: `EagerOpExecutionContext` and `AnnotatedArgsContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution are provided by the `ge.runtime` module.
+Note: `EagerOpExecutionContext`, `AnnotatedArgsContext`, and `InferShapeContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `TensorDesc`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution or an `infer_meta` callback are provided by the `ge.runtime` module.
 
 #### Module Positioning
 
-The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order. The current stage also registers Python prototypes with `OperatorFactory`, but does not invoke Python `infer_meta` or provide compile-time or RT2 Meta inference.
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes are not required to inherit from `BaseCustomOp` or `EagerExecuteOp`, while existing inheritance-based implementations remain compatible. The execution entry supports both the legacy `execute(ctx)` form and a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order. After a Python prototype is registered with `OperatorFactory` through `register_op`, the compile-time and RT2 dynamic-shape paths invoke the same Python `infer_meta` callback. Compile-time inference writes output shape, dtype, and origin dtype; RT2 updates output shape only.
 
 #### Runtime Native Artifact Selection
 
@@ -956,7 +956,7 @@ Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked e
 
 **Decorators**:
 
-- `register_op(op_type, mutates_args=())` - Declares and collects a Python custom operator prototype from annotations on the decorated function
+- `register_op(op_type, mutates_args=())` - Declares and collects a Python custom operator prototype from annotations on the decorated function; the decorated function also serves as the `infer_meta` callback and returns output `TensorDesc` objects
 - `register_op_impl(op_type)` - Registers a Python implementation class and reflects its callable methods into a capability list; `execute` maps to `eager_execute`, and `declare_launch_args` maps to `annotated_args`
 
 **Discovery mechanism**:

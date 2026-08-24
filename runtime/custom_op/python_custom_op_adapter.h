@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "graph/custom_op/cast.h"
+#include "graph/custom_op/infer_meta.h"
 #include "runtime/custom_op/python_custom_op_bridge_types.h"
 
 namespace ge {
@@ -24,6 +25,7 @@ struct PythonCustomOpAdapterDescriptor {
   std::string op_type;
   std::string impl_descriptor_key;
   CustomOpCapabilityMask capabilities{0U};
+  PythonCustomOpInferMetaFn infer_meta{nullptr};
 };
 
 class PythonCustomOpImplRuntimeRegistry {
@@ -67,7 +69,8 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
                                     public ShapeInferOp,
                                     public PortableOp,
                                     public ArgsUpdater,
-                                    public CustomOpCapabilityProvider {
+                                    public CustomOpCapabilityProvider,
+                                    public CustomOpInferMetaProvider {
  public:
   explicit PythonCustomOpAdapter(PythonCustomOpAdapterDescriptor desc);
   ~PythonCustomOpAdapter() override;
@@ -83,11 +86,15 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
   graphStatus Serialize(std::vector<uint8_t> &buffer) override;
   graphStatus Deserialize(const std::vector<uint8_t> &buffer) override;
   graphStatus UpdateHostArgs(gert::UpdateArgsContext *ctx) override;
+  graphStatus InferMeta(gert::InferShapeContext *ctx, CustomOpInferMetaResult *result) override;
 
  private:
   graphStatus ReportUnsupported(CustomOpCapability capability, const char *method_name) const;
 
-  PythonCustomOpAdapterDescriptor desc_;
+  std::string op_type_;
+  std::string impl_descriptor_key_;
+  CustomOpCapabilityMask capabilities_{0U};
+  PythonCustomOpInferMetaFn infer_meta_{nullptr};
   std::unique_ptr<PythonCustomOpImplHolder> holder_;
 };
 

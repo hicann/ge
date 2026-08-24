@@ -64,8 +64,10 @@ Run()
   │           ├─ Step3: Propagate output format to directly connected NetOutput nodes
   │           ├─ Step4: CheckOpSupported validation (skipped for Data nodes)
   │           │           └─ On failure → node-level rollback (RollbackFormats + RollbackNetOutput)
-  │           └─ Step5: Detect and remove redundant Transpose nodes
-  │                       └─ On failure → return false (triggers full graph rollback)
+   │           └─ Step5: Detect and remove redundant Transpose nodes
+   │                       ├─ Collection: IsTransposeNode → IsTransposePermConst → IsTransposeRedundant
+   │                       │    └─ Non-Const perm → log and skip (not added to removal list)
+   │                       └─ On failure → return false (triggers full graph rollback)
   └─ 4. If any node failed:
          └─ Full rollback *graph = origin_graph, return FAILED
   └─ 5. CheckFormatContinuity()    Verify format continuity between configured nodes and their neighbors
@@ -81,7 +83,7 @@ Run()
 
 ### Known Limitations
 
-- **Control edges not handled**: When removing redundant Transpose nodes, only data edges are removed and reconnected; control edges are not processed. If a Transpose node has control edge inputs or outputs, deleting the node will lose control dependencies, potentially affecting graph execution semantics. Therefore, the current implementation only applies to scenarios where the Transpose node has no control edges.
+- **Non-Const perm not removed**: A Transpose node is only removed if its perm input (input.1) is a Const node. If perm is provided by a non-Const node (e.g., computed at runtime), removing the Transpose would leave the perm node orphaned and could cause semantic errors. Such Transpose nodes are filtered out during the collection phase and not removed.
 
 ## Directory Structure
 

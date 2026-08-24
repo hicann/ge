@@ -20,7 +20,7 @@
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "common/checker.h"
 #include "graph/utils/inference_rule.h"
-#include "graph/custom_op.h"
+#include "graph/custom_op/infer_meta.h"
 
 namespace gert {
 namespace {
@@ -311,15 +311,19 @@ ge::graphStatus ConstructInferShapeRangeContextOutputs(
   return ge::GRAPH_SUCCESS;
 }
 
+void UpdateGeShape(const gert::Shape &src, ge::GeShape &dst) {
+  dst.SetDimNum(src.GetDimNum());
+  for (size_t dim = 0UL; dim < src.GetDimNum(); ++dim) {
+    (void)dst.SetDim(dim, src.GetDim(dim));
+  }
+}
+
 ge::graphStatus UpdateOpDescOutShape(const ge::OpDescPtr &op_desc, gert::InferShapeContext *infer_shape_ctx) {
   for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
     auto &dst_out_shape = op_desc->MutableOutputDesc(static_cast<uint32_t>(index))->MutableShape();
     const auto *shape = infer_shape_ctx->GetOutputShape(index);
     GE_ASSERT_NOTNULL(shape);
-    dst_out_shape.SetDimNum(shape->GetDimNum());
-    for (size_t dim = 0UL; dim < shape->GetDimNum(); dim++) {
-      (void)dst_out_shape.SetDim(dim, shape->GetDim(dim));
-    }
+    UpdateGeShape(*shape, dst_out_shape);
     op_desc->MutableOutputDesc(static_cast<uint32_t>(index))->SetOriginShape(dst_out_shape);
   }
   return ge::GRAPH_SUCCESS;
@@ -673,6 +677,37 @@ ge::graphStatus CustomOpInferDataTypeOnCompile(ge::ShapeInferOp *shape_infer_op,
   }
   return ge::GRAPH_SUCCESS;
 }
+
+ge::graphStatus CommitCustomOpInferMetaResult(const ge::OpDescPtr &staged_op_desc, ge::OpDesc *op_desc,
+                                              ge::NodeShapeTransUtils &transformer,
+                                              const ge::CustomOpInferMetaResult &infer_meta_result) {
+  if (infer_meta_result.outputs.size() != staged_op_desc->GetOutputsSize()) {
+    GELOGE(ge::GRAPH_FAILED, "Custom op[%s] infer_meta result count[%zu] does not match output count[%zu].",
+           op_desc->GetName().c_str(), infer_meta_result.outputs.size(), op_desc->GetOutputsSize());
+    return ge::GRAPH_FAILED;
+  }
+  for (size_t i = 0UL; i < staged_op_desc->GetOutputsSize(); ++i) {
+    const auto &output_meta = infer_meta_result.outputs[i];
+    auto out_desc = staged_op_desc->MutableOutputDesc(static_cast<uint32_t>(i));
+    auto &shape = out_desc->MutableShape();
+    UpdateGeShape(output_meta.shape.GetStorageShape(), shape);
+    ge::GeShape origin_shape;
+    UpdateGeShape(output_meta.shape.GetOriginShape(), origin_shape);
+    out_desc->SetOriginShape(origin_shape);
+    out_desc->SetDataType(output_meta.data_type);
+    out_desc->SetOriginDataType(output_meta.data_type);
+  }
+  GE_CHK_BOOL_RET_STATUS(transformer.UpdateFormatAndShape(), ge::GRAPH_FAILED,
+                         "Failed to update format and shape for %s", op_desc->GetNamePtr());
+  for (size_t i = 0UL; i < staged_op_desc->GetOutputsSize(); ++i) {
+    const auto staged_output = staged_op_desc->GetOutputDescPtr(static_cast<uint32_t>(i));
+    auto output = op_desc->MutableOutputDesc(static_cast<uint32_t>(i));
+    GE_ASSERT_NOTNULL(staged_output);
+    GE_ASSERT_NOTNULL(output);
+    *output = *staged_output;
+  }
+  return ge::GRAPH_SUCCESS;
+}
 }  // namespace
 
 ge::graphStatus InferShapeRangeOnCompile(const ge::Operator &op, const ge::OpDescPtr &op_desc) {
@@ -699,6 +734,36 @@ ge::graphStatus InferShapeRangeOnCompile(const ge::Operator &op, const ge::OpDes
   GELOGD("Skip infer shape range for node[%s], type[%s] as no infer shape range func.", op_desc->GetName().c_str(),
          op_desc->GetType().c_str());
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus CustomOpInferMetaOnCompile(const ge::Operator &op, ge::OpDesc *op_desc,
+                                           ge::CustomOpInferMetaProvider *infer_meta_provider) {
+  GE_ASSERT_NOTNULL(op_desc);
+  GE_ASSERT_NOTNULL(infer_meta_provider);
+  const auto op_desc_ptr = op_desc->shared_from_this();
+  const auto staged_op_desc = ge::ComGraphMakeShared<ge::OpDesc>(*op_desc_ptr);
+  GE_ASSERT_NOTNULL(staged_op_desc, "Failed to create staged op desc for %s", op_desc->GetName().c_str());
+  ge::NodeShapeTransUtils transformer(staged_op_desc);
+  std::vector<std::unique_ptr<uint8_t[]>> inputs_holder;
+  std::vector<std::unique_ptr<uint8_t[]>> outputs_holder;
+  std::vector<std::unique_ptr<ge::Tensor>> ge_tensors_holder;
+  auto ret = PrepareInferShapeCompileContext(op, staged_op_desc, transformer, inputs_holder, ge_tensors_holder);
+  if (ret == ge::GRAPH_PARAM_INVALID) {
+    return ret;
+  }
+  GE_ASSERT_GRAPH_SUCCESS(ret, "[Construct][InferMetaContextInputs] failed, op_desc[%s]", op_desc->GetName().c_str());
+  GE_ASSERT_GRAPH_SUCCESS(ConstructCompileKernelContextOutputs(staged_op_desc, outputs_holder),
+                          "[Construct][InferMetaContextOutputs] failed, op_desc[%s]", op_desc->GetName().c_str());
+  const auto kernel_context_holder = gert::KernelRunContextBuilder()
+                                         .Inputs(GetInputs(op, inputs_holder))
+                                         .Outputs(GetOutputs(outputs_holder))
+                                         .Build(staged_op_desc);
+  auto infer_shape_ctx = reinterpret_cast<gert::InferShapeContext *>(kernel_context_holder.context_);
+
+  ge::CustomOpInferMetaResult infer_meta_result;
+  ret = infer_meta_provider->InferMeta(infer_shape_ctx, &infer_meta_result);
+  GE_CHK_STATUS_RET(ret, "[Call][CustomOpInferMeta] failed, op_desc[%s], ret[%d]", op_desc->GetName().c_str(), ret);
+  return CommitCustomOpInferMetaResult(staged_op_desc, op_desc, transformer, infer_meta_result);
 }
 
 ge::graphStatus InferShapeOnCompile(const ge::Operator &op, const ge::OpDescPtr &op_desc) {
@@ -867,6 +932,7 @@ class CompileAdaptFunctionsRegister {
     (void)ge::OperatorFactoryImpl::RegisterIsInferShapeV2RegisteredFunc(&gert::IsInferShapeV2Registered);
     (void)ge::OperatorFactoryImpl::RegisterCustomOpInferShapeFunc(&CustomOpInferShapeOnCompile);
     (void)ge::OperatorFactoryImpl::RegisterCustomOpInferDataTypeFunc(&CustomOpInferDataTypeOnCompile);
+    (void)ge::OperatorFactoryImpl::RegisterCustomOpInferMetaFunc(&CustomOpInferMetaOnCompile);
   }
 };
 static CompileAdaptFunctionsRegister VAR_UNUSED g_register_adapt_funcs;

@@ -200,6 +200,10 @@ class _OpProtoRegistry:
         with self._lock:
             return self._descriptor_key_to_desc.get(descriptor_key)
 
+    def get_by_op_type(self, op_type: str) -> Optional[OpProtoDescriptor]:
+        with self._lock:
+            return self._op_type_to_desc.get(op_type)
+
     def get_all(self) -> List[OpProtoDescriptor]:
         with self._lock:
             return sorted(self._op_type_to_desc.values(), key=lambda item: item.op_type)
@@ -543,3 +547,7 @@ def get_registered_op_proto_by_descriptor_key(
     descriptor_key: str,
 ) -> Optional[OpProtoDescriptor]:
     return _OP_PROTO_REGISTRY.get_by_descriptor_key(descriptor_key)
+
+
+def get_registered_op_proto_by_op_type(op_type: str) -> Optional[OpProtoDescriptor]:
+    return _OP_PROTO_REGISTRY.get_by_op_type(op_type)

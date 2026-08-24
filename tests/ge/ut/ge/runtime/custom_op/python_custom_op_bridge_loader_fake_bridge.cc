@@ -48,9 +48,14 @@ PythonCustomOpStringView StringView(const char *value) {
   return PythonCustomOpStringView{value, (value == nullptr) ? 0U : std::strlen(value)};
 }
 
+graphStatus InferMeta(const PythonCustomOpStringView *, gert::InferShapeContext *,
+                      PythonCustomOpInferMetaResultView *) {
+  return GRAPH_SUCCESS;
+}
+
 PythonCustomOpProtoDescriptorView MakeProto(const char *descriptor_key, const char *op_type) {
   return PythonCustomOpProtoDescriptorView{
-      StringView(descriptor_key), StringView(op_type), nullptr, 0U, nullptr, 0U, nullptr, 0U};
+      StringView(descriptor_key), StringView(op_type), nullptr, 0U, nullptr, 0U, nullptr, 0U, &InferMeta};
 }
 
 PythonCustomOpAdapterDescriptorView MakeAdapter(const char *op_type, const char *impl_key) {
@@ -108,13 +113,13 @@ Status RegisterAdapterFailure(const PythonCustomOpRegistrar &registrar) {
 
   const auto callbacks = MakeCallbacks(false);
   const auto adapter_a = MakeAdapter(kAdapterOpA, kAdapterImplKeyA);
-  if (!registrar.register_op_adapter(&adapter_a, &callbacks)) {
+  if (!registrar.register_op_impl(&adapter_a, &callbacks)) {
     return static_cast<Status>(GRAPH_FAILED);
   }
   const auto rejecting_callbacks = MakeCallbacks(true);
   const auto adapter_b = MakeAdapter(kAdapterOpB, kAdapterImplKeyB);
-  return static_cast<Status>(registrar.register_op_adapter(&adapter_b, &rejecting_callbacks) ? GRAPH_SUCCESS
-                                                                                             : GRAPH_FAILED);
+  return static_cast<Status>(registrar.register_op_impl(&adapter_b, &rejecting_callbacks) ? GRAPH_SUCCESS
+                                                                                          : GRAPH_FAILED);
 }
 
 Status RegisterSuccess(const PythonCustomOpRegistrar &registrar) {
@@ -124,19 +129,18 @@ Status RegisterSuccess(const PythonCustomOpRegistrar &registrar) {
   }
   const auto callbacks = MakeCallbacks(false);
   const auto adapter = MakeAdapter(kSuccessOp, kSuccessImplKey);
-  return static_cast<Status>(registrar.register_op_adapter(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
+  return static_cast<Status>(registrar.register_op_impl(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
 }
 
 Status RegisterCppProtoImpl(const PythonCustomOpRegistrar &registrar) {
   const auto callbacks = MakeCallbacks(false);
   const auto adapter = MakeAdapter(kCppProtoOp, kCppProtoImplKey);
-  return static_cast<Status>(registrar.register_op_adapter(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
+  return static_cast<Status>(registrar.register_op_impl(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
 }
 
 Status RegisterCustomOps(const PythonCustomOpRegistrar *registrar) {
   ++g_register_count;
-  if ((registrar == nullptr) || (registrar->register_op_proto == nullptr) ||
-      (registrar->register_op_adapter == nullptr)) {
+  if ((registrar == nullptr) || (registrar->register_op_proto == nullptr) || (registrar->register_op_impl == nullptr)) {
     return static_cast<Status>(GRAPH_FAILED);
   }
   const char *scenario = std::getenv(kScenarioEnvName);

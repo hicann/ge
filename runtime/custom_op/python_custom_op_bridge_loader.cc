@@ -20,6 +20,7 @@
 #include <map>
 #include <mutex>
 #include <new>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -145,6 +146,16 @@ bool IsBridgeApiValid(const PythonCustomOpBridgeApi *api, const uint32_t expecte
          (api->shutdown_bridge != nullptr);
 }
 
+struct PythonCustomOpRegistrationEntry {
+  std::string op_type;
+  std::string proto_descriptor_key;
+  bool has_proto{false};
+  PythonCustomOpInferMetaFn infer_meta{nullptr};
+  bool has_impl{false};
+  PythonCustomOpAdapterDescriptor impl_desc;
+  PythonCustomOpAdapterCallbacks callbacks;
+};
+
 bridge_loader::BridgeLoadDependencies BuildBridgeLoadDependencies() {
   return bridge_loader::BridgeLoadDependencies{
       &RealPath,
@@ -204,16 +215,18 @@ class PythonCustomOpBridgeLoader {
  private:
   void ClearPythonCustomOpRegistrations() {
     std::vector<AscendString> adapter_op_types;
-    adapter_op_types.reserve(registered_op_type_to_impl_descriptor_key_.size());
-    for (const auto &item : registered_op_type_to_impl_descriptor_key_) {
-      adapter_op_types.emplace_back(item.first.c_str());
+    adapter_op_types.reserve(registered_op_type_to_adapter_.size());
+    for (const auto &op_type : registered_op_type_to_adapter_) {
+      adapter_op_types.emplace_back(op_type.c_str());
     }
     CustomOpFactory::RemoveCustomOps(adapter_op_types);
     ClearPythonCustomOpRuntimeRegistry();
     std::vector<std::string> proto_op_types;
-    proto_op_types.reserve(registered_op_type_to_proto_key_.size());
-    for (const auto &item : registered_op_type_to_proto_key_) {
-      proto_op_types.emplace_back(item.first);
+    proto_op_types.reserve(python_custom_op_registrations_.size());
+    for (const auto &item : python_custom_op_registrations_) {
+      if (item.second.has_proto) {
+        proto_op_types.emplace_back(item.first);
+      }
     }
     UnregisterPythonCustomOpProtos(proto_op_types);
   }
@@ -221,7 +234,7 @@ class PythonCustomOpBridgeLoader {
   Status RegisterCustomOpsFromBridge() {
     static constexpr PythonCustomOpRegistrar kRegistrar = {
         &RegisterOpProtoFromBridge,
-        &RegisterOpAdapterFromBridge,
+        &RegisterOpImplFromBridge,
     };
     GELOGI("Register python custom ops with bridge library[%s].", loaded_path_.c_str());
     const auto ret = api_->register_custom_ops(&kRegistrar);
@@ -229,7 +242,7 @@ class PythonCustomOpBridgeLoader {
       GELOGE(ret, "[Register][PythonCustomOps] failed with bridge library[%s].", loaded_path_.c_str());
       return ret;
     }
-    return SUCCESS;
+    return CommitPythonCustomOpRegistrations();
   }
 
   static bool RegisterOpProtoFromBridge(const PythonCustomOpProtoDescriptorView *desc) {
@@ -239,12 +252,12 @@ class PythonCustomOpBridgeLoader {
     return GetInstance().RegisterOpProto(*desc);
   }
 
-  static bool RegisterOpAdapterFromBridge(const PythonCustomOpAdapterDescriptorView *desc,
-                                          const PythonCustomOpAdapterCallbacks *callbacks) {
+  static bool RegisterOpImplFromBridge(const PythonCustomOpAdapterDescriptorView *desc,
+                                       const PythonCustomOpAdapterCallbacks *callbacks) {
     if ((desc == nullptr) || (callbacks == nullptr)) {
       return false;
     }
-    return GetInstance().RegisterOpAdapter(*desc, *callbacks);
+    return GetInstance().RegisterOpImpl(*desc, *callbacks);
   }
 
   bool RegisterOpProto(const PythonCustomOpProtoDescriptorView &view) {
@@ -253,15 +266,18 @@ class PythonCustomOpBridgeLoader {
       GELOGE(FAILED, "[Parse][PythonCustomOpProto] failed.");
       return false;
     }
-    const auto existing = registered_op_type_to_proto_key_.find(proto.op_type);
-    if (existing != registered_op_type_to_proto_key_.cend()) {
-      if (existing->second == proto.descriptor_key) {
+    auto &registration = python_custom_op_registrations_[proto.op_type];
+    if (registration.op_type.empty()) {
+      registration.op_type = proto.op_type;
+    }
+    if (registration.has_proto) {
+      if (registration.proto_descriptor_key == proto.descriptor_key) {
         return true;
       }
       GELOGE(FAILED,
              "Python custom op proto conflict, op type[%s], existing source[descriptor key:%s], "
              "current source[descriptor key:%s].",
-             proto.op_type.c_str(), existing->second.c_str(), proto.descriptor_key.c_str());
+             proto.op_type.c_str(), registration.proto_descriptor_key.c_str(), proto.descriptor_key.c_str());
       return false;
     }
     if (RegisterPythonCustomOpProto(proto) != GRAPH_SUCCESS) {
@@ -269,7 +285,9 @@ class PythonCustomOpBridgeLoader {
              proto.descriptor_key.c_str(), proto.op_type.c_str());
       return false;
     }
-    (void)registered_op_type_to_proto_key_.emplace(proto.op_type, proto.descriptor_key);
+    registration.proto_descriptor_key = proto.descriptor_key;
+    registration.has_proto = true;
+    registration.infer_meta = proto.infer_meta;
     return true;
   }
 
@@ -281,8 +299,7 @@ class PythonCustomOpBridgeLoader {
     return (allow_empty || (!value.empty())) && (value.find('\0') == std::string::npos);
   }
 
-  static bool ParseAdapterDescriptor(const PythonCustomOpAdapterDescriptorView &view,
-                                     PythonCustomOpAdapterDescriptor &desc) {
+  bool ParseAdapterDescriptor(const PythonCustomOpAdapterDescriptorView &view, PythonCustomOpAdapterDescriptor &desc) {
     if ((!CopyStringView(view.op_type, false, desc.op_type)) ||
         (!CopyStringView(view.impl_descriptor_key, false, desc.impl_descriptor_key))) {
       return false;
@@ -291,22 +308,26 @@ class PythonCustomOpBridgeLoader {
     return true;
   }
 
-  bool RegisterOpAdapter(const PythonCustomOpAdapterDescriptorView &view,
-                         const PythonCustomOpAdapterCallbacks &callbacks) {
+  bool RegisterOpImpl(const PythonCustomOpAdapterDescriptorView &view,
+                      const PythonCustomOpAdapterCallbacks &callbacks) {
     PythonCustomOpAdapterDescriptor desc;
     if (!ParseAdapterDescriptor(view, desc)) {
       GELOGE(FAILED, "[Parse][PythonCustomOpAdapter] failed.");
       return false;
     }
-    const auto existing = registered_op_type_to_impl_descriptor_key_.find(desc.op_type);
-    if (existing != registered_op_type_to_impl_descriptor_key_.cend()) {
-      if (existing->second == desc.impl_descriptor_key) {
+    auto &registration = python_custom_op_registrations_[desc.op_type];
+    if (registration.op_type.empty()) {
+      registration.op_type = desc.op_type;
+    }
+    if (registration.has_impl) {
+      if (registration.impl_desc.impl_descriptor_key == desc.impl_descriptor_key) {
         return true;
       }
       GELOGE(FAILED,
              "Python custom op adapter conflict, op type[%s], existing source[impl key:%s], "
              "current source[impl key:%s].",
-             desc.op_type.c_str(), existing->second.c_str(), desc.impl_descriptor_key.c_str());
+             desc.op_type.c_str(), registration.impl_desc.impl_descriptor_key.c_str(),
+             desc.impl_descriptor_key.c_str());
       return false;
     }
     if (CustomOpFactory::IsExistOp(AscendString(desc.op_type.c_str()))) {
@@ -316,36 +337,110 @@ class PythonCustomOpBridgeLoader {
              desc.op_type.c_str(), desc.impl_descriptor_key.c_str());
       return false;
     }
-    if (!PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks)) {
-      GELOGE(FAILED, "[Register][PythonCustomOpImplRuntimeRegistry] failed, descriptor key[%s], op type[%s].",
+    if (!callbacks.IsValid(desc.capabilities)) {
+      GELOGE(FAILED, "Invalid python custom op implementation, descriptor key[%s], op type[%s].",
              desc.impl_descriptor_key.c_str(), desc.op_type.c_str());
       return false;
     }
+    registration.has_impl = true;
+    registration.impl_desc = desc;
+    registration.callbacks = callbacks;
+    return true;
+  }
 
+  Status RegisterPythonCustomOpImpls() {
+    for (const auto &item : python_custom_op_registrations_) {
+      const auto &registration = item.second;
+      if (!registration.has_impl ||
+          (registered_op_type_to_adapter_.find(registration.op_type) != registered_op_type_to_adapter_.cend())) {
+        continue;
+      }
+      if (!PythonCustomOpImplRuntimeRegistry::Register(registration.impl_desc, registration.callbacks)) {
+        GELOGE(FAILED, "[Register][PythonCustomOpImplRuntimeRegistry] failed, descriptor key[%s], op type[%s].",
+               registration.impl_desc.impl_descriptor_key.c_str(), registration.op_type.c_str());
+        return FAILED;
+      }
+    }
+    return SUCCESS;
+  }
+
+  bool BuildAdapterDescriptor(const PythonCustomOpRegistrationEntry &registration,
+                              PythonCustomOpAdapterDescriptor &desc) {
+    desc.op_type = registration.op_type;
+    if (registration.has_impl) {
+      desc = registration.impl_desc;
+    }
+    if (registration.has_proto) {
+      desc.infer_meta = registration.infer_meta;
+      AddCustomOpCapability(desc.capabilities, CustomOpCapability::kShapeInfer);
+      AddCustomOpCapability(desc.capabilities, CustomOpCapability::kInferMeta);
+    }
+    const auto infer_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kShapeInfer) |
+                                    static_cast<CustomOpCapabilityMask>(CustomOpCapability::kInferMeta);
+    const auto impl_capabilities = desc.capabilities & ~infer_capabilities;
+    if ((desc.capabilities == 0U) ||
+        (HasCustomOpCapability(desc.capabilities, CustomOpCapability::kInferMeta) && (desc.infer_meta == nullptr)) ||
+        ((impl_capabilities != 0U) && desc.impl_descriptor_key.empty()) ||
+        ((impl_capabilities == 0U) && !desc.impl_descriptor_key.empty())) {
+      GELOGE(FAILED, "Invalid python custom op adapter descriptor, op type[%s].", registration.op_type.c_str());
+      return false;
+    }
+    return true;
+  }
+
+  Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc) {
     const auto ret = CustomOpFactory::RegisterCustomOpCreator(
         AscendString(desc.op_type.c_str()), [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
           auto *adapter = new (std::nothrow) PythonCustomOpAdapter(registered_desc);
           if ((adapter == nullptr) || (!adapter->IsValid())) {
             delete adapter;
-            return nullptr;
+            return std::unique_ptr<BaseCustomOp>();
           }
           return std::unique_ptr<BaseCustomOp>(adapter);
         });
     if (ret != GRAPH_SUCCESS) {
-      (void)PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key);
-      GELOGE(FAILED, "[Register][PythonCustomOpCreator] failed, descriptor key[%s], op type[%s].",
-             desc.impl_descriptor_key.c_str(), desc.op_type.c_str());
-      return false;
+      GELOGE(ret, "Register python custom op creator failed, op type[%s].", desc.op_type.c_str());
+      return FAILED;
     }
-    (void)registered_op_type_to_impl_descriptor_key_.emplace(desc.op_type, desc.impl_descriptor_key);
-    GELOGI("Python custom op[%s] adapter is registered, impl key[%s].", desc.op_type.c_str(),
-           desc.impl_descriptor_key.c_str());
-    return true;
+    registered_op_type_to_adapter_.insert(desc.op_type);
+    GELOGI("Python custom op creator is registered, op type[%s].", desc.op_type.c_str());
+    return SUCCESS;
+  }
+
+  Status RegisterPythonCustomOpCreators() {
+    for (const auto &item : python_custom_op_registrations_) {
+      const auto &registration = item.second;
+      const auto &op_type = registration.op_type;
+      if (registered_op_type_to_adapter_.find(op_type) != registered_op_type_to_adapter_.cend()) {
+        continue;
+      }
+      if (CustomOpFactory::IsExistOp(AscendString(op_type.c_str()))) {
+        GELOGE(FAILED, "Python custom op conflict, op type[%s], existing source[CustomOpFactory creator].",
+               op_type.c_str());
+        return FAILED;
+      }
+
+      PythonCustomOpAdapterDescriptor desc;
+      if (!BuildAdapterDescriptor(registration, desc)) {
+        return FAILED;
+      }
+      if (RegisterPythonCustomOpCreator(desc) != SUCCESS) {
+        return FAILED;
+      }
+    }
+    return SUCCESS;
+  }
+
+  Status CommitPythonCustomOpRegistrations() {
+    if (RegisterPythonCustomOpImpls() != SUCCESS) {
+      return FAILED;
+    }
+    return RegisterPythonCustomOpCreators();
   }
 
   void ClearRegisteredState() {
-    registered_op_type_to_proto_key_.clear();
-    registered_op_type_to_impl_descriptor_key_.clear();
+    python_custom_op_registrations_.clear();
+    registered_op_type_to_adapter_.clear();
   }
 
   Status EnsureLoaded() {
@@ -408,8 +503,8 @@ class PythonCustomOpBridgeLoader {
   void *handle_{nullptr};
   const PythonCustomOpBridgeApi *api_{nullptr};
   std::string loaded_path_;
-  std::map<std::string, std::string> registered_op_type_to_proto_key_;
-  std::map<std::string, std::string> registered_op_type_to_impl_descriptor_key_;
+  std::map<std::string, PythonCustomOpRegistrationEntry> python_custom_op_registrations_;
+  std::set<std::string> registered_op_type_to_adapter_;
 };
 }  // namespace
 

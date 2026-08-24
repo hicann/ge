@@ -741,11 +741,11 @@ custom_op/
 └── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
 ```
 注：下划线开头的为 Python 风格下的对内模块。
-注：`EagerOpExecutionContext` 和 `AnnotatedArgsContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期返回或接收的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
+注：`EagerOpExecutionContext`、`AnnotatedArgsContext` 和 `InferShapeContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期或 `infer_meta` 回调中返回、接收的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
 
 #### 模块定位
 
-Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。当前阶段还将 Python 原型注册到 `OperatorFactory`，但不调用 Python `infer_meta`，也不提供编译期或 RT2 Meta 推导。
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承 `BaseCustomOp` 或 `EagerExecuteOp`；已有继承写法继续兼容。执行入口同时支持 `execute(ctx)` 兼容形式和按照 canonical IR 输入、属性顺序绑定的 schema-bound 形式。Python 原型通过 `register_op` 注册到 `OperatorFactory` 后，编译期和 RT2 动态 Shape 路径会调用同一 Python `infer_meta` 回调：编译期回写输出 shape、dtype 和 origin dtype，RT2 运行期只回写输出 shape。
 
 #### 运行时 native artifact 选择
 
@@ -875,7 +875,7 @@ class AnnotatedAddCustom:
 #### 注册与发现
 
 **装饰器**:
-- `register_op(op_type, mutates_args=())` - 根据被装饰函数的类型标注声明并收集 Python 自定义算子原型
+- `register_op(op_type, mutates_args=())` - 根据被装饰函数的类型标注声明并收集 Python 自定义算子原型；被装饰函数同时作为 `infer_meta` 回调，返回输出 `TensorDesc`
 - `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；`execute` 对应 `eager_execute`，`declare_launch_args` 对应 `annotated_args`
 
 **发现机制**:

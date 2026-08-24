@@ -476,6 +476,7 @@ set(MULTI_PARTS_TEST_FILES
     "runtime/custom_op/custom_op_loader_unittest.cc"
     "runtime/custom_op/python_custom_op_bridge_loader_unittest.cc"
     "runtime/custom_op/python_custom_op_proto_unittest.cc"
+    "runtime/custom_op/python_custom_op_infer_meta_unittest.cc"
     "graph_ir/ge_custom_op_factory_unittest.cc"
     "graph_ir/ge_custom_op_pull_registry_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"
