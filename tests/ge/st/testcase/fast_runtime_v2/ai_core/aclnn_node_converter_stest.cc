@@ -110,6 +110,13 @@ TEST_F(AclnnNodeConverterST, TestHgl) {
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterST, LoweringTwoStagesWithCombinedDeterministicAttrs) {
@@ -157,6 +164,13 @@ TEST_F(AclnnNodeConverterST, LoweringTwoStagesWithCombinedDeterministicAttrs) {
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterST, LoweringWithDeterministicAttr) {

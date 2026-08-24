@@ -90,6 +90,10 @@ HF32是昇腾推出的专门用于算子内部计算的单精度浮点类型，�
 {ge::ir_option::DETERMINISTIC_LEVEL, "2"}
 ```
 
+**使用约束：**
+
+通过GE图引擎接口构建离线模型时，建议在模型构建阶段通过`ge::ir_option::DETERMINISTIC`和`ge::ir_option::DETERMINISTIC_LEVEL`设置确定性及一致性配置。通过`aclmdl`接口加载、执行离线模型时，不建议调用`aclrtSetSysParamOpt`或`aclrtCtxSetSysParamOpt`，通过`ACL_OPT_DETERMINISTIC`修改该配置，否则可能导致运行时配置与模型构建时的配置不一致，无法保证预期的确定性及一致性效果。如需调整该配置，建议重新构建离线模型。
+
 **产品支持情况：**
 
 <!-- npu="950" id15 -->

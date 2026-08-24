@@ -113,6 +113,13 @@ TEST_F(AclnnNodeConverterUT, TestHgl) {
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
@@ -162,9 +169,9 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
   ge::DumpGraph(exe_graph, "AclnnNodeConverterUT");
 
   // check main 图中节点数量, 由于没走CEM, main图上有俩InnerData连给PrepareCacheableTilingFwkData
-  // 确定性配置新增一个Const和一个InnerData输入
+  // 确定性配置的Const在Init图中，main图新增一个InnerData输入
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
-                                                                  {"Const", 10},
+                                                                  {"Const", 9},
                                                                   {"AllocBatchHbm", 1},
                                                                   {"AllocMemHbm", 1},
                                                                   {"BuildDualStageAclnnOpFwkData", 1},
@@ -177,13 +184,20 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
                                                                   {"FreeBatchHbm", 1},
                                                                   {"FreeMemory", 3},
                                                                   {"InferShape", 1},
-                                                                  {"InnerData", 10},
+                                                                  {"InnerData", 11},
                                                                   {"MakeSureTensorAtDevice", 2},
                                                                   {"SelectL1Allocator", 1},
                                                                   {"SelectL2Allocator", 1},
                                                                   {"SplitDataTensor", 2},
                                                                   {"SplitRtStreams", 1}}),
             "success");
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterUT, TestHgl_Twostages_Failed) {
@@ -263,10 +277,10 @@ TEST_F(AclnnNodeConverterUT, LoweringWithDeterministicAttr) {
 
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
-  EXPECT_EQ(acl_runtime_stub_->GetSysParamSetRecords().size(), 2U);
+  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
 }
 
-TEST_F(AclnnNodeConverterUT, LoweringUsesLatestDeterministicConfig) {
+TEST_F(AclnnNodeConverterUT, LoweringDoesNotSetGlobalDeterministicConfig) {
   auto graph = ShareGraph::AicoreGraph();
   auto add_node = graph->FindNode("add1");
   (void)ge::AttrUtils::SetStr(add_node->GetOpDesc(), "_deterministic", "1");
@@ -301,14 +315,7 @@ TEST_F(AclnnNodeConverterUT, LoweringUsesLatestDeterministicConfig) {
 
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
-  const auto &records = acl_runtime_stub_->GetSysParamSetRecords();
-  ASSERT_EQ(records.size(), 2U);
-  EXPECT_FALSE(records[0].is_context);
-  EXPECT_EQ(records[0].opt, ACL_OPT_DETERMINISTIC);
-  EXPECT_EQ(records[0].value, 0);
-  EXPECT_TRUE(records[1].is_context);
-  EXPECT_EQ(records[1].opt, ACL_OPT_DETERMINISTIC);
-  EXPECT_EQ(records[1].value, 0);
+  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
 }
 
 TEST_F(AclnnNodeConverterUT, LoweringWithDeterministicLevelAttr) {

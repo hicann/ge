@@ -31,6 +31,7 @@
 #include "graph/manager/session_id_manager.h"
 #include "acl/acl_rt.h"
 #include "common/ge_rts_decl.h"
+#include "common/op_tiling/op_tiling_rt2.h"
 
 namespace gert {
 namespace {
@@ -243,6 +244,10 @@ ge::graphStatus ModelV2Executor::Execute(const ModelExecuteArg &arg, Tensor **in
   GE_RETURN_IF_ERROR(graph_executor.SpecifyOutputs(reinterpret_cast<void *const *>(outputs), output_num));
 
   GE_RETURN_IF_ERROR(CheckIoReuseAddrs(inputs, input_num, outputs, output_num));
+
+  if (need_set_deterministic_config_) {
+    GE_RETURN_IF_ERROR(optiling::SetGlobalDeterministicConfig(deterministic_, deterministic_level_));
+  }
 
   ge::multistream_tune::StepScope step(ge::multistream_tune::kSiteModelV2Executor, auto_multistream_tuning_mode_,
                                        auto_multistream_tuning_id_, arg.stream);

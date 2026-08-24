@@ -158,8 +158,15 @@ ge::graphStatus CreateAclnnDeterministicConfig(const ge::NodePtr &node, const Lo
                           std::to_string(config.op_deterministic) + "_" +
                           std::to_string(static_cast<int32_t>(config.has_op_deterministic_level)) + "_" +
                           std::to_string(config.op_deterministic_level);
-  config_holder = lower_input.global_data->GetOrCreateUniqueValueHolder(
-      key, [&config]() { return bg::ValueHolder::CreateConst(&config, sizeof(config)); });
+  const auto holders =
+      lower_input.global_data->GetOrCreateUniqueValueHolder(key, [&config]() -> std::vector<bg::ValueHolderPtr> {
+        return bg::FrameSelector::OnInitRoot([&config]() -> std::vector<bg::ValueHolderPtr> {
+          return {bg::ValueHolder::CreateConst(&config, sizeof(config))};
+        });
+      });
+  GE_ASSERT_TRUE(!holders.empty());
+  GE_ASSERT_NOTNULL(holders[0]);
+  config_holder = holders[0];
   return ge::GRAPH_SUCCESS;
 }
 
@@ -172,8 +179,7 @@ ge::graphStatus BuildAclnnOriginalDeterministicConfig(const ge::NodePtr &node,
 
   GE_ASSERT_SUCCESS(
       optiling::GetGraphDeterministicConfig(root_compute_graph, config.deterministic, config.deterministic_level));
-
-  return optiling::SetGlobalDeterministicConfig(config.deterministic, config.deterministic_level);
+  return ge::GRAPH_SUCCESS;
 }
 
 ge::graphStatus CreateAclnnOriginalDeterministicConfig(const ge::NodePtr &node, const LowerInput &lower_input,
