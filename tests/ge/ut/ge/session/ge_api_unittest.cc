@@ -20,6 +20,8 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "proto/ge_ir.pb.h"
 #include "ge/ge_api.h"
+#include "ge/ge_api_v2.h"
+#include "client/ge_is_initialize.h"
 #include "session/session_manager.h"
 #include "session/session_utils.h"
 #include "framework/memory/memory_api.h"
@@ -2452,5 +2454,15 @@ TEST_F(UtestGeApi, GraphDebugJSONPrint_WithInit_CovEnhance2) {
   auto ret = session.GraphDebugJSONPrint(1, 0, json_result);
   EXPECT_NE(ret, SUCCESS);
   EXPECT_EQ(GEFinalize(), SUCCESS);
+}
+
+TEST_F(UtestGeApi, finalize_v2_then_finalize_v1) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  EXPECT_TRUE(IsGEInitialize());
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+  EXPECT_FALSE(IsGEInitialize());
+  EXPECT_EQ(GEFinalize(), SUCCESS);
+  EXPECT_FALSE(IsGEInitialize());
 }
 }  // namespace ge

@@ -245,9 +245,6 @@ Status GEInitialize(const std::map<AscendString, AscendString> &options) {
 
 // GE finalize, releasing all resources
 Status GEFinalize() {
-  if (!IsGEInitialize()) {
-    return SUCCESS;
-  }
   GELOGI("SessionManager finalization.");
   if (g_session_manager != nullptr) {
     (void)g_session_manager->Finalize();  // always success.
