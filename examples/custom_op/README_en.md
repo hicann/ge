@@ -13,6 +13,9 @@ This directory provides samples related to custom operator graph integration, co
 | `args_refresh_add_custom` | ArgsUpdater address refresh + MallocReadOnlyDevArgs + performance comparison | GE online execution | Ascend C | RTC runtime compilation | Online address refresh performance comparison | [README](./args_refresh_add_custom/cpp/README_en.md) |
 | `annotated_args_refresh_add_custom` | AnnotatedArgsOp declarative address refresh for online performance comparison and offline model | GE online execution + ATC offline compilation | Ascend C | RTC runtime compilation | Supports online performance comparison and OM model sink | [README](./annotated_args_refresh_add_custom/README_en.md) |
 | `args_refresh_add_custom (Python version)` | Python EagerExecuteOp execution | GE online execution | Ascend C | Bisheng pre-compilation | Not involved | [README](./args_refresh_add_custom/python/README.md) |
+| `tilelang_add_custom` | TileLang operator enters graph through GE | GE native (Session API) | TileLang | TileLang pre-compiled `.so` | Not involved | [README](./tilelang_add_custom/README_en.md) |
+| `tilelang_add_custom_online` | TileLang operator online compilation + online execution | GE native (Session API) | TileLang | `CompilableOp::Compile` subprocess invokes Python compiler during GE compile phase | Not involved | [README](./tilelang_add_custom_online/README_en.md) |
+| `tilelang_add_custom_offline` | TileLang operator offline OM model sinking | GE native (`aclgrphBuildModel`) | TileLang | `CompilableOp::Compile` + `PortableOp::Serialize` to OM | Supports OM model sinking | [README](./tilelang_add_custom_offline/README_en.md) |
 
 ## General Development Process
 
