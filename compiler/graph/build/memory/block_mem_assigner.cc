@@ -47,7 +47,6 @@ const char *const kOpNoReuseMem = "no_reuse_mem_flag";
 const std::string kOffline = "offline";
 const int32_t kReuseMaxOpNum = 10;
 const int32_t kReuseMaxCharNum = 2000;
-const std::set<ge::DataType> kNotPostReuseDataType = {ge::DT_RESOURCE, ge::DT_VARIANT};
 
 int64_t GetStreamId(const ge::OpDesc *const desc) {
   return ge::MemReuseUtils::GetStreamId(desc);

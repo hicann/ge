@@ -98,7 +98,7 @@ REGISTER_CUSTOM_PASS("pass_name").CustomAllocateStreamPassFn(CustomStreamPassFun
 
 - **前提条件**
 
-    请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》安装CANN软件包。
+    请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装CANN软件包。
 
 - **程序编译：**
     1. 参见[样例使用指导](https://gitee.com/ascend/samples/tree/master/cplusplus/level1_single_api/3_ir/2_fuse_matmul_add_pass)，获取其中的CMakeLists.txt编辑脚本，并按照Sample中的目录结构，将用户自定义逻辑流分配函数**_AllocateStreamPass.cpp_**文件放在src目录下。

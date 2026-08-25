@@ -110,6 +110,13 @@ TEST_F(AclnnNodeConverterST, TestHgl) {
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterST, LoweringTwoStagesWithCombinedDeterministicAttrs) {
@@ -157,6 +164,13 @@ TEST_F(AclnnNodeConverterST, LoweringTwoStagesWithCombinedDeterministicAttrs) {
   global_data.SetSpaceRegistriesV2(*space_registry_array);
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+  size_t set_config_count = 0U;
+  for (const auto &node : init_frame_->GetExecuteGraph()->GetAllNodes()) {
+    if (node->GetType() == "SetAclnnGlobalDeterministicConfig") {
+      ++set_config_count;
+    }
+  }
+  EXPECT_EQ(set_config_count, 0U);
 }
 
 TEST_F(AclnnNodeConverterST, LoweringWithDeterministicAttr) {
@@ -231,5 +245,40 @@ TEST_F(AclnnNodeConverterST, LoweringWithDeterministicLevelAttr) {
 
   auto add_ret = LoweringAclnnNode(add_node, add_input);
   ASSERT_TRUE(add_ret.result.IsSuccess());
+}
+
+TEST_F(AclnnNodeConverterST, TestBuildOpInputTensors_LoweringResultShapeIsNull) {
+  auto graph = ShareGraph::AicoreGraph();
+  auto add_node = graph->FindNode("add1");
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  bg::LowerConstDataNode(global_data);
+  LowerInput data_input = {{}, {}, &global_data};
+
+  auto data1_ret = LoweringDataNode(graph->FindNode("data1"), data_input);
+  auto data2_ret = LoweringDataNode(graph->FindNode("data2"), data_input);
+
+  ASSERT_TRUE(data1_ret.result.IsSuccess());
+  ASSERT_TRUE(data2_ret.result.IsSuccess());
+
+  LowerInput add_input = {{data1_ret.out_shapes[0], data2_ret.out_shapes[0]},
+                          {data1_ret.out_addrs[0], data2_ret.out_addrs[0]},
+                          &global_data};
+
+  data1_ret.out_shapes.clear();
+  graph->FindNode("data1")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data1"), std::move(data1_ret)));
+  graph->FindNode("data2")->GetOpDesc()->SetExtAttr(
+      "_lowering_result", gert::PlacedLoweringResult(graph->FindNode("data2"), std::move(data2_ret)));
+
+  gert::OpImplSpaceRegistryV2Ptr space_registry_stub = std::make_shared<gert::OpImplSpaceRegistryV2>();
+  auto op_impl_func = space_registry_stub->CreateOrGetOpImpl("Add");
+  op_impl_func->op_execute_func = OpExecuteFuncStub;
+
+  auto space_registry_array = ge::MakeShared<gert::OpImplSpaceRegistryV2Array>();
+  space_registry_array->at(static_cast<size_t>(ge::OppImplVersion::kOpp)) = space_registry_stub;
+  global_data.SetSpaceRegistriesV2(*space_registry_array);
+  auto add_ret = LoweringAclnnNode(add_node, add_input);
+  ASSERT_FALSE(add_ret.result.IsSuccess());
 }
 }  // namespace gert

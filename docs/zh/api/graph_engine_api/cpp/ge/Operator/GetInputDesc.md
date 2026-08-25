@@ -28,8 +28,8 @@ TensorDesc GetInputDesc(uint32_t index) const
 
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
-| name | 输入 | 算子Input名称。<br>当无此算子Input名称时，则返回TensorDesc默认构造的对象，其中，主要设置[DataType](https://hiascend.com/document/redirect/CannCommunitybasicopapi)为DT_FLOAT（表示float类型），[Format](https://hiascend.com/document/redirect/CannCommunitybasicopapi)为FORMAT_NCHW（表示NCHW）。 |
-| index | 输入 | 算子Input索引。<br>当无此算子Input索引时，则返回TensorDesc默认构造的对象，其中，主要设置[DataType](https://hiascend.com/document/redirect/CannCommunitybasicopapi)为DT_FLOAT（表示float类型），[Format](https://hiascend.com/document/redirect/CannCommunitybasicopapi)为FORMAT_NCHW（表示NCHW）。 |
+| name | 输入 | 算子Input名称。<br>当无此算子Input名称时，则返回TensorDesc默认构造的对象，其中，主要设置[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)为DT_FLOAT（表示float类型），[Format](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)为FORMAT_NCHW（表示NCHW）。 |
+| index | 输入 | 算子Input索引。<br>当无此算子Input索引时，则返回TensorDesc默认构造的对象，其中，主要设置[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)为DT_FLOAT（表示float类型），[Format](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)为FORMAT_NCHW（表示NCHW）。 |
 
 ## 返回值说明
 

@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id168 -->
 - IPV350：支持
 <!-- end id168 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetDesc_res.md#id1 -->
 
 ## 功能说明
 

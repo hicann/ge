@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id133 -->
 - IPV350：不支持
 <!-- end id133 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclGetTensorDescSize_res.md#id1 -->
 
 ## 功能说明
 

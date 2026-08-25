@@ -47,7 +47,7 @@ Status GenerateCMOInvalidTask::GenerateTask(std::vector<domi::TaskDef> &task_def
       cmo_id = static_cast<uint32_t>(CMOIdGenStrategy::Instance().GenerateCMOId(node_));
     }
     if (cmo_id == 0) {
-      FE_LOGW("Failed to generate cmo id for mode [%s], cmo task not launched.", node_.GetName().c_str());
+      FE_LOGW("Failed to generate cmo id for node [%s], cmo task not launched.", node_.GetName().c_str());
       return FAILED;
     }
     cmo_task_def->set_logic_id(cmo_id);

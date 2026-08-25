@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id649 -->
 - IPV350：不支持
 <!-- end id649 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetInputDynamicDims_res.md#id1 -->
 
 ## 功能说明
 

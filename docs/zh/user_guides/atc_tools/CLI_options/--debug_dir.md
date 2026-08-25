@@ -44,4 +44,4 @@ atc --debug_dir=$HOME/module/out/debug_info --op_debug_level=1 ...
 
 算子编译生成的调试文件存储路径，除[--debug\_dir](--debug_dir.md)参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“[--debug\_dir](--debug_dir.md)”\>环境变量ASCEND\_WORK\_PATH \>默认存储路径。
 
-关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。

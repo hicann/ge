@@ -289,7 +289,7 @@ TEST_F(STEST_fusion_engine_dsa_graph_optimizer, optimize_original_graph) {
       EXPECT_EQ(fe_impl_type, static_cast<OpImplType>(EN_IMPL_HW_DSA));
       std::string op_slice_info;
       (void)ge::AttrUtils::GetStr(node->GetOpDesc(), OP_SLICE_INFO, op_slice_info);
-      std::cout << "Node DSAGenBitMask slice info is：" << op_slice_info << endl;
+      std::cout << "Node DSAGenBitMask slice info is: " << op_slice_info << endl;
     }
   }
 }
@@ -335,7 +335,7 @@ TEST_F(STEST_fusion_engine_dsa_graph_optimizer, optimize_original_graph1) {
       EXPECT_EQ(fe_impl_type, static_cast<OpImplType>(EN_IMPL_HW_DSA));
       std::string op_slice_info;
       (void)ge::AttrUtils::GetStr(node->GetOpDesc(), OP_SLICE_INFO, op_slice_info);
-      std::cout << "Node DSAGenBitMask slice info is：" << op_slice_info << endl;
+      std::cout << "Node DSAGenBitMask slice info is: " << op_slice_info << endl;
     }
   }
 }

@@ -13,7 +13,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/ge_ir.proto"
         )
 
-protobuf_generate(ffts_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
+generate_cann_protobuf(ffts_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
 file(GLOB FFTS_SRC_CPP RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "engine/*.cc"
         "common/*.cc"

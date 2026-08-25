@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id873 -->
 - IPV350：支持
 <!-- end id873 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetInputIndexByName_res.md#id1 -->
 
 ## 功能说明
 

@@ -33,7 +33,7 @@ class ut_expand_dims : public testing::Test {
   Status RunExpandDimsCase(const ge::Format &origin_format, const ge::Format &format, const string &reshape_type,
                            const vector<int64_t> &dims, const vector<int64_t> &expect_dims) {
     std::cout << "RunExpandDimsCase: origin_format=" << origin_format << ", format=" << format
-              << ", reahpe type=" << reshape_type << ", dim size=" << dims.size() << std::endl;
+              << ", reshape type=" << reshape_type << ", dim size=" << dims.size() << std::endl;
     ge::GeShape new_shape(dims);
     ExpandDimension(origin_format, format, reshape_type, new_shape);
     EXPECT_EQ(new_shape.GetDims(), expect_dims);

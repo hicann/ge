@@ -13,7 +13,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/ge_ir.proto"
         )
 
-protobuf_generate(fe_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
+generate_cann_protobuf(fe_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
 
 file(GLOB FE_SRC_CPP_1 RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "adapter/adapter_itf/*.cc"

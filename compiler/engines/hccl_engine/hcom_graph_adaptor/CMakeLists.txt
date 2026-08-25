@@ -10,7 +10,7 @@
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-protobuf_generate(hcom_graph_adaptor_proto  hcom_graph_adaptor_proto_c hcom_graph_adaptor_proto_h
+generate_cann_protobuf(hcom_graph_adaptor_proto  hcom_graph_adaptor_proto_c hcom_graph_adaptor_proto_h
                       ${CMAKE_CURRENT_SOURCE_DIR}/proto/task.proto TARGET
 )
 add_library(hcom_graph_adaptor  SHARED

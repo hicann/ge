@@ -23,7 +23,7 @@ ge::Status SetFormat(const ge::Format format)
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| format | 输入 | 数据格式。详情请参见[Format](https://hiascend.com/document/redirect/CannCommunitybasicopapi)。 |
+| format | 输入 | 数据格式。详情请参见[Format](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

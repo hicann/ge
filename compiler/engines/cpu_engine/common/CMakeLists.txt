@@ -19,8 +19,8 @@ set(proto_nodedef_src_files
     ${METADEF_PROTO_DIR}/aicpu/cpu_tensor_shape.proto
 )
 
-protobuf_generate(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
-protobuf_generate(aicpu PROTO_NODEDEF_SRCS PROTO_NODEDEF_HDRS ${proto_nodedef_src_files})
+generate_cann_protobuf(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(aicpu PROTO_NODEDEF_SRCS PROTO_NODEDEF_HDRS ${proto_nodedef_src_files})
 
 set(local_lib_src_files
     ${CMAKE_CURRENT_SOURCE_DIR}/engine/base_engine.cc

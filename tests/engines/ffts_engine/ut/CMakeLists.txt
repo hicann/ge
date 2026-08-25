@@ -20,7 +20,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/task_mobile.proto"
         )
 
-protobuf_generate(ffts_ut PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
+generate_cann_protobuf(ffts_ut PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
 
 # compile for ffts_ut
 add_executable(ffts_ut

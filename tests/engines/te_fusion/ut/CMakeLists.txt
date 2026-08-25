@@ -17,7 +17,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/ge_ir_mobile.proto"
         "${METADEF_PROTO_DIR}/task_mobile.proto")
 
-protobuf_generate(tefusion_ut PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
+generate_cann_protobuf(tefusion_ut PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
 
 add_executable(tefusion_ut
         ${PROTO_HDRS}

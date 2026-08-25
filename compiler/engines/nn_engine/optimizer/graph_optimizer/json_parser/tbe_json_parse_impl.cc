@@ -599,7 +599,7 @@ Status TbeJsonFileParseImpl::ParseFatbin(const ge::OpKernelBinPtr &fatbin,
   }
   if (fatbin_header_info.tilingKeyList.size() != tiling_key_num ||
       fatbin_header_info.binOffsets.size() != tiling_key_num) {
-    FE_LOGE("Tiling key list size %zu or bin offset list size %zu is not equal to tiling key num.",
+    FE_LOGE("Tiling key list size %zu or bin offset list size %zu is not equal to tiling key num %zu.",
             fatbin_header_info.tilingKeyList.size(), fatbin_header_info.binOffsets.size(), tiling_key_num);
     return FAILED;
   }

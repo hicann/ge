@@ -25,7 +25,7 @@ set(PARSER_PROTO_LIST
     "${METADEF_PROTO_DIR}/tensorflow/resource_handle.proto"
 )
 
-protobuf_generate(parser_protos PARSER_PROTO_SRCS PARSER_PROTO_HDRS ${PARSER_PROTO_LIST} TARGET)
+generate_cann_protobuf(parser_protos PARSER_PROTO_SRCS PARSER_PROTO_HDRS ${PARSER_PROTO_LIST} TARGET)
 
 add_library(parser_headers INTERFACE)
 target_include_directories(parser_headers INTERFACE

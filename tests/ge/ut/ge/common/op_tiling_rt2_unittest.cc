@@ -1346,12 +1346,15 @@ TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigPassesThroughLevel) {
   }
 }
 
-TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigRejectsInconsistentConfig) {
-  EXPECT_NE(SetDeterministicConfig(1, 0), GRAPH_SUCCESS);
-  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
-
-  EXPECT_NE(SetDeterministicConfig(0, 1), GRAPH_SUCCESS);
-  EXPECT_TRUE(acl_runtime_stub_->GetSysParamSetRecords().empty());
+TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigAcceptsIndependentValues) {
+  EXPECT_EQ(SetDeterministicConfig(1, 0), GRAPH_SUCCESS);
+  EXPECT_EQ(SetDeterministicConfig(0, 1), GRAPH_SUCCESS);
+  const auto &records = acl_runtime_stub_->GetSysParamSetRecords();
+  ASSERT_EQ(records.size(), 4U);
+  EXPECT_EQ(records[0].value, 1);
+  EXPECT_EQ(records[1].value, 1);
+  EXPECT_EQ(records[2].value, 1);
+  EXPECT_EQ(records[3].value, 1);
 }
 
 TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigPropagatesAclFailures) {

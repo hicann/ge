@@ -19,7 +19,7 @@
 4. 若提示如下信息，则说明模型转换成功。
 
     <!-- npu="950,A3,910b,910,310p,310b" id1 -->
-    若模型转换失败，请参见《[故障处理](https://hiascend.com/document/redirect/CannCommunitytrouble)》\> “错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\> “错误码参考”章节进行辅助定位。
     <!-- end id1 -->
 
     ```textconsole

@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id56 -->
 - IPV350：不支持
 <!-- end id56 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlCreateAndGetOpDesc_res.md#id1 -->
 
 ## 功能说明
 

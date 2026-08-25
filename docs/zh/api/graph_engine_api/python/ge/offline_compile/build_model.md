@@ -37,4 +37,4 @@ build_model(graph: Graph, build_options: Optional[dict] = None) -> ModelBuffer
   - 如果希望将内存缓冲区中的模型保存为离线模型文件xx.om，则需要调用save\_model接口，序列化保存离线模型到文件中。后续进行推理业务，需要使用**从文件中**加载模型的接口，例如aclmdlLoadFromFile，然后使用aclmdlExecute接口执行推理。
   - 如果离线模型保存在内存缓冲区： 后续进行推理业务时，需要使用**从内存中**加载模型的接口，例如aclmdlLoadFromMem，然后使用aclmdlExecute接口执行推理。
 
-接口详细介绍请参见“[模型管理](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)”章节。
+接口详细介绍请参见“[模型管理](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)”章节。

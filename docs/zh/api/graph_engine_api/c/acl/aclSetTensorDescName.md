@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id1118 -->
 - IPV350：不支持
 <!-- end id1118 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorDescName_res.md#id1 -->
 
 ## 功能说明
 

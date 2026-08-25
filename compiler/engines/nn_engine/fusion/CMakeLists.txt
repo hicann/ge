@@ -12,7 +12,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/ge_ir.proto"
         )
 
-protobuf_generate(fusion_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
+generate_cann_protobuf(fusion_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} TARGET)
 
 file(GLOB FUSION_SRC_CPP_1 RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "common/*.cc"

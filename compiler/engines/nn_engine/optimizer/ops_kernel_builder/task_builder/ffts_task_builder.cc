@@ -144,7 +144,7 @@ Status FftsTaskBuilder::GenCtxParamAndCtxType(const ge::Node &node, ffts::TaskBu
     FE_CHECK_NOTNULL(ffts_task_builder_adapter_ptr);
     Status status = ffts_task_builder_adapter_ptr->Init();
     if (status != SUCCESS) {
-      REPORT_FE_ERROR("[FFTSPlusTaskBuidler][GenContextArgs][Node %s] Ffts plus Init ffts task builder adapter failed.",
+      REPORT_FE_ERROR("[FFTSPlusTaskBuilder][GenContextArgs][Node %s] Ffts plus Init ffts task builder adapter failed.",
                       node.GetOpDesc()->GetName().c_str());
       return status;
     }
@@ -156,7 +156,7 @@ Status FftsTaskBuilder::GenCtxParamAndCtxType(const ge::Node &node, ffts::TaskBu
     FE_CHECK_NOTNULL(task_builder_adapter_ptr);
     Status status = task_builder_adapter_ptr->Init();
     if (status != SUCCESS) {
-      REPORT_FE_ERROR("[FFTSPlusTaskBuidler][GenContextArgs][Node %s] Ffts plus init tbe task builder adapter failed.",
+      REPORT_FE_ERROR("[FFTSPlusTaskBuilder][GenContextArgs][Node %s] Ffts plus init tbe task builder adapter failed.",
                       node.GetOpDesc()->GetName().c_str());
       return status;
     }

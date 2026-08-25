@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id21 -->
 - IPV350：不支持
 <!-- end id21 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetAIPPScfParams_res.md#id1 -->
 
 ## 功能说明
 

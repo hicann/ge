@@ -206,7 +206,7 @@ ge.exec.outputReuseInputMemIndexes = "0,1|6,8"
 
 - 若配置了ge.externalWeightDir，则权重文件会落盘到指定目录。
 - 若环境中未配置环境变量ASCEND\_WORK\_PATH，则权重文件落盘至当前执行目录`tmp_weight_<pid>_<sessionid>`下。
-- 若环境中配置环境变量ASCEND\_WORK\_PATH，则权重文件会落盘至`${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>`目录下，关于ASCEND\_WORK\_PATH的详细说明，可参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+- 若环境中配置环境变量ASCEND\_WORK\_PATH，则权重文件会落盘至`${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>`目录下，关于ASCEND\_WORK\_PATH的详细说明，可参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 落盘路径优先级：ge.externalWeightDir \> `${ASCEND_WORK_PATH}/tmp_weight_<pid>_<sessionid>` \>当前执行目录`tmp_weight_<pid>_<sessionid>`。
 

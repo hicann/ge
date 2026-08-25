@@ -93,7 +93,7 @@
 
     > [!NOTE]说明
     >
-    >因为ES构图API是基于算子IR原型生成，部分算子IR无法支撑所有信息表达（比如Conv类算子）或者IR表达有冗余信息（比如IdentityN算子），所以推荐用户自行封装ES API，该场景下用户可以自定义ES API，详细介绍请参见[自定义ES API](https://gitcode.com/cann/ge/blob/master/examples/custom_es_api)。
+    >因为ES构图API是基于算子IR原型生成，部分算子IR无法支撑所有信息表达（比如Conv类算子）或者IR表达有冗余信息（比如IdentityN算子），所以推荐用户自行封装ES API，该场景下用户可以自定义ES API，详细介绍请参见[自定义ES API](../../../../../examples/custom_es_api/README.md)。
 
 如下是一个完整的CMake文件示例，其中的CANN软件包安装路径/usr/local/Ascend/请根据实际情况进行替换，更多CMake示例请参见[CMake常见示例](../appendix/cmake_examples.md)。
 

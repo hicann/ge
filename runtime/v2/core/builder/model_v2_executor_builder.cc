@@ -149,6 +149,10 @@ std::unique_ptr<ModelV2Executor> ModelV2ExecutorBuilder::Build(const ExecutorOpt
 
   ge::ComputeGraphPtr root_graph = root_model_->GetRootGraph();
   GE_ASSERT_NOTNULL(root_graph);
+  (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC, executor->deterministic_);
+  (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC_LEVEL, executor->deterministic_level_);
+  executor->need_set_deterministic_config_ =
+      (executor->deterministic_ != 0) || ge::AttrUtils::HasAttr(root_graph, ge::DETERMINISTIC_LEVEL);
   GE_ASSERT_GRAPH_SUCCESS(RestoreDeviceVarMem(*executor));
   uint32_t cur_model_id = root_model_->GetCurModelId();
   std::string model_name = root_model_->GetModelName();

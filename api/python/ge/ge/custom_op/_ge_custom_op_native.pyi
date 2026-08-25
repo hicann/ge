@@ -58,9 +58,10 @@ class RuntimeAttrs:
 class EagerOpExecutionContext:
     """Eager op execution context (Python view of ``gert::EagerOpExecutionContext``).
 
-    Injected by the GE custom op bridge into ``EagerExecuteOp.execute(ctx)`` for
-    querying input/output tensors, allocating output/workspace memory, and
-    retrieving the execution stream.
+    Borrowed execution view available through ``ge.custom_op.get_execute_ctx()``
+    while a schema-bound ``execute`` callback is running. It supports querying
+    input/output tensors, allocating output/workspace memory, and retrieving the
+    execution stream.
 
     **Constraints**
 
@@ -72,8 +73,9 @@ class EagerOpExecutionContext:
 
     **Example**
 
-        def execute(self, ctx: EagerOpExecutionContext):
-            x = ctx.get_input_tensor(0)
+        def execute(self, x):
+            from ge.custom_op import get_execute_ctx
+            ctx = get_execute_ctx()
             y = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
     """
 

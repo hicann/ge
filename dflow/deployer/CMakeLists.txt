@@ -27,9 +27,9 @@ set(GRPC_SERVER_PROTO_LIST
         "${AIR_CODE_DIR}/dflow/deployer/proto/deployer.proto"
         )
 
-protobuf_generate(deployer_proto DEPLOYER_PROTO_SRCS DEPLOYER_PROTO_HDRS ${DEPLOYER_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
-protobuf_generate_grpc(deployer GRPC_PROTO_SRCS GRPC_PROTO_HDRS  ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
-protobuf_generate_grpc(deployer GRPC_SERVER_PROTO_SRCS GRPC_SERVER_PROTO_HDRS  ${GRPC_SERVER_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
+generate_cann_protobuf(deployer_proto DEPLOYER_PROTO_SRCS DEPLOYER_PROTO_HDRS ${DEPLOYER_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
+generate_cann_protobuf(deployer GRPC_PROTO_SRCS GRPC_PROTO_HDRS TYPE grpc ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
+generate_cann_protobuf(deployer GRPC_SERVER_PROTO_SRCS GRPC_SERVER_PROTO_HDRS TYPE grpc ${GRPC_SERVER_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
 
 ########################################## libnpu_sched_model_loader #################################
 set(NPU_SCHED_MODEL_LOADER_SRC_LIST

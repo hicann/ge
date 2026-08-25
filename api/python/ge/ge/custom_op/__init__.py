@@ -13,11 +13,9 @@
 """Python GE custom op public package."""
 
 __all__ = [
-    "BaseCustomOp",
     "AnnotatedArgsContext",
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
-    "EagerExecuteOp",
     "EagerOpExecutionContext",
     "InferMetaContext",
     "WorkspaceAddr",
@@ -32,12 +30,10 @@ __all__ = [
 ]
 
 _LAZY_EXPORTS = {
-    "BaseCustomOp": ".base",
     "AnnotatedArgsContext": "._native",
     "AnnotatedKernelArgs": "._native",
     "AnnotatedKernelLaunchInfo": "._native",
-    "EagerExecuteOp": ".base",
-    "EagerOpExecutionContext": ".base",
+    "EagerOpExecutionContext": "._native",
     "InferMetaContext": "._native",
     "clear_registered_op_impls": ".registry",
     "get_declare_launch_args_ctx": ".context",

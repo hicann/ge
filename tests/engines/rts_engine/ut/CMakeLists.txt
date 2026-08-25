@@ -11,7 +11,7 @@
 set(proto_src_files
     ${METADEF_PROTO_DIR}/task.proto
 )
-protobuf_generate(rts_engine_proto PROTO_SRCS PROTO_HDRS ${proto_src_files})
+generate_cann_protobuf(rts_engine_proto PROTO_SRCS PROTO_HDRS ${proto_src_files})
 
 set(rts_engine_src_file
     ${CMAKE_CURRENT_SOURCE_DIR}/../stub/platform_stub.cc

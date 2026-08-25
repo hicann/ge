@@ -75,4 +75,4 @@ aclgrphBuildFinalize();
 
 ## 后续步骤
 
-上述权重更新后的图编译生成的离线模型，如果要进行推理业务，则必须通过aclmdlBundleLoadFromFile或aclmdlBundleLoadFromMem接口加载模型，然后使用aclmdlExecute接口执行推理，详细介绍请参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理 \> 权重更新”章节。
+上述权重更新后的图编译生成的离线模型，如果要进行推理业务，则必须通过aclmdlBundleLoadFromFile或aclmdlBundleLoadFromMem接口加载模型，然后使用aclmdlExecute接口执行推理，详细介绍请参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 权重更新”章节。

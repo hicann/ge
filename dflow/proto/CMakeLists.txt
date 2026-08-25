@@ -11,7 +11,7 @@ set(DATA_FLOW_PROTO_LIST
         "${METADEF_PROTO_DIR}/ge_ir.proto"
         "dflow.proto"
 )
-protobuf_generate(data_flow_protos DATA_FLOW_PROTO_SRCS DATA_FLOW_PROTO_HDRS ${DATA_FLOW_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
+generate_cann_protobuf(data_flow_protos DATA_FLOW_PROTO_SRCS DATA_FLOW_PROTO_HDRS ${DATA_FLOW_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
 set(FLOW_GRAPH_PROTO_SRCS
         "${CMAKE_BINARY_DIR}/proto/data_flow_protos/proto/dflow.pb.cc"
 )

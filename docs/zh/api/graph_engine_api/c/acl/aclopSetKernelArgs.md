@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id1111 -->
 - IPV350：不支持
 <!-- end id1111 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopSetKernelArgs_res.md#id1 -->
 
 ## 功能说明
 

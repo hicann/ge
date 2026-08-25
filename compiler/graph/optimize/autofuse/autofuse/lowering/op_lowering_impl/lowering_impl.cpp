@@ -2703,4 +2703,64 @@ REGISTER_LOWERING(Log1p) {
   loop::Store(node->GetOutDataAnchor(0), output);
   return GRAPH_SUCCESS;
 }
+
+REGISTER_LOWERING(AscendQuant) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  std::vector<Expression> dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-input symbol shape.");
+  auto desc = src->GetOwnerNode()->GetOpDesc()->GetOutputDescPtr(src->GetIdx());
+  LOWERING_WARN_RECORD_REASON(desc != nullptr, node, "Input opdesc is nullptr.");
+  auto dtype = desc->GetDataType();
+
+  float32_t scale = 0.0f;
+  float32_t offset = 0.0f;
+  LOWERING_WARN_RECORD_REASON(AttrUtils::GetFloat(node->GetOpDesc(), "scale", scale), node,
+                              "Failed to get scale from opdesc.");
+  LOWERING_WARN_RECORD_REASON(AttrUtils::GetFloat(node->GetOpDesc(), "offset", offset), node,
+                              "Failed to get offset from opdesc.");
+
+  bool sqrt_mode = false;
+  (void)AttrUtils::GetBool(node->GetOpDesc(), "sqrt_mode", sqrt_mode);
+  if (sqrt_mode) {
+    scale = std::sqrt(scale);
+  }
+
+  std::string round_mode = "Round";
+  (void)AttrUtils::GetStr(node->GetOpDesc(), "round_mode", round_mode);
+  LOWERING_WARN_RECORD_REASON(round_mode == "Round", node,
+                              "Round mode %s is not supported, only default Round is supported.", round_mode.c_str());
+
+  int32_t dst_type = static_cast<int32_t>(ge::DT_INT8);
+  (void)AttrUtils::GetInt(node->GetOpDesc(), "dst_type", dst_type);
+  LOWERING_WARN_RECORD_REASON(static_cast<ge::DataType>(dst_type) != ge::DT_BOOL, node, "Dst type no support bool.");
+
+  auto x = loop::Load(node->GetInDataAnchor(0));
+  std::ostringstream scale_oss;
+  scale_oss.precision(20);
+  scale_oss << std::fixed << scale;
+  auto scale_var = loop::Scalar(scale_oss.str(), dtype);
+  std::ostringstream offset_oss;
+  offset_oss.precision(20);
+  offset_oss << std::fixed << offset;
+  auto offset_var = loop::Scalar(offset_oss.str(), dtype);
+
+  std::vector<loop::BroadcastOp::DimKind> status(dims.size(), loop::BroadcastOp::DimKind::NEW_AXIS);
+  status.resize(dims.size(), loop::BroadcastOp::DimKind::NEW_AXIS);
+  scale_var = loop::Broadcast(scale_var, status);
+  offset_var = loop::Broadcast(offset_var, status);
+
+  auto scaled = loop::Mul(x, scale_var);
+  auto shifted = loop::Add(scaled, offset_var);
+  auto dst_dtype = static_cast<ge::DataType>(dst_type);
+  if (dtype == ge::DT_FLOAT && dst_dtype != ge::DT_FLOAT && dst_dtype != ge::DT_FLOAT16) {
+    shifted = loop::Cast(shifted, ge::DT_FLOAT16);
+  }
+  auto rounded = loop::Round(shifted);
+  auto casted = loop::Cast(rounded, dst_dtype);
+  loop::Store(node->GetOutDataAnchor(0), casted);
+  return GRAPH_SUCCESS;
+}
 }  // namespace ge

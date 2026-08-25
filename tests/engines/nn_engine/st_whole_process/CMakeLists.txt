@@ -19,7 +19,7 @@ file(GLOB_RECURSE PROTO_LIST RELATIVE ${CMAKE_CURRENT_LIST_DIR}
         "${METADEF_PROTO_DIR}/ge_ir_mobile.proto"
         "${METADEF_PROTO_DIR}/task_mobile.proto")
 
-protobuf_generate(fe_st_whole_process PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
+generate_cann_protobuf(fe_st_whole_process PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
 
 # compile for fe_st_whole_process
 add_executable(fe_st_whole_process

@@ -107,7 +107,6 @@ def _get_type_hints(method, descriptor, method_name: str) -> dict:
         if method_name == "execute":
             target = getattr(method, "__func__", method)
             annotations = dict(getattr(target, "__annotations__", {}))
-            annotations.pop("return", None)
             if not annotations:
                 return {}
 
@@ -252,8 +251,6 @@ def _validate_args_signature(
             f"attr parameter {item['name']}",
         )
 
-    if method_name == "execute":
-        return
     if signature.return_annotation is inspect.Signature.empty:
         raise _signature_error(
             descriptor,

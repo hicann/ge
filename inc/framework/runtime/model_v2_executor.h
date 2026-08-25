@@ -243,6 +243,9 @@ class VISIBILITY_EXPORT ModelV2Executor {
   rtStream_t default_stream_ = nullptr;
   ExecutorSubscribersScheduler subscribers_;
   ExecutorState state_ = ExecutorState::kInit;
+  bool need_set_deterministic_config_ = false;
+  int32_t deterministic_ = 0;
+  int32_t deterministic_level_ = 0;
   std::string file_constant_weight_dir_;
   // 自动多流寻优标识，空表示不打点；本执行器无 model_id，由打点模块分配
   std::string auto_multistream_tuning_mode_;

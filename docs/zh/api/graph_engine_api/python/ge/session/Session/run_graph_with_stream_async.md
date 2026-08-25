@@ -28,4 +28,4 @@ run_graph_with_stream_async(graph_id: int, stream: int, inputs: List[Tensor]) ->
 - 如果stream不是整数，抛出TypeError。
 - 如果inputs中有元素不是Tensor类型，抛出TypeError。
 - 如果运行失败，抛出RuntimeError。
-- 调用该接口前，需要通过acl提供的**acl.rt.create\_stream\(\)**接口创建Stream，且只支持Stream为默认Context的场景；得到输出运行结果前，需要通过**acl.rt.synchronize\_stream**接口保证Stream上的任务已经执行完。接口详细说明请参见“[Stream管理](https://hiascend.com/document/redirect/CannCommunitycreatestream)”。
+- 调用该接口前，需要通过acl提供的**acl.rt.create\_stream\(\)**接口创建Stream，且只支持Stream为默认Context的场景；得到输出运行结果前，需要通过**acl.rt.synchronize\_stream**接口保证Stream上的任务已经执行完。接口详细说明请参见“[Stream管理](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)”。

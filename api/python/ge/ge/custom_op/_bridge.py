@@ -21,7 +21,7 @@ from typing import Dict, Optional
 from ._ir_types import InputType, OutputType
 from ._infer_meta import call_infer_meta  # noqa: F401
 from ._signature import _get_runtime_attr_spec, _validate_args_signature
-from .base import EagerOpExecutionContext
+from ._native import EagerOpExecutionContext
 from .bootstrap import (
     get_registered_op_impls,
     get_registered_op_protos,
@@ -76,10 +76,6 @@ def _get_eager_execute_holder(instance_id: str) -> _OpImplHolder:
     return holder
 
 
-def _get_eager_execute_op(instance_id: str) -> object:
-    return _get_eager_execute_holder(instance_id).instance
-
-
 def create_op_impl_holder(instance_id: str, descriptor_key: str) -> bool:
     descriptor = get_registered_op_impl_by_descriptor_key(descriptor_key)
     if descriptor is None:
@@ -100,19 +96,6 @@ def destroy_op_impl_holder(instance_id: str) -> bool:
         return _OP_IMPL_HOLDERS.pop(instance_id, None) is not None
 
 
-def _is_legacy_execute(method) -> bool:
-    params = list(inspect.signature(method).parameters.values())
-    return (
-        len(params) == 1
-        and params[0].name == "ctx"
-        and params[0].kind
-        in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        )
-    )
-
-
 def _get_callback_for_signature(cls, method_name: str):
     method = inspect.getattr_static(cls, method_name)
     if isinstance(method, staticmethod):
@@ -130,14 +113,12 @@ def validate_op_impl_descriptor(descriptor_key: str, ir_meta: Optional[dict]) ->
         raise KeyError(f"python op impl descriptor_key not found: {descriptor_key}")
 
     if INTERFACE_EAGER_EXECUTE in descriptor.interfaces:
+        if ir_meta is None:
+            raise RuntimeError(
+                f"canonical IR not found for schema-bound execute: {descriptor.op_type}"
+            )
         method = _get_callback_for_signature(descriptor.cls, "execute")
-        if not _is_legacy_execute(method):
-            if ir_meta is None:
-                raise RuntimeError(
-                    "canonical IR not found for schema-bound execute: "
-                    f"{descriptor.op_type}"
-                )
-            _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
+        _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
 
     if INTERFACE_ANNOTATED_ARGS in descriptor.interfaces:
         if ir_meta is None:
@@ -253,9 +234,6 @@ def call_execute(
         holder = _get_eager_execute_holder(instance_id)
         custom_op = holder.instance
         method = custom_op.execute
-        if _is_legacy_execute(method):
-            method(ctx)
-            return
         if ir_meta is None:
             descriptor = custom_op.__ge_op_impl_descriptor__
             raise RuntimeError(
@@ -264,7 +242,9 @@ def call_execute(
         args = _build_execute_inputs(ctx, ir_meta["inputs"])
         kwargs = _build_execute_attrs(ctx, ir_meta["attrs"])
         with _execute_ctx_scope(ctx):
-            method(*args, **kwargs)
+            result = method(*args, **kwargs)
+        if result is not None:
+            raise TypeError("execute must return None")
     finally:
         ctx._invalidate()
 

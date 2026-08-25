@@ -184,7 +184,7 @@
 
 如果profiling trace中显示模型计算存在明显的H2D等待，说明被等待的拷贝组过长，此时可手动调整分组边界，减少本组的拷贝数量。
 
-> 注：GE INFO日志通过环境变量`ASCEND_GLOBAL_LOG_LEVEL`设置，取值为`1`表示INFO级别（0=DEBUG，1=INFO，2=WARN，3=ERROR），详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+> 注：GE INFO日志通过环境变量`ASCEND_GLOBAL_LOG_LEVEL`设置，取值为`1`表示INFO级别（0=DEBUG，1=INFO，2=WARN，3=ERROR），详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 **配置示例：**
 
@@ -316,7 +316,7 @@
 - 如果参数指定的路径存在且有效，则在指定的路径下自动创建子目录kernel\_cache；如果指定的路径不存在但路径有效，则先自动创建目录，然后在该路径下自动创建子目录kernel\_cache。
 - 用户请不要在**默认缓存目录**下存放其他自有内容，自有内容在软件包安装或升级时会同默认缓存目录一并被删除。
 - 通过该参数指定的**非默认缓存目录**无法删除（软件包安装或升级时不会被删除）。
-- 算子编译磁盘缓存路径，除ge.op\_compiler\_cache\_dir参数设置的方式外，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式优先级为：配置参数“ge.op\_compiler\_cache\_dir”\>环境变量ASCEND\_CACHE\_PATH\>默认存储路径。关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+- 算子编译磁盘缓存路径，除ge.op\_compiler\_cache\_dir参数设置的方式外，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式优先级为：配置参数“ge.op\_compiler\_cache\_dir”\>环境变量ASCEND\_CACHE\_PATH\>默认存储路径。关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 **必选/可选**：可选
 

@@ -45,7 +45,7 @@ set(PROTO_LIST
     "${METADEF_PROTO_DIR}/task_mobile.proto"
 )
 
-protobuf_generate(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
+generate_cann_protobuf(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}" TARGET)
 
 # First of all, released version of metadef (i.e. libgraph_base.so) does NOT include this.
 # Not removing it here (from libmetadef_graph.so) will crash the test when linked together

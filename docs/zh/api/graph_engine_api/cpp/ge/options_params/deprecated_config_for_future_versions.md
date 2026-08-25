@@ -23,7 +23,8 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {{"ge.exec.deviceId", 
 > [!NOTE]说明
 >
 >- 若没有指定节点名，则节点默认按照index顺序存储，存储示例如下：`xxx\_0，xxx\_1，xxx\_2，……`，其中下划线后为节点在网络脚本中的定义顺序索引，节点会按照此索引的字母顺序进行排布，所以当节点的个数大于10时，则排序为`xxx_0 -> xxx_10 -> xxx_2 -> xxx_3`，网络脚本中定义索引为10的节点排在了索引为2的节点前面，导致定义的shape range与实际输入的节点不匹配。为避免此问题，当节点的输入个数大于10时，建议在网络脚本中指定节点的名称，则节点会以指定的名称进行命名，实现shape range与节点名称的关联。
->- 如果该参数与ge.dynamicDims同时配置，示例如下：
+>
+>- 如果该参数与ge.dynamicDims同时配置，示例如下，ge.dynamicDims参数功能（动态分档）优先级高于ge.exec.dataInputsShapeRange参数功能（动态shape范围）。
 >
 >   ```c++
 >   std::map<ge::AscendString, ge::AscendString> ge_options =
@@ -31,9 +32,8 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {{"ge.exec.deviceId", 
 >        {"ge.dynamicDims", "20,20,1,1;40,40,2,2;80,60,4,4"},
 >           xxx
 >        {"ge.exec.dataInputsShapeRange", "[128, 3~5, 2~128, -1],[ 128 ,3~5, 2~128, -1]"}};
->       ```
+>   ```
 >
-> ge.dynamicDims参数功能（动态分档）优先级高于ge.exec.dataInputsShapeRange参数功能（动态shape范围）。
 
 **必选/可选**：可选
 

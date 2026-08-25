@@ -35,7 +35,7 @@ set(GRPC_PROTO_LIST
     "${AIR_CODE_DIR}/dflow/deployer/proto/deployer.proto"
 )
 
-protobuf_generate_grpc(deployer GRPC_PROTO_SRCS GRPC_PROTO_HDRS ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
+generate_cann_protobuf(deployer GRPC_PROTO_SRCS GRPC_PROTO_HDRS TYPE grpc ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
 
 add_library(helper_runtime SHARED
     ${GRPC_PROTO_SRCS}
@@ -107,7 +107,7 @@ set(PROTO_LIST
         "${AIR_CODE_DIR}/runtime/proto/deployer.proto"
         )
 
-protobuf_generate(deployer PROTO_SRCS PROTO_HDRS ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
+generate_cann_protobuf(deployer PROTO_SRCS PROTO_HDRS ${GRPC_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
 
 add_library(helper_runtime_no_grpc SHARED
         ${GRPC_STUB_SRC}

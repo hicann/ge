@@ -28,4 +28,4 @@ register_external_allocator(stream: int, allocator: Allocator) -> None
 - 如果注册失败，抛出RuntimeError。
 - 对于同一条流，多次调用本接口，以最后一次注册为准。
 - 对于不同流，如果用户使用同一个Allocator，不可以多条流并发执行，在执行下一条Stream前，需要对上一Stream做流同步。
-- 将Allocator中的内存释放给操作系统前，需要先调用“[acl.rt.synchronize\_stream](https://hiascend.com/document/redirect/CannCommunitysynchronize)”接口执行流同步，确保Stream中的任务已执行完成。
+- 将Allocator中的内存释放给操作系统前，需要先调用“[acl.rt.synchronize\_stream](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)”接口执行流同步，确保Stream中的任务已执行完成。

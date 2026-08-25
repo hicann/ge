@@ -53,12 +53,12 @@ def _write_onnx_plugin(path: Path, source: str) -> Path:
 def _write_custom_op(path: Path, op_type: str) -> Path:
     path.write_text(
         textwrap.dedent(f"""
-        from ge.custom_op import EagerExecuteOp, register_op_impl
+        from ge.custom_op import register_op_impl
 
         @register_op_impl(op_type="{op_type}")
-        class SeparateCustomOp(EagerExecuteOp):
-            def execute(self, ctx):
-                del ctx
+        class SeparateCustomOp:
+            def execute(self) -> None:
+                pass
         """).strip()
         + "\n",
         encoding="utf-8",
@@ -159,13 +159,13 @@ def test_shared_path_is_imported_once_across_plugin_kinds(tmp_path, monkeypatch)
     module_path = tmp_path / "ge_py_mixed_plugin.py"
     module_path.write_text(
         textwrap.dedent("""
-        from ge.custom_op import EagerExecuteOp, register_op_impl
+        from ge.custom_op import register_op_impl
         from ge.onnx_plugin import onnx_plugin
 
         @register_op_impl(op_type="MixedCustom")
-        class MixedCustom(EagerExecuteOp):
-            def execute(self, ctx):
-                del ctx
+        class MixedCustom:
+            def execute(self) -> None:
+                pass
 
         plugin = onnx_plugin(
             source="MixedSource", domain="test.domain", opsets=(1,), target="Target"

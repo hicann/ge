@@ -373,6 +373,11 @@ class PythonCustomOpPybindBridge {
     py::gil_scoped_acquire gil;
     try {
       const auto ir_meta = CollectPythonCustomOpIrMeta(op_type);
+      if (ir_meta == nullptr) {
+        GELOGE(FAILED, "Validate python custom op impl failed because canonical IR is missing, op type[%s].",
+               op_type.c_str());
+        return false;
+      }
       return bridge_module_.attr("validate_op_impl_descriptor")(descriptor_key, BuildPythonIrMeta(ir_meta.get()))
           .cast<bool>();
     } catch (const py::error_already_set &err) {

@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id231 -->
 - IPV350：不支持
 <!-- end id231 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetAIPPPixelVarReci_res.md#id1 -->
 
 ## 功能说明
 

@@ -1061,24 +1061,10 @@ ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level, bool &has_de
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus CheckDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level) {
-  if ((deterministic == 0) != (deterministic_level == 0)) {
-    const std::string value = std::to_string(deterministic) + " / " + std::to_string(deterministic_level);
-    const char *reason = "must both be 0 or both non-zero.";
-    REPORT_PREDEFINED_ERR_MSG(
-        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({"deterministic / deterministic_level", value.c_str(), reason}));
-    GELOGE(ge::PARAM_INVALID, "Deterministic[%d] and deterministic level[%d] are inconsistent.", deterministic,
-           deterministic_level);
-    return ge::PARAM_INVALID;
-  }
-  return ge::GRAPH_SUCCESS;
-}
-
 ge::graphStatus SetDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level) {
-  GE_ASSERT_SUCCESS(CheckDeterministicConfig(deterministic, deterministic_level));
-  GE_CHK_ACL_RET(aclrtSetSysParamOpt(ACL_OPT_DETERMINISTIC, deterministic_level));
-  GE_CHK_ACL_RET(aclrtCtxSetSysParamOpt(ACL_OPT_DETERMINISTIC, deterministic_level));
+  const int32_t effective_level = (deterministic != 0 && deterministic_level == 0) ? 1 : deterministic_level;
+  GE_CHK_ACL_RET(aclrtSetSysParamOpt(ACL_OPT_DETERMINISTIC, effective_level));
+  GE_CHK_ACL_RET(aclrtCtxSetSysParamOpt(ACL_OPT_DETERMINISTIC, effective_level));
   return ge::GRAPH_SUCCESS;
 }
 

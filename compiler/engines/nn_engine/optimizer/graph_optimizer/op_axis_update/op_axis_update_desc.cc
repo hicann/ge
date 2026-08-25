@@ -189,7 +189,7 @@ ge::GeShape OpAxisUpdateDesc::GetFractalZNewShape(const ge::GeShape &origin_shap
   }
 
   if (CheckInt64MulOverflow(axis_value[AXIS_W], axis_value[AXIS_H]) != SUCCESS) {
-    FE_LOGW("Int64 addition of %ld and %ld can result in overflow!", axis_value[AXIS_W], axis_value[AXIS_H]);
+    FE_LOGW("Int64 multiplication of %ld and %ld can result in overflow!", axis_value[AXIS_W], axis_value[AXIS_H]);
     return origin_shape;
   }
 
@@ -197,7 +197,7 @@ ge::GeShape OpAxisUpdateDesc::GetFractalZNewShape(const ge::GeShape &origin_shap
   int64_t axis_dhw = axis_value[AXIS_W] * axis_value[AXIS_H];
   if (primary_format == ge::FORMAT_FRACTAL_Z_3D) {
     if (CheckInt64MulOverflow(axis_dhw, axis_value[AXIS_D]) != SUCCESS) {
-      FE_LOGW("Int64 addition of %ld and %ld can result in overflow!", axis_dhw, axis_value[AXIS_D]);
+      FE_LOGW("Int64 multiplication of %ld and %ld can result in overflow!", axis_dhw, axis_value[AXIS_D]);
       return origin_shape;
     }
     axis_dhw *= axis_value[AXIS_D];

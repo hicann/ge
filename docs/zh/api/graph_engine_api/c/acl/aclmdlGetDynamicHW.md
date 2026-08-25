@@ -20,6 +20,7 @@
 <!-- npu="IPV350" id517 -->
 - IPV350：不支持
 <!-- end id517 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlGetDynamicHW_res.md#id1 -->
 
 ## 功能说明
 

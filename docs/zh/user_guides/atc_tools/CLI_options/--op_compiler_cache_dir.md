@@ -44,4 +44,4 @@ atc --op_compiler_cache_dir=$HOME/atc_data --op_compiler_cache_mode=enable ...
 
 配置参数“[--op\_compiler\_cache\_dir](--op_compiler_cache_dir.md)”\>环境变量ASCEND\_CACHE\_PATH\>默认存储路径。
 
-关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+关于环境变量ASCEND\_CACHE\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。

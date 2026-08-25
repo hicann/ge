@@ -41,7 +41,7 @@ set(PROTO_LIST
         "${METADEF_PROTO_DIR}/task_mobile.proto"
         )
 
-protobuf_generate(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
+generate_cann_protobuf(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST})
 
 ################################################################################
 # build graph_engine_test

@@ -23,7 +23,7 @@ void SetType(DataType data_type)
 
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
-| data_type | 输入 | 设置的目标DataType。类型请参见[DataType](https://hiascend.com/document/redirect/CannCommunitybasicopapi)。 |
+| data_type | 输入 | 设置的目标DataType。类型请参见[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

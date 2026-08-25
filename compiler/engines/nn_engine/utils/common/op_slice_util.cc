@@ -379,10 +379,9 @@ Status OpSliceUtil::FillupReduceSliceInfo(ge::OpDescPtr op_desc_ptr, OpCalcInfo 
 
 Status OpSliceUtil::FillupResizeSliceInfo(ge::OpDescPtr op_desc_ptr, const OpCalcInfo &op_calc_info,
                                           const bool &sup_sw) {
-  (void)op_desc_ptr;
   (void)op_calc_info;
   (void)sup_sw;
-  FE_LOGI("Does not support this slice pattern yet.");
+  FE_LOGI("Does not support resize slice pattern yet, node[%s].", op_desc_ptr->GetName().c_str());
   return SUCCESS;
 }
 
@@ -394,10 +393,9 @@ Status OpSliceUtil::FillupResizeSliceInfo(ge::OpDescPtr op_desc_ptr, const OpCal
  */
 Status OpSliceUtil::FillupScatterSliceInfo(ge::OpDescPtr op_desc_ptr, const OpCalcInfo &op_calc_info,
                                            const bool &sup_sw) {
-  (void)op_desc_ptr;
   (void)op_calc_info;
   (void)sup_sw;
-  FE_LOGI("Does not support this slice pattern yet.");
+  FE_LOGI("Does not support scatter slice pattern yet, node[%s].", op_desc_ptr->GetName().c_str());
   return SUCCESS;
 }
 
@@ -409,10 +407,9 @@ Status OpSliceUtil::FillupScatterSliceInfo(ge::OpDescPtr op_desc_ptr, const OpCa
  */
 Status OpSliceUtil::FillupSegmentSliceInfo(ge::OpDescPtr op_desc_ptr, const OpCalcInfo &op_calc_info,
                                            const bool &sup_sw) {
-  (void)op_desc_ptr;
   (void)op_calc_info;
   (void)sup_sw;
-  FE_LOGI("Does not support this slice pattern yet.");
+  FE_LOGI("Does not support segment slice pattern yet, node[%s].", op_desc_ptr->GetName().c_str());
   return SUCCESS;
 }
 

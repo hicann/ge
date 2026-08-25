@@ -2093,6 +2093,12 @@ Status KernelTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, c
       {static_cast<int64_t>(MemSizeAlign(static_cast<size_t>(args_size_), static_cast<uint32_t>(sizeof(uintptr_t))) +
                             append_size),
        args_placement_});
+  const bool is_wsp_addr_folded = IsWspAddrFolded(op_desc_);
+  GELOGD(
+      "[OM2]Get args size[%u] of op[%s], is_wsp_addr_folded[%d], "
+      "task_type[%d], placement[%d], is_optional_input_placeholder[%d].",
+      args_size_, op_desc_->GetName().c_str(), static_cast<int32_t>(is_wsp_addr_folded),
+      static_cast<int32_t>(task_type_), args_placement_, is_optional_input_placeholder_);
   return SUCCESS;
 }
 
@@ -2315,6 +2321,38 @@ Status KernelTaskCodeBuilder::SetIoAddrsForCustomized() {
   return SUCCESS;
 }
 
+void KernelTaskCodeBuilder::GetAtomicOutAddrs(const std::vector<uint64_t> &output_data_addrs,
+                                              const std::vector<uint64_t> &output_addr_mem_types,
+                                              std::vector<uint64_t> &atomic_output_data_addrs,
+                                              std::vector<uint64_t> &atomic_output_addr_mem_types) const {
+  std::vector<int64_t> atomic_output_indices;
+  (void)AttrUtils::GetListInt(op_desc_, ATOMIC_ATTR_OUTPUT_INDEX, atomic_output_indices);
+  for (const int64_t output_index : atomic_output_indices) {
+    if (output_index < static_cast<int64_t>(output_data_addrs.size())) {
+      atomic_output_data_addrs.push_back(output_data_addrs[static_cast<size_t>(output_index)]);
+      atomic_output_addr_mem_types.push_back(output_addr_mem_types[static_cast<size_t>(output_index)]);
+    }
+  }
+}
+
+void KernelTaskCodeBuilder::GetAtomicWorkspaceAddrs(const std::vector<uint64_t> &workspace_data_addrs,
+                                                    const std::vector<uint64_t> &workspace_addr_types,
+                                                    std::vector<uint64_t> &atomic_workspace_data_addrs,
+                                                    std::vector<uint64_t> &atomic_workspace_addr_types) const {
+  GeAttrValue::NAMED_ATTRS workspaces;
+  if (AttrUtils::GetNamedAttrs(op_desc_, EXT_ATTR_ATOMIC_WORKSPACE_INFO, workspaces)) {
+    std::vector<int64_t> value;
+    const std::string &op_name = op_desc_->GetName();
+    (void)AttrUtils::GetListInt(workspaces, op_name, value);
+    for (auto &index : value) {
+      if (index < static_cast<int64_t>(workspace_data_addrs.size())) {
+        atomic_workspace_data_addrs.push_back(workspace_data_addrs[static_cast<size_t>(index)]);
+        atomic_workspace_addr_types.push_back(workspace_addr_types[static_cast<size_t>(index)]);
+      }
+    }
+  }
+}
+
 Status KernelTaskCodeBuilder::SetIoAddrs() {
   if (kernel_type_ == ccKernelType::CUSTOMIZED) {
     return SetIoAddrsForCustomized();
@@ -2327,6 +2365,8 @@ Status KernelTaskCodeBuilder::SetIoAddrs() {
                                      output_data_addrs_.cend());
     (void)mem_types.insert(mem_types.cend(), input_mem_types_.cbegin(), input_mem_types_.cend());
     (void)mem_types.insert(mem_types.cend(), output_mem_types_.cbegin(), output_mem_types_.cend());
+  } else {
+    GetAtomicOutAddrs(output_data_addrs_, output_mem_types_, tensor_device_addrs, mem_types);
   }
 
   if (Om2CodegenUtils::IsAICoreKernel(kernel_type_)) {
@@ -2334,6 +2374,8 @@ Status KernelTaskCodeBuilder::SetIoAddrs() {
       (void)tensor_device_addrs.insert(tensor_device_addrs.cend(), workspace_addrs_.cbegin(), workspace_addrs_.cend());
       (void)mem_types.insert(mem_types.cend(), workspace_mem_types_.cbegin(), workspace_mem_types_.cend());
     }
+  } else {
+    GetAtomicWorkspaceAddrs(workspace_addrs_, workspace_mem_types_, tensor_device_addrs, mem_types);
   }
 
   size_t io_addrs_element_num = tensor_device_addrs.size();
@@ -2414,6 +2456,7 @@ Status KernelTaskCodeBuilder::InitAicpuTask(const OpDescPtr &op_desc, const domi
 Status KernelTaskCodeBuilder::InitKernel(const domi::TaskDef &task_def, const om2::PisToArgs &args) {
   const domi::KernelDef &kernel_def = task_def.kernel();
   const domi::KernelContext &context = kernel_def.context();
+  is_separately_clean_task_ = Om2CodegenUtils::IsSeparatelyCleanTask(op_desc_, task_def.kernel().kernel_name());
   is_addrs_folded_ = IsWspAddrFolded(op_desc_);
   GE_CHK_STATUS_RET_NOLOG(InitKernelByContext(task_def, context, args));
   Status ret = FAILED;
@@ -2467,6 +2510,10 @@ Status KernelTaskCodeBuilder::Init(const domi::TaskDef &task_def,
     GE_CHK_STATUS_RET_NOLOG(InitKernelWithHandle(task_def, args));
   } else {
     GE_CHK_STATUS_RET_NOLOG(InitKernel(task_def, args));
+  }
+  if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL && kernel_type_ == ccKernelType::CUST_AI_CPU) {
+    GELOGE(FAILED, "[OM2] Unsupported preprocess kernel");
+    return FAILED;
   }
   io_addr_mem_types_.resize(io_addrs_.size(), static_cast<uint64_t>(om2::MemoryAppType::kMemoryTypeFix));
   GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(logical_mem_allocations, io_addrs_, io_addr_mem_types_,

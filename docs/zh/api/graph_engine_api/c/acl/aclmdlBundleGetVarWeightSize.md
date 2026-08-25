@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id1062 -->
 - IPV350：不支持
 <!-- end id1062 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlBundleGetVarWeightSize_res.md#id1 -->
 
 ## 功能说明
 

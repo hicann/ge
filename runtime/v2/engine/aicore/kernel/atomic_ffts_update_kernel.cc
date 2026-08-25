@@ -92,7 +92,7 @@ ge::Status FFTSCalcAtomicOutputShapeSize(KernelContext *context) {
   for (size_t i = 0; i < out_clean_size; ++i) {
     auto output_index = out_clean_vec[i];
     if (static_cast<size_t>(output_index) >= out_size) {
-      KLOGE("Output index (%ld) is over then slice size(%zu).", output_index, out_size);
+      KLOGE("Output index (%ld) exceeds slice size (%zu).", output_index, out_size);
       return ge::GRAPH_FAILED;
     }
     auto tensor = compute_node_info->GetOutputTdInfo(output_index);

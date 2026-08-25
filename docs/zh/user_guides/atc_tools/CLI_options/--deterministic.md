@@ -50,4 +50,4 @@ atc --deterministic=0 ...
 
 ## 依赖约束
 
-无
+离线推理场景下，建议在模型转换阶段通过`--deterministic`和`--deterministic_level`设置确定性及一致性配置。通过`aclmdl`接口加载、执行离线模型时，不建议调用`aclrtSetSysParamOpt`或`aclrtCtxSetSysParamOpt`，通过`ACL_OPT_DETERMINISTIC`修改该配置，否则可能导致运行时配置与模型转换时的配置不一致，无法保证预期的确定性及一致性效果。如需调整该配置，建议使用目标配置重新转换模型。

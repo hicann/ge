@@ -23,6 +23,7 @@
 <!-- npu="IPV350" id705 -->
 - IPV350：不支持
 <!-- end id705 -->
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlLoadFromMemWithMem_res.md#id1 -->
 
 ## 功能说明
 
@@ -69,6 +70,8 @@ Control CPU开放形态下，model参数处需申请Device上的内存。
 <!-- npu="IPV350" id4 -->
 model参数处需申请Device上的内存。
 <!-- end id4 -->
+
+<!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlLoadFromMemWithMem_res.md#id2 -->
 
 ## 参考资源
 
