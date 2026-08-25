@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -8,17 +8,11 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <iostream>
-#include <gtest/gtest.h>
+#ifndef PARSER_PARSER_ONNX_PYTHON_ONNX_PLUGIN_BRIDGE_ONNX_PLUGIN_BRIDGE_H_
+#define PARSER_PARSER_ONNX_PYTHON_ONNX_PLUGIN_BRIDGE_ONNX_PLUGIN_BRIDGE_H_
 
-#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
+#include "ge/ge_api_types.h"
 
-using namespace std;
+extern "C" __attribute__((visibility("default"))) ge::Status InitOnnxPluginBridge();
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  int ret = RUN_ALL_TESTS();
-  ge::UnloadOnnxPythonPluginBridge();
-  std::cout << "Finish parser st." << std::endl;
-  return ret;
-}
+#endif  // PARSER_PARSER_ONNX_PYTHON_ONNX_PLUGIN_BRIDGE_ONNX_PLUGIN_BRIDGE_H_

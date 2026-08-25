@@ -54,6 +54,7 @@
 #include "graph/fusion/pass/pass_plugin_loader.h"
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "runtime/custom_op/custom_op_loader.h"
+#include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 
 namespace {
 
@@ -510,6 +511,7 @@ Status GeGenerator::Finalize() {
     (void)fusion::UnloadPassPlugins();
   }
   (void)custom_op::UnloadCustomOps();
+  ge::UnloadOnnxPythonPluginBridge();
   Status ret = impl_->graph_manager_.Finalize();
   if (ret != SUCCESS) {
     GELOGE(GE_GENERATOR_GRAPH_MANAGER_FINALIZE_FAILED, "[Call][Finalize] Graph manager finalize failed.");

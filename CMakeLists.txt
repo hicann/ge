@@ -379,6 +379,7 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
                     ut_libge_symbol_infer_utest
                     ut_libge_others_utest
                     ut_fusion_pass_executor_utest
+                    ut_onnx_plugin_bridge_utest
                     ut_libge_distinct_load_utest
                     ut_libge_kernel_utest
                     ut_libge_label_maker_utest

@@ -12,6 +12,8 @@
 #define PARSER_TESTS_DEPENDS_MMPA_SRC_MMAP_STUB_H_
 
 #include "mmpa/mmpa_api.h"
+#include <cstring>
+#include <cstdlib>
 #include <memory>
 
 #include <iostream>
@@ -31,7 +33,15 @@ class MmpaStubApi {
   }
 
   virtual INT32 mmRealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) {
-    return 0;
+    if ((path == nullptr) || (realPath == nullptr) || (realPathLen < MMPA_MAX_PATH)) {
+      return EN_INVALID_PARAM;
+    }
+    CHAR resolved_path[PATH_MAX] = {};
+    if (::realpath(path, resolved_path) == nullptr) {
+      return EN_ERROR;
+    }
+    const auto ret = strncpy_s(realPath, realPathLen, resolved_path, std::strlen(resolved_path));
+    return (ret == EOK) ? EN_OK : EN_ERROR;
   }
 };
 

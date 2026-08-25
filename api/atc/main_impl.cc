@@ -55,6 +55,7 @@
 #include "register/optimization_option_registry.h"
 #include "register/amct_registry.h"
 #include "runtime/custom_op/custom_op_loader.h"
+#include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 
 namespace {
 using json = nlohmann::json;
@@ -2367,6 +2368,7 @@ int32_t main_impl(int32_t argc, char *argv[]) {
   GE_MAKE_GUARD(release_python_resources, []() {
     (void)ge::fusion::UnloadPassPlugins();
     (void)ge::custom_op::UnloadCustomOps();
+    ge::UnloadOnnxPythonPluginBridge();
     (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   });
 

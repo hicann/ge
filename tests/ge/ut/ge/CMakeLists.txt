@@ -1210,6 +1210,106 @@ set_tests_properties(ut_fusion_pass_executor_utest PROPERTIES
     ENVIRONMENT "PYTHONPATH=${FUSION_PASS_PY_INSTALL_DIR}"
 )
 
+# ut_onnx_plugin_bridge_utest
+add_executable(ut_onnx_plugin_bridge_utest
+    "onnx_plugin_bridge_unittest.cc"
+)
+
+add_dependencies(ut_onnx_plugin_bridge_utest
+    ge_python_onnx_plugin_bridge
+)
+
+target_compile_options(ut_onnx_plugin_bridge_utest PRIVATE
+    -Werror=format
+    -Wno-deprecated-declarations
+    -Wall -Wfloat-equal -Werror
+    -Wno-subobject-linkage
+)
+
+target_include_directories(ut_onnx_plugin_bridge_utest PRIVATE
+    ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+    ${ASCEND_INSTALL_PATH}/include
+    ${ASCGEN_DIR}/inc
+    ${AIR_CODE_DIR}/parser
+    ${AIR_CODE_DIR}/parser/parser
+    ${AIR_CODE_DIR}/inc/parser
+    ${AIR_CODE_DIR}/inc/parser/external
+    ${pybind11_INCLUDE_DIR}
+)
+
+target_compile_definitions(ut_onnx_plugin_bridge_utest PRIVATE
+    google=ascend_private
+    ONNX_PYTHON_PLUGIN_BRIDGE_PATH="$<TARGET_FILE:ge_python_onnx_plugin_bridge>"
+)
+
+target_link_options(ut_onnx_plugin_bridge_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+    -Wl,-rpath,${CMAKE_BINARY_DIR}/parser/parser/onnx
+    -rdynamic
+    -Wl,-Bsymbolic
+)
+
+target_link_libraries(ut_onnx_plugin_bridge_utest
+    intf_llt_pub
+    ge_metadef_headers
+    ascendcl_stub
+    ascend_hal_stub
+    ${AIR_COMMON_LINK_OPTION}
+    ge_compiler
+    gert
+    register
+    graph
+    graph_base
+    fmk_onnx_parser
+    parser_common
+    unified_dlog
+    -Wl,-z,muldefs
+    -Wl,--whole-archive
+    ge_runtime_stub
+    rt2_registry_static
+    -Wl,--no-whole-archive
+    ge_running_env
+    ${COMMON_SHARED_LIBRARIES}
+    ge_python_embed
+    pybind_options
+    GTestShared::gtest
+    GTestShared::gtest_main
+    -lrt
+    -ldl
+)
+
+# Install ge_py wheel for onnx plugin bridge test
+set(ONNX_PLUGIN_PY_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/onnx_plugin_py_install)
+
+add_custom_command(
+    OUTPUT ${ONNX_PLUGIN_PY_INSTALL_DIR}/.installed
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${ONNX_PLUGIN_PY_INSTALL_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${ONNX_PLUGIN_PY_INSTALL_DIR}
+    COMMAND ${HI_PYTHON} -m pip install --target ${ONNX_PLUGIN_PY_INSTALL_DIR}
+            ${CMAKE_BINARY_DIR}/api/python/ge/ge_py-0.0.1-py3-none-any.whl
+            --force-reinstall
+    COMMAND ${HI_PYTHON} -m pip install --target ${ONNX_PLUGIN_PY_INSTALL_DIR}
+            ${CMAKE_BINARY_DIR}/tests/ge/ut/ge/graph/eager_style_graph_builder/graph_construction_test/output/whl/es_ut_test-1.0.0-py3-none-any.whl --force-reinstall
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:eager_style_graph_builder_base> ${ONNX_PLUGIN_PY_INSTALL_DIR}/ge/_capi/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/tests/ge/ut/ge/graph/eager_style_graph_builder/graph_construction_test/output/lib64/libes_ut_test.so ${ONNX_PLUGIN_PY_INSTALL_DIR}/ge/_capi/
+    COMMAND ${CMAKE_COMMAND} -E touch ${ONNX_PLUGIN_PY_INSTALL_DIR}/.installed
+    DEPENDS ge_python_main_wheel eager_style_graph_builder_base es_ut_test
+    COMMENT "Installing ge-py wheel for onnx_plugin_bridge_utest"
+)
+
+add_custom_target(install_ge_py_for_onnx_plugin_bridge_ut DEPENDS
+    ${ONNX_PLUGIN_PY_INSTALL_DIR}/.installed)
+
+add_dependencies(ut_onnx_plugin_bridge_utest install_ge_py_for_onnx_plugin_bridge_ut)
+
+add_test(NAME ut_onnx_plugin_bridge_utest COMMAND ut_onnx_plugin_bridge_utest
+    --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_onnx_plugin_bridge_utest.xml)
+set_tests_properties(ut_onnx_plugin_bridge_utest PROPERTIES
+    LABELS "ut;ge_common;ut_onnx_plugin_bridge_utest"
+    ENVIRONMENT "PYTHONPATH=${ONNX_PLUGIN_PY_INSTALL_DIR};ASAN_OPTIONS=detect_leaks=0;LSAN_OPTIONS=detect_leaks=0:exitcode=0"
+)
+
 # libge_label_maker_utest
 add_executable(ut_libge_label_maker_utest
     ${COMMON_TEST_FILES}

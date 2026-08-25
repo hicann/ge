@@ -152,7 +152,7 @@ add_subdirectory(parser/common)
 add_subdirectory(parser/func_to_graph)
 add_subdirectory(parser/onnx)
 
-install(TARGETS _caffe_parser parser_common fmk_onnx_parser fmk_parser func2graph parser_headers
+install(TARGETS _caffe_parser parser_common fmk_onnx_parser ge_python_onnx_plugin_bridge fmk_parser func2graph parser_headers
     EXPORT parser-targets
     LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL}
     ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL}

@@ -9,13 +9,18 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstdlib>
+#include <dlfcn.h>
 #include <iostream>
+#include <string>
 #include "parser/common/op_parser_factory.h"
 #include "graph/operator_reg.h"
+#include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "register/op_registry.h"
 #include "parser/common/op_registration_tbe.h"
 #include "parser/onnx_parser.h"
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 #include "st/parser_st_utils.h"
 #include "ge/ge_api_types.h"
 #include "depends/ops_stub/ops_stub.h"
@@ -25,8 +30,14 @@
 #include "common/ge_common/ge_types.h"
 #include "parser/onnx/onnx_parser_internal.h"
 #include "parser/onnx/onnx_file_constant_parser.h"
+#include "common/python_runtime/ge_python_runtime_manager.h"
+#include "onnx_plugin_test_helper.h"
 
 namespace ge {
+REG_OP(BridgeEluTarget).INPUT(x, TensorType::ALL()).OUTPUT(y, TensorType::ALL()).OP_END_FACTORY_REG(BridgeEluTarget);
+
+using onnx_plugin_test::ScopedInMemoryPlugin;
+
 class STestOnnxParser : public testing::Test {
  protected:
   void SetUp() {
@@ -390,5 +401,93 @@ TEST_F(STestOnnxParser, onnx_parser_int4_const_int32_data) {
   ge::Graph graph;
   EXPECT_EQ(modelParser.ModelParseToGraph(model_proto, graph), SUCCESS);
   VerifyInt4ConstantNode(graph);
+}
+
+ge::onnx::ModelProto CreateBridgePluginModel() {
+  ge::onnx::ModelProto plugin_model;
+  auto *plugin_graph = plugin_model.mutable_graph();
+  auto *plugin_input = plugin_graph->add_input();
+  plugin_input->set_name("X");
+  plugin_input->mutable_type()->mutable_tensor_type()->set_elem_type(ge::onnx::TensorProto_DataType_FLOAT);
+  auto *plugin_output = plugin_graph->add_output();
+  plugin_output->set_name("Y");
+  plugin_output->mutable_type()->mutable_tensor_type()->set_elem_type(ge::onnx::TensorProto_DataType_FLOAT);
+  auto *plugin_node = plugin_graph->add_node();
+  plugin_node->set_name("bridge_elu");
+  plugin_node->set_domain("test.domain");
+  plugin_node->set_op_type("BridgeElu");
+  plugin_node->add_input("X");
+  plugin_node->add_output("Y");
+  auto *plugin_alpha = plugin_node->add_attribute();
+  plugin_alpha->set_name("alpha");
+  plugin_alpha->set_type(ge::onnx::AttributeProto_AttributeType_FLOAT);
+  plugin_alpha->set_f(0.5F);
+  auto *plugin_opset = plugin_model.add_opset_import();
+  plugin_opset->set_domain("test.domain");
+  plugin_opset->set_version(1);
+  return plugin_model;
+}
+void VerifyBridgePluginNode(const ge::Graph &plugin_result) {
+  const auto plugin_compute_graph = ge::GraphUtilsEx::GetComputeGraph(plugin_result);
+  ASSERT_NE(plugin_compute_graph, nullptr);
+  const auto parsed_plugin_node = plugin_compute_graph->FindNode("bridge_elu");
+  ASSERT_NE(parsed_plugin_node, nullptr);
+  float parsed_alpha = 0.0F;
+  ASSERT_TRUE(ge::AttrUtils::GetFloat(parsed_plugin_node->GetOpDesc(), "alpha", parsed_alpha));
+  EXPECT_FLOAT_EQ(parsed_alpha, 0.5F);
+}
+void VerifyBridgePluginCallbacks() {
+  ge::onnx::NodeProto node;
+  node.set_op_type("test.domain::1::BridgeElu");
+  auto *alpha = node.add_attribute();
+  alpha->set_name("alpha");
+  alpha->set_type(ge::onnx::AttributeProto_AttributeType_FLOAT);
+  alpha->set_f(0.5F);
+  Operator op("bridge_node", "BridgeEluTarget");
+  const auto parse_elu = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeEluTarget", node.op_type());
+  ASSERT_NE(parse_elu, nullptr);
+  EXPECT_EQ(parse_elu(&node, op), SUCCESS);
+  EXPECT_NE(parse_elu(nullptr, op), SUCCESS);
+  ge::onnx::AttributeProto wrong_msg;
+  EXPECT_NE(parse_elu(&wrong_msg, op), SUCCESS);
+  node.set_op_type("test.domain::1::BridgeError");
+  const auto parse_error = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeErrorTarget", node.op_type());
+  ASSERT_NE(parse_error, nullptr);
+  EXPECT_EQ(parse_error(&node, op), FAILED);
+  node.set_op_type("test.domain::1::BridgeReturn");
+  const auto parse_return = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeReturnTarget", node.op_type());
+  ASSERT_NE(parse_return, nullptr);
+  EXPECT_NE(parse_return(&node, op), SUCCESS);
+
+  using InitBridgeFunc = Status (*)();
+  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(RTLD_DEFAULT, "InitOnnxPluginBridge"));
+  ASSERT_NE(init_bridge, nullptr);
+  EXPECT_EQ(init_bridge(), SUCCESS);
+  EXPECT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
+  using ResetBridgeFunc = void (*)();
+  const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(RTLD_DEFAULT, "ResetOnnxPluginBridgeState"));
+  ASSERT_NE(reset_bridge, nullptr);
+  reset_bridge();
+  EXPECT_NE(parse_elu(&node, op), SUCCESS);
+}
+TEST_F(STestOnnxParser, onnx_python_plugin_bridge_parse) {
+  ASSERT_EQ(setenv("PYTHONPATH", ONNX_PLUGIN_PY_INSTALL_DIR, 1), 0);
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ScopedInMemoryPlugin in_memory_plugin;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
+  std::map<ge::AscendString, ge::AscendString> parser_params;
+  ge::Graph graph;
+  ASSERT_EQ(ge::aclgrphParseONNX((case_dir + "/origin_models/onnx_conv2d.onnx").c_str(), parser_params, graph),
+            GRAPH_SUCCESS);
+  OnnxModelParser plugin_parser;
+  ge::Graph plugin_result;
+  ASSERT_EQ(plugin_parser.ModelParseToGraph(CreateBridgePluginModel(), plugin_result), SUCCESS);
+  VerifyBridgePluginNode(plugin_result);
+  VerifyBridgePluginCallbacks();
+
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
+  unsetenv("PYTHONPATH");
 }
 }  // namespace ge
