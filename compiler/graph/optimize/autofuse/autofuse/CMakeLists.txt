@@ -77,6 +77,7 @@ target_link_options(aihac_autofusion PRIVATE
 
 if (ENABLE_OPEN_SRC)
         target_link_libraries(aihac_autofusion PUBLIC
+               ge_intf_pub
                graph
                unified_dlog
                atrace_share
@@ -93,6 +94,7 @@ if (ENABLE_OPEN_SRC)
         )
 else ()
         target_link_libraries(aihac_autofusion PRIVATE
+               ge_intf_pub
                graph
                unified_dlog
                atrace_share

@@ -1,13 +1,5 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-all -Wl,-z,now")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-all -Wl,-z,now")
-
-if(NOT MDC_COMPILE_RUNTIME)
-    add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=0)
-else()
-    add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
-endif()
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
     # 存在`.dev_env`文件说明是蓝区开发环境，并且调用了`prepare_dev_env.sh`完成了开发环境准备

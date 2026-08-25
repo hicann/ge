@@ -31,14 +31,12 @@ if (NOT TARGET ge_autofuse_metadef_graph_protos_obj_af)
     target_compile_definitions(ge_autofuse_metadef_graph_protos_obj_af PRIVATE
         google=ascend_private
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
-        _GLIBCXX_USE_CXX11_ABI=0
     )
     target_compile_options(ge_autofuse_metadef_graph_protos_obj_af PRIVATE
-        -fPIC
         -O2
         -fno-common
         -Wextra
         -Wfloat-equal
     )
-    target_link_libraries(ge_autofuse_metadef_graph_protos_obj_af PRIVATE ascend_protobuf)
+    target_link_libraries(ge_autofuse_metadef_graph_protos_obj_af PRIVATE ascend_protobuf ge_intf_pub)
 endif ()

@@ -22,7 +22,6 @@ RULE_LAUNCH_ARG=""
 # MDC build para
 ENABLE_BUILD_DEVICE=ON
 ENABLE_MOD_EXT=OFF
-USE_CXX11_ABI=0
 CMAKE_TOOLCHAIN_FILE=""
 MDC_BUILD_COMPONENT=""
 CMAKE_TOOLCHAIN_PREFIX="${BASEPATH}/../cmake/toolchain"
@@ -135,11 +134,13 @@ parse_cmake_extra_args() {
         ENABLE_MOD_EXT=ON
     fi
 
-    lower_abi=$(echo "$USE_CXX11_ABI" | tr '[:upper:]' '[:lower:]')
-    if [[ "$lower_abi" == "on" || "$USE_CXX11_ABI" == "1" ]]; then
-        USE_CXX11_ABI=1
-    elif [[ "$lower_abi" == "off" || "$USE_CXX11_ABI" == "0" ]]; then
-        USE_CXX11_ABI=0
+    if [[ -n "$USE_CXX11_ABI" ]]; then
+        lower_abi=$(echo "$USE_CXX11_ABI" | tr '[:upper:]' '[:lower:]')
+        if [[ "$lower_abi" == "on" || "$USE_CXX11_ABI" == "1" ]]; then
+            USE_CXX11_ABI=1
+        elif [[ "$lower_abi" == "off" || "$USE_CXX11_ABI" == "0" ]]; then
+            USE_CXX11_ABI=0
+        fi
     fi
 }
 
@@ -457,7 +458,7 @@ build_single_pkg() {
         -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
         -D PACKAGE_TYPE=${PACKAGE_TYPE} \
         -D ENABLE_BUILD_DEVICE=${ENABLE_BUILD_DEVICE} \
-        -D USE_CXX11_ABI=${USE_CXX11_ABI} \
+        ${USE_CXX11_ABI:+-D USE_CXX11_ABI=${USE_CXX11_ABI}} \
         -D LLVM_PATH=${LLVM_PATH} \
         -D CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
         -D ENABLE_MOD_EXT=${ENABLE_MOD_EXT} \
