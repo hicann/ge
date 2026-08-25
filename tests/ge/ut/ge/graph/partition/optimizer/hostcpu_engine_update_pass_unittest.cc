@@ -494,6 +494,37 @@ TEST_F(UtestHostcpuEngineUpdatePass, HostCpuSupportCheckFailsWithKernelStore) {
   EXPECT_TRUE(node_atomic_engine_map.count(graph->FindNode("gather")) == 0U);
 }
 
+TEST_F(UtestHostcpuEngineUpdatePass, HostCpuRejectsUnsupportedDataTypes) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  const std::vector<DataType> unsupported_types = {DT_STRING, DT_STRING_REF, DT_VARIANT, DT_RESOURCE};
+  for (const auto data_type : unsupported_types) {
+    auto graph = BuildHostCpuSupportCheckGraph();
+    ASSERT_NE(graph, nullptr);
+    auto gather_desc = graph->FindNode("gather")->GetOpDesc();
+    gather_desc->MutableInputDesc(0)->SetDataType(data_type);
+    gather_desc->MutableInputDesc(0)->SetOriginDataType(data_type);
+
+    HostcpuEngineUpdatePass pass;
+    NodeEngineMap node_atomic_engine_map;
+    NodeEngineMap node_composite_engine_map;
+    EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+    EXPECT_EQ(gather_desc->GetOpKernelLibName(), kEngineNameAiCore);
+    EXPECT_TRUE(node_atomic_engine_map.count(graph->FindNode("gather")) == 0U);
+  }
+
+  auto output_graph = BuildHostCpuSupportCheckGraph();
+  ASSERT_NE(output_graph, nullptr);
+  auto output_gather_desc = output_graph->FindNode("gather")->GetOpDesc();
+  output_gather_desc->MutableOutputDesc(0)->SetDataType(DT_STRING);
+  output_gather_desc->MutableOutputDesc(0)->SetOriginDataType(DT_STRING);
+  HostcpuEngineUpdatePass output_pass;
+  NodeEngineMap output_atomic_engine_map;
+  NodeEngineMap output_composite_engine_map;
+  EXPECT_EQ(output_pass.Run(output_graph, output_atomic_engine_map, output_composite_engine_map), SUCCESS);
+  EXPECT_EQ(output_gather_desc->GetOpKernelLibName(), kEngineNameAiCore);
+  EXPECT_TRUE(output_atomic_engine_map.count(output_graph->FindNode("gather")) == 0U);
+}
+
 TEST_F(UtestHostcpuEngineUpdatePass, HostInputWithoutConsumerNotMarkedAsModelInput) {
   setenv("ENABLE_RUNTIME_V2", "1", 1);
   auto graph = BuildHostInputWithoutConsumerGraph();

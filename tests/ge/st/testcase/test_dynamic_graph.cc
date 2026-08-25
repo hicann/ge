@@ -1997,7 +1997,9 @@ TEST_F(DynamicGraphTest, HostCpuPassDoesNotRouteUnsupportedConcatV2ToHostCpu) {
   NodeEngineMap node_composite_engine_map;
   EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
 
-  EXPECT_GT(host_cpu_pass_env.GetCheckSupportedCount(), 0U);
+  // Unsupported data types are rejected by HostcpuEngineUpdatePass before
+  // consulting the HostCPU kernel store.
+  EXPECT_EQ(host_cpu_pass_env.GetCheckSupportedCount(), 0U);
   EXPECT_EQ(concat->GetOpDesc()->GetOpKernelLibName(), kEngineNameAiCore);
   EXPECT_TRUE(node_atomic_engine_map.count(concat) == 0U);
   bool is_host_model_input = false;
@@ -2006,7 +2008,7 @@ TEST_F(DynamicGraphTest, HostCpuPassDoesNotRouteUnsupportedConcatV2ToHostCpu) {
   unsetenv("ENABLE_RUNTIME_V2");
 }
 
-TEST_F(DynamicGraphTest, HostCpuPassRoutesConcatV2WhenHostCpuStoreMissing) {
+TEST_F(DynamicGraphTest, HostCpuPassDoesNotRouteConcatV2WhenHostCpuStoreMissing) {
   setenv("ENABLE_RUNTIME_V2", "1", 1);
   ScopedHostCpuPassEnv host_cpu_pass_env(false);
   auto graph = BuildHostCpuUnsupportedConcatV2Graph();
@@ -2021,12 +2023,12 @@ TEST_F(DynamicGraphTest, HostCpuPassRoutesConcatV2WhenHostCpuStoreMissing) {
   NodeEngineMap node_composite_engine_map;
   EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
 
-  EXPECT_EQ(concat->GetOpDesc()->GetOpKernelLibName(), kStHostCpuKernelStore);
-  EXPECT_EQ(concat->GetOpDesc()->GetOpEngineName(), kStHostCpuEngine);
-  EXPECT_EQ(node_atomic_engine_map[concat], kStHostCpuEngine);
+  EXPECT_EQ(concat->GetOpDesc()->GetOpKernelLibName(), kEngineNameAiCore);
+  EXPECT_TRUE(concat->GetOpDesc()->GetOpEngineName().empty());
+  EXPECT_TRUE(node_atomic_engine_map.count(concat) == 0U);
   bool is_host_model_input = false;
   (void)AttrUtils::GetBool(data->GetOpDesc(), ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, is_host_model_input);
-  EXPECT_TRUE(is_host_model_input);
+  EXPECT_FALSE(is_host_model_input);
   unsetenv("ENABLE_RUNTIME_V2");
 }
 
