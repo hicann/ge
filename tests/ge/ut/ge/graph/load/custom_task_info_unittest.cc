@@ -758,7 +758,7 @@ TEST_F(UtestCustomTaskInfo, ParseTaskRunParam_UsesModelCustomOpRegistry) {
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_NE(registry, nullptr);
   ASSERT_EQ(registry->RegisterCreator(
-                op_type.c_str(),
+                op_type.c_str(), OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestArgsUpdaterCustomOp>(); }),
             GRAPH_SUCCESS);
 
@@ -1216,7 +1216,7 @@ TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_AnnotatedArgsOp_UsesAnnotatedAr
   SetUpMinimalDavinciModel(model, op_desc);
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                op_type.c_str(),
+                op_type.c_str(), OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestArgsUpdaterCustomOp>(); }),
             GRAPH_SUCCESS);
   model.SetCustomOpRegistry(registry);

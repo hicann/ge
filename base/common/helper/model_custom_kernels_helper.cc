@@ -175,12 +175,9 @@ Status ModelHelper::SaveCustomOpsPartition(std::shared_ptr<OmFileSaveHelper> &om
   std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
   serializable_ops.reserve(used_custom_op_types.size());
   for (const auto &op_type_str : used_custom_op_types) {
-    auto op = registry->CreateOrGetCustomOp(AscendString(op_type_str.c_str()));
-    if (op == nullptr) {
-      GELOGE(FAILED, "[CUSTOM OP] create custom op failed, op_type:%s", op_type_str.c_str());
-      return FAILED;
-    }
-    auto *serializable_op = CustomOpCast<PortableOp>(op);
+    const AscendString op_type(op_type_str.c_str());
+    auto *serializable_op =
+        CustomOpCast<PortableOp>(registry->GetCustomOpCommonCapability(op_type, CustomOpCapability::kPortable));
     if (serializable_op == nullptr) {
       has_non_serializable_custom_op = true;
     } else {

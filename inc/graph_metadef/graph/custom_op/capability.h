@@ -22,6 +22,7 @@ enum class CustomOpCapability : uint32_t {
   kArgsUpdater = 1U << 4U,
   kAnnotatedArgs = 1U << 5U,
   kInferMeta = 1U << 6U,
+  kHostCpuExecute = 1U << 7U,
 };
 
 using CustomOpCapabilityMask = uint32_t;

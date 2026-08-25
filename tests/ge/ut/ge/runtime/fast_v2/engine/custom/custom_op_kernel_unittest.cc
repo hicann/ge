@@ -211,8 +211,8 @@ static ComputeGraphPtr BuildCustomOpGraphWithInferRule(const std::string &rule) 
 static CustomOpRegistryPtr BuildCustomOpRegistryForRt2(const BaseOpCreator &creator) {
   auto custom_op_registry = std::make_shared<CustomOpRegistry>();
   EXPECT_NE(custom_op_registry, nullptr);
-  EXPECT_EQ(custom_op_registry->RegisterCreator("CustomOp", creator), GRAPH_SUCCESS);
-  EXPECT_NE(custom_op_registry->CreateOrGetCustomOp("CustomOp"), nullptr);
+  EXPECT_EQ(custom_op_registry->RegisterCreator("CustomOp", OpBackend::kDevice, creator), GRAPH_SUCCESS);
+  EXPECT_NE(custom_op_registry->CreateOrGetCustomOp("CustomOp", OpBackend::kDevice), nullptr);
   return custom_op_registry;
 }
 
@@ -256,10 +256,10 @@ TEST_F(CustomNodeKernelUT, find_custom_op_uses_model_registry) {
   const std::string node_type = "RegistryOnlyCustomOpForRt2";
   auto custom_op_registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(custom_op_registry->RegisterCreator(
-                node_type.c_str(),
+                node_type.c_str(), OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestRegistryOnlyCustomOp>(); }),
             GRAPH_SUCCESS);
-  auto *expected_op = custom_op_registry->CreateOrGetCustomOp(node_type.c_str());
+  auto *expected_op = custom_op_registry->CreateOrGetCustomOp(node_type.c_str(), OpBackend::kDevice);
   ASSERT_NE(expected_op, nullptr);
 
   auto run_context = BuildKernelRunContext(3, 1);
@@ -279,7 +279,7 @@ TEST_F(CustomNodeKernelUT, find_custom_op_does_not_fallback_to_global_registry) 
                 node_type.c_str(),
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestRegistryOnlyCustomOp>(); }),
             GRAPH_SUCCESS);
-  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(node_type.c_str());
+  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(node_type.c_str(), OpBackend::kDevice);
   ASSERT_NE(global_op, nullptr);
 
   auto custom_op_registry = std::make_shared<CustomOpRegistry>();
@@ -299,7 +299,7 @@ TEST_F(CustomNodeKernelUT, find_custom_op_uses_global_registry) {
                 node_type.c_str(),
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestRegistryOnlyCustomOp>(); }),
             GRAPH_SUCCESS);
-  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(node_type.c_str());
+  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(node_type.c_str(), OpBackend::kDevice);
   ASSERT_NE(global_op, nullptr);
 
   auto run_context = BuildKernelRunContext(3, 1);

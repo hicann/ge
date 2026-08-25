@@ -145,11 +145,11 @@ ge::Status CompileCustomOpSerially(const std::vector<CompileTask *> *tasks) {
 ge::Status AppendCompileTaskIfNeeded(const ge::NodePtr &node, std::vector<CompileTask> &compile_tasks) {
   const auto op_type = node->GetType();
   const ge::AscendString op_type_ascend(op_type.c_str());
-  if (!ge::CustomOpFactory::IsExistOp(op_type_ascend)) {
+  if (!ge::CustomOpFactory::IsExistOp(op_type_ascend, ge::OpBackend::kDevice)) {
     return ge::SUCCESS;
   }
   GELOGI("during optimize whole graph, %s is custom op", op_type_ascend.GetString());
-  auto *const base_custom_op_ptr = ge::CustomOpFactory::CreateOrGetCustomOp(op_type_ascend);
+  auto *const base_custom_op_ptr = ge::CustomOpFactory::CreateOrGetCustomOp(op_type_ascend, ge::OpBackend::kDevice);
   if (base_custom_op_ptr == nullptr) {
     GELOGE(ge::FAILED, "[Compile][CustomOp] create custom op failed, op_name:%s, op_type:%s", node->GetName().c_str(),
            op_type.c_str());

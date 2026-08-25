@@ -551,7 +551,7 @@ Status CustomTaskInfo::Distribute() {
   const auto &custom_op_registry = davinci_model_->GetCustomOpRegistry();
   GE_ASSERT_NOTNULL(custom_op_registry, "[CUSTOM OP] custom op registry is nullptr for op %s.",
                     op_desc_->GetName().c_str());
-  BaseCustomOp *custom_op_ptr = custom_op_registry->CreateOrGetCustomOp(op_type);
+  BaseCustomOp *custom_op_ptr = custom_op_registry->CreateOrGetCustomOp(op_type, ge::OpBackend::kDevice);
   GE_ASSERT_NOTNULL(custom_op_ptr, "[CUSTOM OP] custom op %s is not found in registry.", op_desc_->GetType().c_str());
 
   args_update_op_ = CustomOpCast<ArgsUpdater>(custom_op_ptr);

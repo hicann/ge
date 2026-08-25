@@ -702,12 +702,7 @@ Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root
   std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
   serializable_ops.reserve(used_custom_op_types.size());
   for (const auto &op_type_str : used_custom_op_types) {
-    auto op = CustomOpFactory::CreateOrGetCustomOp(AscendString(op_type_str.c_str()));
-    if (op == nullptr) {
-      GELOGE(FAILED, "[OM2] create custom op failed, op_type:%s", op_type_str.c_str());
-      return FAILED;
-    }
-    auto *serializable_op = dynamic_cast<PortableOp *>(op);
+    auto serializable_op = CustomOpFactory::GetCustomOpCommonCapability<PortableOp>(AscendString(op_type_str.c_str()));
     if (serializable_op == nullptr) {
       has_non_serializable_custom_op = true;
     } else {

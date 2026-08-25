@@ -583,4 +583,49 @@ FakeKernelContextHolder EagerOpExecutionContextFaker::Build() {
   UpdateOutputs();
   return base_faker_.Build();
 }
+
+HostCpuOpExecutionContextFaker &HostCpuOpExecutionContextFaker::NodeIoNum(size_t input_num, size_t output_num) {
+  base_faker_.KernelIONum(input_num + kEnd, output_num);
+  base_faker_.NodeIoNum(input_num, output_num);
+  return *this;
+}
+
+HostCpuOpExecutionContextFaker &HostCpuOpExecutionContextFaker::InputTensor(std::vector<gert::Tensor *> input_tensor) {
+  input_tensor_ = std::move(input_tensor);
+  return *this;
+}
+
+HostCpuOpExecutionContextFaker &HostCpuOpExecutionContextFaker::OutputTensor(
+    std::vector<gert::Tensor *> output_tensor) {
+  output_tensor_ = std::move(output_tensor);
+  return *this;
+}
+
+HostCpuOpExecutionContextFaker &HostCpuOpExecutionContextFaker::Allocator(void *allocator) {
+  allocator_ = allocator;
+  return *this;
+}
+
+void HostCpuOpExecutionContextFaker::UpdateInputs() {
+  std::vector<void *> inputs;
+  for (const auto input_tensor : input_tensor_) {
+    inputs.push_back(input_tensor);
+  }
+  inputs.push_back(allocator_);
+  base_faker_.Inputs(std::move(inputs));
+}
+
+void HostCpuOpExecutionContextFaker::UpdateOutputs() {
+  std::vector<void *> outputs;
+  for (const auto output_tensor : output_tensor_) {
+    outputs.push_back(output_tensor);
+  }
+  base_faker_.Outputs(std::move(outputs));
+}
+
+FakeKernelContextHolder HostCpuOpExecutionContextFaker::Build() {
+  UpdateInputs();
+  UpdateOutputs();
+  return base_faker_.Build();
+}
 }  // namespace gert

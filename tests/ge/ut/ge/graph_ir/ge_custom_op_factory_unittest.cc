@@ -31,6 +31,40 @@ using namespace ge::custom_op;
 namespace {
 class RegistryTestOp : public BaseCustomOp {};
 class RegistryDuplicateReplacementOp : public BaseCustomOp {};
+class RegistryHostExecuteOp : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
+
+class RegistryShapeInferOp : public ShapeInferOp {
+ public:
+  graphStatus InferShape(gert::InferShapeContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus InferDataType(gert::InferDataTypeContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
+
+class RegistrySharedShapeInferOp : public ShapeInferOp {
+ public:
+  graphStatus InferShape(gert::InferShapeContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus InferDataType(gert::InferDataTypeContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
+
 class RegistryDestructCountOp : public BaseCustomOp {
  public:
   explicit RegistryDestructCountOp(size_t *destruct_count) : destruct_count_(destruct_count) {}
@@ -76,7 +110,7 @@ class FactoryCallbackPortableOp : public PortableOp {
 
   graphStatus Deserialize(const std::vector<uint8_t> &buffer) override {
     (void)buffer;
-    const auto dependency_op = CustomOpFactory::CreateOrGetCustomOp("FactoryCallbackDependencyOp");
+    const auto dependency_op = CustomOpFactory::CreateOrGetCustomOp("FactoryCallbackDependencyOp", OpBackend::kDevice);
     return (dependency_op == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
   }
 };
@@ -146,85 +180,207 @@ class UtestCustomOpFactory : public testing::Test {
 
 TEST(UtestCustomOpRegistry, rejects_null_creator) {
   CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_PARAM_INVALID, registry.RegisterCreator("RegistryNullCreator", nullptr));
+  EXPECT_EQ(ge::GRAPH_PARAM_INVALID, registry.RegisterCreator("RegistryNullCreator", OpBackend::kDevice, nullptr));
   EXPECT_EQ(false, registry.HasCreator("RegistryNullCreator"));
+}
+
+TEST(UtestCustomOpRegistry, rejects_invalid_backend) {
+  CustomOpRegistry registry;
+  const auto invalid_backend = static_cast<OpBackend>(99U);
+  EXPECT_EQ(ge::GRAPH_PARAM_INVALID,
+            registry.RegisterCreator("RegistryInvalidBackend", invalid_backend, []() -> std::unique_ptr<BaseCustomOp> {
+              return std::make_unique<RegistryTestOp>();
+            }));
+  EXPECT_EQ(nullptr, registry.CreateOrGetCustomOp("RegistryInvalidBackend", invalid_backend));
+}
+
+TEST(UtestCustomOpRegistry, compatibility_overloads_use_device_backend) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCompatibilityOverloads", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryTestOp>();
+                                                        }));
+
+  const auto *created = registry.CreateOrGetCustomOp("RegistryCompatibilityOverloads", OpBackend::kDevice);
+  EXPECT_NE(nullptr, created);
+  EXPECT_TRUE(registry.HasCustomOp("RegistryCompatibilityOverloads"));
+  EXPECT_EQ(registry.CreateOrGetCustomOp("RegistryCompatibilityOverloads", OpBackend::kHostCPU), nullptr);
+}
+
+TEST(UtestCustomOpRegistry, creator_returning_null_does_not_create_custom_op) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCreatorReturnsNull", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }));
+
+  EXPECT_EQ(nullptr, registry.CreateOrGetCustomOp("RegistryCreatorReturnsNull", OpBackend::kDevice));
+  EXPECT_FALSE(registry.HasCustomOp("RegistryCreatorReturnsNull"));
 }
 
 TEST(UtestCustomOpRegistry, rejects_duplicate_creator) {
   CustomOpRegistry registry;
   const auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<RegistryTestOp>(); };
-  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryDuplicateCreator", creator));
-  EXPECT_EQ(ge::GRAPH_FAILED, registry.RegisterCreator("RegistryDuplicateCreator", creator));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryDuplicateCreator", OpBackend::kDevice, creator));
+  EXPECT_EQ(ge::GRAPH_FAILED, registry.RegisterCreator("RegistryDuplicateCreator", OpBackend::kDevice, creator));
+}
+
+TEST(UtestCustomOpRegistry, same_op_type_allows_different_backends) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryMultiBackendOp", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryTestOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryMultiBackendOp", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryHostExecuteOp>();
+                                                        }));
+
+  EXPECT_TRUE(registry.HasCreator("RegistryMultiBackendOp"));
+  EXPECT_TRUE(registry.HasCreator("RegistryMultiBackendOp", OpBackend::kDevice));
+  EXPECT_TRUE(registry.HasCreator("RegistryMultiBackendOp", OpBackend::kHostCPU));
+  EXPECT_NE(nullptr,
+            dynamic_cast<RegistryTestOp *>(registry.CreateOrGetCustomOp("RegistryMultiBackendOp", OpBackend::kDevice)));
+  EXPECT_NE(nullptr, dynamic_cast<RegistryHostExecuteOp *>(
+                         registry.CreateOrGetCustomOp("RegistryMultiBackendOp", OpBackend::kHostCPU)));
+  EXPECT_NE(nullptr,
+            dynamic_cast<RegistryTestOp *>(registry.CreateOrGetCustomOp("RegistryMultiBackendOp", OpBackend::kDevice)));
+}
+
+TEST(UtestCustomOpRegistry, remove_custom_ops_removes_all_backends) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryRemoveMultiBackendOp", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryTestOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryRemoveMultiBackendOp", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryHostExecuteOp>();
+                                                        }));
+
+  registry.RemoveCustomOps({AscendString("RegistryRemoveMultiBackendOp")});
+  EXPECT_FALSE(registry.HasCreator("RegistryRemoveMultiBackendOp", OpBackend::kDevice));
+  EXPECT_FALSE(registry.HasCreator("RegistryRemoveMultiBackendOp", OpBackend::kHostCPU));
+  EXPECT_FALSE(registry.HasCreator("RegistryRemoveMultiBackendOp"));
+}
+
+TEST(UtestCustomOpRegistry, get_all_registered_ops_returns_all_backends) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryAllOpsDeviceOnly", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryTestOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryAllOpsHostOnly", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryHostExecuteOp>();
+                                                        }));
+
+  std::vector<AscendString> all_ops;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.GetAllRegisteredOps(all_ops));
+  EXPECT_TRUE(std::any_of(all_ops.begin(), all_ops.end(),
+                          [](const AscendString &op_name) { return op_name == "RegistryAllOpsDeviceOnly"; }));
+  EXPECT_TRUE(std::any_of(all_ops.begin(), all_ops.end(),
+                          [](const AscendString &op_name) { return op_name == "RegistryAllOpsHostOnly"; }));
+}
+
+TEST(UtestCustomOpRegistry, get_custom_op_common_capability_returns_unique_owner) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCapabilityOwnerOp", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryShapeInferOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCapabilityOwnerOp", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryHostExecuteOp>();
+                                                        }));
+
+  EXPECT_NE(nullptr, dynamic_cast<RegistryShapeInferOp *>(registry.GetCustomOpCommonCapability(
+                         "RegistryCapabilityOwnerOp", CustomOpCapability::kShapeInfer)));
+  EXPECT_EQ(nullptr,
+            registry.GetCustomOpCommonCapability("RegistryCapabilityOwnerOp", CustomOpCapability::kHostCpuExecute));
+  EXPECT_NE(nullptr, dynamic_cast<RegistryHostExecuteOp *>(
+                         registry.CreateOrGetCustomOp("RegistryCapabilityOwnerOp", OpBackend::kHostCPU)));
+}
+
+TEST(UtestCustomOpRegistry, get_custom_op_common_capability_shares_same_instance_across_backends) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistrySharedCapabilityOp", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistrySharedShapeInferOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistrySharedCapabilityOp", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistrySharedShapeInferOp>();
+                                                        }));
+
+  auto *device_op = registry.CreateOrGetCustomOp("RegistrySharedCapabilityOp", OpBackend::kDevice);
+  auto *host_op = registry.CreateOrGetCustomOp("RegistrySharedCapabilityOp", OpBackend::kHostCPU);
+  ASSERT_NE(nullptr, device_op);
+  EXPECT_EQ(device_op, host_op);
+  EXPECT_EQ(device_op,
+            registry.GetCustomOpCommonCapability("RegistrySharedCapabilityOp", CustomOpCapability::kShapeInfer));
+}
+
+TEST(UtestCustomOpRegistry, get_custom_op_common_capability_rejects_different_types_across_backends) {
+  CustomOpRegistry registry;
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCapabilityConflictOp", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryShapeInferOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCapabilityConflictOp", OpBackend::kHostCPU,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistrySharedShapeInferOp>();
+                                                        }));
+
+  EXPECT_EQ(nullptr,
+            registry.GetCustomOpCommonCapability("RegistryCapabilityConflictOp", CustomOpCapability::kShapeInfer));
 }
 
 TEST(UtestCustomOpRegistry, duplicate_creator_keeps_original_creator) {
   CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_SUCCESS,
-            registry.RegisterCreator("RegistryDuplicateKeepsOriginal", []() -> std::unique_ptr<BaseCustomOp> {
-              return std::make_unique<RegistryTestOp>();
-            }));
-  EXPECT_EQ(ge::GRAPH_FAILED,
-            registry.RegisterCreator("RegistryDuplicateKeepsOriginal", []() -> std::unique_ptr<BaseCustomOp> {
-              return std::make_unique<RegistryDuplicateReplacementOp>();
-            }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryDuplicateKeepsOriginal", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryTestOp>();
+                                                        }));
+  EXPECT_EQ(ge::GRAPH_FAILED, registry.RegisterCreator("RegistryDuplicateKeepsOriginal", OpBackend::kDevice,
+                                                       []() -> std::unique_ptr<BaseCustomOp> {
+                                                         return std::make_unique<RegistryDuplicateReplacementOp>();
+                                                       }));
 
-  const auto op = registry.CreateOrGetCustomOp("RegistryDuplicateKeepsOriginal");
+  const auto op = registry.CreateOrGetCustomOp("RegistryDuplicateKeepsOriginal", OpBackend::kDevice);
   EXPECT_NE(nullptr, dynamic_cast<RegistryTestOp *>(op));
   EXPECT_EQ(nullptr, dynamic_cast<RegistryDuplicateReplacementOp *>(op));
 }
 
 TEST(UtestCustomOpRegistry, create_or_get_returns_same_instance) {
   CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryCreateOnce", []() -> std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<RegistryTestOp>();
-  }));
-
-  const auto first = registry.CreateOrGetCustomOp("RegistryCreateOnce");
-  const auto second = registry.CreateOrGetCustomOp("RegistryCreateOnce");
-  EXPECT_NE(nullptr, first);
-  EXPECT_EQ(first, second);
-}
-
-TEST(UtestCustomOpRegistry, find_custom_op_does_not_create_implicitly) {
-  CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryFindNoCreate", []() -> std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<RegistryTestOp>();
-  }));
-
-  EXPECT_EQ(nullptr, registry.FindCustomOp("RegistryFindNoCreate"));
-  EXPECT_EQ(false, registry.HasCustomOp("RegistryFindNoCreate"));
-}
-
-TEST(UtestCustomOpRegistry, find_custom_op_returns_created_instance) {
-  CustomOpRegistry registry;
   EXPECT_EQ(ge::GRAPH_SUCCESS,
-            registry.RegisterCreator("RegistryFindAfterCreate", []() -> std::unique_ptr<BaseCustomOp> {
+            registry.RegisterCreator("RegistryCreateOnce", OpBackend::kDevice, []() -> std::unique_ptr<BaseCustomOp> {
               return std::make_unique<RegistryTestOp>();
             }));
 
-  const auto created = registry.CreateOrGetCustomOp("RegistryFindAfterCreate");
-  EXPECT_NE(nullptr, created);
-  EXPECT_EQ(created, registry.FindCustomOp("RegistryFindAfterCreate"));
-  EXPECT_EQ(true, registry.HasCustomOp("RegistryFindAfterCreate"));
+  const auto first = registry.CreateOrGetCustomOp("RegistryCreateOnce", OpBackend::kDevice);
+  const auto second = registry.CreateOrGetCustomOp("RegistryCreateOnce", OpBackend::kDevice);
+  EXPECT_NE(nullptr, first);
+  EXPECT_EQ(first, second);
 }
 
 TEST(UtestCustomOpRegistry, remove_custom_ops_erases_creator_and_created_instance) {
   size_t destruct_count = 0U;
   CustomOpRegistry registry;
   EXPECT_EQ(ge::GRAPH_SUCCESS,
-            registry.RegisterCreator("RegistryRemoveCustomOp", [&destruct_count]() -> std::unique_ptr<BaseCustomOp> {
-              return std::make_unique<RegistryDestructCountOp>(&destruct_count);
-            }));
+            registry.RegisterCreator("RegistryRemoveCustomOp", OpBackend::kDevice,
+                                     [&destruct_count]() -> std::unique_ptr<BaseCustomOp> {
+                                       return std::make_unique<RegistryDestructCountOp>(&destruct_count);
+                                     }));
 
   EXPECT_EQ(true, registry.HasCreator("RegistryRemoveCustomOp"));
-  EXPECT_NE(nullptr, registry.CreateOrGetCustomOp("RegistryRemoveCustomOp"));
+  EXPECT_NE(nullptr, registry.CreateOrGetCustomOp("RegistryRemoveCustomOp", OpBackend::kDevice));
   EXPECT_EQ(true, registry.HasCustomOp("RegistryRemoveCustomOp"));
 
   registry.RemoveCustomOps({AscendString("RegistryRemoveCustomOp")});
   EXPECT_EQ(1U, destruct_count);
   EXPECT_EQ(false, registry.HasCreator("RegistryRemoveCustomOp"));
   EXPECT_EQ(false, registry.HasCustomOp("RegistryRemoveCustomOp"));
-  EXPECT_EQ(nullptr, registry.CreateOrGetCustomOp("RegistryRemoveCustomOp"));
+  EXPECT_EQ(nullptr, registry.CreateOrGetCustomOp("RegistryRemoveCustomOp", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpCast, falls_back_to_dynamic_cast_for_cpp_custom_op) {
@@ -234,6 +390,14 @@ TEST(UtestCustomOpCast, falls_back_to_dynamic_cast_for_cpp_custom_op) {
   EXPECT_EQ(static_cast<EagerExecuteOp *>(&op), CustomOpCast<EagerExecuteOp>(base));
   EXPECT_EQ(nullptr, CustomOpCast<CompilableOp>(base));
   EXPECT_EQ(nullptr, CustomOpCast<ShapeInferOp>(base));
+}
+
+TEST(UtestCustomOpCast, supports_host_cpu_execute_op) {
+  RegistryHostExecuteOp op;
+  BaseCustomOp *base = &op;
+
+  EXPECT_EQ(static_cast<HostCpuExecuteOp *>(&op), CustomOpCast<HostCpuExecuteOp>(base));
+  EXPECT_EQ(nullptr, CustomOpCast<EagerExecuteOp>(base));
 }
 
 TEST(UtestCustomOpCast, filters_python_adapter_by_capability) {
@@ -408,15 +572,16 @@ TEST(UtestCustomOpCast, releases_runtime_lease_when_holder_creation_fails) {
 
 TEST(UtestCustomOpRegistry, load_custom_ops_partition_deserializes_registered_portable_op) {
   CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_SUCCESS,
-            registry.RegisterCreator("RegistryPortablePartition", []() -> std::unique_ptr<BaseCustomOp> {
-              return std::make_unique<RegistryPortableOp>();
-            }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("RegistryPortablePartition", OpBackend::kDevice,
+                                                        []() -> std::unique_ptr<BaseCustomOp> {
+                                                          return std::make_unique<RegistryPortableOp>();
+                                                        }));
   const std::vector<uint8_t> kernel_bin = {0x1U, 0x2U, 0x3U};
   const auto payload = BuildCustomOpPartition("RegistryPortablePartition", kernel_bin);
 
   EXPECT_EQ(ge::GRAPH_SUCCESS, registry.LoadCustomOpsPartition(payload.data(), payload.size()));
-  const auto *op = dynamic_cast<RegistryPortableOp *>(registry.FindCustomOp("RegistryPortablePartition"));
+  const auto *op =
+      dynamic_cast<RegistryPortableOp *>(registry.CreateOrGetCustomOp("RegistryPortablePartition", OpBackend::kDevice));
   ASSERT_NE(nullptr, op);
   EXPECT_EQ(kernel_bin, op->deserialized_buffer);
 }
@@ -427,7 +592,7 @@ TEST(UtestCustomOpFactory, facade_registers_and_creates_through_global_registry)
   EXPECT_TRUE((ret == ge::GRAPH_SUCCESS) || (ret == ge::GRAPH_FAILED));
 
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("FactoryGlobalRegistryOp"));
-  EXPECT_NE(nullptr, CustomOpFactory::CreateOrGetCustomOp("FactoryGlobalRegistryOp"));
+  EXPECT_NE(nullptr, CustomOpFactory::CreateOrGetCustomOp("FactoryGlobalRegistryOp", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpFactory, load_custom_ops_partition_allows_factory_callback_from_deserialize) {
@@ -448,8 +613,8 @@ TEST(UtestCustomOpFactory, load_custom_ops_partition_allows_factory_callback_fro
 TEST(UtestCustomOpFactory, create_or_get_custom_op) {
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("MyEagerExecuteOp"));
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("MyPortableOp"));
-  const auto op = CustomOpFactory::CreateOrGetCustomOp("MyEagerExecuteOp");
-  const auto op2 = CustomOpFactory::CreateOrGetCustomOp("NonExists");
+  const auto op = CustomOpFactory::CreateOrGetCustomOp("MyEagerExecuteOp", OpBackend::kDevice);
+  const auto op2 = CustomOpFactory::CreateOrGetCustomOp("NonExists", OpBackend::kDevice);
   EXPECT_EQ(true, op != nullptr);
   EXPECT_EQ(true, op2 == nullptr);
 }
@@ -482,12 +647,14 @@ TEST(UtestCustomOpFactory, creator_register) {
   CustomOpCreatorRegister("MyCustomOp5", []() -> std::unique_ptr<BaseCustomOp> { return nullptr; });
   CustomOpCreatorRegister("MyCustomOp5", []() -> std::unique_ptr<BaseCustomOp> { return nullptr; });
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("MyCustomOp5"));
-  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("MyCustomOp5"));
+  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("MyCustomOp5", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpFactory, test_compilable_op) {
-  const auto my_custom_op_2 = CustomOpFactory::CreateOrGetCustomOp("MyEagerExecuteOp");
-  const auto my_custom_op_3 = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp");
+  const auto my_custom_op_2 = CustomOpFactory::CreateOrGetCustomOp("MyEagerExecuteOp", OpBackend::kDevice);
+  const auto my_custom_op_3 = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp", OpBackend::kDevice);
+  const auto legacy_custom_op = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp");
+  EXPECT_EQ(legacy_custom_op, my_custom_op_3);
   const auto compilable_op_2 = dynamic_cast<CompilableOp *>(my_custom_op_2);
   const auto compilable_op_3 = dynamic_cast<CompilableOp *>(my_custom_op_3);
   EXPECT_EQ(true, compilable_op_2 == nullptr);
@@ -500,8 +667,8 @@ TEST(UtestCustomOpFactory, test_compilable_op) {
 }
 
 TEST(UtestCustomOpFactory, create_or_get_returns_same_instance) {
-  const auto base_custom_op = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp");
-  const auto base_custom_op2 = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp");
+  const auto base_custom_op = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp", OpBackend::kDevice);
+  const auto base_custom_op2 = CustomOpFactory::CreateOrGetCustomOp("MyCompilableOp", OpBackend::kDevice);
   EXPECT_EQ(true, base_custom_op == base_custom_op2);
 }
 
@@ -581,7 +748,7 @@ TEST(UtestCustomOpFactory, IncCov_RemoveCustomOps_RemovesRegisteredOps) {
   std::vector<AscendString> op_types{AscendString("IncCovRemoveOp")};
   CustomOpFactory::RemoveCustomOps(op_types);
   EXPECT_EQ(false, CustomOpFactory::IsExistOp("IncCovRemoveOp"));
-  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("IncCovRemoveOp"));
+  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("IncCovRemoveOp", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_EntrySizeExceedsData) {
@@ -596,9 +763,10 @@ TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_EntrySizeExceedsData) 
 
 TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_RegisteredNonPortableOp) {
   CustomOpRegistry registry;
-  EXPECT_EQ(ge::GRAPH_SUCCESS, registry.RegisterCreator("IncCovNonPortableOp", []() -> std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<RegistryTestOp>();
-  }));
+  EXPECT_EQ(ge::GRAPH_SUCCESS,
+            registry.RegisterCreator("IncCovNonPortableOp", OpBackend::kDevice, []() -> std::unique_ptr<BaseCustomOp> {
+              return std::make_unique<RegistryTestOp>();
+            }));
   const auto payload = BuildCustomOpPartition("IncCovNonPortableOp", {0x1U});
   EXPECT_EQ(ge::GRAPH_FAILED, registry.LoadCustomOpsPartition(payload.data(), payload.size()));
 }

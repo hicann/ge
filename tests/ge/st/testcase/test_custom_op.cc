@@ -58,6 +58,7 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op/infer_meta.h"
 #include "graph/custom_op_factory.h"
+#include "graph/custom_op_registry.h"
 #include "graph/custom_op.h"
 #include "graph/operator_factory.h"
 #include "graph/ge_tensor.h"
@@ -68,6 +69,7 @@
 #include "runtime/custom_op/custom_op_loader.h"
 #include "runtime/custom_op/python_custom_op_bridge_loader.h"
 #include "exe_graph/runtime/storage_shape.h"
+#include "exe_graph/runtime/gert_mem_allocator.h"
 #include "faker/kernel_run_context_facker.h"
 #include "register/kernel_registry.h"
 #include "runtime/v2/kernel/common_kernel_impl/infer_shape.h"
@@ -771,6 +773,60 @@ class InferMetaCoverageCustomOpForSt final : public CustomOpInferMetaProvider {
     return GRAPH_SUCCESS;
   }
 };
+
+class HostCpuStAllocator final : public gert::GertAllocator {
+ public:
+  HostCpuStAllocator() : GertAllocator(-1, gert::kOnHost) {}
+
+  gert::GertMemBlock *Malloc(size_t) override {
+    return nullptr;
+  }
+
+  gert::GertTensorData MallocTensorData(size_t) override {
+    return {};
+  }
+
+  gert::TensorData MallocTensorDataFromL1(size_t size) override {
+    std::unique_ptr<uint8_t[]> block(new uint8_t[size]);
+    auto *address = block.get();
+    blocks_.emplace_back(std::move(block));
+    return gert::TensorData(address, nullptr, size, gert::kOnHost);
+  }
+
+  void Free(gert::GertMemBlock *) override {}
+
+  ge::graphStatus FreeAt(int64_t, gert::GertMemBlock *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  ge::graphStatus ShareFromTensorData(const gert::TensorData &, gert::GertTensorData &) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  int64_t GetStreamNum() override {
+    return 0;
+  }
+
+  ge::graphStatus SetL1Allocator(ge::Allocator *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+ private:
+  std::vector<std::unique_ptr<uint8_t[]>> blocks_;
+};
+
+class StRegistryShapeInferOp : public ShapeInferOp {
+ public:
+  graphStatus InferShape(gert::InferShapeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus InferDataType(gert::InferDataTypeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
+class StRegistryShapeInferOpOther final : public StRegistryShapeInferOp {};
 
 class TestBaseCustomOp : public EagerExecuteOp {
  public:
@@ -1920,8 +1976,10 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringR
   ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
   EXPECT_EQ(custom_op::LoadPythonCustomOps(), FAILED);
   custom_op::UnloadPythonCustomOps();
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt)), nullptr);
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt)), nullptr);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt), OpBackend::kDevice), nullptr);
+  EXPECT_EQ(
+      CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt), OpBackend::kDevice),
+      nullptr);
 }
 
 /**
@@ -1952,7 +2010,7 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
 
   const AscendString op_type(kPythonCustomOpTypeForSt);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
-  auto *op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  auto *op = CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice);
   ASSERT_NE(op, nullptr);
   auto *eager_op = dynamic_cast<EagerExecuteOp *>(op);
   ASSERT_NE(eager_op, nullptr);
@@ -1979,7 +2037,7 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
 
   EXPECT_FALSE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice), nullptr);
 }
 
 TEST_F(CustomOpFactoryStTest, PythonCompilableCustomOpRealCallbackCompiles) {
@@ -2036,7 +2094,8 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpInferMetaRunsThroughRt2WithNativeAtt
   ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
   ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
 
-  auto *base_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt));
+  auto *base_op =
+      CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt), OpBackend::kDevice);
   ASSERT_NE(base_op, nullptr);
 
   gert::StorageShape input_shape({7, 13}, {7, 13});
@@ -2100,6 +2159,89 @@ TEST_F(CustomOpFactoryStTest, CustomOpInferMetaCompilePath) {
   CustomOpFactory::RemoveCustomOps({AscendString(kInferMetaCoverageOpTypeForSt)});
 }
 
+TEST_F(CustomOpFactoryStTest, HostCpuOpExecutionContextMinimalPaths) {
+  gert::Tensor input_tensor = {
+      {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, gert::kOnHost, DT_FLOAT, reinterpret_cast<void *>(0x12345)};
+  gert::Tensor output_tensor;
+  HostCpuStAllocator allocator;
+  auto context_holder = gert::KernelRunContextFaker()
+                            .NodeIoNum(1, 1)
+                            .IrInputNum(1)
+                            .NodeInputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .NodeOutputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .Inputs({&input_tensor, &allocator})
+                            .Outputs({&output_tensor})
+                            .Build();
+  auto *context = context_holder.GetContext<gert::HostCpuOpExecutionContext>();
+
+  ASSERT_NE(context, nullptr);
+  EXPECT_EQ(context->GetInputTensor(0), &input_tensor);
+  EXPECT_EQ(context->GetOutputTensor(0), &output_tensor);
+
+  auto *allocated_output = context->MallocOutputTensor(0, {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, DT_FLOAT);
+  ASSERT_NE(allocated_output, nullptr);
+  EXPECT_EQ(allocated_output->GetPlacement(), gert::kOnHost);
+  EXPECT_EQ(allocated_output->GetSize(), 512U);
+  EXPECT_NE(allocated_output->GetAddr(), nullptr);
+
+  auto *ref_output = context->MakeOutputRefInput(0, 0);
+  ASSERT_NE(ref_output, nullptr);
+  EXPECT_EQ(ref_output->GetOriginShape(), input_tensor.GetOriginShape());
+  EXPECT_EQ(ref_output->GetStorageShape(), input_tensor.GetStorageShape());
+  EXPECT_EQ(ref_output->GetAddr(), input_tensor.GetAddr());
+}
+
+TEST_F(CustomOpFactoryStTest, CustomOpRegistryCoversCompatibilityAndBackendPaths) {
+  CustomOpRegistry registry;
+  const auto invalid_backend = static_cast<OpBackend>(99U);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryInvalidBackend", invalid_backend,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_PARAM_INVALID);
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryInvalidBackend", invalid_backend), nullptr);
+  EXPECT_FALSE(registry.HasCustomOp("StRegistryMissing"));
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCompatibility", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  auto *const compatibility_op = registry.CreateOrGetCustomOp("StRegistryCompatibility", OpBackend::kDevice);
+  ASSERT_NE(compatibility_op, nullptr);
+  EXPECT_TRUE(registry.HasCustomOp("StRegistryCompatibility"));
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryCompatibility", OpBackend::kHostCPU), nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator("StRegistryNullCreator", OpBackend::kDevice,
+                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryNullCreator", OpBackend::kDevice), nullptr);
+  EXPECT_FALSE(registry.HasCustomOp("StRegistryNullCreator"));
+
+  EXPECT_EQ(registry.GetCustomOpCommonCapability("StRegistryCompatibility", CustomOpCapability::kEagerExecute),
+            nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistrySharedCapability", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistrySharedCapability", OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_NE(registry.GetCustomOpCommonCapability("StRegistrySharedCapability", CustomOpCapability::kShapeInfer),
+            nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCapabilityConflict", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCapabilityConflict", OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOpOther>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.GetCustomOpCommonCapability("StRegistryCapabilityConflict", CustomOpCapability::kShapeInfer),
+            nullptr);
+}
+
 TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef) {
   EnsureSharedPybindCustomOpFileForSt();
   ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
@@ -2110,7 +2252,7 @@ TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef)
 
   const AscendString op_type(kPythonAnnotatedArgsOpTypeForSt);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
-  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice);
   ASSERT_NE(base_op, nullptr);
   EXPECT_NE(CustomOpCast<AnnotatedArgsOp>(base_op), nullptr);
   EXPECT_EQ(CustomOpCast<EagerExecuteOp>(base_op), nullptr);

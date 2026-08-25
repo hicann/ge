@@ -61,6 +61,14 @@ class MockCustomOp : public EagerExecuteOp {
   }
 };
 
+class MockHostCpuCustomOp : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
+
 class MockCompilableCustomOp : public EagerExecuteOp, public CompilableOp {
  public:
   graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
@@ -948,6 +956,32 @@ TEST_F(UtestCustomOpsKernelInfoStore, RefreshCapturesNewRegisteredOp) {
   store.GetAllOpsKernelInfo(infos_after);
   EXPECT_GT(infos_after.size(), count_before);
   EXPECT_NE(infos_after.count(kTestOpType), 0U);
+
+  auto op_desc = std::make_shared<OpDesc>(kTestOpType, kTestOpType);
+  std::string reason;
+  EXPECT_TRUE(store.CheckSupported(op_desc, reason));
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, RefreshCapturesHostBackendRegisteredOp) {
+  const std::string kTestOpType = "TestHostBackendRegisteredOp_RefreshTest";
+
+  CustomOpsKernelInfoStore store;
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(store.Initialize(options), SUCCESS);
+
+  std::map<std::string, OpInfo> infos_before;
+  store.GetAllOpsKernelInfo(infos_before);
+  EXPECT_EQ(infos_before.count(kTestOpType), 0U);
+
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockHostCpuCustomOp>(); };
+  EXPECT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+
+  EXPECT_EQ(store.Refresh(), SUCCESS);
+
+  std::map<std::string, OpInfo> infos_after;
+  store.GetAllOpsKernelInfo(infos_after);
+  EXPECT_EQ(infos_after.count(kTestOpType), 1U);
 
   auto op_desc = std::make_shared<OpDesc>(kTestOpType, kTestOpType);
   std::string reason;

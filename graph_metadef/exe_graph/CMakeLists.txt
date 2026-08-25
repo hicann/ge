@@ -27,6 +27,7 @@ set(LOWERING_SRCS
     lowering/value_holder_utils.cc
     runtime/annotated_kernel_args.cc
     runtime/eager_op_execution_context.cc
+    runtime/host_cpu_op_execution_context.cc
     runtime/annotated_args_context.cc
     runtime/annotated_args_handler.cc
     runtime/update_args_context.cc

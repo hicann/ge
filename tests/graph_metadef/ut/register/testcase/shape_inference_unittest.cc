@@ -1537,7 +1537,7 @@ REG_OP(TwoOptionalInputsOp)
 
     const auto custom_op_infer_shape_func = OperatorFactoryImpl::GetCustomOpInferShapeFunc();
     ASSERT_NE(custom_op_infer_shape_func, nullptr);
-    auto *shape_infer_op = dynamic_cast<ShapeInferOp *>(CustomOpFactory::CreateOrGetCustomOp("CustomShapeInferAdd"));
+    auto *shape_infer_op = CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>("CustomShapeInferAdd");
     ASSERT_NE(shape_infer_op, nullptr);
 
     const auto status = custom_op_infer_shape_func(shape_infer_op, op, op_desc);
@@ -1560,7 +1560,7 @@ REG_OP(TwoOptionalInputsOp)
 
     const auto custom_op_infer_datatype_func = OperatorFactoryImpl::GetCustomOpInferDataTypeFunc();
     ASSERT_NE(custom_op_infer_datatype_func, nullptr);
-    auto *shape_infer_op = dynamic_cast<ShapeInferOp *>(CustomOpFactory::CreateOrGetCustomOp("CustomShapeInferAdd"));
+    auto *shape_infer_op = CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>("CustomShapeInferAdd");
     ASSERT_NE(shape_infer_op, nullptr);
 
     const auto status = custom_op_infer_datatype_func(shape_infer_op, op_desc);

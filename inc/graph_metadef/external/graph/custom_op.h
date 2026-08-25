@@ -12,16 +12,23 @@
 #define METADEF_CXX_INC_GRAPH_BASE_CUSTOM_OP_H
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>
 #include "graph/error_codes.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/infer_datatype_context.h"
 #include "exe_graph/runtime/infer_shape_context.h"
 #include "exe_graph/runtime/op_compile_context.h"
 #include "exe_graph/runtime/update_args_context.h"
 
 namespace ge {
+enum class OpBackend : uint32_t {
+  kDevice = 0,
+  kHostCPU = 1,
+};
+
 /**
  * 自定义算子能力接口的公共基类。
  * 用户可按需组合继承 CompilableOp、EagerExecuteOp、ShapeInferOp，
@@ -80,6 +87,21 @@ class EagerExecuteOp : virtual public BaseCustomOp {
    * @return 状态码
    */
   virtual graphStatus Execute(gert::EagerOpExecutionContext *ctx) = 0;
+};
+
+/**
+ * 自定义算子 Host 执行接口。
+ * 适用于常量折叠和运行时 host 侧调度场景。
+ */
+class HostCpuExecuteOp : virtual public BaseCustomOp {
+ public:
+  ~HostCpuExecuteOp() override = default;
+  /**
+   * 执行 Host CPU 自定义算子计算。
+   * @param ctx Host CPU 执行上下文。通过 ctx 获取输入/输出 tensor，分配输出内存。
+   * @return GRAPH_SUCCESS 表示执行成功，否则返回错误码。
+   */
+  virtual graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) = 0;
 };
 
 /**
@@ -147,18 +169,24 @@ using CustomOpCreateFunc = ge::BaseCustomOp *(*)();
 class CustomOpCreatorRegister {
  public:
   CustomOpCreatorRegister(const AscendString &operator_type, const BaseOpCreator &op_creator);
+  CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const BaseOpCreator &op_creator);
   CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator);
+  CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const CustomOpCreateFunc op_creator);
   ~CustomOpCreatorRegister() = default;
 };
 }  // namespace ge
 
 #define REG_JOIN(g_register, y) g_register##y
 #define REG_AUTO_MAPPING_OP(custom_op_class) REG_AUTO_MAPPING_OP_UNIQ(__COUNTER__, custom_op_class)
-#define REG_AUTO_MAPPING_OP_UNIQ(ctr, custom_op_class)                                         \
+#define REG_AUTO_MAPPING_OP_UNIQ(ctr, custom_op_class) \
+  REG_OP_BACKEND_UNIQ(ctr, custom_op_class, #custom_op_class, ge::OpBackend::kDevice)
+#define REG_OP_BACKEND(custom_op_class, op_type, backend) \
+  REG_OP_BACKEND_UNIQ(__COUNTER__, custom_op_class, op_type, backend)
+#define REG_OP_BACKEND_UNIQ(ctr, custom_op_class, op_type, backend)                            \
   static ge::BaseCustomOp *REG_JOIN(custom_op_pull_creator, ctr)() {                           \
     return new custom_op_class();                                                              \
   }                                                                                            \
-  static const ge::CustomOpCreatorRegister REG_JOIN(custom_op_register, ctr)(#custom_op_class, \
+  static const ge::CustomOpCreatorRegister REG_JOIN(custom_op_register, ctr)(op_type, backend, \
                                                                              REG_JOIN(custom_op_pull_creator, ctr))
 
 #endif  // METADEF_CXX_INC_GRAPH_BASE_CUSTOM_OP_H

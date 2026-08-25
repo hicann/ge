@@ -36,7 +36,7 @@ TEST_F(TaskInfoUT, CustomTaskInfoDistributeDoesNotFallbackToGlobalRegistry) {
                 op_type.c_str(),
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TaskInfoRegistryOnlyCustomOp>(); }),
             GRAPH_SUCCESS);
-  ASSERT_NE(CustomOpFactory::CreateOrGetCustomOp(op_type.c_str()), nullptr);
+  ASSERT_NE(CustomOpFactory::CreateOrGetCustomOp(op_type.c_str(), OpBackend::kDevice), nullptr);
 
   DavinciModel davinci_model(0, nullptr);
   davinci_model.SetCustomOpRegistry(MakeShared<CustomOpRegistry>());
@@ -55,7 +55,7 @@ TEST_F(TaskInfoUT, CustomTaskInfoDistributeUsesGlobalRegistry) {
                 op_type.c_str(),
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TaskInfoRegistryOnlyCustomOp>(); }),
             GRAPH_SUCCESS);
-  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(op_type.c_str());
+  auto *global_op = CustomOpFactory::CreateOrGetCustomOp(op_type.c_str(), OpBackend::kDevice);
   ASSERT_NE(global_op, nullptr);
 
   DavinciModel davinci_model(0, nullptr);

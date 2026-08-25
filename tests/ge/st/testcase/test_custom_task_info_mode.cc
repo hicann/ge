@@ -120,7 +120,7 @@ TEST_F(CustomTaskInfoModeTest, ArgsUpdater_Detection_ViaArgsUpdateOp) {
     return std::make_unique<TestArgsUpdaterCustomOp>();
   });
 
-  auto custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("ArgsUpdaterTestOp"));
+  auto custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("ArgsUpdaterTestOp"), OpBackend::kDevice);
   ASSERT_NE(custom_op_ptr, nullptr);
 
   auto *args_update_op = dynamic_cast<ArgsUpdater *>(custom_op_ptr);
@@ -132,7 +132,7 @@ TEST_F(CustomTaskInfoModeTest, CustomOpFactory_RegisterArgsUpdater_Success) {
     return std::make_unique<TestArgsUpdaterCustomOp>();
   });
 
-  auto custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("ArgsUpdaterTestOp2"));
+  auto custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("ArgsUpdaterTestOp2"), OpBackend::kDevice);
   ASSERT_NE(custom_op_ptr, nullptr);
 
   auto *eager_execute_op = dynamic_cast<EagerExecuteOp *>(custom_op_ptr);
@@ -172,7 +172,7 @@ TEST_F(CustomTaskInfoModeTest, AnnotatedArgsOp_UsesAnnotatedArgsStrategy) {
   CustomOpFactory::RegisterCustomOpCreator(
       "AnnotatedArgsOp", []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestAnnotatedArgsOp>(); });
 
-  auto *custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("AnnotatedArgsOp"));
+  auto *custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("AnnotatedArgsOp"), OpBackend::kDevice);
   ASSERT_NE(custom_op_ptr, nullptr);
   EXPECT_NE(dynamic_cast<AnnotatedArgsOp *>(custom_op_ptr), nullptr);
   EXPECT_EQ(CustomOpFactory::GetArgsRefreshStrategy(AscendString("AnnotatedArgsOp")),
@@ -185,7 +185,8 @@ TEST_F(CustomTaskInfoModeTest, ArgsUpdaterTakesPrecedenceWhenBothInterfacesExist
     return std::make_unique<TestBothRefreshInterfacesCustomOp>();
   });
 
-  auto *custom_op_ptr = CustomOpFactory::CreateOrGetCustomOp(AscendString("BothRefreshInterfacesCustomOp"));
+  auto *custom_op_ptr =
+      CustomOpFactory::CreateOrGetCustomOp(AscendString("BothRefreshInterfacesCustomOp"), OpBackend::kDevice);
   ASSERT_NE(custom_op_ptr, nullptr);
   EXPECT_NE(dynamic_cast<AnnotatedArgsOp *>(custom_op_ptr), nullptr);
   EXPECT_NE(dynamic_cast<ArgsUpdater *>(custom_op_ptr), nullptr);

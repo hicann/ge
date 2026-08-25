@@ -9,6 +9,7 @@
  */
 
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "runtime/annotated_args_handler.h"
 
@@ -218,5 +219,20 @@ ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo 
                                       std::move(arg_descs));
   }
   return ge::GRAPH_SUCCESS;
+}
+
+Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const StorageShape &shape,
+                                                      const StorageFormat &format, ge::DataType dtype) {
+  (void)index;
+  (void)shape;
+  (void)format;
+  (void)dtype;
+  return nullptr;
+}
+
+Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_t input_index) const {
+  (void)output_index;
+  (void)input_index;
+  return nullptr;
 }
 }  // namespace gert

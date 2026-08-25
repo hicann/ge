@@ -82,7 +82,7 @@ ge::graphStatus FindCustomOpFunc(KernelContext *context) {
   GE_ASSERT_NOTNULL(node_type, "Failed to find custom op func, node type is nullptr");
   auto custom_op_registry = context->GetInputValue<ge::CustomOpRegistry *>(1);
   GE_ASSERT_NOTNULL(custom_op_registry, "Failed to find custom op func, custom op registry is nullptr.");
-  ge::BaseCustomOp *custom_op_ptr = custom_op_registry->CreateOrGetCustomOp(node_type);
+  ge::BaseCustomOp *custom_op_ptr = custom_op_registry->CreateOrGetCustomOp(node_type, ge::OpBackend::kDevice);
   GE_ASSERT_NOTNULL(custom_op_ptr, "Failed to find custom op func for op type %s in custom op registry.", node_type);
   auto chain = context->GetOutput(0);
   GE_ASSERT_NOTNULL(chain);

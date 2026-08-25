@@ -388,10 +388,11 @@ TEST_F(BgInferShapeUT, InferCustomOpShapeUsesModelRegistry) {
   auto custom_op_registry = std::make_shared<ge::CustomOpRegistry>();
   ASSERT_NE(custom_op_registry, nullptr);
   ASSERT_EQ(custom_op_registry->RegisterCreator(
-                "Rt2BgModelRegistryCustomShapeInferOnlyOp",
+                "Rt2BgModelRegistryCustomShapeInferOnlyOp", ge::OpBackend::kDevice,
                 []() -> std::unique_ptr<ge::BaseCustomOp> { return std::make_unique<Rt2CustomShapeInferOnlyOp>(); }),
             ge::GRAPH_SUCCESS);
-  ASSERT_NE(custom_op_registry->CreateOrGetCustomOp("Rt2BgModelRegistryCustomShapeInferOnlyOp"), nullptr);
+  ASSERT_NE(custom_op_registry->CreateOrGetCustomOp("Rt2BgModelRegistryCustomShapeInferOnlyOp", ge::OpBackend::kDevice),
+            nullptr);
 
   auto root_model = GeModelBuilder(graph).BuildGeRootModel();
   root_model->SetCustomOpRegistry(custom_op_registry);

@@ -26,31 +26,40 @@ namespace {
 class PullRegistryTestOp : public BaseCustomOp {};
 class PullRegistryCreatorOp : public BaseCustomOp {};
 class PullRegistryMacroOp : public BaseCustomOp {};
+class PullRegistryHostMacroOp : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
 
 BaseCustomOp *CreatePullRegistryCreatorOp() {
   return new PullRegistryCreatorOp();
 }
 
-bool HasRegisteredCreator(const char *op_type) {
+bool HasRegisteredCreator(const char *op_type, const OpBackend backend) {
   std::vector<CustomOpTypeToCreator> creators(GetRegisteredCustomOpCreatorNum());
   if (!creators.empty()) {
     const auto ret = GetRegisteredCustomOpCreators(creators.data(), creators.size(), sizeof(CustomOpTypeToCreator));
     EXPECT_EQ(0, ret);
   }
-  return std::any_of(creators.begin(), creators.end(), [op_type](const CustomOpTypeToCreator &creator) {
-    return (creator.op_type != nullptr) && (std::string(creator.op_type) == op_type) && (creator.creator != nullptr);
+  return std::any_of(creators.begin(), creators.end(), [op_type, backend](const CustomOpTypeToCreator &creator) {
+    return (creator.op_type != nullptr) && (std::string(creator.op_type) == op_type) && (creator.creator != nullptr) &&
+           (creator.backend == backend);
   });
 }
 }  // namespace
 
 REG_AUTO_MAPPING_OP(PullRegistryMacroOp);
+REG_OP_BACKEND(PullRegistryHostMacroOp, "PullRegistryHostMacroOp", ge::OpBackend::kHostCPU);
 
 TEST(UtestCustomOpPullRegistry, creator_register_enters_global_registry_in_normal_mode) {
   CustomOpCreatorRegister("PullRegistryNormalGlobalOp",
                           []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<PullRegistryTestOp>(); });
 
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("PullRegistryNormalGlobalOp"));
-  EXPECT_NE(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryNormalGlobalOp"));
+  EXPECT_NE(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryNormalGlobalOp", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpPullRegistry, offline_guard_suppresses_global_registry_push) {
@@ -61,7 +70,7 @@ TEST(UtestCustomOpPullRegistry, offline_guard_suppresses_global_registry_push) {
   }
 
   EXPECT_EQ(false, CustomOpFactory::IsExistOp("PullRegistryOfflineSuppressedOp"));
-  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryOfflineSuppressedOp"));
+  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryOfflineSuppressedOp", OpBackend::kDevice));
 }
 
 TEST(UtestCustomOpPullRegistry, nested_offline_guards_keep_suppress_until_outer_guard_exits) {
@@ -93,9 +102,9 @@ TEST(UtestCustomOpPullRegistry, local_pull_registration_is_returned_by_c_abi) {
   const auto before_num = GetRegisteredCustomOpCreatorNum();
   CustomOpCreatorRegister register_creator("PullRegistryLocalOp", CreatePullRegistryCreatorOp);
 
-  EXPECT_EQ(kCustomOpCreatorPullAbiVersion, GetRegisteredCustomOpCreatorAbiVersion());
+  EXPECT_EQ(kCustomOpCreatorPullAbiVersionV2, GetRegisteredCustomOpCreatorAbiVersion());
   EXPECT_EQ(before_num + 1U, GetRegisteredCustomOpCreatorNum());
-  EXPECT_EQ(true, HasRegisteredCreator("PullRegistryLocalOp"));
+  EXPECT_EQ(true, HasRegisteredCreator("PullRegistryLocalOp", OpBackend::kDevice));
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("PullRegistryLocalOp"));
 }
 
@@ -105,7 +114,7 @@ TEST(UtestCustomOpPullRegistry, offline_guard_does_not_suppress_local_pull_regis
     ScopedOfflineCustomOpSoLoadGuard guard;
     CustomOpCreatorRegister register_creator("PullRegistryOfflineLocalOp", CreatePullRegistryCreatorOp);
     EXPECT_EQ(before_num + 1U, GetRegisteredCustomOpCreatorNum());
-    EXPECT_EQ(true, HasRegisteredCreator("PullRegistryOfflineLocalOp"));
+    EXPECT_EQ(true, HasRegisteredCreator("PullRegistryOfflineLocalOp", OpBackend::kDevice));
   }
   EXPECT_EQ(false, CustomOpFactory::IsExistOp("PullRegistryOfflineLocalOp"));
 }
@@ -118,6 +127,8 @@ TEST(UtestCustomOpPullRegistry, pull_creator_can_create_instance) {
     return (creator.op_type != nullptr) && (std::string(creator.op_type) == "PullRegistryCreatesInstanceOp");
   });
   ASSERT_NE(creators.end(), iter);
+  EXPECT_EQ(sizeof(CustomOpTypeToCreator), iter->struct_size);
+  EXPECT_EQ(OpBackend::kDevice, iter->backend);
   ASSERT_NE(nullptr, iter->creator);
   std::unique_ptr<BaseCustomOp> op(iter->creator());
   EXPECT_NE(nullptr, dynamic_cast<PullRegistryCreatorOp *>(op.get()));
@@ -125,25 +136,36 @@ TEST(UtestCustomOpPullRegistry, pull_creator_can_create_instance) {
 
 TEST(UtestCustomOpPullRegistry, macro_registers_global_and_pull_entries_in_normal_mode) {
   EXPECT_EQ(true, CustomOpFactory::IsExistOp("PullRegistryMacroOp"));
-  EXPECT_NE(nullptr, dynamic_cast<PullRegistryMacroOp *>(CustomOpFactory::CreateOrGetCustomOp("PullRegistryMacroOp")));
-  EXPECT_EQ(true, HasRegisteredCreator("PullRegistryMacroOp"));
+  EXPECT_NE(nullptr, dynamic_cast<PullRegistryMacroOp *>(
+                         CustomOpFactory::CreateOrGetCustomOp("PullRegistryMacroOp", OpBackend::kDevice)));
+  EXPECT_EQ(true, HasRegisteredCreator("PullRegistryMacroOp", OpBackend::kDevice));
+}
+
+TEST(UtestCustomOpPullRegistry, backend_macro_registers_host_cpu_entry) {
+  EXPECT_TRUE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp"));
+  EXPECT_FALSE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp", OpBackend::kDevice));
+  EXPECT_TRUE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp", OpBackend::kHostCPU));
+  EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryHostMacroOp", OpBackend::kDevice));
+  EXPECT_NE(nullptr, dynamic_cast<PullRegistryHostMacroOp *>(
+                         CustomOpFactory::CreateOrGetCustomOp("PullRegistryHostMacroOp", OpBackend::kHostCPU)));
+  EXPECT_TRUE(HasRegisteredCreator("PullRegistryHostMacroOp", OpBackend::kHostCPU));
 }
 
 TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_NullOpType_NoEffect) {
   const auto before = GetRegisteredCustomOpCreatorNum();
-  RegisterCustomOpLocalCreator(nullptr, CreatePullRegistryCreatorOp);
+  RegisterCustomOpLocalCreator(nullptr, OpBackend::kDevice, CreatePullRegistryCreatorOp);
   EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
 }
 
 TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_EmptyOpType_NoEffect) {
   const auto before = GetRegisteredCustomOpCreatorNum();
-  RegisterCustomOpLocalCreator("", CreatePullRegistryCreatorOp);
+  RegisterCustomOpLocalCreator("", OpBackend::kDevice, CreatePullRegistryCreatorOp);
   EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
 }
 
 TEST(UtestCustomOpPullRegistry, IncCov_RegisterLocalCreator_NullCreator_NoEffect) {
   const auto before = GetRegisteredCustomOpCreatorNum();
-  RegisterCustomOpLocalCreator("IncCovNullCreatorOp", nullptr);
+  RegisterCustomOpLocalCreator("IncCovNullCreatorOp", OpBackend::kDevice, nullptr);
   EXPECT_EQ(before, GetRegisteredCustomOpCreatorNum());
 }
 
@@ -151,7 +173,7 @@ TEST(UtestCustomOpPullRegistry, IncCov_GetCreators_NullPointerWithNonZeroNum_Ret
   EXPECT_EQ(-1, GetRegisteredCustomOpCreators(nullptr, 1U, sizeof(CustomOpTypeToCreator)));
 }
 
-TEST(UtestCustomOpPullRegistry, IncCov_GetCreators_SmallStructSize_ReturnsError) {
+TEST(UtestCustomOpPullRegistry, IncCov_GetCreatorsV2_SmallStructSize_ReturnsError) {
   const auto num = GetRegisteredCustomOpCreatorNum();
   std::vector<CustomOpTypeToCreator> creators(num);
   if (num > 0U) {
