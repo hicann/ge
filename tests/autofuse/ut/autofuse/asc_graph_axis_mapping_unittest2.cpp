@@ -574,8 +574,24 @@ TEST_F(AscGraphAxisMappingTest2, AscGraphAxisMapping_CanAxisMapAllowUnitRepeat_R
   AscGraphAxisMapping axis_mapping;
   EXPECT_TRUE(axis_mapping.CanAxisMapAllowUnitRepeat(node1_axis, node1_repeats, node2_axis, node2_repeats, node1_map,
                                                      node2_map, temp_node1_map, temp_node2_map));
-  EXPECT_EQ(temp_node1_map, (AxisPairSet{{0, 2}, {1, 4}}));
+  EXPECT_EQ(temp_node1_map, (AxisPairSet{{0, 2}, {1, 3}}));
   EXPECT_EQ(temp_node2_map, (AxisPairSet{{2, 2}, {3, 3}, {4, 4}}));
+}
+
+TEST_F(AscGraphAxisMappingTest2, AscGraphAxisMapping_CanAxisMapAllowUnitRepeat_PreserveSameIndex) {
+  std::vector<int64_t> node1_axis{0, 1, 2};
+  std::vector<Expression> node1_repeats{Symbol(256), Symbol(1), Symbol(50)};
+  std::vector<int64_t> node2_axis{0, 1, 2};
+  std::vector<Expression> node2_repeats{Symbol(256), Symbol(1), Symbol(1)};
+  AxisPairSet node1_map;
+  AxisPairSet node2_map;
+  AxisPairSet temp_node1_map;
+  AxisPairSet temp_node2_map;
+
+  AscGraphAxisMapping axis_mapping;
+  EXPECT_TRUE(axis_mapping.CanAxisMapAllowUnitRepeat(node1_axis, node1_repeats, node2_axis, node2_repeats, node1_map,
+                                                     node2_map, temp_node1_map, temp_node2_map));
+  EXPECT_EQ(temp_node2_map, (AxisPairSet{{0, 0}, {1, 1}, {2, 2}}));
 }
 
 TEST_F(AscGraphAxisMappingTest2, AscGraphAxisMapping_CanAxisMapAllowUnitRepeat_ReverseMappingFailed) {

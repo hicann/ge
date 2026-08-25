@@ -145,10 +145,30 @@ Status BuildUnitRepeatAxisIndex(const std::vector<Expression> &node_repeats,
   std::vector<int32_t> node_to_base(node_repeats.size(), -1);
   std::vector<int32_t> base_to_node(base_repeats.size(), -1);
 
+  const auto same_index_can_map = [&node_repeats, &base_repeats](const size_t index) {
+    return node_repeats[index] == base_repeats[index] || node_repeats[index] == 1 || base_repeats[index] == 1;
+  };
+  const auto reserve_same_index = [&node_to_base, &base_to_node](const size_t index) {
+    node_to_base[index] = static_cast<int32_t>(index);
+    base_to_node[index] = static_cast<int32_t>(index);
+  };
+  const auto is_unmapped = [&node_to_base, &base_to_node](const int32_t node_index, const int32_t base_index) {
+    return node_to_base[node_index] == -1 && base_to_node[base_index] == -1;
+  };
+
+  for (size_t index = 0U; index < std::min(node_repeats.size(), base_repeats.size()); ++index) {
+    if (same_index_can_map(index)) {
+      reserve_same_index(index);
+    }
+  }
+
   for (int32_t node_index = static_cast<int32_t>(node_repeats.size()) - 1; node_index >= 0; --node_index) {
+    if (node_to_base[node_index] != -1) {
+      continue;
+    }
     int32_t matched_base_index = -1;
     for (int32_t base_index = static_cast<int32_t>(base_repeats.size()) - 1; base_index >= 0; --base_index) {
-      if (base_to_node[base_index] != -1) {
+      if (!is_unmapped(node_index, base_index)) {
         continue;
       }
       if (node_repeats[node_index] == base_repeats[base_index]) {
@@ -159,7 +179,7 @@ Status BuildUnitRepeatAxisIndex(const std::vector<Expression> &node_repeats,
 
     if (matched_base_index == -1) {
       for (int32_t base_index = static_cast<int32_t>(base_repeats.size()) - 1; base_index >= 0; --base_index) {
-        if (base_to_node[base_index] != -1) {
+        if (!is_unmapped(node_index, base_index)) {
           continue;
         }
         if ((node_repeats[node_index] == 1) || (base_repeats[base_index] == 1)) {
