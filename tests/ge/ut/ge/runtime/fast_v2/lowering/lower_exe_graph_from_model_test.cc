@@ -130,7 +130,7 @@ TEST_F(LowerExeGraphFromModelUT, LowerFromGeModel) {
   std::map<std::string, size_t> expect_init_graph_nodes{{"AllocLaunchArg", 7},
                                                         {"AssignWeightMemory", 3},
                                                         {"BuildTensor", 2},
-                                                        {"Const", 227},
+                                                        {"Const", 229},
                                                         {"ConstData", 3},
                                                         {"Data", 4},
                                                         {"CreateL1Allocator", 1},

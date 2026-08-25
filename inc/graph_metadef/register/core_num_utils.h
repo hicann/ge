@@ -39,6 +39,11 @@ class CoreNumUtils {
 
   static graphStatus ValidateCoreNumWithGraph(const ge::ComputeGraphPtr &compute_graph);
 
+  // 从图属性读取模型级核数配置。属性未配置时保持出参不变，调用方需先将出参初始化为约定的未配置值(-1)。
+  // 这里只做格式与非负校验，范围校验在platform侧完成，那里才拿得到ini核数。
+  static graphStatus GetCoreNumFromGraph(const ge::ComputeGraphPtr &compute_graph, int32_t &aicore_num,
+                                         int32_t &vectorcore_num);
+
   static graphStatus UpdateCoreCountWithOpDesc(const std::string &param_name, const std::string &op_core_num_str,
                                                int32_t soc_core_num, const std::string &res_key,
                                                std::map<std::string, std::string> &res);

@@ -25,9 +25,16 @@ constexpr char const *kAiCoreNum = "_op_aicore_num";
 constexpr char const *kVectorCoreNum = "_op_vectorcore_num";
 }  // namespace
 std::vector<ValueHolderPtr> GetPlatformInfo(LoweringGlobalData *global_data) {
-  auto builder = []() -> std::vector<bg::ValueHolderPtr> {
-    return bg::FrameSelector::OnInitRoot([]() -> std::vector<bg::ValueHolderPtr> {
-      return bg::ValueHolder::CreateDataOutput("GetPlatformInfo", {}, 2U);
+  auto builder = [global_data]() -> std::vector<bg::ValueHolderPtr> {
+    return bg::FrameSelector::OnInitRoot([global_data]() -> std::vector<bg::ValueHolderPtr> {
+      const auto core_num_config = global_data->GetCoreNumConfig();
+      const auto aicore_num_holder =
+          bg::ValueHolder::CreateConst(&core_num_config.aicore_num, sizeof(core_num_config.aicore_num));
+      GE_ASSERT_NOTNULL(aicore_num_holder);
+      const auto vectorcore_num_holder =
+          bg::ValueHolder::CreateConst(&core_num_config.vectorcore_num, sizeof(core_num_config.vectorcore_num));
+      GE_ASSERT_NOTNULL(vectorcore_num_holder);
+      return bg::ValueHolder::CreateDataOutput("GetPlatformInfo", {aicore_num_holder, vectorcore_num_holder}, 2U);
     });
   };
   return global_data->GetOrCreateUniqueValueHolder(kPlatformInfo, builder);

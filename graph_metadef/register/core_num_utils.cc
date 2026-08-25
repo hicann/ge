@@ -9,6 +9,9 @@
  */
 
 #include "register/core_num_utils.h"
+
+#include <cstdint>
+
 #include "ge_common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/ge_local_context.h"
@@ -51,6 +54,15 @@ graphStatus ReportParamError(const std::string &param_name, const std::string &p
   GELOGE(PARAM_INVALID, "Value %s for parameter %s is invalid. Reason: %s", param_value_str.c_str(), param_name.c_str(),
          reason.c_str());
   return PARAM_INVALID;
+}
+
+graphStatus GetOneCoreNumFromGraph(const ge::ComputeGraphPtr &compute_graph, const std::string &attr_name,
+                                   int32_t &core_num) {
+  std::string core_num_str;
+  if ((!ge::AttrUtils::GetStr(compute_graph, attr_name, core_num_str)) || core_num_str.empty()) {
+    return GRAPH_SUCCESS;  // 未配置，保持调用方传入的默认值
+  }
+  return CoreNumUtils::ParseAndValidateCoreNum(attr_name, core_num_str, 0, INT32_MAX, core_num);
 }
 }  // namespace
 graphStatus CoreNumUtils::ParseAicoreNumFromOption(std::map<std::string, std::string> &options) {
@@ -177,6 +189,20 @@ graphStatus CoreNumUtils::ValidateCoreNumWithGraph(const ge::ComputeGraphPtr &co
   if (validated_op_count > 0U) {
     GELOGD("Validate op core num with graph success, graph: %s, validated op count: %zu.",
            compute_graph->GetName().c_str(), validated_op_count);
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus CoreNumUtils::GetCoreNumFromGraph(const ge::ComputeGraphPtr &compute_graph, int32_t &aicore_num,
+                                              int32_t &vectorcore_num) {
+  GE_ASSERT_NOTNULL(compute_graph);
+  GE_ASSERT_SUCCESS(GetOneCoreNumFromGraph(compute_graph, AICORE_NUM, aicore_num), "Get %s from graph %s failed.",
+                    AICORE_NUM.c_str(), compute_graph->GetName().c_str());
+  GE_ASSERT_SUCCESS(GetOneCoreNumFromGraph(compute_graph, kVectorCoreNum, vectorcore_num),
+                    "Get %s from graph %s failed.", kVectorCoreNum.c_str(), compute_graph->GetName().c_str());
+  if ((aicore_num >= 0) || (vectorcore_num >= 0)) {
+    GELOGI("Get core num from graph %s, aicore_num: %d, vectorcore_num: %d.", compute_graph->GetName().c_str(),
+           aicore_num, vectorcore_num);
   }
   return GRAPH_SUCCESS;
 }

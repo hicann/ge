@@ -18,6 +18,7 @@
 #include "exe_graph/runtime/execute_graph_types.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "exe_graph/lowering/lowering_opt.h"
+#include "exe_graph/lowering/lowering_definitions.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/custom_op_registry.h"
 
@@ -102,6 +103,14 @@ class LoweringGlobalData {
 
   const LoweringOption &GetLoweringOption() const;
   void SetLoweringOption(const LoweringOption &lowering_option);
+
+  void SetCoreNumConfig(const CoreNumConfig &core_num_config) {
+    core_num_config_ = core_num_config;
+  }
+
+  const CoreNumConfig &GetCoreNumConfig() const {
+    return core_num_config_;
+  }
 
   void SetStaicModelWsSize(const int64_t require_ws_size) {
     static_model_ws_size = require_ws_size;
@@ -209,6 +218,7 @@ class LoweringGlobalData {
   ge::CustomOpRegistryPtr custom_op_registry_{nullptr};
   // user set file constant device memory, key is file name
   std::map<std::string, ge::FileConstantMem> file_constant_mems_;
+  CoreNumConfig core_num_config_;
 };
 }  // namespace gert
 #endif  // AIR_CXX_RUNTIME_V2_LOWERING_LOWERING_GLOBAL_DATA_H_

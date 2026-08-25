@@ -1678,6 +1678,12 @@ Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const {
 }
 
 Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info) const {
+  std::map<std::string, std::string> options;
+  return HandleDeviceInfo(platform_infos, origin_platform_info, options);
+}
+
+Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info,
+                                     std::map<std::string, std::string> &options) const {
   GELOGD("Begin to handle device info.");
   int32_t device_id = -1;
   GE_CHK_ACL_RET(aclrtGetDevice(&device_id));
@@ -1689,7 +1695,8 @@ Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::Plat
 
   fe::PlatformInfo platform_info;
   int32_t virtual_type = 0;
-  GE_CHK_STATUS_RET(GetPlatformInfo(device_id, soc_version, platform_info, virtual_type), "Get platform info failed.");
+  GE_CHK_STATUS_RET(GetPlatformInfo(device_id, soc_version, platform_info, virtual_type, options),
+                    "Get platform info failed.");
 
   GE_CHK_STATUS_RET(SetPlatformInfos(soc_version, platform_info, platform_infos), "Set platform infos failed.");
 

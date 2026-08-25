@@ -43,7 +43,6 @@
 #include "common/model/external_allocator_manager.h"
 #include "graph/manager/active_memory_allocator.h"
 #include "acl/acl_rt.h"
-#include "register/core_num_utils.h"
 
 namespace ge {
 namespace hybrid {
@@ -52,7 +51,6 @@ constexpr uint32_t kMaxThreadNum = 16U;
 constexpr uint64_t kMaxStringSize = 1024U;
 const std::string kGuardCheckSoName = "libguard_check.so";
 constexpr char_t const *kGuardCheckSoDataResult = "_guard_check_so_data";
-const std::string kVectorcoreNum = "ge.vectorcoreNum";
 
 struct VarMgrNodes {
   std::vector<ge::NodePtr> variables;
@@ -689,14 +687,6 @@ Status HybridModelRtV2Executor::RunCtx::Init(HybridModel *model) {
   (void)GetThreadLocalContext().GetOption(configure_option::INPUT_BATCH_CPY, enable_input_batch_cpy_str);
   enable_input_batch_cpy_ = (enable_input_batch_cpy_str == "1");
 
-  bool need_set_stream_core_limits = false;
-  ge::AttrUtils::GetBool(model->ge_root_model_->GetRootGraph(), "need_set_stream_core_limits",
-                         need_set_stream_core_limits);
-  if (need_set_stream_core_limits) {
-    ParserContextOption(AICORE_NUM, aicore_num_str_);
-    ParserContextOption(kVectorcoreNum, vectorcore_num_str_);
-  }
-
   GELOGI("Get npu iterations per loop [%s] and will loop %zu for graph [%s], input_batch_cpy_:%d.",
          iterations_per_loop.c_str(), iterations_per_loop_, graph_name_.c_str(),
          static_cast<int32_t>(enable_input_batch_cpy_));
@@ -1075,8 +1065,6 @@ Status HybridModelRtV2Executor::ExecuteRtModel(gert::ModelExecuteArg &model_args
   model_args.external_event_allocator = &(run_ctx_.dev_resource_allocator_.event_allocator);
   model_args.external_notify_allocator = &(run_ctx_.dev_resource_allocator_.notify_allocator);
 
-  TryUpdateStreamCoreLimits(model_args.stream);
-
   return executor_->Execute(model_args, rt_inputs_.data(), rt_inputs_.size(), rt_outputs_.data(), rt_outputs_.size(),
                             config);
 }
@@ -1427,37 +1415,6 @@ static Status InputTensorValidate(const std::vector<gert::Tensor> &inputs, size_
   return SUCCESS;
 }
 
-Status HybridModelRtV2Executor::TryUpdateStreamCoreLimits(const aclrtStream stream) {
-  bool update_stream_core_num = false;
-  int32_t aicore_num = -1;
-  int32_t vectorcore_num = -1;
-  if (!run_ctx_.aicore_num_str_.empty()) {
-    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(AICORE_NUM),
-                                                            run_ctx_.aicore_num_str_, 0, INT32_MAX, aicore_num));
-    if (aicore_num > 0) {
-      GE_CHK_ACL_RET(aclrtSetStreamResLimit(stream, ACL_RT_DEV_RES_CUBE_CORE, static_cast<uint32_t>(aicore_num)));
-      update_stream_core_num = true;
-    }
-  }
-
-  if (!run_ctx_.vectorcore_num_str_.empty()) {
-    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(
-        ge::GetContext().GetReadableName(kVectorcoreNum), run_ctx_.vectorcore_num_str_, 0, INT32_MAX, vectorcore_num));
-    if (vectorcore_num > 0) {
-      GE_CHK_ACL_RET(aclrtSetStreamResLimit(stream, ACL_RT_DEV_RES_VECTOR_CORE, static_cast<uint32_t>(vectorcore_num)));
-      update_stream_core_num = true;
-    }
-  }
-
-  if (update_stream_core_num) {
-    GE_CHK_ACL_RET(aclrtUseStreamResInCurrentThread(stream));
-    GELOGI("Bind stream resource limit in caller thread success, configured(cube=%d, vector=%d).", aicore_num,
-           vectorcore_num);
-  }
-
-  return SUCCESS;
-}
-
 Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<gert::Tensor> &inputs,
                                                        std::vector<gert::Tensor> &outputs, const aclrtStream stream) {
   logLevel_ = dlog_getlevel(GE_MODULE_NAME, nullptr);
@@ -1497,8 +1454,6 @@ Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<gert::T
     rt_outputs_[i] = &outputs[i];
   }
 
-  TryUpdateStreamCoreLimits(model_args.stream);
-
   const auto ret = executor_->Execute(model_args, rt_inputs_.data(), rt_inputs_.size(), rt_outputs_.data(),
                                       rt_outputs_.size(), config);
 
@@ -1537,8 +1492,6 @@ Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<GeTenso
   model_args.external_event_allocator = &(run_ctx_.dev_resource_allocator_.event_allocator);
   model_args.external_notify_allocator = &(run_ctx_.dev_resource_allocator_.notify_allocator);
   const auto config = gert::RtV2ExecutorInterface::RunConfig(run_ctx_.iterations_per_loop_, profiler_collector);
-
-  TryUpdateStreamCoreLimits(model_args.stream);
 
   const auto ret = executor_->Execute(model_args, rt_inputs_.data(), rt_inputs_.size(), rt_outputs_.data(),
                                       rt_outputs_.size(), config);

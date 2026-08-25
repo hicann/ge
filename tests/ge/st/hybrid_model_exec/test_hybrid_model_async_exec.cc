@@ -26,6 +26,7 @@
 #include "utils/tensor_descs.h"
 #include "utils/data_buffers.h"
 #include "register/op_tiling_registry.h"
+#include "register/core_num_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/optimize/graph_optimize.h"
@@ -889,7 +890,6 @@ TEST_F(HybridModelAsyncTest, Test_execute_with_stream_async_with_int4) {
   ge::AttrUtils::SetBool(graph, "need_set_stream_core_limits", true);
   std::map<std::string, std::string> options;
   options["ge.aicoreNum"] = "1";
-  options["ge.vectorcoreNum"] = "1";
   ge::GetThreadLocalContext().SetSessionOption(options);
   GertRuntimeStub runtime_stub;
   runtime_stub.GetSlogStub().SetLevel(DLOG_INFO);
@@ -906,6 +906,9 @@ TEST_F(HybridModelAsyncTest, Test_execute_with_stream_async_with_int4) {
   graph->TopologicalSorting();
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.BuildGeRootModel();
+  ASSERT_NE(ge_root_model, nullptr);
+  ASSERT_TRUE(ge::AttrUtils::SetStr(ge_root_model->GetRootGraph(), ge::AICORE_NUM, "1"));
+  ASSERT_TRUE(ge::AttrUtils::SetStr(ge_root_model->GetRootGraph(), ge::kVectorCoreNum, "16"));
 
   HybridModel hybrid_model(ge_root_model);
   hybrid_model.root_graph_item_.reset(new GraphItem);
@@ -950,9 +953,13 @@ TEST_F(HybridModelAsyncTest, Test_execute_with_stream_async_with_int4) {
                         }) != stream_res_limit_records.end();
   };
   EXPECT_TRUE(has_stream_res_limit(ACL_RT_DEV_RES_CUBE_CORE, 1U));
-  EXPECT_TRUE(has_stream_res_limit(ACL_RT_DEV_RES_VECTOR_CORE, 1U));
+  EXPECT_TRUE(has_stream_res_limit(ACL_RT_DEV_RES_VECTOR_CORE, 16U));
+  EXPECT_EQ(stream_res_limit_records.size(), 2U);
   EXPECT_NE(std::find(use_stream_res_records.begin(), use_stream_res_records.end(), stream),
             use_stream_res_records.end());
+  const auto &not_use_stream_res_records = runtime_stub.GetAclRuntimeStub().GetNotUseStreamResRecords();
+  EXPECT_NE(std::find(not_use_stream_res_records.begin(), not_use_stream_res_records.end(), stream),
+            not_use_stream_res_records.end());
   // check outputsize for int4, size is (4 * 16 * 16 * 3) * 4 / 8 = 1536
   for (size_t i = 0; i < output_tensors.size(); ++i) {
     EXPECT_NE(output_tensors[i].GetAddr(), nullptr);
@@ -1423,7 +1430,7 @@ TEST_F(HybridModelAsyncTest, ExecuteWithStreamAsync_execute_model_online_BatchH2
   hybrid_model.root_graph_ = ge_root_model->GetRootGraph();
   EXPECT_EQ(hybrid_model.Init(), SUCCESS);
   EXPECT_TRUE(hybrid_model.execute_by_rt_v2_);
-  rtStream_t stream = nullptr;
+  rtStream_t stream = (void *)0x01;
   HybridModelRtV2Executor executor_rt_v2(&hybrid_model, 0, stream);
   auto ret = executor_rt_v2.Init();
   EXPECT_EQ(ret, SUCCESS);

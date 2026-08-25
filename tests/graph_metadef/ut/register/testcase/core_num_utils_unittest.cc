@@ -16,6 +16,7 @@
 #include "graph/op_desc.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/ge_local_context.h"
+#include "ge_common/ge_common_api_types.h"
 
 namespace ge {
 namespace {
@@ -228,6 +229,89 @@ TEST_F(CoreNumValidateUT, ValidateCoreNumWithGraphSingleParam_VectorCoreNumWitho
   graph->AddNode(op1);
 
   EXPECT_NE(CoreNumUtils::ValidateCoreNumWithGraph(graph), GRAPH_SUCCESS);
+}
+
+// --- GetCoreNumFromGraph ---
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_NullGraph_ReturnsError) {
+  ComputeGraphPtr null_graph;
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_NE(CoreNumUtils::GetCoreNumFromGraph(null_graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_NoAttrs_KeepsDefaultValue) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+  EXPECT_EQ(aicore_num, -1);
+  EXPECT_EQ(vectorcore_num, -1);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_EmptyAttrValue_KeepsDefaultValue) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "");
+  (void)ge::AttrUtils::SetStr(graph, kVectorCoreNum, "");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+  EXPECT_EQ(aicore_num, -1);
+  EXPECT_EQ(vectorcore_num, -1);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_BothAttrsValid_ReturnsParsedValue) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "8");
+  (void)ge::AttrUtils::SetStr(graph, kVectorCoreNum, "16");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+  EXPECT_EQ(aicore_num, 8);
+  EXPECT_EQ(vectorcore_num, 16);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_OnlyAiCoreNum_VectorCoreNumKeepsDefaultValue) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "8");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+  EXPECT_EQ(aicore_num, 8);
+  EXPECT_EQ(vectorcore_num, -1);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_ZeroAiCoreNum_ReturnsZero) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "0");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+  EXPECT_EQ(aicore_num, 0);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_AiCoreNumNotInteger_ReturnsError) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "abc");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_NE(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_AiCoreNumNegative_ReturnsError) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "-1");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_NE(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_VectorCoreNumLeadingZero_ReturnsError) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, kVectorCoreNum, "08");
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  EXPECT_NE(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
 }
 
 }  // namespace

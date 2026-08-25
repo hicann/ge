@@ -10,7 +10,9 @@
 
 project(ut_ascendcl_c_utest)
 set(CMAKE_CXX_STANDARD 11)
-include(${AIR_CODE_DIR}/tests/cmake/intf_llt_pub.cmake)
+if (NOT TARGET intf_llt_pub)
+    include(${AIR_CODE_DIR}/tests/cmake/intf_llt_pub.cmake)
+endif()
 
 set(UT_FILES
     "main.cc"

@@ -36,6 +36,7 @@ class ModelV2ExecutorBuilder {
   std::unique_ptr<uint8_t[]> ReadBufferFromAttr(const char *attr_name) const;
   ge::graphStatus RestoreDeviceVarMem(ModelV2Executor &executor) const;
   void SetOutputReuseInputMemIndexes(ModelV2Executor &executor) const;
+  ge::graphStatus InitStreamCoreLimits(ModelV2Executor &executor) const;
 
  private:
   ge::ExecuteGraphPtr exe_graph_;

@@ -74,8 +74,33 @@ inline ge::graphStatus CheckModelInputsNum(const void *void_ed, size_t tensor_nu
                  ed->input_num, total_num, tensor_num, append_num);
   return ge::GRAPH_SUCCESS;
 }
+
 }  // namespace
 using ge::Status;
+
+ge::graphStatus ModelV2Executor::ApplyStreamCoreNumLimits(const rtStream_t stream, bool &stream_res_bound) const {
+  stream_res_bound = false;
+  if (!need_set_stream_core_limits_) {
+    return ge::GRAPH_SUCCESS;
+  }
+  if ((stream_aicore_num_ <= 0) && (stream_vectorcore_num_ <= 0)) {
+    return ge::GRAPH_SUCCESS;
+  }
+  GE_ASSERT_NOTNULL(stream);
+  if (stream_aicore_num_ > 0) {
+    GE_CHK_ACL_RET(aclrtSetStreamResLimit(stream, ACL_RT_DEV_RES_CUBE_CORE, static_cast<uint32_t>(stream_aicore_num_)));
+  }
+  if (stream_vectorcore_num_ > 0) {
+    GE_CHK_ACL_RET(
+        aclrtSetStreamResLimit(stream, ACL_RT_DEV_RES_VECTOR_CORE, static_cast<uint32_t>(stream_vectorcore_num_)));
+  }
+  GE_CHK_ACL_RET(aclrtUseStreamResInCurrentThread(stream));
+  stream_res_bound = true;
+  GELOGI("Bind stream resource limit in executor thread success, configured(cube=%d, vector=%d).", stream_aicore_num_,
+         stream_vectorcore_num_);
+  return ge::GRAPH_SUCCESS;
+}
+
 ge::graphStatus ModelV2Executor::ArrangeModelLoadArg(const ModelLoadArg &arg, std::vector<void *> &const_inputs) {
   if (arg.rt_session == nullptr) {
     const_inputs.emplace_back(&default_rt_session_);
@@ -252,6 +277,18 @@ ge::graphStatus ModelV2Executor::Execute(const ModelExecuteArg &arg, Tensor **in
   ge::multistream_tune::StepScope step(ge::multistream_tune::kSiteModelV2Executor, auto_multistream_tuning_mode_,
                                        auto_multistream_tuning_id_, arg.stream);
   ge::graphStatus ret = ge::GRAPH_FAILED;
+  bool stream_res_bound = false;
+  GE_RETURN_IF_ERROR(ApplyStreamCoreNumLimits(arg.stream, stream_res_bound));
+  GE_MAKE_GUARD(unuse_stream_res, ([stream_res_bound, stream = arg.stream]() {
+                  if (stream_res_bound) {
+                    const auto acl_error = aclrtUnuseStreamResInCurrentThread(stream);
+                    if (acl_error != ACL_SUCCESS) {
+                      GELOGW("Failed to unbind stream resource limit in executor thread, stream %p, ret %d.", stream,
+                             acl_error);
+                    }
+                  }
+                }));
+
   if (subscribers_.IsEnable()) {
     ret = graph_executor.Execute(kMainExeGraph, &subscribers_.GetSubscriber(kMainExeGraph));
   } else {
