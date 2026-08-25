@@ -78,6 +78,7 @@ class DumpOp {
                    bool ffts_flag = false) const;
   void DumpTask(toolkit::aicpu::dump::Task &task, const uint32_t task_id);
   Status SetDumpModelName();
+  Status GetProtoCapacity(size_t &proto_capacity) const;
   Status ProtoMallocAndMemcpy(const size_t proto_size, const std::string &proto_msg);
   Status LaunchDump(toolkit::aicpu::dump::Task &task);
   Status BuildFftsSubOpTask(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
@@ -94,6 +95,7 @@ class DumpOp {
   std::vector<FftsPlusDumpInfo> ffts_sub_op_list_;
 
   void *proto_dev_mem_ = nullptr;
+  size_t proto_dev_mem_capacity_ = 0U;
   void *proto_size_dev_mem_ = nullptr;
   void *dev_mem_unload_{nullptr};
   toolkit::aicpu::dump::OpMappingInfo op_mapping_info_;

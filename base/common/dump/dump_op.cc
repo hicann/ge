@@ -11,6 +11,8 @@
 #include "common/dump/dump_op.h"
 #include "acl/acl_rt.h"
 #include <array>
+#include <algorithm>
+#include <limits>
 #include "common/dump/dump_manager.h"
 #include "common/plugin/datatype_util.h"
 #include "framework/common/debug/ge_log.h"
@@ -51,6 +53,7 @@ DumpOp::~DumpOp() {
     (void)aclrtFree(proto_dev_mem_);
     proto_dev_mem_ = nullptr;
   }
+  proto_dev_mem_capacity_ = 0U;
 
   if (proto_size_dev_mem_ != nullptr) {
     (void)aclrtFree(proto_size_dev_mem_);
@@ -240,7 +243,7 @@ Status DumpOp::DumpInput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_d
     if ((input_descs == nullptr) || (input_descs->GetShape().IsUnknownShape())) {
       continue;
     }
-    if ((i > addrs.size()) || (!ffts_flag && addrs[i] == reinterpret_cast<uintptr_t>(nullptr))) {
+    if ((i >= addrs.size()) || (!ffts_flag && addrs[i] == reinterpret_cast<uintptr_t>(nullptr))) {
       GELOGW("[Dumper] Node name %s, addr_id is %zu, input addrs size is %zu", op_desc->GetName().c_str(), i,
              addrs.size());
       continue;
@@ -287,15 +290,21 @@ void DumpOp::SetDumpInfo(const DumpProperties &dump_properties, const OpDescPtr 
 }
 
 Status DumpOp::ProtoMallocAndMemcpy(const size_t proto_size, const std::string &proto_msg) {
+  size_t proto_capacity = proto_size;
+  GE_CHK_STATUS_RET(GetProtoCapacity(proto_capacity));
+
   GE_FREE_RT_LOG(proto_dev_mem_);
-  aclError rt_ret = ge::AclrtMalloc(&proto_dev_mem_, proto_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
+  proto_dev_mem_capacity_ = 0U;
+  aclError rt_ret = ge::AclrtMalloc(&proto_dev_mem_, proto_capacity, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][aclrtMalloc]Failed, ret: %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMalloc failed, ret: %d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
+  proto_dev_mem_capacity_ = proto_capacity;
 
-  rt_ret = aclrtMemcpy(proto_dev_mem_, proto_size, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE);
+  rt_ret =
+      aclrtMemcpy(proto_dev_mem_, proto_dev_mem_capacity_, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][aclrtMemcpy]Failed, ret: %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMemcpy failed, ret: %d", rt_ret);
@@ -315,6 +324,30 @@ Status DumpOp::ProtoMallocAndMemcpy(const size_t proto_size, const std::string &
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMemcpy failed, ret %d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
+  return SUCCESS;
+}
+
+Status DumpOp::GetProtoCapacity(size_t &proto_capacity) const {
+  if (op_desc_ == nullptr) {
+    return SUCCESS;
+  }
+
+  // Address fields use protobuf varint encoding. Reserve the serialized size for the
+  // largest possible address values while keeping proto_dev_mem_ at a stable address.
+  auto max_op_mapping_info = op_mapping_info_;
+  const auto max_address = std::numeric_limits<uintptr_t>::max();
+  const std::vector<uintptr_t> max_input_addrs(op_desc_->GetAllInputsSize(), max_address);
+  const std::vector<uintptr_t> max_output_addrs(op_desc_->GetAllOutputsDescPtr().size(), max_address);
+  for (auto &task : *max_op_mapping_info.mutable_task()) {
+    if (dump_properties_.GetDumpMode() == kDumpModeInput) {
+      task.clear_input();
+      GE_CHK_STATUS_RET(DumpInput(task, op_desc_, max_input_addrs));
+    } else if (dump_properties_.GetDumpMode() == kDumpModeOutput) {
+      task.clear_output();
+      GE_CHK_STATUS_RET(DumpOutput(task, op_desc_, max_output_addrs));
+    }
+  }
+  proto_capacity = std::max(proto_capacity, max_op_mapping_info.ByteSizeLong());
   return SUCCESS;
 }
 
@@ -440,7 +473,11 @@ Status DumpOp::UpdateAddrs(const std::vector<uintptr_t> &input_addrs, const std:
     REPORT_INNER_ERR_MSG("E19999", "[Serialize][Protobuf]Failed, proto_size is %zu", proto_size);
     return ACL_ERROR_GE_INTERNAL_ERROR;
   }
-  auto rt_ret = aclrtMemcpy(proto_dev_mem_, proto_size, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE);
+  GE_ASSERT_TRUE(proto_dev_mem_ != nullptr && proto_size <= proto_dev_mem_capacity_,
+                 "[Dump][Update] proto buffer is not large enough, capacity %zu, required %zu", proto_dev_mem_capacity_,
+                 proto_size);
+  auto rt_ret =
+      aclrtMemcpy(proto_dev_mem_, proto_dev_mem_capacity_, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][aclrtMemcpy]Failed, ret: %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMemcpy failed, ret: %d", rt_ret);
@@ -579,8 +616,10 @@ Status DumpOp::GenerateFftsDump(const DumpProperties &dump_properties, void *&lo
     GELOGW("proto_dev_mem_ has been used.");
     GE_FREE_RT_LOG(proto_dev_mem_);
   }
+  proto_dev_mem_capacity_ = 0U;
 
   GE_CHK_ACL_RET(ge::AclrtMalloc(&proto_dev_mem_, proto_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  proto_dev_mem_capacity_ = proto_size;
   GE_CHK_ACL_RET(aclrtMemcpy(proto_dev_mem_, proto_size, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE));
 
   load_dump_info = proto_dev_mem_;

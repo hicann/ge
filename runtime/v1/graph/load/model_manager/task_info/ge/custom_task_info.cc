@@ -22,6 +22,7 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "exe_graph/runtime/update_args_context.h"
 #include "framework/runtime/args_handler.h"
+#include "framework/runtime/subscriber/global_dumper.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/debug/ge_util.h"
 #include "graph/load/model_manager/model_manager.h"
@@ -225,18 +226,7 @@ Status GetCustomTaskArgsRefreshStrategy(const OpDescPtr &op_desc, const domi::Ke
 }  // namespace
 
 void CustomTaskInfo::SetCustomDumpInfo(const DumpProperties &dump_properties, DumpOp &dump_op) const {
-  std::vector<uintptr_t> input_addrs;
-  std::vector<uintptr_t> output_addrs;
-  input_addrs.reserve(input_data_addrs_.size());
-  output_addrs.reserve(output_data_addrs_.size());
-  for (const auto addr : input_data_addrs_) {
-    input_addrs.emplace_back(static_cast<uintptr_t>(addr));
-  }
-  for (const auto addr : output_data_addrs_) {
-    output_addrs.emplace_back(static_cast<uintptr_t>(addr));
-  }
-
-  dump_op.SetDumpInfo(dump_properties, op_desc_, input_addrs, output_addrs, stream_);
+  dump_op.SetDumpInfo(dump_properties, op_desc_, dump_input_addrs_, dump_output_addrs_, stream_);
   if (davinci_model_->IsKnownNode()) {
     dump_op.SetLoopAddr(davinci_model_->GetGlobalStep(), 0U, 0U);
   } else {
@@ -258,21 +248,46 @@ Status CustomTaskInfo::UpdateCustomDumpAddrs(const std::vector<uint64_t> &input_
 
   GELOGI("UpdateCustomDumpAddrs: op_name=%s, inputs=%zu, outputs=%zu", op_desc_->GetName().c_str(),
          input_addrs_value.size(), output_addrs_value.size());
-  std::vector<uintptr_t> input_addrs;
-  std::vector<uintptr_t> output_addrs;
-  input_addrs.reserve(input_addrs_value.size());
-  output_addrs.reserve(output_addrs_value.size());
-  for (const auto addr : input_addrs_value) {
-    input_addrs.emplace_back(static_cast<uintptr_t>(addr));
-  }
-  for (const auto addr : output_addrs_value) {
-    output_addrs.emplace_back(static_cast<uintptr_t>(addr));
+  GE_CHK_STATUS_RET(UpdateDumpInputAddrs(input_addrs_value), "[Update][CustomDumpInputAddrs] fail! op:%s",
+                    op_desc_->GetName().c_str());
+  GE_ASSERT_TRUE(dump_output_addrs_.size() == output_addrs_value.size(),
+                 "Output dump address buffer size[%zu] does not match output address size[%zu], op %s",
+                 dump_output_addrs_.size(), output_addrs_value.size(), op_desc_->GetNamePtr());
+  for (size_t i = 0U; i < output_addrs_value.size(); ++i) {
+    dump_output_addrs_[i] = static_cast<uintptr_t>(output_addrs_value[i]);
   }
 
-  GE_CHK_STATUS_RET(input_custom_dump_.UpdateAddrs(input_addrs, {}), "[Update][CustomDumpAddrs] fail! op:%s",
-                    op_desc_->GetName().c_str());
-  GE_CHK_STATUS_RET(output_custom_dump_.UpdateAddrs({}, output_addrs), "[Update][CustomDumpAddrs] fail! op:%s",
-                    op_desc_->GetName().c_str());
+  GE_CHK_STATUS_RET(input_custom_dump_.UpdateAddrs(dump_input_addrs_, dump_empty_addrs_),
+                    "[Update][CustomDumpAddrs] fail! op:%s", op_desc_->GetName().c_str());
+  GE_CHK_STATUS_RET(output_custom_dump_.UpdateAddrs(dump_empty_addrs_, dump_output_addrs_),
+                    "[Update][CustomDumpAddrs] fail! op:%s", op_desc_->GetName().c_str());
+  return SUCCESS;
+}
+
+Status CustomTaskInfo::UpdateDumpInputAddrs(const std::vector<uint64_t> &input_addrs_value) {
+  GE_CHECK_NOTNULL(op_desc_);
+  // Runtime input addresses omit absent optional inputs, while DumpInput indexes all input descriptors.
+  const size_t input_desc_count = op_desc_->GetAllInputsSize();
+  if (dump_input_addrs_.size() != input_desc_count) {
+    dump_input_addrs_.resize(input_desc_count);
+  }
+  for (auto &addr : dump_input_addrs_) {
+    addr = 0U;
+  }
+
+  size_t input_addr_index = 0U;
+  for (size_t input_desc_index = 0U; input_desc_index < input_desc_count; ++input_desc_index) {
+    if (op_desc_->MutableInputDesc(static_cast<uint32_t>(input_desc_index)) == nullptr) {
+      continue;
+    }
+    GE_ASSERT_TRUE(input_addr_index < input_addrs_value.size(),
+                   "Input address index[%zu] exceeds input address size[%zu], op %s", input_addr_index,
+                   input_addrs_value.size(), op_desc_->GetNamePtr());
+    dump_input_addrs_[input_desc_index] = static_cast<uintptr_t>(input_addrs_value[input_addr_index++]);
+  }
+  GE_ASSERT_TRUE(input_addr_index == input_addrs_value.size(),
+                 "Input address size[%zu] does not match valid input desc size[%zu], op %s", input_addrs_value.size(),
+                 input_addr_index, op_desc_->GetNamePtr());
   return SUCCESS;
 }
 
@@ -309,6 +324,13 @@ Status CustomTaskInfo::InsertDumpOp(const std::string &dump_mode) {
     return SUCCESS;
   }
 
+  // Address buffers are allocated during model loading and reused in the execute path.
+  GE_CHK_STATUS_RET(UpdateDumpInputAddrs(input_data_addrs_), "[Update][CustomDumpInputAddrs] fail! op:%s",
+                    op_desc_->GetName().c_str());
+  dump_output_addrs_.resize(output_data_addrs_.size());
+  for (size_t i = 0U; i < output_data_addrs_.size(); ++i) {
+    dump_output_addrs_[i] = static_cast<uintptr_t>(output_data_addrs_[i]);
+  }
   SetCustomDumpInfo(custom_dump_properties, *dump_op);
   return dump_op->LaunchDumpOp(false, false);
 }
@@ -326,6 +348,7 @@ Status CustomTaskInfo::ParseTaskRunParam(const domi::TaskDef &task_def, DavinciM
   const RuntimeParam &rts_param = davinci_model->GetRuntimeParam();
   input_data_addrs_ = ModelUtils::GetInputAddrsValue(rts_param, op_desc_, input_mem_types_);
   output_data_addrs_ = ModelUtils::GetOutputAddrsValue(rts_param, op_desc_, output_mem_types_, true);
+  exception_dump_io_addrs_.reserve(input_data_addrs_.size() + output_data_addrs_.size());
   workspace_addrs_ = ModelUtils::GetWorkspaceDataAddrsValue(rts_param, op_desc_, workspace_mem_types_);
   GE_ASSERT_SUCCESS(ValidateIoWorkspaceAddrAndMemTypeSizes());
 
@@ -518,7 +541,11 @@ Status CustomTaskInfo::Distribute() {
   GE_ASSERT_NOTNULL(davinci_model_);
 
   if (args_refresh_strategy_ == ArgsRefreshStrategy::kAnnotatedArgs) {
-    return DistributeAnnotatedArgsFromTaskDef();
+    GE_CHK_STATUS_RET(InsertDumpOp(kDumpInput), "Insert custom input dump op failed, node: %s", op_desc_->GetNamePtr());
+    GE_ASSERT_SUCCESS(DistributeAnnotatedArgsFromTaskDef());
+    GE_CHK_STATUS_RET(InsertDumpOp(kDumpOutput), "Insert custom output dump op failed, node: %s",
+                      op_desc_->GetNamePtr());
+    return SUCCESS;
   }
 
   const auto &custom_op_registry = davinci_model_->GetCustomOpRegistry();
@@ -865,6 +892,81 @@ Status CustomTaskInfo::UpdateHostArgs(void *base_addr, size_t mem_size) {
   GE_ASSERT_SUCCESS(UpdateCustomDumpAddrs(input_data_addrs_, output_data_addrs_));
 
   GELOGD("UpdateHostArgs succeeded, task_id=%u, updated %zu I/O addresses", task_id_, io_index);
+  return SUCCESS;
+}
+
+Status CustomTaskInfo::UpdateDumpInfos(void *const host_args, const size_t host_args_max_len) {
+  if (args_refresh_strategy_ != ArgsRefreshStrategy::kAnnotatedArgs) {
+    return SUCCESS;
+  }
+  GE_CHECK_NOTNULL(davinci_model_);
+  GE_CHECK_NOTNULL(op_desc_);
+  const bool need_data_dump = davinci_model_->OpNeedDump(op_desc_->GetName());
+  const bool need_exception_dump = gert::GlobalDumper::GetInstance()->IsEnable(gert::DumpType::kExceptionDump);
+  if (!need_data_dump && !need_exception_dump) {
+    return SUCCESS;
+  }
+  GE_ASSERT_NOTNULL(host_args);
+
+  size_t args_offset = 0U;
+  // Validate the complete args buffer before changing the cached addresses.
+  for (const auto &arg_desc : args_format_holder_.arg_descs) {
+    size_t arg_size = 0U;
+    GE_ASSERT_SUCCESS(ArgsFormatDesc::GetArgSize(op_desc_, arg_desc, arg_size));
+    GE_ASSERT_TRUE(args_offset <= host_args_max_len && arg_size <= (host_args_max_len - args_offset),
+                   "[CUSTOM OP] args buffer is too small for dump info, op %s, offset %zu, arg size %zu, total %zu",
+                   op_desc_->GetNamePtr(), args_offset, arg_size, host_args_max_len);
+
+    if ((arg_desc.addr_type == AddrType::INPUT_INSTANCE) || (arg_desc.addr_type == AddrType::OUTPUT_INSTANCE)) {
+      GE_ASSERT_TRUE(arg_size >= sizeof(uint64_t), "[CUSTOM OP] address arg size %zu is too small for dump info, op %s",
+                     arg_size, op_desc_->GetNamePtr());
+      GE_ASSERT_TRUE(arg_desc.ir_idx >= 0, "[CUSTOM OP] address arg index is negative for dump info, op %s",
+                     op_desc_->GetNamePtr());
+      const size_t index = static_cast<size_t>(arg_desc.ir_idx);
+      if (arg_desc.addr_type == AddrType::INPUT_INSTANCE) {
+        GE_ASSERT_TRUE(index < input_data_addrs_.size(),
+                       "[CUSTOM OP] input instance index %zu is out of range for dump info, op %s", index,
+                       op_desc_->GetNamePtr());
+      } else {
+        GE_ASSERT_TRUE(index < output_data_addrs_.size(),
+                       "[CUSTOM OP] output instance index %zu is out of range for dump info, op %s", index,
+                       op_desc_->GetNamePtr());
+      }
+    }
+    args_offset += arg_size;
+  }
+
+  const auto *args_data = static_cast<const uint8_t *>(host_args);
+  args_offset = 0U;
+  for (const auto &arg_desc : args_format_holder_.arg_descs) {
+    size_t arg_size = 0U;
+    GE_ASSERT_SUCCESS(ArgsFormatDesc::GetArgSize(op_desc_, arg_desc, arg_size));
+    if ((arg_desc.addr_type == AddrType::INPUT_INSTANCE) || (arg_desc.addr_type == AddrType::OUTPUT_INSTANCE)) {
+      uint64_t addr = 0U;
+      GE_ASSERT_EOK(memcpy_s(&addr, sizeof(addr), args_data + args_offset, sizeof(addr)));
+      const size_t index = static_cast<size_t>(arg_desc.ir_idx);
+      if (arg_desc.addr_type == AddrType::INPUT_INSTANCE) {
+        input_data_addrs_[index] = addr;
+      } else {
+        output_data_addrs_[index] = addr;
+      }
+    }
+    args_offset += arg_size;
+  }
+
+  if (need_data_dump) {
+    GE_ASSERT_SUCCESS(UpdateCustomDumpAddrs(input_data_addrs_, output_data_addrs_));
+  }
+
+  if (need_exception_dump) {
+    // Exception dump records are maintained independently of normal data dump ops.
+    // Keep their IO addresses in sync when annotated args are refreshed.
+    exception_dump_io_addrs_.clear();
+    exception_dump_io_addrs_.insert(exception_dump_io_addrs_.end(), input_data_addrs_.begin(), input_data_addrs_.end());
+    exception_dump_io_addrs_.insert(exception_dump_io_addrs_.end(), output_data_addrs_.begin(),
+                                    output_data_addrs_.end());
+    davinci_model_->UpdateOpIOAddrs(task_id_, stream_id_, exception_dump_io_addrs_);
+  }
   return SUCCESS;
 }
 
