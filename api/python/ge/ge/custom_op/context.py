@@ -19,7 +19,12 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Iterator, Optional
 
-from ._native import AnnotatedArgsContext, EagerOpExecutionContext
+from ._native import (
+    AnnotatedArgsContext,
+    CompilePlatformInfo,
+    EagerOpExecutionContext,
+    OpCompileContext,
+)
 
 
 @dataclass
@@ -86,3 +91,42 @@ def _declare_launch_args_ctx_scope(ctx: AnnotatedArgsContext) -> Iterator[None]:
     finally:
         binding.active = False
         _CURRENT_DECLARE_LAUNCH_ARGS_CONTEXT.reset(token)
+
+
+@dataclass
+class _CompileContextBinding:
+    ctx: OpCompileContext
+    active: bool = True
+
+
+_CURRENT_COMPILE_CONTEXT: ContextVar[Optional[_CompileContextBinding]] = ContextVar(
+    "ge_custom_op_compile_context", default=None
+)
+
+
+def get_compile_ctx() -> OpCompileContext:
+    """Return the borrowed context of the active schema-bound compile callback."""
+
+    binding = _CURRENT_COMPILE_CONTEXT.get()
+    if binding is None or not binding.active:
+        raise RuntimeError(
+            "get_compile_ctx() is only available inside schema-bound compile"
+        )
+    return binding.ctx
+
+
+def get_compile_platform_info() -> CompilePlatformInfo:
+    """Return the platform information view of the active compile callback."""
+
+    return get_compile_ctx()._get_platform_info()
+
+
+@contextmanager
+def _compile_ctx_scope(ctx: OpCompileContext) -> Iterator[None]:
+    binding = _CompileContextBinding(ctx=ctx)
+    token = _CURRENT_COMPILE_CONTEXT.set(binding)
+    try:
+        yield
+    finally:
+        binding.active = False
+        _CURRENT_COMPILE_CONTEXT.reset(token)

@@ -11,11 +11,15 @@
 #include "custom_op_bindings.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "exe_graph/runtime/op_compile_context.h"
+#include "graph/ascend_string.h"
+#include "platform/platform_infos_def.h"
 #include "runtime_attrs_binding.h"
 #include "runtime/native_bindings/runtime_type_wrappers.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -140,6 +144,229 @@ class BorrowedEagerOpExecutionContext {
   gert::EagerOpExecutionContext *ctx_{nullptr};
   std::shared_ptr<bool> valid_;
 };
+
+class BorrowedCompilePlatformInfo {
+ public:
+  BorrowedCompilePlatformInfo(gert::OpCompileContext *ctx, std::shared_ptr<bool> active)
+      : ctx_(ctx), active_(std::move(active)) {}
+
+  std::string GetPlatformResource(const py::object &group_obj, const py::object &key_obj) const {
+    EnsureActiveContext();
+    const auto group = RequireString(group_obj, "group");
+    const auto key = RequireString(key_obj, "key");
+    if (group.empty()) {
+      throw std::invalid_argument("platform resource group must not be empty");
+    }
+    if (key.empty()) {
+      throw std::invalid_argument("platform resource key must not be empty");
+    }
+    EnsurePlatformSnapshot();
+    std::string value;
+    if (!platform_info_.GetPlatformResWithLock(group, key, value)) {
+      throw py::key_error(group + ":" + key);
+    }
+    return value;
+  }
+
+  std::map<std::string, std::string> GetPlatformResourceGroup(const py::object &group_obj) const {
+    EnsureActiveContext();
+    const auto group = RequireString(group_obj, "group");
+    if (group.empty()) {
+      throw std::invalid_argument("platform resource group must not be empty");
+    }
+    EnsurePlatformSnapshot();
+    std::map<std::string, std::string> values;
+    if (!platform_info_.GetPlatformResWithLock(group, values)) {
+      throw py::key_error(group);
+    }
+    return values;
+  }
+
+  uint32_t GetCoreNum(const py::object &core_type) const {
+    EnsureActiveContext();
+    if (core_type.is_none()) {
+      EnsurePlatformSnapshot();
+      return platform_info_.GetCoreNumWithLock();
+    }
+    if (!py::isinstance<py::str>(core_type)) {
+      throw py::type_error("core_type must be a string or None");
+    }
+    const auto value = core_type.cast<std::string>();
+    if (value.empty()) {
+      throw std::invalid_argument("core_type must not be empty");
+    }
+    EnsurePlatformSnapshot();
+    return platform_info_.GetCoreNumByType(value);
+  }
+
+  std::string GetSocVersion() const {
+    EnsureActiveContext();
+    EnsurePlatformSnapshot();
+    return optional_infos_.GetSocVersion();
+  }
+
+  uint32_t GetAiCoreNum() const {
+    EnsureActiveContext();
+    EnsurePlatformSnapshot();
+    return optional_infos_.GetAICoreNum();
+  }
+
+ private:
+  static std::string RequireString(const py::object &value, const char *name) {
+    if (!py::isinstance<py::str>(value)) {
+      throw py::type_error(std::string(name) + " must be a string");
+    }
+    return value.cast<std::string>();
+  }
+
+  void EnsureActiveContext() const {
+    if ((active_ == nullptr) || (!(*active_)) || (ctx_ == nullptr)) {
+      throw std::runtime_error("Borrowed native object has expired");
+    }
+  }
+
+  void EnsurePlatformSnapshot() const {
+    EnsureActiveContext();
+    if (platform_initialized_) {
+      if (platform_failed_) {
+        throw std::runtime_error("Failed to get platform infos");
+      }
+      return;
+    }
+    platform_initialized_ = true;
+    const auto ret = ctx_->GetPlatformInfos(platform_info_, optional_infos_);
+    if (ret != GRAPH_SUCCESS) {
+      platform_failed_ = true;
+      throw std::runtime_error("Failed to get platform infos");
+    }
+  }
+
+  gert::OpCompileContext *ctx_{nullptr};
+  std::shared_ptr<bool> active_;
+  mutable bool platform_initialized_{false};
+  mutable bool platform_failed_{false};
+  mutable fe::PlatFormInfos platform_info_;
+  mutable fe::OptionalInfos optional_infos_;
+};
+
+class BorrowedOpCompileContext {
+ public:
+  explicit BorrowedOpCompileContext(gert::OpCompileContext *ctx) : ctx_(ctx), active_(std::make_shared<bool>(true)) {}
+
+  py::object GetRequiredInputTensor(size_t ir_index) const {
+    return CastRequiredTensor(Get()->GetRequiredInputTensor(ir_index), "Failed to get required input tensor");
+  }
+
+  py::object GetOptionalInputTensor(size_t ir_index) const {
+    const auto *tensor = Get()->GetOptionalInputTensor(ir_index);
+    return (tensor == nullptr) ? py::none() : CastTensor(tensor);
+  }
+
+  size_t GetDynamicInputNum(size_t ir_index) const {
+    const auto *instance_info = Get()->GetIrInputInstanceInfo(ir_index);
+    if (instance_info == nullptr) {
+      throw std::runtime_error("Failed to get dynamic input instance info");
+    }
+    return instance_info->GetInstanceNum();
+  }
+
+  py::object GetDynamicInputTensor(size_t ir_index, size_t relative_index) const {
+    return CastRequiredTensor(Get()->GetDynamicInputTensor(ir_index, relative_index),
+                              "Failed to get dynamic input tensor");
+  }
+
+  py::object GetRequiredOutputTensor(size_t ir_index) const {
+    return CastRequiredTensor(Get()->GetRequiredOutputTensor(ir_index), "Failed to get required output tensor");
+  }
+
+  size_t GetDynamicOutputNum(size_t ir_index) const {
+    const auto *instance_info = Get()->GetIrOutputInstanceInfo(ir_index);
+    if (instance_info == nullptr) {
+      throw std::runtime_error("Failed to get dynamic output instance info");
+    }
+    return instance_info->GetInstanceNum();
+  }
+
+  py::object GetDynamicOutputTensor(size_t ir_index, size_t relative_index) const {
+    return CastRequiredTensor(Get()->GetDynamicOutputTensor(ir_index, relative_index),
+                              "Failed to get dynamic output tensor");
+  }
+
+  py::object GetAttrs() const {
+    const auto *attrs = Get()->GetAttrs();
+    if (attrs == nullptr) {
+      throw std::runtime_error("Failed to get runtime attrs");
+    }
+    return py::cast(BorrowedRuntimeAttrs(attrs, active_, true));
+  }
+
+  std::string GetOption(const py::object &option_key_obj) const {
+    EnsureActiveContext();
+    const auto option_key = RequireString(option_key_obj, "option_key");
+    if (option_key.empty()) {
+      throw std::invalid_argument("option_key must not be empty");
+    }
+    ge::AscendString option;
+    const auto ret = Get()->GetOption(ge::AscendString(option_key.c_str()), option);
+    if (ret != GRAPH_SUCCESS) {
+      throw py::key_error(option_key);
+    }
+    const auto *option_value = option.GetString();
+    return (option_value == nullptr) ? std::string() : std::string(option_value, option.GetLength());
+  }
+
+  BorrowedCompilePlatformInfo GetPlatformInfo() const {
+    EnsureActiveContext();
+    return BorrowedCompilePlatformInfo(ctx_, active_);
+  }
+
+  void Invalidate() {
+    if (active_ != nullptr) {
+      *active_ = false;
+    }
+    ctx_ = nullptr;
+  }
+
+ private:
+  static std::string RequireString(const py::object &value, const char *name) {
+    if (!py::isinstance<py::str>(value)) {
+      throw py::type_error(std::string(name) + " must be a string");
+    }
+    return value.cast<std::string>();
+  }
+
+  gert::OpCompileContext *Get() const {
+    EnsureActiveContext();
+    return ctx_;
+  }
+
+  void EnsureActiveContext() const {
+    if ((active_ == nullptr) || (!(*active_)) || (ctx_ == nullptr)) {
+      throw std::runtime_error("Borrowed native object has expired");
+    }
+  }
+
+  py::object CastTensor(const gert::Tensor *tensor) const {
+    return py::cast(runtime_native::NativeTensor::Borrow(tensor, active_));
+  }
+
+  py::object CastRequiredTensor(const gert::Tensor *tensor, const char *message) const {
+    if (tensor == nullptr) {
+      throw std::runtime_error(message);
+    }
+    return CastTensor(tensor);
+  }
+
+  gert::OpCompileContext *ctx_{nullptr};
+  std::shared_ptr<bool> active_;
+};
+
+BorrowedOpCompileContext BorrowOpCompileContext(uintptr_t ctx_handle) {
+  if (ctx_handle == 0U) {
+    throw std::invalid_argument("ctx_handle is null");
+  }
+  return BorrowedOpCompileContext(reinterpret_cast<gert::OpCompileContext *>(ctx_handle));
+}
 
 BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(uintptr_t ctx_handle) {
   if (ctx_handle == 0U) {
@@ -466,6 +693,30 @@ void BindAnnotatedArgsContext(py::module_ &m) {
       .def("add_launch", &BorrowedAnnotatedArgsContext::AddLaunch, py::arg("launch_info"), py::arg("args"))
       .def("_invalidate", &BorrowedAnnotatedArgsContext::Invalidate);
   m.def("_borrow_annotated_args_context", &BorrowAnnotatedArgsContext, py::arg("ctx_handle"));
+}
+
+void BindOpCompileContext(py::module_ &m) {
+  py::class_<BorrowedOpCompileContext>(m, "OpCompileContext", "Borrowed view of gert::OpCompileContext")
+      .def("get_option", &BorrowedOpCompileContext::GetOption, py::arg("option_key"))
+      .def("_get_platform_info", &BorrowedOpCompileContext::GetPlatformInfo)
+      .def("_get_required_input_tensor", &BorrowedOpCompileContext::GetRequiredInputTensor, py::arg("ir_index"))
+      .def("_get_optional_input_tensor", &BorrowedOpCompileContext::GetOptionalInputTensor, py::arg("ir_index"))
+      .def("_get_dynamic_input_num", &BorrowedOpCompileContext::GetDynamicInputNum, py::arg("ir_index"))
+      .def("_get_dynamic_input_tensor", &BorrowedOpCompileContext::GetDynamicInputTensor, py::arg("ir_index"),
+           py::arg("relative_index"))
+      .def("_get_required_output_tensor", &BorrowedOpCompileContext::GetRequiredOutputTensor, py::arg("ir_index"))
+      .def("_get_dynamic_output_num", &BorrowedOpCompileContext::GetDynamicOutputNum, py::arg("ir_index"))
+      .def("_get_dynamic_output_tensor", &BorrowedOpCompileContext::GetDynamicOutputTensor, py::arg("ir_index"),
+           py::arg("relative_index"))
+      .def("_get_attrs", &BorrowedOpCompileContext::GetAttrs)
+      .def("_invalidate", &BorrowedOpCompileContext::Invalidate);
+  py::class_<BorrowedCompilePlatformInfo>(m, "CompilePlatformInfo", "Borrowed platform information for compile")
+      .def("get_platform_resource", &BorrowedCompilePlatformInfo::GetPlatformResource, py::arg("group"), py::arg("key"))
+      .def("get_platform_resource_group", &BorrowedCompilePlatformInfo::GetPlatformResourceGroup, py::arg("group"))
+      .def("get_core_num", &BorrowedCompilePlatformInfo::GetCoreNum, py::arg("core_type") = py::none())
+      .def("get_soc_version", &BorrowedCompilePlatformInfo::GetSocVersion)
+      .def("get_ai_core_num", &BorrowedCompilePlatformInfo::GetAiCoreNum);
+  m.def("_borrow_op_compile_context", &BorrowOpCompileContext, py::arg("ctx_handle"));
 }
 
 }  // namespace python_custom_op_native

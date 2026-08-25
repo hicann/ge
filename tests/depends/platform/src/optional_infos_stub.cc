@@ -8,20 +8,12 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_
-#define API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_
+#include "platform_info.h"
 
-#include "binding_common.h"
+std::string fe::OptionalInfos::GetSocVersion() {
+  return "Ascend910B";
+}
 
-namespace ge {
-namespace python_custom_op_native {
-
-void BindEagerOpExecutionContext(py::module_ &m);
-void BindAnnotatedArgsContext(py::module_ &m);
-void BindOpCompileContext(py::module_ &m);
-void BindInferMetaContext(py::module_ &m);
-
-}  // namespace python_custom_op_native
-}  // namespace ge
-
-#endif  // API_PYTHON_GE_GE_CUSTOM_OP_NATIVE_BINDINGS_CUSTOM_OP_BINDINGS_H_
+uint32_t fe::OptionalInfos::GetAICoreNum() {
+  return 32U;
+}

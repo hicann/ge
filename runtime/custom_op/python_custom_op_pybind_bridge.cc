@@ -18,6 +18,7 @@
 #include <dlfcn.h>
 
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <mutex>
@@ -526,6 +527,50 @@ class PythonCustomOpPybindBridge {
     return GRAPH_FAILED;
   }
 
+  graphStatus Compile(const PythonCustomOpBridgeHolder *holder, gert::OpCompileContext *ctx) {
+    if ((holder == nullptr) || (ctx == nullptr)) {
+      GELOGE(GRAPH_FAILED, "Python custom op bridge holder or compile context is null.");
+      return GRAPH_FAILED;
+    }
+    const auto prepare_ret = EnsureBridgeReady();
+    if (prepare_ret != SUCCESS) {
+      GELOGE(prepare_ret, "Prepare python custom op bridge failed.");
+      return GRAPH_FAILED;
+    }
+    py::gil_scoped_acquire gil;
+    py::object compile_ctx = py::none();
+    try {
+      const bool created =
+          bridge_module_.attr("create_op_impl_holder")(holder->instance_id, holder->descriptor_key).cast<bool>();
+      if (!created) {
+        GELOGE(GRAPH_FAILED, "Ensure python custom op holder failed, descriptor key[%s], instance id[%s].",
+               holder->descriptor_key.c_str(), holder->instance_id.c_str());
+        return GRAPH_FAILED;
+      }
+      // Build and validate the canonical metadata before creating a borrowed
+      // native context.  If either conversion fails, there is no borrowed
+      // object that needs cleanup.
+      py::object python_ir_meta = BuildPythonIrMeta(holder->ir_meta.get());
+      py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
+      compile_ctx = native_module.attr("_borrow_op_compile_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+      py::object result =
+          bridge_module_.attr("call_compile")(holder->instance_id, std::move(python_ir_meta), compile_ctx);
+      return TranslateStatusLike(result);
+    } catch (const py::error_already_set &err) {
+      const std::string error_message = err.what();
+      InvalidateBorrowedCompileContext(compile_ctx);
+      GELOGE(GRAPH_FAILED, "Compile python custom op failed, descriptor key[%s], instance id[%s]: %s",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str(), error_message.c_str());
+      return GRAPH_FAILED;
+    } catch (const std::exception &err) {
+      const std::string error_message = err.what();
+      InvalidateBorrowedCompileContext(compile_ctx);
+      GELOGE(GRAPH_FAILED, "Compile python custom op failed, descriptor key[%s], instance id[%s]: %s",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str(), error_message.c_str());
+      return GRAPH_FAILED;
+    }
+  }
+
  private:
   Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors, const PythonCustomOpRegistrar &registrar) {
     const auto callbacks = GetCallbacks();
@@ -736,6 +781,21 @@ class PythonCustomOpPybindBridge {
     return native_module.attr("_borrow_eager_op_execution_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
   }
 
+  static void InvalidateBorrowedCompileContext(const py::object &ctx) noexcept {
+    if (ctx.is_none()) {
+      return;
+    }
+    try {
+      ctx.attr("_invalidate")();
+    } catch (const py::error_already_set &) {
+      // Preserve the original callback error; cleanup is best effort because
+      // the native wrapper may already have invalidated itself.
+      PyErr_Clear();
+    } catch (...) {
+      // Do not let cleanup mask the original bridge failure.
+    }
+  }
+
   static py::object BuildPythonAnnotatedArgsContext(gert::AnnotatedArgsContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
     return native_module.attr("_borrow_annotated_args_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
@@ -776,6 +836,10 @@ class PythonCustomOpPybindBridge {
     callbacks.declare_launch_args = [](const void *holder, gert::AnnotatedArgsContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().DeclareLaunchArgs(
           static_cast<const PythonCustomOpBridgeHolder *>(holder), ctx);
+    };
+    callbacks.compile_impl = [](const void *holder, gert::OpCompileContext *ctx) -> graphStatus {
+      return PythonCustomOpPybindBridge::GetInstance().Compile(static_cast<const PythonCustomOpBridgeHolder *>(holder),
+                                                               ctx);
     };
     callbacks.infer_meta = [](const PythonCustomOpStringView *op_type, gert::InferShapeContext *ctx,
                               PythonCustomOpInferMetaResultView *result) -> graphStatus {

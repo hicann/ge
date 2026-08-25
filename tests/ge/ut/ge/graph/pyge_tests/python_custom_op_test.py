@@ -322,7 +322,7 @@ def test_register_op_impl_supports_plain_class_with_execute():
 def test_register_op_impl_rejects_class_without_supported_method():
     with pytest.raises(
         TypeError,
-        match=r"BaseOnlyCustom' must implement at least one supported method: execute, declare_launch_args",
+        match=r"BaseOnlyCustom' must implement at least one supported method: execute, compile, declare_launch_args",
     ):
 
         @custom_op.register_op_impl(op_type="BaseOnlyCustom")

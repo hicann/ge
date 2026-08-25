@@ -26,6 +26,7 @@ namespace py = pybind11;
 namespace {
 constexpr const char *kInterfaceAnnotatedArgs = "annotated_args";
 constexpr const char *kInterfaceEagerExecute = "eager_execute";
+constexpr const char *kInterfaceCompilable = "compilable";
 
 PythonCustomOpStringView MakeStringView(const std::string &value) {
   return PythonCustomOpStringView{value.data(), value.size()};
@@ -70,6 +71,8 @@ Status ParseInterfaces(const py::object &interfaces_obj, CustomOpCapabilityMask 
       AddCustomOpCapability(capabilities, CustomOpCapability::kEagerExecute);
     } else if (interface_name == kInterfaceAnnotatedArgs) {
       AddCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs);
+    } else if (interface_name == kInterfaceCompilable) {
+      AddCustomOpCapability(capabilities, CustomOpCapability::kCompilable);
     } else {
       GELOGE(FAILED, "Unsupported python custom op interface[%s].", interface_name.c_str());
       return FAILED;

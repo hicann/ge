@@ -970,6 +970,18 @@
       - [简介](python/ge/custom_op/AnnotatedKernelLaunchInfo/overview.md)
       - [\_\_init\_\_](python/ge/custom_op/AnnotatedKernelLaunchInfo/__init__.md)
 
+    - [OpCompileContext](python/ge/custom_op/OpCompileContext/OpCompileContext.md)
+      - [简介](python/ge/custom_op/OpCompileContext/overview.md)
+      - [get\_option](python/ge/custom_op/OpCompileContext/get_option.md)
+
+    - [CompilePlatformInfo](python/ge/custom_op/CompilePlatformInfo/CompilePlatformInfo.md)
+      - [简介](python/ge/custom_op/CompilePlatformInfo/overview.md)
+      - [get\_platform\_resource](python/ge/custom_op/CompilePlatformInfo/get_platform_resource.md)
+      - [get\_platform\_resource\_group](python/ge/custom_op/CompilePlatformInfo/get_platform_resource_group.md)
+      - [get\_core\_num](python/ge/custom_op/CompilePlatformInfo/get_core_num.md)
+      - [get\_soc\_version](python/ge/custom_op/CompilePlatformInfo/get_soc_version.md)
+      - [get\_ai\_core\_num](python/ge/custom_op/CompilePlatformInfo/get_ai_core_num.md)
+
     - [DecomposePass](python/ge/passes/DecomposePass/DecomposePass.md)
       - [简介](python/ge/passes/DecomposePass/overview.md)
       - [meet\_requirements](python/ge/passes/DecomposePass/meet_requirements.md)
@@ -1144,6 +1156,8 @@
     - [create\_pattern](python/ge/passes/create_pattern.md)
     - [get\_declare\_launch\_args\_ctx](python/ge/custom_op/get_declare_launch_args_ctx.md)
     - [get\_execute\_ctx](python/ge/custom_op/get_execute_ctx.md)
+    - [get\_compile\_ctx](python/ge/custom_op/get_compile_ctx.md)
+    - [get\_compile\_platform\_info](python/ge/custom_op/get_compile_platform_info.md)
     - [get\_registered\_passes](python/ge/passes/get_registered_passes.md)
     - [get\_registered\_pass\_dicts](python/ge/passes/get_registered_pass_dicts.md)
     - [get\_registered\_pass\_by\_descriptor\_key](python/ge/passes/get_registered_pass_by_descriptor_key.md)
@@ -1154,6 +1168,8 @@
     - [register\_fusion\_pass](python/ge/passes/register_fusion_pass.md)
     - [register\_op](python/ge/custom_op/register_op.md)
     - [register\_op\_impl](python/ge/custom_op/register_op_impl.md)
+    - [compile](python/ge/custom_op/compile.md)
+    - [declare\_launch\_args](python/ge/custom_op/declare_launch_args.md)
     - [report\_fuse](python/ge/passes/report_fuse.md)
 
     - [AttrValueType](python/ge/AttrValueType.md)

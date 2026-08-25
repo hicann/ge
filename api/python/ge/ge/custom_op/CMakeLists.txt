@@ -46,6 +46,7 @@ target_link_libraries(_ge_custom_op_native PRIVATE
         lowering
         register
         opp_registry
+        platform
         -Wl,--as-needed
 )
 

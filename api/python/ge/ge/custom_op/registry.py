@@ -18,9 +18,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type
 
 INTERFACE_EAGER_EXECUTE = "eager_execute"
+INTERFACE_COMPILABLE = "compilable"
 INTERFACE_ANNOTATED_ARGS = "annotated_args"
 _INTERFACE_SPECS = (
     (INTERFACE_EAGER_EXECUTE, "execute"),
+    (INTERFACE_COMPILABLE, "compile"),
     (INTERFACE_ANNOTATED_ARGS, "declare_launch_args"),
 )
 
@@ -94,11 +96,21 @@ def _normalize_op_type(op_type: str) -> str:
 
 
 def _collect_interfaces(cls: Type[Any]) -> List[str]:
-    return [
-        name
-        for name, method_name in _INTERFACE_SPECS
-        if callable(getattr(cls, method_name, None))
-    ]
+    interfaces = []
+    for name, method_name in _INTERFACE_SPECS:
+        method = getattr(cls, method_name, None)
+        # Keep legacy interface discovery behavior for execute and
+        # declare_launch_args.  Compile is schema-bound and must reject an
+        # explicitly declared non-callable callback at registration time.
+        if (
+            name == INTERFACE_COMPILABLE
+            and hasattr(cls, method_name)
+            and not callable(method)
+        ):
+            raise TypeError(f"{method_name} must be callable")
+        if callable(method):
+            interfaces.append(name)
+    return interfaces
 
 
 def _get_interfaces(cls: Type[Any]) -> List[str]:

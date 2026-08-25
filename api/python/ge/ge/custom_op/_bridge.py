@@ -27,9 +27,14 @@ from .bootstrap import (
     get_registered_op_protos,
     load_custom_op_plugins,
 )
-from .context import _declare_launch_args_ctx_scope, _execute_ctx_scope
+from .context import (
+    _compile_ctx_scope,
+    _declare_launch_args_ctx_scope,
+    _execute_ctx_scope,
+)
 from .registry import (
     INTERFACE_ANNOTATED_ARGS,
+    INTERFACE_COMPILABLE,
     INTERFACE_EAGER_EXECUTE,
     get_registered_op_impl_by_descriptor_key,
 )
@@ -107,7 +112,10 @@ def _get_callback_for_signature(cls, method_name: str):
     return getattr(cls, method_name)
 
 
-def validate_op_impl_descriptor(descriptor_key: str, ir_meta: Optional[dict]) -> bool:
+def validate_op_impl_descriptor(
+    descriptor_key: str,
+    ir_meta: Optional[dict],
+) -> bool:
     descriptor = get_registered_op_impl_by_descriptor_key(descriptor_key)
     if descriptor is None:
         raise KeyError(f"python op impl descriptor_key not found: {descriptor_key}")
@@ -119,6 +127,12 @@ def validate_op_impl_descriptor(descriptor_key: str, ir_meta: Optional[dict]) ->
             )
         method = _get_callback_for_signature(descriptor.cls, "execute")
         _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
+
+    if INTERFACE_COMPILABLE in descriptor.interfaces:
+        if ir_meta is None:
+            raise RuntimeError("canonical IR not found for schema-bound compile")
+        method = _get_callback_for_signature(descriptor.cls, "compile")
+        _validate_args_signature(method, ir_meta, descriptor, method_name="compile")
 
     if INTERFACE_ANNOTATED_ARGS in descriptor.interfaces:
         if ir_meta is None:
@@ -186,7 +200,7 @@ def _build_execute_attrs(ctx: EagerOpExecutionContext, ir_attrs: list) -> dict:
     }
 
 
-def _build_declare_inputs(ctx, ir_inputs: list) -> list:
+def _build_schema_inputs(ctx, ir_inputs: list) -> list:
     return _build_inputs(
         ir_inputs,
         ctx._get_required_input_tensor,
@@ -196,7 +210,7 @@ def _build_declare_inputs(ctx, ir_inputs: list) -> list:
     )
 
 
-def _build_declare_outputs(ctx, ir_outputs: list) -> list:
+def _build_schema_outputs(ctx, ir_outputs: list) -> list:
     args = []
     for ir_index, item in enumerate(ir_outputs):
         kind = item["kind"]
@@ -215,7 +229,7 @@ def _build_declare_outputs(ctx, ir_outputs: list) -> list:
     return args
 
 
-def _build_declare_attrs(ctx, ir_attrs: list) -> dict:
+def _build_schema_attrs(ctx, ir_attrs: list) -> dict:
     if not ir_attrs:
         return {}
     attrs = ctx._get_attrs()
@@ -261,13 +275,36 @@ def call_declare_launch_args(instance_id: str, ir_meta: Optional[dict], ctx) -> 
             raise RuntimeError(
                 "canonical IR not found for schema-bound declare_launch_args"
             )
-        args = _build_declare_inputs(ctx, ir_meta["inputs"])
-        args.extend(_build_declare_outputs(ctx, ir_meta["outputs"]))
-        kwargs = _build_declare_attrs(ctx, ir_meta["attrs"])
+        args = _build_schema_inputs(ctx, ir_meta["inputs"])
+        args.extend(_build_schema_outputs(ctx, ir_meta["outputs"]))
+        kwargs = _build_schema_attrs(ctx, ir_meta["attrs"])
         with _declare_launch_args_ctx_scope(ctx):
             result = method(*args, **kwargs)
         if result is not None:
             raise TypeError("declare_launch_args must return None")
+    finally:
+        ctx._invalidate()
+
+
+def call_compile(instance_id: str, ir_meta: Optional[dict], ctx) -> None:
+    """Invoke a schema-bound Python compile callback."""
+
+    try:
+        holder = _get_holder(instance_id)
+        method = getattr(holder.instance, "compile", None)
+        if not callable(method):
+            raise TypeError(f"python op impl does not implement compile: {instance_id}")
+        if ir_meta is None:
+            raise RuntimeError("canonical IR not found for schema-bound compile")
+        descriptor = holder.instance.__ge_op_impl_descriptor__
+        _validate_args_signature(method, ir_meta, descriptor, method_name="compile")
+        args = _build_schema_inputs(ctx, ir_meta["inputs"])
+        args.extend(_build_schema_outputs(ctx, ir_meta["outputs"]))
+        kwargs = _build_schema_attrs(ctx, ir_meta["attrs"])
+        with _compile_ctx_scope(ctx):
+            result = method(*args, **kwargs)
+        if result is not None:
+            raise TypeError("compile must return None")
     finally:
         ctx._invalidate()
 

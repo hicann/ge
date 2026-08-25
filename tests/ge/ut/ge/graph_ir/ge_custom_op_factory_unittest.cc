@@ -111,6 +111,10 @@ graphStatus DeclareMockPythonCustomOp(const void *holder, gert::AnnotatedArgsCon
   return (holder == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
 }
 
+graphStatus CompileMockPythonCustomOp(const void *holder, gert::OpCompileContext *ctx) {
+  return ((holder != nullptr) && (ctx != nullptr)) ? GRAPH_SUCCESS : GRAPH_FAILED;
+}
+
 void *FailCreatePythonCustomOpHolder(const PythonCustomOpAdapterDescriptorView *) {
   return nullptr;
 }
@@ -307,6 +311,30 @@ TEST(UtestCustomOpCast, exposes_each_python_adapter_capability_in_dual_mode) {
     BaseCustomOp *base = &adapter;
     EXPECT_NE(nullptr, CustomOpCast<EagerExecuteOp>(base));
     EXPECT_NE(nullptr, CustomOpCast<AnnotatedArgsOp>(base));
+  }
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
+}
+
+TEST(UtestCustomOpCast, exposes_python_adapter_compilable_capability) {
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_compilable";
+  desc.op_type = "PythonAdapterCompilable";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kCompilable);
+
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
+  callbacks.compile_impl = CompileMockPythonCustomOp;
+
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
+  {
+    PythonCustomOpAdapter adapter(desc);
+    EXPECT_TRUE(adapter.IsValid());
+
+    BaseCustomOp *base = &adapter;
+    EXPECT_EQ(nullptr, CustomOpCast<EagerExecuteOp>(base));
+    EXPECT_NE(nullptr, CustomOpCast<CompilableOp>(base));
+    EXPECT_EQ(GRAPH_FAILED, CustomOpCast<CompilableOp>(base)->Compile(nullptr));
   }
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }

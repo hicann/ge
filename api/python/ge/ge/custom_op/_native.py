@@ -19,6 +19,8 @@ __all__ = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "CompilePlatformInfo",
+    "OpCompileContext",
     "InferMetaContext",
     "WorkspaceAddr",
 ]
@@ -40,8 +42,10 @@ def _load_native_module():
 _native = _load_native_module()
 
 EagerOpExecutionContext = _native.EagerOpExecutionContext
+CompilePlatformInfo = _native.CompilePlatformInfo
 AnnotatedArgsContext = _native.AnnotatedArgsContext
 AnnotatedKernelArgs = _native.AnnotatedKernelArgs
 AnnotatedKernelLaunchInfo = _native.AnnotatedKernelLaunchInfo
+OpCompileContext = _native.OpCompileContext
 WorkspaceAddr = _native.WorkspaceAddr
 InferMetaContext = _native.InferMetaContext

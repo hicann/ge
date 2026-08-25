@@ -155,7 +155,7 @@ def _validate_args_signature(
     *,
     method_name: str = "declare_launch_args",
 ) -> None:
-    if method_name not in ("execute", "declare_launch_args"):
+    if method_name not in ("execute", "compile", "declare_launch_args"):
         raise ValueError(f"unsupported schema callback: {method_name}")
     signature = inspect.signature(method)
     parameters = list(signature.parameters.values())
@@ -172,7 +172,7 @@ def _validate_args_signature(
             )
 
     ir_inputs = ir_meta["inputs"]
-    ir_outputs = ir_meta["outputs"] if method_name == "declare_launch_args" else []
+    ir_outputs = ir_meta["outputs"] if method_name != "execute" else []
     ir_attrs = ir_meta["attrs"]
     positional_count = len(ir_inputs) + len(ir_outputs)
     expected_count = positional_count + len(ir_attrs)
@@ -181,7 +181,7 @@ def _validate_args_signature(
             descriptor,
             method_name,
             f"{positional_count} positional "
-            f"{'input/output' if method_name == 'declare_launch_args' else 'input'} "
+            f"{'input/output' if method_name != 'execute' else 'input'} "
             "parameters followed by "
             f"{len(ir_attrs)} keyword-only attrs",
             f"{len(parameters)} parameters",

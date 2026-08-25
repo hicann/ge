@@ -17,10 +17,14 @@ __all__ = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "CompilePlatformInfo",
+    "OpCompileContext",
     "InferMetaContext",
     "WorkspaceAddr",
     "clear_registered_op_impls",
     "get_declare_launch_args_ctx",
+    "get_compile_ctx",
+    "get_compile_platform_info",
     "get_execute_ctx",
     "get_registered_op_impl_by_descriptor_key",
     "get_registered_op_impl_dicts",
@@ -37,6 +41,8 @@ _LAZY_EXPORTS = {
     "InferMetaContext": "._native",
     "clear_registered_op_impls": ".registry",
     "get_declare_launch_args_ctx": ".context",
+    "get_compile_ctx": ".context",
+    "get_compile_platform_info": ".context",
     "get_execute_ctx": ".context",
     "get_registered_op_impl_by_descriptor_key": ".registry",
     "get_registered_op_impl_dicts": ".registry",
@@ -44,6 +50,8 @@ _LAZY_EXPORTS = {
     "register_op": ".proto",
     "register_op_impl": ".registry",
     "WorkspaceAddr": "._native",
+    "OpCompileContext": "._native",
+    "CompilePlatformInfo": "._native",
 }
 
 

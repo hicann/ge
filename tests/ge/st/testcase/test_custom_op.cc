@@ -84,6 +84,12 @@ REG_OP(StPythonAnnotatedArgsBadAttrCustomOp)
     .OUTPUT(z, TensorType::ALL())
     .REQUIRED_ATTR(alpha, Int)
     .OP_END_FACTORY_REG(StPythonAnnotatedArgsBadAttrCustomOp);
+
+REG_OP(StPythonCompilableCustomOp)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(z, TensorType::ALL())
+    .REQUIRED_ATTR(bias, Int)
+    .OP_END_FACTORY_REG(StPythonCompilableCustomOp);
 }  // namespace ge
 
 namespace ge {
@@ -181,6 +187,7 @@ void **args_table = nullptr;
 constexpr const char *kPythonCustomOpTypeForSt = "StPythonPybindRemoveCoverageCustomOp";
 constexpr const char *kPythonAnnotatedArgsOpTypeForSt = "StPythonAnnotatedArgsCustomOp";
 constexpr const char *kPythonAnnotatedArgsBadAttrOpTypeForSt = "StPythonAnnotatedArgsBadAttrCustomOp";
+constexpr const char *kPythonCompilableOpTypeForSt = "StPythonCompilableCustomOp";
 constexpr const char *kPythonRt2InferMetaOpTypeForSt = "StPythonRt2InferMetaCustomOp";
 constexpr const char *kInferMetaCoverageOpTypeForSt = "StInferMetaCoverageCustomOp";
 constexpr const char *kEnvPythonCustomOpPath = "ASCEND_CUSTOM_OPP_PATH";
@@ -188,6 +195,8 @@ constexpr const char *kEnvPythonPath = "PYTHONPATH";
 constexpr char kSharedPybindCustomOpPreambleForSt[] = R"PY(from pathlib import Path
 from ge.custom_op import (
     AnnotatedKernelLaunchInfo,
+    get_compile_ctx,
+    get_compile_platform_info,
     get_declare_launch_args_ctx,
     register_op,
     register_op_impl,
@@ -286,6 +295,65 @@ constexpr char kSharedPybindBadAttrCustomOpForSt[] = R"PY(')
 class StPythonAnnotatedArgsBadAttrCustomOp:
     def declare_launch_args(self, x: Tensor, z: Tensor, *, beta: int) -> None:
         pass
+)PY";
+constexpr char kSharedPybindCompilablePreambleForSt[] = R"PY(
+COMPILE_MARKER_FILE = r')PY";
+constexpr char kSharedPybindCompilablePrefixForSt[] = R"PY('
+
+PREVIOUS_COMPILE_OBJECTS = None
+
+@register_op_impl(op_type=')PY";
+constexpr char kSharedPybindCompilableBodyForSt[] = R"PY(')
+class StPythonCompilableCustomOp:
+    def compile(self, x: Tensor, z: Tensor, *, bias: int) -> None:
+        global PREVIOUS_COMPILE_OBJECTS
+        if PREVIOUS_COMPILE_OBJECTS is not None:
+            previous_ctx, previous_platform, previous_tensor, previous_attrs = PREVIOUS_COMPILE_OBJECTS
+            for access in (
+                previous_platform.get_soc_version,
+                lambda: previous_tensor.storage_shape.dims,
+                lambda: previous_attrs.get_int(0),
+            ):
+                try:
+                    access()
+                except RuntimeError:
+                    pass
+                else:
+                    raise AssertionError('compile borrowed object did not expire')
+        ctx = get_compile_ctx()
+        platform = get_compile_platform_info()
+        if ctx._get_required_input_tensor(0).storage_shape.dims != x.storage_shape.dims:
+            raise AssertionError('compile input tensor metadata mismatch')
+        if ctx._get_attrs().get_int(0) != bias:
+            raise AssertionError('compile attribute mismatch')
+        for mutate in (
+            lambda: x.shape.origin_shape.set_dim(0, 2),
+            lambda: x.shape.set_storage_shape(x.shape.storage_shape),
+            lambda: x.format.set_storage_format(2),
+            lambda: x.expand_dims_type.set_expand_index(0),
+        ):
+            try:
+                mutate()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('compile tensor metadata must be read-only')
+        if ctx.get_option('st.python.compile.option') != 'enabled':
+            raise AssertionError('compile option mismatch')
+        if platform.get_platform_resource('version', 'NpuArch') != '2201':
+            raise AssertionError('platform resource mismatch')
+        if platform.get_platform_resource_group('SoCInfo')['ai_core_cnt'] != '24':
+            raise AssertionError('platform resource group mismatch')
+        if platform.get_core_num() != 8:
+            raise AssertionError('core number mismatch')
+        if platform.get_core_num('AiCore') != 8:
+            raise AssertionError('AiCore number mismatch')
+        if platform.get_soc_version() != 'Ascend910B':
+            raise AssertionError('SoC version mismatch')
+        if platform.get_ai_core_num() != 32:
+            raise AssertionError('AI core number mismatch')
+        PREVIOUS_COMPILE_OBJECTS = (ctx, platform, x, ctx._get_attrs())
+        Path(COMPILE_MARKER_FILE).write_text('compiled', encoding='utf-8')
 )PY";
 constexpr char kInvalidSignaturePybindPreambleForSt[] = R"PY(from ge.custom_op import register_op_impl
 from ge.runtime import Tensor
@@ -477,6 +545,12 @@ const std::string &GetSharedPybindCustomOpMarkerFilePathForSt() {
   return path;
 }
 
+const std::string &GetSharedPybindCustomOpCompileMarkerFilePathForSt() {
+  static ScopedTempDirForCustomOpSt dir;
+  static const std::string path = dir.CreateFilePath("pybind_custom_op_compile_marker.txt");
+  return path;
+}
+
 const std::string &GetRt2InferMetaCustomOpFilePathForSt() {
   static ScopedTempDirForCustomOpSt dir;
   static const std::string path = dir.CreateFilePath("rt2_infer_meta_custom_op.py");
@@ -502,7 +576,9 @@ void EnsureSharedPybindCustomOpFileForSt() {
                              GetSharedPybindCustomOpMarkerFilePathForSt() + kSharedPybindEagerCustomOpForSt +
                              kPythonCustomOpTypeForSt + kSharedPybindEagerCustomOpImplForSt + kPythonCustomOpTypeForSt +
                              kSharedPybindAnnotatedArgsPrefixForSt + kPythonAnnotatedArgsOpTypeForSt +
-                             kSharedPybindAnnotatedArgsBodyForSt;
+                             kSharedPybindAnnotatedArgsBodyForSt + kSharedPybindCompilablePreambleForSt +
+                             GetSharedPybindCustomOpCompileMarkerFilePathForSt() + kSharedPybindCompilablePrefixForSt +
+                             kPythonCompilableOpTypeForSt + kSharedPybindCompilableBodyForSt;
     WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(), python_file);
   });
 }
@@ -1904,6 +1980,46 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
   EXPECT_FALSE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
   EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
+}
+
+TEST_F(CustomOpFactoryStTest, PythonCompilableCustomOpRealCallbackCompiles) {
+  EnsureSharedPybindCustomOpFileForSt();
+  const auto &marker_file = GetSharedPybindCustomOpCompileMarkerFilePathForSt();
+  (void)remove(marker_file.c_str());
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+  ScopedGraphOptionsForCustomOpSt scoped_graph_options(
+      std::map<std::string, std::string>{{"st.python.compile.option", "enabled"}});
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  const AscendString op_type(kPythonCompilableOpTypeForSt);
+  ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
+  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  ASSERT_NE(base_op, nullptr);
+  EXPECT_NE(CustomOpCast<CompilableOp>(base_op), nullptr);
+
+  auto graph = std::make_shared<ComputeGraph>("st_python_compilable_graph");
+  ASSERT_NE(graph, nullptr);
+  auto op_desc = std::make_shared<OpDesc>("st_python_compilable_node", kPythonCompilableOpTypeForSt);
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("z", kIrOutputRequired);
+  op_desc->AppendIrAttrName("bias");
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, "bias", 4));
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({1, 16}));
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  output_desc.SetOriginShape(GeShape({1, 16}));
+  ASSERT_EQ(op_desc->AddInputDesc("x", input_desc), GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc("z", output_desc), GRAPH_SUCCESS);
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+
+  CustomGraphOptimizer optimizer;
+  ASSERT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  ASSERT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  EXPECT_EQ(ReadTextFileForCustomOpSt(marker_file), "compiled");
 }
 
 /**
