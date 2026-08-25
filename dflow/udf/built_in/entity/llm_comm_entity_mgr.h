@@ -25,7 +25,7 @@ class LlmCommEntityMgr {
   ~LlmCommEntityMgr();
   EntityPtr GetEntityByConn(HcclConn conn);
   EntityPtr GetEntityByRemoteClusterId(uint64_t remote_cluster_id);
-  HcclConn GetEntityByIp(uint32_t ip) const;
+  HcclConn GetEntityByIp(uint32_t ip);
   EntityPtr CreateEntity(EntityType type, HcclConn conn, HcclAddr &local_hccl_addr, HcclAddr &remote_hccl_addr,
                          uint64_t remote_cluster_id = 0);
   FsmStatus MarkEntityDeletedByConn(HcclConn conn);
@@ -57,6 +57,7 @@ class LlmCommEntityMgr {
   LlmCommEntityMgr();
   void EraseClientMapByClusterId(uint64_t remote_cluster_id);
   void EraseIpToConnMap(uint32_t ip, const HcclConn conn);
+  EntityPtr FindServerEntityByIp(uint32_t ip, bool &cleared_residual);
   static FsmStatus QueryCurMemGrp(char **group_name);
   void ReopenServerConn();
   std::unordered_map<HcclConn, EntityPtr> server_entity_map_;
