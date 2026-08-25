@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <set>
 #include <vector>
 #include "framework/common/debug/ge_log.h"
 #include "depends/mmpa/src/mmpa_stub.h"
@@ -25,19 +26,23 @@ namespace {
 class MockMmpa : public MmpaStubApiGe {
  public:
   void *DlSym(void *handle, const char *func_name) override {
-    if (std::string(func_name) == "NewSignResult") {
+    std::string name(func_name);
+    if (missing_symbols.find(name) != missing_symbols.end()) {
+      return nullptr;
+    }
+    if (name == "NewSignResult") {
       return (void *)&NewSignResult;
-    } else if (std::string(func_name) == "DeleteSignResult") {
+    } else if (name == "DeleteSignResult") {
       return (void *)&DeleteSignResult;
-    } else if (std::string(func_name) == "GetSignLength") {
+    } else if (name == "GetSignLength") {
       return (void *)&GetSignLength;
-    } else if (std::string(func_name) == "GetSignData") {
+    } else if (name == "GetSignData") {
       return (void *)&GetSignData;
-    } else if (std::string(func_name) == "DataFlowAuthMasterInit") {
+    } else if (name == "DataFlowAuthMasterInit") {
       return (void *)&DataFlowAuthMasterInit;
-    } else if (std::string(func_name) == "DataFlowAuthSign") {
+    } else if (name == "DataFlowAuthSign") {
       return (void *)&DataFlowAuthSign;
-    } else if (std::string(func_name) == "DataFlowAuthVerify") {
+    } else if (name == "DataFlowAuthVerify") {
       return (void *)&DataFlowAuthVerify;
     }
     std::cout << "func name:" << func_name << " not stub\n";
@@ -50,17 +55,21 @@ class MockMmpa : public MmpaStubApiGe {
   int32_t DlClose(void *handle) override {
     return 0L;
   }
+
+  std::set<std::string> missing_symbols;
 };
 }  // namespace
 
 class DeployerAuthenticationTest : public testing::Test {
  protected:
   void SetUp() override {
-    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+    mock_ = std::make_shared<MockMmpa>();
+    MmpaStub::GetInstance().SetImpl(mock_);
   }
   void TearDown() override {
     MmpaStub::GetInstance().Reset();
   }
+  std::shared_ptr<MockMmpa> mock_;
 };
 
 TEST_F(DeployerAuthenticationTest, TestInitializeAndAutoFinalize) {
@@ -76,6 +85,56 @@ TEST_F(DeployerAuthenticationTest, TestSignAndVerify) {
   std::string verify;
   ASSERT_EQ(authentication.AuthSign(data, verify), SUCCESS);
   ASSERT_EQ(authentication.AuthVerify(data, verify), SUCCESS);
+  authentication.Finalize();
+}
+
+TEST_F(DeployerAuthenticationTest, TestAuthSignMissingNewSignResult) {
+  DeployerAuthentication authentication;
+  ASSERT_EQ(authentication.Initialize("libstub.so", true), SUCCESS);
+  mock_->missing_symbols.insert("NewSignResult");
+  std::string data = "0";
+  std::string verify;
+  ASSERT_EQ(authentication.AuthSign(data, verify), FAILED);
+  authentication.Finalize();
+}
+
+TEST_F(DeployerAuthenticationTest, TestAuthSignMissingDeleteSignResult) {
+  DeployerAuthentication authentication;
+  ASSERT_EQ(authentication.Initialize("libstub.so", true), SUCCESS);
+  mock_->missing_symbols.insert("DeleteSignResult");
+  std::string data = "0";
+  std::string verify;
+  ASSERT_EQ(authentication.AuthSign(data, verify), FAILED);
+  authentication.Finalize();
+}
+
+TEST_F(DeployerAuthenticationTest, TestAuthSignMissingDataFlowAuthSign) {
+  DeployerAuthentication authentication;
+  ASSERT_EQ(authentication.Initialize("libstub.so", true), SUCCESS);
+  mock_->missing_symbols.insert("DataFlowAuthSign");
+  std::string data = "0";
+  std::string verify;
+  ASSERT_EQ(authentication.AuthSign(data, verify), FAILED);
+  authentication.Finalize();
+}
+
+TEST_F(DeployerAuthenticationTest, TestAuthSignMissingGetSignData) {
+  DeployerAuthentication authentication;
+  ASSERT_EQ(authentication.Initialize("libstub.so", true), SUCCESS);
+  mock_->missing_symbols.insert("GetSignData");
+  std::string data = "0";
+  std::string verify;
+  ASSERT_EQ(authentication.AuthSign(data, verify), FAILED);
+  authentication.Finalize();
+}
+
+TEST_F(DeployerAuthenticationTest, TestAuthSignMissingGetSignLength) {
+  DeployerAuthentication authentication;
+  ASSERT_EQ(authentication.Initialize("libstub.so", true), SUCCESS);
+  mock_->missing_symbols.insert("GetSignLength");
+  std::string data = "0";
+  std::string verify;
+  ASSERT_EQ(authentication.AuthSign(data, verify), FAILED);
   authentication.Finalize();
 }
 }  // namespace ge

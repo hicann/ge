@@ -100,7 +100,7 @@ Status DeployerAuthentication::AuthSign(const std::string &data, std::string &si
   GE_CHK_BOOL_RET_STATUS(get_sign_data_proc != nullptr, FAILED, "[Dlsym][So] failed, func name = %s, error_msg = %s",
                          kFuncNameGetSignData, mmDlerror());
   auto get_sign_len_proc = reinterpret_cast<GetSignLength>(mmDlsym(handle_, kFuncNameGetSignLength));
-  GE_CHK_BOOL_RET_STATUS(get_sign_data_proc != nullptr, FAILED, "[Dlsym][So] failed, func name = %s, error_msg = %s",
+  GE_CHK_BOOL_RET_STATUS(get_sign_len_proc != nullptr, FAILED, "[Dlsym][So] failed, func name = %s, error_msg = %s",
                          kFuncNameGetSignLength, mmDlerror());
   auto result = new_proc();
   GE_CHECK_NOTNULL(result);
