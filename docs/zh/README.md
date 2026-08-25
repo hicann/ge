@@ -36,7 +36,7 @@
 
     介绍Host调度优化的关键技术，以及如何通过这些技术提升异构系统资源的利用率。
 
-- [自动融合](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha002/graph/graphguide/autofuse_1_0001.html)
+- [自动融合](./user_guides/graph_dev/autofuse/README.md)
 
     介绍自动融合的实现原理和使能方式，以及通过该技术，如何缩短模型E2E时间。
 

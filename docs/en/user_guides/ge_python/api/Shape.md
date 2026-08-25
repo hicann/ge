@@ -3,7 +3,7 @@
 ## Product Support Status
 
 | Product | Support Status |
-| | :----------- | :------: |
+| :----------- | :------: |
 | Atlas A3 Training Series Products/Atlas A3 Inference Series Products | √ |
 | Atlas A2 Training Series Products/Atlas A2 Inference Series Products | √ |
 
@@ -20,7 +20,7 @@ Shape class inherits from Python built-in `list`, used to represent tensor shape
 Shape module also defines the following constants:
 
 | Constant Name | Value | Description |
-| | :----- | :--- | :--- |
+| :----- | :--- | :--- |
 | UNKNOWN_DIM | -1 | Represents unknown dimension |
 | UNKNOWN_DIM_NUM | -2 | Represents unknown dimension count |
 | UNKNOWN_DIM_SIZE | -1 | Return value of get_shape_size() when shape is unknown |
@@ -35,7 +35,7 @@ class Shape(list):
 ## Function List
 
 | Function | Functionality Description |
-| | :--- | :--- |
+| :--- | :--- |
 | \_\_init\_\_(dims=None) | Constructor, creates Shape object. dims is integer list, None represents scalar (empty list) |
 | get_shape_size() | Calculates product of all dimensions in shape, i.e., total element count of tensor |
 | is_unknown_shape() | Judges if shape contains unknown dimensions |
@@ -45,13 +45,13 @@ class Shape(list):
 ### \_\_init\_\_ Parameter
 
 | Parameter | Type | Required | Description |
-| | :----- | :--- | :------: | :--- |
+| :----- | :--- | :------: | :--- |
 | dims | List[int] | No | Dimension value list, e.g., [1, 3, 224, 224]. None represents scalar (empty list). Default value is None |
 
 ## Return Value Description
 
 | Function | Return Type | Description |
-| | :--- | :--- | :--- |
+| :--- | :--- | :--- |
 | get_shape_size() | int | Product of all dimensions. Returns 0 when shape is empty (scalar); returns -1 when shape contains unknown dimension (UNKNOWN_DIM or UNKNOWN_DIM_NUM) |
 | is_unknown_shape() | bool | Returns True if shape contains UNKNOWN_DIM (-1) or UNKNOWN_DIM_NUM (-2); otherwise returns False |
 
