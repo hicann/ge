@@ -1939,7 +1939,11 @@ TEST_F(Om2St, ConvertOm2Model_Fail_DisplayModelInfoNotSupported) {
   const std::string output_file = PathUtils::Join({test_work_dir, "minimal_no_display.om2"});
   CreateMinimalOm2File(output_file, BuildValidOm2ProtoTxt());
 
+  (void)ErrorManager::GetInstance().GetErrorMessage();
   EXPECT_NE(ConvertOm(output_file.c_str(), nullptr, false), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10055"), std::string::npos);
+  EXPECT_EQ(error_message.find("yet.."), std::string::npos);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Fail_ConvertJsonNoVisualJson) {

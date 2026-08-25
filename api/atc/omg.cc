@@ -1158,7 +1158,10 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const ch
                       (std::memcmp(model.model_data, kZipLocalFileHeaderMagic, kZipMagicSize) == 0);
   if (is_om2) {
     if (!is_covert_to_json) {
-      GELOGE(ge::FAILED, "[OM2] Display model info is not supported for OM2 format yet.");
+      const std::string reason = "Display model info is not supported for OM2 format yet";
+      REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
+                                std::vector<const char *>({reason.c_str()}));
+      GELOGE(ge::FAILED, "[OM2] %s", reason.c_str());
       return ge::FAILED;
     }
     GE_CHECK_NOTNULL(json_file);

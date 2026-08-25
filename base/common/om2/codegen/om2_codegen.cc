@@ -9,9 +9,6 @@
  */
 
 #include "om2_codegen.h"
-#include <cerrno>
-#include <fstream>
-#include <sys/stat.h>
 #include "common/helper/om2/om2_utils.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/ast/ast_context.h"
@@ -20,40 +17,6 @@
 #include "om2_code_printer.h"
 
 namespace ge {
-namespace {
-constexpr const char *kTmpDir = "/tmp";
-constexpr const char *kOm2DumpDir = "/tmp/.tmp_om2_workspace";
-
-bool IsDirExists(const std::string &path) {
-  struct stat path_stat = {};
-  return (stat(path.c_str(), &path_stat) == 0) && S_ISDIR(path_stat.st_mode);
-}
-
-void DumpGeneratedFiles(const Om2CodegenArtifacts &artifacts) {
-  if (!IsDirExists(kTmpDir)) {
-    GELOGW("[OM2] Skip dumping generated files because /tmp does not exist.");
-    return;
-  }
-  if ((mkdir(kOm2DumpDir, S_IRWXU) != 0) && (errno != EEXIST)) {
-    GELOGW("[OM2] Failed to create dump directory %s, errno: %d.", kOm2DumpDir, errno);
-    return;
-  }
-
-  for (const auto &artifact : artifacts) {
-    const std::string dump_path = std::string(kOm2DumpDir) + "/" + artifact.file_name;
-    std::ofstream output(dump_path, std::ios::out | std::ios::binary | std::ios::trunc);
-    if (!output.is_open()) {
-      GELOGW("[OM2] Failed to open generated file dump path: %s.", dump_path.c_str());
-      continue;
-    }
-    (void)output.write(artifact.data.data(), static_cast<std::streamsize>(artifact.data.size()));
-    if (!output.good()) {
-      GELOGW("[OM2] Failed to dump generated file: %s.", dump_path.c_str());
-    }
-  }
-}
-}  // namespace
-
 Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, gert::Om2ModelData &model_data) const {
   Om2CodegenArtifacts &artifacts = model_data.program_body.source_artifacts;
   auto &const_metas = model_data.constants_data.consts;
@@ -79,12 +42,9 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, gert::Om
 
   Om2CodegenArtifact so_artifact;
   so_artifact.file_name = "lib" + ge_model->GetName() + "_om2.so";
-  const Status compile_ret =
-      Om2Utils::CompileGeneratedCppToSo(source_artifacts, ge_model->GetName(), so_artifact, false);
-  if (compile_ret != SUCCESS) {
-    DumpGeneratedFiles(source_artifacts);
-    return compile_ret;
-  }
+  GE_ASSERT_SUCCESS(Om2Utils::CompileGeneratedCppToSo(source_artifacts, ge_model->GetName(), so_artifact, false),
+                    "[OM2] Failed to compile generated C++ to shared library for model %s",
+                    ge_model->GetName().c_str());
   GELOGI("[OM2] Model %s has finished generating source code files and compiling to the shared library.",
          ge_model->GetName().c_str());
   artifacts = std::move(source_artifacts);

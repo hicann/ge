@@ -26,6 +26,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/helper/model_helper.h"
+#include "common/util/error_manager/error_manager.h"
 #include "common/context/properties_manager.h"
 #include "framework/omg/parser/parser_factory.h"
 #include "framework/common/debug/ge_log.h"
@@ -995,7 +996,11 @@ TEST_F(UtestOmg, ConvertOm_Fail_Om2NotConvertToJson) {
   ASSERT_FALSE(visual_json.empty());
   ASSERT_FALSE(CreateMinimalOm2File(om2_path, visual_json).empty());
 
+  (void)ErrorManager::GetInstance().GetErrorMessage();
   EXPECT_NE(ConvertOm(om2_path.c_str(), nullptr, false), SUCCESS);
+  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
+  EXPECT_NE(error_message.find("E10055"), std::string::npos);
+  EXPECT_EQ(error_message.find("yet.."), std::string::npos);
   system("rm -rf ./ut_om2_no_convert.om2");
 }
 
