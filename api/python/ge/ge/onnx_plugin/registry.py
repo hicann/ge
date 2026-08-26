@@ -16,10 +16,13 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
+PARSE_NODE = "parse_node"
+PARSE_OPERATOR = "parse_operator"
+
 
 @dataclass(frozen=True)
 class OnnxPluginDescriptor:
-    """Normalized descriptor for one parse_node callback."""
+    """Normalized descriptor for an ONNX parser plugin."""
 
     descriptor_key: str
     source: str
@@ -28,10 +31,33 @@ class OnnxPluginDescriptor:
     target: str
     origin_types: Tuple[str, ...]
     module_name: str
-    parser_node: Callable[..., None] = field(compare=False, repr=False)
+    parser_node: Optional[Callable[..., None]] = field(
+        default=None, compare=False, repr=False
+    )
+    parser_operator: Optional[Callable[..., None]] = field(
+        default=None, compare=False, repr=False
+    )
+
+    @property
+    def callback_kinds(self) -> Tuple[str, ...]:
+        kinds = []
+        if self.parser_node is not None:
+            kinds.append(PARSE_NODE)
+        if self.parser_operator is not None:
+            kinds.append(PARSE_OPERATOR)
+        return tuple(kinds)
+
+    @property
+    def callback_kind(self) -> str:
+        """Compatibility view for descriptors with one callback."""
+        return (
+            self.callback_kinds[0]
+            if len(self.callback_kinds) == 1
+            else ",".join(self.callback_kinds)
+        )
 
     def to_bridge_dict(self) -> dict:
-        return {
+        descriptor = {
             "descriptor_key": self.descriptor_key,
             "source": self.source,
             "domain": self.domain,
@@ -40,6 +66,11 @@ class OnnxPluginDescriptor:
             "origin_types": list(self.origin_types),
             "module_name": self.module_name,
         }
+        if len(self.callback_kinds) == 1:
+            descriptor["callback_kind"] = self.callback_kinds[0]
+        else:
+            descriptor["callback_kinds"] = list(self.callback_kinds)
+        return descriptor
 
 
 class _OnnxPluginRegistry:
@@ -78,6 +109,18 @@ class _OnnxPluginRegistry:
         # Registration finishes before parsing; parse-time lookup is read-only.
         return self._origin_type_to_desc.get(origin_type)
 
+    def replace(self, descriptor: OnnxPluginDescriptor) -> OnnxPluginDescriptor:
+        with self._lock:
+            if descriptor.descriptor_key not in self._descriptor_key_to_desc:
+                raise ValueError(
+                    "python ONNX Plugin descriptor_key does not exist: "
+                    f"{descriptor.descriptor_key}"
+                )
+            self._descriptor_key_to_desc[descriptor.descriptor_key] = descriptor
+            for origin_type in descriptor.origin_types:
+                self._origin_type_to_desc[origin_type] = descriptor
+        return descriptor
+
 
 _ONNX_PLUGIN_REGISTRY = _OnnxPluginRegistry()
 
@@ -86,6 +129,12 @@ def register_onnx_plugin(
     descriptor: OnnxPluginDescriptor,
 ) -> OnnxPluginDescriptor:
     return _ONNX_PLUGIN_REGISTRY.register(descriptor)
+
+
+def replace_registered_onnx_plugin(
+    descriptor: OnnxPluginDescriptor,
+) -> OnnxPluginDescriptor:
+    return _ONNX_PLUGIN_REGISTRY.replace(descriptor)
 
 
 def clear_registered_onnx_plugins() -> None:

@@ -62,6 +62,14 @@ const char *GeApiWrapper_Operator_GetType(const Operator *op) {
   return AscendStringToChar(type);
 }
 
+graphStatus GeApiWrapper_Operator_GetAttr(const Operator *op, const char *key, void *attr_value) {
+  GE_ASSERT_NOTNULL(op);
+  GE_ASSERT_NOTNULL(key);
+  GE_ASSERT_NOTNULL(attr_value);
+  auto *av = static_cast<AttrValue *>(attr_value);
+  return op->GetAttr(key, *av);
+}
+
 graphStatus GeApiWrapper_Operator_SetAttr(Operator *op, const char *key, void *attr_value) {
   GE_ASSERT_NOTNULL(op);
   GE_ASSERT_NOTNULL(key);

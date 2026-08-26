@@ -30,9 +30,9 @@ class Operator:
     created or destroyed by this wrapper.
     """
 
-    __slots__ = ("_handle", "_valid")
+    __slots__ = ("_handle", "_valid", "_read_only")
 
-    def __init__(self, handle=None, token=None) -> None:
+    def __init__(self, handle=None, token=None, read_only=False) -> None:
         if token is not _OPERATOR_FACTORY_TOKEN:
             raise RuntimeError("Operator objects should not be created directly.")
         if handle is None:
@@ -44,6 +44,7 @@ class Operator:
             raise ValueError("Operator handle cannot be null")
         self._handle = handle
         self._valid = True
+        self._read_only = read_only
 
     def __copy__(self) -> None:
         raise RuntimeError("Operator does not support copy")
@@ -76,7 +77,7 @@ class Operator:
         return self._get_string(graph_lib.GeApiWrapper_Operator_GetType)
 
     def set_attr(self, name: str, value: object) -> None:
-        self._ensure_valid()
+        self._ensure_mutable()
         self._validate_name(name, "attribute")
 
         attr_value = _AttrValue()
@@ -88,6 +89,17 @@ class Operator:
             raise RuntimeError(
                 f"Failed to set attribute '{name}' on Operator {self.name}"
             )
+
+    def get_attr(self, name: str):
+        self._ensure_valid()
+        self._validate_name(name, "attribute")
+        attr_value = _AttrValue()
+        ret = graph_lib.GeApiWrapper_Operator_GetAttr(
+            self._handle, name.encode("utf-8"), attr_value._av_ptr
+        )
+        if ret != 0:
+            raise RuntimeError(f"Failed to get attribute '{name}' from Operator")
+        return attr_value.get_value()
 
     def register_input(self, name: str) -> None:
         self._register_port(
@@ -120,7 +132,7 @@ class Operator:
         self._register_dynamic_port(name, count, is_input=False)
 
     def _register_port(self, name: str, kind: str, method_name: str, c_func) -> None:
-        self._ensure_valid()
+        self._ensure_mutable()
         self._validate_name(name, kind)
         ret = c_func(self._handle, name.encode("utf-8"))
         if ret != 0:
@@ -129,7 +141,7 @@ class Operator:
             )
 
     def _register_dynamic_port(self, name: str, count: int, *, is_input: bool) -> None:
-        self._ensure_valid()
+        self._ensure_mutable()
         self._validate_name(name, "dynamic port")
         if type(count) is not int:
             raise TypeError("Operator dynamic port count must be an integer")
@@ -160,8 +172,13 @@ class Operator:
         if not self._valid:
             raise RuntimeError("Operator is only valid inside parse_node")
 
+    def _ensure_mutable(self) -> None:
+        self._ensure_valid()
+        if self._read_only:
+            raise RuntimeError("Source Operator is read-only")
 
-def create_operator(handle) -> Operator:
+
+def create_operator(handle, *, read_only=False) -> Operator:
     """Create a callback-bound Operator for internal bridge use."""
 
-    return Operator(handle, _OPERATOR_FACTORY_TOKEN)
+    return Operator(handle, _OPERATOR_FACTORY_TOKEN, read_only)

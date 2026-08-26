@@ -55,6 +55,47 @@ priority = onnx_plugin(
 def parse_priority(node, target):
     del node
     target.set_attr("source", "python")
+
+operator_plugin = onnx_plugin(
+    source="BridgeOperator", domain="test.domain", opsets=(1,), target="BridgeOperatorTarget"
+)
+
+@operator_plugin.parse_operator
+def parse_operator(source, target):
+    target.set_attr("copied_alpha", source.get_attr("alpha"))
+    target.register_dynamic_input("args", 2)
+
+operator_error = onnx_plugin(
+    source="BridgeOperatorError", domain="test.domain", opsets=(1,), target="BridgeOperatorErrorTarget"
+)
+
+@operator_error.parse_operator
+def parse_operator_error(source, target):
+    del source, target
+    raise RuntimeError("python operator callback failed")
+
+operator_return = onnx_plugin(
+    source="BridgeOperatorReturn", domain="test.domain", opsets=(1,), target="BridgeOperatorReturnTarget"
+)
+
+@operator_return.parse_operator
+def parse_operator_return(source, target):
+    del source, target
+    return False
+
+both = onnx_plugin(
+    source="BridgeBoth", domain="test.domain", opsets=(1,), target="BridgeBothTarget"
+)
+
+@both.parse_node
+def parse_both_node(node, target):
+    del node
+    target.set_attr("callback", "parse_node")
+
+@both.parse_operator
+def parse_both_operator(source, target):
+    del source
+    target.set_attr("callback", "parse_operator")
 )PY";
 
 class ScopedInMemoryPlugin {

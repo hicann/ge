@@ -48,3 +48,21 @@ def call_parse_node(origin_type: str, node: OnnxNode, operator_handle) -> None:
             raise _InvalidParseNodeReturn(
                 "ONNX Plugin parse_node callback must return None"
             )
+
+
+def call_parse_operator(origin_type: str, source_handle, target_handle) -> None:
+    """Dispatch one parser-owned Operator pair to its registered callback."""
+
+    descriptor = get_registered_onnx_plugin_by_origin_type(origin_type)
+    if descriptor is None:
+        raise KeyError(f"python ONNX Plugin is not registered: {origin_type}")
+
+    with (
+        create_operator(source_handle, read_only=True) as source,
+        create_operator(target_handle) as target,
+    ):
+        result = descriptor.parser_operator(source, target)
+        if result is not None:
+            raise _InvalidParseNodeReturn(
+                "ONNX Plugin parse_operator callback must return None"
+            )
