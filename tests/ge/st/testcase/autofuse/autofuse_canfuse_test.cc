@@ -28,10 +28,41 @@
 #include "tests/framework/ge_runtime_stub/include/common/summary_checker.h"
 #include "faker/space_registry_faker.h"
 #include "depends/runtime/src/runtime_stub.h"
+#include "session/session_manager.h"
+#include "session/inner_session.h"
+#include "jit_execution/user_graphs_manager.h"
+#include "jit_execution/user_graph_ctrl.h"
+#include "jit_execution/exe_points/execution_order.h"
+#include "jit_execution/exe_points/execution_point.h"
+#include "jit_execution/exe_points/guarded_execution_point.h"
 
 using namespace std;
 using namespace testing;
 using namespace ge::autofuse;
+
+ge::SessionManager *GetSessionManager();
+
+namespace {
+ComputeGraphPtr GetJitCompiledGraph(const ge::Session &session, uint32_t graph_id) {
+  const auto inner_session = GetSessionManager()->GetSession(session.GetSessionId());
+  if (inner_session == nullptr) {
+    return nullptr;
+  }
+  auto *user_graph_ctrl = inner_session->user_graphs_manager_->GetUserGraphControl(graph_id);
+  if (user_graph_ctrl == nullptr) {
+    return nullptr;
+  }
+  auto *ep = user_graph_ctrl->order_.GetFirstPoint();
+  if (ep == nullptr) {
+    return nullptr;
+  }
+  auto &geps = ep->models_.GetCache();
+  if (geps.empty()) {
+    return nullptr;
+  }
+  return geps.front()->GetGraph();
+}
+}  // namespace
 
 namespace ge {
 using af::AscGraphUtils;
@@ -138,10 +169,8 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -151,7 +180,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
     std::string str = gert::SummaryChecker(graph).StrictDirectNodeTypes(node_types_to_count0);
     EXPECT_EQ(str, "success");
   };
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   const auto &fused_graph = AscGraphUtils::GetComputeGraph(*attr->GetAscGraph());
@@ -196,11 +227,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_2) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  session.BuildGraph(1, inputs);
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  session.CompileGraph(1);
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -211,7 +240,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_2) {
     EXPECT_EQ(str, "success");
   };
 
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -254,11 +285,8 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -268,7 +296,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion) {
     std::string str = gert::SummaryChecker(graph).StrictDirectNodeTypes(node_types_to_count0);
     EXPECT_EQ(str, "success");
   };
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
 
@@ -311,12 +341,8 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion_2) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input3{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2, input3};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -327,7 +353,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion_2) {
     EXPECT_EQ(str, "success");
   };
 
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -429,12 +457,8 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_horizontal_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input3{0, {2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2, input3};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -446,7 +470,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_horizontal_fusion) {
     EXPECT_NE(str, "success");  // 恢复线上阻塞，临时修改
   };
 
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -490,11 +516,8 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_1) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -507,7 +530,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_1) {
     // EXPECT_EQ(str, "success"); // 恢复线上阻塞，临时修改
   };
 
-  auto asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(asc_bc, nullptr);
   auto attr = asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -609,10 +634,8 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_1) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 16}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  session.BuildGraph(1, inputs);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  session.CompileGraph(1);
 
   // lifting AscBackend中单节点还原为原节点
   CHECK_GRAPH(AutofuseOptimize_Exit) {
@@ -651,11 +674,8 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_bro_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -668,7 +688,9 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_bro_vertical_fusion) {
     // EXPECT_EQ(str, "success"); // 恢复线上阻塞，临时修改
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -712,10 +734,8 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_ele_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 16}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -727,7 +747,9 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_ele_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -771,10 +793,8 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
@@ -784,7 +804,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -830,11 +852,8 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -845,7 +864,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -893,11 +914,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 16}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1};
   DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -909,7 +928,9 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -954,12 +975,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_ele_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
   DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -970,7 +988,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_ele_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
 
@@ -1018,12 +1038,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {16, 16, 16}, nullptr, 0};
-  InputTensorInfo input2{0, {16, 16, 16, 16}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2};
   DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1035,7 +1052,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
 
@@ -1082,13 +1101,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_vertical_fusion) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {2, 2}, nullptr, 0};
-  InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
-  InputTensorInfo input3{0, {2, 2, 2, 2}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1, input2, input3};
   DUMP_GRAPH_WHEN("AutofuseOptimize_Exit");
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1099,7 +1114,9 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_vertical_fusion) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);
@@ -1145,10 +1162,8 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_2) {
   Session session(options);
   auto ret = session.AddGraph(1, *graph, options);
   EXPECT_EQ(ret, SUCCESS);
-  InputTensorInfo input1{0, {16, 16, 16}, nullptr, 0};
-  std::vector<InputTensorInfo> inputs{input1};
-  // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
+  // 通过 CompileGraph 触发真实编译，融合结果在 GEP 编译副本上
+  EXPECT_EQ(session.CompileGraph(1), SUCCESS);
 
   CHECK_GRAPH(AutofuseOptimize_Exit) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1160,7 +1175,9 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_2) {
     EXPECT_EQ(str, "success");
   };
 
-  auto fused_asc_bc = compute_graph->FindFirstNodeMatchType("AscBackend");
+  auto compiled_graph = GetJitCompiledGraph(session, 1);
+  ASSERT_NE(compiled_graph, nullptr);
+  auto fused_asc_bc = compiled_graph->FindFirstNodeMatchType("AscBackend");
   ASSERT_NE(fused_asc_bc, nullptr);
   auto attr = fused_asc_bc->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   ASSERT_NE(attr, nullptr);

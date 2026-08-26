@@ -54,6 +54,7 @@
 #include "easy_graph/builder/graph_dsl.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
+#include "api/aclgrph/option_utils.h"
 using namespace std;
 
 static bool g_fail_nothrow_new = false;
@@ -82,7 +83,28 @@ __attribute__((no_sanitize("address"))) void *operator new[](std::size_t size, c
 
 namespace ge {
 using Json = nlohmann::json;
+
+bool g_enable_auto_fuse_stub = false;
+
+bool EnableAutoFuse() {
+  return g_enable_auto_fuse_stub && GetAutofuseFlagValue(kAutoFuseEnableOption) == "true";
+}
+
 namespace {
+class AutoFuseStubGuard {
+ public:
+  AutoFuseStubGuard() : old_value_(g_enable_auto_fuse_stub) {
+    g_enable_auto_fuse_stub = true;
+  }
+
+  ~AutoFuseStubGuard() {
+    g_enable_auto_fuse_stub = old_value_;
+  }
+
+ private:
+  bool old_value_;
+};
+
 class EnvValueGuard {
  public:
   explicit EnvValueGuard(const char *name) : name_(name) {
@@ -2537,6 +2559,7 @@ TEST_F(UtestGeApiV2, AreOptionsEqual_DifferentOptions) {
 }
 
 TEST_F(UtestGeApiV2, SliceSchedule_UnsupportedPaths) {
+  AutoFuseStubGuard auto_fuse_stub_guard;
   EnvValueGuard guard("AUTOFUSE_FLAGS");
   setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
 

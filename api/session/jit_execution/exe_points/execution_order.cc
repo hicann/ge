@@ -15,6 +15,7 @@
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/type_utils.h"
+#include "api/aclgrph/option_utils.h"
 
 namespace ge {
 namespace {
@@ -106,17 +107,32 @@ Status ExecutionOrder::NextPoint(const ExecutionPoint &ep, const std::vector<GeT
 
 Status ExecutionOrder::AddNewSlice(const ComputeGraphPtr &graph, const std::vector<GeTensor> &inputs,
                                    ExecutionPoint *&new_ep) {
-  std::vector<NodePtr> infered_nodes;
-  GE_ASSERT_SUCCESS(JitInferUtils::InferSymbolForGraph(graph, inputs, infered_nodes));
   PartionResult partition_result;
-  if (!infered_nodes.empty()) {
-    GE_ASSERT_SUCCESS(BinaryPartitioner::Partition(graph, infered_nodes, partition_result));
+  std::string dump_name;
+  if (user_graph_.slice_supported) {
+    std::vector<NodePtr> infered_nodes;
+    GE_ASSERT_SUCCESS(JitInferUtils::InferSymbolForGraph(graph, inputs, infered_nodes));
+    if (!infered_nodes.empty()) {
+      GE_ASSERT_SUCCESS(BinaryPartitioner::Partition(graph, infered_nodes, partition_result));
+      GELOGI("graph[%s] partitioned, sliced_graph has %zu nodes.", partition_result.sliced_graph->GetName().c_str(),
+             partition_result.sliced_graph->GetDirectNodesSize());
+    } else {
+      partition_result.sliced_graph = graph;
+      GELOGI("graph[%s] all nodes inferred, no partition needed.", graph->GetName().c_str());
+    }
+    dump_name = "SlicedGraph_";
   } else {
     partition_result.sliced_graph = graph;
+    partition_result.remaining_graph = nullptr;
+    // 整图模式下原始图末端仍是 FrameworkOp/_RetVal，尚未创建 NetOutput，
+    // 复用传统编译 NetOutputPass 的同一套逻辑提前补出 NetOutput，确保 output_size 能被正确校正
+    GE_ASSERT_SUCCESS(graph->CreateOrUpdateNetoutput());
+    GELOGI("graph[%s] whole-graph mode, no slicing.", graph->GetName().c_str());
+    dump_name = "WholeGraph_";
   }
   GE_ASSERT_NOTNULL(partition_result.sliced_graph);
   GE_ASSERT_SUCCESS(SetOutputSizeIfNeed(partition_result.sliced_graph));
-  GE_DUMP(partition_result.sliced_graph, "SlicedGraph_" + std::to_string(slice_graphs_.size()));
+  GE_DUMP(partition_result.sliced_graph, dump_name + std::to_string(slice_graphs_.size()));
   // use vector index as ep id
   const auto &ep_options = SelectEpOption(partition_result);
   slice_graphs_.emplace_back(MakeUnique<ExecutionPoint>(slice_graphs_.size(), partition_result.sliced_graph,

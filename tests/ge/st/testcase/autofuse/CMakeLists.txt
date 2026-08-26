@@ -28,6 +28,7 @@ target_include_directories(autofuse_test PRIVATE
         ${AIR_CODE_DIR}
         ${AIR_CODE_DIR}/base/
         ${AIR_CODE_DIR}/compiler/
+        ${AIR_CODE_DIR}/api/session
         ${AIR_CODE_DIR}/tests/depends/
         ${AIR_CODE_DIR}/inc
         ${AIR_CODE_DIR}/inc/framework/

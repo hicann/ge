@@ -12,7 +12,6 @@
 #define USER_GRAPHS_MANAGER_H
 #include <cstdint>
 #include <map>
-#include <set>
 
 #include "graph/graph.h"
 #include "exe_graph/runtime/runtime_tensor.h"
@@ -29,6 +28,12 @@ class UserGraphsManager {
   Status BuildGraph(uint32_t user_graph_id, const std::vector<GeTensor> &inputs, uint64_t session_id) const;
   Status RunGraphAsync(uint32_t user_graph_id, std::vector<gert::Tensor> &&inputs, uint64_t session_id,
                        const RunAsyncCallbackV2 &callback);
+  Status RunGraph(uint32_t user_graph_id, const std::vector<ge::Tensor> &inputs, std::vector<ge::Tensor> &outputs,
+                  uint64_t session_id);
+  Status RunGraph(uint32_t user_graph_id, const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
+                  uint64_t session_id);
+  Status RunGraphWithStreamAsync(uint32_t user_graph_id, void *stream, const std::vector<GeTensor> &inputs,
+                                 std::vector<GeTensor> &outputs, uint64_t session_id);
   Status RemoveGraph(uint32_t user_graph_id);
   bool IsGraphNeedRebuild(uint32_t user_graph_id);
   Status GetCompiledFlag(uint32_t user_graph_id, bool &flag);
@@ -41,10 +46,11 @@ class UserGraphsManager {
   Status ExecuteGraphWithStreamAsync(uint32_t user_graph_id, void *stream, const std::vector<gert::Tensor> &inputs,
                                      std::vector<gert::Tensor> &outputs, uint64_t session_id);
   Status GetOmeContextByGraphId(const GraphId &graph_id, OmeContext &ome_context) const;
+  Status GetRunGraphMode(uint32_t user_graph_id, RunGraphMode &mode);
+  Status SetRunGraphMode(uint32_t user_graph_id, const RunGraphMode &mode);
 
  private:
   UserGraphControl *GetUserGraphControl(uint32_t user_graph_id);
-  bool ShouldUseSliceSchedule(uint32_t user_graph_id) const;
 
  private:
   CompileContext compile_context_;
@@ -52,7 +58,6 @@ class UserGraphsManager {
 
   mutable std::mutex user_graph_ctrl_mutex_;
   std::map<uint32_t, std::unique_ptr<UserGraphControl>> ids_to_user_graph_ctrl_;
-  std::set<uint32_t> slice_schedule_unsupported_set_;  // 黑名单：不支持 slice schedule 的 graph_id
 };
 using UserGraphsManagerPtr = std::shared_ptr<UserGraphsManager>;
 }  // namespace ge
