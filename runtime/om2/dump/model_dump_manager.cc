@@ -97,7 +97,8 @@ Status ModelDumpManager::ReportModelLevelProf(const Om2ProfInfos &prof_info) con
     GELOGW("[OM2][Prof] Skip ReportModelLevelProf, profiling_impl is null, model_id=%u", model_info_.model_id);
     return SUCCESS;
   }
-  GELOGD("[OM2][Prof] ReportModelLevelProf begin, model_id=%u, count=%u", model_info_.model_id, prof_info.count);
+  GELOGD("[OM2][Prof] ReportModelLevelProf begin, model_id=%u, count=%" PRIu64 "", model_info_.model_id,
+         prof_info.count);
   auto ret = profiling_impl_->ReportModelLevelProf(prof_info, model_info_.model_id);
   GELOGD("[OM2][Prof] ReportModelLevelProf end, model_id=%u, ret=%u", model_info_.model_id, ret);
   return ret;

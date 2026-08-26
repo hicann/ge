@@ -375,10 +375,10 @@ Status ProfilingImpl::ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32
     return SUCCESS;
   }
 
-  GELOGD("[OM2][Prof] Report OM2 model level profiling, model_id=%u, count=%u", model_id, prof_info.count);
+  GELOGD("[OM2][Prof] Report OM2 model level profiling, model_id=%u, count=%" PRIu64 "", model_id, prof_info.count);
 
   for (uint32_t i = 0U; i < prof_info.count; ++i) {
-    auto &unit = prof_info.profUnit[i];
+    auto &unit = prof_info.prof_unit[i];
     if (unit.type >= OM2_PROF_TYPE_COUNT) {
       GELOGW("[OM2][Prof] Invalid prof type=%u at index=%u, model_id=%u, skipping", unit.type, i, model_id);
       continue;
@@ -417,7 +417,7 @@ Status ProfilingImpl::ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32
     }
   }
 
-  GELOGD("[OM2][Prof] ReportModelLevelProf done, model_id=%u, total=%u entries", model_id, prof_info.count);
+  GELOGD("[OM2][Prof] ReportModelLevelProf done, model_id=%u, total=%" PRIu64 " entries", model_id, prof_info.count);
   return SUCCESS;
 }
 

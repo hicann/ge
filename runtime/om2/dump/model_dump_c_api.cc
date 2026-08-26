@@ -70,4 +70,25 @@ int32_t OM2_C_API_EXPORT IsDataDumpEnabled(uint32_t model_id, void *instance_han
   return static_cast<int32_t>(manager->IsDataDumpEnabled(op_name, is_data_dump));
 }
 
+int32_t OM2_C_API_EXPORT ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInfo *info) {
+  if ((instance_handle == nullptr)) {
+    GELOGW("ModelExecutor handle is null, skip");
+    return PARAM_INVALID;
+  }
+
+  if ((info == nullptr) || (info->rt_model_handle == nullptr)) {
+    GELOGW("Input parameter info or info->rt_model_handle is null, skip");
+    return PARAM_INVALID;
+  }
+
+  auto *dump_manager = static_cast<ge::dump::ModelDumpManager *>(instance_handle);
+  if (dump_manager == nullptr) {
+    GELOGW("Dump manager is null, skip");
+    return PARAM_INVALID;
+  }
+  ge::dump::ModelDumpInfo &model_dump_info = dump_manager->GetModelDumpInfo();
+  model_dump_info.rt_model_handle = const_cast<void *>(info->rt_model_handle);
+
+  return dump_manager->SetModelDumpInfo(model_dump_info);
+}
 }  // extern "C"

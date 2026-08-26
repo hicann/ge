@@ -40,23 +40,72 @@ void WriteTextFile(const std::string &file_path, const std::string &content) {
   ofs << content;
 }
 
-std::string MakeFakeSoSource() {
-  return R"(
-#include <cstdint>
+static const std::string fake_om2_so_src = R"(
 #include <cstddef>
+#include <cstdint>
+
+struct GertModelLoadConfig {
+  uint64_t struct_size;
+  const char **bin_files;
+  const void **bin_data;
+  uint64_t *bin_size;
+  uint64_t bin_num;
+  void **constants;
+  void **var_addrs;
+  void *work_ptr;
+  uint64_t *session_id;
+  uint64_t model_id;
+  void *instance_handle;
+  const struct GertModelCallbacks *callbacks;
+  int64_t priority;
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size;
+  uint64_t input_count;
+  void **input_data;
+  uint64_t output_count;
+  void **output_data;
+  uint64_t stream_sync_timeout;
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size;
+};
+
+struct GertModelLoadOutput {
+  uint64_t struct_size;
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size;
+  void *prof_info;
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size;
+};
+
 extern "C" {
-int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **,
-                   size_t *, int, void **, void **, void *, uint64_t *, unsigned int, void *, int32_t) {
-  if (model_handle) *model_handle = (void*)0x1;
-  if (rt_model_handle) *rt_model_handle = (void*)0x2;
+int GertModelLoad(const struct GertModelLoadConfig *config, void **model_handle, struct GertModelLoadOutput *output) {
+  if (model_handle) *model_handle = (void *)0x1;
   return 0;
 }
-int Om2ModelLoad(void **) { return 0; }
-int Om2ModelRun(void **, int, void **, int, void **, int) { return 0; }
-int Om2ModelRunAsync(void **, void *, int, void **, int, void **) { return 0; }
-int Om2ModelDestroy(void **) { return 0; }
+
+int GertModelRunAsync(void *model_handle, void *stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  return 0;
+}
+
+int GertModelRun(void *model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  return 0;
+}
+
+int GertModelUnload(void *model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output) { return 0; }
 }
 )";
+
+std::string MakeFakeSoSource() {
+  return fake_om2_so_src;
 }
 
 std::vector<uint8_t> ReadFileBytes(const std::string &path) {

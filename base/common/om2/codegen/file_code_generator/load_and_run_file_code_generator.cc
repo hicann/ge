@@ -83,7 +83,7 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildLoadMethod(const Om2CodegenModel &c
                                                         const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   std::vector<BodyItem> body;
   (void)BuildLoadBody(body, codegen_model, task_code_builders);
-  return ast_.DefineMethod("Om2Model", "Load", {}, "aclError", body);
+  return ast_.DefineMethod("Om2Model", "Load", {ast_.Var("const GertModelCallbacks *", "callbacks")}, "aclError", body);
 }
 
 MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
@@ -127,6 +127,15 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
   auto kOpDefs = ast_.Var("const TaskDispatchInfo", "kOpDefs");
 
   body.push_back(ast_.VarDecl(ctx_var, ctx_init_list));
+
+  // 执行 ReportModelBaseInfo 回调
+  auto param_callbacks = ast_.Var("", "callbacks");
+  body.push_back(
+      ast_.If((param_callbacks != "nullptr" && param_callbacks.Arrow("report_model_base_info") != "nullptr"),
+              {ast_.VarDecl(ast_.Var("GertModelBaseInfo", "cfg"),
+                            ast_.InitList({ast_.Var("", "sizeof(GertModelBaseInfo)"), ctx_var.Attr("model_handle")})),
+               ChkStatus(ast_.Call("callbacks->report_model_base_info",
+                                   {ctx_var.Attr("instance_handle"), ast_.Var("", "cfg").Addr()}))}));
 
   // 方案 A：for 循环分发（优先使用）
   std::vector<BodyItem> dispatch_loop_items;
@@ -173,9 +182,9 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildRunAsyncMethod(const Om2CodegenMode
   (void)BuildRunBodyImpl(body, codegen_model, true);
   auto exe_stream = ast_.Var("aclrtStream &", "exe_stream");
   auto input_count = ast_.Var("size_t", "input_count");
-  auto input_data = ast_.Var("void **", "input_data");
+  auto input_data = ast_.Var("gert::Tensor **", "input_data");
   auto output_count = ast_.Var("size_t", "output_count");
-  auto output_data = ast_.Var("void **", "output_data");
+  auto output_data = ast_.Var("gert::Tensor **", "output_data");
   auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
   return ast_.DefineMethod("Om2Model", "RunAsync",
                            {exe_stream, input_count, input_data, output_count, output_data, prof_info}, "aclError",
@@ -186,9 +195,9 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildRunMethod(const Om2CodegenModel &co
   std::vector<BodyItem> body;
   (void)BuildRunBodyImpl(body, codegen_model, false);
   auto input_count = ast_.Var("size_t", "input_count");
-  auto input_data = ast_.Var("void **", "input_data");
+  auto input_data = ast_.Var("gert::Tensor **", "input_data");
   auto output_count = ast_.Var("size_t", "output_count");
-  auto output_data = ast_.Var("void **", "output_data");
+  auto output_data = ast_.Var("gert::Tensor **", "output_data");
   auto stream_sync_timeout = ast_.Var("int32_t", "stream_sync_timeout");
   auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
   return ast_.DefineMethod("Om2Model", "Run",
@@ -329,8 +338,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyDeclareTensorIoVars(std::vector<Bo
     }
     if (should_declare_tensor) {
       auto tensor = ast_.Var("auto", tensor_var_name);
-      body.push_back(ast_.VarDecl(
-          tensor, ast_.ReinterpretCast("gert::Tensor *", (entry.is_input ? input_data : output_data)[entry.index])));
+      body.push_back(ast_.VarDecl(tensor, (entry.is_input ? input_data : output_data)[entry.index]));
     }
   }
 }
@@ -536,7 +544,7 @@ FunctionDef *LoadAndRunFileCodeGenerator::BuildCommitProfUnit() const {
   auto unit_var = ast_.Var("auto &", "unit");
   return ast_.DefineFunction(
       "CommitProfUnit", {prof_info, prof_type, begin_time}, "void",
-      {ast_.VarDecl(unit_var, prof_info.Arrow("profUnit")[prof_info.Arrow("count")]),
+      {ast_.VarDecl(unit_var, prof_info.Arrow("prof_unit")[prof_info.Arrow("count")]),
        ast_.Assign(unit_var.Attr("type"), prof_type), ast_.Assign(unit_var.Attr("begin_time"), begin_time),
        ast_.Assign(unit_var.Attr("end_time"), ast_.Call("MsprofSysCycleTime", {})),
        ast_.Assign(unit_var.Attr("thread_id"), ast_.StaticCast("uint32_t", ast_.Call("mmGetTid", {}))),

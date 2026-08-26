@@ -19,9 +19,7 @@ class InterfaceFileCodeGenerator : public CodeGeneratorBase {
   using CodeGeneratorBase::CodeGeneratorBase;
   ~InterfaceFileCodeGenerator() override = default;
 
-  TypeAliasDecl *BuildOm2ModelHandleAlias();
   StructDecl *BuildBinDataInfoStruct();
-  StructDecl *BuildOm2ProfInfosStruct();
   StructDecl *BuildAicpuParamHeadStruct();
   StructDecl *BuildAicpuSessionInfoStruct();
   StructDecl *BuildTfAiCpuExInfoStruct();

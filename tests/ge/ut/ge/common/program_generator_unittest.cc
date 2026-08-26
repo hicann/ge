@@ -1973,6 +1973,29 @@ struct Om2TaskInfo {
   uint64_t weight_mem_size;
 };
 
+struct GertModelDumpEnabledInfo {
+  uint64_t struct_size = sizeof(GertModelDumpEnabledInfo);
+  const char *op_name = nullptr;
+  uint64_t enabled = 0;
+};
+
+struct GertModelBaseInfo {
+  uint64_t struct_size = sizeof(GertModelBaseInfo);
+  const void *rt_model_handle = nullptr;
+};
+
+using ReportTaskProcessFunc = int32_t (*)(void *instance_handle, const struct Om2TaskInfo *info);
+using GetDataDumpEnabledInfoFunc = int32_t (*)(void *instance_handle, struct GertModelDumpEnabledInfo *info);
+using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
+
+struct GertModelCallbacks {
+  uint64_t struct_size = sizeof(GertModelCallbacks);
+  ReportTaskProcessFunc report_task_preprocess = nullptr;
+  ReportTaskProcessFunc report_task_postprocess = nullptr;
+  GetDataDumpEnabledInfoFunc get_data_dump_enabled = nullptr;
+  ReportModelBaseInfoFunc report_model_base_info = nullptr;
+};
+
 #pragma pack(push)
 #pragma pack(1)
 struct ProfTraceUserData {
@@ -1998,6 +2021,55 @@ struct Om2ProfUnit {
   uint32_t thread_id;
 };
 
+struct Om2ProfInfos {
+  uint64_t struct_size = sizeof(Om2ProfInfos);
+  uint64_t count = 0;
+  Om2ProfUnit *prof_unit = nullptr;
+  uint64_t step_id = 0;
+};
+
+struct GertModelLoadConfig {
+  uint64_t struct_size = sizeof(GertModelLoadConfig);
+  const char **bin_files = nullptr;
+  const void **bin_data = nullptr;
+  uint64_t *bin_size = nullptr;
+  uint64_t bin_num = 0;
+  void **constants = nullptr;
+  void **var_addrs = nullptr;
+  void *work_ptr = nullptr;
+  uint64_t *session_id = nullptr;
+  uint64_t model_id = 0; // used for logging
+  void *instance_handle = nullptr;
+  const struct GertModelCallbacks *callbacks = nullptr;
+  int64_t priority = 0;
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size = sizeof(GertModelRunConfig);
+  uint64_t input_count = 0;
+  gert::Tensor **input_data = nullptr;
+  uint64_t output_count = 0;
+  gert::Tensor **output_data = nullptr;
+  uint64_t stream_sync_timeout_ms = 0;
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size = sizeof(GertModelUnloadConfig);
+};
+
+struct GertModelLoadOutput {
+  uint64_t struct_size = sizeof(GertModelLoadOutput);
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size = sizeof(GertModelRunOutput);
+  Om2ProfInfos *prof_info = nullptr;
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size = sizeof(GertModelUnloadOutput);
+};
+
 extern "C" {
 __attribute__((weak)) int32_t ReportDfxTaskPreprocess(uint32_t model_id,
                                                        void* instance_handle,
@@ -2016,13 +2088,6 @@ __attribute__((weak)) int32_t IsDataDumpEnabled(uint32_t model_id,
                                                       const char* op_name,
                                                       uint8_t* is_data_dump);
 }
-
-struct Om2ProfInfos {
-  uint32_t version;
-  uint32_t count;
-  Om2ProfUnit *profUnit;
-  uint64_t step_id;
-};
 
 struct rtLabelDevInfo {
   uint16_t modelId;
@@ -2044,8 +2109,6 @@ rtError_t rtCmoAddrTaskLaunch(void *cmoAddrInfo, uint64_t destMax, rtCmoOpCode_t
 namespace om2 {
 constexpr int32_t INPUT_NUM = 2;
 constexpr int32_t OUTPUT_NUM = 1;
-typedef void *Om2ModelHandle;
-
 struct BinDataInfo {
   const void *data;
   size_t size;
@@ -2431,10 +2494,10 @@ class Om2Model {
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
-    aclError Load();
+    aclError Load(const GertModelCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
-    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
-    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info);
+    aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info);
     aclError ReleaseResources();
   private:
     void **constants_;
@@ -2471,15 +2534,15 @@ class Om2Model {
 extern "C" {
 #endif
 
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+typedef void *GertModelHandle;
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info);
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
 
 #ifdef __cplusplus
 }
@@ -2886,7 +2949,7 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
 }
 
 void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
-  auto &unit = prof_info->profUnit[prof_info->count];
+  auto &unit = prof_info->prof_unit[prof_info->count];
   unit.type = type;
   unit.begin_time = begin_time;
   unit.end_time = MsprofSysCycleTime();
@@ -3149,10 +3212,14 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
-aclError Om2Model::Load() {
+aclError Om2Model::Load(const GertModelCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  if (((callbacks != nullptr) && (callbacks->report_model_base_info != nullptr))) {
+    GertModelBaseInfo cfg = {sizeof(GertModelBaseInfo), ctx.model_handle};
+    OM2_CHK_STATUS(callbacks->report_model_base_info(ctx.instance_handle, &cfg));
+  }
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -3166,7 +3233,7 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -3177,9 +3244,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -3218,7 +3285,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -3234,9 +3301,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -3275,7 +3342,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -3298,35 +3365,102 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
     delete obj;
     return ret;
   }
-  *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
   OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelLoad(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
     OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load();
+  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelDestroy(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
+}
+
+// ==================== model load/run/unload api ====================
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                       struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelLoad: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  if (output != nullptr) {
+    OM2_LOGE("GertModelLoad: output is reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  aclmdlRI rt_model_handle;
+  // Create Model
+  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
+                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
+                                config->work_ptr, config->session_id, config->model_id,
+                                config->instance_handle, config->priority));
+  OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
+           " bin_num=%" PRIu64 "", *model_handle, config->model_id,
+           config->priority, config->bin_num);
+  // Load Model
+  return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
+}
+
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRunAsync: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRunAsync: handle=%p, stream=%p, input_count=%" PRIu64 ","
+           " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
+           config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data,
+                          config->output_count, config->output_data, prof_info);
+}
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                      struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRun: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p, stream_sync_timeout_ms=%" PRIu64 ","
+           " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
+           config->stream_sync_timeout_ms, config->input_count, config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
+                     config->output_data, config->stream_sync_timeout_ms, prof_info);
+}
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                         struct GertModelUnloadOutput *output) {
+  if (model_handle == nullptr) {
+    OM2_LOGE("GertModelUnload: invalid handle");
+    return ACL_ERROR_FAILURE;
+  }
+  if ((config != nullptr) || (output != nullptr)) {
+    OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
@@ -3564,7 +3698,7 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
 }
 
 void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
-  auto &unit = prof_info->profUnit[prof_info->count];
+  auto &unit = prof_info->prof_unit[prof_info->count];
   unit.type = type;
   unit.begin_time = begin_time;
   unit.end_time = MsprofSysCycleTime();
@@ -3827,10 +3961,14 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
-aclError Om2Model::Load() {
+aclError Om2Model::Load(const GertModelCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  if (((callbacks != nullptr) && (callbacks->report_model_base_info != nullptr))) {
+    GertModelBaseInfo cfg = {sizeof(GertModelBaseInfo), ctx.model_handle};
+    OM2_CHK_STATUS(callbacks->report_model_base_info(ctx.instance_handle, &cfg));
+  }
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -3844,7 +3982,7 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -3855,9 +3993,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -3896,7 +4034,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -3912,9 +4050,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -3953,7 +4091,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -3976,35 +4114,102 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
     delete obj;
     return ret;
   }
-  *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
   OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelLoad(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
     OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load();
+  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelDestroy(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
+}
+
+// ==================== model load/run/unload api ====================
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                       struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelLoad: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  if (output != nullptr) {
+    OM2_LOGE("GertModelLoad: output is reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  aclmdlRI rt_model_handle;
+  // Create Model
+  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
+                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
+                                config->work_ptr, config->session_id, config->model_id,
+                                config->instance_handle, config->priority));
+  OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
+           " bin_num=%" PRIu64 "", *model_handle, config->model_id,
+           config->priority, config->bin_num);
+  // Load Model
+  return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
+}
+
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRunAsync: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRunAsync: handle=%p, stream=%p, input_count=%" PRIu64 ","
+           " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
+           config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data,
+                          config->output_count, config->output_data, prof_info);
+}
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                      struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRun: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p, stream_sync_timeout_ms=%" PRIu64 ","
+           " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
+           config->stream_sync_timeout_ms, config->input_count, config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
+                     config->output_data, config->stream_sync_timeout_ms, prof_info);
+}
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                         struct GertModelUnloadOutput *output) {
+  if (model_handle == nullptr) {
+    OM2_LOGE("GertModelUnload: invalid handle");
+    return ACL_ERROR_FAILURE;
+  }
+  if ((config != nullptr) || (output != nullptr)) {
+    OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
@@ -4274,7 +4479,7 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
 }
 
 void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
-  auto &unit = prof_info->profUnit[prof_info->count];
+  auto &unit = prof_info->prof_unit[prof_info->count];
   unit.type = type;
   unit.begin_time = begin_time;
   unit.end_time = MsprofSysCycleTime();
@@ -4566,10 +4771,14 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
-aclError Om2Model::Load() {
+aclError Om2Model::Load(const GertModelCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(2);
   DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  if (((callbacks != nullptr) && (callbacks->report_model_base_info != nullptr))) {
+    GertModelBaseInfo cfg = {sizeof(GertModelBaseInfo), ctx.model_handle};
+    OM2_CHK_STATUS(callbacks->report_model_base_info(ctx.instance_handle, &cfg));
+  }
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -4585,7 +4794,7 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -4596,9 +4805,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -4637,7 +4846,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -4653,9 +4862,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -4694,7 +4903,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -4717,35 +4926,102 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
     delete obj;
     return ret;
   }
-  *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
   OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelLoad(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
     OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load();
+  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelDestroy(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
+}
+
+// ==================== model load/run/unload api ====================
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                       struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelLoad: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  if (output != nullptr) {
+    OM2_LOGE("GertModelLoad: output is reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  aclmdlRI rt_model_handle;
+  // Create Model
+  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
+                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
+                                config->work_ptr, config->session_id, config->model_id,
+                                config->instance_handle, config->priority));
+  OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
+           " bin_num=%" PRIu64 "", *model_handle, config->model_id,
+           config->priority, config->bin_num);
+  // Load Model
+  return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
+}
+
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRunAsync: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRunAsync: handle=%p, stream=%p, input_count=%" PRIu64 ","
+           " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
+           config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data,
+                          config->output_count, config->output_data, prof_info);
+}
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                      struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRun: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p, stream_sync_timeout_ms=%" PRIu64 ","
+           " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
+           config->stream_sync_timeout_ms, config->input_count, config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
+                     config->output_data, config->stream_sync_timeout_ms, prof_info);
+}
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                         struct GertModelUnloadOutput *output) {
+  if (model_handle == nullptr) {
+    OM2_LOGE("GertModelUnload: invalid handle");
+    return ACL_ERROR_FAILURE;
+  }
+  if ((config != nullptr) || (output != nullptr)) {
+    OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
@@ -4983,7 +5259,7 @@ aclError AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelC
 }
 
 void CommitProfUnit(Om2ProfInfos *prof_info, Om2ProfType type, uint64_t begin_time) {
-  auto &unit = prof_info->profUnit[prof_info->count];
+  auto &unit = prof_info->prof_unit[prof_info->count];
   unit.type = type;
   unit.begin_time = begin_time;
   unit.end_time = MsprofSysCycleTime();
@@ -5266,10 +5542,14 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
-aclError Om2Model::Load() {
+aclError Om2Model::Load(const GertModelCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
   DispatchOpContext ctx = {total_dev_mem_ptr_, session_scope_mem_ptr_, constants_, var_addrs_, args_table_, func_handles_.data(), model_id_, instance_handle_, model_handle_, event_list_, mem_event_id_mem_map_, dev_dynamic_mem_ptrs_, overflow_addr_, label_list_, notify_list_, stream_list_, label_goto_args_, label_goto_ex_label_list_, label_switch_label_list_, session_id_, dev_ext_info_mem_ptrs_, &kernel_id_};
+  if (((callbacks != nullptr) && (callbacks->report_model_base_info != nullptr))) {
+    GertModelBaseInfo cfg = {sizeof(GertModelBaseInfo), ctx.model_handle};
+    OM2_CHK_STATUS(callbacks->report_model_base_info(ctx.instance_handle, &cfg));
+  }
 #if 1U
   for (uint32_t _op_idx = 0U; (_op_idx < (sizeof(kOpDefs) / sizeof(kOpDefs[0]))); _op_idx++) {
     OM2_CHK_STATUS(DispatchOp(&kOpDefs[_op_idx], ctx));
@@ -5283,7 +5563,7 @@ aclError Om2Model::Load() {
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("RunAsync begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -5294,9 +5574,9 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -5335,7 +5615,7 @@ aclError Om2Model::RunAsync(aclrtStream &exe_stream, size_t input_count, void **
   return ACL_SUCCESS;
 }
 
-aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Run begin");
   if (((input_count != om2::INPUT_NUM) || (output_count != om2::OUTPUT_NUM))) {
     return ACL_ERROR_FAILURE;
@@ -5351,9 +5631,9 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   if ((prof_info != nullptr)) {
     _t_input_begin = MsprofSysCycleTime();
   }
-  auto input_data_0_tensor = reinterpret_cast<gert::Tensor *>(input_data[0]);
-  auto input_data_1_tensor = reinterpret_cast<gert::Tensor *>(input_data[1]);
-  auto output_data_0_tensor = reinterpret_cast<gert::Tensor *>(output_data[0]);
+  auto input_data_0_tensor = input_data[0];
+  auto input_data_1_tensor = input_data[1];
+  auto output_data_0_tensor = output_data[0];
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 0, reinterpret_cast<uintptr_t>(input_data_0_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(0, 1, reinterpret_cast<uintptr_t>(input_data_1_tensor->GetAddr())));
   OM2_CHK_STATUS(args_table_.UpdateHostArgs(1, 0, reinterpret_cast<uintptr_t>(output_data_0_tensor->GetAddr())));
@@ -5392,7 +5672,7 @@ aclError Om2Model::Run(size_t input_count, void **input_data, size_t output_coun
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -5415,35 +5695,102 @@ aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_ha
     delete obj;
     return ret;
   }
-  *model_handle = reinterpret_cast<om2::Om2ModelHandle>(obj);
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   *rt_model_handle = obj->GetRtModelHandle();
   OM2_LOGI("Om2ModelCreate done");
   return ACL_SUCCESS;
 }
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelLoad(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelLoad");
   if ((model_handle == nullptr) || (*model_handle == nullptr)) {
     OM2_LOGE("Om2ModelLoad: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load();
+  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
 }
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info) {
+aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRunAsync");
   return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, prof_info);
 }
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
+aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info) {
   OM2_LOGI("Om2ModelRun");
   return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info);
 }
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
+aclError Om2ModelDestroy(GertModelHandle *model_handle) {
   OM2_LOGI("Om2ModelDestroy");
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
+}
+
+// ==================== model load/run/unload api ====================
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                       struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelLoad: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  if (output != nullptr) {
+    OM2_LOGE("GertModelLoad: output is reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  aclmdlRI rt_model_handle;
+  // Create Model
+  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
+                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
+                                config->work_ptr, config->session_id, config->model_id,
+                                config->instance_handle, config->priority));
+  OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
+           " bin_num=%" PRIu64 "", *model_handle, config->model_id,
+           config->priority, config->bin_num);
+  // Load Model
+  return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
+}
+
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRunAsync: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRunAsync: handle=%p, stream=%p, input_count=%" PRIu64 ","
+           " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
+           config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data,
+                          config->output_count, config->output_data, prof_info);
+}
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                      struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
+    OM2_LOGE("GertModelRun: invalid handle or config");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p, stream_sync_timeout_ms=%" PRIu64 ","
+           " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
+           config->stream_sync_timeout_ms, config->input_count, config->output_count);
+  Om2ProfInfos *prof_info = (output == nullptr ? nullptr : output->prof_info);
+  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
+                     config->output_data, config->stream_sync_timeout_ms, prof_info);
+}
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                         struct GertModelUnloadOutput *output) {
+  if (model_handle == nullptr) {
+    OM2_LOGE("GertModelUnload: invalid handle");
+    return ACL_ERROR_FAILURE;
+  }
+  if ((config != nullptr) || (output != nullptr)) {
+    OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
+    return ACL_ERROR_FAILURE;
+  }
+  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }

@@ -806,22 +806,71 @@ std::string MakeFakeOm2ConstantsConfigJson() {
 })";
 }
 
-std::string MakeFakeOm2InterfaceHeader() {
-  return R"(#pragma once
+const std::string fake_interface_header_src = R"(#pragma once
 #include <cstddef>
 #include <cstdint>
 
+namespace gert {
+  class Tensor;
+}
+
+struct GertModelLoadConfig {
+  uint64_t struct_size = sizeof(GertModelLoadConfig);
+  const char **bin_files = nullptr;
+  const void **bin_data = nullptr;
+  uint64_t *bin_size = nullptr;
+  uint64_t bin_num = 0;
+  void **constants = nullptr;
+  void **var_addrs = nullptr;
+  void *work_ptr = nullptr;
+  uint64_t *session_id = nullptr;
+  uint64_t model_id = 0; // used for logging
+  void *instance_handle = nullptr;
+  const struct GertModelCallbacks *callbacks = nullptr;
+  int64_t priority = 0;
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size = sizeof(GertModelRunConfig);
+  uint64_t input_count = 0;
+  gert::Tensor **input_data = nullptr;
+  uint64_t output_count = 0;
+  gert::Tensor **output_data = nullptr;
+  uint64_t stream_sync_timeout_ms = 0;
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size = sizeof(GertModelUnloadConfig);
+};
+
+struct GertModelLoadOutput {
+  uint64_t struct_size = sizeof(GertModelLoadOutput);
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size = sizeof(GertModelRunOutput);
+  void *prof_info = nullptr;
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size = sizeof(GertModelUnloadOutput);
+};
+
 extern "C" {
-int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **bin_files, const void **bin_data,
-                   size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id,
-                   uint32_t model_id, void *instance_handle, int32_t priority);
-int Om2ModelLoad(void **model_handle);
-int Om2ModelRunAsync(void **model_handle, void *stream, int input_count, void **input_data, int output_count,
-                     void **output_data);
-int Om2ModelRun(void **model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout);
-int Om2ModelDestroy(void **model_handle);
+typedef void *GertModelHandle;
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
+
+int GertModelRunAsync(GertModelHandle model_handle, void *stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
 }
 )";
+
+std::string MakeFakeOm2InterfaceHeader() {
+  return fake_interface_header_src;
 }
 
 std::string MakeFakeOm2LoadAndRunCreateCpp() {
@@ -835,53 +884,42 @@ struct FakeModel {
 };
 }
 
-extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **, size_t *, int,
-                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t, void *, int32_t) {
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (work_ptr == nullptr) || (constants == nullptr) ||
-      (constants[0] == nullptr)) {
+extern "C" int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->work_ptr == nullptr) || (config->constants == nullptr) || (config->constants[0] == nullptr)) {
     return 1;
   }
   auto *model = new (std::nothrow) FakeModel();
   if (model == nullptr) {
     return 1;
   }
-  model->session_id = (session_id == nullptr) ? 0UL : *session_id;
+  model->session_id = (config->session_id == nullptr) ? 0UL : *config->session_id;
   *model_handle = model;
-  *rt_model_handle = reinterpret_cast<void *>(0x12345678U);
   return 0;
-}
-
-extern "C" int Om2ModelLoad(void **model_handle) {
-  return ((model_handle == nullptr) || (*model_handle == nullptr)) ? 1 : 0;
 }
 )";
 }
 
 std::string MakeFakeOm2LoadAndRunExecuteCpp() {
   return R"(
-extern "C" int Om2ModelRunAsync(void **model_handle, void *, int input_count, void **input_data, int output_count,
-                                void **output_data) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr) || (input_data == nullptr) || (output_data == nullptr)) {
+extern "C" int GertModelRunAsync(GertModelHandle model_handle, void *stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->input_data == nullptr) || (config->output_data == nullptr)) {
     return 1;
   }
-  return (input_count == 2 && output_count == 1) ? 0 : 1;
+  return (config->input_count == 2 && config->output_count == 1) ? 0 : 1;
 }
 
-extern "C" int Om2ModelRun(void **model_handle, int input_count, void **input_data, int output_count,
-                           void **output_data, int32_t stream_sync_timeout) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr) || (input_data == nullptr) || (output_data == nullptr)) {
+extern "C" int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->input_data == nullptr) || (config->output_data == nullptr)) {
     return 1;
   }
-  (void)stream_sync_timeout;  // Mock 实现不使用该参数
-  return (input_count == 2 && output_count == 1) ? 0 : 1;
+  return (config->input_count == 2 && config->output_count == 1) ? 0 : 1;
 }
 
-extern "C" int Om2ModelDestroy(void **model_handle) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+extern "C" int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output) {
+  if ((model_handle == nullptr)) {
     return 0;
   }
-  delete static_cast<FakeModel *>(*model_handle);
-  *model_handle = nullptr;
+  delete static_cast<FakeModel *>(model_handle);
   return 0;
 }
 )";

@@ -385,28 +385,77 @@ std::string MakeVarResourceJson(const size_t init_data_offset, const size_t init
   return root.Dump();
 }
 
-std::string MakeInterfaceHeader() {
-  return R"(#pragma once
+static std::string interface_header_src = R"(#pragma once
 
 #include <cstddef>
 #include <cstdint>
+
+namespace gert {
+  class Tensor;
+}
 
 namespace om2 {
 struct FakeModel {
   uint64_t session_id;
 };
 }
+struct GertModelLoadConfig {
+  uint64_t struct_size = sizeof(GertModelLoadConfig);
+  const char **bin_files = nullptr;
+  const void **bin_data = nullptr;
+  uint64_t *bin_size = nullptr;
+  uint64_t bin_num = 0;
+  void **constants = nullptr;
+  void **var_addrs = nullptr;
+  void *work_ptr = nullptr;
+  uint64_t *session_id = nullptr;
+  uint64_t model_id = 0; // used for logging
+  void *instance_handle = nullptr;
+  const struct GertModelCallbacks *callbacks = nullptr;
+  int64_t priority = 0;
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size = sizeof(GertModelRunConfig);
+  uint64_t input_count = 0;
+  gert::Tensor **input_data = nullptr;
+  uint64_t output_count = 0;
+  gert::Tensor **output_data = nullptr;
+  uint64_t stream_sync_timeout_ms = 0;
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size = sizeof(GertModelUnloadConfig);
+};
+
+struct GertModelLoadOutput {
+  uint64_t struct_size = sizeof(GertModelLoadOutput);
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size = sizeof(GertModelRunOutput);
+  void *prof_info = nullptr;
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size = sizeof(GertModelUnloadOutput);
+};
 
 extern "C" {
-int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **bin_files, const void **bin_data,
-                   size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
-int Om2ModelLoad(void **model_handle);
-int Om2ModelRunAsync(void **model_handle, void *stream, int input_count, void **input_data, int output_count,
-                     void **output_data);
-int Om2ModelRun(void **model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout);
-int Om2ModelDestroy(void **model_handle);
+typedef void *GertModelHandle;
+
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
+
+int GertModelRunAsync(GertModelHandle model_handle, void *stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
 }
 )";
+
+std::string MakeInterfaceHeader() {
+  return interface_header_src;
 }
 
 std::string MakeLoadAndRunCpp() {
@@ -544,26 +593,23 @@ bool CheckInstanceHandle(void *instance_handle) {
 }
 }  // namespace
 
-extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const char **, const void **, size_t *, int,
-                              void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id,
-                              void *instance_handle, int32_t priority) {
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr)) {
+extern "C" int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr)) {
     return 1;
   }
-  if (!CheckWorkPtr(work_ptr) || !CheckConst0(constants) || !CheckConst0Ptr(constants) ||
-      !CheckConstByIndex(constants, 1U, "OM2_EXPECT_CONST1_MODE", "OM2_EXPECT_CONST1_FIRST_BYTE") ||
-      !CheckConstByIndex(constants, 2U, "OM2_EXPECT_CONST2_MODE", "OM2_EXPECT_CONST2_FIRST_BYTE") ||
-      !CheckConstPtrEqual(constants) || !CheckVar0(var_addrs) ||
-      !CheckSessionId(session_id) || !CheckModelId(model_id) || !CheckInstanceHandle(instance_handle)) {
+  if (!CheckWorkPtr(config->work_ptr) || !CheckConst0(config->constants) || !CheckConst0Ptr(config->constants) ||
+      !CheckConstByIndex(config->constants, 1U, "OM2_EXPECT_CONST1_MODE", "OM2_EXPECT_CONST1_FIRST_BYTE") ||
+      !CheckConstByIndex(config->constants, 2U, "OM2_EXPECT_CONST2_MODE", "OM2_EXPECT_CONST2_FIRST_BYTE") ||
+      !CheckConstPtrEqual(config->constants) || !CheckVar0(config->var_addrs) ||
+      !CheckSessionId(config->session_id) || !CheckModelId(config->model_id) || !CheckInstanceHandle(config->instance_handle)) {
     return 1;
   }
   auto *model = new (std::nothrow) om2::FakeModel();
   if (model == nullptr) {
     return 1;
   }
-  model->session_id = (session_id == nullptr) ? 0UL : *session_id;
+  model->session_id = (config->session_id == nullptr) ? 0UL : *config->session_id;
   *model_handle = model;
-  *rt_model_handle = reinterpret_cast<void *>(kFakeRtModelHandleValue);
   const char *trace = std::getenv("OM2_CALL_TRACE");
   if (trace != nullptr) {
     std::ofstream ofs(trace, std::ios::app);
@@ -572,38 +618,25 @@ extern "C" int Om2ModelCreate(void **model_handle, void **rt_model_handle, const
   return 0;
 }
 
-extern "C" int Om2ModelLoad(void **model_handle) {
-  const char *trace = std::getenv("OM2_CALL_TRACE");
-  if (trace != nullptr) {
-    std::ofstream ofs(trace, std::ios::app);
-    ofs << "load\n";
-  }
-  return ((model_handle == nullptr) || (*model_handle == nullptr)) ? 1 : 0;
-}
-
-extern "C" int Om2ModelRunAsync(void **model_handle, void *, int input_count, void **input_data, int output_count,
-                                void **output_data) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr) || (input_data == nullptr) || (output_data == nullptr)) {
+extern "C" int GertModelRunAsync(GertModelHandle model_handle, void *stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->input_data == nullptr) || (config->output_data == nullptr)) {
     return 1;
   }
-  return (input_count == 2 && output_count == 1) ? 0 : 1;
+  return (config->input_count == 2 && config->output_count == 1) ? 0 : 1;
 }
 
-extern "C" int Om2ModelRun(void **model_handle, int input_count, void **input_data, int output_count,
-                           void **output_data, int32_t stream_sync_timeout) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr) || (input_data == nullptr) || (output_data == nullptr)) {
+extern "C" int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->input_data == nullptr) || (config->output_data == nullptr)) {
     return 1;
   }
-  (void)stream_sync_timeout;  // Mock 实现不使用该参数
-  return (input_count == 2 && output_count == 1) ? 0 : 1;
+  return (config->input_count == 2 && config->output_count == 1) ? 0 : 1;
 }
 
-extern "C" int Om2ModelDestroy(void **model_handle) {
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
+extern "C" int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output) {
+  if (model_handle == nullptr) {
     return 0;
   }
-  delete static_cast<om2::FakeModel *>(*model_handle);
-  *model_handle = nullptr;
+  delete static_cast<om2::FakeModel *>(model_handle);
   return 0;
 }
 )";
@@ -1527,7 +1560,7 @@ TEST_F(Om2ModelExecutorUt, load_calls_model_load_after_model_create) {
 
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 
-  EXPECT_EQ(ReadTraceFile(trace_file), std::vector<std::string>({"create", "load"}));
+  EXPECT_EQ(ReadTraceFile(trace_file), std::vector<std::string>({"create"}));
 }
 
 TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_meta_missing) {

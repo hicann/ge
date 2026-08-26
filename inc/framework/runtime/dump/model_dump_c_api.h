@@ -153,13 +153,43 @@ struct Om2ProfUnit {
 };
 
 struct Om2ProfInfos {
-  uint32_t version;       // 版本号，使用 sizeof(Om2ProfInfos) 自动兼容
-  uint32_t count;         // profUnit 有效条目数
-  Om2ProfUnit *profUnit;  // 指针，Executor 分配，codegen 填充
-  uint64_t step_id;       // 输入：Executor 设置，0 不上报 StepInfo
+  uint64_t struct_size = sizeof(Om2ProfInfos);  // 版本号，使用 sizeof(Om2ProfInfos) 自动兼容
+  uint64_t count = 0;                           // prof_unit 有效条目数
+  Om2ProfUnit *prof_unit = nullptr;             // 指针，Executor 分配，codegen 填充
+  uint64_t step_id = 0;                         // 输入：Executor 设置，0 不上报 StepInfo
 };
 
 constexpr uint32_t kOm2ProfInfosVersion = sizeof(Om2ProfInfos);
+
+// ============ Dump 回调函数入参 struct 的类型定义 ============
+
+// get_data_dump_enabled 回调入参
+struct GertModelDumpEnabledInfo {
+  uint64_t struct_size = sizeof(GertModelDumpEnabledInfo);  // 布局变化时更新
+  const char *op_name = nullptr;                            // 算子名
+  uint64_t enabled = 0;                                     // 输出：是否使能 dump
+};
+
+// GertModelBaseInfo: init_model_dump_info 回调入参（codegen → executor 传递 rt_model_handle）
+struct GertModelBaseInfo {
+  uint64_t struct_size = sizeof(GertModelBaseInfo);  // 布局变化时更新
+  const void *rt_model_handle = nullptr;             // 输入：codegen 创建的 aclmdlRI*（InitResources 后即可获得）
+};
+
+using ReportTaskProcessFunc = int32_t (*)(void *instance_handle, const struct Om2TaskInfo *info);
+using GetDataDumpEnabledInfoFunc = int32_t (*)(void *instance_handle, struct GertModelDumpEnabledInfo *info);
+using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
+
+struct GertModelCallbacks {
+  uint64_t struct_size = sizeof(GertModelCallbacks);  // 布局变化时更新
+
+  ReportTaskProcessFunc report_task_preprocess = nullptr;
+  ReportTaskProcessFunc report_task_postprocess = nullptr;
+  GetDataDumpEnabledInfoFunc get_data_dump_enabled = nullptr;
+  // codegen 在 InitResources 创建 rt_model_handle 后、Load 前回调；
+  // executor 收到后完成 ReportModelBaseInfo（组装 ModelDumpInfo → SetModelDumpInfo）
+  ReportModelBaseInfoFunc report_model_base_info = nullptr;
+};
 
 // ============ 弱符号接口 ============
 /**
@@ -199,6 +229,7 @@ int32_t OM2_C_API_EXPORT ReportDfxTaskPostprocess(uint32_t model_id, void *insta
 int32_t OM2_C_API_EXPORT IsDataDumpEnabled(uint32_t model_id, void *instance_handle, const char *op_name,
                                            uint8_t *is_data_dump);
 
+int32_t OM2_C_API_EXPORT ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInfo *info);
 #ifdef __cplusplus
 }
 #endif
