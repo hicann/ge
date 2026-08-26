@@ -207,6 +207,7 @@ bool KernelBinRegistry::AddKernel(const std::string &stub_name, std::unique_ptr<
 }
 
 bool HandleRegistry::AddHandle(std::unique_ptr<HandleHolder> &&holder) {
+  const std::lock_guard<std::mutex> lock(mutex_);
   const auto ret = registered_handles_.emplace(std::move(holder));
   return ret.second;
 }
