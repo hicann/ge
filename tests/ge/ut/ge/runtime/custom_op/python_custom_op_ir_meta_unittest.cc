@@ -15,6 +15,7 @@
 
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
+#include "exe_graph/runtime/op_compile_context.h"
 #include "runtime/custom_op/python_custom_op_adapter.h"
 #include "runtime/custom_op/python_custom_op_bridge_c_api.h"
 
@@ -43,6 +44,10 @@ graphStatus ExecuteMockPythonCustomOp(const void *holder, gert::EagerOpExecution
 }
 
 graphStatus DeclareMockPythonCustomOp(const void *holder, gert::AnnotatedArgsContext *ctx) {
+  return ((holder != nullptr) && (ctx != nullptr)) ? GRAPH_SUCCESS : GRAPH_FAILED;
+}
+
+graphStatus CompileMockPythonCustomOp(const void *holder, gert::OpCompileContext *ctx) {
   return ((holder != nullptr) && (ctx != nullptr)) ? GRAPH_SUCCESS : GRAPH_FAILED;
 }
 
@@ -200,6 +205,30 @@ TEST(PythonCustomOpAdapter, validates_annotated_args_callback_by_capability) {
   callbacks.declare_launch_args = DeclareMockPythonCustomOp;
   EXPECT_TRUE(callbacks.IsValid(desc.capabilities));
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
+}
+
+TEST(PythonCustomOpAdapter, validates_and_forwards_compile_callback_by_capability) {
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_compile_callback";
+  desc.op_type = "PythonCustomOpCompileUt";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kCompilable);
+
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
+  EXPECT_FALSE(callbacks.IsValid(desc.capabilities));
+
+  callbacks.compile_impl = CompileMockPythonCustomOp;
+  EXPECT_TRUE(callbacks.IsValid(desc.capabilities));
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
+  {
+    PythonCustomOpAdapter adapter(desc);
+    ASSERT_TRUE(adapter.IsValid());
+    gert::OpCompileContext ctx;
+    EXPECT_EQ(adapter.Compile(&ctx), GRAPH_SUCCESS);
+    EXPECT_EQ(adapter.Compile(nullptr), GRAPH_FAILED);
+  }
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
 

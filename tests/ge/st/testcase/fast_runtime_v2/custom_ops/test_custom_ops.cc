@@ -112,7 +112,7 @@ class TestMallocReadOnlyDevArgsCustomOp : public EagerExecuteOp {
     GE_ASSERT_EQ(dev_args->args_size, sizeof(host_args));
     GE_ASSERT_EQ(dev_args->placement, gert::Placement::kPlacementDevice);
     auto output_tensor = ctx->MallocOutputTensor(0, StorageShape({2048}, {2048}),
-        StorageFormat(FORMAT_ND, FORMAT_ND, ExpandDimsType()), DT_FLOAT);
+                                                 StorageFormat(FORMAT_ND, FORMAT_ND, ExpandDimsType()), DT_FLOAT);
     GE_ASSERT_NOTNULL(output_tensor);
     output_addr = output_tensor->GetAddr();
     GE_ASSERT_NOTNULL(output_addr);
@@ -208,36 +208,36 @@ class TestEmptyOutputInstanceCompileCustomOp : public EagerExecuteOp, Compilable
 };
 
 REG_OP(CustomOp)
-  .INPUT(x1, TensorType::BasicType())
-  .INPUT(x2, TensorType::BasicType())
-  .INPUT(x3, TensorType::BasicType())
-  .OUTPUT(y, TensorType::BasicType())
-  .OP_END_FACTORY_REG(CustomOp)
+    .INPUT(x1, TensorType::BasicType())
+    .INPUT(x2, TensorType::BasicType())
+    .INPUT(x3, TensorType::BasicType())
+    .OUTPUT(y, TensorType::BasicType())
+    .OP_END_FACTORY_REG(CustomOp)
 
-REG_OP(NoInputCompileOutputCustomOp)
-  .OUTPUT(y, TensorType::BasicType())
-  .DYNAMIC_OUTPUT(dy, TensorType::BasicType())
-  .OP_END_FACTORY_REG(NoInputCompileOutputCustomOp)
+        REG_OP(NoInputCompileOutputCustomOp)
+    .OUTPUT(y, TensorType::BasicType())
+    .DYNAMIC_OUTPUT(dy, TensorType::BasicType())
+    .OP_END_FACTORY_REG(NoInputCompileOutputCustomOp)
 
-REG_OP(EmptyOutputInstanceCompileCustomOp)
-  .OUTPUT(y, TensorType::BasicType())
-  .OP_END_FACTORY_REG(EmptyOutputInstanceCompileCustomOp)
+        REG_OP(EmptyOutputInstanceCompileCustomOp)
+    .OUTPUT(y, TensorType::BasicType())
+    .OP_END_FACTORY_REG(EmptyOutputInstanceCompileCustomOp)
 
-REG_OP(StCustomOpWithShapeInfer)
-  .INPUT(x1, TensorType::BasicType())
-  .INPUT(x2, TensorType::BasicType())
-  .INPUT(x3, TensorType::BasicType())
-  .OUTPUT(y, TensorType::BasicType())
-  .OP_END_FACTORY_REG(StCustomOpWithShapeInfer)
+        REG_OP(StCustomOpWithShapeInfer)
+    .INPUT(x1, TensorType::BasicType())
+    .INPUT(x2, TensorType::BasicType())
+    .INPUT(x3, TensorType::BasicType())
+    .OUTPUT(y, TensorType::BasicType())
+    .OP_END_FACTORY_REG(StCustomOpWithShapeInfer)
 
-REG_OP(MallocReadOnlyDevArgsCustomOp)
-  .INPUT(x1, TensorType::BasicType())
-  .INPUT(x2, TensorType::BasicType())
-  .INPUT(x3, TensorType::BasicType())
-  .OUTPUT(y, TensorType::BasicType())
-  .OP_END_FACTORY_REG(MallocReadOnlyDevArgsCustomOp)
+        REG_OP(MallocReadOnlyDevArgsCustomOp)
+    .INPUT(x1, TensorType::BasicType())
+    .INPUT(x2, TensorType::BasicType())
+    .INPUT(x3, TensorType::BasicType())
+    .OUTPUT(y, TensorType::BasicType())
+    .OP_END_FACTORY_REG(MallocReadOnlyDevArgsCustomOp)
 
-TEST_F(TestCustomNodeKernel, custom_op_kernel_execute_test) {
+        TEST_F(TestCustomNodeKernel, custom_op_kernel_execute_test) {
   auto graph = ShareGraph::BuildCustomOpGraph();
   graph->TopologicalSorting();
   CustomOpFactory::RegisterCustomOpCreator(
@@ -437,9 +437,8 @@ TEST_F(TestCustomNodeKernel, custom_op_malloc_read_only_dev_args_test) {
   ASSERT_NE(custom_op, nullptr);
   custom_op->GetOpDesc()->SetType(op_type);
   graph->TopologicalSorting();
-  CustomOpFactory::RegisterCustomOpCreator(op_type, []()->std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<TestMallocReadOnlyDevArgsCustomOp>();
-  });
+  CustomOpFactory::RegisterCustomOpCreator(
+      op_type, []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestMallocReadOnlyDevArgsCustomOp>(); });
   GertRuntimeStub runtime_stub;
   runtime_stub.GetKernelStub().StubTiling();
   GeModelBuilder builder(graph);
@@ -448,8 +447,8 @@ TEST_F(TestCustomNodeKernel, custom_op_malloc_read_only_dev_args_test) {
   auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model, {});
   ASSERT_NE(exe_graph, nullptr);
   TaskProducerFactory::GetInstance().SetProducerType(TaskProducerType::KERNEL);
-  auto model_executor = ModelV2Executor::Create(exe_graph,
-      ExecutorOption(ExecutorType::kTopologicalPriority), ge_root_model);
+  auto model_executor =
+      ModelV2Executor::Create(exe_graph, ExecutorOption(ExecutorType::kTopologicalPriority), ge_root_model);
   ASSERT_NE(model_executor, nullptr);
   ASSERT_EQ(model_executor->Load(), GRAPH_SUCCESS);
 
@@ -469,11 +468,11 @@ TEST_F(TestCustomNodeKernel, custom_op_malloc_read_only_dev_args_test) {
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType(op_type, "FreeArgsGuarder"), 1);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType(op_type, "FreeCustomOpWorkspaces"), 1);
   EXPECT_TRUE(MemoryTraceChecker(runtime_stub.GetSlogStub(), output_addr)
-      .AppendExpectEvent(kAllocRe, 0)
-      .AppendExpectEvent(kFreeRe, 0)
-      .AsYouWish());
+                  .AppendExpectEvent(kAllocRe, 0)
+                  .AppendExpectEvent(kFreeRe, 0)
+                  .AsYouWish());
   EXPECT_EQ(model_executor->UnLoad(), GRAPH_SUCCESS);
   aclrtDestroyStream(stream);
 }
-}
-}
+}  // namespace kernel
+}  // namespace gert

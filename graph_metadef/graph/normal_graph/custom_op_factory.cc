@@ -29,11 +29,20 @@ CustomOpRegistryPtr CustomOpFactory::GetGlobalRegistryPtr() {
 }
 
 graphStatus CustomOpFactory::RegisterCustomOpCreator(const AscendString &op_type, const BaseOpCreator &op_creator) {
-  return GetGlobalRegistry().RegisterCreator(op_type, op_creator);
+  return GetGlobalRegistry().RegisterCreator(op_type, OpBackend::kDevice, op_creator);
+}
+
+graphStatus CustomOpFactory::RegisterCustomOpCreator(const AscendString &op_type, const OpBackend backend,
+                                                     const BaseOpCreator &op_creator) {
+  return GetGlobalRegistry().RegisterCreator(op_type, backend, op_creator);
+}
+
+BaseCustomOp *CustomOpFactory::CreateOrGetCustomOp(const AscendString &op_type, const OpBackend backend) {
+  return GetGlobalRegistry().CreateOrGetCustomOp(op_type, backend);
 }
 
 BaseCustomOp *CustomOpFactory::CreateOrGetCustomOp(const AscendString &op_type) {
-  return GetGlobalRegistry().CreateOrGetCustomOp(op_type);
+  return CreateOrGetCustomOp(op_type, OpBackend::kDevice);
 }
 
 void CustomOpFactory::RemoveCustomOps(const std::vector<AscendString> &op_types) {
@@ -43,8 +52,13 @@ void CustomOpFactory::RemoveCustomOps(const std::vector<AscendString> &op_types)
 graphStatus CustomOpFactory::GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops) {
   return GetGlobalRegistry().GetAllRegisteredOps(all_registered_ops);
 }
+
 bool CustomOpFactory::IsExistOp(const AscendString &op_type) {
   return GetGlobalRegistry().HasCreator(op_type);
+}
+
+bool CustomOpFactory::IsExistOp(const AscendString &op_type, const OpBackend backend) {
+  return GetGlobalRegistry().HasCreator(op_type, backend);
 }
 
 bool CustomOpFactory::IsAddressRefreshable(const AscendString &op_type) {
@@ -59,10 +73,14 @@ graphStatus CustomOpFactory::LoadCustomOpsPartition(const uint8_t *data, size_t 
   return GetGlobalRegistry().LoadCustomOpsPartition(data, len);
 }
 
-CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, BaseOpCreator const &op_creator) {
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, BaseOpCreator const &op_creator)
+    : CustomOpCreatorRegister(operator_type, OpBackend::kDevice, op_creator) {}
+
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const OpBackend backend,
+                                                 BaseOpCreator const &op_creator) {
   if (IsOfflineCustomOpSoLoading()) {
     return;
   }
-  CustomOpFactory::RegisterCustomOpCreator(operator_type, op_creator);
+  CustomOpFactory::RegisterCustomOpCreator(operator_type, backend, op_creator);
 }
 }  // namespace ge

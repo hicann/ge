@@ -298,8 +298,20 @@ graphStatus PythonCustomOpAdapter::DeclareLaunchArgs(gert::AnnotatedArgsContext 
 }
 
 graphStatus PythonCustomOpAdapter::Compile(gert::OpCompileContext *ctx) {
-  (void)ctx;
-  return ReportUnsupported(CustomOpCapability::kCompilable, "Compile");
+  if (!HasCapability(CustomOpCapability::kCompilable)) {
+    return ReportUnsupported(CustomOpCapability::kCompilable, "Compile");
+  }
+  if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
+      (holder_->GetCallbacks().compile_impl == nullptr)) {
+    GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
+           impl_descriptor_key_.c_str(), op_type_.c_str());
+    return GRAPH_FAILED;
+  }
+  if (ctx == nullptr) {
+    GELOGE(GRAPH_FAILED, "Python custom op[%s] compile context is null.", op_type_.c_str());
+    return GRAPH_FAILED;
+  }
+  return holder_->GetCallbacks().compile_impl(holder_->GetHolder(), ctx);
 }
 
 graphStatus PythonCustomOpAdapter::InferShape(gert::InferShapeContext *ctx) {

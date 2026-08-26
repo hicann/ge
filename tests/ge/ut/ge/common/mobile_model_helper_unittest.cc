@@ -529,7 +529,7 @@ TEST_F(UtestMobileModelHelper, SaveToOmRootModelDoesNotWriteSoOrCustomOpsPartiti
   const std::string op_type = "MobileNoSoPortableOpForTest";
   RegisterMobileNoSoPortableOpForTest(op_type);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type.c_str()));
-  BaseCustomOp *custom_op = CustomOpFactory::CreateOrGetCustomOp(op_type.c_str());
+  BaseCustomOp *custom_op = CustomOpFactory::CreateOrGetCustomOp(op_type.c_str(), OpBackend::kDevice);
   ASSERT_NE(custom_op, nullptr);
   ASSERT_NE(dynamic_cast<PortableOp *>(custom_op), nullptr);
 

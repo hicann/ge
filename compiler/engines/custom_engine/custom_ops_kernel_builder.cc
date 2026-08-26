@@ -490,7 +490,8 @@ struct AnnotatedArgsCapture {
 };
 
 Status GetAnnotatedArgsOp(const OpDescPtr &op_desc, AnnotatedArgsOp *&annotated_args_op) {
-  auto *const base_custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(op_desc->GetTypePtr()));
+  auto *const base_custom_op =
+      CustomOpFactory::CreateOrGetCustomOp(AscendString(op_desc->GetTypePtr()), OpBackend::kDevice);
   GE_ASSERT_NOTNULL(base_custom_op, "Create custom op failed, op_name:%s, op_type:%s", op_desc->GetNamePtr(),
                     op_desc->GetTypePtr());
   annotated_args_op = CustomOpCast<AnnotatedArgsOp>(base_custom_op);

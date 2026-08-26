@@ -55,6 +55,7 @@
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "engines/local_engine/ops_kernel_store/ge_local_ops_kernel_info_store.h"
 #include "api/gelib/gelib.h"
+#include "register/core_num_utils.h"
 #include "ge/ut/ge/test_tools_task_info.h"
 #include "macro_utils/dt_public_unscope.h"
 
@@ -377,6 +378,29 @@ TEST_F(UtestModelBuilderTest, build_model_for_get_task) {
   int64_t session_scope_mem_offset = 0;
   ge::AttrUtils::GetInt(&model, ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE, session_scope_mem_offset);
   EXPECT_EQ(session_scope_mem_offset, 1536);
+}
+
+TEST_F(UtestModelBuilderTest, build_dynamic_model_does_not_persist_core_num_options) {
+  const auto context_backup = GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { GetThreadLocalContext() = context_backup; });
+  auto graph_options = GetThreadLocalContext().GetAllGraphOptions();
+  graph_options[AICORE_NUM] = "8";
+  graph_options[kVectorCoreNum] = "16";
+  GetThreadLocalContext().SetGraphOption(std::move(graph_options));
+
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  auto graph = std::make_shared<ComputeGraph>("dynamic_graph");
+  MakeSessionScopeReuseGraph(graph);
+  ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  MemoryAssigner mem_assigner(graph);
+  ASSERT_EQ(mem_assigner.AssignMemory(builder.mem_type_to_mem_offset_, builder.zero_copy_mem_size_), SUCCESS);
+
+  Model model;
+  ASSERT_EQ(builder.BuildModelForGetDynShapeTask(model), SUCCESS);
+  std::string core_num;
+  EXPECT_FALSE(AttrUtils::GetStr(&model, AICORE_NUM, core_num));
+  EXPECT_FALSE(AttrUtils::GetStr(&model, kVectorCoreNum, core_num));
 }
 
 TEST_F(UtestModelBuilderTest, test_model_save) {

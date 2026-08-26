@@ -15,7 +15,9 @@ include_directories(${CMAKE_BINARY_DIR}/proto/ge)
 include_directories(${AIR_CODE_DIR}/parser)
 include_directories(${AIR_CODE_DIR}/parser/parser)
 include_directories(${AIR_CODE_DIR}/parser/onnx)
+include_directories(${AIR_CODE_DIR}/base)
 include_directories(${AIR_CODE_DIR}/tests/parser)
+include_directories(${AIR_CODE_DIR}/tests/ge/ut/ge)
 include_directories(${AIR_CODE_DIR}/inc/parser)
 include_directories(${AIR_CODE_DIR}/inc/parser/external)
 include_directories(${AIR_CODE_DIR}/inc/graph_metadef)
@@ -23,6 +25,7 @@ include_directories(${METADEF_DIR}/inc)
 include_directories(${METADEF_DIR}/inc/external)
 include_directories(${METADEF_DIR}/inc/register)
 include_directories(${METADEF_DIR}/pkg_inc)
+include_directories(${pybind11_INCLUDE_DIR})
 
 
 set(PARSER_ST_FILES
@@ -41,6 +44,8 @@ add_executable(st_parser
     ${PARSER_ST_FILES}
 )
 
+add_dependencies(st_parser ge_python_onnx_plugin_bridge install_ge_py_for_st_compile_test)
+
 target_compile_options(st_parser PRIVATE
     -g
     -fno-access-control
@@ -50,6 +55,7 @@ target_compile_options(st_parser PRIVATE
 target_compile_definitions(st_parser PRIVATE
     google=ascend_private
     CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
+    ONNX_PLUGIN_PY_INSTALL_DIR=\"${CMAKE_BINARY_DIR}/tests/ge/st/testcase/st_fusion_pass_py_install\"
 )
 
 target_link_libraries(st_parser PRIVATE
@@ -72,7 +78,10 @@ target_link_libraries(st_parser PRIVATE
     GTestShared::gtest GTestShared::gtest_main parser_slog_stub ascend_protobuf c_sec  -lrt -ldl
     -Wl,--no-as-needed unified_dlog -Wl,--as-needed
     # Workaround for undefined references
+    ge_common
     ge_common_base
+    ge_python_embed
+    pybind_options
     ascendcl_stub
     -lgcov
 )

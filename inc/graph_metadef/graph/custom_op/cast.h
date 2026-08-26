@@ -31,6 +31,11 @@ struct CustomOpCapabilityTrait<EagerExecuteOp> {
 };
 
 template <>
+struct CustomOpCapabilityTrait<HostCpuExecuteOp> {
+  static constexpr CustomOpCapability kCapability = CustomOpCapability::kHostCpuExecute;
+};
+
+template <>
 struct CustomOpCapabilityTrait<CompilableOp> {
   static constexpr CustomOpCapability kCapability = CustomOpCapability::kCompilable;
 };

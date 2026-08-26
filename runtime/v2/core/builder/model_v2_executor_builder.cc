@@ -41,9 +41,14 @@
 #include "graph/utils/attr_utils.h"
 #include "framework/runtime/model_rt_var_manager.h"
 #include "graph/manager/session_id_manager.h"
+#include "register/core_num_utils.h"
 #include "acl/acl_rt.h"
 
 namespace gert {
+namespace {
+// 由FE在编译期写入根图, 见compiler/engines/nn_engine/optimizer/graph_optimizer/fe_graph_optimizer.cc
+constexpr const char *kNeedSetStreamCoreLimits = "need_set_stream_core_limits";
+}  // namespace
 ge::ExecuteGraphPtr GetExecuteGraph(ge::ExecuteGraph *const root_graph, SubExeGraphType eg_type) {
   auto graph_type_str = GetSubExeGraphTypeStr(eg_type);
   auto graph_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(root_graph, graph_type_str);
@@ -168,6 +173,7 @@ std::unique_ptr<ModelV2Executor> ModelV2ExecutorBuilder::Build(const ExecutorOpt
   GE_TIMESTAMP_EVENT_END(ModelV2ExecutorBuilderBuild, "ModelV2ExecutorBuilderBuild::All");
   executor->host_resource_center_ = root_model_->GetHostResourceCenterPtr();
   SetOutputReuseInputMemIndexes(*executor);
+  GE_ASSERT_GRAPH_SUCCESS(InitStreamCoreLimits(*executor));
   return executor;
 }
 
@@ -356,5 +362,17 @@ void ModelV2ExecutorBuilder::SetOutputReuseInputMemIndexes(ModelV2Executor &exec
            executor.io_same_addr_pairs_.size());
     break;  // Only need to read from one model
   }
+}
+
+ge::graphStatus ModelV2ExecutorBuilder::InitStreamCoreLimits(ModelV2Executor &executor) const {
+  GE_ASSERT_NOTNULL(root_model_);
+  const auto &root_graph = root_model_->GetRootGraph();
+  GE_ASSERT_NOTNULL(root_graph);
+  (void)ge::AttrUtils::GetBool(root_graph, kNeedSetStreamCoreLimits, executor.need_set_stream_core_limits_);
+  if (!executor.need_set_stream_core_limits_) {
+    return ge::GRAPH_SUCCESS;
+  }
+  return ge::CoreNumUtils::GetCoreNumFromGraph(root_graph, executor.stream_aicore_num_,
+                                               executor.stream_vectorcore_num_);
 }
 }  // namespace gert

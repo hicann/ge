@@ -11,22 +11,35 @@
 #ifndef CANN_GRAPH_ENGINE_CUSTOM_OP_REGISTRY_H
 #define CANN_GRAPH_ENGINE_CUSTOM_OP_REGISTRY_H
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "graph/custom_op.h"
 #include "graph/custom_op/args_refresh.h"
+#include "graph/custom_op/cast.h"
+#include "graph/custom_op_registry.h"
 #include "graph/ascend_string.h"
 #include "graph/error_codes.h"
 
 namespace ge {
-class CustomOpRegistry;
-using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;
-
 class CustomOpFactory {
  public:
   static graphStatus RegisterCustomOpCreator(const AscendString &op_type, const BaseOpCreator &op_creator);
+  static graphStatus RegisterCustomOpCreator(const AscendString &op_type, OpBackend backend,
+                                             const BaseOpCreator &op_creator);
 
   static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type);
+  static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend);
+
+  template <typename T>
+  static T *GetCustomOpCommonCapability(const AscendString &op_type) {
+    static_assert(std::is_same<T, ShapeInferOp>::value || std::is_same<T, CustomOpInferMetaProvider>::value ||
+                      std::is_same<T, PortableOp>::value,
+                  "GetCustomOpCommonCapability only supports ShapeInferOp, CustomOpInferMetaProvider and PortableOp");
+    auto *const custom_op =
+        GetGlobalRegistry().GetCustomOpCommonCapability(op_type, CustomOpCapabilityTrait<T>::kCapability);
+    return CustomOpCast<T>(custom_op);
+  }
 
   static void RemoveCustomOps(const std::vector<AscendString> &op_types);
 
@@ -35,6 +48,7 @@ class CustomOpFactory {
   static graphStatus GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops);
 
   static bool IsExistOp(const AscendString &op_type);
+  static bool IsExistOp(const AscendString &op_type, OpBackend backend);
 
   static graphStatus LoadCustomOpsPartition(const uint8_t *data, size_t len);
 

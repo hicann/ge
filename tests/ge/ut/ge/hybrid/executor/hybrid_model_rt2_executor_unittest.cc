@@ -34,6 +34,7 @@
 #include "depends/profiler/src/profiling_auto_checker.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
+#include "register/core_num_utils.h"
 #include "runtime/subscriber/built_in_subscriber_definitions.h"
 #include "runtime/subscriber/global_dumper.h"
 #include "stub/gert_runtime_stub.h"
@@ -1456,6 +1457,8 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
   options["ge.aicoreNum"] = "1";
   options["ge.vectorcoreNum"] = "1";
   ge::GetThreadLocalContext().SetSessionOption(options);
+  ge::AttrUtils::SetStr(graph, ge::AICORE_NUM, "1");
+  ge::AttrUtils::SetStr(graph, ge::kVectorCoreNum, "1");
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.BuildGeRootModel();
 
@@ -1467,8 +1470,6 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
   rtStream_t stream = (void *)0x01;
   HybridModelRtV2Executor executor_rt_v2(&hybrid_model, 0, stream);
   auto ret = executor_rt_v2.Init();
-  EXPECT_TRUE(executor_rt_v2.run_ctx_.aicore_num_str_ == "1");
-  EXPECT_TRUE(executor_rt_v2.run_ctx_.vectorcore_num_str_ == "1");
   EXPECT_EQ(ret, SUCCESS);
 
   unique_ptr<uint8_t[]> data_buf(new (std::nothrow) uint8_t[512]);
@@ -1491,6 +1492,7 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
 
   const auto &stream_res_limit_records = runtime_stub.GetAclRuntimeStub().GetStreamResLimitRecords();
   const auto &use_stream_res_records = runtime_stub.GetAclRuntimeStub().GetUseStreamResRecords();
+  const auto &not_use_stream_res_records = runtime_stub.GetAclRuntimeStub().GetNotUseStreamResRecords();
   auto has_stream_res_limit = [stream, &stream_res_limit_records](const aclrtDevResLimitType type,
                                                                   const uint32_t value) {
     return std::find_if(stream_res_limit_records.begin(), stream_res_limit_records.end(),
@@ -1500,8 +1502,11 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
   };
   EXPECT_TRUE(has_stream_res_limit(ACL_RT_DEV_RES_CUBE_CORE, 1U));
   EXPECT_TRUE(has_stream_res_limit(ACL_RT_DEV_RES_VECTOR_CORE, 1U));
+  EXPECT_EQ(stream_res_limit_records.size(), 2U);
   EXPECT_NE(std::find(use_stream_res_records.begin(), use_stream_res_records.end(), stream),
             use_stream_res_records.end());
+  EXPECT_NE(std::find(not_use_stream_res_records.begin(), not_use_stream_res_records.end(), stream),
+            not_use_stream_res_records.end());
 
   for (size_t i = 0; i < output_tensors.size(); ++i) {
     EXPECT_NE(output_tensors[i].GetData().GetData(), nullptr);

@@ -116,15 +116,15 @@ graphStatus OpDescUtilsEx::InferCustomOpShape(const OpDescPtr &op_desc, Operator
   GE_ASSERT_NOTNULL(op_desc);
   GELOGI("[%s][%s] Infer Custom op shape.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
 
-  auto custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(op_desc->GetType().c_str()));
-  auto *infer_meta_provider = CustomOpCast<CustomOpInferMetaProvider>(custom_op);
+  const AscendString op_type(op_desc->GetType().c_str());
+  auto *infer_meta_provider = CustomOpFactory::GetCustomOpCommonCapability<CustomOpInferMetaProvider>(op_type);
   if (infer_meta_provider != nullptr) {
     const auto custom_op_infer_meta_func = OperatorFactoryImpl::GetCustomOpInferMetaFunc();
     GE_ASSERT_NOTNULL(custom_op_infer_meta_func);
     return custom_op_infer_meta_func(op, op_desc.get(), infer_meta_provider);
   }
 
-  auto shape_infer_op = CustomOpCast<ShapeInferOp>(custom_op);
+  auto shape_infer_op = CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type);
   if (shape_infer_op != nullptr) {
     const auto custom_op_infer_datatype_func = OperatorFactoryImpl::GetCustomOpInferDataTypeFunc();
     const auto custom_op_infer_shape_func = OperatorFactoryImpl::GetCustomOpInferShapeFunc();

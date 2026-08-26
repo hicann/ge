@@ -189,6 +189,22 @@ bool IsTailingOptimization() {
   return false;
 }
 
+Status PersistCoreNumOptionsToRootGraph(const ComputeGraphPtr &compute_graph) {
+  GE_CHECK_NOTNULL(compute_graph);
+  for (const auto &option_name : {AICORE_NUM, kVectorCoreNum}) {
+    std::string core_num;
+    const auto ret = GetContext().GetOption(option_name, core_num);
+    if ((ret == GRAPH_SUCCESS) && !core_num.empty()) {
+      GE_ASSERT_TRUE(AttrUtils::SetStr(compute_graph, option_name, core_num), "Set root graph attr %s failed",
+                     option_name.c_str());
+      GELOGI("Persist core num option to root graph, option: %s, value: %s.", option_name.c_str(), core_num.c_str());
+    } else {
+      (void)compute_graph->DelAttr(option_name);
+    }
+  }
+  return SUCCESS;
+}
+
 ge::graphStatus GetGraphMaxParallelModeNum(int32_t &max_parallel_num) {
   std::string opt = "0";
   (void)ge::GetContext().GetOption(ge::GRAPH_MAX_PARALLEL_MODEL_NUM, opt);
@@ -4268,6 +4284,8 @@ Status GraphManager::Build(const GraphNodePtr &graph_node, ComputeGraphPtr &comp
   GE_CHECK_NOTNULL(graph_node);
   GE_CHECK_NOTNULL(compute_graph);
 
+  GE_ASSERT_SUCCESS(PersistCoreNumOptionsToRootGraph(compute_graph));
+
   std::string external_weight = std::to_string(0);
   (void)GetContext().GetOption(EXTERNAL_WEIGHT, external_weight);
   const std::set<std::string> valid_options = {"", "0", "1", "2"};
@@ -4306,11 +4324,8 @@ Status GraphManager::Build(const GraphNodePtr &graph_node, ComputeGraphPtr &comp
   GE_COMPILE_TRACE_TIMESTAMP_END(RecoverIrDefinitionAndModifyAippData,
                                  "GraphManager::RecoverIrDefinitionAndModifyAippData");
 
-  auto ret = GetCompilerStages(graph_node->GetGraphId()).builder.Build(compute_graph, ge_root_model, session_id);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Call][Build] failed, session_id:%" PRIu64 ".", session_id);
-    return ret;
-  }
+  GE_CHK_STATUS_RET(GetCompilerStages(graph_node->GetGraphId()).builder.Build(compute_graph, ge_root_model, session_id),
+                    "[Call][Build] failed, session_id:%" PRIu64 ".", session_id);
 
   bool is_always_dump = false;
   if (!DumpManager::GetInstance().GetDumpProperties(session_id).GetDumpPath().empty()) {

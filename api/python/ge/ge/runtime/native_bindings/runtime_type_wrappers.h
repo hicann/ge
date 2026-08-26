@@ -65,9 +65,14 @@ class NativeObjectBase {
     }
   }
 
-  T *Get() const {
+  const T *Get() const {
     EnsureValid();
     return ptr_;
+  }
+
+  bool IsReadOnly() const {
+    EnsureValid();
+    return read_only_;
   }
 
   const std::shared_ptr<bool> &GetValidity() const {
@@ -77,15 +82,37 @@ class NativeObjectBase {
 
  protected:
   explicit NativeObjectBase(std::unique_ptr<T> owned)
-      : owned_(std::move(owned)), ptr_(owned_.get()), valid_(std::make_shared<bool>(true)), owns_validity_(true) {}
+      : owned_(std::move(owned)),
+        ptr_(owned_.get()),
+        mutable_ptr_(owned_.get()),
+        valid_(std::make_shared<bool>(true)),
+        owns_validity_(true) {}
 
-  NativeObjectBase(T *ptr, std::shared_ptr<bool> valid) : ptr_(ptr), valid_(std::move(valid)), owns_validity_(false) {}
+  NativeObjectBase(std::unique_ptr<T> owned, std::shared_ptr<bool> valid, const bool read_only)
+      : owned_(std::move(owned)),
+        ptr_(owned_.get()),
+        valid_(std::move(valid)),
+        owns_validity_(false),
+        read_only_(read_only) {}
+
+  void EnsureMutable() const {
+    EnsureValid();
+    if (read_only_ || (mutable_ptr_ == nullptr)) {
+      throw std::runtime_error("borrowed object is read-only");
+    }
+  }
+
+  T *MutableGet() const {
+    EnsureMutable();
+    return mutable_ptr_;
+  }
 
   void Invalidate() {
     if (valid_ != nullptr) {
       *valid_ = false;
     }
     ptr_ = nullptr;
+    mutable_ptr_ = nullptr;
   }
 
   void EnsureValid() const {
@@ -96,14 +123,30 @@ class NativeObjectBase {
 
  private:
   std::unique_ptr<T> owned_;
-  T *ptr_{nullptr};
+  const T *ptr_{nullptr};
+  T *mutable_ptr_{nullptr};
   std::shared_ptr<bool> valid_;
   bool owns_validity_{false};
+  bool read_only_{false};
+
+ protected:
+  NativeObjectBase(T *ptr, std::shared_ptr<bool> valid)
+      : ptr_(ptr), mutable_ptr_(ptr), valid_(std::move(valid)), owns_validity_(false) {}
+
+  NativeObjectBase(const T *ptr, std::shared_ptr<bool> valid)
+      : ptr_(ptr), valid_(std::move(valid)), owns_validity_(false), read_only_(true) {}
 };
 
 class PYBIND11_EXPORT NativeShape : public NativeObjectBase<gert::Shape> {
  public:
-  static NativeShape Borrow(gert::Shape *ptr, std::shared_ptr<bool> valid) {
+  static NativeShape Borrow(gert::Shape *ptr, std::shared_ptr<bool> valid, const bool read_only = false) {
+    if (read_only) {
+      return NativeShape(static_cast<const gert::Shape *>(ptr), std::move(valid));
+    }
+    return NativeShape(ptr, std::move(valid));
+  }
+
+  static NativeShape Borrow(const gert::Shape *ptr, std::shared_ptr<bool> valid) {
     return NativeShape(ptr, std::move(valid));
   }
 
@@ -124,14 +167,15 @@ class PYBIND11_EXPORT NativeShape : public NativeObjectBase<gert::Shape> {
   }
 
   void SetDim(size_t index, int64_t value) const {
-    if (index >= Get()->GetDimNum()) {
+    auto *shape = MutableGet();
+    if (index >= shape->GetDimNum()) {
       throw std::invalid_argument("shape dimension index out of range");
     }
-    Get()->SetDim(index, value);
+    shape->SetDim(index, value);
   }
 
   NativeShape &AppendDim(int64_t value) {
-    (void)Get()->AppendDim(value);
+    (void)MutableGet()->AppendDim(value);
     return *this;
   }
 
@@ -144,11 +188,12 @@ class PYBIND11_EXPORT NativeShape : public NativeObjectBase<gert::Shape> {
   }
 
   void SetScalar() const {
-    Get()->SetScalar();
+    MutableGet()->SetScalar();
   }
 
  private:
   NativeShape(gert::Shape *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeShape(const gert::Shape *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
 };
 
 class PYBIND11_EXPORT NativeStorageShape : public NativeObjectBase<gert::StorageShape> {
@@ -157,32 +202,47 @@ class PYBIND11_EXPORT NativeStorageShape : public NativeObjectBase<gert::Storage
 
   NativeStorageShape(const std::vector<int64_t> &origin_shape, const std::vector<int64_t> &storage_shape)
       : NativeObjectBase(std::make_unique<gert::StorageShape>()) {
-    Get()->MutableOriginShape() = DimsToShape(origin_shape);
-    Get()->MutableStorageShape() = DimsToShape(storage_shape);
+    MutableGet()->MutableOriginShape() = DimsToShape(origin_shape);
+    MutableGet()->MutableStorageShape() = DimsToShape(storage_shape);
   }
 
-  static NativeStorageShape Borrow(gert::StorageShape *ptr, std::shared_ptr<bool> valid) {
+  static NativeStorageShape Borrow(gert::StorageShape *ptr, std::shared_ptr<bool> valid, const bool read_only = false) {
+    if (read_only) {
+      return NativeStorageShape(static_cast<const gert::StorageShape *>(ptr), std::move(valid));
+    }
+    return NativeStorageShape(ptr, std::move(valid));
+  }
+
+  static NativeStorageShape Borrow(const gert::StorageShape *ptr, std::shared_ptr<bool> valid) {
     return NativeStorageShape(ptr, std::move(valid));
   }
 
   NativeShape GetOriginShape() const {
-    return NativeShape::Borrow(&Get()->MutableOriginShape(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeShape::Borrow(&Get()->GetOriginShape(), GetValidity());
+    }
+    return NativeShape::Borrow(&MutableGet()->MutableOriginShape(), GetValidity());
   }
 
   NativeShape GetStorageShape() const {
-    return NativeShape::Borrow(&Get()->MutableStorageShape(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeShape::Borrow(&Get()->GetStorageShape(), GetValidity());
+    }
+    return NativeShape::Borrow(&MutableGet()->MutableStorageShape(), GetValidity());
   }
 
   void SetOriginShape(const NativeShape &shape) const {
-    Get()->MutableOriginShape() = *shape.Get();
+    MutableGet()->MutableOriginShape() = *shape.Get();
   }
 
   void SetStorageShape(const NativeShape &shape) const {
-    Get()->MutableStorageShape() = *shape.Get();
+    MutableGet()->MutableStorageShape() = *shape.Get();
   }
 
  private:
   NativeStorageShape(gert::StorageShape *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeStorageShape(const gert::StorageShape *ptr, std::shared_ptr<bool> valid)
+      : NativeObjectBase(ptr, std::move(valid)) {}
 };
 
 struct NativeTensorDescValue {
@@ -196,11 +256,11 @@ class PYBIND11_EXPORT NativeTensorDesc : public NativeObjectBase<NativeTensorDes
       : NativeObjectBase(CreateValue(shape, data_type)) {}
 
   NativeStorageShape GetShape() const {
-    return NativeStorageShape::Borrow(&Get()->shape, GetValidity());
+    return NativeStorageShape::Borrow(&MutableGet()->shape, GetValidity());
   }
 
   void SetShape(const py::object &shape) {
-    Get()->shape = ParseShape(shape);
+    MutableGet()->shape = ParseShape(shape);
   }
 
   py::object GetDataType() const {
@@ -208,7 +268,7 @@ class PYBIND11_EXPORT NativeTensorDesc : public NativeObjectBase<NativeTensorDes
   }
 
   void SetDataType(const py::object &data_type) {
-    Get()->data_type = ParseDataType(data_type);
+    MutableGet()->data_type = ParseDataType(data_type);
   }
 
  private:
@@ -271,8 +331,20 @@ class PYBIND11_EXPORT NativeExpandDimsType : public NativeObjectBase<gert::Expan
 
   explicit NativeExpandDimsType(int64_t rule) : NativeObjectBase(std::make_unique<gert::ExpandDimsType>(rule)) {}
 
-  static NativeExpandDimsType Borrow(gert::ExpandDimsType *ptr, std::shared_ptr<bool> valid) {
+  static NativeExpandDimsType Borrow(gert::ExpandDimsType *ptr, std::shared_ptr<bool> valid,
+                                     const bool read_only = false) {
+    if (read_only) {
+      return NativeExpandDimsType(static_cast<const gert::ExpandDimsType *>(ptr), std::move(valid));
+    }
     return NativeExpandDimsType(ptr, std::move(valid));
+  }
+
+  static NativeExpandDimsType Borrow(const gert::ExpandDimsType *ptr, std::shared_ptr<bool> valid) {
+    return NativeExpandDimsType(ptr, std::move(valid));
+  }
+
+  static NativeExpandDimsType Snapshot(const gert::ExpandDimsType &value, std::shared_ptr<bool> valid) {
+    return NativeExpandDimsType(std::make_unique<gert::ExpandDimsType>(value), std::move(valid));
   }
 
   uint64_t GetFullSize() const {
@@ -284,12 +356,16 @@ class PYBIND11_EXPORT NativeExpandDimsType : public NativeObjectBase<gert::Expan
   }
 
   void SetExpandIndex(uint64_t index) const {
-    Get()->SetExpandIndex(index);
+    MutableGet()->SetExpandIndex(index);
   }
 
  private:
   NativeExpandDimsType(gert::ExpandDimsType *ptr, std::shared_ptr<bool> valid)
       : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeExpandDimsType(const gert::ExpandDimsType *ptr, std::shared_ptr<bool> valid)
+      : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeExpandDimsType(std::unique_ptr<gert::ExpandDimsType> value, std::shared_ptr<bool> valid)
+      : NativeObjectBase(std::move(value), std::move(valid), true) {}
 };
 
 class PYBIND11_EXPORT NativeStorageFormat : public NativeObjectBase<gert::StorageFormat> {
@@ -303,7 +379,15 @@ class PYBIND11_EXPORT NativeStorageFormat : public NativeObjectBase<gert::Storag
             static_cast<ge::Format>(origin_format), static_cast<ge::Format>(storage_format), *expand_dims_type.Get())) {
   }
 
-  static NativeStorageFormat Borrow(gert::StorageFormat *ptr, std::shared_ptr<bool> valid) {
+  static NativeStorageFormat Borrow(gert::StorageFormat *ptr, std::shared_ptr<bool> valid,
+                                    const bool read_only = false) {
+    if (read_only) {
+      return NativeStorageFormat(static_cast<const gert::StorageFormat *>(ptr), std::move(valid));
+    }
+    return NativeStorageFormat(ptr, std::move(valid));
+  }
+
+  static NativeStorageFormat Borrow(const gert::StorageFormat *ptr, std::shared_ptr<bool> valid) {
     return NativeStorageFormat(ptr, std::move(valid));
   }
 
@@ -316,29 +400,38 @@ class PYBIND11_EXPORT NativeStorageFormat : public NativeObjectBase<gert::Storag
   }
 
   NativeExpandDimsType GetExpandDimsType() const {
-    return NativeExpandDimsType::Borrow(&Get()->MutableExpandDimsType(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeExpandDimsType::Snapshot(Get()->GetExpandDimsType(), GetValidity());
+    }
+    return NativeExpandDimsType::Borrow(&MutableGet()->MutableExpandDimsType(), GetValidity());
   }
 
   void SetOriginFormat(int32_t origin_format) const {
-    Get()->SetOriginFormat(static_cast<ge::Format>(origin_format));
+    MutableGet()->SetOriginFormat(static_cast<ge::Format>(origin_format));
   }
 
   void SetStorageFormat(int32_t storage_format) const {
-    Get()->SetStorageFormat(static_cast<ge::Format>(storage_format));
+    MutableGet()->SetStorageFormat(static_cast<ge::Format>(storage_format));
   }
 
   void SetExpandDimsType(const NativeExpandDimsType &expand_dims_type) const {
-    Get()->SetExpandDimsType(*expand_dims_type.Get());
+    MutableGet()->SetExpandDimsType(*expand_dims_type.Get());
   }
 
  private:
   NativeStorageFormat(gert::StorageFormat *ptr, std::shared_ptr<bool> valid)
+      : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeStorageFormat(const gert::StorageFormat *ptr, std::shared_ptr<bool> valid)
       : NativeObjectBase(ptr, std::move(valid)) {}
 };
 
 class PYBIND11_EXPORT NativeTensor : public NativeObjectBase<gert::Tensor> {
  public:
   static NativeTensor Borrow(gert::Tensor *ptr, std::shared_ptr<bool> valid) {
+    return NativeTensor(ptr, std::move(valid));
+  }
+
+  static NativeTensor Borrow(const gert::Tensor *ptr, std::shared_ptr<bool> valid) {
     return NativeTensor(ptr, std::move(valid));
   }
 
@@ -355,19 +448,32 @@ class PYBIND11_EXPORT NativeTensor : public NativeObjectBase<gert::Tensor> {
   }
 
   NativeStorageShape GetShape() const {
-    return NativeStorageShape::Borrow(&Get()->GetShape(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeStorageShape::Borrow(&Get()->GetShape(), GetValidity());
+    }
+    return NativeStorageShape::Borrow(&MutableGet()->GetShape(), GetValidity());
   }
 
   NativeShape GetStorageShape() const {
-    return NativeShape::Borrow(&Get()->MutableStorageShape(), GetValidity());
+    // Compile callbacks borrow const tensors, while execute callbacks retain mutable tensor views.
+    if (IsReadOnly()) {
+      return NativeShape::Borrow(&Get()->GetStorageShape(), GetValidity());
+    }
+    return NativeShape::Borrow(&MutableGet()->MutableStorageShape(), GetValidity());
   }
 
   NativeShape GetOriginShape() const {
-    return NativeShape::Borrow(&Get()->MutableOriginShape(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeShape::Borrow(&Get()->GetOriginShape(), GetValidity());
+    }
+    return NativeShape::Borrow(&MutableGet()->MutableOriginShape(), GetValidity());
   }
 
   NativeStorageFormat GetFormat() const {
-    return NativeStorageFormat::Borrow(&Get()->MutableFormat(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeStorageFormat::Borrow(&Get()->GetFormat(), GetValidity());
+    }
+    return NativeStorageFormat::Borrow(&MutableGet()->MutableFormat(), GetValidity());
   }
 
   py::object GetStorageFormat() const {
@@ -379,7 +485,10 @@ class PYBIND11_EXPORT NativeTensor : public NativeObjectBase<gert::Tensor> {
   }
 
   NativeExpandDimsType GetExpandDimsType() const {
-    return NativeExpandDimsType::Borrow(&Get()->MutableFormat().MutableExpandDimsType(), GetValidity());
+    if (IsReadOnly()) {
+      return NativeExpandDimsType::Snapshot(Get()->GetFormat().GetExpandDimsType(), GetValidity());
+    }
+    return NativeExpandDimsType::Borrow(&MutableGet()->MutableFormat().MutableExpandDimsType(), GetValidity());
   }
 
   py::object GetDataType() const {
@@ -392,6 +501,7 @@ class PYBIND11_EXPORT NativeTensor : public NativeObjectBase<gert::Tensor> {
 
  private:
   NativeTensor(gert::Tensor *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
+  NativeTensor(const gert::Tensor *ptr, std::shared_ptr<bool> valid) : NativeObjectBase(ptr, std::move(valid)) {}
 };
 
 }  // namespace python_runtime_native

@@ -37,14 +37,14 @@ input.0=FORMAT_NCHW
 output.0=FORMAT_NHWC
 
 [matmul_custom]
-input.0=FORMAT_ND
-input.1=FORMAT_ND
-output.0=FORMAT_ND
+input.0=FORMAT_NCHW
+input.1=FORMAT_NCHW
+output.0=FORMAT_NCHW
 ```
 
 - 以 `[NodeName]` 作为 section 分隔，`NodeName` 为图中节点的名称（node_name）
 - `input.<index>=<format>` 或 `output.<index>=<format>` 配置指定端口的格式
-- format 值仅支持以下三种：`FORMAT_ND`、`FORMAT_NCHW`、`FORMAT_NHWC`
+- format 值仅支持以下两种：`FORMAT_NCHW`、`FORMAT_NHWC`
 - 空行和 `#` 开头的注释行会被忽略
 
 ### Pass 执行流程
@@ -56,18 +56,23 @@ Run()
   ├─ 2. 备份原图                   Graph origin_graph = *graph（用于整图回滚）
   ├─ 3. 遍历图中所有节点:
   │      └─ ApplyFormatAndCheck()  对匹配配置的节点执行：
+  │           ├─ Step0: 校验待修改端口的原始 format 是否在支持范围内（FORMAT_NCHW / FORMAT_NHWC）
+  │           │           └─ 不支持 → 记录日志，return false（该节点失败）
   │           ├─ Step1: 备份当前 input/output format + shape
   │           ├─ Step2: 修改 input/output format + shape（联动转换 shape 维度）
   │           ├─ Step3: 传播 output format 到直连 NetOutput 节点
   │           ├─ Step4: CheckOpSupported 校验算子是否支持（Data 节点跳过）
   │           │           └─ 失败 → 节点级回退（RollbackFormats + RollbackNetOutput）
    │           └─ Step5: 检查并删除前后变冗余的 Transpose 节点
-   │                       ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → IsTransposeRedundant
-   │                       │    └─ perm 非 Const → 记录日志，不加入待删除列表
+   │                       ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
+   │                       │    ├─ perm 非 Const 或 Const 有输入 → 记录日志，不加入待删除列表
+   │                       │    └─ Transpose 有控制边输入或输出 → 记录日志，不加入待删除列表
    │                       └─ 删除失败 → return false（触发整图回滚）
+  │      成功的节点记入 configured_nodes 集合
   └─ 4. if 任一节点失败:
          └─ 整图回滚 *graph = origin_graph，返回 FAILED
-  └─ 5. CheckFormatContinuity()    检查配置节点的 format 与直连节点是否连续
+  └─ 5. CheckFormatContinuity()    仅检查 configured_nodes 中的节点 format 连续性
+         ├─ 入口处打印未参与检查的节点（未在图中找到 / 未配置成功）
          └─ 失败 → 整图回滚 *graph = origin_graph，返回 FAILED
 ```
 
@@ -80,7 +85,9 @@ Run()
 
 ### 已知限制
 
-- **非 Const perm 不删除**：Transpose 的 perm 输入（input.1）必须为 Const 节点才会被删除。若 perm 由非 Const 节点提供（如运行时计算得到），删除 Transpose 后无法清理 perm 节点且可能导致语义错误，因此在收集阶段即被过滤，不执行删除。
+- **非 Const perm 或 Const 有输入不删除**：Transpose 的 perm 输入（input.1）必须为无任何输入的 Const 节点才会被删除。若 perm 由非 Const 节点提供（如运行时计算得到），或 perm Const 节点自身存在数据/控制输入，删除 Transpose 后无法清理 perm 节点且可能导致语义错误，因此在收集阶段即被过滤，不执行删除。
+- **有控制边的 Transpose 不删除**：若 Transpose 存在控制边输入（`GetInControlNodes`）或控制边输出（`GetOutControlNodes`），删除后会丢失控制依赖关系。收集阶段通过 `HasNoControlEdge` 检查，存在控制边的 Transpose 不加入待删除列表。
+- **子图 Transpose 不删除**：子图中的 Transpose 可能与根图中的节点存在关联，删除子图中的 Transpose 会引发未知错误，pass 暂不支持删除子图中的 Transpose。
 
 ## 目录结构
 
@@ -110,13 +117,15 @@ Run()
 1. 定义类 `GraphNodeSettedFormatPass` 继承 `FusionBasePass`。
 2. 重写 `Run` 方法，主要逻辑包括：
    - 从环境变量 `ASCEND_CUSTOM_FORMATS_CFG` 指定的配置文件中解析节点格式配置。
-   - 备份原图，遍历图中节点，对匹配配置的节点修改 input/output format 和 shape。
-   - 修改 format 时同步重排 shape 维度（如 NCHW→NHWC 时 `[N,C,H,W]`→`[N,H,W,C]`）。
-   - 若输出直连 NetOutput 节点，同步修改 NetOutput 对应输入端口的 format 和 shape。
-   - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data 节点跳过校验）。
-   - 校验失败时回退当前节点及关联 NetOutput 的修改；Transpose 删除失败时触发整图回滚。
-   - 校验通过后检查并删除前后因 format 变更而变冗余的 Transpose 节点。
-   - 所有节点处理完成后，调用 `CheckFormatContinuity` 检查配置节点的 format 与直连节点之间的 format 连续性，不连续则整图回滚。
+   - 备份原图，遍历图中节点，对匹配配置的节点执行 `ApplyFormatAndCheck`：
+     - 校验待修改端口的原始 format 是否在支持范围内（`FORMAT_NCHW` / `FORMAT_NHWC`），不支持则记录日志并跳过该节点。
+     - 修改 input/output format 和 shape，修改 format 时同步重排 shape 维度（如 NCHW→NHWC 时 `[N,C,H,W]`→`[N,H,W,C]`）。
+     - 若输出直连 NetOutput 节点，同步修改 NetOutput 对应输入端口的 format 和 shape。
+     - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data 节点跳过校验）。
+     - 校验失败时回退当前节点及关联 NetOutput 的修改；Transpose 删除失败时触发整图回滚。
+     - 校验通过后检查并删除前后因 format 变更而变冗余的 Transpose 节点。
+     - 配置成功的节点记入 `configured_nodes` 集合。
+   - 所有节点处理完成后，调用 `CheckFormatContinuity` 仅检查 `configured_nodes` 中节点的 format 连续性；入口处打印未参与检查的节点（未在图中找到 / 未配置成功），不连续则整图回滚。
 3. 注册 `GraphNodeSettedFormatPass` 为自定义融合 pass，执行阶段为 `kAfterOriginGraphOptimize`。
 
 ## 程序编译

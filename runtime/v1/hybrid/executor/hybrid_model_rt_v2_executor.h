@@ -186,7 +186,6 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
   Status InitModelArgsAndLoad();
   Status AllocatorRecycle(const aclrtStream stream) const;
   Status RecycleOutputs(std::vector<gert::Tensor> &outputs, const aclrtStream stream) const;
-  Status TryUpdateStreamCoreLimits(const aclrtStream stream);
 
   class RunCtx {
     friend class HybridModelRtV2Executor;
@@ -208,8 +207,6 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
     // unload graph will call rtDeviceReset, so resource allocator need finalize before
     DevResourceAllocator dev_resource_allocator_;
     bool enable_input_batch_cpy_;
-    std::string aicore_num_str_;
-    std::string vectorcore_num_str_;
   };
 
   struct GuardCheckInfo {

@@ -79,6 +79,8 @@ class CustomTaskInfo : public TaskInfo {
 
   Status UpdateHostArgs(void *base_addr, size_t mem_size) override;
 
+  Status UpdateDumpInfos(void *const host_args, const size_t host_args_max_len) override;
+
   Status GetTaskArgsRefreshInfos(std::vector<TaskArgsRefreshInfo> &infos) override;
 
   ArgsRefreshStrategy GetArgsRefreshStrategy() const {
@@ -89,6 +91,7 @@ class CustomTaskInfo : public TaskInfo {
   Status InsertDumpOp(const std::string &dump_mode);
   Status UpdateCustomDumpAddrs(const std::vector<uint64_t> &input_addrs_value,
                                const std::vector<uint64_t> &output_addrs_value);
+  Status UpdateDumpInputAddrs(const std::vector<uint64_t> &input_addrs_value);
   void SetCustomDumpInfo(const DumpProperties &dump_properties, DumpOp &dump_op) const;
 
   void UpdateIoAndWorkspaceAddrs(const IowAddrs &iow_addrs);
@@ -130,6 +133,11 @@ class CustomTaskInfo : public TaskInfo {
   std::shared_ptr<gert::memory::SinkOnlyAllocator> sink_only_allocator_;
   DumpOp input_custom_dump_;
   DumpOp output_custom_dump_;
+  // These buffers are prepared when dump tasks are inserted and reused during execution.
+  std::vector<uintptr_t> dump_input_addrs_;
+  std::vector<uintptr_t> dump_output_addrs_;
+  std::vector<uintptr_t> dump_empty_addrs_;
+  std::vector<uint64_t> exception_dump_io_addrs_;
 
   ArgsIoAddrsUpdater args_io_addrs_updater_;
   ArgsUpdater *args_update_op_ = nullptr;

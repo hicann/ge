@@ -32,13 +32,40 @@ constexpr char_t const *kAivCntKeyIni = "vector_core_cnt";
 constexpr char_t const *kSocInfo = "SoCInfo";
 constexpr char_t const *kAiCoreNum = "_op_aicore_num";
 constexpr char_t const *kVectorCoreNum = "_op_vectorcore_num";
+constexpr size_t kCoreNumInputNum = 2U;
 }  // namespace
 ge::graphStatus GetPlatformInfo(KernelContext *context) {
   auto platform_holder = context->GetOutputPointer<fe::PlatFormInfos>(0);
   GE_ASSERT_NOTNULL(platform_holder);
+
+  std::map<std::string, std::string> options;
+  const auto input_num = context->GetInputNum();
+
+  // 兼容旧om（input_num=0）和新om（input_num=2）
+  // 模型级核数由lowering期以const输入接入, 见runtime/v2/graph_builder/bg_platform.cc, 约定-1表示未配置
+  // 使用局部options而非修改ThreadLocalContext，避免在多模型并发场景下污染调用方上下文
+  if (input_num == kCoreNumInputNum) {
+    // 新om：从输入读取模型级核数配置
+    const auto append_model_option = [&options, context](const size_t index, const std::string &option_name) {
+      const auto core_num = context->GetInputValue<int32_t>(index);
+      if (core_num >= 0) {
+        options[option_name] = std::to_string(core_num);
+      }
+    };
+    append_model_option(0U, ge::AICORE_NUM);
+    append_model_option(1U, ge::kVectorCoreNum);
+  } else if (input_num == 0U) {
+    // 旧om：无输入，options保持为空，后续走ThreadLocalContext路径
+    GELOGI("GetPlatformInfo has no input, using legacy mode (no model-level core num config).");
+  } else {
+    GELOGE(ge::GRAPH_FAILED, "GetPlatformInfo input num is %zu, expect 0 (legacy) or %zu (with core num config).",
+           input_num, kCoreNumInputNum);
+    return ge::GRAPH_FAILED;
+  }
+
   ge::ModelHelper model_helper;
   fe::PlatformInfo platform_info;
-  GE_ASSERT_SUCCESS(model_helper.HandleDeviceInfo(*platform_holder, platform_info));
+  GE_ASSERT_SUCCESS(model_helper.HandleDeviceInfo(*platform_holder, platform_info, options));
   auto core_num_infos_holder = context->GetOutputPointer<CoreNumInfos>(1);
   GE_ASSERT_NOTNULL(core_num_infos_holder);
   core_num_infos_holder->soc_aicore_num = static_cast<int32_t>(platform_info.soc_info.ai_core_cnt);

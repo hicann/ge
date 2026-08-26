@@ -33,6 +33,7 @@
 #include "parser/common/parser_utils.h"
 #include "parser/common/prototype_pass_manager.h"
 #include "parser/onnx/onnx_custom_parser_adapter.h"
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 #include "parser/onnx/onnx_util.h"
 #include "register/op_registry.h"
 #include "register/register_fmk_types.h"
@@ -59,17 +60,22 @@ graphStatus PrepareBeforeParse(AclGraphParserUtil &acl_graph_parse_util,
                                const std::map<AscendString, AscendString> &parser_params, ge::Graph &graph,
                                std::shared_ptr<domi::ModelParser> &model_parser) {
   GetParserContext().type = domi::ONNX;
-  Status init_ret = ge::SUCCESS;
+  static Status acl_parser_init_ret = ge::SUCCESS;
   static std::once_flag flag;
-  std::call_once(flag, [&init_ret, &acl_graph_parse_util]() {
+  std::call_once(flag, [&acl_graph_parse_util]() {
     std::map<string, string> options;
     options.insert(std::pair<string, string>(string(ge::FRAMEWORK_TYPE), to_string(domi::ONNX)));
-    init_ret = acl_graph_parse_util.AclParserInitialize(options);
+    acl_parser_init_ret = acl_graph_parse_util.AclParserInitialize(options);
   });
 
-  if (init_ret != ge::SUCCESS) {
+  if (acl_parser_init_ret != ge::SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "AclParserInitialize failed.");
     GELOGE(ge::FAILED, "[Init][AclParser] failed.");
+    return ge::FAILED;
+  }
+  if (LoadOnnxPythonPluginBridge() != ge::SUCCESS) {
+    REPORT_INNER_ERR_MSG("E19999", "LoadOnnxPythonPluginBridge failed.");
+    GELOGE(ge::FAILED, "[Init][OnnxPythonPluginBridge] failed.");
     return ge::FAILED;
   }
 

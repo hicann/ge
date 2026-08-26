@@ -398,9 +398,8 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
 
   bool has_portable_custom_op = false;
   for (const auto &op_type : used_custom_op_types) {
-    auto op = custom_op_registry_->CreateOrGetCustomOp(AscendString(op_type.c_str()));
-    GE_ASSERT_NOTNULL(op);
-    auto *portable_op = CustomOpCast<PortableOp>(op);
+    auto *portable_op = CustomOpCast<PortableOp>(
+        custom_op_registry_->GetCustomOpCommonCapability(AscendString(op_type.c_str()), CustomOpCapability::kPortable));
     if (portable_op == nullptr) {
       GELOGI("[CustomOp] op[%s] is not PortableOp, skip so collect.", op_type.c_str());
       continue;

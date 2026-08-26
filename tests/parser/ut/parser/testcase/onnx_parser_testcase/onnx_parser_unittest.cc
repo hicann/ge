@@ -30,6 +30,7 @@
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
+#include "proto/onnx/ge_onnx.pb.h"
 
 namespace ge {
 class UtestOnnxParser : public testing::Test {

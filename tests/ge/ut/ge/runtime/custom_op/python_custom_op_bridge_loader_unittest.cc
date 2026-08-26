@@ -386,7 +386,8 @@ TEST_F(PythonCustomOpBridgeLoaderTest, adapter_conflict_preserves_preexisting_cp
   UnloadPythonCustomOps();
   EXPECT_FALSE(OperatorFactory::IsExistOp(kSuccessOp));
   EXPECT_TRUE(CustomOpFactory::IsExistOp(AscendString(kSuccessOp)));
-  EXPECT_NE(dynamic_cast<PreexistingSuccessCustomOp *>(CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp))),
+  EXPECT_NE(dynamic_cast<PreexistingSuccessCustomOp *>(
+                CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp), OpBackend::kDevice)),
             nullptr);
 
   PythonCustomOpAdapterCallbacks callbacks;
@@ -404,7 +405,7 @@ TEST_F(PythonCustomOpBridgeLoaderTest, direct_load_registers_each_call_and_unloa
   EXPECT_EQ(GetRegisterCount(), 2U);
   EXPECT_TRUE(OperatorFactory::IsExistOp(kSuccessOp));
   EXPECT_TRUE(CustomOpFactory::IsExistOp(AscendString(kSuccessOp)));
-  auto *custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp));
+  auto *custom_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kSuccessOp), OpBackend::kDevice);
   ASSERT_NE(custom_op, nullptr);
   EXPECT_NE(CustomOpCast<ShapeInferOp>(custom_op), nullptr);
   auto *eager_op = CustomOpCast<EagerExecuteOp>(custom_op);

@@ -17,13 +17,16 @@
 #include "graph/custom_op_pull_registry.h"
 
 namespace ge {
-CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type,
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator)
+    : CustomOpCreatorRegister(operator_type, OpBackend::kDevice, op_creator) {}
+
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const OpBackend backend,
                                                  const CustomOpCreateFunc op_creator) {
-  RegisterCustomOpLocalCreator(operator_type.GetString(), op_creator);
+  RegisterCustomOpLocalCreator(operator_type.GetString(), backend, op_creator);
   if ((op_creator == nullptr) || IsOfflineCustomOpSoLoading()) {
     return;
   }
-  CustomOpFactory::RegisterCustomOpCreator(operator_type, [op_creator]() -> std::unique_ptr<BaseCustomOp> {
+  CustomOpFactory::RegisterCustomOpCreator(operator_type, backend, [op_creator]() -> std::unique_ptr<BaseCustomOp> {
     return std::unique_ptr<BaseCustomOp>(op_creator());
   });
 }

@@ -14,7 +14,7 @@
 | AscendString类 | ascend_string.h | 对String类型的封装。 | libflow_func.so |
 | MetaContext类 | meta_context.h | 用于UDF上下文信息相关处理，如申请tensor和获取设置的属性等操作。 | libflow_func.so |
 | FlowMsg类 | flow_msg.h | 用于处理flow func输入输出的相关操作。 | libflow_func.so |
-| Tensor类 | flow_msg.h | 用于执行Tensor的相关操作。 |
+| Tensor类 | flow_msg.h | 用于执行Tensor的相关操作。 | - |
 | MetaFlowFunc类 | meta_flow_func.h | 该类在meta_flow_func.h中定义，用户继承该类进行自定义的单func处理函数的编写。 | libflow_func.so |
 | MetaMultiFunc类 | meta_multi_func.h | 该类在meta_multi_func.h中定义，用户继承该类进行自定义的多func处理函数的编写。 | libflow_func.so |
 | FlowFuncRegistrar类 | meta_multi_func.h | 该类在meta_multi_func.h中定义，是注册MetaMultiFunc的辅助模板类。 | libflow_func.so |

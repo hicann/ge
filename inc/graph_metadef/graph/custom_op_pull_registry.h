@@ -17,16 +17,19 @@
 namespace ge {
 class BaseCustomOp;
 using CustomOpCreateFunc = BaseCustomOp *(*)();
+enum class OpBackend : uint32_t;
 
 constexpr uint32_t kCustomOpCreatorPullAbiVersion = 1U;
+constexpr uint32_t kCustomOpCreatorPullAbiVersionV2 = 2U;
 
 struct CustomOpTypeToCreator {
   uint32_t struct_size;
   const char *op_type;
   CustomOpCreateFunc creator;
+  OpBackend backend;
 };
 
-void RegisterCustomOpLocalCreator(const char *const op_type, const CustomOpCreateFunc creator);
+void RegisterCustomOpLocalCreator(const char *const op_type, OpBackend backend, const CustomOpCreateFunc creator);
 }  // namespace ge
 
 extern "C" uint32_t GetRegisteredCustomOpCreatorAbiVersion();

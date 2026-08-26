@@ -50,7 +50,8 @@ EntityPtr LlmCommEntityMgr::GetEntityByConn(HcclConn conn) {
   return nullptr;
 }
 
-HcclConn LlmCommEntityMgr::GetEntityByIp(uint32_t ip) const {
+HcclConn LlmCommEntityMgr::GetEntityByIp(uint32_t ip) {
+  std::lock_guard<std::mutex> lock(entity_mutex_);
   auto iter = ip_to_conns_.find(ip);
   if (iter != ip_to_conns_.end()) {
     return iter->second;
@@ -301,25 +302,23 @@ void LlmCommEntityMgr::HandleLinkRequest() {
   }
   // accept new link
   const uint32_t remote_ip = remote_hccl_addr.info.tcp.ipv4Addr;
-  auto iter = ip_to_conns_.find(remote_ip);
-  if (iter != ip_to_conns_.end()) {
-    auto entity = GetEntityByConn(iter->second);
-    if (entity == nullptr) {
-      EraseIpToConnMap(remote_ip, iter->second);
-      UDF_RUN_LOG_INFO("Success to accept new link with residual data in ip_to_conns map, remote hccl addr:%s.",
-                       ToDesc(remote_hccl_addr).c_str());
-    } else {
-      (void)HcclRawForceClose(entity->GetConn());
-      entity->SetConn(hccl_conn);
-      entity->SetLinkEstablished(false);
-      entity->SetProbeLinkClusterInfoFlag(false);
-      entity->ClearResource();
-      entity->ChangeState(FsmState::kFsmLinkState);
-      UDF_RUN_LOG_INFO("Success to accept new force link, remote hccl addr:%s.", ToDesc(remote_hccl_addr).c_str());
-      return;
-    }
+  bool cleared_residual = false;
+  auto entity = FindServerEntityByIp(remote_ip, cleared_residual);
+  if (entity != nullptr) {
+    (void)HcclRawForceClose(entity->GetConn());
+    entity->SetConn(hccl_conn);
+    entity->SetLinkEstablished(false);
+    entity->SetProbeLinkClusterInfoFlag(false);
+    entity->ClearResource();
+    entity->ChangeState(FsmState::kFsmLinkState);
+    UDF_RUN_LOG_INFO("Success to accept new force link, remote hccl addr:%s.", ToDesc(remote_hccl_addr).c_str());
+    return;
   }
-  EntityPtr entity = this->CreateEntity(EntityType::kEntityServer, hccl_conn, listen_hccl_addr_, remote_hccl_addr);
+  if (cleared_residual) {
+    UDF_RUN_LOG_INFO("Success to accept new link with residual data in ip_to_conns map, remote hccl addr:%s.",
+                     ToDesc(remote_hccl_addr).c_str());
+  }
+  entity = this->CreateEntity(EntityType::kEntityServer, hccl_conn, listen_hccl_addr_, remote_hccl_addr);
   if (entity == nullptr) {
     UDF_LOG_ERROR("failed to create server comm entity.");
     return;
@@ -415,10 +414,27 @@ FsmStatus LlmCommEntityMgr::UnRegisterHcclMr(std::vector<uint64_t> &mem_addrs) {
 }
 
 void LlmCommEntityMgr::ClearEntities() {
-  ip_to_conns_.clear();
   std::lock_guard<std::mutex> lock(entity_mutex_);
+  ip_to_conns_.clear();
   server_entity_map_.clear();
   client_entity_map_.clear();
+}
+
+EntityPtr LlmCommEntityMgr::FindServerEntityByIp(uint32_t ip, bool &cleared_residual) {
+  cleared_residual = false;
+  std::lock_guard<std::mutex> lock(entity_mutex_);
+  auto iter = ip_to_conns_.find(ip);
+  if (iter == ip_to_conns_.end()) {
+    return nullptr;
+  }
+  const HcclConn conn = iter->second;
+  auto entity_iter = server_entity_map_.find(conn);
+  if (entity_iter == server_entity_map_.end()) {
+    EraseIpToConnMap(ip, conn);
+    cleared_residual = true;
+    return nullptr;
+  }
+  return entity_iter->second;
 }
 
 void LlmCommEntityMgr::EraseIpToConnMap(uint32_t ip, const HcclConn conn) {

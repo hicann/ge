@@ -398,6 +398,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       COV_DIRS+=("${BUILD_PATH}/graph_metadef")
       COV_DIRS+=("${BUILD_PATH}/compiler")
       COV_DIRS+=("${BUILD_PATH}/runtime/v1")
+      COV_DIRS+=("${BUILD_PATH}/parser")
     fi
     if [[ "X$ENABLE_RT2_UT" = "Xon" ]]; then
       echo "[TEST GE RT] Begin to run tests with leaks check"

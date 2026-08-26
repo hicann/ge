@@ -2,15 +2,15 @@
 
 ## Documentation
 
-- [Graph Development Guide](https://hiascend.com/document/redirect/CannCommunityGraphguide)
+- [Graph Development Guide](../zh/user_guides/graph_dev/README.md)
 
   Designed for single-card graph compilation and execution, providing GE basic concepts, principles, and how to use GE graph engine interfaces for graph construction, compilation and execution.
 
-- [DataFlow Development Guide](https://hiascend.com/document/redirect/CannCommunityDataflow)
+- [DataFlow Development Guide](../zh/user_guides/dflow/index.md)
 
   Designed for heterogeneous and cluster graph compilation and execution, introducing how to build, modify, compile and execute computation graphs through DataFlow interfaces.
 
-- [LLM DataDist Development Guide](https://hiascend.com/document/redirect/CannCommunityLLMDatadistdev)
+- [LLM DataDist Development Guide](../zh/user_guides/llm_datadist/index.md)
 
   Designed for large models, introducing how to use LLM-DataDist interfaces to implement data transmission between clusters and build large model inference disaggregated frameworks.
 
@@ -36,7 +36,7 @@
 
     Introduces key technologies for Host scheduling optimization and how to improve heterogeneous system resource utilization through these technologies.
 
-- [Automatic Fusion](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha002/graph/graphguide/autofuse_1_0001.html)
+- [Automatic Fusion](../zh/user_guides/graph_dev/autofuse/README.md)
 
     Introduces the implementation principles and enabling methods of automatic fusion, and how to shorten model E2E time through this technology.
 

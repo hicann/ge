@@ -76,6 +76,8 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   Status GetHardwareInfo(std::map<std::string, std::string> &options) const;
   Status HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const;
   Status HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info) const;
+  Status HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info,
+                          std::map<std::string, std::string> &options) const;
   static Status InitRuntimePlatform();
 
   Status InitRuntimeAndGetDevicePlatformInfos(int32_t device_id, const std::string &soc_version,

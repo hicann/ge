@@ -807,7 +807,7 @@ custom_op/
 ├── proto.py                 # Python custom operator prototype parser, descriptors, and registry
 ├── registry.py              # Python custom operator implementation registry and decorators
 ├── bootstrap.py             # Plugin discovery and loading
-├── context.py               # Current execution context binding for schema-bound execute
+├── context.py               # Current execution context binding for schema-bound execute/compile
 ├── _bridge.py               # Bridge runtime helper (instance management, for C++ bridge .so callbacks)
 ├── _native.py               # Native module loading and re-export
 ├── _artifact_utils.py       # Runtime artifact selection helper
@@ -816,11 +816,11 @@ custom_op/
 ```
 
 Note: Files prefixed with underscores are internal modules in the Python style.
-Note: `EagerOpExecutionContext`, `AnnotatedArgsContext`, and `InferShapeContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `TensorDesc`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution or an `infer_meta` callback are provided by the `ge.runtime` module.
+Note: `EagerOpExecutionContext`, `OpCompileContext`, `CompilePlatformInfo`, `AnnotatedArgsContext`, and `InferShapeContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `TensorDesc`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution, compilation, or an `infer_meta` callback are provided by the `ge.runtime` module.
 
 #### Module Positioning
 
-The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute` and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability and declarative static-graph address-refresh capability, respectively. User classes do not inherit from capability base classes. The execution entry uses a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order; callbacks access the execution context through `get_execute_ctx()`. After a Python prototype is registered with `OperatorFactory` through `register_op`, the compile-time and RT2 dynamic-shape paths invoke the same Python `infer_meta` callback. Compile-time inference writes output shape, dtype, and origin dtype; RT2 updates output shape only.
+The long-term goal of the Python custom operator is to support users in describing custom operator prototypes and implementing custom operator capabilities in Python. Callable `execute`, `compile`, and `declare_launch_args` methods are now reflected from the implementation class to detect execution capability, graph-compilation capability, and declarative static-graph address-refresh capability, respectively. User classes do not inherit from capability base classes. The execution entry uses a schema-bound form whose inputs and attributes are bound from canonical IR in declaration order; callbacks access the execution context through `get_execute_ctx()`, while `compile` and `declare_launch_args` bind inputs, outputs, and attributes from canonical IR. After a Python prototype is registered with `OperatorFactory` through `register_op`, the compile-time and RT2 dynamic-shape paths invoke the same Python `infer_meta` callback. Compile-time inference writes output shape, dtype, and origin dtype; RT2 updates output shape only.
 
 #### Runtime Native Artifact Selection
 
@@ -906,7 +906,15 @@ The index accepted by `append_input(instance_index, tensor)` and `append_output(
 
 Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked exactly once and the resulting task plan is cached. Later generation phases only materialize the cached task plan from the current `RunContext` and do not call back into Python. A new task-plan lifecycle performs a new declaration. Borrowed objects from one callback must not be reused across callbacks. Compilation stores the selected refresh mode in `_custom_task_args_mode`; model loading treats it as the source of truth, while OMs without the attribute retain the legacy registry lookup and `args_format` fallback. The model execution path does not invoke Python.
 
-##### 5. OpImplDescriptor Data Class
+##### 5. Python Compile and Compile Context
+
+**File location**: `context.py`, `_native.py`, `_ge_custom_op_native.pyi`
+
+`compile` is a graph-compilation callback and supports only the schema-bound form. GE passes inputs and outputs as positional arguments and attributes as keyword-only arguments according to the Ascend IR operator prototype. Both the return annotation and return value must be `None`. The callback uses `get_compile_ctx()` to query compile options and `get_compile_platform_info()` to query platform resources, core counts, and SoC information.
+
+`OpCompileContext`, `CompilePlatformInfo`, input and output `Tensor` objects, and attribute views are borrowed objects valid only during the callback and become invalid after it returns or raises. The compile callback is not invoked during model loading or execution, and the Python implementation, instance state, and kernel binary are not written to the OM.
+
+##### 6. OpImplDescriptor Data Class
 
 **File location**: `registry.py`
 
@@ -918,7 +926,7 @@ Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked e
 - `op_type` - Custom operator type
 - `module_name` - Associated module name
 - `class_name` - Class name
-- `interfaces` - Capability interface list; it may contain `"eager_execute"` and `"annotated_args"`
+- `interfaces` - Capability interface list; it may contain `"eager_execute"`, `"compilable"`, and `"annotated_args"`
 - `cls` - Python implementation class reference
 
 #### Registration and Discovery
@@ -926,7 +934,7 @@ Within one AnnotatedArgs task-plan lifecycle, `declare_launch_args` is invoked e
 **Decorators**:
 
 - `register_op(op_type, mutates_args=())` - Declares and collects a Python custom operator prototype from annotations on the decorated function; the decorated function also serves as the `infer_meta` callback and returns output `TensorDesc` objects
-- `register_op_impl(op_type)` - Registers a Python implementation class and reflects its callable methods into a capability list; `execute` maps to `eager_execute`, and `declare_launch_args` maps to `annotated_args`
+- `register_op_impl(op_type)` - Registers a Python implementation class and reflects its callable methods into a capability list; `execute` maps to `eager_execute`, `compile` maps to `compilable`, and `declare_launch_args` maps to `annotated_args`
 
 **Discovery mechanism**:
 

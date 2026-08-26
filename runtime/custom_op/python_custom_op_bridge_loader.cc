@@ -390,7 +390,8 @@ class PythonCustomOpBridgeLoader {
 
   Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc) {
     const auto ret = CustomOpFactory::RegisterCustomOpCreator(
-        AscendString(desc.op_type.c_str()), [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
+        AscendString(desc.op_type.c_str()), OpBackend::kDevice,
+        [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
           auto *adapter = new (std::nothrow) PythonCustomOpAdapter(registered_desc);
           if ((adapter == nullptr) || (!adapter->IsValid())) {
             delete adapter;

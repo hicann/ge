@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include "graph/custom_op.h"
+
 #ifdef __GNUC__
 #ifdef CUSTOM_OP_PULL_REGISTRY_HIDDEN_EXPORT
 #define CUSTOM_OP_PULL_REGISTRY_EXPORT __attribute__((visibility("hidden")))
@@ -29,8 +31,13 @@ namespace ge {
 namespace {
 struct LocalCreator {
   std::string op_type;
+  OpBackend backend;
   CustomOpCreateFunc creator;
 };
+
+bool IsValidOpBackend(const OpBackend backend) {
+  return (backend == OpBackend::kDevice) || (backend == OpBackend::kHostCPU);
+}
 
 std::mutex &GetCustomOpLocalCreatorMutex() {
   static std::mutex mu;
@@ -43,17 +50,21 @@ std::vector<LocalCreator> &GetCustomOpLocalCreators() {
 }
 }  // namespace
 
-void RegisterCustomOpLocalCreator(const char *const op_type, const CustomOpCreateFunc creator) {
+void RegisterCustomOpLocalCreator(const char *const op_type, const OpBackend backend,
+                                  const CustomOpCreateFunc creator) {
   if ((op_type == nullptr) || (op_type[0] == '\0') || (creator == nullptr)) {
     return;
   }
+  if (!IsValidOpBackend(backend)) {
+    return;
+  }
   const std::lock_guard<std::mutex> lock(GetCustomOpLocalCreatorMutex());
-  GetCustomOpLocalCreators().push_back({op_type, creator});
+  GetCustomOpLocalCreators().push_back({op_type, backend, creator});
 }
 }  // namespace ge
 
 extern "C" CUSTOM_OP_PULL_REGISTRY_EXPORT uint32_t GetRegisteredCustomOpCreatorAbiVersion() {
-  return ge::kCustomOpCreatorPullAbiVersion;
+  return ge::kCustomOpCreatorPullAbiVersionV2;
 }
 
 extern "C" CUSTOM_OP_PULL_REGISTRY_EXPORT size_t GetRegisteredCustomOpCreatorNum() {
@@ -73,7 +84,8 @@ extern "C" CUSTOM_OP_PULL_REGISTRY_EXPORT int32_t GetRegisteredCustomOpCreators(
   for (size_t i = 0U; i < local_creators.size(); ++i) {
     auto *creator_addr = reinterpret_cast<uint8_t *>(creators) + (i * creator_struct_size);
     auto *creator = reinterpret_cast<ge::CustomOpTypeToCreator *>(creator_addr);
-    *creator = {sizeof(ge::CustomOpTypeToCreator), local_creators[i].op_type.c_str(), local_creators[i].creator};
+    *creator = {sizeof(ge::CustomOpTypeToCreator), local_creators[i].op_type.c_str(), local_creators[i].creator,
+                local_creators[i].backend};
   }
   return 0;
 }

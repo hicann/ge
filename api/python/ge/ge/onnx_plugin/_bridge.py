@@ -22,6 +22,10 @@ from .registry import (
 )
 
 
+class _InvalidParseNodeReturn(TypeError):
+    """Internal marker for a parse_node callback returning a non-None value."""
+
+
 def load_and_get_onnx_plugin_descriptors() -> list:
     load_onnx_plugins()
     return get_registered_onnx_plugin_dicts()
@@ -41,4 +45,6 @@ def call_parse_node(origin_type: str, node: OnnxNode, operator_handle) -> None:
     with create_operator(operator_handle) as target:
         result = descriptor.parser_node(node, target)
         if result is not None:
-            raise TypeError("ONNX Plugin parse_node callback must return None")
+            raise _InvalidParseNodeReturn(
+                "ONNX Plugin parse_node callback must return None"
+            )

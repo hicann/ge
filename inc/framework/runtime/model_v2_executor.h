@@ -231,6 +231,7 @@ class VISIBILITY_EXPORT ModelV2Executor {
                                        TypedContinuousVector<rtNotify_t> *&notifies);
   ge::Status InitRtVarManager(const ModelLoadArg &load_arg);
   ge::graphStatus CheckIoReuseAddrs(Tensor **inputs, size_t input_num, Tensor **outputs, size_t output_num) const;
+  ge::graphStatus ApplyStreamCoreNumLimits(rtStream_t stream, bool &stream_res_bound) const;
 
  private:
   // to keep host resource live longer than resource_guard_
@@ -272,6 +273,11 @@ class VISIBILITY_EXPORT ModelV2Executor {
 
   // For output reuse input memory address validation
   std::vector<std::pair<size_t, size_t>> io_same_addr_pairs_;
+
+  // 模型级流控核配置, 编译期由根图属性带入, 约定-1表示未配置
+  int32_t stream_aicore_num_{-1};
+  int32_t stream_vectorcore_num_{-1};
+  bool need_set_stream_core_limits_{false};
 };
 }  // namespace gert
 

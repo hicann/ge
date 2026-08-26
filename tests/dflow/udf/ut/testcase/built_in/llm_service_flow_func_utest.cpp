@@ -4212,4 +4212,33 @@ TEST_F(LlmServiceFlowFuncUTest, test_receive_with_cacheid_push_not_exist_kv) {
   EXPECT_EQ(DeallocateCache(run_context, out_msg, llm_service_flow_func, cache_id), FsmStatus::kFsmSuccess);
 }
 
+TEST_F(LlmServiceFlowFuncUTest, get_entity_by_ip_locked_lookup) {
+  LlmCommEntityMgr::GetInstance().ClearEntities();
+  HcclAddr local_hccl_addr{};
+  local_hccl_addr.info.tcp.ipv4Addr = 3232235777;  // 192.168.1.1
+  local_hccl_addr.info.tcp.port = 8001;
+  HcclAddr remote_hccl_addr{};
+  remote_hccl_addr.info.tcp.ipv4Addr = 3232235778;  // 192.168.1.2
+  remote_hccl_addr.info.tcp.port = 8002;
+  auto conn = reinterpret_cast<HcclConn>(1);
+  auto entity = LlmCommEntityMgr::GetInstance().CreateEntity(EntityType::kEntityServer, conn, local_hccl_addr,
+                                                             remote_hccl_addr, 1);
+  EXPECT_NE(entity, nullptr);
+  EXPECT_EQ(LlmCommEntityMgr::GetInstance().GetEntityByIp(remote_hccl_addr.info.tcp.ipv4Addr), conn);
+  EXPECT_EQ(LlmCommEntityMgr::GetInstance().GetEntityByIp(0U), nullptr);
+
+  bool cleared_residual = false;
+  auto found =
+      LlmCommEntityMgr::GetInstance().FindServerEntityByIp(remote_hccl_addr.info.tcp.ipv4Addr, cleared_residual);
+  EXPECT_EQ(found, entity);
+  EXPECT_FALSE(cleared_residual);
+
+  LlmCommEntityMgr::GetInstance().server_entity_map_.clear();
+  found = LlmCommEntityMgr::GetInstance().FindServerEntityByIp(remote_hccl_addr.info.tcp.ipv4Addr, cleared_residual);
+  EXPECT_EQ(found, nullptr);
+  EXPECT_TRUE(cleared_residual);
+  EXPECT_EQ(LlmCommEntityMgr::GetInstance().GetEntityByIp(remote_hccl_addr.info.tcp.ipv4Addr), nullptr);
+  LlmCommEntityMgr::GetInstance().ClearEntities();
+}
+
 }  // namespace FlowFunc

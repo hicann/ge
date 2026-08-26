@@ -33,6 +33,7 @@
 #include "graph/custom_op_registry.h"
 #include "exe_graph/runtime/kernel_args.h"
 #include "framework/runtime/args_handler.h"
+#include "framework/runtime/subscriber/global_dumper.h"
 #include "graph/utils/args_format_desc_utils.h"
 #include "register/op_impl_registry.h"
 #include "faker/space_registry_faker.h"
@@ -256,6 +257,118 @@ TEST_F(UtestCustomTaskInfo, UpdateCustomDumpAddrs_ReturnSuccessWhenDumpEnabled) 
   EXPECT_EQ(task_info.output_custom_dump_.op_mapping_info_.task(0).output(0).address(), 0x3008);
   CleanupDumpOp(task_info.input_custom_dump_);
   CleanupDumpOp(task_info.output_custom_dump_);
+}
+
+TEST_F(UtestCustomTaskInfo, InsertDumpOp_OptionalInputBeforeValidInputUsesAlignedAddress) {
+  DavinciModel model(0, nullptr);
+  CustomTaskInfo task_info;
+  InitBasicTaskInfo(task_info, model);
+
+  auto op_desc = std::make_shared<OpDesc>("custom_op_optional_input", "CustomOp");
+  GeTensorDesc optional_desc(GeShape(), FORMAT_RESERVED, DT_UNDEFINED);
+  GeTensorDesc tensor(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  ASSERT_EQ(op_desc->AddOptionalInputDesc("optional_input", optional_desc), SUCCESS);
+  ASSERT_EQ(op_desc->AddInputDesc(tensor), SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc(tensor), SUCCESS);
+  op_desc->SetId(0);
+  op_desc->SetStreamId(0);
+  model.op_list_[0] = op_desc;
+  task_info.op_desc_ = op_desc;
+  EnableDump(model, "input");
+
+  ASSERT_EQ(task_info.InsertDumpOp("input"), SUCCESS);
+  ASSERT_EQ(task_info.dump_input_addrs_.size(), 2U);
+  EXPECT_EQ(task_info.dump_input_addrs_[0], 0U);
+  EXPECT_EQ(task_info.dump_input_addrs_[1], 0x1000U);
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task_size(), 1);
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input_size(), 1);
+  EXPECT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input(0).address(), 0x1000U);
+
+  ASSERT_EQ(task_info.UpdateCustomDumpAddrs({0x3000U}, {0x2000U}), SUCCESS);
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input_size(), 1);
+  EXPECT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input(0).address(), 0x3000U);
+  CleanupDumpOp(task_info.input_custom_dump_);
+}
+
+TEST_F(UtestCustomTaskInfo, UpdateDumpInfos_AnnotatedArgs_UsesRefreshedIoAddresses) {
+  DavinciModel model(0, nullptr);
+  CustomTaskInfo task_info;
+  InitBasicTaskInfo(task_info, model);
+  EnableDump(model);
+
+  GeTensorDesc tensor(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  *task_info.op_desc_->MutableInputDesc(0) = tensor;
+  *task_info.op_desc_->MutableOutputDesc(0) = tensor;
+  task_info.args_refresh_strategy_ = ArgsRefreshStrategy::kAnnotatedArgs;
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 0);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::CUSTOM_VALUE);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::OUTPUT_INSTANCE, 0);
+
+  ASSERT_EQ(task_info.InsertDumpOp("input"), SUCCESS);
+  ASSERT_EQ(task_info.InsertDumpOp("output"), SUCCESS);
+  const auto input_proto_dev_mem = task_info.input_custom_dump_.proto_dev_mem_;
+  const auto output_proto_dev_mem = task_info.output_custom_dump_.proto_dev_mem_;
+  const auto input_capacity = task_info.dump_input_addrs_.capacity();
+  const auto output_capacity = task_info.dump_output_addrs_.capacity();
+  uint64_t host_args[] = {0x3000U, 0x1234U, 0x4000U};
+  ASSERT_EQ(task_info.UpdateDumpInfos(host_args, sizeof(host_args)), SUCCESS);
+  host_args[0] = 0x5000U;
+  host_args[2] = 0x6000U;
+  ASSERT_EQ(task_info.UpdateDumpInfos(host_args, sizeof(host_args)), SUCCESS);
+  uint64_t short_args[] = {0x7000U};
+  EXPECT_NE(task_info.UpdateDumpInfos(short_args, sizeof(short_args)), SUCCESS);
+
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task_size(), 1);
+  ASSERT_EQ(task_info.output_custom_dump_.op_mapping_info_.task_size(), 1);
+  EXPECT_EQ(task_info.input_custom_dump_.proto_dev_mem_, input_proto_dev_mem);
+  EXPECT_EQ(task_info.output_custom_dump_.proto_dev_mem_, output_proto_dev_mem);
+  EXPECT_EQ(task_info.dump_input_addrs_.capacity(), input_capacity);
+  EXPECT_EQ(task_info.dump_output_addrs_.capacity(), output_capacity);
+  EXPECT_GE(task_info.input_custom_dump_.proto_dev_mem_capacity_,
+            task_info.input_custom_dump_.op_mapping_info_.ByteSizeLong());
+  EXPECT_GE(task_info.output_custom_dump_.proto_dev_mem_capacity_,
+            task_info.output_custom_dump_.op_mapping_info_.ByteSizeLong());
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input(0).address(), 0x5000U);
+  ASSERT_EQ(task_info.output_custom_dump_.op_mapping_info_.task(0).output(0).address(), 0x6000U);
+  CleanupDumpOp(task_info.input_custom_dump_);
+  CleanupDumpOp(task_info.output_custom_dump_);
+}
+
+TEST_F(UtestCustomTaskInfo, UpdateDumpInfos_AnnotatedArgs_UpdatesExceptionDumpAddresses) {
+  DavinciModel model(0, nullptr);
+  CustomTaskInfo task_info;
+  InitBasicTaskInfo(task_info, model);
+
+  GeTensorDesc tensor(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  *task_info.op_desc_->MutableInputDesc(0) = tensor;
+  *task_info.op_desc_->MutableOutputDesc(0) = tensor;
+  task_info.task_id_ = 1U;
+  task_info.stream_id_ = 2U;
+  task_info.args_refresh_strategy_ = ArgsRefreshStrategy::kAnnotatedArgs;
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::INPUT_INSTANCE, 0);
+  ArgsFormatDescUtils::Append(task_info.args_format_holder_.arg_descs, AddrType::OUTPUT_INSTANCE, 0);
+
+  model.fixed_mem_base_ = 0x1000U;
+  model.mem_base_ = 0x2000U;
+  ExtraOpInfo extra_op_info;
+  extra_op_info.input_addrs = {ValueToPtr(0x1000U)};
+  extra_op_info.output_addrs = {ValueToPtr(0x2000U)};
+  model.MutableExceptionDumper()->SaveDumpOpInfo(task_info.op_desc_, extra_op_info, OpDescInfoId(1U, 2U, 0), false);
+
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kExceptionDump}));
+  uint64_t host_args[] = {0x5000U, 0x6000U};
+  EXPECT_EQ(task_info.UpdateDumpInfos(host_args, sizeof(host_args)), SUCCESS);
+
+  OpDescInfo op_desc_info;
+  EXPECT_TRUE(model.GetOpDescInfo(task_info.stream_id_, task_info.task_id_, op_desc_info));
+  EXPECT_EQ(op_desc_info.input_addrs.size(), 1U);
+  EXPECT_EQ(op_desc_info.output_addrs.size(), 1U);
+  if ((op_desc_info.input_addrs.size() == 1U) && (op_desc_info.output_addrs.size() == 1U)) {
+    EXPECT_EQ(PtrToValue(op_desc_info.input_addrs[0]), 0x5000U);
+    EXPECT_EQ(PtrToValue(op_desc_info.output_addrs[0]), 0x6000U);
+  }
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0U);
 }
 
 class MockArgsUpdater : public ArgsUpdater {
@@ -645,7 +758,7 @@ TEST_F(UtestCustomTaskInfo, ParseTaskRunParam_UsesModelCustomOpRegistry) {
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_NE(registry, nullptr);
   ASSERT_EQ(registry->RegisterCreator(
-                op_type.c_str(),
+                op_type.c_str(), OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestArgsUpdaterCustomOp>(); }),
             GRAPH_SUCCESS);
 
@@ -1103,7 +1216,7 @@ TEST_F(UtestCustomTaskInfoE2E, ParseTaskRunParam_AnnotatedArgsOp_UsesAnnotatedAr
   SetUpMinimalDavinciModel(model, op_desc);
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                op_type.c_str(),
+                op_type.c_str(), OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestArgsUpdaterCustomOp>(); }),
             GRAPH_SUCCESS);
   model.SetCustomOpRegistry(registry);

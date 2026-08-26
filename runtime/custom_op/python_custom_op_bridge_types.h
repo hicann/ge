@@ -21,6 +21,7 @@
 namespace gert {
 class AnnotatedArgsContext;
 class EagerOpExecutionContext;
+class OpCompileContext;
 class InferShapeContext;
 class StorageShape;
 }  // namespace gert
@@ -131,15 +132,18 @@ using PythonCustomOpImplHolderCreateFn = void *(*)(const PythonCustomOpAdapterDe
 using PythonCustomOpImplHolderDestroyFn = void (*)(void *holder);
 using PythonCustomOpImplExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx);
 using PythonCustomOpImplDeclareLaunchArgsFn = graphStatus (*)(const void *holder, gert::AnnotatedArgsContext *ctx);
+using PythonCustomOpImplCompileFn = graphStatus (*)(const void *holder, gert::OpCompileContext *ctx);
 struct PythonCustomOpAdapterCallbacks {
   PythonCustomOpImplHolderCreateFn create_impl_holder{nullptr};
   PythonCustomOpImplHolderDestroyFn destroy_impl_holder{nullptr};
   PythonCustomOpImplExecuteFn execute{nullptr};
   PythonCustomOpImplDeclareLaunchArgsFn declare_launch_args{nullptr};
+  PythonCustomOpImplCompileFn compile_impl{nullptr};
   PythonCustomOpInferMetaFn infer_meta{nullptr};
 
   bool IsValid(CustomOpCapabilityMask capabilities) const {
     const auto supported_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute) |
+                                        static_cast<CustomOpCapabilityMask>(CustomOpCapability::kCompilable) |
                                         static_cast<CustomOpCapabilityMask>(CustomOpCapability::kAnnotatedArgs);
     if ((capabilities == 0U) || ((capabilities & (~supported_capabilities)) != 0U)) {
       return false;
@@ -151,6 +155,9 @@ struct PythonCustomOpAdapterCallbacks {
       return false;
     }
     if (HasCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs) && (declare_launch_args == nullptr)) {
+      return false;
+    }
+    if (HasCustomOpCapability(capabilities, CustomOpCapability::kCompilable) && (compile_impl == nullptr)) {
       return false;
     }
     return true;

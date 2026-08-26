@@ -11,11 +11,14 @@
 #include <iostream>
 #include <gtest/gtest.h>
 
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
+
 using namespace std;
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   int ret = RUN_ALL_TESTS();
+  ge::UnloadOnnxPythonPluginBridge();
   std::cout << "Finish parser st." << std::endl;
   return ret;
 }

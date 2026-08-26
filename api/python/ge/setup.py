@@ -10,14 +10,15 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 setup(
     name="ge-py",
     version="0.0.1",
     description="GraphEngine python api",
-    packages=find_packages(),
+    packages=find_namespace_packages(include=["ge", "ge.*"]),
     include_package_data=True,
+    package_data={"ge.onnx_plugin": ["python_onnx_plugin_artifacts/*/*"]},
     entry_points={
         "ge.es.plugins": [],
     },

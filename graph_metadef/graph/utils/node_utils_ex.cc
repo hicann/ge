@@ -86,11 +86,12 @@ graphStatus NodeUtilsEx::IsInputsValid(const NodePtr &node) {
                               (op_desc->MutableInputDesc(static_cast<uint32_t>(in_anchor->GetIdx())) == nullptr) ||
                               (in_anchor->GetPeerAnchorsSize() > 0UL);
     if (!valid_anchor) {
-      REPORT_PREDEFINED_ERR_MSG(
-          "E11019", std::vector<const char *>({"opname", "index"}),
-          std::vector<const char *>({node->GetName().c_str(), std::to_string(in_anchor->GetIdx()).c_str()}));
-      GELOGE(GRAPH_FAILED, "[Check][Param] operator %s's input %d is not linked.", node->GetName().c_str(),
-             in_anchor->GetIdx());
+      const std::string reason =
+          "Input " + std::to_string(in_anchor->GetIdx()) + " of operator " + node->GetName() + " is not connected";
+      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}),
+                                std::vector<const char *>({reason.c_str()}));
+      GELOGE(GRAPH_FAILED, "[Check][Param] input %d of operator %s is not connected.", in_anchor->GetIdx(),
+             node->GetName().c_str());
       return GRAPH_FAILED;
     }
   }

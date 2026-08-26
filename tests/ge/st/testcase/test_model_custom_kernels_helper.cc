@@ -67,10 +67,18 @@ const std::vector<uint8_t> kPortableKernelBin = {0x11U, 0x22U, 0x33U};
 size_t g_deserialize_called_count = 0U;
 size_t g_last_deserialize_bin_size = 0U;
 
+struct LegacyCustomOpTypeToCreator {
+  uint32_t struct_size;
+  const char *op_type;
+  CustomOpCreateFunc creator;
+};
+
 struct FakeSoCreatorsForSt {
   uint32_t abi_version = kCustomOpCreatorPullAbiVersion;
+  uint32_t abi_version_v2 = kCustomOpCreatorPullAbiVersionV2;
   int32_t get_creators_ret = 0;
-  std::vector<CustomOpTypeToCreator> creators;
+  std::vector<LegacyCustomOpTypeToCreator> creators;
+  std::vector<CustomOpTypeToCreator> creators_v2;
 };
 
 FakeSoCreatorsForSt g_fake_so_a;
@@ -206,29 +214,70 @@ size_t GetFakeCreatorNumB() {
   return g_fake_so_b.creators.size();
 }
 
-int32_t CopyFakeCreatorsForSt(const FakeSoCreatorsForSt &fake_so, CustomOpTypeToCreator *creators,
+uint32_t GetFakeAbiVersionV2A() {
+  return g_fake_so_a.abi_version_v2;
+}
+
+uint32_t GetFakeAbiVersionV2B() {
+  return g_fake_so_b.abi_version_v2;
+}
+
+size_t GetFakeCreatorNumV2A() {
+  return g_fake_so_a.creators_v2.size();
+}
+
+size_t GetFakeCreatorNumV2B() {
+  return g_fake_so_b.creators_v2.size();
+}
+
+int32_t CopyFakeCreatorsForSt(const FakeSoCreatorsForSt &fake_so, LegacyCustomOpTypeToCreator *creators,
                               const size_t creator_num, const size_t creator_struct_size) {
   if (fake_so.get_creators_ret != 0) {
     return fake_so.get_creators_ret;
   }
   if ((creator_num < fake_so.creators.size()) || ((creator_num > 0U) && (creators == nullptr)) ||
-      (creator_struct_size < sizeof(CustomOpTypeToCreator))) {
+      (creator_struct_size < sizeof(LegacyCustomOpTypeToCreator))) {
     return -1;
   }
   for (size_t i = 0U; i < fake_so.creators.size(); ++i) {
     auto *creator_addr = reinterpret_cast<uint8_t *>(creators) + (i * creator_struct_size);
-    auto *creator = reinterpret_cast<CustomOpTypeToCreator *>(creator_addr);
+    auto *creator = reinterpret_cast<LegacyCustomOpTypeToCreator *>(creator_addr);
     *creator = fake_so.creators[i];
   }
   return 0;
 }
 
-int32_t GetFakeCreatorsA(CustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
+int32_t GetFakeCreatorsA(LegacyCustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
   return CopyFakeCreatorsForSt(g_fake_so_a, creators, creator_num, creator_struct_size);
 }
 
-int32_t GetFakeCreatorsB(CustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
+int32_t GetFakeCreatorsB(LegacyCustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
   return CopyFakeCreatorsForSt(g_fake_so_b, creators, creator_num, creator_struct_size);
+}
+
+int32_t CopyFakeCreatorsV2ForSt(const FakeSoCreatorsForSt &fake_so, CustomOpTypeToCreator *creators,
+                                const size_t creator_num, const size_t creator_struct_size) {
+  if (fake_so.get_creators_ret != 0) {
+    return fake_so.get_creators_ret;
+  }
+  if ((creator_num < fake_so.creators_v2.size()) || ((creator_num > 0U) && (creators == nullptr)) ||
+      (creator_struct_size < sizeof(CustomOpTypeToCreator))) {
+    return -1;
+  }
+  for (size_t i = 0U; i < fake_so.creators_v2.size(); ++i) {
+    auto *creator_addr = reinterpret_cast<uint8_t *>(creators) + (i * creator_struct_size);
+    auto *creator = reinterpret_cast<CustomOpTypeToCreator *>(creator_addr);
+    *creator = fake_so.creators_v2[i];
+  }
+  return 0;
+}
+
+int32_t GetFakeCreatorsV2A(CustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
+  return CopyFakeCreatorsV2ForSt(g_fake_so_a, creators, creator_num, creator_struct_size);
+}
+
+int32_t GetFakeCreatorsV2B(CustomOpTypeToCreator *creators, size_t creator_num, size_t creator_struct_size) {
+  return CopyFakeCreatorsV2ForSt(g_fake_so_b, creators, creator_num, creator_struct_size);
 }
 
 void *ResolveFakeSymbolsForSt(void *handle, const char *symbol) {
@@ -260,8 +309,37 @@ void *ResolveMissingCreatorNumForSt(void *handle, const char *symbol) {
   return ResolveFakeSymbolsForSt(handle, symbol);
 }
 
-CustomOpTypeToCreator MakeCreatorForSt(const char *op_type, const CustomOpCreateFunc creator) {
-  return CustomOpTypeToCreator{sizeof(CustomOpTypeToCreator), op_type, creator};
+void *ResolveFakeSymbolsCommonV2ForSt(void *handle, const char *symbol) {
+  if ((handle == reinterpret_cast<void *>(0xA001U)) && (std::strcmp(symbol, kSymbolAbiVersion) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeAbiVersionV2A);
+  }
+  if ((handle == reinterpret_cast<void *>(0xA001U)) && (std::strcmp(symbol, kSymbolCreatorNum) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeCreatorNumV2A);
+  }
+  if ((handle == reinterpret_cast<void *>(0xA001U)) && (std::strcmp(symbol, kSymbolCreators) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeCreatorsV2A);
+  }
+  if ((handle == reinterpret_cast<void *>(0xB001U)) && (std::strcmp(symbol, kSymbolAbiVersion) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeAbiVersionV2B);
+  }
+  if ((handle == reinterpret_cast<void *>(0xB001U)) && (std::strcmp(symbol, kSymbolCreatorNum) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeCreatorNumV2B);
+  }
+  if ((handle == reinterpret_cast<void *>(0xB001U)) && (std::strcmp(symbol, kSymbolCreators) == 0)) {
+    return reinterpret_cast<void *>(&GetFakeCreatorsV2B);
+  }
+  return nullptr;
+}
+
+void *ResolveIncompleteCommonSymbolsForSt(void *handle, const char *symbol) {
+  if (std::strcmp(symbol, kSymbolAbiVersion) == 0) {
+    return reinterpret_cast<void *>(&GetFakeAbiVersionV2A);
+  }
+  return nullptr;
+}
+
+LegacyCustomOpTypeToCreator MakeCreatorForSt(const char *op_type, const CustomOpCreateFunc creator) {
+  return LegacyCustomOpTypeToCreator{sizeof(LegacyCustomOpTypeToCreator), op_type, creator};
 }
 
 CustomOpSoHandlePtr MakeFakeSoHandleForSt(void *handle, const std::string &name) {
@@ -561,10 +639,10 @@ class TestModelCustomOpsHelper : public testing::Test {
 
   void RunInvalidCreatorTests(const std::shared_ptr<CustomOpRegistry> &registry,
                               const std::vector<CustomOpSoHandlePtr> &so_handles) {
-    const std::vector<CustomOpTypeToCreator> invalid_creators = {
+    const std::vector<LegacyCustomOpTypeToCreator> invalid_creators = {
         MakeCreatorForSt(nullptr, CreateBuilderPullOpA), MakeCreatorForSt("", CreateBuilderPullOpA),
         MakeCreatorForSt(kBuilderPullOpA, nullptr),
-        CustomOpTypeToCreator{sizeof(CustomOpTypeToCreator) - 1U, kBuilderPullOpA, CreateBuilderPullOpA}};
+        LegacyCustomOpTypeToCreator{sizeof(LegacyCustomOpTypeToCreator) - 1U, kBuilderPullOpA, CreateBuilderPullOpA}};
     for (const auto &invalid_creator : invalid_creators) {
       g_fake_so_a = FakeSoCreatorsForSt{};
       g_fake_so_a.creators = {invalid_creator};
@@ -588,15 +666,15 @@ class TestModelCustomOpsHelper : public testing::Test {
   }
 };
 
-TEST_F(TestModelCustomOpsHelper, pull_registry_c_abi_returns_registered_local_creators) {
-  RegisterCustomOpLocalCreator(nullptr, CreatePullRegistryOp);
-  RegisterCustomOpLocalCreator("", CreatePullRegistryOp);
-  RegisterCustomOpLocalCreator(kPullRegistryType, nullptr);
+TEST_F(TestModelCustomOpsHelper, pull_registry_v2_c_abi_returns_registered_local_creators) {
+  RegisterCustomOpLocalCreator(nullptr, OpBackend::kDevice, CreatePullRegistryOp);
+  RegisterCustomOpLocalCreator("", OpBackend::kDevice, CreatePullRegistryOp);
+  RegisterCustomOpLocalCreator(kPullRegistryType, OpBackend::kDevice, nullptr);
 
   const size_t creator_num_before = GetRegisteredCustomOpCreatorNum();
-  RegisterCustomOpLocalCreator(kPullRegistryType, CreatePullRegistryOp);
+  RegisterCustomOpLocalCreator(kPullRegistryType, OpBackend::kDevice, CreatePullRegistryOp);
   const size_t creator_num_after = GetRegisteredCustomOpCreatorNum();
-  ASSERT_EQ(GetRegisteredCustomOpCreatorAbiVersion(), kCustomOpCreatorPullAbiVersion);
+  ASSERT_EQ(GetRegisteredCustomOpCreatorAbiVersion(), kCustomOpCreatorPullAbiVersionV2);
   ASSERT_EQ(creator_num_after, creator_num_before + 1U);
   EXPECT_NE(GetRegisteredCustomOpCreators(nullptr, creator_num_after, sizeof(CustomOpTypeToCreator)), 0);
 
@@ -610,6 +688,7 @@ TEST_F(TestModelCustomOpsHelper, pull_registry_c_abi_returns_registered_local_cr
   });
   ASSERT_NE(iter, creators.end());
   EXPECT_EQ(iter->struct_size, sizeof(CustomOpTypeToCreator));
+  EXPECT_EQ(iter->backend, OpBackend::kDevice);
   EXPECT_EQ(iter->creator, CreatePullRegistryOp);
   std::unique_ptr<BaseCustomOp> op(iter->creator());
   EXPECT_NE(dynamic_cast<PortableOpForSerializeSuccess *>(op.get()), nullptr);
@@ -621,8 +700,42 @@ TEST_F(TestModelCustomOpsHelper, custom_op_creator_register_registers_local_and_
   (void)creator_register;
   EXPECT_EQ(GetRegisteredCustomOpCreatorNum(), creator_num_before + 1U);
   EXPECT_TRUE(CustomOpFactory::IsExistOp(kCreatorRegisterType));
-  EXPECT_NE(dynamic_cast<PortableOpForSerializeSuccess *>(CustomOpFactory::CreateOrGetCustomOp(kCreatorRegisterType)),
+  EXPECT_NE(dynamic_cast<PortableOpForSerializeSuccess *>(
+                CustomOpFactory::CreateOrGetCustomOp(kCreatorRegisterType, OpBackend::kDevice)),
             nullptr);
+}
+
+TEST_F(TestModelCustomOpsHelper, custom_op_registry_builder_covers_v2_backend_creators) {
+  auto registry = std::make_shared<CustomOpRegistry>();
+  const auto so_handle = MakeFakeSoHandleForSt(reinterpret_cast<void *>(0xA001U), "fake_a");
+
+  g_fake_so_a.creators_v2 = {
+      CustomOpTypeToCreator{sizeof(CustomOpTypeToCreator), kBuilderPullOpA, CreateBuilderPullOpA, OpBackend::kDevice},
+      CustomOpTypeToCreator{sizeof(CustomOpTypeToCreator), kBuilderPullOpA, CreateBuilderPullOpB, OpBackend::kHostCPU}};
+  EXPECT_EQ(CustomOpRegistryBuilder::AddCreatorsFromSoHandles({so_handle}, registry, ResolveFakeSymbolsCommonV2ForSt),
+            SUCCESS);
+  EXPECT_TRUE(registry->HasCreator(kBuilderPullOpA, OpBackend::kDevice));
+  EXPECT_TRUE(registry->HasCreator(kBuilderPullOpA, OpBackend::kHostCPU));
+  EXPECT_NE(registry->CreateOrGetCustomOp(kBuilderPullOpA, OpBackend::kDevice), nullptr);
+  EXPECT_NE(registry->CreateOrGetCustomOp(kBuilderPullOpA, OpBackend::kHostCPU), nullptr);
+
+  registry = std::make_shared<CustomOpRegistry>();
+  g_fake_so_a = FakeSoCreatorsForSt{};
+  g_fake_so_a.abi_version_v2 = kCustomOpCreatorPullAbiVersionV2 + 1U;
+  EXPECT_NE(CustomOpRegistryBuilder::AddCreatorsFromSoHandles({so_handle}, registry, ResolveFakeSymbolsCommonV2ForSt),
+            SUCCESS);
+
+  registry = std::make_shared<CustomOpRegistry>();
+  g_fake_so_a = FakeSoCreatorsForSt{};
+  EXPECT_NE(
+      CustomOpRegistryBuilder::AddCreatorsFromSoHandles({so_handle}, registry, ResolveIncompleteCommonSymbolsForSt),
+      SUCCESS);
+
+  registry = std::make_shared<CustomOpRegistry>();
+  g_fake_so_a = FakeSoCreatorsForSt{};
+  g_fake_so_a.get_creators_ret = -1;
+  EXPECT_NE(CustomOpRegistryBuilder::AddCreatorsFromSoHandles({so_handle}, registry, ResolveFakeSymbolsCommonV2ForSt),
+            SUCCESS);
 }
 
 TEST_F(TestModelCustomOpsHelper, custom_op_registry_builder_covers_pull_creator_success_and_failures) {
@@ -660,8 +773,10 @@ TEST_F(TestModelCustomOpsHelper, custom_op_registry_builder_covers_pull_creator_
   EXPECT_EQ(CustomOpRegistryBuilder::AddCreatorsFromSoHandles(so_handles, registry, ResolveFakeSymbolsForSt), SUCCESS);
   EXPECT_TRUE(registry->HasCreator(kBuilderPullOpA));
   EXPECT_TRUE(registry->HasCreator(kBuilderPullOpB));
-  EXPECT_NE(dynamic_cast<BuilderPullOpA *>(registry->CreateOrGetCustomOp(kBuilderPullOpA)), nullptr);
-  EXPECT_NE(dynamic_cast<BuilderPullOpB *>(registry->CreateOrGetCustomOp(kBuilderPullOpB)), nullptr);
+  EXPECT_NE(dynamic_cast<BuilderPullOpA *>(registry->CreateOrGetCustomOp(kBuilderPullOpA, OpBackend::kDevice)),
+            nullptr);
+  EXPECT_NE(dynamic_cast<BuilderPullOpB *>(registry->CreateOrGetCustomOp(kBuilderPullOpB, OpBackend::kDevice)),
+            nullptr);
 }
 
 TEST_F(TestModelCustomOpsHelper, collect_used_custom_op_types_collects_root_subgraph_and_skips_invalid_subgraphs) {
@@ -793,7 +908,7 @@ TEST_F(TestModelCustomOpsHelper, load_custom_ops_to_registry_uses_given_registry
   const auto payload = BuildCustomKernelPartitionPayload(kLoadToRegistryType, serialized_bin);
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                kLoadToRegistryType,
+                kLoadToRegistryType, OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<PortableOpForDeserializeRecord>(); }),
             GRAPH_SUCCESS);
   ASSERT_FALSE(CustomOpFactory::IsExistOp(kLoadToRegistryType));
@@ -804,7 +919,7 @@ TEST_F(TestModelCustomOpsHelper, load_custom_ops_to_registry_uses_given_registry
 
   EXPECT_EQ(g_deserialize_called_count, 1U);
   EXPECT_EQ(g_last_deserialize_bin_size, serialized_bin.size());
-  EXPECT_NE(registry->FindCustomOp(kLoadToRegistryType), nullptr);
+  EXPECT_TRUE(registry->HasCustomOp(kLoadToRegistryType));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(kLoadToRegistryType));
 }
 

@@ -113,7 +113,10 @@ inline py::list BuildIntListList(const gert::ContinuousVectorVector *value) {
 class BorrowedRuntimeAttrs {
  public:
   BorrowedRuntimeAttrs(const gert::RuntimeAttrs *attrs, std::shared_ptr<bool> valid)
-      : attrs_(attrs), valid_(std::move(valid)) {}
+      : BorrowedRuntimeAttrs(attrs, std::move(valid), false) {}
+
+  BorrowedRuntimeAttrs(const gert::RuntimeAttrs *attrs, std::shared_ptr<bool> valid, bool read_only)
+      : attrs_(attrs), valid_(std::move(valid)), read_only_(read_only) {}
 
   int64_t GetInt(size_t index) const {
     return *runtime_attrs_binding_detail::GetRequiredAttr<int64_t>(Get(), index, "VT_INT");
@@ -133,6 +136,9 @@ class BorrowedRuntimeAttrs {
   }
   py::object GetTensor(size_t index) const {
     const auto *tensor = runtime_attrs_binding_detail::GetRequiredAttr<gert::Tensor>(Get(), index, "VT_TENSOR");
+    if (read_only_) {
+      return py::cast(runtime_attrs_binding_detail::runtime_native::NativeTensor::Borrow(tensor, valid_));
+    }
     return py::cast(
         runtime_attrs_binding_detail::runtime_native::NativeTensor::Borrow(const_cast<gert::Tensor *>(tensor), valid_));
   }
@@ -171,6 +177,7 @@ class BorrowedRuntimeAttrs {
 
   const gert::RuntimeAttrs *attrs_{nullptr};
   std::shared_ptr<bool> valid_;
+  bool read_only_{false};
 };
 }  // namespace python_custom_op_native
 }  // namespace ge

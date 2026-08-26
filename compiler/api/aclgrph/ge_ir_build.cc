@@ -61,6 +61,7 @@
 #include "graph/fusion/pass/pass_plugin_loader.h"
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "runtime/custom_op/custom_op_loader.h"
+#include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 #include "graph/operator_factory_impl.h"
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
@@ -441,6 +442,7 @@ static graphStatus aclgrphBuildInitializeImpl(std::map<std::string, std::string>
   GE_DISMISSABLE_GUARD(release_python_resources, []() {
     (void)fusion::UnloadPassPlugins();
     (void)ge::custom_op::UnloadCustomOps();
+    ge::UnloadOnnxPythonPluginBridge();
     (void)GePythonRuntimeManager::Instance().ShutdownProcess();
   });
   GE_ASSERT_SUCCESS(ge::custom_op::LoadCustomOps());
@@ -488,6 +490,7 @@ void aclgrphBuildFinalize() {
   // ge_ir_build 生命周期结束时显式关闭 Python bridge so，避免进程退出前长期悬挂。
   (void)fusion::UnloadPassPlugins();
   (void)custom_op::UnloadCustomOps();
+  UnloadOnnxPythonPluginBridge();
   if (ge::GELib::GetInstance() != nullptr && ge::GELib::GetInstance()->InitFlag()) {
     (void)ge::GELib::GetInstance()->Finalize();
   } else {

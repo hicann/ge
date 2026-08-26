@@ -29,6 +29,8 @@
 #include "graph/utils/graph_dump_utils.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "acl/acl_rt.h"
+#include "register/core_num_utils.h"
+#include "exe_graph/lowering/lowering_definitions.h"
 
 namespace gert {
 // Number of stream resources used in dynamic graphs.
@@ -556,6 +558,10 @@ ge::ExecuteGraphPtr ModelConverter::ConvertGeModelToExecuteGraph(const ge::GeRoo
   LoweringGlobalData global_data =
       BuildGlobalData(flatten_graph, std::move(nodes_to_task_defs), std::move(graph_to_static_models),
                       root_model->GetHostResourceCenterPtr().get());
+  CoreNumConfig core_num_config;
+  GE_ASSERT_GRAPH_SUCCESS(
+      ge::CoreNumUtils::GetCoreNumFromGraph(root_graph, core_num_config.aicore_num, core_num_config.vectorcore_num));
+  global_data.SetCoreNumConfig(core_num_config);
   auto custom_op_registry = root_model->GetCustomOpRegistry();
   GE_ASSERT_NOTNULL(custom_op_registry, "Custom op registry of root model is nullptr.");
   global_data.SetCustomOpRegistry(custom_op_registry);

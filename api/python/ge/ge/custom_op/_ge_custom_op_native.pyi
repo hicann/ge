@@ -20,6 +20,8 @@ __all__: List[str] = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "CompilePlatformInfo",
+    "OpCompileContext",
     "InferMetaContext",
     "WorkspaceAddr",
 ]
@@ -163,6 +165,28 @@ class EagerOpExecutionContext:
         GE bridge only; user custom op code should not call this method.
         """
         ...
+
+
+class OpCompileContext:
+    """Borrowed read-only view of ``gert::OpCompileContext``."""
+
+    def get_option(self, option_key: str) -> str: ...
+
+    def _get_platform_info(self) -> CompilePlatformInfo: ...
+
+
+class CompilePlatformInfo:
+    """Borrowed platform information view available during ``compile``."""
+
+    def get_platform_resource(self, group: str, key: str) -> str: ...
+
+    def get_platform_resource_group(self, group: str) -> dict[str, str]: ...
+
+    def get_core_num(self, core_type: Optional[str] = None) -> int: ...
+
+    def get_soc_version(self) -> str: ...
+
+    def get_ai_core_num(self) -> int: ...
 
 
 class WorkspaceAddr:

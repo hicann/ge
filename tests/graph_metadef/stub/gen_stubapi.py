@@ -417,6 +417,14 @@ SKIP_METHODS = [
     "GetAllCustomOpApiSoPaths",
     "CallInitFunc",
     "UpdateFormatImpl",
+    "GetGlobalRegistry",
+    "CreateOrGetCustomOpLocked",
+    "CallInferFuncV1",
+    "CallInferFuncV2",
+    "InferShapeByOutputShapesAttr",
+    "CallInferFormatFuncV1",
+    "CallInferFormatFuncV2",
+    "InferCustomOpShape",
 ]
 
 """

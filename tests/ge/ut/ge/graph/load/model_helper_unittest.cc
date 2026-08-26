@@ -1382,7 +1382,7 @@ TEST_F(UtestModelHelper, LoadCustomOpsWithRegistryShouldNotUseGlobalFactory) {
 
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                kRegistryOnlyPortableOpTypeForModelHelper,
+                kRegistryOnlyPortableOpTypeForModelHelper, OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<ModelHelperPortableOpForUt>(); }),
             GRAPH_SUCCESS);
   ASSERT_FALSE(CustomOpFactory::IsExistOp(kRegistryOnlyPortableOpTypeForModelHelper));
@@ -1471,7 +1471,7 @@ TEST_F(UtestModelHelper, ValidateCustomOpsDeserializedFailsWhenUsedCreatorHasNoI
   ASSERT_NE(ge_root_model, nullptr);
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                kRegistryOnlyPortableOpTypeForModelHelper,
+                kRegistryOnlyPortableOpTypeForModelHelper, OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<ModelHelperPortableOpForUt>(); }),
             GRAPH_SUCCESS);
 
@@ -1484,10 +1484,10 @@ TEST_F(UtestModelHelper, ValidateCustomOpsDeserializedSucceedsWhenUsedCreatorHas
   ASSERT_NE(ge_root_model, nullptr);
   auto registry = std::make_shared<CustomOpRegistry>();
   ASSERT_EQ(registry->RegisterCreator(
-                kRegistryOnlyPortableOpTypeForModelHelper,
+                kRegistryOnlyPortableOpTypeForModelHelper, OpBackend::kDevice,
                 []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<ModelHelperPortableOpForUt>(); }),
             GRAPH_SUCCESS);
-  ASSERT_NE(registry->CreateOrGetCustomOp(kRegistryOnlyPortableOpTypeForModelHelper), nullptr);
+  ASSERT_NE(registry->CreateOrGetCustomOp(kRegistryOnlyPortableOpTypeForModelHelper, OpBackend::kDevice), nullptr);
 
   ModelHelper model_helper;
   EXPECT_EQ(model_helper.ValidateCustomOpsDeserialized(ge_root_model, registry), SUCCESS);
@@ -1587,19 +1587,6 @@ TEST_F(UtestModelHelper, SaveCustomOpsPartitionSerializeFailedReturnsFailed) {
   std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
   ModelHelper model_helper;
   EXPECT_NE(model_helper.SaveCustomOpsPartition(om_file_save_helper, ge_root_model), SUCCESS);
-}
-
-TEST_F(UtestModelHelper, SaveCustomOpsPartitionCreateCustomOpFailedReturnsFailed) {
-  RegisterCustomOpCreatorForModelHelperUt(kUnregisteredPortableOpTypeForModelHelper,
-                                          []() -> std::unique_ptr<BaseCustomOp> { return nullptr; });
-
-  const auto ge_root_model = CreateGeRootModelForModelHelperUt(kUnregisteredPortableOpTypeForModelHelper,
-                                                               kUnregisteredPortableOpTypeForModelHelper);
-  ASSERT_NE(ge_root_model, nullptr);
-
-  std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
-  ModelHelper model_helper;
-  EXPECT_EQ(model_helper.SaveCustomOpsPartition(om_file_save_helper, ge_root_model), FAILED);
 }
 
 TEST_F(UtestModelHelper, SaveCustomOpsPartitionHasSerializablePortableOpsSavesPartition) {

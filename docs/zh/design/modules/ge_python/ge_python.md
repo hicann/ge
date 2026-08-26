@@ -732,7 +732,7 @@ custom_op/
 ├── proto.py                 # Python 自定义算子原型解析、描述符和注册中心
 ├── registry.py              # Python 自定义算子实现注册中心与装饰器
 ├── bootstrap.py             # 插件发现与加载
-├── context.py               # schema-bound execute 的当前执行上下文绑定
+├── context.py               # schema-bound execute/compile 的当前执行上下文绑定
 ├── _bridge.py               # Bridge 运行时辅助（实例管理，供 C++ bridge .so 回调）
 ├── _native.py               # native module 装载与 re-export
 ├── _artifact_utils.py       # 运行时 artifact 选择辅助
@@ -740,11 +740,11 @@ custom_op/
 └── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
 ```
 注：下划线开头的为 Python 风格下的对内模块。
-注：`EagerOpExecutionContext`、`AnnotatedArgsContext` 和 `InferShapeContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期或 `infer_meta` 回调中返回、接收的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
+注：`EagerOpExecutionContext`、`OpCompileContext`、`CompilePlatformInfo`、`AnnotatedArgsContext` 和 `InferShapeContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期、编译期或 `infer_meta` 回调中返回、接收的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
 
 #### 模块定位
 
-Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute` 和 `declare_launch_args` 方法，分别识别执行能力和静态图声明式地址刷新能力，不要求用户类继承任何能力基类。执行入口统一按照 canonical IR 输入、属性顺序绑定，执行上下文通过 `get_execute_ctx()` 在回调内访问。Python 原型通过 `register_op` 注册到 `OperatorFactory` 后，编译期和 RT2 动态 Shape 路径会调用同一 Python `infer_meta` 回调：编译期回写输出 shape、dtype 和 origin dtype，RT2 运行期只回写输出 shape。
+Python 自定义算子的长期目标是支持用户使用 Python 描述自定义算子原型，并实现自定义算子的各类能力。当前通过反射实现类上的可调用 `execute`、`compile` 和 `declare_launch_args` 方法，分别识别执行能力、图编译能力和静态图声明式地址刷新能力，不要求用户类继承任何能力基类。执行入口统一按照 canonical IR 输入、属性顺序绑定，执行上下文通过 `get_execute_ctx()` 在回调内访问；`compile` 和 `declare_launch_args` 按 canonical IR 绑定输入、输出和属性。Python 原型通过 `register_op` 注册到 `OperatorFactory` 后，编译期和 RT2 动态 Shape 路径会调用同一 Python `infer_meta` 回调：编译期回写输出 shape、dtype 和 origin dtype，RT2 运行期只回写输出 shape。
 
 #### 运行时 native artifact 选择
 
@@ -829,7 +829,15 @@ class AnnotatedAddCustom:
 
 同一 AnnotatedArgs task-plan 生命周期只调用一次 `declare_launch_args`，并缓存本次声明形成的 task plan；后续生成阶段只根据当前 `RunContext` 物化缓存的 task plan，不再回调 Python。新的 task-plan 生命周期会重新调用声明方法。每次回调中的 borrowed object 只能在该次回调内使用，不得跨回调复用。编译期把最终选择的刷新方式保存到 `_custom_task_args_mode`，模型加载时以该属性为第一事实来源；没有该属性的旧 OM 保留 registry 查询和 `args_format` 兼容兜底。模型执行路径不调用 Python。
 
-##### 5. OpImplDescriptor 数据类
+##### 5. Python Compile 与编译上下文
+
+**文件位置**: `context.py`、`_native.py`、`_ge_custom_op_native.pyi`
+
+`compile`是图编译期回调，只支持schema-bound形式。GE根据Ascend IR算子原型将输入、输出作为位置参数，将属性作为keyword-only参数传入；返回注解和返回值都必须为`None`。回调通过`get_compile_ctx()`查询编译option，通过`get_compile_platform_info()`查询平台资源、核数和SoC信息。
+
+`OpCompileContext`、`CompilePlatformInfo`、输入输出`Tensor`和属性视图都是当前回调内有效的借用对象，回调返回或抛出异常后失效。编译回调不在模型加载和执行阶段调用，Python实现、实例状态和kernel binary不写入OM。
+
+##### 6. OpImplDescriptor 数据类
 
 **文件位置**: `registry.py`
 
@@ -841,14 +849,14 @@ class AnnotatedAddCustom:
 - `op_type` - 自定义算子类型
 - `module_name` - 所属模块名
 - `class_name` - 类名
-- `interfaces` - 能力接口列表，可包含 `"eager_execute"` 和 `"annotated_args"`
+- `interfaces` - 能力接口列表，可包含 `"eager_execute"`、`"compilable"` 和 `"annotated_args"`
 - `cls` - Python 实现类引用
 
 #### 注册与发现
 
 **装饰器**:
 - `register_op(op_type, mutates_args=())` - 根据被装饰函数的类型标注声明并收集 Python 自定义算子原型；被装饰函数同时作为 `infer_meta` 回调，返回输出 `TensorDesc`
-- `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；`execute` 对应 `eager_execute`，`declare_launch_args` 对应 `annotated_args`
+- `register_op_impl(op_type)` - 注册 Python 实现类，并反射其可调用方法生成能力列表；`execute` 对应 `eager_execute`，`compile` 对应 `compilable`，`declare_launch_args` 对应 `annotated_args`
 
 **发现机制**:
 

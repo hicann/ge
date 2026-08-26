@@ -26,8 +26,86 @@
 #include "kernel/common_kernel_impl/tiling.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/custom_op_registry.h"
+#include "graph/ge_local_context.h"
+#include "register/core_num_utils.h"
 
 namespace gert {
+namespace {
+std::map<std::string, std::string> core_num_options_in_init;
+bool fail_get_platform_info = false;
+
+ge::graphStatus CaptureCoreNumOptions(KernelContext *context) {
+  core_num_options_in_init.clear();
+  gert::CoreNumConfig model_config;
+  if (context->GetInputNum() > 0U) {
+    model_config.aicore_num = context->GetInputValue<int32_t>(0U);
+  }
+  if (context->GetInputNum() > 1U) {
+    model_config.vectorcore_num = context->GetInputValue<int32_t>(1U);
+  }
+  for (const auto &option_name : {ge::AICORE_NUM, ge::kVectorCoreNum}) {
+    std::string value;
+    if (ge::GetThreadLocalContext().GetOption(option_name, value) == ge::GRAPH_SUCCESS) {
+      core_num_options_in_init[option_name] = value;
+    }
+  }
+  if (model_config.aicore_num >= 0) {
+    core_num_options_in_init[ge::AICORE_NUM] = std::to_string(model_config.aicore_num);
+  }
+  if (model_config.vectorcore_num >= 0) {
+    core_num_options_in_init[ge::kVectorCoreNum] = std::to_string(model_config.vectorcore_num);
+  }
+  return fail_get_platform_info ? ge::GRAPH_FAILED : ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus FailKernel(KernelContext *context) {
+  (void)context;
+  return ge::GRAPH_FAILED;
+}
+
+std::unique_ptr<ModelV2Executor> BuildModelExecutorWithCoreNumOptions(const std::string &aicore_num,
+                                                                      const std::string &vectorcore_num,
+                                                                      const bool need_set_stream_core_limits = false) {
+  auto compute_graph = ShareGraph::BuildSingleNodeGraph();
+  (void)ge::AttrUtils::SetBool(compute_graph, "need_set_stream_core_limits", need_set_stream_core_limits);
+  if (compute_graph->TopologicalSorting() != ge::GRAPH_SUCCESS) {
+    return nullptr;
+  }
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  (void)ge::AttrUtils::SetStr(compute_graph, ge::AICORE_NUM, aicore_num);
+  (void)ge::AttrUtils::SetStr(compute_graph, ge::kVectorCoreNum, vectorcore_num);
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  gert::CoreNumConfig core_num_config;
+  if (!aicore_num.empty()) {
+    core_num_config.aicore_num = std::stoi(aicore_num);
+  }
+  if (!vectorcore_num.empty()) {
+    core_num_config.vectorcore_num = std::stoi(vectorcore_num);
+  }
+  global_data.SetCoreNumConfig(core_num_config);
+  auto model_desc_holder = ModelDescHolderFaker().Build();
+  model_desc_holder.SetSpaceRegistry(SpaceRegistryFaker().Build());
+  auto exe_graph = GraphConverter()
+                       .SetModelDescHolder(&model_desc_holder)
+                       .ConvertComputeGraphToExecuteGraph(compute_graph, global_data);
+  if (exe_graph == nullptr) {
+    return nullptr;
+  }
+  return ModelV2Executor::Create(exe_graph, root_model);
+}
+
+ge::graphStatus ExecuteModel(ModelV2Executor &model_executor, const rtStream_t stream) {
+  auto outputs = FakeTensors({2}, 1);
+  auto input0 = FakeValue<Tensor>(
+      Tensor{{{100, 2, 3, 4}, {100, 2, 3, 4}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  auto input1 = FakeValue<Tensor>(
+      Tensor{{{1, 100, 3, 4}, {1, 100, 3, 4}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  std::vector<Tensor *> inputs = {input0.holder.get(), input1.holder.get()};
+  return model_executor.Execute({stream}, inputs.data(), inputs.size(),
+                                reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size());
+}
+}  // namespace
+
 class ModelV2ExecutorBuilderUT : public bg::BgTest {
  public:
   static void CheckSingleNodeGraphModelDesc(ModelV2Executor *model_executor) {
@@ -60,6 +138,205 @@ class ModelV2ExecutorBuilderUT : public bg::BgTest {
     EXPECT_EQ(descs[0].GetOriginShapeRange().GetMax(), Shape({100, 100, 3, 4}));
   }
 };
+
+TEST_F(ModelV2ExecutorBuilderUT, LoadUsesModelCoreNumWithoutUpdatingContext) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+  ge::GetThreadLocalContext().SetGraphOption({{"test.option", "keep"}});
+  ge::GetThreadLocalContext().SetSessionOption({{ge::AICORE_NUM, "4"}});
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  fail_get_platform_info = false;
+  core_num_options_in_init.clear();
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16");
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  EXPECT_EQ(core_num_options_in_init[ge::AICORE_NUM], "8");
+  EXPECT_EQ(core_num_options_in_init[ge::kVectorCoreNum], "16");
+  std::string value;
+  EXPECT_EQ(ge::GetThreadLocalContext().GetOption(ge::AICORE_NUM, value), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(value, "4");
+  EXPECT_NE(ge::GetThreadLocalContext().GetOption(ge::kVectorCoreNum, value), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(ge::GetThreadLocalContext().GetOption("test.option", value), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(value, "keep");
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, LoadLeavesContextUntouchedWhenInitGraphFails) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+  ge::GetThreadLocalContext().SetGraphOption({{"test.option", "keep"}});
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  fail_get_platform_info = true;
+  GE_MAKE_GUARD(reset_fail_get_platform_info, []() { fail_get_platform_info = false; });
+  core_num_options_in_init.clear();
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16");
+  ASSERT_NE(model_executor, nullptr);
+  EXPECT_NE(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  EXPECT_EQ(core_num_options_in_init[ge::AICORE_NUM], "8");
+  EXPECT_EQ(core_num_options_in_init[ge::kVectorCoreNum], "16");
+  std::string value;
+  EXPECT_NE(ge::GetThreadLocalContext().GetOption(ge::AICORE_NUM, value), ge::GRAPH_SUCCESS);
+  EXPECT_NE(ge::GetThreadLocalContext().GetOption(ge::kVectorCoreNum, value), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(ge::GetThreadLocalContext().GetOption("test.option", value), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(value, "keep");
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, ExecuteAppliesModelCoreNumLimitsToActualStream) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+  ge::GetThreadLocalContext().SetSessionOption({{ge::AICORE_NUM, "4"}});
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16", true);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  stub.GetAclRuntimeStub().Clear();
+
+  const auto stream = reinterpret_cast<rtStream_t>(0x1234);
+  ASSERT_EQ(ExecuteModel(*model_executor, stream), ge::GRAPH_SUCCESS);
+
+  const auto &stream_res_limit_records = stub.GetAclRuntimeStub().GetStreamResLimitRecords();
+  ASSERT_EQ(stream_res_limit_records.size(), 2U);
+  EXPECT_EQ(stream_res_limit_records[0].stream, stream);
+  EXPECT_EQ(stream_res_limit_records[0].type, ACL_RT_DEV_RES_CUBE_CORE);
+  EXPECT_EQ(stream_res_limit_records[0].value, 8U);
+  EXPECT_EQ(stream_res_limit_records[1].stream, stream);
+  EXPECT_EQ(stream_res_limit_records[1].type, ACL_RT_DEV_RES_VECTOR_CORE);
+  EXPECT_EQ(stream_res_limit_records[1].value, 16U);
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetUseStreamResRecords(), std::vector<aclrtStream>({stream}));
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetNotUseStreamResRecords(), std::vector<aclrtStream>({stream}));
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, ExecuteSkipsStreamCoreNumLimitsWhenGraphDoesNotNeedThem) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16", false);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  stub.GetAclRuntimeStub().Clear();
+
+  const auto stream = reinterpret_cast<rtStream_t>(0x1234);
+  ASSERT_EQ(ExecuteModel(*model_executor, stream), ge::GRAPH_SUCCESS);
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetStreamResLimitRecords().empty());
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetUseStreamResRecords().empty());
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetNotUseStreamResRecords().empty());
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, ExecuteSkipsStreamCoreNumLimitsWhenCoreNumIsNotConfigured) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("", "", true);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  stub.GetAclRuntimeStub().Clear();
+
+  const auto stream = reinterpret_cast<rtStream_t>(0x1234);
+  ASSERT_EQ(ExecuteModel(*model_executor, stream), ge::GRAPH_SUCCESS);
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetStreamResLimitRecords().empty());
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetUseStreamResRecords().empty());
+  EXPECT_TRUE(stub.GetAclRuntimeStub().GetNotUseStreamResRecords().empty());
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, BuildFailedWhenGraphCoreNumIsInvalid) {
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+
+  auto compute_graph = ShareGraph::BuildSingleNodeGraph();
+  (void)ge::AttrUtils::SetBool(compute_graph, "need_set_stream_core_limits", true);
+  ASSERT_EQ(compute_graph->TopologicalSorting(), ge::GRAPH_SUCCESS);
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  // 根图属性由GE编译期写入, 到加载期仍解析不出来只能是om损坏, 此时应当加载失败而不是静默不控核
+  (void)ge::AttrUtils::SetStr(compute_graph, ge::AICORE_NUM, "invalid_core_num");
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  auto model_desc_holder = ModelDescHolderFaker().Build();
+  model_desc_holder.SetSpaceRegistry(SpaceRegistryFaker().Build());
+  auto exe_graph = GraphConverter()
+                       .SetModelDescHolder(&model_desc_holder)
+                       .ConvertComputeGraphToExecuteGraph(compute_graph, global_data);
+  ASSERT_NE(exe_graph, nullptr);
+
+  EXPECT_EQ(ModelV2Executor::Create(exe_graph, root_model), nullptr);
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, ExecuteUnbindsStreamCoreNumLimitsWhenMainGraphFails) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const", "LaunchKernelWithHandle"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  stub.GetKernelStub().SetUp("LaunchKernelWithHandle", FailKernel);
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16", true);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  stub.GetAclRuntimeStub().Clear();
+
+  const auto stream = reinterpret_cast<rtStream_t>(0x1234);
+  EXPECT_NE(ExecuteModel(*model_executor, stream), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetUseStreamResRecords(), std::vector<aclrtStream>({stream}));
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetNotUseStreamResRecords(), std::vector<aclrtStream>({stream}));
+}
+
+TEST_F(ModelV2ExecutorBuilderUT, ExecuteSyncAppliesModelCoreNumLimitsToDefaultStream) {
+  const auto context_backup = ge::GetThreadLocalContext();
+  GE_MAKE_GUARD(restore_context, [&context_backup]() { ge::GetThreadLocalContext() = context_backup; });
+  ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const"});
+  stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
+  auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16", true);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  stub.GetAclRuntimeStub().Clear();
+
+  auto outputs = FakeTensors({2}, 1);
+  auto input0 = FakeValue<Tensor>(
+      Tensor{{{100, 2, 3, 4}, {100, 2, 3, 4}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  auto input1 = FakeValue<Tensor>(
+      Tensor{{{1, 100, 3, 4}, {1, 100, 3, 4}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  ASSERT_EQ(model_executor->ExecuteSync(std::vector<Tensor *>({input0.holder.get(), input1.holder.get()}).data(), 2,
+                                        reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
+            ge::GRAPH_SUCCESS);
+
+  const auto &stream_res_limit_records = stub.GetAclRuntimeStub().GetStreamResLimitRecords();
+  ASSERT_EQ(stream_res_limit_records.size(), 2U);
+  EXPECT_NE(stream_res_limit_records[0].stream, nullptr);
+  EXPECT_EQ(stream_res_limit_records[0].type, ACL_RT_DEV_RES_CUBE_CORE);
+  EXPECT_EQ(stream_res_limit_records[0].value, 8U);
+  EXPECT_EQ(stream_res_limit_records[1].stream, stream_res_limit_records[0].stream);
+  EXPECT_EQ(stream_res_limit_records[1].type, ACL_RT_DEV_RES_VECTOR_CORE);
+  EXPECT_EQ(stream_res_limit_records[1].value, 16U);
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetUseStreamResRecords(),
+            std::vector<aclrtStream>({stream_res_limit_records[0].stream}));
+  EXPECT_EQ(stub.GetAclRuntimeStub().GetNotUseStreamResRecords(),
+            std::vector<aclrtStream>({stream_res_limit_records[0].stream}));
+}
+
 TEST_F(ModelV2ExecutorBuilderUT, BuildFromSingleNodeGraph) {
   auto compute_graph =
       ShareGraph::BuildSingleNodeGraph("Add", {{-1, 2, 3, 4}, {1, -1, 3, 4}, {-1, -1, 3, 4}, {-1, -1, 3, 4}},

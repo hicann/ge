@@ -42,7 +42,6 @@
 #include <cstdio>
 #include <cstring>
 #include <sstream>
-#include <system_error>
 
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
@@ -53,7 +52,6 @@
 
 namespace ge {
 namespace {
-constexpr const char *kTmpDir = "/tmp";
 constexpr const char *kOm2DumpDir = "/tmp/.tmp_om2_workspace";
 
 static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
@@ -202,11 +200,6 @@ GeRootModelPtr CreateInvalidGeRootModel() {
 
   compute_graph->SetGraphUnknownFlag(false);
   return ge_root_model;
-}
-
-bool IsTmpDirExists() {
-  std::error_code ec;
-  return std::filesystem::is_directory(kTmpDir, ec) && !ec;
 }
 
 std::string GetOm2DumpPath(const std::string &file_name) {
@@ -724,7 +717,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Fail_GenFailedAndRemoveOm2File) {
   ASSERT_NE(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 }
 
-TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DumpGeneratedFiles) {
+TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DoesNotDumpGeneratedFiles) {
   const std::vector<std::string> dump_files = {
       "g1_kernel_reg.cpp",   "g1_resources.cpp", "g1_args_manager.cpp",
       "g1_load_and_run.cpp", "g1_interface.h",   "Makefile",
@@ -760,20 +753,10 @@ TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DumpGeneratedFiles) {
   Om2Codegen codegen;
   ASSERT_NE(codegen.Om2CodegenAndCompile(ge_model, model_data), SUCCESS);
 
-  if (!IsTmpDirExists()) {
-    return;
+  for (const auto &file_name : dump_files) {
+    std::string content;
+    EXPECT_FALSE(ReadOm2DumpFile(file_name, content));
   }
-
-  std::string kernel_reg_content;
-  ASSERT_TRUE(ReadOm2DumpFile("g1_kernel_reg.cpp", kernel_reg_content));
-  EXPECT_NE(kernel_reg_content.find("bad\"kernel_name"), std::string::npos);
-  EXPECT_NE(kernel_reg_content.find("struct AicoreRegisterInfo"), std::string::npos);
-  EXPECT_NE(kernel_reg_content.find("aclError Om2Model::RegisterKernels()"), std::string::npos);
-
-  std::string makefile_content;
-  ASSERT_TRUE(ReadOm2DumpFile("Makefile", makefile_content));
-  EXPECT_NE(makefile_content.find("TARGET := libg1_om2.so"), std::string::npos);
-  EXPECT_NE(makefile_content.find("SRC_FILES := g1_resources.cpp g1_kernel_reg.cpp"), std::string::npos);
 
   for (const auto &file_name : dump_files) {
     RemoveOm2DumpFile(file_name);

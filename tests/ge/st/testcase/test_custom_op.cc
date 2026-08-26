@@ -58,6 +58,7 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op/infer_meta.h"
 #include "graph/custom_op_factory.h"
+#include "graph/custom_op_registry.h"
 #include "graph/custom_op.h"
 #include "graph/operator_factory.h"
 #include "graph/ge_tensor.h"
@@ -68,6 +69,7 @@
 #include "runtime/custom_op/custom_op_loader.h"
 #include "runtime/custom_op/python_custom_op_bridge_loader.h"
 #include "exe_graph/runtime/storage_shape.h"
+#include "exe_graph/runtime/gert_mem_allocator.h"
 #include "faker/kernel_run_context_facker.h"
 #include "register/kernel_registry.h"
 #include "runtime/v2/kernel/common_kernel_impl/infer_shape.h"
@@ -84,6 +86,12 @@ REG_OP(StPythonAnnotatedArgsBadAttrCustomOp)
     .OUTPUT(z, TensorType::ALL())
     .REQUIRED_ATTR(alpha, Int)
     .OP_END_FACTORY_REG(StPythonAnnotatedArgsBadAttrCustomOp);
+
+REG_OP(StPythonCompilableCustomOp)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(z, TensorType::ALL())
+    .REQUIRED_ATTR(bias, Int)
+    .OP_END_FACTORY_REG(StPythonCompilableCustomOp);
 }  // namespace ge
 
 namespace ge {
@@ -181,6 +189,7 @@ void **args_table = nullptr;
 constexpr const char *kPythonCustomOpTypeForSt = "StPythonPybindRemoveCoverageCustomOp";
 constexpr const char *kPythonAnnotatedArgsOpTypeForSt = "StPythonAnnotatedArgsCustomOp";
 constexpr const char *kPythonAnnotatedArgsBadAttrOpTypeForSt = "StPythonAnnotatedArgsBadAttrCustomOp";
+constexpr const char *kPythonCompilableOpTypeForSt = "StPythonCompilableCustomOp";
 constexpr const char *kPythonRt2InferMetaOpTypeForSt = "StPythonRt2InferMetaCustomOp";
 constexpr const char *kInferMetaCoverageOpTypeForSt = "StInferMetaCoverageCustomOp";
 constexpr const char *kEnvPythonCustomOpPath = "ASCEND_CUSTOM_OPP_PATH";
@@ -188,6 +197,8 @@ constexpr const char *kEnvPythonPath = "PYTHONPATH";
 constexpr char kSharedPybindCustomOpPreambleForSt[] = R"PY(from pathlib import Path
 from ge.custom_op import (
     AnnotatedKernelLaunchInfo,
+    get_compile_ctx,
+    get_compile_platform_info,
     get_declare_launch_args_ctx,
     register_op,
     register_op_impl,
@@ -286,6 +297,65 @@ constexpr char kSharedPybindBadAttrCustomOpForSt[] = R"PY(')
 class StPythonAnnotatedArgsBadAttrCustomOp:
     def declare_launch_args(self, x: Tensor, z: Tensor, *, beta: int) -> None:
         pass
+)PY";
+constexpr char kSharedPybindCompilablePreambleForSt[] = R"PY(
+COMPILE_MARKER_FILE = r')PY";
+constexpr char kSharedPybindCompilablePrefixForSt[] = R"PY('
+
+PREVIOUS_COMPILE_OBJECTS = None
+
+@register_op_impl(op_type=')PY";
+constexpr char kSharedPybindCompilableBodyForSt[] = R"PY(')
+class StPythonCompilableCustomOp:
+    def compile(self, x: Tensor, z: Tensor, *, bias: int) -> None:
+        global PREVIOUS_COMPILE_OBJECTS
+        if PREVIOUS_COMPILE_OBJECTS is not None:
+            previous_ctx, previous_platform, previous_tensor, previous_attrs = PREVIOUS_COMPILE_OBJECTS
+            for access in (
+                previous_platform.get_soc_version,
+                lambda: previous_tensor.storage_shape.dims,
+                lambda: previous_attrs.get_int(0),
+            ):
+                try:
+                    access()
+                except RuntimeError:
+                    pass
+                else:
+                    raise AssertionError('compile borrowed object did not expire')
+        ctx = get_compile_ctx()
+        platform = get_compile_platform_info()
+        if ctx._get_required_input_tensor(0).storage_shape.dims != x.storage_shape.dims:
+            raise AssertionError('compile input tensor metadata mismatch')
+        if ctx._get_attrs().get_int(0) != bias:
+            raise AssertionError('compile attribute mismatch')
+        for mutate in (
+            lambda: x.shape.origin_shape.set_dim(0, 2),
+            lambda: x.shape.set_storage_shape(x.shape.storage_shape),
+            lambda: x.format.set_storage_format(2),
+            lambda: x.expand_dims_type.set_expand_index(0),
+        ):
+            try:
+                mutate()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('compile tensor metadata must be read-only')
+        if ctx.get_option('st.python.compile.option') != 'enabled':
+            raise AssertionError('compile option mismatch')
+        if platform.get_platform_resource('version', 'NpuArch') != '2201':
+            raise AssertionError('platform resource mismatch')
+        if platform.get_platform_resource_group('SoCInfo')['ai_core_cnt'] != '24':
+            raise AssertionError('platform resource group mismatch')
+        if platform.get_core_num() != 8:
+            raise AssertionError('core number mismatch')
+        if platform.get_core_num('AiCore') != 8:
+            raise AssertionError('AiCore number mismatch')
+        if platform.get_soc_version() != 'Ascend910B':
+            raise AssertionError('SoC version mismatch')
+        if platform.get_ai_core_num() != 32:
+            raise AssertionError('AI core number mismatch')
+        PREVIOUS_COMPILE_OBJECTS = (ctx, platform, x, ctx._get_attrs())
+        Path(COMPILE_MARKER_FILE).write_text('compiled', encoding='utf-8')
 )PY";
 constexpr char kInvalidSignaturePybindPreambleForSt[] = R"PY(from ge.custom_op import register_op_impl
 from ge.runtime import Tensor
@@ -477,6 +547,12 @@ const std::string &GetSharedPybindCustomOpMarkerFilePathForSt() {
   return path;
 }
 
+const std::string &GetSharedPybindCustomOpCompileMarkerFilePathForSt() {
+  static ScopedTempDirForCustomOpSt dir;
+  static const std::string path = dir.CreateFilePath("pybind_custom_op_compile_marker.txt");
+  return path;
+}
+
 const std::string &GetRt2InferMetaCustomOpFilePathForSt() {
   static ScopedTempDirForCustomOpSt dir;
   static const std::string path = dir.CreateFilePath("rt2_infer_meta_custom_op.py");
@@ -502,7 +578,9 @@ void EnsureSharedPybindCustomOpFileForSt() {
                              GetSharedPybindCustomOpMarkerFilePathForSt() + kSharedPybindEagerCustomOpForSt +
                              kPythonCustomOpTypeForSt + kSharedPybindEagerCustomOpImplForSt + kPythonCustomOpTypeForSt +
                              kSharedPybindAnnotatedArgsPrefixForSt + kPythonAnnotatedArgsOpTypeForSt +
-                             kSharedPybindAnnotatedArgsBodyForSt;
+                             kSharedPybindAnnotatedArgsBodyForSt + kSharedPybindCompilablePreambleForSt +
+                             GetSharedPybindCustomOpCompileMarkerFilePathForSt() + kSharedPybindCompilablePrefixForSt +
+                             kPythonCompilableOpTypeForSt + kSharedPybindCompilableBodyForSt;
     WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(), python_file);
   });
 }
@@ -695,6 +773,60 @@ class InferMetaCoverageCustomOpForSt final : public CustomOpInferMetaProvider {
     return GRAPH_SUCCESS;
   }
 };
+
+class HostCpuStAllocator final : public gert::GertAllocator {
+ public:
+  HostCpuStAllocator() : GertAllocator(-1, gert::kOnHost) {}
+
+  gert::GertMemBlock *Malloc(size_t) override {
+    return nullptr;
+  }
+
+  gert::GertTensorData MallocTensorData(size_t) override {
+    return {};
+  }
+
+  gert::TensorData MallocTensorDataFromL1(size_t size) override {
+    std::unique_ptr<uint8_t[]> block(new uint8_t[size]);
+    auto *address = block.get();
+    blocks_.emplace_back(std::move(block));
+    return gert::TensorData(address, nullptr, size, gert::kOnHost);
+  }
+
+  void Free(gert::GertMemBlock *) override {}
+
+  ge::graphStatus FreeAt(int64_t, gert::GertMemBlock *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  ge::graphStatus ShareFromTensorData(const gert::TensorData &, gert::GertTensorData &) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  int64_t GetStreamNum() override {
+    return 0;
+  }
+
+  ge::graphStatus SetL1Allocator(ge::Allocator *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+ private:
+  std::vector<std::unique_ptr<uint8_t[]>> blocks_;
+};
+
+class StRegistryShapeInferOp : public ShapeInferOp {
+ public:
+  graphStatus InferShape(gert::InferShapeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus InferDataType(gert::InferDataTypeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
+class StRegistryShapeInferOpOther final : public StRegistryShapeInferOp {};
 
 class TestBaseCustomOp : public EagerExecuteOp {
  public:
@@ -1844,8 +1976,10 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringR
   ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
   EXPECT_EQ(custom_op::LoadPythonCustomOps(), FAILED);
   custom_op::UnloadPythonCustomOps();
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt)), nullptr);
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt)), nullptr);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt), OpBackend::kDevice), nullptr);
+  EXPECT_EQ(
+      CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt), OpBackend::kDevice),
+      nullptr);
 }
 
 /**
@@ -1876,7 +2010,7 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
 
   const AscendString op_type(kPythonCustomOpTypeForSt);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
-  auto *op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  auto *op = CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice);
   ASSERT_NE(op, nullptr);
   auto *eager_op = dynamic_cast<EagerExecuteOp *>(op);
   ASSERT_NE(eager_op, nullptr);
@@ -1903,7 +2037,47 @@ TEST_F(CustomOpFactoryStTest, register_and_remove_python_custom_op_proto_and_imp
 
   EXPECT_FALSE(OperatorFactory::IsExistOp(kPythonCustomOpTypeForSt));
   EXPECT_FALSE(CustomOpFactory::IsExistOp(op_type));
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type), nullptr);
+  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice), nullptr);
+}
+
+TEST_F(CustomOpFactoryStTest, PythonCompilableCustomOpRealCallbackCompiles) {
+  EnsureSharedPybindCustomOpFileForSt();
+  const auto &marker_file = GetSharedPybindCustomOpCompileMarkerFilePathForSt();
+  (void)remove(marker_file.c_str());
+  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
+  ScopedGraphOptionsForCustomOpSt scoped_graph_options(
+      std::map<std::string, std::string>{{"st.python.compile.option", "enabled"}});
+
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
+  ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
+
+  const AscendString op_type(kPythonCompilableOpTypeForSt);
+  ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
+  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  ASSERT_NE(base_op, nullptr);
+  EXPECT_NE(CustomOpCast<CompilableOp>(base_op), nullptr);
+
+  auto graph = std::make_shared<ComputeGraph>("st_python_compilable_graph");
+  ASSERT_NE(graph, nullptr);
+  auto op_desc = std::make_shared<OpDesc>("st_python_compilable_node", kPythonCompilableOpTypeForSt);
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrOutput("z", kIrOutputRequired);
+  op_desc->AppendIrAttrName("bias");
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, "bias", 4));
+  GeTensorDesc input_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  input_desc.SetOriginShape(GeShape({1, 16}));
+  GeTensorDesc output_desc(GeShape({1, 16}), FORMAT_ND, DT_FLOAT16);
+  output_desc.SetOriginShape(GeShape({1, 16}));
+  ASSERT_EQ(op_desc->AddInputDesc("x", input_desc), GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc("z", output_desc), GRAPH_SUCCESS);
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+
+  CustomGraphOptimizer optimizer;
+  ASSERT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  ASSERT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  EXPECT_EQ(ReadTextFileForCustomOpSt(marker_file), "compiled");
 }
 
 /**
@@ -1920,7 +2094,8 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpInferMetaRunsThroughRt2WithNativeAtt
   ASSERT_EQ(custom_op::LoadPythonCustomOps(), SUCCESS);
   ScopedLoadedPythonCustomOpsForSt loaded_python_custom_ops;
 
-  auto *base_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt));
+  auto *base_op =
+      CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt), OpBackend::kDevice);
   ASSERT_NE(base_op, nullptr);
 
   gert::StorageShape input_shape({7, 13}, {7, 13});
@@ -1984,6 +2159,89 @@ TEST_F(CustomOpFactoryStTest, CustomOpInferMetaCompilePath) {
   CustomOpFactory::RemoveCustomOps({AscendString(kInferMetaCoverageOpTypeForSt)});
 }
 
+TEST_F(CustomOpFactoryStTest, HostCpuOpExecutionContextMinimalPaths) {
+  gert::Tensor input_tensor = {
+      {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, gert::kOnHost, DT_FLOAT, reinterpret_cast<void *>(0x12345)};
+  gert::Tensor output_tensor;
+  HostCpuStAllocator allocator;
+  auto context_holder = gert::KernelRunContextFaker()
+                            .NodeIoNum(1, 1)
+                            .IrInputNum(1)
+                            .NodeInputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .NodeOutputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
+                            .Inputs({&input_tensor, &allocator})
+                            .Outputs({&output_tensor})
+                            .Build();
+  auto *context = context_holder.GetContext<gert::HostCpuOpExecutionContext>();
+
+  ASSERT_NE(context, nullptr);
+  EXPECT_EQ(context->GetInputTensor(0), &input_tensor);
+  EXPECT_EQ(context->GetOutputTensor(0), &output_tensor);
+
+  auto *allocated_output = context->MallocOutputTensor(0, {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, DT_FLOAT);
+  ASSERT_NE(allocated_output, nullptr);
+  EXPECT_EQ(allocated_output->GetPlacement(), gert::kOnHost);
+  EXPECT_EQ(allocated_output->GetSize(), 512U);
+  EXPECT_NE(allocated_output->GetAddr(), nullptr);
+
+  auto *ref_output = context->MakeOutputRefInput(0, 0);
+  ASSERT_NE(ref_output, nullptr);
+  EXPECT_EQ(ref_output->GetOriginShape(), input_tensor.GetOriginShape());
+  EXPECT_EQ(ref_output->GetStorageShape(), input_tensor.GetStorageShape());
+  EXPECT_EQ(ref_output->GetAddr(), input_tensor.GetAddr());
+}
+
+TEST_F(CustomOpFactoryStTest, CustomOpRegistryCoversCompatibilityAndBackendPaths) {
+  CustomOpRegistry registry;
+  const auto invalid_backend = static_cast<OpBackend>(99U);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryInvalidBackend", invalid_backend,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_PARAM_INVALID);
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryInvalidBackend", invalid_backend), nullptr);
+  EXPECT_FALSE(registry.HasCustomOp("StRegistryMissing"));
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCompatibility", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  auto *const compatibility_op = registry.CreateOrGetCustomOp("StRegistryCompatibility", OpBackend::kDevice);
+  ASSERT_NE(compatibility_op, nullptr);
+  EXPECT_TRUE(registry.HasCustomOp("StRegistryCompatibility"));
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryCompatibility", OpBackend::kHostCPU), nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator("StRegistryNullCreator", OpBackend::kDevice,
+                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.CreateOrGetCustomOp("StRegistryNullCreator", OpBackend::kDevice), nullptr);
+  EXPECT_FALSE(registry.HasCustomOp("StRegistryNullCreator"));
+
+  EXPECT_EQ(registry.GetCustomOpCommonCapability("StRegistryCompatibility", CustomOpCapability::kEagerExecute),
+            nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistrySharedCapability", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistrySharedCapability", OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_NE(registry.GetCustomOpCommonCapability("StRegistrySharedCapability", CustomOpCapability::kShapeInfer),
+            nullptr);
+
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCapabilityConflict", OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.RegisterCreator(
+                "StRegistryCapabilityConflict", OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOpOther>(); }),
+            GRAPH_SUCCESS);
+  EXPECT_EQ(registry.GetCustomOpCommonCapability("StRegistryCapabilityConflict", CustomOpCapability::kShapeInfer),
+            nullptr);
+}
+
 TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef) {
   EnsureSharedPybindCustomOpFileForSt();
   ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath, GetSharedPybindCustomOpFilePathForSt());
@@ -1994,7 +2252,7 @@ TEST_F(CustomOpFactoryStTest, PythonAnnotatedArgsCustomOpLoaderGeneratesTaskDef)
 
   const AscendString op_type(kPythonAnnotatedArgsOpTypeForSt);
   ASSERT_TRUE(CustomOpFactory::IsExistOp(op_type));
-  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type);
+  auto *const base_op = CustomOpFactory::CreateOrGetCustomOp(op_type, OpBackend::kDevice);
   ASSERT_NE(base_op, nullptr);
   EXPECT_NE(CustomOpCast<AnnotatedArgsOp>(base_op), nullptr);
   EXPECT_EQ(CustomOpCast<EagerExecuteOp>(base_op), nullptr);

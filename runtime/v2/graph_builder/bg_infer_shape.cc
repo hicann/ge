@@ -41,7 +41,9 @@ ge::ShapeInferOp *FindShapeInferOpInCustomOpRegistry(const ge::AscendString &op_
                                                      const LoweringGlobalData &global_data) {
   ge::BaseCustomOp *custom_op = nullptr;
   const auto &custom_op_registry = global_data.GetCustomOpRegistry();
-  custom_op = (custom_op_registry == nullptr) ? nullptr : custom_op_registry->CreateOrGetCustomOp(op_type);
+  custom_op = (custom_op_registry == nullptr)
+                  ? nullptr
+                  : custom_op_registry->GetCustomOpCommonCapability(op_type, ge::CustomOpCapability::kShapeInfer);
   return ge::CustomOpCast<ge::ShapeInferOp>(custom_op);
 }
 

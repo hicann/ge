@@ -486,5 +486,52 @@ class EagerOpExecutionContextFaker {
   void *stream_ = nullptr;
   void *execute_func_ = nullptr;
 };
+
+class HostCpuOpExecutionContextFaker {
+ public:
+  HostCpuOpExecutionContextFaker &NodeIoNum(size_t input_num, size_t output_num);
+  HostCpuOpExecutionContextFaker &IrInputNum(size_t input_num) {
+    base_faker_.IrInputNum(input_num);
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &IrInstanceNum(std::vector<uint32_t> instance_num) {
+    base_faker_.IrInstanceNum(std::move(instance_num));
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &IrOutputInstanceNum(std::vector<uint32_t> output_instance_num) {
+    base_faker_.IrOutputInstanceNum(std::move(output_instance_num));
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &NodeInputTd(int32_t index, ge::DataType dt, ge::Format origin_format,
+                                              ge::Format storage_format) {
+    base_faker_.NodeInputTd(index, dt, origin_format, storage_format);
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &NodeOutputTd(int32_t index, ge::DataType dt, ge::Format origin_format,
+                                               ge::Format storage_format) {
+    base_faker_.NodeOutputTd(index, dt, origin_format, storage_format);
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &NodeAttrs(std::vector<std::pair<std::string, ge::AnyValue>> keys_to_value) {
+    base_faker_.NodeAttrs(std::move(keys_to_value));
+    return *this;
+  }
+  HostCpuOpExecutionContextFaker &InputTensor(std::vector<gert::Tensor *> input_tensor);
+  HostCpuOpExecutionContextFaker &OutputTensor(std::vector<gert::Tensor *> output_tensor);
+  HostCpuOpExecutionContextFaker &Allocator(void *allocator);
+  FakeKernelContextHolder Build();
+
+ private:
+  void UpdateInputs();
+  void UpdateOutputs();
+
+ private:
+  enum InputsAppend { kAllocator, kEnd };
+
+  KernelRunContextFaker base_faker_;
+  std::vector<gert::Tensor *> input_tensor_;
+  std::vector<gert::Tensor *> output_tensor_;
+  void *allocator_ = nullptr;
+};
 }  // namespace gert
 #endif  // AIR_CXX_TESTS_UT_GE_RUNTIME_V2_FAKER_KERNEL_RUN_CONTEXT_FACKER_H_

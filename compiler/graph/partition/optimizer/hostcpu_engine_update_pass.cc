@@ -45,6 +45,32 @@ const std::set<std::string> kControlV2Types = {IF, STATELESSIF, CASE, STATELESSC
 const std::set<std::string> kBlackList = {"RandomUniform"};
 const std::set<std::string> kWhiteList = {"MapIndex"};
 
+bool IsUnsupportedHostCpuDataType(const DataType data_type) {
+  switch (data_type) {
+    case DT_STRING:
+    case DT_STRING_REF:
+    case DT_VARIANT:
+    case DT_RESOURCE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool HasUnsupportedHostCpuDataType(const OpDescPtr &op_desc) {
+  for (const auto &tensor_desc : op_desc->GetAllInputsDesc()) {
+    if (IsUnsupportedHostCpuDataType(tensor_desc.GetDataType())) {
+      return true;
+    }
+  }
+  for (const auto &tensor_desc : op_desc->GetAllOutputsDesc()) {
+    if (IsUnsupportedHostCpuDataType(tensor_desc.GetDataType())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool IsGelocalOp(const OpDescPtr &op_desc) {
   return op_desc->GetOpKernelLibName() == kGeLocalOpKernelLibName;
 }
@@ -124,6 +150,11 @@ bool IsOutputSmallEnough(ConstGeTensorDescPtr &tensor_desc, const OpDescPtr &op_
 
 bool IsSupportHostcpu(const OpDescPtr &op_desc) {
   if (kBlackList.count(op_desc->GetType()) > 0U) {
+    return false;
+  }
+  if (HasUnsupportedHostCpuDataType(op_desc)) {
+    GELOGI("[HostcpuEngineUpdatePass]: host cpu does not support node[%s] type[%s] due to unsupported data type.",
+           op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return false;
   }
   auto op_infos = OpsKernelManager::GetInstance().GetOpsKernelInfo(op_desc->GetType());

@@ -22,6 +22,53 @@ set(SRC_LIST
 ############ libfmk_onnx_parser.so ############
 add_library(fmk_onnx_parser SHARED ${SRC_LIST})
 
+add_library(ge_python_onnx_plugin_bridge SHARED
+    "python_onnx_plugin_bridge/onnx_plugin_bridge.cc"
+)
+
+add_dependencies(ge_python_onnx_plugin_bridge
+    parser_protos
+)
+
+target_compile_definitions(ge_python_onnx_plugin_bridge PRIVATE
+    PROTOBUF_INLINE_NOT_IN_HEADERS=0
+    google=ascend_private
+)
+
+target_compile_options(ge_python_onnx_plugin_bridge PRIVATE
+    $<$<BOOL:${ENABLE_GCOV}>:--coverage>
+)
+
+target_include_directories(ge_python_onnx_plugin_bridge PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_BINARY_DIR}/proto/parser_protos
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/inc
+    ${AIR_CODE_DIR}/inc/graph_metadef
+    ${AIR_CODE_DIR}/parser
+    ${AIR_CODE_DIR}/base
+    ${HI_PYTHON_INC}
+    ${pybind11_INCLUDE_DIR}
+)
+
+target_link_libraries(ge_python_onnx_plugin_bridge PRIVATE
+    c_sec_headers
+    c_sec
+    ge_intf_pub
+    parser_common
+    register
+    graph
+    ge_common
+    ascend_protobuf
+    ge_python_embed
+    pybind_options
+    unified_dlog
+    error_manager
+    runtime_headers
+    -ldl
+    $<$<BOOL:${ENABLE_GCOV}>:--coverage>
+)
+
 add_dependencies(fmk_onnx_parser
     parser_protos
 )
@@ -47,6 +94,7 @@ target_include_directories(fmk_onnx_parser PRIVATE
     ${AIR_CODE_DIR}/inc/parser
     ${AIR_CODE_DIR}/parser/parser
     ${AIR_CODE_DIR}/parser/
+    ${AIR_CODE_DIR}/base
 )
 
 target_link_options(fmk_onnx_parser PRIVATE
@@ -64,6 +112,7 @@ target_link_libraries(fmk_onnx_parser
         c_sec
         parser_common
         graph
+        ge_common
         unified_dlog
         -Wl,--as-needed
         json

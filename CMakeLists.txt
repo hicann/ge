@@ -13,9 +13,6 @@ include(cmake/fetch_cann_cmake.cmake)
 project(CANN-GRAPH-ENGINE)
 
 init_cann_project()
-if(NOT DEFINED USE_CXX11_ABI)
-    set(USE_CXX11_ABI 0)
-endif()
 set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH})
 set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH})
 set(BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -80,7 +77,7 @@ cmake_print_variables(CMAKE_INSTALL_PREFIX)
 cmake_print_variables(CMAKE_PREFIX_PATH)
 cmake_print_variables(CMAKE_MODULE_PATH)
 cmake_print_variables(BUILD_COMPONENT)
-cmake_print_variables(ENABLE_BUILD_DEVICE USE_CXX11_ABI CMAKE_TOOLCHAIN_FILE)
+cmake_print_variables(ENABLE_BUILD_DEVICE CANN_CXX11_ABI CMAKE_TOOLCHAIN_FILE)
 cmake_print_variables(CMAKE_CXX_COMPILER_ID)
 
 if(NOT ENABLE_BUILD_DEVICE)
@@ -379,6 +376,7 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
                     ut_libge_symbol_infer_utest
                     ut_libge_others_utest
                     ut_fusion_pass_executor_utest
+                    ut_onnx_plugin_bridge_utest
                     ut_libge_distinct_load_utest
                     ut_libge_kernel_utest
                     ut_libge_label_maker_utest

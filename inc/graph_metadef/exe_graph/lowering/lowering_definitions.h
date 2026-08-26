@@ -10,9 +10,18 @@
 
 #ifndef AIR_CXX_RUNTIME_V2_LOWERING_LOWERING_DEFINITIONS_H_
 #define AIR_CXX_RUNTIME_V2_LOWERING_LOWERING_DEFINITIONS_H_
+#include <cstdint>
+
 #include "graph/types.h"
 
 namespace gert {
+// A model-scoped core-number configuration. A value below zero means that the
+// corresponding option is not persisted in the model.
+struct CoreNumConfig {
+  int32_t aicore_num{-1};
+  int32_t vectorcore_num{-1};
+};
+
 constexpr const ge::char_t *kLoweringInputInfo = "_lowering_input_info";
 constexpr const ge::char_t *kLoweringResult = "_lowering_result";
 constexpr const ge::char_t *kLoweringTensorResult = "_lowering_tensor_result";
