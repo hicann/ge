@@ -230,6 +230,11 @@ ge::Status HcomOpsKernelBuilder::CalcOpRunningParam(ge::Node &node) {
               HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] Calc Op Running Params failed.", HCOM_ERROR_CODE(ret)),
               ge::INTERNAL_ERROR);
 
+  ret = SetAivCoreTypeAttr(node);
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] SetAivCoreTypeAttr failed.", HCOM_ERROR_CODE(ret)),
+              ge::INTERNAL_ERROR);
+
   ret = SetSuperKernelScopeAttr(node);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
@@ -1083,6 +1088,20 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, const std::strin
     CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
     ifAiv = superKernel != "" ? true : false;
     HCCL_INFO("[%s] SPK, superkernel is %s, ifAiv[%d]", __func__, superKernel.c_str(), ifAiv);
+  }
+  return HCCL_SUCCESS;
+}
+
+// 统一设置AIV模式核类型属性，供流分配、SuperKernel校验和tiling识别节点
+HcclResult HcomOpsKernelBuilder::SetAivCoreTypeAttr(ge::Node &node) {
+  auto opDescPtr = node.GetOpDesc();
+  bool ifAiv = false;
+  if (!IsOfflineCompilation()) {
+    CHK_RET(JudgeIsAivMode(node, opDescPtr->GetType(), ifAiv));
+  }
+  if (ifAiv && !ge::AttrUtils::SetStr(opDescPtr, "_cube_vector_core_type", "AIV")) {
+    HCCL_ERROR("[%s] node[%s] set AIV core type attr failed.", __func__, node.GetNamePtr());
+    return HCCL_E_INTERNAL;
   }
   return HCCL_SUCCESS;
 }
