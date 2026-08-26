@@ -88,6 +88,7 @@ static aclError ModelLoadFromMemWithMem(const aclmdlConfigHandle *handle, uint32
 static aclError SetExecHandle(const aclmdlExecConfigHandle *handle, aclrtStream stream, ExecHandleDesc *execDesc) {
   void *workPtr = NULL;
   size_t workSize = 0U;
+  size_t streamWorkSize = 0U;
   if (handle != NULL) {
     if (handle->workPtr != NULL) {
       workPtr = handle->workPtr;
@@ -95,9 +96,9 @@ static aclError SetExecHandle(const aclmdlExecConfigHandle *handle, aclrtStream 
     }
   }
   if ((workPtr == NULL) && (stream != NULL)) {
-    (void)rtStreamGetWorkspace(stream, &workPtr, &workSize);
+    (void)rtStreamGetWorkspace(stream, &workPtr, &streamWorkSize);
   }
-  if (workPtr == NULL) {
+  if ((((handle != NULL) && (handle->workSize != 0)) || (streamWorkSize != 0)) && (workPtr == NULL)) {
     ACL_LOG_ERROR("not set workSpacePtr.");
     return ACL_ERROR_INVALID_PARAM;
   }
