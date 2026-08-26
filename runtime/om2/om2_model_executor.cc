@@ -9,6 +9,7 @@
  */
 
 #include <cinttypes>
+#include <cstddef>
 #include <string>
 #include <fstream>
 #include <regex>
@@ -49,13 +50,63 @@ constexpr size_t kMaxErrorStringLen = 128U;
 constexpr size_t FILE_MAGIC_HEADER_SIZE = 4U;
 constexpr uint8_t OM2_MAGIC[] = {0x50, 0x4B, 0x03, 0x04};
 
-using Om2ModelHandle = void *;
-using CreateFunc = ge::graphStatus (*)(Om2ModelHandle *, rtModel_t *, const char **, const void **, size_t *, int,
-                                       void **, void **, void *, uint64_t *, uint32_t, void *, int32_t);
-using LoadFunc = ge::graphStatus (*)(Om2ModelHandle *);
-using DestroyFunc = ge::graphStatus (*)(Om2ModelHandle *);
-using RunFunc = ge::graphStatus (*)(Om2ModelHandle *, int, void **, int, void **, int32_t, Om2ProfInfos *);
-using RunAsyncFunc = ge::graphStatus (*)(Om2ModelHandle *, rtStream_t, int, void **, int, void **, Om2ProfInfos *);
+using GertModelHandle = void *;
+
+// 入参合并为结构体：首字段 struct_size 版本号，新字段只能追加；整数类型统一 uint64_t
+struct GertModelLoadConfig {                             // 合并 Create+Load：容纳原 Om2ModelCreate 全部参数
+  uint64_t struct_size = sizeof(GertModelLoadConfig);    // 布局变化时更新
+  const char **bin_files = nullptr;                      // 输入：bin 文件路径列表
+  const void **bin_data = nullptr;                       // 输入：bin 内存数据列表
+  uint64_t *bin_size = nullptr;                          // 输入：bin 大小列表
+  uint64_t bin_num = 0;                                  // 输入：bin 数量
+  void **constants = nullptr;                            // 输入：常量
+  void **var_addrs = nullptr;                            // 输入：vars
+  void *work_ptr = nullptr;                              // 输入：工作内存指针
+  uint64_t *session_id = nullptr;                        // 输入：session id
+  uint64_t model_id = 0;                                 // 输入：model id，打印日志用
+  void *instance_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
+  const struct GertModelCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
+  int64_t priority = 0;                                  // 输入：优先级
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size = sizeof(GertModelRunConfig);  // 布局变化时更新
+  uint64_t input_count = 0;                           // 输入数量
+  gert::Tensor **input_data = nullptr;                // 输入数据
+  uint64_t output_count = 0;                          // 输出数量
+  gert::Tensor **output_data = nullptr;               // 输出数据
+  uint64_t stream_sync_timeout_ms = 0;                // Run 使用（同步超时）；RunAsync 置 0
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size = sizeof(GertModelUnloadConfig);  // 布局变化时更新
+};
+
+// ============================================================
+// 接口输出结构：所有接口 Config 为输入，Output 为输出；首字段 struct_size 版本号，新字段只能追加
+// ============================================================
+
+struct GertModelLoadOutput {
+  uint64_t struct_size = sizeof(GertModelLoadOutput);  // 布局变化时更新
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size = sizeof(GertModelRunOutput);  // 布局变化时更新
+  Om2ProfInfos *prof_info = nullptr;                  // 输出：性能 profiling 数据，可空（不使能 profiling 时置空）
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size = sizeof(GertModelUnloadOutput);  // 布局变化时更新
+};
+
+using LoadFunc = int (*)(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                         struct GertModelLoadOutput *output);
+using RunFunc = int (*)(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                        struct GertModelRunOutput *output);
+using RunAsyncFunc = int (*)(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config,
+                             struct GertModelRunOutput *output);
+using UnloadFunc = int (*)(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                           struct GertModelUnloadOutput *output);
 
 struct CustSharedLibInfo {
   std::string so_file;
@@ -71,11 +122,10 @@ struct RunModelInfo {
   std::string model_name;
   std::string root_graph_name;
   std::vector<CustSharedLibInfo> cust_shared_libs;
-  Om2ModelHandle model_handle = nullptr;
+  GertModelHandle model_handle = nullptr;
   rtModel_t rt_model_handle = nullptr;
-  CreateFunc create_func = nullptr;
   LoadFunc load_func = nullptr;
-  DestroyFunc destroy_func = nullptr;
+  UnloadFunc unload_func = nullptr;
   RunFunc run_func = nullptr;
   RunAsyncFunc run_async_func = nullptr;
 };
@@ -875,16 +925,14 @@ class Om2ModelExecutor::Impl {
 
   ge::Status ResolveSymbols() {
     GE_ASSERT_TRUE(run_model_info_.so_handle != nullptr);
-    run_model_info_.create_func = reinterpret_cast<CreateFunc>(mmDlsym(run_model_info_.so_handle, "Om2ModelCreate"));
-    GE_ASSERT_NOTNULL(run_model_info_.create_func);
-    run_model_info_.load_func = reinterpret_cast<LoadFunc>(mmDlsym(run_model_info_.so_handle, "Om2ModelLoad"));
+    run_model_info_.load_func = reinterpret_cast<LoadFunc>(mmDlsym(run_model_info_.so_handle, "GertModelLoad"));
     GE_ASSERT_NOTNULL(run_model_info_.load_func);
-    run_model_info_.destroy_func = reinterpret_cast<DestroyFunc>(mmDlsym(run_model_info_.so_handle, "Om2ModelDestroy"));
-    GE_ASSERT_NOTNULL(run_model_info_.destroy_func);
-    run_model_info_.run_func = reinterpret_cast<RunFunc>(mmDlsym(run_model_info_.so_handle, "Om2ModelRun"));
+    run_model_info_.unload_func = reinterpret_cast<UnloadFunc>(mmDlsym(run_model_info_.so_handle, "GertModelUnload"));
+    GE_ASSERT_NOTNULL(run_model_info_.unload_func);
+    run_model_info_.run_func = reinterpret_cast<RunFunc>(mmDlsym(run_model_info_.so_handle, "GertModelRun"));
     GE_ASSERT_NOTNULL(run_model_info_.run_func);
     run_model_info_.run_async_func =
-        reinterpret_cast<RunAsyncFunc>(mmDlsym(run_model_info_.so_handle, "Om2ModelRunAsync"));
+        reinterpret_cast<RunAsyncFunc>(mmDlsym(run_model_info_.so_handle, "GertModelRunAsync"));
     GE_ASSERT_NOTNULL(run_model_info_.run_async_func);
     return ge::SUCCESS;
   }
@@ -937,7 +985,7 @@ class Om2ModelExecutor::Impl {
     device_id_ = load_arg.device_id;
     std::vector<const char *> bin_files(kernel_bin_info.size());
     std::vector<const void *> bin_data(kernel_bin_info.size());
-    std::vector<size_t> bin_sizes(kernel_bin_info.size());
+    std::vector<uint64_t> bin_sizes(kernel_bin_info.size());
     void *work_ptr = nullptr;
     for (auto i = 0U; i < kernel_bin_info.size(); ++i) {
       bin_files[i] = kernel_bin_info[i].file.c_str();
@@ -962,11 +1010,29 @@ class Om2ModelExecutor::Impl {
     }
 
     GE_ASSERT_SUCCESS(PrepareVarAddrs(model_data, static_cast<uint32_t>(load_arg.device_id), var_addrs));
-    GE_ASSERT_SUCCESS(run_model_info_.create_func(
-        &run_model_info_.model_handle, &run_model_info_.rt_model_handle, bin_files.data(), bin_data.data(),
-        bin_sizes.data(), static_cast<int>(bin_data.size()), constants.empty() ? nullptr : constants.data(),
-        var_addrs.empty() ? nullptr : var_addrs.data(), work_ptr, &session_id_, load_arg.model_id, dump_manager_.get(),
-        load_arg.priority));
+
+    GE_ASSERT_NOTNULL(run_model_info_.load_func);
+    GertModelCallbacks callbacks = {.struct_size = sizeof(GertModelCallbacks),
+                                    .report_task_preprocess = nullptr,
+                                    .report_task_postprocess = nullptr,
+                                    .get_data_dump_enabled = nullptr,
+                                    .report_model_base_info = ReportModelBaseInfo};
+    struct GertModelLoadConfig config = {.struct_size = sizeof(GertModelLoadConfig),
+                                         .bin_files = bin_files.data(),
+                                         .bin_data = bin_data.data(),
+                                         .bin_size = bin_sizes.data(),
+                                         .bin_num = bin_data.size(),
+                                         .constants = constants.empty() ? nullptr : constants.data(),
+                                         .var_addrs = var_addrs.empty() ? nullptr : var_addrs.data(),
+                                         .work_ptr = work_ptr,
+                                         .session_id = &session_id_,
+                                         .model_id = load_arg.model_id,
+                                         .instance_handle = dump_manager_.get(),
+                                         .callbacks = &callbacks,
+                                         .priority = load_arg.priority};
+    GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
+    GE_ASSERT_NOTNULL(run_model_info_.model_handle);
+
     return ge::GRAPH_SUCCESS;
   }
 
@@ -975,11 +1041,10 @@ class Om2ModelExecutor::Impl {
                                           uint64_t session_id) {
     std::vector<void *> constants;
     std::vector<void *> var_addrs;
-    GE_ASSERT_SUCCESS(
-        CreateModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id, constants, var_addrs));
     GE_ASSERT_SUCCESS(InitModelDumpInfo(load_arg));
     ReportModelLoadBegin();
-    GE_ASSERT_SUCCESS(LoadModel());
+    GE_ASSERT_SUCCESS(
+        CreateModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id, constants, var_addrs));
     ReportModelLoadEnd();
     GE_ASSERT_SUCCESS(DispatchDumpInfo());
     weight_buf.reset(nullptr);
@@ -997,14 +1062,14 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status InitModelDumpInfo(const Om2ModelLoadArg &load_arg) {
-    GE_ASSERT_NOTNULL(run_model_info_.rt_model_handle);
     GE_ASSERT_TRUE(dump_manager_ != nullptr);
-    ge::dump::ModelDumpInfo model_dump_info{};
+    ge::dump::ModelDumpInfo &model_dump_info = dump_manager_->GetModelDumpInfo();
     model_dump_info.model_id = load_arg.model_id;
     model_dump_info.model_name = run_model_info_.model_name.c_str();
     model_dump_info.root_graph_name = run_model_info_.root_graph_name.c_str();
     model_dump_info.device_id = static_cast<uint32_t>(load_arg.device_id);
-    model_dump_info.rt_model_handle = run_model_info_.rt_model_handle;
+    // model_dump_info.rt_model_handle will be set value when callback ReportModelBaseInfo was triggered
+    model_dump_info.rt_model_handle = nullptr;
     model_dump_info.step_id_addr = 0U;
     model_dump_info.loop_cond_addr = 0U;
     model_dump_info.iterations_per_loop_addr = 0U;
@@ -1015,7 +1080,6 @@ class Om2ModelExecutor::Impl {
         model_dump_info.model_id, model_dump_info.model_name, model_dump_info.root_graph_name,
         model_dump_info.device_id, model_dump_info.rt_model_handle, model_dump_info.step_id_addr,
         model_dump_info.loop_cond_addr, model_dump_info.iterations_per_loop_addr);
-    GE_ASSERT_SUCCESS(dump_manager_->SetModelDumpInfo(model_dump_info));
     GELOGI("[OM2][Dump] Set model dump info success, model_id=%u.", model_dump_info.model_id);
     return ge::SUCCESS;
   }
@@ -1040,13 +1104,6 @@ class Om2ModelExecutor::Impl {
     }
   }
 
-  ge::Status LoadModel() {
-    GE_ASSERT_NOTNULL(run_model_info_.load_func);
-    GE_ASSERT_NOTNULL(run_model_info_.model_handle);
-    GE_ASSERT_SUCCESS(run_model_info_.load_func(&run_model_info_.model_handle));
-    return ge::SUCCESS;
-  }
-
   ge::Status DispatchDumpInfo() {
     GE_ASSERT_TRUE(dump_manager_ != nullptr);
     GELOGI("[OM2][Dump] Dispatch dump info begin, model_id=%u, model_name=%s, root_graph_name=%s.", model_id_,
@@ -1066,9 +1123,15 @@ class Om2ModelExecutor::Impl {
     Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
     Om2ProfInfos *prof_info_ptr =
         (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
-    GE_ASSERT_SUCCESS(run_model_info_.run_func(&run_model_info_.model_handle, inputs.size(),
-                                               reinterpret_cast<void **>(inputs.data()), outputs.size(),
-                                               reinterpret_cast<void **>(outputs.data()), timeout, prof_info_ptr));
+
+    struct GertModelRunConfig config = {.struct_size = sizeof(GertModelRunConfig),
+                                        .input_count = inputs.size(),
+                                        .input_data = inputs.data(),
+                                        .output_count = outputs.size(),
+                                        .output_data = outputs.data(),
+                                        .stream_sync_timeout_ms = static_cast<uint64_t>(timeout)};
+    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput), .prof_info = prof_info_ptr};
+    GE_ASSERT_SUCCESS(run_model_info_.run_func(run_model_info_.model_handle, &config, &output));
     if (prof_info_ptr != nullptr) {
       GELOGD("[OM2][Prof] Run done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count, step_id_);
       dump_manager_->ReportModelLevelProf(prof_info);
@@ -1087,9 +1150,14 @@ class Om2ModelExecutor::Impl {
     Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
     Om2ProfInfos *prof_info_ptr =
         (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
-    GE_ASSERT_SUCCESS(run_model_info_.run_async_func(&run_model_info_.model_handle, stream, inputs.size(),
-                                                     reinterpret_cast<void **>(inputs.data()), outputs.size(),
-                                                     reinterpret_cast<void **>(outputs.data()), prof_info_ptr));
+    struct GertModelRunConfig config = {.struct_size = sizeof(GertModelRunConfig),
+                                        .input_count = inputs.size(),
+                                        .input_data = inputs.data(),
+                                        .output_count = outputs.size(),
+                                        .output_data = outputs.data(),
+                                        .stream_sync_timeout_ms = 0};
+    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput), .prof_info = prof_info_ptr};
+    GE_ASSERT_SUCCESS(run_model_info_.run_async_func(run_model_info_.model_handle, stream, &config, &output));
     if (prof_info_ptr != nullptr) {
       GELOGD("[OM2][Prof] RunAsync done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count,
              step_id_);
@@ -1332,13 +1400,13 @@ class Om2ModelExecutor::Impl {
     if (dump_manager_ != nullptr) {
       dump_manager_.reset();
     }
-    if (run_model_info_.destroy_func != nullptr && run_model_info_.model_handle != nullptr) {
-      const auto destroy_ret = run_model_info_.destroy_func(&run_model_info_.model_handle);
-      if (destroy_ret != ge::GRAPH_SUCCESS) {
+    if (run_model_info_.unload_func != nullptr && run_model_info_.model_handle != nullptr) {
+      const auto unload_ret = run_model_info_.unload_func(run_model_info_.model_handle, nullptr, nullptr);
+      if (unload_ret != ge::GRAPH_SUCCESS) {
         GELOGI("[OM2] Resource release issue for so file: %s", run_model_info_.so_file.c_str());
       }
     } else {
-      GELOGI("[OM2] Destroy func not found or model not created, so file: %s", run_model_info_.so_file.c_str());
+      GELOGI("[OM2] Unload func not found or model not created, so file: %s", run_model_info_.so_file.c_str());
     }
     if (run_model_info_.so_handle != nullptr) {
       if (mmDlclose(run_model_info_.so_handle) != 0) {

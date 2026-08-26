@@ -75,6 +75,9 @@ class VISIBILITY_EXPORT ModelDumpManager {
   // 模型级信息接口
   // ========================================================================
   Status SetModelDumpInfo(const ModelDumpInfo &model_info);
+  ModelDumpInfo &GetModelDumpInfo() {
+    return model_info_;
+  }
   void SetClearDfxCacheFlagAfterLoad(bool clear_cache);
   Status ReportModelLoadBegin() const;
   Status ReportModelLoadEnd() const;

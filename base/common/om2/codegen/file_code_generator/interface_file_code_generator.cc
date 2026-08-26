@@ -11,24 +11,11 @@
 #include "common/om2/codegen/file_code_generator/interface_file_code_generator.h"
 
 namespace ge {
-TypeAliasDecl *InterfaceFileCodeGenerator::BuildOm2ModelHandleAlias() {
-  return ast_.TypeAlias("void *", "Om2ModelHandle");
-}
-
 StructDecl *InterfaceFileCodeGenerator::BuildBinDataInfoStruct() {
   return ast_.Struct("BinDataInfo", {
                                         ast_.Field("const void *", "data"),
                                         ast_.Field("size_t", "size"),
                                     });
-}
-
-StructDecl *InterfaceFileCodeGenerator::BuildOm2ProfInfosStruct() {
-  return ast_.Struct("Om2ProfInfos", {
-                                         ast_.Field("uint32_t", "version"),
-                                         ast_.Field("uint32_t", "count"),
-                                         ast_.Field("Om2ProfUnit *", "profUnit"),
-                                         ast_.Field("uint64_t", "step_id"),
-                                     });
 }
 
 StructDecl *InterfaceFileCodeGenerator::BuildAicpuParamHeadStruct() {
@@ -125,17 +112,17 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
       ast_.DeclareMethod("~Om2Model", {}, ""),
       ast_.DeclareMethod("InitResources", {}, "aclError"),
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
-      ast_.DeclareMethod("Load", {}, "aclError"),
+      ast_.DeclareMethod("Load", {ast_.Var("const GertModelCallbacks *", "callbacks")}, "aclError"),
       ast_.DeclareMethod("GetRtModelHandle", {}, "aclmdlRI"),
       ast_.DeclareMethod("Run",
-                         {ast_.Var("size_t", "input_count"), ast_.Var("void **", "input_data"),
-                          ast_.Var("size_t", "output_count"), ast_.Var("void **", "output_data"),
+                         {ast_.Var("size_t", "input_count"), ast_.Var("gert::Tensor **", "input_data"),
+                          ast_.Var("size_t", "output_count"), ast_.Var("gert::Tensor **", "output_data"),
                           ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("Om2ProfInfos *", "prof_info")},
                          "aclError"),
       ast_.DeclareMethod("RunAsync",
                          {ast_.Var("aclrtStream &", "exe_stream"), ast_.Var("size_t", "input_count"),
-                          ast_.Var("void **", "input_data"), ast_.Var("size_t", "output_count"),
-                          ast_.Var("void **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
+                          ast_.Var("gert::Tensor **", "input_data"), ast_.Var("size_t", "output_count"),
+                          ast_.Var("gert::Tensor **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
                          "aclError"),
       ast_.DeclareMethod("ReleaseResources", {}, "aclError"),
       ast_.Private(),
@@ -215,28 +202,27 @@ std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildRtForwardDecls() {
 
 std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildExternalApiDecls() {
   return {
+      ast_.TypeAlias("void *", "GertModelHandle"),
       ast_.DeclareFunction(
-          "Om2ModelCreate",
-          {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("aclmdlRI *", "rt_model_handle"),
-           ast_.Var("const char **", "bin_files"), ast_.Var("const void **", "bin_data"),
-           ast_.Var("size_t *", "bin_size"), ast_.Var("int", "bin_num"), ast_.Var("void **", "constants"),
-           ast_.Var("void **", "var_addrs"), ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"),
-           ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle"), ast_.Var("int32_t", "priority")},
-          "aclError"),
-      ast_.DeclareFunction("Om2ModelLoad", {ast_.Var("om2::Om2ModelHandle *", "model_handle")}, "aclError"),
+          "GertModelLoad",
+          {ast_.Var("const struct GertModelLoadConfig *", "config"), ast_.Var("GertModelHandle *", "model_handle"),
+           ast_.Var("struct GertModelLoadOutput *", "output")},
+          "int"),
       ast_.DeclareFunction(
-          "Om2ModelRunAsync",
-          {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("aclrtStream", "stream"),
-           ast_.Var("int", "input_count"), ast_.Var("void **", "input_data"), ast_.Var("int", "output_count"),
-           ast_.Var("void **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
-          "aclError"),
+          "GertModelRunAsync",
+          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("aclrtStream", "stream"),
+           ast_.Var("const struct GertModelRunConfig *", "config"), ast_.Var("struct GertModelRunOutput *", "output")},
+          "int"),
       ast_.DeclareFunction(
-          "Om2ModelRun",
-          {ast_.Var("om2::Om2ModelHandle *", "model_handle"), ast_.Var("int", "input_count"),
-           ast_.Var("void **", "input_data"), ast_.Var("int", "output_count"), ast_.Var("void **", "output_data"),
-           ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("Om2ProfInfos *", "prof_info")},
-          "aclError"),
-      ast_.DeclareFunction("Om2ModelDestroy", {ast_.Var("om2::Om2ModelHandle *", "model_handle")}, "aclError"),
+          "GertModelRun",
+          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelRunConfig *", "config"),
+           ast_.Var("struct GertModelRunOutput *", "output")},
+          "int"),
+      ast_.DeclareFunction(
+          "GertModelUnload",
+          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelUnloadConfig *", "config"),
+           ast_.Var("struct GertModelUnloadOutput *", "output")},
+          "int"),
   };
 }
 }  // namespace ge

@@ -598,6 +598,29 @@ struct Om2TaskInfo {
   uint64_t weight_mem_size;
 };
 
+struct GertModelDumpEnabledInfo {
+  uint64_t struct_size = sizeof(GertModelDumpEnabledInfo);
+  const char *op_name = nullptr;
+  uint64_t enabled = 0;
+};
+
+struct GertModelBaseInfo {
+  uint64_t struct_size = sizeof(GertModelBaseInfo);
+  const void *rt_model_handle = nullptr;
+};
+
+using ReportTaskProcessFunc = int32_t (*)(void *instance_handle, const struct Om2TaskInfo *info);
+using GetDataDumpEnabledInfoFunc = int32_t (*)(void *instance_handle, struct GertModelDumpEnabledInfo *info);
+using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
+
+struct GertModelCallbacks {
+  uint64_t struct_size = sizeof(GertModelCallbacks);
+  ReportTaskProcessFunc report_task_preprocess = nullptr;
+  ReportTaskProcessFunc report_task_postprocess = nullptr;
+  GetDataDumpEnabledInfoFunc get_data_dump_enabled = nullptr;
+  ReportModelBaseInfoFunc report_model_base_info = nullptr;
+};
+
 #pragma pack(push)
 #pragma pack(1)
 struct ProfTraceUserData {
@@ -623,6 +646,55 @@ struct Om2ProfUnit {
   uint32_t thread_id;
 };
 
+struct Om2ProfInfos {
+  uint64_t struct_size = sizeof(Om2ProfInfos);
+  uint64_t count = 0;
+  Om2ProfUnit *prof_unit = nullptr;
+  uint64_t step_id = 0;
+};
+
+struct GertModelLoadConfig {
+  uint64_t struct_size = sizeof(GertModelLoadConfig);
+  const char **bin_files = nullptr;
+  const void **bin_data = nullptr;
+  uint64_t *bin_size = nullptr;
+  uint64_t bin_num = 0;
+  void **constants = nullptr;
+  void **var_addrs = nullptr;
+  void *work_ptr = nullptr;
+  uint64_t *session_id = nullptr;
+  uint64_t model_id = 0; // used for logging
+  void *instance_handle = nullptr;
+  const struct GertModelCallbacks *callbacks = nullptr;
+  int64_t priority = 0;
+};
+
+struct GertModelRunConfig {
+  uint64_t struct_size = sizeof(GertModelRunConfig);
+  uint64_t input_count = 0;
+  gert::Tensor **input_data = nullptr;
+  uint64_t output_count = 0;
+  gert::Tensor **output_data = nullptr;
+  uint64_t stream_sync_timeout_ms = 0;
+};
+
+struct GertModelUnloadConfig {
+  uint64_t struct_size = sizeof(GertModelUnloadConfig);
+};
+
+struct GertModelLoadOutput {
+  uint64_t struct_size = sizeof(GertModelLoadOutput);
+};
+
+struct GertModelRunOutput {
+  uint64_t struct_size = sizeof(GertModelRunOutput);
+  Om2ProfInfos *prof_info = nullptr;
+};
+
+struct GertModelUnloadOutput {
+  uint64_t struct_size = sizeof(GertModelUnloadOutput);
+};
+
 extern "C" {
 __attribute__((weak)) int32_t ReportDfxTaskPreprocess(uint32_t model_id,
                                                        void* instance_handle,
@@ -641,13 +713,6 @@ __attribute__((weak)) int32_t IsDataDumpEnabled(uint32_t model_id,
                                                       const char* op_name,
                                                       uint8_t* is_data_dump);
 }
-
-struct Om2ProfInfos {
-  uint32_t version;
-  uint32_t count;
-  Om2ProfUnit *profUnit;
-  uint64_t step_id;
-};
 
 struct rtLabelDevInfo {
   uint16_t modelId;
@@ -669,8 +734,6 @@ rtError_t rtCmoAddrTaskLaunch(void *cmoAddrInfo, uint64_t destMax, rtCmoOpCode_t
 namespace om2 {
 constexpr int32_t INPUT_NUM = 1;
 constexpr int32_t OUTPUT_NUM = 1;
-typedef void *Om2ModelHandle;
-
 struct BinDataInfo {
   const void *data;
   size_t size;
@@ -1056,10 +1119,10 @@ class Om2Model {
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
-    aclError Load();
+    aclError Load(const GertModelCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
-    aclError Run(size_t input_count, void **input_data, size_t output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
-    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, void **input_data, size_t output_count, void **output_data, Om2ProfInfos *prof_info);
+    aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info);
     aclError ReleaseResources();
   private:
     void **constants_;
@@ -1099,15 +1162,15 @@ class Om2Model {
 extern "C" {
 #endif
 
-aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+typedef void *GertModelHandle;
 
-aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
+int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
 
-aclError Om2ModelRunAsync(om2::Om2ModelHandle *model_handle, aclrtStream stream, int input_count, void **input_data, int output_count, void **output_data, Om2ProfInfos *prof_info);
+int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-aclError Om2ModelRun(om2::Om2ModelHandle *model_handle, int input_count, void **input_data, int output_count, void **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
+int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle);
+int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
 
 #ifdef __cplusplus
 }
