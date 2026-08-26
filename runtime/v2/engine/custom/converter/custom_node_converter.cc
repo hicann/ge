@@ -161,6 +161,15 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
         "FreeMemory", split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kTensorData)], {}));
     output_shapes.emplace_back(split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kShape)]);
     output_addrs.emplace_back(split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kTensorData)]);
+    for (size_t j = 0UL; j < input_addr_holders.size(); j++) {
+      auto guarder = input_addr_holders[j]->GetGuarder();
+      if (guarder != nullptr) {
+        GELOGI("[Dumper] Add dependency from node %s input[%zu] to output[%zu] of node %s.", node->GetNamePtr(), j, i,
+               node->GetNamePtr());
+        GE_ASSERT_HYPER_SUCCESS(bg::ValueHolder::AddDependency(
+            split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kTensorData)], guarder));
+      }
+    }
   }
   LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder(
       "FreeCustomOpWorkspaces", output_tensor_holders[node->GetAllOutDataAnchorsSize()], {allocator_holder}));
