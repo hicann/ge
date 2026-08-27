@@ -131,7 +131,6 @@ gert::Om2ModelLoadArg MakeLoadArg(uint32_t model_id) {
 gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_bytes_path) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.root_graph_name = "test_graph";
   model_data.model_meta.work_size = 1024U;
 
   // Add a minimal input/output descriptor so model desc is valid

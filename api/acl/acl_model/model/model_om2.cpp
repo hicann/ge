@@ -1688,7 +1688,7 @@ const char *aclmdlGetOpAttrImplOm2(aclmdlDesc *modelDesc, const char *opName, co
       return itAttr->second.c_str();
     }
   }
-  return nullptr;
+  return "";
 }
 
 const char *aclmdlGetInputNameByIndexImplOm2(const aclmdlDesc *modelDesc, size_t index) {

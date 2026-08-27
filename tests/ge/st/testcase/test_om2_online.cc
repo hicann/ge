@@ -157,7 +157,6 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_StructureIntegrity) {
 
   // Populate model meta
   model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.root_graph_name = "root_graph";
   model_data.model_meta.work_size = 4096U;
 
   // Populate kernel binaries
@@ -352,7 +351,6 @@ std::vector<uint8_t> ReadFileBytes(const std::string &path) {
 gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "st_om2_test_model";
-  model_data.model_meta.root_graph_name = "test_graph";
   model_data.model_meta.work_size = 1024U;
 
   ge::Om2TensorDesc input_desc;
@@ -828,7 +826,6 @@ TEST_F(Om2OnlineModelExecutorTest, GetCompiledModel_Om2Mode_Success) {
 
   const auto om2_model_data = std::make_shared<gert::Om2ModelData>();
   om2_model_data->model_meta.model_name = "om2_st_model";
-  om2_model_data->model_meta.root_graph_name = "test_graph";
   om2_model_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1})";
   ge_root_model->SetOm2ModelData(om2_model_data);
 

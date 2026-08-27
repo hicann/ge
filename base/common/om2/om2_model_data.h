@@ -52,7 +52,6 @@ using Om2AippInfo = Om2AippMeta;
 /// 模型元数据
 struct Om2ModelMeta {
   std::string model_name;
-  std::string root_graph_name;
   size_t work_size = 0U;
   int64_t zero_copy_size = 0;
   std::vector<ge::Om2TensorDesc> input_desc;
@@ -76,7 +75,7 @@ struct Om2ConstantsData {
 
 /// Debug 信息
 struct Om2DebugInfo {
-  std::map<std::string, std::map<std::string, std::string>> op_attr_map;  // 使用 map 直接存储，避免 JSON 解析开销
+  std::string op_attr_json;
   std::string visual_json;
 };
 

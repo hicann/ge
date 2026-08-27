@@ -154,7 +154,6 @@ std::vector<uint8_t> ReadFileBytes(const std::string &path) {
 gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.root_graph_name = "test_graph";
   model_data.model_meta.work_size = 1024U;
 
   ge::Om2TensorDesc input_desc;
@@ -183,7 +182,6 @@ gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
 gert::Om2ModelData MakeMinimalOm2ModelData(size_t work_size = 1024U, size_t tensor_size = 16U) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "om2_ut_model";
-  model_data.model_meta.root_graph_name = "test_graph";
   model_data.model_meta.work_size = work_size;
 
   ge::Om2TensorDesc input_desc;

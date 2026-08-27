@@ -31,7 +31,6 @@ TEST_F(Om2ModelDataTest, DefaultConstruction) {
 
   // Verify default values for model_meta
   EXPECT_TRUE(model_data.model_meta.model_name.empty());
-  EXPECT_TRUE(model_data.model_meta.root_graph_name.empty());
   EXPECT_EQ(model_data.model_meta.work_size, 0U);
   EXPECT_EQ(model_data.model_meta.zero_copy_size, 0);
   EXPECT_TRUE(model_data.model_meta.input_desc.empty());
@@ -51,7 +50,7 @@ TEST_F(Om2ModelDataTest, DefaultConstruction) {
   EXPECT_TRUE(model_data.kernel_binaries.empty());
 
   // Verify debug_info
-  EXPECT_TRUE(model_data.debug_info.op_attr_map.empty());
+  EXPECT_TRUE(model_data.debug_info.op_attr_json.empty());
   EXPECT_TRUE(model_data.debug_info.visual_json.empty());
 }
 
@@ -84,7 +83,6 @@ TEST_F(Om2ModelDataTest, PopulateModelMeta) {
   Om2ModelData model_data;
 
   model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.root_graph_name = "root_graph";
   model_data.model_meta.work_size = 1024 * 1024;
 
   // Add input descriptors
@@ -113,7 +111,6 @@ TEST_F(Om2ModelDataTest, PopulateModelMeta) {
 
   // Verify
   EXPECT_EQ(model_data.model_meta.model_name, "test_model");
-  EXPECT_EQ(model_data.model_meta.root_graph_name, "root_graph");
   EXPECT_EQ(model_data.model_meta.work_size, 1024 * 1024);
   EXPECT_EQ(model_data.model_meta.input_desc.size(), 1U);
   EXPECT_EQ(model_data.model_meta.input_desc[0].GetName(), "input");
@@ -205,12 +202,12 @@ TEST_F(Om2ModelDataTest, PopulateDebugInfo) {
   Om2ModelData model_data;
 
   model_data.debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1})";
-  model_data.debug_info.op_attr_map["add"] = {{"alpha", "1.0"}, {"beta", "1.0"}};
+  model_data.debug_info.op_attr_json = R"({"add":{"alpha":{"type":"FLOAT","value":1.0}}})";
 
   // Verify
   EXPECT_EQ(model_data.debug_info.visual_json, R"({"format":"ge_visual_json","format_version":1})");
-  ASSERT_EQ(model_data.debug_info.op_attr_map.size(), 1U);
-  EXPECT_EQ(model_data.debug_info.op_attr_map["add"]["alpha"], "1.0");
+  EXPECT_FALSE(model_data.debug_info.op_attr_json.empty());
+  EXPECT_NE(model_data.debug_info.op_attr_json.find("add"), std::string::npos);
 }
 
 // Test populating manifest

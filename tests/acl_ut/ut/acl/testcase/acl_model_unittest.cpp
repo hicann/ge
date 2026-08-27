@@ -17,6 +17,7 @@
 #define private public
 #include "model/acl_resource_manager.h"
 #include "model/acl_resource_manager_om2.h"
+#include "model/acl_model_impl_om2.h"
 #undef private
 #include "model/aipp_param_check.h"
 #include "framework/executor/ge_executor.h"
@@ -5144,6 +5145,25 @@ TEST_F(UTEST_ACL_Model, aclmdlGetOpAttr_NotInOpAttrValueMap_ReturnsNull) {
   desc->opAttrValueMap[opName]["other_attr"] = "some_value";
   result = aclmdlGetOpAttr(desc, opName, attr);
   EXPECT_EQ(result, nullptr);
+
+  aclmdlDestroyDesc(desc);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetOpAttrImplOm2_NotInOpAttrValueMap_ReturnsEmptyString) {
+  aclmdlDesc *desc = aclmdlCreateDesc();
+  EXPECT_NE(desc, nullptr);
+
+  const char *opName = "test_op";
+  const char *attr = "_datadump_original_op_names";
+
+  const char *result = aclmdlGetOpAttrImplOm2(desc, opName, attr);
+  EXPECT_NE(result, nullptr);
+  EXPECT_EQ(std::string(result), "");
+
+  desc->opAttrValueMap[opName]["other_attr"] = "some_value";
+  result = aclmdlGetOpAttrImplOm2(desc, opName, attr);
+  EXPECT_NE(result, nullptr);
+  EXPECT_EQ(std::string(result), "");
 
   aclmdlDestroyDesc(desc);
 }

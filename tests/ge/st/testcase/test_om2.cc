@@ -764,20 +764,17 @@ std::string MakeFakeOm2ManifestJson() {
   return R"({
     "atc_command": "",
     "model_num": 1,
-    "om2_version": "0"
+    "om2_version": "1.0"
 })";
 }
 
 std::string MakeFakeOm2ModelMetaJson() {
   return R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [
       {"data_type": "DT_FLOAT", "format": "NCHW", "index": 0, "name": "data1",
-       "shape": [1, 1, 224, 224], "shape_range": [], "shape_v2": [1, 1, 224, 224], "size": 0},
+       "shape": [1, 1, 224, 224], "shape_range": [], "size": 0},
       {"data_type": "DT_FLOAT", "format": "NCHW", "index": 1, "name": "data2",
-       "shape": [1, 1, 224, 224], "shape_range": [], "shape_v2": [1, 1, 224, 224], "size": 0}
+       "shape": [1, 1, 224, 224], "shape_range": [], "size": 0}
     ],
     "name": "g1",
     "outputs": [
@@ -785,8 +782,7 @@ std::string MakeFakeOm2ModelMetaJson() {
        "shape": [1, 1, 224, 224], "shape_range": [], "size": 0}
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": []
+    "zero_copy_size": 0
 })";
 }
 
@@ -797,10 +793,9 @@ std::string MakeFakeOm2ConstantsConfigJson() {
       "const_0": {
         "index": 0,
         "type": "INTERNAL",
-        "file_name": "",
+        "file_name": "constant_0",
         "offset": 0,
-        "size": 16,
-        "op_name": "const_0"
+        "size": 16
       }
     }
 })";
@@ -996,7 +991,7 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   const auto op_attr = MakeFakeOm2OpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/debug/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", constant_path, false));
   ASSERT_TRUE(zip_writer.WriteFile("data/constants/model_0_constants_config.json", constants_config_path, false));
@@ -1018,7 +1013,7 @@ std::string BuildValidOm2ProtoTxt() {
 void CreateMinimalOm2File(const std::string &path, const std::string &proto_content) {
   ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest = R"({"om2_version":"0","model_num":1})";
+  const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
   ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_proto_00000000_graph_1_test.txt", proto_content.data(),
                                 proto_content.size(), true));
@@ -1029,7 +1024,7 @@ void CreateMinimalOm2File(const std::string &path, const std::string &proto_cont
 void CreateMinimalOm2FileWithoutProto(const std::string &path) {
   ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest = R"({"om2_version":"0","model_num":1})";
+  const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
   ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(writer.SaveModelDataToFile());
   ASSERT_EQ(mmAccess2(path.c_str(), M_F_OK), EOK);
@@ -1586,12 +1581,18 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/op_attr.json",
+      "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
   ExpectGeneratedMakefileSupportsEnvCompiler(archive, kZipFileBaseName);
@@ -1807,7 +1808,7 @@ TEST_F(Om2St, Om2PackageHelper_Ok_ExtractVisualJsonFromMinimalOm2) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1839,7 +1840,7 @@ TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonWithoutVisualJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.SaveModelData(model, false));
   }
@@ -1904,7 +1905,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertMinimalVisualOm2ToJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1928,7 +1929,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertVisualOm2AddsGroupOpName) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1959,7 +1960,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertLooseVisualOm2ToJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -2022,10 +2023,10 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
       "fake_test_atomic/data/model_0/runtime/Makefile",
       "fake_test_atomic/data/model_0/runtime/libg1_om2.so",
       "fake_test_atomic/data/constants/model_0_constants_config.json",
-      "fake_test_atomic/data/kernels_npu_arch/add1_faked_kernel.o",
-      "fake_test_atomic/data/kernels_npu_arch/add1_faked_atomic_kernel.o",
+      "fake_test_atomic/data/kernels/add1_faked_kernel.o",
+      "fake_test_atomic/data/kernels/add1_faked_atomic_kernel.o",
       "fake_test_atomic/data/model_0/model_meta.json",
-      "fake_test_atomic/data/model_0/debug/op_attr.json",
+      "fake_test_atomic/data/model_0/op_attr.json",
       "fake_test_atomic/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
@@ -2062,9 +2063,9 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o",
+      "fake_test/data/kernels/add1_faked_kernel.o",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
@@ -2108,9 +2109,9 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o",
+      "fake_test/data/kernels/add1_faked_kernel.o",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
@@ -2175,8 +2176,7 @@ JsonFile::json BuildRelocateExternalWeightConsts(const std::string &old_weight_p
       .Set("file_name", "")
       .Set("file_path", old_weight_path)
       .Set("offset", 0)
-      .Set("size", 5)
-      .Set("op_name", "file_const");
+      .Set("size", 5);
   consts["file_const"] = file_const.Raw();
   return consts;
 }
@@ -2262,12 +2262,18 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/op_attr.json",
+      "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
 }
@@ -2288,12 +2294,18 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/op_attr.json",
+      "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
 }
@@ -2323,7 +2335,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
@@ -2354,7 +2366,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   int visual_json_count = 0;
@@ -2369,7 +2381,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
       ++visual_json_count;
       continue;
     }
-    if ((file_name.find("fake_test/data/kernels_npu_arch/") != std::string::npos) &&
+    if ((file_name.find("fake_test/data/kernels/") != std::string::npos) &&
         (file_name.find("_CustAicpuKernel.o") != std::string::npos)) {
       found_cust_kernel = true;
       continue;
@@ -2405,7 +2417,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
@@ -2544,12 +2556,18 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/op_attr.json",
+      "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
   GELOGI("Om2St: CMO task packaging succeeded.");
@@ -2570,12 +2588,18 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",    "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",  "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",       "fake_test/data/model_0/runtime/Makefile",
-      "fake_test/data/model_0/runtime/libg1_om2.so",         "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o", "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",           "fake_test/manifest.json",
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/op_attr.json",
+      "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);
   GELOGI("Om2St: Barrier task packaging succeeded.");
@@ -2600,6 +2624,21 @@ TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
     }
   }
 
+  // Add a CASE node to populate dynamic_batch_info so that max_gear_shape is serialized
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  std::vector<int64_t> batch_shape_0 = {1, 1, 224, 224};
+  std::vector<int64_t> batch_shape_1 = {2, 1, 224, 224};
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
+  std::vector<std::string> shape_order = {"data1", "data2"};
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
+  auto case_node = compute_graph->AddNode(case_desc);
+  ASSERT_NE(case_node, nullptr);
+
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, "test_origin_dims.om2"});
   SyncKernelNameForAllModels(ge_root_model);
@@ -2618,14 +2657,15 @@ TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
   const auto &inputs = model_meta_json.Raw().at("inputs");
   ASSERT_GE(inputs.size(), 1U);
   for (const auto &input : inputs) {
-    ASSERT_TRUE(input.contains("origin_input_dims"));
-    const auto &origin_dims = input.at("origin_input_dims");
+    ASSERT_TRUE(input.contains("shape"));
+    ASSERT_TRUE(input.contains("max_gear_shape"));
     const auto &shape = input.at("shape");
-    ASSERT_TRUE(origin_dims.is_array());
+    const auto &max_gear_shape = input.at("max_gear_shape");
     ASSERT_TRUE(shape.is_array());
-    if (!origin_dims.empty()) {
-      EXPECT_EQ(origin_dims[0], JsonFile::json(-1)) << "Dynamic batch axis should be -1 in origin_input_dims";
-      EXPECT_NE(origin_dims[0], shape[0]) << "origin_input_dims should differ from shape for dynamic batch";
+    ASSERT_TRUE(max_gear_shape.is_array());
+    if (!shape.empty()) {
+      EXPECT_EQ(shape[0], JsonFile::json(-1)) << "Dynamic batch axis should be -1 in shape";
+      EXPECT_NE(shape[0], max_gear_shape[0]) << "shape should differ from max_gear_shape for dynamic batch";
     }
   }
 }
@@ -2668,13 +2708,91 @@ TEST_F(Om2St, SaveModelInfo_WithDynamicBatchCase_WritesDynamicBatchInfo) {
   ASSERT_TRUE(model_meta_json.IsValid());
 
   const auto &raw = model_meta_json.Raw();
-  EXPECT_EQ(raw.at("dynamic_type"), JsonFile::json(static_cast<int32_t>(DYNAMIC_BATCH)));
-  ASSERT_EQ(raw.at("dynamic_batch_info").size(), 2U);
-  EXPECT_EQ(raw.at("dynamic_batch_info")[0], JsonFile::json({1, 1, 224, 224}));
-  EXPECT_EQ(raw.at("dynamic_batch_info")[1], JsonFile::json({2, 1, 224, 224}));
-  ASSERT_EQ(raw.at("user_designate_shape_order").size(), 2U);
-  EXPECT_EQ(raw.at("user_designate_shape_order")[0], JsonFile::json("data1"));
-  EXPECT_EQ(raw.at("user_designate_shape_order")[1], JsonFile::json("data2"));
+  ASSERT_TRUE(raw.contains("dynamic_dims"));
+  const auto &dynamic_dims = raw.at("dynamic_dims");
+  EXPECT_EQ(dynamic_dims.at("dynamic_type"), JsonFile::json(static_cast<int32_t>(DYNAMIC_BATCH)));
+  ASSERT_EQ(dynamic_dims.at("user_designate_shape_order").size(), 2U);
+  EXPECT_EQ(dynamic_dims.at("user_designate_shape_order")[0], JsonFile::json("data1"));
+  EXPECT_EQ(dynamic_dims.at("user_designate_shape_order")[1], JsonFile::json("data2"));
+  const auto &gears = dynamic_dims.at("gears");
+  ASSERT_EQ(gears.size(), 2U);
+  EXPECT_EQ(gears[0].at("inputs"), JsonFile::json({1, 1, 224, 224}));
+  EXPECT_EQ(gears[1].at("inputs"), JsonFile::json({2, 1, 224, 224}));
+}
+
+TEST_F(Om2St, SaveModelInfo_WithDynamicOutputShape_WritesGearOutputs) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", {1, 1, 224, 224});
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", {2, 1, 224, 224});
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, {"data"});
+  auto case_node = compute_graph->AddNode(case_desc);
+  ASSERT_NE(case_node, nullptr);
+
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == NETOUTPUT) {
+      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DYNAMIC_OUTPUT_DIMS, {"0,0,1,1000", "1,0,2,1000"});
+    } else if (node->GetType() == "Add") {
+      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES,
+                                  {"original_add_1", "original_add_2"});
+    }
+  }
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_output_shape.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf =
+      archive.ExtractToMem("test_dynamic_output_shape/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  const auto &gears = model_meta_json.Raw().at("dynamic_dims").at("gears");
+  ASSERT_EQ(gears.size(), 2U);
+  ASSERT_TRUE(gears[0].contains("outputs"));
+  const auto &gear0_outputs = gears[0].at("outputs");
+  ASSERT_TRUE(gear0_outputs.is_array());
+  ASSERT_GE(gear0_outputs.size(), 1U);
+  EXPECT_EQ(gear0_outputs[0], JsonFile::json::array({1, 1000}));
+  ASSERT_TRUE(gears[1].contains("outputs"));
+  const auto &gear1_outputs = gears[1].at("outputs");
+  ASSERT_GE(gear1_outputs.size(), 1U);
+  EXPECT_EQ(gear1_outputs[0], JsonFile::json::array({2, 1000}));
+
+  size_t op_attr_size = 0;
+  const auto op_attr_buf = archive.ExtractToMem("test_dynamic_output_shape/data/model_0/op_attr.json", op_attr_size);
+  ASSERT_NE(op_attr_buf, nullptr);
+  const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
+  ASSERT_TRUE(op_attr_json.IsValid());
+  const auto &op_attr_raw = op_attr_json.Raw();
+  bool found_dump_attr = false;
+  for (auto it = op_attr_raw.begin(); it != op_attr_raw.end(); ++it) {
+    if (it.value().is_object() && it.value().contains(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES)) {
+      const auto &attr_obj = it.value().at(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES);
+      EXPECT_EQ(attr_obj.at("type"), "LIST_STRING");
+      EXPECT_TRUE(attr_obj.at("value").is_array());
+      EXPECT_EQ(attr_obj.at("value").size(), 2U);
+      found_dump_attr = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_dump_attr);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
@@ -2705,10 +2823,10 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
       "fake_test/data/model_0/runtime/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o",
-      "fake_test/data/kernels_npu_arch/add1_faked_atomic_kernel.o",
+      "fake_test/data/kernels/add1_faked_kernel.o",
+      "fake_test/data/kernels/add1_faked_atomic_kernel.o",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
   };
   ExpectOm2ArchiveFiles(archive, expect_files);

@@ -457,9 +457,9 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
-      "fake_test/data/kernels_npu_arch/add1_faked_kernel.o",
+      "fake_test/data/kernels/add1_faked_kernel.o",
       "fake_test/data/model_0/model_meta.json",
-      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/data/model_0/op_attr.json",
       "fake_test/data/model_0/debug/ge_visual_00000000_graph_0.json",
       "fake_test/manifest.json",
   };
@@ -498,12 +498,12 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   std::string atc_command;
   ASSERT_TRUE(manifest_json.Get("atc_command", atc_command));
   EXPECT_EQ(atc_command, "");
-  std::string model_num;
+  int model_num;
   ASSERT_TRUE(manifest_json.Get("model_num", model_num));
-  EXPECT_EQ(model_num, "1");
+  EXPECT_EQ(model_num, 1);
   std::string om2_version;
   ASSERT_TRUE(manifest_json.Get("om2_version", om2_version));
-  EXPECT_EQ(om2_version, "0");
+  EXPECT_EQ(om2_version, "1.0");
 
   size_t model_meta_size = 0;
   const auto model_meta_buf = archive.ExtractToMem("fake_test/data/model_0/model_meta.json", model_meta_size);
@@ -511,13 +511,8 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
   ASSERT_TRUE(model_meta_json.IsValid());
   EXPECT_EQ(model_meta_json.Raw().at("name"), JsonFile::json("g1"));
-  EXPECT_EQ(model_meta_json.Raw().at("root_graph_name"), JsonFile::json("root_g1"));
-  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info"), JsonFile::json::array());
-  EXPECT_EQ(model_meta_json.Raw().at("dynamic_output_shape"), JsonFile::json::array());
-  EXPECT_EQ(model_meta_json.Raw().at("dynamic_type"), JsonFile::json(0));
   EXPECT_EQ(model_meta_json.Raw().at("work_size"), JsonFile::json(2048));
   EXPECT_EQ(model_meta_json.Raw().at("zero_copy_size"), JsonFile::json(0));
-  EXPECT_EQ(model_meta_json.Raw().at("user_designate_shape_order"), JsonFile::json::array());
 
   const JsonFile::json expected_inputs = JsonFile::json::array({
       {{"data_type", "DT_FLOAT"},
@@ -526,8 +521,6 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
        {"name", "data1"},
        {"shape", JsonFile::json::array({1, 2, 3, 4})},
        {"shape_range", JsonFile::json::array()},
-       {"shape_v2", JsonFile::json::array({1, 2, 3, 4})},
-       {"origin_input_dims", JsonFile::json::array({1, 2, 3, 4})},
        {"size", 0}},
       {{"data_type", "DT_FLOAT"},
        {"format", "NCHW"},
@@ -535,8 +528,6 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
        {"name", "data2"},
        {"shape", JsonFile::json::array({1, 1, 224, 224})},
        {"shape_range", JsonFile::json::array()},
-       {"shape_v2", JsonFile::json::array({1, 1, 224, 224})},
-       {"origin_input_dims", JsonFile::json::array({1, 1, 224, 224})},
        {"size", 0}},
   });
   EXPECT_EQ(model_meta_json.Raw().at("inputs"), expected_inputs);
@@ -569,15 +560,13 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   EXPECT_EQ(consts.at("constant_0").at("index"), JsonFile::json(0));
   EXPECT_EQ(consts.at("constant_0").at("type"), JsonFile::json("INTERNAL"));
   EXPECT_FALSE(consts.at("constant_0").contains("external"));
-  EXPECT_EQ(consts.at("constant_0").at("file_name"), JsonFile::json(""));
-  EXPECT_EQ(consts.at("constant_0").at("op_name"), JsonFile::json(""));
+  EXPECT_EQ(consts.at("constant_0").at("file_name"), JsonFile::json("constant_0"));
   EXPECT_EQ(consts.at("constant_0").at("offset"), JsonFile::json(0));
   EXPECT_EQ(consts.at("constant_0").at("size"), JsonFile::json(200704));
   EXPECT_EQ(consts.at("constant_1").at("index"), JsonFile::json(1));
   EXPECT_EQ(consts.at("constant_1").at("type"), JsonFile::json("INTERNAL"));
   EXPECT_FALSE(consts.at("constant_1").contains("external"));
-  EXPECT_EQ(consts.at("constant_1").at("file_name"), JsonFile::json(""));
-  EXPECT_EQ(consts.at("constant_1").at("op_name"), JsonFile::json(""));
+  EXPECT_EQ(consts.at("constant_1").at("file_name"), JsonFile::json("constant_0"));
   EXPECT_EQ(consts.at("constant_1").at("offset"), JsonFile::json(200704));
   EXPECT_EQ(consts.at("constant_1").at("size"), JsonFile::json(200704));
 }
@@ -647,9 +636,9 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
       "g1/data/model_0/runtime/libg1_om2.so",
       "g1/data/constants/constant_0",
       "g1/data/constants/model_0_constants_config.json",
-      "g1/data/kernels_npu_arch/add1_faked_kernel.o",
+      "g1/data/kernels/add1_faked_kernel.o",
       "g1/data/model_0/model_meta.json",
-      "g1/data/model_0/debug/op_attr.json",
+      "g1/data/model_0/op_attr.json",
       "g1/data/model_0/debug/ge_visual_00000000_graph_0.json",
       "g1/manifest.json",
   };
@@ -798,14 +787,12 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
   const auto &internal_const = consts.at("constant_1");
   EXPECT_EQ(internal_const.at("index"), JsonFile::json(1));
   EXPECT_EQ(internal_const.at("type"), JsonFile::json("INTERNAL"));
-  EXPECT_EQ(internal_const.at("file_name"), JsonFile::json(""));
-  EXPECT_EQ(internal_const.at("op_name"), JsonFile::json(""));
+  EXPECT_EQ(internal_const.at("file_name"), JsonFile::json("constant_0"));
   EXPECT_EQ(internal_const.at("offset"), JsonFile::json(0));
   EXPECT_EQ(internal_const.at("size"), JsonFile::json(200704));
   EXPECT_FALSE(internal_const.contains("file_path"));
 
   const auto &file_const = consts.at("data2");
-  EXPECT_EQ(file_const.at("op_name"), JsonFile::json("data2"));
   EXPECT_EQ(file_const.at("index"), JsonFile::json(0));
   EXPECT_EQ(file_const.at("type"), JsonFile::json("COMBINED"));
   EXPECT_EQ(file_const.at("file_name"), JsonFile::json("weight_combined.bin"));
@@ -846,8 +833,7 @@ TEST_F(Om2PackageHelperUt, RelocateExternalWeights_SkipInvalidConstItemsAndCompr
         .Set("file_name", "")
         .Set("file_path", old_weight_path)
         .Set("offset", 0)
-        .Set("size", 6)
-        .Set("op_name", "basename_const");
+        .Set("size", 6);
     consts["basename_const"] = basename_const.Raw();
 
     JsonFile constants_config;
@@ -934,7 +920,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_WithAttr_GenValidOpAttrJson) {
   ASSERT_TRUE(archive.IsGood());
 
   size_t op_attr_size = 0;
-  const auto op_attr_buf = archive.ExtractToMem("test_op_attr/data/model_0/debug/op_attr.json", op_attr_size);
+  const auto op_attr_buf = archive.ExtractToMem("test_op_attr/data/model_0/op_attr.json", op_attr_size);
   ASSERT_NE(op_attr_buf, nullptr);
 
   const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
@@ -950,8 +936,12 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_WithAttr_GenValidOpAttrJson) {
   EXPECT_TRUE(op_attr.contains("_datadump_original_op_names"));
 
   const auto &attr_value = op_attr.at("_datadump_original_op_names");
-  EXPECT_TRUE(attr_value.is_string());
-  EXPECT_EQ(attr_value.get<std::string>(), "[12]original_op1[12]original_op2");
+  EXPECT_TRUE(attr_value.is_object());
+  EXPECT_EQ(attr_value.at("type"), "LIST_STRING");
+  EXPECT_TRUE(attr_value.at("value").is_array());
+  EXPECT_EQ(attr_value.at("value").size(), 2U);
+  EXPECT_EQ(attr_value.at("value")[0], "original_op1");
+  EXPECT_EQ(attr_value.at("value")[1], "original_op2");
 }
 
 TEST_F(Om2PackageHelperUt, SaveOpAttrJson_NoAttr_GenEmptyOpAttrJson) {
@@ -972,7 +962,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_NoAttr_GenEmptyOpAttrJson) {
   ASSERT_TRUE(archive.IsGood());
 
   size_t op_attr_size = 0;
-  const auto op_attr_buf = archive.ExtractToMem("test_empty_attr/data/model_0/debug/op_attr.json", op_attr_size);
+  const auto op_attr_buf = archive.ExtractToMem("test_empty_attr/data/model_0/op_attr.json", op_attr_size);
   ASSERT_NE(op_attr_buf, nullptr);
 
   const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
@@ -1014,7 +1004,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_EmptyOriginalOpNames_GenValidOpAttrJso
   ASSERT_TRUE(archive.IsGood());
 
   size_t op_attr_size = 0;
-  const auto op_attr_buf = archive.ExtractToMem("test_empty_list_attr/data/model_0/debug/op_attr.json", op_attr_size);
+  const auto op_attr_buf = archive.ExtractToMem("test_empty_list_attr/data/model_0/op_attr.json", op_attr_size);
   ASSERT_NE(op_attr_buf, nullptr);
 
   const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(op_attr_buf.get()), op_attr_size);
@@ -1096,7 +1086,7 @@ TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_NoVisualJson) {
   {
     ZipArchiveWriter writer(zip_path);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"0","model_num":1})";
+    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ModelBufferData buf;
     ASSERT_TRUE(writer.SaveModelData(buf, true));
@@ -1263,15 +1253,25 @@ TEST_F(Om2PackageHelperUt, BuildDebugInfo_DumpOriginOpNames) {
   gert::Om2ModelData model_data;
   gert::Om2DebugInfo &debug_info = model_data.debug_info;
   ASSERT_EQ(om2_packager.BuildDebugInfo(ge_model, model_data), SUCCESS);
-  ASSERT_FALSE(debug_info.op_attr_map.empty());
+  ASSERT_FALSE(debug_info.op_attr_json.empty());
+
+  const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(debug_info.op_attr_json.data()),
+                              debug_info.op_attr_json.size());
+  ASSERT_TRUE(op_attr_json.IsValid());
+  const auto &raw_json = op_attr_json.Raw();
+  EXPECT_TRUE(raw_json.is_object());
 
   bool found = false;
-  for (const auto &[op_name, attrs] : debug_info.op_attr_map) {
-    auto it = attrs.find(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES);
-    if (it != attrs.end()) {
+  for (auto it = raw_json.begin(); it != raw_json.end(); ++it) {
+    if (it.value().is_object() && it.value().contains(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES)) {
+      const auto &attr_obj = it.value().at(ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES);
+      EXPECT_EQ(attr_obj.at("type"), "LIST_STRING");
+      EXPECT_TRUE(attr_obj.at("value").is_array());
+      const auto &value_array = attr_obj.at("value");
+      EXPECT_EQ(value_array.size(), 2U);
+      EXPECT_EQ(value_array[0], "original_add_1");
+      EXPECT_EQ(value_array[1], "original_add_2");
       found = true;
-      EXPECT_NE(it->second.find("[14]original_add_1"), std::string::npos);
-      EXPECT_NE(it->second.find("[14]original_add_2"), std::string::npos);
       break;
     }
   }
@@ -1291,7 +1291,6 @@ TEST_F(Om2PackageHelperUt, BuildManifest_NullRootModel) {
 TEST_F(Om2PackageHelperUt, Serialize_OnlineMode_ExternalConst_HasFilePath) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.root_graph_name = "test_graph";
 
   Om2ConstMeta const_meta;
   const_meta.index = 0U;
@@ -1607,7 +1606,6 @@ TEST_F(Om2PackageHelperUt, SetSaveMode_Ok) {
 TEST_F(Om2PackageHelperUt, SerializeVarResource_WithEntriesAndInitData) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "var_test_model";
-  model_data.model_meta.root_graph_name = "var_test_graph";
 
   auto rt_var_resource = std::make_unique<gert::RTVarResource>();
   gert::RTVarEntry entry;
@@ -1694,7 +1692,6 @@ TEST_F(Om2PackageHelperUt, SerializeVarResource_WithEntriesAndInitData) {
 TEST_F(Om2PackageHelperUt, SerializeVarResource_NullAndEmpty) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "var_empty_model";
-  model_data.model_meta.root_graph_name = "var_empty_graph";
   model_data.program_body.so_artifact.file_name = "libtest.so";
   model_data.program_body.so_artifact.data = "fake_so";
   model_data.debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
@@ -1888,6 +1885,176 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_WithCustomKernel) {
   }
   EXPECT_TRUE(has_custom_op_binary);
   CustomOpFactory::RemoveCustomOps({kOpType});
+}
+
+TEST_F(Om2PackageHelperUt, SerializeModelMeta_WithDynamicBatchInfo_WritesDynamicDims) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "dynamic_batch_model";
+  model_data.model_meta.dynamic_type = 1;
+  model_data.model_meta.user_designate_shape_order = {"NCHW"};
+  model_data.model_meta.dynamic_batch_info = {{1, 2, 3, 4}, {2, 4, 6, 8}};
+  model_data.model_meta.origin_input_dims = {{1, 3, 224, 224}};
+  model_data.model_meta.dynamic_output_shape = {"0,1,2,3", "1,2,4,6"};
+
+  ge::Om2TensorDesc input_desc;
+  input_desc.SetName("input");
+  input_desc.SetShape({1, 3, 224, 224});
+  input_desc.SetDataType(ge::DT_FLOAT);
+  input_desc.SetFormat(ge::FORMAT_NCHW);
+  input_desc.SetSize(602112U);
+  model_data.model_meta.input_desc.push_back(input_desc);
+
+  ge::Om2TensorDesc output_desc;
+  output_desc.SetName("output");
+  output_desc.SetShape({1, 1000});
+  output_desc.SetDataType(ge::DT_FLOAT);
+  output_desc.SetFormat(ge::FORMAT_ND);
+  output_desc.SetSize(4000U);
+  model_data.model_meta.output_desc.push_back(output_desc);
+
+  model_data.program_body.so_artifact.file_name = "libtest.so";
+  model_data.program_body.so_artifact.data = "fake_so_content";
+  model_data.debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
+
+  const std::string writer_path = PathUtils::Join({test_work_dir, "dynamic_batch.om2"});
+  ModelBufferData model_buffer;
+  ASSERT_EQ(Om2ZipSaver::Save(model_data, model_buffer, false, writer_path), SUCCESS);
+  ASSERT_NE(model_buffer.data, nullptr);
+  ASSERT_GT(model_buffer.length, 0U);
+
+  SimpleZipArchiveReader archive(model_buffer.data.get(), model_buffer.length);
+  ASSERT_TRUE(archive.IsGood());
+
+  std::string model_meta_entry;
+  for (const auto &name : archive.ListFiles()) {
+    if (name.find("model_meta.json") != std::string::npos) {
+      model_meta_entry = name;
+      break;
+    }
+  }
+  ASSERT_FALSE(model_meta_entry.empty());
+
+  size_t buf_size = 0U;
+  const auto buf = archive.ExtractToMem(model_meta_entry, buf_size);
+  ASSERT_NE(buf, nullptr);
+  ASSERT_GT(buf_size, 0U);
+
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(buf.get()), buf_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+  const auto &raw = model_meta_json.Raw();
+  ASSERT_TRUE(raw.contains("dynamic_dims"));
+  const auto &dynamic_dims = raw.at("dynamic_dims");
+  EXPECT_EQ(dynamic_dims.at("dynamic_type"), 1);
+  EXPECT_EQ(dynamic_dims.at("user_designate_shape_order"), JsonFile::json::array({"NCHW"}));
+  ASSERT_TRUE(dynamic_dims.contains("gears"));
+  const auto &gears = dynamic_dims.at("gears");
+  ASSERT_TRUE(gears.is_array());
+  EXPECT_EQ(gears.size(), 2U);
+
+  const auto &gear0 = gears[0];
+  ASSERT_TRUE(gear0.contains("inputs"));
+  EXPECT_EQ(gear0.at("inputs"), JsonFile::json::array({1, 2, 3, 4}));
+  ASSERT_TRUE(gear0.contains("outputs"));
+  const auto &gear0_outputs = gear0.at("outputs");
+  ASSERT_TRUE(gear0_outputs.is_array());
+  ASSERT_EQ(gear0_outputs.size(), 1U);
+  EXPECT_EQ(gear0_outputs[0], JsonFile::json::array({2, 3}));
+
+  const auto &gear1 = gears[1];
+  ASSERT_TRUE(gear1.contains("inputs"));
+  EXPECT_EQ(gear1.at("inputs"), JsonFile::json::array({2, 4, 6, 8}));
+  ASSERT_TRUE(gear1.contains("outputs"));
+  const auto &gear1_outputs = gear1.at("outputs");
+  ASSERT_TRUE(gear1_outputs.is_array());
+  ASSERT_EQ(gear1_outputs.size(), 1U);
+  EXPECT_EQ(gear1_outputs[0], JsonFile::json::array({4, 6}));
+}
+
+TEST_F(Om2PackageHelperUt, SerializeModelMeta_WithMultipleOutputsPerGear_WritesAllOutputs) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "multi_output_model";
+  model_data.model_meta.dynamic_type = 1;
+  model_data.model_meta.user_designate_shape_order = {"data"};
+  model_data.model_meta.dynamic_batch_info = {{1}, {2}};
+  model_data.model_meta.origin_input_dims = {{1, 3}};
+  model_data.model_meta.dynamic_output_shape = {"0,0,100", "0,1,200", "1,0,100", "1,1,200"};
+
+  ge::Om2TensorDesc desc;
+  desc.SetName("input");
+  desc.SetShape({1, 3});
+  desc.SetDataType(ge::DT_FLOAT);
+  desc.SetFormat(ge::FORMAT_ND);
+  desc.SetSize(12U);
+  model_data.model_meta.input_desc.push_back(desc);
+
+  model_data.program_body.so_artifact.file_name = "libtest.so";
+  model_data.program_body.so_artifact.data = "fake";
+  model_data.debug_info.visual_json = R"({"format":"ge_visual_json"})";
+
+  const std::string writer_path = PathUtils::Join({test_work_dir, "multi_output.om2"});
+  ModelBufferData model_buffer;
+  ASSERT_EQ(Om2ZipSaver::Save(model_data, model_buffer, false, writer_path), SUCCESS);
+
+  SimpleZipArchiveReader archive(model_buffer.data.get(), model_buffer.length);
+  ASSERT_TRUE(archive.IsGood());
+
+  std::string entry;
+  for (const auto &name : archive.ListFiles()) {
+    if (name.find("model_meta.json") != std::string::npos) {
+      entry = name;
+      break;
+    }
+  }
+  ASSERT_FALSE(entry.empty());
+
+  size_t buf_size = 0U;
+  const auto buf = archive.ExtractToMem(entry, buf_size);
+  ASSERT_NE(buf, nullptr);
+
+  const JsonFile meta_json(reinterpret_cast<const uint8_t *>(buf.get()), buf_size);
+  ASSERT_TRUE(meta_json.IsValid());
+  const auto &gears = meta_json.Raw().at("dynamic_dims").at("gears");
+  ASSERT_EQ(gears.size(), 2U);
+  EXPECT_EQ(gears[0].at("outputs").size(), 2U);
+  EXPECT_EQ(gears[0].at("outputs")[0], JsonFile::json::array({100}));
+  EXPECT_EQ(gears[0].at("outputs")[1], JsonFile::json::array({200}));
+  EXPECT_EQ(gears[1].at("outputs").size(), 2U);
+}
+
+TEST_F(Om2PackageHelperUt, SerializeManifest_InvalidModelNum_FallsBackToString) {
+  gert::Om2ModelData model_data;
+  model_data.model_meta.model_name = "test_model";
+  model_data.manifest[OM2_ARCHIVE_VERSION] = OM2_ARCHIVE_VERSION_VALUE;
+  model_data.manifest[OM2_MODEL_NUM] = "not_a_number";
+  model_data.manifest[OM2_ATC_COMMAND] = "";
+
+  model_data.program_body.so_artifact.file_name = "libtest.so";
+  model_data.program_body.so_artifact.data = "fake";
+  model_data.debug_info.visual_json = R"({"format":"ge_visual_json"})";
+
+  const std::string writer_path = PathUtils::Join({test_work_dir, "invalid_manifest.om2"});
+  ModelBufferData model_buffer;
+  ASSERT_EQ(Om2ZipSaver::Save(model_data, model_buffer, false, writer_path), SUCCESS);
+
+  SimpleZipArchiveReader archive(model_buffer.data.get(), model_buffer.length);
+  ASSERT_TRUE(archive.IsGood());
+
+  std::string manifest_entry;
+  for (const auto &name : archive.ListFiles()) {
+    if (name.find("manifest.json") != std::string::npos) {
+      manifest_entry = name;
+      break;
+    }
+  }
+  ASSERT_FALSE(manifest_entry.empty());
+
+  size_t buf_size = 0U;
+  const auto buf = archive.ExtractToMem(manifest_entry, buf_size);
+  ASSERT_NE(buf, nullptr);
+
+  const JsonFile manifest_json(reinterpret_cast<const uint8_t *>(buf.get()), buf_size);
+  ASSERT_TRUE(manifest_json.IsValid());
+  EXPECT_EQ(manifest_json.Raw().at(OM2_MODEL_NUM), "not_a_number");
 }
 
 TEST_F(Om2PackageHelperUt, ReadCustomOpSoFiles) {

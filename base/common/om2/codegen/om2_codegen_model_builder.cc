@@ -17,6 +17,7 @@
 
 #include "common/file_constant_utils/file_constant_utils.h"
 #include "common/ge_common/string_util.h"
+#include "common/helper/om2/om2_package_contants.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "graph/debug/ge_attr_define.h"
@@ -97,7 +98,9 @@ Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc
     GE_ASSERT_SUCCESS(Om2ModelUtils::BuildInputTensorInfo(tensor_desc, entry.tensor_info));
     codegen_model.const_inputs.push_back(std::move(entry));
     (void)weight_offset_to_varname_.emplace(data_offset, var_name);
-    const_metas.push_back(Om2ConstMeta{const_index, "INTERNAL", "", "", data_offset, tensor_size, ""});
+    const size_t model_index = 0UL;
+    const auto file_name = FormatOm2Path("%s%zu", OM2_CONSTANTS_FILE_PREFIX, model_index);
+    const_metas.push_back(Om2ConstMeta{const_index, "INTERNAL", file_name, "", data_offset, tensor_size, ""});
   }
   return SUCCESS;
 }

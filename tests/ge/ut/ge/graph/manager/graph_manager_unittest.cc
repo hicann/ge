@@ -5702,7 +5702,6 @@ TEST_F(UtestGraphManagerTest, GetCompiledModel_SerializesOm2ModelDataInOm2Mode) 
 
   const auto om2_data = MakeShared<gert::Om2ModelData>();
   om2_data->model_meta.model_name = "om2_ut_model";
-  om2_data->model_meta.root_graph_name = "graph";
   om2_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
   graph_node->GetGeRootModel()->SetOm2ModelData(om2_data);
 

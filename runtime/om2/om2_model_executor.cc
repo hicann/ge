@@ -13,6 +13,7 @@
 #include <string>
 #include <fstream>
 #include <regex>
+#include <sstream>
 #include <unordered_set>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -117,7 +118,7 @@ struct CustSharedLibInfo {
 struct RunModelInfo {
   std::string so_file;
   int32_t so_fd = -1;
-  std::map<std::string, std::map<std::string, std::string>> op_attr_map;  // 直接使用 map，避免 JSON 序列化开销
+  ge::JsonFile op_attr_json;
   void *so_handle = nullptr;
   std::string model_name;
   std::string root_graph_name;
@@ -228,34 +229,62 @@ ge::Status ParseTensorDescFromJson(const ge::JsonFile &json_file, ge::Om2TensorD
   return ge::SUCCESS;
 }
 
-ge::Status ParseOpAttrMapJson(const uint8_t *data, size_t data_size,
-                              std::map<std::string, std::map<std::string, std::string>> &op_attr_map) {
-  try {
-    const auto json_obj = ge::JsonFile::json::parse(data, data + data_size);
-    if (!json_obj.is_object()) {
-      GELOGW("[OM2] op_attr.json root is not an object");
-      return ge::FAILED;
+void ParseOpAttrJsonToMapInternal(const ge::JsonFile &op_attr_json,
+                                  std::map<std::string, std::map<std::string, std::string>> &attr_map) {
+  attr_map.clear();
+  if (!op_attr_json.IsValid()) {
+    return;
+  }
+
+  const auto &json_data = op_attr_json.Raw();
+  if (!json_data.is_object()) {
+    GELOGW("[OM2] op_attr.json root is not an object");
+    return;
+  }
+
+  for (auto it_op = json_data.begin(); it_op != json_data.end(); ++it_op) {
+    const std::string op_name = it_op.key();
+    if (!it_op.value().is_object()) {
+      continue;
     }
 
-    for (auto &[op_name, attrs] : json_obj.items()) {
-      if (!attrs.is_object()) {
-        GELOGW("[OM2] op_attr for %s is not an object", op_name.c_str());
+    for (auto it_attr = it_op.value().begin(); it_attr != it_op.value().end(); ++it_attr) {
+      const std::string attr_name = it_attr.key();
+      if (!it_attr.value().is_object()) {
         continue;
       }
-      std::map<std::string, std::string> op_attrs;
-      for (auto &[attr_name, value] : attrs.items()) {
-        if (value.is_string()) {
-          op_attrs[attr_name] = value.get<std::string>();
-        } else {
-          op_attrs[attr_name] = value.dump();
-        }
+
+      ge::JsonFile attr_obj(it_attr.value());
+
+      std::string type;
+      if (!attr_obj.Get("type", type)) {
+        continue;
       }
-      op_attr_map[op_name] = op_attrs;
+
+      if (!attr_obj.Raw().contains("value")) {
+        continue;
+      }
+
+      try {
+        std::string value_str;
+        if (type == "LIST_STRING") {
+          const auto &value_array = attr_obj.Raw()["value"];
+          if (value_array.is_array()) {
+            for (const auto &elem : value_array) {
+              const std::string s = elem.get<std::string>();
+              value_str += "[" + std::to_string(s.size()) + "]" + s;
+            }
+          }
+        } else {
+          value_str = attr_obj.Raw()["value"].dump();
+        }
+
+        attr_map[op_name][attr_name] = value_str;
+      } catch (const std::exception &e) {
+        GELOGW("[OM2] Failed to serialize attr value for op[%s] attr[%s]: %s", op_name.c_str(), attr_name.c_str(),
+               e.what());
+      }
     }
-    return ge::SUCCESS;
-  } catch (const ge::JsonFile::json::exception &e) {
-    GELOGE(ge::FAILED, "[OM2] Failed to parse op_attr.json: %s", e.what());
-    return ge::FAILED;
   }
 }
 
@@ -305,7 +334,6 @@ ge::Status DeserializeConstantsConfigEntry(const ge::RAIIZipArchive &archive, co
       (void)val_file.Get("file_path", meta.file_path);
       (void)val_file.Get("offset", meta.offset);
       (void)val_file.Get("size", meta.size);
-      (void)val_file.Get("op_name", meta.op_name);
       (void)model_data.constants_data.consts.emplace_back(std::move(meta));
     }
   }
@@ -479,22 +507,23 @@ ge::Status DeserializeModelMetaEntry(const ge::RAIIZipArchive &archive, const st
 
   ge::JsonFile::json inputs_json;
   if (json_file.Get("inputs", inputs_json) && inputs_json.is_array()) {
-    for (const auto &input_json : inputs_json) {
-      const ge::JsonFile input_file(input_json);
-      std::vector<int64_t> shape_v2;
-      GE_ASSERT_TRUE(input_file.Get("shape_v2", shape_v2), "[OM2] input shape_v2 not found in model_meta.json");
+    for (size_t i = 0UL; i < inputs_json.size(); ++i) {
+      const ge::JsonFile input_file(inputs_json[i]);
       ge::Om2TensorDesc desc;
       GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_file, desc));
+      GE_ASSERT_TRUE(!desc.GetShape().empty(), "[OM2] Input tensor at index %zu is missing 'shape' field", i);
+      std::vector<int64_t> max_gear_shape;
+      if (input_file.Get("max_gear_shape", max_gear_shape)) {
+        model_data.model_meta.origin_input_dims.emplace_back(desc.GetShape());
+        desc.SetShape(max_gear_shape);
+      }
       model_data.model_meta.input_desc.emplace_back(desc);
       ge::Om2TensorDesc desc_v2 = desc;
-      desc_v2.SetShape(shape_v2);
-      model_data.model_meta.input_desc_v2.emplace_back(desc_v2);
-      std::vector<int64_t> origin_input_dims;
-      if (input_file.Get("origin_input_dims", origin_input_dims)) {
-        model_data.model_meta.origin_input_dims.emplace_back(std::move(origin_input_dims));
-      } else {
-        (void)model_data.model_meta.origin_input_dims.emplace_back(desc.GetShape());
+      std::vector<int64_t> shape_v2;
+      if (input_file.Get("shape_aclmdlGetInputDimsV2", shape_v2)) {
+        desc_v2.SetShape(shape_v2);
       }
+      model_data.model_meta.input_desc_v2.emplace_back(desc_v2);
     }
   }
 
@@ -509,14 +538,42 @@ ge::Status DeserializeModelMetaEntry(const ge::RAIIZipArchive &archive, const st
     }
   }
 
-  (void)json_file.Get("dynamic_output_shape", model_data.model_meta.dynamic_output_shape);
-  (void)json_file.Get("dynamic_batch_info", model_data.model_meta.dynamic_batch_info);
-  (void)json_file.Get("user_designate_shape_order", model_data.model_meta.user_designate_shape_order);
-  (void)json_file.Get("dynamic_type", model_data.model_meta.dynamic_type);
+  ge::JsonFile dynamic_dims_file;
+  if (json_file.Get("dynamic_dims", dynamic_dims_file) && dynamic_dims_file.IsValid()) {
+    (void)dynamic_dims_file.Get("dynamic_type", model_data.model_meta.dynamic_type);
+    (void)dynamic_dims_file.Get("user_designate_shape_order", model_data.model_meta.user_designate_shape_order);
+
+    ge::JsonFile::json gears_json;
+    if (dynamic_dims_file.Get("gears", gears_json) && gears_json.is_array()) {
+      for (size_t gear_idx = 0UL; gear_idx < gears_json.size(); ++gear_idx) {
+        const ge::JsonFile gear_file(gears_json[gear_idx]);
+
+        std::vector<int64_t> inputs;
+        if (gear_file.Get("inputs", inputs)) {
+          model_data.model_meta.dynamic_batch_info.push_back(std::move(inputs));
+        }
+
+        ge::JsonFile::json outputs_json;
+        if (gear_file.Get("outputs", outputs_json) && outputs_json.is_array()) {
+          for (size_t out_idx = 0UL; out_idx < outputs_json.size(); ++out_idx) {
+            const auto &dims = outputs_json[out_idx];
+            if (dims.is_array()) {
+              std::string shape_str = std::to_string(gear_idx) + "," + std::to_string(out_idx);
+              for (size_t i = 0UL; i < dims.size(); ++i) {
+                shape_str += ",";
+                shape_str += std::to_string(dims[i].get<int64_t>());
+              }
+              model_data.model_meta.dynamic_output_shape.push_back(std::move(shape_str));
+            }
+          }
+        }
+      }
+    }
+  }
+
   (void)json_file.Get("work_size", model_data.model_meta.work_size);
   (void)json_file.Get("zero_copy_size", model_data.model_meta.zero_copy_size);
   (void)json_file.Get("name", model_data.model_meta.model_name);
-  (void)json_file.Get("root_graph_name", model_data.model_meta.root_graph_name);
 
   // 读取 aipp 字段
   ge::JsonFile aipp_json;
@@ -536,10 +593,7 @@ ge::Status DeserializeOpAttrEntry(const ge::RAIIZipArchive &archive, const std::
   auto buff_data = archive.ExtractToMem(entry, buff_size);
   GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
   GE_ASSERT_TRUE(buff_size > 0U);
-  if (ParseOpAttrMapJson(buff_data.get(), buff_size, model_data.debug_info.op_attr_map) != ge::SUCCESS) {
-    GELOGW("[OM2] Failed to parse op_attr.json, using empty map");
-    model_data.debug_info.op_attr_map.clear();
-  }
+  model_data.debug_info.op_attr_json = std::string(reinterpret_cast<const char *>(buff_data.get()), buff_size);
   return ge::SUCCESS;
 }
 
@@ -549,10 +603,8 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
     GE_ASSERT_SUCCESS(DeserializeCodegenEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
-  if (entry.find("/debug/") != std::string::npos) {
-    if (IsFileNameEndsWith(entry, "op_attr.json")) {
-      GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
-    }
+  if (IsFileNameEndsWith(entry, "op_attr.json")) {
+    GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
   if (IsFileNameEndsWith(entry, "model_meta.json")) {
@@ -575,7 +627,7 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
     }
     return ge::SUCCESS;
   }
-  if (entry.find("data/kernels_") != std::string::npos && IsFileNameEndsWith(entry, ".o")) {
+  if (entry.find("data/kernels/") != std::string::npos && IsFileNameEndsWith(entry, ".o")) {
     GE_ASSERT_SUCCESS(DeserializeKernelEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
@@ -631,10 +683,24 @@ ge::Status SetTensorDesc(ge::JsonFile::json &tensor_array_json, std::vector<ge::
     int64_t size;
     GE_ASSERT_TRUE(tensor_obj.Get("size", size));
     tensor_desc.SetSize(static_cast<size_t>(size));
-    std::string shape_key = new_model_desc ? "shape_v2" : "shape";
     std::vector<int64_t> shape_dims;
-    GE_ASSERT_TRUE(tensor_obj.Get(shape_key, shape_dims));
-    tensor_desc.SetShape(shape_dims);
+    if (new_model_desc) {
+      if (tensor_obj.Get("shape_aclmdlGetInputDimsV2", shape_dims)) {
+        tensor_desc.SetShape(shape_dims);
+      } else if (tensor_obj.Get("max_gear_shape", shape_dims)) {
+        tensor_desc.SetShape(shape_dims);
+      } else {
+        GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
+        tensor_desc.SetShape(shape_dims);
+      }
+    } else {
+      if (tensor_obj.Get("max_gear_shape", shape_dims)) {
+        tensor_desc.SetShape(shape_dims);
+      } else {
+        GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
+        tensor_desc.SetShape(shape_dims);
+      }
+    }
     std::vector<std::pair<int64_t, int64_t>> shape_range;
     GE_ASSERT_TRUE(tensor_obj.Get("shape_range", shape_range));
     tensor_desc.SetShapeRange(shape_range);
@@ -840,9 +906,15 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(LoadSoFromBuffer(om2_data.program_body.so_artifact));
     GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found in Om2ModelData.");
 
-    // Set up op_attr_map from debug_info
-    if (!om2_data.debug_info.op_attr_map.empty()) {
-      run_model_info_.op_attr_map = om2_data.debug_info.op_attr_map;
+    // Set up op_attr_json from debug_info
+    if (!om2_data.debug_info.op_attr_json.empty()) {
+      run_model_info_.op_attr_json =
+          ge::JsonFile(reinterpret_cast<const uint8_t *>(om2_data.debug_info.op_attr_json.data()),
+                       om2_data.debug_info.op_attr_json.size());
+      if (!run_model_info_.op_attr_json.IsValid()) {
+        GELOGW("[OM2] op_attr.json is not valid, using empty json content.");
+        run_model_info_.op_attr_json = ge::JsonFile(ge::JsonFile::json::object());
+      }
     }
 
     if (om2_data.constants_data.weight_data != nullptr) {
@@ -855,7 +927,7 @@ class Om2ModelExecutor::Impl {
  private:
   ge::Status LoadModelMetaFromStruct(const gert::Om2ModelMeta &meta) {
     run_model_info_.model_name = meta.model_name;
-    run_model_info_.root_graph_name = meta.root_graph_name.empty() ? meta.model_name : meta.root_graph_name;
+    run_model_info_.root_graph_name = meta.model_name;
     model_meta_info_.work_size = meta.work_size;
     GE_ASSERT_TRUE(meta.zero_copy_size >= 0, "[OM2][Check] Invalid zero_copy_size=%ld.", meta.zero_copy_size);
     const auto zero_copy_size = static_cast<size_t>(meta.zero_copy_size);
@@ -1209,11 +1281,11 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_TRUE(has_model_);
     op_attr_map.clear();
 
-    if (run_model_info_.op_attr_map.empty()) {
-      return ge::SUCCESS;  // Empty map
+    if (!run_model_info_.op_attr_json.IsValid()) {
+      return ge::SUCCESS;
     }
 
-    op_attr_map = run_model_info_.op_attr_map;
+    ParseOpAttrJsonToMapInternal(run_model_info_.op_attr_json, op_attr_map);
     return ge::SUCCESS;
   }
 
