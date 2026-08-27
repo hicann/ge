@@ -314,5 +314,102 @@ TEST_F(CoreNumValidateUT, GetCoreNumFromGraph_VectorCoreNumLeadingZero_ReturnsEr
   EXPECT_NE(CoreNumUtils::GetCoreNumFromGraph(graph, aicore_num, vectorcore_num), GRAPH_SUCCESS);
 }
 
+// --- FillCoreNumOptions ---
+
+TEST_F(CoreNumValidateUT, FillCoreNumOptions_NegativeMeansUnset_WritesNothing) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::FillCoreNumOptions(-1, -1, options), GRAPH_SUCCESS);
+  EXPECT_TRUE(options.empty());
+}
+
+TEST_F(CoreNumValidateUT, FillCoreNumOptions_BothSet_WritesBoth) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::FillCoreNumOptions(8, 16, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "8");
+  EXPECT_EQ(options[kVectorCoreNum], "16");
+}
+
+TEST_F(CoreNumValidateUT, FillCoreNumOptions_OnlyAiCoreSet_LeavesVectorCoreUnset) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::FillCoreNumOptions(8, -1, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "8");
+  EXPECT_EQ(options.count(kVectorCoreNum), 0U);
+}
+
+// 0 是合法配置值(表示不限制)，必须写进 options，不能被当成"未配置"。
+TEST_F(CoreNumValidateUT, FillCoreNumOptions_ZeroIsConfigured_WritesZero) {
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::FillCoreNumOptions(0, 0, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "0");
+  EXPECT_EQ(options[kVectorCoreNum], "0");
+}
+
+TEST_F(CoreNumValidateUT, FillCoreNumOptions_KeepsUnrelatedEntries) {
+  std::map<std::string, std::string> options{{"other.option", "keep"}};
+  EXPECT_EQ(CoreNumUtils::FillCoreNumOptions(8, -1, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options["other.option"], "keep");
+  EXPECT_EQ(options[AICORE_NUM], "8");
+}
+
+// --- GetCoreNumOptionsFromGraph ---
+
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_NullGraph_ReturnsError) {
+  ComputeGraphPtr null_graph;
+  std::map<std::string, std::string> options;
+  EXPECT_NE(CoreNumUtils::GetCoreNumOptionsFromGraph(null_graph, options), GRAPH_SUCCESS);
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_NoAttrs_WritesNothing) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumOptionsFromGraph(graph, options), GRAPH_SUCCESS);
+  EXPECT_TRUE(options.empty());
+}
+
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_RootGraphAttrs_WritesOptions) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "8");
+  (void)ge::AttrUtils::SetStr(graph, kVectorCoreNum, "16");
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumOptionsFromGraph(graph, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "8");
+  EXPECT_EQ(options[kVectorCoreNum], "16");
+}
+
+// 静态编译子图的 GeModel 持有的是根图的子图，模型级核数只写在根图上，必须能上溯拿到。
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_SubGraph_ReadsFromRootGraph) {
+  auto root_graph = std::make_shared<ComputeGraph>("root_graph");
+  (void)ge::AttrUtils::SetStr(root_graph, AICORE_NUM, "8");
+  (void)ge::AttrUtils::SetStr(root_graph, kVectorCoreNum, "16");
+  auto sub_graph = std::make_shared<ComputeGraph>("root_graph_sub_1_know");
+  sub_graph->SetParentGraph(root_graph);
+
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumOptionsFromGraph(sub_graph, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "8");
+  EXPECT_EQ(options[kVectorCoreNum], "16");
+}
+
+// 子图自身带同名属性不生效，避免子图上的残留值盖掉模型级配置。
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_SubGraphAttrIgnored_RootGraphWins) {
+  auto root_graph = std::make_shared<ComputeGraph>("root_graph");
+  (void)ge::AttrUtils::SetStr(root_graph, AICORE_NUM, "8");
+  auto sub_graph = std::make_shared<ComputeGraph>("root_graph_sub_1_know");
+  (void)ge::AttrUtils::SetStr(sub_graph, AICORE_NUM, "20");
+  sub_graph->SetParentGraph(root_graph);
+
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(CoreNumUtils::GetCoreNumOptionsFromGraph(sub_graph, options), GRAPH_SUCCESS);
+  EXPECT_EQ(options[AICORE_NUM], "8");
+}
+
+// OM 被篡改成非法核数时必须失败，不能静默按未配置处理。
+TEST_F(CoreNumValidateUT, GetCoreNumOptionsFromGraph_InvalidAttr_ReturnsError) {
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  (void)ge::AttrUtils::SetStr(graph, AICORE_NUM, "abc");
+  std::map<std::string, std::string> options;
+  EXPECT_NE(CoreNumUtils::GetCoreNumOptionsFromGraph(graph, options), GRAPH_SUCCESS);
+}
+
 }  // namespace
 }  // namespace ge

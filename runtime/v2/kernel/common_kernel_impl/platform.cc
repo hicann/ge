@@ -45,15 +45,9 @@ ge::graphStatus GetPlatformInfo(KernelContext *context) {
   // 模型级核数由lowering期以const输入接入, 见runtime/v2/graph_builder/bg_platform.cc, 约定-1表示未配置
   // 使用局部options而非修改ThreadLocalContext，避免在多模型并发场景下污染调用方上下文
   if (input_num == kCoreNumInputNum) {
-    // 新om：从输入读取模型级核数配置
-    const auto append_model_option = [&options, context](const size_t index, const std::string &option_name) {
-      const auto core_num = context->GetInputValue<int32_t>(index);
-      if (core_num >= 0) {
-        options[option_name] = std::to_string(core_num);
-      }
-    };
-    append_model_option(0U, ge::AICORE_NUM);
-    append_model_option(1U, ge::kVectorCoreNum);
+    // 新om：从输入读取模型级核数配置，"负值表示未配置"的约定统一由FillCoreNumOptions处理
+    GE_ASSERT_SUCCESS(ge::CoreNumUtils::FillCoreNumOptions(context->GetInputValue<int32_t>(0U),
+                                                           context->GetInputValue<int32_t>(1U), options));
   } else if (input_num == 0U) {
     // 旧om：无输入，options保持为空，后续走ThreadLocalContext路径
     GELOGI("GetPlatformInfo has no input, using legacy mode (no model-level core num config).");

@@ -44,6 +44,16 @@ class CoreNumUtils {
   static graphStatus GetCoreNumFromGraph(const ge::ComputeGraphPtr &compute_graph, int32_t &aicore_num,
                                          int32_t &vectorcore_num);
 
+  // 把模型级核数配置转成options。约定负值表示未配置, 未配置的维度不写入options,
+  // 由调用方按原有优先级回落到ThreadLocalContext。
+  static graphStatus FillCoreNumOptions(int32_t aicore_num, int32_t vectorcore_num,
+                                        std::map<std::string, std::string> &options);
+
+  // 从图所属根图读取模型级核数配置并转成options, 供HandleDeviceInfo的options重载使用。
+  // 传入子图时会自动上溯到根图, 模型级属性只持久化在根图上。
+  static graphStatus GetCoreNumOptionsFromGraph(const ge::ComputeGraphPtr &compute_graph,
+                                                std::map<std::string, std::string> &options);
+
   static graphStatus UpdateCoreCountWithOpDesc(const std::string &param_name, const std::string &op_core_num_str,
                                                int32_t soc_core_num, const std::string &res_key,
                                                std::map<std::string, std::string> &res);
