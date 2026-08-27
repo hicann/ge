@@ -170,10 +170,8 @@ struct NodeTypeIndex {
     auto life_begin = GetLifeBegin();
     if (life_begin != node_id_) {
       return std::to_string(life_begin) + "--" + std::to_string(node_id_);
-    } else {
-      return std::to_string(life_begin);
     }
-    return "";
+    return std::to_string(life_begin);
   }
 
   std::vector<size_t> GetLifeEnd() const {

@@ -66,8 +66,9 @@ Status GetReadOnlySymbol(const MemAssistInfo &mem_assist_info, std::set<std::str
     }
     for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
       const NodeIndexIO output_info(node, out_anchor->GetIdx(), kOut);
-      const auto output_symbol = mem_assist_info.anchor_to_symbol.find(output_info.ToString())->second;
-      read_only_symbols.insert(output_symbol);
+      const auto symbol_it = mem_assist_info.anchor_to_symbol.find(output_info.ToString());
+      GE_ASSERT_TRUE(symbol_it != mem_assist_info.anchor_to_symbol.end());
+      read_only_symbols.insert(symbol_it->second);
     }
   }
   return SUCCESS;
@@ -175,8 +176,12 @@ Status RemoveSymbolConflicts(const MemAssistInfo &mem_assist_info, const NodePtr
       GE_ASSERT_TRUE(ge::IntegerChecker<uint32_t>::Compat(input_index));
       const NodeIndexIO cur_node_input_info(node, static_cast<uint32_t>(input_index), kIn);
       const NodeIndexIO cur_node_output_info(node, static_cast<uint32_t>(output_index), kOut);
-      const auto &input_symbol = mem_assist_info.anchor_to_symbol.find(cur_node_input_info.ToString())->second;
-      const auto &output_symbol = mem_assist_info.anchor_to_symbol.find(cur_node_output_info.ToString())->second;
+      const auto input_it = mem_assist_info.anchor_to_symbol.find(cur_node_input_info.ToString());
+      GE_ASSERT_TRUE(input_it != mem_assist_info.anchor_to_symbol.end());
+      const auto output_it = mem_assist_info.anchor_to_symbol.find(cur_node_output_info.ToString());
+      GE_ASSERT_TRUE(output_it != mem_assist_info.anchor_to_symbol.end());
+      const auto &input_symbol = input_it->second;
+      const auto &output_symbol = output_it->second;
       if (input_symbol == output_symbol) {  // 输入符号和输出符号相同，不需要合并和设置复用关系
         GELOGD("Node %s input symbol[%s] is equal to output symbol[%s], skip inplace.", node->GetName().c_str(),
                input_symbol.c_str(), output_symbol.c_str());

@@ -13,13 +13,8 @@
 #include <algorithm>
 #include <sstream>
 #include "common/checker.h"
-#include "common/memory/mem_type_utils.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/utils/type_utils.h"
-#include "graph/utils/op_type_utils.h"
 #include "graph/optimize/mem_layout_conflict_optimize/mem_layout_conflict_util.h"
-#include "framework/common/op/ge_op_utils.h"
-#include "graph/custom_op_factory.h"
 #include "common/ge_common/ge_types.h"
 #include "memory_block.h"
 
@@ -871,13 +866,7 @@ std::string MemoryBlock::String() const {
 
 // ascending order
 bool CompareBlockIndex(const MemoryBlock *const left, const MemoryBlock *const right) {
-  if (left == nullptr || right == nullptr) {
-    return false;
-  }
-  if (left->input_index_ < right->input_index_) {
-    return true;
-  }
-  return false;
+  return (left != nullptr) && (right != nullptr) && (left->input_index_ < right->input_index_);
 }
 
 bool CompareLifeInterval::operator()(MemoryBlock *const left, MemoryBlock *const right) const {

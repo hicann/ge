@@ -21,15 +21,8 @@ bool DynamicBatchBlockReuse(MemoryBlock &block) {
 }
 
 struct CompareSize {
-  explicit CompareSize() {}
-
   bool operator()(const MemoryBlock *const left, const MemoryBlock *const right) const {
-    if ((left != nullptr) && (right != nullptr)) {
-      auto left_size = left->Size();
-      auto right_size = right->Size();
-      return (left_size > right_size);
-    }
-    return false;
+    return (left != nullptr) && (right != nullptr) && (left->Size() > right->Size());
   }
 };
 
@@ -225,8 +218,8 @@ void DynamicBatchMemAssigner::DoResizeDynamicBatchBlocks(
 }
 
 void GetMaxBatchAllMemorySize(std::map<std::string, std::vector<int64_t>> &batch_all_memory_size,
-                              std::map<std::string, int64_t> batch_total_size, std::vector<int64_t> &all_memory_size,
-                              std::string &max_batch_label) {
+                              const std::map<std::string, int64_t> &batch_total_size,
+                              std::vector<int64_t> &all_memory_size, std::string &max_batch_label) {
   // use max batch all memory size for reuse range
   int64_t max_batch_size = 0;
   for (const auto &it : batch_total_size) {
