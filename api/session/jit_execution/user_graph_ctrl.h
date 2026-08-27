@@ -22,6 +22,7 @@
 
 #include "compile_context.h"
 #include "exe_points/execution_order.h"
+#include "api/aclgrph/option_utils.h"
 #include "cache/compiled_model_cache.h"
 #include "jit_executor.h"
 #include "common/thread_pool/thread_pool.h"
@@ -50,7 +51,9 @@ class UserGraphControl {
   UserGraphControl(uint32_t user_graph_id, const ComputeGraphPtr &graph, CompileContext &compile_context,
                    GraphManager &graph_manager, const std::map<std::string, std::string> &graph_options)
       : user_graph_id_(user_graph_id),
-        order_(UserGraph({user_graph_id, graph, graph_options})),
+        compute_graph_(graph),
+        order_(UserGraph({user_graph_id, graph, graph_options,
+                          EnableSliceSchedule() && IsGraphSupportSliceSchedule(graph, graph_options)})),
         compile_context_(compile_context),
         graph_manager_(graph_manager),
         jit_exe_thread_pool_("jit_exe", kDefaultJitExeThreadPoolSize, true),
@@ -71,6 +74,12 @@ class UserGraphControl {
 
   Status AddGraphInstance();
   void RunGraphAsync(std::unique_ptr<UserGraphExecution> &task);
+  Status RunGraph(const std::vector<ge::Tensor> &inputs, std::vector<ge::Tensor> &outputs, uint64_t session_id);
+  Status RunGraph(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs, uint64_t session_id);
+  Status RunGraphWithStreamAsync(void *stream, const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs,
+                                 uint64_t session_id);
+  RunGraphMode GetRunGraphMode() const;
+  void SetRunGraphMode(const RunGraphMode &mode);
   Status ExecuteGraphWithStreamAsync(std::unique_ptr<UserGraphExecution> task);
   Status CompileGraph(uint64_t session_id);
   CompiledGraphSummaryPtr GetCompiledGraphSummary();
@@ -86,8 +95,12 @@ class UserGraphControl {
   void ExecuteUserGraph();
   void SetLoadOptions(const std::map<AscendString, AscendString> &load_options);
   Status CompileCompleteGraph(uint64_t session_id);
+  Status EnsureWholeGraphAdded();
+  Status EnsureWholeGraphCompiled(const std::vector<gert::Tensor> &inputs, uint64_t session_id);
+  Status EnsureWholeGraphLoaded(const std::map<AscendString, AscendString> &options, void *stream);
 
   uint32_t user_graph_id_;
+  ComputeGraphPtr compute_graph_;
   ExecutionOrder order_;
   CompileContext &compile_context_;
   GraphManager &graph_manager_;
@@ -112,6 +125,11 @@ class UserGraphControl {
   // set true only when Session::CompileGraph is called
   // only set or check in ge_api.cc
   bool compiled_flag_{false};
+  uint32_t whole_graph_instance_id_{0U};
+  bool whole_graph_added_{false};
+  bool whole_graph_compiled_{false};
+  bool whole_graph_loaded_{false};
+  RunGraphMode run_graph_mode_{RunGraphMode::kRunGraphModeEnd};
 };
 }  // namespace ge
 

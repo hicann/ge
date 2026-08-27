@@ -387,6 +387,9 @@ graph_lib.GeApiWrapper_Operator_GetType.argtypes = [c_void_p]
 graph_lib.GeApiWrapper_Operator_SetAttr.restype = c_int
 graph_lib.GeApiWrapper_Operator_SetAttr.argtypes = [c_void_p, c_char_p, c_void_p]
 
+graph_lib.GeApiWrapper_Operator_GetAttr.restype = c_int
+graph_lib.GeApiWrapper_Operator_GetAttr.argtypes = [c_void_p, c_char_p, c_void_p]
+
 graph_lib.GeApiWrapper_Operator_InputRegister.restype = c_int
 graph_lib.GeApiWrapper_Operator_InputRegister.argtypes = [c_void_p, c_char_p]
 

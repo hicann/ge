@@ -147,6 +147,7 @@ class HandleRegistry {
 
  private:
   std::set<std::unique_ptr<HandleHolder>> registered_handles_;
+  std::mutex mutex_;
 };
 }  // namespace ge
 

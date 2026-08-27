@@ -264,6 +264,7 @@ ge::Graph **GeApiWrapper_Graph_GetAllSubgraphs(const ge::Graph *graph, size_t *s
 // or void and therefore do not expose an additional operation status.
 const char *GeApiWrapper_Operator_GetName(const ge::Operator *op);
 const char *GeApiWrapper_Operator_GetType(const ge::Operator *op);
+ge::graphStatus GeApiWrapper_Operator_GetAttr(const ge::Operator *op, const char *key, void *attr_value);
 ge::graphStatus GeApiWrapper_Operator_SetAttr(ge::Operator *op, const char *key, void *attr_value);
 ge::graphStatus GeApiWrapper_Operator_InputRegister(ge::Operator *op, const char *name);
 ge::graphStatus GeApiWrapper_Operator_OptionalInputRegister(ge::Operator *op, const char *name);

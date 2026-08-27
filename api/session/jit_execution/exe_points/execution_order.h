@@ -22,6 +22,7 @@ struct UserGraph {
   uint32_t user_graph_id;
   ComputeGraphPtr compute_graph;
   std::map<std::string, std::string> graph_options;
+  bool slice_supported = false;
 };
 /**
  * 该类用于确定一张UserGraph中的切图结果

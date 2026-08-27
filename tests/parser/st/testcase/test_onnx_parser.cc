@@ -459,6 +459,27 @@ void VerifyBridgePluginCallbacks() {
   ASSERT_NE(parse_return, nullptr);
   EXPECT_NE(parse_return(&node, op), SUCCESS);
 
+  Operator source_op("operator_source", "BridgeOperator");
+  source_op.SetAttr("alpha", 0.5F);
+  Operator operator_target("operator_target", "BridgeOperatorTarget");
+  const auto parse_operator =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperator");
+  ASSERT_NE(parse_operator, nullptr);
+  EXPECT_EQ(parse_operator(source_op, operator_target), SUCCESS);
+  float copied_alpha = 0.0F;
+  EXPECT_EQ(operator_target.GetAttr("copied_alpha", copied_alpha), GRAPH_SUCCESS);
+  EXPECT_FLOAT_EQ(copied_alpha, 0.5F);
+
+  const auto parse_operator_error =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperatorError");
+  ASSERT_NE(parse_operator_error, nullptr);
+  EXPECT_EQ(parse_operator_error(source_op, operator_target), FAILED);
+
+  const auto parse_operator_return =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperatorReturn");
+  ASSERT_NE(parse_operator_return, nullptr);
+  EXPECT_NE(parse_operator_return(source_op, operator_target), SUCCESS);
+
   using InitBridgeFunc = Status (*)();
   const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(RTLD_DEFAULT, "InitOnnxPluginBridge"));
   ASSERT_NE(init_bridge, nullptr);

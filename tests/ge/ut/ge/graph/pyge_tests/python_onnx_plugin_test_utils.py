@@ -58,6 +58,14 @@ class FakeOperatorCapi:
             graph_lib, "GeApiWrapper_Operator_SetAttr", self._set_operator_attr
         )
         monkeypatch.setattr(
+            graph_lib, "GeApiWrapper_Operator_GetAttr", self._get_operator_attr
+        )
+        monkeypatch.setattr(
+            _AttrValue,
+            "get_value",
+            lambda attr_value: self._attr_values[attr_value._av_ptr.value],
+        )
+        monkeypatch.setattr(
             graph_lib, "GeApiWrapper_Operator_InputRegister", self._register_input
         )
         monkeypatch.setattr(
@@ -91,6 +99,11 @@ class FakeOperatorCapi:
 
     def _set_operator_attr(self, handle, name, attr_value):
         self.attrs[name.decode("utf-8")] = self._attr_values[attr_value.value]
+        return 0
+
+    def _get_operator_attr(self, handle, name, attr_value):
+        value = self.attrs[name.decode("utf-8")]
+        self._attr_values[attr_value.value] = value
         return 0
 
     def _register_input(self, handle, name):

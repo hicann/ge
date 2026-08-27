@@ -398,7 +398,8 @@ Status InnerSession::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inpu
   GELOGI("[InnerSession:%" PRIu64 "] Run graph on session, graph_id=%u.", session_id_, graph_id);
   if (std::unique_lock<std::mutex> lock{mutex_, std::try_to_lock}) {
     UpdateGlobalSessionContext();
-    return graph_manager_.RunGraph(graph_id, inputs, outputs, GetSessionId());
+    GE_ASSERT_NOTNULL(user_graphs_manager_);
+    return user_graphs_manager_->RunGraph(graph_id, inputs, outputs, GetSessionId());
   } else {
     GELOGE(GE_SESS_ALREADY_RUNNING, "[Run][Graph]failed, InnerSession:%" PRIu64 ", graph_id=%u.", session_id_,
            graph_id);
@@ -414,7 +415,8 @@ Status InnerSession::RunGraph(uint32_t graph_id, const std::vector<gert::Tensor>
   GELOGI("[InnerSession:%" PRIu64 "] Run graph on session, graph_id=%u.", session_id_, graph_id);
   if (std::unique_lock<std::mutex> lock{mutex_, std::try_to_lock}) {
     UpdateGlobalSessionContext();
-    return graph_manager_.RunGraph(graph_id, inputs, outputs);
+    GE_ASSERT_NOTNULL(user_graphs_manager_);
+    return user_graphs_manager_->RunGraph(graph_id, inputs, outputs, GetSessionId());
   } else {
     GELOGE(GE_SESS_ALREADY_RUNNING, "[Run][Graph]failed, InnerSession:%" PRIu64 ", graph_id=%u.", session_id_,
            graph_id);
@@ -475,7 +477,9 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, aclrtStream stre
   for (auto &item : outputs) {
     ge_outputs.emplace_back(TensorAdapter::AsGeTensorShared(item));
   }
-  const Status res = graph_manager_.RunGraphWithStreamAsync(graph_id, stream, session_id_, ge_inputs, ge_outputs);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const Status res =
+      user_graphs_manager_->RunGraphWithStreamAsync(graph_id, stream, ge_inputs, ge_outputs, session_id_);
   if (res != SUCCESS) {
     GELOGE(res,
            "[Run][GraphWithStreamAsync]failed,"
@@ -916,11 +920,13 @@ void InnerSession::SetDFlowSession(const std::shared_ptr<DFlowSessionImpl> &dflo
 }
 
 Status InnerSession::GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const {
-  return graph_manager_.GetRunGraphMode(graph_id, mode);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  return user_graphs_manager_->GetRunGraphMode(graph_id, mode);
 }
 
 Status InnerSession::SetRunGraphMode(uint32_t graph_id, const RunGraphMode &mode) {
-  return graph_manager_.SetRunGraphMode(graph_id, mode);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  return user_graphs_manager_->SetRunGraphMode(graph_id, mode);
 }
 
 Status InnerSession::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer) {

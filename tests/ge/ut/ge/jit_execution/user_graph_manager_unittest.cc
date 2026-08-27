@@ -144,6 +144,32 @@ TEST_F(UserGraphsManagerlUT, GetSetCompiledFlag_Failed) {
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
+TEST_F(UserGraphsManagerlUT, GetSetRunGraphMode_AutoFuse_Success) {
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  const uint32_t user_graph_id = 0U;
+  auto graph = JitShareGraph::AllNormalNodesStaticShape();
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, {}), SUCCESS);
+
+  RunGraphMode mode = RunGraphMode::kRunGraph;
+  EXPECT_EQ(user_graph_manager.GetRunGraphMode(user_graph_id, mode), SUCCESS);
+  EXPECT_EQ(mode, RunGraphMode::kRunGraphModeEnd);
+
+  EXPECT_EQ(user_graph_manager.SetRunGraphMode(user_graph_id, RunGraphMode::kRunGraph), SUCCESS);
+  EXPECT_EQ(user_graph_manager.GetRunGraphMode(user_graph_id, mode), SUCCESS);
+  EXPECT_EQ(mode, RunGraphMode::kRunGraph);
+
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
 TEST_F(UserGraphsManagerlUT, RunGraphAsync_Success) {
   ModelExecutor model_executor;
   model_executor.Initialize({}, 0);
@@ -702,10 +728,10 @@ TEST_F(UserGraphsManagerlUT, set_memory_skip_by_slice_scheduler_enable) {
   EXPECT_EQ(UNSUPPORTED, session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0));
 
   std::vector<std::string> expect_log_list = {
-      "SetGraphConstMemoryBase does not support the slice scheduler currently",
-      "UpdateGraphFeatureMemoryBase does not support the slice scheduler currently",
-      "SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently",
-      "UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently"};
+      "SetGraphConstMemoryBase does not support the JIT executor currently",
+      "UpdateGraphFeatureMemoryBase does not support the JIT executor currently",
+      "SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently",
+      "UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor currently"};
   for (auto &it : expect_log_list) {
     EXPECT_NE(gert_stub_.GetSlogStub().FindLog(-1, it.c_str()), -1);
   }

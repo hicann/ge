@@ -57,7 +57,7 @@ TEST_F(ExecutionOrderUT, no_slice_tests) {
 
   compute_graph->SetOutputSize(2);  // make a wrong output size
 
-  UserGraph user_graph{0, compute_graph};
+  UserGraph user_graph{0, compute_graph, {}, true};
   ExecutionOrder eo(user_graph);
 
   std::vector<GeTensor> input_tensors(1);

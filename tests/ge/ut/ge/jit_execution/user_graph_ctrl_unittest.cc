@@ -160,6 +160,97 @@ TEST_F(UserGraphControlUT, GetSetCompiledFlag_Success) {
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
+TEST_F(UserGraphControlUT, GetSetRunGraphMode_Success) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  auto graph = JitShareGraph::AllNormalNodes();
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  CompileContext compile_context(graph_manager);
+  auto ctrl = MakeUnique<UserGraphControl>(0U, compute_graph, compile_context, graph_manager,
+                                           std::map<std::string, std::string>{});
+
+  EXPECT_EQ(ctrl->GetRunGraphMode(), RunGraphMode::kRunGraphModeEnd);
+  ctrl->SetRunGraphMode(RunGraphMode::kRunGraph);
+  EXPECT_EQ(ctrl->GetRunGraphMode(), RunGraphMode::kRunGraph);
+  ctrl->SetRunGraphMode(RunGraphMode::kRunGraphWithStreamAsync);
+  EXPECT_EQ(ctrl->GetRunGraphMode(), RunGraphMode::kRunGraphWithStreamAsync);
+
+  EXPECT_EQ(ctrl->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphControlUT, RunGraph_StaticShape_Success) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  auto graph = JitShareGraph::AllNormalNodesStaticShape();
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  CompileContext compile_context(graph_manager);
+  auto ctrl = MakeUnique<UserGraphControl>(0U, compute_graph, compile_context, graph_manager,
+                                           std::map<std::string, std::string>{});
+
+  std::vector<gert::Tensor> inputs(1U);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {2, 3, 3, 2}, DT_FLOAT, FORMAT_NCHW);
+  std::vector<gert::Tensor> outputs;
+  EXPECT_EQ(ctrl->RunGraph(inputs, outputs, 0U), SUCCESS);
+  EXPECT_FALSE(outputs.empty());
+
+  EXPECT_EQ(ctrl->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphControlUT, RunGraph_GeTensor_StaticShape_Success) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  auto graph = JitShareGraph::AllNormalNodesStaticShape();
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  CompileContext compile_context(graph_manager);
+  auto ctrl = MakeUnique<UserGraphControl>(0U, compute_graph, compile_context, graph_manager,
+                                           std::map<std::string, std::string>{});
+
+  TensorDesc tensor_desc(Shape({2, 3, 3, 2}), FORMAT_NCHW, DT_FLOAT);
+  std::vector<float> input_data(2U * 3U * 3U * 2U, 0.0F);
+  GeTensorDesc ge_tensor_desc = TensorAdapter::TensorDesc2GeTensorDesc(tensor_desc);
+  GeTensor ge_input(ge_tensor_desc, reinterpret_cast<uint8_t *>(input_data.data()), input_data.size() * sizeof(float));
+  std::vector<ge::Tensor> inputs{TensorAdapter::AsTensor(ge_input)};
+  std::vector<ge::Tensor> outputs;
+  EXPECT_EQ(ctrl->RunGraph(inputs, outputs, 0U), SUCCESS);
+  EXPECT_FALSE(outputs.empty());
+
+  EXPECT_EQ(ctrl->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphControlUT, RunGraphWithStreamAsync_GeTensor_Success) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  auto graph = JitShareGraph::AllNormalNodesStaticShape();
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  CompileContext compile_context(graph_manager);
+  auto ctrl = MakeUnique<UserGraphControl>(0U, compute_graph, compile_context, graph_manager,
+                                           std::map<std::string, std::string>{});
+
+  GeTensorDesc tensor_desc(GeShape({2, 3, 3, 2}), FORMAT_NCHW, DT_FLOAT);
+  std::vector<float> input_data(2U * 3U * 3U * 2U, 0.0F);
+  std::vector<GeTensor> inputs{
+      GeTensor(tensor_desc, reinterpret_cast<uint8_t *>(input_data.data()), input_data.size() * sizeof(float))};
+  std::vector<float> output_data(2U * 3U * 3U * 2U, 0.0F);
+  std::vector<GeTensor> outputs{
+      GeTensor(tensor_desc, reinterpret_cast<uint8_t *>(output_data.data()), output_data.size() * sizeof(float))};
+  EXPECT_EQ(ctrl->RunGraphWithStreamAsync(nullptr, inputs, outputs, 0U), SUCCESS);
+  EXPECT_FALSE(outputs.empty());
+
+  EXPECT_EQ(ctrl->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
 TEST_F(UserGraphControlUT, AddGraphInstance_MultiThread_Success) {
   ModelExecutor model_executor;
   model_executor.Initialize({}, 0);

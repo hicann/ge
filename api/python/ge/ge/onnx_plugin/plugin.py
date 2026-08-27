@@ -14,9 +14,16 @@
 
 import inspect
 from collections.abc import Collection
+from dataclasses import replace
 from typing import Callable, Optional, Tuple
 
-from .registry import OnnxPluginDescriptor, register_onnx_plugin
+from .registry import (
+    PARSE_NODE,
+    PARSE_OPERATOR,
+    OnnxPluginDescriptor,
+    register_onnx_plugin,
+    replace_registered_onnx_plugin,
+)
 
 
 def _normalize_name(
@@ -45,7 +52,7 @@ def _normalize_opsets(opsets: Collection[int]) -> Tuple[int, ...]:
 
 
 class OnnxPlugin:
-    """ONNX source-to-target descriptor awaiting a parse_node callback."""
+    """ONNX source-to-target descriptor for parser callbacks."""
 
     __slots__ = ("_descriptor", "_domain", "_opsets", "_source", "_target")
 
@@ -58,22 +65,51 @@ class OnnxPlugin:
         self._target = target
         self._descriptor: Optional[OnnxPluginDescriptor] = None
 
-    def parse_node(self, fn: Callable[..., None]) -> Callable[..., None]:
-        if self._descriptor is not None:
-            raise ValueError("OnnxPlugin parse_node is already bound")
+    def _bind_callback(
+        self, fn: Callable[..., None], callback_kind: str
+    ) -> Callable[..., None]:
         if not inspect.isfunction(fn):
-            raise TypeError("OnnxPlugin parse_node expects a Python function")
+            raise TypeError(f"OnnxPlugin {callback_kind} expects a Python function")
+
+        if self._descriptor is not None:
+            descriptor = self._descriptor
+            if callback_kind in descriptor.callback_kinds:
+                raise ValueError(f"OnnxPlugin {callback_kind} is already bound")
+            descriptor = replace(
+                descriptor,
+                parser_node=fn
+                if callback_kind == PARSE_NODE
+                else descriptor.parser_node,
+                parser_operator=(
+                    fn
+                    if callback_kind == PARSE_OPERATOR
+                    else descriptor.parser_operator
+                ),
+            )
+            replace_registered_onnx_plugin(descriptor)
+            if descriptor.parser_node is not None:
+                setattr(
+                    descriptor.parser_node, "__ge_onnx_plugin_descriptor__", descriptor
+                )
+            if descriptor.parser_operator is not None:
+                setattr(
+                    descriptor.parser_operator,
+                    "__ge_onnx_plugin_descriptor__",
+                    descriptor,
+                )
+            self._descriptor = descriptor
+            return fn
 
         module_name = fn.__module__
-        parser_node_name = fn.__qualname__
+        callback_name = fn.__qualname__
         origin_types = tuple(
             f"{self._domain}::{opset}::{self._source}" for opset in self._opsets
         )
         descriptor = register_onnx_plugin(
             OnnxPluginDescriptor(
                 descriptor_key=(
-                    f"{module_name}:{parser_node_name}:{self._domain}:"
-                    f"{self._source}:{','.join(map(str, self._opsets))}"
+                    f"{module_name}:{callback_name}:{callback_kind}:"
+                    f"{self._domain}:{self._source}:{','.join(map(str, self._opsets))}"
                 ),
                 source=self._source,
                 domain=self._domain,
@@ -81,12 +117,19 @@ class OnnxPlugin:
                 target=self._target,
                 origin_types=origin_types,
                 module_name=module_name,
-                parser_node=fn,
+                parser_node=fn if callback_kind == PARSE_NODE else None,
+                parser_operator=fn if callback_kind == PARSE_OPERATOR else None,
             )
         )
         self._descriptor = descriptor
         setattr(fn, "__ge_onnx_plugin_descriptor__", descriptor)
         return fn
+
+    def parse_node(self, fn: Callable[..., None]) -> Callable[..., None]:
+        return self._bind_callback(fn, PARSE_NODE)
+
+    def parse_operator(self, fn: Callable[..., None]) -> Callable[..., None]:
+        return self._bind_callback(fn, PARSE_OPERATOR)
 
 
 def onnx_plugin(

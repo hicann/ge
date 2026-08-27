@@ -63,3 +63,185 @@
   如果社区中他人遇到的问题您有合适的解决方法，欢迎您在Issue中发表评论交流，帮助他人解决问题和痛点，共同优化易用性。
 
   如果对应Issue需要进行代码修改，您可以在Issue评论框中输入“/assign”或“/assign @yourself”，将该Issue分配给您，跟踪协助解决问题。
+
+## 提交前自检清单
+
+提交 PR 前，请逐项确认以下内容。本地通过自检可避免绝大部分 CI 失败。
+
+### 代码格式
+
+- 安装并运行 pre-commit：`pip3 install pre-commit && pre-commit run`
+  - 详见 [pre-commit 使用指南](docs/zh/contributions/precommit_guide.md)
+- 所有新增文件包含完整的 CANN OSL 版权头，年份和格式参考仓库根目录 [OAT.xml](OAT.xml) 及现有源文件。版权头必须包含完整的许可证说明，不能只保留 Copyright 行：
+  - `.cpp`/`.h`：
+    ```cpp
+    /**
+     * Copyright (c) <year> Huawei Technologies Co., Ltd.
+     * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+     * CANN Open Software License Agreement Version 2.0 (the "License").
+     * Please refer to the License for details. You may not use this file except in compliance with the License.
+     * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+     * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+     * See LICENSE in the root of the software repository for the full text of the License.
+     */
+    ```
+  - `.sh`：
+    ```bash
+    #!/bin/bash
+    # -----------------------------------------------------------------------------------------------------------
+    # Copyright (c) <year> Huawei Technologies Co., Ltd.
+    # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+    # CANN Open Software License Agreement Version 2.0 (the "License").
+    # Please refer to the License for details. You may not use this file except in compliance with the License.
+    # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+    # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+    # See LICENSE in the root of the software repository for the full text of the License.
+    # -----------------------------------------------------------------------------------------------------------
+    ```
+  - `.py`：
+    ```python
+    #!/usr/bin/env python3
+    # -*- coding: utf-8 -*-
+    # -----------------------------------------------------------------------------------------------------------
+    # Copyright (c) <year> Huawei Technologies Co., Ltd.
+    # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+    # CANN Open Software License Agreement Version 2.0 (the "License").
+    # Please refer to the License for details. You may not use this file except in compliance with the License.
+    # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+    # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+    # See LICENSE in the root of the software repository for the full text of the License.
+    # -----------------------------------------------------------------------------------------------------------
+    ```
+- Shell 脚本应根据错误处理需求使用 `set -e`；如果脚本需要允许命令失败或无匹配结果继续执行，应显式处理返回值，并在脚本中说明例外原因。
+- `cd` 命令检查返回值：`cd path || { echo "error"; exit 1; }`
+- 函数体不超过 50 行（超大函数会被 CI 拦截）
+- 循环处理多文件时，若全部文件都失败则正确返回 `FAILED`
+
+### 提交规范
+
+- 如果分支包含多个无效 commit，建议在提交 PR 前通过 rebase 进行 squash，以保持提交历史简洁：
+  ```bash
+  git rebase -i upstream/develop   # 多余的 pick → s (squash)
+  ```
+- PR 的目标仓库和目标分支：提交到 [cann/ge](https://gitcode.com/cann/ge) 仓库的 `develop` 分支。
+- 基于最新 develop 分支：
+  ```bash
+  git fetch upstream develop && git rebase upstream/develop
+  ```
+- commit message 格式：`<type>: <描述>`（如 `feat: add xxx`, `fix: fix xxx`）
+
+### 文档
+
+- 样例需包含中英文 README（`README.md` + `README_en.md`），含功能描述、目录结构、环境准备、实现步骤、构建验证、预期输出
+- 在父级 README 中注册新样例/模块条目（如 `examples/README.md`、`examples/acl/README.md` 等）
+
+### CI 门禁说明
+
+提交 PR 后，需要在 PR 评论区发送 `compile`（也支持 `/compile`）触发 CI 流水线；PR 更新后如需重新执行流水线，请再次发送该评论。流水线触发后会运行以下检查项及其本地验证方式：
+
+| CI 检查项 | 作用 | 本地验证 |
+|---|---|---|
+| `codecheck_precommit` | 代码格式合规（pre-commit hooks） | `pre-commit run` |
+| `codecheck_dt` | DT 测试用例规范检查 | 参考 [DT 用例开发指导](docs/zh/contributions/dev_test_guide/) |
+| `clang-format` | C++ 代码格式化 | `clang-format -i <file>` |
+| `ruff` | Python 代码格式化与 lint | `python3 -m ruff format <file> && python3 -m ruff check --fix <file>` |
+| `codespell` | 拼写检查 | `codespell <file>` |
+| `OAT` | 开源合规（许可证头、二进制文件检查） | `pre-commit run oat-check` |
+
+---
+
+## 贡献分级指引
+
+GE 的贡献按复杂度分为三级，请根据您的贡献类型选择对应流程。
+
+### 初级贡献（Bug 修复 / 文档纠错）
+
+适用范围：修复 Bug、修正文档错误、小的代码格式调整等不改变代码流程的修改。
+
+**流程**：
+
+1. Fork 仓库并创建分支
+2. 修改代码，本地运行 `pre-commit run` 确保格式合规
+3. 提交 PR，按 [PR 模板](.gitcode/PULL_REQUEST_TEMPLATE.zh-CN.md) 填写变更描述
+4. 确保 CI 门禁全部通过（见上方 [CI 门禁说明](#ci-门禁说明)）
+5. 在 PR 评论区 `@committer_gitcode_id` 提请检视
+6. Committer 检视通过后标注 `/lgtm`，Maintainer 标注 `/approve` 后合入
+
+> **合入标签**：`/lgtm`（Looks Good To Me）由 Committer 添加，表示代码检视通过；`/approve` 由 Maintainer 添加，表示批准合入。完整机器人命令参见[社区评论命令指南](https://gitcode.com/cann/infrastructure/blob/main/docs/robot/robot%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97.md)。
+
+### 高级贡献（功能开发 / 模块修改）
+
+适用范围：新增特性、新增接口、修改代码流程、性能优化等涉及核心模块的改动。
+
+**流程**：
+
+1. **先提交 Issue**：新建 `Requirement|需求建议` 类 Issue，说明背景、价值、设计方案
+2. **等待 Committer/Maintainer 同意**：获得方案认可后再开始编码，避免代码被拒绝合入
+3. **编码并提交 PR**：遵守下方约束速查表和测试要求
+4. CI 门禁通过 + Committer 检视通过（`/lgtm`）+ Maintainer 批准（`/approve`）
+
+#### 代码目录导航
+
+| 目录 | 职责 |
+|---|---|
+| `compiler/graph/passes/` | 图优化 pass（融合、常量折叠、格式推导） |
+| `compiler/graph/build/` | 编译构建（内存分配、流分配、task 生成） |
+| `compiler/graph/partition/` | 图拆分（动静分离、引擎分区） |
+| `runtime/v2/` | 动态执行器 RT2.0（Lowering、ExecuteGraph） |
+| `runtime/v1/` | 静态执行器（DavinciModel、Task Sink） |
+| `api/acl/` | ACL 对外 API 实现 |
+| `base/` | 基础图结构、IR 定义 |
+| `graph_metadef/` | 算子定义与注册 |
+| `parser/` | 模型格式解析器（ONNX、TF、Caffe） |
+
+#### 贡献场景约束速查
+
+| 改动场景 | 必须遵守的约束 | 参考文档 |
+|---|---|---|
+| 改图优化 pass | 图等价变换、控制边处理、节点名约束 | `docs/zh/contributions/coding_red_lines.md` 规则 4、7、8 |
+| 改内存分配 | 内存复用约束、跨 so 析构安全 | `docs/zh/design/constraints/memory-constraints.md` |
+| 改 runtime 执行 | RT2 动态 shape 约束、hybrid 执行流程 | `docs/zh/design/constraints/rt2_runtime.md` |
+| 改图拆分逻辑 | 切图不改变语义、子图通信隔离 | `docs/zh/design/constraints/graph_split.md` |
+| 改流分配 | 多流并行 event 同步、流复用 | `docs/zh/design/constraints/stream_allocator.md` |
+| 新增特性/feature | 必须做跨特性交叉影响分析 | `docs/zh/design/cross_feature_check.md` |
+| 改对外接口 | API/ABI 兼容性、禁止改已有接口签名 | `docs/zh/contributions/coding_red_lines.md` 规则 3 |
+
+#### 测试要求
+
+| 改动类型 | 最低测试要求 |
+|---|---|
+| 新增 pass | UT + ST；UT 覆盖率 > 90%，ST 覆盖率 > 80% |
+| 改 runtime | UT + ST + 回归测试 |
+| 改 ACL API | UT + API 接口用例验证 |
+| 新增样例 | 至少跑通一次完整推理流程 |
+| Bug 修复 | 根据被测行为，补充能复现该 Bug 的 UT 用例、ST 用例，或同时补充两者 |
+
+测试开发指南详见 [`docs/zh/contributions/dev_test_guide/`](docs/zh/contributions/dev_test_guide/)。
+
+### 架构级贡献（跨模块 / 架构变更）
+
+适用范围：涉及多个模块协同变更、运行时架构调整、编译流程重构等影响面较大的改动。
+
+**流程**：
+
+1. **在 sig-ge 例会上讨论**：先在 GE SIG 例会上申报议题，讨论方案可行性和影响范围
+   - 会议看板：[CANN 社区会议](https://meeting.osinfra.cn/cann)（搜索 sig-ge 相关会议）
+   - 会议指南：[社区会议指南](https://gitcode.com/cann/infrastructure/blob/main/docs/meeting/CANN%E7%A4%BE%E5%8C%BA%E4%BC%9A%E8%AE%AE%E6%8C%87%E5%8D%97.md)
+2. **撰写设计文档**：按[设计文档模板](docs/zh/design/design_document_template.md)编写，必须覆盖：
+   - 功能需求与非功能需求（性能、内存）
+   - 对已有特性（21 个 features，见[架构总览](docs/zh/design/architecture.md)）的交叉影响分析
+   - DT 测试方案
+   - 兼容性检查（API/ABI、模型格式、芯片版本）
+3. **跨特性交叉影响分析**：参考 [`docs/zh/design/cross_feature_check.md`](docs/zh/design/cross_feature_check.md) 逐场景评估
+4. **提交 PR**：需附设计文档链接，CI + Committer + Maintainer 全部通过
+
+#### 通用编码红线
+
+所有代码修改必须遵守 [`docs/zh/contributions/coding_red_lines.md`](docs/zh/contributions/coding_red_lines.md)，关键规则摘要：
+
+- 禁止硬编码敏感信息（密钥、密码）
+- 外部数据输入必须校验
+- 资源申请后必须释放
+- 禁止使用 `std::unordered_map` 等无序容器；涉及图增删改和遍历时，优先使用 `std::map` 等有序容器；禁止使用 Node 指针作为 key 依赖地址顺序
+- 图优化 pass 不得改变图的计算语义
+- 禁止在代码中硬编码芯片型号

@@ -390,7 +390,7 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_one_reshape_node) {
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNode();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  ExecutionOrder order({user_graph_id, compute_graph});
+  ExecutionOrder order({user_graph_id, compute_graph, {}, true});
   CompileContext compile_context(graph_manager);
   CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
   std::mutex tmp_mutex;
@@ -483,7 +483,7 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_one_reshape_node_with
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNodeWithHostInput();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  ExecutionOrder order({user_graph_id, compute_graph});
+  ExecutionOrder order({user_graph_id, compute_graph, {}, true});
   CompileContext compile_context(graph_manager);
   CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
   std::mutex tmp_mutex;
@@ -545,7 +545,7 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_one_reshape_two_relu_
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNodeTwoRelu();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  ExecutionOrder order({user_graph_id, compute_graph});
+  ExecutionOrder order({user_graph_id, compute_graph, {}, true});
   CompileContext compile_context(graph_manager);
   CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
   std::mutex tmp_mutex;
@@ -606,7 +606,7 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_two_reshape_node) {
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::TwoReshapeNodeTwoRelu();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  ExecutionOrder order({user_graph_id, compute_graph});
+  ExecutionOrder order({user_graph_id, compute_graph, {}, true});
   CompileContext compile_context(graph_manager);
   CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
   std::mutex tmp_mutex;
@@ -662,7 +662,7 @@ TEST_F(JitExecutorUT, run_success_when_input_graph_contain_two_reshape_one_const
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneConstTwoReshapeNodeTwoRelu();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  ExecutionOrder order({user_graph_id, compute_graph});
+  ExecutionOrder order({user_graph_id, compute_graph, {}, true});
   CompileContext compile_context(graph_manager);
   CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
   std::mutex tmp_mutex;

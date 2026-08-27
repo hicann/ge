@@ -68,6 +68,12 @@ def test_operator_mutates_borrowed_handle(operator_capi):
     assert operator_capi.dynamic_outputs == [("y", 1)]
 
 
+def test_operator_reads_borrowed_attribute(operator_capi):
+    operator_capi.attrs["alpha"] = 0.5
+    with create_operator(operator_capi.handle) as target:
+        assert target.get_attr("alpha") == 0.5
+
+
 def test_operator_uses_borrowed_ctypes_handle(monkeypatch):
     calls = []
     buffers = []

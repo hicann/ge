@@ -38,6 +38,8 @@ namespace py = pybind11;
 constexpr const char *kBridgeModuleName = "ge.onnx_plugin._bridge";
 constexpr const char *kNativeModuleName = "ge.onnx_plugin._ge_onnx_plugin_native";
 constexpr const char *kPluginPathEnv = "ASCEND_CUSTOM_OPP_PATH";
+constexpr const char *kParseNodeCallbackKind = "parse_node";
+constexpr const char *kParseOperatorCallbackKind = "parse_operator";
 
 class OnnxPluginBridge {
  public:
@@ -74,8 +76,16 @@ class OnnxPluginBridge {
         const py::dict descriptor = py::reinterpret_borrow<py::dict>(item);
         const auto target = py::cast<std::string>(descriptor["target"]);
         const auto origins = py::cast<std::vector<std::string>>(descriptor["origin_types"]);
+        std::vector<std::string> callback_kinds;
+        if (descriptor.contains("callback_kinds")) {
+          callback_kinds = py::cast<std::vector<std::string>>(descriptor["callback_kinds"]);
+        } else if (descriptor.contains("callback_kind")) {
+          callback_kinds.emplace_back(py::cast<std::string>(descriptor["callback_kind"]));
+        } else {
+          callback_kinds.emplace_back(kParseNodeCallbackKind);
+        }
         for (const auto &origin : origins) {
-          if (!RegisterDescriptor(target, origin)) {
+          if (!RegisterDescriptor(target, origin, callback_kinds)) {
             // LCOV_EXCL_START
             GELOGE(FAILED, "Register Python ONNX plugin failed, target[%s], origin[%s].", target.c_str(),
                    origin.c_str());
@@ -147,6 +157,33 @@ class OnnxPluginBridge {
     // LCOV_EXCL_STOP
   }
 
+  Status ParseParamsByOperator(const std::string &origin, const Operator &operator_src, Operator &operator_dest) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_) {
+      GELOGE(FAILED, "Python ONNX plugin bridge is not initialized.");
+      return FAILED;
+    }
+    py::gil_scoped_acquire gil;
+    try {
+      const auto source_handle = reinterpret_cast<uintptr_t>(&operator_src);
+      const auto target_handle = reinterpret_cast<uintptr_t>(&operator_dest);
+      (void)bridge_module_.attr("call_parse_operator")(origin, source_handle, target_handle);
+      return SUCCESS;
+    } catch (const py::error_already_set &error) {
+      if (error.matches(invalid_return_exception_.ptr())) {
+        GELOGE(PARAM_INVALID, "Python ONNX plugin parse_operator returned an invalid value.");
+        return PARAM_INVALID;
+      }
+      GELOGE(FAILED, "Python ONNX plugin parse_operator failed: %s", error.what());
+      return FAILED;
+      // LCOV_EXCL_START
+    } catch (const std::exception &error) {
+      GELOGE(FAILED, "Python ONNX plugin bridge failed: %s", error.what());
+      return FAILED;
+    }
+    // LCOV_EXCL_STOP
+  }
+
  private:
   void SyncPluginPathUnlocked() {
     const char *plugin_path = std::getenv(kPluginPathEnv);
@@ -189,7 +226,8 @@ class OnnxPluginBridge {
     initialized_ = false;
   }
 
-  bool RegisterDescriptor(const std::string &target, const std::string &origin) {
+  bool RegisterDescriptor(const std::string &target, const std::string &origin,
+                          const std::vector<std::string> &callback_kinds) {
     std::string registered_target;
     if (domi::OpRegistry::Instance()->GetOmTypeByOriOpType(origin, registered_target)) {
       if (registered_target != target) {
@@ -201,12 +239,28 @@ class OnnxPluginBridge {
       }
       return true;
     }
-    const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
-                                                 Operator &operator_dest) -> Status {
-      return OnnxPluginBridge::Instance().ParseParams(message, operator_dest);
-    };
     OpRegistrationData registration(target.c_str());
-    registration.FrameworkType(domi::ONNX).OriginOpType(origin.c_str()).ParseParamsFn(parse_params);
+    registration.FrameworkType(domi::ONNX).OriginOpType(origin.c_str());
+    for (const auto &callback_kind : callback_kinds) {
+      if (callback_kind == kParseNodeCallbackKind) {
+        const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
+                                                     Operator &operator_dest) -> Status {
+          return OnnxPluginBridge::Instance().ParseParams(message, operator_dest);
+        };
+        registration.ParseParamsFn(parse_params);
+      } else if (callback_kind == kParseOperatorCallbackKind) {
+        const domi::ParseParamByOpFunc parse_params = [origin](const Operator &operator_src,
+                                                               Operator &operator_dest) -> Status {
+          return OnnxPluginBridge::Instance().ParseParamsByOperator(origin, operator_src, operator_dest);
+        };
+        registration.ParseParamsByOperatorFn(parse_params);
+      } else {
+        // LCOV_EXCL_START
+        GELOGE(PARAM_INVALID, "Unknown Python ONNX plugin callback kind[%s].", callback_kind.c_str());
+        return false;
+        // LCOV_EXCL_STOP
+      }
+    }
     const auto parser_factory = OpParserFactory::Instance(domi::ONNX);
     if (parser_factory == nullptr) {
       GELOGE(FAILED, "Get ONNX parser factory failed, target[%s], origin[%s].", target.c_str(), origin.c_str());

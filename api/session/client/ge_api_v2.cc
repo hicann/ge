@@ -700,7 +700,7 @@ Status GeSession::RunGraph(uint32_t graph_id, const std::vector<gert::Tensor> &i
   auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraph);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Run graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          GetSessionId(), graph_id);
-  if (!impl_->GetLoadFlag(graph_id)) {
+  if (!EnableAutoFuse() && !impl_->GetLoadFlag(graph_id)) {
     GELOGI("Graph is not loaded, start to load graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
     ret = LoadGraph(graph_id, {}, nullptr);
     GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Run graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
@@ -991,14 +991,13 @@ Status GeSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const m
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  if (EnableSliceSchedule()) {
-    GELOGE(
-        UNSUPPORTED,
-        "[Construct][GeSession]SetGraphConstMemoryBase does not support the slice scheduler currently, session_id:%lu, "
-        "graph_id:%u, memory:%p, size:%zu",
-        GetSessionId(), graph_id, memory, size);
+  if (EnableAutoFuse()) {
+    GELOGE(UNSUPPORTED,
+           "[Construct][GeSession]SetGraphConstMemoryBase does not support the JIT executor currently, session_id:%lu, "
+           "graph_id:%u, memory:%p, size:%zu",
+           GetSessionId(), graph_id, memory, size);
     REPORT_INNER_ERR_MSG("E19999",
-                         "SetGraphConstMemoryBase does not support the slice scheduler currently, session_id:%lu, "
+                         "SetGraphConstMemoryBase does not support the JIT executor currently, session_id:%lu, "
                          "graph_id:%u, memory:%p, size:%zu",
                          GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
@@ -1022,14 +1021,14 @@ Status GeSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *co
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  if (EnableSliceSchedule()) {
+  if (EnableAutoFuse()) {
     GELOGE(UNSUPPORTED,
-           "[Construct][GeSession]UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, "
+           "[Construct][GeSession]UpdateGraphFeatureMemoryBase does not support the JIT executor currently, "
            "session_id:%lu, "
            "graph_id:%u, memory:%p, size:%zu",
            GetSessionId(), graph_id, memory, size);
     REPORT_INNER_ERR_MSG("E19999",
-                         "UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, session_id:%lu, "
+                         "UpdateGraphFeatureMemoryBase does not support the JIT executor currently, session_id:%lu, "
                          "graph_id:%u, memory:%p, size:%zu",
                          GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
@@ -1054,15 +1053,14 @@ Status GeSession::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memo
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  if (EnableSliceSchedule()) {
-    GELOGE(
-        UNSUPPORTED,
-        "[Construct][GeSession]SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, "
-        "session_id:%lu, graph_id:%u, type:%d, memory:%p, size:%zu",
-        GetSessionId(), graph_id, type, memory, size);
+  if (EnableAutoFuse()) {
+    GELOGE(UNSUPPORTED,
+           "[Construct][GeSession]SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently, "
+           "session_id:%lu, graph_id:%u, type:%d, memory:%p, size:%zu",
+           GetSessionId(), graph_id, type, memory, size);
     REPORT_INNER_ERR_MSG(
         "E19999",
-        "SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, session_id:%lu, "
+        "SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently, session_id:%lu, "
         "graph_id:%u, memory:%p, size:%zu",
         GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
@@ -1088,15 +1086,14 @@ Status GeSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, con
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  if (EnableSliceSchedule()) {
-    GELOGE(
-        UNSUPPORTED,
-        "[Construct][GeSession]UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently, "
-        "session_id:%lu, graph_id:%u, memory:%p, size:%zu",
-        GetSessionId(), graph_id, memory, size);
+  if (EnableAutoFuse()) {
+    GELOGE(UNSUPPORTED,
+           "[Construct][GeSession]UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor currently, "
+           "session_id:%lu, graph_id:%u, memory:%p, size:%zu",
+           GetSessionId(), graph_id, memory, size);
     REPORT_INNER_ERR_MSG(
         "E19999",
-        "UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently, session_id:%lu, "
+        "UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor currently, session_id:%lu, "
         "graph_id:%u, memory:%p, size:%zu",
         GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;

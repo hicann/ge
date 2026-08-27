@@ -57,7 +57,9 @@ def test_onnx_plugin_binds_parse_node_and_expands_normalized_opsets():
         "ai.onnx::11::Elu",
         "ai.onnx::13::Elu",
     )
+    assert descriptor.callback_kinds == ("parse_node",)
     assert descriptor.parser_node is parse_elu
+    assert descriptor.parser_operator is None
     assert get_registered_onnx_plugins() == [descriptor]
     assert get_registered_onnx_plugin_dicts() == [descriptor.to_bridge_dict()]
     assert descriptor.to_bridge_dict() == {
@@ -68,7 +70,27 @@ def test_onnx_plugin_binds_parse_node_and_expands_normalized_opsets():
         "target": "EluTarget",
         "origin_types": ["ai.onnx::11::Elu", "ai.onnx::13::Elu"],
         "module_name": __name__,
+        "callback_kind": "parse_node",
     }
+
+
+def test_onnx_plugin_binds_parse_operator():
+    plugin = onnx_plugin(
+        source="OperatorSource",
+        domain="test.domain",
+        opsets=(1,),
+        target="OperatorTarget",
+    )
+
+    @plugin.parse_operator
+    def parse_operator(source, target):
+        del source, target
+
+    descriptor = parse_operator.__ge_onnx_plugin_descriptor__
+    assert descriptor.callback_kinds == ("parse_operator",)
+    assert descriptor.parser_node is None
+    assert descriptor.parser_operator is parse_operator
+    assert descriptor.to_bridge_dict()["callback_kind"] == "parse_operator"
 
 
 def test_descriptor_is_frozen():
@@ -169,6 +191,41 @@ def test_parse_node_can_only_be_bound_once():
             del node, target
 
     assert len(get_registered_onnx_plugins()) == 1
+
+
+def test_parse_callbacks_can_share_one_descriptor():
+    plugin = onnx_plugin(
+        source="Source", domain="test.domain", opsets=(1,), target="Target"
+    )
+
+    @plugin.parse_node
+    def parse_node(node, target):
+        del node, target
+
+    @plugin.parse_operator
+    def parse_operator(source, target):
+        del source, target
+
+    descriptor = parse_operator.__ge_onnx_plugin_descriptor__
+    assert descriptor.callback_kinds == ("parse_node", "parse_operator")
+    assert descriptor.parser_node is parse_node
+    assert descriptor.parser_operator is parse_operator
+    assert parse_node.__ge_onnx_plugin_descriptor__ is descriptor
+    assert descriptor.to_bridge_dict()["callback_kinds"] == [
+        "parse_node",
+        "parse_operator",
+    ]
+    assert get_registered_onnx_plugins() == [descriptor]
+    assert (
+        get_registered_onnx_plugin_by_origin_type("test.domain::1::Source")
+        is descriptor
+    )
+
+    with pytest.raises(ValueError, match="parse_operator is already bound"):
+
+        @plugin.parse_operator
+        def parse_operator_again(source, target):
+            del source, target
 
 
 @pytest.mark.parametrize(

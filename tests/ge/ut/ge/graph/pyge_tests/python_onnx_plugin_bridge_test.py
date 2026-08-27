@@ -17,7 +17,11 @@ import ge.onnx_plugin as onnx_plugin_api
 import pytest
 from ge.graph import Operator
 from ge.onnx_plugin import onnx_plugin
-from ge.onnx_plugin._bridge import _InvalidParseNodeReturn, call_parse_node
+from ge.onnx_plugin._bridge import (
+    _InvalidParseNodeReturn,
+    call_parse_node,
+    call_parse_operator,
+)
 from ge.onnx_plugin.registry import clear_registered_onnx_plugins
 from python_onnx_plugin_test_utils import FakeOperatorCapi
 
@@ -45,7 +49,6 @@ def test_unsupported_pr1_interfaces_are_not_exposed():
     for name in ("decompose", "reset", "reload"):
         assert not hasattr(onnx_plugin_api.OnnxPlugin, name)
     for name in (
-        "get_attr",
         "update_input_desc",
         "update_output_desc",
     ):
@@ -101,3 +104,66 @@ def test_call_parse_node_rejects_non_none_return_and_invalidates(
 
     with pytest.raises(_InvalidParseNodeReturn, match="must return None"):
         call_parse_node("test.domain::1::Source", None, operator_capi.handle)
+
+
+def test_call_parse_operator_reads_source_and_updates_target(operator_capi):
+    plugin = onnx_plugin(
+        source="OperatorSource",
+        domain="test.domain",
+        opsets=(1,),
+        target="TargetOp",
+    )
+    operator_capi.attrs["alpha"] = 0.5
+
+    @plugin.parse_operator
+    def parse_operator(source, target):
+        target.set_attr("copied_alpha", source.get_attr("alpha"))
+
+    call_parse_operator(
+        "test.domain::1::OperatorSource",
+        operator_capi.handle,
+        operator_capi.handle,
+    )
+    assert operator_capi.attrs["copied_alpha"] == 0.5
+
+
+def test_call_parse_operator_rejects_source_mutation(operator_capi):
+    plugin = onnx_plugin(
+        source="ReadOnlySource",
+        domain="test.domain",
+        opsets=(1,),
+        target="TargetOp",
+    )
+
+    @plugin.parse_operator
+    def parse_operator(source, target):
+        del target
+        source.set_attr("forbidden", 1)
+
+    with pytest.raises(RuntimeError, match="read-only"):
+        call_parse_operator(
+            "test.domain::1::ReadOnlySource",
+            operator_capi.handle,
+            operator_capi.handle,
+        )
+
+
+def test_call_parse_operator_rejects_non_none_return(operator_capi):
+    plugin = onnx_plugin(
+        source="OperatorReturn",
+        domain="test.domain",
+        opsets=(1,),
+        target="TargetOp",
+    )
+
+    @plugin.parse_operator
+    def parse_operator(source, target):
+        del source, target
+        return False
+
+    with pytest.raises(_InvalidParseNodeReturn, match="parse_operator"):
+        call_parse_operator(
+            "test.domain::1::OperatorReturn",
+            operator_capi.handle,
+            operator_capi.handle,
+        )

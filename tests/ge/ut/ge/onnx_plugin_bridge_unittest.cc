@@ -161,6 +161,43 @@ TEST(OnnxPythonPluginBridge, ParseParamsUsesNativeNodeAndPreservesCppPriority) {
   ASSERT_NE(parse_return, nullptr);
   EXPECT_NE(parse_return(&node, return_op), SUCCESS);
 
+  Operator source_op("operator_source", "BridgeOperator");
+  source_op.SetAttr("alpha", 0.5F);
+  Operator operator_target("operator_target", "BridgeOperatorTarget");
+  const auto parse_operator =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperator");
+  ASSERT_NE(parse_operator, nullptr);
+  EXPECT_EQ(parse_operator(source_op, operator_target), SUCCESS);
+  float copied_alpha = 0.0F;
+  EXPECT_EQ(operator_target.GetAttr("copied_alpha", copied_alpha), GRAPH_SUCCESS);
+  EXPECT_FLOAT_EQ(copied_alpha, 0.5F);
+
+  node.set_op_type("test.domain::1::BridgeBoth");
+  Operator both_node_target("both_node", "BridgeBothTarget");
+  const auto parse_both_node = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeBothTarget", node.op_type());
+  ASSERT_NE(parse_both_node, nullptr);
+  EXPECT_EQ(parse_both_node(&node, both_node_target), SUCCESS);
+  std::string callback;
+  EXPECT_EQ(both_node_target.GetAttr("callback", callback), GRAPH_SUCCESS);
+  EXPECT_EQ(callback, "parse_node");
+
+  Operator both_operator_target("both_operator", "BridgeBothTarget");
+  const auto parse_both_operator = domi::OpRegistry::Instance()->GetParseParamByOperatorFunc(node.op_type());
+  ASSERT_NE(parse_both_operator, nullptr);
+  EXPECT_EQ(parse_both_operator(source_op, both_operator_target), SUCCESS);
+  EXPECT_EQ(both_operator_target.GetAttr("callback", callback), GRAPH_SUCCESS);
+  EXPECT_EQ(callback, "parse_operator");
+
+  const auto parse_operator_error =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperatorError");
+  ASSERT_NE(parse_operator_error, nullptr);
+  EXPECT_EQ(parse_operator_error(source_op, operator_target), FAILED);
+
+  const auto parse_operator_return =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperatorReturn");
+  ASSERT_NE(parse_operator_return, nullptr);
+  EXPECT_NE(parse_operator_return(source_op, operator_target), SUCCESS);
+
   node.set_op_type("test.domain::1::BridgePriority");
   Operator priority_op("priority_node", "BridgePriorityTarget");
   const auto parse_priority = domi::OpRegistry::Instance()->GetParseParamFunc("BridgePriorityTarget", node.op_type());
@@ -180,6 +217,7 @@ TEST(OnnxPythonPluginBridge, ParseParamsUsesNativeNodeAndPreservesCppPriority) {
   const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(bridge, "ResetOnnxPluginBridgeState"));
   ASSERT_NE(reset_bridge, nullptr);
   reset_bridge();
+  EXPECT_NE(parse_operator(source_op, operator_target), SUCCESS);
   EXPECT_NE(parse_elu(&node, priority_op), SUCCESS);
 }
 

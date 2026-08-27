@@ -11,6 +11,7 @@
 #include "user_graph_ctrl.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph/utils/tensor_adapter.h"
 #include "ge_context.h"
 #include "formats/utils/formats_trans_utils.h"
 
@@ -111,9 +112,77 @@ Status UserGraphControl::Finalize() {
     }
   }
   StopQueue();
+  if (whole_graph_added_) {
+    (void)graph_manager_.RemoveGraph(whole_graph_instance_id_);
+    whole_graph_added_ = false;
+  }
   GE_ASSERT_SUCCESS(jit_executor_pool_.Finalize());
   GE_ASSERT_SUCCESS(cmc_.SaveCache(order_));
   return SUCCESS;
+}
+
+Status UserGraphControl::EnsureWholeGraphAdded() {
+  if (whole_graph_added_) {
+    return SUCCESS;
+  }
+  whole_graph_instance_id_ = compile_context_.GenNewGraphId();
+  const auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph_);
+  GE_ASSERT_SUCCESS(graph_manager_.AddGraph(whole_graph_instance_id_, graph, order_.GetUserGraph().graph_options,
+                                            domi::GetContext()));
+  whole_graph_added_ = true;
+  return SUCCESS;
+}
+
+Status UserGraphControl::EnsureWholeGraphCompiled(const std::vector<gert::Tensor> &inputs, uint64_t session_id) {
+  GE_ASSERT_SUCCESS(EnsureWholeGraphAdded());
+  if (whole_graph_compiled_ || graph_manager_.GetBuildFlag(whole_graph_instance_id_)) {
+    whole_graph_compiled_ = true;
+    return SUCCESS;
+  }
+
+  std::vector<ge::Tensor> compile_inputs;
+  GE_ASSERT_SUCCESS(TensorTransUtils::GertTensors2Tensors(inputs, compile_inputs));
+  GE_ASSERT_SUCCESS(graph_manager_.CompileGraph(whole_graph_instance_id_, session_id, compile_inputs));
+  whole_graph_compiled_ = true;
+  return SUCCESS;
+}
+
+Status UserGraphControl::EnsureWholeGraphLoaded(const std::map<AscendString, AscendString> &options, void *stream) {
+  GE_ASSERT_SUCCESS(EnsureWholeGraphAdded());
+  if (whole_graph_loaded_ || graph_manager_.GetLoadFlag(whole_graph_instance_id_)) {
+    whole_graph_loaded_ = true;
+    return SUCCESS;
+  }
+  GE_ASSERT_SUCCESS(graph_manager_.LoadGraph(whole_graph_instance_id_, options, stream));
+  whole_graph_loaded_ = true;
+  return SUCCESS;
+}
+
+Status UserGraphControl::RunGraph(const std::vector<ge::Tensor> &inputs, std::vector<ge::Tensor> &outputs,
+                                  uint64_t session_id) {
+  GE_ASSERT_SUCCESS(EnsureWholeGraphAdded());
+  return graph_manager_.RunGraph(whole_graph_instance_id_, inputs, outputs, session_id);
+}
+
+Status UserGraphControl::RunGraph(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
+                                  uint64_t session_id) {
+  GE_ASSERT_SUCCESS(EnsureWholeGraphCompiled(inputs, session_id));
+  GE_ASSERT_SUCCESS(EnsureWholeGraphLoaded(GetLoadOptions(), nullptr));
+  return graph_manager_.RunGraph(whole_graph_instance_id_, inputs, outputs);
+}
+
+Status UserGraphControl::RunGraphWithStreamAsync(void *stream, const std::vector<GeTensor> &inputs,
+                                                 std::vector<GeTensor> &outputs, uint64_t session_id) {
+  GE_ASSERT_SUCCESS(EnsureWholeGraphAdded());
+  return graph_manager_.RunGraphWithStreamAsync(whole_graph_instance_id_, stream, session_id, inputs, outputs);
+}
+
+RunGraphMode UserGraphControl::GetRunGraphMode() const {
+  return run_graph_mode_;
+}
+
+void UserGraphControl::SetRunGraphMode(const RunGraphMode &mode) {
+  run_graph_mode_ = mode;
 }
 
 Status UserGraphControl::AddGraphInstance() {
@@ -230,11 +299,11 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
 }
 
 Status UserGraphControl::LoadGraph(const std::map<AscendString, AscendString> &options, void *stream) {
+  SetLoadOptions(options);
   bool is_unknown_input_shape{false};
   const auto &inputs = order_.GetInputTensors(is_unknown_input_shape);
   if (is_unknown_input_shape) {
     GELOGI("CompileGraph dynamic graph %u skip.", user_graph_id_);
-    SetLoadOptions(options);
     return SUCCESS;
   }
   auto load_task = MakeUnique<UserGraphExecution>(user_graph_id_, inputs, nullptr, INVALID_SESSION_ID);
