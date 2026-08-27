@@ -11,6 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_TENSOR_SEQUENCE_H
 #define AIR_CXX_RUNTIME_V2_TENSOR_SEQUENCE_H
 
+#include <cinttypes>
 #include <vector>
 #include <sstream>
 
@@ -89,8 +90,8 @@ class TensorSeq {
     }
 
     if (!ret) {
-      GELOGE(ge::PARAM_INVALID, "input index %lld is not valid, sequence's size %lld", index, size);
-      REPORT_INNER_ERR_MSG("E39999", "input is not valid");
+      GELOGE(ge::PARAM_INVALID, "input index %" PRId64 " is not valid, sequence's size %" PRId64 "", index, size);
+      REPORT_INNER_ERR_MSG("E39999", "input index %" PRId64 " is not valid, sequence's size %" PRId64 "", index, size);
     }
     return ret;
   }
@@ -111,14 +112,12 @@ class TensorSeq {
   ge::graphStatus Add(TensorRef &&tensor, ge::DataType data_type) {
     if (elem_type_ != data_type) {
       GELOGE(ge::PARAM_INVALID,
-             "The data type of add tensor is not equal with element type "
-             "of tensor sequence, the input data type is [%u] , tensor sequence's element "
-             "type is [%u].",
+             "The data type of the tensor to add is not equal to the element type of "
+             "the tensor sequence, input data type is [%u], element type is [%u].",
              data_type, elem_type_);
       REPORT_INNER_ERR_MSG("E39999",
-                           "The data type of add tensor is not equal with element type "
-                           "of tensor sequence, the input data type is [%u] , tensor sequence's "
-                           "element type is [%u].",
+                           "The data type of the tensor to add is not equal to the element type of "
+                           "the tensor sequence, input data type is [%u], element type is [%u].",
                            data_type, elem_type_);
       return ge::PARAM_INVALID;
     }
@@ -146,14 +145,12 @@ class TensorSeq {
     auto data_type = tensor.GetDataType();
     if (elem_type_ != data_type) {
       GELOGE(ge::PARAM_INVALID,
-             "The data type of add tensor is not equal with element type "
-             "of tensor sequence, the input data type is [%u] , tensor sequence's element "
-             "type is [%u].",
+             "The data type of the tensor to add is not equal to the element type of "
+             "the tensor sequence, input data type is [%u], element type is [%u].",
              data_type, elem_type_);
       REPORT_INNER_ERR_MSG("E39999",
-                           "The data type of add tensor is not equal with element type "
-                           "of tensor sequence, the input data type is [%u] , tensor sequence's "
-                           "element type is [%u].",
+                           "The data type of the tensor to add is not equal to the element type of "
+                           "the tensor sequence, input data type is [%u], element type is [%u].",
                            data_type, elem_type_);
       return ge::PARAM_INVALID;
     }
@@ -176,14 +173,12 @@ class TensorSeq {
   ge::graphStatus Add(const ge::DataType data_type, const TensorData &tensor_data, const StorageShape &storage_shape) {
     if (elem_type_ != data_type) {
       GELOGE(ge::PARAM_INVALID,
-             "The data type of add tensor is not equal with element type "
-             "of tensor sequence, the input data type is [%u] , tensor sequence's element "
-             "type is [%u].",
+             "The data type of the tensor to add is not equal to the element type of "
+             "the tensor sequence, input data type is [%u], element type is [%u].",
              data_type, elem_type_);
       REPORT_INNER_ERR_MSG("E39999",
-                           "The data type of add tensor is not equal with element type "
-                           "of tensor sequence, the input data type is [%u] , tensor sequence's "
-                           "element type is [%u].",
+                           "The data type of the tensor to add is not equal to the element type of "
+                           "the tensor sequence, input data type is [%u], element type is [%u].",
                            data_type, elem_type_);
       return ge::PARAM_INVALID;
     }
@@ -208,14 +203,12 @@ class TensorSeq {
     auto data_type = tensor.GetDataType();
     if (elem_type_ != data_type) {
       GELOGE(ge::PARAM_INVALID,
-             "The data type of add tensor is not equal with element type "
-             "of tensor sequence, the input data type is [%u] , tensor sequence's element "
-             "type is [%u].",
+             "The data type of the tensor to add is not equal to the element type of "
+             "the tensor sequence, input data type is [%u], element type is [%u].",
              data_type, elem_type_);
       REPORT_INNER_ERR_MSG("E39999",
-                           "The data type of add tensor is not equal with element type "
-                           "of tensor sequence, the input data type is [%u] , tensor sequence's "
-                           "element type is [%u].",
+                           "The data type of the tensor to add is not equal to the element type of "
+                           "the tensor sequence, input data type is [%u], element type is [%u].",
                            data_type, elem_type_);
       return ge::PARAM_INVALID;
     }
@@ -249,14 +242,12 @@ class TensorSeq {
                       int64_t index) {
     if (elem_type_ != data_type) {
       GELOGE(ge::PARAM_INVALID,
-             "The data type of add tensor is not equal with element type "
-             "of tensor sequence, the input data type is [%u] , tensor sequence's element "
-             "type is [%u].",
+             "The data type of the tensor to add is not equal to the element type of "
+             "the tensor sequence, input data type is [%u], element type is [%u].",
              data_type, elem_type_);
       REPORT_INNER_ERR_MSG("E39999",
-                           "The data type of add tensor is not equal with element type "
-                           "of tensor sequence, the input data type is [%u] , tensor sequence's "
-                           "element type is [%u].",
+                           "The data type of the tensor to add is not equal to the element type of "
+                           "the tensor sequence, input data type is [%u], element type is [%u].",
                            data_type, elem_type_);
       return ge::PARAM_INVALID;
     }

@@ -311,7 +311,7 @@ ge::Status Ir2tfBaseParser::SetTfAttrType(const ge::OpDescPtr &op_desc_ptr, domi
   size_t first_underline_pos = expression.find_first_of('_');
   CHECK_RES_BOOL(
       first_underline_pos != std::string::npos, ErrorCode::IR2TF_CONFIG_PARSE_FAILED,
-      AICPU_REPORT_INNER_ERR_MSG("Invalid parser express[%s] should be contain '-'. op[%s], op type[%s].",
+      AICPU_REPORT_INNER_ERR_MSG("Invalid parser expression[%s], should contain '-'. op[%s], op type[%s].",
                                  expression.c_str(), op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str()))
 
   std::string src_anchor = expression.substr(0, first_underline_pos);
@@ -319,8 +319,9 @@ ge::Status Ir2tfBaseParser::SetTfAttrType(const ge::OpDescPtr &op_desc_ptr, domi
   int index = 0;
   aicpu::State state = StringToNum(anchor_index, index);
   if (state.state != ge::SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("Convert %s to int failed, %s, when parser expression[%s], op[%s]", anchor_index.c_str(),
-                               state.msg.c_str(), expression.c_str(), op_desc_ptr->GetName().c_str());
+    AICPU_REPORT_INNER_ERR_MSG("Convert %s to int failed, %s, when parsing expression[%s], op[%s]",
+                               anchor_index.c_str(), state.msg.c_str(), expression.c_str(),
+                               op_desc_ptr->GetName().c_str());
     return ErrorCode::IR2TF_CONFIG_INVALID;
   }
 
@@ -339,10 +340,8 @@ ge::Status Ir2tfBaseParser::SetTfAttrType(const ge::OpDescPtr &op_desc_ptr, domi
     int index_dynamic = 0;
     state = StringToNum(dynamic_attr.index, index_dynamic);
     if (state.state != ge::SUCCESS) {
-      AICPU_REPORT_INNER_ERR_MSG(
-          "Convert %s to int failed, %s, when parser[attrsDynamicDesc] index,"
-          " op[%s].",
-          dynamic_attr.index.c_str(), state.msg.c_str(), op_desc_ptr->GetName().c_str());
+      AICPU_REPORT_INNER_ERR_MSG("Convert %s to int failed, %s, when parsing attrsDynamicDesc index, op[%s].",
+                                 dynamic_attr.index.c_str(), state.msg.c_str(), op_desc_ptr->GetName().c_str());
       return ErrorCode::IR2TF_CONFIG_INVALID;
     }
 
@@ -420,7 +419,7 @@ ge::Status Ir2tfBaseParser::SetTfAttrEnum(const ge::OpDescPtr &op_desc_ptr, domi
   domi::tensorflow::DataType data_type = ConvertGeDataType2TfDataType(ge_data_type);
   int64_t type_enmu =
       (ge_data_type == ge::DT_UINT1) ? (static_cast<int64_t>(ge::DT_UINT1)) : (static_cast<int64_t>(data_type));
-  AICPUE_LOGD("SetTfAttrEnum type_enmu = %ld.", type_enmu);
+  AICPUE_LOGD("SetTfAttrEnum type_enum = %ld.", type_enmu);
   domi::tensorflow::AttrValue attr_value;
   attr_value.set_i(type_enmu);
 
@@ -512,7 +511,7 @@ ge::Status Ir2tfBaseParser::ValidateInputAttrMapConfig(const OpMapInfo &op_map_i
                        return ErrorCode::IR2TF_CONFIG_INVALID)
 
     AICPU_IF_BOOL_EXEC(exp_desc.parser_express.empty(),
-                       AICPU_REPORT_INNER_ERR_MSG(" parserExpress of inputAttrMapDesc in IR "
+                       AICPU_REPORT_INNER_ERR_MSG("parserExpress of inputAttrMapDesc in IR "
                                                   "config is empty, op type[%s].",
                                                   op_map_info.src_op_type.c_str());
                        return ErrorCode::IR2TF_CONFIG_INVALID)

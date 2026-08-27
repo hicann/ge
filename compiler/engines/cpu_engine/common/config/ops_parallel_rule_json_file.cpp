@@ -47,11 +47,11 @@ bool OpsParallelRuleJsonFile::ConvertOpsParallelRuleJsonFormat(json &json_read) 
                        return false)
     new_json[kOpNameList] = ops_name_list;
     json_read = new_json;
-    AICPUE_LOGI("Convert ops parallel json [rule:%s]success.", kOpsParallelRule.c_str());
+    AICPUE_LOGI("Convert ops parallel json [rule:%s] success.", kOpsParallelRule.c_str());
     return true;
   }
 
-  AICPUE_LOGI("Convert ops parallel json [rule:%s] fail.", kOpsParallelRule.c_str());
+  AICPUE_LOGI("Convert ops parallel json [rule:%s] failed.", kOpsParallelRule.c_str());
   return false;
 }
 

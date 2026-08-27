@@ -96,7 +96,7 @@ ge::Status TfKernelInfo::CompileOp(ge::NodePtr &node) {
 
   map<string, OpFullInfo> all_op_info;
   AICPU_CHECK_RES_WITH_LOG(GetOpInfos(all_op_info), "Get op infos failed, op[%s].", node->GetName().c_str())
-  AICPU_CHECK_RES_WITH_LOG(UpdataOpInfo(*node, all_op_info), "Updata function attr failed, op[%s].",
+  AICPU_CHECK_RES_WITH_LOG(UpdataOpInfo(*node, all_op_info), "Update function attr failed, op[%s].",
                            node->GetName().c_str())
 
   // create nodedef
@@ -148,7 +148,7 @@ void TfKernelInfo::LoadSupportedOps() {
 
   std::ifstream fs(supported_ops_json, std::ifstream::in);
   if (!fs.is_open()) {
-    AICPUE_LOGE("Failed open config file %s", supported_ops_json.c_str());
+    AICPUE_LOGE("Failed to open config file %s", supported_ops_json.c_str());
     return;
   }
 

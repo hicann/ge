@@ -436,7 +436,7 @@ bool ReadBytesFromBinaryFile(const std::string &file_name, std::vector<char> &bu
   buffer.resize(size);
   file.read(&buffer[0], size);
   file.close();
-  AICPUE_LOGI("Binary file size is[%ld]", size);
+  AICPUE_LOGI("Binary file size is[%ld] bytes", size);
   return true;
 }
 
@@ -535,7 +535,7 @@ Status SetOutPutsSize(shared_ptr<OpDesc> &op_desc_ptr) {
     if (!dims.empty()) {
       aicpu::State state = GetTotalSizeByDimsAndType(output_data_type, dims, output_mem_size);
       AICPU_IF_BOOL_EXEC(state.state != ge::SUCCESS,
-                         AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculate total "
+                         AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculating total "
                                                     "bytes of output[%zu], %s, op[%s]",
                                                     i, state.msg.c_str(), op_desc_ptr->GetName().c_str());
                          return state.state)
@@ -559,7 +559,7 @@ Status SetOutPutsSize(shared_ptr<OpDesc> &op_desc_ptr) {
         const GeShape &output_shape = output_tensor.GetShape();
         aicpu::State state = GetTotalSizeByShapeAndType(output_data_type, output_shape, output_mem_size);
         AICPU_IF_BOOL_EXEC(state.state != ge::SUCCESS,
-                           AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculate total "
+                           AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculating total "
                                                       "bytes of output[%zu], %s, op[%s]",
                                                       i, state.msg.c_str(), op_desc_ptr->GetName().c_str());
                            return state.state)
@@ -568,16 +568,16 @@ Status SetOutPutsSize(shared_ptr<OpDesc> &op_desc_ptr) {
       const GeShape &output_shape = output_tensor.GetShape();
       aicpu::State state = GetTotalSizeByShapeAndType(output_data_type, output_shape, output_mem_size);
       AICPU_IF_BOOL_EXEC(state.state != ge::SUCCESS,
-                         AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculate total "
+                         AICPU_REPORT_INNER_ERR_MSG("Overflow occurred when calculating total "
                                                     "bytes of output[%zu], %s, op[%s]",
                                                     i, state.msg.c_str(), op_desc_ptr->GetName().c_str());
                          return state.state)
     }
 
-    AICPUE_LOGI("After the output [%zu]'s calc, the total size is [%ld]", i, output_mem_size);
+    AICPUE_LOGI("After the output [%zu]'s calc, the total size is [%ld] bytes", i, output_mem_size);
     if (output_mem_size > LONG_MAX) {
       AICPU_REPORT_INNER_ERR_MSG(
-          "Overflow occurred when calculate %zuth output "
+          "Overflow occurred when calculating %zuth output "
           "total bytes, data type[%s], shape[%s], op[%s].",
           i, ge::TypeUtils::DataTypeToSerialString(output_data_type).c_str(),
           DebugString(output_tensor.GetShape().GetDims()).c_str(), op_desc_ptr->GetName().c_str());
@@ -622,7 +622,8 @@ Status SetOutSizeForSummary(shared_ptr<OpDesc> &op_desc_ptr) {
                  AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetListInt failed to set attr[%s], op[%s]",
                                             kOutputAlignmentVector.c_str(), op_desc_ptr->GetName().c_str()))
 
-  AICPUE_LOGI("Set output size with ResultSummary for unknown type 4 ok, op: %s.", op_desc_ptr->GetName().c_str());
+  AICPUE_LOGI("Set output size with ResultSummary for unknown shape type[DEPEND_COMPUTE] ok, op: %s.",
+              op_desc_ptr->GetName().c_str());
   return SUCCESS;
 }
 
@@ -648,13 +649,13 @@ State GetTotalSizeByDimsAndType(const ge::DataType &data_type, const vector<int6
       return state;
     }
     CHECK_INT64_MUL_OVERFLOW(total_num, dims[i], aicpu::State(DATA_OVERFLOW),
-                             "Overflow when calculate tensor total bytes, shape[%s], data type[%s],",
+                             "Overflow when calculating tensor total bytes, shape[%s], data type[%s].",
                              DebugString(dims).c_str(), ge::TypeUtils::DataTypeToSerialString(data_type).c_str())
     total_num *= dims[i];
   }
 
   CHECK_INT64_MUL_OVERFLOW(total_num, data_size, aicpu::State(DATA_OVERFLOW),
-                           "Overflow when calculate tensor total bytes, shape[%s], data type[%s],",
+                           "Overflow when calculating tensor total bytes, shape[%s], data type[%s].",
                            DebugString(dims).c_str(), ge::TypeUtils::DataTypeToSerialString(data_type).c_str())
   total_size = total_num * data_size;
   return aicpu::State(SUCCESS);
@@ -678,13 +679,13 @@ Status GetOutSizeByShapeRange(const DataType &data_type, const vector<pair<int64
     AICPU_CHECK_SHAPE_RANGE_GREATER_THAN_OR_EQUAL_TO_ZERO(dim_item.second, GE_SHAPE_SIZE_INVAILD,
                                                           "Invalid value[%ld] of dim[%zu].", dim_item.second, index)
     CHECK_INT64_MUL_OVERFLOW(total_num, dim_item.second, DATA_OVERFLOW,
-                             "Overflow when calculate tensor shape range total bytes")
+                             "Overflow when calculating tensor shape range total bytes")
     total_num *= dim_item.second;
   }
   CHECK_INT64_MUL_OVERFLOW(total_num, data_size, DATA_OVERFLOW,
-                           "Overflow when calculate tensor shape range total bytes")
+                           "Overflow when calculating tensor shape range total bytes")
   total_size = total_num * data_size;
-  AICPUE_LOGI("Calc output size by shape range ok, total_size[%ld].", total_size);
+  AICPUE_LOGI("Calc output size by shape range ok, total_size[%ld] bytes.", total_size);
   return SUCCESS;
 }
 
@@ -725,9 +726,9 @@ ge::Status GetOriginalType(const ge::OpDescPtr &op_desc_ptr, std::string &type) 
   AICPU_IF_BOOL_EXEC(type != kFrameworkOp, return SUCCESS)
   const std::string *type_ptr = ge::AttrUtils::GetStr(op_desc_ptr, kOriginalType);
   if (type_ptr == nullptr) {
-    AICPU_REPORT_INNER_ERR_MSG("Get Attr:%s fail from op:%s(%s)", kOriginalType.c_str(), op_desc_ptr->GetName().c_str(),
-                               op_desc_ptr->GetType().c_str());
-    AICPUE_LOGE("[Get][Attr] %s fail from op:%s(%s)", kOriginalType.c_str(), op_desc_ptr->GetName().c_str(),
+    AICPU_REPORT_INNER_ERR_MSG("Get Attr:%s failed from op:%s(%s)", kOriginalType.c_str(),
+                               op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
+    AICPUE_LOGE("[Get][Attr] %s failed from op:%s(%s)", kOriginalType.c_str(), op_desc_ptr->GetName().c_str(),
                 op_desc_ptr->GetType().c_str());
     return GET_ATTR_FAILED;
   }
@@ -802,12 +803,12 @@ bool ReadConfigFile(const string &file_path, std::vector<string> &result) {
     size_t pos_of_equal = line.find('=');
     if (pos_of_equal == std::string::npos) {
       ifs.close();
-      AICPU_REPORT_INNER_ERR_MSG("[ReadConfigFile] Config format is error.");
+      AICPU_REPORT_INNER_ERR_MSG("[ReadConfigFile] Config format is invalid.");
       return false;
     }
     std::string value = line.substr(pos_of_equal + 1);
     SplitLine(value, kConfigItemSeparator, result);
-    AICPUE_LOGI("Get number %zu custom path.", result.size());
+    AICPUE_LOGI("Get %zu custom paths.", result.size());
     break;
   }
   ifs.close();

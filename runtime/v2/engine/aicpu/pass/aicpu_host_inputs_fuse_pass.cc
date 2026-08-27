@@ -38,7 +38,7 @@ bool IsSingleMakeTensorDevice(ge::FastNode *const node, ge::FastNode *const dst_
       if (out_edge != nullptr) {
         const auto out_node = out_edge->dst;
         if ((out_node->GetName() != dst_node->GetName()) && (out_node->GetType() != "FreeMemory")) {
-          GELOGD("Node[%s] has mulit dst nodes, such as %s", node->GetName().c_str(), dst_node->GetName().c_str());
+          GELOGD("Node[%s] has multi dst nodes, such as %s", node->GetName().c_str(), dst_node->GetName().c_str());
           return false;
         }
       }

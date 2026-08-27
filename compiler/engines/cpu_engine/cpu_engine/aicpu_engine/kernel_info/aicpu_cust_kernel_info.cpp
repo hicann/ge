@@ -118,7 +118,7 @@ bool AicpuCustKernelInfo::LoadJsonFile(const std::string &file_path, nlohmann::j
   try {
     ifs >> out_json;
   } catch (const std::exception &e) {
-    AICPUE_LOGW("json parse on %s.", file_path.c_str());
+    AICPUE_LOGW("Parse json file[%s] failed.", file_path.c_str());
     return false;
   }
   return true;
@@ -151,7 +151,7 @@ bool AicpuCustKernelInfo::IsAicpuJsonFile(const std::string &filename) const {
 
   const bool has_prefix = filename.compare(0, prefix.size(), prefix) == 0;
   const bool has_suffix = filename.compare(filename.size() - suffix.size(), suffix.size(), suffix) == 0;
-  AICPUE_LOGI("check is aicpu json file which has prefix is %d, has suffix is %d.", has_prefix, has_suffix);
+  AICPUE_LOGI("Check aicpu json file: has_prefix[%d], has_suffix[%d].", has_prefix, has_suffix);
 
   return has_prefix && has_suffix;
 }
@@ -197,7 +197,7 @@ bool AicpuCustKernelInfo::RecordBuiltInCustConfigFile(const std::string &builtin
 
   const std::string output_path = builtin_custom_config_dir + kAicpuBuiltInCustOpsFilePath;
   if (!SaveJsonFile(output_path, merged_json)) {
-    AICPUE_LOGW("save json to %s not success.", output_path.c_str());
+    AICPUE_LOGW("Failed to save json to %s.", output_path.c_str());
     return false;
   }
 

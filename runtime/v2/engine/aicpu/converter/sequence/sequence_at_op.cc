@@ -37,8 +37,8 @@ ge::graphStatus SequenceAtDoComputeExtend(KernelContext *context, const uint64_t
   TensorSeqPtr sequence;
   auto ret = out_rm->Lookup(handle, &sequence);
   if (ret != ge::GRAPH_SUCCESS) {
-    GELOGE(ge::PARAM_INVALID, "SequenceAt lookup tensor sequence fail, handle = %llu", handle);
-    REPORT_INNER_ERR_MSG("E39999", "SequenceAt lookup tensor sequence fail");
+    GELOGE(ge::PARAM_INVALID, "SequenceAt lookup tensor sequence failed, handle = %llu", handle);
+    REPORT_INNER_ERR_MSG("E39999", "SequenceAt lookup tensor sequence failed");
     return ret;
   }
 
@@ -110,11 +110,11 @@ ge::graphStatus SequenceAtDoCompute(KernelContext *context) {
     default:
       GELOGE(ge::PARAM_INVALID,
              "Sequence SequenceAt input index data type should be DT_INT32 or "
-             "DT_INT64, [%u] not support.",
+             "DT_INT64, [%u] is not supported.",
              index_type);
       REPORT_INNER_ERR_MSG("E39999",
                            "Sequence SequenceAt input index data type should be DT_INT32 "
-                           "or DT_INT64, [%u] not support.",
+                           "or DT_INT64, [%u] is not supported.",
                            index_type);
       return ge::PARAM_INVALID;
   }
@@ -201,8 +201,8 @@ ge::graphStatus SequenceLengthDoCompute(KernelContext *context) {
   TensorSeqPtr sequence;
   auto ret = out_rm->Lookup(handle, &sequence);
   if (ret != ge::GRAPH_SUCCESS) {
-    GELOGE(ge::PARAM_INVALID, "SequenceLength lookup tensor sequence fail, handle = %llu", handle);
-    REPORT_INNER_ERR_MSG("E39999", "SequenceLength lookup tensor sequence fail");
+    GELOGE(ge::PARAM_INVALID, "SequenceLength lookup tensor sequence failed, handle = %llu", handle);
+    REPORT_INNER_ERR_MSG("E39999", "SequenceLength lookup tensor sequence failed");
     return ret;
   }
 

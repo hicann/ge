@@ -120,7 +120,7 @@ Status KernelBuilder::GetWorkspaceInfo(const OpDescPtr &op_desc_ptr, const uint8
   AICPUE_LOGI("The workspace byte size is [%lu], op[%s]", workspace_bytes_size, op_desc_ptr->GetName().c_str());
   // Check workspace mem
   CHECK_INT64_ADD_OVERFLOW(workspace_mem_base, workspace_bytes_size, DATA_OVERFLOW,
-                           "Overflow when offset workspace bytes[%lu] base on workspace addr[%ld], op[%s]",
+                           "Overflow when offset workspace bytes[%lu] based on workspace addr[%ld], op[%s]",
                            workspace_bytes_size, workspace_mem_base, op_desc_ptr->GetName().c_str())
 
   return SUCCESS;
@@ -290,13 +290,13 @@ Status KernelBuilder::GetFftsPlusInAddrOffset(const ge::OpDescPtr &op_desc_ptr, 
     int64_t temp_size = 1;
     for (size_t j = 0; j < ffts_info.thread_input_shape[index][i].size(); j++) {
       CHECK_INT64_MUL_OVERFLOW(temp_size, ffts_info.thread_input_shape[index][i][j], ErrorCode::DATA_OVERFLOW,
-                               "Mul Operator for int64 is data overflow, temp_size is[%ld],"
+                               "Int64 multiplication overflow, temp_size is[%ld],"
                                " thread_input_shape is [%ld]",
                                temp_size, ffts_info.thread_input_shape[index][i][j])
       temp_size *= ffts_info.thread_input_shape[index][i][j];
     }
     CHECK_INT64_MUL_OVERFLOW(temp_size, data_size, ErrorCode::DATA_OVERFLOW,
-                             "Mul Operator for int64 is data overflow, temp_size is[%ld],"
+                             "Int64 multiplication overflow, temp_size is[%ld],"
                              " data_size is [%d]",
                              temp_size, data_size)
     ffts_info.input_addr_offset.push_back(temp_size * data_size);
@@ -308,8 +308,8 @@ Status KernelBuilder::GetFftsPlusInAddrOffset(const ge::OpDescPtr &op_desc_ptr, 
 Status KernelBuilder::GetFftsPlusOutAddrOffset(const ge::OpDescPtr &op_desc_ptr, FftsPlusInfo &ffts_info) const {
   const uint32_t index = ffts_info.slice_instance_index;
   if (index >= ffts_info.thread_output_shape.size()) {
-    AICPU_REPORT_INNER_ERR_MSG("Node[%s] index[%u], thread_output_shape[%zu], ", op_desc_ptr->GetName().c_str(), index,
-                               ffts_info.thread_output_shape.size());
+    AICPU_REPORT_INNER_ERR_MSG("Node[%s] index[%u] is out of range, thread_output_shape size[%zu].",
+                               op_desc_ptr->GetName().c_str(), index, ffts_info.thread_output_shape.size());
     return ge::GE_GRAPH_INIT_FAILED;
   }
   const size_t output_size = op_desc_ptr->GetAllOutputsDescSize();
@@ -330,13 +330,13 @@ Status KernelBuilder::GetFftsPlusOutAddrOffset(const ge::OpDescPtr &op_desc_ptr,
     int64_t temp_size = 1;
     for (size_t j = 0; j < ffts_info.thread_output_shape[index][i].size(); j++) {
       CHECK_INT64_MUL_OVERFLOW(temp_size, ffts_info.thread_output_shape[index][i][j], ErrorCode::DATA_OVERFLOW,
-                               "Mul Operator for int64 is data overflow, temp_size is[%ld],"
+                               "Int64 multiplication overflow, temp_size is[%ld],"
                                " thread_output_shape is [%ld]",
                                temp_size, ffts_info.thread_output_shape[index][i][j])
       temp_size *= ffts_info.thread_output_shape[index][i][j];
     }
     CHECK_INT64_MUL_OVERFLOW(temp_size, data_size, ErrorCode::DATA_OVERFLOW,
-                             "Mul Operator for int64 is data overflow, temp_size is[%ld],"
+                             "Int64 multiplication overflow, temp_size is[%ld],"
                              " data_size is [%d]",
                              temp_size, data_size)
     ffts_info.output_addr_offset.push_back(temp_size * data_size);

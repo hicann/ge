@@ -431,7 +431,8 @@ ge::graphStatus GetAddrSize(const KernelContext *context, size_t param_id, bool 
     const size_t slice_dim_num = tail_slice_vec[param_id].GetDimNum();
     for (size_t j = 0; j < slice_dim_num; ++j) {
       if (ge::MulOverflow(batch_size, tail_slice_vec[param_id][j], batch_size)) {
-        GELOGE(ge::FAILED, "tail_size[%ld] calculate err with [%lu].", batch_size, tail_slice_vec[param_id][j]);
+        GELOGE(ge::FAILED, "Failed to calculate tail_size[%ld] against range %lu.", batch_size,
+               tail_slice_vec[param_id][j]);
         return ge::GRAPH_FAILED;
       }
     }
@@ -445,7 +446,8 @@ ge::graphStatus GetAddrSize(const KernelContext *context, size_t param_id, bool 
     const size_t slice_dim_num = not_tail_slice_vec[param_id].GetDimNum();
     for (size_t j = 0; j < slice_dim_num; ++j) {
       if (ge::MulOverflow(batch_size, not_tail_slice_vec[param_id][j], batch_size)) {
-        GELOGE(ge::FAILED, "tail_size[%ld] calculate err with [%lu].", batch_size, not_tail_slice_vec[param_id][j]);
+        GELOGE(ge::FAILED, "Failed to calculate tail_size[%ld] against range %lu.", batch_size,
+               not_tail_slice_vec[param_id][j]);
         return ge::GRAPH_FAILED;
       }
     }

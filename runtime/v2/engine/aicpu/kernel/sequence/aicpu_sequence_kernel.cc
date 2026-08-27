@@ -71,7 +71,7 @@ ge::graphStatus AllocSpecifiedMem(KernelContext *context) {
   for (size_t i = 0; i < tensor_num; ++i) {
     auto mem_block = reinterpret_cast<memory::MultiStreamMemBlock *>(gert_allocator->Malloc(shape_sizes_data[i]));
     KERNEL_CHECK_NOTNULL(mem_block);
-    KERNEL_CHECK(mem_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu", shape_sizes_data[i]);
+    KERNEL_CHECK(mem_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu bytes", shape_sizes_data[i]);
     tensor_data_info[i] = new (std::nothrow) TensorData();
     GE_ASSERT_NOTNULL(tensor_data_info[i]);
     *(tensor_data_info[i]) =
@@ -138,7 +138,7 @@ ge::graphStatus BuildSplitVecWithInput(const gert::StorageShape &split_storeage_
   if (split_rank == 0) {
     T split_scalar;
     GE_ASSERT_RT_OK(rtMemcpy(&split_scalar, sizeof(T), split_addr->GetAddr(), sizeof(T), RT_MEMCPY_DEVICE_TO_HOST));
-    GE_ASSERT_TRUE((split_scalar > 0), "split scalar must be greater than 0,%d", split_scalar);
+    GE_ASSERT_TRUE((split_scalar > 0), "split scalar must be greater than 0, but got %d", split_scalar);
     auto num_even_split = input_x_axis_dim / split_scalar;
     auto num_remain = input_x_axis_dim % split_scalar;
     split_num = num_even_split;
@@ -156,7 +156,7 @@ ge::graphStatus BuildSplitVecWithInput(const gert::StorageShape &split_storeage_
                              RT_MEMCPY_DEVICE_TO_HOST));
     auto split_sum = 0;
     for (size_t i = 0; i < split_num; i++) {
-      GE_ASSERT_TRUE((temp_array[i] > 0), "split must be greater than 0,but get:%ld", temp_array[i]);
+      GE_ASSERT_TRUE((temp_array[i] > 0), "split must be greater than 0, but got: %ld", temp_array[i]);
       split_vec[i] = temp_array[i];
       split_sum += split_vec[i];
     }
@@ -278,8 +278,8 @@ ge::graphStatus SplitToSequenceComputeKernel(gert::KernelContext *context) {
   auto input_x_desc = extend_ctx->GetInputDesc(0);
   GE_ASSERT_NOTNULL(input_x_desc);
   ge::DataType input_data_type = input_x_desc->GetDataType();
-  GE_ASSERT_TRUE(kSupportedDataType.count(input_data_type) != 0, "SplitToSequence kernel data type [%d] not support.",
-                 input_data_type);
+  GE_ASSERT_TRUE(kSupportedDataType.count(input_data_type) != 0,
+                 "SplitToSequence kernel data type [%d] is not supported.", input_data_type);
   int32_t type_size = GetSizeByDataType(input_data_type);
   auto axis = context->GetInputValue<int32_t>(static_cast<size_t>(SplitToSequenceArgIndex::KAxis));
   auto split_shapes = context->GetInputPointer<gert::TypedContinuousVector<gert::Shape>>(

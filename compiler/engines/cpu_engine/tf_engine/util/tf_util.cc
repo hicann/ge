@@ -163,7 +163,7 @@ ge::Status CheckAndSetUnknowType(ge::NodePtr &node) {
   AICPU_CHECK_NOTNULL(kernel_info_ptr);
   OpFullInfo op_full_info;
   ge::Status status = kernel_info_ptr->GetOpInfo(op_type, op_full_info);
-  AICPU_CHECK_FALSE_EXEC(status == ge::SUCCESS, AICPU_REPORT_INNER_ERR_MSG("op type[%s] not support, op[%s].",
+  AICPU_CHECK_FALSE_EXEC(status == ge::SUCCESS, AICPU_REPORT_INNER_ERR_MSG("op type[%s] is not supported, op[%s].",
                                                                            op_type.c_str(), node_name.c_str());
                          return status;)
   if (shape_is_static && (op_full_info.shapeType == 4)) {
@@ -186,8 +186,8 @@ ge::Status CheckAndSetUnknowType(ge::NodePtr &node) {
   FWKAdapter::FWKExtTopicType topic_type = op_full_info.topicType;
   AICPU_CHECK_FALSE_EXEC(
       ge::AttrUtils::SetInt(op_desc_ptr, kTopicType, topic_type),
-      AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetInt failed to set attr[%s], op[%d], op type[%s].",
-                                 kTopicType.c_str(), topic_type, op_type.c_str());
+      AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetInt failed to set attr[%s] to [%d], op[%s], op type[%s].",
+                                 kTopicType.c_str(), topic_type, node_name.c_str(), op_type.c_str());
       return ErrorCode::ADD_ATTR_FAILED)
   AICPUE_LOGI("Set topic type[%d] for op[%s], op type[%s].", topic_type, node_name.c_str(), op_type.c_str());
 
@@ -299,7 +299,7 @@ ge::Status InsertTfNodeDefToOp(const ge::OpDescPtr &op_desc_ptr, NodeDef &node_d
   google::protobuf::io::CodedOutputStream output_stream(&array_stream);
   output_stream.SetSerializationDeterministic(true);
   if (!(node_def.SerializeToCodedStream(&output_stream))) {
-    AICPU_REPORT_INNER_ERR_MSG("The serialization from nodedef probuf to str failed, op[%s], op type[%s].",
+    AICPU_REPORT_INNER_ERR_MSG("The serialization from nodedef protobuf to str failed, op[%s], op type[%s].",
                                op_desc_ptr->GetName().c_str(), op_type.c_str());
     return ErrorCode::CREATE_NODEDEF_FAILED;
   }
@@ -339,7 +339,7 @@ ge::Status CalcWorkspaceSize(const ge::Node &node, int64_t &workspace_size) {
                            "Call TfKernelBuilder::BuildKernelRunParam function failed, op[%s].", node.GetName().c_str())
 
   int64_t kernel_run_param_size = static_cast<int64_t>(kernel_run_param.ByteSizeLong());
-  AICPUE_LOGI("The kernel_run_param_size size of op type[%s] is [%ld]", node.GetType().c_str(), kernel_run_param_size);
+  AICPUE_LOGI("The kernel run param size of op type[%s] is [%ld] bytes", node.GetType().c_str(), kernel_run_param_size);
   workspace_size = kernel_run_param_size;
 
   // Step2 : Get the tf's node_def and func_def's definition and size
@@ -352,14 +352,14 @@ ge::Status CalcWorkspaceSize(const ge::Node &node, int64_t &workspace_size) {
       "Call TfKernelBuilder::ParseNodeDefAndFuncDef function failed, op[%s].", node.GetName().c_str())
   // check overflow
   CHECK_INT64_ADD_OVERFLOW(node_def_size, func_def_lib_size, ErrorCode::DATA_OVERFLOW,
-                           "Overflow when calculate total bytes of node def[%ld] and function def"
+                           "Overflow when calculating total bytes of node def[%ld] and function def"
                            " lib[%ld]. op[%s]",
                            node_def_size, func_def_lib_size, node.GetName().c_str())
   int64_t node_func_def_size = node_def_size + func_def_lib_size;
-  AICPUE_LOGI("The nodeDef and funcDef size is [%ld], op type[%s]", node_func_def_size, node.GetType().c_str());
+  AICPUE_LOGI("The nodeDef and funcDef size is [%ld] bytes, op type[%s]", node_func_def_size, node.GetType().c_str());
 
   CHECK_INT64_ADD_OVERFLOW(workspace_size, node_func_def_size, ErrorCode::DATA_OVERFLOW,
-                           "Workspace overflow when add total bytes of kernel ran param[%ld], "
+                           "Workspace overflow when adding total bytes of kernel run param[%ld], "
                            "node def[%ld] and function def lib[%ld]. op[%s]",
                            workspace_size, node_def_size, func_def_lib_size, node.GetName().c_str())
   workspace_size += node_func_def_size;
@@ -533,7 +533,7 @@ ge::Status CalcTfOpRunningParam(const ge::Node &node) {
     op_desc_ptr->SetWorkspaceBytes({workspace_size});
   } else {
     workspace_size = workspace_bytes[0];
-    AICPUE_LOGI("Op type[%s] Workspace size already exist, workspace_size is [%ld]", node.GetType().c_str(),
+    AICPUE_LOGI("Op type[%s] workspace size already exists, workspace_size is [%ld] bytes", node.GetType().c_str(),
                 workspace_size);
   }
 
@@ -544,8 +544,8 @@ ge::Status CalcTfOpRunningParam(const ge::Node &node) {
                          AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetListBool Failed to set attr[%s], op[%s].",
                                                     kWorkspaceReuseFlag.c_str(), node.GetName().c_str());
                          return ErrorCode::ADD_ATTR_FAILED)
-  AICPUE_LOGI("Op type[%s] Calc the Op running param successfully, workspace_size is [%ld]", node.GetType().c_str(),
-              workspace_size);
+  AICPUE_LOGI("Op type[%s] Calc the Op running param successfully, workspace_size is [%ld] bytes",
+              node.GetType().c_str(), workspace_size);
   return ge::SUCCESS;
 }
 }  // namespace aicpu

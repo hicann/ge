@@ -101,8 +101,8 @@ ge::Status CpuKernelBuilder::CalcOpRunningParam(const ge::Node &node) const {
     AICPU_CHECK_RES_WITH_LOG(CalFftsMaxThread(op_desc_ptr), "cal ffts plus task max thread size failed, op[%s].",
                              node.GetName().c_str())
   }
-  AICPUE_LOGI("CPUKernel's op %s[%s] run CalcOpRunningParam success. workspace total size is %ld", node_name.c_str(),
-              node_type.c_str(), workspace_size);
+  AICPUE_LOGI("CPUKernel's op %s[%s] run CalcOpRunningParam success. workspace total size is %ld bytes",
+              node_name.c_str(), node_type.c_str(), workspace_size);
   return ge::SUCCESS;
 }
 
@@ -124,14 +124,14 @@ ge::Status CpuKernelBuilder::BuildMemCopyInfo(const ge::OpDescPtr &op_desc_ptr,
   // When it's aicpu customized ops, get customized attr
   if (has_customized_attr) {
     CHECK_UINT32_ADD_OVERFLOW(param_len, sizeof(uint32_t), ErrorCode::DATA_OVERFLOW,
-                              "Overflow when param total bytes[%u] add 4bytes, op[%s]", param_len,
-                              op_desc_ptr->GetName().c_str())
+                              "Overflow when adding %zu bytes to param total bytes[%u], op[%s]", sizeof(uint32_t),
+                              param_len, op_desc_ptr->GetName().c_str())
     param_len += sizeof(uint32_t);
     // Customized attr length must be less than UINT32_MAX, no need to check
     // overflow
     uint32_t customized_attr_len = static_cast<uint32_t>(bytes.GetSize());
     CHECK_UINT32_ADD_OVERFLOW(param_len, customized_attr_len, ErrorCode::DATA_OVERFLOW,
-                              "Overflow when calculate total bytes of task param[%u] and custom "
+                              "Overflow when calculating total bytes of task param[%u] and custom "
                               "attr[%u], op[%s]",
                               param_len, customized_attr_len, op_desc_ptr->GetName().c_str())
     param_len += customized_attr_len;
@@ -202,8 +202,8 @@ ge::Status CpuKernelBuilder::GenerateMemCopyTask(uint64_t data_info_size, const 
   AICPUE_LOGI("Op[%s], op type[%s] start GenerateMemCopyTask", node->GetName().c_str(), node->GetType().c_str());
 
   aicpuops::NodeDef node_def;
-  AICPU_CHECK_RES_WITH_LOG(BuildAicpuNodeDef(op_desc_ptr, node_def),
-                           "Call BuildMemCopyInfo function BuildAicpuNodeDef failed op[%s].", node->GetName().c_str())
+  AICPU_CHECK_RES_WITH_LOG(BuildAicpuNodeDef(op_desc_ptr, node_def), "Call BuildAicpuNodeDef function failed, op[%s].",
+                           node->GetName().c_str())
 
   auto state = InsertAicpuNodeDefAttrToOp(op_desc_ptr, node_def, kCustomizedOpDef);
   if (state != ge::SUCCESS) {
@@ -335,9 +335,9 @@ ge::Status CpuKernelBuilder::MakeAicpuKernelExtInfo(const ge::OpDescPtr &op_desc
                                                     const FftsPlusInfo &ffts_info) const {
   const std::string *kernel_lib_name = ge::AttrUtils::GetStr(op_desc_ptr, "opKernelLib");
   AICPU_CHECK_RES_WITH_LOG(MakeBaseExtInfo(op_desc_ptr, task_ext_info, ffts_info),
-                           "Call MakeTaskExtInfo funtion failed, op[%s].", op_desc_ptr->GetName().c_str())
+                           "Call MakeBaseExtInfo function failed, op[%s].", op_desc_ptr->GetName().c_str())
   AICPU_CHECK_RES_WITH_LOG(MakeNoTilingExtInfo(op_desc_ptr, task_ext_info),
-                           "Call MakeNoTilingExtInfo funtion failed, op[%s].", op_desc_ptr->GetName().c_str())
+                           "Call MakeNoTilingExtInfo function failed, op[%s].", op_desc_ptr->GetName().c_str())
   uint64_t extend_info_len = task_ext_info.size();
   extend_info_len += aicpu::FWKAdapter::kExtInfoHeadSize;
   extend_info_len += sizeof(SessionInfo);
@@ -383,13 +383,13 @@ ge::Status UpdateParamLengthByCustomizedAttr(const ge::OpDescPtr &op_desc_ptr, c
   }
 
   CHECK_UINT32_ADD_OVERFLOW(param_length, sizeof(uint32_t), ErrorCode::DATA_OVERFLOW,
-                            "Overflow when param total bytes[%u] add 4bytes, op[%s]", param_length,
-                            op_desc_ptr->GetName().c_str())
+                            "Overflow when adding %zu bytes to param total bytes[%u], op[%s]", sizeof(uint32_t),
+                            param_length, op_desc_ptr->GetName().c_str())
   param_length += sizeof(uint32_t);
   // Customized attr length must be less than UINT32_MAX, no need to check overflow
   uint32_t customized_attr_len = static_cast<uint32_t>(bytes.GetSize());
   CHECK_UINT32_ADD_OVERFLOW(param_length, customized_attr_len, ErrorCode::DATA_OVERFLOW,
-                            "Overflow when calculate total bytes of task param[%u] and custom "
+                            "Overflow when calculating total bytes of task param[%u] and custom "
                             "attr[%u], op[%s]",
                             param_length, customized_attr_len, op_desc_ptr->GetName().c_str())
   param_length += customized_attr_len;
@@ -624,8 +624,9 @@ ge::Status CpuKernelBuilder::BuildAiCpuFftsKernelDef(const ge::Node &node, FftsP
   kernel_def->set_args_size(args_size);
   kernel_def->set_kernel_ext_info(info.data(), info_size);
   kernel_def->set_kernel_ext_info_size(info_size);
-  AICPUE_LOGI("op [%s][%s]arg size[%u], extinfo size[%u],kernel[%s],fun[%s]", op_desc_ptr->GetName().c_str(),
-              op_desc_ptr->GetType().c_str(), args_size, info_size, kernel_so_name.c_str(), func_name.c_str());
+  AICPUE_LOGI("op [%s][%s] arg size[%u] bytes, extinfo size[%u] bytes, kernel[%s], fun[%s]",
+              op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), args_size, info_size,
+              kernel_so_name.c_str(), func_name.c_str());
   return ge::SUCCESS;
 }
 
@@ -647,7 +648,7 @@ ge::Status CpuKernelBuilder::GenerateFftsPlusTask(const ge::Node &node) const {
   try {
     ffts_plus_ctx_def = std::make_shared<domi::FftsPlusCtxDef>();
   } catch (...) {
-    AICPU_REPORT_INNER_ERR_MSG("op[%s] Create FftsPlusCtxDef fail", node.GetName().c_str());
+    AICPU_REPORT_INNER_ERR_MSG("op[%s] create FftsPlusCtxDef failed", node.GetName().c_str());
     return MEMORY_ALLOC_FAILED;
   }
 
@@ -656,7 +657,7 @@ ge::Status CpuKernelBuilder::GenerateFftsPlusTask(const ge::Node &node) const {
   AICPU_CHECK_NOTNULL(aicpu_ctx);
   state = BuildAiCpuCtx(op_desc_ptr, ffts_info, aicpu_ctx);
   if (state != ge::SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("op[%s] call BuildAiCpuCtx fail", node.GetName().c_str());
+    AICPU_REPORT_INNER_ERR_MSG("op[%s] call BuildAiCpuCtx failed", node.GetName().c_str());
     return state;
   }
   state = BuildAiCpuFftsKernelDef(node, ffts_info, aicpu_ctx);
@@ -679,7 +680,7 @@ int64_t CpuKernelBuilder::CeilDivisor(const int64_t x, const int64_t base) const
 
 uint32_t CpuKernelBuilder::GetOpBlockDim(const ge::OpDescPtr &op_desc_ptr) const {
   if (!IsSupportBlockDim(op_desc_ptr)) {
-    AICPUE_LOGD("op[%s] is not support block dim.", op_desc_ptr->GetName().c_str());
+    AICPUE_LOGD("op[%s] does not support block dim.", op_desc_ptr->GetName().c_str());
     return kDefaultAicpuBlockDim;
   }
 
@@ -702,13 +703,13 @@ uint32_t CpuKernelBuilder::GetOpBlockDim(const ge::OpDescPtr &op_desc_ptr) const
 uint32_t CpuKernelBuilder::GetOpBlockDimForFftsPlus(const ge::OpDescPtr &op_desc_ptr, const FftsPlusInfo &ffts_info,
                                                     const uint32_t thread_index) const {
   if (!IsSupportBlockDim(op_desc_ptr)) {
-    AICPUE_LOGD("op[%s] is not support block dim.", op_desc_ptr->GetName().c_str());
+    AICPUE_LOGD("op[%s] does not support block dim.", op_desc_ptr->GetName().c_str());
     return kDefaultAicpuBlockDim;
   }
   AICPUE_LOGD("op[%s], thread_index[%u].", op_desc_ptr->GetName().c_str(), thread_index);
 
   if (thread_index >= ffts_info.thread_input_shape.size()) {
-    AICPUE_LOGW("op[%s] get dim error. thread_id[%d]", op_desc_ptr->GetName().c_str(), thread_index);
+    AICPUE_LOGW("op[%s] failed to get dim, thread_index[%d]", op_desc_ptr->GetName().c_str(), thread_index);
     return kDefaultAicpuBlockDim;
   }
   vector<int64_t> input_0 = ffts_info.thread_input_shape[thread_index][0];
@@ -722,7 +723,7 @@ uint32_t CpuKernelBuilder::GetOpBlockDimForFftsPlus(const ge::OpDescPtr &op_desc
     if (block_dim_index < vec_size) {
       total = input_0[block_dim_index];
     } else {
-      AICPUE_LOGW("op[%s] get total error.", op_desc_ptr->GetName().c_str());
+      AICPUE_LOGW("op[%s] failed to get total.", op_desc_ptr->GetName().c_str());
       return kDefaultAicpuBlockDim;
     }
   }
@@ -732,7 +733,7 @@ uint32_t CpuKernelBuilder::GetOpBlockDimForFftsPlus(const ge::OpDescPtr &op_desc
 
 bool CpuKernelBuilder::IsSupportBlockDim(const ge::OpDescPtr &op_desc_ptr) const {
   if (IsUnknowShape(op_desc_ptr)) {
-    AICPUE_LOGD("op[%s] is unknow shape.", op_desc_ptr->GetName().c_str());
+    AICPUE_LOGD("op[%s] is unknown shape.", op_desc_ptr->GetName().c_str());
     return false;
   }
   bool support_block_dim = false;

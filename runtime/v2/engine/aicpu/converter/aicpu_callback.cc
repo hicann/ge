@@ -179,7 +179,7 @@ void LaunchTfMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr &ordered_hol
 
   auto tf_memcpy_node = BuildMemCpyTaskNode(tmp_graph, node, outputs_num);
   if (tf_memcpy_node == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "build tf memcpy task node failed, tf 4th memcpy does not finished yet.");
+    GELOGE(ge::PARAM_INVALID, "build tf memcpy task node failed, tf 4th memcpy has not finished yet.");
     return;
   }
   // Return value of this function will be implicitly used.
@@ -235,7 +235,7 @@ void LaunchCCMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr &ordered_hol
 
   auto cc_memcpy_node = BuildMemCpyTaskNode(tmp_graph, node, outputs_num);
   if (cc_memcpy_node == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "build cc memcpy task node failed, cc 4th memcpy does not finished yet.");
+    GELOGE(ge::PARAM_INVALID, "build cc memcpy task node failed, cc 4th memcpy has not finished yet.");
     return;
   }
   // Return value of this function will be implicitly used.
@@ -335,7 +335,7 @@ void AicpuCallback(const ge::NodePtr &node, const bg::ValueHolderPtr &ext_info, 
   int32_t unknown_shape_type_val = 0;
   (void)ge::AttrUtils::GetInt(node->GetOpDescBarePtr(), ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE, unknown_shape_type_val);
   if ((unknown_shape_type_val == static_cast<int32_t>(ge::DEPEND_SHAPE_RANGE)) && bg::IsAicpuOutputUnknownShape(node)) {
-    GELOGI("Op %s type %s is 3th op. engine:%s", node->GetName().c_str(), ge::NodeUtils::GetNodeType(node).c_str(),
+    GELOGI("Op %s type %s is 3rd op. engine:%s", node->GetName().c_str(), ge::NodeUtils::GetNodeType(node).c_str(),
            node->GetOpDescBarePtr()->GetOpKernelLibName().c_str());
     if (node->GetOpDescBarePtr()->GetOpKernelLibName() == ge::kEngineNameHostCpu) {
       DependShapeRangeHostCpuCallback(ext_info, launch_holder, node_output.shapes);

@@ -75,7 +75,7 @@ const std::vector<DevMemValueHolderPtr> AllocHostCpuOutputsMemory(const ge::Node
       }
       auto ref_input_index = iter->second;
       if (ref_input_index >= io_info.input_addrs.size()) {
-        GELOGE(ge::FAILED, "Node %s output %zu ref from input %zu exceed input addrs num %zu", node->GetName().c_str(),
+        GELOGE(ge::FAILED, "Node %s output %zu ref from input %zu exceeds input addrs num %zu", node->GetName().c_str(),
                i, ref_input_index, io_info.input_addrs.size());
         return output_addrs;
       }

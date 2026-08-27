@@ -34,7 +34,7 @@ std::vector<ValueHolderPtr> CreatBaseExtInfo(const ge::NodePtr node, const std::
     input_num = node->GetOpDescBarePtr()->GetAllInputsSize();
   }
   const size_t output_num = node->GetAllOutDataAnchorsSize();
-  GELOGI("Op %s type %s in all input size is %zu, all input data anchors size is %zu, output_num is %zu.",
+  GELOGI("Op %s type %s: all input size is %zu, all input data anchors size is %zu, output_num is %zu.",
          node->GetName().c_str(), ge::NodeUtils::GetNodeType(node).c_str(),
          node->GetOpDescBarePtr()->GetAllInputsSize(), node->GetInDataNodesAndAnchors().size(), output_num);
   int32_t unknown_shape_type_val = 0;

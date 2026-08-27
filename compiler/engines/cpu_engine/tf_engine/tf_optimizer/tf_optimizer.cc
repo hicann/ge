@@ -75,7 +75,7 @@ void TfOptimizer::InitOpFusionMinNum() {
   if (ConfigFile::GetInstance().GetValue(kOpFusionMinNum, op_fusion_min_num)) {
     uint64_t result = kDefaultOpFusionMinNumber;
     if (StringToNum(op_fusion_min_num, result).state != ge::SUCCESS) {
-      AICPUE_LOGW("Tran op_fusion_min_num [%s] to integer failed. default value is 2.", op_fusion_min_num.c_str());
+      AICPUE_LOGW("Convert op_fusion_min_num [%s] to integer failed, use default value 2.", op_fusion_min_num.c_str());
       return;
     }
     // if OpFusionMinNum from config file is less than 2, print warning log.
@@ -95,7 +95,7 @@ void TfOptimizer::InitTfDebugMode() {
   if (ConfigFile::GetInstance().GetValue(kTfDebugMode, tf_debug_mode)) {
     uint64_t result = kTfDebugModeOff;
     if (StringToNum(tf_debug_mode, result).state != ge::SUCCESS) {
-      AICPUE_LOGW("Tran tf_debug_mode [%s] to integer failed. default value is 0.", tf_debug_mode.c_str());
+      AICPUE_LOGW("Convert tf_debug_mode [%s] to integer failed, use default value 0.", tf_debug_mode.c_str());
       return;
     }
     if (result == kTfDebugModeOn) {
@@ -389,7 +389,7 @@ ge::Status TfOptimizer::MarkNodeForFusionOfFfts(
     // if op type is placeholder or end, skip it
     std::string op_type = op_desc_ptr->GetType();
     AICPU_IF_BOOL_EXEC(((op_type == kPlaceholderOpType) || (op_type == kEndOpType) || (op_type == kPhonyConcatOp)),
-                       AICPUE_LOGD("Current op type is [%s]. Don't need to fuse.", op_type.c_str());
+                       AICPUE_LOGD("Current op type is [%s]. It does not need to fuse.", op_type.c_str());
                        continue)
 
     bool fuse_flag = false;
@@ -502,7 +502,7 @@ ge::Status TfOptimizer::MarkNodeForFusion(
     // if op type is placeholder or end, skip it
     std::string op_type = op_desc_ptr->GetType();
     AICPU_IF_BOOL_EXEC(((op_type == kPlaceholderOpType) || (op_type == kEndOpType)),
-                       AICPUE_LOGD("Current op type is [%s]. Don't need to fuse.", op_type.c_str());
+                       AICPUE_LOGD("Current op type is [%s]. It does not need to fuse.", op_type.c_str());
                        continue)
 
     bool tf_debug_flag = IsTfDebugFusion(op_desc_ptr);
@@ -739,10 +739,9 @@ ge::Status TfOptimizer::FuseNodesForGraph(ge::ComputeGraph &graph, std::vector<g
                                  node_cluster_name.c_str());
       return ErrorCode::FUSE_NODES_FAILED)
   // set attr async_flag
-  AICPU_CHECK_FALSE_EXEC(
-      ge::AttrUtils::SetBool(fused_op_desc, kAsyncFlag, false),
-      AICPU_REPORT_INNER_ERR_MSG("Set attr kAsyncFlag failed to set tf node def, op[%s].", node_cluster_name.c_str());
-      return ErrorCode::FUSE_NODES_FAILED)
+  AICPU_CHECK_FALSE_EXEC(ge::AttrUtils::SetBool(fused_op_desc, kAsyncFlag, false),
+                         AICPU_REPORT_INNER_ERR_MSG("Set attr kAsyncFlag failed, op[%s].", node_cluster_name.c_str());
+                         return ErrorCode::FUSE_NODES_FAILED)
 
   // set attr ops_json_path for fused Function op
   std::string ops_json_path = TfKernelInfo::Instance()->GetJsonPath();
@@ -830,7 +829,7 @@ ge::Status TfOptimizer::SetAsyncFlag(ge::NodePtr &node) const {
     AICPU_CHECK_NOTNULL(kernel_info_ptr);
     OpFullInfo op_full_info;
     ge::Status status = kernel_info_ptr->GetOpInfo(op_type, op_full_info);
-    AICPU_CHECK_FALSE_EXEC(status == ge::SUCCESS, AICPU_REPORT_INNER_ERR_MSG("op type[%s] not support, op[%s].",
+    AICPU_CHECK_FALSE_EXEC(status == ge::SUCCESS, AICPU_REPORT_INNER_ERR_MSG("op type[%s] is not supported, op[%s].",
                                                                              op_type.c_str(), node_name.c_str());
                            return status;)
     async_flag = op_full_info.flagAsync;
@@ -1163,7 +1162,7 @@ ge::Status TfOptimizer::RebuildInputDesc(const std::vector<ge::InDataAnchorPtr> 
     ge::GeTensorDesc dst_in_tensor_desc = dst_node->GetOpDesc()->GetInputDesc(in_anchor->GetIdx());
     AICPU_CHECK_FALSE_EXEC(fused_op_desc->AddInputDesc(dst_in_tensor_desc) == ge::GRAPH_SUCCESS,
                            AICPU_REPORT_INNER_ERR_MSG("Call ge::OpDesc::AddInputDesc failed to rebuild"
-                                                      " input tensor dese. op[%s], op type[%s].",
+                                                      " input tensor desc. op[%s], op type[%s].",
                                                       op_name.c_str(), fused_op_desc->GetType().c_str());
                            return ErrorCode::REBUILD_TENSORDESC_FAILED)
 
@@ -1244,7 +1243,7 @@ ge::Status TfOptimizer::RebuildFusionNode(SubGraphInfo &sub_graph_info, ge::Node
       AICPU_CHECK_NOTNULL(peer_in_anchor);
       ge::graphStatus status = peer_in_anchor->Unlink(out_anchor);
       AICPU_CHECK_FALSE_EXEC(status == ge::GRAPH_SUCCESS,
-                             AICPU_REPORT_INNER_ERR_MSG("Call ge::InControlAnchorAnchor::Unlink failed,"
+                             AICPU_REPORT_INNER_ERR_MSG("Call ge::InControlAnchor::Unlink failed,"
                                                         " op[%s], op type[%s], peer op[%s].",
                                                         node_name.c_str(), fused_node->GetType().c_str(),
                                                         peer_in_anchor->GetOwnerNode()->GetName().c_str());

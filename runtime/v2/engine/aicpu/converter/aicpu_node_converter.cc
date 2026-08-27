@@ -147,7 +147,7 @@ LowerResult LoweringAiCpuTfNode(const ge::NodePtr &node, const LowerInput &lower
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICpu);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI cpu Tf taskdef.")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Cannot find AI cpu Tf taskdef.")), {}, {}, {}};
   }
   auto &kernel_ex_def = task_def->kernel_ex();
   auto session_id = bg::GetSessionId(*lower_input.global_data);
@@ -198,7 +198,7 @@ LowerResult LoweringAiCpuCCNode(const ge::NodePtr &node, const LowerInput &lower
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICpu);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI cpu CC taskdef.")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Cannot find AI cpu CC taskdef.")), {}, {}, {}};
   }
   auto &kernel_def = task_def->kernel();
   const auto &op_desc = node->GetOpDesc();
@@ -214,7 +214,7 @@ LowerResult LoweringAiCpuCCNode(const ge::NodePtr &node, const LowerInput &lower
   (void)ge::AttrUtils::GetBool(node->GetOpDescBarePtr(), bg::kOptionalInputPlaceholder, optional_input_placeholder);
   if (optional_input_placeholder) {
     in_num = node->GetOpDescBarePtr()->GetAllInputsSize();
-    GELOGI("Op %s type %s in all input size is %zu, all input data anchors size is %zu.", node->GetName().c_str(),
+    GELOGI("Op %s type %s: all input size is %zu, all input data anchors size is %zu.", node->GetName().c_str(),
            ge::NodeUtils::GetNodeType(node).c_str(), in_num, node->GetInDataNodesAndAnchors().size());
   }
   auto io_num = in_num + node->GetAllOutDataAnchorsSize();
@@ -380,7 +380,7 @@ const char *PrepareHostAiCpuLowering(const ge::NodePtr &node, const LowerInput &
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICpu);
   if (task_def == nullptr) {
-    return "Not find host AI cpu taskdef.";
+    return "Cannot find host AI cpu taskdef.";
   }
   lowering_data.kernel_def = &task_def->kernel();
   lowering_data.session_id = bg::GetSessionId(*lower_input.global_data);

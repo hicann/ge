@@ -355,7 +355,7 @@ ge::Status CheckAndSetUnknowType(ge::OpDescPtr &op_desc_ptr, const map<string, O
   string op_type = op_desc_ptr->GetType();
   if (IsUnknowShape(op_desc_ptr)) {
     AICPU_CHECK_FALSE_EXEC(AttrUtils::SetBool(op_desc_ptr, kAttrNameUnknownShape, true),
-                           AICPU_REPORT_INNER_ERR_MSG("Call Set ge::AttrUtils::SetBool failed to set attr[%s], op[%s].",
+                           AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetBool failed to set attr[%s], op[%s].",
                                                       kAttrNameUnknownShape.c_str(), op_desc_ptr->GetName().c_str());
                            return ErrorCode::ADD_ATTR_FAILED)
   }
@@ -440,7 +440,7 @@ ge::Status InsertAicpuNodeDefAttrToOp(const ge::OpDescPtr &op_desc_ptr, aicpuops
   // 保证序列化的接口的一致性
   output_stream.SetSerializationDeterministic(true);
   if (!(node_def.SerializeToCodedStream(&output_stream))) {
-    AICPU_REPORT_INNER_ERR_MSG("The serialization from nodedef probuf to str failed, op[%s].",
+    AICPU_REPORT_INNER_ERR_MSG("The serialization from nodedef protobuf to str failed, op[%s].",
                                op_desc_ptr->GetName().c_str());
     return ErrorCode::CREATE_NODEDEF_FAILED;
   }
@@ -543,7 +543,7 @@ ge::Status BuildFftsPlusAicpuNodeDef(const ge::OpDescPtr &op_desc_ptr, FftsPlusI
   ffts_info.slice_instance_index = 0;
   ge::Status state = BuildFftsPlusAicpuNodeShapeInfo(op_desc_ptr, node_def, ffts_info);
   if (state != ge::SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("op[%s] build shape info fail[%u]", op_desc_ptr->GetName().c_str(), state);
+    AICPU_REPORT_INNER_ERR_MSG("op[%s] build shape info failed, state[%u]", op_desc_ptr->GetName().c_str(), state);
     return CREATE_NODEDEF_FAILED;
   }
   aicpuops::NodeDef tail_node_def;
@@ -551,7 +551,7 @@ ge::Status BuildFftsPlusAicpuNodeDef(const ge::OpDescPtr &op_desc_ptr, FftsPlusI
     ffts_info.slice_instance_index = ffts_info.slice_instance_num - kAicpuManualSliceNum;
     state = BuildFftsPlusAicpuNodeShapeInfo(op_desc_ptr, tail_node_def, ffts_info);
     if (state != ge::SUCCESS) {
-      AICPU_REPORT_INNER_ERR_MSG("op[%s] build shape info fail[%u]", op_desc_ptr->GetName().c_str(), state);
+      AICPU_REPORT_INNER_ERR_MSG("op[%s] build shape info failed, state[%u]", op_desc_ptr->GetName().c_str(), state);
       return CREATE_NODEDEF_FAILED;
     }
   }
@@ -616,13 +616,13 @@ ge::NodePtr CreateTransposeNode(ge::ComputeGraph &graph, const std::string &name
 
   ge::Status ret = transpose_op_desc->AddInputDesc("x", tensor_desc);
   if (ret != ge::GRAPH_SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc  x failed ret[%u]", ret);
+    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc for input x failed, ret[%u]", ret);
     return nullptr;
   }
 
   ret = transpose_op_desc->AddInputDesc("perm", perm_const_desc->GetOutputDesc(0));
   if (ret != ge::GRAPH_SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc  x failed ret[%u]", ret);
+    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc for input perm failed, ret[%u]", ret);
     return nullptr;
   }
   vector<int64_t> x_shape = tensor_desc.GetShape().GetDims();
@@ -695,14 +695,14 @@ ge::Status GenerateTransposeAfterNode(ge::ComputeGraph &graph, const ge::NodePtr
       continue;
     }
     AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::RemoveEdge(src_anchor, peer_in_anchor),
-                             "call RemoveEdge between %s and %s", node->GetName().c_str(),
+                             "Call RemoveEdge failed between op[%s] and op[%s].", node->GetName().c_str(),
                              peer_in_anchor->GetOwnerNode()->GetName().c_str());
     AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::AddEdge(transpose->GetOutDataAnchor(0), peer_in_anchor),
-                             "call AddEdge between transpose and %s",
+                             "Call AddEdge failed between transpose and op[%s].",
                              peer_in_anchor->GetOwnerNode()->GetName().c_str());
   }
   AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::AddEdge(src_anchor, transpose->GetInDataAnchor(0)),
-                           "call AddEdge between transpose %s and transpose", node->GetName().c_str());
+                           "Call AddEdge failed between op[%s] and transpose.", node->GetName().c_str());
   return ge::GRAPH_SUCCESS;
 }
 
@@ -736,14 +736,14 @@ ge::Status GenerateTransposeBeforeNode(ge::ComputeGraph &graph, const ge::NodePt
       continue;
     }
     AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::RemoveEdge(src_anchor, peer_in_anchor),
-                             "call RemoveEdge between %s and %s", src_op->GetName().c_str(),
+                             "Call RemoveEdge failed between op[%s] and op[%s].", src_op->GetName().c_str(),
                              peer_in_anchor->GetOwnerNode()->GetName().c_str());
     AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::AddEdge(transpose->GetOutDataAnchor(0), peer_in_anchor),
-                             "call AddEdge between transpose and %s",
+                             "Call AddEdge failed between transpose and op[%s].",
                              peer_in_anchor->GetOwnerNode()->GetName().c_str());
   }
   AICPU_CHECK_RES_WITH_LOG(ge::GraphUtils::AddEdge(src_anchor, transpose->GetInDataAnchor(0)),
-                           "call AddEdge between transpose %s and transpose", src_op->GetName().c_str());
+                           "Call AddEdge failed between op[%s] and transpose.", src_op->GetName().c_str());
   return ge::GRAPH_SUCCESS;
 }
 

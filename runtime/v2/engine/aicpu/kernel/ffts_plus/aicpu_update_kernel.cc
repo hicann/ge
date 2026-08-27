@@ -57,7 +57,7 @@ ge::graphStatus AicpuCalcOutputMaxThreadSize(gert::KernelContext *context) {
   const size_t tail_dim_num = tail_slice_out_vec[output_id].GetDimNum();
   for (size_t i = 0; i < tail_dim_num; ++i) {
     if (ge::MulOverflow(tail_size, tail_slice_out_vec[output_id][i], tail_size)) {
-      GELOGE(ge::FAILED, "[Kernel]tail_size[%ld] calculate err with range:%lu.", tail_size,
+      GELOGE(ge::FAILED, "[Kernel]Failed to calculate tail_size[%ld] against range %lu.", tail_size,
              tail_slice_out_vec[output_id][i]);
       return ge::GRAPH_FAILED;
     }
@@ -66,7 +66,7 @@ ge::graphStatus AicpuCalcOutputMaxThreadSize(gert::KernelContext *context) {
   const size_t not_tail_dim_num = not_tail_slice_out_vec[output_id].GetDimNum();
   for (size_t j = 0; j < not_tail_dim_num; ++j) {
     if (ge::MulOverflow(not_tail_size, not_tail_slice_out_vec[output_id][j], not_tail_size)) {
-      GELOGE(ge::FAILED, "[Kernel]not_tail_size[%ld] calculate err with range:%lu.", not_tail_size,
+      GELOGE(ge::FAILED, "[Kernel]Failed to calculate not_tail_size[%ld] against range %lu.", not_tail_size,
              not_tail_slice_out_vec[output_id][j]);
       return ge::GRAPH_FAILED;
     }
@@ -102,13 +102,14 @@ ge::graphStatus CalcInputPara(gert::KernelContext *context, const ComputeNodeInf
     const size_t dim_num = slice_in_vec[i].GetDimNum();
     for (size_t j = 0; j < dim_num; ++j) {
       if (ge::MulOverflow(thread_offset, slice_in_vec[i][j], thread_offset)) {
-        GELOGE(ge::FAILED, "[Kernel]Offset[%ld] calculate err with range:%lu.", thread_offset, slice_in_vec[i][j]);
+        GELOGE(ge::FAILED, "[Kernel]Failed to calculate Offset[%ld] against range %lu.", thread_offset,
+               slice_in_vec[i][j]);
         return ge::GRAPH_FAILED;
       }
     }
     thread_offset = ge::GetSizeInBytes(thread_offset, tensor->GetDataType());
     GELOGI("Input anchorIndex: %u, thread_offset: %ld.", index, thread_offset);
-    GE_ASSERT_TRUE(index < MAX_OFFSET_NUM, "index[%zu] must less than MAX_OFFSET_NUM[%zu]", index, MAX_OFFSET_NUM);
+    GE_ASSERT_TRUE(index < MAX_OFFSET_NUM, "index[%zu] must be less than MAX_OFFSET_NUM[%zu]", index, MAX_OFFSET_NUM);
     args_para->task_addr_offset[index] = static_cast<uint64_t>(thread_offset);
   }
   count = input_num;
@@ -138,7 +139,8 @@ ge::graphStatus CalcOutputPara(gert::KernelContext *context, const ComputeNodeIn
     const size_t dim_num = slice_out_vec[i].GetDimNum();
     for (size_t j = 0; j < dim_num; ++j) {
       if (ge::MulOverflow(thread_offset, slice_out_vec[i][j], thread_offset)) {
-        GELOGE(ge::FAILED, "[Kernel]Offset[%ld] calculate err with range:%lu.", thread_offset, slice_out_vec[i][j]);
+        GELOGE(ge::FAILED, "[Kernel]Failed to calculate Offset[%ld] against range %lu.", thread_offset,
+               slice_out_vec[i][j]);
         return ge::GRAPH_FAILED;
       }
     }

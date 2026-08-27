@@ -45,7 +45,7 @@ ge::graphStatus CopyTensorToDevice(KernelContext *context, const GertTensorData 
 
   auto mem_block = reinterpret_cast<memory::MultiStreamMemBlock *>(gert_allocator->Malloc(dst_len));
   KERNEL_CHECK_NOTNULL(mem_block);
-  KERNEL_CHECK(mem_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu", dst_len);
+  KERNEL_CHECK(mem_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu bytes", dst_len);
   KERNEL_TRACE_ALLOC_MEM(gert_allocator->GetStreamId(), mem_block, mem_block->GetAddr(), mem_block->GetSize());
   dst_tensor = TensorUtils::ToGertTensorData(mem_block, gert_allocator->GetPlacement(), gert_allocator->GetStreamId());
 
@@ -103,7 +103,7 @@ ge::graphStatus AicpuFuseHost(KernelContext *context) {
         GE_ASSERT_SUCCESS(
             args_handle->AddHostInput(*(input_indexes + i), tensor_data->GetAddr(), host_tensor_size, align_size));
       } else {
-        GELOGD("Total host memory input size larger than range is %zu, no need optimize", kMaxTotalHostLen);
+        GELOGD("Total host memory input size exceeds the limit %zu bytes, no need to optimize", kMaxTotalHostLen);
         GE_ASSERT_SUCCESS(CopyTensorToDevice(context, *tensor_data, static_cast<size_t>(host_tensor_size), tensor_size,
                                              *out_tensor_data));
       }
