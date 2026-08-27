@@ -1632,7 +1632,7 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
 #include "g1_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
   : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
@@ -2480,7 +2480,7 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
@@ -3336,7 +3336,7 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -3405,9 +3405,10 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   aclmdlRI rt_model_handle;
   // Create Model
   OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
-                                config->work_ptr, config->session_id, config->model_id,
-                                config->instance_handle, config->priority));
+                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+                                config->var_addrs, config->work_ptr, config->session_id,
+                                static_cast<uint32_t>(config->model_id), config->instance_handle,
+                                static_cast<int32_t>(config->priority)));
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -4089,7 +4090,7 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -4158,9 +4159,10 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   aclmdlRI rt_model_handle;
   // Create Model
   OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
-                                config->work_ptr, config->session_id, config->model_id,
-                                config->instance_handle, config->priority));
+                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+                                config->var_addrs, config->work_ptr, config->session_id,
+                                static_cast<uint32_t>(config->model_id), config->instance_handle,
+                                static_cast<int32_t>(config->priority)));
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -4905,7 +4907,7 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -4974,9 +4976,10 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   aclmdlRI rt_model_handle;
   // Create Model
   OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
-                                config->work_ptr, config->session_id, config->model_id,
-                                config->instance_handle, config->priority));
+                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+                                config->var_addrs, config->work_ptr, config->session_id,
+                                static_cast<uint32_t>(config->model_id), config->instance_handle,
+                                static_cast<int32_t>(config->priority)));
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -5678,7 +5681,7 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
@@ -5747,9 +5750,10 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   aclmdlRI rt_model_handle;
   // Create Model
   OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, config->bin_num, config->constants, config->var_addrs,
-                                config->work_ptr, config->session_id, config->model_id,
-                                config->instance_handle, config->priority));
+                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+                                config->var_addrs, config->work_ptr, config->session_id,
+                                static_cast<uint32_t>(config->model_id), config->instance_handle,
+                                static_cast<int32_t>(config->priority)));
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);

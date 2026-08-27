@@ -282,7 +282,7 @@ Status ResolveStablePart(StablePartId id, std::string &output) {
     case StablePartId::kLoadAndRunExternalApis:
       output =
           "aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, "
-          "const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, "
+          "const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, "
           "void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t "
           "priority) {\n"
           "  OM2_LOGI(\"Om2ModelCreate\");\n"
@@ -361,9 +361,10 @@ Status ResolveStablePart(StablePartId id, std::string &output) {
           "  aclmdlRI rt_model_handle;\n"
           "  // Create Model\n"
           "  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,\n"
-          "                                config->bin_size, config->bin_num, config->constants, config->var_addrs,\n"
-          "                                config->work_ptr, config->session_id, config->model_id,\n"
-          "                                config->instance_handle, config->priority));\n"
+          "                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,\n"
+          "                                config->var_addrs, config->work_ptr, config->session_id,\n"
+          "                                static_cast<uint32_t>(config->model_id), config->instance_handle,\n"
+          "                                static_cast<int32_t>(config->priority)));\n"
           "  OM2_LOGI(\"GertModelLoad: handle=%p, model_id=%\" PRIu64 \", priority=%\" PRIi64 \",\"\n"
           "           \" bin_num=%\" PRIu64 \"\", *model_handle, config->model_id,\n"
           "           config->priority, config->bin_num);\n"
