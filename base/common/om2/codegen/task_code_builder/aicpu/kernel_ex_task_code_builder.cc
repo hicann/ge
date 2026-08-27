@@ -511,7 +511,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op,
                                                          const VarRef &ctx, const VarRef &launch_begin) {
-  auto io_tensors = ast_.Var("std::vector<Om2Tensor>", "io_tensors");
+  auto io_tensors = ast_.Var("std::vector<gert::Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));
   auto report_inputs = ast_.Var("std::vector<Om2TaskIoEntry>", "report_inputs");
@@ -528,11 +528,12 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &
   (void)body.emplace_back(ast_.For(
       ast_.VarDecl("uint32_t", "_i", ast_.UInt(0)), idx < ast_.Var("", "num_io"), ast_.PostInc(idx),
       {io_tensors.PushBack(ast_.Call(
-           "BuildOm2Tensor",
+           "BuildTensor",
            {ast_.ReinterpretCast("void *", ast_.Var("", "iow_addr")[idx]), tensor.Attr("size"),
             tensor.Attr("data_type"), tensor.Attr("format"), tensor.Attr("shape"), tensor.Attr("shape_dims")})),
        ast_.VarDecl(ast_.Var("Om2TaskIoEntry", "_entry"),
-                    ast_.InitList({ast_.Var("", "io_tensors").Attr("back")().Addr(), tensor.Attr("args_offset")})),
+                    ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"),
+                                   ast_.Var("", "io_tensors").Attr("back")().Addr(), tensor.Attr("args_offset")})),
        ast_.If(item.Attr("type") != ast_.Var("", "OP_ARG_OUTPUT"), {report_inputs.PushBack(ast_.Var("", "_entry"))},
                {report_outputs.PushBack(ast_.Var("", "_entry"))})}));
 

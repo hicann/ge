@@ -32,7 +32,6 @@ class ProfilingImpl;
 // ============================================================
 //              复用 C API 中的结构体定义
 // ============================================================
-using Om2Tensor = ::Om2Tensor;
 using Om2TaskIoEntry = ::Om2TaskIoEntry;
 using Om2TaskInfo = ::Om2TaskInfo;
 

@@ -12,7 +12,8 @@
 #define GE_FRAMEWORK_RUNTIME_DUMP_MODEL_DUMP_C_API_H_
 
 #include <stdint.h>
-#include <stddef.h>
+#include <memory>
+#include "exe_graph/runtime/runtime_tensor.h"
 
 #if defined(_MSC_VER)
 #define OM2_C_API_EXPORT __declspec(dllexport)
@@ -26,23 +27,12 @@ extern "C" {
 
 // ============ Tensor信息 ============
 /**
- * @brief OM2 算子输入或输出 Tensor 的基础信息。
- */
-struct Om2Tensor {
-  uint64_t device_address;    // 输入，预留字段，暂时填 0。
-  uint64_t size;              // 输入，Tensor 数据大小，单位为字节。
-  int32_t data_type;          // 输入，Tensor 数据类型，取值与 ge::DataType 保持一致。
-  int32_t format;             // 输入，Tensor 数据格式，取值与 ge::Format 保持一致。
-  const int64_t *shape_dims;  // 输入，Tensor shape 维度数组首地址。shape_dims_num 为 0 时可以为空指针。
-  uint64_t shape_dims_num;    // 输入，Tensor shape 维度个数。
-};
-
-/**
  * @brief OM2 算子单个输入或输出 Tensor 与 args buffer 地址槽位的映射信息。
  */
 struct Om2TaskIoEntry {
-  const struct Om2Tensor *tensor;  // 输入，Tensor 基础信息指针，不允许为空。
-  uint64_t offset;                 // 输入，Tensor 地址在 args buffer 中的偏移，单位为字节。
+  uint64_t struct_size = sizeof(Om2TaskIoEntry);  // 布局变化时更新
+  const gert::Tensor *tensor = nullptr;           // 输入，Tensor 基础信息指针，不允许为空。
+  uint64_t offset = 0;                            // 输入，Tensor 地址在 args buffer 中的偏移，单位为字节。
 };
 
 /**

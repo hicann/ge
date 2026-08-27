@@ -118,22 +118,20 @@ void AppendTensorInfo(const Om2TaskIoEntry *entries, uint64_t entry_num, const c
   }
 
   for (uint64_t i = 0U; i < entry_num; ++i) {
-    const Om2Tensor *tensor = entries[i].tensor;
+    const gert::Tensor *tensor = entries[i].tensor;
     if (tensor == nullptr) {
       GELOGW("Task io tensor is null, op_name=%s, index=%llu", op_name, static_cast<unsigned long long>(i));
       continue;
     }
-    if ((tensor->shape_dims == nullptr) && (tensor->shape_dims_num != 0U)) {
-      GELOGW("Task io tensor shape is null, op_name=%s, index=%llu, shape_dims_num=%llu", op_name,
-             static_cast<unsigned long long>(i), static_cast<unsigned long long>(tensor->shape_dims_num));
-      continue;
-    }
 
-    formats.emplace_back(static_cast<Format>(tensor->format));
-    data_types.emplace_back(static_cast<DataType>(tensor->data_type));
+    formats.emplace_back(static_cast<Format>(tensor->GetStorageFormat()));
+    data_types.emplace_back(static_cast<DataType>(tensor->GetDataType()));
     std::vector<int64_t> shape;
-    if (tensor->shape_dims_num != 0U) {
-      shape.assign(tensor->shape_dims, tensor->shape_dims + tensor->shape_dims_num);
+    if (tensor->GetStorageShape().GetDimNum() != 0U) {
+      shape.reserve(tensor->GetStorageShape().GetDimNum());
+      for (auto i = 0U; i < tensor->GetStorageShape().GetDimNum(); ++i) {
+        shape.push_back(tensor->GetStorageShape().GetDim(i));
+      }
     }
     shapes.emplace_back(std::move(shape));
   }

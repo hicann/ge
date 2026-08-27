@@ -627,12 +627,12 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoConvertsSlotKinds) {
   l0Info.arg_num = 12U;
   l0Info.args = slots;
 
-  Om2Tensor inputTensor{};
-  inputTensor.size = 32U;
-  Om2Tensor outputTensor{};
-  outputTensor.size = 64U;
-  Om2TaskIoEntry inputEntry{&inputTensor, 0U};
-  Om2TaskIoEntry outputEntry{&outputTensor, 8U};
+  gert::Tensor inputTensor{};
+  inputTensor.SetSize(32U);
+  gert::Tensor outputTensor{};
+  outputTensor.SetSize(64U);
+  Om2TaskIoEntry inputEntry{sizeof(Om2TaskIoEntry), &inputTensor, 0U};
+  Om2TaskIoEntry outputEntry{sizeof(Om2TaskIoEntry), &outputTensor, 8U};
   uint64_t workspaceSize = 128U;
 
   Om2TaskInfo info{};
@@ -1267,12 +1267,14 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   int64_t shape[] = {1, 3, 224, 224};
-  Om2Tensor tensor = {};
-  tensor.size = 1024U;
-  tensor.data_type = 0U;  // DT_FLOAT
-  tensor.format = 0U;     // FORMAT_NCHW
-  tensor.shape_dims = shape;
-  tensor.shape_dims_num = 4U;
+  gert::Tensor tensor = {};
+  tensor.SetSize(1024U);
+  tensor.SetDataType(static_cast<ge::DataType>(0U));     // DT_FLOAT
+  tensor.SetStorageFormat(static_cast<ge::Format>(0U));  // FORMAT_NCHW
+  for (auto i = 0U; i < sizeof(shape) / sizeof(shape[0]); ++i) {
+    tensor.MutableStorageShape().AppendDim(shape[i]);
+  }
+  tensor.MutableStorageShape().SetDimNum(4U);
 
   Om2TaskIoEntry inputs[2] = {};
   inputs[0U].tensor = &tensor;
@@ -1304,12 +1306,11 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_NullTensor_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   // tensor with null shape_dims but shape_dims_num != 0
-  Om2Tensor tensor = {};
-  tensor.size = 1024U;
-  tensor.data_type = 0U;
-  tensor.format = 0U;
-  tensor.shape_dims = nullptr;
-  tensor.shape_dims_num = 4U;
+  gert::Tensor tensor = {};
+  tensor.SetSize(1024U);
+  tensor.SetDataType(static_cast<ge::DataType>(0U));     // DT_FLOAT
+  tensor.SetStorageFormat(static_cast<ge::Format>(0U));  // FORMAT_NCHW
+  tensor.MutableStorageShape().SetDimNum(4U);
 
   Om2TaskIoEntry inputs[1] = {};
   inputs[0U].tensor = &tensor;

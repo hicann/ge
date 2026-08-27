@@ -861,7 +861,6 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "inline void *ValueToPtr(const uint64_t value) {\n",
                                 "inline uint64_t PtrToU64(const void *ptr) {\n",
                                 "extern \"C\" {\n",
-                                "struct Om2Tensor {\n",
                                 "enum Om2L0ArgKind {\n",
                                 "struct Om2L0ArgSlotInfo {\n",
                                 "struct Om2L0TaskRawInfo {\n",
@@ -890,8 +889,8 @@ TEST_F(Om2CodegenUt, LoadAndRunDumpHelpers_EmitInAnonymousNamespace_Ok) {
       output, {
                   "namespace om2 {\n",
                   "namespace {\n",
-                  "Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,\n",
-                  "int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {\n",
+                  "gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,\n",
+                  "const int64_t *shape_dims, uint64_t shape_dims_num) {\n",
                   "aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,\n",
                   "const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,\n",
                   "uint32_t workspace_num,\n",

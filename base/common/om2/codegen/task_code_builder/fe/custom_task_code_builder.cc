@@ -152,9 +152,9 @@ std::vector<BodyItem> CustomTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
           ctx.Attr("args_table").Attr("GetArgsInfo")(op.Arrow("dispatch_info").Attr("custom").Attr("args_idx"))),
       ChkNotNull(ast_.Var("", "args_info")),
       // -- 声明 ordered_io_addrs 和 Report IO 向量 --
-      ast_.VarDecl(ast_.Var("std::vector<Om2Tensor>", "io_tensors")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2Tensor>", "input_tensors")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2Tensor>", "output_tensors")),
+      ast_.VarDecl(ast_.Var("std::vector<gert::Tensor*>", "input_tensors")),
+      ast_.VarDecl(ast_.Var("std::vector<gert::Tensor*>", "output_tensors")),
+      ast_.VarDecl(ast_.Var("std::vector<gert::Tensor>", "io_tensors")),
       ast_.Call(
           "",
           {ast_.Var("", "io_tensors").Attr("reserve")(op.Arrow("dispatch_info").Attr("custom").Attr("args_info_num"))}),
@@ -179,6 +179,7 @@ BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
                                       ast_.Case(ast_.Var("", "OP_ARG_INPUT")),
                                       ast_.Case(ast_.Var("", "OP_ARG_OUTPUT")),
                                       ast_.Case(ast_.Var("", "OP_ARG_CONST_TENSOR")),
+                                      ast_.Case(ast_.Var("", "OP_ARG_VAR_TENSOR")),
                                       ast_.Block(HandleInputOutputArg(a, ctx)),
                                       ast_.Case(Arg(nullptr)),
                                       ast_.Block({
@@ -232,18 +233,23 @@ std::vector<BodyItem> CustomTaskCodeBuilder::HandleInputOutputArg(const VarRef &
                                                            ctx.Attr("var_addrs")}))),
       ast_.Var("", "io_tensors")
           .PushBack(ast_.Call(
-              "BuildOm2Tensor",
+              "BuildTensor",
               {ast_.ReinterpretCast("void *", ast_.Var("", "_addr")), a.Attr("data").Attr("tensor").Attr("size"),
                a.Attr("data").Attr("tensor").Attr("data_type"), a.Attr("data").Attr("tensor").Attr("format"),
                a.Attr("data").Attr("tensor").Attr("shape"), a.Attr("data").Attr("tensor").Attr("shape_dims")})),
-      ast_.VarDecl(ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({ast_.Var("", "io_tensors").Attr("back")().Addr(),
-                                  a.Attr("data").Attr("tensor").Attr("args_offset")})),
+      ast_.VarDecl(
+          ast_.Var("Om2TaskIoEntry", "_entry"),
+          ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
+                         a.Attr("data").Attr("tensor").Attr("args_offset")})),
       ast_.If(a.Attr("type") == ast_.Var("", "OP_ARG_INPUT") || a.Attr("type") == ast_.Var("", "OP_ARG_CONST_TENSOR"),
-              {ast_.Var("", "report_inputs").PushBack(ast_.Var("", "_entry")),
-               ast_.Var("", "input_tensors").PushBack(ast_.Var("", "io_tensors.back()"))},
-              {ast_.Var("", "report_outputs").PushBack(ast_.Var("", "_entry")),
-               ast_.Var("", "output_tensors").PushBack(ast_.Var("", "io_tensors.back()"))}),
+              {
+                  ast_.Var("", "report_inputs").PushBack(ast_.Var("", "_entry")),
+                  ast_.Var("", "input_tensors").PushBack(ast_.Var("", "io_tensors").Attr("back")().Addr()),
+              },
+              {
+                  ast_.Var("", "report_outputs").PushBack(ast_.Var("", "_entry")),
+                  ast_.Var("", "output_tensors").PushBack(ast_.Var("", "io_tensors").Attr("back")().Addr()),
+              }),
       ast_.Break(),
   };
 }
