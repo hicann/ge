@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 add_library(ascendcl_stub SHARED src/ascendcl_stub.cc)
+set_target_properties(ascendcl_stub PROPERTIES OUTPUT_NAME acl_rt)
 target_compile_options(ascendcl_stub PRIVATE -g)
 target_include_directories(ascendcl_stub PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src
@@ -30,3 +31,9 @@ target_link_libraries(ascendcl_stub
 
 stub_module(ascendcl ascendcl_stub)
 stub_module(acl_rt ascendcl_stub)
+
+get_target_property(ACL_RT_IMPORTED acl_rt IMPORTED)
+if (ACL_RT_IMPORTED)
+    set_target_properties(acl_rt PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/libacl_rt.so")
+endif()

@@ -56,7 +56,7 @@ target_link_libraries(ut_register
     GTestShared::gtest
     GTestShared::gtest_main
     ascend_protobuf
-    ascend_dump
+    profiler_stub
     slog_stub
     platform
     json
