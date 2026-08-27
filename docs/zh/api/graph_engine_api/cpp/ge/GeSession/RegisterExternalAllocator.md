@@ -22,7 +22,7 @@ Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocato
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | stream | 输入 | 指定Allocator注册在哪个Stream上。 |
-| allocator | 输入 | 用户Allocator对象的智能指针。Allocator基于《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》中的"ge命名空间 > Allocator"派生。 |
+| allocator | 输入 | 用户Allocator对象的智能指针。Allocator基于《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/9.2.0-beta.2/docs/zh/api/README.md)》中的"ge命名空间 > Allocator"派生。 |
 
 ## 返回值说明
 
@@ -36,4 +36,4 @@ Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocato
 - 对于不同流，如果用户使用同一个Allocator，不可以多条流并发执行，在执行下一条Stream前，需要对上一Stream做流同步。
 - 将Allocator中的内存释放给操作系统前，需要先调用接口“aclrtSynchronizeStream”执行流同步，确保Stream中的任务已执行完成。
 
-    接口详细介绍请参见《Runtime运行时 API》中的“Stream管理”。
+    接口详细介绍请参见《[Runtime运行时 API](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/API/runtimeapi/aclcppdevg_03_1952.html)》中的“Stream管理”。

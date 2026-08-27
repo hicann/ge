@@ -302,7 +302,7 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
     ```
     <!-- end id1 -->
 
-    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclkernel)》中的“Kernel加载与执行”。
+    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时 API](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/API/runtimeapi/aclcppdevg_03_1952.html)》中的“Kernel加载与执行”。
 
     GetAddr、GetShape、GetSize、GetDataType、GetFormat、GetShapeSize接口详细说明请参见《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》。
 

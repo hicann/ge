@@ -232,7 +232,7 @@
     }
     ```
 
-aclrtMallocHost、aclrtMalloc、aclrtFreeHost、aclrtFree等接口详细说明请参见《[Runtime运行时 API](https://hiascend.com/document/redirect/CannCommunityruntimeapiaclmalloc)》中的“内存管理”。
+aclrtMallocHost、aclrtMalloc、aclrtFreeHost、aclrtFree等接口详细说明请参见《[Runtime运行时 API](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/API/runtimeapi/aclcppdevg_03_1952.html)》中的“内存管理”。
 
 ## 编译和运行接口变化
 

@@ -44,7 +44,7 @@ Status RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const std::vecto
 - 调用该接口前，需要通过acl提供的**aclrtCreateStream**接口创建Stream，且只支持Stream为默认Context的场景。
 - 得到输出运行结果前，需要通过**aclrtSynchronizeStream**接口保证Stream上的任务已经执行完。
 
-    接口详细说明请参见《Runtime运行时 API》中的“Stream管理”。
+    接口详细说明请参见《[Runtime运行时 API](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/API/runtimeapi/aclcppdevg_03_1952.html)》中的“Stream管理”。
 
 ## 调用示例
 

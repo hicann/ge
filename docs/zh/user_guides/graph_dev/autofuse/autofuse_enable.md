@@ -87,7 +87,7 @@
 >
 >关于ATC工具详细使用方法请参见《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 >
->关于acl接口推理详细说明请参见《[应用开发 \(C&C++\)](https://hiascend.com/document/redirect/CannCommunityCppBaseinfer)》中的“模型推理”。
+>关于acl接口推理详细说明请参见《[应用开发](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta2/others/acldevg/aclcppdevg_000006.html)》中的“模型推理”。
 
 ## AUTOFUSE\_FLAGS环境变量控制点
 

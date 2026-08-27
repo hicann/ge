@@ -36,7 +36,7 @@ fallback函数的主要任务是将GE的输入输出及属性转换为aclnn单�
 static graphStatus ConcatExecuteFunc(OpExecuteContext* host_api_ctx)
 ```
 
-OpExecuteContext指针入参中主要包含计算fallback所需的信息，例如输入输出的shape和datatype等，具体请参考《[基础数据结构和接口](https://hiascend.com/document/redirect/CannCommunitybasicopapi)》\>"gert命名空间\>OpImplSpaceRegistryV2类"。
+OpExecuteContext指针入参中主要包含计算fallback所需的信息，例如输入输出的shape和datatype等，具体请参考《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/9.2.0-beta.2/docs/zh/api/README.md)》\>"gert命名空间\>OpImplSpaceRegistryV2类"。
 
 用户无需手动实现fallback函数，在算子原型注册过程中，只需调用EnableFallBack接口，系统将自动生成fallback函数并注册到GE。
 
