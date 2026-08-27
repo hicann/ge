@@ -53,7 +53,7 @@ Status GetL0InputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot
   for (uint64_t i = 0U; i < task_info.input_num; ++i) {
     if (task_info.inputs[i].offset == slot.args_offset) {
       GE_ASSERT_NOTNULL(task_info.inputs[i].tensor);
-      size = task_info.inputs[i].tensor->size;
+      size = task_info.inputs[i].tensor->GetSize();
       return SUCCESS;
     }
   }
@@ -69,7 +69,7 @@ Status GetL0OutputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slo
   for (uint32_t i = 0U; i < task_info.output_num; ++i) {
     if (task_info.outputs[i].offset == slot.args_offset) {
       GE_ASSERT_NOTNULL(task_info.outputs[i].tensor);
-      size = task_info.outputs[i].tensor->size;
+      size = task_info.outputs[i].tensor->GetSize();
       return SUCCESS;
     }
   }
@@ -171,14 +171,14 @@ void BuildInputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::Tensor
   for (uint32_t i = 0; i < task_info.input_num; ++i) {
     if (task_info.inputs != nullptr && task_info.inputs[i].tensor != nullptr) {
       Adx::TensorInfoV2 tensor_info{};
-      tensor_info.tensorSize = task_info.inputs[i].tensor->size;
-      tensor_info.dataType = static_cast<ge::DataType>(task_info.inputs[i].tensor->data_type);
-      tensor_info.format = static_cast<ge::Format>(task_info.inputs[i].tensor->format);
+      tensor_info.tensorSize = task_info.inputs[i].tensor->GetSize();
+      tensor_info.dataType = static_cast<ge::DataType>(task_info.inputs[i].tensor->GetDataType());
+      tensor_info.format = static_cast<ge::Format>(task_info.inputs[i].tensor->GetStorageFormat());
       tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
       tensor_info.type = Adx::TensorType::INPUT;
       tensor_info.argsOffSet = task_info.inputs[i].offset;
       tensor_info.tensorAddr =
-          reinterpret_cast<int64_t *>(static_cast<uintptr_t>(task_info.inputs[i].tensor->device_address));
+          reinterpret_cast<int64_t *>(reinterpret_cast<uintptr_t>(task_info.inputs[i].tensor->GetAddr()));
       tensor_infos.push_back(tensor_info);
     }
   }
@@ -188,14 +188,14 @@ void BuildOutputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::Tenso
   for (uint32_t i = 0; i < task_info.output_num; ++i) {
     if (task_info.outputs != nullptr && task_info.outputs[i].tensor != nullptr) {
       Adx::TensorInfoV2 tensor_info{};
-      tensor_info.tensorSize = task_info.outputs[i].tensor->size;
-      tensor_info.dataType = static_cast<ge::DataType>(task_info.outputs[i].tensor->data_type);
-      tensor_info.format = static_cast<ge::Format>(task_info.outputs[i].tensor->format);
+      tensor_info.tensorSize = task_info.outputs[i].tensor->GetSize();
+      tensor_info.dataType = static_cast<ge::DataType>(task_info.outputs[i].tensor->GetDataType());
+      tensor_info.format = static_cast<ge::Format>(task_info.outputs[i].tensor->GetStorageFormat());
       tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
       tensor_info.type = Adx::TensorType::OUTPUT;
       tensor_info.argsOffSet = task_info.outputs[i].offset;
       tensor_info.tensorAddr =
-          reinterpret_cast<int64_t *>(static_cast<uintptr_t>(task_info.outputs[i].tensor->device_address));
+          reinterpret_cast<int64_t *>(reinterpret_cast<uintptr_t>(task_info.outputs[i].tensor->GetAddr()));
       tensor_infos.push_back(tensor_info);
     }
   }
@@ -297,18 +297,13 @@ Status ExceptionDumpImpl::SaveOpInfo(const Om2TaskInfo &task_info) {
       return PARAM_INVALID;
     }
     const auto &tensor = *entry.tensor;
-    if ((tensor.shape_dims_num > 0U) && (tensor.shape_dims == nullptr)) {
-      GELOGE(PARAM_INVALID, "[Check][Param] OM2 task input tensor shape dims is null, index=%u, dims_num=%u.", i,
-             tensor.shape_dims_num);
-      return PARAM_INVALID;
-    }
-    op_info.input_addrs.emplace_back(reinterpret_cast<void *>(tensor.device_address));
-    op_info.input_size.emplace_back(tensor.size);
-    op_info.input_data_type.emplace_back(static_cast<ge::DataType>(tensor.data_type));
-    op_info.input_format.emplace_back(static_cast<ge::Format>(tensor.format));
+    op_info.input_addrs.emplace_back(const_cast<void *>(tensor.GetAddr()));
+    op_info.input_size.emplace_back(tensor.GetSize());
+    op_info.input_data_type.emplace_back(static_cast<ge::DataType>(tensor.GetDataType()));
+    op_info.input_format.emplace_back(static_cast<ge::Format>(tensor.GetStorageFormat()));
     std::vector<int64_t> shape;
-    for (uint32_t j = 0; j < tensor.shape_dims_num; ++j) {
-      shape.emplace_back(tensor.shape_dims[j]);
+    for (uint32_t j = 0; j < tensor.GetStorageShape().GetDimNum(); ++j) {
+      shape.emplace_back(tensor.GetStorageShape()[j]);
     }
     op_info.input_shape.emplace_back(shape);
   }
@@ -324,18 +319,13 @@ Status ExceptionDumpImpl::SaveOpInfo(const Om2TaskInfo &task_info) {
       return PARAM_INVALID;
     }
     const auto &tensor = *entry.tensor;
-    if ((tensor.shape_dims_num > 0U) && (tensor.shape_dims == nullptr)) {
-      GELOGE(PARAM_INVALID, "[Check][Param] OM2 task output tensor shape dims is null, index=%u, dims_num=%u.", i,
-             tensor.shape_dims_num);
-      return PARAM_INVALID;
-    }
-    op_info.output_addrs.emplace_back(reinterpret_cast<void *>(tensor.device_address));
-    op_info.output_size.emplace_back(tensor.size);
-    op_info.output_data_type.emplace_back(static_cast<ge::DataType>(tensor.data_type));
-    op_info.output_format.emplace_back(static_cast<ge::Format>(tensor.format));
+    op_info.output_addrs.emplace_back(const_cast<void *>(tensor.GetAddr()));
+    op_info.output_size.emplace_back(tensor.GetSize());
+    op_info.output_data_type.emplace_back(static_cast<ge::DataType>(tensor.GetDataType()));
+    op_info.output_format.emplace_back(static_cast<ge::Format>(tensor.GetStorageFormat()));
     std::vector<int64_t> shape;
-    for (uint32_t j = 0; j < tensor.shape_dims_num; ++j) {
-      shape.push_back(tensor.shape_dims[j]);
+    for (uint32_t j = 0; j < tensor.GetStorageShape().GetDimNum(); ++j) {
+      shape.push_back(tensor.GetStorageShape()[j]);
     }
     op_info.output_shape.push_back(shape);
   }

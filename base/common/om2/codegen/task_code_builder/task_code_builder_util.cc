@@ -125,7 +125,8 @@ Expr *TaskCodeBuilderUtil::BuildTaskIoEntries(AstBuildContext &ast, const std::v
     if (!addr.tensor_info.has_value()) {
       continue;
     }
-    (void)entries.emplace_back(std::vector<Arg>{ast.Var("Om2Tensor", addr.symbol_hint).Addr(),
+    (void)entries.emplace_back(std::vector<Arg>{ast.Var("", "sizeof(Om2TaskIoEntry)"),
+                                                ast.Var("gert::Tensor", addr.symbol_hint).Addr(),
                                                 std::to_string(addr.tensor_info->args_offset) + "U"});
   }
   return ast.InitList(entries);

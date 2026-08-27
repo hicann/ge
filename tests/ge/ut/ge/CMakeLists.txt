@@ -1043,6 +1043,7 @@ target_link_libraries(ut_python_runtime_artifact_utils_utest
     GTestShared::gtest
     GTestShared::gtest_main
     ge_common_base
+    ascendcl_stub
     opp_registry
     register
     graph_base

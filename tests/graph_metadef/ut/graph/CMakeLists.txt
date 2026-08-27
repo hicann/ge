@@ -49,7 +49,7 @@ target_link_libraries(ut_graph PRIVATE
     unified_dlog
     lowering
     register
-    ascend_dump
+    profiler_stub
     ge_runtime_stub eager_style_graph_builder_base
     ge_metadef_headers mmpa_stub graph graph_base error_manager runtime_headers
     msprof_headers GTestShared::gtest GTestShared::gtest_main ascend_protobuf slog_stub c_sec json -lrt -ldl

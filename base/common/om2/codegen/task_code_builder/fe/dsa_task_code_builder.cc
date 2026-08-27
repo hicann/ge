@@ -362,7 +362,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body,
 Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                                     const ExprRef &dsa_data, const VarRef &addrs,
                                                     const VarRef &launch_begin) {
-  auto dsa_io_tensors = ast_.Var("std::vector<Om2Tensor>", "dsa_io_tensors");
+  auto dsa_io_tensors = ast_.Var("std::vector<gert::Tensor>", "dsa_io_tensors");
   (void)body.push_back(ast_.VarDecl(dsa_io_tensors));
   (void)body.push_back(ast_.Call("", {dsa_io_tensors.Attr("reserve")(dsa_data.Attr("num_args"))}));
   auto dsa_report_inputs = ast_.Var("std::vector<Om2TaskIoEntry>", "dsa_report_inputs");
@@ -395,7 +395,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
                   (dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("type") == ast_.Var("", "OP_ARG_OUTPUT")) ||
                   (dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("type") == ast_.Var("", "OP_ARG_CONST_TENSOR")),
               {dsa_io_tensors.PushBack(ast_.Call(
-                   "BuildOm2Tensor",
+                   "BuildTensor",
                    {ast_.ReinterpretCast("void *", addrs[ast_.Var("", "_i")]),
                     dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr("size"),
                     dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr("data_type"),
@@ -404,7 +404,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
                     dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr("shape_dims")})),
                ast_.VarDecl(
                    ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({dsa_io_tensors.Attr("back")().Addr(),
+                   ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), dsa_io_tensors.Attr("back")().Addr(),
                                   dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr(
                                       "args_offset")})),
                ast_.If((dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("type") == ast_.Var("", "OP_ARG_INPUT")) ||

@@ -93,7 +93,7 @@ target_link_libraries(helper_runtime_test
     mmpa_stub
     adump_server
     adcore
-    ascend_dump
+    profiler_stub
     -Wl,--whole-archive
     df_memset_stubs
     -Wl,--no-whole-archive

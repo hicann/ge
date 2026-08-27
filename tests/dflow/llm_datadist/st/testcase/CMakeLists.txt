@@ -64,7 +64,7 @@ target_link_libraries(llm_engine_test
         intf_llt_pub
         llm_engine_base
         llm_engine
-        ascend_dump
+        profiler_stub
         ${AIR_COMMON_LINK_OPTION}
         GTestShared::gtest GTestShared::gtest_main GTestShared::gmock
         -Wl,--no-as-needed

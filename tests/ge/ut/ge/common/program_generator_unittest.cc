@@ -1874,17 +1874,6 @@ inline void *ResolveOpAddr(uint32_t mem_src, uint32_t index, uint64_t offset,
   return GET_ADDR(base_ptr, offset);
 }
 
-extern "C" {
-struct Om2Tensor {
-  uint64_t device_address;
-  uint64_t size;
-  int32_t data_type;
-  int32_t format;
-  const int64_t* shape_dims;
-  uint64_t shape_dims_num;
-};
-}
-
 template<typename... Args>
 inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
   std::vector<uint64_t> buf;
@@ -1892,8 +1881,8 @@ inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
     using T = std::decay_t<decltype(arg)>;
     if constexpr (std::is_pointer_v<T>) {
       buf.push_back(reinterpret_cast<uint64_t>(arg));
-    } else if constexpr (std::is_same_v<T, Om2Tensor>) {
-      buf.push_back(arg.device_address);
+    } else if constexpr (std::is_same_v<T, gert::Tensor>) {
+      buf.push_back(reinterpret_cast<uint64_t>(arg.GetAddr()));
     } else if constexpr (std::is_same_v<T, std::vector<int64_t>>) {
       for (auto d : arg) buf.push_back(static_cast<uint64_t>(d));
     } else if constexpr (std::is_integral_v<T>) {
@@ -1907,8 +1896,9 @@ inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
 }
 
 struct Om2TaskIoEntry {
-  const struct Om2Tensor *tensor;
-  uint64_t offset;
+  uint64_t struct_size = sizeof(Om2TaskIoEntry);
+  const gert::Tensor *tensor = nullptr;
+  uint64_t offset = 0;
 };
 
 enum Om2L0ArgKind {
@@ -2727,15 +2717,19 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
 
 namespace om2 {
 namespace {
-Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
-                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
-  Om2Tensor tensor{};
-  tensor.device_address = PtrToU64(device_address);
-  tensor.size = size;
-  tensor.data_type = data_type;
-  tensor.format = format;
-  tensor.shape_dims = shape_dims;
-  tensor.shape_dims_num = shape_dims_num;
+gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,
+                         const int64_t *shape_dims, uint64_t shape_dims_num) {
+  gert::StorageShape storage_shape;
+  for (auto i = 0U; i < shape_dims_num; ++i) {
+    auto dim = shape_dims[i];
+    (void)storage_shape.MutableStorageShape().AppendDim(dim);
+    (void)storage_shape.MutableOriginShape().AppendDim(dim);
+  }
+  gert::StorageFormat storage_format(static_cast<ge::Format>(format), static_cast<ge::Format>(format), {});
+  gert::Tensor tensor(storage_shape, storage_format, gert::kOnDeviceHbm, static_cast<ge::DataType>(data_type),
+                      reinterpret_cast<gert::TensorAddress>(device_address));
+  tensor.SetSize(size);
+
   return tensor;
 }
 
@@ -3026,7 +3020,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   ArgsInfo *args_info = ctx.args_table.GetArgsInfo(op->dispatch_info.aicore.args_idx);
   OM2_CHK_NOTNULL(args_info);
   std::vector<uint64_t> ordered_io_addrs;
-  std::vector<Om2Tensor> io_tensors;
+  std::vector<gert::Tensor> io_tensors;
   (io_tensors.reserve(op->dispatch_info.aicore.args_info_num));
   std::vector<Om2TaskIoEntry> report_inputs;
   std::vector<Om2TaskIoEntry> report_outputs;
@@ -3042,8 +3036,8 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_VAR_TENSOR:
       {
         _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
+        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+        Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
           report_inputs.push_back(_entry);
         } else {
@@ -3128,7 +3122,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   const uint8_t *ext_info_blob = op->dispatch_info.aicpu.ext_info_blob;
   uint32_t ext_info_blob_len = op->dispatch_info.aicpu.ext_info_blob_len;
   std::vector<uint64_t> iow_addr;
-  std::vector<Om2Tensor> aicpu_io_tensors;
+  std::vector<gert::Tensor> aicpu_io_tensors;
   (aicpu_io_tensors.reserve(num_io));
   std::vector<Om2TaskIoEntry> aicpu_report_inputs;
   std::vector<Om2TaskIoEntry> aicpu_report_outputs;
@@ -3139,8 +3133,8 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
       _addr = 0U;
     } else {
       _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-      aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-      Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
+      aicpu_io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+      Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
         aicpu_report_inputs.push_back(_entry);
       } else {
@@ -3399,7 +3393,7 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 // ==================== model load/run/unload api ====================
 
 int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                       struct GertModelLoadOutput *output) {
+                  struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3422,7 +3416,7 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
 }
 
 int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3436,7 +3430,7 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
 }
 
 int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                      struct GertModelRunOutput *output) {
+                 struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3450,7 +3444,7 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
 }
 
 int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                         struct GertModelUnloadOutput *output) {
+                    struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -3459,7 +3453,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
     OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
@@ -3476,15 +3470,19 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
 
 namespace om2 {
 namespace {
-Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
-                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
-  Om2Tensor tensor{};
-  tensor.device_address = PtrToU64(device_address);
-  tensor.size = size;
-  tensor.data_type = data_type;
-  tensor.format = format;
-  tensor.shape_dims = shape_dims;
-  tensor.shape_dims_num = shape_dims_num;
+gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,
+                         const int64_t *shape_dims, uint64_t shape_dims_num) {
+  gert::StorageShape storage_shape;
+  for (auto i = 0U; i < shape_dims_num; ++i) {
+    auto dim = shape_dims[i];
+    (void)storage_shape.MutableStorageShape().AppendDim(dim);
+    (void)storage_shape.MutableOriginShape().AppendDim(dim);
+  }
+  gert::StorageFormat storage_format(static_cast<ge::Format>(format), static_cast<ge::Format>(format), {});
+  gert::Tensor tensor(storage_shape, storage_format, gert::kOnDeviceHbm, static_cast<ge::DataType>(data_type),
+                      reinterpret_cast<gert::TensorAddress>(device_address));
+  tensor.SetSize(size);
+
   return tensor;
 }
 
@@ -3775,7 +3773,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   ArgsInfo *args_info = ctx.args_table.GetArgsInfo(op->dispatch_info.aicore.args_idx);
   OM2_CHK_NOTNULL(args_info);
   std::vector<uint64_t> ordered_io_addrs;
-  std::vector<Om2Tensor> io_tensors;
+  std::vector<gert::Tensor> io_tensors;
   (io_tensors.reserve(op->dispatch_info.aicore.args_info_num));
   std::vector<Om2TaskIoEntry> report_inputs;
   std::vector<Om2TaskIoEntry> report_outputs;
@@ -3791,8 +3789,8 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_VAR_TENSOR:
       {
         _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
+        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+        Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
           report_inputs.push_back(_entry);
         } else {
@@ -3877,7 +3875,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   const uint8_t *ext_info_blob = op->dispatch_info.aicpu.ext_info_blob;
   uint32_t ext_info_blob_len = op->dispatch_info.aicpu.ext_info_blob_len;
   std::vector<uint64_t> iow_addr;
-  std::vector<Om2Tensor> aicpu_io_tensors;
+  std::vector<gert::Tensor> aicpu_io_tensors;
   (aicpu_io_tensors.reserve(num_io));
   std::vector<Om2TaskIoEntry> aicpu_report_inputs;
   std::vector<Om2TaskIoEntry> aicpu_report_outputs;
@@ -3888,8 +3886,8 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
       _addr = 0U;
     } else {
       _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-      aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-      Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
+      aicpu_io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+      Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
         aicpu_report_inputs.push_back(_entry);
       } else {
@@ -4148,7 +4146,7 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 // ==================== model load/run/unload api ====================
 
 int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                       struct GertModelLoadOutput *output) {
+                  struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4171,7 +4169,7 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
 }
 
 int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4185,7 +4183,7 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
 }
 
 int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                      struct GertModelRunOutput *output) {
+                 struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4199,7 +4197,7 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
 }
 
 int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                         struct GertModelUnloadOutput *output) {
+                    struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -4208,7 +4206,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
     OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
@@ -4223,7 +4221,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
   const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
   EXPECT_NE(source.find("kOpDefs"), std::string::npos);
   EXPECT_NE(source.find("DispatchOp"), std::string::npos);
-  EXPECT_NE(source.find("BuildOm2Tensor"), std::string::npos);
+  EXPECT_NE(source.find("BuildTensor"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AicpuEmptyShape_Ok) {
@@ -4241,7 +4239,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AicpuEmptyShape_Ok) {
   }
   // RenderDistribution 路径应在 Load() 中生成 BuildOm2Tensor 和 FlattenHostArgs/AicpuKernelTaskDistribute
   const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("BuildOm2Tensor"), std::string::npos);
+  EXPECT_NE(source.find("BuildTensor"), std::string::npos);
   EXPECT_NE(source.find("ResolveOpAddr"), std::string::npos);
   EXPECT_NE(source.find("AicpuKernelTaskDistribute"), std::string::npos);
 }
@@ -4257,15 +4255,19 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
 
 namespace om2 {
 namespace {
-Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
-                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
-  Om2Tensor tensor{};
-  tensor.device_address = PtrToU64(device_address);
-  tensor.size = size;
-  tensor.data_type = data_type;
-  tensor.format = format;
-  tensor.shape_dims = shape_dims;
-  tensor.shape_dims_num = shape_dims_num;
+gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,
+                         const int64_t *shape_dims, uint64_t shape_dims_num) {
+  gert::StorageShape storage_shape;
+  for (auto i = 0U; i < shape_dims_num; ++i) {
+    auto dim = shape_dims[i];
+    (void)storage_shape.MutableStorageShape().AppendDim(dim);
+    (void)storage_shape.MutableOriginShape().AppendDim(dim);
+  }
+  gert::StorageFormat storage_format(static_cast<ge::Format>(format), static_cast<ge::Format>(format), {});
+  gert::Tensor tensor(storage_shape, storage_format, gert::kOnDeviceHbm, static_cast<ge::DataType>(data_type),
+                      reinterpret_cast<gert::TensorAddress>(device_address));
+  tensor.SetSize(size);
+
   return tensor;
 }
 
@@ -4556,7 +4558,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   ArgsInfo *args_info = ctx.args_table.GetArgsInfo(op->dispatch_info.aicore.args_idx);
   OM2_CHK_NOTNULL(args_info);
   std::vector<uint64_t> ordered_io_addrs;
-  std::vector<Om2Tensor> io_tensors;
+  std::vector<gert::Tensor> io_tensors;
   (io_tensors.reserve(op->dispatch_info.aicore.args_info_num));
   std::vector<Om2TaskIoEntry> report_inputs;
   std::vector<Om2TaskIoEntry> report_outputs;
@@ -4572,8 +4574,8 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_VAR_TENSOR:
       {
         _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
+        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+        Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
           report_inputs.push_back(_entry);
         } else {
@@ -4658,7 +4660,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   const uint8_t *ext_info_blob = op->dispatch_info.aicpu.ext_info_blob;
   uint32_t ext_info_blob_len = op->dispatch_info.aicpu.ext_info_blob_len;
   std::vector<uint64_t> iow_addr;
-  std::vector<Om2Tensor> aicpu_io_tensors;
+  std::vector<gert::Tensor> aicpu_io_tensors;
   (aicpu_io_tensors.reserve(num_io));
   std::vector<Om2TaskIoEntry> aicpu_report_inputs;
   std::vector<Om2TaskIoEntry> aicpu_report_outputs;
@@ -4669,8 +4671,8 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
       _addr = 0U;
     } else {
       _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-      aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-      Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
+      aicpu_io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+      Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
         aicpu_report_inputs.push_back(_entry);
       } else {
@@ -4960,7 +4962,7 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 // ==================== model load/run/unload api ====================
 
 int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                       struct GertModelLoadOutput *output) {
+                  struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4983,7 +4985,7 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
 }
 
 int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4997,7 +4999,7 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
 }
 
 int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                      struct GertModelRunOutput *output) {
+                 struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5011,7 +5013,7 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
 }
 
 int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                         struct GertModelUnloadOutput *output) {
+                    struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -5020,7 +5022,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
     OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
@@ -5037,15 +5039,19 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
 
 namespace om2 {
 namespace {
-Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
-                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
-  Om2Tensor tensor{};
-  tensor.device_address = PtrToU64(device_address);
-  tensor.size = size;
-  tensor.data_type = data_type;
-  tensor.format = format;
-  tensor.shape_dims = shape_dims;
-  tensor.shape_dims_num = shape_dims_num;
+gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,
+                         const int64_t *shape_dims, uint64_t shape_dims_num) {
+  gert::StorageShape storage_shape;
+  for (auto i = 0U; i < shape_dims_num; ++i) {
+    auto dim = shape_dims[i];
+    (void)storage_shape.MutableStorageShape().AppendDim(dim);
+    (void)storage_shape.MutableOriginShape().AppendDim(dim);
+  }
+  gert::StorageFormat storage_format(static_cast<ge::Format>(format), static_cast<ge::Format>(format), {});
+  gert::Tensor tensor(storage_shape, storage_format, gert::kOnDeviceHbm, static_cast<ge::DataType>(data_type),
+                      reinterpret_cast<gert::TensorAddress>(device_address));
+  tensor.SetSize(size);
+
   return tensor;
 }
 
@@ -5336,7 +5342,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   ArgsInfo *args_info = ctx.args_table.GetArgsInfo(op->dispatch_info.aicore.args_idx);
   OM2_CHK_NOTNULL(args_info);
   std::vector<uint64_t> ordered_io_addrs;
-  std::vector<Om2Tensor> io_tensors;
+  std::vector<gert::Tensor> io_tensors;
   (io_tensors.reserve(op->dispatch_info.aicore.args_info_num));
   std::vector<Om2TaskIoEntry> report_inputs;
   std::vector<Om2TaskIoEntry> report_outputs;
@@ -5352,8 +5358,8 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_VAR_TENSOR:
       {
         _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        Om2TaskIoEntry _entry = {&io_tensors.back(), a.data.tensor.args_offset};
+        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+        Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
         if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
           report_inputs.push_back(_entry);
         } else {
@@ -5438,7 +5444,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   const uint8_t *ext_info_blob = op->dispatch_info.aicpu.ext_info_blob;
   uint32_t ext_info_blob_len = op->dispatch_info.aicpu.ext_info_blob_len;
   std::vector<uint64_t> iow_addr;
-  std::vector<Om2Tensor> aicpu_io_tensors;
+  std::vector<gert::Tensor> aicpu_io_tensors;
   (aicpu_io_tensors.reserve(num_io));
   std::vector<Om2TaskIoEntry> aicpu_report_inputs;
   std::vector<Om2TaskIoEntry> aicpu_report_outputs;
@@ -5449,8 +5455,8 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
       _addr = 0U;
     } else {
       _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-      aicpu_io_tensors.push_back(BuildOm2Tensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-      Om2TaskIoEntry _entry = {&aicpu_io_tensors.back(), a.data.tensor.args_offset};
+      aicpu_io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+      Om2TaskIoEntry _entry = {sizeof(Om2TaskIoEntry), &aicpu_io_tensors.back(), a.data.tensor.args_offset};
       if ((a.type != OP_ARG_OUTPUT)) {
         aicpu_report_inputs.push_back(_entry);
       } else {
@@ -5729,7 +5735,7 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 // ==================== model load/run/unload api ====================
 
 int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                       struct GertModelLoadOutput *output) {
+                  struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5752,7 +5758,7 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
 }
 
 int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                           const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5766,7 +5772,7 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
 }
 
 int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                      struct GertModelRunOutput *output) {
+                 struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5780,7 +5786,7 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
 }
 
 int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                         struct GertModelUnloadOutput *output) {
+                    struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -5789,7 +5795,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
     OM2_LOGE("GertModelUnload: config and output are reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  OM2_LOGI("GertModelRun: handle=%p", model_handle);
+  OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
@@ -6111,7 +6117,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTask_ConstTensor) {
   // KernelCmoAddrTaskDistribute call
   EXPECT_NE(load_run.find("KernelCmoAddrTaskDistribute("), std::string::npos);
   // const tensor with const_index path: uses constants_[N]
-  EXPECT_NE(load_run.find("BuildOm2Tensor(reinterpret_cast<void *>(_addr)"), std::string::npos);
+  EXPECT_NE(load_run.find("BuildTensor(reinterpret_cast<void *>(_addr)"), std::string::npos);
 }
 
 GeRootModelPtr CreateGeRootModelWithDsaOp() {
@@ -7988,7 +7994,6 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_WithCustomKernel_Ok) {
   EXPECT_NE(load_run.find("} // namespace ge"), std::string::npos);
 
   // om2 匿名命名空间内应包含 kCustomTaskHelpers 提供的自定义内核辅助代码
-  EXPECT_NE(load_run.find("BuildGeTensor(const Om2Tensor &om2_tensor)"), std::string::npos);
   EXPECT_NE(load_run.find("class CustKernelContextHolder"), std::string::npos);
   EXPECT_NE(load_run.find("CustKernelContextHolder BuildKernelContextHolder"), std::string::npos);
   EXPECT_NE(load_run.find("class AllocatorFaker : public gert::GertAllocator"), std::string::npos);

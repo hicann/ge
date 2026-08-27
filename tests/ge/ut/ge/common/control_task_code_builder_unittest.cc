@@ -499,17 +499,6 @@ inline void *ResolveOpAddr(uint32_t mem_src, uint32_t index, uint64_t offset,
   return GET_ADDR(base_ptr, offset);
 }
 
-extern "C" {
-struct Om2Tensor {
-  uint64_t device_address;
-  uint64_t size;
-  int32_t data_type;
-  int32_t format;
-  const int64_t* shape_dims;
-  uint64_t shape_dims_num;
-};
-}
-
 template<typename... Args>
 inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
   std::vector<uint64_t> buf;
@@ -517,8 +506,8 @@ inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
     using T = std::decay_t<decltype(arg)>;
     if constexpr (std::is_pointer_v<T>) {
       buf.push_back(reinterpret_cast<uint64_t>(arg));
-    } else if constexpr (std::is_same_v<T, Om2Tensor>) {
-      buf.push_back(arg.device_address);
+    } else if constexpr (std::is_same_v<T, gert::Tensor>) {
+      buf.push_back(reinterpret_cast<uint64_t>(arg.GetAddr()));
     } else if constexpr (std::is_same_v<T, std::vector<int64_t>>) {
       for (auto d : arg) buf.push_back(static_cast<uint64_t>(d));
     } else if constexpr (std::is_integral_v<T>) {
@@ -532,8 +521,9 @@ inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
 }
 
 struct Om2TaskIoEntry {
-  const struct Om2Tensor *tensor;
-  uint64_t offset;
+  uint64_t struct_size = sizeof(Om2TaskIoEntry);
+  const gert::Tensor *tensor = nullptr;
+  uint64_t offset = 0;
 };
 
 enum Om2L0ArgKind {

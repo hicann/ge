@@ -1517,9 +1517,9 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
                                   v_a.Attr("addr").Attr("offset"), ctx.Attr("total_dev_mem_ptr"),
                                   ctx.Attr("session_scope_mem_ptr"), ctx.Attr("constants"), ctx.Attr("var_addrs")}));
 
-  auto build_tensor = ast_.Call("BuildOm2Tensor",
-                                {ast_.ReinterpretCast("void *", v_addr), data_t.Attr("size"), data_t.Attr("data_type"),
-                                 data_t.Attr("format"), data_t.Attr("shape"), data_t.Attr("shape_dims")});
+  auto build_tensor =
+      ast_.Call("BuildTensor", {ast_.ReinterpretCast("void *", v_addr), data_t.Attr("size"), data_t.Attr("data_type"),
+                                data_t.Attr("format"), data_t.Attr("shape"), data_t.Attr("shape_dims")});
 
   std::initializer_list<BodyItem> loop_body = {
       ast_.VarDecl(ast_.Var("const auto &", "a"), aicpu.Attr("args_info")[ast_.Var("", "i")]),
@@ -1528,7 +1528,8 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
               {ast_.Assign(v_addr, resolve_addr), ast_.Var("", "aicpu_io_tensors").PushBack(build_tensor),
                ast_.VarDecl(
                    ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({ast_.Var("", "aicpu_io_tensors").Attr("back")().Addr(), data_t.Attr("args_offset")})),
+                   ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"),
+                                  ast_.Var("", "aicpu_io_tensors").Attr("back")().Addr(), data_t.Attr("args_offset")})),
                ast_.If(v_a.Attr("type") != ast_.Var("", "OP_ARG_OUTPUT"),
                        {ast_.Var("", "aicpu_report_inputs").PushBack(ast_.Var("", "_entry"))},
                        {ast_.Var("", "aicpu_report_outputs").PushBack(ast_.Var("", "_entry"))})}),
@@ -1543,7 +1544,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
       ast_.VarDecl("const uint8_t *", "ext_info_blob", aicpu.Attr("ext_info_blob")),
       ast_.VarDecl("uint32_t", "ext_info_blob_len", aicpu.Attr("ext_info_blob_len")),
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "iow_addr")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2Tensor>", "aicpu_io_tensors")),
+      ast_.VarDecl(ast_.Var("std::vector<gert::Tensor>", "aicpu_io_tensors")),
       ast_.Call("", {ast_.Var("", "aicpu_io_tensors").Attr("reserve")(ast_.Var("", "num_io"))}),
       ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "aicpu_report_inputs")),
       ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "aicpu_report_outputs")),
@@ -1633,7 +1634,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
       ChkNotNull(ast_.Var("", "args_info")),
       // -- 声明 ordered_io_addrs 和 Report IO 向量 --
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "ordered_io_addrs")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2Tensor>", "io_tensors")),
+      ast_.VarDecl(ast_.Var("std::vector<gert::Tensor>", "io_tensors")),
       ast_.Call(
           "",
           {ast_.Var("", "io_tensors").Attr("reserve")(op.Arrow("dispatch_info").Attr("aicore").Attr("args_info_num"))}),
@@ -1757,13 +1758,14 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &
                                                            ctx.Attr("var_addrs")}))),
       ast_.Var("", "io_tensors")
           .PushBack(ast_.Call(
-              "BuildOm2Tensor",
+              "BuildTensor",
               {ast_.ReinterpretCast("void *", ast_.Var("", "_addr")), a.Attr("data").Attr("tensor").Attr("size"),
                a.Attr("data").Attr("tensor").Attr("data_type"), a.Attr("data").Attr("tensor").Attr("format"),
                a.Attr("data").Attr("tensor").Attr("shape"), a.Attr("data").Attr("tensor").Attr("shape_dims")})),
-      ast_.VarDecl(ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({ast_.Var("", "io_tensors").Attr("back")().Addr(),
-                                  a.Attr("data").Attr("tensor").Attr("args_offset")})),
+      ast_.VarDecl(
+          ast_.Var("Om2TaskIoEntry", "_entry"),
+          ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
+                         a.Attr("data").Attr("tensor").Attr("args_offset")})),
       ast_.If(a.Attr("type") == ast_.Var("", "OP_ARG_INPUT") || a.Attr("type") == ast_.Var("", "OP_ARG_CONST_TENSOR"),
               {ast_.Var("", "report_inputs").PushBack(ast_.Var("", "_entry"))},
               {ast_.Var("", "report_outputs").PushBack(ast_.Var("", "_entry"))}),

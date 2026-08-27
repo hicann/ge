@@ -67,20 +67,18 @@ Status DataDumpImpl::SaveTask(const Om2TaskInfo &task_info, ModelTaskType task_t
         return PARAM_INVALID;
       }
       const auto &tensor = *entry.tensor;
-      if ((tensor.shape_dims_num > 0U) && (tensor.shape_dims == nullptr)) {
-        GELOGE(PARAM_INVALID, "[Check][Param] OM2 task io tensor shape dims is null, index=%u, dims_num=%u.", i,
-               tensor.shape_dims_num);
-        return PARAM_INVALID;
-      }
-
       InnerTensorInfo inner_tensor{};
       inner_tensor.offset = entry.offset;
-      inner_tensor.device_address = tensor.device_address;
-      inner_tensor.size = tensor.size;
-      inner_tensor.data_type = tensor.data_type;
-      inner_tensor.format = tensor.format;
-      if (tensor.shape_dims_num > 0U) {
-        inner_tensor.shape_dims.assign(tensor.shape_dims, tensor.shape_dims + tensor.shape_dims_num);
+      inner_tensor.device_address = reinterpret_cast<uint64_t>(tensor.GetAddr());
+      inner_tensor.size = tensor.GetSize();
+      inner_tensor.data_type = tensor.GetDataType();
+      inner_tensor.format = tensor.GetStorageFormat();
+      if (tensor.GetStorageShape().GetDimNum() > 0U) {
+        inner_tensor.shape_dims.clear();
+        inner_tensor.shape_dims.reserve(tensor.GetStorageShape().GetDimNum());
+        for (auto i = 0U; i < tensor.GetStorageShape().GetDimNum(); ++i) {
+          inner_tensor.shape_dims.push_back(tensor.GetStorageShape().GetDim(i));
+        }
       }
       inner_tensors.push_back(inner_tensor);
     }
