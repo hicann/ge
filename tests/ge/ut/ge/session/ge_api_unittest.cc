@@ -2465,16 +2465,4 @@ TEST_F(UtestGeApi, finalize_v2_then_finalize_v1) {
   EXPECT_EQ(GEFinalize(), SUCCESS);
   EXPECT_FALSE(IsGEInitialize());
 }
-
-TEST_F(UtestGeApi, session_destructor_after_finalize_v2) {
-  std::map<std::string, std::string> options;
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  EXPECT_TRUE(IsGEInitialize());
-  {
-    Session session(options);
-    EXPECT_EQ(GEFinalizeV2(), SUCCESS);
-    EXPECT_FALSE(IsGEInitialize());
-  }
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-}
 }  // namespace ge

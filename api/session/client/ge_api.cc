@@ -294,9 +294,8 @@ Session::Session(const std::map<AscendString, AscendString> &options) {
 // session destructor
 Session::~Session() {
   GELOGT(TRACE_INIT, "Start to destroy session.");
-  // check V1 session manager instead of IsGEInitialize() (which checks V2's g_ge_initialized),
-  // because GEFinalizeV2() may have set g_ge_initialized to false while g_session_manager is still valid.
-  if (g_session_manager == nullptr) {
+  // 0.check init status
+  if (!IsGEInitialize()) {
     GELOGW("GE is not yet initialized or is finalized.");
     return;
   }
