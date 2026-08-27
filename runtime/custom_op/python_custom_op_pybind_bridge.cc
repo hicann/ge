@@ -572,7 +572,8 @@ class PythonCustomOpPybindBridge {
   }
 
  private:
-  Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors, const PythonCustomOpRegistrar &registrar) {
+  Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors,
+                                            const PythonCustomOpRegistrar &registrar) const {
     const auto callbacks = GetCallbacks();
     try {
       for (const auto &item : descriptors["protos"].cast<py::list>()) {
@@ -778,7 +779,7 @@ class PythonCustomOpPybindBridge {
 
   static py::object BuildPythonContext(gert::EagerOpExecutionContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
-    return native_module.attr("_borrow_eager_op_execution_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+    return native_module.attr("_borrow_eager_op_execution_context")(py::capsule(ctx, "gert::EagerOpExecutionContext"));
   }
 
   static void InvalidateBorrowedCompileContext(const py::object &ctx) noexcept {
@@ -798,12 +799,12 @@ class PythonCustomOpPybindBridge {
 
   static py::object BuildPythonAnnotatedArgsContext(gert::AnnotatedArgsContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
-    return native_module.attr("_borrow_annotated_args_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+    return native_module.attr("_borrow_annotated_args_context")(py::capsule(ctx, "gert::AnnotatedArgsContext"));
   }
 
   static py::object BuildPythonInferMetaContext(gert::InferShapeContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
-    return native_module.attr("_borrow_infer_meta_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+    return native_module.attr("_borrow_infer_meta_context")(py::capsule(ctx, "gert::InferShapeContext"));
   }
 
   static graphStatus TranslateStatusLike(const py::object &result) {

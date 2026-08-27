@@ -324,7 +324,12 @@ graphStatus PythonCustomOpAdapter::InferShape(gert::InferShapeContext *ctx) {
     return ret;
   }
   for (size_t i = 0U; i < result.outputs.size(); ++i) {
-    *ctx->GetOutputShape(i) = result.outputs[i].shape.GetStorageShape();
+    auto *output_shape = ctx->GetOutputShape(i);
+    if (output_shape == nullptr) {
+      GELOGE(GRAPH_FAILED, "Failed to get output shape[%zu], op type[%s].", i, op_type_.c_str());
+      return GRAPH_FAILED;
+    }
+    *output_shape = result.outputs[i].shape.GetStorageShape();
   }
   return GRAPH_SUCCESS;
 }
