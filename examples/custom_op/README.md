@@ -9,6 +9,7 @@
 | `ascendc_add_custom` | Ascend C 算子通过 GE 入图         | PyTorch + TorchAir | Ascend C | CMake编译       | 不涉及 | [README](./ascendc_add_custom/README.md) |
 | `triton_add_custom` | Triton 算子通过 GE 入图           | TensorFlow    | Triton | 预编译为 `npubin` | 不涉及 | [README](./triton_add_custom/README.md) |
 | `compilable_add_custom` | Ascend C 算子通过 GE 入图并生成 om离线模型 | GE + ATC离线编译 | Ascend C | RTC算子运行时编译    | 支持模型下沉到 om离线模型 | [README](./compilable_add_custom/README.md) |
+| `python_compilable_add_custom` | Python 算子在在线图编译和 ATC 离线编译阶段生成 kernel，并验证在线执行与 OM 执行 | GE 在线执行 + ATC 离线编译 | Python + Ascend C | Python compile 回调中调用 BiSheng | 支持 OM 脱离 Python 插件执行 | [README](./python_compilable_add_custom/README.md) |
 | `data_dependent_shape_custom` | 数据依赖 shape 算子             | GE | Ascend C | CMake编译       | 不涉及 | [README](data_dependent_shape_custom/README.md) |
 | `args_refresh_add_custom` | ArgsUpdater 地址刷新 + MallocReadOnlyDevArgs + 性能对比 | GE 在线执行 | Ascend C | RTC 运行时编译 | 在线地址刷新性能对比 | [README](./args_refresh_add_custom/cpp/README.md) |
 | `annotated_args_refresh_add_custom` | AnnotatedArgsOp 声明式地址刷新在线场景性能对比+离线场景 | GE 在线执行 + ATC 离线编译 | Ascend C | RTC 运行时编译 | 支持在线性能对比和 OM 模型下沉 | [README](./annotated_args_refresh_add_custom/README.md) |
