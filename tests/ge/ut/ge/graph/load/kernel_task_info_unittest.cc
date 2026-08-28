@@ -1525,6 +1525,7 @@ TEST_F(UtestKernelTaskInfo, kernel_task_info_update_args_te) {
   EXPECT_EQ(kernel_task_info.UpdateHostArgs(active_base_addr, nullptr, 0), SUCCESS);
   kernel_task_info.kernel_type_ = ccKernelType::AI_CPU;
   kernel_task_info.args_size_ = 8;
+  kernel_task_info.args_addr_.resize(kernel_task_info.args_size_);
   EXPECT_NE(kernel_task_info.UpdateHostArgs(active_base_addr, nullptr, 0), SUCCESS);
 }
 
@@ -4300,9 +4301,11 @@ TEST_F(UtestKernelTaskInfo, ifa_with_args_format_graph_load_and_success) {
   IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
                         std::move(task_run_param.parsed_workspace_addrs)};
 
+  ge::DumpStub::GetInstance().SetEnableFlag(false);
   EXPECT_EQ(kernel_task_info.Init(ifa_task, &model, args, persistant_workspace, iow_addrs), SUCCESS);
 
   EXPECT_EQ(kernel_task_info.Distribute(), SUCCESS);
+  ge::DumpStub::GetInstance().SetEnableFlag(true);
 
   auto cust_to_relevant = kernel_task_info.cust_to_relevant_offset_;
   std::map<uint64_t, uint64_t> golden = {{0, 0}, {1, 19}, {2, 20}, {3, 26}, {4, 27}, {5, 3}, {6, 31}, {7, 37}, {8, 38}};
@@ -5400,9 +5403,11 @@ TEST_F(UtestKernelTaskInfo, ifa_with_tiling_sink_graph_load_and_success_with_dfx
     IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
                           std::move(task_run_param.parsed_workspace_addrs)};
 
+    ge::DumpStub::GetInstance().SetEnableFlag(false);
     EXPECT_EQ(kernel_task_info.Init(ifa_task, &model, args, persistant_workspace, iow_addrs), SUCCESS);
 
     EXPECT_EQ(kernel_task_info.Distribute(), SUCCESS);
+    ge::DumpStub::GetInstance().SetEnableFlag(true);
 
     auto cust_to_relevant = kernel_task_info.cust_to_relevant_offset_;
     std::map<uint64_t, uint64_t> golden = {{0, 0}, {1, 19}, {2, 20}, {3, 26}, {4, 27}, {5, 3}, {6, 33}, {7, 34}};

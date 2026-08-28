@@ -1082,6 +1082,7 @@ Status PhysicalMemoryAllocator::Finalize(uint8_t *const va, size_t size) {
   }
   if (physical_memory_size_ == 0U) {
     physical_memorys_.clear();
+    free_physical_memorys_.clear();
   }
   return SUCCESS;
 }

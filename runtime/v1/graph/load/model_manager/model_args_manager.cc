@@ -679,6 +679,10 @@ Status ModelArgsManager::InitTaskInfoV2(domi::ModelTaskDef &model_task_def) {
 
 void ModelArgsManager::InitForUpdate() {
   const size_t size = davinci_model_->GetLogicalMemAllocation().size();
+  if (size == 0U) {
+    GELOGW("logical_mem_allocations is empty, skip InitForUpdate.");
+    return;
+  }
   last_bases_.resize(size, UINT64_MAX);
   id_to_plicy_.resize(size);
 

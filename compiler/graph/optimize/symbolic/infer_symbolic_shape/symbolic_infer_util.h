@@ -97,7 +97,7 @@ class SymbolicInferUtil {
                                 size_t axes_size, const bool keep_dims, gert::SymbolShape *output_shape) {
     auto exps = *axes_tensor->GetSymbolicValue();
     std::vector<T> axes_dims_const;
-    axes_dims_const.reserve(axes_size);
+    axes_dims_const.resize(axes_size);
     for (size_t i = 0; i < axes_size; ++i) {
       if (exps[i].GetConstValue<T>(axes_dims_const[i]) == false) {
         return UNSUPPORTED;

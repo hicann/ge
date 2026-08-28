@@ -16,6 +16,7 @@
 namespace ge {
 class PARSER_FUNC_VISIBILITY CaffeCustomParserAdapter : public CaffeOpParser {
  public:
+  using CaffeOpParser::ParseParams;
   /**
    * @ingroup domi_omg
    * @brief parse params of the operation

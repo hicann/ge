@@ -1579,6 +1579,11 @@ Status AiCpuCCTask::SetMemCopyTask(const domi::KernelDef &kernel_def) {
   const auto memcpy_io_addr =
       PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(memcpy_args_.get()) + sizeof(aicpu::AicpuParamHead)));
   // if has input and output, need copy to ioaddr
+  if (copy_io_addr_.empty()) {
+    GELOGE(INTERNAL_ERROR, "[Check][Size]Node[MemCopy] copy_io_addr_ is empty, cannot copy io addr.");
+    REPORT_INNER_ERR_MSG("E19999", "Node[MemCopy] copy_io_addr_ is empty.");
+    return INTERNAL_ERROR;
+  }
   const int32_t cpy_ret =
       memcpy_s(memcpy_io_addr, static_cast<size_t>(memcpy_args_size_ - sizeof(aicpu::AicpuParamHead)),
                &copy_io_addr_[0U], sizeof(uint64_t) * memcpy_io_num);

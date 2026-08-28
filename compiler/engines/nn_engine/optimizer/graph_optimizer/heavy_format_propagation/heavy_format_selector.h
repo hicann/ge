@@ -132,7 +132,8 @@ struct NodeInfo {
         anchor_index_of_curr_node(anchor_index_of_curr_node_param),
         last_node_info(last_node_info_param),
         is_sub_graph_data_or_nt_opt(is_sub_graph_data_or_nt_opt_param),
-        is_input_of_curr_node(is_input_of_curr_node_param) {
+        is_input_of_curr_node(is_input_of_curr_node_param),
+        tensor_map(2) {
     propagation_info.group = propagation_info_param.group;
     propagation_info.reshape_type = propagation_info_param.reshape_type;
     propagation_info.heavy_format = heavy_format_param;

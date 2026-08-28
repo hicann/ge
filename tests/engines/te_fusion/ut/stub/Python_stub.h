@@ -14,6 +14,7 @@
 
 #include <string>
 #include <memory>
+#include <cstdint>
 
 typedef ssize_t Py_ssize_t;
 

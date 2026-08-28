@@ -13,6 +13,7 @@
 #define STUB_PYTHON_H
 
 #include <string>
+#include <cstdint>
 #include "Python_stub.h"
 
 PyGILState_STATE PyGILState_Ensure(void);

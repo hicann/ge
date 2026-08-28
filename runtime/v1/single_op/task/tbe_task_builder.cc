@@ -514,6 +514,10 @@ Status MixL2TaskBuilder::BuildMixL2Task(MixL2OpTask &task, SingleOpModelParam &p
       tiling_data_size_);
 
   // Init IO/workspace addr
+  if (task.host_args_.empty()) {
+    GELOGD("host_args_ is empty, skip InitKernelArgs.");
+    return SUCCESS;
+  }
   GE_CHK_STATUS_RET(InitKernelArgs(&task.host_args_[task.args_addr_base_idx_], addr_len, param));
   GE_CHK_STATUS_RET(InitTilingDataAddrToArgs(task), "Init tiling data addr to args failed.");
   GE_CHK_STATUS_RET(task.SetArgIndex(), "Set argtable failed.");

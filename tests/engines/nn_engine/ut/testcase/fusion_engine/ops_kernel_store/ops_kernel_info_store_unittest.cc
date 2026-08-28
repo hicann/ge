@@ -2085,7 +2085,9 @@ void CreateConv(ge::NodePtr &node, string op_type) {
   output0_desc_ptr->SetFormat(ge::FORMAT_NCHW);
   output0_desc_ptr->SetOriginFormat(ge::FORMAT_NCHW);
   op_desc_ptr_t->AddOutputDesc("z", output0_desc_ptr->Clone());
+  static std::vector<ge::ComputeGraphPtr> graph_holder;
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
+  graph_holder.emplace_back(graph);
   node = graph->AddNode(op_desc_ptr_t);
 }
 

@@ -776,7 +776,7 @@ void KernelTaskInfo::GetAtomicOutAddrs(const std::vector<uint64_t> &output_data_
                                        std::vector<uint64_t> &atomic_output_data_addrs) const {
   std::vector<uint64_t> output_addr_mem_types;
   std::vector<uint64_t> atomic_output_addr_mem_types;
-  output_addr_mem_types.reserve(output_data_addrs.size());
+  output_addr_mem_types.resize(output_data_addrs.size());
   GetAtomicOutAddrs(output_data_addrs, output_addr_mem_types, atomic_output_data_addrs, atomic_output_addr_mem_types);
 }
 
@@ -798,7 +798,7 @@ void KernelTaskInfo::GetAtomicWorkspaceAddrs(const std::vector<uint64_t> &worksp
                                              std::vector<uint64_t> &atomic_workspace_data_addrs) const {
   std::vector<uint64_t> workspace_addr_types;
   std::vector<uint64_t> atomic_workspace_addr_types;
-  workspace_addr_types.reserve(workspace_data_addrs.size());
+  workspace_addr_types.resize(workspace_data_addrs.size());
   GetAtomicWorkspaceAddrs(workspace_data_addrs, workspace_addr_types, atomic_workspace_data_addrs,
                           atomic_workspace_addr_types);
 }
@@ -2196,7 +2196,8 @@ Status KernelTaskInfo::InitAicpuKfcTask(const domi::KernelDef &kernel_def) {
 
   // copy args to new host memory
   args_addr_.resize(static_cast<size_t>(args_size_));
-  args_addr_.assign(kernel_def.args().begin(), kernel_def.args().end());
+  GE_ASSERT_EOK(memcpy_s(args_addr_.data(), static_cast<size_t>(args_size_), kernel_def.args().data(),
+                         static_cast<size_t>(kernel_def.args().size())));
 
   size_t cur_offset = 0UL;
   size_t args_size_max = static_cast<size_t>(args_size_);

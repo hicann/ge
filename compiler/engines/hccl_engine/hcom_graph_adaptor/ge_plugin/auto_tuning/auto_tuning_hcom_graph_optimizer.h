@@ -33,6 +33,7 @@ class AutoTuningHcomGraphOptimizer : public HcomGraphOptimizer {
   ge::Status OptimizeFusedGraph(ge::ComputeGraph &graph) override;
 
  protected:
+  using HcomGraphOptimizer::CalcOpRunningParam;
   HcclResult CheckSupportedOP(const std::string &sCollectiveType) const override;
   HcclResult CalcOpRunningParam(ge::Node &node);
   HcclResult SetOpOutputMemSize(ge::Node &node, const std::string &sCollectiveType) override;

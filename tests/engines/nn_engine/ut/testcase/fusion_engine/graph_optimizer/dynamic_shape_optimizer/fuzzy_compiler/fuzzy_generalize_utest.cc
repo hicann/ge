@@ -1363,7 +1363,7 @@ TEST_F(UTEST_fusion_engine_fuzzy_generalize, unlimited_node_generalize) {
   InputNodeGeneralize input_node_generalize(fuzzy_ptr->external_input_nodes_, graph_type, fuzzy_ptr->node_info_map_,
                                             tbe_op_store_adapter_, nullptr);
   NodeGeneralInfoPtr node_info_bn = std::make_shared<NodeGeneralInfo>();
-  ;
+  node_info_bn->op_info = std::make_shared<te::TbeOpInfo>(bn_node->GetName(), "", bn_node->GetType(), "");
   std::unordered_set<ge::NodePtr> root_set{data_node};
   node_info_bn->inputs_root_map.insert(std::make_pair(bn_node->GetOpDesc()->MutableInputDesc(0), root_set));
   node_info_bn->is_found_in_opstore = true;
@@ -1398,7 +1398,7 @@ TEST_F(UTEST_fusion_engine_fuzzy_generalize, GeneralizeFirstNodeOfGraph) {
   fuzzy_ptr->node_info_map_.clear();
 
   NodeGeneralInfoPtr node_info_bn = std::make_shared<NodeGeneralInfo>();
-  ;
+  node_info_bn->op_info = std::make_shared<te::TbeOpInfo>(bn_node->GetName(), "", bn_node->GetType(), "");
   std::unordered_set<ge::NodePtr> root_set{data_node};
   node_info_bn->inputs_root_map.insert(std::make_pair(bn_node->GetOpDesc()->MutableInputDesc(0), root_set));
   node_info_bn->is_found_in_opstore = false;
@@ -1780,7 +1780,7 @@ TEST_F(UTEST_fusion_engine_fuzzy_generalize, test_generalization_when_pass_regis
   fuzzy_ptr->is_range_limited_graph_ = false;
   fuzzy_ptr->node_info_map_.clear();
   NodeGeneralInfoPtr node_info_gen = std::make_shared<NodeGeneralInfo>();
-  ;
+  node_info_gen->op_info = std::make_shared<te::TbeOpInfo>(gen_node->GetName(), "", gen_node->GetType(), "");
   node_info_gen->is_found_in_opstore = true;
   fuzzy_ptr->node_info_map_.insert(std::make_pair(gen_node, node_info_gen));
 

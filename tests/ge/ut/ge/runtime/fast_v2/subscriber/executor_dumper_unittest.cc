@@ -2746,7 +2746,7 @@ TEST_F(ExecutorDumperUT, InitOrderHoldersFromExeGraph_UT) {
 
   dumper->kernel_names_to_exe_nodes_.emplace("Test_1025", &node);
   dumper->kernel_idxes_to_dump_units_.clear();
-  dumper->kernel_idxes_to_dump_units_.resize(2);
+  dumper->kernel_idxes_to_dump_units_.resize(3);
   dumper->InitOrderHoldersFromExeGraph("Test_1025", &dump_unit);
   EXPECT_EQ(dumper->kernel_idxes_to_dump_units_[0].size(), 1);
   EXPECT_EQ(dumper->kernel_idxes_to_dump_units_[0][0], &dump_unit);
