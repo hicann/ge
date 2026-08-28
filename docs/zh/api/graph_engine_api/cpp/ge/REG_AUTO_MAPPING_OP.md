@@ -22,7 +22,7 @@ REG_AUTO_MAPPING_OP(custom_op_class)
 
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
-| custom_op_class | 输入 | 自定义算子名称。 |
+| custom_op_class | 输入 | 自定义算子实现类。 |
 
 ## 返回值说明
 
@@ -30,4 +30,4 @@ REG_AUTO_MAPPING_OP(custom_op_class)
 
 ## 约束说明
 
-无
+- REG\_AUTO\_MAPPING\_OP默认使用Device后端，并将custom_op_class对应的类名作为算子类型。需要显式指定算子类型或后端时，请使用[REG\_OP\_BACKEND](./REG_OP_BACKEND.md)。

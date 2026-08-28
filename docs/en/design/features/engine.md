@@ -335,6 +335,8 @@ flowchart TD
 
 Engine selection uses a greedy strategy - iterates from high to low priority, and the first engine that passes `CheckSupported()` is selected. Uses a thread pool (default 16 threads) to concurrently select engines for nodes, protects shared data through mutex.
 
+On top of the engine selection logic described above, custom engines have the highest priority. For example, the device custom operator engine (`DNN_VM_CUSTOM`) takes precedence over other Device engines. A custom operator implementation registered for Host CPU takes precedence over the general Host CPU engine (`DNN_VM_HOST_CPU`).
+
 Engine reassignment (`ReAssignEngine()`) implements through strategy pattern. `EngineReAssignPass` is the strategy interface, currently with two implementations:
 
 - `DynamicDataFlowEngineReassignPass`: Engine reassignment in dynamic data flow scenarios

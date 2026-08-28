@@ -226,12 +226,15 @@ REG_OPTION(OO_CONSTANT_FOLDING)
 3. **内存优先策略检查**
    - 当配置了 MemoryPriority 策略时，若输入常量节点的 Shape 较大（>8）且被多个下游共享，则跳过折叠。因为折叠会复制一份常量数据，在内存受限场景下得不偿失
 
-4. **计算执行（两级回退策略）**
-   - **第一级：AICPU 算子内核**（`ComputeWithHostCpuKernel`）
+4. **计算执行（三级策略）**
+   - **第一级：Host CPU 自定义算子**（`ComputeWithHostCpuCustomOp`）
+     - 通过 `CustomOpFactory::IsExistOp(op_type, OpBackend::kHostCPU)` 判断当前算子是否注册 Host CPU backend 自定义实现
+     - 通过 `CreateOrGetCustomOp(op_type, kHostCPU)` 获取实例并调用 `HostCpuExecuteOp::Execute`
+   - **第二级：AICPU 算子内核**（`ComputeWithHostCpuKernel`）
      - 尝试通过 `aicpu_ascend_kernel` 引擎获取算子的 Host CPU 实现
      - 通过 `OpKernelRegistry` 创建算子实例，由 `HostCpuEngine` 执行
      - 这一级支持最广泛的算子类型，运行时加载 `libconstant_folding_ops.so`
-   - **第二级：GE 内置内核**（`ComputeWithBuiltInKernel`）
+   - **第三级：GE 内置内核**（`ComputeWithBuiltInKernel`）
      - 若 AICPU 不支持该算子，回退到 GE 内置的 Host Kernel
      - 通过 `KernelFactory` 按算子类型查找注册的 Kernel（`folding_pass::GetKernelByType`）
      - GE 内置 Kernel 覆盖了约 40 种常见算子
@@ -241,7 +244,7 @@ REG_OPTION(OO_CONSTANT_FOLDING)
    - 新建的 Const 节点会被标记 `_is_from_constant_folding=true`，用于后续流程识别
 
 6. **性能统计**
-   - 分别记录 AICPU 内核和 GE 内置内核的折叠耗时和调用次数
+   - 分别记录 GE 内置 Kernel 和 HostCpu 算子（Host CPU 自定义算子 / AICPU kernel）常量折叠的折叠耗时和调用次数
    - 在 `GraphManager::OptimizeStage1_2` 中汇总输出性能追踪日志
 
 Pass 注册宏：

@@ -68,6 +68,7 @@ GE图引擎接口头文件在如下目录：
 | acl/acl_op.h | ACL单算子描述、执行及算子属性接口。 | libacl_op_executor.so（公开门面；内部实现依赖不作为应用直链接口） |
 | acl/ops/acl_cblas.h | ACL CBLAS/矩阵计算接口。 | libacl_cblas.so |
 | exe_graph/runtime/eager_op_execution_context.h | Eager算子执行时的输入、输出、Stream和Workspace上下文。 | liblowering.so |
+| exe_graph/runtime/host_cpu_op_execution_context.h | Host CPU算子执行时的输入、输出和Host内存管理上下文。 | liblowering.so |
 | exe_graph/runtime/op_compile_context.h | 算子编译、Tiling和Shape推导上下文。 | liblowering.so |
 | graph/graph.h | GE Graph创建、增删节点、输入输出与图属性接口。 | libgraph.so |
 | graph/ct_infer_shape_range_context.h | 编译期Shape Range推导上下文。 | Header-only接口；主要消费库libgraph.so |

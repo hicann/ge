@@ -9,6 +9,7 @@
 | `ascendc_add_custom` | Ascend C 算子通过 GE 入图         | PyTorch + TorchAir | Ascend C | CMake编译       | 不涉及 | [README](./ascendc_add_custom/README.md) |
 | `triton_add_custom` | Triton 算子通过 GE 入图           | TensorFlow    | Triton | 预编译为 `npubin` | 不涉及 | [README](./triton_add_custom/README.md) |
 | `compilable_add_custom` | Ascend C 算子通过 GE 入图并生成 om离线模型 | GE + ATC离线编译 | Ascend C | RTC算子运行时编译    | 支持模型下沉到 om离线模型 | [README](./compilable_add_custom/README.md) |
+| `host_cpu_add_custom` | HostCpu Add 样例（常量折叠 + 运行时 host 调度） | GE 在线执行 | C++ | C++ 直接编译 | 不涉及 | [README](./host_cpu_add_custom/README.md) |
 | `python_compilable_add_custom` | Python 算子在在线图编译和 ATC 离线编译阶段生成 kernel，并验证在线执行与 OM 执行 | GE 在线执行 + ATC 离线编译 | Python + Ascend C | Python compile 回调中调用 BiSheng | 支持 OM 脱离 Python 插件执行 | [README](./python_compilable_add_custom/README.md) |
 | `data_dependent_shape_custom` | 数据依赖 shape 算子             | GE | Ascend C | CMake编译       | 不涉及 | [README](data_dependent_shape_custom/README.md) |
 | `args_refresh_add_custom` | ArgsUpdater 地址刷新 + MallocReadOnlyDevArgs + 性能对比 | GE 在线执行 | Ascend C | RTC 运行时编译 | 在线地址刷新性能对比 | [README](./args_refresh_add_custom/cpp/README.md) |
@@ -31,6 +32,7 @@ GE 原生构图场景还需要提供 `REG_OP` proto 头文件，描述算子的�
 |------------------------|--------------------------------------------------------------|
 | `class BaseCustomOp`   | 自定义算子能力接口的公共基类，用户实现类按需组合继承其他能力接口。                            |
 | `class EagerExecuteOp` | 运行时执行能力，可获取输入 Tensor、申请输出 Tensor、申请 workspace 并发起 kernel 调用。 |
+| `class HostCpuExecuteOp` | Host 侧执行能力，可获取输入 Tensor、申请输出 Tensor，并在常量折叠或 Host CPU 运行时完成计算。 |
 | `class ArgsUpdater`    | 回调式地址刷新能力，I/O 地址变化时由 GE 回调 `UpdateHostArgs` 更新已有 args buffer。       |
 | `class AnnotatedArgsOp` | 声明式地址刷新能力，编译期通过 `DeclareLaunchArgs` 标注输入、输出和 workspace 地址槽位，由 GE 生成任务并完成地址刷新。 |
 | `class ShapeInferOp`   | Shape / DataType 推导能力，用于在编译或构图阶段设置输出描述。                      |
@@ -43,6 +45,7 @@ GE 原生构图场景还需要提供 `REG_OP` proto 头文件，描述算子的�
 
 | 场景                     | 推荐实现                                                                  |
 |------------------------|-----------------------------------------------------------------------|
+| HostCpu 常量折叠             | `HostCpuExecuteOp` + `ShapeInferOp(可选)`                                |
 | 动态图在线执行                | `EagerExecuteOp` + `ShapeInferOp(可选)`                                 |
 | 动态图在线执行 + 算子在线编译       | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(可选)`                |
 | 静态图离线下沉OM模型执行 + 算子在线编译 | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(可选)` + `PortableOp` |

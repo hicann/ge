@@ -142,7 +142,7 @@ TEST(UtestCustomOpPullRegistry, macro_registers_global_and_pull_entries_in_norma
 }
 
 TEST(UtestCustomOpPullRegistry, backend_macro_registers_host_cpu_entry) {
-  EXPECT_TRUE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp"));
+  EXPECT_FALSE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp"));
   EXPECT_FALSE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp", OpBackend::kDevice));
   EXPECT_TRUE(CustomOpFactory::IsExistOp("PullRegistryHostMacroOp", OpBackend::kHostCPU));
   EXPECT_EQ(nullptr, CustomOpFactory::CreateOrGetCustomOp("PullRegistryHostMacroOp", OpBackend::kDevice));

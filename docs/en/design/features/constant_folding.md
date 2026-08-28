@@ -229,23 +229,26 @@ This is constant folding main entry Pass, processing nodes with all inputs as co
 3. **Memory Priority Strategy Check**
    - When MemoryPriority strategy configured, if input constant node Shape large (>8) and shared by multiple downstream, then skip folding. Because folding copies constant data once, in memory constrained scenario not worthwhile
 
-4. **Computation Execution (Two-level Fallback Strategy)**
-   - **First level: AICPU operator kernel** (`ComputeWithHostCpuKernel`)
-     - Try through `aicpu_ascend_kernel` engine get operator Host CPU implementation
-     - Create operator instance through `OpKernelRegistry`, execute by `HostCpuEngine`
-     - This level supports widest operator types, runtime loads `libconstant_folding_ops.so`
-   - **Second level: GE built-in kernel** (`ComputeWithBuiltInKernel`)
-     - If AICPU does not support this operator, fallback to GE built-in Host Kernel
-     - Through `KernelFactory` lookup registered Kernel by operator type (`folding_pass::GetKernelByType`)
-     - GE built-in Kernel covers about 40 common operators
+4. **Computation Execution (Three-level Strategy)**
+    - **First level: Host CPU custom op** (`ComputeWithHostCpuCustomOp`)
+      - Check whether current operator registered Host CPU backend custom implementation through `CustomOpFactory::IsExistOp(op_type, OpBackend::kHostCPU)`
+      - Get instance through `CreateOrGetCustomOp(op_type, kHostCPU)` and call `HostCpuExecuteOp::Execute`
+    - **Second level: AICPU operator kernel** (`ComputeWithHostCpuKernel`)
+      - Try through `aicpu_ascend_kernel` engine get operator Host CPU implementation
+      - Create operator instance through `OpKernelRegistry`, execute by `HostCpuEngine`
+      - This level supports widest operator types, runtime loads `libconstant_folding_ops.so`
+    - **Third level: GE built-in kernel** (`ComputeWithBuiltInKernel`)
+      - If AICPU does not support this operator, fallback to GE built-in Host Kernel
+      - Through `KernelFactory` lookup registered Kernel by operator type (`folding_pass::GetKernelByType`)
+      - GE built-in Kernel covers about 40 common operators
 
 5. **Folding Replacement**
    - After computation success, complete graph structure transformation by `FoldingPass::Folding`
    - Newly created Const node will be marked `_is_from_constant_folding=true`, for subsequent flow identification
 
 6. **Performance Statistics**
-   - Separately record AICPU kernel and GE built-in kernel folding time and call count
-   - Summary output performance trace log in `GraphManager::OptimizeStage1_2`
+    - Separately record external operator side constant folding (Host CPU custom op / AICPU Host CPU kernel) and GE built-in kernel folding time and call count
+    - Summary output performance trace log in `GraphManager::OptimizeStage1_2`
 
 Pass registration macro:
 
@@ -357,7 +360,7 @@ Related attributes and tool classes:
 Mechanism flow:
 
 ```
-DimensionComputePass / DimensionComputePass
+ConstantFoldingPass / DimensionComputePass
           │
           │ (node partial inputs non-constant)
           ▼

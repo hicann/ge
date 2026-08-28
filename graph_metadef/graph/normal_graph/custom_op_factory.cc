@@ -54,7 +54,9 @@ graphStatus CustomOpFactory::GetAllRegisteredOps(std::vector<AscendString> &all_
 }
 
 bool CustomOpFactory::IsExistOp(const AscendString &op_type) {
-  return GetGlobalRegistry().HasCreator(op_type);
+  // sub_op_info_store.cc
+  // 依赖该接口排除device自定义算子，等新增backend参数的接口同步到流水线包后，再把接口语义改为所有backend
+  return IsExistOp(op_type, OpBackend::kDevice);
 }
 
 bool CustomOpFactory::IsExistOp(const AscendString &op_type, const OpBackend backend) {
