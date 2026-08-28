@@ -54,6 +54,12 @@ aclError aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelI
 
 返回0表示成功，返回其他值表示失败，请参见[aclError](aclError.md)。
 
+## 约束说明
+
+<!-- npu="IPV350" id1 -->
+从Device内存加载模型时，从模型加载开始到调用aclmdlUnload接口卸载模型完成之前，不能修改或释放模型数据所在的Device内存。
+<!-- end id1 -->
+
 ## 参考资源
 
 使用[aclmdlSetConfigOpt](aclmdlSetConfigOpt.md)接口、[aclmdlLoadWithConfig](aclmdlLoadWithConfig.md)接口时，是通过配置对象中的属性来区分，在加载模型时是从文件加载，还是从内存加载，以及内存是由系统内部管理，还是由用户管理。

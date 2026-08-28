@@ -40,6 +40,8 @@ typedef struct {
 
 typedef enum { NO_NEED_READ_FROM_FD, NEED_READ_FROM_FD } ReadFileFlag;
 
+typedef enum { MDL_LOAD_FROM_FILE, MDL_LOAD_FROM_MEM } ModelLoadType;
+
 typedef struct {
   void *modelData;
   uint64_t modelLen;
@@ -48,7 +50,8 @@ typedef struct {
   ReadFileFlag flag;
   Partition part;
   size_t memType;
-  int32_t resv[3];
+  ModelLoadType modelLoadType;
+  int32_t resv[2];
 } ModelData;
 
 typedef struct {
