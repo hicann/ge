@@ -16,6 +16,7 @@
 #include "common/ge_common/ge_types.h"
 #include "common/dynamic_aipp.h"
 #include "framework/common/om2_tensor_desc.h"
+#include "acl/acl_base_rt.h"
 
 namespace gert {
 struct Om2ModelData;
@@ -74,6 +75,9 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   ge::Status SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                 const kAippDynamicPara &aipp_parms);
+  void *GetModelDumpManager() const;
+  uint64_t GetStepId() const;
+  aclrtStream GetOrCreateProfStream();
   uint64_t SessionId() const;
 
  private:

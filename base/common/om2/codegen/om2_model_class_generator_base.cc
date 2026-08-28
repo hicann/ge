@@ -30,6 +30,7 @@ Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase(AstBuildContext &ast)
       session_id_(ast.Var("uint64_t *", "session_id_")),
       model_id_(ast.Var("uint32_t", "model_id_")),
       instance_handle_(ast.Var("void *", "instance_handle_")),
+      executor_handle_(ast.Var("void *", "executor_handle_")),
       kernel_id_(ast.Var("uint64_t", "kernel_id_")),
       dev_ext_info_mem_ptrs_(ast.Var("std::vector<void *>", "dev_ext_info_mem_ptrs_")),
       label_switch_label_list_(ast_.Var("std::map<uint32_t, aclrtLabelList>", "label_switch_label_list_")),
@@ -40,6 +41,5 @@ Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase(AstBuildContext &ast)
       overflow_addr_(ast_.Var("void *", "overflow_addr_")),
       dev_dynamic_mem_ptrs_(ast_.Var("std::vector<void *>", "dev_dynamic_mem_ptrs_")),
       session_scope_mem_ptr_(ast_.Var("void *", "session_scope_mem_ptr_")),
-      priority_(ast_.Var("int32_t", "priority_")),
-      sync_prof_stream_(ast_.Var("aclrtStream", "sync_prof_stream_")) {}
+      priority_(ast_.Var("int32_t", "priority_")) {}
 }  // namespace ge

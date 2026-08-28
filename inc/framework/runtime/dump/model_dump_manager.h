@@ -80,7 +80,8 @@ class VISIBILITY_EXPORT ModelDumpManager {
   void SetClearDfxCacheFlagAfterLoad(bool clear_cache);
   Status ReportModelLoadBegin() const;
   Status ReportModelLoadEnd() const;
-  Status ReportModelLevelProf(const Om2ProfInfos &prof_info) const;
+  Status ReportRunInfoPreprocess(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
+  Status ReportRunInfoPostprocess(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
   bool IsProfilingEnabled() const;
 
   // ========================================================================

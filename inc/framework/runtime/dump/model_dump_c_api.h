@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <memory>
 #include "exe_graph/runtime/runtime_tensor.h"
+#include "acl/acl_base_rt.h"
 
 #if defined(_MSC_VER)
 #define OM2_C_API_EXPORT __declspec(dllexport)
@@ -126,30 +127,22 @@ struct Om2TaskInfo {
   uint64_t weight_mem_size;       // 输入，权重内存大小，单位为字节。
 };
 
-enum Om2ProfType : uint32_t {
-  OM2_PROF_INPUT_COPY = 0,
-  OM2_PROF_MODEL_EXECUTE = 1,
-  OM2_PROF_OUTPUT_COPY = 2,
-  OM2_PROF_STEP_INFO_START = 3,
-  OM2_PROF_STEP_INFO_END = 4,
-  OM2_PROF_TYPE_COUNT,
+// ============ Run 阶段回调函数类型定义 ============
+
+using ReportModelRunFunc = int32_t (*)(void *instance_handle, const struct GertModelRunReportInfo *info);
+
+struct GertModelRunReportInfo {
+  uint64_t struct_size = sizeof(GertModelRunReportInfo);  // 布局变化时更新
+  uint64_t model_id = 0;                                  // 模型 id
+  aclrtStream stream = nullptr;                           // 执行流（async: exe_stream; sync: nullptr）
+  uint64_t is_async = 0;                                  // 区分同步/异步
 };
 
-struct Om2ProfUnit {
-  Om2ProfType type;
-  uint64_t begin_time;
-  uint64_t end_time;
-  uint32_t thread_id;
+struct GertModelRunCallbacks {
+  uint64_t struct_size = sizeof(GertModelRunCallbacks);      // 布局变化时更新
+  ReportModelRunFunc report_run_info_preprocess = nullptr;   // aclmdlRIExecute 前回调
+  ReportModelRunFunc report_run_info_postprocess = nullptr;  // aclmdlRIExecute 后回调
 };
-
-struct Om2ProfInfos {
-  uint64_t struct_size = sizeof(Om2ProfInfos);  // 版本号，使用 sizeof(Om2ProfInfos) 自动兼容
-  uint64_t count = 0;                           // prof_unit 有效条目数
-  Om2ProfUnit *prof_unit = nullptr;             // 指针，Executor 分配，codegen 填充
-  uint64_t step_id = 0;                         // 输入：Executor 设置，0 不上报 StepInfo
-};
-
-constexpr uint32_t kOm2ProfInfosVersion = sizeof(Om2ProfInfos);
 
 // ============ Dump 回调函数入参 struct 的类型定义 ============
 
@@ -160,7 +153,7 @@ struct GertModelDumpEnabledInfo {
   uint64_t enabled = 0;                                     // 输出：是否使能 dump
 };
 
-// GertModelBaseInfo: init_model_dump_info 回调入参（codegen → executor 传递 rt_model_handle）
+// GertModelBaseInfo: report_model_base_info 回调入参（codegen → executor 传递 rt_model_handle）
 struct GertModelBaseInfo {
   uint64_t struct_size = sizeof(GertModelBaseInfo);  // 布局变化时更新
   const void *rt_model_handle = nullptr;             // 输入：codegen 创建的 aclmdlRI*（InitResources 后即可获得）
@@ -220,6 +213,9 @@ int32_t OM2_C_API_EXPORT IsDataDumpEnabled(uint32_t model_id, void *instance_han
                                            uint8_t *is_data_dump);
 
 int32_t OM2_C_API_EXPORT ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInfo *info);
+
+int32_t ReportRunInfoPreprocess(void *instance_handle, const struct GertModelRunReportInfo *info);
+int32_t ReportRunInfoPostprocess(void *instance_handle, const struct GertModelRunReportInfo *info);
 #ifdef __cplusplus
 }
 #endif

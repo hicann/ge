@@ -22,7 +22,8 @@ class ProfilingImpl {
   bool IsProfilingEnabled() const;
   Status ReportModelLoadBegin(const ModelDumpInfo &model_info) const;
   Status ReportModelLoadEnd(const ModelDumpInfo &model_info) const;
-  Status ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32_t model_id) const;
+  Status ReportRunInfoPreprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
+  Status ReportRunInfoPostprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
   Status SaveTaskInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info) const;
 
   Status RegisterModelToProfilingRuntime(const ModelDumpInfo &model_info) const;
@@ -36,8 +37,6 @@ class ProfilingImpl {
   Status ReportContextIdInfo(const TaskDescInfo &task_desc_info, uint32_t tid) const;
   Status ReportFusionOpInfo(const Om2TaskInfo &task_info, uint32_t model_id) const;
   Status ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t prof_time) const;
-  Status ReportProfApi(uint32_t level, uint32_t type, uint64_t item_id, const Om2ProfUnit &unit, const char *tag) const;
-  Status ReportProfModelExecute(const Om2ProfUnit &unit, uint32_t model_id, uint64_t step_id) const;
   std::vector<std::string> SplitFusionOpNames(const char *names_str) const;
 };
 

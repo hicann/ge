@@ -24,6 +24,8 @@
 #include "mmpa/mmpa_api.h"
 #include "aprof_pub.h"
 #include "profiling/prof_common.h"
+#include "acl/acl_rt.h"
+#include "framework/runtime/subscriber/global_profiler.h"
 
 namespace ge {
 namespace dump {
@@ -366,86 +368,76 @@ Status ProfilingImpl::ReportContextIdInfo(const TaskDescInfo &task_desc_info, ui
       "Report profiling context id info", task_desc_info.op_name.c_str());
 }
 
-Status ProfilingImpl::ReportModelLevelProf(const Om2ProfInfos &prof_info, uint32_t model_id) const {
+Status ProfilingImpl::ReportRunInfoPreprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const {
   if (!ProfilingConfig::Instance().IsTaskTimeEnabled()) {
-    GELOGD("[OM2][Prof] Skip reporting OM2 model level profiling, model_execute profiling disabled, model_id=%u",
-           model_id);
+    GELOGD("[OM2][Prof] Skip preprocess, task time disabled, model_id=%u", model_id);
     return SUCCESS;
   }
 
-  GELOGD("[OM2][Prof] Report OM2 model level profiling, model_id=%u, count=%" PRIu64 "", model_id, prof_info.count);
+  const uint64_t begin_time = MsprofSysCycleTime();
+  const uint32_t tid = static_cast<uint32_t>(mmGetTid());
+  GELOGD("[OM2][Prof] Preprocess: model_id=%u, step_id=%lu, begin=%lu", model_id, step_id, begin_time);
 
-  for (uint32_t i = 0U; i < prof_info.count; ++i) {
-    auto &unit = prof_info.prof_unit[i];
-    if (unit.type >= OM2_PROF_TYPE_COUNT) {
-      GELOGW("[OM2][Prof] Invalid prof type=%u at index=%u, model_id=%u, skipping", unit.type, i, model_id);
-      continue;
-    }
-    switch (unit.type) {
-      case OM2_PROF_INPUT_COPY:
-        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_MODEL_LEVEL, static_cast<uint32_t>(kProfInputCopyType),
-                                        static_cast<uint64_t>(model_id), unit, "ReportInputCopy"));
-        GELOGD("[OM2][Prof] InputCopy reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
-               unit.end_time);
-        break;
-      case OM2_PROF_MODEL_EXECUTE:
-        GE_CHK_STATUS_RET(ReportProfModelExecute(unit, model_id, prof_info.step_id));
-        GELOGD("[OM2][Prof] ModelExecute reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
-               unit.end_time);
-        break;
-      case OM2_PROF_OUTPUT_COPY:
-        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_MODEL_LEVEL, static_cast<uint32_t>(kProfOutputCopyType),
-                                        static_cast<uint64_t>(model_id), unit, "ReportOutputCopy"));
-        GELOGD("[OM2][Prof] OutputCopy reported, model_id=%u, begin=%lu, end=%lu", model_id, unit.begin_time,
-               unit.end_time);
-        break;
-      case OM2_PROF_STEP_INFO_START:
-        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_NODE_LEVEL, static_cast<uint32_t>(kProfStepInfoType), 0U, unit,
-                                        "ReportStepInfo start"));
-        GELOGD("[OM2][Prof] StepInfo start reported, model_id=%u, time=%lu", model_id, unit.begin_time);
-        break;
-      case OM2_PROF_STEP_INFO_END:
-        GE_CHK_STATUS_RET(ReportProfApi(MSPROF_REPORT_NODE_LEVEL, static_cast<uint32_t>(kProfStepInfoType), 1U, unit,
-                                        "ReportStepInfo end"));
-        GELOGD("[OM2][Prof] StepInfo end reported, model_id=%u, time=%lu", model_id, unit.end_time);
-        break;
-      default:
-        GELOGW("[OM2][Prof] Unhandled prof type=%u at index=%u, model_id=%u", unit.type, i, model_id);
-        break;
-    }
-  }
-
-  GELOGD("[OM2][Prof] ReportModelLevelProf done, model_id=%u, total=%" PRIu64 " entries", model_id, prof_info.count);
-  return SUCCESS;
-}
-
-Status ProfilingImpl::ReportProfApi(uint32_t level, uint32_t type, uint64_t item_id, const Om2ProfUnit &unit,
-                                    const char *tag) const {
-  MsprofApi api{};
-  api.level = static_cast<uint16_t>(level);
-  api.type = type;
-  api.beginTime = unit.begin_time;
-  api.endTime = unit.end_time;
-  api.itemId = item_id;
-  api.threadId = unit.thread_id;
-  GELOGD("[OM2][Prof] %s: level=%u, type=%u, beginTime=%lu, endTime=%lu, itemId=%lu, threadId=%u", tag, api.level,
-         api.type, api.beginTime, api.endTime, api.itemId, api.threadId);
-  return CheckMsprofRet(MsprofReportApi(kAgingFlag, &api), tag, "");
-}
-
-Status ProfilingImpl::ReportProfModelExecute(const Om2ProfUnit &unit, uint32_t model_id, uint64_t step_id) const {
   MsprofEvent event{};
   event.level = MSPROF_REPORT_MODEL_LEVEL;
   event.type = kProfModelExecuteType;
-  event.itemId = static_cast<uint64_t>(model_id);
-  event.threadId = unit.thread_id;
+  event.itemId = model_id;
+  event.threadId = tid;
   event.requestId = static_cast<uint32_t>(step_id);
-  GELOGD("[OM2][Prof] ReportModelExecute: model_id=%u, step_id=%lu, begin=%lu, end=%lu, threadId=%u", model_id, step_id,
-         unit.begin_time, unit.end_time, unit.thread_id);
-  event.timeStamp = unit.begin_time;
+  event.timeStamp = begin_time;
   GE_CHK_STATUS_RET(CheckMsprofRet(MsprofReportEvent(kAgingFlag, &event), "ReportModelExecute begin", ""));
-  event.timeStamp = unit.end_time;
-  return CheckMsprofRet(MsprofReportEvent(kAgingFlag, &event), "ReportModelExecute end", "");
+
+  const uint64_t step_begin = MsprofSysCycleTime();
+  gert::rtProfTraceUserData data = {step_id, model_id, 0U};
+  (void)aclrtProfTrace(&data, sizeof(gert::rtProfTraceUserData), stream);
+  const uint64_t step_end = MsprofSysCycleTime();
+
+  MsprofApi api{};
+  api.level = static_cast<uint16_t>(MSPROF_REPORT_NODE_LEVEL);
+  api.type = kProfStepInfoType;
+  api.beginTime = step_begin;
+  api.endTime = step_end;
+  api.itemId = 0U;
+  api.threadId = tid;
+  GE_CHK_STATUS_RET(CheckMsprofRet(MsprofReportApi(kAgingFlag, &api), "ReportStepInfo start", ""));
+
+  return SUCCESS;
+}
+
+Status ProfilingImpl::ReportRunInfoPostprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const {
+  if (!ProfilingConfig::Instance().IsTaskTimeEnabled()) {
+    GELOGD("[OM2][Prof] Skip postprocess, task time disabled, model_id=%u", model_id);
+    return SUCCESS;
+  }
+
+  const uint64_t end_time = MsprofSysCycleTime();
+  const uint32_t tid = static_cast<uint32_t>(mmGetTid());
+  GELOGD("[OM2][Prof] Postprocess: model_id=%u, step_id=%lu, end=%lu", model_id, step_id, end_time);
+
+  MsprofEvent event{};
+  event.level = MSPROF_REPORT_MODEL_LEVEL;
+  event.type = kProfModelExecuteType;
+  event.itemId = model_id;
+  event.threadId = tid;
+  event.requestId = static_cast<uint32_t>(step_id);
+  event.timeStamp = end_time;
+  GE_CHK_STATUS_RET(CheckMsprofRet(MsprofReportEvent(kAgingFlag, &event), "ReportModelExecute end", ""));
+
+  const uint64_t step_begin = MsprofSysCycleTime();
+  gert::rtProfTraceUserData data = {step_id, model_id, 1U};
+  (void)aclrtProfTrace(&data, sizeof(gert::rtProfTraceUserData), stream);
+  const uint64_t step_end = MsprofSysCycleTime();
+
+  MsprofApi api{};
+  api.level = static_cast<uint16_t>(MSPROF_REPORT_NODE_LEVEL);
+  api.type = kProfStepInfoType;
+  api.beginTime = step_begin;
+  api.endTime = step_end;
+  api.itemId = 1U;
+  api.threadId = tid;
+  GE_CHK_STATUS_RET(CheckMsprofRet(MsprofReportApi(kAgingFlag, &api), "ReportStepInfo end", ""));
+
+  return SUCCESS;
 }
 
 Status ProfilingImpl::ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t prof_time) const {

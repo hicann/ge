@@ -11,6 +11,8 @@
 #include "framework/runtime/dump/model_dump_c_api.h"
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "framework/common/debug/ge_log.h"
+#include "runtime/om2_model_executor.h"
+#include "acl/acl_rt.h"
 
 namespace {
 constexpr int32_t PARAM_INVALID = 0x07FFFFFF;
@@ -91,4 +93,37 @@ int32_t OM2_C_API_EXPORT ReportModelBaseInfo(void *instance_handle, const struct
 
   return dump_manager->SetModelDumpInfo(model_dump_info);
 }
+
+int32_t ReportRunInfoPreprocess(void *instance_handle, const struct GertModelRunReportInfo *info) {
+  if ((instance_handle == nullptr) || (info == nullptr)) {
+    return 0;
+  }
+  auto *executor = static_cast<gert::Om2ModelExecutor *>(instance_handle);
+  auto *mgr = static_cast<ge::dump::ModelDumpManager *>(executor->GetModelDumpManager());
+  if (mgr == nullptr) {
+    return 0;
+  }
+
+  uint64_t step_id = executor->GetStepId();
+  aclrtStream stream = info->is_async ? info->stream : executor->GetOrCreateProfStream();
+  mgr->ReportRunInfoPreprocess(info->model_id, step_id, stream);
+  return 0;
+}
+
+int32_t ReportRunInfoPostprocess(void *instance_handle, const struct GertModelRunReportInfo *info) {
+  if ((instance_handle == nullptr) || (info == nullptr)) {
+    return 0;
+  }
+  auto *executor = static_cast<gert::Om2ModelExecutor *>(instance_handle);
+  auto *mgr = static_cast<ge::dump::ModelDumpManager *>(executor->GetModelDumpManager());
+  if (mgr == nullptr) {
+    return 0;
+  }
+
+  uint64_t step_id = executor->GetStepId();
+  aclrtStream stream = info->is_async ? info->stream : executor->GetOrCreateProfStream();
+  mgr->ReportRunInfoPostprocess(info->model_id, step_id, stream);
+  return 0;
+}
+
 }  // extern "C"

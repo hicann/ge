@@ -37,6 +37,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef session_id_;
   VarRef model_id_;
   VarRef instance_handle_;
+  VarRef executor_handle_;
   VarRef kernel_id_;
   VarRef dev_ext_info_mem_ptrs_;
   VarRef label_switch_label_list_;
@@ -48,7 +49,6 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef dev_dynamic_mem_ptrs_;
   VarRef session_scope_mem_ptr_;
   VarRef priority_;
-  VarRef sync_prof_stream_;
 };
 }  // namespace ge
 

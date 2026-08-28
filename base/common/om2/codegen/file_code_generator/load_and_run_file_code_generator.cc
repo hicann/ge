@@ -185,9 +185,9 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildRunAsyncMethod(const Om2CodegenMode
   auto input_data = ast_.Var("gert::Tensor **", "input_data");
   auto output_count = ast_.Var("size_t", "output_count");
   auto output_data = ast_.Var("gert::Tensor **", "output_data");
-  auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
+  auto run_callbacks = ast_.Var("const GertModelRunCallbacks *", "run_callbacks");
   return ast_.DefineMethod("Om2Model", "RunAsync",
-                           {exe_stream, input_count, input_data, output_count, output_data, prof_info}, "aclError",
+                           {exe_stream, input_count, input_data, output_count, output_data, run_callbacks}, "aclError",
                            body);
 }
 
@@ -199,9 +199,9 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildRunMethod(const Om2CodegenModel &co
   auto output_count = ast_.Var("size_t", "output_count");
   auto output_data = ast_.Var("gert::Tensor **", "output_data");
   auto stream_sync_timeout = ast_.Var("int32_t", "stream_sync_timeout");
-  auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
+  auto run_callbacks = ast_.Var("const GertModelRunCallbacks *", "run_callbacks");
   return ast_.DefineMethod("Om2Model", "Run",
-                           {input_count, input_data, output_count, output_data, stream_sync_timeout, prof_info},
+                           {input_count, input_data, output_count, output_data, stream_sync_timeout, run_callbacks},
                            "aclError", body);
 }
 
@@ -210,35 +210,20 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
   auto input_count = ast_.Var("size_t", "input_count");
   auto output_count = ast_.Var("size_t", "output_count");
   auto exe_stream = ast_.Var("aclrtStream &", "exe_stream");
-  auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
+  auto run_callbacks = ast_.Var("const GertModelRunCallbacks *", "run_callbacks");
   auto body_item = is_async ? ast_.Str("RunAsync begin") : ast_.Str("Run begin");
   body.push_back(ast_.Call("OM2_LOGI", {body_item}));
   body.push_back(ast_.If((input_count != "om2::INPUT_NUM") || (output_count != "om2::OUTPUT_NUM"),
                          {ast_.Return("ACL_ERROR_FAILURE")}));
 
-  if (!is_async) {
-    body.push_back(ast_.If(sync_prof_stream_ == nullptr,
-                           {ast_.If(prof_info != "nullptr",
-                                    {ChkRt(RtStreamCreateWithFlags(sync_prof_stream_.Addr(), 0,
-                                                                   ast_.Var("uint32_t", "RT_STREAM_DEFAULT")))})}));
-  }
-
-  // Phase timing variables — declared at function scope, captured inside if blocks
-  auto t_input_begin = ast_.Var("uint64_t", "_t_input_begin");
-  auto t_exec_begin = ast_.Var("uint64_t", "_t_exec_begin");
-  auto t_output_begin = ast_.Var("uint64_t", "_t_output_begin");
-  body.push_back(ast_.VarDecl(t_input_begin, ast_.UInt(0U)));
-  body.push_back(ast_.VarDecl(t_exec_begin, ast_.UInt(0U)));
-  body.push_back(ast_.VarDecl(t_output_begin, ast_.UInt(0U)));
-
   // Phase 1: InputCopy
-  BuildRunBodyPhaseInputCopy(body, codegen_model.model_io.entries, exe_stream, is_async, prof_info, t_input_begin);
+  BuildRunBodyPhaseInputCopy(body, codegen_model.model_io.entries, exe_stream, is_async);
 
-  // Phase 2: ModelExecute + StepInfo
-  BuildRunBodyPhaseModelExecute(body, exe_stream, is_async, prof_info, t_exec_begin, codegen_model.is_need_va2pa);
+  // Phase 2: ModelExecute + callbacks
+  BuildRunBodyPhaseModelExecute(body, exe_stream, is_async, run_callbacks, codegen_model.is_need_va2pa);
 
   // Phase 3: OutputCopy
-  BuildRunBodyPhaseOutputCopy(body, codegen_model.model_io.entries, exe_stream, is_async, prof_info, t_output_begin);
+  BuildRunBodyPhaseOutputCopy(body, codegen_model.model_io.entries, exe_stream, is_async);
 
   body.push_back(ast_.BlankLine());
   auto done_item = is_async ? ast_.Str("RunAsync done") : ast_.Str("Run done");
@@ -249,39 +234,31 @@ Status LoadAndRunFileCodeGenerator::BuildRunBodyImpl(std::vector<BodyItem> &body
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseInputCopy(std::vector<BodyItem> &body,
                                                              const std::vector<ModelIoEntry> &entries,
-                                                             VarRef exe_stream, bool is_async, VarRef prof_info,
-                                                             VarRef input_begin) {
+                                                             VarRef exe_stream, bool is_async) {
   auto input_data = ast_.Var("void **", "input_data");
   auto output_data = ast_.Var("void **", "output_data");
-  body.push_back(ast_.If((prof_info != "nullptr"), {ast_.Assign(input_begin, ast_.Call("MsprofSysCycleTime", {}))}));
 
   BuildRunBodyDeclareTensorIoVars(body, entries, input_data, output_data);
   BuildRunBodyProcessInputsAndAddrRefresh(body, entries, exe_stream, is_async);
-
-  body.push_back(ast_.If((prof_info != "nullptr"),
-                         {ast_.Call("CommitProfUnit", {prof_info, ast_.Var("", "OM2_PROF_INPUT_COPY"), input_begin})}));
 }
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream,
-                                                                bool is_async, VarRef prof_info, VarRef exec_begin,
+                                                                bool is_async, VarRef run_callbacks,
                                                                 bool is_need_va2pa) {
-  auto trace_stream = is_async ? exe_stream : sync_prof_stream_;
-  auto prof_step_cond = (prof_info != "nullptr") && (ast_.Var("", "prof_info->step_id") != "0U");
-  body.push_back(ast_.If((prof_info != "nullptr"), {ast_.Assign(exec_begin, ast_.Call("MsprofSysCycleTime", {}))}));
+  auto is_async_val = is_async ? ast_.Var("", "1ULL") : ast_.Var("", "0ULL");
+  auto stream_arg = is_async ? exe_stream : ast_.Var("", "nullptr");
 
-  body.push_back(ast_.If(prof_step_cond,
-                         {ast_.VarDecl(ast_.Var("uint64_t", "_t_step_begin"), ast_.Call("MsprofSysCycleTime", {})),
-                          ast_.VarDecl(ast_.Var("ProfTraceUserData", "_step_trace_data"),
-                                       ast_.InitList({ast_.Var("", "prof_info->step_id"), model_id_, ast_.UInt(0U)})),
-                          ast_.Call("aclrtProfTrace", {ast_.Var("", "_step_trace_data").Addr(),
-                                                       ast_.Sizeof("ProfTraceUserData"), trace_stream}),
-                          ast_.Call("CommitProfUnit", {prof_info, ast_.Var("", "OM2_PROF_STEP_INFO_START"),
-                                                       ast_.Var("uint64_t", "_t_step_begin")})}));
+  // pre-execute callback (before CopyArgsToDevice + aclmdlRIExecute)
+  body.push_back(ast_.If(
+      (run_callbacks != "nullptr") && (ast_.Var("", "run_callbacks->report_run_info_preprocess") != "nullptr"),
+      {ast_.VarDecl(ast_.Var("GertModelRunReportInfo", "_r"),
+                    ast_.InitList({ast_.Sizeof("GertModelRunReportInfo"), model_id_, stream_arg, is_async_val})),
+       ast_.Call("run_callbacks->report_run_info_preprocess", {executor_handle_, ast_.Var("", "_r").Addr()})}));
 
   body.push_back(ast_.BlankLine());
   if (is_need_va2pa) {
     if (is_async) {
-      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(trace_stream, false)));
+      body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(exe_stream, false)));
     } else {
       body.push_back(ChkStatus(args_table_.Attr("CopyArgsToDevice")(nullptr, false)));
     }
@@ -294,31 +271,18 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
     body.push_back(ChkStatus(AclmdlRIExecute(model_handle_, ast_.Var("int32_t", "stream_sync_timeout"))));
   }
 
-  body.push_back(
-      ast_.If((prof_info != "nullptr"),
-              {ast_.Call("CommitProfUnit", {prof_info, ast_.Var("", "OM2_PROF_MODEL_EXECUTE"), exec_begin})}));
-
-  body.push_back(ast_.If(prof_step_cond,
-                         {ast_.VarDecl(ast_.Var("uint64_t", "_t_step_end"), ast_.Call("MsprofSysCycleTime", {})),
-                          ast_.VarDecl(ast_.Var("ProfTraceUserData", "_step_trace_data2"),
-                                       ast_.InitList({ast_.Var("", "prof_info->step_id"), model_id_, ast_.UInt(1U)})),
-                          ast_.Call("aclrtProfTrace", {ast_.Var("", "_step_trace_data2").Addr(),
-                                                       ast_.Sizeof("ProfTraceUserData"), trace_stream}),
-                          ast_.Call("CommitProfUnit", {prof_info, ast_.Var("", "OM2_PROF_STEP_INFO_END"),
-                                                       ast_.Var("uint64_t", "_t_step_end")})}));
+  // post-execute callback (after aclmdlRIExecute)
+  body.push_back(ast_.If(
+      (run_callbacks != "nullptr") && (ast_.Var("", "run_callbacks->report_run_info_postprocess") != "nullptr"),
+      {ast_.VarDecl(ast_.Var("GertModelRunReportInfo", "_r2"),
+                    ast_.InitList({ast_.Sizeof("GertModelRunReportInfo"), model_id_, stream_arg, is_async_val})),
+       ast_.Call("run_callbacks->report_run_info_postprocess", {executor_handle_, ast_.Var("", "_r2").Addr()})}));
 }
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body,
                                                               const std::vector<ModelIoEntry> &entries,
-                                                              VarRef exe_stream, bool is_async, VarRef prof_info,
-                                                              VarRef output_begin) {
-  body.push_back(ast_.If((prof_info != "nullptr"), {ast_.Assign(output_begin, ast_.Call("MsprofSysCycleTime", {}))}));
-
+                                                              VarRef exe_stream, bool is_async) {
   BuildRunBodyCopyOutputs(body, entries, exe_stream, is_async);
-
-  body.push_back(
-      ast_.If((prof_info != "nullptr"),
-              {ast_.Call("CommitProfUnit", {prof_info, ast_.Var("", "OM2_PROF_OUTPUT_COPY"), output_begin})}));
 }
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyDeclareTensorIoVars(std::vector<BodyItem> &body,
@@ -478,7 +442,6 @@ Status LoadAndRunFileCodeGenerator::BuildCommonHelperFunctions(std::vector<DeclN
   items.push_back(BuildLaunchKernelCfgHolder());
   items.push_back(BuildLaunchKernelConfig());
   items.push_back(BuildAssembleLaunchConfig());
-  items.push_back(BuildCommitProfUnit());
   return SUCCESS;
 }
 
@@ -535,20 +498,6 @@ FunctionDef *LoadAndRunFileCodeGenerator::BuildAssembleLaunchConfig() const {
   };
   body.push_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineFunction("AssembleLaunchConfig", {holder, launch_config}, "aclError", ast_.Body(body));
-}
-
-FunctionDef *LoadAndRunFileCodeGenerator::BuildCommitProfUnit() const {
-  auto prof_info = ast_.Var("Om2ProfInfos *", "prof_info");
-  auto prof_type = ast_.Var("Om2ProfType", "type");
-  auto begin_time = ast_.Var("uint64_t", "begin_time");
-  auto unit_var = ast_.Var("auto &", "unit");
-  return ast_.DefineFunction(
-      "CommitProfUnit", {prof_info, prof_type, begin_time}, "void",
-      {ast_.VarDecl(unit_var, prof_info.Arrow("prof_unit")[prof_info.Arrow("count")]),
-       ast_.Assign(unit_var.Attr("type"), prof_type), ast_.Assign(unit_var.Attr("begin_time"), begin_time),
-       ast_.Assign(unit_var.Attr("end_time"), ast_.Call("MsprofSysCycleTime", {})),
-       ast_.Assign(unit_var.Attr("thread_id"), ast_.StaticCast("uint32_t", ast_.Call("mmGetTid", {}))),
-       ast_.PreInc(prof_info.Arrow("count"))});
 }
 
 Status LoadAndRunFileCodeGenerator::BuildDispatchOp(std::vector<DeclNode *> &items,

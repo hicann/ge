@@ -918,152 +918,6 @@ TEST_F(ProfilingImplTest, ReportModelLoadEnd_ProfilingEnabled_ReturnsSuccess) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
-// --- ReportModelLevelProf ---
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_TaskTimeDisabled_ReturnsSuccess) {
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_EmptyProfInfo_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-  EXPECT_TRUE(ProfilingConfig::Instance().IsTaskTimeEnabled());
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_InputCopyType_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-  EXPECT_TRUE(ProfilingConfig::Instance().IsTaskTimeEnabled());
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = OM2_PROF_INPUT_COPY;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_ModelExecuteType_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = OM2_PROF_MODEL_EXECUTE;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 99U};  // step_id = 99
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_OutputCopyType_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = OM2_PROF_OUTPUT_COPY;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_StepInfoStartType_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = OM2_PROF_STEP_INFO_START;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_StepInfoEndType_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = OM2_PROF_STEP_INFO_END;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_InvalidType_SkipsAndReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[1] = {};
-  units[0U].type = static_cast<Om2ProfType>(OM2_PROF_TYPE_COUNT);  // OM2_PROF_TYPE_COUNT is invalid
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  Om2ProfInfos prof_info = {1U, 1U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(ProfilingImplTest, ReportModelLevelProf_AllTypes_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ProfilingImpl impl;
-  Om2ProfUnit units[5] = {};
-  units[0U].type = OM2_PROF_INPUT_COPY;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[1U].type = OM2_PROF_MODEL_EXECUTE;
-  units[1U].begin_time = 200U;
-  units[1U].end_time = 300U;
-  units[2U].type = OM2_PROF_OUTPUT_COPY;
-  units[2U].begin_time = 300U;
-  units[2U].end_time = 400U;
-  units[3U].type = OM2_PROF_STEP_INFO_START;
-  units[3U].begin_time = 150U;
-  units[3U].end_time = 250U;
-  units[4U].type = OM2_PROF_STEP_INFO_END;
-  units[4U].begin_time = 350U;
-  units[4U].end_time = 450U;
-  Om2ProfInfos prof_info = {1U, 5U, units, 0U};
-  Status ret = impl.ReportModelLevelProf(prof_info, 42U);
-  EXPECT_EQ(ret, SUCCESS);
-}
-
 // --- ReportLaunchInfo ---
 
 TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginZero_ReturnsSuccess) {
@@ -1410,68 +1264,19 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_HcclTaskType_ReturnsSuccess) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
-// =========================================================================
-//  ModelDumpManager::ReportModelLevelProf 测试
-// =========================================================================
+// --- ReportRunInfoPreprocess / ReportRunInfoPostprocess ---
 
-TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_Enabled_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ModelDumpManager manager(42U);
-  ModelDumpInfo info = MakeModelInfo();
-  ASSERT_EQ(manager.SetModelDumpInfo(info), SUCCESS);
-
-  Om2ProfUnit units[3] = {};
-  units[0U].type = OM2_PROF_INPUT_COPY;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 200U;
-  units[0U].thread_id = 1U;
-  units[1U].type = OM2_PROF_MODEL_EXECUTE;
-  units[1U].begin_time = 200U;
-  units[1U].end_time = 300U;
-  units[1U].thread_id = 1U;
-  units[2U].type = OM2_PROF_OUTPUT_COPY;
-  units[2U].begin_time = 300U;
-  units[2U].end_time = 400U;
-  units[2U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 3U, units, 0U};
-
-  Status ret = manager.ReportModelLevelProf(prof_info);
+TEST_F(ProfilingImplTest, ReportRunInfoPreprocessImpl_TaskTimeDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Status ret = impl.ReportRunInfoPreprocessImpl(42U, 1U, nullptr);
   EXPECT_EQ(ret, SUCCESS);
 }
 
-TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_Empty_ReturnsSuccess) {
-  ModelDumpManager manager(42U);
-  Om2ProfUnit units[1] = {};
-  Om2ProfInfos prof_info = {1U, 0U, units, 0U};
-  Status ret = manager.ReportModelLevelProf(prof_info);
+TEST_F(ProfilingImplTest, ReportRunInfoPostprocessImpl_TaskTimeDisabled_ReturnsSuccess) {
+  ProfilingImpl impl;
+  Status ret = impl.ReportRunInfoPostprocessImpl(42U, 1U, nullptr);
   EXPECT_EQ(ret, SUCCESS);
 }
 
-TEST_F(ProfilingImplTest, ModelDumpManagerReportModelLevelProf_WithStepId_ReturnsSuccess) {
-  ProfilingOptions options;
-  options.task_time_enabled = true;
-  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
-
-  ModelDumpManager manager(42U);
-  ModelDumpInfo info = MakeModelInfo();
-  ASSERT_EQ(manager.SetModelDumpInfo(info), SUCCESS);
-
-  Om2ProfUnit units[2] = {};
-  units[0U].type = OM2_PROF_STEP_INFO_START;
-  units[0U].begin_time = 100U;
-  units[0U].end_time = 150U;
-  units[0U].thread_id = 1U;
-  units[1U].type = OM2_PROF_STEP_INFO_END;
-  units[1U].begin_time = 350U;
-  units[1U].end_time = 400U;
-  units[1U].thread_id = 1U;
-  Om2ProfInfos prof_info = {1U, 2U, units, 12345U};  // step_id != 0
-
-  Status ret = manager.ReportModelLevelProf(prof_info);
-  EXPECT_EQ(ret, SUCCESS);
-}
 }  // namespace dump
 }  // namespace ge

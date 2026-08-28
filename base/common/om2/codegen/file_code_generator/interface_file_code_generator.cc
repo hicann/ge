@@ -107,23 +107,26 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
           {ast_.Var("const char **", "bin_files"), ast_.Var("const void **", "bin_data"),
            ast_.Var("uint64_t *", "bin_size"), ast_.Var("size_t", "bin_num"), ast_.Var("void **", "constants"),
            ast_.Var("void **", "var_addrs"), ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"),
-           ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle"), ast_.Var("int32_t", "priority")},
+           ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle"),
+           ast_.Var("void *", "executor_handle"), ast_.Var("int32_t", "priority")},
           ""),
       ast_.DeclareMethod("~Om2Model", {}, ""),
       ast_.DeclareMethod("InitResources", {}, "aclError"),
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
       ast_.DeclareMethod("Load", {ast_.Var("const GertModelCallbacks *", "callbacks")}, "aclError"),
       ast_.DeclareMethod("GetRtModelHandle", {}, "aclmdlRI"),
-      ast_.DeclareMethod("Run",
-                         {ast_.Var("size_t", "input_count"), ast_.Var("gert::Tensor **", "input_data"),
-                          ast_.Var("size_t", "output_count"), ast_.Var("gert::Tensor **", "output_data"),
-                          ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("Om2ProfInfos *", "prof_info")},
-                         "aclError"),
-      ast_.DeclareMethod("RunAsync",
-                         {ast_.Var("aclrtStream &", "exe_stream"), ast_.Var("size_t", "input_count"),
-                          ast_.Var("gert::Tensor **", "input_data"), ast_.Var("size_t", "output_count"),
-                          ast_.Var("gert::Tensor **", "output_data"), ast_.Var("Om2ProfInfos *", "prof_info")},
-                         "aclError"),
+      ast_.DeclareMethod(
+          "Run",
+          {ast_.Var("size_t", "input_count"), ast_.Var("gert::Tensor **", "input_data"),
+           ast_.Var("size_t", "output_count"), ast_.Var("gert::Tensor **", "output_data"),
+           ast_.Var("int32_t", "stream_sync_timeout"), ast_.Var("const GertModelRunCallbacks *", "run_callbacks")},
+          "aclError"),
+      ast_.DeclareMethod(
+          "RunAsync",
+          {ast_.Var("aclrtStream &", "exe_stream"), ast_.Var("size_t", "input_count"),
+           ast_.Var("gert::Tensor **", "input_data"), ast_.Var("size_t", "output_count"),
+           ast_.Var("gert::Tensor **", "output_data"), ast_.Var("const GertModelRunCallbacks *", "run_callbacks")},
+          "aclError"),
       ast_.DeclareMethod("ReleaseResources", {}, "aclError"),
       ast_.Private(),
       ast_.Field("void **", "constants_"),
@@ -138,6 +141,7 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
   items.push_back(ast_.Field("uint64_t *", "session_id_"));
   items.push_back(ast_.Field("uint32_t", "model_id_"));
   items.push_back(ast_.Field("void *", "instance_handle_"));
+  items.push_back(ast_.Field("void *", "executor_handle_"));
   items.push_back(ast_.Field("uint64_t", "kernel_id_"));
   items.push_back(ast_.Field("std::vector<void *>", "dev_ext_info_mem_ptrs_"));
   items.push_back(ast_.Field("std::map<uint32_t, void *>", "mem_event_id_mem_map_"));
@@ -145,7 +149,6 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
   items.push_back(ast_.Field("std::vector<void *>", "dev_dynamic_mem_ptrs_"));
   items.push_back(ast_.Field("void *", "session_scope_mem_ptr_"));
   items.push_back(ast_.Field("int32_t", "priority_"));
-  items.push_back(ast_.Field("aclrtStream", "sync_prof_stream_"));
   return ast_.Class("Om2Model", items);
 }
 

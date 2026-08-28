@@ -30,7 +30,6 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   StructDecl *BuildLaunchKernelCfgHolder() const;
   StructDecl *BuildLaunchKernelConfig() const;
   FunctionDef *BuildAssembleLaunchConfig() const;
-  FunctionDef *BuildCommitProfUnit() const;
   DeclNode *BuildOpDefTable(const Om2CodegenModel &codegen_model,
                             const std::vector<TaskCodeBuilderPtr> &task_code_builders) const;
   void SetHasCustomKernel(bool value) {
@@ -42,11 +41,11 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
                        const std::vector<TaskCodeBuilderPtr> &task_code_builders);
   Status BuildRunBodyImpl(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model, bool is_async);
   void BuildRunBodyPhaseInputCopy(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
-                                  VarRef exe_stream, bool is_async, VarRef prof_info, VarRef input_begin);
-  void BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream, bool is_async, VarRef prof_info,
-                                     VarRef exec_begin, bool is_need_va2pa);
+                                  VarRef exe_stream, bool is_async);
+  void BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream, bool is_async,
+                                     VarRef run_callbacks, bool is_need_va2pa);
   void BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
-                                   VarRef exe_stream, bool is_async, VarRef prof_info, VarRef output_begin);
+                                   VarRef exe_stream, bool is_async);
   void BuildRunBodyDeclareTensorIoVars(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
                                        const VarRef &input_data, const VarRef &output_data);
   void BuildRunBodyProcessInputsAndAddrRefresh(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
