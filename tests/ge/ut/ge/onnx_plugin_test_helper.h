@@ -96,6 +96,38 @@ def parse_both_node(node, target):
 def parse_both_operator(source, target):
     del source
     target.set_attr("callback", "parse_operator")
+
+decompose = onnx_plugin(
+    source="BridgeDecompose", domain="test.domain", opsets=(1,), target="BridgeDecomposeTarget"
+)
+
+@decompose.decompose
+def decompose_graph(source):
+    from ge.es.graph_builder import GraphBuilder
+    from ge.es.ut_test import phony_1i_1o
+
+    builder = GraphBuilder(source.name)
+    data = builder.create_input(0)
+    output = phony_1i_1o(data, index=1)
+    return builder.build_and_reset(outputs=[output])
+
+decompose_error = onnx_plugin(
+    source="BridgeDecomposeError", domain="test.domain", opsets=(1,), target="BridgeDecomposeErrorTarget"
+)
+
+@decompose_error.decompose
+def decompose_error_graph(source):
+    del source
+    raise RuntimeError("python decompose callback failed")
+
+decompose_return = onnx_plugin(
+    source="BridgeDecomposeReturn", domain="test.domain", opsets=(1,), target="BridgeDecomposeReturnTarget"
+)
+
+@decompose_return.decompose
+def decompose_invalid_return(source):
+    del source
+    return False
 )PY";
 
 class ScopedInMemoryPlugin {

@@ -35,6 +35,10 @@
 
 namespace ge {
 REG_OP(BridgeEluTarget).INPUT(x, TensorType::ALL()).OUTPUT(y, TensorType::ALL()).OP_END_FACTORY_REG(BridgeEluTarget);
+REG_OP(BridgeDecomposeTarget)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(y, TensorType::ALL())
+    .OP_END_FACTORY_REG(BridgeDecomposeTarget);
 
 using onnx_plugin_test::ScopedInMemoryPlugin;
 
@@ -427,6 +431,16 @@ ge::onnx::ModelProto CreateBridgePluginModel() {
   plugin_opset->set_version(1);
   return plugin_model;
 }
+
+ge::onnx::ModelProto CreateBridgeDecomposeModel() {
+  auto plugin_model = CreateBridgePluginModel();
+  auto *plugin_node = plugin_model.mutable_graph()->mutable_node(0);
+  plugin_node->set_name("bridge_decompose");
+  plugin_node->set_op_type("BridgeDecompose");
+  plugin_node->clear_attribute();
+  return plugin_model;
+}
+
 void VerifyBridgePluginNode(const ge::Graph &plugin_result) {
   const auto plugin_compute_graph = ge::GraphUtilsEx::GetComputeGraph(plugin_result);
   ASSERT_NE(plugin_compute_graph, nullptr);
@@ -436,6 +450,28 @@ void VerifyBridgePluginNode(const ge::Graph &plugin_result) {
   ASSERT_TRUE(ge::AttrUtils::GetFloat(parsed_plugin_node->GetOpDesc(), "alpha", parsed_alpha));
   EXPECT_FLOAT_EQ(parsed_alpha, 0.5F);
 }
+
+void VerifyBridgeDecomposeGraph(const ge::Graph &plugin_result) {
+  const auto plugin_compute_graph = ge::GraphUtilsEx::GetComputeGraph(plugin_result);
+  ASSERT_NE(plugin_compute_graph, nullptr);
+  size_t decompose_node_count = 0;
+  size_t target_node_count = 0;
+  for (const auto &node : plugin_compute_graph->GetAllNodes()) {
+    if (node->GetType() == "phony_1i_1o") {
+      ++decompose_node_count;
+    }
+    if (node->GetType() == "BridgeDecomposeTarget") {
+      ++target_node_count;
+    }
+  }
+  EXPECT_EQ(decompose_node_count, 1U);
+  EXPECT_EQ(target_node_count, 0U);
+  const auto output_it = ge::GetParserContext().final_out_nodes_map.find("bridge_decompose:0");
+  ASSERT_NE(output_it, ge::GetParserContext().final_out_nodes_map.end());
+  EXPECT_EQ(output_it->second.first, "bridge_decompose");
+  EXPECT_EQ(output_it->second.second, 0);
+}
+
 void VerifyBridgePluginCallbacks() {
   ge::onnx::NodeProto node;
   node.set_op_type("test.domain::1::BridgeElu");
@@ -506,7 +542,30 @@ TEST_F(STestOnnxParser, onnx_python_plugin_bridge_parse) {
   ge::Graph plugin_result;
   ASSERT_EQ(plugin_parser.ModelParseToGraph(CreateBridgePluginModel(), plugin_result), SUCCESS);
   VerifyBridgePluginNode(plugin_result);
+  ge::Graph decompose_result;
+  ASSERT_EQ(plugin_parser.ModelParseToGraph(CreateBridgeDecomposeModel(), decompose_result), SUCCESS);
+  VerifyBridgeDecomposeGraph(decompose_result);
   VerifyBridgePluginCallbacks();
+
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
+  unsetenv("PYTHONPATH");
+}
+
+TEST_F(STestOnnxParser, onnx_python_plugin_bridge_parse_without_explicit_load) {
+  // atc parses ONNX through ModelParserFactory without passing PrepareBeforeParse of aclgrphParseONNX;
+  // this case never calls LoadOnnxPythonPluginBridge explicitly, so ModelParseToGraph itself must load
+  // the bridge and register the python plugin before parsing.
+  ASSERT_EQ(setenv("PYTHONPATH", ONNX_PLUGIN_PY_INSTALL_DIR, 1), 0);
+  ScopedInMemoryPlugin in_memory_plugin;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+
+  auto model_parser = domi::ModelParserFactory::Instance()->CreateModelParser(domi::ONNX);
+  ASSERT_NE(model_parser, nullptr);
+  auto *onnx_parser = dynamic_cast<OnnxModelParser *>(model_parser.get());
+  ASSERT_NE(onnx_parser, nullptr);
+  ge::Graph decompose_result;
+  ASSERT_EQ(onnx_parser->ModelParseToGraph(CreateBridgeDecomposeModel(), decompose_result), SUCCESS);
+  VerifyBridgeDecomposeGraph(decompose_result);
 
   unsetenv("ASCEND_CUSTOM_OPP_PATH");
   unsetenv("PYTHONPATH");

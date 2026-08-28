@@ -20,6 +20,7 @@ from typing import Callable, Optional, Tuple
 from .registry import (
     PARSE_NODE,
     PARSE_OPERATOR,
+    DECOMPOSE,
     OnnxPluginDescriptor,
     register_onnx_plugin,
     replace_registered_onnx_plugin,
@@ -66,8 +67,8 @@ class OnnxPlugin:
         self._descriptor: Optional[OnnxPluginDescriptor] = None
 
     def _bind_callback(
-        self, fn: Callable[..., None], callback_kind: str
-    ) -> Callable[..., None]:
+        self, fn: Callable[..., object], callback_kind: str
+    ) -> Callable[..., object]:
         if not inspect.isfunction(fn):
             raise TypeError(f"OnnxPlugin {callback_kind} expects a Python function")
 
@@ -85,6 +86,9 @@ class OnnxPlugin:
                     if callback_kind == PARSE_OPERATOR
                     else descriptor.parser_operator
                 ),
+                parser_decompose=(
+                    fn if callback_kind == DECOMPOSE else descriptor.parser_decompose
+                ),
             )
             replace_registered_onnx_plugin(descriptor)
             if descriptor.parser_node is not None:
@@ -94,6 +98,12 @@ class OnnxPlugin:
             if descriptor.parser_operator is not None:
                 setattr(
                     descriptor.parser_operator,
+                    "__ge_onnx_plugin_descriptor__",
+                    descriptor,
+                )
+            if descriptor.parser_decompose is not None:
+                setattr(
+                    descriptor.parser_decompose,
                     "__ge_onnx_plugin_descriptor__",
                     descriptor,
                 )
@@ -119,6 +129,7 @@ class OnnxPlugin:
                 module_name=module_name,
                 parser_node=fn if callback_kind == PARSE_NODE else None,
                 parser_operator=fn if callback_kind == PARSE_OPERATOR else None,
+                parser_decompose=fn if callback_kind == DECOMPOSE else None,
             )
         )
         self._descriptor = descriptor
@@ -130,6 +141,9 @@ class OnnxPlugin:
 
     def parse_operator(self, fn: Callable[..., None]) -> Callable[..., None]:
         return self._bind_callback(fn, PARSE_OPERATOR)
+
+    def decompose(self, fn: Callable[..., object]) -> Callable[..., object]:
+        return self._bind_callback(fn, DECOMPOSE)
 
 
 def onnx_plugin(

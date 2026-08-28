@@ -18,6 +18,8 @@
 
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "framework/common/debug/ge_log.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/graph.h"
 #include "graph/operator.h"
 #include "parser/common/op_registration_tbe.h"
 #include "parser/common/op_parser_factory.h"
@@ -40,6 +42,7 @@ constexpr const char *kNativeModuleName = "ge.onnx_plugin._ge_onnx_plugin_native
 constexpr const char *kPluginPathEnv = "ASCEND_CUSTOM_OPP_PATH";
 constexpr const char *kParseNodeCallbackKind = "parse_node";
 constexpr const char *kParseOperatorCallbackKind = "parse_operator";
+constexpr const char *kDecomposeCallbackKind = "decompose";
 
 class OnnxPluginBridge {
  public:
@@ -71,6 +74,7 @@ class OnnxPluginBridge {
       LoadNativeModuleUnlocked();
       bridge_module_ = py::module_::import(kBridgeModuleName);
       invalid_return_exception_ = bridge_module_.attr("_InvalidParseNodeReturn");
+      invalid_decompose_return_exception_ = bridge_module_.attr("_InvalidDecomposeReturn");
       const py::object descriptors = bridge_module_.attr("load_and_get_onnx_plugin_descriptors")();
       for (const py::handle item : descriptors) {
         const py::dict descriptor = py::reinterpret_borrow<py::dict>(item);
@@ -116,6 +120,7 @@ class OnnxPluginBridge {
       // LCOV_EXCL_START
       (void)bridge_module_.release();
       (void)invalid_return_exception_.release();
+      (void)invalid_decompose_return_exception_.release();
       initialized_ = false;
       return;
       // LCOV_EXCL_STOP
@@ -141,6 +146,7 @@ class OnnxPluginBridge {
       const py::object python_node = py::cast(node, py::return_value_policy::reference);
       const auto handle = reinterpret_cast<uintptr_t>(&operator_dest);
       (void)bridge_module_.attr("call_parse_node")(node->op_type(), python_node, handle);
+      operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, node->op_type());
       return SUCCESS;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_return_exception_.ptr())) {
@@ -168,6 +174,7 @@ class OnnxPluginBridge {
       const auto source_handle = reinterpret_cast<uintptr_t>(&operator_src);
       const auto target_handle = reinterpret_cast<uintptr_t>(&operator_dest);
       (void)bridge_module_.attr("call_parse_operator")(origin, source_handle, target_handle);
+      operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, origin);
       return SUCCESS;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_return_exception_.ptr())) {
@@ -179,6 +186,34 @@ class OnnxPluginBridge {
       // LCOV_EXCL_START
     } catch (const std::exception &error) {
       GELOGE(FAILED, "Python ONNX plugin bridge failed: %s", error.what());
+      return FAILED;
+    }
+    // LCOV_EXCL_STOP
+  }
+
+  Status ParseOpToGraph(const std::string &origin, const Operator &operator_src, Graph &subgraph) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_) {
+      GELOGE(FAILED, "Python ONNX plugin bridge is not initialized.");
+      return FAILED;
+    }
+    py::gil_scoped_acquire gil;
+    try {
+      const auto source_handle = reinterpret_cast<uintptr_t>(&operator_src);
+      const py::object replacement = bridge_module_.attr("call_decompose")(origin, source_handle);
+      const auto graph_handle = py::cast<uintptr_t>(replacement.attr("_handle").attr("value"));
+      const auto *replacement_graph = reinterpret_cast<const Graph *>(graph_handle);
+      return subgraph.CopyFrom(*replacement_graph) == GRAPH_SUCCESS ? SUCCESS : FAILED;
+    } catch (const py::error_already_set &error) {
+      if (error.matches(invalid_decompose_return_exception_.ptr())) {
+        GELOGE(PARAM_INVALID, "Python ONNX plugin decompose returned an invalid graph.");
+        return PARAM_INVALID;
+      }
+      GELOGE(FAILED, "Python ONNX plugin decompose failed: %s", error.what());
+      return FAILED;
+      // LCOV_EXCL_START
+    } catch (const std::exception &error) {
+      GELOGE(FAILED, "Python ONNX plugin decompose bridge failed: %s", error.what());
       return FAILED;
     }
     // LCOV_EXCL_STOP
@@ -223,7 +258,40 @@ class OnnxPluginBridge {
   void ResetBridgeStateUnlocked() {
     bridge_module_ = py::object();
     invalid_return_exception_ = py::object();
+    invalid_decompose_return_exception_ = py::object();
     initialized_ = false;
+  }
+
+  bool RegisterCallback(const std::string &origin, const std::string &callback_kind, OpRegistrationData &registration,
+                        bool &has_parse_params_callback, bool &has_graph_callback) {
+    if (callback_kind == kParseNodeCallbackKind) {
+      has_parse_params_callback = true;
+      const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
+                                                   Operator &operator_dest) -> Status {
+        return OnnxPluginBridge::Instance().ParseParams(message, operator_dest);
+      };
+      registration.ParseParamsFn(parse_params);
+    } else if (callback_kind == kParseOperatorCallbackKind) {
+      has_parse_params_callback = true;
+      const domi::ParseParamByOpFunc parse_params = [origin](const Operator &operator_src,
+                                                             Operator &operator_dest) -> Status {
+        return OnnxPluginBridge::Instance().ParseParamsByOperator(origin, operator_src, operator_dest);
+      };
+      registration.ParseParamsByOperatorFn(parse_params);
+    } else if (callback_kind == kDecomposeCallbackKind) {
+      has_graph_callback = true;
+      const domi::ParseOpToGraphFunc parse_op_to_graph = [origin](const Operator &operator_src,
+                                                                  Graph &subgraph) -> Status {
+        return OnnxPluginBridge::Instance().ParseOpToGraph(origin, operator_src, subgraph);
+      };
+      registration.ParseOpToGraphFn(parse_op_to_graph);
+    } else {
+      // LCOV_EXCL_START
+      GELOGE(PARAM_INVALID, "Unknown Python ONNX plugin callback kind[%s].", callback_kind.c_str());
+      return false;
+      // LCOV_EXCL_STOP
+    }
+    return true;
   }
 
   bool RegisterDescriptor(const std::string &target, const std::string &origin,
@@ -241,25 +309,18 @@ class OnnxPluginBridge {
     }
     OpRegistrationData registration(target.c_str());
     registration.FrameworkType(domi::ONNX).OriginOpType(origin.c_str());
+    bool has_parse_params_callback = false;
+    bool has_graph_callback = false;
     for (const auto &callback_kind : callback_kinds) {
-      if (callback_kind == kParseNodeCallbackKind) {
-        const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
-                                                     Operator &operator_dest) -> Status {
-          return OnnxPluginBridge::Instance().ParseParams(message, operator_dest);
-        };
-        registration.ParseParamsFn(parse_params);
-      } else if (callback_kind == kParseOperatorCallbackKind) {
-        const domi::ParseParamByOpFunc parse_params = [origin](const Operator &operator_src,
-                                                               Operator &operator_dest) -> Status {
-          return OnnxPluginBridge::Instance().ParseParamsByOperator(origin, operator_src, operator_dest);
-        };
-        registration.ParseParamsByOperatorFn(parse_params);
-      } else {
-        // LCOV_EXCL_START
-        GELOGE(PARAM_INVALID, "Unknown Python ONNX plugin callback kind[%s].", callback_kind.c_str());
+      if (!RegisterCallback(origin, callback_kind, registration, has_parse_params_callback, has_graph_callback)) {
         return false;
-        // LCOV_EXCL_STOP
       }
+    }
+    if (!has_parse_params_callback && has_graph_callback) {
+      registration.ParseParamsFn([origin](const google::protobuf::Message *, Operator &operator_dest) -> Status {
+        operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, origin);
+        return SUCCESS;
+      });
     }
     const auto parser_factory = OpParserFactory::Instance(domi::ONNX);
     if (parser_factory == nullptr) {
@@ -283,6 +344,7 @@ class OnnxPluginBridge {
   std::string native_module_path_;
   py::object bridge_module_;
   py::object invalid_return_exception_;
+  py::object invalid_decompose_return_exception_;
 };
 
 }  // namespace
