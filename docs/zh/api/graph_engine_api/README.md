@@ -483,6 +483,7 @@
       - [简介](cpp/ge/fusion/GraphFuseInspectorUtils/overview.md)
       - [CanFuse](cpp/ge/fusion/GraphFuseInspectorUtils/CanFuse.md)
       - [ReportFuse](cpp/ge/fusion/GraphFuseInspectorUtils/ReportFuse.md)
+      - [ReportMatch](cpp/ge/fusion/GraphFuseInspectorUtils/ReportMatch.md)
 
     - [GNode](cpp/ge/GNode/GNode.md)
       - [简介](cpp/ge/GNode/overview.md)

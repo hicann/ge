@@ -19,6 +19,7 @@
 #include "graph/utils/node_adapter.h"
 #include "graph_builder_utils.h"
 #include "graph/fusion/fusion_utils.h"
+#include "register/graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 
 #define private public
 #include "graph/utils/cycle_detector.h"
@@ -275,6 +276,87 @@ TEST_F(UtestGraphFuseInspectorUtils, ReportFuseWritesDatadumpAttrs) {
   EXPECT_TRUE(AttrUtils::GetListStr(gemm->GetOpDesc(), "pass_name", pass_names));
   ASSERT_FALSE(pass_names.empty());
   EXPECT_EQ(pass_names.back(), "ut_rewrite_pass");
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchFailedWhenNodesEmpty) {
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch({}, ctx), FAILED);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchFailedOnInvalidGNode) {
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch({GNode()}, ctx), FAILED);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchFailedWhenPassNameEmpty) {
+  std::vector<NodePtr> before_nodes;
+  const auto graph = BuildLinearGraph(before_nodes);
+  ASSERT_NE(graph, nullptr);
+  CustomPassContext ctx;
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch(ToGNodes(before_nodes), ctx), FAILED);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchFailedOnNodesBelongToDifferentGraphs) {
+  std::vector<NodePtr> graph1_nodes;
+  std::vector<NodePtr> graph2_nodes;
+  const auto graph1 = BuildTwoGraphs(graph1_nodes, graph2_nodes);
+  ASSERT_NE(graph1, nullptr);
+  ASSERT_EQ(graph1_nodes.size(), 1U);
+  ASSERT_EQ(graph2_nodes.size(), 1U);
+
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch(ToGNodes({graph1_nodes[0], graph2_nodes[0]}), ctx), FAILED);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchSuccess) {
+  std::vector<NodePtr> before_nodes;
+  const auto graph = BuildLinearGraph(before_nodes);
+  ASSERT_NE(graph, nullptr);
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch(ToGNodes(before_nodes), ctx), SUCCESS);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportMatchOnlyIncrementsMatchTimes) {
+  std::vector<NodePtr> before_nodes;
+  const auto graph = BuildLinearGraph(before_nodes);
+  ASSERT_NE(graph, nullptr);
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_match_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch(ToGNodes(before_nodes), ctx), SUCCESS);
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportMatch(ToGNodes(before_nodes), ctx), SUCCESS);
+
+  const std::string key = std::to_string(graph->GetSessionID()) + "_" + std::to_string(graph->GetGraphID());
+  std::map<std::string, fe::FusionInfo> graph_fusion_info_map;
+  std::map<std::string, fe::FusionInfo> buffer_fusion_info_map;
+  fe::FusionStatisticRecorder::Instance().GetFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+  const auto iter = graph_fusion_info_map.find("ut_match_pass");
+  ASSERT_NE(iter, graph_fusion_info_map.end());
+  EXPECT_EQ(iter->second.GetMatchTimes(), 2);
+  EXPECT_EQ(iter->second.GetEffectTimes(), 0);
+  fe::FusionStatisticRecorder::Instance().GetAndClearFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+}
+
+TEST_F(UtestGraphFuseInspectorUtils, ReportFuseOnlyIncrementsEffectTimes) {
+  std::vector<NodePtr> before_nodes;
+  const auto graph = BuildLinearGraph(before_nodes);
+  ASSERT_NE(graph, nullptr);
+  CustomPassContext ctx;
+  ctx.SetPassName("ut_effect_pass");
+  EXPECT_EQ(GraphFuseInspectorUtils::ReportFuse(ToGNodes(before_nodes), {}, ctx), SUCCESS);
+
+  const std::string key = std::to_string(graph->GetSessionID()) + "_" + std::to_string(graph->GetGraphID());
+  std::map<std::string, fe::FusionInfo> graph_fusion_info_map;
+  std::map<std::string, fe::FusionInfo> buffer_fusion_info_map;
+  fe::FusionStatisticRecorder::Instance().GetFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+  const auto iter = graph_fusion_info_map.find("ut_effect_pass");
+  ASSERT_NE(iter, graph_fusion_info_map.end());
+  EXPECT_EQ(iter->second.GetMatchTimes(), 0);
+  EXPECT_EQ(iter->second.GetEffectTimes(), 1);
+  fe::FusionStatisticRecorder::Instance().GetAndClearFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
 }
 }  // namespace fusion
 }  // namespace ge

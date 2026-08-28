@@ -44,7 +44,7 @@ class GraphFuseInspectorUtils {
    * 行为：
    * 1.新节点的opdesc记录pass name。
    * 2.更新在CanFuse中用于检测成环的连接矩阵。
-   * 3.记录匹配次数与生效次数，对应信息落盘至fusion_result.json。
+   * 3.记录生效次数，对应信息落盘至fusion_result.json。
    *
    * @param nodes_before_fuse 融合前节点列表（列表内所有节点需连通）
    * @param nodes_after_fuse 融合后新节点列表（列表内所有节点需连通）
@@ -54,6 +54,19 @@ class GraphFuseInspectorUtils {
    */
   static Status ReportFuse(const std::vector<GNode> &nodes_before_fuse, const std::vector<GNode> &nodes_after_fuse,
                            CustomPassContext &ctx);
+
+  /**
+   * 上报一次结构匹配
+   * 在图遍历中发现目标子图结构后调用，无论融合条件是否通过均计入。
+   * 内部自动累加 match_time，不改变 effect_time，对应信息落盘至fusion_result.json。
+   * 典型用法：在CanFuse之前调用，与ReportFuse配合可统计结构匹配的命中率。
+   *
+   * @param matched_nodes 结构匹配命中的节点列表（列表内所有节点需连通）
+   * @param ctx pass上下文，使用ctx.GetPassName()记录pass name
+   * @return SUCCESS: 上报成功; FAILED: 上报失败
+   * @since 9.2.0(2026-08)
+   */
+  static Status ReportMatch(const std::vector<GNode> &matched_nodes, CustomPassContext &ctx);
 };
 }  // namespace fusion
 }  // namespace ge

@@ -144,7 +144,30 @@ Status GraphFuseInspectorUtils::ReportFuse(const std::vector<GNode> &nodes_befor
   }
   RecordDatadumpAttrsIdempotently(before_nodes, after_nodes, pass_name_str);
   FusionUtils::RecordFusionStatistic(owner_graph->GetSessionID(), std::to_string(owner_graph->GetGraphID()),
-                                     pass_name_str, 1, 1);
+                                     pass_name_str, 0, 1);
+  return SUCCESS;
+}
+
+Status GraphFuseInspectorUtils::ReportMatch(const std::vector<GNode> &matched_nodes, CustomPassContext &ctx) {
+  std::string error_msg;
+  std::vector<NodePtr> nodes;
+  if (!ConvertGNodes(matched_nodes, nodes, error_msg)) {
+    GELOGW("%s", error_msg.c_str());
+    return FAILED;
+  }
+  ComputeGraphPtr owner_graph = nullptr;
+  if (!CheckOwnerGraph(nodes, owner_graph, error_msg)) {
+    GELOGW("%s", error_msg.c_str());
+    return FAILED;
+  }
+  const auto pass_name = ctx.GetPassName();
+  const auto *pass_name_cstr = pass_name.GetString();
+  const std::string pass_name_str = (pass_name_cstr == nullptr) ? "" : pass_name_cstr;
+  if (pass_name_str.empty()) {
+    return FAILED;
+  }
+  FusionUtils::RecordFusionStatistic(owner_graph->GetSessionID(), std::to_string(owner_graph->GetGraphID()),
+                                     pass_name_str, 1, 0);
   return SUCCESS;
 }
 }  // namespace fusion

@@ -83,6 +83,10 @@ bool JudgeTransposeNode(const GNodePtr &node_ptr, int &cnt) {
 
 bool RemoveTransposeAndRelink(const GraphPtr &graph, const GNodePtr &node_ptr, CustomPassContext &pass_context) {
   AscendString failed_reason;
+  // 结构匹配上报，无论融合条件是否通过均计入match_time
+  if (GraphFuseInspectorUtils::ReportMatch({*node_ptr}, pass_context) != SUCCESS) {
+    std::cout << "ReportMatch failed" << std::endl;
+  }
   if (!GraphFuseInspectorUtils::CanFuse({*node_ptr}, failed_reason)) {
     std::cout << failed_reason.GetString() << std::endl;
     return false;
