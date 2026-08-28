@@ -78,12 +78,12 @@ class HostCpuOpExecutionContext : public ExtendedKernelContext {
   Tensor *MallocOutputTensor(size_t index, const StorageShape &shape, const StorageFormat &format, ge::DataType dtype);
 
   /**
-   * 指定某输出的内存地址引用自某个输入。
+   * 指定某输出的内存地址引用自某个输入，同时初始化tensor的基本信息。
    * @param output_index 输出 index
    * @param input_index 输入 index
    * @return output_index 对应的输出 Tensor 指针，异常时返回空指针
    */
-  Tensor *MakeOutputRefInput(size_t output_index, size_t input_index) const;
+  Tensor *MakeOutputRefInput(size_t output_index, size_t input_index);
 
   enum class AdditionalInputIndex : uint32_t { kHostAllocator = 0U, kNum };
 

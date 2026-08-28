@@ -15,6 +15,7 @@
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ge_local_context.h"
+#include "graph/custom_op_factory.h"
 #include "ge/ge_api_types.h"
 #include "common/math/ge_math_util.h"
 #include "graph/option/optimization_option_info.h"
@@ -75,13 +76,22 @@ bool IsGelocalOp(const OpDescPtr &op_desc) {
   return op_desc->GetOpKernelLibName() == kGeLocalOpKernelLibName;
 }
 
+bool IsDeviceCustomOp(const OpDescPtr &op_desc) {
+  return CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kDevice);
+}
+
+bool IsHostCpuCustomOp(const OpDescPtr &op_desc) {
+  return CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU);
+}
+
 bool IsControlV2Op(const std::string &op_type) {
   return kControlV2Types.count(op_type) > 0U;
 }
 
 bool IsExecOnDevice(const OpDescPtr &op_desc) {
   return (op_desc->GetOpKernelLibName() == kEngineNameAiCpu) || (op_desc->GetOpKernelLibName() == kEngineNameAiCpuTf) ||
-         (op_desc->GetOpKernelLibName() == kEngineNameAiCore);
+         (op_desc->GetOpKernelLibName() == kEngineNameAiCore) ||
+         (op_desc->GetOpKernelLibName() == kCustomOpKernelLibName && IsDeviceCustomOp(op_desc));
 }
 
 bool IsConstOp(const OpDescPtr &op_desc) {
@@ -299,6 +309,20 @@ bool HostcpuEngineUpdatePass::CheckAndMarkHostExec(const NodePtr &node, NodeEngi
     }
   }
   if (IsGelocalOp(op_desc)) {
+    host_exe_ops_.insert(node);
+    return true;
+  }
+
+  if (IsHostCpuCustomOp(op_desc) && IsExecOnDevice(op_desc)) {
+    op_desc->SetOpEngineName(kEngineNameCustom);
+    op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+    (void)AttrUtils::SetStr(op_desc, ATTR_NAME_ENGINE_NAME_FOR_LX, kEngineNameCustom);
+    (void)AttrUtils::SetStr(op_desc, ATTR_NAME_KKERNEL_LIB_NAME_FOR_LX, kCustomOpKernelLibName);
+    node_atomic_engine_map[node] = kEngineNameCustom;
+    node_composite_engine_map[node] = kEngineNameCustom;
+    (void)AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc);
+    GELOGI("[HostcpuEngineUpdatePass]: Set OpKernelLibName %s and OpEngineName %s to %s",
+           kCustomOpKernelLibName.c_str(), kEngineNameCustom.c_str(), op_desc->GetName().c_str());
     host_exe_ops_.insert(node);
     return true;
   }

@@ -25,6 +25,8 @@
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "graph/partition/optimizer/hostcpu_engine_update_pass.h"
+#include "graph/partition/engine_partitioner.h"
+#include "graph/passes/shape_optimize/mark_graph_unknown_status_pass.h"
 #include "hybrid/common/npu_memory_allocator.h"
 #include "graph/bin_cache/node_compile_cache_module.h"
 #include "register/op_tiling_registry.h"
@@ -36,6 +38,8 @@
 #include "macro_utils/dt_public_unscope.h"
 
 #include "graph/operator_reg.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 #include "graph/ge_attr_value.h"
 #include "common/dump/dump_manager.h"
 #include "register/op_tiling_registry.h"
@@ -77,6 +81,8 @@
 #include "depends/profiler/src/profiling_test_util.h"
 #include "graph/manager/host_mem_manager.h"
 #include "register/register_custom_pass.h"
+#include "engines/custom_engine/custom_graph_optimizer.h"
+#include "engines/custom_engine/custom_ops_kernel_info_store.h"
 
 namespace ge {
 namespace {
@@ -116,6 +122,15 @@ struct DummyCompileInfo {
 
 const std::string kStHostCpuEngine = "DNN_VM_HOST_CPU";
 const std::string kStHostCpuKernelStore = "DNN_VM_HOST_CPU_OP_STORE";
+
+class StHostCpuPassCustomOp final : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
+class StDeviceCustomOp final : public BaseCustomOp {};
 
 class FakeUnsupportedHostCpuOpsKernelInfoStore : public OpsKernelInfoStore {
  public:
@@ -266,6 +281,24 @@ ComputeGraphPtr BuildHostInputWithoutConsumerGraphForSt() {
   op_desc->SetOpKernelLibName(kEngineNameGeLocal);
   (void)AttrUtils::SetBool(op_desc, ATTR_NAME_HOST_TENSOR, true);
   (void)graph->AddNode(op_desc);
+  return graph;
+}
+
+ComputeGraphPtr BuildHostCpuCustomPropagationGraph(const std::string &op_type) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", "Data")->NODE("host_cpu_custom", op_type)->NODE("netoutput", "NetOutput"));
+  };
+
+  auto graph = ToComputeGraph(g1);
+  graph->SetGraphUnknownFlag(true);
+  graph->FindNode("data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  auto custom_node = graph->FindNode("host_cpu_custom");
+  custom_node->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  custom_node->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  *custom_node->GetOpDesc()->MutableInputDesc(0) = GeTensorDesc(GeShape({1}), FORMAT_ND, DT_INT32);
+  *custom_node->GetOpDesc()->MutableOutputDesc(0) = GeTensorDesc(GeShape({1}), FORMAT_ND, DT_INT32);
+  graph->FindNode("netoutput")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  (void)AttrUtils::SetBool(graph->FindNode("data")->GetOpDesc(), ATTR_NAME_HOST_TENSOR, true);
   return graph;
 }
 
@@ -2049,6 +2082,157 @@ TEST_F(DynamicGraphTest, HostCpuPassDoesNotMarkHostInputWithoutConsumer) {
   (void)AttrUtils::GetBool(data->GetOpDesc(), ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, is_host_model_input);
   EXPECT_FALSE(is_host_model_input);
   unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(DynamicGraphTest, HostCpuPassMarksHostCpuCustomOp) {
+  const AscendString op_type("StHostCpuPassCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StDeviceCustomOp>(); }),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  auto graph = BuildHostCpuCustomPropagationGraph(op_type.GetString());
+  ASSERT_NE(graph, nullptr);
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+  auto custom_node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(custom_node, nullptr);
+  EXPECT_EQ(custom_node->GetOpDesc()->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(custom_node->GetOpDesc()->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_TRUE(AttrUtils::GetStr(custom_node->GetOpDesc(), kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+  unsetenv("ENABLE_RUNTIME_V2");
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, DnnEngineManagerGetsHostCpuCustomEngineName) {
+  const AscendString op_type("StDnnHostCpuCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+
+  auto op_desc = std::make_shared<OpDesc>("host_cpu_custom", op_type.GetString());
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  OpInfo matched_op_info;
+  EXPECT_EQ(DNNEngineManager::GetInstance().GetHostCpuEngineName({}, op_desc, matched_op_info), kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.engine, kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.opKernelLib, kCustomOpKernelLibName);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, DnnEngineManagerSelectsHostCpuCustomCandidate) {
+  const AscendString op_type("StDnnHostCpuCandidateOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+
+  auto graph = std::make_shared<ComputeGraph>("dnn_host_cpu_candidate");
+  auto op_desc = std::make_shared<OpDesc>("host_cpu_custom", op_type.GetString());
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_EQ(op_desc->AddOutputDesc(GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT)), GRAPH_SUCCESS);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  auto &ops_kernel_manager = OpsKernelManager::GetInstance();
+  ops_kernel_manager.ops_kernel_info_[op_type.GetString()] = {
+      OpInfo{"DNN_VM_HOST_CPU", "DNN_VM_HOST_CPU_OP_STORE", 0, false, false, false, "", ""}};
+  OpInfo matched_op_info;
+  EXPECT_EQ(DNNEngineManager::GetInstance().GetDNNEngineName(node, {}, matched_op_info), kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.opKernelLib, kCustomOpKernelLibName);
+  ops_kernel_manager.ops_kernel_info_.erase(op_type.GetString());
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, EnginePartitionerKeepsHostCpuCustomCluster) {
+  const AscendString op_type("StPartitionHostCpuCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomPropagationGraph(op_type.GetString());
+  ASSERT_NE(graph, nullptr);
+  auto custom_node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(custom_node, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(custom_node->GetOpDesc(), kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  AttrUtils::SetStr(graph, ATTR_NAME_SESSION_GRAPH_ID, "0");
+
+  EnginePartitioner partitioner;
+  EXPECT_EQ(partitioner.Partition(graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, MarkUnknownStatusForHostCpuCustomOp) {
+  const AscendString op_type("StMarkUnknownHostCpuCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomPropagationGraph(op_type.GetString());
+  ASSERT_NE(graph, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  auto custom_node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(custom_node, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(custom_node->GetOpDesc(), kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+
+  MarkGraphUnknownStatusPass pass;
+  EXPECT_EQ(pass.Run(graph), SUCCESS);
+  EXPECT_TRUE(graph->GetGraphUnknownFlag());
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, HostCpuCustomOpOptimizerSkipsCompile) {
+  const AscendString op_type("StHostCpuOptimizerSkipOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StDeviceCustomOp>(); }),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuPassCustomOp>(); }),
+            GRAPH_SUCCESS);
+  auto graph = std::make_shared<ComputeGraph>("host_cpu_optimizer_skip");
+  auto op_desc = std::make_shared<OpDesc>("host_cpu_node", op_type.GetString());
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_EQ(op_desc->AddInputDesc(GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT)), GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc(GeTensorDesc(GeShape({1}), FORMAT_ND, DT_FLOAT)), GRAPH_SUCCESS);
+  op_desc->SetOpEngineName(kEngineNameCustom);
+  op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+  CustomGraphOptimizer optimizer;
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(DynamicGraphTest, CustomOpsKernelInfoStoreChecksDeviceBackend) {
+  const AscendString op_type("StCustomStoreDeviceOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StDeviceCustomOp>(); }),
+            GRAPH_SUCCESS);
+  custom::CustomOpsKernelInfoStore store;
+  auto op_desc = std::make_shared<OpDesc>("store_node", op_type.GetString());
+  ASSERT_NE(op_desc, nullptr);
+  std::string reason;
+  EXPECT_TRUE(store.CheckSupported(op_desc, reason));
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 
 TEST_F(DynamicGraphTest, TestHostCpu) {

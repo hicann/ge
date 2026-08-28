@@ -230,7 +230,7 @@ Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const Storag
   return nullptr;
 }
 
-Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_t input_index) const {
+Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_t input_index) {
   (void)output_index;
   (void)input_index;
   return nullptr;

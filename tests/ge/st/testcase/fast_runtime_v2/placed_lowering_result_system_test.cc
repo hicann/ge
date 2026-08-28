@@ -36,13 +36,49 @@
 #include "lowering/placement/placed_lowering_register.h"
 #include "framework/common/ge_types.h"
 #include "runtime/gert_api.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
+#include "exe_graph/lowering/kernel_run_context_builder.h"
 #include "check/executor_statistician.h"
 #include "faker/nodes_faker_for_exe.h"
 #include "register/op_impl_registry.h"
 #include "engine/aicpu/graph_builder/bg_aicpu_arg.h"
+#include "engine/custom/converter/custom_node_converter.h"
+#include "engine/gelocal/inputs_converter.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
+#include "graph/debug/ge_attr_define.h"
+#include "ge/ut/ge/runtime/fast_v2/common/const_data_helper.h"
 
 using namespace ge;
 namespace gert {
+class StHostCpuLoweringOp final : public ge::HostCpuExecuteOp {
+ public:
+  ge::graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    (void)ctx;
+    return ge::GRAPH_SUCCESS;
+  }
+};
+
+class StHostCpuShapeInferLoweringOp final : public ge::HostCpuExecuteOp, public ge::ShapeInferOp {
+ public:
+  ge::graphStatus Execute(gert::HostCpuOpExecutionContext *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  ge::graphStatus InferShape(gert::InferShapeContext *context) override {
+    auto input = context->GetInputShape(0);
+    auto output = context->GetOutputShape(0);
+    GE_ASSERT_NOTNULL(input);
+    GE_ASSERT_NOTNULL(output);
+    *output = *input;
+    return ge::GRAPH_SUCCESS;
+  }
+
+  ge::graphStatus InferDataType(gert::InferDataTypeContext *) override {
+    return ge::GRAPH_SUCCESS;
+  }
+};
+
 class PlaceLoweringResultSystemTest : public bg::BgTest {
  protected:
   void SetUp() override {
@@ -103,6 +139,20 @@ LowerResult FakeConverterForCast(const ge::NodePtr &node, const LowerInput &lowe
   return FakedDeviceConverterWithOrderedHoldersWithType(node, lower_input, "LaunchCast");
 }
 
+void PrepareCustomOpInputs(const ge::ComputeGraphPtr &graph, LoweringGlobalData &global_data,
+                           const std::vector<std::string> &data_names, std::vector<bg::ValueHolderPtr> &shapes,
+                           std::vector<bg::DevMemValueHolderPtr> &addrs) {
+  bg::LowerConstDataNode(global_data);
+  for (const auto &name : data_names) {
+    auto data_ret = LoweringDataNode(graph->FindNode(name), {{}, {}, &global_data});
+    ASSERT_TRUE(data_ret.result.IsSuccess());
+    shapes.emplace_back(data_ret.out_shapes[0]);
+    addrs.emplace_back(data_ret.out_addrs[0]);
+    graph->FindNode(name)->GetOpDesc()->SetExtAttr("_lowering_result",
+                                                   PlacedLoweringResult(graph->FindNode(name), std::move(data_ret)));
+  }
+}
+
 REG_OP(Add)
     .INPUT(x1, TensorType({DT_FLOAT, DT_INT32, DT_INT64, DT_FLOAT16, DT_INT16, DT_INT8, DT_UINT8, DT_DOUBLE,
                            DT_COMPLEX128, DT_COMPLEX64, DT_STRING}))
@@ -112,6 +162,136 @@ REG_OP(Add)
                            DT_COMPLEX128, DT_COMPLEX64, DT_STRING}))
     .OP_END_FACTORY_REG(Add)
 }  // namespace
+
+TEST_F(PlaceLoweringResultStringTest, HostCpuCustomNodeLoweringBuildsHostTensors) {
+  const AscendString op_type("StHostCpuLoweringOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<ge::BaseCustomOp> { return std::make_unique<StHostCpuLoweringOp>(); }),
+            ge::GRAPH_SUCCESS);
+
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  ASSERT_NE(custom_op, nullptr);
+  custom_op->GetOpDesc()->SetType(op_type.GetString());
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  PrepareCustomOpInputs(graph, global_data, {"data0", "data1", "data2"}, shapes, addrs);
+
+  auto ret = LoweringHostCustomNode(custom_op, {shapes, addrs, &global_data});
+  ASSERT_TRUE(ret.result.IsSuccess());
+  ASSERT_EQ(ret.out_addrs.size(), 1U);
+  EXPECT_EQ(ret.out_addrs[0]->GetPlacement(), kOnHost);
+  EXPECT_NE(ExecuteGraphUtils::FindFirstNodeMatchType(bg::ValueHolder::GetCurrentFrame()->GetExecuteGraph().get(),
+                                                      "ExecuteHostCustomOp"),
+            nullptr);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(PlaceLoweringResultStringTest, HostCpuCustomNodeLoweringSkipsUnconnectedInput) {
+  const AscendString op_type("StHostCpuOptionalLoweringOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<ge::BaseCustomOp> { return std::make_unique<StHostCpuLoweringOp>(); }),
+            ge::GRAPH_SUCCESS);
+
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  ASSERT_NE(custom_op, nullptr);
+  custom_op->GetOpDesc()->SetType(op_type.GetString());
+  ASSERT_EQ(ge::GraphUtils::RemoveEdge(graph->FindNode("data2")->GetOutDataAnchor(0), custom_op->GetInDataAnchor(2)),
+            ge::GRAPH_SUCCESS);
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  PrepareCustomOpInputs(graph, global_data, {"data0", "data1"}, shapes, addrs);
+  auto ret = LoweringHostCustomNode(custom_op, {shapes, addrs, &global_data});
+  ASSERT_TRUE(ret.result.IsSuccess());
+  ASSERT_EQ(ret.out_addrs.size(), 1U);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(PlaceLoweringResultStringTest, HostCpuCustomNodeLoweringAddsInputGuardDependency) {
+  const AscendString op_type("StHostCpuGuardLoweringOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<ge::BaseCustomOp> { return std::make_unique<StHostCpuLoweringOp>(); }),
+            ge::GRAPH_SUCCESS);
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  custom_op->GetOpDesc()->SetType(op_type.GetString());
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  PrepareCustomOpInputs(graph, global_data, {"data0", "data1", "data2"}, shapes, addrs);
+  auto input_guarder = bg::ValueHolder::CreateVoidGuarder("FreeInput", addrs[0], {});
+  ASSERT_NE(input_guarder, nullptr);
+  addrs[0]->SetGuarder(input_guarder);
+  auto ret = LoweringHostCustomNode(custom_op, {shapes, addrs, &global_data});
+  ASSERT_TRUE(ret.result.IsSuccess());
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(PlaceLoweringResultStringTest, HostCpuCustomNodeLoweringUsesInferShapeKernel) {
+  const AscendString op_type("StHostCpuShapeInferLoweringOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<ge::BaseCustomOp> {
+                                                       return std::make_unique<StHostCpuShapeInferLoweringOp>();
+                                                     }),
+            ge::GRAPH_SUCCESS);
+
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  ASSERT_NE(custom_op, nullptr);
+  custom_op->GetOpDesc()->SetType(op_type.GetString());
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  PrepareCustomOpInputs(graph, global_data, {"data0", "data1", "data2"}, shapes, addrs);
+  auto input_guarder = bg::ValueHolder::CreateVoidGuarder("FreeInput", addrs[0], {});
+  ASSERT_NE(input_guarder, nullptr);
+  addrs[0]->SetGuarder(input_guarder);
+
+  auto ret = LoweringHostCustomNode(custom_op, {shapes, addrs, &global_data});
+  ASSERT_TRUE(ret.result.IsSuccess());
+  EXPECT_NE(ExecuteGraphUtils::FindFirstNodeMatchType(bg::ValueHolder::GetCurrentFrame()->GetExecuteGraph().get(),
+                                                      "ExecuteHostCustomOpWithInferShape"),
+            nullptr);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(PlaceLoweringResultStringTest, HostCpuContextMakeOutputRefInputUsesMutableOutput) {
+  auto op_desc = std::make_shared<ge::OpDesc>("host_ref", "UnknownHostRefOp");
+  ASSERT_EQ(op_desc->AddInputDesc(ge::GeTensorDesc(ge::GeShape({1}), ge::FORMAT_ND, ge::DT_FLOAT)), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->AddOutputDesc(ge::GeTensorDesc(ge::GeShape({1}), ge::FORMAT_ND, ge::DT_FLOAT)), ge::GRAPH_SUCCESS);
+  gert::Tensor input;
+  gert::Tensor output;
+  auto holder = gert::KernelRunContextBuilder().Inputs({&input, nullptr}).Outputs({&output}).Build(op_desc);
+  auto *context = reinterpret_cast<gert::HostCpuOpExecutionContext *>(holder.GetKernelContext());
+  ASSERT_NE(context, nullptr);
+  EXPECT_EQ(context->MakeOutputRefInput(0, 0), &output);
+}
 
 TEST_F(PlaceLoweringResultSystemTest, H2DRunAfterLaunch_PlacedLoweringResult) {
   GertRuntimeStub runtime_stub;

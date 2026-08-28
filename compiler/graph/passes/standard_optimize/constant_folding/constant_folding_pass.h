@@ -30,6 +30,8 @@ class ConstantFoldingPass : public PotentialFoldingPass {
 
   static Status RunOpKernel(const NodePtr &node, const std::vector<ConstGeTensorPtr> &inputs,
                             std::vector<GeTensorPtr> &outputs);
+  static Status ComputeWithHostCpuCustomOp(const NodePtr &node, const std::vector<ConstGeTensorPtr> &inputs,
+                                           std::vector<GeTensorPtr> &outputs);
   static Status ComputeWithHostCpuKernel(const NodePtr &node, const std::vector<ConstGeTensorPtr> &inputs,
                                          std::vector<GeTensorPtr> &outputs);
 

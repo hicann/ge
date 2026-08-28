@@ -74,9 +74,7 @@ inline ge::graphStatus InferCustomOpShapeFromInput(InferShapeContext *context) {
   GE_ASSERT_NOTNULL(kernel_context);
   const auto input_num = kernel_context->GetInputNum();
   GE_ASSERT(input_num > 1U);
-  auto custom_op = kernel_context->GetInputValue<ge::BaseCustomOp *>(input_num - 2U);
-  GE_ASSERT_NOTNULL(custom_op);
-  auto shape_infer_op = ge::CustomOpCast<ge::ShapeInferOp>(custom_op);
+  auto shape_infer_op = kernel_context->GetInputValue<ge::ShapeInferOp *>(input_num - 2U);
   if (shape_infer_op == nullptr) {
     GELOGE(ge::GRAPH_FAILED, "Custom op does not implement ShapeInferOp.");
     return ge::GRAPH_FAILED;

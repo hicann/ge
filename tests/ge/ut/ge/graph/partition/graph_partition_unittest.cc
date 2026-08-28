@@ -34,9 +34,14 @@
 #include "ge/ge_api.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
+#include "graph/custom_op_factory.h"
 
 namespace ge {
 namespace airut {
+
+namespace {
+class PartitionTestCustomOp : public BaseCustomOp {};
+}  // namespace
 
 class GraphBuilder {
  public:
@@ -613,6 +618,89 @@ TEST_F(UtestGraphPartition, second_partition_graph_with_user_stream_label) {
   }
   EXPECT_EQ(subgraph_infos[2]->GetUserStreamLabel(), "label1");
   EXPECT_EQ(ge::GELib::GetInstance()->Finalize(), SUCCESS);
+}
+
+TEST_F(UtestGraphPartition, second_partition_keeps_host_custom_cluster_on_custom_engine) {
+  const std::string op_type = "HostCustomSecondPartitionOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<PartitionTestCustomOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+
+  airut::GraphBuilder graph_builder("host_custom_second_partition");
+  auto data = graph_builder.AddNode("data", DATA, 1, 1, FORMAT_ND, DT_INT32, {16});
+  auto host_custom = graph_builder.AddNode("host_custom", op_type, 1, 1, FORMAT_ND, DT_INT32, {16});
+  host_custom->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  host_custom->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  ASSERT_TRUE(AttrUtils::SetStr(host_custom->GetOpDesc(), kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  auto legacy_host_cpu = graph_builder.AddNode("legacy_host_cpu", "LegacyHostCpuOp", 1, 1, FORMAT_ND, DT_INT32, {16});
+  legacy_host_cpu->GetOpDesc()->SetOpEngineName("DNN_VM_HOST_CPU");
+  legacy_host_cpu->GetOpDesc()->SetOpKernelLibName(kEngineNameHostCpu);
+  auto net_output = graph_builder.AddNode("net_output", NETOUTPUT, 1, 1, FORMAT_ND, DT_INT32, {16});
+  graph_builder.AddDataEdge(data, 0, host_custom, 0);
+  graph_builder.AddDataEdge(host_custom, 0, legacy_host_cpu, 0);
+  graph_builder.AddDataEdge(legacy_host_cpu, 0, net_output, 0);
+
+  auto graph = graph_builder.GetGraph();
+  ASSERT_TRUE(AttrUtils::SetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID, "0"));
+  EnginePartitioner partitioner;
+  ASSERT_EQ(partitioner.Partition(graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
+
+  bool found_custom_subgraph = false;
+  bool found_host_cpu_subgraph = false;
+  for (const auto &subgraph_info : partitioner.GetSubGraphMap().begin()->second) {
+    if ((subgraph_info->GetEngineName() == kEngineNameCustom) &&
+        (subgraph_info->GetSubGraph()->FindNode("host_custom") != nullptr)) {
+      found_custom_subgraph = true;
+      EXPECT_EQ(subgraph_info->GetSubGraph()->FindNode("legacy_host_cpu"), nullptr);
+    }
+    if ((subgraph_info->GetEngineName() == "DNN_VM_HOST_CPU") &&
+        (subgraph_info->GetSubGraph()->FindNode("legacy_host_cpu") != nullptr)) {
+      found_host_cpu_subgraph = true;
+      EXPECT_EQ(subgraph_info->GetSubGraph()->FindNode("host_custom"), nullptr);
+    }
+  }
+  EXPECT_TRUE(found_custom_subgraph);
+  EXPECT_TRUE(found_host_cpu_subgraph);
+  EXPECT_EQ(host_custom->GetOpDesc()->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(host_custom->GetOpDesc()->GetOpKernelLibName(), kCustomOpKernelLibName);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestGraphPartition, second_partition_keeps_device_custom_cluster_on_ai_core) {
+  const std::string op_type = "DeviceAndHostCustomSecondPartitionOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<PartitionTestCustomOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kDevice, creator),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+
+  airut::GraphBuilder graph_builder("device_custom_second_partition");
+  auto data = graph_builder.AddNode("data", DATA, 1, 1, FORMAT_ND, DT_INT32, {16});
+  auto device_custom = graph_builder.AddNode("device_custom", op_type, 1, 1, FORMAT_ND, DT_INT32, {16});
+  device_custom->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  device_custom->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  auto net_output = graph_builder.AddNode("net_output", NETOUTPUT, 1, 1, FORMAT_ND, DT_INT32, {16});
+  graph_builder.AddDataEdge(data, 0, device_custom, 0);
+  graph_builder.AddDataEdge(device_custom, 0, net_output, 0);
+
+  auto graph = graph_builder.GetGraph();
+  ASSERT_TRUE(AttrUtils::SetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID, "0"));
+  EnginePartitioner partitioner;
+  ASSERT_EQ(partitioner.Partition(graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
+
+  bool found_ai_core_subgraph = false;
+  for (const auto &subgraph_info : partitioner.GetSubGraphMap().begin()->second) {
+    if ((subgraph_info->GetEngineName() == kEngineNameAiCore) &&
+        (subgraph_info->GetSubGraph()->FindNode("device_custom") != nullptr)) {
+      found_ai_core_subgraph = true;
+    }
+  }
+  EXPECT_TRUE(found_ai_core_subgraph);
+  EXPECT_EQ(device_custom->GetOpDesc()->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(device_custom->GetOpDesc()->GetOpKernelLibName(), kCustomOpKernelLibName);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
 }
 
 TEST_F(UtestGraphPartition, partition_with_graph_stable_topo_bfs2) {

@@ -68,8 +68,7 @@ void CustomOpsKernelInfoStore::GetAllOpsKernelInfo(std::map<std::string, OpInfo>
 bool CustomOpsKernelInfoStore::CheckSupported(const OpDescPtr &op_desc, std::string &reason) const {
   (void)reason;
   GE_ASSERT_NOTNULL(op_desc);
-  std::lock_guard<std::mutex> lock(mu_);
-  return op_info_map_.count(op_desc->GetType()) > 0;
+  return CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kDevice);
 }
 }  // namespace custom
 }  // namespace ge

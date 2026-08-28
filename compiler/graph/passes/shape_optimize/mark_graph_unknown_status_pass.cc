@@ -12,11 +12,24 @@
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_context.h"
+#include "graph/custom_op_factory.h"
+#include "graph/ascend_string.h"
+#include "common/ge_common/ge_types.h"
 
 namespace ge {
 namespace {
 const char *const kOwnerGraphIsUnknown = "OwnerGraphIsUnknown";
 const char *const kHostCpuEngineName = "DNN_VM_HOST_CPU";
+
+bool IsCustomOpExecOnHostCpu(const OpDescPtr &op_desc) {
+  if ((op_desc == nullptr) || (op_desc->GetOpEngineName() != kEngineNameCustom) ||
+      (op_desc->GetOpKernelLibName() != kCustomOpKernelLibName) ||
+      !CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU)) {
+    return false;
+  }
+  std::string lowering_func;
+  return AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func) && (lowering_func == kHostCpuCustomOpLowerFunc);
+}
 }  // namespace
 
 Status MarkGraphUnknownStatusPass::Run(ComputeGraphPtr graph) {
@@ -36,7 +49,7 @@ Status MarkGraphUnknownStatusPass::Run(ComputeGraphPtr graph) {
     }
     GE_CHK_GRAPH_STATUS_RET(ge::NodeUtils::GetNodeUnknownShapeStatus(*node, is_unknown_shape),
                             "[Get][ShapeStatus] of node[%s] failed!", node->GetName().c_str());
-    if (desc->GetOpEngineName() == kHostCpuEngineName) {
+    if ((desc->GetOpEngineName() == kHostCpuEngineName) || IsCustomOpExecOnHostCpu(desc)) {
       is_unknown_shape = true;
       GELOGD("Mark host cpu node %s unknown.", node->GetName().c_str());
     }

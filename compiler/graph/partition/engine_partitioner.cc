@@ -20,10 +20,13 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/op/ge_op_utils.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
+#include "graph/ascend_string.h"
+#include "graph/custom_op_factory.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_type_utils.h"
+#include "graph/utils/attr_utils.h"
 #include "graph/build/stream/stream_utils.h"
 #include "common/checker.h"
 #include "graph/ge_context.h"
@@ -48,11 +51,23 @@ const char_t *const kTaskL2FusionInfo = "_task_L2FusionInfo";
 const char_t *const kDataAnchorIndexForLxfusion = "_data_anchor_index_for_lxfusion";
 const char_t *const kEnableCvParallel = "_enable_cv_parallel";
 const char_t *const kVectorEngineName = "VectorEngine";
+const char_t *const kHostCpuEngineName = "DNN_VM_HOST_CPU";
 const std::string kStableRdfsSort = "3";
 const int32_t kOneGraph = 1;  // only one graph
 const int32_t kRankOne = 1;   // order of graph list is 0,1,2,3..., 1 means second order
 const int32_t kRankZero = 0;  // order of graph list is 0,1,2,3..., 0 means first order
 const int64_t kOverflowDefaultValue = -1;
+
+bool IsCustomOpExecOnHostCpu(const OpDescPtr &op_desc) {
+  if ((op_desc == nullptr) || (op_desc->GetOpEngineName() != kEngineNameCustom) ||
+      (op_desc->GetOpKernelLibName() != kCustomOpKernelLibName) ||
+      !CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU)) {
+    return false;
+  }
+  std::string lowering_func;
+  return AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func) && (lowering_func == kHostCpuCustomOpLowerFunc);
+}
+
 struct DeviceIndex {
   std::string engine_type;
   std::vector<int32_t> indices;
@@ -78,8 +93,9 @@ struct DeviceIndex {
 
 std::string GenClusterEngineName(const NodePtr &node, EnginePartitioner::Mode mode, const NodeEngineMap &engine_map) {
   auto engine_name = engine_map.at(node);
-  // 流分配时，自定义算子需要跟aicore算子一条流
-  if ((mode == EnginePartitioner::Mode::kSecondPartitioning) && (engine_name == kEngineNameCustom)) {
+  // 流分配时，device自定义算子需要跟aicore算子一条流
+  if ((mode == EnginePartitioner::Mode::kSecondPartitioning) && (engine_name == kEngineNameCustom) &&
+      !IsCustomOpExecOnHostCpu(node->GetOpDesc())) {
     // 临时改动，后续需要从用户的注册引擎信息里面获取此处的自定义算子挂靠的引擎名字
     engine_name = kEngineNameAiCore;
   }

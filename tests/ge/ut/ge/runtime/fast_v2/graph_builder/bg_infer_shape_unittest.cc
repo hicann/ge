@@ -371,7 +371,8 @@ TEST_F(BgInferShapeUT, InferCustomOpShapeWithoutRule) {
   ASSERT_EQ(out_shapes.size(), 1);
   ASSERT_EQ(out_shapes[0]->GetFastNode()->GetType(), "InferShape");
 
-  auto find_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindCustomOp");
+  auto find_node =
+      ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindCustomShapeInferOp");
   ASSERT_NE(find_node, nullptr);
 
   auto main_frame = ValueHolder::PopGraphFrame({}, {}, "NetOutput");
@@ -408,8 +409,9 @@ TEST_F(BgInferShapeUT, InferCustomOpShapeUsesModelRegistry) {
       custom_op, {data0_ret.out_shapes[0], data1_ret.out_shapes[0], data2_ret.out_shapes[0]}, global_data);
   ASSERT_EQ(out_shapes.size(), 1);
   ASSERT_EQ(out_shapes[0]->GetFastNode()->GetType(), "InferShape");
-  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindCustomOp"),
-            nullptr);
+  ASSERT_NE(
+      ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindCustomShapeInferOp"),
+      nullptr);
   ASSERT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindInferShapeFunc"),
             nullptr);
 

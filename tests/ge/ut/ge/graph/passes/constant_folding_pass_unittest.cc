@@ -17,6 +17,8 @@
 
 #include "common/framework_types_internal.h"
 #include "common/plugin/ge_make_unique_util.h"
+#include "graph/custom_op.h"
+#include "graph/custom_op_factory.h"
 #include "graph/ge_local_context.h"
 #include "graph/passes/base_pass.h"
 #include "graph/passes/standard_optimize/constant_folding/dimension_compute_pass.h"
@@ -25,6 +27,7 @@
 #include "host_kernels/kernel_factory.h"
 #include "graph/utils/constant_utils.h"
 #include "api/gelib/gelib.h"
+#include "securec.h"
 #include "macro_utils/dt_public_unscope.h"
 
 namespace ge {
@@ -41,6 +44,46 @@ const char *WrongYes2 = "WrongYes2";
 const char *WrongYes3 = "WrongYes3";
 const char *WhereDynamic2Static = "WhereDynamic2Static";
 const char *WhereDynamic = "WhereDynamic";
+const char *HostCustomFold = "HostCustomFold";
+
+class TestHostCustomFoldOp : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    ++execute_count_;
+    if (ctx == nullptr) {
+      return GRAPH_FAILED;
+    }
+    auto *input = ctx->GetInputTensor(0);
+    if (input == nullptr) {
+      return GRAPH_FAILED;
+    }
+    auto *output = ctx->MallocOutputTensor(0, input->GetShape(), input->GetFormat(), input->GetDataType());
+    if (output == nullptr) {
+      return GRAPH_FAILED;
+    }
+    const auto *data = reinterpret_cast<const uint8_t *>(input->GetAddr());
+    auto *dst = reinterpret_cast<uint8_t *>(output->GetAddr());
+    const auto size = input->GetSize();
+    if ((size > 0U) && (data != nullptr) && (dst != nullptr)) {
+      (void)memcpy_s(dst, size, data, size);
+    }
+    return GRAPH_SUCCESS;
+  }
+
+  static int32_t execute_count_;
+};
+
+int32_t TestHostCustomFoldOp::execute_count_ = 0;
+REG_OP_BACKEND(TestHostCustomFoldOp, "HostCustomFold", ge::OpBackend::kHostCPU);
+
+class TestHostCustomFoldFailureOp final : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *) override {
+    return GRAPH_FAILED;
+  }
+};
+
+class TestNonHostCustomFoldOp final : public BaseCustomOp {};
 
 class TestAddNKernel : public Kernel {
  public:
@@ -997,6 +1040,149 @@ TEST_F(UtestGraphPassesConstantFoldingPass, testComputeWithHostCpuKernel) {
   EXPECT_EQ(ret, SUCCESS);
   ret = pass.ComputeWithHostCpuKernel(node, inputs, outputs);
   EXPECT_EQ(ret, UNSUPPORTED);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  auto builder = ut::GraphBuilder("test");
+  auto input = builder.AddNode("input", CONSTANT, 0, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto output = builder.AddNode("output", HostCustomFold, 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  builder.AddDataEdge(input, 0, output, 0);
+  auto graph = builder.GetGraph();
+  ASSERT_NE(nullptr, graph);
+
+  auto input_tensor = MakeShared<GeTensor>();
+  ASSERT_NE(nullptr, input_tensor);
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetOriginShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetOriginFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  input_tensor->MutableTensorDesc().SetOriginDataType(DT_UINT8);
+  std::vector<uint8_t> data{1, 2, 3};
+  EXPECT_EQ(input_tensor->SetData(data), SUCCESS);
+  ConstantUtils::SetWeight(input->GetOpDesc(), 0, input_tensor);
+
+  ConstantFoldingPass pass;
+  std::vector<ConstGeTensorPtr> inputs;
+  std::vector<GeTensorPtr> outputs;
+  inputs.emplace_back(input_tensor);
+  auto ret = pass.ComputeWithHostCpuCustomOp(output, inputs, outputs);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 1);
+  ASSERT_EQ(outputs.size(), 1U);
+  EXPECT_EQ(outputs[0]->GetTensorDesc().GetDataType(), DT_UINT8);
+  EXPECT_EQ(outputs[0]->GetTensorDesc().GetPlacement(), kPlacementHost);
+  // Host CPU output buffers are allocated with 512-byte alignment.
+  EXPECT_EQ(outputs[0]->GetData().GetSize(), 512U);
+  EXPECT_NE(outputs[0]->GetData().GetData(), nullptr);
+  EXPECT_EQ(outputs[0]->GetData().GetData()[0], 1U);
+  EXPECT_EQ(outputs[0]->GetData().GetData()[1], 2U);
+  EXPECT_EQ(outputs[0]->GetData().GetData()[2], 3U);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op_unsupported_backend) {
+  auto builder = ut::GraphBuilder("test");
+  auto input = builder.AddNode("input", CONSTANT, 0, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto output = builder.AddNode("output", "HostCustomFoldNoBackend", 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  builder.AddDataEdge(input, 0, output, 0);
+  auto graph = builder.GetGraph();
+  ASSERT_NE(nullptr, graph);
+
+  auto input_tensor = MakeShared<GeTensor>();
+  ASSERT_NE(nullptr, input_tensor);
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetOriginShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetOriginFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  input_tensor->MutableTensorDesc().SetOriginDataType(DT_UINT8);
+  std::vector<uint8_t> data{1, 2, 3};
+  EXPECT_EQ(input_tensor->SetData(data), SUCCESS);
+
+  ConstantFoldingPass pass;
+  std::vector<ConstGeTensorPtr> inputs;
+  std::vector<GeTensorPtr> outputs;
+  inputs.emplace_back(input_tensor);
+  auto ret = pass.ComputeWithHostCpuCustomOp(output, inputs, outputs);
+  EXPECT_EQ(ret, UNSUPPORTED);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op_create_failed) {
+  const auto op_type = AscendString("HostCustomFoldNoInstance");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  const auto reg_ret = CustomOpFactory::RegisterCustomOpCreator(
+      op_type, OpBackend::kHostCPU, []() -> std::unique_ptr<BaseCustomOp> { return nullptr; });
+  EXPECT_EQ(reg_ret, SUCCESS);
+
+  auto builder = ut::GraphBuilder("test");
+  auto input = builder.AddNode("input", CONSTANT, 0, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto output = builder.AddNode("output", op_type.GetString(), 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  builder.AddDataEdge(input, 0, output, 0);
+  auto graph = builder.GetGraph();
+  ASSERT_NE(nullptr, graph);
+
+  auto input_tensor = MakeShared<GeTensor>();
+  ASSERT_NE(nullptr, input_tensor);
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetOriginShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetOriginFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  input_tensor->MutableTensorDesc().SetOriginDataType(DT_UINT8);
+  std::vector<uint8_t> data{1, 2, 3};
+  EXPECT_EQ(input_tensor->SetData(data), SUCCESS);
+
+  ConstantFoldingPass pass;
+  std::vector<ConstGeTensorPtr> inputs;
+  std::vector<GeTensorPtr> outputs;
+  inputs.emplace_back(input_tensor);
+  auto ret = pass.ComputeWithHostCpuCustomOp(output, inputs, outputs);
+  EXPECT_EQ(ret, PARAM_INVALID);
+
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op_execute_failed) {
+  const AscendString op_type("HostCustomFoldExecuteFailed");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestHostCustomFoldFailureOp>(); }),
+            SUCCESS);
+  auto builder = ut::GraphBuilder("test");
+  auto output = builder.AddNode("output", op_type.GetString(), 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto input_tensor = MakeShared<GeTensor>();
+  ASSERT_NE(input_tensor, nullptr);
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ASSERT_EQ(input_tensor->SetData(std::vector<uint8_t>{1, 2, 3}), SUCCESS);
+  ConstantFoldingPass pass;
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), PARAM_INVALID);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op_rejects_wrong_capability) {
+  const AscendString op_type("HostCustomFoldWrongCapability");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestNonHostCustomFoldOp>(); }),
+            SUCCESS);
+  auto builder = ut::GraphBuilder("test");
+  auto output = builder.AddNode("output", op_type.GetString(), 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto input_tensor = MakeShared<GeTensor>();
+  ASSERT_NE(input_tensor, nullptr);
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ASSERT_EQ(input_tensor->SetData(std::vector<uint8_t>{1, 2, 3}), SUCCESS);
+  ConstantFoldingPass pass;
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), PARAM_INVALID);
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 
 TEST_F(UtestGraphPassesConstantFoldingPass, ConstantFoldingAddNSuccess) {

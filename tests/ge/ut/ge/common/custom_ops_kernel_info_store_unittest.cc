@@ -21,6 +21,7 @@
 #include "engines/custom_engine/custom_ops_kernel_builder.h"
 #include "engines/custom_engine/custom_ops_kernel_info_store.h"
 #include "common/checker.h"
+#include "common/ge_common/ge_types.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "graph/compute_graph.h"
 #include "graph/custom_op_factory.h"
@@ -985,7 +986,7 @@ TEST_F(UtestCustomOpsKernelInfoStore, RefreshCapturesHostBackendRegisteredOp) {
 
   auto op_desc = std::make_shared<OpDesc>(kTestOpType, kTestOpType);
   std::string reason;
-  EXPECT_TRUE(store.CheckSupported(op_desc, reason));
+  EXPECT_FALSE(store.CheckSupported(op_desc, reason));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, ThreadSafety) {
@@ -1045,6 +1046,30 @@ TEST_F(UtestCustomOpsKernelInfoStore, OOptimizeWholeGraphConstructsCompileContex
   CustomGraphOptimizer optimizer;
   EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
   EXPECT_TRUE(g_compile_context_output_called.load());
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, CustomGraphOptimizerSkipsHostCpuCustomCompile) {
+  const std::string kTestOpType = "TestHostCpuCustomOp_SkipDeviceCompile";
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                AscendString(kTestOpType.c_str()), OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockCompilableCustomOp>(); }),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                AscendString(kTestOpType.c_str()), OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<MockHostCpuCustomOp>(); }),
+            GRAPH_SUCCESS);
+
+  auto graph = std::make_shared<ComputeGraph>("host_cpu_custom_compile_graph");
+  auto op_desc = std::make_shared<OpDesc>("host_cpu_custom_node", kTestOpType);
+  op_desc->SetOpEngineName(kEngineNameCustom);
+  op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  ASSERT_NE(graph->AddNode(op_desc), nullptr);
+
+  MockCompilableCustomOp::ResetCompileCount();
+  CustomGraphOptimizer optimizer;
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  EXPECT_EQ(MockCompilableCustomOp::GetCompileCount(), 0);
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskDeclaresAnnotatedArgsAndFillsKernelDef) {

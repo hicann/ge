@@ -78,7 +78,7 @@ Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const Storag
   return output_tensor;
 }
 
-Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_t input_index) const {
+Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_t input_index) {
   const auto additional_start_index = GetAdditionalInputStartIndex();
   GE_ASSERT_TRUE(additional_start_index >= 0);
 
@@ -88,7 +88,7 @@ Tensor *HostCpuOpExecutionContext::MakeOutputRefInput(size_t output_index, size_
     auto output_name = op_desc->GetOutputNameByIndex(output_index);
     GE_ASSERT_TRUE(input_name == output_name, "[MakeOutputRefInput] output name does not exist in input");
   }
-  auto *output_tensor = const_cast<Tensor *>(GetOutputPointer<Tensor>(output_index));
+  auto *output_tensor = GetOutputPointer<Tensor>(output_index);
   GE_ASSERT_NOTNULL(output_tensor);
 
   auto input_tensor = GetInputPointer<Tensor>(input_index);
