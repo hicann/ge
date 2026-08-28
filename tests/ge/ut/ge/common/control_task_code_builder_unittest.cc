@@ -611,36 +611,19 @@ struct GertModelCallbacks {
   ReportModelBaseInfoFunc report_model_base_info = nullptr;
 };
 
-#pragma pack(push)
-#pragma pack(1)
-struct ProfTraceUserData {
-  uint64_t id;
-  uint64_t model_id;
-  uint16_t tag_id;
-};
-#pragma pack(pop)
+using ReportModelRunFunc = int32_t (*)(void *instance_handle, const struct GertModelRunReportInfo *info);
 
-enum Om2ProfType : uint32_t {
-  OM2_PROF_INPUT_COPY = 0,
-  OM2_PROF_MODEL_EXECUTE = 1,
-  OM2_PROF_OUTPUT_COPY = 2,
-  OM2_PROF_STEP_INFO_START = 3,
-  OM2_PROF_STEP_INFO_END = 4,
-  OM2_PROF_TYPE_COUNT,
+struct GertModelRunReportInfo {
+  uint64_t struct_size = sizeof(GertModelRunReportInfo);
+  uint64_t model_id = 0;
+  aclrtStream stream = nullptr;
+  uint64_t is_async = 0;
 };
 
-struct Om2ProfUnit {
-  Om2ProfType type;
-  uint64_t begin_time;
-  uint64_t end_time;
-  uint32_t thread_id;
-};
-
-struct Om2ProfInfos {
-  uint64_t struct_size = sizeof(Om2ProfInfos);
-  uint64_t count = 0;
-  Om2ProfUnit *prof_unit = nullptr;
-  uint64_t step_id = 0;
+struct GertModelRunCallbacks {
+  uint64_t struct_size = sizeof(GertModelRunCallbacks);
+  ReportModelRunFunc report_run_info_preprocess = nullptr;
+  ReportModelRunFunc report_run_info_postprocess = nullptr;
 };
 
 struct GertModelLoadConfig {
@@ -655,6 +638,7 @@ struct GertModelLoadConfig {
   uint64_t *session_id = nullptr;
   uint64_t model_id = 0; // used for logging
   void *instance_handle = nullptr;
+  void *executor_handle = nullptr;
   const struct GertModelCallbacks *callbacks = nullptr;
   int64_t priority = 0;
 };
@@ -666,6 +650,7 @@ struct GertModelRunConfig {
   uint64_t output_count = 0;
   gert::Tensor **output_data = nullptr;
   uint64_t stream_sync_timeout_ms = 0;
+  const struct GertModelRunCallbacks *run_callbacks = nullptr;
 };
 
 struct GertModelUnloadConfig {
@@ -678,7 +663,6 @@ struct GertModelLoadOutput {
 
 struct GertModelRunOutput {
   uint64_t struct_size = sizeof(GertModelRunOutput);
-  Om2ProfInfos *prof_info = nullptr;
 };
 
 struct GertModelUnloadOutput {
@@ -1105,14 +1089,14 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, void *executor_handle, int32_t priority);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
     aclError Load(const GertModelCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
-    aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, Om2ProfInfos *prof_info);
-    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, Om2ProfInfos *prof_info);
+    aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks);
+    aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks);
     aclError ReleaseResources();
   private:
     void **constants_;
@@ -1138,6 +1122,7 @@ class Om2Model {
     uint64_t *session_id_;
     uint32_t model_id_;
     void *instance_handle_;
+    void *executor_handle_;
     uint64_t kernel_id_;
     std::vector<void *> dev_ext_info_mem_ptrs_;
     std::map<uint32_t, void *> mem_event_id_mem_map_;
@@ -1145,7 +1130,6 @@ class Om2Model {
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
     int32_t priority_;
-    aclrtStream sync_prof_stream_;
 };
 } // namespace om2
 #ifdef __cplusplus
@@ -1169,8 +1153,8 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
 #include "_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
-  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), sync_prof_stream_(nullptr) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, void *executor_handle, int32_t priority)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), executor_handle_(executor_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1248,9 +1232,6 @@ aclError Om2Model::ReleaseResources() {
   }
   for (auto stream : stream_list_) {
     OM2_CHK_STATUS(aclrtDestroyStream(stream));
-  }
-  if ((sync_prof_stream_ != nullptr)) {
-    OM2_CHK_RT(aclrtDestroyStream(sync_prof_stream_));
   }
   for (auto &label : label_switch_label_list_) {
     if ((label.second != nullptr)) {

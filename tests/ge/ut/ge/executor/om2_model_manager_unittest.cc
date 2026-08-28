@@ -56,6 +56,7 @@ struct GertModelLoadConfig {
   uint64_t *session_id;
   uint64_t model_id;
   void *instance_handle;
+  void *executor_handle = nullptr;
   const struct GertModelCallbacks *callbacks;
   int64_t priority;
 };
@@ -66,7 +67,8 @@ struct GertModelRunConfig {
   void **input_data;
   uint64_t output_count;
   void **output_data;
-  uint64_t stream_sync_timeout;
+  uint64_t stream_sync_timeout_ms;
+  const struct GertModelRunCallbacks *run_callbacks = nullptr;
 };
 
 struct GertModelUnloadConfig {
@@ -79,7 +81,6 @@ struct GertModelLoadOutput {
 
 struct GertModelRunOutput {
   uint64_t struct_size;
-  void *prof_info;
 };
 
 struct GertModelUnloadOutput {

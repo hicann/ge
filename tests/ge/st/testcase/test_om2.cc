@@ -821,17 +821,19 @@ struct GertModelLoadConfig {
   uint64_t *session_id = nullptr;
   uint64_t model_id = 0; // used for logging
   void *instance_handle = nullptr;
+  void *executor_handle = nullptr;
   const struct GertModelCallbacks *callbacks = nullptr;
   int64_t priority = 0;
 };
 
 struct GertModelRunConfig {
-  uint64_t struct_size = sizeof(GertModelRunConfig);
-  uint64_t input_count = 0;
-  gert::Tensor **input_data = nullptr;
-  uint64_t output_count = 0;
-  gert::Tensor **output_data = nullptr;
-  uint64_t stream_sync_timeout_ms = 0;
+  uint64_t struct_size;
+  uint64_t input_count;
+  gert::Tensor **input_data;
+  uint64_t output_count;
+  gert::Tensor **output_data;
+  uint64_t stream_sync_timeout_ms;
+  const struct GertModelRunCallbacks *run_callbacks = nullptr;
 };
 
 struct GertModelUnloadConfig {
@@ -843,8 +845,7 @@ struct GertModelLoadOutput {
 };
 
 struct GertModelRunOutput {
-  uint64_t struct_size = sizeof(GertModelRunOutput);
-  void *prof_info = nullptr;
+  uint64_t struct_size;
 };
 
 struct GertModelUnloadOutput {

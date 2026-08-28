@@ -92,16 +92,22 @@ bool ModelDumpManager::IsProfilingEnabled() const {
   return profiling_impl_ != nullptr && profiling_impl_->IsProfilingEnabled();
 }
 
-Status ModelDumpManager::ReportModelLevelProf(const Om2ProfInfos &prof_info) const {
+Status ModelDumpManager::ReportRunInfoPreprocess(uint64_t model_id, uint64_t step_id, aclrtStream stream) const {
   if (profiling_impl_ == nullptr) {
-    GELOGW("[OM2][Prof] Skip ReportModelLevelProf, profiling_impl is null, model_id=%u", model_info_.model_id);
-    return SUCCESS;
+    GELOGW("[OM2][Prof] Skip ReportRunInfoPreprocess, profiling_impl is null, model_id=%u", model_id);
+    return FAILED;
   }
-  GELOGD("[OM2][Prof] ReportModelLevelProf begin, model_id=%u, count=%" PRIu64 "", model_info_.model_id,
-         prof_info.count);
-  auto ret = profiling_impl_->ReportModelLevelProf(prof_info, model_info_.model_id);
-  GELOGD("[OM2][Prof] ReportModelLevelProf end, model_id=%u, ret=%u", model_info_.model_id, ret);
-  return ret;
+  GE_CHK_STATUS_RET(profiling_impl_->ReportRunInfoPreprocessImpl(model_id, step_id, stream));
+  return SUCCESS;
+}
+
+Status ModelDumpManager::ReportRunInfoPostprocess(uint64_t model_id, uint64_t step_id, aclrtStream stream) const {
+  if (profiling_impl_ == nullptr) {
+    GELOGW("[OM2][Prof] Skip ReportRunInfoPostprocess, profiling_impl is null, model_id=%u", model_id);
+    return FAILED;
+  }
+  GE_CHK_STATUS_RET(profiling_impl_->ReportRunInfoPostprocessImpl(model_id, step_id, stream));
+  return SUCCESS;
 }
 
 Status ModelDumpManager::IsDataDumpEnabled(const char *op_name, uint8_t *is_data_dump) const {

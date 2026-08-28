@@ -30,6 +30,7 @@
 #include "graph/custom_op_factory.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "rt_external_mem.h"
+#include "rt_external_stream.h"
 #include "common/helper/om2/json_file.h"
 #include "nlohmann/json.hpp"
 #include "common/compile_profiling/ge_call_wrapper.h"
@@ -65,7 +66,8 @@ struct GertModelLoadConfig {                             // 合并 Create+Load�
   void *work_ptr = nullptr;                              // 输入：工作内存指针
   uint64_t *session_id = nullptr;                        // 输入：session id
   uint64_t model_id = 0;                                 // 输入：model id，打印日志用
-  void *instance_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
+  void *instance_handle = nullptr;                       // ModelDumpManager*，dump 用
+  void *executor_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
   const struct GertModelCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
   int64_t priority = 0;                                  // 输入：优先级
 };
@@ -77,6 +79,7 @@ struct GertModelRunConfig {
   uint64_t output_count = 0;                          // 输出数量
   gert::Tensor **output_data = nullptr;               // 输出数据
   uint64_t stream_sync_timeout_ms = 0;                // Run 使用（同步超时）；RunAsync 置 0
+  const struct GertModelRunCallbacks *run_callbacks;
 };
 
 struct GertModelUnloadConfig {
@@ -93,7 +96,6 @@ struct GertModelLoadOutput {
 
 struct GertModelRunOutput {
   uint64_t struct_size = sizeof(GertModelRunOutput);  // 布局变化时更新
-  Om2ProfInfos *prof_info = nullptr;                  // 输出：性能 profiling 数据，可空（不使能 profiling 时置空）
 };
 
 struct GertModelUnloadOutput {
@@ -1100,6 +1102,7 @@ class Om2ModelExecutor::Impl {
                                          .session_id = &session_id_,
                                          .model_id = load_arg.model_id,
                                          .instance_handle = dump_manager_.get(),
+                                         .executor_handle = static_cast<void *>(owner_),
                                          .callbacks = &callbacks,
                                          .priority = load_arg.priority};
     GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
@@ -1191,25 +1194,23 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_NOTNULL(run_model_info_.run_func);
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
     int32_t timeout = GetOm2ThreadLocalContext().StreamSyncTimeout();
-    Om2ProfUnit prof_units[OM2_PROF_TYPE_COUNT];
-    Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
-    Om2ProfInfos *prof_info_ptr =
-        (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
+    GertModelRunCallbacks run_callbacks;
+    const GertModelRunCallbacks *run_callbacks_ptr = nullptr;
+    if (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) {
+      run_callbacks.report_run_info_preprocess = ReportRunInfoPreprocess;
+      run_callbacks.report_run_info_postprocess = ReportRunInfoPostprocess;
+      run_callbacks_ptr = &run_callbacks;
+    }
 
     struct GertModelRunConfig config = {.struct_size = sizeof(GertModelRunConfig),
                                         .input_count = inputs.size(),
                                         .input_data = inputs.data(),
                                         .output_count = outputs.size(),
                                         .output_data = outputs.data(),
-                                        .stream_sync_timeout_ms = static_cast<uint64_t>(timeout)};
-    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput), .prof_info = prof_info_ptr};
+                                        .stream_sync_timeout_ms = static_cast<uint64_t>(timeout),
+                                        .run_callbacks = run_callbacks_ptr};
+    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput)};
     GE_ASSERT_SUCCESS(run_model_info_.run_func(run_model_info_.model_handle, &config, &output));
-    if (prof_info_ptr != nullptr) {
-      GELOGD("[OM2][Prof] Run done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count, step_id_);
-      dump_manager_->ReportModelLevelProf(prof_info);
-    } else {
-      GELOGD("[OM2][Prof] Run skip, dump_manager is null or profiling disabled, model_id=%u", model_id_);
-    }
     ++step_id_;
     return ge::GRAPH_SUCCESS;
   }
@@ -1218,25 +1219,22 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_TRUE(has_model_);
     GE_ASSERT_NOTNULL(run_model_info_.run_async_func);
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
-    Om2ProfUnit prof_units[OM2_PROF_TYPE_COUNT];
-    Om2ProfInfos prof_info = {kOm2ProfInfosVersion, 0, prof_units, step_id_};
-    Om2ProfInfos *prof_info_ptr =
-        (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) ? &prof_info : nullptr;
+    GertModelRunCallbacks run_callbacks;
+    const GertModelRunCallbacks *run_callbacks_ptr = nullptr;
+    if (dump_manager_ != nullptr && dump_manager_->IsProfilingEnabled()) {
+      run_callbacks.report_run_info_preprocess = ReportRunInfoPreprocess;
+      run_callbacks.report_run_info_postprocess = ReportRunInfoPostprocess;
+      run_callbacks_ptr = &run_callbacks;
+    }
     struct GertModelRunConfig config = {.struct_size = sizeof(GertModelRunConfig),
                                         .input_count = inputs.size(),
                                         .input_data = inputs.data(),
                                         .output_count = outputs.size(),
                                         .output_data = outputs.data(),
-                                        .stream_sync_timeout_ms = 0};
-    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput), .prof_info = prof_info_ptr};
+                                        .stream_sync_timeout_ms = 0,
+                                        .run_callbacks = run_callbacks_ptr};
+    struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput)};
     GE_ASSERT_SUCCESS(run_model_info_.run_async_func(run_model_info_.model_handle, stream, &config, &output));
-    if (prof_info_ptr != nullptr) {
-      GELOGD("[OM2][Prof] RunAsync done, model_id=%u, prof_count=%u, step_id=%lu", model_id_, prof_info.count,
-             step_id_);
-      dump_manager_->ReportModelLevelProf(prof_info);
-    } else {
-      GELOGD("[OM2][Prof] RunAsync skip, dump_manager is null or profiling disabled, model_id=%u", model_id_);
-    }
     ++step_id_;
     return ge::GRAPH_SUCCESS;
   }
@@ -1472,6 +1470,10 @@ class Om2ModelExecutor::Impl {
     if (dump_manager_ != nullptr) {
       dump_manager_.reset();
     }
+    if (prof_stream_ != nullptr) {
+      (void)aclrtDestroyStream(prof_stream_);
+      prof_stream_ = nullptr;
+    }
     if (run_model_info_.unload_func != nullptr && run_model_info_.model_handle != nullptr) {
       const auto unload_ret = run_model_info_.unload_func(run_model_info_.model_handle, nullptr, nullptr);
       if (unload_ret != ge::GRAPH_SUCCESS) {
@@ -1597,6 +1599,8 @@ class Om2ModelExecutor::Impl {
   uint64_t session_id_ = 0U;
   bool has_model_ = false;
   uint64_t step_id_ = 1U;
+  aclrtStream prof_stream_ = nullptr;
+  Om2ModelExecutor *owner_ = nullptr;
   // 当前档位维度值，由 SetDynamicSize 写入，GetCurrentShape 读取
   std::vector<uint64_t> cur_batch_size_;
   int32_t dynamic_type_ = 0;  // 0=FIXED
@@ -1637,6 +1641,7 @@ ge::Status Om2ModelExecutor::Load(const gert::Om2ModelData &model_data, const Om
   GE_ASSERT_SUCCESS(impl_->LoadSharedObject());
   GE_ASSERT_SUCCESS(impl_->ResolveSymbols());
   GE_ASSERT_SUCCESS(impl_->CreateDumpManager(load_arg));
+  impl_->owner_ = const_cast<Om2ModelExecutor *>(this);
   GE_ASSERT_SUCCESS(impl_->CreateAndLoadModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id));
   return ge::SUCCESS;
 }
@@ -1715,6 +1720,21 @@ ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const 
                                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                                 const kAippDynamicPara &aipp_parms) {
   return impl_->SetDynamicAippData(dynamic_input_addr, length, aipp_batch_para, aipp_parms);
+}
+
+void *Om2ModelExecutor::GetModelDumpManager() const {
+  return impl_->dump_manager_.get();
+}
+
+uint64_t Om2ModelExecutor::GetStepId() const {
+  return impl_->step_id_;
+}
+
+aclrtStream Om2ModelExecutor::GetOrCreateProfStream() {
+  if (impl_->prof_stream_ == nullptr) {
+    GE_ASSERT_RT_OK(rtStreamCreateWithFlags(&impl_->prof_stream_, 0, RT_STREAM_DEFAULT));
+  }
+  return impl_->prof_stream_;
 }
 
 uint64_t Om2ModelExecutor::SessionId() const {

@@ -2804,18 +2804,18 @@ TEST_F(Om2CodegenUt, LoadAndRunFileCodeGenerator_PhaseModelExecute_CoverBranches
   LoadAndRunFileCodeGenerator generator(ast);
 
   auto exe_stream = ast.Var("aclrtStream &", "exe_stream");
-  auto prof_info = ast.Var("Om2ProfInfos *", "prof_info");
-  auto exec_begin = ast.Var("uint64_t", "_t_exec_begin");
+  auto run_callbacks = ast.Var("const GertModelRunCallbacks *", "run_callbacks");
 
   std::vector<BodyItem> async_body;
-  generator.BuildRunBodyPhaseModelExecute(async_body, exe_stream, true, prof_info, exec_begin, true);
+  generator.BuildRunBodyPhaseModelExecute(async_body, exe_stream, true, run_callbacks, true);
   EXPECT_FALSE(async_body.empty());
   const auto async_output = EmitBodyItems(ast, async_body);
   ExpectContainsAll(async_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(exe_stream, false));\n",
-                                   "OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));\n"});
+                                   "OM2_CHK_STATUS(aclmdlRIExecuteAsync(model_handle_, exe_stream));\n",
+                                   "report_run_info_preprocess", "report_run_info_postprocess"});
 
   std::vector<BodyItem> sync_body;
-  generator.BuildRunBodyPhaseModelExecute(sync_body, exe_stream, false, prof_info, exec_begin, false);
+  generator.BuildRunBodyPhaseModelExecute(sync_body, exe_stream, false, run_callbacks, false);
   EXPECT_FALSE(sync_body.empty());
   const auto sync_output = EmitBodyItems(ast, sync_body);
   ExpectContainsAll(sync_output, {"OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));\n",
