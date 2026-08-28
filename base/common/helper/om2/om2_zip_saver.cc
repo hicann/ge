@@ -11,6 +11,7 @@
 #include "common/helper/om2/om2_zip_saver.h"
 
 #include <map>
+#include <sstream>
 
 #include "common/ge_common/ge_types.h"
 #include "common/helper/om2/json_file.h"
@@ -27,20 +28,6 @@ namespace {
 
 bool EndsWith(const std::string &str, const std::string &suffix) {
   return (str.size() >= suffix.size()) && (str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0);
-}
-
-std::string SerializeOpAttrMapToJson(const std::map<std::string, std::map<std::string, std::string>> &op_attr_map) {
-  nlohmann::json json_obj = nlohmann::json::object();
-
-  for (const auto &[op_name, attrs] : op_attr_map) {
-    nlohmann::json op_attrs = nlohmann::json::object();
-    for (const auto &[attr_name, value] : attrs) {
-      op_attrs[attr_name] = value;
-    }
-    json_obj[op_name] = op_attrs;
-  }
-
-  return json_obj.dump();
 }
 
 JsonFile SerializeTensorDesc(const ge::Om2TensorDesc &desc) {
@@ -94,10 +81,8 @@ Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
   (void)json_file.Set("internal_weight_size", model_data.constants_data.internal_weight_size);
   auto const_json_object = JsonFile::json::object();
   for (const auto &const_meta : model_data.constants_data.consts) {
-    std::string const_key = const_meta.op_name.empty() ? const_meta.file_name : const_meta.op_name;
-    if (const_key.empty()) {
-      const_key = "constant_" + std::to_string(const_meta.index);
-    }
+    const std::string const_key =
+        (const_meta.type == "INTERNAL") ? "constant_" + std::to_string(const_meta.index) : const_meta.op_name;
     JsonFile const_info;
     (void)const_info.Set("index", const_meta.index);
     (void)const_info.Set("type", const_meta.type);
@@ -107,7 +92,6 @@ Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
     }
     (void)const_info.Set("offset", const_meta.offset);
     (void)const_info.Set("size", const_meta.size);
-    (void)const_info.Set("op_name", const_meta.op_name);
     const_json_object[const_key] = const_info.Raw();
   }
   (void)json_file.Set("consts", const_json_object);
@@ -200,7 +184,7 @@ Status SerializeVarMetas(const gert::Om2ModelData &model_data, const std::shared
 
 Status SerializeKernelBinaries(const gert::Om2ModelData &model_data,
                                const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  const auto kernel_bin_dir = OM2_KERNELS_DIR;
   for (const auto &kb : model_data.kernel_binaries) {
     const auto entry_path = kernel_bin_dir + kb.name;
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.get(), kb.data_size, false));
@@ -336,16 +320,19 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
     JsonFile input_info;
     (void)input_info.Set("name", desc.GetName());
     (void)input_info.Set("index", i);
-    (void)input_info.Set("shape", desc.GetShape());
-    (void)input_info.Set("shape_v2", desc_v2.GetShape());
+    if (!model_data.model_meta.dynamic_batch_info.empty()) {
+      (void)input_info.Set("shape", model_data.model_meta.origin_input_dims[i]);
+      (void)input_info.Set("max_gear_shape", desc.GetShape());
+    } else {
+      (void)input_info.Set("shape", desc.GetShape());
+    }
+    if (model_data.model_meta.has_aipp) {
+      (void)input_info.Set("shape_aclmdlGetInputDimsV2", desc_v2.GetShape());
+    }
     (void)input_info.Set("data_type", TypeUtils::DataTypeToSerialString(desc.GetDataType()));
     (void)input_info.Set("format", TypeUtils::FormatToSerialString(desc.GetFormat()));
     (void)input_info.Set("size", desc.GetSize());
     (void)input_info.Set("shape_range", desc.GetShapeRange());
-    const auto origin_dims = (i < model_data.model_meta.origin_input_dims.size())
-                                 ? model_data.model_meta.origin_input_dims[i]
-                                 : desc.GetShape();
-    (void)input_info.Set("origin_input_dims", origin_dims);
     input_json_array.push_back(input_info.Raw());
   }
 
@@ -365,14 +352,51 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
 
   (void)model_meta_info.Set("inputs", input_json_array);
   (void)model_meta_info.Set("outputs", output_json_array);
-  (void)model_meta_info.Set("dynamic_output_shape", model_data.model_meta.dynamic_output_shape);
-  (void)model_meta_info.Set("dynamic_batch_info", model_data.model_meta.dynamic_batch_info);
-  (void)model_meta_info.Set("user_designate_shape_order", model_data.model_meta.user_designate_shape_order);
-  (void)model_meta_info.Set("dynamic_type", model_data.model_meta.dynamic_type);
+
+  if (!model_data.model_meta.dynamic_batch_info.empty()) {
+    JsonFile dynamic_dims_json;
+    (void)dynamic_dims_json.Set("dynamic_type", model_data.model_meta.dynamic_type);
+    (void)dynamic_dims_json.Set("user_designate_shape_order", model_data.model_meta.user_designate_shape_order);
+
+    std::map<size_t, std::vector<JsonFile::json>> gear_outputs;
+    for (const auto &shape_str : model_data.model_meta.dynamic_output_shape) {
+      std::vector<int64_t> values;
+      std::istringstream iss(shape_str);
+      std::string token;
+      while (std::getline(iss, token, ',')) {
+        values.push_back(std::stoll(token));
+      }
+      if (values.size() >= 2UL && values[0] >= 0) {
+        auto dims = JsonFile::json::array();
+        for (size_t i = 2UL; i < values.size(); ++i) {
+          dims.push_back(values[i]);
+        }
+        gear_outputs[static_cast<size_t>(values[0])].push_back(std::move(dims));
+      }
+    }
+
+    auto gears_array = JsonFile::json::array();
+    for (size_t gear_idx = 0UL; gear_idx < model_data.model_meta.dynamic_batch_info.size(); ++gear_idx) {
+      JsonFile gear_json;
+      (void)gear_json.Set("inputs", model_data.model_meta.dynamic_batch_info[gear_idx]);
+
+      auto outputs_array = JsonFile::json::array();
+      auto it = gear_outputs.find(gear_idx);
+      if (it != gear_outputs.end()) {
+        for (const auto &dims : it->second) {
+          outputs_array.push_back(dims);
+        }
+      }
+      (void)gear_json.Set("outputs", outputs_array);
+      gears_array.push_back(gear_json.Raw());
+    }
+    (void)dynamic_dims_json.Set("gears", gears_array);
+    (void)model_meta_info.Set("dynamic_dims", dynamic_dims_json);
+  }
+
   (void)model_meta_info.Set("work_size", model_data.model_meta.work_size);
   (void)model_meta_info.Set("zero_copy_size", model_data.model_meta.zero_copy_size);
   (void)model_meta_info.Set("name", model_data.model_meta.model_name);
-  (void)model_meta_info.Set("root_graph_name", model_data.model_meta.root_graph_name);
 
   // 序列化 AIPP 元数据
   SerializeAippMeta(model_data.model_meta, model_meta_info);
@@ -387,9 +411,8 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
 Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const size_t model_index = 0UL;
   // op_attr.json
-  const auto op_attr_json_str = model_data.debug_info.op_attr_map.empty()
-                                    ? std::string("{}")
-                                    : SerializeOpAttrMapToJson(model_data.debug_info.op_attr_map);
+  const auto &op_attr_json_str =
+      model_data.debug_info.op_attr_json.empty() ? std::string("{}") : model_data.debug_info.op_attr_json;
   const auto op_attr_entry_path = FormatOm2Path(OM2_OP_ATTR_PATH_FORMAT, std::to_string(model_index).c_str());
   GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str.data(), op_attr_json_str.size(), false));
 
@@ -403,9 +426,17 @@ Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::share
 Status SerializeManifest(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   nlohmann::json manifest_json = nlohmann::json::object();
   for (const auto &[key, value] : model_data.manifest) {
-    manifest_json[key] = value;
+    if (key == OM2_MODEL_NUM) {
+      try {
+        manifest_json[key] = std::stoi(value);
+      } catch (const std::exception &) {
+        manifest_json[key] = value;
+      }
+    } else {
+      manifest_json[key] = value;
+    }
   }
-  const auto manifest_str = manifest_json.dump();
+  const auto manifest_str = manifest_json.dump(4);
   GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_MANIFEST_PATH, manifest_str.data(), manifest_str.size(), false));
   return SUCCESS;
 }
@@ -415,12 +446,11 @@ Status SerializeManifest(const gert::Om2ModelData &model_data, const std::shared
 Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &model, const bool is_offline,
                          const std::string &writer_path) {
   GELOGI(
-      "[OM2] Begin to serialize Om2ModelData to ZIP, model_name:%s, root_graph:%s, "
+      "[OM2] Begin to serialize Om2ModelData to ZIP, model_name:%s, "
       "inputs:%zu, outputs:%zu, kernels:%zu, custom kernels: %zu, weight_size:%zu",
-      model_data.model_meta.model_name.c_str(), model_data.model_meta.root_graph_name.c_str(),
-      model_data.model_meta.input_desc.size(), model_data.model_meta.output_desc.size(),
-      model_data.kernel_binaries.size(), model_data.custom_kernel_binaries.size(),
-      model_data.constants_data.internal_weight_size);
+      model_data.model_meta.model_name.c_str(), model_data.model_meta.input_desc.size(),
+      model_data.model_meta.output_desc.size(), model_data.kernel_binaries.size(),
+      model_data.custom_kernel_binaries.size(), model_data.constants_data.internal_weight_size);
   const std::string path = writer_path.empty() ? "om2_model" : writer_path;
   auto zip_writer = std::make_shared<ZipArchiveWriter>(path);
   GE_ASSERT_NOTNULL(zip_writer);

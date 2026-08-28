@@ -16,6 +16,7 @@
 #include "common/checker.h"
 #include "graph/ge_local_context.h"
 #include "graph/utils/attr_utils.h"
+#include "graph/utils/graph_utils.h"
 #include "platform/platform_info.h"
 
 namespace ge {
@@ -205,6 +206,30 @@ graphStatus CoreNumUtils::GetCoreNumFromGraph(const ge::ComputeGraphPtr &compute
            aicore_num, vectorcore_num);
   }
   return GRAPH_SUCCESS;
+}
+
+graphStatus CoreNumUtils::FillCoreNumOptions(const int32_t aicore_num, const int32_t vectorcore_num,
+                                             std::map<std::string, std::string> &options) {
+  if (aicore_num >= 0) {
+    options[AICORE_NUM] = std::to_string(aicore_num);
+  }
+  if (vectorcore_num >= 0) {
+    options[kVectorCoreNum] = std::to_string(vectorcore_num);
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus CoreNumUtils::GetCoreNumOptionsFromGraph(const ge::ComputeGraphPtr &compute_graph,
+                                                     std::map<std::string, std::string> &options) {
+  GE_ASSERT_NOTNULL(compute_graph);
+  // 模型级核数只写在根图上(见compiler/graph/manager/graph_manager.cc PersistCoreNumOptionsToRootGraph),
+  // 静态编译子图的GeModel持有的是根图的子图, 需要上溯。
+  const auto root_graph = ge::GraphUtils::FindRootGraph(compute_graph);
+  GE_ASSERT_NOTNULL(root_graph, "Find root graph of %s failed.", compute_graph->GetName().c_str());
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
+  GE_ASSERT_SUCCESS(GetCoreNumFromGraph(root_graph, aicore_num, vectorcore_num));
+  return FillCoreNumOptions(aicore_num, vectorcore_num, options);
 }
 
 graphStatus CoreNumUtils::UpdateCoreCountWithOpDesc(const std::string &param_name, const std::string &op_core_num_str,

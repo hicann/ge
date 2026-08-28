@@ -105,6 +105,7 @@ const std::string kFFTSAiCoreLowerFunc = "ffts_ai_core_lower_func";
 const std::string kFFTSGraphLowerFunc = "ffts_graph_lower_func";
 const std::string kFFTSStaticGraphLowerFunc = "ffts_static_graph_lower_func";
 const std::string kFFTSMixL2LowerFunc = "ffts_mix_l2_lower_func";
+const std::string kHostCpuCustomOpLowerFunc = "host_cpu_custom_op_lower_func";
 // runtime2.0 calculate func
 const std::string kAttrCalcArgsSizeFunc = "_ge_attr_calculate_func";
 const std::string kFFTSMixL2CalcFunc = "ffts_mix_l2_calc_func";

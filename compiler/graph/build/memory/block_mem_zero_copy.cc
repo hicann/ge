@@ -177,7 +177,7 @@ bool IsKnownSubgraphData(const Node *node) {
 }
 
 void SetReleaseBlockLifeEnd(MemoryBlock *to_release, int64_t stream_id) {
-  const auto to_release_out_stream_life_time = to_release->NodeTypeIndexList().back().out_stream_life_time_;
+  const auto &to_release_out_stream_life_time = to_release->NodeTypeIndexList().back().out_stream_life_time_;
   if (to_release_out_stream_life_time.size() == 1) {
     for (const auto &item : to_release_out_stream_life_time) {
       size_t end_life_time = item.second.second;

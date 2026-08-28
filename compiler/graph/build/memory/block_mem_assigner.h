@@ -378,8 +378,9 @@ class BlockMemAssigner : public MemAssigner {
   void GetDiffStreamEdgeLife(const NodePtr &node, const std::set<int64_t> &exclude_merge_streams);
   void AddInStreamEdge(const ge::OpDesc *const node_desc, const ge::OpDesc *const in_node_desc);
   void InsertStreamOutEdge();
-  void InsertStreamInEdge(const EdgeLife &new_in_edge, const int64_t src_stream_id, const int64_t dst_stream_id,
-                          const char *src_name = nullptr, const char *dst_name = nullptr);
+  void InsertStreamInEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set, const EdgeLife &new_in_edge,
+                          const int64_t src_stream_id, const int64_t dst_stream_id,
+                          const std::pair<const char *, const char *> &node_names = {nullptr, nullptr});
   /// @ingroup GE
   /// @brief Cascade memory scenarios to obtain the actual life time begin of continuous input memory
   /// @return void

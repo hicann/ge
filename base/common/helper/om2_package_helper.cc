@@ -248,17 +248,6 @@ Status CollectDynamicBatchInfo(const std::vector<OpDescPtr> &case_ops, ModelMeta
   return SUCCESS;
 }
 
-std::string GetRootGraphName(const GeModelPtr &ge_model) {
-  if (ge_model == nullptr) {
-    return "";
-  }
-  auto graph = ge_model->GetGraph();
-  while ((graph != nullptr) && (graph->GetParentGraph() != nullptr)) {
-    graph = graph->GetParentGraph();
-  }
-  return (graph == nullptr) ? "" : graph->GetName();
-}
-
 Status SetOm2CompatibleOmInfoList(const GeModelPtr &ge_model) {
   std::vector<int64_t> om_info;
   om_info.push_back(static_cast<int64_t>(ge_model->GetWeightSize()));
@@ -937,7 +926,6 @@ Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2Mod
   GE_ASSERT_SUCCESS(CollectDynamicBatchInfo(io_nodes.case_ops, extra_info));
 
   model_meta.model_name = ge_model->GetName();
-  model_meta.root_graph_name = GetRootGraphName(ge_model);
   int64_t work_size = 0;
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, work_size);
   model_meta.work_size = static_cast<size_t>(work_size);
@@ -986,26 +974,28 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Mod
   GE_ASSERT_NOTNULL(graph);
   gert::Om2DebugInfo &debug_info = model_data.debug_info;
 
-  // Build op_attr_map
+  auto op_attr_object = JsonFile::json::object();
+
   for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
     const auto &op_desc = node->GetOpDesc();
     GE_ASSERT_NOTNULL(op_desc);
     std::vector<std::string> original_op_names;
-    if (AttrUtils::GetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, original_op_names)) {
-      std::map<std::string, std::string> op_attrs;
-      // Serialize the LIST_STRING value as "[N]value[N]value..." format
-      std::string serialized_value;
-      for (const auto &op_name : original_op_names) {
-        serialized_value += "[" + std::to_string(op_name.size()) + "]" + op_name;
-      }
-      if (!serialized_value.empty()) {
-        op_attrs[ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES] = serialized_value;
-        debug_info.op_attr_map[op_desc->GetName()] = op_attrs;
-      }
+    if (AttrUtils::GetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, original_op_names) &&
+        !original_op_names.empty()) {
+      auto attr_value_object = JsonFile::json::object();
+      attr_value_object["type"] = "LIST_STRING";
+      attr_value_object["value"] = original_op_names;
+
+      auto op_attr_entry = JsonFile::json::object();
+      op_attr_entry[ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES] = attr_value_object;
+
+      op_attr_object[op_desc->GetName()] = op_attr_entry;
     }
   }
 
-  // Build visual json
+  JsonFile op_attr_json(op_attr_object);
+  debug_info.op_attr_json = op_attr_json.Dump();
+
   GE_ASSERT_SUCCESS(SetOm2CompatibleOmInfoList(ge_model));
   GE_ASSERT_SUCCESS(VisualJsonConverter::SerializeFromGeModel(ge_model, debug_info.visual_json));
   GELOGI("[OM2] Successfully built debug info");

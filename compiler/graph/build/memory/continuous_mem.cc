@@ -226,7 +226,6 @@ bool ContinuousMemMng::IsTargetScenario(const Node *const node, ContinuousMemSce
     OutDataAnchor *continuous_out_anchor = nullptr;
     if ((peer_anchor != nullptr) &&
         (MemLayoutConflictUtil::IsContinuousOutputThroughRefNode(peer_anchor.get(), false, continuous_out_anchor))) {
-      (void)continuous_out_anchor;
       scenario = ContinuousMemScenario::kContinuousMemScenarioOutIn;
       return true;
     }

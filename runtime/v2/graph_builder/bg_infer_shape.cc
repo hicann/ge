@@ -132,26 +132,26 @@ std::vector<ValueHolderPtr> BuildInferShapeGraph(const ge::NodePtr &node,
   return ValueHolder::CreateDataOutput("InferShape", inputs, node->GetAllOutDataAnchorsSize());
 }
 
-bg::ValueHolderPtr FindCustomOpFunc(const ge::NodePtr &node, LoweringGlobalData &global_data) {
+bg::ValueHolderPtr FindCustomShapeInferOpFunc(const ge::NodePtr &node, LoweringGlobalData &global_data) {
   auto builder = [&node, &global_data]() -> std::vector<bg::ValueHolderPtr> {
     return bg::FrameSelector::OnInitRoot([&node, &global_data]() -> std::vector<bg::ValueHolderPtr> {
       auto node_type = ValueHolder::CreateConst(node->GetTypePtr(), node->GetType().size() + 1, true);
       ge::CustomOpRegistry *custom_op_registry = global_data.GetCustomOpRegistry().get();
       auto registry_holder = ValueHolder::CreateConst(&custom_op_registry, sizeof(ge::CustomOpRegistry *));
-      return {ValueHolder::CreateSingleDataOutput("FindCustomOp", {node_type, registry_holder})};
+      return {ValueHolder::CreateSingleDataOutput("FindCustomShapeInferOp", {node_type, registry_holder})};
     });
   };
-  return global_data.GetOrCreateUniqueValueHolder(node->GetType() + "_FindCustomOp_", builder)[0];
+  return global_data.GetOrCreateUniqueValueHolder(node->GetType() + "_FindCustomShapeInferOp_", builder)[0];
 }
 
 std::vector<ValueHolderPtr> BuildCustomOpInferShapeGraph(const ge::NodePtr &node,
                                                          const std::vector<ValueHolderPtr> &input_shapes,
                                                          LoweringGlobalData &global_data) {
-  auto custom_op_func = FindCustomOpFunc(node, global_data);
+  auto shape_infer_op_func = FindCustomShapeInferOpFunc(node, global_data);
   auto infer_shape_func = kernel::InferCustomOpShapeFromInput;
   auto infer_shape_func_holder = ValueHolder::CreateConst(&infer_shape_func, sizeof(decltype(infer_shape_func)));
   auto inputs = input_shapes;
-  inputs.emplace_back(custom_op_func);
+  inputs.emplace_back(shape_infer_op_func);
   inputs.emplace_back(infer_shape_func_holder);
   return ValueHolder::CreateDataOutput("InferShape", inputs, node->GetAllOutDataAnchorsSize());
 }

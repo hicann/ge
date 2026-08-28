@@ -24,6 +24,10 @@
 #include "graph/passes/standard_optimize/constant_folding/dimension_compute_pass.h"
 #include "graph/passes/standard_optimize/constant_folding/dimension_adjust_pass.h"
 #include "graph/manager/util/graph_optimize_utility.h"
+#include "graph/custom_op.h"
+#include "graph/custom_op_factory.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
+#include "securec.h"
 
 #include "ge_graph_dsl/graph_dsl.h"
 #include "ge_graph_dsl/assert/graph_assert.h"
@@ -33,6 +37,24 @@
 
 using namespace std;
 using namespace ge;
+
+namespace {
+class StHostCpuFoldOp final : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    auto *input = ctx->GetInputTensor(0);
+    GE_ASSERT_NOTNULL(input);
+    auto *output = ctx->MallocOutputTensor(0, input->GetShape(), input->GetFormat(), input->GetDataType());
+    GE_ASSERT_NOTNULL(output);
+    if ((input->GetSize() > 0U) && (input->GetAddr() != nullptr) && (output->GetAddr() != nullptr)) {
+      if (memcpy_s(output->GetAddr(), output->GetSize(), input->GetAddr(), input->GetSize()) != EOK) {
+        return GRAPH_FAILED;
+      }
+    }
+    return GRAPH_SUCCESS;
+  }
+};
+}  // namespace
 
 const char *ClipByValue = "ClipByValue";
 class TestClipByValue : public Kernel {
@@ -732,4 +754,55 @@ TEST_F(ConstantFoldingTest, TestFolding_Ok_IgnoreFoldingWhen) {
     const auto &node = GraphUtils::FindNodeFromAllNodes(const_cast<ComputeGraphPtr &>(graph), "where");
     EXPECT_NE(node, nullptr);
   };
+}
+
+/**
+ *       constant            constant
+ *        |                    |
+ *   host_cpu_fold_op  -->    netoutput
+ *        |
+ *      netoutput
+ */
+TEST_F(ConstantFoldingTest, HostCpuCustomOpConstantFoldingCopiesTensor) {
+  const AscendString op_type("StHostCpuFoldOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuFoldOp>(); }),
+            GRAPH_SUCCESS);
+
+  GeTensor weight;
+  std::vector<uint8_t> data{1U, 2U, 3U};
+  weight.SetData(data);
+  GeTensorDesc weight_desc;
+  weight_desc.SetShape(GeShape({3}));
+  weight_desc.SetOriginShape(GeShape({3}));
+  weight_desc.SetFormat(FORMAT_ND);
+  weight_desc.SetDataType(DT_UINT8);
+  weight.SetTensorDesc(weight_desc);
+
+  auto constant = OP_CFG(CONSTANT).TensorDesc(FORMAT_ND, DT_UINT8, {3}).Attr<GeTensor>(ATTR_NAME_WEIGHTS, weight);
+  auto host_cpu_op = OP_CFG("StHostCpuFoldOp").TensorDesc(FORMAT_ND, DT_UINT8, {3});
+  auto netouput = OP_CFG(NETOUTPUT).TensorDesc(FORMAT_ND, DT_UINT8, {3});
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("constant", constant)->EDGE(0, 0)->NODE("host_cpu_op", host_cpu_op));
+    CHAIN(NODE("host_cpu_op", host_cpu_op)->EDGE(0, 0)->NODE("netoutput", netouput));
+  };
+  auto graph = ToGeGraph(g1);
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  auto node_ptr = compute_graph->FindNode("host_cpu_op");
+  ASSERT_NE(node_ptr, nullptr);
+
+  auto graph_2 = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  map<AscendString, AscendString> options;
+  Session session(options);
+  session.AddGraph(2, graph_2, options);
+  std::vector<InputTensorInfo> inputs;
+  auto ret = session.BuildGraph(2, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+  CHECK_GRAPH(PreRunAfterBuild) {
+    const auto folded_node = graph->FindNode("host_cpu_op");
+    EXPECT_EQ(folded_node, nullptr);
+  };
+  CustomOpFactory::RemoveCustomOps({op_type});
 }

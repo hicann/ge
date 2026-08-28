@@ -18,7 +18,11 @@
 #include "base/err_msg.h"
 #include "framework/common/debug/ge_log.h"
 #include "analyzer/analyzer.h"
+#include "common/ge_common/ge_types.h"
 #include "graph/ge_context.h"
+#include "graph/custom_op_factory.h"
+#include "graph/ascend_string.h"
+#include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_type_utils.h"
@@ -67,6 +71,21 @@ bool ExecOnHostCpu(const OpDescPtr &op_desc) {
                        OpTypeUtils::IsVarLikeNode(type) || (type == ge::FILECONSTANT) || (type == ge::NETOUTPUT) ||
                        (type == ge::PARTITIONEDCALL);
   return (!is_not_cpu_op);
+}
+
+bool IsHostCpuCustomOp(const OpDescPtr &op_desc) {
+  return (op_desc != nullptr) && CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU);
+}
+
+void SetHostCpuCustomOp(const OpDescPtr &op_desc, OpInfo &matched_op_info) {
+  op_desc->SetOpEngineName(kEngineNameCustom);
+  op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+  matched_op_info.engine = kEngineNameCustom;
+  matched_op_info.opKernelLib = kCustomOpKernelLibName;
+  (void)AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc);
+  GELOGD("DNNEngineManager:Set kernel_lib %s, atomic engine %s, to node %s, LowerFunc %s",
+         kCustomOpKernelLibName.c_str(), kEngineNameCustom.c_str(), op_desc->GetName().c_str(),
+         kHostCpuCustomOpLowerFunc.c_str());
 }
 }  // namespace
 
@@ -336,10 +355,16 @@ std::string DNNEngineManager::GetDNNEngineName(const ge::NodePtr &node_ptr,
     return "";
   }
   GE_IF_BOOL_EXEC(ExecOnHostCpu(op_desc), return GetHostCpuEngineName(op_infos, op_desc, matched_op_info));
+  const bool is_host_cpu_custom_op = IsHostCpuCustomOp(op_desc);
   std::map<std::string, std::string> unsupported_reasons;
   for (const auto &it : op_infos) {
     if ((exclude_engines.find(it.engine) != exclude_engines.end()) && (!is_op_specified_engine)) {
       continue;
+    }
+    if ((it.engine == kHostCpuEngineName) && is_host_cpu_custom_op) {
+      matched_op_info = it;
+      SetHostCpuCustomOp(op_desc, matched_op_info);
+      return kEngineNameCustom;
     }
     const auto &kernel_name = it.opKernelLib;
     auto kernel_info_store = OpsKernelManager::GetInstance().GetOpsKernelInfoStore(kernel_name);
@@ -396,6 +421,18 @@ std::string DNNEngineManager::GetDNNEngineName(const ge::NodePtr &node_ptr,
         REPORT_PREDEFINED_ERR_MSG("W11001", std::vector<const char *>({"opname"}),
                                   std::vector<const char *>({op_desc->GetName().c_str()}));
       }
+    }
+  }
+
+  // Fallback for host cpu custom op: when the op is registered as host cpu custom op but kHostCpuEngineName
+  // is not in op_infos, and all other engines failed CheckSupported, we should still use the custom host
+  // engine as a fallback.
+  if (is_host_cpu_custom_op) {
+    const bool host_cpu_excluded =
+        (exclude_engines.find(kHostCpuEngineName) != exclude_engines.end()) && (!is_op_specified_engine);
+    if (!host_cpu_excluded) {
+      SetHostCpuCustomOp(op_desc, matched_op_info);
+      return kEngineNameCustom;
     }
   }
 
@@ -610,6 +647,10 @@ std::string DNNEngineManager::GetCompositeEngineKernelLibName(const std::string 
 
 std::string DNNEngineManager::GetHostCpuEngineName(const std::vector<OpInfo> &op_infos, const OpDescPtr &op_desc,
                                                    OpInfo &matched_op_info) const {
+  if (IsHostCpuCustomOp(op_desc)) {
+    SetHostCpuCustomOp(op_desc, matched_op_info);
+    return kEngineNameCustom;
+  }
   for (const auto &it : op_infos) {
     if ((it.engine == kHostCpuEngineName) && (it.opKernelLib == kHostCpuOpKernelLibName)) {
       op_desc->SetOpEngineName(kHostCpuEngineName);

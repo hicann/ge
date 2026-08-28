@@ -441,7 +441,7 @@ bool OpsJsonFile::CheckAndGetWorkspaceSize(const nlohmann::json &buff, const std
                                  workspace_size, kMaxWorkspaceSize, op_name.c_str());
       return false;
     } else if (workspace_size > kMaxWorkspaceSize) {
-      AICPUE_LOGW("workspaceSize is morn than 500kb and set it to 500kb");
+      AICPUE_LOGW("workspaceSize is more than %d bytes, set it to %d bytes", kMaxWorkspaceSize, kMaxWorkspaceSize);
       workspace_size = kMaxWorkspaceSize;
     }
   } else {

@@ -173,21 +173,22 @@ class GraphMemoryAssigner {
 
   void CheckNeedCalcDistAndUpdateVisitInfo(
       const NodePtr &peer_out_node, const OutDataAnchorPtr &peer_out_anchor, size_t matched_mem_offset,
-      std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+      std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
       bool &is_need_calc_distance) const;
 
-  void CalcDistanceAndUpdateDesc(const std::map<std::string, int64_t> &node_index_in_stream,
-                                 const InDataAnchorPtr &in_data_anchor, size_t matched_mem_offset, const NodePtr &node,
-                                 std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
-                                 bool &is_need_skip) const;
+  void CalcDistanceAndUpdateDesc(
+      const std::unordered_map<std::string, int64_t> &node_index_in_stream, const InDataAnchorPtr &in_data_anchor,
+      size_t matched_mem_offset, const NodePtr &node,
+      std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+      bool &is_need_skip) const;
 
   void DeleteVisitInfoWhenLifecycleEnded(
       const NodePtr &node, const InDataAnchorPtr &in_data_anchor, size_t matched_mem_offset,
-      std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info) const;
+      std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info) const;
 
   void MarkNodeDistanceAttr(const NodePtr &node,
-                            std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
-                            const std::map<std::string, int64_t> &node_index_in_stream);
+                            std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+                            const std::unordered_map<std::string, int64_t> &node_index_in_stream);
 
   MemoryOffsetMap memory_offset_;
   ComputeGraphPtr compute_graph_;

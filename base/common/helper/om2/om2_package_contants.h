@@ -18,7 +18,7 @@
 namespace ge {
 #define FORALL_OM2_CONSTANTS(DO)                                                         \
   DO(OM2_ARCHIVE_VERSION, "om2_version");                                                \
-  DO(OM2_ARCHIVE_VERSION_VALUE, "0");                                                    \
+  DO(OM2_ARCHIVE_VERSION_VALUE, "1.0");                                                  \
   DO(OM2_MODEL_NUM, "model_num");                                                        \
   DO(OM2_ATC_COMMAND, "atc_command");                                                    \
   DO(OM2_MANIFEST_PATH, "manifest.json");                                                \
@@ -27,9 +27,9 @@ namespace ge {
   DO(OM2_MODEL_META_PATH_FORMAT, "data/model_%s/model_meta.json");                       \
   DO(OM2_RUNTIME_DIR_FORMAT, "data/model_%s/runtime/");                                  \
   DO(OM2_DEBUG_DIR_FORMAT, "data/model_%s/debug/");                                      \
-  DO(OM2_OP_ATTR_PATH_FORMAT, "data/model_%s/debug/op_attr.json");                       \
+  DO(OM2_OP_ATTR_PATH_FORMAT, "data/model_%s/op_attr.json");                             \
   DO(OM2_CUSTOM_KERNELS_DIR_FORMAT, "data/custom_ops/%s/");                              \
-  DO(OM2_KERNELS_DIR_FORMAT, "data/kernels_%s/");                                        \
+  DO(OM2_KERNELS_DIR, "data/kernels/");                                                  \
   DO(OM2_CONSTANTS_DIR, "data/constants/");                                              \
   DO(OM2_CONSTANTS_FILE_PREFIX, "constant_");                                            \
   DO(OM2_CONSTANTS_CONFIG_PATH_FORMAT, "data/constants/model_%s_constants_config.json"); \

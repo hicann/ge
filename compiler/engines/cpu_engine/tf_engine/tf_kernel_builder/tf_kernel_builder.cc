@@ -80,7 +80,7 @@ ge::Status TfKernelBuilder::CalcOpRunningParam(const ge::Node &node) const {
     op_desc_ptr->SetWorkspaceBytes({workspace_size});
   } else {
     workspace_size = workspace_bytes[0];
-    AICPUE_LOGI("Op type[%s] Workspace size already exist, workspace_size is [%ld]", node.GetType().c_str(),
+    AICPUE_LOGI("Op type[%s] workspace size already exists, workspace_size is [%ld] bytes", node.GetType().c_str(),
                 workspace_size);
   }
 
@@ -104,8 +104,8 @@ ge::Status TfKernelBuilder::CalcOpRunningParam(const ge::Node &node) const {
     AICPUE_LOGI("op:%s name:%s set no_reuse_mem_flag true.", op_desc_ptr->GetName().c_str(), node.GetName().c_str());
   }
 
-  AICPUE_LOGI("Op type[%s] Calc the Op running param successfully, workspace_size is [%ld]", node.GetType().c_str(),
-              workspace_size);
+  AICPUE_LOGI("Op type[%s] Calc the Op running param successfully, workspace_size is [%ld] bytes",
+              node.GetType().c_str(), workspace_size);
   return ge::SUCCESS;
 }
 
@@ -293,7 +293,7 @@ ge::Status TfKernelBuilder::GenerateFftsPlusTask(const ge::Node &node, const ge:
   try {
     ffts_plus_ctx_def = std::make_shared<domi::FftsPlusCtxDef>();
   } catch (...) {
-    AICPU_REPORT_INNER_ERR_MSG("op[%s] Create FftsPlusCtxDefPtr fail", node.GetName().c_str());
+    AICPU_REPORT_INNER_ERR_MSG("op[%s] create FftsPlusCtxDefPtr failed", node.GetName().c_str());
     return MEMORY_ALLOC_FAILED;
   }
   ffts_plus_ctx_def->set_context_type(kCtxTypeAicpu);
@@ -352,18 +352,14 @@ ge::Status TfKernelBuilder::GenerateFftsPlusTask(const ge::Node &node, const ge:
 
   ffts_info.slice_instance_index = 0;
   GetFftsPlusInOutAddrOffset(op_desc_ptr, ffts_info);
-  AICPU_CHECK_FALSE_EXEC(
-      ge::AttrUtils::SetListInt(op_desc_ptr, "tf_ffts_input_offset", ffts_info.input_addr_offset),
-      AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetInt failed to set "
-                                 "attr[%s],op[%s]",
-                                 ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE.c_str(), op_desc_ptr->GetName().c_str());
-      return ErrorCode::ADD_ATTR_FAILED)
-  AICPU_CHECK_FALSE_EXEC(
-      ge::AttrUtils::SetListInt(op_desc_ptr, "tf_ffts_output_offset", ffts_info.output_addr_offset),
-      AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetInt failed to set "
-                                 "attr[%s],op[%s]",
-                                 ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE.c_str(), op_desc_ptr->GetName().c_str());
-      return ErrorCode::ADD_ATTR_FAILED)
+  AICPU_CHECK_FALSE_EXEC(ge::AttrUtils::SetListInt(op_desc_ptr, "tf_ffts_input_offset", ffts_info.input_addr_offset),
+                         AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetListInt failed to set attr[%s], op[%s]",
+                                                    "tf_ffts_input_offset", op_desc_ptr->GetName().c_str());
+                         return ErrorCode::ADD_ATTR_FAILED)
+  AICPU_CHECK_FALSE_EXEC(ge::AttrUtils::SetListInt(op_desc_ptr, "tf_ffts_output_offset", ffts_info.output_addr_offset),
+                         AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::SetListInt failed to set attr[%s], op[%s]",
+                                                    "tf_ffts_output_offset", op_desc_ptr->GetName().c_str());
+                         return ErrorCode::ADD_ATTR_FAILED)
   (void)op_desc_ptr->SetExtAttr(kAttrNameFftsPlusCtxDef, ffts_plus_ctx_def);
   return ge::SUCCESS;
 }
@@ -388,7 +384,7 @@ ge::Status TfKernelBuilder::BuildAicpuFftsPlusKernel(const ge::Node &node, STR_F
   AICPU_CHECK_RES(BuildFFtsKernelRunParam(*op_desc_ptr, kernel_run_param, index, ffts_info))
   str_tf_kernel->inputOutputLen = static_cast<uint64_t>(kernel_run_param.ByteSizeLong());
   str_tf_kernel->inputOutputBuf = 0ul;
-  AICPUE_LOGI("The kernel_run_param_size size is [%lu], op type[%s]", str_tf_kernel->inputOutputLen,
+  AICPUE_LOGI("The kernel run param size is [%lu] bytes, op type[%s]", str_tf_kernel->inputOutputLen,
               node.GetType().c_str());
   // Serialize the kernel_run_param
   ge::Buffer kernel_run_param_buffer(kernel_run_param.ByteSizeLong());
@@ -410,7 +406,7 @@ ge::Status TfKernelBuilder::BuildAicpuFftsPlusKernel(const ge::Node &node, STR_F
   str_tf_kernel->nodeDefLen = static_cast<uint64_t>(node_def_size);
   str_tf_kernel->nodeDefBuf = str_tf_kernel->inputOutputBuf + str_tf_kernel->inputOutputLen;
   if (node_def_bytes.GetData() == nullptr) {
-    AICPU_REPORT_INNER_ERR_MSG("Append node def to task_info failed data, node def is null, op[%s].",
+    AICPU_REPORT_INNER_ERR_MSG("Append node def to task_info failed, node def is null, op[%s].",
                                node.GetName().c_str());
     return INPUT_PARAM_NULL;
   }
@@ -422,10 +418,8 @@ ge::Status TfKernelBuilder::BuildAicpuFftsPlusKernel(const ge::Node &node, STR_F
     str_tf_kernel->funDefLibBuf = str_tf_kernel->nodeDefBuf + str_tf_kernel->nodeDefLen;
     const char *func_def_lib_data = reinterpret_cast<const char *>(func_def_lib_bytes.GetData());
     if (func_def_lib_data == nullptr) {
-      AICPU_REPORT_INNER_ERR_MSG(
-          "Append function def to task_info failed data,"
-          " function def is null, op[%s].",
-          node.GetName().c_str());
+      AICPU_REPORT_INNER_ERR_MSG("Append function def to task_info failed, function def is null, op[%s].",
+                                 node.GetName().c_str());
       return INPUT_PARAM_NULL;
     }
     task_info.append(func_def_lib_data, func_def_lib_size);
@@ -440,15 +434,15 @@ ge::Status TfKernelBuilder::BuildAicpuFftsPlusKernel(const ge::Node &node, STR_F
 
   if (CheckUint64AddOverflow(str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen)) {
     AICPU_REPORT_INNER_ERR_MSG(
-        "Overflow occurred when calculate total bytes of input/output info[%lu] and"
-        "node def[%lu]. Calculate workspace total bytes failed, op[%s]",
+        "Overflow occurred when calculating total bytes of input/output info[%lu] and node def[%lu]. "
+        "Calculate workspace total bytes failed, op[%s]",
         str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, node.GetName().c_str());
     return ErrorCode::DATA_OVERFLOW;
   }
   if (CheckUint64AddOverflow(str_tf_kernel->inputOutputLen + str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen)) {
     AICPU_REPORT_INNER_ERR_MSG(
-        "Overflow occurred when calculate total bytes of input/output info[%lu], node"
-        "def[%lu] and function def[%lu]. Calculate workspace total bytes failed, op[%s]",
+        "Overflow occurred when calculating total bytes of input/output info[%lu], node def[%lu] and "
+        "function def[%lu]. Calculate workspace total bytes failed, op[%s]",
         str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen, node.GetName().c_str());
     return ErrorCode::DATA_OVERFLOW;
   }
@@ -522,7 +516,7 @@ ge::Status TfKernelBuilder::ConstructTfKernel(const ge::Node &node, const ge::Ru
     str_tf_kernel->funDefLibBuf = str_tf_kernel->nodeDefBuf + str_tf_kernel->nodeDefLen;
     const char *func_def_lib_data = reinterpret_cast<const char *>(func_def_lib_bytes.GetData());
     if (func_def_lib_data == nullptr) {
-      AICPU_REPORT_INNER_ERR_MSG("Append function def to g_task_info failed op[%s],", node.GetName().c_str());
+      AICPU_REPORT_INNER_ERR_MSG("Append function def to g_task_info failed, op[%s].", node.GetName().c_str());
       return INPUT_PARAM_NULL;
     }
     g_task_info.append(func_def_lib_data, static_cast<size_t>(func_def_lib_size));
@@ -603,21 +597,21 @@ ge::Status TfKernelBuilder::BuildAndLaunchKernel(const ge::Node &node, const ge:
   g_str_fwkop_kernel_ptr->fwkKernelType = FMK_KERNEL_TYPE_TF;
   FWKAdapter::FWKOperateParam *str_tf_kernel = &(g_str_fwkop_kernel_ptr->fwkKernelBase.fwk_kernel);
 
-  AICPU_CHECK_RES_WITH_LOG(ConstructTfKernel(node, run_context, str_tf_kernel), "construct tf kernel fail, op[%s].",
+  AICPU_CHECK_RES_WITH_LOG(ConstructTfKernel(node, run_context, str_tf_kernel), "Construct tf kernel failed, op[%s].",
                            node.GetName().c_str());
   // Update the FmkOp info
   AICPU_CHECK_RES(UpdateImplyTypeInfo(op_desc_ptr))
   CHECK_UINT64_ADD_OVERFLOW(
       str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, ErrorCode::DATA_OVERFLOW,
-      "Overflow occurred when calculate total bytes of input/output info[%lu] and node def[%lu] op[%s].",
+      "Overflow occurred when calculating total bytes of input/output info[%lu] and node def[%lu] op[%s].",
       str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, node.GetName().c_str())
   CHECK_UINT64_ADD_OVERFLOW(
       str_tf_kernel->inputOutputLen + str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen, ErrorCode::DATA_OVERFLOW,
-      "Overflow occurred when calculate total bytes of input/output [%lu] node def[%lu] function def[%lu] op[%s].",
+      "Overflow occurred when calculating total bytes of input/output [%lu] node def[%lu] function def[%lu] op[%s].",
       str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen, node.GetName().c_str())
 
   AICPU_CHECK_RES_WITH_LOG(ConstructExtendInfoAndTaskdef(node, run_context, str_tf_kernel),
-                           "construct tf task def fail, op[%s].", node.GetName().c_str());
+                           "Construct tf task def failed, op[%s].", node.GetName().c_str());
 
   domi::KernelExDef *kernel_def_ex = g_task_def.mutable_kernel_ex();
   AICPU_CHECK_NOTNULL(kernel_def_ex);
@@ -680,8 +674,8 @@ ge::Status TfKernelBuilder::MakeTaskExtInfo(const ge::Node &node, std::vector<ch
 
   int32_t unknow_shape_type = 0;
   if (!ge::AttrUtils::GetInt(op_desc_ptr, ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE, unknow_shape_type)) {
-    AICPUE_LOG_RUN_INFO("ge::AttrUtils::not get attr,set attr[%s],op[%s].", ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE.c_str(),
-                        op_desc_ptr->GetName().c_str());
+    AICPUE_LOG_RUN_INFO("Attr not found by ge::AttrUtils, set attr[%s], op[%s].",
+                        ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE.c_str(), op_desc_ptr->GetName().c_str());
 
     KernelInfoPtr kernel_info_ptr = TfKernelInfo::Instance();
     AICPU_CHECK_NOTNULL(kernel_info_ptr);
@@ -689,10 +683,10 @@ ge::Status TfKernelBuilder::MakeTaskExtInfo(const ge::Node &node, std::vector<ch
     const string *op_type = ge::AttrUtils::GetStr(op_desc_ptr, kOriginalType);
     AICPU_CHECK_NOTNULL(op_type);
     status = kernel_info_ptr->GetOpInfo(*op_type, op_full_info);
-    AICPU_CHECK_FALSE_EXEC(
-        status == ge::SUCCESS,
-        AICPU_REPORT_INNER_ERR_MSG("op type[%s] not support,op[%s].", op_type->c_str(), op_desc_ptr->GetName().c_str());
-        return status;)
+    AICPU_CHECK_FALSE_EXEC(status == ge::SUCCESS,
+                           AICPU_REPORT_INNER_ERR_MSG("op type[%s] is not supported, op[%s].", op_type->c_str(),
+                                                      op_desc_ptr->GetName().c_str());
+                           return status;)
     int32_t shape_type = 0;
     if (!IsUnknowShape(op_desc_ptr) && (op_full_info.shapeType == OP_TYPE_FOUR)) {
       shape_type = 1;
@@ -811,7 +805,7 @@ ge::Status TfKernelBuilder::GenTaskImply(const ge::NodePtr &node, FWKAdapter::FW
                            "Call TfKernelBuilder::BuildKernelRunParam function failed, op[%s]", node->GetName().c_str())
   str_tf_kernel->inputOutputLen = static_cast<int64_t>(kernel_run_param.ByteSizeLong());
   str_tf_kernel->inputOutputBuf = 0;
-  AICPUE_LOGI("The kernel_run_param_size size is [%lu], op type[%s].", str_tf_kernel->inputOutputLen,
+  AICPUE_LOGI("The kernel run param size is [%lu] bytes, op type[%s].", str_tf_kernel->inputOutputLen,
               node->GetType().c_str());
   // Serialize the kernel_run_param
   ge::Buffer kernel_run_param_buffer(kernel_run_param.ByteSizeLong());
@@ -846,7 +840,7 @@ ge::Status TfKernelBuilder::GenTaskImply(const ge::NodePtr &node, FWKAdapter::FW
     str_tf_kernel->funDefLibBuf = str_tf_kernel->nodeDefBuf + str_tf_kernel->nodeDefLen;
     const char *func_def_lib_data = reinterpret_cast<const char *>(func_def_lib_bytes.GetData());
     if (func_def_lib_data == nullptr) {
-      AICPU_REPORT_INNER_ERR_MSG("Append function def to task_info failed, function def if null, op[%s]",
+      AICPU_REPORT_INNER_ERR_MSG("Append function def to task_info failed, function def is null, op[%s]",
                                  node->GetType().c_str());
       return INPUT_PARAM_NULL;
     }
@@ -856,12 +850,12 @@ ge::Status TfKernelBuilder::GenTaskImply(const ge::NodePtr &node, FWKAdapter::FW
   // Update the FmkOp info
   AICPU_CHECK_RES(UpdateFmkOpInfo(op_desc_ptr))
   CHECK_UINT64_ADD_OVERFLOW(str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, ErrorCode::DATA_OVERFLOW,
-                            "Overflow occurred when calculate total bytes of input/output info[%lu] and"
+                            "Overflow occurred when calculating total bytes of input/output info[%lu] and"
                             " node def[%lu]. Calculate workspace total bytes failed, op[%s]",
                             str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, node->GetName().c_str())
   CHECK_UINT64_ADD_OVERFLOW(
       str_tf_kernel->inputOutputLen + str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen, ErrorCode::DATA_OVERFLOW,
-      "Overflow occurred when calculate total bytes of input/output info[%lu], node "
+      "Overflow occurred when calculating total bytes of input/output info[%lu], node "
       "def[%lu] and function def[%lu]. Calculate workspace total bytes failed, op[%s]",
       str_tf_kernel->inputOutputLen, str_tf_kernel->nodeDefLen, str_tf_kernel->funDefLibLen, node->GetName().c_str())
 

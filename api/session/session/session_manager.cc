@@ -125,11 +125,9 @@ Status SessionManager::DestroySession(SessionId session_id) {
 }
 
 SessionPtr SessionManager::GetSession(SessionId session_id) {
+  // 防止用户先调用GEFinalize后触发Session析构函数
   if (!init_flag_) {
-    GELOGE(GE_SESSION_MANAGER_NOT_INIT,
-           "[Get][Session]fail for Session manager is not initialized, session_id:%" PRIu64 ".", session_id);
-    REPORT_INNER_ERR_MSG("E19999", "GetSession fail for Session manager is not initialized, session_id:%" PRIu64 ".",
-                         session_id);
+    GELOGW("[Get][Session]fail for Session manager is not initialized, session_id:%" PRIu64 ".", session_id);
     return nullptr;
   }
   const std::shared_lock<std::shared_mutex> lock(mutex_);

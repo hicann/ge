@@ -49,8 +49,6 @@ class Rt2CustomShapeInferOp : public ge::ShapeInferOp {
   }
 };
 
-class Rt2CustomNoShapeInferOp : public ge::BaseCustomOp {};
-
 ge::graphStatus CopyInferShape(InferShapeContext *context) {
   auto input = context->GetInputShape(0);
   auto output = context->GetOutputShape(0);
@@ -251,7 +249,6 @@ TEST_F(InferShapeKernelTest, infer_shape_uses_input_custom_op) {
 }
 
 TEST_F(InferShapeKernelTest, infer_shape_fails_when_custom_op_has_no_shape_infer) {
-  Rt2CustomNoShapeInferOp custom_op;
   StorageShape input{{2, 3, 4}, {2, 3, 4}};
   Tensor output;
   auto infer_shape_func = kernel::InferCustomOpShapeFromInput;
@@ -260,7 +257,7 @@ TEST_F(InferShapeKernelTest, infer_shape_fails_when_custom_op_has_no_shape_infer
           .KernelIONum(3, 1)
           .NodeIoNum(1, 1)
           .NodeOutputTd(0, ge::DT_FLOAT16, ge::FORMAT_ND, ge::FORMAT_ND)
-          .Inputs({&input, static_cast<ge::BaseCustomOp *>(&custom_op), reinterpret_cast<void *>(infer_shape_func)})
+          .Inputs({&input, static_cast<ge::ShapeInferOp *>(nullptr), reinterpret_cast<void *>(infer_shape_func)})
           .Outputs({&output})
           .Build();
 

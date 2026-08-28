@@ -90,7 +90,7 @@ ge::Status CpuOptimizer::Initialize() {
   if (ge::GetContext().GetOption(ge::SOC_VERSION, soc_version) == ge::GRAPH_SUCCESS) {
     AICPUE_LOGI("Get soc version [%s] success.", soc_version.c_str());
   } else {
-    AICPUE_LOG_RUN_INFO("Get soc version abnormal. Please check!");
+    AICPUE_LOG_RUN_INFO("Failed to get soc version, please check.");
     return ge::SUCCESS;
   }
   CheckAndSetSocVersion(soc_version);
@@ -107,7 +107,7 @@ void CpuOptimizer::CheckAndSetSocVersion(const std::string &soc_version_from_ge)
   } else if (soc_version_from_ge.find("Ascend710") == 0) {
     g_soc_version = "Ascend710";
   } else {
-    AICPUE_LOG_RUN_INFO("Check soc version [%s] abnormal, Please check!", soc_version_from_ge.c_str());
+    AICPUE_LOG_RUN_INFO("Soc version [%s] is not recognized, please check.", soc_version_from_ge.c_str());
   }
 }
 
@@ -131,7 +131,7 @@ ge::Status CpuOptimizer::OptimizeOriginalGraph(ge::ComputeGraph &graph,
 
     std::string kernel_lib_name = GetKernelLibNameByOpType(op_type, all_op_info);
     if (kernel_lib_name == kHostCpuKernelInfoChoice) {
-      AICPUE_LOGI("[%s] don't need to clear 64-byte alignment attribute", kHostCpuKernelInfoChoice.c_str());
+      AICPUE_LOGI("[%s] does not need to clear 64-byte alignment attribute", kHostCpuKernelInfoChoice.c_str());
       return ge::SUCCESS;
     }
 
@@ -245,7 +245,7 @@ ge::Status CpuOptimizer::OptimizeFusedGraph(ge::ComputeGraph &graph,
     AICPU_CHECK_NOTNULL(op_desc_ptr)
     std::string op_type = op_desc_ptr->GetType();
     AICPU_IF_BOOL_EXEC(((op_type == kPlaceholderOpType) || (op_type == kEndOpType)),
-                       AICPUE_LOGD("Current op type is [%s]. Don't need to fuse.", op_type.c_str());
+                       AICPUE_LOGD("Current op type is [%s]. It does not need to fuse.", op_type.c_str());
                        continue)
     // if op type is framework_op, get original op
     AICPU_IF_BOOL_EXEC((op_type == kFrameworkOp), AICPU_CHECK_RES(GetFrameworkOpType(op_desc_ptr, op_type)))
@@ -476,10 +476,8 @@ void CpuOptimizer::InitLoadCpuKernelsType() {
   if (ConfigFile::GetInstance().GetValue(kLoadCpuKernelsInModel, load_type_for_cpu_kernels)) {
     uint64_t result = kDefaultLoadTypeForCpuKernels;
     if (StringToNum(load_type_for_cpu_kernels, result).state != ge::SUCCESS) {
-      AICPUE_LOGW(
-          "Tran LoadCpuKernelsInModel [%s] to integer failed. default value is "
-          "0.",
-          load_type_for_cpu_kernels.c_str());
+      AICPUE_LOGW("Convert LoadCpuKernelsInModel [%s] to integer failed, use default value 0.",
+                  load_type_for_cpu_kernels.c_str());
       return;
     }
     // if load_type_for_cpu_kernels from config file is not 0 or 1, print

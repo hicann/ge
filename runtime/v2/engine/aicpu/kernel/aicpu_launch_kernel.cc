@@ -693,7 +693,7 @@ ge::graphStatus AllocHostCpuOutputMemory(KernelContext *context) {
   if ((out_tensor_data->GetAddr() == nullptr) || (out_tensor_data->GetSize() < size)) {
     auto host_block = gert_allocator->Malloc(size);
     KERNEL_CHECK_NOTNULL(host_block);
-    KERNEL_CHECK(host_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu", size);
+    KERNEL_CHECK(host_block->GetAddr() != nullptr, "malloc failed, tensor size=%zu bytes", size);
     *out_tensor_data = {size, gert_allocator->GetPlacement(), gert_allocator->GetStreamId(), host_block};
   }
   return ge::GRAPH_SUCCESS;

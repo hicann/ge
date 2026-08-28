@@ -187,7 +187,7 @@ int32_t AddStringAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe
 
   attr_value.set_s(s);
 
-  AICPUE_LOGD("Finish add string attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add string attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -208,7 +208,7 @@ int32_t AddListStringAttrToNodeDef(const ge::Operator &op, const char *name,
     array->add_s(value);
   }
 
-  AICPUE_LOGD("Finish add list string attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list string attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -222,7 +222,7 @@ int32_t AddFloatAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe_
 
   attr_value.set_f(f);
 
-  AICPUE_LOGD("Finish add float attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add float attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -243,7 +243,7 @@ int32_t AddListFloatAttrToNodeDef(const ge::Operator &op, const char *name, [[ma
     array->add_f(value);
   }
 
-  AICPUE_LOGD("Finish add list float attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list float attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -257,7 +257,7 @@ int32_t AddBoolAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe_u
 
   attr_value.set_b(b);
 
-  AICPUE_LOGD("Finish add bool attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add bool attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -278,7 +278,7 @@ int32_t AddListBoolAttrToNodeDef(const ge::Operator &op, const char *name, [[may
     array->add_b(value);
   }
 
-  AICPUE_LOGD("Finish add list bool attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list bool attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -292,7 +292,7 @@ int32_t AddIntAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe_un
 
   attr_value.set_i(i);
 
-  AICPUE_LOGD("Finish add int attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add int attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -313,7 +313,7 @@ int32_t AddListIntAttrToNodeDef(const ge::Operator &op, const char *name, [[mayb
     array->add_i(value);
   }
 
-  AICPUE_LOGD("Finish add list int attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list int attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -338,7 +338,7 @@ int32_t AddListListIntAttrToNodeDef(const ge::Operator &op, const char *name,
     }
   }
 
-  AICPUE_LOGD("Finish add list int int attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list int int attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -352,7 +352,7 @@ int32_t AddDataTypeAttrToNodeDef(const ge::Operator &op, const char *name, [[may
 
   attr_value.set_type(data_type);
 
-  AICPUE_LOGD("Finish add datatype attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add datatype attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -373,7 +373,7 @@ int32_t AddListDataTypeAttrToNodeDef(const ge::Operator &op, const char *name,
     array->add_type(value);
   }
 
-  AICPUE_LOGD("Finish add list datatype attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list datatype attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -409,7 +409,7 @@ int32_t AddTensorAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe
     aicpu_dims->set_size(dims[i]);
   }
 
-  AICPUE_LOGD("Finish add tensor attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add tensor attr to node def, name[%s].", name);
   return 0;
 }
 
@@ -452,7 +452,7 @@ int32_t AddListTensorAttrToNodeDef(const ge::Operator &op, const char *name,
     }
   }
 
-  AICPUE_LOGD("Finish add list tensor attr to neod def, name[%s].", name);
+  AICPUE_LOGD("Finish add list tensor attr to node def, name[%s].", name);
   return 0;
 }
 

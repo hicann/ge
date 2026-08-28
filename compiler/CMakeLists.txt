@@ -476,6 +476,7 @@ target_link_libraries(ge_compiler
         error_manager
         unified_dlog
         runtime_headers
+        gert
         aihac_symbolizer
         lowering
         -Wl,--as-needed

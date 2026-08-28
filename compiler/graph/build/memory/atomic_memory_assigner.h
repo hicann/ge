@@ -193,7 +193,7 @@ class AtomicMemoryAssigner {
                                            std::map<int64_t, std::vector<int64_t>> &mem_type_to_real_atomic_sizes);
   Status AppendAddrSizeToMemSetOp(const NodePtr &memset_node, const MemsetNodeAddrAndAttr &addr_type) const;
   Status AppendAttrsToMemSetOp(const NodePtr &memset_node, const MemsetNodeAddrAndAttr &addr_type) const;
-  void AlignMemOffset(const int64_t &mem_align_size, int64_t memory_type);
+  void AlignMemOffset(int64_t mem_align_size, int64_t memory_type);
   Status UpdateParentNodeOutputOffset(const ge::NodePtr &node, int64_t output_index, int64_t offset) const;
   Status GetMemoryAssignmentStatus(const ge::NodePtr &node, int64_t output_index, bool &is_mem_assigned) const;
 

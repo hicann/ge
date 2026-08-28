@@ -317,10 +317,11 @@ This layer of encapsulation only changes Python-side usability, does not change 
 
 For mechanism explanation and development steps for developers, see [Fusion Pattern Pass Mechanism](../../features/fusion_pattern_pass.md).
 
-To lower custom `FusionBasePass` integration cost, `ge/fusion/graph_fuse_inspector_utils.h` adds `GraphFuseInspectorUtils` public utility class. It converges key steps originally scattered in `ComputeGraph::IsSupportFuse`, `FusionUtils::WillCauseCycleIfFuse`, `FusionUtils::UpdateToCycleDetector` and fusion statistics logic into two open capabilities:
+To lower custom `FusionBasePass` integration cost, `ge/fusion/graph_fuse_inspector_utils.h` adds `GraphFuseInspectorUtils` public utility class. It converges key steps originally scattered in `ComputeGraph::IsSupportFuse`, `FusionUtils::WillCauseCycleIfFuse`, `FusionUtils::UpdateToCycleDetector` and fusion statistics logic into three open capabilities:
 
 - `CanFuse(nodes_before_fuse, failed_reason)`: Execute fusionability validation (attribute consistency + cycle detection), failure reason returned through `failed_reason`.
 - `ReportFuse(nodes_before_fuse, nodes_after_fuse, ctx)`: Called after graph modification and before releasing old nodes, use `pass_name` in `ctx` to mark new node fusion source, update cycle detector and record fusion debugging; when `nodes_after_fuse` is empty indicates only deleting nodes.
+- `ReportMatch(matched_nodes, ctx)`: Called when target subgraph structure is found during graph traversal (counted regardless of whether fusion conditions pass), internally increments `match_time`; combined with `effect_time` recorded by `ReportFuse` can calculate structure match hit rate, `match_time - effect_time` reflects fusions abandoned due to condition filtering.
 
 In `SubgraphRewriter` added `Replace(subgraph, replacement, ctx)` overload, chaining `CanFuse` and `ReportFuse` into unified graph modification flow: check fusionability before modification, report fusion result after modification, then delete old nodes.
 

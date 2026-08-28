@@ -2265,10 +2265,9 @@ void GraphMemoryAssigner::UpdateCurNodeInputDesc(const NodePtr &cur_node, int64_
 
 void GraphMemoryAssigner::CheckNeedCalcDistAndUpdateVisitInfo(
     const NodePtr &peer_out_node, const OutDataAnchorPtr &peer_out_anchor, size_t matched_mem_offset,
-    std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+    std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
     bool &is_need_calc_distance) const {
-  std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>>::const_iterator iter =
-      mem_block_visit_info.find(matched_mem_offset);
+  const auto iter = mem_block_visit_info.find(matched_mem_offset);
   // cannot find visit info, peer_out_node must be a producer and this data is the first time to be visited.
   if (iter == mem_block_visit_info.end()) {
     if (IsOutputVisitedByMultiStream(peer_out_node, peer_out_anchor->GetIdx())) {
@@ -2284,13 +2283,12 @@ void GraphMemoryAssigner::CheckNeedCalcDistAndUpdateVisitInfo(
       return;
     }
   } else {
-    if (mem_block_visit_info[matched_mem_offset].first == nullptr) {
+    if (iter->second.first == nullptr) {
       // multi-stream visit, no need to calculate
       is_need_calc_distance = false;
       return;
     }
-    if (peer_out_node->GetOpDesc()->GetStreamId() !=
-        mem_block_visit_info[matched_mem_offset].first->GetOpDesc()->GetStreamId()) {
+    if (peer_out_node->GetOpDesc()->GetStreamId() != iter->second.first->GetOpDesc()->GetStreamId()) {
       // cur node and peer_out_node not in the same stream, no need to calculate
       is_need_calc_distance = false;
       return;
@@ -2302,12 +2300,14 @@ void GraphMemoryAssigner::CheckNeedCalcDistAndUpdateVisitInfo(
 
 // calculate distance, update visit info, update prev_node input desc, update cur node input desc
 void GraphMemoryAssigner::CalcDistanceAndUpdateDesc(
-    const std::map<std::string, int64_t> &node_index_in_stream, const InDataAnchorPtr &in_data_anchor,
+    const std::unordered_map<std::string, int64_t> &node_index_in_stream, const InDataAnchorPtr &in_data_anchor,
     size_t matched_mem_offset, const NodePtr &node,
-    std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info, bool &is_need_skip) const {
+    std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+    bool &is_need_skip) const {
   int64_t distance = -1;
-  auto prev_node = mem_block_visit_info[matched_mem_offset].first;
-  auto prev_node_input_index_vec = mem_block_visit_info[matched_mem_offset].second;
+  auto &visit_info = mem_block_visit_info[matched_mem_offset];
+  auto prev_node = visit_info.first;
+  auto prev_node_input_index_vec = visit_info.second;
   GE_IF_BOOL_EXEC(prev_node == nullptr, is_need_skip = true; return);
   if (prev_node_input_index_vec.size() == 1 && prev_node_input_index_vec[0] == -1) {
     // prev_node is producer and the data is just be produced(not visited by other node)
@@ -2322,9 +2322,9 @@ void GraphMemoryAssigner::CalcDistanceAndUpdateDesc(
         distance = node_index_in_stream.at(node->GetName()) - iter->second - 1;
       }
     }
-    mem_block_visit_info[matched_mem_offset].first = node;
-    mem_block_visit_info[matched_mem_offset].second.clear();
-    mem_block_visit_info[matched_mem_offset].second.push_back(in_data_anchor->GetIdx());
+    visit_info.first = node;
+    visit_info.second.clear();
+    visit_info.second.push_back(in_data_anchor->GetIdx());
   } else {  // the data is visit by other customer just before.
     if (prev_node_input_index_vec.empty()) {
       GELOGW("Missing prev node[%s] input index.", prev_node->GetName().c_str());
@@ -2347,13 +2347,13 @@ void GraphMemoryAssigner::CalcDistanceAndUpdateDesc(
       } else {
         distance = prev_next_distances[0];  // use the same prev_distance as previous anchor
       }
-      mem_block_visit_info[matched_mem_offset].second.push_back(in_data_anchor->GetIdx());
+      visit_info.second.push_back(in_data_anchor->GetIdx());
     } else {
       distance = node_index_in_stream.at(node->GetName()) - node_index_in_stream.at(prev_node->GetName()) - 1;
       UpdatePrevNodeInputDesc(prev_node, prev_node_input_index_vec, distance);
-      mem_block_visit_info[matched_mem_offset].first = node;
-      mem_block_visit_info[matched_mem_offset].second.clear();
-      mem_block_visit_info[matched_mem_offset].second.push_back(in_data_anchor->GetIdx());
+      visit_info.first = node;
+      visit_info.second.clear();
+      visit_info.second.push_back(in_data_anchor->GetIdx());
     }
   }
   UpdateCurNodeInputDesc(node, in_data_anchor->GetIdx(), distance);
@@ -2361,7 +2361,7 @@ void GraphMemoryAssigner::CalcDistanceAndUpdateDesc(
 
 void GraphMemoryAssigner::DeleteVisitInfoWhenLifecycleEnded(
     const NodePtr &node, const InDataAnchorPtr &in_data_anchor, size_t matched_mem_offset,
-    std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info) const {
+    std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info) const {
   GE_IF_BOOL_EXEC(node->GetOpDesc() == nullptr, return);
   auto input_desc = node->GetOpDesc()->GetInputDesc(in_data_anchor->GetIdx());
   bool is_end_of_inputmem_lifecycle = false;
@@ -2371,8 +2371,7 @@ void GraphMemoryAssigner::DeleteVisitInfoWhenLifecycleEnded(
       is_end_of_inputmem_lifecycle) {
     GELOGD("ATTR_NAME_IS_END_OF_INPUTMEM_LIFECYCLE is true, node name is [%s], in_data_anchor index is [%d]",
            node->GetName().c_str(), in_data_anchor->GetIdx());
-    std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>>::const_iterator iter =
-        mem_block_visit_info.find(matched_mem_offset);
+    const auto iter = mem_block_visit_info.find(matched_mem_offset);
     if (iter != mem_block_visit_info.cend()) {
       mem_block_visit_info.erase(iter);
     }
@@ -2380,8 +2379,8 @@ void GraphMemoryAssigner::DeleteVisitInfoWhenLifecycleEnded(
 }
 
 void GraphMemoryAssigner::MarkNodeDistanceAttr(
-    const NodePtr &node, std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
-    const std::map<std::string, int64_t> &node_index_in_stream) {
+    const NodePtr &node, std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> &mem_block_visit_info,
+    const std::unordered_map<std::string, int64_t> &node_index_in_stream) {
   GELOGD("Begin to mark node distance attr, node name is [%s]", node->GetName().c_str());
   for (const auto &in_data_anchor : node->GetAllInDataAnchors()) {
     auto peer_out_anchor = in_data_anchor->GetPeerOutAnchor();
@@ -2412,11 +2411,11 @@ void GraphMemoryAssigner::MarkNodeDistanceAttr(
 
 void GraphMemoryAssigner::MarkDistanceAttr() {
   // key: mem_offset of the memory which we visited. value: node we visited and input index of this node
-  std::map<size_t, std::pair<NodePtr, std::vector<int64_t>>> mem_block_visit_info;
+  std::unordered_map<size_t, std::pair<NodePtr, std::vector<int64_t>>> mem_block_visit_info;
   // key: node name, value: topo order of node in it's belonged stream(exclude ge_local_op)
-  std::map<std::string, int64_t> node_index_in_stream;
+  std::unordered_map<std::string, int64_t> node_index_in_stream;
   // key: stream id, value: cur nodes num in that stream
-  std::map<int64_t, int64_t> stream_nodes_num;
+  std::unordered_map<int64_t, int64_t> stream_nodes_num;
 
   for (auto &node : compute_graph_->GetAllNodes()) {
     auto node_op_desc = node->GetOpDesc();
@@ -2424,13 +2423,10 @@ void GraphMemoryAssigner::MarkDistanceAttr() {
     // Only sinking computing nodes need to be calculated, excluding the nodes which don't have task
     if ((node_op_desc->GetOpKernelLibName() != kEngineNameGeLocal) && (!node_op_desc->HasAttr(ATTR_NAME_NOTASK))) {
       int64_t stream_id = node_op_desc->GetStreamId();
-      if (stream_nodes_num.find(stream_id) == stream_nodes_num.end()) {
-        stream_nodes_num.insert(std::make_pair(stream_id, 1));
-      } else {
-        ++stream_nodes_num[stream_id];
-      }
-      node_index_in_stream.insert(std::make_pair(node->GetName(), stream_nodes_num[stream_id] - 1));
-      (void)AttrUtils::SetInt(node->GetOpDesc(), ATTR_NAME_OP_READ_WRITE_INDEX, stream_nodes_num[stream_id] - 1);
+      auto stream_count = stream_nodes_num.emplace(stream_id, 0).first;
+      ++stream_count->second;
+      node_index_in_stream.emplace(node->GetName(), stream_count->second - 1);
+      (void)AttrUtils::SetInt(node_op_desc, ATTR_NAME_OP_READ_WRITE_INDEX, stream_count->second - 1);
 
       MarkNodeDistanceAttr(node, mem_block_visit_info, node_index_in_stream);
     } else {

@@ -144,7 +144,7 @@ bool AicpuOpsKernelInfoStore::CheckSupported(const OpDescPtr &op_desc_ptr, strin
   // check whether the op is in aicpu ops kernel info store
   auto iter = op_full_infos_.find(op_type);
   if (iter == op_full_infos_.end()) {
-    AICPUE_LOGI("Internal kernel info store not include this op[%s].", op_type.c_str());
+    AICPUE_LOGI("Internal kernel info store does not include this op[%s].", op_type.c_str());
     unsupported_reason = "Aicpu kernel info store not include this op ";
     unsupported_reason.append(op_type);
     return false;
@@ -401,7 +401,7 @@ ge::Status AicpuOpsKernelInfoStore::CompileOp(vector<ge::NodePtr> &node_vec) {
     return ge::SUCCESS;
   }
 
-  AICPUE_LOGI("AicpuOpsKernelInfoStore's start CompileOp.");
+  AICPUE_LOGI("AicpuOpsKernelInfoStore starts CompileOp.");
   map<string, OpFullInfo> all_op_info;
   GetAllOpsFullKernelInfo(all_op_info);
   for (ge::NodePtr &node : node_vec) {
@@ -427,7 +427,7 @@ ge::Status AicpuOpsKernelInfoStore::CompileOp(vector<ge::NodePtr> &node_vec) {
     AICPU_CHECK_RES(kernel_lib_ptr->CompileOp(node));
   }
 
-  AICPUE_LOGI("AicpuOpsKernelInfoStore's last Op run CompileOp Success.");
+  AICPUE_LOGI("The last op of AicpuOpsKernelInfoStore ran CompileOp successfully.");
   return ge::SUCCESS;
 }
 }  // namespace aicpu

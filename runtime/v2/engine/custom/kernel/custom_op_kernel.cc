@@ -20,6 +20,7 @@
 #include "graph/def_types.h"
 #include "graph/utils/type_utils.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "rt_external_kernel.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "runtime/v2/engine/custom/kernel/eager_args_handler.h"
@@ -29,6 +30,10 @@ namespace kernel {
 namespace {
 // 自定义算子特有的输入，从 AdditionalInputIndex::kNum 开始
 enum class CustomOpInput { kFunc = static_cast<uint32_t>(EagerOpExecutionContext::AdditionalInputIndex::kNum), kEnd };
+enum class HostCustomOpInput {
+  kFunc = static_cast<uint32_t>(HostCpuOpExecutionContext::AdditionalInputIndex::kNum),
+  kEnd
+};
 
 std::string PrintNodeType(const KernelContext *context) {
   std::stringstream ss;
@@ -90,6 +95,37 @@ ge::graphStatus FindCustomOpFunc(KernelContext *context) {
   return ge::GRAPH_SUCCESS;
 }
 
+ge::graphStatus FindHostCpuCustomOpFunc(KernelContext *context) {
+  const char *node_type = context->GetInputValue<char *>(0);
+  GE_ASSERT_NOTNULL(node_type, "Failed to find host CPU custom op func, node type is nullptr");
+  auto custom_op_registry = context->GetInputValue<ge::CustomOpRegistry *>(1);
+  GE_ASSERT_NOTNULL(custom_op_registry, "Failed to find host CPU custom op func, custom op registry is nullptr.");
+  ge::BaseCustomOp *custom_op_ptr = custom_op_registry->CreateOrGetCustomOp(node_type, ge::OpBackend::kHostCPU);
+  GE_ASSERT_NOTNULL(custom_op_ptr, "Failed to find host CPU custom op func for op type %s in custom op registry.",
+                    node_type);
+  auto chain = context->GetOutput(0);
+  GE_ASSERT_NOTNULL(chain);
+  chain->Set(custom_op_ptr, nullptr);
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus FindCustomShapeInferOpFunc(KernelContext *context) {
+  const char *node_type = context->GetInputValue<char *>(0);
+  GE_ASSERT_NOTNULL(node_type, "Failed to find custom shape infer op func, node type is nullptr");
+  auto custom_op_registry = context->GetInputValue<ge::CustomOpRegistry *>(1);
+  GE_ASSERT_NOTNULL(custom_op_registry, "Failed to find custom shape infer op func, custom op registry is nullptr.");
+  ge::BaseCustomOp *custom_op_ptr =
+      custom_op_registry->GetCustomOpCommonCapability(node_type, ge::CustomOpCapability::kShapeInfer);
+  GE_ASSERT_NOTNULL(custom_op_ptr, "Failed to find custom shape infer op func for op type %s in custom op registry.",
+                    node_type);
+  auto *shape_infer_op_ptr = ge::CustomOpCast<ge::ShapeInferOp>(custom_op_ptr);
+  GE_ASSERT_NOTNULL(shape_infer_op_ptr, "Failed to cast custom op %s to ShapeInferOp.", node_type);
+  auto chain = context->GetOutput(0);
+  GE_ASSERT_NOTNULL(chain);
+  chain->Set(shape_infer_op_ptr, nullptr);
+  return ge::GRAPH_SUCCESS;
+}
+
 static ge::graphStatus CreateOutputTensors(const ExtendedKernelContext *extended_kernel_context,
                                            KernelContext *context) {
   const size_t node_output_num = extended_kernel_context->GetComputeNodeOutputNum();
@@ -136,9 +172,8 @@ static ge::graphStatus CreateCustomOpOutputs(const ge::FastNode *node, KernelCon
   return ge::GRAPH_SUCCESS;
 }
 
-static ge::graphStatus CopyShapeFromTemplateTensors(KernelContext *context, size_t node_input_num,
+static ge::graphStatus CopyShapeFromTemplateTensors(KernelContext *context, size_t template_tensor_start,
                                                     size_t node_output_num) {
-  const size_t template_tensor_start = node_input_num + static_cast<size_t>(CustomOpInput::kEnd);
   for (size_t index = 0; index < node_output_num; ++index) {
     auto template_tensor = context->GetInputPointer<Tensor>(template_tensor_start + index);
     auto output_tensor = context->GetOutputPointer<Tensor>(index);
@@ -188,9 +223,48 @@ ge::graphStatus ExecuteCustomOpFunc(KernelContext *context) {
 ge::graphStatus ExecuteCustomOpWithInferShapeFunc(KernelContext *context) {
   auto *eager_context = reinterpret_cast<EagerOpExecutionContext *>(context);
   GE_ASSERT_NOTNULL(eager_context);
-  GE_ASSERT_SUCCESS(CopyShapeFromTemplateTensors(context, eager_context->GetComputeNodeInputNum(),
-                                                 eager_context->GetComputeNodeOutputNum()));
+  const size_t template_tensor_start =
+      eager_context->GetComputeNodeInputNum() + static_cast<size_t>(CustomOpInput::kEnd);
+  GE_ASSERT_SUCCESS(
+      CopyShapeFromTemplateTensors(context, template_tensor_start, eager_context->GetComputeNodeOutputNum()));
   return ExecuteCustomOpImpl(context);
+}
+
+static ge::graphStatus CreateHostCustomOpOutputs(const ge::FastNode *node, KernelContext *context) {
+  (void)node;
+  auto *extended_kernel_context = reinterpret_cast<ExtendedKernelContext *>(context);
+  GE_ASSERT_NOTNULL(extended_kernel_context);
+  return CreateOutputTensors(extended_kernel_context, context);
+}
+
+static ge::graphStatus ExecuteHostCustomOpImpl(KernelContext *context) {
+  auto *host_context = reinterpret_cast<HostCpuOpExecutionContext *>(context);
+  GE_ASSERT_NOTNULL(host_context);
+  const size_t node_input_num = host_context->GetComputeNodeInputNum();
+  auto custom_op_ptr =
+      context->GetInputValue<ge::BaseCustomOp *>(node_input_num + static_cast<size_t>(HostCustomOpInput::kFunc));
+  GE_ASSERT_NOTNULL(custom_op_ptr);
+  auto *host_execute_op_ptr = ge::CustomOpCast<ge::HostCpuExecuteOp>(custom_op_ptr);
+  if (host_execute_op_ptr == nullptr) {
+    GELOGE(ge::FAILED, "%s is host CPU custom op but did not implement HostCpuExecuteOp", host_context->GetNodeType());
+    return ge::GRAPH_FAILED;
+  }
+  GE_ASSERT_SUCCESS(host_execute_op_ptr->Execute(host_context));
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ExecuteHostCustomOpFunc(KernelContext *context) {
+  return ExecuteHostCustomOpImpl(context);
+}
+
+ge::graphStatus ExecuteHostCustomOpWithInferShapeFunc(KernelContext *context) {
+  auto *host_context = reinterpret_cast<HostCpuOpExecutionContext *>(context);
+  GE_ASSERT_NOTNULL(host_context);
+  const size_t template_tensor_start =
+      host_context->GetComputeNodeInputNum() + static_cast<size_t>(HostCustomOpInput::kEnd);
+  GE_ASSERT_SUCCESS(
+      CopyShapeFromTemplateTensors(context, template_tensor_start, host_context->GetComputeNodeOutputNum()));
+  return ExecuteHostCustomOpImpl(context);
 }
 
 ge::graphStatus FreeCustomOpWorkspacesFunc(KernelContext *context) {
@@ -216,17 +290,18 @@ ge::graphStatus FreeArgsGuarderFunc(KernelContext *context) {
   return ge::GRAPH_SUCCESS;
 }
 
-static std::vector<std::string> CustomOpExecuteKernelTrace(const KernelContext *context) {
+template <typename OpContextT>
+std::vector<std::string> CustomOpExecuteKernelTraceImpl(const KernelContext *context) {
   auto extend_context = reinterpret_cast<const ExtendedKernelContext *>(context);
   auto compute_node_info = extend_context->GetComputeNodeInfo();
   if (compute_node_info == nullptr) {
     return {PrintNodeType(context), "compute_node_info is nullptr"};
   }
-  auto *eager_op_context = reinterpret_cast<const EagerOpExecutionContext *>(context);
+  auto *op_context = reinterpret_cast<const OpContextT *>(context);
   std::stringstream input_tensor_ss;
   input_tensor_ss << "input tensor: ";
   for (size_t i = 0U; i < compute_node_info->GetInputsNum(); ++i) {
-    auto tensor = eager_op_context->GetInputTensor(i);
+    auto tensor = op_context->GetInputTensor(i);
     if (tensor == nullptr) {
       return {PrintNodeType(context), "The " + std::to_string(i) + "th's input tensor is nullptr"};
     }
@@ -240,7 +315,7 @@ static std::vector<std::string> CustomOpExecuteKernelTrace(const KernelContext *
   std::stringstream output_tensor_ss;
   output_tensor_ss << "output tensor: ";
   for (size_t i = 0U; i < compute_node_info->GetOutputsNum(); ++i) {
-    auto tensor = eager_op_context->GetOutputTensor(i);
+    auto tensor = op_context->GetOutputTensor(i);
     if (tensor == nullptr) {
       return {PrintNodeType(context), "The " + std::to_string(i) + "th's output tensor is nullptr"};
     }
@@ -254,17 +329,18 @@ static std::vector<std::string> CustomOpExecuteKernelTrace(const KernelContext *
   return {PrintNodeType(context), input_tensor_ss.str(), output_tensor_ss.str(), PrintStreamIdAndTaskId()};
 }
 
-ge::graphStatus CustomOpProfilingDataFill(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
+template <typename OpContextT>
+ge::graphStatus CustomOpProfilingDataFillImpl(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
   prof_info.SetBlockDim(std::numeric_limits<uint32_t>::max());
   auto extend_context = reinterpret_cast<const ExtendedKernelContext *>(context);
   auto compute_node_info = extend_context->GetComputeNodeInfo();
   GE_ASSERT_NOTNULL(compute_node_info);
   auto node_input_num = compute_node_info->GetInputsNum();
-  const auto eager_context = reinterpret_cast<const EagerOpExecutionContext *>(context);
-  GE_ASSERT_NOTNULL(eager_context);
+  const auto *op_context = reinterpret_cast<const OpContextT *>(context);
+  GE_ASSERT_NOTNULL(op_context);
   std::vector<std::vector<int64_t>> input_shapes;
   for (size_t i = 0UL; i < node_input_num; i++) {
-    auto tensor = eager_context->GetInputTensor(i);
+    auto tensor = op_context->GetInputTensor(i);
     GE_ASSERT_NOTNULL(tensor);
     auto shape = tensor->GetStorageShape();
     std::vector<int64_t> dims;
@@ -276,7 +352,7 @@ ge::graphStatus CustomOpProfilingDataFill(const KernelContext *context, Profilin
   auto node_output_num = compute_node_info->GetOutputsNum();
   std::vector<std::vector<int64_t>> output_shapes;
   for (size_t i = 0UL; i < node_output_num; i++) {
-    auto tensor = eager_context->GetOutputTensor(i);
+    auto tensor = op_context->GetOutputTensor(i);
     GE_ASSERT_NOTNULL(tensor);
     auto shape = tensor->GetStorageShape();
     std::vector<int64_t> dims;
@@ -287,6 +363,22 @@ ge::graphStatus CustomOpProfilingDataFill(const KernelContext *context, Profilin
   }
   GE_ASSERT_SUCCESS(prof_info.FillShapeInfo(input_shapes, output_shapes));
   return ge::GRAPH_SUCCESS;
+}
+
+static std::vector<std::string> CustomOpExecuteKernelTrace(const KernelContext *context) {
+  return CustomOpExecuteKernelTraceImpl<EagerOpExecutionContext>(context);
+}
+
+static std::vector<std::string> HostCustomOpExecuteKernelTrace(const KernelContext *context) {
+  return CustomOpExecuteKernelTraceImpl<HostCpuOpExecutionContext>(context);
+}
+
+static ge::graphStatus CustomOpProfilingDataFill(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
+  return CustomOpProfilingDataFillImpl<EagerOpExecutionContext>(context, prof_info);
+}
+
+static ge::graphStatus HostCustomOpProfilingDataFill(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
+  return CustomOpProfilingDataFillImpl<HostCpuOpExecutionContext>(context, prof_info);
 }
 
 REGISTER_KERNEL(FindCustomOp).RunFunc(FindCustomOpFunc);
@@ -306,5 +398,20 @@ REGISTER_KERNEL(FreeCustomOpWorkspaces)
     .RunFunc(FreeCustomOpWorkspacesFunc)
     .ConcurrentCriticalSectionKey(kKernelUseMemory);
 REGISTER_KERNEL(FreeArgsGuarder).RunFunc(FreeArgsGuarderFunc).ConcurrentCriticalSectionKey(kKernelUseMemory);
+
+REGISTER_KERNEL(FindHostCpuCustomOp).RunFunc(FindHostCpuCustomOpFunc);
+REGISTER_KERNEL(FindCustomShapeInferOp).RunFunc(FindCustomShapeInferOpFunc);
+REGISTER_KERNEL(ExecuteHostCustomOp)
+    .OutputsCreator(CreateHostCustomOpOutputs)
+    .RunFunc(ExecuteHostCustomOpFunc)
+    .TracePrinter(HostCustomOpExecuteKernelTrace)
+    .ProfilingInfoFiller(HostCustomOpProfilingDataFill)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
+REGISTER_KERNEL(ExecuteHostCustomOpWithInferShape)
+    .OutputsCreator(CreateHostCustomOpOutputs)
+    .RunFunc(ExecuteHostCustomOpWithInferShapeFunc)
+    .TracePrinter(HostCustomOpExecuteKernelTrace)
+    .ProfilingInfoFiller(HostCustomOpProfilingDataFill)
+    .ConcurrentCriticalSectionKey(kKernelUseMemory);
 }  // namespace kernel
 }  // namespace gert

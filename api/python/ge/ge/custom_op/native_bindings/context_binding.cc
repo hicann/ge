@@ -368,11 +368,18 @@ BorrowedOpCompileContext BorrowOpCompileContext(uintptr_t ctx_handle) {
   return BorrowedOpCompileContext(reinterpret_cast<gert::OpCompileContext *>(ctx_handle));
 }
 
-BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(uintptr_t ctx_handle) {
-  if (ctx_handle == 0U) {
-    throw std::invalid_argument("ctx_handle is null");
+template <typename Context>
+Context *GetContextFromCapsule(const py::capsule &ctx_handle, const char *expected_name) {
+  if ((ctx_handle.get_pointer() == nullptr) || (ctx_handle.name() == nullptr) ||
+      (std::string(ctx_handle.name()) != expected_name)) {
+    throw std::invalid_argument("ctx_handle is invalid");
   }
-  return BorrowedEagerOpExecutionContext(reinterpret_cast<gert::EagerOpExecutionContext *>(ctx_handle));
+  return static_cast<Context *>(ctx_handle.get_pointer());
+}
+
+BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(const py::capsule &ctx_handle) {
+  return BorrowedEagerOpExecutionContext(
+      GetContextFromCapsule<gert::EagerOpExecutionContext>(ctx_handle, "gert::EagerOpExecutionContext"));
 }
 
 void EnsureActive(const std::shared_ptr<bool> &active) {
@@ -615,11 +622,9 @@ class BorrowedAnnotatedArgsContext {
   std::shared_ptr<bool> active_;
 };
 
-BorrowedAnnotatedArgsContext BorrowAnnotatedArgsContext(uintptr_t ctx_handle) {
-  if (ctx_handle == 0U) {
-    throw std::invalid_argument("ctx_handle is null");
-  }
-  return BorrowedAnnotatedArgsContext(reinterpret_cast<gert::AnnotatedArgsContext *>(ctx_handle));
+BorrowedAnnotatedArgsContext BorrowAnnotatedArgsContext(const py::capsule &ctx_handle) {
+  return BorrowedAnnotatedArgsContext(
+      GetContextFromCapsule<gert::AnnotatedArgsContext>(ctx_handle, "gert::AnnotatedArgsContext"));
 }
 
 }  // namespace

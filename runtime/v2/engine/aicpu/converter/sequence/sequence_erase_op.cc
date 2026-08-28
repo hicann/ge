@@ -90,11 +90,11 @@ ge::graphStatus SequenceEraseCompute(KernelContext *context) {
       default:
         GELOGE(ge::PARAM_INVALID,
                "Sequence Erase input index data type should be DT_INT32 "
-               "or DT_INT64, [%u] not support.",
+               "or DT_INT64, [%u] is not supported.",
                erase_index_type);
         REPORT_INNER_ERR_MSG("E39999",
                              "Sequence Erase input index data type should be DT_INT32 "
-                             "or DT_INT64, [%u] not support.",
+                             "or DT_INT64, [%u] is not supported.",
                              erase_index_type);
         return ge::PARAM_INVALID;
     }

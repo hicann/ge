@@ -20,8 +20,8 @@
 #include <string>
 #include <unistd.h>
 #include "common/share_graph.h"
-#include "faker/global_data_faker.h"
 #include "faker/fake_value.h"
+#include "faker/space_registry_faker.h"
 #include "rt_external_base.h"
 #include "ge/ge_api.h"
 #include "ge/ge_api_error_codes.h"
@@ -53,6 +53,7 @@
 #include "hcom/hcom_topo_info.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "engines/custom_engine/custom_graph_optimizer.h"
+#include "engines/custom_engine/custom_ops_kernel_info_store.h"
 #include "engines/custom_engine/custom_ops_kernel_builder.h"
 #include "graph/compute_graph.h"
 #include "graph/custom_op/cast.h"
@@ -69,7 +70,6 @@
 #include "runtime/custom_op/custom_op_loader.h"
 #include "runtime/custom_op/python_custom_op_bridge_loader.h"
 #include "exe_graph/runtime/storage_shape.h"
-#include "exe_graph/runtime/gert_mem_allocator.h"
 #include "faker/kernel_run_context_facker.h"
 #include "register/kernel_registry.h"
 #include "runtime/v2/kernel/common_kernel_impl/infer_shape.h"
@@ -92,6 +92,13 @@ REG_OP(StPythonCompilableCustomOp)
     .OUTPUT(z, TensorType::ALL())
     .REQUIRED_ATTR(bias, Int)
     .OP_END_FACTORY_REG(StPythonCompilableCustomOp);
+
+REG_OP(StHostCpuE2ECustomOp)
+    .INPUT(x0, TensorType::ALL())
+    .INPUT(x1, TensorType::ALL())
+    .INPUT(x2, TensorType::ALL())
+    .OUTPUT(y, TensorType::ALL())
+    .OP_END_FACTORY_REG(StHostCpuE2ECustomOp);
 }  // namespace ge
 
 namespace ge {
@@ -712,6 +719,7 @@ class CustomOpRefreshTest : public testing::Test {
   void TearDown() {
     OpsKernelBuilderRegistry::GetInstance().Unregister("AiCoreLib");
     OpsKernelBuilderRegistry::GetInstance().Unregister("RTSLib");
+    TearDownForGenerateTask(kCustomOpKernelLibName);
   }
 };
 
@@ -774,47 +782,6 @@ class InferMetaCoverageCustomOpForSt final : public CustomOpInferMetaProvider {
   }
 };
 
-class HostCpuStAllocator final : public gert::GertAllocator {
- public:
-  HostCpuStAllocator() : GertAllocator(-1, gert::kOnHost) {}
-
-  gert::GertMemBlock *Malloc(size_t) override {
-    return nullptr;
-  }
-
-  gert::GertTensorData MallocTensorData(size_t) override {
-    return {};
-  }
-
-  gert::TensorData MallocTensorDataFromL1(size_t size) override {
-    std::unique_ptr<uint8_t[]> block(new uint8_t[size]);
-    auto *address = block.get();
-    blocks_.emplace_back(std::move(block));
-    return gert::TensorData(address, nullptr, size, gert::kOnHost);
-  }
-
-  void Free(gert::GertMemBlock *) override {}
-
-  ge::graphStatus FreeAt(int64_t, gert::GertMemBlock *) override {
-    return ge::GRAPH_SUCCESS;
-  }
-
-  ge::graphStatus ShareFromTensorData(const gert::TensorData &, gert::GertTensorData &) override {
-    return ge::GRAPH_SUCCESS;
-  }
-
-  int64_t GetStreamNum() override {
-    return 0;
-  }
-
-  ge::graphStatus SetL1Allocator(ge::Allocator *) override {
-    return ge::GRAPH_SUCCESS;
-  }
-
- private:
-  std::vector<std::unique_ptr<uint8_t[]>> blocks_;
-};
-
 class StRegistryShapeInferOp : public ShapeInferOp {
  public:
   graphStatus InferShape(gert::InferShapeContext *) override {
@@ -827,6 +794,23 @@ class StRegistryShapeInferOp : public ShapeInferOp {
 };
 
 class StRegistryShapeInferOpOther final : public StRegistryShapeInferOp {};
+
+class StHostCpuE2ECustomOp final : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    execute_called_ = true;
+    auto *input = ctx->GetInputTensor(0);
+    if (input == nullptr) {
+      return GRAPH_FAILED;
+    }
+    auto *output = ctx->MallocOutputTensor(0, input->GetShape(), input->GetFormat(), input->GetDataType());
+    return (output == nullptr || output->GetPlacement() != gert::kOnHost) ? GRAPH_FAILED : GRAPH_SUCCESS;
+  }
+
+  static bool execute_called_;
+};
+
+bool StHostCpuE2ECustomOp::execute_called_ = false;
 
 class TestBaseCustomOp : public EagerExecuteOp {
  public:
@@ -2097,6 +2081,8 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpInferMetaRunsThroughRt2WithNativeAtt
   auto *base_op =
       CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonRt2InferMetaOpTypeForSt), OpBackend::kDevice);
   ASSERT_NE(base_op, nullptr);
+  auto *shape_infer_op = CustomOpCast<ShapeInferOp>(base_op);
+  ASSERT_NE(shape_infer_op, nullptr);
 
   gert::StorageShape input_shape({7, 13}, {7, 13});
   gert::Tensor output;
@@ -2127,7 +2113,7 @@ TEST_F(CustomOpFactoryStTest, PythonCustomOpInferMetaRunsThroughRt2WithNativeAtt
                       {"attr_list_str", AnyValue::CreateFrom<std::vector<std::string>>({"a", "b"})},
                       {"attr_list_dtype", AnyValue::CreateFrom<std::vector<DataType>>({DT_FLOAT, DT_INT32})},
                       {"attr_list_list_int", AnyValue::CreateFrom<std::vector<std::vector<int64_t>>>({{3, 4}, {5}})}})
-          .Inputs({&input_shape, base_op, reinterpret_cast<void *>(infer_shape_func)})
+          .Inputs({&input_shape, shape_infer_op, reinterpret_cast<void *>(infer_shape_func)})
           .Outputs({&output})
           .Build();
 
@@ -2159,36 +2145,67 @@ TEST_F(CustomOpFactoryStTest, CustomOpInferMetaCompilePath) {
   CustomOpFactory::RemoveCustomOps({AscendString(kInferMetaCoverageOpTypeForSt)});
 }
 
-TEST_F(CustomOpFactoryStTest, HostCpuOpExecutionContextMinimalPaths) {
-  gert::Tensor input_tensor = {
-      {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, gert::kOnHost, DT_FLOAT, reinterpret_cast<void *>(0x12345)};
-  gert::Tensor output_tensor;
-  HostCpuStAllocator allocator;
-  auto context_holder = gert::KernelRunContextFaker()
-                            .NodeIoNum(1, 1)
-                            .IrInputNum(1)
-                            .NodeInputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
-                            .NodeOutputTd(0, DT_FLOAT, FORMAT_ND, FORMAT_ND)
-                            .Inputs({&input_tensor, &allocator})
-                            .Outputs({&output_tensor})
-                            .Build();
-  auto *context = context_holder.GetContext<gert::HostCpuOpExecutionContext>();
+TEST_F(CustomOpRefreshTest, HostCpuCustomOpSessionRun) {
+  const AscendString op_type("StHostCpuE2ECustomOp");
+  MockForGenerateTask(kCustomOpKernelLibName, GenerateTaskForCustomOp);
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StHostCpuE2ECustomOp>(); }),
+            GRAPH_SUCCESS);
+  auto &store_map = const_cast<std::map<std::string, OpsKernelInfoStorePtr> &>(
+      OpsKernelManager::GetInstance().GetAllOpsKernelInfoStores());
+  if (store_map.find(kCustomOpKernelLibName) == store_map.end()) {
+    store_map.emplace(kCustomOpKernelLibName, std::make_shared<custom::CustomOpsKernelInfoStore>());
+  }
+  ASSERT_NE(store_map.find(kCustomOpKernelLibName), store_map.end());
+  ASSERT_EQ(OpsKernelManager::GetInstance().RefreshOpsKernelInfo(), SUCCESS);
 
-  ASSERT_NE(context, nullptr);
-  EXPECT_EQ(context->GetInputTensor(0), &input_tensor);
-  EXPECT_EQ(context->GetOutputTensor(0), &output_tensor);
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  auto compute_graph = ShareGraph::BuildOnlyCustomOpKnowShapeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  auto custom_node = compute_graph->FindNode("custom_op");
+  ASSERT_NE(custom_node, nullptr);
+  custom_node->GetOpDesc()->SetType(op_type.GetString());
+  custom_node->GetOpDesc()->SetOpKernelLibName("");
+  custom_node->GetOpDesc()->SetOpEngineName("");
+  auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
 
-  auto *allocated_output = context->MallocOutputTensor(0, {{2, 2}, {2, 2}}, {FORMAT_ND, FORMAT_ND, {}}, DT_FLOAT);
-  ASSERT_NE(allocated_output, nullptr);
-  EXPECT_EQ(allocated_output->GetPlacement(), gert::kOnHost);
-  EXPECT_EQ(allocated_output->GetSize(), 512U);
-  EXPECT_NE(allocated_output->GetAddr(), nullptr);
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, "0");
+  Session session(options);
+  constexpr uint32_t graph_id = 1U;
+  ASSERT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
 
-  auto *ref_output = context->MakeOutputRefInput(0, 0);
-  ASSERT_NE(ref_output, nullptr);
-  EXPECT_EQ(ref_output->GetOriginShape(), input_tensor.GetOriginShape());
-  EXPECT_EQ(ref_output->GetStorageShape(), input_tensor.GetStorageShape());
-  EXPECT_EQ(ref_output->GetAddr(), input_tensor.GetAddr());
+  std::vector<ge::Tensor> inputs;
+  std::vector<ge::Tensor> outputs;
+  ConstructCustomInputOutputTensor(3, 1, inputs, outputs);
+  StHostCpuE2ECustomOp::execute_called_ = false;
+  ASSERT_EQ(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
+  EXPECT_TRUE(StHostCpuE2ECustomOp::execute_called_);
+
+  session.RemoveGraph(graph_id);
+  unsetenv("ENABLE_RUNTIME_V2");
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(CustomOpFactoryStTest, FindCustomShapeInferKernelUsesHostRegistry) {
+  const AscendString op_type("StShapeInferKernelOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  auto registry = std::make_shared<CustomOpRegistry>();
+  ASSERT_EQ(registry->RegisterCreator(
+                op_type, OpBackend::kDevice,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<StRegistryShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  auto run_context = gert::BuildKernelRunContext(2, 1);
+  run_context.value_holder[0].Set(const_cast<char *>(op_type.GetString()), nullptr);
+  run_context.value_holder[1].Set(registry.get(), nullptr);
+  const auto *funcs = gert::KernelRegistry::GetInstance().FindKernelFuncs("FindCustomShapeInferOp");
+  ASSERT_NE(funcs, nullptr);
+  EXPECT_EQ(funcs->run_func(run_context), GRAPH_SUCCESS);
+  EXPECT_NE(*run_context.GetContext<gert::KernelContext>()->GetOutputPointer<ShapeInferOp *>(0), nullptr);
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 
 TEST_F(CustomOpFactoryStTest, CustomOpRegistryCoversCompatibilityAndBackendPaths) {

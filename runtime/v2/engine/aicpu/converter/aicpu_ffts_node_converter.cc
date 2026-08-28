@@ -84,7 +84,7 @@ std::vector<bg::ValueHolderPtr> AicpuCalcFftsOutputAllocMemVec(const ge::NodePtr
                                                                const std::vector<bg::ValueHolderPtr> &thread_ret) {
   size_t output_num = static_cast<size_t>(node->GetOpDescBarePtr()->GetAllOutputsDescSize());
   if (output_num == 0) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu calculate output block size vector failed result of output num is zero.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu calculate output block size vector failed because output num is zero.");
     return {};
   }
 
@@ -107,7 +107,7 @@ bool IsGetRefNodeOutAddr(const RefNodeInfo &ref_node_info, const FFTSLowerInput 
   }
   auto ref_input_index = iter->second;
   if (ref_input_index >= lower_input.input_addrs.size()) {
-    GELOGE(ge::FAILED, "Node %s output %u ref from input %zu exceed input addrs num %zu",
+    GELOGE(ge::FAILED, "Node %s output %u ref from input %zu exceeds input addrs num %zu",
            ref_node_info.node->GetName().c_str(), ref_node_info.out_index, ref_input_index,
            lower_input.input_addrs.size());
     return false;
@@ -251,7 +251,7 @@ inline bool ConstructMemTypeInput(const ge::NodePtr &node, std::vector<bg::Value
 
   const auto *mem_pool_types = node->GetOpDescBarePtr()->GetExtAttr<std::vector<uint32_t>>(kFtfsMemoryPoolType);
   if (mem_pool_types == nullptr) {
-    GELOGE(ge::FAILED, "Node[%s] do not have mem pool type attr.", node->GetName().c_str());
+    GELOGE(ge::FAILED, "Node[%s] does not have mem pool type attr.", node->GetName().c_str());
     return false;
   }
   auto out_mem_type_holder = bg::CreateContVecHolder(*mem_pool_types);
@@ -270,13 +270,13 @@ bool ConstructAicpuArgsInput(const ge::NodePtr &node, const FFTSLowerInput &lowe
   const auto &session_id = bg::GetSessionId(*lower_input.global_data);
   const std::string *ext_info = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), "_aicpu_ffts_ext_info");
   if ((ext_info == nullptr) || (ext_info->empty())) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed result of empty ext_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed because ext_info is empty.");
     return false;
   }
   const size_t ext_size = ext_info->size();
   const std::string *args_info = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), "_aicpu_ffts_args");
   if ((args_info == nullptr) || (args_info->empty())) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed result of empty args_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed because args_info is empty.");
     return false;
   }
   const size_t arg_size = args_info->size();
@@ -351,12 +351,12 @@ std::vector<bg::ValueHolderPtr> AicpuTfUpdateArgs(const ge::NodePtr &node, const
 ge::graphStatus CalcAICpuCommonArgsMem(const ge::NodePtr &node, size_t &ext_total_byte) {
   const std::string *ext_info = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), "_aicpu_ffts_ext_info");
   if (ext_info == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu calc failed result of null ext_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu calc failed because ext_info is null.");
     return ge::GRAPH_FAILED;
   }
   const size_t ext_size = ext_info->size();
   if (ext_size == 0UL) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu calc failed result of empty ext_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu calc failed because ext_info is empty.");
     return ge::GRAPH_FAILED;
   }
   FMK_SIZET_MULCHECK(ge::MemSizeAlign(ext_size * MAX_THREAD_DIM), 1);
@@ -372,11 +372,11 @@ ge::graphStatus CalcAICpuCCArgsMem(const ge::NodePtr &node, const LoweringGlobal
   (void)pre_data_ptr;
   const std::string *args_info = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), "_aicpu_ffts_args");
   if (args_info == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed result of null args_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed because args_info is null.");
     return ge::GRAPH_FAILED;
   }
   if (args_info->empty()) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed result of empty args_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed because args_info is empty.");
     return ge::GRAPH_FAILED;
   }
   const size_t arg_size = args_info->size();
@@ -406,7 +406,7 @@ ge::graphStatus CalcAICpuTfArgsMem(const ge::NodePtr &node, const LoweringGlobal
 
   const std::string *args_info = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), "_aicpu_ffts_args");
   if ((args_info == nullptr) || (args_info->empty())) {
-    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed result of empty args_info.");
+    GELOGE(ge::PARAM_INVALID, "Aicpu update args failed because args_info is empty.");
     return ge::GRAPH_FAILED;
   }
   const size_t arg_size = args_info->size();
@@ -479,7 +479,7 @@ LowerResult LoweringFFTSAiCpuCCNode(const ge::NodePtr &node, const FFTSLowerInpu
   GELOGD("Lowering AICPU FFTS Plus node[%s]", node->GetName().c_str());
   domi::FftsPlusTaskDef ffts_plus_task_def;
   RET_ERR_RET_IF((GetFftsPlusTaskDef(node, lower_input, ffts_plus_task_def) != ge::GRAPH_SUCCESS),
-                 "Not find AI cpu CC ffts plus taskdef.");
+                 "Cannot find AI cpu CC ffts plus taskdef.");
 
   // infer shape
   auto output_shapes = bg::GetMemAllocShape(node, lower_input.input_shapes, *(lower_input.global_data));
@@ -526,7 +526,7 @@ LowerResult LoweringFFTSAiCpuTfNode(const ge::NodePtr &node, const FFTSLowerInpu
   GELOGI("Lowering AICPU TF FFTS Plus node[%s]", node->GetName().c_str());
   domi::FftsPlusTaskDef ffts_plus_task_def;
   RET_ERR_RET_IF((GetFftsPlusTaskDef(node, lower_input, ffts_plus_task_def) != ge::GRAPH_SUCCESS),
-                 "Not find AI cpu Tf ffts plus taskdef.");
+                 "Cannot find AI cpu Tf ffts plus taskdef.");
 
   // infer shape
   auto output_shapes = bg::GetMemAllocShape(node, lower_input.input_shapes, *(lower_input.global_data));

@@ -100,11 +100,11 @@ ge::graphStatus SequenceInsertCompute(KernelContext *context) {
       default:
         GELOGE(ge::PARAM_INVALID,
                "Sequence Insert input index data type should be DT_INT32 "
-               "or DT_INT64, [%u] not support.",
+               "or DT_INT64, [%u] is not supported.",
                insert_index_type);
         REPORT_INNER_ERR_MSG("E39999",
                              "Sequence Insert input index data type should be DT_INT32 "
-                             "or DT_INT64, [%u] not support.",
+                             "or DT_INT64, [%u] is not supported.",
                              insert_index_type);
         return ge::PARAM_INVALID;
     }

@@ -44,7 +44,7 @@ Status HybridMemAssigner::AssignMemory(BlockMemAssigner *block_assigner, size_t 
   GE_ASSERT_SUCCESS(block_assigner->AssignMemoryWithReuse(ranges));
 
   // total size
-  for (auto it : block_assigner->GetMemOffsets()) {
+  for (const auto &it : block_assigner->GetMemOffsets()) {
     mem_size += it.second;
   }
   return SUCCESS;
@@ -137,7 +137,7 @@ Status HybridMemAssigner::Assign() {
   for (const auto &memory_assigner : memory_assigners) {
     GELOGI("%s memory assigner memory size:%zu", memory_assigner.first.c_str(), memory_assigner.second.second);
   }
-  if ((!vector_future.empty()) && (!memory_assigners.empty())) {
+  if (!vector_future.empty()) {
     memory_assigners[0].second.first->SetOpMemOffset(false);
     mem_offsets_ = memory_assigners[0].second.first->GetMemOffsets();
     memory_stat_ = memory_assigners[0].second.first->GetMemoryStat();

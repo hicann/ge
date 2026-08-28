@@ -1830,8 +1830,7 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
         .Set("file_name", weight_file_name)
         .Set("file_path", old_weight_path)
         .Set("offset", 0)
-        .Set("size", 15)
-        .Set("op_name", "file_const");
+        .Set("size", 15);
     consts["file_const"] = file_const.Raw();
     JsonFile constants_config;
     constants_config.Set("internal_weight_size", 0U).Set("consts", consts);

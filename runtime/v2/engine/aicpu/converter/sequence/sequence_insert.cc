@@ -64,9 +64,9 @@ LowerResult LoweringSequenceInsert(const ge::NodePtr &node, const LowerInput &lo
   auto input_num = lower_input.input_addrs.size();
   constexpr size_t least_input_number = 2;
   if (input_num < least_input_number) {
-    GELOGE(ge::PARAM_INVALID, "[Check][Op]Input num err, it is at least 2.");
-    REPORT_INNER_ERR_MSG("E39999", "Input num err, it is at least 2.");
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Input num err, it is at least 2.")), {}, {}, {}};
+    GELOGE(ge::PARAM_INVALID, "[Check][Op]Invalid input num, at least 2 required.");
+    REPORT_INNER_ERR_MSG("E39999", "Invalid input num, at least 2 required.");
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Invalid input num, at least 2 required.")), {}, {}, {}};
   }
   auto input_num_holder = bg::ValueHolder::CreateConst(&input_num, sizeof(input_num));
   auto output_shape = bg::ValueHolder::CreateSingleDataOutput("GetSequenceHandleShape", {});

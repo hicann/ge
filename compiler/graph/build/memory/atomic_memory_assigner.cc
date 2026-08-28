@@ -925,7 +925,7 @@ Status AtomicMemoryAssigner::AssignFusionAtomicWorkspaceMemory(
   return SUCCESS;
 }
 
-void AtomicMemoryAssigner::AlignMemOffset(const int64_t &mem_align_size, int64_t memory_type) {
+void AtomicMemoryAssigner::AlignMemOffset(int64_t mem_align_size, int64_t memory_type) {
   if (mem_align_size <= 0) {
     return;
   }

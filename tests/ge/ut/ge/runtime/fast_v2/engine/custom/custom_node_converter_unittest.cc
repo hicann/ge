@@ -127,6 +127,110 @@ TEST_F(CustomNodeConverterUT, custom_op_convert_test) {
             "success");
 }
 
+TEST_F(CustomNodeConverterUT, host_cpu_custom_op_convert_test) {
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  bg::LowerConstDataNode(global_data);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  LowerDataNodes(graph, global_data, shapes, addrs);
+
+  LowerInput add_input = {shapes, addrs, &global_data};
+  auto custom_op = graph->FindNode("custom_op");
+  auto ret = LoweringHostCustomNode(custom_op, add_input);
+  ASSERT_TRUE(ret.result.IsSuccess());
+  ASSERT_EQ(ret.out_addrs.size(), 1);
+  ASSERT_EQ(ret.out_shapes.size(), 1);
+  ASSERT_EQ(ret.out_addrs[0]->GetPlacement(), kOnHost);
+
+  auto frame = bg::ValueHolder::PopGraphFrame();
+  ASSERT_NE(frame, nullptr);
+  auto exe_graph = frame->GetExecuteGraph().get();
+  ASSERT_NE(exe_graph, nullptr);
+  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "ExecuteHostCustomOp"), nullptr);
+  ASSERT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "ExecuteCustomOp"), nullptr);
+  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_frame_->GetExecuteGraph().get(), "FindHostCpuCustomOp"),
+            nullptr);
+}
+
+TEST_F(CustomNodeConverterUT, host_cpu_custom_op_convert_with_inference_rule_test) {
+  const std::string rule = R"({"shape":{"inputs":[["s0"],["s1"],["s2"]],"outputs":[["s0","s1","s2"]]}})";
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  ASSERT_NE(custom_op, nullptr);
+  AttrUtils::SetStr(custom_op->GetOpDesc(), ge::ATTR_NAME_INFER_RULE, rule);
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  bg::LowerConstDataNode(global_data);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  LowerDataNodes(graph, global_data, shapes, addrs);
+
+  LowerInput add_input = {shapes, addrs, &global_data};
+  auto ret = LoweringHostCustomNode(custom_op, add_input);
+  ASSERT_TRUE(ret.result.IsSuccess());
+
+  auto frame = bg::ValueHolder::PopGraphFrame();
+  ASSERT_NE(frame, nullptr);
+  auto exe_graph = frame->GetExecuteGraph().get();
+  ASSERT_NE(exe_graph, nullptr);
+  ASSERT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "ExecuteHostCustomOpWithInferShape"), nullptr);
+  ASSERT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "ExecuteHostCustomOp"), nullptr);
+}
+
+TEST_F(CustomNodeConverterUT, host_cpu_custom_op_convert_skips_optional_unconnected_input) {
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto custom_op = graph->FindNode("custom_op");
+  ASSERT_NE(custom_op, nullptr);
+  ASSERT_EQ(GraphUtils::RemoveEdge(graph->FindNode("data2")->GetOutDataAnchor(0), custom_op->GetInDataAnchor(2)),
+            GRAPH_SUCCESS);
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  bg::LowerConstDataNode(global_data);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  for (const auto &name : {"data0", "data1"}) {
+    auto data_ret = LoweringDataNode(graph->FindNode(name), {{}, {}, &global_data});
+    ASSERT_TRUE(data_ret.result.IsSuccess());
+    shapes.emplace_back(data_ret.out_shapes[0]);
+    addrs.emplace_back(data_ret.out_addrs[0]);
+    graph->FindNode(name)->GetOpDesc()->SetExtAttr(
+        "_lowering_result", gert::PlacedLoweringResult(graph->FindNode(name), std::move(data_ret)));
+  }
+  LowerInput add_input = {shapes, addrs, &global_data};
+  auto ret = LoweringHostCustomNode(custom_op, add_input);
+  ASSERT_TRUE(ret.result.IsSuccess());
+  ASSERT_EQ(ret.out_addrs.size(), 1U);
+}
+
+TEST_F(CustomNodeConverterUT, host_cpu_custom_op_convert_adds_input_guard_dependency) {
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).Build();
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kInit);
+  global_data.SetExternalAllocator(nullptr, ExecuteGraphType::kMain);
+  bg::LowerConstDataNode(global_data);
+  std::vector<bg::ValueHolderPtr> shapes;
+  std::vector<bg::DevMemValueHolderPtr> addrs;
+  LowerDataNodes(graph, global_data, shapes, addrs);
+  auto input_guarder = ValueHolder::CreateVoidGuarder("FreeInput", addrs[0], {});
+  ASSERT_NE(input_guarder, nullptr);
+  addrs[0]->SetGuarder(input_guarder);
+
+  LowerInput add_input = {shapes, addrs, &global_data};
+  auto ret = LoweringHostCustomNode(graph->FindNode("custom_op"), add_input);
+  ASSERT_TRUE(ret.result.IsSuccess());
+}
+
 TEST_F(CustomNodeConverterUT, custom_op_convert_with_inference_rule_test) {
   const std::string rule = R"({"shape":{"inputs":[["s0"],["s1"],["s2"]],"outputs":[["s0","s1","s2"]]}})";
   auto graph = ShareGraph::BuildCustomOpGraph();

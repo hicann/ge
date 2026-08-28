@@ -11,7 +11,6 @@
 #ifndef INC_GRAPH_METADEF_GRAPH_UTILS_IR_DEFINITIONS_QUERY_H_
 #define INC_GRAPH_METADEF_GRAPH_UTILS_IR_DEFINITIONS_QUERY_H_
 
-#include <string>
 #include <utility>
 #include <vector>
 

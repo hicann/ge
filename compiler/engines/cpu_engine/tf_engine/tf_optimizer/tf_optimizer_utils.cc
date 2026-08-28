@@ -411,13 +411,13 @@ ge::NodePtr TfTransposeGraph::CreateTransposeNode(ge::ComputeGraph &graph, const
 
   ge::Status ret = op_desc->AddInputDesc("x", tensor_desc);
   if (ret != ge::GRAPH_SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc  x failed ret[%d]", ret);
+    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc for input x failed, ret[%d]", ret);
     return nullptr;
   }
 
   ret = op_desc->AddInputDesc("perm", perm_const_desc->GetOutputDesc(0));
   if (ret != ge::GRAPH_SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc  x failed ret[%d]", ret);
+    AICPU_REPORT_INNER_ERR_MSG("Call ge::AddInputDesc for input perm failed, ret[%d]", ret);
     return nullptr;
   }
   ret = op_desc->AddOutputDesc(tensor_desc);
@@ -486,7 +486,7 @@ ge::Status TfTransposeGraph::GenerateTfTransposeGraph(ge::ComputeGraph &graph) {
       continue;
     }
     AICPUE_LOGD("insert transpose for [%s]", type.c_str());
-    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertTransposeNode(graph, node), "op[%s] insert transpose fail", type.c_str());
+    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertTransposeNode(graph, node), "op[%s] insert transpose failed", type.c_str());
     // for infershape,
     (void)ge::AttrUtils::SetStr(node->GetOpDesc(), kImgFormat, "HWC");
   }
@@ -550,7 +550,7 @@ ge::Status TfBatchMatMulV2Graph::CreateAndInsertOffsetWConstNode(const ge::NodeP
   dst_tensor_desc.SetOriginFormat(ge::FORMAT_ND);
   dst_tensor_desc.SetOriginShape(ge::GeShape({0}));
   AICPU_CHECK_RES_WITH_LOG(dst_op->UpdateInputDesc("offset_w", dst_tensor_desc),
-                           "Call bias UpdateInputDesc failed, op name[%s].", dst_node->GetName().c_str())
+                           "Call offset_w UpdateInputDesc failed, op name[%s].", dst_node->GetName().c_str())
 
   // Create const node with an empty tensor
   ge::GeTensorPtr tensor = MakeShared<ge::GeTensor>();
@@ -585,10 +585,10 @@ ge::Status TfBatchMatMulV2Graph::GenerateBatchMatMulV2Graph(ge::ComputeGraph &gr
       continue;
     }
     AICPUE_LOGI("insert const node for node[%s]", cur_node->GetName().c_str());
-    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertBiasConstNode(cur_node, graph), "node[%s] insert bias constnode fail",
+    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertBiasConstNode(cur_node, graph), "node[%s] insert bias const node failed",
                              cur_node->GetName().c_str());
-    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertOffsetWConstNode(cur_node, graph), "node[%s] insert bias constnode fail",
-                             cur_node->GetName().c_str());
+    AICPU_CHECK_RES_WITH_LOG(CreateAndInsertOffsetWConstNode(cur_node, graph),
+                             "node[%s] insert offset_w const node failed", cur_node->GetName().c_str());
   }
   return ge::SUCCESS;
 }

@@ -12,6 +12,7 @@
 #include <gmock/gmock.h>
 #include <vector>
 #include <fstream>
+#include <stdexcept>
 
 #include "macro_utils/dt_public_scope.h"
 #include "engines/manager/engine_manager/dnnengine_manager.h"
@@ -20,6 +21,10 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "framework/engine/dnnengine.h"
+#include "common/ge_common/ge_types.h"
+#include "graph/ascend_string.h"
+#include "graph/custom_op.h"
+#include "graph/custom_op_factory.h"
 #include "graph/op_desc.h"
 #include "graph/debug/ge_attr_define.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
@@ -62,6 +67,13 @@ class SubOpsKernelInfoStore2 : public OpsKernelInfoStore {
   virtual bool CheckSupported(const OpDescPtr &opDescPtr, std::string &un_supported_reason) const;
   virtual bool CheckSupported(const NodePtr &node, std::string &un_supported_reason, CheckSupportFlag &flag) const;
   bool check_flag_;
+};
+
+class ThrowingOpsKernelInfoStore final : public SubOpsKernelInfoStore2 {
+ public:
+  bool CheckSupported(const NodePtr &, std::string &, CheckSupportFlag &) const override {
+    throw std::runtime_error("check support failed");
+  }
 };
 
 Status SubOpsKernelInfoStore2::Initialize(const std::map<std::string, std::string> &options) {
@@ -188,6 +200,24 @@ TEST_F(UtestDnnengineManager, GetHostCpuEngineName) {
   op_infos.push_back(oi);
   EXPECT_EQ(instance.GetHostCpuEngineName(op_infos, odp, matched_op_info), "DNN_VM_HOST_CPU");
   EXPECT_EQ(matched_op_info.opKernelLib, "DNN_VM_HOST_CPU_OP_STORE");
+}
+
+TEST_F(UtestDnnengineManager, GetHostCpuEngineNameForCustomOp) {
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator("HostCpuCustom", OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  auto &instance = DNNEngineManager::GetInstance();
+  OpDescPtr op_desc = std::make_shared<OpDesc>("host_cpu_custom", "HostCpuCustom");
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_TRUE(AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+
+  OpInfo matched_op_info;
+  EXPECT_EQ(instance.GetHostCpuEngineName({}, op_desc, matched_op_info), kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.engine, kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.opKernelLib, kCustomOpKernelLibName);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  CustomOpFactory::RemoveCustomOps({AscendString("HostCpuCustom")});
 }
 
 TEST_F(UtestDnnengineManager, ReadJsonFile) {
@@ -325,6 +355,85 @@ TEST_F(UtestDnnengineManager, GetDNNEngineName_not_support_dynamic_shape) {
   std::map<std::string, std::string> options;
   okm.ops_kernel_store_["kernel_name"] = std::make_shared<SubOpsKernelInfoStore2>();
   EXPECT_EQ(instance.GetDNNEngineName(node), "");
+}
+
+TEST_F(UtestDnnengineManager, GetDNNEngineNameHostCpuCustomWithoutLegacyHostCpuCandidate) {
+  const std::string op_type = "HostCpuCustomWithoutLegacyHostCpuCandidate";
+  const AscendString op_type_str(op_type.c_str());
+  CustomOpFactory::RemoveCustomOps({op_type_str});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type_str, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+
+  auto &instance = DNNEngineManager::GetInstance();
+  auto &okm = OpsKernelManager::GetInstance();
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "host_cpu_custom", op_type, 0, 1);
+  OpInfo custom_op_info;
+  custom_op_info.engine = kEngineNameCustom;
+  custom_op_info.opKernelLib = kCustomOpKernelLibName;
+  okm.ops_kernel_info_[op_type] = {custom_op_info};
+  auto custom_store = std::make_shared<SubOpsKernelInfoStore2>();
+  custom_store->check_flag_ = false;
+  okm.ops_kernel_store_[kCustomOpKernelLibName] = custom_store;
+
+  OpInfo matched_op_info;
+  const std::set<std::string> exclude_engines;
+  EXPECT_EQ(instance.GetDNNEngineName(node, exclude_engines, matched_op_info), kEngineNameCustom);
+  EXPECT_EQ(node->GetOpDesc()->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(node->GetOpDesc()->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_TRUE(AttrUtils::GetStr(node->GetOpDesc(), kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+
+  okm.ops_kernel_info_.erase(op_type);
+  okm.ops_kernel_store_.erase(kCustomOpKernelLibName);
+  CustomOpFactory::RemoveCustomOps({op_type_str});
+}
+
+TEST_F(UtestDnnengineManager, GetDNNEngineNameHostCpuCustomWithHostCpuCandidate) {
+  const std::string op_type = "HostCpuCustomWithHostCpuCandidate";
+  const AscendString op_type_str(op_type.c_str());
+  CustomOpFactory::RemoveCustomOps({op_type_str});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type_str, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+
+  auto &instance = DNNEngineManager::GetInstance();
+  auto &okm = OpsKernelManager::GetInstance();
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "host_cpu_custom", op_type, 0, 1);
+  OpInfo host_cpu_info;
+  host_cpu_info.engine = "DNN_VM_HOST_CPU";
+  host_cpu_info.opKernelLib = "DNN_VM_HOST_CPU_OP_STORE";
+  okm.ops_kernel_info_[op_type] = {host_cpu_info};
+
+  OpInfo matched_op_info;
+  EXPECT_EQ(instance.GetDNNEngineName(node, {}, matched_op_info), kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.engine, kEngineNameCustom);
+  EXPECT_EQ(matched_op_info.opKernelLib, kCustomOpKernelLibName);
+  EXPECT_EQ(node->GetOpDesc()->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(node->GetOpDesc()->GetOpKernelLibName(), kCustomOpKernelLibName);
+
+  okm.ops_kernel_info_.erase(op_type);
+  CustomOpFactory::RemoveCustomOps({op_type_str});
+}
+
+TEST_F(UtestDnnengineManager, GetDNNEngineNameReturnsEmptyWhenCheckSupportedThrows) {
+  auto &instance = DNNEngineManager::GetInstance();
+  auto &okm = OpsKernelManager::GetInstance();
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto node = UtAddNode(graph, "throwing_op", "ThrowingOp", 0, 1);
+  OpInfo op_info;
+  op_info.engine = "AIcoreEngine";
+  op_info.opKernelLib = "throwing_store";
+  okm.ops_kernel_info_["ThrowingOp"] = {op_info};
+  okm.ops_kernel_store_["throwing_store"] = std::make_shared<ThrowingOpsKernelInfoStore>();
+
+  OpInfo matched_op_info;
+  EXPECT_EQ(instance.GetDNNEngineName(node, {}, matched_op_info), "");
+  okm.ops_kernel_info_.erase("ThrowingOp");
+  okm.ops_kernel_store_.erase("throwing_store");
 }
 
 TEST_F(UtestDnnengineManager, FinalizeNotInitialized) {

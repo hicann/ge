@@ -48,6 +48,13 @@ const std::string kOffline = "offline";
 const int32_t kReuseMaxOpNum = 10;
 const int32_t kReuseMaxCharNum = 2000;
 
+std::string FormatStreamEdgeName(const char *src_name, const char *dst_name) {
+  if ((src_name != nullptr) && (dst_name != nullptr)) {
+    return "[" + std::string(dst_name) + "<-" + std::string(src_name) + "] ";
+  }
+  return "";
+}
+
 int64_t GetStreamId(const ge::OpDesc *const desc) {
   return ge::MemReuseUtils::GetStreamId(desc);
 }
@@ -247,52 +254,32 @@ void BlockMemAssigner::InsertStreamOutEdge() {
  *                                3<-2 保留
  * 可以简单记为：id差越小越好
  */
-void BlockMemAssigner::InsertStreamInEdge(const EdgeLife &new_in_edge, const int64_t src_stream_id,
-                                          const int64_t dst_stream_id, const char *src_name, const char *dst_name) {
-  auto &in_edge_set = in_stream_edges_[dst_stream_id][src_stream_id];
+void BlockMemAssigner::InsertStreamInEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set, const EdgeLife &new_in_edge,
+                                          const int64_t src_stream_id, const int64_t dst_stream_id,
+                                          const std::pair<const char *, const char *> &node_names) {
   const auto old_in_edge_iter = in_edge_set.find(new_in_edge);
   if (old_in_edge_iter != in_edge_set.end()) {
     if (old_in_edge_iter->peer_node_id < new_in_edge.peer_node_id) {
       const auto old_peer_node_id = old_in_edge_iter->peer_node_id;
       in_edge_set.erase(old_in_edge_iter);  // after erase, cannot use old_peer_node_id below
       in_edge_set.insert(new_in_edge);
-      if ((src_name != nullptr) && (dst_name != nullptr)) {
-        GELOGI("[StreamEdge]In depend Node: [%s<-%s] stream_id:[%" PRId64 "<-%" PRId64
-               "] life_time:[%zu<-%zu], erase and insert,"
-               " old_peer_node_id[%zu].",
-               dst_name, src_name, dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id,
-               old_peer_node_id);
-      } else {
-        GELOGI("[StreamEdge]In depend Node: stream_id:[%" PRId64 "<-%" PRId64
-               "] life_time:[%zu<-%zu], erase and insert,"
-               " old_peer_node_id[%zu].",
-               dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id, old_peer_node_id);
-      }
+      GELOGI("[StreamEdge]In depend Node: %sstream_id:[%" PRId64 "<-%" PRId64
+             "] life_time:[%zu<-%zu], erase and insert,"
+             " old_peer_node_id[%zu].",
+             FormatStreamEdgeName(node_names.first, node_names.second).c_str(), dst_stream_id, src_stream_id,
+             new_in_edge.node_id, new_in_edge.peer_node_id, old_peer_node_id);
     } else {
-      if ((src_name != nullptr) && (dst_name != nullptr)) {
-        GELOGI("[StreamEdge]In depend Node: [%s<-%s] stream_id:[%" PRId64 "<-%" PRId64
-               "] life_time:[%zu<-%zu], not erase, not insert, "
-               "old_peer_node_id[%zu] >= new_peer_node_id[%zu].",
-               dst_name, src_name, dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id,
-               old_in_edge_iter->peer_node_id, new_in_edge.peer_node_id);
-      } else {
-        GELOGI("[StreamEdge]In depend Node: stream_id:[%" PRId64 "<-%" PRId64
-               "] life_time:[%zu<-%zu], not erase, not insert, "
-               "old_peer_node_id[%zu] >= new_peer_node_id[%zu].",
-               dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id,
-               old_in_edge_iter->peer_node_id, new_in_edge.peer_node_id);
-      }
+      GELOGI("[StreamEdge]In depend Node: %sstream_id:[%" PRId64 "<-%" PRId64
+             "] life_time:[%zu<-%zu], not erase,"
+             " not insert, old_peer_node_id[%zu] >= new_peer_node_id[%zu].",
+             FormatStreamEdgeName(node_names.first, node_names.second).c_str(), dst_stream_id, src_stream_id,
+             new_in_edge.node_id, new_in_edge.peer_node_id, old_in_edge_iter->peer_node_id, new_in_edge.peer_node_id);
     }
   } else {
     in_edge_set.insert(new_in_edge);
-    if ((src_name != nullptr) && (dst_name != nullptr)) {
-      GELOGI("[StreamEdge]In depend Node: [%s<-%s] stream_id:[%" PRId64 "<-%" PRId64
-             "] life_time:[%zu<-%zu], only insert.",
-             dst_name, src_name, dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id);
-    } else {
-      GELOGI("[StreamEdge]In depend Node: stream_id:[%" PRId64 "<-%" PRId64 "] life_time:[%zu<-%zu], only insert.",
-             dst_stream_id, src_stream_id, new_in_edge.node_id, new_in_edge.peer_node_id);
-    }
+    GELOGI("[StreamEdge]In depend Node: %sstream_id:[%" PRId64 "<-%" PRId64 "] life_time:[%zu<-%zu], only insert.",
+           FormatStreamEdgeName(node_names.first, node_names.second).c_str(), dst_stream_id, src_stream_id,
+           new_in_edge.node_id, new_in_edge.peer_node_id);
   }
 }
 
@@ -356,7 +343,7 @@ void BlockMemAssigner::AddInStreamEdge(const ge::OpDesc *const node_desc, const 
     if (old_edge_it != in_edge_set.end()) {
       EraseIntersectedEdge(in_edge_set, *old_edge_it, new_in_edge, third_stream_id, stream_id);
     }
-    InsertStreamInEdge(new_in_edge, third_stream_id, stream_id);
+    InsertStreamInEdge(in_edge_set, new_in_edge, third_stream_id, stream_id);
   }
 }
 
@@ -371,6 +358,7 @@ void BlockMemAssigner::GetDiffStreamEdgeLife(const NodePtr &node, const std::set
   if (NodeUtils::IsLikeAtomicClean(node) || (node_desc->GetOpKernelLibName() == kEngineNameGeLocal)) {
     return;
   }
+  const auto stream_id = GetStreamId(node_desc);
   for (const auto &out_anchor : node->GetAllOutAnchors()) {
     GE_CHECK_NOTNULL_JUST_RETURN(out_anchor);
     for (auto const peer_in_anchor : out_anchor->GetPeerAnchorsPtr()) {
@@ -379,7 +367,6 @@ void BlockMemAssigner::GetDiffStreamEdgeLife(const NodePtr &node, const std::set
       GE_CHECK_NOTNULL_JUST_RETURN(peer_node);
       const auto peer_in_node_desc = peer_node->GetOpDescBarePtr();
       GE_CHECK_NOTNULL_JUST_RETURN(peer_in_node_desc);
-      const auto stream_id = GetStreamId(node_desc);
       const auto peer_in_stream_id = GetStreamId(peer_in_node_desc);
       if (stream_id == peer_in_stream_id) {
         continue;
@@ -395,8 +382,9 @@ void BlockMemAssigner::GetDiffStreamEdgeLife(const NodePtr &node, const std::set
       const auto node_id = static_cast<size_t>(node_desc->GetId());
       const auto peer_node_id = static_cast<size_t>(peer_in_node_desc->GetId());
       const EdgeLife new_in_edge{peer_node_id, node_id};  // 从peer_node看，由node连接进来的边称为入边
-      InsertStreamInEdge(new_in_edge, stream_id, peer_in_stream_id, node_desc->GetNamePtr(),
-                         peer_in_node_desc->GetNamePtr());
+      auto &in_edge_set = in_stream_edges_[peer_in_stream_id][stream_id];
+      InsertStreamInEdge(in_edge_set, new_in_edge, stream_id, peer_in_stream_id,
+                         {node_desc->GetNamePtr(), peer_in_node_desc->GetNamePtr()});
       AddInStreamEdge(peer_in_node_desc, node_desc);
     }
   }
@@ -544,11 +532,7 @@ Status BlockMemAssigner::GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_
                      "maybe it is unknown shape node, Node_name:%s",
                      size, node_op_desc->GetNamePtr());
       batch_all_memory_size[batch_label].emplace_back(size);
-      if (batch_total_size.find(batch_label) == batch_total_size.end()) {
-        batch_total_size[batch_label] = size;
-      } else {
-        batch_total_size[batch_label] += size;
-      }
+      batch_total_size[batch_label] += size;
 
       if (!anchor_to_symbol_.empty()) {
         auto iter1 = anchor_to_symbol_.find(NodeIndexIO(n.get(), out_anchor->GetIdx(), kOut).ToString());

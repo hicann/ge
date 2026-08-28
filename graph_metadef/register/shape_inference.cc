@@ -665,7 +665,8 @@ ge::graphStatus CustomOpInferDataTypeOnCompile(ge::ShapeInferOp *shape_infer_op,
   ConstructDataTypeContextInputs(op_desc, inputs);
   ConstructDataTypeContextOutputs(op_desc, outputs);
   const auto kernel_context_holder = gert::KernelRunContextBuilder().Inputs(inputs).Outputs(outputs).Build(op_desc);
-  const auto kernel_context = reinterpret_cast<gert::InferDataTypeContext *>(kernel_context_holder.context_);
+  const auto kernel_context =
+      ge::PtrToPtr<gert::KernelContext, gert::InferDataTypeContext>(kernel_context_holder.context_);
 
   const ge::graphStatus ret = shape_infer_op->InferDataType(kernel_context);
   GE_CHK_STATUS_RET(ret, "[Check][CustomOpInferDataType] result failed, op_desc[%s], ret[%d]",
@@ -678,12 +679,12 @@ ge::graphStatus CustomOpInferDataTypeOnCompile(ge::ShapeInferOp *shape_infer_op,
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus CommitCustomOpInferMetaResult(const ge::OpDescPtr &staged_op_desc, ge::OpDesc *op_desc,
+ge::graphStatus CommitCustomOpInferMetaResult(const ge::OpDescPtr &staged_op_desc, ge::OpDesc &op_desc,
                                               ge::NodeShapeTransUtils &transformer,
                                               const ge::CustomOpInferMetaResult &infer_meta_result) {
   if (infer_meta_result.outputs.size() != staged_op_desc->GetOutputsSize()) {
     GELOGE(ge::GRAPH_FAILED, "Custom op[%s] infer_meta result count[%zu] does not match output count[%zu].",
-           op_desc->GetName().c_str(), infer_meta_result.outputs.size(), op_desc->GetOutputsSize());
+           op_desc.GetName().c_str(), infer_meta_result.outputs.size(), op_desc.GetOutputsSize());
     return ge::GRAPH_FAILED;
   }
   for (size_t i = 0UL; i < staged_op_desc->GetOutputsSize(); ++i) {
@@ -698,10 +699,10 @@ ge::graphStatus CommitCustomOpInferMetaResult(const ge::OpDescPtr &staged_op_des
     out_desc->SetOriginDataType(output_meta.data_type);
   }
   GE_CHK_BOOL_RET_STATUS(transformer.UpdateFormatAndShape(), ge::GRAPH_FAILED,
-                         "Failed to update format and shape for %s", op_desc->GetNamePtr());
+                         "Failed to update format and shape for %s", op_desc.GetNamePtr());
   for (size_t i = 0UL; i < staged_op_desc->GetOutputsSize(); ++i) {
     const auto staged_output = staged_op_desc->GetOutputDescPtr(static_cast<uint32_t>(i));
-    auto output = op_desc->MutableOutputDesc(static_cast<uint32_t>(i));
+    auto output = op_desc.MutableOutputDesc(static_cast<uint32_t>(i));
     GE_ASSERT_NOTNULL(staged_output);
     GE_ASSERT_NOTNULL(output);
     *output = *staged_output;
@@ -758,12 +759,12 @@ ge::graphStatus CustomOpInferMetaOnCompile(const ge::Operator &op, ge::OpDesc *o
                                          .Inputs(GetInputs(op, inputs_holder))
                                          .Outputs(GetOutputs(outputs_holder))
                                          .Build(staged_op_desc);
-  auto infer_shape_ctx = reinterpret_cast<gert::InferShapeContext *>(kernel_context_holder.context_);
+  auto infer_shape_ctx = ge::PtrToPtr<gert::KernelContext, gert::InferShapeContext>(kernel_context_holder.context_);
 
   ge::CustomOpInferMetaResult infer_meta_result;
   ret = infer_meta_provider->InferMeta(infer_shape_ctx, &infer_meta_result);
   GE_CHK_STATUS_RET(ret, "[Call][CustomOpInferMeta] failed, op_desc[%s], ret[%d]", op_desc->GetName().c_str(), ret);
-  return CommitCustomOpInferMetaResult(staged_op_desc, op_desc, transformer, infer_meta_result);
+  return CommitCustomOpInferMetaResult(staged_op_desc, *op_desc, transformer, infer_meta_result);
 }
 
 ge::graphStatus InferShapeOnCompile(const ge::Operator &op, const ge::OpDescPtr &op_desc) {

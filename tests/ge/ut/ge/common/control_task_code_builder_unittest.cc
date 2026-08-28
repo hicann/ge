@@ -1105,7 +1105,7 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
     ~Om2Model();
     aclError InitResources();
     aclError RegisterKernels();
@@ -1169,7 +1169,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
 #include "_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, size_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
   : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), sync_prof_stream_(nullptr) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};

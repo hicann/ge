@@ -85,7 +85,7 @@ void Optimizer::InitOpCheckMode() {
   if (ConfigFile::GetInstance().GetValue(kOpCheckMode, op_check_mode)) {
     uint64_t result = kOpCheckModeOff;
     if (StringToNum(op_check_mode, result).state != ge::SUCCESS) {
-      AICPUE_LOGW("Tran op_check_mode [%s] to integer failed. default value is 0.", op_check_mode.c_str());
+      AICPUE_LOGW("Convert op_check_mode [%s] to integer failed, use default value 0.", op_check_mode.c_str());
       return;
     }
     if (result == kOpCheckModeOn) {
@@ -123,7 +123,7 @@ ge::Status Optimizer::InitSlicePattern(const std::string &slice, const ge::NodeP
   }
   Status state = fe::OpSliceUtil::SetOpSliceInfo(node, iter->second, kAicpuSupportStrideWrite);
   if (state != SUCCESS) {
-    AICPU_REPORT_INNER_ERR_MSG("op[%s] SetOpSliceInfo[%s] fail[%u]", node->GetName().c_str(), slice.c_str(), state);
+    AICPU_REPORT_INNER_ERR_MSG("op[%s] SetOpSliceInfo[%s] failed[%u]", node->GetName().c_str(), slice.c_str(), state);
     return state;
   }
   return SUCCESS;
@@ -138,7 +138,7 @@ Status Optimizer::OptimizeOriginalGraphJudgeInsert(const ComputeGraph &graph,
     string op_type = curr_op_desc_ptr->GetType();
     // if op type is placeholder or function_op or framework_op, skip it
     if (op_type == kPlaceHolderOpType || op_type == kFunctionOp || op_type == kFrameworkOp) {
-      AICPUE_LOGD("Current op type is [%s]. Don't need to set format.", op_type.c_str());
+      AICPUE_LOGD("Current op type is [%s]. It does not need to set format.", op_type.c_str());
       continue;
     }
 
@@ -182,7 +182,7 @@ Status Optimizer::UpdateInputFormatAndShape(const OpFullInfo &op_info, const OpD
   for (GeTensorDescPtr input_desc_ptr : op_desc_ptr->GetAllInputsDescPtr()) {
     ge::Format src_format = input_desc_ptr->GetFormat();
     if (!kGeFormatSet.count(src_format)) {
-      AICPUE_LOGD("input %u is not need update format and shape.", index);
+      AICPUE_LOGD("input %u does not need to update format and shape.", index);
       return SUCCESS;
     }
 
@@ -209,7 +209,7 @@ void Optimizer::UpdateTensorDesc(GeTensorDesc &tensor_desc, const ge::Format &sr
     tensor_desc.SetFormat(dst_format);
     vector<int64_t> dims = tensor_desc.GetShape().GetDims();
     if (dims.size() != kShape4d) {
-      AICPUE_LOGW("Input tensor is not 4D, but it's format is 4D.");
+      AICPUE_LOGW("Input tensor is not 4D, but its format is 4D.");
       return;
     }
     vector<int64_t> newDims(dims);
@@ -232,7 +232,7 @@ void Optimizer::UpdateTensorDesc(GeTensorDesc &tensor_desc, const ge::Format &sr
       return;
     }
     if (shape_range.size() != kShape4d) {
-      AICPUE_LOGW("shape range size is [%u], is not 4", shape_range.size());
+      AICPUE_LOGW("shape range size is [%zu], expected 4.", shape_range.size());
     } else {
       std::vector<std::pair<int64_t, int64_t>> new_range;
       if (src_format == ge::FORMAT_NCHW) {
@@ -257,7 +257,7 @@ Status Optimizer::UpdateOutputFormatAndShape(const OpFullInfo &op_info, const Op
   for (GeTensorDescPtr output_desc_ptr : op_desc_ptr->GetAllOutputsDescPtr()) {
     ge::Format src_format = output_desc_ptr->GetFormat();
     if (!kGeFormatSet.count(src_format)) {
-      AICPUE_LOGD("output[%u] is not need update format and shape.", index);
+      AICPUE_LOGD("output[%u] does not need to update format and shape.", index);
       return SUCCESS;
     }
 

@@ -17,13 +17,12 @@
 namespace ge {
 namespace {
 constexpr int64_t kAtomicCleanAllInput = -1;
-std::vector<std::string> kNodeMemAttrStrs{"data", "concentrate_atomic"};
-std::string GetNodeAttrStr(const NodeMemAttr &attr) {
+const std::vector<std::string> kNodeMemAttrStrs{"data", "concentrate_atomic"};
+const char *GetNodeAttrStr(const NodeMemAttr &attr) {
   if (static_cast<size_t>(attr) < kNodeMemAttrStrs.size()) {
-    return kNodeMemAttrStrs.at(static_cast<size_t>(attr));
-  } else {
-    return "unknown";
+    return kNodeMemAttrStrs[static_cast<size_t>(attr)].c_str();
   }
+  return "unknown";
 }
 
 bool IsNextNodeCleanInput(const Node *const node, const int32_t out_index) {

@@ -15,5 +15,6 @@
 
 namespace gert {
 LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_input);
-}
+LowerResult LoweringHostCustomNode(const ge::NodePtr &node, const LowerInput &lower_input);
+}  // namespace gert
 #endif  // AIR_CXX_RUNTIME_V2_NODE_CUSTOM_CONVERTER_CUSTOM_NODE_CONVERTER_H_

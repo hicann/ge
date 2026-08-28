@@ -376,13 +376,15 @@ bool MemReuseUtils::IsContinuousOutput(const ge::NodePtr &n) {
 }
 
 bool MemReuseUtils::IsNoReleaseNodeOutBlock(const ge::Node *const node) {
-  for (const auto &input_desc : node->GetOpDesc()->GetAllInputsDescPtr()) {
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  for (const auto &input_desc : op_desc->GetAllInputsDescPtr()) {
     if ((input_desc != nullptr) &&
         (kNotPostReuseDataType.find(input_desc->GetDataType()) != kNotPostReuseDataType.cend())) {
       return true;
     }
   }
-  for (const auto &output_desc : node->GetOpDesc()->GetAllOutputsDescPtr()) {
+  for (const auto &output_desc : op_desc->GetAllOutputsDescPtr()) {
     if ((output_desc != nullptr) &&
         (kNotPostReuseDataType.find(output_desc->GetDataType()) != kNotPostReuseDataType.cend())) {
       return true;
@@ -454,8 +456,8 @@ bool MemReuseUtils::IsAtomicWorkSpace(const int64_t index,
     if (it.second.empty()) {
       continue;
     }
-    for (const auto &workspae_info : it.second) {
-      if (workspae_info.first == index) {
+    for (const auto &workspace_info : it.second) {
+      if (workspace_info.first == index) {
         GELOGD("Node:%s's workspace:%" PRId64 " is atomic.", it.first.c_str(), index);
         return true;
       }

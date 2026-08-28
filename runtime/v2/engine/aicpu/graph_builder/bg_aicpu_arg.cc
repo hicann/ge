@@ -83,7 +83,7 @@ std::vector<ValueHolderPtr> GetBaseCCArgs(const ge::NodePtr node, const domi::Ke
   const auto &kernel_arg = kernel_def.args();
   const size_t arg_size = kernel_arg.size();
   if (arg_size < kernel_def.args_size()) {
-    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s]arg_size %zu is smaller then size %u in kernel_def",
+    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s] arg_size %zu is smaller than %u in kernel_def",
            node_name.c_str(), arg_size, kernel_def.args_size());
     return {nullptr};  // check valueholder nullptr will return
   }
@@ -94,7 +94,7 @@ std::vector<ValueHolderPtr> GetBaseCCArgs(const ge::NodePtr node, const domi::Ke
   const auto &ext_info = kernel_def.kernel_ext_info();
   const size_t ext_size = ext_info.size();
   if (ext_size < kernel_def.kernel_ext_info_size()) {
-    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s]ext_size %zu is smaller then size %u in kernel_def",
+    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s] ext_size %zu is smaller than %u in kernel_def",
            node_name.c_str(), ext_size, kernel_def.kernel_ext_info_size());
     return {nullptr};  // check valueholder nullptr will return
   }
@@ -122,7 +122,7 @@ std::vector<ValueHolderPtr> BuildTfAicpuArgImpl(const ge::NodePtr node, const Tf
   const auto kernel_arg = kernel_ex_def.args();
   const size_t arg_size = kernel_arg.size();
   if (arg_size < kernel_ex_def.args_size()) {
-    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s]arg_size %zu is smaller then size %u in kernel_def",
+    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s] arg_size %zu is smaller than %u in kernel_def",
            node_name.c_str(), arg_size, kernel_ex_def.args_size());
     return {nullptr, nullptr};  // check valueholder nullptr will return
   }
@@ -133,7 +133,7 @@ std::vector<ValueHolderPtr> BuildTfAicpuArgImpl(const ge::NodePtr node, const Tf
   const auto ext_info = kernel_ex_def.kernel_ext_info();
   const size_t ext_info_size = ext_info.size();
   if (ext_info_size < kernel_ex_def.kernel_ext_info_size()) {
-    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s]ext_info_size %zu is smaller then size %u in kernel_def",
+    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s] ext_info_size %zu is smaller than %u in kernel_def",
            node_name.c_str(), ext_info_size, kernel_ex_def.kernel_ext_info_size());
     return {nullptr, nullptr};  // check valueholder nullptr will return
   }
@@ -147,7 +147,7 @@ std::vector<ValueHolderPtr> BuildTfAicpuArgImpl(const ge::NodePtr node, const Tf
   const auto task_info = kernel_ex_def.task_info();
   const size_t task_size = task_info.size();
   if (task_size < kernel_ex_def.task_info_size()) {
-    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s]task_size %zu is smaller then %u in kernel_def",
+    GELOGE(ge::PARAM_INVALID, "[Check][KernelDef]Op[%s] task_size %zu is smaller than %u in kernel_def",
            node_name.c_str(), task_size, kernel_ex_def.task_info_size());
     return {nullptr, nullptr};  // check valueholder nullptr will return
   }

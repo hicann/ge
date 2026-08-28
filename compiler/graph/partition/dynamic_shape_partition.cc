@@ -20,6 +20,8 @@
 #include "framework/common/debug/log.h"
 #include "framework/common/framework_types_internal.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/custom_op_factory.h"
+#include "graph/ascend_string.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/node_utils.h"
@@ -51,6 +53,17 @@ constexpr int64_t kThresholdForMergeAllToUnknownGraph = -1;
 constexpr int32_t kBase = 10;
 const std::string kStableRdfsSort = "3";
 constexpr char_t const *kOffline = "offline";
+
+bool IsCustomOpExecOnHostCpu(const ge::OpDescPtr &op_desc) {
+  if ((op_desc == nullptr) || (op_desc->GetOpEngineName() != ge::kEngineNameCustom) ||
+      (op_desc->GetOpKernelLibName() != ge::kCustomOpKernelLibName) ||
+      !ge::CustomOpFactory::IsExistOp(ge::AscendString(op_desc->GetTypePtr()), ge::OpBackend::kHostCPU)) {
+    return false;
+  }
+  std::string lowering_func;
+  return ge::AttrUtils::GetStr(op_desc, ge::kAttrLowingFunc, lowering_func) &&
+         (lowering_func == ge::kHostCpuCustomOpLowerFunc);
+}
 }  // namespace
 
 namespace ge {
@@ -1258,7 +1271,8 @@ Status DynamicShapePartitioner::IsUnknownShapeNode(NodePtr node, bool &is_unknow
   }
   auto graph = GetRootGraph();
   GELOGD("node: %s, engine_name: %s.", node->GetNamePtr(), opdesc->GetOpEngineName().c_str());
-  if (opdesc->GetOpEngineName() == kHostCpuEngineName) {
+
+  if ((opdesc->GetOpEngineName() == kHostCpuEngineName) || IsCustomOpExecOnHostCpu(opdesc)) {
     is_unknown = true;
     GELOGD("Mark host cpu node %s unknown as host engine as it relies on the runtime scheduler for execution.",
            node->GetName().c_str());
@@ -1389,7 +1403,7 @@ Status DynamicShapePartitioner::CheckIfSubgraphUnknown(const ComputeGraphPtr &gr
     auto desc = node->GetOpDesc();
     GE_CHK_GRAPH_STATUS_RET(ge::NodeUtils::GetNodeUnknownShapeStatus(*node, is_unknown_shape),
                             "[Get][ShapeStatus] of node[%s] failed!", node->GetName().c_str());
-    if (desc->GetOpEngineName() == "DNN_VM_HOST_CPU") {
+    if ((desc->GetOpEngineName() == kHostCpuEngineName) || IsCustomOpExecOnHostCpu(desc)) {
       is_unknown_shape = true;
       GELOGD("Mark host cpu node %s unknown.", node->GetName().c_str());
     }

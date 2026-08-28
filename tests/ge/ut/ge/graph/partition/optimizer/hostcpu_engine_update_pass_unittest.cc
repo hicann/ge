@@ -17,6 +17,7 @@
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "common/opskernel/ops_kernel_info_store.h"
+#include "graph/custom_op_factory.h"
 #include "graph/utils/node_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -31,6 +32,23 @@ using namespace testing;
 namespace ge {
 namespace {
 const std::string kHostCpuKernelStore = "DNN_VM_HOST_CPU_OP_STORE";
+const std::string kHostCpuEngine = "DNN_VM_HOST_CPU";
+
+class HostCpuCustomPassMarkOp : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
+
+class DeviceCustomPassMarkOp : public EagerExecuteOp {
+ public:
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+};
 
 class FakeHostCpuOpsKernelInfoStore : public OpsKernelInfoStore {
  public:
@@ -350,6 +368,49 @@ ComputeGraphPtr BuildHostInputWithoutConsumerGraph() {
   return graph;
 }
 
+ComputeGraphPtr BuildHostCpuCustomGraph(const std::string &op_type) {
+  auto graph = std::make_shared<ge::ComputeGraph>("host_cpu_custom_graph");
+  auto op_desc = std::make_shared<OpDesc>("host_cpu_custom", op_type);
+  op_desc->SetOpEngineName(kEngineNameCustom);
+  op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_ND, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{1}), FORMAT_ND, DT_INT32));
+  (void)graph->AddNode(op_desc);
+  return graph;
+}
+
+ComputeGraphPtr BuildHostCpuCustomPropagationGraph(const std::string &op_type) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", "Data")->NODE("host_cpu_custom", op_type)->NODE("netoutput", "NetOutput"));
+  };
+
+  auto graph = ToComputeGraph(g1);
+  graph->SetGraphUnknownFlag(true);
+  graph->FindNode("data")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  graph->FindNode("host_cpu_custom")->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  graph->FindNode("host_cpu_custom")->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  graph->FindNode("netoutput")->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  SetNoStorage(graph->FindNode("host_cpu_custom")->GetOpDesc(), ge::FORMAT_ND, DT_INT32, {1}, {1});
+  (void)ge::AttrUtils::SetBool(graph->FindNode("data")->GetOpDesc(), ge::ATTR_NAME_HOST_TENSOR, true);
+  return graph;
+}
+
+ComputeGraphPtr BuildPartitionedCallWithHostCpuCustomSubgraph(const std::string &op_type) {
+  auto graph = std::make_shared<ge::ComputeGraph>("host_cpu_custom_partitionedcall_graph");
+  auto partition_desc = std::make_shared<OpDesc>("partitionedcall", PARTITIONEDCALL);
+  partition_desc->SetOpKernelLibName(kEngineNameGeLocal);
+  partition_desc->RegisterSubgraphIrName("subgraph", SubgraphType::kStatic);
+  auto partition_node = graph->AddNode(partition_desc);
+
+  auto sub_graph = BuildHostCpuCustomGraph(op_type);
+  partition_desc->AddSubgraphName(sub_graph->GetName());
+  partition_desc->SetSubgraphInstanceName(0, sub_graph->GetName());
+  sub_graph->SetParentNode(partition_node);
+  sub_graph->SetParentGraph(graph);
+  graph->AddSubgraph(sub_graph);
+  return graph;
+}
+
 }  // namespace
 class UtestHostcpuEngineUpdatePass : public Test {
  public:
@@ -525,6 +586,34 @@ TEST_F(UtestHostcpuEngineUpdatePass, HostCpuRejectsUnsupportedDataTypes) {
   EXPECT_TRUE(output_atomic_engine_map.count(output_graph->FindNode("gather")) == 0U);
 }
 
+TEST_F(UtestHostcpuEngineUpdatePass, DeviceCustomKernelCanSwitchToLegacyHostCpu) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  OpsKernelManager::GetInstance().ops_kernel_store_[kHostCpuKernelStore] =
+      std::make_shared<FakeHostCpuOpsKernelInfoStore>(true);
+  const std::string op_type = "Gather";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<DeviceCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kDevice, creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuSupportCheckGraph();
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("gather");
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  node->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  EXPECT_EQ(node->GetOpDesc()->GetOpKernelLibName(), kHostCpuKernelStore);
+  EXPECT_EQ(node->GetOpDesc()->GetOpEngineName(), kHostCpuEngine);
+  EXPECT_EQ(node_atomic_engine_map[node], kHostCpuEngine);
+  EXPECT_EQ(node_composite_engine_map[node], kHostCpuEngine);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
 TEST_F(UtestHostcpuEngineUpdatePass, HostInputWithoutConsumerNotMarkedAsModelInput) {
   setenv("ENABLE_RUNTIME_V2", "1", 1);
   auto graph = BuildHostInputWithoutConsumerGraph();
@@ -539,6 +628,210 @@ TEST_F(UtestHostcpuEngineUpdatePass, HostInputWithoutConsumerNotMarkedAsModelInp
   (void)ge::AttrUtils::GetBool(graph->FindNode("data")->GetOpDesc(), ge::ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT,
                                is_host_model_input);
   EXPECT_FALSE(is_host_model_input);
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, HostCpuCustomOpKeepsCustomEngineWithoutHostPropagation) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  std::map<std::string, std::string> ge_options = {{ge::OO_LEVEL, "O2"}};
+  const std::unordered_map<std::string, OoInfo> &registered_opt_table =
+      ge::OptionRegistry::GetInstance().GetRegisteredOptTable();
+  ge::GetThreadLocalContext().GetOo().Initialize(ge_options, registered_opt_table);
+
+  const std::string op_type = "HostCpuCustomPassMarkOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomGraph(op_type);
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(node, nullptr);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_FALSE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(node_atomic_engine_map.count(node), 0U);
+  EXPECT_EQ(node_composite_engine_map.count(node), 0U);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, HostCpuCustomOpDoesNotJoinLegacyHostPropagation) {
+  const std::string op_type = "HostCpuCustomNoLegacyPropagationOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomGraph(op_type);
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(node, nullptr);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.is_node_execute_on_host_.count(node), 0U);
+  EXPECT_FALSE(pass.CheckAndMarkHostExec(node, node_atomic_engine_map, node_composite_engine_map));
+
+  std::string lowering_func;
+  EXPECT_FALSE(AttrUtils::GetStr(node->GetOpDesc(), kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(pass.host_exe_ops_.count(node), 0U);
+  ASSERT_EQ(pass.is_node_execute_on_host_.count(node), 1U);
+  EXPECT_FALSE(pass.is_node_execute_on_host_[node]);
+  EXPECT_EQ(node_atomic_engine_map.count(node), 0U);
+  EXPECT_EQ(node_composite_engine_map.count(node), 0U);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, HostOnlyCustomOpOnDeviceMarkedWhenHostPropagationMatched) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  std::map<std::string, std::string> ge_options = {{ge::OO_LEVEL, "O2"}};
+  const std::unordered_map<std::string, OoInfo> &registered_opt_table =
+      ge::OptionRegistry::GetInstance().GetRegisteredOptTable();
+  ge::GetThreadLocalContext().GetOo().Initialize(ge_options, registered_opt_table);
+
+  const std::string op_type = "HostOnlyCustomHostPropagationOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomPropagationGraph(op_type);
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->SetOpEngineName(kEngineNameAiCore);
+  node->GetOpDesc()->SetOpKernelLibName(kEngineNameAiCore);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_TRUE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+  EXPECT_EQ(pass.host_exe_ops_.count(node), 1U);
+  EXPECT_EQ(node_atomic_engine_map[node], kEngineNameCustom);
+  EXPECT_EQ(node_composite_engine_map[node], kEngineNameCustom);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, DeviceAndHostCustomOpKeepsDevicePathWhenHostPropagationNotMatched) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  std::map<std::string, std::string> ge_options = {{ge::OO_LEVEL, "O2"}};
+  const std::unordered_map<std::string, OoInfo> &registered_opt_table =
+      ge::OptionRegistry::GetInstance().GetRegisteredOptTable();
+  ge::GetThreadLocalContext().GetOo().Initialize(ge_options, registered_opt_table);
+
+  const std::string op_type = "DeviceAndHostCustomNoHostPropagationOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto device_creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<DeviceCustomPassMarkOp>(); };
+  auto host_creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kDevice, device_creator),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, host_creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomGraph(op_type);
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(node, nullptr);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_FALSE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(node_atomic_engine_map.count(node), 0U);
+  EXPECT_EQ(node_composite_engine_map.count(node), 0U);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, DeviceAndHostCustomOpMarkedOnlyWhenHostPropagationMatched) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  std::map<std::string, std::string> ge_options = {{ge::OO_LEVEL, "O2"}};
+  const std::unordered_map<std::string, OoInfo> &registered_opt_table =
+      ge::OptionRegistry::GetInstance().GetRegisteredOptTable();
+  ge::GetThreadLocalContext().GetOo().Initialize(ge_options, registered_opt_table);
+
+  const std::string op_type = "DeviceAndHostCustomHostPropagationOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto device_creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<DeviceCustomPassMarkOp>(); };
+  auto host_creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kDevice, device_creator),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, host_creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildHostCpuCustomPropagationGraph(op_type);
+  ASSERT_NE(graph, nullptr);
+  auto node = graph->FindNode("host_cpu_custom");
+  ASSERT_NE(node, nullptr);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  std::string lowering_func;
+  EXPECT_TRUE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+  EXPECT_EQ(pass.host_exe_ops_.count(node), 1U);
+  EXPECT_EQ(node_atomic_engine_map[node], kEngineNameCustom);
+  EXPECT_EQ(node_composite_engine_map[node], kEngineNameCustom);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+}
+
+TEST_F(UtestHostcpuEngineUpdatePass, HostCpuCustomOpInPartitionedCallSubgraphWithoutHostPropagation) {
+  setenv("ENABLE_RUNTIME_V2", "1", 1);
+  std::map<std::string, std::string> ge_options = {{ge::OO_LEVEL, "O2"}};
+  const std::unordered_map<std::string, OoInfo> &registered_opt_table =
+      ge::OptionRegistry::GetInstance().GetRegisteredOptTable();
+  ge::GetThreadLocalContext().GetOo().Initialize(ge_options, registered_opt_table);
+
+  const std::string op_type = "HostCpuCustomPartitionedCallSubgraphOp";
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuCustomPassMarkOp>(); };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(op_type.c_str()), OpBackend::kHostCPU, creator),
+            GRAPH_SUCCESS);
+  auto graph = BuildPartitionedCallWithHostCpuCustomSubgraph(op_type);
+  ASSERT_NE(graph, nullptr);
+
+  HostcpuEngineUpdatePass pass;
+  NodeEngineMap node_atomic_engine_map;
+  NodeEngineMap node_composite_engine_map;
+  EXPECT_EQ(pass.Run(graph, node_atomic_engine_map, node_composite_engine_map), SUCCESS);
+
+  auto partitioned_call = graph->FindNode("partitionedcall");
+  ASSERT_NE(partitioned_call, nullptr);
+  auto sub_graph = NodeUtils::GetSubgraph(*partitioned_call, 0);
+  ASSERT_NE(sub_graph, nullptr);
+  auto host_custom_node = sub_graph->FindNode("host_cpu_custom");
+  ASSERT_NE(host_custom_node, nullptr);
+  std::string lowering_func;
+  EXPECT_FALSE(AttrUtils::GetStr(host_custom_node->GetOpDesc(), kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(node_atomic_engine_map.count(host_custom_node), 0U);
+  EXPECT_EQ(node_composite_engine_map.count(host_custom_node), 0U);
+  CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
 }
 
 TEST_F(UtestHostcpuEngineUpdatePass, CheckInputForHostExec) {

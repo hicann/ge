@@ -17,7 +17,7 @@ namespace ge {
 MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2CodegenModel &codegen_model) {
   auto bin_files = ast_.Var("const char **", "bin_files");
   auto bin_data = ast_.Var("const void **", "bin_data");
-  auto bin_size = ast_.Var("size_t *", "bin_size");
+  auto bin_size = ast_.Var("uint64_t *", "bin_size");
   auto bin_num = ast_.Var("size_t", "bin_num");
   auto constants = ast_.Var("void **", "constants");
   auto var_addrs = ast_.Var("void **", "var_addrs");

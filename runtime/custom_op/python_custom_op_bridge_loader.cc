@@ -299,7 +299,8 @@ class PythonCustomOpBridgeLoader {
     return (allow_empty || (!value.empty())) && (value.find('\0') == std::string::npos);
   }
 
-  bool ParseAdapterDescriptor(const PythonCustomOpAdapterDescriptorView &view, PythonCustomOpAdapterDescriptor &desc) {
+  bool ParseAdapterDescriptor(const PythonCustomOpAdapterDescriptorView &view,
+                              PythonCustomOpAdapterDescriptor &desc) const {
     if ((!CopyStringView(view.op_type, false, desc.op_type)) ||
         (!CopyStringView(view.impl_descriptor_key, false, desc.impl_descriptor_key))) {
       return false;
@@ -365,7 +366,7 @@ class PythonCustomOpBridgeLoader {
   }
 
   bool BuildAdapterDescriptor(const PythonCustomOpRegistrationEntry &registration,
-                              PythonCustomOpAdapterDescriptor &desc) {
+                              PythonCustomOpAdapterDescriptor &desc) const {
     desc.op_type = registration.op_type;
     if (registration.has_impl) {
       desc = registration.impl_desc;

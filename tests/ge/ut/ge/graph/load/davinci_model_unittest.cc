@@ -26,6 +26,7 @@
 #include "common/dump/dump_manager.h"
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "graph/load/model_manager/davinci_model.h"
+#include "register/core_num_utils.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/manager/mem_manager.h"
 #include "graph/load/model_manager/task_info/ge/profiler_trace_task_info.h"
@@ -11774,6 +11775,67 @@ TEST_F(UtestDavinciModel, UpdateStaticModelArgsByFm_ExecutesWhenHasQueueAttrs) {
   model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
 
   EXPECT_EQ(model.UpdateStaticModelArgsByFm(), SUCCESS);
+}
+
+// 模型级核数(ge.aicoreNum/ge.vectorcoreNum)持久化在根图属性上。DavinciModel::Init 必须显式读出来传给
+// ModelHelper::HandleDeviceInfo 的 options 重载，否则平台信息只会回落到 ThreadLocalContext，拿到未受限的
+// ini/device 核数，并通过 PlatFormInfos 共享的 impl 把已经受限的平台核数刷回去。
+// 平台 stub 的 SetPlatformResWithLock 是空实现、GetPlatformResWithLock 返回固定值，无法断言刷新后的核数，
+// 因此这里断言"读取链路确实在 Init 上"：根图核数非法时 Init 必须失败，合法时不能影响正常加载。
+namespace {
+GeModelPtr BuildMiniGeModelForCoreNum(const ComputeGraphPtr &graph) {
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2560);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  ge_model->SetModelTaskDef(MakeShared<domi::ModelTaskDef>());
+
+  GeTensorDesc tensor(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor, 512);
+  OpDescPtr op_desc = CreateOpDesc("data", DATA);
+  (void)op_desc->AddInputDesc(tensor);
+  (void)op_desc->AddOutputDesc(tensor);
+  op_desc->SetInputOffset({0});
+  op_desc->SetOutputOffset({0});
+  (void)graph->AddNode(op_desc);
+  return ge_model;
+}
+}  // namespace
+
+TEST_F(UtestDavinciModel, InitSucceedWhenRootGraphCarriesModelCoreNum) {
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("root_graph");
+  ASSERT_TRUE(AttrUtils::SetStr(graph, AICORE_NUM, "8"));
+  ASSERT_TRUE(AttrUtils::SetStr(graph, kVectorCoreNum, "16"));
+  GeModelPtr ge_model = BuildMiniGeModelForCoreNum(graph);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InitFailedWhenRootGraphCoreNumIsInvalid) {
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("root_graph");
+  ASSERT_TRUE(AttrUtils::SetStr(graph, AICORE_NUM, "abc"));
+  GeModelPtr ge_model = BuildMiniGeModelForCoreNum(graph);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_NE(model.Init(), SUCCESS);
+}
+
+// 静态编译子图场景：GeModel 持有的是根图的子图(见 GeRootModel::ModifyOwnerGraphForSubModels)，
+// 模型级核数只写在根图上，Init 必须能沿 parent 链上溯读到。
+TEST_F(UtestDavinciModel, InitReadsModelCoreNumFromRootGraphWhenModelHoldsSubGraph) {
+  ComputeGraphPtr root_graph = MakeShared<ComputeGraph>("root_graph");
+  ASSERT_TRUE(AttrUtils::SetStr(root_graph, AICORE_NUM, "abc"));
+  ComputeGraphPtr sub_graph = MakeShared<ComputeGraph>("root_graph_sub_1_know");
+  sub_graph->SetParentGraph(root_graph);
+  GeModelPtr ge_model = BuildMiniGeModelForCoreNum(sub_graph);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  // 子图自身没有核数属性；若没有上溯到根图，这里会当成"未配置"从而 Init 成功。
+  EXPECT_NE(model.Init(), SUCCESS);
 }
 
 }  // namespace ge

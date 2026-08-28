@@ -85,15 +85,22 @@ std::string MakeManifestJson() {
   return R"({
     "atc_command": "",
     "model_num": 1,
-    "om2_version": "0"
+    "om2_version": "1.0"
 })";
 }
 
 std::string MakeModelMetaJsonWithDynamicBatch() {
   return R"({
-    "dynamic_batch_info": [[1], [2], [4], [8]],
-    "dynamic_output_shape": ["0:0:1,1000", "1:0:2,1000", "2:0:4,1000", "3:0:8,1000"],
-    "dynamic_type": 1,
+    "dynamic_dims": {
+      "dynamic_type": 1,
+      "user_designate_shape_order": ["data"],
+      "gears": [
+        {"inputs": [1], "outputs": [[1, 1000]]},
+        {"inputs": [2], "outputs": [[2, 1000]]},
+        {"inputs": [4], "outputs": [[4, 1000]]},
+        {"inputs": [8], "outputs": [[8, 1000]]}
+      ]
+    },
     "inputs": [
         {
             "data_type": "DT_FLOAT",
@@ -101,13 +108,12 @@ std::string MakeModelMetaJsonWithDynamicBatch() {
             "index": 0,
             "name": "data",
             "shape": [-1, 3, 224, 224],
+            "max_gear_shape": [8, 3, 224, 224],
             "shape_range": [],
-            "shape_v2": [-1, 3, 224, 224],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -120,16 +126,20 @@ std::string MakeModelMetaJsonWithDynamicBatch() {
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": ["data"]
+    "zero_copy_size": 0
 })";
 }
 
 std::string MakeModelMetaJsonWithDynamicHW() {
   return R"({
-    "dynamic_batch_info": [[224, 224], [448, 448]],
-    "dynamic_output_shape": ["0:0:1,1000", "1:0:1,1000"],
-    "dynamic_type": 2,
+    "dynamic_dims": {
+      "dynamic_type": 2,
+      "user_designate_shape_order": ["data"],
+      "gears": [
+        {"inputs": [224, 224], "outputs": [[1, 1000]]},
+        {"inputs": [448, 448], "outputs": [[1, 1000]]}
+      ]
+    },
     "inputs": [
         {
             "data_type": "DT_FLOAT",
@@ -137,13 +147,12 @@ std::string MakeModelMetaJsonWithDynamicHW() {
             "index": 0,
             "name": "data",
             "shape": [1, 3, -1, -1],
+            "max_gear_shape": [1, 3, 448, 448],
             "shape_range": [],
-            "shape_v2": [1, 3, -1, -1],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -156,16 +165,21 @@ std::string MakeModelMetaJsonWithDynamicHW() {
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": ["data"]
+    "zero_copy_size": 0
 })";
 }
 
 std::string MakeModelMetaJsonWithDynamicDims() {
   return R"({
-    "dynamic_batch_info": [[1, 128], [1, 256], [1, 512]],
-    "dynamic_output_shape": ["0:0:1,128", "1:0:1,256", "2:0:1,512"],
-    "dynamic_type": 3,
+    "dynamic_dims": {
+      "dynamic_type": 3,
+      "user_designate_shape_order": ["data"],
+      "gears": [
+        {"inputs": [1, 128], "outputs": [[1, 128]]},
+        {"inputs": [1, 256], "outputs": [[1, 256]]},
+        {"inputs": [1, 512], "outputs": [[1, 512]]}
+      ]
+    },
     "inputs": [
         {
             "data_type": "DT_FLOAT",
@@ -173,13 +187,12 @@ std::string MakeModelMetaJsonWithDynamicDims() {
             "index": 0,
             "name": "data",
             "shape": [-1, -1],
+            "max_gear_shape": [1, 512],
             "shape_range": [],
-            "shape_v2": [-1, -1],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -192,16 +205,12 @@ std::string MakeModelMetaJsonWithDynamicDims() {
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": ["data"]
+    "zero_copy_size": 0
 })";
 }
 
 std::string MakeModelMetaJson() {
   return R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [
         {
             "data_type": "DT_FLOAT",
@@ -210,7 +219,6 @@ std::string MakeModelMetaJson() {
             "name": "data1",
             "shape": [1, 2, 3, 4],
             "shape_range": [],
-            "shape_v2": [1, 2, 3, 4],
             "size": 0
         },
         {
@@ -220,12 +228,10 @@ std::string MakeModelMetaJson() {
             "name": "data2",
             "shape": [1, 1, 224, 224],
             "shape_range": [],
-            "shape_v2": [1, 1, 224, 224],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -238,26 +244,22 @@ std::string MakeModelMetaJson() {
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": []
+    "zero_copy_size": 0
 })";
 }
 
 std::string MakeModelMetaJsonWithZeroCopySize() {
   return R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [
         {
             "data_type": "DT_FLOAT",
             "format": "ND",
             "index": 0,
             "name": "data1",
-            "origin_input_dims": [1, -1, 3, 4],
-            "shape": [1, 2, 3, 4],
+            "shape": [1, -1, 3, 4],
+            "max_gear_shape": [1, 2, 3, 4],
+            "shape_aclmdlGetInputDimsV2": [1, 8, 3, 4],
             "shape_range": [],
-            "shape_v2": [1, 8, 3, 4],
             "size": 0
         },
         {
@@ -265,15 +267,14 @@ std::string MakeModelMetaJsonWithZeroCopySize() {
             "format": "NCHW",
             "index": 1,
             "name": "data2",
-            "origin_input_dims": [1, 1, -1, 224],
-            "shape": [1, 1, 224, 224],
+            "shape": [1, 1, -1, 224],
+            "max_gear_shape": [1, 1, 224, 224],
+            "shape_aclmdlGetInputDimsV2": [1, 1, 448, 224],
             "shape_range": [],
-            "shape_v2": [1, 1, 448, 224],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -286,37 +287,28 @@ std::string MakeModelMetaJsonWithZeroCopySize() {
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 1024,
-    "user_designate_shape_order": []
+    "zero_copy_size": 1024
 })";
 }
 
 std::string MakeModelMetaJsonWithoutRootGraphName() {
   return R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [],
     "name": "g1",
     "outputs": [],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": []
+    "zero_copy_size": 0
 })";
 }
 
-std::string MakeModelMetaJsonWithoutInputShapeV2() {
+std::string MakeModelMetaJsonWithoutInputShape() {
   return R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [
         {
             "data_type": "DT_FLOAT",
             "format": "ND",
             "index": 0,
             "name": "data1",
-            "shape": [1, 2, 3, 4],
             "shape_range": [],
             "size": 0
         }
@@ -672,12 +664,11 @@ std::string MakeConstantsConfigJson() {
     "internal_weight_size": 16,
     "consts": {
       "fc1_weight": {
-        "file_name": "",
+        "file_name": "constant_0",
         "index": 0,
         "type": "INTERNAL",
         "offset": 0,
-        "size": 16,
-        "op_name": "fc1_weight"
+        "size": 16
       }
     }
   })";
@@ -692,8 +683,7 @@ std::string MakeIndividualConstantsConfigJson() {
         "index": 0,
         "type": "INDIVIDUAL",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc1_weight"
+        "size": 2
       }
     }
   })";
@@ -708,8 +698,7 @@ std::string MakeIndividualConstantsConfigJsonWithZeroInternalWeightSize() {
         "index": 0,
         "type": "INDIVIDUAL",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc1_weight"
+        "size": 2
       }
     }
   })";
@@ -724,8 +713,7 @@ std::string MakeCombinedConstantsConfigJson() {
         "index": 0,
         "type": "COMBINED",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc1_weight"
+        "size": 2
       }
     }
   })";
@@ -736,28 +724,25 @@ std::string MakeMixedConstantsConfigJson() {
     "internal_weight_size": 16,
     "consts": {
       "fc0_weight": {
-        "file_name": "",
+        "file_name": "constant_0",
         "index": 0,
         "type": "INTERNAL",
         "offset": 0,
-        "size": 16,
-        "op_name": "fc0_weight"
+        "size": 16
       },
       "fc1_weight": {
         "file_name": "mixed_fc.bin",
         "index": 1,
         "type": "INDIVIDUAL",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc1_weight"
+        "size": 2
       },
       "fc2_weight": {
         "file_name": "mixed_combined.bin",
         "index": 2,
         "type": "COMBINED",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc2_weight"
+        "size": 2
       }
     }
   })";
@@ -772,16 +757,14 @@ std::string MakeDuplicateIndividualConstantsConfigJson() {
         "index": 1,
         "type": "INDIVIDUAL",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc1_weight"
+        "size": 2
       },
       "fc2_weight": {
         "file_name": "duplicate_fc.bin",
         "index": 2,
         "type": "INDIVIDUAL",
         "offset": 1,
-        "size": 2,
-        "op_name": "fc2_weight"
+        "size": 2
       }
     }
   })";
@@ -1596,8 +1579,8 @@ TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
   ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
-  // Missing input shape_v2 should fail while parsing the cached v2 model desc.
-  const auto model_meta = MakeModelMetaJsonWithoutInputShapeV2();
+  // Missing input shape should fail while parsing the cached model desc.
+  const auto model_meta = MakeModelMetaJsonWithoutInputShape();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
@@ -1992,7 +1975,7 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_from_mem_ok) {
 
 // 辅助函数：生成带属性的op_attr.json
 static std::string MakeOpAttrJson() {
-  return R"({"test_op":{"_datadump_original_op_names":"[12]original_op1[12]original_op2"}})";
+  return R"({"test_op":{"_datadump_original_op_names":{"type":"LIST_STRING","value":["original_op1","original_op2"]}}})";
 }
 
 // 辅助函数：生成空op_attr.json
@@ -2007,7 +1990,7 @@ static std::string MakeInvalidOpAttrJson() {
 
 // 辅助函数：生成多个算子属性的op_attr.json
 static std::string MakeMultipleOpAttrJson() {
-  return R"({"op1":{"_datadump_original_op_names":"[5]orig1[5]orig2","_another_attr":"test_value"},"op2":{"_datadump_original_op_names":"[5]orig3"}})";
+  return R"({"op1":{"_datadump_original_op_names":{"type":"LIST_STRING","value":["orig1","orig2"]},"_another_attr":{"type":"STRING","value":"test_value"}},"op2":{"_datadump_original_op_names":{"type":"LIST_STRING","value":["orig3"]}}})";
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
@@ -2039,7 +2022,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
   const auto op_attr = MakeOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/debug/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                    PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -2114,7 +2097,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/debug/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                    PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -2199,7 +2182,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
   const auto op_attr = MakeInvalidOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/debug/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                    PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -2267,7 +2250,7 @@ TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllA
   const auto op_attr = MakeMultipleOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/debug/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                    PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -2709,9 +2692,6 @@ TEST_F(Om2ModelExecutorUt, GetCurrentShape_AfterFailedSet_ReturnsEmpty) {
 
 namespace {
 constexpr const char *kAippModelMetaJson = R"({
-    "dynamic_batch_info": [],
-    "dynamic_output_shape": [],
-    "dynamic_type": 0,
     "inputs": [
         {
             "data_type": "DT_FLOAT",
@@ -2720,12 +2700,11 @@ constexpr const char *kAippModelMetaJson = R"({
             "name": "data1",
             "shape": [1, 3, 224, 224],
             "shape_range": [],
-            "shape_v2": [1, 3, 224, 224],
+            "shape_aclmdlGetInputDimsV2": [1, 3, 224, 224],
             "size": 0
         }
     ],
     "name": "g1",
-    "root_graph_name": "root_g1",
     "outputs": [
         {
             "data_type": "DT_FLOAT",
@@ -2734,13 +2713,12 @@ constexpr const char *kAippModelMetaJson = R"({
             "name": "output_0",
             "shape": [1, 1000],
             "shape_range": [],
-            "shape_v2": [1, 1000],
+            "shape_aclmdlGetInputDimsV2": [1, 1000],
             "size": 0
         }
     ],
     "work_size": 2048,
-    "zero_copy_size": 0,
-    "user_designate_shape_order": []
+    "zero_copy_size": 0
 })";
 
 constexpr const char *kAippJsonSectionStatic = R"("aipp": {

@@ -54,7 +54,7 @@ ge::Status AicpuGraphOptimizer::Initialize(const map<string, string> &options,
   if (ConfigFile::GetInstance().GetValue(kAutoCastMode, auto_cast_mode)) {
     auto_cast_mode_ = kAutoCastModeOff;
     if (StringToNum(auto_cast_mode, auto_cast_mode_).state != ge::SUCCESS) {
-      AICPUE_LOGW("Tran auto_cast_mode[%s] to integer failed. default value is [%d].", auto_cast_mode.c_str(),
+      AICPUE_LOGW("Convert auto_cast_mode[%s] to integer failed, use default value[%d].", auto_cast_mode.c_str(),
                   auto_cast_mode_);
     }
   } else {
@@ -301,7 +301,7 @@ ge::Status AicpuGraphOptimizer::OptimizeOriginalGraphJudgeInsert(ComputeGraph &g
 ge::Status AicpuGraphOptimizer::OptimizeFusedGraph(ComputeGraph &graph) {
   std::string graph_name = graph.GetName();
   ge::TraceManager::GetInstance().SetTraceOwner(kModuleName, kTraceFusedOptimizer, graph_name);
-  AICPUE_LOGI("begin to optimizer graph[%s]", graph_name.c_str());
+  AICPUE_LOGI("Begin to optimize graph[%s]", graph_name.c_str());
   if (IsEmptyGraph(graph)) {
     ge::TraceManager::GetInstance().ClearTraceOwner();
     return SUCCESS;
@@ -351,7 +351,7 @@ ge::Status AicpuGraphOptimizer::OptimizeFusedGraph(ComputeGraph &graph) {
   suffix = "After_Aicpu_Optimized";
   GraphOptimizerUtils::DumpGraph(graph, suffix);
 
-  AICPUE_LOGI("optimizer fused graph[%s] success.", graph_name.c_str());
+  AICPUE_LOGI("Optimize fused graph[%s] success.", graph_name.c_str());
   ge::TraceManager::GetInstance().ClearTraceOwner();
   return ge::SUCCESS;
 }
@@ -434,7 +434,7 @@ ge::Status AicpuGraphOptimizer::GetOpsParallelInfo(std::unordered_set<string> &o
     ops_parallel_info.insert(op);
     AICPUE_LOGD("Insert a op[%s] in set success.", op.c_str());
     if (ops_parallel_info.size() >= kMaxOpsParallelNum) {
-      AICPUE_LOGW("ops parallel rule support the max num is %zu.", ops_parallel_info.size());
+      AICPUE_LOGW("The max num supported by ops parallel rule is %zu.", ops_parallel_info.size());
       break;
     }
   }
@@ -447,8 +447,8 @@ ge::Status AicpuGraphOptimizer::SetStreamLabel(const ge::NodePtr &node, const st
   AICPU_CHECK_NOTNULL(tmp_desc);
 
   if (!AttrUtils::SetStr(tmp_desc, "_stream_label", label)) {
-    REPORT_INNER_ERR_MSG("E19999", "Set Attr:fail for op:%s(%s)", node->GetName().c_str(), node->GetType().c_str());
-    AICPUE_LOGE("[Set][Attr] fail for op:%s(%s)", node->GetName().c_str(), node->GetType().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Set Attr:failed for op:%s(%s)", node->GetName().c_str(), node->GetType().c_str());
+    AICPUE_LOGE("[Set][Attr] failed for op:%s(%s)", node->GetName().c_str(), node->GetType().c_str());
     return ge::FAILED;
   }
 
@@ -466,7 +466,7 @@ ge::Status AicpuGraphOptimizer::SetStreamLabelForOpsParallel(ge::ComputeGraph &g
 
     auto iter = ops_parallel_info.find(op_type);
     if (iter == ops_parallel_info.end()) {
-      AICPUE_LOGD("Current op type [%s]. Don't exist in ops parallel rule list.", op_type.c_str());
+      AICPUE_LOGD("Current op type [%s] does not exist in ops parallel rule list.", op_type.c_str());
       continue;
     }
 
@@ -487,7 +487,7 @@ void AicpuGraphOptimizer::SetAicpuAsyncOpTimeout(const ge::OpDescPtr &op_desc_pt
   auto op_iter = async_ops_timeout.find(op_type);
   if (op_iter != async_ops_timeout.end()) {
     (void)ge::AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_BLOCKING_OP_TIMEOUT, op_iter->second);
-    AICPUE_LOGI("Set op:%s timeout:%d", op_type.c_str(), op_iter->second);
+    AICPUE_LOGI("Set op:%s timeout:%ld", op_type.c_str(), op_iter->second);
   }
 }
 

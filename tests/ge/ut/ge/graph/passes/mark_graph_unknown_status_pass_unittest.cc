@@ -21,6 +21,8 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/passes/shape_optimize/mark_graph_unknown_status_pass.h"
 #include "graph/utils/op_desc_utils.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 #include "graph/passes/pass_manager.h"
 #include "api/gelib/gelib.h"
 #include "engines/manager/opskernel_manager/dnn_ops_kernel_manager.h"
@@ -156,5 +158,32 @@ TEST_F(MarkGraphUnknownStatusPassTest, HostCpuEngineNoTilingSuccess) {
   Status ret = mark_graph_unknown_status_pass_.Run(graph_);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(graph_->GetGraphUnknownFlag());
+}
+
+TEST_F(MarkGraphUnknownStatusPassTest, HostCpuCustomOpSuccess) {
+  const AscendString op_type("MarkHostCpuCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  class HostCpuOpForMarkUnknown final : public HostCpuExecuteOp {
+   public:
+    graphStatus Execute(gert::HostCpuOpExecutionContext *) override {
+      return GRAPH_SUCCESS;
+    }
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuOpForMarkUnknown>(); }),
+            GRAPH_SUCCESS);
+  auto node1 = NewNode("Op1", DATA_TYPE, 0, 1);
+  auto node2 = NewNode("Op2", op_type.GetString(), 1, 1);
+  auto net_output = NewNode("NetOutput", NETOUTPUT, 3, 3);
+  node2->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  node2->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  ASSERT_TRUE(AttrUtils::SetStr(node2->GetOpDesc(), kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node2->GetOutDataAnchor(0), net_output->GetInDataAnchor(1));
+
+  EXPECT_EQ(mark_graph_unknown_status_pass_.Run(graph_), SUCCESS);
+  EXPECT_TRUE(graph_->GetGraphUnknownFlag());
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 }  // namespace ge

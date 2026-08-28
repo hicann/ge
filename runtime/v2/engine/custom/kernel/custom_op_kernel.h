@@ -19,6 +19,10 @@ namespace kernel {
 ge::graphStatus FindCustomOpFunc(KernelContext *context);
 ge::graphStatus ExecuteCustomOpFunc(KernelContext *context);
 ge::graphStatus FreeCustomOpWorkspacesFunc(KernelContext *context);
+ge::graphStatus FindHostCpuCustomOpFunc(KernelContext *context);
+ge::graphStatus FindCustomShapeInferOpFunc(KernelContext *context);
+ge::graphStatus ExecuteHostCustomOpFunc(KernelContext *context);
+ge::graphStatus ExecuteHostCustomOpWithInferShapeFunc(KernelContext *context);
 }  // namespace kernel
 }  // namespace gert
 

@@ -13,10 +13,6 @@
 #include <algorithm>
 #include "common/checker.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/utils/type_utils.h"
-#include "graph/utils/op_type_utils.h"
-#include "graph/utils/node_utils.h"
-#include "graph/ge_context.h"
 #include "memory_block.h"
 
 namespace ge {
@@ -118,13 +114,14 @@ void GetDiffStreamMaxLifeTime(const Node *const node, const int64_t stream_id,
   max_life_time = kMaxLifeTime;
   auto node_op_desc = node->GetOpDescBarePtr();
   GE_CHECK_NOTNULL_JUST_RETURN(node_op_desc);
+  const auto node_stream_id = MemReuseUtils::GetStreamId(node_op_desc);
   GELOGD("Out depend node:[%s] life begin:%" PRId64 " stream_id:[%" PRId64 "->%" PRId64 "]", node_op_desc->GetNamePtr(),
-         node_op_desc->GetId(), MemReuseUtils::GetStreamId(node_op_desc), stream_id);
-  if (MemReuseUtils::GetStreamId(node_op_desc) == stream_id) {
+         node_op_desc->GetId(), node_stream_id, stream_id);
+  if (node_stream_id == stream_id) {
     max_life_time = node_op_desc->GetId();
     return;
   }
-  const auto it = diff_stream_edge_life.find(MemReuseUtils::GetStreamId(node_op_desc));
+  const auto it = diff_stream_edge_life.find(node_stream_id);
   if (it == diff_stream_edge_life.cend()) {
     return;
   }
@@ -137,8 +134,8 @@ void GetDiffStreamMaxLifeTime(const Node *const node, const int64_t stream_id,
     return;
   }
   GELOGD("Node:[%s] life begin:%" PRId64 " stream_id:[%" PRId64 "->%" PRId64 "] life_time:[%" PRId64 "->%" PRId64 "]",
-         node_op_desc->GetNamePtr(), node_op_desc->GetId(), MemReuseUtils::GetStreamId(node_op_desc), stream_id,
-         (*edge_it).node_id, (*edge_it).peer_node_id);
+         node_op_desc->GetNamePtr(), node_op_desc->GetId(), node_stream_id, stream_id, (*edge_it).node_id,
+         (*edge_it).peer_node_id);
   max_life_time = (*edge_it).peer_node_id;
 }
 

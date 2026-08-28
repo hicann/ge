@@ -49,6 +49,7 @@
 #include "common/model/executor.h"
 #include "framework/runtime/model_rt_var_manager.h"
 #include "common/platform_info_util/platform_info_util.h"
+#include "register/core_num_utils.h"
 #include "hcom/hcom_topo_info.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "rt_external_stream.h"
@@ -1165,7 +1166,16 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   }
 
   ModelHelper model_helper;
-  GE_CHK_STATUS_RET(model_helper.HandleDeviceInfo(platform_infos_), "Fail to handle device info.");
+  // 静态编译子图/静态模型的模型级核数(ge.aicoreNum/ge.vectorcoreNum)持久化在根图属性上, 这里必须显式读出来
+  // 传给HandleDeviceInfo的options重载。否则platform_infos_只会回落到ThreadLocalContext, 拿到未受限的
+  // ini/device核数, 并通过PlatFormInfos共享的impl把已经受限的平台核数刷回去, 参见Init里的注释与提交说明。
+  std::map<std::string, std::string> model_core_num_options;
+  GE_CHK_STATUS_RET(CoreNumUtils::GetCoreNumOptionsFromGraph(compute_graph, model_core_num_options),
+                    "[Get][CoreNum] Failed to get model core num from root graph of %s.",
+                    compute_graph->GetName().c_str());
+  fe::PlatformInfo origin_platform_info;
+  GE_CHK_STATUS_RET(model_helper.HandleDeviceInfo(platform_infos_, origin_platform_info, model_core_num_options),
+                    "Fail to handle device info.");
   GE_CHK_STATUS_RET(FileConstantUtils::GetFileIdToPathMapFromOption(file_id_and_path_map_), "Failed to get file path.");
 
   // RTS set aicore or vectorcore

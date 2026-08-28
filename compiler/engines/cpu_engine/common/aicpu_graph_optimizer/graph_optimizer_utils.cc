@@ -137,7 +137,7 @@ ge::Status CacheGraph::CreateAndInsertCacheUpdate(const OutDataAnchorPtr &src_an
   AICPU_CHECK_RES_WITH_LOG(cache_update_op_desc->UpdateInputDesc(0, src_tensor_desc),
                            "Call UpdateInputDesc function failed to update input[0] desc, op[CacheUpdate].")
   AICPU_CHECK_RES_WITH_LOG(cache_update_op_desc->UpdateOutputDesc(0, dst_tensor_desc),
-                           "Call UpdateInputDesc function failed to update output[0] desc, op[CacheUpdate].")
+                           "Call UpdateOutputDesc function failed to update output[0] desc, op[CacheUpdate].")
 
   if ((sgt_flag) && (slice_info_ptr != nullptr)) {
     (void)cache_update_op_desc->SetExtAttr(kAttrNameSgtStruct, slice_info_ptr);
@@ -187,7 +187,7 @@ Status CacheGraph::GenerateNoCacheGraph(ComputeGraph &graph) {
         AICPU_CHECK_NOTNULL(src_anchor)
         auto nodes_and_anchors = curr_node->GetOutDataNodesAndAnchors();
         AICPU_IF_BOOL_EXEC(nodes_and_anchors.empty(),
-                           AICPUE_LOGI("no output data adge, op[%s]", curr_node->GetName().c_str());
+                           AICPUE_LOGI("no output data edge, op[%s]", curr_node->GetName().c_str());
                            continue)
         InDataAnchorPtr dst_anchor = nodes_and_anchors.at(0).second;
         AICPU_CHECK_NOTNULL(dst_anchor)
@@ -198,7 +198,7 @@ Status CacheGraph::GenerateNoCacheGraph(ComputeGraph &graph) {
         (void)GraphOptimizerUtils::CheckIsFftsPlus(curr_op_desc_ptr, slice_info_ptr, sgt_flag);
 
         AICPU_CHECK_RES_WITH_LOG(CreateAndInsertCacheUpdate(src_anchor, dst_anchor, graph, slice_info_ptr, sgt_flag),
-                                 "Call CreateAndInsertCacheUpdatef failed to insert CacheUpdate op"
+                                 "Call CreateAndInsertCacheUpdate failed to insert CacheUpdate op"
                                  " between op[%s] and op[%s].",
                                  curr_node->GetName().c_str(), nodes_and_anchors.at(0).first->GetName().c_str())
       }
@@ -221,7 +221,7 @@ Status CacheGraph::GenerateNoCacheGraph(ComputeGraph &graph) {
       if (*end_rear_node_engine == "AIcoreEngine" || *parent_op_type == "NetOutput") {
         auto nodes_and_anchors = curr_node->GetInDataNodesAndAnchors();
         AICPU_IF_BOOL_EXEC(
-            nodes_and_anchors.empty(), AICPUE_LOGI("no in data adge, op[%s]", curr_node->GetName().c_str()); continue)
+            nodes_and_anchors.empty(), AICPUE_LOGI("no in data edge, op[%s]", curr_node->GetName().c_str()); continue)
         OutDataAnchorPtr src_anchor = nodes_and_anchors.at(0).second;
         AICPU_CHECK_NOTNULL(src_anchor)
         InDataAnchorPtr dst_anchor = curr_node->GetInDataAnchor(0);
@@ -245,7 +245,7 @@ ge::Status AutoCastGraph::GenerateAutoCastGraph(ge::ComputeGraph &graph,
     AICPU_CHECK_NOTNULL(op_desc_ptr)
     std::string op_type = op_desc_ptr->GetType();
     AICPU_IF_BOOL_EXEC(((op_type == kPlaceHolderOpType) || (op_type == kEndOpType) || (op_type == kFunctionOp)),
-                       AICPUE_LOGI("Current op type is [%s]. Don't need to AutoCast.", op_type.c_str());
+                       AICPUE_LOGI("Current op type is [%s]. It does not need AutoCast.", op_type.c_str());
                        continue)
     // if op type is framework_op, get original op
     AICPU_IF_BOOL_EXEC((op_type == kFrameworkOp), AICPU_CHECK_RES(GetFrameworkOpType(op_desc_ptr, op_type)))

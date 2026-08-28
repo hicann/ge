@@ -23,8 +23,8 @@ ge::graphStatus ResourceMgr::Create(const uint64_t handle, TensorSeqPtr resource
   GELOGD("Create handle: [%llu]", handle);
   const std::lock_guard<std::mutex> lock(mu_);
   if (handle_map_.count(handle) != 0) {
-    GELOGE(ge::PARAM_INVALID, "handle [%llu] has already exist.", handle);
-    REPORT_INNER_ERR_MSG("E39999", "handle has already exist.");
+    GELOGE(ge::PARAM_INVALID, "handle [%llu] already exists.", handle);
+    REPORT_INNER_ERR_MSG("E39999", "handle already exists.");
     return ge::PARAM_INVALID;
   } else {
     handle_map_[handle] = resource;
@@ -116,8 +116,8 @@ ge::graphStatus SessionMgr::CreateSession(const uint64_t session_id) {
   const std::lock_guard<std::mutex> lock(session_mutex_);
   const auto iter = session_map_.find(session_id);
   if (iter != session_map_.end()) {
-    GELOGE(ge::PARAM_INVALID, "session_id [%llu] has already exist.", session_id);
-    REPORT_INNER_ERR_MSG("E39999", "session_id has already exist.");
+    GELOGE(ge::PARAM_INVALID, "session_id [%llu] already exists.", session_id);
+    REPORT_INNER_ERR_MSG("E39999", "session_id already exists.");
     return ge::PARAM_INVALID;
   }
   session_map_.insert({session_id, NewSession()});
@@ -184,8 +184,8 @@ ge::graphStatus Session::CreateRm(const uint64_t container_id) {
   const std::lock_guard<std::mutex> lock(mutex_);
   const auto iter = rm_map_.find(container_id);
   if (iter != rm_map_.end()) {
-    GELOGE(ge::PARAM_INVALID, "container_id [%llu] has already exist.", container_id);
-    REPORT_INNER_ERR_MSG("E39999", "container_id has already exist.");
+    GELOGE(ge::PARAM_INVALID, "container_id [%llu] already exists.", container_id);
+    REPORT_INNER_ERR_MSG("E39999", "container_id already exists.");
     return ge::PARAM_INVALID;
   }
   rm_map_.insert({container_id, NewRm()});

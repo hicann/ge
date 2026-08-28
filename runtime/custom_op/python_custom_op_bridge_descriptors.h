@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "graph/error_codes.h"
 #include "pybind11/pytypes.h"
 #include "runtime/custom_op/python_custom_op_bridge_types.h"
 

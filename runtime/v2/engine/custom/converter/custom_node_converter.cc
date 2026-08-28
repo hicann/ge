@@ -85,6 +85,18 @@ bg::ValueHolderPtr FindCustomExecutorFunc(const ge::NodePtr &node, const LowerIn
   return lower_input.global_data->GetOrCreateUniqueValueHolder(node->GetType() + "_FindCustomOp_", builder)[0];
 }
 
+bg::ValueHolderPtr FindHostCpuCustomExecutorFunc(const ge::NodePtr &node, const LowerInput &lower_input) {
+  auto builder = [&node, &lower_input]() -> std::vector<bg::ValueHolderPtr> {
+    return bg::FrameSelector::OnInitRoot([&node, &lower_input]() -> std::vector<bg::ValueHolderPtr> {
+      auto node_type = bg::ValueHolder::CreateConst(node->GetTypePtr(), node->GetType().size() + 1, true);
+      ge::CustomOpRegistry *custom_op_registry = lower_input.global_data->GetCustomOpRegistry().get();
+      auto registry_holder = bg::ValueHolder::CreateConst(&custom_op_registry, sizeof(custom_op_registry));
+      return {bg::ValueHolder::CreateSingleDataOutput("FindHostCpuCustomOp", {node_type, registry_holder})};
+    });
+  };
+  return lower_input.global_data->GetOrCreateUniqueValueHolder(node->GetType() + "_FindHostCpuCustomOp_", builder)[0];
+}
+
 ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &lower_input,
                                   std::vector<bg::ValueHolderPtr> &input_tensor_holders,
                                   std::vector<bg::ValueHolderPtr> &input_addr_holders) {
@@ -114,6 +126,37 @@ ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &low
     input_tensor_holders.emplace_back(result->shape);
     input_addr_holders.emplace_back(result->address);
     ++instance_index;
+  }
+  GE_ASSERT_TRUE(lower_input.input_shapes.size() == input_tensor_holders.size(),
+                 "Size[%zu] of input shapes and size[%zu] of input tensor is not same.",
+                 lower_input.input_shapes.size(), input_tensor_holders.size());
+  return ge::SUCCESS;
+}
+
+ge::graphStatus BuildHostInputTensors(const ge::NodePtr &node, const LowerInput &lower_input,
+                                      std::vector<bg::ValueHolderPtr> &input_tensor_holders,
+                                      std::vector<bg::ValueHolderPtr> &input_addr_holders) {
+  for (const ge::InDataAnchorPtr &in_data_anchor : node->GetAllInDataAnchors()) {
+    GE_ASSERT_NOTNULL(in_data_anchor);
+    // optional场景
+    ge::OutDataAnchorPtr out_data_anchor = in_data_anchor->GetPeerOutAnchor();
+    if (out_data_anchor == nullptr) {
+      continue;
+    }
+    ge::NodePtr peer_node = out_data_anchor->GetOwnerNode();
+    GE_ASSERT_NOTNULL(peer_node);
+    const auto *const_lower_result = peer_node->GetOpDesc()->GetExtAttr<PlacedLoweringResult>(kLoweringResult);
+    GE_ASSERT_NOTNULL(const_lower_result, "Lowering result of node [%s, %s] is not found.", peer_node->GetNamePtr(),
+                      peer_node->GetTypePtr());
+    auto *lower_result = const_cast<PlacedLoweringResult *>(const_lower_result);
+    GE_ASSERT_NOTNULL(lower_result);
+    const OutputLowerResult *result = lower_result->GetOutputTensorResult(
+        *lower_input.global_data, out_data_anchor->GetIdx(), {kOnHost, node->GetOpDesc()->GetStreamId()});
+    GE_ASSERT_NOTNULL(result, "Lowering result of node [%s, %s] output[%d] is nullptr.", peer_node->GetNamePtr(),
+                      peer_node->GetTypePtr(), out_data_anchor->GetIdx());
+    GE_ASSERT_NOTNULL(result->shape);
+    input_tensor_holders.emplace_back(result->shape);
+    input_addr_holders.emplace_back(result->address);
   }
   GE_ASSERT_TRUE(lower_input.input_shapes.size() == input_tensor_holders.size(),
                  "Size[%zu] of input shapes and size[%zu] of input tensor is not same.",
@@ -188,4 +231,51 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
   return {HyperStatus::Success(), {}, output_shapes, output_addrs};
 }
 REGISTER_NODE_CONVERTER_PLACEMENT(ge::kCustomOpKernelLibName.c_str(), kOnDeviceHbm, LoweringCustomNode);
+
+LowerResult LoweringHostCustomNode(const ge::NodePtr &node, const LowerInput &lower_input) {
+  LOWER_REQUIRE_HYPER_SUCCESS(CheckLowerInput(lower_input));
+  std::vector<bg::ValueHolderPtr> input_holders;
+  std::vector<bg::ValueHolderPtr> input_addr_holders;
+  LOWER_REQUIRE_SUCCESS(BuildHostInputTensors(node, lower_input, input_holders, input_addr_holders));
+  // Allocate
+  auto allocator_holder = lower_input.global_data->GetOrCreateAllocator({kOnHost, AllocatorUsage::kAllocNodeOutput});
+  // Create op executeFunc
+  auto custom_executor_func = FindHostCpuCustomExecutorFunc(node, lower_input);
+  input_holders.emplace_back(allocator_holder);
+  input_holders.emplace_back(custom_executor_func);
+  // Check inference_rule
+  const auto op_desc = node->GetOpDesc();
+  LOWER_REQUIRE_NOTNULL(op_desc);
+  std::string kernel_type = "ExecuteHostCustomOp";
+  if (NeedCustomOpInferShape(node, *lower_input.global_data)) {
+    kernel_type = "ExecuteHostCustomOpWithInferShape";
+    std::vector<bg::ValueHolderPtr> infer_output_shapes =
+        bg::InferCustomOpShape(node, lower_input.input_shapes, *lower_input.global_data);
+    input_holders.insert(input_holders.end(), infer_output_shapes.begin(), infer_output_shapes.end());
+  }
+  std::vector<bg::ValueHolderPtr> output_tensor_holders =
+      bg::ValueHolder::CreateDataOutput(kernel_type.c_str(), input_holders, node->GetAllOutDataAnchorsSize());
+  std::vector<bg::ValueHolderPtr> output_shapes;
+  std::vector<bg::DevMemValueHolderPtr> output_addrs;
+  for (size_t i = 0UL; i < node->GetAllOutDataAnchorsSize(); i++) {
+    auto split_outputs = bg::DevMemValueHolder::CreateDataOutput(
+        kernel::kSplitDataTensor, {output_tensor_holders[i], allocator_holder},
+        static_cast<size_t>(kernel::SplitTensorOutputs::kNum), op_desc->GetStreamId());
+    CONVERTER_CHECK_HOLDERS_ALL_OK(split_outputs, static_cast<size_t>(kernel::SplitTensorOutputs::kNum));
+    auto output_addr = split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kTensorData)];
+    output_addr->SetPlacement(kOnHost);
+    LOWER_REQUIRE_NOTNULL(bg::ValueHolder::CreateVoidGuarder("FreeMemory", output_addr, {}));
+    output_shapes.emplace_back(split_outputs[static_cast<size_t>(kernel::SplitTensorOutputs::kShape)]);
+    output_addrs.emplace_back(output_addr);
+  }
+
+  for (auto &addr : input_addr_holders) {
+    auto guarder = addr->GetGuarder();
+    if ((guarder != nullptr) && (!output_tensor_holders.empty())) {
+      GE_ASSERT_HYPER_SUCCESS(bg::ValueHolder::AddDependency(output_tensor_holders.front(), guarder));
+    }
+  }
+  return {HyperStatus::Success(), {}, output_shapes, output_addrs};
+}
+REGISTER_NODE_CONVERTER_PLACEMENT(ge::kHostCpuCustomOpLowerFunc.c_str(), kOnHost, LoweringHostCustomNode);
 }  // namespace gert

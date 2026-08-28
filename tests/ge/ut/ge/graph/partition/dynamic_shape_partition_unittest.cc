@@ -22,6 +22,8 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/operator_factory.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 #include "graph/operator_reg.h"
 #include "graph/ge_local_context.h"
 #include "register/op_impl_registry.h"
@@ -40,6 +42,13 @@
 
 namespace ge {
 namespace {
+class HostCpuDynamicPartitionOp final : public HostCpuExecuteOp {
+ public:
+  graphStatus Execute(gert::HostCpuOpExecutionContext *) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
 // todo 把注册做成stub的庄能力，不影响其他流程
 IMPL_OP(AddTilingDepend).TilingInputsDataDependency({1});
 IMPL_OP(AddTilingDependPlacementHasAicpu)
@@ -164,6 +173,25 @@ TEST_F(UtestDynamicShapePartition, not_single_op_scene_success) {
   EXPECT_EQ(partitioner.IsUnknownShapeNode(add_n_node_root, is_unknown), SUCCESS);
   EXPECT_EQ(is_unknown, true);
   EXPECT_EQ(partitioner.Partition(), SUCCESS);
+}
+
+TEST_F(UtestDynamicShapePartition, custom_host_cpu_node_is_unknown_shape) {
+  const AscendString op_type("DynamicPartitionHostCpuCustomOp");
+  CustomOpFactory::RemoveCustomOps({op_type});
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(
+                op_type, OpBackend::kHostCPU,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<HostCpuDynamicPartitionOp>(); }),
+            GRAPH_SUCCESS);
+  auto graph = std::make_shared<ComputeGraph>("root");
+  auto node = NodeBuilder("host_custom", op_type.GetString()).AddInputDesc({1}).AddOutputDesc({-1}).Build(graph);
+  node->GetOpDesc()->SetOpEngineName(kEngineNameCustom);
+  node->GetOpDesc()->SetOpKernelLibName(kCustomOpKernelLibName);
+  ASSERT_TRUE(AttrUtils::SetStr(node->GetOpDesc(), kAttrLowingFunc, kHostCpuCustomOpLowerFunc));
+  DynamicShapePartitioner partitioner(graph);
+  bool is_unknown = false;
+  EXPECT_EQ(partitioner.IsUnknownShapeNode(node, is_unknown), SUCCESS);
+  EXPECT_TRUE(is_unknown);
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 
 TEST_F(UtestDynamicShapePartition, TestSingleOpWithSubGraph) {

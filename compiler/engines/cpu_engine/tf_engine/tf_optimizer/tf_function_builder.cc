@@ -112,7 +112,8 @@ ge::Status TfFunctionBuilder::BuildFunctionDef(ge::ComputeGraphPtr &graph, const
   // trans ge graph to tf function def
   FunctionDef *func_def = func_lib->add_function();
   AICPU_CHECK_RES_WITH_LOG(TransGraphToFunctionDef(graph, name, func_def),
-                           "Call TfFunctionBuilder::TransGraphToFunctionDef. tf function[%s].", func_name.c_str())
+                           "Call TfFunctionBuilder::TransGraphToFunctionDef failed, tf function[%s].",
+                           func_name.c_str())
 
   return ge::SUCCESS;
 }
@@ -323,7 +324,8 @@ ge::Status TfFunctionBuilder::TransGraphToFunctionDef(ge::ComputeGraphPtr &graph
           return ErrorCode::GET_ATTR_FAILED)
       AICPU_CHECK_FALSE_EXEC(
           ge::AttrUtils::GetInt(node->GetOpDesc(), "retval_index", index),
-          AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::GetInt get attr[retval_index], op[%s].", node_name.c_str());
+          AICPU_REPORT_INNER_ERR_MSG("Call ge::AttrUtils::GetInt failed to get attr[retval_index], op[%s].",
+                                     node_name.c_str());
           return ErrorCode::GET_ATTR_FAILED)
       while (func_def->signature().output_arg_size() <= index) {
         func_def->mutable_signature()->add_output_arg();

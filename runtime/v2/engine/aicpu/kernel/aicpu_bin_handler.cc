@@ -56,7 +56,7 @@ ge::graphStatus OpJsonBinHandler::LoadBinary(const std::string &json_path) {
   }
 
   if (json_path.empty()) {
-    GELOGE(ge::FAILED, "Load binary failed by json path is empty.");
+    GELOGE(ge::FAILED, "Load binary failed because json path is empty.");
     return ge::FAILED;
   }
 
@@ -80,12 +80,12 @@ ge::graphStatus OpDataBinHandler::LoadBinary(const std::string &so_name, const g
   }
 
   if (kernel_bin == nullptr) {
-    GELOGE(ge::FAILED, "Load custom aicpu binary failed by nullptr. so=%s", so_name.c_str());
+    GELOGE(ge::FAILED, "Load custom aicpu binary failed because bin is nullptr. so=%s", so_name.c_str());
     return ge::FAILED;
   }
 
   if (so_name.empty()) {
-    GELOGE(ge::FAILED, "Load custom aicpu binary failed by so name is empty.");
+    GELOGE(ge::FAILED, "Load custom aicpu binary failed because so name is empty.");
     return ge::FAILED;
   }
 
@@ -121,7 +121,7 @@ ge::graphStatus CustBinHandlerManager::LoadAndGetBinHandle(const std::string &so
                                                            const ge::OpKernelBinPtr &kernel_bin, rtBinHandle &handle) {
   handle = nullptr;
   if ((so_name.empty()) || (kernel_bin == nullptr)) {
-    GELOGE(ge::FAILED, "Load bin failed by so name is empty or bin is nullptr, so_name=%s", so_name.c_str());
+    GELOGE(ge::FAILED, "Load bin failed because so name is empty or bin is nullptr, so_name=%s", so_name.c_str());
     return ge::FAILED;
   }
 
@@ -163,7 +163,7 @@ ge::graphStatus CustBinHandlerManager::LoadAndGetBinHandle(const std::string &so
 ge::graphStatus CustBinHandlerManager::GetBinHandle(const std::string &so_name, rtBinHandle &handle) {
   handle = nullptr;
   if (so_name.empty()) {
-    GELOGE(ge::FAILED, "Get bin handle failed by empty so name, so_name=%s", so_name.c_str());
+    GELOGE(ge::FAILED, "Get bin handle failed because so name is empty, so_name=%s", so_name.c_str());
     return ge::FAILED;
   }
 
@@ -187,8 +187,8 @@ ge::graphStatus CustBinHandlerManager::GetBinHandle(const std::string &so_name, 
     ge::OpKernelBinPtr kernel_bin = GetKernelBin(so_name);
     GE_ASSERT_NOTNULL(kernel_bin);
     (void)LoadAndGetBinHandle(so_name, kernel_bin, handle);
-    GELOGI("Bin handle in current resource id, but read so success, resource_id=%lu, so=%s, size=%lu", resource_id,
-           so_name.c_str(), so_bin_maps->second.size());
+    GELOGI("Bin handle is in current resource id, and reading so succeeds, resource_id=%lu, so=%s, size=%lu",
+           resource_id, so_name.c_str(), so_bin_maps->second.size());
     return ge::GRAPH_SUCCESS;
   }
 
@@ -244,7 +244,7 @@ bool CustBinHandlerManager::GetCustAicpuBinFromFile(const std::string &so_name, 
     return false;
   }
 
-  GELOGI("Read so[%s] success, len is %u", so_name.c_str(), len);
+  GELOGI("Read so[%s] success, len is %u bytes", so_name.c_str(), len);
   return true;
 }
 

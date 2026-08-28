@@ -152,11 +152,12 @@ class BorrowedInferMetaContext {
   std::shared_ptr<bool> valid_;
 };
 
-BorrowedInferMetaContext BorrowInferMetaContext(uintptr_t ctx_handle) {
-  if (ctx_handle == 0U) {
-    throw std::invalid_argument("ctx_handle is null");
+BorrowedInferMetaContext BorrowInferMetaContext(const py::capsule &ctx_handle) {
+  if ((ctx_handle.get_pointer() == nullptr) || (ctx_handle.name() == nullptr) ||
+      (std::string(ctx_handle.name()) != "gert::InferShapeContext")) {
+    throw std::invalid_argument("ctx_handle is invalid");
   }
-  return BorrowedInferMetaContext(reinterpret_cast<gert::InferShapeContext *>(ctx_handle));
+  return BorrowedInferMetaContext(static_cast<gert::InferShapeContext *>(ctx_handle.get_pointer()));
 }
 
 }  // namespace

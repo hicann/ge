@@ -319,7 +319,7 @@ ge::Status AicpuExtInfoHandler::UpdateWorkSpaceInfo(const uint64_t workspace_siz
   }
   workspace_info_->size = workspace_size;
   workspace_info_->addr = workspace_addr;
-  GELOGD("After UpdateWorkSpaceInfo, workspace info size is %lu.", workspace_info_->size);
+  GELOGD("After UpdateWorkSpaceInfo, workspace info size is %lu bytes.", workspace_info_->size);
   return ge::SUCCESS;
 }
 
@@ -373,7 +373,7 @@ ge::Status AicpuExtInfoHandler::CopyOutputShapeForThirdOp() {
     return ge::SUCCESS;
   }
 
-  GELOGE(ge::FAILED, "CopyOutputShapeForThirdOp fail, output_shape_len_:%zu.", output_shape_len_);
+  GELOGE(ge::FAILED, "CopyOutputShapeForThirdOp failed, output_shape_len_:%zu.", output_shape_len_);
   return ge::FAILED;
 }
 
