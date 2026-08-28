@@ -128,7 +128,7 @@ HF32是昇腾推出的专门用于算子内部计算的单精度浮点类型，�
 
 取值为O1时，会关闭所有图融合和UB融合PASS，只开启静态下沉的相关PASS，但是如下路径文件中的图融合PASS，由于关闭后会有功能问题，会默认开启：
 
-`${INSTALL_DIR}/_<arch>_-linux/lib64/plugin/opskernel/fusion_pass/config/fusion_config.json`文件中"ExceptionalPassOfO1Level"字段下的所有图融合PASS。
+`${INSTALL_DIR}/<arch>-linux/lib64/plugin/opskernel/fusion_pass/config/fusion_config.json`文件中"ExceptionalPassOfO1Level"字段下的所有图融合PASS。
 
 其中$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。<arch\>表示具体操作系统架构。
 

@@ -86,9 +86,12 @@
 
     假设对轴做一个抽象分组，分为三个group：xgroup、ygroup、rgroup，其中：
 
-  - **xgroup:**  为Concat类算子引入的一个单独group，Concat轴之前的轴是xgroup，之后的是ygroup。
-  - **ygroup：**Elementwise、Broadcast类型的算子循环轴。
-  - **rgroup：**Reduce轴的集合。
+  - **xgroup：**
+    为Concat类算子引入的一个单独group，Concat轴之前的轴是xgroup，之后的是ygroup。
+  - **ygroup：**
+    Elementwise、Broadcast类型的算子循环轴。
+  - **rgroup：**
+    Reduce轴的集合。
 
     每个AscGraph都会有一个基于循环轴的\(xgroup, ygroup, rgroup\)，根据算子融合规则推导，可以判断两个AscGraph是否能融合成一个新的group；然后CanFuse依据此规则，判断后端Schedule是否支持融合。详细group merge规则请参见[生成TilingCase](Schedule.md#生成tilingcase)。
 

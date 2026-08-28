@@ -72,7 +72,7 @@ nodename4=support_out_of_bound_index
 
 全量芯片支持。
 
-<!-- npu="950,A3,910b,910,310p,310b,IPV350" id6 -->
+<!-- npu="950,A3,910b,910,310p,310b" id6 -->
 ## TILING\_SCHEDULE\_OPTIMIZE
 
 Tiling下沉调度优化开关。此参数实际对应的options参数为`ge.tiling_schedule_optimize`。

@@ -12,7 +12,7 @@ ASCEND\_OPP\_PATH环境变量详细说明请参见[《环境变量参考》](htt
 
 ## 使用前提
 
-- 在使用该工具之前，请先安装CANN软件包，安装完成后，该工具安装在`$\{INSTALL\_DIR\}/bin`目录。其中，`$\{INSTALL\_DIR\}`请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
+- 在使用该工具之前，请先安装CANN软件包，安装完成后，该工具安装在`${INSTALL_DIR}/bin`目录。其中，`${INSTALL_DIR}`请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。
 - 设置环境变量（如下环境变量以root用户为例，且CANN软件包安装在默认路径）
 
     ```bash

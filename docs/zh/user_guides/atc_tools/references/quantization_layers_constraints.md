@@ -8,7 +8,7 @@
  AvgPool、Pooling、AvgPoolV2、MaxPool、MaxPoolV3、Add、Eltwise、BatchMatMulV2（两路输入都为变量tensor）。
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/references/quantization_layers_constraints_res.md#id1 -->
 
-<!-- npu="A3,910b,IPV350" id17 -->
+<!-- npu="A3,910b" id17 -->
 - **Caffe框架在如下产品形态已不演进，不保证功能可用：**
 
     <!-- npu="A3" id3 -->
