@@ -49,7 +49,7 @@ class PreModelPartitionUtils {
     return nano_partition_type_to_buf_[type];
   }
   void AddNanoHostFuncParamData(const std::shared_ptr<uint8_t> &nano_hostfunc_param_data);
-  const std::unordered_map<int64_t, uint32_t> GetZeroCopyTable() {
+  const std::unordered_map<int64_t, uint32_t> GetZeroCopyTable() const {
     return zero_copy_offset_to_ids_;
   }
 

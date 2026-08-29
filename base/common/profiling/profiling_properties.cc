@@ -77,7 +77,7 @@ void ProfilingProperties::SetOpDetailProfiling(const bool is_op_detail_profiling
   is_op_detail_profiling_.store(is_op_detail_profiling);
 }
 
-bool ProfilingProperties::IsOpDetailProfiling() {
+bool ProfilingProperties::IsOpDetailProfiling() const {
   return is_op_detail_profiling_.load();
 }
 bool ProfilingProperties::IsDynamicShapeProfiling() const {

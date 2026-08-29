@@ -193,7 +193,7 @@ Status PreChecker::Clear(OpId id, const string &message) {
   return SUCCESS;
 }
 
-FMK_FUNC_HOST_VISIBILITY bool PreChecker::HasError() {
+FMK_FUNC_HOST_VISIBILITY bool PreChecker::HasError() const {
   for (auto id : ops_) {
     if (HasError(id)) {
       return true;
@@ -280,11 +280,11 @@ Status PreChecker::CheckTypeSupported(OpId id, const string &type, const string 
   return SUCCESS;
 }
 
-bool PreChecker::HasError(OpId id) {
+bool PreChecker::HasError(OpId id) const {
   auto iter = op_map_.find(id);
   GE_RETURN_WITH_LOG_IF_TRUE(iter == op_map_.end(), "[Check][Param] Id does not exist.");
 
-  Info &info = iter->second;
+  const Info &info = iter->second;
   for (const Cause &cause : info.causes) {
     if (cause.code != ErrorCode::OK) {
       return true;

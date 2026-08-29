@@ -11,7 +11,7 @@
 #include "model_tensor_descs_value.h"
 #include "common/checker.h"
 namespace ge {
-size_t ModelTensorDesc::Size() {
+size_t ModelTensorDesc::Size() const {
   const size_t size = static_cast<size_t>(sizeof(base_info) + base_info.name_len + base_info.dims_len +
                                           base_info.dimsV2_len + base_info.shape_range_len);
   return size;
@@ -57,10 +57,11 @@ bool ModelTensorDesc::Serilize(uint8_t **const addr, size_t &left_size) {
 
 size_t ModelTensorDescsValue::Size() {
   size_t size = 0U;
-  for (auto &desc : descs) {
+  for (const auto &desc : descs) {
     size += desc.Size();
   }
-  size += sizeof(uint32_t);
+  constexpr size_t kDescCountFieldSize = sizeof(uint32_t);
+  size += kDescCountFieldSize;
   return size;
 }
 

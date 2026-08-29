@@ -54,12 +54,12 @@ class KernelBinManager {
 
   ge::Status SaveKernelBinToBuffer(ge::BaseBuffer &buffer);
 
-  uint32_t GetBinSectionSize();
+  uint32_t GetBinSectionSize() const;
 
   void AddKernelBin(const KernelBin &kernelbin);
 
  private:
-  uint32_t GetKernelInfoTlvSize();
+  uint32_t GetKernelInfoTlvSize() const;
 
   ge::Status SerializeKernelInfo(uint8_t *start_addr, size_t addr_len);
 

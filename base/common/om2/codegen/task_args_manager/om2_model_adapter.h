@@ -36,7 +36,7 @@ class ModelAdapter {
 
   Status Init(const GeModelPtr &ge_model);
 
-  string GetOmName() {
+  string GetOmName() const {
     return name_;
   }
 
