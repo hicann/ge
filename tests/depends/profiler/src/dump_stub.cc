@@ -104,10 +104,12 @@ bool AdxGetWorkspaceInfo(const Adx::OperatorInfoV2 &info, uint32_t index, void *
 }  // namespace ge
 
 int AdxDataDumpServerUnInit() {
+  ge::DumpStub::GetInstance().IncrementAdxUninitCount();
   return 0;
 }
 
 int AdxDataDumpServerInit() {
+  ge::DumpStub::GetInstance().IncrementAdxInitCount();
   return 0;
 }
 

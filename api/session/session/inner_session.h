@@ -170,6 +170,7 @@ class InnerSession {
                                std::vector<std::pair<uint64_t, uint64_t>> &cross_ranges) const;
   Status InitializeVarManager();
   static bool is_dump_server_inited_;
+  static std::mutex dump_server_mutex_;
   std::shared_ptr<DFlowSessionImpl> dflow_session_impl_;
   UserGraphsManagerPtr user_graphs_manager_{nullptr};
   UserHybridGraphManagerPtr user_hybrid_graph_manager_{nullptr};

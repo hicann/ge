@@ -133,6 +133,7 @@ void SetSessionDeviceId() {
 
 static std::mutex mutex_;  // BuildGraph and RunGraph use
 bool InnerSession::is_dump_server_inited_ = false;
+std::mutex InnerSession::dump_server_mutex_;
 InnerSession::InnerSession(uint64_t session_id, const std::map<std::string, std::string> &options)
     : is_initialized_(false), session_id_(session_id), options_(options) {}
 
@@ -698,13 +699,16 @@ Status InnerSession::SaveVariables(const Graph &graph, const std::vector<std::st
 }
 
 Status InnerSession::AddDumpProperties(const DumpProperties &dump_properties) {
-  if (!is_dump_server_inited_) {
-    if ((dump_properties.IsDumpOpen() || dump_properties.IsOpDebugOpen())) {
-      GE_IF_BOOL_EXEC(AdxDataDumpServerInit() != kDumpStatus,
-                      GELOGE(PARAM_INVALID, "[Init][AdxDataDumpServer] failed, session_id:%" PRIu64 ".", session_id_);
-                      return PARAM_INVALID)
-      GELOGI("Init adx data dump server success");
-      is_dump_server_inited_ = true;
+  {
+    std::lock_guard<std::mutex> lock(dump_server_mutex_);
+    if (!is_dump_server_inited_) {
+      if ((dump_properties.IsDumpOpen() || dump_properties.IsOpDebugOpen())) {
+        GE_IF_BOOL_EXEC(AdxDataDumpServerInit() != kDumpStatus,
+                        GELOGE(PARAM_INVALID, "[Init][AdxDataDumpServer] failed, session_id:%" PRIu64 ".", session_id_);
+                        return PARAM_INVALID)
+        GELOGI("Init adx data dump server success");
+        is_dump_server_inited_ = true;
+      }
     }
   }
   if ((!dump_properties.GetEnableDump().empty()) || (!dump_properties.GetEnableDumpDebug().empty())) {
@@ -722,16 +726,19 @@ Status InnerSession::AddDumpProperties(const DumpProperties &dump_properties) {
 
 Status InnerSession::RemoveDumpProperties() {
   DumpManager::GetInstance().RemoveDumpProperties(session_id_);
-  if (is_dump_server_inited_ && DumpManager::GetInstance().GetDumpPropertiesMap().empty()) {
-    GE_IF_BOOL_EXEC(AdxDataDumpServerUnInit() != kDumpStatus,
-                    GELOGE(PARAM_INVALID, "[UnInit][AdxDataDumpServer] failed, session_id:%" PRIu64 ".", session_id_);
-                    REPORT_INNER_ERR_MSG("E19999",
-                                         "RemoveDumpProperties failed because AdxDataDumpServerUnInit failed,"
-                                         "session_id:%" PRIu64 ".",
-                                         session_id_);
-                    return PARAM_INVALID)
-    GELOGI("UnInit adx data dump server success");
-    is_dump_server_inited_ = false;
+  {
+    std::lock_guard<std::mutex> lock(dump_server_mutex_);
+    if (is_dump_server_inited_ && DumpManager::GetInstance().GetDumpPropertiesMap().empty()) {
+      GE_IF_BOOL_EXEC(AdxDataDumpServerUnInit() != kDumpStatus,
+                      GELOGE(PARAM_INVALID, "[UnInit][AdxDataDumpServer] failed, session_id:%" PRIu64 ".", session_id_);
+                      REPORT_INNER_ERR_MSG("E19999",
+                                           "RemoveDumpProperties failed because AdxDataDumpServerUnInit failed,"
+                                           "session_id:%" PRIu64 ".",
+                                           session_id_);
+                      return PARAM_INVALID)
+      GELOGI("UnInit adx data dump server success");
+      is_dump_server_inited_ = false;
+    }
   }
   return SUCCESS;
 }
