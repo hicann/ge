@@ -176,7 +176,7 @@ class GraphManager {
     return options_.train_graph_flag;
   }
 
-  bool IsGraphNeedRebuild(uint32_t graph_id);
+  bool IsGraphNeedRebuild(uint32_t graph_id) const;
 
   Status GenerateInfershapeGraph(GraphId &graph_id);
 
@@ -344,7 +344,7 @@ class GraphManager {
   // call the callback function of ME to push save result data to ME
   Status PushSaveData2ME(const GraphId &graph_id, std::map<std::string, gert::Tensor> &save_data);
 
-  bool IsCheckpointGraph(ComputeGraphPtr &compute_graph);
+  bool IsCheckpointGraph(const ComputeGraphPtr &compute_graph) const;
 
   bool CheckNetOutputForCheckpointGraph(const NodePtr &node) const;
 
@@ -367,7 +367,7 @@ class GraphManager {
 
   void AdjustBroadCastOpData(const NodePtr &var_node) const;
 
-  bool IsAssignOpData(const NodePtr &var_node);
+  bool IsAssignOpData(const NodePtr &var_node) const;
 
   void AdjustAssignOpData(const NodePtr &var_node) const;
 
@@ -442,7 +442,7 @@ class GraphManager {
   std::string GetBuildStep(const GraphNodePtr &graph_node) const;
   std::string GetTuningPath(const GraphNodePtr &graph_node) const;
   void GetExcludeEngines(const GraphNodePtr &graph_node, GraphManagerOptions &refreshed_options) const;
-  void RefreshOptionByGraph(uint32_t graph_id, GraphManagerOptions &refreshed_options);
+  void RefreshOptionByGraph(uint32_t graph_id, GraphManagerOptions &refreshed_options) const;
 
   bool IsContainVariable(const ComputeGraphPtr &compute_graph) const;
 

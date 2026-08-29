@@ -3124,7 +3124,7 @@ static inline bool CheckConstanOpForCheckpointGraph(const NodePtr &node) {
   return node->GetOutDataNodes().empty();
 }
 
-bool GraphManager::IsCheckpointGraph(ComputeGraphPtr &compute_graph) {
+bool GraphManager::IsCheckpointGraph(const ComputeGraphPtr &compute_graph) const {
   if (compute_graph == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "Param compute_graph is nullptr, check invalid");
     GELOGE(GE_GRAPH_PARAM_NULLPTR, "[Check][Param] computeGraph is nullptr.");
@@ -3201,7 +3201,7 @@ void GraphManager::AdjustBroadCastOpData(const ge::NodePtr &var_node) const {
   }
 }
 
-bool GraphManager::IsAssignOpData(const ge::NodePtr &var_node) {
+bool GraphManager::IsAssignOpData(const ge::NodePtr &var_node) const {
   GE_RT_FALSE_CHECK_NOTNULL(var_node);
   GELOGD("IsAssignOpData var_node:[%s]", var_node->GetName().c_str());
   std::map<std::string, std::set<int32_t>> assign_ops = {{ASSIGN, {0}}};
@@ -3968,7 +3968,7 @@ void GraphManager::ReturnError(RunAsyncCallbackV2 callback, Status ret, const st
   StopQueue();
 }
 
-bool GraphManager::IsGraphNeedRebuild(uint32_t graph_id) {
+bool GraphManager::IsGraphNeedRebuild(uint32_t graph_id) const {
   // find graph
   GraphNodePtr graph_node = nullptr;
   Status ret = GetGraphNode(graph_id, graph_node);
@@ -4651,7 +4651,7 @@ void GraphManager::GetExcludeEngines(const GraphNodePtr &graph_node, GraphManage
   refreshed_options.exclude_engines.insert(exclude_core_Type);
 }
 
-void GraphManager::RefreshOptionByGraph(uint32_t graph_id, GraphManagerOptions &refreshed_options) {
+void GraphManager::RefreshOptionByGraph(uint32_t graph_id, GraphManagerOptions &refreshed_options) const {
   GraphNodePtr graph_node;
   if (GetGraphNode(graph_id, graph_node) != SUCCESS) {
     GELOGW("[Get][GraphNode] failed, Graph does not exist while done adding previously, graph_id = %u", graph_id);
