@@ -72,7 +72,7 @@ ge::Status L2MemPool::Finalize(bool no_log) {
   return memory_pool_->Finalize(no_log);
 }
 
-aclrtStream L2MemPool::GetStream() {
+aclrtStream L2MemPool::GetStream() const {
   return stream_;
 }
 

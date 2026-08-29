@@ -80,7 +80,7 @@ class DflowGraphManager {
 
   /// @brief get flag of whether need load and run model or not
   /// @return True or False
-  bool GetOptionsRunGraphFlag();
+  bool GetOptionsRunGraphFlag() const;
 
  private:
   bool is_initialized_{false};

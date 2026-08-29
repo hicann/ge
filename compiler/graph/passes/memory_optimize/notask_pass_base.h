@@ -63,11 +63,11 @@ class NotaskPassBase : public GraphPass {
   bool InputCheck(const ge::NodePtr &node);
   bool CheckTensorAlign(const ge::NodePtr &node, const size_t input_index) const;
   bool HasSameSourceAnchor(const ge::InDataAnchorPtr &in_anchor, std::set<ge::OutDataAnchorPtr> &src_anchors) const;
-  bool IsPreNodeTypeValid(const ge::InDataAnchorPtr &in_anchor);
+  bool IsPreNodeTypeValid(const ge::InDataAnchorPtr &in_anchor) const;
   bool IsPreNodeWithSubgraph(const ge::InDataAnchorPtr &in_anchor) const;
   bool IsPreOutAnchorCanReuse(const ge::OutDataAnchorPtr out_anchor) const;
   bool IsPreOutAnchorValidMultiRef(const ge::OutDataAnchorPtr out_anchor) const;
-  bool IsPreNodeAttrValid(const ge::OpDescPtr &pre_op_desc);
+  bool IsPreNodeAttrValid(const ge::OpDescPtr &pre_op_desc) const;
   bool IsSameInputMemType(const ge::OpDescPtr &pre_op_desc, const size_t output_idx,
                           std::set<int64_t> &mem_types) const;
   bool IsScalarInput(const ge::NodePtr &node, const size_t input_index) const;

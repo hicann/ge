@@ -27,7 +27,7 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
 
  private:
   graphStatus AddControlEdgeForNewTransNode(const int32_t index, const std::vector<NodePtr> &new_trans_nodes);
-  bool CheckIfHasSameOutControlEdge(const NodePtr node, const NodePtr out_node);
+  bool CheckIfHasSameOutControlEdge(const NodePtr node, const NodePtr out_node) const;
   void SetRemainNode(const std::vector<std::pair<OutDataAnchorPtr, InDataAnchorPtr>> &nodes_anchor);
   bool IsFormatContinuous(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;
   bool IsTransOpDataTypeContinuous(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;

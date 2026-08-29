@@ -62,7 +62,7 @@ class VariableOpPass : public GraphPass {
   Status RenewVarDesc(const ge::ComputeGraphPtr &graph) const;
   Status RenewVarDesc(uint64_t session_id, const NodePtr &node, const VarTransRoad &fusion_road) const;
 
-  std::vector<NodePtr> GetRefVars(const SameVarPtr &same_vars);
+  std::vector<NodePtr> GetRefVars(const SameVarPtr &same_vars) const;
   std::map<SameVarPtr, std::set<NodePtr>> var_and_var_ref_map_;
 
   GraphRebuildStateCtrl *var_accelerate_ctrl_;

@@ -184,7 +184,7 @@ FlowModelPtr DflowGraphManager::GetFlowModel(uint32_t graph_id) const {
   return nullptr;
 }
 
-bool DflowGraphManager::GetOptionsRunGraphFlag() {
+bool DflowGraphManager::GetOptionsRunGraphFlag() const {
   if (!is_initialized_) {
     GELOGW("[Get][OptionsRunGraphFlag] DflowGraphManager not initialized.");
     return false;
