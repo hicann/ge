@@ -68,6 +68,7 @@ class DNNEngineManager {
   std::string GetDNNEngineName(const ge::NodePtr &node_ptr);
   std::string GetDNNEngineName(const ge::NodePtr &node_ptr, const std::set<std::string> &exclude_engines,
                                OpInfo &matched_op_info);
+  void TrySelectHostCpuCustomOp(const OpDescPtr &op_desc, OpInfo &matched_op_info) const;
   std::string GetCompositeEngineName(const ge::NodePtr &node_ptr, uint32_t recursive_depth = 1);
   std::string GetCompositeEngineName(const std::string &atomic_engine_name);
   std::string GetCompositeEngineKernelLibName(const std::string &composite_engine_name) const;
