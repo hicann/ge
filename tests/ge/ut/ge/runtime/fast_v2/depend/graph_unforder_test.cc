@@ -404,6 +404,110 @@ TEST_F(GraphUnfolderTest, test_inplace_if_sub_graph) {
     ASSERT_NE(subgraph->FindFirstNodeMatchType(SQRT), nullptr);
   }
 }
+
+TEST_F(GraphUnfolderTest, test_inplace_partitioncall_merge_same_refdata) {
+  auto graph = std::make_shared<ge::ComputeGraph>("root");
+  auto root_data = NodeBuilder("root_data", ge::DATA).Output().Build(graph);
+  auto ref_data = NodeBuilder("input", ge::REFDATA).Input(root_data).Output().Build(graph);
+  ASSERT_NE(ref_data, nullptr);
+  auto sub_graph = std::make_shared<ge::ComputeGraph>("sub");
+  auto sub_data = NodeBuilder("sub_input", ge::DATA).Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(sub_graph);
+  auto sub_ref_data = NodeBuilder("input", ge::REFDATA).Input(sub_data).Output().Build(sub_graph);
+  ASSERT_NE(sub_ref_data, nullptr);
+  auto cast = NodeBuilder("cast", ge::CAST).Input(sub_ref_data).Output().Build(sub_graph);
+  auto control_consumer =
+      NodeBuilder("control_consumer", ge::IDENTITY).ControlInput(sub_ref_data).Output().Build(sub_graph);
+  auto output = NodeBuilder("output", ge::NETOUTPUT).Input(cast).Build(sub_graph);
+  ASSERT_NE(output, nullptr);
+  ASSERT_NE(control_consumer, nullptr);
+  ASSERT_EQ(GraphUtils::AddEdge(sub_data->GetOutControlAnchor(), sub_ref_data->GetInControlAnchor()),
+            ge::GRAPH_SUCCESS);
+  sub_graph->SetGraphUnknownFlag(true);
+
+  auto partition_call = NodeBuilder("partition_call", ge::PARTITIONEDCALL)
+                            .Input(ref_data)
+                            .Output()
+                            .Attr("subgraph", sub_graph)
+                            .Build(graph);
+  ASSERT_NE(partition_call, nullptr);
+
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(graph->FindNode("input"), ref_data);
+  ASSERT_EQ(graph->FindNode("input")->GetOutDataNodesSize(), 1U);
+  size_t ref_data_count = 0U;
+  for (const auto &node : graph->GetDirectNode()) {
+    if ((node->GetType() == ge::REFDATA) && (node->GetName() == "input")) {
+      ++ref_data_count;
+    }
+  }
+  ASSERT_EQ(ref_data_count, 1U);
+  ASSERT_EQ(graph->FindFirstNodeMatchType(ge::PARTITIONEDCALL), nullptr);
+  ASSERT_NE(graph->FindNode("cast"), nullptr);
+  ASSERT_EQ(graph->FindNode("input")->GetOutDataAnchor(0)->GetPeerInDataAnchors().at(0)->GetOwnerNode()->GetName(),
+            "cast");
+  ASSERT_EQ(graph->FindNode("input")->GetOutControlAnchor()->GetPeerInControlAnchors().at(0)->GetOwnerNode()->GetName(),
+            "control_consumer");
+}
+
+TEST_F(GraphUnfolderTest, test_inplace_partitioncall_keep_refdata_without_target_match) {
+  auto graph = std::make_shared<ge::ComputeGraph>("root");
+  auto root_data = NodeBuilder("root_data", ge::DATA).Output().Build(graph);
+  auto root_ref_data = NodeBuilder("input", ge::REFDATA).Input(root_data).Output().Build(graph);
+  auto sub_graph = std::make_shared<ge::ComputeGraph>("sub");
+  auto sub_data = NodeBuilder("sub_input", ge::DATA).Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(sub_graph);
+  auto sub_ref_data = NodeBuilder("other_input", ge::REFDATA).Input(sub_data).Output().Build(sub_graph);
+  auto cast = NodeBuilder("cast", ge::CAST).Input(sub_ref_data).Output().Build(sub_graph);
+  auto sub_output = NodeBuilder("output", ge::NETOUTPUT).Input(cast).Build(sub_graph);
+  ASSERT_NE(root_ref_data, nullptr);
+  ASSERT_NE(sub_output, nullptr);
+  sub_graph->SetGraphUnknownFlag(true);
+
+  auto partition_call = NodeBuilder("partition_call", ge::PARTITIONEDCALL)
+                            .Input(root_ref_data)
+                            .Output()
+                            .Attr("subgraph", sub_graph)
+                            .Build(graph);
+  ASSERT_NE(partition_call, nullptr);
+
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(graph->FindFirstNodeMatchType(ge::PARTITIONEDCALL), nullptr);
+  ASSERT_NE(graph->FindNode("other_input"), nullptr);
+}
+
+TEST_F(GraphUnfolderTest, test_inplace_partitioncall_refdata_source_mismatch) {
+  auto graph = std::make_shared<ge::ComputeGraph>("root");
+  auto root_data = NodeBuilder("root_data", ge::DATA).Output().Build(graph);
+  auto other_data = NodeBuilder("other_data", ge::DATA).Output().Build(graph);
+  auto root_ref_data = NodeBuilder("input", ge::REFDATA).Input(root_data).Output().Build(graph);
+  auto sub_graph = std::make_shared<ge::ComputeGraph>("sub");
+  auto sub_data = NodeBuilder("sub_input", ge::DATA).Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(sub_graph);
+  auto sub_ref_data = NodeBuilder("input", ge::REFDATA).Input(sub_data).Output().Build(sub_graph);
+  auto cast = NodeBuilder("cast", ge::CAST).Input(sub_ref_data).Output().Build(sub_graph);
+  auto sub_output = NodeBuilder("output", ge::NETOUTPUT).Input(cast).Build(sub_graph);
+  ASSERT_NE(other_data, nullptr);
+  ASSERT_NE(sub_ref_data, nullptr);
+  ASSERT_NE(sub_output, nullptr);
+  ASSERT_EQ(GraphUtils::AddEdge(sub_data->GetOutControlAnchor(), sub_ref_data->GetInControlAnchor()),
+            ge::GRAPH_SUCCESS);
+  sub_graph->SetGraphUnknownFlag(true);
+
+  auto partition_call = NodeBuilder("partition_call", ge::PARTITIONEDCALL)
+                            .Input(other_data)
+                            .Output()
+                            .Attr("subgraph", sub_graph)
+                            .Build(graph);
+  ASSERT_NE(partition_call, nullptr);
+
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  size_t same_name_ref_data_count = 0U;
+  for (const auto &node : graph->GetDirectNode()) {
+    if ((node->GetType() == ge::REFDATA) && (node->GetName() == "input")) {
+      ++same_name_ref_data_count;
+    }
+  }
+  ASSERT_EQ(same_name_ref_data_count, 2U);
+}
+
 // 场景：root_graph通过SetExtAttr挂载了bin_file_buffer(autofuse so二进制数据)，
 // InheritOriginalAttr只拷贝proto attr不处理ext_attr，unfold后merged_graph应继承该ext_attr
 TEST_F(GraphUnfolderTest, test_bin_file_buffer_ext_attr_inherited) {

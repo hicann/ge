@@ -58,7 +58,121 @@ void SetStageLevel4SubgraphNode(const ge::NodePtr &parent_node, const ge::Comput
   }
 }
 
+bool IsSameRefData(const ge::NodePtr &sub_ref_data, const ge::ComputeGraphPtr &sub_graph,
+                   const ge::ComputeGraphPtr &target_graph, ge::NodePtr &target_ref_data) {
+  // 仅合并为对应 PartitionedCall 输入创建的 RefData 镜像节点。
+  if ((sub_ref_data == nullptr) || (sub_ref_data->GetType() != ge::REFDATA)) {
+    return false;
+  }
+  target_ref_data = target_graph->FindNode(sub_ref_data->GetName());
+  if ((target_ref_data == nullptr) || (target_ref_data->GetType() != ge::REFDATA)) {
+    return false;
+  }
+
+  const auto parent_node = sub_graph->GetParentNode();
+  if ((parent_node == nullptr) || (parent_node->GetType() != ge::PARTITIONEDCALL)) {
+    return false;
+  }
+  for (const auto &inner_data : sub_graph->GetDirectNode()) {
+    if ((inner_data == nullptr) || (inner_data->GetType() != ge::DATA_TYPE)) {
+      continue;
+    }
+    const auto inner_data_out_ctrl = inner_data->GetOutControlAnchor();
+    if (inner_data_out_ctrl == nullptr) {
+      continue;
+    }
+    const auto peer_in_ctrl_anchors = inner_data_out_ctrl->GetPeerInControlAnchors();
+    const bool controls_sub_ref_data =
+        std::any_of(peer_in_ctrl_anchors.begin(), peer_in_ctrl_anchors.end(),
+                    [&sub_ref_data](const ge::InControlAnchorPtr &anchor) {
+                      return (anchor != nullptr) && (anchor->GetOwnerNode() == sub_ref_data);
+                    });
+    if (!controls_sub_ref_data) {
+      continue;
+    }
+    int32_t parent_input_index = -1;
+    if (!ge::AttrUtils::GetInt(inner_data->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, parent_input_index) ||
+        (parent_input_index < 0)) {
+      continue;
+    }
+    const auto parent_input = parent_node->GetInDataAnchor(parent_input_index);
+    if (parent_input == nullptr) {
+      continue;
+    }
+    const auto peer_out_anchor = parent_input->GetPeerOutAnchor();
+    if ((peer_out_anchor != nullptr) && (peer_out_anchor->GetOwnerNode() == target_ref_data)) {
+      GELOGD("RefData [%s] in subgraph [%s] matches target graph [%s] by parent input %d.",
+             sub_ref_data->GetName().c_str(), sub_graph->GetName().c_str(), target_graph->GetName().c_str(),
+             parent_input_index);
+      return true;
+    }
+  }
+  return false;
+}
+
+ge::Status MergeSameRefData(const ge::NodePtr &sub_ref_data, const ge::NodePtr &target_ref_data,
+                            const ge::ComputeGraphPtr &sub_graph) {
+  // 将子图镜像节点的所有消费者迁移到目标图中保留的 RefData 节点。
+  GELOGI("Merge redundant RefData [%s] from subgraph [%s].", sub_ref_data->GetName().c_str(),
+         sub_graph->GetName().c_str());
+  for (const auto &sub_out_anchor : sub_ref_data->GetAllOutDataAnchors()) {
+    const auto target_out_anchor = target_ref_data->GetOutDataAnchor(sub_out_anchor->GetIdx());
+    GE_CHECK_NOTNULL(target_out_anchor);
+    const auto peer_in_anchors = sub_out_anchor->GetPeerInDataAnchors();
+    for (const auto &peer_in_anchor : peer_in_anchors) {
+      GE_CHECK_NOTNULL(peer_in_anchor);
+      // 冗余节点删除时不执行自动重连，因此需要显式迁移数据边。
+      GE_CHK_STATUS_RET(ge::GraphUtils::RemoveEdge(sub_out_anchor, peer_in_anchor),
+                        "Failed to unlink redundant RefData %s", sub_ref_data->GetName().c_str());
+      GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(target_out_anchor, peer_in_anchor),
+                        "Failed to relink redundant RefData %s", sub_ref_data->GetName().c_str());
+    }
+  }
+  const auto sub_out_control_anchor = sub_ref_data->GetOutControlAnchor();
+  const auto target_out_control_anchor = target_ref_data->GetOutControlAnchor();
+  GE_CHECK_NOTNULL(sub_out_control_anchor);
+  GE_CHECK_NOTNULL(target_out_control_anchor);
+  for (const auto &peer_in_anchor : sub_out_control_anchor->GetPeerInControlAnchors()) {
+    GE_CHECK_NOTNULL(peer_in_anchor);
+    // 删除冗余 RefData 时保留执行顺序依赖。
+    GE_CHK_STATUS_RET(ge::GraphUtils::RemoveEdge(sub_out_control_anchor, peer_in_anchor),
+                      "Failed to unlink redundant RefData %s", sub_ref_data->GetName().c_str());
+    GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(target_out_control_anchor, peer_in_anchor),
+                      "Failed to relink redundant RefData %s", sub_ref_data->GetName().c_str());
+  }
+  ge::NodeUtils::UnlinkAll(*sub_ref_data);
+  GE_CHK_STATUS_RET(ge::GraphUtils::RemoveNodeWithoutRelink(sub_graph, sub_ref_data),
+                    "Failed to remove redundant RefData %s", sub_ref_data->GetName().c_str());
+  GELOGI("Removed redundant RefData [%s] from subgraph [%s].", sub_ref_data->GetName().c_str(),
+         sub_graph->GetName().c_str());
+  return ge::SUCCESS;
+}
+
+ge::Status MergeSameRefDataNodes(const ge::ComputeGraphPtr &sub_graph, const ge::ComputeGraphPtr &target_graph) {
+  // 后续会从子图中删除匹配节点，因此先保存节点快照，避免遍历时修改节点列表。
+  std::vector<ge::NodePtr> ref_data_nodes;
+  for (const auto &sub_node : sub_graph->GetDirectNode()) {
+    if (sub_node->GetType() == ge::REFDATA) {
+      ref_data_nodes.push_back(sub_node);
+    }
+  }
+  for (const auto &sub_node : ref_data_nodes) {
+    ge::NodePtr target_ref_data;
+    if (IsSameRefData(sub_node, sub_graph, target_graph, target_ref_data)) {
+      GE_CHK_STATUS_RET(MergeSameRefData(sub_node, target_ref_data, sub_graph), "Failed to merge same RefData %s",
+                        sub_node->GetName().c_str());
+    }
+  }
+  GELOGD("Finished checking %zu RefData nodes in subgraph [%s] against target graph [%s].", ref_data_nodes.size(),
+         sub_graph->GetName().c_str(), target_graph->GetName().c_str());
+  return ge::SUCCESS;
+}
+
 ge::Status AddSubgraphNode2Rootgraph(const ge::ComputeGraphPtr &sub_graph, const ge::ComputeGraphPtr &root_graph) {
+  // 将剩余子图节点迁移到父图前，先去重 RefData。
+  GELOGD("Start merging subgraph [%s] into graph [%s].", sub_graph->GetName().c_str(), root_graph->GetName().c_str());
+  GE_CHK_STATUS_RET(MergeSameRefDataNodes(sub_graph, root_graph), "Failed to merge same RefData nodes in graph %s",
+                    sub_graph->GetName().c_str());
   for (auto &sub_node : sub_graph->GetDirectNode()) {
     auto sub_node_type = sub_node->GetType();
     if (sub_node_type == ge::DATA_TYPE || sub_node_type == ge::NETOUTPUT) {
@@ -134,6 +248,9 @@ ge::Status GraphUnfolder::UnfoldPartitionedCallSubgraph(const ge::ComputeGraphPt
       }
     }
   }
+  // MergeInputNodes 会删除 Data 到 RefData 的控制关系，因此必须在其执行前完成 RefData 匹配。
+  GE_CHK_STATUS_RET(MergeSameRefDataNodes(sub_graph, merged_graph), "Failed to merge same RefData nodes in graph %s",
+                    sub_graph->GetName().c_str());
   GE_CHK_STATUS_RET(MergeInputNodes(*sub_graph),
                     "[Invoke][MergeInputNodes][%s] Failed to merge data nodes for subgraph",
                     sub_graph->GetName().c_str());

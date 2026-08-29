@@ -41,6 +41,7 @@
 #include "utils/mock_ops_kernel_builder.h"
 #include "utils/taskdef_builder.h"
 #include "common/share_graph.h"
+#include "graph/unfold/graph_unfolder.h"
 #include "ge_running_env/fake_op.h"
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
@@ -742,6 +743,56 @@ TEST_F(RefDataSt, refdata_in_subgraph_compile) {
     EXPECT_EQ(refdata_out_offsets[0], assign_out_offsets[0]);
   };
 }
+
+/*
+ * 用例场景：PartitionedCall 子图中的 RefData 与根图 RefData 同源且同名
+ * 预期：展开后复用根图 RefData，子图中的冗余 RefData 被删除，消费者连接保持正确。
+ */
+TEST_F(RefDataSt, refdata_same_name_in_partitioncall_subgraph_unfold) {
+  auto graph = std::make_shared<ComputeGraph>("root");
+  auto root_data = gert::NodeBuilder("root_data", DATA).Output().Build(graph);
+  auto root_ref_data = gert::NodeBuilder("input", "RefData").Input(root_data).Output().Build(graph);
+  ASSERT_NE(root_ref_data, nullptr);
+
+  auto sub_graph = std::make_shared<ComputeGraph>("sub");
+  auto sub_data = gert::NodeBuilder("sub_input", DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(sub_graph);
+  auto sub_ref_data = gert::NodeBuilder("input", "RefData").Input(sub_data).Output().Build(sub_graph);
+  auto cast = gert::NodeBuilder("cast", CAST).Input(sub_ref_data).Output().Build(sub_graph);
+  auto control_consumer =
+      gert::NodeBuilder("control_consumer", IDENTITY).ControlInput(sub_ref_data).Output().Build(sub_graph);
+  auto sub_output = gert::NodeBuilder("sub_output", NETOUTPUT).Input(cast).Build(sub_graph);
+  ASSERT_NE(sub_ref_data, nullptr);
+  ASSERT_NE(control_consumer, nullptr);
+  ASSERT_NE(sub_output, nullptr);
+  ASSERT_EQ(GraphUtils::AddEdge(sub_data->GetOutControlAnchor(), sub_ref_data->GetInControlAnchor()), SUCCESS);
+  AttrUtils::SetInt(sub_output->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  sub_graph->SetGraphUnknownFlag(true);
+
+  auto partition_call = gert::NodeBuilder("partition_call", PARTITIONEDCALL)
+                            .Input(root_ref_data)
+                            .Output()
+                            .Attr("subgraph", sub_graph)
+                            .Build(graph);
+  auto output = gert::NodeBuilder("NetOutput", NETOUTPUT).Input(partition_call).Build(graph);
+  ASSERT_NE(partition_call, nullptr);
+  ASSERT_NE(output, nullptr);
+
+  ASSERT_EQ(gert::GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), SUCCESS);
+  size_t same_name_ref_data_count = 0U;
+  for (const auto &node : graph->GetDirectNode()) {
+    if ((node->GetType() == ge::REFDATA) && (node->GetName() == "input")) {
+      ++same_name_ref_data_count;
+    }
+  }
+  EXPECT_EQ(same_name_ref_data_count, 1U);
+  EXPECT_EQ(graph->FindFirstNodeMatchType(PARTITIONEDCALL), nullptr);
+  EXPECT_EQ(graph->FindNode("input"), root_ref_data);
+  EXPECT_EQ(graph->FindNode("input")->GetOutDataAnchor(0)->GetPeerInDataAnchors().at(0)->GetOwnerNode()->GetName(),
+            "cast");
+  EXPECT_EQ(graph->FindNode("input")->GetOutControlAnchor()->GetPeerInControlAnchors().at(0)->GetOwnerNode()->GetName(),
+            "control_consumer");
+}
+
 /*
  *                             +-------------+  +-----------+
  *                             |Then Graph   |  |Else Graph |
