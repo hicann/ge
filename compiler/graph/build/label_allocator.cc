@@ -64,7 +64,7 @@ Status LabelAllocator::AssignFunctionalLabels() {
   return SUCCESS;
 }
 
-bool LabelAllocator::CollectFunctionalNode(ComputeGraphPtr &graph, std::set<NodePtr> &functional_nodes) const {
+bool LabelAllocator::CollectFunctionalNode(const ComputeGraphPtr &graph, std::set<NodePtr> &functional_nodes) const {
   if (graph == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "check param compute_graph nullptr");
     GELOGE(INTERNAL_ERROR, "[Check][Param] Sub ComputeGraph is null.");

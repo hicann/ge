@@ -238,7 +238,7 @@ bool DependencyAnalyzer::CanReachAllSameBlockAnchor(const Node *const a, const u
 }
 
 std::string DependencyAnalyzer::WhyACannotReuseB(const ge::Node *a, uint32_t a_output_index, const ge::Node *b,
-                                                 uint32_t b_output_index) {
+                                                 uint32_t b_output_index) const {
   if (!CheckParam(a, a_output_index, b, b_output_index)) {
     return "invalid param";
   }
@@ -280,7 +280,8 @@ std::string DependencyAnalyzer::WhyACannotReuseB(const ge::Node *a, uint32_t a_o
 }
 
 void DependencyAnalyzer::WhyACannotReuseBInner(const MemCheckParam &param,
-                                               const std::list<const Node *> &b_output_nodes, std::stringstream &ss) {
+                                               const std::list<const Node *> &b_output_nodes,
+                                               std::stringstream &ss) const {
   const auto same_out_anchors = GetAllUseSameOutBlockAnchors(param.a, param.a_output_index);
   ErrorLogDependNodes(same_out_anchors);
   for (const auto out_node : b_output_nodes) {
@@ -439,11 +440,12 @@ const std::list<NodeIndexIO> &DependencyAnalyzer::GetSymbolNodeIndexIOList(const
 }
 
 // 获取所有以node的第out_index输出作为输入的节点
-std::list<const Node *> DependencyAnalyzer::GetAllUseSameInBlockNodes(const Node *node, uint32_t out_index) {
+std::list<const Node *> DependencyAnalyzer::GetAllUseSameInBlockNodes(const Node *node, uint32_t out_index) const {
   return GetAllUseSameBlockNodesByType(node, out_index, kIn);
 }
 
-std::list<OutDataAnchorPtr> DependencyAnalyzer::GetAllUseSameOutBlockAnchors(const Node *node, uint32_t out_index) {
+std::list<OutDataAnchorPtr> DependencyAnalyzer::GetAllUseSameOutBlockAnchors(const Node *node,
+                                                                             uint32_t out_index) const {
   const auto cur_anchor = NodeIndexIO(node, out_index, kOut);
   const auto &symbol = anchor_to_symbol_[cur_anchor.ToString()];
   std::list<OutDataAnchorPtr> use_same_block_anchors;
@@ -457,7 +459,7 @@ std::list<OutDataAnchorPtr> DependencyAnalyzer::GetAllUseSameOutBlockAnchors(con
 }
 
 std::list<const Node *> DependencyAnalyzer::GetAllUseSameBlockNodesByType(const Node *node, uint32_t out_index,
-                                                                          IOType type) {
+                                                                          IOType type) const {
   const auto cur_anchor = NodeIndexIO(node, out_index, kOut);
   const auto &symbol = anchor_to_symbol_[cur_anchor.ToString()];
   std::list<const Node *> use_same_block_nodes;

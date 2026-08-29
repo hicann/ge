@@ -65,7 +65,7 @@ void GraphRebuildStateCtrl::AddResourceName(uint32_t graph_id, const std::string
   GELOGI("The resource %s of graph %u added to ctrl.", resource_name.c_str(), graph_id);
 }
 
-bool GraphRebuildStateCtrl::IsVarPermitToChangeFormats(const std::string &var_name) {
+bool GraphRebuildStateCtrl::IsVarPermitToChangeFormats(const std::string &var_name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const std::map<std::string, int32_t>::const_iterator &iter = resource_names_to_change_times_.find(var_name);
   if (iter == resource_names_to_change_times_.end()) {

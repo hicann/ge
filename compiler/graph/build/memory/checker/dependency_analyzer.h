@@ -74,7 +74,7 @@ class DependencyAnalyzer {
   /// @param [in] b_output_index, output index of b
   /// @return td::string
   std::string WhyACannotReuseB(const Node *const a, uint32_t a_output_index, const Node *const b,
-                               uint32_t b_output_index);
+                               uint32_t b_output_index) const;
 
   /// @ingroup GE
   /// @brief rebuild reach nodes table, and print log.
@@ -100,9 +100,9 @@ class DependencyAnalyzer {
 
   // init same_out_block_nodes_table_
   void InitSameOutBlockNodesMap();
-  std::list<const Node *> GetAllUseSameBlockNodesByType(const Node *node, uint32_t out_index, IOType type);
-  std::list<const Node *> GetAllUseSameInBlockNodes(const Node *node, uint32_t out_index);
-  std::list<OutDataAnchorPtr> GetAllUseSameOutBlockAnchors(const Node *node, uint32_t out_index);
+  std::list<const Node *> GetAllUseSameBlockNodesByType(const Node *node, uint32_t out_index, IOType type) const;
+  std::list<const Node *> GetAllUseSameInBlockNodes(const Node *node, uint32_t out_index) const;
+  std::list<OutDataAnchorPtr> GetAllUseSameOutBlockAnchors(const Node *node, uint32_t out_index) const;
 
   const std::list<NodeIndexIO> &GetSymbolNodeIndexIOList(const Node *const node, const uint32_t output_index) const;
 
@@ -140,7 +140,7 @@ class DependencyAnalyzer {
   bool IsOutNodeSkip(const Node *const node, const Node *const origin_node) const;
   void DebugWrapperInfo() const;
   void WhyACannotReuseBInner(const MemCheckParam &param, const std::list<const Node *> &b_output_nodes,
-                             std::stringstream &ss);
+                             std::stringstream &ss) const;
 
  private:
   ComputeGraphPtr compute_graph_;

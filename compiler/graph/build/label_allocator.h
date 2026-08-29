@@ -25,7 +25,7 @@ class LabelAllocator {
   Status AssignFunctionalLabels();
 
  private:
-  bool CollectFunctionalNode(ComputeGraphPtr &graph, std::set<NodePtr> &functional_nodes) const;
+  bool CollectFunctionalNode(const ComputeGraphPtr &graph, std::set<NodePtr> &functional_nodes) const;
 
   ComputeGraphPtr compute_graph_;
 };
