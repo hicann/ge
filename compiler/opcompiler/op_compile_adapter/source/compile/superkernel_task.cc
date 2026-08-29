@@ -163,6 +163,7 @@ bool SuperKernelTaskManager::SuperKernelTask(OpBuildTaskPtr &opTask) {
     std::string binFilePath;
     std::string subKernelName = tmpKernelName;
     std::size_t pos = tmpKernelName.find("__kernel");
+    std::vector<uint32_t> sk_custom_event_ids;
     if (pos != std::string::npos) {
       subKernelName = tmpKernelName.substr(0, pos);
     }
@@ -172,6 +173,23 @@ bool SuperKernelTaskManager::SuperKernelTask(OpBuildTaskPtr &opTask) {
     if (jsonFilePath.empty() || binFilePath.empty()) {
       TE_ERRLOG("Failed to get compile res by kernelname[%s].", subKernelName.c_str());
       return false;
+    }
+    (void)ge::AttrUtils::GetListInt(currentNodeOpDesc, "_sk_custom_event_ids", sk_custom_event_ids);
+    if (!sk_custom_event_ids.empty()) {
+      // For specified MC2 scenario, create an Nop node to store the sk_send_list for ascendc.
+      json nOpNodeJson;
+      nOpNodeJson[BIN_PATH] = "";
+      nOpNodeJson[JSON_PATH] = "";
+      nOpNodeJson["task_type"] = "nop";
+      nOpNodeJson["stream_id"] = currentNodeOpDesc->GetStreamId();
+
+      json sendListTmp;
+      for (auto &i : sk_custom_event_ids) {
+        sendListTmp.push_back(i);
+      }
+      nOpNodeJson["send_event_list"] = sendListTmp;
+      opListJson.push_back(nOpNodeJson);
+      TE_INFOLOGF("Nop node: with opList is %s", opListJson.dump().c_str());
     }
     curOpNormalizedJson["sub_kernel_hash"] = tmpKernelName.empty() ? binFilePath : tmpKernelName;
     currentNodeJson[BIN_PATH] = binFilePath;

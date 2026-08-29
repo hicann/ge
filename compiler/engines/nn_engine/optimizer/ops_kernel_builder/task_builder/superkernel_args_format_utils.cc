@@ -84,6 +84,12 @@ ge::Status GetArgFormatV2(domi::TaskDef &task_temp, std::string &args_format) {
     auto kernel_context_with_handle = kernel_def_with_handle->mutable_context();
     FE_CHECK_NOTNULL(kernel_context_with_handle);
     args_format = kernel_context_with_handle->args_format();
+  } else if (IsEventWaitKernelDef(task_temp) || IsEventRecordKernelDef(task_temp)) {
+    auto kernel_def = task_temp.mutable_kernel();
+    FE_CHECK_NOTNULL(kernel_def);
+    auto kernel_context = kernel_def->mutable_context();
+    FE_CHECK_NOTNULL(kernel_context);
+    args_format = kernel_context->args_format();
   } else {
     return ge::SUCCESS;
   }
@@ -101,14 +107,20 @@ ge::Status GetAICoreArgFormatinLoop(std::string &sub_arg_format, const std::vect
   (void)ge::AttrUtils::GetListInt(sub_nodes[cnt]->GetOpDesc(), "_sk_send_event_ids", sk_send_event_ids);
   std::vector<uint32_t> sk_rcv_event_ids;
   (void)ge::AttrUtils::GetListInt(sub_nodes[cnt]->GetOpDesc(), "_sk_rcv_event_ids", sk_rcv_event_ids);
+  std::vector<uint32_t> sk_custom_event_ids;
+  (void)ge::AttrUtils::GetListInt(sub_nodes[cnt]->GetOpDesc(), "_sk_custom_event_ids", sk_custom_event_ids);
   uint32_t byte_size = 8;
-  args_size += (sk_send_event_ids.size() + sk_rcv_event_ids.size()) * byte_size;
+  args_size += (sk_send_event_ids.size() + sk_rcv_event_ids.size() + sk_custom_event_ids.size()) * byte_size;
   for (const auto &sk_send_id : sk_send_event_ids) {
     ge::ArgsFormatDescUtils::Append(arg_descs, ge::AddrType::EVENT_ADDR, sk_send_id);
   }
   for (const auto &sk_recv_id : sk_rcv_event_ids) {
     ge::ArgsFormatDescUtils::Append(arg_descs, ge::AddrType::EVENT_ADDR, sk_recv_id);
   }
+  for (const auto &sk_custom_event_id : sk_custom_event_ids) {
+    ge::ArgsFormatDescUtils::Append(arg_descs, ge::AddrType::EVENT_ADDR, sk_custom_event_id);
+  }
+
   sub_arg_format = ge::ArgsFormatDescUtils::ToString(arg_descs);
   auto ret = ge::ArgsFormatDesc::ConvertToSuperKernelArgFormat(shared_node, sub_node, sub_arg_format,
                                                                super_kernel_args_format);
@@ -173,9 +185,10 @@ ge::Status SetArgFormatValue(uint32_t args_size_workspace, std::vector<std::vect
   domi::KernelContext *kernel_context = nullptr;
   domi::KernelDef *kernel_def_tmp = nullptr;
   for (uint32_t i = 0; i < subTasks.size(); ++i) {
+    bool hasRecordOrWaitTask = false;
     const auto sub_kernel_op_desc = sub_nodes[i]->GetOpDesc();
     for (auto &single_task : subTasks[i]) {
-      if (IsAICpuTaskDef(single_task, kernel_context)) {
+      if (IsAICpuTaskDef(single_task, kernel_context, hasRecordOrWaitTask)) {
         FE_LOGI("aicpu task args_format copy.");
         continue;
       }
@@ -210,7 +223,9 @@ ge::Status SetArgFormatValue(uint32_t args_size_workspace, std::vector<std::vect
       (void)ge::AttrUtils::GetListInt(sub_nodes[i]->GetOpDesc(), "_sk_send_event_ids", sk_send_event_ids);
       std::vector<uint32_t> sk_rcv_event_ids;
       (void)ge::AttrUtils::GetListInt(sub_nodes[i]->GetOpDesc(), "_sk_rcv_event_ids", sk_rcv_event_ids);
-      auto addr_size = (sk_send_event_ids.size() + sk_rcv_event_ids.size()) * 8;
+      std::vector<uint32_t> sk_custom_event_ids;
+      (void)ge::AttrUtils::GetListInt(sub_nodes[i]->GetOpDesc(), "_sk_custom_event_ids", sk_custom_event_ids);
+      auto addr_size = (sk_send_event_ids.size() + sk_rcv_event_ids.size() + sk_custom_event_ids.size()) * 8;
       if (addr_size > 0) {
         char *addr_buffer = new (std::nothrow) char[addr_size]();
         if (!addr_buffer) {
@@ -299,8 +314,8 @@ int64_t GetSuperKernelWorkspace(const ge::Node &node) {
   return super_ws_size;
 }
 
-bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context) {
-  if (task_temp.type() == ACL_RT_MODEL_TASK_PREPROCESS_KERNEL) {
+bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context, bool hasRecordOrWaitTask) {
+  if (task_temp.type() == ACL_RT_MODEL_TASK_PREPROCESS_KERNEL || hasRecordOrWaitTask) {
     auto kernel_def = task_temp.mutable_kernel();
     FE_CHECK(kernel_def == nullptr, FE_LOGW("IsAICpuTaskDef kernel_def is null pointer!"), return false);
     kernel_context = kernel_def->mutable_context();
@@ -317,6 +332,56 @@ bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_conte
   return false;
 }
 
+bool IsEventWaitKernelDef(domi::TaskDef &task_temp) {
+  return (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT)) ||
+         (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_WAIT));
+}
+
+bool IsEventWaitTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context) {
+  if (IsEventWaitKernelDef(task_temp)) {
+    auto kernel_def = task_temp.mutable_kernel();
+    FE_CHECK(kernel_def == nullptr, FE_LOGW("IsEventWaitTaskDef kernel_def is null pointer!"), return false);
+    kernel_context = kernel_def->mutable_context();
+    FE_CHECK(kernel_context == nullptr, FE_LOGW("IsEventWaitTaskDef kernel_context is null pointer!"), return false);
+    return true;
+  }
+  return false;
+}
+
+bool IsEventRecordKernelDef(domi::TaskDef &task_temp) {
+  return (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD)) ||
+         (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_RECORD));
+}
+
+bool IsEventRecordTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context) {
+  if (IsEventRecordKernelDef(task_temp)) {
+    auto kernel_def = task_temp.mutable_kernel();
+    FE_CHECK(kernel_def == nullptr, FE_LOGW("IsEventRecordTaskDef kernel_def is null pointer!"), return false);
+    kernel_context = kernel_def->mutable_context();
+    FE_CHECK(kernel_context == nullptr, FE_LOGW("IsEventRecordTaskDef kernel_context is null pointer!"), return false);
+    return true;
+  }
+  return false;
+}
+
+bool CheckRecordWaitTask(std::vector<domi::TaskDef> &subTask, bool &hasRecordOrWaitTask) {
+  int64_t event_wait_task_num = 0, event_record_task_num = 0;
+  for (auto &single_task : subTask) {
+    if (IsEventWaitKernelDef(single_task)) {
+      hasRecordOrWaitTask = true;
+      event_wait_task_num++;
+    }
+    if (IsEventRecordKernelDef(single_task)) {
+      hasRecordOrWaitTask = true;
+      event_record_task_num++;
+    }
+  }
+  if (event_record_task_num != event_wait_task_num) {
+    return false;
+  }
+  return true;
+}
+
 ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, size_t &args_size_total,
                         std::vector<std::vector<domi::TaskDef>> &subTasks, const ge::OpDescPtr &super_kernel_op_desc,
                         std::vector<domi::TaskDef> &tasks, const ge::NodePtr &shared_node,
@@ -329,12 +394,18 @@ ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, size_t &args_s
     std::string sub_arg_format;
     auto sub_node = const_cast<ge::Node *>(sub_nodes[i])->shared_from_this();
     auto &subTaskVec = subTasks[i];
+    bool hasRecordOrWaitTask = false;
+    // 检查当前的task任务里面EVENT_WAIT和EVENT_RECORD是否是成对出现的，否则进行拦截。
+    if (!CheckRecordWaitTask(subTaskVec, hasRecordOrWaitTask)) {
+      FE_LOGE("The EVENT_WAIT and EVENT_RECORD should appear in pairs, or SK will not support the scenario.");
+      return ge::FAILED;
+    }
     for (auto &single_task : subTaskVec) {
       GetArgFormatV2(single_task, sub_arg_format);
-      if (sub_arg_format.empty()) {
+      if (sub_arg_format.empty() && !IsEventWaitKernelDef(single_task) && !IsEventRecordKernelDef(single_task)) {
         continue;
       }
-      if (IsAICpuTaskDef(single_task, kernel_context)) {
+      if (IsAICpuTaskDef(single_task, kernel_context, hasRecordOrWaitTask)) {
         // 外提至和superkernel一个层级，不拷贝argformat，修改op_index
         kernel_context->set_op_index(super_kernel_op_desc->GetId());
         std::string aicpu_kernel_args_format;
@@ -358,6 +429,38 @@ ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, size_t &args_s
           FE_CHECK_NOTNULL(kernel_def_with_handle);
           args_size = kernel_def_with_handle->args_size();
           FE_LOGI("task_arg.type is ACL_RT_MODEL_TASK_ALL_KERNEL args_size: %d %d", args_size, __LINE__);
+        } else if (IsEventRecordTaskDef(single_task, kernel_context) ||
+                   IsEventWaitTaskDef(single_task, kernel_context)) {
+          int cur_task_stream_id = single_task.stream_id();
+          int sk_node_stream_id = super_kernel_op_desc->GetStreamId();
+          FE_LOGD("cur_task_stream_id %d, sk_node_stream_id %d", cur_task_stream_id, sk_node_stream_id);
+          if (cur_task_stream_id == sk_node_stream_id) {
+            auto kernel_def_tmp = single_task.mutable_kernel();
+            FE_CHECK_NOTNULL(kernel_def_tmp);
+            args_size = kernel_def_tmp->args_size();
+            if (IsEventRecordKernelDef(single_task)) {
+              single_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_MEM_EVENT_RECORD));
+            } else {
+              single_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_MEM_EVENT_WAIT));
+            }
+          } else {
+            kernel_context->set_op_index(super_kernel_op_desc->GetId());
+            std::string sk_event_args_format;
+            auto ret = ge::ArgsFormatDesc::ConvertToSuperKernelArgFormat(shared_node, sub_node, sub_arg_format,
+                                                                         sk_event_args_format);
+            if (ret != SUCCESS) {
+              FE_LOGE("Event record task or event wait task run ConvertToSuperKernelArgFormat failed.");
+              return ge::FAILED;
+            }
+            kernel_context->set_args_format(sk_event_args_format);
+            if (IsEventRecordKernelDef(single_task)) {
+              single_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_MEM_EVENT_RECORD));
+            } else {
+              single_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_MEM_EVENT_WAIT));
+            }
+            tasks.emplace_back(single_task);
+            continue;
+          }
         } else {
           FE_LOGE("The task type[%u] is invalid.", single_task.type());
           continue;
