@@ -43,6 +43,7 @@ OpsKernelManager &OpsKernelManager::Instance(const std::string &engine_name) {
 }
 
 Status OpsKernelManager::Initialize() {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   if (is_init_) {
     return SUCCESS;
   }
@@ -76,6 +77,7 @@ Status OpsKernelManager::Initialize() {
 }
 
 Status OpsKernelManager::Finalize() {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   if (!is_init_) {
     return SUCCESS;
   }
@@ -95,6 +97,7 @@ Status OpsKernelManager::Finalize() {
 }
 
 void OpsKernelManager::GetAllOpsKernelInfo(map<string, ge::OpInfo> &infos) const {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   for (auto &sub_kernel_itr : sub_ops_kernel_map_) {
     if (sub_kernel_itr.second == nullptr) {
       FE_LOGW("GetAllOpsKernelInfo: pointer in map_all_sub_store_info_ [%s] should not be nullptr!",
@@ -119,6 +122,7 @@ void OpsKernelManager::GetAllOpsKernelInfo(map<string, ge::OpInfo> &infos) const
 }
 
 SubOpInfoStorePtr OpsKernelManager::GetSubOpsKernelByStoreName(const std::string &store_name) {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   std::map<std::string, SubOpInfoStorePtr>::const_iterator iter = sub_ops_kernel_map_.find(store_name);
   if (iter == sub_ops_kernel_map_.end()) {
     return nullptr;
@@ -127,6 +131,7 @@ SubOpInfoStorePtr OpsKernelManager::GetSubOpsKernelByStoreName(const std::string
 }
 
 SubOpInfoStorePtr OpsKernelManager::GetSubOpsKernelByImplType(const OpImplType &op_impl_type) {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   std::map<OpImplType, SubOpInfoStorePtr>::const_iterator iter = sub_ops_store_map_.find(op_impl_type);
   if (iter == sub_ops_store_map_.end()) {
     return nullptr;
@@ -135,6 +140,7 @@ SubOpInfoStorePtr OpsKernelManager::GetSubOpsKernelByImplType(const OpImplType &
 }
 
 OpKernelInfoPtr OpsKernelManager::GetOpKernelInfoByOpType(const std::string &store_name, const std::string &op_type) {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   std::map<std::string, SubOpInfoStorePtr>::const_iterator iter_store = sub_ops_kernel_map_.find(store_name);
   if (iter_store == sub_ops_kernel_map_.end()) {
     return nullptr;
@@ -143,6 +149,7 @@ OpKernelInfoPtr OpsKernelManager::GetOpKernelInfoByOpType(const std::string &sto
 }
 
 OpKernelInfoPtr OpsKernelManager::GetOpKernelInfoByOpType(const OpImplType &op_impl_type, const std::string &op_type) {
+  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   std::map<OpImplType, SubOpInfoStorePtr>::const_iterator iter_store = sub_ops_store_map_.find(op_impl_type);
   if (iter_store == sub_ops_store_map_.end()) {
     return nullptr;
@@ -171,8 +178,6 @@ OpKernelInfoPtr OpsKernelManager::GetOpKernelInfoByOpDesc(const ge::OpDescPtr &o
 }
 
 OpKernelInfoPtr OpsKernelManager::GetHighPrioOpKernelInfo(const std::string &op_type) {
-  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
-
   const std::vector<FEOpsStoreInfo> &ops_store_info_vec = Configuration::Instance(engine_name_).GetOpsStoreInfo();
   for (const FEOpsStoreInfo &ops_store : ops_store_info_vec) {
     OpKernelInfoPtr op_kernel_ptr = GetOpKernelInfoByOpType(ops_store.op_impl_type, op_type);
@@ -233,7 +238,6 @@ bool OpsKernelManager::FindOpKernelByType(const std::string &op_type, OpKernelIn
 
 void OpsKernelManager::UpdatePatternForAllKernel(
     const std::vector<std::pair<std::string, std::string>> &op_prebuild_patterns) {
-  std::lock_guard<std::mutex> lock_guard(ops_kernel_manager_lock_);
   for (const auto &op_pattern_pair : op_prebuild_patterns) {
     OpKernelInfoPtr op_kernel_ptr;
     if (FindOpKernelByType(op_pattern_pair.first, op_kernel_ptr)) {

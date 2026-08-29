@@ -66,7 +66,7 @@ class OpsKernelManager {
   std::string engine_name_;
   std::map<std::string, SubOpInfoStorePtr> sub_ops_kernel_map_;
   std::map<OpImplType, SubOpInfoStorePtr> sub_ops_store_map_;
-  std::mutex ops_kernel_manager_lock_;
+  mutable std::mutex ops_kernel_manager_lock_;
 };
 }  // namespace fe
 #endif  // FUSION_ENGINE_INC_OPS_STORE_OPS_KERNEL_MANAGER_H_
