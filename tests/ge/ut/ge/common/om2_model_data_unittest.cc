@@ -50,7 +50,7 @@ TEST_F(Om2ModelDataTest, DefaultConstruction) {
   EXPECT_TRUE(model_data.kernel_binaries.empty());
 
   // Verify debug_info
-  EXPECT_TRUE(model_data.debug_info.op_attr_json.empty());
+  EXPECT_TRUE(model_data.op_attr_json.empty());
   EXPECT_TRUE(model_data.debug_info.visual_json.empty());
 }
 
@@ -202,27 +202,31 @@ TEST_F(Om2ModelDataTest, PopulateDebugInfo) {
   Om2ModelData model_data;
 
   model_data.debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1})";
-  model_data.debug_info.op_attr_json = R"({"add":{"alpha":{"type":"FLOAT","value":1.0}}})";
+  model_data.op_attr_json = R"({"add":{"alpha":{"type":"FLOAT","value":1.0}}})";
 
   // Verify
   EXPECT_EQ(model_data.debug_info.visual_json, R"({"format":"ge_visual_json","format_version":1})");
-  EXPECT_FALSE(model_data.debug_info.op_attr_json.empty());
-  EXPECT_NE(model_data.debug_info.op_attr_json.find("add"), std::string::npos);
+  EXPECT_FALSE(model_data.op_attr_json.empty());
+  EXPECT_NE(model_data.op_attr_json.find("add"), std::string::npos);
 }
 
 // Test populating manifest
 TEST_F(Om2ModelDataTest, PopulateManifest) {
   Om2ModelData model_data;
 
-  model_data.manifest["model_name"] = "test_model";
-  model_data.manifest["version"] = "1.0";
-  model_data.manifest["framework"] = "onnx";
+  model_data.manifest.compatibility.compiler_version = OM2_VERSION;
+  model_data.manifest.compatibility.required_executor_version = "";
+  model_data.manifest.compatibility.used_features["feature1"] = "1.0";
+  model_data.manifest.model_num = 1U;
+  model_data.manifest.atc_command = "--model=test";
 
   // Verify
-  ASSERT_EQ(model_data.manifest.size(), 3U);
-  EXPECT_EQ(model_data.manifest["model_name"], "test_model");
-  EXPECT_EQ(model_data.manifest["version"], "1.0");
-  EXPECT_EQ(model_data.manifest["framework"], "onnx");
+  EXPECT_EQ(model_data.manifest.compatibility.compiler_version, OM2_VERSION);
+  EXPECT_EQ(model_data.manifest.compatibility.required_executor_version, "");
+  EXPECT_EQ(model_data.manifest.compatibility.used_features.size(), 1U);
+  EXPECT_EQ(model_data.manifest.compatibility.used_features["feature1"], "1.0");
+  EXPECT_EQ(model_data.manifest.model_num, 1U);
+  EXPECT_EQ(model_data.manifest.atc_command, "--model=test");
 }
 
 // Test move semantics

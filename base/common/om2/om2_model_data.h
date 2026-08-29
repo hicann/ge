@@ -25,6 +25,20 @@
 
 namespace gert {
 
+constexpr const char *OM2_VERSION = "1.0";
+
+struct Om2Compatibility {
+  std::string compiler_version;
+  std::string required_executor_version;
+  std::map<std::string, std::string> used_features;
+};
+
+struct Om2Manifest {
+  Om2Compatibility compatibility;
+  uint32_t model_num = 0;
+  std::string atc_command;
+};
+
 /// Kernel 二进制信息
 struct Om2KernelBinary {
   std::string name;
@@ -75,7 +89,6 @@ struct Om2ConstantsData {
 
 /// Debug 信息
 struct Om2DebugInfo {
-  std::string op_attr_json;
   std::string visual_json;
 };
 
@@ -87,7 +100,8 @@ struct Om2ModelData {
   std::vector<Om2KernelBinary> custom_kernel_binaries;
   std::vector<Om2KernelBinary> custom_shared_libs;
   Om2DebugInfo debug_info;
-  std::map<std::string, std::string> manifest;
+  Om2Manifest manifest;
+  std::string op_attr_json;
   std::unique_ptr<RTVarResource> rt_var_resource;
   std::vector<ge::Om2VarMeta> var_metas;
   uint32_t graph_id = 0U;

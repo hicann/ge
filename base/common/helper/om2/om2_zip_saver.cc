@@ -411,8 +411,7 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
 Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const size_t model_index = 0UL;
   // op_attr.json
-  const auto &op_attr_json_str =
-      model_data.debug_info.op_attr_json.empty() ? std::string("{}") : model_data.debug_info.op_attr_json;
+  const auto &op_attr_json_str = model_data.op_attr_json.empty() ? std::string("{}") : model_data.op_attr_json;
   const auto op_attr_entry_path = FormatOm2Path(OM2_OP_ATTR_PATH_FORMAT, std::to_string(model_index).c_str());
   GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str.data(), op_attr_json_str.size(), false));
 
@@ -424,19 +423,25 @@ Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::share
 }
 
 Status SerializeManifest(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  nlohmann::json manifest_json = nlohmann::json::object();
-  for (const auto &[key, value] : model_data.manifest) {
-    if (key == OM2_MODEL_NUM) {
-      try {
-        manifest_json[key] = std::stoi(value);
-      } catch (const std::exception &) {
-        manifest_json[key] = value;
-      }
-    } else {
-      manifest_json[key] = value;
-    }
+  JsonFile manifest_json;
+  const auto &manifest = model_data.manifest;
+
+  JsonFile compatibility_json;
+  (void)compatibility_json.Set(OM2_MANIFEST_KEY_COMPILER_VERSION, manifest.compatibility.compiler_version);
+  (void)compatibility_json.Set(OM2_MANIFEST_KEY_REQUIRED_EXECUTOR_VERSION,
+                               manifest.compatibility.required_executor_version);
+
+  auto used_features_json = JsonFile::json::object();
+  for (const auto &[feature_name, feature_version] : manifest.compatibility.used_features) {
+    used_features_json[feature_name] = feature_version;
   }
-  const auto manifest_str = manifest_json.dump(4);
+  (void)compatibility_json.Set(OM2_MANIFEST_KEY_USED_FEATURES, used_features_json);
+
+  (void)manifest_json.Set(OM2_MODEL_NUM, manifest.model_num);
+  (void)manifest_json.Set(OM2_ATC_COMMAND, manifest.atc_command);
+  (void)manifest_json.Set(OM2_MANIFEST_KEY_COMPATIBILITY, compatibility_json);
+
+  const std::string manifest_str = manifest_json.Dump();
   GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_MANIFEST_PATH, manifest_str.data(), manifest_str.size(), false));
   return SUCCESS;
 }
@@ -456,6 +461,7 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
   GE_ASSERT_NOTNULL(zip_writer);
   GE_ASSERT_TRUE(zip_writer->IsMemFileOpened());
 
+  GE_ASSERT_SUCCESS(SerializeManifest(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeCodegenArtifacts(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeWeightData(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeConstantsConfig(model_data, zip_writer, is_offline));
@@ -466,7 +472,6 @@ Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &
   GE_ASSERT_SUCCESS(SerializeCustomKernelSharedLibs(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeModelMeta(model_data, zip_writer));
   GE_ASSERT_SUCCESS(SerializeDebugInfo(model_data, zip_writer));
-  GE_ASSERT_SUCCESS(SerializeManifest(model_data, zip_writer));
 
   GE_ASSERT_TRUE(zip_writer->SaveModelData(model, is_offline));
   GELOGI(

@@ -501,9 +501,11 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   int model_num;
   ASSERT_TRUE(manifest_json.Get("model_num", model_num));
   EXPECT_EQ(model_num, 1);
-  std::string om2_version;
-  ASSERT_TRUE(manifest_json.Get("om2_version", om2_version));
-  EXPECT_EQ(om2_version, "1.0");
+  std::string compiler_version;
+  JsonFile compat_json;
+  ASSERT_TRUE(manifest_json.Get("compatibility", compat_json));
+  ASSERT_TRUE(compat_json.Get("compiler_version", compiler_version));
+  EXPECT_EQ(compiler_version, "1.0");
 
   size_t model_meta_size = 0;
   const auto model_meta_buf = archive.ExtractToMem("fake_test/data/model_0/model_meta.json", model_meta_size);
@@ -1086,7 +1088,8 @@ TEST_F(Om2PackageHelperUt, ExtractVisualJson_Fail_NoVisualJson) {
   {
     ZipArchiveWriter writer(zip_path);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ModelBufferData buf;
     ASSERT_TRUE(writer.SaveModelData(buf, true));
@@ -1253,10 +1256,10 @@ TEST_F(Om2PackageHelperUt, BuildDebugInfo_DumpOriginOpNames) {
   gert::Om2ModelData model_data;
   gert::Om2DebugInfo &debug_info = model_data.debug_info;
   ASSERT_EQ(om2_packager.BuildDebugInfo(ge_model, model_data), SUCCESS);
-  ASSERT_FALSE(debug_info.op_attr_json.empty());
+  ASSERT_FALSE(model_data.op_attr_json.empty());
 
-  const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(debug_info.op_attr_json.data()),
-                              debug_info.op_attr_json.size());
+  const JsonFile op_attr_json(reinterpret_cast<const uint8_t *>(model_data.op_attr_json.data()),
+                              model_data.op_attr_json.size());
   ASSERT_TRUE(op_attr_json.IsValid());
   const auto &raw_json = op_attr_json.Raw();
   EXPECT_TRUE(raw_json.is_object());
@@ -1281,11 +1284,12 @@ TEST_F(Om2PackageHelperUt, BuildDebugInfo_DumpOriginOpNames) {
 TEST_F(Om2PackageHelperUt, BuildManifest_NullRootModel) {
   Om2PackageHelper om2_packager;
   gert::Om2ModelData model_data;
-  std::map<std::string, std::string> &manifest = model_data.manifest;
   ASSERT_EQ(om2_packager.BuildManifest(nullptr, model_data), SUCCESS);
 
-  ASSERT_EQ(manifest.count(OM2_MODEL_NUM), 1U);
-  EXPECT_EQ(manifest[OM2_MODEL_NUM], "1");
+  EXPECT_EQ(model_data.manifest.model_num, 1U);
+  EXPECT_EQ(model_data.manifest.compatibility.compiler_version, gert::OM2_VERSION);
+  EXPECT_EQ(model_data.manifest.compatibility.required_executor_version, "");
+  EXPECT_TRUE(model_data.manifest.compatibility.used_features.empty());
 }
 
 TEST_F(Om2PackageHelperUt, Serialize_OnlineMode_ExternalConst_HasFilePath) {
@@ -2021,26 +2025,33 @@ TEST_F(Om2PackageHelperUt, SerializeModelMeta_WithMultipleOutputsPerGear_WritesA
   EXPECT_EQ(gears[1].at("outputs").size(), 2U);
 }
 
-TEST_F(Om2PackageHelperUt, SerializeManifest_InvalidModelNum_FallsBackToString) {
+TEST_F(Om2PackageHelperUt, SerializeManifest_CompatibilityStructure) {
   gert::Om2ModelData model_data;
   model_data.model_meta.model_name = "test_model";
-  model_data.manifest[OM2_ARCHIVE_VERSION] = OM2_ARCHIVE_VERSION_VALUE;
-  model_data.manifest[OM2_MODEL_NUM] = "not_a_number";
-  model_data.manifest[OM2_ATC_COMMAND] = "";
+  model_data.manifest.compatibility.compiler_version = "1.5";
+  model_data.manifest.compatibility.required_executor_version = "1.1";
+  model_data.manifest.compatibility.used_features["feature1"] = "1.0";
+  model_data.manifest.compatibility.used_features["feature2"] = "1.1";
+  model_data.manifest.model_num = 2U;
+  model_data.manifest.atc_command = "--model=test";
 
   model_data.program_body.so_artifact.file_name = "libtest.so";
   model_data.program_body.so_artifact.data = "fake";
   model_data.debug_info.visual_json = R"({"format":"ge_visual_json"})";
 
-  const std::string writer_path = PathUtils::Join({test_work_dir, "invalid_manifest.om2"});
+  const std::string writer_path = PathUtils::Join({test_work_dir, "compatibility_manifest.om2"});
   ModelBufferData model_buffer;
   ASSERT_EQ(Om2ZipSaver::Save(model_data, model_buffer, false, writer_path), SUCCESS);
 
   SimpleZipArchiveReader archive(model_buffer.data.get(), model_buffer.length);
   ASSERT_TRUE(archive.IsGood());
 
+  const auto file_list = archive.ListFiles();
+  ASSERT_FALSE(file_list.empty());
+  EXPECT_TRUE(file_list[0].find(OM2_MANIFEST_PATH) != std::string::npos);
+
   std::string manifest_entry;
-  for (const auto &name : archive.ListFiles()) {
+  for (const auto &name : file_list) {
     if (name.find("manifest.json") != std::string::npos) {
       manifest_entry = name;
       break;
@@ -2054,7 +2065,16 @@ TEST_F(Om2PackageHelperUt, SerializeManifest_InvalidModelNum_FallsBackToString) 
 
   const JsonFile manifest_json(reinterpret_cast<const uint8_t *>(buf.get()), buf_size);
   ASSERT_TRUE(manifest_json.IsValid());
-  EXPECT_EQ(manifest_json.Raw().at(OM2_MODEL_NUM), "not_a_number");
+  const auto &raw = manifest_json.Raw();
+  EXPECT_EQ(raw.at(OM2_MODEL_NUM), 2U);
+  EXPECT_EQ(raw.at(OM2_ATC_COMMAND), "--model=test");
+
+  const auto &compat = raw.at(OM2_MANIFEST_KEY_COMPATIBILITY);
+  EXPECT_EQ(compat.at(OM2_MANIFEST_KEY_COMPILER_VERSION), "1.5");
+  EXPECT_EQ(compat.at(OM2_MANIFEST_KEY_REQUIRED_EXECUTOR_VERSION), "1.1");
+  const auto &features = compat.at(OM2_MANIFEST_KEY_USED_FEATURES);
+  EXPECT_EQ(features.at("feature1"), "1.0");
+  EXPECT_EQ(features.at("feature2"), "1.1");
 }
 
 TEST_F(Om2PackageHelperUt, ReadCustomOpSoFiles) {

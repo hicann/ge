@@ -764,7 +764,11 @@ std::string MakeFakeOm2ManifestJson() {
   return R"({
     "atc_command": "",
     "model_num": 1,
-    "om2_version": "1.0"
+    "compatibility": {
+      "compiler_version": "1.0",
+      "required_executor_version": "",
+      "used_features": {}
+    }
 })";
 }
 
@@ -1014,7 +1018,8 @@ std::string BuildValidOm2ProtoTxt() {
 void CreateMinimalOm2File(const std::string &path, const std::string &proto_content) {
   ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+  const std::string manifest =
+      R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
   ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_proto_00000000_graph_1_test.txt", proto_content.data(),
                                 proto_content.size(), true));
@@ -1025,7 +1030,8 @@ void CreateMinimalOm2File(const std::string &path, const std::string &proto_cont
 void CreateMinimalOm2FileWithoutProto(const std::string &path) {
   ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+  const std::string manifest =
+      R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
   ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(writer.SaveModelDataToFile());
   ASSERT_EQ(mmAccess2(path.c_str(), M_F_OK), EOK);
@@ -1809,7 +1815,8 @@ TEST_F(Om2St, Om2PackageHelper_Ok_ExtractVisualJsonFromMinimalOm2) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1841,7 +1848,8 @@ TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonWithoutVisualJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.SaveModelData(model, false));
   }
@@ -1906,7 +1914,8 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertMinimalVisualOm2ToJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1930,7 +1939,8 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertVisualOm2AddsGroupOpName) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1961,7 +1971,8 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertLooseVisualOm2ToJson) {
   {
     ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));

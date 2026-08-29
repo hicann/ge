@@ -85,7 +85,11 @@ std::string MakeManifestJson() {
   return R"({
     "atc_command": "",
     "model_num": 1,
-    "om2_version": "1.0"
+    "compatibility": {
+      "compiler_version": "1.0",
+      "required_executor_version": "",
+      "used_features": {}
+    }
 })";
 }
 
@@ -3230,6 +3234,478 @@ TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_true_and_external_work_ptr)
   ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_VALUE", expected_ptr.c_str(), 1), 0);
 
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+namespace {
+std::string MakeManifestJsonWithCompat(const std::string &compiler_ver, const std::string &required_executor_ver,
+                                       const std::string &used_features = "{}") {
+  std::string json = "{\n";
+  json += "  \"atc_command\": \"\",\n";
+  json += "  \"model_num\": 1,\n";
+  json += "  \"compatibility\": {\n";
+  json += "    \"compiler_version\": \"" + compiler_ver + "\",\n";
+  json += "    \"required_executor_version\": \"" + required_executor_ver + "\",\n";
+  json += "    \"used_features\": " + used_features + "\n";
+  json += "  }\n";
+  json += "}";
+  return json;
+}
+
+std::string MakeManifestJsonWithoutCompatibility() {
+  return R"({
+    "atc_command": "",
+    "model_num": 1
+})";
+}
+}  // namespace
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case01_Baseline_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case01.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case02_ExactMatch_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case02.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "1.0");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case03_RequiredLower_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case03.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "0.9");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case04_CompilerMinorHigher_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case04.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.5", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case05_CompilerMinorHigher_RequiredMatch_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case05.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.5", "1.0");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case06_CompilerMajorHigher_Fail) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case06.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("2.0", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_NE(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case07_CompilerMajorHigher_RequiredSatisfied_Fail) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case07.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("2.0", "1.0");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_NE(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case08_CompilerLower_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case08.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("0.9", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case09_CompilerLower_RequiredLower_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case09.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("0.9", "0.9");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case10_EmptyStrings_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case10.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case11_OnlyMajor_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case11.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1", "1");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case12_InvalidFormat_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case12.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("abc", "");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case13_RequiredInvalidFormat_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case13.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "xyz");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case14_CompatibilityMissing_Fail) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case14.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithoutCompatibility();
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_NE(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case15_UsedFeaturesMissing_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case15.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  std::string manifest = "{\n";
+  manifest += "  \"atc_command\": \"\",\n";
+  manifest += "  \"model_num\": 1,\n";
+  manifest += "  \"compatibility\": {\n";
+  manifest += "    \"compiler_version\": \"1.0\",\n";
+  manifest += "    \"required_executor_version\": \"\"\n";
+  manifest += "  }\n";
+  manifest += "}";
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case16_UsedFeaturesNotObject_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case16.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "", "\"invalid\"");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, VersionCompat_Case17_UsedFeaturesWithData_Success) {
+  PrepareOm2File();
+  ge::ModelBufferData model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case17.om2"});
+  const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+
+  ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJsonWithCompat("1.0", "", "{\"feature_a\":\"enabled\"}");
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
 }
 
 }  // namespace ge
