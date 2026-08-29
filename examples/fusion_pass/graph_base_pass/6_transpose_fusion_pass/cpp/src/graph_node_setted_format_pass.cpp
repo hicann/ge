@@ -561,7 +561,15 @@ bool IsTransposePermConst(const GNode &transpose_node) {
               << "), skip removal" << std::endl;
     return false;
   }
-  if (!perm_node->GetInControlNodes().empty() || !perm_node->GetInDataNodes().empty()) {
+  bool has_data_input = false;
+  for (size_t i = 0; i < perm_node->GetInputsSize(); ++i) {
+    auto [in_node, in_port] = perm_node->GetInDataNodesAndPortIndexs(static_cast<int32_t>(i));
+    if (in_node != nullptr) {
+      has_data_input = true;
+      break;
+    }
+  }
+  if (!perm_node->GetInControlNodes().empty() || has_data_input) {
     AscendString tp_name;
     std::string tp_name_str = (transpose_node.GetName(tp_name) == GRAPH_SUCCESS) ? tp_name.GetString() : "unknown";
     AscendString perm_name;
@@ -761,8 +769,8 @@ bool RemoveTransposeAndRelink(const GraphPtr &graph, const GNodePtr &transpose_n
  */
 bool RemoveRedundantTranspose(const GraphPtr &graph, GNode &node, const std::string &node_name) {
   bool all_success = true;
-  // ----- 检查输入侧的 Transpose -----
-  std::vector<GNodePtr> transposes_to_remove;
+  std::unordered_set<std::string> transpose_names;
+  // ----- 按名字收集输入侧的 Transpose -----
   for (size_t i = 0; i < node.GetInputsSize(); ++i) {
     auto [src_node, src_port] = node.GetInDataNodesAndPortIndexs(static_cast<int32_t>(i));
     if (src_node == nullptr) {
@@ -770,11 +778,14 @@ bool RemoveRedundantTranspose(const GraphPtr &graph, GNode &node, const std::str
     }
     if (IsTransposeNode(*src_node) && IsTransposePermConst(*src_node) && HasNoControlEdge(*src_node) &&
         IsTransposeRedundant(*src_node)) {
-      transposes_to_remove.push_back(src_node);
+      AscendString trans_name;
+      if (src_node->GetName(trans_name) == GRAPH_SUCCESS) {
+        transpose_names.insert(trans_name.GetString());
+      }
     }
   }
 
-  // ----- 检查输出侧的 Transpose -----
+  // ----- 按名字收集输出侧的 Transpose -----
   for (size_t i = 0; i < node.GetOutputsSize(); ++i) {
     auto successors = node.GetOutDataNodesAndPortIndexs(static_cast<int32_t>(i));
     for (const auto &[succ_node, succ_port] : successors) {
@@ -783,18 +794,25 @@ bool RemoveRedundantTranspose(const GraphPtr &graph, GNode &node, const std::str
       }
       if (IsTransposeNode(*succ_node) && IsTransposePermConst(*succ_node) && HasNoControlEdge(*succ_node) &&
           IsTransposeRedundant(*succ_node)) {
-        transposes_to_remove.push_back(succ_node);
+        AscendString trans_name;
+        if (succ_node->GetName(trans_name) == GRAPH_SUCCESS) {
+          transpose_names.insert(trans_name.GetString());
+        }
       }
     }
   }
 
-  // 去重（同一个 Transpose 可能在输入侧和输出侧都被检测到）
-  std::sort(transposes_to_remove.begin(), transposes_to_remove.end());
-  transposes_to_remove.erase(std::unique(transposes_to_remove.begin(), transposes_to_remove.end()),
-                             transposes_to_remove.end());
-
-  for (const auto &transpose_node : transposes_to_remove) {
+  // ----- 按名字实时取节点并删除 -----
+  for (const auto &trans_name : transpose_names) {
+    GNodePtr transpose_node = graph->FindNodeByName(AscendString(trans_name.c_str()));
+    if (transpose_node == nullptr) {
+      // 节点已被其它 Transpose 的删除级联移除，跳过即可
+      std::cout << "[GraphNodeSettedFormatPass] Redundant Transpose[" << trans_name
+                << "] not found in graph (maybe removed), skip" << std::endl;
+      continue;
+    }
     if (!RemoveTransposeAndRelink(graph, transpose_node)) {
+      std::cout << "[GraphNodeSettedFormatPass] Remove redundant Transpose[" << trans_name << "] failed" << std::endl;
       all_success = false;
     }
   }
@@ -1046,6 +1064,56 @@ bool CheckFormatContinuity(const GraphPtr &graph, const std::unordered_map<std::
 
 }  // namespace
 
+/**
+ * @brief 打印节点的配置信息（用于校验失败时定位问题）。
+ */
+void PrintNodeConfig(const std::string &node_name, const FormatConfig &config) {
+  std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "] check failed. Config was:" << std::endl;
+  for (const auto &[idx, fmt] : config.input_formats) {
+    std::cout << "  input." << idx << " = " << static_cast<int>(fmt) << std::endl;
+  }
+  for (const auto &[idx, fmt] : config.output_formats) {
+    std::cout << "  output." << idx << " = " << static_cast<int>(fmt) << std::endl;
+  }
+}
+
+/**
+ * @brief 遍历目标节点列表，逐个执行 format 修改与校验。
+ *
+ * @param graph 图指针
+ * @param op_configs 配置文件中解析的 node_name → FormatConfig 映射
+ * @param target_nodes 待处理的目标节点名列表
+ * @param configured_nodes 输出：配置成功的节点名集合
+ * @return true 有节点失败, false 全部成功
+ */
+bool ProcessTargetNodes(const GraphPtr &graph, const std::unordered_map<std::string, FormatConfig> &op_configs,
+                        const std::vector<std::string> &target_nodes,
+                        std::unordered_set<std::string> &configured_nodes) {
+  bool any_failed = false;
+  for (const auto &node_name : target_nodes) {
+    GNodePtr node = graph->FindNodeByName(AscendString(node_name.c_str()));
+    if (node == nullptr) {
+      std::cout << "[GraphNodeSettedFormatPass] Config node[" << node_name
+                << "] not found (may have been removed by another node), skip" << std::endl;
+      continue;
+    }
+
+    AscendString node_type_asc;
+    std::string node_type = (node->GetType(node_type_asc) == GRAPH_SUCCESS) ? node_type_asc.GetString() : "unknown";
+    std::cout << "[GraphNodeSettedFormatPass] Processing node[" << node_name << "] (type=" << node_type << ")"
+              << std::endl;
+
+    const auto &config = op_configs.at(node_name);
+    if (!ApplyFormatAndCheck(graph, *node, config, node_name)) {
+      PrintNodeConfig(node_name, config);
+      any_failed = true;
+    } else {
+      configured_nodes.insert(node_name);
+    }
+  }
+  return any_failed;
+}
+
 // =============================================================================
 // GraphNodeSettedFormatPass 主类
 // =============================================================================
@@ -1082,43 +1150,23 @@ class GraphNodeSettedFormatPass : public FusionBasePass {
     // ----- 2. 备份原图（任一个节点失败时回滚整个图）-----
     Graph origin_graph = *graph;
 
-    // ----- 3. 遍历图中所有节点 -----
-    bool any_failed = false;
-    std::unordered_set<std::string> configured_nodes;
+    // ----- 3. 收集与配置匹配的目标节点 -----
+    std::vector<std::string> target_nodes;
     for (auto &node : graph->GetDirectNode()) {
       AscendString node_name_asc;
       if (node.GetName(node_name_asc) != GRAPH_SUCCESS) {
         continue;
       }
-
-      std::string node_name = node_name_asc.GetString();
-      auto config_it = op_configs.find(node_name);
-      if (config_it == op_configs.end()) {
-        continue;  // 该节点名不在配置中，跳过
-      }
-
-      AscendString node_type_asc;
-      std::string node_type = (node.GetType(node_type_asc) == GRAPH_SUCCESS) ? node_type_asc.GetString() : "unknown";
-
-      std::cout << "[GraphNodeSettedFormatPass] Processing node[" << node_name << "] (type=" << node_type << ")"
-                << std::endl;
-
-      if (!ApplyFormatAndCheck(graph, node, config_it->second, node_name)) {
-        // 打印该节点对应的配置，方便定位问题
-        std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "] check failed. Config was:" << std::endl;
-        for (const auto &[idx, fmt] : config_it->second.input_formats) {
-          std::cout << "  input." << idx << " = " << static_cast<int>(fmt) << std::endl;
-        }
-        for (const auto &[idx, fmt] : config_it->second.output_formats) {
-          std::cout << "  output." << idx << " = " << static_cast<int>(fmt) << std::endl;
-        }
-        any_failed = true;
-      } else {
-        configured_nodes.insert(node_name);
+      const std::string node_name = node_name_asc.GetString();
+      if (op_configs.find(node_name) != op_configs.end()) {
+        target_nodes.push_back(node_name);
       }
     }
 
-    // ----- 4. 如果任一个节点失败，回滚整个图并返回 FAILED -----
+    // ----- 4. 逐个节点执行 format 修改与校验 -----
+    std::unordered_set<std::string> configured_nodes;
+    bool any_failed = ProcessTargetNodes(graph, op_configs, target_nodes, configured_nodes);
+    // ----- 4. 如果任一个节点失败，回滚整个图 -----
     if (any_failed) {
       std::cout << "[GraphNodeSettedFormatPass] Some nodes failed check, rolling back entire graph" << std::endl;
       *graph = origin_graph;
