@@ -34,7 +34,7 @@ class RANGE_AXIS_UTIL_UTEST : public testing::Test {
 TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_failed1) {
   vector<std::pair<int64_t, int64_t>> original_range_vec;
   vector<int64_t> original_dim_vec;
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value;
 
   RangeAxisUtil range_axis_util;
@@ -45,7 +45,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_failed1) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_failed2) {
   vector<std::pair<int64_t, int64_t>> original_range_vec;
   vector<int64_t> original_dim_vec;
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
 
@@ -57,7 +57,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_failed2) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_suc) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
 
@@ -69,7 +69,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_suc) {
 // TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByFz_suc) {
 //   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
 //   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-//   uint32_t c0;
+//   uint32_t c0 = 1;
 //   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
 //                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}};
 //
@@ -81,7 +81,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, AddTransNode_suc) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, CheckParamValue_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   size_t min_size = DIM_DEFAULT_SIZE;
@@ -93,7 +93,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, CheckParamValue_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByND_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;
@@ -104,7 +104,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByND_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNCHW_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;
@@ -115,7 +115,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNCHW_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNHWC_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;
@@ -126,7 +126,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNHWC_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNC1HWC0_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;
@@ -137,7 +137,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByNC1HWC0_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByHWCN_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;
@@ -148,7 +148,7 @@ TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByHWCN_test) {
 TEST_F(RANGE_AXIS_UTIL_UTEST, GetRangeAxisValueByCHWN_test) {
   vector<std::pair<int64_t, int64_t>> original_range_vec = {{1, 1}, {1, 1}, {1, 1}, {1, 1}};
   vector<int64_t> original_dim_vec = {1, 1, 1, 1};
-  uint32_t c0;
+  uint32_t c0 = 1;
   vector<std::pair<int64_t, int64_t>> range_value = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1},
                                                      {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
   RangeAxisUtil range_axis_util;

@@ -1084,6 +1084,9 @@ TEST(HostCpuFusionPassTest, RejectsMissingDeclaredIrAttribute) {
 
 TEST(HostCpuFusionPassTest, CompilesGeneratedSourceAndRejectsInvalidSource) {
 #if defined(__linux__)
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "HostCPU fusion JIT compiler is unavailable on ARM64.";
+#endif
   if ((std::getenv("ASCEND_OPP_PATH") == nullptr) || (std::getenv("ASCEND_HOME_PATH") == nullptr)) {
     GTEST_SKIP() << "HostCPU fusion JIT requires ASCEND_OPP_PATH and ASCEND_HOME_PATH.";
   }

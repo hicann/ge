@@ -125,6 +125,9 @@ TEST_F(UtestModelHelperMisc, LoadRootModel_NullModelData) {
 }
 
 TEST_F(UtestModelHelperMisc, CheckOsCpuInfoAndOppVersion_NeedCheck) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Model helper dump dependency is unavailable on native arm64";
+#endif
   ModelHelper model_helper;
   std::vector<char> data(256);
   ModelFileHeader *file_header = reinterpret_cast<ModelFileHeader *>(data.data());

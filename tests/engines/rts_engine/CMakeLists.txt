@@ -13,6 +13,8 @@ if (ENABLE_LLT_COV)
     set(CMAKE_CXX_FLAGS "${COVERAGE_COMPILER_FLAGS}")
 endif()
 
+add_cann_third_party(gtest_shared)
+
 add_subdirectory(ut)
 
 add_custom_target(rts_ut DEPENDS rts_engine_utest)

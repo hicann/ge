@@ -13,6 +13,9 @@ execute_process(
     COMMAND cp -rf ${CMAKE_CURRENT_SOURCE_DIR}/../stub/config ${CMAKE_CURRENT_BINARY_DIR}/../ut
 )
 
+find_library(CPUENG_ACL_RT_LIBRARY NAMES acl_rt PATHS ${ASCEND_INSTALL_PATH}/lib64 NO_DEFAULT_PATH REQUIRED)
+find_library(CPUENG_AICPU_CONTEXT_LIBRARY NAMES aicpu_context_host PATHS ${ASCEND_INSTALL_PATH}/lib64 NO_DEFAULT_PATH REQUIRED)
+
 set(proto_src_files
     ${METADEF_PROTO_DIR}/tensorflow/types.proto
     ${METADEF_PROTO_DIR}/tensorflow/graph.proto
@@ -317,6 +320,8 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         c_sec
         json
         runtime_aicpu_stub
+        ${CPUENG_AICPU_CONTEXT_LIBRARY}
+        ${CPUENG_ACL_RT_LIBRARY}
         -Wl,--no-as-needed
         unified_dlog
         -ldl
@@ -348,6 +353,8 @@ else ()
         c_sec
         json
         runtime_aicpu_stub
+        ${CPUENG_AICPU_CONTEXT_LIBRARY}
+        ${CPUENG_ACL_RT_LIBRARY}
         -Wl,--no-as-needed
         unified_dlog
         -ldl
@@ -381,6 +388,7 @@ target_link_libraries(host_engine_utest PRIVATE
     platform_headers
     json
     runtime_aicpu_stub
+    ${CPUENG_ACL_RT_LIBRARY}
     -Wl,--no-as-needed
     unified_dlog
     -ldl

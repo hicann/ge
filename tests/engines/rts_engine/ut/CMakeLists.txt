@@ -32,31 +32,31 @@ set(rts_engine_src_file
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/graph_optimizer/rts_ffts_plus_graph_optimizer.cc
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/rts_ffts_plus_ops_kernel_builder.cc
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/rts_ffts_plus_ops_kernel_info.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/end_graph_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_goto_ex_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_goto_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_set_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_switch_by_index_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_switch_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memcpy_addr_async_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/cmo_addr_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memcpy_async_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/model_op/end_graph_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op/label_goto_ex_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op/label_goto_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op/label_set_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op/label_switch_by_index_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op/label_switch_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memory_op/memcpy_addr_async_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memory_op/cmo_addr_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memory_op/memcpy_async_op.cc
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/op.cc
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/op_factory.cc
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/op_ffts_plus_factory.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/model_exit_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/recv_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/send_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_active_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_switchN_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_switch_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_get_float_status_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_clear_float_status_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_get_float_debug_status_op.cpp
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_clear_float_debug_status_op.cpp
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/send_notify_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/recv_notify_op.cc
-    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_merge_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/model_op/model_exit_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/communication_op/recv_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/communication_op/send_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_control_op/stream_active_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_control_op/stream_switchN_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_control_op/stream_switch_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_op/npu_get_float_status_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_op/npu_clear_float_status_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_op/npu_get_float_debug_status_op.cpp
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_op/npu_clear_float_debug_status_op.cpp
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/communication_op/send_notify_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/communication_op/recv_notify_op.cc
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_control_op/stream_merge_op.cc
     ${PROTO_HDRS}
 )
 
@@ -117,6 +117,12 @@ target_include_directories(rts_engine_utest PRIVATE
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/graph_optimizer/
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/
     ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/communication_op
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/label_control_op
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/memory_op
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/model_op
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/npu_op
+    ${AIR_CODE_DIR}/compiler/engines/rts_engine/ops_kernel_store/op/stream_control_op
     ${CMAKE_BINARY_DIR}/proto/rts_engine_proto
     ${AIR_CODE_DIR}/inc/graph_metadef/common/ge_common
     ${AIR_CODE_DIR}/inc/external
@@ -155,6 +161,7 @@ target_link_options(rts_engine_utest PRIVATE
     -Wl,-rpath,${ASCEND_COMPILER_DIR}
     -Wl,-rpath,${AIR_CODE_DIR}/build/graph_metadef/register
     -Wl,-rpath,${AIR_CODE_DIR}/build/graph_metadef/graph
+    -Wl,-rpath,${CANN_3RD_LIB_PATH}/lib_cache/gtest_shared/lib64
 )
 
 target_link_libraries(rts_engine_utest PRIVATE

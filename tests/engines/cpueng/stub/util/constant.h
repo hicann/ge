@@ -33,6 +33,8 @@ const std::string kInitConfigFileRelativePath = "../../../../tests/engines/cpuen
 // Attr unknown_shape
 const std::string kAttrNameUnknownShape = "_aicpu_unknown_shape";
 
+const std::string kOptionalInputPlaceholder = "optional_input_placeholder";
+
 const std::string kAttrNameInputOutputDtString = "_aicpu_input_output_dtstring";
 
 const std::string kAicpuCustPathPrefix = "/vendors";

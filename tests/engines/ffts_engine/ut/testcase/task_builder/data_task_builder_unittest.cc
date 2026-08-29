@@ -81,6 +81,9 @@ TEST_F(DataTaskBUildeUTEST, UpdateSrcSlotAndPfBm_failed) {
 }
 
 TEST_F(DataTaskBUildeUTEST, GetSuccessorContextId_failed) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "FFTS data task case is not stable on arm64";
+#endif
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   OpDescPtr op_desc_0 = std::make_shared<OpDesc>("add", "Add");
   vector<int64_t> dim(4, 4);

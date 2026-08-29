@@ -99,6 +99,9 @@ TEST_F(UtestOpsKernelBuilderRegistry, OpsKernelBuilderRegistrarTest) {
 }
 
 TEST_F(UtestOpsKernelBuilderRegistry, IncCov_DestructorUnregisterWarning_Test) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Registry destructor leak test is incompatible with the current ARM64 sanitizer runtime.";
+#endif
   {
     ge::OpsKernelBuilderRegistry ops_registry;
     OpsKernelBuilderPtr opsptr = std::shared_ptr<OpsKernelBuilder>();

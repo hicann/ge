@@ -299,7 +299,16 @@ build_graphengine()
       ENABLE_ASAN=${ASAN_MODE}
     fi
   fi
-  cmake -D ENABLE_OPEN_SRC=True \
+  # Recreate CMake's configure state without changing global CMake initialization.
+  CMAKE_FRESH_OPTION=""
+  if cmake --help | grep -q -- "--fresh"; then
+    CMAKE_FRESH_OPTION="--fresh"
+  elif [ -f "${BUILD_PATH}/CMakeCache.txt" ]; then
+    rm -f "${BUILD_PATH}/CMakeCache.txt"
+    rm -rf "${BUILD_PATH}/CMakeFiles"
+  fi
+  cmake ${CMAKE_FRESH_OPTION} -D BUILD_OPEN_PROJECT=True \
+        -D ENABLE_OPEN_SRC=True \
         -D ENABLE_TEST=${ENABLE_TEST} \
         -D ENABLE_GE_BENCHMARK=$ENABLE_GE_BENCHMARK \
         -D ENABLE_GE_ST=${ENABLE_GE_ST} \
@@ -341,7 +350,7 @@ build_graphengine()
     echo "execute command: make ${VERBOSE} -j${THREAD_NUM} && make install failed."
     return 1
   fi
-  make install
+  # LLT directly uses build outputs; do not install or generate release packages here.
   echo "GraphEngine build success!"
 }
 
@@ -468,6 +477,12 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       unset PYDFLOW_BUILD_PATH
 
       echo "---------------- Dflow Udf UT Run Start ----------------"
+      echo "---------------- Dflow dependency build start ----------------"
+      make ${VERBOSE} ge_compiler ge_runner_v2 ut_libge_helper_utest ut_llm_engine_utest -j${THREAD_NUM}
+      if [[ "$?" -ne 0 ]]; then
+        echo "!!! Dflow dependency build failed, PLEASE CHECK YOUR CHANGES !!!"
+        exit 1
+      fi
       export LD_PRELOAD=${USE_ASAN}
       export ASAN_OPTIONS=detect_container_overflow=0:detect_odr_violation=0
       ctest --verbose -j ${THREAD_NUM} -L ut -L ut_dflow --test-dir ${BUILD_PATH} --no-tests=error \
