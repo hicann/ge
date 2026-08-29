@@ -111,7 +111,7 @@ class BlockingQueue {
   }
 
   // if the queue is stoped ,need call this function to release the unprocessed items
-  std::list<T> GetRemainItems() {
+  std::list<T> GetRemainItems() const {
     const std::unique_lock<std::mutex> lock(mutex_);
 
     if (!is_stoped_) {
@@ -121,7 +121,7 @@ class BlockingQueue {
     return queue_;
   }
 
-  bool IsFull() {
+  bool IsFull() const {
     const std::unique_lock<std::mutex> lock(mutex_);
     return queue_.size() >= max_size_;
   }
@@ -140,14 +140,14 @@ class BlockingQueue {
     max_size_ = size;
   }
 
-  uint32_t Size() {
+  uint32_t Size() const {
     const std::unique_lock<std::mutex> lock(mutex_);
     return static_cast<uint32_t>(queue_.size());
   }
 
  private:
   std::list<T> queue_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::condition_variable empty_cond_;
   std::condition_variable full_cond_;
   uint32_t max_size_;

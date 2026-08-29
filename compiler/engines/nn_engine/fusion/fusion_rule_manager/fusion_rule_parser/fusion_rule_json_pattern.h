@@ -212,7 +212,7 @@ class FusionRuleJsonNode {
 
   Status ParseJson(const nlohmann::json &json_object);
 
-  std::string GetName() {
+  std::string GetName() const {
     return name_;
   }
 
@@ -288,11 +288,11 @@ class FusionRuleJsonAnchor {
     return src_index_;
   }
 
-  std::string GetSrcNode() {
+  std::string GetSrcNode() const {
     return src_node_;
   }
 
-  std::string GetName() {
+  std::string GetName() const {
     return name_;
   }
 

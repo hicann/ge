@@ -322,7 +322,7 @@ class DavinciModel {
     return data_inputer_.Push(args);
   }
 
-  uint32_t GetDataInputerSize() {
+  uint32_t GetDataInputerSize() const {
     return data_inputer_.Size();
   }
 

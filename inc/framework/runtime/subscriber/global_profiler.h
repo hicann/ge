@@ -135,7 +135,7 @@ class VISIBILITY_EXPORT GlobalProfilingWrapper {
     enable_flags_.store(enable_flags);
   }
 
-  uint64_t GetRecordCount() {
+  uint64_t GetRecordCount() const {
     if (global_profiler_ == nullptr) {
       return 0UL;
     }
@@ -146,7 +146,7 @@ class VISIBILITY_EXPORT GlobalProfilingWrapper {
     return enable_flags_.load();
   }
 
-  bool IsEnabled(ProfilingType profiling_type) {
+  bool IsEnabled(ProfilingType profiling_type) const {
     return enable_flags_.load() & BuiltInSubscriberUtil::EnableBit<ProfilingType>(profiling_type);
   }
 
