@@ -76,6 +76,7 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                 const kAippDynamicPara &aipp_parms);
   void *GetModelDumpManager() const;
+  uint32_t GetModelId() const;
   uint64_t GetStepId() const;
   aclrtStream GetOrCreateProfStream();
   uint64_t SessionId() const;

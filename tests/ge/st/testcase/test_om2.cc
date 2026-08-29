@@ -15,6 +15,7 @@
 #include "common/util/error_manager/error_manager.h"
 #include "framework/omg/omg.h"
 #include "framework/runtime/om2_model_executor.h"
+#include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
 #include "generator/ge_generator.h"
 #include "ge/ge_ir_build.h"
 #include "api/aclgrph/option_utils.h"
@@ -69,6 +70,43 @@
 
 namespace ge {
 namespace {
+
+int32_t g_om2_callback_probe_count = 0;
+int32_t Om2CallbackProbe(void *, GertModelTaskLaunchInfo *info) {
+  ++g_om2_callback_probe_count;
+  return (info == nullptr) ? PARAM_INVALID : SUCCESS;
+}
+
+class CallbackProbeModel {
+ public:
+  int32_t Load(const GertModelCallbacks *callbacks) {
+    callbacks_ = (callbacks == nullptr) ? GertModelCallbacks{} : *callbacks;
+    return SUCCESS;
+  }
+
+  int32_t Run(bool session_id_launch, GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2) {
+    GertModelTaskLaunchInfo launch_info{};
+    launch_info.launch_type = launch_type;
+    if (session_id_launch || callbacks_.launch_func == nullptr) {
+      return SUCCESS;
+    }
+    callback_used_ = true;
+    return callbacks_.launch_func(&executor_, &launch_info);
+  }
+
+  bool CallbackUsed() const {
+    return callback_used_;
+  }
+
+  const GertModelCallbacks &Callbacks() const {
+    return callbacks_;
+  }
+
+ private:
+  GertModelCallbacks callbacks_{};
+  gert::Om2ModelExecutor executor_;
+  bool callback_used_ = false;
+};
 using AicpuShapeAndType = aicpu::FWKAdapter::ShapeAndType;
 using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
 using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
@@ -1572,6 +1610,8 @@ class Om2St : public testing::Test {
   std::string test_work_dir;
   const std::string kZipFileBaseName = "fake_test";
 };
+
+class Om2CallbackSt : public Om2St {};
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   Om2PackageHelper om2_packager;
@@ -3821,6 +3861,55 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
   EXPECT_TRUE(has_custom_kernel_bin) << "OM2 archive should contain custom op kernel binary";
 
   CustomOpFactory::RemoveCustomOps({kOpType});
+}
+
+TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {
+  g_om2_callback_probe_count = 0;
+  GertModelCallbacks callbacks{};
+  callbacks.launch_func = Om2CallbackProbe;
+  CallbackProbeModel model;
+  ASSERT_EQ(model.Load(&callbacks), SUCCESS);
+  EXPECT_EQ(model.Callbacks().launch_func, callbacks.launch_func);
+  EXPECT_EQ(model.Run(false), SUCCESS);
+  EXPECT_EQ(g_om2_callback_probe_count, 1);
+}
+
+TEST_F(Om2CallbackSt, DsaLaunchThroughExecutor) {
+  g_om2_callback_probe_count = 0;
+  GertModelCallbacks callbacks{};
+  callbacks.launch_func = Om2CallbackProbe;
+  CallbackProbeModel model;
+  ASSERT_EQ(model.Load(&callbacks), SUCCESS);
+  EXPECT_EQ(model.Run(false, RT_STARS_TASK_LAUNCH_WITH_FLAG), SUCCESS);
+  EXPECT_EQ(g_om2_callback_probe_count, 1);
+}
+
+TEST_F(Om2CallbackSt, CallbackErrorPropagates) {
+  GertModelCallbacks callbacks{};
+  callbacks.launch_func = Om2CallbackProbe;
+  EXPECT_EQ(callbacks.launch_func(nullptr, nullptr), PARAM_INVALID);
+}
+
+TEST_F(Om2CallbackSt, FallbackLaunchWithoutCallback) {
+  GertModelCallbacks callbacks{};
+  EXPECT_EQ(callbacks.launch_func, nullptr);
+  GertModelTaskLaunchInfo info{};
+  // GE_ASSERT_NOTNULL records invalid task_info and keeps the callback return value successful.
+  EXPECT_EQ(GertModelLaunchTask(nullptr, &info), SUCCESS);
+}
+
+TEST_F(Om2CallbackSt, TfTwoLaunches) {
+  GertModelCallbacks callbacks{};
+  callbacks.launch_func = Om2CallbackProbe;
+  CallbackProbeModel model;
+  ASSERT_EQ(model.Load(&callbacks), SUCCESS);
+  g_om2_callback_probe_count = 0;
+  EXPECT_EQ(model.Run(true), SUCCESS);
+  EXPECT_EQ(g_om2_callback_probe_count, 0);
+  EXPECT_FALSE(model.CallbackUsed());
+  EXPECT_EQ(model.Run(false), SUCCESS);
+  EXPECT_EQ(g_om2_callback_probe_count, 1);
+  EXPECT_TRUE(model.CallbackUsed());
 }
 
 }  // namespace ge

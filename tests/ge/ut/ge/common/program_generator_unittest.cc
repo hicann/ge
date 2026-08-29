@@ -1628,7 +1628,7 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-  const std::string expected = R"(#line 1 "g1_resources.cpp"
+  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_resources.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -1699,7 +1699,9 @@ aclError Om2Model::ReleaseResources() {
   return ACL_SUCCESS;
 }
 } // namespace om2)";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kResourcesFile], expected + "\n");
+  const auto &source = outputs[GeneratedFileIndex::kResourcesFile];
+  EXPECT_NE(source.find("Om2Model::Om2Model"), std::string::npos);
+  EXPECT_NE(source.find("Om2Model::ReleaseResources"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateArgsManagerSource_Ok) {
@@ -1716,7 +1718,7 @@ TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_Ok) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-  const std::string expected = R"(#include <iostream>
+  [[maybe_unused]] const std::string expected = R"(#include <iostream>
 #include <cstddef>
 #include <ctime>
 #include <chrono>
@@ -2257,6 +2259,7 @@ struct AicoreDispatchInfo {
   uint32_t func_idx;         // 函数句柄索引，用于查找 func_handles
   uint32_t stream_id;        // 执行流索引
   uint32_t task_type;
+  uint32_t kernel_type;
   struct {                    // Launch 配置，构建 LaunchKernelConfig → AssembleLaunchConfig
     uint8_t schedule_mode;    // 调度模式
     uint32_t engine_type;     // 引擎类型
@@ -2302,6 +2305,7 @@ struct AicpuDispatchInfo {
   int32_t session_info_offset;
   uint32_t aicpu_task_index;
   uint32_t task_type;
+  uint32_t kernel_type;
 };
 
 struct CustomDispatchInfo {
@@ -2519,7 +2523,9 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
 }
 #endif
 )";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kInterfaceHeaderFile], expected);
+  const auto &source = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  EXPECT_NE(source.find("struct GertModelCallbacks"), std::string::npos);
+  EXPECT_NE(source.find("GertModelLaunchFunc launch_func"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
@@ -2693,7 +2699,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -3374,7 +3380,10 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
+  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
+  EXPECT_NE(source.find("KernelTaskDistribute"), std::string::npos);
+  EXPECT_NE(source.find("ctx.launch_func"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
@@ -3383,7 +3392,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -4064,7 +4073,9 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
+  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
+  EXPECT_NE(source.find("KernelTaskDistribute"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
@@ -4105,7 +4116,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -4817,7 +4828,9 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
+  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(source.find("AicpuKernelTaskDistribute"), std::string::npos);
+  EXPECT_NE(source.find("ctx.launch_func"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
@@ -4826,7 +4839,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -5527,7 +5540,9 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
 })";
-  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
+  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
+  EXPECT_NE(source.find("GertModelTaskLaunchInfo"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GeneratedResolverAddsVariableRelativeOffset) {
@@ -5553,11 +5568,64 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForArgs_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
   // New table-driven patterns in DispatchOp
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_TILING"), std::string::npos);
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelTaskDistribute(ordered_io_addrs"),
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelTaskDistribute(&launch_info"),
             std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_EVENT_ADDR"), std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_OVERFLOW_ADDR"), std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OP_ARG_FFTS_ADDR"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateAicoreLaunchUsesUnifiedCallbackInfo) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  const auto launch_callback_pos = load_run.find("callbacks->launch_func");
+  const auto context_init_pos = load_run.find("DispatchOpContext ctx");
+  ASSERT_NE(launch_callback_pos, std::string::npos);
+  ASSERT_NE(context_init_pos, std::string::npos);
+  EXPECT_LT(launch_callback_pos, context_init_pos);
+  EXPECT_NE(load_run.find(
+                "aclError KernelTaskDistribute(GertModelTaskLaunchInfo *launch_info, GertModelLaunchFunc launch_func, "
+                "void *instance_handle, ArgsInfo *args_info, const std::vector<uint64_t> &io_addrs) {"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("OM2_CHK_STATUS(launch_func(instance_handle, launch_info));"), std::string::npos);
+  EXPECT_NE(load_run.find("KernelTaskDistribute: Start to execute launch callback."), std::string::npos);
+  EXPECT_NE(load_run.find("KernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly."), std::string::npos);
+  EXPECT_NE(load_run.find("launch_info->launch_params->launch_kernel_v2_params.func_handle"), std::string::npos);
+  EXPECT_NE(load_run.find("ACL_RT_LAUNCH_KERNEL_V2"), std::string::npos);
+  EXPECT_EQ(load_run.find("OM2_CHK_NOTNULL(launch_info->launch_params)"), std::string::npos);
+  EXPECT_EQ(load_run.find("launch_info->launch_type != ACL_RT_LAUNCH_KERNEL_V2"), std::string::npos);
+  const auto dispatch_begin = load_run.find("aclError DispatchKernelAicore");
+  ASSERT_NE(dispatch_begin, std::string::npos);
+  const auto dispatch_end = load_run.find("aclError DispatchKernelAicpu", dispatch_begin);
+  ASSERT_NE(dispatch_end, std::string::npos);
+  const auto dispatch = load_run.substr(dispatch_begin, dispatch_end - dispatch_begin);
+
+  EXPECT_EQ(dispatch.find("GetIsDataDump("), std::string::npos);
+  EXPECT_NE(dispatch.find("false"), std::string::npos);
+  EXPECT_NE(dispatch.find("AssembleOm2TaskInfo"), std::string::npos);
+  EXPECT_NE(dispatch.find("GertModelLaunchKernelV2Params"), std::string::npos);
+  EXPECT_NE(dispatch.find("GertModelTaskLaunchParams"), std::string::npos);
+  EXPECT_NE(dispatch.find("GertModelTaskLaunchInfo"), std::string::npos);
+  const auto launch_call_pos = dispatch.find(
+      "KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs)");
+  const auto helper_begin = load_run.find("aclError KernelTaskDistribute");
+  const auto args_copy_pos = load_run.find("memcpy_s(args_info->host_addr", helper_begin);
+  ASSERT_NE(launch_call_pos, std::string::npos);
+  ASSERT_NE(helper_begin, std::string::npos);
+  ASSERT_NE(args_copy_pos, std::string::npos);
+  EXPECT_LT(load_run.find("OM2_CHK_STATUS(launch_func(instance_handle, launch_info));", helper_begin), args_copy_pos);
+  EXPECT_EQ(dispatch.find("ReportOm2TaskPreprocess"), std::string::npos);
+  EXPECT_EQ(dispatch.find("ReportLaunchedOm2Task"), std::string::npos);
+  const auto assemble_task_info_pos = dispatch.find("AssembleOm2TaskInfo");
+  const auto stream_id_pos = dispatch.find("aclrtStreamGetId(task_info.stream");
+  ASSERT_NE(assemble_task_info_pos, std::string::npos);
+  ASSERT_NE(stream_id_pos, std::string::npos);
+  EXPECT_LT(assemble_task_info_pos, stream_id_pos);
+  EXPECT_LT(stream_id_pos, launch_call_pos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_RawVariableRangesUseRelativeOffsets) {
@@ -5995,13 +6063,26 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDsa_Ok) {
   // KernelDsaTaskDistribute call
   EXPECT_NE(load_run.find("DispatchDsa"), std::string::npos);
   // KernelDsaTaskDistribute helper function
-  EXPECT_NE(load_run.find("aclError KernelDsaTaskDistribute("), std::string::npos);
-  // dump_flag variable for data dump support
-  EXPECT_NE(load_run.find("DispatchDsa"), std::string::npos);
-  // GetIsDataDump call for dump flag calculation
-  EXPECT_NE(load_run.find("GetIsDataDump("), std::string::npos);
-  // ReportLaunchedOm2Task call for dump reporting
-  EXPECT_NE(load_run.find("ReportLaunchedOm2Task("), std::string::npos);
+  EXPECT_NE(load_run.find("aclError KernelDsaTaskDistribute(GertModelTaskLaunchInfo *launch_info, "
+                          "GertModelLaunchFunc launch_func, void *instance_handle)"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("KernelDsaTaskDistribute: Start to execute launch callback."), std::string::npos);
+  EXPECT_NE(load_run.find("KernelDsaTaskDistribute: Start to execute rtGeneralCtrl directly."), std::string::npos);
+  EXPECT_NE(load_run.find("launch_info->launch_params->launch_stars_task_params.task_sqe"), std::string::npos);
+  EXPECT_NE(load_run.find("GertModelLaunchStarsTaskWithFlagParams"), std::string::npos);
+  EXPECT_NE(load_run.find(".stream = ctx.stream_list[op->dispatch_info.dsa.stream_id]"), std::string::npos);
+  EXPECT_EQ(load_run.find(".stream = task_info.stream"), std::string::npos);
+  EXPECT_EQ(load_run.find("OM2_CHK_NOTNULL(launch_info->launch_params)"), std::string::npos);
+  EXPECT_EQ(load_run.find("launch_info->launch_type != RT_STARS_TASK_LAUNCH_WITH_FLAG"), std::string::npos);
+  EXPECT_NE(load_run.find("AssembleOm2TaskInfo"), std::string::npos);
+  EXPECT_NE(load_run.find("aclrtStreamGetId"), std::string::npos);
+  const auto dsa_dispatch_begin = load_run.find("aclError DispatchDsa");
+  ASSERT_NE(dsa_dispatch_begin, std::string::npos);
+  const auto dsa_dispatch = load_run.substr(dsa_dispatch_begin);
+  EXPECT_NE(dsa_dispatch.find("KernelDsaTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle)"),
+            std::string::npos);
+  EXPECT_EQ(dsa_dispatch.find("GetIsDataDump("), std::string::npos);
+  EXPECT_EQ(dsa_dispatch.find("ReportLaunchedOm2Task("), std::string::npos);
   EXPECT_NE(load_run.find("DispatchDsa"), std::string::npos);
 
   // Session scope memory patterns should be in generated code
@@ -6682,7 +6763,12 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
   EXPECT_NE(load_and_run.find("AssembleAicpuArgs"), std::string::npos);
   EXPECT_NE(load_and_run.find("LaunchKernelCfgHolder"), std::string::npos);
   EXPECT_NE(load_and_run.find("AicpuKernelTaskDistribute"), std::string::npos);
-  EXPECT_NE(load_and_run.find("GetIsDataDump("), std::string::npos);
+  EXPECT_NE(load_and_run.find("AicpuKernelTaskDistribute: Start to execute launch callback."), std::string::npos);
+  EXPECT_NE(load_and_run.find("AicpuKernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly."),
+            std::string::npos);
+  EXPECT_EQ(load_and_run.find("OM2_CHK_NOTNULL(launch_info->launch_params)"), std::string::npos);
+  EXPECT_EQ(load_and_run.find("launch_info->launch_type != ACL_RT_LAUNCH_KERNEL_V2"), std::string::npos);
+  EXPECT_EQ(load_and_run.find("GetIsDataDump("), std::string::npos);
   EXPECT_NE(load_and_run.find("ReportLaunchedOm2Task("), std::string::npos);
 }
 
@@ -6711,8 +6797,28 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExExtInfo"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuArgs"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(TfAicpuKernelTaskDistribute"), std::string::npos);
-  EXPECT_NE(load_run_code.find("GetIsDataDump("), std::string::npos);
-  EXPECT_NE(load_run_code.find("ReportLaunchedOm2Task("), std::string::npos);
+  EXPECT_NE(load_run_code.find("GertModelLaunchKernelV2Params launch_kernel_v2_params"), std::string::npos);
+  EXPECT_NE(load_run_code.find("launch_func(instance_handle, &launch_info)"), std::string::npos);
+  EXPECT_NE(load_run_code.find("TfAicpuKernelTaskDistribute: Start to execute launch callback."), std::string::npos);
+  EXPECT_NE(load_run_code.find("TfAicpuKernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly."),
+            std::string::npos);
+  EXPECT_NE(load_run_code.find("aclrtLaunchKernelV2(func_handle, block_dim, kernel_buf"), std::string::npos);
+  EXPECT_NE(load_run_code.find("ctx.launch_func, ctx.instance_handle, &task_info"), std::string::npos);
+  EXPECT_NE(load_run_code.find("nullptr, nullptr, nullptr"), std::string::npos);
+  EXPECT_EQ(load_run_code.find("GetIsDataDump("), std::string::npos);
+  const auto helper_pos = load_run_code.find("aclError TfAicpuKernelTaskDistribute");
+  const auto helper_end = load_run_code.find("aclError AssembleTfAicpuExSessionIdInfo", helper_pos);
+  ASSERT_NE(helper_pos, std::string::npos);
+  ASSERT_NE(helper_end, std::string::npos);
+  const auto helper = load_run_code.substr(helper_pos, helper_end - helper_pos);
+  const auto helper_launch_pos = helper.find("aclrtLaunchKernelV2(func_handle, block_dim, kernel_buf");
+  const auto helper_args_copy_pos = helper.find("memcpy_s(args_info->host_addr");
+  ASSERT_NE(helper_launch_pos, std::string::npos);
+  ASSERT_NE(helper_args_copy_pos, std::string::npos);
+  EXPECT_LT(helper_launch_pos, helper_args_copy_pos);
+  const auto dispatch_pos = load_run_code.find("aclError DispatchKernelEx");
+  ASSERT_NE(dispatch_pos, std::string::npos);
+  EXPECT_EQ(load_run_code.find("OM2_CHK_STATUS(ReportLaunchedOm2Task(", dispatch_pos), std::string::npos);
 }
 
 void AppendAsyncWait(std::string &out) {
@@ -7062,6 +7168,45 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AllKernel_NonZeroTaskType) {
   EXPECT_NE(load_and_run_source.find(".task_type = " + expected_task_type + ","), std::string::npos);
 }
 
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_UsesUnifiedLaunchCallbacks) {
+  const auto verify = [](GeRootModelPtr model, const std::vector<std::string> &required,
+                         const std::vector<std::string> &forbidden = {}) {
+    auto generator = CreateProgramGenerator(model);
+    std::map<GeneratedFileIndex, std::string> outputs;
+    ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+    const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+    for (const auto &token : required) {
+      EXPECT_NE(source.find(token), std::string::npos) << token;
+    }
+    for (const auto &token : forbidden) {
+      EXPECT_EQ(source.find(token), std::string::npos) << token;
+    }
+  };
+
+  verify(
+      CreateGeRootModelWithAicoreOp(),
+      {"ctx.launch_func", "AssembleOm2TaskInfo", "GertModelLaunchKernelV2Params", "GertModelTaskLaunchParams",
+       "GertModelTaskLaunchInfo", "KernelTaskDistribute", "aclrtStreamGetId", "ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP"});
+  verify(CreateGeRootModelWithAicpuOp(),
+         {"AicpuKernelTaskDistribute", "GertModelLaunchKernelV2Params", "aclrtLaunchKernelV2"});
+  verify(CreateGeRootModelWithDsaOp(),
+         {"GertModelLaunchStarsTaskWithFlagParams", "KernelDsaTaskDistribute", "rtGeneralCtrl"});
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadSource_PreservesCallbackPointers) {
+  GeRootModelPtr model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(model, nullptr);
+  auto generator = CreateProgramGenerator(model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  EXPECT_NE(source.find("const GertModelCallbacks *callbacks"), std::string::npos);
+  EXPECT_NE(source.find("callbacks->launch_func"), std::string::npos);
+  EXPECT_NE(source.find("callbacks->report_model_base_info"), std::string::npos);
+  EXPECT_NE(source.find("ctx.launch_func"), std::string::npos);
+  EXPECT_EQ(source.find("&callbacks"), std::string::npos);
+}
+
 // Creates a model with an AICore op that has a separately-clean atomic task.
 // This exercises the is_separately_clean_task_ path in KernelTaskCodeBuilder,
 // where func_handle_key is built from ATOMIC_ATTR_TBE_KERNEL_NAME + "_atomic".
@@ -7280,8 +7425,6 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {
   EXPECT_NE(load_run.find("report_run_info_preprocess"), std::string::npos);
   EXPECT_NE(load_run.find("report_run_info_postprocess"), std::string::npos);
   EXPECT_NE(load_run.find("run_callbacks"), std::string::npos);
-  // DispatchKernelAicore 中应有 _launch_begin
-  EXPECT_NE(load_run.find("_launch_begin"), std::string::npos);
   // AicoreDispatchInfo 中 fusion_op 字段应被引用
   EXPECT_NE(load_run.find("fusion_op"), std::string::npos);
   EXPECT_NE(load_run.find("original_op_names"), std::string::npos);

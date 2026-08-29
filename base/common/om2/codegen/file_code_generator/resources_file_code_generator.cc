@@ -25,7 +25,6 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   auto session_id = ast_.Var("uint64_t *", "session_id");
   auto model_id = ast_.Var("uint32_t", "model_id");
   auto instance_handle = ast_.Var("void *", "instance_handle");
-  auto executor_handle = ast_.Var("void *", "executor_handle");
   auto priority = ast_.Var("int32_t", "priority");
   auto i = ast_.Var("size_t", "i");
   std::vector<BodyItem> body = {
@@ -52,17 +51,16 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
     (void)body.emplace_back(label_list_.Resize(runtime.label_num));
   }
   (void)body.emplace_back(ast_.Call("OM2_LOGD", {ast_.Str("Om2Model created")}));
-  return ast_.DefineMethod(
-      "Om2Model", "Om2Model",
-      {bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle,
-       executor_handle, priority},
-      "",
-      {ast_.MemberInit("constants_", constants), ast_.MemberInit("var_addrs_", var_addrs),
-       ast_.MemberInit("total_dev_mem_ptr_", work_ptr), ast_.MemberInit("session_id_", session_id),
-       ast_.MemberInit("model_id_", model_id), ast_.MemberInit("instance_handle_", instance_handle),
-       ast_.MemberInit("executor_handle_", executor_handle), ast_.MemberInit("kernel_id_", 0),
-       ast_.MemberInit("session_scope_mem_ptr_", nullptr), ast_.MemberInit("priority_", priority)},
-      body);
+  return ast_.DefineMethod("Om2Model", "Om2Model",
+                           {bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id,
+                            model_id, instance_handle, priority},
+                           "",
+                           {ast_.MemberInit("constants_", constants), ast_.MemberInit("var_addrs_", var_addrs),
+                            ast_.MemberInit("total_dev_mem_ptr_", work_ptr), ast_.MemberInit("session_id_", session_id),
+                            ast_.MemberInit("model_id_", model_id),
+                            ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("kernel_id_", 0),
+                            ast_.MemberInit("session_scope_mem_ptr_", nullptr), ast_.MemberInit("priority_", priority)},
+                           body);
 }
 
 MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelDestructor() const {

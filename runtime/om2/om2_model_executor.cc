@@ -20,8 +20,10 @@
 #include "acl/acl_rt.h"
 #include "registry/op_impl_space_registry_v2.h"
 #include "framework/runtime/rt_session.h"
+#include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "framework/common/framework_types_internal.h"
+#include "framework/common/taskdown_common.h"
 #include "runtime/om2_model_executor.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
@@ -66,8 +68,7 @@ struct GertModelLoadConfig {                             // 合并 Create+Load�
   void *work_ptr = nullptr;                              // 输入：工作内存指针
   uint64_t *session_id = nullptr;                        // 输入：session id
   uint64_t model_id = 0;                                 // 输入：model id，打印日志用
-  void *instance_handle = nullptr;                       // ModelDumpManager*，dump 用
-  void *executor_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
+  void *instance_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
   const struct GertModelCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
   int64_t priority = 0;                                  // 输入：优先级
 };
@@ -1170,10 +1171,8 @@ class Om2ModelExecutor::Impl {
 
     GE_ASSERT_NOTNULL(run_model_info_.load_func);
     GertModelCallbacks callbacks = {.struct_size = sizeof(GertModelCallbacks),
-                                    .report_task_preprocess = nullptr,
-                                    .report_task_postprocess = nullptr,
-                                    .get_data_dump_enabled = nullptr,
-                                    .report_model_base_info = ReportModelBaseInfo};
+                                    .report_model_base_info = ReportModelBaseInfo,
+                                    .launch_func = GertModelLaunchTask};
     struct GertModelLoadConfig config = {.struct_size = sizeof(GertModelLoadConfig),
                                          .bin_files = bin_files.data(),
                                          .bin_data = bin_data.data(),
@@ -1184,8 +1183,7 @@ class Om2ModelExecutor::Impl {
                                          .work_ptr = work_ptr,
                                          .session_id = &session_id_,
                                          .model_id = load_arg.model_id,
-                                         .instance_handle = dump_manager_.get(),
-                                         .executor_handle = static_cast<void *>(owner_),
+                                         .instance_handle = static_cast<void *>(owner_),
                                          .callbacks = &callbacks,
                                          .priority = load_arg.priority};
     GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
@@ -1808,6 +1806,10 @@ ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const 
 
 void *Om2ModelExecutor::GetModelDumpManager() const {
   return impl_->dump_manager_.get();
+}
+
+uint32_t Om2ModelExecutor::GetModelId() const {
+  return impl_->model_id_;
 }
 
 uint64_t Om2ModelExecutor::GetStepId() const {

@@ -25,10 +25,13 @@
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
 #include "common/om2/rt_var_resource.h"
+#include "framework/runtime/gert_model/gert_model_executor_types.h"
+#include "framework/common/taskdown_common.h"
 
 #include <gtest/gtest.h>
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdlib>
 #include <cstdint>
 #include <cstdio>
@@ -40,9 +43,28 @@
 #include <string>
 #include <vector>
 #include <unistd.h>
+#include <type_traits>
 
 namespace ge {
 namespace {
+
+template <typename T, typename = void>
+struct HasLegacyLaunchCallback : std::false_type {};
+
+template <typename T>
+struct HasLegacyLaunchCallback<T, std::void_t<decltype(&T::report_task_preprocess)>> : std::true_type {};
+
+template <typename T, typename = void>
+struct HasLegacyPostCallback : std::false_type {};
+
+template <typename T>
+struct HasLegacyPostCallback<T, std::void_t<decltype(&T::report_task_postprocess)>> : std::true_type {};
+
+template <typename T, typename = void>
+struct HasLegacyDataDumpCallback : std::false_type {};
+
+template <typename T>
+struct HasLegacyDataDumpCallback<T, std::void_t<decltype(&T::get_data_dump_enabled)>> : std::true_type {};
 class ScopedEnvVar {
  public:
   ScopedEnvVar(const char *name, const char *value) : name_(name) {
@@ -865,9 +887,36 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "struct Om2L0ArgSlotInfo {\n",
                                 "struct Om2L0TaskRawInfo {\n",
                                 "const struct Om2L0TaskRawInfo* l0_exception_dump_info;\n",
+                                "  uint64_t kernel_type = 10000U;\n",
+                                "enum GertModelTaskLaunchType : uint64_t",
+                                "struct GertModelLaunchKernelV2Params {\n",
+                                "  uint64_t struct_size = sizeof(GertModelLaunchKernelV2Params);\n",
+                                "  aclrtFuncHandle func_handle = nullptr;\n",
+                                "  uint32_t block_dim = 0;\n",
+                                "  uint32_t reserved_1 = 0;\n",
+                                "  const void *args_data = nullptr;\n",
+                                "  size_t args_size = 0;\n",
+                                "  aclrtLaunchKernelCfg *config = nullptr;\n",
+                                "  aclrtStream stream = nullptr;\n",
+                                "struct GertModelLaunchStarsTaskWithFlagParams {\n",
+                                "  uint64_t struct_size = sizeof(GertModelLaunchStarsTaskWithFlagParams);\n",
+                                "  const void *task_sqe = nullptr;\n",
+                                "  uint32_t sqe_len = 0;\n",
+                                "  uint32_t reserved_1 = 0;\n",
+                                "  aclrtStream stream = nullptr;\n",
+                                "  uint32_t flag = 0;\n",
+                                "  uint32_t reserved_2 = 0;\n",
+                                "struct GertModelTaskLaunchInfo {\n",
+                                "  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);\n",
+                                "  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;\n",
+                                "GertModelLaunchFunc launch_func = nullptr;",
                                 "__attribute__((weak)) int32_t ReportDfxTaskPreprocess(uint32_t model_id,\n",
                                 "__attribute__((weak)) int32_t ReportDfxTaskPostprocess(uint32_t model_id,\n",
                             });
+  EXPECT_LT(output.find("  uint32_t task_type;\n"), output.find("  uint64_t kernel_type = 10000U;\n"));
+  EXPECT_EQ(output.find("report_task_preprocess"), std::string::npos);
+  EXPECT_EQ(output.find("report_task_postprocess"), std::string::npos);
+  EXPECT_EQ(output.find("get_data_dump_enabled"), std::string::npos);
   EXPECT_LT(output.find("inline uint64_t PtrToU64"), output.find("extern \"C\" {"));
   EXPECT_GT(output.find("struct Om2Tensor"), output.find("extern \"C\" {"));
 }
@@ -895,8 +944,8 @@ TEST_F(Om2CodegenUt, LoadAndRunDumpHelpers_EmitInAnonymousNamespace_Ok) {
                   "const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,\n",
                   "uint32_t workspace_num,\n",
                   "uint32_t task_type, uint32_t block_dim, void *stream,\n",
-                  "uint8_t GetIsDataDump(const char *op_name, uint32_t model_id, void *instance_handle) {\n",
               });
+  EXPECT_EQ(output.find("GetIsDataDump("), std::string::npos);
 }
 
 TEST_F(Om2CodegenUt, BuildL0ArgSlotEntries_EmitsTensorWorkspaceAndIgnoredKinds) {
@@ -1931,6 +1980,40 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_BuildTensorDataField_NoTensorInfo) {
 
   auto arg = TaskCodeBuilderUtil::BuildTensorDataField(ast, desc);
   EXPECT_TRUE(arg.Empty());
+}
+
+TEST(Om2CodegenTypesUt, PublicTypesHaveStableDefaultsAndCallbacks) {
+  GertModelLaunchKernelV2Params kernel{};
+  GertModelLaunchStarsTaskWithFlagParams dsa{};
+  GertModelTaskLaunchInfo launch{};
+  GertModelCallbacks callbacks{};
+  Om2TaskInfo task{};
+
+  EXPECT_EQ(kernel.struct_size, sizeof(GertModelLaunchKernelV2Params));
+  EXPECT_EQ(dsa.struct_size, sizeof(GertModelLaunchStarsTaskWithFlagParams));
+  EXPECT_EQ(launch.struct_size, sizeof(GertModelTaskLaunchInfo));
+  EXPECT_EQ(callbacks.struct_size, sizeof(GertModelCallbacks));
+  EXPECT_EQ(launch.launch_type, ACL_RT_LAUNCH_KERNEL_V2);
+  EXPECT_EQ(task.kernel_type, static_cast<uint64_t>(ccKernelType::INVALID));
+  static_assert(std::is_same<decltype(task.kernel_type), uint64_t>::value);
+  static_assert(offsetof(Om2TaskInfo, task_type) < offsetof(Om2TaskInfo, kernel_type));
+  static_assert(offsetof(Om2TaskInfo, kernel_type) < offsetof(Om2TaskInfo, stream));
+  EXPECT_EQ(kernel.reserved_1, 0U);
+  EXPECT_EQ(dsa.reserved_1, 0U);
+  EXPECT_EQ(dsa.reserved_2, 0U);
+  EXPECT_EQ(callbacks.report_model_base_info, nullptr);
+  EXPECT_EQ(callbacks.launch_func, nullptr);
+  EXPECT_FALSE(HasLegacyLaunchCallback<GertModelCallbacks>::value);
+  EXPECT_FALSE(HasLegacyPostCallback<GertModelCallbacks>::value);
+  EXPECT_FALSE(HasLegacyDataDumpCallback<GertModelCallbacks>::value);
+}
+
+TEST(Om2CodegenTypesUt, LaunchTypeValuesAndUnionLayoutAreStable) {
+  EXPECT_EQ(static_cast<uint64_t>(ACL_RT_LAUNCH_KERNEL_V2), 0U);
+  EXPECT_EQ(static_cast<uint64_t>(RT_STARS_TASK_LAUNCH_WITH_FLAG), 1U);
+  static_assert(offsetof(GertModelTaskLaunchParams, launch_kernel_v2_params) == 0U);
+  static_assert(offsetof(GertModelTaskLaunchParams, launch_stars_task_params) == 0U);
+  static_assert(sizeof(GertModelTaskLaunchParams) >= sizeof(GertModelLaunchKernelV2Params));
 }
 
 TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_BuildWorkspaceDataField_Normal) {

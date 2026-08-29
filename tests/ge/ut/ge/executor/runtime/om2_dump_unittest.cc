@@ -22,6 +22,7 @@
 #include "framework/runtime/dump/profiling_config.h"
 #include "framework/runtime/dump/profiling_callback_manager.h"
 #include "framework/runtime/dump/profiling_impl.h"
+#include "framework/runtime/om2_model_executor.h"
 #include "common/debug/ge_log.h"
 #include "depends/profiler/src/dump_stub.h"
 #include "aprof_pub.h"
@@ -397,40 +398,57 @@ TEST_F(ModelDumpManagerTest, PreprocessOm2TaskInfoNoL0InfoReturnsSuccess) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
-TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessNullParamReturnsInvalid) {
-  ModelDumpManager manager(1);
+TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessNullParamReturnsSuccess) {
+  gert::Om2ModelExecutor executor;
   Om2TaskInfo info{};
 
-  EXPECT_NE(ReportDfxTaskPreprocess(1U, nullptr, &info, nullptr, 0U), SUCCESS);
-  EXPECT_NE(ReportDfxTaskPreprocess(1U, &manager, nullptr, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, &info, nullptr, 0U), ge::SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, nullptr, nullptr, 0U), ge::SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPreprocess(1U, &executor, &info, nullptr, 0U), ge::SUCCESS);
 }
 
-TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessReservedParamReturnsInvalid) {
-  ModelDumpManager manager(1);
-  Om2TaskInfo info{};
-  uint32_t reserved = 0U;
-
-  EXPECT_NE(ReportDfxTaskPreprocess(1U, &manager, &info, &reserved, 0U), SUCCESS);
-  EXPECT_NE(ReportDfxTaskPreprocess(1U, &manager, &info, nullptr, 1U), SUCCESS);
-}
-
-TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessReservedParamReturnsInvalid) {
-  ModelDumpManager manager(1);
+TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessReservedParamReturnsSuccess) {
   Om2TaskInfo info{};
   uint32_t reserved = 0U;
 
-  EXPECT_NE(ReportDfxTaskPostprocess(1U, &manager, &info, &reserved, 0U), SUCCESS);
-  EXPECT_NE(ReportDfxTaskPostprocess(1U, &manager, &info, nullptr, 1U), SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, &info, &reserved, 0U), ge::SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, &info, nullptr, 1U), ge::SUCCESS);
 }
 
-TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessRoutesToAddOm2TaskInfo) {
-  ModelDumpManager manager(1);
+TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessReservedParamReturnsSuccess) {
+  Om2TaskInfo info{};
+  uint32_t reserved = 0U;
+
+  EXPECT_EQ(ReportDfxTaskPostprocess(1U, nullptr, &info, &reserved, 0U), ge::SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPostprocess(1U, nullptr, &info, nullptr, 1U), ge::SUCCESS);
+}
+
+TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessWithoutDumpManagerReturnsSuccess) {
+  gert::Om2ModelExecutor executor;
   Om2TaskInfo info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
 
-  EXPECT_EQ(ReportDfxTaskPostprocess(1U, &manager, &info, nullptr, 0U), SUCCESS);
+  EXPECT_EQ(ReportDfxTaskPostprocess(1U, &executor, &info, nullptr, 0U), ge::SUCCESS);
+}
+
+TEST_F(ModelDumpManagerTest, IsDataDumpEnabledInvalidParamReturnsSuccess) {
+  gert::Om2ModelExecutor executor;
+  uint8_t is_data_dump = 1U;
+
+  EXPECT_EQ(IsDataDumpEnabled(1U, nullptr, "test_op", &is_data_dump), ge::SUCCESS);
+  EXPECT_EQ(IsDataDumpEnabled(1U, nullptr, "test_op", nullptr), ge::SUCCESS);
+  EXPECT_EQ(IsDataDumpEnabled(1U, &executor, "test_op", &is_data_dump), ge::SUCCESS);
+}
+
+TEST_F(ModelDumpManagerTest, ReportModelBaseInfoInvalidParamReturnsSuccess) {
+  gert::Om2ModelExecutor executor;
+  GertModelBaseInfo info{};
+
+  EXPECT_EQ(ReportModelBaseInfo(nullptr, &info), ge::SUCCESS);
+  EXPECT_EQ(ReportModelBaseInfo(&executor, nullptr), ge::SUCCESS);
+  EXPECT_EQ(ReportModelBaseInfo(&executor, &info), ge::SUCCESS);
 }
 
 // 测试 AddOm2TaskInfo - Data Dump 启用场景

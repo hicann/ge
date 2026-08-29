@@ -1640,6 +1640,7 @@ TEST_F(Om2ModelExecutorUt, load_passes_model_id_and_instance_handle_to_create) {
   auto executor = gert::LoadOm2ExecutorFromData(model_data_holder.model_data, load_arg, error_code);
   EXPECT_EQ(error_code, SUCCESS);
   ASSERT_NE(executor, nullptr);
+  EXPECT_EQ(executor->GetModelId(), kTestModelId);
 }
 
 TEST_F(Om2ModelExecutorUt, load_failed_when_device_id_is_not_set) {

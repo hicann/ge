@@ -50,11 +50,10 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
   Status RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
-  Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
+  Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op);
   Status RenderDispatchFuncAssembleExInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunchTask(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
-  Status RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                  const VarRef &launch_begin);
+  Status RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   static std::string SerializeBytesToOctalString(const std::vector<uint8_t> &buffer);
   Status InitIowAddrRefreshInfo(uint64_t current_offset);
   Status InitLaunchInfo(const TaskSemanticContributeContext &context);

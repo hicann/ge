@@ -175,16 +175,38 @@ FunctionDef *KernelExTaskCodeBuilder::RenderTfAicpuKernelTaskDistribute() const 
   auto block_dim = ast_.Var("uint32_t", "block_dim");
   auto stream = ast_.Var("aclrtStream", "stream");
   auto config = ast_.Var("aclrtLaunchKernelCfg *", "config");
+  auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
+  auto instance_handle = ast_.Var("void *", "instance_handle");
+  auto task_info = ast_.Var("Om2TaskInfo *", "task_info");
+  auto kernel_params = ast_.Var("GertModelLaunchKernelV2Params", "launch_kernel_v2_params");
+  auto launch_params = ast_.Var("GertModelTaskLaunchParams", "launch_params");
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "launch_info");
   return ast_.DefineFunction(
       "TfAicpuKernelTaskDistribute",
-      {io_addrs, args_info, kernel_buf, kernel_buf_size, func_handle, block_dim, stream, config}, "aclError",
+      {io_addrs, args_info, kernel_buf, kernel_buf_size, func_handle, block_dim, stream, config, launch_func,
+       instance_handle, task_info},
+      "aclError",
       {
+          ast_.VarDecl(kernel_params, ast_.DesignatedInit({{"func_handle", func_handle},
+                                                           {"block_dim", block_dim},
+                                                           {"args_data", kernel_buf},
+                                                           {"args_size", kernel_buf_size},
+                                                           {"config", config},
+                                                           {"stream", stream}})),
+          ast_.VarDecl(launch_params, ast_.DesignatedInit({{"launch_kernel_v2_params", kernel_params}})),
+          ast_.VarDecl(launch_info, ast_.DesignatedInit({{"launch_type", ast_.Var("", "ACL_RT_LAUNCH_KERNEL_V2")},
+                                                         {"task_info", task_info},
+                                                         {"launch_params", launch_params.Addr()}})),
+          ast_.If(
+              launch_func != nullptr,
+              {ast_.Call("OM2_LOGI", {ast_.Str("TfAicpuKernelTaskDistribute: Start to execute launch callback.")}),
+               ChkStatus(ast_.Call("launch_func", {instance_handle, launch_info.Addr()}))},
+              {ast_.Call("OM2_LOGI",
+                         {ast_.Str("TfAicpuKernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly.")}),
+               ChkStatus(AclrtLaunchKernelV2(func_handle, block_dim, kernel_buf, kernel_buf_size, config, stream))}),
           ast_.If(args_info != nullptr,
-                  {
-                      ChkStatus(MemcpyS(args_info.Arrow("host_addr"), args_info.Arrow("size"), io_addrs.Data(),
-                                        io_addrs.Size() * ast_.Sizeof("uint64_t"))),
-                  }),
-          ChkStatus(AclrtLaunchKernelV2(func_handle, block_dim, kernel_buf, kernel_buf_size, config, stream)),
+                  {ChkStatus(MemcpyS(args_info.Arrow("host_addr"), args_info.Arrow("size"), io_addrs.Data(),
+                                     io_addrs.Size() * ast_.Sizeof("uint64_t")))}),
           ast_.Return("ACL_SUCCESS"),
       });
 }
@@ -251,8 +273,8 @@ FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExSessionIdInfo() con
        mem_ptrs.PushBack(device_base),
        ChkStatus(
            AclrtMemcpy(device_base, op_kernel_size, tmp_args.Data(), op_kernel_size, "ACL_MEMCPY_HOST_TO_DEVICE")),
-       ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute",
-                           {iow_addrs, nullptr, device_base, op_kernel_size, func_handle, block_dim, stream, config})),
+       ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute", {iow_addrs, nullptr, device_base, op_kernel_size, func_handle,
+                                                           block_dim, stream, config, nullptr, nullptr, nullptr})),
        ChkStatus(ast_.Call("aclrtSynchronizeStream", {stream})), ast_.Return("ACL_SUCCESS")});
 }
 
@@ -352,10 +374,8 @@ Status KernelExTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &item
   auto op = ast_.Var("const TaskDispatchInfo *", "op");
   auto ctx = ast_.Var("const DispatchOpContext &", "ctx");
   GE_ASSERT_SUCCESS(RenderDispatchFuncSetup(body, op, ctx));
-  auto launch_begin = ast_.Var("uint64_t", "_launch_begin");
-  body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
+  GE_ASSERT_SUCCESS(RenderDispatchFuncTaskInfo(body, op, ctx));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunch(body, op, ctx));
-  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, launch_begin));
   GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::RenderDispatchFunc(ast_, kDispatchFuncName, body, items));
   return SUCCESS;
 }
@@ -412,12 +432,9 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &b
   return SUCCESS;
 }
 
-Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op,
-                                                               const VarRef &ctx) {
+Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op) {
   auto cfg_holder = ast_.Var("LaunchKernelCfgHolder", "cfg_holder");
   (void)body.emplace_back(ast_.VarDecl(cfg_holder));
-  auto is_data_dump =
-      ast_.Call("GetIsDataDump", {op.Arrow("op_name"), ctx.Attr("model_id"), ctx.Attr("instance_handle")});
   auto launch_config = ast_.Var("LaunchKernelConfig", "launch_config");
   (void)body.emplace_back(ast_.VarDecl(
       launch_config,
@@ -425,9 +442,8 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyI
                      ast_.StaticCast("aclrtEngineType",
                                      op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("engine_type")),
                      op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("block_dim_offset"),
-                     op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("is_block_task_prefetch"),
-                     is_data_dump, op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("time_out"),
-                     ast_.UInt(0)})));
+                     op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("is_block_task_prefetch"), false,
+                     op.Arrow("dispatch_info").Attr("kernel_ex").Attr("launch").Attr("time_out"), ast_.UInt(0)})));
   (void)body.emplace_back(ChkStatus(ast_.Call("AssembleLaunchConfig", {cfg_holder, launch_config})));
 
   auto mem_ptrs = ast_.Var("std::vector<void *>", "mem_ptrs");
@@ -497,20 +513,21 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchTask(std::vector<BodyIte
        ctx.Attr("func_handles")[op.Arrow("dispatch_info").Attr("kernel_ex").Attr("func_idx")],
        op.Arrow("dispatch_info").Attr("kernel_ex").Attr("block_dim"),
        ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("kernel_ex").Attr("stream_id")],
-       ast_.Var("", "cfg_holder").Attr("cfg").Addr()})));
+       ast_.Var("", "cfg_holder").Attr("cfg").Addr(), ctx.Attr("launch_func"), ctx.Attr("instance_handle"),
+       ast_.Var("", "task_info").Addr()})));
   return SUCCESS;
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op,
                                                          const VarRef &ctx) {
-  GE_ASSERT_SUCCESS(RenderDispatchFuncLaunchConfig(body, op, ctx));
+  GE_ASSERT_SUCCESS(RenderDispatchFuncLaunchConfig(body, op));
   GE_ASSERT_SUCCESS(RenderDispatchFuncAssembleExInfo(body, op, ctx));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunchTask(body, op, ctx));
   return SUCCESS;
 }
 
-Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op,
-                                                         const VarRef &ctx, const VarRef &launch_begin) {
+Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op,
+                                                           const VarRef &ctx) {
   auto io_tensors = ast_.Var("std::vector<gert::Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));
@@ -537,15 +554,34 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &
        ast_.If(item.Attr("type") != ast_.Var("", "OP_ARG_OUTPUT"), {report_inputs.PushBack(ast_.Var("", "_entry"))},
                {report_outputs.PushBack(ast_.Var("", "_entry"))})}));
 
+  auto task_info = ast_.Var("Om2TaskInfo", "task_info");
   auto args_table_info = ctx.Attr("args_table").Attr("GetArgsInfo")(kex.Attr("args_table_idx"));
+  auto stream = ctx.Attr("stream_list")[kex.Attr("stream_id")];
+  (void)body.emplace_back(ast_.VarDecl(task_info));
+  (void)body.emplace_back(
+      ChkStatus(ast_.Call("AssembleOm2TaskInfo", {task_info.Addr(),
+                                                  op.Arrow("op_name"),
+                                                  kex.Attr("op_type"),
+                                                  ast_.UInt(0U),
+                                                  kex.Attr("stream_id"),
+                                                  kex.Attr("block_dim"),
+                                                  ast_.UInt(0U),
+                                                  ast_.ReinterpretCast("uintptr_t", args_table_info.Arrow("dev_addr")),
+                                                  args_table_info.Arrow("size"),
+                                                  report_inputs.Data(),
+                                                  ast_.StaticCast("uint64_t", report_inputs.Size()),
+                                                  report_outputs.Data(),
+                                                  ast_.StaticCast("uint32_t", report_outputs.Size()),
+                                                  Arg(nullptr),
+                                                  Arg(nullptr),
+                                                  ast_.UInt(0U),
+                                                  kex.Attr("task_type"),
+                                                  stream,
+                                                  ast_.UInt(0U),
+                                                  ast_.UInt(0U)})));
   (void)body.emplace_back(ChkStatus(
-      ast_.Call("ReportLaunchedOm2Task",
-                {op.Arrow("op_name"), kex.Attr("op_type"), ast_.UInt(0),
-                 ast_.ReinterpretCast("uintptr_t", args_table_info.Arrow("dev_addr")), args_table_info.Arrow("size"),
-                 report_inputs.Data(), ast_.StaticCast("uint64_t", report_inputs.Size()), report_outputs.Data(),
-                 ast_.StaticCast("uint32_t", report_outputs.Size()), Arg(nullptr), Arg(nullptr), ast_.UInt(0U),
-                 kex.Attr("task_type"), kex.Attr("block_dim"), ctx.Attr("stream_list")[kex.Attr("stream_id")],
-                 ctx.Attr("model_id"), ctx.Attr("instance_handle"), ast_.UInt(0U), launch_begin})));
+      ast_.Call("aclrtStreamGetId",
+                {task_info.Attr("stream"), ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})));
   return SUCCESS;
 }
 

@@ -191,24 +191,29 @@ Status DSATaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
 }
 
 FunctionDef *DSATaskCodeBuilder::RenderKernelDsaTaskDistribute() const {
-  auto sqe = ast_.Var("const void *const", "sqe");
-  auto sqe_len = ast_.Var("const uint32_t", "sqeLen");
-  auto stream = ast_.Var("aclrtStream &", "stream");
-  auto flag = ast_.Var("const uint32_t", "flag");
-
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo *", "launch_info");
+  auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
+  auto instance_handle = ast_.Var("void *", "instance_handle");
   auto inputs = ast_.Var("std::array<uintptr_t, 4>", "inputs");
+  auto launch_stars_task_params = launch_info.Arrow("launch_params").Arrow("launch_stars_task_params");
 
   return ast_.DefineFunction(
-      "KernelDsaTaskDistribute", {sqe, sqe_len, stream, flag}, "aclError",
+      "KernelDsaTaskDistribute", {launch_info, launch_func, instance_handle}, "aclError",
       {
-          ast_.VarDecl(inputs, ast_.InitList({
-                                   ast_.ReinterpretCast("uintptr_t", sqe),
-                                   ast_.StaticCast("uintptr_t", sqe_len),
-                                   ast_.ReinterpretCast("uintptr_t", stream),
-                                   ast_.StaticCast("uintptr_t", flag),
-                               })),
-          ChkRt(RtGeneralCtrl(inputs[0].Addr(), ast_.StaticCast("uint32_t", kDSARtGeneralCtrlInputCnt),
-                              ast_.StaticCast("uint32_t", kDSARtGeneralCtrlSubType))),
+          ChkNotNull(launch_info),
+          ast_.If(
+              launch_func != "nullptr",
+              {ast_.Call("OM2_LOGI", {ast_.Str("KernelDsaTaskDistribute: Start to execute launch callback.")}),
+               ChkStatus(ast_.Call("launch_func", {instance_handle, launch_info}))},
+              {ast_.Call("OM2_LOGI", {ast_.Str("KernelDsaTaskDistribute: Start to execute rtGeneralCtrl directly.")}),
+               ast_.VarDecl(inputs, ast_.InitList({
+                                        ast_.ReinterpretCast("uintptr_t", launch_stars_task_params.Attr("task_sqe")),
+                                        ast_.StaticCast("uintptr_t", launch_stars_task_params.Attr("sqe_len")),
+                                        ast_.ReinterpretCast("uintptr_t", launch_stars_task_params.Attr("stream")),
+                                        ast_.StaticCast("uintptr_t", launch_stars_task_params.Attr("flag")),
+                                    })),
+               ChkRt(RtGeneralCtrl(inputs[0].Addr(), ast_.StaticCast("uint32_t", kDSARtGeneralCtrlInputCnt),
+                                   ast_.StaticCast("uint32_t", kDSARtGeneralCtrlSubType)))}),
           ast_.Return("ACL_SUCCESS"),
       });
 }
@@ -225,10 +230,8 @@ Status DSATaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
   GE_ASSERT_SUCCESS(RenderSqeScalars(body, dsa_data, sqe));
   GE_ASSERT_SUCCESS(RenderSqeAddrFields(body, dsa_data, ctx, sqe, addrs));
   GE_ASSERT_SUCCESS(RenderHbmIoArgs(body, dsa_data, ctx, addrs));
-  auto launch_begin = ast_.Var("uint64_t", "_launch_begin");
-  (void)body.emplace_back(ast_.VarDecl(launch_begin, ast_.Call("MsprofSysCycleTime", {})));
+  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, dsa_data, addrs));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunch(body, op, ctx, dsa_data, sqe));
-  GE_ASSERT_SUCCESS(RenderDispatchFuncReport(body, op, ctx, dsa_data, addrs, launch_begin));
 
   GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::RenderDispatchFunc(ast_, kDispatchFuncName, body, items));
   return SUCCESS;
@@ -347,21 +350,17 @@ Status DSATaskCodeBuilder::RenderHbmIoArgs(std::vector<BodyItem> &body, const Ex
 
 Status DSATaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                                     const ExprRef &dsa_data, const VarRef &sqe) {
+  (void)dsa_data;
+  (void)sqe;
   (void)body.push_back(ChkRt(RtSetTaskTag(op.Arrow("op_name"))));
-  auto dd = ast_.Var("uint8_t", "dd");
-  (void)body.push_back(ast_.VarDecl(
-      dd, ast_.Call("GetIsDataDump", {op.Arrow("op_name"), ctx.Attr("model_id"), ctx.Attr("instance_handle")})));
-  auto df = ast_.Var("const uint32_t", "df");
-  (void)body.push_back(ast_.VarDecl(df, ast_.StaticCast("uint32_t", dd) * ast_.UInt(2U)));
-  (void)body.push_back(ChkStatus(
-      ast_.Call("KernelDsaTaskDistribute", {sqe.Addr(), ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t")),
-                                            ctx.Attr("stream_list")[dsa_data.Attr("stream_id")], df})));
+  (void)body.push_back(
+      ChkStatus(ast_.Call("KernelDsaTaskDistribute",
+                          {ast_.Var("", "launch_info").Addr(), ctx.Attr("launch_func"), ctx.Attr("instance_handle")})));
   return SUCCESS;
 }
 
 Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                    const ExprRef &dsa_data, const VarRef &addrs,
-                                                    const VarRef &launch_begin) {
+                                                    const ExprRef &dsa_data, const VarRef &addrs) {
   auto dsa_io_tensors = ast_.Var("std::vector<gert::Tensor>", "dsa_io_tensors");
   (void)body.push_back(ast_.VarDecl(dsa_io_tensors));
   (void)body.push_back(ast_.Call("", {dsa_io_tensors.Attr("reserve")(dsa_data.Attr("num_args"))}));
@@ -376,8 +375,50 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
 
   GE_ASSERT_SUCCESS(RenderDispatchFuncReportIo(body, dsa_data, addrs, dsa_io_tensors, dsa_report_inputs,
                                                dsa_report_outputs, dsa_report_ws_addrs, dsa_report_ws_sizes));
-  GE_ASSERT_SUCCESS(RenderDispatchFuncReportSubmit(body, op, ctx, dsa_data, dsa_report_inputs, dsa_report_outputs,
-                                                   dsa_report_ws_addrs, dsa_report_ws_sizes, launch_begin));
+  auto hbm_ai = ast_.Var("ArgsInfo *", "hbm_ai");
+  (void)body.push_back(
+      ast_.VarDecl(hbm_ai, ctx.Attr("args_table").Attr("GetArgsInfo")(dsa_data.Attr("hbm_table_index"))));
+  auto task_info = ast_.Var("Om2TaskInfo", "task_info");
+  (void)body.push_back(ast_.VarDecl(task_info));
+  (void)body.push_back(
+      ChkStatus(ast_.Call("AssembleOm2TaskInfo", {task_info.Addr(),
+                                                  op.Arrow("op_name"),
+                                                  dsa_data.Attr("op_type"),
+                                                  ast_.UInt(0U),
+                                                  dsa_data.Attr("stream_id"),
+                                                  ast_.UInt(0U),
+                                                  dsa_data.Attr("op_desc_id"),
+                                                  ast_.ReinterpretCast("uintptr_t", hbm_ai.Arrow("dev_addr")),
+                                                  dsa_data.Attr("hbm_args_size"),
+                                                  dsa_report_inputs.Data(),
+                                                  ast_.StaticCast("uint64_t", dsa_report_inputs.Size()),
+                                                  dsa_report_outputs.Data(),
+                                                  ast_.StaticCast("uint32_t", dsa_report_outputs.Size()),
+                                                  dsa_report_ws_addrs.Data(),
+                                                  dsa_report_ws_sizes.Data(),
+                                                  ast_.StaticCast("uint32_t", dsa_report_ws_addrs.Size()),
+                                                  dsa_data.Attr("task_type"),
+                                                  ctx.Attr("stream_list")[dsa_data.Attr("stream_id")],
+                                                  ast_.UInt(1U),
+                                                  ast_.UInt(0U)})));
+  (void)body.push_back(ChkStatus(
+      ast_.Call("aclrtStreamGetId",
+                {task_info.Attr("stream"), ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})));
+  auto launch_stars_task_params = ast_.Var("GertModelLaunchStarsTaskWithFlagParams", "launch_stars_task_params");
+  (void)body.push_back(
+      ast_.VarDecl(launch_stars_task_params,
+                   ast_.DesignatedInit({{"task_sqe", ast_.ReinterpretCast("const void *", ast_.Var("", "sqe").Addr())},
+                                        {"sqe_len", ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t"))},
+                                        {"stream", ctx.Attr("stream_list")[dsa_data.Attr("stream_id")]},
+                                        {"flag", ast_.UInt(0U)}})));
+  auto launch_params = ast_.Var("GertModelTaskLaunchParams", "launch_params");
+  (void)body.push_back(
+      ast_.VarDecl(launch_params, ast_.DesignatedInit({{"launch_stars_task_params", launch_stars_task_params}})));
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "launch_info");
+  (void)body.push_back(
+      ast_.VarDecl(launch_info, ast_.DesignatedInit({{"launch_type", ast_.Var("", "RT_STARS_TASK_LAUNCH_WITH_FLAG")},
+                                                     {"task_info", task_info.Addr()},
+                                                     {"launch_params", launch_params.Addr()}})));
   return SUCCESS;
 }
 
@@ -420,25 +461,6 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
                        },
                        {})}),
       }));
-  return SUCCESS;
-}
-
-Status DSATaskCodeBuilder::RenderDispatchFuncReportSubmit(
-    std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx, const ExprRef &dsa_data,
-    const VarRef &dsa_report_inputs, const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
-    const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) const {
-  auto hbm_ai = ast_.Var("ArgsInfo *", "hbm_ai");
-  (void)body.push_back(
-      ast_.VarDecl(hbm_ai, ctx.Attr("args_table").Attr("GetArgsInfo")(dsa_data.Attr("hbm_table_index"))));
-  (void)body.push_back(ChkStatus(ast_.Call(
-      "ReportLaunchedOm2Task",
-      {op.Arrow("op_name"), dsa_data.Attr("op_type"), dsa_data.Attr("op_desc_id"),
-       ast_.ReinterpretCast("uintptr_t", hbm_ai.Arrow("dev_addr")), dsa_data.Attr("hbm_args_size"),
-       dsa_report_inputs.Data(), ast_.StaticCast("uint64_t", dsa_report_inputs.Size()), dsa_report_outputs.Data(),
-       ast_.StaticCast("uint32_t", dsa_report_outputs.Size()), dsa_report_ws_addrs.Data(), dsa_report_ws_sizes.Data(),
-       ast_.StaticCast("uint32_t", dsa_report_ws_sizes.Size()), dsa_data.Attr("task_type"), ast_.UInt(0U),
-       ctx.Attr("stream_list")[dsa_data.Attr("stream_id")], ctx.Attr("model_id"), ctx.Attr("instance_handle"),
-       ast_.UInt(1U), launch_begin})));
   return SUCCESS;
 }
 
