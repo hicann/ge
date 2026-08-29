@@ -82,10 +82,10 @@ void TbeKernelLaunch::PrintAllArgs(const string &op_name, const string &op_type,
   }
 }
 
-size_t TbeKernelLaunch::GetAppendArgsSizeOf() {
+size_t TbeKernelLaunch::GetAppendArgsSizeOf() const {
   return 0;
 }
-size_t TbeKernelLaunch::GetAppendArgsNum() {
+size_t TbeKernelLaunch::GetAppendArgsNum() const {
   return 0;
 }
 Status TbeKernelLaunch::AddAppendArgs(const ge::Node &node, void *all_args_buff, const uint32_t &args_size) {

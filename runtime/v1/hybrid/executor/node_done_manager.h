@@ -33,7 +33,7 @@ class NodeDoneManager {
  private:
   class Cond {
    public:
-    bool IsRelease();
+    bool IsRelease() const;
     void Release();
     void Cancel();
     bool Await();
@@ -43,7 +43,7 @@ class NodeDoneManager {
     }
 
    private:
-    std::mutex cond_mu_;
+    mutable std::mutex cond_mu_;
     std::condition_variable cv_;
     bool is_released_ = false;
     bool is_cancelled_ = false;

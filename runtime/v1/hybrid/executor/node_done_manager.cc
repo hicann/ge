@@ -74,7 +74,7 @@ void NodeDoneManager::Cond::Cancel() {
   cv_.notify_all();
 }
 
-bool NodeDoneManager::Cond::IsRelease() {
+bool NodeDoneManager::Cond::IsRelease() const {
   const std::unique_lock<std::mutex> lk(cond_mu_);
   return is_released_;
 }

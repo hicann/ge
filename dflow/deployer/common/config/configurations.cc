@@ -53,7 +53,7 @@ Status Configurations::GetWorkingDir(std::string &working_dir) const {
   return SUCCESS;
 }
 
-std::string Configurations::GetDeployResDir() {
+std::string Configurations::GetDeployResDir() const {
   return information_.working_dir + "/runtime/deploy_res/";
 }
 

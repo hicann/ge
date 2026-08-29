@@ -85,7 +85,7 @@ void EngineManager::GetGraphOptimizerObjs(const map<string, GraphOptimizerPtr> &
   FFTS_LOGD("Get GraphOptimizer success.");
 }
 
-std::string EngineManager::GetSocVersion() {
+std::string EngineManager::GetSocVersion() const {
   return soc_version_;
 }
 }  // namespace ffts

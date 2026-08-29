@@ -91,7 +91,7 @@ class Configurations {
 
   const NodeConfig &GetLocalNode() const;
 
-  std::string GetDeployResDir();
+  std::string GetDeployResDir() const;
 
   static Status GetResourceConfigPath(std::string &config_dir);
 

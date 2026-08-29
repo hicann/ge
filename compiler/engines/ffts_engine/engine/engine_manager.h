@@ -36,7 +36,7 @@ class EngineManager {
   void GetGraphOptimizerObjs(const map<string, GraphOptimizerPtr> &graph_optimizers,
                              const std::string &engine_name) const;
 
-  std::string GetSocVersion();
+  std::string GetSocVersion() const;
 
  private:
   EngineManager();

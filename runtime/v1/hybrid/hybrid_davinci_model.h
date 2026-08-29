@@ -62,7 +62,7 @@ class HybridDavinciModel {
 
   void SetLoadStream(const aclrtStream stream);
 
-  uint64_t GetSessionId();
+  uint64_t GetSessionId() const;
 
   uint32_t GetDeviceId() const;
 

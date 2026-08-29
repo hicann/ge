@@ -120,7 +120,7 @@ class DeployPlan {
   using ModelDeployInfo = std::map<std::string, std::map<std::string, std::set<DeviceInfo>>>;
   using AbnormalStatusCallback = std::function<Status(uint32_t, RootModelId2SubmodelName &)>;
   struct AbnormalStatusCallbackInfo {
-    std::mutex mu;
+    mutable std::mutex mu;
     // key: root_model_id, data:callback
     std::map<uint32_t, AbnormalStatusCallback> callback_list;
   };

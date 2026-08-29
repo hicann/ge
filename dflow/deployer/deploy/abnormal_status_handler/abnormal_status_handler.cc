@@ -689,11 +689,11 @@ void AbnormalStatusHandler::DecreaseDeployingRootModelNum() {
   deploying_root_model_cnt_--;
 }
 
-bool AbnormalStatusHandler::IsDeployingRootModel() {
+bool AbnormalStatusHandler::IsDeployingRootModel() const {
   return deploying_root_model_cnt_.load() != 0U;
 }
 
-bool AbnormalStatusHandler::IsAllCallbackInitFinished() {
+bool AbnormalStatusHandler::IsAllCallbackInitFinished() const {
   std::lock_guard<std::mutex> lk(abnormal_status_callback_info_.mu);
   return abnormal_status_callback_info_.callback_list.size() == deployed_models_.size();
 }

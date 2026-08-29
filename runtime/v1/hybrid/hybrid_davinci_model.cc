@@ -332,7 +332,7 @@ void HybridDavinciModel::SetModelDescVersion(const bool is_new_model_desc) {
   }
 }
 
-uint64_t HybridDavinciModel::GetSessionId() {
+uint64_t HybridDavinciModel::GetSessionId() const {
   GE_CHECK_NOTNULL(impl_);
   return impl_->GetSessionId();
 }

@@ -28,7 +28,7 @@ class ArgsFormatConstructor {
   ~ArgsFormatConstructor() {};
   Status ConstructNodeArgsDesc();
   Status GetArgsSize(size_t &args_size);
-  std::string GetArgsFormatString();
+  std::string GetArgsFormatString() const;
 
  private:
   Status ConstructOutArgsDesc();
