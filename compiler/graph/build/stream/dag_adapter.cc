@@ -281,7 +281,7 @@ graphStatus DAGAdapter::RefreshStreamIdsToGE(const minidag::DAGGraph &dag, const
     const auto &node_type = op_desc->GetTypePtr();
     bool rts_label_node = false;
     (void)AttrUtils::GetBool(op_desc, ATTR_NAME_RTS_LABEL_NODE, rts_label_node);
-    if ((node_type == "NetOutput") || rts_label_node) {
+    if ((strcmp(node_type, "NetOutput") == 0) || rts_label_node) {
       GELOGD("Skip special node: %s", dag_node->GetName().c_str());
       ++filtered_count;
       continue;
