@@ -71,11 +71,11 @@ class FusionRuleJsonPattern {
     return output_infos_;
   }
 
-  FusionRuleJsonGraphPtr GetOriginGraph() {
+  FusionRuleJsonGraphPtr GetOriginGraph() const {
     return origin_graph_;
   }
 
-  FusionRuleJsonGraphPtr GetFusionGraph() {
+  FusionRuleJsonGraphPtr GetFusionGraph() const {
     return fusion_graph_;
   }
 

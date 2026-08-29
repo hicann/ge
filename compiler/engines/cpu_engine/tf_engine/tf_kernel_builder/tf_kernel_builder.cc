@@ -48,7 +48,7 @@ KernelBuilderPtr TfKernelBuilder::instance_ = nullptr;
 
 inline KernelBuilderPtr TfKernelBuilder::Instance() {
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance_.reset(new (std::nothrow) TfKernelBuilder); });
+  std::call_once(flag, []() { instance_.reset(new (std::nothrow) TfKernelBuilder); });
   return instance_;
 }
 

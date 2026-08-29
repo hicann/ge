@@ -50,7 +50,7 @@ OptimizerPtr TfOptimizer::instance_ = nullptr;
 
 OptimizerPtr TfOptimizer::Instance() {
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance_.reset(new (std::nothrow) TfOptimizer); });
+  std::call_once(flag, []() { instance_.reset(new (std::nothrow) TfOptimizer); });
   return instance_;
 }
 
