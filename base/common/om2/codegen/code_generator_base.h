@@ -89,6 +89,9 @@ class CodeGeneratorBase {
   ExprRef AclrtMalloc(Arg dev_ptr, Arg size, Arg policy) const {
     return ast_.Call("aclrtMalloc", {dev_ptr, size, policy});
   }
+  ExprRef AclrtMallocWithCfg(Arg dev_ptr, Arg size, Arg policy, Arg cfg) const {
+    return ast_.Call("aclrtMallocWithCfg", {dev_ptr, size, policy, cfg});
+  }
   ExprRef AclrtMemcpy(Arg dst, Arg dest_max, Arg src, Arg count, Arg kind) const {
     return ast_.Call("aclrtMemcpy", {dst, dest_max, src, count, kind});
   }

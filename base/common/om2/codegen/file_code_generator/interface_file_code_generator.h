@@ -25,6 +25,7 @@ class InterfaceFileCodeGenerator : public CodeGeneratorBase {
   StructDecl *BuildTfAiCpuExInfoStruct();
   StructDecl *BuildArgsInfoStruct();
   StructDecl *BuildArgsRefreshInfoStruct();
+  FunctionDef *BuildAclrtMallocFunction() const;
   ClassDecl *BuildOm2ArgsTableClass();
   ClassDecl *BuildOm2ModelClass(const Om2CodegenModel &codegen_model);
   std::vector<DeclNode *> BuildExternalApiDecls();

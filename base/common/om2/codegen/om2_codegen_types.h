@@ -61,6 +61,7 @@ struct OpInputEdges {
 
 struct RuntimeResourceSemantic {
   uint64_t total_mem_size{0U};
+  uint64_t zero_copy_size{0U};
   uint64_t total_weight_size{0U};
   uint32_t stream_num{0U};
   uint32_t notify_num{0U};

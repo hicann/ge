@@ -379,7 +379,7 @@ TEST_F(ModelDumpManagerTest, SetModelDumpInfoWithoutOverflowTest) {
 // 测试 AddOm2TaskInfo - 无 Dump 启用场景
 TEST_F(ModelDumpManagerTest, AddOm2TaskInfoNoDumpEnabledTest) {
   ModelDumpManager manager(1);
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -390,7 +390,7 @@ TEST_F(ModelDumpManagerTest, AddOm2TaskInfoNoDumpEnabledTest) {
 
 TEST_F(ModelDumpManagerTest, PreprocessOm2TaskInfoNoL0InfoReturnsSuccess) {
   ModelDumpManager manager(1);
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.stream_id = 1;
 
@@ -400,7 +400,7 @@ TEST_F(ModelDumpManagerTest, PreprocessOm2TaskInfoNoL0InfoReturnsSuccess) {
 
 TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessNullParamReturnsSuccess) {
   gert::Om2ModelExecutor executor;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
 
   EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, &info, nullptr, 0U), ge::SUCCESS);
   EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, nullptr, nullptr, 0U), ge::SUCCESS);
@@ -408,7 +408,7 @@ TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessNullParamReturnsSuccess) {
 }
 
 TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessReservedParamReturnsSuccess) {
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   uint32_t reserved = 0U;
 
   EXPECT_EQ(ReportDfxTaskPreprocess(1U, nullptr, &info, &reserved, 0U), ge::SUCCESS);
@@ -416,7 +416,7 @@ TEST_F(ModelDumpManagerTest, ReportDfxTaskPreprocessReservedParamReturnsSuccess)
 }
 
 TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessReservedParamReturnsSuccess) {
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   uint32_t reserved = 0U;
 
   EXPECT_EQ(ReportDfxTaskPostprocess(1U, nullptr, &info, &reserved, 0U), ge::SUCCESS);
@@ -425,7 +425,7 @@ TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessReservedParamReturnsSuccess
 
 TEST_F(ModelDumpManagerTest, ReportDfxTaskPostprocessWithoutDumpManagerReturnsSuccess) {
   gert::Om2ModelExecutor executor;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -457,7 +457,7 @@ TEST_F(ModelDumpManagerTest, AddOm2TaskInfoDataDumpEnabledTest) {
   DumpConfig::Instance().SetDataDumpEnabled(true);
 
   ModelDumpManager manager(1);
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -472,7 +472,7 @@ TEST_F(ModelDumpManagerTest, AddOm2TaskInfoExceptionDumpEnabledTest) {
   DumpConfig::Instance().SetExceptionDumpEnabled(true);
 
   ModelDumpManager manager(1);
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -511,7 +511,7 @@ TEST_F(ModelDumpManagerTest, DispatchDumpInfoDataDumpEnabledTest) {
   modelInfo.model_id = 1;
   manager.SetModelDumpInfo(modelInfo);
 
-  Om2TaskInfo taskInfo{};
+  GertModelTaskDesc taskInfo{};
   taskInfo.op_name = "test_op";
   taskInfo.task_id = 1;
   taskInfo.stream_id = 1;
@@ -524,7 +524,7 @@ TEST_F(ModelDumpManagerTest, DispatchDumpInfoDataDumpEnabledTest) {
 // ExceptionDumpImpl 测试
 TEST(ExceptionDumpImplTest, BasicTest) {
   ExceptionDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -545,7 +545,7 @@ TEST(ExceptionDumpImplTest, SaveOpInfoLiteExceptionDoesNotReportL1Info) {
       SUCCESS);
 
   ExceptionDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.op_type = "Add";
   info.task_id = 1U;
@@ -563,7 +563,7 @@ TEST(ExceptionDumpImplTest, SaveOpInfoAicErrNormReportsL1Info) {
       SUCCESS);
 
   ExceptionDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.op_type = "Add";
   info.task_id = 1U;
@@ -575,7 +575,7 @@ TEST(ExceptionDumpImplTest, SaveOpInfoAicErrNormReportsL1Info) {
 
 TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoNoInfoReturnsSuccess) {
   ExceptionDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
 
   EXPECT_EQ(impl.ReportL0ExceptionDumpInfo(info), SUCCESS);
@@ -583,14 +583,14 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoNoInfoReturnsSuccess) {
 
 TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoArgNumWithoutArgsReturnsInvalid) {
   ExceptionDumpImpl impl;
-  Om2L0TaskRawInfo l0Info{};
-  l0Info.version = 1U;
+  GertModelTaskRawInfo l0Info{};
+  l0Info.struct_size = 1U;
   l0Info.arg_num = 1U;
   l0Info.args = nullptr;
 
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
-  info.l0_exception_dump_info = &l0Info;
+  info.task_raw_info = &l0Info;
 
   EXPECT_EQ(impl.ReportL0ExceptionDumpInfo(info), PARAM_INVALID);
 }
@@ -600,17 +600,17 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoLiteDumpDisabledReturnsSucc
   DumpStub::GetInstance().Clear();
 
   ExceptionDumpImpl impl;
-  Om2L0ArgSlotInfo slot{};
-  slot.kind = OM2_L0_ARG_INPUT;
+  GertModelArgSlotInfo slot{};
+  slot.kind = GERT_MODEL_ARG_INPUT;
   slot.value = 32U;
-  Om2L0TaskRawInfo l0Info{};
-  l0Info.version = 1U;
+  GertModelTaskRawInfo l0Info{};
+  l0Info.struct_size = 1U;
   l0Info.arg_num = 1U;
   l0Info.args = &slot;
 
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
-  info.l0_exception_dump_info = &l0Info;
+  info.task_raw_info = &l0Info;
 
   EXPECT_EQ(impl.ReportL0ExceptionDumpInfo(info), SUCCESS);
   EXPECT_TRUE(DumpStub::GetInstance().GetUnits().empty());
@@ -619,28 +619,28 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoLiteDumpDisabledReturnsSucc
 TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoConvertsSlotKinds) {
   DumpStub::GetInstance().Clear();
 
-  Om2L0ArgSlotInfo slots[12]{};
-  slots[0].kind = OM2_L0_ARG_INPUT;
+  GertModelArgSlotInfo slots[12]{};
+  slots[0].kind = GERT_MODEL_ARG_INPUT;
   slots[0].args_offset = 0U;
-  slots[1].kind = OM2_L0_ARG_OUTPUT;
+  slots[1].kind = GERT_MODEL_ARG_OUTPUT;
   slots[1].args_offset = 8U;
-  slots[2].kind = OM2_L0_ARG_WORKSPACE;
+  slots[2].kind = GERT_MODEL_ARG_WORKSPACE;
   slots[2].related_index = 0U;
-  slots[3].kind = OM2_L0_ARG_SHAPE_INFO;
+  slots[3].kind = GERT_MODEL_ARG_SHAPE_INFO;
   slots[3].value = 4U;
-  slots[4].kind = OM2_L0_ARG_TILING;
+  slots[4].kind = GERT_MODEL_ARG_TILING;
   slots[4].value = 256U;
-  slots[5].kind = OM2_L0_ARG_LEVEL1_DESC;
-  slots[6].kind = OM2_L0_ARG_PLACEHOLDER;
-  slots[7].kind = OM2_L0_ARG_CUSTOM_VALUE;
+  slots[5].kind = GERT_MODEL_ARG_LEVEL1_DESC;
+  slots[6].kind = GERT_MODEL_ARG_PLACEHOLDER;
+  slots[7].kind = GERT_MODEL_ARG_CUSTOM_VALUE;
   slots[7].value = 9U;
-  slots[8].kind = OM2_L0_ARG_FFTS_ADDR;
-  slots[9].kind = OM2_L0_ARG_EVENT_ADDR;
-  slots[10].kind = OM2_L0_ARG_OVERFLOW_ADDR;
-  slots[11].kind = OM2_L0_ARG_EMPTY_ADDR;
+  slots[8].kind = GERT_MODEL_ARG_FFTS_ADDR;
+  slots[9].kind = GERT_MODEL_ARG_EVENT_ADDR;
+  slots[10].kind = GERT_MODEL_ARG_OVERFLOW_ADDR;
+  slots[11].kind = GERT_MODEL_ARG_EMPTY_ADDR;
 
-  Om2L0TaskRawInfo l0Info{};
-  l0Info.version = 1U;
+  GertModelTaskRawInfo l0Info{};
+  l0Info.struct_size = 1U;
   l0Info.need_assert_or_printf = 1U;
   l0Info.arg_num = 12U;
   l0Info.args = slots;
@@ -649,11 +649,11 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoConvertsSlotKinds) {
   inputTensor.SetSize(32U);
   gert::Tensor outputTensor{};
   outputTensor.SetSize(64U);
-  Om2TaskIoEntry inputEntry{sizeof(Om2TaskIoEntry), &inputTensor, 0U};
-  Om2TaskIoEntry outputEntry{sizeof(Om2TaskIoEntry), &outputTensor, 8U};
+  GertModelTaskIoEntry inputEntry{sizeof(GertModelTaskIoEntry), &inputTensor, 0U};
+  GertModelTaskIoEntry outputEntry{sizeof(GertModelTaskIoEntry), &outputTensor, 8U};
   uint64_t workspaceSize = 128U;
 
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.input_num = 1U;
   info.inputs = &inputEntry;
@@ -661,7 +661,7 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoConvertsSlotKinds) {
   info.outputs = &outputEntry;
   info.workspace_num = 1U;
   info.workspace_sizes = &workspaceSize;
-  info.l0_exception_dump_info = &l0Info;
+  info.task_raw_info = &l0Info;
 
   ExceptionDumpImpl impl;
   EXPECT_EQ(impl.ReportL0ExceptionDumpInfo(info), SUCCESS);
@@ -681,17 +681,17 @@ TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoConvertsSlotKinds) {
 }
 
 TEST(ExceptionDumpImplTest, ReportL0ExceptionDumpInfoUnsupportedKindReturnsInvalid) {
-  Om2L0ArgSlotInfo slot{};
-  slot.kind = 999U;
-  Om2L0TaskRawInfo l0Info{};
-  l0Info.version = 1U;
+  GertModelArgSlotInfo slot{};
+  slot.kind = static_cast<GertModelArgKind>(999U);
+  GertModelTaskRawInfo l0Info{};
+  l0Info.struct_size = 1U;
   l0Info.need_assert_or_printf = 1U;
   l0Info.arg_num = 1U;
   l0Info.args = &slot;
 
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
-  info.l0_exception_dump_info = &l0Info;
+  info.task_raw_info = &l0Info;
 
   ExceptionDumpImpl impl;
   EXPECT_EQ(impl.ReportL0ExceptionDumpInfo(info), PARAM_INVALID);
@@ -705,7 +705,7 @@ TEST(ExceptionDumpImplTest, GetOpDescInfoNotFoundTest) {
 
 TEST(ExceptionDumpImplTest, ClearTest) {
   ExceptionDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -725,7 +725,7 @@ TEST(DataDumpImplTest, ConstructorDestructorTest) {
 
 TEST(DataDumpImplTest, SaveTaskTest) {
   DataDumpImpl impl;
-  Om2TaskInfo info{};
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
@@ -940,7 +940,7 @@ TEST_F(ProfilingImplTest, ReportModelLoadEnd_ProfilingEnabled_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginZero_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.launch_begin = 0U;
   Status ret = impl.ReportLaunchInfo(task_info, 1000U);
@@ -949,7 +949,7 @@ TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginZero_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginNonZero_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.launch_begin = 500U;
@@ -960,7 +960,7 @@ TEST_F(ProfilingImplTest, ReportLaunchInfo_LaunchBeginNonZero_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, ReportLaunchInfo_NullOpName_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = nullptr;
   task_info.launch_begin = 500U;
   task_info.thread_id = 1U;
@@ -987,7 +987,7 @@ TEST_F(ProfilingImplTest, ReportLaunchInfo_CapturesMsprofApiWithoutTruncation) {
   ProfilingTestUtil::Instance().SetProfFunc(check_func);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.launch_begin = 500UL;
   task_info.thread_id = 1U;
@@ -1028,7 +1028,7 @@ TEST_F(ProfilingImplTest, ReportModelLoadEnd_CapturesMsprofEventFields) {
 
 TEST_F(ProfilingImplTest, ReportFusionOpInfo_OriginalOpNamesNull_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "fusion_op";
   task_info.original_op_names = nullptr;
   Status ret = impl.ReportFusionOpInfo(task_info, 42U);
@@ -1037,7 +1037,7 @@ TEST_F(ProfilingImplTest, ReportFusionOpInfo_OriginalOpNamesNull_ReturnsSuccess)
 
 TEST_F(ProfilingImplTest, ReportFusionOpInfo_SingleOpName_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "fusion_op";
   task_info.original_op_names = "MatMul";
   task_info.input_mem_size = 1024U;
@@ -1051,7 +1051,7 @@ TEST_F(ProfilingImplTest, ReportFusionOpInfo_SingleOpName_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, ReportFusionOpInfo_MultipleOpNames_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "fusion_op";
   task_info.original_op_names = "MatMul;Add;Relu";
   task_info.input_mem_size = 1024U;
@@ -1092,7 +1092,7 @@ TEST_F(ProfilingImplTest, UnregisterModelFromProfilingRuntime_ReturnsSuccess) {
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportDisabled_ReturnsSuccess) {
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1108,7 +1108,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_TaskReportEnabled_ReturnsSuccess) {
   EXPECT_TRUE(ProfilingConfig::Instance().IsTaskReportEnabled());
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1124,7 +1124,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_InvalidTaskType_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Unknown";
   task_info.task_type = 0xFFU;  // invalid task type
@@ -1148,18 +1148,18 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
   }
   tensor.MutableStorageShape().SetDimNum(4U);
 
-  Om2TaskIoEntry inputs[2] = {};
+  GertModelTaskIoEntry inputs[2] = {};
   inputs[0U].tensor = &tensor;
   inputs[0U].offset = 0U;
   inputs[1U].tensor = &tensor;
   inputs[1U].offset = 1024U;
 
-  Om2TaskIoEntry outputs[1] = {};
+  GertModelTaskIoEntry outputs[1] = {};
   outputs[0U].tensor = &tensor;
   outputs[0U].offset = 2048U;
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1184,12 +1184,12 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_NullTensor_ReturnsSuccess) {
   tensor.SetStorageFormat(static_cast<ge::Format>(0U));  // FORMAT_NCHW
   tensor.MutableStorageShape().SetDimNum(4U);
 
-  Om2TaskIoEntry inputs[1] = {};
+  GertModelTaskIoEntry inputs[1] = {};
   inputs[0U].tensor = &tensor;
   inputs[0U].offset = 0U;
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1206,7 +1206,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_NullIoEntries_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1225,7 +1225,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_WithNullOpName_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = nullptr;
   task_info.op_type = "Add";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
@@ -1242,7 +1242,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_AicpuTaskType_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "aicpu_op";
   task_info.op_type = "KernelEx";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL_EX);  // AICPU
@@ -1258,7 +1258,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_DsaTaskType_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "dsa_op";
   task_info.op_type = "DSA";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_DSA);
@@ -1273,7 +1273,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_HcclTaskType_ReturnsSuccess) {
   ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
 
   ProfilingImpl impl;
-  Om2TaskInfo task_info = {};
+  GertModelTaskDesc task_info = {};
   task_info.op_name = "hccl_op";
   task_info.op_type = "HCCL";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_HCCL);

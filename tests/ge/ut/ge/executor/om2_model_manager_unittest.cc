@@ -44,6 +44,12 @@ static const std::string fake_om2_so_src = R"(
 #include <cstddef>
 #include <cstdint>
 
+typedef void* aclmdlRI;
+typedef void* aclrtStream;
+typedef void* aclrtEvent;
+typedef void* aclrtLabel;
+typedef void* aclrtNotify;
+
 struct GertModelLoadConfig {
   uint64_t struct_size;
   const char **bin_files;
@@ -57,8 +63,17 @@ struct GertModelLoadConfig {
   uint64_t model_id;
   void *instance_handle;
   void *executor_handle = nullptr;
-  const struct GertModelCallbacks *callbacks;
+  const struct GertModelLoadCallbacks *callbacks;
   int64_t priority;
+  aclmdlRI external_rt_model = nullptr;
+  aclrtStream *external_streams = nullptr;
+  uint64_t external_stream_num = 0;
+  aclrtEvent *external_events = nullptr;
+  uint64_t external_event_num = 0;
+  aclrtLabel *external_labels = nullptr;
+  uint64_t external_label_num = 0;
+  aclrtNotify *external_notifies = nullptr;
+  uint64_t external_notify_num = 0;
 };
 
 struct GertModelRunConfig {

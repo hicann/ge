@@ -24,6 +24,7 @@ Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase(AstBuildContext &ast)
       label_list_(ast.Var("std::vector<aclrtLabel>", "label_list_")),
       aclrt_label_list_(ast.Var("aclrtLabelList", "aclrt_label_list_")),
       total_dev_mem_ptr_(ast.Var("void *", "total_dev_mem_ptr_")),
+      owns_total_dev_mem_(ast.Var("bool", "owns_total_dev_mem_")),
       is_stream_list_bind_(ast.Var("bool", "is_stream_list_bind_")),
       bin_info_map_(ast.Var("std::unordered_map<std::string, BinDataInfo>", "bin_info_map_")),
       args_table_(ast.Var("Om2ArgsTable", "args_table_")),
@@ -40,5 +41,10 @@ Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase(AstBuildContext &ast)
       overflow_addr_(ast_.Var("void *", "overflow_addr_")),
       dev_dynamic_mem_ptrs_(ast_.Var("std::vector<void *>", "dev_dynamic_mem_ptrs_")),
       session_scope_mem_ptr_(ast_.Var("void *", "session_scope_mem_ptr_")),
-      priority_(ast_.Var("int32_t", "priority_")) {}
+      priority_(ast_.Var("int32_t", "priority_")),
+      is_external_rt_model_(ast_.Var("bool", "is_external_rt_model_")),
+      is_external_streams_(ast_.Var("bool", "is_external_streams_")),
+      is_external_notifies_(ast_.Var("bool", "is_external_notifies_")),
+      is_external_events_(ast_.Var("bool", "is_external_events_")),
+      is_external_labels_(ast_.Var("bool", "is_external_labels_")) {}
 }  // namespace ge

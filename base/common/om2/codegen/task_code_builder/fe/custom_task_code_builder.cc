@@ -158,8 +158,8 @@ std::vector<BodyItem> CustomTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
       ast_.Call(
           "",
           {ast_.Var("", "io_tensors").Attr("reserve")(op.Arrow("dispatch_info").Attr("custom").Attr("args_info_num"))}),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "report_inputs")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "report_outputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "report_inputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "report_outputs")),
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "report_workspace_addrs")),
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "report_workspace_sizes")),
   };
@@ -191,34 +191,12 @@ BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
 
 std::vector<BodyItem> CustomTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) {
   auto custom = op.Arrow("dispatch_info").Attr("custom");
-  auto dispatch_type = ast_.StaticCast("uint32_t", op.Arrow("dispatch_type"));
   auto stream = ctx.Attr("stream_list")[custom.Attr("stream_id")];
 
   return {
-      ChkStatus(ast_.Call(
-          "ReportOm2TaskPreprocess",
-          {op.Arrow("op_name"), custom.Attr("op_type"),
-           ast_.UInt(0),  // op_desc_id
-           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
-           ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs"), ast_.Var("", "report_outputs"),
-           ast_.Var("", "report_workspace_addrs"), ast_.Var("", "report_workspace_sizes"), dispatch_type,
-           ast_.Var("", "0"), stream, ast_.Var("", "nullptr"), ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
-      ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
       ChkStatus(ast_.Call("KernelCustTaskDistribute",
-                          {ast_.Var("", "op->op_name"), ast_.Var("", "op->dispatch_info.custom.op_type"),
+                          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("custom").Attr("op_type"),
                            ast_.Var("", "input_tensors"), ast_.Var("", "output_tensors"), stream})),
-      ChkStatus(ast_.Call(
-          "ReportLaunchedOm2Task",
-          {op.Arrow("op_name"), custom.Attr("op_type"),
-           ast_.UInt(0),  // op_desc_id
-           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
-           ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs").Data(),
-           ast_.StaticCast("uint64_t", ast_.Var("", "report_inputs").Size()), ast_.Var("", "report_outputs").Data(),
-           ast_.StaticCast("uint32_t", ast_.Var("", "report_outputs").Size()),
-           ast_.Var("", "report_workspace_addrs").Data(), ast_.Var("", "report_workspace_sizes").Data(),
-           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_sizes").Size()), dispatch_type, ast_.Var("", "0"),
-           stream, ctx.Attr("model_id"), ctx.Attr("instance_handle"), ast_.UInt(0U),
-           ast_.Var("uint64_t", "_launch_begin")})),
   };
 }
 
@@ -238,8 +216,8 @@ std::vector<BodyItem> CustomTaskCodeBuilder::HandleInputOutputArg(const VarRef &
                a.Attr("data").Attr("tensor").Attr("data_type"), a.Attr("data").Attr("tensor").Attr("format"),
                a.Attr("data").Attr("tensor").Attr("shape"), a.Attr("data").Attr("tensor").Attr("shape_dims")})),
       ast_.VarDecl(
-          ast_.Var("Om2TaskIoEntry", "_entry"),
-          ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
+          ast_.Var("GertModelTaskIoEntry", "_entry"),
+          ast_.InitList({ast_.Var("", "sizeof(GertModelTaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
                          a.Attr("data").Attr("tensor").Attr("args_offset")})),
       ast_.If(a.Attr("type") == ast_.Var("", "OP_ARG_INPUT") || a.Attr("type") == ast_.Var("", "OP_ARG_CONST_TENSOR"),
               {

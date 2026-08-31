@@ -57,20 +57,30 @@ constexpr uint8_t OM2_MAGIC[] = {0x50, 0x4B, 0x03, 0x04};
 using GertModelHandle = void *;
 
 // 入参合并为结构体：首字段 struct_size 版本号，新字段只能追加；整数类型统一 uint64_t
-struct GertModelLoadConfig {                             // 合并 Create+Load：容纳原 Om2ModelCreate 全部参数
-  uint64_t struct_size = sizeof(GertModelLoadConfig);    // 布局变化时更新
-  const char **bin_files = nullptr;                      // 输入：bin 文件路径列表
-  const void **bin_data = nullptr;                       // 输入：bin 内存数据列表
-  uint64_t *bin_size = nullptr;                          // 输入：bin 大小列表
-  uint64_t bin_num = 0;                                  // 输入：bin 数量
-  void **constants = nullptr;                            // 输入：常量
-  void **var_addrs = nullptr;                            // 输入：vars
-  void *work_ptr = nullptr;                              // 输入：工作内存指针
-  uint64_t *session_id = nullptr;                        // 输入：session id
-  uint64_t model_id = 0;                                 // 输入：model id，打印日志用
-  void *instance_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
-  const struct GertModelCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
-  int64_t priority = 0;                                  // 输入：优先级
+struct GertModelLoadConfig {                                 // 合并 Create+Load：容纳原 Om2ModelCreate 全部参数
+  uint64_t struct_size = sizeof(GertModelLoadConfig);        // 布局变化时更新
+  const char **bin_files = nullptr;                          // 输入：bin 文件路径列表
+  const void **bin_data = nullptr;                           // 输入：bin 内存数据列表
+  uint64_t *bin_size = nullptr;                              // 输入：bin 大小列表
+  uint64_t bin_num = 0;                                      // 输入：bin 数量
+  void **constants = nullptr;                                // 输入：常量
+  void **var_addrs = nullptr;                                // 输入：vars
+  void *work_ptr = nullptr;                                  // 输入：工作内存指针
+  uint64_t *session_id = nullptr;                            // 输入：session id
+  uint64_t model_id = 0;                                     // 输入：model id，打印日志用
+  void *instance_handle = nullptr;                           // Om2ModelExecutor*，回调函数的首参数
+  const struct GertModelLoadCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
+  int64_t priority = 0;                                      // 输入：优先级
+  uint64_t reuse_zero_copy = 0;                              // 输入：是否复用零拷贝内存
+  aclmdlRI external_rt_model = nullptr;      // 输入：外部创建的 rtModel，可空（nullptr = pbody 自行创建）
+  aclrtStream *external_streams = nullptr;   // 输入：外部创建的 stream 数组，可空
+  uint64_t external_stream_num = 0;          // 输入：外部 stream 数量
+  aclrtEvent *external_events = nullptr;     // 输入：外部创建的 event 数组，可空
+  uint64_t external_event_num = 0;           // 输入：外部 event 数量
+  aclrtLabel *external_labels = nullptr;     // 输入：外部创建的 label 数组，可空
+  uint64_t external_label_num = 0;           // 输入：外部 label 数量
+  aclrtNotify *external_notifies = nullptr;  // 输入：外部创建的 notify 数组，可空
+  uint64_t external_notify_num = 0;          // 输入：外部 notify 数量
 };
 
 struct GertModelRunConfig {
@@ -1144,14 +1154,12 @@ class Om2ModelExecutor::Impl {
     std::vector<const char *> bin_files(kernel_bin_info.size());
     std::vector<const void *> bin_data(kernel_bin_info.size());
     std::vector<uint64_t> bin_sizes(kernel_bin_info.size());
-    void *work_ptr = nullptr;
     for (auto i = 0U; i < kernel_bin_info.size(); ++i) {
       bin_files[i] = kernel_bin_info[i].file.c_str();
       bin_data[i] = kernel_bin_info[i].data.get();
       bin_sizes[i] = kernel_bin_info[i].data_size;
     }
     session_id_ = session_id;
-    GE_ASSERT_SUCCESS(PrepareWorkPtr(load_arg, work_ptr));
     GE_ASSERT_SUCCESS(PrepareConstantsFromStruct(model_data.constants_data, weight_buf, load_arg, constants));
     if (model_data.rt_var_resource != nullptr) {
       auto var_manager = Om2RTVarManagerPool::Instance().GetManager(session_id);
@@ -1170,9 +1178,9 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(PrepareVarAddrs(model_data, static_cast<uint32_t>(load_arg.device_id), var_addrs));
 
     GE_ASSERT_NOTNULL(run_model_info_.load_func);
-    GertModelCallbacks callbacks = {.struct_size = sizeof(GertModelCallbacks),
-                                    .report_model_base_info = ReportModelBaseInfo,
-                                    .launch_func = GertModelLaunchTask};
+    GertModelLoadCallbacks callbacks = {.struct_size = sizeof(GertModelLoadCallbacks),
+                                        .report_model_base_info = ReportModelBaseInfo,
+                                        .launch_func = GertModelLaunchTask};
     struct GertModelLoadConfig config = {.struct_size = sizeof(GertModelLoadConfig),
                                          .bin_files = bin_files.data(),
                                          .bin_data = bin_data.data(),
@@ -1180,12 +1188,13 @@ class Om2ModelExecutor::Impl {
                                          .bin_num = bin_data.size(),
                                          .constants = constants.empty() ? nullptr : constants.data(),
                                          .var_addrs = var_addrs.empty() ? nullptr : var_addrs.data(),
-                                         .work_ptr = work_ptr,
+                                         .work_ptr = load_arg.work_ptr,
                                          .session_id = &session_id_,
                                          .model_id = load_arg.model_id,
                                          .instance_handle = static_cast<void *>(owner_),
                                          .callbacks = &callbacks,
-                                         .priority = load_arg.priority};
+                                         .priority = load_arg.priority,
+                                         .reuse_zero_copy = load_arg.reuse_zero_copy ? 1U : 0U};
     GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
 
@@ -1577,23 +1586,6 @@ class Om2ModelExecutor::Impl {
   }
 
  private:
-  ge::Status PrepareWorkPtr(const Om2ModelLoadArg &load_arg, void *&work_ptr) {
-    const size_t required_work_size = load_arg.reuse_zero_copy
-                                          ? model_meta_info_.work_size - model_meta_info_.zero_copy_size
-                                          : model_meta_info_.work_size;
-    if (load_arg.work_ptr != nullptr) {
-      work_ptr = load_arg.work_ptr;
-      return ge::SUCCESS;
-    }
-    void *inner_work_ptr = nullptr;
-    GE_ASSERT_SUCCESS(RtMallocBuffer(required_work_size, inner_work_ptr));
-    if (inner_work_ptr != nullptr) {
-      owned_buffers_.push_back(inner_work_ptr);
-    }
-    work_ptr = inner_work_ptr;
-    return ge::SUCCESS;
-  }
-
   ge::Status PrepareInternalConsts(const ge::ReadonlyByteBuffer &weight_buf, const Om2ModelLoadArg &load_arg,
                                    const std::vector<Om2ConstItem> &const_items, size_t internal_weight_size,
                                    std::vector<void *> &constants) {

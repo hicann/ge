@@ -30,8 +30,8 @@ class Om2WithoutGraphDumpTest : public testing::Test {
   }
 };
 
-Om2TaskInfo MakeTaskInfo() {
-  Om2TaskInfo info{};
+GertModelTaskDesc MakeTaskInfo() {
+  GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1U;
   info.stream_id = 1U;

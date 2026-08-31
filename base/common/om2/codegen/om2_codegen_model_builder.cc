@@ -10,6 +10,7 @@
 
 #include "common/om2/codegen/om2_codegen_model_builder.h"
 
+#include <cinttypes>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -298,6 +299,14 @@ std::vector<om2::MemInfo> Om2CodegenModelBuilder::GetAllMemoryTypeSize(const GeM
 Status Om2CodegenModelBuilder::BuildRuntimeResource(const GeModelPtr &model, Om2CodegenModel &codegen_model) const {
   GE_ASSERT_NOTNULL(model);
   (void)AttrUtils::GetInt(model, ATTR_MODEL_MEMORY_SIZE, codegen_model.runtime.total_mem_size);
+  (void)AttrUtils::GetInt(model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, codegen_model.runtime.zero_copy_size);
+  if (codegen_model.runtime.zero_copy_size > codegen_model.runtime.total_mem_size) {
+    REPORT_INNER_ERR_MSG("E19999", "zero copy size[%" PRIu64 "] exceeds total memory size[%" PRIu64 "]",
+                         codegen_model.runtime.zero_copy_size, codegen_model.runtime.total_mem_size);
+    GELOGE(PARAM_INVALID, "[OM2] zero copy size[%" PRIu64 "] exceeds total memory size[%" PRIu64 "]",
+           codegen_model.runtime.zero_copy_size, codegen_model.runtime.total_mem_size);
+    return PARAM_INVALID;
+  }
   (void)AttrUtils::GetInt(model, ATTR_MODEL_WEIGHT_SIZE, codegen_model.runtime.total_weight_size);
   (void)AttrUtils::GetInt(model, ATTR_MODEL_STREAM_NUM, codegen_model.runtime.stream_num);
   (void)AttrUtils::GetInt(model, ATTR_MODEL_NOTIFY_NUM, codegen_model.runtime.notify_num);

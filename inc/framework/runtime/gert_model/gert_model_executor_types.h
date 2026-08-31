@@ -53,7 +53,7 @@ struct GertModelTaskLaunchInfo {
   uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);
 
   GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;
-  Om2TaskInfo *task_info = nullptr;
+  GertModelTaskDesc *task_info = nullptr;
   const GertModelTaskLaunchParams *launch_params = nullptr;
 };
 
@@ -67,8 +67,8 @@ typedef int32_t (*GertModelLaunchFunc)(void *instance_handle, GertModelTaskLaunc
 }
 #endif
 
-struct GertModelCallbacks {
-  uint64_t struct_size = sizeof(GertModelCallbacks);  // 布局变化时更新
+struct GertModelLoadCallbacks {
+  uint64_t struct_size = sizeof(GertModelLoadCallbacks);  // 布局变化时更新
 
   // codegen 在 InitResources 创建 rt_model_handle 后、Load 前回调；
   // executor 收到后完成 ReportModelBaseInfo（组装 ModelDumpInfo → SetModelDumpInfo）

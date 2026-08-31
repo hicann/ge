@@ -448,12 +448,12 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
@@ -468,10 +468,10 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
     EXPECT_EQ(expect_files.count(file_name), 1);
   }
   const std::vector<std::string> cpp_entries = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
   };
   for (const auto &cpp_entry : cpp_entries) {
     size_t cpp_size = 0;
@@ -482,10 +482,10 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
     EXPECT_EQ(cpp_content.find("/proc/self/fd/"), std::string::npos) << cpp_entry;
   }
   size_t makefile_size = 0;
-  const auto makefile_buf = archive.ExtractToMem("fake_test/data/model_0/runtime/Makefile", makefile_size);
+  const auto makefile_buf = archive.ExtractToMem("fake_test/data/model_0/runtime/csrc/Makefile", makefile_size);
   ASSERT_NE(makefile_buf, nullptr);
   const std::string makefile_content(reinterpret_cast<const char *>(makefile_buf.get()), makefile_size);
-  EXPECT_NE(makefile_content.find("TARGET := libg1_om2.so"), std::string::npos);
+  EXPECT_NE(makefile_content.find("TARGET := ../libg1_om2.so"), std::string::npos);
   EXPECT_NE(makefile_content.find("SRC_FILES := g1_resources.cpp g1_kernel_reg.cpp"), std::string::npos);
   EXPECT_EQ(makefile_content.find("/proc/self/fd/"), std::string::npos);
   EXPECT_EQ(makefile_content.find("CXXFLAGS += -x c++"), std::string::npos);
@@ -629,12 +629,12 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "g1/data/model_0/runtime/g1_kernel_reg.cpp",
-      "g1/data/model_0/runtime/g1_resources.cpp",
-      "g1/data/model_0/runtime/g1_args_manager.cpp",
-      "g1/data/model_0/runtime/g1_load_and_run.cpp",
-      "g1/data/model_0/runtime/g1_interface.h",
-      "g1/data/model_0/runtime/Makefile",
+      "g1/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "g1/data/model_0/runtime/csrc/g1_resources.cpp",
+      "g1/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "g1/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "g1/data/model_0/runtime/csrc/g1_interface.h",
+      "g1/data/model_0/runtime/csrc/Makefile",
       "g1/data/model_0/runtime/libg1_om2.so",
       "g1/data/constants/constant_0",
       "g1/data/constants/model_0_constants_config.json",

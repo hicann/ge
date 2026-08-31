@@ -177,7 +177,7 @@ FunctionDef *KernelExTaskCodeBuilder::RenderTfAicpuKernelTaskDistribute() const 
   auto config = ast_.Var("aclrtLaunchKernelCfg *", "config");
   auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
   auto instance_handle = ast_.Var("void *", "instance_handle");
-  auto task_info = ast_.Var("Om2TaskInfo *", "task_info");
+  auto task_info = ast_.Var("GertModelTaskDesc *", "task_info");
   auto kernel_params = ast_.Var("GertModelLaunchKernelV2Params", "launch_kernel_v2_params");
   auto launch_params = ast_.Var("GertModelTaskLaunchParams", "launch_params");
   auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "launch_info");
@@ -531,9 +531,9 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem>
   auto io_tensors = ast_.Var("std::vector<gert::Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));
-  auto report_inputs = ast_.Var("std::vector<Om2TaskIoEntry>", "report_inputs");
+  auto report_inputs = ast_.Var("std::vector<GertModelTaskIoEntry>", "report_inputs");
   (void)body.emplace_back(ast_.VarDecl(report_inputs));
-  auto report_outputs = ast_.Var("std::vector<Om2TaskIoEntry>", "report_outputs");
+  auto report_outputs = ast_.Var("std::vector<GertModelTaskIoEntry>", "report_outputs");
   (void)body.emplace_back(ast_.VarDecl(report_outputs));
 
   auto kex = op.Arrow("dispatch_info").Attr("kernel_ex");
@@ -548,13 +548,13 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem>
            "BuildTensor",
            {ast_.ReinterpretCast("void *", ast_.Var("", "iow_addr")[idx]), tensor.Attr("size"),
             tensor.Attr("data_type"), tensor.Attr("format"), tensor.Attr("shape"), tensor.Attr("shape_dims")})),
-       ast_.VarDecl(ast_.Var("Om2TaskIoEntry", "_entry"),
-                    ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"),
+       ast_.VarDecl(ast_.Var("GertModelTaskIoEntry", "_entry"),
+                    ast_.InitList({ast_.Var("", "sizeof(GertModelTaskIoEntry)"),
                                    ast_.Var("", "io_tensors").Attr("back")().Addr(), tensor.Attr("args_offset")})),
        ast_.If(item.Attr("type") != ast_.Var("", "OP_ARG_OUTPUT"), {report_inputs.PushBack(ast_.Var("", "_entry"))},
                {report_outputs.PushBack(ast_.Var("", "_entry"))})}));
 
-  auto task_info = ast_.Var("Om2TaskInfo", "task_info");
+  auto task_info = ast_.Var("GertModelTaskDesc", "task_info");
   auto args_table_info = ctx.Attr("args_table").Attr("GetArgsInfo")(kex.Attr("args_table_idx"));
   auto stream = ctx.Attr("stream_list")[kex.Attr("stream_id")];
   (void)body.emplace_back(ast_.VarDecl(task_info));

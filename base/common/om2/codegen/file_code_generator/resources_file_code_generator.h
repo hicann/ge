@@ -27,10 +27,14 @@ class ResourcesFileCodeGenerator : public Om2ModelClassGeneratorBase {
   MethodDef *BuildReleaseResourcesMethod(const Om2CodegenModel &codegen_model);
 
  private:
-  void BuildInitStreamResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
-  void BuildInitNotifyResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
-  void BuildInitEventResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
-  void BuildInitLabelResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
+  void BuildInitStreamResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
+                                const VarRef &external_resources);
+  void BuildInitNotifyResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
+                                const VarRef &external_resources);
+  void BuildInitEventResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
+                               const VarRef &external_resources);
+  void BuildInitLabelResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
+                               const VarRef &external_resources);
   void BuildInitSessionScopeMemory(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
   void BuildReleaseResourcesMethodForControlTask(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime);
 };

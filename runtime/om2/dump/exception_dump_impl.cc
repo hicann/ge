@@ -36,7 +36,7 @@ uint64_t EncodeL0ArgDesc(uint8_t type, uint64_t value) {
   return (static_cast<uint64_t>(type) << kBit8Shift) | (value & kL0ArgDescValueMask);
 }
 
-bool IsL0ExceptionDumpEnabled(const Om2L0TaskRawInfo &l0_info) {
+bool IsL0ExceptionDumpEnabled(const GertModelTaskRawInfo &l0_info) {
   return (DumpConfig::Instance().GetDumpScene() == GE_DUMP_EXCEPTION_AIC_ERR_BRIEF) ||
          (l0_info.need_assert_or_printf != 0U);
 }
@@ -45,7 +45,7 @@ bool IsL1ExceptionDumpEnabled() {
   return DumpConfig::Instance().GetDumpScene() == GE_DUMP_EXCEPTION_AIC_ERR_NORM;
 }
 
-Status GetL0InputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot, uint64_t &size) {
+Status GetL0InputSize(const GertModelTaskDesc &task_info, const GertModelArgSlotInfo &slot, uint64_t &size) {
   if ((task_info.input_num > 0U) && (task_info.inputs == nullptr)) {
     GELOGE(PARAM_INVALID, "[Check][Param] OM2 task input entries is null, input_num=%u.", task_info.input_num);
     return PARAM_INVALID;
@@ -61,7 +61,7 @@ Status GetL0InputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot
   return PARAM_INVALID;
 }
 
-Status GetL0OutputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot, uint64_t &size) {
+Status GetL0OutputSize(const GertModelTaskDesc &task_info, const GertModelArgSlotInfo &slot, uint64_t &size) {
   if ((task_info.output_num > 0U) && (task_info.outputs == nullptr)) {
     GELOGE(PARAM_INVALID, "[Check][Param] OM2 task output entries is null, output_num=%u.", task_info.output_num);
     return PARAM_INVALID;
@@ -77,7 +77,7 @@ Status GetL0OutputSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slo
   return PARAM_INVALID;
 }
 
-Status GetL0WorkspaceSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot, uint64_t &size) {
+Status GetL0WorkspaceSize(const GertModelTaskDesc &task_info, const GertModelArgSlotInfo &slot, uint64_t &size) {
   if ((task_info.workspace_sizes == nullptr) || (slot.related_index >= task_info.workspace_num)) {
     GELOGE(PARAM_INVALID, "[Check][Param] OM2 L0 workspace slot index=%u is invalid, workspace_num=%u.",
            slot.related_index, task_info.workspace_num);
@@ -87,22 +87,23 @@ Status GetL0WorkspaceSize(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &
   return SUCCESS;
 }
 
-Status AppendL0SizeFromRawSlot(const Om2TaskInfo &task_info, const Om2L0ArgSlotInfo &slot, bool need_assert_or_printf,
-                               bool &has_assert_workspace, std::vector<uint64_t> &l0_size_list) {
+Status AppendL0SizeFromRawSlot(const GertModelTaskDesc &task_info, const GertModelArgSlotInfo &slot,
+                               bool need_assert_or_printf, bool &has_assert_workspace,
+                               std::vector<uint64_t> &l0_size_list) {
   switch (slot.kind) {
-    case OM2_L0_ARG_INPUT: {
+    case GERT_MODEL_ARG_INPUT: {
       uint64_t input_size = 0U;
       GE_CHK_STATUS_RET(GetL0InputSize(task_info, slot, input_size));
       l0_size_list.emplace_back(input_size);
       return SUCCESS;
     }
-    case OM2_L0_ARG_OUTPUT: {
+    case GERT_MODEL_ARG_OUTPUT: {
       uint64_t output_size = 0U;
       GE_CHK_STATUS_RET(GetL0OutputSize(task_info, slot, output_size));
       l0_size_list.emplace_back(output_size);
       return SUCCESS;
     }
-    case OM2_L0_ARG_WORKSPACE: {
+    case GERT_MODEL_ARG_WORKSPACE: {
       uint64_t workspace_size = 0U;
       GE_CHK_STATUS_RET(GetL0WorkspaceSize(task_info, slot, workspace_size));
       if (need_assert_or_printf && !has_assert_workspace) {
@@ -112,19 +113,19 @@ Status AppendL0SizeFromRawSlot(const Om2TaskInfo &task_info, const Om2L0ArgSlotI
       l0_size_list.emplace_back(workspace_size);
       return SUCCESS;
     }
-    case OM2_L0_ARG_SHAPE_INFO:
+    case GERT_MODEL_ARG_SHAPE_INFO:
       l0_size_list.emplace_back(EncodeL0ArgDesc(kL0ArgDescTypeShapeInfo, slot.value));
       return SUCCESS;
-    case OM2_L0_ARG_TILING:
+    case GERT_MODEL_ARG_TILING:
       l0_size_list.emplace_back(EncodeL0ArgDesc(kL0ArgDescTypeTiling, slot.value));
       return SUCCESS;
-    case OM2_L0_ARG_LEVEL1_DESC:
-    case OM2_L0_ARG_PLACEHOLDER:
-    case OM2_L0_ARG_CUSTOM_VALUE:
-    case OM2_L0_ARG_FFTS_ADDR:
-    case OM2_L0_ARG_EVENT_ADDR:
-    case OM2_L0_ARG_OVERFLOW_ADDR:
-    case OM2_L0_ARG_EMPTY_ADDR:
+    case GERT_MODEL_ARG_LEVEL1_DESC:
+    case GERT_MODEL_ARG_PLACEHOLDER:
+    case GERT_MODEL_ARG_CUSTOM_VALUE:
+    case GERT_MODEL_ARG_FFTS_ADDR:
+    case GERT_MODEL_ARG_EVENT_ADDR:
+    case GERT_MODEL_ARG_OVERFLOW_ADDR:
+    case GERT_MODEL_ARG_EMPTY_ADDR:
       l0_size_list.emplace_back(EncodeL0ArgDesc(kL0ArgDescTypeIgnored, 0U));
       return SUCCESS;
     default:
@@ -133,8 +134,8 @@ Status AppendL0SizeFromRawSlot(const Om2TaskInfo &task_info, const Om2L0ArgSlotI
   }
 }
 
-Status BuildL0SizeListFromRawInfo(const Om2TaskInfo &task_info, std::vector<uint64_t> &l0_size_list) {
-  const auto *raw_info = task_info.l0_exception_dump_info;
+Status BuildL0SizeListFromRawInfo(const GertModelTaskDesc &task_info, std::vector<uint64_t> &l0_size_list) {
+  const auto *raw_info = task_info.task_raw_info;
   if (raw_info == nullptr) {
     return SUCCESS;
   }
@@ -167,7 +168,7 @@ std::string ToString(const std::vector<T> &vec) {
   return ss.str();
 }
 
-void BuildInputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
+void BuildInputTensorInfos(const GertModelTaskDesc &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
   for (uint32_t i = 0; i < task_info.input_num; ++i) {
     if (task_info.inputs != nullptr && task_info.inputs[i].tensor != nullptr) {
       Adx::TensorInfoV2 tensor_info{};
@@ -184,7 +185,7 @@ void BuildInputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::Tensor
   }
 }
 
-void BuildOutputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
+void BuildOutputTensorInfos(const GertModelTaskDesc &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
   for (uint32_t i = 0; i < task_info.output_num; ++i) {
     if (task_info.outputs != nullptr && task_info.outputs[i].tensor != nullptr) {
       Adx::TensorInfoV2 tensor_info{};
@@ -201,7 +202,7 @@ void BuildOutputTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::Tenso
   }
 }
 
-void BuildWorkspaceTensorInfos(const Om2TaskInfo &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
+void BuildWorkspaceTensorInfos(const GertModelTaskDesc &task_info, std::vector<Adx::TensorInfoV2> &tensor_infos) {
   for (uint32_t i = 0; i < task_info.workspace_num; ++i) {
     if (task_info.workspace_sizes != nullptr) {
       Adx::TensorInfoV2 tensor_info{};
@@ -223,9 +224,9 @@ ExceptionDumpImpl::ExceptionDumpImpl(uint32_t device_id) : device_id_(device_id)
 
 ExceptionDumpImpl::~ExceptionDumpImpl() = default;
 
-Status ExceptionDumpImpl::ReportL0ExceptionDumpInfo(const Om2TaskInfo &task_info) const {
+Status ExceptionDumpImpl::ReportL0ExceptionDumpInfo(const GertModelTaskDesc &task_info) const {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
-  const auto *raw_info = task_info.l0_exception_dump_info;
+  const auto *raw_info = task_info.task_raw_info;
   if (raw_info == nullptr) {
     GELOGD("OM2 L0 exception dump raw info is null, skip op=%s", op_name);
     return SUCCESS;
@@ -268,7 +269,7 @@ Status ExceptionDumpImpl::ReportL0ExceptionDumpInfo(const Om2TaskInfo &task_info
   return SUCCESS;
 }
 
-Status ExceptionDumpImpl::SaveOpInfo(const Om2TaskInfo &task_info) {
+Status ExceptionDumpImpl::SaveOpInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   const char *op_type = (task_info.op_type != nullptr) ? task_info.op_type : "";
   GELOGD("SaveOpInfo: op_name=%s, task_id=%u, stream_id=%u, context_id=%u, device_id=%u, thread_id=%u", op_name,
@@ -376,7 +377,7 @@ bool ExceptionDumpImpl::GetOpDescInfo(const OpDescInfoId &op_id, OpDescInfo &op_
           op_id.device_id);
       op_info = dump_op_info;
       // Note: OM2 doesn't need RefreshAddrs because device_address is already a real device
-      // address passed in by Runtime through Om2TaskInfo, not a pointer offset that needs
+      // address passed in by Runtime through GertModelTaskDesc, not a pointer offset that needs
       // to be resolved from args.
       return true;
     }
@@ -384,7 +385,8 @@ bool ExceptionDumpImpl::GetOpDescInfo(const OpDescInfoId &op_id, OpDescInfo &op_
   return false;
 }
 
-Status ExceptionDumpImpl::ReportL1ExceptionDumpInfo(const Om2TaskInfo &task_info, const OpDescInfo &op_info) const {
+Status ExceptionDumpImpl::ReportL1ExceptionDumpInfo(const GertModelTaskDesc &task_info,
+                                                    const OpDescInfo &op_info) const {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   const char *op_type = (task_info.op_type != nullptr) ? task_info.op_type : "";
   GELOGD("ReportL1ExceptionDumpInfo: op_name=%s, task_id=%u", op_name, task_info.task_id);
@@ -432,8 +434,8 @@ void ExceptionDumpImpl::FillAdumpOpInfoBuilder(const OpDescInfo &op_info, std::v
       .DeviceInfo(Adx::DEVICE_INFO_NAME_ARGS, reinterpret_cast<void *>(op_info.args), op_info.args_size);
 }
 
-Status ExceptionDumpImpl::SubmitToAdump(const char *op_name, const Om2TaskInfo &task_info, const OpDescInfo &op_info,
-                                        std::vector<Adx::TensorInfoV2> &input_infos,
+Status ExceptionDumpImpl::SubmitToAdump(const char *op_name, const GertModelTaskDesc &task_info,
+                                        const OpDescInfo &op_info, std::vector<Adx::TensorInfoV2> &input_infos,
                                         std::vector<Adx::TensorInfoV2> &output_infos,
                                         std::vector<Adx::TensorInfoV2> &workspace_infos,
                                         const AdumpOpInfoBuilder &builder) const {

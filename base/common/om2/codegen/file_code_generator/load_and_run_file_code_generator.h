@@ -27,6 +27,7 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   MethodDef *BuildGetRtModelHandleMethod() const;
   MethodDef *BuildRunAsyncMethod(const Om2CodegenModel &codegen_model);
   MethodDef *BuildRunMethod(const Om2CodegenModel &codegen_model);
+  std::vector<DeclNode *> BuildQueryResourceApis(const Om2CodegenModel &codegen_model) const;
   StructDecl *BuildLaunchKernelCfgHolder() const;
   StructDecl *BuildLaunchKernelConfig() const;
   FunctionDef *BuildAssembleLaunchConfig() const;
@@ -53,7 +54,6 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   void BuildRunBodyCopyOutputs(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
                                const VarRef &exe_stream, bool is_async);
   Status BuildCommonHelperFunctions(std::vector<DeclNode *> &items) const;
-  Status BuildAclrtMallocFunction(std::vector<DeclNode *> &items) const;
   Status BuildDispatchOp(std::vector<DeclNode *> &items,
                          const std::map<uint32_t, std::string> &type_to_func_name) const;
   bool has_custom_kernel_ = false;

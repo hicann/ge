@@ -78,7 +78,7 @@ class CallbackRuntimeUt : public testing::Test {
     AclRuntimeStub::UnInstall(&acl_);
   }
 
-  GertModelTaskLaunchInfo MakeKernelInfo(Om2TaskInfo &task, GertModelTaskLaunchParams &params,
+  GertModelTaskLaunchInfo MakeKernelInfo(GertModelTaskDesc &task, GertModelTaskLaunchParams &params,
                                          aclrtLaunchKernelCfg *cfg = nullptr) {
     task.op_name = "op";
     task.op_type = "Type";
@@ -101,7 +101,7 @@ class CallbackRuntimeUt : public testing::Test {
 };
 
 TEST_F(CallbackRuntimeUt, KernelLaunchUsesAclAndPostprocesses) {
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   GertModelTaskLaunchParams params{};
   GertModelTaskLaunchInfo info = MakeKernelInfo(task, params);
 
@@ -118,7 +118,7 @@ TEST_F(CallbackRuntimeUt, KernelLaunchSetsDataDumpAttribute) {
   aclrtLaunchKernelCfg cfg{};
   cfg.attrs = &attr;
   cfg.numAttrs = 1U;
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   GertModelTaskLaunchParams params{};
   GertModelTaskLaunchInfo info = MakeKernelInfo(task, params, &cfg);
 
@@ -128,7 +128,7 @@ TEST_F(CallbackRuntimeUt, KernelLaunchSetsDataDumpAttribute) {
 
 TEST_F(CallbackRuntimeUt, KernelLaunchErrorPropagates) {
   acl_.launch_ret = ACL_ERROR_RT_INTERNAL_ERROR;
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   GertModelTaskLaunchParams params{};
   GertModelTaskLaunchInfo info = MakeKernelInfo(task, params);
 
@@ -138,7 +138,7 @@ TEST_F(CallbackRuntimeUt, KernelLaunchErrorPropagates) {
 
 TEST_F(CallbackRuntimeUt, PostprocessTaskIdErrorPropagates) {
   acl_.task_id_ret = ACL_ERROR_RT_INTERNAL_ERROR;
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   GertModelTaskLaunchParams params{};
   GertModelTaskLaunchInfo info = MakeKernelInfo(task, params);
 
@@ -149,7 +149,7 @@ TEST_F(CallbackRuntimeUt, PostprocessTaskIdErrorPropagates) {
 TEST_F(CallbackRuntimeUt, NonAicoreKernelTypesStillLaunch) {
   for (const auto kernel_type :
        {ccKernelType::AI_CPU, ccKernelType::CUSTOMIZED, ccKernelType::HOST_CPU, ccKernelType::AI_CPU_KFC}) {
-    Om2TaskInfo task{};
+    GertModelTaskDesc task{};
     task.kernel_type = static_cast<uint64_t>(kernel_type);
     GertModelTaskLaunchParams params{};
     GertModelTaskLaunchInfo info = MakeKernelInfo(task, params);
@@ -163,7 +163,7 @@ TEST_F(CallbackRuntimeUt, KernelInvalidArgumentsAreHandled) {
   info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
   EXPECT_EQ(GertModelLaunchTask(nullptr, &info), SUCCESS);
 
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   info.task_info = &task;
   EXPECT_EQ(GertModelLaunchTask(nullptr, &info), SUCCESS);
 }
@@ -179,7 +179,7 @@ TEST_F(CallbackRuntimeUt, UnsupportedLaunchTypeReturnsUnsupported) {
 }
 
 TEST_F(CallbackRuntimeUt, DsaLaunchMergesDataDumpFlagAndCallsRuntime) {
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   task.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_DSA);
   GertModelTaskLaunchParams params{};
   params.launch_stars_task_params.task_sqe = reinterpret_cast<void *>(0x44);
@@ -201,7 +201,7 @@ TEST_F(CallbackRuntimeUt, DsaLaunchMergesDataDumpFlagAndCallsRuntime) {
 
 TEST_F(CallbackRuntimeUt, DsaRuntimeErrorPropagates) {
   runtime_.general_ctrl_ret = ACL_ERROR_RT_INTERNAL_ERROR;
-  Om2TaskInfo task{};
+  GertModelTaskDesc task{};
   GertModelTaskLaunchParams params{};
   GertModelTaskLaunchInfo info{};
   info.launch_type = RT_STARS_TASK_LAUNCH_WITH_FLAG;
@@ -214,8 +214,8 @@ TEST(GertModelExecutorTypesUt, DefaultsAndLayoutAreStable) {
   GertModelLaunchKernelV2Params kernel{};
   GertModelLaunchStarsTaskWithFlagParams dsa{};
   GertModelTaskLaunchInfo info{};
-  GertModelCallbacks callbacks{};
-  Om2TaskInfo task{};
+  GertModelLoadCallbacks callbacks{};
+  GertModelTaskDesc task{};
 
   EXPECT_EQ(kernel.struct_size, sizeof(kernel));
   EXPECT_EQ(dsa.struct_size, sizeof(dsa));

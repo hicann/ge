@@ -24,19 +24,19 @@ class ProfilingImpl {
   Status ReportModelLoadEnd(const ModelDumpInfo &model_info) const;
   Status ReportRunInfoPreprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
   Status ReportRunInfoPostprocessImpl(uint64_t model_id, uint64_t step_id, aclrtStream stream) const;
-  Status SaveTaskInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info) const;
+  Status SaveTaskInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info) const;
 
   Status RegisterModelToProfilingRuntime(const ModelDumpInfo &model_info) const;
   Status UnregisterModelFromProfilingRuntime(uint32_t model_id) const;
 
  private:
-  Status BuildTaskDescInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info, TaskDescInfo &task_desc_info,
-                           uint32_t &prof_task_type) const;
+  Status BuildTaskDescInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info,
+                           TaskDescInfo &task_desc_info, uint32_t &prof_task_type) const;
   Status ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uint32_t prof_task_type, uint32_t tid) const;
   Status ReportTensorInfo(const TaskDescInfo &task_desc_info, uint32_t tid) const;
   Status ReportContextIdInfo(const TaskDescInfo &task_desc_info, uint32_t tid) const;
-  Status ReportFusionOpInfo(const Om2TaskInfo &task_info, uint32_t model_id) const;
-  Status ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t prof_time) const;
+  Status ReportFusionOpInfo(const GertModelTaskDesc &task_info, uint32_t model_id) const;
+  Status ReportLaunchInfo(const GertModelTaskDesc &task_info, uint64_t prof_time) const;
   std::vector<std::string> SplitFusionOpNames(const char *names_str) const;
 };
 

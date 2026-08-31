@@ -71,6 +71,47 @@ StructDecl *InterfaceFileCodeGenerator::BuildArgsRefreshInfoStruct() {
                                         });
 }
 
+FunctionDef *InterfaceFileCodeGenerator::BuildAclrtMallocFunction() const {
+  auto ptr = ast_.Var("void **", "ptr");
+  auto size = ast_.Var("size_t", "size");
+  auto mem_type = ast_.Var("uint32_t", "mem_type");
+  auto module_id = ast_.Var("uint16_t", "module_id");
+  auto attr = ast_.Var("aclrtMallocAttribute", "attr");
+  auto cfg = ast_.Var("aclrtMallocConfig", "cfg");
+
+  std::vector<BodyItem> body;
+  body.push_back(ast_.Assign(ast_.Deref(ptr), nullptr));
+  body.push_back(ast_.If(size == ast_.UInt(0), {ast_.Return("ACL_SUCCESS")}));
+  body.push_back(ast_.VarDecl(attr));
+  body.push_back(ast_.Assign(attr.Attr("attr"), "ACL_RT_MEM_ATTR_MODULE_ID"));
+  body.push_back(ast_.Assign(attr.Attr("value").Attr("moduleId"), module_id));
+  body.push_back(ast_.VarDecl(cfg));
+  body.push_back(ast_.Assign(cfg.Attr("attrs"), attr.Addr()));
+  body.push_back(ast_.Assign(cfg.Attr("numAttrs"), ast_.UInt(1)));
+
+  std::vector<BodyItem> switch_body;
+  switch_body.push_back(ast_.Case("RT_MEMORY_TS"));
+  switch_body.push_back(
+      ast_.Return(ast_.Call("aclrtMallocForTaskScheduler", {ptr, size, "ACL_MEM_MALLOC_HUGE_FIRST", cfg.Addr()})));
+  switch_body.push_back(ast_.Case("RT_MEMORY_HOST"));
+  switch_body.push_back(ast_.Return(ast_.Call("aclrtMallocHostWithCfg", {ptr, size, cfg.Addr()})));
+  switch_body.push_back(ast_.Case("RT_MEMORY_P2P_HBM"));
+  switch_body.push_back(ast_.Case("RT_MEMORY_P2P_DDR"));
+  switch_body.push_back(
+      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_MALLOC_HUGE_FIRST_P2P", cfg.Addr()})));
+  switch_body.push_back(ast_.Case("RT_MEMORY_DDR"));
+  switch_body.push_back(ast_.Case("RT_MEMORY_DDR_NC"));
+  switch_body.push_back(
+      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_TYPE_LOW_BAND_WIDTH", cfg.Addr()})));
+  switch_body.push_back(ast_.Case("RT_MEMORY_HBM"));
+  switch_body.push_back(ast_.Case(nullptr));
+  switch_body.push_back(
+      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_TYPE_HIGH_BAND_WIDTH", cfg.Addr()})));
+
+  body.push_back(ast_.Switch(mem_type, switch_body));
+  return ast_.DefineFunction("AclrtMalloc", {ptr, size, mem_type, module_id}, "inline aclError", ast_.Body(body));
+}
+
 ClassDecl *InterfaceFileCodeGenerator::BuildOm2ArgsTableClass() {
   std::vector<DeclNode *> items = {
       ast_.Public(),
@@ -110,9 +151,12 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
            ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle"), ast_.Var("int32_t", "priority")},
           ""),
       ast_.DeclareMethod("~Om2Model", {}, ""),
-      ast_.DeclareMethod("InitResources", {}, "aclError"),
+      ast_.DeclareMethod("InitResources",
+                         {ast_.Var("uint64_t", "reuse_zero_copy"),
+                          ast_.Var("const GertModelExternalResources &", "external_resources")},
+                         "aclError"),
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
-      ast_.DeclareMethod("Load", {ast_.Var("const GertModelCallbacks *", "callbacks")}, "aclError"),
+      ast_.DeclareMethod("Load", {ast_.Var("const GertModelLoadCallbacks *", "callbacks")}, "aclError"),
       ast_.DeclareMethod("GetRtModelHandle", {}, "aclmdlRI"),
       ast_.DeclareMethod(
           "Run",
@@ -131,9 +175,11 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
       ast_.Field("void **", "constants_"),
       ast_.Field("void **", "var_addrs_"),
       ast_.Field("aclmdlRI", "model_handle_"),
+      ast_.Field("bool", "is_external_rt_model_"),
   };
   DealParamForOm2ModelClass(items, runtime);
   items.push_back(ast_.Field("void *", "total_dev_mem_ptr_"));
+  items.push_back(ast_.Field("bool", "owns_total_dev_mem_", false));
   items.push_back(ast_.Field("bool", "is_stream_list_bind_"));
   items.push_back(ast_.Field("std::unordered_map<std::string, BinDataInfo>", "bin_info_map_"));
   items.push_back(ast_.Field("Om2ArgsTable", "args_table_"));
@@ -157,9 +203,13 @@ void InterfaceFileCodeGenerator::DealParamForOm2ModelClass(std::vector<DeclNode 
   }
   items.push_back(ast_.Field("std::vector<aclrtFuncHandle>", "func_handles_"));
   items.push_back(ast_.Field("std::vector<aclrtStream>", "stream_list_"));
+  items.push_back(ast_.Field("bool", "is_external_streams_"));
   items.push_back(ast_.Field("std::vector<aclrtNotify>", "notify_list_"));
+  items.push_back(ast_.Field("bool", "is_external_notifies_"));
   items.push_back(ast_.Field("std::vector<aclrtEvent>", "event_list_"));
+  items.push_back(ast_.Field("bool", "is_external_events_"));
   items.push_back(ast_.Field("std::vector<aclrtLabel>", "label_list_"));
+  items.push_back(ast_.Field("bool", "is_external_labels_"));
   if (runtime.label_num > 0U) {
     items.push_back(ast_.Field("aclrtLabelList", "aclrt_label_list_"));
   }
@@ -208,22 +258,38 @@ std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildExternalApiDecls() {
           "GertModelLoad",
           {ast_.Var("const struct GertModelLoadConfig *", "config"), ast_.Var("GertModelHandle *", "model_handle"),
            ast_.Var("struct GertModelLoadOutput *", "output")},
-          "int"),
+          "int32_t"),
       ast_.DeclareFunction(
           "GertModelRunAsync",
           {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("aclrtStream", "stream"),
            ast_.Var("const struct GertModelRunConfig *", "config"), ast_.Var("struct GertModelRunOutput *", "output")},
-          "int"),
+          "int32_t"),
       ast_.DeclareFunction(
           "GertModelRun",
           {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelRunConfig *", "config"),
            ast_.Var("struct GertModelRunOutput *", "output")},
-          "int"),
+          "int32_t"),
       ast_.DeclareFunction(
           "GertModelUnload",
           {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelUnloadConfig *", "config"),
            ast_.Var("struct GertModelUnloadOutput *", "output")},
-          "int"),
+          "int32_t"),
+      ast_.DeclareFunction("GertModelGetStreamNum", {}, "uint64_t"),
+      ast_.DeclareFunction("GertModelGetStreamDesc",
+                           {ast_.Var("uint32_t *", "stream_flags"), ast_.Var("uint64_t", "stream_num"),
+                            ast_.Var("void *", "extended_attrs")},
+                           "int32_t"),
+      ast_.DeclareFunction("GertModelGetEventNum", {}, "uint64_t"),
+      ast_.DeclareFunction("GertModelGetEventDesc",
+                           {ast_.Var("uint32_t *", "event_flags"), ast_.Var("uint64_t", "event_num"),
+                            ast_.Var("void *", "extended_attrs")},
+                           "int32_t"),
+      ast_.DeclareFunction("GertModelGetLabelNum", {}, "uint64_t"),
+      ast_.DeclareFunction("GertModelGetNotifyNum", {}, "uint64_t"),
+      ast_.DeclareFunction("GertModelGetNotifyDesc",
+                           {ast_.Var("uint64_t *", "notify_flags"), ast_.Var("uint64_t", "notify_num"),
+                            ast_.Var("void *", "extended_attrs")},
+                           "int32_t"),
   };
 }
 }  // namespace ge
