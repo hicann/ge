@@ -621,7 +621,11 @@ stages:
           -
             name: rename
             run: |
-              mv ${{ steps.process_checkout.outputs.path }}/ut_cov_graphengine.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_graphengine.tar.gz
+              if [ -f "${{ steps.process_checkout.outputs.path }}/ut_cov_graphengine.tar.gz" ]; then
+                mv ${{ steps.process_checkout.outputs.path }}/ut_cov_graphengine.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_graphengine.tar.gz
+              else
+                echo "Coverage file not found, skipping rename"
+              fi
           -
             name: upload
             uses: obs-upload
@@ -675,7 +679,11 @@ stages:
           -
             name: rename
             run: |
-              mv ${{ steps.process_checkout.outputs.path }}/ut_cov_ge_executor_c.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_ge_executor_c.tar.gz
+              if [ -f "${{ steps.process_checkout.outputs.path }}/ut_cov_ge_executor_c.tar.gz" ]; then
+                mv ${{ steps.process_checkout.outputs.path }}/ut_cov_ge_executor_c.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_ge_executor_c.tar.gz
+              else
+                echo "Coverage file not found, skipping rename"
+              fi
           -
             name: upload
             uses: obs-upload
@@ -729,7 +737,11 @@ stages:
           -
             name: rename
             run: |
-              mv ${{ steps.process_checkout.outputs.path }}/ut_cov_ge_autofuse.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_ge_autofuse.tar.gz
+              if [ -f "${{ steps.process_checkout.outputs.path }}/ut_cov_ge_autofuse.tar.gz" ]; then
+                mv ${{ steps.process_checkout.outputs.path }}/ut_cov_ge_autofuse.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_ge_autofuse.tar.gz
+              else
+                echo "Coverage file not found, skipping rename"
+              fi
           -
             name: upload
             uses: obs-upload
@@ -783,7 +795,11 @@ stages:
           -
             name: rename
             run: |
-              mv ${{ steps.process_checkout.outputs.path }}/ut_cov_fe.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_fe.tar.gz
+              if [ -f "${{ steps.process_checkout.outputs.path }}/ut_cov_fe.tar.gz" ]; then
+                mv ${{ steps.process_checkout.outputs.path }}/ut_cov_fe.tar.gz ${{ steps.process_checkout.outputs.path }}/st_cov_fe.tar.gz
+              else
+                echo "Coverage file not found, skipping rename"
+              fi
           -
             name: upload
             uses: obs-upload
