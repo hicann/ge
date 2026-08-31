@@ -62,15 +62,6 @@ bool MemReuseUtils::IsMergeNode(const Node *node) {
   return (node->GetType() == STREAMMERGE) || (node->GetType() == MERGE);
 }
 
-bool MemReuseUtils::IsNoPaddingContinuousInput(const Node *node) {
-  GE_ASSERT_NOTNULL(node);
-  const auto op_desc = node->GetOpDescBarePtr();
-  GE_ASSERT_NOTNULL(op_desc);
-  bool is_nopading_input_continuous = false;
-  (void)ge::AttrUtils::GetBool(op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, is_nopading_input_continuous);
-  return is_nopading_input_continuous && (node->GetAllInDataAnchorsSize() > 1U);
-}
-
 Status MemReuseUtils::GetOutputNoAlignSize(const ge::OpDesc &desc, uint32_t index, size_t &size) {
   const auto tensor_desc = desc.GetOutputDesc(index);
   GE_ASSERT_SUCCESS(GetNoAlignSize(tensor_desc, size), "node: %s, output index: %u", desc.GetNamePtr(), index);

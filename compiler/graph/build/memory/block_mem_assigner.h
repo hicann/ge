@@ -385,10 +385,9 @@ class BlockMemAssigner : public MemAssigner {
   /// @brief Cascade memory scenarios to obtain the actual life time begin of continuous input memory
   /// @return void
   /// @author
-  void GetContinuousNodeLifeTimeBegin(const Node *const org_node, const Node *const node, const int32_t index,
-                                      uint32_t depth);
+  void GetContinuousNodeLifeTimeBegin(const Node *const node, const int32_t in_index);
 
-  void SetContinuousNodeLifeTimeBegin(const Node *const org_node, const Node *const node, uint32_t depth);
+  void SetContinuousNodeLifeTimeBegin(const Node *const node);
 
   void GetRefContinuousInputNodeAndFixedAddrPriorFlag(const std::string &symbol, const std::list<NodeIndexIO> &anchors);
 
