@@ -1704,6 +1704,13 @@ void TeJsonAssemble::GenerateSocInfoJson(const std::vector<ConstTbeOpInfoPtr> &t
                 firstOpInfo->GetName().c_str(), deterministicLevel.c_str());
       socInfoJson["deterministic_level"] = deterministicLevel;
     }
+
+    bool pcieThroughFlag = false;
+    (void)ge::AttrUtils::GetBool(firstOpInfo->GetNode()->GetOpDesc(), kPcieThroughFlag, pcieThroughFlag);
+    if (pcieThroughFlag) {
+      TE_DBGLOG("Node[%s] _pcie_through attr is true, set it to options.", firstOpInfo->GetName().c_str());
+      socInfoJson["pcie_through_flag"] = pcieThroughFlag;
+    }
   }
 }
 
@@ -2164,6 +2171,13 @@ void TeJsonAssemble::SetCustomCoreCountAndLevel(const ConstTbeOpInfoPtr &firstTb
     TE_DBGLOG("Node[%s] _deterministic_level attr [%s] is not null, set it to options.",
               firstTbeOpInfo->GetName().c_str(), deterministicLevel.c_str());
     options["deterministic_level"] = deterministicLevel;
+  }
+
+  bool pcieThroughFlag = false;
+  (void)ge::AttrUtils::GetBool(firstTbeOpInfo->GetNode()->GetOpDesc(), kPcieThroughFlag, pcieThroughFlag);
+  if (pcieThroughFlag) {
+    TE_DBGLOG("Node[%s] _pcie_through attr is true, set it to options.", firstTbeOpInfo->GetName().c_str());
+    options["pcie_through_flag"] = STR_TRUE;
   }
 }
 }  // namespace fusion

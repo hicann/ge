@@ -106,6 +106,7 @@ constexpr const char *kAicCntKeyOp = "_op_aicore_num";
 constexpr const char *kAivCntKeyOp = "_op_vectorcore_num";
 constexpr const char *kDeterministic = "_deterministic";
 constexpr const char *kDeterministicLevel = "_deterministic_level";
+constexpr const char *kPcieThroughFlag = "_pcie_through_flag";
 
 // python api function name
 const std::string FUNC_GET_SPECIFIC_INFO = "get_op_specific_info";
