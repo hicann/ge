@@ -1034,7 +1034,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
       {model_name + "_args_manager.cpp",
        include_line + "extern \"C\" int ContinuationTestArgsManager() { return CONTINUATION_TEST_VALUE; }\n"},
       {"Makefile", R"(CXX := g++
-TARGET := libcontinuation_test_om2.so
+TARGET := ../libcontinuation_test_om2.so
 SRC_FILES := continuation_test_resources.cpp \
   \
   continuation_test_kernel_reg.cpp \
@@ -1068,7 +1068,7 @@ static Om2CodegenArtifacts MakeBuildConfigTestArtifacts(const std::string &model
       {interface_name, "#pragma once\n#define BC_TEST_VALUE 1\n"},
       {model_name + "_load_and_run.cpp", include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n"},
       {"Makefile", R"(CXX := c++
-TARGET := libbc_test_om2.so
+TARGET := ../libbc_test_om2.so
 SRC_FILES := bc_test_load_and_run.cpp
 
 CXXFLAGS := -std=c++17 -fPIC

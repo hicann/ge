@@ -28,6 +28,7 @@ namespace ge {
   DO(OM2_MODEL_DIR_FORMAT, "data/model_%s/");                                            \
   DO(OM2_MODEL_META_PATH_FORMAT, "data/model_%s/model_meta.json");                       \
   DO(OM2_RUNTIME_DIR_FORMAT, "data/model_%s/runtime/");                                  \
+  DO(OM2_RUNTIME_CSRC_DIR_FORMAT, "data/model_%s/runtime/csrc/");                        \
   DO(OM2_DEBUG_DIR_FORMAT, "data/model_%s/debug/");                                      \
   DO(OM2_OP_ATTR_PATH_FORMAT, "data/model_%s/op_attr.json");                             \
   DO(OM2_CUSTOM_KERNELS_DIR_FORMAT, "data/custom_ops/%s/");                              \

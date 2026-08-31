@@ -1147,7 +1147,7 @@ void ExpectOm2ArchiveFiles(const RAIIZipArchive &archive, const std::set<std::st
 
 void ExpectGeneratedMakefileSupportsEnvCompiler(const RAIIZipArchive &archive, const std::string &zip_base_name) {
   size_t makefile_size = 0U;
-  const auto makefile_data = archive.ExtractToMem(zip_base_name + "/data/model_0/runtime/Makefile", makefile_size);
+  const auto makefile_data = archive.ExtractToMem(zip_base_name + "/data/model_0/runtime/csrc/Makefile", makefile_size);
   ASSERT_NE(makefile_data, nullptr);
   const std::string makefile(reinterpret_cast<const char *>(makefile_data.get()), makefile_size);
   EXPECT_EQ(makefile.find("CXX := g++"), std::string::npos);
@@ -1645,12 +1645,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
@@ -1663,7 +1663,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
 
   size_t args_manager_size = 0U;
   const auto args_manager_buf =
-      archive.ExtractToMem("fake_test/data/model_0/runtime/g1_args_manager.cpp", args_manager_size);
+      archive.ExtractToMem("fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp", args_manager_size);
   ASSERT_NE(args_manager_buf, nullptr);
   const std::string args_manager(reinterpret_cast<const char *>(args_manager_buf.get()), args_manager_size);
   EXPECT_NE(args_manager.find("aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async)"),
@@ -1671,13 +1671,13 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
 
   size_t load_and_run_size = 0U;
   const auto load_and_run_buf =
-      archive.ExtractToMem("fake_test/data/model_0/runtime/g1_load_and_run.cpp", load_and_run_size);
+      archive.ExtractToMem("fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp", load_and_run_size);
   ASSERT_NE(load_and_run_buf, nullptr);
   const std::string load_and_run(reinterpret_cast<const char *>(load_and_run_buf.get()), load_and_run_size);
   EXPECT_NE(load_and_run.find("OM2_CHK_STATUS(args_table_.CopyArgsToDevice(nullptr, false));"), std::string::npos);
 
   size_t interface_size = 0U;
-  const auto interface_buf = archive.ExtractToMem("fake_test/data/model_0/runtime/g1_interface.h", interface_size);
+  const auto interface_buf = archive.ExtractToMem("fake_test/data/model_0/runtime/csrc/g1_interface.h", interface_size);
   ASSERT_NE(interface_buf, nullptr);
   const std::string interface_header(reinterpret_cast<const char *>(interface_buf.get()), interface_size);
   EXPECT_NE(interface_header.find("CopyArgsToDevice(void *stream, bool is_async)"), std::string::npos);
@@ -2084,12 +2084,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test_atomic/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test_atomic/data/model_0/runtime/g1_resources.cpp",
-      "fake_test_atomic/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test_atomic/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test_atomic/data/model_0/runtime/g1_interface.h",
-      "fake_test_atomic/data/model_0/runtime/Makefile",
+      "fake_test_atomic/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test_atomic/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test_atomic/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test_atomic/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test_atomic/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test_atomic/data/model_0/runtime/csrc/Makefile",
       "fake_test_atomic/data/model_0/runtime/libg1_om2.so",
       "fake_test_atomic/data/constants/model_0_constants_config.json",
       "fake_test_atomic/data/kernels/add1_faked_kernel.o",
@@ -2102,7 +2102,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
 
   size_t kernel_reg_size = 0U;
   const auto kernel_reg_buf =
-      archive.ExtractToMem("fake_test_atomic/data/model_0/runtime/g1_kernel_reg.cpp", kernel_reg_size);
+      archive.ExtractToMem("fake_test_atomic/data/model_0/runtime/csrc/g1_kernel_reg.cpp", kernel_reg_size);
   ASSERT_NE(kernel_reg_buf, nullptr);
   const std::string kernel_reg(reinterpret_cast<const char *>(kernel_reg_buf.get()), kernel_reg_size);
   EXPECT_NE(kernel_reg.find("add1_faked_atomic_kernel"), std::string::npos);
@@ -2123,12 +2123,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
@@ -2169,12 +2169,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
       "fake_test/data/constants/model_0_constants_config.json",
@@ -2331,12 +2331,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
@@ -2363,12 +2363,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
@@ -2395,12 +2395,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
@@ -2426,12 +2426,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files_without_cust_kernel = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
@@ -2477,12 +2477,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
@@ -2625,12 +2625,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
@@ -2657,12 +2657,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
   RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
@@ -2884,12 +2884,12 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
   // Compared with the plain AICore test, the atomic clean task registers an extra
   // kernel binary "te_Add_12345_atomic_AicoreKernel.o" via BuildKernelRegistryForAicore.
   const std::set<std::string> expect_files = {
-      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
-      "fake_test/data/model_0/runtime/g1_resources.cpp",
-      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
-      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/g1_interface.h",
-      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",

@@ -239,7 +239,7 @@ CXX := c++
 endif
 CXX ?= c++
 
-TARGET := lib)" + lib_name + R"(.so
+TARGET := ../lib)" + lib_name + R"(.so
 SRC_FILES := )" + model_name + R"(_resources.cpp )" +
                                    model_name + R"(_kernel_reg.cpp )" + model_name + R"(_load_and_run.cpp )" +
                                    model_name + R"(_args_manager.cpp

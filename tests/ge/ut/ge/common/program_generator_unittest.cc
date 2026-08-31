@@ -1580,7 +1580,7 @@ CXX := c++
 endif
 CXX ?= c++
 
-TARGET := libg1_om2.so
+TARGET := ../libg1_om2.so
 SRC_FILES := g1_resources.cpp g1_kernel_reg.cpp g1_load_and_run.cpp g1_args_manager.cpp
 
 ifndef CPPFLAGS

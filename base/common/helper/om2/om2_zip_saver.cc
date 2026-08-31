@@ -44,17 +44,18 @@ JsonFile SerializeTensorDesc(const ge::Om2TensorDesc &desc) {
 Status SerializeCodegenArtifacts(const gert::Om2ModelData &model_data,
                                  const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const size_t model_index = 0UL;
-  const std::string artifacts_base_dir = FormatOm2Path(OM2_RUNTIME_DIR_FORMAT, std::to_string(model_index).c_str());
+  const std::string runtime_dir = FormatOm2Path(OM2_RUNTIME_DIR_FORMAT, std::to_string(model_index).c_str());
+  const std::string csrc_dir = FormatOm2Path(OM2_RUNTIME_CSRC_DIR_FORMAT, std::to_string(model_index).c_str());
   for (const auto &artifact : model_data.program_body.source_artifacts) {
     if (EndsWith(artifact.file_name, ".so")) {
       continue;
     }
-    const std::string entry_name = artifacts_base_dir + artifact.file_name;
+    const std::string entry_name = csrc_dir + artifact.file_name;
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_name, artifact.data.data(), artifact.data.size(), true),
                    "Failed to write artifact [%s]", artifact.file_name.c_str());
   }
   if (!model_data.program_body.so_artifact.data.empty() && !model_data.program_body.so_artifact.file_name.empty()) {
-    const std::string so_entry = artifacts_base_dir + model_data.program_body.so_artifact.file_name;
+    const std::string so_entry = runtime_dir + model_data.program_body.so_artifact.file_name;
     GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, model_data.program_body.so_artifact.data.data(),
                                           model_data.program_body.so_artifact.data.size(), false),
                    "Failed to write so artifact [%s]", model_data.program_body.so_artifact.file_name.c_str());
