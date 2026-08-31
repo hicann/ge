@@ -92,20 +92,24 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
   file_items.push_back(ast_.StablePart(StablePartId::kInterfaceDumpApis));
   file_items.insert(file_items.end(), rt_forward_decls.begin(), rt_forward_decls.end());
   file_items.push_back(ast_.Namespace(
-      "om2", {
-                 ast_.Field("constexpr int32_t", "INPUT_NUM", static_cast<int>(codegen_model_.model_io.input_count)),
-                 ast_.Field("constexpr int32_t", "OUTPUT_NUM", static_cast<int>(codegen_model_.model_io.output_count)),
-                 interface_handler.BuildBinDataInfoStruct(),
-                 interface_handler.BuildAicpuParamHeadStruct(),
-                 interface_handler.BuildAicpuSessionInfoStruct(),
-                 interface_handler.BuildArgsInfoStruct(),
-                 interface_handler.BuildTfAiCpuExInfoStruct(),
-                 interface_handler.BuildArgsRefreshInfoStruct(),
-                 ast_.StablePart(StablePartId::kScopeGuard, StablePartPlacement::kNamespace),
-                 interface_handler.BuildOm2ArgsTableClass(),
-                 ast_.StablePart(StablePartId::kOpDefStructs, StablePartPlacement::kNamespace),
-                 interface_handler.BuildOm2ModelClass(codegen_model_),
-             }));
+      "om2",
+      {
+          ast_.Field("constexpr int32_t", "INPUT_NUM", static_cast<int>(codegen_model_.model_io.input_count)),
+          ast_.Field("constexpr int32_t", "OUTPUT_NUM", static_cast<int>(codegen_model_.model_io.output_count)),
+          ast_.Field("constexpr size_t", "kModelWorkSize", ast_.ULong(codegen_model_.runtime.total_mem_size)),
+          ast_.Field("constexpr size_t", "kModelZeroCopySize", ast_.ULong(codegen_model_.runtime.zero_copy_size)),
+          interface_handler.BuildAclrtMallocFunction(),
+          interface_handler.BuildBinDataInfoStruct(),
+          interface_handler.BuildAicpuParamHeadStruct(),
+          interface_handler.BuildAicpuSessionInfoStruct(),
+          interface_handler.BuildArgsInfoStruct(),
+          interface_handler.BuildTfAiCpuExInfoStruct(),
+          interface_handler.BuildArgsRefreshInfoStruct(),
+          ast_.StablePart(StablePartId::kScopeGuard, StablePartPlacement::kNamespace),
+          interface_handler.BuildOm2ArgsTableClass(),
+          ast_.StablePart(StablePartId::kOpDefStructs, StablePartPlacement::kNamespace),
+          interface_handler.BuildOm2ModelClass(codegen_model_),
+      }));
   file_items.push_back(ast_.ExternBlock("C", external_api_decls));
   auto *translation_unit = ast_.File(file_items);
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kInterfaceHeaderFile, translation_unit, code_printer));
@@ -216,6 +220,7 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
                                 load_and_run_handler.BuildRunMethod(codegen_model_),
                             }));
   body_items.emplace_back(ast_.StablePart(StablePartId::kLoadAndRunExternalApis));
+  body_items.emplace_back(ast_.ExternBlock("C", load_and_run_handler.BuildQueryResourceApis(codegen_model_)));
   auto *translation_unit = ast_.File(body_items);
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kLoadingAndRunningFile, translation_unit, code_printer));
   GELOGD("[OM2] Load and run source file code is generated.");

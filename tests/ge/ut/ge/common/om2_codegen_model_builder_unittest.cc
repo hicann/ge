@@ -1104,6 +1104,32 @@ TEST_F(Om2CodegenModelBuilderUt, BuildRuntimeSemantic_WithNotifyEventLabel_Ok) {
   EXPECT_EQ(doc.runtime.stream_flag_values[0], "RT_STREAM_PERSISTENT");
 }
 
+TEST_F(Om2CodegenModelBuilderUt, BuildRuntimeSemantic_ReadsZeroCopySize) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto &subgraph_models = ge_root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_FALSE(subgraph_models.empty());
+  const auto ge_model = subgraph_models.begin()->second;
+  ASSERT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, 512));
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+  EXPECT_EQ(doc.runtime.total_mem_size, 2048U);
+  EXPECT_EQ(doc.runtime.zero_copy_size, 512U);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildRuntimeSemantic_RejectsOversizedZeroCopyMemory) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  const auto &subgraph_models = ge_root_model->GetSubgraphInstanceNameToModel();
+  ASSERT_FALSE(subgraph_models.empty());
+  const auto ge_model = subgraph_models.begin()->second;
+  ASSERT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, 4096));
+
+  Om2CodegenModel doc;
+  EXPECT_EQ(BuildCodegenModel(ge_root_model, doc), PARAM_INVALID);
+}
+
 TEST_F(Om2CodegenModelBuilderUt, BuildModelIoSemantic_Aicore_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
   ASSERT_NE(ge_root_model, nullptr);

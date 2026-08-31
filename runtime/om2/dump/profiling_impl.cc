@@ -108,7 +108,7 @@ void BuildSingleTensorInfo(const TaskDescInfo &task_desc_info, uint32_t tid, siz
   }
 }
 
-void AppendTensorInfo(const Om2TaskIoEntry *entries, uint64_t entry_num, const char *op_name,
+void AppendTensorInfo(const GertModelTaskIoEntry *entries, uint64_t entry_num, const char *op_name,
                       std::vector<Format> &formats, std::vector<DataType> &data_types,
                       std::vector<std::vector<int64_t>> &shapes) {
   if (entries == nullptr) {
@@ -212,7 +212,7 @@ Status ProfilingImpl::ReportModelLoadEnd(const ModelDumpInfo &model_info) const 
   return CheckMsprofRet(MsprofReportEvent(kNonAgingFlag, &model_load_event), "Report model load end", model_name);
 }
 
-Status ProfilingImpl::SaveTaskInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info) const {
+Status ProfilingImpl::SaveTaskInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info) const {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   if (!ProfilingConfig::Instance().IsTaskReportEnabled()) {
     GELOGD("Skip saving OM2 profiling task info, task profiling disabled, op_name=%s, task_type=%u", op_name,
@@ -240,7 +240,7 @@ Status ProfilingImpl::SaveTaskInfo(const Om2TaskInfo &task_info, const ModelDump
   return SUCCESS;
 }
 
-Status ProfilingImpl::BuildTaskDescInfo(const Om2TaskInfo &task_info, const ModelDumpInfo &model_info,
+Status ProfilingImpl::BuildTaskDescInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info,
                                         TaskDescInfo &task_desc_info, uint32_t &prof_task_type) const {
   const auto model_task_type = static_cast<ModelTaskType>(task_info.task_type);
   const auto iter = kModelTaskTypeToProfTaskType.find(model_task_type);
@@ -440,7 +440,7 @@ Status ProfilingImpl::ReportRunInfoPostprocessImpl(uint64_t model_id, uint64_t s
   return SUCCESS;
 }
 
-Status ProfilingImpl::ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t prof_time) const {
+Status ProfilingImpl::ReportLaunchInfo(const GertModelTaskDesc &task_info, uint64_t prof_time) const {
   if (task_info.launch_begin == 0U) {
     if (task_info.op_name != nullptr) {
       GELOGD("[OM2][Prof] Launch timing not recorded, op_name=%s", task_info.op_name);
@@ -462,7 +462,7 @@ Status ProfilingImpl::ReportLaunchInfo(const Om2TaskInfo &task_info, uint64_t pr
   return CheckMsprofRet(MsprofReportApi(kNonAgingFlag, &api), "ReportLaunchInfo", op_name);
 }
 
-Status ProfilingImpl::ReportFusionOpInfo(const Om2TaskInfo &task_info, uint32_t model_id) const {
+Status ProfilingImpl::ReportFusionOpInfo(const GertModelTaskDesc &task_info, uint32_t model_id) const {
   if (task_info.original_op_names == nullptr) {
     return SUCCESS;  // 非融合算子，跳过
   }

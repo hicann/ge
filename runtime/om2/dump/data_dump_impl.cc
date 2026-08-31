@@ -32,7 +32,7 @@ DataDumpImpl::~DataDumpImpl() {
   Clear();
 }
 
-Status DataDumpImpl::SaveTask(const Om2TaskInfo &task_info, ModelTaskType task_type, rtStream_t stream,
+Status DataDumpImpl::SaveTask(const GertModelTaskDesc &task_info, ModelTaskType task_type, rtStream_t stream,
                               bool is_op_debug) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   const char *op_type = (task_info.op_type != nullptr) ? task_info.op_type : "";
@@ -53,7 +53,7 @@ Status DataDumpImpl::SaveTask(const Om2TaskInfo &task_info, ModelTaskType task_t
   dump_info.op_type = op_type;
   dump_info.is_raw_address = task_info.is_raw_address;
 
-  const auto copy_io_entries = [](const Om2TaskIoEntry *entries, const uint32_t entry_num,
+  const auto copy_io_entries = [](const GertModelTaskIoEntry *entries, const uint32_t entry_num,
                                   std::vector<InnerTensorInfo> &inner_tensors) -> Status {
     if ((entry_num > 0U) && (entries == nullptr)) {
       GELOGE(PARAM_INVALID, "[Check][Param] OM2 task io entries is null, entry_num=%u.", entry_num);

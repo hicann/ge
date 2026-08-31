@@ -32,8 +32,8 @@ class ProfilingImpl;
 // ============================================================
 //              复用 C API 中的结构体定义
 // ============================================================
-using Om2TaskIoEntry = ::Om2TaskIoEntry;
-using Om2TaskInfo = ::Om2TaskInfo;
+using GertModelTaskIoEntry = ::GertModelTaskIoEntry;
+using GertModelTaskDesc = ::GertModelTaskDesc;
 
 // ============================================================
 //                  ModelDumpManager 内部结构体
@@ -87,9 +87,9 @@ class VISIBILITY_EXPORT ModelDumpManager {
   // ========================================================================
   // Task 级信息接口
   // ========================================================================
-  Status AddOm2TaskInfo(const Om2TaskInfo &task_info);
+  Status AddOm2TaskInfo(const GertModelTaskDesc &task_info);
 
-  Status PreprocessOm2TaskInfo(const Om2TaskInfo &task_info);
+  Status PreprocessOm2TaskInfo(const GertModelTaskDesc &task_info);
 
   Status IsDataDumpEnabled(const char *op_name, uint8_t *is_data_dump) const;
 

@@ -908,11 +908,29 @@ Status CppEmitter::Emit(const BlockStmt &node, std::string &output) {
     indent_level_++;
   }
   const auto statements = node.GetStatements();
+  bool in_case_body = false;
   for (size_t i = 0; i < statements.Size(); ++i) {
+    if (dynamic_cast<const CaseStmt *>(statements[i]) != nullptr) {
+      if (in_case_body) {
+        --indent_level_;
+      }
+      const auto status = statements[i]->Accept(*this, output);
+      if (status != SUCCESS) {
+        return status;
+      }
+      if (indent_level_ < std::numeric_limits<uint32_t>::max()) {
+        indent_level_++;
+      }
+      in_case_body = true;
+      continue;
+    }
     const auto status = statements[i]->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
+  }
+  if (in_case_body) {
+    --indent_level_;
   }
   if (indent_level_ > 0U) {
     indent_level_--;

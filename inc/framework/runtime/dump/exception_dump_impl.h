@@ -31,9 +31,9 @@ class ExceptionDumpImpl {
   explicit ExceptionDumpImpl(uint32_t device_id = 0U);
   ~ExceptionDumpImpl();
 
-  Status SaveOpInfo(const Om2TaskInfo &task_info);
+  Status SaveOpInfo(const GertModelTaskDesc &task_info);
 
-  Status ReportL0ExceptionDumpInfo(const Om2TaskInfo &task_info) const;
+  Status ReportL0ExceptionDumpInfo(const GertModelTaskDesc &task_info) const;
 
   bool GetOpDescInfo(const OpDescInfoId &op_id, OpDescInfo &op_info) const;
 
@@ -44,13 +44,13 @@ class ExceptionDumpImpl {
   }
 
  private:
-  Status ReportL1ExceptionDumpInfo(const Om2TaskInfo &task_info, const OpDescInfo &op_info) const;
+  Status ReportL1ExceptionDumpInfo(const GertModelTaskDesc &task_info, const OpDescInfo &op_info) const;
 
   void FillAdumpOpInfoBuilder(const OpDescInfo &op_info, std::vector<Adx::TensorInfoV2> &input_infos,
                               std::vector<Adx::TensorInfoV2> &output_infos,
                               std::vector<Adx::TensorInfoV2> &workspace_infos, AdumpOpInfoBuilder &builder) const;
 
-  Status SubmitToAdump(const char *op_name, const Om2TaskInfo &task_info, const OpDescInfo &op_info,
+  Status SubmitToAdump(const char *op_name, const GertModelTaskDesc &task_info, const OpDescInfo &op_info,
                        std::vector<Adx::TensorInfoV2> &input_infos, std::vector<Adx::TensorInfoV2> &output_infos,
                        std::vector<Adx::TensorInfoV2> &workspace_infos, const AdumpOpInfoBuilder &builder) const;
 

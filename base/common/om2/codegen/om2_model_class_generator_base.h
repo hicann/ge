@@ -31,6 +31,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef label_list_;
   VarRef aclrt_label_list_;
   VarRef total_dev_mem_ptr_;
+  VarRef owns_total_dev_mem_;
   VarRef is_stream_list_bind_;
   VarRef bin_info_map_;
   VarRef args_table_;
@@ -48,6 +49,11 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef dev_dynamic_mem_ptrs_;
   VarRef session_scope_mem_ptr_;
   VarRef priority_;
+  VarRef is_external_rt_model_;
+  VarRef is_external_streams_;
+  VarRef is_external_notifies_;
+  VarRef is_external_events_;
+  VarRef is_external_labels_;
 };
 }  // namespace ge
 

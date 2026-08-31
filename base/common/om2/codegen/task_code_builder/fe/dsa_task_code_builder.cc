@@ -364,9 +364,9 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
   auto dsa_io_tensors = ast_.Var("std::vector<gert::Tensor>", "dsa_io_tensors");
   (void)body.push_back(ast_.VarDecl(dsa_io_tensors));
   (void)body.push_back(ast_.Call("", {dsa_io_tensors.Attr("reserve")(dsa_data.Attr("num_args"))}));
-  auto dsa_report_inputs = ast_.Var("std::vector<Om2TaskIoEntry>", "dsa_report_inputs");
+  auto dsa_report_inputs = ast_.Var("std::vector<GertModelTaskIoEntry>", "dsa_report_inputs");
   (void)body.push_back(ast_.VarDecl(dsa_report_inputs));
-  auto dsa_report_outputs = ast_.Var("std::vector<Om2TaskIoEntry>", "dsa_report_outputs");
+  auto dsa_report_outputs = ast_.Var("std::vector<GertModelTaskIoEntry>", "dsa_report_outputs");
   (void)body.push_back(ast_.VarDecl(dsa_report_outputs));
   auto dsa_report_ws_addrs = ast_.Var("std::vector<uint64_t>", "dsa_report_ws_addrs");
   (void)body.push_back(ast_.VarDecl(dsa_report_ws_addrs));
@@ -378,7 +378,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
   auto hbm_ai = ast_.Var("ArgsInfo *", "hbm_ai");
   (void)body.push_back(
       ast_.VarDecl(hbm_ai, ctx.Attr("args_table").Attr("GetArgsInfo")(dsa_data.Attr("hbm_table_index"))));
-  auto task_info = ast_.Var("Om2TaskInfo", "task_info");
+  auto task_info = ast_.Var("GertModelTaskDesc", "task_info");
   (void)body.push_back(ast_.VarDecl(task_info));
   (void)body.push_back(
       ChkStatus(ast_.Call("AssembleOm2TaskInfo", {task_info.Addr(),
@@ -444,8 +444,8 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
                     dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr("shape"),
                     dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr("shape_dims")})),
                ast_.VarDecl(
-                   ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), dsa_io_tensors.Attr("back")().Addr(),
+                   ast_.Var("GertModelTaskIoEntry", "_entry"),
+                   ast_.InitList({ast_.Var("", "sizeof(GertModelTaskIoEntry)"), dsa_io_tensors.Attr("back")().Addr(),
                                   dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("data").Attr("tensor").Attr(
                                       "args_offset")})),
                ast_.If((dsa_data.Attr("args_info")[ast_.Var("", "_i")].Attr("type") == ast_.Var("", "OP_ARG_INPUT")) ||

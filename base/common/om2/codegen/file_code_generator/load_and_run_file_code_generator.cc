@@ -83,7 +83,8 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildLoadMethod(const Om2CodegenModel &c
                                                         const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   std::vector<BodyItem> body;
   (void)BuildLoadBody(body, codegen_model, task_code_builders);
-  return ast_.DefineMethod("Om2Model", "Load", {ast_.Var("const GertModelCallbacks *", "callbacks")}, "aclError", body);
+  return ast_.DefineMethod("Om2Model", "Load", {ast_.Var("const GertModelLoadCallbacks *", "callbacks")}, "aclError",
+                           body);
 }
 
 MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
@@ -162,7 +163,7 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
   // then: 方案 A（for 循环分发，优先使用），else: 方案 B（逐 task 展开，维测用）
   body.push_back(ast_.If(ast_.UInt(1), dispatch_loop_items, dispatch_expanded_items, true));
 
-  body.push_back(ChkStatus(AclmdlRIBuildEnd(model_handle_, nullptr)));
+  body.push_back(ast_.If(!is_external_rt_model_, {ChkStatus(AclmdlRIBuildEnd(model_handle_, nullptr))}, {}, false));
   body.push_back(ast_.Call("OM2_LOGI", {ast_.Str("Load done")}));
   body.push_back(ast_.Return("ACL_SUCCESS"));
   return SUCCESS;
@@ -369,51 +370,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyCopyOutputs(std::vector<BodyItem> 
   }
 }
 
-Status LoadAndRunFileCodeGenerator::BuildAclrtMallocFunction(std::vector<DeclNode *> &items) const {
-  auto ptr = ast_.Var("void **", "ptr");
-  auto size = ast_.Var("size_t", "size");
-  auto mem_type = ast_.Var("uint32_t", "mem_type");
-  auto module_id = ast_.Var("uint16_t", "module_id");
-  auto attr = ast_.Var("aclrtMallocAttribute", "attr");
-  auto cfg = ast_.Var("aclrtMallocConfig", "cfg");
-
-  std::vector<BodyItem> body;
-  body.push_back(ast_.Assign(ast_.Deref(ptr), Arg(nullptr)));
-  body.push_back(ast_.If(size == ast_.UInt(0), {ast_.Return("ACL_SUCCESS")}));
-  body.push_back(ast_.VarDecl(attr));
-  body.push_back(ast_.Assign(attr.Attr("attr"), "ACL_RT_MEM_ATTR_MODULE_ID"));
-  body.push_back(ast_.Assign(attr.Attr("value").Attr("moduleId"), module_id));
-  body.push_back(ast_.VarDecl(cfg));
-  body.push_back(ast_.Assign(cfg.Attr("attrs"), attr.Addr()));
-  body.push_back(ast_.Assign(cfg.Attr("numAttrs"), ast_.UInt(1)));
-
-  std::vector<BodyItem> switch_body;
-  switch_body.push_back(ast_.Case("RT_MEMORY_TS"));
-  switch_body.push_back(
-      ast_.Return(ast_.Call("aclrtMallocForTaskScheduler", {ptr, size, "ACL_MEM_MALLOC_HUGE_FIRST", cfg.Addr()})));
-  switch_body.push_back(ast_.Case("RT_MEMORY_HOST"));
-  switch_body.push_back(ast_.Return(ast_.Call("aclrtMallocHostWithCfg", {ptr, size, cfg.Addr()})));
-  switch_body.push_back(ast_.Case("RT_MEMORY_P2P_HBM"));
-  switch_body.push_back(ast_.Case("RT_MEMORY_P2P_DDR"));
-  switch_body.push_back(
-      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_MALLOC_HUGE_FIRST_P2P", cfg.Addr()})));
-  switch_body.push_back(ast_.Case("RT_MEMORY_DDR"));
-  switch_body.push_back(ast_.Case("RT_MEMORY_DDR_NC"));
-  switch_body.push_back(
-      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_TYPE_LOW_BAND_WIDTH", cfg.Addr()})));
-  switch_body.push_back(ast_.Case(Arg(nullptr)));
-  switch_body.push_back(
-      ast_.Return(ast_.Call("aclrtMallocWithCfg", {ptr, size, "ACL_MEM_TYPE_HIGH_BAND_WIDTH", cfg.Addr()})));
-
-  body.push_back(ast_.Switch(mem_type, switch_body));
-
-  items.push_back(ast_.DefineFunction("AclrtMalloc", {ptr, size, mem_type, module_id}, "aclError", ast_.Body(body)));
-  return SUCCESS;
-}
-
 Status LoadAndRunFileCodeGenerator::BuildCommonHelperFunctions(std::vector<DeclNode *> &items) const {
-  GE_ASSERT_SUCCESS(BuildAclrtMallocFunction(items));
-
   auto dev_ptr = ast_.Var("void *&", "dev_ptr");
   auto size = ast_.Var("const size_t", "size");
   auto mem_type = ast_.Var("const uint32_t", "mem_type");
@@ -523,5 +480,90 @@ Status LoadAndRunFileCodeGenerator::BuildDispatchOp(std::vector<DeclNode *> &ite
                                       }));
 
   return SUCCESS;
+}
+
+std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildQueryResourceApis(
+    const Om2CodegenModel &codegen_model) const {
+  const auto &runtime = codegen_model.runtime;
+  std::vector<DeclNode *> items;
+
+  // GertModelGetStreamNum
+  items.push_back(ast_.DefineFunction("GertModelGetStreamNum", {}, "uint64_t",
+                                      {ast_.Return(ast_.UInt(static_cast<uint64_t>(runtime.stream_num)))}));
+
+  // GertModelGetStreamDesc
+  auto stream_flags = ast_.Var("uint32_t *", "stream_flags");
+  auto stream_num = ast_.Var("uint64_t", "stream_num");
+  auto stream_ext = ast_.Var("void *", "extended_attrs");
+  std::vector<BodyItem> stream_desc_body = {
+      ast_.If((stream_flags == nullptr) || (stream_num != ast_.UInt(static_cast<uint64_t>(runtime.stream_num))),
+              {ast_.Call("OM2_LOGE",
+                         {ast_.Str("GertModelGetStreamDesc failed, stream_flags is null or stream_num mismatch, "
+                                   "expected %lu, got %lu"),
+                          ast_.UInt(static_cast<uint64_t>(runtime.stream_num)), stream_num}),
+               ast_.Return("ACL_ERROR_FAILURE")}),
+  };
+  for (uint32_t i = 0U; i < runtime.stream_num; ++i) {
+    stream_desc_body.emplace_back(
+        ast_.Assign(stream_flags[ast_.UInt(static_cast<uint64_t>(i))], runtime.stream_flag_values[i]));
+  }
+  stream_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  items.push_back(ast_.DefineFunction("GertModelGetStreamDesc", {stream_flags, stream_num, stream_ext}, "int32_t",
+                                      ast_.Body(stream_desc_body)));
+
+  // GertModelGetEventNum
+  items.push_back(ast_.DefineFunction("GertModelGetEventNum", {}, "uint64_t",
+                                      {ast_.Return(ast_.UInt(static_cast<uint64_t>(runtime.event_num)))}));
+
+  // GertModelGetEventDesc
+  auto event_flags = ast_.Var("uint32_t *", "event_flags");
+  auto event_num = ast_.Var("uint64_t", "event_num");
+  auto event_ext = ast_.Var("void *", "extended_attrs");
+  std::vector<BodyItem> event_desc_body = {
+      ast_.If(
+          (event_flags == nullptr) || (event_num != ast_.UInt(static_cast<uint64_t>(runtime.event_num))),
+          {ast_.Call("OM2_LOGE", {ast_.Str("GertModelGetEventDesc failed, event_flags is null or event_num mismatch, "
+                                           "expected %lu, got %lu"),
+                                  ast_.UInt(static_cast<uint64_t>(runtime.event_num)), event_num}),
+           ast_.Return("ACL_ERROR_FAILURE")}),
+  };
+  for (uint32_t i = 0U; i < runtime.event_num; ++i) {
+    event_desc_body.emplace_back(
+        ast_.Assign(event_flags[ast_.UInt(static_cast<uint64_t>(i))],
+                    "ACL_EVENT_SYNC | ACL_EVENT_CAPTURE_STREAM_PROGRESS | ACL_EVENT_TIME_LINE"));
+  }
+  event_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  items.push_back(ast_.DefineFunction("GertModelGetEventDesc", {event_flags, event_num, event_ext}, "int32_t",
+                                      ast_.Body(event_desc_body)));
+
+  // GertModelGetLabelNum
+  items.push_back(ast_.DefineFunction("GertModelGetLabelNum", {}, "uint64_t",
+                                      {ast_.Return(ast_.UInt(static_cast<uint64_t>(runtime.label_num)))}));
+
+  // GertModelGetNotifyNum
+  items.push_back(ast_.DefineFunction("GertModelGetNotifyNum", {}, "uint64_t",
+                                      {ast_.Return(ast_.UInt(static_cast<uint64_t>(runtime.notify_num)))}));
+
+  // GertModelGetNotifyDesc
+  auto notify_flags = ast_.Var("uint64_t *", "notify_flags");
+  auto notify_num = ast_.Var("uint64_t", "notify_num");
+  auto notify_ext = ast_.Var("void *", "extended_attrs");
+  std::vector<BodyItem> notify_desc_body = {
+      ast_.If((notify_flags == nullptr) || (notify_num != ast_.UInt(static_cast<uint64_t>(runtime.notify_num))),
+              {ast_.Call("OM2_LOGE",
+                         {ast_.Str("GertModelGetNotifyDesc failed, notify_flags is null or notify_num mismatch, "
+                                   "expected %lu, got %lu"),
+                          ast_.UInt(static_cast<uint64_t>(runtime.notify_num)), notify_num}),
+               ast_.Return("ACL_ERROR_FAILURE")}),
+  };
+  for (uint32_t i = 0U; i < runtime.notify_num; ++i) {
+    notify_desc_body.emplace_back(
+        ast_.Assign(notify_flags[ast_.UInt(static_cast<uint64_t>(i))], "ACL_NOTIFY_DEVICE_USE_ONLY"));
+  }
+  notify_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  items.push_back(ast_.DefineFunction("GertModelGetNotifyDesc", {notify_flags, notify_num, notify_ext}, "int32_t",
+                                      ast_.Body(notify_desc_body)));
+
+  return items;
 }
 }  // namespace ge

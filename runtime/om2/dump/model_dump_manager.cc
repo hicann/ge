@@ -130,11 +130,11 @@ Status ModelDumpManager::IsDataDumpEnabled(const char *op_name, uint8_t *is_data
   return SUCCESS;
 }
 
-Status ModelDumpManager::PreprocessOm2TaskInfo(const Om2TaskInfo &task_info) {
+Status ModelDumpManager::PreprocessOm2TaskInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   GELOGD("PreprocessOm2TaskInfo: op_name=%s, stream_id=%u", op_name, task_info.stream_id);
 
-  if (task_info.l0_exception_dump_info == nullptr) {
+  if (task_info.task_raw_info == nullptr) {
     return SUCCESS;
   }
 
@@ -146,7 +146,7 @@ Status ModelDumpManager::PreprocessOm2TaskInfo(const Om2TaskInfo &task_info) {
   return SUCCESS;
 }
 
-Status ModelDumpManager::AddOm2TaskInfo(const Om2TaskInfo &task_info) {
+Status ModelDumpManager::AddOm2TaskInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
   GELOGD("AddOm2TaskInfo: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id, task_info.stream_id);
 

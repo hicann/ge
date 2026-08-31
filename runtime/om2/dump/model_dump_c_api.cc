@@ -27,11 +27,8 @@ ge::dump::ModelDumpManager *GetDumpManager(void *instance_handle) {
 }
 }  // namespace
 
-// 对外暴露的 C API 函数，需要 extern "C" 确保 C 链接
-extern "C" {
-int32_t OM2_C_API_EXPORT ReportDfxTaskPreprocess(uint32_t model_id, void *instance_handle,
-                                                 const struct Om2TaskInfo *task_info, const void *extended_attrs,
-                                                 size_t extended_attrs_size) {
+int32_t ReportDfxTaskPreprocess(uint32_t model_id, void *instance_handle, const struct GertModelTaskDesc *task_info,
+                                const void *extended_attrs, size_t extended_attrs_size) {
   (void)model_id;
 
   if ((extended_attrs != nullptr) || (extended_attrs_size != 0U)) {
@@ -51,9 +48,8 @@ int32_t OM2_C_API_EXPORT ReportDfxTaskPreprocess(uint32_t model_id, void *instan
   return static_cast<int32_t>(manager->PreprocessOm2TaskInfo(*task_info));
 }
 
-int32_t OM2_C_API_EXPORT ReportDfxTaskPostprocess(uint32_t model_id, void *instance_handle,
-                                                  const struct Om2TaskInfo *task_info, const void *extended_attrs,
-                                                  size_t extended_attrs_size) {
+int32_t ReportDfxTaskPostprocess(uint32_t model_id, void *instance_handle, const struct GertModelTaskDesc *task_info,
+                                 const void *extended_attrs, size_t extended_attrs_size) {
   (void)model_id;
 
   if ((extended_attrs != nullptr) || (extended_attrs_size != 0U)) {
@@ -73,8 +69,7 @@ int32_t OM2_C_API_EXPORT ReportDfxTaskPostprocess(uint32_t model_id, void *insta
   return static_cast<int32_t>(manager->AddOm2TaskInfo(*task_info));
 }
 
-int32_t OM2_C_API_EXPORT IsDataDumpEnabled(uint32_t model_id, void *instance_handle, const char *op_name,
-                                           uint8_t *is_data_dump) {
+int32_t IsDataDumpEnabled(uint32_t model_id, void *instance_handle, const char *op_name, uint8_t *is_data_dump) {
   (void)model_id;
 
   if ((instance_handle == nullptr) || (is_data_dump == nullptr)) {
@@ -90,8 +85,8 @@ int32_t OM2_C_API_EXPORT IsDataDumpEnabled(uint32_t model_id, void *instance_han
   return static_cast<int32_t>(manager->IsDataDumpEnabled(op_name, is_data_dump));
 }
 
-int32_t OM2_C_API_EXPORT ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInfo *info) {
-  if ((instance_handle == nullptr)) {
+int32_t ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInfo *info) {
+  if (instance_handle == nullptr) {
     GELOGW("ModelExecutor handle is null, skip");
     return ge::SUCCESS;
   }
@@ -143,5 +138,3 @@ int32_t ReportRunInfoPostprocess(void *instance_handle, const struct GertModelRu
   mgr->ReportRunInfoPostprocess(info->model_id, step_id, stream);
   return 0;
 }
-
-}  // extern "C"

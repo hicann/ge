@@ -27,11 +27,11 @@
 
 namespace {
 
-const char *GetTaskOpName(const Om2TaskInfo *task_info) {
+const char *GetTaskOpName(const GertModelTaskDesc *task_info) {
   return (task_info != nullptr) && (task_info->op_name != nullptr) ? task_info->op_name : "";
 }
 
-const char *GetTaskOpType(const Om2TaskInfo *task_info) {
+const char *GetTaskOpType(const GertModelTaskDesc *task_info) {
   return (task_info != nullptr) && (task_info->op_type != nullptr) ? task_info->op_type : "";
 }
 
@@ -42,7 +42,7 @@ uint32_t GetModelId(void *instance_handle) {
   return static_cast<gert::Om2ModelExecutor *>(instance_handle)->GetModelId();
 }
 
-int32_t GetDataDumpEnabled(const Om2TaskInfo &task_info, void *instance_handle, uint8_t &is_data_dump) {
+int32_t GetDataDumpEnabled(const GertModelTaskDesc &task_info, void *instance_handle, uint8_t &is_data_dump) {
   if (instance_handle == nullptr) {
     return ge::SUCCESS;
   }
@@ -69,7 +69,7 @@ void SetDataDumpAttr(aclrtLaunchKernelCfg *config, uint8_t is_data_dump) {
   }
 }
 
-bool IsAicoreTask(const Om2TaskInfo &task_info) {
+bool IsAicoreTask(const GertModelTaskDesc &task_info) {
   const auto task_type = static_cast<ge::ModelTaskType>(task_info.task_type);
   const auto kernel_type = static_cast<ge::ccKernelType>(task_info.kernel_type);
   const bool is_all_kernel = (task_type == ge::ModelTaskType::MODEL_TASK_ALL_KERNEL) ||
@@ -80,7 +80,7 @@ bool IsAicoreTask(const Om2TaskInfo &task_info) {
   return is_all_kernel || is_aicore_kernel;
 }
 
-int32_t ReportTaskPreprocess(void *instance_handle, Om2TaskInfo *task_info) {
+int32_t ReportTaskPreprocess(void *instance_handle, GertModelTaskDesc *task_info) {
   const auto kernel_type = static_cast<ge::ccKernelType>(task_info->kernel_type);
   if (instance_handle == nullptr) {
     GELOGW("[OM2] ModelExecutor handle is null, skip preprocess.");
@@ -124,12 +124,14 @@ int32_t LaunchKernelV2Task(void *instance_handle, GertModelTaskLaunchInfo *launc
   return ge::SUCCESS;
 }
 
-int32_t ReportTaskPostprocess(void *instance_handle, Om2TaskInfo *task_info) {
-  const auto task_id_ret = aclrtGetThreadLastTaskId(&task_info->task_id);
+int32_t ReportTaskPostprocess(void *instance_handle, GertModelTaskDesc *task_info) {
+  uint32_t task_id;
+  const auto task_id_ret = aclrtGetThreadLastTaskId(&task_id);
   GE_RETURN_WITH_LOG_IF_ERROR(
       task_id_ret, "[OM2] aclrtGetThreadLastTaskId failed, model_id=%u, op_name=%s, op_type=%s, thread_id=%u, ret=%d.",
       GetModelId(instance_handle), GetTaskOpName(task_info), GetTaskOpType(task_info), task_info->thread_id,
       task_id_ret);
+  task_info->task_id = task_id;
 
   if (instance_handle == nullptr) {
     GELOGW("[OM2] ModelExecutor handle is null, skip postprocess.");

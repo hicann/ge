@@ -386,6 +386,12 @@ static std::string interface_header_src = R"(#pragma once
 #include <cstddef>
 #include <cstdint>
 
+typedef void* aclmdlRI;
+typedef void* aclrtStream;
+typedef void* aclrtEvent;
+typedef void* aclrtLabel;
+typedef void* aclrtNotify;
+
 namespace gert {
   class Tensor;
 }
@@ -408,8 +414,9 @@ struct GertModelLoadConfig {
   uint64_t model_id = 0; // used for logging
   void *instance_handle = nullptr;
   void *executor_handle = nullptr;
-  const struct GertModelCallbacks *callbacks = nullptr;
+  const struct GertModelLoadCallbacks *callbacks = nullptr;
   int64_t priority = 0;
+  uint64_t reuse_zero_copy = 0;
 };
 
 struct GertModelRunConfig {
@@ -474,6 +481,9 @@ bool CheckWorkPtr(void *work_ptr) {
   const std::string mode_str(mode);
   if (mode_str == "NON_NULL") {
     return work_ptr != nullptr;
+  }
+  if (mode_str == "NULL") {
+    return work_ptr == nullptr;
   }
   if (mode_str == "EQUAL") {
     const char *value = std::getenv("OM2_EXPECT_WORK_PTR_VALUE");
@@ -650,6 +660,8 @@ project(g1_om2 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+include_directories($ENV{ASCEND_HOME_PATH}/include)
 
 add_library(g1_om2 SHARED
   g1_resources.cpp
@@ -1671,7 +1683,7 @@ TEST_F(Om2ModelExecutorUt, load_ok_with_internal_work_ptr_and_external_device_we
   auto load_arg = MakeOm2LoadArg();
   load_arg.weight_ptr = device_weight.data();
   load_arg.weight_size = device_weight.size();
-  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NON_NULL", 1), 0);
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NULL", 1), 0);
   ASSERT_EQ(setenv("OM2_EXPECT_CONST0_MODE", "NON_NULL", 1), 0);
   ASSERT_EQ(setenv("OM2_EXPECT_CONST0_FIRST_BYTE", "1", 1), 0);
   ASSERT_EQ(setenv("OM2_EXPECT_CONST0_PTR_MODE", "EQUAL", 1), 0);
@@ -3195,26 +3207,26 @@ TEST_F(Om2ModelExecutorUt, make_om2_load_arg_has_reuse_zero_copy_false_by_defaul
   EXPECT_FALSE(load_arg.reuse_zero_copy);
 }
 
-TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_true_and_internal_work_allocation) {
+TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_true_passes_null_work_ptr_to_pbody) {
   auto model_data_holder = LoadValidModelData();
   gert::Om2ModelExecutor executor;
   auto load_arg = MakeOm2LoadArg();
   load_arg.reuse_zero_copy = true;
 
   EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
-  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NON_NULL", 1), 0);
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NULL", 1), 0);
 
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 }
 
-TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_false_and_internal_work_allocation) {
+TEST_F(Om2ModelExecutorUt, load_with_reuse_zero_copy_false_passes_null_work_ptr_to_pbody) {
   auto model_data_holder = LoadValidModelData();
   gert::Om2ModelExecutor executor;
   auto load_arg = MakeOm2LoadArg();
   load_arg.reuse_zero_copy = false;
 
   EnvValueGuard guard_mode("OM2_EXPECT_WORK_PTR_MODE");
-  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NON_NULL", 1), 0);
+  ASSERT_EQ(setenv("OM2_EXPECT_WORK_PTR_MODE", "NULL", 1), 0);
 
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 }

@@ -883,10 +883,10 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "inline void *ValueToPtr(const uint64_t value) {\n",
                                 "inline uint64_t PtrToU64(const void *ptr) {\n",
                                 "extern \"C\" {\n",
-                                "enum Om2L0ArgKind {\n",
-                                "struct Om2L0ArgSlotInfo {\n",
-                                "struct Om2L0TaskRawInfo {\n",
-                                "const struct Om2L0TaskRawInfo* l0_exception_dump_info;\n",
+                                "enum GertModelArgKind : uint64_t {\n",
+                                "struct GertModelArgSlotInfo {\n",
+                                "struct GertModelTaskRawInfo {\n",
+                                "const struct GertModelTaskRawInfo *task_raw_info = nullptr;\n",
                                 "  uint64_t kernel_type = 10000U;\n",
                                 "enum GertModelTaskLaunchType : uint64_t",
                                 "struct GertModelLaunchKernelV2Params {\n",
@@ -910,10 +910,8 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);\n",
                                 "  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;\n",
                                 "GertModelLaunchFunc launch_func = nullptr;",
-                                "__attribute__((weak)) int32_t ReportDfxTaskPreprocess(uint32_t model_id,\n",
-                                "__attribute__((weak)) int32_t ReportDfxTaskPostprocess(uint32_t model_id,\n",
                             });
-  EXPECT_LT(output.find("  uint32_t task_type;\n"), output.find("  uint64_t kernel_type = 10000U;\n"));
+  EXPECT_LT(output.find("  uint64_t task_type = 0;\n"), output.find("  uint64_t kernel_type = 10000U;\n"));
   EXPECT_EQ(output.find("report_task_preprocess"), std::string::npos);
   EXPECT_EQ(output.find("report_task_postprocess"), std::string::npos);
   EXPECT_EQ(output.find("get_data_dump_enabled"), std::string::npos);
@@ -940,10 +938,6 @@ TEST_F(Om2CodegenUt, LoadAndRunDumpHelpers_EmitInAnonymousNamespace_Ok) {
                   "namespace {\n",
                   "gert::Tensor BuildTensor(void *device_address, uint64_t size, int32_t data_type, int32_t format,\n",
                   "const int64_t *shape_dims, uint64_t shape_dims_num) {\n",
-                  "aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,\n",
-                  "const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,\n",
-                  "uint32_t workspace_num,\n",
-                  "uint32_t task_type, uint32_t block_dim, void *stream,\n",
               });
   EXPECT_EQ(output.find("GetIsDataDump("), std::string::npos);
 }
@@ -970,9 +964,9 @@ TEST_F(Om2CodegenUt, BuildL0ArgSlotEntries_EmitsTensorWorkspaceAndIgnoredKinds) 
   ASSERT_NE(entries, nullptr);
   auto output = EmitNode(*entries);
   ExpectContainsAll(output, {
-                                "{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}",
-                                "{OM2_L0_ARG_WORKSPACE, 0U, 8U, 0UL, 0U, 0U, 0U}",
-                                "{OM2_L0_ARG_PLACEHOLDER, 0U, 16U, 0UL, 0U, 0U, 0U}",
+                                "{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}",
+                                "{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 8U, 0UL, 0U, 0U, 0U}",
+                                "{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_PLACEHOLDER, 0U, 16U, 0UL, 0U, 0U, 0U}",
                             });
 }
 
@@ -1510,8 +1504,7 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
       {StablePartId::kScopeGuard, "class ScopeGuard"},
       {StablePartId::kReadBinaryFileToBuffer, "BinaryBuffer ReadBinaryFileToBuffer"},
       {StablePartId::kGenerateJsonFile, "aclError GenerateJsonFile"},
-      {StablePartId::kInterfaceDumpApis, "struct Om2TaskInfo"},
-      {StablePartId::kLoadAndRunDumpHelpers, "aclError ReportLaunchedOm2Task"},
+      {StablePartId::kInterfaceDumpApis, "struct GertModelTaskDesc"},
       {StablePartId::kOm2LogMacros, "#define OM2_LOGD"},
   };
 
@@ -1734,18 +1727,18 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_BuildL0ArgSlotEntries_AllKinds) {
   ASSERT_NE(entries, nullptr);
   auto output = EmitNode(*entries);
   ExpectContainsAll(output, {
-                                "OM2_L0_ARG_INPUT",
-                                "OM2_L0_ARG_OUTPUT",
-                                "OM2_L0_ARG_WORKSPACE",
-                                "OM2_L0_ARG_TILING",
-                                "OM2_L0_ARG_CUSTOM_VALUE",
-                                "OM2_L0_ARG_PLACEHOLDER",
-                                "OM2_L0_ARG_LEVEL1_DESC",
-                                "OM2_L0_ARG_SHAPE_INFO",
-                                "OM2_L0_ARG_FFTS_ADDR",
-                                "OM2_L0_ARG_EVENT_ADDR",
-                                "OM2_L0_ARG_OVERFLOW_ADDR",
-                                "OM2_L0_ARG_EMPTY_ADDR",
+                                "GERT_MODEL_ARG_INPUT",
+                                "GERT_MODEL_ARG_OUTPUT",
+                                "GERT_MODEL_ARG_WORKSPACE",
+                                "GERT_MODEL_ARG_TILING",
+                                "GERT_MODEL_ARG_CUSTOM_VALUE",
+                                "GERT_MODEL_ARG_PLACEHOLDER",
+                                "GERT_MODEL_ARG_LEVEL1_DESC",
+                                "GERT_MODEL_ARG_SHAPE_INFO",
+                                "GERT_MODEL_ARG_FFTS_ADDR",
+                                "GERT_MODEL_ARG_EVENT_ADDR",
+                                "GERT_MODEL_ARG_OVERFLOW_ADDR",
+                                "GERT_MODEL_ARG_EMPTY_ADDR",
                             });
 }
 
@@ -1986,26 +1979,26 @@ TEST(Om2CodegenTypesUt, PublicTypesHaveStableDefaultsAndCallbacks) {
   GertModelLaunchKernelV2Params kernel{};
   GertModelLaunchStarsTaskWithFlagParams dsa{};
   GertModelTaskLaunchInfo launch{};
-  GertModelCallbacks callbacks{};
-  Om2TaskInfo task{};
+  GertModelLoadCallbacks callbacks{};
+  GertModelTaskDesc task{};
 
   EXPECT_EQ(kernel.struct_size, sizeof(GertModelLaunchKernelV2Params));
   EXPECT_EQ(dsa.struct_size, sizeof(GertModelLaunchStarsTaskWithFlagParams));
   EXPECT_EQ(launch.struct_size, sizeof(GertModelTaskLaunchInfo));
-  EXPECT_EQ(callbacks.struct_size, sizeof(GertModelCallbacks));
+  EXPECT_EQ(callbacks.struct_size, sizeof(GertModelLoadCallbacks));
   EXPECT_EQ(launch.launch_type, ACL_RT_LAUNCH_KERNEL_V2);
   EXPECT_EQ(task.kernel_type, static_cast<uint64_t>(ccKernelType::INVALID));
   static_assert(std::is_same<decltype(task.kernel_type), uint64_t>::value);
-  static_assert(offsetof(Om2TaskInfo, task_type) < offsetof(Om2TaskInfo, kernel_type));
-  static_assert(offsetof(Om2TaskInfo, kernel_type) < offsetof(Om2TaskInfo, stream));
+  static_assert(offsetof(GertModelTaskDesc, task_type) < offsetof(GertModelTaskDesc, kernel_type));
+  static_assert(offsetof(GertModelTaskDesc, kernel_type) < offsetof(GertModelTaskDesc, stream));
   EXPECT_EQ(kernel.reserved_1, 0U);
   EXPECT_EQ(dsa.reserved_1, 0U);
   EXPECT_EQ(dsa.reserved_2, 0U);
   EXPECT_EQ(callbacks.report_model_base_info, nullptr);
   EXPECT_EQ(callbacks.launch_func, nullptr);
-  EXPECT_FALSE(HasLegacyLaunchCallback<GertModelCallbacks>::value);
-  EXPECT_FALSE(HasLegacyPostCallback<GertModelCallbacks>::value);
-  EXPECT_FALSE(HasLegacyDataDumpCallback<GertModelCallbacks>::value);
+  EXPECT_FALSE(HasLegacyLaunchCallback<GertModelLoadCallbacks>::value);
+  EXPECT_FALSE(HasLegacyPostCallback<GertModelLoadCallbacks>::value);
+  EXPECT_FALSE(HasLegacyDataDumpCallback<GertModelLoadCallbacks>::value);
 }
 
 TEST(Om2CodegenTypesUt, LaunchTypeValuesAndUnionLayoutAreStable) {
@@ -2463,6 +2456,57 @@ TEST_F(Om2CodegenUt, CppEmitter_EmptyTypeNameSeparator) {
   ASSERT_NE(tu, nullptr);
   const auto output = EmitNode(*tu);
   EXPECT_NE(output.find("EmptyTypeAlias"), std::string::npos);
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_SwitchCaseBodyIndentation) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  const auto *switch_stmt = ast.Switch("value", {
+                                                    ast.Case("CASE_A"),
+                                                    ast.Return("result_a"),
+                                                    ast.Case("CASE_B"),
+                                                    ast.Return("result_b"),
+                                                    ast.Case(nullptr),
+                                                    ast.Return("default_result"),
+                                                });
+
+  EXPECT_EQ(EmitNode(*switch_stmt),
+            "switch (value) {\n"
+            "  case CASE_A:\n"
+            "    return result_a;\n"
+            "  case CASE_B:\n"
+            "    return result_b;\n"
+            "  default:\n"
+            "    return default_result;\n"
+            "}\n");
+}
+
+TEST_F(Om2CodegenUt, CppEmitter_NestedSwitchCaseBodyIndentation) {
+  AstContext ctx;
+  AstBuildContext ast(ctx);
+
+  const auto *switch_stmt = ast.Switch("outer", {
+                                                    ast.Case("OUTER_CASE"),
+                                                    ast.Switch("inner",
+                                                               {
+                                                                   ast.Case("INNER_CASE"),
+                                                                   ast.Return("inner_result"),
+                                                               }),
+                                                    ast.Case(nullptr),
+                                                    ast.Return("outer_default_result"),
+                                                });
+
+  EXPECT_EQ(EmitNode(*switch_stmt),
+            "switch (outer) {\n"
+            "  case OUTER_CASE:\n"
+            "    switch (inner) {\n"
+            "      case INNER_CASE:\n"
+            "        return inner_result;\n"
+            "    }\n"
+            "  default:\n"
+            "    return outer_default_result;\n"
+            "}\n");
 }
 
 class RTVarResourceCoverageTest : public testing::Test {

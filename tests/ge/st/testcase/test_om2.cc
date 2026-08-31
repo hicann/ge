@@ -79,8 +79,8 @@ int32_t Om2CallbackProbe(void *, GertModelTaskLaunchInfo *info) {
 
 class CallbackProbeModel {
  public:
-  int32_t Load(const GertModelCallbacks *callbacks) {
-    callbacks_ = (callbacks == nullptr) ? GertModelCallbacks{} : *callbacks;
+  int32_t Load(const GertModelLoadCallbacks *callbacks) {
+    callbacks_ = (callbacks == nullptr) ? GertModelLoadCallbacks{} : *callbacks;
     return SUCCESS;
   }
 
@@ -98,12 +98,12 @@ class CallbackProbeModel {
     return callback_used_;
   }
 
-  const GertModelCallbacks &Callbacks() const {
+  const GertModelLoadCallbacks &Callbacks() const {
     return callbacks_;
   }
 
  private:
-  GertModelCallbacks callbacks_{};
+  GertModelLoadCallbacks callbacks_{};
   gert::Om2ModelExecutor executor_;
   bool callback_used_ = false;
 };
@@ -847,6 +847,12 @@ const std::string fake_interface_header_src = R"(#pragma once
 #include <cstddef>
 #include <cstdint>
 
+typedef void* aclmdlRI;
+typedef void* aclrtStream;
+typedef void* aclrtEvent;
+typedef void* aclrtLabel;
+typedef void* aclrtNotify;
+
 namespace gert {
   class Tensor;
 }
@@ -864,8 +870,17 @@ struct GertModelLoadConfig {
   uint64_t model_id = 0; // used for logging
   void *instance_handle = nullptr;
   void *executor_handle = nullptr;
-  const struct GertModelCallbacks *callbacks = nullptr;
+  const struct GertModelLoadCallbacks *callbacks = nullptr;
   int64_t priority = 0;
+  aclmdlRI external_rt_model = nullptr;
+  aclrtStream *external_streams = nullptr;
+  uint64_t external_stream_num = 0;
+  aclrtEvent *external_events = nullptr;
+  uint64_t external_event_num = 0;
+  aclrtLabel *external_labels = nullptr;
+  uint64_t external_label_num = 0;
+  aclrtNotify *external_notifies = nullptr;
+  uint64_t external_notify_num = 0;
 };
 
 struct GertModelRunConfig {
@@ -923,7 +938,7 @@ struct FakeModel {
 }
 
 extern "C" int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output) {
-  if ((model_handle == nullptr) || (config == nullptr) || (config->work_ptr == nullptr) || (config->constants == nullptr) || (config->constants[0] == nullptr)) {
+  if ((model_handle == nullptr) || (config == nullptr) || (config->constants == nullptr) || (config->constants[0] == nullptr)) {
     return 1;
   }
   auto *model = new (std::nothrow) FakeModel();
@@ -979,6 +994,8 @@ project(g1_om2 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+include_directories($ENV{ASCEND_HOME_PATH}/include)
 
 add_library(g1_om2 SHARED
   g1_resources.cpp
@@ -3865,7 +3882,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
 
 TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {
   g_om2_callback_probe_count = 0;
-  GertModelCallbacks callbacks{};
+  GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   CallbackProbeModel model;
   ASSERT_EQ(model.Load(&callbacks), SUCCESS);
@@ -3876,7 +3893,7 @@ TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {
 
 TEST_F(Om2CallbackSt, DsaLaunchThroughExecutor) {
   g_om2_callback_probe_count = 0;
-  GertModelCallbacks callbacks{};
+  GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   CallbackProbeModel model;
   ASSERT_EQ(model.Load(&callbacks), SUCCESS);
@@ -3885,13 +3902,13 @@ TEST_F(Om2CallbackSt, DsaLaunchThroughExecutor) {
 }
 
 TEST_F(Om2CallbackSt, CallbackErrorPropagates) {
-  GertModelCallbacks callbacks{};
+  GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   EXPECT_EQ(callbacks.launch_func(nullptr, nullptr), PARAM_INVALID);
 }
 
 TEST_F(Om2CallbackSt, FallbackLaunchWithoutCallback) {
-  GertModelCallbacks callbacks{};
+  GertModelLoadCallbacks callbacks{};
   EXPECT_EQ(callbacks.launch_func, nullptr);
   GertModelTaskLaunchInfo info{};
   // GE_ASSERT_NOTNULL records invalid task_info and keeps the callback return value successful.
@@ -3899,7 +3916,7 @@ TEST_F(Om2CallbackSt, FallbackLaunchWithoutCallback) {
 }
 
 TEST_F(Om2CallbackSt, TfTwoLaunches) {
-  GertModelCallbacks callbacks{};
+  GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   CallbackProbeModel model;
   ASSERT_EQ(model.Load(&callbacks), SUCCESS);

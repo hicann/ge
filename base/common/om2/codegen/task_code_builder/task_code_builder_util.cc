@@ -26,36 +26,36 @@ Status TaskCodeBuilderUtil::RenderDispatchFunc(AstBuildContext &ast, const std::
 }
 
 namespace {
-const char *ToOm2L0ArgKind(AddrValueKind kind) {
+const char *ToGertModelArgKind(AddrValueKind kind) {
   switch (kind) {
     case AddrValueKind::kInputInstance:
     case AddrValueKind::kConstTensor:
-      return "OM2_L0_ARG_INPUT";
+      return "GERT_MODEL_ARG_INPUT";
     case AddrValueKind::kOutputInstance:
-      return "OM2_L0_ARG_OUTPUT";
+      return "GERT_MODEL_ARG_OUTPUT";
     case AddrValueKind::kWorkspace:
-      return "OM2_L0_ARG_WORKSPACE";
+      return "GERT_MODEL_ARG_WORKSPACE";
     case AddrValueKind::kTiling:
-      return "OM2_L0_ARG_TILING";
+      return "GERT_MODEL_ARG_TILING";
     case AddrValueKind::kShapeInfoBuffer:
-      return "OM2_L0_ARG_SHAPE_INFO";
+      return "GERT_MODEL_ARG_SHAPE_INFO";
     case AddrValueKind::kLevel1DescPtr:
-      return "OM2_L0_ARG_LEVEL1_DESC";
+      return "GERT_MODEL_ARG_LEVEL1_DESC";
     case AddrValueKind::kPlaceholder:
-      return "OM2_L0_ARG_PLACEHOLDER";
+      return "GERT_MODEL_ARG_PLACEHOLDER";
     case AddrValueKind::kCustomValue:
-      return "OM2_L0_ARG_CUSTOM_VALUE";
+      return "GERT_MODEL_ARG_CUSTOM_VALUE";
     case AddrValueKind::kFftsAddr:
-      return "OM2_L0_ARG_FFTS_ADDR";
+      return "GERT_MODEL_ARG_FFTS_ADDR";
     case AddrValueKind::kEventAddr:
-      return "OM2_L0_ARG_EVENT_ADDR";
+      return "GERT_MODEL_ARG_EVENT_ADDR";
     case AddrValueKind::kOverflowAddr:
-      return "OM2_L0_ARG_OVERFLOW_ADDR";
+      return "GERT_MODEL_ARG_OVERFLOW_ADDR";
     case AddrValueKind::kOptionalEmpty:
     case AddrValueKind::kEmptyAddr:
-      return "OM2_L0_ARG_EMPTY_ADDR";
+      return "GERT_MODEL_ARG_EMPTY_ADDR";
     default:
-      return "OM2_L0_ARG_EMPTY_ADDR";
+      return "GERT_MODEL_ARG_EMPTY_ADDR";
   }
 }
 
@@ -125,7 +125,7 @@ Expr *TaskCodeBuilderUtil::BuildTaskIoEntries(AstBuildContext &ast, const std::v
     if (!addr.tensor_info.has_value()) {
       continue;
     }
-    (void)entries.emplace_back(std::vector<Arg>{ast.Var("", "sizeof(Om2TaskIoEntry)"),
+    (void)entries.emplace_back(std::vector<Arg>{ast.Var("", "sizeof(GertModelTaskIoEntry)"),
                                                 ast.Var("gert::Tensor", addr.symbol_hint).Addr(),
                                                 std::to_string(addr.tensor_info->args_offset) + "U"});
   }
@@ -163,7 +163,8 @@ Expr *TaskCodeBuilderUtil::BuildL0ArgSlotEntries(AstBuildContext &ast, const std
                                          ? Arg(std::to_string(addr.tensor_info->args_offset / sizeof(uint64_t)) + "U")
                                          : Arg("0U"));
     (void)entries.emplace_back(std::vector<Arg>{
-        ToOm2L0ArgKind(addr.kind), "0U", std::to_string(args_offset) + "U", std::to_string(value) + "UL", related_index,
+        ast.Var("", "sizeof(GertModelArgSlotInfo)"), ToGertModelArgKind(addr.kind), "0U",
+        std::to_string(args_offset) + "U", std::to_string(value) + "UL", related_index,
         std::to_string(addr.event_id) + "U", std::to_string(addr.level1_target_offset.value_or(0U)) + "U"});
     args_offset += GetOrderedArgByteSizeForL0(addr);
   }
@@ -211,14 +212,14 @@ Status TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
   const auto output_num = count_report_tensors(output_addrs);
   const auto workspace_num = workspace_addrs.size();
   if (input_num > 0U) {
-    (void)items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", inputs_var + "[]", input_entries));
+    (void)items.emplace_back(ast.VarDecl("const GertModelTaskIoEntry", inputs_var + "[]", input_entries));
     (void)args.emplace_back(inputs_var);
   } else {
     (void)args.emplace_back("nullptr");
   }
   (void)args.emplace_back(ast.ULong(input_num));
   if (output_num > 0U) {
-    (void)items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", outputs_var + "[]", output_entries));
+    (void)items.emplace_back(ast.VarDecl("const GertModelTaskIoEntry", outputs_var + "[]", output_entries));
     (void)args.emplace_back(outputs_var);
   } else {
     (void)args.emplace_back("nullptr");

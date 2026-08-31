@@ -29,7 +29,7 @@ class DataDumpImpl {
   DataDumpImpl();
   ~DataDumpImpl();
 
-  Status SaveTask(const Om2TaskInfo &task_info, ModelTaskType task_type, rtStream_t stream, bool is_op_debug);
+  Status SaveTask(const GertModelTaskDesc &task_info, ModelTaskType task_type, rtStream_t stream, bool is_op_debug);
 
   Status BuildAndLoadOpMappingInfo(const ModelDumpInfo &model_info);
 

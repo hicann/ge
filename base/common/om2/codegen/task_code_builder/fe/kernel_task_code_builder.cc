@@ -1543,8 +1543,8 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
       ast_.If(v_a.Attr("type") == ast_.Var("", "OP_ARG_OPTIONAL_EMPTY"), {ast_.Assign(v_addr, ast_.UInt(0))},
               {ast_.Assign(v_addr, resolve_addr), ast_.Var("", "aicpu_io_tensors").PushBack(build_tensor),
                ast_.VarDecl(
-                   ast_.Var("Om2TaskIoEntry", "_entry"),
-                   ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"),
+                   ast_.Var("GertModelTaskIoEntry", "_entry"),
+                   ast_.InitList({ast_.Var("", "sizeof(GertModelTaskIoEntry)"),
                                   ast_.Var("", "aicpu_io_tensors").Attr("back")().Addr(), data_t.Attr("args_offset")})),
                ast_.If(v_a.Attr("type") != ast_.Var("", "OP_ARG_OUTPUT"),
                        {ast_.Var("", "aicpu_report_inputs").PushBack(ast_.Var("", "_entry"))},
@@ -1562,8 +1562,8 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "iow_addr")),
       ast_.VarDecl(ast_.Var("std::vector<gert::Tensor>", "aicpu_io_tensors")),
       ast_.Call("", {ast_.Var("", "aicpu_io_tensors").Attr("reserve")(ast_.Var("", "num_io"))}),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "aicpu_report_inputs")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "aicpu_report_outputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "aicpu_report_inputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "aicpu_report_outputs")),
       ast_.For(ast_.VarDecl("uint32_t", "i", ast_.UInt(0U)), ast_.Var("", "i") < ast_.Var("", "num_io"),
                ast_.PostInc(ast_.Var("", "i")), loop_body),
   };
@@ -1605,7 +1605,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const Va
   auto aicpu = op.Arrow("dispatch_info").Attr("aicpu");
   auto args_info = ast_.Var("ArgsInfo *", "aicpu_args_info");
   auto stream = ctx.Attr("stream_list")[aicpu.Attr("stream_id")];
-  auto task_info = ast_.Var("Om2TaskInfo", "aicpu_task_info");
+  auto task_info = ast_.Var("GertModelTaskDesc", "aicpu_task_info");
   auto launch_kernel_v2_params = ast_.Var("GertModelLaunchKernelV2Params", "aicpu_launch_kernel_v2_params");
   auto launch_params = ast_.Var("GertModelTaskLaunchParams", "aicpu_launch_params");
   auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "aicpu_launch_info");
@@ -1678,8 +1678,8 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
       ast_.Call(
           "",
           {ast_.Var("", "io_tensors").Attr("reserve")(op.Arrow("dispatch_info").Attr("aicore").Attr("args_info_num"))}),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "report_inputs")),
-      ast_.VarDecl(ast_.Var("std::vector<Om2TaskIoEntry>", "report_outputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "report_inputs")),
+      ast_.VarDecl(ast_.Var("std::vector<GertModelTaskIoEntry>", "report_outputs")),
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "report_workspace_addrs")),
       ast_.VarDecl(ast_.Var("std::vector<uint64_t>", "report_workspace_sizes")),
   };
@@ -1743,10 +1743,10 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
 
   return {
       ast_.VarDecl(
-          ast_.Var("Om2L0TaskRawInfo", "l0_info"),
+          ast_.Var("GertModelTaskRawInfo", "task_raw_info"),
           ast_.InitList({ast_.UInt(1U), slot_args.Attr("need_assert_or_printf"),
                          ast_.StaticCast("uint64_t", slot_args.Attr("slots_num")), slot_args.Attr("slot_info")})),
-      ast_.VarDecl(ast_.Var("Om2TaskInfo", "task_info")),
+      ast_.VarDecl(ast_.Var("GertModelTaskDesc", "task_info")),
       ChkStatus(ast_.Call("AssembleOm2TaskInfo",
                           {ast_.Var("", "task_info").Addr(),
                            op.Arrow("op_name"),
@@ -1777,7 +1777,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
                           {ast_.Var("", "task_info").Attr("stream"),
                            ast_.ReinterpretCast("int32_t *", ast_.Var("", "task_info").Attr("stream_id").Addr())})),
       ast_.Assign(ast_.Var("", "task_info").Attr("kernel_type"), aicore.Attr("kernel_type")),
-      ast_.Assign(ast_.Var("", "task_info").Attr("l0_exception_dump_info"), ast_.Var("", "l0_info").Addr()),
+      ast_.Assign(ast_.Var("", "task_info").Attr("task_raw_info"), ast_.Var("", "task_raw_info").Addr()),
       ast_.VarDecl(ast_.Var("GertModelLaunchKernelV2Params", "kernel_params"),
                    ast_.DesignatedInit({{"func_handle", ctx.Attr("func_handles")[aicore.Attr("func_idx")]},
                                         {"block_dim", aicore.Attr("block_dim")},
@@ -1813,8 +1813,8 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &
                a.Attr("data").Attr("tensor").Attr("data_type"), a.Attr("data").Attr("tensor").Attr("format"),
                a.Attr("data").Attr("tensor").Attr("shape"), a.Attr("data").Attr("tensor").Attr("shape_dims")})),
       ast_.VarDecl(
-          ast_.Var("Om2TaskIoEntry", "_entry"),
-          ast_.InitList({ast_.Var("", "sizeof(Om2TaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
+          ast_.Var("GertModelTaskIoEntry", "_entry"),
+          ast_.InitList({ast_.Var("", "sizeof(GertModelTaskIoEntry)"), ast_.Var("", "io_tensors").Attr("back")().Addr(),
                          a.Attr("data").Attr("tensor").Attr("args_offset")})),
       ast_.If(a.Attr("type") == ast_.Var("", "OP_ARG_INPUT") || a.Attr("type") == ast_.Var("", "OP_ARG_CONST_TENSOR"),
               {ast_.Var("", "report_inputs").PushBack(ast_.Var("", "_entry"))},
@@ -1936,7 +1936,7 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
   auto l0_values = std::vector<Arg>{
       static_cast<int64_t>(data.need_assert_or_printf),
       static_cast<int64_t>(build_data_.semantic.ordered_arg_values.size()),
-      ast_.CCast("const Om2L0ArgSlotInfo[]",
+      ast_.CCast("const GertModelArgSlotInfo[]",
                  TaskCodeBuilderUtil::BuildL0ArgSlotEntries(ast_, build_data_.semantic.ordered_arg_values)),
   };
   // 融合算子字段：从 semantic 直接读取，编译期嵌入 kOpDefs[]
