@@ -50,8 +50,7 @@ std::vector<LocalCreator> &GetCustomOpLocalCreators() {
 }
 }  // namespace
 
-void RegisterCustomOpLocalCreator(const char *const op_type, const OpBackend backend,
-                                  const CustomOpCreateFunc creator) {
+void RegisterCustomOpLocalCreator(const char *const op_type, OpBackend backend, const CustomOpCreateFunc creator) {
   if ((op_type == nullptr) || (op_type[0] == '\0') || (creator == nullptr)) {
     return;
   }

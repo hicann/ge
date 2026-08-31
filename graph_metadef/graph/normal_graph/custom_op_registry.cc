@@ -148,7 +148,7 @@ CustomOpRegistry::~CustomOpRegistry() {
   }
 }
 
-graphStatus CustomOpRegistry::RegisterCreator(const AscendString &op_type, const OpBackend backend,
+graphStatus CustomOpRegistry::RegisterCreator(const AscendString &op_type, OpBackend backend,
                                               const BaseOpCreator &creator) {
   const std::lock_guard<std::mutex> lock(mu_);
   if (!IsValidOpBackend(backend)) {
@@ -182,12 +182,37 @@ void CustomOpRegistry::AddSoHandles(const std::vector<CustomOpSoHandlePtr> &so_h
   so_handles_.insert(so_handles_.end(), so_handles.begin(), so_handles.end());
 }
 
-BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOp(const AscendString &op_type, const OpBackend backend) {
+BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend) {
   const std::lock_guard<std::mutex> lock(mu_);
   return CreateOrGetCustomOpLocked(op_type, backend);
 }
 
-BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOpLocked(const AscendString &op_type, const OpBackend backend) {
+BaseCustomOp *CustomOpRegistry::CacheCustomOpLocked(const AscendString &op_type, OpBackend backend,
+                                                    std::unique_ptr<BaseCustomOp> base_custom_op) {
+  auto &backend_custom_ops = custom_ops_[op_type];
+  for (const auto &backend_custom_op : backend_custom_ops) {
+    if ((backend_custom_op.second != nullptr) && (typeid(*backend_custom_op.second) == typeid(*base_custom_op))) {
+      auto [ops_it, success] = backend_custom_ops.emplace(backend, backend_custom_op.second);
+      if (success) {
+        GELOGI("[CUSTOM OP] share custom op instance for %s:%s with existing %s backend.", op_type.GetString(),
+               OpBackendToString(backend), OpBackendToString(backend_custom_op.first));
+        return ops_it->second.get();
+      }
+      GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
+             OpBackendToString(backend));
+      return nullptr;
+    }
+  }
+  auto [ops_it, success] = backend_custom_ops.emplace(backend, std::move(base_custom_op));
+  if (success) {
+    return ops_it->second.get();
+  }
+  GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
+         OpBackendToString(backend));
+  return nullptr;
+}
+
+BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend) {
   if (!IsValidOpBackend(backend)) {
     GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op backend for %s is invalid:%u.", op_type.GetString(),
            static_cast<uint32_t>(backend));
@@ -217,34 +242,14 @@ BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOpLocked(const AscendString &op
              OpBackendToString(backend));
       return nullptr;
     }
-    auto &backend_custom_ops = custom_ops_[op_type];
-    for (const auto &backend_custom_op : backend_custom_ops) {
-      if ((backend_custom_op.second != nullptr) && (typeid(*backend_custom_op.second) == typeid(*base_custom_op))) {
-        auto [ops_it, success] = backend_custom_ops.emplace(backend, backend_custom_op.second);
-        if (success) {
-          GELOGI("[CUSTOM OP] share custom op instance for %s:%s with existing %s backend.", op_type.GetString(),
-                 OpBackendToString(backend), OpBackendToString(backend_custom_op.first));
-          return ops_it->second.get();
-        }
-        GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
-               OpBackendToString(backend));
-        return nullptr;
-      }
-    }
-    auto [ops_it, success] =
-        backend_custom_ops.emplace(backend, std::shared_ptr<BaseCustomOp>(std::move(base_custom_op)));
-    if (success) {
-      return ops_it->second.get();
-    }
-    GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
-           OpBackendToString(backend));
+    return CacheCustomOpLocked(op_type, backend, std::move(base_custom_op));
   }
   GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s.", op_type.GetString(), OpBackendToString(backend));
   return nullptr;
 }
 
 BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &op_type,
-                                                            const CustomOpCapability capability) {
+                                                            CustomOpCapability capability) {
   if (!IsCommonCapability(capability)) {
     GELOGE(GRAPH_FAILED, "[CUSTOM OP] capability %u for %s is not a common capability.",
            static_cast<uint32_t>(capability), op_type.GetString());
@@ -333,7 +338,7 @@ bool CustomOpRegistry::HasCreator(const AscendString &op_type) const {
   return (it != creators_.cend()) && (!it->second.empty());
 }
 
-bool CustomOpRegistry::HasCreator(const AscendString &op_type, const OpBackend backend) const {
+bool CustomOpRegistry::HasCreator(const AscendString &op_type, OpBackend backend) const {
   const std::lock_guard<std::mutex> lock(mu_);
   const auto it = creators_.find(op_type);
   return (it != creators_.cend()) && (it->second.find(backend) != it->second.cend());

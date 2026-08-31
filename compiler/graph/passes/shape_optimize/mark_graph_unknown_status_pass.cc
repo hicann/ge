@@ -27,8 +27,8 @@ bool IsCustomOpExecOnHostCpu(const OpDescPtr &op_desc) {
       !CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU)) {
     return false;
   }
-  std::string lowering_func;
-  return AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func) && (lowering_func == kHostCpuCustomOpLowerFunc);
+  const std::string *lowering_func = AttrUtils::GetStr(op_desc, kAttrLowingFunc);
+  return (lowering_func != nullptr) && (*lowering_func == kHostCpuCustomOpLowerFunc);
 }
 }  // namespace
 

@@ -71,7 +71,7 @@ HostCpuConstFoldingMemAllocator &GetHostCpuConstFoldingMemAllocator() {
 
 ge::graphStatus HostCpuMemBlockManager(void *block, gert::TensorOperateType operate_type, void **out) {
   GE_ASSERT_NOTNULL(block);
-  auto *mem_block = reinterpret_cast<ge::MemBlock *>(block);
+  auto *mem_block = static_cast<ge::MemBlock *>(block);
   GE_ASSERT((operate_type == gert::kGetTensorAddress || operate_type == gert::kFreeTensor ||
              operate_type == gert::kPlusShareCount),
             "Unexpected operate type %d", static_cast<int32_t>(operate_type));

@@ -11,8 +11,6 @@
 #ifndef BASE_COMMON_PYTHON_RUNTIME_PYTHON_BRIDGE_LOADER_UTILS_H_
 #define BASE_COMMON_PYTHON_RUNTIME_PYTHON_BRIDGE_LOADER_UTILS_H_
 
-#include <dlfcn.h>
-
 #include <cstdint>
 #include <string>
 

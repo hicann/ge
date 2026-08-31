@@ -14,6 +14,10 @@
 #include <type_traits>
 
 #include "exe_graph/runtime/extended_kernel_context.h"
+#include "exe_graph/runtime/runtime_tensor.h"
+#include "exe_graph/runtime/storage_format.h"
+#include "exe_graph/runtime/storage_shape.h"
+#include "graph/types.h"
 
 namespace gert {
 class HostCpuOpExecutionContext : public ExtendedKernelContext {

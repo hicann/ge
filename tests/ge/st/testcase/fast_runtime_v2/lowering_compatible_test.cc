@@ -305,7 +305,9 @@ TEST_F(LowerCompatibleUnitTest, Lowering_Execute_Model_On_Compatible_infer_tilin
   auto graph = ShareGraph::BuildSingleNodeGraph(node_type);
   graph->TopologicalSorting();
   auto add_node = graph->FindFirstNodeMatchType(node_type);
-  ge::AttrUtils::SetStr(add_node->GetOpDesc(), optiling::COMPILE_INFO_KEY, "{}");  // mock for tiling parse
+  const std::string compile_info_key = "lower_compatible_v4_compile_info";
+  ge::AttrUtils::SetStr(add_node->GetOpDesc(), optiling::COMPILE_INFO_KEY, compile_info_key);
+  EXPECT_FALSE(optiling::CompileInfoManager::Instance().HasCompileInfo(compile_info_key));
 
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.AddTaskDef(node_type, AiCoreTaskDefFaker(AddStubName).WithHandle()).BuildGeRootModel();
@@ -335,6 +337,7 @@ TEST_F(LowerCompatibleUnitTest, Lowering_Execute_Model_On_Compatible_infer_tilin
   ASSERT_EQ(model_executor->Execute({i3.value}, std::vector<Tensor *>({i0.holder.get(), i1.holder.get()}).data(), 2,
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
+  EXPECT_TRUE(optiling::CompileInfoManager::Instance().HasCompileInfo(compile_info_key));
 
   ASSERT_EQ(model_executor->Execute({i3.value}, std::vector<Tensor *>({i0.holder.get(), i1.holder.get()}).data(), 2,
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
@@ -359,7 +362,9 @@ TEST_F(LowerCompatibleUnitTest, Lowering_Execute_Model_On_Compatible_infer_tilin
   auto graph = ShareGraph::BuildSingleNodeGraph(node_type);
   graph->TopologicalSorting();
   auto add_node = graph->FindFirstNodeMatchType(node_type);
-  ge::AttrUtils::SetStr(add_node->GetOpDesc(), optiling::COMPILE_INFO_KEY, "{}");  // mock for tiling parse
+  const std::string compile_info_key = "lower_compatible_v3_compile_info";
+  ge::AttrUtils::SetStr(add_node->GetOpDesc(), optiling::COMPILE_INFO_KEY, compile_info_key);
+  EXPECT_FALSE(optiling::CompileInfoCache::Instance().HasCompileInfo(compile_info_key));
 
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.AddTaskDef(node_type, AiCoreTaskDefFaker(AddStubName).WithHandle()).BuildGeRootModel();
@@ -388,6 +393,7 @@ TEST_F(LowerCompatibleUnitTest, Lowering_Execute_Model_On_Compatible_infer_tilin
   ASSERT_EQ(model_executor->Execute({i3.value}, std::vector<Tensor *>({i0.holder.get(), i1.holder.get()}).data(), 2,
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
+  EXPECT_TRUE(optiling::CompileInfoCache::Instance().HasCompileInfo(compile_info_key));
   ASSERT_EQ(model_executor->Execute({i3.value}, std::vector<Tensor *>({i0.holder.get(), i1.holder.get()}).data(), 2,
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
