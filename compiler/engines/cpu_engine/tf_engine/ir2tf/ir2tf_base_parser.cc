@@ -100,7 +100,7 @@ namespace aicpu {
 std::shared_ptr<Ir2tfBaseParser> Ir2tfBaseParser::Instance() {
   static std::shared_ptr<Ir2tfBaseParser> instance;
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance.reset(new (std::nothrow) Ir2tfBaseParser); });
+  std::call_once(flag, []() { instance.reset(new (std::nothrow) Ir2tfBaseParser); });
   return instance;
 }
 

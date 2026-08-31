@@ -136,13 +136,13 @@ class BlockMemAssigner : public MemAssigner {
   /// @brief check if input node reuse memory
   /// @param [in] n input node
   /// @return bool
-  bool GetInputNodeReuseMemFlag(const NodePtr &n);
+  bool GetInputNodeReuseMemFlag(const NodePtr &n) const;
 
   /// @ingroup GE
   /// @brief check if a input of net output node reuse memory
   /// @param [in] index input index of netoutput node
   /// @return bool
-  bool GetOutputNodeReuseMemFlagByIndex(const int32_t index);
+  bool GetOutputNodeReuseMemFlagByIndex(const int32_t index) const;
 
   /// @ingroup GE
   /// @brief Check pre_reuse flag & post_reuse glag for each symbol

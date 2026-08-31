@@ -413,6 +413,10 @@ Status DoComputeAndUpdate(const NodePtr &node) {
                                          .Inputs(GetVoidPtr<gert::SymbolTensor>(inputs_holder))
                                          .Outputs(GetVoidPtr<gert::SymbolTensor>(outputs_holder))
                                          .Build(op_desc);
+  if (kernel_context_holder.context_ == nullptr) {
+    GELOGW("Build kernel context failed, node %s[%s].", op_desc->GetName().c_str(), op_desc->GetType().c_str());
+    return UNSUPPORTED;
+  }
   auto infer_symbol_shape_ctx = reinterpret_cast<gert::InferSymbolComputeContext *>(kernel_context_holder.context_);
   auto ret = kernel_func(infer_symbol_shape_ctx);
   GE_ASSERT_TRUE(ret == ge::GRAPH_SUCCESS || ret == ge::UNSUPPORTED,
@@ -471,6 +475,10 @@ Status DoInferAndUpdate(const NodePtr &node, const gert::OpImplKernelRegistry::O
                                          .Inputs(GetVoidPtr<gert::SymbolTensor>(inputs_holder))
                                          .Outputs(GetVoidPtr<gert::SymbolShape>(outputs_holder))
                                          .Build(op_desc);
+  if (kernel_context_holder.context_ == nullptr) {
+    GELOGW("Build kernel context failed, node %s[%s].", op_desc->GetName().c_str(), op_desc->GetType().c_str());
+    return UNSUPPORTED;
+  }
   auto infer_symbol_shape_ctx = reinterpret_cast<gert::InferSymbolShapeContext *>(kernel_context_holder.context_);
   auto infer_ret = func->infer_symbol_shape(infer_symbol_shape_ctx);
   GE_ASSERT_TRUE((infer_ret == SUCCESS) || (infer_ret == UNSUPPORTED),

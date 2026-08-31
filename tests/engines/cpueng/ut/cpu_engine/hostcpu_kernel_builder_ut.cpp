@@ -17,6 +17,7 @@
 #include "stub.h"
 
 #include "ge/ge_api_types.h"
+#include "graph/debug/ge_attr_define.h"
 #include "framework/common/host_cpu_fusion_attr.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "proto/aicpu/cpu_node_def.pb.h"
@@ -162,7 +163,7 @@ TEST(HostCpuOpsKernelBuilder, CalcOpRunningParamBuildsFusedNodeDef) {
   ASSERT_EQ(op_desc->AddOutputDesc("output_0", tensor_desc), GRAPH_SUCCESS);
   ASSERT_TRUE(AttrUtils::SetStr(op_desc, kFusedHostCpuRegisterName, "FusedHostCpu_builder_test"));
   ASSERT_TRUE(AttrUtils::SetStr(op_desc, "opKernelLib", "HOSTCPUKernel"));
-  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_UNKNOWN_SHAPE_TYPE, DEPEND_IN_SHAPE));
+  ASSERT_TRUE(AttrUtils::SetInt(op_desc, ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE, DEPEND_IN_SHAPE));
   auto node = graph->AddNode(op_desc);
   ASSERT_NE(node, nullptr);
 

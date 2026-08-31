@@ -32,10 +32,10 @@ void KernelBinManager::AddKernelBin(const KernelBin &kernelbin) {
   kernelbin_list_.push_back(kernelbin);
 }
 
-uint32_t KernelBinManager::GetBinSectionSize() {
+uint32_t KernelBinManager::GetBinSectionSize() const {
   uint32_t size = 0;
   uint32_t kernel_binary_total_size = 0;
-  for (auto kernelbin : kernelbin_list_) {
+  for (const auto &kernelbin : kernelbin_list_) {
     GE_ASSERT_TRUE(kernelbin.stub_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
     const uint32_t charLen = static_cast<uint32_t>(kernelbin.stub_name.size()) + 1U;
     GE_ASSERT_TRUE((sizeof(Tlv) <= UINT32_MAX) && (sizeof(KernelInfo) <= UINT32_MAX), "[Mobile] overflow, failed.");
@@ -55,9 +55,9 @@ uint32_t KernelBinManager::GetBinSectionSize() {
   return size;
 }
 
-uint32_t KernelBinManager::GetKernelInfoTlvSize() {
+uint32_t KernelBinManager::GetKernelInfoTlvSize() const {
   uint32_t size = 0;
-  for (auto kernelbin : kernelbin_list_) {
+  for (const auto &kernelbin : kernelbin_list_) {
     GE_ASSERT_TRUE(kernelbin.stub_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
     const uint32_t char_len = static_cast<uint32_t>(kernelbin.stub_name.size()) + 1U;
     GE_ASSERT_TRUE((sizeof(Tlv) <= UINT32_MAX) && (sizeof(KernelInfo) <= UINT32_MAX), "[Mobile] overflow, failed.");

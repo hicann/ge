@@ -85,7 +85,7 @@ class GraphBuilder {
   Status AddOutputMemTypeForNode(const NodePtr &node) const;
   Status CalcLogIdAndSetAttr(const OpDescPtr &op_desc, const std::vector<int64_t> &trace_nodes,
                              const int64_t node_index, const int64_t start_id) const;
-  static bool IsDataDirectConnNetoutput(ComputeGraphPtr &comp_graph);
+  static bool IsDataDirectConnNetoutput(const ComputeGraphPtr &comp_graph);
   Status ReGetTaskInfo(const ComputeGraphPtr &comp_graph, uint64_t session_id, Model &model);
 
   int32_t build_mode_;

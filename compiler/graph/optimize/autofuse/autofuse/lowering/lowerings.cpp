@@ -150,14 +150,14 @@ bool IsInputAnchorEmptyTensor(const ge::InDataAnchorPtr &in_anchor) {
   std::vector<Expression> dims;
   GE_WARN_ASSERT(loop::GetBufferShape(in_anchor, dims) == GRAPH_SUCCESS);
   const auto zero = ge::Symbol(0);
-  return std::any_of(dims.begin(), dims.end(), [&](const Expression &dim) { return dim.Simplify() == zero; });
+  return std::any_of(dims.begin(), dims.end(), [&zero](const Expression &dim) { return dim.Simplify() == zero; });
 }
 
 bool IsOutputAnchorEmptyTensor(const ge::OutDataAnchor *out_anchor) {
   std::vector<Expression> dims;
   GE_WARN_ASSERT(loop::GetBufferShape(out_anchor, dims) == GRAPH_SUCCESS);
   const auto zero = ge::Symbol(0);
-  return std::any_of(dims.begin(), dims.end(), [&](const Expression &dim) { return dim.Simplify() == zero; });
+  return std::any_of(dims.begin(), dims.end(), [&zero](const Expression &dim) { return dim.Simplify() == zero; });
 }
 
 bool IsViewNodeShouldLowering(vector<const ge::Node *> origin_nodes) {

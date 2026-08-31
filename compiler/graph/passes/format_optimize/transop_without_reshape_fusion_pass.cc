@@ -1220,7 +1220,7 @@ graphStatus TransOpWithoutReshapeFusionPass::InsertNewTransOp(const ComputeGraph
   return RelinkControlEdge(index, out_anchor, new_trans_nodes);
 }
 
-bool TransOpWithoutReshapeFusionPass::CheckIfHasSameOutControlEdge(const NodePtr node, const NodePtr out_node) {
+bool TransOpWithoutReshapeFusionPass::CheckIfHasSameOutControlEdge(const NodePtr node, const NodePtr out_node) const {
   auto out_anchor = node->GetOutControlAnchor();
   for (auto peer_in_anchor : out_anchor->GetPeerInControlAnchors()) {
     if (peer_in_anchor->GetOwnerNode() == out_node) {

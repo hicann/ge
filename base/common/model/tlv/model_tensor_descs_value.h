@@ -19,7 +19,7 @@ namespace ge {
 class ModelTensorDesc {
  public:
   friend class ModelIntroduction;
-  size_t Size();
+  size_t Size() const;
   bool Serilize(uint8_t **const addr, size_t &left_size);
 
  private:

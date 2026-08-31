@@ -97,6 +97,7 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
     body.push_back(ChkStatus(ast_.Call("DeserializeCustKernelBinaries", {ast_.Var("", "bin_info_map_")})));
   }
   body.push_back(dev_ext_info_mem_ptrs_.Resize(codegen_model.aicpu_task_count));
+  auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
 
   // 公共 DispatchOpContext 初始化列表（for 循环版和展开版共享）
   auto ctx_init_list = ast_.InitList({total_dev_mem_ptr_,
@@ -120,16 +121,20 @@ Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, c
                                       label_switch_label_list_,
                                       session_id_,
                                       dev_ext_info_mem_ptrs_,
-                                      kernel_id_.Addr()});
+                                      kernel_id_.Addr(),
+                                      launch_func});
 
   auto ctx_var = ast_.Var("DispatchOpContext", "ctx");
   auto loop_var = ast_.Var("uint32_t", "_op_idx");
   auto kOpDefs = ast_.Var("const TaskDispatchInfo", "kOpDefs");
 
+  auto param_callbacks = ast_.Var("", "callbacks");
+  body.push_back(ast_.VarDecl(launch_func, nullptr));
+  body.push_back(ast_.If((param_callbacks != "nullptr" && param_callbacks.Arrow("launch_func") != "nullptr"),
+                         {ast_.Assign(launch_func, param_callbacks.Arrow("launch_func"))}));
   body.push_back(ast_.VarDecl(ctx_var, ctx_init_list));
 
   // 执行 ReportModelBaseInfo 回调
-  auto param_callbacks = ast_.Var("", "callbacks");
   body.push_back(
       ast_.If((param_callbacks != "nullptr" && param_callbacks.Arrow("report_model_base_info") != "nullptr"),
               {ast_.VarDecl(ast_.Var("GertModelBaseInfo", "cfg"),
@@ -253,7 +258,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
       (run_callbacks != "nullptr") && (ast_.Var("", "run_callbacks->report_run_info_preprocess") != "nullptr"),
       {ast_.VarDecl(ast_.Var("GertModelRunReportInfo", "_r"),
                     ast_.InitList({ast_.Sizeof("GertModelRunReportInfo"), model_id_, stream_arg, is_async_val})),
-       ast_.Call("run_callbacks->report_run_info_preprocess", {executor_handle_, ast_.Var("", "_r").Addr()})}));
+       ast_.Call("run_callbacks->report_run_info_preprocess", {instance_handle_, ast_.Var("", "_r").Addr()})}));
 
   body.push_back(ast_.BlankLine());
   if (is_need_va2pa) {
@@ -276,7 +281,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
       (run_callbacks != "nullptr") && (ast_.Var("", "run_callbacks->report_run_info_postprocess") != "nullptr"),
       {ast_.VarDecl(ast_.Var("GertModelRunReportInfo", "_r2"),
                     ast_.InitList({ast_.Sizeof("GertModelRunReportInfo"), model_id_, stream_arg, is_async_val})),
-       ast_.Call("run_callbacks->report_run_info_postprocess", {executor_handle_, ast_.Var("", "_r2").Addr()})}));
+       ast_.Call("run_callbacks->report_run_info_postprocess", {instance_handle_, ast_.Var("", "_r2").Addr()})}));
 }
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body,

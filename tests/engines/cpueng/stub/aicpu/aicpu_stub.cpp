@@ -62,9 +62,4 @@ std::vector<std::string> CpuKernelRegister::GetAllRegisteredOpTypesV2() const {
   return ret;
 }
 
-CpuKernelContext::CpuKernelContext(DeviceType type) {}
-
-uint32_t CpuKernelContext::Init(void *nodeDef) {
-  return 0;
-}
 }  // namespace aicpu

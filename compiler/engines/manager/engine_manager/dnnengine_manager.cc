@@ -466,6 +466,13 @@ std::string DNNEngineManager::GetDNNEngineName(const ge::NodePtr &node_ptr,
   return "";
 }
 
+void DNNEngineManager::TrySelectHostCpuCustomOp(const OpDescPtr &op_desc, OpInfo &matched_op_info) const {
+  if ((op_desc == nullptr) || (op_desc->GetOpEngineName() != kHostCpuEngineName) || !IsHostCpuCustomOp(op_desc)) {
+    return;
+  }
+  SetHostCpuCustomOp(op_desc, matched_op_info);
+}
+
 std::string DNNEngineManager::GetCompositeEngineName(const ge::NodePtr &node_ptr, uint32_t recursive_depth) {
   // op_desc of node should not be null
   const auto &op_desc = node_ptr->GetOpDesc();

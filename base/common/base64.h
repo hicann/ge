@@ -88,7 +88,7 @@ static Status DecodeFromBase64(const std::string &base64_data, std::string &deco
   decode_data.clear();
   size_t base64_data_len = base64_data.size();
   uint8_t byte_4[kFourByteOneGroup];
-  auto FindCharInBase64Chars = [&](const char &raw_char) -> uint8_t {
+  auto FindCharInBase64Chars = [](const char &raw_char) -> uint8_t {
     auto char_pos = std::find(kBase64Chars, kBase64Chars + kBase64CharsNum, raw_char);
     return static_cast<uint8_t>(std::distance(kBase64Chars, char_pos)) & 0xff;
   };

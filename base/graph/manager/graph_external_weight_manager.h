@@ -16,6 +16,9 @@
 #include <mutex>
 #include <vector>
 #include <algorithm>
+#include <string>
+#include <memory>
+#include <cstdint>
 #include "ge/ge_api_types.h"
 #include "nlohmann/json.hpp"
 #include "graph/any_value.h"

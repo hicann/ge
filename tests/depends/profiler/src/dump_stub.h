@@ -10,6 +10,7 @@
 
 #ifndef DUMP_STUB_H_
 #define DUMP_STUB_H_
+#include <atomic>
 #include <vector>
 #include <memory>
 #include <mutex>
@@ -161,6 +162,8 @@ class DumpStub {
     ClearFuncRet();
     dump_configs_.clear();
     mock_dump_path_.clear();
+    adx_init_count_.store(0, std::memory_order_relaxed);
+    adx_uninit_count_.store(0, std::memory_order_relaxed);
   }
 
   void SetMockDumpPath(const std::string &path) {
@@ -192,6 +195,23 @@ class DumpStub {
     return it != call_records_.end() ? it->second : 0;
   }
 
+  void IncrementAdxInitCount() {
+    adx_init_count_.fetch_add(1, std::memory_order_relaxed);
+  }
+  void IncrementAdxUninitCount() {
+    adx_uninit_count_.fetch_add(1, std::memory_order_relaxed);
+  }
+  int GetAdxInitCallCount() const {
+    return adx_init_count_.load(std::memory_order_relaxed);
+  }
+  int GetAdxUninitCallCount() const {
+    return adx_uninit_count_.load(std::memory_order_relaxed);
+  }
+  void ResetAdxCallCount() {
+    adx_init_count_.store(0, std::memory_order_relaxed);
+    adx_uninit_count_.store(0, std::memory_order_relaxed);
+  }
+
  private:
   DumpStub() = default;
   std::mutex mu_;
@@ -205,6 +225,8 @@ class DumpStub {
   std::map<Adx::DumpType, Adx::DumpConfig> dump_configs_;
   bool is_enable_{true};
   std::string mock_dump_path_;
+  std::atomic<int> adx_init_count_{0};
+  std::atomic<int> adx_uninit_count_{0};
 };
 }  // namespace ge
 

@@ -75,6 +75,9 @@ Status EnginePlacer::SelectEngine(const NodePtr &node, const std::set<std::strin
     matched_op_info.flagAsync = false;
   }
 
+  // Host CPU custom operators keep the custom engine identity and use Host CPU lowering.
+  DNNEngineManager::GetInstance().TrySelectHostCpuCustomOp(op_desc, matched_op_info);
+
   // Record the node assigned atomic_engine name
   GELOGD("Assigning DNNEngine %s to node %s, op type %s", op_desc->GetOpEngineName().c_str(), node->GetName().c_str(),
          node->GetType().c_str());

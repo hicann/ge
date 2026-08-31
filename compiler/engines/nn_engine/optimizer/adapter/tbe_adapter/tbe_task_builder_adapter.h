@@ -119,7 +119,7 @@ class TbeTaskBuilderAdapter : public TaskBuilderAdapter {
   Status FeedInputAddrByAnchor(const ge::InDataAnchorPtr &anchor, InputIndexOffsetInfo &index_offset_info,
                                bool is_gen_place_holder = false);
 
-  bool GetUnknownShapeFlag();
+  bool GetUnknownShapeFlag() const;
 
   void AppendArgsTilingData(vector<void *> &device_addrs);
 

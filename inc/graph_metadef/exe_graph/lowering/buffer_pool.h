@@ -10,6 +10,8 @@
 
 #ifndef AIR_CXX_RUNTIME_V2_LOWERING_BUFFER_POOL_H_
 #define AIR_CXX_RUNTIME_V2_LOWERING_BUFFER_POOL_H_
+
+#include <cstdint>
 #include <unordered_map>
 #include <string>
 #include <vector>

@@ -109,7 +109,7 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
                                        const uint32_t vector_core_cnt_ini, fe::PlatformInfo &platform_info,
                                        int32_t &virtual_type) const;
 
-  Status CheckOsCpuInfoAndOppVersion();
+  Status CheckOsCpuInfoAndOppVersion() const;
 
   Status GetSoBinData(const string &cpu_info, const string &os_info);
 

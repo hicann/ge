@@ -939,7 +939,7 @@ void IsSymbolNodePreReuse(const Node *const node, const bool has_subgraph_data, 
   }
 }
 
-bool BlockMemAssigner::GetOutputNodeReuseMemFlagByIndex(const int32_t index) {
+bool BlockMemAssigner::GetOutputNodeReuseMemFlagByIndex(const int32_t index) const {
   if (output_index_to_reuse_mem_flag_.size() == 0U) {
     return false;
   }
@@ -949,7 +949,7 @@ bool BlockMemAssigner::GetOutputNodeReuseMemFlagByIndex(const int32_t index) {
              : false;
 }
 
-bool BlockMemAssigner::GetInputNodeReuseMemFlag(const NodePtr &n) {
+bool BlockMemAssigner::GetInputNodeReuseMemFlag(const NodePtr &n) const {
   if (input_index_to_reuse_mem_flag_.size() == 0U) {
     return false;
   }

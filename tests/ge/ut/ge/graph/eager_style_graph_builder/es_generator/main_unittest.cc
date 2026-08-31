@@ -135,6 +135,9 @@ TEST_F(EsMainUt, ExecuteGeneration_CodegenWithInvalidOptions) {
 }
 
 TEST_F(EsMainUt, ExecuteGeneration_ExtractHistoryWithEmptyVersion) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Extract-history generation depends on an external asc_dumper runtime on ARM64.";
+#endif
   GenEsbOptions options;
   options.mode = kEsExtractHistoryMode;
   options.release_version = "";

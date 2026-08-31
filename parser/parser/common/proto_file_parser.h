@@ -24,7 +24,7 @@ class ProtoFileParser {
   Status CombineProtoFile(const char *caffe_proto_file, const char *custom_proto_file, std::string &dest_proto_file);
   Status CombineProtoFileMultiCustomProto(const char *caffe_proto_file, const char *custom_proto_paths,
                                           std::string &dest_proto_file);
-  std::string GetFusionProtoFile();
+  std::string GetFusionProtoFile() const;
 
  private:
   void ResetParserStatus(bool reset_fusion_proto);

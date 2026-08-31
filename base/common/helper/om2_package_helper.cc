@@ -994,7 +994,7 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Mod
   }
 
   JsonFile op_attr_json(op_attr_object);
-  debug_info.op_attr_json = op_attr_json.Dump();
+  model_data.op_attr_json = op_attr_json.Dump();
 
   GE_ASSERT_SUCCESS(SetOm2CompatibleOmInfoList(ge_model));
   GE_ASSERT_SUCCESS(VisualJsonConverter::SerializeFromGeModel(ge_model, debug_info.visual_json));
@@ -1004,14 +1004,14 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Mod
 
 Status Om2PackageHelper::BuildManifest(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data) {
   GELOGI("[OM2] Begin to build manifest");
-  std::map<std::string, std::string> &manifest = model_data.manifest;
-  manifest[OM2_ARCHIVE_VERSION] = OM2_ARCHIVE_VERSION_VALUE;
+  gert::Om2Manifest &manifest = model_data.manifest;
+  manifest.compatibility.compiler_version = gert::OM2_VERSION;
   if (ge_root_model != nullptr) {
-    manifest[OM2_MODEL_NUM] = std::to_string(ge_root_model->GetSubgraphInstanceNameToModel().size());
+    manifest.model_num = static_cast<uint32_t>(ge_root_model->GetSubgraphInstanceNameToModel().size());
   } else {
-    manifest[OM2_MODEL_NUM] = "1";
+    manifest.model_num = 1U;
   }
-  manifest[OM2_ATC_COMMAND] = domi::GetContext().atc_cmdline;
+  manifest.atc_command = domi::GetContext().atc_cmdline;
   GELOGI("[OM2] Successfully built manifest");
   return SUCCESS;
 }

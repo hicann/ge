@@ -48,6 +48,9 @@ class FunctionCompileTest : public Test {
 };
 
 TEST_F(FunctionCompileTest, FunctionPpCompile) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Resource type assertions are x86-specific";
+#endif
   CompileConfigJson::FunctionPpConfig function_pp_config;
   function_pp_config.workspace = "./temp";
   function_pp_config.target_bin = "libtest.so";
@@ -150,6 +153,9 @@ TEST_F(FunctionCompileTest, FunctionPpCompileWithNoMakefile) {
 }
 
 TEST_F(FunctionCompileTest, CompileAllResourceTypeFailed) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Resource type setup is x86-specific";
+#endif
   class MockMmpaOpen : public ge::MmpaStubApiGe {
    public:
     virtual INT32 Open2(const CHAR *path_name, INT32 flags, MODE mode) {

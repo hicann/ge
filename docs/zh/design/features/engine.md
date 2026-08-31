@@ -335,6 +335,8 @@ flowchart TD
 
 引擎选择采用贪心策略——按优先级从高到低遍历，第一个 `CheckSupported()` 通过的引擎被选中。使用线程池（默认 16 线程）并行为节点选择引擎，通过 mutex 保护共享数据。
 
+在遵从以上引擎选择的逻辑之上，自定义引擎优先级最高。如 device 自定义算子引擎（DNN_VM_CUSTOM）优先于其他 Device 引擎；注册 Host CPU 实现的自定义算子优先于通用 Host CPU 引擎（DNN_VM_HOST_CPU）。
+
 引擎重分配（`ReAssignEngine()`）通过策略模式实现。`EngineReAssignPass` 是策略接口，当前有两种实现：
 
 - `DynamicDataFlowEngineReassignPass`：动态数据流场景下的引擎重分配

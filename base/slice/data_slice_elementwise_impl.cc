@@ -106,6 +106,11 @@ Status DataSliceElementwiseImpl::InferAxisSlice(Operator &op, const AxisTypeInfo
   if (!CheckOutDataSlice(op_desc, output_cutinfo, out_data_slice)) {
     return FAILED;
   }
+  if (out_data_slice.empty() || out_data_slice[0].empty() || output_cutinfo[0].second.empty() ||
+      static_cast<size_t>(output_cutinfo[0].second[0]) >= out_data_slice[0].size()) {
+    GELOGE(FAILED, "The op[%s] output data slice is empty or index out of range.", DataSliceGetName(op).c_str());
+    return FAILED;
+  }
 
   // 遍历得到in_data_slice
   for (size_t i = 0; i < input_cutinfo.size(); ++i) {

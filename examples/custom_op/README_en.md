@@ -9,6 +9,7 @@ This directory provides samples related to custom operator graph integration, co
 | `ascendc_add_custom` | Ascend C operator enters graph through GE | PyTorch + TorchAir | Ascend C | CMake compilation | Not involved | [README](./ascendc_add_custom/README_en.md) |
 | `triton_add_custom` | Triton operator enters graph through GE | TensorFlow | Triton | Pre-compiled as `npubin` | Not involved | [README](./triton_add_custom/README_en.md) |
 | `compilable_add_custom` | Ascend C operator enters graph through GE and generates om offline model | GE + ATC offline compilation | Ascend C | RTC operator runtime compilation | Supports model sink to om offline model | [README](./compilable_add_custom/README_en.md) |
+| `host_cpu_add_custom` | HostCpu Add sample with constant folding and runtime host scheduling | GE online execution | C++ | Direct C++ compilation | Not involved | [README](./host_cpu_add_custom/README_en.md) |
 | `python_compilable_add_custom` | Python operator compiles a kernel in online graph compilation and offline ATC compilation, then verifies online and OM execution | GE online execution + ATC offline compilation | Python + Ascend C | BiSheng invoked by the Python compile callback | OM executes without the Python plugin | [README](./python_compilable_add_custom/README_en.md) |
 | `data_dependent_shape_custom` | Data dependent shape operator | GE | Ascend C | CMake compilation | Not involved | [README](data_dependent_shape_custom/README_en.md) |
 | `args_refresh_add_custom` | ArgsUpdater address refresh + MallocReadOnlyDevArgs + performance comparison | GE online execution | Ascend C | RTC runtime compilation | Online address refresh performance comparison | [README](./args_refresh_add_custom/cpp/README_en.md) |
@@ -31,6 +32,7 @@ Currently provided interface functionality:
 |------------------|---------|
 | `class BaseCustomOp` | Common base class for custom operator capability interfaces, user implementation classes combine and inherit other capability interfaces as needed. |
 | `class EagerExecuteOp` | Runtime execution capability, can get input Tensor, allocate output Tensor, allocate workspace and initiate kernel call. |
+| `class HostCpuExecuteOp` | Host-side execution capability, can get input Tensor, allocate output Tensor, and compute during constant folding or Host CPU runtime. |
 | `class ArgsUpdater` | Callback-based args address refresh capability. When I/O addresses change, GE invokes `UpdateHostArgs` to update the existing args buffer. |
 | `class AnnotatedArgsOp` | Declarative kernel launch and args layout capability. At compile time, `DeclareLaunchArgs` annotates input, output, and workspace address slots so GE can generate tasks and refresh addresses. |
 | `class ShapeInferOp` | Shape / DataType derivation capability, used to set output description during compilation or graph composition phase. |
@@ -43,6 +45,7 @@ Interface combination selection by scenario:
 
 | Scenario | Recommended Implementation |
 |---------|---------------------------|
+| HostCpu constant folding | `HostCpuExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution | `EagerExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` |
 | Static graph offline sink OM model execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` + `PortableOp` |

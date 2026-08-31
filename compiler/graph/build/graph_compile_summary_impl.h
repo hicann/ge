@@ -58,13 +58,13 @@ class CompiledGraphSummary::SummaryData {
   size_t GetEventNum() const {
     return event_num_;
   }
-  std::shared_ptr<StreamAllocationSummary> GetStreamAllocationSummary() {
+  std::shared_ptr<StreamAllocationSummary> GetStreamAllocationSummary() const {
     return stream_allocation_summary_;
   }
-  std::vector<ge::Shape> GetOutputShapes() {
+  std::vector<ge::Shape> GetOutputShapes() const {
     return netoutput_shapes_;
   }
-  std::vector<ge::DataType> GetOutputDtypes() {
+  std::vector<ge::DataType> GetOutputDtypes() const {
     return netoutput_dtypes_;
   }
   std::vector<std::pair<uint32_t, uint32_t>> GetIOIndexesWithSameAddr() const {

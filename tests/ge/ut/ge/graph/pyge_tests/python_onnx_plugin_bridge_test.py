@@ -14,11 +14,14 @@
 
 import ge.graph as graph_api
 import ge.onnx_plugin as onnx_plugin_api
+import ge.onnx_plugin._bridge as onnx_plugin_bridge
 import pytest
 from ge.graph import Operator
 from ge.onnx_plugin import onnx_plugin
 from ge.onnx_plugin._bridge import (
+    _InvalidDecomposeReturn,
     _InvalidParseNodeReturn,
+    call_decompose,
     call_parse_node,
     call_parse_operator,
 )
@@ -46,7 +49,7 @@ def test_public_exports_match_pr1_support_matrix():
 
 
 def test_unsupported_pr1_interfaces_are_not_exposed():
-    for name in ("decompose", "reset", "reload"):
+    for name in ("reset", "reload"):
         assert not hasattr(onnx_plugin_api.OnnxPlugin, name)
     for name in (
         "update_input_desc",
@@ -57,6 +60,51 @@ def test_unsupported_pr1_interfaces_are_not_exposed():
 
 def test_invalid_parse_node_return_is_type_error_subclass():
     assert issubclass(_InvalidParseNodeReturn, TypeError)
+
+
+def test_call_decompose_returns_graph_and_invalidates_source(
+    monkeypatch, operator_capi
+):
+    class FakeGraph:
+        pass
+
+    monkeypatch.setattr(onnx_plugin_bridge, "Graph", FakeGraph)
+    plugin = onnx_plugin(
+        source="DecomposeSource",
+        domain="test.domain",
+        opsets=(1,),
+        target="DecomposeTarget",
+    )
+    graph = FakeGraph()
+    seen = {}
+
+    @plugin.decompose
+    def decompose(source):
+        seen["source"] = source
+        return graph
+
+    assert (
+        call_decompose("test.domain::1::DecomposeSource", operator_capi.handle) is graph
+    )
+    with pytest.raises(RuntimeError, match="only valid inside parse_node"):
+        seen["source"].name
+
+
+def test_call_decompose_rejects_non_graph_return(operator_capi):
+    plugin = onnx_plugin(
+        source="DecomposeReturn",
+        domain="test.domain",
+        opsets=(1,),
+        target="DecomposeReturnTarget",
+    )
+
+    @plugin.decompose
+    def decompose(source):
+        del source
+        return object()
+
+    with pytest.raises(_InvalidDecomposeReturn, match="must return ge.graph.Graph"):
+        call_decompose("test.domain::1::DecomposeReturn", operator_capi.handle)
 
 
 def test_call_parse_node_rejects_unknown_origin_without_creating_operator(

@@ -30,6 +30,39 @@ using namespace ge;
 using TransNodeReformatGeneratorPtr = shared_ptr<TransNodeReformatGenerator>;
 using TransNodeInsertionPtr = shared_ptr<TransNodeInsertion>;
 using TransNodeTransDataGeneratorPtr = shared_ptr<TransNodeTransdataGenerator>;
+
+void FillTransInfoForTransData(const TransInfoPtr &trans_info_ptr) {
+  uint32_t src_anchor_index = static_cast<uint32_t>(trans_info_ptr->src_anchor->GetIdx());
+  uint32_t dst_anchor_index = static_cast<uint32_t>(trans_info_ptr->dst_anchor->GetIdx());
+  trans_info_ptr->src_out_tensor_desc_ptr = trans_info_ptr->src_op_desc->GetOutputDescPtr(src_anchor_index);
+  trans_info_ptr->dst_in_tensor_desc_ptr = trans_info_ptr->dst_op_desc->GetInputDescPtr(dst_anchor_index);
+  if (trans_info_ptr->src_out_tensor_desc_ptr == nullptr || trans_info_ptr->dst_in_tensor_desc_ptr == nullptr) {
+    return;
+  }
+  trans_info_ptr->src_out_shape = trans_info_ptr->src_out_tensor_desc_ptr->GetShape();
+  trans_info_ptr->dst_in_shape = trans_info_ptr->dst_in_tensor_desc_ptr->GetShape();
+  trans_info_ptr->src_out_primary_format =
+      static_cast<ge::Format>(ge::GetPrimaryFormat(trans_info_ptr->src_out_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->dst_in_primary_format =
+      static_cast<ge::Format>(ge::GetPrimaryFormat(trans_info_ptr->dst_in_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->src_out_sub_format =
+      static_cast<int32_t>(ge::GetSubFormat(trans_info_ptr->src_out_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->dst_in_sub_format =
+      static_cast<int32_t>(ge::GetSubFormat(trans_info_ptr->dst_in_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->src_out_c0_format =
+      static_cast<int32_t>(ge::GetC0Value(trans_info_ptr->src_out_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->dst_in_c0_format =
+      static_cast<int32_t>(ge::GetC0Value(trans_info_ptr->dst_in_tensor_desc_ptr->GetFormat()));
+  trans_info_ptr->src_out_data_type = trans_info_ptr->src_out_tensor_desc_ptr->GetDataType();
+  trans_info_ptr->dst_in_data_type = trans_info_ptr->dst_in_tensor_desc_ptr->GetDataType();
+  trans_info_ptr->src_out_original_shape = trans_info_ptr->src_out_tensor_desc_ptr->GetOriginShape();
+  trans_info_ptr->src_out_original_format = trans_info_ptr->src_out_tensor_desc_ptr->GetOriginFormat();
+  trans_info_ptr->dst_in_original_shape = trans_info_ptr->dst_in_tensor_desc_ptr->GetOriginShape();
+  trans_info_ptr->dst_in_original_format = trans_info_ptr->dst_in_tensor_desc_ptr->GetOriginFormat();
+  trans_info_ptr->src_op_desc_type = trans_info_ptr->src_op_desc->GetType();
+  trans_info_ptr->dst_op_desc_type = trans_info_ptr->dst_op_desc->GetType();
+}
+
 class TRANS_NODE_REFORMAT_GENERATOR_STEST : public testing::Test {
  protected:
   void SetUp() {}
@@ -109,6 +142,7 @@ TEST_F(TRANS_NODE_REFORMAT_GENERATOR_STEST, AddTransNode_suc1) {
   trans_info_ptr->dst_anchor = node_sqr->GetInDataAnchor(0);
   trans_info_ptr->src_node_ptr = node_ref0;
   trans_info_ptr->dst_node_ptr = node_sqr;
+  FillTransInfoForTransData(trans_info_ptr);
   Status ret = trans_node_transdata_generator->AddTransNode(*fused_graph, trans_info_ptr);
   EXPECT_EQ(ret, fe::SUCCESS);
 }
@@ -154,6 +188,7 @@ TEST_F(TRANS_NODE_REFORMAT_GENERATOR_STEST, AddTransNode_suc2) {
   trans_info_ptr->dst_anchor = node_reshape->GetInDataAnchor(0);
   trans_info_ptr->src_node_ptr = node_assign;
   trans_info_ptr->dst_node_ptr = node_reshape;
+  FillTransInfoForTransData(trans_info_ptr);
   Status ret = trans_node_transdata_generator->AddTransNode(*fused_graph, trans_info_ptr);
 
   int count_node = 0;

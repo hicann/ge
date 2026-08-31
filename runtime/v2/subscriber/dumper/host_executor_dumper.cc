@@ -110,7 +110,7 @@ void HostExecutorDumper::SetOpDescInfo(NodeDumpUnit &dump_unit, ge::OpDescPtr &o
   }
 }
 
-bool HostExecutorDumper::IsInDumpStep(const int64_t step_id, const std::string &dump_step) {
+bool HostExecutorDumper::IsInDumpStep(const int64_t step_id, const std::string &dump_step) const {
   if (!dump_step.empty()) {
     const auto step = step_set_.find(step_id);
     if (step != step_set_.end()) {

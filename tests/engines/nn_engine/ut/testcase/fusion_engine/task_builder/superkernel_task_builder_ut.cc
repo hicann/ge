@@ -430,8 +430,9 @@ TEST_F(SuperkernelTaskBuilderUT, get_arg_format_v2_all_kernel) {
 TEST_F(SuperkernelTaskBuilderUT, is_aicpu_task_def_fail) {
   domi::TaskDef task_def = {};
   domi::KernelDef *kernel_def = task_def.mutable_kernel();
+  bool hasRecordOrWaitTask = false;
   auto kernel_context = kernel_def->mutable_context();
-  ge::Status status = fe::IsAICpuTaskDef(task_def, kernel_context);
+  ge::Status status = fe::IsAICpuTaskDef(task_def, kernel_context, hasRecordOrWaitTask);
   EXPECT_EQ(status, false);
 }
 
@@ -908,6 +909,518 @@ TEST_F(SuperkernelTaskBuilderUT, gen_task_for_super_kernel_malloc_fail) {
   std::vector<domi::TaskDef> output_tasks;
   ge::Status status = fe::GenTaskForSuperKernel(*node, sub_tasks, sub_nodes, output_tasks);
   EXPECT_EQ(status, ge::FAILED);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_wait_kernel_def_event_wait) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  bool ret = fe::IsEventWaitKernelDef(task_def);
+  EXPECT_EQ(ret, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_wait_kernel_def_notify_wait) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_WAIT));
+  bool ret = fe::IsEventWaitKernelDef(task_def);
+  EXPECT_EQ(ret, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_wait_kernel_def_not_event) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  bool ret = fe::IsEventWaitKernelDef(task_def);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_record_kernel_def_event_record) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  bool ret = fe::IsEventRecordKernelDef(task_def);
+  EXPECT_EQ(ret, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_record_kernel_def_notify_record) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_RECORD));
+  bool ret = fe::IsEventRecordKernelDef(task_def);
+  EXPECT_EQ(ret, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_record_kernel_def_not_event) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  bool ret = fe::IsEventRecordKernelDef(task_def);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_wait_task_def_success) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  domi::KernelContext *kernel_context = nullptr;
+  bool ret = fe::IsEventWaitTaskDef(task_def, kernel_context);
+  EXPECT_EQ(ret, true);
+  EXPECT_NE(kernel_context, nullptr);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_wait_task_def_fail) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  domi::KernelContext *kernel_context = nullptr;
+  bool ret = fe::IsEventWaitTaskDef(task_def, kernel_context);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_record_task_def_success) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  domi::KernelContext *kernel_context = nullptr;
+  bool ret = fe::IsEventRecordTaskDef(task_def, kernel_context);
+  EXPECT_EQ(ret, true);
+  EXPECT_NE(kernel_context, nullptr);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_event_record_task_def_fail) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  domi::KernelContext *kernel_context = nullptr;
+  bool ret = fe::IsEventRecordTaskDef(task_def, kernel_context);
+  EXPECT_EQ(ret, false);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, check_record_wait_task_paired) {
+  domi::TaskDef record_task{};
+  record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  domi::TaskDef wait_task{};
+  wait_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  std::vector<domi::TaskDef> sub_tasks = {record_task, wait_task};
+  bool has_record_or_wait = false;
+  bool ret = fe::CheckRecordWaitTask(sub_tasks, has_record_or_wait);
+  EXPECT_EQ(ret, true);
+  EXPECT_EQ(has_record_or_wait, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, check_record_wait_task_unpaired) {
+  domi::TaskDef record_task{};
+  record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  domi::TaskDef wait_task1{};
+  wait_task1.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  domi::TaskDef wait_task2{};
+  wait_task2.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  std::vector<domi::TaskDef> sub_tasks = {record_task, wait_task1, wait_task2};
+  bool has_record_or_wait = false;
+  bool ret = fe::CheckRecordWaitTask(sub_tasks, has_record_or_wait);
+  EXPECT_EQ(ret, false);
+  EXPECT_EQ(has_record_or_wait, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, check_record_wait_task_no_event) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  std::vector<domi::TaskDef> sub_tasks = {task_def};
+  bool has_record_or_wait = false;
+  bool ret = fe::CheckRecordWaitTask(sub_tasks, has_record_or_wait);
+  EXPECT_EQ(ret, true);
+  EXPECT_EQ(has_record_or_wait, false);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_v2_event_wait) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  auto kernel_def = task_def.mutable_kernel();
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_args_format("{event_addr}");
+  std::string args_format;
+  ge::Status status = fe::GetArgFormatV2(task_def, args_format);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(args_format, "{event_addr}");
+}
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_v2_event_record) {
+  domi::TaskDef task_def{};
+  task_def.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  auto kernel_def = task_def.mutable_kernel();
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_args_format("{event_addr}");
+  std::string args_format;
+  ge::Status status = fe::GetArgFormatV2(task_def, args_format);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(args_format, "{event_addr}");
+}
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_unpaired_event_failed) {
+  domi::TaskDef record_task{};
+  record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  auto record_kernel = record_task.mutable_kernel();
+  record_kernel->mutable_context()->set_args_format("{event_addr}");
+
+  domi::TaskDef wait_task1{};
+  wait_task1.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  wait_task1.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  domi::TaskDef wait_task2{};
+  wait_task2.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  wait_task2.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  std::vector<domi::TaskDef> tasks = {record_task, wait_task1, wait_task2};
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  ge::OpDescPtr super_kernel_op_desc = std::make_shared<ge::OpDesc>("A", "A");
+  std::string super_kernel_args_format;
+  size_t args_size_total = 8U;
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+  const std::string subOpType = "SubKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+  nodeOpDescPtr->SetId(0U);
+
+  ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
+  subNodeOpDescPtr->SetId(0U);
+  ge::Node *subNode = node.get();
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  ge::Status status = fe::GetArgFormat(sub_nodes, args_size_total, sub_tasks, super_kernel_op_desc, tasks, node,
+                                       super_kernel_args_format);
+  EXPECT_EQ(status, ge::FAILED);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, set_arg_format_value_with_custom_event_ids) {
+  domi::TaskDef task_def{};
+  task_def.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  auto kernel_def = task_def.mutable_kernel();
+  kernel_def->set_block_dim(24);
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_args_count(1);
+  kernel_context->set_args_format("{ws0}");
+
+  std::vector<domi::TaskDef> tasks;
+  tasks.emplace_back(task_def);
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  size_t args_size_total = 512;
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+  const std::string subOpType = "SubKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  nodeOpDescPtr->SetId(0U);
+  std::vector<uint32_t> sk_custom_event_ids = {1, 2};
+  (void)ge::AttrUtils::SetListInt(nodeOpDescPtr, "_sk_custom_event_ids", sk_custom_event_ids);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+
+  ge::Node *subNode = node.get();
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  uint32_t args_size_workspace = 8;
+  void *all_args_buff_total = (void *)malloc(args_size_total);
+
+  ge::Status status =
+      fe::SetArgFormatValue(args_size_workspace, sub_tasks, sub_nodes, all_args_buff_total, args_size_total);
+  free(all_args_buff_total);
+  EXPECT_EQ(status, ge::SUCCESS);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, is_aicpu_task_def_with_record_or_wait) {
+  domi::TaskDef task_def = {};
+  domi::KernelDef *kernel_def = task_def.mutable_kernel();
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_kernel_type(6);
+  bool hasRecordOrWaitTask = true;
+  ge::Status status = fe::IsAICpuTaskDef(task_def, kernel_context, hasRecordOrWaitTask);
+  EXPECT_EQ(status, true);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_paired_event_same_stream) {
+  domi::TaskDef record_task{};
+  record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  record_task.set_stream_id(0);
+  record_task.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  domi::TaskDef wait_task{};
+  wait_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  wait_task.set_stream_id(0);
+  wait_task.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  std::vector<domi::TaskDef> tasks = {record_task, wait_task};
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  ge::OpDescPtr super_kernel_op_desc = std::make_shared<ge::OpDesc>("A", "A");
+  super_kernel_op_desc->SetStreamId(0);
+  std::string super_kernel_args_format;
+  size_t args_size_total = 0U;
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+  const std::string subOpType = "SubKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+  nodeOpDescPtr->SetId(0U);
+
+  ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
+  subNodeOpDescPtr->SetId(0U);
+  ge::Node *subNode = node.get();
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  std::vector<domi::TaskDef> output_tasks;
+  ge::Status status = fe::GetArgFormat(sub_nodes, args_size_total, sub_tasks, super_kernel_op_desc, output_tasks, node,
+                                       super_kernel_args_format);
+  EXPECT_EQ(status, ge::SUCCESS);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_paired_event_diff_stream) {
+  domi::TaskDef record_task{};
+  record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  record_task.set_stream_id(1);
+  record_task.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  domi::TaskDef wait_task{};
+  wait_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  wait_task.set_stream_id(1);
+  wait_task.mutable_kernel()->mutable_context()->set_args_format("{event_addr}");
+
+  std::vector<domi::TaskDef> tasks = {record_task, wait_task};
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(tasks);
+
+  ge::OpDescPtr super_kernel_op_desc = std::make_shared<ge::OpDesc>("A", "A");
+  super_kernel_op_desc->SetStreamId(0);
+  std::string super_kernel_args_format;
+  size_t args_size_total = 0U;
+
+  const std::string graphName = "testSuperkernelGentaskProtoGraph";
+  const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+  const std::string opType = "SuperKernel";
+  const std::string subOpType = "SubKernel";
+
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+  ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+  ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+  nodeOpDescPtr->SetId(0U);
+
+  ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
+  subNodeOpDescPtr->SetId(0U);
+  ge::Node *subNode = node.get();
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.push_back(subNode);
+
+  std::vector<domi::TaskDef> output_tasks;
+  ge::Status status = fe::GetArgFormat(sub_nodes, args_size_total, sub_tasks, super_kernel_op_desc, output_tasks, node,
+                                       super_kernel_args_format);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(output_tasks.size(), 2U);
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_event_wait_same_stream) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(5);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  ge::OpDescPtr sub_op_desc = std::make_shared<ge::OpDesc>("sub", "SubKernel");
+  ge::NodePtr sub_node = graph->AddNode(sub_op_desc);
+
+  domi::TaskDef event_wait_task;
+  event_wait_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT));
+  event_wait_task.set_stream_id(5);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(std::vector<domi::TaskDef>{event_wait_task});
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.emplace_back(sub_node.get());
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+
+  std::vector<uint32_t> sk_custom_event_ids;
+  bool has_attr = ge::AttrUtils::GetListInt(sub_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+  EXPECT_EQ(has_attr, true);
+  ASSERT_FALSE(sk_custom_event_ids.empty());
+  EXPECT_EQ(sk_custom_event_ids.back(), sub_tasks[0][0].event_id());
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_notify_wait_same_stream) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(6);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  ge::OpDescPtr sub_op_desc = std::make_shared<ge::OpDesc>("sub", "SubKernel");
+  ge::NodePtr sub_node = graph->AddNode(sub_op_desc);
+
+  domi::TaskDef notify_wait_task;
+  notify_wait_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_WAIT));
+  notify_wait_task.set_stream_id(6);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(std::vector<domi::TaskDef>{notify_wait_task});
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.emplace_back(sub_node.get());
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+
+  std::vector<uint32_t> sk_custom_event_ids;
+  bool has_attr = ge::AttrUtils::GetListInt(sub_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+  EXPECT_EQ(has_attr, true);
+  ASSERT_FALSE(sk_custom_event_ids.empty());
+  EXPECT_EQ(sk_custom_event_ids.back(), sub_tasks[0][0].event_id());
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_event_record_diff_stream) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(5);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  ge::OpDescPtr sub_op_desc = std::make_shared<ge::OpDesc>("sub", "SubKernel");
+  ge::NodePtr sub_node = graph->AddNode(sub_op_desc);
+
+  domi::TaskDef event_record_task;
+  event_record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD));
+  event_record_task.set_stream_id(9);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(std::vector<domi::TaskDef>{event_record_task});
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.emplace_back(sub_node.get());
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_NE(sub_tasks[0][0].event_id(), 0U);
+
+  std::vector<uint32_t> sk_custom_event_ids;
+  bool has_attr = ge::AttrUtils::GetListInt(sub_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+  EXPECT_EQ(has_attr, false);
+  EXPECT_TRUE(sk_custom_event_ids.empty());
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_notify_record_diff_stream) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(5);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  ge::OpDescPtr sub_op_desc = std::make_shared<ge::OpDesc>("sub", "SubKernel");
+  ge::NodePtr sub_node = graph->AddNode(sub_op_desc);
+
+  domi::TaskDef notify_record_task;
+  notify_record_task.set_type(static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_RECORD));
+  notify_record_task.set_stream_id(10);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(std::vector<domi::TaskDef>{notify_record_task});
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.emplace_back(sub_node.get());
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_NE(sub_tasks[0][0].event_id(), 0U);
+
+  std::vector<uint32_t> sk_custom_event_ids;
+  bool has_attr = ge::AttrUtils::GetListInt(sub_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+  EXPECT_EQ(has_attr, false);
+  EXPECT_TRUE(sk_custom_event_ids.empty());
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_non_event_untouched) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(5);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  ge::OpDescPtr sub_op_desc = std::make_shared<ge::OpDesc>("sub", "SubKernel");
+  ge::NodePtr sub_node = graph->AddNode(sub_op_desc);
+
+  domi::TaskDef kernel_task;
+  kernel_task.set_type(ACL_RT_MODEL_TASK_KERNEL);
+  kernel_task.set_stream_id(5);
+  kernel_task.set_event_id(7);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  sub_tasks.emplace_back(std::vector<domi::TaskDef>{kernel_task});
+  std::vector<ge::Node *> sub_nodes;
+  sub_nodes.emplace_back(sub_node.get());
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_EQ(sub_tasks[0][0].event_id(), 7U);
+
+  std::vector<uint32_t> sk_custom_event_ids;
+  bool has_attr = ge::AttrUtils::GetListInt(sub_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+  EXPECT_EQ(has_attr, false);
+  EXPECT_TRUE(sk_custom_event_ids.empty());
+}
+
+TEST_F(SuperkernelTaskBuilderUT, gen_sub_kernel_task_empty_no_crash) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("graph");
+  ge::OpDescPtr sk_op_desc = std::make_shared<ge::OpDesc>("sk", "SuperKernel");
+  sk_op_desc->SetStreamId(5);
+  ge::NodePtr sk_node = graph->AddNode(sk_op_desc);
+
+  std::vector<std::vector<domi::TaskDef>> sub_tasks;
+  std::vector<ge::Node *> sub_nodes;
+
+  uint8_t base = 128;
+  ge::RunContext context;
+  context.dataMemBase = &base;
+  context.weightMemBase = &base;
+  ge::ComputeGraphPtr empty_sub_graph = std::make_shared<ge::ComputeGraph>("empty_sub_graph");
+
+  ge::Status status =
+      fe::SuperkernelTaskBuilder::GenerateSubKernelTask(*sk_node, empty_sub_graph, context, sub_nodes, sub_tasks);
+  EXPECT_EQ(status, ge::SUCCESS);
+  EXPECT_TRUE(sub_tasks.empty());
 }
 }  // namespace fe
 

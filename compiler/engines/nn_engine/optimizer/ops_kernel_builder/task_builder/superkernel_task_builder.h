@@ -21,8 +21,8 @@ class SuperkernelTaskBuilder {
                                    std::vector<domi::TaskDef> &task_defs);
   static Status GenerateSuperKernelTask(const ge::Node &node, ge::RunContext &context,
                                         std::vector<domi::TaskDef> &tasks);
-  static Status GenerateSubKernelTask(const ge::ComputeGraphPtr &sub_graph, ge::RunContext &context,
-                                      std::vector<ge::Node *> &sub_nodes,
+  static Status GenerateSubKernelTask(const ge::Node &node, const ge::ComputeGraphPtr &sub_graph,
+                                      ge::RunContext &context, std::vector<ge::Node *> &sub_nodes,
                                       std::vector<std::vector<domi::TaskDef>> &sub_tasks);
 
  private:

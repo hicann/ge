@@ -67,7 +67,7 @@ class L2MemPool : public ge::Allocator, public MemSynchronizer {
              memory_pool_->GetId().c_str());
     }
   }
-  aclrtStream GetStream();
+  aclrtStream GetStream() const;
   void SetStream(aclrtStream stream);
   ge::MemBlock *MoveL2ToL1(ge::MemBlock *block);
 

@@ -30,7 +30,7 @@ KernelInfoPtr TfKernelInfo::instance_ = nullptr;
 
 inline KernelInfoPtr TfKernelInfo::Instance() {
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance_.reset(new (std::nothrow) TfKernelInfo); });
+  std::call_once(flag, []() { instance_.reset(new (std::nothrow) TfKernelInfo); });
   return instance_;
 }
 

@@ -9,6 +9,10 @@
 # -----------------------------------------------------------------------------------------------------------
 
 include(../cmake/intf_llt_pub.cmake)
+if (TARGET aicore_utils AND TARGET graphengine_protos)
+    add_dependencies(aicore_utils graphengine_protos)
+    target_include_directories(aicore_utils PRIVATE ${CMAKE_BINARY_DIR}/proto/graphengine_protos)
+endif()
 if (ENABLE_AICPU_LLT)
     add_subdirectory(cpueng)
 endif()

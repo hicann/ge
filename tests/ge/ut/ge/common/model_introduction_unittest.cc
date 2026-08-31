@@ -76,6 +76,25 @@ TEST_F(UTestModelIntroduction, InitWithoutOpDescOfCaseType) {
   EXPECT_EQ(model_introduction.Init(ge_model, true), SUCCESS);
 }
 
+TEST_F(UTestModelIntroduction, InitWithSpecialInputSizeOnDataOutput) {
+  ModelIntroduction model_introduction;
+  auto graph = BuildComputeGraph();
+  const auto data_node = graph->FindNode("Data");
+  ASSERT_NE(data_node, nullptr);
+  constexpr int64_t kSpecialInputSize = 1024;
+  ASSERT_TRUE(AttrUtils::SetInt(data_node->GetOpDesc()->MutableOutputDesc(0U), ATTR_NAME_SPECIAL_INPUT_SIZE,
+                                kSpecialInputSize));
+
+  GeModelPtr ge_model = std::make_shared<GeModel>();
+  ge_model->SetGraph(graph);
+  ge_model->SetModelTaskDef(std::make_shared<domi::ModelTaskDef>());
+
+  ASSERT_EQ(model_introduction.Init(ge_model, false), SUCCESS);
+  ASSERT_EQ(model_introduction.modelIntroduction_.inputDesc.descs.size(), 1U);
+  EXPECT_EQ(model_introduction.modelIntroduction_.inputDesc.descs[0].base_info.size,
+            static_cast<size_t>(kSpecialInputSize));
+}
+
 TEST_F(UTestModelIntroduction, InitWithOpDescOfCaseType) {
   ModelIntroduction model_introduction;
   ComputeGraphPtr graph = gert::ShareGraph::CaseGraph();

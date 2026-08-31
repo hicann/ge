@@ -484,7 +484,7 @@ bool NotaskPassBase::IsPreNodeWithSubgraph(const ge::InDataAnchorPtr &in_anchor)
   return (op_desc != nullptr) ? (!op_desc->GetSubgraphInstanceNames().empty()) : false;
 }
 
-bool NotaskPassBase::IsPreNodeTypeValid(const ge::InDataAnchorPtr &in_anchor) {
+bool NotaskPassBase::IsPreNodeTypeValid(const ge::InDataAnchorPtr &in_anchor) const {
   ge::NodePtr node = nullptr;
 
   GetFirstNotRefNode(in_anchor, node);
@@ -528,7 +528,7 @@ bool NotaskPassBase::IsPreOutAnchorValidMultiRef(const ge::OutDataAnchorPtr out_
   return true;
 }
 
-bool NotaskPassBase::IsPreNodeAttrValid(const ge::OpDescPtr &pre_op_desc) {
+bool NotaskPassBase::IsPreNodeAttrValid(const ge::OpDescPtr &pre_op_desc) const {
   string pre_node_name = pre_op_desc->GetName();
   bool is_continous_input = false;
   bool is_continous_output = false;

@@ -162,7 +162,7 @@ class EnginePartitioner {
   void MergeTwoClusters(size_t parent_cluster, size_t &child_cluster);
 
   // Check if there's a second path between two clusters. The max path length is upper_bound
-  bool HasSecondPath(size_t src, size_t dst, size_t upper_bound);
+  bool HasSecondPath(size_t src, size_t dst, size_t upper_bound) const;
   Status MarkClustersWithConsistantId();
   // Mark all clusters
   void MarkClusters();

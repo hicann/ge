@@ -835,7 +835,8 @@ std::string CreateMinimalOm2File(const std::string &path, const std::string &vis
   if (!writer.IsMemFileOpened()) {
     return "";
   }
-  const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+  const std::string manifest =
+      R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
   writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false);
   writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(), visual_json.size(), true);
   ModelBufferData buf;
@@ -1010,7 +1011,8 @@ TEST_F(UtestOmg, ConvertOm_Fail_Om2NoVisualJson) {
   {
     ZipArchiveWriter writer(om2_path);
     ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest = R"({"om2_version":"1.0","model_num":1})";
+    const std::string manifest =
+        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false);
     ModelBufferData buf;
     writer.SaveModelData(buf, true);

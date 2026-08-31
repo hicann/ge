@@ -13,6 +13,7 @@
 #include "compute_graph.h"
 #include "graph/partition/engine_place.h"
 #include "engines/manager/engine_manager/dnnengine_manager.h"
+#include "graph/custom_op_factory.h"
 #include "graph/debug/ge_attr_define.h"
 
 namespace ge {
@@ -113,6 +114,75 @@ TEST_F(UtestEnginePlace, select_engine_when_opdesc_confilct_with_attr) {
 
   ASSERT_EQ(op_desc->GetOpEngineName(), op_engine_name);
   ASSERT_EQ(op_desc->GetOpKernelLibName(), op_kernel_name);
+}
+
+TEST_F(UtestEnginePlace, select_engine_overrides_legacy_host_cpu_with_host_custom) {
+  const AscendString op_type("EnginePlaceHostCpuCustom");
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("default");
+  auto op_desc = std::make_shared<OpDesc>("mock_op_name", op_type.GetString());
+  op_desc->SetOpEngineName("DNN_VM_HOST_CPU");
+  op_desc->SetOpKernelLibName("DNN_VM_HOST_CPU_OP_STORE");
+  auto node_ptr = graph->AddNode(op_desc);
+
+  EnginePlacer engine_place(graph);
+  bool is_check_support_success = true;
+  OpInfo op_info;
+  EXPECT_EQ(engine_place.SelectEngine(node_ptr, {}, is_check_support_success, op_info), SUCCESS);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), kCustomOpKernelLibName);
+  EXPECT_EQ(op_info.engine, kEngineNameCustom);
+  EXPECT_EQ(op_info.opKernelLib, kCustomOpKernelLibName);
+  std::string lowering_func;
+  ASSERT_TRUE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(UtestEnginePlace, select_engine_overrides_host_cpu_attr_with_host_custom) {
+  const AscendString op_type("EnginePlaceHostCpuCustomAttr");
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("default");
+  auto op_desc = std::make_shared<OpDesc>("mock_op_name", op_type.GetString());
+  AttrUtils::SetStr(op_desc, ATTR_NAME_ENGINE_NAME_FOR_LX, "DNN_VM_HOST_CPU");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KKERNEL_LIB_NAME_FOR_LX, "DNN_VM_HOST_CPU_OP_STORE");
+  auto node_ptr = graph->AddNode(op_desc);
+
+  EnginePlacer engine_place(graph);
+  bool is_check_support_success = true;
+  OpInfo op_info;
+  EXPECT_EQ(engine_place.SelectEngine(node_ptr, {}, is_check_support_success, op_info), SUCCESS);
+  EXPECT_EQ(op_desc->GetOpEngineName(), kEngineNameCustom);
+  EXPECT_EQ(op_info.engine, kEngineNameCustom);
+  EXPECT_EQ(op_info.opKernelLib, kCustomOpKernelLibName);
+  std::string lowering_func;
+  ASSERT_TRUE(AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func));
+  EXPECT_EQ(lowering_func, kHostCpuCustomOpLowerFunc);
+  CustomOpFactory::RemoveCustomOps({op_type});
+}
+
+TEST_F(UtestEnginePlace, select_engine_keeps_device_engine_with_host_custom) {
+  const AscendString op_type("EnginePlaceHostCpuCustomDeviceEngine");
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(op_type, OpBackend::kHostCPU,
+                                                     []() -> std::unique_ptr<BaseCustomOp> { return nullptr; }),
+            GRAPH_SUCCESS);
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("default");
+  auto op_desc = std::make_shared<OpDesc>("mock_op_name", op_type.GetString());
+  op_desc->SetOpEngineName("AIcoreEngine");
+  op_desc->SetOpKernelLibName("AiCoreLib");
+  auto node_ptr = graph->AddNode(op_desc);
+
+  EnginePlacer engine_place(graph);
+  bool is_check_support_success = true;
+  OpInfo op_info;
+  EXPECT_EQ(engine_place.SelectEngine(node_ptr, {}, is_check_support_success, op_info), SUCCESS);
+  EXPECT_EQ(op_desc->GetOpEngineName(), "AIcoreEngine");
+  EXPECT_EQ(op_desc->GetOpKernelLibName(), "AiCoreLib");
+  CustomOpFactory::RemoveCustomOps({op_type});
 }
 
 TEST_F(UtestEnginePlace, check_when_graph_is_null) {

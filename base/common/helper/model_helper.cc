@@ -1180,7 +1180,7 @@ Status ModelHelper::GetOppVersion(std::string &version) {
   return SUCCESS;
 }
 
-Status ModelHelper::CheckOsCpuInfoAndOppVersion() {
+Status ModelHelper::CheckOsCpuInfoAndOppVersion() const {
   if (file_header_->need_check_os_cpu_info == static_cast<uint8_t>(OsCpuInfoCheckTyep::NEED_CHECK)) {
     std::string host_env_os;
     std::string host_env_cpu;

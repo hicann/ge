@@ -38,9 +38,9 @@ class DfxExtendInfo {
                   const std::vector<uint32_t> ctx_id_vec);
   const uint32_t *GetOpImplModeAddr() const;
   const uint32_t *GetTaskTypeAddr() const;
-  const uint32_t *GetCtxTypeAddr();
-  const uint32_t *GetCtxSizeAddr();
-  const uint32_t *GetCtxIdAddr(size_t index);
+  const uint32_t *GetCtxTypeAddr() const;
+  const uint32_t *GetCtxSizeAddr() const;
+  const uint32_t *GetCtxIdAddr(size_t index) const;
   const uint32_t *GetPreCmoCtxSizeAddr();
   const uint32_t *GetPreCmoCtxTypeAddr();
   const uint32_t *GetPreCmoCtxIdAddr(size_t index);

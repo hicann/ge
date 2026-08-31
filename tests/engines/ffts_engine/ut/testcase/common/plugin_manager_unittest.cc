@@ -39,6 +39,9 @@ TEST_F(PluginManagerUTEST, Close_Handle_Fail) {
 }
 
 TEST_F(PluginManagerUTEST, Close_Handle_Fail_2) {
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "Closing an invalid plugin handle is unsafe on arm64";
+#endif
   PluginManager pm("so_name");
   int a = 1;
   void *h = &a;

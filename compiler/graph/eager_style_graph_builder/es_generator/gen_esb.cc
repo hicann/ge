@@ -210,7 +210,7 @@ void GenerateAggregateHeaders(GeneratorManager &manager) {
  */
 void ProcessOutputDirectory(std::string &output_dir) {
   // 确保输出目录以路径分隔符结尾
-  if (output_dir.back() != '/' && output_dir.back() != '\\') {
+  if (!output_dir.empty() && output_dir.back() != '/' && output_dir.back() != '\\') {
     output_dir += "/";
   }
 

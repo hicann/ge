@@ -771,7 +771,7 @@ TEST(AicpuGraphOptimizer, BuildAicpuNodeDefUsesFusedRegisterAndIoNames) {
 TEST(AicpuGraphOptimizer, BuildAicpuNodeDefRejectsMissingFusedRegisterName) {
   OpDescPtr op_desc_ptr = make_shared<OpDesc>("fused", kFusedHostCpuOpType);
   aicpuops::NodeDef node_def;
-  EXPECT_EQ(BuildAicpuNodeDef(op_desc_ptr, node_def), PARAM_INVALID);
+  EXPECT_EQ(BuildAicpuNodeDef(op_desc_ptr, node_def), ge::PARAM_INVALID);
 }
 
 TEST(AicpuGraphOptimizer, test_GENERATETRANSPOSE_001) {

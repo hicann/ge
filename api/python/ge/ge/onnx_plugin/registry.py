@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 PARSE_NODE = "parse_node"
 PARSE_OPERATOR = "parse_operator"
+DECOMPOSE = "decompose"
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,9 @@ class OnnxPluginDescriptor:
     parser_operator: Optional[Callable[..., None]] = field(
         default=None, compare=False, repr=False
     )
+    parser_decompose: Optional[Callable[..., object]] = field(
+        default=None, compare=False, repr=False
+    )
 
     @property
     def callback_kinds(self) -> Tuple[str, ...]:
@@ -45,6 +49,8 @@ class OnnxPluginDescriptor:
             kinds.append(PARSE_NODE)
         if self.parser_operator is not None:
             kinds.append(PARSE_OPERATOR)
+        if self.parser_decompose is not None:
+            kinds.append(DECOMPOSE)
         return tuple(kinds)
 
     @property

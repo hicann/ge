@@ -206,7 +206,7 @@ ProtoFileParser::~ProtoFileParser() {
   }
 }
 
-std::string ProtoFileParser::GetFusionProtoFile() {
+std::string ProtoFileParser::GetFusionProtoFile() const {
   return fusion_proto_path;
 }
 

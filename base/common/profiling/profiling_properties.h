@@ -55,7 +55,7 @@ class ProfilingProperties {
   void GetFpBpPoint(std::string &fp_point, std::string &bp_point);
   void ClearProperties();
   void SetOpDetailProfiling(const bool is_op_detail_profiling);
-  bool IsOpDetailProfiling();
+  bool IsOpDetailProfiling() const;
   bool IsDynamicShapeProfiling() const;
   void UpdateDeviceIdCommandParams(const std::string &config_data);
   const std::string &GetDeviceConfigData() const;

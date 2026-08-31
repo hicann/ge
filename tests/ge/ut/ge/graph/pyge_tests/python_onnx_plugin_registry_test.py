@@ -206,14 +206,26 @@ def test_parse_callbacks_can_share_one_descriptor():
     def parse_operator(source, target):
         del source, target
 
+    @plugin.decompose
+    def decompose(source):
+        del source
+        return None
+
     descriptor = parse_operator.__ge_onnx_plugin_descriptor__
-    assert descriptor.callback_kinds == ("parse_node", "parse_operator")
+    assert descriptor.callback_kinds == (
+        "parse_node",
+        "parse_operator",
+        "decompose",
+    )
     assert descriptor.parser_node is parse_node
     assert descriptor.parser_operator is parse_operator
+    assert descriptor.parser_decompose is decompose
     assert parse_node.__ge_onnx_plugin_descriptor__ is descriptor
+    assert decompose.__ge_onnx_plugin_descriptor__ is descriptor
     assert descriptor.to_bridge_dict()["callback_kinds"] == [
         "parse_node",
         "parse_operator",
+        "decompose",
     ]
     assert get_registered_onnx_plugins() == [descriptor]
     assert (
@@ -226,6 +238,13 @@ def test_parse_callbacks_can_share_one_descriptor():
         @plugin.parse_operator
         def parse_operator_again(source, target):
             del source, target
+
+    with pytest.raises(ValueError, match="decompose is already bound"):
+
+        @plugin.decompose
+        def decompose_again(source):
+            del source
+            return None
 
 
 @pytest.mark.parametrize(

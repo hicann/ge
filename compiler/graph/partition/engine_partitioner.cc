@@ -1203,7 +1203,7 @@ Status ge::EnginePartitioner::SplitSubGraphs(const ge::ComputeGraphPtr &compute_
 
 /// before calling this function, the direct path between src and dst are already removed.
 /// return true if a second path is found
-bool ge::EnginePartitioner::HasSecondPath(size_t src, size_t dst, size_t upper_bound) {
+bool ge::EnginePartitioner::HasSecondPath(size_t src, size_t dst, size_t upper_bound) const {
   bool has_second = false;
   if (graph_info_.clusters_.at(src)->out_clu_.empty() || graph_info_.clusters_.at(dst)->in_clu_.empty()) {
     return has_second;
@@ -1221,7 +1221,7 @@ bool ge::EnginePartitioner::HasSecondPath(size_t src, size_t dst, size_t upper_b
     size_t cluster = temp_stack.back();
     second_path_ids.emplace_back(cluster);
     temp_stack.pop_back();
-    ClusterPtr cur_cluster = graph_info_.clusters_[cluster];
+    ClusterPtr cur_cluster = graph_info_.clusters_.at(cluster);
     if (!visited.insert(cluster).second) {
       continue;
     }

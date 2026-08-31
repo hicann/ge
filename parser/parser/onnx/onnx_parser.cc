@@ -935,6 +935,13 @@ Status OnnxModelParser::AdaptAndFindAllOnnxGraph(
 }
 
 Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model, ge::Graph &root_graph) {
+  // atc and other ModelParserFactory entries do not pass PrepareBeforeParse of aclgrphParseONNX,
+  // load the ONNX Python plugin bridge on demand; no behavior change without ASCEND_CUSTOM_OPP_PATH.
+  if (LoadOnnxPythonPluginBridge() != ge::SUCCESS) {
+    REPORT_INNER_ERR_MSG("E19999", "LoadOnnxPythonPluginBridge failed.");
+    GELOGE(ge::FAILED, "[Init][OnnxPythonPluginBridge] failed.");
+    return ge::FAILED;
+  }
   if (!onnx_model.has_graph()) {
     REPORT_PREDEFINED_ERR_MSG("E16004", std::vector<const char *>({}), std::vector<const char *>({}));
     GELOGE(PARAM_INVALID, "Onnx model do not has graph.");
@@ -957,6 +964,7 @@ Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model
     domain_verseion_[domain] = it.version();
     GELOGI("Domain:[%s], Version:[%ld].", domain.c_str(), it.version());
   }
+
   std::string root_graph_name =
       ParserUtils::GetGraphName(root_graph).empty() ? "default_graph" : ParserUtils::GetGraphName(root_graph);
   tasks.push_back({&root_onnx_graph, nullptr, root_graph_name, 0});

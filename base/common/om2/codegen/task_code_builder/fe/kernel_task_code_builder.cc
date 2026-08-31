@@ -182,6 +182,7 @@ void KernelTaskCodeBuilder::HandleShapeInfoBufferArg(const AddrSemantic &addr, u
 
 AicoreTaskData KernelTaskCodeBuilder::BuildAicoreTaskData() const {
   AicoreTaskData aicore;
+  aicore.kernel_type = static_cast<uint32_t>(build_data_.semantic.kernel_type);
   aicore.engine_type = ConvertEngineType(build_data_.semantic.launch.config.engine_type);
   aicore.need_assert_or_printf = op_need_assert_or_printf_ ? 1U : 0U;
   GELOGI("[OM2] GetOpDefBuildData: op=%s, func_idx=%u", header_.op_name.c_str(),
@@ -191,6 +192,7 @@ AicoreTaskData KernelTaskCodeBuilder::BuildAicoreTaskData() const {
 
 AicpuTaskData KernelTaskCodeBuilder::BuildAicpuTaskData() const {
   AicpuTaskData aicpu;
+  aicpu.kernel_type = static_cast<uint32_t>(build_data_.semantic.kernel_type);
   aicpu.engine_type = ConvertEngineType(build_data_.semantic.launch.config.engine_type);
   GELOGI("[OM2] GetOpDefBuildData: op=%s (AICPU), func_idx=%u", header_.op_name.c_str(),
          build_data_.semantic.launch.func_handle_index);
@@ -631,22 +633,29 @@ Status KernelTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
 }
 
 FunctionDef *KernelTaskCodeBuilder::RenderKernelTaskDistribute() const {
-  auto io_addrs = ast_.Var("const std::vector<uint64_t> &", "io_addrs");
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo *", "launch_info");
+  auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
+  auto instance_handle = ast_.Var("void *", "instance_handle");
   auto args_info = ast_.Var("ArgsInfo *", "args_info");
-  auto func_handle = ast_.Var("aclrtFuncHandle", "func_handle");
-  auto block_dim = ast_.Var("uint32_t", "block_dim");
-  auto stream = ast_.Var("aclrtStream", "stream");
-  auto config = ast_.Var("aclrtLaunchKernelCfg *", "config");
-  return ast_.DefineFunction("KernelTaskDistribute", {io_addrs, args_info, func_handle, block_dim, stream, config},
-                             "aclError",
-                             {
-                                 ChkNotNull(args_info),
-                                 ChkStatus(MemcpyS(args_info.Arrow("host_addr"), args_info.Arrow("size"),
-                                                   io_addrs.Data(), io_addrs.Size() * ast_.Sizeof("uint64_t"))),
-                                 ChkStatus(AclrtLaunchKernelV2(func_handle, block_dim, args_info.Arrow("dev_addr"),
-                                                               args_info.Arrow("size"), config, stream)),
-                                 ast_.Return("ACL_SUCCESS"),
-                             });
+  auto io_addrs = ast_.Var("const std::vector<uint64_t> &", "io_addrs");
+  auto kernel_params = launch_info.Arrow("launch_params").Arrow("launch_kernel_v2_params");
+  return ast_.DefineFunction(
+      "KernelTaskDistribute", {launch_info, launch_func, instance_handle, args_info, io_addrs}, "aclError",
+      {
+          ChkNotNull(launch_info),
+          ChkNotNull(args_info),
+          ast_.If(launch_func != "nullptr",
+                  {ast_.Call("OM2_LOGI", {ast_.Str("KernelTaskDistribute: Start to execute launch callback.")}),
+                   ChkStatus(ast_.Call("launch_func", {instance_handle, launch_info}))},
+                  {ast_.Call("OM2_LOGI",
+                             {ast_.Str("KernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly.")}),
+                   ChkStatus(AclrtLaunchKernelV2(kernel_params.Attr("func_handle"), kernel_params.Attr("block_dim"),
+                                                 kernel_params.Attr("args_data"), kernel_params.Attr("args_size"),
+                                                 kernel_params.Attr("config"), kernel_params.Attr("stream")))}),
+          ChkStatus(MemcpyS(args_info.Arrow("host_addr"), args_info.Arrow("size"), io_addrs.Data(),
+                            io_addrs.Size() * ast_.Sizeof("uint64_t"))),
+          ast_.Return("ACL_SUCCESS"),
+      });
 }
 
 FunctionDef *KernelTaskCodeBuilder::RenderUpdateExtInfoSession() const {
@@ -728,17 +737,24 @@ FunctionDef *KernelTaskCodeBuilder::RenderAssembleAicpuArgs() const {
 FunctionDef *KernelTaskCodeBuilder::RenderAicpuKernelTaskDistribute() const {
   auto args = ast_.Var("const std::vector<uint8_t> &", "args");
   auto args_info = ast_.Var("ArgsInfo *", "args_info");
-  auto func_handle = ast_.Var("aclrtFuncHandle", "func_handle");
-  auto block_dim = ast_.Var("uint32_t", "block_dim");
-  auto stream = ast_.Var("aclrtStream", "stream");
-  auto config = ast_.Var("aclrtLaunchKernelCfg *", "config");
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo *", "launch_info");
+  auto launch_func = ast_.Var("GertModelLaunchFunc", "launch_func");
+  auto instance_handle = ast_.Var("void *", "instance_handle");
+  auto kernel_params = launch_info.Arrow("launch_params").Arrow("launch_kernel_v2_params");
   return ast_.DefineFunction(
-      "AicpuKernelTaskDistribute", {args, args_info, func_handle, block_dim, stream, config}, "aclError",
+      "AicpuKernelTaskDistribute", {args, args_info, launch_info, launch_func, instance_handle}, "aclError",
       {
           ChkNotNull(args_info),
+          ChkNotNull(launch_info),
+          ast_.If(launch_func != "nullptr",
+                  {ast_.Call("OM2_LOGI", {ast_.Str("AicpuKernelTaskDistribute: Start to execute launch callback.")}),
+                   ChkStatus(ast_.Call("launch_func", {instance_handle, launch_info}))},
+                  {ast_.Call("OM2_LOGI",
+                             {ast_.Str("AicpuKernelTaskDistribute: Start to execute aclrtLaunchKernelV2 directly.")}),
+                   ChkStatus(AclrtLaunchKernelV2(kernel_params.Attr("func_handle"), kernel_params.Attr("block_dim"),
+                                                 kernel_params.Attr("args_data"), kernel_params.Attr("args_size"),
+                                                 kernel_params.Attr("config"), kernel_params.Attr("stream")))}),
           ChkStatus(MemcpyS(args_info.Arrow("host_addr"), args_info.Arrow("size"), args.Data(), args.Size())),
-          ChkStatus(AclrtLaunchKernelV2(func_handle, block_dim, args_info.Arrow("dev_addr"), args_info.Arrow("size"),
-                                        config, stream)),
           ast_.Return("ACL_SUCCESS"),
       });
 }
@@ -1556,18 +1572,17 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
 std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx) {
   return {
       ast_.VarDecl(ast_.Var("LaunchKernelCfgHolder", "aicpu_cfg_holder")),
-      ast_.VarDecl(
-          ast_.Var("LaunchKernelConfig", "aicpu_launch_config"),
-          ast_.InitList({
-              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("schedule_mode"),
-              ast_.StaticCast("aclrtEngineType",
-                              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("engine_type")),
-              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("block_dim_offset"),
-              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("is_block_task_prefetch"),
-              ast_.Call("GetIsDataDump", {op.Arrow("op_name"), ctx.Attr("model_id"), ctx.Attr("instance_handle")}),
-              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("time_out"),
-              op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("local_memory_size"),
-          })),
+      ast_.VarDecl(ast_.Var("LaunchKernelConfig", "aicpu_launch_config"),
+                   ast_.InitList({
+                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("schedule_mode"),
+                       ast_.StaticCast("aclrtEngineType",
+                                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("engine_type")),
+                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("block_dim_offset"),
+                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("is_block_task_prefetch"),
+                       false,
+                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("time_out"),
+                       op.Arrow("dispatch_info").Attr("aicpu").Attr("launch").Attr("local_memory_size"),
+                   })),
       ChkStatus(
           ast_.Call("AssembleLaunchConfig", {ast_.Var("", "aicpu_cfg_holder"), ast_.Var("", "aicpu_launch_config")})),
       ast_.VarDecl(ast_.Var("uint64_t", "local_session_id"), ast_.Deref(ctx.Attr("session_id"))),
@@ -1587,46 +1602,71 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndAssemble(const 
 }
 
 std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const VarRef &op, const VarRef &ctx) {
+  auto aicpu = op.Arrow("dispatch_info").Attr("aicpu");
+  auto args_info = ast_.Var("ArgsInfo *", "aicpu_args_info");
+  auto stream = ctx.Attr("stream_list")[aicpu.Attr("stream_id")];
+  auto task_info = ast_.Var("Om2TaskInfo", "aicpu_task_info");
+  auto launch_kernel_v2_params = ast_.Var("GertModelLaunchKernelV2Params", "aicpu_launch_kernel_v2_params");
+  auto launch_params = ast_.Var("GertModelTaskLaunchParams", "aicpu_launch_params");
+  auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "aicpu_launch_info");
   return {
-      ast_.VarDecl(ast_.Var("ArgsInfo *", "aicpu_args_info"),
-                   ctx.Attr("args_table").Attr("GetArgsInfo")(ast_.Var("", "aicpu_args_idx"))),
-      ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
+      ast_.VarDecl(args_info, ctx.Attr("args_table").Attr("GetArgsInfo")(ast_.Var("", "aicpu_args_idx"))),
+      ast_.VarDecl(task_info),
+      ChkStatus(
+          ast_.Call("AssembleOm2TaskInfo", {task_info.Addr(),
+                                            op.Arrow("op_name"),
+                                            aicpu.Attr("op_type"),
+                                            ast_.UInt(0U),
+                                            aicpu.Attr("stream_id"),
+                                            aicpu.Attr("block_dim"),
+                                            ast_.UInt(0U),
+                                            ast_.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")),
+                                            args_info.Arrow("size"),
+                                            ast_.Var("", "aicpu_report_inputs").Data(),
+                                            ast_.StaticCast("uint64_t", ast_.Var("", "aicpu_report_inputs").Size()),
+                                            ast_.Var("", "aicpu_report_outputs").Data(),
+                                            ast_.StaticCast("uint32_t", ast_.Var("", "aicpu_report_outputs").Size()),
+                                            Arg(nullptr),
+                                            Arg(nullptr),
+                                            ast_.UInt(0U),
+                                            aicpu.Attr("task_type"),
+                                            stream,
+                                            ast_.UInt(0U),
+                                            ast_.UInt(0U)})),
+      ChkStatus(ast_.Call("aclrtStreamGetId", {task_info.Attr("stream"),
+                                               ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})),
+      ast_.Assign(task_info.Attr("kernel_type"), aicpu.Attr("kernel_type")),
+      ast_.VarDecl(launch_kernel_v2_params,
+                   ast_.DesignatedInit({{"func_handle", ctx.Attr("func_handles")[aicpu.Attr("func_idx")]},
+                                        {"block_dim", aicpu.Attr("block_dim")},
+                                        {"args_data", args_info.Arrow("dev_addr")},
+                                        {"args_size", args_info.Arrow("size")},
+                                        {"config", ast_.Var("", "aicpu_cfg_holder").Attr("cfg").Addr()},
+                                        {"stream", stream}})),
+      ast_.VarDecl(launch_params, ast_.DesignatedInit({{"launch_kernel_v2_params", launch_kernel_v2_params}})),
+      ast_.VarDecl(launch_info, ast_.DesignatedInit({{"launch_type", ast_.Var("", "ACL_RT_LAUNCH_KERNEL_V2")},
+                                                     {"task_info", task_info.Addr()},
+                                                     {"launch_params", launch_params.Addr()}})),
       ChkStatus(ast_.Call("AicpuKernelTaskDistribute",
-                          {ast_.Var("", "aicpu_args_var"), ast_.Var("", "aicpu_args_info"),
-                           ctx.Attr("func_handles")[op.Arrow("dispatch_info").Attr("aicpu").Attr("func_idx")],
-                           op.Arrow("dispatch_info").Attr("aicpu").Attr("block_dim"),
-                           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicpu").Attr("stream_id")],
-                           ast_.Var("", "aicpu_cfg_holder").Attr("cfg").Addr()})),
-      ChkStatus(ast_.Call(
-          "ReportLaunchedOm2Task",
-          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("aicpu").Attr("op_type"), ast_.UInt(0),
-           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "aicpu_args_info").Arrow("dev_addr")),
-           ast_.Var("", "aicpu_args_info").Arrow("size"), ast_.Var("", "aicpu_report_inputs").Data(),
-           ast_.StaticCast("uint64_t", ast_.Var("", "aicpu_report_inputs").Size()),
-           ast_.Var("", "aicpu_report_outputs").Data(),
-           ast_.StaticCast("uint32_t", ast_.Var("", "aicpu_report_outputs").Size()), Arg(nullptr), Arg(nullptr),
-           ast_.UInt(0U), op.Arrow("dispatch_info").Attr("aicpu").Attr("task_type"),
-           op.Arrow("dispatch_info").Attr("aicpu").Attr("block_dim"),
-           ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("aicpu").Attr("stream_id")], ctx.Attr("model_id"),
-           ctx.Attr("instance_handle"), ast_.UInt(0U), ast_.Var("uint64_t", "_launch_begin")})),
+                          {ast_.Var("", "aicpu_args_var"), args_info, ast_.Var("", "aicpu_launch_info").Addr(),
+                           ctx.Attr("launch_func"), ctx.Attr("instance_handle")})),
   };
 }
 
 std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &op, const VarRef &ctx) {
   return {
       ast_.VarDecl(ast_.Var("LaunchKernelCfgHolder", "cfg_holder")),
-      ast_.VarDecl(
-          ast_.Var("LaunchKernelConfig", "launch_config"),
-          ast_.InitList({
-              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("schedule_mode"),
-              ast_.StaticCast("aclrtEngineType",
-                              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("engine_type")),
-              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("block_dim_offset"),
-              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("is_block_task_prefetch"),
-              ast_.Call("GetIsDataDump", {op.Arrow("op_name"), ctx.Attr("model_id"), ctx.Attr("instance_handle")}),
-              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("time_out"),
-              op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("local_memory_size"),
-          })),
+      ast_.VarDecl(ast_.Var("LaunchKernelConfig", "launch_config"),
+                   ast_.InitList({
+                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("schedule_mode"),
+                       ast_.StaticCast("aclrtEngineType",
+                                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("engine_type")),
+                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("block_dim_offset"),
+                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("is_block_task_prefetch"),
+                       false,
+                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("time_out"),
+                       op.Arrow("dispatch_info").Attr("aicore").Attr("launch").Attr("local_memory_size"),
+                   })),
       ChkStatus(ast_.Call("AssembleLaunchConfig", {ast_.Var("", "cfg_holder"), ast_.Var("", "launch_config")})),
       ast_.VarDecl(
           ast_.Var("ArgsInfo *", "args_info"),
@@ -1706,23 +1746,15 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
           ast_.Var("Om2L0TaskRawInfo", "l0_info"),
           ast_.InitList({ast_.UInt(1U), slot_args.Attr("need_assert_or_printf"),
                          ast_.StaticCast("uint64_t", slot_args.Attr("slots_num")), slot_args.Attr("slot_info")})),
-      ChkStatus(ast_.Call("ReportOm2TaskPreprocess",
-                          {op.Arrow("op_name"), aicore.Attr("op_type"),
-                           ast_.UInt(0),  // op_desc_id
-                           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
-                           ast_.Var("", "args_info").Arrow("size"), ast_.Var("", "report_inputs"),
-                           ast_.Var("", "report_outputs"), ast_.Var("", "report_workspace_addrs"),
-                           ast_.Var("", "report_workspace_sizes"), task_type, aicore.Attr("block_dim"), stream,
-                           ast_.Var("", "l0_info").Addr(), ctx.Attr("model_id"), ctx.Attr("instance_handle")})),
-      ast_.VarDecl(ast_.Var("uint64_t", "_launch_begin"), ast_.Call("MsprofSysCycleTime", {})),
-      ChkStatus(ast_.Call("KernelTaskDistribute",
-                          {ast_.Var("", "ordered_io_addrs"), ast_.Var("", "args_info"),
-                           ctx.Attr("func_handles")[aicore.Attr("func_idx")], aicore.Attr("block_dim"), stream,
-                           ast_.Var("", "cfg_holder").Attr("cfg").Addr()})),
-      ChkStatus(ast_.Call("ReportLaunchedOm2Task",
-                          {op.Arrow("op_name"),
+      ast_.VarDecl(ast_.Var("Om2TaskInfo", "task_info")),
+      ChkStatus(ast_.Call("AssembleOm2TaskInfo",
+                          {ast_.Var("", "task_info").Addr(),
+                           op.Arrow("op_name"),
                            aicore.Attr("op_type"),
-                           ast_.UInt(0),  // op_desc_id
+                           ast_.UInt(0U),
+                           aicore.Attr("stream_id"),
+                           aicore.Attr("block_dim"),
+                           ast_.UInt(0U),
                            ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
                            ast_.Var("", "args_info").Arrow("size"),
                            ast_.Var("", "report_inputs").Data(),
@@ -1731,19 +1763,37 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
                            ast_.StaticCast("uint32_t", ast_.Var("", "report_outputs").Size()),
                            ast_.Var("", "report_workspace_addrs").Data(),
                            ast_.Var("", "report_workspace_sizes").Data(),
-                           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_sizes").Size()),
+                           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_addrs").Size()),
                            task_type,
-                           aicore.Attr("block_dim"),
                            stream,
-                           ctx.Attr("model_id"),
-                           ctx.Attr("instance_handle"),
                            ast_.UInt(0U),
-                           ast_.Var("uint64_t", "_launch_begin"),
+                           ast_.UInt(0U),
                            aicore.Attr("fusion_op").Attr("original_op_names"),
                            aicore.Attr("fusion_op").Attr("input_mem_size"),
                            aicore.Attr("fusion_op").Attr("output_mem_size"),
                            aicore.Attr("fusion_op").Attr("workspace_mem_size"),
                            aicore.Attr("fusion_op").Attr("weight_mem_size")})),
+      ChkStatus(ast_.Call("aclrtStreamGetId",
+                          {ast_.Var("", "task_info").Attr("stream"),
+                           ast_.ReinterpretCast("int32_t *", ast_.Var("", "task_info").Attr("stream_id").Addr())})),
+      ast_.Assign(ast_.Var("", "task_info").Attr("kernel_type"), aicore.Attr("kernel_type")),
+      ast_.Assign(ast_.Var("", "task_info").Attr("l0_exception_dump_info"), ast_.Var("", "l0_info").Addr()),
+      ast_.VarDecl(ast_.Var("GertModelLaunchKernelV2Params", "kernel_params"),
+                   ast_.DesignatedInit({{"func_handle", ctx.Attr("func_handles")[aicore.Attr("func_idx")]},
+                                        {"block_dim", aicore.Attr("block_dim")},
+                                        {"args_data", ast_.Var("", "args_info").Arrow("dev_addr")},
+                                        {"args_size", ast_.Var("", "args_info").Arrow("size")},
+                                        {"config", ast_.Var("", "cfg_holder").Attr("cfg").Addr()},
+                                        {"stream", stream}})),
+      ast_.VarDecl(ast_.Var("GertModelTaskLaunchParams", "launch_params"),
+                   ast_.DesignatedInit({{"launch_kernel_v2_params", ast_.Var("", "kernel_params")}})),
+      ast_.VarDecl(ast_.Var("GertModelTaskLaunchInfo", "launch_info"),
+                   ast_.DesignatedInit({{"launch_type", ast_.Var("", "ACL_RT_LAUNCH_KERNEL_V2")},
+                                        {"task_info", ast_.Var("", "task_info").Addr()},
+                                        {"launch_params", ast_.Var("", "launch_params").Addr()}})),
+      ChkStatus(ast_.Call("KernelTaskDistribute",
+                          {ast_.Var("", "launch_info").Addr(), ctx.Attr("launch_func"), ctx.Attr("instance_handle"),
+                           ast_.Var("", "args_info"), ast_.Var("", "ordered_io_addrs")})),
   };
 }
 
@@ -1909,6 +1959,7 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
       {"func_idx", static_cast<int64_t>(build_data_.semantic.launch.func_handle_index)},
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"kernel_type", static_cast<uint32_t>(data.kernel_type)},
       {"launch", ast_.InitList(launch_values)},
       {"slot_args", ast_.InitList(l0_values)},
       {"fusion_op", ast_.InitList({
@@ -1957,6 +2008,7 @@ Arg KernelTaskCodeBuilder::RenderAicpuOpDefFields(const AicpuTaskData &data) {
                                                        : -1)},
       {"aicpu_task_index", static_cast<uint32_t>(build_data_.semantic.aicpu_task_index)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"kernel_type", static_cast<uint32_t>(data.kernel_type)},
   };
   return ast_.DesignatedInit({{"aicpu", ast_.DesignatedInit(aicpu_fields)}});
 }

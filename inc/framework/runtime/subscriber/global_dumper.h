@@ -61,7 +61,7 @@ class VISIBILITY_EXPORT GlobalDumper {
     (void)keys_to_handler_.erase(key);
   }
 
-  size_t GetHandleSize() {
+  size_t GetHandleSize() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return keys_to_handler_.size();
   }
@@ -103,7 +103,7 @@ class VISIBILITY_EXPORT GlobalDumper {
  private:
   GlobalDumper();
   uint64_t enable_flags_{0UL};
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   // each davinci model has own exception dumper
   std::set<ge::ExceptionDumper *> exception_dumpers_{};
   std::map<const void *, GlobalDumperSwitchHandler> keys_to_handler_;

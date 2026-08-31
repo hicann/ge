@@ -588,7 +588,7 @@ Status GraphBuilder::MarkFpBpProfilingTaskAttr(ComputeGraphPtr &com_graph) const
   │ Data  │ ───────> │ NetOutput │
   └───────┘          └───────────┘
 */
-bool GraphBuilder::IsDataDirectConnNetoutput(ComputeGraphPtr &comp_graph) {
+bool GraphBuilder::IsDataDirectConnNetoutput(const ComputeGraphPtr &comp_graph) {
   const auto nodes = comp_graph->GetDirectNode();
   return ((nodes.size() == 2U) && (nodes.at(0)->GetType() == "Data") && (nodes.at(1)->GetType() == "NetOutput"));
 }

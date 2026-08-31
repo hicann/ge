@@ -20,8 +20,10 @@
 #include "acl/acl_rt.h"
 #include "registry/op_impl_space_registry_v2.h"
 #include "framework/runtime/rt_session.h"
+#include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "framework/common/framework_types_internal.h"
+#include "framework/common/taskdown_common.h"
 #include "runtime/om2_model_executor.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
@@ -66,8 +68,7 @@ struct GertModelLoadConfig {                             // 合并 Create+Load�
   void *work_ptr = nullptr;                              // 输入：工作内存指针
   uint64_t *session_id = nullptr;                        // 输入：session id
   uint64_t model_id = 0;                                 // 输入：model id，打印日志用
-  void *instance_handle = nullptr;                       // ModelDumpManager*，dump 用
-  void *executor_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
+  void *instance_handle = nullptr;                       // Om2ModelExecutor*，回调函数的首参数
   const struct GertModelCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
   int64_t priority = 0;                                  // 输入：优先级
 };
@@ -244,43 +245,38 @@ void ParseOpAttrJsonToMapInternal(const ge::JsonFile &op_attr_json,
     return;
   }
 
-  for (auto it_op = json_data.begin(); it_op != json_data.end(); ++it_op) {
-    const std::string op_name = it_op.key();
-    if (!it_op.value().is_object()) {
+  for (const auto &[op_name, op_value] : json_data.items()) {
+    if (!op_value.is_object()) {
       continue;
     }
+    const ge::JsonFile op_obj(op_value);
 
-    for (auto it_attr = it_op.value().begin(); it_attr != it_op.value().end(); ++it_attr) {
-      const std::string attr_name = it_attr.key();
-      if (!it_attr.value().is_object()) {
+    for (const auto &[attr_name, attr_value] : op_obj.Raw().items()) {
+      if (!attr_value.is_object()) {
         continue;
       }
-
-      ge::JsonFile attr_obj(it_attr.value());
+      const ge::JsonFile attr_obj(attr_value);
 
       std::string type;
       if (!attr_obj.Get("type", type)) {
         continue;
       }
 
-      if (!attr_obj.Raw().contains("value")) {
+      ge::JsonFile value_json;
+      if (!attr_obj.Get("value", value_json)) {
         continue;
       }
 
       try {
         std::string value_str;
         if (type == "LIST_STRING") {
-          const auto &value_array = attr_obj.Raw()["value"];
-          if (value_array.is_array()) {
-            for (const auto &elem : value_array) {
-              const std::string s = elem.get<std::string>();
-              value_str += "[" + std::to_string(s.size()) + "]" + s;
-            }
+          const auto value_array = value_json.Raw().get<std::vector<std::string>>();
+          for (const auto &s : value_array) {
+            value_str += "[" + std::to_string(s.size()) + "]" + s;
           }
         } else {
-          value_str = attr_obj.Raw()["value"].dump();
+          value_str = value_json.Dump(false);
         }
-
         attr_map[op_name][attr_name] = value_str;
       } catch (const std::exception &e) {
         GELOGW("[OM2] Failed to serialize attr value for op[%s] attr[%s]: %s", op_name.c_str(), attr_name.c_str(),
@@ -595,12 +591,105 @@ ge::Status DeserializeOpAttrEntry(const ge::RAIIZipArchive &archive, const std::
   auto buff_data = archive.ExtractToMem(entry, buff_size);
   GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
   GE_ASSERT_TRUE(buff_size > 0U);
-  model_data.debug_info.op_attr_json = std::string(reinterpret_cast<const char *>(buff_data.get()), buff_size);
+  model_data.op_attr_json = std::string(reinterpret_cast<const char *>(buff_data.get()), buff_size);
+  return ge::SUCCESS;
+}
+
+static uint32_t ParseVersion(const std::string &version) {
+  uint32_t major = 0U;
+  uint32_t minor = 0U;
+  (void)sscanf_s(version.c_str(), "%u.%u", &major, &minor);
+  return major * 10000U + minor;
+}
+
+static uint32_t GetMajorVersion(uint32_t version) {
+  return version / 10000U;
+}
+
+static std::string BuildUsedFeaturesStr(const std::map<std::string, std::string> &used_features) {
+  if (used_features.empty()) {
+    return "{}";
+  }
+  ge::JsonFile json;
+  for (const auto &[name, version] : used_features) {
+    (void)json.Set(name, version);
+  }
+  return json.Dump(false);
+}
+
+static ge::Status ValidateVersionCompatibility(const gert::Om2Manifest &manifest) {
+  const uint32_t compiler_ver = ParseVersion(manifest.compatibility.compiler_version);
+  const uint32_t executor_ver = ParseVersion(OM2_VERSION);
+  const std::string features_str = BuildUsedFeaturesStr(manifest.compatibility.used_features);
+
+  if (GetMajorVersion(compiler_ver) > GetMajorVersion(executor_ver)) {
+    REPORT_INNER_ERR_MSG("E19999",
+                         "[OM2] Version incompatible: compiler_version=%s (major=%u) > executor_version=%s (major=%u), "
+                         "used_features=%s",
+                         manifest.compatibility.compiler_version.c_str(), GetMajorVersion(compiler_ver), OM2_VERSION,
+                         GetMajorVersion(executor_ver), features_str.c_str());
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+           "[OM2] Version incompatible: compiler_version=%s (major=%u) > executor_version=%s (major=%u)",
+           manifest.compatibility.compiler_version.c_str(), GetMajorVersion(compiler_ver), OM2_VERSION,
+           GetMajorVersion(executor_ver));
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+
+  if (!manifest.compatibility.required_executor_version.empty()) {
+    const uint32_t required_ver = ParseVersion(manifest.compatibility.required_executor_version);
+    if (required_ver > executor_ver) {
+      REPORT_INNER_ERR_MSG("E19999",
+                           "[OM2] Version incompatible: required_executor_version=%s > executor_version=%s, "
+                           "used_features=%s",
+                           manifest.compatibility.required_executor_version.c_str(), OM2_VERSION, features_str.c_str());
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+             "[OM2] Version incompatible: required_executor_version=%s > executor_version=%s",
+             manifest.compatibility.required_executor_version.c_str(), OM2_VERSION);
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
+  }
+
+  return ge::SUCCESS;
+}
+
+ge::Status DeserializeManifest(const ge::RAIIZipArchive &archive, const std::string &entry,
+                               gert::Om2ModelData &model_data) {
+  size_t buff_size = 0U;
+  auto buff_data = archive.ExtractToMem(entry, buff_size);
+  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
+  GE_ASSERT_TRUE(buff_size > 0U);
+
+  const ge::JsonFile json_file(buff_data.get(), buff_size);
+  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid manifest.json");
+
+  auto &manifest = model_data.manifest;
+  ge::JsonFile compat_json;
+  GE_ASSERT_TRUE(json_file.Get("compatibility", compat_json), "[OM2] manifest.json missing 'compatibility' field");
+  ge::JsonFile::TryGetAndApply<std::string>(compat_json, "compiler_version",
+                                            [&](const std::string &v) { manifest.compatibility.compiler_version = v; });
+  ge::JsonFile::TryGetAndApply<std::string>(compat_json, "required_executor_version", [&](const std::string &v) {
+    manifest.compatibility.required_executor_version = v;
+  });
+  ge::JsonFile::TryGetAndApply<std::map<std::string, std::string>>(
+      compat_json, "used_features",
+      [&](const std::map<std::string, std::string> &v) { manifest.compatibility.used_features = v; });
+
+  GE_ASSERT_TRUE(json_file.Get("model_num", manifest.model_num), "[OM2] manifest.json missing 'model_num' field");
+  ge::JsonFile::TryGetAndApply<std::string>(json_file, "atc_command",
+                                            [&](const std::string &v) { manifest.atc_command = v; });
+
+  GELOGI("[OM2] Manifest deserialized: compiler_version=%s, required_executor_version=%s, executor_version=%s",
+         manifest.compatibility.compiler_version.c_str(), manifest.compatibility.required_executor_version.c_str(),
+         OM2_VERSION);
   return ge::SUCCESS;
 }
 
 ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
                               gert::Om2ModelData &model_data) {
+  if (IsFileNameEndsWith(entry, "manifest.json")) {
+    GE_ASSERT_SUCCESS(DeserializeManifest(archive, entry, model_data));
+    return ge::SUCCESS;
+  }
   if (entry.find("/runtime/") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
     GE_ASSERT_SUCCESS(DeserializeCodegenEntry(archive, entry, model_data));
     return ge::SUCCESS;
@@ -655,6 +744,8 @@ ge::Status DeserializeOm2ModelDataFromArchive(ge::RAIIZipArchive &archive, gert:
     GE_ASSERT_SUCCESS(HandleArchiveEntry(archive, entry, model_data));
   }
 
+  GE_ASSERT_SUCCESS(ValidateVersionCompatibility(model_data.manifest));
+
   GE_ASSERT_TRUE(!model_data.model_meta.model_name.empty(), "[OM2] model_meta.json not found in ZIP archive.");
   GE_ASSERT_TRUE(!model_data.program_body.so_artifact.file_name.empty(),
                  "[OM2] Compiled .so not found in ZIP archive.");
@@ -686,23 +777,17 @@ ge::Status SetTensorDesc(ge::JsonFile::json &tensor_array_json, std::vector<ge::
     GE_ASSERT_TRUE(tensor_obj.Get("size", size));
     tensor_desc.SetSize(static_cast<size_t>(size));
     std::vector<int64_t> shape_dims;
+    bool got_shape = false;
     if (new_model_desc) {
-      if (tensor_obj.Get("shape_aclmdlGetInputDimsV2", shape_dims)) {
-        tensor_desc.SetShape(shape_dims);
-      } else if (tensor_obj.Get("max_gear_shape", shape_dims)) {
-        tensor_desc.SetShape(shape_dims);
-      } else {
-        GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
-        tensor_desc.SetShape(shape_dims);
-      }
-    } else {
-      if (tensor_obj.Get("max_gear_shape", shape_dims)) {
-        tensor_desc.SetShape(shape_dims);
-      } else {
-        GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
-        tensor_desc.SetShape(shape_dims);
-      }
+      got_shape = tensor_obj.Get("shape_aclmdlGetInputDimsV2", shape_dims);
     }
+    if (!got_shape) {
+      got_shape = tensor_obj.Get("max_gear_shape", shape_dims);
+    }
+    if (!got_shape) {
+      GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
+    }
+    tensor_desc.SetShape(shape_dims);
     std::vector<std::pair<int64_t, int64_t>> shape_range;
     GE_ASSERT_TRUE(tensor_obj.Get("shape_range", shape_range));
     tensor_desc.SetShapeRange(shape_range);
@@ -908,11 +993,10 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(LoadSoFromBuffer(om2_data.program_body.so_artifact));
     GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found in Om2ModelData.");
 
-    // Set up op_attr_json from debug_info
-    if (!om2_data.debug_info.op_attr_json.empty()) {
+    // Set up op_attr_json
+    if (!om2_data.op_attr_json.empty()) {
       run_model_info_.op_attr_json =
-          ge::JsonFile(reinterpret_cast<const uint8_t *>(om2_data.debug_info.op_attr_json.data()),
-                       om2_data.debug_info.op_attr_json.size());
+          ge::JsonFile(reinterpret_cast<const uint8_t *>(om2_data.op_attr_json.data()), om2_data.op_attr_json.size());
       if (!run_model_info_.op_attr_json.IsValid()) {
         GELOGW("[OM2] op_attr.json is not valid, using empty json content.");
         run_model_info_.op_attr_json = ge::JsonFile(ge::JsonFile::json::object());
@@ -1087,10 +1171,8 @@ class Om2ModelExecutor::Impl {
 
     GE_ASSERT_NOTNULL(run_model_info_.load_func);
     GertModelCallbacks callbacks = {.struct_size = sizeof(GertModelCallbacks),
-                                    .report_task_preprocess = nullptr,
-                                    .report_task_postprocess = nullptr,
-                                    .get_data_dump_enabled = nullptr,
-                                    .report_model_base_info = ReportModelBaseInfo};
+                                    .report_model_base_info = ReportModelBaseInfo,
+                                    .launch_func = GertModelLaunchTask};
     struct GertModelLoadConfig config = {.struct_size = sizeof(GertModelLoadConfig),
                                          .bin_files = bin_files.data(),
                                          .bin_data = bin_data.data(),
@@ -1101,8 +1183,7 @@ class Om2ModelExecutor::Impl {
                                          .work_ptr = work_ptr,
                                          .session_id = &session_id_,
                                          .model_id = load_arg.model_id,
-                                         .instance_handle = dump_manager_.get(),
-                                         .executor_handle = static_cast<void *>(owner_),
+                                         .instance_handle = static_cast<void *>(owner_),
                                          .callbacks = &callbacks,
                                          .priority = load_arg.priority};
     GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
@@ -1280,7 +1361,8 @@ class Om2ModelExecutor::Impl {
     op_attr_map.clear();
 
     if (!run_model_info_.op_attr_json.IsValid()) {
-      return ge::SUCCESS;
+      REPORT_INNER_ERR_MSG("E19999", "[OM2] op_attr_json is invalid, failed to get op attr");
+      return ACL_ERROR_GE_PARAM_INVALID;
     }
 
     ParseOpAttrJsonToMapInternal(run_model_info_.op_attr_json, op_attr_map);
@@ -1724,6 +1806,10 @@ ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const 
 
 void *Om2ModelExecutor::GetModelDumpManager() const {
   return impl_->dump_manager_.get();
+}
+
+uint32_t Om2ModelExecutor::GetModelId() const {
+  return impl_->model_id_;
 }
 
 uint64_t Om2ModelExecutor::GetStepId() const {

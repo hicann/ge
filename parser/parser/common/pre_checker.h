@@ -130,7 +130,7 @@ class PreChecker {
    * @ingroup domi_omg
    * @brief Determine if an error has been detected
    */
-  bool HasError();
+  bool HasError() const;
 
   /**
    * @ingroup domi_omg
@@ -169,7 +169,7 @@ class PreChecker {
   Status CheckTypeSupported(OpId id, const string &type, const string &name, bool is_tensorflow);
 
   // Determine if an error has been detected
-  bool HasError(OpId id);
+  bool HasError(OpId id) const;
 
  private:
   // model name

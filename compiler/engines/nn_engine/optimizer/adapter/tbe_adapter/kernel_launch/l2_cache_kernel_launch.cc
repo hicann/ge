@@ -24,11 +24,11 @@ const std::string ATTR_NAME_L2CACHE_GRAPH_READ_MODE = "_fe_l2cache_graph_read_mo
 const std::set<std::string> LIFECYCLE_IS_END_OPS = {DATA, AIPPDATA, ANN_DATA, CONSTANT, CONSTANTOP};
 const std::set<std::string> LIFECYCLE_IS_NOT_END_OPS = {VARIABLE};
 }  // namespace
-size_t L2CacheKernelLaunch::GetAppendArgsSizeOf() {
+size_t L2CacheKernelLaunch::GetAppendArgsSizeOf() const {
   return sizeof(uint64_t);  // uinit64_t: 8
 }
 
-size_t L2CacheKernelLaunch::GetAppendArgsNum() {
+size_t L2CacheKernelLaunch::GetAppendArgsNum() const {
   return input_num_;
 }
 

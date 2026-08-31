@@ -21,6 +21,7 @@
 #include <deque>
 #include "rt_external_device.h"
 #include "rt_external_model.h"
+#include "rt_model.h"
 
 using namespace std;
 

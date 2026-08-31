@@ -93,7 +93,7 @@ class Analyzer {
    * @param [in]: None
    * @return: true: enable env   false : disable env
    */
-  bool IsEnableNetAnalyzeDebug() {
+  bool IsEnableNetAnalyzeDebug() const {
     const char_t *env = nullptr;
     MM_SYS_GET_ENV(MM_ENV_ENABLE_NETWORK_ANALYSIS_DEBUG, env);
     return env != nullptr;

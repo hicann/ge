@@ -12,12 +12,15 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "framework/omg/parser/parser_factory.h"
 #include "common/ge_common/ge_inner_error_codes.h"
 #include "ge/ge_api_error_codes.h"
+#include "graph/graph.h"
 #include "graph/operator.h"
+#include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
 #include "parser/common/op_registration_tbe.h"
 #include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_c_api.h"
@@ -219,6 +222,66 @@ TEST(OnnxPythonPluginBridge, ParseParamsUsesNativeNodeAndPreservesCppPriority) {
   reset_bridge();
   EXPECT_NE(parse_operator(source_op, operator_target), SUCCESS);
   EXPECT_NE(parse_elu(&node, priority_op), SUCCESS);
+}
+
+void VerifyDecomposeCallbacks(const Operator &source_op) {
+  Graph decompose_graph("decompose_graph");
+  const auto parse_decompose =
+      domi::OpRegistry::Instance()->GetParseOpToGraphFunc("BridgeDecomposeTarget", "test.domain::1::BridgeDecompose");
+  ASSERT_NE(parse_decompose, nullptr);
+  const auto parse_decompose_params =
+      domi::OpRegistry::Instance()->GetParseParamFunc("BridgeDecomposeTarget", "test.domain::1::BridgeDecompose");
+  ASSERT_NE(parse_decompose_params, nullptr);
+  ge::onnx::NodeProto decompose_node;
+  decompose_node.set_op_type("test.domain::1::BridgeDecompose");
+  Operator decompose_source("decompose_source", "BridgeDecomposeTarget");
+  EXPECT_EQ(parse_decompose_params(&decompose_node, decompose_source), SUCCESS);
+  std::string original_type;
+  EXPECT_EQ(decompose_source.GetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, original_type), GRAPH_SUCCESS);
+  EXPECT_EQ(original_type, "test.domain::1::BridgeDecompose");
+  EXPECT_EQ(parse_decompose(source_op, decompose_graph), SUCCESS);
+  const auto decompose_nodes = decompose_graph.GetAllNodes();
+  EXPECT_EQ(decompose_nodes.size(), 3U);
+  std::vector<std::string> decompose_node_types;
+  for (const auto &node : decompose_nodes) {
+    AscendString type;
+    ASSERT_EQ(node.GetType(type), GRAPH_SUCCESS);
+    decompose_node_types.emplace_back(type.GetString());
+  }
+  EXPECT_EQ(decompose_node_types, (std::vector<std::string>{"Data", "phony_1i_1o", "NetOutput"}));
+
+  const auto parse_decompose_error = domi::OpRegistry::Instance()->GetParseOpToGraphFunc(
+      "BridgeDecomposeErrorTarget", "test.domain::1::BridgeDecomposeError");
+  ASSERT_NE(parse_decompose_error, nullptr);
+  Graph error_graph("decompose_error_graph");
+  EXPECT_EQ(parse_decompose_error(source_op, error_graph), FAILED);
+
+  const auto parse_decompose_return = domi::OpRegistry::Instance()->GetParseOpToGraphFunc(
+      "BridgeDecomposeReturnTarget", "test.domain::1::BridgeDecomposeReturn");
+  ASSERT_NE(parse_decompose_return, nullptr);
+  Graph return_graph("decompose_return_graph");
+  EXPECT_EQ(parse_decompose_return(source_op, return_graph), PARAM_INVALID);
+}
+
+TEST(OnnxPythonPluginBridge, ParseGraphCallbacks) {
+  ScopedInMemoryPlugin in_memory_plugin;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+  void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
+  ASSERT_NE(bridge, nullptr);
+  using InitBridgeFunc = Status (*)();
+  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(bridge, "InitOnnxPluginBridge"));
+  ASSERT_NE(init_bridge, nullptr);
+  ASSERT_EQ(init_bridge(), SUCCESS);
+
+  Operator source_op("operator_source", "BridgeOperator");
+  source_op.SetAttr("alpha", 0.5F);
+  VerifyDecomposeCallbacks(source_op);
+
+  using ResetBridgeFunc = void (*)();
+  const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(bridge, "ResetOnnxPluginBridgeState"));
+  ASSERT_NE(reset_bridge, nullptr);
+  reset_bridge();
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
 }
 
 TEST(OnnxPythonPluginBridge, LoadThroughCommonLoader) {

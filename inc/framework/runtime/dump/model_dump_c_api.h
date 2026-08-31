@@ -12,7 +12,9 @@
 #define GE_FRAMEWORK_RUNTIME_DUMP_MODEL_DUMP_C_API_H_
 
 #include <stdint.h>
+#include <stddef.h>
 #include <memory>
+#include "acl/acl_rt.h"
 #include "exe_graph/runtime/runtime_tensor.h"
 #include "acl/acl_base_rt.h"
 
@@ -110,9 +112,10 @@ struct Om2TaskInfo {
   const uint64_t *workspace_sizes;  // 输入，Workspace 大小数组首地址，单位为字节。workspace_num 为 0 时可以为空指针。
 
   // 其他
-  uint32_t task_type;       // 输入，任务类型，取值与 ModelTaskType 保持一致。
-  void *stream;             // 输入，rtStream_t 运行时流句柄。
-  uint32_t is_raw_address;  // 输入，是否为 raw address 模式，0 表示否，非 0 表示是。
+  uint32_t task_type;             // 输入，任务类型，取值与 ModelTaskType 保持一致。
+  uint64_t kernel_type = 10000U;  // 输入，kernel 类型，取值与 ge::ccKernelType 保持一致，默认 INVALID。
+  void *stream;                   // 输入，rtStream_t 运行时流句柄。
+  uint32_t is_raw_address;        // 输入，是否为 raw address 模式，0 表示否，非 0 表示是。
   // 输入，L0 异常 dump 原始信息指针。不需要 L0 异常 dump 时可以为空指针。
   const struct Om2L0TaskRawInfo *l0_exception_dump_info;
 
@@ -163,22 +166,11 @@ using ReportTaskProcessFunc = int32_t (*)(void *instance_handle, const struct Om
 using GetDataDumpEnabledInfoFunc = int32_t (*)(void *instance_handle, struct GertModelDumpEnabledInfo *info);
 using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
 
-struct GertModelCallbacks {
-  uint64_t struct_size = sizeof(GertModelCallbacks);  // 布局变化时更新
-
-  ReportTaskProcessFunc report_task_preprocess = nullptr;
-  ReportTaskProcessFunc report_task_postprocess = nullptr;
-  GetDataDumpEnabledInfoFunc get_data_dump_enabled = nullptr;
-  // codegen 在 InitResources 创建 rt_model_handle 后、Load 前回调；
-  // executor 收到后完成 ReportModelBaseInfo（组装 ModelDumpInfo → SetModelDumpInfo）
-  ReportModelBaseInfoFunc report_model_base_info = nullptr;
-};
-
 // ============ 弱符号接口 ============
 /**
  * @brief 在 OM2 算子任务 launch 前执行 DFX 预处理。
  * @param model_id 输入，模型 ID。当前预留，接口内部暂不使用。
- * @param instance_handle 输入，ModelDumpManager 实例指针，不允许为空。
+ * @param instance_handle 输入，Om2ModelExecutor 实例指针，不允许为空。
  * @param task_info 输入，算子任务 dump 信息指针，不允许为空。
  * @param extended_attrs 输入，预留扩展属性指针，当前必须为空指针。
  * @param extended_attrs_size 输入，预留扩展属性大小，单位为字节，当前必须为 0。
@@ -191,7 +183,7 @@ int32_t OM2_C_API_EXPORT ReportDfxTaskPreprocess(uint32_t model_id, void *instan
 /**
  * @brief 在 OM2 算子任务 launch 后保存 DFX 任务信息。
  * @param model_id 输入，模型 ID。当前预留，接口内部暂不使用。
- * @param instance_handle 输入，ModelDumpManager 实例指针，不允许为空。
+ * @param instance_handle 输入，Om2ModelExecutor 实例指针，不允许为空。
  * @param task_info 输入，算子任务 dump 信息指针，不允许为空。
  * @param extended_attrs 输入，预留扩展属性指针，当前必须为空指针。
  * @param extended_attrs_size 输入，预留扩展属性大小，单位为字节，当前必须为 0。
@@ -204,7 +196,7 @@ int32_t OM2_C_API_EXPORT ReportDfxTaskPostprocess(uint32_t model_id, void *insta
 /**
  * @brief 查询指定算子是否需要 Data Dump。
  * @param model_id 输入，模型 ID。当前预留，接口内部暂不使用。
- * @param instance_handle 输入，ModelDumpManager 实例指针，不允许为空。
+ * @param instance_handle 输入，Om2ModelExecutor 实例指针，不允许为空。
  * @param op_name 输入，算子名称。
  * @param is_data_dump 输出，该算子是否需要 Data Dump，0 表示不需要，1 表示需要。
  * @return 返回 0 表示成功，返回其他值表示失败。

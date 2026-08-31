@@ -24,8 +24,8 @@ class L2CacheKernelLaunch : public TbeKernelLaunch {
  public:
   explicit L2CacheKernelLaunch(int32_t input_num) : TbeKernelLaunch(input_num) {};
   ~L2CacheKernelLaunch() override {};
-  size_t GetAppendArgsSizeOf() override;
-  size_t GetAppendArgsNum() override;
+  size_t GetAppendArgsSizeOf() const override;
+  size_t GetAppendArgsNum() const override;
   Status AddAppendArgs(const ge::Node &node, void *all_args_buff, const uint32_t &args_size) override;
 
  private:

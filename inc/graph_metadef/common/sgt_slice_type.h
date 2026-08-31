@@ -11,6 +11,7 @@
 #ifndef INC_COMMON_SGT_SLICE_TYPES_H_
 #define INC_COMMON_SGT_SLICE_TYPES_H_
 
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>

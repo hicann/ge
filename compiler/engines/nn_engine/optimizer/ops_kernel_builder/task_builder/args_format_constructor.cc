@@ -494,7 +494,7 @@ Status ArgsFormatConstructor::GetArgsSize(size_t &args_size) {
   return SUCCESS;
 }
 
-std::string ArgsFormatConstructor::GetArgsFormatString() {
+std::string ArgsFormatConstructor::GetArgsFormatString() const {
   return format_desc_.ToString();
 }
 }  // namespace fe

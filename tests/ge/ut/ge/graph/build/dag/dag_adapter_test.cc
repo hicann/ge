@@ -650,7 +650,46 @@ TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_NormalFlow) {
 }
 
 /**
- * 场景 6-4: INVALID_STREAM_ID 节点跳过
+ * 场景 6-4: NetOutput 节点跳过刷新
+ * 验证：普通节点的 stream_id 被刷新，NetOutput 节点保持原始 stream_id
+ */
+TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_SkipNetOutput) {
+  auto ge_graph = BuildGraphWithNodes();
+  ASSERT_NE(ge_graph, nullptr);
+
+  auto add_gnode = ge_graph->FindNodeByName(AscendString("add1"));
+  ASSERT_NE(add_gnode, nullptr);
+  auto add_compute_node = NodeAdapter::GNode2Node(*add_gnode);
+  ASSERT_NE(add_compute_node, nullptr);
+  add_compute_node->GetOpDesc()->SetStreamId(0);
+
+  auto netoutput_gnode = ge_graph->FindNodeByName(AscendString("NetOutput"));
+  ASSERT_NE(netoutput_gnode, nullptr);
+  auto netoutput_compute_node = NodeAdapter::GNode2Node(*netoutput_gnode);
+  ASSERT_NE(netoutput_compute_node, nullptr);
+  netoutput_compute_node->GetOpDesc()->SetStreamId(0);
+
+  std::shared_ptr<minidag::DAGGraph> dag;
+  auto ret = CallFromGEGraph(ge_graph, dag);
+  ASSERT_EQ(ret, ge::GRAPH_SUCCESS);
+  ASSERT_NE(dag, nullptr);
+
+  auto dag_add_node = dag->FindNode("add1");
+  ASSERT_NE(dag_add_node, nullptr);
+  dag_add_node->SetStreamId(1);
+  auto dag_netoutput_node = dag->FindNode("NetOutput");
+  ASSERT_NE(dag_netoutput_node, nullptr);
+  dag_netoutput_node->SetStreamId(1);
+
+  ge::StreamPassContext context(10);
+  ret = DAGAdapter::RefreshStreamIdsToGE(*dag, ge_graph, context);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  EXPECT_EQ(add_compute_node->GetOpDesc()->GetStreamId(), 1);
+  EXPECT_EQ(netoutput_compute_node->GetOpDesc()->GetStreamId(), 0);
+}
+
+/**
+ * 场景 6-5: INVALID_STREAM_ID 节点跳过
  */
 TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_InvalidStreamId) {
   auto ge_graph = BuildGraphWithNodes();
@@ -672,7 +711,7 @@ TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_InvalidStreamId) {
 }
 
 /**
- * 场景 6-5: 节点不在 GE 图中时跳过
+ * 场景 6-6: 节点不在 GE 图中时跳过
  */
 TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_NodeNotInGE) {
   auto ge_graph = BuildGraphWithNodes();
@@ -688,7 +727,7 @@ TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_NodeNotInGE) {
 }
 
 /**
- * 场景 6-6: stream_id 超出范围时返回失败
+ * 场景 6-7: stream_id 超出范围时返回失败
  */
 TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_StreamIdOutOfRange) {
   auto ge_graph = BuildGraphWithNodes();
@@ -710,7 +749,7 @@ TEST_F(DAGAdapterGEIntegrationTest, RefreshStreamIdsToGE_StreamIdOutOfRange) {
 }
 
 /**
- * 场景 6-7: GE 节点原始 stream_id 为 INVALID 时跳过刷新
+ * 场景 6-8: GE 节点原始 stream_id 为 INVALID 时跳过刷新
  * 验证：DAG 节点有有效 stream_id，但 GE 节点原始 stream_id 为 INVALID_STREAM_ID 时，
  *       该节点不会被刷新，函数返回成功
  */

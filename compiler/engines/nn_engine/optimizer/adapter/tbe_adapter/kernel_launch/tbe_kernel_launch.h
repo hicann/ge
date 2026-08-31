@@ -30,8 +30,8 @@ class TbeKernelLaunch {
   Status DealKernelLaunch(const ge::Node &node, const void *args, const uint32_t &args_size,
                           const std::string &stub_func, const uint32_t &core_dim, domi::TaskDef &task_def);
 
-  virtual size_t GetAppendArgsSizeOf();
-  virtual size_t GetAppendArgsNum();
+  virtual size_t GetAppendArgsSizeOf() const;
+  virtual size_t GetAppendArgsNum() const;
   virtual Status AddAppendArgs(const ge::Node &node, void *all_args_buff, const uint32_t &args_size);
 
   static bool KernelLaunch(const std::string &stub_func, const uint32_t block_dim, const void *args, uint32_t args_size,

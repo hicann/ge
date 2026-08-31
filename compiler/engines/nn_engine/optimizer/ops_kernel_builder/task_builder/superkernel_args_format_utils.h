@@ -31,7 +31,12 @@ ge::Status GenTaskForSuperKernel(const ge::Node &node, std::vector<std::vector<d
 ge::Status GetArgFormatV2(domi::TaskDef &task_temp, std::string &args_format);
 ge::Status GetWorkspacePattern(const ge::Node &node, std::string &super_kernel_args_format, int64_t ws_size);
 bool IsAICpuKernelType(ge::ccKernelType kernel_type);
-bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context);
+bool IsAICpuTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context, bool hasRecordOrWaitTask);
+bool IsEventWaitKernelDef(domi::TaskDef &task_temp);
+bool IsEventWaitTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context);
+bool IsEventRecordKernelDef(domi::TaskDef &task_temp);
+bool IsEventRecordTaskDef(domi::TaskDef &task_temp, domi::KernelContext *&kernel_context);
+bool CheckRecordWaitTask(std::vector<domi::TaskDef> &subTask, bool &hasRecordOrWaitTask);
 uint64_t GetAtomicStubFuncId();
 std::string GetUniqueGraphIdForNode(const ge::OpDescPtr &super_kernel_op_desc);
 bool KernelLaunch(const std::string &stub_func, const uint32_t block_dim, const void *args, uint32_t args_size,

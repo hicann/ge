@@ -17,11 +17,13 @@
 
 namespace ge {
 #define FORALL_OM2_CONSTANTS(DO)                                                         \
-  DO(OM2_ARCHIVE_VERSION, "om2_version");                                                \
-  DO(OM2_ARCHIVE_VERSION_VALUE, "1.0");                                                  \
   DO(OM2_MODEL_NUM, "model_num");                                                        \
   DO(OM2_ATC_COMMAND, "atc_command");                                                    \
   DO(OM2_MANIFEST_PATH, "manifest.json");                                                \
+  DO(OM2_MANIFEST_KEY_COMPATIBILITY, "compatibility");                                   \
+  DO(OM2_MANIFEST_KEY_COMPILER_VERSION, "compiler_version");                             \
+  DO(OM2_MANIFEST_KEY_REQUIRED_EXECUTOR_VERSION, "required_executor_version");           \
+  DO(OM2_MANIFEST_KEY_USED_FEATURES, "used_features");                                   \
   DO(OM2_DATA_DIR, "data/");                                                             \
   DO(OM2_MODEL_DIR_FORMAT, "data/model_%s/");                                            \
   DO(OM2_MODEL_META_PATH_FORMAT, "data/model_%s/model_meta.json");                       \

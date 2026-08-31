@@ -10,6 +10,8 @@
 
 #ifndef INC_REGISTER_GRAPH_OPTIMIZER_FUSION_PATTERN_H_
 #define INC_REGISTER_GRAPH_OPTIMIZER_FUSION_PATTERN_H_
+
+#include <cstdint>
 #include <iostream>
 #include <map>
 #include <memory>

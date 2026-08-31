@@ -40,7 +40,7 @@ struct SkipCtxRecord {
     GE_ASSERT_NOTNULL(ctx_type_v);
     return true;
   }
-  size_t GetCtxNum() {
+  size_t GetCtxNum() const {
     if (ctx_id_v == nullptr) {
       return 0;
     }

@@ -108,7 +108,7 @@ TEST_F(UtestAiCoreTaskBuilder, load_atomic_workspace) {
   EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
   HybridModel hybrid_model(ge_root_model);
   std::vector<domi::TaskDef> task_defs;
-  std::unique_ptr<AiCoreNodeTask> aicore_task;
+  std::unique_ptr<AiCoreNodeTask> aicore_task = std::make_unique<AiCoreNodeTask>();
   AiCoreTaskBuilder builder(node, task_defs, hybrid_model, *aicore_task);
 
   GeAttrValue::NAMED_ATTRS workspaces;

@@ -113,8 +113,14 @@ Status ModelIntroduction::ConstructInputInfo() {
     int64_t input_size = 0;
     GE_ASSERT_NOTNULL(op_desc->GetInputDescPtr(0U), "Get input desc ptr failed");
     if (!is_dynamic_) {
-      GE_CHK_STATUS_RET(TensorUtils::GetSize(*op_desc->GetInputDescPtr(0U), input_size),
-                        "[Get][InputSize] failed in op:%s.", op_desc->GetName().c_str());
+      if (op_desc->GetOutputDescPtr(0U) != nullptr &&
+          AttrUtils::GetInt(*op_desc->GetOutputDescPtr(0U), ATTR_NAME_SPECIAL_INPUT_SIZE, input_size) &&
+          (input_size > 0)) {
+        GELOGI("data[%s] output has special size [%" PRId64 "]", op_desc->GetName().c_str(), input_size);
+      } else {
+        GE_CHK_STATUS_RET(TensorUtils::GetSize(*op_desc->GetInputDescPtr(0U), input_size),
+                          "[Get][InputSize] failed in op: %s.", op_desc->GetName().c_str());
+      }
     } else {
       int64_t shape_size = op_desc->GetInputDescPtr(0U)->GetShape().GetShapeSize();
       shape_size = (shape_size < 0) ? 0 : shape_size;

@@ -39,7 +39,7 @@ class HostExecutorDumper : public ExecutorDumper {
   ge::Status HostDataDump(const Node *node, ExecutorEvent event);
   ge::Status DoHostDataDump(NodeDumpUnit &dump_unit, const ge::DumpProperties &dump_properties);
   void ParseDumpStep();
-  bool IsInDumpStep(const int64_t step_id, const std::string &dump_step);
+  bool IsInDumpStep(const int64_t step_id, const std::string &dump_step) const;
 
  private:
   ge::Status OnUpdateDumpUnitForHostDump(const Node &node);

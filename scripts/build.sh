@@ -272,6 +272,7 @@ build_mockcpp()
     sed -i 's/^	print >> sys.stderr, str(err)$/	print(str(err), file=sys.stderr)/g' "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7/src/get_long_opt.py"
 
     cmake "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7" \
+          -D CMAKE_CXX_FLAGS=-I${CANN_3RD_LIB_PATH}/boost \
           || {
         echo "ERROR: CMake configure failed"
         exit 1
@@ -314,6 +315,9 @@ build_air()
   fi
   mk_dir "${BUILD_PATH}"
   cd "${BUILD_PATH}"
+  if [[ "X$ENABLE_AICPU_LLT" = "Xon" ]] || [[ "X$ENABLE_FE_LLT" = "Xon" ]] || [[ "X$ENABLE_TEFUSION_LLT" = "Xon" ]] || [[ "X$ENABLE_FFTS_LLT" = "Xon" ]] || [[ "X$ENABLE_DVPP_LLT" = "Xon" ]] || [[ "X$ENABLE_RTS_LLT" = "Xon" ]] || [[ "X$ENABLE_HCCE_LLT" = "Xon" ]]; then
+    ENABLE_LLT_PKG=on
+  fi
   cmake -D BUILD_OPEN_PROJECT=True \
         -D ENABLE_OPEN_SRC=True \
         -D ENABLE_LLT_COV=${ENABLE_LLT_COV} \

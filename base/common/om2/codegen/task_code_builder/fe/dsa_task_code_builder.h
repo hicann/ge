@@ -73,16 +73,11 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                   const ExprRef &dsa_data, const VarRef &sqe);
   Status RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                  const ExprRef &dsa_data, const VarRef &addrs, const VarRef &launch_begin);
+                                  const ExprRef &dsa_data, const VarRef &addrs);
   Status RenderDispatchFuncReportIo(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &addrs,
                                     const VarRef &dsa_io_tensors, const VarRef &dsa_report_inputs,
                                     const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
                                     const VarRef &dsa_report_ws_sizes);
-  Status RenderDispatchFuncReportSubmit(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                        const ExprRef &dsa_data, const VarRef &dsa_report_inputs,
-                                        const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
-                                        const VarRef &dsa_report_ws_sizes, const VarRef &launch_begin) const;
-
   // Address semantics
   std::vector<AddrSemantic> input_addrs_;
   std::vector<AddrSemantic> output_addrs_;

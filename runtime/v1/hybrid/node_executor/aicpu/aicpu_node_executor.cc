@@ -1063,6 +1063,11 @@ Status AicpuNodeTask::SetMemCopyTask(const domi::TaskDef &task_def) {
   aicpu::AicpuParamHead *const memcpy_param_head = PtrToPtr<uint8_t, aicpu::AicpuParamHead>(memcpy_args_.get());
   const uint32_t memcpy_io_num = memcpy_param_head->ioAddrNum;
   // if has input and output, need copy to ioaddr
+  if (copy_io_addr_.empty()) {
+    GELOGE(INTERNAL_ERROR, "[Check][Size]Node[%s(%s)] copy_io_addr_ is empty, cannot copy io addr.", node_name_.c_str(),
+           node_type_.c_str());
+    return INTERNAL_ERROR;
+  }
   const errno_t cpy_ret = memcpy_s(&memcpy_args_[sizeof(aicpu::AicpuParamHead)],
                                    static_cast<size_t>(memcpy_args_size_) - sizeof(aicpu::AicpuParamHead),
                                    &copy_io_addr_[0U], sizeof(uint64_t) * memcpy_io_num);
@@ -1269,6 +1274,7 @@ Status AicpuNodeTask::UpdateHostMemInputArgs(const TaskContext &context) {
 }
 
 Status AicpuNodeTask::UpdateIoAddr(TaskContext &context) {
+  GE_CHECK_NOTNULL(args_);
   uint64_t *io_addrs = PtrToPtr<uint8_t, uint64_t>(&args_[sizeof(aicpu::AicpuParamHead)]);
   GE_CHECK_LE((((static_cast<size_t>(node_item_->num_inputs + node_item_->num_outputs)) * sizeof(uint64_t)) +
                sizeof(aicpu::AicpuParamHead)),

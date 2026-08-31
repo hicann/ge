@@ -53,7 +53,7 @@ class BufferFusionPassBase {
     name_ = name;
   }
 
-  std::string GetName() {
+  std::string GetName() const {
     return name_;
   }
 

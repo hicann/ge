@@ -30,7 +30,7 @@ constexpr int kJsonIndent = 2;
 
 KernelInfoPtr AicpuCustKernelInfo::Instance() {
   static once_flag flag;
-  call_once(flag, [&]() { instance_.reset(new (std::nothrow) AicpuCustKernelInfo); });
+  call_once(flag, []() { instance_.reset(new (std::nothrow) AicpuCustKernelInfo); });
   return instance_;
 }
 

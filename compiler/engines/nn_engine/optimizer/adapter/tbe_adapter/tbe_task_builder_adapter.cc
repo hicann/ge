@@ -769,7 +769,7 @@ Status TbeTaskBuilderAdapter::InitInput() {
   return ret;
 }
 
-bool TbeTaskBuilderAdapter::GetUnknownShapeFlag() {
+bool TbeTaskBuilderAdapter::GetUnknownShapeFlag() const {
   bool is_support_unknown_shape = false;
   (void)ge::AttrUtils::GetBool(op_desc_, ATTR_NAME_SUPPORT_DYNAMIC_SHAPE, is_support_unknown_shape);
   bool is_unknown_shape = UnknownShapeUtils::IsUnknownShapeOp(*node_.GetOpDesc());

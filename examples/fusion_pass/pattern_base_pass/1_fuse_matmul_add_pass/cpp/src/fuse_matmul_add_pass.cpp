@@ -50,8 +50,8 @@ class FuseMatMulAndAddPass : public PatternFusionPass {
     std::cout << "Define replacement for FuseMatMulAndAddPass" << std::endl;
     auto replace_graph_builder = es::EsGraphBuilder("replacement");
     auto [r_a, r_b, r_c] = replace_graph_builder.CreateInputs<3>();
-    auto alpha_const = replace_graph_builder.CreateScalar(1);
-    auto beta_const = replace_graph_builder.CreateScalar(1);
+    auto alpha_const = replace_graph_builder.CreateScalar(1.0f);
+    auto beta_const = replace_graph_builder.CreateScalar(1.0f);
     auto gemm = es::GEMM(r_a, r_b, r_c, alpha_const, beta_const);
     return replace_graph_builder.BuildAndReset({gemm});
   }

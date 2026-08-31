@@ -41,7 +41,7 @@ class GraphRebuildStateCtrl {
   /// only one time of changing
   /// \param var_name
   /// \return
-  bool IsVarPermitToChangeFormats(const std::string &var_name);
+  bool IsVarPermitToChangeFormats(const std::string &var_name) const;
 
  private:
   /// The graph id of the graph to be rebuilt. When the format of a variable is

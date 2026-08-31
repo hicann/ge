@@ -63,7 +63,7 @@ bool IsStrNotNum(const std::string &val) {
 bool NeedDumpGraphByWhitelist(const std::string &env_val, const std::string &suffix) {
   const auto &whitelist_names = StringUtils::Split(env_val, '|');
   return std::any_of(whitelist_names.begin(), whitelist_names.end(),
-                     [&](const std::string &name) { return suffix.find(name) != std::string::npos; });
+                     [&suffix](const std::string &name) { return suffix.find(name) != std::string::npos; });
 }
 
 bool NoNeedDumpGraphBySuffix(const std::string &suffix) {

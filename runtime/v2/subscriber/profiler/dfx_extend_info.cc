@@ -169,15 +169,15 @@ const uint32_t *DfxExtendInfo::GetTaskTypeAddr() const {
   return reinterpret_cast<const uint32_t *>(&place_holder_ + sizeof(uint32_t));
 }
 
-const uint32_t *DfxExtendInfo::GetCtxTypeAddr() {
+const uint32_t *DfxExtendInfo::GetCtxTypeAddr() const {
   return reinterpret_cast<const uint32_t *>(&place_holder_ + kCtxTypeAddrOffset * sizeof(uint32_t));
 }
 
-const uint32_t *DfxExtendInfo::GetCtxSizeAddr() {
+const uint32_t *DfxExtendInfo::GetCtxSizeAddr() const {
   return reinterpret_cast<const uint32_t *>(&place_holder_ + kCtxSizeAddrOffset * sizeof(uint32_t));
 }
 
-const uint32_t *DfxExtendInfo::GetCtxIdAddr(size_t index) {
+const uint32_t *DfxExtendInfo::GetCtxIdAddr(size_t index) const {
   if (*(GetCtxSizeAddr()) == 0U) {
     return nullptr;
   }

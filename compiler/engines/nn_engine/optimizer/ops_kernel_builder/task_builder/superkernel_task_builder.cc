@@ -38,6 +38,8 @@ namespace {
 const std::string kAttrHasDoneSkp = "_has_done_skp";
 const std::string kAttrTaskArgs = "_task_args";
 const std::string SPK_REUSED_BINARY = "super_kernel_reuse_binary";
+uint32_t cur_stream_event_id = static_cast<uint32_t>(static_cast<uint64_t>(INT32_MAX) * 3U / 4U);
+uint32_t other_stream_event_id = static_cast<uint32_t>(static_cast<uint64_t>(INT32_MAX) * 3U / 4U);
 void AddFusionNodes(std::vector<ge::NodePtr> &nodes_vec, std::vector<std::vector<ge::NodePtr>> &fusion_nodes) {
   if (!nodes_vec.empty()) {
     fusion_nodes.push_back(nodes_vec);
@@ -517,8 +519,18 @@ bool IsTilingSinkTask(std::vector<domi::TaskDef> &sub_tasks, const std::string &
   return false;
 }
 
-Status SuperkernelTaskBuilder::GenerateSubKernelTask(const ge::ComputeGraphPtr &sub_graph, ge::RunContext &context,
-                                                     std::vector<ge::Node *> &sub_nodes,
+bool IsEventWaitTask(domi::TaskDef &task_temp) {
+  return (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_EVENT_WAIT)) ||
+         (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_WAIT));
+}
+
+bool IsEventRecordTask(domi::TaskDef &task_temp) {
+  return (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_EVENT_RECORD)) ||
+         (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_RECORD));
+}
+
+Status SuperkernelTaskBuilder::GenerateSubKernelTask(const ge::Node &node, const ge::ComputeGraphPtr &sub_graph,
+                                                     ge::RunContext &context, std::vector<ge::Node *> &sub_nodes,
                                                      std::vector<std::vector<domi::TaskDef>> &sub_tasks) {
   TaskBuilderContext task_context;
   if (TaskBuilder::InitTaskContext(context, task_context) != SUCCESS) {
@@ -557,6 +569,41 @@ Status SuperkernelTaskBuilder::GenerateSubKernelTask(const ge::ComputeGraphPtr &
     if (IsTilingSinkTask(tmp_tasks, sub_arg_format)) {
       (void)ge::AttrUtils::SetStr(sub_node->GetOpDesc(), "SPK_task_type", "dynamic");
       FE_LOGI("SPK sub node[%s, %s] set task type wait.", sub_node->GetNamePtr(), sub_node->GetTypePtr());
+    }
+  }
+  for (uint32_t i = 0; i < sub_tasks.size(); ++i) {
+    const auto sub_kernel_op_desc = sub_nodes[i]->GetOpDesc();
+    const auto super_kernel_op_desc = node.GetOpDesc();
+    std::string sub_arg_format;
+    auto sub_node = const_cast<ge::Node *>(sub_nodes[i])->shared_from_this();
+    auto &subTaskVec = sub_tasks[i];
+    for (auto &single_task : subTaskVec) {
+      if (IsEventWaitTask(single_task) || IsEventRecordTask(single_task)) {
+        int cur_task_stream_id = single_task.stream_id();
+        int sk_node_stream_id = super_kernel_op_desc->GetStreamId();
+        FE_LOGD("cur_task_stream_id %u, sk_node_stream_id %u", cur_task_stream_id, sk_node_stream_id);
+        if (cur_task_stream_id == sk_node_stream_id) {
+          // Ensure the record/wait task shares the same stream_id come into the aicore task.
+          single_task.set_event_id(cur_stream_event_id);
+          FE_CHECK_NOTNULL(sub_kernel_op_desc);
+          std::vector<uint32_t> sk_custom_event_ids;
+          (void)ge::AttrUtils::GetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+          FE_LOGD("Get sk_custom_event_ids from the sub node %s, sk_custom_event_ids size %d, event id %u.",
+                  sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+          sk_custom_event_ids.emplace_back(cur_stream_event_id);
+          if (!ge::AttrUtils::SetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids)) {
+            FE_LOGE("Failed to set sk_custom_event_ids for the sub node %s, sk_custom_event_ids size %d, event id %u.",
+                    sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+            return ge::FAILED;
+          }
+          FE_LOGD("Set _sk_custom_event_ids from the sub node %s, _sk_custom_event_ids size %d, event id %u.",
+                  sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+          cur_stream_event_id++;
+        } else {
+          single_task.set_event_id(other_stream_event_id);
+          other_stream_event_id++;
+        }
+      }
     }
   }
   return SUCCESS;
@@ -606,7 +653,7 @@ Status SuperkernelTaskBuilder::GenerateSuperKernelTask(const ge::Node &node, ge:
   std::vector<ge::Node *> sub_nodes;
   std::vector<std::vector<domi::TaskDef>> sub_tasks;
   GEEVENT("[FE] Begin to gentask for sub nodes.");
-  if (GenerateSubKernelTask(sub_graph, context, sub_nodes, sub_tasks) != SUCCESS) {
+  if (GenerateSubKernelTask(node, sub_graph, context, sub_nodes, sub_tasks) != SUCCESS) {
     REPORT_FE_ERROR("[GenTask] Op[%s, %s] compile subkernel failed.", node.GetNamePtr(), node.GetTypePtr());
     return FAILED;
   }

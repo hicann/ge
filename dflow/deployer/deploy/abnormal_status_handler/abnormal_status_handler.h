@@ -88,8 +88,8 @@ class AbnormalStatusHandler {
   void MonitorFileAndHeartbeatProc(const std::string &file_path, const int32_t &fd);
   Status GetMonitorFilePath(std::string &file_path);
   void AbnormalStatusMonitorRun();
-  bool IsDeployingRootModel();
-  bool IsAllCallbackInitFinished();
+  bool IsDeployingRootModel() const;
+  bool IsAllCallbackInitFinished() const;
   Status DynamicSchedRecoverProc(uint32_t root_model_id);
   Status HeartbeatMonitorProc();
 

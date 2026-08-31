@@ -55,7 +55,7 @@ class DataInputer {
     queue_.Stop();
   }
 
-  uint32_t Size() {
+  uint32_t Size() const {
     return queue_.Size();
   }
 

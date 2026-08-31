@@ -2751,6 +2751,11 @@ void DavinciModel::InitModelInputsMergeCopyHostMem() {
   std::vector<std::pair<uint32_t, uint64_t>> input_index_and_logical_addr;
   for (auto idx : zero_copy_input_indexes_) {
     const auto id = input_index_to_allocation_ids_[idx];
+    if (static_cast<size_t>(id) >= logical_mem_allocations_.size()) {
+      GELOGW("[InputMergeCopy] allocation id %u out of range, logical_mem_allocations size %zu, skip.", id,
+             logical_mem_allocations_.size());
+      continue;
+    }
     const auto input_size = logical_mem_allocations_[id].tensor_size;
     if (input_size > input_fusion_size) {
       GELOGI("[InputMergeCopy]Input[%u] size %" PRIu64 " is bigger than input fusion size %" PRIu64
@@ -6872,6 +6877,10 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
                                : ValueToPtr(PtrToValue(tensors[io_idx].GetData().data()));
 
     GE_ASSERT_TRUE(id != UINT32_MAX);
+    if (static_cast<size_t>(id) >= logical_mem_allocations_.size()) {
+      GELOGW("[ZCPY] allocation id %u is out of range [0, %zu), skip.", id, logical_mem_allocations_.size());
+      continue;
+    }
     GE_ASSERT_TRUE(CheckUserAndModelSize(static_cast<int64_t>(buffer_length),
                                          static_cast<int64_t>(logical_mem_allocations_[id].data_size),
                                          is_input ? K_INPUT : K_OUTPUT),
@@ -6962,6 +6971,10 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
                                : ValueToPtr(PtrToValue(tensors[io_idx].GetAddr()));
 
     GE_ASSERT_TRUE(id != UINT32_MAX);
+    if (static_cast<size_t>(id) >= logical_mem_allocations_.size()) {
+      GELOGW("[ZCPY] allocation id %u is out of range [0, %zu), skip.", id, logical_mem_allocations_.size());
+      continue;
+    }
     GE_ASSERT_TRUE(CheckUserAndModelSize(static_cast<int64_t>(buffer_length),
                                          static_cast<int64_t>(logical_mem_allocations_[id].data_size),
                                          is_input ? K_INPUT : K_OUTPUT),

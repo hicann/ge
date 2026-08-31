@@ -74,14 +74,14 @@ class FusionRuleParserUtils {
     engine_name_ = name;
   }
 
-  std::string GetEngineName() {
+  std::string GetEngineName() const {
     std::lock_guard<std::mutex> lock_guard(parse_mutex_);
     return engine_name_;
   }
 
  private:
   std::string engine_name_;
-  std::mutex parse_mutex_;
+  mutable std::mutex parse_mutex_;
 };
 
 }  // namespace fe

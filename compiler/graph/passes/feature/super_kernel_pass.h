@@ -19,6 +19,11 @@ using AclskScopeVerifyFunc = aclError (*)(const aclskScopeVerifyGraphInfo *, siz
                                           size_t *);
 
 namespace ge {
+struct ExtendInfoTmp {
+  uint32_t flag;
+  int32_t coreLimit[2];
+};
+
 struct ScopeCutPoint {
   int64_t topo_id;
   bool is_exclusive;
@@ -83,11 +88,14 @@ class SuperKernelPass : public GraphPass {
   Status InitAclskVerify();
   void BuildScopeNameToIdMap();
   Status BuildVerifyGraph(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &nodes,
-                          std::vector<NodePtr> &node_mapping);
-  bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info);
+                          std::vector<NodePtr> &node_mapping, std::vector<ExtendInfoTmp> &extend_infos);
+  bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info, std::vector<ExtendInfoTmp> &extend_infos,
+                          int32_t ai_core_cnt_global, int32_t vector_core_cnt_global);
   Status CallAclskVerify(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &verify_nodes,
-                         std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results);
+                         std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results,
+                         std::vector<ExtendInfoTmp> &extend_infos);
   bool IsFirstNodeInScope(const std::string &scope_name, int64_t topo_id);
+  bool IsLastNodeInScope(const std::string &scope_name, int64_t topo_id);
   Status ProcessSplitResults(const std::vector<aclskScopeVerifySplitResult> &results,
                              const aclskScopeVerifyNodeInfo *verify_nodes_base,
                              const std::vector<NodePtr> &node_mapping, std::set<std::string> &need_split_scopes,

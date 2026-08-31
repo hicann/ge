@@ -101,9 +101,11 @@ TEST_F(DataSlice, data_slice_helper_1) {
 
 TEST_F(DataSlice, data_slice_helper_2) {
   OpDescPtr op_desc = std::make_shared<OpDesc>("Cast", "Cast");
-  GeTensorDesc output_desc;
+  GeTensorDesc output_desc(ge::GeShape({10}));
+  std::vector<std::vector<int64_t>> slice_info = {{0, 10}};
+  (void)AttrUtils::SetListListInt(output_desc, ge::ATTR_NAME_DATA_SLICE, slice_info);
   op_desc->AddOutputDesc("output", output_desc);
-  GeTensorDesc input_desc;
+  GeTensorDesc input_desc(ge::GeShape({10}));
   op_desc->AddInputDesc("input", input_desc);
   AxisTypeInfo axis_type_info;
   axis_type_info.SetAxisType(AxisType::ELEMENTWISE);

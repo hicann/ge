@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <thread>
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/dump/dump_manager.h"
@@ -734,5 +735,42 @@ TEST_F(UTEST_dump_manager, set_dump_path_with_acldump_override) {
   EXPECT_EQ(ret, ge::SUCCESS);
   DumpStub::GetInstance().SetMockDumpPath("");
   DumpManager::GetInstance().RemoveDumpProperties(0);
+}
+
+TEST_F(UTEST_dump_manager, ConcurrentAddRemoveDumpProperties_InitUninitCalledOnce) {
+  DumpManager::GetInstance().RemoveDumpProperties(0);
+  DumpManager::GetInstance().RemoveDumpProperties(1);
+  std::map<std::string, std::string> empty_opts;
+  InnerSession setup_session(997U, empty_opts);
+  setup_session.RemoveDumpProperties();
+  DumpStub::GetInstance().Reset();
+  DumpStub::GetInstance().ResetAdxCallCount();
+
+  constexpr int32_t kN = 10;
+  std::vector<std::unique_ptr<InnerSession>> sessions;
+  for (int32_t i = 0; i < kN; ++i) {
+    sessions.push_back(std::make_unique<InnerSession>(static_cast<uint64_t>(i), empty_opts));
+  }
+  std::vector<std::thread> threads;
+  for (int32_t i = 0; i < kN; ++i) {
+    threads.emplace_back([&sessions, i]() {
+      DumpProperties dp;
+      dp.SetDumpStatus("on");
+      sessions[static_cast<size_t>(i)]->AddDumpProperties(dp);
+    });
+  }
+  for (auto &t : threads) {
+    t.join();
+  }
+  EXPECT_EQ(DumpStub::GetInstance().GetAdxInitCallCount(), 1);
+
+  threads.clear();
+  for (int32_t i = 0; i < kN; ++i) {
+    threads.emplace_back([&sessions, i]() { sessions[static_cast<size_t>(i)]->RemoveDumpProperties(); });
+  }
+  for (auto &t : threads) {
+    t.join();
+  }
+  EXPECT_EQ(DumpStub::GetInstance().GetAdxUninitCallCount(), 1);
 }
 }  // namespace ge

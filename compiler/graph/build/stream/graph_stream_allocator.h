@@ -104,7 +104,7 @@ class StreamAllocator {
     return notify_types_;
   }
 
-  std::map<int64_t, int64_t> GetSplitStreamToLogicStream() {
+  std::map<int64_t, int64_t> GetSplitStreamToLogicStream() const {
     return split_stream_id_to_logic_stream_id_;
   }
 

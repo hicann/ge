@@ -736,7 +736,7 @@ Status VariableOpPass::RenewVarDesc(uint64_t session_id, const NodePtr &node, co
   return SUCCESS;
 }
 
-std::vector<NodePtr> VariableOpPass::GetRefVars(const SameVarPtr &same_vars) {
+std::vector<NodePtr> VariableOpPass::GetRefVars(const SameVarPtr &same_vars) const {
   std::vector<NodePtr> nodes;
   auto iter = var_and_var_ref_map_.find(same_vars);
   if (iter != var_and_var_ref_map_.end()) {
