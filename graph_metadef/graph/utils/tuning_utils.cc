@@ -102,7 +102,7 @@ graphStatus TuningUtils::ConvertGraphToFile(std::vector<ComputeGraphPtr> tuning_
     auto help_info = HelpInfo{i, exe_flag, true, path, user_path};
     help_info.need_preprocess_ = true;
     if (MakeExeGraph(subgraph, help_info) != SUCCESS) {
-      GELOGE(GRAPH_FAILED, "[Invoke][MakeExeGraph] TUU:subgraph %zu generate exe graph failed", i);
+      GELOGE(GRAPH_FAILED, "[Invoke][MakeExeGraph] subgraph %zu generate exe graph failed", i);
       return GRAPH_FAILED;
     }
     i++;
@@ -601,13 +601,13 @@ graphStatus TuningUtils::LinkEnd2NetOutput(NodePtr &end_node, NodePtr &out_node)
   GE_CHECK_NOTNULL(src_anchor);
   if (GraphUtils::RemoveEdge(src_anchor, end_in_anchor) != GRAPH_SUCCESS) {
     REPORT_INNER_ERR_MSG("E18888",
-                         "TUU:remove end input edge from from %s(%d) to %s(%d) failed. "
+                         "TUU:remove end input edge from %s(%d) to %s(%d) failed. "
                          "node_name:%s, graph_name:%s",
                          GetNodeNameByAnchor(src_anchor.get()).c_str(), src_anchor->GetIdx(),
                          GetNodeNameByAnchor(end_in_anchor.get()).c_str(), end_in_anchor->GetIdx(),
                          end_node->GetName().c_str(), end_node->GetOwnerComputeGraph()->GetName().c_str());
     GELOGE(FAILED,
-           "[Remove][Edge] TUU:remove end input edge from from %s(%d) to %s(%d) failed. "
+           "[Remove][Edge] TUU:remove end input edge from %s(%d) to %s(%d) failed. "
            "node_name:%s, graph_name:%s",
            GetNodeNameByAnchor(src_anchor.get()).c_str(), src_anchor->GetIdx(),
            GetNodeNameByAnchor(end_in_anchor.get()).c_str(), end_in_anchor->GetIdx(), end_node->GetName().c_str(),
@@ -692,7 +692,7 @@ graphStatus TuningUtils::ChangeEnd2NetOutput(NodePtr &end_node, NodePtr &out_nod
   const auto type_end = end_node->GetType();
   const auto type_out = out_node->GetType();
   if ((type_end != END) || (type_out != NETOUTPUT)) {
-    REPORT_INNER_ERR_MSG("E18888", "TUU:Failed to change end_node %s from type %s to type %s",
+    REPORT_INNER_ERR_MSG("E18888", "[Tuning]Failed to change end_node %s from type %s to type %s",
                          end_node->GetName().c_str(), type_end.c_str(), type_out.c_str());
     GELOGE(FAILED, "[Check][Param] TUU:Failed to change end_node %s from type %s to type %s",
            end_node->GetName().c_str(), type_end.c_str(), type_out.c_str());
@@ -786,7 +786,7 @@ graphStatus TuningUtils::LinkSubgraph(ComputeGraphPtr &root_graph, const Compute
     for (const auto &subgraph_name : op_desc->GetSubgraphInstanceNames()) {
       const auto iter = name_to_merged_subgraph.find(subgraph_name);
       if (iter == name_to_merged_subgraph.end()) {
-        REPORT_INNER_ERR_MSG("E18888", "TUU:cannot find subgraph with name:%s for op:%s.", subgraph_name.c_str(),
+        REPORT_INNER_ERR_MSG("E18888", "cannot find subgraph with name:%s for op:%s.", subgraph_name.c_str(),
                              op_desc->GetName().c_str());
         GELOGE(GRAPH_FAILED, "cannot find subgraph with name:%s for op:%s", subgraph_name.c_str(),
                op_desc->GetName().c_str());
@@ -848,7 +848,7 @@ graphStatus TuningUtils::LoadGraphFromFile(const std::map<int64_t, std::string> 
   }
 
   if (root_graphs.empty()) {
-    REPORT_INNER_ERR_MSG("E18888", "TUU:root graph has no subgraphs, cannot merge.");
+    REPORT_INNER_ERR_MSG("E18888", "root graph has no subgraphs, cannot merge.");
     GELOGE(GRAPH_FAILED, "root graph has no subgraphs, cannot merge");
     return GRAPH_FAILED;
   }

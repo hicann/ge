@@ -40,7 +40,7 @@ Status ParallelConcatStartOpPass::Run(NodePtr &node) {
     REPORT_INNER_ERR_MSG("E19999", "Output tensor num:%zu of node:%s(%s) != %zu, check invalid",
                          node_op_desc->GetOutputsSize(), node_op_desc->GetName().c_str(),
                          node_op_desc->GetType().c_str(), kParallelConcatStartOutputSize);
-    GELOGE(PARAM_INVALID, "[Check][Param] Node[%s] output size is unexpected, the value is %zu, expected valude:%zu.",
+    GELOGE(PARAM_INVALID, "[Check][Param] Node[%s] output size is unexpected, the value is %zu, expected value:%zu.",
            node_name.c_str(), node_op_desc->GetOutputsSize(), kParallelConcatStartOutputSize);
     return PARAM_INVALID;
   }

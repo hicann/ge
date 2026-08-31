@@ -41,7 +41,7 @@ Status SetOutputSizeIfNeed(const ComputeGraphPtr &graph) {
   GE_ASSERT_NOTNULL(netout_node);
   if (graph->GetOutputSize() != netout_node->GetInDataNodesSize()) {
     // 此处follow节点上信息
-    GELOGI("Graph %s output_size[%u] not equal with netoutput[%u] shows in graph, follow netoutput",
+    GELOGI("Graph %s output_size[%u] not equal to netoutput[%u] shows in graph, follow netoutput",
            graph->GetName().c_str(), graph->GetOutputSize(), netout_node->GetInDataNodesSize());
     graph->SetOutputSize(netout_node->GetInDataNodesSize());
   }

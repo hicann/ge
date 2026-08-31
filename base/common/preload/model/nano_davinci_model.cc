@@ -53,7 +53,7 @@ Status GetBinRealPath(const std::string &switch_kernel_name, std::string &bin_re
 
 Status GetKernelBinByName(const std::string &bin_real_path, std::unique_ptr<char_t[]> &buf, uint64_t &buf_len) {
   std::ifstream file(bin_real_path.c_str(), std::ios::binary | std::ios::in);
-  GE_ASSERT_TRUE(file.is_open(), "file: %s does not exist or is unaccessible.", bin_real_path.c_str());
+  GE_ASSERT_TRUE(file.is_open(), "file: %s does not exist or is inaccessible.", bin_real_path.c_str());
   GE_MAKE_GUARD(file_guard, [&file]() { (void)file.close(); });
   const std::streampos begin = file.tellg();
   (void)file.seekg(0, std::ios::end);

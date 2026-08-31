@@ -78,7 +78,7 @@ void ClearTEResource(int signo) {
   size_t signoIdx = static_cast<size_t>(iter->second);
   if (signoIdx < SignalManager::Instance().GetOldHandlesSize() && SignalManager::Instance().HasTERegistered(signoIdx)) {
     if (sigaction(signo, &SignalManager::Instance().GetOldHandleByIdx(signoIdx), nullptr) < 0) {
-      TE_INFOLOG("Signo[%d] has not register signal handle.", signo);
+      TE_INFOLOG("Signo[%d] has not registered a signal handler.", signo);
       return;
     }
     SignalManager::Instance().UnRegTEHandle(signoIdx);

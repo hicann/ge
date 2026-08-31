@@ -123,7 +123,9 @@ Status DataSliceElementwiseImpl::InferAxisSlice(Operator &op, const AxisTypeInfo
     std::vector<std::vector<int64_t>> split_ranges = GetInputSplitRanges(
         input_desc, input_cutinfo[i], out_data_slice[0][output_cutinfo[0].second[0]], is_invalid_info);
     if (is_invalid_info) {
-      GELOGE(FAILED, "The op[%s] input split range larger than input dim.", op_desc->GetName().c_str());
+      GELOGE(FAILED, "The op[%s] input split range[%ld] larger than input dim[%ld].", op_desc->GetName().c_str(),
+             out_data_slice[0][output_cutinfo[0].second[0]].back(),
+             input_desc->MutableShape().GetDim(input_cutinfo[i].second[0]));
       return FAILED;
     }
     in_data_slice.push_back(split_ranges);

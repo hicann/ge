@@ -127,7 +127,7 @@ int32_t CountBatchFlowFunc::GetBatchAttr() {
     return get_ret;
   }
   if ((timeout_ < 0L) || (timeout_ >= static_cast<int64_t>(UINT32_MAX))) {
-    UDF_LOG_ERROR("[CountBatch]Attr[timeout] is invalid[%ld], vaild range is[0, %u).", timeout_, UINT32_MAX);
+    UDF_LOG_ERROR("[CountBatch]Attr[timeout] is invalid[%ld], valid range is[0, %u).", timeout_, UINT32_MAX);
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }
   get_ret = context_->GetAttr("padding", padding_);

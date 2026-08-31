@@ -63,7 +63,7 @@ Status UdfProxyClient::LoadModel(deployer::ExecutorRequest_BatchLoadModelMessage
     const auto &msg_file_path = msg_file_paths[i];
     GE_CHK_STATUS_RET(LoadProcess(model_desc, msg_file_path, group_name), "Failed to load model.");
   }
-  GE_TIMESTAMP_EVENT_END(LoadProcess, "starting poxy udf and loading models during deploying");
+  GE_TIMESTAMP_EVENT_END(LoadProcess, "starting proxy udf and loading models during deploying");
   GEEVENT("[Load][Model] success.");
   return SUCCESS;
 }
@@ -179,7 +179,7 @@ Status UdfProxyClient::ForkChildProcess(const deployer::ExecutorRequest_LoadMode
   } else {
     config.process_type = PNE_ID_UDF;
     ld_library_path = model_path + "_dir";
-    GELOGD("LD_LIBRARY_PATH is been set to %s", ld_library_path.c_str());
+    GELOGD("LD_LIBRARY_PATH has been set to %s", ld_library_path.c_str());
   }
   config.args = {"udf_executor"};
   config.kv_args = {{"--load_path", file_path},
@@ -206,7 +206,7 @@ Status UdfProxyClient::ForkChildProcess(const deployer::ExecutorRequest_LoadMode
   GE_CHK_STATUS_RET(TsdClient::GetInstance().ForkSubprocess(GetDeviceId(), config, ld_library_path, child_pid),
                     "Failed to fork udf_executor on device[%d], model_path=%s, is_builtin=%d.", GetDeviceId(),
                     model_path.c_str(), static_cast<int32_t>(params.is_builtin));
-  GELOGI("for child process success, model_path=%s, is_builtin=%d", model_path.c_str(),
+  GELOGI("fork child process success, model_path=%s, is_builtin=%d", model_path.c_str(),
          static_cast<int32_t>(params.is_builtin));
   return SUCCESS;
 }

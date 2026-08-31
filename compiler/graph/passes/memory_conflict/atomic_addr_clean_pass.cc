@@ -280,7 +280,7 @@ Status AtomicAddrCleanPass::LinkToPotentialPrecedenceNode(ComputeGraphPtr &graph
       }
       if (std::find(need_gentask_atomic_node_.begin(), need_gentask_atomic_node_.end(), second_node) !=
           need_gentask_atomic_node_.end()) {
-        GELOGD("Node %s need gen atomic task, skip link it to %s", second_node->GetName().c_str(),
+        GELOGD("Node %s needs to generate an atomic task, skip linking it to %s", second_node->GetName().c_str(),
                atomic_clean_node->GetName().c_str());
         continue;
       }

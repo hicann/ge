@@ -69,7 +69,7 @@ Status GetPartInfoFromModel(const ModelData *modelData, ModelPartition *partitio
     }
     offset += sizeof(ModelPartitionMemInfo);
   }
-  GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "cant find partition[%d]", partition->type);
+  GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "cannot find partition[%d]", partition->type);
   return ACL_ERROR_GE_INTERNAL_ERROR;
 }
 

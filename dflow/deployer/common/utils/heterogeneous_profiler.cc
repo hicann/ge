@@ -134,7 +134,7 @@ void HeterogeneousProfiler::ProcessDetailTimeStamp() {
     uint64_t input_end_timestamp = GetMinMaxStartTimestampByIndex(enqueue_end_total_record_, i, false);
     if ((input_start_timestamp != std::numeric_limits<uint64_t>::max()) && (input_end_timestamp != 0UL) &&
         (input_start_timestamp <= input_end_timestamp)) {
-      GEEVENT("[HeterogeneousProfiler] [Iterator]:%zu [Input prepare duration]:%lu", i,
+      GEEVENT("[HeterogeneousProfiler] [Iterator]:%zu [Input prepare duration]:%lu us", i,
               (input_end_timestamp - input_start_timestamp));
     } else {
       GEEVENT("[HeterogeneousProfiler] [Iterator]:%zu Invalid timestamp: input start:%lu end:%lu", i,
@@ -157,8 +157,8 @@ void HeterogeneousProfiler::PrintAvgHeterogeneousProfilerData(const Heterogeneou
     ss << "[Event type]:Invalid" << static_cast<int32_t>(key.profiler_event) << ", ";
   }
   if (recordNum != 0U) {
-    ss << "[PerDuration]:" << totalDuration / recordNum << ", [Times]:" << recordNum << ", ";
-    ss << "[MaxDuration]:" << maxDuration;
+    ss << "[PerDuration]:" << totalDuration / recordNum << " us, [Times]:" << recordNum << ", ";
+    ss << "[MaxDuration]:" << maxDuration << " us";
   }
   GEEVENT("[PerHeterogeneousProfiler] %s", ss.str().c_str());
 }

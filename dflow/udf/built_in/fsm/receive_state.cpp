@@ -73,7 +73,7 @@ FsmStatus ReceiveState::Process(LlmCommEntity &entity) {
   }
   LlmCommEntity::SyncKvAddrInfo &addr_info = entity.GetSyncKvAddrInfo();
   if (static_cast<uint64_t>(addr_info.req_info_count) < sizeof(SyncKvReqInfo)) {
-    UDF_RUN_LOG_INFO(
+    UDF_RUN_LOG_WARN(
         "Invalid req size, probably caused by transfer cache failed, count:%d, expected req len:%zu, "
         "entity:%s.",
         addr_info.req_info_count, sizeof(SyncKvReqInfo), entity.GetDesc().c_str());

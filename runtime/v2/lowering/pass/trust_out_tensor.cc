@@ -92,7 +92,7 @@ bool CanBeDeleted(const ge::FastNode *infer_shape_node,
       }
       auto iter = copy_nodes_to_model_out_index.find(dst_node);
       if (iter == copy_nodes_to_model_out_index.cend()) {
-        GELOGW("Find Copy node %s, but which does not the model out copy node", dst_node->GetNamePtr());
+        GELOGW("Find Copy node %s, but it is not the model out copy node", dst_node->GetNamePtr());
         continue;
       }
       // 记录 infer_shape_node 连接

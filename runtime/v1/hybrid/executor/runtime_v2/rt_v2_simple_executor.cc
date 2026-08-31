@@ -32,7 +32,7 @@ std::unique_ptr<RtV2SimpleExecutor> RtV2SimpleExecutor::Create(const ge::GeRootM
                                                                RtSession *session) {
   ModelConverter::Args args{{}, stream_allocator, event_allocator, notify_allocator, nullptr};
   auto graph = ModelConverter().ConvertGeModelToExecuteGraph(model, args);
-  GE_ASSERT_NOTNULL(graph, "Failed convert ge model of graph %s", model->GetRootGraph()->GetName().c_str());
+  GE_ASSERT_NOTNULL(graph, "Failed to convert ge model of graph %s", model->GetRootGraph()->GetName().c_str());
 
   const char_t *max_runtime_core_num = nullptr;
   MM_SYS_GET_ENV(MM_ENV_MAX_RUNTIME_CORE_NUMBER, max_runtime_core_num);
@@ -50,7 +50,7 @@ std::unique_ptr<RtV2SimpleExecutor> RtV2SimpleExecutor::Create(const ge::GeRootM
     MultiThreadExecutorOption option(ExecutorType::kTopologicalMultiThread, max_core_num);
     executor = gert::ModelV2Executor::Create(graph, option, model, session);
   }
-  GE_ASSERT_NOTNULL(executor, "Failed create rt2 executor for exec graph %s", graph->GetName().c_str());
+  GE_ASSERT_NOTNULL(executor, "Failed to create rt2 executor for exec graph %s", graph->GetName().c_str());
   return std::unique_ptr<RtV2SimpleExecutor>(new (std::nothrow)
                                                  RtV2SimpleExecutor(graph->GetName(), std::move(executor)));
 }

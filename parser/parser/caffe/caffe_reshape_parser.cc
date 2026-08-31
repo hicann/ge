@@ -137,9 +137,9 @@ Status CaffeReshapeParser::AddConstInput(ge::NodePtr &node) {
   GE_CHECK_NOTNULL(in_archor_ptr);
   state = ge::GraphUtils::AddEdge(out_archor_ptr, in_archor_ptr);
   if (state != ge::GRAPH_SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "AddEdge failed of from Node %s to Node %s", const_node->GetName().c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "AddEdge failed from Node %s to Node %s", const_node->GetName().c_str(),
                          node->GetName().c_str());
-    GELOGE(FAILED, "[Add][Edge] failed of from Node %s to Node %s", const_node->GetName().c_str(),
+    GELOGE(FAILED, "[Add][Edge] failed from Node %s to Node %s", const_node->GetName().c_str(),
            node->GetName().c_str());
     return domi::FAILED;
   }

@@ -48,7 +48,7 @@ Status ModelParserBase::LoadFromFile(const char_t *const model_path, const int32
     (void)REPORT_PREDEFINED_ERR_MSG("E13015", std::vector<const char *>({"file", "size", "maxsize"}),
                                     std::vector<const char *>({model_path, std::to_string(length).c_str(),
                                                                std::to_string(kMaxFileSizeLimit).c_str()}));
-    GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]File [%s] size %lld is out if range (0, %lld].",
+    GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]File [%s] size %lld is out of range (0, %lld].",
            model_path, length, kMaxFileSizeLimit);
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;
   }
@@ -204,7 +204,7 @@ static Status GetModelInOutDesc(const uint8_t *const data, const size_t size, co
     tensor_base_info =
         *PtrToPtr<void, const ModelTensorDescBaseInfo>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
     GELOGD(
-        "current index is %u, size is %zu, format is %d, dt id %d, name len si %u,"
+        "current index is %u, size is %zu, format is %d, dt id %d, name len is %u,"
         "dims len is %u, dimsV2 is %u, shape_range is %u.",
         index, tensor_base_info.size, tensor_base_info.format, tensor_base_info.dt, tensor_base_info.name_len,
         tensor_base_info.dims_len, tensor_base_info.dimsV2_len, tensor_base_info.shape_range_len);

@@ -281,7 +281,7 @@ Status SubprocessManager::GetFlowGwBinDir(const std::string &bin_dir, std::strin
   if (FileExist(bin_dir + "/host_queue_schedule")) {
     flowgw_bin_dir = RealPath((bin_dir + "/host_queue_schedule").c_str());
   }
-  GELOGI("flowgw bin dir = %s.", flowgw_bin_dir.c_str());
+  GELOGI("flow gateway bin dir = %s.", flowgw_bin_dir.c_str());
   return SUCCESS;
 }
 

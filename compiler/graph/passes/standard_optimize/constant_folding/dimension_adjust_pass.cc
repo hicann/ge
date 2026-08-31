@@ -86,7 +86,7 @@ NodePtr DimensionAdjustPass::AddIdentityNodeToGraph(const std::string &name, con
                                                     ComputeGraphPtr &graph) const {
   if (graph == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "Param graph is nullptr, check invalid");
-    GELOGE(INTERNAL_ERROR, "[Check][Param] Comput graph ptr is nullptr in creating identity node.");
+    GELOGE(INTERNAL_ERROR, "[Check][Param] Compute graph ptr is nullptr in creating identity node.");
     return nullptr;
   }
 

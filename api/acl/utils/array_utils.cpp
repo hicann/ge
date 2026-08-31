@@ -113,9 +113,9 @@ aclError CheckDataBufferArry(const int32_t size, const aclDataBuffer *const *con
   for (int32_t idx = 0; idx < size; ++idx) {
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(arr[idx]);
     if ((arr[idx]->data == nullptr) && (arr[idx]->length > 0U)) {
-      ACL_LOG_ERROR("[Check][data]data of element at index[%d] while size is larger than 0", idx);
+      ACL_LOG_ERROR("[Check][data]data of element at index[%d] is null while size is larger than 0", idx);
       const std::string errMsg = acl::AclErrorLogManager::FormatStr(
-          "data of element at index[%d]"
+          "data of element at index[%d] is null "
           "while size is larger than 0",
           idx);
       acl::AclErrorLogManager::ReportInputError(acl::INVALID_PARAM_MSG,

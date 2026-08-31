@@ -47,7 +47,7 @@ void TeCacheUtils::UnlockAndCloseCacheFile(FILE *fp) {
     return;
   }
   if (!TeFileUtils::FcntlLockFileSet(fileno(fp), F_UNLCK, 0)) {
-    TE_INFOLOG("Release file lock not successfully.")
+    TE_INFOLOG("Failed to release file lock.")
   }
   fclose(fp);
   fp = nullptr;

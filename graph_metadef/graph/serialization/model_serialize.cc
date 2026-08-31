@@ -1121,7 +1121,7 @@ Buffer ModelSerialize::SerializeModel(const Model &model, const std::string &pat
            "but cannot separate in this scenario, you can use external_weight instead");
     return Buffer();
   }
-  GELOGW("[Serialize][Model] Model could larger than 2G, need separate");
+  GELOGW("[Serialize][Model] Model could be larger than 2G, need separate");
   if (!model_imp.SeparateModelDef(buffer, path, model_def)) {
     GELOGW("[Serialize][Model] Serialize to binary failed");
     return Buffer();
@@ -1230,7 +1230,7 @@ bool ModelSerialize::UnserializeModel(ge::proto::ModelDef &model_def, Model &mod
 bool ModelSerialize::UnserializeModel(ge::proto::ModelDef &model_def, Model &model, const std::string &path) const {
   const std::shared_ptr<proto::ModelDef> model_def_ptr = ComGraphMakeShared<proto::ModelDef>(model_def);
   GE_CHK_BOOL_EXEC(model_def_ptr != nullptr, REPORT_INNER_ERR_MSG("E18888", "create ModelDef failed.");
-                   return false, "[Create][ModelDef] mode_def make shared failed");
+                   return false, "[Create][ModelDef] model_def make shared failed");
 
   ModelSerializeImp model_imp;
   model_imp.SetAirModelPath(path);

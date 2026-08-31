@@ -131,7 +131,7 @@ Status DeployerDaemonClient::ProcessHeartbeatRequest(const deployer::DeployerReq
                                                      deployer::DeployerResponse &response) {
   GE_CHECK_NOTNULL(deployer_msg_client_);
   if (sub_deployer_proc_stat_ == ProcStatus::NORMAL) {
-    GELOGI("[Process][Request] client heartbeat dose not expired, client_id = %ld.", client_id_);
+    GELOGI("[Process][Request] client heartbeat does not expired, client_id = %ld.", client_id_);
     GE_CHK_STATUS_RET(deployer_msg_client_->SendRequest(request, response, kHeartbeatTimeoutSec));
   } else if (sub_deployer_proc_stat_ == ProcStatus::EXITED) {
     response.set_error_code(FAILED);

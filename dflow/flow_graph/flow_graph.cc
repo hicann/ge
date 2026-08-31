@@ -235,7 +235,7 @@ graphStatus FlowNodeImpl::SetBalanceScatter() {
   bool is_gather_node = false;
   (void)ge::AttrUtils::GetBool(op_desc_, ATTR_NAME_BALANCE_GATHER, is_gather_node);
   if (is_gather_node) {
-    GELOGE(GRAPH_FAILED, "op[%s] is set balance gather, can't set balance sactter", op_desc_->GetNamePtr());
+    GELOGE(GRAPH_FAILED, "op[%s] is set balance gather, can't set balance scatter", op_desc_->GetNamePtr());
     return GRAPH_FAILED;
   }
   GE_ASSERT_TRUE(ge::AttrUtils::SetBool(op_desc_, ATTR_NAME_BALANCE_SCATTER, true),
@@ -554,7 +554,7 @@ FlowGraph &FlowGraph::SetOutputs(const std::vector<FlowOperator> &outputs) {
   impl_->SetOutputs(outputs);
   const std::string err_msg = std::string(error_message::GetErrMgrErrorMessage().get());
   if (!err_msg.empty()) {
-    std::cout << err_msg << std::endl;
+    GELOGE(GRAPH_FAILED, "%s", err_msg.c_str());
   }
   return *this;
 }

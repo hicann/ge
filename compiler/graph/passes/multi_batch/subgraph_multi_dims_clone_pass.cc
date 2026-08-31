@@ -229,7 +229,7 @@ Status SubgraphMultiDimsClonePass::CreateConcatNode(const ComputeGraphPtr &subgr
     REPORT_INNER_ERR_MSG("E19999", "Add edge between op:%s(%s)(index:0) and op:%s(%s)(index:1) failed",
                          const_node_->GetName().c_str(), const_node_->GetType().c_str(),
                          concat_node_->GetName().c_str(), concat_node_->GetType().c_str());
-    GELOGE(FAILED, "[Add][Edge] between node:%s to concat_node:%s", const_node_->GetName().c_str(),
+    GELOGE(FAILED, "Add edge between node:%s and concat_node:%s failed", const_node_->GetName().c_str(),
            concat_node_->GetName().c_str());
     return FAILED;
   }
@@ -286,7 +286,7 @@ Status SubgraphMultiDimsClonePass::CreateMapIndexNode(const ComputeGraphPtr &sub
     REPORT_INNER_ERR_MSG("E19999", "Add edge between op:%s(%s)(index:0) and op:%s(%s)(index:1) failed",
                          const_node_->GetName().c_str(), const_node_->GetType().c_str(),
                          map_index_node_->GetName().c_str(), map_index_node_->GetType().c_str());
-    GELOGE(FAILED, "[Add][Edge] between node:%s to MapIndex:%s", const_node_->GetName().c_str(),
+    GELOGE(FAILED, "Add edge between node:%s and MapIndex:%s failed", const_node_->GetName().c_str(),
            map_index_node_->GetName().c_str());
     return FAILED;
   }

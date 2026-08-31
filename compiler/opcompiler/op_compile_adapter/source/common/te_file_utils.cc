@@ -52,7 +52,7 @@ bool TeFileUtils::CreateMultiLevelDir(const std::string &directoryPath) {
   if (path.empty()) {
     ret = mkdir(directoryPath.c_str(), S_IRWXU | S_IRGRP | S_IXGRP);  // 750
     if (ret != 0 && errno != EEXIST) {
-      REPORT_TE_INNER_WARN("Creat dir[%s] failed, reason is: %s", directoryPath.c_str(), strerror(errno));
+      REPORT_TE_INNER_WARN("Create dir[%s] failed, reason is: %s", directoryPath.c_str(), strerror(errno));
       return false;
     }
   }
@@ -67,7 +67,7 @@ bool TeFileUtils::JudgeEmptyAndCreateDir(char tmpDirPath[], const std::string &d
     int32_t ret = 0;
     ret = mkdir(tmpDirPath, S_IRWXU | S_IRGRP | S_IXGRP);  // 750
     if (ret != 0 && errno != EEXIST) {
-      TE_WARNLOGF("Creat dir[%s] failed, %s.", directoryPath.c_str(), strerror(errno));
+      TE_WARNLOGF("Create dir[%s] failed, %s.", directoryPath.c_str(), strerror(errno));
       return false;
     }
   }

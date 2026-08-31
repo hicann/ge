@@ -396,14 +396,14 @@ ge::graphStatus GetReusableStreamResourceNum(const ge::GeRootModelPtr &root_mode
     GE_ASSERT_TRUE(stream_resource.attached_stream_num >= 0);
     int64_t occupied_stream_num = static_stream_num + stream_resource.attached_stream_num;
     GE_ASSERT_TRUE((stream_resource.total_stream_num > occupied_stream_num),
-                   "Total stream num %" PRId64 " is insufficient, static stream nums is %" PRId64
-                   ", attached stream nums is %" PRId64 ".",
+                   "Total stream num %" PRId64 " is insufficient, static stream num is %" PRId64
+                   ", attached stream num is %" PRId64 ".",
                    stream_resource.total_stream_num, static_stream_num, stream_resource.attached_stream_num);
     GE_ASSERT_TRUE((total_event_num >= static_event_num),
-                   "Total event num %" PRId64 " is less than static event nums is %" PRId64 ".", total_event_num,
+                   "Total event num %" PRId64 " is less than static event num %" PRId64 ".", total_event_num,
                    static_event_num);
     GE_ASSERT_TRUE((total_notify_num >= static_notify_num),
-                   "Total notify num %" PRId64 " is less than static notify nums is %" PRId64 ".", total_notify_num,
+                   "Total notify num %" PRId64 " is less than static notify num %" PRId64 ".", total_notify_num,
                    static_notify_num);
     stream_resource.reusable_stream_num = stream_resource.total_stream_num - occupied_stream_num;
     stream_resource.reusable_event_num = total_event_num - static_event_num;
@@ -420,7 +420,7 @@ bool NeedRollBackToSingleStream(int64_t total_stream_num, int64_t reusable_strea
                                 StreamAllocator *const stream_allocator, EventAllocator *const event_allocator,
                                 NotifyAllocator *const notify_allocator) {
   if ((stream_allocator == nullptr) || (event_allocator == nullptr) || (notify_allocator == nullptr)) {
-    GELOGD("Stream allocator or event allocator is null. Its come from acl. No need rollback.");
+    GELOGD("Stream allocator or event allocator is null. It comes from acl. No need rollback.");
     return false;
   }
   uint32_t free_stream_num = 0U;
@@ -588,7 +588,7 @@ ge::ExecuteGraphPtr LoadExecuteGraphFromModelFile(const ge::char_t *const model_
   ge::ModelData model_data;
   error_code = base.LoadFromFile(model_path, -1, model_data);
   if (error_code != ge::GRAPH_SUCCESS) {
-    GELOGE(ge::FAILED, "Failed to load model data form model path");
+    GELOGE(ge::FAILED, "Failed to load model data from model path");
     return nullptr;
   }
 

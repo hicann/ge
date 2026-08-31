@@ -88,7 +88,7 @@ class SharedMemoryManager : public MemManager {
     std::lock_guard<std::mutex> lk(mu_);
     auto it = var_mem_bases_.find(memory_key);
     if (it == var_mem_bases_.cend()) {
-      GELOGW("MemoryAllocator::GetMemoryAddr failed, memory_key[%s] was does not exist", memory_key.c_str());
+      GELOGW("MemoryAllocator::GetMemoryAddr failed, memory_key[%s] does not exist", memory_key.c_str());
       return nullptr;
     }
     return it->second;
@@ -656,7 +656,7 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const ModelData &model_dat
          static_cast<int32_t>(is_dynamic_proxy_controlled_));
   std::vector<FileConstantMem> external_weight_mem_data{};
   GE_CHK_STATUS_RET(DynamicModelExecutor::InitExternalWeightMem(root_graph, external_weight_mem_data),
-                    "Failed to init external weright mem.");
+                    "Failed to init external weight mem.");
   if (params.input_queues.empty() && params.output_queues.empty()) {
     handle_ = aclmdlCreateConfigHandle();
     GE_CHECK_NOTNULL(handle_, "Create acl load config handle failed.");

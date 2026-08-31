@@ -39,14 +39,14 @@ const char *const kDynGetNextType = "DynamicGetNext";
 }  // namespace
 
 Status ParserGraphOptimizer::FusionFmkop() {
-  GELOGI("graph_optimizer.cpp && FustionFmkop()");
+  GELOGI("graph_optimizer.cpp && FusionFmkop()");
   GE_CHECK_NOTNULL(graph_);
   std::unordered_map<string, std::vector<NodePtr>> node_cluser_Map;
   GE_CHK_STATUS_RET(MarkForFusion(node_cluser_Map), "find framework node to be fused fail.");
   GE_IF_BOOL_EXEC(node_cluser_Map.empty(), return SUCCESS);
 
   for (auto it = node_cluser_Map.begin(); it != node_cluser_Map.end(); ++it) {
-    GE_CHK_STATUS_RET(UpdateGraph(it->second), "fusion framework nodes failed. node：%s", (it->first).c_str());
+    GE_CHK_STATUS_RET(UpdateGraph(it->second), "fusion framework nodes failed. node: %s", (it->first).c_str());
   }
   // fuse all fmkop and then delete node
   for (auto it = node_cluser_Map.begin(); it != node_cluser_Map.end(); ++it) {
@@ -203,8 +203,8 @@ Status ParserGraphOptimizer::UpdateGraph(vector<NodePtr> &nodes) {
   GE_CHECK_NOTNULL(func_def_lib);
   // convert graph to FunctionDef
   if (nodes.size() == 0) {
-    REPORT_INNER_ERR_MSG("E19999", "Param nodes size must greater than 0");
-    GELOGE(FAILED, "node size must greater than 0 .");
+    REPORT_INNER_ERR_MSG("E19999", "Param nodes size must be greater than 0.");
+    GELOGE(FAILED, "node size must be greater than 0.");
     return PARAM_INVALID;
   }
   GE_CHK_STATUS_RET(CollectNodeFuncs(nodes, func_def_lib.get()), "Collect functionDef in nodes failed.");

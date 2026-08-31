@@ -120,7 +120,7 @@ KernelBox SetLoopKernel(const ge::OutDataAnchorPtr &dst, const LoopVar &result) 
   if (meta->type == FuseType::kSplit && !ge::AutoFuseConfig::LoweringConfig().experimental_lowering_split) {
     GELOGI(
         "Drop lower result %s of %s as disabled, you can enable it by setting "
-        "AUTOFUSE_FLAGS=\"--autofuse_enable_pass=split\""
+        "AUTOFUSE_FLAGS=\"--autofuse_enable_pass=split\" "
         "and unsetting AUTOFUSE_FLAGS=\"--autofuse_disable_pass=split\"",
         result.Readable().c_str(), BufferName(dst).c_str());
     meta->type = FuseType::kExtern;
@@ -197,7 +197,7 @@ graphStatus GetScalarFromInput(const ge::InDataAnchorPtr &src, ge::loop::LoopVar
   } else {
     GE_WARN_ASSERT(dtype == ge::DT_FLOAT16,
                    "Const Scalar only support {DT_FLOAT, DT_INT8, DT_INT32, DT_UINT8, DT_INT16, DT_UINT16, DT_UINT32}");
-    GELOGW("Unable to tran not support DT_FLOAT16");
+    GELOGW("Unable to transform: DT_FLOAT16 is not supported");
     return GRAPH_FAILED;
   }
   GELOGD("Node %s create scalar ascir without load ascir", src_node->GetName().c_str());
@@ -555,7 +555,7 @@ void PadDimsToMax(std::vector<std::vector<Expression>> &input_dims, size_t max_d
 KernelBox StoreMatMul(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InDataAnchorPtr> &inputs,
                       const MatMulAttr &matmul_attr) {
   if ((inputs.size() <= 1U) || (inputs.size() > 4U)) {
-    GELOGI("Drop lower result of %s as it has err inputs num=%zu", BufferName(dst).c_str(), inputs.size());
+    GELOGI("Drop lower result of %s as it has invalid inputs num=%zu", BufferName(dst).c_str(), inputs.size());
     return StoreExtern(dst);
   }
   std::vector<Expression> dims;
@@ -594,7 +594,7 @@ KernelBox StoreConv2D(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InD
                       const Conv2DAttr &conv2d_attr) {
   GELOGI("StoreConv2D called for dst: %s, inputs.size(): %zu", BufferName(dst).c_str(), inputs.size());
   if (!IsValidConv2DInputs(inputs)) {
-    GELOGI("Drop lower result of %s as it has err inputs num=%zu", BufferName(dst).c_str(), inputs.size());
+    GELOGI("Drop lower result of %s as it has invalid inputs num=%zu", BufferName(dst).c_str(), inputs.size());
     return StoreExtern(dst);
   }
   std::vector<Expression> dims;
@@ -658,7 +658,7 @@ bool CheckAndGetDims(const std::vector<Expression> &long_dims, const std::vector
 
   for (size_t i = 0U; i < is_exist.size(); i++) {
     if ((!is_exist[i]) && (long_dims[i] != Symbol(1))) {
-      GELOGW("Axes that do not exist must be 1, Long axes: %zu, not equal than 1", i);
+      GELOGW("Axes that do not exist must be 1, axis %zu is not equal to 1", i);
       return false;
     }
     if (!is_exist[i]) {
@@ -694,7 +694,7 @@ void AddReshapeAxisChange(const LoopVar &reshape, const std::vector<Expression> 
 // 新增支持 [A*B, C]->[A,B,C]/[A,B,C]->[A*B,C]
 LoopVar Reshape(const LoopVar &op, const std::vector<Expression> &src_dims, const std::vector<Expression> &dst_dims) {
   std::vector<int64_t> dims_new;
-  GE_WARN_ASSERT(src_dims.size() != dst_dims.size(), "Input dims size equal than output dims");
+  GE_WARN_ASSERT(src_dims.size() != dst_dims.size(), "Input dims size is equal to output dims size");
   LoopVar reshape = op;
   size_t short_idx = 0U;
   std::vector<size_t> mul_idx;

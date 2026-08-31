@@ -351,7 +351,7 @@ ge::graphStatus ValidateExeGraph(const std::vector<ge::FastNode *> &main_graph_n
     GE_ASSERT_NOTNULL(node);
     if (IsConstFeedType(node->GetTypePtr())) {
       GELOGE(ge::INTERNAL_ERROR,
-             "Main graph cannot hold ConstData %s. Because ConstData only can held by init graph. Please check "
+             "Main graph cannot hold ConstData %s, because ConstData can only be held by init graph. Please check "
              "lowering logic.",
              node->GetName().c_str());
       return ge::GRAPH_FAILED;
@@ -835,7 +835,7 @@ const LowerResult *ConvertComputeSubgraphToExecuteGraph(const ge::ComputeGraphPt
       if (!parent_inputs_placement.empty()) {
         int32_t parent_input_index = -1;
         GE_ASSERT(ge::AttrUtils::GetInt(op_desc, ge::ATTR_NAME_PARENT_NODE_INDEX, parent_input_index),
-                  "Failed get attr '%s' from compute data node %s", ge::ATTR_NAME_PARENT_NODE_INDEX.c_str(),
+                  "Failed to get attr '%s' from compute data node %s", ge::ATTR_NAME_PARENT_NODE_INDEX.c_str(),
                   node->GetNamePtr());
         GE_ASSERT(parent_input_index >= 0);
         GE_ASSERT(static_cast<size_t>(parent_input_index) < parent_inputs_placement.size());

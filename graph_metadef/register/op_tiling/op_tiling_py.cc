@@ -425,7 +425,7 @@ ge::graphStatus ParseInputTensorV1(const nlohmann::json &input, const gert::Stor
                                    const ge::GeTensorDesc &tensor_desc, const uint32_t index,
                                    ContextComponent &context_com) {
   if (input.contains("stride") || input.contains("offset")) {
-    GELOGE(ge::GRAPH_FAILED, "TensorV1 no support stride or offset.");
+    GELOGE(ge::GRAPH_FAILED, "TensorV1 does not support stride or offset.");
     return ge::GRAPH_FAILED;
   }
 

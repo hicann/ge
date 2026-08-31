@@ -346,12 +346,12 @@ Status FlowModelBuilder::BuildFlowSubgraph(ComputeGraphPtr &graph, const std::ve
 Status FlowModelBuilder::BuildGraph(ComputeGraphPtr &graph, const vector<GeTensor> &input_tensors,
                                     const map<std::string, std::string> &options, bool is_sub_graph,
                                     const FlowModelPtr &flow_model) const {
-  GE_CHK_STATUS_RET(ProcessNetOutput(graph), "Failed to process net out put");
+  GE_CHK_STATUS_RET(ProcessNetOutput(graph), "Failed to process net output");
   GE_CHK_STATUS_RET(DoBuildGraph(graph, options, input_tensors, is_sub_graph, flow_model),
                     "Failed to build graph, graph[%s].", graph->GetName().c_str());
   GE_CHK_STATUS_RET(FlowModelHelper::EnsureWithModelRelation(flow_model),
                     "Graph[%s] ensure with model relation failed.", graph->GetName().c_str());
-  GELOGD("Graph[%s] was build success.", graph->GetName().c_str());
+  GELOGD("Graph[%s] was built successfully.", graph->GetName().c_str());
   return SUCCESS;
 }
 
@@ -685,8 +685,10 @@ Status FlowModelBuilder::GetOrAssignDefaultEngine(const ComputeGraphPtr &compute
   (void)ge::AttrUtils::GetStr(compute_graph, ge::ATTR_NAME_PROCESS_NODE_ENGINE_ID, process_node_engine_id);
   if (!process_node_engine_id.empty()) {
     if (GetContext().GetHostExecFlag()) {
-      GE_CHK_BOOL_RET_STATUS(process_node_engine_id == PNE_ID_CPU, PARAM_INVALID, "option[%s] is HOST, but attr[%s] ",
-                             GE_OPTION_EXEC_PLACEMENT, ATTR_NAME_PROCESS_NODE_ENGINE_ID.c_str());
+      GE_CHK_BOOL_RET_STATUS(process_node_engine_id == PNE_ID_CPU, PARAM_INVALID,
+                             "option[%s] is HOST, but attr[%s] is [%s], engine id should be [%s]",
+                             GE_OPTION_EXEC_PLACEMENT, ATTR_NAME_PROCESS_NODE_ENGINE_ID.c_str(),
+                             process_node_engine_id.c_str(), PNE_ID_CPU.c_str());
     }
     static const std::set<std::string> kSupportedEngines = {PNE_ID_CPU, PNE_ID_NPU, PNE_ID_UDF};
     GE_CHK_BOOL_RET_STATUS(
@@ -783,7 +785,7 @@ Status FlowModelBuilder::DoBuildGraph(ComputeGraphPtr &compute_graph, const std:
 Status FlowModelBuilder::GetEngine(const std::string &pne_id, ProcessNodeEnginePtr &engine) const {
   const auto find_ret = process_node_engines_.find(pne_id);
   GE_CHK_BOOL_RET_STATUS(find_ret != process_node_engines_.cend(), GE_CLI_GE_NOT_INITIALIZED,
-                         "[Run][GetEngine] failed find process node engine for pne_id: [%s].", pne_id.c_str());
+                         "[Run][GetEngine] failed to find process node engine for pne_id: [%s].", pne_id.c_str());
   engine = find_ret->second;
   GE_CHECK_NOTNULL(engine, "process node engine is null, pne_id=%s.", pne_id.c_str());
   return SUCCESS;

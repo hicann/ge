@@ -82,7 +82,7 @@ Status FlowModelSender::DeployRemoteVarManager(
   std::map<int32_t, std::set<int32_t>> device_ids;
   for (const auto &it : models) {
     const auto &submodels = it.second;
-    GE_CHK_BOOL_RET_STATUS(!submodels.empty(), FAILED, "The submodels must be not empty.");
+    GE_CHK_BOOL_RET_STATUS(!submodels.empty(), FAILED, "The submodels must not be empty.");
     const auto &target_device = submodels[0]->device_info;
     GELOGD("[Deploy][RemoteVarManager] started, target_device = %s, submodel count = %zu.",
            target_device.GetDesc().c_str(), submodels.size());
@@ -945,7 +945,7 @@ Status FlowModelSender::GetSavedFilePath(const DeployPlan::SubmodelInfo &submode
   saved_model_path = submodel_info.model->GetSavedModelPath();
   if ((saved_model_path.empty()) && (submodel_info.model->GetModelType() == PNE_ID_UDF)) {
     GELOGE(FAILED,
-           "Saved model file path must be not empty in current version."
+           "Saved model file path must not be empty in current version."
            "Please generate cache based on current compiler version.");
     return FAILED;
   }

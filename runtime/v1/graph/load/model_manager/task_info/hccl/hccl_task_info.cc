@@ -202,7 +202,8 @@ Status HcclTaskInfo::GetTaskIowPaRemapInfos(std::vector<IowPaRemapInfo> &infos) 
 
 Status HcclTaskInfo::SetFollowStream(const ConstOpDescPtr &op_desc) {
   if (!HcomOmeUtil::IsHCOMOp(op_desc->GetType())) {
-    GELOGI("Node %s Optye %s no need to create slave streams.", op_desc->GetName().c_str(), op_desc->GetType().c_str());
+    GELOGI("Node %s OpType %s no need to create slave streams.", op_desc->GetName().c_str(),
+           op_desc->GetType().c_str());
     return SUCCESS;
   }
 
@@ -390,7 +391,7 @@ void HcclTaskInfo::HcclWatcherModeProcess(const ModelTaskType task_type) {
   }
 
   if (davinci_model_->OpNoNeedDumpOnWatcherModel(hccl_op_desc_->GetName())) {
-    GELOGW("Set hccl op in DUMP_LAYER_OP_MODEL is not support", hccl_op_desc_->GetName().c_str());
+    GELOGW("Set hccl op in DUMP_LAYER_OP_MODEL is not supported", hccl_op_desc_->GetName().c_str());
   }
   return;
 }

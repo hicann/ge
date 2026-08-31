@@ -109,8 +109,8 @@ Status Message2Operator::ParseRepeatedField(const google::protobuf::Reflection *
   GELOGD("Start to parse field: %s.", field->name().c_str());
   int field_size = reflection->FieldSize(*message, field);
   if (field_size <= 0) {
-    REPORT_INNER_ERR_MSG("E19999", "Size of repeated field %s must bigger than 0", field->name().c_str());
-    GELOGE(FAILED, "[Check][Size]Size of repeated field %s must bigger than 0", field->name().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Size of repeated field %s must be bigger than 0", field->name().c_str());
+    GELOGE(FAILED, "[Check][Size]Size of repeated field %s must be bigger than 0", field->name().c_str());
     return FAILED;
   }
 

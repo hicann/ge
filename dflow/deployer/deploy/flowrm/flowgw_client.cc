@@ -650,8 +650,8 @@ Status FlowGwClient::ConfigSchedInfoToDataGw(const uint32_t device_id, const int
                     "DynamicSched Grant src queue failed, device id=%u, input queue id=%d, datagw pid=%d", device_id,
                     input, pid_);
   GE_CHK_STATUS_RET(GrantQueue(device_id, output, pid_, GrantType::kWriteOnly),
-                    "DynamicSched Grant src queue failed, device id=%u, output queue id=%d, datagw pid=%d", device_id,
-                    output, pid_);
+                    "DynamicSched Grant output queue failed, device id=%u, output queue id=%d, datagw pid=%d",
+                    device_id, output, pid_);
   GELOGI("DynamicSched Grant src queue succ, device id=%u, input queue id=%d, output queue id=%d, datagw pid=%d",
          device_id, input, output, pid_);
 

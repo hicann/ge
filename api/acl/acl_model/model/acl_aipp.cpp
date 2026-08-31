@@ -176,7 +176,7 @@ static aclError GetAndCheckAippOutputShape(const uint32_t modelId, const aclmdlD
   const int64_t batchSize = static_cast<int64_t>(aippParmsSet->batchSize);
   if (idx >= modelDesc.inputDesc.size()) {
     ACL_LOG_INNER_ERROR(
-        "[Check][Params]index[%zu] cannot greater than or equal to tensor "
+        "[Check][Params]index[%zu] cannot be greater than or equal to tensor "
         "size[%zu]",
         idx, modelDesc.inputDesc.size());
     return ACL_ERROR_INVALID_PARAM;
@@ -224,7 +224,7 @@ static aclError GetAndCheckAippOutputShape(const uint32_t modelId, const aclmdlD
       return ACL_ERROR_INVALID_PARAM;
     }
   } else {
-    ACL_LOG_INFO("cant not get model H W N, current used model is old");
+    ACL_LOG_INFO("cannot get model H W N, current used model is old");
   }
 
   return ACL_SUCCESS;

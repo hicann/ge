@@ -182,7 +182,7 @@ ge::graphStatus TilingMemCheck::ConstructMemCheckInfo(const ge::OpDescPtr &op_de
   GE_ASSERT_NOTNULL(op_desc);
   bool value = false;
   if ((!ge::AttrUtils::GetBool(op_desc, kMemoryCheck, value)) || (!value)) {
-    GELOGI("Memcheck is not enable, op name: %s", op_desc->GetNamePtr());
+    GELOGI("Memcheck is not enabled, op name: %s", op_desc->GetNamePtr());
     return ge::SUCCESS;
   }
   const int64_t tiling_data_size = static_cast<int64_t>(run_info.GetAllTilingData().str().size());

@@ -186,7 +186,7 @@ bool SaveIdentifierOpMapInfo(const string &line, std::map<int, std::pair<string,
 bool CheckRealPath(const char *file_path) {
   string dest_path = ge::parser::RealPath(file_path);
   if (dest_path.empty()) {
-    GELOGW("Path [%s] is not real existed.", file_path);
+    GELOGW("Path [%s] does not exist or is not a real path.", file_path);
     return false;
   }
   return true;
@@ -636,7 +636,7 @@ Status ProtoFileParser::CombineProtoFileMultiCustomProto(const char *caffe_proto
   }
   if (custom_proto_invalid_count == custom_paths.size()) {
     dest_proto_file.assign(caffe_proto_file);
-    GELOGW("All paths in custom_proto_paths: '%s' does not exist", custom_proto_paths);
+    GELOGW("All paths in custom_proto_paths: '%s' do not exist", custom_proto_paths);
     return SUCCESS;
   }
   dest_proto_file.assign(fusion_proto_path);

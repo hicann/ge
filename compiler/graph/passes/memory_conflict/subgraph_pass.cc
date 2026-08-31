@@ -124,7 +124,7 @@ Status SubgraphPass::SubgraphInputNode(const ComputeGraphPtr &graph, const NodeP
   }
   // Data->InputContinuesRequiredOp in subgraph need memcpy.
   if (input_continues_required_flag) {
-    GELOGD("Data %s output_node required continues input.", node->GetName().c_str());
+    GELOGD("Data %s output_node requires continuous input.", node->GetName().c_str());
     std::string name = node->GetName() + "_output_0_Memcpy";
     if (InsertMemcpyNode(out_data_anchor, in_anchors, name) != SUCCESS) {
       GELOGE(FAILED, "[Insert][Memcpy] after %s failed.", node->GetName().c_str());

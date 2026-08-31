@@ -132,7 +132,7 @@ ge::Status DoRtStreamSyncWithTimeout(aclrtStream stream) {
   auto timeout = ge::GetContext().StreamSyncTimeout();
   auto rt_ret = aclrtSynchronizeStreamWithTimeout(stream, timeout);
   if (rt_ret == ACL_ERROR_RT_STREAM_SYNC_TIMEOUT) {
-    GELOGE(rt_ret, "[Invoke][aclrtSynchronizeStreamWithTimeout] failed, stream synchronize timeout:%d, ret:%d.",
+    GELOGE(rt_ret, "[Invoke][aclrtSynchronizeStreamWithTimeout] failed, stream synchronize timeout:%d ms, ret:%d.",
            timeout, rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "aclrtSynchronizeStreamWithTimeout failed, stream synchronize timeout:%d, ret:%d.",
                          timeout, rt_ret);
@@ -402,7 +402,7 @@ Status GraphVarVisitor::MultiThreadSharedConstantCopy(
   for (auto &i : vector_future) {
     GE_ASSERT_SUCCESS(i.get(), "Shared constant copy failed.");
   }
-  GELOGD("Success to copy shared constant.");
+  GELOGD("Copy shared constant successfully.");
   return SUCCESS;
 }
 
@@ -1170,7 +1170,7 @@ Status HybridModelRtV2Executor::InitModelIdentity(const std::shared_ptr<ge::GeRo
 
 Status HybridModelRtV2Executor::InitExecutorAndProfiler(const std::shared_ptr<ge::GeRootModel> &ge_root_model) {
   executor_ = gert::RtV2ExecutorFactory::Create(ge_root_model, run_ctx_.dev_resource_allocator_, &run_ctx_.session_);
-  GE_ASSERT_NOTNULL(executor_, "Failed create rt2 executor for model %s", name_.c_str());
+  GE_ASSERT_NOTNULL(executor_, "Failed to create rt2 executor for model %s", name_.c_str());
   profiler_collector_ =
       std::unique_ptr<ProfilerCollector>(new (std::nothrow) ProfilerCollector(model_id_, run_ctx_.graph_id_));
   GE_ASSERT_NOTNULL(profiler_collector_);
@@ -1223,7 +1223,7 @@ Status HybridModelRtV2Executor::InitIoDescriptors(const ge::ComputeGraphPtr &roo
     GELOGI("  Output %zu %s", i, DebugString(holder, false).c_str());
 
     output_descs_.emplace_back(MakeShared<GeTensorDesc>(ge::GeShape(), storage_format, dtype));
-    GE_ASSERT_NOTNULL(output_descs_.back(), "Failed create output %zu tensor desc", i);
+    GE_ASSERT_NOTNULL(output_descs_.back(), "Failed to create output %zu tensor desc", i);
     output_descs_.back()->SetOriginFormat(origin_format);
   }
   return ge::SUCCESS;
@@ -1238,7 +1238,7 @@ Status HybridModelRtV2Executor::InitModelArgsAndLoad() {
   model_args.external_event_allocator = &(run_ctx_.dev_resource_allocator_.event_allocator);
   model_args.external_notify_allocator = &(run_ctx_.dev_resource_allocator_.notify_allocator);
   const auto allocators = allocator_manager_.GetAllocator(run_ctx_.graph_name_, model_args.stream);
-  GE_ASSERT_NOTNULL(allocators, "Failed get scalable allocators");
+  GE_ASSERT_NOTNULL(allocators, "Failed to get scalable allocators");
   model_args.external_allocator = allocators;
   gert::ModelLoadArg load_args(&run_ctx_.session_);
   GE_ASSERT_GRAPH_SUCCESS(executor_->Load(model_args, load_args), "Failed load rt v2 model for graph %s",
@@ -1424,10 +1424,10 @@ Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<gert::T
   gert::ModelExecuteArg model_args;
   model_args.stream = stream == nullptr ? stream_ : stream;
   const auto allocators = allocator_manager_.GetAllocator(run_ctx_.graph_name_, model_args.stream);
-  GE_ASSERT_NOTNULL(allocators, "Failed get scalable allocators");
+  GE_ASSERT_NOTNULL(allocators, "Failed to get scalable allocators");
   auto *allocator =
       allocators->GetAllocator(gert::kOnDeviceHbm, static_cast<size_t>(gert::AllocatorUsage::kAllocNodeOutput));
-  GE_ASSERT_NOTNULL(allocator, "Failed get scalable allocator");
+  GE_ASSERT_NOTNULL(allocator, "Failed to get scalable allocator");
   GE_ASSERT_SUCCESS(ValidateHostModelInputs(inputs));
   GE_ASSERT_SUCCESS(InputTensorValidate(inputs, num_inputs_, run_ctx_.host_exec_flag_, logLevel_));
 
@@ -1472,10 +1472,10 @@ Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<GeTenso
   gert::ModelExecuteArg model_args;
   model_args.stream = stream == nullptr ? stream_ : stream;
   const auto allocators = allocator_manager_.GetAllocator(run_ctx_.graph_name_, model_args.stream);
-  GE_ASSERT_NOTNULL(allocators, "Failed get scalable allocators");
+  GE_ASSERT_NOTNULL(allocators, "Failed to get scalable allocators");
   auto *allocator =
       allocators->GetAllocator(gert::kOnDeviceHbm, static_cast<size_t>(gert::AllocatorUsage::kAllocNodeOutput));
-  GE_ASSERT_NOTNULL(allocator, "Failed get scalable allocator");
+  GE_ASSERT_NOTNULL(allocator, "Failed to get scalable allocator");
   GE_ASSERT_EQ(inputs.size(), num_inputs_);
   for (size_t i = 0U; i < num_inputs_; ++i) {
     GE_ASSERT_SUCCESS(PrepareGeTensorRtInput(i, inputs[i], *rt_inputs_[i]));
@@ -1510,7 +1510,7 @@ Status HybridModelRtV2Executor::Execute(ExecuteArgs &args) {
   // prepare input_data by args.inputs
   GE_CHK_STATUS_RET(PrepareInputData(input_data, args),
                     "[Invoke][PrepareInputData]Failed to copy input data to model, model_id = %u", model_id_);
-  GELOGD("Done parser input data successfully.");
+  GELOGD("Done parsing input data successfully.");
   return Execute(input_data, args);
 }
 
@@ -1529,10 +1529,10 @@ Status HybridModelRtV2Executor::Execute(const InputData &input_data, ExecuteArgs
   model_args.stream = args.ctrl_args.stream != nullptr ? args.ctrl_args.stream : stream_;
   GELOGI("Start execute hybrid model v2 executor of graph %s, stream: %p", name_.c_str(), model_args.stream);
   const auto allocators = allocator_manager_.GetAllocator(run_ctx_.graph_name_, model_args.stream);
-  GE_ASSERT_NOTNULL(allocators, "Failed get scalable allocators");
+  GE_ASSERT_NOTNULL(allocators, "Failed to get scalable allocators");
   auto *allocator =
       allocators->GetAllocator(gert::kOnDeviceHbm, static_cast<size_t>(gert::AllocatorUsage::kAllocNodeOutput));
-  GE_ASSERT_NOTNULL(allocator, "Failed get scalable allocator");
+  GE_ASSERT_NOTNULL(allocator, "Failed to get scalable allocator");
   auto mem_synchronizer = dynamic_cast<gert::memory::MemSynchronizer *>(allocator);
   std::vector<MemBlock *> input_mem_block;
   auto free_mem_block_callback = [&input_mem_block]() {
@@ -1581,10 +1581,10 @@ Status HybridModelRtV2Executor::Execute(const std::vector<gert::Tensor> &inputs,
   model_args.stream = ctrl_args.stream != nullptr ? ctrl_args.stream : stream_;
   GELOGI("Start execute hybrid model v2 executor of graph %s, stream: %p", name_.c_str(), model_args.stream);
   const auto allocators = allocator_manager_.GetAllocator(run_ctx_.graph_name_, model_args.stream);
-  GE_ASSERT_NOTNULL(allocators, "Failed get scalable allocators");
+  GE_ASSERT_NOTNULL(allocators, "Failed to get scalable allocators");
   auto *allocator =
       allocators->GetAllocator(gert::kOnDeviceHbm, static_cast<size_t>(gert::AllocatorUsage::kAllocNodeOutput));
-  GE_ASSERT_NOTNULL(allocator, "Failed get scalable allocator");
+  GE_ASSERT_NOTNULL(allocator, "Failed to get scalable allocator");
   auto mem_synchronizer = dynamic_cast<gert::memory::MemSynchronizer *>(allocator);
   std::vector<MemBlock *> input_mem_block;
   auto free_mem_block_callback = [&input_mem_block]() {

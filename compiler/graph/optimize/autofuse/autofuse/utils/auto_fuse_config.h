@@ -276,7 +276,7 @@ class AutoFuseConfig {
       int64_t value;
       ss >> value;
       if (ss.fail() || !ss.eof() || value > recomputation_max || value < 0) {
-        GELOGW("Recomputation threshold value is out of range");
+        GELOGW("Recomputation threshold value %ld is out of range, should be in [0, %ld]", value, recomputation_max);
         recomputation_threshold = 1U;
         return;
       }

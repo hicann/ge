@@ -131,8 +131,8 @@ Status ExecutorUtils::UpdateHostMemInputArgs(const std::vector<DataBuffer> &inpu
   }
   if (host_inputs.empty()) {
     GELOGE(GRAPH_FAILED,
-           "[%s(%s)] host memory input(s) should be copied to io_base, but it(they) did not!!!"
-           "inputs size:%zu, io_size:%zu, input_is_const:%s, inputs:%s, input_index:%zu, io_index:%zu,"
+           "[%s(%s)] host memory input(s) should be copied to io_base, but it(they) did not!!! "
+           "inputs size:%zu, io_size:%zu, input_is_const:%s, inputs:%s, input_index:%zu, io_index:%zu, "
            "op_desc_input_num:%zu, align_bytes=%zu, io_base=%p",
            op_desc->GetName().c_str(), op_desc->GetType().c_str(), inputs.size(), io_size,
            ToString(input_is_const).c_str(), GetDataBufferInfo(inputs).c_str(), input_index, io_index,

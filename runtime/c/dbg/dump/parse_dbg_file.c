@@ -120,7 +120,7 @@ uint8_t *ParseDbgFile(char *dbgFilePath, ModelDbgHandle *dbgHandle) {
 
   mmFileHandle *fd = mmOpenFile(dbgFilePath, FILE_READ_BIN);
   if (fd == NULL) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "dbg file path is %s can not opened.", dbgFilePath);
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "dbg file path %s cannot be opened.", dbgFilePath);
     return NULL;
   }
   (void)mmSeekFile(fd, 0, MM_SEEK_FILE_END);

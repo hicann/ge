@@ -177,7 +177,7 @@ Status ProfilingManager::ProfParseParam(const std::map<std::string, std::string>
                                         std::vector<int32_t> &device_list) const {
   const auto device_num_iter = config_para.find(kHeterogeneousHost);
   if ((device_num_iter != config_para.end()) && (device_num_iter->second == "1")) {
-    GELOGI("[Parse][DeviceId]Config para explicitly dose not include device_num.");
+    GELOGI("[Parse][DeviceId]Config para explicitly does not include device_num.");
     return SUCCESS;
   }
   // device num

@@ -140,7 +140,7 @@ NodeCompileCacheItem *FuzzCompileBinSelector::SelectBin(const NodePtr &node, con
 
   NodeCompileCacheItem node_cci;
   if (NodeCompileCacheItem::Build(bin_type, node, handle, node_cci) != SUCCESS) {
-    GELOGI("Fail to build compile cache item of node %s.", node->GetName().c_str());
+    GELOGW("Fail to build compile cache item of node %s.", node->GetName().c_str());
     return nullptr;
   }
 

@@ -52,7 +52,7 @@ LowerResult LoweringOpTiling(const ge::NodePtr &node, const LowerInput &lower_in
 
   const auto tiling_node = ge::GraphUtils::FindNodeFromAllNodes(sub_graph, tiling_node_name);
   if (tiling_node == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "Cannot find real tilling node by node:%s sub graph:%s.", node->GetName().c_str(),
+    GELOGE(ge::PARAM_INVALID, "Cannot find real tiling node by node:%s sub graph:%s.", node->GetName().c_str(),
            sub_graph->GetName().c_str());
     return {HyperStatus::ErrorStatus("Cannot find real tilling node by name"), {}, {}, {}};
   }

@@ -306,7 +306,7 @@ Status SuperKernelPass::AutomaticSplitScope(const std::set<std::string> &no_fusi
       const int64_t end_id = cut_points[i + 1].topo_id;
       const bool begin_exclusive = cut_points[i].is_exclusive;
       GE_ASSERT_TRUE((end_id >= begin_id), "%ld vs %ld", begin_id, end_id);
-      GELOGI("try to judge scope %s cut id form %ld to %ld", scope.c_str(), begin_id, end_id);
+      GELOGI("try to judge scope %s cut id from %ld to %ld", scope.c_str(), begin_id, end_id);
       std::string new_scope_name = base_name + "_split_" + to_string(begin_id) + "_" + to_string(end_id);
       if (new_scope_name == scope) {
         new_scope_name += "_r";
@@ -1297,7 +1297,7 @@ Status SuperKernelScope::RefreshSendList(const NodePtr src_node, const uint32_t 
   (void)AttrUtils::GetListInt(src_node->GetOpDesc(), "_sk_send_event_ids", sk_send_event_ids);
   for (const auto &ele : sk_send_event_ids) {
     if (delete_event_id_set_.find(ele) != delete_event_id_set_.end()) {
-      GELOGI("event id %u is delete, no need to insert to _sk_send_event_ids", ele);
+      GELOGI("event id %u is deleted, no need to insert to _sk_send_event_ids", ele);
       continue;
     }
     sk_send_event_ids_newest.emplace_back(ele);
@@ -1317,7 +1317,7 @@ Status SuperKernelScope::RefreshRcvList(const NodePtr dst_node, const uint32_t e
   (void)AttrUtils::GetListInt(dst_node->GetOpDesc(), "_sk_rcv_event_ids", sk_rcv_event_ids);
   for (const auto &ele : sk_rcv_event_ids) {
     if (delete_event_id_set_.find(ele) != delete_event_id_set_.end()) {
-      GELOGI("event id %u is delete, no need to insert to _sk_send_event_ids", ele);
+      GELOGI("event id %u is deleted, no need to insert to _sk_send_event_ids", ele);
       continue;
     }
     sk_rcv_event_ids_newest.emplace_back(ele);

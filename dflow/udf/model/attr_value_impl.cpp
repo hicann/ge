@@ -24,7 +24,7 @@ int32_t AttrValueImpl::GetVal(AscendString &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<AscendString> &value) const {
   if (!proto_attr_.has_array()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }
@@ -48,7 +48,7 @@ int32_t AttrValueImpl::GetVal(int64_t &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<int64_t> &value) const {
   if (!proto_attr_.has_array()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }
@@ -62,7 +62,7 @@ int32_t AttrValueImpl::GetVal(std::vector<int64_t> &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<std::vector<int64_t>> &value) const {
   if (!proto_attr_.has_list_list_i()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }
@@ -91,7 +91,7 @@ int32_t AttrValueImpl::GetVal(float &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<float> &value) const {
   if (!proto_attr_.has_array()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }
@@ -115,7 +115,7 @@ int32_t AttrValueImpl::GetVal(bool &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<bool> &value) const {
   if (!proto_attr_.has_array()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }
@@ -139,7 +139,7 @@ int32_t AttrValueImpl::GetVal(TensorDataType &value) const {
 
 int32_t AttrValueImpl::GetVal(std::vector<TensorDataType> &value) const {
   if (!proto_attr_.has_array()) {
-    UDF_LOG_ERROR("proto is not has array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
+    UDF_LOG_ERROR("proto does not have array, value case=%d, kArray=%d", static_cast<int32_t>(proto_attr_.value_case()),
                   static_cast<int32_t>(ff::udf::AttrValue::kArray));
     return FLOW_FUNC_ERR_ATTR_TYPE_MISMATCH;
   }

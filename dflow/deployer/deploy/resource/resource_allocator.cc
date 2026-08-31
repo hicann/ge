@@ -57,7 +57,7 @@ void ResourceAllocator::SetCheckCompileResource(const FlowModelPtr &flow_model) 
   if (compile_resource_ == nullptr ||
       ((compile_resource_ != nullptr) && compile_resource_->host_resource_type.empty() &&
        compile_resource_->logic_dev_id_to_res_type.empty())) {
-    GELOGI("Need't to check compile resource info");
+    GELOGI("No need to check compile resource info");
     return;
   }
   std::map<std::string, std::string> valid_dev_to_res_type;

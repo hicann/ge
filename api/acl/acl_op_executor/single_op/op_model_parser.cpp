@@ -99,7 +99,7 @@ aclError OpModelParser::ParseModelContent(const OpModel &opModel, uint64_t &mode
   modelSize = (file_header->model_length == 0UL) ? file_header->length : file_header->model_length;
   if ((modelSize + sizeof(ge::ModelFileHeader)) != opModel.size) {
     ACL_LOG_INNER_ERROR(
-        "[Check][Length]invalid model. header size = %zu, model size = %lu,"
+        "[Check][Length]invalid model. header size = %zu, model size = %lu, "
         "file size = %u",
         sizeof(ge::ModelFileHeader), modelSize, opModel.size);
     return ACL_ERROR_PARSE_MODEL;
@@ -195,7 +195,7 @@ static aclError UpdateTensorAttrs(std::vector<aclTensorDesc> &tensorDescs,
       tensorDescs[idx].UpdateTensorShape(shapeByAttr);
       tensorDescs[idx].UpdateTensorShapeRange(rangesByAttr);
       if ((ge::AttrUtils::HasAttr(tensorAttr, "value_range")) && (ge::AttrUtils::HasAttr(tensorAttr, "value"))) {
-        ACL_LOG_INNER_ERROR("value and value_range cannot be existed at the same time");
+        ACL_LOG_INNER_ERROR("value and value_range cannot exist at the same time");
         return ACL_ERROR_PARSE_MODEL;
       }
       if (ge::AttrUtils::HasAttr(tensorAttr, "value_range")) {
@@ -385,7 +385,7 @@ aclError OpModelParser::ParseGeTensorDesc(std::vector<ge::GeTensorDesc> &geTenso
     }
     bool isConst = false;
     if (!ge::AttrUtils::GetBool(tensorDesc, ge::CONST_ATTR_NAME_INPUT, isConst)) {
-      ACL_LOG_INFO("the tensor maybe not const tensor, tensor id:[%zu]", tensorNum++);
+      ACL_LOG_INFO("the tensor may not be a const tensor, tensor id:[%zu]", tensorNum++);
       continue;
     }
     if (isConst) {

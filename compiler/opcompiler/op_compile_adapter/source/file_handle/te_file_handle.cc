@@ -174,14 +174,14 @@ void RecordPidTimeIdInfo() {
     TE_FUSION_LOG_EXEC(TE_FUSION_LOG_DEBUG, "pidFile path[%s] does not exist, try to create one.", pidFilePath.c_str());
     bool ret = mkdir(pidFilePath.c_str(), S_IRWXU | S_IRGRP | S_IXGRP);
     if (ret != 0) {
-      TE_WARNLOGF("Creat dir[%s] did not succeed, number: %d.", pidFilePath.c_str(), errno);
+      TE_WARNLOGF("Create dir[%s] did not succeed, number: %d.", pidFilePath.c_str(), errno);
     }
     return;
   }
 
   std::string jsonFilePath = pidFilePath + "/" + PID_FILE_NAME;
   if (!CreateFile(jsonFilePath)) {
-    TE_WARNLOGF("Creat file[%s] failed.", jsonFilePath.c_str());
+    TE_WARNLOGF("Create file[%s] failed.", jsonFilePath.c_str());
     return;
   }
 

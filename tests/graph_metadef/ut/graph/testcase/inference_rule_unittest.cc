@@ -839,7 +839,7 @@ TEST_F(InferenceRuleUtest, DtypesFormatError) {
     json["dtype"] = nullptr;
     const auto handle = ge::DtypeInferenceRule::FromJsonString(json.dump());
     ASSERT_NE(handle, nullptr);
-    ASSERT_EQ(handle->Error(), "Filed 'dtype' must not be null.");
+    ASSERT_EQ(handle->Error(), "Field 'dtype' must not be null.");
   }
 }
 

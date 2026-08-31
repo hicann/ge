@@ -1082,7 +1082,7 @@ Status ModelManager::GetModelIdByCmd(const Command &cmd_info, uint32_t &model_id
     REPORT_INNER_ERR_MSG("E19999",
                          "Command::cmd_params.size:%zu < kCmdParSize:%zu, Command::cmd_type:%s, check invalid",
                          cmd_info.cmd_params.size(), kCmdParSize, cmd_info.cmd_type.c_str());
-    GELOGE(PARAM_INVALID, "[Check][Param] When the cmd_type is '%s', the size of cmd_params must larger than 2.",
+    GELOGE(PARAM_INVALID, "[Check][Param] When the cmd_type is '%s', the size of cmd_params must be larger than 2.",
            cmd_info.cmd_type.c_str());
     return PARAM_INVALID;
   }
@@ -1144,7 +1144,7 @@ Status ModelManager::HandleProfInitCommand(const Command &cmd_info) {
 
 Status ModelManager::HandleProfFinalizeCommand(const Command &cmd_info) {
   if (ProfilingManager::Instance().ProfFinalize() != SUCCESS) {
-    GELOGE(FAILED, "[Handle][ProfFinalize] failed, moduld index: %" PRIu64 ".", cmd_info.module_index);
+    GELOGE(FAILED, "[Handle][ProfFinalize] failed, module index: %" PRIu64 ".", cmd_info.module_index);
     return FAILED;
   }
   return SUCCESS;
@@ -1169,7 +1169,7 @@ Status ModelManager::HandleProfStartCommand(const Command &cmd_info) {
                          kProfStartCmdParaSize);
     GELOGE(PARAM_INVALID,
            "[Check][Param] When the cmd_type is 'profile start', "
-           "the size:%zu of cmd_params must larger than 2.",
+           "the size:%zu of cmd_params must be larger than 2.",
            cmd_info.cmd_params.size());
     return PARAM_INVALID;
   }
@@ -1210,7 +1210,7 @@ Status ModelManager::HandleProfStopCommand(const Command &cmd_info) {
                          kProfStartCmdParaSize);
     GELOGE(PARAM_INVALID,
            "[Check][Param] When the cmd_type is 'profile stop', "
-           "the size:%zu of cmd_params must larger than 2.",
+           "the size:%zu of cmd_params must be larger than 2.",
            cmd_info.cmd_params.size());
     return PARAM_INVALID;
   }
@@ -2602,7 +2602,7 @@ Status ModelManager::LaunchKernelCheckAicpuOp(const std::vector<std::string> &ai
   GE_CHK_BOOL_RET_STATUS(ret == EOK, FAILED, "copy check info res failed");
 
   if (op_check_info_res.isWithoutJson) {
-    GELOGI("No need to check aicpu in this scenoria.");
+    GELOGI("No need to check aicpu in this scenario.");
     return SUCCESS;
   }
   const uint64_t res_op_nums = op_check_info_res.opListNum;
@@ -2992,7 +2992,7 @@ Status ModelManager::InitOpMasterDeviceSo(const uint32_t &model_id, const GeRoot
       built_in_op_master_so_names_to_bin_.emplace(so_name, item.second);
       GELOGI("[OpMasterDevice][BuiltIn]Save so [%s].", item.first.c_str());
     } else {
-      GELOGI("[OpMasterDevice][BuiltIn]The so [%s] has already be saved, will be ignored.", so_name.c_str());
+      GELOGI("[OpMasterDevice][BuiltIn]The so [%s] has already been saved, will be ignored.", so_name.c_str());
     }
   }
 

@@ -661,7 +661,7 @@ domi::Status AclGraphParserUtil::ParseParamsBeforeGraph(const std::map<AscendStr
   ge::GetParserContext().data_tensor_names.clear();
 
   if (CheckOptions(parser_params) != SUCCESS) {
-    GELOGE(FAILED, "[Check][Options] Parse paragrams invalid, graph:%s.", graph_name.c_str());
+    GELOGE(FAILED, "[Check][Options] Parse parameters invalid, graph:%s.", graph_name.c_str());
     return PARAM_INVALID;
   }
   // support paragrams: out_nodes, is_output_adjust_hw_layout, output, enable_scope_fusion_passes
@@ -835,7 +835,7 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY long GetFileLength(const std::s
 FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY uint64_t GetCurrentTimestamp() {
   struct timeval tv{};
   int ret = gettimeofday(&tv, nullptr);
-  GE_LOGE_IF(ret != 0, "[Func][GetTimeOfDay] may failed: ret=%d", ret);
+  GE_LOGE_IF(ret != 0, "[Func][GetTimeOfDay] may fail: ret=%d", ret);
   auto total_use_time = tv.tv_usec + tv.tv_sec * 1000000;  // 1000000: seconds to microseconds
   return static_cast<uint64_t>(total_use_time);
 }

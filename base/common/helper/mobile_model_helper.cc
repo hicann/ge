@@ -102,7 +102,7 @@ class DynamicInputsOutputsShapeInfo {
     } else if (io_type == "o") {
       return dynamic_outputs_shape[group_index];
     } else {
-      GELOGE(ge::FAILED, "[Mobile] io_type is not support, failed.");
+      GELOGE(ge::FAILED, "[Mobile] io_type is not supported");
     }
     return dynamic_shape_empty;
   }
@@ -299,7 +299,8 @@ ge::Status ParseArgsFormat(const std::string &args_format,
       for (size_t idx = 0; idx < shape_info_size_needed; idx++) {
         GELOGI("[Mobile] -> [%d]: %s", idx, sm_with_shape_info[idx].str().c_str());
       }
-      GE_ASSERT_TRUE(sm_with_shape_info[shape_info_size_needed - 1UL] != "*", "[Mobile] not support desc*.");
+      GE_ASSERT_TRUE(sm_with_shape_info[shape_info_size_needed - 1UL] != "*",
+                     "[Mobile] desc with '*' is not supported");
       int32_t group_index = -1;
       if (sm_with_shape_info[1] == "i") {
         group_index = input_group_index++;
@@ -543,7 +544,7 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr &ge_model, ge::mobile::Ker
     GELOGI("[Mobile] node name: %s, kernel name: %s", node_name.c_str(), kernel_name.c_str());
     auto kernel_bin = tbe_kernel_store.FindKernel(kernel_name);
     if (kernel_bin == nullptr) {
-      GELOGI("[Mobile] not kernel bin find.");
+      GELOGI("[Mobile] kernel bin not found.");
       continue;
     }
     GELOGI("[Mobile] kernel bin data size: %d", kernel_bin->GetBinDataSize());
@@ -561,8 +562,7 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr &ge_model, ge::mobile::Ker
     for (int i = 0; i < mobile_model_task_def->task_size(); i++) {
       auto *task = mobile_model_task_def->mutable_task(i);
       if (task->kernel().stub_func().find(node_name) != std::string::npos) {
-        GELOGI("[Mobile] instead kernel stub func: %s  to: %s", task->kernel().stub_func().c_str(),
-               kernel_name.c_str());
+        GELOGI("[Mobile] replace kernel stub func %s with %s", task->kernel().stub_func().c_str(), kernel_name.c_str());
         task->mutable_kernel()->set_stub_func(kernel_name);
       } else {
         GELOGI("[Mobile] can not find node name: %s in stub_func: %s", node_name.c_str(),
@@ -673,8 +673,8 @@ Status MobileModelHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model,
     auto &model_root = name_to_ge_model.begin()->second;
     return SaveToOmModel(model_root, output_file, model, ge_root_model);
   }
-  GELOGE(FAILED, "[Mobile] mobile is not support unknown shape model to om!!!");
-  REPORT_INNER_ERR_MSG("E19999", "[Mobile] mobile is not support unknown shape model to om!!!");
+  GELOGE(FAILED, "[Mobile] mobile does not support unknown shape model to om.");
+  REPORT_INNER_ERR_MSG("E19999", "[Mobile] mobile does not support unknown shape model to om.");
   return FAILED;
 }
 

@@ -1676,7 +1676,7 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
       return FAILED;
     }
     if (SetOutputNodeInfo(graph, FLAGS_output_type) != SUCCESS) {
-      DOMI_LOGE("Set output node info fail.");
+      DOMI_LOGE("Set output node info failed.");
       return FAILED;
     }
   }
@@ -2234,7 +2234,7 @@ Status CheckRet(Status ret) {
               << " --help\' for more information" << std::endl;
     int32_t result = OutputErrMessageToStdout();
     if (result != 0) {
-      DOMI_LOGE("ErrorManager outputErrMessage fail !");
+      DOMI_LOGE("ErrorManager outputErrMessage failed!");
     }
     GELOGI("Current available mem is [%lu kB]", GetMemInfo("MemAvailable"));
     return ret;

@@ -110,7 +110,7 @@ Status HcclOfflineOptionBuilder::ParseLogicNumaConfig() {
     }
     hccl_comm_config_ = json_obj->dump();
   } catch (const nlohmann::json::exception &e) {
-    GELOGE(FAILED, "Parser json file %s failed. %s", logic_topo_config_path_.c_str(), e.what());
+    GELOGE(FAILED, "Failed to parse json file %s. %s", logic_topo_config_path_.c_str(), e.what());
     return FAILED;
   }
   return SUCCESS;

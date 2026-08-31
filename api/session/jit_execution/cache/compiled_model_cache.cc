@@ -31,7 +31,7 @@ CompiledModelCache::CompiledModelCache(uint32_t user_graph_id, CompileContext &c
     root_dir_ = root_dir_origin + "/" + kCompiledModelCacheDirName + "/";
     CreateDirectory(root_dir_);  // create the cache_dir
   }
-  GELOGI("Init complied model cache success, user_graph_id[%u].", user_graph_id_);
+  GELOGI("Init compiled model cache success, user_graph_id[%u].", user_graph_id_);
 }
 
 Status CompiledModelCache::GetGuardedExecutionPointGraphKey(const GuardedExecutionPoint *gep,

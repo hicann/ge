@@ -32,7 +32,7 @@ graphStatus InferShape4Select(gert::InferSymbolShapeContext *context) {
   GE_UNSUPPORTED_IF_NULL(in_shape2);
   // 添加guard校验in_shape1和in_shape2相等
   GE_ASSERT_TRUE(in_shape1->GetDimNum() == in_shape2->GetDimNum(),
-                 "Input1 dim num %zu shpuld equal to Input2 dim num: %zu of Select node", in_shape1->GetDimNum(),
+                 "Input1 dim num %zu should equal to Input2 dim num: %zu of Select node", in_shape1->GetDimNum(),
                  in_shape2->GetDimNum());
   for (size_t i = 0UL; i < in_shape1->GetDimNum(); i++) {
     ASSERT_SYMBOL_EQ(in_shape1->GetDim(i), in_shape2->GetDim(i));

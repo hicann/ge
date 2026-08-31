@@ -171,16 +171,17 @@ Status SwitchToStreamSwitchPass::ReplaceSwitchNode(const ComputeGraphPtr &graph,
   OpDescPtr cond_desc = peer_cond_anchor->GetOwnerNode()->GetOpDesc();
   GE_CHECK_NOTNULL(cond_desc);
   DataType cond_data_type = cond_desc->GetOutputDesc(peer_cond_anchor->GetIdx()).GetDataType();
-  GE_CHK_BOOL_EXEC(
-      cond_data_type == DT_BOOL,
-      REPORT_INNER_ERR_MSG("E19999",
-                           "Pred_input of Switch node:%s(%s) only support DT_BOOL data_type, "
-                           "but %s exactly",
-                           switch_node->GetName().c_str(), switch_node->GetType().c_str(),
-                           TypeUtils::DataTypeToSerialString(cond_data_type).c_str());
-      return FAILED, "[Check][Param] Pred_input of Switch node:%s(%s) only support DT_BOOL data_type, but %s exactly",
-             switch_node->GetName().c_str(), switch_node->GetType().c_str(),
-             TypeUtils::DataTypeToSerialString(cond_data_type).c_str());
+  GE_CHK_BOOL_EXEC(cond_data_type == DT_BOOL,
+                   REPORT_INNER_ERR_MSG("E19999",
+                                        "Pred_input of Switch node:%s(%s) only support DT_BOOL data_type, "
+                                        "but the actual type is %s",
+                                        switch_node->GetName().c_str(), switch_node->GetType().c_str(),
+                                        TypeUtils::DataTypeToSerialString(cond_data_type).c_str());
+                   return FAILED,
+                          "[Check][Param] Pred_input of Switch node:%s(%s) only support DT_BOOL data_type, but the "
+                          "actual type is %s",
+                          switch_node->GetName().c_str(), switch_node->GetType().c_str(),
+                          TypeUtils::DataTypeToSerialString(cond_data_type).c_str());
 
   OpDescPtr switch_desc = switch_node->GetOpDesc();
   GE_CHECK_NOTNULL(switch_desc);

@@ -408,11 +408,11 @@ ACL_FUNC_VISIBILITY aclError GetTensorDescNameToDims(const aclmdlDesc *const mod
   std::string tensorName;
   if ((realName.size() + 1U) > dimsNameLen) {
     // use conversion name because realname is too long
-    ACL_LOG_INFO("use conversion name because real tensor name is over than %zu", dimsNameLen);
+    ACL_LOG_INFO("use conversion name because real tensor name is longer than %zu characters", dimsNameLen);
     GetConvertTensorName(modelDesc, idx, tensorType, tensorName);
     if (!IsConvertTensorNameLegal(modelDesc, tensorName)) {
       if (!TransConvertTensorNameToLegal(modelDesc, tensorName)) {
-        ACL_LOG_WARN("cannot generate legal tensor name, use conversion name %s may has conflict risk",
+        ACL_LOG_WARN("cannot generate legal tensor name, use conversion name %s may have conflict risk",
                      tensorName.c_str());
       }
     }

@@ -1749,7 +1749,7 @@ void TeJsonAssemble::AssembleComipleParams(const std::vector<ge::Node *> &fusion
 
 void TeJsonAssemble::FillOptionalOutputWithNull(const std::vector<ge::Node *> &teGraphNode, nlohmann::json &jsonData) {
   if (jsonData.find("op_list") == jsonData.end()) {
-    TE_WARNLOG("Json data does not contains [op_list].");
+    TE_WARNLOG("Json data does not contain [op_list].");
     return;
   }
 
@@ -1800,7 +1800,7 @@ void TeJsonAssemble::GetPrebuildOutput(const std::string &nodeName, nlohmann::js
   try {
     jsonStr = json::parse(opParamStr);
   } catch (std::exception &e) {
-    REPORT_TE_INNER_ERROR("Failed to parser json_str, the json_str is %s and the reason is %s", opParamStr.c_str(),
+    REPORT_TE_INNER_ERROR("Failed to parse json_str, the json_str is %s and the reason is %s", opParamStr.c_str(),
                           e.what());
     return;
   }
@@ -1821,7 +1821,7 @@ void TeJsonAssemble::RefreshSgtSliceShape(nlohmann::json &outputDesc, nlohmann::
 void TeJsonAssemble::FilterOutputMultipleReference(nlohmann::json &jsonData) {
   TE_DBGLOG("Begin to FilterOutputMultipleReference");
   if (jsonData.find("op_list") == jsonData.end()) {
-    TE_WARNLOG("Json data does not contains [op_list].");
+    TE_WARNLOG("Json data does not contain [op_list].");
     return;
   }
 

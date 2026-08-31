@@ -54,7 +54,7 @@ Status TransShapeNhwcToNc1hwc0(const std::vector<int64_t> &src_shape, const Data
 
 Status CheckArgsForNhwcToNc1hwc0(const TransArgs &args) {
   if ((args.src_primary_format != FORMAT_NHWC) || (args.dst_primary_format != FORMAT_NC1HWC0)) {
-    const std::string error = "Dose not support trans format from " +
+    const std::string error = "Does not support trans format from " +
                               FmtToStr(TypeUtils::FormatToSerialString(args.src_primary_format)) + " to " +
                               FmtToStr(TypeUtils::FormatToSerialString(args.dst_primary_format));
     GE_ERRORLOG_AND_ERRORMSG(ACL_ERROR_GE_FORMAT_INVALID, error.c_str());

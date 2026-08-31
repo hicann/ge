@@ -56,7 +56,7 @@ Status SqueezeKernel::Compute(const ge::OpDescPtr op_desc_ptr, const std::vector
   auto tensor_desc = op_desc_ptr->GetOutputDesc(kOutputDescIndex);
   GeTensorPtr output_ptr = MakeShared<ge::GeTensor>(tensor_desc);
   if (output_ptr == nullptr) {
-    GELOGE(PARAM_INVALID, "node [%s] make shared failed.", op_desc_ptr->GetName().c_str());
+    GELOGE(PARAM_INVALID, "Failed to make node [%s] shared.", op_desc_ptr->GetName().c_str());
     return PARAM_INVALID;
   }
   auto ge_tensor = input.at(kInputDescIndex);

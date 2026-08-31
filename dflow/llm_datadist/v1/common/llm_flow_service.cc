@@ -597,7 +597,7 @@ ge::Status LlmFlowService::Allocate(const CacheDesc &cache_desc, const std::vect
   for (size_t i = 0U; i < per_device_task_context.size(); ++i) {
     auto &result = per_device_task_context[i].output;
     LLM_CHK_BOOL_RET_STATUS(result.tensor_addrs.size() == static_cast<size_t>(cache_desc.num_tensors), ge::FAILED,
-                            "[Check][Result] check tensor addresses failed, expect %u, bot got %zu, device_index = %zu",
+                            "[Check][Result] check tensor addresses failed, expect %u, but got %zu, device_index = %zu",
                             cache_desc.num_tensors, result.tensor_addrs.size(), device_indices_[i]);
     cache.per_device_tensor_addrs.emplace_back(std::move(result.tensor_addrs));
   }

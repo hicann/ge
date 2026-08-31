@@ -86,7 +86,7 @@ Status UdfModelBuilder::Build(UdfModel &udf_model) const {
       }
       continue;
     }
-    GE_CHK_BOOL_RET_STATUS(op_type == FLOWFUNC, FAILED, "Unsupport this op[%s], only support op[%s].", op_type.c_str(),
+    GE_CHK_BOOL_RET_STATUS(op_type == FLOWFUNC, FAILED, "Unsupported op[%s], only support op[%s].", op_type.c_str(),
                            FLOWFUNC);
     GE_CHK_BOOL_RET_STATUS(!has_udf, FAILED, "The graph[%s] has more than one udf op, only support one udf op.",
                            graph->GetName().c_str());

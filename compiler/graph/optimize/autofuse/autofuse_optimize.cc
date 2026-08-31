@@ -166,7 +166,7 @@ Status DeleteCastForDataTypeUnconsistantNode(const ge::ComputeGraphPtr &compute_
       GE_ASSERT_NOTNULL(owner_graph);
       GE_ASSERT_SUCCESS(GraphUtils::RemoveNodeWithoutRelink(owner_graph, node), "Remove node[%s][%s] failed.",
                         node->GetTypePtr(), node->GetNamePtr());
-      GELOGI("Delete node:[%][%s] after autofuse", node->GetName().c_str(), node->GetType().c_str());
+      GELOGI("Delete node:[%s][%s] after autofuse", node->GetName().c_str(), node->GetType().c_str());
     }
   }
   return GRAPH_SUCCESS;
@@ -203,7 +203,7 @@ Status AutofuseOptimize::PostProcess(const ge::ComputeGraphPtr &compute_graph) c
 
 Status AutofuseOptimize::Run(const ge::ComputeGraphPtr &compute_graph, const std::vector<GeTensor> &inputs) const {
   if (!IsEnableAutofuse()) {
-    GELOGI("Auto fuse env is disable, skip it.");
+    GELOGI("Auto fuse env is disabled, skip it.");
     return GRAPH_SUCCESS;
   }
 

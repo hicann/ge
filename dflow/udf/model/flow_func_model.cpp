@@ -424,7 +424,7 @@ std::vector<std::unique_ptr<FlowFuncModel>> FlowFuncModel::ParseModels(const std
 
   int32_t model_num = batch_load_model_req.models_size();
   if (model_num == 0) {
-    UDF_LOG_ERROR("models is not exits, file=%s.", batch_model_path.c_str());
+    UDF_LOG_ERROR("models is not exist, file=%s.", batch_model_path.c_str());
     return {};
   }
 

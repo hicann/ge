@@ -156,7 +156,7 @@ bool CompileResultUtils::SetKernelBin(const CompileResultPtr &compileRetPtr) {
   std::vector<char> buffer;
   // read bin file
   if (!TeFileUtils::GetBufferFromBinFile(compileRetPtr->binPath, buffer)) {
-    TE_INFOLOG("Read buffer from bin file[%s] not successfully, need to compile.", compileRetPtr->binPath.c_str());
+    TE_INFOLOG("Failed to read buffer from bin file[%s], need to compile.", compileRetPtr->binPath.c_str());
     return false;
   }
 

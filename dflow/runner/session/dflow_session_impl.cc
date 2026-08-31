@@ -151,7 +151,7 @@ DFlowSessionImpl::~DFlowSessionImpl() {
 
 Status DFlowSessionImpl::Initialize(const std::map<std::string, std::string> &options) {
   if (is_initialized_) {
-    GELOGI("[DFlowSessionImpl:%" PRIu64 "] session already initialize.", session_id_);
+    GELOGI("[DFlowSessionImpl:%" PRIu64 "] session already initialized.", session_id_);
     return SUCCESS;
   }
 
@@ -307,7 +307,7 @@ FlowModelPtr DFlowSessionImpl::CompileAndLoadGraph(uint32_t graph_id, const std:
 Status DFlowSessionImpl::CompileGraph(uint32_t graph_id, const std::vector<GeTensor> &ge_inputs) {
   UpdateThreadContext(graph_id);
   GE_CHK_STATUS_RET(dflow_graph_manager_.CompileGraph(graph_id, ge_inputs),
-                    "[DFlowSessionImpl:%" PRIu64 "] compile graph failed, session_id_, graph_id=%u", graph_id);
+                    "[DFlowSessionImpl:%" PRIu64 "] compile graph failed, graph_id=%u", session_id_, graph_id);
   GELOGI("[DFlowSessionImpl:%" PRIu64 "] Compile graph success, graph_id=%u.", session_id_, graph_id);
   return SUCCESS;
 }
@@ -349,7 +349,7 @@ Status DFlowSessionImpl::RunGraph(uint32_t graph_id, const std::vector<Tensor> &
   GE_CHK_STATUS_RET(FlowModelManager::GetInstance().ExecuteFlowModel(flow_model->GetModelId(), ge_inputs, ge_outputs),
                     "execute flow model failed, graph_id=%u, model_id=%u", graph_id, flow_model->GetModelId());
   outputs = ToTensors(ge_outputs);
-  GELOGI("run graph success, graph_id=%u.", session_id_, graph_id);
+  GELOGI("run graph success, session_id:%" PRIu64 ", graph_id=%u.", session_id_, graph_id);
   return SUCCESS;
 }
 
@@ -465,11 +465,11 @@ Status DFlowSessionImpl::FeedRawData(uint32_t graph_id, const std::vector<RawDat
   FlowModelPtr flow_model = dflow_graph_manager_.GetFlowModel(graph_id);
   if (flow_model == nullptr) {
     GELOGE(FAILED,
-           "[Get][FlowModel] failed. Please make sure graph has been build before feed raw data, "
+           "[Get][FlowModel] failed. Please make sure graph has been built before feed raw data, "
            "DFlowSessionImpl:%" PRIu64 " graph_id=%u.",
            session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
-                         "[Get][FlowModel] failed. Please make sure graph has been build before feed raw data, "
+                         "[Get][FlowModel] failed. Please make sure graph has been built before feed raw data, "
                          "DFlowSessionImpl:%" PRIu64 " graph_id=%u.",
                          session_id_, graph_id);
     return FAILED;

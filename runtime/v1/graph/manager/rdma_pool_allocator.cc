@@ -154,7 +154,7 @@ uint8_t *RdmaPoolAllocator::Malloc(const size_t size, const uint32_t device_id) 
     GELOGD("Find block size = %zu", block->size);
     return block->ptr;
   }
-  GELOGW("Memory block not founded.");
+  GELOGW("Memory block not found.");
   return nullptr;
 }
 

@@ -84,7 +84,7 @@ Status DynamicStitchKernel::ValidateParams(const OpDescPtr &op_desc_ptr, const s
   }
   // validate attr N and input.size
   if ((kDoubleAttrN * n_) > static_cast<int32_t>(input.size())) {
-    GELOGW("Input size %zu is not not match with attr %d. Ignore dynamic stitch kernel.", input.size(), n_);
+    GELOGW("Input size %zu does not match with attr %d. Ignore dynamic stitch kernel.", input.size(), n_);
     return NOT_CHANGED;
   }
   // validate supported datatype

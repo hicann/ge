@@ -106,7 +106,7 @@ Status AbnormalStatusHandler::ParseDeviceStateList(const std::string &file_path,
   GELOGI("AbnormalStatusMonitor, show new node info on server");
   ShowNodeInfo(information_new);
   GE_CHK_STATUS_RET(FindAbnormalDeviceOnServer(device_state_list, information_new, information_old),
-                    "AbnormalStatusMonitor, failed to do FindAbnormalDevice if is on server");
+                    "AbnormalStatusMonitor, failed to do FindAbnormalDevice if it is on server");
   return SUCCESS;
 }
 
@@ -212,7 +212,7 @@ bool AbnormalStatusHandler::IsModelMulInstance(std::map<const std::string, bool>
 
 bool AbnormalStatusHandler::IsSupportDynamicSchedRecover(const uint32_t &root_model_id) {
   if (!is_dynamic_sched_) {
-    GELOGI("AbnormalStatusMonitor, is_dynamic_sched_ is unenable");
+    GELOGI("AbnormalStatusMonitor, is_dynamic_sched_ is not enabled");
     return false;
   }
 
@@ -236,7 +236,7 @@ Status AbnormalStatusHandler::GenerateFile(const std::string &file_path, const c
                          file_path.c_str());
   std::string new_file_path = file_path.substr(0, pos + 1) + file_name;
   std::ofstream file(new_file_path);
-  GE_CHK_BOOL_RET_STATUS(file.is_open(), FAILED, "AbnormalStatusMonitor, failed generate path[%s]",
+  GE_CHK_BOOL_RET_STATUS(file.is_open(), FAILED, "AbnormalStatusMonitor, failed to generate path[%s]",
                          new_file_path.c_str());
   file.close();
   GEEVENT("AbnormalStatusMonitor, the path[%s] has generated", new_file_path.c_str());
@@ -322,7 +322,7 @@ void AbnormalStatusHandler::AbnormalDiffDevices2ModelInstances(
              model_instance_info.first.c_str());
       continue;
     } else {
-      GELOGI("AbnormalStatusMonitor, model instance[%s] is add to abnormal list", model_instance_info.first.c_str());
+      GELOGI("AbnormalStatusMonitor, model instance[%s] is added to abnormal list", model_instance_info.first.c_str());
       Add2ModelInstanceList(root_model_id, model_instance_info.first, abnormal_submodel_instances_name_);
       is_new_abnormal = true;
     }
@@ -435,7 +435,7 @@ Status AbnormalStatusHandler::FileMonitorProc(const std::string &file_path) {
       // host异常，无法恢复业务, 写redeploy.error文件
       GE_CHK_STATUS_RET(AfterHandleAbnormalInfo(file_path, kRedeployErrorFileName),
                         "AbnormalStatusMonitor, failed to do AfterHandleAbnormalInfo, kRedeployErrorFileName");
-      GELOGE(FAILED, "AbnormalStatusMonitor, it(cause by abnormal device) can't recover by redeploying");
+      GELOGE(FAILED, "AbnormalStatusMonitor, it(caused by abnormal device) can't recover by redeploying");
     }
     if (ParallelAbnormalStatusHandle(check_devices_flag) == SUCCESS) {
       GE_CHK_STATUS_RET(AfterHandleAbnormalInfo(file_path, kRedeployDoneFileName),
@@ -518,7 +518,7 @@ void AbnormalStatusHandler::MonitorFileAndHeartbeatProc(const std::string &file_
       }
       continue;
     }
-    GELOGI("AbnormalStatusMonitor, The path[%s] is different, parser the different type", file_path.c_str());
+    GELOGI("AbnormalStatusMonitor, The path[%s] is different, parse the different type", file_path.c_str());
     char_t *event_buf = buf;
     bool resource_config_modify = false;
     while (event_buf < buf + len) {
@@ -660,7 +660,7 @@ Status AbnormalStatusHandler::HeartbeatMonitorProc() {
     PreHandleAbnormalInfo();
     auto check_devices_flag = CheckAbnormalDevices(device_state_list);
     if (check_devices_flag == kNotSupportRedeploy) {
-      GELOGE(FAILED, "AbnormalStatusMonitor, it(cause by abnormal process) can't recover by redeploying");
+      GELOGE(FAILED, "AbnormalStatusMonitor, it(caused by abnormal process) can't recover by redeploying");
     }
     GE_CHK_STATUS_RET(ParallelAbnormalStatusHandle(check_devices_flag),
                       "AbnormalStatusMonitor, failed to do ParallelAbnormalStatusHandle");

@@ -208,11 +208,11 @@ Status RdmaNodeTask::GetOffsetTensor(const TaskContext &context, const RuntimeIn
   const size_t tensor_size = offset_tensor->GetData().GetSize();
   if ((tensor_size / static_cast<size_t>(GetSizeByDataType(in_data_type))) != row_num) {
     REPORT_INNER_ERR_MSG("E19999",
-                         "num of offset and remote addr mismatch, check invalid"
+                         "num of offset and remote addr mismatch, check invalid. "
                          "offset size=%zu, remote_addr size=%zu, dtype=%s",
                          tensor_size, row_num, TypeUtils::DataTypeToSerialString(in_data_type).c_str());
     GELOGE(PARAM_INVALID,
-           "[Check][Size]num of offset and remote addr mismatch,"
+           "[Check][Size]num of offset and remote addr mismatch, "
            "offset size=%zu, remote_addr size=%zu, dtype=%s",
            tensor_size, row_num, TypeUtils::DataTypeToSerialString(in_data_type).c_str());
     return PARAM_INVALID;
@@ -370,7 +370,7 @@ Status RdmaNodeTask::ExecuteAsync(TaskContext &context, const std::function<void
   TaskContext *const p_ctx = &context;
   const auto callback = [p_ctx, done_callback, evt](const HcclResult stat) {
     if (stat != HCCL_SUCCESS) {
-      GELOGE(HCCL_E_INTERNAL, "[Call][HcomExcutorInitialize] failed for node:%s(%s), ret: 0x%X", p_ctx->GetNodeName(),
+      GELOGE(HCCL_E_INTERNAL, "[Call][HcomExecutorInitialize] failed for node:%s(%s), ret: 0x%X", p_ctx->GetNodeName(),
              p_ctx->GetNodeItem().NodeType().c_str(), stat);
       p_ctx->SetStatus(FAILED);
     }
@@ -532,7 +532,7 @@ Status AllToAllNodeTask::ExecuteAsync(TaskContext &context, const std::function<
     GE_CHK_STATUS_RET(BuildAllToAllVparams(context, params, alltoallv_group));
     const HcclResult hccl_ret = hcom_exec_enqueue_all_to_allv(params, callback);
     if (hccl_ret != HCCL_SUCCESS) {
-      GELOGE(HCCL_E_INTERNAL, "[Process][HcomExecEnqueueAllToAllV] AllToAllV teak enqueue failed for node [%s(%s)].",
+      GELOGE(HCCL_E_INTERNAL, "[Process][HcomExecEnqueueAllToAllV] AllToAllV task enqueue failed for node [%s(%s)].",
              context.GetNodeName(), context.GetNodeItem().NodeType().c_str());
       return HCCL_E_INTERNAL;
     }
@@ -551,7 +551,7 @@ Status AllToAllNodeTask::ExecuteAsync(TaskContext &context, const std::function<
     const HcclResult hccl_ret = hcom_enqueue_gather_all_to_allv(params, callback);
     if (hccl_ret != HCCL_SUCCESS) {
       GELOGE(HCCL_E_INTERNAL,
-             "[Process][HcomExecEnqueueGatherAllToAllV] GatherAllToAllV teak enqueue failed for node [%s(%s)].",
+             "[Process][HcomExecEnqueueGatherAllToAllV] GatherAllToAllV task enqueue failed for node [%s(%s)].",
              context.GetNodeName(), context.GetNodeItem().NodeType().c_str());
       return HCCL_E_INTERNAL;
     }
@@ -569,7 +569,7 @@ Status AllToAllNodeTask::ExecuteAsync(TaskContext &context, const std::function<
     GE_CHK_STATUS_RET(BuildAllToAllVCParams(context, params, alltoallvc_group));
     const HcclResult hccl_ret = hcom_enqueue_all_to_allv_c(params, callback);
     if (hccl_ret != HCCL_SUCCESS) {
-      GELOGE(HCCL_E_INTERNAL, "[Process][HcomAllToAllVCParams] AllToAllVC teak enqueue failed for node [%s(%s)].",
+      GELOGE(HCCL_E_INTERNAL, "[Process][HcomAllToAllVCParams] AllToAllVC task enqueue failed for node [%s(%s)].",
              context.GetNodeName(), context.GetNodeItem().NodeType().c_str());
       return HCCL_E_INTERNAL;
     }

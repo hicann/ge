@@ -421,7 +421,7 @@ Status ModelExecutor::MallocFixedFeatureMemoryIfNeed(const GraphNodePtr &graph_n
   std::vector<FeatureMemoryPtr> all_feature_mem;
   size_t hbm_fixed_size;
   GE_ASSERT_SUCCESS(ge_root_model->GetSummaryFeatureMemory(all_feature_mem, hbm_fixed_size),
-                    "get summary feature memory failed, graph_id: %s", ge_root_model->GetModelName().c_str());
+                    "get summary feature memory failed, model_name: %s", ge_root_model->GetModelName().c_str());
   (void)hbm_fixed_size;
   GELOGI("graph[%s] all fixed_feature_memory info: %s", ge_root_model->GetModelName().c_str(),
          ToString(all_feature_mem).c_str());
@@ -780,7 +780,7 @@ Status ModelExecutor::CheckFreeMemory(const GeRootModelPtr &ge_root_model, const
       std::vector<FeatureMemoryPtr> all_feature_mem;
       size_t required_hbm_fixed_size;
       GE_ASSERT_SUCCESS(ge_root_model->GetSummaryFeatureMemory(all_feature_mem, required_hbm_fixed_size),
-                        "get summary feature memory failed, graph_id: %s", ge_root_model->GetModelName().c_str());
+                        "get summary feature memory failed, model_name: %s", ge_root_model->GetModelName().c_str());
       (void)all_feature_mem;
       GE_ASSERT_SUCCESS(CheckInt64SubOverflow(memory_size, zero_copy_size),
                         "sub overflow, memory_size: %lld, zero_copy_size: %lld", memory_size, zero_copy_size);
@@ -806,7 +806,7 @@ Status ModelExecutor::CheckFreeMemory(const GeRootModelPtr &ge_root_model, const
     GE_ASSERT_TRUE(var_size >= 0LL,
                    "var mem size[%" PRId64
                    "] "
-                   "should larger than var malloc size[%" PRId64 "], check invalid",
+                   "should be larger than var malloc size[%" PRId64 "], check invalid",
                    var_total_size, var_malloc_size);
     GE_ASSERT_SUCCESS(CheckInt64AddOverflow(var_size, sum_size),
                       "var_size[%" PRId64 "] and sum_size[%" PRId64 "] will overflow after add", var_size, sum_size);

@@ -109,9 +109,9 @@ bool PythonApiCall::CallPyFuncWithTbeOpInfo(const TbeOpInfo &tbeOpInfo, PyObject
   });
 
   TE_FUSION_CHECK((pyRes == nullptr || pyRes.get() == pyNone), {
-    TE_INFOLOGF("Call python func[%s] not success, need to check op info: op inputs: %s, outputs: %s, attrs: %s.",
-                pyFunc.c_str(), PyObjectToStr(pyInputs).c_str(), PyObjectToStr(pyOutputs).c_str(),
-                PyObjectToStr(pyAttrs).c_str());
+    TE_ERRLOGF("Call python func[%s] not success, need to check op info: op inputs: %s, outputs: %s, attrs: %s.",
+               pyFunc.c_str(), PyObjectToStr(pyInputs).c_str(), PyObjectToStr(pyOutputs).c_str(),
+               PyObjectToStr(pyAttrs).c_str());
     return false;
   });
   TE_DBGLOGF("call python func[%s], op info: op inputs: %s, outputs: %s, attrs: %s.", pyFunc.c_str(),

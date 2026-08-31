@@ -2808,7 +2808,7 @@ Graph Operator::GetSubgraphImpl(const char_t *name) const {
   }
   const auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
   if (root_graph == nullptr) {
-    REPORT_INNER_ERR_MSG("E18888", "Failed to get subgraph %s, because cannot find the root graph,node:%s", name,
+    REPORT_INNER_ERR_MSG("E18888", "Failed to get subgraph %s, because cannot find the root graph, node:%s", name,
                          node->GetName().c_str());
     GE_LOGE("[Get][Subgraph] subgraph %s failed, because cannot find the root graph", name);
     return GraphUtilsEx::CreateGraph();
@@ -2979,7 +2979,7 @@ class GraphBuilderImpl {
         GE_CHK_BOOL_EXEC(op_impl != nullptr, REPORT_INNER_ERR_MSG("E18888", "op_impl is nullptr, check invalid.");
                          return GRAPH_FAILED, "[Check][Param] Operator Impl is null.");
         if (all_nodes_info_.find(op_impl) != all_nodes_info_.cend()) {
-          GELOGI("This node %s has created.", op_impl->GetName().c_str());
+          GELOGI("Node %s has been created.", op_impl->GetName().c_str());
           continue;
         }
         auto node_ptr = graph_->AddNode(op_impl->op_desc_);

@@ -24,23 +24,23 @@
 
 using domi::tensorflow::DT_INVALID;
 
-#define VALIDATE_FIELD(attr_value, type, num_set, name, type_string, oneof_case)                                     \
-  do {                                                                                                               \
-    if ((attr_value).has_list()) {                                                                                   \
-      if ((attr_value).list().name##_size() > 0) {                                                                   \
-        if (type != "list(" type_string ")") {                                                                       \
-          GELOGE(FAILED, "GeAttrValue had value with type 'list(" type_string ")'when '%s' expected", type.c_str()); \
-          return FAILED;                                                                                             \
-        }                                                                                                            \
-        ++(num_set);                                                                                                 \
-      }                                                                                                              \
-    } else if ((attr_value).value_case() == domi::tensorflow::AttrValue::oneof_case) {                               \
-      if (type != (type_string)) {                                                                                   \
-        GELOGE(FAILED, "GeAttrValue had value with type '" type_string "' when '%s' expected", type.c_str());        \
-        return FAILED;                                                                                               \
-      }                                                                                                              \
-      ++(num_set);                                                                                                   \
-    }                                                                                                                \
+#define VALIDATE_FIELD(attr_value, type, num_set, name, type_string, oneof_case)                                      \
+  do {                                                                                                                \
+    if ((attr_value).has_list()) {                                                                                    \
+      if ((attr_value).list().name##_size() > 0) {                                                                    \
+        if (type != "list(" type_string ")") {                                                                        \
+          GELOGE(FAILED, "GeAttrValue had value with type 'list(" type_string ")' when '%s' expected", type.c_str()); \
+          return FAILED;                                                                                              \
+        }                                                                                                             \
+        ++(num_set);                                                                                                  \
+      }                                                                                                               \
+    } else if ((attr_value).value_case() == domi::tensorflow::AttrValue::oneof_case) {                                \
+      if (type != (type_string)) {                                                                                    \
+        GELOGE(FAILED, "GeAttrValue had value with type '" type_string "' when '%s' expected", type.c_str());         \
+        return FAILED;                                                                                                \
+      }                                                                                                               \
+      ++(num_set);                                                                                                    \
+    }                                                                                                                 \
   } while (false)
 
 namespace ge {
@@ -264,7 +264,7 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY domi::Status TensorFlowUtil::Tr
     uint32_t size_type = 1U;
     auto data_type = ge_desc.GetDataType();
     GE_CHK_BOOL_RET_STATUS(ge::TypeUtils::GetDataTypeLength(data_type, size_type), PARAM_INVALID,
-                           "dataType no define size , parse ge_desc failed.");
+                           "dataType has no defined size, parse ge_desc failed.");
     // get size
     for (uint32_t j = 0U; j < ge_desc.GetShape().GetDimNum(); ++j) {
       int64_t tmp_dim = ge_desc.GetShape().GetDim(j);

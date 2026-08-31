@@ -150,7 +150,7 @@ Status HeterogeneousExchangeDeployer::PreDeploy() {
   if (!pre_deployed_) {
     GE_CHK_STATUS_RET(CreateHcomHandles(), "Failed to create hcom handles");
     GE_CHK_STATUS_RET(CreateExchangeEndpoints(), "Failed to create endpoints");
-    GE_CHK_STATUS_RET(BindEndpoints(GetBindingsBeforeLoad()), "Failed to create endpoints");
+    GE_CHK_STATUS_RET(BindEndpoints(GetBindingsBeforeLoad()), "Failed to bind endpoints");
     pre_deployed_ = true;
   }
   return SUCCESS;

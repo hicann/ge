@@ -413,7 +413,8 @@ Status LlmDataDist::LlmDataDistImpl::CopyKvBlocks(const Cache &src_cache, const 
       }
       LLM_CHK_STATUS_RET(llm_data_dist_->CopyCache(src_cache_entry, dst_cache_entry, copy_cache_param, device_ids_),
                          "[Copy][%ld->%ld] failed", src_cache.cache_id, dst_cache.cache_id);
-      LLMLOGI("dst_block_index = %zu copy blocks success", src_cache.cache_id, dst_cache.cache_id, i);
+      LLMLOGI("src_cache_id = %ld, dst_cache_id = %ld, dst_block_index = %zu copy blocks success", src_cache.cache_id,
+              dst_cache.cache_id, i);
     }
   } else {
     LLM_CHK_STATUS_RET(SwapKvBlocks(src_cache, dst_cache, src_blocks, dst_blocks_list, src_cache_entry.stride),
@@ -464,7 +465,7 @@ Status LlmDataDist::LlmDataDistImpl::CopyKvCache(const Cache &src_cache, const C
   llm::CacheEntry src_cache_entry{};
   llm::CacheEntry dst_cache_entry{};
   LLM_CHK_BOOL_RET_STATUS(src_cache.cache_desc.placement != CachePlacement::kHost, LLM_PARAM_INVALID,
-                          "[Copy][%ld->%ld] failed, neither H2D nor H2H copy is not supported", src_cache.cache_id,
+                          "[Copy][%ld->%ld] failed, neither H2D nor H2H copy is supported", src_cache.cache_id,
                           dst_cache.cache_id);
   LLM_CHK_STATUS_RET(ToCacheEntry(src_cache, src_cache_entry, device_ids_.size()), "Failed to check src cache");
   LLM_CHK_STATUS_RET(ToCacheEntry(dst_cache, dst_cache_entry, device_ids_.size()), "Failed to check dst cache");

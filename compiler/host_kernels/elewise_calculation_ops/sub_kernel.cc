@@ -76,7 +76,7 @@ Status OverflowCheck(T const &x, T const &y, DataType &data_type) {
       [](TYPE const &x, TYPE const &y, DataType &type, Status &ret) -> TYPE {         \
     ret = OverflowCheck<TYPE>(x, y, type);                                            \
     if (ret != SUCCESS) {                                                             \
-      GELOGE(PARAM_INVALID, "Result of sub is overflow.");                            \
+      GELOGE(PARAM_INVALID, "Result of sub overflows.");                              \
       return static_cast<TYPE>(0);                                                    \
     }                                                                                 \
     return static_cast<TYPE>(x) - static_cast<TYPE>(y);                               \

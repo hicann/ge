@@ -173,7 +173,8 @@ aclError aclopExecWithHandleImpl(aclopHandle *handle, int numInputs, const aclDa
 
   if (numOutputs != opHandle.numOutputs) {
     ACL_LOG_ERROR("[Check][NumOutputs]output num mismatch: expect %d, but %d", opHandle.numOutputs, numOutputs);
-    const std::string errMsg = acl::AclErrorLogManager::FormatStr("input num mismatch: expect %d", opHandle.numOutputs);
+    const std::string errMsg =
+        acl::AclErrorLogManager::FormatStr("output num mismatch: expect %d", opHandle.numOutputs);
     acl::AclErrorLogManager::ReportInputError(
         acl::INVALID_PARAM_MSG, std::vector<const char *>({"param", "value", "reason"}),
         std::vector<const char *>({"output num", std::to_string(numOutputs).c_str(), errMsg.c_str()}));

@@ -101,7 +101,7 @@ Status GraphNode::ParseFrozenInputIndex() {
                       frozen_input.c_str());
     int32_t frozen_input_index = -1;
     GE_ASSERT_SUCCESS(ConvertToInt32(frozen_info_vec[kIndexOfFrozenDataIndex], frozen_input_index));
-    GE_ASSERT_TRUE((frozen_input_index >= 0), "Frozen_input_index must be greater than zero: %u", frozen_input_index);
+    GE_ASSERT_TRUE((frozen_input_index >= 0), "Frozen_input_index must be non-negative: %u", frozen_input_index);
     (void)frozen_input_indexes_.insert(static_cast<uint32_t>(frozen_input_index));
     if (frozen_info_vec.size() == 1UL) {
       GELOGD("Parse frozen input index[%d] success.", frozen_input_index);

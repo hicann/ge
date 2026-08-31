@@ -139,7 +139,7 @@ Status ExecutionPointUtil::SaveExecutionPoint(const std::string root_dir, const 
   const std::string sid = std::to_string((*exec_point_ptr).GetId());
   const std::string slice_graph_dir = root_dir + kSlicingHierarchySubDirName + "/" + user_graph_key + "/" + sid + "/";
   GE_CHK_STATUS_RET(CreateDirectory(slice_graph_dir));
-  GELOGI("Generated directory: %s for user graph[%u].", slice_graph_dir.c_str());
+  GELOGI("Generated directory: %s for user graph.", slice_graph_dir.c_str());
 
   // save slice_graph.pb
   ComputeGraphPtr slice_graph_ptr = (*exec_point_ptr).GetSlicedGraph();

@@ -289,7 +289,7 @@ graphStatus FlattenConcatPass::Run(const ComputeGraphPtr &graph) const {
   if (!autofuse::AutoFuseConfig::LoweringConfig().experimental_lowering_concat) {
     GELOGI(
         "You can enable concat by setting AUTOFUSE_FLAGS=\"--autofuse_enable_pass=concat\" and unsetting "
-        "AUTOFUS_FLAGS=\"--autofuse_disable_pass=concat\"");
+        "AUTOFUSE_FLAGS=\"--autofuse_disable_pass=concat\"");
     return ge::GRAPH_SUCCESS;
   }
   GE_CHECK_NOTNULL(graph);

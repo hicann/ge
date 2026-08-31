@@ -179,7 +179,7 @@ Status GraphExecutor::AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_mod
     return INTERNAL_ERROR;
   }
   try {
-    GELOGI("RunAsync begin.model_id %u", model_id);
+    GELOGI("RunAsync begin. model_id %u", model_id);
     if (ModelManager::GetInstance().SetCallbackHybridLoad(model_id, ge_root_model, args->callback) != SUCCESS) {
       GELOGE(FAILED, "[Set][CallBack] for model fail, model_id %u", model_id);
       return FAILED;
@@ -193,11 +193,11 @@ Status GraphExecutor::AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_mod
 
     GELOGI("RunAsync success.");
   } catch (std::bad_alloc &) {
-    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occur failed, model_id %u", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occurred, model_id %u", model_id);
     GELOGE(MEMALLOC_FAILED, "[Run][Async] failed, bad memory allocation occur, model_id %u", model_id);
     return MEMALLOC_FAILED;
   } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occur failed, model_id %u", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occurred, model_id %u", model_id);
     GELOGE(FAILED, "[Run][Async] failed, some exceptions occur, model_id %u", model_id);
     return FAILED;
   }
@@ -214,11 +214,11 @@ Status GraphExecutor::GetInputOutputDescInfo(const uint32_t model_id, std::vecto
       return ret;
     }
   } catch (std::bad_alloc &) {
-    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occur failed, model_id:%u.", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occurred, model_id:%u.", model_id);
     GELOGE(MEMALLOC_FAILED, "[Get][InputOutputDescInfo] failed, bad memory allocation occur, model_id:%u.", model_id);
     return MEMALLOC_FAILED;
   } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occur failed, model_id:%u.", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occurred, model_id:%u.", model_id);
     GELOGE(FAILED, "[Get][InputOutputDescInfo] failed, some exceptions occur, model_id:%u.", model_id);
     return FAILED;
   }
@@ -238,11 +238,11 @@ Status GraphExecutor::GetInputOutputDescInfo(const uint32_t model_id, std::vecto
       return ret;
     }
   } catch (std::bad_alloc &) {
-    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occur failed, model_id:%u.", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occurred, model_id:%u.", model_id);
     GELOGE(MEMALLOC_FAILED, "[Get][InputOutputDescInfo] failed, bad memory allocation occur, model_id:%u.", model_id);
     return MEMALLOC_FAILED;
   } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occur failed, model_id:%u.", model_id);
+    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occurred, model_id:%u.", model_id);
     GELOGE(FAILED, "[Get][InputOutputDescInfo] failed, some exceptions occur, model_id:%u.", model_id);
     return FAILED;
   }

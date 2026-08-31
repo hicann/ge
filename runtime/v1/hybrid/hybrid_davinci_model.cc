@@ -294,7 +294,7 @@ uint32_t HybridDavinciModel::GetDeviceId() const {
 uint64_t HybridDavinciModel::GetGlobalStepAddr() const {
   if (impl_ == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "Param: impl_ is nullptr, check invalid");
-    GELOGE(ge::FAILED, "[Check][Param: impl_]null is invalid");
+    GELOGE(ge::FAILED, "[Check][Param:impl_] impl_ is null, check invalid.");
     return 0UL;
   }
   return impl_->GetGlobalStepAddr();

@@ -231,7 +231,7 @@ Status CandidateNodesElimination(const AscGraph &graph, std::unordered_map<NodeP
     GELOGD("Generating CSE key for node %s", node->GetName().c_str());
     GE_ASSERT_SUCCESS(GetCseKey(node, key));
     GELOGD("Generated CSE key for node %s", node->GetName().c_str());
-    GE_ASSERT_TRUE(!key.empty(), "node %s", node->GetName().c_str());
+    GE_ASSERT_TRUE(!key.empty(), "CSE key of node %s is empty", node->GetName().c_str());
     auto iter = keys_to_node.find(key);
     if (iter == keys_to_node.cend()) {
       keys_to_node[key] = node;

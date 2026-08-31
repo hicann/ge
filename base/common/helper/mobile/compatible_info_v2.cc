@@ -57,7 +57,8 @@ std::size_t CompatibleInfoV2::GetSize() const {
 
 ge::Status CompatibleInfoV2::GetCompatibleInfo(ge::BaseBuffer &buffer) const {
   constexpr size_t size = sizeof(CompatibleSerialV2);
-  GE_ASSERT_TRUE(buffer.GetSize() >= size, "[Mobile] buffer length = %zu, is not need = %zu", buffer.GetSize(), size);
+  GE_ASSERT_TRUE(buffer.GetSize() >= size, "[Mobile] buffer length %zu is less than required size %zu",
+                 buffer.GetSize(), size);
   GE_ASSERT_NOTNULL(buffer.GetData(), "[Mobile] buffer is null.");
 
   CompatibleSerialV2 *head = reinterpret_cast<CompatibleSerialV2 *>(buffer.GetData());

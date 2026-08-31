@@ -239,7 +239,7 @@ static aclError GetTensorDescNameToDims(const aclmdlDesc *modelDesc, char *realN
     if (ret != EOK) {
       return ACL_ERROR_FAILURE;
     }
-    ACL_LOG_INFO("RealName is over than %d, use convertName=%s", ACL_MAX_TENSOR_NAME_LEN, dims->name);
+    ACL_LOG_INFO("RealName length exceeds %d, use convertName=%s", ACL_MAX_TENSOR_NAME_LEN, dims->name);
     if (IsConvertTensorNameLegal(modelDesc, dims->name)) {
       return ACL_SUCCESS;  // dims->name is convertName
     }

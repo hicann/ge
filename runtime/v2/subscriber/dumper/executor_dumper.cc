@@ -567,8 +567,9 @@ ge::Status ExecutorDumper::InitOrderHoldersFromControlNodes(const bg::ValueHolde
                       "[Dumper]Cannot find order holder [%s] of node [%s] from subgraph of control nodes.",
                       node_name.c_str(), dump_unit->node->GetNamePtr());
   } else {
-    GELOGW("[Dumper]Cannot find order holder [%s] of node [%s] from subgraph of control nodes.", node_name.c_str(),
-           dump_unit->node->GetNamePtr());
+    GELOGW(
+        "[Dumper]Cannot find order holder [%s] of node [%s] from subgraph of control nodes, unsupported node type[%s].",
+        node_name.c_str(), dump_unit->node->GetNamePtr(), node_type.c_str());
   }
   return ge::SUCCESS;
 }

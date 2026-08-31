@@ -99,7 +99,7 @@ Status GetOriginalFormatPass::SetOriginalFormat(const ge::ComputeGraphPtr &graph
               !AttrUtils::GetInt(tmpSecondOpPtr, ATTR_NAME_FORMAT, second_input_format), continue_flag = true; break);
 
           if (first_input_format != second_input_format) {
-            GELOGW("biasadd node is followed two nodes with different format, get original format failed");
+            GELOGW("biasadd node is followed by two nodes with different format, get original format failed");
             continue_flag = true;
             break;
           }

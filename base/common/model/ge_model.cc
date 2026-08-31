@@ -152,7 +152,7 @@ Status GeModel::GetSessionId(const uint32_t model_id, uint64_t &session_id) cons
     session_id = it->second;
     return SUCCESS;
   }
-  GELOGW("No session id were found with model id [%u].", model_id);
+  GELOGW("No session id was found with model id [%u].", model_id);
   return INTERNAL_ERROR;
 }
 }  // namespace ge

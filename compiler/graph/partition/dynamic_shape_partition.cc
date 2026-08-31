@@ -250,7 +250,7 @@ Status DynamicShapePartitioner::IsGraphNeedUnknownShapePartition(bool &need_unkn
     return SUCCESS;
   }
 
-  GE_CHK_STATUS_RET(MarkUnknownShapeNodes(), "[Call][MarkUnknownShapeNodes] failed, root grah name:%s.",
+  GE_CHK_STATUS_RET(MarkUnknownShapeNodes(), "[Call][MarkUnknownShapeNodes] failed, root graph name:%s.",
                     GetRootGraph()->GetName().c_str());
   // 动态节点支持no tiling时:
   // 1. 若是子图分档场景，则必须要走静态图；
@@ -372,7 +372,7 @@ Status DynamicShapePartitioner::GetMultiBatchIndependCompileGraphs(const Compute
   bool enable_dynamic_batch = false;
   (void)ge::AttrUtils::GetBool(compute_graph, "_enable_dynamic_batch", enable_dynamic_batch);
   if (!enable_dynamic_batch) {
-    GELOGI("No need to partited graph for no multi batch graph.");
+    GELOGI("No need to partition graph for no multi batch graph.");
     return SUCCESS;
   }
   for (const auto &node : compute_graph->GetDirectNode()) {
@@ -557,7 +557,7 @@ Status DynamicShapePartitioner::PruneUniqueClusters() {
 }
 
 Status DynamicShapePartitioner::GenerateCluster() {
-  GE_CHK_STATUS_RET(MarkUnknownShapeNodes(), "[Call][MarkUnknownShapeNodes] failed, root grah name:%s.",
+  GE_CHK_STATUS_RET(MarkUnknownShapeNodes(), "[Call][MarkUnknownShapeNodes] failed, root graph name:%s.",
                     GetRootGraph()->GetName().c_str());
   GE_CHK_STATUS_RET(InitClusters(), "[Init][Clusters] failed, graph:%s.", GetRootGraph()->GetName().c_str());
   GE_CHK_STATUS_RET(MergeClusters(), "[Merge][Clusters] failed, graph:%s.", GetRootGraph()->GetName().c_str());
@@ -744,7 +744,7 @@ Status DynamicShapePartitioner::MergeClustersInputData() {
       GE_ASSERT_NOTNULL(dynamic_shape_cluster, "[Cast][Cluster] to DynamicShapeCluster failed.");
       cluster_pre = dynamic_shape_cluster;
     }
-    GELOGD("Success merge input node cluster from %lu to %lu.", cluster->Id(), cluster->Id());
+    GELOGD("Successfully merged input node cluster from %lu to %lu.", cluster->Id(), cluster->Id());
     for (const auto &node : cluster->Nodes()) {
       SetCluster(node, cluster_pre);
     }
@@ -771,7 +771,7 @@ Status DynamicShapePartitioner::TryMergeClusters(const ClusterFilter &cluster_fi
         continue;
       }
       if (cluster->TryMerge(in_cluster->shared_from_this())) {
-        GELOGD("Success merge known shape cluster from %lu to %lu.", in_cluster->Id(), cluster->Id());
+        GELOGD("Successfully merged known shape cluster from %lu to %lu.", in_cluster->Id(), cluster->Id());
         for (const auto &node : in_cluster->Nodes()) {
           SetCluster(node, cluster);
         }

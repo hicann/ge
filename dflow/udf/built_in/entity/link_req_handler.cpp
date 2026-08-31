@@ -281,7 +281,7 @@ FsmStatus LinkReqHandler::TryBindConn(size_t cluster_index, ClusterAddrInfo &clu
     return FsmStatus::kFsmKeepState;
   }
   if (ret != HcclResult::HCCL_SUCCESS) {
-    UDF_LOG_ERROR("Fail to bind local conn, local_hccl_addr:%s, ret:%d", cluster_desc.c_str(), ret);
+    UDF_LOG_ERROR("Fail to bind local conn, remote cluster:%s, ret:%d", cluster_desc.c_str(), ret);
     SetResult(LinkReqType::kLink, cluster_index, FsmStatus::kFsmLinkFailed);
     (void)CloseConn(hccl_conn);
     return FsmStatus::kFsmFailed;

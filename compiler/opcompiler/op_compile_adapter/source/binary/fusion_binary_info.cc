@@ -253,7 +253,7 @@ bool BinaryInfoBase::GenerateInOutPutMode(const std::string opType, const std::s
       }
     }
     if (FROMAT_MODE_SET.find(formatModeStr) == FROMAT_MODE_SET.end()) {
-      TE_ERRLOG("opType [%s], formatModeStr [%s] is not in FROMAT_MODE_SET.", opType.c_str(), formatModeStr.c_str());
+      TE_ERRLOG("opType [%s], formatModeStr [%s] is not in FORMAT_MODE_SET.", opType.c_str(), formatModeStr.c_str());
       return false;
     }
     TE_DBGLOG("Op [%s] [%s] formatMode [%s].", opType.c_str(), type.c_str(), formatModeStr.c_str());
@@ -274,7 +274,7 @@ bool BinaryInfoBase::GenerateSimpleKeyList(const std::string &opType, const nloh
   }
   for (auto binInfo : binaryList) {
     if (binInfo.find(SIMPLIFIED_KEY) == binInfo.end()) {
-      TE_WARNLOG("opType [%s] is not contain simplifiedKey", opType.c_str());
+      TE_WARNLOG("opType [%s] does not contain simplifiedKey", opType.c_str());
       return false;
     }
     auto simplifiedKeyList = binInfo[SIMPLIFIED_KEY];
@@ -379,7 +379,9 @@ bool BinaryInfoBase::GenerateBinaryInfo(nlohmann::json &binaryInfoConfig) {
     std::vector<SimpleKeyModeType> vecMode = {SimpleKeyModeType::SIMPLE_MODE, SimpleKeyModeType::COMPATIBLE_MODE,
                                               SimpleKeyModeType::CUSTOM_MODE};
     if (std::find(vecMode.begin(), vecMode.end(), simpleKeyMode) == vecMode.end()) {
-      TE_ERRLOG("simpleKeyMode value [%d] is out of range.", simpleKeyMode);
+      TE_ERRLOG(
+          "simpleKeyMode value [%d] is out of range, valid value should be SIMPLE_MODE/COMPATIBLE_MODE/CUSTOM_MODE.",
+          simpleKeyMode);
       return false;
     }
     std::string optionalInputMode = NO_PLACEHOLDER;

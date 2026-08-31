@@ -60,7 +60,7 @@ Status TensorFlowCustomParserAdapter::ParseParams(const Operator &op_src, ge::Op
   }
 
   ge::Operator op = ge::OpDescUtils::CreateOperatorFromOpDesc(op_dest);
-  GE_CHK_BOOL_RET_STATUS(custom_op_parser(op_src, op) == SUCCESS, FAILED, "Custom parser params failed or node:%s",
+  GE_CHK_BOOL_RET_STATUS(custom_op_parser(op_src, op) == SUCCESS, FAILED, "Custom parser params failed for node:%s",
                          ParserUtils::GetOperatorName(op_src).c_str());
   op.BreakConnect();
   return SUCCESS;

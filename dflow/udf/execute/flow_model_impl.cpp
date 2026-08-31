@@ -292,11 +292,11 @@ int32_t FlowModelImpl::DequeueMbuf(size_t output_idx, Mbuf *&mbuf, int32_t timeo
   } while (((wait_time < timeout) || (timeout == -1)) && (!GlobalConfig::Instance().GetAbnormalStatus()) &&
            (!GlobalConfig::Instance().GetExitFlag()));
   if (GlobalConfig::Instance().GetAbnormalStatus()) {
-    UDF_LOG_ERROR("Stop dequeue result of now system status is abnormal. Wait to redeploy.");
+    UDF_LOG_ERROR("Stop dequeue because system status is abnormal. Wait to redeploy.");
     return FLOW_FUNC_STATUS_REDEPLOYING;
   }
   UDF_LOG_ERROR(
-      "wait event timeout, wait_time=%ld, timeout=%d(ms), output_idx=%zu, inputQueueSize=%s, outputQueueSize=%s",
+      "wait event timeout, wait_time=%ld(ms), timeout=%d(ms), output_idx=%zu, inputQueueSize=%s, outputQueueSize=%s",
       wait_time, timeout, output_idx, ToString(GetQueueSize(input_queue_wrappers_)).c_str(),
       ToString(GetQueueSize(output_queue_wrappers_)).c_str());
   return FLOW_FUNC_ERR_TIME_OUT_ERROR;
@@ -360,7 +360,7 @@ void FlowModelImpl::GetMsgs(std::vector<Mbuf *> &data, std::vector<std::shared_p
 }
 
 int32_t FlowModelImpl::AlignFetch(std::vector<std::shared_ptr<FlowMsg>> &output_msgs, int32_t timeout) {
-  UDF_LOG_DEBUG("AlignFetch, timeout=%d, output size %u(ms).", timeout, output_queue_infos_.size());
+  UDF_LOG_DEBUG("AlignFetch, timeout=%d(ms), output size %u.", timeout, output_queue_infos_.size());
   int32_t ret = FLOW_FUNC_SUCCESS;
   std::vector<Mbuf *> tmp_data;
   while (true) {

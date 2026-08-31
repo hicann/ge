@@ -135,7 +135,7 @@ std::unique_ptr<ModelV2Executor> LoadExecutorFromFile(const ge::char_t *model_pa
   });
   error_code = LoadDataFromFile(model_path, model_data);
   if (error_code != ge::GRAPH_SUCCESS) {
-    GELOGE(ge::FAILED, "Failed to load model data form model path");
+    GELOGE(ge::FAILED, "Failed to load model data from model path");
     return nullptr;
   }
 

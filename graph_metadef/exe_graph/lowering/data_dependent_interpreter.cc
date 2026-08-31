@@ -86,7 +86,7 @@ ge::graphStatus DataDependentInterpreter::IsDataDependentByImplOp(const int32_t 
                                                                   bool &is_data_dependent) const {
   const auto op_impl = GetOpImplFunctionsV2();
   if (op_impl == nullptr) {
-    GELOGW("The node %s type %s does not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
+    GELOGW("The node %s type %s is not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
     is_data_dependent = false;
     // 这里产生了变更，原有实现中，如果impl找不到，并且1.0标记了任意一个输入为数据依赖，那么整个节点所有输入都会被认为是数据依赖。
     // 变更后，如果impl找不到，那么仅会返回1.0标记的输入为数据依赖。这个变更影响应该不大，验证过后，本注释可以被删除
@@ -115,7 +115,7 @@ ge::graphStatus DataDependentInterpreter::IsTilingInputDataDependent(const int32
                                                                      bool &is_tiling_dependent) const {
   const auto op_impl = GetOpImplFunctionsV2();
   if (op_impl == nullptr) {
-    GELOGW("The node %s type %s does not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
+    GELOGW("The node %s type %s is not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
     is_tiling_dependent = false;
     return ge::GRAPH_SUCCESS;
   }
@@ -139,7 +139,7 @@ ge::graphStatus DataDependentInterpreter::IsSupportTilingDependPlacement(const u
                                                                          bool &is_support) const {
   const auto op_impl = GetOpImplFunctionsV2();
   if (op_impl == nullptr) {
-    GELOGW("The node %s type %s does not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
+    GELOGW("The node %s type %s is not registered by `IMPL_OP`", op_desc_->GetNamePtr(), op_desc_->GetType().c_str());
     is_support = false;
     return ge::GRAPH_SUCCESS;
   }
@@ -178,7 +178,7 @@ bool DataDependentInterpreter::GetByIr(bool by_1_0, bool by_2_0, int32_t index_f
   if (by_1_0) {  // by_2_0 is false
     GELOGW(
         "The node %s type %s input index %d is interpreted data-dependent, because there is data dependent attr on the "
-        "node. But the IMPL_OP does not registered as data-dependent",
+        "node. But the IMPL_OP is not registered as data-dependent",
         op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), index_for_log);
   }
   return true;

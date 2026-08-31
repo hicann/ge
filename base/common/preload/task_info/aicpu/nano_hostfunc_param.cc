@@ -654,7 +654,7 @@ void NanoHostfuncParam::GenAllAttrsLen() {
     buff_size_ += static_cast<uint32_t>(attr.first.size());
     buff_size_ += iter->second(attr.second);
   }
-  GELOGD("all attes len = %u", buff_size_ - tmp_size);
+  GELOGD("all attrs len = %u", buff_size_ - tmp_size);
 }
 
 void NanoHostfuncParam::ParseSubBuffer(const uint8_t *buffer, const uint32_t count) const {

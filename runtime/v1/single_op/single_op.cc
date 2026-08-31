@@ -537,7 +537,7 @@ Status DynamicSingleOpImpl::SetHostTensorValue(const std::vector<GeTensorDesc> &
     const size_t index = static_cast<size_t>(iter.first);
     if ((index >= input_desc.size()) || (index >= input_buffers.size())) {
       GELOGE(INTERNAL_ERROR,
-             "[Check][Size]Index %zu should smaller then input desc size %zu "
+             "[Check][Size]Index %zu should be smaller than input desc size %zu "
              "and input buffers size %zu.",
              index, input_desc.size(), input_buffers.size());
       return INTERNAL_ERROR;

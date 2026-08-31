@@ -127,7 +127,7 @@ void EventHandler::HandleSyncVarManagerRequest(deployer::ExecutorRequest &reques
   GELOGD("[Handle][Init VarManager] begin.");
   if (context_->SyncSharedVarManager(request) != SUCCESS) {
     response.set_error_code(FAILED);
-    response.set_error_message("Failed to init VarManger");
+    response.set_error_message("Failed to init VarManager");
     return;
   }
   response.set_error_code(SUCCESS);
@@ -358,13 +358,13 @@ Status EventHandler::DoDataFlowExceptionNotify(const std::vector<uint32_t> &davi
 }
 
 void EventHandler::HandleProfInfo(deployer::ExecutorRequest &request, deployer::ExecutorResponse &response) {
-  GELOGI("[Handle][Set Proiling Info] begin.");
+  GELOGI("[Handle][Set Profiling Info] begin.");
   if (context_->UpdateProfInfo(request) != SUCCESS) {
     response.set_error_code(FAILED);
     response.set_error_message("Failed to set prof");
     return;
   }
   response.set_error_code(SUCCESS);
-  GELOGI("[Handle][Set Proiling Info] end.");
+  GELOGI("[Handle][Set Profiling Info] end.");
 }
 }  // namespace ge

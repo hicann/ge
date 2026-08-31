@@ -337,7 +337,7 @@ Status DataFlowGraphAutoDeployer::ExpandToSingleLogicDevice(const std::string &l
     }
     size_t expand_size = tmp_expand_list.size() * static_cast<size_t>(end + 1 - start);
     if (expand_size > UINT16_MAX) {
-      GELOGE(FAILED, "range[%s] config too many device, over %u", logic_device_id_range.c_str(), UINT16_MAX);
+      GELOGE(FAILED, "range[%s] config too many devices, over %u", logic_device_id_range.c_str(), UINT16_MAX);
       return FAILED;
     }
     std::vector<std::string> tmp_list;

@@ -875,7 +875,7 @@ std::shared_ptr<DtypeInferenceRule> DtypeInferenceRule::FromJsonString(const std
 
   const auto dtype_json = rule_json["dtype"];
   if (dtype_json.is_null()) {
-    *rule << "Filed 'dtype' must not be null.";
+    *rule << "Field 'dtype' must not be null.";
     return g_dtype_rule_cache.GetWithDefault(json_str, rule);
   }
 

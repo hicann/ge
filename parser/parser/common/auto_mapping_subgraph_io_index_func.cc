@@ -161,7 +161,7 @@ domi::Status AutoMappingSubgraphDataFormat(const NodePtr &parent_node, const ge:
       return FAILED;
     }
     GE_CHK_BOOL_RET_STATUS(static_cast<size_t>(index) < parent_op_desc->GetAllInputsSize(), PARAM_INVALID,
-                           "[Check][Index] failed, index=%d should less than %zu.", index,
+                           "[Check][Index] failed, index=%d should be less than %zu.", index,
                            parent_op_desc->GetAllInputsSize());
     // set data format by node input desc
     const auto input_format = parent_op_desc->GetInputDesc(index).GetFormat();

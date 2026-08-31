@@ -32,7 +32,7 @@ bool vecIntIntValue::Serilize(uint8_t **const addr, size_t &left_size) {
   errno_t ret;
   if ((vec_part_size.data() != nullptr) && (vec_size != 0U)) {
     ret = memcpy_s(*addr, left_size, static_cast<void *>(vec_part_size.data()), sizeof(uint32_t) * vec_size);
-    GE_ASSERT_EOK(ret, "serilize vecIntIntValue::vec_part_size failed");
+    GE_ASSERT_EOK(ret, "serialize vecIntIntValue::vec_part_size failed");
     *addr = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(*addr) + static_cast<uint64_t>(sizeof(uint32_t) * vec_size)));
     left_size -= sizeof(uint32_t) * vec_size;
   }
@@ -40,7 +40,7 @@ bool vecIntIntValue::Serilize(uint8_t **const addr, size_t &left_size) {
   for (size_t i = 0; i < vec_size; ++i) {
     if ((value[i].data() != nullptr) && (vec_part_size[i] != 0U)) {
       ret = memcpy_s(*addr, left_size, static_cast<void *>(value[i].data()), sizeof(int64_t) * vec_part_size[i]);
-      GE_ASSERT_EOK(ret, "serilize vecIntIntValue::value failed");
+      GE_ASSERT_EOK(ret, "serialize vecIntIntValue::value failed");
       *addr = PtrToPtr<void, uint8_t>(
           ValueToPtr(PtrToValue(*addr) + static_cast<uint64_t>(sizeof(int64_t) * vec_part_size[i])));
       left_size -= sizeof(int64_t) * vec_part_size[i];

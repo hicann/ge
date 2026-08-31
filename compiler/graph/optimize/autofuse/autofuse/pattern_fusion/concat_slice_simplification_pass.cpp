@@ -88,7 +88,7 @@ graphStatus ConcatSliceSimplificationPass::HandleSlice(const NodePtr &node) {
 
   size_t input_index = std::numeric_limits<size_t>::max();
   if (!FindInput(concat_node, concat_dim, sizes, offsets, input_index)) {
-    GELOGD("slice: %s does not from single source of concat", node->GetNamePtr());
+    GELOGD("slice: %s does not come from a single source of concat", node->GetNamePtr());
     return GRAPH_SUCCESS;
   }
   // replace node

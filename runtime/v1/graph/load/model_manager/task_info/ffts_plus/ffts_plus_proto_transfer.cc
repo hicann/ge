@@ -1714,7 +1714,7 @@ void FftsPlusProtoTransfer::AppendDsaCtxLevel1RrefreshInfo(const OpDescPtr &op_d
                                 &(ctx->dsaCfgNumberLow), op_desc, Level1AddrType::DSA_INPUT);
   }
 
-  GELOGI("%s %s append dsa context level1 refresh ino success.", op_desc->GetName().c_str(),
+  GELOGI("%s %s append dsa context level1 refresh info success.", op_desc->GetName().c_str(),
          op_desc->GetType().c_str());
 }
 

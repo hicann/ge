@@ -261,7 +261,7 @@ Status ParseParams(const Message *op_src, VariableOperator *op) {
   ParsePlacement(node, op);
   ParseMemType(node, op);
 
-  GELOGD("VariabeV2 OP parser params success.op name : %s.", node->name().c_str());
+  GELOGD("VariableV2 OP parser params success.op name : %s.", node->name().c_str());
 
   return SUCCESS;
 }

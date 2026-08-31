@@ -192,7 +192,7 @@ Status CaseOpNodeTask::Init(const NodePtr &node, const HybridModel &model) {
 ExecutorCache &CaseOpNodeTask::SelectBranch(size_t branch_index) {
   // subgraphs_ is non-empty. checked int32_t Init
   if (branch_index >= executors_.size()) {
-    GELOGI("Branch index out of range. index = %zu, num_subgraphs = %zu, will taking last branch.", branch_index,
+    GELOGI("Branch index out of range. index = %zu, num_subgraphs = %zu, will take the last branch.", branch_index,
            executors_.size());
     branch_index = executors_.size() - 1U;
   }

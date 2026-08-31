@@ -609,7 +609,7 @@ Status VariableOpPass::CheckIfCouldBeOptimized(const SameVarPtr &same_vars, bool
   }
   GELOGD("is_var_ref_legally is %d.", is_var_ref_legally);
   if (!is_var_ref_legally) {
-    GELOGI("variable ref connection are illegally");
+    GELOGI("variable ref connection is illegal");
     flag = false;
     fusion_road.clear();
     return SUCCESS;

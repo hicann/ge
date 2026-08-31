@@ -129,7 +129,7 @@ CmpStatus CompressConv2d(CompressOpConfig *const param, char *const weightRe,
   param->compressConfig.init_offset = compressParameters.totalCompressedLength;
   if (compressParameters.dataBase + param->compressConfig.inputSize > compressParameters.weightSizeTotal) {
     LogFatal("weightSizeTotal is:" << compressParameters.weightSizeTotal
-                                   << ", datebase is:" << compressParameters.dataBase
+                                   << ", database is:" << compressParameters.dataBase
                                    << ", size is:" << param->compressConfig.inputSize << ".");
     return RET_ERROR;
   }

@@ -27,7 +27,7 @@ ge::graphStatus CreateTensorDataOutputs(const ge::FastNode *node, KernelContext 
     GE_ASSERT_NOTNULL(av);
     auto tensor_data = new (std::nothrow) GertTensorData(0U, kOnHost, -1, nullptr);
     if (tensor_data == nullptr) {
-      GELOGE(ge::FAILED, "Failed create addr outputs at index:%u for node %s", i, node->GetName().c_str());
+      GELOGE(ge::FAILED, "Failed to create addr outputs at index:%u for node %s", i, node->GetName().c_str());
       return ge::GRAPH_FAILED;
     }
     av->SetWithDefaultDeleter(tensor_data);
@@ -41,7 +41,7 @@ ge::graphStatus CreateOpTilingShapeOutputs(const ge::FastNode *node, KernelConte
     GE_ASSERT_NOTNULL(av);
     auto storage_shape = new (std::nothrow) StorageShape();
     if (storage_shape == nullptr) {
-      GELOGE(ge::FAILED, "Failed create shape outputs at index:%u for node %s", i, node->GetName().c_str());
+      GELOGE(ge::FAILED, "Failed to create shape outputs at index:%u for node %s", i, node->GetName().c_str());
       return ge::GRAPH_FAILED;
     }
     if (kTilingOutputIndexToInputIndex[i] != TilingContext::kOutputTilingData) {
@@ -101,7 +101,7 @@ ge::graphStatus BuildOpTilingOutputShape(KernelContext *context) {
   // the node before is tiling function. Using tiling output to construct current input
   auto tiling_data = context->GetInputValue<TilingData *>(TilingContext::kOutputTilingData);
   if (tiling_data == nullptr) {
-    GELOGE(ge::FAILED, "Get tilling data nullptr result for build output shape failed.");
+    GELOGE(ge::FAILED, "Get tiling data nullptr result for build output shape failed.");
     return ge::GRAPH_PARAM_INVALID;
   }
   const size_t data_size = tiling_data->GetDataSize();

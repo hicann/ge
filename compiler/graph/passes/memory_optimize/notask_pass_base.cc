@@ -56,7 +56,7 @@ void NotaskPassBase::RunOnTargetNode(const ge::NodePtr &node) {
   if (IsUnknownShapeOp(op_desc)) {
     GELOGI("%s node [%s] is unknown shape op.", GetOpLabel().c_str(), node->GetName().c_str());
   } else if (IsOwnerGraphUnknown(node)) {
-    GELOGI("%s node [%s] is belong to unknown graph.", GetOpLabel().c_str(), node->GetName().c_str());
+    GELOGI("[%s] node [%s] belongs to an unknown graph.", GetOpLabel().c_str(), node->GetName().c_str());
   } else if (!InputCheck(node)) {
     GELOGI("%s node [%s] input does not meet the conditions.", GetOpLabel().c_str(), node->GetName().c_str());
   } else if (!CheckFormat(op_desc)) {

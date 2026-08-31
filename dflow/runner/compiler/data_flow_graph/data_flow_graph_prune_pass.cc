@@ -31,7 +31,7 @@ Status DataFlowGraphPrunePass::Run(ge::ComputeGraphPtr graph) {
     GELOGE(GE_GRAPH_ISNULL, "[Check][Param] input compute graph is NULL.");
     return GE_GRAPH_ISNULL;
   }
-  GELOGD("DatatFlowPrunePass Start, graph is [%s]", graph->GetName().c_str());
+  GELOGD("DataFlowPrunePass Start, graph is [%s]", graph->GetName().c_str());
   const auto out_nodes = graph->GetOutputNodes();
   if (out_nodes.empty()) {
     GELOGW("graph [%s] does not contain output node,no return value. Do nothing!", graph->GetName().c_str());

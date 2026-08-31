@@ -636,7 +636,7 @@ Status DeployContext::SetModelInfo(const DeployState &deploy_state, const Execut
     const bool is_dynamic_proxy_controlled = deploy_state.GetDynamicProxyControlledFlag(submodel_id);
     GELOGI(
         "Add model to load, device_id = %d, root_model_id = %u, sub_model_id = %u, model_path = %s, "
-        "is_dynamic = %d, is_dynamic_proxy_controlled = %d, saved_model_path = %s, is_builtin = %ds.",
+        "is_dynamic = %d, is_dynamic_proxy_controlled = %d, saved_model_path = %s, is_builtin = %d.",
         key.device_id, root_model_id, submodel_id, model_path.c_str(), static_cast<int32_t>(submodel_desc.is_dynamic()),
         static_cast<int32_t>(is_dynamic_proxy_controlled), saved_model_path.c_str(),
         static_cast<int32_t>(submodel_desc.is_builtin_udf()));

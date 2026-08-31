@@ -944,7 +944,7 @@ Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model
   }
   if (!onnx_model.has_graph()) {
     REPORT_PREDEFINED_ERR_MSG("E16004", std::vector<const char *>({}), std::vector<const char *>({}));
-    GELOGE(PARAM_INVALID, "Onnx model do not has graph.");
+    GELOGE(PARAM_INVALID, "Onnx model does not have graph.");
     return FAILED;
   }
   std::map<std::string, ge::onnx::GraphProto *> name_to_onnx_graph;

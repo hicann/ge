@@ -295,7 +295,7 @@ static void CheckDumpConfigForSubgraph(const std::string &root_graph_name, const
 Status ReadPlatformSo(const std::string &platform_so_path, std::unique_ptr<char_t[]> &buf, uint32_t &buf_len) {
   // 读取platform so到buf
   std::ifstream file(platform_so_path.c_str(), std::ios::binary | std::ios::in);
-  GE_ASSERT_TRUE(file.is_open(), "File: %s does not exist or is unaccessible.", platform_so_path.c_str());
+  GE_ASSERT_TRUE(file.is_open(), "File: %s does not exist or is inaccessible.", platform_so_path.c_str());
   GE_MAKE_GUARD(file_guard, [&file]() { (void)file.close(); });
   const std::streampos begin = file.tellg();
   (void)file.seekg(0, std::ios::end);
@@ -591,7 +591,7 @@ Status DavinciModel::InitFixedFeatureMap(const uintptr_t fixed_mem_ptr, const si
   // 使用用户实际申请内存的大小
   io_mem_base_ = (io_mem_base_ < (fixed_mem_ptr + fixed_mem_size)) ? (fixed_mem_ptr + fixed_mem_size) : io_mem_base_;
 
-  GELOGI("fixed_mem_size_: %zu, io_mem_base_: %zu ", fixed_mem_size_, io_mem_base_);
+  GELOGI("fixed_mem_size_: %zu bytes, io_mem_base_: %zu bytes ", fixed_mem_size_, io_mem_base_);
   return SUCCESS;
 }
 
@@ -683,7 +683,7 @@ Status DavinciModel::InitFeatureMapAndP2PMem(const uintptr_t mem_ptr, const size
 
 Status DavinciModel::InitVariableMem() {
   GE_CHECK_NOTNULL(VarManager::Instance(session_id_));
-  GELOGI("[Init][Var] Variable max size do not set, no need to malloc max size mem.");
+  GELOGI("[Init][Var] Variable max size is not set, no need to malloc max size mem.");
   runtime_param_.var_base = 0U;
   const auto page_size = VarManager::IsVariableUse1gHugePage() ? kDrv1GPageSize : kDrvPageSize;
   auto allocator = SessionMemAllocator<ExpandableActiveMemoryAllocator>::Instance().GetMemAllocator(
@@ -810,7 +810,7 @@ Status DavinciModel::InitCopyHostInputInfos() {
       continue;
     }
     auto &copy_info = copy_host_input_infos_.at(index);
-    GE_ASSERT(len >= copy_info.tensor_size, "host input index:%u, tensro size:%" PRIu64 ", len:%" PRIu64, index,
+    GE_ASSERT(len >= copy_info.tensor_size, "host input index:%u, tensor size:%" PRIu64 ", len:%" PRIu64, index,
               copy_info.tensor_size, len);
     copy_info.host_addr = ValueToPtr(host_addr);
     copy_info.device_addr = device_addr;
@@ -877,7 +877,7 @@ Status DavinciModel::RecoverModel() {
       GE_ASSERT_NOTNULL(task_info);
       task_id = task_info->GetTaskID();
 
-      GE_ASSERT_TRUE(task_info->IsSupportReDistribute(), "task index: %zu, task id: %u no support redestribute",
+      GE_ASSERT_TRUE(task_info->IsSupportReDistribute(), "task index: %zu, task id: %u no support redistribute",
                      task_index, task_id);
     }
   }
@@ -1079,7 +1079,7 @@ Status DavinciModel::LoadAndRegisterAddrRefreshKernel(const std::string &file_pa
 
 Status DavinciModel::InitAddrRefreshKernelBin() {
   if (gert::GlobalDumper::GetInstance()->IsEnable(gert::DumpType::kOverflowDump)) {
-    GELOGI("Npu model do not register UpdateModelParam op when overflow enabled.");
+    GELOGI("Npu model does not register UpdateModelParam op when overflow is enabled.");
     return SUCCESS;
   }
 
@@ -1132,7 +1132,7 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   SetProfileTime(ModelProcStage::MODEL_LOAD_START, MsprofSysCycleTime());
   is_dump_to_std_enable_ = profiling::ProfilingContext::IsDumpToStdEnabled();
   if ((priority_ < 0) || (priority_ > 7)) {
-    GELOGE(FAILED, "[Check][Param] Priority must between 0-7, now is %d.", priority_);
+    GELOGE(FAILED, "[Check][Param] Priority must be between 0 and 7, now is %d.", priority_);
     return PARAM_INVALID;
   }
   GE_CHK_BOOL_RET_STATUS(ge_model_ != nullptr, PARAM_INVALID, "[Check][Param] GeModel is nullptr.");
@@ -2043,7 +2043,7 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
       sub_ext_graph = op_desc->TryGetExtAttr("_sk_sub_graph", sub_ext_graph);
       if (sub_ext_graph == nullptr) {
         ComputeGraphPtr sub_graph = nullptr;
-        GELOGI("find sk %s has setgraph", op_desc->GetNamePtr());
+        GELOGI("find SuperKernel %s has setgraph", op_desc->GetNamePtr());
         GE_ASSERT_TRUE(AttrUtils::GetGraph(op_desc, "_sk_sub_graph", sub_graph));
         if (sub_graph != nullptr) {
           GELOGI("set extattr to sk %s", op_desc->GetNamePtr());
@@ -3143,7 +3143,7 @@ Status DavinciModel::GetGearAndRealOutShapeInfo(const NodePtr &node) {
           GE_CHECK_GE(it.size(), static_cast<size_t>(kDynamicOutInfoMinSize));
           const int64_t gear_index = it[0U];
           GE_ASSERT_TRUE(gear_index >= 0,
-                         "gear index is less than 0, node NetOutput may have input not from node Case");
+                         "gear index:%ld is less than 0, node NetOutput may have input not from node Case", gear_index);
           GE_ASSERT_TRUE(gear_index < static_cast<int64_t>(all_gears_info_.size()),
                          "[Check][Param] gear index:%zu in op:%s(%s) > all_gears_info.size:%zu in model:%u.",
                          gear_index, op_desc->GetName().c_str(), op_desc->GetType().c_str(), all_gears_info_.size(),
@@ -4086,7 +4086,7 @@ Status DavinciModel::CpuStaticInputShapeValidate() {
       mbuf_list.emplace_back(input_mbuf_list_.at(static_cast<size_t>(iter->first)));
       const int32_t input_fusion_offset = input_fusion_offsets_.at(static_cast<size_t>(iter->first));
       input_fusion_offset_list.emplace_back(input_fusion_offset);
-      GELOGI("Copy input process task: index:%zu, src muff addr:0x%" PRIx64 ", input fusion offset:%d.", i,
+      GELOGI("Copy input process task: index:%zu, src mbuf addr:0x%" PRIx64 ", input fusion offset:%d.", i,
              static_cast<uint64_t>(input_mbuf_list_.at(static_cast<size_t>(iter->first))), input_fusion_offset);
     }
   }
@@ -4277,7 +4277,7 @@ Status DavinciModel::GetAippType(const uint32_t index, InputAippType &aipp_type,
 void DavinciModel::SetDynamicSize(const std::vector<uint64_t> &batch_num, const int32_t dynamic_type) {
   batch_size_.clear();
   if (batch_num.empty()) {
-    GELOGD("User has not set dynammic data");
+    GELOGD("User has not set dynamic data");
   }
   for (size_t i = 0U; i < batch_num.size(); ++i) {
     batch_size_.emplace_back(batch_num[i]);
@@ -5673,7 +5673,7 @@ void DavinciModel::Run() {
     GELOGI("aclrtSynchronizeStreamWithTimeout start, model id:%u.", model_id_);
     rt_ret = aclrtSynchronizeStreamWithTimeout(rt_model_stream_, stream_sync_timeout_);
     if (rt_ret == ACL_ERROR_RT_SOCKET_CLOSE) {
-      GELOGI("connect lost to model exec, befause socket closed, model_id:%u", model_id_);
+      GELOGI("connect lost to model exec, because socket closed, model_id:%u", model_id_);
       ModelManager::GetInstance().SetSocketCloseStatus(true);
     }
     if (rt_ret == ACL_ERROR_RT_STREAM_SYNC_TIMEOUT) {
@@ -5770,7 +5770,7 @@ Status DavinciModel::ModelRunStart() {
 ///
 Status DavinciModel::ModelRunStop() {
   const std::unique_lock<std::mutex> lk(mux_run_flg_);
-  GE_CHK_STATUS_RET(DestroyThread(), "[Destroy][Thead] failed, model id: %u.", model_id_);
+  GE_CHK_STATUS_RET(DestroyThread(), "[Destroy][Thread] failed, model id: %u.", model_id_);
   return SUCCESS;
 }
 
@@ -6335,7 +6335,7 @@ bool DavinciModel::IsRootGraphNeedDump(const std::string &op_name) const {
 
   const auto &dump_props = GetDumpProperties();
   bool need_dump_model_name = dump_props.IsLayerNeedDump(root_graph_name, om_name_, op_name);
-  GELOGD("Check dump: root_graph[%s], om_name[%s], dump_model_name[%s], op_name[%s], result1[%d], result2[%d]",
+  GELOGD("Check dump: root_graph[%s], om_name[%s], dump_model_name[%s], op_name[%s], result1[%d]",
          root_graph_name.c_str(), om_name_.c_str(), dump_model_name_.c_str(), op_name.c_str(), need_dump_model_name);
 
   return need_dump_model_name;
@@ -6595,8 +6595,8 @@ bool DavinciModel::CheckUserAndModelSize(const int64_t size, const int64_t op_si
   }
   // Judge overflow first
   if (size > (kOverflowUserSize)) {
-    GELOGI("The user %s size [%" PRId64 "] is smaller than model size [%" PRId64 "] and is in the range of 64 bytes",
-           model_io_type, size, op_size);
+    GELOGI("The user %s size [%" PRId64 "] exceeds the overflow threshold [%" PRId64 "], treated as valid",
+           model_io_type, size, kOverflowUserSize);
     return true;
   }
   // The input and model input size cannot be exactly equal because user input is not definite.
@@ -7590,8 +7590,9 @@ Status DavinciModel::InitStreamActive(const OpDescPtr &op_desc) {
 
 Status DavinciModel::InitStreamSwitch(const OpDescPtr &op_desc) {
   std::vector<uint32_t> active_stream_list;
-  GE_LOGI_IF(!AttrUtils::GetListInt(op_desc, ATTR_NAME_ACTIVE_STREAM_LIST, active_stream_list),
-             "GetInt active_stream_list failed.");
+  if (!AttrUtils::GetListInt(op_desc, ATTR_NAME_ACTIVE_STREAM_LIST, active_stream_list)) {
+    GELOGE(INTERNAL_ERROR, "GetInt active_stream_list failed.");
+  }
   if (active_stream_list.size() != kTrueBranchStreamCount) {
     REPORT_INNER_ERR_MSG("E19999",
                          "[Check][Param] Attr: active_stream_list.size:%zu in op:%s(%s) != 1, model_id:%u, "
@@ -8548,7 +8549,7 @@ Status DavinciModel::AllocateResource(const Node &node) {
       return UNSUPPORTED;
     }
     if (ret != SUCCESS) {
-      GELOGE(PARAM_INVALID, "[%s] Failed to Alloce %s", op_desc->GetName().c_str(), resource_type.c_str());
+      GELOGE(PARAM_INVALID, "[%s] Failed to allocate %s", op_desc->GetName().c_str(), resource_type.c_str());
       return ret;
     }
   }
@@ -8829,7 +8830,7 @@ Status DavinciModel::CpuInputCopyProcess() {
     length_list.emplace_back(data_size);
     auto input_fusion_offset = input_fusion_offsets_.at(static_cast<size_t>(iter->first));
     input_fusion_offset_list.emplace_back(input_fusion_offset);
-    GELOGI("Copy input process task: index:%zu, src muff addr:0x%" PRIx64
+    GELOGI("Copy input process task: index:%zu, src mbuf addr:0x%" PRIx64
            ", "
            "dst addr:0x%" PRIx64 ", data size:%" PRIu64 ", input fusion offset:%d.",
            i, static_cast<uint64_t>(input_mbuf_list_.at(iter->first)), data_ptr, data_size, input_fusion_offset);

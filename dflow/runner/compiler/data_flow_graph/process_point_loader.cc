@@ -198,7 +198,7 @@ Status ProcessPointLoader::CreateFlowFuncOpDescFromProcessPoint(const dataflow::
                                                                 OpDescPtr &op_desc) {
   GE_CHK_STATUS_RET(DataFlowGraphUtils::CreateFlowFuncOpDesc(process_point.name(), func_pp_cfg.input_num,
                                                              func_pp_cfg.output_num, op_desc),
-                    "Failed create FlowFunc op desc for process point[%s], inputs num [%zu], outputs num [%zu].",
+                    "Failed to create FlowFunc op desc for process point[%s], inputs num [%zu], outputs num [%zu].",
                     process_point.name().c_str(), func_pp_cfg.input_num, func_pp_cfg.output_num);
   GE_CHK_STATUS_RET_NOLOG(SetAttrBinPathForFlowFunc(func_pp_cfg, op_desc));
   GE_CHK_STATUS_RET_NOLOG(SetAttrFuncsForFlowFunc(func_pp_cfg, op_desc));
@@ -692,7 +692,7 @@ Status ProcessPointLoader::LoadBuiltInFunctionProcessPoint(const dataflow::Proce
   OpDescPtr flow_func_desc;
   GE_CHK_STATUS_RET(DataFlowGraphUtils::CreateFlowFuncOpDesc(pp_name, process_point.in_edges().size(),
                                                              process_point.out_edges().size(), flow_func_desc),
-                    "Failed create FlowFunc op desc for process point[%s], inputs num [%zu], outputs num [%zu].",
+                    "Failed to create FlowFunc op desc for process point[%s], inputs num [%zu], outputs num [%zu].",
                     pp_name.c_str(), process_point.in_edges().size(), process_point.out_edges().size());
   GE_CHK_STATUS_RET_NOLOG(SetCustomizedAttrsForFlowFunc(process_point, flow_func_desc));
   GE_CHK_STATUS_RET_NOLOG(SetAttrFuncsForFlowFunc(process_point, flow_func_desc));
@@ -711,7 +711,7 @@ Status ProcessPointLoader::LoadFunctionProcessPoint(const dataflow::ProcessPoint
                                                     DataFlowGraph &data_flow_graph, const NodePtr &node) {
   GE_TRACE_START(LoadFunctionProcessPoint);
   if (data_flow_graph.subgraphs_.find(process_point.name()) != data_flow_graph.subgraphs_.cend()) {
-    GELOGE(FAILED, "The process point [%s] is map more than one node.", process_point.name().c_str());
+    GELOGE(FAILED, "The process point [%s] is mapped to more than one node.", process_point.name().c_str());
     return FAILED;
   }
   if (process_point.is_built_in()) {
@@ -859,7 +859,7 @@ Status ProcessPointLoader::RemoveGraphFromParent(const ComputeGraphPtr &root_gra
     GELOGI("Remove subgraph[%s] from node[%s] success.", sub_graph->GetName().c_str(), parent_node->GetNamePtr());
   }
   root_graph->RemoveSubgraph(sub_graph->GetName());
-  GE_CHK_STATUS_RET(PreProcessSubgraphAttrs(sub_graph), "Failed to PreProcessSubGraphAttrs failed, graph[%s].",
+  GE_CHK_STATUS_RET(PreProcessSubgraphAttrs(sub_graph), "Failed to PreProcessSubGraphAttrs, graph[%s].",
                     sub_graph->GetName().c_str());
   return SUCCESS;
 }
@@ -887,7 +887,7 @@ Status ProcessPointLoader::LoadGraphProcessPoint(const dataflow::ProcessPoint &p
                                                  DataFlowGraph &data_flow_graph, const NodePtr &node) {
   GE_TRACE_START(LoadGraphProcessPoint);
   if (data_flow_graph.subgraphs_.find(process_point.name()) != data_flow_graph.subgraphs_.cend()) {
-    GELOGE(FAILED, "The process point [%s] is map more than one node.", process_point.name().c_str());
+    GELOGE(FAILED, "The process point [%s] is mapped to more than one node.", process_point.name().c_str());
     return FAILED;
   }
   CompileConfigJson::GraphPpConfig graph_pp_cfg = {};
@@ -899,7 +899,7 @@ Status ProcessPointLoader::LoadGraphProcessPoint(const dataflow::ProcessPoint &p
   auto temp_graph = data_flow_graph.root_graph_->GetSubgraph(process_point.graphs(0));
   GE_CHECK_NOTNULL(temp_graph);
   GE_CHK_STATUS_RET(RemoveGraphFromParent(data_flow_graph.root_graph_, temp_graph),
-                    "Failed to remove graph from parent failed, graph[%s], pp name[%s].", temp_graph->GetName().c_str(),
+                    "Failed to remove graph from parent, graph[%s], pp name[%s].", temp_graph->GetName().c_str(),
                     process_point.name().c_str());
   GELOGI("rename graph[%s] to pp name[%s]", temp_graph->GetName().c_str(), process_point.name().c_str());
   // subgraph rename as process point name

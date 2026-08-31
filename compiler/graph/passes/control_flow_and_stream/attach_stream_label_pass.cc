@@ -36,7 +36,7 @@ Status AttachStreamLabelPass::Run(ComputeGraphPtr graph) {
                       graph->GetName().c_str());
   }
   // 临时方案，正式方案需要根据图结构来给cmo算子分流，待正式方案上库后删除
-  GE_CHK_STATUS_RET(SetCmoStreamLabel(cmo_nodes), "Failed to set stream labels  for cmo nodes in graph:%s failed.",
+  GE_CHK_STATUS_RET(SetCmoStreamLabel(cmo_nodes), "Failed to set stream labels for cmo nodes in graph:%s.",
                     graph->GetName().c_str());
 
   GELOGD("AttachStreamLabelPass Leave.");

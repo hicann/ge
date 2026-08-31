@@ -74,7 +74,8 @@ ge::Status CopyAttrValueSizeByType(const ge::AnyValue &attr_value, uint8_t *base
   (void)attr_value.GetValue<T>(val);
   const auto mem_ret = memcpy_s((base + offset), (max_size - offset), &val, sizeof(T));
   if (mem_ret != EOK) {
-    GELOGE(ge::FAILED, "memcpy failed.");
+    GELOGE(ge::FAILED, "memcpy failed, copy scalar attr value of size %zu at offset %zu, max_size %zu failed.",
+           sizeof(T), offset, max_size);
     return ge::FAILED;
   }
   offset += sizeof(T);
@@ -91,7 +92,8 @@ ge::Status CopyAttrValueSizeByType<std::string>(const ge::AnyValue &attr_value, 
   }
   const auto mem_ret = memcpy_s((base + offset), (max_size - offset), val.data(), val.length());
   if (mem_ret != EOK) {
-    GELOGE(ge::FAILED, "memcpy failed.");
+    GELOGE(ge::FAILED, "memcpy failed, copy string attr value of length %zu at offset %zu, max_size %zu failed.",
+           val.length(), offset, max_size);
     return ge::FAILED;
   }
   offset += val.length();
@@ -108,7 +110,8 @@ ge::Status CopyListAttrValueSizeByType(const ge::AnyValue &attr_value, uint8_t *
     T tmp_val = val;
     const auto mem_ret = memcpy_s((base + offset), (max_size - offset), &tmp_val, sizeof(T));
     if (mem_ret != EOK) {
-      GELOGE(ge::FAILED, "memcpy failed.");
+      GELOGE(ge::FAILED, "memcpy failed, copy list attr element of size %zu at offset %zu, max_size %zu failed.",
+             sizeof(T), offset, max_size);
       return ge::FAILED;
     }
     offset += sizeof(T);
@@ -127,7 +130,9 @@ ge::Status CopyListAttrValueSizeByType<std::string>(const ge::AnyValue &attr_val
     }
     const auto mem_ret = memcpy_s((base + offset), (max_size - offset), val.data(), val.length());
     if (mem_ret != EOK) {
-      GELOGE(ge::FAILED, "memcpy failed.");
+      GELOGE(ge::FAILED,
+             "memcpy failed, copy string list attr element of length %zu at offset %zu, max_size %zu failed.",
+             val.length(), offset, max_size);
       return ge::FAILED;
     }
     offset += val.length();
@@ -144,7 +149,9 @@ ge::Status CopyListListAttrValueSizeByType(const ge::AnyValue &attr_value, uint8
     for (const auto &val : vals) {
       const auto mem_ret = memcpy_s((base + offset), (max_size - offset), &val, sizeof(T));
       if (mem_ret != EOK) {
-        GELOGE(ge::FAILED, "memcpy failed.");
+        GELOGE(ge::FAILED,
+               "memcpy failed, copy nested list attr element of size %zu at offset %zu, max_size %zu failed.",
+               sizeof(T), offset, max_size);
         return ge::FAILED;
       }
       offset += sizeof(T);
@@ -251,7 +258,7 @@ static Status GetTensorInfos(const OpDesc &op_desc, CompileCacheDesc &cache_desc
 static Status GetOriginAttr(const std::string &op_type, std::set<string> &ordered_origin_attr) {
   auto node_op = ge::OperatorFactory::CreateOperator("node_op", op_type.c_str());
   if (node_op.IsEmpty()) {
-    GELOGE(FAILED, "get op from OperatorFactory fail. opType: %s", op_type.c_str());
+    GELOGE(FAILED, "get op from OperatorFactory failed. opType: %s", op_type.c_str());
     return FAILED;
   }
 
@@ -364,7 +371,8 @@ Status NodeCompileCacheModule::CopyAttrToMem(const std::map<std::string, AnyValu
       const auto mem_ret =
           memcpy_s((attr_mem.get() + offset), (attr_size - offset), it->first.data(), it->first.length());
       if (mem_ret != EOK) {
-        GELOGE(FAILED, "memcpy failed.");
+        GELOGE(FAILED, "memcpy failed, copy attr name [%s] of length %zu at offset %zu failed.", it->first.c_str(),
+               it->first.length(), offset);
         return FAILED;
       }
       FMK_SIZET_ADDCHECK(offset, it->first.length());

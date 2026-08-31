@@ -64,7 +64,7 @@ FsmStatus ReceiveTransferReqState::TestReq(LlmCommEntity &entity) {
   }
   LlmCommEntity::TransferKvAddrInfo &addr_info = entity.GetTransferKvAddrInfo();
   if (static_cast<uint64_t>(addr_info.req_info_count) < sizeof(TransferToRemoteReq)) {
-    UDF_RUN_LOG_INFO(
+    UDF_RUN_LOG_WARN(
         "Invalid req size, probably caused by pull cache failed, count:%d, expected req len:%zu, "
         "entity:%s.",
         addr_info.req_info_count, sizeof(TransferToRemoteReq), entity.GetDesc().c_str());

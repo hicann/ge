@@ -35,7 +35,7 @@ Status PotentialConstTakenEffectPass::OnFinishGraph(ComputeGraphPtr &root_graph,
 
     if (node->GetOwnerComputeGraph() == nullptr) {
       // if cur node parent node has been deleted, no need to handle node on this deleted graph.
-      GELOGD("Node %s owner graph is null. Perhapse its parent node has been deleted.", node->GetName().c_str());
+      GELOGD("Node %s owner graph is null. Perhaps its parent node has been deleted.", node->GetName().c_str());
       continue;
     }
 

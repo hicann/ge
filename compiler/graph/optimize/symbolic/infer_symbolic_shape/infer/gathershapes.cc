@@ -49,14 +49,14 @@ graphStatus InferShape4GatherShapes(gert::InferSymbolShapeContext *context) {
     GE_ASSERT_NOTNULL(data);
     const auto input_index = *data;
     GE_ASSERT(input_index < context->GetComputeNodeInputNum(),
-              "Node %s input_index[%lu] must less than input num[%zu],"
+              "Node %s input_index[%lu] must be less than input num[%zu],"
               " i: %zu",
               context->GetNodeName(), input_index, context->GetComputeNodeInputNum(), i);
     const auto dim_index = *(data + 1U);
     auto in_shape = context->GetInputSymbolShape(input_index);
     GE_UNSUPPORTED_IF_NULL(in_shape);
     GE_ASSERT(dim_index < in_shape->GetDimNum(),
-              "Node %s dim_index[%lu] must less than input shape"
+              "Node %s dim_index[%lu] must be less than input shape"
               " dim number[%zu], i: %zu",
               context->GetNodeName(), dim_index, in_shape->GetDimNum(), i);
   }

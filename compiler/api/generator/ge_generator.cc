@@ -1216,11 +1216,11 @@ Status GeGenerator::BuildSingleOp(OpDescPtr &op_desc, const std::vector<GeTensor
 Status GeGenerator::ResetOutputShapeRange(const OpDescPtr &op_desc, const size_t index,
                                           std::vector<std::pair<int64_t, int64_t>> &shape_range) {
   GE_CHK_BOOL_RET_STATUS((op_desc->GetInputsSize() == op_desc->GetOutputsSize()), INTERNAL_ERROR,
-                         "Netoutput node inputs des size and outputs des size must same.");
+                         "The size of input descs and output descs must be the same.");
   (void)op_desc->GetOutputDesc(index).GetShapeRange(shape_range);
   if (shape_range.size() == 0U) {
     // if outputdesc shaperange does not exist, use inputdesc shaperange which infer by ge
-    GELOGI("Netoutput do not has outputdesc shape range use inputdes shape range.");
+    GELOGI("Netoutput has no outputdesc shape range, use inputdesc shape range instead");
     (void)op_desc->GetInputDesc(index).GetShapeRange(shape_range);
   }
   return SUCCESS;
@@ -1285,7 +1285,7 @@ Status GeGenerator::ResetTensorDesc(const size_t index, const GeShape &data_shap
                                     std::vector<GeTensor> &vector_dynamic,
                                     std::vector<std::pair<int64_t, int64_t>> &dynamic_shape_range) {
   if (index >= vector_dynamic.size()) {
-    GELOGE(PARAM_INVALID, "vector num is not match.");
+    GELOGE(PARAM_INVALID, "vector num does not match.");
     return PARAM_INVALID;
   }
   GeTensorDesc &desc = vector_dynamic[index].MutableTensorDesc();
@@ -1530,7 +1530,7 @@ Status GeGenerator::SetExternalGraphRebuildStateCtrl(void *rebuild_ctrl) const {
   impl_->rebuild_ctrl_.reset(PtrToPtr<void, GraphRebuildStateCtrl>(rebuild_ctrl),
                              [](const GraphRebuildStateCtrl *rebuild_ctrl_param) {
                                (void)rebuild_ctrl_param;
-                               GELOGI("no delete rebuild");
+                               GELOGI("no need to delete before rebuild");
                              });
   impl_->graph_manager_.SetExternalGraphRebuildStateCtrl(impl_->rebuild_ctrl_);
   return SUCCESS;

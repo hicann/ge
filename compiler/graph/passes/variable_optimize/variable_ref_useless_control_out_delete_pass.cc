@@ -24,7 +24,7 @@ Status VariableRefUselessControlOutDeletePass::Run(ge::ComputeGraphPtr graph) {
     }
     auto src_nodes = node->GetInDataNodes();
     if (src_nodes.empty()) {
-      GELOGW("The variable ref name %s(ref %s) does not has a input node", node->GetName().c_str(),
+      GELOGW("The variable ref name %s(ref %s) does not have an input node", node->GetName().c_str(),
              src_var_name.c_str());
       continue;
     }

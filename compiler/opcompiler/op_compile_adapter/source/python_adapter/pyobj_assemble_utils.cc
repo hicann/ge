@@ -1163,13 +1163,13 @@ bool GetPyAttr(const TbeAttrValue &attr, PyObject *&pyAttr) {
   if (isNum) {
     bres = GetPyAttrSimple(attr, pyAttr);
     TE_FUSION_CHECK(!bres, {
-      TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to get pyoject simple attr, attrDtype=[%d].", attrDtype);
+      TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to get pyobject simple attr, attrDtype=[%d].", attrDtype);
       return false;
     });
   } else if (isList) {
     bres = GetPyAttrComplex(attr, pyAttr);
     TE_FUSION_CHECK(!bres, {
-      TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to get pyoject complex attr, attrDtype=[%d].", attrDtype);
+      TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to get pyobject complex attr, attrDtype=[%d].", attrDtype);
       return false;
     });
   } else {

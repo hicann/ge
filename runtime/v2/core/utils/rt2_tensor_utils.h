@@ -35,7 +35,7 @@ class TensorUtils {
     if (placement == kFollowing) {
       // 当placement为following时，地址是following在Tensor的后面的，作为其中的成员TensorData无法获取到具体地址。
       // todo 下一步可以考虑在创建following的Tensor时，将地址同步设置到TensorData中
-      GELOGE(ge::GRAPH_FAILED, "TensorData placement is following, so it can't get address, addr: %p",
+      GELOGE(ge::GRAPH_FAILED, "TensorData placement is invalid, so it can't get address, addr: %p",
              tensor_data.GetAddr());
       return ge::GRAPH_FAILED;
     }

@@ -150,7 +150,7 @@ FMK_FUNC_HOST_VISIBILITY void PreChecker::RefreshErrorMessageByName(const string
       return;
     }
   }
-  GELOGW("Node [%s] not founded in prechecking list.", op_name.c_str());
+  GELOGW("Node [%s] not found in prechecking list.", op_name.c_str());
 }
 
 Status PreChecker::AddCause(OpId id, const Cause &cause) {

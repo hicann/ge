@@ -152,7 +152,7 @@ MultiStreamL2Allocator::~MultiStreamL2Allocator() {
     if (free_set.count(block) > 0U) {
       continue;
     }
-    GELOGW("The block %p address %p does not recycled when l2 allocator destructing, will be recycled force", block,
+    GELOGW("The block %p address %p was not recycled when l2 allocator destructs, will be recycled forcibly", block,
            block->GetAddr());
     BirthRecycle(block);
   }

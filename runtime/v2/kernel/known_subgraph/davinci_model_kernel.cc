@@ -210,8 +210,8 @@ ge::graphStatus InitParam(KernelContext *context, ge::ModelParam &param) {
   if (IsNeedMallocFixedMemoryOnInitGraph(ge::ValueToPtr(fixed_mem_addr), fixed_mem_size)) {
     const auto tensor_data =
         context->GetInputPointer<TensorData>(static_cast<size_t>(DavinciModelCreateInput::kFixedMemTensorFromInit));
-    GE_ASSERT_NOTNULL(tensor_data, "get hbm fixed_feautre_memory tensor data failed.");
-    GE_ASSERT_NOTNULL(tensor_data->GetAddr(), "get hbm fixed_feautre_memory addr failed.");
+    GE_ASSERT_NOTNULL(tensor_data, "get hbm fixed_feature_memory tensor data failed.");
+    GE_ASSERT_NOTNULL(tensor_data->GetAddr(), "get hbm fixed_feature_memory addr failed.");
     param.fixed_mem_base = ge::PtrToValue(tensor_data->GetAddr());
     param.fixed_mem_size = tensor_data->GetSize();
   }
@@ -227,8 +227,8 @@ ge::graphStatus InitParam(KernelContext *context, ge::ModelParam &param) {
   if (IsNeedMallocFixedMemoryOnInitGraph(ge::ValueToPtr(p2p_fixed_mem_addr), p2p_fixed_mem_size)) {
     const auto tensor_data =
         context->GetInputPointer<TensorData>(static_cast<size_t>(DavinciModelCreateInput::kP2pFixedMemTensorFromInit));
-    GE_ASSERT_NOTNULL(tensor_data, "get p2p fixed_feautre_memory tensor data failed.");
-    GE_ASSERT_NOTNULL(tensor_data->GetAddr(), "get p2p fixed_feautre_memory addr failed.");
+    GE_ASSERT_NOTNULL(tensor_data, "get p2p fixed_feature_memory tensor data failed.");
+    GE_ASSERT_NOTNULL(tensor_data->GetAddr(), "get p2p fixed_feature_memory addr failed.");
     param.p2p_fixed_mem_base = ge::PtrToValue(tensor_data->GetAddr());
     param.p2p_fixed_mem_size = tensor_data->GetSize();
   }

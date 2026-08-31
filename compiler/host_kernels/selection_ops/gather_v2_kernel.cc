@@ -395,7 +395,7 @@ Status GatherV2Kernel::Compute(const OpDescPtr op_desc_ptr, const std::vector<Co
   auto indices_data_type = tensor1->GetTensorDesc().GetDataType();
   ret = SaveIndicesByDataType(tensor1, x_shape, indices_shape, indices_data_type, static_cast<size_t>(axis));
   if (ret != SUCCESS) {
-    GELOGW("Save indeices by data type failed!");
+    GELOGW("Save indices by data type failed!");
     return ret;
   }
 

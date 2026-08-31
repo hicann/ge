@@ -84,7 +84,7 @@ void TBEPluginManager::FindParserUsedSo(const std::string &path, std::vector<std
   static const uint32_t max_recursive_depth = 20U;  // For recursive depth protection
 
   if (recursive_depth >= max_recursive_depth) {
-    GELOGW("Recursive depth is become %u, Please check input!", recursive_depth);
+    GELOGW("Recursive depth has become %u, please check input!", recursive_depth);
     return;
   }
 

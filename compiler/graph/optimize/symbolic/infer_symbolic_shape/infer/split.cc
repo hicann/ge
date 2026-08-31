@@ -143,7 +143,9 @@ graphStatus GetSplitVInput(gert::InferSymbolShapeContext *context, int64_t &num_
     return UNSUPPORTED;
   }
   auto in_tensor1_exprs = *in_tensor1->GetSymbolicValue();
-  GE_ASSERT_TRUE(static_cast<int64_t>(in_tensor1_exprs.size()) == num_split, "tensorSize");
+  GE_ASSERT_TRUE(static_cast<int64_t>(in_tensor1_exprs.size()) == num_split,
+                 "in_tensor1 exprs size [%ld] mismatch num_split [%ld]", static_cast<int64_t>(in_tensor1_exprs.size()),
+                 num_split);
   for (auto &expr : in_tensor1_exprs) {
     int64_t expr_value = 0;
     if (expr.GetConstValue(expr_value) == false) {

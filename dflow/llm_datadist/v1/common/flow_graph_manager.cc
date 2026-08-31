@@ -223,7 +223,7 @@ ge::Status ProcessPointCompileConfig::CreateFuncPpCompileConfig(const std::strin
 ge::Status ProcessPointCompileConfig::CheckBufCfgValue(const BufCfg &buf_cfg) const {
   LLM_ASSERT_TRUE(buf_cfg.total_size != 0U, "Total size cannot be zero or larger than UINT32_MAX");
   LLM_ASSERT_TRUE(buf_cfg.max_buf_size != 0U, "max buf size cannot be zero or larger than UINT32_MAX");
-  LLM_ASSERT_TRUE(buf_cfg.blk_size != 0U, "blk size not be zero or larger than UINT32_MAX");
+  LLM_ASSERT_TRUE(buf_cfg.blk_size != 0U, "blk size should not be zero or larger than UINT32_MAX");
   LLM_ASSERT_TRUE(
       (buf_cfg.total_size > buf_cfg.max_buf_size) && (buf_cfg.max_buf_size >= buf_cfg.blk_size),
       "The following three params not meet the requirement: total_size[%u] > max_buf_size[%u] >= blk_size[%u]",
@@ -231,7 +231,7 @@ ge::Status ProcessPointCompileConfig::CheckBufCfgValue(const BufCfg &buf_cfg) co
   LLM_ASSERT_TRUE(buf_cfg.blk_size != 0, "The blk_size[%u] should not be 0.", buf_cfg.blk_size);
   LLM_ASSERT_TRUE((buf_cfg.blk_size & (buf_cfg.blk_size - 1U)) == 0U, "The blk_size[%u] should be 2^n.",
                   buf_cfg.blk_size);
-  LLM_ASSERT_TRUE(buf_cfg.blk_size <= kMaxBlkSize, "The blk_size[%u] should not greater than 2M.", buf_cfg.blk_size);
+  LLM_ASSERT_TRUE(buf_cfg.blk_size <= kMaxBlkSize, "The blk_size[%u] should not be greater than 2M.", buf_cfg.blk_size);
   LLM_ASSERT_TRUE(buf_cfg.total_size % buf_cfg.blk_size == 0UL,
                   "The buffer size[%u] should be multiple of blk_size[%u].", buf_cfg.total_size, buf_cfg.blk_size);
   return ge::SUCCESS;

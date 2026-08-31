@@ -296,7 +296,7 @@ Status CpuTaskProcessOutput::Init(const uintptr_t addr, const uint32_t size, con
     RuntimeTensorDesc tensor_desc{};
     tensor_desc.dtype = static_cast<int64_t>(output_desc->data_type);
     GE_CHK_BOOL_RET_STATUS(static_cast<int64_t>(output_desc->shape_info.dims.size()) <= kMaxDimSize, FAILED,
-                           "Shape dim size:%zu must less than max dim size:%" PRId64 ".",
+                           "Shape dim size:%zu must be less than max dim size:%" PRId64 ".",
                            output_desc->shape_info.dims.size(), kMaxDimSize);
     tensor_desc.shape[0] = static_cast<int64_t>(output_desc->shape_info.dims.size());
     tensor_desc.original_shape[0] = tensor_desc.shape[0];
@@ -726,7 +726,7 @@ Status CpuTaskProcessInputsMemCopy::Init(const std::vector<uintptr_t> &mbuf_list
   if ((mbuf_list.size() != data_addr_list.size()) || (length_list.size() != data_addr_list.size()) ||
       (input_fusion_offset_list.size() != data_addr_list.size())) {
     GELOGE(FAILED,
-           "[Check][Param] The size of mubf list:%zu, data addr list:%zu, "
+           "[Check][Param] The size of mbuf list:%zu, data addr list:%zu, "
            "length list:%zu and input fusion offset list:%zu should be same",
            mbuf_list.size(), data_addr_list.size(), length_list.size(), input_fusion_offset_list.size());
     return FAILED;
@@ -800,7 +800,7 @@ Status CpuTaskProcessInputsShapeCheck::Init(const std::vector<uintptr_t> &mbuf_l
     return SUCCESS;
   }
   GE_CHK_BOOL_RET_STATUS((mbuf_list.size() == input_fusion_offset_list.size()), FAILED,
-                         "[Check][Param] The size of mubf list:%zu, input fusion offset list:%zu should be same",
+                         "[Check][Param] The size of mbuf list:%zu, input fusion offset list:%zu should be same",
                          mbuf_list.size(), input_fusion_offset_list.size());
   std::vector<ShapeValidation> shape_validation;
   for (size_t i = 0U; i < mbuf_list.size(); i++) {

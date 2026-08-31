@@ -14,7 +14,9 @@ import os
 import re
 import sys
 
-PATTERN_FUNCTION = re.compile(r"ACL_FUNC_VISIBILITY\s+\n+.+\w+\([^();]*\);|.+\w+\([^();]*\);")
+PATTERN_FUNCTION = re.compile(
+    r"ACL_FUNC_VISIBILITY\s+\n+.+\w+\([^();]*\);|.+\w+\([^();]*\);"
+)
 PATTERN_RETURN = re.compile(r"([^ ]+[ *])\w+\([^;]+;")
 
 RETURN_STATEMENTS = {
@@ -37,7 +39,9 @@ return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);',
 }
 
 
-def collect_header_files(cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir):
+def collect_header_files(
+    cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir
+):
     """input path,return relevant header files"""
     cblas_headers = []
     op_compiler_headers = []
@@ -106,23 +110,29 @@ def implement_function(func):
     return function_def
 
 
-def generate_stub_file(cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir):
+def generate_stub_file(
+    cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir
+):
     """input inc_dir and return relevant contents"""
     (
         cblas_header_files,
         op_compiler_header_files,
         op_exec_header_files,
         mdl_header_files,
-    ) = collect_header_files(cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir)
-    print("header files has been generated")
+    ) = collect_header_files(
+        cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir
+    )
+    print("header files have been generated")
     cblas_content = generate_function(cblas_header_files, cblas_inc_dir)
-    print("cblas_content has been generate")
-    op_compiler_content = generate_function(op_compiler_header_files, op_compiler_inc_dir)
-    print("op_compiler_content has been generate")
+    print("cblas_content has been generated")
+    op_compiler_content = generate_function(
+        op_compiler_header_files, op_compiler_inc_dir
+    )
+    print("op_compiler_content has been generated")
     op_exec_content = generate_function(op_exec_header_files, op_exec_inc_dir)
-    print("op_exec_content has been generate")
+    print("op_exec_content has been generated")
     mdl_content = generate_function(mdl_header_files, mdl_inc_dir)
-    print("mdl_content has been generate")
+    print("mdl_content has been generated")
     return cblas_content, op_compiler_content, op_exec_content, mdl_content
 
 
@@ -138,7 +148,7 @@ def generate_function(header_files, inc_dir):
         includes.append(include_str)
 
     content = includes
-    print("include concent build success")
+    print("include content build success")
     total = 0
     content.append("\n")
     # generate implement
@@ -152,7 +162,7 @@ def generate_function(header_files, inc_dir):
         for func in functions:
             content.append("{}\n".format(implement_function(func)))
             content.append("\n")
-    print("implement concent build success")
+    print("implement content build success")
     print("total functions number is {}".format(total))
     return content
 
@@ -176,10 +186,14 @@ def gen_code(
         op_exec_inc_dir += "/"
     if not mdl_inc_dir.endswith("/"):
         mdl_inc_dir += "/"
-    cblas_content, op_compiler_content, op_exec_content, mdl_content = generate_stub_file(
-        cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir
+    cblas_content, op_compiler_content, op_exec_content, mdl_content = (
+        generate_stub_file(
+            cblas_inc_dir, op_compiler_inc_dir, op_exec_inc_dir, mdl_inc_dir
+        )
     )
-    print("cblas_content, op_compiler_content, op_exec_content, mdl_content have been generated")
+    print(
+        "cblas_content, op_compiler_content, op_exec_content, mdl_content have been generated"
+    )
     with open(cblas_stub_path, mode="w") as f:
         f.writelines(cblas_content)
     with open(op_compiler_stub_path, mode="w") as f:

@@ -530,7 +530,7 @@ graphStatus SplitNodeCombine(const ComputeGraphPtr &graph, NodePtr &split_node) 
 graphStatus FlattenSplitPass::Run(const ComputeGraphPtr &graph) {
   if (!autofuse::AutoFuseConfig::LoweringConfig().experimental_lowering_split) {
     GELOGI(
-        "you can enable split by setting AUTOFUSE_FLAGS=\"--autofuse_enable_pass=split\""
+        "you can enable split by setting AUTOFUSE_FLAGS=\"--autofuse_enable_pass=split\" "
         "and unsetting AUTOFUSE_FLAGS=\"--autofuse_disable_pass=split\"");
     return ge::GRAPH_SUCCESS;
   }

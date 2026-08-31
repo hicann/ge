@@ -361,7 +361,7 @@ Status ConfigParser::InitDeployerConfig(const std::vector<ClusterConfig> &cluste
 
 Status ConfigParser::ParseServerInfo(const std::string &file_path, DeployerConfig &deployer_config) {
   GE_CHK_BOOL_RET_STATUS(!file_path.empty(), ACL_ERROR_GE_PARAM_INVALID, "File path is null.");
-  GELOGI("Get config json path[%s]successfully", file_path.c_str());
+  GELOGI("Get config json path[%s] successfully", file_path.c_str());
 
   nlohmann::json json_config;
   GE_CHK_STATUS_RET(JsonParser::ReadConfigFile(file_path, json_config), "Read config file:%s failed",
@@ -539,7 +539,7 @@ Status ConfigParser::ParseItemDef(const nlohmann::json &json_config, std::vector
 
 Status ConfigParser::InitNumaConfig(const std::string &file_path, NumaConfig &numa_config) {
   GE_CHK_BOOL_RET_STATUS(!file_path.empty(), ACL_ERROR_GE_PARAM_INVALID, "File path is null.");
-  GELOGI("Get config json path[%s]successfully", file_path.c_str());
+  GELOGI("Get config json path[%s] successfully", file_path.c_str());
 
   nlohmann::json json_config;
   GE_CHK_STATUS_RET(JsonParser::ReadConfigFile(file_path, json_config), "Read config file:%s failed",

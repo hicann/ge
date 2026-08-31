@@ -509,7 +509,7 @@ Status BaseCluster::BuildPartitionFrame() {
                           "[Call][SetSubgraphInstanceName] for op:%s failed, index:0, name:%s.",
                           partitioned_op->GetName().c_str(), subgraph_->GetName().c_str());
   GE_CHK_STATUS_RET(BuildPartitionNodes(partitioned_op),
-                    "[Call][SetSubgraphInstanceName] for op:%s failed, index:0, name:%s.",
+                    "[Call][BuildPartitionNodes] for op:%s failed, index:0, name:%s.",
                     partitioned_op->GetName().c_str(), subgraph_->GetName().c_str());
   partition_node_ = AddPartitionedCallKeepTopo(graph, nodes_, partitioned_op);
   GE_ASSERT_NOTNULL(partition_node_, "[Add][Node] %s to graph:%s failed.", partitioned_op->GetName().c_str(),
@@ -517,7 +517,7 @@ Status BaseCluster::BuildPartitionFrame() {
   GE_CHK_GRAPH_STATUS_RET(partition_node_->SetOwnerComputeGraph(graph),
                           "[Set][OwnerComputeGraph] %s for node:%s failed.", graph->GetName().c_str(),
                           partitioned_op->GetName().c_str());
-  GE_CHK_STATUS_RET(RemoveNodeFromRoot(graph), "[Call][SetSubgraphInstanceName] for op:%s failed, index:0, name:%s.",
+  GE_CHK_STATUS_RET(RemoveNodeFromRoot(graph), "[Call][RemoveNodeFromRoot] for op:%s failed, index:0, name:%s.",
                     partitioned_op->GetName().c_str(), subgraph_->GetName().c_str());
   subgraph_->SetParentNode(partition_node_);
   subgraph_->SetParentGraph(graph);

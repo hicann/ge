@@ -30,7 +30,7 @@ void ConfigWorkers(TaskScheduler *scheduler, const std::vector<TaskWorkerConfig>
   }
 
   if (totalThreadCount > std::thread::hardware_concurrency()) {
-    GELOGW("Thread count %ld exceeds the hardware concurrentcy %d", totalThreadCount,
+    GELOGW("Thread count %ld exceeds the hardware concurrency %d", totalThreadCount,
            std::thread::hardware_concurrency());
   }
 }

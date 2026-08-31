@@ -119,11 +119,11 @@ Status BufferPoolMemoryPass::CheckBufferPoolSize(int64_t total_size, int64_t poo
   }
   if (calc_total_size[pool_id] > buffer_pool_size) {
     GELOGE(INTERNAL_ERROR,
-           "[Check][Size]The memory required at the same is greater than buffer pool size, "
+           "[Check][Size]The memory required at the same time is greater than buffer pool size, "
            "pool id:%" PRId64 ", pool size:%" PRId64 ", required size:%" PRId64 ".",
            pool_id, buffer_pool_size, calc_total_size[pool_id]);
     REPORT_INNER_ERR_MSG("E19999",
-                         "The memory required at the same is greater than buffer pool size, pool id:%" PRId64
+                         "The memory required at the same time is greater than buffer pool size, pool id:%" PRId64
                          ","
                          " pool size:%" PRId64 ", required size:%" PRId64 ".",
                          pool_id, buffer_pool_size, calc_total_size[pool_id]);

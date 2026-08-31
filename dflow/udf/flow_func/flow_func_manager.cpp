@@ -277,7 +277,7 @@ std::shared_ptr<FuncWrapper> FlowFuncManager::GetFlowFuncWrapper(const std::stri
 void FlowFuncManager::Register(const std::string &flow_func_name, const FLOW_FUNC_CREATOR_FUNC &func) {
   std::unique_lock<std::mutex> lock(guard_mutex_);
   if (creator_map_.count(flow_func_name) != 0U) {
-    UDF_LOG_ERROR("%s FlowFunc creator is already exist", flow_func_name.c_str());
+    UDF_LOG_ERROR("%s FlowFunc creator already exists", flow_func_name.c_str());
     return;
   }
   creator_map_[flow_func_name] = func;
@@ -287,7 +287,7 @@ void FlowFuncManager::Register(const std::string &flow_func_name, const FLOW_FUN
 void FlowFuncManager::Register(const std::string &flow_func_name, const MULTI_FUNC_CREATOR_FUNC &multi_func_creator) {
   std::unique_lock<std::mutex> lock(guard_mutex_);
   if (multi_func_creator_map_.count(flow_func_name) != 0U) {
-    UDF_LOG_WARN("%s FlowFunc creator is already exist", flow_func_name.c_str());
+    UDF_LOG_WARN("%s FlowFunc creator already exists", flow_func_name.c_str());
     return;
   }
   multi_func_creator_map_[flow_func_name] = multi_func_creator;
@@ -298,7 +298,7 @@ void FlowFuncManager::Register(const std::string &flow_func_name,
                                const MULTI_FUNC_WITH_Q_CREATOR_FUNC &multi_func_with_q_creator) {
   std::unique_lock<std::mutex> lock(guard_mutex_);
   if (multi_func_with_q_creator_map_.count(flow_func_name) != 0U) {
-    UDF_LOG_WARN("%s FlowFunc with input queues creator is already exist", flow_func_name.c_str());
+    UDF_LOG_WARN("%s FlowFunc with input queues creator already exists", flow_func_name.c_str());
     return;
   }
   multi_func_with_q_creator_map_[flow_func_name] = multi_func_with_q_creator;

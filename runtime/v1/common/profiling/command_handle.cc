@@ -122,7 +122,7 @@ Status NeedUnsubscribe(const ProfCommandHandleType type, const uint32_t graph_id
       uint32_t model_id = 0U;
       const auto ret = prof_mgr.GetModelIdFromGraph(graph_id, model_id);
       if (ret != SUCCESS) {
-        GELOGE(ret, "[Get][GraphId]graph_id:%u not not found", graph_id);
+        GELOGE(ret, "[Get][GraphId]graph_id:%u not found", graph_id);
         return ret;
       }
       prof_params.emplace_back(std::to_string(model_id));
@@ -226,7 +226,7 @@ rtError_t HandleCtrlSwitch(const MsprofCommandHandle &prof_command_handle) {
   const uint32_t graph_id = prof_command_handle.modelId;
   ret = NeedUnsubscribe(type, graph_id, prof_params);
   if (ret != SUCCESS) {
-    GELOGE(ret, "[Check][Param]graph_id:%u not not found", graph_id);
+    GELOGE(ret, "[Check][Param]graph_id:%u not found", graph_id);
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
         std::vector<const char_t *>({std::to_string(graph_id).c_str(), "GraphToModelMap", "Graph_id does not exist."}));

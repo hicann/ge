@@ -237,7 +237,7 @@ class LoadOp : public LoopOp {
 
   graphStatus RealizeImpl() override {
     // 对于已经是Load的节点，Realize无需做任何事情
-    GELOGW("Realize LoadOp %s has not effect", src_->GetOwnerNode()->GetName().c_str());
+    GELOGW("Realize LoadOp %s has no effect", src_->GetOwnerNode()->GetName().c_str());
     return GRAPH_SUCCESS;
   }
 
@@ -303,7 +303,7 @@ class LoadGatherOp : public LoopOp {
 
   graphStatus RealizeImpl() override {
     // 对于已经是Load的节点，Realize无需做任何事情
-    GELOGW("Realize LoadGatherOp %s has not effect", dst_->GetOwnerNode()->GetName().c_str());
+    GELOGW("Realize LoadGatherOp %s has no effect", dst_->GetOwnerNode()->GetName().c_str());
     return GRAPH_SUCCESS;
   }
 

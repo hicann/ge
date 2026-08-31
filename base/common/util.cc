@@ -401,8 +401,8 @@ FMK_FUNC_HOST_VISIBILITY bool ValidateStr(const std::string &file_path, const st
   ret = regexec(&reg, file_path.c_str(), 0U, nullptr, 0);
   if (static_cast<bool>(ret)) {
     (void)regerror(ret, &reg, &ebuff[0], static_cast<size_t>(kMaxBuffSize));
-    GELOGE(ge::PARAM_INVALID, "[Rgexec][Param]Failed, reason %s", &ebuff[0]);
-    REPORT_INNER_ERR_MSG("E19999", "Rgexec failed, reason %s", &ebuff[0]);
+    GELOGE(ge::PARAM_INVALID, "[Regexec][Param]Failed, reason %s", &ebuff[0]);
+    REPORT_INNER_ERR_MSG("E19999", "Regexec failed, reason %s", &ebuff[0]);
     regfree(&reg);
     return false;
   }

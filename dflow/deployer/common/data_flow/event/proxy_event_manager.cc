@@ -222,7 +222,7 @@ Status ProxyEventManager::FreeMbuf(int32_t device_id, rtMbufPtr_t mbuf) {
   ack.bufLen = sizeof(rsp);
   GE_CHK_STATUS_RET(
       SubmitEventSync(device_id, kProxySubEventFreeMbuf, reinterpret_cast<char_t *>(&mbuf_msg), sizeof(mbuf_msg), &ack),
-      "Failed to submit alloc mbuf event.");
+      "Failed to submit free mbuf event.");
   GE_CHK_STATUS_RET(static_cast<uint32_t>(rsp.retCode), "Failed to process alloc mbuf event, ret = %d.", rsp.retCode);
   GELOGI("FreeMbuf success, device_id = %d.", device_id);
   return SUCCESS;
@@ -240,7 +240,7 @@ Status ProxyEventManager::CopyQMbuf(int32_t device_id, uint64_t dest_addr, uint3
   ack.bufLen = sizeof(rsp);
   GE_CHK_STATUS_RET(SubmitEventSync(device_id, kProxySubEventCopyQMbuf, reinterpret_cast<char_t *>(&mbuf_msg),
                                     sizeof(mbuf_msg), &ack),
-                    "Failed to submit alloc mbuf event.");
+                    "Failed to submit copy qmbuf event.");
   GE_CHK_STATUS_RET(static_cast<uint32_t>(rsp.retCode), "Failed to process alloc mbuf event, ret = %d.", rsp.retCode);
   GELOGI("CopyQMbuf success, device_id = %d.", device_id);
   return SUCCESS;

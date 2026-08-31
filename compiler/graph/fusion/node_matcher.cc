@@ -103,10 +103,10 @@ bool IsAttrValuesMatch(const NodePtr &p_node, const NodePtr &t_node, const std::
   GE_WARN_ASSERT(gert::bg::GetAllIrAttrs(p_node, p_attr_values));
   GE_WARN_ASSERT(gert::bg::GetAllIrAttrs(t_node, t_attr_values));
   GE_WARN_ASSERT(p_attr_values.size() == attr_num,
-                 "P node[%][%s] ir attr value num:[%zu] is not equal with ir attr def num:[%zu]", p_node->GetNamePtr(),
+                 "P node[%s][%s] ir attr value num:[%zu] is not equal with ir attr def num:[%zu]", p_node->GetNamePtr(),
                  p_node->GetTypePtr(), p_attr_values.size(), attr_num);
   GE_WARN_ASSERT(t_attr_values.size() == attr_num,
-                 "T node[%][%s] ir attr value num:[%zu] is not equal with ir attr def num:[%zu]", t_node->GetNamePtr(),
+                 "T node[%s][%s] ir attr value num:[%zu] is not equal with ir attr def num:[%zu]", t_node->GetNamePtr(),
                  t_node->GetTypePtr(), t_attr_values.size(), attr_num);
 
   for (size_t i = 0U; i < attr_num; ++i) {

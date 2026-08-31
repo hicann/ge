@@ -91,7 +91,7 @@ void MbufReader::DumpReaderStatus() const {
     queue_size_list.reserve(queue_wrappers_.size());
     QueryQueueSize(queue_size_list, not_empty_queue_num);
     if ((not_empty_queue_num > 0) || some_data_cached) {
-      queue_status_info += ", may be miss data, current queue size=" + VecToStr(queue_size_list);
+      queue_status_info += ", data may be missing, current queue size=" + VecToStr(queue_size_list);
     }
   }
 

@@ -136,7 +136,7 @@ FsmStatus CacheManager::DeallocateCache(int64_t cache_id) {
   std::lock_guard<std::mutex> lk(mu_);
   const auto it = cache_id_to_entry_.find(cache_id);
   if (it == cache_id_to_entry_.cend()) {
-    UDF_LOG_INFO("[cache_id:%ld][Deallocate] failed, cache_id not exist", cache_id);
+    UDF_LOG_ERROR("[cache_id:%ld][Deallocate] failed, cache_id not exist", cache_id);
     return FsmStatus::kFsmKvNotExist;
   }
   auto &cache_entry = it->second;

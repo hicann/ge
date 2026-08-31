@@ -173,14 +173,14 @@ NodePtr AddMemcpyBeforeNode(const NodePtr &node, int32_t index) {
 Status BypassSwitchOut(const NodePtr &switch_node, int32_t out_index) {
   auto nodes_and_anchors = GetOutDataNodesByIndex(switch_node, out_index);
   if (nodes_and_anchors.empty()) {
-    GELOGD("The switch node %s does not has out branch %d, skip the bypass process", switch_node->GetName().c_str(),
+    GELOGD("The switch node %s does not have out branch %d, skip the bypass process", switch_node->GetName().c_str(),
            out_index);
     return SUCCESS;
   }
 
   auto data_node_and_anchor = GetInDataNodeByIndex(switch_node, SWITCH_DATA_INPUT);
   if (data_node_and_anchor.first == nullptr) {
-    GELOGW("Cannot bypass switch node %s, the node does not has a data input", switch_node->GetName().c_str());
+    GELOGW("Cannot bypass switch node %s, the node does not have a data input", switch_node->GetName().c_str());
     return SUCCESS;
   }
 

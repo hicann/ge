@@ -14,7 +14,9 @@ import os
 import re
 import sys
 
-PATTERN_FUNCTION = re.compile(r"ACL_FUNC_VISIBILITY\s+\n+.+\w+\([^();]*\);|.+\w+\([^();]*\);")
+PATTERN_FUNCTION = re.compile(
+    r"ACL_FUNC_VISIBILITY\s+\n+.+\w+\([^();]*\);|.+\w+\([^();]*\);"
+)
 PATTERN_RETURN = re.compile(r"([^ ]+[ *])\w+\([^;]+;")
 
 RETURN_STATEMENTS = {
@@ -87,12 +89,14 @@ def generate_function(header_files):
         header_basename = os.path.basename(header)
         content.append("// stub for {}\n".format(header_basename))
         functions = collect_functions(header)
-        print("inc file:{}, functions numbers:{}".format(header_basename, len(functions)))
+        print(
+            "inc file:{}, functions numbers:{}".format(header_basename, len(functions))
+        )
         total += len(functions)
         for func in functions:
             content.append("{}\n".format(implement_function(func)))
             content.append("\n")
-    print("implement concent build success")
+    print("implement content build success")
     print("total functions number is {}".format(total))
     return content
 

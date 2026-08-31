@@ -47,7 +47,7 @@ ge::graphStatus MultiStreamMemBlock::ReInit(GertAllocator *birth_allocator, ge::
   birth_allocator_ = birth_allocator;
   if (SECUREC_UNLIKELY(mem_block_ != nullptr)) {
     GELOGE(ge::GRAPH_PARAM_INVALID,
-           "Failed to ReInit GertMemBlock, origin mem_block is not cleared, this may cased memory leaks");
+           "Failed to ReInit GertMemBlock, origin mem_block is not cleared, this may caused memory leaks");
     return ge::GRAPH_PARAM_INVALID;
   }
   mem_block_ = block;

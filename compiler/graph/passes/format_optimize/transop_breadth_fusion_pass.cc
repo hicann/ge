@@ -139,7 +139,7 @@ Status TransOpBreadthFusionPass::Run(ge::ComputeGraphPtr graph) {
     for (auto const &id_to_trans_nodes : ids_to_trans_nodes) {
       if (id_to_trans_nodes.second.size() > 1) {
         GELOGI(
-            "Begin to breath fusion output trans-op-nodes for %s,"
+            "Begin to breadth fusion output trans-op-nodes for %s,"
             " trans id %s, trans-op count %zu.",
             node->GetName().c_str(), id_to_trans_nodes.first.c_str(), id_to_trans_nodes.second.size());
         graphStatus status = Fusion(id_to_trans_nodes.second, graph);

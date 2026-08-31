@@ -175,7 +175,7 @@ graphStatus ConcatToBroadcast(const NodePtr &node) {
   indices.emplace_back(output_dims);
   indices.emplace_back(x_dims);
   loop::Index broadcast;
-  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to imply input broadcast");
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to apply input broadcast");
   loop::Store(node->GetOutDataAnchor(0), loop::Broadcast(x, x_dims, broadcast));
   GELOGD("concat node: %s lowered to broadcast", node->GetNamePtr());
   (void)AttrUtils::SetBool(node->GetOpDesc(), "_disable_lifting", true);
@@ -257,7 +257,7 @@ graphStatus GetMultiples(const NodePtr &node, std::vector<int64_t> &multiples) {
                               "Failed to get multiples dim");
 
   const std::vector<int64_t> dims = multiples_tensor.GetTensorDesc().GetShape().GetDims();
-  LOWERING_WARN_RECORD_REASON(dims.size() == 1U, node, "Multiples dims(%zu) is not 1.", dims.size());
+  LOWERING_WARN_RECORD_REASON(dims.size() == 1U, node, "Multiple dims(%zu) is not 1.", dims.size());
   LOWERING_WARN_RECORD_REASON(multiples_tensor.GetData() != nullptr, node, "Multiples_tensor is null");
 
   const ge::DataType tensor_dtype = multiples_tensor.GetTensorDesc().GetDataType();
@@ -376,7 +376,7 @@ graphStatus BroadCastByInDataAnchors(const NodePtr &node, const vector<InDataAnc
     indices.emplace_back(sym_attr->symbolic_tensor.GetOriginSymbolShape().GetDims());
   }
   LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcasted) == GRAPH_SUCCESS, node,
-                              "Failed to imply broadcast input");
+                              "Failed to apply broadcast input");
   return GRAPH_SUCCESS;
 }
 
@@ -801,7 +801,7 @@ bool IsRedundantNode(const NodePtr &node, std::vector<ge::Expression> &x_dims) {
   const auto out_anchor = node->GetOutDataAnchor(0);
   std::vector<Expression> dst_dims;
   if (loop::GetBufferShape(out_anchor, dst_dims) != GRAPH_SUCCESS) {
-    GELOGI("Failed to get output buffer shape, skip tans to direct load");
+    GELOGI("Failed to get output buffer shape, skip trans to direct load");
     return false;
   }
   if (dst_dims.size() != x_dims.size()) {
@@ -1513,7 +1513,7 @@ REGISTER_LOWERING(ClipByValue) {
   indices.emplace_back(clip_value_min_dims);
   indices.emplace_back(clip_value_max_dims);
 
-  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcasted) == GRAPH_SUCCESS, node, "Failed to imply broadcast.");
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcasted) == GRAPH_SUCCESS, node, "Failed to apply broadcast.");
   constexpr size_t clip_value_min_idx = 1U;
   constexpr size_t clip_value_max_idx = 2U;
   auto clip_value_min_var = loop::Broadcast(clip_value_min_tensor, indices[clip_value_min_idx], broadcasted);
@@ -1636,7 +1636,7 @@ REGISTER_LOWERING(AddN) {
     indices.emplace_back(sym_attr->symbolic_tensor.GetOriginSymbolShape().GetDims());
   }
   LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcasted) == GRAPH_SUCCESS, node,
-                              "Failed to imply input broadcast");
+                              "Failed to apply input broadcast");
 
   auto sum = loop::Broadcast(loop::Load(node->GetInDataAnchor(0)), indices[0], broadcasted);
   for (size_t i = 1U; i < node->GetAllInDataAnchorsSize(); i++) {
@@ -1743,7 +1743,7 @@ REGISTER_LOWERING(BroadcastTo) {
   indices.emplace_back(x_dims);
 
   loop::Index broadcast;
-  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to imply input broadcast");
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to apply input broadcast");
   loop::Store(node->GetOutDataAnchor(0), loop::Broadcast(x, x_dims, broadcast));
   return GRAPH_SUCCESS;
 }
@@ -2539,7 +2539,7 @@ REGISTER_LOWERING(TanhGrad) {
   std::vector<loop::Index> indices;
   indices.emplace_back(y_dims);
   indices.emplace_back(dy_dims);
-  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to imply input broadcast");
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to apply input broadcast");
   const auto y = loop::Broadcast(loop::Load(node->GetInDataAnchor(0)), indices[0], broadcast);
   const auto dy = loop::Broadcast(loop::Load(node->GetInDataAnchor(1)), indices[1], broadcast);
   const auto dims_size = std::max(y_dims.size(), dy_dims.size());
@@ -2578,7 +2578,7 @@ REGISTER_LOWERING(FusedMulAddN) {
   indices.emplace_back(input1_exp);
   indices.emplace_back(input2_exp);
   LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcasted) == GRAPH_SUCCESS, node,
-                              "Failed to imply input broadcast");
+                              "Failed to apply input broadcast");
   auto x1 = loop::Broadcast(loop::Load(node->GetInDataAnchor(0)), indices[0], broadcasted);
   auto x2 = loop::Broadcast(loop::Load(node->GetInDataAnchor(1)), indices[1], broadcasted);
   auto x3 = loop::Broadcast(loop::Load(node->GetInDataAnchor(2)), indices[2], broadcasted);
@@ -2617,7 +2617,7 @@ REGISTER_LOWERING(L2Loss) {
 REGISTER_LOWERING(BNInferenceD) {
   LOWERING_WARN_RECORD_REASON((node->GetInDataAnchor(0) != nullptr && node->GetInDataAnchor(1) != nullptr &&
                                node->GetInDataAnchor(2) != nullptr),
-                              node, "Exist one input is nullptr");
+                              node, "One of the inputs is nullptr");
   bool exist_scale = node->GetInDataAnchor(3) != nullptr && node->GetInDataAnchor(3)->GetPeerOutAnchor() != nullptr;
   bool exist_b = node->GetInDataAnchor(4) != nullptr && node->GetInDataAnchor(4)->GetPeerOutAnchor() != nullptr;
 
@@ -2735,7 +2735,8 @@ REGISTER_LOWERING(AscendQuant) {
 
   int32_t dst_type = static_cast<int32_t>(ge::DT_INT8);
   (void)AttrUtils::GetInt(node->GetOpDesc(), "dst_type", dst_type);
-  LOWERING_WARN_RECORD_REASON(static_cast<ge::DataType>(dst_type) != ge::DT_BOOL, node, "Dst type no support bool.");
+  LOWERING_WARN_RECORD_REASON(static_cast<ge::DataType>(dst_type) != ge::DT_BOOL, node,
+                              "Dst type does not support bool.");
 
   auto x = loop::Load(node->GetInDataAnchor(0));
   std::ostringstream scale_oss;

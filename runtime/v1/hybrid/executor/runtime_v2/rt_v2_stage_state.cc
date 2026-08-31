@@ -23,7 +23,7 @@ std::unique_ptr<StageState> StageState::Create(const ge::GeRootModelPtr &model, 
   GE_ASSERT_NOTNULL(model);
   GE_ASSERT_NOTNULL(model->GetRootGraph());
   auto executor = gert::RtV2SimpleExecutor::Create(model, session);
-  GE_ASSERT_NOTNULL(executor, "Failed create executor for model %s", model->GetRootGraph()->GetName().c_str());
+  GE_ASSERT_NOTNULL(executor, "Failed to create executor for model %s", model->GetRootGraph()->GetName().c_str());
   return std::unique_ptr<StageState>(new (std::nothrow)
                                          StageState(model->GetRootGraph()->GetName(), std::move(executor)));
 }
@@ -67,7 +67,7 @@ ge::Status StageState::Load(const gert::ModelExecuteArg &arg, const gert::ModelL
 ge::Status StageState::LoadAsDaemon(const gert::ModelExecuteArg &arg, const gert::ModelLoadArg &load_arg,
                                     CtxInitializer ctx_initializer, std::shared_ptr<StageNotification> &notification) {
   notification_ = ge::MakeShared<StageNotification>();
-  GE_ASSERT_NOTNULL(notification_, "Failed create notification for stage %s", id_.c_str());
+  GE_ASSERT_NOTNULL(notification_, "Failed to create notification for stage %s", id_.c_str());
   notification = notification_;
   GE_ASSERT_SUCCESS(Load(arg, load_arg, true));  // Daemon load will create new stream
   worker_ = std::thread([this, ctx_initializer]() {
@@ -76,7 +76,7 @@ ge::Status StageState::LoadAsDaemon(const gert::ModelExecuteArg &arg, const gert
     while (true) {
       StageTask task = notification_->GetTask();
       if (task.signal == StageTask::Signal::RUN) {
-        GELOGI("Stage %s got an run task with expect steps %zu", id_.c_str(), task.num_steps);
+        GELOGI("Stage %s got a run task with expect steps %zu", id_.c_str(), task.num_steps);
         (void)Run(task);
         notification_->Done();
       } else {

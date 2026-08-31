@@ -968,7 +968,7 @@ void DataDumper::DumpContext(const InnerDumpInfo &inner_dump_info, toolkit::aicp
     }
     task.mutable_context()->Add(std::move(ffts_context));
     GELOGD(
-        "Op %s add context with task id %u steam id %u context id %u thread id %u, input num %u, output num %u, "
+        "Op %s add context with task id %u stream id %u context id %u thread id %u, input num %u, output num %u, "
         "address info %s, is_fftsplus_task %d",
         inner_dump_info.op->GetName().c_str(), inner_dump_info.task_id, inner_dump_info.stream_id,
         inner_dump_info.context_id, inner_dump_info.thread_id, context_.input.size(), context_.output.size(),

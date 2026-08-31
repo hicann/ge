@@ -293,7 +293,7 @@ Status JitExecutor::LoadGraph(UserGraphExecution &task) {
 
   auto gep = ep->FindGuarded(*task.external_rt_inputs);
   if (gep == nullptr || !gep->Compiled()) {
-    GELOGE(ge::FAILED, "Guarde is not exist or Compiled EP[%ld], USER_GRAPH[%u]", ep->GetId(), task.user_graph_id);
+    GELOGE(ge::FAILED, "Guard is not exist or Compiled EP[%ld], USER_GRAPH[%u]", ep->GetId(), task.user_graph_id);
     return FAILED;
   }
   GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u].", gep->GetCompiledGraphId(),

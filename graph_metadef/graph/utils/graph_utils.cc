@@ -102,7 +102,7 @@ graphStatus ReLinkInputDataEdge(const NodePtr &input_node, const NodePtr &target
   (void)AttrUtils::GetInt(input_node->GetOpDesc(), ATTR_NAME_INDEX, index);
   GE_ASSERT_TRUE(index >= 0, "Attr index[%d] of node: %s is invalid", index, input_node->GetNamePtr());
   GE_ASSERT_TRUE(index < static_cast<int32_t>(target_node->GetAllInDataAnchorsSize()),
-                 "Attr index[%d] of node: %s cannot larger than input num: %u of target node: %s", index,
+                 "Attr index[%d] of node: %s cannot be larger than input num: %u of target node: %s", index,
                  input_node->GetNamePtr(), target_node->GetAllInDataAnchorsSize(), target_node->GetNamePtr());
   GELOGD("Begin to handle subgraph input node:%s with index:%d.", input_node->GetName().c_str(), index);
   // get node's in data anchor and peer out anchor
@@ -139,7 +139,7 @@ graphStatus RelinkOutputNodeEdge(const NodePtr &out_node, const int32_t out_inde
                                  const size_t target_index) {
   // 处理输出算子的连边关系
   GE_ASSERT_TRUE(target_index < static_cast<size_t>(target_node->GetAllOutDataAnchorsSize()),
-                 "Attr index[%d] of node: %s cannot larger than input num: %u of target node: %s", target_index,
+                 "Attr index[%d] of node: %s cannot be larger than output num: %u of target node: %s", target_index,
                  out_node->GetNamePtr(), target_node->GetAllOutDataAnchorsSize(), target_node->GetNamePtr());
   auto node_out_anchor = target_node->GetOutDataAnchor(target_index);
   GE_ASSERT_NOTNULL(node_out_anchor, "Get index: %zu of node: %s failed", target_index, target_node->GetNamePtr());
@@ -495,7 +495,7 @@ GraphUtils::RemoveNodesWithoutRelink(const ComputeGraphPtr &compute_graph, const
   }
   const auto to_be_remove_nodes_size = nodes.size();
   if (success_removed_nodes_size != to_be_remove_nodes_size) {
-    GELOGW("Successfully remove %zu nodes but there are %zu nodes to be delete", success_removed_nodes_size,
+    GELOGW("Successfully remove %zu nodes but there are %zu nodes to be deleted", success_removed_nodes_size,
            to_be_remove_nodes_size);
   }
   return GRAPH_SUCCESS;
@@ -851,7 +851,7 @@ graphStatus GetDumpRealPath(const int64_t file_index, const std::string &suffix,
       const std::string file_name = user_graph_name.substr(sep + 1UL, user_graph_name.length());
       std::string path_dir = user_graph_name.substr(0UL, sep + 1UL);
       if ((file_name.length() == 0UL) || (path_dir.length() == 0UL)) {
-        GELOGW("[Invalid]path or name invalid.user_graph_name:%s", user_graph_name.c_str());
+        GELOGW("[Invalid] path or name is invalid. user_graph_name:%s", user_graph_name.c_str());
         return GRAPH_PARAM_INVALID;
       }
 
@@ -867,7 +867,7 @@ graphStatus GetDumpRealPath(const int64_t file_index, const std::string &suffix,
   char_t real_path[MMPA_MAX_PATH] = {};
   auto const ret = mmRealPath(relative_path.c_str(), &(real_path[0]), MMPA_MAX_PATH);
   if (ret != EN_OK) {
-    GELOGD("[Get][RealPath]file does not exist, it will be create. ret:%d", ret);
+    GELOGD("[Get][RealPath]file does not exist, it will be created. ret:%d", ret);
   }
 
   real_path_name = real_path;
@@ -1147,7 +1147,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY bool GraphUtils::LoadGEGraph(cons
   // Get Model object from ModelDef by deserialize ModelDef
   GE_ASSERT_SUCCESS(model.Load(model_def), "[Get][Model] failed from ModelDef:%s", file);
   GE_CHK_BOOL_EXEC(model.GetGraph() != nullptr,
-                   REPORT_INNER_ERR_MSG("E18888", "Get computer graph is nullptr, model file:%s.", file);
+                   REPORT_INNER_ERR_MSG("E18888", "Get compute graph is nullptr, model file:%s.", file);
                    return false, "[Get][ComputerGraph] is nullptr");
   compute_graph = *model.GetGraph();
   return true;
@@ -1163,12 +1163,12 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY bool GraphUtils::LoadGEGraph(cons
   // Get Model object from ModelDef by deserialize ModelDef
   GE_ASSERT_SUCCESS(model.Load(model_def), "[Get][Model] failed from ModelDef:%s", file);
   GE_CHK_BOOL_EXEC(model.GetGraph() != nullptr,
-                   REPORT_INNER_ERR_MSG("E18888", "Get computer graph is nullptr, model file:%s.", file);
+                   REPORT_INNER_ERR_MSG("E18888", "Get compute graph is nullptr, model file:%s.", file);
                    return false, "[Get][ComputerGraph] is nullptr");
   compute_graph = model.GetGraph();
   for (const auto &node : compute_graph->GetDirectNode()) {
     if (node == nullptr) {
-      REPORT_INNER_ERR_MSG("E18888", "ModeDef %s has nullptr node.", file);
+      REPORT_INNER_ERR_MSG("E18888", "ModelDef %s has nullptr node.", file);
       GELOGE(GRAPH_FAILED, "[Get][Node]Nullptr node in graph:%s, model:%s", compute_graph->GetName().c_str(), file);
       return false;
     }
@@ -1487,7 +1487,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY void GraphUtils::DumpGrphToOnnx(c
   if ((proto_file.length()) >= kNameMax) {
     proto_file = proto_file.substr(0U, kNameMax - 7U);
     proto_file = proto_file + ".pbtxt";
-    GELOGW("[Check][Param] File name is too longer!, file:%s", proto_file.c_str());
+    GELOGW("[Check][Param] File name is too long, file:%s", proto_file.c_str());
   }
   const std::string full_proto_file = path + "/" + proto_file;
   const auto real_path = ComGraphMakeUnique<char_t[]>(static_cast<size_t>(MMPA_MAX_PATH));
@@ -3307,7 +3307,7 @@ graphStatus GraphUtils::UnionSymbolMapping(const NodeIndexIO &exist_node_info1, 
     GE_ASSERT_TRUE(iter != anchor_to_symbol.end(), "anchor %s does not exist in anchor_to_symbol.",
                    node_index_io.ToString().c_str());
     if (iter->second != min_symbol) {
-      GELOGW("[GetRefMapping][Check] not expected symbol of anchor %s, expect %s but %s exactly.", iter->first.c_str(),
+      GELOGW("[GetRefMapping][Check] not expected symbol of anchor %s, expect %s but got %s.", iter->first.c_str(),
              min_symbol.c_str(), iter->second.c_str());
     }
     iter->second = symbol;
@@ -4650,7 +4650,7 @@ void CompleteGraphBuilder::AddNetOutputNode(graphStatus &error_code, std::string
 
     if (net_output_desc->AddInputDesc(tensor) != GRAPH_SUCCESS) {
       error_code = GRAPH_FAILED;
-      error_msg = "AddNetOutputNode failed: add input_desc ailed.";
+      error_msg = "AddNetOutputNode failed: add input_desc failed.";
       return;
     }
     peer_out_anchors[i] = node->GetOutDataAnchor(static_cast<int32_t>(index));
@@ -4748,7 +4748,7 @@ void CompleteGraphBuilder::PostProcess(graphStatus &error_code, std::string &err
       std::vector<ComputeGraphPtr> subgraphs;
       if (NodeUtils::GetDirectSubgraphs(node, subgraphs) != GRAPH_SUCCESS) {
         error_code = GRAPH_FAILED;
-        error_msg = "Get subgraphs for failed failed, node:" + node->GetName();
+        error_msg = "Get subgraphs for node failed, node:" + node->GetName();
         return;
       }
       for (const auto &subgraph : subgraphs) {
@@ -4901,7 +4901,7 @@ graphStatus GraphUtils::RemoveJustNodes(const ComputeGraphPtr &compute_graph,
   }
   const auto to_be_remove_nodes_size = nodes.size();
   if (success_removed_nodes_size != to_be_remove_nodes_size) {
-    GELOGW("Successfully remove %zu nodes but there are %zu nodes to be delete", success_removed_nodes_size,
+    GELOGW("Successfully remove %zu nodes but there are %zu nodes to be deleted", success_removed_nodes_size,
            to_be_remove_nodes_size);
   }
   return GRAPH_SUCCESS;
@@ -4971,7 +4971,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::GetSuppor
   constexpr size_t kInplaceAbilitySize = 2U;
   for (auto &inplace_index : output_inplace_index_list) {
     if (inplace_index.size() != kInplaceAbilitySize) {
-      GELOGW("The size %u of inplace index is not invalid, must be equal to 2.", inplace_index.size());
+      GELOGW("The size %u of inplace index is invalid, must be equal to 2.", inplace_index.size());
       return GRAPH_FAILED;
     }
     GE_ASSERT_TRUE(ge::IntegerChecker<int32_t>::Compat(inplace_index[0]));
@@ -5122,7 +5122,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::GenDumpOn
   std::string dump_file_name = ss.str();
   if ((dump_file_name.length()) >= kNameMax) {
     dump_file_name = dump_file_name.substr(0U, kNameMax - 7U) + ".pbtxt";
-    GELOGW("[Check][Param] File name is too longer!, file:%s", dump_file_name.c_str());
+    GELOGW("[Check][Param] File name is too long!, file:%s", dump_file_name.c_str());
   }
   std::string proto_file = stream_file_name.str() + dump_file_name;
 
@@ -5134,7 +5134,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::GenDumpOn
   /// Distinguish between last the two cases in the function WriteProtoToTextFile call open()
   auto const ret = mmRealPath(proto_file.c_str(), &(real_path[0]), MMPA_MAX_PATH);
   if (ret != EN_OK) {
-    GELOGD("[Get][RealPath]file does not exist, it will be create. ret:%d", ret);
+    GELOGD("[Get][RealPath]file does not exist, it will be created. ret:%d", ret);
   }
   real_path_name = real_path;
   return SUCCESS;

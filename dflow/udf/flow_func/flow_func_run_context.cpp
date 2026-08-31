@@ -28,7 +28,7 @@ bool CheckAlignSizeValid(const uint32_t align) {
     return false;
   }
   if (kMaxAlignSize % align != 0) {
-    UDF_LOG_ERROR("alloc failed, as align=%u must can be divisible by %zu.", align, kMaxAlignSize);
+    UDF_LOG_ERROR("alloc failed, as align=%u must be divisible by %zu.", align, kMaxAlignSize);
     return false;
   }
   return true;
@@ -198,7 +198,7 @@ int32_t FlowFuncRunContext::CheckParamsForUserData(const void *data, size_t size
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }
   if (size == 0U) {
-    UDF_LOG_ERROR("The size is 0, should in (0, 64].");
+    UDF_LOG_ERROR("The size is 0, should be in (0, 64].");
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }
   if ((offset >= kMaxUserDataSize) || ((kMaxUserDataSize - offset) < size)) {
@@ -282,7 +282,7 @@ int32_t FlowFuncRunContext::BalanceOptionFilter(const OutOptions &options,
                                                 std::vector<std::shared_ptr<FlowMsg>> &after_filter_out_msgs) const {
   const auto *balance_config = options.GetBalanceConfig();
   if (balance_config == nullptr) {
-    UDF_LOG_INFO("balance config is not exits, instance name[%s].", params_->GetName());
+    UDF_LOG_INFO("balance config does not exist, instance name[%s].", params_->GetName());
     after_filter_out_msgs = out_msgs;
     return FLOW_FUNC_SUCCESS;
   }

@@ -66,11 +66,11 @@ Status SubgraphExecutor::InitInputsForKnownShape(const std::vector<TensorValue> 
     if (static_cast<size_t>(parent_input_index) >= inputs.size()) {
       GELOGE(INTERNAL_ERROR,
              "[Check][Size][%s] Number of inputs [%zu] is not sufficient for subgraph"
-             "which needs at lease [%d] inputs",
+             "which needs at least [%d] inputs",
              graph_item_->GetName().c_str(), inputs.size(), parent_input_index + 1);
       REPORT_INNER_ERR_MSG("E19999",
                            "[%s] Number of inputs [%zu] is not sufficient for subgraph"
-                           "which needs at lease [%d] inputs",
+                           "which needs at least [%d] inputs",
                            graph_item_->GetName().c_str(), inputs.size(), parent_input_index + 1);
       return INTERNAL_ERROR;
     }

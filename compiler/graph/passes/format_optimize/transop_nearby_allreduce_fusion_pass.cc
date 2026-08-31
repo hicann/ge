@@ -19,7 +19,7 @@
 namespace ge {
 Status TransOpNearbyAllreduceFusionPass::Run(NodePtr &node) {
   if (node == nullptr) {
-    GELOGW("null node is existed in graph");
+    GELOGW("null node exists in graph");
     return SUCCESS;
   }
 
@@ -61,7 +61,7 @@ bool TransOpNearbyAllreduceFusionPass::IsSymmetricTransOps(const NodePtr &node1,
   GE_CHECK_NOTNULL_EXEC(node2_output_desc, return false);
 
   // two symmetric trans ops should have symmetric input/output datatype
-  GELOGD("format: nod1_input=%d, nod1_output=%d, nod2_input=%d, nod2_output=%d", node1_input_desc->GetFormat(),
+  GELOGD("format: node1_input=%d, node1_output=%d, node2_input=%d, node2_output=%d", node1_input_desc->GetFormat(),
          node1_output_desc->GetFormat(), node2_input_desc->GetFormat(), node2_output_desc->GetFormat());
   if (node1_input_desc->GetFormat() != node2_output_desc->GetFormat() ||
       node1_output_desc->GetFormat() != node2_input_desc->GetFormat()) {
@@ -69,7 +69,7 @@ bool TransOpNearbyAllreduceFusionPass::IsSymmetricTransOps(const NodePtr &node1,
   }
 
   // two symmetric trans ops should have symmetric input/output format
-  GELOGD("datatype: nod1_input=%d, nod1_output=%d, nod2_input=%d, nod2_output=%d", node1_input_desc->GetDataType(),
+  GELOGD("datatype: node1_input=%d, node1_output=%d, node2_input=%d, node2_output=%d", node1_input_desc->GetDataType(),
          node1_output_desc->GetDataType(), node2_input_desc->GetDataType(), node2_output_desc->GetDataType());
   if (node1_input_desc->GetDataType() != node2_output_desc->GetDataType() ||
       node1_output_desc->GetDataType() != node2_input_desc->GetDataType()) {

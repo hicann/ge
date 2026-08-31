@@ -199,7 +199,7 @@ Status Get64BitSectionHeaders(ElfData &elf_data) {
   const uint32_t sh_size = elf_data.elf_header.e_shentsize;
   const uint32_t sh_num = elf_data.elf_header.e_shnum;
   GE_ASSERT_TRUE((sh_size > 0U) && (sh_num > 0U),
-                 "The value of e_shentsize: %u field or e_shnum: %u should more than 0.", sh_size, sh_num);
+                 "The value of e_shentsize: %u field or e_shnum: %u should be more than 0.", sh_size, sh_num);
   GE_ASSERT_TRUE((sh_num <= (~(0UL) / sh_size)), "The value of e_shentsize: %u and e_shnum: %u is invalid.", sh_size,
                  sh_num);
   GE_ASSERT_TRUE((static_cast<size_t>(sh_size) == sizeof(Elf64ExternalShdr)),

@@ -56,13 +56,13 @@ graphStatus GatherCommonInfer(gert::InferSymbolShapeContext *context, const gert
     real_in_shape.AppendDim(Symbol(1));
     in_real_dim_cnt = 1;
   }
-  GE_ASSERT_TRUE(in_real_dim_cnt >= 1, "in_real_dim_cnt:%d must be greater than 1", in_real_dim_cnt);
+  GE_ASSERT_TRUE(in_real_dim_cnt >= 1, "in_real_dim_cnt:%d must be greater than or equal to 1", in_real_dim_cnt);
   GE_ASSERT_TRUE(batch_dims < in_real_dim_cnt, "batch_dims:%d must be less than rank x:%d", batch_dims,
                  in_real_dim_cnt);
   // todo 添加guard in_shape和indies_shape前batch_dims的维度相同
   GE_ASSERT_TRUE(CheckAndUpdateAxis(axis, in_real_dim_cnt), "axis:%d is invalid, in_real_dim_cnt:%d", axis,
                  in_real_dim_cnt);
-  GE_ASSERT_TRUE(batch_dims <= axis, "batch_dims:%d is must be less or equal to axis:%d", batch_dims, axis);
+  GE_ASSERT_TRUE(batch_dims <= axis, "batch_dims:%d must be less than or equal to axis:%d", batch_dims, axis);
   const auto out_shape = context->GetOutputSymbolShape(0);
   GE_ASSERT_NOTNULL(out_shape);
   for (int64_t i = 0; i < axis; i++) {

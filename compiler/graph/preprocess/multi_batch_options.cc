@@ -531,7 +531,7 @@ Status InitDynamicParams(std::vector<std::vector<int64_t>> &shapes) {
   if (!GetLocalOmgContext().dynamic_image_size.empty()) {
     GELOGD("Found dynamic image size option, value %s", GetLocalOmgContext().dynamic_image_size.c_str());
     GE_ASSERT_TRUE(ParseDynamicSize(GetLocalOmgContext().dynamic_image_size, shapes),
-                   "Option dynamic_batch_size[%s] should not have non-digital character",
+                   "Option dynamic_image_size[%s] should not have non-digital character",
                    GetLocalOmgContext().dynamic_image_size.c_str());
     for (const auto &shape : shapes) {
       GELOGI("Found dynamic image size, shape %s", ToString(shape).c_str());
@@ -787,7 +787,7 @@ Status ParseInputShapes(const std::string &input_shapes,
   for (const auto &shape : shape_vec) {
     std::vector<std::string> shape_pair_vec = SplitInputShape(shape);
     if (shape_pair_vec.size() != kDefaultShapePairSize) {
-      GELOGE(INTERNAL_ERROR, "shape[%s] after split by \":\" must contains two parts: name and value", shape.c_str());
+      GELOGE(INTERNAL_ERROR, "shape[%s] after split by \":\" must contain two parts: name and value", shape.c_str());
       return INTERNAL_ERROR;
     }
 

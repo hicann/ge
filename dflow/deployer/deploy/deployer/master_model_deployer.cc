@@ -231,7 +231,7 @@ int32_t MasterModelDeployer::GetRankTableOrder() {
   std::lock_guard<std::mutex> lk(mu_);
   static int32_t creat_rank_table_cnt = 0;
   creat_rank_table_cnt++;
-  GELOGD("[CreateRankTable] begin, creat_rank_table_cnt is %d.", creat_rank_table_cnt);
+  GELOGD("[CreateRankTable] begin, create_rank_table_cnt is %d.", creat_rank_table_cnt);
   return creat_rank_table_cnt;
 }
 
@@ -416,9 +416,9 @@ Status MasterModelDeployer::UpdateProfilingInfo(const bool is_prof_start) {
     }
   }
   GE_CHK_STATUS(DeployContext::LocalContext().UpdateLocalProfiling(is_prof_start, config_data, model_ids),
-                "Filed to UpdateLocalProfilingInfo");
+                "Failed to UpdateLocalProfilingInfo");
   GE_CHK_STATUS(HeterogeneousModelDeployer::UpdateRemoteProfiling(is_prof_start, config_data, model_id_to_nodes),
-                "Filed to UpdateRemoteProfiling");
+                "Failed to UpdateRemoteProfiling");
   return SUCCESS;
 }
 

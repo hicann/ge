@@ -61,14 +61,14 @@ Status NoUseReshapeRemovePass::Run(ge::NodePtr &node) {
   }
 
   if (input_4dims.size() != output_4dims.size()) {
-    GELOGI("Input and output dim size is not equal.Keep this reshape op.");
+    GELOGI("Input and output dim size is not equal. Keep this reshape op.");
     return SUCCESS;
   }
 
   size_t vec_size = input_4dims.size();
   for (size_t i = 0; i < vec_size; i++) {
     if (input_4dims[i] < 0) {
-      GELOGI("Input shape is unknown.Keep this reshape op.");
+      GELOGI("Input shape is unknown. Keep this reshape op.");
       return SUCCESS;
     }
     if (input_4dims[i] != output_4dims[i]) {

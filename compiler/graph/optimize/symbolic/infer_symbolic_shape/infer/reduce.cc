@@ -44,7 +44,7 @@ graphStatus InferShape4ReduceCommon(gert::InferSymbolShapeContext *context) {
   auto input1_desc = context->GetInputDesc(1);
   GE_ASSERT_NOTNULL(input1_desc);
   auto dtype = input1_desc->GetDataType();
-  GE_ASSERT(dtype == DT_INT32 || dtype == DT_INT64, "axes datatype %s, must in (DT_INT32，DT_INT64)",
+  GE_ASSERT(dtype == DT_INT32 || dtype == DT_INT64, "axes datatype %s, must in (DT_INT32, DT_INT64)",
             TypeUtils::DataTypeToSerialString(dtype).c_str());
   if (dtype == DT_INT32) {
     return SymbolicInferUtil::ReduceDims<int32_t>(in_shape, axes_tensor, axes_size, *keep_dims, out_shape);
@@ -188,7 +188,7 @@ graphStatus InferShape4LayerNormV3(gert::InferSymbolShapeContext *context) {
   if (begin_norm_axis < 0 || static_cast<size_t>(begin_norm_axis) >= real_dim_num) {
     GELOGE(PARAM_INVALID,
            "the op layernormv3 does not support beginNormAxis"
-           "(%ld) large than shape dims(%lu)",
+           "(%ld) larger than shape dims(%lu)",
            begin_norm_axis, real_dim_num);
     return ge::PARAM_INVALID;
   }

@@ -76,7 +76,7 @@ Status TensorFlowAutoMappingParserAdapter::ParseParams(const Message *op_src, ge
     dynamic_tensor_num = attr_num.list().type_size();
 
     GE_CHK_STATUS_RET(op_dest->AddDynamicInputDesc("x", dynamic_tensor_num), "AddDynamicInputDesc failed");
-    GE_CHK_STATUS_RET(op_dest->AddDynamicOutputDesc("y", dynamic_tensor_num), "AddDynamicInputDesc failed");
+    GE_CHK_STATUS_RET(op_dest->AddDynamicOutputDesc("y", dynamic_tensor_num), "AddDynamicOutputDesc failed");
     GELOGI("add dynamic input and output for op [%s], type[%s], number:%u", op_dest->GetName().c_str(),
            op_dest->GetType().c_str(), dynamic_tensor_num);
   }

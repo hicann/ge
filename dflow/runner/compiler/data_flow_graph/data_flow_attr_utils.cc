@@ -27,7 +27,7 @@ static Status CheckFlowAttr(const T &obj) {
   std::string policy(kDefaultEnqueuePolicy);
   (void)ge::AttrUtils::GetInt(obj, ATTR_NAME_FLOW_ATTR_DEPTH, depth);
   (void)ge::AttrUtils::GetStr(obj, ATTR_NAME_FLOW_ATTR_ENQUEUE_POLICY, policy);
-  GE_ASSERT_TRUE(depth > 0, "[Check][FlowAttr] failed, depth=%d is invalid.", depth);
+  GE_ASSERT_TRUE(depth > 0, "[Check][FlowAttr] failed, depth=%d is invalid, should be greater than 0.", depth);
   GE_ASSERT_TRUE((policy == kDefaultEnqueuePolicy) || (policy == kOverwritePolicy),
                  "[Check][FlowAttr] failed, policy must be OVERWRITE or FIFO, but is %s.", policy.c_str());
   return SUCCESS;
@@ -217,7 +217,7 @@ Status DataFlowAttrUtils::SupplementMismatchEdge(const DataAnchorPtr &peer_out_a
   auto out_node = peer_out_anchor->GetOwnerNode();
   auto out_tensor = out_node->GetOpDesc()->MutableOutputDesc(AnchorUtils::GetIdx(peer_out_anchor));
   if (out_tensor == nullptr) {
-    GELOGD("Get out control anchor of node:%s is null.", node->GetName().c_str());
+    GELOGD("The out control anchor of node:%s is null.", node->GetName().c_str());
     return SUCCESS;
   }
   const bool has_out_attr = AttrUtils::GetBool(out_tensor, ATTR_NAME_FLOW_ATTR, has_out_tensor_attr);
@@ -235,13 +235,13 @@ Status DataFlowAttrUtils::SupplementMismatchEdge(const DataAnchorPtr &peer_out_a
   }
   // 2) if op input/output has been set flow attr, the peer tensor should been set flow attr
   if (has_in_tensor_attr && !has_out_tensor_attr) {
-    GELOGD("node = %s has input and do not has output attr, set input attr -> output", node->GetName().c_str());
+    GELOGD("node = %s has input attr and does not have output attr, set input attr -> output", node->GetName().c_str());
     GE_ASSERT_SUCCESS(SetFlowAttr(in_tensor_attr, out_tensor, def_fifo_depth, def_enqueue_policy),
                       "[Set][Attr] of node:%s out:%u failed.", node->GetName().c_str(),
                       AnchorUtils::GetIdx(peer_out_anchor));
   }
   if (!has_in_tensor_attr && has_out_tensor_attr) {
-    GELOGD("node = %s has output and do not has input attr, set output attr -> input", node->GetName().c_str());
+    GELOGD("node = %s has output attr and does not have input attr, set output attr -> input", node->GetName().c_str());
     GE_ASSERT_SUCCESS(SetFlowAttr(out_tensor_attr, in_tensor, def_fifo_depth, def_enqueue_policy),
                       "[Set][Attr] of node:%s of in tensor failed.", node->GetName().c_str());
   }

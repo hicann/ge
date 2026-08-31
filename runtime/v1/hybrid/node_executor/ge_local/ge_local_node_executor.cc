@@ -212,7 +212,7 @@ Status DependInputShapeTask::Execute(const TaskContext &context) const {
   const Status compute_ret = compute_kernel->Compute(node_, outputs);
   if (compute_ret != SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "node %s type %s compute failed.", node_->GetName().c_str(), node_type.c_str());
-    GELOGE(compute_ret, "[Invoke][Compute]node %s type %s compute failed or not imply.", node_->GetName().c_str(),
+    GELOGE(compute_ret, "[Invoke][Compute]node %s type %s compute failed or not implemented.", node_->GetName().c_str(),
            node_type.c_str());
     return compute_ret;
   }

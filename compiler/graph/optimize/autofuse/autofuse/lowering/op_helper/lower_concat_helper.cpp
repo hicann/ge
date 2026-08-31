@@ -184,7 +184,7 @@ graphStatus LowerConcatHelper::NeedLifting(bool &need_lifting) {
   if (!IsTile()) {
     GE_CHK_BOOL_RET_SPECIAL_STATUS(num_inputs_ > backend_spec->concat_max_input_num, GRAPH_SUCCESS,
                                    "num_inputs = %zu, do not lifting", num_inputs_);
-    GE_CHK_BOOL_RET_SPECIAL_STATUS(num_inputs_ == 1U, GRAPH_SUCCESS, "single input, do not lifting");
+    GE_CHK_BOOL_RET_SPECIAL_STATUS(num_inputs_ == 1U, GRAPH_SUCCESS, "single input, no lifting");
   }
   GE_ASSERT_SUCCESS(ParseConcatNode());
   // 暂不处理concat_dim后为动态shape的场景

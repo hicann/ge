@@ -220,7 +220,7 @@ ge::Status StaticModelOutputAllocator::GenerateOutputsReuseInfos(const ge::Compu
                                                                  std::vector<OutputReuseInfo> &output_reuse_infos) {
   const auto &net_output_node = graph->FindFirstNodeMatchType(ge::NETOUTPUT);
   if (net_output_node == nullptr) {
-    GELOGI("[%s] Subgraph do not got net output", graph->GetName().c_str());
+    GELOGI("[%s] Subgraph did not get net output", graph->GetName().c_str());
     return ge::SUCCESS;
   }
   const auto net_output_desc = net_output_node->GetOpDescBarePtr();

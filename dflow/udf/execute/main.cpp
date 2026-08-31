@@ -401,7 +401,7 @@ int32_t FlowFuncTestMain(int32_t argc, char *argv[])
 
   auto models = FlowFunc::FlowFuncModel::ParseModels(start_param.base_dir + start_param.load_path);
   if (models.empty()) {
-    UDF_LOG_ERROR("Failed to parse models failed.");
+    UDF_LOG_ERROR("Failed to parse models.");
     return FLOW_FUNC_FAILED;
   }
   int32_t ret = FlowFunc::FlowFuncDrvManager::Instance().Init();

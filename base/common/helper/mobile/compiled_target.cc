@@ -45,7 +45,7 @@ struct Head {
 std::size_t GetModelTaskSize(std::shared_ptr<ge::mobile::proto::ModelTaskDef> model_task) {
   std::size_t size = 0;
   if (model_task == nullptr) {
-    GELOGI("[Mobile] model_task == nullptr");
+    GELOGE(ge::FAILED, "[Mobile] model_task == nullptr");
     return 0;
   }
   size += sizeof(Tlv);

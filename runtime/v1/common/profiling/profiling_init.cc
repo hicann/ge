@@ -196,7 +196,7 @@ ge::Status ProfilingInit::ParseOptions(const std::string &options) {
 
 void ProfilingInit::ShutDownProfiling() {
   if (ge::ProfilingProperties::Instance().ProfilingOn()) {
-    GELOGI("Begin to shut down profiling. Report uinit to msprof");
+    GELOGI("Begin to shut down profiling. Report uninit to msprof");
     ProfilingProperties::Instance().ClearProperties();
   }
 

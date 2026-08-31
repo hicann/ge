@@ -109,7 +109,7 @@ ge::Status BuildStageNodeAndGraph(const ge::NodePtr &node, ge::NodePtr &stage_no
   stage_graph = std::make_shared<ge::ComputeGraph>(stage_name);
   GE_ASSERT_NOTNULL(stage_graph);
   auto stage_desc = ge::MakeShared<ge::OpDesc>(stage_name, ge::PARTITIONEDCALL);
-  GE_ASSERT_NOTNULL(stage_desc, "Failed create stage op desc for stage %s", stage_name.c_str());
+  GE_ASSERT_NOTNULL(stage_desc, "Failed to create stage op desc for stage %s", stage_name.c_str());
 
   std::vector<ge::NodePtr> inputs;
   GE_ASSERT_NOTNULL(node->GetOpDesc());
@@ -260,7 +260,7 @@ std::unique_ptr<RtV2PipelineExecutor> RtV2PipelineExecutor::Create(const ge::GeR
   auto root_graph = model->GetRootGraph();  // Never topo sorting here as compile results not been read
   GE_ASSERT_NOTNULL(root_graph);
   auto executor = std::unique_ptr<RtV2PipelineExecutor>(new (std::nothrow) RtV2PipelineExecutor());
-  GE_ASSERT_NOTNULL(executor, "Failed create pipeline executor for model %s", root_graph->GetName().c_str());
+  GE_ASSERT_NOTNULL(executor, "Failed to create pipeline executor for model %s", root_graph->GetName().c_str());
 
   std::map<ge::NodePtr, StageState *> stage_2_states;
   for (auto &node : root_graph->GetDirectNode()) {
@@ -281,9 +281,9 @@ std::unique_ptr<RtV2PipelineExecutor> RtV2PipelineExecutor::Create(const ge::GeR
     ge::GeRootModelPtr stage_model = nullptr;
     auto model_recover_guarder = CropStageModel(node, model, stage_model);  // Recover model once executor created
     GE_ASSERT_NOTNULL(model_recover_guarder);
-    GE_ASSERT_NOTNULL(stage_model, "Failed crop model for stage %s", node->GetName().c_str());
+    GE_ASSERT_NOTNULL(stage_model, "Failed to crop model for stage %s", node->GetName().c_str());
     executor->stage_executors_.emplace_back(StageState::Create(stage_model, session));
-    GE_ASSERT_NOTNULL(executor->stage_executors_.back(), "Failed create stage state for stage node %s",
+    GE_ASSERT_NOTNULL(executor->stage_executors_.back(), "Failed to create stage state for stage node %s",
                       node->GetName().c_str());
     stage_2_states[node] = executor->stage_executors_.back().get();
   }

@@ -727,7 +727,7 @@ Status InsertAippOpUtil::SetModelInputDims(NodePtr &data_node, NodePtr &aipp_nod
     // When dynamic bacth/hw is set, N or HW need to be set to -1
     if (AttrUtils::GetListInt(data_opdesc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_input_dims) &&
         !origin_input_dims.empty()) {
-      GELOGI("In dynamic bacth/hw scenario, N or HW need to be set to -1. model_input_dims: %s, origin_input_dims: %s",
+      GELOGI("In dynamic batch/hw scenario, N or HW need to be set to -1. model_input_dims: %s, origin_input_dims: %s",
              ToString(model_input_dims).c_str(), ToString(origin_input_dims).c_str());
       for (size_t i = 0UL; i < origin_input_dims.size(); ++i) {
         // N or HW need to be set to -1

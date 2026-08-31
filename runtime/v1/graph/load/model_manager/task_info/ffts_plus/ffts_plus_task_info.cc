@@ -495,7 +495,7 @@ bool FftsPlusTaskInfo::OpNeedDump(const OpDescPtr &op_desc) const {
 
 void FftsPlusTaskInfo::PostProcess(const domi::TaskDef &task_def) {
   if (davinci_model_->OpNeedSetDumpFlagOnWatcherModel(op_desc_->GetName())) {
-    GELOGW("fftsplus task no support dump watcher model.");
+    GELOGW("fftsplus task no support dump watcher mode.");
   }
 
   const domi::FftsPlusTaskDef &ffts_plus_task_def = task_def.ffts_plus_task();

@@ -805,7 +805,7 @@ Status HostMemResource::AssignVarMem(const std::string &var_name, const uint64_t
   mem_offset = static_cast<size_t>(PtrToValue(buffer));
   FMK_UINT64_ADDCHECK(var_mem_size_, size);
   var_mem_size_ += size;
-  GELOGI("[IMAS]AssignVarMem Set session_%" PRIu64 " name[%s] output[%zu] size[%lu]", session_id, var_name.c_str(),
+  GELOGI("AssignVarMem Set session_%" PRIu64 " name[%s] output[%zu] size[%lu]", session_id, var_name.c_str(),
          mem_offset, size);
   return SUCCESS;
 }
@@ -876,7 +876,7 @@ ge::Status VarManager::SetVarAddr(const std::string &var_name, const ge::GeTenso
 
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SetVarAddr.");
     return ge::INTERNAL_ERROR;
   }
   var_resource_->SetVarAddr(var_name, tensor_desc, dev_ptr, memory_type, op_desc);
@@ -891,7 +891,7 @@ ge::Status VarManager::GetVarAddr(const std::string &var_name, const ge::GeTenso
          ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetVarAddr.");
     return ge::INTERNAL_ERROR;
   }
   const auto ret = var_resource_->GetVarAddr(var_name, tensor_desc, &dev_ptr, memory_type);
@@ -1102,7 +1102,7 @@ void VarManager::SetVarIsReady(const std::string &var_name, const ge::GeTensorDe
          ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SetVarIsReady.");
     return;
   }
   var_resource_->SetVarIsReady(var_name, tensor_desc, device_id);
@@ -1116,7 +1116,7 @@ bool VarManager::IsVarReady(const std::string &var_name, const ge::GeTensorDesc 
          ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in IsVarReady.");
     return false;
   }
   return var_resource_->IsVarReady(var_name, tensor_desc, device_id);
@@ -1129,7 +1129,7 @@ bool VarManager::IsVarExist(const std::string &var_name, const ge::GeTensorDesc 
          ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in IsVarExist, var_name:%s.", var_name.c_str());
     return false;
   }
   return var_resource_->IsVarExist(var_name, tensor_desc);
@@ -1138,7 +1138,7 @@ bool VarManager::IsVarExist(const std::string &var_name, const ge::GeTensorDesc 
 bool VarManager::IsVarExist(const std::string &var_name) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in IsVarExist, var_name:%s.", var_name.c_str());
     return false;
   }
   return var_resource_->IsVarExist(var_name);
@@ -1235,7 +1235,7 @@ ge::Status VarManager::GetCurVarDesc(const std::string &var_name, ge::GeTensorDe
   GELOGI("VarManager::GetCurVarDesc var_name = %s.", var_name.c_str());
 
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetCurVarDesc.");
     return ge::INTERNAL_ERROR;
   }
   return var_resource_->GetCurVarDesc(var_name, tensor_desc);
@@ -1250,7 +1250,7 @@ ge::Status VarManager::SaveBroadCastInfo(const uint32_t graph_id, const VarBroad
       broad_cast_info.input_offset, broad_cast_info.input_size, broad_cast_info.output_offset,
       broad_cast_info.output_size);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SaveBroadCastInfo.");
     return ge::INTERNAL_ERROR;
   }
   var_resource_->SaveBroadCastInfo(graph_id, broad_cast_info);
@@ -1341,7 +1341,7 @@ bool VarManager::CheckAndSetVarLoaded(const OpDescPtr &op_desc, const uint32_t d
 rtMemType_t VarManager::GetVarMemType(const int64_t offset) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetVarMemType.");
     return RT_MEMORY_RESERVED;
   }
   return var_resource_->GetVarMemType(offset);
@@ -1570,7 +1570,7 @@ uint8_t *VarManager::GetHostPoolMemory(const rtMemType_t memory_type, const size
 ge::Status VarManager::SetTransRoad(const std::string &var_name, const VarTransRoad &trans_road) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SetTransRoad.");
     return ge::INTERNAL_ERROR;
   }
   return var_resource_->SetTransRoad(var_name, trans_road);
@@ -1579,7 +1579,7 @@ ge::Status VarManager::SetTransRoad(const std::string &var_name, const VarTransR
 VarTransRoad *VarManager::GetTransRoad(const std::string &var_name) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetTransRoad.");
     return nullptr;
   }
   return var_resource_->GetTransRoad(var_name);
@@ -1588,7 +1588,7 @@ VarTransRoad *VarManager::GetTransRoad(const std::string &var_name) {
 Status VarManager::SetChangedGraphId(const std::string &var_name, const uint32_t graph_id) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SetChangedGraphId.");
     return INTERNAL_ERROR;
   }
   return var_resource_->SetChangedGraphId(var_name, graph_id);
@@ -1597,7 +1597,7 @@ Status VarManager::SetChangedGraphId(const std::string &var_name, const uint32_t
 Status VarManager::GetChangedGraphId(const std::string &var_name, uint32_t &graph_id) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetChangedGraphId.");
     return INTERNAL_ERROR;
   }
   return var_resource_->GetChangedGraphId(var_name, graph_id);
@@ -1606,7 +1606,7 @@ Status VarManager::GetChangedGraphId(const std::string &var_name, uint32_t &grap
 std::set<std::string> VarManager::GetChangedVarNames(const uint32_t graph_id) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetChangedVarNames.");
     return std::set<std::string>();
   }
   return var_resource_->GetChangedVarNames(graph_id);
@@ -1661,7 +1661,7 @@ Status VarManager::SetMemoryMallocSize(const std::map<std::string, std::string> 
 void VarManager::RemoveChangedGraphId(const std::string &var_name) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in RemoveChangedGraphId.");
     return;
   }
   var_resource_->RemoveChangedGraphId(var_name);
@@ -1670,7 +1670,7 @@ void VarManager::RemoveChangedGraphId(const std::string &var_name) {
 Status VarManager::SetAllocatedGraphId(const std::string &var_name, const uint32_t graph_id) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in SetAllocatedGraphId.");
     return INTERNAL_ERROR;
   }
   return var_resource_->SetAllocatedGraphId(var_name, graph_id);
@@ -1679,7 +1679,7 @@ Status VarManager::SetAllocatedGraphId(const std::string &var_name, const uint32
 Status VarManager::GetAllocatedGraphId(const std::string &var_name, uint32_t &graph_id) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (var_resource_ == nullptr) {
-    GELOGW("VarManager has not been init.");
+    GELOGW("VarManager has not been init, in GetAllocatedGraphId.");
     return INTERNAL_ERROR;
   }
   return var_resource_->GetAllocatedGraphId(var_name, graph_id);
@@ -1693,7 +1693,7 @@ Status VarManager::GetAllVariables(std::map<std::string, GeTensorDesc> &all_vari
   }
   auto new_variable_desc = var_resource_->GetAllVarDesc();
   if (new_variable_desc.size() == 0U) {
-    GELOGW("VarManager don't have variables.");
+    GELOGW("VarManager doesn't have variables.");
     return INTERNAL_ERROR;
   }
 

@@ -506,7 +506,7 @@ ge::Status GlobalProfilingWrapper::ReportTaskMemoryInfo(const std::string &model
     memory_info_data->totalReserveMemory = record_memory_info.total_reserve_memory;
     GELOGD(
         "[ReportTaskMemoryInfo]Report memory info: node_id: %llu, "
-        "addr: %llu, size: %lld, total allocate size: %llu, total reserve size: %lld"
+        "addr: %llu, size: %lld, total allocate size: %llu, total reserve size: %lld "
         "time stamp: %llu",
         memory_info_data->nodeId, memory_info_data->addr, memory_info_data->size, memory_info_data->totalAllocateMemory,
         memory_info_data->totalReserveMemory, task_memory_info.timeStamp);

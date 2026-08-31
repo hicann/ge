@@ -628,7 +628,7 @@ Status AippOp::GetTargetPosition(ComputeGraphPtr graph, NodePtr &target_input,
       if (subgraph == nullptr) {
         REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not find in graph:%s, check invalid", name.c_str(),
                              func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());
-        GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][Subgraph] failed, Subgraph:%s of op:%s(%s) not find in graph:%s",
+        GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][Subgraph] failed, Subgraph:%s of op:%s(%s) is not found in graph:%s",
                name.c_str(), func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());
         return GE_GRAPH_EMPTY_SUBGRAPH;
       }

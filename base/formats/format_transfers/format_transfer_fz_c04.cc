@@ -517,7 +517,7 @@ Status FormatTransferFZC04To4D::TransFormat(const TransArgs &args, TransResult &
   GE_ASSERT_SUCCESS(hwcn_fzc04_transfer.TransShape(args.dst_format, args.dst_shape, args.src_data_type, args.src_format,
                                                    expect_fzc04_shape));
   if (expect_fzc04_shape != args.src_shape) {
-    GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "Src format %s, dts format %s. Shape not equivalent.",
+    GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "Src format %s, dst format %s. Shape not equivalent.",
            TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str());
     return ACL_ERROR_GE_SHAPE_INVALID;

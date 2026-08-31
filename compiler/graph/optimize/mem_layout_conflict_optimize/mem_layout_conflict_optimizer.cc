@@ -59,7 +59,9 @@ Status MemLayoutConflictOptimizer::Run(ge::ComputeGraphPtr graph) {
   }
 
   // 只有对根图调用拓扑排序，才能遍历到所有的子图。子图上的子图也是挂在根图上的。
-  GE_ASSERT_SUCCESS(graph->TopologicalSorting(), "[Call][TopologicalSorting] for graph:%s failed.",
+  GE_ASSERT_SUCCESS(graph->TopologicalSorting(),
+                    "[Call][TopologicalSorting] for graph:%s failed before memory layout "
+                    "conflict optimize.",
                     graph->GetName().c_str());
   for (auto &static_graph : top_static_graphs) {
     GE_ASSERT_SUCCESS(CtrlNodeConflict::SolveCtrlNodeSubGraphConflict(static_graph),
@@ -67,7 +69,9 @@ Status MemLayoutConflictOptimizer::Run(ge::ComputeGraphPtr graph) {
                       static_graph->GetName().c_str());
   }
 
-  GE_ASSERT_SUCCESS(graph->TopologicalSorting(), "[Call][TopologicalSorting] for graph:%s failed.",
+  GE_ASSERT_SUCCESS(graph->TopologicalSorting(),
+                    "[Call][TopologicalSorting] for graph:%s failed after memory layout "
+                    "conflict optimize.",
                     graph->GetName().c_str());
   for (auto &static_graph : top_static_graphs) {
     GE_ASSERT_SUCCESS(Process(static_graph), "static_graph: %s", static_graph->GetName().c_str());
@@ -103,13 +107,13 @@ Status MemLayoutConflictOptimizer::Process(ge::ComputeGraphPtr &graph) {
   for (const auto &anchor_iter : ordered_symbol_to_anchors) {
     NodeIndexIOVector all_nodes(anchor_iter.second.cbegin(), anchor_iter.second.cend());
     for (const auto &node_index_io : all_nodes) {
-      GE_ASSERT_NOTNULL(MemLayoutConflictUtil::GetAnchorFromIndexIo(node_index_io), "node_index_io, %s",
-                        node_index_io.ToString().c_str());
+      GE_ASSERT_NOTNULL(MemLayoutConflictUtil::GetAnchorFromIndexIo(node_index_io),
+                        "[Optimizer][Call][GetAnchorFromIndexIo] node_index_io, %s", node_index_io.ToString().c_str());
     }
 
     AnchorSet conflict_set;
     GE_ASSERT_SUCCESS(MemLayoutConflictUtil::FindConflictNodes(all_nodes, conflict_set, graph_info, checker_),
-                      "[Call][FindConflictNodes] for graph:%s, symbol: %s, is_root_graph_static: %d, "
+                      "[Optimizer][Call][FindConflictNodes] for graph:%s, symbol: %s, is_root_graph_static: %d, "
                       "is_feature_map_refreshable: %d, is_physical_memory_refreshable: %d",
                       graph->GetName().c_str(), anchor_iter.first.c_str(), graph_info.is_root_graph_static,
                       graph_info.is_feature_map_refreshable, graph_info.is_physical_memory_refreshable);

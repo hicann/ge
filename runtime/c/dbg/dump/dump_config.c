@@ -74,7 +74,7 @@ static bool IsLayerNameMatched(ModelDumpConfig *config, char *name) {
   for (size_t i = 0UL; i < layerSize; ++i) {
     char *layers = *(char **)VectorAt(&config->layers, i);
     if ((layers != NULL) && (strcmp(name, layers) == 0)) {
-      GELOGI("tlv op name[%s] mathces json config layers[%s].", name, layers);
+      GELOGI("tlv op name[%s] matches json config layers[%s].", name, layers);
       return true;
     }
   }
@@ -117,7 +117,7 @@ bool IsOriOpNameMatch(uint8_t *opName, uint16_t opNameLen, const char *mdlName) 
     mmFree(name);
     name = NULL;
   }
-  GELOGI("IsOriOpNameMatch is not mathched.");
+  GELOGI("IsOriOpNameMatch is not matched.");
   return false;
 }
 
