@@ -340,6 +340,7 @@ Status GeExecutor::FinalizeEx() {
     ProfilingProperties::Instance().ClearProperties();
   }
 
+  (void)custom_op::UnloadCustomOps();
   CustomOpSoLoader::Finalize();
   OpsKernelExecutorManager::GetInstance().Finalize();
   HostMemManager::Instance().Finalize();

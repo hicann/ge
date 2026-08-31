@@ -355,7 +355,7 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 - bridge 导入 `_ge_custom_op_native` 和 `ge.custom_op._bridge`，一次获取 proto/impl snapshot；先注册全部 proto，再校验并注册 Adapter。
 - `CustomOpLoader::LoadCustomOps()` 记录 Python custom op 是否已经加载，因此生命周期加载请求重复调用时会直接返回成功，不重复调用 bridge 注册入口。动态 `LoadPythonCustomOpsIfNeeded()` 路径不使用该状态，运行期间可以继续发现新增加的 Python custom op 路径。底层 `LoadPythonCustomOps()` 负责执行一次 bridge 注册尝试；注册失败后由调用方调用 `UnloadPythonCustomOps()` 清理本次产生的部分注册。
 - `UnloadPythonCustomOps()` 先移除已注册的 Adapter creator，再一次性清理 Python 自定义算子 runtime registry，最后清理已注册的 proto creator。bridge loader 不再逐项注销 runtime entry，也不维护待清理状态。
-- `UnloadCustomOps()` 采用 `active_users_` 引用计数管理生命周期：每次 `LoadCustomOps()` 使计数 +1，每次 `UnloadCustomOps()` 使计数 -1，仅当计数归零时才卸载 Python custom op、清理 Python holder/registry 并关闭 bridge。`ShutdownCustomOpsForProcess()` 作为兼容 wrapper 保留，内部调用 `UnloadCustomOps()`。
+- `UnloadCustomOps()` 采用 `active_users_` 引用计数管理生命周期：每次 `LoadCustomOps()` 使计数 +1，每次 `UnloadCustomOps()` 使计数 -1，仅当计数归零时才卸载 Python custom op、清理 Python holder/registry 并关闭 bridge。
 
 **输出**
 
@@ -375,7 +375,7 @@ Python custom op 加载由 `runtime/custom_op` 管理，避免 `graph_metadef/re
 
 - Python UT 覆盖普通 class 注册、两类能力反射、descriptor 加载阶段的 schema-bound 签名校验、schema-bound 调用、`declare_launch_args` 返回值校验、实例平铺 index、context 作用域、holder 生命周期和环境变量插件加载。
 - C++ UT 应覆盖 capability helper、canonical IR 查询、adapter 的 execute/declare 转发、loader 跳过/加载路径、bridge ABI v1 校验和 shutdown 顺序。
-- 样例 `examples/custom_op/annotated_args_refresh_add_custom/python` 验证离线编译、无 Python 环境加载和地址刷新执行。
+- 样例 `examples/custom_op/annotated_args_refresh_add_custom/{online,offline}/python` 分别验证公开 Python `register_op`/`infer_meta`/`register_op_impl` 与 Ascend C kernel 的在线、离线链路；两个在线算子均由 Python 实现，AnnotatedAddCustom 不再与 C++ creator 共存。
 
 #### 3.3.3 可移植性
 
@@ -416,6 +416,13 @@ Python custom op 不区分芯片，不引入芯片分支。device kernel 能力�
 
 Python `execute` 路径会进入 Python GIL，并回调用户 Python 代码，性能不等同于 C++ custom op。schema-bound 形式还会按 IR 遍历输入和属性并创建 Python `list` / `dict` 实参，成本随原型参数数量线性增长。该接口主要用于开发便利性和 host 侧调度能力，不适合作为极致执行性能路径。执行热路径不额外打印高频日志；用户 Python 代码中的日志、动态分配、ACL 调用和 kernel args 管理由用户自行控制。
 
+### 4.4 基准记录方法
+
+在 NPU 构建环境分别记录单节点编译和 RT2 shape 推导的 median、p95，
+并将其与 kernel 执行耗时分开。相同图分别使用空 infer-meta 回调和真实回调，
+每种情况使用同一组 Python/runtime artifact 并在新进程中执行。回归值记录为
+包含回调的耗时差；禁止混用不同 Python minor 版本或不同构建产物。
+
 ## 5. 接口设计
 
 ### 5.1 新增/修改接口描述
@@ -436,7 +443,7 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 | `get_registered_op_impl_by_descriptor_key` | 按 descriptor key 查询 descriptor |
 | `clear_registered_op_impls` | 清理 Python registry |
 
-`ge.runtime` 中的 `Tensor`、`Shape`、`StorageShape`、`StorageFormat`、`TensorPlacement` 是 context 的入参/返回类型，不归入 `ge.custom_op` 的 `__all__`。
+`ge.runtime` 公开提供 `TensorDesc`，作为 `register_op` infer-meta 函数的输入/输出类型。`ge.runtime` 中的 `Tensor`、`Shape`、`StorageShape`、`StorageFormat`、`TensorPlacement` 是 context 的入参/返回类型，不归入 `ge.custom_op` 的 `__all__`。
 
 ### 5.2 接口检查项
 
@@ -645,8 +652,8 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 
 - Python API 测试入口：`ge.custom_op`、`ge.custom_op.proto`、`ge.custom_op._bridge`、`ge.custom_op.bootstrap`。
 - Native context 测试入口：Eager/Compile/AnnotatedArgs borrowed context、`AnnotatedKernelArgs` 和 launch info 方法。
-- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`AnnotatedKernelArgs`、`CustomTaskInfo`、`LoadPythonCustomOps()`、`LoadCustomOps()`/`UnloadCustomOps()` 和 `ShutdownCustomOpsForProcess()`。
-- 端到端样例入口：`examples/custom_op/annotated_args_refresh_add_custom/python/run.sh`。
+- C++ 测试入口：`CustomOpCast<T>`、`PythonCustomOpAdapter`、`AnnotatedKernelArgs`、`CustomTaskInfo`、`LoadPythonCustomOps()` 和 `LoadCustomOps()`/`UnloadCustomOps()`。
+- 端到端样例入口：`examples/custom_op/annotated_args_refresh_add_custom/online/python/run.sh` 和 `examples/custom_op/annotated_args_refresh_add_custom/offline/python/run.sh`。
 
 ### 9.2 测试设计
 
@@ -667,7 +674,7 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 | 功能 | loader 在无 Python 入口时跳过，有入口时加载 bridge | C++ gtest / stub | UT |
 | 兼容性 | C++ custom op 裸能力继承仍可正常 cast | C++ gtest | UT |
 | 特性交叉 | 在线 PreRun 加载后刷新 ops kernel info | GE 图执行相关测试 | UT/ST |
-| 样例 | Python custom op schema-bound 构图执行，以及 AnnotatedArgs 离线编译后无 Python 环境的地址刷新执行 | `annotated_args_refresh_add_custom/python` | ST/真机 |
+| 样例 | Python `register_op`/`infer_meta`/`register_op_impl`、Ascend C kernel 的 schema-bound 在线执行，以及 AnnotatedArgs 离线编译后无 Python 环境的地址刷新执行 | `annotated_args_refresh_add_custom/{online,offline}/python` | ST/真机 |
 
 ### 9.3 测试框架设计
 
