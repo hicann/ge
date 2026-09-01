@@ -21,6 +21,7 @@ StructDecl *KernelRegFileCodeGenerator::BuildBinaryBufferStruct() const {
 
 StructDecl *KernelRegFileCodeGenerator::BuildAicoreRegisterInfoStruct() const {
   return ast_.Struct("AicoreRegisterInfo", {
+                                               ast_.Field("const char *", "bin_id"),
                                                ast_.Field("uint32_t", "magic"),
                                                ast_.Field("bool", "use_tiling_key", false),
                                                ast_.Field("uint64_t", "tiling_key", 0U),
@@ -31,6 +32,7 @@ StructDecl *KernelRegFileCodeGenerator::BuildAicoreRegisterInfoStruct() const {
 
 StructDecl *KernelRegFileCodeGenerator::BuildAicpuRegisterInfoStruct() const {
   return ast_.Struct("AicpuRegisterInfo", {
+                                              ast_.Field("const char *", "bin_id"),
                                               ast_.Field("const char *", "op_type"),
                                               ast_.Field("const char *", "so_name"),
                                               ast_.Field("const char *", "kernel_name"),
@@ -40,6 +42,7 @@ StructDecl *KernelRegFileCodeGenerator::BuildAicpuRegisterInfoStruct() const {
 
 StructDecl *KernelRegFileCodeGenerator::BuildCustAicpuRegisterInfoStruct() const {
   return ast_.Struct("CustAicpuRegisterInfo", {
+                                                  ast_.Field("const char *", "bin_id"),
                                                   ast_.Field("std::string", "file"),
                                                   ast_.Field("const char *", "op_type"),
                                                   ast_.Field("const char *", "func_name"),
@@ -61,6 +64,7 @@ FunctionDef *KernelRegFileCodeGenerator::BuildAssembleAicpuLoadOptions() const {
 }
 
 FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicoreKernel() const {
+  auto bin_id = ast_.Var("std::string &", "bin_id");
   auto bin_handle = ast_.Var("aclrtBinHandle &", "bin_handle");
   auto func_handle = ast_.Var("aclrtFuncHandle &", "func_handle");
   auto register_info = ast_.Var("const AicoreRegisterInfo &", "register_info");
@@ -68,9 +72,13 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicoreKernel() const {
   auto bin_info = ast_.Var("auto &", "bin_info");
   auto load_options = ast_.Var("aclrtBinaryLoadOptions", "load_options");
   auto option = ast_.Var("aclrtBinaryLoadOption", "option");
+  auto callbacks = ast_.Var("const GertModelLoadCallbacks &", "callbacks");
+  auto bin_lock_guard = ast_.Lambda({ast_.CaptureRef(callbacks)},
+                                    {ast_.IgnoreOutput(ast_.Call("callbacks.unlock_bin_handle_store", {}))});
   return ast_.DefineFunction(
-      "RegisterAicoreKernel", {bin_handle, func_handle, register_info, bin_info_map}, "aclError",
+      "RegisterAicoreKernel", {bin_id, bin_handle, func_handle, register_info, bin_info_map, callbacks}, "aclError",
       {
+          ast_.Assign(bin_id, register_info.Attr("bin_id")),
           ast_.VarDecl(bin_info, bin_info_map[register_info.Attr("file")]),
           ast_.VarDecl(load_options),
           ast_.VarDecl(option),
@@ -78,8 +86,14 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicoreKernel() const {
           ast_.Assign(load_options.Attr("options"), option.Addr()),
           ast_.Assign(option.Attr("type"), "ACL_RT_BINARY_LOAD_OPT_MAGIC"),
           ast_.Assign(option.Attr("value").Attr("magic"), register_info.Attr("magic")),
-          ChkStatus(AclrtBinaryLoadFromData(bin_info.Attr("data"), bin_info.Attr("size"), load_options.Addr(),
-                                            bin_handle.Addr())),
+          ChkStatus(ast_.Call("callbacks.lock_bin_handle_store", {})),
+          MakeGuard("bin_lock_guard", bin_lock_guard),
+          ChkStatus(
+              ast_.Call("callbacks.query_bin_handle_from_store", {register_info.Attr("bin_id"), bin_handle.Addr()})),
+          ast_.If(bin_handle == "nullptr",
+                  {ChkStatus(AclrtBinaryLoadFromData(bin_info.Attr("data"), bin_info.Attr("size"), load_options.Addr(),
+                                                     bin_handle.Addr()))}),
+          ChkStatus(ast_.Call("callbacks.save_bin_handle_to_store", {register_info.Attr("bin_id"), bin_handle})),
           ast_.If(
               register_info.Attr("use_tiling_key"),
               {
@@ -94,6 +108,7 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicoreKernel() const {
 }
 
 FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicpuKernel() const {
+  auto bin_id = ast_.Var("std::string &", "bin_id");
   auto bin_handle = ast_.Var("aclrtBinHandle &", "bin_handle");
   auto func_handle = ast_.Var("aclrtFuncHandle &", "func_handle");
   auto register_info = ast_.Var("const AicpuRegisterInfo &", "register_info");
@@ -102,9 +117,13 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicpuKernel() const {
   auto json_path = ast_.Var("std::string", "json_path");
   auto cleanup_guard =
       ast_.Lambda({ast_.CaptureRef(json_path)}, {ast_.IgnoreOutput(ast_.RemoveFile(json_path.CStr()))});
+  auto callbacks = ast_.Var("const GertModelLoadCallbacks &", "callbacks");
+  auto bin_lock_guard = ast_.Lambda({ast_.CaptureRef(callbacks)},
+                                    {ast_.IgnoreOutput(ast_.Call("callbacks.unlock_bin_handle_store", {}))});
   return ast_.DefineFunction(
-      "RegisterAicpuKernel", {bin_handle, func_handle, register_info}, "aclError",
+      "RegisterAicpuKernel", {bin_id, bin_handle, func_handle, register_info, callbacks}, "aclError",
       {
+          ast_.Assign(bin_id, register_info.Attr("bin_id")),
           ast_.VarDecl(json_path),
           ChkStatus(GenerateJsonFile(register_info, json_path)),
           MakeGuard("json_guard", cleanup_guard),
@@ -115,13 +134,22 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicpuKernel() const {
           ast_.Assign(load_options.Attr("options"), option.Addr()),
           ast_.Assign(option.Attr("type"), "ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE"),
           ast_.Assign(option.Attr("value").Attr("cpuKernelMode"), 0),
-          ChkStatus(AclrtBinaryLoadFromFile(json_path.CStr(), load_options.Addr(), bin_handle.Addr())),
+          ChkStatus(ast_.Call("callbacks.lock_bin_handle_store", {})),
+          MakeGuard("bin_lock_guard", bin_lock_guard),
+          ChkStatus(
+              ast_.Call("callbacks.query_bin_handle_from_store", {register_info.Attr("bin_id"), bin_handle.Addr()})),
+          ast_.If(bin_handle == "nullptr",
+                  {
+                      ChkStatus(AclrtBinaryLoadFromFile(json_path.CStr(), load_options.Addr(), bin_handle.Addr())),
+                  }),
+          ChkStatus(ast_.Call("callbacks.save_bin_handle_to_store", {register_info.Attr("bin_id"), bin_handle})),
           ChkStatus(AclrtBinaryGetFunction(bin_handle, register_info.Attr("op_type"), func_handle.Addr())),
           ast_.Return("ACL_SUCCESS"),
       });
 }
 
 FunctionDef *KernelRegFileCodeGenerator::BuildRegisterCustAicpuKernel() const {
+  auto bin_id = ast_.Var("std::string &", "bin_id");
   auto bin_handle = ast_.Var("aclrtBinHandle &", "bin_handle");
   auto func_handle = ast_.Var("aclrtFuncHandle &", "func_handle");
   auto register_info = ast_.Var("const CustAicpuRegisterInfo &", "register_info");
@@ -129,22 +157,34 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterCustAicpuKernel() const {
   auto bin_info = ast_.Var("auto &", "bin_info");
   auto load_options = ast_.Var("aclrtBinaryLoadOptions", "load_options");
   auto option = ast_.Var("aclrtBinaryLoadOption", "option");
-  return ast_.DefineFunction("RegisterCustAicpuKernel", {bin_handle, func_handle, register_info, bin_info_map},
-                             "aclError",
-                             {
-                                 ast_.VarDecl(bin_info, bin_info_map[register_info.Attr("file")]),
-                                 ast_.VarDecl(load_options),
-                                 ast_.VarDecl(option),
-                                 ast_.Assign(load_options.Attr("numOpt"), 1),
-                                 ast_.Assign(load_options.Attr("options"), option.Addr()),
-                                 ast_.Assign(option.Attr("type"), "ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE"),
-                                 ast_.Assign(option.Attr("value").Attr("cpuKernelMode"), 2),
-                                 ChkStatus(AclrtBinaryLoadFromData(bin_info.Attr("data"), bin_info.Attr("size"),
-                                                                   load_options.Addr(), bin_handle.Addr())),
-                                 ChkStatus(AclrtRegisterCpuFunc(bin_handle, register_info.Attr("func_name"),
-                                                                register_info.Attr("op_type"), func_handle.Addr())),
-                                 ast_.Return("ACL_SUCCESS"),
-                             });
+  auto callbacks = ast_.Var("const GertModelLoadCallbacks &", "callbacks");
+  auto bin_lock_guard = ast_.Lambda({ast_.CaptureRef(callbacks)},
+                                    {ast_.IgnoreOutput(ast_.Call("callbacks.unlock_bin_handle_store", {}))});
+  return ast_.DefineFunction(
+      "RegisterCustAicpuKernel", {bin_id, bin_handle, func_handle, register_info, bin_info_map, callbacks}, "aclError",
+      {
+          ast_.Assign(bin_id, register_info.Attr("bin_id")),
+          ast_.VarDecl(bin_info, bin_info_map[register_info.Attr("file")]),
+          ast_.VarDecl(load_options),
+          ast_.VarDecl(option),
+          ast_.Assign(load_options.Attr("numOpt"), 1),
+          ast_.Assign(load_options.Attr("options"), option.Addr()),
+          ast_.Assign(option.Attr("type"), "ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE"),
+          ast_.Assign(option.Attr("value").Attr("cpuKernelMode"), 2),
+          ChkStatus(ast_.Call("callbacks.lock_bin_handle_store", {})),
+          MakeGuard("bin_lock_guard", bin_lock_guard),
+          ChkStatus(
+              ast_.Call("callbacks.query_bin_handle_from_store", {register_info.Attr("bin_id"), bin_handle.Addr()})),
+          ast_.If(bin_handle == "nullptr",
+                  {
+                      ChkStatus(AclrtBinaryLoadFromData(bin_info.Attr("data"), bin_info.Attr("size"),
+                                                        load_options.Addr(), bin_handle.Addr())),
+                  }),
+          ChkStatus(ast_.Call("callbacks.save_bin_handle_to_store", {register_info.Attr("bin_id"), bin_handle})),
+          ChkStatus(AclrtRegisterCpuFunc(bin_handle, register_info.Attr("func_name"), register_info.Attr("op_type"),
+                                         func_handle.Addr())),
+          ast_.Return("ACL_SUCCESS"),
+      });
 }
 
 MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenModel &codegen_model) {
@@ -153,26 +193,32 @@ MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenMode
   for (const auto &binary : codegen_model.kernel_registry.binaries) {
     if (binary.kind == KernelBinaryKind::kAicore || binary.kind == KernelBinaryKind::kAllKernel) {
       const bool use_tiling_key = (binary.kind == KernelBinaryKind::kAllKernel);
-      (void)items.emplace_back(ChkStatus(CallRegisterAicoreKernel(
-          bin_handles_[binary.func_handle_index], func_handles_[binary.func_handle_index],
-          {binary.magic, use_tiling_key, binary.tiling_key, ast_.Str(binary.kernel_name), ast_.Str(binary.file_name)},
-          bin_info_map_)));
+      (void)items.emplace_back(
+          ChkStatus(CallRegisterAicoreKernel(bin_ids_[binary.func_handle_index], bin_handles_[binary.func_handle_index],
+                                             func_handles_[binary.func_handle_index],
+                                             {ast_.Str(binary.bin_id), binary.magic, use_tiling_key, binary.tiling_key,
+                                              ast_.Str(binary.kernel_name), ast_.Str(binary.file_name)},
+                                             bin_info_map_, callbacks_)));
       continue;
     }
     if (binary.kind == KernelBinaryKind::kAicpu) {
       (void)items.emplace_back(ChkStatus(
-          CallRegisterAicpuKernel(bin_handles_[binary.func_handle_index], func_handles_[binary.func_handle_index],
-                                  {ast_.Str(binary.op_type), ast_.Str(binary.so_name), ast_.Str(binary.kernel_name),
-                                   ast_.Str(binary.op_kernel_lib)})));
+          CallRegisterAicpuKernel(bin_ids_[binary.func_handle_index], bin_handles_[binary.func_handle_index],
+                                  func_handles_[binary.func_handle_index],
+                                  {ast_.Str(binary.bin_id), ast_.Str(binary.op_type), ast_.Str(binary.so_name),
+                                   ast_.Str(binary.kernel_name), ast_.Str(binary.op_kernel_lib)},
+                                  callbacks_)));
       continue;
     }
     (void)items.emplace_back(ChkStatus(CallRegisterCustAicpuKernel(
-        bin_handles_[binary.func_handle_index], func_handles_[binary.func_handle_index],
-        {ast_.Str(binary.file_name), ast_.Str(binary.op_type), ast_.Str(binary.kernel_name)}, bin_info_map_)));
+        bin_ids_[binary.func_handle_index], bin_handles_[binary.func_handle_index],
+        func_handles_[binary.func_handle_index],
+        {ast_.Str(binary.bin_id), ast_.Str(binary.file_name), ast_.Str(binary.op_type), ast_.Str(binary.kernel_name)},
+        bin_info_map_, callbacks_)));
   }
   (void)items.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("RegisterKernels done")}));
   (void)items.emplace_back(ast_.Return("ACL_SUCCESS"));
-  return ast_.DefineMethod("Om2Model", "RegisterKernels", std::vector<VarRef>{}, "aclError", items);
+  return ast_.DefineMethod("Om2Model", "RegisterKernels", {}, "aclError", items);
 }
 
 ExprRef KernelRegFileCodeGenerator::GenerateJsonFile(Arg register_info, Arg json_path) const {
@@ -187,17 +233,20 @@ ExprRef KernelRegFileCodeGenerator::AssembleAicpuLoadOptionsCall(Arg load_option
   return ast_.Call("AssembleAicpuLoadOptions", {load_options, cpu_kernel_mode});
 }
 
-ExprRef KernelRegFileCodeGenerator::CallRegisterAicoreKernel(Arg bin_handle, Arg func_handle, Arg register_info,
-                                                             Arg bin_info_map) const {
-  return ast_.Call("RegisterAicoreKernel", {bin_handle, func_handle, register_info, bin_info_map});
+ExprRef KernelRegFileCodeGenerator::CallRegisterAicoreKernel(Arg bin_id, Arg bin_handle, Arg func_handle,
+                                                             Arg register_info, Arg bin_info_map, Arg callbacks) const {
+  return ast_.Call("RegisterAicoreKernel", {bin_id, bin_handle, func_handle, register_info, bin_info_map, callbacks});
 }
 
-ExprRef KernelRegFileCodeGenerator::CallRegisterAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info) const {
-  return ast_.Call("RegisterAicpuKernel", {bin_handle, func_handle, register_info});
+ExprRef KernelRegFileCodeGenerator::CallRegisterAicpuKernel(Arg bin_id, Arg bin_handle, Arg func_handle,
+                                                            Arg register_info, Arg callbacks) const {
+  return ast_.Call("RegisterAicpuKernel", {bin_id, bin_handle, func_handle, register_info, callbacks});
 }
 
-ExprRef KernelRegFileCodeGenerator::CallRegisterCustAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info,
-                                                                Arg bin_info_map) const {
-  return ast_.Call("RegisterCustAicpuKernel", {bin_handle, func_handle, register_info, bin_info_map});
+ExprRef KernelRegFileCodeGenerator::CallRegisterCustAicpuKernel(Arg bin_id, Arg bin_handle, Arg func_handle,
+                                                                Arg register_info, Arg bin_info_map,
+                                                                Arg callbacks) const {
+  return ast_.Call("RegisterCustAicpuKernel",
+                   {bin_id, bin_handle, func_handle, register_info, bin_info_map, callbacks});
 }
 }  // namespace ge

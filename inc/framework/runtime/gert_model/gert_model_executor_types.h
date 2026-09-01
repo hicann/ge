@@ -63,6 +63,12 @@ extern "C" {
 
 typedef int32_t (*GertModelLaunchFunc)(void *instance_handle, GertModelTaskLaunchInfo *launch_info);
 
+using LockBinHandleStoreFunc = int32_t (*)();
+using UnlockBinHandleStoreFunc = int32_t (*)();
+using QueryBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle *bin_handle);
+using SaveBinHandleToStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle bin_handle);
+using ReleaseBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, uint8_t *need_unload);
+
 #ifdef __cplusplus
 }
 #endif
@@ -74,6 +80,11 @@ struct GertModelLoadCallbacks {
   // executor 收到后完成 ReportModelBaseInfo（组装 ModelDumpInfo → SetModelDumpInfo）
   ReportModelBaseInfoFunc report_model_base_info = nullptr;
   GertModelLaunchFunc launch_func = nullptr;
+  LockBinHandleStoreFunc lock_bin_handle_store = nullptr;
+  UnlockBinHandleStoreFunc unlock_bin_handle_store = nullptr;
+  QueryBinHandleFromStoreFunc query_bin_handle_from_store = nullptr;
+  SaveBinHandleToStoreFunc save_bin_handle_to_store = nullptr;
+  ReleaseBinHandleFromStoreFunc release_bin_handle_from_store = nullptr;
 };
 
 #endif  // GE_FRAMEWORK_RUNTIME_GERT_MODEL_GERT_MODEL_EXECUTOR_TYPES_H_

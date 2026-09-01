@@ -963,6 +963,17 @@ ge::Status ValidateVarMetas(const std::vector<ge::Om2VarMeta> &var_metas) {
   return ge::SUCCESS;
 }
 
+GertModelLoadCallbacks CreateGertModelLoadCallbacks() {
+  return {.struct_size = sizeof(GertModelLoadCallbacks),
+          .report_model_base_info = ReportModelBaseInfo,
+          .launch_func = GertModelLaunchTask,
+          .lock_bin_handle_store = LockBinHandleStore,
+          .unlock_bin_handle_store = UnlockBinHandleStore,
+          .query_bin_handle_from_store = QueryBinHandleFromStore,
+          .save_bin_handle_to_store = SaveBinHandleToStore,
+          .release_bin_handle_from_store = ReleaseBinHandleFromStore};
+}
+
 }  // namespace
 
 class Om2ModelExecutor::Impl {
@@ -1178,9 +1189,7 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(PrepareVarAddrs(model_data, static_cast<uint32_t>(load_arg.device_id), var_addrs));
 
     GE_ASSERT_NOTNULL(run_model_info_.load_func);
-    GertModelLoadCallbacks callbacks = {.struct_size = sizeof(GertModelLoadCallbacks),
-                                        .report_model_base_info = ReportModelBaseInfo,
-                                        .launch_func = GertModelLaunchTask};
+    const GertModelLoadCallbacks callbacks = CreateGertModelLoadCallbacks();
     struct GertModelLoadConfig config = {.struct_size = sizeof(GertModelLoadConfig),
                                          .bin_files = bin_files.data(),
                                          .bin_data = bin_data.data(),

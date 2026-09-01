@@ -2668,6 +2668,7 @@ struct BinaryBuffer {
 };
 
 struct AicoreRegisterInfo {
+  const char *bin_id;
   uint32_t magic;
   bool use_tiling_key = false;
   uint64_t tiling_key = 0;
@@ -2676,6 +2677,7 @@ struct AicoreRegisterInfo {
 };
 
 struct AicpuRegisterInfo {
+  const char *bin_id;
   const char *op_type;
   const char *so_name;
   const char *kernel_name;
@@ -2683,6 +2685,7 @@ struct AicpuRegisterInfo {
 };
 
 struct CustAicpuRegisterInfo {
+  const char *bin_id;
   std::string file;
   const char *op_type;
   const char *func_name;
@@ -2744,7 +2747,8 @@ void AssembleAicpuLoadOptions(aclrtBinaryLoadOptions &load_options, int32_t cpu_
   option.value.cpuKernelMode = cpu_kernel_mode;
 }
 
-aclError RegisterAicoreKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const AicoreRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map) {
+aclError RegisterAicoreKernel(std::string &bin_id, aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const AicoreRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map, const GertModelLoadCallbacks &callbacks) {
+  bin_id = register_info.bin_id;
   auto &bin_info = bin_info_map[register_info.file];
   aclrtBinaryLoadOptions load_options;
   aclrtBinaryLoadOption option;
@@ -2752,7 +2756,15 @@ aclError RegisterAicoreKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_
   load_options.options = &option;
   option.type = ACL_RT_BINARY_LOAD_OPT_MAGIC;
   option.value.magic = register_info.magic;
-  OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
+  OM2_CHK_STATUS(callbacks.lock_bin_handle_store());
+  OM2_MAKE_GUARD(bin_lock_guard, [&callbacks]() {
+    (void)callbacks.unlock_bin_handle_store();
+  });
+  OM2_CHK_STATUS(callbacks.query_bin_handle_from_store(register_info.bin_id, &bin_handle));
+  if ((bin_handle == nullptr)) {
+    OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
+  }
+  OM2_CHK_STATUS(callbacks.save_bin_handle_to_store(register_info.bin_id, bin_handle));
   if (register_info.use_tiling_key) {
     OM2_CHK_STATUS(aclrtBinaryGetFunctionByEntry(bin_handle, register_info.tiling_key, &func_handle));
   } else {
@@ -2761,7 +2773,8 @@ aclError RegisterAicoreKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_
   return ACL_SUCCESS;
 }
 
-aclError RegisterAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const AicpuRegisterInfo &register_info) {
+aclError RegisterAicpuKernel(std::string &bin_id, aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const AicpuRegisterInfo &register_info, const GertModelLoadCallbacks &callbacks) {
+  bin_id = register_info.bin_id;
   std::string json_path;
   OM2_CHK_STATUS(GenerateJsonFile(register_info, json_path));
   OM2_MAKE_GUARD(json_guard, [&json_path]() {
@@ -2774,12 +2787,21 @@ aclError RegisterAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_h
   load_options.options = &option;
   option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
   option.value.cpuKernelMode = 0;
-  OM2_CHK_STATUS(aclrtBinaryLoadFromFile(json_path.c_str(), &load_options, &bin_handle));
+  OM2_CHK_STATUS(callbacks.lock_bin_handle_store());
+  OM2_MAKE_GUARD(bin_lock_guard, [&callbacks]() {
+    (void)callbacks.unlock_bin_handle_store();
+  });
+  OM2_CHK_STATUS(callbacks.query_bin_handle_from_store(register_info.bin_id, &bin_handle));
+  if ((bin_handle == nullptr)) {
+    OM2_CHK_STATUS(aclrtBinaryLoadFromFile(json_path.c_str(), &load_options, &bin_handle));
+  }
+  OM2_CHK_STATUS(callbacks.save_bin_handle_to_store(register_info.bin_id, bin_handle));
   OM2_CHK_STATUS(aclrtBinaryGetFunction(bin_handle, register_info.op_type, &func_handle));
   return ACL_SUCCESS;
 }
 
-aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map) {
+aclError RegisterCustAicpuKernel(std::string &bin_id, aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map, const GertModelLoadCallbacks &callbacks) {
+  bin_id = register_info.bin_id;
   auto &bin_info = bin_info_map[register_info.file];
   aclrtBinaryLoadOptions load_options;
   aclrtBinaryLoadOption option;
@@ -2787,14 +2809,22 @@ aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &fu
   load_options.options = &option;
   option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
   option.value.cpuKernelMode = 2;
-  OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
+  OM2_CHK_STATUS(callbacks.lock_bin_handle_store());
+  OM2_MAKE_GUARD(bin_lock_guard, [&callbacks]() {
+    (void)callbacks.unlock_bin_handle_store();
+  });
+  OM2_CHK_STATUS(callbacks.query_bin_handle_from_store(register_info.bin_id, &bin_handle));
+  if ((bin_handle == nullptr)) {
+    OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
+  }
+  OM2_CHK_STATUS(callbacks.save_bin_handle_to_store(register_info.bin_id, bin_handle));
   OM2_CHK_STATUS(aclrtRegisterCpuFunc(bin_handle, register_info.func_name, register_info.op_type, &func_handle));
   return ACL_SUCCESS;
 }
 } // namespace
 aclError Om2Model::RegisterKernels() {
   OM2_LOGI("RegisterKernels begin");
-  OM2_CHK_STATUS(RegisterAicoreKernel(bin_handles_[0], func_handles_[0], {ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_));
+  OM2_CHK_STATUS(RegisterAicoreKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {"_g1add1", ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_, callbacks_));
   OM2_LOGI("RegisterKernels done");
   return ACL_SUCCESS;
 }
@@ -7262,12 +7292,18 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
   std::cout << "=== kernel_reg content ===" << std::endl << kernel_reg << std::endl << "=== end ===" << std::endl;
   ASSERT_FALSE(kernel_reg.empty());
   EXPECT_NE(kernel_reg.find("struct CustAicpuRegisterInfo"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("const char *bin_id"), std::string::npos);
   EXPECT_NE(kernel_reg.find("std::string file"), std::string::npos);
   EXPECT_NE(kernel_reg.find("const char *op_type"), std::string::npos);
   EXPECT_NE(kernel_reg.find("const char *func_name"), std::string::npos);
-  EXPECT_NE(kernel_reg.find(
-                "aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const "
-                "CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map) {"),
+  EXPECT_NE(kernel_reg.find("aclError RegisterCustAicpuKernel(std::string &bin_id, aclrtBinHandle &bin_handle, "
+                            "aclrtFuncHandle &func_handle, const "
+                            "CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> "
+                            "&bin_info_map, const GertModelLoadCallbacks &callbacks) {"),
+            std::string::npos);
+  EXPECT_NE(kernel_reg.find("bin_id = register_info.bin_id;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(callbacks.lock_bin_handle_store());"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(callbacks.save_bin_handle_to_store(register_info.bin_id, bin_handle));"),
             std::string::npos);
   EXPECT_NE(kernel_reg.find("auto &bin_info = bin_info_map[register_info.file];"), std::string::npos);
   EXPECT_NE(kernel_reg.find("aclrtBinaryLoadOptions load_options;"), std::string::npos);
@@ -7283,10 +7319,11 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
                             "register_info.op_type, &func_handle));"),
             std::string::npos);
   const size_t cust_aicpu_hash_id = std::hash<std::string>{}(std::string(64, '\0'));
+  const std::string cust_aicpu_bin_id = std::to_string(cust_aicpu_hash_id) + "_CustAicpuKernel";
   const std::string cust_aicpu_file_name = std::to_string(cust_aicpu_hash_id) + "_CustAicpuKernel.o";
   const std::string expected_reg_call =
-      "OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_handles_[0], func_handles_[0], {\"" + cust_aicpu_file_name +
-      "\", \"Add\", \"name\"}, bin_info_map_));";
+      "OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {\"" + cust_aicpu_bin_id +
+      "\", \"" + cust_aicpu_file_name + "\", \"Add\", \"name\"}, bin_info_map_, callbacks_));";
   EXPECT_NE(kernel_reg.find(expected_reg_call), std::string::npos);
 
   const auto &load_and_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];

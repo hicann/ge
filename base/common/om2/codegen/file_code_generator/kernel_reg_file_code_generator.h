@@ -33,9 +33,11 @@ class KernelRegFileCodeGenerator : public Om2ModelClassGeneratorBase {
   ExprRef GenerateJsonFile(Arg register_info, Arg json_path) const;
   ExprRef ReadBinaryFileToBuffer(Arg file_path) const;
   ExprRef AssembleAicpuLoadOptionsCall(Arg load_options, Arg cpu_kernel_mode) const;
-  ExprRef CallRegisterAicoreKernel(Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map) const;
-  ExprRef CallRegisterAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info) const;
-  ExprRef CallRegisterCustAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map) const;
+  ExprRef CallRegisterAicoreKernel(Arg bin_id, Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map,
+                                   Arg callbacks) const;
+  ExprRef CallRegisterAicpuKernel(Arg bin_id, Arg bin_handle, Arg func_handle, Arg register_info, Arg callbacks) const;
+  ExprRef CallRegisterCustAicpuKernel(Arg bin_id, Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map,
+                                      Arg callbacks) const;
 };
 }  // namespace ge
 

@@ -23,6 +23,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef constants_;
   VarRef var_addrs_;
   VarRef model_handle_;
+  VarRef bin_ids_;
   VarRef bin_handles_;
   VarRef func_handles_;
   VarRef stream_list_;
@@ -38,6 +39,7 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef session_id_;
   VarRef model_id_;
   VarRef instance_handle_;
+  VarRef callbacks_;
   VarRef kernel_id_;
   VarRef dev_ext_info_mem_ptrs_;
   VarRef label_switch_label_list_;

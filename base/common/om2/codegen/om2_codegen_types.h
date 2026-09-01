@@ -145,6 +145,7 @@ enum class KernelBinaryKind : int32_t {
 
 struct KernelBinaryRecord {
   KernelBinaryKind kind{KernelBinaryKind::kAicore};
+  std::string bin_id;
   std::string kernel_name;
   std::string file_name;
   std::string op_type;

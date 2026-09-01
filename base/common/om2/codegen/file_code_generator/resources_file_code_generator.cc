@@ -25,6 +25,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   auto session_id = ast_.Var("uint64_t *", "session_id");
   auto model_id = ast_.Var("uint32_t", "model_id");
   auto instance_handle = ast_.Var("void *", "instance_handle");
+  auto callbacks = ast_.Var("const GertModelLoadCallbacks *", "callbacks");
   auto priority = ast_.Var("int32_t", "priority");
   auto i = ast_.Var("size_t", "i");
   std::vector<BodyItem> body = {
@@ -35,6 +36,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   };
   const auto &runtime = codegen_model.runtime;
   if (runtime.kernel_bin_num > 0U) {
+    (void)body.emplace_back(bin_ids_.Resize(runtime.kernel_bin_num));
     (void)body.emplace_back(bin_handles_.Resize(runtime.kernel_bin_num));
     (void)body.emplace_back(func_handles_.Resize(runtime.kernel_bin_num));
   }
@@ -54,16 +56,16 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   return ast_.DefineMethod(
       "Om2Model", "Om2Model",
       {bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle,
-       priority},
+       callbacks, priority},
       "",
       {ast_.MemberInit("constants_", constants), ast_.MemberInit("var_addrs_", var_addrs),
        ast_.MemberInit("total_dev_mem_ptr_", work_ptr), ast_.MemberInit("owns_total_dev_mem_", false),
        ast_.MemberInit("session_id_", session_id), ast_.MemberInit("model_id_", model_id),
-       ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("kernel_id_", 0),
-       ast_.MemberInit("session_scope_mem_ptr_", nullptr), ast_.MemberInit("priority_", priority),
-       ast_.MemberInit("is_external_rt_model_", false), ast_.MemberInit("is_external_streams_", false),
-       ast_.MemberInit("is_external_notifies_", false), ast_.MemberInit("is_external_events_", false),
-       ast_.MemberInit("is_external_labels_", false)},
+       ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("callbacks_", ast_.Deref(callbacks)),
+       ast_.MemberInit("kernel_id_", 0), ast_.MemberInit("session_scope_mem_ptr_", nullptr),
+       ast_.MemberInit("priority_", priority), ast_.MemberInit("is_external_rt_model_", false),
+       ast_.MemberInit("is_external_streams_", false), ast_.MemberInit("is_external_notifies_", false),
+       ast_.MemberInit("is_external_events_", false), ast_.MemberInit("is_external_labels_", false)},
       body);
 }
 
@@ -301,11 +303,19 @@ MethodDef *ResourcesFileCodeGenerator::BuildReleaseResourcesMethod(const Om2Code
                                     {}, false));
   }
   if (runtime.kernel_bin_num > 0U) {
-    auto bin_handle = ast_.Var("auto", "bin_handle");
-    (void)body.emplace_back(ast_.RangeFor(bin_handle, bin_handles_,
-                                          {
-                                              ChkStatus(AclrtBinaryUnLoad(bin_handle)),
-                                          }));
+    auto i = ast_.Var("size_t", "i");
+    auto need_unload = ast_.Var("uint8_t", "need_unload");
+    (void)body.emplace_back(ast_.For(
+        ast_.VarDecl(i, 0), i < bin_handles_.Size(), ast_.PostInc(i),
+        {
+            ChkStatus(ast_.Call("callbacks_.lock_bin_handle_store", {})),
+            MakeGuard("bin_lock_guard",
+                      ast_.Lambda({LambdaCaptureSpec{"this", LambdaCaptureSpec::Kind::kByValue}},
+                                  {ast_.IgnoreOutput(ast_.Call("callbacks_.unlock_bin_handle_store", {}))})),
+            ast_.VarDecl(need_unload, 0),
+            ChkStatus(ast_.Call("callbacks_.release_bin_handle_from_store", {bin_ids_[i].CStr(), need_unload.Addr()})),
+            ast_.If(need_unload != 0, {ChkStatus(AclrtBinaryUnLoad(bin_handles_[i]))}),
+        }));
   }
   BuildReleaseResourcesMethodForControlTask(body, runtime);
   auto i = ast_.Var("int", "i");
