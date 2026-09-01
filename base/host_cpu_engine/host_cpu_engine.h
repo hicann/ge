@@ -19,10 +19,6 @@
 #include "graph/operator.h"
 #include "graph_metadef/register/graph_register.h"
 
-namespace gert {
-class KernelContext;
-}
-
 namespace ge {
 class HostCpuEngine {
  public:
@@ -41,13 +37,9 @@ class HostCpuEngine {
     return constant_folding_handle_;
   }
 
-  // 查询 libconstant_folding_ops.so 的 Gert HostKernel 路由。只要 op_type 能找到函数即可参与融合。
-  bool IsHostKernelSupported(const std::string &op_type) const;
+  bool IsFusedCpuKernelSupported(const std::string &op_type) const;
 
  private:
-  using HostKernelFunc = graphStatus (*)(gert::KernelContext *);
-  using HostKernelFinder = HostKernelFunc (*)(std::string);
-
   HostCpuEngine() = default;
 
   void *DlopenLib(const std::string &lib_path) const;
@@ -71,7 +63,7 @@ class HostCpuEngine {
   std::mutex mu_;
   std::vector<void *> lib_handles_;
   void *constant_folding_handle_ = nullptr;
-  HostKernelFinder host_kernel_finder_ = nullptr;
+  int32_t (*is_fused_cpu_kernel_supported_)(const char *) = nullptr;
   bool initialized_ = false;
 };
 }  // namespace ge

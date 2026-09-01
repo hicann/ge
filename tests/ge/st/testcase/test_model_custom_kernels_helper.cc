@@ -17,7 +17,6 @@
 #include <elf.h>
 #include <fstream>
 #include <memory>
-#include <map>
 #include <set>
 #include <string>
 #include <unistd.h>
@@ -29,7 +28,6 @@
 #include "common/helper/custom_op_so_loader.h"
 #include "common/model/ge_root_model.h"
 #undef private
-#include "common/op_so_store/op_so_store_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "faker/space_registry_faker.h"
 #include "common/plugin/plugin_manager.h"
@@ -41,7 +39,6 @@
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op_pull_registry.h"
 #include "graph/custom_op_registry.h"
-#include "graph/partition/engine_partitioner.h"
 #include "mmpa/mmpa_api.h"
 
 namespace ge {
@@ -1070,62 +1067,5 @@ TEST_F(TestModelCustomOpsHelper, ge_root_model_target_host_env_and_cross_compile
   EXPECT_FALSE(ge_root_model.IsCrossCompileTarget(current_env_os, current_env_cpu));
   const std::string mismatch_cpu = (current_env_cpu == "x86_64") ? "aarch64" : "x86_64";
   EXPECT_TRUE(ge_root_model.IsCrossCompileTarget(current_env_os, mismatch_cpu));
-}
-
-TEST_F(TestModelCustomOpsHelper, model_helper_saves_embedded_custom_op_so) {
-  auto root_graph = std::make_shared<ComputeGraph>("st_embedded_custom_so");
-  auto ge_root_model = std::make_shared<GeRootModel>();
-  ASSERT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
-  OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, ge_root_model->so_in_om_);
-  const auto custom_so = BuildCustomOpSoBinForSt("libst_embedded_custom.so", "st_custom_vendor", {'E', 'L', 'F'});
-  ASSERT_NE(custom_so, nullptr);
-  ASSERT_TRUE(root_graph->SetExtAttr(
-      "bin_file_buffer", std::map<std::string, OpSoBinPtr>{{"st_custom_vendor/libst_embedded_custom.so", custom_so}}));
-
-  ModelHelper model_helper;
-  EXPECT_EQ(model_helper.SaveCustomOpSoBin(ge_root_model), SUCCESS);
-}
-
-TEST_F(TestModelCustomOpsHelper, ge_root_model_uses_embedded_host_cpu_fusion_so) {
-  RegisterCustomOpCreatorForSt(kCollectRootType, []() -> std::unique_ptr<BaseCustomOp> {
-    return std::make_unique<PortableOpForSerializeSuccess>();
-  });
-  const auto ge_root_model = CreateRootModelForCustomOps(kCollectRootType, "", false, false);
-  ASSERT_NE(ge_root_model, nullptr);
-  std::string current_env_os;
-  std::string current_env_cpu;
-  GetCurrentEnvWithFallbackForSt(current_env_os, current_env_cpu);
-  ScopedHostEnvOptionForSt host_env_guard(current_env_os, current_env_cpu);
-  ScopedEnvVarForSt custom_opp_guard("ASCEND_CUSTOM_OPP_PATH");
-  ASSERT_EQ(mmSetEnv("ASCEND_CUSTOM_OPP_PATH", "", 1), EN_OK);
-  const auto embedded_so =
-      BuildCustomOpSoBinForSt("libStModelHelperCollectRootPortableOp.so", "host_cpu_fusion", {'E', 'L', 'F'});
-  ASSERT_NE(embedded_so, nullptr);
-  ASSERT_TRUE(ge_root_model->GetRootGraph()->SetExtAttr(
-      "bin_file_buffer",
-      std::map<std::string, OpSoBinPtr>{{"host_cpu_fusion/libStModelHelperCollectRootPortableOp.so", embedded_so}}));
-
-  ASSERT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
-  EXPECT_TRUE(ge_root_model->GetCustomOpSoSet().empty());
-  EXPECT_TRUE(OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kCustomOp));
-}
-
-TEST_F(TestModelCustomOpsHelper, engine_partitioner_merges_embedded_custom_op_so_buffers) {
-  EnginePartitioner partitioner;
-  const auto original_graph = std::make_shared<ComputeGraph>("st_original_so");
-  auto merged_graph = std::make_shared<ComputeGraph>("st_merged_so");
-  const auto original_so = BuildCustomOpSoBinForSt("libst_original.so", "host_cpu_fusion", {'A'});
-  const auto existing_so = BuildCustomOpSoBinForSt("libst_existing.so", "host_cpu_fusion", {'B'});
-  ASSERT_NE(original_so, nullptr);
-  ASSERT_NE(existing_so, nullptr);
-  ASSERT_TRUE(original_graph->SetExtAttr(
-      "bin_file_buffer", std::map<std::string, OpSoBinPtr>{{"host_cpu_fusion/libst_original.so", original_so}}));
-  ASSERT_TRUE(merged_graph->SetExtAttr(
-      "bin_file_buffer", std::map<std::string, OpSoBinPtr>{{"host_cpu_fusion/libst_existing.so", existing_so}}));
-
-  ASSERT_EQ(partitioner.InheritOriginalAttr(original_graph, merged_graph), SUCCESS);
-  const auto so_buffer = merged_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
-  ASSERT_NE(so_buffer, nullptr);
-  EXPECT_EQ(so_buffer->size(), 2U);
 }
 }  // namespace ge

@@ -11,6 +11,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cstring>
+
 #include "ge_graph_dsl/graph_dsl.h"
 #include "engine/gelocal/inputs_converter.h"
 #include "graph/utils/graph_utils.h"
@@ -27,12 +29,15 @@
 #include "common/const_data_helper.h"
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
+#include "exe_graph/lowering/exe_graph_attrs.h"
 #include "lowering/model_converter.h"
 #include "faker/fake_value.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/graph_dump_utils.h"
 #include "aicpu/kernel/aicpu_bin_handler.h"
 #include "aicpu/kernel/aicpu_resource_manager.h"
+#include "aicpu/kernel/fused_host_cpu_compute.h"
+#include "framework/common/host_cpu_fusion_attr.h"
 
 using namespace ge;
 namespace gert {
@@ -153,9 +158,155 @@ void TestAicpuConvert(std::string node_type, LowerResult &add_ret) {
 graphStatus StubHostKernel(KernelContext *context) {
   return GRAPH_SUCCESS;
 }
+
+bool ValidateFusedHostCpuRegistrationStub(const char *register_name) {
+  return (register_name != nullptr) && (std::string(register_name) == "FusedHostCpu_ut_private_loader");
+}
+
+void *CreateFusedHostCpuKernelStateLoaderStub() {
+  return reinterpret_cast<void *>(1U);
+}
+
+void DestroyFusedHostCpuKernelStateLoaderStub(void *kernel_state) {
+  (void)kernel_state;
+}
+
+uint32_t RunFusedHostCpuKernelLoaderStub(void *kernel_state, const void *bindings, const uint32_t binding_flags) {
+  (void)binding_flags;
+  return ((kernel_state != nullptr) && (bindings != nullptr)) ? 0U : 1U;
+}
+
+class FusedHostCpuMockMmpa : public HostcpuMockMmpa {
+ public:
+  void *DlSym(void *handle, const char *func_name) override {
+    if (std::string(func_name) == "ValidateFusedHostCpuKernelRegistration") {
+      return reinterpret_cast<void *>(&ValidateFusedHostCpuRegistrationStub);
+    }
+    if (std::string(func_name) == "CreateFusedHostCpuKernelState") {
+      return reinterpret_cast<void *>(&CreateFusedHostCpuKernelStateLoaderStub);
+    }
+    if (std::string(func_name) == "DestroyFusedHostCpuKernelState") {
+      return reinterpret_cast<void *>(&DestroyFusedHostCpuKernelStateLoaderStub);
+    }
+    if (std::string(func_name) == "RunFusedHostCpuKernel") {
+      return reinterpret_cast<void *>(&RunFusedHostCpuKernelLoaderStub);
+    }
+    return HostcpuMockMmpa::DlSym(handle, func_name);
+  }
+};
+
+std::vector<uint8_t> MakeFusedHostCpuElfStub() {
+  std::vector<uint8_t> so_data(20U, 0U);
+  so_data[0] = 0x7FU;
+  so_data[1] = 'E';
+  so_data[2] = 'L';
+  so_data[3] = 'F';
+  so_data[4] = 2U;
+  so_data[5] = 1U;
+  so_data[6] = 1U;
+  so_data[16] = 3U;
+#if defined(__aarch64__)
+  so_data[18] = 183U;
+#elif defined(__x86_64__)
+  so_data[18] = 62U;
+#endif
+  return so_data;
+}
 }  // namespace
 
 class AicpuNodeConverterUT : public bg::BgTestAutoCreate3StageFrame {};
+
+TEST_F(AicpuNodeConverterUT, RejectsInvalidFusedHostCpuSharedObject) {
+  const std::vector<uint8_t> invalid_so = {1U, 2U, 3U, 4U};
+  EXPECT_EQ(AicpuResourceManager::GetInstance().LoadFusedHostCpuSo("FusedHostCpu_invalid", invalid_so.data(),
+                                                                   invalid_so.size()),
+            ge::PARAM_INVALID);
+  EXPECT_EQ(AicpuResourceManager::GetInstance().LoadFusedHostCpuSo("", invalid_so.data(), invalid_so.size()),
+            ge::PARAM_INVALID);
+  const std::vector<uint8_t> elf_magic = {0x7FU, 'E', 'L', 'F'};
+  EXPECT_EQ(
+      AicpuResourceManager::GetInstance().LoadFusedHostCpuSo("FusedHostCpu_short", elf_magic.data(), elf_magic.size()),
+      ge::PARAM_INVALID);
+  EXPECT_EQ(AicpuResourceManager::GetInstance().LoadFusedHostCpuSo("Add", elf_magic.data(), elf_magic.size()),
+            ge::PARAM_INVALID);
+  EXPECT_EQ(AicpuResourceManager::GetInstance().ReleaseFusedHostCpuSo("FusedHostCpu_not_loaded"), ge::PARAM_INVALID);
+}
+
+TEST_F(AicpuNodeConverterUT, LoadsAndResolvesFusedHostCpuPrivateEntry) {
+  const auto so_data = MakeFusedHostCpuElfStub();
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<FusedHostCpuMockMmpa>());
+  auto &resource_manager = AicpuResourceManager::GetInstance();
+  const std::string register_name = "FusedHostCpu_ut_private_loader";
+  ASSERT_EQ(resource_manager.LoadFusedHostCpuSo(register_name, so_data.data(), so_data.size()), ge::GRAPH_SUCCESS);
+  const auto kernel_funcs = resource_manager.GetFusedHostCpuKernelFunctions(register_name);
+  ASSERT_EQ(kernel_funcs.create_func, &CreateFusedHostCpuKernelStateLoaderStub);
+  ASSERT_EQ(kernel_funcs.destroy_func, &DestroyFusedHostCpuKernelStateLoaderStub);
+  ASSERT_EQ(kernel_funcs.run_func, &RunFusedHostCpuKernelLoaderStub);
+  void *kernel_state = kernel_funcs.create_func();
+  int input = 1;
+  EXPECT_EQ(kernel_funcs.run_func(kernel_state, &input, kFusedHostCpuShapeChanged | kFusedHostCpuDataChanged), 0U);
+  kernel_funcs.destroy_func(kernel_state);
+  EXPECT_EQ(resource_manager.ReleaseFusedHostCpuSo(register_name), ge::GRAPH_SUCCESS);
+  ge::MmpaStub::GetInstance().Reset();
+}
+
+TEST_F(AicpuNodeConverterUT, LowersFusedHostCpuToPrivateEntryKernel) {
+  InitHostCpuUtEnv();
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  ASSERT_NE(graph, nullptr);
+  const auto fused_node = graph->FindNode("add1");
+  ASSERT_NE(fused_node, nullptr);
+  const auto op_desc = fused_node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetType(ge::kFusedHostCpuOpType);
+  op_desc->SetOpKernelLibName(ge::kEngineNameHostCpu.c_str());
+  const std::string register_name = "FusedHostCpu_ut_private_loader";
+  const std::string so_key = "_ut_fused_hostcpu_so";
+  ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, ge::kFusedHostCpuRegisterName, register_name));
+  ASSERT_TRUE(ge::AttrUtils::SetStr(op_desc, ge::kFusedHostCpuSoKey, so_key));
+  const auto so_data = MakeFusedHostCpuElfStub();
+  ASSERT_TRUE(ge::AttrUtils::SetBytes(graph, so_key, ge::Buffer::CopyFrom(so_data.data(), so_data.size())));
+
+  ge::MmpaStub::GetInstance().SetImpl(std::make_shared<FusedHostCpuMockMmpa>());
+  AiCpuCCTaskDefFaker task_def_faker;
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).AddTaskDef(ge::kFusedHostCpuOpType, task_def_faker).Build();
+  bg::LowerConstDataNode(global_data);
+  LowerInput empty_input = {{}, {}, &global_data};
+  auto data1_ret = LoweringDataNode(graph->FindNode("data1"), empty_input);
+  auto data2_ret = LoweringDataNode(graph->FindNode("data2"), empty_input);
+  ASSERT_TRUE(data1_ret.result.IsSuccess());
+  ASSERT_TRUE(data2_ret.result.IsSuccess());
+  LowerInput fused_input = {{data1_ret.out_shapes[0], data2_ret.out_shapes[0]},
+                            {data1_ret.out_addrs[0], data2_ret.out_addrs[0]},
+                            &global_data};
+  auto fused_ret = LoweringAiCpuNode(fused_node, fused_input);
+  ASSERT_TRUE(fused_ret.result.IsSuccess());
+
+  ge::ExecuteGraphPtr execute_graph = nullptr;
+  PopExecuteGraph(fused_ret.out_addrs, fused_ret.order_holders, execute_graph);
+  EXPECT_NE(ge::ExecuteGraphUtils::FindFirstNodeMatchType(execute_graph.get(), "FusedHostCpuCompute"), nullptr);
+  EXPECT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(execute_graph.get(), "AicpuHostCompute"), nullptr);
+  EXPECT_EQ(ge::ExecuteGraphUtils::FindFirstNodeMatchType(execute_graph.get(), "IdentityAddr"), nullptr);
+
+  // This test only inspects the lowered Main graph and does not execute the model DeInit graph. The runtime state is
+  // normally released by ReleaseFusedHostCpuKernelState in DeInit; release the same state here to keep LSan clean.
+  const auto de_init_graph = de_init_frame_->GetExecuteGraph();
+  ASSERT_NE(de_init_graph, nullptr);
+  const auto release_node =
+      ge::ExecuteGraphUtils::FindFirstNodeMatchType(de_init_graph.get(), "ReleaseFusedHostCpuKernelState");
+  ASSERT_NE(release_node, nullptr);
+  const auto release_edge = release_node->GetInDataEdgeByIndex(0);
+  ASSERT_NE(release_edge, nullptr);
+  ge::Buffer destroy_meta_buffer;
+  ASSERT_TRUE(ge::AttrUtils::GetZeroCopyBytes(release_edge->src->GetOpDescBarePtr(), kConstValue, destroy_meta_buffer));
+  ASSERT_EQ(destroy_meta_buffer.GetSize(), sizeof(FusedHostCpuDestroyMeta));
+  FusedHostCpuDestroyMeta destroy_meta{};
+  std::memcpy(&destroy_meta, destroy_meta_buffer.GetData(), sizeof(destroy_meta));
+  ASSERT_NE(destroy_meta.compute_state, nullptr);
+  kernel::DestroyFusedHostCpuComputeState(destroy_meta.compute_state);
+  ge::MmpaStub::GetInstance().Reset();
+}
 
 TEST_F(AicpuNodeConverterUT, ConvertAicpTfNode) {
   LowerResult add_ret;

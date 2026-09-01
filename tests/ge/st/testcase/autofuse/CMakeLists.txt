@@ -62,6 +62,7 @@ target_include_directories(autofuse_test PRIVATE
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef/graph
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/ascir
+        ${ASCEND_INSTALL_PATH}/pkg_inc
 )
 
 target_link_libraries(autofuse_test PRIVATE

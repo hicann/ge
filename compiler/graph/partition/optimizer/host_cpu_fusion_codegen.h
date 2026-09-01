@@ -34,7 +34,7 @@ struct HostCpuFusionRegion {
   std::vector<HostCpuFusionOutput> external_outputs;
 };
 
-// source 用于维测和测试，so_data 作为标准 custom-op SO 写入模型。
+// source 用于维测和测试，so_data 写入图属性并在运行时加载。
 struct HostCpuFusionCodegenResult {
   std::string register_name;
   std::string source;
@@ -50,8 +50,8 @@ class HostCpuFusionCompiler {
   virtual Status Compile(const std::string &source, std::vector<uint8_t> &so_data) const;
 };
 
-// 生成注册到 CustomOpRegistry(kHostCPU) 的普通 HostCpuExecuteOp。执行时按 op_type 从
-// libconstant_folding_ops.so 查询 Gert HostKernel，并使用临时 KernelContext 按拓扑序执行。
+// 生成注册到 aicpu::CpuKernelRegister 的融合 CpuKernel；内部编排为每个原始算子缓存 CpuKernel 执行计划，
+// 稳态仅更新 Tensor 数据和变化的描述信息并按拓扑序执行。
 class HostCpuFusionCodegen {
  public:
   Status Generate(const HostCpuFusionRegion &region, HostCpuFusionCodegenResult &result) const;

@@ -32,8 +32,6 @@
 #include "external/ge_common/ge_common_api_types.h"
 #include "external/graph/custom_op.h"
 #include "graph/custom_op/cast.h"
-#include "framework/common/host_cpu_fusion_attr.h"
-#include "graph/op_so_bin.h"
 #include "common/om2/om2_model_data.h"
 
 namespace ge {
@@ -172,20 +170,6 @@ Status CollectCustomOpTypesFromGraph(const ComputeGraphPtr &graph, const CustomO
     }
   }
   return SUCCESS;
-}
-
-bool IsEmbeddedHostCpuFusionSo(const ComputeGraphPtr &root_graph, const std::string &op_type) {
-  if (root_graph == nullptr) {
-    return false;
-  }
-  const auto so_buffer = root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
-  if (so_buffer == nullptr) {
-    return false;
-  }
-  const std::string so_key = std::string(kFusedHostCpuSoVendor) + "/lib" + op_type + ".so";
-  const auto so_it = so_buffer->find(so_key);
-  return (so_it != so_buffer->cend()) && (so_it->second != nullptr) &&
-         (so_it->second->GetSoBinType() == SoBinType::kCustomOp);
 }
 }  // namespace
 Status GeRootModel::Initialize(const ComputeGraphPtr &root_graph) {
@@ -425,11 +409,6 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
       continue;
     }
 
-    if (IsEmbeddedHostCpuFusionSo(root_graph_, op_type)) {
-      GELOGI("[CustomOp] op[%s] uses embedded HostCPU fusion SO, skip path collect.", op_type.c_str());
-      continue;
-    }
-
     std::string so_path;
     GE_ASSERT_SUCCESS(ResolvePortableOpSoPath(op_type, portable_op, so_path),
                       "Resolve custom op so path failed for op[%s].", op_type.c_str());
@@ -446,20 +425,7 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
   if (!custom_op_so_set_.empty()) {
     OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, so_in_om_);
   }
-  size_t embedded_custom_so_num = 0U;
-  const auto so_buffer = root_graph_->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
-  if (so_buffer != nullptr) {
-    for (const auto &entry : *so_buffer) {
-      if ((entry.second != nullptr) && (entry.second->GetSoBinType() == SoBinType::kCustomOp)) {
-        ++embedded_custom_so_num;
-      }
-    }
-  }
-  if (embedded_custom_so_num > 0U) {
-    OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, so_in_om_);
-  }
-  GELOGI("[CustomOp]The num of path-based so is %zu, embedded so is %zu.", custom_op_so_set_.size(),
-         embedded_custom_so_num);
+  GELOGI("[CustomOp]The num of so is %zu.", custom_op_so_set_.size());
   return SUCCESS;
 }
 

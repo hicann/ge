@@ -606,9 +606,7 @@ Status ModelHelper::SaveAutofuseSoBin(const GeRootModelPtr &ge_root_model) {
   if (bin_file_buffer != nullptr) {
     GELOGD("bin_file_buffer already exists, sync autofuse so to op_so_store_.");
     for (const auto &bin_entry : *bin_file_buffer) {
-      if ((bin_entry.second != nullptr) && (bin_entry.second->GetSoBinType() == SoBinType::kAutofuse)) {
-        op_so_store_.AddKernel(bin_entry.second);
-      }
+      op_so_store_.AddKernel(bin_entry.second);
     }
     return SUCCESS;
   }
@@ -625,21 +623,8 @@ Status ModelHelper::SaveCustomOpSoBin(const GeRootModelPtr &ge_root_model) {
   if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kCustomOp)) {
     return SUCCESS;
   }
-  auto root_graph = ge_root_model->GetRootGraph();
-  GE_ASSERT_NOTNULL(root_graph);
-  size_t embedded_so_num = 0U;
-  const auto so_buffer = root_graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer");
-  if (so_buffer != nullptr) {
-    for (const auto &entry : *so_buffer) {
-      if ((entry.second != nullptr) && (entry.second->GetSoBinType() == SoBinType::kCustomOp)) {
-        op_so_store_.AddKernel(entry.second);
-        ++embedded_so_num;
-      }
-    }
-  }
   GE_ASSERT_SUCCESS(LoadAndStoreOppSo(ge_root_model->GetCustomOpSoSet(), SoBinType::kCustomOp));
-  GELOGI("[CustomOp]Save %zu path-based and %zu embedded custom op so to OpSoStore success.",
-         ge_root_model->GetCustomOpSoSet().size(), embedded_so_num);
+  GELOGI("[CustomOp]Save %zu custom op so to OpSoStore success.", ge_root_model->GetCustomOpSoSet().size());
   return SUCCESS;
 }
 

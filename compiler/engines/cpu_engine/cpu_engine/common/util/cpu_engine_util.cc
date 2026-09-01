@@ -28,6 +28,7 @@
 #include "aicpu_graph_optimizer/graph_optimizer_utils.h"
 #include "graph/anchor.h"
 #include "graph/node.h"
+#include "framework/common/host_cpu_fusion_attr.h"
 
 using namespace std;
 using namespace ge;
@@ -279,12 +280,24 @@ static ge::Status FillOutputTensorOfAicpuNodeDef(const ge::OpDescPtr &op_desc_pt
     aicpu_shape->set_data_format(static_cast<ge::Format>(output_desc.GetFormat()));
     aicpu_shape->set_unknown_rank(is_unknow_shape);
     output_tensor->set_tensor_type(static_cast<ge::DataType>(output_desc.GetDataType()));
+    if (op_desc_ptr->GetType() == ge::kFusedHostCpuOpType) {
+      output_tensor->set_name(op_desc_ptr->GetOutputNameByIndex(static_cast<uint32_t>(i)));
+    }
   }
   return ge::SUCCESS;
 }
 
 ge::Status BuildAicpuNodeDef(const ge::OpDescPtr &op_desc_ptr, aicpuops::NodeDef &node_def) {
   std::string op_type = op_desc_ptr->GetType();
+  // 将通用节点类型替换成动态 Kernel 注册名
+  if (op_type == ge::kFusedHostCpuOpType) {
+    if (!ge::AttrUtils::GetStr(op_desc_ptr, ge::kFusedHostCpuRegisterName, op_type) || op_type.empty()) {
+      AICPUE_LOGE("Get fused HostCPU register name failed for op [%s].", op_desc_ptr->GetName().c_str());
+      return ge::PARAM_INVALID;
+    }
+    AICPUE_LOGD("Resolve fused HostCPU node[%s] to dynamic kernel[%s].", op_desc_ptr->GetName().c_str(),
+                op_type.c_str());
+  }
   node_def.set_op(op_type);
 
   bool is_unknow_shape = false;

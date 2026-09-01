@@ -12,11 +12,11 @@
 #define INC_FRAMEWORK_COMMON_HOST_CPU_FUSION_ATTR_H_
 
 namespace ge {
-// Compiler 和 RT2 通过这些属性识别由 HostCPU 融合生成的普通 HostCPU 自定义算子。
+// Compiler、HostCPU Builder 和 RT2 通过这些属性传递 FusedHostCpu 内部序列化信息。
 constexpr char kFusedHostCpuOpType[] = "FusedHostCpu";
 constexpr char kFusedHostCpuRegisterName[] = "_host_cpu_fusion_register_name";
-constexpr char kFusedHostCpuGenerated[] = "_host_cpu_fusion_generated";
-constexpr char kFusedHostCpuSoVendor[] = "host_cpu_fusion";
+constexpr char kFusedHostCpuSoKey[] = "_host_cpu_fusion_so_key";
+constexpr char kFusedHostCpuSoDataPrefix[] = "_hostcpu_codegen_so_data_";
 constexpr char kFusedHostCpuOriginalNodes[] = "_host_cpu_fusion_original_nodes";
 constexpr char kFusedHostCpuOriginalTypes[] = "_host_cpu_fusion_original_types";
 constexpr char kFusedHostCpuOutputRefs[] = "_host_cpu_fusion_output_refs";

@@ -35,7 +35,6 @@
 #include "macro_utils/dt_public_unscope.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
 #include "graph/custom_op_factory.h"
-#include "graph/op_so_bin.h"
 
 namespace ge {
 namespace airut {
@@ -356,60 +355,6 @@ TEST_F(UtestGraphPartition, merge_overflow_attr) {
   ASSERT_EQ(AttrUtils::HasAttr(graph2, "globalworkspace_size"), true);
   ASSERT_EQ(EnginePartitioner.global_workspace_size_, 1);
   ASSERT_EQ(EnginePartitioner.global_workspace_type_, 0);
-}
-
-TEST_F(UtestGraphPartition, inherit_original_attr_preserves_custom_op_so_buffer) {
-  EnginePartitioner partitioner;
-  const auto original_graph = std::make_shared<ComputeGraph>("original");
-  auto merged_graph = std::make_shared<ComputeGraph>("merged");
-
-  auto so_data = std::make_unique<char_t[]>(4U);
-  so_data[0] = 'E';
-  so_data[1] = 'L';
-  so_data[2] = 'F';
-  so_data[3] = '\0';
-  const auto so_bin =
-      MakeShared<OpSoBin>("libFusedHostCpu_test.so", "host_cpu_fusion", std::move(so_data), 4U, SoBinType::kCustomOp);
-  ASSERT_NE(so_bin, nullptr);
-  std::map<std::string, OpSoBinPtr> so_buffer;
-  so_buffer.emplace("host_cpu_fusion/libFusedHostCpu_test.so", so_bin);
-  ASSERT_TRUE(original_graph->SetExtAttr("bin_file_buffer", so_buffer));
-
-  ASSERT_EQ(partitioner.InheritOriginalAttr(original_graph, merged_graph), SUCCESS);
-  const auto inherited = merged_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
-  ASSERT_NE(inherited, nullptr);
-  ASSERT_EQ(inherited->size(), 1U);
-  const auto iter = inherited->find("host_cpu_fusion/libFusedHostCpu_test.so");
-  ASSERT_NE(iter, inherited->end());
-  ASSERT_NE(iter->second, nullptr);
-  EXPECT_EQ(iter->second->GetSoBinType(), SoBinType::kCustomOp);
-}
-
-TEST_F(UtestGraphPartition, inherit_original_attr_merges_existing_custom_op_so_buffer) {
-  EnginePartitioner partitioner;
-  const auto original_graph = std::make_shared<ComputeGraph>("original_with_so");
-  auto merged_graph = std::make_shared<ComputeGraph>("merged_with_so");
-  auto original_data = std::make_unique<char_t[]>(1U);
-  original_data[0] = 'A';
-  auto existing_data = std::make_unique<char_t[]>(1U);
-  existing_data[0] = 'B';
-  const auto original_so =
-      MakeShared<OpSoBin>("liboriginal.so", "host_cpu_fusion", std::move(original_data), 1U, SoBinType::kCustomOp);
-  const auto existing_so =
-      MakeShared<OpSoBin>("libexisting.so", "host_cpu_fusion", std::move(existing_data), 1U, SoBinType::kCustomOp);
-  ASSERT_NE(original_so, nullptr);
-  ASSERT_NE(existing_so, nullptr);
-  ASSERT_TRUE(original_graph->SetExtAttr(
-      "bin_file_buffer", std::map<std::string, OpSoBinPtr>{{"host_cpu_fusion/liboriginal.so", original_so}}));
-  ASSERT_TRUE(merged_graph->SetExtAttr(
-      "bin_file_buffer", std::map<std::string, OpSoBinPtr>{{"host_cpu_fusion/libexisting.so", existing_so}}));
-
-  ASSERT_EQ(partitioner.InheritOriginalAttr(original_graph, merged_graph), SUCCESS);
-  const auto inherited = merged_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
-  ASSERT_NE(inherited, nullptr);
-  EXPECT_EQ(inherited->size(), 2U);
-  EXPECT_EQ(inherited->at("host_cpu_fusion/liboriginal.so"), original_so);
-  EXPECT_EQ(inherited->at("host_cpu_fusion/libexisting.so"), existing_so);
 }
 
 TEST_F(UtestGraphPartition, merge_after_sub_graph_optimization_test_with_func_sub_graph) {

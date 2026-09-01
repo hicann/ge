@@ -34,7 +34,6 @@
 #include "graph/attribute_group/attr_group_shape_env.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/ge_common/ge_types.h"
-#include "graph/op_so_bin.h"
 
 namespace ge {
 namespace {
@@ -51,7 +50,6 @@ const char_t *const kAnchorIndex = "anchorIndex";
 const char_t *const kTaskL2FusionInfo = "_task_L2FusionInfo";
 const char_t *const kDataAnchorIndexForLxfusion = "_data_anchor_index_for_lxfusion";
 const char_t *const kEnableCvParallel = "_enable_cv_parallel";
-const char_t *const kSoBufferAttr = "bin_file_buffer";
 const char_t *const kVectorEngineName = "VectorEngine";
 const char_t *const kHostCpuEngineName = "DNN_VM_HOST_CPU";
 const std::string kStableRdfsSort = "3";
@@ -480,20 +478,6 @@ Status EnginePartitioner::InheritOriginalAttr(const ComputeGraphPtr &original_co
   if (device_mapping != nullptr) {
     GE_ASSERT_TRUE(
         output_merged_compute_graph->SetExtAttr(ge::ATTR_NAME_DEVICE_INDEX_TO_LOGIC_DEVICE_ID, *device_mapping));
-  }
-
-  // HostCPU fusion stores generated custom-op SOs in this ext attr. The merge step
-  // creates a new graph, so preserve the buffer together with the graph attrs.
-  const auto so_buffer = original_compute_graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>(kSoBufferAttr);
-  if (so_buffer != nullptr) {
-    std::map<std::string, ge::OpSoBinPtr> merged_so_buffer;
-    const auto existing_so_buffer =
-        output_merged_compute_graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>(kSoBufferAttr);
-    if (existing_so_buffer != nullptr) {
-      merged_so_buffer = *existing_so_buffer;
-    }
-    merged_so_buffer.insert(so_buffer->begin(), so_buffer->end());
-    GE_ASSERT_TRUE(output_merged_compute_graph->SetExtAttr(kSoBufferAttr, merged_so_buffer));
   }
 
   // AttrStore里面属性组没有被拷贝，并且没有提供CopyAllAttrStore方法，暂时先手动拷贝必须的
