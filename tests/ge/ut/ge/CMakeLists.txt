@@ -126,6 +126,7 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/model_parser_base_unittest.cc"
     "executor/ge_executor_unittest.cc"
     "executor/om2_model_executor_unittest.cc"
+    "executor/om2_kernel_handles_unittest.cc"
     "executor/om2_rt_var_manager_unittest.cc"
     "executor/rt_var_resource_unittest.cc"
     "executor/om2_model_manager_unittest.cc"
