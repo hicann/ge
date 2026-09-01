@@ -192,7 +192,7 @@ ge::graphStatus PrepareCopyFlowResult(KernelContext *context) {
   auto input_num = context->GetInputPointer<size_t>(static_cast<size_t>(PrepareCopyFlowResultInputs::kInputsNum));
   GE_CHECK_NOTNULL(input_num);
   if (*input_num != output_num) {
-    GELOGE(ge::GRAPH_FAILED, "host input num %zu, is not match output num %zu,", *input_num, output_num);
+    GELOGE(ge::GRAPH_FAILED, "host input num %zu does not match output num %zu.", *input_num, output_num);
     return ge::GRAPH_FAILED;
   }
 
@@ -228,7 +228,7 @@ ge::graphStatus PrepareCopyFlowResult(KernelContext *context) {
       continue;
     }
     if (!TensorPlacementUtils::IsOnHost(tensor_data->GetPlacement())) {
-      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to device hbm",
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %d to device hbm",
              static_cast<int32_t>(tensor_data->GetPlacement()));
       return ge::GRAPH_FAILED;
     }
@@ -288,7 +288,7 @@ ge::graphStatus LaunchCopyFlowH2D(KernelContext *context) {
       continue;
     }
     if (!TensorPlacementUtils::IsOnHost(tensor_data->GetPlacement())) {
-      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to device hbm",
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %d to device hbm",
              static_cast<int32_t>(tensor_data->GetPlacement()));
       return ge::GRAPH_FAILED;
     }
@@ -328,7 +328,7 @@ ge::graphStatus CopyFlowLaunch(KernelContext *context) {
   GE_CHECK_NOTNULL(input_num);
   GELOGD("host input num is %zu, output num is %zu.", *input_num, output_num);
   if (*input_num != output_num) {
-    GELOGE(ge::GRAPH_FAILED, "host input num %zu, is not match output num %zu,", *input_num, output_num);
+    GELOGE(ge::GRAPH_FAILED, "host input num %zu does not match output num %zu.", *input_num, output_num);
     return ge::GRAPH_FAILED;
   }
 
@@ -380,7 +380,7 @@ ge::graphStatus CopyFlowLaunch(KernelContext *context) {
         GE_ASSERT_SUCCESS(args->UpdateHostInputArgs(host_input));
       }
     } else {
-      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to device hbm",
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %d to device hbm",
              static_cast<int32_t>(tensor_data->GetPlacement()));
       return ge::GRAPH_FAILED;
     }

@@ -144,7 +144,7 @@ Status HybridModelExecutor::CopyDataToExecutArgs(const int64_t tensor_size, Hybr
 
   GELOGD("To copy input data for input[%zu]", input_index);
   if (data_buf.length > 0U) {
-    GELOGI("[IMAS]CopyPlainData memcpy graph_%u type[F] output[%zu] memaddr[%p] mem_size[%zu] datasize[%lu]",
+    GELOGI("CopyPlainData memcpy graph_%u type[F] output[%zu] memaddr[%p] mem_size[%zu] datasize[%lu]",
            model_->GetRootGraph() != nullptr ? model_->GetRootGraph()->GetGraphID() : 0, input_index,
            args.inputs[input_index].GetData(), mem_size, data_buf.length);
     GE_CHK_ACL_RET(aclrtMemcpy(args.inputs[input_index].MutableData(), mem_size, data_buf.data, data_buf.length,

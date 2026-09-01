@@ -161,7 +161,7 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
         const uint64_t copy_size = block_size * ordered_block.size();
         auto src = src_addr + src_index * block_size;
         auto dst = dst_addr + dst_index * block_size;
-        LLMLOGI("Begin mem copy, src index:%ld, dst index:%ld, copy size:%lu, contiguous block num:%lu", src_index,
+        LLMLOGI("Begin mem copy, src index:%ld, dst index:%ld, copy size:%lu B, contiguous block num:%lu", src_index,
                 dst_index, copy_size, ordered_block.size());
         const auto copy_start = std::chrono::steady_clock::now();
         if (copy_info.copy_type == CopyType::kMemcpyEx) {
@@ -237,7 +237,7 @@ ge::Status SwapImpl::SwapBlocks(const Cache &src, const Cache &dst, const uint64
   const auto &src_addrs = src.per_device_tensor_addrs;
   const auto &dst_addrs = dst.per_device_tensor_addrs;
   LLM_CHK_BOOL_RET_STATUS((src_addrs[device_index].size() == dst_addrs[device_index].size()), ge::LLM_PARAM_INVALID,
-                          "src adrrs size:%zu not equal dst addrs size:%zu", src_addrs[device_index].size(),
+                          "src addrs size:%zu not equal dst addrs size:%zu", src_addrs[device_index].size(),
                           dst_addrs[device_index].size());
   LLMLOGI("Begin swap blocks, cache num:%zu, swap block num:%zu", src_addrs.front().size(), block_mapping.size());
   LLM_CHK_ACL_RET(aclrtSetDevice(device_id_));

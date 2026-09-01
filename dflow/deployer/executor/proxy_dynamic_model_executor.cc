@@ -58,7 +58,7 @@ Status ProxyDynamicModelExecutor::SetNpuModelLoaderOutputInfo() {
   bool post_v2_support = false;
   if (is_need_check) {
     if (CpuTasks::ExecuteCheckSupported(kPostProcessV2, post_v2_support) != SUCCESS) {
-      GELOGW("CheckKernelSupported kernel fail maybe result of kernel not supported.");
+      GELOGW("CheckKernelSupported failed, maybe the kernel is not supported.");
     } else {
       GELOGI("Current version support postprocessDynamicOutputV2 flag is [%d].", static_cast<int32_t>(post_v2_support));
     }
@@ -76,7 +76,7 @@ Status ProxyDynamicModelExecutor::SetNpuModelLoaderOutputInfo() {
         // aicpu kernel support v2
         filtered_tensor_sizes.emplace_back(kDynamicTensorSize);
         filtered_output_dynamic_flags.emplace_back(kDynamicFlag);
-        GELOGD("Set output[%zu] tesor size[%d] and dynamic flag[%u] while current version support aicpu post V2 task.",
+        GELOGD("Set output[%zu] tensor size[%d] and dynamic flag[%u] while current version support aicpu post V2 task.",
                i, kDynamicTensorSize, kDynamicFlag);
       } else {
         filtered_tensor_sizes.emplace_back(output_tensor_sizes_[i]);

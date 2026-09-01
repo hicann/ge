@@ -211,7 +211,7 @@ bool IsSingleTransposeShouldSkipLifting(const NodePtr &node) {
       GE_ASSERT_TRUE(repeat.GetHint(dim), "Failed to get int value, expr = %s",
                      ge::SymbolicUtils::ToString(repeat).c_str());
       const auto data_type_size = GetSizeByDataType(asc_node->inputs[0].attr.dtype);
-      GE_ASSERT_TRUE(data_type_size > 0, "data_type_size must greater than 0",
+      GE_ASSERT_TRUE(data_type_size > 0, "data_type_size must be greater than 0",
                      ge::SymbolicUtils::ToString(repeat).c_str());
       constexpr int64_t limited_tail_size = 512U;
       const auto limited_size = limited_tail_size / data_type_size;
@@ -266,7 +266,7 @@ bool IsSkipLifting(const NodePtr &node, size_t min_compute_nodes) {
   // step4: compute node num
   vector<const Node *> compute_nodes = AutofuseUtils::GetComputeOps(origin_nodes);
   if (compute_nodes.size() >= min_compute_nodes) {
-    GELOGD("Skip lifting node：%s, as num fused nodes num %zu >= %zu", node->GetNamePtr(), compute_nodes.size(),
+    GELOGD("Skip lifting node: %s, as num fused nodes num %zu >= %zu", node->GetNamePtr(), compute_nodes.size(),
            min_compute_nodes);
     return true;
   }
@@ -298,7 +298,7 @@ bool IsSkipLifting(const NodePtr &node, size_t min_compute_nodes) {
   }
   if ((origin_nodes.size() == kNumOne) && (origin_nodes.at(0) != nullptr) &&
       (origin_nodes.at(0)->GetAllInDataAnchorsSize() >= min_one_node_in_data)) {
-    GELOGI("Skip lifting node: %s, as it Only one node But Origin Input Size %u", node->GetNamePtr(),
+    GELOGI("Skip lifting node: %s, as it has only one node but origin input size is %u", node->GetNamePtr(),
            fuse_attrs->GetOriginNodes().at(0)->GetAllInDataAnchorsSize());
     return true;
   }

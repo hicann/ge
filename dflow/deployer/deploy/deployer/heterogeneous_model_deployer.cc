@@ -61,10 +61,10 @@ Status HeterogeneousModelDeployer::DoDeployModelWithFlow(DeployContext &deploy_c
   // 4_1. distribute flow route plan
   GE_TIMESTAMP_START(TransferPlan);
   GE_CHK_BOOL_RET_STATUS(FlowModelSender::TransferFlowRoutePlan(deploy_state) == SUCCESS, FAILED,
-                         "Failed to dispatched FlowRoutePlan");
+                         "Failed to dispatch FlowRoutePlan");
   // 4_2. distribute deploy plan
   GE_CHK_BOOL_RET_STATUS(FlowModelSender::TransferDeployPlan(deploy_state) == SUCCESS, FAILED,
-                         "Failed to dispatched DeployPlan");
+                         "Failed to dispatch DeployPlan");
   GE_TIMESTAMP_EVENT_END(TransferPlan, "deploying in TransferPlan stage");
 
   // pre-deploy local flow route
@@ -151,7 +151,7 @@ Status HeterogeneousModelDeployer::BuildDeployPlan(DeployState &deploy_state) {
     if (pne_model->GetModelType().empty()) {
       pne_model->SetModelType(is_host_cpu ? PNE_ID_CPU : PNE_ID_NPU);
     }
-    GELOGI("Model [%s] will deployed on engine [%s]", it.first.c_str(), pne_model->GetModelType().c_str());
+    GELOGI("Model [%s] will be deployed on engine [%s]", it.first.c_str(), pne_model->GetModelType().c_str());
   }
 
   // build deploy plan
@@ -177,7 +177,7 @@ Status HeterogeneousModelDeployer::LoadSubmodels(DeployContext &deploy_context, 
     unique_node_ids.emplace(target_device.GetNodeId());
     int32_t device_id = it.second.device_info.GetDeviceId();
     it.second.model->SetDeviceId(device_id);
-    GELOGI("Success to set device id:%d, submodel:%s", device_id, it.second.model->GetModelName().c_str());
+    GELOGI("Successfully set device id:%d, submodel:%s", device_id, it.second.model->GetModelName().c_str());
   }
   if (!deploy_state.local_submodel_descs_.empty()) {
     unique_node_ids.emplace(local_node_id);

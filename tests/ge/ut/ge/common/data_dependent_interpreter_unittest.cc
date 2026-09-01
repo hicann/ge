@@ -329,7 +329,7 @@ TEST_F(DataDependentInterpreterUT, SimpleNode_ReturnTrueAndLogWarning_V2FalseV1T
   ASSERT_EQ(logs.size(), 1U);
   ASSERT_TRUE(EndsWith(logs[0].content,
                        "The node Test type DDIT02 input index 1 is interpreted data-dependent, because there is data "
-                       "dependent attr on the node. But the IMPL_OP does not registered as data-dependent"));
+                       "dependent attr on the node. But the IMPL_OP is not registered as data-dependent"));
 }
 TEST_F(DataDependentInterpreterUT, SimpleNode_ReturnTrue_V2TrueV1False) {
   auto node = ComputeNodeFaker().NameAndType("Test", "DDIT02").IoNum(3, 1).InputNames({"x", "y", "z"}).Build();
@@ -480,7 +480,7 @@ TEST_F(DataDependentInterpreterUT, OnlyV1Node_ReturnTrueAndLogWarning_V1True) {
 
   auto logs = stub.GetSlogStub().GetLogs(DLOG_WARN);
   ASSERT_EQ(logs.size(), 6U);
-  ASSERT_TRUE(EndsWith(logs[1].content, "The node Test type FooNotRegister does not registered by `IMPL_OP`"));
-  ASSERT_TRUE(EndsWith(logs[4].content, "The node Test type FooNotRegister does not registered by `IMPL_OP`"));
+  ASSERT_TRUE(EndsWith(logs[1].content, "The node Test type FooNotRegister is not registered by `IMPL_OP`"));
+  ASSERT_TRUE(EndsWith(logs[4].content, "The node Test type FooNotRegister is not registered by `IMPL_OP`"));
 }
 }  // namespace gert

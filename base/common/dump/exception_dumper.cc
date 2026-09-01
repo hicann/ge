@@ -613,13 +613,13 @@ void ExceptionDumper::LogExceptionTvmOpInfo(const OpDescInfo &op_desc_info) cons
   LogExceptionArgs(op_desc_info);
   ge::char_t curr_path[MMPA_MAX_PATH] = {};
   if (mmGetCwd(&curr_path[0], MMPA_MAX_PATH) != EN_OK) {
-    GELOGW("get current path failed when do aicerror info record");
+    GELOGW("get current path failed when recording aicerror info");
     return;
   }
 
   ge::char_t real_path[MMPA_MAX_PATH] = {};
   if (mmRealPath(op_desc_info.op_file_path.c_str(), &real_path[0], MMPA_MAX_PATH) != EN_OK) {
-    GELOGW("real path for %s failed when do aicerror info record", op_desc_info.op_file_path.c_str());
+    GELOGW("real path for %s failed when recording aicerror info", op_desc_info.op_file_path.c_str());
     return;
   }
   const std::string file_prefix = op_desc_info.dev_func.substr(0U, op_desc_info.dev_func.rfind("__"));

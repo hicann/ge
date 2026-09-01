@@ -166,7 +166,7 @@ Status AicpuNodeTaskBase::UpdateShapeToOutputDesc(const TaskContext &context, co
   GE_CHK_STATUS_RET(context.GetNodeState()->UpdateOutputShapes(output_index, shape_new, origin_shape_new),
                     "[Update][OutputShapes] failed for Node[%s(%s)], index = %d", node_name_.c_str(),
                     node_type_.c_str(), output_index);
-  GELOGD("Node[%s] out[%d] originFormat[%d] is not same as format[%d], need update from %s ro %s.", node_name_.c_str(),
+  GELOGD("Node[%s] out[%d] originFormat[%d] is not same as format[%d], need update from %s to %s.", node_name_.c_str(),
          output_index, origin_format, format, origin_shape_old.ToString().c_str(), origin_shape_new.ToString().c_str());
   return SUCCESS;
 }
@@ -490,8 +490,8 @@ static bool CanSyncStream(const OpDescPtr op_desc, const std::string node_type) 
 
 Status AicpuTfNodeTask::InitTopicTypAndExtInfo(const HybridModel &model) {
   GE_CHK_BOOL_RET_STATUS(task_def_.has_kernel_ex(), FAILED,
-                         "[Check][TaskDef] Node[%s(%s)] is tf node"
-                         "but task def does not has kernel ex.",
+                         "[Check][TaskDef] Node[%s(%s)] is tf node "
+                         "but task def does not have kernel_ex.",
                          node_name_.c_str(), node_type_.c_str());
   auto &kernel_ex_def = task_def_.kernel_ex();
   auto &kernel_ext_info = kernel_ex_def.kernel_ext_info();
@@ -536,7 +536,7 @@ Status AicpuTfNodeTask::Init(const HybridModel &model) {
   // init block info
   const OpDescPtr op_desc = node_item_->GetOpDesc();
   InitBlockAicpuOp(op_desc);
-  GE_CHK_STATUS_RET(InitTopicTypAndExtInfo(model), "[Int][TopicTypAndExtInfo] for Node[%s(%s)] failed.",
+  GE_CHK_STATUS_RET(InitTopicTypAndExtInfo(model), "[Init][TopicTypeAndExtInfo] for Node[%s(%s)] failed.",
                     node_name_.c_str(), node_type_.c_str());
   auto &kernel_ex_def = task_def_.kernel_ex();
   GE_CHK_STATUS_RET(AssembleWorkSpaceAddr(kernel_ex_def), "[Assemble][WorkSpaceAddr] for Node[%s(%s)] failed.",
@@ -596,7 +596,7 @@ Status AicpuTfNodeTask::Init(const HybridModel &model) {
                     "[Invoke][EnsureSessionCreated] Node[%s(%s)] create session id %lu failed.", node_name_.c_str(),
                     node_type_.c_str(), session_id);
   // Assemble kernel_buf_
-  GE_CHK_STATUS_RET(AssembleKernelBuffer(&fwk_op_kernel), "[Assemble][ernelBuffer] failed for node[%s(%s)] .",
+  GE_CHK_STATUS_RET(AssembleKernelBuffer(&fwk_op_kernel), "[Assemble][KernelBuffer] failed for node[%s(%s)] .",
                     node_name_.c_str(), node_type_.c_str());
   const auto node_type = NodeUtils::GetNodeType(node_item_->node);
   if (ge::hybrid::CanSyncStream(op_desc, node_type)) {
@@ -834,8 +834,7 @@ Status AicpuNodeTaskBase::UpdateShapeByHbmBuffer(const TaskContext &context,
       const auto &shape_hbm = out_shape_hbm[static_cast<size_t>(i)];
       GE_CHK_BOOL_RET_STATUS(((result_summary.shape_data_size % sizeof(int64_t)) == 0U), INTERNAL_ERROR,
                              "[Check][Size]Node[%s(%s)] [%d]th output shape data size is %" PRIu64
-                             " "
-                             "is not divided by int64_t.",
+                             " , which cannot be divided by sizeof(int64_t).",
                              node_name_.c_str(), node_type_.c_str(), i, result_summary.shape_data_size);
       const size_t dim_num = static_cast<size_t>(result_summary.shape_data_size) / sizeof(int64_t);
       GELOGD("Node[%s] [%d]th output dim num=%zu.", node_name_.c_str(), i, dim_num);
@@ -1126,8 +1125,9 @@ Status AicpuNodeTask::InitForDependComputeTask() {
 }
 
 Status AicpuNodeTask::InitTopicTypAndExtInfo(const HybridModel &model) {
-  GE_CHK_BOOL_RET_STATUS(task_def_.has_kernel(), FAILED, "[Call][HasKernel] Node[%s(%s)] task def does not has kernel.",
-                         node_name_.c_str(), node_type_.c_str());
+  GE_CHK_BOOL_RET_STATUS(task_def_.has_kernel(), FAILED,
+                         "[Call][HasKernel] Node[%s(%s)] task def does not have kernel.", node_name_.c_str(),
+                         node_type_.c_str());
   auto &kernel_def = task_def_.kernel();
   const auto &kernel_ext_info = kernel_def.kernel_ext_info();
   const auto kernel_ext_info_size = kernel_def.kernel_ext_info_size();
@@ -1146,7 +1146,7 @@ Status AicpuNodeTask::Init(const HybridModel &model) {
   // init block info
   const OpDescPtr op_desc = node_item_->GetOpDesc();
   InitBlockAicpuOp(op_desc);
-  GE_CHK_STATUS_RET(InitTopicTypAndExtInfo(model), "[Int][TopicTypAndExtInfo] for Node[%s(%s)] failed.",
+  GE_CHK_STATUS_RET(InitTopicTypAndExtInfo(model), "[Init][TopicTypeAndExtInfo] for Node[%s(%s)] failed.",
                     node_name_.c_str(), node_type_.c_str());
   auto &kernel_def = task_def_.kernel();
 

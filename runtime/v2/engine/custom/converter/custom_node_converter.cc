@@ -99,25 +99,24 @@ bg::ValueHolderPtr FindHostCpuCustomExecutorFunc(const ge::NodePtr &node, const 
 
 ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &lower_input,
                                   std::vector<bg::ValueHolderPtr> &input_tensor_holders,
-                                  std::vector<bg::ValueHolderPtr> &input_addr_holders) {
+                                  std::vector<bg::ValueHolderPtr> &input_addr_holders, const bool host_lowering) {
   const ge::OpDescPtr op_desc = node->GetOpDesc();
   gert::DataDependentInterpreter ddi(op_desc, lower_input.global_data->GetSpaceRegistriesV2());
   size_t instance_index = 0U;
-  for (const ge::InDataAnchorPtr &in_data_anchor : node->GetAllInDataAnchors()) {
+  for (const auto *in_data_anchor : node->GetAllInDataAnchorsPtr()) {
     GE_ASSERT_NOTNULL(in_data_anchor);
     // optional场景
     ge::OutDataAnchorPtr out_data_anchor = in_data_anchor->GetPeerOutAnchor();
     if (out_data_anchor == nullptr) {
       continue;
     }
-    ge::NodePtr peer_node = out_data_anchor->GetOwnerNode();
+    ge::Node *peer_node = out_data_anchor->GetOwnerNodeBarePtr();
     GE_ASSERT_NOTNULL(peer_node);
-    const auto *const_lower_result = peer_node->GetOpDesc()->GetExtAttr<PlacedLoweringResult>(kLoweringResult);
-    GE_ASSERT_NOTNULL(const_lower_result, "Lowering result of node [%s, %s] is not found.", peer_node->GetNamePtr(),
+    auto *lower_result = peer_node->GetOpDesc()->GetExtAttr<PlacedLoweringResult>(kLoweringResult);
+    GE_ASSERT_NOTNULL(lower_result, "Lowering result of node [%s, %s] is not found.", peer_node->GetNamePtr(),
                       peer_node->GetTypePtr());
-    auto *lower_result = const_cast<PlacedLoweringResult *>(const_lower_result);
-    GE_ASSERT_NOTNULL(lower_result);
-    const int32_t input_placement = NeedHostInput(op_desc, instance_index, ddi) ? kOnHost : kOnDeviceHbm;
+    const int32_t input_placement =
+        host_lowering ? kOnHost : (NeedHostInput(op_desc, instance_index, ddi) ? kOnHost : kOnDeviceHbm);
     const OutputLowerResult *result = lower_result->GetOutputTensorResult(
         *lower_input.global_data, out_data_anchor->GetIdx(), {input_placement, node->GetOpDesc()->GetStreamId()});
     GE_ASSERT_NOTNULL(result, "Lowering result of node [%s, %s] output[%d] is nullptr.", peer_node->GetNamePtr(),
@@ -132,44 +131,13 @@ ge::graphStatus BuildInputTensors(const ge::NodePtr &node, const LowerInput &low
                  lower_input.input_shapes.size(), input_tensor_holders.size());
   return ge::SUCCESS;
 }
-
-ge::graphStatus BuildHostInputTensors(const ge::NodePtr &node, const LowerInput &lower_input,
-                                      std::vector<bg::ValueHolderPtr> &input_tensor_holders,
-                                      std::vector<bg::ValueHolderPtr> &input_addr_holders) {
-  for (const ge::InDataAnchorPtr &in_data_anchor : node->GetAllInDataAnchors()) {
-    GE_ASSERT_NOTNULL(in_data_anchor);
-    // optional场景
-    ge::OutDataAnchorPtr out_data_anchor = in_data_anchor->GetPeerOutAnchor();
-    if (out_data_anchor == nullptr) {
-      continue;
-    }
-    ge::NodePtr peer_node = out_data_anchor->GetOwnerNode();
-    GE_ASSERT_NOTNULL(peer_node);
-    const auto *const_lower_result = peer_node->GetOpDesc()->GetExtAttr<PlacedLoweringResult>(kLoweringResult);
-    GE_ASSERT_NOTNULL(const_lower_result, "Lowering result of node [%s, %s] is not found.", peer_node->GetNamePtr(),
-                      peer_node->GetTypePtr());
-    auto *lower_result = const_cast<PlacedLoweringResult *>(const_lower_result);
-    GE_ASSERT_NOTNULL(lower_result);
-    const OutputLowerResult *result = lower_result->GetOutputTensorResult(
-        *lower_input.global_data, out_data_anchor->GetIdx(), {kOnHost, node->GetOpDesc()->GetStreamId()});
-    GE_ASSERT_NOTNULL(result, "Lowering result of node [%s, %s] output[%d] is nullptr.", peer_node->GetNamePtr(),
-                      peer_node->GetTypePtr(), out_data_anchor->GetIdx());
-    GE_ASSERT_NOTNULL(result->shape);
-    input_tensor_holders.emplace_back(result->shape);
-    input_addr_holders.emplace_back(result->address);
-  }
-  GE_ASSERT_TRUE(lower_input.input_shapes.size() == input_tensor_holders.size(),
-                 "Size[%zu] of input shapes and size[%zu] of input tensor is not same.",
-                 lower_input.input_shapes.size(), input_tensor_holders.size());
-  return ge::SUCCESS;
-}
 }  // namespace
 
 LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_input) {
   LOWER_REQUIRE_HYPER_SUCCESS(CheckLowerInput(lower_input));
   std::vector<bg::ValueHolderPtr> input_holders;
   std::vector<bg::ValueHolderPtr> input_addr_holders;
-  LOWER_REQUIRE_SUCCESS(BuildInputTensors(node, lower_input, input_holders, input_addr_holders));
+  LOWER_REQUIRE_SUCCESS(BuildInputTensors(node, lower_input, input_holders, input_addr_holders, false));
   // Allocate
   auto allocator_holder =
       lower_input.global_data->GetOrCreateAllocator({kOnDeviceHbm, AllocatorUsage::kAllocNodeOutput});
@@ -236,7 +204,7 @@ LowerResult LoweringHostCustomNode(const ge::NodePtr &node, const LowerInput &lo
   LOWER_REQUIRE_HYPER_SUCCESS(CheckLowerInput(lower_input));
   std::vector<bg::ValueHolderPtr> input_holders;
   std::vector<bg::ValueHolderPtr> input_addr_holders;
-  LOWER_REQUIRE_SUCCESS(BuildHostInputTensors(node, lower_input, input_holders, input_addr_holders));
+  LOWER_REQUIRE_SUCCESS(BuildInputTensors(node, lower_input, input_holders, input_addr_holders, true));
   // Allocate
   auto allocator_holder = lower_input.global_data->GetOrCreateAllocator({kOnHost, AllocatorUsage::kAllocNodeOutput});
   // Create op executeFunc

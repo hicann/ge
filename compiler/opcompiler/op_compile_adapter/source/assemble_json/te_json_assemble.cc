@@ -1704,6 +1704,13 @@ void TeJsonAssemble::GenerateSocInfoJson(const std::vector<ConstTbeOpInfoPtr> &t
                 firstOpInfo->GetName().c_str(), deterministicLevel.c_str());
       socInfoJson["deterministic_level"] = deterministicLevel;
     }
+
+    bool pcieThroughFlag = false;
+    (void)ge::AttrUtils::GetBool(firstOpInfo->GetNode()->GetOpDesc(), kPcieThroughFlag, pcieThroughFlag);
+    if (pcieThroughFlag) {
+      TE_DBGLOG("Node[%s] _pcie_through attr is true, set it to options.", firstOpInfo->GetName().c_str());
+      socInfoJson["pcie_through_flag"] = pcieThroughFlag;
+    }
   }
 }
 
@@ -1742,7 +1749,7 @@ void TeJsonAssemble::AssembleComipleParams(const std::vector<ge::Node *> &fusion
 
 void TeJsonAssemble::FillOptionalOutputWithNull(const std::vector<ge::Node *> &teGraphNode, nlohmann::json &jsonData) {
   if (jsonData.find("op_list") == jsonData.end()) {
-    TE_WARNLOG("Json data does not contains [op_list].");
+    TE_WARNLOG("Json data does not contain [op_list].");
     return;
   }
 
@@ -1793,7 +1800,7 @@ void TeJsonAssemble::GetPrebuildOutput(const std::string &nodeName, nlohmann::js
   try {
     jsonStr = json::parse(opParamStr);
   } catch (std::exception &e) {
-    REPORT_TE_INNER_ERROR("Failed to parser json_str, the json_str is %s and the reason is %s", opParamStr.c_str(),
+    REPORT_TE_INNER_ERROR("Failed to parse json_str, the json_str is %s and the reason is %s", opParamStr.c_str(),
                           e.what());
     return;
   }
@@ -1814,7 +1821,7 @@ void TeJsonAssemble::RefreshSgtSliceShape(nlohmann::json &outputDesc, nlohmann::
 void TeJsonAssemble::FilterOutputMultipleReference(nlohmann::json &jsonData) {
   TE_DBGLOG("Begin to FilterOutputMultipleReference");
   if (jsonData.find("op_list") == jsonData.end()) {
-    TE_WARNLOG("Json data does not contains [op_list].");
+    TE_WARNLOG("Json data does not contain [op_list].");
     return;
   }
 
@@ -2164,6 +2171,13 @@ void TeJsonAssemble::SetCustomCoreCountAndLevel(const ConstTbeOpInfoPtr &firstTb
     TE_DBGLOG("Node[%s] _deterministic_level attr [%s] is not null, set it to options.",
               firstTbeOpInfo->GetName().c_str(), deterministicLevel.c_str());
     options["deterministic_level"] = deterministicLevel;
+  }
+
+  bool pcieThroughFlag = false;
+  (void)ge::AttrUtils::GetBool(firstTbeOpInfo->GetNode()->GetOpDesc(), kPcieThroughFlag, pcieThroughFlag);
+  if (pcieThroughFlag) {
+    TE_DBGLOG("Node[%s] _pcie_through attr is true, set it to options.", firstTbeOpInfo->GetName().c_str());
+    options["pcie_through_flag"] = STR_TRUE;
   }
 }
 }  // namespace fusion

@@ -28,7 +28,7 @@ void DeviceMemoryRecorder::SetRecorder(const void *const addr, const int64_t siz
     memory_info_data.time_stamp = MsprofSysCycleTime();
     GELOGI(
         "[CannMemoryProfiler][RecordMemory] Record memory info: "
-        "addr: %llu, size: %lld, total allocate size: %llu, total reserve size: %lld"
+        "addr: %llu, size: %lld, total allocate size: %llu, total reserve size: %lld "
         "time stamp: %llu",
         memory_info_data.addr, memory_info_data.size, memory_info_data.total_allocate_memory,
         memory_info_data.total_reserve_memory, memory_info_data.time_stamp);

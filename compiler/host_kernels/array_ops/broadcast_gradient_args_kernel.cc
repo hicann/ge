@@ -54,7 +54,7 @@ Status BroadcastGradientArgsKernel::Compute(const OpDescPtr op_desc_ptr, const s
   BCast bcast;
   Status ret = bcast.GenerateBcastInfo(x1_dims, x2_dims);
   if (ret != SUCCESS) {
-    GELOGE(ret, "Generate bcast info fail.");
+    GELOGE(ret, "Failed to generate bcast info.");
     return ret;
   }
 

@@ -259,7 +259,7 @@ Status OpTask::ReportProfAdditionalInfo(const uint64_t end_time, const uint64_t 
   ProfilingManager::Instance().GetOpInputOutputInfo(op_desc_, task_desc_info);
   task_desc_info.prof_time = end_time;
   GELOGD(
-      "[Cann Profiling] node name is %s, node type is %s, blcokDim is %u, op name hash is %llu, "
+      "[Cann Profiling] node name is %s, node type is %s, blockDim is %u, op name hash is %llu, "
       "op type hash is %llu, task type is %u, endtime is %llu, tid is %d",
       op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), block_dim, op_name_hash, op_type_hash, task_type,
       end_time, tid);
@@ -799,7 +799,7 @@ Status AtomicAddrCleanOpTask::UpdateIoAddr(const std::vector<DataBuffer> &inputs
   uintptr_t *arg_base = PtrToPtr<uint8_t, uintptr_t>(args_.get());
   for (const int32_t atomic_output_index : atomic_output_indices_) {
     if (atomic_output_index >= static_cast<int32_t>(outputs.size())) {
-      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Update][Args] failed, atomic index must smaller then data size.");
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Update][Args] failed, atomic index must be smaller than data size.");
       REPORT_INNER_ERR_MSG("E19999", "[Update][Args] failed, atomic index must smaller then data size.");
       return ACL_ERROR_GE_PARAM_INVALID;
     }
@@ -821,7 +821,7 @@ Status AtomicAddrCleanOpTask::UpdateIoAddr(const std::vector<DataBuffer> &inputs
   for (const int32_t atomic_ws_index : atomic_workspace_indices_) {
     if (atomic_ws_index >= static_cast<int32_t>(workspaces_.size())) {
       GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-             "[Update][Args] failed, workspace atomic index must smaller then workspace size.");
+             "[Update][Args] failed, workspace atomic index must be smaller than workspace size.");
       REPORT_INNER_ERR_MSG("E19999", "[Update][Args] failed, workspace atomic index must smaller then workspace size.");
       return ACL_ERROR_GE_PARAM_INVALID;
     }
@@ -1093,7 +1093,7 @@ Status AiCpuBaseTask::UpdateShapeToOutputDesc(const GeShape &shape_new, GeTensor
 
   const auto origin_shape_new = GeShape(origin_dims_new);
   output_desc.SetOriginShape(origin_shape_new);
-  GELOGD("AiCpuTask originFormat[%d] is not same as format[%d], need update from %s ro %s.", origin_format, format,
+  GELOGD("AiCpuTask originFormat[%d] is not same as format[%d], need update from %s to %s.", origin_format, format,
          origin_shape_old.ToString().c_str(), origin_shape_new.ToString().c_str());
   return SUCCESS;
 }
@@ -1222,7 +1222,7 @@ Status AiCpuTask::LaunchKernel(aclrtStream const stream) {
                            memcpy_kind, stream);
   }
   if (ret != ACL_SUCCESS) {
-    GELOGE(FAILED, "[MemcpyAsync][Date] failed. ret = %d, task = %s", ret, this->op_type_.c_str());
+    GELOGE(FAILED, "[MemcpyAsync][Data] failed. ret = %d, task = %s", ret, this->op_type_.c_str());
     REPORT_INNER_ERR_MSG("E19999", "aclrtMemcpyAsync data failed, ret = %d, task = %s", ret, this->op_type_.c_str());
     return RT_ERROR_TO_GE_STATUS(ret);
   }
@@ -1589,7 +1589,7 @@ Status AiCpuCCTask::SetMemCopyTask(const domi::KernelDef &kernel_def) {
                &copy_io_addr_[0U], sizeof(uint64_t) * memcpy_io_num);
   if (cpy_ret != 0) {
     REPORT_INNER_ERR_MSG("E19999",
-                         "Node[Memcpoy] memcpy io addr to AicpuParamHead failed,"
+                         "Node[Memcpy] memcpy io addr to AicpuParamHead failed,"
                          "ret=%d, args_size=%u, io nums=%u.",
                          cpy_ret, memcpy_args_size_, memcpy_io_num);
     GELOGE(INTERNAL_ERROR,

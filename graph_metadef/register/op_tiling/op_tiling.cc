@@ -461,7 +461,7 @@ ge::graphStatus PostProcCalculateV2(const ge::Operator &op, OpRunInfoV2 &run_inf
   run_info.GetAllWorkspaces(op_workspaces);
   const size_t op_work_size = op_workspaces.size();
   if (op_work_size > all_workspaces.size()) {
-    GELOGW("Op name:%s tiling return workspace number(%zu) large than all workspace num(%zu).",
+    GELOGW("Op name:%s tiling return workspace number(%zu) larger than all workspace num(%zu).",
            op_desc->GetName().c_str(), op_work_size, all_workspaces.size());
     return ge::GRAPH_SUCCESS;
   }
@@ -556,7 +556,7 @@ ge::graphStatus PostProcMemoryCheck(const ge::Operator &op, OpRunInfoV2 &run_inf
                            op_desc->GetName().c_str(), i);
       return ge::GRAPH_FAILED;
     }
-    GELOGD("Op input tensor: %zu has a size of %ld.", i, clean_size);
+    GELOGD("Op input tensor: %zu has a size of %ld bytes.", i, clean_size);
     run_info.AddTilingData(clean_size);
   }
   for (size_t j = 0U; j < op_desc->GetOutputsSize(); ++j) {
@@ -570,7 +570,7 @@ ge::graphStatus PostProcMemoryCheck(const ge::Operator &op, OpRunInfoV2 &run_inf
                            op_desc->GetName().c_str(), j);
       return ge::GRAPH_FAILED;
     }
-    GELOGD("Op output tensor: %zu with size %ld.", j, clean_size);
+    GELOGD("Op output tensor: %zu with size %ld bytes.", j, clean_size);
     run_info.AddTilingData(clean_size);
   }
   for (size_t k = 0U; k < run_info.GetWorkspaceNum(); ++k) {
@@ -580,7 +580,7 @@ ge::graphStatus PostProcMemoryCheck(const ge::Operator &op, OpRunInfoV2 &run_inf
     run_info.AddTilingData(workspace);
   }
   const uint64_t cur_size = run_info.GetTilingDataSize();
-  GELOGD("Adding tiling data; current size: %lu.", cur_size);
+  GELOGD("Adding tiling data; current size: %lu bytes.", cur_size);
   run_info.AddTilingData(cur_size);
 
   uint64_t max_size = 0U;
@@ -689,7 +689,7 @@ ge::graphStatus AssembleWorkspaceList(const ge::OpDescPtr &op_desc_ptr, int64_t 
       }
     }
   }
-  GELOGI("Atomic clean size: %ld, op_name:%s", first_clean_size, op_desc_ptr->GetName().c_str());
+  GELOGI("Atomic clean size: %ld bytes, op_name:%s", first_clean_size, op_desc_ptr->GetName().c_str());
 
   if (!atomic_workspace_info.empty()) {
     const std::vector<int64_t> workspace_bytes = op_desc_ptr->GetWorkspaceBytes();
@@ -982,7 +982,7 @@ OpTilingFuncInfo *GetOpAtomicTilingInfo(const ge::OpDescPtr &op_desc) {
     auto &op_func_map = OpTilingFuncRegistry::RegisteredOpFuncInfo();
     const auto iter = op_func_map.find(OP_TYPE_DYNAMIC_ATOMIC_ADDR_CLEAN);
     if (iter == op_func_map.end()) {
-      GE_LOGE("Atomic optiling func not found of op[%s, %s].", op_desc->GetName().c_str(), op_desc->GetType().c_str());
+      GE_LOGE("Atomic optiling func not found for op[%s, %s].", op_desc->GetName().c_str(), op_desc->GetType().c_str());
       return nullptr;
     }
     op_desc->SetAtomicTilingFuncInfo(::ge::PtrToPtr<OpTilingFuncInfo, void>(&(iter->second)));

@@ -682,7 +682,10 @@ ge::Node *GetPreviousNode(const ge::Node *node, const uint32_t index) {
 
 bool GetSubOpLoc(int64_t skCount, int64_t skSubId, std::string &locStr) {
   if (skCount <= 0 || skSubId < 0 || skSubId >= skCount) {
-    TE_WARNLOG("Invalid parameters: skCount=%ld, skSubId=%ld", skCount, skSubId);
+    TE_WARNLOG(
+        "Invalid parameters: skCount=%ld, skSubId=%ld. skCount should be greater than 0, skSubId should be in [0, "
+        "skCount).",
+        skCount, skSubId);
     return false;
   }
   if (skSubId == 0) {

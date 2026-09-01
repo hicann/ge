@@ -303,7 +303,8 @@ Status UdfExecutorClient::NotifyUdfContinue(const std::shared_ptr<ExecutorMessag
 Status UdfExecutorClient::GrantAndGetUdfAicpuPid(int32_t phy_device_id, pid_t udf_pid, pid_t &aicpu_pid) {
   GE_CHK_STATUS_RET(RtsApiUtils::GetAicpuSchedulePid(phy_device_id, udf_pid, aicpu_pid),
                     "Query aicpu schedule failed, device_id=%d, udf_pid=%d.", phy_device_id, udf_pid);
-  GELOGI("io will take by aicpu schedule, device_id=%d, udf_pid=%d, aicpu_pid=%d.", phy_device_id, udf_pid, aicpu_pid);
+  GELOGI("io will be taken over by aicpu schedule, device_id=%d, udf_pid=%d, aicpu_pid=%d.", phy_device_id, udf_pid,
+         aicpu_pid);
 
   const auto &remote_group_name = MemoryGroupManager::GetInstance().GetRemoteMemGroupName(phy_device_id);
   GE_CHK_STATUS_RET(
@@ -793,7 +794,7 @@ Status UdfExecutorClient::ForkChildProcess(const deployer::ExecutorRequest_LoadM
   }
   // only LD_LIBRARY_PATH need set, other env can be inherited by subprocess
   config.envs.emplace("LD_LIBRARY_PATH", new_ld_library_path);
-  GELOGD("LD_LIBRARY_PATH is been set to %s", new_ld_library_path.c_str());
+  GELOGD("LD_LIBRARY_PATH has been set to %s", new_ld_library_path.c_str());
   config.unset_envs = Configurations::GetHeterogeneousEnvs();
 
   GE_CHK_STATUS_RET(SubprocessManager::GetInstance().ForkSubprocess(config, child_pid), "Failed to fork %s.",

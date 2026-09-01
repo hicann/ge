@@ -138,7 +138,7 @@ Status DbgDumpPostProcess(uint32_t modelId, uint64_t *stepIdAddr, void *dbgHandl
   uint32_t dumpStatus = GetDumpStatus();
   if (dumpStatus == DUMP_NORMAL_ENABLE) {
     if (modelDbgHandle->cfgMatchedCount == 0) {
-      GELOGI("modelName or opName is not matched .the load dump info not need to be sent.");
+      GELOGI("modelName or opName is not matched, the load dump info does not need to be sent.");
       return SUCCESS;
     }
   }

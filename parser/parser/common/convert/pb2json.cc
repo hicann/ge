@@ -161,7 +161,7 @@ string Pb2Json::TypeBytes2String(string &field_name, string &type_bytes) {
   for (char temp_value : type_bytes) {
     char str[kSignificantDigits];
     if (sprintf_s(str, kSignificantDigits, "%c", temp_value) == -1) {
-      GELOGW("Convert bytes to string fail, filed name:%s", field_name.c_str());
+      GELOGW("Convert bytes to string fail, field name:%s", field_name.c_str());
       continue;
     }
     result += str;

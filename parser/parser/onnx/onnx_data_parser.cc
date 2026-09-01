@@ -128,7 +128,7 @@ Status OnnxDataParser::ParseInputFromUser(const ge::Operator &op_def) {
   std::vector<int64_t> designated_dims = input_dims.at(name);
   size_t input_dim_size = designated_dims.size();
   if (!(model_input_dims_v_.empty() || input_dim_size == model_input_dims_v_.size())) {
-    GELOGD("user designated input_dim_num %zu does match input_dim_num %zu defined by model", input_dim_size,
+    GELOGD("user designated input_dim_num %zu does not match input_dim_num %zu defined by model", input_dim_size,
            model_input_dims_v_.size());
     return domi::PARAM_INVALID;
   }

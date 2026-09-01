@@ -237,7 +237,7 @@ Status ModelHelper::SaveModelDef(std::shared_ptr<OmFileSaveHelper> &om_file_save
   }
   const ModelPtr model_tmp = ge::MakeShared<ge::Model>(ge_model->GetName(), ge_model->GetPlatformVersion());
   if (model_tmp == nullptr) {
-    GELOGE(FAILED, "[Creat][Model]Failed, Model %s Ptr", ge_model->GetName().c_str());
+    GELOGE(FAILED, "[Create][Model]Failed, Model %s Ptr", ge_model->GetName().c_str());
     REPORT_INNER_ERR_MSG("E19999", "Create Model %s Ptr failed.", ge_model->GetName().c_str());
     return FAILED;
   }
@@ -335,7 +335,7 @@ Status ModelHelper::SaveModelTaskDef(std::shared_ptr<OmFileSaveHelper> &om_file_
   const std::shared_ptr<domi::ModelTaskDef> model_task_def = ge_model->GetModelTaskDefPtr();
   if (model_task_def == nullptr) {
     GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION,
-           "[Creat][ModelTaskDef]Failed, it is nullptr, "
+           "[Create][ModelTaskDef]Failed, it is nullptr, "
            "model %s",
            ge_model->GetName().c_str());
     REPORT_INNER_ERR_MSG("E19999", "Create model task def failed, it is nullptr, model %s",
@@ -677,7 +677,7 @@ Status ModelHelper::SaveAllModelPartiton(std::shared_ptr<OmFileSaveHelper> &om_f
 
   if (SaveModelWeights(om_file_save_helper, ge_model, model_index) != SUCCESS) {
     GELOGE(FAILED, "[Save][ModelWeights]Failed, model %s, model index %zu", ge_model->GetName().c_str(), model_index);
-    REPORT_INNER_ERR_MSG("E19999", "ModelHelper save mode weights failed, model %s, model index %zu",
+    REPORT_INNER_ERR_MSG("E19999", "ModelHelper save model weights failed, model %s, model index %zu",
                          ge_model->GetName().c_str(), model_index);
     return FAILED;
   }
@@ -934,7 +934,7 @@ Status ModelHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model, const
       "[Save][ModelHeader]Failed, model name %s", first_ge_model->GetName().c_str());
 
   GE_ASSERT_SUCCESS(om_file_save_helper->SaveModel(output_file_name.c_str(), model, is_offline_ && save_to_file_),
-                    "[Save][Model]OmFileSaveHelper save model eturn fail, output_file %s", output_file_name.c_str());
+                    "[Save][Model]OmFileSaveHelper save model return fail, output_file %s", output_file_name.c_str());
   return SUCCESS;
 }
 
@@ -1059,7 +1059,7 @@ Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData
   // save bundle models.
   output_buffer.data.reset(buff_data.release(), std::default_delete<uint8_t[]>());
   output_buffer.length = total_size;
-  GELOGI("Gathering bundle model successfully, total size: %[%zu], var_size is %lu", total_size, var_size);
+  GELOGI("Gathering bundle model successfully, total size: %zu, var_size is %lu", total_size, var_size);
   return SUCCESS;
 }
 
@@ -1122,7 +1122,7 @@ Status ModelHelper::LoadPartInfoFromModel(const ge::ModelData &model_data, Model
   }
 
   GE_IF_BOOL_EXEC(is_assign_model_,
-                  GELOGE(ACL_ERROR_GE_EXEC_LOAD_MODEL_REPEATED, "[Load][RootModel]Model helper ha already loaded!");
+                  GELOGE(ACL_ERROR_GE_EXEC_LOAD_MODEL_REPEATED, "[Load][RootModel]Model helper has already loaded!");
                   return ACL_ERROR_GE_EXEC_LOAD_MODEL_REPEATED);
 
   uint8_t *model_data_addr = nullptr;
@@ -1134,7 +1134,7 @@ Status ModelHelper::LoadPartInfoFromModel(const ge::ModelData &model_data, Model
 
   OmFileLoadHelper om_load_helper;
   status = om_load_helper.Init(model_data_addr, model_data_size, file_header_);
-  GE_IF_BOOL_EXEC(status != SUCCESS, GELOGE(status, "[Init][OmLoeadHelper]Failed"); model_data_addr = nullptr;
+  GE_IF_BOOL_EXEC(status != SUCCESS, GELOGE(status, "[Init][OmLoadHelper]Failed"); model_data_addr = nullptr;
                   return status);
   // Encrypt model need to del temp model/no encrypt model don`t need to del model
   model_data_addr = nullptr;

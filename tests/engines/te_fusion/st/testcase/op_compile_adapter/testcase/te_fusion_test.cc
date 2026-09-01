@@ -471,6 +471,32 @@ TEST(TEST_TEFUSION_ST, GenerateSocInfoJson4) {
   EXPECT_EQ(socInfoJson["coreNum"], "5");
 }
 
+TEST(TEST_TEFUSION_ST, GenerateSocInfoJsonPcieThrough) {
+  OpDescPtr op = std::make_shared<ge::OpDesc>("TestOp", "TestOp");
+  ComputeGraphPtr graphPtr = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graphPtr->AddNode(op);
+  TbeOpInfoPtr opInfo = std::make_shared<TbeOpInfo>("TestOp", "", "TestOp", "");
+  map<std::string, std::string> options;
+
+  options["ge.aicoreNum"] = "5";
+  opInfo->SetOptions(options);
+  opInfo->SetNode(node);
+  TbeOpInfoCache::Instance().UpdateTbeOpInfo("TestOp", opInfo);
+  std::vector<ConstTbeOpInfoPtr> tbeOpInfoVec = {opInfo};
+
+  // 未设置 _pcie_through_flag，默认 false，socInfoJson 不应包含该字段
+  nlohmann::json socInfoJson;
+  te::fusion::TeJsonAssemble::GenerateSocInfoJson(tbeOpInfoVec, socInfoJson);
+  EXPECT_EQ(socInfoJson.contains("pcie_through_flag"), false);
+
+  // 设置 _pcie_through_flag 为 true，socInfoJson 应包含该字段
+  ge::AttrUtils::SetBool(node->GetOpDesc(), "_pcie_through_flag", true);
+  socInfoJson = nlohmann::json{};
+  te::fusion::TeJsonAssemble::GenerateSocInfoJson(tbeOpInfoVec, socInfoJson);
+  EXPECT_EQ(socInfoJson.contains("pcie_through_flag"), true);
+  EXPECT_EQ(socInfoJson["pcie_through_flag"], true);
+}
+
 TEST(TEST_TEFUSION_ST, GenerateOptionsMap) {
   OpDescPtr op = std::make_shared<ge::OpDesc>("TestOp", "TestOp");
   ComputeGraphPtr graphPtr = std::make_shared<ComputeGraph>("test");
@@ -490,6 +516,31 @@ TEST(TEST_TEFUSION_ST, GenerateOptionsMap) {
   te::fusion::TeJsonAssemble::GenerateOptionsMap(tbeOpInfoVec, options);
 
   EXPECT_EQ(options["coreNum"], "5");
+}
+
+TEST(TEST_TEFUSION_ST, GenerateOptionsMapPcieThrough) {
+  OpDescPtr op = std::make_shared<ge::OpDesc>("TestOp", "TestOp");
+  ComputeGraphPtr graphPtr = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graphPtr->AddNode(op);
+  TbeOpInfoPtr opInfo = std::make_shared<TbeOpInfo>("TestOp", "", "TestOp", "");
+  map<std::string, std::string> options;
+
+  options["ge.aicoreNum"] = "5";
+  opInfo->SetOptions(options);
+  opInfo->SetNode(node);
+  TbeOpInfoCache::Instance().UpdateTbeOpInfo("TestOp", opInfo);
+  std::vector<ConstTbeOpInfoPtr> tbeOpInfoVec = {opInfo};
+
+  // 未设置 _pcie_through_flag，默认 false，options 中不应包含 pcie_through_flag
+  map<std::string, std::string> optionsWithoutFlag;
+  te::fusion::TeJsonAssemble::GenerateOptionsMap(tbeOpInfoVec, optionsWithoutFlag);
+  EXPECT_EQ(optionsWithoutFlag.count("pcie_through_flag"), 0);
+
+  // 设置 _pcie_through_flag 为 true，options 中应包含 pcie_through_flag = "true"
+  ge::AttrUtils::SetBool(node->GetOpDesc(), "_pcie_through_flag", true);
+  map<std::string, std::string> optionsWithFlag;
+  te::fusion::TeJsonAssemble::GenerateOptionsMap(tbeOpInfoVec, optionsWithFlag);
+  EXPECT_EQ(optionsWithFlag["pcie_through_flag"], "true");
 }
 
 TEST(TEFUSION, GenNodeDataJson) {

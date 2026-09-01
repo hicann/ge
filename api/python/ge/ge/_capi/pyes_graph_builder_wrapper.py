@@ -32,25 +32,25 @@ c_double = ctypes.c_double
 
 # C结构体定义
 class EsCTensorHolder(ctypes.Structure):
-    """C层 struct EsCTensorHolder"""
+    """C-layer struct EsCTensorHolder"""
 
     pass
 
 
 class EsCGraphBuilder(ctypes.Structure):
-    """C层 struct EsCGraphBuilder"""
+    """C-layer struct EsCGraphBuilder"""
 
     pass
 
 
 class EsCGraph(ctypes.Structure):
-    """C层 struct EsCGraph"""
+    """C-layer struct EsCGraph"""
 
     pass
 
 
 class EsCTensor(ctypes.Structure):
-    """C层 struct EsCTensor"""
+    """C-layer struct EsCTensor"""
 
     pass
 
@@ -150,7 +150,11 @@ def get_generated_lib(lib_name: str = None):
     target = lib_name or DEFAULT_GENERATED_LIB_NAME
 
     # Return cached default library if available
-    if target == DEFAULT_GENERATED_LIB_NAME and _default_lib_available and _default_lib is not None:
+    if (
+        target == DEFAULT_GENERATED_LIB_NAME
+        and _default_lib_available
+        and _default_lib is not None
+    ):
         return _default_lib
 
     # Return cached library if already loaded
@@ -163,7 +167,9 @@ def get_generated_lib(lib_name: str = None):
         _configure_generated_lib(lib)
         _lib_cache[target] = lib
     except OSError as exc:
-        raise RuntimeError(f"Generated library {target} is not available: {exc}") from exc
+        raise RuntimeError(
+            f"Generated library {target} is not available: {exc}"
+        ) from exc
 
     # Update default library reference if loading default lib name
     if target == DEFAULT_GENERATED_LIB_NAME:

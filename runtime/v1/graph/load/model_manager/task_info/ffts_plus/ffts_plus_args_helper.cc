@@ -143,7 +143,7 @@ Status FftsPlusArgsHelper::PlanUpdaterArgslayOut(DavinciModel *davinci_model) {
 Status FftsPlusArgsHelper::InitRuntimeAddr(DavinciModel *davinci_model) {
   const size_t addr_size = sizeof(uint64_t) * io_addrs_.size();
   if ((args_dev_ == nullptr) || (args_host_ == nullptr) || (args_size_ < addr_size)) {
-    GELOGE(FAILED, "[Check][Param] Invalid args: args size: %zu, adds size: %zu", args_size_, addr_size);
+    GELOGE(FAILED, "[Check][Param] Invalid args: args size: %zu, addr size: %zu", args_size_, addr_size);
     return FAILED;
   }
   aicaiv_addr_size_ = io_addrs_.size();

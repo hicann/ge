@@ -188,7 +188,7 @@ Status AiCoreOpTask::InitWithKernelDef(const OpDesc &op_desc, const domi::TaskDe
   const errno_t err = memcpy_s(args_.get(), static_cast<size_t>(args_size_), kernel_def.args().data(),
                                static_cast<size_t>(args_size_without_tiling_));
   if (err != EOK) {
-    GELOGE(INTERNAL_ERROR, "[Update][Date]AiCoreTask memcpy args failed, op:%s op_type:%s.", op_desc.GetName().c_str(),
+    GELOGE(INTERNAL_ERROR, "[Update][Data]AiCoreTask memcpy args failed, op:%s op_type:%s.", op_desc.GetName().c_str(),
            op_desc.GetType().c_str());
     REPORT_INNER_ERR_MSG("E19999", "AiCoreTask memcpy args failed, op:%s op_type:%s.", op_desc.GetName().c_str(),
                          op_desc.GetType().c_str());
@@ -259,7 +259,7 @@ Status AiCoreOpTask::InitWithKernelDefWithHandle(const OpDesc &op_desc, const do
   const errno_t err = memcpy_s(args_.get(), static_cast<size_t>(args_size_), kernel_with_handle.args().data(),
                                static_cast<size_t>(args_size_without_tiling_));
   if (err != EOK) {
-    GELOGE(INTERNAL_ERROR, "[Update][Date]AiCoreTask memcpy args failed. op:%s op_type:%s", op_desc.GetName().c_str(),
+    GELOGE(INTERNAL_ERROR, "[Update][Data]AiCoreTask memcpy args failed. op:%s op_type:%s", op_desc.GetName().c_str(),
            op_desc.GetType().c_str());
     REPORT_INNER_ERR_MSG("E19999", "AiCoreTask memcpy args failed. op:%s op_type:%s", op_desc.GetName().c_str(),
                          op_desc.GetType().c_str());

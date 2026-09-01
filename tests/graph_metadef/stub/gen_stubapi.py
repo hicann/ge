@@ -425,6 +425,7 @@ SKIP_METHODS = [
     "CallInferFormatFuncV2",
     "InferCustomOpShape",
     "GetRealInNodesAndIndex",
+    "CacheCustomOpLocked",
 ]
 
 """

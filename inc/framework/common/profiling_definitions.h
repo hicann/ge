@@ -211,7 +211,7 @@ class ProfilingContext {
     if (IsEnabled()) {
       profiler_->Dump(out_stream);
     } else {
-      out_stream << "Profiling not enable, skip to dump" << std::endl;
+      out_stream << "Profiling is not enabled, skip to dump" << std::endl;
     }
   }
 

@@ -1972,7 +1972,7 @@ Status GraphPrepare::UpdateDataNetOutputByStorageFormat() const {
     }
 
     if (node_ptr->GetType() == CONSTPLACEHOLDER) {
-      GE_ASSERT_SUCCESS(UpdateConstPlaceHolderByStorageFormat(node_ptr), "Update %s by storaged format failed.",
+      GE_ASSERT_SUCCESS(UpdateConstPlaceHolderByStorageFormat(node_ptr), "Update %s by storage format failed.",
                         node_ptr->GetName().c_str());
     }
   }

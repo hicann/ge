@@ -472,7 +472,7 @@ int32_t FlowFuncExecutor::SetExecutorEschedPriority() const {
                     esched_process_priority_, static_cast<int32_t>(drv_ret));
       return FLOW_FUNC_ERR_DRV_ERROR;
     }
-    UDF_LOG_INFO("[UdfModelEschedPriority] Succeed to set eshced process priority=%d.", esched_process_priority_);
+    UDF_LOG_INFO("[UdfModelEschedPriority] Succeed to set esched process priority=%d.", esched_process_priority_);
   }
   if (esched_event_priority_ != kUserUnsetESchedPriority) {
     auto drv_ret = halEschedSetEventPriority(device_id, EVENT_QUEUE_EMPTY_TO_NOT_EMPTY,
@@ -491,7 +491,7 @@ int32_t FlowFuncExecutor::SetExecutorEschedPriority() const {
                     static_cast<int32_t>(drv_ret));
       return FLOW_FUNC_ERR_DRV_ERROR;
     }
-    UDF_LOG_INFO("[UdfModelEschedPriority] Succeed to set eshced event priority=%d.", esched_event_priority_);
+    UDF_LOG_INFO("[UdfModelEschedPriority] Succeed to set esched event priority=%d.", esched_event_priority_);
   }
   return FLOW_FUNC_SUCCESS;
 }
@@ -1490,7 +1490,7 @@ int32_t FlowFuncExecutor::SerializeProtoToMbuf(const T &proto_msg, Mbuf *&mbuf_t
 
 int32_t FlowFuncExecutor::SendMessageByResponseQueue(const ControlMessageType &msg_type, const int32_t result) {
   if (GlobalConfig::Instance().GetRspQueueId() == UINT32_MAX) {
-    UDF_LOG_INFO("There is not message queue in current version. skip to send message.");
+    UDF_LOG_INFO("There is no message queue in current version. Skip to send message.");
     return FLOW_FUNC_SUCCESS;
   }
   std::string msg;

@@ -129,7 +129,7 @@ bool TeCacheSpaceManager::GetCacheInitFileCfg(const std::string &cacheFileRealPa
   std::map<std::string, std::multimap<std::string, std::string>>::iterator iter;
   for (iter = contentInfoMap.begin(); iter != contentInfoMap.end(); ++iter) {
     if (iter->first != OP_CACHE_INI_SECTION) {
-      TE_WARNLOGF("It is not contains op_compiler_cache in ini file.");
+      TE_WARNLOGF("The ini file does not contain op_compiler_cache.");
       return false;
     }
     std::multimap<std::string, std::string>::iterator multimapIter;
@@ -221,7 +221,7 @@ void TeCacheSpaceManager::UpdateOpCacheSizeCfg(std::string &opMaxCacheSize, std:
   }
 
   if (remainCacheRadio <= 0 || remainCacheRadio > MAX_REMAIN_CACHE_RADIO) {
-    TE_WARNLOG("max_op_cache_size[%s] is invalid; it should be between in [1, 100].", opRemainCacheRadio.c_str());
+    TE_WARNLOG("remain_cache_size_ratio[%s] is invalid; it should be in [1, 100].", opRemainCacheRadio.c_str());
     std::map<std::string, std::string> maxSizeMap = {{"invalid_value", opRemainCacheRadio},
                                                      {"argument", "remain_cache_size_ratio"}};
     maxSizeMap["valid_range"] = "[1, 100]";
@@ -290,7 +290,7 @@ void TeCacheSpaceManager::CreatOpCacheIniFile(const std::string &cacheFileRealPa
   TE_DBGLOG("Create op_cache.ini detail is [%s, %s, %s].", str_section.c_str(), str_adk.c_str(), str_opp.c_str());
   fd = open(cacheFileRealPath.c_str(), O_CREAT | O_RDWR, FILE_AUTHORITY);
   if (fd < 0) {
-    TE_WARNLOGF("Creat op_cache.ini with path[%s] failed, %s.", cacheFileRealPath.c_str(), strerror(errno));
+    TE_WARNLOGF("Create op_cache.ini with path[%s] failed, %s.", cacheFileRealPath.c_str(), strerror(errno));
     return;
   }
 
@@ -325,8 +325,7 @@ void TeCacheSpaceManager::DelCachedFiles(const std::string &cacheDir, const Comp
   if (curAdkVersion.empty() || curOppVersion.empty()) {
     TeFileUtils::DeleteFilesInDir(cacheDir, false);
     REPORT_TE_INNER_WARN("Failed to get current version info; skipping delete cache directory %s.", cacheDir.c_str());
-    TE_INFOLOG("Get current version info not successfully. Skipping deletion of cache directory: %s.",
-               cacheDir.c_str());
+    TE_INFOLOG("Failed to get current version info. Skipping deletion of cache directory: %s.", cacheDir.c_str());
     return;
   }
   TE_DBGLOG("Start to check ini version in path %s with cache mode %d.", cacheDir.c_str(),
@@ -386,7 +385,7 @@ bool TeCacheSpaceManager::GetFileSizeInfo(const std::string &filePath, FileInfo 
 void TeCacheSpaceManager::AddBinFileInfoFromJson(const std::string jsonFileDirPath, const nlohmann::json &jsonInfo,
                                                  CacheFileSizeInfo &cacheFileInfo) {
   if (jsonInfo.find("binFileName") == jsonInfo.end() || jsonInfo.find("binFileSuffix") == jsonInfo.end()) {
-    TE_WARNLOGF("The json does not have no binFileName or binFileSuffix.");
+    TE_WARNLOGF("The json does not contain binFileName or binFileSuffix.");
     return;
   }
   std::string binFileName = jsonInfo.at("binFileName").get<std::string>();
@@ -468,7 +467,7 @@ void TeCacheSpaceManager::AgingCacheFileByAccessTime(std::multimap<uint64_t, Cac
     std::time_t currTime = std::time(nullptr);
     double diffTime = difftime(currTime, mapIter->first);
     if (diffTime < MIN_CACHE_AGING_TIME) {
-      TE_INFOLOG("currTime is [%ld], accessTime is [%ld], diffTime is [%f]", currTime, mapIter->first, diffTime);
+      TE_INFOLOG("currTime [%ld] s, accessTime [%ld] s, diffTime [%f] s", currTime, mapIter->first, diffTime);
       break;
     }
     auto fileInfo = mapIter->second.totalFileSizeInfos[0];
@@ -487,7 +486,7 @@ void TeCacheSpaceManager::AgingCacheFileByAccessTime(std::multimap<uint64_t, Cac
       }
     }
     if (totalDelSize >= sizeToDel) {
-      TE_DBGLOG("totalDelSize [%ld] sizeToDel is [%ld].", totalDelSize, sizeToDel);
+      TE_DBGLOG("totalDelSize [%ld] bytes, sizeToDel [%ld] bytes.", totalDelSize, sizeToDel);
       return;
     }
   }
@@ -564,7 +563,8 @@ int64_t TeCacheSpaceManager::GetCacheSpaceMaxSizeCfg() {
   try {
     maxSizeIntCfg = std::stoi(maxCacheSizeCfg);
   } catch (...) {
-    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid.", maxCacheSizeCfg.c_str());
+    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid, it should be -1 or [1, %ld).", maxCacheSizeCfg.c_str(),
+                INT_MAX);
     std::map<std::string, std::string> maxSizeMap = {{"invalid_value", maxCacheSizeCfg},
                                                      {"argument", "ASCEND_MAX_OP_CACHE_SIZE"}};
     maxSizeMap["valid_range"] = "[1, " + std::to_string(DEFAULT_MAX_OP_CACHE_SIZE) + ") or -1";
@@ -606,7 +606,8 @@ int64_t TeCacheSpaceManager::GetCacheRemainSizeRadio() const {
     try {
       sizeRatio = std::atoi(remainCacheSizeRatioStr.c_str());
     } catch (...) {
-      TE_WARNLOGF("ASCEND_REMAIN_CACHE_SIZE_RATIO[%s] is invalid.", remainCacheSizeRatioStr.c_str());
+      TE_WARNLOGF("ASCEND_REMAIN_CACHE_SIZE_RATIO[%s] is invalid, it should be in [0, 100].",
+                  remainCacheSizeRatioStr.c_str());
       TeErrMessageReport(EM_PARAMETER_INVALID_WARNING, cacheSizeRatioMap);
       sizeRatio = DEFAULT_REMAIN_CACHE_SIZE_RATIO;
     }

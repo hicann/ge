@@ -14,7 +14,6 @@
 | `data_dependent_shape_custom` | 数据依赖 shape 算子             | GE | Ascend C | CMake编译       | 不涉及 | [README](data_dependent_shape_custom/README.md) |
 | `args_refresh_add_custom` | ArgsUpdater 地址刷新 + MallocReadOnlyDevArgs + 性能对比 | GE 在线执行 | Ascend C | RTC 运行时编译 | 在线地址刷新性能对比 | [README](./args_refresh_add_custom/cpp/README.md) |
 | `annotated_args_refresh_add_custom` | AnnotatedArgsOp 声明式地址刷新在线场景性能对比+离线场景 | GE 在线执行 + ATC 离线编译 | Ascend C | RTC 运行时编译 | 支持在线性能对比和 OM 模型下沉 | [README](./annotated_args_refresh_add_custom/README.md) |
-| `args_refresh_add_custom（Python 版本）` | Python EagerExecuteOp 执行 | GE 在线执行 | Ascend C | Bisheng 预编译 | 不涉及 | [README](./args_refresh_add_custom/python/README.md) |
 | `tilelang_add_custom` | TileLang 算子通过 GE 入图 | GE 原生 (Session API) | TileLang | TileLang 预编译产出 `.so` | 不涉及 | [README](./tilelang_add_custom/README.md) |
 | `tilelang_add_custom_online` | TileLang 算子在线编译 + 在线执行 | GE 原生 (Session API) | TileLang | GE 编译阶段 `CompilableOp::Compile` subprocess 调用 Python 编译器 | 不涉及 | [README](./tilelang_add_custom_online/README.md) |
 | `tilelang_add_custom_offline` | TileLang 算子离线 OM 模型下沉 | GE 原生 (`aclgrphBuildModel`) | TileLang | `CompilableOp::Compile` + `PortableOp::Serialize` 序列化到 OM | 支持 OM 模型下沉 | [README](./tilelang_add_custom_offline/README.md) |

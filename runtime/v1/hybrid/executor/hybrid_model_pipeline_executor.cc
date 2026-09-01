@@ -226,7 +226,7 @@ Status StageSubject::Cond::Await() {
   if ((!first_exe_) &&
       (!cv_.wait_for(lk, std::chrono::seconds(kWaitTimeoutInSec), [this]() { return is_released_; }))) {
     GELOGE(INTERNAL_ERROR, "[Invoke][wait_for]Wait timed out.");
-    REPORT_INNER_ERR_MSG("E19999", "wait timed out[%d].", kWaitTimeoutInSec);
+    REPORT_INNER_ERR_MSG("E19999", "wait timed out[%d s].", kWaitTimeoutInSec);
     return INTERNAL_ERROR;
   }
   first_exe_ = false;

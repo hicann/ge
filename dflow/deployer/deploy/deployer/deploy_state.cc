@@ -173,7 +173,8 @@ bool DeployState::GetDynamicProxyControlledFlag(const uint32_t submodel_id) cons
            static_cast<int32_t>(iter->second), root_model_id_, submodel_id);
     return iter->second;
   }
-  GEEVENT("Not find dynamic proxy controlled flag, root_model_id = %u, submodel_id = %u.", root_model_id_, submodel_id);
+  GEEVENT("Failed to find dynamic proxy controlled flag, root_model_id = %u, submodel_id = %u.", root_model_id_,
+          submodel_id);
   return false;
 }
 

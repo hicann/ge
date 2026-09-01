@@ -41,7 +41,7 @@ ge::mobile::proto::DataType ConvertToMobileDataType(const ge::proto::DataType da
   };
   auto it = m.find(data_type);
   if (it == m.end()) {
-    GELOGE(ge::FAILED, "[Mobile] data_type %zu is not support", data_type);
+    GELOGE(ge::FAILED, "[Mobile] data_type %zu is not supported", data_type);
     return ge::mobile::proto::DataType::DT_UNDEFINED;
   }
   return it->second;
@@ -69,7 +69,7 @@ ge::mobile::proto::AttrDef_ListValue::ListValueType ConvertToMobileListValueType
   };
   auto it = m.find(list_value_type);
   if (it == m.end()) {
-    GELOGE(ge::FAILED, "[Mobile] list_value_type %zu is not support", list_value_type);
+    GELOGE(ge::FAILED, "[Mobile] list_value_type %zu is not supported", list_value_type);
     return MobileAttrDefListValue::VT_LIST_NONE;
   }
   return it->second;

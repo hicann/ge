@@ -397,7 +397,7 @@ Status TryMergeSubgraph(const NodePtr &node1, const NodePtr &node2, const NodeFu
   if (axis1 != axis2) {
     // 判断轴是否是顺序子集关系，子集关系认为也是可以循环合并的，后期schedue adapter补轴实现
     if (!BackendUtils::CheckAxisSubsetRelation(axis1, axis2)) {
-      GELOGI("sched axis diffrent and not subset relation, try tuning subgraph transpose axis.");
+      GELOGI("sched axis different and not subset relation, try tuning subgraph transpose axis.");
       // 如果不是循序子集尝试做transpose轴变换
       if (BackendUtils::TuningSubgraphBeforeMerge(node1, node2, compute_graph1, compute_graph2, fuse_info) != SUCCESS) {
         GELOGI("tuning subgraph transpose axis failed, can fuse false.");

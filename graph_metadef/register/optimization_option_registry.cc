@@ -45,7 +45,7 @@ void OptionRegistry::Register(const OoInfo &option) {
     return;
   }
   (void)registered_opt_table_.emplace(option.name, option);
-  GELOGD("Add optimization option [%s], OoLevel is [%s]", option.name.c_str(),
+  GELOGD("Add optimization option [%s], optimization option level is [%s]", option.name.c_str(),
          OoInfoUtils::GenOoLevelStr(option.levels).c_str());
 }
 

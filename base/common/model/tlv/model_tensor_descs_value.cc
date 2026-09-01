@@ -26,21 +26,21 @@ bool ModelTensorDesc::Serilize(uint8_t **const addr, size_t &left_size) {
   left_size -= sizeof(ModelTensorDescBaseInfo);
   if ((name.data() != nullptr) && (base_info.name_len != 0U)) {
     ret = memcpy_s(*addr, left_size, static_cast<const void *>(name.data()), static_cast<size_t>(base_info.name_len));
-    GE_ASSERT_EOK(ret, "serilize ModelTensorDesc::name failed");
+    GE_ASSERT_EOK(ret, "serialize ModelTensorDesc::name failed");
     *addr = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(*addr) + base_info.name_len));
     left_size -= base_info.name_len;
   }
 
   if ((dims.data() != nullptr) && (base_info.dims_len != 0U)) {
     ret = memcpy_s(*addr, left_size, static_cast<void *>(dims.data()), static_cast<size_t>(base_info.dims_len));
-    GE_ASSERT_EOK(ret, "serilize ModelTensorDesc::dims failed");
+    GE_ASSERT_EOK(ret, "serialize ModelTensorDesc::dims failed");
     *addr = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(*addr) + base_info.dims_len));
     left_size -= base_info.dims_len;
   }
 
   if ((dimsV2.data() != nullptr) && (base_info.dimsV2_len != 0U)) {
     ret = memcpy_s(*addr, left_size, static_cast<void *>(dimsV2.data()), static_cast<size_t>(base_info.dimsV2_len));
-    GE_ASSERT_EOK(ret, "serilize ModelTensorDesc::dimsVe failed");
+    GE_ASSERT_EOK(ret, "serialize ModelTensorDesc::dimsVe failed");
     *addr = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(*addr) + base_info.dimsV2_len));
     left_size -= base_info.dimsV2_len;
   }
@@ -48,7 +48,7 @@ bool ModelTensorDesc::Serilize(uint8_t **const addr, size_t &left_size) {
   if ((shape_range.data() != nullptr) && (base_info.shape_range_len != 0U)) {
     ret = memcpy_s(*addr, left_size, static_cast<void *>(shape_range.data()),
                    static_cast<size_t>(base_info.shape_range_len));
-    GE_ASSERT_EOK(ret, "serilize ModelTensorDesc::dimsVe failed");
+    GE_ASSERT_EOK(ret, "serialize ModelTensorDesc::dimsVe failed");
     *addr = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(*addr) + base_info.shape_range_len));
     left_size -= base_info.shape_range_len;
   }

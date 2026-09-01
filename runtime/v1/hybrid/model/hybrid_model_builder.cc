@@ -213,8 +213,8 @@ Status HybridModelBuilder::Build() {
   GE_CHK_STATUS_RET(ValidateParams(), "[Invoke][ValidateParams] failed, model_name[%s]", ModelName().c_str());
   hybrid_model_.model_name_ = ge_root_model_->GetModelName();
   GELOGI("[%s] Start to build hybrid model.", ModelName().c_str());
-  GE_CHK_STATUS_RET(InitNodeBinMode(), "[Init]][InitNodeBinMode] failed, model_name[%s]", ModelName().c_str());
-  GE_CHK_STATUS_RET(InitOverflowAddr(), "[Init]][OverflowAddr] failed, model_name[%s]", ModelName().c_str());
+  GE_CHK_STATUS_RET(InitNodeBinMode(), "[Init][InitNodeBinMode] failed, model_name[%s]", ModelName().c_str());
+  GE_CHK_STATUS_RET(InitOverflowAddr(), "[Init][OverflowAddr] failed, model_name[%s]", ModelName().c_str());
   GE_CHK_STATUS_RET(CopyGraph(), "[Invoke][CopyGraph] failed, model_name[%s]", ModelName().c_str());
   GE_CHK_STATUS_RET(InitRuntimeParams(), "[Invoke][InitRuntimeParams] failed, model_name[%s]", ModelName().c_str());
   GE_CHK_STATUS_RET(RecoverGraphUnknownFlag(), "[Invoke][RecoverGraphUnknownFlag] failed, model_name[%s]",
@@ -251,7 +251,7 @@ Status HybridModelBuilder::BuildForSingleOp() {
     return FAILED;
   }
 
-  GE_CHK_STATUS_RET(InitNodeBinMode(), "[Init]][InitNodeBinMode] failed, model_name[%s]", ModelName().c_str());
+  GE_CHK_STATUS_RET(InitNodeBinMode(), "[Init][InitNodeBinMode] failed, model_name[%s]", ModelName().c_str());
   GE_CHK_STATUS_RET(RecoverGraphUnknownFlag(), "[Invoke][RecoverGraphUnknownFlag] failed, model_name[%s]",
                     ModelName().c_str());
   GE_CHK_STATUS_RET(IndexTaskDefs(), "[Invoke][IndexTaskDefs] failed, model_name[%s]", ModelName().c_str());
@@ -871,7 +871,7 @@ Status HybridModelBuilder::UnfoldSubgraphs(const ComputeGraphPtr &root_graph, Co
 Status HybridModelBuilder::UnfoldSubgraph(const ComputeGraphPtr &root_graph, const ComputeGraphPtr &parent_graph,
                                           ComputeGraph &sub_graph, const uint32_t depth) {
   if (depth >= kHybridSubgraphRecursion) {
-    GELOGE(FAILED, "[Invoke][Unfold]There are too much recursion:%u > max:%u", depth, kHybridSubgraphRecursion);
+    GELOGE(FAILED, "[Invoke][Unfold]Recursion depth exceeds limit: %u > max: %u", depth, kHybridSubgraphRecursion);
     REPORT_INNER_ERR_MSG("E19999", "[Unfold]There are too much recursion:%u > max:%u", depth, kHybridSubgraphRecursion);
     return FAILED;
   }
@@ -1061,7 +1061,8 @@ Status HybridModelBuilder::LoadGraph() {
       GE_CHK_STATUS_RET(LoadDynamicSubgraph(sub_graph, false),
                         "[Invoke][LoadDynamicSubgraph]Failed to load subgraph: [%s]", sub_graph->GetName().c_str());
       GE_CHK_STATUS_RET(SetStageCache(*sub_graph, *hybrid_model_.subgraph_items_[sub_graph->GetName()]),
-                        "[Set[StageCache]Failed to for sub graph, model_name_:%s.", sub_graph->GetName().c_str());
+                        "[Set][StageCache] Failed to set stage cache for subgraph, model_name:%s.",
+                        sub_graph->GetName().c_str());
     } else {
       // if parent is function control op. need add a virtual partitioned call
       if (parent_node_item->IsControlFlowV2Op()) {
@@ -1115,12 +1116,12 @@ Status HybridModelBuilder::VarNodeToTensor(const NodePtr &var_node, std::unique_
   uint8_t *const dev_mem = var_manager_->GetVarMemoryAddr(var_logic, memory_type, hybrid_model_.device_id_);
   if (dev_mem == nullptr) {
     GELOGE(INTERNAL_ERROR,
-           "[Invoke][GetVarMemoryAddr]Failed to copy var %s(%s) from device,"
-           "can't not get var addr from logic addr %p",
+           "[Invoke][GetVarMemoryAddr]Failed to copy var %s(%s) from device, "
+           "cannot get var addr from logic addr %p",
            var_node->GetName().c_str(), var_node->GetType().c_str(), var_logic);
     REPORT_INNER_ERR_MSG("E19999",
-                         "GetVarMemoryAddr failed, Failed to copy var %s(%s) from device,"
-                         "can't not get var addr from logic addr %p",
+                         "GetVarMemoryAddr failed, Failed to copy var %s(%s) from device, "
+                         "could not get var addr from logic addr %p",
                          var_node->GetName().c_str(), var_node->GetType().c_str(), var_logic);
     return INTERNAL_ERROR;
   }
@@ -1815,7 +1816,7 @@ Status HybridModelBuilder::IdentifyVariableOutputs(NodeItem &node_item, const Co
   GELOGD("Start to parse outputs of node: %s", node_item.NodeName().c_str());
   const auto &net_output_node = subgraph->FindFirstNodeMatchType(NETOUTPUT);
   if (net_output_node == nullptr) {
-    GELOGD("[%s] Subgraph do not got net output", subgraph->GetName().c_str());
+    GELOGD("[%s] Subgraph has no NetOutput node", subgraph->GetName().c_str());
     return SUCCESS;
   }
   const auto &net_output_desc = net_output_node->GetOpDesc();

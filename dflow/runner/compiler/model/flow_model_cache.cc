@@ -148,7 +148,7 @@ Status FlowModelCache::Init(const ComputeGraphPtr &root_graph) {
            cache_dir_.c_str(), cache_index_.graph_key.c_str());
     return SUCCESS;
   }
-  GELOGI("Cache is enable, cache_dir=%s, graph_key=%s.", cache_dir_.c_str(), cache_index_.graph_key.c_str());
+  GELOGI("Cache is enabled, cache_dir=%s, graph_key=%s.", cache_dir_.c_str(), cache_index_.graph_key.c_str());
   if (!CheckFileExist(cache_dir_)) {
     REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char_t *>({"pathname", "reason"}),
                               std::vector<const char_t *>({cache_dir_.c_str(), "The cache directory does not exist."}));

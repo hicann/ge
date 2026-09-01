@@ -39,7 +39,7 @@ class FirstLevelPool : public DeviceMemAllocator {
   bool Free(ge::MemBlock *const addr) override {
     auto block = addr;
     if (block != nullptr) {
-      GELOGI("Free to level_1 allocator dddr:%p size:%lu.", block, block->GetSize());
+      GELOGI("Free to level_1 allocator addr:%p size:%lu.", block, block->GetSize());
       block->Free();
     }
     return true;

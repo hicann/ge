@@ -255,7 +255,7 @@ Status ModelIntroduction::ConstructDynamicInfo() {
   const Status ret = GetDynamicInfoFromCase(dynamic_type, batch_info);
   GE_RETURN_WITH_LOG_IF_ERROR(ret, "Get dynamic info failed.");
 
-  GELOGD("dynamic type:%u, bathc_info size is %zu", dynamic_type, batch_info.size());
+  GELOGD("dynamic type:%u, batch_info size is %zu", dynamic_type, batch_info.size());
   switch (dynamic_type) {
     case NOT_DYNAMIC_MODE:
       GELOGI("normal case node, no need to gather dynamic info.");

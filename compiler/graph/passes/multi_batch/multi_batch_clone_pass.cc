@@ -625,7 +625,7 @@ Status MultiBatchClonePass::CreateIndexNode(const ComputeGraphPtr &graph) {
     REPORT_INNER_ERR_MSG("E19999", "Add edge between op:%s(%s)(index:0) and op:%s(%s)(index:1) failed",
                          const_node->GetName().c_str(), const_node->GetType().c_str(), index_node->GetName().c_str(),
                          index_node->GetType().c_str());
-    GELOGE(FAILED, "[Add][Edge] between node:%s to MapIndex:%s", const_node->GetName().c_str(),
+    GELOGE(FAILED, "Add edge between node:%s and MapIndex:%s failed", const_node->GetName().c_str(),
            index_node->GetName().c_str());
     return FAILED;
   }
@@ -1333,7 +1333,7 @@ Status MultiBatchClonePass::CreateOriGraph(const ComputeGraphPtr &graph) {
     GELOGD("No need to change original graph without getnext node.");
     return SUCCESS;
   }
-  GELOGD("Start change original graph: %s when exit getnext node.", graph->GetName().c_str());
+  GELOGD("Start change original graph: %s when exist getnext node.", graph->GetName().c_str());
   size_t data_index = all_data_nodes_.size() - kNumOfGetnextNode;
   for (const auto &node : graph->GetDirectNode()) {
     if (IsGetNextType(node)) {

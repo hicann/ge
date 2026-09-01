@@ -121,7 +121,7 @@ Status WhileOpLabelMaker::Run(uint32_t &label_index) {
   // link Data input.
   const auto &all_in_data = cond_out_node->GetAllInDataAnchors();
   if (all_in_data.size() != kCondOutputNum) {
-    GELOGE(FAILED, "[Check][Param] Node: %s Cond sbugraph output size:%zu should equal size:%u.",
+    GELOGE(FAILED, "[Check][Param] Node: %s Cond subgraph output size:%zu should equal size:%u.",
            switch_node->GetName().c_str(), all_in_data.size(), kCondOutputNum);
     return FAILED;
   }

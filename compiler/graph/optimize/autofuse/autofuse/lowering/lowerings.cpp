@@ -581,7 +581,7 @@ graphStatus LoweringManager::LoweringGraph(const ComputeGraphPtr &graph, const L
     if (!IsNodeShouldLowering(node) || Lowering(node) != GRAPH_SUCCESS) {
       GELOGD(
           "Fallback lowering for node %s, type %s, as: This node should not lowering, "
-          "or not register lowering func, or unable to imply lowering",
+          "or not register lowering func, or unable to apply lowering",
           node->GetName().c_str(), node->GetType().c_str());
       (void)FallbackLowering(node);
       continue;

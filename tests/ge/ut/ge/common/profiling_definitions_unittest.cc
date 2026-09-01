@@ -59,7 +59,7 @@ TEST_F(ProfilingUt, DumpWhenDisable) {
   std::stringstream ss;
   profiling::ProfilingContext::GetInstance().Dump(ss);
   profiling::ProfilingContext::GetInstance().Reset();
-  EXPECT_EQ(ss.str(), std::string("Profiling not enable, skip to dump\n"));
+  EXPECT_EQ(ss.str(), std::string("Profiling is not enabled, skip to dump\n"));
 }
 TEST_F(ProfilingUt, ScopeRecordOk) {
   profiling::ProfilingContext::GetInstance().SetEnable();

@@ -201,7 +201,7 @@ aclError aclblasCreateHandleForGemmEx(aclTransType transA, aclTransType transB, 
   ACL_LOG_INFO("start to execute aclblasCreateHandleForGemmEx");
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
   if ((m <= 0) || (n <= 0) || (k <= 0)) {
-    ACL_LOG_ERROR("[Check][Params]The value of m,n,k must be larger than zero.m = %d, n = %d, k = %d", m, n, k);
+    ACL_LOG_ERROR("[Check][Params]The value of m,n,k must be larger than zero. m = %d, n = %d, k = %d", m, n, k);
     const std::string errMsg = acl::AclErrorLogManager::FormatStr("m = %d, n = %d, k = %d", m, n, k);
     acl::AclErrorLogManager::ReportInputError(acl::INVALID_PARAM_MSG,
                                               std::vector<const char *>({"param", "value", "reason"}),

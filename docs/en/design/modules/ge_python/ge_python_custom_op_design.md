@@ -355,7 +355,7 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 - The bridge imports `_ge_custom_op_native` and `ge.custom_op._bridge` and obtains one prototype/implementation snapshot. It registers all prototypes first, then validates and registers Adapters.
 - `CustomOpLoader::LoadCustomOps()` records whether Python custom ops are loaded, so repeated lifecycle load requests return success without invoking the bridge registration entry again. The dynamic `LoadPythonCustomOpsIfNeeded()` path intentionally does not use this flag, allowing newly added Python custom op paths to be discovered during runtime. The lower-level `LoadPythonCustomOps()` function performs one bridge registration attempt; callers are responsible for invoking `UnloadPythonCustomOps()` after a failed attempt so that partial registrations are cleaned up.
 - `UnloadPythonCustomOps()` removes registered Adapter creators, clears the Python custom-op runtime registry in one operation, and then removes registered proto creators. It does not perform per-entry runtime unregistration or maintain pending-cleanup state in the bridge loader.
-- `UnloadCustomOps()` uses an `active_users_` reference count to manage the lifecycle: each `LoadCustomOps()` increments the count by 1, each `UnloadCustomOps()` decrements it by 1, and Python custom ops are only unloaded (holders/registry cleaned up and bridge closed) when the count reaches zero. `ShutdownCustomOpsForProcess()` is retained as a compatibility wrapper that internally calls `UnloadCustomOps()`.
+- `UnloadCustomOps()` uses an `active_users_` reference count to manage the lifecycle: each `LoadCustomOps()` increments the count by 1, each `UnloadCustomOps()` decrements it by 1, and Python custom ops are only unloaded (holders/registry cleaned up and bridge closed) when the count reaches zero.
 
 **Output**
 
@@ -375,7 +375,7 @@ Python custom op loading is managed by `runtime/custom_op` to avoid direct Pytho
 
 - Python UT covers plain-class registration, reflection of both capabilities, schema-bound signature validation during descriptor loading, schema-bound invocation, `declare_launch_args` return validation, flattened instance indices, context scope, holder lifecycle, and environment-variable plugin loading.
 - C++ UT should cover the capability helper, canonical IR lookup, adapter execute/declare forwarding, loader skip and load paths, bridge ABI v1 verification, and shutdown order.
-- The sample `examples/custom_op/annotated_args_refresh_add_custom/python` verifies offline compilation, loading without Python, and address-refresh execution.
+- The samples `examples/custom_op/annotated_args_refresh_add_custom/{online,offline}/python` verify public Python `register_op`/`infer_meta`/`register_op_impl` with the Ascend C kernel online and offline. Both online operators are Python implementations; `AnnotatedAddCustom` has no C++ creator in the Python sample.
 
 #### 3.3.3 Portability
 
@@ -416,11 +416,20 @@ The current implementation does not serialize Python implementations into the OM
 
 The Python `execute` path enters the Python GIL and calls back user Python code. Its performance is not equivalent to that of C++ custom ops. The schema-bound form also traverses IR inputs and attributes and creates Python `list` / `dict` arguments, with cost growing linearly with the number of prototype parameters. This interface primarily provides development convenience and host-side scheduling and is not suitable as an ultimate execution performance path. The execution hot path does not print high-frequency logs. Logs, dynamic allocation, ACL calls, and kernel args management in user Python code are controlled by the user.
 
+### 4.4 Benchmark Protocol
+
+On an NPU build, record the median and p95 of a single-node compile and RT2
+shape-inference run separately from kernel execution. Run the same graph once
+with a no-op infer-meta callback and once with the real callback, using the
+same Python/runtime artifact set and a fresh process for each case. Report the
+callback-inclusive delta and do not mix artifacts from different Python minor
+versions or builds.
+
 ## 5. Interface Design
 
 ### 5.1 New/Modified Interface Description
 
-For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/custom_op/`. The current public interfaces are as follows:
+The current public Python interfaces are as follows:
 
 | Interface | Description |
 |-----------|-------------|
@@ -436,14 +445,14 @@ For the Python external API, refer to `docs/zh/api/graph_engine_api/python/ge/cu
 | `get_registered_op_impl_by_descriptor_key` | Queries a descriptor by descriptor key |
 | `clear_registered_op_impls` | Clears the Python registry |
 
-`Tensor`, `Shape`, `StorageShape`, `StorageFormat`, and `TensorPlacement` in `ge.runtime` are input and return types of the context and are not included in the `__all__` of `ge.custom_op`.
+`TensorDesc` is publicly available from `ge.runtime` and is the input/output type of `register_op` infer-meta functions. `Tensor`, `Shape`, `StorageShape`, `StorageFormat`, and `TensorPlacement` in `ge.runtime` are context types and are not included in the `__all__` of `ge.custom_op`.
 
 ### 5.2 Interface Check Items
 
 | Check Item | Sub-Check Item | Involved |
 |------------|----------------|----------|
 | Interface description | Whether review is required; review should focus on interface compatibility and interface constraints | Involved; new Python external API added |
-| Interface description | Whether supplementary materials are needed | Involved; API documentation and samples have been added |
+| Interface description | Whether supplementary materials are needed | Involved; samples and design documentation have been added |
 | Interface description | Whether interface prototypes, functions, and return values are clearly described | Involved; refer to the API documentation |
 | Interface compatibility | Whether behavior changes before and after modification | Involved; existing inheritance is preserved, while execution uses schema-bound invocation |
 | Interface compatibility | Whether the new interface works properly on older versions | Involved; it is unavailable when the older run package lacks the corresponding native/bridge |
@@ -644,8 +653,8 @@ The implementation follows the existing Python pass and GE runtime style:
 
 - Python API test entries: `ge.custom_op`, `ge.custom_op.proto`, `ge.custom_op._bridge`, `ge.custom_op.bootstrap`.
 - Native context test entries: Eager/Compile/AnnotatedArgs borrowed contexts, `AnnotatedKernelArgs`, and launch-info methods.
-- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `AnnotatedKernelArgs`, `CustomTaskInfo`, `LoadPythonCustomOps()`, `LoadCustomOps()`/`UnloadCustomOps()`, and `ShutdownCustomOpsForProcess()`.
-- End-to-end sample entry: `examples/custom_op/annotated_args_refresh_add_custom/python/run.sh`.
+- C++ test entries: `CustomOpCast<T>`, `PythonCustomOpAdapter`, `AnnotatedKernelArgs`, `CustomTaskInfo`, `LoadPythonCustomOps()`, and `LoadCustomOps()`/`UnloadCustomOps()`.
+- End-to-end sample entries: `examples/custom_op/annotated_args_refresh_add_custom/online/python/run.sh` and `examples/custom_op/annotated_args_refresh_add_custom/offline/python/run.sh`.
 
 ### 9.2 Test Design
 
@@ -664,7 +673,7 @@ The implementation follows the existing Python pass and GE runtime style:
 | Function | Loader skips when no Python entry exists and loads the bridge when entries exist | C++ gtest / stub | UT |
 | Compatibility | C++ custom op bare capability inheritance still casts correctly | C++ gtest | UT |
 | Feature cross | Ops kernel info is refreshed after online PreRun loading | GE graph execution related tests | UT/ST |
-| Sample | Python custom op schema-bound graph execution plus AnnotatedArgs address refresh after offline compilation without a Python runtime environment | `annotated_args_refresh_add_custom/python` | ST/hardware |
+| Sample | Python `register_op`/`infer_meta`/`register_op_impl`, Ascend C kernel schema-bound online execution, and AnnotatedArgs address refresh after offline compilation without a Python runtime environment | `annotated_args_refresh_add_custom/{online,offline}/python` | ST/hardware |
 
 ### 9.3 Test Framework Design
 

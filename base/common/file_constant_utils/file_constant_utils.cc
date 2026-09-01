@@ -733,7 +733,7 @@ Status FileConstantUtils::ConvertConstToFileConst(const NodePtr &node) {
   (void)AttrUtils::SetDataType(const_op, kAttrDtype, output_desc.GetDataType());
   (void)AttrUtils::SetListInt(const_op, kAttrShape, output_desc.GetShape().GetDims());
   (void)AttrUtils::SetListInt(const_op, "original_shape", output_desc.GetOriginShape().GetDims());
-  GELOGI("Convert node:%s from const to file constant success.", node->GetName().c_str());
+  GELOGI("Convert node:%s from const to file constant successfully.", node->GetName().c_str());
   return SUCCESS;
 }
 

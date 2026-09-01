@@ -105,7 +105,7 @@ graphStatus PadV3InferShape(const gert::InferSymbolShapeContext *context, const 
   const auto paddings_contiguous = attrs->GetAttrPointer<bool>(1);
   GE_ASSERT_NOTNULL(paddings_contiguous);
   const size_t input_dim_size = x_shape->GetDimNum();
-  GE_ASSERT(input_dim_size != 0UL, "input shape cannot empty");
+  GE_ASSERT(input_dim_size != 0UL, "input shape cannot be empty");
   const auto paddings_size = paddings_tensor->GetSymbolicValue()->size();
   GE_ASSERT(paddings_size > 0UL, "Invalid paddings, must be non-empty!");
 
@@ -136,7 +136,7 @@ graphStatus InferShape4PadV3(gert::InferSymbolShapeContext *context) {
   GE_ASSERT_NOTNULL(paddings_desc);
   const auto paddings_dtype = paddings_desc->GetDataType();
   GE_ASSERT(paddings_dtype == DT_INT32 || paddings_dtype == DT_INT64,
-            "paddings data type must is int32 or int64, it is %d", paddings_dtype);
+            "paddings data type must be int32 or int64, it is %d", paddings_dtype);
   return PadV3InferShape(context, x_shape, paddings_tensor, y_shape);
 }
 

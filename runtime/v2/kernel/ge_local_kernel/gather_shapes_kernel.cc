@@ -93,14 +93,14 @@ ge::graphStatus GatherShapesKernel(KernelContext *context) {
     GE_ASSERT_NOTNULL(data);
     const auto input_index = *data + static_cast<size_t>(GatherShapeInputs::kShapeStart);
     GE_ASSERT(input_index < context->GetInputNum(),
-              "input_index[%lu] must less than input num[%zu],"
+              "input_index[%lu] must be less than input num[%zu],"
               " i: %zu, axes: %s",
               input_index, context->GetInputNum(), i, PrintContinuousVectorVector(cvv).c_str());
     const auto dim_index = *(data + 1U);
     auto in_shape = context->GetInputPointer<StorageShape>(input_index);
     GE_ASSERT_NOTNULL(in_shape);
     GE_ASSERT(dim_index < in_shape->GetOriginShape().GetDimNum(),
-              "dim_index[%lu] must less than input shape"
+              "dim_index[%lu] must be less than input shape"
               " dim number[%zu], i: %zu, axes: %s",
               dim_index, in_shape->GetOriginShape().GetDimNum(), i, PrintContinuousVectorVector(cvv).c_str());
     const auto dim = in_shape->GetOriginShape().GetDim(dim_index);

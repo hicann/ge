@@ -142,7 +142,7 @@ Status NpuSchedModelLoader::EnsureQueueResourceInitialized(const int32_t device_
 Status NpuSchedModelLoader::LoadModel(const ModelQueueParam &model_queue_param, uint32_t &runtime_model_id) {
   GELOGD("Begin to load model, model_id = %u.", model_id_);
   GE_CHK_BOOL_RET_STATUS(!model_queue_param.input_queues.empty() || !model_queue_param.output_queues.empty(),
-                         UNSUPPORTED, "Not exist input queue and output queue.");
+                         UNSUPPORTED, "Neither input queue nor output queue exists.");
   model_queue_param_ = model_queue_param;
   if (model_queue_param_.input_fusion_offsets.empty()) {
     model_queue_param_.input_fusion_offsets.resize(model_queue_param_.input_queues.size());
@@ -398,7 +398,7 @@ Status NpuSchedModelLoader::BindOutputQueue(const aclrtStream stream) {
     GE_CHK_RT_RET(rtModelBindQueue(rt_model_handle_, queue_id, RT_MODEL_OUTPUT_QUEUE));
   }
   GE_CHK_STATUS_RET(CreateModelBatchEnqueueTask(stream, output_queue_ids_, postproc_output_mbuf_addrs_),
-                    "Fail to add model batch dequeue task, model_id:%u.", model_id_);
+                    "Fail to add model batch enqueue task, model_id:%u.", model_id_);
   return SUCCESS;
 }
 

@@ -81,8 +81,8 @@ graphStatus InferShape4SparseToDense(gert::InferSymbolShapeContext *context) {
   }
   dim_num = (dim_num > 0) ? dim_num : 1;
   auto value_num = input1_tensor->GetSymbolicValue()->size();
-  GE_ASSERT(static_cast<size_t>(dim_num) <= value_num, "dim_num[%ld] should less than value_num[zu], node %s", dim_num,
-            value_num, context->GetNodeName());
+  GE_ASSERT(static_cast<size_t>(dim_num) <= value_num, "dim_num[%ld] should be less than value_num[%zu], node %s",
+            dim_num, value_num, context->GetNodeName());
 
   for (int64_t i = 0; i < dim_num; i++) {
     auto dim_expr = input1_tensor->GetSymbolicValue()->at(i);

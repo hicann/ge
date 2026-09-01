@@ -26,7 +26,7 @@ Status MarkAgnosticPass::Run(ComputeGraphPtr graph) {
       GE_CHECK_NOTNULL(op_desc);
       const GeTensorDescPtr op_tensor = op_desc->MutableInputDesc(0);
       if (op_tensor == nullptr) {
-        GELOGD("Op: %s, Index:0,has no input", node->GetName().c_str());
+        GELOGD("Op: %s, Index:0, has no input", node->GetName().c_str());
         continue;
       }
       AttrUtils::SetInt(op_tensor, ATTR_NAME_FORMAT_CONTINUOUS, 1);

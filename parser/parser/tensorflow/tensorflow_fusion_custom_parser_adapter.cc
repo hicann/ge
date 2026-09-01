@@ -77,7 +77,7 @@ Status TensorFlowFusionCustomParserAdapter::ParseParams(const std::vector<ge::Op
   }
   ge::Operator op = ge::OpDescUtils::CreateOperatorFromOpDesc(op_dest);
   GE_CHK_BOOL_RET_STATUS(custom_op_parser(v_input_const, op) == SUCCESS, FAILED,
-                         "Custom parser params failedfor node:%s(%s)", node->GetName().c_str(),
+                         "Custom parser params failed for node:%s(%s)", node->GetName().c_str(),
                          node->GetType().c_str());
 
   for (const auto &op_src : v_input_const) {

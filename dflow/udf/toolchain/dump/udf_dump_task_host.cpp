@@ -238,7 +238,7 @@ int32_t UdfDumpTaskHost::DumpOutputData(const dumpNS::DumpData &dump_data, const
 int32_t UdfDumpTaskHost::DoDumpTensorHost(const std::string &dump_file_path) {
   UDF_LOG_INFO("op name[%s], start to dump on host, path[%s]", op_name_.c_str(), dump_file_path.c_str());
   if (CreateDir(dump_path_) != FLOW_FUNC_SUCCESS) {
-    UDF_LOG_ERROR("op name[%s], create dir [%s]failed.", op_name_.c_str(), dump_path_.c_str());
+    UDF_LOG_ERROR("op name[%s], create dir [%s] failed.", op_name_.c_str(), dump_path_.c_str());
     return FLOW_FUNC_FAILED;
   }
 

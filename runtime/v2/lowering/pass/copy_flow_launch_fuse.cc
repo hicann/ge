@@ -62,9 +62,9 @@ ge::graphStatus FilterAndCopyInCtrlEdges(const ge::FastNode *launch_node, const 
   exist_in_ctrl_nodes_set.insert(exist_in_ctrl_nodes.begin(), exist_in_ctrl_nodes.end());
 
   const auto src_extend_info = origin_guarder_node->GetExtendInfo();
-  GE_ASSERT_NOTNULL(src_extend_info, "The extend info of src node:% is null", origin_guarder_node->GetNamePtr());
+  GE_ASSERT_NOTNULL(src_extend_info, "The extend info of src node:%s is null", origin_guarder_node->GetNamePtr());
   const auto graph = src_extend_info->GetOwnerGraphBarePtr();
-  GE_ASSERT_NOTNULL(graph, "The graph of src node:% is null", origin_guarder_node->GetNamePtr());
+  GE_ASSERT_NOTNULL(graph, "The graph of src node:%s is null", origin_guarder_node->GetNamePtr());
   for (const auto in_node : src_ctrl_in_nodes) {
     GE_ASSERT_NOTNULL(in_node);
     if (IsTargetLaunchNode(in_node) && (in_node != launch_node)) {

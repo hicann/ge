@@ -31,13 +31,13 @@ bool FlowAttrUtil::CheckAttrsIsSupport(const std::vector<DataFlowInputAttr> &att
     if (attrs[i].attr_type == DataFlowAttrType::COUNT_BATCH) {
       count_batch = true;
       if (time_batch) {
-        GELOGE(ge::FAILED, "[Check]COUNT_BATCH attr and TIME_BATCH attr cannot be config at the same time.");
+        GELOGE(ge::FAILED, "[Check]COUNT_BATCH attr and TIME_BATCH attr cannot be configured at the same time.");
         return false;
       }
     } else if (attrs[i].attr_type == DataFlowAttrType::TIME_BATCH) {
       time_batch = true;
       if (count_batch) {
-        GELOGE(ge::FAILED, "[Check]COUNT_BATCH attr and TIME_BATCH attr cannot be config at the same time.");
+        GELOGE(ge::FAILED, "[Check]COUNT_BATCH attr and TIME_BATCH attr cannot be configured at the same time.");
         return false;
       }
     } else {
@@ -60,7 +60,7 @@ graphStatus FlowAttrUtil::SetCountBatchAttr(const void *const attr_value, GeTens
   }
 
   if ((count_batch->slide_stride < 0) || (count_batch->slide_stride > count_batch->batch_size)) {
-    GELOGE(FAILED, "CountBatch.slide_stride should in [0, %lld], but got %lld", count_batch->batch_size,
+    GELOGE(FAILED, "CountBatch.slide_stride should be in [0, %lld], but got %lld", count_batch->batch_size,
            count_batch->slide_stride);
     return ge::GRAPH_FAILED;
   }
@@ -124,7 +124,7 @@ graphStatus FlowAttrUtil::SetAttrsToTensorDesc(const std::vector<DataFlowInputAt
   for (auto &attr : attrs) {
     auto attr_type = attr.attr_type;
     const auto iter = set_attr_funcs_.find(attr_type);
-    GE_ASSERT_TRUE(iter != set_attr_funcs_.cend(), "Data flow input attr type(%u) does not has process function..",
+    GE_ASSERT_TRUE(iter != set_attr_funcs_.cend(), "Data flow input attr type(%u) does not have a process function.",
                    static_cast<uint32_t>(attr_type));
     GE_ASSERT_SUCCESS(iter->second(attr.attr_value, tensor_desc));
   }

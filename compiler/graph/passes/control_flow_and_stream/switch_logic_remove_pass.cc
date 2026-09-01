@@ -96,7 +96,7 @@ Status SwitchLogicRemovePass::Run(NodePtr &node) {
       if (pred_node_and_out != pred_node_next_switch) {
         continue;
       }
-      GELOGI("The switch nodes cascaded %s and %s have the save pred node %s, the %s can be remove",
+      GELOGI("The switch nodes cascaded %s and %s have the same pred node %s, the %s can be remove",
              node->GetName().c_str(), dst_node->GetName().c_str(), pred_node_and_out.first->GetName().c_str(),
              dst_node->GetName().c_str());
       ret = RemoveSwitchNodeLogically(i, dst_node);
@@ -119,7 +119,7 @@ Status SwitchLogicRemovePass::RemoveSwitchNodeLogically(int32_t parent_index, No
     GE_CHECK_NOTNULL(switch_node);
     auto out_anchor = switch_node->GetOutDataAnchor(i);
     if (out_anchor == nullptr) {
-      GELOGW("The switch removing %s does not has %d out anchor, ignore it", switch_node->GetName().c_str(), i);
+      GELOGW("The switch removing %s does not have %d out anchor, ignore it", switch_node->GetName().c_str(), i);
       continue;
     }
 

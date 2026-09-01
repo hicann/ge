@@ -340,6 +340,7 @@ Status GeExecutor::FinalizeEx() {
     ProfilingProperties::Instance().ClearProperties();
   }
 
+  (void)custom_op::UnloadCustomOps();
   CustomOpSoLoader::Finalize();
   OpsKernelExecutorManager::GetInstance().Finalize();
   HostMemManager::Instance().Finalize();
@@ -417,7 +418,7 @@ Status GeExecutor::SetDynamicBatchSize(const uint32_t model_id, void *const dyna
   ret = GraphExecutor::SetDynamicSize(model_id, batch_num, static_cast<int32_t>(DynamicInputType::DYNAMIC_BATCH));
   if (ret != SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "set dynamic size failed, model id:%u, dynamic_type:1", model_id);
-    GELOGE(ret, "[Set][DynamicSize] failed, model id:%u, dynamic_type:1", model_id);
+    GELOGE(ret, "[Set][DynamicSize] failed, model id:%u, dynamic_type:DYNAMIC_BATCH", model_id);
     return ret;
   }
   // memcpy dynamic_batch_size from host to device

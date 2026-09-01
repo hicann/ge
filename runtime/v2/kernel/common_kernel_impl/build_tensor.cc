@@ -247,7 +247,7 @@ ge::graphStatus SplitTensorForOutputData(KernelContext *context) {
 
   if (tensor == nullptr || tensor->GetAddr() == nullptr) {
     GELOGE(ge::PARAM_INVALID,
-           "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the called");
+           "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the caller");
     const std::string reason = "The output tensor and its address must be allocated and passed by the caller";
     const std::vector<std::string> key{"reason"};
     const std::vector<std::string> val{reason};

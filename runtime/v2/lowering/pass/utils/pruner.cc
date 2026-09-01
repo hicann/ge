@@ -163,7 +163,7 @@ ge::graphStatus GetNodeInputFromInit(ge::FastNode *const node, uint32_t index, g
         return ge::GRAPH_SUCCESS;
       }
       // other subgraph(if,while,case) currently not support, return node and warn
-      GELOGW("Node [%s] type [%s], real peer in node [%s] type[%s] has subgraph. Current not support.",
+      GELOGW("Node [%s] type [%s], real peer in node [%s] type[%s] has subgraph, which is currently not supported.",
              node->GetNamePtr(), node->GetTypePtr(), peer_node->GetNamePtr(), peer_node->GetTypePtr());
 
       return ge::GRAPH_SUCCESS;

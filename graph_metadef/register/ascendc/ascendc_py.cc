@@ -98,7 +98,7 @@ void ParseConstShapeDescV2(const nlohmann::json &shape_json, ge::Operator &op_pa
   std::string dtype_str;
 
   if (!shape_json.contains("const_value")) {
-    GELOGI("Not const tenosr");
+    GELOGI("Not const tensor");
     return;
   }
   if (!shape_json.contains("name")) {
@@ -481,7 +481,7 @@ extern "C" int32_t AscendCPyInterfaceOpReplay(const char *optype, const char *so
   constexpr int32_t CORE_TYPE_VEC = 2;
   if ((core_type != CORE_TYPE_BOTH) && (core_type != CORE_TYPE_CUBE) && (core_type != CORE_TYPE_VEC)) {
     GELOGE(ge::GRAPH_FAILED,
-           "core_type is valid, should be one of 0/1/2, but args is "
+           "core_type is invalid, should be one of 0/1/2, but args is "
            "%d",
            core_type);
     return 0;
@@ -490,7 +490,7 @@ extern "C" int32_t AscendCPyInterfaceOpReplay(const char *optype, const char *so
   constexpr int32_t TASK_RATION_TWO = 2;
   if ((task_ration != TASK_RATION_ONE) && (task_ration != TASK_RATION_TWO)) {
     GELOGE(ge::GRAPH_FAILED,
-           "task_ration is valid, should be one of 1/2, but args is "
+           "task_ration is invalid, should be one of 1/2, but args is "
            "%d",
            task_ration);
     return 0;

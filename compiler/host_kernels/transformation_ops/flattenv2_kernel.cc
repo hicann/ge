@@ -57,11 +57,11 @@ bool IsFlattenV2ParamsValid(const OpDescPtr &op_desc_ptr) {
   GetAndConvertAxis(op_desc_ptr, axis, end_axis);
   const int64_t dim_num = static_cast<int64_t>(x_desc.GetShape().GetDimNum());
   if (axis < 0 || axis >= dim_num) {
-    GELOGE(PARAM_INVALID, "axis out of range! axis is %ld", axis);
+    GELOGE(PARAM_INVALID, "axis out of range! axis is %ld, valid range is [0, %ld].", axis, dim_num - 1);
     return false;
   }
   if (end_axis < 0 || end_axis >= dim_num) {
-    GELOGE(PARAM_INVALID, "end_axis out of range! end_axis is %ld", end_axis);
+    GELOGE(PARAM_INVALID, "end_axis out of range! end_axis is %ld, valid range is [0, %ld].", end_axis, dim_num - 1);
     return false;
   }
   if (axis > end_axis) {

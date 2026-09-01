@@ -835,7 +835,7 @@ ge::graphStatus GetUserAllocatorOrFixedBaseAllocator(KernelContext *context) {
                                  .get();
   GE_ASSERT_NOTNULL(allocator);
   allocator_chain->Set(allocator, nullptr);
-  KERNEL_TRACE("[MEM]ger or create fixed base expandable allocator, device_id: %d, session_id: %llu, placement: %s",
+  KERNEL_TRACE("[MEM]get or create fixed base expandable allocator, device_id: %d, session_id: %llu, placement: %s",
                device_id, *session_id_ptr, GetPlacementStr(placement));
   return ge::GRAPH_SUCCESS;
 }

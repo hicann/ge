@@ -173,7 +173,7 @@ void HeterogeneousExchangeService::WaitEvents(const int32_t device_id) {
       GELOGD("Invoke rtEschedWaitEvent time out");
     }
   }
-  GELOGI("Event thread exist successfully, device id = %d", device_id);
+  GELOGI("Event thread exited successfully, device id = %d", device_id);
 }
 
 Status HeterogeneousExchangeService::EnsureEnqueueSubscribed(const int32_t device_id, const uint32_t queue_id) {
@@ -274,8 +274,9 @@ bool HeterogeneousExchangeService::IsClientQueue(const uint32_t queue_id) {
 Status HeterogeneousExchangeService::CreateQueue(const int32_t device_id, const string &name,
                                                  const MemQueueAttr &mem_queue_attr, uint32_t &queue_id) {
   if (name.size() > static_cast<size_t>(RT_MQ_MAX_NAME_LEN - 1)) {
-    GELOGE(PARAM_INVALID, "[CreateQueue] [CheckParam] Length of queue name out of range, name = %s, length = %zu",
-           name.c_str(), name.size());
+    GELOGE(PARAM_INVALID,
+           "[CreateQueue] [CheckParam] Length of queue name out of range, name = %s, length = %zu, max length = %zu",
+           name.c_str(), name.size(), static_cast<size_t>(RT_MQ_MAX_NAME_LEN - 1));
     return PARAM_INVALID;
   }
   GELOGD("[CreateQueue] start, device id = %d, queue name = %s, depth = %u, work_mode = %u", device_id, name.c_str(),
@@ -502,7 +503,7 @@ Status HeterogeneousExchangeService::MultiThreadCopy(uint8_t *dst, size_t dst_si
     return SUCCESS;
   }
   GE_CHK_BOOL_RET_STATUS(dst_size >= src_size, PARAM_INVALID,
-                         "Multi thread copy failed as dst_size=%zu is small than src_size=%zu", dst_size, src_size);
+                         "Multi thread copy failed as dst_size=%zu is smaller than src_size=%zu", dst_size, src_size);
 
   size_t block_num = (src_size + kMinBatchSize - 1) / kMinBatchSize;
   block_num = std::min(block_num, kCopyThreadNum + 1);
@@ -1091,7 +1092,7 @@ Status HeterogeneousExchangeService::GenTransId(const int32_t device_id, const u
     }
     trans_id = ++last_trans_id_ref;
   }
-  GELOGD("queue[%u] in device[%d] trans id=%lu.", trans_id);
+  GELOGD("queue[%u] in device[%d] trans id=%lu.", queue_id, device_id, trans_id);
   return SUCCESS;
 }
 

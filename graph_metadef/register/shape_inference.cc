@@ -815,7 +815,7 @@ ge::graphStatus InferDataTypeOnCompile(const ge::OpDescPtr &op_desc) {
       return op_desc->SymbolicInferDataType();
     }
     GELOGW(
-        "Space_registry is null, neither Node %s[%s] not support symbolic infer datatype. Please declare symbol T "
+        "Space_registry is null, and Node %s[%s] does not support symbolic infer datatype. Please declare symbol T "
         "on IR or check Space_registry.",
         op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return ge::GRAPH_FAILED;
@@ -851,7 +851,7 @@ ge::graphStatus InferFormatOnCompile(const ge::Operator &op, const ge::OpDescPtr
   GE_ASSERT_NOTNULL(space_registry);
   const auto &functions = space_registry->GetOpImpl(op_desc->GetType().c_str());
   if ((functions == nullptr) || (functions->infer_format_func == nullptr)) {
-    REPORT_INNER_ERR_MSG("EZ9999",
+    REPORT_INNER_ERR_MSG("E19999",
                          "Cannot find infer_format func of node %s[%s]. Please confirm whether the op_proto shared "
                          "library (.so) has been loaded "
                          "successfully, and that you have already developed the infer_format func.",

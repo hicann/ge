@@ -2078,4 +2078,85 @@ TEST_F(UtestBlockMemAssigner, AssignWorkSpaceMemoryWithReuse_BasicOp) {
   EXPECT_EQ(assigner.AssignWorkSpaceMemoryWithReuse(node, ranges), SUCCESS);
 }
 
+/*
+ * 级联+ref 场景（topo序: a ref b pc1 d pc2）:
+ *
+ *    a    b
+ *    |    |
+ *  ref    |
+ *    |    |
+ *    └────┘
+ *       pc1(连续输入)
+ *         |
+ *    d    |
+ *    |    |
+ *    └────┘
+ *       pc2(连续输入)
+ *
+ * a 经 ref(REF透传) 接 pc1.in0，pc1.in1 <- b；pc2.in0 <- d，pc2.in1 <- pc1，
+ * pc1/pc2 均为 nopadding 连续输入节点。
+ *
+ * pc2 为级联连续输入节点，其 output 走 ApplyMemory 消费 cascade[pc2]。
+ * 遍历 pc2 输入链：d(非连续)、pc1(连续)→ref(REF)→a(非连续)、b(非连续)，
+ * 穿透 ref 后 cascade[pc2] = min(d, a, b) = a_id；不穿透则记为 ref_id（>a_id）。
+ * Set 传播后 cascade[d] = cascade[pc2] = a_id，d 的 life_time_begin_ 提前到 a_id，
+ * 验证级联展开与 ref 穿透的正确性，防止 [a, ref) 窗口内误复用导致 a 的数据被踩踏。
+ */
+TEST_F(UtestBlockMemAssigner, NoPaddingContinuousInputThroughRefNodeLifeTimeBegin) {
+  const auto refnode_cfg = OP_CFG(ASSIGNADD).Attr(ATTR_NAME_REFERENCE, true).InNames({"ref"}).OutNames({"ref"});
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("a", RELU)->NODE("ref", refnode_cfg)->NODE("pc1", PHONYCONCAT)->EDGE(0, 1)->NODE("pc2", PHONYCONCAT));
+    CHAIN(NODE("b", RELU)->EDGE(0, 1)->NODE("pc1", PHONYCONCAT));
+    CHAIN(NODE("d", RELU)->EDGE(0, 0)->NODE("pc2", PHONYCONCAT));
+  };
+  auto graph = ToComputeGraph(g1);
+  MemConflictShareGraph::SetNoPaddingContinuousInput(graph, "pc1");
+  MemConflictShareGraph::SetNoPaddingContinuousInput(graph, "pc2");
+  MemConflictShareGraph::SetSizeForAllNodes(graph);
+  AttrUtils::SetBool(graph, ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION, true);
+  // ref 的 output 标记复用 input0，与 ref 属性配合建立 input/output 同 symbol
+  const auto ref_node = graph->FindNode("ref");
+  ASSERT_NE(ref_node, nullptr);
+  auto ref_out_tensor = ref_node->GetOpDesc()->MutableOutputDesc(0);
+  ASSERT_NE(ref_out_tensor, nullptr);
+  TensorUtils::SetReuseInput(*ref_out_tensor, true);
+  TensorUtils::SetReuseInputIndex(*ref_out_tensor, 0U);
+  (void)graph->TopologicalSorting();
+
+  MemAssistInfo mem_assist_info;
+  mem_assist_info.compute_graph = graph;
+  auto ret = GraphUtils::GetRefMapping(graph, mem_assist_info.symbol_to_anchors, mem_assist_info.anchor_to_symbol);
+  EXPECT_EQ(ret, SUCCESS);
+  BlockMemAssigner::PreparationForAssign(mem_assist_info);
+
+  std::vector<int64_t> ranges;
+  BinaryBlockMemAssigner assigner(mem_assist_info);
+  assigner.SetReuseStrategy(ReuseStrategy{false, false, false, true});
+  assigner.GetMemoryRanges(ranges);
+  EXPECT_EQ(assigner.AssignMemoryWithReuse(ranges), SUCCESS);
+  assigner.SetOpMemOffset(false);
+
+  const auto a = graph->FindNode("a");
+  const auto d = graph->FindNode("d");
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(d, nullptr);
+  const auto expected_begin = static_cast<size_t>(a->GetOpDesc()->GetId());
+  const auto blocks = assigner.GetMemoryBlocks();
+  bool has_checked = false;
+  for (const auto block : blocks) {
+    if (block == nullptr) {
+      continue;
+    }
+    for (const auto &node : block->node_type_index_list_) {
+      if ((node.mem_type_ == OpMemoryType::kOutput) && (node.node_ != nullptr) && (node.node_->GetName() == "d")) {
+        // 穿透 ref 后 cascade[pc2] = min(d, a, b) = a_id，Set 传播 cascade[d] = a_id，
+        // d 的 life_time_begin_ 应精确等于 a 的 topo id（而非 ref 的 topo id）
+        EXPECT_EQ(node.life_time_begin_, expected_begin);
+        has_checked = true;
+      }
+    }
+  }
+  EXPECT_TRUE(has_checked);
+}
+
 }  // namespace ge

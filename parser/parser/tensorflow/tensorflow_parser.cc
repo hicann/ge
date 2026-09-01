@@ -1039,7 +1039,7 @@ Status TensorFlowModelParser::ParseNodeDef(TensorFlowModelParser *parser, ge::Co
     GELOGD("After AddTensorDescToOpDesc op[%s] type[%s] have input size: %zu, output size: %zu", op->GetName().c_str(),
            op->GetType().c_str(), op->GetInputsSize(), op->GetOutputsSize());
   }
-  GELOGD("TF op node name = %s, outpusize= %zu", node_name.c_str(), op->GetAllOutputsDesc().size());
+  GELOGD("TF op node name = %s, output size= %zu", node_name.c_str(), op->GetAllOutputsDesc().size());
   op_factory.BreakConnect();
 
   // create OpParser
@@ -1411,7 +1411,7 @@ Status TensorFlowModelParser::Parse(const char *model_path, ge::ComputeGraphPtr 
   domi::tensorflow::GraphDef ori_def;
   bool read = ge::parser::ReadProtoFromBinaryFile(model_path, &ori_def);
   if (!read) {
-    GELOGE(FAILED, "read tensorflow file failed when the inupt param value of --framework is 3.");
+    GELOGE(FAILED, "read tensorflow file failed when the input param value of --framework is 3.");
     return INTERNAL_ERROR;
   }
 
@@ -1969,9 +1969,9 @@ Status TensorFlowModelParser::UpdateFusionOpContext(shared_ptr<ge::ScopeGraph> &
   }
 
   GE_CHK_STATUS_RET(UppdateInputMap(scope_graph, info, fusion_op_node_context, normal_op_node_context),
-                    "UppdateInputMap ret fail");
+                    "UpdateInputMap ret fail");
   GE_CHK_STATUS_RET(UppdateOutputMap(scope_graph, info, fusion_op_node_context, normal_op_node_context),
-                    "UppdateOutputMap ret fail");
+                    "UpdateOutputMap ret fail");
 
   return SUCCESS;
 }
@@ -3655,7 +3655,7 @@ Status TensorFlowModelParser::RemoveIsolateNode(domi::tensorflow::GraphDef *grap
     if ((node_inputs_outputs_map_[node_name].first.empty() && node_inputs_outputs_map_[node_name].second.empty() &&
          node->op() != kDpop) ||
         (node->op() == ge::parser::CONSTANT && node_inputs_outputs_map_[node_name].second.empty())) {
-      GELOGI("%s will inset to node_to_delete", node_name.c_str());
+      GELOGI("%s will insert to node_to_delete", node_name.c_str());
       node_to_delete.insert(node_name);
     }
   }
@@ -3703,11 +3703,11 @@ Status TensorFlowModelParser::RecordFusionResult(const std::shared_ptr<ge::Scope
       }
 
       if (fusion_output.second[i] >= static_cast<int32_t>(op_desc->GetOutputsSize())) {
-        REPORT_INNER_ERR_MSG("E19999", "fusion output index:%d of node:%s(%s) must less than outputs desc size %zu.",
+        REPORT_INNER_ERR_MSG("E19999", "fusion output index:%d of node:%s(%s) must be less than outputs desc size %zu.",
                              fusion_output.second[i], op_desc->GetName().c_str(), op_desc->GetType().c_str(),
                              op_desc->GetOutputsSize());
-        GELOGE(PARAM_INVALID, "fusion output index %d must less than outputs desc size %zu.", fusion_output.second[i],
-               op_desc->GetOutputsSize());
+        GELOGE(PARAM_INVALID, "fusion output index %d must be less than outputs desc size %zu.",
+               fusion_output.second[i], op_desc->GetOutputsSize());
         return PARAM_INVALID;
       }
 

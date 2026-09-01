@@ -152,12 +152,12 @@ std::string DataSliceAdapter::GetTensorStr(const OpDesc::Vistor<ge::GeTensorDesc
       continue;
     }
     if (iter_ori == FORMAT_MAP_STR.cend() || iter == FORMAT_MAP_STR.cend()) {
-      ss << "ori_fomat:" << ori_format << ",ori_shape:" << ori_shape.ToString();
+      ss << "ori_format:" << ori_format << ",ori_shape:" << ori_shape.ToString();
       ss << ",format:" << format << ",shape:" << shape.ToString();
       ss << ",reshape_type:" << (reshape_type == nullptr ? "" : *reshape_type) << ";";
       continue;
     }
-    ss << "ori_fomat:" << iter_ori->second << ",ori_shape:" << ori_shape.ToString();
+    ss << "ori_format:" << iter_ori->second << ",ori_shape:" << ori_shape.ToString();
     ss << ",format:" << iter->second << ",shape:" << shape.ToString();
     ss << ",reshape_type:" << (reshape_type == nullptr ? "" : *reshape_type) << ";";
   }
@@ -589,7 +589,7 @@ Status DataSliceAdapter::TransAxisByType(const AxisType axis_type, const OpDescP
       break;
     default:
       ret = FAILED;
-      GELOGW("Unsupport axis_type = %d", static_cast<int>(axis_type));
+      GELOGW("Unsupported axis_type = %d", static_cast<int>(axis_type));
       break;
   }
   if (ret != SUCCESS) {

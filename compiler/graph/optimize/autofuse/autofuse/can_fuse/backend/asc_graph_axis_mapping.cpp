@@ -670,7 +670,7 @@ Status AscGraphAxisMapping::FindAxisIndex(std::vector<ge::Expression> &node_repe
 
   // 没有锚点可辅助判断的剩余轴，沿用原先从右到左的贪心匹配策略。
   if (FillUnmappedAxisIndex(node_repeats, base_repeats, match_state) != SUCCESS) {
-    GELOGD_IF(open_log_, "some axis repeat(%s) don't find from base repeats(%s).",
+    GELOGD_IF(open_log_, "Some axis repeats(%s) were not found in base repeats(%s).",
               AutofuseUtils::VectorToStr(node_repeats).c_str(), AutofuseUtils::VectorToStr(base_repeats).c_str());
     return FAILED;
   }
@@ -1061,7 +1061,7 @@ bool AscGraphAxisMapping::CanLoopMerge(const NodePtr &node1, const NodePtr &node
             node2->GetType().c_str(), AutofuseUtils::VectorToStr(axis2).c_str());
 
   if (axis1.empty() || axis2.empty()) {
-    GELOGI("sched axis convert failed, can't merge.");
+    GELOGW("sched axis convert failed, can't merge.");
     return false;
   }
 
@@ -1073,8 +1073,8 @@ bool AscGraphAxisMapping::CanLoopMerge(const NodePtr &node1, const NodePtr &node
     }
   }
 
-  GELOGI_IF(open_log_, "node %s(%s) and node %s(%s) can cyclic merge.", node1->GetNamePtr(), node1->GetType().c_str(),
-            node2->GetNamePtr(), node2->GetType().c_str());
+  GELOGI_IF(open_log_, "node %s(%s) and node %s(%s) can be merged cyclically.", node1->GetNamePtr(),
+            node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
   return true;
 }
 

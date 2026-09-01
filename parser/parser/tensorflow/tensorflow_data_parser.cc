@@ -119,7 +119,7 @@ Status TensorFlowDataParser::ParseInputFromUser(const Message *op_src, const ge:
 
   GE_CHK_BOOL_RET_STATUS(model_input_dims_v.empty() || input_dim_size_ == model_input_dims_v.size(),
                          domi::PARAM_INVALID,
-                         "user designated input_dim_num %zu does match input_dim_num %zu defined by model",
+                         "user designated input_dim_num %zu does not match input_dim_num %zu defined by model",
                          input_dim_size_, model_input_dims_v.size());
 
   // replace with the user designated_dims

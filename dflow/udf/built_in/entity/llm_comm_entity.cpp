@@ -1279,7 +1279,7 @@ FsmStatus LlmCommEntity::ProbeSync(uint64_t data_aize, uint64_t timeout, bool is
         return FsmStatus::kFsmFailed;
       }
       if ((count == 0) || static_cast<uint64_t>(count) > data_aize) {
-        UDF_LOG_ERROR("Invalid req size%s, count:%d, expected req len:%lu, entity:%s.",
+        UDF_LOG_ERROR("Invalid req size %s, count:%d, expected req len:%lu, entity:%s.",
                       is_receive_meta ? kInvalidSyncCallMsg : "", count, data_aize, desc_.c_str());
         return FsmStatus::kFsmFailed;
       }
@@ -1292,7 +1292,7 @@ FsmStatus LlmCommEntity::ProbeSync(uint64_t data_aize, uint64_t timeout, bool is
       }
     }
   }
-  UDF_LOG_DEBUG("Success to probe envelope, data_aize:%lu, entity:%s.", data_aize, desc_.c_str());
+  UDF_LOG_DEBUG("Success to probe envelope, data_size:%lu, entity:%s.", data_aize, desc_.c_str());
   return FsmStatus::kFsmSuccess;
 }
 

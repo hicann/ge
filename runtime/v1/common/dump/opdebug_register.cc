@@ -121,7 +121,7 @@ void OpdebugRegister::UnregisterDebugForStream(aclrtStream const stream) {
     const std::lock_guard<std::mutex> lk(mu_);
     stream_ref_count_[stream] -= 1U;
     if (stream_ref_count_[stream] == 0U) {
-      GELOGD("start call rtDebugUnRegisterForStream in unknown shape over flow.");
+      GELOGD("start call rtDebugUnRegisterForStream in unknown shape overflow.");
       GE_CHK_RT(rtDebugUnRegisterForStream(stream));
       const auto iter = op_debug_tasks_.find(stream);
       if (iter != op_debug_tasks_.end()) {

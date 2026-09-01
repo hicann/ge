@@ -165,7 +165,7 @@ Status MemcpyAddrAsyncTaskInfo::Distribute() {
   }
 
   GELOGI("MemcpyAddrAsyncTaskInfo Distribute Success, op %s, dst_max:%" PRIu64 ", count:%" PRIu64
-         ", kind:%us, stream: %p.",
+         ", kind:%u, stream: %p.",
          op_desc_->GetNamePtr(), dst_max_, count_, kind_, stream_);
 
   is_support_redistribute_ = true;

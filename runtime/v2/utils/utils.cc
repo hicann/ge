@@ -38,7 +38,7 @@ ge::Status DoRtStreamSyncWithTimeout(aclrtStream stream) {
   auto timeout = ge::GetContext().StreamSyncTimeout();
   auto rt_ret = aclrtSynchronizeStreamWithTimeout(stream, timeout);
   if (rt_ret == ACL_ERROR_RT_STREAM_SYNC_TIMEOUT) {
-    GELOGE(rt_ret, "[Invoke][aclrtSynchronizeStreamWithTimeout] failed, stream synchronize timeout:%d, ret:%d.",
+    GELOGE(rt_ret, "[Invoke][aclrtSynchronizeStreamWithTimeout] failed, stream synchronize timeout:%d ms, ret:%d.",
            timeout, rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "aclrtSynchronizeStreamWithTimeout failed, stream synchronize timeout:%d, ret:%d.",
                          timeout, rt_ret);

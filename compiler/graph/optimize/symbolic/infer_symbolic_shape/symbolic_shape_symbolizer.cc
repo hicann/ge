@@ -211,8 +211,8 @@ Status SymbolizeInputValue(const GeTensor &tensor, int32_t data_index, const Nod
   if (SupportSymbolizeValue(tensor) && value_dependent_idxs.count(static_cast<size_t>(data_index)) > 0U) {
     const int64_t shape_size = tensor.GetTensorDesc().GetShape().GetShapeSize();
     if (shape_size >= 0 && shape_size <= kMaxSymbolizeValueElemNum) {
-      GELOGI("symbolize input[%d] value from real host data, data size %zu.", data_index, data_node->GetNamePtr(),
-             tensor.GetData().size());
+      GELOGI("symbolize input[%d] value of node %s from real host data, data size %zu.", data_index,
+             data_node->GetNamePtr(), tensor.GetData().size());
       const auto dtype = tensor.GetTensorDesc().GetDataType();
       switch (dtype) {
         case DT_INT32:

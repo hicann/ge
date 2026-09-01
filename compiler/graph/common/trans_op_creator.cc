@@ -181,7 +181,7 @@ OpDescPtr TransOpCreator::CreateTransPoseDOp(const std::string &op_name, const G
                                              const GeTensorDesc &output_desc) {
   auto op_desc = MakeShared<OpDesc>(op_name, TRANSPOSED);
   if (op_desc == nullptr) {
-    GELOGE(FAILED, "Failed to new transopsed opdesc.");
+    GELOGE(FAILED, "Failed to new transposed opdesc.");
     return nullptr;
   }
 

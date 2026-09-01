@@ -223,7 +223,7 @@ void GetShrinkAxisIndex(const int64_t shrink_axis_mask, const std::pair<int64_t,
 Status HandleShrinkAxisShape(const std::set<int64_t> &shrink_axis_indexes, StrdedSliceIndexInputs &index_input) {
   for (const auto &shrink_axis_id : shrink_axis_indexes) {
     GE_ASSERT_TRUE((shrink_axis_id < static_cast<int64_t>(index_input.start_indexes.size())) && (shrink_axis_id >= 0));
-    GELOGI("Change strideslice index to [%lld, %lld, 1] of dim[%lld]", index_input.start_indexes[shrink_axis_id],
+    GELOGI("Change StridedSlice index to [%lld, %lld, 1] of dim[%lld]", index_input.start_indexes[shrink_axis_id],
            index_input.end_indexes[shrink_axis_id], shrink_axis_id);
     index_input.end_indexes[shrink_axis_id] = index_input.start_indexes[shrink_axis_id] + 1;
     index_input.strides_indexes[shrink_axis_id] = 1;

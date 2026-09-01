@@ -151,7 +151,7 @@ Status PassUtils::RemoveBranch(const NodePtr &node, std::vector<NodePtr> &delete
         if (node_type == NETOUTPUT) {
           if (dst_in_anchor->IsTypeOf<InDataAnchor>()) {
             REPORT_INNER_ERR_MSG("E19999",
-                                 "Node:%s(%s) nactive branch connected to NetOutput with data anchor, "
+                                 "Node:%s(%s) Inactive branch connected to NetOutput with data anchor, "
                                  "check invalid",
                                  node->GetName().c_str(), node->GetType().c_str());
             GELOGE(INTERNAL_ERROR, "[Check][Param] [%s] Inactive branch connected to NetOutput with data anchor.",

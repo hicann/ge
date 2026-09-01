@@ -63,12 +63,12 @@ static std::string PrettyTime() {
     }                                                                                                            \
   } while (0)
 
-#define LogFatal(content)                                                                                         \
-  do {                                                                                                            \
-    pid_t pid = getpid();                                                                                         \
-    const std::string processName = GetProcessName(pid);                                                          \
-    std::cout << "[WARNING] CMP(" << pid << "," << processName << "):" << PrettyTime() << " [" << __FILE__ << ":" \
-              << __LINE__ << "]" << __func__ << content << std::endl;                                             \
+#define LogFatal(content)                                                                                       \
+  do {                                                                                                          \
+    pid_t pid = getpid();                                                                                       \
+    const std::string processName = GetProcessName(pid);                                                        \
+    std::cout << "[ERROR] CMP(" << pid << "," << processName << "):" << PrettyTime() << " [" << __FILE__ << ":" \
+              << __LINE__ << "]" << __func__ << content << std::endl;                                           \
   } while (0)
 
 void LogCharBuffer(const char *input, size_t len);

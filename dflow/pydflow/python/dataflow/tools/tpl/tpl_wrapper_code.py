@@ -208,7 +208,7 @@ class {{clz_name}} : public MetaMultiFunc {
   {
     {% for f_name in f_names %}
     if (!py::hasattr(py_obj_, "{{f_name}}")) {
-      FLOW_FUNC_LOG_ERROR("{{py_module_name}}.{{clz_name}} has not proc method {{f_name}}");
+      FLOW_FUNC_LOG_ERROR("{{py_module_name}}.{{clz_name}} has no proc method {{f_name}}");
       return FLOW_FUNC_FAILED;
     }
     {% endfor %}

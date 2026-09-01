@@ -113,7 +113,7 @@ void UdfDumpManager::SetDumpStep(const std::string &step) {
         step_range_.emplace_back(lower_range, higher_range);
         UDF_LOG_DEBUG("Insert step range from %u to %u", lower_range, higher_range);
       } else {
-        UDF_LOG_WARN("Invalid dump step %s, disenable dump.", step.c_str());
+        UDF_LOG_WARN("Invalid dump step %s, disable dump.", step.c_str());
         enable_dump_ = false;
       }
     }

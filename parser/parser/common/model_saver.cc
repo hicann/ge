@@ -59,7 +59,7 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status ModelSaver::SaveJsonToFi
     return FAILED;
   }
   if (realpath(file_path, real_path) == nullptr) {
-    GELOGI("File %s does not exit, it will be created.", file_path);
+    GELOGI("File %s does not exist, it will be created.", file_path);
   }
 
   // Open file

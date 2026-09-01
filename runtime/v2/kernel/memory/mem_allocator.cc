@@ -32,7 +32,7 @@ ge::graphStatus Allocators::SetAllocator(const TensorPlacement &placement, const
     }
     return ge::SUCCESS;
   } else {
-    GELOGE(ge::FAILED, "Unsupportd placement %zu or unsupportd usage %zu, Only support placemen[%zu~%zu)",
+    GELOGE(ge::FAILED, "Unsupported placement %zu or unsupported usage %zu, only support placement[%zu~%zu)",
            static_cast<size_t>(placement), usage, static_cast<size_t>(kOnDeviceHbm),
            static_cast<size_t>(AllocatorUsage::kEnd));
     return ge::FAILED;

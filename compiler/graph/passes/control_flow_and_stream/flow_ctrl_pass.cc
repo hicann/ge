@@ -35,7 +35,7 @@ Status FlowCtrlPass::Run(ComputeGraphPtr compute_graph) {
     return NOT_CHANGED;
   }
 
-  GELOGI("FlowCtrl pass begin.graph is [%s].", compute_graph->GetName().c_str());
+  GELOGI("FlowCtrl pass begin, graph is [%s].", compute_graph->GetName().c_str());
   bool graph_change = false;
   // 1. Add FP/BP flow ctrl (big cycle)
   for (auto &node : compute_graph->GetDirectNode()) {
@@ -106,7 +106,7 @@ bool FlowCtrlPass::CheckMultiDataSet(ComputeGraphPtr &compute_graph) const {
       data_set_num++;
     }
   }
-  GELOGI("The ComputeGraph contain %d dataSet.", data_set_num);
+  GELOGI("The ComputeGraph contains %d dataSet.", data_set_num);
   return (data_set_num > 1) ? true : false;
 }
 

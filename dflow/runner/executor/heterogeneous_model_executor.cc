@@ -1193,7 +1193,7 @@ bool HeterogeneousModelExecutor::IsModelInstanceAbnormal(const std::string &subm
            submodel_instance_name.c_str());
     return true;
   }
-  GELOGI("ModelIndexInfoUpdate, submodel instance[%s] is normals", submodel_instance_name.c_str());
+  GELOGI("ModelIndexInfoUpdate, submodel instance[%s] is normal", submodel_instance_name.c_str());
   return false;
 }
 
@@ -1429,7 +1429,7 @@ Status HeterogeneousModelExecutor::FeedRawData(const std::vector<RawData> &raw_d
     GE_CHK_STATUS_RET_NOLOG(FeedEmptyEosData(control_info));
   } else {
     GE_CHK_STATUS_RET(io_helper_.FeedRawData(raw_data_list, index, control_info),
-                      "Failed to raw data for index %u failed.", index);
+                      "Failed to feed raw data for index %u.", index);
   }
   for (size_t i = 0UL; i < control_input_queue_attrs_.size(); ++i) {
     const int32_t control_value = 0;
@@ -1551,7 +1551,7 @@ Status HeterogeneousModelExecutor::FeedFlowMsg(const std::vector<uint32_t> &inde
 void HeterogeneousModelExecutor::DynamicSchedInfoClear() {
   const std::lock_guard<std::mutex> lk(queue_status_mu_);
   queue_status_info_.clear();
-  GEEVENT("DynamicSched, scheding data: Total(us)=%" PRIu64 ", Cnt=%" PRIu64 ", Per duration(ns)=%" PRIu64
+  GEEVENT("DynamicSched, scheduling data: Total(us)=%" PRIu64 ", Cnt=%" PRIu64 ", Per duration(ns)=%" PRIu64
           ", "
           "Max duration(ns)=%" PRIu64 ", Greater 100us cnt=%" PRIu64,
           duration_total_ / kMicrosecondToNanosecond, cnt_total_,

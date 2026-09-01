@@ -592,17 +592,17 @@ static bool IsSameValue(const std::map<AttrRangeType, ge::GeAttrValue> &value1,
 bool IsSameValueRange(const std::map<AttrRangeType, ge::GeAttrValue> &valueRange1,
                       const std::map<AttrRangeType, ge::GeAttrValue> &valueRange2) {
   if (valueRange1.size() != valueRange2.size()) {
-    ACL_LOG_INFO("IsSameValueRange return fasle, size of valueRange1 is %zu, ize of valueRange2 is %zu",
-                 valueRange1.size(), valueRange1.size());
+    ACL_LOG_INFO("IsSameValueRange return false, size of valueRange1 is %zu, size of valueRange2 is %zu",
+                 valueRange1.size(), valueRange2.size());
     return false;
   }
 
   if (!IsSameValue(valueRange1, valueRange2)) {
-    ACL_LOG_INFO("Value of valueRange1 mismatch value of valueRange1");
+    ACL_LOG_INFO("Value of valueRange1 mismatch value of valueRange2");
     return false;
   }
   if (!IsSameRange(valueRange1, valueRange2)) {
-    ACL_LOG_INFO("Range of valueRange1 mismatch range of valueRange1");
+    ACL_LOG_INFO("Range of valueRange1 mismatch range of valueRange2");
     return false;
   }
   return true;
@@ -698,7 +698,7 @@ bool SaveConstToAttr(OpModelDef &modelDef) {
   std::vector<std::string> constStr;
   bool ret = ConstToAttr(modelDef.inputDescArr, constStr);
   if (!ret) {
-    ACL_LOG_INNER_ERROR("[Check][InputTenspr]inputTenspr get const dataLen failed");
+    ACL_LOG_INNER_ERROR("[Check][InputTensor]inputTensor get const dataLen failed");
     return false;
   }
   ret = ConstToAttr(modelDef.outputDescArr, constStr);
@@ -738,7 +738,7 @@ bool SaveConstToAttr(const AclOp &opDesc, aclopAttr *const opAttr) {
   std::vector<std::string> constStr;
   bool ret = ConstToAttr(opDesc.numInputs, opDesc.inputDesc, constStr);
   if (!ret) {
-    ACL_LOG_INNER_ERROR("[Check][InputTenspr]inputTenspr get const dataLen failed");
+    ACL_LOG_INNER_ERROR("[Check][InputTensor]inputTensor get const dataLen failed");
     return false;
   }
   ret = ConstToAttr(opDesc.numOutputs, opDesc.outputDesc, constStr);

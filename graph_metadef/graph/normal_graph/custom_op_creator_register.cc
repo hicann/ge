@@ -20,7 +20,7 @@ namespace ge {
 CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator)
     : CustomOpCreatorRegister(operator_type, OpBackend::kDevice, op_creator) {}
 
-CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const OpBackend backend,
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend,
                                                  const CustomOpCreateFunc op_creator) {
   RegisterCustomOpLocalCreator(operator_type.GetString(), backend, op_creator);
   if ((op_creator == nullptr) || IsOfflineCustomOpSoLoading()) {

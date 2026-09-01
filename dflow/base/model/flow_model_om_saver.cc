@@ -105,14 +105,14 @@ Status AddFlowModelCompileResource(const FlowModelPtr &flow_model, flow_model::p
     const auto &host_res_type = execution_runtime->GetCompileHostResourceType();
     const auto &logic_dev_id_to_res_type = execution_runtime->GetCompileDeviceInfo();
     if (host_res_type.empty() && logic_dev_id_to_res_type.empty()) {
-      GELOGI("Needn't to record resource info result of compile resource empty");
+      GELOGI("No need to record resource info because compile resource is empty");
     } else if ((!host_res_type.empty()) && (!logic_dev_id_to_res_type.empty())) {
       compile_res_info->set_host_resource_type(host_res_type);
       auto *const proto_dev_to_type = compile_res_info->mutable_logic_device_id_to_resource_type();
       for (const auto &dev_to_type : logic_dev_id_to_res_type) {
         // In load balance mode: logic device id is empty. Record all compile resource
         if ((!logic_dev_lists.empty()) && (logic_dev_lists.count(dev_to_type.first) == 0UL)) {
-          GELOGD("Logic device id %s is not assign to any submodel.", dev_to_type.first.c_str());
+          GELOGD("Logic device id %s is not assigned to any submodel.", dev_to_type.first.c_str());
           continue;
         }
         (*proto_dev_to_type)[dev_to_type.first] = dev_to_type.second;

@@ -1712,7 +1712,7 @@ Status ModelArgsManager::ParseModelTaskDef(domi::ModelTaskDef &model_task_def,
     }
   }
   if (!has_args_) {
-    GELOGW("There no args need be managed in model");
+    GELOGW("There are no args that need to be managed in model.");
   }
 
   if (has_reserve_args_table_) {

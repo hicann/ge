@@ -346,7 +346,7 @@ int32_t MbufFlowMsg::InitMbufTensorList(const std::vector<std::vector<int64_t>> 
   // data_orig_size is not include RuntimeTensorDesc. data_align_size is include RunTimeTensorDesc size.
   if ((shapes.size() != data_types.size()) || (shapes.size() != data_align_size.size()) ||
       (shapes.size() != data_orig_size.size())) {
-    UDF_LOG_ERROR("Shape size=%zu datatype size=%zu data_orig_size size=%zu data_orig_size size=%zu should be same",
+    UDF_LOG_ERROR("Shape size=%zu datatype size=%zu data_align_size size=%zu data_orig_size size=%zu should be same",
                   shapes.size(), data_types.size(), data_align_size.size(), data_orig_size.size());
     return FLOW_FUNC_FAILED;
   }
@@ -676,7 +676,7 @@ int32_t MbufFlowMsg::ParseMbuf() {
     return FLOW_FUNC_ERR_MEM_BUF_ERROR;
   }
   if (mbuf_info_.head_buf_len < sizeof(MbufHeadMsg)) {
-    UDF_LOG_ERROR("mbuf priv info len=%u can't be less than to sizeof(MbufHeadMsg)=%zu.", mbuf_info_.head_buf_len,
+    UDF_LOG_ERROR("mbuf priv info len=%u can't be less than sizeof(MbufHeadMsg)=%zu.", mbuf_info_.head_buf_len,
                   sizeof(MbufHeadMsg));
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }

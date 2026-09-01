@@ -287,7 +287,7 @@ void *NpuMemoryAllocator::Allocate(const uint64_t size, const AllocationAttr *co
 }
 
 void NpuMemoryAllocator::Deallocate(void *const data, const MemStorageType mem_storage_type) const {
-  GELOGI("To deallocating buffer, addr = %p", data);
+  GELOGI("To deallocate buffer, addr = %p", data);
   if (data != nullptr) {
     const auto mem_type = (device_id_ == kDeviceIdHost) ? MemStorageType::HOST_DDR : mem_storage_type;
     GELOGI("Deallocating buffer successfully. addr = %p", data);

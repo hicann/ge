@@ -283,7 +283,7 @@ Status CompiledModel::SaveToBuffer(ge::BaseBuffer &buffer, bool save_weights_as_
   // save weight external
   if (save_weights_as_external_data && (weights_list_external != nullptr)) {
     // only support graph op num == 1
-    GE_ASSERT_TRUE(weights_list_.size() == 1, "[Mobile] weight list num %d is not support(only support 1).",
+    GE_ASSERT_TRUE(weights_list_.size() == 1, "[Mobile] weight list num %zu is not supported (only 1 is supported).",
                    weights_list_.size());
     // SubGraph_0.weight
     std::string weight_file_name = std::string("SubGraph_0") + std::string(".weight");

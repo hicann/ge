@@ -195,7 +195,7 @@ Status TransVarOnHost(uint8_t *const var_data, const VarTransRoad &trans_road, f
       const Format dst_sub_format = static_cast<Format>(GetSubFormat(dst_format));
       const int64_t src_c0_format = GetC0Value(static_cast<int32_t>(src_format));
       const int64_t dst_c0_format = GetC0Value(static_cast<int32_t>(dst_format));
-      GELOGD("Trans format from %s to %s, primary formats from %s to %s, src c0 is %" PRId64 ", dts c0 is %" PRId64
+      GELOGD("Trans format from %s to %s, primary formats from %s to %s, src c0 is %" PRId64 ", dst c0 is %" PRId64
              ", "
              "shape %s to %s, data-type %s",
              TypeUtils::FormatToSerialString(src_format).c_str(), TypeUtils::FormatToSerialString(dst_format).c_str(),
@@ -210,7 +210,7 @@ Status TransVarOnHost(uint8_t *const var_data, const VarTransRoad &trans_road, f
       if (ret != SUCCESS) {
         REPORT_INNER_ERR_MSG("E19999",
                              "Trans format from %s to %s, primary formats from %s to %s, src c0 is "
-                             "[%" PRId64 "], dts c0 is [%" PRId64
+                             "[%" PRId64 "], dst c0 is [%" PRId64
                              "], shape %s to %s failed, "
                              "data type:%s, ret:%u,",
                              TypeUtils::FormatToSerialString(src_format).c_str(),
@@ -221,7 +221,7 @@ Status TransVarOnHost(uint8_t *const var_data, const VarTransRoad &trans_road, f
                              TypeUtils::DataTypeToSerialString(data_type).c_str(), ret);
         GELOGE(INTERNAL_ERROR,
                "[Trans][Format] from %s to %s, primary formats from %s to %s, shape %s to %s failed, "
-               "src c0 is %" PRId64 ", dts c0 is %" PRId64 ", data type %s error code %u",
+               "src c0 is %" PRId64 ", dst c0 is %" PRId64 ", data type %s error code %u",
                TypeUtils::FormatToSerialString(src_format).c_str(), TypeUtils::FormatToSerialString(dst_format).c_str(),
                TypeUtils::FormatToSerialString(src_primary_format).c_str(),
                TypeUtils::FormatToSerialString(dst_primary_format).c_str(), ToString(src_shape).c_str(),

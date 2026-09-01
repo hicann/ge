@@ -94,7 +94,7 @@ graphStatus InferShape4Unpack(gert::InferSymbolShapeContext *context) {
   size_t input_x_dim_size = input_x_shape->GetDimNum();
   const int64_t real_axis = (*axis_ptr >= 0 ? *axis_ptr : *axis_ptr + static_cast<int64_t>(input_x_dim_size));
   if (real_axis < 0 || real_axis >= static_cast<int64_t>(input_x_dim_size)) {
-    GELOGE(PARAM_INVALID, "invalid axis=%d  but input_x_shape is %d", *axis_ptr, input_x_shape);
+    GELOGE(PARAM_INVALID, "invalid axis=%d but input_x_dim_size is %zu", *axis_ptr, input_x_shape->GetDimNum());
     return PARAM_INVALID;
   }
   for (size_t i = 0; i < static_cast<size_t>(*num); ++i) {

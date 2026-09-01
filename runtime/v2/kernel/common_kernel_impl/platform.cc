@@ -52,7 +52,7 @@ ge::graphStatus GetPlatformInfo(KernelContext *context) {
     // 旧om：无输入，options保持为空，后续走ThreadLocalContext路径
     GELOGI("GetPlatformInfo has no input, using legacy mode (no model-level core num config).");
   } else {
-    GELOGE(ge::GRAPH_FAILED, "GetPlatformInfo input num is %zu, expect 0 (legacy) or %zu (with core num config).",
+    GELOGE(ge::GRAPH_FAILED, "GetPlatformInfo input num is %zu, expected 0 (legacy) or %zu (with core num config).",
            input_num, kCoreNumInputNum);
     return ge::GRAPH_FAILED;
   }

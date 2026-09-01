@@ -95,7 +95,7 @@ Status HeterogeneousDeployPlanner::PrepareModelsAndRelation(ModelRelation &model
     GELOGD("start to build deploy plan for single model");
     GE_CHK_STATUS_RET(PrepareForSingleFlowModel(name_to_models, model_relation), "Failed to init for single model");
   } else {
-    GELOGD("start to build deploy plan for multiply models");
+    GELOGD("start to build deploy plan for multiple models");
     GE_CHK_STATUS_RET(MergeModels(name_to_models, model_relation), "Failed to merge models by relation");
     GE_CHK_STATUS_RET(ValidateModelAndRelation(name_to_models, model_relation),
                       "Failed to validate model and relation after merging submodels");

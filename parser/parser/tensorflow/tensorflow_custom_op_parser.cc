@@ -449,7 +449,7 @@ Status TensorFlowCustomOpParser::CompileCustomOpFiles(const std::string &custom_
                         " -L c_sec -L " + register_path + " -lregister -lgraph -lruntime -x c++ " + custom_op_cc_path;
   GE_ASSERT_TRUE(CheckPathInCmdIsValid(output_so_path, incloud_path, register_path),
                  "CheckPathInCmdIsValid failed, output_so_path = %s, incloud_path = %s, register_path = %s.",
-                 incloud_path.c_str(), incloud_path.c_str(), register_path.c_str());
+                 output_so_path.c_str(), incloud_path.c_str(), register_path.c_str());
   int rc = system(command.c_str());
   if ((rc == -1) || (WEXITSTATUS(rc) != 0)) {
     int real_exit_code = (rc == -1) ? -1 : WEXITSTATUS(rc);

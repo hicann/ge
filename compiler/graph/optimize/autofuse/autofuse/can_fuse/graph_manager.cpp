@@ -66,7 +66,7 @@ Status FusionGraphManager::DumpGraph(const std::string &graph_name, const std::s
   if (graph != nullptr) {
     AutofuseUtils::DumpGraphToOnnx(*graph, path, graph_name + suffix);
   } else {
-    GELOGW("dump cache graph(%s) failed, it not in graph manager (cache graph first).", graph_name.c_str());
+    GELOGW("dump cache graph(%s) failed, it is not in graph manager (cache graph first).", graph_name.c_str());
   }
   return SUCCESS;
 }
@@ -106,7 +106,7 @@ Status FusionGraphManager::DumpGraphAndSubgraphs(const std::vector<std::string> 
         dump_order.push_back(std::make_pair(subgraph2, ""));
         processing_queue.push_back(subgraph2);
       } else {
-        GELOGD("can't find cache graph(%s), it not in merged graph map keys.", current_graph.c_str());
+        GELOGD("can't find cache graph(%s), it is not in merged graph map keys.", current_graph.c_str());
       }
       processing_queue.pop_front();  // 批量处理完成后统一pop
     }

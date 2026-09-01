@@ -293,7 +293,7 @@ ge::Status GraphUnfolder::UnfoldSubgraph(const ge::ComputeGraphPtr &root_graph,
                                          const ge::ComputeGraphPtr &origin_sub_graph, ge::ComputeGraphPtr &merged_graph,
                                          const uint32_t depth) {
   if (depth >= kHybridSubgraphRecursion) {
-    GELOGE(ge::FAILED, "[Invoke][Unfold]There are too much recursion:%u > max:%u", depth, kHybridSubgraphRecursion);
+    GELOGE(ge::FAILED, "[Invoke][Unfold]There are too many recursions:%u > max:%u", depth, kHybridSubgraphRecursion);
     REPORT_INNER_ERR_MSG("E19999", "[Unfold]There are too much recursion:%u > max:%u", depth, kHybridSubgraphRecursion);
     return ge::FAILED;
   }
@@ -366,7 +366,7 @@ ge::Status GraphUnfolder::UnfoldSubgraphs(const ge::ComputeGraphPtr &root_graph,
 }
 
 ge::Status GraphUnfolder::UnfoldAllPartitioncallInPlace(const ge::ComputeGraphPtr &root_graph) {
-  GELOGD("Start unfloder partitioncall node, graph[%s]", root_graph->GetName().c_str());
+  GELOGD("Start unfold partitioncall node, graph[%s]", root_graph->GetName().c_str());
   uint32_t depth = 0U;
   GE_ASSERT_SUCCESS(UnfoldPartitioncallInPlace(root_graph, root_graph, depth));
   (void)root_graph->TopologicalSorting();
@@ -421,7 +421,7 @@ ge::Status GraphUnfolder::UnfoldPartitioncallInPlace(const ge::ComputeGraphPtr &
 
   // 子图上的节点都没有子图，无需处理
   if (subgraphs_to_process.empty()) {
-    GELOGI("Subgraph[%s] not has subgraphs.", sub_graph->GetName().c_str());
+    GELOGI("Subgraph[%s] does not have subgraphs.", sub_graph->GetName().c_str());
     return ge::SUCCESS;
   }
 

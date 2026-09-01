@@ -99,7 +99,7 @@ graphStatus NormalizeInput(gert::InferSymbolComputeContext *context, const std::
   batch_dims = batch_dims < 0 ? batch_dims + static_cast<int64_t>(indice_dims.size()) : batch_dims;
   GE_ASSERT_TRUE(
       batch_dims <= axis,
-      "SymbolicKernel compute failed, reason: batch_dims:%ld is must be less or equal to axis:%ld, node %s[%s].",
+      "SymbolicKernel compute failed, reason: batch_dims:%ld must be less than or equal to axis:%ld, node %s[%s].",
       batch_dims, axis, context->GetNodeName(), context->GetNodeType());
   return GRAPH_SUCCESS;
 }
@@ -126,10 +126,11 @@ graphStatus CalOutputSymbolValue(gert::InferSymbolComputeContext *context, const
     for (int64_t j = 0L; j < block_num; j++) {
       for (int64_t k = 0L; k < indice_block_size; k++) {
         int64_t gather_index = indice_values[static_cast<size_t>(k + indice_block_size * i)];
-        GE_ASSERT_TRUE(gather_index < param_dims[static_cast<size_t>(axis)],
-                       "SymbolicKernel compute failed, reason: indice index:%lld should less than axis:%lld dim:%lld, "
-                       "node %s[%s].",
-                       gather_index, axis, param_dims[axis], context->GetNodeName(), context->GetNodeType());
+        GE_ASSERT_TRUE(
+            gather_index < param_dims[static_cast<size_t>(axis)],
+            "SymbolicKernel compute failed, reason: indice index:%lld should be less than axis:%lld dim:%lld, "
+            "node %s[%s].",
+            gather_index, axis, param_dims[axis], context->GetNodeName(), context->GetNodeType());
         const auto start_iter =
             param_values.begin() +
             (i * outer_block_size + (j * param_dims[static_cast<size_t>(axis)] + gather_index) * block_size);

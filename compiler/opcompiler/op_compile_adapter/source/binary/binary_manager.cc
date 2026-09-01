@@ -206,7 +206,7 @@ void BinaryManager::GetBinaryOppPath(const std::map<std::string, std::string> &o
 
   std::string oppLatestPath = RealPath(TeConfigInfo::Instance().GetEnvHomePath() + OPP_LATEST_PATH);
   if (!oppLatestPath.empty()) {
-    TE_INFOLOGF("ASCEND_HOME_PATH/opp_latest is valid, ready to get binary info from this dictionary[%s]",
+    TE_INFOLOGF("ASCEND_HOME_PATH/opp_latest is valid, ready to get binary info from this directory[%s]",
                 oppLatestPath.c_str());
     oppParentPath = std::move(oppLatestPath);
     SetBuiltInOppLatestFlag(true);
@@ -1387,12 +1387,12 @@ bool BinaryManager::MatchSimplifiedKey(const OpBuildTaskPtr &opTask, string &jso
   if (isSuperKernel) {
     iter = relocatableBinaryInfoPtrMap_.find(implType);
     if (iter == relocatableBinaryInfoPtrMap_.end()) {
-      TE_WARNLOG("Node[%s] binaryInfo is null, whose implye_type is %lu.", opNode->GetName().c_str(), implType);
+      TE_WARNLOG("Node[%s] binaryInfo is null, whose imply_type is %lu.", opNode->GetName().c_str(), implType);
       return false;
     }
   } else {
     if (iter == binaryInfoPtrMap_.end()) {
-      TE_WARNLOG("Node[%s] binaryInfo is null, whose implye_type is %lu.", opNode->GetName().c_str(), implType);
+      TE_WARNLOG("Node[%s] binaryInfo is null, whose imply_type is %lu.", opNode->GetName().c_str(), implType);
       return false;
     }
   }
@@ -1623,9 +1623,9 @@ bool BinaryManager::CheckIsCanReuseOmBinaryCompileRes(const OpBuildTaskPtr &opTa
 }
 
 bool BinaryManager::ReuseOmBinaryCompileRes(const OpBuildTaskPtr &opTask, bool &hasOmKeyId) {
-  TE_DBGLOG("Process binary om file resuse. (Node = %s).", GetTaskNodeName(opTask).c_str());
+  TE_DBGLOG("Process binary om file reuse. (Node = %s).", GetTaskNodeName(opTask).c_str());
   if (!CheckIsCanReuseOmBinaryCompileRes(opTask)) {
-    TE_DBGLOG("Node(%s) cat not reuse om BinaryCompileRes. Need to compile.", GetTaskNodeName(opTask).c_str());
+    TE_DBGLOG("Node(%s) cannot reuse om BinaryCompileRes. Need to compile.", GetTaskNodeName(opTask).c_str());
     return false;
   }
 
@@ -1667,7 +1667,7 @@ bool BinaryManager::MatchAndReuseBinRes(const OpBuildTaskPtr &opTask) {
   TE_DBGLOG("Binary om not matched. Continue to match binary kernel files. (Node = %s)",
             GetTaskNodeName(opTask).c_str());
 
-  TE_DBGLOG("Process binary kernel file resuse. (Node = %s)", GetTaskNodeName(opTask).c_str());
+  TE_DBGLOG("Process binary kernel file reuse. (Node = %s)", GetTaskNodeName(opTask).c_str());
   if (!CheckReuseBinaryCondition(opTask)) {
     DfxInfoManager::Instance().RecordStatistics(StatisticsType::BINARY_REUSE, RecordEventType::RESUE_CHECK_FAIL);
     return false;
@@ -1675,7 +1675,7 @@ bool BinaryManager::MatchAndReuseBinRes(const OpBuildTaskPtr &opTask) {
 
   bool res = ReuseBinKernelBySimpleKey(opTask);
   if (res) {
-    TE_INFOLOG("Node(%s) reuse kernel binary by simpliedKey.", GetTaskNodeName(opTask).c_str());
+    TE_INFOLOG("Node(%s) reuse kernel binary by simplifiedKey.", GetTaskNodeName(opTask).c_str());
     DfxInfoManager::Instance().RecordStatistics(StatisticsType::BINARY_REUSE, RecordEventType::REUSE_SUCC);
     return res;
   }
@@ -1712,7 +1712,7 @@ bool BinaryManager::BackToSingleCheck(const OpBuildTaskPtr &opTask) {
 }
 
 bool BinaryManager::CanReuseBinaryKernel(const OpBuildTaskPtr &opTask) {
-  TE_DBGLOG("Start to process binary file resuse. (Node = %s).", GetTaskNodeName(opTask).c_str());
+  TE_DBGLOG("Start to process binary file reuse. (Node = %s).", GetTaskNodeName(opTask).c_str());
   TE_FUSION_TIMECOST_START(CanReuseBinaryKernel);
   DfxInfoManager::Instance().RecordStatistics(StatisticsType::BINARY_REUSE, RecordEventType::MATCH);
   if (!CheckConditionsForReuse(opTask)) {
@@ -1819,7 +1819,7 @@ void BinaryManager::GetBinaryVersion(const OpBuildTaskPtr &opTask, bool isOm, st
       return;
     }
     oppVersion = iter1->second;
-    TE_DBGLOG("Node[%s] impltype[%ld] get adkVrsion[%s] oppVersion[%s]", currentNode->GetName().c_str(), implType,
+    TE_DBGLOG("Node[%s] impltype[%ld] get adkVersion[%s] oppVersion[%s]", currentNode->GetName().c_str(), implType,
               adkVrsion.c_str(), oppVersion.c_str());
     return;
   }

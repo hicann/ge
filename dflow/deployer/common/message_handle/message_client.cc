@@ -244,7 +244,7 @@ Status MessageClient<Request, Response>::WaitResponseWithMessageId(Response &res
                                                                    int64_t timeout) {
   const int64_t rsp_timeout = (timeout == -1) ? kDefaultTimeout : timeout;
   std::unique_lock<std::mutex> lk(mu_);
-  GE_CHK_STATUS_RET(get_stat_func_(), "Process already exit");
+  GE_CHK_STATUS_RET(get_stat_func_(), "Process already exited");
   response_cv_.wait_for(lk, std::chrono::seconds(rsp_timeout), [this, message_id] {
     return (!running_) || (responses_received_.find(message_id) != responses_received_.cend());
   });
@@ -263,7 +263,7 @@ Status MessageClient<Request, Response>::WaitResponse(Response &response, int64_
   std::shared_ptr<Response> rsp;
   const int64_t retry_times = (timeout == -1) ? kDefaultRetryTimes : std::max(timeout / kDequeueTimeoutInSec, 1L);
   for (int32_t i = 0; i < retry_times; ++i) {
-    GE_CHK_STATUS_RET(get_stat_func_(), "Process already exit");
+    GE_CHK_STATUS_RET(get_stat_func_(), "Process already exited");
     GE_CHK_BOOL_RET_STATUS(running_, FAILED, "Wait response failed as stopped");
     auto ret = DequeueMessage(rsp);
     if (ret == SUCCESS) {

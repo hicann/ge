@@ -334,7 +334,7 @@ TEST_F(BuildTensorUT, SplitTensorForOutputData_CheckFailed_NullTensor) {
   GertRuntimeStub stub;
   ASSERT_NE(funcs->run_func(context), ge::GRAPH_SUCCESS);
   ASSERT_EQ(stub.GetSlogStub().FindErrorLogEndsWith(
-                "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the called"),
+                "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the caller"),
             0);
 }
 TEST_F(BuildTensorUT, SplitTensorForOutputData_CheckFailed_NullTensorData) {
@@ -355,7 +355,7 @@ TEST_F(BuildTensorUT, SplitTensorForOutputData_CheckFailed_NullTensorData) {
   GertRuntimeStub stub;
   ASSERT_EQ(funcs->run_func(context), ge::PARAM_INVALID);
   ASSERT_EQ(stub.GetSlogStub().FindErrorLogEndsWith(
-                "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the called"),
+                "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the caller"),
             0);
 }
 

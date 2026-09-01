@@ -171,8 +171,8 @@ Status TbeTaskBuilder::RegisterKernel(TbeOpTask &task, const SingleOpModelParam 
 
     auto holder = MakeUnique<KernelHolder>(stub_func, tbe_kernel);
     if (holder == nullptr) {
-      GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Create][KernelHodler] failed.");
-      REPORT_INNER_ERR_MSG("E19999", "Create KernelHodler failed.");
+      GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Create][KernelHolder] failed.");
+      REPORT_INNER_ERR_MSG("E19999", "Create KernelHolder failed.");
       return ACL_ERROR_GE_MEMORY_ALLOCATION;
     }
 
@@ -584,7 +584,7 @@ Status MixL2TaskBuilder::InitMixKernelArgs(MixL2OpTask &task, const size_t addr_
     task.l0_dump_list_.insert(task.l0_dump_list_.end(), l0_dump_list.begin(), l0_dump_list.end());
   });
 
-  GE_CHK_STATUS_RET(transfer.Transfer(op_desc_, ffts_plus_task_def_, task.ffts_plus_task_info_), "Do transfer filed.");
+  GE_CHK_STATUS_RET(transfer.Transfer(op_desc_, ffts_plus_task_def_, task.ffts_plus_task_info_), "Do transfer failed.");
   task.io_addrs_from_taskdef_ = helper.GetIoAddr();
   task.mode_addr_idx_ = helper.GetModeAddrIdx();
   GE_ASSERT_SUCCESS(helper.AssembleTilingData());

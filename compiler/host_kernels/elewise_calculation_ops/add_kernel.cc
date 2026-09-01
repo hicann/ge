@@ -102,7 +102,7 @@ Status AddKernel::ComputeComplex(const OpDescPtr &op_desc_ptr, const std::vector
   BCast bcast;
   Status ret = bcast.GenerateBcastInfo(BCast::TransShapeToDimVec(input[kAddFirstInput]->GetTensorDesc()),
                                        BCast::TransShapeToDimVec(input[kAddSecondInput]->GetTensorDesc()));
-  GE_ASSERT_SUCCESS(ret, "Greater broadcasting failed.");
+  GE_ASSERT_SUCCESS(ret, "Add broadcasting failed.");
 
   std::vector<int64_t> x_indexes;
   std::vector<int64_t> y_indexes;
@@ -266,7 +266,7 @@ Status AddKernel::Compute(const OpDescPtr op_desc_ptr, const std::vector<ConstGe
   }
 
   if (ret != SUCCESS) {
-    GELOGW("Greater broadcasting failed.");
+    GELOGW("Add broadcasting failed.");
     return NOT_CHANGED;
   }
   return SUCCESS;

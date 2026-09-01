@@ -100,9 +100,9 @@ Status MemoryGroupManager::ParseRemoteGroupCacheConfig(const std::string &remote
                         "parse pool_alloc_limit[%s] failed, remote_group_cache_config=%s.",
                         pool_alloc_limit_str.c_str(), remote_group_cache_config.c_str());
       GE_CHK_BOOL_RET_STATUS(pool_alloc_limit <= pool_size, PARAM_INVALID,
-                             "pool alloc limit[%d] must less than pool size[%ld]", pool_alloc_limit, pool_size);
+                             "pool alloc limit[%d] must be less than pool size[%ld]", pool_alloc_limit, pool_size);
       GE_CHK_BOOL_RET_STATUS((pool_alloc_limit == 0) || (pool_alloc_limit >= kLowerLimit), FAILED,
-                             "The value pool alloc limit[%d] in %s is must be 0 or great or equal %ld.",
+                             "The value pool alloc limit[%d] in %s must be 0 or greater than or equal to %ld.",
                              pool_alloc_limit, OPTION_FLOW_GRAPH_MEMORY_MAX_SIZE, kLowerLimit);
     } else {
       GE_CHK_STATUS_RET(ConvertToInt64(pool_config, pool_size),

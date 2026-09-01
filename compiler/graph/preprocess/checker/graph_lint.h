@@ -43,7 +43,7 @@ class GraphLint {
     }
 
     graphStatus SetInputRwType(uint64_t input_index, RWType rw_type) {
-      GE_ASSERT_TRUE(input_index < input_rw_type.size(), "Input index %ld should not large than inputs size %zu",
+      GE_ASSERT_TRUE(input_index < input_rw_type.size(), "Input index %ld should not be larger than inputs size %zu",
                      input_index, input_rw_type.size());
       if (input_rw_type[input_index] == RWType::kWritable) {
         return GRAPH_SUCCESS;

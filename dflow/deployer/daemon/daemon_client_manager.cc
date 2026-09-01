@@ -79,7 +79,8 @@ Status DaemonClientManager::CreateAndInitClient(const std::string &peer_uri,
   std::lock_guard<std::mutex> lk(mu_);
   if (clients_.size() == kMaxClientSize) {
     REPORT_INNER_ERR_MSG("E19999", "Client size has reached the upper limit[%zu]", kMaxClientSize);
-    GELOGE(FAILED, "[Create][Client]Client size has reached the upper limit[%zu]", kMaxClientSize);
+    GELOGE(FAILED, "[Create][Client]Client size [%zu] has reached the upper limit[%zu]", clients_.size(),
+           kMaxClientSize);
     return FAILED;
   }
   int64_t new_client_id = client_id_gen_;

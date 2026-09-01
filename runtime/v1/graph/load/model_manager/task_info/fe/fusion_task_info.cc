@@ -404,7 +404,7 @@ Status FusionTaskInfo::AppendWorkspaceAddr(int32_t ir_idx) {
                                     workspace_mem_types_.cend());
   } else {
     const size_t idx = static_cast<size_t>(ir_idx);
-    GE_ASSERT(idx < workspace_addrs_.size(), "workspace index[%zu] is output of workspace addrs range[%zu]", idx,
+    GE_ASSERT(idx < workspace_addrs_.size(), "workspace index[%zu] is out of workspace addrs range[%zu]", idx,
               workspace_addrs_.size());
     l0_dump_list_.push_back(input_output_size + ir_idx);
     AppendIoAddr(workspace_addrs_[idx], workspace_mem_types_[idx]);
@@ -617,7 +617,8 @@ Status FusionTaskInfo::SetTvmTaskZeroCopy(const OpDescPtr &op_desc, const std::v
         const uint64_t session_id = davinci_model_->GetRuntimeParam().session_id;
         if ((davinci_model_->GetRuntimeParam().var_size > 0U) &&
             VarManager::Instance(session_id)->IsVarAddr(input_offsets[args_index] - inner_offset)) {
-          GELOGI("Node:%s input:%" PRIu64 "is var, no need zero copy refresh.", op_desc->GetName().c_str(), args_index);
+          GELOGI("Node:%s input:%" PRIu64 " is var, no need zero copy refresh.", op_desc->GetName().c_str(),
+                 args_index);
           continue;
         }
       }

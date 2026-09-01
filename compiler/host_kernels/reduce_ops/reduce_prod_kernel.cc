@@ -77,7 +77,7 @@ Status ReduceProdKernel::AxisCal(const std::vector<ge::ConstGeTensorPtr> &input)
   int32_t *axis = const_cast<int32_t *>(reinterpret_cast<const int32_t *>(axis_tensor->GetData().GetData()));
   GE_CHECK_NOTNULL(axis);
   if (static_cast<size_t>(*axis) >= data_dim_size) {
-    GELOGW("axis is out of rank of data_dims, axis is %d.", *axis);
+    GELOGW("axis is out of rank of data_dims, axis is %d, valid range is [0, %zu).", *axis, data_dim_size);
     return PARAM_INVALID;
   }
   axis_dim_ = data_dims[static_cast<size_t>(*axis)];
@@ -92,13 +92,13 @@ Status ReduceProdKernel::AxisCal(const std::vector<ge::ConstGeTensorPtr> &input)
     // data_dims is the vector of dims, element in data_dims isn't negative.
     if (axis_appear) {
       if (data_dims[i] != 0 && end_dim_ > (INT64_MAX / data_dims[i])) {
-        GELOGW("Product is overflow. multiplier 1: %ld. multiplier 2: %ld.", end_dim_, data_dims[i]);
+        GELOGW("Product overflows. multiplier 1: %ld. multiplier 2: %ld.", end_dim_, data_dims[i]);
         return INTERNAL_ERROR;
       }
       end_dim_ *= data_dims[i];
     } else {
       if (data_dims[i] != 0 && head_dim_ > (INT64_MAX / data_dims[i])) {
-        GELOGW("Product is overflow. multiplier 1: %ld. multiplier 2: %ld.", head_dim_, data_dims[i]);
+        GELOGW("Product overflows. multiplier 1: %ld. multiplier 2: %ld.", head_dim_, data_dims[i]);
         return INTERNAL_ERROR;
       }
       head_dim_ *= data_dims[i];
@@ -129,7 +129,7 @@ Status ReduceProdKernel::DataCal(const std::vector<ge::ConstGeTensorPtr> &input,
         for (int64_t k = 1; k < axis_dim_; ++k) {
           tmp_y = input_data[static_cast<size_t>(i * end_dim_ * axis_dim_ + j + k * end_dim_)];
           if (ge::CheckInt32MulOverflow(tmp_x, tmp_y) != SUCCESS) {
-            GELOGW("Product is overflow. multiplier 1: %d. multiplier 2: %d.", tmp_x, tmp_y);
+            GELOGW("Product overflows. multiplier 1: %d. multiplier 2: %d.", tmp_x, tmp_y);
             return INTERNAL_ERROR;
           }
           tmp_x *= tmp_y;
@@ -209,7 +209,7 @@ Status ReduceProdKernel::ComputeNoAxis(const ge::OpDescPtr &op_desc_ptr, const s
     for (size_t k = 1; k < data_num; ++k) {
       tmp_y = input_data[k];
       if (ge::CheckInt32MulOverflow(tmp_x, tmp_y) != SUCCESS) {
-        GELOGW("Product is overflow. multiplier 1: %d. multiplier 2: %d.", tmp_x, tmp_y);
+        GELOGW("Product overflows. multiplier 1: %d. multiplier 2: %d.", tmp_x, tmp_y);
         return INTERNAL_ERROR;
       }
       tmp_x *= tmp_y;

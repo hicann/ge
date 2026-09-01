@@ -290,7 +290,7 @@ Status HcclContinuousMemcpyPass::InsertAssignAfterBroadcastIfNeed(const ComputeG
 
   for (auto peer_in_anchor : var_out_anchor->GetPeerInDataAnchors()) {
     if (peer_in_anchor->GetOwnerNode()->GetType() == ASSIGN) {
-      GELOGD("variable %s out assign node is exist.", var_out_anchor->GetOwnerNode()->GetName().c_str());
+      GELOGD("variable %s out assign node already exists.", var_out_anchor->GetOwnerNode()->GetName().c_str());
       return SUCCESS;
     }
   }

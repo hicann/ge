@@ -57,7 +57,7 @@ static aclError AippSrcImageSizeCheck(const enum CceAippInputFormat inputFormat,
   bool flag = false;
   flag = ((srcImageSizeW == 0) || (srcImageSizeH == 0));
   if (flag) {
-    ACL_LOG_INNER_ERROR("[Check][Params]srcImageSizeW and srcImageSizeH must be setted!");
+    ACL_LOG_INNER_ERROR("[Check][Params]srcImageSizeW and srcImageSizeH must be set!");
     return ACL_ERROR_INVALID_PARAM;
   }
 

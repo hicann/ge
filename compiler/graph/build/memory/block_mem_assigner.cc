@@ -48,6 +48,43 @@ const std::string kOffline = "offline";
 const int32_t kReuseMaxOpNum = 10;
 const int32_t kReuseMaxCharNum = 2000;
 
+struct ContinuousNodeLifeTimeItem {
+  const ge::Node *node;
+  int32_t in_index;   // 本节点经由上级连续节点的哪个输入 anchor 到达（首输入 0 为 block 分配者）
+  int32_t out_index;  // 进入本节点所经的本节点输出 anchor 索引（org 自身为 -1）
+};
+
+/// ref 节点（output 复用 input 透传）穿透：沿进入本节点的输出边 out_index 找到其
+/// 复用的 input 的真实上游生产者及其输出边索引。仅该输出边对应的 ref 关系才属于
+/// 当前遍历链，节点的其他输出（复用其他 input）属于别的链，不参与本链生命期计算。
+/// 返回是否发生穿透。ref 判断优先于连续输入：透传时节点自身不拥有内存，
+/// 其 input 上游才是内存归属者，避免生命期记为 ref 节点而非生产者导致踩踏。
+bool TraverseRefOnOutEdge(const ge::Node *cur_node, const int32_t out_index, const ge::Node *&producer,
+                          int32_t &producer_out_index) {
+  producer = nullptr;
+  producer_out_index = -1;
+  if ((out_index < 0) || (out_index >= static_cast<int32_t>(cur_node->GetAllOutDataAnchorsSize()))) {
+    return false;
+  }
+  const auto out_anchor = cur_node->GetOutDataAnchor(out_index);
+  if (out_anchor == nullptr) {
+    return false;
+  }
+  int32_t reuse_in_index = -1;
+  if (!ge::GraphUtils::IsRefFromInput(out_anchor, reuse_in_index)) {
+    return false;
+  }
+  const auto ref_in_anchor = cur_node->GetInDataAnchor(reuse_in_index);
+  if (ref_in_anchor != nullptr) {
+    const auto peer_out_anchor = ref_in_anchor->GetPeerOutAnchor();
+    if ((peer_out_anchor != nullptr) && (peer_out_anchor->GetOwnerNodeBarePtr() != nullptr)) {
+      producer = peer_out_anchor->GetOwnerNodeBarePtr();
+      producer_out_index = peer_out_anchor->GetIdx();
+    }
+  }
+  return true;  // 是 ref 边但上游无效时同样跳过本节点自身的记录
+}
+
 std::string FormatStreamEdgeName(const char *src_name, const char *dst_name) {
   if ((src_name != nullptr) && (dst_name != nullptr)) {
     return "[" + std::string(dst_name) + "<-" + std::string(src_name) + "] ";
@@ -84,6 +121,7 @@ bool NotMatchNoReuseType(const std::set<std::string> &no_reuse_types, const std:
 }
 
 }  // namespace
+
 namespace ge {
 // Memory size is fixed and has nothing to do with different batches.
 bool SizeIndependentOfBatch(const std::string &node_type) {
@@ -503,7 +541,7 @@ Status BlockMemAssigner::GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_
   std::set<int64_t> exclude_merge_streams = GetStreamMergeAndOutStreams(compute_graph_);
   for (const NodePtr &n : compute_graph_->GetAllNodes()) {
     GetDiffStreamEdgeLife(n, exclude_merge_streams);
-    GetContinuousNodeLifeTimeBegin(n.get(), n.get(), 0, 0U);
+    GetContinuousNodeLifeTimeBegin(n.get(), 0);
 
     auto node_op_desc = n->GetOpDescBarePtr();
     GE_ASSERT_NOTNULL(node_op_desc);
@@ -514,6 +552,7 @@ Status BlockMemAssigner::GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_
 
     std::string batch_label;
     (void)ge::AttrUtils::GetStr(node_op_desc, ATTR_NAME_BATCH_LABEL, batch_label);
+    auto &batch_mem = batch_all_memory_size[batch_label];
 
     if (NodeUtils::IsLikeAtomicClean(n)) {
       atomic_addr_clean_id_ = node_op_desc->GetId();
@@ -531,7 +570,7 @@ Status BlockMemAssigner::GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_
                      " is invalid, "
                      "maybe it is unknown shape node, Node_name:%s",
                      size, node_op_desc->GetNamePtr());
-      batch_all_memory_size[batch_label].emplace_back(size);
+      batch_mem.emplace_back(size);
       batch_total_size[batch_label] += size;
 
       if (!anchor_to_symbol_.empty()) {
@@ -550,7 +589,7 @@ Status BlockMemAssigner::GetOutAndWorkSpaceMem(std::vector<int64_t> &all_memory_
     }
     temp.clear();
     GetNodeWorkSpaceSize(n, temp, batch_total_size[batch_label]);
-    batch_all_memory_size[batch_label].insert(batch_all_memory_size[batch_label].cend(), temp.cbegin(), temp.cend());
+    batch_mem.insert(batch_mem.cend(), temp.cbegin(), temp.cend());
   }
   HandleInStreamRedundantDependence(in_stream_edges_);
   InsertStreamOutEdge();
@@ -674,85 +713,139 @@ void BlockMemAssigner::GetRefContinuousInputNodeAndFixedAddrPriorFlag(const std:
 /// h and j are nopading continuous input, g can't reuse with a,b,c
 /// because their(d,e,f) memory will be replaced by g's memory (cascade continuous input)
 /// so g's real life time begin is min of d,e,f
-void BlockMemAssigner::GetContinuousNodeLifeTimeBegin(const Node *const org_node, const Node *const node,
-                                                      const int32_t index, uint32_t depth) {
-  ++depth;
-  GE_IF_BOOL_EXEC((depth > kMaxDepthNum), return);
-
-  bool is_nopading_input_continuous = false;
-  const auto node_op_desc = node->GetOpDescBarePtr();
-  GE_CHECK_NOTNULL_EXEC(node_op_desc, return);
-  const auto &org_node_desc = org_node->GetOpDescBarePtr();
-  GE_CHECK_NOTNULL_EXEC(org_node_desc, return);
-  (void)ge::AttrUtils::GetBool(node_op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, is_nopading_input_continuous);
-  if (is_nopading_input_continuous) {
-    for (const auto in_anchor : node->GetAllInDataAnchorsPtr()) {
-      const bool invalid_node = ((in_anchor == nullptr) || (in_anchor->GetPeerOutAnchor() == nullptr) ||
-                                 (in_anchor->GetPeerOutAnchor()->GetOwnerNodeBarePtr() == nullptr));
-      GE_IF_BOOL_EXEC(invalid_node, continue);
-      GetContinuousNodeLifeTimeBegin(org_node, in_anchor->GetPeerOutAnchor()->GetOwnerNodeBarePtr(),
-                                     in_anchor->GetIdx(), depth);
-    }
-
-    if (org_node == node) {
-      SetContinuousNodeLifeTimeBegin(node, node, 0U);
-    }
-  } else {
-    // 2 means has continuous input
-    GE_IF_BOOL_EXEC((depth < 2U), return);
-    auto it = cascade_min_life_time_.find(org_node_desc->GetNamePtr());
-    if (it == cascade_min_life_time_.end()) {
-      cascade_min_life_time_[org_node_desc->GetNamePtr()] = node_op_desc->GetId();
-    } else {
-      if (static_cast<size_t>(node_op_desc->GetId()) < it->second) {
-        it->second = node_op_desc->GetId();
-      }
-    }
-    // only set first node, continuous first input need alloc memory
-    if (index == 0) {
-      cascade_min_life_time_[node_op_desc->GetNamePtr()] = node_op_desc->GetId();
-    }
-    GELOGD("Find node:%s life time begin:%" PRId64 " by ref node:%s index:%d.", node_op_desc->GetNamePtr(),
-           node_op_desc->GetId(), org_node_desc->GetNamePtr(), index);
-  }
-  return;
-}
-
-void BlockMemAssigner::SetContinuousNodeLifeTimeBegin(const Node *const org_node, const Node *const node,
-                                                      uint32_t depth) {
-  ++depth;
-  if (depth > kMaxDepthNum) {
+void BlockMemAssigner::GetContinuousNodeLifeTimeBegin(const Node *const node, const int32_t in_index) {
+  const auto org_node_desc = node->GetOpDescBarePtr();
+  if (org_node_desc == nullptr) {
     return;
   }
 
-  const auto node_op_desc = node->GetOpDescBarePtr();
-  GE_CHECK_NOTNULL_EXEC(node_op_desc, return);
-  bool is_nopading_input_continuous = false;
-  (void)ge::AttrUtils::GetBool(node_op_desc, ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, is_nopading_input_continuous);
-  if (is_nopading_input_continuous) {
-    for (const auto in_anchor : node->GetAllInDataAnchorsPtr()) {
-      const bool invalid_node = (in_anchor == nullptr) || (in_anchor->GetPeerOutAnchor() == nullptr);
-      GE_IF_BOOL_EXEC(invalid_node, continue);
-      const auto peer_in_node = in_anchor->GetPeerOutAnchor()->GetOwnerNodeBarePtr();
-      GE_CHECK_NOTNULL_EXEC(peer_in_node, continue);
-      SetContinuousNodeLifeTimeBegin(org_node, peer_in_node, depth);
+  // 迭代式遍历 nopadding 连续输入链
+  std::stack<ContinuousNodeLifeTimeItem> node_stack;
+  std::unordered_set<const Node *> visited;
+  node_stack.push({node, in_index, -1});
+  bool is_continuous = false;
+  while (!node_stack.empty()) {
+    const auto cur_item = node_stack.top();
+    node_stack.pop();
+    const auto cur_node = cur_item.node;
+    const auto cur_op_desc = cur_node->GetOpDescBarePtr();
+    if (cur_op_desc == nullptr) {
+      continue;
     }
-  } else {
-    // set min life time, only set first node
-    auto it = cascade_min_life_time_.find(node_op_desc->GetNamePtr());
-    if (it != cascade_min_life_time_.end()) {
-      const auto org_node_desc = org_node->GetOpDescBarePtr();
-      GE_CHECK_NOTNULL_EXEC(org_node_desc, return);
+
+    const bool cur_node_is_continuous = MemLayoutConflictUtil::IsNoPaddingContinuousInput(cur_node);
+    if (cur_node == node) {
+      is_continuous = cur_node_is_continuous;
+    }
+
+    const Node *ref_producer = nullptr;
+    int32_t producer_out_index = -1;
+    if (TraverseRefOnOutEdge(cur_node, cur_item.out_index, ref_producer, producer_out_index)) {
+      if (ref_producer != nullptr) {
+        node_stack.push({ref_producer, cur_item.in_index, producer_out_index});
+      }
+      continue;
+    }
+
+    if (cur_node_is_continuous) {
+      if (!visited.insert(cur_node).second) {
+        continue;
+      }
+      for (const auto in_anchor : cur_node->GetAllInDataAnchorsPtr()) {
+        if (in_anchor == nullptr) {
+          continue;
+        }
+        const auto peer_out_anchor = in_anchor->GetPeerOutAnchor();
+        const bool invalid_node = ((peer_out_anchor == nullptr) || (peer_out_anchor->GetOwnerNodeBarePtr() == nullptr));
+        if (!invalid_node) {
+          node_stack.push({peer_out_anchor->GetOwnerNodeBarePtr(), in_anchor->GetIdx(), peer_out_anchor->GetIdx()});
+        }
+      }
+    } else {
+      // 起始节点自身不记录（连续输入链至少展开一层后到达的节点才记录生命期）
+      if (cur_node == node) {
+        continue;
+      }
+      auto it = cascade_min_life_time_.find(org_node_desc->GetNamePtr());
+      if (it == cascade_min_life_time_.end()) {
+        cascade_min_life_time_[org_node_desc->GetNamePtr()] = cur_op_desc->GetId();
+      } else {
+        if (static_cast<size_t>(cur_op_desc->GetId()) < it->second) {
+          it->second = cur_op_desc->GetId();
+        }
+      }
+      // only set first node, continuous first input need alloc memory
+      if (cur_item.in_index == 0) {
+        cascade_min_life_time_[cur_op_desc->GetNamePtr()] = cur_op_desc->GetId();
+      }
+      GELOGD("Find node:%s life time begin:%" PRId64 " by ref node:%s index:%d.", cur_op_desc->GetNamePtr(),
+             cur_op_desc->GetId(), org_node_desc->GetNamePtr(), cur_item.in_index);
+    }
+  }
+
+  // 仅连续输入节点需要传播生命期，非连续节点跳过避免无谓的栈操作和 map 查找
+  if (is_continuous) {
+    SetContinuousNodeLifeTimeBegin(node);
+  }
+}
+
+void BlockMemAssigner::SetContinuousNodeLifeTimeBegin(const Node *const node) {
+  const auto org_node_desc = node->GetOpDescBarePtr();
+  if (org_node_desc == nullptr) {
+    return;
+  }
+
+  // 迭代式遍历 nopadding 连续输入链，visited 防环，替代递归深度限制
+  std::stack<std::pair<const Node *, int32_t>> node_stack;
+  std::unordered_set<const Node *> visited;
+  node_stack.push({node, -1});
+  while (!node_stack.empty()) {
+    const auto [cur_node, cur_out_index] = node_stack.top();
+    node_stack.pop();
+    const auto cur_op_desc = cur_node->GetOpDescBarePtr();
+    if (cur_op_desc == nullptr) {
+      continue;
+    }
+    if (!visited.insert(cur_node).second) {
+      continue;
+    }
+
+    const Node *ref_producer = nullptr;
+    int32_t producer_out_index = -1;
+    if (TraverseRefOnOutEdge(cur_node, cur_out_index, ref_producer, producer_out_index)) {
+      if (ref_producer != nullptr) {
+        node_stack.push({ref_producer, producer_out_index});
+      }
+      continue;
+    }
+
+    if (MemLayoutConflictUtil::IsNoPaddingContinuousInput(cur_node)) {
+      for (const auto in_anchor : cur_node->GetAllInDataAnchorsPtr()) {
+        if (in_anchor == nullptr) {
+          continue;
+        }
+        const auto peer_out_anchor = in_anchor->GetPeerOutAnchor();
+        const bool invalid_node = ((peer_out_anchor == nullptr) || (peer_out_anchor->GetOwnerNodeBarePtr() == nullptr));
+        if (!invalid_node) {
+          node_stack.push({peer_out_anchor->GetOwnerNodeBarePtr(), peer_out_anchor->GetIdx()});
+        }
+      }
+    } else {
+      // set min life time, only set first node
+      auto it = cascade_min_life_time_.find(cur_op_desc->GetNamePtr());
+      if (it == cascade_min_life_time_.end()) {
+        continue;
+      }
       const auto it_org = cascade_min_life_time_.find(org_node_desc->GetNamePtr());
       if (it_org != cascade_min_life_time_.cend()) {
-        GELOGI("Node:%s set min life time begin from %zu to %zu by ref node:%s.", node->GetNamePtr(), it->second,
+        GELOGI("Node:%s set min life time begin from %zu to %zu by ref node:%s.", cur_node->GetNamePtr(), it->second,
                it_org->second, org_node_desc->GetNamePtr());
         it->second = it_org->second;
       }
     }
   }
-  return;
 }
+
 /*
  * 1. NoPadding连续输入，仅首个输入分配一个block，所有输入使用这一个block
  * 2. 带Padding连续输入，每个输入有自己的block，连续在一起。

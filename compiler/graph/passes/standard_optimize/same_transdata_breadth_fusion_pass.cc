@@ -816,7 +816,7 @@ graphStatus SameTransdataBreadthFusionPass::AddNewInputForNetOutput(InDataAnchor
   auto in_tensor_desc = netoutput_op_desc->GetInputDesc(static_cast<uint32_t>(netout_in_anchor->GetIdx()));
   uint32_t parent_index;
   if (!AttrUtils::GetInt(in_tensor_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index)) {
-    GELOGW("node %s(%s) %d input does not has %s attr.", netoutput_op_desc->GetNamePtr(),
+    GELOGW("node %s(%s) input %d does not have attr %s.", netoutput_op_desc->GetNamePtr(),
            netoutput_op_desc->GetTypePtr(), netout_in_anchor->GetIdx(), ATTR_NAME_PARENT_NODE_INDEX.c_str());
     return GRAPH_SUCCESS;
   }

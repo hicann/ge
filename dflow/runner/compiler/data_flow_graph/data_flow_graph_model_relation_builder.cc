@@ -111,7 +111,7 @@ Status DataFlowGraphModelRelationBuilder::GetOrCreateModelQueueInfoForDataFlowGr
                          "Failed to get node[%s] from data flow graph[%s].", node_flow_info.name.c_str(),
                          data_flow_graph.GetName().c_str());
   GE_CHK_BOOL_RET_STATUS(static_cast<size_t>(node_flow_info.index) < node_map_graphs_it->second.size(), FAILED,
-                         "The index[%d] need less than node[%s] %s size[%zu].", node_flow_info.index,
+                         "The index[%d] needs to be less than node[%s] %s size[%zu].", node_flow_info.index,
                          node_flow_info.name.c_str(), node_flow_info.type.c_str(), node_map_graphs_it->second.size());
   const auto &graph = node_map_graphs_it->second[node_flow_info.index].first;
   GE_CHECK_NOTNULL(graph);

@@ -372,7 +372,8 @@ ge::graphStatus GetOperatorAttrValue(const ge::Operator &op, const char *attr_na
         return ge::GRAPH_FAILED;
       }
       if (!AttrDataManager::Instance().VerifyAttrDtype(src_dtype, dst_dtype)) {
-        GELOGW("Get attr[%s] and transform from [%s] to [%s] is not supported.", attr_name, attr_dtype, target_dtype);
+        GELOGW("Getting attr[%s] and transforming from [%s] to [%s] is not supported.", attr_name, attr_dtype,
+               target_dtype);
         return ge::GRAPH_FAILED;
       }
     }

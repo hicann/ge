@@ -155,9 +155,8 @@ ge::EdgeSrcEndpoint ConnectFromParents(ge::FastNode *src, int32_t src_index, con
     }
 
     if (!full_path) {
-      GE_LOGE(
-          "Failed to connect from %s index %d to node %s, the src node does not on the graph or on its parent graphs",
-          src->GetNamePtr(), src_index, dst->GetNamePtr());
+      GE_LOGE("Failed to connect from %s index %d to node %s, the src node is not on the graph or on its parent graphs",
+              src->GetNamePtr(), src_index, dst->GetNamePtr());
       return {nullptr, ge::kInvalidEdgeIndex};
     }
 
@@ -206,11 +205,11 @@ HyperStatus AddDependencyBetweenNodes(ge::FastNode *src, ge::FastNode *dst) {
   auto src_graph = src->GetExtendInfo()->GetOwnerGraphBarePtr();
   auto dst_graph = dst->GetExtendInfo()->GetOwnerGraphBarePtr();
   if (src_graph != dst_graph) {
-    return HyperStatus::ErrorStatus("The source node %s(%s) and dst node %s(%s) does not on the same graph",
+    return HyperStatus::ErrorStatus("The source node %s(%s) and dst node %s(%s) are not on the same graph",
                                     src->GetNamePtr(), src->GetTypePtr(), dst->GetNamePtr(), dst->GetTypePtr());
   }
   if (src_graph == nullptr) {
-    return HyperStatus::ErrorStatus("The source node %s(%s) and dst node %s(%s) does not on the graph",
+    return HyperStatus::ErrorStatus("The source node %s(%s) and dst node %s(%s) are not on the graph",
                                     src->GetNamePtr(), src->GetTypePtr(), dst->GetNamePtr(), dst->GetTypePtr());
   }
   if (src_graph->AddEdge(src, ge::kControlEdgeIndex, dst, ge::kControlEdgeIndex) == nullptr) {
@@ -605,7 +604,7 @@ void ValueHolder::SetPlacement(const int32_t &placement) {
 }
 void ValueHolder::ReleaseAfter(const ValueHolderPtr &other) {
   if (guarder_ == nullptr) {
-    GELOGW("Current holder from node %s index %d does not has a guarder", fast_node_->GetNamePtr(), index_);
+    GELOGW("Current holder from node %s index %d does not have a guarder", fast_node_->GetNamePtr(), index_);
     return;
   }
   AddDependency(other, guarder_);

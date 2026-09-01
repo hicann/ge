@@ -109,7 +109,7 @@ ValueHolderPtr CreateComputeNodeDescNode(const ge::NodePtr &compute_node, const 
   auto &context = kernel_def.context();
   if (context.args_offset().size() < sizeof(uint16_t)) {
     GELOGE(ge::PARAM_INVALID,
-           "[Check][Size]Invalid args_offset, size:%zu is smaller"
+           "[Check][Size]Invalid args_offset, size:%zu is smaller "
            "than size of uint16_t. ",
            context.args_offset().size());
     return nullptr;

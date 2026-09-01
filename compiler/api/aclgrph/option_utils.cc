@@ -147,7 +147,7 @@ Status ConstructShapeFromStr(const std::string &shape_str, GeShape &shape) {
     int64_t dim = -1;
     GE_ASSERT_SUCCESS(ConvertToInt64(ge::StringUtils::Trim(str), dim), "Shape: %s is invalid in option %s",
                       shape_str.c_str(), kHintInputShape);
-    GE_ASSERT_TRUE(dim >= 0L, "Shape in ge.inputHintOption should not less than 0, but get: %lld.", dim);
+    GE_ASSERT_TRUE(dim >= 0L, "Shape in ge.inputHintOption should not be less than 0, but get: %lld.", dim);
     shape.AppendDim(dim);
   }
   return GRAPH_SUCCESS;
@@ -165,7 +165,7 @@ Status ConstructValueListFromStr(const std::string &value_str, std::vector<int64
     int64_t val = -1;
     GE_ASSERT_SUCCESS(ConvertToInt64(ge::StringUtils::Trim(str), val), "Value: %s is invalid in option",
                       value_str.c_str());
-    GE_ASSERT_TRUE(val >= 0L, "Value in %s should not less than 0, but get: %lld.", kHintInputValue, val);
+    GE_ASSERT_TRUE(val >= 0L, "Value in %s should not be less than 0, but get: %lld.", kHintInputValue, val);
     values.push_back(val);
   }
   return GRAPH_SUCCESS;

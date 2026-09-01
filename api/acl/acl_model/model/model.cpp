@@ -572,7 +572,7 @@ static aclError RuntimeV2ModelExecute(const uint32_t modelId, const aclmdlDatase
 
   auto const executor = acl::AclResourceManager::GetInstance().GetExecutor(modelId);
   if (executor == nullptr) {
-    ACL_LOG_ERROR("input modelId[%u] is invalid, please make sure model has been loaed", modelId);
+    ACL_LOG_ERROR("input modelId[%u] is invalid, please make sure model has been loaded", modelId);
     return static_cast<aclError>(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
   }
 
@@ -617,7 +617,12 @@ static aclError RuntimeV2ModelExecute(const uint32_t modelId, const aclmdlDatase
       continue;
     }
     if (!desc.GetInputDesc(i)->IsOriginShapeInRange(inputTensor[i].GetOriginShape())) {
-      ACL_LOG_ERROR("[Check][InputShape] Input [%zu] shape out of shape range.", i);
+      ACL_LOG_ERROR(
+          "[Check][InputShape] Input [%zu] shape size [%ld] is out of shape range, model shape size range is [%ld, "
+          "%ld].",
+          i, inputTensor[i].GetOriginShape().GetShapeSize(),
+          desc.GetInputDesc(i)->GetOriginShapeRange().GetMin().GetShapeSize(),
+          desc.GetInputDesc(i)->GetOriginShapeRange().GetMax().GetShapeSize());
       return ACL_ERROR_INVALID_PARAM;
     }
   }
@@ -1434,7 +1439,7 @@ aclError aclmdlBundleInitFromFileImpl(const char *modelPath, void *varWeightPtr,
   ge::ModelData modelData;
   modelData.om_path = modelPath;
   ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
-  ACL_REQUIRES_CALL_GE_OK(gert::LoadDataFromFile(modelPath, modelData), "load data form file %s failed", modelPath);
+  ACL_REQUIRES_CALL_GE_OK(gert::LoadDataFromFile(modelPath, modelData), "load data from file %s failed", modelPath);
   std::shared_ptr<uint8_t> tmpData;
   tmpData.reset(ge::PtrToPtr<void, uint8_t>(modelData.model_data), std::default_delete<uint8_t[]>());
   ACL_REQUIRES_NOT_NULL(tmpData);
@@ -1468,7 +1473,7 @@ static aclError GetTargetBundleInfo(uint32_t bundleId, acl::BundleModelInfo &bun
   bool need_load_mem_from_file =
       !bundleInfos.isInit && !bundleInfos.fromFilePath.empty() && (bundleInfos.bundleModelData == nullptr);
   if (need_load_mem_from_file) {
-    ACL_LOG_INFO("bundle mem should allocated again when aclmdlBundleLoadFromFile called");
+    ACL_LOG_INFO("bundle mem should be allocated again when aclmdlBundleLoadFromFile called");
     ge::ModelData modelData;
     modelData.om_path = bundleInfos.fromFilePath;
     ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
@@ -1487,7 +1492,7 @@ aclError aclmdlBundleLoadModelWithMemImpl(uint32_t bundleId, size_t index, void 
                                           void *weightPtr, size_t weightSize, uint32_t *modelId) {
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
   ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleLoadModelWithMem);
-  ACL_LOG_INFO("strat to execute aclmdlBundleLoadModelWithMem, bundleId %u, index %zu", bundleId, index);
+  ACL_LOG_INFO("start to execute aclmdlBundleLoadModelWithMem, bundleId %u, index %zu", bundleId, index);
   acl::BundleModelInfo bundleInfos;
   ACL_REQUIRES_OK(GetTargetBundleInfo(bundleId, bundleInfos));
   if (index >= bundleInfos.subModelInfos.size()) {
@@ -1756,7 +1761,7 @@ aclError aclmdlUnloadImpl(uint32_t modelId) {
   ACL_PROFILING_REG(acl::AclProfType::AclmdlUnload);
   ACL_LOG_INFO("start to execute aclmdlUnload, modelId[%u]", modelId);
   if (acl::AclResourceManager::GetInstance().IsBundleInnerId(modelId)) {
-    ACL_LOG_ERROR("this modeId %u is bundle inner modelId, please ues aclmdlBundleUnload api instead", modelId);
+    ACL_LOG_ERROR("this modelId %u is bundle inner modelId, please use aclmdlBundleUnload api instead", modelId);
     return ACL_ERROR_INVALID_PARAM;
   }
   ACL_REQUIRES_OK(UnloadModelInner(modelId));
@@ -2031,7 +2036,7 @@ aclError aclmdlGetCurOutputDimsImpl(const aclmdlDesc *modelDesc, size_t index, a
 
   aclRet = acl::GetCurOuputShapeInfo(modelDesc, index, curGearIndex, dims);
   ACL_REQUIRES_OK_WITH_INNER_MESSAGE(aclRet,
-                                     "[Get][CurOuputShapeInfo]get current output shape info failed, result[%d], "
+                                     "[Get][CurOutputShapeInfo]get current output shape info failed, result[%d], "
                                      "index[%zu], modelId[%u], the size of dynamicOutputShape[%zu]",
                                      aclRet, index, modelId, modelDesc->dynamicOutputShape.size());
 

@@ -55,7 +55,7 @@ endif ()
 if ("x${RESOURCE_TYPE}" STREQUAL "xAscend")
     message(STATUS "ascend compiler enter")
     # if unsupport current resource type, please uncomment the next line.
-    message(FATAL_ERROR "Unsupport compile Ascend target!")
+    message(FATAL_ERROR "Unsupported compile Ascend target!")
 elseif ("x${RESOURCE_TYPE}" STREQUAL "xAarch")
     message(STATUS "Aarch compiler enter")
     set(LIB_FLOW_FUNC ${ASCEND_HOME_PATH}/devlib/linux/aarch64/libflow_func.so)

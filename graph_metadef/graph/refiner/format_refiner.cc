@@ -469,7 +469,7 @@ graphStatus FormatRefiner::DataNodeFormatProcess(const ComputeGraphPtr &graph,
 }
 
 graphStatus FormatRefiner::InferOrigineFormat(const ge::ComputeGraphPtr &graph) {
-  GELOGI("Enter InferOrigineFormat process!");
+  GELOGI("Enter InferOriginFormat process!");
 
   // True: inferred false:no-inferred
   std::vector<ge::NodePtr> anchor_points;

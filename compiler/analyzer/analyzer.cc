@@ -155,7 +155,7 @@ std::shared_ptr<GraphInfo> Analyzer::GetJsonObject(uint64_t session_id, uint64_t
            " does not exist! "
            "graph_id:%" PRIu64 "",
            session_id, graph_id);
-    REPORT_INNER_ERR_MSG("E19999", "Sessin_id %" PRIu64 " does not exist, graph_id %" PRIu64 "", session_id, graph_id);
+    REPORT_INNER_ERR_MSG("E19999", "Session_id %" PRIu64 " does not exist, graph_id %" PRIu64 "", session_id, graph_id);
     return nullptr;
   } else {
     auto iter1 = (iter->second).find(graph_id);
@@ -213,7 +213,7 @@ ge::Status Analyzer::SaveAnalyzerDataToFile(uint64_t session_id, uint64_t graph_
   auto graph_info = GetJsonObject(session_id, graph_id);
   GE_CHECK_NOTNULL(graph_info);
   if (graph_info->op_info.size() == 0) {
-    GELOGD("session_id:%" PRIu64 " graph_id:%" PRIu64 " does not owner op info, break it!", session_id, graph_id);
+    GELOGD("session_id:%" PRIu64 " graph_id:%" PRIu64 " does not own op info, break it!", session_id, graph_id);
     return SUCCESS;
   }
   std::lock_guard<std::mutex> lg(file_mutex_);

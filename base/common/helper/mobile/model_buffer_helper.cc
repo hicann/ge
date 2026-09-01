@@ -225,7 +225,7 @@ class OmFileSaveHelper {
     for (uint64_t i = 0; i < partition_size; i++) {
       ModelPartition partition = context_.partition_datas[i];
       if (mem_offset > UINT32_MAX) {
-        GELOGE(ge::FAILED, "[Mobile] mem_offset large than UINT32_MAX failed.");
+        GELOGE(ge::FAILED, "[Mobile] mem_offset is larger than UINT32_MAX");
         return nullptr;
       }
       partition_table->partition[i] = {partition.type, static_cast<uint32_t>(mem_offset), partition.size};
@@ -298,7 +298,7 @@ ge::Status SaveCompiledPartion(OmFileSaveHelper &om_file_save_helper, ModelParti
     buffer_size += compiled_buffers[i].GetSize();
   }
   GELOGI("[Mobile] save partition type: %d buffer size: %d", static_cast<uint32_t>(type), buffer_size);
-  GE_ASSERT_TRUE((buffer_size <= UINT32_MAX), "[Mobile] buffer size large than UINT32_MAX failed.");
+  GE_ASSERT_TRUE((buffer_size <= UINT32_MAX), "[Mobile] buffer size is larger than UINT32_MAX");
   ModelPartition partition;
   partition.data = nullptr;
   GE_ASSERT_TRUE(buffer_size <= UINT32_MAX, "[Mobile] overflow, failed.");

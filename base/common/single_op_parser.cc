@@ -490,7 +490,7 @@ bool SingleOpParser::Validate(const SingleOpDesc &op_desc) {
     if (attr.value.IsEmpty()) {
       (void)REPORT_PREDEFINED_ERR_MSG("E10030", std::vector<const char *>({"op_name", "attrname"}),
                                       std::vector<const char *>({op_desc.op.c_str(), attr.name.c_str()}));
-      GELOGE(PARAM_INVALID, "[Parse][Attr] fail for vale of attr name:\"%s\" is empty. ", attr.name.c_str());
+      GELOGE(PARAM_INVALID, "[Parse][Attr] fail for value of attr name:\"%s\" is empty. ", attr.name.c_str());
       return false;
     }
   }

@@ -105,7 +105,7 @@ static void RefreshOutput(
     const ge::SmallVector<gert::Tensor *, static_cast<size_t>(ge::kDefaultMaxOutputNum)> &outputTensorPtr,
     const bool executeWithExactModel) {
   if (aclOp.exeucteType == ACL_OP_EXECUTE_V2) {
-    ACL_LOG_DEBUG("exeucteType is ACL_OP_EXECUTE_V2");
+    ACL_LOG_DEBUG("executeType is ACL_OP_EXECUTE_V2");
     size_t outCnt = 0U;
     for (int32_t i = 0; i < aclOp.numOutputs; ++i) {
       if (outCnt >= filterOutNum) {
@@ -123,7 +123,7 @@ static void RefreshOutput(
       ++outCnt;
     }
   } else if (aclOp.exeucteType == ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE) {
-    ACL_LOG_DEBUG("exeucteType is ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE");
+    ACL_LOG_DEBUG("executeType is ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE");
     size_t outCnt = 0U;
     for (int32_t i = 0; i < aclOp.numOutputs; ++i) {
       if (outCnt >= filterOutNum) {
@@ -142,7 +142,7 @@ static void RefreshOutput(
     }
   } else {
     ACL_LOG_DEBUG(
-        "exeucteType is neither ACL_OP_EXECUTE_V2 nor ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE,"
+        "executeType is neither ACL_OP_EXECUTE_V2 nor ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE,"
         "No need to refresh output!");
   }
 }
@@ -317,7 +317,7 @@ aclError OpExecutor::DoExecuteAsync(ge::DynamicSingleOp *const singleOp, const A
 
   if (aclOp.exeucteType == ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE) {
     ACL_LOG_INFO(
-        "aclOp exeucte type is ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE,"
+        "aclOp execute type is ACL_OP_EXECUTE_REFRESH_OUTPUT_ORI_SHAPE,"
         "refresh origin shape of output");
     for (size_t i = 0U; i < outputDesc->size(); ++i) {
       const std::vector<int64_t> outputOriShape = (*outputDesc)[i].GetOriginShape().GetDims();
@@ -490,7 +490,7 @@ aclError OpExecutor::DoExecuteRT1(const AclOp &aclOp, const aclDataBuffer *const
     ret = LoadDynamicSingleOp(*opModelPtr, stream, &dynamicSingleOp);
     if ((ret != ACL_SUCCESS) || (dynamicSingleOp == nullptr)) {
       ACL_LOG_INNER_ERROR(
-          "[Load][Op]LoadDynamicSingleOp failed or dynamicSingleOp is nullptr"
+          "[Load][Op]LoadDynamicSingleOp failed or dynamicSingleOp is nullptr, "
           "ret = %d",
           ret);
       return ret;
@@ -501,7 +501,7 @@ aclError OpExecutor::DoExecuteRT1(const AclOp &aclOp, const aclDataBuffer *const
     ret = LoadSingleOp(*opModelPtr, stream, &singleOp);
     if ((ret != ACL_SUCCESS) || (singleOp == nullptr)) {
       ACL_LOG_INNER_ERROR(
-          "[Load][Op]LoadSingleOp failed or singleOp is nullptr"
+          "[Load][Op]LoadSingleOp failed or singleOp is nullptr, "
           "ret = %d",
           ret);
       return ret;
@@ -515,7 +515,7 @@ aclError OpExecutor::DoExecuteRT1(const AclOp &aclOp, const aclDataBuffer *const
 aclError OpExecutor::ExecuteAsync(OpHandle &opHandle, const aclDataBuffer *const inputs[],
                                   aclDataBuffer *const outputs[], const aclrtStream stream) {
   if (opHandle.kernelDesc != nullptr) {
-    ACL_LOG_INFO("Get keneldesc is not null");
+    ACL_LOG_INFO("Get kernel desc is not null");
     aclrtContext context = nullptr;
     ACL_REQUIRES_OK(aclrtGetCurrentContext(&context));
     auto *const streamExecutor = Executors::GetOrCreate(context, stream);
@@ -567,7 +567,7 @@ aclError OpExecutor::ExecuteAsync(OpHandle &opHandle, const aclDataBuffer *const
         ret = LoadSingleOp(opHandle.opModel, stream, &singleOp);
         if ((ret != ACL_SUCCESS) || (singleOp == nullptr)) {
           ACL_LOG_INNER_ERROR(
-              "[Load][Op]LoadSingleOp failed or singleOp is nullptr"
+              "[Load][Op]LoadSingleOp failed or singleOp is nullptr, "
               "ret = %d",
               ret);
           return ret;

@@ -785,7 +785,7 @@ ge::Status CannProfilerV2::InitBasicInfoAndTensorInfo(
     if (name_hashes_to_node_addition_infos_.find(name_hash) != name_hashes_to_node_addition_infos_.end()) {
       node_addition_infos_[node_id][static_cast<size_t>(NodeProfInfoType::kOriginalNode)] =
           &name_hashes_to_node_addition_infos_[name_hash];
-      GELOGI("Node %zu, kernel %s name hash %lu is exits.", node_id, kernel_type, name_hash);
+      GELOGI("Node %zu, kernel %s name hash %lu exists.", node_id, kernel_type, name_hash);
       continue;
     }
     name_hash_to_node_id_[name_hash] = node_id;

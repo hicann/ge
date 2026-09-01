@@ -31,7 +31,7 @@ const std::vector<std::string> &DataFlowGraph::GetInvokeKeys(const std::string &
   if (it != invokes_.cend()) {
     return it->second;
   }
-  GELOGW("The graph[%s] does not has invoke keys.", graph_name.c_str());
+  GELOGW("The graph[%s] does not have invoke keys.", graph_name.c_str());
   static std::vector<std::string> empty_ret;
   return empty_ret;
 }
@@ -42,7 +42,7 @@ const std::map<std::string, std::string> &DataFlowGraph::GetGraphBuildOptions(co
   if (it != graphs_build_options_.cend()) {
     return it->second;
   }
-  GELOGW("The graph[%s] does not has build options.", graph_name.c_str());
+  GELOGW("The graph[%s] does not have build options.", graph_name.c_str());
   static std::map<std::string, std::string> empty_ret;
   return empty_ret;
 }
@@ -52,7 +52,7 @@ const std::string &DataFlowGraph::GetInvokedGraphKey(const std::string &graph_na
   if (it != invoked_keys_.cend()) {
     return it->second;
   }
-  GELOGW("The graph[%s] does not has invoked key.", graph_name.c_str());
+  GELOGW("The graph[%s] does not have invoked key.", graph_name.c_str());
   static std::string empty_ret;
   return empty_ret;
 }
@@ -62,7 +62,7 @@ const std::string &DataFlowGraph::GetInvokedKeyOriginName(const std::string &inv
   if (it != invoke_origins_.cend()) {
     return it->second;
   }
-  GELOGW("The invoke key with scope[%s] does not has original invoke key.", invoke_key.c_str());
+  GELOGW("The invoke key with scope[%s] does not have original invoke key.", invoke_key.c_str());
   static std::string empty_ret;
   return empty_ret;
 }
@@ -106,7 +106,7 @@ Status DataFlowGraph::CheckAlignAttrs(bool &align_enable) const {
   if (AttrUtils::GetInt(root_graph_, dflow::ATTR_NAME_DATA_FLOW_INPUTS_ALIGN_TIMEOUT, timeout)) {
     // -1 means no time out, max value is 600 * 1000ms
     GE_CHK_BOOL_RET_STATUS((timeout == (-1)) || ((timeout > 0) && (timeout <= 600 * 1000)), PARAM_INVALID,
-                           "attr[%s]=%ld is invalid, must be -1 or in range(0, 600 * 1000]",
+                           "attr[%s]=%ld is invalid, must be -1 or in range(0, 600 * 1000] ms",
                            dflow::ATTR_NAME_DATA_FLOW_INPUTS_ALIGN_TIMEOUT, timeout);
   }
   return SUCCESS;
@@ -119,7 +119,7 @@ Status DataFlowGraph::CheckAndFixDataFlowAttrs() const {
   GE_CHK_STATUS_RET(CheckAlignAttrs(align_enable), "Check align attr failed.");
   if (exception_catch) {
     if (!align_enable) {
-      GELOGE(PARAM_INVALID, "It is not supported exception catch is enable while align is disable.");
+      GELOGE(PARAM_INVALID, "Exception catch is not supported while align is disabled.");
       return PARAM_INVALID;
     }
     GE_CHK_STATUS_RET(DataFlowGraphUtils::EnsureNMappingAttr(root_graph_), "Failed to set n-mapping attr for graph[%s]",
@@ -260,7 +260,7 @@ Status DataFlowGraph::MapNodeInputs(const NodePtr &node, const dataflow::Process
                              "Can't find node[%s] of process point[%s] in edges[%d].", map_node_name.c_str(),
                              process_point_name.c_str(), i);
       GE_CHK_BOOL_RET_STATUS(map_node_index < nodes_inputs_[map_node_name].size(), FAILED,
-                             "The process point[%s] in edges[%d] index[%u] is out of rang node[%s] inputs num[%zu].",
+                             "The process point[%s] in edges[%d] index[%u] is out of range node[%s] inputs num[%zu].",
                              process_point_name.c_str(), i, map_node_index, map_node_name.c_str(),
                              nodes_inputs_[map_node_name].size());
       GE_CHK_BOOL_RET_STATUS(nodes_inputs_[map_node_name][map_node_index].first == nullptr, FAILED,
@@ -315,7 +315,7 @@ Status DataFlowGraph::MapNodeOutputs(const NodePtr &node, const dataflow::Proces
                              "Can't find node[%s] of process point[%s] out edges[%d].", map_node_name.c_str(),
                              process_point_name.c_str(), i);
       GE_CHK_BOOL_RET_STATUS((map_node_index < nodes_outputs_[map_node_name].size()), FAILED,
-                             "The process point[%s] out edges[%d] index[%u] is out of rang node[%s] outputs num[%zu].",
+                             "The process point[%s] out edges[%d] index[%u] is out of range node[%s] outputs num[%zu].",
                              process_point_name.c_str(), i, map_node_index, map_node_name.c_str(),
                              nodes_outputs_[map_node_name].size());
       GE_CHK_BOOL_RET_STATUS(
@@ -443,7 +443,7 @@ Status DataFlowGraph::GetInvokedModelFusionAttrs(const std::vector<std::string> 
     (void)AttrUtils::GetStr(root_graph, kModelPpFusionInputs, fusion_inputs);
     if (!fusion_inputs.empty()) {
       invoked_and_attr[invoke_key] = fusion_inputs;
-      GELOGD("Find fusion attr[%s] for invokde key[%s]", fusion_inputs.c_str(), invoke_key.c_str());
+      GELOGD("Find fusion attr[%s] for invoked key[%s]", fusion_inputs.c_str(), invoke_key.c_str());
     }
   }
   if (invoked_and_attr.empty()) {

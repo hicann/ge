@@ -34,7 +34,7 @@ inline bool IsDataFlowOps(const std::string &op_type) {
 Status DataFlowPreparePass::Run(ge::ComputeGraphPtr graph) {
   GE_CHECK_NOTNULL(graph);
   if (graph->GetParentGraph() != nullptr) {
-    GELOGD("Subgraph %s is not need to process", graph->GetName().c_str());
+    GELOGD("Subgraph %s does not need to be processed", graph->GetName().c_str());
     return SUCCESS;
   }
   std::map<std::string, std::unordered_set<NodePtr>> data_flow_ops_groups;

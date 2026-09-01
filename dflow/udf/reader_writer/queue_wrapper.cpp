@@ -122,7 +122,7 @@ int32_t QueueWrapper::DiscardMbuf() {
       ++count;
       continue;
     } else {
-      HICAID_LOG_ERROR("Discard mbuff failed result of dequeue error.");
+      HICAID_LOG_ERROR("Discard mbuf as a result of dequeue error.");
       return HICAID_ERR_QUEUE_FAILED;
     }
   }

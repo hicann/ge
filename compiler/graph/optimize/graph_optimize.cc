@@ -434,13 +434,13 @@ void GraphOptimize::TranFrameOp(const ComputeGraphPtr &compute_graph) const {
     if (iter != local_framework_op_vec.end()) {
       // set - original_type
       if (!AttrUtils::SetStr(op, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, op->GetType())) {
-        GELOGW("TranFrameOp SetStr ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE failed");
+        GELOGW("TransFrameOp SetStr ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE failed");
       }
       // set - framework_type
       // [No need to verify return value]
       ge::OpDescUtilsEx::SetType(op, "FrameworkOp");
       if (!AttrUtils::SetInt(op, ATTR_NAME_FRAMEWORK_FWK_TYPE, domi::FrameworkType::TENSORFLOW)) {
-        GELOGW("TranFrameOp SetInt ATTR_NAME_FRAMEWORK_FWK_TYPE failed");
+        GELOGW("TransFrameOp SetInt ATTR_NAME_FRAMEWORK_FWK_TYPE failed");
       }
     }
   }

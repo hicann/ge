@@ -669,7 +669,7 @@ static ge::graphStatus AutofuseNodeCreateInput(const std::vector<ge::NodePtr> &d
     int64_t index = -1;
     (void)ge::AttrUtils::GetInt(data_node->GetOpDesc(), ge::ATTR_NAME_INDEX, index);
     GE_ASSERT_TRUE((index >= 0) && (index < static_cast<int64_t>(inputs_holder.size())),
-                   "Index:%lld of node:%s should in range[0, %zu)", index, data_node->GetName().c_str(),
+                   "Index:%lld of node:%s should be in range [0, %zu)", index, data_node->GetName().c_str(),
                    inputs_holder.size());
     std::unique_ptr<uint8_t[]> shape_holder;
     const auto data_op_desc = data_node->GetOpDesc();

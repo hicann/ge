@@ -302,7 +302,7 @@ UINT32 ParseKernelInfo(const rtKernelDetailInfo_t &kernel_info, const rtKernelDe
   if (kernel_info.functionInfoNum == static_cast<uint8_t>(MIX_KERNEL_FUNC_NUM::MIX_WITH_ONE_KERNEL)) {
     const auto &info = kernel_info.functionInfo[0];
     const auto &tail_info = tail_kernel_info.functionInfo[0];
-    GELOGD("mixType is %u, prefetchCnt is %u pcAddr is Ox%x", info.mixType, info.prefetchCnt, info.pcAddr);
+    GELOGD("mixType is %u, prefetchCnt is %u pcAddr is 0x%x", info.mixType, info.prefetchCnt, info.pcAddr);
     if (info.mixType == static_cast<uint8_t>(MIX_KERNEL_TYPE::MIX_AIC_ONLY)) {
       sink_ret->aic_non_tail_task_start_pc = reinterpret_cast<uintptr_t>(info.pcAddr);
       sink_ret->aic_icache_prefetch_cnt = std::min(info.prefetchCnt, tail_info.prefetchCnt);
@@ -318,9 +318,9 @@ UINT32 ParseKernelInfo(const rtKernelDetailInfo_t &kernel_info, const rtKernelDe
   }
 
   if (kernel_info.functionInfoNum == static_cast<uint8_t>(MIX_KERNEL_FUNC_NUM::MIX_WITH_TWO_KERNEL)) {
-    GELOGD("aic mixType is %u, prefetchCnt is %u pcAddr is Ox%lx", kernel_info.functionInfo[0].mixType,
+    GELOGD("aic mixType is %u, prefetchCnt is %u pcAddr is 0x%lx", kernel_info.functionInfo[0].mixType,
            kernel_info.functionInfo[0].prefetchCnt, kernel_info.functionInfo[0].pcAddr);
-    GELOGD("aiv mixType is %u, prefetchCnt is %u pcAddr is Ox%lx", kernel_info.functionInfo[1].mixType,
+    GELOGD("aiv mixType is %u, prefetchCnt is %u pcAddr is 0x%lx", kernel_info.functionInfo[1].mixType,
            kernel_info.functionInfo[1].prefetchCnt, kernel_info.functionInfo[1].pcAddr);
     sink_ret->aic_non_tail_task_start_pc = reinterpret_cast<uintptr_t>(kernel_info.functionInfo[0].pcAddr);
     sink_ret->aic_icache_prefetch_cnt =

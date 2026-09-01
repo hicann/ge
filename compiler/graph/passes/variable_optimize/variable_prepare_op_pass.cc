@@ -473,7 +473,7 @@ void VariablePrepareOpPass::GetWritableNodeOutIndex(const NodePtr &node, int32_t
 void VariablePrepareOpPass::GenerateRefTypeAndInputOutputMap(const NodePtr &node) {
   auto op_desc = node->GetOpDesc();
   if (op_desc == nullptr) {
-    GELOGW("op_desc in null, please check node:[%s]", node->GetName().c_str());
+    GELOGW("op_desc is null, please check node:[%s]", node->GetName().c_str());
     return;
   }
   for (const auto &name_index : op_desc->GetAllInputName()) {

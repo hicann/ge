@@ -41,7 +41,7 @@ Status WeightManager::TakeoverResources(const std::shared_ptr<AttrHolder> &attr_
   GE_ASSERT_NOTNULL(weight);
   WeightResource weight_resource(weight);
   GE_ASSERT_TRUE(op_desc_2_weights_.emplace(attr_holder, std::move(weight_resource)).second,
-                 "Already has resource key is %ld, failed to takeover weigh on %s. Check node with same id in graph.",
+                 "Already has resource key is %ld, failed to take over weight on %s. Check node with same id in graph.",
                  op_desc->GetId(), op_desc->GetNamePtr());
   GELOGD("Take over weight resource on node %s.", op_desc->GetNamePtr());
   return SUCCESS;

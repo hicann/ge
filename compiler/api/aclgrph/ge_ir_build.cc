@@ -1143,7 +1143,7 @@ graphStatus Impl::InitDomiOmgContext(const std::string &input_shape, const std::
       omg_context_.format = iter->second;
     } else {
       GELOGE(GRAPH_PARAM_INVALID,
-             "[Check][Param:InputForamt] %s not support , expect ND/NCHW/NHWC/CHWN/NC1HWC0/NHWC1C0.",
+             "[Check][Param:InputFormat] %s not support , expect ND/NCHW/NHWC/CHWN/NC1HWC0/NHWC1C0.",
              input_format.c_str());
       return GRAPH_PARAM_INVALID;
     }
@@ -1599,7 +1599,7 @@ graphStatus aclgrphBundleSaveModelImpl(const std::string &output_file, const Mod
       GE_ASSERT_NOTNULL(root_model);
       GE_ASSERT_SUCCESS(
           VerifyVarOffset(root_model->GetRootGraph(), var_name_to_verify_info),
-          "Variable validation failed. Please ensure that the variables has been compiled under the same session.");
+          "Variable validation failed. Please ensure that the variables have been compiled under the same session.");
       model_helper.GetGeRootModel()->GetRootGraph();
       GELOGD("Load root model successfully.");
       ModelBufferData cur_buf;

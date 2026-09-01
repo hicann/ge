@@ -202,8 +202,8 @@ ge::Status ConstructDfxInfo(const ge::OpDescPtr &op_desc, const optiling::OpRunI
     GE_ASSERT_SUCCESS(
         optiling::TilingDfx::GetArgsSizeWithArgsFormat(op_desc, arg_descs, args_size_vec, args_idx_to_io_idx_vec));
   } else {
-    GELOGI("OP [%s] not has formatted args_format. input desc size [%zu], out desc size [%zu]", op_desc->GetNamePtr(),
-           input_descs.size(), op_desc->GetOutputsSize());
+    GELOGI("OP [%s] does not have formatted args_format. input desc size [%zu], out desc size [%zu]",
+           op_desc->GetNamePtr(), input_descs.size(), op_desc->GetOutputsSize());
     GE_ASSERT_SUCCESS(optiling::TilingDfx::GetArgsSizeWithoutArgsFormat(input_descs.size(), op_desc->GetOutputsSize(),
                                                                         args_size_vec, args_idx_to_io_idx_vec));
   }
@@ -544,7 +544,7 @@ Status KernelTaskInfo::InitKernelByContext(const domi::TaskDef &task_def, const 
                  "[Check][Param] Op:%s, dev addr is nullptr.", op_desc_->GetName().c_str());
   args_ = ValueToPtr(args[static_cast<size_t>(args_placement_)].dev_addr + args_offset_from_pls_);
 
-  GE_ASSERT_SUCCESS(CopyTilingDataIfNeeded(), "Copy tiling data to device failid.");
+  GE_ASSERT_SUCCESS(CopyTilingDataIfNeeded(), "Copy tiling data to device failed.");
 
   const bool assemble_by_args_manager =
       (!args_format_holder_.arg_descs.empty()) && (kernel_type_ != ccKernelType::CUSTOMIZED) && (!is_addrs_folded_);
@@ -1089,7 +1089,7 @@ Status KernelTaskInfo::GetTilingSinkAtomicIndex(bool &is_args_exception_enable, 
           args_size_vec.insert(args_size_vec.cend(), ws_bytes.cbegin(), ws_bytes.cend());
         } else {
           const size_t ir_idx = static_cast<size_t>(arg_descs[idx].ir_idx);
-          GE_ASSERT(ir_idx < ws_bytes.size(), "workspace ir_idx:[%zu] is output of range, max_size:[%zu]", ir_idx,
+          GE_ASSERT(ir_idx < ws_bytes.size(), "workspace ir_idx:[%zu] is out of range, max_size:[%zu]", ir_idx,
                     ws_bytes.size());
           args_size_vec.push_back(ws_bytes[ir_idx]);
         }
@@ -1219,14 +1219,14 @@ Status KernelTaskInfo::AppendWorkspaceAddr(int32_t ir_idx) {
                                     workspace_mem_types_.cend());
   } else {
     const size_t idx = static_cast<size_t>(ir_idx);
-    GE_ASSERT(idx < workspace_addrs_.size(), "workspace index[%zu] is output of workspace addrs range[%zu]", idx,
+    GE_ASSERT(idx < workspace_addrs_.size(), "workspace index[%zu] is out of workspace addrs range[%zu]", idx,
               workspace_addrs_.size());
     AppendIoAddr(workspace_addrs_[idx], workspace_mem_types_[idx]);
     GELOGI("op[%s], workspace_addrs_[%zu] = 0x%" PRIx64 ", workspace_mem_types_[%zu] = %" PRIu64,
            op_desc_->GetName().c_str(), idx, workspace_addrs_[idx], idx, workspace_mem_types_[idx]);
     if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL && kernel_type_ == ccKernelType::CUST_AI_CPU) {
       const std::vector<int64_t> v_workspace_bytes = op_desc_->GetWorkspaceBytes();
-      GE_ASSERT(idx < v_workspace_bytes.size(), "workspace index[%zu] is output of workspace bytes range[%zu]", idx,
+      GE_ASSERT(idx < v_workspace_bytes.size(), "workspace index[%zu] is out of workspace bytes range[%zu]", idx,
                 v_workspace_bytes.size());
       AppendIoAddr(v_workspace_bytes[idx], kAbsoluteMemType);
       GELOGI("preprocess custom op[%s], v_workspace_bytes[%zu] = %" PRId64, op_desc_->GetName().c_str(), idx,
@@ -1478,8 +1478,8 @@ Status KernelTaskInfo::SaveL0DumpListWithArgsFormat() {
           }
         } else {
           const size_t ir_idx = static_cast<size_t>(arg_descs[idx].ir_idx);
-          GE_ASSERT(ir_idx < workspace_addrs_.size(), "workspace ir_idx:[%zu] is output of range, max_size:[%zu]",
-                    ir_idx, workspace_addrs_.size());
+          GE_ASSERT(ir_idx < workspace_addrs_.size(), "workspace ir_idx:[%zu] is out of range, max_size:[%zu]", ir_idx,
+                    workspace_addrs_.size());
           l0_dump_list_.push_back(input_output_size + ir_idx);
         }
         break;

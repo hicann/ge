@@ -6279,7 +6279,7 @@ TEST_F(FmMemoryRefreshTest, staticMemoryPolicy4_ExternalAllocator) {
       "KernelTrace.*GetUserAllocatorOrFixedBaseAllocator_.*get external allocator");
   EXPECT_TRUE(find_log > 0);
   find_log = runtime_stub.GetSlogStub().FindInfoLogRegex(
-      "KernelTrace.*GetUserAllocatorOrFixedBaseAllocator_.*ger or create fixed base expandable allocator");
+      "KernelTrace.*GetUserAllocatorOrFixedBaseAllocator_.*get or create fixed base expandable allocator");
   EXPECT_TRUE(find_log > 0);
 
   // run graph2

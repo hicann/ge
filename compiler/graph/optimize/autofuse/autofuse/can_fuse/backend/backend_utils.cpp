@@ -254,7 +254,7 @@ bool IsSplitComplete(const NodePtr &node) {
   GE_ASSERT_NOTNULL(attr);
   // 复用缓存结果
   if (attr->GetSplitComplete()) {
-    GELOGD("split node %s is compelete", node->GetName().c_str());
+    GELOGD("split node %s is complete", node->GetName().c_str());
     return true;
   }
   GE_ASSERT_TRUE(attr->GetFuseType() == loop::FuseType::kSplit);
@@ -2100,7 +2100,7 @@ bool BackendUtils::IsCanMergeAxisGroup(optimize::autoschedule::AxisGroup &group1
     // 如果两者都不是对方的子集，无需合并
     auto ret = CanMergeAxisGroup(group1, group2, merged_axes_group, is_ge_call);
     if (ret != SUCCESS) {
-      GELOGD("axis group not map, can merge failed.");
+      GELOGD("axis group not map, can't merge.");
     }
     return ret;
   }
@@ -2563,7 +2563,7 @@ Status BackendUtils::GetViewOpNextNodeByLoad(const NodePtr &load_node, NodePtr &
 
     if ((cur_node->GetType() == kBroadcastType)) {
       finded_node = cur_node;
-      GELOGD("finded node name:%s(%s).", cur_node->GetName().c_str(), cur_node->GetType().c_str());
+      GELOGD("found node name:%s(%s).", cur_node->GetName().c_str(), cur_node->GetType().c_str());
       break;
     }
     cur_node = next_node;
@@ -2587,7 +2587,7 @@ Status BackendUtils::GetViewOpNextNodeByLoad(const ge::Node *load_node, NodePtr 
     if ((cur_node->GetType() == kBroadcastType)) {
       // 需要转换为 NodePtr 存储
       finded_node = cur_out_anchor_peer->GetOwnerNode();
-      GELOGD("finded node name:%s(%s).", cur_node->GetNamePtr(), cur_node->GetType().c_str());
+      GELOGD("found node name:%s(%s).", cur_node->GetNamePtr(), cur_node->GetType().c_str());
       break;
     }
     cur_node = next_node;
@@ -2964,7 +2964,7 @@ bool BackendUtils::AscNodeInputIsSimplestLoad(const NodePtr &peer_node, const In
     const auto pre_data_node = node_out_anchor->GetOwnerNodeBarePtr();
     GE_ASSERT_NOTNULL(pre_data_node);
     if (!IsSimplestLoad(peer_node.get(), pre_load_node, pre_data_node, attr_infos)) {
-      GELOGD("cur node %s(%s) ascgraph date node %s(%s) have view op.", peer_node->GetNamePtr(),
+      GELOGD("cur node %s(%s) ascgraph data node %s(%s) have view op.", peer_node->GetNamePtr(),
              peer_node->GetType().c_str(), pre_data_node->GetNamePtr(), pre_data_node->GetType().c_str());
       return false;
     }

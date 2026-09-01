@@ -269,7 +269,7 @@ Status TsdClient::ForkSubprocess(int32_t device_id, const SubprocessManager::Sub
     args.pathLen = file_path.length();
   }
   GE_CHK_STATUS_RET(proc(static_cast<uint32_t>(device_id), &args),
-                    "Failed to open subprocess, device_id = %d, type = %d", device_id, config.process_type.c_str());
+                    "Failed to open subprocess, device_id = %d, type = %s", device_id, config.process_type.c_str());
   GELOGI("Fork process success, process_type = %s, device_id = %d.", subprocess_config.process_type.c_str(), device_id);
   return SUCCESS;
 }

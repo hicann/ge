@@ -33,7 +33,7 @@ bool GetElementNum(const std::vector<ge::Expression> &dims_symbols, int64_t &ele
       return false;
     }
     if (ge::MulOverflow(element_num, dim_value, element_num)) {
-      GELOGW("SymbolicKernel compute unsupported, reason: output element num over flow, node %s[%s].",
+      GELOGW("SymbolicKernel compute unsupported, reason: output element num overflow, node %s[%s].",
              context->GetNodeName(), context->GetNodeType());
       return false;
     }

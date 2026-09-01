@@ -82,7 +82,7 @@ bool CheckShape(const NodePtr &node) {
 
 bool NodeForwardFusionJudge(const NodePtr &node) {
   if (GetFuseType(node) != "pointwise") {
-    GELOGD("now node's is %s, which is not pointwise", node->GetType().c_str());
+    GELOGD("now node's type is %s, which is not pointwise", node->GetType().c_str());
     return false;
   }
   if (node->GetInNodesSize() != 1 || node->GetOutNodesSize() != 1) {

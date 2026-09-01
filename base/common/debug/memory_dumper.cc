@@ -120,7 +120,7 @@ int32_t MemoryDumper::OpenFile(const std::string &filename) {
       } if (mmRealPath(prefix_path.c_str(), &tmp_path[0], MMPA_MAX_PATH) != EN_OK) {
         char_t err_buf[kMaxErrorStringLength + 1U] = {};
         const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStringLength);
-        GELOGE(ge::FAILED, "Dir %s does not exit, errmsg:%s.", prefix_path.c_str(), err_msg);
+        GELOGE(ge::FAILED, "Dir %s does not exist, errmsg:%s.", prefix_path.c_str(), err_msg);
         return kInvalidFd;
       } real_path = std::string(tmp_path) + last_path;)
   GE_IF_BOOL_EXEC((path_split_pos == -1) || (path_split_pos == 0),
@@ -130,7 +130,7 @@ int32_t MemoryDumper::OpenFile(const std::string &filename) {
                   }
 
                   GE_IF_BOOL_EXEC(mmRealPath(filename.c_str(), &tmp_path[0], MMPA_MAX_PATH) != EN_OK,
-                                  GELOGI("File %s does not exit, it will be created.", filename.c_str()));
+                                  GELOGI("File %s does not exist, it will be created.", filename.c_str()));
                   real_path = std::string(tmp_path));
 
   // Open file, only the current user can read and write, to avoid malicious application access

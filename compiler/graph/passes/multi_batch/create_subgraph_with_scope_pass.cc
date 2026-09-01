@@ -242,7 +242,7 @@ Status CreateSubGraphWithScopePass::ProcessHeterogeneousMultiBatch(const Compute
   }
   std::vector<NodePtr> dynamic_shape_nodes;
   GE_CHK_STATUS_RET(CollectDynamicNodes(graph, dynamic_shape_nodes), "Collect dynamic nodes failed.");
-  GE_CHK_STATUS_RET(UpdateDynamicConfigAttrs(dynamic_shape_nodes), "Update dynamic cConfig attrs failed.");
+  GE_CHK_STATUS_RET(UpdateDynamicConfigAttrs(dynamic_shape_nodes), "Update dynamic config attrs failed.");
   GE_CHK_STATUS_RET(CreateMultiBatchScope(graph), "Create multi batch scope failed.");
   return SUCCESS;
 }
@@ -468,7 +468,7 @@ Status CreateSubGraphWithScopePass::ParseMultiDimsAttr(const std::vector<NodePtr
     }
     GELOGI("Input node[%s] has dynamic dims attr, input shape[%s], input multi dims[%s].", node->GetName().c_str(),
            input_shape.c_str(), multi_dims.c_str());
-    GE_CHK_STATUS_RET(ParseSubGraphMultiAttrs(node, input_shape, multi_dims), "Parse subgraph mulit attrs failed");
+    GE_CHK_STATUS_RET(ParseSubGraphMultiAttrs(node, input_shape, multi_dims), "Parse subgraph multi attrs failed");
     GE_CHK_STATUS_RET(RefreshTensorShape(node), "Refresh tensor shape failed");
   }
   return SUCCESS;
@@ -821,9 +821,9 @@ Status CreateSubGraphWithScopePass::CheckCtrlAnchorInvalid(const NodePtr &node,
       }
       const auto &it = std::find(scope_nodes.begin(), scope_nodes.end(), peer_node);
       if (it == scope_nodes.end()) {
-        REPORT_INNER_ERR_MSG("E19999", "Exit control edge between [%s] and [%s].", peer_node->GetName().c_str(),
+        REPORT_INNER_ERR_MSG("E19999", "Exist control edge between [%s] and [%s].", peer_node->GetName().c_str(),
                              node->GetName().c_str());
-        GELOGE(PARAM_INVALID, "Exit control edge between [%s] and [%s].", peer_node->GetName().c_str(),
+        GELOGE(PARAM_INVALID, "Exist control edge between [%s] and [%s].", peer_node->GetName().c_str(),
                node->GetName().c_str());
         return FAILED;
       }
@@ -920,7 +920,7 @@ Status CreateSubGraphWithScopePass::MergeInputAnchors(const ComputeGraphPtr &sub
       const int32_t peer_anchor_idx = peer_anchor->GetIdx();
       GE_RETURN_WITH_LOG_IF_TRUE(peer_anchor_idx < 0, "Value of peer_anchor_idx[%d] is less than 0.", peer_anchor_idx);
       GE_RETURN_WITH_LOG_IF_TRUE(max_shape.size() <= static_cast<size_t>(peer_anchor_idx),
-                                 "Value of max_op_shape[%s] invalid, peer ancher index[%d]", max_op_shape.c_str(),
+                                 "Value of max_op_shape[%s] invalid, peer anchor index[%d]", max_op_shape.c_str(),
                                  peer_anchor_idx);
       (void)AttrUtils::SetStr(data_desc, ATTR_NAME_OP_MAX_SHAPE, max_shape[peer_anchor_idx]);
       GELOGI("Node[%s] max_op_shape:[%s], max_shape[%d]:[%s]", node->GetName().c_str(), max_op_shape.c_str(),

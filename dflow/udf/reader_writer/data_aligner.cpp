@@ -116,7 +116,7 @@ int32_t DataAligner::GetTransIdAndDataLabel(Mbuf *mbuf, uint64_t &trans_id, uint
     return HICAID_FAILED;
   }
   if (head_buf_len < sizeof(MbufHeadMsg)) {
-    HICAID_LOG_ERROR("mbuf priv info len=%u can't be less than to sizeof(MbufHeadMsg)=%zu.", head_buf_len,
+    HICAID_LOG_ERROR("mbuf priv info len=%u can't be less than sizeof(MbufHeadMsg)=%zu.", head_buf_len,
                      sizeof(MbufHeadMsg));
     return HICAID_FAILED;
   }

@@ -81,16 +81,16 @@ Status CaffeCustomParserAdapter::AddEdgeFromConstNode(const NodePtr &const_node,
   auto valid_input_name = op->GetValidInputNameByIndex(index);
   if (update_in_turn || valid_input_name.empty()) {
     if (node->AddLinkFrom(static_cast<const uint32_t &>(index), const_node) != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "AddEdge failed of from Node %s output to Node %s input %d",
+      REPORT_INNER_ERR_MSG("E19999", "Add edge from Node %s output to Node %s input %d failed",
                            const_node->GetName().c_str(), node->GetName().c_str(), index);
-      GELOGE(GRAPH_FAILED, "[Invoke][AddLinkFrom] AddEdge failed of from Node %s output to Node %s input %d",
+      GELOGE(GRAPH_FAILED, "[Invoke][AddLinkFrom] Add edge from Node %s output to Node %s input %d failed",
              const_node->GetName().c_str(), node->GetName().c_str(), index);
     }
   } else {
     if (node->AddLinkFrom(valid_input_name, const_node) != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "AddEdge failed of from Node %s output to Node %s input %s",
+      REPORT_INNER_ERR_MSG("E19999", "Add edge from Node %s output to Node %s input %s failed",
                            const_node->GetName().c_str(), node->GetName().c_str(), valid_input_name.c_str());
-      GELOGE(GRAPH_FAILED, "[Invoke][AddLinkFrom] AddEdge failed of from Node %s output to Node %s input %s",
+      GELOGE(GRAPH_FAILED, "[Invoke][AddLinkFrom] Add edge from Node %s output to Node %s input %s failed",
              const_node->GetName().c_str(), node->GetName().c_str(), valid_input_name.c_str());
     }
   }

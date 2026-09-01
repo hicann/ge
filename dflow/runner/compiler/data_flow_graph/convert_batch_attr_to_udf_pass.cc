@@ -247,7 +247,7 @@ Status ConvertBatchAttrToUdfPass::Run(ge::ComputeGraphPtr graph) {
         return FAILED;
       }
       if (exception_catch && (input_has_time_batch_attr || input_has_count_batch_attr)) {
-        GELOGE(FAILED, "TimeBatch or CountBatch can't be set in node[%s] input[%zu] while exception catch is enable.",
+        GELOGE(FAILED, "TimeBatch or CountBatch can't be set in node[%s] input[%zu] while exception catch is enabled.",
                node->GetName().c_str(), i);
         return FAILED;
       }

@@ -34,7 +34,7 @@ HcclResult HcclDllHcomMgr::HcomGetCcuTaskInfoFunc(const std::string &group, void
   GELOGI("[HcclDllHcomMgr][HcomGetCcuTaskInfoFunc] group[%s] tilingData[%p] ccuTaskGroup[%p]", group.c_str(),
          tilingData, ccuTaskGroup);
   if (hccl_HcomGetCcuTaskInfo_func == nullptr) {
-    GELOGI("hccl_HcomGetCcuTaskInfo_func no found");
+    GELOGI("hccl_HcomGetCcuTaskInfo_func not found");
     return HCCL_E_PTR;
   }
   return hccl_HcomGetCcuTaskInfo_func(group, tilingData, ccuTaskGroup);

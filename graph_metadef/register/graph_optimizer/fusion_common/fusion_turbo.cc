@@ -688,7 +688,7 @@ Status FusionTurbo::LinkInput(Relations &input_relations, const ge::NodePtr &dst
     if (ge::GraphUtils::AddEdge(out_anchor, dst_in_anchor) != ge::GRAPH_SUCCESS) {
       return FAILED;
     }
-    GELOGD("SuccessFully link input %s %d ---> %s %d.", src_node->GetName().c_str(), src_out_index,
+    GELOGD("Successfully link input %s %d ---> %s %d.", src_node->GetName().c_str(), src_out_index,
            dst_node->GetName().c_str(), dst_in_index);
   }
   return SUCCESS;
@@ -748,7 +748,7 @@ Status FusionTurbo::LinkOutput(Relations &output_relations, const ge::NodePtr &s
       if (ge::GraphUtils::AddEdge(src_out_anchor, in_anchor) != ge::GRAPH_SUCCESS) {
         return FAILED;
       }
-      GELOGD("SuccessFully link output %s %d ---> %s %d.", src_node->GetName().c_str(), src_out_index,
+      GELOGD("Successfully link output %s %d ---> %s %d.", src_node->GetName().c_str(), src_out_index,
              dst_node->GetName().c_str(), dst_index);
     }
   }

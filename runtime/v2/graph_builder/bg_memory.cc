@@ -191,8 +191,8 @@ std::vector<DevMemValueHolderPtr> AllocOutputMemory(TensorPlacement placement, c
       auto ref_input_index = iter->second;
       if (ref_input_index >= input_addrs.size()) {
         GELOGW(
-            "Node %s output %zu ref from input %zu exceed input addrs num %zu, If are you call bg::AllocOutputMemory "
-            "for ref node, replace it with version with input addrs and pass the input addrs properly",
+            "Node %s output %zu ref from input %zu exceed input addrs num %zu. If you called bg::AllocOutputMemory "
+            "for ref node, replace it with the version that takes input addrs and pass the input addrs properly",
             node->GetNamePtr(), i, ref_input_index, input_addrs.size());
         // todo: Remove this and return errors after engines bugfix
         memories.push_back(AllocMemories(placement, {output_sizes[i]}, global_data, op_desc->GetStreamId())[0]);

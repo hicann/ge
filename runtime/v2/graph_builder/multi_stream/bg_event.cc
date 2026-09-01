@@ -93,8 +93,8 @@ ge::graphStatus CollectAllEventInfos(const ge::ComputeGraphPtr &compute_graph, i
     }
     for (const auto recive_event_id : recive_id_list) {
       event_ids.insert(recive_event_id);
-      GE_ASSERT_TRUE(recive_event_ids.insert(recive_event_id).second, "Found duplicated send event id %ld on node %s.",
-                     recive_event_id, node->GetNamePtr());
+      GE_ASSERT_TRUE(recive_event_ids.insert(recive_event_id).second,
+                     "Found duplicated receive event id %ld on node %s.", recive_event_id, node->GetNamePtr());
 
       GE_ASSERT_TRUE(recive_event_id < event_num, "Found receive event id %ld out of range %ld.", recive_event_id,
                      event_num);

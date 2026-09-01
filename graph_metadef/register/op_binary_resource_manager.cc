@@ -34,7 +34,7 @@ ge::graphStatus ParseJson(const std::tuple<const uint8_t *, const uint8_t *> &in
   try {
     res = nlohmann::json::parse(jsonStr);
   } catch (const nlohmann::json::exception &e) {
-    GELOGE(ge::GRAPH_PARAM_INVALID, "Parse json failed, resion %s, json info %s.", e.what(), jsonStr.c_str());
+    GELOGE(ge::GRAPH_PARAM_INVALID, "Parse json failed, reason %s, json info %s.", e.what(), jsonStr.c_str());
     return ge::GRAPH_PARAM_INVALID;
   }
   return ge::GRAPH_SUCCESS;

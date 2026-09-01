@@ -20,6 +20,7 @@ CompileInfoManager &CompileInfoManager::Instance() {
 }
 
 bool CompileInfoManager::HasCompileInfo(const std::string &key) {
+  const std::lock_guard<std::mutex> lock_guard(compile_info_mutex_);
   return this->compile_info_map_.find(key) != this->compile_info_map_.end();
 }
 
@@ -46,6 +47,7 @@ CompileInfoCache &CompileInfoCache::Instance() {
 }
 
 bool CompileInfoCache::HasCompileInfo(const std::string &key) {
+  const std::lock_guard<std::mutex> lock_guard(compile_info_mutex_);
   return this->compile_info_map_.find(key) != this->compile_info_map_.end();
 }
 

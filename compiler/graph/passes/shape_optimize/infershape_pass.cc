@@ -436,7 +436,7 @@ graphStatus InferShapePass::UpdateOutputFromSubgraphsForSubgraphMultiDims(const 
   dst->SetShapeRange(shape_range);
   dst->SetOriginShapeRange(shape_range);
   ge::TensorUtils::SetRealDimCnt(*dst, static_cast<uint32_t>(final_dims.size()));
-  GELOGD("Update shape[%s] and shape_range by sungraphs for case node in multi dims scene.",
+  GELOGD("Update shape[%s] and shape_range by subgraphs for case node in multi dims scene.",
          GeShape(final_dims).ToString().c_str());
 
   return GRAPH_SUCCESS;

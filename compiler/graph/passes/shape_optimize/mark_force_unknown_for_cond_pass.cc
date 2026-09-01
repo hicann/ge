@@ -37,7 +37,7 @@ Status MarkForceUnknownForCondPass::Run(ComputeGraphPtr graph) {
 
     switch_groups[node->GetOpDesc()->GetId()].push_back(node);
     MarkUnknownForSwitch(node, switch_groups[node->GetOpDesc()->GetId()]);
-    GELOGD("Init merge group with id [%ld] form node [%s].", node->GetOpDesc()->GetId(), node->GetName().c_str());
+    GELOGD("Init merge group with id [%ld] from node [%s].", node->GetOpDesc()->GetId(), node->GetName().c_str());
   }
 
   MarkUnknownForSwitch(switch_groups);

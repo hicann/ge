@@ -150,7 +150,7 @@ static bool DumpListCheck(DumpConfig *config) {
     }
     if (!isValidList) {
       GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-             "[check][ValidDumpList] dump_list is not null ,but dump_list filed invalid, "
+             "[check][ValidDumpList] dump_list is not null ,but dump_list field invalid, "
              "dump config is invalid.");
       return false;
     }

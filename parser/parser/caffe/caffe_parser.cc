@@ -269,7 +269,7 @@ Status CaffeModelParser::ParseInput(domi::caffe::NetParameter &proto_message, bo
   if (proto_message.input_size() <= 0) {
     return SUCCESS;
   }
-  GELOGI("This net exist input.");
+  GELOGI("This net has input.");
   if (proto_message.input_dim_size() > 0) {
     if (proto_message.input_shape_size() > 0) {
       REPORT_PREDEFINED_ERR_MSG("E11001", std::vector<const char *>({}), std::vector<const char *>({}));
@@ -404,7 +404,7 @@ Status CaffeModelParser::ParseNetModelByCustomProto(const char *model_path, cons
             {"model", "LayerParameter", "Cannot find domi.caffe.LayerParameter in google::protobuf::Descriptor"}));
     GELOGE(FAILED,
            "[Invoke][FindMessageTypeByName]Does not find domi.caffe.LayerParameter"
-           "in google::protobuf::Descriptor");
+           " in google::protobuf::Descriptor");
     return FAILED;
   }
 
@@ -815,11 +815,11 @@ Status CaffeModelParser::AddNode(const domi::caffe::LayerParameter &layer, ge::C
                                 std::vector<const char *>({layer.name().c_str()}));
       GELOGE(FAILED,
              "[Check][Type] Op type 'DetectionOutput' is confused. Suggest you modify the model file "
-             "and use a explicit type, such as 'FSRDetectionOutput' or 'SSDDetectionOutput'.");
+             "and use an explicit type, such as 'FSRDetectionOutput' or 'SSDDetectionOutput'.");
     } else {
       REPORT_PREDEFINED_ERR_MSG("E11009", std::vector<const char *>({"opname", "optype"}),
                                 std::vector<const char *>({layer.name().c_str(), op_type.c_str()}));
-      GELOGE(FAILED, "[Check][Type]Unsupport op[%s] optype[%s], you should customize the op at first.",
+      GELOGE(FAILED, "[Check][Type]Unsupported op[%s] optype[%s], you should customize the op at first.",
              layer.name().c_str(), op_type.c_str());
     }
 
@@ -922,8 +922,8 @@ Status CaffeModelParser::AddTensorDescToOpDesc(ge::OpDescPtr &op_desc, const dom
     GE_RETURN_IF_ERROR(op_desc->AddInputDesc(input_tensor));
     GE_RETURN_IF_ERROR(op_desc->AddInputDesc(input_tensor));
     GELOGD(
-        "Current op type is YOLODETECTIONOUTPUT, add 2 additional inputs"
-        "while it's original input num is: %d",
+        "Current op type is YOLODETECTIONOUTPUT, add 2 additional inputs "
+        "while its original input num is: %d",
         layer.bottom_size());
   }
   return SUCCESS;
@@ -1097,7 +1097,7 @@ Status CaffeModelParser::AddUserOutNodesTop() {
       if (static_cast<uint32_t>(out_pair.second) >= (layer_iter->second).size()) {
         REPORT_PREDEFINED_ERR_MSG(
             "E11016",
-            std::vector<const char *>({"opname", "outputindex", "totlaloutputindex", "inputindex", "totlalinputindex"}),
+            std::vector<const char *>({"opname", "outputindex", "totaloutputindex", "inputindex", "totalinputindex"}),
             std::vector<const char *>({out_pair.first.c_str(), std::to_string(out_pair.second).c_str(),
                                        std::to_string((layer_iter->second).size()).c_str(),
                                        std::to_string(index).c_str(), std::to_string(net_output_num).c_str()}));
@@ -1256,8 +1256,8 @@ Status CaffeModelParser::ParseFromMemory(const char *data, uint32_t size, ge::Co
   }
 
   GE_CHK_BOOL_RET_STATUS(!(proto_message.layer_size() == 0 && proto_message.layers_size() > 0), FAILED,
-                         "[Check][Size]The model file is consisted of layers-structure which is deprecated in caffe "
-                         "and unsupported in OMG."
+                         "[Check][Size]The model file consists of layers-structure which is deprecated in caffe "
+                         "and unsupported in OMG. "
                          "It is recommended to convert layers-structure to layer-structure by caffe tool.");
   GE_CHK_BOOL_RET_STATUS((proto_message.layer_size() != 0), FAILED,
                          "[Check][Size]net layer num is zero, prototxt file may be invalid.");
@@ -1408,7 +1408,8 @@ void CaffeModelParser::SaveOrigionLayerTops(domi::caffe::LayerParameter &layer) 
 Status CaffeModelParser::SaveDataLayerTops(const domi::caffe::LayerParameter &layer) {
   string name = layer.name();
   if (node_map.find(name) == node_map.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "layer:%s not find in node_map after AddNode, exist error before", name.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "layer:%s is not found in node_map after AddNode, an error may have occurred before",
+                         name.c_str());
     GELOGE(FAILED, "[Find][Node]Node cannot be found by layer name: %s", name.c_str());
     return FAILED;
   }
@@ -1443,7 +1444,7 @@ Status CaffeModelParser::ReportLayerInvalid(const domi::caffe::NetParameter &pro
     REPORT_PREDEFINED_ERR_MSG("E11021", std::vector<const char *>({"realpath"}),
                               std::vector<const char *>({path.c_str()}));
     GELOGE(FAILED,
-           "[Check][Size]The model file[%s] is consisted of layers-structure which is deprecated in Caffe "
+           "[Check][Size]The model file[%s] consists of layers-structure which is deprecated in Caffe "
            "and unsupported in ATC. The \"layers\" should be changed to \"layer\".",
            path.c_str());
   } else {
@@ -1497,8 +1498,8 @@ Status CaffeModelParser::Parse(const char *model_path, ge::ComputeGraphPtr &grap
   GE_RETURN_IF_ERROR(PreCheck(proto_message));
 
   if (PreChecker::Instance().HasError()) {
-    REPORT_INNER_ERR_MSG("E19999", "Precheck failed. a report of json format will be create, Please read it.");
-    GELOGE(INTERNAL_ERROR, "[Has][Error]Precheck failed. a report of json format will be create, Please read it.");
+    REPORT_INNER_ERR_MSG("E19999", "Precheck failed. a report of json format will be created, Please read it.");
+    GELOGE(INTERNAL_ERROR, "[Has][Error]Precheck failed. a report of json format will be created, Please read it.");
     return FAILED;
   }
 
@@ -1516,7 +1517,7 @@ Status CaffeModelParser::Parse(const char *model_path, ge::ComputeGraphPtr &grap
   int32_t layer_count = proto_message.layer_size();
 
   if (!ge::GetParserContext().user_out_tensors.empty()) {
-    GELOGW("The out_put info has top_name items.");
+    GELOGW("The output info has top_name items.");
     GE_RETURN_WITH_LOG_IF_ERROR(ParseOutputNodeTopInfo(proto_message), "[Parse][OutputNodeTopInfo] failed.");
     ge::GetParserContext().user_out_tensors.clear();
   }
@@ -1855,7 +1856,7 @@ Status CaffeWeightsParser::ParseWeightByFusionProto(const char *weight_path, con
   if (ParseLayerParameter(*layer_descriptor, *message, graph) != SUCCESS) {
     delete message;
     message = nullptr;
-    REPORT_INNER_ERR_MSG("E19999", "ParseLayerParameter failed failed from weight file:%s.", weight_path);
+    REPORT_INNER_ERR_MSG("E19999", "ParseLayerParameter failed from weight file:%s.", weight_path);
     GELOGE(FAILED, "[Parse][LayerParameter] failed.");
     return FAILED;
   }
@@ -2136,7 +2137,7 @@ Status CaffeWeightsParser::CheckLayersSize(const google::protobuf::Message &mess
   if (num_layer == 0 && num_layers > 0) {
     REPORT_PREDEFINED_ERR_MSG("E11023", std::vector<const char *>({}), std::vector<const char *>({}));
     GELOGE(FAILED,
-           "[Check][Param]The weight file is consisted of layers-structure which is deprecated "
+           "[Check][Param]The weight file consists of layers-structure which is deprecated "
            "in Caffe and unsupported in ATC. The \"layers\" should be changed to \"layer\".");
     return FAILED;
   }
@@ -2242,7 +2243,7 @@ Status CaffeWeightsParser::CheckNodes(ge::ComputeGraphPtr &graph) {
                                node->GetType().c_str(), in_anchor_ptr->GetIdx());
           GELOGE(ge::GRAPH_FAILED, "[Check][Param] Op[%s]'s input %d is not linked.", node->GetName().c_str(),
                  in_anchor_ptr->GetIdx());
-          string check_msg = "input " + to_string(in_anchor_ptr->GetIdx()) + "is not linked in weight file";
+          string check_msg = "input " + to_string(in_anchor_ptr->GetIdx()) + " is not linked in weight file";
           PreChecker::Instance().RefreshErrorMessageByName(node->GetName(), PreChecker::ErrorCode::PARAM_INVALID,
                                                            check_msg);
         }
@@ -2264,7 +2265,7 @@ Status CaffeWeightsParser::ConvertNetParameter(const NetParameter &param, ge::Co
   if (num_layer == 0 && num_layers > 0) {
     REPORT_PREDEFINED_ERR_MSG("E11023", std::vector<const char *>({}), std::vector<const char *>({}));
     GELOGE(FAILED,
-           "[Check][Param] The weight file is consisted of layers-structure "
+           "[Check][Param] The weight file consists of layers-structure "
            "which is deprecated in Caffe and unsupported in ATC. "
            "The \"layers\" should be changed to \"layer\".");
     return FAILED;

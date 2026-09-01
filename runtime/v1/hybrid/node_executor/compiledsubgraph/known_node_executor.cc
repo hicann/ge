@@ -247,7 +247,7 @@ Status KnownNodeExecutor::ParseAttrForAllocatingOutputs(NodeItem &node_item, con
   GELOGD("[%s] Start to parse attributes for outputs", node_item.NodeName().c_str());
   const auto &net_output_node = graph.FindFirstNodeMatchType(NETOUTPUT);
   if (net_output_node == nullptr) {
-    GELOGD("[%s] Subgraph do not got net output", graph.GetName().c_str());
+    GELOGD("[%s] Subgraph did not get net output", graph.GetName().c_str());
     return SUCCESS;
   }
 

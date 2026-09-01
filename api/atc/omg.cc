@@ -298,7 +298,7 @@ bool CheckDigitStr(std::string &str) {
 domi::Status StringToInt(std::string &str, int32_t &value) {
   try {
     if (!CheckDigitStr(str)) {
-      GELOGE(PARAM_INVALID, "[Check][Param]Invalid of digit std::string: %s ", str.c_str());
+      GELOGE(PARAM_INVALID, "[Check][Param]Invalid digit string: %s ", str.c_str());
       REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({"--output_type", str.c_str(), "The value is not a positive integer."}));
@@ -306,12 +306,12 @@ domi::Status StringToInt(std::string &str, int32_t &value) {
     }
     value = stoi(str);
   } catch (std::invalid_argument &) {
-    GELOGE(PARAM_INVALID, "[Check][Param]Invalid of digit std::string: %s, catch invalid_argument.", str.c_str());
+    GELOGE(PARAM_INVALID, "[Check][Param]Invalid digit string: %s, caught invalid_argument.", str.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
                               std::vector<const char *>({"--output_type", str.c_str()}));
     return PARAM_INVALID;
   } catch (std::out_of_range &) {
-    GELOGE(PARAM_INVALID, "[Check][Param]Invalid of digit std::string: %s, catch out_of_range.", str.c_str());
+    GELOGE(PARAM_INVALID, "[Check][Param]Invalid digit string: %s, caught out_of_range.", str.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10013", std::vector<const char *>({"parameter", "value"}),
                               std::vector<const char *>({"--output_type", str.c_str()}));
     return PARAM_INVALID;
@@ -700,12 +700,12 @@ domi::Status ParseOutNodes(const std::string &out_nodes) {
       }
     }
   } catch (std::invalid_argument &) {
-    GELOGE(PARAM_INVALID, "[Parse][Param]Invalid of out_nodes: %s ", out_nodes.c_str());
+    GELOGE(PARAM_INVALID, "[Parse][Param]Invalid out_nodes: %s ", out_nodes.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
                               std::vector<const char *>({"--out_nodes", out_nodes.c_str()}));
     return PARAM_INVALID;
   } catch (std::out_of_range &) {
-    GELOGE(PARAM_INVALID, "[Parse][Param]Invalid of out_nodes: %s ", out_nodes.c_str());
+    GELOGE(PARAM_INVALID, "[Parse][Param]Invalid out_nodes: %s ", out_nodes.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10013", std::vector<const char *>({"parameter", "value"}),
                               std::vector<const char *>({"--out_nodes", out_nodes.c_str()}));
     return PARAM_INVALID;

@@ -115,7 +115,7 @@ void DataCompressor::InitDict(const char *data, size_t len) {
 
   sort(indexFreq.begin(), indexFreq.end(), FreqCmp);
 
-  Log("Freqency List:");
+  Log("Frequency List:");
   dict_.resize(dictSize_);
   for (uint32_t i = 0; i < dictSize_; i++) {
     int code = indexFreq[i].first;

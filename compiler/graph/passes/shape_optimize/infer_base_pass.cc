@@ -166,7 +166,7 @@ std::vector<ComputeGraphPtr> InferBasePass::GetCurNodeSubgraphs(const NodePtr &n
     }
     auto sub_graph = root_graph->GetSubgraph(name);
     if (sub_graph == nullptr) {
-      GELOGW("The subgrpah %s for node %s is null.", name.c_str(), node->GetName().c_str());
+      GELOGW("The subgraph %s for node %s is null.", name.c_str(), node->GetName().c_str());
       continue;
     }
     cur_node_subgraph.emplace_back(sub_graph);
@@ -291,10 +291,11 @@ graphStatus InferBasePass::UpdateTensorDescToParentNodeOutput(const NodePtr &nod
       }
       GELOGI("Parent node %s index of edge desc is %d", node->GetNamePtr(), ref_i);
       if (ref_i < 0 || static_cast<uint32_t>(ref_i) >= node->GetAllOutDataAnchorsSize()) {
-        REPORT_INNER_ERR_MSG("E19999", "Invalid ref_index %d of parent node %s, ref_index should less than %u.", ref_i,
-                             node->GetName().c_str(), node->GetAllOutDataAnchorsSize());
-        GELOGE(GRAPH_FAILED, "[Get][Ref_index] Invalid ref_index %d of parent node %s, ref_index should less than %u.",
-               ref_i, node->GetName().c_str(), node->GetAllOutDataAnchorsSize());
+        REPORT_INNER_ERR_MSG("E19999", "Invalid ref_index %d of parent node %s, ref_index should be less than %u.",
+                             ref_i, node->GetName().c_str(), node->GetAllOutDataAnchorsSize());
+        GELOGE(GRAPH_FAILED,
+               "[Get][Ref_index] Invalid ref_index %d of parent node %s, ref_index should be less than %u.", ref_i,
+               node->GetName().c_str(), node->GetAllOutDataAnchorsSize());
         return GRAPH_FAILED;
       }
       ref_out_tensors[ref_i].emplace_back(netoutput_in_desc);

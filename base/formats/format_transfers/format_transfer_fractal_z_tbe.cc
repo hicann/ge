@@ -30,13 +30,13 @@ enum class NdDimIndex { k2dC, k2dN, k2dDimsNum };
 Status TransShapeNdToFz(const std::vector<int64_t> &src_shape, const Format &dst_format,
                         std::vector<int64_t> &dst_shape) {
   if (!CheckShapeValid(src_shape, static_cast<int64_t>(NdDimIndex::k2dDimsNum))) {
-    GELOGE(FAILED, "src_shape is valid");
+    GELOGE(FAILED, "src_shape is invalid");
     return FAILED;  // Only support 2D to fracz
   }
 
   const int64_t c0 = GetC0Value(static_cast<int32_t>(dst_format));
   if (c0 <= 0) {
-    GELOGE(FAILED, "data_type is valid");
+    GELOGE(FAILED, "data_type is invalid");
     return FAILED;
   }
 
@@ -53,7 +53,7 @@ Status TransShapeNdToFz(const std::vector<int64_t> &src_shape, const Format &dst
   dst_shape.push_back(kNiSize);
   dst_shape.push_back(c0);
   if (!IsShapeValid(dst_shape)) {
-    GELOGE(FAILED, "dst_shape is valid");
+    GELOGE(FAILED, "dst_shape is invalid");
     return FAILED;
   }
   return SUCCESS;
@@ -120,7 +120,7 @@ Status FormatTransferFractalZTbe::TransFormat(const TransArgs &args, TransResult
     return ret;
   }
   if ((!args.dst_shape.empty()) && (args.dst_shape != expect_shape)) {
-    GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "dst_shape id empty or valid");
+    GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "dst_shape is empty or invalid");
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
 

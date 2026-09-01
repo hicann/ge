@@ -32,12 +32,12 @@ graphStatus CustomOpFactory::RegisterCustomOpCreator(const AscendString &op_type
   return GetGlobalRegistry().RegisterCreator(op_type, OpBackend::kDevice, op_creator);
 }
 
-graphStatus CustomOpFactory::RegisterCustomOpCreator(const AscendString &op_type, const OpBackend backend,
+graphStatus CustomOpFactory::RegisterCustomOpCreator(const AscendString &op_type, OpBackend backend,
                                                      const BaseOpCreator &op_creator) {
   return GetGlobalRegistry().RegisterCreator(op_type, backend, op_creator);
 }
 
-BaseCustomOp *CustomOpFactory::CreateOrGetCustomOp(const AscendString &op_type, const OpBackend backend) {
+BaseCustomOp *CustomOpFactory::CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend) {
   return GetGlobalRegistry().CreateOrGetCustomOp(op_type, backend);
 }
 
@@ -59,7 +59,7 @@ bool CustomOpFactory::IsExistOp(const AscendString &op_type) {
   return IsExistOp(op_type, OpBackend::kDevice);
 }
 
-bool CustomOpFactory::IsExistOp(const AscendString &op_type, const OpBackend backend) {
+bool CustomOpFactory::IsExistOp(const AscendString &op_type, OpBackend backend) {
   return GetGlobalRegistry().HasCreator(op_type, backend);
 }
 
@@ -78,7 +78,7 @@ graphStatus CustomOpFactory::LoadCustomOpsPartition(const uint8_t *data, size_t 
 CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, BaseOpCreator const &op_creator)
     : CustomOpCreatorRegister(operator_type, OpBackend::kDevice, op_creator) {}
 
-CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const OpBackend backend,
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend,
                                                  BaseOpCreator const &op_creator) {
   if (IsOfflineCustomOpSoLoading()) {
     return;

@@ -269,7 +269,7 @@ OutputRWType GetOutputRWTypeByIndex(const NodePtr &node, uint32_t index, bool us
     std::unordered_map<uint32_t, OutputRWType>::const_iterator index_2_output_rw_type =
         iter->second.output_rw_type_map.find(index);
     if (index_2_output_rw_type == iter->second.output_rw_type_map.cend()) {
-      GELOGW("Cannot find rw type of node %s from map.It could take some effect on following preprocess.",
+      GELOGW("Cannot find rw type of node %s from map. It could take some effect on following preprocess.",
              output_node_vec.at(0)->GetName().c_str());
       return OutputRWType::kInvalidRWType;
     }
@@ -375,14 +375,14 @@ InputRWType GetInputRWTypeByIndex(const NodePtr &node, uint32_t index, bool use_
     std::unordered_map<std::string, NodeInputOutputRWType>::const_iterator iter =
         node_rwtype_map_.find(data_op_desc->GetName());
     if (iter == node_rwtype_map_.cend()) {
-      GELOGW("Cannot find rw type of node %s from map.It could take some effect on following preprocess.",
+      GELOGW("Cannot find rw type of node %s from map. It could take some effect on following preprocess.",
              data_op_desc->GetName().c_str());
       return InputRWType::kInvalidRWType;
     }
     std::unordered_map<uint32_t, InputRWType>::const_iterator input_rw_type =
         iter->second.input_rw_type_map.find(out_data_anchor->GetIdx());
     if (input_rw_type == iter->second.input_rw_type_map.cend()) {
-      GELOGW("Cannot find rw type of node %s from map.It could take some effect on following preprocess.",
+      GELOGW("Cannot find rw type of node %s from map. It could take some effect on following preprocess.",
              data_op_desc->GetName().c_str());
       return InputRWType::kInvalidRWType;
     }
@@ -410,7 +410,7 @@ Status IsOutputRwConfilctAmongSubGraph(const NodePtr &parent_node, uint32_t pare
     uint32_t peer_index = static_cast<uint32_t>(peer_out_anchor->GetIdx());
     auto peer_rw_type = GetOutputRWTypeByIndex(peer_node, peer_index);
     if (peer_rw_type == OutputRWType::kReadOnly) {
-      GELOGD("SubGrpah[%s] with output parent_index %u has ReadOnly OutputRWType", sub_graph_name.c_str(),
+      GELOGD("SubGraph[%s] with output parent_index %u has ReadOnly OutputRWType", sub_graph_name.c_str(),
              parent_index);
       is_conflict = true;
       return ge::SUCCESS;
@@ -427,7 +427,7 @@ bool JudgeOptimizableByParentNode(const NodePtr &parent_node, uint32_t parent_in
   // 此PASS需要扩大到所有除While之外的所有控制节点类型，如果某一个子图中某一个输出是可写，其他任一子图对应的相同index输出是可读，
   // 则认为是“读写冲突”，需要后续；流程中插入identity节点，避免“读写冲突”
   if (parent_node->GetOpDesc()->GetSubgraphInstanceNames().size() > 1U) {
-    GELOGD("JudgeOptimizableByParentNode: Check node %s[%s] with output RwConfilct among subGraph ",
+    GELOGD("JudgeOptimizableByParentNode: Check node %s[%s] with output RWConflict among subGraph ",
            parent_node->GetName().c_str(), parent_node->GetType().c_str());
     bool is_conflict = false;
     if (IsOutputRwConfilctAmongSubGraph(parent_node, parent_index, is_conflict) == SUCCESS) {
@@ -976,7 +976,7 @@ Status GraphOptimize::CheckRWConflict(ComputeGraphPtr &compute_graph, bool &has_
             continue;
           case ConflictResult::WRONG_GRAPH:
             has_conflict = true;
-            GELOGI("Node %s output rw type is %s, next node %s input_rw_type is %s.It is wrong graph.",
+            GELOGI("Node %s output rw type is %s, next node %s input_rw_type is %s. It is wrong graph.",
                    node->GetName().c_str(), OutputRWTypeToSerialString(output_rw_type).c_str(),
                    peer_in_node->GetName().c_str(), InputRWTypeToSerialString(input_rw_type).c_str());
             return SUCCESS;

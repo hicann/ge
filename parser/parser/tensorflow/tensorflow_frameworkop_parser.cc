@@ -103,7 +103,7 @@ Status ParseParams(const Message *op_src, FrameworkOpOperator *op) {
 
   string node_def_pkg = op->GetNodeDefPkg();
 
-  GELOGD("In FrameworkOp trans NodeDef to string success.op name : %s. nodedef_pkg [%s]", node->name().c_str(),
+  GELOGD("In FrameworkOp trans NodeDef to string success. Op name: %s. nodedef_pkg [%s]", node->name().c_str(),
          node_def_pkg.c_str());
 
   // The framework operator of tensorflow preserves its framework type

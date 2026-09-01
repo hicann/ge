@@ -30,7 +30,7 @@ constexpr uint32_t kInitTryWaitInterval = 1000;  // millisconds
 }  // namespace
 
 void Deployer::FormatAndAddAbnormalDeviceInfo(int32_t node_id, int32_t device_id, int32_t device_type) {
-  GELOGI("ParseRsponse: node_id=%d, device id=%d, device type=%d", node_id, device_id, device_type);
+  GELOGI("ParseResponse: node_id=%d, device id=%d, device type=%d", node_id, device_id, device_type);
   auto &deploy_context = DeployContext::LocalContext();
   std::lock_guard<std::mutex> lk(deploy_context.GetAbnormalHeartbeatInfoMu());
   DeployPlan::DeviceInfo device_info = DeployPlan::DeviceInfo(device_type, node_id, device_id);
@@ -86,7 +86,7 @@ void Deployer::ParseRsponse(deployer::DeployerResponse &response) {
       for (auto &submodel_instance : submodel_instances.second.submodel_instance_name()) {
         std::lock_guard<std::mutex> lk(deploy_context.GetAbnormalHeartbeatInfoMu());
         deploy_context.AddAbnormalSubmodelInstanceName(submodel_instances.first, submodel_instance.first);
-        GELOGI("ParseRsponse: root model id=%u, abnormal model instance is %s", submodel_instances.first,
+        GELOGI("ParseResponse: root model id=%u, abnormal model instance is %s", submodel_instances.first,
                submodel_instance.first.c_str());
       }
     }
@@ -177,7 +177,7 @@ Status LocalDeployer::Finalize() {
 }
 
 void LocalDeployer::AddAbnormalDeviceInfo(int32_t device_id, int32_t device_type) {
-  GELOGI("LocalDeployer ParseRsponse: device id=%d, device type=%d", device_id, device_type);
+  GELOGI("LocalDeployer ParseResponse: device id=%d, device type=%d", device_id, device_type);
   FormatAndAddAbnormalDeviceInfo(0, device_id, device_type);
 }
 
@@ -231,7 +231,7 @@ Status RemoteDeployer::InitNodeInfoByDeviceList() {
 
 Status RemoteDeployer::InitNodeInfoByChipCount() {
   if ((node_info_.GetDeviceList().size() != 0UL) && (node_config_.chip_count != 0U)) {
-    GELOGE(FAILED, "It is not supported to set chip count when device list detail info is existed.");
+    GELOGE(FAILED, "It is not supported to set chip count when device list detail info exists.");
     return FAILED;
   }
   for (uint32_t i = 0U; i < node_config_.chip_count; ++i) {
@@ -466,12 +466,12 @@ Status RemoteDeployer::Process(deployer::DeployerRequest &request, deployer::Dep
 }
 
 void RemoteDeployer::AddAbnormalDeviceInfo(int32_t device_id, int32_t device_type) {
-  GELOGI("RemoteDeployer ParseRsponse: device id=%d, device type=%d", device_id, device_type);
+  GELOGI("RemoteDeployer ParseResponse: device id=%d, device type=%d", device_id, device_type);
   FormatAndAddAbnormalDeviceInfo(node_config_.node_id, device_id, device_type);
 }
 
 void RemoteDeployer::AddAbnormalNodeConfig() {
-  GELOGI("RemoteDeployer ParseRsponse: node id=%d", node_config_.node_id);
+  GELOGI("RemoteDeployer ParseResponse: node id=%d", node_config_.node_id);
   auto &deploy_context = DeployContext::LocalContext();
   std::lock_guard<std::mutex> lk(deploy_context.GetAbnormalHeartbeatInfoMu());
   deploy_context.AddAbnormalNodeConfig(node_config_);

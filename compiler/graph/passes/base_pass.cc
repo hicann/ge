@@ -139,7 +139,7 @@ void AddNextIterNodes(const NodePtr &cur_node, OrderedNodeSet &out_nodes_before_
     // A-->B-->C  if B was
     // Unlink edge may happen, add these node to queue if needed
     if ((!IsNodeAlreadySeen(node, graph_state)) && (IsNodeReadyToQueue(node, graph_state))) {
-      GELOGD("Node %s may lost from cur node %s, add to queue if not seen.", node->GetName().c_str(),
+      GELOGD("Node %s may be lost from cur node %s, add to queue if not seen.", node->GetName().c_str(),
              cur_node->GetName().c_str());
       graph_state.AddNodeToQueue(node);
     }
@@ -525,7 +525,7 @@ Status GEPass::RunPassesNodeOnce(NodePtr &node, const NamesToPass &names_to_pass
 
   if (has_sub_graph) {
     NotifyPassGraphStart(graph_, names_to_passes);
-    GELOGD("There are subgraphs on node %s, run passes for for the second time", node->GetName().c_str());
+    GELOGD("There are subgraphs on node %s, run passes for the second time", node->GetName().c_str());
     SetFlagOption(kOptimizeAfterSubGraph, names_to_passes);
     ret = RunPassesOnNode(node, names_to_passes, graph_state, rp_state);
     if (ret != SUCCESS) {

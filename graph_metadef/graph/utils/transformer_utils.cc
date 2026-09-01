@@ -87,7 +87,7 @@ bool NodeShapeTransUtils::CatchFormatAndShape() {
     if (SameCurrentAndOrigin(tensor_desc_output)) {
       GELOGD(
           "Node is %s, output tensor idx is %zu. ori format: %s, format: %s, ori shape:%s, shape:%s is same!"
-          "or output original not initialized. No need to catch format&shape!",
+          " or output original not initialized. No need to catch format&shape!",
           op_desc_->GetName().c_str(), i, TypeUtils::FormatToSerialString(ori_format).c_str(),
           TypeUtils::FormatToSerialString(format).c_str(), tensor_desc_output->GetOriginShape().ToString().c_str(),
           tensor_desc_output->GetShape().ToString().c_str());
@@ -115,7 +115,7 @@ bool NodeShapeTransUtils::UpdateFormatAndShape() {
     }
     // if cannot find saved info, it says format and origin format is same when caught
     if (map_format_in_[i] == FORMAT_RESERVED) {
-      GELOGD("Node is [%s], input tensor idx [%zu] is not been caught.Skip update action for it!",
+      GELOGD("Node is [%s], input tensor idx [%zu] has not been caught. Skip update action for it!",
              op_desc_->GetName().c_str(), i);
       tensor_desc_input->SetOriginFormat(tensor_desc_input->GetFormat());
       tensor_desc_input->SetOriginShape(tensor_desc_input->MutableShape());
@@ -154,7 +154,7 @@ bool NodeShapeTransUtils::UpdateFormatAndShape() {
     }
     // if cannot find saved info, it says format and origin format is same when caught
     if (map_ori_format_out_[i] == FORMAT_RESERVED) {
-      GELOGD("Node is [%s], output tensor idx [%zu] is not been caught.Skip update action for it!",
+      GELOGD("Node is [%s], output tensor idx [%zu] has not been caught. Skip update action for it!",
              op_desc_->GetName().c_str(), i);
       tensor_desc_output->SetOriginFormat(tensor_desc_output->GetFormat());
       tensor_desc_output->SetOriginShape(tensor_desc_output->MutableShape());

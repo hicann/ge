@@ -95,7 +95,7 @@ FsmStatus SendState::GenerateSyncKvMetaInfo(LlmCommEntity &entity) {
   uint64_t buffer_info_size = static_cast<uint64_t>(addr_info.req_info_count) - sizeof(SyncKvReqInfo);
   auto expect_count = req_info->buffer_count_per_layer + req_info->tensor_index_count;
   if (expect_count > (buffer_info_size / sizeof(SyncBufferInfo))) {
-    UDF_RUN_LOG_INFO("Invalid req size, expect_count:%u, real count:%lu, entity:%s.", expect_count,
+    UDF_RUN_LOG_WARN("Invalid req size, expect_count:%u, real count:%lu, entity:%s.", expect_count,
                      buffer_info_size / sizeof(SyncBufferInfo), entity.GetDesc().c_str());
     return FsmStatus::kFsmParamInvalid;
   }

@@ -55,7 +55,7 @@ Status ModelSaver::SaveJsonToFile(const char_t *const file_path, const Json &mod
 
   std::array<char_t, MMPA_MAX_PATH> file_real_path = {};
   GE_IF_BOOL_EXEC(mmRealPath(file_path, &file_real_path[0], MMPA_MAX_PATH) != EN_OK,
-                  GELOGI("File %s does not exit, it will be created.", file_path));
+                  GELOGI("File %s does not exist, it will be created.", file_path));
 
   // Open file
   constexpr mmMode_t open_mode = static_cast<mmMode_t>(static_cast<uint32_t>(M_IRUSR) | static_cast<uint32_t>(M_IWUSR));

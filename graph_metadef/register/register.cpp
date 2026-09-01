@@ -219,7 +219,7 @@ Status GetDynamicAttrNum(const std::shared_ptr<ge::OpDesc> &op_desc,
              op_desc->GetName().c_str());
       continue;
     }
-    GELOGI("In Op %s dynamic attr [%s] is exist, tensor num: %u.", op_desc->GetName().c_str(), attr_name.c_str(),
+    GELOGI("In Op %s dynamic attr [%s] exists, tensor num: %u.", op_desc->GetName().c_str(), attr_name.c_str(),
            dynamic_tensor_num);
     port_dynamic_info[dynamic_name_attr.port_name] = DynamicInfo(dynamic_name_attr.type, 0U, dynamic_tensor_num);
   }
@@ -350,8 +350,7 @@ AutoMappingFnDynamic(const google::protobuf::Message *op_src, ge::Operator &op,
       continue;
     }
 
-    GELOGI("In NodeDef %s dynamic attr [%s] is exist: %d.", node->name().c_str(), attr_name.c_str(),
-           dynamic_tensor_num);
+    GELOGI("In NodeDef %s dynamic attr [%s] exists: %d.", node->name().c_str(), attr_name.c_str(), dynamic_tensor_num);
 
     if (flag == "in") {
       const bool is_pushback = (in_pos == -1);
@@ -664,7 +663,7 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FrameworkRegistryImpl {
 
 void FrameworkRegistryImpl::AddAutoMappingSubgraphIOIndexFunc(const domi::FrameworkType framework,
                                                               AutoMappingSubgraphIOIndexFunc fun) {
-  GELOGD("Regitser auto mapping function: framework type:%d.", framework);
+  GELOGD("Register auto mapping function: framework type:%d.", framework);
   fmk_type_to_auto_mapping_subgraph_index_fun_[framework] = std::move(fun);
 }
 

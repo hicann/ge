@@ -56,7 +56,7 @@ struct HostMem {
 
 inline bool CalcSize(size_t size, size_t &padded_size) {
   if (ge::AddOverflow(size, kPaddingSize, padded_size)) {
-    GELOGE(ge::PARAM_INVALID, "Invalid size %zu, failed to padding to %zu", size, kPaddingSize);
+    GELOGE(ge::PARAM_INVALID, "Invalid size %zu, failed to pad to %zu", size, kPaddingSize);
     return false;
   }
   padded_size = (padded_size - 1) & -kPaddingSize;
@@ -290,7 +290,7 @@ ge::graphStatus MakeSureTensorAtHostCommon(KernelContext *context, bool is_sync)
       }
       out_tensor_data->ShareFrom({tensor_size, kOnHost, gert_allocator->GetStreamId(), host_block});
     } else {
-      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %d to host",
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %d to host",
              static_cast<int32_t>(tensor_data->GetPlacement()));
       return ge::GRAPH_FAILED;
     }
@@ -342,7 +342,7 @@ ge::graphStatus MakeSureTensorAtDevice(KernelContext *context) {
              GetPlacementStr(src_placement), GetPlacementStr(dst_placement));
       out_tensor_data->ShareFrom(*storage_tensor_desc.tensor_data);
     } else {
-      GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %s to %s", GetPlacementStr(src_placement),
+      GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %s to %s", GetPlacementStr(src_placement),
              GetPlacementStr(dst_placement));
       return ge::GRAPH_FAILED;
     }
@@ -378,7 +378,7 @@ ge::graphStatus CalcDeviceCopySizes(KernelContext *context) {
       *copy_size = 0U;
       return ge::GRAPH_SUCCESS;
     }
-    GELOGE(ge::GRAPH_FAILED, "unsupported copy form placement %s to %s", GetPlacementStr(src_placement),
+    GELOGE(ge::GRAPH_FAILED, "unsupported copy from placement %s to %s", GetPlacementStr(src_placement),
            GetPlacementStr(dst_placement));
     return ge::GRAPH_FAILED;
   }
@@ -658,7 +658,7 @@ graphStatus CalcStringTensorSize(KernelContext *context) {
   GE_ASSERT_NOTNULL(string_tensor_size_ptr);
 
   GE_ASSERT_GRAPH_SUCCESS(CalcStringTensorSize(tensor_data, stream, storage_shape, datatype, *string_tensor_size_ptr));
-  GELOGD("[Calc][String], tensor_size is %zu, aline_size is %zu", tensor_data->GetSize(), *string_tensor_size_ptr);
+  GELOGD("[Calc][String], tensor_size is %zu, align_size is %zu", tensor_data->GetSize(), *string_tensor_size_ptr);
   return ge::GRAPH_SUCCESS;
 }
 REGISTER_KERNEL(CalcStringTensorSize).RunFunc(CalcStringTensorSize);

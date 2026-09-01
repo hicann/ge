@@ -151,7 +151,7 @@ Status ComplexCompute(const OpDescPtr op_desc_ptr, const std::vector<ConstGeTens
   BCast bcast;
   Status ret = bcast.GenerateBcastInfo(BCast::TransShapeToDimVec(input[0U]->GetTensorDesc()),
                                        BCast::TransShapeToDimVec(input[1U]->GetTensorDesc()));
-  GE_ASSERT_SUCCESS(ret, "Greater broadcasting failed.");
+  GE_ASSERT_SUCCESS(ret, "Mul broadcasting failed.");
 
   std::vector<int64_t> x_indexes;
   std::vector<int64_t> y_indexes;

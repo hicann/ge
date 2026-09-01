@@ -121,7 +121,7 @@ Status HcomOmeUtil::GetHcclDataType(const ge::ConstOpDescPtr &op_desc,
 Status HcomOmeUtil::GetHcclTypeSize(const HcclDataType data_type, int32_t &size) {
   const auto iter = kConstOpHcclDataTypeSize.find(data_type);
   GE_CHK_BOOL_EXEC(iter != kConstOpHcclDataTypeSize.end(), return PARAM_INVALID,
-                   "[Check][Param] param data_type:%d not find", data_type);
+                   "[Check][Param] param data_type:%d not found", data_type);
   size = iter->second;
   return SUCCESS;
 }
@@ -169,7 +169,7 @@ Status HcomOmeUtil::GetHcomP2pCount(const ge::GeTensorDesc &tensor_desc, const H
   GE_CHK_BOOL_RET_STATUS(size != 0, PARAM_INVALID, "[Check][Param] size is zero.");
   count = total_size / size;
   GE_CHK_BOOL_RET_STATUS((total_size % size) == 0, PARAM_INVALID,
-                         "[Check][Param] total size = %d is not divisiable by size = %d.",
+                         "[Check][Param] total size = %d is not divisible by size = %d.",
                          static_cast<int32_t>(total_size), size);
   return SUCCESS;
 }
@@ -262,7 +262,7 @@ Status HcomOmeUtil::GetHcomCount(const ge::ConstOpDescPtr &op_desc, const HcclDa
   count = total_size / size;
 
   GE_CHK_BOOL_EXEC((total_size % size) == 0, return PARAM_INVALID,
-                   "[Check][Param] total_size:%" PRId64 " is not divisiable by size:%d.", total_size, size);
+                   "[Check][Param] total_size:%" PRId64 " is not divisible by size:%d.", total_size, size);
   GELOGI("GetHcomP2pCount count = %" PRId64 ", data_type = %d, op name = %s, op type = %s", count, data_type,
          op_desc->GetName().c_str(), op_desc->GetType().c_str());
   return SUCCESS;
@@ -313,7 +313,7 @@ Status HcomOmeUtil::GetHorovodCount(const ge::ConstOpDescPtr &op_desc,
 
     GE_CHK_BOOL_RET_STATUS(size != 0, PARAM_INVALID, "[Check][Param] Size is zero");
     GE_CHK_BOOL_EXEC((block_size % size) == 0, return PARAM_INVALID,
-                     "[Check][Param] block_size:%" PRId64 " is not divisiable by size:%d.", block_size, size);
+                     "[Check][Param] block_size:%" PRId64 " is not divisible by size:%d.", block_size, size);
     kernel_hccl_infos[i].count = block_size / size;
   }
 
@@ -436,7 +436,7 @@ Status HcomOmeUtil::GetAllRootId(const ge::ConstOpDescPtr &op_desc,
     int64_t root_id = 0;
     const Status dmrt = GetHcclRootId(op_desc, root_id);
     if (dmrt != SUCCESS) {
-      GELOGE(FAILED, "[Get][HcclRootId] fail! domi error: %u", dmrt);
+      GELOGE(FAILED, "[Get][HcclRootId] fail! error: %u", dmrt);
       return FAILED;
     }
 

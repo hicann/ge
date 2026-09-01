@@ -289,7 +289,7 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
 
   auto gep = ep->FindGuarded(inputs);
   if (gep == nullptr || !gep->Compiled()) {
-    GELOGD("Guarde is not exist or Compiled");
+    GELOGD("Guard is not exist or Compiled");
     return nullptr;
   }
   GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u].", gep->GetCompiledGraphId(),

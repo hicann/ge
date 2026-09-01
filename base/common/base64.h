@@ -82,7 +82,7 @@ static std::string EncodeToBase64(const std::string &raw_data) {
 #pragma GCC diagnostic ignored "-Wunused-function"
 static Status DecodeFromBase64(const std::string &base64_data, std::string &decode_data) {
   if (base64_data.size() % kFourByteOneGroup != 0) {
-    GELOGE(PARAM_INVALID, "base64 data size must can be divided by 4, but given data size is %zu", base64_data.size());
+    GELOGE(PARAM_INVALID, "base64 data size must be divisible by 4, but given data size is %zu", base64_data.size());
     return PARAM_INVALID;
   }
   decode_data.clear();

@@ -33,7 +33,7 @@ Status CheckArgsForFracZToHwcn(const TransArgs &args) {
   const auto src_shape = args.src_shape;
   const auto dst_shape = args.dst_shape;
   if ((args.src_primary_format != FORMAT_FRACTAL_Z) || (args.dst_primary_format != FORMAT_HWCN)) {
-    const std::string error = "Dose not support trans format from " +
+    const std::string error = "Does not support trans format from " +
                               FmtToStr(TypeUtils::FormatToSerialString(args.src_primary_format)) + " to " +
                               FmtToStr(TypeUtils::FormatToSerialString(args.dst_primary_format));
     GE_ERRORLOG_AND_ERRORMSG(ACL_ERROR_GE_FORMAT_INVALID, error.c_str());

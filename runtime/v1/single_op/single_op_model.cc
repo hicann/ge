@@ -140,9 +140,9 @@ Status GetAicoreTask(const std::vector<domi::TaskDef> &task_defs, std::vector<do
     }
   }
   if (aicore_task_defs.empty()) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Size]Node size must larger then 0, but get %zu.",
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Size]Node size must be larger than 0, but get %zu.",
            aicore_task_defs.size());
-    REPORT_INNER_ERR_MSG("E19999", "[Check][Size]task_defs size must larger then 0, but get %zu.",
+    REPORT_INNER_ERR_MSG("E19999", "[Check][Size]task_defs size must be larger than 0, but get %zu.",
                          aicore_task_defs.size());
     return ACL_ERROR_GE_PARAM_INVALID;
   }
@@ -721,8 +721,8 @@ Status SingleOpModel::BuildTaskListForDynamicOp(StreamResource &stream_resource,
   const auto node = iter->first;
   const auto &task_defs = iter->second;
   if (task_defs.size() <= 0U) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Size]Node size must larger then 0, but get %zu.", task_defs.size());
-    REPORT_INNER_ERR_MSG("E19999", "[Check][Size]task_defs size must larger then 0, but get %zu.", task_defs.size());
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Size]Node size must be larger than 0, but get %zu.", task_defs.size());
+    REPORT_INNER_ERR_MSG("E19999", "[Check][Size]task_defs size must be larger than 0, but get %zu.", task_defs.size());
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 

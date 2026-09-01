@@ -408,7 +408,7 @@ domi::Status GraphToFunctionDef::DavGraphToFunctionDef(ge::ComputeGraphPtr graph
                              "Get type attr failed");
 
       GE_CHK_BOOL_RET_STATUS(ge::AttrUtils::GetInt(node->GetOpDesc(), "ret_index", index), PARAM_INVALID,
-                             "Get arg_index attr failed");
+                             "Get ret_index attr failed");
 
       while (fdef->signature().output_arg_size() <= index) {
         fdef->mutable_signature()->add_output_arg();

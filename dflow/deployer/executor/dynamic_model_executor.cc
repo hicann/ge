@@ -952,7 +952,7 @@ Status DynamicModelExecutor::ReportStatus() {
     rtMemQueueInfo_t info;
     const auto ret = rtMemQueueQueryInfo(device_id_, input_queue_id, &info);
     if (ret != RT_ERROR_NONE) {
-      GELOGI("Queue info query returned %d for queue %u, device %d.", input_queue_id, device_id_, ret);
+      GELOGI("Queue %u info query failed on device %d, ret = %d.", input_queue_id, device_id_, ret);
     } else {
       queue_depth = info.size;
     }
@@ -1006,7 +1006,7 @@ void DynamicModelExecutor::Stop() {
     (void)aclrtFree(new_allocated_global_step_);
   }
   new_allocated_global_step_ = nullptr;
-  GELOGI("Global step is allocated in dynamic model executor which need to be deallocated when executor stopping");
+  GELOGI("Global step is allocated in dynamic model executor which needs to be deallocated when executor stopping");
 }
 
 Status DynamicModelExecutor::CreateFakeAicpuModelAndStream() {
@@ -1038,7 +1038,7 @@ Status DynamicModelExecutor::DoLoadModel(const ModelData &model_data, const Comp
   GE_ASSERT_TRUE(ret == ACL_SUCCESS, "ACL set device id failed.");
   aclrtSetCurrentContext(rt_context_);
   GE_CHK_STATUS_RET(InitExternalWeightMem(root_graph, external_weight_mem_data_),
-                    "Failed to init external weright mem.");
+                    "Failed to init external weight mem.");
   handle_ = aclmdlCreateConfigHandle();
   GE_CHECK_NOTNULL(handle_, "Create acl load config handle failed.");
   GE_CHK_STATUS_RET(GenerateLoadConfig(model_data, external_weight_mem_data_, handle_));
@@ -1078,7 +1078,7 @@ Status DynamicModelExecutor::GenerateLoadConfig(const ModelData &model_data,
 
 Status DynamicModelExecutor::InitExternalWeightMem(const ComputeGraphPtr &root_graph,
                                                    std::vector<FileConstantMem> &external_weight_mem_data) {
-  GELOGD("[InitExternalWeightMem] Start to init extrnal weight mem.");
+  GELOGD("[InitExternalWeightMem] Start to init external weight mem.");
   // load external weight
   for (const auto &node : root_graph->GetAllNodes()) {
     const auto &op_desc = node->GetOpDesc();
@@ -1103,7 +1103,7 @@ Status DynamicModelExecutor::InitExternalWeightMem(const ComputeGraphPtr &root_g
 
     auto file_name = RealPath(fileconstant_name.c_str());
     if (file_name.empty()) {
-      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "The path[%s]is invalid", fileconstant_name.c_str());
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "The path[%s] is invalid", fileconstant_name.c_str());
       return ACL_ERROR_GE_PARAM_INVALID;
     }
     external_weight.file_name = file_name;
@@ -1129,7 +1129,7 @@ Status DynamicModelExecutor::InitExternalWeightMem(const ComputeGraphPtr &root_g
     external_weight_mem_data.emplace_back(external_weight);
     GELOGD("Success initialize external weight mem from file[%s], length[%lu]", file_name.c_str(), attr_length);
   }
-  GELOGD("[InitExternalWeightMem] Succeed to init extrnal weight mem.");
+  GELOGD("[InitExternalWeightMem] Succeed to init external weight mem.");
   return SUCCESS;
 }
 

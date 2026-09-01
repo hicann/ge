@@ -276,7 +276,7 @@ Status FlowModelOmLoader::LoadToFlowModel(const ge::ModelData &model_data, FlowM
 
 Status FlowModelOmLoader::CheckModelPartitions(const std::vector<ModelPartition> &model_partitions) {
   if (model_partitions.size() < kFlowModelPartitionsFlowSubModelStartIdx) {
-    GELOGE(FAILED, "flow model partitions must has 2 partitions[MODEL_DEF, FLOW_MODEL], but size=%zu.",
+    GELOGE(FAILED, "flow model partitions must have 2 partitions[MODEL_DEF, FLOW_MODEL], but size=%zu.",
            model_partitions.size());
     return FAILED;
   }

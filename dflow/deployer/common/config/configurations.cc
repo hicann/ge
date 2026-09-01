@@ -48,7 +48,7 @@ Status Configurations::GetWorkingDir(std::string &working_dir) const {
   } else {
     working_dir = GetHostDirByEnv();
   }
-  GE_CHK_BOOL_RET_STATUS(!working_dir.empty(), ACL_ERROR_GE_PARAM_INVALID, "Env HOME don't exist.");
+  GE_CHK_BOOL_RET_STATUS(!working_dir.empty(), ACL_ERROR_GE_PARAM_INVALID, "Env HOME doesn't exist.");
   GELOGI("Get working dir success, path = %s", working_dir.c_str());
   return SUCCESS;
 }

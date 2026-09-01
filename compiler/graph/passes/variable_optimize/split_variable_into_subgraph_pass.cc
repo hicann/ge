@@ -97,7 +97,7 @@ Status SplitVariableIntoSubgraphPass::Run(NodePtr &node) {
                         root_graph->GetName().c_str());
       // UnknownShapePartitionedCall will expand after build, will cause same vars in root graph, here to skip
       if (IsUnknownShapePartitionedCall(peer_in_node, subgraph)) {
-        GELOGD("Var node %s(%s), peer in node %s(%s) is unknown shape parititonedcall ,skip split into.",
+        GELOGD("Var node %s(%s), peer in node %s(%s) is unknown shape partitionedcall ,skip split into.",
                node->GetNamePtr(), node->GetTypePtr(), peer_in_node->GetNamePtr(), peer_in_node->GetTypePtr());
         break;
       }

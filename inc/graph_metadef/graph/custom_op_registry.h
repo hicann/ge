@@ -52,6 +52,8 @@ class CustomOpRegistry {
 
  private:
   BaseCustomOp *CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend);
+  BaseCustomOp *CacheCustomOpLocked(const AscendString &op_type, OpBackend backend,
+                                    std::unique_ptr<BaseCustomOp> base_custom_op);
 
   mutable std::mutex mu_;
   std::vector<CustomOpSoHandlePtr> so_handles_;

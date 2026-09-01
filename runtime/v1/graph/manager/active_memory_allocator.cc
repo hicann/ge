@@ -770,7 +770,7 @@ Status ExpandableActiveMemoryAllocatorImp::MallocPhysicalMemory(const std::strin
       }
       // 连续可用内存块加回收的内存块已经满足申请内存大小直接退出，否则会多分一块内存
       if (((recycle_count > 0U) && (pa_list_.size() == new_va_count)) || (index < static_cast<int64_t>(index_begin))) {
-        HP_LOGD("recycle_count:%zu pa_list_size:%zu new_va_count%:zu index:%" PRId64 " index_begin:%zu", recycle_count,
+        HP_LOGD("recycle_count:%zu pa_list_size:%zu new_va_count:%zu index:%" PRId64 " index_begin:%zu", recycle_count,
                 pa_list_.size(), new_va_count, index, index_begin);
         break;
       }
@@ -798,8 +798,8 @@ Status ExpandableActiveMemoryAllocatorImp::MallocPhysicalMemory(const std::strin
       }
     }
   }
-  GELOGI("virtual_memory_addr:%p virtual_memory_size:%zu success, total physical_memory_size:%zu.", virtual_memory_addr,
-         virtual_memory_size, physical_memory_size_);
+  GELOGI("virtual_memory_addr:%p virtual_memory_size:%zu bytes success, total physical_memory_size:%zu bytes.",
+         virtual_memory_addr, virtual_memory_size, physical_memory_size_);
   if (recycle && (recycle_count > 0U)) {
     return ProcessNewVa(index_end, end_remain_size, new_va_count, reuse_size);
   }

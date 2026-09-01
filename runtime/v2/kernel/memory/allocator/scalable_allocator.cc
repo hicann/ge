@@ -236,7 +236,7 @@ PageSpan *ScalableAllocator::FetchNewVaSpan(ge::Allocator &allocator, const MemS
     return nullptr;
   }
   OccupySpan(*span, fix_layer_id);
-  LOG_BY_TYPE(GeLogLevel::kInfo, "block device_id:%u size:%llu alloca_size:%zu mem_addr:%p",
+  LOG_BY_TYPE(GeLogLevel::kInfo, "block device_id:%u size:%llu alloc_size:%zu mem_addr:%p",
               device_allocator_.GetDeviceId(), size, span->GetSize(), span->GetAddr());
   return span;
 }
@@ -567,7 +567,7 @@ void ScalableAllocator::Free(ge::MemBlock *block) {
     device_allocator_.GetExpandableAllocator().SetTheorySize(theory_size_);
   }
   LOG_BY_TYPE(GeLogLevel::kInfo,
-              "Free block device_id:%u theory_size_:%zu theory_min_size_:%zu allock_size:%zu mem_addr:%p.",
+              "Free block device_id:%u theory_size_:%zu theory_min_size_:%zu alloc_size:%zu mem_addr:%p.",
               device_allocator_.GetDeviceId(), theory_size_, theory_min_size_, span->GetSize(), span->GetAddr());
 
   if (span->IsNewVaSpan()) {

@@ -51,7 +51,7 @@ void ShapeRangeUtils::SetShapeRange(const int32_t tensorNum, const aclTensorDesc
     // Complete the shape range for static tensor
     if (tensorDesc[tensorIndex]->shapeRange.empty()) {
       if ((tensorDesc[tensorIndex]->dims.size() > 0U) && (tensorDesc[tensorIndex]->dims[0U] == UNKNOW_RANK)) {
-        ACL_LOG_INFO("the %zu tensor dim is unknowrank", tensorIndex);
+        ACL_LOG_INFO("the %zu tensor dim is unknown rank", tensorIndex);
       } else {
         std::vector<std::pair<int64_t, int64_t>> range;
         for (size_t dimIndex = 0U; dimIndex < tensorDesc[tensorIndex]->dims.size(); ++dimIndex) {

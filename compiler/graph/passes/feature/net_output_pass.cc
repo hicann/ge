@@ -239,7 +239,7 @@ Status NetOutputPass::TryToSetOutputMaxSize(const NodePtr &output_node) const {
       try {
         max_size = std::stol(output_max_size_str);
       } catch (std::out_of_range &) {
-        GELOGE(PARAM_INVALID, "Value[%s] is out of range.", output_max_size_str.c_str());
+        GELOGE(PARAM_INVALID, "Value[%s] is out of int64 range.", output_max_size_str.c_str());
         return PARAM_INVALID;
       } catch (std::invalid_argument &) {
         GELOGE(PARAM_INVALID, "Value[%s] is invalid.", output_max_size_str.c_str());

@@ -62,7 +62,7 @@ static void MakeHostMemTensor(const aclTensorDesc *const desc, const aclDataBuff
         (desc->memtype == ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT)) {
       // During fuzzy compilation or ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT, change hostMem to data input.
       ACL_LOG_INFO(
-          "compleFlag is ACL_OP_COMPILE_FUZZ or memtype is ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT, "
+          "compileFlag is ACL_OP_COMPILE_FUZZ or memtype is ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT, "
           "change hostMem to data.");
       ge::ConstGeTensorPtr dataTensor = nullptr;
       ACL_MAKE_SHARED(dataTensor = std::make_shared<ge::GeTensor>(
@@ -72,7 +72,7 @@ static void MakeHostMemTensor(const aclTensorDesc *const desc, const aclDataBuff
     } else {
       // During static compilation, change hostMem to const input.
       ACL_LOG_INFO(
-          "compleFlag is ACL_OP_COMPILE_DEFAULT and memtype is ACL_MEMTYPE_HOST, "
+          "compileFlag is ACL_OP_COMPILE_DEFAULT and memtype is ACL_MEMTYPE_HOST, "
           "change hostMem to const.");
       (void)ge::AttrUtils::SetBool(geTensorDesc, ge::CONST_ATTR_NAME_INPUT, true);
       ge::ConstGeTensorPtr constTensor = nullptr;

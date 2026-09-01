@@ -124,7 +124,7 @@ Status PreModelHelper::SaveAllModelPartiton(std::shared_ptr<OmFileSaveHelper> &o
                     model_index);
 
   GE_ASSERT_SUCCESS(SaveModelWeights(om_file_save_helper, ge_model),
-                    "[Save][SaveKernelArgs]Failed, model %s, model index %zu", ge_model->GetName().c_str(),
+                    "[Save][SaveModelWeights]Failed, model %s, model index %zu", ge_model->GetName().c_str(),
                     model_index);
 
   GE_ASSERT_SUCCESS(SaveKernelBin(om_file_save_helper, ge_model),

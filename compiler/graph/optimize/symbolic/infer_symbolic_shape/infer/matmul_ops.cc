@@ -108,14 +108,14 @@ graphStatus InferShape4BatchMatMulV2(gert::InferSymbolShapeContext *context) {
   auto shape_x1 = context->GetInputSymbolShape(0);
   GE_UNSUPPORTED_IF_NULL(shape_x1);
   auto dim_num_x1 = shape_x1->GetDimNum();
-  GE_ASSERT_TRUE(dim_num_x1 >= 1 && dim_num_x1 <= kBatchMatMulMaxDimNum,
-                 "X1 invalid, dim_num: %zu must in must in [1, 8]", dim_num_x1);
+  GE_ASSERT_TRUE(dim_num_x1 >= 1 && dim_num_x1 <= kBatchMatMulMaxDimNum, "X1 invalid, dim_num: %zu must be in [1, 8]",
+                 dim_num_x1);
 
   auto shape_x2 = context->GetInputSymbolShape(1);
   GE_UNSUPPORTED_IF_NULL(shape_x2);
   auto dim_num_x2 = shape_x2->GetDimNum();
-  GE_ASSERT_TRUE(dim_num_x2 >= 1 && dim_num_x2 <= kBatchMatMulMaxDimNum,
-                 "X2 invalid, dim_num: %zu must in must in [1, 8]", dim_num_x2);
+  GE_ASSERT_TRUE(dim_num_x2 >= 1 && dim_num_x2 <= kBatchMatMulMaxDimNum, "X2 invalid, dim_num: %zu must be in [1, 8]",
+                 dim_num_x2);
 
   auto shape_out = context->GetOutputSymbolShape(0);
   GE_ASSERT_NOTNULL(shape_out);

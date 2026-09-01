@@ -48,8 +48,8 @@ ge::graphStatus GetNodeDeterministicLevel(const ge::OpDescPtr &op_desc, int32_t 
                                           bool &has_deterministic_level);
 ge::graphStatus GetGraphDeterministicConfig(const ge::ComputeGraphPtr &root_compute_graph, int32_t &deterministic,
                                             int32_t &deterministic_level);
-ge::graphStatus SetDeterministicConfig(int32_t deterministic, int32_t deterministic_level);
-ge::graphStatus SetGlobalDeterministicConfig(int32_t deterministic, int32_t deterministic_level);
+ge::graphStatus SetDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level);
+ge::graphStatus SetGlobalDeterministicConfig(const int32_t deterministic, const int32_t deterministic_level);
 ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, int32_t &deterministic,
                                        int32_t &deterministic_level);
 ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, const ge::ComputeGraphPtr &root_compute_graph,

@@ -172,7 +172,7 @@ int32_t MbufFlowMsgQueue::DequeueMbuf(Mbuf *&mbuf, int32_t timeout) {
   } while (((wait_time < timeout) || (timeout == -1)) && (!FlowFuncConfigManager::GetConfig()->GetAbnormalStatus()) &&
            (!FlowFuncConfigManager::GetConfig()->GetExitFlag()));
   if (FlowFuncConfigManager::GetConfig()->GetAbnormalStatus()) {
-    UDF_LOG_ERROR("Stop dequeue result of now system status is abnormal. Wait to redeploy.");
+    UDF_LOG_ERROR("Stop dequeue because system status is abnormal. Wait to redeploy.");
     return FLOW_FUNC_STATUS_REDEPLOYING;
   }
   if (FlowFuncConfigManager::GetConfig()->GetExitFlag()) {

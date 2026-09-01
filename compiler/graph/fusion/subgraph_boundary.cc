@@ -55,7 +55,7 @@ class SubgraphOutputImpl {
   SubgraphOutputImpl() = default;
   explicit SubgraphOutputImpl(NodeIo node_output) : output_(std::move(node_output)) {}
   Status SetOutput(const NodeIo &node_output) {
-    GE_ASSERT_TRUE(NodeAdapter::GNode2Node(output_.node) == nullptr, "SubgraphOutput has already set");
+    GE_ASSERT_TRUE(NodeAdapter::GNode2Node(output_.node) == nullptr, "SubgraphOutput has already been set");
     auto node = NodeAdapter::GNode2Node(node_output.node);
     GE_ASSERT_NOTNULL(node);
     GE_ASSERT_NOTNULL(node->GetOutDataAnchor(node_output.index), "Node [%s][%s] output [%ld] is not exist",

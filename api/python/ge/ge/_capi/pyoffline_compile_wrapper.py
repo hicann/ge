@@ -33,7 +33,7 @@ c_p_to_int = ctypes.POINTER(c_int)
 
 
 class ModelBufferData(ctypes.Structure):
-    """C层 struct ModelBufferData"""
+    """C-layer struct ModelBufferData"""
 
     pass
 

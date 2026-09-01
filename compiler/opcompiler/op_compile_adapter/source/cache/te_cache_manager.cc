@@ -146,14 +146,14 @@ CompileResultPtr TeCacheManager::MatchCompileCache(const std::string &kernelName
 
   compileRetPtr = CompileResultUtils::ParseCompileResult(jsonFilePath);
   if (compileRetPtr == nullptr) {
-    TE_INFOLOG("Parsing compile result from json file path [%s] was not successfully.", jsonFilePath.c_str());
+    TE_INFOLOG("Failed to parse compile result from json file path [%s].", jsonFilePath.c_str());
     DfxInfoManager::Instance().RecordStatistics(StatisticsType::DISK_CACHE, RecordEventType::JSON_INVALID);
     return compileRetPtr;
   }
 
   // verify sha256 of bin file
   if (!VerifyBinFileSha256(compileRetPtr)) {
-    TE_INFOLOGF("Verify sha256 of json file[%s] and bin file[%s] not success.", compileRetPtr->jsonPath.c_str(),
+    TE_INFOLOGF("Failed to verify sha256 of json file[%s] and bin file[%s].", compileRetPtr->jsonPath.c_str(),
                 compileRetPtr->binPath.c_str());
     DfxInfoManager::Instance().RecordStatistics(StatisticsType::DISK_CACHE, RecordEventType::SHA256_FAIL);
     return nullptr;
@@ -163,7 +163,7 @@ CompileResultPtr TeCacheManager::MatchCompileCache(const std::string &kernelName
   if (TeCacheSpaceManager::Instance().GetMaxOpCacheSize() != CACHE_AGING_FUCNTION_SWITCH) {
     if (!TeFileUtils::UpdateFileAccessTime(compileRetPtr->jsonPath) ||
         !TeFileUtils::UpdateFileAccessTime(compileRetPtr->binPath)) {
-      TE_INFOLOGF("Update access time for json file[%s] or bin file[%s] not success.", compileRetPtr->jsonPath.c_str(),
+      TE_INFOLOGF("Failed to update access time for json file[%s] or bin file[%s].", compileRetPtr->jsonPath.c_str(),
                   compileRetPtr->binPath.c_str());
       DfxInfoManager::Instance().RecordStatistics(StatisticsType::DISK_CACHE, RecordEventType::UPDATE_ACCESS_FAIL);
       return nullptr;
@@ -247,8 +247,7 @@ bool TeCacheManager::CopyCompileRetIntoCacheDir(const CompileResultPtr &compileR
   }
   // copy bin file to cache dir
   if (!TeFileUtils::CopyFileToCacheDir(compileResultPtr->binPath, cacheBinFilePath)) {
-    TE_INFOLOGF("Cannot to copy bin file from[%s] to [%s].", compileResultPtr->binPath.c_str(),
-                cacheBinFilePath.c_str());
+    TE_INFOLOGF("Cannot copy bin file from [%s] to [%s].", compileResultPtr->binPath.c_str(), cacheBinFilePath.c_str());
     return false;
   }
 
@@ -261,7 +260,7 @@ bool TeCacheManager::CopyCompileRetIntoCacheDir(const CompileResultPtr &compileR
       TE_DBGLOGF("Begin to copy head file from [%s] to [%s].", compileResultPtr->headerPath.c_str(),
                  cacheHeaderFilePath.c_str());
       if (!TeFileUtils::CopyFileToCacheDir(compileResultPtr->headerPath, cacheHeaderFilePath)) {
-        TE_INFOLOGF("Cannot to copy header file from [%s] to [%s] .", compileResultPtr->headerPath.c_str(),
+        TE_INFOLOGF("Cannot copy header file from [%s] to [%s].", compileResultPtr->headerPath.c_str(),
                     cacheHeaderFilePath.c_str());
         return false;
       }

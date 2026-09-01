@@ -31,7 +31,6 @@ class MemReuseUtils {
   static void SetStreamId(ge::OpDesc *const desc, int64_t stream_id);
   static bool IsMergeNode(const NodePtr &node);
   static bool IsMergeNode(const Node *node);
-  static bool IsNoPaddingContinuousInput(const Node *node);
   static Status GetNoAlignSize(const GeTensorDesc &tensor, size_t &size);
   static Status GetOutputNoAlignSize(const ge::OpDesc &desc, uint32_t index, size_t &size);
   static bool IsAllOutRefAllInput(const NodePtr &node);

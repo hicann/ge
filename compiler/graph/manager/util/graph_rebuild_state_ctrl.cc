@@ -81,7 +81,7 @@ void GraphRebuildStateCtrl::SetStateChanged(const std::string &resource_name) {
     if (graph_id_to_var_names.second.count(resource_name) > 0) {
       GELOGI(
           "The resource %s has been changed, total changed times %d, "
-          "the graph %u contains which should be re-build before next run",
+          "the graph %u contains the changed resource and should be re-built before next run",
           resource_name.c_str(), times, graph_id_to_var_names.first);
       /// The graph being compiled right now is also added to the rebuild-list
       /// and can be deleted by calling `SetGraphBuildEnd` at the end of compilation.

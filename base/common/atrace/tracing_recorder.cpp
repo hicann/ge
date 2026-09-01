@@ -72,7 +72,7 @@ void TracingRecorder::Initialize() {
     finalize_event_handle = AtraceEventCreate(event_name.c_str());
     finalize_event_handles_.emplace_back(finalize_event_handle);
     event_bind_num_ = 1;
-    GELOGI("Create event handle[%s] to ", event_name.c_str());
+    GELOGI("Create event handle[%s] to tracing module", event_name.c_str());
   } else {
     event_name.append(std::to_string(finalize_event_handles_.size()));
   }
@@ -90,7 +90,7 @@ void TracingRecorder::Initialize() {
 void TracingRecorder::SubmitTraceMsgs(const TracingRecord *tracing_record) {
   AtracingReporter reporter(handles_.back(), tracing_record);
   if (reporter.Report() != SUCCESS) {
-    GELOGW("Report failed of module[%s] for record[%s].", GetHandleName().c_str(), tracing_record->Debug().c_str());
+    GELOGW("Report failed for module[%s] with record[%s].", GetHandleName().c_str(), tracing_record->Debug().c_str());
   }
 }
 

@@ -21,7 +21,7 @@ ge::graphStatus SubgraphNodeInnerDataRemover::RemoveUnusedInnerDataNodes(ge::Exe
                                                                          bool &changed) {
   auto iter = exe_subg_to_indexed_inner_data_nodes_.find(subgraph);
   if (iter == exe_subg_to_indexed_inner_data_nodes_.end()) {
-    GELOGE(ge::FAILED, "The subgraph %s does not belongs to node %s, or the `Init` method has not been called",
+    GELOGE(ge::FAILED, "The subgraph %s does not belong to node %s, or the `Init` method has not been called",
            subgraph->GetName().c_str(), parent_fast_node_->GetNamePtr());
     return ge::GRAPH_FAILED;
   }

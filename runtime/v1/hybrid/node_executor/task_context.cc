@@ -63,12 +63,12 @@ std::unique_ptr<TaskContext> TaskContext::Create(NodeState *const node_state, Su
          node_item.num_outputs);
   if ((node_item.input_start < 0) || (node_item.output_start < 0)) {
     REPORT_INNER_ERR_MSG("E19999",
-                         "NodeItem:%s(%s) not property initialized."
+                         "NodeItem:%s(%s) not properly initialized."
                          "input_start:%d or output_start:%d less than 0",
                          node_item.NodeName().c_str(), node_item.NodeType().c_str(), node_item.input_start,
                          node_item.output_start);
     GELOGE(INTERNAL_ERROR,
-           "[Check][Param]NodeItem:%s(%s) not property initialized. input_start = %d, output_start = %d",
+           "[Check][Param]NodeItem:%s(%s) not properly initialized. input_start = %d, output_start = %d",
            node_item.NodeName().c_str(), node_item.NodeType().c_str(), node_item.input_start, node_item.output_start);
     return nullptr;
   }

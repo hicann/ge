@@ -553,7 +553,7 @@ Status SuperKernelV2TaskInfo::AppendWorkspaceAddr(size_t node_idx, int32_t ir_id
   } else {
     const size_t idx = static_cast<size_t>(ir_idx);
     GE_ASSERT(idx < sub_node_workspace_addrs_list_[node_idx].size(),
-              "workspace idx:[%zu] is output of range, max_size:[%zu]", idx,
+              "workspace idx:[%zu] is out of range, max_size:[%zu]", idx,
               sub_node_workspace_addrs_list_[node_idx].size());
     uint64_t index = std::numeric_limits<uint64_t>::max();
     if (sub_node_op_desc_list_[node_idx] == op_desc_) {

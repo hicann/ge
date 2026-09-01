@@ -384,7 +384,7 @@ Status DeployPlannerBase::ValidateModelAndRelation(const std::map<std::string, P
     const auto &model_instance_name = it.first;
     const auto &submodel = models.find(model_instance_name);
     if (submodel == models.end()) {
-      GELOGE(PARAM_INVALID, "model exists in ModelRelation bot not found in RootModel, name = %s",
+      GELOGE(PARAM_INVALID, "model exists in ModelRelation but not found in RootModel, name = %s",
              model_instance_name.c_str());
       return PARAM_INVALID;
     }
@@ -779,7 +779,7 @@ bool DeployPlannerBase::CheckSkipBinding(const std::string &src_model_instance_n
     return false;
   }
   if (src_model_location.size() <= 1U) {
-    GELOGI("Model is not muilti deployed, model name = %s.", src_model_name.c_str());
+    GELOGI("Model is not multi deployed, model name = %s.", src_model_name.c_str());
     return false;
   }
 
@@ -2024,7 +2024,7 @@ void DeployPlannerBase::GenerateDynamicSchedModelId() {
 
 void DeployPlannerBase::UpdateRelationForDynamicSched() {
   if (!GetIsDynamicSched() && (!deploy_plan_.IsEnableExceptionCatch())) {
-    GELOGI("DynamicSched flag close and exception catch is disable, don't add status queues.");
+    GELOGI("DynamicSched flag is closed and exception catch is disabled, don't add status queues.");
     return;
   }
   GELOGD("DynamicSched flag=%d, exception catch flag=%d.", static_cast<int32_t>(GetIsDynamicSched()),
@@ -2288,7 +2288,7 @@ void DeployPlannerBase::BindDynamicSchedDevQueue(const int32_t src_endpoint_idx,
          ToEndpointDesc(src_endpoint_idx).c_str(), src_is_multi_connected, ToEndpointDesc(dst_endpoint_idx).c_str(),
          dst_is_multi_connected);
   if (src_is_multi_connected && dst_is_multi_connected) {
-    GELOGW("DynamicSched, shouldn't many to many relation.");
+    GELOGW("DynamicSched, many-to-many relation is not allowed.");
   }
   // 动态调度直接添加绑定关系（host场景）
   deploy_plan_.queue_bindings_.emplace_back(src_endpoint_idx, dst_endpoint_idx);

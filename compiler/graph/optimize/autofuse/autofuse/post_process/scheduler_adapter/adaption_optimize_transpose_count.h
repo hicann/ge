@@ -179,7 +179,7 @@ inline Status SelectOptimalLoopAxisByTransposeCount(
     size_t &optimal_loop_axis_index) {
   GE_ASSERT_SUCCESS(FindOptimalTransposeCount(load_store_transpose_cnt, optimal_loop_axis_index));
   optimal_loop_axes = unique_loop_axes[optimal_loop_axis_index];
-  GELOGI("slect optimal loop axes : %s.", AutofuseUtils::VectorToStr(optimal_loop_axes).c_str());
+  GELOGI("select optimal loop axes : %s.", AutofuseUtils::VectorToStr(optimal_loop_axes).c_str());
   return SUCCESS;
 }
 

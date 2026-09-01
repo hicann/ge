@@ -952,7 +952,7 @@ bool OnnxUtils::DecodeNodeLink(const std::vector<onnx::NodeProto> &node_proto_ve
 
 void OnnxUtils::DecodeAttribute(const ge::onnx::AttributeProto &attr_proto, std::vector<std::string> &strings) {
   if (attr_proto.type() != ge::onnx::AttributeProto_AttributeType_STRINGS) {
-    REPORT_INNER_ERR_MSG("E18888", "Attribute %s call wrong decode attribute function", attr_proto.name().c_str());
+    REPORT_INNER_ERR_MSG("E18888", "Attribute %s called wrong decode attribute function.", attr_proto.name().c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Attribute %s call wrong decode attribute function", attr_proto.name().c_str());
     return;
   }
@@ -1205,7 +1205,7 @@ bool OnnxUtils::AddInputAndOutputNodesForGraph(const onnx::GraphProto &graph_pro
     const auto &output_name = output.name();
     const auto output_node_item = node_map.find(output_name);
     if (output_node_item == node_map.end()) {
-      REPORT_INNER_ERR_MSG("E18888", "cannot find graph's output node %s in node_", output_name.c_str());
+      REPORT_INNER_ERR_MSG("E18888", "cannot find graph's output node %s in node list", output_name.c_str());
       GELOGE(GRAPH_FAILED, "[Check][Param] cannot find graph's output node %s in node_", output_name.c_str());
       return false;
     }

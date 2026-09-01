@@ -840,7 +840,7 @@ Status GraphManager::ModifyDataIndex(const Graph &graph, const std::map<std::str
 void GraphManager::WarningForDeprecatedOptions(const std::map<std::string, std::string> &options) const {
   const auto iter = options.find(OPTION_EXEC_DATA_INPUTS_SHAPE_RANGE);
   if (iter != options.cend()) {
-    GELOGW("WARNING: Option %s is deprecated and will be remove in future version, no need set",
+    GELOGW("WARNING: Option %s is deprecated and will be removed in future versions, no need set",
            OPTION_EXEC_DATA_INPUTS_SHAPE_RANGE);
   }
 }
@@ -1553,7 +1553,8 @@ Status GraphManager::ResortDynamicBatchInput(const std::vector<std::vector<int64
   GE_CHK_STATUS_RET(multibatch::UpdateDataShapeByUserInput(), "Update data shape by user input failed.");
 
   multibatch::SortDataNodesByIndex(data_nodes);
-  GE_CHK_STATUS_RET(UpdateMultiBatchContext(data_nodes, batch_shapes, data_to_dynamic_info), "Update ");
+  GE_CHK_STATUS_RET(UpdateMultiBatchContext(data_nodes, batch_shapes, data_to_dynamic_info),
+                    "Failed to update multi-batch context.");
   return SUCCESS;
 }
 
@@ -2072,7 +2073,7 @@ Status GraphManager::RunGraph(const GraphId &graph_id, const std::vector<Tensor>
   std::vector<gert::Tensor> gert_outputs;
   ret = RunGraph(graph_id, tensors_view, gert_outputs);
   if (ret != SUCCESS) {
-    GELOGE(ret, "[Run][Graph]failed, session_id:%" PRIu64 " graph_id=%u.", session_id, graph_id);
+    GELOGE(ret, "[Run][Graph] failed, session_id:%" PRIu64 " graph_id=%u.", session_id, graph_id);
     REPORT_INNER_ERR_MSG("E19999", "GraphManager RunGraph failed, session_id:%" PRIu64 " graph_id=%u.", session_id,
                          graph_id);
     return ret;
@@ -2492,7 +2493,7 @@ Status GraphManager::ParseOptions(const std::map<std::string, std::string> &opti
   if ((ret != SUCCESS) || (options_.stream_num == 0)) {
     GELOGE(GE_GRAPH_OPTIONS_INVALID,
            "[Parse][Option] Key:ge.stream_num, its value %d is invalid, "
-           "must be not equal zero.",
+           "must not be equal to zero.",
            options_.stream_num);
     return GE_GRAPH_OPTIONS_INVALID;
   }
@@ -2809,8 +2810,8 @@ Status GraphManager::ParseParallelNum(const std::string &parallel_num, const std
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({key.c_str(), parallel_num.c_str(),
                                                          "Parameter parallel num cannot be smaller than 1."}));
-    GELOGE(GE_GRAPH_OPTIONS_INVALID, "[Check][Param] parallel num:%s of %s must bigger than 0", parallel_num.c_str(),
-           key.c_str());
+    GELOGE(GE_GRAPH_OPTIONS_INVALID, "[Check][Param] parallel num:%s of %s must be greater than 0",
+           parallel_num.c_str(), key.c_str());
     return GE_GRAPH_OPTIONS_INVALID;
   }
   return SUCCESS;
@@ -3151,8 +3152,8 @@ bool GraphManager::IsCheckpointGraph(const ComputeGraphPtr &compute_graph) const
         return false;
       }
     } else if (op->GetType() != kSend && op->GetType() != kRecv) {
-      GELOGI("this node is not allow in checkpoint sub graph, node_type: %s, node_name: %s.", op->GetType().c_str(),
-             op->GetName().c_str());
+      GELOGI("this node type is not allowed in checkpoint sub graph, node_type: %s, node_name: %s.",
+             op->GetType().c_str(), op->GetName().c_str());
       return false;
     }
   }
@@ -3813,7 +3814,7 @@ Status GraphManager::CheckIncreBuildAndPreRun(const std::shared_ptr<RunArgs> &ar
   if (graph_node->GetBuildFlag()) {
     ReturnError(args->callback, PARAM_INVALID,
                 "[Check][Param] The graph " + std::to_string(graph_node->GetGraphId()) +
-                    " need to re-build, you should remove it"
+                    " needs to re-build, you should remove it"
                     " from GE first, then AddGraph again and rebuild it.");
     return PARAM_INVALID;
   }
@@ -3924,7 +3925,7 @@ void GraphManager::PreRunThreadV2() {
 
 void GraphManager::PushRunArgs(const std::shared_ptr<RunArgs> &args) const {
   if (executor_ == nullptr) {
-    GELOGW("Just compile model, not support execute.");
+    GELOGW("Compile-only mode does not support execution.");
     return;
   }
 
@@ -5319,7 +5320,7 @@ Status GraphManager::ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_i
   bool is_fork_exist = false;
   GE_ASSERT_SUCCESS(CheckGraphExisted(forked_graph_id, is_fork_exist));
   if (is_fork_exist) {
-    GELOGE(PARAM_INVALID, "Forked Graph %u is already exist", forked_graph_id);
+    GELOGE(PARAM_INVALID, "Forked Graph %u already exists", forked_graph_id);
     return PARAM_INVALID;
   }
 

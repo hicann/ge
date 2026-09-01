@@ -50,7 +50,7 @@ class OfflineOptimizer {
  private:
   void AddPass(const char *name, std::unique_ptr<Pass> pass) {
     if (pass == nullptr) {
-      GELOGW("The pass %s initialized failed, skip it", name);
+      GELOGW("The pass %s failed to initialize, skip it.", name);
       return;
     }
     pass->SetLoweringOption(optimize_option_);
