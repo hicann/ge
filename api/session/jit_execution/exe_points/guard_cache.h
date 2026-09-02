@@ -56,6 +56,8 @@ class GuardCheckCache {
    * @return 返回保存的 ExecutionPointModel 指针，若为nullptr则视为没找到
    */
   GuardedExecutionPoint *FindGuardedExecutionPoint(const std::vector<gert::Tensor> &input_tensor);
+  GuardedExecutionPoint *FindGuardedExecutionPointByCompiledGraphId(uint32_t compiled_graph_id,
+                                                                    const std::vector<gert::Tensor> &input_tensor);
 
   GuardedExecutionPoint *FindOrCreateGuarded(const std::vector<gert::Tensor> &inputs);
 

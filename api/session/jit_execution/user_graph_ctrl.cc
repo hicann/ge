@@ -158,6 +158,20 @@ Status UserGraphControl::EnsureWholeGraphLoaded(const std::map<AscendString, Asc
   return SUCCESS;
 }
 
+Status UserGraphControl::DumpDebugJSONPrint(uint32_t flags, AscendString &json_result) {
+  uint32_t graph_instance_id = 0U;
+  if (whole_graph_added_) {
+    graph_instance_id = whole_graph_instance_id_;
+  } else {
+    const auto iter = user_graph_id_to_ins_id.find(user_graph_id_);
+    if (iter == user_graph_id_to_ins_id.end()) {
+      return GE_GRAPH_NOT_BUILT;
+    }
+    graph_instance_id = iter->second;
+  }
+  return graph_manager_.DumpDebugJSONPrint(graph_instance_id, flags, json_result);
+}
+
 Status UserGraphControl::RunGraph(const std::vector<ge::Tensor> &inputs, std::vector<ge::Tensor> &outputs,
                                   uint64_t session_id) {
   GE_ASSERT_SUCCESS(EnsureWholeGraphAdded());

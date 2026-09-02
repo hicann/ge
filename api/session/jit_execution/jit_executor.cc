@@ -61,9 +61,12 @@ static aclError SetDeviceCached(int32_t device_id) {
 }
 
 void PrepareOutputs(const ExecutionPoint &ep, std::vector<gert::Tensor> &outputs,
-                    std::vector<GeTensor> &output_ge_tensors) {
-  outputs.resize(ep.GetEpOutNum());
-  output_ge_tensors.resize(ep.GetEpOutNum());
+                    std::vector<GeTensor> &output_ge_tensors, bool need_ge_tensors = true) {
+  const size_t out_num = ep.GetEpOutNum();
+  outputs.resize(out_num);
+  if (need_ge_tensors) {
+    output_ge_tensors.resize(out_num);
+  }
   for (auto &tensor : outputs) {
     tensor.SetOriginFormat(FORMAT_RESERVED);
     tensor.SetData(gert::TensorData());
@@ -143,8 +146,14 @@ Status FreeInputsAllocByJit(std::vector<MemBlock *> &input_blocks) {
   return SUCCESS;
 }
 
-Status GetAllCondInputData(const ComputeGraphPtr &graph, std::set<size_t> &data_idx) {
+Status GetAllCondInputData(const ComputeGraphPtr &graph, std::set<size_t> &data_idx,
+                           std::map<ComputeGraph *, std::set<size_t>> &cache) {
   GE_ASSERT_NOTNULL(graph);
+  auto it = cache.find(graph.get());
+  if (it != cache.end()) {
+    data_idx = it->second;
+    return SUCCESS;
+  }
   for (const auto &node : graph->GetAllNodes()) {
     auto cond_input = SymbolicInferUtil::GetCondInput(node);
     if (cond_input == nullptr) {
@@ -158,14 +167,19 @@ Status GetAllCondInputData(const ComputeGraphPtr &graph, std::set<size_t> &data_
                    cond_input->GetNamePtr());
     data_idx.insert(static_cast<size_t>(data_index));
   }
+  cache[graph.get()] = data_idx;
   return SUCCESS;
 }
 
 Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const ComputeGraphPtr &graph,
-                          std::vector<gert::Tensor> &compile_inputs) {
+                          std::vector<gert::Tensor> &compile_inputs,
+                          std::map<ComputeGraph *, std::set<size_t>> &cond_input_cache, std::mutex &cache_mutex) {
   std::set<size_t> need_host_data_idx;
-  GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx));
-  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, need_host_data_idx));
+  {
+    std::lock_guard<std::mutex> locker(cache_mutex);
+    GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx, cond_input_cache));
+    GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, need_host_data_idx));
+  }
 
   compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
   for (size_t data_idx : need_host_data_idx) {
@@ -182,26 +196,6 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
   return SUCCESS;
 }
 
-void MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ComputeGraphPtr &graph) {
-  if (graph == nullptr) {
-    return;
-  }
-  for (const auto &node : graph->GetDirectNode()) {
-    if (!OpTypeUtils::IsDataNode(node->GetType())) {
-      continue;
-    }
-    int32_t data_index = -1;
-    (void)AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_INDEX, data_index);
-    if (data_index < 0 || static_cast<size_t>(data_index) >= inputs.size()) {
-      continue;
-    }
-    if (gert::TensorPlacementUtils::IsOnHost(inputs[data_index].GetPlacement())) {
-      (void)AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, true);
-      GELOGI("mark data node %s input index %d as host tensor.", node->GetNamePtr(), data_index);
-    }
-  }
-}
-
 }  // namespace
 JitExecutor::JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
                          CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex)
@@ -211,6 +205,44 @@ JitExecutor::JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &t
       compile_context_(compile_context),
       cmc_(cmc),
       mutex_(mutex) {}
+
+std::vector<JitExecutor::DataNodeInfo> JitExecutor::GetOrCreateDataNodeInfos(const ComputeGraphPtr &graph) {
+  std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
+  auto [it, inserted] = data_node_cache_.try_emplace(graph.get());
+  if (!inserted) {
+    return it->second;
+  }
+  for (const auto &node : graph->GetDirectNode()) {
+    if (!OpTypeUtils::IsDataNode(node->GetType())) {
+      continue;
+    }
+    int32_t data_index = -1;
+    (void)AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_INDEX, data_index);
+    if (data_index < 0) {
+      continue;
+    }
+    it->second.push_back({node->GetOpDesc(), data_index});
+  }
+  return it->second;
+}
+
+void JitExecutor::MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ComputeGraphPtr &graph) {
+  if (graph == nullptr) {
+    return;
+  }
+  const auto data_nodes = GetOrCreateDataNodeInfos(graph);
+  for (const auto &data_node : data_nodes) {
+    const int32_t data_index = data_node.input_index;
+    if (static_cast<size_t>(data_index) >= inputs.size()) {
+      continue;
+    }
+    if (!gert::TensorPlacementUtils::IsOnHost(inputs[data_index].GetPlacement())) {
+      continue;
+    }
+    (void)AttrUtils::SetBool(data_node.op_desc, ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, true);
+    GELOGI("mark data node input index %d as host tensor.", data_index);
+  }
+}
 
 std::unique_ptr<JitExecutor> JitExecutor::Create(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue,
                                                  ExecutionOrder &order, CompileContext &compile_context,
@@ -242,6 +274,12 @@ Status JitExecutor::Finalize() {
   // 通过给jit挂外置allocator的方法必须在load
   // graph之前，因为LoadGraph接口中会默认create一个allocator，而在execute阶段会优先使用默认create的allocator 在load
   // graph之前外置allocator会导致load过程中去申请const、feature等内存，这就强制要求这个外置allocator的生命周期大于整个GE的生命周期，否则会在remove的时候释放const内存失败。所以不在JIT中外置allocator
+  {
+    std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
+    guarded_execution_cache_.clear();
+    cond_input_data_cache_.clear();
+    data_node_cache_.clear();
+  }
   auto sorted_geps_to_inner_graph_id = SortMapByValue(geps_to_inner_ge_graph_id_, false);
   for (const auto &gep_2_id : sorted_geps_to_inner_graph_id) {
     GELOGI("[Jit]RemoveGraph %u", gep_2_id.second);
@@ -317,11 +355,11 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
     JIT_ASSERT_SUCCESS(order_.FirstPoint(ge_tensors, ep), task);
   }
   GELOGD("Get EP[%ld] of USER_GRAPH[%u]", ep->GetId(), task.user_graph_id);
-
   std::vector<gert::Tensor> tensors0;
   GE_MAKE_GUARD(free_input_mem, [&task]() { (void)FreeInputsAllocByJit(task.inputs_memblocks); });
   std::set<size_t> keep_on_host_idxs;
   if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
+    std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
     JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs), task);
   }
   JIT_ASSERT_SUCCESS(CopyHostInputsToDevice(task, device_allocator_.get(), tensors0, keep_on_host_idxs), task);
@@ -334,10 +372,13 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
   auto outputs = &tensors1;
 
   while (ep != nullptr) {
-    PrepareOutputs(*ep, *outputs, ge_tensors);
+    const bool refresh_ge_tensors = !order_.HasNextPoint(*ep);
+    PrepareOutputs(*ep, *outputs, ge_tensors, refresh_ge_tensors);
     GE_ASSERT_SUCCESS(ProcessAndExecuteGraphAsync(task, stream_, *inputs, *outputs, ep));
-    for (size_t i = 0U; i < ge_tensors.size(); ++i) {
-      JIT_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToGeTensor((*outputs)[i], ge_tensors[i]), task);
+    if (refresh_ge_tensors) {
+      for (size_t i = 0U; i < ge_tensors.size(); ++i) {
+        JIT_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToGeTensor((*outputs)[i], ge_tensors[i]), task);
+      }
     }
     JIT_ASSERT_SUCCESS(order_.NextPoint(*ep, ge_tensors, ep), task);
     if (ep != nullptr) {
@@ -383,14 +424,17 @@ Status JitExecutor::Execute(UserGraphExecution &&task) {
   auto outputs = &tensors0;
 
   while (ep != nullptr) {
-    PrepareOutputs(*ep, *outputs, ge_tensors);
+    const bool refresh_ge_tensors = !order_.HasNextPoint(*ep);
+    PrepareOutputs(*ep, *outputs, ge_tensors, refresh_ge_tensors);
     if (ep->IsLast()) {
       outputs = task.rt_outputs;
     }
     const bool need_malloc = (!has_allocator && !ep->IsLast());
     GE_ASSERT_SUCCESS(ProcessAndExecuteGraphAsync(task, stream, *inputs, *outputs, ep, need_malloc));
-    for (size_t i = 0U; i < ge_tensors.size(); ++i) {
-      GE_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToGeTensor((*outputs)[i], ge_tensors[i]));
+    if (refresh_ge_tensors) {
+      for (size_t i = 0U; i < ge_tensors.size(); ++i) {
+        GE_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToGeTensor((*outputs)[i], ge_tensors[i]));
+      }
     }
     task.load_options.clear();
     GE_ASSERT_SUCCESS(order_.NextPoint(*ep, ge_tensors, ep));
@@ -416,37 +460,63 @@ Status JitExecutor::MallocOutputsForStatic(uint32_t guarded_ep_instance_id, cons
   return SUCCESS;
 }
 
+Status JitExecutor::GetOrCompileGuardedExecutionPoint(UserGraphExecution &task,
+                                                      const std::vector<gert::Tensor> &compile_inputs,
+                                                      ExecutionPoint *ep, rtStream_t stream,
+                                                      GuardedExecutionInfo &execution_info) {
+  GuardedExecutionCacheEntry cache_entry;
+  {
+    std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
+    const auto cache_it = guarded_execution_cache_.find(ep);
+    if (cache_it != guarded_execution_cache_.end()) {
+      cache_entry = cache_it->second;
+    }
+  }
+
+  if (cache_entry.valid) {
+    std::lock_guard<std::mutex> locker(mutex_);
+    execution_info.gep = ep->FindGuardedByCompiledGraphId(cache_entry.compiled_graph_id, compile_inputs);
+    if (execution_info.gep != nullptr && execution_info.gep->Compiled()) {
+      execution_info.instance_id = cache_entry.instance_id;
+      return SUCCESS;
+    }
+  }
+
+  std::lock_guard<std::mutex> locker(mutex_);
+  execution_info.gep = ep->FindOrCreateGuarded(compile_inputs);
+  JIT_ASSERT_NOTNULL(execution_info.gep, task);
+  GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u], session_id:%llu.",
+         execution_info.gep->GetCompiledGraphId(), execution_info.gep->Compiled(), ep->GetId(), task.user_graph_id,
+         task.session_id);
+
+  JIT_ASSERT_SUCCESS(CompileAndLoad(compile_inputs, execution_info.gep, execution_info.instance_id, stream,
+                                    task.load_options, task.session_id),
+                     task);
+  std::lock_guard<std::mutex> cache_locker(guarded_execution_cache_mutex_);
+  guarded_execution_cache_[ep] = {true, execution_info.gep->GetCompiledGraphId(), execution_info.instance_id};
+  return SUCCESS;
+}
+
 Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const rtStream_t stream,
                                                 const std::vector<gert::Tensor> &inputs,
                                                 std::vector<gert::Tensor> &outputs, ExecutionPoint *ep,
                                                 bool need_malloc_output) {
-  GuardedExecutionPoint *gep = nullptr;
   std::vector<gert::Tensor> compile_inputs;
-  GE_ASSERT_SUCCESS(BuildCompileInputs(inputs, ep->GetSlicedGraph(), compile_inputs));
-  uint32_t guarded_ep_instance_id;
-  {
-    std::lock_guard<std::mutex> locker(mutex_);
-    // 需要value
-    gep = ep->FindOrCreateGuarded(compile_inputs);
-    JIT_ASSERT_NOTNULL(gep, task);
-    GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u], session_id:%llu.",
-           gep->GetCompiledGraphId(), gep->Compiled(), ep->GetId(), task.user_graph_id, task.session_id);
-
-    // 需要value
-    JIT_ASSERT_SUCCESS(
-        CompileAndLoad(compile_inputs, gep, guarded_ep_instance_id, stream, task.load_options, task.session_id), task);
-  }
-  JIT_ASSERT_NOTNULL(gep, task);
-  GELOGD("ExecuteGraphWithStreamAsync GEP[ins_id:%u] of EP[%ld] USER_GRAPH[%u].", guarded_ep_instance_id,
-         gep->GetOwnerEp()->GetId(), task.user_graph_id);
+  GE_ASSERT_SUCCESS(BuildCompileInputs(inputs, ep->GetSlicedGraph(), compile_inputs, cond_input_data_cache_,
+                                       guarded_execution_cache_mutex_));
+  GuardedExecutionInfo execution_info;
+  GE_ASSERT_SUCCESS(GetOrCompileGuardedExecutionPoint(task, compile_inputs, ep, stream, execution_info));
+  GELOGD("ExecuteGraphWithStreamAsync GEP[ins_id:%u] of EP[%ld] USER_GRAPH[%u].", execution_info.instance_id,
+         execution_info.gep->GetOwnerEp()->GetId(), task.user_graph_id);
   GE_ASSERT_RT_OK(aclrtSetDevice(device_id_));
 
+  if (need_malloc_output) {
+    GE_ASSERT_SUCCESS(MallocOutputsForStatic(execution_info.instance_id, execution_info.gep, outputs));
+  }
   // 非最后一张slice
   // graph以外的图需要尝试进行output内存的申请，因为子图间的output是jit内部给的，静态图场景且没有外置allocator时需要手动申请内存
-  if (need_malloc_output) {
-    GE_ASSERT_SUCCESS(MallocOutputsForStatic(guarded_ep_instance_id, gep, outputs));
-  }
-  JIT_ASSERT_SUCCESS(graph_manager_.ExecuteGraphWithStreamAsync(guarded_ep_instance_id, stream, inputs, outputs), task);
+  JIT_ASSERT_SUCCESS(
+      graph_manager_.ExecuteGraphWithStreamAsync(execution_info.instance_id, stream, compile_inputs, outputs), task);
   return SUCCESS;
 }
 

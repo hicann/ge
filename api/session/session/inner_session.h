@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <mutex>
 #include "common/dump/dump_properties.h"
 #include "framework/common/ge_types.h"
 #include "ge/ge_api_types.h"
@@ -164,6 +165,8 @@ class InnerSession {
   std::map<std::string, std::string> options_;
   // 在UserGraphsManager/UserHybridGraphManager场景中，用户持有的graph_id不能直接传递给graph_manager_,容易犯错
   GraphManager graph_manager_;
+  mutable std::mutex run_graph_mode_mutex_;
+  std::map<uint32_t, RunGraphMode> run_graph_modes_;
   ModelExecutor model_executor_;
   std::mutex resource_mutex_;  // AddGraph, RemoveGraph and Finalize use
   Status CheckPaRemappedResult(const uint64_t va, const uint64_t len,

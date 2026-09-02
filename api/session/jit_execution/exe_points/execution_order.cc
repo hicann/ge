@@ -88,6 +88,11 @@ ExecutionPoint *ExecutionOrder::GetFirstPoint() {
   return nullptr;
 }
 
+bool ExecutionOrder::HasNextPoint(const ExecutionPoint &ep) const {
+  std::lock_guard<std::mutex> locker(mutex_);
+  return HasNext(ep);
+}
+
 Status ExecutionOrder::NextPoint(const ExecutionPoint &ep, const std::vector<GeTensor> &inputs,
                                  ExecutionPoint *&next_ep) {
   std::lock_guard<std::mutex> locker(mutex_);
