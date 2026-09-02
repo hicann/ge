@@ -83,6 +83,7 @@ function executSt(){
 function main(){
     if [ "${GIT_TARGET_BRANCH}" == "master" ] || [ "${GIT_TARGET_BRANCH}" == "develop" ]; then
         sudo update-alternatives --set gcc /usr/bin/gcc-15
+        sudo update-alternatives --set lcov /opt/lcov-2.3.2/bin/lcov
     else
         sudo update-alternatives --set gcc /usr/bin/gcc-14
     fi
