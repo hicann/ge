@@ -12,44 +12,38 @@ CBLAS接口主要分为两类功能：执行矩阵-向量乘法和执行矩阵-�
 
 具体替换方案如下：
 
-|  |  |  |
-| --- | --- | --- |
 | 新/老接口 | CBLAS接口 | aclnn组合方案 |
+| --- | --- | --- |
 | 接口名称 | aclblasGemvEx<br>aclblasCreateHandleForGemvEx | aclnnMatmul(n=1) + aclnnMuls + aclnnAdd |
 | 数据类型 | FLOAT16/FLOAT | FLOAT16/FLOAT |
 | 公式 | y = αAx + βy | 四步：Matmul → Muls → Muls → Add |
 
-|  |  |  |
+| 新/老接口 | CBLAS接口 | aclnn组合方案 |
 | --- | --- | --- |
-| 新/老接口 | CBLAS接口 | aclnn 组合方案 |
 | 接口名称 | aclblasHgemv<br>aclblasCreateHandleForHgemv | aclnnMatmul(n=1) + aclnnMuls + aclnnAdd |
 | 数据类型 | FLOAT16（固定） | FLOAT16（固定） |
 | 公式 | y = αAx + βy | 四步：Matmul → Muls → Muls → Add |
 
-|  |  |  |
+| 新/老接口 | CBLAS接口 | aclnn组合方案 |
 | --- | --- | --- |
-| 新/老接口 | CBLAS接口 | aclnn 组合方案 |
 | 接口名称 | aclblasS8gemv<br>aclblasCreateHandleForS8gemv | aclnnQuantMatmulV5(n=1) + aclnnMuls + aclnnAdd |
 | 数据类型 | INT8 × INT8输入 → INT32输出 | INT8输入 → INT32输出 |
 | 公式 | y = αAx + βy | 四步：QuantMatmulV5 → Muls(INT32) → Muls(INT32) → Add |
 
-|  |  |  |
+| 新/老接口 | CBLAS接口 | aclnn组合方案 |
 | --- | --- | --- |
-| 新/老接口 | CBLAS接口 | aclnn 组合方案 |
 | 接口名称 | aclblasGemmEx<br>aclblasCreateHandleForGemmEx | aclnnMatmul + aclnnMuls + aclnnAdd |
 | 数据类型 | FLOAT16/FLOAT | FLOAT16/FLOAT |
 | 公式 | C = alpha × op(A) × op(B) + beta × C | 四步：Matmul → Muls(alpha) → Muls(beta) → Add |
 
-|  |  |  |
+| 新/老接口 | aclblas | aclnn组合方案 |
 | --- | --- | --- |
-| 新/老接口 | aclblas | aclnn 组合方案 |
 | 接口名称 | aclblasHgemm<br>aclblasCreateHandleForHgemm | aclnnMatmul + aclnnMuls + aclnnAdd |
 | 数据类型 | FLOAT（固定） | FLOAT（固定） |
 | 公式 | C = alpha × op(A) × op(B) + beta × C | 四步：Matmul → Muls(alpha) → Muls(beta) → Add |
 
-|  |  |  |
+| 新/老接口 | aclblas | aclnn组合方案 |
 | --- | --- | --- |
-| 新/老接口 | aclblas | aclnn 组合方案 |
 | 接口名称 | aclblasS8gemm<br>aclblasCreateHandleForS8gemm | aclnnQuantMatmulV5 + aclnnMuls + aclnnAdd |
 | 数据类型 | INT8 × INT8输入 → INT32输出 | INT8输入 → INT32输出 |
 | 公式 | C = alpha × A × B + beta × C | 四步：QuantMatmulV5 → Muls(INT32) → Muls(INT32) → Add |
