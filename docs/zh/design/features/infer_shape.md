@@ -432,6 +432,7 @@ PostProcess(compute_graph)             // 后处理 wrapper
 ```
 
 > **说明**：`SymbolicShapeInference` 类（symbolic_shape_inference.h）仅有一个公有方法 `Infer()`。`Simplify()` 是定义在匿名命名空间中的自由函数（symbolic_shape_inference.cc），由 `Infer()` 在推导结束后内部调用（symbolic_shape_inference.cc），并非独立的类方法。`PreProcess()` 和 `PostProcess()` 是 `AutofuseOptimize` 类的 wrapper 函数，分别封装了预处理图优化和后处理逻辑。
+Autofuse lowering 前会为缺少符号属性且 Shape 完全静态的输出补齐常量符号 Shape，兼容前序流程新插入或改写节点后符号属性未同步的场景。
 
 ### 7.4 算子实现示例
 

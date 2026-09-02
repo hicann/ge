@@ -946,7 +946,8 @@ Status TbeOpStoreAdapter::GetRangeLimit(const NodeGeneralInfoPtr &node_info_ptr,
     } else if (range_limit_type == RangeLimitType::DYNAMIC) {
       (void)GetRangeLimitType(node_ptr, *(node_info_ptr->op_info.get()), node_info_ptr->is_limited_range);
     } else {
-      FE_LOGW("Invalid limited value for node[%s].", node_ptr->GetName().c_str());
+      FE_LOGW("Invalid range limit type[%d] for node[%s], valid values: DEFAULT(0)/LIMITED(1)/UNLIMITED(2)/DYNAMIC(3).",
+              static_cast<int32_t>(range_limit_type), node_ptr->GetName().c_str());
       return FAILED;
     }
   } else {
@@ -2876,7 +2877,7 @@ Status TbeOpStoreAdapter::GeneralizeNode(const ge::NodePtr &node, const te::TbeO
   node->GetOpDesc()->DelAttr(ATTR_NAME_UNKNOWN_SHAPE);
   FE_LOGD("Begin to run function[TeGeneralize], node[%s, %s].", node->GetName().c_str(), node->GetType().c_str());
   if (!TeGeneralize(op_info, generalize_type, node)) {
-    FE_LOGW("[GraphOptimizePrepare][ShapeAndValueGeneralize][GeneralizeGraph] Node[%s]: failed to generalize node.",
+    FE_LOGW("[GraphOptimizePrepare][ShapeAndValueGeneralize][GeneralizeGraph] type[%s]: failed to generalize node.",
             op_desc->GetType().c_str());
     return FAILED;
   }
@@ -3058,7 +3059,7 @@ Status TbeOpStoreAdapter::FeedNodeGeneralInfoFromOpStore(const ge::NodePtr &node
   FE_MAKE_SHARED(op_info_ptr = std::make_shared<te::TbeOpInfo>(tbe_op_info_bk), return OP_STORE_MAKE_SHARED_FAILED);
   node_info_ptr->is_found_in_opstore = false;
   node_info_ptr->op_info = op_info_ptr;
-  FE_LOGD("Could not found the op in opstores, tbeopinfo is default, node[%s, %s].", node_ptr->GetName().c_str(),
+  FE_LOGD("Could not find the op in opstores, tbeopinfo is default, node[%s, %s].", node_ptr->GetName().c_str(),
           node_ptr->GetType().c_str());
   return SUCCESS;
 }

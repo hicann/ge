@@ -228,8 +228,7 @@ bool ModelBinaryCompiler::NeedCopyTensorSliceInfo(const ge::NodePtr &ori_node,
   const uint32_t manual_mode = 0;
   slice_info_ptr = ori_node->GetOpDesc()->TryGetExtAttr(ffts::kAttrSgtStructInfo, slice_info_ptr);
   if (slice_info_ptr != nullptr && slice_info_ptr->thread_mode == manual_mode) {
-    FE_LOGD("slice_info_ptr != nullptr && slice_info_ptr->thread_mode == manual_mode node[%s]",
-            ori_node->GetName().c_str());
+    FE_LOGD("Node[%s] is in manual thread mode with valid slice info.", ori_node->GetName().c_str());
     return true;
   }
 

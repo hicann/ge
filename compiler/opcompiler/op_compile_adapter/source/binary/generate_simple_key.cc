@@ -398,7 +398,7 @@ bool GenerateSimpleKey::CheckParamSetDefaultVal() {
   if (simpleKeyMode_ != SimpleKeyModeType::SIMPLE_MODE && simpleKeyMode_ != SimpleKeyModeType::COMPATIBLE_MODE &&
       simpleKeyMode_ != SimpleKeyModeType::CUSTOM_MODE) {
     TE_ERRLOG(
-        "opType [%s] simpleKeyMode [%d] is not supported, valid values are SIMPLE_MODE/COMPATIBLE_MODE/CUSTOM_MODE.",
+        "opType [%s] simpleKeyMode [%d] is not supported, supported modes: SIMPLE_MODE/COMPATIBLE_MODE/CUSTOM_MODE.",
         opType_.c_str(), simpleKeyMode_);
     return false;
   }

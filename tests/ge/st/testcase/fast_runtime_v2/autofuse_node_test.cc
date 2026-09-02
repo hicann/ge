@@ -281,12 +281,13 @@ TEST_F(AutofuseNodeST, CheckAutofuseSoNoBinFileBuffer) {
   (void)memcpy_s(so_bin.get(), bin_len, so_bin_str.c_str(), bin_len);
   ge::OpSoBinPtr so_bin_ptr = ge::MakeShared<ge::OpSoBin>(so_name, vendor_name, std::move(so_bin), bin_len);
 
-  // 修改路径为新创建的so
+  // 设置为不存在的路径，确保未命中 buffer 时不会走文件路径兜底
   std::string so_path_for_test = vendor_name + "/1.so";
+  (void)ge::AttrUtils::SetStr(fused_graph_node->GetOpDesc(), "bin_file_path", so_path_for_test);
   system(("rm -f " + so_path_for_test).c_str());
 
   std::map<std::string, ge::OpSoBinPtr> bin_file_buffer_map;
-  bin_file_buffer_map[so_path_for_test] = so_bin_ptr;
+  bin_file_buffer_map[vendor_name + "/2.so"] = so_bin_ptr;
   // 创建bin_file_buffer
   graph->SetExtAttr<std::map<string, OpSoBinPtr>>("bin_file_buffer", bin_file_buffer_map);
 

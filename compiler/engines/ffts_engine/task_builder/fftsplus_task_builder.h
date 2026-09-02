@@ -249,7 +249,7 @@ class FFTSPlusTaskBuilder {
                                size_t iLabel) {
     for (size_t i = iLabel; i < label_list.size(); i++) {
       if (label_list[i] >= static_cast<uint32_t>(ffts_plus_task_def->ffts_plus_ctx_size())) {
-        FFTS_LOGD("Label list ctxid %u bigger then ffts ctx size.", label_list[i]);
+        FFTS_LOGD("Label list ctxid %u bigger than ffts ctx size.", label_list[i]);
         return FAILED;
       }
       domi::FftsPlusCtxDef *ffts_plus_ctx = ffts_plus_task_def->mutable_ffts_plus_ctx(static_cast<int>(label_list[i]));
@@ -282,7 +282,7 @@ class FFTSPlusTaskBuilder {
     ctx->add_successor_list(label_list[0]);
 
     if (label_list[0] >= static_cast<uint32_t>(ffts_plus_task_def->ffts_plus_ctx_size())) {
-      FFTS_LOGD("Label list 0 ctxid %u bigger then ffts ctx size.", label_list[0]);
+      FFTS_LOGD("Label list 0 ctxid %u bigger than ffts ctx size.", label_list[0]);
       return FAILED;
     }
 

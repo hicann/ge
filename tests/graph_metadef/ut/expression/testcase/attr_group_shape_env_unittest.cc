@@ -48,6 +48,49 @@ TEST_F(AttributeGroupShapeEnvUt, ShapeEnvAttrDeserialize_Succ) {
   EXPECT_EQ(true, shape_env1.HasSymbolAssertInfo(sym::Gt(Symbol("s0") + Symbol(1), Symbol("s1"))));
 }
 
+TEST_F(AttributeGroupShapeEnvUt, ShapeEnvAttrDeserialize_InvalidExpression) {
+  const auto expect_deserialize_failed = [](const proto::AttrGroupDef &attr_group_def) {
+    ShapeEnvAttr shape_env;
+    // Invalid expressions fail either inside the sub-deserializer (GRAPH_FAILED) or at the
+    // GE_ASSERT_SUCCESS boundary in Deserialize, whose ErrorResult converts to PARAM_INVALID.
+    const graphStatus ret = shape_env.Deserialize(attr_group_def, nullptr);
+    EXPECT_TRUE(ret == GRAPH_FAILED || ret == PARAM_INVALID) << "ret=" << ret;
+  };
+
+  {
+    proto::AttrGroupDef attr_group_def;
+    (*attr_group_def.mutable_shape_env_attr_group()->mutable_symbol_to_value())["s0*s1"] = 1;
+    expect_deserialize_failed(attr_group_def);
+  }
+  {
+    proto::AttrGroupDef attr_group_def;
+    (*attr_group_def.mutable_shape_env_attr_group()->mutable_value_to_symbol())[1].add_symbols("s0*s1");
+    expect_deserialize_failed(attr_group_def);
+  }
+  {
+    proto::AttrGroupDef attr_group_def;
+    auto &replacement = (*attr_group_def.mutable_shape_env_attr_group()->mutable_replacements())["s0*s1"];
+    replacement.set_replace_expr("s0");
+    expect_deserialize_failed(attr_group_def);
+  }
+  {
+    proto::AttrGroupDef attr_group_def;
+    auto &replacement = (*attr_group_def.mutable_shape_env_attr_group()->mutable_replacements())["s0"];
+    replacement.set_replace_expr("s0*s1");
+    expect_deserialize_failed(attr_group_def);
+  }
+  {
+    proto::AttrGroupDef attr_group_def;
+    attr_group_def.mutable_shape_env_attr_group()->add_symbol_check_infos()->set_expr("s0*s1");
+    expect_deserialize_failed(attr_group_def);
+  }
+  {
+    proto::AttrGroupDef attr_group_def;
+    attr_group_def.mutable_shape_env_attr_group()->add_symbol_assert_infos()->set_expr("s0*s1");
+    expect_deserialize_failed(attr_group_def);
+  }
+}
+
 TEST_F(AttributeGroupShapeEnvUt, CreateSymbolDuckMode_Succ) {
   auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDuck));
   Symbol sym = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 2));

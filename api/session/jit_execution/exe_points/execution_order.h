@@ -45,6 +45,7 @@ class ExecutionOrder {
   Status NextPoint(const ExecutionPoint &ep, const std::vector<GeTensor> &inputs, ExecutionPoint *&next_ep);
 
   ExecutionPoint *GetFirstPoint();
+  bool HasNextPoint(const ExecutionPoint &ep) const;
   const std::vector<gert::Tensor> &GetInputTensors(bool &is_unknown_input_shape);
   UserGraph GetUserGraph() const;
 
@@ -58,7 +59,7 @@ class ExecutionOrder {
   UserGraph user_graph_;
   // 临时实现
   // 若不同输入shape产生不同的切图结果，需要切换为树实现
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::vector<std::unique_ptr<ExecutionPoint>> slice_graphs_;
   // todo add io relation between slicing graph later
   std::vector<gert::Tensor> graph_inputs_;

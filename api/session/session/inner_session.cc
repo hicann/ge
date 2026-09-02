@@ -244,6 +244,10 @@ Status InnerSession::Finalize() {
   if (user_graphs_manager_ != nullptr) {
     user_graphs_manager_->Finalize();
   }
+  {
+    std::lock_guard<std::mutex> mode_lock(run_graph_mode_mutex_);
+    run_graph_modes_.clear();
+  }
   Status ret = InnerFinalize();
   if (ret != SUCCESS) {
     // Subsequent code execution is required, so no return is required
@@ -344,6 +348,10 @@ Status InnerSession::AddGraph(uint32_t graph_id, const Graph &graph,
   GELOGD("The device id is %u", device_id);
   (void)ProfilingInit::Instance().SetDeviceIdByModelId(graph_id, device_id);
   ProfilingManager::Instance().SetGraphIdToDeviceMap(graph_id, device_id);
+  {
+    std::lock_guard<std::mutex> mode_lock(run_graph_mode_mutex_);
+    run_graph_modes_.emplace(graph_id, RunGraphMode::kRunGraphModeEnd);
+  }
   GELOGI("[InnerSession:%" PRIu64 "] Add graph success, graph_id=%u.", session_id_, graph_id);
   return SUCCESS;
 }
@@ -389,6 +397,11 @@ Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
     REPORT_INNER_ERR_MSG("E19999", "GraphManager AddGraphWithCopy failed, InnerSession:%" PRIu64 " graphid: %u.",
                          session_id_, graph_id);
     return ret;
+  }
+
+  {
+    std::lock_guard<std::mutex> mode_lock(run_graph_mode_mutex_);
+    run_graph_modes_.emplace(graph_id, RunGraphMode::kRunGraphModeEnd);
   }
 
   GELOGI("[InnerSession:%" PRIu64 "] add graph success, graph_id=%u.", session_id_, graph_id);
@@ -515,6 +528,10 @@ Status InnerSession::RemoveGraph(uint32_t graph_id) {
     REPORT_INNER_ERR_MSG("E19999", "GraphManager RemoveGraph failed, InnerSession:%" PRIu64 ", graph_id=%u.",
                          session_id_, graph_id);
     return ret;
+  }
+  {
+    std::lock_guard<std::mutex> mode_lock(run_graph_mode_mutex_);
+    run_graph_modes_.erase(graph_id);
   }
   GELOGI("[InnerSession:%" PRIu64 "] Remove graph success, graph_id=%u.", session_id_, graph_id);
   return SUCCESS;
@@ -891,7 +908,13 @@ Status InnerSession::CheckPaRemappedResult(const uint64_t va, const uint64_t len
   return PARAM_INVALID;
 }
 Status InnerSession::ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_id) {
-  return graph_manager_.ForkGraph(origin_graph_id, forked_graph_id);
+  const Status ret = graph_manager_.ForkGraph(origin_graph_id, forked_graph_id);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  std::lock_guard<std::mutex> mode_lock(run_graph_mode_mutex_);
+  run_graph_modes_.emplace(forked_graph_id, RunGraphMode::kRunGraphModeEnd);
+  return SUCCESS;
 }
 
 Status InnerSession::GetCompiledFlag(uint32_t graph_id, bool &flag) const {
@@ -927,13 +950,23 @@ void InnerSession::SetDFlowSession(const std::shared_ptr<DFlowSessionImpl> &dflo
 }
 
 Status InnerSession::GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const {
-  GE_ASSERT_NOTNULL(user_graphs_manager_);
-  return user_graphs_manager_->GetRunGraphMode(graph_id, mode);
+  std::lock_guard<std::mutex> lock(run_graph_mode_mutex_);
+  const auto iter = run_graph_modes_.find(graph_id);
+  if (iter == run_graph_modes_.end()) {
+    return GE_GRAPH_GRAPH_NOT_EXIST;
+  }
+  mode = iter->second;
+  return SUCCESS;
 }
 
 Status InnerSession::SetRunGraphMode(uint32_t graph_id, const RunGraphMode &mode) {
-  GE_ASSERT_NOTNULL(user_graphs_manager_);
-  return user_graphs_manager_->SetRunGraphMode(graph_id, mode);
+  std::lock_guard<std::mutex> lock(run_graph_mode_mutex_);
+  const auto iter = run_graph_modes_.find(graph_id);
+  if (iter == run_graph_modes_.end()) {
+    return GE_GRAPH_GRAPH_NOT_EXIST;
+  }
+  iter->second = mode;
+  return SUCCESS;
 }
 
 Status InnerSession::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer) {

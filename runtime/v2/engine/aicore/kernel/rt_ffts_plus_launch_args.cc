@@ -304,11 +304,13 @@ ge::graphStatus RtFFTSKernelLaunchArgs::Init(const RtFFTSKernelLaunchArgs::Compu
 
 ge::graphStatus RtFFTSKernelLaunchArgs::RedirectTilingAddr() {
   if (!ge::IntegerChecker<uint16_t>::Compat(args_desc_.offsets[kTilingData])) {
-    GELOGE(ge::FAILED, "TilingData offset overflow %zu", args_desc_.offsets[kTilingData]);
+    GELOGE(ge::FAILED, "TilingData offset %zu overflow, max allowed is %u.", args_desc_.offsets[kTilingData],
+           std::numeric_limits<uint16_t>::max());
     return ge::GRAPH_FAILED;
   }
   if (!ge::IntegerChecker<uint16_t>::Compat(args_desc_.offsets[kTailTilingData])) {
-    GELOGE(ge::FAILED, "Tail tilingData offset overflow %zu", args_desc_.offsets[kTailTilingData]);
+    GELOGE(ge::FAILED, "Tail tilingData offset %zu overflow, max allowed is %u.", args_desc_.offsets[kTailTilingData],
+           std::numeric_limits<uint16_t>::max());
     return ge::GRAPH_FAILED;
   }
   tiling_data_.Init(node_desc_.max_tiling_data, GetArgsPointer<void>(kTilingData));

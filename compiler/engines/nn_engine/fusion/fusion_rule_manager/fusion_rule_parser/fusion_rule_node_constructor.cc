@@ -343,11 +343,10 @@ Status FusionRuleAnchorConstructor::AddEdge(FusionRuleAnchorPtr src, FusionRuleA
       // outputs' input anchor can have two: one from OriginGraph, another one from FusionGraph
       for (const auto &peer_anchor : dst->peer_anchors_) {
         FE_CHECK(peer_anchor.lock() == nullptr,
-                 REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][AddEdge] Geted peer anchor is null."),
-                 return ILLEGAL_RULE);
+                 REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][AddEdge] Got peer anchor is null."), return ILLEGAL_RULE);
         auto node = peer_anchor.lock()->GetOwnerNode();
 
-        FE_CHECK(node == nullptr, REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][AddEdge] Geted peer node is null."),
+        FE_CHECK(node == nullptr, REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][AddEdge] Got peer node is null."),
                  return ILLEGAL_RULE);
         if (rule_nodes.find(node) != rule_nodes.end()) {
           REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][AddEdge] Failed to add peer anchor of node %s %d.",

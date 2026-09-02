@@ -14,14 +14,23 @@
 #include <cstdint>
 #include <deque>
 #include <iomanip>
+#include <limits>
+#include <map>
+#include <memory>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/host_cpu_fusion_attr.h"
+#include "common/ge_common/ge_types.h"
+#include "common/helper/custom_op_registry_builder.h"
+#include "common/helper/custom_op_so_loader.h"
+#include "common/util/mem_utils.h"
 #include "host_cpu_engine/host_cpu_engine.h"
+#include "graph/custom_op_factory.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/op_so_bin.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
@@ -31,10 +40,9 @@ namespace {
 constexpr size_t kMaxGeneratedSoSize = 10U * 1024U * 1024U;
 constexpr char kHostCpuEngineName[] = "DNN_VM_HOST_CPU";
 constexpr char kHostCpuKernelLibName[] = "DNN_VM_HOST_CPU_OP_STORE";
-constexpr char kHostCpuTaskKernelLibName[] = "HOSTCPUKernel";
-constexpr char kOpKernelLibAttr[] = "opKernelLib";
 constexpr char kSmallShapeHostCpu[] = "SmallShapeHostcpu";
 constexpr char kResourceListAttr[] = "_resource_list";
+constexpr char kSoBufferAttr[] = "bin_file_buffer";
 
 bool IsValidFusedHostCpuSoElf(const std::vector<uint8_t> &data) {
   return (data.size() >= 20U) && (data.size() <= kMaxGeneratedSoSize) && (data[0] == 0x7FU) && (data[1] == 'E') &&
@@ -132,7 +140,8 @@ bool IsCandidate(const NodePtr &node, const HostCpuFusionOpSupportChecker &op_su
     GELOGD("Skip HostCPU fusion node[%s]: OpDesc is null.", node->GetNamePtr());
     return false;
   }
-  if (node->GetType() == kFusedHostCpuOpType) {
+  bool generated = false;
+  if (AttrUtils::GetBool(node->GetOpDesc(), kFusedHostCpuGenerated, generated) && generated) {
     GELOGD("Skip HostCPU fusion node[%s]: node is already fused.", node->GetNamePtr());
     return false;
   }
@@ -318,10 +327,15 @@ std::vector<NodePtr> GetComponentSinks(const std::vector<NodePtr> &component,
   return sinks;
 }
 
-HostCpuFusionRegion BuildRegionForSink(const std::vector<NodePtr> &topological_nodes,
-                                       const std::unordered_set<const Node *> &component_set, const NodePtr &sink) {
+std::unordered_set<const Node *> CollectComponentAncestors(const std::unordered_set<const Node *> &component_set,
+                                                           const NodePtr &sink) {
   std::unordered_set<const Node *> ancestors;
-  std::deque<NodePtr> pending{sink};
+  std::deque<NodePtr> pending;
+  for (const auto &in_node : sink->GetInDataNodes()) {
+    if (component_set.count(in_node.get()) > 0U) {
+      pending.emplace_back(in_node);
+    }
+  }
   while (!pending.empty()) {
     const auto current = pending.front();
     pending.pop_front();
@@ -334,10 +348,46 @@ HostCpuFusionRegion BuildRegionForSink(const std::vector<NodePtr> &topological_n
       }
     }
   }
+  return ancestors;
+}
+
+bool HasSameAncestors(const std::unordered_set<const Node *> &lhs, const std::unordered_set<const Node *> &rhs) {
+  return (lhs.size() == rhs.size()) &&
+         std::all_of(lhs.cbegin(), lhs.cend(), [&rhs](const Node *node) { return rhs.count(node) > 0U; });
+}
+
+struct SinkAncestorGroup {
+  std::unordered_set<const Node *> ancestors;
+  std::vector<NodePtr> sinks;
+};
+
+std::vector<SinkAncestorGroup> GroupSinksByAncestors(const std::unordered_set<const Node *> &component_set,
+                                                     const std::vector<NodePtr> &sinks) {
+  std::vector<SinkAncestorGroup> groups;
+  for (const auto &sink : sinks) {
+    auto ancestors = CollectComponentAncestors(component_set, sink);
+    const auto group = std::find_if(groups.begin(), groups.end(), [&ancestors](const SinkAncestorGroup &candidate) {
+      return HasSameAncestors(candidate.ancestors, ancestors);
+    });
+    if (group != groups.end()) {
+      group->sinks.emplace_back(sink);
+      continue;
+    }
+    groups.push_back({std::move(ancestors), {sink}});
+  }
+  return groups;
+}
+
+HostCpuFusionRegion BuildRegionForSinkGroup(const std::vector<NodePtr> &topological_nodes,
+                                            const SinkAncestorGroup &group) {
+  std::unordered_set<const Node *> region_nodes = group.ancestors;
+  for (const auto &sink : group.sinks) {
+    region_nodes.emplace(sink.get());
+  }
 
   HostCpuFusionRegion region;
   for (const auto &node : topological_nodes) {
-    if (ancestors.count(node.get()) > 0U) {
+    if (region_nodes.count(node.get()) > 0U) {
       region.nodes.emplace_back(node);
     }
   }
@@ -419,14 +469,17 @@ Status BuildComponentRegions(const ComputeGraphPtr &graph, const std::vector<Nod
            sinks.size());
     return FAILED;
   }
-  GELOGD("HostCPU fusion component[%zu] contains %zu nodes and %zu sinks, clone_and_split=%d, nodes=[%s].",
+  GELOGD("HostCPU fusion component[%zu] contains %zu nodes and %zu sinks, ancestor_grouping=%d, nodes=[%s].",
          component_index, component.size(), sinks.size(), static_cast<int32_t>(requires_split),
          GetNodeNames(component).c_str());
-  for (const auto &sink : sinks) {
-    auto region = BuildRegionForSink(topological_nodes, component_set, sink);
+  const auto sink_groups = GroupSinksByAncestors(component_set, sinks);
+  GELOGD("HostCPU fusion component[%zu] groups %zu sinks into %zu ancestor group(s).", component_index, sinks.size(),
+         sink_groups.size());
+  for (const auto &group : sink_groups) {
+    auto region = BuildRegionForSinkGroup(topological_nodes, group);
     if (region.nodes.size() < 2U) {
-      GELOGD("Skip HostCPU fusion component[%zu] sink[%s]: ancestor region has only %zu node(s).", component_index,
-             sink->GetNamePtr(), region.nodes.size());
+      GELOGD("Skip HostCPU fusion component[%zu] sink group[%s]: ancestor region has only %zu node(s).",
+             component_index, GetNodeNames(group.sinks).c_str(), region.nodes.size());
       continue;
     }
     regions.emplace_back(std::move(region));
@@ -480,16 +533,15 @@ bool AddFusedOutputDescs(const HostCpuFusionRegion &region, const OpDescPtr &op_
 }
 
 bool SetFusedOpAttributes(const PreparedFusionRegion &prepared, const OpDescPtr &op_desc) {
-  const auto &region = prepared.region;
-  op_desc->SetOpEngineName(kHostCpuEngineName);
-  op_desc->SetOpKernelLibName(kHostCpuKernelLibName);
-  return AttrUtils::SetStr(op_desc, ATTR_NAME_ENGINE_NAME_FOR_LX, kHostCpuEngineName) &&
-         AttrUtils::SetStr(op_desc, ATTR_NAME_KKERNEL_LIB_NAME_FOR_LX, kHostCpuKernelLibName) &&
-         AttrUtils::SetStr(op_desc, kOpKernelLibAttr, kHostCpuTaskKernelLibName) &&
+  op_desc->SetOpEngineName(kEngineNameCustom);
+  op_desc->SetOpKernelLibName(kCustomOpKernelLibName);
+  return AttrUtils::SetStr(op_desc, ATTR_NAME_ENGINE_NAME_FOR_LX, kEngineNameCustom) &&
+         AttrUtils::SetStr(op_desc, ATTR_NAME_KKERNEL_LIB_NAME_FOR_LX, kCustomOpKernelLibName) &&
+         AttrUtils::SetStr(op_desc, kAttrLowingFunc, kHostCpuCustomOpLowerFunc) &&
          AttrUtils::SetInt(op_desc, ATTR_NAME_UNKNOWN_SHAPE_TYPE, DEPEND_IN_SHAPE) &&
          AttrUtils::SetBool(op_desc, kSmallShapeHostCpu, true) &&
-         AttrUtils::SetStr(op_desc, kFusedHostCpuRegisterName, prepared.codegen.register_name) &&
-         AttrUtils::SetStr(op_desc, kFusedHostCpuSoKey, std::string(kFusedHostCpuSoDataPrefix) + region.chain_id);
+         AttrUtils::SetBool(op_desc, kFusedHostCpuGenerated, true) &&
+         AttrUtils::SetStr(op_desc, kFusedHostCpuRegisterName, prepared.codegen.register_name);
 }
 
 bool SetFusedOpMetadata(const HostCpuFusionRegion &region, const OpDescPtr &op_desc) {
@@ -512,8 +564,7 @@ bool SetFusedOpMetadata(const HostCpuFusionRegion &region, const OpDescPtr &op_d
 
 OpDescPtr CreateFusedOpDesc(const PreparedFusionRegion &prepared) {
   const auto &region = prepared.region;
-  auto op_desc =
-      std::make_shared<OpDesc>(std::string(kFusedHostCpuOpType) + "_" + region.chain_id, kFusedHostCpuOpType);
+  auto op_desc = std::make_shared<OpDesc>(prepared.codegen.register_name, prepared.codegen.register_name);
   if (!AddFusedInputDescs(region, op_desc) || !AddFusedOutputDescs(region, op_desc)) {
     return nullptr;
   }
@@ -548,10 +599,8 @@ struct ReplacedFusionOutput {
   OutDataAnchorPtr new_source;
 };
 
-Status RollbackFusionCommit(const ComputeGraphPtr &graph, const ComputeGraphPtr &root_graph,
-                            const std::vector<NodePtr> &fused_nodes,
-                            const std::vector<ReplacedFusionOutput> &replaced_outputs,
-                            const std::vector<std::string> &root_graph_so_keys) {
+Status RollbackFusionCommit(const ComputeGraphPtr &graph, const std::vector<NodePtr> &fused_nodes,
+                            const std::vector<ReplacedFusionOutput> &replaced_outputs) {
   GELOGW("Rollback HostCPU fusion graph commit: graph[%s], new_nodes=%zu, replaced_edges=%zu.",
          graph->GetName().c_str(), fused_nodes.size(), replaced_outputs.size());
   for (auto iter = replaced_outputs.rbegin(); iter != replaced_outputs.rend(); ++iter) {
@@ -560,28 +609,10 @@ Status RollbackFusionCommit(const ComputeGraphPtr &graph, const ComputeGraphPtr 
              graph->GetName().c_str(), static_cast<int32_t>(iter->consumer == nullptr));
     }
   }
-  const Status rollback_status = RollbackNewNodes(graph, fused_nodes);
-  for (const auto &so_key : root_graph_so_keys) {
-    if (root_graph->DelAttr(so_key) != GRAPH_SUCCESS) {
-      GELOGE(FAILED, "Failed to remove rolled-back fused HostCPU SO data: graph[%s], so_key[%s].",
-             root_graph->GetName().c_str(), so_key.c_str());
-    }
-  }
-  return rollback_status;
+  return RollbackNewNodes(graph, fused_nodes);
 }
 
-NodePtr CreateAndRegisterFusedNode(const ComputeGraphPtr &graph, const ComputeGraphPtr &root_graph,
-                                   const PreparedFusionRegion &prepared, std::vector<std::string> &root_graph_so_keys,
-                                   std::string &so_key) {
-  so_key = std::string(kFusedHostCpuSoDataPrefix) + prepared.region.chain_id;
-  if (AttrUtils::HasAttr(root_graph, so_key) ||
-      !AttrUtils::SetBytes(root_graph, so_key,
-                           Buffer::CopyFrom(prepared.codegen.so_data.data(), prepared.codegen.so_data.size()))) {
-    GELOGE(FAILED, "Failed to set fused HostCPU graph SO data: graph[%s], so_key[%s], so_size=%zu.",
-           graph->GetName().c_str(), so_key.c_str(), prepared.codegen.so_data.size());
-    return nullptr;
-  }
-  root_graph_so_keys.emplace_back(so_key);
+NodePtr CreateFusedNode(const ComputeGraphPtr &graph, const PreparedFusionRegion &prepared) {
   const auto op_desc = CreateFusedOpDesc(prepared);
   if (op_desc == nullptr) {
     GELOGE(FAILED, "Failed to create fused HostCPU OpDesc: graph[%s], chain[%s].", graph->GetName().c_str(),
@@ -599,10 +630,9 @@ NodePtr CreateAndRegisterFusedNode(const ComputeGraphPtr &graph, const ComputeGr
            op_desc->GetName().c_str());
     return nullptr;
   }
-  GELOGD("HostCPU fusion adds node[%s]: chain[%s], so_key[%s], so_graph[%s], so_size=%zu, inputs=%zu, outputs=%zu.",
-         fused_node->GetNamePtr(), prepared.region.chain_id.c_str(), so_key.c_str(), root_graph->GetName().c_str(),
-         prepared.codegen.so_data.size(), prepared.region.external_inputs.size(),
-         prepared.region.external_outputs.size());
+  GELOGD("HostCPU fusion adds custom-op node[%s]: chain[%s], so_size=%zu, inputs=%zu, outputs=%zu.",
+         fused_node->GetNamePtr(), prepared.region.chain_id.c_str(), prepared.codegen.so_data.size(),
+         prepared.region.external_inputs.size(), prepared.region.external_outputs.size());
   return fused_node;
 }
 
@@ -641,12 +671,9 @@ bool ReplaceFusedNodeOutputs(const ComputeGraphPtr &graph, const PreparedFusionR
   return true;
 }
 
-bool AddPreparedFusionNode(const ComputeGraphPtr &graph, const ComputeGraphPtr &root_graph,
-                           const PreparedFusionRegion &prepared, std::vector<NodePtr> &fused_nodes,
-                           std::vector<std::string> &root_graph_so_keys,
-                           std::vector<ReplacedFusionOutput> &replaced_outputs) {
-  std::string so_key;
-  const auto fused_node = CreateAndRegisterFusedNode(graph, root_graph, prepared, root_graph_so_keys, so_key);
+bool AddPreparedFusionNode(const ComputeGraphPtr &graph, const PreparedFusionRegion &prepared,
+                           std::vector<NodePtr> &fused_nodes, std::vector<ReplacedFusionOutput> &replaced_outputs) {
+  const auto fused_node = CreateFusedNode(graph, prepared);
   if (fused_node == nullptr) {
     return false;
   }
@@ -685,6 +712,107 @@ bool RemoveOriginalFusionNodes(const ComputeGraphPtr &graph, const std::vector<P
   return true;
 }
 
+struct FusionCustomOpArtifacts {
+  std::vector<std::string> inserted_so_keys;
+  std::vector<AscendString> registered_op_types;
+};
+
+OpSoBinPtr CreateFusionCustomOpSoBin(const PreparedFusionRegion &prepared) {
+  const auto &so_data = prepared.codegen.so_data;
+  if (so_data.empty() || (so_data.size() > std::numeric_limits<uint32_t>::max())) {
+    GELOGE(PARAM_INVALID, "Invalid generated HostCPU custom-op SO size[%zu], op_type[%s].", so_data.size(),
+           prepared.codegen.register_name.c_str());
+    return nullptr;
+  }
+  auto data = std::make_unique<char_t[]>(so_data.size());
+  std::copy(so_data.cbegin(), so_data.cend(), data.get());
+  const std::string so_name = "lib" + prepared.codegen.register_name + ".so";
+  return MakeShared<OpSoBin>(so_name, kFusedHostCpuSoVendor, std::move(data), static_cast<uint32_t>(so_data.size()),
+                             SoBinType::kCustomOp);
+}
+
+bool IsSameSoBin(const OpSoBinPtr &lhs, const OpSoBinPtr &rhs) {
+  return (lhs != nullptr) && (rhs != nullptr) && (lhs->GetSoBinType() == rhs->GetSoBinType()) &&
+         (lhs->GetBinDataSize() == rhs->GetBinDataSize()) &&
+         std::equal(lhs->GetBinData(), lhs->GetBinData() + lhs->GetBinDataSize(), rhs->GetBinData());
+}
+
+void RollbackFusionCustomOpArtifacts(const ComputeGraphPtr &root_graph, const FusionCustomOpArtifacts &artifacts) {
+  if (!artifacts.registered_op_types.empty()) {
+    CustomOpFactory::RemoveCustomOps(artifacts.registered_op_types);
+  }
+  if (artifacts.inserted_so_keys.empty()) {
+    return;
+  }
+  auto so_buffer = root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>(kSoBufferAttr);
+  if (so_buffer == nullptr) {
+    return;
+  }
+  auto updated_buffer = *so_buffer;
+  for (const auto &key : artifacts.inserted_so_keys) {
+    (void)updated_buffer.erase(key);
+  }
+  if (updated_buffer.empty()) {
+    (void)root_graph->DelExtAttr(kSoBufferAttr);
+  } else if (!root_graph->SetExtAttr(kSoBufferAttr, updated_buffer)) {
+    GELOGW("Failed to restore custom-op SO buffer while rolling back HostCPU fusion for graph[%s].",
+           root_graph->GetName().c_str());
+  }
+}
+
+Status PrepareFusionCustomOpArtifacts(const ComputeGraphPtr &root_graph,
+                                      const std::vector<PreparedFusionRegion> &prepared_regions,
+                                      FusionCustomOpArtifacts &artifacts) {
+  artifacts = {};
+  std::map<std::string, OpSoBinPtr> updated_buffer;
+  const auto current_buffer = root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>(kSoBufferAttr);
+  if (current_buffer != nullptr) {
+    updated_buffer = *current_buffer;
+  }
+
+  std::vector<OpSoBinPtr> bins_to_load;
+  const auto registry = CustomOpFactory::GetGlobalRegistryPtr();
+  GE_CHECK_NOTNULL(registry);
+  for (const auto &prepared : prepared_regions) {
+    const auto so_bin = CreateFusionCustomOpSoBin(prepared);
+    GE_CHECK_NOTNULL(so_bin);
+    const std::string so_key = so_bin->GetVendorName() + "/" + so_bin->GetSoName();
+    const auto existing = updated_buffer.find(so_key);
+    if ((existing != updated_buffer.end()) && !IsSameSoBin(existing->second, so_bin)) {
+      GELOGE(PARAM_INVALID, "HostCPU fusion custom-op SO key[%s] maps to different contents.", so_key.c_str());
+      return PARAM_INVALID;
+    }
+    if (existing == updated_buffer.end()) {
+      updated_buffer.emplace(so_key, so_bin);
+      artifacts.inserted_so_keys.emplace_back(so_key);
+    }
+    const AscendString op_type(prepared.codegen.register_name.c_str());
+    if (!registry->HasCreator(op_type, OpBackend::kHostCPU)) {
+      bins_to_load.emplace_back(so_bin);
+      artifacts.registered_op_types.emplace_back(op_type);
+    }
+  }
+
+  if (!bins_to_load.empty()) {
+    std::vector<CustomOpSoHandlePtr> handles;
+    GE_CHK_STATUS_RET(CustomOpSoLoader::GetInstance().LoadCustomOpSoBins(bins_to_load, handles),
+                      "Failed to load generated HostCPU custom-op SOs.");
+    const auto status = CustomOpRegistryBuilder::AddCreatorsFromSoHandles(handles, registry);
+    if (status != SUCCESS) {
+      GELOGE(status, "Failed to register generated HostCPU custom-op creators.");
+      artifacts.registered_op_types.clear();
+      return status;
+    }
+  }
+  if (!root_graph->SetExtAttr(kSoBufferAttr, updated_buffer)) {
+    CustomOpFactory::RemoveCustomOps(artifacts.registered_op_types);
+    artifacts.registered_op_types.clear();
+    GELOGE(FAILED, "Failed to save generated HostCPU custom-op SOs on root graph[%s].", root_graph->GetName().c_str());
+    return FAILED;
+  }
+  return SUCCESS;
+}
+
 Status CommitFusionRegions(const ComputeGraphPtr &graph, const std::vector<PreparedFusionRegion> &prepared_regions,
                            NodeEngineMap &node_atomic_engine_map, NodeEngineMap &node_composite_engine_map) {
   const auto root_graph = GraphUtils::FindRootGraph(graph);
@@ -692,19 +820,23 @@ Status CommitFusionRegions(const ComputeGraphPtr &graph, const std::vector<Prepa
     GELOGE(FAILED, "Failed to find root graph when committing HostCPU fusion for graph %s.", graph->GetName().c_str());
     return FAILED;
   }
+  FusionCustomOpArtifacts artifacts;
+  GE_CHK_STATUS_RET(PrepareFusionCustomOpArtifacts(root_graph, prepared_regions, artifacts),
+                    "Failed to prepare HostCPU fusion custom-op artifacts for graph[%s].", graph->GetName().c_str());
   std::vector<NodePtr> fused_nodes;
-  std::vector<std::string> root_graph_so_keys;
   std::vector<ReplacedFusionOutput> replaced_outputs;
   GELOGD("HostCPU fusion starts graph commit: graph[%s], regions=%zu.", graph->GetName().c_str(),
          prepared_regions.size());
   for (const auto &prepared : prepared_regions) {
-    if (!AddPreparedFusionNode(graph, root_graph, prepared, fused_nodes, root_graph_so_keys, replaced_outputs)) {
-      (void)RollbackFusionCommit(graph, root_graph, fused_nodes, replaced_outputs, root_graph_so_keys);
+    if (!AddPreparedFusionNode(graph, prepared, fused_nodes, replaced_outputs)) {
+      (void)RollbackFusionCommit(graph, fused_nodes, replaced_outputs);
+      RollbackFusionCustomOpArtifacts(root_graph, artifacts);
       return FAILED;
     }
   }
   if (!ValidateFusionGraph(graph, "transition")) {
-    (void)RollbackFusionCommit(graph, root_graph, fused_nodes, replaced_outputs, root_graph_so_keys);
+    (void)RollbackFusionCommit(graph, fused_nodes, replaced_outputs);
+    RollbackFusionCustomOpArtifacts(root_graph, artifacts);
     return FAILED;
   }
   GELOGD("HostCPU fusion transition graph validation passed: graph[%s], fused_nodes=%zu.", graph->GetName().c_str(),
@@ -714,8 +846,8 @@ Status CommitFusionRegions(const ComputeGraphPtr &graph, const std::vector<Prepa
     return FAILED;
   }
   for (const auto &node : fused_nodes) {
-    node_atomic_engine_map[node] = kHostCpuEngineName;
-    node_composite_engine_map[node] = kHostCpuEngineName;
+    node_atomic_engine_map[node] = kEngineNameCustom;
+    node_composite_engine_map[node] = kEngineNameCustom;
   }
   if (!ValidateFusionGraph(graph, "final")) {
     return FAILED;
@@ -734,7 +866,7 @@ HostCpuFusionPass::HostCpuFusionPass(std::shared_ptr<HostCpuFusionCompiler> comp
   }
   if (op_support_checker_ == nullptr) {
     op_support_checker_ = [](const std::string &op_type) {
-      return HostCpuEngine::GetInstance().IsFusedCpuKernelSupported(op_type);
+      return HostCpuEngine::GetInstance().IsHostKernelSupported(op_type);
     };
   }
 }

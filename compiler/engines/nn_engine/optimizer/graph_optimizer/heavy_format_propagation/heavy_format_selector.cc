@@ -252,8 +252,8 @@ Status HeavyFormatSelector::MatchDtypeForAllInputAndOutput(const OpKernelInfoPtr
   ge::OpDescPtr op_desc_ptr = current_node->GetOpDesc();
   FE_CHECK_NOTNULL(op_desc_ptr);
   if (input_and_output_kernel_.empty() || input_and_output_kernel_.size() < INPUT_OUTPUT_INDEX_BOTTOM) {
-    FE_LOGW("Input tensor vector for node %s is empty; its size is %zu.", current_node->GetName().c_str(),
-            input_and_output_kernel_.size());
+    FE_LOGW("[MatchDtypeForAllInputAndOutput] Input tensor vector for node %s is empty; its size is %zu.",
+            current_node->GetName().c_str(), input_and_output_kernel_.size());
     return FAILED;
   }
   Status ret;
@@ -294,8 +294,8 @@ Status HeavyFormatSelector::SelectQualifiedFormat(const OpKernelInfoPtr &op_kern
   }
 
   if (input_and_output_kernel_.empty() || input_and_output_kernel_.size() < INPUT_OUTPUT_INDEX_BOTTOM) {
-    FE_LOGW("Input tensor vector for node %s is empty; its size is %zu.", current_node->GetName().c_str(),
-            input_and_output_kernel_.size());
+    FE_LOGW("[SelectQualifiedFormat] Input tensor vector for node %s is empty; its size is %zu.",
+            current_node->GetName().c_str(), input_and_output_kernel_.size());
     return FAILED;
   }
 

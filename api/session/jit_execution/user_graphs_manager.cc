@@ -203,6 +203,11 @@ Status UserGraphsManager::GetCompiledFlag(uint32_t user_graph_id, bool &flag) {
 }
 
 Status UserGraphsManager::DumpDebugJSONPrint(uint32_t user_graph_id, uint32_t flags, AscendString &json_result) {
+  if (EnableAutoFuse()) {
+    UserGraphControl *user_graph_control = GetUserGraphControl(user_graph_id);
+    GE_ASSERT_NOTNULL(user_graph_control);
+    return user_graph_control->DumpDebugJSONPrint(flags, json_result);
+  }
   return graph_manager_.DumpDebugJSONPrint(user_graph_id, flags, json_result);
 }
 

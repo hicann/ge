@@ -169,6 +169,9 @@ target_compile_definitions(autofuse PRIVATE
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
         google=ascend_private
         AUTOFUSE_USE_GE_METADEF
+        # Keep the test-only autofuse library ABI-compatible with the external
+        # CANN AscIR library until the matching package is available.
+        AUTOFUSE_ST_COMPAT_CANN
 )
 
 target_include_directories(autofuse PUBLIC

@@ -497,7 +497,8 @@ TEST_F(UtestHcclNodeExecutor, test_RdmaNodeTask) {
   RuntimeInferenceContext &rt_ctx =
       const_cast<RuntimeInferenceContext &>(node_state->GetTaskContext()->GetExecutionContext()->runtime_context_);
   std::vector<HcomRemoteAccessAddrInfo> addr_infos;
-  uint64_t *data = new uint64_t[16];
+  uint64_t *data = new uint64_t[16]();
+  data[2] = 1000;
   ASSERT_NE((dynamic_cast<RdmaNodeTask *>(task.get()))
                 ->SetAddrInfo(*node_state->GetTaskContext(), rt_ctx, data, 4, addr_infos),
             FAILED);  // ??

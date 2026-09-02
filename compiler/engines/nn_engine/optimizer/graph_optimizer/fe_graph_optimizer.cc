@@ -369,7 +369,7 @@ Status FEGraphOptimizer::OptimizeOriginalGraph(ge::ComputeGraph &graph) {
 
   ret = graph.TopologicalSorting();
   if (ret != ge::GRAPH_SUCCESS) {
-    REPORT_FE_ERROR("[GraphOpt][BeforeFusion]Failed to do topological sorting before graph fusion for graph %s",
+    REPORT_FE_ERROR("[GraphOpt][BeforeFusion] Failed to do topological sorting before graph fusion for graph %s",
                     graph.GetName().c_str());
     return FAILED;
   }

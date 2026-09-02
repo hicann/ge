@@ -49,6 +49,7 @@ The numa_config.json file configures device resource information required by dfl
 ```bash
 # Generate single-node numa_config.json (auto-detects chip type and device count, uses all devices by default)
 # You can also specify a device list: python3 ../../tools/create_numa_config.py --device-list 0,1,2
+# If npu-smi is unavailable, the script prints a warning and uses defaults (Ascend910B1, 8 devices); specify --soc-version and --total-dev if they do not match the actual environment
 python3 ../../tools/create_numa_config.py
 # After generation, numa_config.json will be created in the current directory
 ```

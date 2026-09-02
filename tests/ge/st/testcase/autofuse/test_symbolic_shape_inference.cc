@@ -5625,6 +5625,67 @@ TEST_F(SymbolicShapeInferenceST, test_splitv_with_symbolic_value) {
   }
 }
 
+TEST_F(SymbolicShapeInferenceST, test_splitv_symbolic_kernel_with_const_values) {
+  auto data0 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT64, {2, 4}).InCnt(0).OutCnt(1).Build("splitv_data");
+  auto data1 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT64, {2}).InCnt(0).OutCnt(1).Build("splitv_sizes");
+  auto data2 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT64, {1}).InCnt(0).OutCnt(1).Build("splitv_dim");
+  auto splitv = OP_CFG("SplitV")
+                    .TensorDesc(FORMAT_ND, DT_INT64, {2, 4})
+                    .InCnt(3)
+                    .OutCnt(2)
+                    .Attr("num_split", 2)
+                    .Build("splitv_kernel");
+  DEF_GRAPH(graph) {
+    CHAIN(NODE(data0)->EDGE(0, 0)->NODE(splitv));
+    CHAIN(NODE(data1)->EDGE(0, 1)->NODE(splitv));
+    CHAIN(NODE(data2)->EDGE(0, 2)->NODE(splitv));
+    CHAIN(NODE(splitv)->EDGE(0, 0)->NODE("NetOutput0", NETOUTPUT));
+    CHAIN(NODE(splitv)->EDGE(1, 0)->NODE("NetOutput1", NETOUTPUT));
+  };
+
+  auto cg = ToComputeGraph(graph);
+  ASSERT_NE(cg, nullptr);
+  cg->TopologicalSorting();
+  const auto set_symbolic_data = [&cg](const std::string &name, const std::vector<int64_t> &origin_dims,
+                                       const gert::SymbolShape &shape, std::vector<Expression> values) {
+    const auto node = cg->FindNode(name);
+    ASSERT_NE(node, nullptr);
+    auto output_desc = node->GetOpDescBarePtr()->MutableOutputDesc(0);
+    ASSERT_NE(output_desc, nullptr);
+    output_desc->SetOriginShape(GeShape(origin_dims));
+    auto &symbolic_tensor = output_desc->GetOrCreateAttrsGroup<SymbolicDescAttr>()->symbolic_tensor;
+    symbolic_tensor.SetSymbolShape(shape);
+    symbolic_tensor.SetSymbolicValue(std::make_unique<std::vector<Expression>>(std::move(values)));
+  };
+  set_symbolic_data("splitv_data", {2, 4}, gert::SymbolShape({Symbol(2), Symbol(4)}),
+                    {Symbol(0), Symbol(1), Symbol(2), Symbol(3), Symbol(4), Symbol(5), Symbol(6), Symbol(7)});
+  set_symbolic_data("splitv_sizes", {2}, gert::SymbolShape({Symbol(2)}), {Symbol(1), Symbol(3)});
+  set_symbolic_data("splitv_dim", {1}, gert::SymbolShape({Symbol(1)}), {Symbol(1)});
+  const auto splitv_kernel_node = cg->FindNode("splitv_kernel");
+  ASSERT_NE(splitv_kernel_node, nullptr);
+  for (size_t i = 0U; i < splitv_kernel_node->GetOpDescBarePtr()->GetOutputsSize(); ++i) {
+    splitv_kernel_node->GetOpDescBarePtr()->MutableOutputDesc(i)->SetOriginShape(GeShape({-1, -1}));
+  }
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  const auto splitv_node = cg->FindFirstNodeMatchType("SplitV");
+  ASSERT_NE(splitv_node, nullptr);
+  const auto op_desc = splitv_node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  const auto attr0 = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  const auto attr1 = op_desc->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr0, nullptr);
+  ASSERT_NE(attr1, nullptr);
+  ASSERT_EQ(attr0->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(2), Symbol(1)}));
+  ASSERT_EQ(attr1->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(2), Symbol(3)}));
+  ASSERT_NE(attr0->symbolic_tensor.GetSymbolicValue(), nullptr);
+  ASSERT_NE(attr1->symbolic_tensor.GetSymbolicValue(), nullptr);
+  EXPECT_EQ(*attr0->symbolic_tensor.GetSymbolicValue(), std::vector<Expression>({Symbol(0), Symbol(4)}));
+  EXPECT_EQ(*attr1->symbolic_tensor.GetSymbolicValue(),
+            std::vector<Expression>({Symbol(1), Symbol(2), Symbol(3), Symbol(5), Symbol(6), Symbol(7)}));
+}
+
 TEST_F(SymbolicShapeInferenceST, test_splitv_with_wrong_size_splits) {
   auto data0 = OP_CFG("Data")
                    .TensorDesc(FORMAT_ND, DT_FLOAT, {4, 7})

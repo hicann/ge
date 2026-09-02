@@ -57,3 +57,27 @@ TEST_F(TraceHandleManagerUnitTest, init_case_01) {
   handle_manager.Finalize();
   handle_manager.Finalize();
 }
+
+// trace_handle_manager.cc:44 - global_handle_ < 0 after AtraceCreate
+// trace_handle_manager.cc:48 - statistics_handle_ < 0 after AtraceCreate
+TEST_F(TraceHandleManagerUnitTest, init_trace_handle_not_created) {
+  TraceHandleManager handle_manager;
+  EXPECT_EQ(handle_manager.Initialize(), SUCCESS);
+  // In test environment, AtraceCreate may return -1, triggering FE_LOGW at lines 44/48
+  // If handles are valid, the test still passes since Initialize always returns SUCCESS
+  handle_manager.Finalize();
+}
+
+// trace_handle_manager.cc:119 - subgraph_trace_handle < 0 after AtraceCreate
+// trace_handle_manager.cc:124 - subgraph_event_handle < 0 after AtraceEventCreate
+TEST_F(TraceHandleManagerUnitTest, add_subgraph_trace_handle_not_created) {
+  TraceHandleManager handle_manager;
+  EXPECT_EQ(handle_manager.Initialize(), SUCCESS);
+  // Clear subgraph maps to ensure AddSubGraphTraceHandle runs the creation path
+  handle_manager.subgraph_handle_map_.clear();
+  handle_manager.subgraph_event_map_.clear();
+  // In test environment, AtraceCreate/AtraceEventCreate may return -1
+  // triggering FE_LOGW at lines 119/124
+  handle_manager.AddSubGraphTraceHandle();
+  handle_manager.Finalize();
+}

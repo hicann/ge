@@ -114,7 +114,7 @@ class DataTaskBuilder : public FFTSPlusTaskBuilder {
     size_t src_slot_size = static_cast<size_t>(ctx->src_slot_size());
     if (src_slot_size >= kMaxPretchNum) {
       REPORT_FFTS_ERROR(
-          "[DataTaskBuilder][UpdateSrcSlotAndPfBm] Already reach the maximum size of"
+          "[DataTaskBuilder][UpdateSrcSlotAndPfBm] Already reach the maximum size of "
           "prefetch bitmap of aic/aiv context.");
       return FAILED;
     }

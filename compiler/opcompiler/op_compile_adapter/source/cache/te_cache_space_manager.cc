@@ -221,7 +221,7 @@ void TeCacheSpaceManager::UpdateOpCacheSizeCfg(std::string &opMaxCacheSize, std:
   }
 
   if (remainCacheRadio <= 0 || remainCacheRadio > MAX_REMAIN_CACHE_RADIO) {
-    TE_WARNLOG("remain_cache_size_ratio[%s] is invalid; it should be in [1, 100].", opRemainCacheRadio.c_str());
+    TE_WARNLOG("remain_cache_size_ratio[%s] is invalid; it should be between in [1, 100].", opRemainCacheRadio.c_str());
     std::map<std::string, std::string> maxSizeMap = {{"invalid_value", opRemainCacheRadio},
                                                      {"argument", "remain_cache_size_ratio"}};
     maxSizeMap["valid_range"] = "[1, 100]";
@@ -486,7 +486,7 @@ void TeCacheSpaceManager::AgingCacheFileByAccessTime(std::multimap<uint64_t, Cac
       }
     }
     if (totalDelSize >= sizeToDel) {
-      TE_DBGLOG("totalDelSize [%ld] bytes, sizeToDel [%ld] bytes.", totalDelSize, sizeToDel);
+      TE_DBGLOG("totalDelSize [%ld] bytes, sizeToDel [%ld] bytes", totalDelSize, sizeToDel);
       return;
     }
   }
@@ -563,8 +563,8 @@ int64_t TeCacheSpaceManager::GetCacheSpaceMaxSizeCfg() {
   try {
     maxSizeIntCfg = std::stoi(maxCacheSizeCfg);
   } catch (...) {
-    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid, it should be -1 or [1, %ld).", maxCacheSizeCfg.c_str(),
-                INT_MAX);
+    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid, it should be -1 or [1, %ld), use default size:%d.",
+                maxCacheSizeCfg.c_str(), INT_MAX, DEFAULT_MAX_OP_CACHE_SIZE);
     std::map<std::string, std::string> maxSizeMap = {{"invalid_value", maxCacheSizeCfg},
                                                      {"argument", "ASCEND_MAX_OP_CACHE_SIZE"}};
     maxSizeMap["valid_range"] = "[1, " + std::to_string(DEFAULT_MAX_OP_CACHE_SIZE) + ") or -1";

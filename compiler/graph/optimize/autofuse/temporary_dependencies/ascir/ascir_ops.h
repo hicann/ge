@@ -6717,6 +6717,16 @@ struct Conv2D : public Operator {
       GE_ASSERT_NOTNULL(attr_value);
       return attr_value->SetValue(enable_hf32);
     }
+    graphStatus GetFixed_shift_value(int64_t &fixed_shift_value) const {
+      auto attr_value = attr_store_.GetAnyValue("fixed_shift_value");
+      GE_WARN_ASSERT(attr_value != nullptr);
+      return attr_value->GetValue(fixed_shift_value);
+    }
+    graphStatus SetFixed_shift_value(int64_t fixed_shift_value) {
+      auto attr_value = attr_store_.GetOrCreateAnyValue("fixed_shift_value");
+      GE_ASSERT_NOTNULL(attr_value);
+      return attr_value->SetValue(fixed_shift_value);
+    }
   };
   AscConv2DIrAttrDef &ir_attr;
   af::AscOpInput<0> x;
@@ -6894,6 +6904,16 @@ struct Conv2DBias : public Operator {
       auto attr_value = attr_store_.GetOrCreateAnyValue("enable_hf32");
       GE_ASSERT_NOTNULL(attr_value);
       return attr_value->SetValue(enable_hf32);
+    }
+    graphStatus GetFixed_shift_value(int64_t &fixed_shift_value) const {
+      auto attr_value = attr_store_.GetAnyValue("fixed_shift_value");
+      GE_WARN_ASSERT(attr_value != nullptr);
+      return attr_value->GetValue(fixed_shift_value);
+    }
+    graphStatus SetFixed_shift_value(int64_t fixed_shift_value) {
+      auto attr_value = attr_store_.GetOrCreateAnyValue("fixed_shift_value");
+      GE_ASSERT_NOTNULL(attr_value);
+      return attr_value->SetValue(fixed_shift_value);
     }
   };
   AscConv2DBiasIrAttrDef &ir_attr;
@@ -7087,6 +7107,16 @@ struct Conv2DOffset : public Operator {
       auto attr_value = attr_store_.GetOrCreateAnyValue("enable_hf32");
       GE_ASSERT_NOTNULL(attr_value);
       return attr_value->SetValue(enable_hf32);
+    }
+    graphStatus GetFixed_shift_value(int64_t &fixed_shift_value) const {
+      auto attr_value = attr_store_.GetAnyValue("fixed_shift_value");
+      GE_WARN_ASSERT(attr_value != nullptr);
+      return attr_value->GetValue(fixed_shift_value);
+    }
+    graphStatus SetFixed_shift_value(int64_t fixed_shift_value) {
+      auto attr_value = attr_store_.GetOrCreateAnyValue("fixed_shift_value");
+      GE_ASSERT_NOTNULL(attr_value);
+      return attr_value->SetValue(fixed_shift_value);
     }
   };
   AscConv2DOffsetIrAttrDef &ir_attr;
@@ -7282,6 +7312,16 @@ struct Conv2DOffsetBias : public Operator {
       GE_ASSERT_NOTNULL(attr_value);
       return attr_value->SetValue(enable_hf32);
     }
+    graphStatus GetFixed_shift_value(int64_t &fixed_shift_value) const {
+      auto attr_value = attr_store_.GetAnyValue("fixed_shift_value");
+      GE_WARN_ASSERT(attr_value != nullptr);
+      return attr_value->GetValue(fixed_shift_value);
+    }
+    graphStatus SetFixed_shift_value(int64_t fixed_shift_value) {
+      auto attr_value = attr_store_.GetOrCreateAnyValue("fixed_shift_value");
+      GE_ASSERT_NOTNULL(attr_value);
+      return attr_value->SetValue(fixed_shift_value);
+    }
   };
   AscConv2DOffsetBiasIrAttrDef &ir_attr;
   af::AscOpInput<0> x;
@@ -7386,6 +7426,438 @@ struct Conv2DOffsetBias : public Operator {
         filter(this),
         bias(this),
         offset_w(this),
+        y(this, 0) {
+    y.TryInitTensorAttr();
+  }
+};
+}  // namespace ascir_op
+}  // namespace af
+
+// Defined at ascir_builtin_ops_v1.cpp:927
+namespace af {
+namespace ascir_op {
+namespace detail {
+struct ExtendConv2DIrAttrDefBase : public Conv2D::AscConv2DIrAttrDef {
+  ~ExtendConv2DIrAttrDefBase() override = default;
+  graphStatus GetRound_mode(std::string &round_mode) const {
+    auto attr_value = attr_store_.GetAnyValue("round_mode");
+    GE_WARN_ASSERT(attr_value != nullptr);
+    return attr_value->GetValue(round_mode);
+  }
+  graphStatus SetRound_mode(std::string round_mode) {
+    auto attr_value = attr_store_.GetOrCreateAnyValue("round_mode");
+    GE_ASSERT_NOTNULL(attr_value);
+    return attr_value->SetValue(round_mode);
+  }
+  graphStatus GetOffset_x(bool &offset_x) const {
+    auto attr_value = attr_store_.GetAnyValue("offset_x");
+    GE_WARN_ASSERT(attr_value != nullptr);
+    return attr_value->GetValue(offset_x);
+  }
+  graphStatus GetEnable_relu0(bool &enable_relu0) const {
+    auto attr_value = attr_store_.GetAnyValue("enable_relu0");
+    GE_WARN_ASSERT(attr_value != nullptr);
+    return attr_value->GetValue(enable_relu0);
+  }
+  graphStatus SetEnable_relu0(bool enable_relu0) {
+    auto attr_value = attr_store_.GetOrCreateAnyValue("enable_relu0");
+    GE_ASSERT_NOTNULL(attr_value);
+    return attr_value->SetValue(enable_relu0);
+  }
+  graphStatus GetNullptr_inputs_index(std::vector<int64_t> &nullptr_inputs_index) const {
+    auto attr_value = attr_store_.GetAnyValue("nullptr_inputs_index");
+    GE_WARN_ASSERT(attr_value != nullptr);
+    return attr_value->GetValue(nullptr_inputs_index);
+  }
+  graphStatus SetNullptr_inputs_index(std::vector<int64_t> nullptr_inputs_index) {
+    auto attr_value = attr_store_.GetOrCreateAnyValue("nullptr_inputs_index");
+    GE_ASSERT_NOTNULL(attr_value);
+    return attr_value->SetValue(nullptr_inputs_index);
+  }
+};
+}  // namespace detail
+struct ExtendConv2D : public Operator {
+  static constexpr const char *Type = "ExtendConv2D";
+  af::AscNodeAttr &attr;
+  struct AscExtendConv2DIrAttrDef : public detail::ExtendConv2DIrAttrDefBase {
+    ~AscExtendConv2DIrAttrDef() override = default;
+  };
+  AscExtendConv2DIrAttrDef &ir_attr;
+  af::AscOpInput<0> x;
+  af::AscOpInput<1> filter;
+  af::AscOpOutput y;
+  inline ExtendConv2D(const char *name)
+      : af::Operator(name, Type),
+        attr(*af::AscNodeAttr::Create<AscExtendConv2DIrAttrDef>(*this)),
+        ir_attr(dynamic_cast<AscExtendConv2DIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        y(this, 0) {
+    this->InputRegister("x");
+    this->InputRegister("filter");
+    this->OutputRegister("y");
+    y.TryInitTensorAttr();
+    this->attr.api.compute_type = static_cast<af::ComputeType>(9);
+  }
+
+  inline static Status InferDataType(const std::vector<DataType> &input_dtypes,
+                                     std::vector<DataType> &expect_output_dtypes,
+                                     [[maybe_unused]] const std::string &npu_arch) {
+    GE_ASSERT_EQ(input_dtypes.size(), 2U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 1U);
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+    std::set<ge::DataType> support_dtypes_of_sym_T1;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T1.find(input_dtypes[0]) != support_dtypes_of_sym_T1.end());
+
+    if (expect_output_dtypes.empty()) {
+      expect_output_dtypes.push_back(DT_FLOAT16);
+      return SUCCESS;
+    }
+    static std::set<ge::DataType> support_dtypes_of_sym_T2 = {DT_FLOAT16};
+    GE_WARN_ASSERT(support_dtypes_of_sym_T2.find(expect_output_dtypes[0]) != support_dtypes_of_sym_T2.end());
+    return SUCCESS;
+  };
+  inline static Status InferDataTypeWithNoCheck(const std::vector<DataType> &input_dtypes,
+                                                std::vector<DataType> &expect_output_dtypes,
+                                                [[maybe_unused]] const std::string &npu_arch = "") {
+    GE_ASSERT_EQ(input_dtypes.size(), 2U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty());
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+
+    expect_output_dtypes.push_back(DT_FLOAT16);
+    return SUCCESS;
+  };
+
+  inline ExtendConv2D &operator=(const ExtendConv2D &) = delete;
+  inline ExtendConv2D(ExtendConv2D &&) = delete;
+  inline ExtendConv2D(const ExtendConv2D &other)
+      : af::Operator(other),
+        attr(other.attr),
+        ir_attr(dynamic_cast<AscExtendConv2DIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        y(this, 0) {
+    y.TryInitTensorAttr();
+  }
+};
+}  // namespace ascir_op
+}  // namespace af
+
+// Defined at ascir_builtin_ops_v1.cpp:948
+namespace af {
+namespace ascir_op {
+struct ExtendConv2DBias : public Operator {
+  static constexpr const char *Type = "ExtendConv2DBias";
+  af::AscNodeAttr &attr;
+  struct AscExtendConv2DBiasIrAttrDef : public detail::ExtendConv2DIrAttrDefBase {
+    ~AscExtendConv2DBiasIrAttrDef() override = default;
+  };
+  AscExtendConv2DBiasIrAttrDef &ir_attr;
+  af::AscOpInput<0> x;
+  af::AscOpInput<1> filter;
+  af::AscOpInput<2> bias;
+  af::AscOpOutput y;
+  inline ExtendConv2DBias(const char *name)
+      : af::Operator(name, Type),
+        attr(*af::AscNodeAttr::Create<AscExtendConv2DBiasIrAttrDef>(*this)),
+        ir_attr(dynamic_cast<AscExtendConv2DBiasIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        bias(this),
+        y(this, 0) {
+    this->InputRegister("x");
+    this->InputRegister("filter");
+    this->InputRegister("bias");
+    this->OutputRegister("y");
+    y.TryInitTensorAttr();
+    this->attr.api.compute_type = static_cast<af::ComputeType>(9);
+  }
+
+  inline static Status InferDataType(const std::vector<DataType> &input_dtypes,
+                                     std::vector<DataType> &expect_output_dtypes,
+                                     [[maybe_unused]] const std::string &npu_arch) {
+    GE_ASSERT_EQ(input_dtypes.size(), 3U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 1U);
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+    std::set<ge::DataType> support_dtypes_of_sym_T1;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T1 = {DT_FLOAT16};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T1.find(input_dtypes[0]) != support_dtypes_of_sym_T1.end());
+    std::set<ge::DataType> support_dtypes_of_sym_T2;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T2 = {DT_FLOAT16};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T2 = {DT_FLOAT16};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T2 = {DT_FLOAT16};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T2.find(input_dtypes[2]) != support_dtypes_of_sym_T2.end());
+
+    if (expect_output_dtypes.empty()) {
+      expect_output_dtypes.push_back(DT_FLOAT16);
+      return SUCCESS;
+    }
+    static std::set<ge::DataType> support_dtypes_of_sym_T3 = {DT_FLOAT16};
+    GE_WARN_ASSERT(support_dtypes_of_sym_T3.find(expect_output_dtypes[0]) != support_dtypes_of_sym_T3.end());
+    return SUCCESS;
+  };
+  inline static Status InferDataTypeWithNoCheck(const std::vector<DataType> &input_dtypes,
+                                                std::vector<DataType> &expect_output_dtypes,
+                                                [[maybe_unused]] const std::string &npu_arch = "") {
+    GE_ASSERT_EQ(input_dtypes.size(), 3U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty());
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+
+    expect_output_dtypes.push_back(DT_FLOAT16);
+    return SUCCESS;
+  };
+
+  inline ExtendConv2DBias &operator=(const ExtendConv2DBias &) = delete;
+  inline ExtendConv2DBias(ExtendConv2DBias &&) = delete;
+  inline ExtendConv2DBias(const ExtendConv2DBias &other)
+      : af::Operator(other),
+        attr(other.attr),
+        ir_attr(dynamic_cast<AscExtendConv2DBiasIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        bias(this),
+        y(this, 0) {
+    y.TryInitTensorAttr();
+  }
+};
+}  // namespace ascir_op
+}  // namespace af
+
+// Defined at ascir_builtin_ops_v1.cpp:971
+namespace af {
+namespace ascir_op {
+struct ExtendConv2DScale : public Operator {
+  static constexpr const char *Type = "ExtendConv2DScale";
+  af::AscNodeAttr &attr;
+  struct AscExtendConv2DScaleIrAttrDef : public detail::ExtendConv2DIrAttrDefBase {
+    ~AscExtendConv2DScaleIrAttrDef() override = default;
+  };
+  AscExtendConv2DScaleIrAttrDef &ir_attr;
+  af::AscOpInput<0> x;
+  af::AscOpInput<1> filter;
+  af::AscOpInput<2> scale0;
+  af::AscOpOutput y;
+  inline ExtendConv2DScale(const char *name)
+      : af::Operator(name, Type),
+        attr(*af::AscNodeAttr::Create<AscExtendConv2DScaleIrAttrDef>(*this)),
+        ir_attr(dynamic_cast<AscExtendConv2DScaleIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        scale0(this),
+        y(this, 0) {
+    this->InputRegister("x");
+    this->InputRegister("filter");
+    this->InputRegister("scale0");
+    this->OutputRegister("y");
+    y.TryInitTensorAttr();
+    this->attr.api.compute_type = static_cast<af::ComputeType>(9);
+  }
+
+  inline static Status InferDataType(const std::vector<DataType> &input_dtypes,
+                                     std::vector<DataType> &expect_output_dtypes,
+                                     [[maybe_unused]] const std::string &npu_arch) {
+    GE_ASSERT_EQ(input_dtypes.size(), 3U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 1U);
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+    std::set<ge::DataType> support_dtypes_of_sym_T1;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T1.find(input_dtypes[0]) != support_dtypes_of_sym_T1.end());
+    std::set<ge::DataType> support_dtypes_of_sym_T3;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T3 = {DT_UINT64};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T3 = {DT_UINT64};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T3 = {DT_UINT64};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T3.find(input_dtypes[2]) != support_dtypes_of_sym_T3.end());
+
+    if (expect_output_dtypes.empty()) {
+      expect_output_dtypes.push_back(DT_FLOAT16);
+      return SUCCESS;
+    }
+    static std::set<ge::DataType> support_dtypes_of_sym_T2 = {DT_FLOAT16};
+    GE_WARN_ASSERT(support_dtypes_of_sym_T2.find(expect_output_dtypes[0]) != support_dtypes_of_sym_T2.end());
+    return SUCCESS;
+  };
+  inline static Status InferDataTypeWithNoCheck(const std::vector<DataType> &input_dtypes,
+                                                std::vector<DataType> &expect_output_dtypes,
+                                                [[maybe_unused]] const std::string &npu_arch = "") {
+    GE_ASSERT_EQ(input_dtypes.size(), 3U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty());
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+
+    expect_output_dtypes.push_back(DT_FLOAT16);
+    return SUCCESS;
+  };
+
+  inline ExtendConv2DScale &operator=(const ExtendConv2DScale &) = delete;
+  inline ExtendConv2DScale(ExtendConv2DScale &&) = delete;
+  inline ExtendConv2DScale(const ExtendConv2DScale &other)
+      : af::Operator(other),
+        attr(other.attr),
+        ir_attr(dynamic_cast<AscExtendConv2DScaleIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        scale0(this),
+        y(this, 0) {
+    y.TryInitTensorAttr();
+  }
+};
+}  // namespace ascir_op
+}  // namespace af
+
+// Defined at ascir_builtin_ops_v1.cpp:994
+namespace af {
+namespace ascir_op {
+struct ExtendConv2DBiasScale : public Operator {
+  static constexpr const char *Type = "ExtendConv2DBiasScale";
+  af::AscNodeAttr &attr;
+  struct AscExtendConv2DBiasScaleIrAttrDef : public detail::ExtendConv2DIrAttrDefBase {
+    ~AscExtendConv2DBiasScaleIrAttrDef() override = default;
+  };
+  AscExtendConv2DBiasScaleIrAttrDef &ir_attr;
+  af::AscOpInput<0> x;
+  af::AscOpInput<1> filter;
+  af::AscOpInput<2> bias;
+  af::AscOpInput<3> scale0;
+  af::AscOpOutput y;
+  inline ExtendConv2DBiasScale(const char *name)
+      : af::Operator(name, Type),
+        attr(*af::AscNodeAttr::Create<AscExtendConv2DBiasScaleIrAttrDef>(*this)),
+        ir_attr(dynamic_cast<AscExtendConv2DBiasScaleIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        bias(this),
+        scale0(this),
+        y(this, 0) {
+    this->InputRegister("x");
+    this->InputRegister("filter");
+    this->InputRegister("bias");
+    this->InputRegister("scale0");
+    this->OutputRegister("y");
+    y.TryInitTensorAttr();
+    this->attr.api.compute_type = static_cast<af::ComputeType>(9);
+  }
+
+  inline static Status InferDataType(const std::vector<DataType> &input_dtypes,
+                                     std::vector<DataType> &expect_output_dtypes,
+                                     [[maybe_unused]] const std::string &npu_arch) {
+    GE_ASSERT_EQ(input_dtypes.size(), 4U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 1U);
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+    std::set<ge::DataType> support_dtypes_of_sym_T1;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T1 = {DT_INT8};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T1.find(input_dtypes[0]) != support_dtypes_of_sym_T1.end());
+    std::set<ge::DataType> support_dtypes_of_sym_T2;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T2 = {DT_INT32};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T2 = {DT_INT32};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T2 = {DT_INT32};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T2.find(input_dtypes[2]) != support_dtypes_of_sym_T2.end());
+    std::set<ge::DataType> support_dtypes_of_sym_T4;
+    if (npu_arch == "2201") {
+      support_dtypes_of_sym_T4 = {DT_UINT64};
+    } else if (npu_arch == "3510") {
+      support_dtypes_of_sym_T4 = {DT_UINT64};
+    } else if (npu_arch == "5102") {
+      support_dtypes_of_sym_T4 = {DT_UINT64};
+    } else {
+      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());
+      return af::FAILED;
+    }
+    GE_WARN_ASSERT(support_dtypes_of_sym_T4.find(input_dtypes[3]) != support_dtypes_of_sym_T4.end());
+
+    if (expect_output_dtypes.empty()) {
+      expect_output_dtypes.push_back(DT_FLOAT16);
+      return SUCCESS;
+    }
+    static std::set<ge::DataType> support_dtypes_of_sym_T3 = {DT_FLOAT16};
+    GE_WARN_ASSERT(support_dtypes_of_sym_T3.find(expect_output_dtypes[0]) != support_dtypes_of_sym_T3.end());
+    return SUCCESS;
+  };
+  inline static Status InferDataTypeWithNoCheck(const std::vector<DataType> &input_dtypes,
+                                                std::vector<DataType> &expect_output_dtypes,
+                                                [[maybe_unused]] const std::string &npu_arch = "") {
+    GE_ASSERT_EQ(input_dtypes.size(), 4U);
+    GE_ASSERT_TRUE(expect_output_dtypes.empty());
+
+    GE_WARN_ASSERT(input_dtypes[0] == input_dtypes[1]);
+
+    expect_output_dtypes.push_back(DT_FLOAT16);
+    return SUCCESS;
+  };
+
+  inline ExtendConv2DBiasScale &operator=(const ExtendConv2DBiasScale &) = delete;
+  inline ExtendConv2DBiasScale(ExtendConv2DBiasScale &&) = delete;
+  inline ExtendConv2DBiasScale(const ExtendConv2DBiasScale &other)
+      : af::Operator(other),
+        attr(other.attr),
+        ir_attr(dynamic_cast<AscExtendConv2DBiasScaleIrAttrDef &>(*(attr.ir_attr))),
+        x(this),
+        filter(this),
+        bias(this),
+        scale0(this),
         y(this, 0) {
     y.TryInitTensorAttr();
   }
@@ -13096,7 +13568,7 @@ inline af::AscOpOutput Conv2D(const char *name, const af::AscOpOutput &x_in, con
                               const std::vector<int64_t> &strides, const std::vector<int64_t> &pads,
                               const std::vector<int64_t> &dilations, const int64_t &groups, const int64_t &has_relu,
                               const std::string &pad_mode, const std::string &data_format, const int64_t &offset_x,
-                              const bool &enable_hf32) {
+                              const bool &enable_hf32, const int64_t &fixed_shift_value) {
   const auto &op_ptr = std::make_shared<af::ascir_op::Conv2D>(name);
   auto &op = *op_ptr;
   const auto &desc = OpDescUtils::GetOpDescFromOperator(op);
@@ -13114,6 +13586,7 @@ inline af::AscOpOutput Conv2D(const char *name, const af::AscOpOutput &x_in, con
   op.ir_attr.SetData_format(data_format);
   op.ir_attr.SetOffset_x(offset_x);
   op.ir_attr.SetEnable_hf32(enable_hf32);
+  op.ir_attr.SetFixed_shift_value(fixed_shift_value);
 
   SET_SCHED_AXIS_IF_IN_CONTEXT(op);
 
@@ -13144,7 +13617,8 @@ inline af::AscOpOutput Conv2DBias(const char *name, const af::AscOpOutput &x_in,
                                   const af::AscOpOutput &bias_in, const std::vector<int64_t> &strides,
                                   const std::vector<int64_t> &pads, const std::vector<int64_t> &dilations,
                                   const int64_t &groups, const int64_t &has_relu, const std::string &pad_mode,
-                                  const std::string &data_format, const int64_t &offset_x, const bool &enable_hf32) {
+                                  const std::string &data_format, const int64_t &offset_x, const bool &enable_hf32,
+                                  const int64_t &fixed_shift_value) {
   const auto &op_ptr = std::make_shared<af::ascir_op::Conv2DBias>(name);
   auto &op = *op_ptr;
   const auto &desc = OpDescUtils::GetOpDescFromOperator(op);
@@ -13163,6 +13637,7 @@ inline af::AscOpOutput Conv2DBias(const char *name, const af::AscOpOutput &x_in,
   op.ir_attr.SetData_format(data_format);
   op.ir_attr.SetOffset_x(offset_x);
   op.ir_attr.SetEnable_hf32(enable_hf32);
+  op.ir_attr.SetFixed_shift_value(fixed_shift_value);
 
   SET_SCHED_AXIS_IF_IN_CONTEXT(op);
 
@@ -13195,7 +13670,8 @@ inline af::AscOpOutput Conv2DOffset(const char *name, const af::AscOpOutput &x_i
                                     const af::AscOpOutput &offset_w_in, const std::vector<int64_t> &strides,
                                     const std::vector<int64_t> &pads, const std::vector<int64_t> &dilations,
                                     const int64_t &groups, const int64_t &has_relu, const std::string &pad_mode,
-                                    const std::string &data_format, const int64_t &offset_x, const bool &enable_hf32) {
+                                    const std::string &data_format, const int64_t &offset_x, const bool &enable_hf32,
+                                    const int64_t &fixed_shift_value) {
   const auto &op_ptr = std::make_shared<af::ascir_op::Conv2DOffset>(name);
   auto &op = *op_ptr;
   const auto &desc = OpDescUtils::GetOpDescFromOperator(op);
@@ -13214,6 +13690,7 @@ inline af::AscOpOutput Conv2DOffset(const char *name, const af::AscOpOutput &x_i
   op.ir_attr.SetData_format(data_format);
   op.ir_attr.SetOffset_x(offset_x);
   op.ir_attr.SetEnable_hf32(enable_hf32);
+  op.ir_attr.SetFixed_shift_value(fixed_shift_value);
 
   SET_SCHED_AXIS_IF_IN_CONTEXT(op);
 
@@ -13248,7 +13725,7 @@ inline af::AscOpOutput Conv2DOffsetBias(const char *name, const af::AscOpOutput 
                                         const std::vector<int64_t> &dilations, const int64_t &groups,
                                         const int64_t &has_relu, const std::string &pad_mode,
                                         const std::string &data_format, const int64_t &offset_x,
-                                        const bool &enable_hf32) {
+                                        const bool &enable_hf32, const int64_t &fixed_shift_value) {
   const auto &op_ptr = std::make_shared<af::ascir_op::Conv2DOffsetBias>(name);
   auto &op = *op_ptr;
   const auto &desc = OpDescUtils::GetOpDescFromOperator(op);
@@ -13268,6 +13745,7 @@ inline af::AscOpOutput Conv2DOffsetBias(const char *name, const af::AscOpOutput 
   op.ir_attr.SetData_format(data_format);
   op.ir_attr.SetOffset_x(offset_x);
   op.ir_attr.SetEnable_hf32(enable_hf32);
+  op.ir_attr.SetFixed_shift_value(fixed_shift_value);
 
   SET_SCHED_AXIS_IF_IN_CONTEXT(op);
 

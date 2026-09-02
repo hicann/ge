@@ -345,3 +345,107 @@ TEST_F(fusion_rule_manager_stest, test_init_graph_rules_vectorcore) {
   EXPECT_EQ(ret, fe::SUCCESS);
   system(("rm -rf " + current_dir + "plugin").c_str());
 }
+
+FusionRuleNodePtr StCreateFusionRuleNode(const string &node_name, const vector<string> &node_types,
+                                         vector<int> inputs_anchor_indxs, vector<int> output_anchor_indexs,
+                                         const map<string, FusionRuleAttrValuePtr> &attributes) {
+  FusionRuleNodePtr node = make_shared<fe::FusionRuleNode>();
+  node->node_name_ = node_name;
+  node->node_type_ = node_types;
+  for (size_t i = 0; i < inputs_anchor_indxs.size(); ++i) {
+    int index = inputs_anchor_indxs[i];
+    string anchor_name = node_name + "_input_" + to_string(index);
+    auto anchor = make_shared<fe::FusionRuleAnchor>();
+    anchor->anchor_idx_ = index;
+    anchor->anchor_name_ = anchor_name;
+    anchor->owner_node_ = node;
+    node->input_data_anchors_.push_back(anchor);
+  }
+  for (size_t i = 0; i < output_anchor_indexs.size(); ++i) {
+    int index = output_anchor_indexs[i];
+    string anchor_name = node_name + "_output_" + to_string(index);
+    auto anchor = make_shared<fe::FusionRuleAnchor>();
+    anchor->anchor_idx_ = index;
+    anchor->anchor_name_ = anchor_name;
+    anchor->owner_node_ = node;
+    node->output_data_anchors_.push_back(anchor);
+  }
+  node->attributes_ = attributes;
+  return node;
+}
+
+TEST_F(fusion_rule_manager_stest, load_nodes_duplicate_inner_node_name) {
+  FusionRulePatternPtr pattern = make_shared<FusionRulePattern>();
+  FusionRuleJsonGraphPtr json_graph = make_shared<FusionRuleJsonGraph>();
+  FusionRuleJsonNodePtr node1 = make_shared<FusionRuleJsonNode>();
+  node1->name_ = "dup_node";
+  node1->types_ = {"Test"};
+  json_graph->nodes_.push_back(node1);
+  FusionRuleJsonNodePtr node2 = make_shared<FusionRuleJsonNode>();
+  node2->name_ = "dup_node";
+  node2->types_ = {"Test"};
+  json_graph->nodes_.push_back(node2);
+
+  set<FusionRuleNodePtr> rule_nodes;
+  Status ret = FusionRulePatternConstructor::LoadGraph(pattern, rule_nodes, json_graph);
+  EXPECT_EQ(ret, fe::ILLEGAL_RULE);
+}
+
+TEST_F(fusion_rule_manager_stest, load_input_info_duplicate_anchor) {
+  FusionRulePatternPtr pattern = make_shared<FusionRulePattern>();
+  vector<FusionRuleJsonOuterPtr> outer_inputs;
+  FusionRuleJsonOuterPtr input1 = make_shared<FusionRuleJsonOuter>();
+  input1->name_ = "dup_input";
+  input1->has_src_ = false;
+  outer_inputs.push_back(input1);
+  FusionRuleJsonOuterPtr input2 = make_shared<FusionRuleJsonOuter>();
+  input2->name_ = "dup_input";
+  input2->has_src_ = false;
+  outer_inputs.push_back(input2);
+
+  Status ret = FusionRulePatternConstructor::LoadInputInfo(pattern, outer_inputs);
+  EXPECT_EQ(ret, fe::ILLEGAL_RULE);
+}
+
+TEST_F(fusion_rule_manager_stest, load_output_info_duplicate_output) {
+  FusionRulePatternPtr pattern = make_shared<FusionRulePattern>();
+  vector<FusionRuleJsonOuterPtr> outer_outputs;
+  FusionRuleJsonOuterPtr output1 = make_shared<FusionRuleJsonOuter>();
+  output1->name_ = "dup_output";
+  outer_outputs.push_back(output1);
+  FusionRuleJsonOuterPtr output2 = make_shared<FusionRuleJsonOuter>();
+  output2->name_ = "dup_output";
+  outer_outputs.push_back(output2);
+
+  Status ret = FusionRulePatternConstructor::LoadOutputInfo(pattern, outer_outputs);
+  EXPECT_EQ(ret, fe::ILLEGAL_RULE);
+}
+
+TEST_F(fusion_rule_manager_stest, topological_sorting_empty_pre_nodes) {
+  vector<FusionRuleNodePtr> input_info;
+  vector<FusionRuleNodePtr> output_info;
+  set<FusionRuleNodePtr> inner_nodes;
+  Status ret = FusionRulePatternConstructor::TopoligicalSorting(input_info, output_info, inner_nodes, true);
+  EXPECT_EQ(ret, fe::SUCCESS);
+}
+
+TEST_F(fusion_rule_manager_stest, check_current_node_loop_detection) {
+  FusionRuleNodePtr node_a = StCreateFusionRuleNode("node_a", {"Test"}, {0}, {0}, {});
+  FusionRuleNodePtr node_b = StCreateFusionRuleNode("node_b", {"Test"}, {0}, {0}, {});
+
+  auto a_out_anchor = node_a->GetOutputDataAnchors()[0];
+  auto b_in_anchor = node_b->GetInputDataAnchors()[0];
+  a_out_anchor->peer_anchors_.emplace_back(b_in_anchor);
+  b_in_anchor->peer_anchors_.emplace_back(a_out_anchor);
+
+  auto b_out_anchor = node_b->GetOutputDataAnchors()[0];
+  auto a_in_anchor = node_a->GetInputDataAnchors()[0];
+  b_out_anchor->peer_anchors_.emplace_back(a_in_anchor);
+  a_in_anchor->peer_anchors_.emplace_back(b_out_anchor);
+
+  vector<FusionRuleNodePtr> input_info = {node_a};
+  vector<FusionRuleNodePtr> output_info = {node_b};
+  set<FusionRuleNodePtr> inner_nodes = {node_a, node_b};
+  Status ret = FusionRulePatternConstructor::TopoligicalSorting(input_info, output_info, inner_nodes, true);
+  EXPECT_EQ(ret, fe::ILLEGAL_RULE);
+}

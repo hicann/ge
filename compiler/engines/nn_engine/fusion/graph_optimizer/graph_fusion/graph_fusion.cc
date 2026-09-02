@@ -625,11 +625,11 @@ Status HandleTransDataInFront(ge::NodePtr transdata, ge::NodePtr cast) {
   FE_CHECK_NOTNULL(cast_output);
   ge::Format trans_data_in_format = trans_data_input->GetFormat();
   if (ge::HasC0Format(trans_data_in_format) && ge::GetC0Value(trans_data_in_format) == SHAPE_NUMBER_8) {
-    FE_LOGI("Cast not support c08 format.");
+    FE_LOGI("Cast does not support c08 format.");
     return FAILED;
   }
   if (!VerifyCastC0Format(cast_desc, trans_data_in_format)) {
-    FE_LOGI("Cast not support current c0 format:%d.", trans_data_in_format);
+    FE_LOGI("Cast does not support current c0 format:%d.", trans_data_in_format);
     return FAILED;
   }
   const ge::GeShape &trans_data_in_shape = trans_data_input->GetShape();
@@ -682,7 +682,7 @@ Status HandleTransDataAtTail(ge::NodePtr transdata, ge::NodePtr cast) {
 
   ge::Format trans_data_out_format = trans_data_output->GetFormat();
   if (ge::HasC0Format(trans_data_out_format) && ge::GetC0Value(trans_data_out_format) == SHAPE_NUMBER_8) {
-    FE_LOGI("Cast not support c08 format.");
+    FE_LOGI("Cast does not support c08 format.");
     return FAILED;
   }
   ge::DataType cast_in_dtype = cast_input->GetDataType();
@@ -965,7 +965,7 @@ Status GraphFusion::SwitchTransDataAndCast(ge::ComputeGraph &graph,
         (void)FuseCastWhenTransDataAtTail(graph, cast);
         /* 3.1 Switch cast and transdata pattern 0. */
         if (HandleTransDataAtTail(transdata, cast) != SUCCESS) {
-          FE_LOGD("Switch %s with %s. where transdata is at tail unsuccessful.", transdata->GetName().c_str(),
+          FE_LOGD("Switch %s with %s, where transdata is at tail, was unsuccessful.", transdata->GetName().c_str(),
                   cast->GetName().c_str());
         } else {
           Status ret = ComputeTensorSize(cast, transdata);

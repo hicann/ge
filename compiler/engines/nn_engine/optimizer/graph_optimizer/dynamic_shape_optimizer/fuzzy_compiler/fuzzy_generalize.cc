@@ -307,7 +307,7 @@ Status FuzzyGeneralize::GetReshapeTypeByOpStore(const ge::NodePtr &node, const s
                                                 std::string &reshape_type) const {
   auto iter_node_info = node_info_map_.find(node);
   if (iter_node_info == node_info_map_.end()) {
-    FE_LOGW("[GraphOpt][Prepare][Generalize] Unable to locate node [%s, %s] within node_info_map._.",
+    FE_LOGW("[GraphOpt][Prepare][Generalize] Unable to locate node [%s, %s] within node_info_map.",
             node->GetName().c_str(), node->GetType().c_str());
     return FAILED;
   }

@@ -48,6 +48,10 @@ const std::string kConv2D = "Conv2D";
 const std::string kConv2DBias = "Conv2DBias";
 const std::string kConv2DOffset = "Conv2DOffset";
 const std::string kConv2DOffsetBias = "Conv2DOffsetBias";
+const std::string kExtendConv2D = "ExtendConv2D";
+const std::string kExtendConv2DBias = "ExtendConv2DBias";
+const std::string kExtendConv2DScale = "ExtendConv2DScale";
+const std::string kExtendConv2DBiasScale = "ExtendConv2DBiasScale";
 
 class DefaultCounter : public Counter {
  public:

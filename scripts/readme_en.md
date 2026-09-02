@@ -6,7 +6,7 @@ Currently supports a series of common developer functions including container-ba
 
 ## Prerequisites
 
-Below are the manual prerequisites needed for using GE developer toolchain;
+Below are the manual prerequisites needed for using GE developer toolchain:
 
 The following are verified best performance recommended configurations:
 
@@ -47,7 +47,7 @@ GE toolchain corresponding scripts are under scripts, can execute according to f
     $ ge update
     ```
 
-    (Note: After entering container, `ge` command already automatically registered into system, so container内 doesn't need to write script full name)
+    (Note: After entering container, `ge` command already automatically registered into system, so container doesn't need to write script full name)
 
 4. Execute testing, default executes unit test cases, `ge test` will automatically trigger build
 
@@ -57,7 +57,7 @@ GE toolchain corresponding scripts are under scripts, can execute according to f
 
 ## Detailed Usage
 
-Under scripts directory, run ./ge.sh -h to view all subcommand集合.
+Under scripts directory, run ./ge.sh -h to view all subcommands.
 
 ```sh
 $ ./ge.sh -h
@@ -79,7 +79,7 @@ Commands:
     clean       Clean
 ```
 
-Each subcommand built into script represents an independent function; each subcommand also provides secondary parameters for flexible specification of execution方式.
+Each subcommand built into script represents an independent function; each subcommand also provides secondary parameters for flexible specification of execution method.
 
 Each subcommand can view supported configurable parameters through `-h`.
 
@@ -89,11 +89,11 @@ For example querying `env` subcommand parameters, can use following command:
 $  ./ge.sh env -h
 ```
 
-Each subcommand has a default behavior when不带参数.
+Each subcommand has a default behavior when no parameters are provided.
 
 ### `ge env`
 
-This command用于 prepares container environment used for building and testing, specifically contains following parameters:
+This command is used to prepare container environment used for building and testing, specifically contains following parameters:
 
 ```sh
 $  ./ge.sh env -h
@@ -114,14 +114,14 @@ Parameter detailed explanation:
 
 - `-b  -- build`: Generate required running container image based on "scripts/env/Dockerfile";
 - `-p  -- pull`: Pull required container image from locally configured container central repository;
-- `-e  -- enter`: Login to container runtime environment前提 existing local container image;
+- `-e  -- enter`: Login to container runtime environment with existing local container image;
 - `-r  -- reset`: Delete local running container image environment;
 
 Default: Pull corresponding container image from central container repository, run instance and login.
 
 ### `ge config`
 
-Configure external dependency server, specific parameters如下:
+Configure external dependency server, specific parameters are as follows:
 
 ```sh
 $ ge config -h
@@ -136,20 +136,20 @@ Options:
     -p, --password     Config password
     -h, --help
 
-Example: ge config -i=<ip-adress> -u=<username> -p=<password> (Need add escape character \ before special character $、#、!)
+Example: ge config -i=<ip-adress> -u=<username> -p=<password> (Need add escape character \ before special character $, #, !)
 ```
 
 Parameter detailed explanation:
 
 - `-i,  --ip`          : Configure dependency library server IP address;
-- `-u,  --usr`         : Configure dependency library server username;
+- `-u,  --user`        : Configure dependency library server username;
 - `-p,  --password`    : Configure dependency library address;
 
 Default: Print help information.
 
 ### `ge update`
 
-Install external dependency libraries required for graph engine building, specific parameters如下:
+Install external dependency libraries required for graph engine building, specific parameters are as follows:
 
 ```sh
 $ ge update -h
@@ -178,7 +178,7 @@ Default: Download external dependency libraries according to "scripts/update/dep
 
 ### `ge format`
 
-Use clang-format for code formatting, specific parameters如下:
+Use clang-format for code formatting, specific parameters are as follows:
 
 ```sh
 $ ge format -h
@@ -218,14 +218,14 @@ Options:
 
 Parameter detailed explanation:
 
-- `-u, --unit`      : Execute unit testing
-- `-c, --component` : Execute component testing
+- `-u, --unit`      : Execute unit testing;
+- `-c, --component` : Execute component testing;
 
 Default: Execute unit testing.
 
 ### `ge cov`
 
-Execute code coverage checking, supports full coverage and increment coverage functions, this command需要 already ran test cases, currently supports following parameters:
+Execute code coverage checking, supports full coverage and increment coverage functions, this command requires already ran test cases, currently supports following parameters:
 
 ```sh
 $ ge cov -h
@@ -242,10 +242,10 @@ Options:
 Parameter detailed explanation:
 
 - `-a, --all`       : Execute full coverage rate statistics;
-- `-i, --increment` : Execute increment coverage checking, default analyzes uncommitted modified code coverage (if new git untracked files exist, need先 git add to add in);
+- `-i, --increment` : Execute increment coverage checking, default analyzes uncommitted modified code coverage (if new git untracked files exist, need to git add to add in first);
 - `-d, --directory` : Code path for increment coverage checking, supports passing path parameters;
 
-Default: Execute increment coverage checking;
+Default: Execute increment coverage checking.
 
 Below command demonstrates how to check all code's increment coverage under ge directory:
 
@@ -255,7 +255,7 @@ $ ge cov -d=ge
 
 ### `ge docs`
 
-Doxygen document generation, includes code logic and physical structure and relationships, convenient for reading and understanding code; currently supports following parameters:
+Doxygen document generation, includes code logic and physical structure and relationships, convenient for reading and understanding code, currently supports following parameters:
 
 ```sh
 $ ge docs -h
@@ -270,14 +270,14 @@ Options:
 
 Parameter detailed explanation:
 
-- `-b, --brief`: Generate brief documents, ignore部分 relationship diagram generation, fast speed;
+- `-b, --brief`: Generate brief documents, ignore some relationship diagram generation, fast speed;
 - `-a, --all`: Generate full documents, includes various code relationship diagrams, relatively slow speed;
 
 Default: Generate full code documents.
 
 ### `ge clean`
 
-Clean various downloaded or generated intermediate files, currently supported parameters如下:
+Clean various downloaded or generated intermediate files, currently supported parameters are as follows:
 
 ```sh
 $ ge clean -h
@@ -303,4 +303,4 @@ Default: Clean temporary files generated by compilation build.
 
 ## Follow us
 
-Toolchain functionality还在 continuously improving, please submit issue if problems, thank you!
+Toolchain functionality is continuously improving, please submit issue if problems, thank you!

@@ -417,4 +417,27 @@ TEST_F(RtKernelLaunchArgsExUT, test_calc_tiling_overflow) {
 TEST_F(RtKernelLaunchArgsExUT, test_kernel_run_success) {
   ASSERT_EQ(KernelRegistry::GetInstance().FindKernelFuncs("AllocLaunchArg")->run_func(nullptr), ge::GRAPH_SUCCESS);
 }
+
+TEST_F(RtKernelLaunchArgsExUT, test_UpdateMergedCopyInfo_tiling_size_overflow) {
+  size_t compiled_args_size = 64;
+  auto node_desc_holder = malloc(compiled_args_size + sizeof(ComputeNodeDesc));
+  auto node_desc = reinterpret_cast<ComputeNodeDesc *>(node_desc_holder);
+  *node_desc = {.input_num = 1,
+                .output_num = 1,
+                .workspace_cap = 8,
+                .max_tiling_data = 128,
+                .need_shape_buffer = false,
+                .need_overflow = false,
+                .compiled_args_size = compiled_args_size};
+  auto args_info_desc_holder = CreateDefaultArgsInfoDesc(node_desc->input_num, node_desc->output_num);
+  auto args_info_desc = reinterpret_cast<ArgsInfosDesc *>(args_info_desc_holder.get());
+  auto holder = RtKernelLaunchArgsEx::Create(*node_desc, *args_info_desc);
+  ASSERT_NE(holder, nullptr);
+  auto args = reinterpret_cast<RtKernelLaunchArgsEx *>(holder.get());
+  auto available = args->GetArgsCap(RtKernelLaunchArgsEx::ArgsType::kTilingData) +
+                   args->GetArgsCap(RtKernelLaunchArgsEx::ArgsType::kHostInputData);
+  args->GetTilingData().SetDataSize(available + 1);
+  ASSERT_EQ(args->UpdateMergedCopyInfo(), ge::GRAPH_FAILED);
+  free(node_desc_holder);
+}
 }  // namespace gert

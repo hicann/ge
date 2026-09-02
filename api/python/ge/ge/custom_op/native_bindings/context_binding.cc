@@ -361,13 +361,6 @@ class BorrowedOpCompileContext {
   std::shared_ptr<bool> active_;
 };
 
-BorrowedOpCompileContext BorrowOpCompileContext(uintptr_t ctx_handle) {
-  if (ctx_handle == 0U) {
-    throw std::invalid_argument("ctx_handle is null");
-  }
-  return BorrowedOpCompileContext(reinterpret_cast<gert::OpCompileContext *>(ctx_handle));
-}
-
 template <typename Context>
 Context *GetContextFromCapsule(const py::capsule &ctx_handle, const char *expected_name) {
   if ((ctx_handle.get_pointer() == nullptr) || (ctx_handle.name() == nullptr) ||
@@ -375,6 +368,10 @@ Context *GetContextFromCapsule(const py::capsule &ctx_handle, const char *expect
     throw std::invalid_argument("ctx_handle is invalid");
   }
   return static_cast<Context *>(ctx_handle.get_pointer());
+}
+
+BorrowedOpCompileContext BorrowOpCompileContext(const py::capsule &ctx_handle) {
+  return BorrowedOpCompileContext(GetContextFromCapsule<gert::OpCompileContext>(ctx_handle, "gert::OpCompileContext"));
 }
 
 BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(const py::capsule &ctx_handle) {

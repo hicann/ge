@@ -12,11 +12,9 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cmath>
 #include <cstdlib>
 #include <iomanip>
 #include <limits>
-#include <locale>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
@@ -36,6 +34,8 @@
 #include "graph/anchor.h"
 #include "graph/ge_local_context.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "exe_graph/lowering/bg_kernel_context_extend.h"
+#include "exe_graph/lowering/buffer_pool.h"
 #include "graph/utils/attr_utils.h"
 
 namespace ge {
@@ -86,54 +86,6 @@ std::string EscapeCppString(const std::string &value) {
   return os.str();
 }
 
-std::string RangeExpression(const std::vector<std::pair<int64_t, int64_t>> &ranges) {
-  std::ostringstream os;
-  os << "std::vector<std::pair<int64_t, int64_t>>{";
-  for (size_t i = 0U; i < ranges.size(); ++i) {
-    if (i != 0U) {
-      os << ", ";
-    }
-    os << "{" << IntExpression(ranges[i].first) << ", " << IntExpression(ranges[i].second) << "}";
-  }
-  os << "}";
-  return os.str();
-}
-
-std::string TensorDescExpression(const GeTensorDesc &desc) {
-  std::ostringstream os;
-  os << "([]() { ge::TensorDesc desc(ge::Shape(std::vector<int64_t>{";
-  const auto dims = desc.GetShape().GetDims();
-  for (size_t i = 0U; i < dims.size(); ++i) {
-    if (i != 0U) {
-      os << ", ";
-    }
-    os << dims[i];
-  }
-  os << "}), static_cast<ge::Format>(" << static_cast<int32_t>(desc.GetFormat()) << "), static_cast<ge::DataType>("
-     << static_cast<int32_t>(desc.GetDataType()) << ")); ";
-  if (desc.IsOriginShapeInitialized()) {
-    os << "desc.SetOriginShape(ge::Shape(std::vector<int64_t>{";
-    const auto origin_dims = desc.GetOriginShape().GetDims();
-    for (size_t i = 0U; i < origin_dims.size(); ++i) {
-      if (i != 0U) {
-        os << ", ";
-      }
-      os << origin_dims[i];
-    }
-    os << "})); ";
-  }
-  os << "desc.SetOriginFormat(static_cast<ge::Format>(" << static_cast<int32_t>(desc.GetOriginFormat())
-     << ")); desc.SetName(std::string(\"" << EscapeCppString(desc.GetName()) << "\", " << desc.GetName().size()
-     << "U)); desc.SetExpandDimsRule(ge::AscendString(\"" << EscapeCppString(desc.GetExpandDimsRule())
-     << "\")); desc.SetPlacement(static_cast<ge::Placement>(" << static_cast<int32_t>(desc.GetPlacement()) << ")); ";
-  std::vector<std::pair<int64_t, int64_t>> ranges;
-  if ((desc.GetShapeRange(ranges) == GRAPH_SUCCESS) && !ranges.empty()) {
-    os << "(void)desc.SetShapeRange(" << RangeExpression(ranges) << "); ";
-  }
-  os << "return desc; }())";
-  return os.str();
-}
-
 Status GetTensorSize(const GeTensorDesc &desc, size_t &size) {
   const auto &shape = desc.GetShape();
   if (shape.IsUnknownShape()) {
@@ -156,43 +108,6 @@ std::string IntExpression(const int64_t value) {
     return "(-9223372036854775807LL - 1LL)";
   }
   return std::to_string(value) + "LL";
-}
-
-std::string IntVectorExpression(const std::vector<int64_t> &values) {
-  std::ostringstream os;
-  os << "{";
-  for (size_t i = 0U; i < values.size(); ++i) {
-    if (i != 0U) {
-      os << ", ";
-    }
-    os << IntExpression(values[i]);
-  }
-  os << "}";
-  return os.str();
-}
-
-std::string FloatExpression(const float value) {
-  std::ostringstream os;
-  os.imbue(std::locale::classic());
-  os << std::setprecision(std::numeric_limits<float>::max_digits10) << value;
-  std::string expression = os.str();
-  if (expression.find_first_of(".eE") == std::string::npos) {
-    expression += ".0";
-  }
-  return expression + "F";
-}
-
-std::string FloatVectorExpression(const std::vector<float> &values) {
-  std::ostringstream os;
-  os << "{";
-  for (size_t i = 0U; i < values.size(); ++i) {
-    if (i != 0U) {
-      os << ", ";
-    }
-    os << FloatExpression(values[i]);
-  }
-  os << "}";
-  return os.str();
 }
 
 #if defined(__linux__)
@@ -338,12 +253,16 @@ bool HasHeader(const std::vector<std::string> &include_paths, const std::string 
 }
 
 bool CheckRequiredHeaders(const std::vector<std::string> &include_paths) {
-  static const std::vector<std::string> kRequiredHeaders = {"aicpu/cpu_kernels/cpu_kernel.h",
-                                                            "aicpu/cpu_kernels/cpu_kernel_register.h",
-                                                            "graph/operator.h", "graph/tensor.h"};
+  // Keep this list aligned with the headers emitted below.  The generated SO only
+  // uses the public HostCpuExecuteOp/KernelContext ABI; requiring the legacy
+  // CpuKernel registration headers made JIT depend on headers it never included.
+  static const std::vector<std::string> kRequiredHeaders = {
+      "exe_graph/runtime/compute_node_info.h", "exe_graph/runtime/gert_tensor_data.h",
+      "exe_graph/runtime/kernel_context.h",    "exe_graph/runtime/kernel_run_context.h",
+      "exe_graph/runtime/runtime_tensor.h",    "graph/custom_op.h"};
   for (const auto &header : kRequiredHeaders) {
     if (!HasHeader(include_paths, header)) {
-      GELOGE(UNSUPPORTED, "HostCPU fusion JIT header %s was not found, include_paths=%s.", header.c_str(),
+      GELOGW("HostCPU fusion JIT header %s was not found, include_paths=%s.", header.c_str(),
              JoinPaths(include_paths).c_str());
       return false;
     }
@@ -433,674 +352,483 @@ Status HostCpuFusionCodegen::Generate(const HostCpuFusionRegion &region, HostCpu
            region.chain_id.c_str(), region.nodes.size(), region.external_inputs.size(), region.external_outputs.size());
     return PARAM_INVALID;
   }
-
-  /** chain_id还必须能作为 C++ 标识符的一部分：
-   * - 不能以数字开头；
-   * - 只能包含字母、数字和下划线；
-   * - 最终注册名不能超过 160 字节。
-   */
   if (((region.chain_id.front() >= '0') && (region.chain_id.front() <= '9')) ||
       !std::all_of(region.chain_id.cbegin(), region.chain_id.cend(),
                    [](const unsigned char ch) { return IsAsciiAlphaNumeric(ch) || (ch == '_'); })) {
     GELOGE(PARAM_INVALID, "Invalid HostCPU fusion chain id[%s].", region.chain_id.c_str());
     return PARAM_INVALID;
   }
+
   const std::string register_name = std::string(kFusedHostCpuOpType) + "_" + region.chain_id;
   if (register_name.size() > kMaxRegisterNameSize) {
     GELOGE(PARAM_INVALID, "HostCPU fusion register name is too long: chain[%s], register_name[%s], size[%zu].",
            region.chain_id.c_str(), register_name.c_str(), register_name.size());
     return PARAM_INVALID;
   }
-  GELOGD("Generate HostCPU fusion orchestration: chain=%s, nodes=%zu, inputs=%zu, outputs=%zu.",
-         region.chain_id.c_str(), region.nodes.size(), region.external_inputs.size(), region.external_outputs.size());
 
-  // 校验节点和 anchor 唯一性，并将图对象映射为稳定的生成代码下标。
   std::unordered_map<const Node *, size_t> node_indexes;
   for (size_t i = 0U; i < region.nodes.size(); ++i) {
-    if ((region.nodes[i] == nullptr) || (region.nodes[i]->GetOpDesc() == nullptr)) {
-      GELOGE(PARAM_INVALID, "Invalid HostCPU fusion node: chain[%s], node_index[%zu], node_null[%d], op_desc_null[%d].",
-             region.chain_id.c_str(), i, static_cast<int32_t>(region.nodes[i] == nullptr),
-             static_cast<int32_t>((region.nodes[i] != nullptr) && (region.nodes[i]->GetOpDesc() == nullptr)));
-      return PARAM_INVALID;
-    }
-    if (!node_indexes.emplace(region.nodes[i].get(), i).second) {
-      GELOGE(PARAM_INVALID, "Duplicate HostCPU fusion node: chain[%s], node_index[%zu], node[%s].",
-             region.chain_id.c_str(), i, region.nodes[i]->GetNamePtr());
+    if ((region.nodes[i] == nullptr) || (region.nodes[i]->GetOpDesc() == nullptr) ||
+        !node_indexes.emplace(region.nodes[i].get(), i).second) {
+      GELOGE(PARAM_INVALID, "Invalid or duplicate HostCPU fusion node: chain[%s], node_index[%zu].",
+             region.chain_id.c_str(), i);
       return PARAM_INVALID;
     }
   }
+
   std::unordered_map<const OutDataAnchor *, size_t> input_indexes;
   for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    if ((region.external_inputs[i] == nullptr) ||
-        (node_indexes.count(region.external_inputs[i]->GetOwnerNode().get()) > 0U)) {
-      GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external input: chain[%s], input_index[%zu], anchor_null[%d].",
-             region.chain_id.c_str(), i, static_cast<int32_t>(region.external_inputs[i] == nullptr));
-      return PARAM_INVALID;
-    }
-    if (!input_indexes.emplace(region.external_inputs[i].get(), i).second) {
-      GELOGE(PARAM_INVALID, "Duplicate HostCPU fusion external input: chain[%s], input_index[%zu].",
+    const auto &anchor = region.external_inputs[i];
+    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNode().get()) > 0U) ||
+        !input_indexes.emplace(anchor.get(), i).second) {
+      GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external input: chain[%s], input_index[%zu].",
              region.chain_id.c_str(), i);
       return PARAM_INVALID;
     }
   }
+
   std::unordered_map<const OutDataAnchor *, size_t> output_indexes;
   for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    if ((region.external_outputs[i].source == nullptr) ||
-        (node_indexes.count(region.external_outputs[i].source->GetOwnerNode().get()) == 0U)) {
-      GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external output: chain[%s], output_index[%zu], source_null[%d].",
-             region.chain_id.c_str(), i, static_cast<int32_t>(region.external_outputs[i].source == nullptr));
-      return PARAM_INVALID;
-    }
-    if (!output_indexes.emplace(region.external_outputs[i].source.get(), i).second) {
-      GELOGE(PARAM_INVALID, "Duplicate HostCPU fusion external output: chain[%s], output_index[%zu].",
+    const auto &anchor = region.external_outputs[i].source;
+    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNode().get()) == 0U) ||
+        !output_indexes.emplace(anchor.get(), i).second) {
+      GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external output: chain[%s], output_index[%zu].",
              region.chain_id.c_str(), i);
       return PARAM_INVALID;
+    }
+  }
+
+  const auto shape_expression = [](const GeShape &shape) {
+    std::ostringstream os;
+    os << "gert::StorageShape({";
+    const auto dims = shape.GetDims();
+    for (size_t i = 0U; i < dims.size(); ++i) {
+      if (i != 0U) {
+        os << ", ";
+      }
+      os << IntExpression(dims[i]);
+    }
+    os << "}, {";
+    for (size_t i = 0U; i < dims.size(); ++i) {
+      if (i != 0U) {
+        os << ", ";
+      }
+      os << IntExpression(dims[i]);
+    }
+    os << "})";
+    return os.str();
+  };
+  const auto format_expression = [](const GeTensorDesc &desc) {
+    std::ostringstream os;
+    os << "gert::StorageFormat(static_cast<ge::Format>(" << static_cast<int32_t>(desc.GetOriginFormat())
+       << "), static_cast<ge::Format>(" << static_cast<int32_t>(desc.GetFormat()) << "), gert::ExpandDimsType())";
+    return os.str();
+  };
+  const auto emit_bytes = [](const uint8_t *data, const size_t size) {
+    std::ostringstream os;
+    os << "{{";
+    for (size_t i = 0U; i < size; ++i) {
+      if (i != 0U) {
+        os << ", ";
+      }
+      os << static_cast<uint32_t>(data[i]) << "U";
+    }
+    os << "}}";
+    return os.str();
+  };
+
+  // The generated executor may contain many nodes with the same op type (for example, a
+  // long Pack chain).  Keep one runtime lookup slot per distinct type so the hot path does
+  // not repeatedly call the HostCPU registry finder.
+  std::unordered_map<std::string, size_t> kernel_type_indexes;
+  std::vector<std::string> kernel_types;
+  kernel_types.reserve(region.nodes.size());
+  for (const auto &node : region.nodes) {
+    const std::string type = node->GetType();
+    if (kernel_type_indexes.find(type) == kernel_type_indexes.end()) {
+      const size_t type_index = kernel_types.size();
+      kernel_type_indexes.emplace(type, type_index);
+      kernel_types.emplace_back(type);
     }
   }
 
   std::ostringstream code;
-  code << "#include <array>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <limits>\n"
-       << "#include <memory>\n#include <new>\n#include <string>\n#include <utility>\n#include <vector>\n"
-       << "#include \"aicpu/cpu_kernels/cpu_kernel.h\"\n"
-       << "#include \"aicpu/cpu_kernels/cpu_kernel_register.h\"\n"
-       << "#include \"graph/operator.h\"\n"
-       << "#include \"graph/tensor.h\"\n\n"
-       << "extern \"C\" void *CreateCpuConstantFoldingFusedChainPlan(const void *, size_t, size_t, size_t);\n"
-       << "extern \"C\" int32_t RunCpuConstantFoldingFusedChainPlan(void *, uint32_t);\n"
-       << "extern \"C\" int32_t RunCpuConstantFoldingFusedChainPlanBindings(void *, const void *, uint32_t);\n"
-       << "extern \"C\" void DestroyCpuConstantFoldingFusedChainPlan(void *);\n\n"
+  code << "#include <algorithm>\n#include <array>\n#include <atomic>\n#include <cstddef>\n#include <cstdint>\n"
+       << "#include <cstring>\n#include <dlfcn.h>\n#include <memory>\n#include <new>\n"
+       << "#include <string>\n#include <vector>\n"
+       << "#include \"exe_graph/runtime/compute_node_info.h\"\n"
+       << "#include \"exe_graph/runtime/gert_tensor_data.h\"\n"
+       << "#include \"exe_graph/runtime/kernel_context.h\"\n"
+       << "#include \"exe_graph/runtime/kernel_run_context.h\"\n"
+       << "#include \"exe_graph/runtime/runtime_tensor.h\"\n"
+       << "#include \"graph/custom_op.h\"\n\n"
        << "namespace {\n"
-       << "struct FusedHostCpuNodePlanDesc {\n"
-       << "  const ge::Operator *op;\n"
-       << "  const ge::Tensor *const *inputs;\n"
-       << "  size_t input_num;\n"
-       << "  ge::Tensor *const *outputs;\n"
-       << "  size_t output_num;\n"
-       << "  const int32_t *input_binding_indices;\n"
-       << "  const int32_t *output_binding_indices;\n"
-       << "};\n\n"
-       << "enum FusedHostCpuBindingFlag : uint32_t {\n"
-       << "  kFusedHostCpuShapeChanged = 1U,\n"
-       << "  kFusedHostCpuDataChanged = 2U\n"
-       << "};\n\n"
-       << "struct FusedHostCpuTensorBinding {\n"
-       << "  const int64_t *dims;\n"
-       << "  uint8_t *data;\n"
-       << "  size_t dim_num;\n"
-       << "  size_t data_size;\n"
-       << "  uint32_t flags;\n"
-       << "};\n\n"
-       << "class FusedHostCpuChainPlanGuard {\n public:\n"
-       << "  ~FusedHostCpuChainPlanGuard() { DestroyCpuConstantFoldingFusedChainPlan(plan_); }\n"
-       << "  void *Get() const { return plan_; }\n"
-       << "  void Reset(void *plan) {\n"
-       << "    if (plan_ != plan) { DestroyCpuConstantFoldingFusedChainPlan(plan_); plan_ = plan; }\n"
-       << "  }\n"
-       << " private:\n  void *plan_ = nullptr;\n};\n\n"
-       << "struct FusedHostCpuTensorState {\n"
-       << "  ge::DataType data_type = ge::DT_UNDEFINED;\n"
-       << "  ge::Format format = ge::FORMAT_RESERVED;\n"
-       << "  const void *data = nullptr;\n"
-       << "  size_t data_size = 0U;\n"
-       << "  std::vector<int64_t> dims;\n"
-       << "  bool initialized = false;\n"
-       << "};\n\n"
-       << "bool HasSameFusedHostCpuShape(const aicpu::TensorShape &shape,\n"
-       << "                              const FusedHostCpuTensorState &state) {\n"
-       << "  const int32_t dim_num = shape.GetDims();\n"
-       << "  if ((dim_num < 0) || (state.dims.size() != static_cast<size_t>(dim_num))) { return false; }\n"
-       << "  for (int32_t i = 0; i < dim_num; ++i) {\n"
-       << "    if (state.dims[static_cast<size_t>(i)] != shape.GetDimSize(i)) { return false; }\n"
-       << "  }\n"
-       << "  return true;\n"
-       << "}\n\n"
-       << "bool BuildFusedHostCpuTensor(aicpu::Tensor *source, ge::Tensor &target,\n"
-       << "                             FusedHostCpuTensorState &state, bool &changed) {\n"
-       << "  if (source == nullptr) { return false; }\n"
-       << "  const auto shape = source->GetTensorShape();\n"
-       << "  if (shape == nullptr) { return false; }\n"
-       << "  const int32_t dim_num = shape->GetDims();\n"
-       << "  if (dim_num < 0) { return false; }\n"
-       << "  const auto data_type = static_cast<ge::DataType>(source->GetDataType());\n"
-       << "  const auto format = static_cast<ge::Format>(shape->GetFormat());\n"
-       << "  const uint64_t data_size = source->GetDataSize();\n"
-       << "  if ((data_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max())) ||\n"
-       << "      ((data_size != 0U) && (source->GetData() == nullptr))) { return false; }\n"
-       << "  const void *data = source->GetData();\n"
-       << "  const bool rebuild = !state.initialized || (state.data_type != data_type) ||\n"
-       << "                       (state.format != format) || !HasSameFusedHostCpuShape(*shape, state) ||\n"
-       << "                       ((data_size == 0U) && (state.data_size != 0U));\n"
-       << "  changed = rebuild || (state.data != data) || (state.data_size != data_size);\n"
-       << "  if (rebuild) {\n"
-       << "    state.dims.resize(static_cast<size_t>(dim_num));\n"
-       << "    for (int32_t i = 0; i < dim_num; ++i) {\n"
-       << "      state.dims[static_cast<size_t>(i)] = shape->GetDimSize(i);\n"
+       << "using HostKernelFunc = ge::graphStatus (*)(gert::KernelContext *);\n"
+       << "using HostKernelFinder = HostKernelFunc (*)(std::string);\n\n"
+       << "template <size_t InputNum, size_t OutputNum>\n"
+       << "class LocalKernelContext final {\n public:\n"
+       << "  static constexpr size_t kValueNum = InputNum * 2U + 1U + OutputNum * 2U;\n"
+       << "  static constexpr size_t kStorageSize = sizeof(KernelRunContext) +\n"
+       << "      (kValueNum - 1U) * sizeof(AsyncAnyValue *);\n"
+       << "  LocalKernelContext(const gert::ComputeNodeInfo *node_info,\n"
+       << "                     const std::array<const gert::Tensor *, InputNum> &inputs,\n"
+       << "                     const std::array<gert::Tensor *, OutputNum> &outputs, HostKernelFunc func)\n"
+       << "      : input_tensor_data_{}, output_tensor_data_{}, values_{}, storage_{} {\n"
+       << "    auto *run = reinterpret_cast<KernelRunContext *>(storage_.data());\n"
+       << "    constexpr size_t input_num = InputNum;\n"
+       << "    constexpr size_t output_num = OutputNum;\n"
+       << "    run->input_size = input_num * 2U + 1U;\n"
+       << "    run->output_size = output_num * 2U;\n"
+       << "    run->compute_node_info = node_info;\n"
+       << "    run->kernel_extend_info = nullptr;\n"
+       << "    for (size_t i = 0U; i < input_num; ++i) {\n"
+       << "      const auto *tensor = inputs[i];\n"
+       << "      const auto placement = (tensor->GetPlacement() == gert::kFollowing) ? gert::kOnHost :\n"
+       << "                             tensor->GetPlacement();\n"
+       << "      input_tensor_data_[i].MutableTensorData() =\n"
+       << "          gert::TensorData(const_cast<void *>(tensor->GetAddr()), nullptr, tensor->GetSize(), placement);\n"
        << "    }\n"
-       << "    ge::TensorDesc desc(ge::Shape(state.dims), format, data_type);\n"
-       << "    desc.SetOriginShape(ge::Shape(state.dims));\n"
-       << "    desc.SetOriginFormat(format);\n"
-       << "    desc.SetPlacement(ge::kPlacementHost);\n"
-       << "    target = ge::Tensor(desc);\n"
-       << "    state.data_type = data_type;\n"
-       << "    state.format = format;\n"
+       << "    for (size_t i = 0U; i < output_num; ++i) {\n"
+       << "      auto *tensor = outputs[i];\n"
+       << "      const auto placement = (tensor->GetPlacement() == gert::kFollowing) ? gert::kOnHost :\n"
+       << "                             tensor->GetPlacement();\n"
+       << "      output_tensor_data_[i].MutableTensorData() =\n"
+       << "          gert::TensorData(tensor->GetAddr(), nullptr, tensor->GetSize(), placement);\n"
+       << "    }\n"
+       << "    for (size_t i = 0U; i < input_num; ++i) {\n"
+       << "      run->values[i] = &values_[i];\n"
+       << "      values_[i].data.pointer = const_cast<gert::StorageShape *>(&inputs[i]->GetShape());\n"
+       << "      values_[i].deleter = nullptr;\n"
+       << "      run->values[input_num + i] = &values_[input_num + i];\n"
+       << "      values_[input_num + i].data.pointer = &input_tensor_data_[i];\n"
+       << "      values_[input_num + i].deleter = nullptr;\n"
+       << "    }\n"
+       << "    // Keep the same trailing function-pointer slot as AicpuHostExecFunc.\n"
+       << "    run->values[input_num * 2U] = &values_[input_num * 2U];\n"
+       << "    (void)std::memcpy(values_[input_num * 2U].data.inplace, &func, sizeof(func));\n"
+       << "    values_[input_num * 2U].deleter = nullptr;\n"
+       << "    const size_t output_start = input_num * 2U + 1U;\n"
+       << "    for (size_t i = 0U; i < output_num; ++i) {\n"
+       << "      run->values[output_start + i] = &values_[output_start + i];\n"
+       << "      values_[output_start + i].data.pointer = &outputs[i]->GetShape();\n"
+       << "      values_[output_start + i].deleter = nullptr;\n"
+       << "      run->values[output_start + output_num + i] = &values_[output_start + output_num + i];\n"
+       << "      values_[output_start + output_num + i].data.pointer = &output_tensor_data_[i];\n"
+       << "      values_[output_start + output_num + i].deleter = nullptr;\n"
+       << "    }\n"
+       << "    run->output_start = run->values + run->input_size;\n"
        << "  }\n"
-       << "  if ((data_size != 0U) && changed &&\n"
-       << "      (target.SetData(reinterpret_cast<uint8_t *>(source->GetData()),\n"
-       << "                      static_cast<size_t>(data_size), [](uint8_t *) {}) != ge::GRAPH_SUCCESS)) {\n"
-       << "    return false;\n"
+       << "  gert::KernelContext *Get() { return reinterpret_cast<gert::KernelContext *>(storage_.data()); }\n"
+       << " private:\n"
+       << "  alignas(gert::GertTensorData) std::array<gert::GertTensorData, InputNum> input_tensor_data_;\n"
+       << "  alignas(gert::GertTensorData) std::array<gert::GertTensorData, OutputNum> output_tensor_data_;\n"
+       << "  std::array<AsyncAnyValue, kValueNum> values_;\n"
+       << "  alignas(KernelRunContext) std::array<uint8_t, kStorageSize> storage_;\n"
+       << "};\n\n"
+       << "class HostKernelCache final {\n public:\n"
+       << "  HostKernelCache() : finder_(nullptr) {}\n"
+       << "  HostKernelFinder GetFinder() {\n"
+       << "    HostKernelFinder finder = finder_.load(std::memory_order_acquire);\n"
+       << "    if (finder != nullptr) { return finder; }\n"
+       << "    const auto candidate = reinterpret_cast<HostKernelFinder>(dlsym(RTLD_DEFAULT, \"AicpuHostFindFunc\"));\n"
+       << "    if (candidate == nullptr) { return nullptr; }\n"
+       << "    HostKernelFinder expected = nullptr;\n"
+       << "    if (!finder_.compare_exchange_strong(expected, candidate, std::memory_order_release,\n"
+       << "                                         std::memory_order_acquire)) {\n"
+       << "      return expected;\n"
+       << "    }\n"
+       << "    return candidate;\n"
        << "  }\n"
-       << "  state.data = data;\n"
-       << "  state.data_size = static_cast<size_t>(data_size);\n"
-       << "  state.initialized = true;\n"
-       << "  return true;\n"
-       << "}\n\n"
-       << "bool BuildFusedHostCpuRuntimeTensor(const FusedHostCpuTensorBinding &binding,\n"
-       << "                                    ge::TensorDesc desc, ge::Tensor &target) {\n"
-       << "  if (((binding.dim_num != 0U) && (binding.dims == nullptr)) ||\n"
-       << "      ((binding.data_size != 0U) && (binding.data == nullptr))) { return false; }\n"
-       << "  std::vector<int64_t> dims(binding.dim_num);\n"
-       << "  for (size_t i = 0U; i < binding.dim_num; ++i) { dims[i] = binding.dims[i]; }\n"
-       << "  desc.SetShape(ge::Shape(dims));\n"
-       << "  desc.SetOriginShape(ge::Shape(dims));\n"
-       << "  desc.SetPlacement(ge::kPlacementHost);\n"
-       << "  target = ge::Tensor(desc);\n"
-       << "  return (binding.data_size == 0U) ||\n"
-       << "         (target.ResetData(binding.data, binding.data_size, [](uint8_t *) {}) == ge::GRAPH_SUCCESS);\n"
+       << "  HostKernelFunc GetKernel(const HostKernelFinder finder,\n"
+       << "                          std::atomic<HostKernelFunc> &slot, const char *type) {\n"
+       << "    HostKernelFunc kernel = slot.load(std::memory_order_acquire);\n"
+       << "    if (kernel != nullptr) { return kernel; }\n"
+       << "    if (finder == nullptr) { return nullptr; }\n"
+       << "    const auto candidate = finder(std::string(type));\n"
+       << "    if (candidate == nullptr) { return nullptr; }\n"
+       << "    HostKernelFunc expected = nullptr;\n"
+       << "    if (!slot.compare_exchange_strong(expected, candidate, std::memory_order_release,\n"
+       << "                                      std::memory_order_acquire)) {\n"
+       << "      return expected;\n"
+       << "    }\n"
+       << "    return candidate;\n"
+       << "  }\n"
+       << " private:\n"
+       << "  std::atomic<HostKernelFinder> finder_;\n"
+       << "};\n\n"
+       << "HostKernelCache &GetHostKernelCache() {\n"
+       << "  static HostKernelCache cache;\n"
+       << "  return cache;\n"
        << "}\n"
-       << "}  // namespace\n\n"
-       << "namespace ge {\nclass FusedHostCpuNodeOperator_" << region.chain_id << " : public Operator {\n public:\n"
-       << "  FusedHostCpuNodeOperator_" << region.chain_id
-       << "(const char *name, const char *type, const std::vector<std::string> &input_names,\n"
-       << "                                      const std::vector<std::string> &output_names)\n"
-       << "      : Operator(name, type) {\n"
-       << "    for (const auto &input_name : input_names) { InputRegister(input_name.c_str()); }\n"
-       << "    for (const auto &output_name : output_names) { OutputRegister(output_name.c_str()); }\n"
-       << "  }\n};\n\n"
-       << "class FusedHostCpuOrchestration_" << region.chain_id << " {\n public:\n"
-       << "  graphStatus Initialize() {\n"
-       << "    if (chain_plan_.Get() != nullptr) { return GRAPH_SUCCESS; }\n"
-       << "    // Build immutable CpuKernel contexts after real runtime tensors are available.\n"
-       << "    if (!runtime_bound_) {\n"
-       << "      static uint8_t placeholder_data = 0U;\n";
+       << "HostKernelFinder GetHostKernelFinder() {\n"
+       << "  return GetHostKernelCache().GetFinder();\n"
+       << "}\n"
+       << "HostKernelFunc GetCachedHostKernel(const HostKernelFinder finder,\n"
+       << "                                  std::atomic<HostKernelFunc> &slot, const char *type) {\n"
+       << "  return GetHostKernelCache().GetKernel(finder, slot, type);\n"
+       << "}\n";
+
+  for (size_t type_index = 0U; type_index < kernel_types.size(); ++type_index) {
+    code << "HostKernelFunc GetHostKernel_" << type_index << "(const HostKernelFinder finder) {\n"
+         << "  static std::atomic<HostKernelFunc> kernel(nullptr);\n"
+         << "  return GetCachedHostKernel(finder, kernel, \"" << EscapeString(kernel_types[type_index]) << "\");\n"
+         << "}\n";
+  }
+
+  code << "}  // namespace\n\n"
+       << "namespace ge {\n"
+       << "class FusedHostCpuCustomOp_" << region.chain_id
+       << " final : public HostCpuExecuteOp, public PortableOp {\n public:\n"
+       << "  graphStatus Serialize(std::vector<uint8_t> &buffer) override {\n"
+       << "    buffer = {0U};\n"
+       << "    return GRAPH_SUCCESS;\n"
+       << "  }\n"
+       << "  graphStatus Deserialize(const std::vector<uint8_t> &buffer) override {\n"
+       << "    (void)buffer;\n"
+       << "    return GRAPH_SUCCESS;\n"
+       << "  }\n"
+       << "  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {\n"
+       << "    if (ctx == nullptr) { return GRAPH_FAILED; }\n"
+       << "    HostKernelFinder finder = GetHostKernelFinder();\n"
+       << "    if (finder == nullptr) { return GRAPH_FAILED; }\n";
+
+  for (size_t type_index = 0U; type_index < kernel_types.size(); ++type_index) {
+    code << "    HostKernelFunc cached_kernel_" << type_index << " = nullptr;\n";
+  }
 
   for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    const auto anchor = region.external_inputs[i];
-    const auto owner = (anchor == nullptr) ? nullptr : anchor->GetOwnerNode();
-    const auto op_desc = (owner == nullptr) ? nullptr : owner->GetOpDesc();
-    if ((op_desc == nullptr) || (anchor->GetIdx() < 0) ||
-        (static_cast<size_t>(anchor->GetIdx()) >= op_desc->GetOutputsSize())) {
-      GELOGE(PARAM_INVALID,
-             "Invalid HostCPU fusion input anchor while generating: chain[%s], input_index[%zu], "
-             "anchor_null[%d], owner_null[%d].",
-             region.chain_id.c_str(), i, static_cast<int32_t>(anchor == nullptr),
-             static_cast<int32_t>(owner == nullptr));
-      return PARAM_INVALID;
-    }
-    code << "      inputs_[" << i << "U] = Tensor("
-         << TensorDescExpression(op_desc->GetOutputDesc(static_cast<size_t>(anchor->GetIdx()))) << ");\n"
-         << "      if (inputs_[" << i
-         << "U].ResetData(&placeholder_data, sizeof(placeholder_data), [](uint8_t *) {}) != GRAPH_SUCCESS) "
-         << "{ return GRAPH_FAILED; }\n";
+    code << "    const gert::Tensor *external_input_" << i << " = ctx->GetInputTensor(" << i << "U);\n"
+         << "    if (external_input_" << i << " == nullptr) { return GRAPH_FAILED; }\n";
   }
-  for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    const auto anchor = region.external_outputs[i].source;
-    const auto owner = (anchor == nullptr) ? nullptr : anchor->GetOwnerNode();
-    const auto op_desc = (owner == nullptr) ? nullptr : owner->GetOpDesc();
-    if ((op_desc == nullptr) || (anchor->GetIdx() < 0) ||
-        (static_cast<size_t>(anchor->GetIdx()) >= op_desc->GetOutputsSize())) {
-      GELOGE(PARAM_INVALID,
-             "Invalid HostCPU fusion output anchor while generating: chain[%s], output_index[%zu], "
-             "anchor_null[%d], owner_null[%d].",
-             region.chain_id.c_str(), i, static_cast<int32_t>(anchor == nullptr),
-             static_cast<int32_t>(owner == nullptr));
-      return PARAM_INVALID;
-    }
-    code << "      outputs_[" << i << "U] = Tensor("
-         << TensorDescExpression(op_desc->GetOutputDesc(static_cast<size_t>(anchor->GetIdx()))) << ");\n"
-         << "      if (outputs_[" << i
-         << "U].ResetData(&placeholder_data, sizeof(placeholder_data), [](uint8_t *) {}) != GRAPH_SUCCESS) "
-         << "{ return GRAPH_FAILED; }\n";
-  }
-  code << "    }\n";
 
-  size_t internal_tensor_count = 0U;
+  for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
+    const auto &anchor = region.external_outputs[i].source;
+    const auto &desc = anchor->GetOwnerNode()->GetOpDesc()->GetOutputDesc(static_cast<uint32_t>(anchor->GetIdx()));
+    if (desc.GetShape().IsUnknownShape()) {
+      GELOGW("HostCPU fusion external output shape is unknown: chain[%s], output[%zu].", region.chain_id.c_str(), i);
+      return UNSUPPORTED;
+    }
+    code << "    gert::Tensor *external_output_" << i << " = ctx->MallocOutputTensor(" << i << "U, "
+         << shape_expression(desc.GetShape()) << ", " << format_expression(desc) << ", static_cast<ge::DataType>("
+         << static_cast<int32_t>(desc.GetDataType()) << "));\n"
+         << "    if (external_output_" << i << " == nullptr) { return GRAPH_FAILED; }\n";
+  }
+
+  struct InternalBuffer {
+    OutDataAnchorPtr anchor;
+    size_t offset;
+  };
+  std::vector<InternalBuffer> internal_buffers;
+  std::unordered_map<const OutDataAnchor *, size_t> internal_indexes;
+  size_t internal_storage_size = 0U;
+  constexpr size_t kInternalBufferAlignment = alignof(std::max_align_t);
   for (const auto &node : region.nodes) {
     for (const auto &anchor : node->GetAllOutDataAnchors()) {
-      if ((anchor != nullptr) && (output_indexes.count(anchor.get()) == 0U)) {
-        ++internal_tensor_count;
+      if ((anchor == nullptr) || (output_indexes.count(anchor.get()) > 0U)) {
+        continue;
       }
+      size_t tensor_size = 0U;
+      const auto &desc = node->GetOpDesc()->GetOutputDesc(static_cast<uint32_t>(anchor->GetIdx()));
+      if (GetTensorSize(desc, tensor_size) != SUCCESS) {
+        GELOGW("HostCPU fusion internal output size is unknown: chain[%s], node[%s], output[%d].",
+               region.chain_id.c_str(), node->GetNamePtr(), anchor->GetIdx());
+        return UNSUPPORTED;
+      }
+      const size_t allocation_size = std::max<size_t>(tensor_size, 1U);
+      const size_t remainder = internal_storage_size % kInternalBufferAlignment;
+      const size_t padding = (remainder == 0U) ? 0U : (kInternalBufferAlignment - remainder);
+      if ((padding > 0U) && (internal_storage_size > (std::numeric_limits<size_t>::max() - padding))) {
+        GELOGW("HostCPU fusion internal buffer size overflow: chain[%s], node[%s].", region.chain_id.c_str(),
+               node->GetNamePtr());
+        return UNSUPPORTED;
+      }
+      internal_storage_size += padding;
+      if (internal_storage_size > (std::numeric_limits<size_t>::max() - allocation_size)) {
+        GELOGW("HostCPU fusion internal buffer size overflow: chain[%s], node[%s].", region.chain_id.c_str(),
+               node->GetNamePtr());
+        return UNSUPPORTED;
+      }
+      const size_t internal_index = internal_buffers.size();
+      internal_indexes.emplace(anchor.get(), internal_index);
+      internal_buffers.push_back({anchor, internal_storage_size});
+      internal_storage_size += allocation_size;
     }
   }
-  code << "    internal_tensors_.clear();\n"
-       << "    internal_tensors_.reserve(" << internal_tensor_count << "U);\n";
 
+  // All intermediate tensors live for one Execute call.  A single max-aligned
+  // arena preserves their independent addresses while replacing hundreds of
+  // allocator calls for wide fusion regions with one allocation.  Using
+  // max_align_t as the vector element type also makes the alignment guarantee
+  // explicit (vector<uint8_t> only guarantees byte alignment).
+  code << "    constexpr size_t kInternalStorageAlignment = alignof(std::max_align_t);\n"
+       << "    const size_t internal_storage_words = (" << std::max<size_t>(internal_storage_size, 1U)
+       << "U / kInternalStorageAlignment) + ((" << std::max<size_t>(internal_storage_size, 1U)
+       << "U % kInternalStorageAlignment) == 0U ? 0U : 1U);\n"
+       << "    std::vector<std::max_align_t> internal_storage(internal_storage_words);\n"
+       << "    auto *internal_storage_data = reinterpret_cast<uint8_t *>(internal_storage.data());\n";
+  for (size_t internal_index = 0U; internal_index < internal_buffers.size(); ++internal_index) {
+    const auto &buffer = internal_buffers[internal_index];
+    const auto owner = buffer.anchor->GetOwnerNode();
+    const auto &desc = owner->GetOpDesc()->GetOutputDesc(static_cast<uint32_t>(buffer.anchor->GetIdx()));
+    code << "    gert::Tensor internal_tensor_" << internal_index << "(" << shape_expression(desc.GetShape()) << ", "
+         << format_expression(desc) << ", gert::kOnHost, static_cast<ge::DataType>("
+         << static_cast<int32_t>(desc.GetDataType()) << "), internal_storage_data + " << buffer.offset << "U);\n";
+  }
+
+  std::vector<bool> kernel_type_seen(kernel_types.size(), false);
+  gert::bg::BufferPool node_info_pool;
   for (size_t node_index = 0U; node_index < region.nodes.size(); ++node_index) {
     const auto &node = region.nodes[node_index];
     const auto op_desc = node->GetOpDesc();
-    GELOGD("Generate fused HostCPU node: chain=%s, index=%zu, node=%s, type=%s, inputs=%zu, outputs=%zu.",
-           region.chain_id.c_str(), node_index, op_desc->GetNamePtr(), op_desc->GetTypePtr(),
-           op_desc->GetAllInputsSize(), op_desc->GetOutputsSize());
-    if ((op_desc->GetName().find('\0') != std::string::npos) || (op_desc->GetType().find('\0') != std::string::npos)) {
-      GELOGE(UNSUPPORTED, "HostCPU fusion node name or type contains NUL: chain[%s], node_index[%zu], node[%s].",
-             region.chain_id.c_str(), node_index, op_desc->GetNamePtr());
+    size_t node_info_size = 0U;
+    auto node_info = gert::bg::CreateComputeNodeInfo(node, node_info_pool, node_info_size);
+    if ((node_info == nullptr) || (node_info_size == 0U)) {
+      GELOGW("Failed to serialize HostCPU node info: chain[%s], node[%s].", region.chain_id.c_str(),
+             node->GetNamePtr());
       return UNSUPPORTED;
     }
-    const auto in_anchors = node->GetAllInDataAnchors();
-    if (in_anchors.size() != op_desc->GetAllInputsSize()) {
-      GELOGE(PARAM_INVALID,
-             "HostCPU fusion input anchor count mismatch: chain[%s], node[%s], anchors[%zu], "
-             "op_desc_inputs[%zu].",
-             region.chain_id.c_str(), op_desc->GetNamePtr(), in_anchors.size(), op_desc->GetAllInputsSize());
-      return PARAM_INVALID;
-    }
-    std::vector<int32_t> input_binding_indices(in_anchors.size(), -1);
-    code << "    std::array<const Tensor *, " << in_anchors.size() << "U> node_inputs_" << node_index << "{{";
-    for (size_t input_index = 0U; input_index < in_anchors.size(); ++input_index) {
-      const auto peer = in_anchors.at(input_index)->GetPeerOutAnchor();
-      if (peer == nullptr) {
-        GELOGE(UNSUPPORTED, "HostCPU fusion input has no peer: chain[%s], node[%s], input_index[%zu].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), input_index);
-        return UNSUPPORTED;
-      }
-      const std::string input_name = op_desc->GetInputNameByIndex(static_cast<uint32_t>(input_index));
-      if (input_name.empty() || (input_name.find('\0') != std::string::npos)) {
-        GELOGE(UNSUPPORTED, "Invalid HostCPU fusion input name: chain[%s], node[%s], input_index[%zu].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), input_index);
-        return UNSUPPORTED;
-      }
-      if (input_index != 0U) {
-        code << ", ";
-      }
-      const auto owner = peer->GetOwnerNode();
-      const auto internal_iter = node_indexes.find(owner.get());
-      if (internal_iter != node_indexes.end()) {
-        if (internal_iter->second >= node_index) {
-          GELOGE(PARAM_INVALID,
-                 "HostCPU fusion nodes are not in topological order: chain[%s], node[%s], "
-                 "input_index[%zu], peer_node_index[%zu], node_index[%zu].",
-                 region.chain_id.c_str(), op_desc->GetNamePtr(), input_index, internal_iter->second, node_index);
-          return PARAM_INVALID;
-        }
-        const auto source_desc = owner->GetOpDesc();
-        const std::string source_name = source_desc->GetOutputNameByIndex(static_cast<uint32_t>(peer->GetIdx()));
-        if (source_name.empty()) {
-          GELOGE(UNSUPPORTED,
-                 "Invalid HostCPU fusion peer output name: chain[%s], node[%s], input_index[%zu], "
-                 "peer_node[%s].",
-                 region.chain_id.c_str(), op_desc->GetNamePtr(), input_index, owner->GetNamePtr());
-          return UNSUPPORTED;
-        }
-        const auto output_iter = output_indexes.find(peer.get());
-        if (output_iter != output_indexes.end()) {
-          input_binding_indices[input_index] =
-              static_cast<int32_t>(region.external_inputs.size() + output_iter->second);
-        }
-        code << "node_output_" << internal_iter->second << "_" << peer->GetIdx();
-      } else {
-        const auto external_iter = input_indexes.find(peer.get());
-        if (external_iter == input_indexes.end()) {
-          GELOGE(PARAM_INVALID,
-                 "HostCPU fusion input peer is not an external input: chain[%s], node[%s], "
-                 "input_index[%zu], peer_node[%s].",
-                 region.chain_id.c_str(), op_desc->GetNamePtr(), input_index, owner->GetNamePtr());
-          return PARAM_INVALID;
-        }
-        input_binding_indices[input_index] = static_cast<int32_t>(external_iter->second);
-        code << "&inputs_[" << external_iter->second << "U]";
-      }
-    }
-    code << "}};\n"
-         << "    std::array<int32_t, " << input_binding_indices.size() << "U> node_input_binding_indices_" << node_index
-         << "{{";
-    for (size_t input_index = 0U; input_index < input_binding_indices.size(); ++input_index) {
-      if (input_index != 0U) {
-        code << ", ";
-      }
-      code << input_binding_indices[input_index];
-    }
-    code << "}};\n";
 
-    // InferShape 在融合前已经完成。这里复用已推导的 TensorDesc：区域外输出复用调用方内存，内部输出按
-    // 静态字节数申请临时 Tensor。若大小仍未知则拒绝融合，保留原逐节点 InferShape + Kernel 执行路径。
-    const auto out_anchors = node->GetAllOutDataAnchors();
-    if (out_anchors.size() != op_desc->GetOutputsSize()) {
-      GELOGE(PARAM_INVALID,
-             "HostCPU fusion output anchor count mismatch: chain[%s], node[%s], anchors[%zu], "
-             "op_desc_outputs[%zu].",
-             region.chain_id.c_str(), op_desc->GetNamePtr(), out_anchors.size(), op_desc->GetOutputsSize());
+    const auto kernel_type_iter = kernel_type_indexes.find(node->GetType());
+    if (kernel_type_iter == kernel_type_indexes.cend()) {
+      GELOGE(PARAM_INVALID, "HostCPU fusion kernel type mapping is missing: chain[%s], node[%s].",
+             region.chain_id.c_str(), node->GetNamePtr());
       return PARAM_INVALID;
     }
-    std::vector<int32_t> output_binding_indices(out_anchors.size(), -1);
-    for (size_t output_index = 0U; output_index < out_anchors.size(); ++output_index) {
-      const std::string output_name = op_desc->GetOutputNameByIndex(static_cast<uint32_t>(output_index));
-      if (output_name.empty() || (output_name.find('\0') != std::string::npos)) {
-        GELOGE(UNSUPPORTED, "Invalid HostCPU fusion output name: chain[%s], node[%s], output_index[%zu].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), output_index);
-        return UNSUPPORTED;
-      }
-      const auto external_iter = output_indexes.find(out_anchors.at(output_index).get());
-      if (external_iter != output_indexes.end()) {
-        output_binding_indices[output_index] =
-            static_cast<int32_t>(region.external_inputs.size() + external_iter->second);
-        GELOGD("Reuse fused external output: chain=%s, node=%s, output=%zu, fused_output=%zu.", region.chain_id.c_str(),
-               op_desc->GetNamePtr(), output_index, external_iter->second);
-        code << "    Tensor *node_output_" << node_index << "_" << output_index << " = &outputs_["
-             << external_iter->second << "U];\n";
-      } else {
-        size_t tensor_size = 0U;
-        if (GetTensorSize(op_desc->GetOutputDesc(output_index), tensor_size) != SUCCESS) {
-          GELOGD("Skip HostCPU fusion because output size is unknown after InferShape: chain=%s, node=%s, output=%zu.",
-                 region.chain_id.c_str(), op_desc->GetNamePtr(), output_index);
-          return UNSUPPORTED;
-        }
-        GELOGD("Allocate fused internal output from inferred TensorDesc: chain=%s, node=%s, output=%zu, bytes=%zu.",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), output_index, tensor_size);
-        code << "    internal_tensors_.emplace_back(" << TensorDescExpression(op_desc->GetOutputDesc(output_index))
-             << ", std::vector<uint8_t>(" << tensor_size << "U));\n"
-             << "    Tensor *node_output_" << node_index << "_" << output_index << " = &internal_tensors_.back();\n";
-      }
+    code << "    {\n"
+         << "      static const gert::ComputeNodeInfo *const compute_node_info_" << node_index
+         << " = []() -> const gert::ComputeNodeInfo * {\n"
+         << "      alignas(gert::ComputeNodeInfo) static const std::array<uint8_t, " << node_info_size
+         << "U> node_info = []() {\n"
+         << "        alignas(gert::ComputeNodeInfo) std::array<uint8_t, " << node_info_size
+         << "U> info = " << emit_bytes(node_info.get(), node_info_size) << ";\n"
+         << "        auto *compute_node_info = reinterpret_cast<gert::ComputeNodeInfo *>(info.data());\n"
+         << "        compute_node_info->SetNodeName(\"" << EscapeString(node->GetName()) << "\");\n"
+         << "        compute_node_info->SetNodeType(\"" << EscapeString(node->GetType()) << "\");\n"
+         << "        return info;\n"
+         << "      }();\n"
+         << "      return reinterpret_cast<const gert::ComputeNodeInfo *>(node_info.data());\n"
+         << "      }();\n"
+         << "      ";
+    if (!kernel_type_seen[kernel_type_iter->second]) {
+      code << "cached_kernel_" << kernel_type_iter->second << " = GetHostKernel_" << kernel_type_iter->second
+           << "(finder);\n"
+           << "      if (cached_kernel_" << kernel_type_iter->second << " == nullptr) { return GRAPH_FAILED; }\n"
+           << "      ";
+      kernel_type_seen[kernel_type_iter->second] = true;
     }
-    code << "    std::array<Tensor *, " << out_anchors.size() << "U> node_outputs_" << node_index << "{{";
-    for (size_t output_index = 0U; output_index < out_anchors.size(); ++output_index) {
-      if (output_index != 0U) {
-        code << ", ";
-      }
-      code << "node_output_" << node_index << "_" << output_index;
-    }
-    code << "}};\n"
-         << "    std::array<int32_t, " << output_binding_indices.size() << "U> node_output_binding_indices_"
+    code << "HostKernelFunc kernel_" << node_index << " = cached_kernel_" << kernel_type_iter->second << ";\n"
+         << "      const std::array<const gert::Tensor *, " << node->GetAllInDataAnchors().size() << "U> node_inputs_"
          << node_index << "{{";
-    for (size_t output_index = 0U; output_index < output_binding_indices.size(); ++output_index) {
+
+    const auto in_anchors = node->GetAllInDataAnchors();
+    for (size_t input_index = 0U; input_index < in_anchors.size(); ++input_index) {
+      const auto peer =
+          (in_anchors.at(input_index) == nullptr) ? nullptr : in_anchors.at(input_index)->GetPeerOutAnchor();
+      if (peer == nullptr) {
+        GELOGW("HostCPU fusion input has no peer: chain[%s], node[%s], input[%zu].", region.chain_id.c_str(),
+               node->GetNamePtr(), input_index);
+        return UNSUPPORTED;
+      }
+      if (input_index != 0U) {
+        code << ", ";
+      }
+      const auto external_iter = input_indexes.find(peer.get());
+      if (external_iter != input_indexes.cend()) {
+        code << "external_input_" << external_iter->second;
+        continue;
+      }
+      const auto output_iter = output_indexes.find(peer.get());
+      if (output_iter != output_indexes.cend()) {
+        code << "external_output_" << output_iter->second;
+        continue;
+      }
+      const auto internal_iter = internal_indexes.find(peer.get());
+      if (internal_iter == internal_indexes.cend()) {
+        GELOGE(PARAM_INVALID, "HostCPU fusion input mapping is missing: chain[%s], node[%s], input[%zu].",
+               region.chain_id.c_str(), node->GetNamePtr(), input_index);
+        return PARAM_INVALID;
+      }
+      code << "&internal_tensor_" << internal_iter->second;
+    }
+    code << "}};\n"
+         << "      const std::array<gert::Tensor *, " << node->GetAllOutDataAnchors().size() << "U> node_outputs_"
+         << node_index << "{{";
+
+    const auto out_anchors = node->GetAllOutDataAnchors();
+    for (size_t output_index = 0U; output_index < out_anchors.size(); ++output_index) {
+      const auto &anchor = out_anchors.at(output_index);
+      if (anchor == nullptr) {
+        GELOGE(PARAM_INVALID, "HostCPU fusion output anchor is null: chain[%s], node[%s], output[%zu].",
+               region.chain_id.c_str(), node->GetNamePtr(), output_index);
+        return PARAM_INVALID;
+      }
       if (output_index != 0U) {
         code << ", ";
       }
-      code << output_binding_indices[output_index];
+      const auto external_iter = output_indexes.find(anchor.get());
+      if (external_iter != output_indexes.cend()) {
+        code << "external_output_" << external_iter->second;
+      } else {
+        const auto internal_iter = internal_indexes.find(anchor.get());
+        if (internal_iter == internal_indexes.cend()) {
+          GELOGE(PARAM_INVALID, "HostCPU fusion output mapping is missing: chain[%s], node[%s], output[%zu].",
+                 region.chain_id.c_str(), node->GetNamePtr(), output_index);
+          return PARAM_INVALID;
+        }
+        code << "&internal_tensor_" << internal_iter->second;
+      }
     }
     code << "}};\n"
-         << "    FusedHostCpuNodeOperator_" << region.chain_id << " op_" << node_index << "(\""
-         << EscapeString(op_desc->GetName()) << "\", \"" << EscapeString(op_desc->GetType())
-         << "\", std::vector<std::string>{";
-    for (size_t i = 0U; i < op_desc->GetAllInputsSize(); ++i) {
-      const std::string input_name = op_desc->GetInputNameByIndex(static_cast<uint32_t>(i));
-      if (input_name.empty() || (input_name.find('\0') != std::string::npos)) {
-        GELOGE(UNSUPPORTED, "Invalid HostCPU fusion registered input name: chain[%s], node[%s], input_index[%zu].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), i);
-        return UNSUPPORTED;
-      }
-      if (i != 0U) {
-        code << ", ";
-      }
-      code << "std::string(\"" << EscapeString(input_name) << "\")";
-    }
-    code << "}, std::vector<std::string>{";
-    for (size_t i = 0U; i < op_desc->GetOutputsSize(); ++i) {
-      const std::string output_name = op_desc->GetOutputNameByIndex(static_cast<uint32_t>(i));
-      if (output_name.empty() || (output_name.find('\0') != std::string::npos)) {
-        GELOGE(UNSUPPORTED,
-               "Invalid HostCPU fusion registered output name: chain[%s], node[%s], "
-               "output_index[%zu].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), i);
-        return UNSUPPORTED;
-      }
-      if (i != 0U) {
-        code << ", ";
-      }
-      code << "std::string(\"" << EscapeString(output_name) << "\")";
-    }
-    code << "});\n    if (op_" << node_index << ".IsEmpty()) { return GRAPH_FAILED; }\n";
-    // 仅序列化 IR 声明的计算属性，GE 调度元数据不进入融合 kernel。
-    const auto attrs = AttrUtils::GetAllAttrs(op_desc);
-    for (const auto &attr_name : op_desc->GetIrAttrNames()) {
-      if (attr_name.empty() || (attr_name.find('\0') != std::string::npos)) {
-        GELOGE(UNSUPPORTED, "Invalid HostCPU fusion attribute name: chain[%s], node[%s].", region.chain_id.c_str(),
-               op_desc->GetNamePtr());
-        return UNSUPPORTED;
-      }
-      const auto attr_iter = attrs.find(attr_name);
-      if (attr_iter == attrs.end()) {
-        GELOGE(UNSUPPORTED, "HostCPU fusion IR attribute is missing from OpDesc: chain[%s], node[%s], attr[%s].",
-               region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-        return UNSUPPORTED;
-      }
-      const auto &attr = attr_iter->second;
-      code << "    op_" << node_index << ".SetAttr(\"" << EscapeString(attr_name) << "\", ";
-      switch (attr.GetValueType()) {
-        case AnyValue::VT_INT: {
-          int64_t value = 0;
-          if (attr.GetValue<int64_t>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion int attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << "static_cast<int64_t>(" << IntExpression(value) << ")";
-          break;
-        }
-        case AnyValue::VT_FLOAT: {
-          float value = 0.0F;
-          if (attr.GetValue<float>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion float attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          if (!std::isfinite(value)) {
-            GELOGE(UNSUPPORTED, "Non-finite HostCPU fusion float attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << FloatExpression(value);
-          break;
-        }
-        case AnyValue::VT_BOOL: {
-          bool value = false;
-          if (attr.GetValue<bool>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion bool attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << (value ? "true" : "false");
-          break;
-        }
-        case AnyValue::VT_STRING: {
-          std::string value;
-          if (attr.GetValue<std::string>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion string attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << "std::string(\"" << EscapeString(value) << "\", " << value.size() << "U)";
-          break;
-        }
-        case AnyValue::VT_LIST_INT: {
-          std::vector<int64_t> value;
-          if (attr.GetValue<std::vector<int64_t>>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion int-list attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << "std::vector<int64_t>" << IntVectorExpression(value);
-          break;
-        }
-        case AnyValue::VT_LIST_FLOAT: {
-          std::vector<float> value;
-          if (attr.GetValue<std::vector<float>>(value) != GRAPH_SUCCESS) {
-            GELOGE(UNSUPPORTED, "Failed to read HostCPU fusion float-list attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          if (!std::all_of(value.cbegin(), value.cend(), [](const float item) { return std::isfinite(item); })) {
-            GELOGE(UNSUPPORTED, "Non-finite HostCPU fusion float-list attribute: chain[%s], node[%s], attr[%s].",
-                   region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str());
-            return UNSUPPORTED;
-          }
-          code << "std::vector<float>" << FloatVectorExpression(value);
-          break;
-        }
-        default:
-          GELOGE(UNSUPPORTED, "Unsupported HostCPU fusion attribute type: chain[%s], node[%s], attr[%s], type[%d].",
-                 region.chain_id.c_str(), op_desc->GetNamePtr(), attr_name.c_str(),
-                 static_cast<int32_t>(attr.GetValueType()));
-          return UNSUPPORTED;
-      }
-      code << ");\n";
-    }
+         << "      LocalKernelContext<" << in_anchors.size() << "U, " << out_anchors.size() << "U> kernel_context_"
+         << node_index << "(compute_node_info_" << node_index << ", node_inputs_" << node_index << ", node_outputs_"
+         << node_index << ", kernel_" << node_index << ");\n"
+         << "      if (kernel_" << node_index << "(kernel_context_" << node_index
+         << ".Get()) != GRAPH_SUCCESS) { return GRAPH_FAILED; }\n"
+         << "    }\n";
   }
-  code << "    std::array<FusedHostCpuNodePlanDesc, " << region.nodes.size() << "U> node_descs{{\n";
-  for (size_t node_index = 0U; node_index < region.nodes.size(); ++node_index) {
-    code << "      {&op_" << node_index << ", node_inputs_" << node_index << ".data(), node_inputs_" << node_index
-         << ".size(), node_outputs_" << node_index << ".data(), node_outputs_" << node_index
-         << ".size(), node_input_binding_indices_" << node_index << ".data(), node_output_binding_indices_"
-         << node_index << ".data()}" << ((node_index + 1U == region.nodes.size()) ? "\n" : ",\n");
-  }
-  code << "    }};\n"
-       << "    void *new_plan = CreateCpuConstantFoldingFusedChainPlan(\n"
-       << "        node_descs.data(), node_descs.size(), " << region.external_inputs.size() << "U, "
-       << region.external_outputs.size() << "U);\n"
-       << "    if (new_plan == nullptr) { return GRAPH_FAILED; }\n"
-       << "    chain_plan_.Reset(new_plan);\n"
-       << "    return GRAPH_SUCCESS;\n"
-       << "  }\n\n"
-       << "  graphStatus Compute(const Tensor *inputs, const size_t input_num, Tensor *outputs,\n"
-       << "                      const size_t output_num, const bool bindings_changed) {\n"
-       << "    if ((input_num != " << region.external_inputs.size()
-       << "U) || (output_num != " << region.external_outputs.size() << "U) ||\n"
-       << "        ((input_num != 0U) && (inputs == nullptr)) ||\n"
-       << "        ((output_num != 0U) && (outputs == nullptr))) { return GRAPH_FAILED; }\n"
-       << "    const bool rebind_required = !runtime_bound_ || bindings_changed;\n"
-       << "    if (rebind_required) {\n";
-  for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    code << "      inputs_[" << i << "U] = inputs[" << i << "U];\n";
-  }
-  for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    code << "      outputs_[" << i << "U] = outputs[" << i << "U];\n";
-  }
-  code << "      runtime_bound_ = true;\n"
-       << "    }\n"
-       << "    const bool initialize_required = chain_plan_.Get() == nullptr;\n"
-       << "    if (initialize_required && (Initialize() != GRAPH_SUCCESS)) { return GRAPH_FAILED; }\n"
-       << "    const uint32_t binding_flags = (!initialize_required && rebind_required) ?\n"
-       << "        (kFusedHostCpuShapeChanged | kFusedHostCpuDataChanged) : 0U;\n"
-       << "    return Run(binding_flags);\n"
-       << "  }\n\n"
-       << "  graphStatus ComputeBindings(const FusedHostCpuTensorBinding *bindings,\n"
-       << "                              const uint32_t binding_flags) {\n"
-       << "    const bool initialize_required = chain_plan_.Get() == nullptr;\n"
-       << "    if (initialize_required && (InitializeBindings(bindings) != GRAPH_SUCCESS)) {\n"
-       << "      return GRAPH_FAILED;\n"
-       << "    }\n"
-       << "    return (RunCpuConstantFoldingFusedChainPlanBindings(\n"
-       << "        chain_plan_.Get(), bindings, initialize_required ? 0U : binding_flags) == 0) ?\n"
-       << "        GRAPH_SUCCESS : GRAPH_FAILED;\n"
+
+  code << "    return GRAPH_SUCCESS;\n"
        << "  }\n"
-       << " private:\n"
-       << "  graphStatus InitializeBindings(const FusedHostCpuTensorBinding *bindings) {\n"
-       << "    if (bindings == nullptr) { return GRAPH_FAILED; }\n";
-  for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    const auto anchor = region.external_inputs[i];
-    const auto owner = (anchor == nullptr) ? nullptr : anchor->GetOwnerNode();
-    const auto op_desc = (owner == nullptr) ? nullptr : owner->GetOpDesc();
-    code << "    if (!BuildFusedHostCpuRuntimeTensor(bindings[" << i << "U], "
-         << TensorDescExpression(op_desc->GetOutputDesc(static_cast<size_t>(anchor->GetIdx()))) << ", inputs_[" << i
-         << "U])) { return GRAPH_FAILED; }\n";
-  }
-  for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    const auto anchor = region.external_outputs[i].source;
-    const auto owner = (anchor == nullptr) ? nullptr : anchor->GetOwnerNode();
-    const auto op_desc = (owner == nullptr) ? nullptr : owner->GetOpDesc();
-    code << "    if (!BuildFusedHostCpuRuntimeTensor(bindings[" << (region.external_inputs.size() + i) << "U], "
-         << TensorDescExpression(op_desc->GetOutputDesc(static_cast<size_t>(anchor->GetIdx()))) << ", outputs_[" << i
-         << "U])) { return GRAPH_FAILED; }\n";
-  }
-  code << "    runtime_bound_ = true;\n"
-       << "    return Initialize();\n"
-       << "  }\n"
-       << "  graphStatus Run(const uint32_t binding_flags) {\n"
-       << "    return (RunCpuConstantFoldingFusedChainPlan(chain_plan_.Get(), binding_flags) == 0) ?\n"
-       << "        GRAPH_SUCCESS : GRAPH_FAILED;\n"
-       << "  }\n"
-       << "  FusedHostCpuChainPlanGuard chain_plan_;\n"
-       << "  std::array<Tensor, " << region.external_inputs.size() << "U> inputs_;\n"
-       << "  std::array<Tensor, " << region.external_outputs.size() << "U> outputs_;\n"
-       << "  std::vector<Tensor> internal_tensors_;\n"
-       << "  bool runtime_bound_ = false;\n"
-       << "};\n}  // namespace ge\n\n"
-       << "namespace aicpu {\n"
-       << "constexpr char kFusedHostCpuKernel_" << region.chain_id << "[] = \"" << EscapeString(register_name)
-       << "\";\n"
-       << "class FusedHostCpuKernel_" << region.chain_id << " final : public CpuKernel {\n public:\n"
-       << "  uint32_t Compute(CpuKernelContext &ctx) override {\n"
-       << "    if ((ctx.GetOpType() != kFusedHostCpuKernel_" << region.chain_id << ") ||\n"
-       << "        (ctx.GetInputsSize() != " << region.external_inputs.size() << "U) ||\n"
-       << "        (ctx.GetOutputsSize() != " << region.external_outputs.size() << "U)) { return 1U; }\n"
-       << "    static thread_local std::array<ge::Tensor, " << region.external_inputs.size() << "U> inputs;\n"
-       << "    static thread_local std::array<FusedHostCpuTensorState, " << region.external_inputs.size()
-       << "U> input_states;\n"
-       << "    bool bindings_changed = false;\n"
-       << "    bool tensor_changed = false;\n";
-  for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    code << "    if (!BuildFusedHostCpuTensor(ctx.Input(" << i << "U), inputs[" << i << "U], input_states[" << i
-         << "U], tensor_changed)) { return 1U; }\n"
-         << "    bindings_changed = bindings_changed || tensor_changed;\n";
-  }
-  code << "    static thread_local std::array<ge::Tensor, " << region.external_outputs.size() << "U> outputs;\n"
-       << "    static thread_local std::array<FusedHostCpuTensorState, " << region.external_outputs.size()
-       << "U> output_states;\n";
-  for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    code << "    if (!BuildFusedHostCpuTensor(ctx.Output(" << i << "U), outputs[" << i << "U], output_states[" << i
-         << "U], tensor_changed)) { return 1U; }\n"
-         << "    bindings_changed = bindings_changed || tensor_changed;\n";
-  }
-  code << "    static thread_local ge::FusedHostCpuOrchestration_" << region.chain_id << " orchestration;\n"
-       << "    const ge::graphStatus ret = orchestration.Compute(inputs.data(), inputs.size(), outputs.data(),\n"
-       << "                                                        outputs.size(), bindings_changed);\n"
-       << "    return (ret == ge::GRAPH_SUCCESS) ? 0U : static_cast<uint32_t>(ret);\n"
-       << "  }\n};\n"
-       << "REGISTER_CPU_KERNEL(kFusedHostCpuKernel_" << region.chain_id << ", FusedHostCpuKernel_" << region.chain_id
-       << ");\n"
-       << "}  // namespace aicpu\n\n"
-       << "extern \"C\" __attribute__((visibility(\"default\")))\n"
-       << "bool ValidateFusedHostCpuKernelRegistration(const char *register_name) {\n"
-       << "  if ((register_name == nullptr) ||\n"
-       << "      (std::strcmp(register_name, aicpu::kFusedHostCpuKernel_" << region.chain_id
-       << ") != 0)) { return false; }\n"
-       << "  const auto kernel = aicpu::CpuKernelRegister::Instance().GetCpuKernel(register_name);\n"
-       << "  return std::dynamic_pointer_cast<aicpu::FusedHostCpuKernel_" << region.chain_id
-       << ">(kernel) != nullptr;\n"
-       << "}\n\n"
-       << "extern \"C\" __attribute__((visibility(\"default\")))\n"
-       << "void *CreateFusedHostCpuKernelState() {\n"
-       << "  std::unique_ptr<ge::FusedHostCpuOrchestration_" << region.chain_id
-       << "> state(new (std::nothrow) ge::FusedHostCpuOrchestration_" << region.chain_id << "());\n"
-       << "  if (state == nullptr) { return nullptr; }\n"
-       << "  return state.release();\n"
-       << "}\n\n"
-       << "extern \"C\" __attribute__((visibility(\"default\")))\n"
-       << "void DestroyFusedHostCpuKernelState(void *kernel_state) {\n"
-       << "  delete static_cast<ge::FusedHostCpuOrchestration_" << region.chain_id << " *>(kernel_state);\n"
-       << "}\n\n"
-       << "extern \"C\" __attribute__((visibility(\"default\")))\n"
-       << "uint32_t RunFusedHostCpuKernel(void *kernel_state, const void *binding_data,\n"
-       << "                               const uint32_t binding_flags) {\n"
-       << "  if (kernel_state == nullptr) { return 1U; }\n"
-       << "  const auto *bindings = static_cast<const FusedHostCpuTensorBinding *>(binding_data);\n"
-       << "  auto *state = static_cast<ge::FusedHostCpuOrchestration_" << region.chain_id << " *>(kernel_state);\n"
-       << "  const ge::graphStatus ret = state->ComputeBindings(bindings, binding_flags);\n"
-       << "  return (ret == ge::GRAPH_SUCCESS) ? 0U : static_cast<uint32_t>(ret);\n"
+       << "};\n\n"
+       << "REG_OP_BACKEND(FusedHostCpuCustomOp_" << region.chain_id << ", \"" << EscapeString(register_name)
+       << "\", ge::OpBackend::kHostCPU);\n"
+       << "}  // namespace ge\n\n"
+       << "namespace {\n"
+       << "ge::BaseCustomOp *CreateFusedHostCpu_" << region.chain_id
+       << "() { return new (std::nothrow) ge::FusedHostCpuCustomOp_" << region.chain_id << "(); }\n"
+       << "struct FusedCustomOpCreatorEntry {\n"
+       << "  uint32_t struct_size;\n"
+       << "  const char *op_type;\n"
+       << "  ge::CustomOpCreateFunc creator;\n"
+       << "  ge::OpBackend backend;\n"
+       << "};\n"
+       << "}  // namespace\n\n"
+       << "extern \"C\" __attribute__((visibility(\"default\"))) uint32_t "
+       << "GetRegisteredCustomOpCreatorAbiVersion() { return 2U; }\n"
+       << "extern \"C\" __attribute__((visibility(\"default\"))) size_t "
+       << "GetRegisteredCustomOpCreatorNum() { return 1U; }\n"
+       << "extern \"C\" __attribute__((visibility(\"default\"))) int32_t GetRegisteredCustomOpCreators(\n"
+       << "    FusedCustomOpCreatorEntry *creators, size_t creator_num, size_t creator_struct_size) {\n"
+       << "  if ((creators == nullptr) || (creator_num < 1U) ||\n"
+       << "      (creator_struct_size < sizeof(FusedCustomOpCreatorEntry))) { return -1; }\n"
+       << "  creators[0] = {sizeof(FusedCustomOpCreatorEntry), \"" << EscapeString(register_name)
+       << "\", CreateFusedHostCpu_" << region.chain_id << ", ge::OpBackend::kHostCPU};\n"
+       << "  return 0;\n"
        << "}\n";
-  const std::string source = code.str();
-  if (source.size() > kMaxGeneratedSourceSize) {
-    GELOGE(UNSUPPORTED, "HostCPU fusion generated source is too large: chain[%s], source_size[%zu], limit[%zu].",
-           region.chain_id.c_str(), source.size(), kMaxGeneratedSourceSize);
+
+  result.register_name = register_name;
+  result.source = code.str();
+  if (result.source.size() > kMaxGeneratedSourceSize) {
+    GELOGW("HostCPU fusion generated source is too large: chain[%s], source_size[%zu], limit[%zu].",
+           region.chain_id.c_str(), result.source.size(), kMaxGeneratedSourceSize);
+    result = {};
     return UNSUPPORTED;
   }
-  result.register_name = register_name;
-  result.source = source;
-  GELOGD("Generated HostCPU fusion source: chain=%s, register_name=%s, source_size=%zu.", region.chain_id.c_str(),
-         register_name.c_str(), source.size());
-  GELOGD("Generated HostCPU fusion source:\n%s", source.c_str());
+  GELOGD("Generated HostCPU custom-op source: chain=%s, op_type=%s, source_size=%zu.", region.chain_id.c_str(),
+         register_name.c_str(), result.source.size());
   return SUCCESS;
 }
 
-// NOLINTNEXTLINE(huge_method, huge_cyclomatic_complexity): compiler process setup must remain one failure-atomic path.
 Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uint8_t> &so_data) const {
   so_data.clear();
 #if !defined(__linux__)
@@ -1116,12 +844,11 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
 
   // 校验源码
   if (source.empty() || (source.size() > kMaxGeneratedSourceSize)) {
-    GELOGE(UNSUPPORTED, "Invalid HostCPU fusion JIT source: source_size[%zu], limit[%zu].", source.size(),
-           kMaxGeneratedSourceSize);
+    GELOGW("Invalid HostCPU fusion JIT source: source_size[%zu], limit[%zu].", source.size(), kMaxGeneratedSourceSize);
     return UNSUPPORTED;
   }
   if (include_paths.empty()) {
-    GELOGE(UNSUPPORTED, "HostCPU fusion JIT include path is empty, check ASCEND_OPP_PATH or ASCEND_HOME_PATH.");
+    GELOGW("HostCPU fusion JIT include path is empty, check ASCEND_OPP_PATH or ASCEND_HOME_PATH.");
     return UNSUPPORTED;
   }
   GELOGD("Compile HostCPU fusion source: compiler=%s, target_cpu=%s, source_size=%zu, include_paths=%s.",
@@ -1187,7 +914,8 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
       compiler_args.emplace_back("-I");
       compiler_args.emplace_back(include_path);
     }
-    compiler_args.insert(compiler_args.end(), {"-x", "c++", source_path, "-o", so_path});
+    // Keep libdl after the generated object input so linkers using --as-needed retain it.
+    compiler_args.insert(compiler_args.end(), {"-x", "c++", source_path, "-ldl", "-o", so_path});
     //  构造 execvp()参数
     std::vector<const char *> exec_argv;
     exec_argv.reserve(compiler_args.size() + 1U);
@@ -1220,8 +948,8 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
     if (!wait_success || !WIFEXITED(child_status) || (WEXITSTATUS(child_status) != 0)) {
       const int exit_code = (wait_success && WIFEXITED(child_status)) ? WEXITSTATUS(child_status) : -1;
       const std::string diagnostics = ReadCompilerDiagnostics(diagnostics_fd);
-      GELOGE(UNSUPPORTED, "HostCPU fusion compiler %s failed, exit_code=%d, diagnostics=%s.", compiler_name.c_str(),
-             exit_code, diagnostics.c_str());
+      GELOGW("HostCPU fusion compiler %s failed, exit_code=%d, diagnostics=%s.", compiler_name.c_str(), exit_code,
+             diagnostics.c_str());
       status = UNSUPPORTED;
       break;
     }
@@ -1229,7 +957,7 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
     // 检查.so大小 0 < so_size <= 10 MB 空文件、超过 10 MB 或 lseek失败
     const off_t so_size = lseek(so_fd, 0, SEEK_END);
     if ((so_size <= 0) || (static_cast<uint64_t>(so_size) > kMaxGeneratedSoSize) || (lseek(so_fd, 0, SEEK_SET) < 0)) {
-      GELOGE(UNSUPPORTED, "Invalid HostCPU fusion compiler output: so_size[%lld], limit[%zu], errno[%d].",
+      GELOGW("Invalid HostCPU fusion compiler output: so_size[%lld], limit[%zu], errno[%d].",
              static_cast<long long>(so_size), kMaxGeneratedSoSize, errno);
       break;
     }
@@ -1251,8 +979,8 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
       offset += static_cast<size_t>(read_size);
     }
     if (!IsExpectedElf(so_data, target_cpu)) {
-      GELOGE(UNSUPPORTED, "HostCPU fusion compiler output is not an expected ELF: target_cpu[%s], so_size[%zu].",
-             target_cpu.c_str(), so_data.size());
+      GELOGW("HostCPU fusion compiler output is not an expected ELF: target_cpu[%s], so_size[%zu].", target_cpu.c_str(),
+             so_data.size());
       so_data.clear();
       break;
     }

@@ -217,7 +217,7 @@ Status PlatformUtils::InitOptionalInfo(const std::map<std::string, std::string> 
     ErrorMessageDetail err_msg(EM_AICORENUM_OUT_OF_RANGE,
                                {std::to_string(aicore_num), aicore_num_config, std::to_string(ai_core_cnt)});
     ReportErrorMessage(err_msg);
-    REPORT_FE_ERROR("[Platform][Init] aicore_num[%d] is out range of platformInfo aicore_num (0, %d].", aicore_num,
+    REPORT_FE_ERROR("[Platform][Init] aicore_num[%d] is out of range of platformInfo aicore_num (0, %d].", aicore_num,
                     ai_core_cnt);
     return FAILED;
   }

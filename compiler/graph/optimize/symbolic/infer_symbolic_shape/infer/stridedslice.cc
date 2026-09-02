@@ -8,12 +8,16 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <algorithm>
+#include <limits>
 #include <numeric>
 #include "common/util/mem_utils.h"
 #include "common/util.h"
 #include "common/checker.h"
 #include "framework/common/framework_types_internal.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
+#include "graph/optimize/symbolic/strided_slice_common.h"
+#include "graph/symbolizer/symbolic_utils.h"
 #include "graph/compute_graph.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 
@@ -42,61 +46,136 @@ constexpr size_t kAttrShrinkAxisMaskIndex = 4UL;
 constexpr size_t kAxesV2InputIndex = 3UL;
 constexpr size_t kStridesV2InputIndex = 4UL;
 
-struct StridedSliceAttr {
-  int64_t begin_mask{0};
-  int64_t end_mask{0};
-  int64_t ellipsis_mask{0};
-  int64_t new_axis_mask{0};
-  int64_t shrink_axis_mask{0};
-};
-
 struct StrdedSliceIndexInputs {
   std::vector<Expression> start_indexes;
   std::vector<Expression> end_indexes;
   std::vector<Expression> strides_indexes;
   std::vector<bool> is_new_axis;
+  // True when the axis keeps the full input range ([0, dim) with stride 1), either
+  // because the sparse specification omitted it or an ellipsis/V2 default covered it.
+  // Such an axis propagates the symbolic input dimension unchanged.
+  std::vector<bool> is_full_range;
+  // StridedSliceV2 represents omitted axes with the full input-dimension
+  // range. Keep this bit separately because the rank-sized arrays are later
+  // expanded as sparse slice specifications by FillMissionIndex.
+  std::vector<bool> is_v2_default_axis;
+  bool use_v2_default_inputs{false};
 };
 
-// 如果begin和end是负数的时候，需要调整为正数
-Status NormalizeInput(std::vector<Expression> &input_indexes, const std::vector<Expression> &input_dims) {
-  GE_ASSERT_TRUE(input_indexes.size() <= input_dims.size(),
-                 "input indexes size: %zu should not more than input shape size: %zu", input_indexes.size(),
-                 input_dims.size());
-  for (size_t i = 0UL; i < input_indexes.size(); i++) {
-    const bool lt_zero = EXPECT_SYMBOL_LT(input_indexes[i], kSymbolZero);
-    input_indexes[i] = (lt_zero == true) ? input_indexes[i] + input_dims[i] : input_indexes[i];
+bool IsIndexSentinelMax(const int64_t index_const) {
+  return index_const == std::numeric_limits<int64_t>::max() || index_const == std::numeric_limits<int32_t>::max();
+}
+
+bool IsIndexSentinelMin(const int64_t index_const) {
+  return index_const == std::numeric_limits<int64_t>::min() || index_const == std::numeric_limits<int32_t>::min();
+}
+
+Status CalculateConstIndexValue(const Expression &index_input, const Expression &input_dim, const int64_t index_const,
+                                const bool negative_stride, const bool is_begin, Expression &index_value) {
+  const Expression lower = negative_stride ? Symbol(-1) : kSymbolZero;
+  const Expression upper = negative_stride ? input_dim - Symbol(1) : input_dim;
+  if (IsIndexSentinelMax(index_const)) {
+    index_value = upper;
+    return SUCCESS;
+  }
+  if (IsIndexSentinelMin(index_const)) {
+    index_value = lower;
+    return SUCCESS;
+  }
+  if (negative_stride && is_begin && index_const == -1L) {
+    // A begin index of -1 addresses the last element for a reverse slice.
+    // An explicit end index of -1 is first normalized as a regular negative
+    // index; only end_mask installs -1 as the reverse-slice sentinel.
+    index_value = upper;
+    return SUCCESS;
+  }
+  const Expression normalized = (index_const < 0L) ? index_input + input_dim : index_input;
+  // Preserve the hint-selected branch and emit the corresponding guard.
+  // Building an unconditional Min/Max here loses the exact symbolic input
+  // expression (for example, end=5 with a dimension s0 whose hint is 4).
+  if (index_const < 0L && EXPECT_SYMBOL_LT(normalized, lower)) {
+    index_value = lower;
+  } else if (negative_stride) {
+    index_value = EXPECT_SYMBOL_LT(upper, normalized) ? upper : normalized;
+  } else {
+    index_value = EXPECT_SYMBOL_LT(normalized, upper) ? normalized : upper;
   }
   return SUCCESS;
 }
 
-// 如果new_axis_mask和shrink_axis_mask的bit位与ellipsis_mask冲突，则不生效
-void HandleMaskConflict(StridedSliceAttr &strided_slice_attr) {
-  strided_slice_attr.new_axis_mask = ((static_cast<uint64_t>(strided_slice_attr.new_axis_mask) &
-                                       static_cast<uint64_t>(strided_slice_attr.ellipsis_mask)) ^
-                                      static_cast<uint64_t>(strided_slice_attr.new_axis_mask));
-  strided_slice_attr.shrink_axis_mask = ((static_cast<uint64_t>(strided_slice_attr.shrink_axis_mask) &
-                                          static_cast<uint64_t>(strided_slice_attr.ellipsis_mask)) ^
-                                         static_cast<uint64_t>(strided_slice_attr.shrink_axis_mask));
-  strided_slice_attr.shrink_axis_mask = ((static_cast<uint64_t>(strided_slice_attr.shrink_axis_mask) &
-                                          static_cast<uint64_t>(strided_slice_attr.new_axis_mask)) ^
-                                         static_cast<uint64_t>(strided_slice_attr.shrink_axis_mask));
-  GELOGI("handle mask conflict, new_axis_mask: %lld, shrink_axis_mask: %lld", strided_slice_attr.new_axis_mask,
-         strided_slice_attr.shrink_axis_mask);
+Status CalculateSymbolicIndexValue(const Expression &index_input, const Expression &input_dim,
+                                   const bool negative_stride, Expression &index_value) {
+  const Expression lower = negative_stride ? Symbol(-1) : kSymbolZero;
+  const Expression upper = negative_stride ? input_dim - Symbol(1) : input_dim;
+  // Missing end indices are represented by the input dimension itself.  It is
+  // a deterministic upper bound built by this flow, not a runtime index, so
+  // its sign needs no guard.
+  if (SymbolicUtils::StaticCheckEq(index_input, input_dim) == TriBool::kTrue) {
+    index_value = upper;
+    return SUCCESS;
+  }
+  Expression normalized = index_input;
+  const auto negative = SymbolicUtils::StaticCheckLt(index_input, kSymbolZero);
+  if (negative == TriBool::kTrue) {
+    normalized = index_input + input_dim;
+  } else if (negative == TriBool::kUnknown) {
+    // The normalization of an index with unknown sign depends on runtime
+    // values and cannot be encoded as a single shape expression.
+    GELOGW("StridedSlice symbolic infer unsupported: index sign is unknown.");
+    return UNSUPPORTED;
+  }
+  const auto below_lower = SymbolicUtils::StaticCheckLt(normalized, lower);
+  if (below_lower == TriBool::kTrue) {
+    index_value = lower;
+    return SUCCESS;
+  }
+  if (below_lower == TriBool::kUnknown) {
+    GELOGW("StridedSlice symbolic infer unsupported: index lower bound is unknown.");
+    return UNSUPPORTED;
+  }
+  if (SymbolicUtils::StaticCheckLt(upper, normalized) == TriBool::kTrue) {
+    index_value = upper;
+    return SUCCESS;
+  }
+  if (SymbolicUtils::StaticCheckLt(normalized, upper) == TriBool::kTrue ||
+      SymbolicUtils::StaticCheckEq(normalized, upper) == TriBool::kTrue) {
+    index_value = normalized;
+    return SUCCESS;
+  }
+  // The relation between the symbolic index and the symbolic dimension is
+  // undecidable here; propagating the raw index would emit wrong shapes and
+  // guards that pollute downstream inference. Fall back instead.
+  GELOGW("StridedSlice symbolic infer unsupported: index range cannot be resolved.");
+  return UNSUPPORTED;
 }
 
-int64_t CountBitNum(const int64_t num) {
-  int64_t count = 0L;
-  if (num <= 0) {
-    return count;
+Status CalculateIndexValue(const Expression &index_input, const Expression &input_dim, const Expression &stride,
+                           const bool is_begin, Expression &index_value) {
+  int64_t stride_value = 0L;
+  if (!stride.GetConstValue(stride_value) || stride_value == 0L) {
+    GELOGW("StridedSlice symbolic infer unsupported: stride is not a non-zero constant.");
+    return UNSUPPORTED;
   }
-  for (uint64_t n = num; n > 0; n >>= 1) {
-    count += (n & 1L);
-  }
-  return count;
+  const bool negative_stride = stride_value < 0L;
+  int64_t index_const = 0L;
+  return index_input.GetConstValue(index_const)
+             ? CalculateConstIndexValue(index_input, input_dim, index_const, negative_stride, is_begin, index_value)
+             : CalculateSymbolicIndexValue(index_input, input_dim, negative_stride, index_value);
 }
 
-bool IsInEllipsisMaskRange(const std::pair<int64_t, int64_t> &ellipsis_mask_range, const int64_t pos) {
-  return ((pos >= ellipsis_mask_range.first) && (pos < ellipsis_mask_range.second));
+Status ValidateSliceSpec(const StridedSliceAttr &attr, const StrdedSliceIndexInputs &index_input,
+                         const int64_t input_rank) {
+  GE_ASSERT_SUCCESS(ValidateSliceSpecCommon(index_input.start_indexes.size(), index_input.end_indexes.size(),
+                                            index_input.strides_indexes.size(), attr, input_rank));
+  for (const auto &stride : index_input.strides_indexes) {
+    int64_t stride_value = 0L;
+    if (!stride.GetConstValue(stride_value)) {
+      GELOGW("StridedSlice symbolic infer unsupported: stride is not constant.");
+      return UNSUPPORTED;
+    }
+    GE_ASSERT_TRUE(stride_value != 0L, "StridedSlice stride must not be 0.");
+  }
+  return SUCCESS;
 }
 
 Status AppendNewAxis(const std::pair<int64_t, int64_t> &ellipsis_mask_range, const int64_t new_axis_mask,
@@ -204,49 +283,142 @@ Status HandleShrinkAxisShape(const std::set<int64_t> &shrink_axis_indexes, Strde
   return SUCCESS;
 }
 
-Status FillMissionIndex(const std::pair<int64_t, int64_t> &ellipsis_mask_range,
-                        const std::vector<Expression> &input_dims, StrdedSliceIndexInputs &index_input) {
-  std::vector<Expression> origin_start_indexes = index_input.start_indexes;
-  std::vector<Expression> origin_end_indexes = index_input.end_indexes;
-  std::vector<Expression> origin_strides_indexes = index_input.strides_indexes;
+bool ShouldFillFullRange(const StrdedSliceIndexInputs &index_input, const int64_t start_index_pos,
+                         const std::pair<int64_t, int64_t> &ellipsis_mask_range, const size_t input_axis,
+                         const size_t sparse_spec_size) {
+  const bool is_v2_default_axis = start_index_pos >= 0L &&
+                                  static_cast<size_t>(start_index_pos) < index_input.is_v2_default_axis.size() &&
+                                  index_input.is_v2_default_axis[static_cast<size_t>(start_index_pos)];
+  // When an ellipsis reaches the end of the sparse specification, entries
+  // covered by that ellipsis do not describe a trailing physical axis. Any
+  // remaining input axes therefore keep their full range.
+  const bool implicit_trailing_axis = index_input.use_v2_default_inputs &&
+                                      static_cast<int64_t>(input_axis) >= ellipsis_mask_range.second &&
+                                      ellipsis_mask_range.second >= static_cast<int64_t>(sparse_spec_size);
+  // A trailing axis beyond the sparse specification keeps the full [0, dim) range;
+  // propagating the input dimension directly avoids guards on that dimension.
+  // Axes inside an ellipsis expansion still consume spec entries (the ellipsis
+  // itself occupies one), so only the spec-exhausted tail counts as filled.
+  const bool filled_full_range = start_index_pos >= 0L && static_cast<size_t>(start_index_pos) >= sparse_spec_size;
+  return implicit_trailing_axis || is_v2_default_axis || filled_full_range;
+}
+
+Status ResolveAxisRange(const Expression &origin_start, const Expression &origin_end, const Expression &origin_stride,
+                        const Expression &input_dim, const bool fill_full_range, Expression &begin_value,
+                        Expression &end_value) {
+  if (fill_full_range) {
+    begin_value = Symbol(0);
+    end_value = input_dim;
+    return SUCCESS;
+  }
+  auto ret = CalculateIndexValue(origin_start, input_dim, origin_stride, true, begin_value);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  return CalculateIndexValue(origin_end, input_dim, origin_stride, false, end_value);
+}
+
+Status PadSparseSpecToRank(const std::vector<Expression> &input_dims, StrdedSliceIndexInputs &index_input,
+                           std::vector<Expression> &origin_start_indexes, std::vector<Expression> &origin_end_indexes,
+                           std::vector<Expression> &origin_strides_indexes) {
+  origin_start_indexes = index_input.start_indexes;
+  origin_end_indexes = index_input.end_indexes;
+  origin_strides_indexes = index_input.strides_indexes;
   GELOGD("origin_start_indexes before insert fill missing: %s",
          SymbolicInferUtil::VectorExpressionToStr(origin_start_indexes).c_str());
   GELOGD("origin_end_indexes before insert fill missing: %s",
          SymbolicInferUtil::VectorExpressionToStr(origin_end_indexes).c_str());
   GELOGD("origin_strides_indexes before insert fill missing: %s",
          SymbolicInferUtil::VectorExpressionToStr(origin_strides_indexes).c_str());
-  auto ori_start_size = origin_start_indexes.size();
-  for (size_t i = ori_start_size; i < input_dims.size(); i++) {
+  const bool has_v2_default_axis = !index_input.is_v2_default_axis.empty();
+  for (size_t i = origin_start_indexes.size(); i < input_dims.size(); i++) {
     origin_start_indexes.emplace_back(Symbol(0));
     origin_end_indexes.emplace_back(input_dims[i]);
     origin_strides_indexes.emplace_back(Symbol(1));
+    index_input.is_v2_default_axis.emplace_back(has_v2_default_axis);
   }
-  origin_start_indexes.resize(input_dims.size());
-  origin_end_indexes.resize(input_dims.size());
-  origin_strides_indexes.resize(input_dims.size());
-  GE_ASSERT_SUCCESS(NormalizeInput(origin_start_indexes, input_dims));
-  GE_ASSERT_SUCCESS(NormalizeInput(origin_end_indexes, input_dims));
+  GE_ASSERT_TRUE(origin_start_indexes.size() == origin_end_indexes.size());
+  GE_ASSERT_TRUE(origin_start_indexes.size() == origin_strides_indexes.size());
+  return SUCCESS;
+}
+
+// Appends the entry for an axis that consumes no sparse spec position: an
+// axis covered by the ellipsis expansion keeps its full range, and a
+// new_axis position inserts a size-1 output dim. Returns false for a regular
+// sliced axis, which the caller resolves from the sparse spec.
+bool TryAppendNonSpecAxis(const size_t i, const std::pair<int64_t, int64_t> &ellipsis_mask_range,
+                          const std::vector<Expression> &input_dims, StrdedSliceIndexInputs &index_input,
+                          int64_t &start_index_pos) {
+  // A zero-width ellipsis still occupies one position in the sparse
+  // specification when it is not the first entry.
+  if (ellipsis_mask_range.first == ellipsis_mask_range.second && ellipsis_mask_range.first > 0L &&
+      static_cast<int64_t>(i) == ellipsis_mask_range.first) {
+    start_index_pos++;
+  }
+  if (IsInEllipsisMaskRange(ellipsis_mask_range, static_cast<int64_t>(i))) {
+    if (static_cast<int64_t>(i) == ellipsis_mask_range.first) {
+      // The legacy normalization checked the first dimension consumed by an
+      // ellipsis for non-negativity before replacing it with the ellipsis
+      // default range.  Preserve that guard for symbolic dimensions.
+      (void)EXPECT_SYMBOL_LT(input_dims[i], kSymbolZero);
+      start_index_pos++;
+    }
+    index_input.start_indexes.emplace_back(Symbol(0));
+    index_input.end_indexes.emplace_back(input_dims[i]);
+    index_input.strides_indexes.emplace_back(Symbol(1));
+    index_input.is_full_range.emplace_back(true);
+    return true;
+  }
+  if (index_input.is_new_axis[i]) {
+    index_input.start_indexes.emplace_back(Symbol(0));
+    index_input.end_indexes.emplace_back(Symbol(1));
+    index_input.strides_indexes.emplace_back(Symbol(1));
+    index_input.is_full_range.emplace_back(false);
+    start_index_pos++;
+    return true;
+  }
+  return false;
+}
+
+Status FillMissionIndex(const std::pair<int64_t, int64_t> &ellipsis_mask_range,
+                        const std::vector<Expression> &input_dims, StrdedSliceIndexInputs &index_input) {
+  const auto sparse_spec_size = index_input.start_indexes.size();
+  std::vector<Expression> origin_start_indexes;
+  std::vector<Expression> origin_end_indexes;
+  std::vector<Expression> origin_strides_indexes;
+  GE_ASSERT_SUCCESS(
+      PadSparseSpecToRank(input_dims, index_input, origin_start_indexes, origin_end_indexes, origin_strides_indexes));
   index_input.start_indexes.clear();
   index_input.end_indexes.clear();
   index_input.strides_indexes.clear();
+  index_input.is_full_range.clear();
   int64_t start_index_pos = 0L;
   for (size_t i = 0UL; i < input_dims.size(); i++) {
-    if (IsInEllipsisMaskRange(ellipsis_mask_range, static_cast<int64_t>(i))) {
-      index_input.start_indexes.emplace_back(Symbol(0));
-      index_input.end_indexes.emplace_back(input_dims[i]);
-      index_input.strides_indexes.emplace_back(Symbol(1));
-      if (static_cast<int64_t>(i) == ellipsis_mask_range.first) {
-        start_index_pos++;
-      }
+    if (TryAppendNonSpecAxis(i, ellipsis_mask_range, input_dims, index_input, start_index_pos)) {
       continue;
     }
-    index_input.start_indexes.emplace_back(EXPECT_SYMBOL_LT(origin_start_indexes[start_index_pos], input_dims[i])
-                                               ? origin_start_indexes[start_index_pos]
-                                               : input_dims[i]);
-    index_input.end_indexes.emplace_back(EXPECT_SYMBOL_LT(origin_end_indexes[start_index_pos], input_dims[i])
-                                             ? origin_end_indexes[start_index_pos]
-                                             : input_dims[i]);
-    index_input.strides_indexes.emplace_back(origin_strides_indexes[start_index_pos]);
+    const bool fill_full_range =
+        ShouldFillFullRange(index_input, start_index_pos, ellipsis_mask_range, i, sparse_spec_size);
+    Expression begin_value;
+    Expression end_value;
+    const auto ret = ResolveAxisRange(origin_start_indexes[start_index_pos], origin_end_indexes[start_index_pos],
+                                      origin_strides_indexes[start_index_pos], input_dims[i], fill_full_range,
+                                      begin_value, end_value);
+    if (ret != SUCCESS) {
+      return ret;
+    }
+    const auto stride_value =
+        (start_index_pos >= 0L && static_cast<size_t>(start_index_pos) < origin_strides_indexes.size())
+            ? origin_strides_indexes[static_cast<size_t>(start_index_pos)]
+            : Symbol(1);
+    index_input.start_indexes.emplace_back(begin_value);
+    index_input.end_indexes.emplace_back(end_value);
+    // Full range here means the axis was not constrained by any slice clause
+    // (omitted, ellipsis covered, or V2 default); an explicit clause that happens
+    // to select the full range is NOT full range, its output dim still gets the
+    // non-negativity assertion.
+    index_input.is_full_range.emplace_back(fill_full_range);
+    index_input.strides_indexes.emplace_back(stride_value);
     start_index_pos++;
   }
   GELOGD("start index after insert fill missing: %s",
@@ -274,7 +446,7 @@ Status HandleBeginEndMask(const StridedSliceAttr &strided_slice_attr, const std:
       index_input.start_indexes[i] = (strides_value > 0) ? Symbol(0) : input_dims[i] - Symbol(1);
     }
     if ((static_cast<uint64_t>(strided_slice_attr.end_mask) & (1ULL << mask_pos)) > 0) {
-      index_input.end_indexes[i] = (strides_value > 0) ? input_dims[i] : Symbol(0);
+      index_input.end_indexes[i] = (strides_value > 0) ? input_dims[i] : Symbol(-1);
     }
     mask_pos++;
   }
@@ -298,15 +470,29 @@ Status CalcOutputShape(const int64_t shrink_axis_mask, const std::pair<int64_t, 
     if (shrink_axis_indexes.count(static_cast<int64_t>(i)) > 0) {
       continue;
     }
-    GE_ASSERT_TRUE(index_input.strides_indexes[i] != kSymbolZero);
+    int64_t stride_value = 0L;
+    GE_ASSERT_TRUE(index_input.strides_indexes[i].GetConstValue(stride_value));
+    GE_ASSERT_TRUE(stride_value != 0L);
     Expression result_dim;
-    if (EXPECT_SYMBOL_EQ(index_input.strides_indexes[i], kSymbolOne)) {
-      result_dim = (index_input.end_indexes[i] - index_input.start_indexes[i]);
+    if (stride_value > 0L) {
+      result_dim =
+          (stride_value == 1L)
+              ? (index_input.end_indexes[i] - index_input.start_indexes[i])
+              : sym::Ceiling((index_input.end_indexes[i] - index_input.start_indexes[i]) / Symbol(stride_value));
     } else {
       result_dim =
-          sym::Ceiling((index_input.end_indexes[i] - index_input.start_indexes[i]) / index_input.strides_indexes[i]);
+          (stride_value == -1L)
+              ? (index_input.start_indexes[i] - index_input.end_indexes[i])
+              : sym::Ceiling((index_input.start_indexes[i] - index_input.end_indexes[i]) / Symbol(-stride_value));
     }
-    ASSERT_SYMBOL_GE(result_dim, kSymbolZero);
+    // A full-range axis (omitted/ellipsis/V2-default) propagates the symbolic input
+    // dimension unchanged; its non-negativity is already guaranteed by the shape
+    // environment and needs no assertion. Constrained axes assert non-negativity
+    // only when it cannot be proven statically (ASSERT registers the positive
+    // guard form, EXPECT would flip to a negative check guard).
+    if (!index_input.is_full_range[i]) {
+      result_dim = (EXPECT_SYMBOL_LT(result_dim, kSymbolZero)) ? kSymbolZero : result_dim;
+    }
     auto output_dim = (index_input.is_new_axis[i] == true) ? Symbol(1) : result_dim;
     output_symbols_shape.emplace_back(output_dim);
   }
@@ -389,75 +575,66 @@ Status ConstructAxis(const gert::InferSymbolShapeContext *context, int64_t input
 
   const auto symbols = axes_tensor->GetSymbolicValue();
   GE_UNSUPPORTED_IF_NULL(symbols);
+  if (symbols->empty()) {
+    GELOGI("Set axes to default for node %s.", context->GetNodeName());
+    return SUCCESS;
+  }
   for (const auto &symbol : *symbols) {
     int64_t value = 0;
     if (!symbol.GetConstValue(value)) {
-      GELOGI("Axis value for node %s is not const.", context->GetNodeName());
+      GELOGW("StridedSlice symbolic infer unsupported: axis value for node %s is not constant.",
+             context->GetNodeName());
       return UNSUPPORTED;
     }
     GE_ASSERT_TRUE(value < input_dim_num && value >= -input_dim_num, "Invalid axis value %lld for node %s.", value,
                    context->GetNodeName());
-    axes.push_back(value >= 0 ? value : value + input_dim_num);
+    const auto normalized_axis = value >= 0 ? value : value + input_dim_num;
+    GE_ASSERT_TRUE(std::find(axes.begin(), axes.end(), normalized_axis) == axes.end(),
+                   "Axis value %lld is repeated for node %s.", value, context->GetNodeName());
+    axes.push_back(normalized_axis);
     GELOGD("Get const value %lld and add new axes value %lld for node %s.", value, axes.back(), context->GetNodeName());
   }
   return SUCCESS;
 }
 
-Status ConstructBeginList(const gert::InferSymbolShapeContext *context, const std::vector<ge::Expression> &x_dims,
-                          const std::vector<int64_t> &axes, std::vector<Expression> &start_indexes) {
-  start_indexes.resize(x_dims.size(), Symbol(0));
-  std::vector<Expression> begin_values;
-  const graphStatus ret = GetValueFromInputData(context, kStartInputIndex, begin_values);
-  if (ret != SUCCESS) {
-    GELOGI("Begin list is not available for node %s, error code %u.", context->GetNodeName(),
-           static_cast<uint32_t>(ret));
-    return ret;
-  }
-  for (size_t i = 0UL; i < axes.size() && i < x_dims.size(); ++i) {
-    start_indexes[axes[i]] = begin_values[i];
-    GELOGD("ConstructBegin: idx %zu axe %lld value %s", i, axes[i], begin_values[i].Serialize().get());
-  }
-
-  return SUCCESS;
-}
-
-Status ConstructEndList(const gert::InferSymbolShapeContext *context, const std::vector<ge::Expression> &x_dims,
-                        const std::vector<int64_t> &axes, std::vector<Expression> &end_indexes) {
-  for (size_t i = 0UL; i < x_dims.size(); i++) {
-    end_indexes.push_back(x_dims[i]);
-  }
-  std::vector<Expression> end_values;
-  const graphStatus ret = GetValueFromInputData(context, kEndInputIndex, end_values);
-  if (ret != SUCCESS) {
-    GELOGI("End list is not available for node %s, error code %u.", context->GetNodeName(), static_cast<uint32_t>(ret));
-    return ret;
-  }
-  for (size_t i = 0UL; i < axes.size() && i < x_dims.size(); i++) {
-    end_indexes[axes[i]] = end_values[i];
-    GELOGD("ConstructEnd: idx %zu axe %lld value %s", i, axes[i], end_values[i].Serialize().get());
-  }
-
-  return SUCCESS;
-}
-
-Status ConstructStrideList(const gert::InferSymbolShapeContext *context, const std::vector<ge::Expression> &x_dims,
-                           const std::vector<int64_t> &axes, std::vector<Expression> &strides_indexes) {
-  strides_indexes.resize(x_dims.size(), Symbol(1));
-  if (context->GetInputSymbolTensor(kStridesV2InputIndex) == nullptr) {
-    GELOGD("Apply default stride for node %s.", context->GetNodeName());
+Status GetV2StrideValues(const gert::InferSymbolShapeContext *context, const size_t begin_size,
+                         std::vector<Expression> &stride_values, bool &strides_default) {
+  stride_values.assign(begin_size, Symbol(1));
+  const auto strides_tensor = context->GetInputSymbolTensor(kStridesV2InputIndex);
+  if (strides_tensor == nullptr) {
     return SUCCESS;
   }
-
-  std::vector<Expression> stride_values;
-  if (GetValueFromInputData(context, kStridesV2InputIndex, stride_values) != SUCCESS) {
-    GELOGW("Failed to get const stride values for node %s.", context->GetNodeName());
-    return UNSUPPORTED;
+  std::vector<Expression> stride_input;
+  const auto ret = GetValueFromInputData(context, kStridesV2InputIndex, stride_input);
+  if (ret != SUCCESS) {
+    return ret;
   }
-  for (size_t i = 0UL; i < axes.size() && i < x_dims.size(); i++) {
-    strides_indexes[axes[i]] = stride_values[i];
-    GELOGD("ConstructStride: idx %zu axe %lld value %s", i, axes[i], strides_indexes[i].Serialize().get());
+  if (!stride_input.empty()) {
+    GE_ASSERT_TRUE(stride_input.size() == begin_size, "StridedSliceV2 strides length mismatch.");
+    stride_values = std::move(stride_input);
+    strides_default = false;
   }
+  return SUCCESS;
+}
 
+Status ApplyV2Axes(const std::vector<int64_t> &axes, const std::vector<Expression> &x_dims,
+                   const std::vector<Expression> &begin_values, const std::vector<Expression> &end_values,
+                   const std::vector<Expression> &stride_values, StrdedSliceIndexInputs &index_input) {
+  index_input.start_indexes.assign(x_dims.size(), Symbol(0));
+  index_input.end_indexes = x_dims;
+  index_input.strides_indexes.assign(x_dims.size(), Symbol(1));
+  index_input.is_v2_default_axis.assign(x_dims.size(), true);
+  for (size_t i = 0UL; i < axes.size(); ++i) {
+    GE_ASSERT_TRUE(axes[i] >= 0L && axes[i] < static_cast<int64_t>(x_dims.size()), "StridedSliceV2 axis out of range.");
+    GE_ASSERT_TRUE(std::find(axes.begin(), axes.begin() + i, axes[i]) == axes.begin() + i,
+                   "StridedSliceV2 axes contains duplicates.");
+    if (i < begin_values.size()) {
+      index_input.start_indexes[axes[i]] = begin_values[i];
+      index_input.end_indexes[axes[i]] = end_values[i];
+      index_input.strides_indexes[axes[i]] = stride_values[i];
+      index_input.is_v2_default_axis[axes[i]] = false;
+    }
+  }
   return SUCCESS;
 }
 
@@ -465,24 +642,40 @@ Status GetStridedSliceV2IndexInput(const gert::InferSymbolShapeContext *context,
   const auto x_shape = context->GetInputSymbolShape(kXInputIndex);
   GE_UNSUPPORTED_IF_NULL(x_shape);
   const std::vector<ge::Expression> x_dims = x_shape->GetDims();
-  std::vector<int64_t> axes{};
-  Status ret = ConstructAxis(context, x_dims.size(), axes);
+  std::vector<Expression> begin_values;
+  Status ret = GetValueFromInputData(context, kStartInputIndex, begin_values);
   if (ret != SUCCESS) {
     return ret;
   }
-  ret = ConstructBeginList(context, x_dims, axes, index_input.start_indexes);
+  std::vector<Expression> end_values;
+  ret = GetValueFromInputData(context, kEndInputIndex, end_values);
   if (ret != SUCCESS) {
     return ret;
   }
-  ret = ConstructEndList(context, x_dims, axes, index_input.end_indexes);
+  std::vector<int64_t> axes;
+  ret = ConstructAxis(context, x_dims.size(), axes);
   if (ret != SUCCESS) {
     return ret;
   }
-  ret = ConstructStrideList(context, x_dims, axes, index_input.strides_indexes);
+  const bool axes_default = axes.empty();
+  if (axes_default) {
+    // StridedSliceV2 defaults to the leading axes when the optional axes
+    // input is omitted (the same convention used by the host symbolic
+    // kernel). Keep begin/end values mapped instead of silently leaving all
+    // dimensions at their full ranges.
+    const auto axis_count = std::min(x_dims.size(), begin_values.size());
+    axes.resize(axis_count);
+    std::iota(axes.begin(), axes.end(), 0L);
+  }
+  std::vector<Expression> stride_values;
+  bool strides_default = true;
+  ret = GetV2StrideValues(context, begin_values.size(), stride_values, strides_default);
   if (ret != SUCCESS) {
     return ret;
   }
-  return SUCCESS;
+  index_input.use_v2_default_inputs = axes_default && strides_default;
+  GE_ASSERT_TRUE(end_values.size() == begin_values.size(), "StridedSliceV2 begin/end length mismatch.");
+  return ApplyV2Axes(axes, x_dims, begin_values, end_values, stride_values, index_input);
 }
 
 Status GetStridedSliceMaskAttr(const gert::InferSymbolShapeContext *context, StridedSliceAttr &strided_slice_attr) {
@@ -535,7 +728,10 @@ Status HandleMaskAttr(const std::pair<int64_t, int64_t> &ellipsis_mask_range,
   // 处理ellipsis_mask
   GE_ASSERT_SUCCESS(HandleEllipsisMask(ellipsis_mask_range.first, input_append_axis_shape, index_input));
   // 补充缺省的index维度
-  GE_ASSERT_SUCCESS(FillMissionIndex(ellipsis_mask_range, input_append_axis_shape, index_input));
+  const auto fill_ret = FillMissionIndex(ellipsis_mask_range, input_append_axis_shape, index_input);
+  if (fill_ret != SUCCESS) {
+    return fill_ret;
+  }
   // 处理begin_mask和end_mask
   HandleBeginEndMask(strided_slice_attr, input_append_axis_shape, ellipsis_mask_range, index_input);
   return SUCCESS;
@@ -568,13 +764,20 @@ graphStatus InferShape4StridedSlice(gert::InferSymbolShapeContext *context) {
     input_x_dims.push_back(s);
   }
   HandleMaskConflict(strided_slice_attr);
+  const auto ret = ValidateSliceSpec(strided_slice_attr, index_input, static_cast<int64_t>(input_x_dims.size()));
+  if (ret != SUCCESS) {
+    return ret;
+  }
   const std::pair<int64_t, int64_t> ellipsis_mask_range =
       GetEllipsisMaskRange(strided_slice_attr, static_cast<int64_t>(index_input.start_indexes.size()),
                            static_cast<int64_t>(input_x_dims.size()));
   std::vector<Expression> input_append_axis_shape;
   GE_ASSERT_SUCCESS(AppendNewAxis(ellipsis_mask_range, strided_slice_attr.new_axis_mask, input_x_dims,
                                   input_append_axis_shape, index_input));
-  GE_ASSERT_SUCCESS(HandleMaskAttr(ellipsis_mask_range, input_append_axis_shape, strided_slice_attr, index_input));
+  const auto mask_ret = HandleMaskAttr(ellipsis_mask_range, input_append_axis_shape, strided_slice_attr, index_input);
+  if (mask_ret != SUCCESS) {
+    return mask_ret;
+  }
 
   const auto shape_output = context->GetOutputSymbolShape(kOutputIndex);
   GE_ASSERT_NOTNULL(shape_output);
@@ -590,10 +793,8 @@ IMPL_OP_INFER_SYMBOL_SHAPE_INNER(StridedSlice).InferSymbolShape(InferShape4Strid
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(StridedSliceV2).InferSymbolShape(InferShape4StridedSlice);
 
 Expression CalculateBeginValue(const Expression &begin_input, const Expression &cur_axis_input_size,
-                               const Expression &step_value) {
-  int64_t step_const = 0;
-  const auto clip_upper =
-      (step_value.GetConstValue(step_const) && step_const < 0) ? cur_axis_input_size - Symbol(1) : cur_axis_input_size;
+                               const bool negative_step) {
+  const auto clip_upper = negative_step ? cur_axis_input_size - Symbol(1) : cur_axis_input_size;
   Expression normalized_begin =
       (EXPECT_SYMBOL_LT(begin_input, kSymbolZero)) ? (begin_input + cur_axis_input_size) : begin_input;
   return (EXPECT_SYMBOL_LT(normalized_begin, kSymbolZero))  ? kSymbolZero
@@ -602,9 +803,8 @@ Expression CalculateBeginValue(const Expression &begin_input, const Expression &
 }
 
 Expression CalculateEndValue(const Expression &end_input, const Expression &cur_axis_input_size,
-                             const Expression &step_value) {
-  int64_t step_const = 0;
-  const auto clip_lower = (step_value.GetConstValue(step_const) && step_const < 0) ? Symbol(-1) : kSymbolZero;
+                             const bool negative_step) {
+  const auto clip_lower = negative_step ? Symbol(-1) : kSymbolZero;
   Expression normalized_end =
       (EXPECT_SYMBOL_LT(end_input, kSymbolZero)) ? (end_input + cur_axis_input_size) : end_input;
   return (EXPECT_SYMBOL_LT(normalized_end, clip_lower))            ? clip_lower
@@ -612,26 +812,74 @@ Expression CalculateEndValue(const Expression &end_input, const Expression &cur_
                                                                    : normalized_end;
 }
 
-void CalculateOutputDimsForV3(const std::vector<int64_t> &axes, const std::vector<Expression> &input_x_dims,
-                              const StrdedSliceIndexInputs &index_input, std::vector<Expression> &output_dims) {
+struct StridedSliceV3Step {
+  bool negative_step{false};
+  bool direction_known{false};
+};
+
+// Validates that the stride is non-zero and resolves whether its direction is
+// statically decidable.
+Status ResolveV3Step(const Expression &step_value, const size_t i, StridedSliceV3Step &step) {
+  int64_t step_const = 0L;
+  if (step_value.GetConstValue(step_const)) {
+    GE_ASSERT_TRUE(step_const != 0L, "StridedSliceV3 stride[%zu] must not be zero.", i);
+  } else {
+    const auto nonzero = SymbolicUtils::StaticCheckNe(step_value, kSymbolZero);
+    if (nonzero == TriBool::kFalse) {
+      return PARAM_INVALID;
+    }
+  }
+  const auto step_sign = SymbolicUtils::StaticCheckLt(step_value, kSymbolZero);
+  const bool symbolic_step = !step_value.GetConstValue(step_const);
+  // A hint is only a representative value in dynamic mode.  It cannot by
+  // itself prove the runtime stride direction, so do not select a branch
+  // from the hint without an explicit symbolic relation.
+  step.direction_known = !symbolic_step || step_sign != TriBool::kUnknown;
+  step.negative_step = (step_sign == TriBool::kTrue);
+  return SUCCESS;
+}
+
+Status CalculateOutputDimsForV3(const std::vector<int64_t> &axes, const std::vector<Expression> &input_x_dims,
+                                const StrdedSliceIndexInputs &index_input, std::vector<Expression> &output_dims) {
   for (size_t i = 0UL; i < axes.size(); ++i) {
     const int64_t axis_value = axes[i];
+    GE_ASSERT_TRUE(axis_value >= 0L && axis_value < static_cast<int64_t>(input_x_dims.size()),
+                   "StridedSliceV3 axis[%zu]=%lld is out of range.", i, axis_value);
     const Expression step_value = i < index_input.strides_indexes.size() ? index_input.strides_indexes[i] : Symbol(1);
-    const Expression begin_value =
-        i < index_input.start_indexes.size()
-            ? CalculateBeginValue(index_input.start_indexes[i], input_x_dims[axis_value], step_value)
-            : Symbol(0);
-    const Expression end_value =
-        i < index_input.end_indexes.size()
-            ? CalculateEndValue(index_input.end_indexes[i], input_x_dims[axis_value], step_value)
-            : input_x_dims[axis_value];
+    StridedSliceV3Step step;
+    GE_ASSERT_SUCCESS(ResolveV3Step(step_value, i, step));
+    int64_t step_const = 0L;
+    const bool symbolic_step = !step_value.GetConstValue(step_const);
+    Expression begin_value;
+    Expression end_value;
+    int64_t begin_const = 0L;
+    int64_t end_const = 0L;
+    const bool symbolic_index =
+        (i < index_input.start_indexes.size() && !index_input.start_indexes[i].GetConstValue(begin_const)) ||
+        (i < index_input.end_indexes.size() && !index_input.end_indexes[i].GetConstValue(end_const));
+    if (symbolic_index || (symbolic_step && !step.direction_known)) {
+      // The sign and clipping branch cannot be selected for a runtime index
+      // value. Propagating the raw symbolic index would emit wrong shapes and
+      // guards that pollute downstream inference, so fall back instead.
+      GELOGW("StridedSliceV3 symbolic begin/end index or unknown stride direction is unsupported.");
+      return UNSUPPORTED;
+    }
+    begin_value = i < index_input.start_indexes.size()
+                      ? CalculateBeginValue(index_input.start_indexes[i], input_x_dims[axis_value], step.negative_step)
+                      : Symbol(0);
+    end_value = i < index_input.end_indexes.size()
+                    ? CalculateEndValue(index_input.end_indexes[i], input_x_dims[axis_value], step.negative_step)
+                    : input_x_dims[axis_value];
     Expression cur_out_size = sym::Ceiling((end_value - begin_value) / step_value);
-    cur_out_size = (EXPECT_SYMBOL_LT(cur_out_size, kSymbolZero)) ? kSymbolZero : cur_out_size;
+    if (SymbolicUtils::StaticCheckLt(cur_out_size, kSymbolZero) == TriBool::kTrue) {
+      cur_out_size = kSymbolZero;
+    }
     GELOGD("Axe index %zu, begin symbol %s, end symbol %s, step symbol %s, outdim symbol %s", i,
            begin_value.Serialize().get(), end_value.Serialize().get(), step_value.Serialize().get(),
            cur_out_size.Serialize().get());
     output_dims[axis_value] = cur_out_size;
   }
+  return SUCCESS;
 }
 
 Status InferShape4StridedSliceV3(gert::InferSymbolShapeContext *context) {
@@ -661,7 +909,10 @@ Status InferShape4StridedSliceV3(gert::InferSymbolShapeContext *context) {
     std::iota(axes.begin(), axes.end(), 0);
   }
   shape_output->MutableDims() = input_x_dims;
-  CalculateOutputDimsForV3(axes, input_x_dims, index_input, shape_output->MutableDims());
+  const auto dims_ret = CalculateOutputDimsForV3(axes, input_x_dims, index_input, shape_output->MutableDims());
+  if (dims_ret != SUCCESS) {
+    return dims_ret;
+  }
   return SUCCESS;
 }
 

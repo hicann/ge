@@ -8,9 +8,13 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <algorithm>
+#include <cstdint>
+#include <functional>
 #include <list>
 #include <numeric>
+#include <set>
 #include "framework/common/framework_types_internal.h"
+#include "common/plugin/ge_make_unique_util.h"
 #include "common/util/mem_utils.h"
 #include "common/checker.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
@@ -34,11 +38,7 @@ graphStatus GetAxisDims(const gert::InferSymbolComputeContext *context, std::vec
   auto axis_tensor = context->GetInputSymbolTensor(kAxisInputIndex);
   GE_UNSUPPORTED_IF_NULL(axis_tensor);
   auto axis_symbols = axis_tensor->GetSymbolicValue();
-  if (axis_symbols == nullptr) {
-    GELOGW("SymbolicKernel compute unsupported, reason: get %zu symbolic value failed, node %s[%s].", kAxisInputIndex,
-           context->GetNodeName(), context->GetNodeType());
-    return UNSUPPORTED;
-  }
+  GE_UNSUPPORTED_IF_NULL(axis_symbols);
   for (size_t i = 0UL; i < axis_symbols->size(); i++) {
     int64_t dim = 0L;
     if (!(*axis_symbols)[i].GetConstValue(dim)) {
@@ -123,12 +123,10 @@ static graphStatus ReduceProdSymbolicKernelCompute(gert::InferSymbolComputeConte
 
   // 获取InputSymbolsValue
   // 获取输入的值
-  auto input_x_symbols = context->GetInputSymbolTensor(kXInputIndex)->GetSymbolicValue();
-  if (input_x_symbols == nullptr) {
-    GELOGW("SymbolicKernel compute unsupported, reason: get input symbolic value failed, node %s[%s].",
-           context->GetNodeName(), context->GetNodeType());
-    return UNSUPPORTED;
-  }
+  auto input_x_tensor = context->GetInputSymbolTensor(kXInputIndex);
+  GE_UNSUPPORTED_IF_NULL(input_x_tensor);
+  auto input_x_symbols = input_x_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(input_x_symbols);
   // 获取axis
   std::vector<int64_t> axis_dims;
   auto ret = GetAxisDims(context, axis_dims);
@@ -157,5 +155,117 @@ static graphStatus ReduceProdSymbolicKernelCompute(gert::InferSymbolComputeConte
   return SUCCESS;
 }
 
+using ReduceCompute = std::function<Expression(const Expression &, const Expression &)>;
+
+Status ReduceOutputSymbolValue(const std::vector<Expression> &input_symbols, const std::vector<int64_t> &input_dims,
+                               const std::vector<int64_t> &axis_dims, const ReduceCompute &compute,
+                               std::vector<Expression> &output_symbols) {
+  std::vector<Expression> current_symbols = input_symbols;
+  std::vector<int64_t> current_dims = input_dims;
+  for (auto axis_iter = axis_dims.rbegin(); axis_iter != axis_dims.rend(); ++axis_iter) {
+    const int64_t axis = *axis_iter;
+    if (axis < 0L || static_cast<size_t>(axis) >= current_dims.size() || current_dims[axis] <= 0L) {
+      return UNSUPPORTED;
+    }
+    int64_t block_size = 1L;
+    for (size_t i = static_cast<size_t>(axis) + 1U; i < current_dims.size(); ++i) {
+      if (current_dims[i] != 0L && block_size > INT64_MAX / current_dims[i]) {
+        return UNSUPPORTED;
+      }
+      block_size *= current_dims[i];
+    }
+    const int64_t reduce_size = current_dims[axis];
+    const int64_t group_size = reduce_size * block_size;
+    if (group_size <= 0L || current_symbols.size() % static_cast<size_t>(group_size) != 0U) {
+      return UNSUPPORTED;
+    }
+    const int64_t group_count = static_cast<int64_t>(current_symbols.size()) / group_size;
+    std::vector<Expression> reduced;
+    reduced.reserve(static_cast<size_t>(group_count * block_size));
+    for (int64_t group = 0L; group < group_count; ++group) {
+      const int64_t group_start = group * group_size;
+      for (int64_t offset = 0L; offset < block_size; ++offset) {
+        Expression value = current_symbols[static_cast<size_t>(group_start + offset)];
+        for (int64_t reduce_index = 1L; reduce_index < reduce_size; ++reduce_index) {
+          const int64_t index = group_start + reduce_index * block_size + offset;
+          value = compute(value, current_symbols[static_cast<size_t>(index)]);
+        }
+        reduced.emplace_back(std::move(value));
+      }
+    }
+    current_symbols = std::move(reduced);
+    current_dims.erase(current_dims.begin() + axis);
+  }
+  output_symbols = std::move(current_symbols);
+  return SUCCESS;
+}
+
+static graphStatus ReduceSymbolicKernelCompute(gert::InferSymbolComputeContext *context, const ReduceCompute &compute) {
+  GE_ASSERT_NOTNULL(context);
+  std::vector<int64_t> input_dims;
+  if (!context->GetConstInputDims(kXInputIndex, input_dims)) {
+    GELOGW("SymbolicKernel compute unsupported, reason: get const input dim failed, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  auto input_tensor = context->GetInputSymbolTensor(kXInputIndex);
+  GE_UNSUPPORTED_IF_NULL(input_tensor);
+  auto input_symbols = input_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(input_symbols);
+
+  auto attrs = context->GetAttrs();
+  GE_ASSERT_NOTNULL(attrs);
+  auto keep_dims = attrs->GetBool(0);
+  GE_ASSERT_NOTNULL(keep_dims);
+
+  std::vector<int64_t> axis_dims;
+  GE_ASSERT_SUCCESS(GetAxisDims(context, axis_dims));
+  GE_ASSERT_TRUE(axis_dims.size() <= input_dims.size());
+  GE_ASSERT_SUCCESS(NormalizeAxisDims(static_cast<int64_t>(input_dims.size()), axis_dims));
+  axis_dims.erase(std::unique(axis_dims.begin(), axis_dims.end()), axis_dims.end());
+
+  bool noop_with_empty_axes = true;
+  const bool *noop_attr = attrs->GetAttrPointer<bool>(1);
+  if (noop_attr != nullptr) {
+    noop_with_empty_axes = *noop_attr;
+  }
+  if (axis_dims.empty() && !noop_with_empty_axes) {
+    axis_dims.resize(input_dims.size());
+    std::iota(axis_dims.begin(), axis_dims.end(), 0L);
+  }
+
+  auto output_tensor = context->GetOutputSymbolTensor(kOutputIndex);
+  GE_ASSERT_NOTNULL(output_tensor);
+  std::vector<Expression> output_shape;
+  GE_ASSERT_SUCCESS(CalcOutputShape(input_dims, axis_dims, *keep_dims, output_shape));
+  output_tensor->MutableOriginSymbolShape().MutableDims() = output_shape;
+
+  std::vector<Expression> output_symbols;
+  if (axis_dims.empty()) {
+    output_symbols = *input_symbols;
+  } else {
+    GE_ASSERT_SUCCESS(ReduceOutputSymbolValue(*input_symbols, input_dims, axis_dims, compute, output_symbols));
+  }
+  output_tensor->SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(std::move(output_symbols)));
+  return SUCCESS;
+}
+
+static graphStatus ReduceSumSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  return ReduceSymbolicKernelCompute(context, [](const Expression &x1, const Expression &x2) { return x1 + x2; });
+}
+
+static graphStatus ReduceMaxSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  return ReduceSymbolicKernelCompute(context,
+                                     [](const Expression &x1, const Expression &x2) { return sym::Max(x1, x2); });
+}
+
+static graphStatus ReduceMinSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  return ReduceSymbolicKernelCompute(context,
+                                     [](const Expression &x1, const Expression &x2) { return sym::Min(x1, x2); });
+}
+
 REGISTER_SYMBOLIC_KERNEL(ReduceProd, ReduceProdSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(ReduceSum, ReduceSumSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(ReduceMax, ReduceMaxSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(ReduceMin, ReduceMinSymbolicKernelCompute);
 }  // namespace ge

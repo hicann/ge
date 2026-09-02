@@ -37,7 +37,7 @@ Status CheckMatchedIndexValid(const std::vector<ge::Format> &op_kernel_format_ve
   if (op_kernel_format_vec.empty() || matched_index >= op_kernel_format_vec_size) {
     REPORT_FE_ERROR(
         "[GraphOpt][FmtJdg][ChkMtcIdxValid] Op[%s,type=%s]: update the %s [%u], "
-        "the matched index [%u] is larger than or equals to the size of op_kernel_format_vec [%u].",
+        "the matched index [%u] is larger than or equal to the size of op_kernel_format_vec [%u].",
         op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), IS_INPUT_TO_STRING(is_input), index,
         matched_index, op_kernel_format_vec_size);
     return FAILED;
@@ -80,8 +80,7 @@ Status OpFormatDtypeUpdateDescBase::GetAndCheckSupportedDtype(const UpdateInfo &
     REPORT_FE_ERROR(
         "[GraphOptJdgInst][UpdFmtAndDtype][GetChkSptDtype] "
         "Op[name=%s,type=%s]: update the op_input_or_output_desc %u, the matched "
-        "index %u is larger than or equals to the size of "
-        "opKernelDataTypeVec %u.",
+        "index %u is larger than or equal to the size of opKernelDataTypeVec %u.",
         op_name.c_str(), op_type.c_str(), update_info.index, update_info.matched_index, op_kernel_data_type_vec_size);
     return FAILED;
   }

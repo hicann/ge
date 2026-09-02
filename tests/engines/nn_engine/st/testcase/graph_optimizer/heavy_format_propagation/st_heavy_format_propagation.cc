@@ -1898,3 +1898,70 @@ TEST_F(STEST_fusion_engine_heavy_format_distribution, heavy_format_distribution_
   bool is_allow_nz_mm = IsAllowNzMatmul(mm_node);
   EXPECT_EQ(is_allow_nz_mm, true);
 }
+
+#include "graph_optimizer/heavy_format_propagation/heavy_format_selector.h"
+#include "format_selector/manager/format_dtype_querier.h"
+
+// heavy_format_propagation.cc:1262 - GetPeerOutFormat with peer out output_desc nullptr
+TEST_F(STEST_fusion_engine_heavy_format_distribution, get_peer_out_format_output_desc_null) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_peer_out_null_st");
+  OpDescPtr producer_op = std::make_shared<OpDesc>("producer", "Relu");
+  OpDescPtr consumer_op = std::make_shared<OpDesc>("consumer", "Relu");
+  GeTensorDesc desc(GeShape({1, 2, 3, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT16);
+  desc.SetOriginFormat(ge::FORMAT_NCHW);
+  desc.SetOriginShape(GeShape({1, 2, 3, 4}));
+  consumer_op->AddInputDesc("x", desc);
+  producer_op->AddOutputDesc("y", desc);
+  ge::AttrUtils::SetInt(consumer_op->MutableInputDesc(0), FORMAT_CONTINUOUS, 1);
+
+  NodePtr producer_node = graph->AddNode(producer_op);
+  NodePtr consumer_node = graph->AddNode(consumer_op);
+  GraphUtils::AddEdge(producer_node->GetOutDataAnchor(0), consumer_node->GetInDataAnchor(0));
+
+  HeavyFormatPropagationPtr heavy_format_propagator =
+      std::make_shared<HeavyFormatPropagation>(AI_CORE_NAME, reflection_builder_ptr_);
+  heavy_format_propagator->Initialize();
+
+  vector<int64_t> input_non_format_agnostic_index;
+  PeerFormatAndShapeInfo peer_out_info(consumer_node, ge::FORMAT_RESERVED, 0, 0);
+  Status ret = heavy_format_propagator->GetPeerOutFormat(input_non_format_agnostic_index, peer_out_info);
+  EXPECT_TRUE(ret == fe::SUCCESS || ret == fe::NOT_CHANGED);
+}
+
+// heavy_format_selector.cc:255 - MatchDtypeForAllInputAndOutput with empty kernel
+TEST_F(STEST_fusion_engine_heavy_format_distribution, match_dtype_empty_kernel) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_match_dtype_empty_st");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_op", "Relu");
+  GeTensorDesc desc(GeShape({1, 2, 3, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT16);
+  op_desc->AddInputDesc("x", desc);
+  op_desc->AddOutputDesc("y", desc);
+  NodePtr node = graph->AddNode(op_desc);
+
+  auto format_dtype_querier_ptr = std::make_shared<FormatDtypeQuerier>(AI_CORE_NAME);
+  HeavyFormatSelector selector(format_dtype_querier_ptr);
+  OpKernelInfoPtr op_kernel_info_ptr = nullptr;
+  Status ret = selector.MatchDtypeForAllInputAndOutput(op_kernel_info_ptr, node);
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+// heavy_format_selector.cc:297 - SelectQualifiedFormat with empty kernel
+TEST_F(STEST_fusion_engine_heavy_format_distribution, select_qualified_format_empty_kernel) {
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_select_empty_st");
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_op", "Relu");
+  GeTensorDesc desc(GeShape({1, 2, 3, 4}), ge::FORMAT_NCHW, ge::DT_FLOAT16);
+  op_desc->AddInputDesc("x", desc);
+  op_desc->AddOutputDesc("y", desc);
+  NodePtr node = graph->AddNode(op_desc);
+
+  auto format_dtype_querier_ptr = std::make_shared<FormatDtypeQuerier>(AI_CORE_NAME);
+  HeavyFormatSelector selector(format_dtype_querier_ptr);
+  OpKernelInfoPtr op_kernel_info_ptr = nullptr;
+  HeavyFormatInfo heavy_format_info;
+  heavy_format_info.is_input = true;
+  heavy_format_info.anchor_index = 0;
+  heavy_format_info.expected_heavy_format = ge::FORMAT_NC1HWC0;
+  heavy_format_info.sub_format = 0;
+  std::vector<IndexNameMap> tensor_map;
+  Status ret = selector.SelectQualifiedFormat(op_kernel_info_ptr, node, heavy_format_info, tensor_map);
+  EXPECT_EQ(ret, fe::FAILED);
+}

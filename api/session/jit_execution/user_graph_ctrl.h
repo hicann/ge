@@ -84,6 +84,7 @@ class UserGraphControl {
   Status CompileGraph(uint64_t session_id);
   CompiledGraphSummaryPtr GetCompiledGraphSummary();
   Status LoadGraph(const std::map<AscendString, AscendString> &options, void *stream);
+  Status DumpDebugJSONPrint(uint32_t flags, AscendString &json_result);
   Status Finalize();
   bool IsUserGraphNeedRebuild();
   bool GetCompiledFlag() const;

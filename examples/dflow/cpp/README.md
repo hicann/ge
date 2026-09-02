@@ -46,6 +46,7 @@ numa_config.json文件用于配置dflow运行所需的设备资源信息，可�
 ```bash
 # 生成单机numa_config.json（默认自动探测芯片型号和设备数量，使用所有设备）
 # 也可指定设备列表：python3 ../../tools/create_numa_config.py --device-list 0,1,2
+# 若环境无npu-smi命令，脚本将打印告警并使用默认值（Ascend910B1、8卡）；如与实际环境不符，可通过--soc-version和--total-dev指定
 python3 ../../tools/create_numa_config.py
 # 生成后会在当前目录下生成numa_config.json
 ```

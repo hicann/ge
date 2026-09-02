@@ -14,6 +14,7 @@
 #include <mutex>
 #include <map>
 #include <sstream>
+#include <set>
 #include "framework/common/ge_types.h"
 #include "ge/ge_graph_compile_summary.h"
 #include "ge/ge_allocator.h"
@@ -222,6 +223,9 @@ class GeRootModel : public std::enable_shared_from_this<GeRootModel> {
   Status CheckAndSetOpMasterDevice();
   Status CheckAndSetAutofuseSo();
   Status CheckAndSetCustomOpSo();
+  Status CollectCustomOpTypesForRootModel(std::set<std::string> &used_custom_op_types) const;
+  Status CollectPortableCustomOpSo(const std::set<std::string> &used_custom_op_types, bool is_cross_compile,
+                                   bool &has_portable_custom_op);
   Status GetTargetHostEnv(std::string &host_env_os, std::string &host_env_cpu) const;
   bool IsCrossCompileTarget(const std::string &target_os, const std::string &target_cpu) const;
   Status ResolvePortableOpSoPath(const std::string &op_type, PortableOp *portable_op, std::string &so_path) const;

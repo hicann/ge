@@ -383,7 +383,7 @@ TEST_F(SequenceEraseComputeTest, input_handle_addr_null) {
   ASSERT_EQ(sequenceEraseCompute->run_func(context), ge::PARAM_INVALID);
 }
 
-TEST_F(SequenceEraseComputeTest, int64_fail) {
+TEST_F(SequenceEraseComputeTest, int64_success) {
   uint64_t session_id = 1;
   uint64_t container_id = 1;
   uint32_t input_num = 2;
@@ -420,7 +420,7 @@ TEST_F(SequenceEraseComputeTest, int64_fail) {
   input_tensor->MutableOriginShape() = {};
   input_tensor->MutableStorageShape() = {};
 
-  auto input_tensor_data = reinterpret_cast<float *>(input_tensor->GetAddr());
+  auto input_tensor_data = reinterpret_cast<int64_t *>(input_tensor->GetAddr());
   input_tensor_data[0] = 0;
   input_tensor->SetData(gert::TensorData{input_tensor_data, nullptr});
 
@@ -450,7 +450,7 @@ TEST_F(SequenceEraseComputeTest, int64_fail) {
           .NodeInputTd(1, ge::DT_INT64, ge::FORMAT_ND, ge::FORMAT_ND)
           .Build();
   auto context = kernelHolder.GetContext<KernelContext>();
-  ASSERT_EQ(sequenceEraseCompute->run_func(context), ge::PARAM_INVALID);
+  ASSERT_EQ(sequenceEraseCompute->run_func(context), ge::GRAPH_SUCCESS);
 }
 
 TEST_F(SequenceEraseComputeTest, output_null) {

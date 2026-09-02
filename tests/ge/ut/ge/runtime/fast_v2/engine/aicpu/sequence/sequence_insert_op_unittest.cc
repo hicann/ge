@@ -526,7 +526,7 @@ TEST_F(SequenceInsertComputeTest, input_index_idx_addr_null) {
   ASSERT_EQ(sequenceInsertCompute->run_func(context), ge::PARAM_INVALID);
 }
 
-TEST_F(SequenceInsertComputeTest, int64_fail) {
+TEST_F(SequenceInsertComputeTest, int64_success) {
   uint64_t session_id = 1;
   uint64_t container_id = 1;
   uint32_t input_num = 3;
@@ -564,7 +564,7 @@ TEST_F(SequenceInsertComputeTest, int64_fail) {
   input_index_tensor->MutableOriginShape() = {};
   input_index_tensor->MutableStorageShape() = {};
 
-  auto input_index_tensor_data = reinterpret_cast<int32_t *>(input_index_tensor->GetAddr());
+  auto input_index_tensor_data = reinterpret_cast<int64_t *>(input_index_tensor->GetAddr());
   input_index_tensor_data[0] = 0;
   input_index_tensor->SetData(gert::TensorData{input_index_tensor_data, nullptr});
 
@@ -577,7 +577,7 @@ TEST_F(SequenceInsertComputeTest, int64_fail) {
   input_value_tensor->MutableOriginShape() = {1};
   input_value_tensor->MutableStorageShape() = {1};
 
-  auto input_value_tensor_data = reinterpret_cast<int32_t *>(input_value_tensor->GetAddr());
+  auto input_value_tensor_data = reinterpret_cast<int64_t *>(input_value_tensor->GetAddr());
   input_value_tensor_data[0] = 0;
   input_value_tensor->SetData(gert::TensorData{input_value_tensor_data, nullptr});
 
@@ -610,7 +610,7 @@ TEST_F(SequenceInsertComputeTest, int64_fail) {
           .NodeInputTd(2, ge::DT_INT64, ge::FORMAT_ND, ge::FORMAT_ND)
           .Build();
   auto context = kernelHolder.GetContext<KernelContext>();
-  ASSERT_EQ(sequenceInsertCompute->run_func(context), ge::PARAM_INVALID);
+  ASSERT_EQ(sequenceInsertCompute->run_func(context), ge::GRAPH_SUCCESS);
 }
 
 TEST_F(SequenceInsertComputeTest, output_null) {

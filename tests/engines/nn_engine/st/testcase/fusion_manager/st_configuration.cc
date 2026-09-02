@@ -2015,3 +2015,27 @@ TEST_F(configuration_st, test_get_opp_latest_path) {
   std::string path_env = "/home/jenkins/Ascend/ascend-toolkit/latest";
   MM_SYS_SET_ENV(MM_ENV_ASCEND_HOME_PATH, path_env.c_str(), 1, err);
 }
+
+// op_cust_dtypes_config_parser.cc:168 - SplitInoutDtype with inputDtype after outputDtype
+TEST(OpCustDtypesConfigParserST, split_inout_dtype_wrong_order) {
+  OpCustDtypesConfigParser parser;
+  std::vector<string> input_dtype;
+  std::vector<string> output_dtype;
+  string line = "outputDtype:float16;inputDtype:float32";
+  bool ret = parser.SplitInoutDtype(line, input_dtype, output_dtype);
+  EXPECT_FALSE(ret);
+}
+
+// op_debug_config_parser.cc:169 - SetOpdebugConfig with empty config
+TEST(OpDebugConfigParserST, set_opdebug_config_empty) {
+  OpDebugConfigParser parser;
+  parser.SetOpDebugConfigEnv("");
+  bool ret = parser.SetOpdebugConfig("test_path");
+  EXPECT_FALSE(ret);
+}
+
+// json_util.cc:70 - FcntlLockFile release lock failed
+TEST(JsonUtilST, fcntl_lock_file_release_failed) {
+  Status ret = FcntlLockFile("test_file", -1, F_UNLCK, 0);
+  EXPECT_EQ(ret, fe::FAILED);
+}

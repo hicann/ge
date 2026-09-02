@@ -627,14 +627,14 @@ Status FEOpsKernelInfoStore::QueryHighPrioOpImplType(const ge::NodePtr &node, Op
    * be matched correspondingly */
   if (IsDtypeSensitiveOp(op_desc_ptr->GetType()) || IsFormatSensitiveOp(op_desc_ptr->GetType())) {
     if (!CheckSupportedByOpsStore(node, CheckSupportMode::ACCURACY_MODE, check_param, impl_type)) {
-      FE_LOGW("Op[%s, %s] is not supported in all op information librarys by accurate mode.", op_desc_ptr->GetNamePtr(),
-              op_desc_ptr->GetTypePtr());
+      FE_LOGW("Op[%s, %s] is not supported in all op information libraries by accurate mode.",
+              op_desc_ptr->GetNamePtr(), op_desc_ptr->GetTypePtr());
       op_kernel_ptr = check_param.op_kernel_ptr;
       return OP_NOT_FOUND_IN_QUERY_HIGH_PRIO_IMPL;
     }
   } else {
     if (!CheckSupportedByOpsStore(node, CheckSupportMode::DTYPE_FORMAT_MODE, check_param, impl_type)) {
-      FE_LOGW("Op[%s, %s] is not supported in all op information librarys.", op_desc_ptr->GetNamePtr(),
+      FE_LOGW("Op[%s, %s] is not supported in all op information libraries.", op_desc_ptr->GetNamePtr(),
               op_desc_ptr->GetTypePtr());
       op_kernel_ptr = check_param.op_kernel_ptr;
       return OP_NOT_FOUND_IN_QUERY_HIGH_PRIO_IMPL;

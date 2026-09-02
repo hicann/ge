@@ -148,7 +148,7 @@ std::vector<std::string> CheckMemGuard(const KernelContext *context) {
     auto cur_val = *static_cast<int64_t *>(guard.guard_ptr);
     if (cur_val != guard.guard_val) {
       GELOGW("Mem guard[%zu] value[%ld] does not match the actual value[%ld].", i, guard.guard_val, cur_val);
-      ss << "FFTS memory may has over write with block index: " << i;
+      ss << "FFTS memory may have overwritten, block index: " << i;
       msgs.emplace_back(ss.str());
       return msgs;
     }

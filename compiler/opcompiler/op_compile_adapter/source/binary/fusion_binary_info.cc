@@ -362,56 +362,61 @@ bool BinaryInfoBase::GenerateBinaryInfo(nlohmann::json &binaryInfoConfig) {
     TE_WARNLOG("binaryInfoConfig is empty.");
     return false;
   }
-  std::string opType;
   for (auto iter = binaryInfoConfig.begin(); iter != binaryInfoConfig.end(); ++iter) {
-    opType = iter.key();
-    std::unordered_map<std::string, std::string> simpleKeyInfoMap;
-    auto iterJsonValue = iter.value();
-    if (iterJsonValue.find(SIMPLIFIED_KEY_MODE) == iterJsonValue.end()) {
-      TE_INFOLOG("opType [%s] does not contain simplifiedKeyMode.", opType.c_str());
-      continue;
-    }
-    int simpleKeyModeValue = 0;
-    if (!TryGetValueByKey(iterJsonValue, opType, SIMPLIFIED_KEY_MODE, simpleKeyModeValue)) {
+    if (!ProcessSingleOpBinaryInfo(iter.key(), iter.value())) {
       return false;
     }
-    SimpleKeyModeType simpleKeyMode = static_cast<SimpleKeyModeType>(simpleKeyModeValue);
-    std::vector<SimpleKeyModeType> vecMode = {SimpleKeyModeType::SIMPLE_MODE, SimpleKeyModeType::COMPATIBLE_MODE,
-                                              SimpleKeyModeType::CUSTOM_MODE};
-    if (std::find(vecMode.begin(), vecMode.end(), simpleKeyMode) == vecMode.end()) {
-      TE_ERRLOG(
-          "simpleKeyMode value [%d] is out of range, valid value should be SIMPLE_MODE/COMPATIBLE_MODE/CUSTOM_MODE.",
-          simpleKeyMode);
-      return false;
-    }
-    std::string optionalInputMode = NO_PLACEHOLDER;
-    if (!GetParamModeFromJson(iterJsonValue, opType, OPT_INPUT_MODE, optionalInputMode)) {
-      return false;
-    }
-    std::string dynamicParamMode;
-    if (!GetParamModeFromJson(iterJsonValue, opType, DYN_PARAM_MODE, dynamicParamMode)) {
-      return false;
-    }
-    if (iterJsonValue.find(BINARY_INFO_CONFIG_PARAMS) == iterJsonValue.end()) {
-      TE_WARNLOG("opType [%s] does not contain params.", opType.c_str());
-      continue;
-    }
-    nlohmann::json binaryInfoParams = iterJsonValue[BINARY_INFO_CONFIG_PARAMS];
-    if (!GenerateDtypeFormatMode(opType, binaryInfoParams)) {
-      TE_ERRLOG("opType [%s], params is empty. return failed.", opType.c_str());
-      return false;
-    }
-    if (iterJsonValue.find(OP_BINARY_LIST) == iterJsonValue.end()) {
-      TE_ERRLOG("opType [%s] does not contain binaryList.", opType.c_str());
-      return false;
-    }
-    nlohmann::json binaryList = iterJsonValue[OP_BINARY_LIST];
-    if (!GenerateSimpleKeyList(opType, binaryList, simpleKeyInfoMap)) {
-      TE_WARNLOG("OpType [%s], GenerateSimpleKeyList operation failed", opType.c_str());
-      continue;
-    }
-    InsertBinaryInfoIntoMap(opType, simpleKeyMode, optionalInputMode, dynamicParamMode, simpleKeyInfoMap);
   }
+  return true;
+}
+
+bool BinaryInfoBase::ProcessSingleOpBinaryInfo(const std::string &opType, const nlohmann::json &iterJsonValue) {
+  std::unordered_map<std::string, std::string> simpleKeyInfoMap;
+  if (iterJsonValue.find(SIMPLIFIED_KEY_MODE) == iterJsonValue.end()) {
+    TE_INFOLOG("opType [%s] does not contain simplifiedKeyMode.", opType.c_str());
+    return true;
+  }
+  int simpleKeyModeValue = 0;
+  if (!TryGetValueByKey(iterJsonValue, opType, SIMPLIFIED_KEY_MODE, simpleKeyModeValue)) {
+    return false;
+  }
+  SimpleKeyModeType simpleKeyMode = static_cast<SimpleKeyModeType>(simpleKeyModeValue);
+  std::vector<SimpleKeyModeType> vecMode = {SimpleKeyModeType::SIMPLE_MODE, SimpleKeyModeType::COMPATIBLE_MODE,
+                                            SimpleKeyModeType::CUSTOM_MODE};
+  if (std::find(vecMode.begin(), vecMode.end(), simpleKeyMode) == vecMode.end()) {
+    TE_ERRLOG(
+        "opType [%s] simpleKeyMode value [%d] is out of range, "
+        "valid values: SIMPLE_MODE(0)/COMPATIBLE_MODE(1)/CUSTOM_MODE(2).",
+        opType.c_str(), static_cast<int32_t>(simpleKeyMode));
+    return false;
+  }
+  std::string optionalInputMode = NO_PLACEHOLDER;
+  if (!GetParamModeFromJson(iterJsonValue, opType, OPT_INPUT_MODE, optionalInputMode)) {
+    return false;
+  }
+  std::string dynamicParamMode;
+  if (!GetParamModeFromJson(iterJsonValue, opType, DYN_PARAM_MODE, dynamicParamMode)) {
+    return false;
+  }
+  if (iterJsonValue.find(BINARY_INFO_CONFIG_PARAMS) == iterJsonValue.end()) {
+    TE_WARNLOG("opType [%s] does not contain params.", opType.c_str());
+    return true;
+  }
+  nlohmann::json binaryInfoParams = iterJsonValue[BINARY_INFO_CONFIG_PARAMS];
+  if (!GenerateDtypeFormatMode(opType, binaryInfoParams)) {
+    TE_ERRLOG("opType [%s], params is empty. return failed.", opType.c_str());
+    return false;
+  }
+  if (iterJsonValue.find(OP_BINARY_LIST) == iterJsonValue.end()) {
+    TE_ERRLOG("opType [%s] does not contain binaryList.", opType.c_str());
+    return false;
+  }
+  nlohmann::json binaryList = iterJsonValue[OP_BINARY_LIST];
+  if (!GenerateSimpleKeyList(opType, binaryList, simpleKeyInfoMap)) {
+    TE_WARNLOG("OpType [%s], GenerateSimpleKeyList operation failed", opType.c_str());
+    return true;
+  }
+  InsertBinaryInfoIntoMap(opType, simpleKeyMode, optionalInputMode, dynamicParamMode, simpleKeyInfoMap);
   return true;
 }
 

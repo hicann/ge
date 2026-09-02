@@ -73,13 +73,13 @@ Status Configuration::Initialize() {
 
   status = LoadConfigFile();
   if (status != SUCCESS) {
-    FFTS_LOGI("[FFTSConfig][Init] Load the data from configuration file unsuccessful.");
+    FFTS_LOGW("[FFTSConfig][Init] Load the data from configuration file unsuccessful.");
     return status;
   }
 
   status = InitCMOThreshold();
   if (status != SUCCESS) {
-    REPORT_FFTS_ERROR("[FFTSConfig][Init] Failed to load the cmo from configuration file.");
+    REPORT_FFTS_ERROR("[FFTSConfig][Init] Failed to load the cache management object (cmo) from configuration file.");
     return status;
   }
   is_init_ = true;

@@ -52,10 +52,6 @@ ValueHolderPtr AicpuHostExecFuncProcess(const AicpuHostProcFunc &func, const IoI
                                         const std::vector<DevMemValueHolderPtr> &output_addrs);
 ValueHolderPtr AicpuHostCompute(const ge::NodePtr &node, const AicpuArgs &args, const IoInfo &io_info,
                                 LoweringGlobalData &global_data, std::vector<DevMemValueHolderPtr> &output_addrs);
-// Build the ExecuteGraph node; the registered runtime kernel is FusedHostCpuCompute.
-ValueHolderPtr BuildFusedHostCpuComputeNode(const ge::NodePtr &node, void *compute_state, const IoInfo &io_info,
-                                            LoweringGlobalData &global_data,
-                                            std::vector<DevMemValueHolderPtr> &output_addrs);
 ValueHolderPtr GetContainerIdHolder(const LowerInput &lower_input);
 }  // namespace bg
 }  // namespace gert

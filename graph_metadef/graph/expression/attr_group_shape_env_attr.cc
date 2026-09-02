@@ -140,6 +140,7 @@ graphStatus ShapeEnvAttr::DeserializeSymbolInfo(const proto::ShapeEnvAttrGroupsD
   GELOGI("symbol_to_value size: %zu", shape_env_group.symbol_to_value_size());
   for (const auto &iter : shape_env_group.symbol_to_value()) {
     Expression sym = Expression::Deserialize(iter.first.c_str());
+    GE_ASSERT_TRUE(sym.IsValid(), "Deserialize symbol failed, expr[%s]", iter.first.c_str());
     GE_ASSERT_TRUE(!sym.IsConstExpr(), "Symbol in symbol_to_value of shape env attr should be a variable, but get: %s",
                    iter.first.c_str());
     symbol_to_value_.emplace(std::make_pair(sym, iter.second));
@@ -149,6 +150,7 @@ graphStatus ShapeEnvAttr::DeserializeSymbolInfo(const proto::ShapeEnvAttrGroupsD
     std::vector<Expression> symbol_infos;
     for (const auto &sym_iter : iter.second.symbols()) {
       Expression sym = Expression::Deserialize(sym_iter.c_str());
+      GE_ASSERT_TRUE(sym.IsValid(), "Deserialize symbol failed, expr[%s]", sym_iter.c_str());
       GE_ASSERT_TRUE(!sym.IsConstExpr(),
                      "Symbol in value_to_symbol of shape env attr should be a variable, but get: %s", sym_iter.c_str());
       symbol_infos.emplace_back(sym);
@@ -165,16 +167,23 @@ graphStatus ShapeEnvAttr::DeserializeSymbolCheckInfos(const proto::ShapeEnvAttrG
   for (const auto &iter : shape_env_group.replacements()) {
     Expression expr = Expression::Deserialize(iter.first.c_str());
     Expression replace_expr = Expression::Deserialize(iter.second.replace_expr().c_str());
+    GE_ASSERT_TRUE(expr.IsValid() && replace_expr.IsValid(),
+                   "Deserialize replacement failed, target[%s], replacement[%s]", iter.first.c_str(),
+                   iter.second.replace_expr().c_str());
     replacements_.emplace(std::make_pair(expr, Replacement(replace_expr, iter.second.rank())));
   }
   symbol_check_infos_.clear();
   for (const auto &iter : shape_env_group.symbol_check_infos()) {
     Expression expr = Expression::Deserialize(iter.expr().c_str());
+    GE_ASSERT_TRUE(expr.IsValid(), "Deserialize symbol check failed, expr[%s], source[%s:%ld], dfx[%s]",
+                   iter.expr().c_str(), iter.file().c_str(), iter.line(), iter.dfx().c_str());
     symbol_check_infos_.emplace(SymbolCheckInfo(expr, iter.file(), iter.line(), iter.dfx()));
   }
   symbol_assert_infos_.clear();
   for (const auto &iter : shape_env_group.symbol_assert_infos()) {
     Expression expr = Expression::Deserialize(iter.expr().c_str());
+    GE_ASSERT_TRUE(expr.IsValid(), "Deserialize symbol assert failed, expr[%s], source[%s:%ld], dfx[%s]",
+                   iter.expr().c_str(), iter.file().c_str(), iter.line(), iter.dfx().c_str());
     symbol_assert_infos_.emplace(SymbolCheckInfo(expr, iter.file(), iter.line(), iter.dfx()));
   }
   return GRAPH_SUCCESS;
@@ -183,8 +192,8 @@ graphStatus ShapeEnvAttr::DeserializeSymbolCheckInfos(const proto::ShapeEnvAttrG
 graphStatus ShapeEnvAttr::Deserialize(const proto::AttrGroupDef &attr_group_def, AttrHolder *attr_holder) {
   (void)attr_holder;
   const auto &shape_env_group = attr_group_def.shape_env_attr_group();
-  DeserializeSymbolInfo(shape_env_group);
-  DeserializeSymbolCheckInfos(shape_env_group);
+  GE_ASSERT_SUCCESS(DeserializeSymbolInfo(shape_env_group));
+  GE_ASSERT_SUCCESS(DeserializeSymbolCheckInfos(shape_env_group));
   shape_env_setting_ = ShapeEnvSetting(shape_env_group.shape_setting().specialize_zero_one(),
                                        static_cast<DynamicMode>(shape_env_group.shape_setting().dynamic_mode()));
   unique_sym_id_ = shape_env_group.unique_sym_id();

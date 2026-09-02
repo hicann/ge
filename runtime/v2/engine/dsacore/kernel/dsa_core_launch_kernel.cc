@@ -130,7 +130,7 @@ ge::graphStatus DsaCoreUpdateSqeArg(KernelContext *context) {
   std::vector<gert::GertTensorData *> input_tensor_datas;
   auto ret = DsaCoreUpdateSqeSeedCountResult(context, input_tensor_datas, sqe_data, input_num);
   if (ret != ge::GRAPH_SUCCESS) {
-    GELOGI("DsaCoreUpdateSqeSeedCountResult did not succeed.");
+    GELOGW("DsaCoreUpdateSqeSeedCountResult did not succeed.");
     return ge::GRAPH_PARAM_INVALID;
   }
   FE_ASSERT_TRUE(workspace->GetSize() > 0U);

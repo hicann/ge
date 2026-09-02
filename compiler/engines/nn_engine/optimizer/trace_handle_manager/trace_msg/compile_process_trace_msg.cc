@@ -25,12 +25,12 @@ std::string CompileProcessTraceMsg::GenerateTraceMsg() {
   std::stringstream ss;
   if (is_compile_end_) {
     ss << "Finish subgraph compile. ThreadId:" << GetCurThreadIdStr() << "|";
-    ss << "Total task cout:" << std::to_string(total_task_count_);
+    ss << "Total task count:" << std::to_string(total_task_count_);
   } else {
     ss << "Compile process status. ThreadId:" << GetCurThreadIdStr() << "|";
-    ss << "Total task cout:" << std::to_string(total_task_count_) << "|";
-    ss << "Finished task cout:" << std::to_string(total_task_count_ - wait_task_count_) << "|";
-    ss << "Waiting task cout:" << std::to_string(wait_task_count_);
+    ss << "Total task count:" << std::to_string(total_task_count_) << "|";
+    ss << "Finished task count:" << std::to_string(total_task_count_ - wait_task_count_) << "|";
+    ss << "Waiting task count:" << std::to_string(wait_task_count_);
   }
 
   return ss.str();

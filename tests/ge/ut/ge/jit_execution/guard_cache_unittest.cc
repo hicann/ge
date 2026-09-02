@@ -234,6 +234,9 @@ TEST_F(GuardCacheUT, check_priority_feat) {
   EXPECT_EQ(gep_find->GetPriority(), 3);
   EXPECT_EQ(gep2->GetPriority(), 0);
 
+  gep_find = guardCheckCache_->FindGuardedExecutionPointByCompiledGraphId(gep1->GetCompiledGraphId(), inputs_for_gep1);
+  EXPECT_EQ(gep_find->GetPriority(), 4);
+
   EsDestroyGraphBuilder(graph1_);
   EsDestroyGraphBuilder(graph2_);
   EsDestroyGraphBuilder(graph3_);

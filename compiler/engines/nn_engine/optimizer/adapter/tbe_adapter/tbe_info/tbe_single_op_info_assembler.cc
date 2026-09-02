@@ -34,6 +34,53 @@ Status TbeSingleOpInfoAssembler::Initialize() {
   return SUCCESS;
 }
 
+static Status UpdateDynamicTensorInfo(const ge::OpDescPtr &op_desc_ptr, const char *direction, const char *err_tag,
+                                      const std::string &start_attr, const std::string &end_attr, size_t total_size,
+                                      vector<OpTensorStruct> &op_tensor_struct) {
+  if (!(op_desc_ptr->HasAttr(start_attr) && op_desc_ptr->HasAttr(end_attr))) {
+    return SUCCESS;
+  }
+  vector<uint32_t> start_idx;
+  vector<uint32_t> end_idx;
+  (void)ge::AttrUtils::GetListInt(op_desc_ptr, start_attr, start_idx);
+  (void)ge::AttrUtils::GetListInt(op_desc_ptr, end_attr, end_idx);
+  if (start_idx.size() != end_idx.size()) {
+    REPORT_FE_ERROR(
+        "[SubGraphOpt][Compile][%s] Node[%s, %s]: the size of attr _dynamic_%s_index is not equal, "
+        "start size is %zu, end size is %zu.",
+        err_tag, op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), direction, start_idx.size(),
+        end_idx.size());
+    return FAILED;
+  }
+  for (unsigned int i = 0; i < start_idx.size(); i++) {
+    if (start_idx[i] > end_idx[i]) {
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][%s] Node[%s, %s]: the start number is more than end number.", err_tag,
+                      op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
+      return FAILED;
+    }
+    if (end_idx[i] >= total_size) {
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][%s] Node[%s, %s]: the end number is more than it's %s size.", err_tag,
+                      op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), direction);
+      return FAILED;
+    }
+    if (op_tensor_struct.size() <= i) {
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][%s] Node[%s, %s]: the end number is more than it's %s tensor size.",
+                      err_tag, op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), direction);
+      return FAILED;
+    }
+    for (uint32_t j = start_idx[i]; j <= end_idx[i]; j++) {
+      op_tensor_struct[i].op_param_type = DYNAMIC;
+      if (j == end_idx[i]) {
+        op_tensor_struct[i].is_last_dynamic_tensor = true;
+      }
+      FE_LOGD("Update [Name:%s,Type:%s]'s %s %u to param type %d, is_last_dynamic_tensor:%d",
+              op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), direction, op_tensor_struct[i].index,
+              op_tensor_struct[i].op_param_type, op_tensor_struct[i].is_last_dynamic_tensor);
+    }
+  }
+  return SUCCESS;
+}
+
 static Status ParseInputInfoFromOp(const ge::Node *node, const ge::OpDescPtr &op_desc_ptr,
                                    vector<OpTensorStruct> &op_input_tensor_struct) {
   FE_LOGD("Node[Name:%s,Type:%s] has %zu input.", op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(),
@@ -54,50 +101,9 @@ static Status ParseInputInfoFromOp(const ge::Node *node, const ge::OpDescPtr &op
 
   FE_LOGD("The size of node[Name:%s,Type:%s] parsed input info struct is %zu", op_desc_ptr->GetName().c_str(),
           op_desc_ptr->GetType().c_str(), op_input_tensor_struct.size());
-  bool has_dynamic_input_attr =
-      op_desc_ptr->HasAttr(ge::ATTR_NAME_DYNAMIC_INPUT_START) && op_desc_ptr->HasAttr(ge::ATTR_NAME_DYNAMIC_INPUT_END);
-  if (has_dynamic_input_attr) {
-    vector<uint32_t> dynamic_input_start_idx;
-    vector<uint32_t> dynamic_input_end_idx;
-    (void)ge::AttrUtils::GetListInt(op_desc_ptr, ge::ATTR_NAME_DYNAMIC_INPUT_START, dynamic_input_start_idx);
-    (void)ge::AttrUtils::GetListInt(op_desc_ptr, ge::ATTR_NAME_DYNAMIC_INPUT_END, dynamic_input_end_idx);
-    if (dynamic_input_start_idx.size() != dynamic_input_end_idx.size()) {
-      REPORT_FE_ERROR(
-          "[SubGraphOpt][Compile][ParInInfoFromOp] Node[%s, %s]: the size of attr _dynamic_input_index is not equal.",
-          op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-      return FAILED;
-    }
-    for (unsigned int i = 0; i < dynamic_input_start_idx.size(); i++) {
-      if (dynamic_input_start_idx[i] > dynamic_input_end_idx[i]) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParInInfoFromOp] Node[%s, %s]: the start number is more than end number",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      if (dynamic_input_end_idx[i] >= node->GetOpDesc()->GetAllInputsSize()) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParInInfoFromOp] Node[%s, %s]: the end number is more than it's input size.",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      if (op_input_tensor_struct.size() <= i) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParInInfoFromOp] Node[%s, %s]: the end number is more than it's input tensor size",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      for (uint32_t j = dynamic_input_start_idx[i]; j <= dynamic_input_end_idx[i]; j++) {
-        op_input_tensor_struct[i].op_param_type = DYNAMIC;
-        if (j == dynamic_input_end_idx[i]) {
-          op_input_tensor_struct[i].is_last_dynamic_tensor = true;
-        }
-        FE_LOGD("Update [Name:%s,Type:%s]'s input %u to input type %d, this input is the last dynamic input:%d",
-                op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), op_input_tensor_struct[i].index,
-                op_input_tensor_struct[i].op_param_type, op_input_tensor_struct[i].is_last_dynamic_tensor);
-      }
-    }
-  }
-  return SUCCESS;
+  return UpdateDynamicTensorInfo(op_desc_ptr, "input", "ParInInfoFromOp", ge::ATTR_NAME_DYNAMIC_INPUT_START,
+                                 ge::ATTR_NAME_DYNAMIC_INPUT_END, node->GetOpDesc()->GetAllInputsSize(),
+                                 op_input_tensor_struct);
 }
 
 Status TbeSingleOpInfoAssembler::FeedInputInfoToSingleTbeInfo(const ge::OpDescPtr &op_desc_ptr,
@@ -170,50 +176,9 @@ static Status ParseOutputInfoFromOp(const ge::Node *node, const ge::OpDescPtr &o
             op_desc_ptr->GetType().c_str(), op_output_tensor_info.index, op_output_tensor_info.op_param_type);
     op_output_tensor_struct.push_back(op_output_tensor_info);
   }
-  bool has_dynamic_output_attr =
-      op_desc_ptr->HasAttr("_dynamic_output_index_start") && op_desc_ptr->HasAttr("_dynamic_output_index_end");
-  if (has_dynamic_output_attr) {
-    vector<uint32_t> dynamic_output_start_idx;
-    vector<uint32_t> dynamic_output_end_idx;
-    (void)ge::AttrUtils::GetListInt(op_desc_ptr, "_dynamic_output_index_start", dynamic_output_start_idx);
-    (void)ge::AttrUtils::GetListInt(op_desc_ptr, "_dynamic_output_index_end", dynamic_output_end_idx);
-    if (dynamic_output_start_idx.size() != dynamic_output_end_idx.size()) {
-      REPORT_FE_ERROR(
-          "[SubGraphOpt][Compile][ParOutInfoFromOp] Node[%s, %s]: the size of attr _dynamic_output_index is not equal.",
-          op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-      return FAILED;
-    }
-    for (unsigned int i = 0; i < dynamic_output_start_idx.size(); i++) {
-      if (dynamic_output_start_idx[i] > dynamic_output_end_idx[i]) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParOutInfoFromOp] Node[%s, %s]: the start number is more than end number.",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      if (dynamic_output_end_idx[i] >= node->GetOpDesc()->GetAllOutputsDescSize()) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParOutInfoFromOp] Node[%s, %s]: the end number is more than it's output size.",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      if (op_output_tensor_struct.size() <= i) {
-        REPORT_FE_ERROR(
-            "[SubGraphOpt][Compile][ParOutInfoFromOp] Node[%s, %s]: The end number is more than output tensor size",
-            op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-        return FAILED;
-      }
-      for (uint32_t j = dynamic_output_start_idx[i]; j <= dynamic_output_end_idx[i]; j++) {
-        op_output_tensor_struct[i].op_param_type = DYNAMIC;
-        if (j == dynamic_output_end_idx[i]) {
-          op_output_tensor_struct[i].is_last_dynamic_tensor = true;
-        }
-        FE_LOGD("Update node[Name:%s,Type:%s]'s output index %u to param type %d, is_last_dynamic_input: %d.",
-                op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str(), op_output_tensor_struct[i].index,
-                op_output_tensor_struct[i].op_param_type, op_output_tensor_struct[i].is_last_dynamic_tensor);
-      }
-    }
-  }
-  return SUCCESS;
+  return UpdateDynamicTensorInfo(op_desc_ptr, "output", "ParOutInfoFromOp", "_dynamic_output_index_start",
+                                 "_dynamic_output_index_end", node->GetOpDesc()->GetAllOutputsDescSize(),
+                                 op_output_tensor_struct);
 }
 
 Status TbeSingleOpInfoAssembler::FeedOutputInfoToSingleTbeInfo(const ge::OpDescPtr &op_desc_ptr,

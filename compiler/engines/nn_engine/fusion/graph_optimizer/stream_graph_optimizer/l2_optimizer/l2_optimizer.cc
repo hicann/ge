@@ -200,7 +200,7 @@ Status L2Optimizer::GetL2DataAlloc(ge::ComputeGraph &stream_graph, uint64_t mem_
              return fe::FAILED);
     // update ddr
     FE_CHECK(UpdateDDRForL2Fusion(stream_graph, mem_base) != fe::SUCCESS,
-             REPORT_FE_ERROR("[StreamOpt][L2Opt][GetL2DataAlloc] UpdataInputForL2Fusion failed!"), return fe::FAILED);
+             REPORT_FE_ERROR("[StreamOpt][L2Opt][GetL2DataAlloc] UpdateDDRForL2Fusion failed!"), return fe::FAILED);
     for (auto node : stream_graph.GetDirectNode()) {
       (void)ge::AttrUtils::SetBool(node->GetOpDesc(), ATTR_NAME_LX_FUSION_PASS, true);
     }

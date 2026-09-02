@@ -38,10 +38,16 @@ struct Conv2DAttr {
   int64_t groups = 1;
   std::string data_format = "NCHW";
   int64_t offset_x = 0;
+  std::string round_mode = "rint";  // ExtendConv2D only
   std::string pad_mode = "SPECIFIC";
   bool enable_hf32 = false;
+  bool enable_relu0 = false;  // ExtendConv2D only
+  int64_t fixed_shift_value = 0;
+  // 以下字段非 op proto 属性，供 ASCIR/codegen 选择算子变体；后端据此还原 ExtendConv2D 逻辑输入槽位。
   bool has_bias = false;
   bool has_offset_w = false;
+  bool has_scale0 = false;  // ExtendConv2D only
+  bool is_extend_conv2d = false;
 };
 }  // namespace ge
 

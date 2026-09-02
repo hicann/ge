@@ -38,6 +38,20 @@ GuardedExecutionPoint *GuardCheckCache::FindGuardedExecutionPoint(const std::vec
   return nullptr;
 }
 
+GuardedExecutionPoint *GuardCheckCache::FindGuardedExecutionPointByCompiledGraphId(
+    uint32_t compiled_graph_id, const std::vector<gert::Tensor> &input_tensor) {
+  for (auto &item : cache_models_) {
+    if (!item->Compiled() || item->GetCompiledGraphId() != compiled_graph_id) {
+      continue;
+    }
+    if (item->Match(input_tensor)) {
+      item->SetPriority(item->GetPriority() + 1);
+      return item.get();
+    }
+  }
+  return nullptr;
+}
+
 uint32_t GuardCheckCache::GetSavedCacheNum() const {
   return cache_models_.size();
 }

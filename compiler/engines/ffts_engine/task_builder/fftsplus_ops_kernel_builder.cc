@@ -721,14 +721,14 @@ Status FFTSPlusOpsKernelBuilder::TimelineLayoutOptimize(uint64_t ready_context_n
   Status status = schecule_policy_pass_(task_def, timeCtx.ctx_path_vector_);
   FFTS_TIMECOST_END_LOGI(schecule_policy_pass, "SGT.schecule_policy_pass");
   if (status != SUCCESS) {
-    FFTS_LOGI("SchedulePolicyPass did not succeed, node name: %s, node type: %s.", node.GetName().c_str(),
+    FFTS_LOGW("SchedulePolicyPass did not succeed, node name: %s, node type: %s.", node.GetName().c_str(),
               node.GetType().c_str());
     return SUCCESS;  // continue to execute task run without TimelineLayoutOptimize
   }
 
   status = SetCtxsPolicyPri(ready_context_num, task_def, timeCtx);
   if (status != SUCCESS) {
-    FFTS_LOGI("SetCtxsPolicyPri not successfully, node name:%s, node type:%s", node.GetName().c_str(),
+    FFTS_LOGW("SetCtxsPolicyPri not successfully, node name:%s, node type:%s", node.GetName().c_str(),
               node.GetType().c_str());
     return status;
   }
@@ -741,7 +741,7 @@ Status FFTSPlusOpsKernelBuilder::TimelineLayoutOptimize(uint64_t ready_context_n
   // remove ctx succlist duplicate dependence
   status = RemoveDuplicateDependencies(task_def, timeCtx);
   if (status != SUCCESS) {
-    FFTS_LOGI("RemoveDuplicateDependencies not successfully, node name: %s, node type: %s.", node.GetName().c_str(),
+    FFTS_LOGW("RemoveDuplicateDependencies not successfully, node name: %s, node type: %s.", node.GetName().c_str(),
               node.GetType().c_str());
     return status;
   }
@@ -958,7 +958,7 @@ Status FFTSPlusOpsKernelBuilder::GenerateTask(const ge::Node &node, ge::RunConte
     FFTS_MAKE_SHARED(mixl2_mode_task_builder_ptr = std::make_shared<Mixl2ModeTaskBuilder>(), return FAILED);
     base_mode_ptr = mixl2_mode_task_builder_ptr;
   } else {
-    FFTS_LOGE("Failed to generatetask for node [%s].", node.GetName().c_str());
+    FFTS_LOGE("Failed to generate task for node [%s].", node.GetName().c_str());
     return FAILED;
   }
   FFTS_CHECK_NOTNULL(base_mode_ptr);

@@ -30,7 +30,10 @@ class FuncIntfSpec:
         self.param_list = param_list
 
     def print_detail(self):
-        print("func name: %s, param_list: [%s]" % (self.func_name, ",".join(self.param_list)))
+        print(
+            "func name: %s, param_list: [%s]"
+            % (self.func_name, ",".join(self.param_list))
+        )
 
 
 class ClassIntfSpec:
@@ -52,7 +55,10 @@ class ClassIntfSpec:
 
     def print_detail(self):
         print("-------------------------------------------")
-        print("class name: %s, supper classes: %s" % (self.class_name, ",".join(self.supper_classes)))
+        print(
+            "class name: %s, super classes: %s"
+            % (self.class_name, ",".join(self.supper_classes))
+        )
         print("func list:")
         for idx, func_spec in self.func_list.items():
             func_spec.print_detail()
@@ -125,6 +131,56 @@ def get_tree_idx(str_info: str):
         return 1
 
 
+def _get_class_spec_info(spec_line, spec_tree):
+    tree_idx = get_tree_idx(spec_line)
+    if "(" in spec_line:
+        open_paren = spec_line.index("(")
+        close_paren = spec_line.index(")")
+        class_name = spec_line[6:open_paren]
+        start = open_paren + 1
+        super_classes = spec_line[start:close_paren].split(",")
+    else:
+        class_name = spec_line[6:-1]
+        super_classes = []
+    class_spec = ClassIntfSpec(class_name, super_classes)
+    if len(spec_tree) < (tree_idx + 1):
+        spec_tree.append(class_spec)
+    else:
+        spec_tree[tree_idx] = class_spec
+    spec_tree[tree_idx - 1].add_class_spec(class_spec)
+
+
+def _get_def_spec_info(spec_line, spec_tree):
+    tree_idx = get_tree_idx(spec_line)
+    spec_line = spec_line.strip()
+    open_paren = spec_line.index("(")
+    close_paren = spec_line.index(")")
+    func_name = spec_line[4:open_paren]
+    start = open_paren + 1
+    params = spec_line[start:close_paren].split(",")
+    param_list = [x.strip() for x in params]
+    func_spec = FuncIntfSpec(func_name, param_list)
+    if len(spec_tree) < (tree_idx + 1):
+        spec_tree.append(func_spec)
+    else:
+        spec_tree[tree_idx] = func_spec
+    spec_tree[tree_idx - 1].add_func_spec(func_spec)
+
+
+def _get_global_var_spec_info(spec_line, spec_tree):
+    tree_idx = get_tree_idx(spec_line)
+    eq_idx = spec_line.index("=")
+    name = spec_line[:eq_idx].rstrip()
+    offset = len(name) + 3
+    values = spec_line[offset:]
+    global_var_spec = GlobalVarSpec(name, values)
+    if len(spec_tree) < (tree_idx + 1):
+        spec_tree.append(global_var_spec)
+    else:
+        spec_tree[tree_idx] = global_var_spec
+    spec_tree[tree_idx - 1].add_global_var_spec(global_var_spec)
+
+
 def build_file_spec(spec_lines, file_spec: FileSpec):
     """
     Analyze the specification definition according to the code in the file.
@@ -138,42 +194,11 @@ def build_file_spec(spec_lines, file_spec: FileSpec):
         if spec_line.startswith("#"):
             continue
         elif "class " in spec_line:
-            # Indicates that a class is defined
-            tree_idx = get_tree_idx(spec_line)
-            if "(" in spec_line:
-                class_name = spec_line[6 : spec_line.index("(")]
-                super_classes = spec_line[spec_line.index("(") + 1 : spec_line.index(")")].split(",")
-            else:
-                class_name = spec_line[6:-1]
-                super_classes = []
-            class_spec = ClassIntfSpec(class_name, super_classes)
-            if len(spec_tree) < (tree_idx + 1):
-                spec_tree.append(class_spec)
-            else:
-                spec_tree[tree_idx] = class_spec
-            spec_tree[tree_idx - 1].add_class_spec(class_spec)
+            _get_class_spec_info(spec_line, spec_tree)
         elif "def " in spec_line:
-            # Indicates that a function api is defined
-            tree_idx = get_tree_idx(spec_line)
-            spec_line = spec_line.strip()
-            func_name = spec_line[4 : spec_line.index("(")]
-            param_list = [x.strip() for x in spec_line[spec_line.index("(") + 1 : spec_line.index(")")].split(",")]
-            func_spec = FuncIntfSpec(func_name, param_list)
-            if len(spec_tree) < (tree_idx + 1):
-                spec_tree.append(func_spec)
-            else:
-                spec_tree[tree_idx] = func_spec
-            spec_tree[tree_idx - 1].add_func_spec(func_spec)
+            _get_def_spec_info(spec_line, spec_tree)
         elif is_global_variable(spec_line):
-            tree_idx = get_tree_idx(spec_line)
-            name = spec_line[: spec_line.index("=")].rstrip()
-            values = spec_line[(len(name) + 3) :]
-            global_var_spec = GlobalVarSpec(name, values)
-            if len(spec_tree) < (tree_idx + 1):
-                spec_tree.append(global_var_spec)
-            else:
-                spec_tree[tree_idx] = global_var_spec
-            spec_tree[tree_idx - 1].add_global_var_spec(global_var_spec)
+            _get_global_var_spec_info(spec_line, spec_tree)
 
 
 def is_global_variable(spec_line):
@@ -194,44 +219,6 @@ def get_spec_info_list():
     Scan out all interface specification definitions
     from the interface specification folder
     """
-
-    def _get_class_spec_info(spec_line, spec_tree):
-        tree_idx = get_tree_idx(spec_line)
-        if "(" in spec_line:
-            class_name = spec_line[6 : spec_line.index("(")]
-            super_classes = spec_line[spec_line.index("(") + 1 : spec_line.index(")")].split(",")
-        else:
-            class_name = spec_line[6:-1]
-            super_classes = []
-        class_spec = ClassIntfSpec(class_name, super_classes)
-        if len(spec_tree) < (tree_idx + 1):
-            spec_tree.append(class_spec)
-        else:
-            spec_tree[tree_idx] = class_spec
-        spec_tree[tree_idx - 1].add_class_spec(class_spec)
-
-    def _get_def_spec_info(spec_line, spec_tree):
-        tree_idx = get_tree_idx(spec_line)
-        spec_line = spec_line.strip()
-        func_name = spec_line[4 : spec_line.index("(")]
-        param_list = [x.strip() for x in spec_line[spec_line.index("(") + 1 : spec_line.index(")")].split(",")]
-        func_spec = FuncIntfSpec(func_name, param_list)
-        if len(spec_tree) < (tree_idx + 1):
-            spec_tree.append(func_spec)
-        else:
-            spec_tree[tree_idx] = func_spec
-        spec_tree[tree_idx - 1].add_func_spec(func_spec)
-
-    def _get_global_var_spec_info(spec_line, spec_tree):
-        tree_idx = get_tree_idx(spec_line)
-        name = spec_line[: spec_line.index("=")].rstrip()
-        values = spec_line[(len(name) + 3) :]
-        global_var_spec = GlobalVarSpec(name, values)
-        if len(spec_tree) < (tree_idx + 1):
-            spec_tree.append(global_var_spec)
-        else:
-            spec_tree[tree_idx] = global_var_spec
-        spec_tree[tree_idx - 1].add_global_var_spec(global_var_spec)
 
     def _process_dir(specs, path, file_spec_list):
         for spec_file in specs:
@@ -356,7 +343,10 @@ def remove_sub_func_under_func(lines):
         elif is_global_variable(line):
             name = line[: line.index("=")].rstrip()
             type_name = name
-        if type_name == "func" and tree_info[min(len(tree_info) - 1, idx - 1)] == "func":
+        if (
+            type_name == "func"
+            and tree_info[min(len(tree_info) - 1, idx - 1)] == "func"
+        ):
             continue
         if len(tree_info) <= idx:
             tree_info.append(type_name)
@@ -370,7 +360,9 @@ def check_source_file_match(defined_spec: FileSpec):
     """
     Verify that the source code complies with the specification definition
     """
-    source_file_path = os.path.realpath(os.path.join(tbe_root, defined_spec.source_file_name))
+    source_file_path = os.path.realpath(
+        os.path.join(tbe_root, defined_spec.source_file_name)
+    )
     lines = get_spec_from_file(source_file_path)
     new_lines = remove_sub_func_under_func(lines)
 
@@ -380,7 +372,9 @@ def check_source_file_match(defined_spec: FileSpec):
     return compare_file_spec(defined_spec, spec_in_source)
 
 
-def compare_func_spec(spec1: FuncIntfSpec, spec2: FuncIntfSpec, file_name1="", file_name2=""):
+def compare_func_spec(
+    spec1: FuncIntfSpec, spec2: FuncIntfSpec, file_name1="", file_name2=""
+):
     params_1 = sorted([x.strip() for x in spec1.param_list])
     params_2 = sorted([x.strip() for x in spec2.param_list])
     if params_1 != params_2:
@@ -442,18 +436,26 @@ def build_diff_list_result(func_names_1, func_names_2):
     return diff_print_name1, diff_print_name2
 
 
-def compare_class_spec(spec1: ClassIntfSpec, spec2: ClassIntfSpec, file_name1="", file_name2=""):
+def _get_sorted_public_func_names(func_dict):
+    return sorted([x for x in func_dict.keys() if not x.startswith("_")])
+
+
+def compare_class_spec(
+    spec1: ClassIntfSpec, spec2: ClassIntfSpec, file_name1="", file_name2=""
+):
     compare_matched = True
     print('[====] compare class: "%s"' % spec1.class_name)
     func_list_1 = spec1.func_list
     func_list_2 = spec2.func_list
     # remove private func api
-    func_names_1 = sorted([x for x in func_list_1.keys() if not x.startswith("__") and not x.startswith("_")])
-    func_names_2 = sorted([x for x in func_list_2.keys() if not x.startswith("__") and not x.startswith("_")])
+    func_names_1 = _get_sorted_public_func_names(func_list_1)
+    func_names_2 = _get_sorted_public_func_names(func_list_2)
     diff_print_name1 = func_names_1[:]
     if func_names_1 != func_names_2:
         compare_matched = False
-        diff_print_name1, diff_print_name2 = build_diff_list_result(func_names_1, func_names_2)
+        diff_print_name1, diff_print_name2 = build_diff_list_result(
+            func_names_1, func_names_2
+        )
 
         print("[EEEE] func list in class is different")
         print('[EEEE] file path: "%s"' % file_name1)
@@ -463,13 +465,20 @@ def compare_class_spec(spec1: ClassIntfSpec, spec2: ClassIntfSpec, file_name1=""
 
     for func_name in diff_print_name1:
         if not func_name.startswith("_"):
-            if not compare_func_spec(func_list_1[func_name], func_list_2[func_name], file_name1, file_name2):
+            if not compare_func_spec(
+                func_list_1[func_name], func_list_2[func_name], file_name1, file_name2
+            ):
                 compare_matched = False
-    print('[====] compare class: "%s" end, result: "%s"' % (spec1.class_name, "Success" if compare_matched else "Fail"))
+    print(
+        '[====] compare class: "%s" end, result: "%s"'
+        % (spec1.class_name, "Success" if compare_matched else "Fail")
+    )
     return compare_matched
 
 
-def compare_global_var_spec(spec1: GlobalVarSpec, spec2: GlobalVarSpec, file_name1="", file_name2=""):
+def compare_global_var_spec(
+    spec1: GlobalVarSpec, spec2: GlobalVarSpec, file_name1="", file_name2=""
+):
     values_1 = sorted([x.strip() for x in spec1.global_var_values])
     values_2 = sorted([x.strip() for x in spec2.global_var_values])
     if values_1 != values_2:
@@ -485,7 +494,10 @@ def compare_global_var_spec(spec1: GlobalVarSpec, spec2: GlobalVarSpec, file_nam
 
 
 def compare_file_spec(spec1: FileSpec, spec2: FileSpec):
-    print('\n[====] compare interface define: "%s", source file: "%s"' % (spec1.spec_file_name, spec1.source_file_name))
+    print(
+        '\n[====] compare interface define: "%s", source file: "%s"'
+        % (spec1.spec_file_name, spec1.source_file_name)
+    )
     compare_matched = True
 
     def _compare_global_var(compare_matched, spec1, spec2):
@@ -497,7 +509,9 @@ def compare_file_spec(spec1: FileSpec, spec2: FileSpec):
         diff_global_var_name_2 = global_var_name2
         if global_var_name1 != global_var_name2:
             compare_matched = False
-            diff_global_var_name_1, diff_global_var_name_2 = build_diff_list_result(global_var_name1, global_var_name2)
+            diff_global_var_name_1, diff_global_var_name_2 = build_diff_list_result(
+                global_var_name1, global_var_name2
+            )
             print("[EEEE] global_var in file is different")
             print('[EEEE] file path: "%s"' % spec1.spec_file_name)
             print("[EEEE] class list is: %s" % ",".join(diff_global_var_name_1))
@@ -518,13 +532,15 @@ def compare_file_spec(spec1: FileSpec, spec2: FileSpec):
     def _compare_func(compare_matched, spec1, spec2):
         func_list_1 = spec1.func_specs
         func_list_2 = spec2.func_specs
-        func_names_1 = sorted([x for x in func_list_1.keys() if not x.startswith("__") and not x.startswith("_")])
-        func_names_2 = sorted([x for x in func_list_2.keys() if not x.startswith("__") and not x.startswith("_")])
+        func_names_1 = _get_sorted_public_func_names(func_list_1)
+        func_names_2 = _get_sorted_public_func_names(func_list_2)
         diff_print_name1 = func_names_1
         diff_print_name2 = func_names_2
         if func_names_1 != func_names_2:
             compare_matched = False
-            diff_print_name1, diff_print_name2 = build_diff_list_result(func_names_1, func_names_2)
+            diff_print_name1, diff_print_name2 = build_diff_list_result(
+                func_names_1, func_names_2
+            )
             print("[EEEE] func list in file is different")
             print('[EEEE] file path: "%s"' % spec1.spec_file_name)
             print('[EEEE] func list is: "%s"' % ",".join(diff_print_name1))
@@ -556,7 +572,9 @@ def compare_file_spec(spec1: FileSpec, spec2: FileSpec):
             return compare_matched
         if class_name1 != class_name2:
             compare_matched = False
-            diff_class_name_1, diff_class_name2 = build_diff_list_result(class_name1, class_name2)
+            diff_class_name_1, diff_class_name2 = build_diff_list_result(
+                class_name1, class_name2
+            )
             print("[EEEE] class in file is different")
             print('[EEEE] file path: "%s"' % spec1.spec_file_name)
             print("[EEEE] class list is: %s" % ",".join(diff_class_name_1))

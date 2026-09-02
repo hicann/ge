@@ -536,7 +536,7 @@ Status AutomaticBufferFusion::FuseTwoNodes(const ge::NodePtr &producer, const ge
        * scope id. */
       Status ret = ChangeScopeId(consumer_scope_id, producer_scope_id);
       if (ret != SUCCESS && ret != GRAPH_OPTIMIZER_NOT_FUSE_TWO_SCOPE) {
-        FE_LOGI("Change scope for producer %s and consumer %s was not successfully.", producer->GetName().c_str(),
+        FE_LOGI("Unable to change scope for producer %s and consumer %s.", producer->GetName().c_str(),
                 consumer->GetName().c_str());
         return FAILED;
       }

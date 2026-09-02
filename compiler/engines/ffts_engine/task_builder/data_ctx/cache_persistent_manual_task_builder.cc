@@ -63,12 +63,12 @@ Status CachePersistTaskBuilder::GenContextDef(const ge::Node &node, domi::FftsPl
    * for cache_persist_size. */
   if (size_in_mb > UINT16_MAX) {
     REPORT_FFTS_ERROR(
-        "[CachePersistTaskBuilder][GenContextDef] Persist size %ld is larger than"
+        "[CachePersistTaskBuilder][GenContextDef] Persist size %ld MB is larger than "
         "the max of uint16(65536).",
         size_in_mb);
     return FAILED;
   }
-  FFTS_LOGD("Persist id and size for graph %s are %u and %ld.", op_desc->GetName().c_str(), persist_id,
+  FFTS_LOGD("Persist id and size for graph %s are %u and %ld MB.", op_desc->GetName().c_str(), persist_id,
             cache_persist_size);
   cp_ctx_def->set_persistent_size(static_cast<uint32_t>(size_in_mb));
   return SUCCESS;

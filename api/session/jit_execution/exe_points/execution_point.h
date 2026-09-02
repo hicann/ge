@@ -45,6 +45,11 @@ class ExecutionPoint {
     return models_.FindGuardedExecutionPoint(inputs);
   }
 
+  GuardedExecutionPoint *FindGuardedByCompiledGraphId(uint32_t compiled_graph_id,
+                                                      const std::vector<gert::Tensor> &inputs) {
+    return models_.FindGuardedExecutionPointByCompiledGraphId(compiled_graph_id, inputs);
+  }
+
   GuardedExecutionPoint *FindOrCreateGuarded(const std::vector<gert::Tensor> &inputs) {
     return models_.FindOrCreateGuarded(inputs);
   }

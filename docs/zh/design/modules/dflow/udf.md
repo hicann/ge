@@ -49,6 +49,8 @@ Python 提供三种方式，门槛递降：
 
 `@df.pyflow` 装饰器自动生成 UDF 工程（C++ wrapper + CMakeLists + 配置 JSON），用 cloudpickle 序列化用户函数，编译为可加载 SO。用户函数的参数自动从 FlowMsg 反序列化为 numpy array / torch tensor，返回值自动序列化回 FlowMsg。
 
+`@df.pyflow` 与 `@df.npu_model` 两个装饰器的实现机制与对比详见 dflow.md 的 [4.5 节](dflow.md#45-python-接口层)。
+
 ---
 
 ## 3. 框架调用链路
@@ -275,7 +277,7 @@ graph LR
 
 ### 7.2 MbufFlowMsg（内部实现）
 
-`MbufFlowMsg`（`flow_func/mbuf_flow_msg.h`）包装 `shared_ptr<Mbuf>`。**mbuf 数据布局**：`[RuntimeTensorDesc(1024B)][实际数据]`，其中 `RuntimeTensorDesc` 含 dataAddr/dtype/shape[33]/originalShape[33]/format/data_size。mbuf 私有头 `MbufHeadMsg` 携带 trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time。
+`MbufFlowMsg`（`flow_func/mbuf_flow_msg.h`）包装 `shared_ptr<Mbuf>`。**mbuf 内存布局**：head 区（默认 256B）尾部的 64B 为 `MbufHeadMsg` 控制信息（trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time 等）；数据区为 `[RuntimeTensorDesc(1024B)][实际数据]`，其中 `RuntimeTensorDesc` 含 dataAddr/dtype/shape[33]（shape[0] 存维数）/originalShape[33]/format/data_size。
 
 - 输出 mbuf 继承输入 `MbufHead`（`AllocTensorMsg` 传 `input_mbuf_head_`），保证 trans_id 透传
 - 自定义 trans_id 标记位 `kCustomTransIdFlagBit`：用户显式 `SetTransactionId(非0)` 才置位，否则框架按 `current_trans_id_` 自动赋值（`FlowFuncProcessor::SetInputData`）

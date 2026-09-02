@@ -1927,7 +1927,7 @@ bool Configuration::InitFirstLayerQuantization(const std::map<string, string> &o
          "In file:\"" + file_path + "\", enable_first_layer_quantization only support true or false"});
     ReportErrorMessage(err_msg);
     REPORT_FE_ERROR(
-        "[Configuration][InitFirstLayerQuantization]Config value [%s] is unsupported, it should be"
+        "[Configuration][InitFirstLayerQuantization]Config value [%s] is unsupported, it should be "
         "true or false.",
         value.c_str());
     return false;
@@ -1986,7 +1986,7 @@ int64_t Configuration::GetConfigParamValueFromContext(CONFIG_PARAM config_param_
         return config_param_vec_[static_cast<size_t>(config_param_enum_type)];
       }
     } else {
-      FE_LOGD("The value for [%s] is either not found or it is empty. from context.", param_key.c_str());
+      FE_LOGD("The value for [%s] is either not found or it is empty from context.", param_key.c_str());
       return config_param_vec_[static_cast<size_t>(config_param_enum_type)];
     }
   }

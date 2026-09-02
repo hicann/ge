@@ -653,7 +653,7 @@ bool SubOpsStore::CheckFormatAndDtypeNormalMode(const ge::NodePtr &node, const s
     reason_oss << "the detailed info of " << in_or_out << " [" << name
                << "] of this op is not found in op information library.";
     reason = reason_oss.str();
-    FE_LOGW("Get %s kernel info of Op (name [%s] type [%s] not success!", in_or_out.c_str(), op_desc.GetName().c_str(),
+    FE_LOGW("Get %s kernel info of Op (name [%s] type [%s]) failed!", in_or_out.c_str(), op_desc.GetName().c_str(),
             op_desc.GetType().c_str());
     return false;
   }
@@ -743,7 +743,7 @@ bool SubOpsStore::CheckInputConstValueDepend(const ge::NodePtr &node, const stri
 
     if (!is_input_const) {
       reason_oss << "The value depend of input[" << input_name << "] is required,";
-      reason_oss << " but this input does not linked to a const or constant node";
+      reason_oss << " but this input is not linked to a const or constant node";
       info.reason = reason_oss.str();
       FE_LOGI("%s", info.reason.c_str());
       return false;
@@ -950,7 +950,7 @@ bool SubOpsStore::CheckAllTensorsSupportedAccurateMode(const ge::NodePtr &node, 
 bool SubOpsStore::CheckOpSupported(const ge::NodePtr &node_ptr, const bool &is_dynamic_impl,
                                    CheckSupportParam &check_param) const {
   if (!check_param.op_kernel_ptr->IsNeedCheckSupport()) {
-    FE_LOGD("[ChkSpt][OpChk][Node %s, type %s] This op is not configure to check it's implementation.",
+    FE_LOGD("[ChkSpt][OpChk][Node %s, type %s] This op is not configured to check its implementation.",
             node_ptr->GetName().c_str(), node_ptr->GetType().c_str());
     return true;
   }

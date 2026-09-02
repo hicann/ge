@@ -26,7 +26,7 @@ bool OpCompilerNormal::HasCompileStrategy(const vector<ge::NodePtr> &nodes_be_co
       std::string op_compile_strategy;
       if (ge::AttrUtils::GetStr(node_ptr->GetOpDesc(), ge::ATTR_NAME_OP_COMPILE_STRATEGY, op_compile_strategy) &&
           !op_compile_strategy.empty()) {
-        FE_LOGI("Node[%s, %s] has compile strategy[%s] and this graph needs to be recompile.",
+        FE_LOGI("Node[%s, %s] has compile strategy[%s] and this graph needs to be recompiled.",
                 node_ptr->GetName().c_str(), node_ptr->GetType().c_str(), op_compile_strategy.c_str());
         return true;
       }
@@ -140,7 +140,7 @@ Status OpCompilerNormal::RunCompileProcess(ge::ComputeGraph &graph) {
   // pre compile op which l1fusion or l2fusion changed
   compile_info.compile_strategy = CompileStrategy::COMPILE_STRATEGY_OP_SPEC;
   if (buffer_ret != LxFusionOptimizeResult::NO_FUSION_STRATEGY) {
-    FE_LOGI("Lx-fusion change the graph and we need re-precompile graph.");
+    FE_LOGI("Lx-fusion changed the graph and we need to re-precompile the graph.");
     ret = ReCompileOpAfterLxFusion(graph, compile_info, buffer_ret);
     if (ret != SUCCESS) {
       REPORT_FE_ERROR("[SubGraphOpt][Compile][RunCmplProc] Failed to re-compile op after lx fusion for graph [%s]",

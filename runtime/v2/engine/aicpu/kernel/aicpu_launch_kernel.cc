@@ -12,8 +12,6 @@
 #include <cstddef>
 #include <iomanip>
 #include <cinttypes>
-#include <memory>
-#include <new>
 #include "aicpu_ext_info_handle.h"
 #include "graph/error_codes.h"
 #include "register/kernel_registry.h"
@@ -31,7 +29,6 @@
 #include "core/debug/kernel_tracing.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "aicpu_resource_manager.h"
-#include "fused_host_cpu_compute.h"
 #include "engine/aicpu/graph_builder/bg_aicpu_arg.h"
 #include "aicpu_args_handler.h"
 #include "block_op_utils.h"
@@ -42,7 +39,6 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "aicpu_bin_handler.h"
-#include "exe_graph/runtime/storage_shape.h"
 
 using namespace ge;
 
@@ -415,183 +411,6 @@ ge::graphStatus AicpuHostCompute(KernelContext *context) {
   return SUCCESS;
 }
 REGISTER_KERNEL(AicpuHostCompute).RunFunc(AicpuHostCompute);
-
-namespace {
-struct FusedHostCpuTensorState {
-  const void *data = nullptr;
-  size_t data_size = 0U;
-  std::vector<int64_t> dims;
-  bool initialized = false;
-};
-
-struct FusedHostCpuCallState {
-  std::string register_name;
-  void *kernel_state = nullptr;
-  FusedHostCpuDestroyFunc destroy_func = nullptr;
-  FusedHostCpuRunFunc run_func = nullptr;
-  std::vector<FusedHostCpuTensorBinding> bindings;
-  std::vector<FusedHostCpuTensorState> tensor_states;
-};
-
-bool HasSameShape(const gert::Shape &shape, const FusedHostCpuTensorState &state) {
-  if (state.dims.size() != shape.GetDimNum()) {
-    return false;
-  }
-  for (size_t i = 0U; i < shape.GetDimNum(); ++i) {
-    if (state.dims[i] != shape.GetDim(i)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-ge::graphStatus BuildFusedHostCpuBinding(const StorageShape *storage_shape, GertTensorData *tensor_data,
-                                         FusedHostCpuTensorState &state, FusedHostCpuTensorBinding &binding) {
-  GE_ASSERT_NOTNULL(storage_shape);
-  GE_ASSERT_NOTNULL(tensor_data);
-  GE_ASSERT_TRUE((tensor_data->GetSize() == 0U) || (tensor_data->GetAddr() != nullptr));
-  const auto &origin_shape = storage_shape->GetOriginShape();
-  const bool shape_changed = !state.initialized || !HasSameShape(origin_shape, state);
-  if (shape_changed) {
-    if (state.dims.size() != origin_shape.GetDimNum()) {
-      state.dims.resize(origin_shape.GetDimNum());
-    }
-    for (size_t i = 0U; i < state.dims.size(); ++i) {
-      state.dims[i] = origin_shape.GetDim(i);
-    }
-    binding.dims = state.dims.data();
-    binding.dim_num = state.dims.size();
-  }
-  const void *data = tensor_data->GetAddr();
-  const size_t data_size = tensor_data->GetSize();
-  const bool data_changed = !state.initialized || (state.data != data) || (state.data_size != data_size);
-  if (data_changed) {
-    binding.data = reinterpret_cast<uint8_t *>(tensor_data->GetAddr());
-    binding.data_size = data_size;
-    state.data = data;
-    state.data_size = data_size;
-  }
-  binding.flags = (shape_changed ? kFusedHostCpuShapeChanged : 0U) | (data_changed ? kFusedHostCpuDataChanged : 0U);
-  state.initialized = true;
-  return ge::GRAPH_SUCCESS;
-}
-}  // namespace
-
-void *CreateFusedHostCpuComputeState(const char *register_name, void *kernel_state,
-                                     const FusedHostCpuDestroyFunc destroy_func, const FusedHostCpuRunFunc run_func,
-                                     const FusedHostCpuTensorMeta *tensor_metas, const size_t io_num) {
-  if ((register_name == nullptr) || (kernel_state == nullptr) || (destroy_func == nullptr) || (run_func == nullptr) ||
-      (tensor_metas == nullptr) || (io_num == 0U)) {
-    GELOGE(ge::PARAM_INVALID,
-           "Invalid fused HostCPU compute state arguments: register_null[%d], kernel_state_null[%d], "
-           "destroy_null[%d], run_null[%d], tensor_metas_null[%d], io_num[%zu].",
-           static_cast<int32_t>(register_name == nullptr), static_cast<int32_t>(kernel_state == nullptr),
-           static_cast<int32_t>(destroy_func == nullptr), static_cast<int32_t>(run_func == nullptr),
-           static_cast<int32_t>(tensor_metas == nullptr), io_num);
-    return nullptr;
-  }
-  std::unique_ptr<FusedHostCpuCallState> state = std::make_unique<FusedHostCpuCallState>();
-  state->register_name = register_name;
-  state->kernel_state = kernel_state;
-  state->destroy_func = destroy_func;
-  state->run_func = run_func;
-  state->bindings.reserve(io_num);
-  state->tensor_states.reserve(io_num);
-  for (size_t i = 0U; i < io_num; ++i) {
-    std::vector<int64_t> dims(tensor_metas[i].dim_num, ge::UNKNOWN_DIM);
-    FusedHostCpuTensorState tensor_state;
-    tensor_state.dims = std::move(dims);
-    state->tensor_states.emplace_back(std::move(tensor_state));
-    state->bindings.emplace_back(
-        FusedHostCpuTensorBinding{state->tensor_states.back().dims.data(), nullptr, tensor_metas[i].dim_num, 0U, 0U});
-  }
-  return state.release();
-}
-
-void DestroyFusedHostCpuComputeState(void *compute_state) {
-  FusedHostCpuCallState *state = static_cast<FusedHostCpuCallState *>(compute_state);
-  if (state == nullptr) {
-    return;
-  }
-  state->destroy_func(state->kernel_state);
-  delete state;
-}
-
-// Runtime callback for the ExecuteGraph kernel registered as FusedHostCpuCompute.
-ge::graphStatus RunFusedHostCpuCompute(KernelContext *context) {
-  GE_ASSERT_NOTNULL(context);
-  const auto compute_meta = context->GetInputPointer<FusedHostCpuComputeMeta>(0U);
-  GE_ASSERT_NOTNULL(compute_meta);
-  FusedHostCpuCallState *call_state = static_cast<FusedHostCpuCallState *>(compute_meta->compute_state);
-  GE_ASSERT_NOTNULL(call_state);
-  GE_ASSERT_NOTNULL(call_state->kernel_state);
-  GE_ASSERT_NOTNULL(call_state->run_func);
-  const auto input_num = compute_meta->input_num;
-  const auto output_num = compute_meta->output_num;
-  const auto io_num = input_num + output_num;
-  GE_ASSERT_TRUE(call_state->bindings.size() == io_num);
-  GE_ASSERT_TRUE(call_state->tensor_states.size() == io_num);
-
-  const size_t input_shape_start = 1U;
-  const size_t input_addr_start = input_shape_start + input_num;
-  const size_t output_shape_start = input_addr_start + input_num;
-  const size_t output_addr_start = output_shape_start + output_num;
-  GE_ASSERT_TRUE(context->GetInputNum() == (output_addr_start + output_num));
-
-  uint32_t binding_flags = 0U;
-  for (size_t i = 0U; i < input_num; ++i) {
-    const auto storage_shape = context->GetInputPointer<StorageShape>(input_shape_start + i);
-    auto tensor_data = context->MutableInputPointer<GertTensorData>(input_addr_start + i);
-    GE_ASSERT_SUCCESS(
-        BuildFusedHostCpuBinding(storage_shape, tensor_data, call_state->tensor_states[i], call_state->bindings[i]));
-    binding_flags |= call_state->bindings[i].flags;
-  }
-
-  for (size_t i = 0U; i < output_num; ++i) {
-    const auto storage_shape = context->GetInputPointer<StorageShape>(output_shape_start + i);
-    auto tensor_data = context->MutableInputPointer<GertTensorData>(output_addr_start + i);
-    const size_t tensor_index = input_num + i;
-    GE_ASSERT_SUCCESS(BuildFusedHostCpuBinding(storage_shape, tensor_data, call_state->tensor_states[tensor_index],
-                                               call_state->bindings[tensor_index]));
-    binding_flags |= call_state->bindings[tensor_index].flags;
-  }
-
-  const uint32_t ret = call_state->run_func(call_state->kernel_state,
-                                            static_cast<const void *>(call_state->bindings.data()), binding_flags);
-  GE_ASSERT_TRUE(ret == 0U, "Fused HostCPU private entry failed: register_name[%s], ret=%u.",
-                 call_state->register_name.c_str(), ret);
-  return ge::GRAPH_SUCCESS;
-}
-
-ge::graphStatus CreateFusedHostCpuComputeOutputs(const ge::FastNode *node, KernelContext *context) {
-  (void)node;
-  GE_ASSERT_NOTNULL(context);
-  GE_ASSERT_TRUE(context->GetInputNum() >= context->GetOutputNum());
-  const size_t output_addr_start = context->GetInputNum() - context->GetOutputNum();
-  for (size_t i = 0U; i < context->GetOutputNum(); ++i) {
-    auto chain = context->GetOutput(i);
-    auto tensor_data = context->MutableInputPointer<GertTensorData>(output_addr_start + i);
-    GE_ASSERT_NOTNULL(chain);
-    GE_ASSERT_NOTNULL(tensor_data);
-    chain->Set(tensor_data, nullptr);
-  }
-  return ge::GRAPH_SUCCESS;
-}
-
-REGISTER_KERNEL(FusedHostCpuCompute)
-    .RunFunc(RunFusedHostCpuCompute)
-    .OutputsCreator(CreateFusedHostCpuComputeOutputs)
-    .ConcurrentCriticalSectionKey(kKernelUseMemory);
-
-ge::graphStatus ReleaseFusedHostCpuKernelState(KernelContext *context) {
-  GE_ASSERT_NOTNULL(context);
-  const auto destroy_meta = context->GetInputPointer<FusedHostCpuDestroyMeta>(0U);
-  GE_ASSERT_NOTNULL(destroy_meta);
-  GE_ASSERT_NOTNULL(destroy_meta->compute_state);
-  DestroyFusedHostCpuComputeState(destroy_meta->compute_state);
-  return ge::GRAPH_SUCCESS;
-}
-REGISTER_KERNEL(ReleaseFusedHostCpuKernelState).RunFunc(ReleaseFusedHostCpuKernelState);
 
 ge::graphStatus AicpuHostExecFunc(KernelContext *context) {
   const auto input_size = context->GetInputNum();

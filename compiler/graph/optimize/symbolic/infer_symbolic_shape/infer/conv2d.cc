@@ -26,9 +26,12 @@ constexpr size_t kStridesIdxConv2d = 0U;
 constexpr size_t kPadsIdxConv2d = 1U;
 constexpr size_t kDilationsIdxConv2d = 2U;
 constexpr size_t kGroupsIdxConv2d = 3U;
-// attr 索引 6：Conv2D 对应 "padding"，Conv2DV2 对应 "pad_mode"。
-// 二者本质都是 pad 模式字符串，统一走同一套分支处理。
+// attr 索引：
+// - Conv2D:       "padding"  位于 6
+// - Conv2DV2:     "pad_mode" 位于 6
+// - ExtendConv2D: proto 在 pad_mode 前多了 "round_mode"，因此 "pad_mode" 位于 7
 constexpr size_t kPaddingIdxConv2d = 6U;
+constexpr size_t kPaddingIdxExtendConv2d = 7U;
 // NCHW shape
 constexpr int32_t kNCHWdimNIdxConv2d = 0;
 constexpr int32_t kNCHWdimCIdxConv2d = 1;
@@ -176,7 +179,8 @@ ge::graphStatus CheckConv2DGroups(const gert::InferSymbolShapeContext *context, 
 
   Expression ex_groups = Symbol(groups);
   const auto *node_type = context->GetNodeType();
-  const bool is_conv2dv2 = (node_type != nullptr) && (std::string(node_type) == "Conv2DV2");
+  const bool is_conv2dv2 =
+      (node_type != nullptr) && (std::string(node_type) == "Conv2DV2" || std::string(node_type) == "ExtendConv2D");
   if (!is_conv2dv2) {
     // Conv2D：保持历史逻辑，避免 UT/现网行为回归。
     // 当 groups == 1 且 kc != 0，尝试按 ic/kc 推导有效 groups。
@@ -428,11 +432,16 @@ ge::graphStatus GetConv2DPads(const gert::InferSymbolShapeContext *context, cons
     conv2d_attrs.padr = Symbol(static_cast<int64_t>(pads_array[kPadRightIdxConv2d]));
   }
   // Infer pads if "padding/pad_mode" is defined.
-  if (attrs->GetAttrNum() > kPaddingIdxConv2d) {
-    const char *padding_ptr = attrs->GetAttrPointer<char>(kPaddingIdxConv2d);
+  const auto *node_type = context->GetNodeType();
+  const bool is_extend_conv2d = (node_type != nullptr) && (std::string(node_type) == "ExtendConv2D");
+  const size_t padding_attr_idx = is_extend_conv2d ? kPaddingIdxExtendConv2d : kPaddingIdxConv2d;
+  if (attrs->GetAttrNum() > padding_attr_idx) {
+    const char *padding_ptr = attrs->GetAttrPointer<char>(padding_attr_idx);
     GE_ASSERT_NOTNULL(padding_ptr);
-    const auto *node_type = context->GetNodeType();
-    const bool is_conv2dv2 = (node_type != nullptr) && (std::string(node_type) == "Conv2DV2");
+    // Conv2DV2 与 ExtendConv2D 的 pad_mode 语义一致，共用 SAME/VALID 推导分支。
+    const bool is_conv2dv2 =
+        (node_type != nullptr) && (std::string(node_type) == "Conv2DV2" || std::string(node_type) == "ExtendConv2D");
+
     GE_ASSERT_GRAPH_SUCCESS(
         InferConv2DPadsWithPadding(pads_size, x_shapes, w_shapes, padding_ptr, is_conv2dv2, conv2d_attrs));
   }
@@ -591,5 +600,7 @@ IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Conv2D).InferSymbolShape(InferShape4Conv2D);
 // Conv2DV2 与 Conv2D 复用同一套几何公式，
 // 语义差异在上面的 attr/groups 分支中处理。
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Conv2DV2).InferSymbolShape(InferShape4Conv2D);
+// ExtendConv2D 几何推导与 Conv2DV2 相同，差异仅在 attr 索引与 groups 分支。
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(ExtendConv2D).InferSymbolShape(InferShape4Conv2D);
 }  // namespace
 }  // namespace ge

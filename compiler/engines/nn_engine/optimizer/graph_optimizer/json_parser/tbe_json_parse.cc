@@ -329,8 +329,9 @@ Status TbeJsonFileParse::ParseTvmOldCoreType() {
   }
 
   if ((core_type != "AIC" && core_type != "AIV")) {
-    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseTvmOldCoreType]Core type %s is invalid, which should be AIC or AIV.",
-                    core_type.c_str());
+    REPORT_FE_ERROR(
+        "[SubGraphOpt][ParseJson][ParseTvmOldCoreType] Core type %s is invalid, which should be AIC or AIV.",
+        core_type.c_str());
     return FAILED;
   }
   (void)SetRelatedNodesStr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type);
@@ -417,7 +418,7 @@ Status TbeJsonFileParse::ParseTvmTaskRatio() {
     (void)SetRelatedNodesBool(kMixDynamicRatio, true);
     TilingWithRatio tiling_ratio;
     if (json_parser_impl_->ParseListTilingRatio(tiling_ratio) == FAILED) {
-      REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseTvmTaskRatio]ParseListTaskRatio get ratio failed, node[%s].",
+      REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseTvmTaskRatio] ParseListTaskRatio get ratio failed, node[%s].",
                       op_desc_->GetName().c_str());
       return FAILED;
     }
@@ -674,7 +675,7 @@ Status TbeJsonFileParse::ParseTvmKernelBinId() {
 Status TbeJsonFileParse::ParseGlobleWorkspaceStatus() {
   ge::ComputeGraphPtr graph = node_.GetOwnerComputeGraph();
   if (graph == nullptr) {
-    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseGlobleWorkspaceStatus] get graph for node[%s] failed.",
+    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseGlobalWorkspaceStatus] get graph for node[%s] failed.",
                     op_desc_->GetName().c_str());
     return FAILED;
   }
@@ -684,8 +685,7 @@ Status TbeJsonFileParse::ParseGlobleWorkspaceStatus() {
   Status ret = json_parser_impl_->ParseGlobleWorkspaceStatus(global_work_space);
   if (ret == FAILED) {
     REPORT_FE_ERROR(
-        "[SubGraphOpt][ParseJson][ParseGlobleWorkspaceStatus] "
-        "get globleworkspace_status for node[%s] failed.",
+        "[SubGraphOpt][ParseJson][ParseGlobalWorkspaceStatus] get globalworkspace_status for node[%s] failed.",
         op_desc_->GetName().c_str());
     return FAILED;
   }
@@ -758,15 +758,16 @@ Status TbeJsonFileParse::ParseOptionalOutputMode() {
   string opt_output_mode;
   if (json_parser_impl_->ParseJsonAttr(false, kKeyOptionalOutputMode, string(kNoPlaceholder), opt_output_mode) ==
       FAILED) {
-    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseOptionalOutputMode]Failed to parse optionalOutputMode for op[%s:%s]",
-                    op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
+    REPORT_FE_ERROR(
+        "[SubGraphOpt][ParseJson][ParseOptionalOutputMode] Failed to parse optionalOutputMode for op[%s:%s]",
+        op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
     return FAILED;
   }
   if (opt_output_mode == kNoPlaceholder) {
     return SUCCESS;
   }
   if (opt_output_mode != kGenPlaceholder) {
-    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseOptionalOutputMode]Op[%s:%s] optionalOutputMode is not supported",
+    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseOptionalOutputMode] Op[%s:%s] optionalOutputMode is not supported",
                     op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
     return FAILED;
   }
@@ -960,7 +961,7 @@ Status TbeJsonFileParse::PackageTvmBinFile() {
   SetRelatedNodesExtAttr(GetAttrPrefix() + ge::OP_EXTATTR_NAME_TBE_KERNEL, tbe_kernel_ptr);
   (void)SetRelatedNodesStr(GetAttrPrefix() + ge::ATTR_NAME_TBE_KERNEL_NAME, tbe_kernel_ptr->GetName());
   if (FEContextUtils::IsOpTuneMode()) {
-    FE_LOGI("Tuning mode, need save bytes bin.");
+    FE_LOGI("In tuning mode, need to save the bytes bin.");
     ge::Buffer tbe_kernel_buffer(tbe_kernel_ptr->GetBinDataSize());
     tbe_kernel_buffer = ge::Buffer::CopyFrom(tbe_kernel_ptr->GetBinData(), tbe_kernel_ptr->GetBinDataSize());
     (void)SetRelatedNodesBytes(GetAttrPrefix() + ge::ATTR_NAME_TBE_KERNEL_BUFFER, tbe_kernel_buffer);
@@ -1002,7 +1003,7 @@ Status TbeJsonFileParse::ParseOpDfxOptions() {
   std::vector<std::string> opt_list;
   int64_t buffer_size = 0;
   if (json_parser_impl_->ParseOpDfxOptions(opt_list, buffer_size) != SUCCESS) {
-    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseDfxDebOptions]Failed to parse dfx option.");
+    REPORT_FE_ERROR("[SubGraphOpt][ParseJson][ParseDfxDebOptions] Failed to parse dfx option.");
     return PARAM_INVALID;
   }
   if (!opt_list.empty() && buffer_size != 0) {

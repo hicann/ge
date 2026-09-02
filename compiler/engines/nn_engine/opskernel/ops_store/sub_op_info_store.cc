@@ -236,7 +236,7 @@ const std::map<std::string, OpKernelInfoPtr> &SubOpInfoStore::GetAllOpKernels() 
 
 OpKernelInfoPtr SubOpInfoStore::GetOpKernelByOpType(const std::string &op_type) {
   std::map<std::string, OpKernelInfoPtr>::const_iterator iter = op_kernel_info_map_.find(op_type);
-  FE_LOGD("Size of all kernels is %zu bytes.", op_kernel_info_map_.size());
+  FE_LOGD("Size of all kernels is %zu.", op_kernel_info_map_.size());
   if (iter == op_kernel_info_map_.end()) {
     FE_LOGD("Operation type [%s] does not exist in the operation information library [%s].", op_type.c_str(),
             this->ops_store_info_.fe_ops_store_name.c_str());

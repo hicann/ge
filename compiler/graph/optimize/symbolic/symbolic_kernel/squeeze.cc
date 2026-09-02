@@ -19,6 +19,7 @@
 namespace ge {
 namespace {
 const size_t kXInputIndex = 0;
+const size_t kAxesInputIndex = 1;
 const size_t kOutputIndex = 0;
 const size_t kSqueezeOutputNum = 1;
 const size_t kSqueezeInputNum = 1;
@@ -72,11 +73,7 @@ static graphStatus SqueezeSymbolicKernelCompute(gert::InferSymbolComputeContext 
   auto symbol_tensor = context->GetInputSymbolTensor(kXInputIndex);
   GE_UNSUPPORTED_IF_NULL(symbol_tensor);
   auto symbol_values = symbol_tensor->GetSymbolicValue();
-  if (symbol_values == nullptr) {
-    GELOGW("SymbolicKernel compute unsupported, reason: get input symbolic value failed, node %s[%s].",
-           context->GetNodeName(), context->GetNodeType());
-    return UNSUPPORTED;
-  }
+  GE_UNSUPPORTED_IF_NULL(symbol_values);
   auto input_shape = context->GetInputSymbolTensor(kXInputIndex)->GetOriginSymbolShape();
   auto output_desc = context->GetOutputSymbolTensor(kOutputIndex);
   GE_ASSERT_NOTNULL(output_desc);
@@ -95,5 +92,40 @@ static graphStatus SqueezeSymbolicKernelCompute(gert::InferSymbolComputeContext 
          SymbolicInferUtil::DumpSymbolTensor(*output_desc).c_str());
   return SUCCESS;
 }
+
+static graphStatus SqueezeV3SymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GE_ASSERT_NOTNULL(context);
+  auto input = context->GetInputSymbolTensor(kXInputIndex);
+  GE_UNSUPPORTED_IF_NULL(input);
+  auto input_values = input->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(input_values);
+
+  std::vector<int64_t> axes;
+  auto axes_tensor = context->GetOptionalInputSymbolTensor(kAxesInputIndex);
+  if (axes_tensor != nullptr) {
+    auto axes_values = axes_tensor->GetSymbolicValue();
+    GE_UNSUPPORTED_IF_NULL(axes_values);
+    axes.reserve(axes_values->size());
+    for (const auto &symbol : *axes_values) {
+      int64_t axis = 0L;
+      if (!symbol.GetConstValue(axis)) {
+        GELOGW("SqueezeV3 symbolic kernel unsupported: axis is not constant, node %s[%s].", context->GetNodeName(),
+               context->GetNodeType());
+        return UNSUPPORTED;
+      }
+      axes.push_back(axis);
+    }
+  }
+
+  auto output = context->GetOutputSymbolTensor(kOutputIndex);
+  GE_ASSERT_NOTNULL(output);
+  std::vector<Expression> output_shape;
+  GE_ASSERT_SUCCESS(CalSqueezeOutShape(input->GetOriginSymbolShape(), axes, output_shape));
+  output->MutableOriginSymbolShape().MutableDims() = output_shape;
+  output->SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(*input_values));
+  return SUCCESS;
+}
+
 REGISTER_SYMBOLIC_KERNEL(Squeeze, SqueezeSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(SqueezeV3, SqueezeV3SymbolicKernelCompute);
 }  // namespace ge

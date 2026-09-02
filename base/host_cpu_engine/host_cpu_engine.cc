@@ -25,7 +25,7 @@ namespace {
 const std::string kConstantFoldingName = "libconstant_folding_ops.so";
 const std::string kOpsHostCpuName = "libops_host_cpu.so";
 const std::string kAicpuConstFoldingName = "libaicpu_const_folding.so";
-const char *const kIsFusedCpuKernelSupported = "IsCpuConstantFoldingFusedOpSupported";
+constexpr char kAicpuHostFindFunc[] = "AicpuHostFindFunc";
 
 Status GetDataNumber(const GeTensorDesc &out_desc, uint64_t &data_num) {
   int64_t num_size = out_desc.GetShape().IsScalar() ? 1 : out_desc.GetShape().GetShapeSize();
@@ -141,15 +141,13 @@ void HostCpuEngine::Finalize() const {
   GELOGI("start HostCpuEngine::Finalize");
 }
 
-bool HostCpuEngine::IsFusedCpuKernelSupported(const std::string &op_type) const {
-  if (is_fused_cpu_kernel_supported_ == nullptr) {
-    GELOGD("HostCPU fused-kernel support query is unavailable for op[%s].", op_type.c_str());
+bool HostCpuEngine::IsHostKernelSupported(const std::string &op_type) const {
+  if (host_kernel_finder_ == nullptr) {
+    GELOGD("HostCPU Gert HostKernel finder is unavailable for op[%s].", op_type.c_str());
     return false;
   }
-  const bool supported = is_fused_cpu_kernel_supported_(op_type.c_str()) == 1;
-  if (!supported) {
-    GELOGD("HostCPU fused-kernel support query rejected op[%s].", op_type.c_str());
-  }
+  const bool supported = host_kernel_finder_(op_type) != nullptr;
+  GELOGD("HostCPU Gert HostKernel query: op[%s], supported[%d].", op_type.c_str(), static_cast<int32_t>(supported));
   return supported;
 }
 
@@ -308,14 +306,11 @@ Status HostCpuEngine::LoadLib(const std::string &lib_path, bool invoke_init) {
   GELOGI("Lib: %s has been opened", lib_path.c_str());
   if (lib_path.find(kConstantFoldingName) != lib_path.npos) {
     constant_folding_handle_ = handle;
-  }
-  if (lib_path.find(kAicpuConstFoldingName) != lib_path.npos) {
-    is_fused_cpu_kernel_supported_ =
-        reinterpret_cast<int32_t (*)(const char *)>(mmDlsym(handle, kIsFusedCpuKernelSupported));
-    if (is_fused_cpu_kernel_supported_ == nullptr) {
+    host_kernel_finder_ = reinterpret_cast<HostKernelFinder>(mmDlsym(handle, kAicpuHostFindFunc));
+    if (host_kernel_finder_ == nullptr) {
       const char_t *reason = mmDlerror();
       reason = (reason == nullptr) ? "" : reason;
-      GELOGW("Fused HostCPU support query symbol is unavailable in lib: %s, reason = %s", lib_path.c_str(), reason);
+      GELOGW("Gert HostKernel finder is unavailable in lib: %s, reason = %s", lib_path.c_str(), reason);
     }
   }
   (void)lib_handles_.emplace_back(handle);

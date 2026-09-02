@@ -153,6 +153,8 @@ KernelBox StorePack(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InDat
                     int64_t packed_dim);
 KernelBox StoreReshape(const ge::OutDataAnchorPtr &dst, const LoopVar &src);
 KernelBox StoreExtern(const ge::OutDataAnchorPtr &dst);
+// 给未使用的 optional 输出挂非 Extern 占位，避免空 KernelBox 把同节点其它输出整段 Fallback。
+KernelBox StoreIgnoredOutput(const ge::OutDataAnchorPtr &dst);
 KernelBox GetKernelBox(const ge::OutDataAnchorPtr &dst);
 
 LoopVar Scalar(std::string face, ge::DataType dtype);

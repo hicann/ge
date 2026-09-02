@@ -1115,6 +1115,22 @@ TEST_F(MixL2LoweringST, test_MixL2UpdateGeDataDumpInfo) {
   ASSERT_EQ(registry.FindKernelFuncs("MixL2UpdateDataDumpInfo")->run_func(context), ge::GRAPH_SUCCESS);
 }
 
+TEST_F(MixL2LoweringST, test_MixL2UpdateGeDataDumpInfo_InNumOverMax) {
+  auto context = BuildKernelRunContext(static_cast<size_t>(MixL2DataDumpKey::RESERVED) + 3, 0);
+  uint32_t ctxid = 1;
+  size_t in_num = kMaxIndexNum + 1;
+  uint32_t out_num = 1;
+  context.value_holder[static_cast<size_t>(MixL2DataDumpKey::CONTEXT_ID)].Set(reinterpret_cast<void *>(ctxid), nullptr);
+  context.value_holder[static_cast<size_t>(MixL2DataDumpKey::IN_NUM)].Set(reinterpret_cast<void *>(in_num), nullptr);
+  context.value_holder[static_cast<size_t>(MixL2DataDumpKey::OUT_NUM)].Set(reinterpret_cast<void *>(out_num), nullptr);
+
+  ASSERT_NE(registry.FindKernelFuncs("MixL2UpdateDataDumpInfo"), nullptr);
+  NodeDumpUnit dump_unit;
+  gert::ExecutorDataDumpInfoWrapper wrapper(&dump_unit);
+  auto ret = registry.FindKernelFuncs("MixL2UpdateDataDumpInfo")->data_dump_info_filler(context, wrapper);
+  ASSERT_EQ(ret, ge::GRAPH_FAILED);
+}
+
 TEST_F(MixL2LoweringST, test_MixL2UpdateGeExceptionDumpInfo) {
   ComputeGraphPtr root_graph;
   ge::NodePtr node = nullptr;

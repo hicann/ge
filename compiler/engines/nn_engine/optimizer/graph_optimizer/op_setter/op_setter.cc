@@ -48,11 +48,11 @@ void PrintFallbackCfgInfo(const ge::NodePtr &node_ptr, const std::vector<bool> &
 void SetOppKernelPathForAclnn(const ge::OpDescPtr &op_desc) {
   std::string opp_kernel_path = "";
   if (Configuration::Instance(AI_CORE_NAME).GetOppLatestPath(opp_kernel_path) != SUCCESS) {
-    FE_LOGD("Node[%s, %s]Unable to retrieve opp latest path", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    FE_LOGD("Node[%s, %s] Unable to retrieve opp latest path.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return;
   }
   (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_BINARY_SOURCE, 1);
-  FE_LOGD("Node[%s, %s]Opp latest path: %s, set [%s] to 1", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
+  FE_LOGD("Node[%s, %s] Opp latest path: %s, set [%s] to 1.", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
           opp_kernel_path.c_str(), ge::ATTR_NAME_BINARY_SOURCE);
 }
 }  // namespace

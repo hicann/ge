@@ -360,6 +360,8 @@ Taking Regular InferShape as an example, the runtime execution flow:
 3. Operator InferShape function reads input Shape and writes output OriginShape through `InferShapeContext` interface
 4. `TransformAllOutputsShape()` automatically converts output OriginShape to StorageShape (dimension expansion + format conversion)
 
+`FindInferShapeFunc` only serves the `OpImplSpaceRegistryV2` path. The lowering stage constructs this node only after `IsInferShapeRegistered()` has confirmed that the current op type has a v2 infer_shape, so a lookup failure at runtime means the registry/type/version is inconsistent and should fail immediately. Custom operators' ShapeInferOp does not fall back to the process-level `CustomOpFactory` through this node; it goes through `LoweringCustomNode -> InferCustomOpShape -> FindCustomOp -> InferCustomOpShapeFromInput`, and uses the model-level `CustomOpRegistry` that `GeRootModel` injects into `LoweringGlobalData`.
+
 ### 6.2 Execution Graph Optimization
 
 #### FindInferShapeFunc Deduplication
@@ -430,6 +432,7 @@ PostProcess(compute_graph)             // Post-processing wrapper
 ```
 
 > **Note**: The `SymbolicShapeInference` class (symbolic_shape_inference.h) has only one public method `Infer()`. `Simplify()` is a free function defined in an anonymous namespace (symbolic_shape_inference.cc), called internally by `Infer()` after inference completes (symbolic_shape_inference.cc), not an independent class method. `PreProcess()` and `PostProcess()` are wrapper functions of the `AutofuseOptimize` class, encapsulating preprocessing graph optimization and post-processing logic respectively.
+Before Autofuse lowering, constant symbolic Shapes are filled in for outputs that lack symbolic attributes and have fully static Shapes, covering cases where preceding stages insert or rewrite nodes without synchronizing symbolic attributes.
 
 ### 7.4 Operator Implementation Examples
 

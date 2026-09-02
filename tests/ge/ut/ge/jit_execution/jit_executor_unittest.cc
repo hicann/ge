@@ -878,3 +878,155 @@ TEST_F(JitExecutorUT, test_autofuse_flag_with_not_set_slice_schedule) {
   EXPECT_EQ(enable_slice_schedule, false);
   unsetenv("AUTOFUSE_FLAGS");
 }
+
+TEST_F(JitExecutorUT, multi_slice_multi_run_reshape_node) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphExecutionQueue task_queue;
+  uint32_t user_graph_id = 0u;
+  auto graph = JitShareGraph::OneReshapeNode();
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  ExecutionOrder order({user_graph_id, compute_graph});
+  CompileContext compile_context(graph_manager);
+  CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
+  std::mutex tmp_mutex;
+
+  auto jit_executor = JitExecutor::Create(graph_manager, task_queue, order, compile_context, cmc, tmp_mutex);
+  EXPECT_NE(jit_executor, nullptr);
+
+  std::vector<int64_t> shape_dim = {2, 3, 3, 2};
+  TensorDesc td(Shape(shape_dim), FORMAT_NCHW, DT_FLOAT);
+  td.SetOriginShape(Shape(shape_dim));
+  Tensor tensor(td);
+  std::vector<int64_t> input_data_2{2, 3, 3, 2};
+  TensorDesc desc_2(Shape({4}), FORMAT_NCHW, DT_INT64);
+  desc_2.SetOriginShape(Shape({4}));
+  Tensor input_tensor_2{desc_2};
+  input_tensor_2.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(int64_t));
+  std::vector<Tensor> inputs{tensor, input_tensor_2};
+
+  const auto run_graph = [&]() {
+    std::vector<gert::Tensor> gert_inputs;
+    TensorTransUtils::Tensors2GertTensors(inputs, gert_inputs);
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
+      EXPECT_EQ(status, SUCCESS);
+      return SUCCESS;
+    };
+    UserGraphExecution task(user_graph_id, gert_inputs, callback, 0);
+    EXPECT_EQ(jit_executor->RunWithCallback(std::move(task)), SUCCESS);
+  };
+  for (int i = 0; i < 25; ++i) {
+    run_graph();
+  }
+  for (int i = 0; i < 25; ++i) {
+    run_graph();
+  }
+
+  EXPECT_EQ(jit_executor->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(JitExecutorUT, multi_slice_multi_run_multi_input) {
+  es::EsGraphBuilder es_graph("multi_input_multi_slice");
+  auto d0 = es_graph.CreateInput(0, "d0", nullptr);
+  auto d1 = es_graph.CreateInput(1, "d1", nullptr);
+  auto d2 = es_graph.CreateInput(2, "d2", nullptr);
+  auto d3 = es_graph.CreateInput(3, "d3", nullptr);
+  auto d4 = es_graph.CreateInput(4, "d4", nullptr);
+  auto d5 = es_graph.CreateInput(5, "d5", nullptr);
+  auto d6 = es_graph.CreateInput(6, "d6", nullptr);
+  auto d7 = es_graph.CreateInput(7, "d7", nullptr);
+  auto s0 = es_graph.CreateInput(8, "s0", nullptr);
+  auto s1 = es_graph.CreateInput(9, "s1", nullptr);
+  auto s2 = es_graph.CreateInput(10, "s2", nullptr);
+  auto s3 = es_graph.CreateInput(11, "s3", nullptr);
+  d0.SetShape({-1, -1, -1, -1});
+  d1.SetShape({-1, -1, -1, -1});
+  d2.SetShape({-1, -1, -1, -1});
+  d3.SetShape({-1, -1, -1, -1});
+  d4.SetShape({-1, -1, -1, -1});
+  d5.SetShape({-1, -1, -1, -1});
+  d6.SetShape({-1, -1, -1, -1});
+  d7.SetShape({-1, -1, -1, -1});
+  s0.SetShape({-1});
+  s1.SetShape({-1});
+  s2.SetShape({-1});
+  s3.SetShape({-1});
+
+  auto add01 = es::Add(d0, d1);
+  auto add23 = es::Add(d2, d3);
+  auto add45 = es::Add(d4, d5);
+  auto add_all = es::Add(es::Add(add01, add23), add45);
+  auto relu0 = es::Relu(add_all);
+  auto reshape0 = es::Reshape(relu0, s0, 4, 4);
+  auto add_r0_d67 = es::Add(es::Add(reshape0, d6), d7);
+  auto relu1 = es::Relu(add_r0_d67);
+  auto reshape1 = es::Reshape(relu1, s1, 4, 4);
+  auto relu2 = es::Relu(reshape1);
+  auto reshape2 = es::Reshape(relu2, s2, 4, 4);
+  auto relu3 = es::Relu(reshape2);
+  auto reshape3 = es::Reshape(relu3, s3, 4, 4);
+  auto relu_final = es::Relu(reshape3);
+  es::EsGraphBuilder::SetOutput(relu_final, 0);
+  es::EsGraphBuilder::SetOutput(relu0, 1);
+  es::EsGraphBuilder::SetOutput(relu1, 2);
+  auto graph = es_graph.BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph.get());
+  for (const auto &node : cg->GetAllNodes()) {
+    if (node->GetType() == "Relu") {
+      JitShareGraph::AddCompileResult(
+          node, true,
+          "{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", "
+          "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}}");
+    }
+  }
+
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphExecutionQueue task_queue;
+  uint32_t user_graph_id = 0u;
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
+  ExecutionOrder order({user_graph_id, compute_graph});
+  CompileContext compile_context(graph_manager);
+  CompiledModelCache cmc(user_graph_id, compile_context, graph_manager);
+  std::mutex tmp_mutex;
+
+  auto jit_executor = JitExecutor::Create(graph_manager, task_queue, order, compile_context, cmc, tmp_mutex);
+  EXPECT_NE(jit_executor, nullptr);
+
+  std::vector<int64_t> shape_dim = {2, 3, 3, 2};
+  TensorDesc td(Shape(shape_dim), FORMAT_NCHW, DT_FLOAT);
+  td.SetOriginShape(Shape(shape_dim));
+  Tensor tensor(td);
+  std::vector<int64_t> shape_param = {2, 3, 3, 2};
+  TensorDesc shape_td(Shape({4}), FORMAT_NCHW, DT_INT64);
+  shape_td.SetOriginShape(Shape({4}));
+  Tensor shape_tensor(shape_td);
+  shape_tensor.SetData(reinterpret_cast<uint8_t *>(shape_param.data()), shape_param.size() * sizeof(int64_t));
+
+  std::vector<Tensor> inputs;
+  for (int i = 0; i < 8; ++i) {
+    inputs.emplace_back(tensor);
+  }
+  for (int i = 0; i < 4; ++i) {
+    inputs.emplace_back(shape_tensor);
+  }
+
+  for (int i = 0; i < 50; ++i) {
+    std::vector<gert::Tensor> gert_inputs;
+    TensorTransUtils::Tensors2GertTensors(inputs, gert_inputs);
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
+      EXPECT_EQ(status, SUCCESS);
+      return SUCCESS;
+    };
+    UserGraphExecution task(user_graph_id, gert_inputs, callback, 0);
+    EXPECT_EQ(jit_executor->RunWithCallback(std::move(task)), SUCCESS);
+  }
+
+  EXPECT_EQ(jit_executor->Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}

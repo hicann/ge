@@ -398,19 +398,19 @@ Status LoadNodes(const FusionRulePatternPtr &pattern, const FusionRuleJsonGraphP
     string node_name = iter->GetName();
     // check node.name must be unique both inner node and outer node
     if (nodes.find(node_name) != nodes.end()) {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already define in inner, redeclaration.",
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already defined in inner, redeclaration.",
                       node_name.c_str());
       return ILLEGAL_RULE;
     }
     if (FindSrcAnchorByName(pattern->GetInputInfo(), node_name) != nullptr) {
       REPORT_FE_ERROR(
-          "[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already define in outer inputs, redeclaration.",
+          "[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already defined in outer inputs, redeclaration.",
           node_name.c_str());
       return ILLEGAL_RULE;
     }
     if (FindDstAnchorByName(pattern->GetOutputInfo(), node_name) != nullptr) {
       REPORT_FE_ERROR(
-          "[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already define in outer outputs, redeclaration.",
+          "[GraphOpt][FusionRuleInit][LdNd] Inner graph node:%s already defined in outer outputs, redeclaration.",
           node_name.c_str());
       return ILLEGAL_RULE;
     }
@@ -462,7 +462,7 @@ Status CheckCurrentNode(FusionRuleNodePtr &current_node, map<FusionRuleNodePtr, 
     if (iter.second != ALREADY_DONE) {
       // if current node's anchor has be visited twice, it should be in a loop
       if (iter.second == VISTIED_TWICE) {
-        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ChkCurtNd] Node:%s may in the loop.",
+        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ChkCurtNd] Node:%s may be in a loop.",
                         current_node->GetNodeName().c_str());
         return ILLEGAL_RULE;
       }
@@ -704,7 +704,7 @@ Status FusionRulePatternConstructor::LoadInputInfo(FusionRulePatternPtr pattern,
     }
     // then create outer input anchor
     if (input_anchors_map.find(input_name) != input_anchors_map.end()) {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdInputInfo] Anchor:%s already define, redeclaration.",
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdInputInfo] Anchor:%s already defined, redeclaration.",
                       input_name.c_str());
       return ILLEGAL_RULE;
     }
@@ -754,7 +754,7 @@ Status FusionRulePatternConstructor::LoadOutputInfo(FusionRulePatternPtr pattern
     string output_name = iter->GetName();
     // make a dummy node to hold outer output anchor
     if (output_nodes_map.find(output_name) != output_nodes_map.end()) {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdOutInfo] Output node:%s already define, redeclaration.",
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdOutInfo] Output node:%s already defined, redeclaration.",
                       output_name.c_str());
       return ILLEGAL_RULE;
     }
@@ -924,7 +924,7 @@ Status FusionRulePatternConstructor::TopoligicalSorting(const vector<FusionRuleN
     return ret;
   }
   if (pre_nodes.size() == 0) {
-    FE_LOGW("Nodes to be sort is null.");
+    FE_LOGW("Nodes to be sorted is null.");
     return SUCCESS;
   }
 

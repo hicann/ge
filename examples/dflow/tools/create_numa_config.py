@@ -12,7 +12,21 @@
 
 This script auto-detects NPU information (chip type, device count, device IPs)
 and generates a numa_config.json file suitable for running dflow examples on
-a single machine. When auto-detection fails, it falls back to default values.
+a single machine. When auto-detection fails, it falls back to default values
+with a warning log.
+
+Dependencies (all optional, with fallbacks):
+
+    npu-smi     Detect chip type and total device count via `npu-smi info`.
+                Only called when both --soc-version and --total-dev are not
+                specified. Falls back to Ascend910B1 and 8 devices with a
+                warning when it fails to run or is unavailable. (CANN driver tool)
+    hccn_tool   Query per-device IP addresses via `hccn_tool -i N -ip -g`.
+                Searched in PATH and common driver tool paths. Falls back to
+                placeholder IPs (192.168.100.x) when unavailable.
+                (Ascend driver tool)
+    hostname    Get host IP address via `hostname -I`. Falls back to 127.0.0.1
+                when it fails. (system utility)
 
 Usage:
     # Auto-detect everything, use all devices
@@ -58,12 +72,8 @@ def get_host_ip() -> str:
         )
         ips = result.stdout.strip().split()
         host_ip = ips[0] if ips else "127.0.0.1"
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-    ) as e:
-        print(f">>>>> Failed to get host IP: {e}, using 127.0.0.1")
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"Warning: failed to get host IP ({e}), using 127.0.0.1", file=sys.stderr)
         host_ip = "127.0.0.1"
     print(f">>>>> host ip: {host_ip}")
     return host_ip
@@ -87,7 +97,10 @@ def get_device_ips(total_dev: int) -> List[str]:
     """
     hccn_tool = find_hccn_tool()
     if not hccn_tool:
-        print(">>>>> hccn_tool not found, using placeholder IPs")
+        print(
+            "Warning: hccn_tool not found, using placeholder IPs (192.168.100.x)",
+            file=sys.stderr,
+        )
         return [f"192.168.100.{i}" for i in range(total_dev)]
 
     ip_list: List[str] = []
@@ -108,7 +121,7 @@ def get_device_ips(total_dev: int) -> List[str]:
                         dev_ip = match.group()
                         break
             ip_list.append(dev_ip)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        except (subprocess.SubprocessError, OSError):
             ip_list.append(f"192.168.100.{i}")
 
     print(f">>>>> all device ip: {ip_list}")
@@ -120,21 +133,20 @@ def detect_npu_info() -> Tuple[str, int]:
 
     Returns:
         A tuple of (soc_version, total_device_count).
-        Falls back to defaults if npu-smi is unavailable.
+        Falls back to defaults if npu-smi fails to run or is unavailable.
     """
     try:
         result = subprocess.run(
             ["npu-smi", "info"], capture_output=True, text=True, check=True, timeout=10
         )
         output = result.stdout
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-    ):
+    except (subprocess.SubprocessError, OSError) as e:
         print(
-            f">>>>> npu-smi not available, using defaults: "
-            f"soc_version={DEFAULT_SOC_VERSION}, total_dev={DEFAULT_TOTAL_DEV}"
+            f"Warning: failed to run npu-smi ({e}), using default "
+            f"soc_version={DEFAULT_SOC_VERSION}, total_dev={DEFAULT_TOTAL_DEV}. "
+            f"If they do not match the actual environment, "
+            f"specify --soc-version and --total-dev explicitly.",
+            file=sys.stderr,
         )
         return DEFAULT_SOC_VERSION, DEFAULT_TOTAL_DEV
 
@@ -280,9 +292,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    detected_soc, detected_total = detect_npu_info()
-    soc_version = args.soc_version if args.soc_version else detected_soc
-    total_dev = args.total_dev if args.total_dev > 0 else detected_total
+    if args.soc_version and args.total_dev > 0:
+        soc_version = args.soc_version
+        total_dev = args.total_dev
+        print(
+            f">>>>> using user-specified soc_version={soc_version}, total_dev={total_dev}"
+        )
+    else:
+        detected_soc, detected_total = detect_npu_info()
+        soc_version = args.soc_version if args.soc_version else detected_soc
+        total_dev = args.total_dev if args.total_dev > 0 else detected_total
 
     if args.device_list:
         try:

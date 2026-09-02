@@ -5592,13 +5592,14 @@ TEST_F(SymbolicShapeInferenceUT, test_stridedslicev3_infershape_with_symbolic_be
     input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor));
   }
 
-  const std::vector<Expression> expect_output_shape = {sym::Ceiling((Symbol("s9") - Symbol("s5")) / Symbol("s13")),
-                                                       sym::Ceiling((Symbol("s10") - Symbol("s6")) / Symbol("s14")),
-                                                       sym::Ceiling((Symbol("s11") - Symbol("s7")) / Symbol("s15")),
-                                                       sym::Ceiling((Symbol("s12") - Symbol("s8")) / Symbol("s16")),
-                                                       Symbol("s4")};
-  ExpectNodeInfo expect_node(STRIDEDSLICEV3, expect_output_shape, {}, {}, {});
-  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, input_vec), SUCCESS);
+  // Runtime begin/end/stride values require sign and clipping decisions that
+  // cannot be represented by one unconditional shape expression.  The
+  // symbolic callback must fall back without making the whole graph fail.
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), SUCCESS);
+  auto strided_slice_node = cg->FindFirstNodeMatchType(STRIDEDSLICEV3);
+  ASSERT_NE(strided_slice_node, nullptr);
+  ASSERT_EQ(strided_slice_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>(), nullptr);
 }
 
 TEST_F(SymbolicShapeInferenceUT, test_stridedslice_ellipsis_with_1d_input) {

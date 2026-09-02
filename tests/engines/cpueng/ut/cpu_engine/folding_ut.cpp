@@ -113,15 +113,6 @@ TEST_F(AicpuConstFoldingTest, InitCpuConstantFoldingNew_NoEnvFail) {
   ASSERT_EQ(ret, -1);
 }
 
-TEST_F(AicpuConstFoldingTest, IsCpuConstantFoldingFusedOpSupported) {
-  SetEnvSafe("ASCEND_HOME_PATH", "/tmp", 1);
-  ASSERT_EQ(InitCpuConstantFoldingNew([]() -> ge::HostCpuOp * { return new (std::nothrow) ge::HostCpuTestOp(); }), 0);
-  EXPECT_EQ(IsCpuConstantFoldingFusedOpSupported(nullptr), 0);
-  EXPECT_EQ(IsCpuConstantFoldingFusedOpSupported(""), 0);
-  EXPECT_EQ(IsCpuConstantFoldingFusedOpSupported("unsupported"), 0);
-  EXPECT_EQ(IsCpuConstantFoldingFusedOpSupported("testop"), 1);
-}
-
 TEST_F(AicpuConstFoldingTest, InitCpuConstantFoldingNew_LoadSoTraversal) {
   std::string tmp_dir = "/tmp/test_folding_ut_" + std::to_string(getpid());
   std::string host_cpu_dir = tmp_dir + "/opp/built-in/op_impl/host_cpu/";

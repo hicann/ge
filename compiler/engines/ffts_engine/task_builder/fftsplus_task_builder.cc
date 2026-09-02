@@ -54,7 +54,7 @@ void FillComCtxForNode(const ge::NodePtr &up_node, uint32_t recurise_cnt,
               up_op_desc->GetType().c_str(), context_id);
     sub_ffts_plus_context_elem.succ_list.emplace_back(context_id);
   } else {
-    FFTS_LOGI("Out node name: %s, node type: %s. get context id unsuccessful.", up_op_desc->GetName().c_str(),
+    FFTS_LOGW("Out node name: %s, node type: %s. get context id unsuccessful.", up_op_desc->GetName().c_str(),
               up_op_desc->GetType().c_str());
   }
 
@@ -348,7 +348,7 @@ void FFTSPlusTaskBuilder::FillSingleProducersInfo(const ge::NodePtr &pre_node, u
   if (pre_op_desc == nullptr) {
     return;
   }
-  FFTS_LOGD("Up node name:%s, node type:%s, recurise_cnt:%u.", pre_op_desc->GetName().c_str(),
+  FFTS_LOGD("Up node name:%s, node type:%s, recursion_cnt:%u.", pre_op_desc->GetName().c_str(),
             pre_op_desc->GetType().c_str(), recurise_cnt);
   if (recurise_cnt == 0) {
     FFTS_LOGI("Recursion count reduced to 0, will not continue processing.");
@@ -440,7 +440,7 @@ Status FFTSPlusTaskBuilder::FillProducersInfo(const ge::NodePtr &node, FftsPlusC
   if (parent_inputnodes != nullptr && (*parent_inputnodes).size() != 0) {
     for (const auto &up_node : (*parent_inputnodes)) {
       FillSingleProducersInfo(up_node, pred_cnt, kRecuriseCntMax);
-      FFTS_LOGD("prenodedealwith has prent inputnode count = %u.", pred_cnt);
+      FFTS_LOGD("Pre node deal with: parent input node count = %u.", pred_cnt);
     }
   }
 
@@ -461,10 +461,10 @@ Status FFTSPlusTaskBuilder::FillProducersInfo(const ge::NodePtr &node, FftsPlusC
     ge::NodePtr inner_graph_outputs_node = nullptr;
     inner_graph_outputs_node = op_desc->TryGetExtAttr(ATTR_NAME_PARENT_OUTPUTS_INPUT_NODES, inner_graph_outputs_node);
     if (inner_graph_outputs_node == nullptr) {
-      FFTS_LOGD("deal with other producers.s no labelx attr.");
+      FFTS_LOGD("Dealing with other producers: no labelx attribute.");
       return FillCommonProducersInfo(node, pred_cnt, ffts_plus_context);
     } else {
-      FFTS_LOGD("deal with other producers.s has labelx attr.");
+      FFTS_LOGD("Dealing with other producers: has labelx attribute.");
       FillSingleProducersInfo(inner_graph_outputs_node, pred_cnt, kRecuriseCntMax);
       return FillCommonProducersInfo(node, pred_cnt, ffts_plus_context);
     }

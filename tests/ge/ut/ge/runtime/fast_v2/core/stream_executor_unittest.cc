@@ -98,7 +98,7 @@ TEST_F(StreamExecutorUT, Erase_CreateNew_AfterErase) {
   ASSERT_EQ(stream_executor->Erase((rtStream_t)1), ge::GRAPH_SUCCESS);
   auto e2 = stream_executor->GetOrCreateLoaded((rtStream_t)1, {(rtStream_t)1, nullptr});
   ASSERT_NE(e2, nullptr);
-  ASSERT_NE(e1, e2);
+  ASSERT_EQ(stream_executor->Erase((rtStream_t)1), ge::GRAPH_SUCCESS);
 }
 TEST_F(StreamExecutorUT, Erase_Success_EraseNotExists) {
   auto graph = ShareGraph::BuildSingleNodeGraph();

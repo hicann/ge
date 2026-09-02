@@ -1941,3 +1941,126 @@ TEST_F(UTEST_FE_TRANSOP_INSERT_COMPLEX_2, TransdataCtrlEdge_03) {
   ASSERT_EQ(b->GetInControlAnchor()->GetPeerAnchorsSize(), 1);
   EXPECT_EQ(b->GetInControlAnchor()->GetPeerOutControlAnchors().at(0)->GetOwnerNode()->GetName(), "c");
 }
+
+/* A -> TransData(c08) -> Cast(int8->fp16) -> B : line 628 */
+TEST_F(UTEST_FE_TRANSOP_INSERT_COMPLEX_2, SwitchCastAndTransdata_C08InFront) {
+  ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_c08_front");
+  ge::Format c08_format = static_cast<ge::Format>(ge::GetFormatFromC0(ge::FORMAT_NC1HWC0, 4));
+
+  OpDescPtr op_a = std::make_shared<OpDesc>("a", "A");
+  op_a->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+  OpDescPtr op_td = std::make_shared<OpDesc>("transdata", fe::TRANSDATA);
+  op_td->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+  op_td->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+  OpDescPtr op_cast = std::make_shared<OpDesc>("cast", fe::CAST);
+  op_cast->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+  op_cast->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  OpDescPtr op_b = std::make_shared<OpDesc>("b", "B");
+  op_b->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+
+  auto node_a = graph->AddNode(op_a);
+  auto node_td = graph->AddNode(op_td);
+  auto node_cast = graph->AddNode(op_cast);
+  auto node_b = graph->AddNode(op_b);
+  ge::GraphUtils::AddEdge(node_a->GetOutDataAnchor(0), node_td->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_td->GetOutDataAnchor(0), node_cast->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_cast->GetOutDataAnchor(0), node_b->GetInDataAnchor(0));
+
+  FusionRuleManagerPtr frm = make_shared<FusionRuleManager>(fe_ops_kernel_info_store_ptr_);
+  auto gf = std::make_shared<GraphFusion>(frm, fe_ops_kernel_info_store_ptr_, nullptr);
+  gf->SetEngineName(AI_CORE_NAME);
+  vector<ge::NodePtr> cast_list = {node_cast};
+  EXPECT_EQ(gf->SwitchTransDataAndCast(*(graph.get()), cast_list), fe::SUCCESS);
+}
+
+/* A -> TransData(NC1HWC0) -> Cast(int8->fp16) -> B : line 632 */
+TEST_F(UTEST_FE_TRANSOP_INSERT_COMPLEX_2, SwitchCastAndTransdata_VerifyC0Fail) {
+  ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_verify_c0");
+
+  OpDescPtr op_a = std::make_shared<OpDesc>("a", "A");
+  op_a->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NC1HWC0, ge::DT_INT8));
+  OpDescPtr op_td = std::make_shared<OpDesc>("transdata", fe::TRANSDATA);
+  op_td->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NC1HWC0, ge::DT_INT8));
+  op_td->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NC1HWC0, ge::DT_INT8));
+  OpDescPtr op_cast = std::make_shared<OpDesc>("cast", fe::CAST);
+  op_cast->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NC1HWC0, ge::DT_INT8));
+  op_cast->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  OpDescPtr op_b = std::make_shared<OpDesc>("b", "B");
+  op_b->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+
+  auto node_a = graph->AddNode(op_a);
+  auto node_td = graph->AddNode(op_td);
+  auto node_cast = graph->AddNode(op_cast);
+  auto node_b = graph->AddNode(op_b);
+  ge::GraphUtils::AddEdge(node_a->GetOutDataAnchor(0), node_td->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_td->GetOutDataAnchor(0), node_cast->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_cast->GetOutDataAnchor(0), node_b->GetInDataAnchor(0));
+
+  FusionRuleManagerPtr frm = make_shared<FusionRuleManager>(fe_ops_kernel_info_store_ptr_);
+  auto gf = std::make_shared<GraphFusion>(frm, fe_ops_kernel_info_store_ptr_, nullptr);
+  gf->SetEngineName(AI_CORE_NAME);
+  vector<ge::NodePtr> cast_list = {node_cast};
+  EXPECT_EQ(gf->SwitchTransDataAndCast(*(graph.get()), cast_list), fe::SUCCESS);
+}
+
+/* A -> Cast(fp16->int8) -> TransData(c08 out) -> B : line 685 */
+TEST_F(UTEST_FE_TRANSOP_INSERT_COMPLEX_2, SwitchCastAndTransdata_C08AtTail) {
+  ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_c08_tail");
+  ge::Format c08_format = static_cast<ge::Format>(ge::GetFormatFromC0(ge::FORMAT_NCHW, 4));
+
+  OpDescPtr op_a = std::make_shared<OpDesc>("a", "A");
+  op_a->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  OpDescPtr op_cast = std::make_shared<OpDesc>("cast", fe::CAST);
+  op_cast->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  op_cast->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_INT8));
+  OpDescPtr op_td = std::make_shared<OpDesc>("transdata", fe::TRANSDATA);
+  op_td->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), ge::FORMAT_NCHW, ge::DT_INT8));
+  op_td->AddOutputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+  OpDescPtr op_b = std::make_shared<OpDesc>("b", "B");
+  op_b->AddInputDesc(GeTensorDesc(GeShape({1, 2, 3, 16}), c08_format, ge::DT_INT8));
+
+  auto node_a = graph->AddNode(op_a);
+  auto node_cast = graph->AddNode(op_cast);
+  auto node_td = graph->AddNode(op_td);
+  auto node_b = graph->AddNode(op_b);
+  ge::GraphUtils::AddEdge(node_a->GetOutDataAnchor(0), node_cast->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_cast->GetOutDataAnchor(0), node_td->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_td->GetOutDataAnchor(0), node_b->GetInDataAnchor(0));
+
+  FusionRuleManagerPtr frm = make_shared<FusionRuleManager>(fe_ops_kernel_info_store_ptr_);
+  auto gf = std::make_shared<GraphFusion>(frm, fe_ops_kernel_info_store_ptr_, nullptr);
+  gf->SetEngineName(AI_CORE_NAME);
+  vector<ge::NodePtr> cast_list = {node_cast};
+  EXPECT_EQ(gf->SwitchTransDataAndCast(*(graph.get()), cast_list), fe::SUCCESS);
+}
+
+/* A -> Cast(fp16->int8) -> TransData(c08 out) -> B : line 968 */
+TEST_F(UTEST_FE_TRANSOP_INSERT_COMPLEX_2, SwitchCastAndTransdata_AtTailUnsuccessful) {
+  ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_tail_unsucc");
+  ge::Format c08_format = static_cast<ge::Format>(ge::GetFormatFromC0(ge::FORMAT_NCHW, 4));
+
+  OpDescPtr op_a = std::make_shared<OpDesc>("a", "A");
+  op_a->AddOutputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  OpDescPtr op_cast = std::make_shared<OpDesc>("cast", fe::CAST);
+  op_cast->AddInputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), ge::FORMAT_NCHW, ge::DT_FLOAT16));
+  op_cast->AddOutputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), ge::FORMAT_NCHW, ge::DT_INT8));
+  OpDescPtr op_td = std::make_shared<OpDesc>("transdata", fe::TRANSDATA);
+  op_td->AddInputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), ge::FORMAT_NCHW, ge::DT_INT8));
+  op_td->AddOutputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), c08_format, ge::DT_INT8));
+  OpDescPtr op_b = std::make_shared<OpDesc>("b", "B");
+  op_b->AddInputDesc(GeTensorDesc(GeShape({2, 3, 4, 16}), c08_format, ge::DT_INT8));
+
+  auto node_a = graph->AddNode(op_a);
+  auto node_cast = graph->AddNode(op_cast);
+  auto node_td = graph->AddNode(op_td);
+  auto node_b = graph->AddNode(op_b);
+  ge::GraphUtils::AddEdge(node_a->GetOutDataAnchor(0), node_cast->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_cast->GetOutDataAnchor(0), node_td->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(node_td->GetOutDataAnchor(0), node_b->GetInDataAnchor(0));
+
+  FusionRuleManagerPtr frm = make_shared<FusionRuleManager>(fe_ops_kernel_info_store_ptr_);
+  auto gf = std::make_shared<GraphFusion>(frm, fe_ops_kernel_info_store_ptr_, nullptr);
+  gf->SetEngineName(AI_CORE_NAME);
+  vector<ge::NodePtr> cast_list = {node_cast};
+  EXPECT_EQ(gf->SwitchTransDataAndCast(*(graph.get()), cast_list), fe::SUCCESS);
+}

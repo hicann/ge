@@ -165,7 +165,7 @@ bool OpCustDtypesConfigParser::SplitInoutDtype(const string &line_str, std::vect
   size_t str_len = line_str.size();
   if (has_input && has_output) {
     if (pos_i > pos_o) {
-      REPORT_FE_ERROR("[Configuration][Parse] Invalid customize file, inputDtype must on the left of outputDtype.");
+      REPORT_FE_ERROR("[Configuration][Parse] Invalid customize file, inputDtype must be on the left of outputDtype.");
       return false;
     }
     input_str = line_str.substr(pos_i + kInputDtypeStrSize, pos_o - pos_i - kInputDtypeStrSize);

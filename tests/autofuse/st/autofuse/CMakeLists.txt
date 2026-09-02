@@ -29,6 +29,10 @@ target_compile_definitions(autofusion_st PRIVATE
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
         google=ascend_private
         AUTOFUSE_USE_GE_METADEF
+        # The ST target currently links a CANN AscIR library with the old
+        # AscGraphAttr layout. Keep this test target ABI-compatible until the
+        # matching CANN package is available.
+        AUTOFUSE_ST_COMPAT_CANN
         )
 
 target_compile_options(autofusion_st PRIVATE ${ASCGEN_DT_COMPILE_OPTION}

@@ -405,20 +405,22 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
       ast_.Call("aclrtStreamGetId",
                 {task_info.Attr("stream"), ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})));
   auto launch_stars_task_params = ast_.Var("GertModelLaunchStarsTaskWithFlagParams", "launch_stars_task_params");
+  (void)body.push_back(ast_.VarDecl(launch_stars_task_params, ast_.InitList({})));
+  (void)body.push_back(ast_.Assign(launch_stars_task_params.Attr("task_sqe"),
+                                   ast_.ReinterpretCast("const void *", ast_.Var("", "sqe").Addr())));
+  (void)body.push_back(ast_.Assign(launch_stars_task_params.Attr("sqe_len"),
+                                   ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t"))));
   (void)body.push_back(
-      ast_.VarDecl(launch_stars_task_params,
-                   ast_.DesignatedInit({{"task_sqe", ast_.ReinterpretCast("const void *", ast_.Var("", "sqe").Addr())},
-                                        {"sqe_len", ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t"))},
-                                        {"stream", ctx.Attr("stream_list")[dsa_data.Attr("stream_id")]},
-                                        {"flag", ast_.UInt(0U)}})));
+      ast_.Assign(launch_stars_task_params.Attr("stream"), ctx.Attr("stream_list")[dsa_data.Attr("stream_id")]));
+  (void)body.push_back(ast_.Assign(launch_stars_task_params.Attr("flag"), ast_.UInt(0U)));
   auto launch_params = ast_.Var("GertModelTaskLaunchParams", "launch_params");
-  (void)body.push_back(
-      ast_.VarDecl(launch_params, ast_.DesignatedInit({{"launch_stars_task_params", launch_stars_task_params}})));
+  (void)body.push_back(ast_.VarDecl(launch_params, ast_.InitList({})));
+  (void)body.push_back(ast_.Assign(launch_params.Attr("launch_stars_task_params"), launch_stars_task_params));
   auto launch_info = ast_.Var("GertModelTaskLaunchInfo", "launch_info");
-  (void)body.push_back(
-      ast_.VarDecl(launch_info, ast_.DesignatedInit({{"launch_type", ast_.Var("", "RT_STARS_TASK_LAUNCH_WITH_FLAG")},
-                                                     {"task_info", task_info.Addr()},
-                                                     {"launch_params", launch_params.Addr()}})));
+  (void)body.push_back(ast_.VarDecl(launch_info, ast_.InitList({})));
+  (void)body.push_back(ast_.Assign(launch_info.Attr("launch_type"), ast_.Var("", "RT_STARS_TASK_LAUNCH_WITH_FLAG")));
+  (void)body.push_back(ast_.Assign(launch_info.Attr("task_info"), task_info.Addr()));
+  (void)body.push_back(ast_.Assign(launch_info.Attr("launch_params"), launch_params.Addr()));
   return SUCCESS;
 }
 

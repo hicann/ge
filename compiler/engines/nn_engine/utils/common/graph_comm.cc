@@ -944,7 +944,7 @@ Status GraphComm::AddOuterCtrlEdgeOutputs(const vector<fe::FusionDataFlow> &outp
 
 Status GraphComm::AddOuterDataEdgeOutputs(const vector<fe::FusionDataFlow> &output_edge_list,
                                           ge::CompleteGraphBuilder &builder) const {
-  FE_LOGD("Data edge size is %zu bytes.", output_edge_list.size());
+  FE_LOGD("Data edge size is %zu.", output_edge_list.size());
   std::map<uint32_t, uint32_t> output_mapping;
   std::unordered_set<ge::AnchorPtr> sub_output;
   uint32_t output_index = 0;
@@ -1042,7 +1042,7 @@ Status GraphComm::CreateFunctionOpSubGraph(const ge::NodePtr &function_node, std
       io_map = {-1};
     }
     if (ge::GraphUtils::IsolateNode(node, io_map) != ge::GRAPH_SUCCESS) {
-      REPORT_FE_ERROR("Isolate Node %s not successfully.", node->GetName().c_str());
+      REPORT_FE_ERROR("Failed to isolate node %s.", node->GetName().c_str());
       return FAILED;
     }
     if (ge::GraphUtils::RemoveNodeWithoutRelink(graph, node) != ge::GRAPH_SUCCESS) {

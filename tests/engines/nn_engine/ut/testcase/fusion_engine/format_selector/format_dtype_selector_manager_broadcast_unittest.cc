@@ -885,3 +885,27 @@ TEST_F(FormatDtypeSelectorManagerBroadcastUTest, coverage_03) {
   const std::string name = "CpuEngine";
   OpStoreAdapterManager::Instance(name);
 }
+
+TEST_F(FormatDtypeSelectorManagerBroadcastUTest, broadcast_format_process_diff_origin_format) {
+  OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("test_op", "Add");
+  op_desc_ptr->AddInputDesc("x", CreateTensorDesc({16, 128, 128, 64}, FORMAT_NCHW, DT_FLOAT));
+  op_desc_ptr->AddInputDesc("y", CreateTensorDesc({16, 128, 128, 64}, FORMAT_NHWC, DT_FLOAT));
+  op_desc_ptr->AddOutputDesc("z", CreateTensorDesc({16, 128, 128, 64}, FORMAT_NCHW, DT_FLOAT));
+
+  OriginInfoPtr origin_info_ptr = std::make_shared<OriginInfo>();
+  origin_info_ptr->input_formats = {FORMAT_NCHW, FORMAT_NHWC};
+  origin_info_ptr->input_dtypes = {DT_FLOAT, DT_FLOAT};
+  origin_info_ptr->input_shapes = {GeShape({16, 128, 128, 64}), GeShape({16, 128, 128, 64})};
+  origin_info_ptr->output_shapes = {GeShape({16, 128, 128, 64})};
+
+  FormatProccessArgs args;
+  args.support_format = ge::FORMAT_NC1HWC0;
+  args.origin_info_ptr = origin_info_ptr;
+  args.propagat_primary_format = ge::FORMAT_NCHW;
+  args.propagat_sub_format = 0;
+
+  FormatProccessResult result;
+  BroadcastProcessFractalZ process;
+  Status ret = process.Process(*op_desc_ptr, args, result);
+  EXPECT_EQ(ret, fe::FAILED);
+}
