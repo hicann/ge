@@ -8,7 +8,7 @@
 
 支持的产品型号：Atlas A2 训练系列产品/Atlas A2 推理系列产品和Atlas A3 训练系列产品/Atlas A3 推理系列产品。
 
-- 当前仅支持Python3.11。安装方法请参考Python官网[https://www.python.org/](https://www.python.org/)。
+- 当前仅支持Python3.12。安装方法请参考Python官网[https://www.python.org/](https://www.python.org/)。
 
 - 已经安装好开发套件包Ascend-cann-toolkit，详细操作请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 

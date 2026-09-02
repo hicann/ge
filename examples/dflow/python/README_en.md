@@ -37,7 +37,7 @@
 
 - Refer to [Environment Preparation](../../../docs/zh/quick_install.md) to download and install driver/firmware/CANN software packages;
 
-- Python version requirement: python3.11. The specific version should match the python version used when compiling the dataflow wheel package. If you need to use a different python version, you can refer to [Compilation](../../../docs/zh/build.md#43-编译) to recompile the ge_compiler package and install it;
+- Python version requirement: python3.12. The specific version should match the python version used when compiling the dataflow wheel package. If you need to use a different python version, you can refer to [Compilation](../../../docs/zh/build.md#43-编译) to recompile the ge_compiler package and install it;
 
 - The model generation script model_generator.py in the config directory depends on tensorflow-cpu and onnx, which need to be installed via pip3 install tensorflow-cpu and pip3 install onnx;
 
@@ -66,13 +66,13 @@ export ASCEND_GLOBAL_LOG_LEVEL=3       #0 debug 1 info 2 warn 3 error. Default i
 source {HOME}/Ascend/cann/set_env.sh #{HOME} is the CANN software package installation directory, please replace according to the actual installation path
 export RESOURCE_CONFIG_PATH=./numa_config.json # Please specify according to the actual generated file path
 
-python3.11 sample_base.py
-python3.11 sample_udf_python.py
-python3.11 sample_exception.py
-python3.11 sample_pytorch.py
-python3.11 sample_npu_model.py
-python3.11 sample_multiple_model.py
-python3.11 sample_perf.py
+python3.12 sample_base.py
+python3.12 sample_udf_python.py
+python3.12 sample_exception.py
+python3.12 sample_pytorch.py
+python3.12 sample_npu_model.py
+python3.12 sample_multiple_model.py
+python3.12 sample_perf.py
 
 # Unset this environment variable to prevent affecting non-dflow test cases
 unset RESOURCE_CONFIG_PATH

@@ -431,7 +431,7 @@ numa\_config.json示例如下，全量字段含义如表1所示。
     在任意路径下执行如下命令。
 
     ```shell
-    python3.11 -m dataflow.tools.create_func_ws -f sub:i0:i1:o0 -w ./test_sub -c Sub
+    python3.12 -m dataflow.tools.create_func_ws -f sub:i0:i1:o0 -w ./test_sub -c Sub
     ```
 
     在当前目录下，生成如下“test\_sub”文件夹，目录结构如下。

@@ -45,7 +45,7 @@ endif ()
 
 set(CMAKE_CXX_COMPILER ${TOOLCHAIN})
 
-find_package(Python3 3.11 EXACT REQUIRED Interpreter COMPONENTS Development)
+find_package(Python3 3.12 EXACT REQUIRED Interpreter COMPONENTS Development)
 
 # set dynamic library output path
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/${RELEASE_DIR})
