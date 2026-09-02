@@ -354,19 +354,4 @@ fi
 
 clear_kernel_cache_dir
 
-# copy_all模式下do_chmod_file_dir跳过了copy类型文件的chmod，
-# 需要在此处补充设置文件权限
-if [ -n "${common_parse_dir}" ]; then
-    local_arch="$(ls -d ${common_parse_dir}/*-linux 2>/dev/null | head -1 | xargs basename 2>/dev/null | cut -d'-' -f1)"
-    chmod 440 "${common_parse_dir}/compat/cann-udf-compat.tar.gz" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/libbuilt_in_flowfunc.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/libflow_func.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/libreader_writer.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/libudf_dump.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/libudf_profiling.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/devlib/device/libflow_func.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/devlib/linux/${local_arch}/libflow_func.so" 2>/dev/null
-    chmod 550 "${common_parse_dir}/${local_arch}-linux/lib64/stub/linux/${local_arch}/libflow_func.so" 2>/dev/null
-fi
-
 exit 0
