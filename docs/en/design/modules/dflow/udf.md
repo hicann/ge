@@ -49,6 +49,8 @@ Python provides three approaches with decreasing entry barriers:
 
 The `@df.pyflow` decorator automatically generates the UDF project (C++ wrapper + CMakeLists + configuration JSON), serializes the user function with cloudpickle, and compiles it into a loadable SO. User function parameters are automatically deserialized from FlowMsg to numpy array / torch tensor, and return values are automatically serialized back to FlowMsg.
 
+For the implementation mechanisms and comparison of the `@df.pyflow` and `@df.npu_model` decorators, refer to [Section 4.5](dflow.md#45-python-interface-layer) of dflow.md.
+
 ---
 
 ## 3. Framework Call Chain
@@ -275,7 +277,7 @@ graph LR
 
 ### 7.2 MbufFlowMsg (Internal Implementation)
 
-`MbufFlowMsg` (`flow_func/mbuf_flow_msg.h`) wraps `shared_ptr<Mbuf>`. **mbuf data layout**: `[RuntimeTensorDesc(1024B)][actual data]`, where `RuntimeTensorDesc` contains dataAddr/dtype/shape[33]/originalShape[33]/format/data_size. The mbuf private head `MbufHeadMsg` carries trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time.
+`MbufFlowMsg` (`flow_func/mbuf_flow_msg.h`) wraps `shared_ptr<Mbuf>`. **mbuf memory layout**: the last 64 bytes of the head area (256B by default) is the `MbufHeadMsg` control information (trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time, etc.); the data area is `[RuntimeTensorDesc(1024B)][actual data]`, where `RuntimeTensorDesc` contains dataAddr/dtype/shape[33] (shape[0] stores the dim count)/originalShape[33]/format/data_size.
 
 - Output mbuf inherits input `MbufHead` (`AllocTensorMsg` passes `input_mbuf_head_`), ensuring trans_id pass-through
 - Custom trans_id flag bit `kCustomTransIdFlagBit`: set only when the user explicitly calls `SetTransactionId(non-zero)`; otherwise the framework automatically assigns based on `current_trans_id_` (`FlowFuncProcessor::SetInputData`)

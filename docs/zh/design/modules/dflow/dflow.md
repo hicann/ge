@@ -104,6 +104,8 @@ flowchart TD
 | C++ UDF（仅支持 host 编译） | 仅 host | 编译产出不含 Ascend |
 | heavy_load UDF | host | 重载 UDF 强制 host，但需绑定到指定 NPU 关联的 host CPU |
 
+> **例外**：`@df.npu_model` 装饰的 Python UDF 不受"仅 host"限制——其携带的 `_npu_sched_model=1` 属性使 udf_executor 以 npu_sched 模式部署（AICPU 调度模型代理数据进出，数据描述经 req/resp 消息队列中转，数据本体不离开 device），见 [4.5.2 节](#452-dfnpu_model-pytorch-零拷贝下沉装饰器)。
+
 ```
 FlowData ──→ [GraphPp: ONNX模型] ──→ [FuncPp: UDF0] ──→ [GraphPp: PB模型] ──→ [FuncPp: UDF1] ──→ 输出
               (device 执行)       (host或device)        (device 执行)       (host或device)
@@ -197,17 +199,17 @@ classDiagram
 
 ### 3.3 Python 接口
 
-Python 侧提供三层封装（`pydflow/python/dataflow/`）：
+Python 侧提供三层封装（`pydflow/python/dataflow/`），机制详解见 [4.5 节](#45-python-接口层)：
 
 | 层次 | 文件 | 说明 |
 |------|------|------|
-| 高层 API | `dataflow.py` | FlowGraph/FlowNode/FlowData/Tensor/feed/fetch |
-| 装饰器 | `pyflow.py` | `@df.pyflow`（函数/类自动转 PP）、`@df.method`（多方法） |
-| PyTorch 集成 | `plugin/torch/torch_plugin.py` | `@df.npu_model`（NPU 模型零拷贝传递） |
+| 高层 API | `dataflow.py` | FlowGraph/FlowNode/FlowData/Tensor/feed/fetch 等构图与运行接口 |
+| 通用 UDF 装饰器 | `pyflow.py` | `@df.pyflow`（函数/类自动转 PP）、`@df.method`（类内方法标记），详见 [4.5.1 节](#451-dfpyflow-通用-python-udf-装饰器) |
+| PyTorch 集成 | `plugin/torch/torch_plugin.py` | `@df.npu_model`（PyTorch 零拷贝下沉），详见 [4.5.2 节](#452-dfnpu_model-pytorch-零拷贝下沉装饰器) |
 
-`@df.pyflow` 装饰器是 Python 侧的核心便利机制：用户定义普通 Python 函数，装饰器自动生成 UDF 工程（C++ wrapper 代码 + CMakeLists + 编译配置 JSON），用 cloudpickle 序列化用户函数对象，编译为可加载的 SO（`pydflow/python/dataflow/tools/func_ws_creator.py`）。用户无需手写任何 C++ 代码。
+两个装饰器的关系：`@df.pyflow` 让用户以普通 Python 函数/类定义 UDF 节点，框架自动生成 UDF 工程（cloudpickle 序列化 + C++ wrapper + CMake 编译为 SO），无需手写 C++；`@df.npu_model` 继承 pyflow 基类并重写数据进出路径，面向输入输出均为 NPU tensor 的 PyTorch 计算场景，经 AICPU 调度模型中转数据描述，数据不离开 device。
 
-PyTorch 集成通过 `RuntimeTensorDesc`（1024 字节固定结构，包含 NPU tensor 地址/shape/dtype）实现零拷贝跨进程 NPU tensor 传递，接收方通过 `torchair.llm_datadist.create_npu_tensors` 从地址重建 tensor（`plugin/torch/torch_plugin.py`）。
+此外，`pydflow/wrapper/` 提供 pybind11 C++ 扩展模块：`dflow_wrapper`（FlowGraph/FlowNode 等构图类与 FlowBufferFactory）和 `data_wrapper`（DataType 枚举）支撑用户侧 API，`flowfunc_wrapper`（FlowMsg/MetaRunContext/RuntimeTensorDesc 布局等，源文件 `wrapper/flow_func_wrapper/`）支撑 udf_executor 进程内的 UDF 执行。
 
 ### 3.4 数据类型
 
@@ -219,7 +221,27 @@ DataFlow 运行时数据以 **FlowMsg** 为核心载体（`executor/flow_msg.cc`
 | `RawDataFlowMsg` | `[原始字节]` | 任意二进制数据 |
 | `EmptyDataFlowMsg` | 空 | EOS（End Of Sequence）标记 |
 
-FlowMsg 基于昇腾 runtime 的 **rtMbuf** 实现零拷贝：生产者填充 mbuf 数据，通过队列传给消费者，`rtMbufCopyBufRef` 仅增加引用计数，多个消费者共享同一块数据无需复制。mbuf head 区携带 `MsgInfo`（trans_id、msg_type、ret_code、时间戳、flags、data_label、route_label 等），支持事务追踪和数据路由。
+FlowMsg 基于昇腾 runtime 的 **rtMbuf** 实现零拷贝：生产者填充 mbuf 数据，通过队列传给消费者，`rtMbufCopyBufRef` 仅增加引用计数，多个消费者共享同一块数据无需复制。
+
+mbuf 的内存布局（`udf/flow_func/mbuf_flow_msg.h`）：
+
+```
+┌─────────────────────────────────────────────┐
+│ mbuf head（默认 256B）                        │
+│   └── 尾部 64B：MbufHeadMsg 控制信息           │
+│       trans_id / version / msg_type /        │
+│       ret_code / start_time / end_time /     │
+│       flags / data_flag / step_id /          │
+│       data_label / route_label               │
+├─────────────────────────────────────────────┤
+│ mbuf 数据区                                   │
+│   Tensor 类消息：[RuntimeTensorDesc 1024B]    │
+│                 [真实 tensor 数据]            │
+│   其他消息：原始数据                           │
+└─────────────────────────────────────────────┘
+```
+
+`MbufHeadMsg` 承载事务追踪与数据路由所需的全部控制信息；`RuntimeTensorDesc`（1024 字节固定布局：dataAddr/dtype/shape[33]（shape[0] 存维数，DIM0~DIM31 跟随）/format/data_size 等）描述数据区中 tensor 的元信息。
 
 `DataFlowInfo` 携带每次数据交互的元信息：start_time/end_time/flow_flags（EOS/SEG）/transaction_id/user_data（最多 64 字节自定义数据）。
 
@@ -540,11 +562,102 @@ sequenceDiagram
 - `feed_data`/`fetch_data`：Tensor 专用零拷贝高性能路径，直接使用 `ge::Tensor`
 - `feed`/`fetch`：支持任意可序列化对象，通过 FlowMsg + cloudpickle 序列化，有序列化开销但灵活性高
 
-UDF 的 Python 开发方式详见 [udf.md](udf.md)。
+Python 侧的两个核心装饰器 `@df.pyflow` 与 `@df.npu_model` 共享同一套基类与工程生成链路，前者是通用 UDF 装饰器，后者是面向 PyTorch 的零拷贝下沉装饰器。UDF 框架本身的调度与执行机制详见 [udf.md](udf.md)。
+
+#### 4.5.1 `@df.pyflow` 通用 Python UDF 装饰器
+
+**两种装饰对象**（`pyflow.py` 的 `_make_pyflow`）：
+
+| 装饰对象 | 产物 | 构图方式 |
+|----------|------|----------|
+| 函数 | `PyFunctionProcessPoint` | `函数.fnode()` 创建节点；输入数从函数签名推导，输出数由返回类型注解或 `num_returns` 选项确定 |
+| 类 | `PyActorProcessPoint` | `类.fnode()`；`_df_from_class` 动态派生子类，`fnode()` 时收集 `@df.method()` 标记的方法，节点方法调用即连边（如 `node.forward(x)`） |
+
+类装饰在 `fnode()` 时扫描带 `__df_method__` 标记的方法，为每个方法生成两个包装：`ActorFlowNodeMethod` 负责构图期连边（维护各方法在节点输入/输出中的索引偏移），`get_redefined_method` 返回的可调用对象负责执行期在 UDF 进程中调用用户方法。类构造参数在 `fnode(*args)` 时保存，UDF 进程初始化时经 `_super_init` 重新执行 `__init__`。
+
+**支持的选项**：`num_returns`、`resources`（memory/num_cpus/num_npus）、`env_hook_func`（初始化前环境钩子）、`visible_device_enable`、`stream_input`（流式输入，当前仅支持 "Queue"）、`choice_output`（输出过滤回调，返回 False 的输出置空跳过）。后两者为 pyflow 独有。
+
+**工程生成链路**（`FuncProcessPoint` → `tools/func_ws_creator.py`）：
+
+1. cloudpickle 序列化函数/类对象到 `<name>.pkl`；全局消息类型注册表序列化到 `_msg_type_register.pkl`（UDF 进程启动时恢复，保证执行器识别自定义消息类型）；`env_hook_func` 可选序列化
+2. 生成嵌入 CPython 的 C++ wrapper（`tpl/tpl_wrapper_code.py`：`Py_Initialize` 后以 pybind11 import pickle 文件恢复函数对象）
+3. 生成 CMakeLists 与编译配置 `func_*.json`，固定写 `heavy_load: True`——这是 Python UDF 只在 host 执行的根源之一（见 [4.6.1 节](#461-udf-执行位置如何决定)）
+
+**运行时数据路径**（对称的序列化/反序列化）：
+
+- 输入：`convert_flow_msg_to_object` 将 FlowMsg 反序列化为 Python 对象（Tensor→numpy 视图 / 已注册自定义类型→对应反序列化函数 / 其余→cloudpickle）
+- 输出：`_convert_object_to_flow_msg` 将返回值序列化（df.Tensor→零拷贝转 FlowMsg / None→空消息 / 其余→序列化数据本体写入 mbuf）
+
+generator 函数按 yield 逐次输出（流式输出）。用户可通过 `df.utils.msg_type_register` 注册自定义类型与序列化函数（msg_type 从 1024 起），未注册类型默认 cloudpickle（msg_type=65535）。
+
+#### 4.5.2 `@df.npu_model` PyTorch 零拷贝下沉装饰器
+
+**解决的问题**：host 侧 Python UDF 执行 PyTorch 代码时，输入需从 device 拷到 host、结果再搬回 device，两次搬移抵消流水线收益。`@df.npu_model`（`plugin/torch/torch_plugin.py`）通过 AICPU 调度模型中转数据描述的方式执行：Python 代码仍运行在 CPU 上，但数据全程不离开 device。
+
+**与 pyflow 的关系**：`NpuFunctionProcessPoint`/`NpuActorProcessPoint` 直接继承 pyflow 对应基类，复用 `fnode()`、工程生成、注册等全部机制，仅重写数据进出（`prepare_inputs`/`prepare_outputs`）与 PP 添加（`add_process_point`）。
+
+**optimize_level 两级优化**（仅类装饰支持，函数装饰等效 level=1）：
+
+| optimize_level | 路径 | 机制 |
+|----------------|------|------|
+| 1（默认） | 数据下沉 | 走 FuncProcessPoint（Python UDF），节点带 `_npu_sched_model=1` 属性，由 AICPU 调度模型中转数据描述，UDF 以 device 地址零拷贝读写数据（见下文数据链路） |
+| 2 | 模型下沉 | `_dynamo_export` 按 `input_descs` 构造样例输入（负维度置 1 并标记动态）调 `torchair.dynamo_export` 导出 `export.air`，再以 `GraphProcessPoint(MINDSPORE)` 编译为 OM 下沉 NPU（见 [4.3.6 节](#436-模型执行)），脱离 Python 执行路径 |
+
+**数据链路：AICPU 调度模型中转的零拷贝执行**（level=1）。节点间数据队列上传递的始终是标准 mbuf（`[RuntimeTensorDesc 1024B][tensor 数据]`，见 3.4 节）；npu_model 节点由 **AICPU 调度模型**（`NpuSchedModelLoader`，`deployer/executor/npu_sched_model_loader.cc`）代理数据的进出，UDF 与数据队列不直连：
+
+```mermaid
+sequenceDiagram
+    participant UP as 上游节点(输出队列)
+    participant AI as AICPU 调度模型<br/>(entry/next 双流循环)
+    participant UDF as udf_executor<br/>(Python UDF)
+    participant D as 下游节点
+
+    UP->>AI: 标准 mbuf：[desc][tensor 数据]
+    Note over AI: entry stream：<br/>dequeue → PrepareDynamicInputOutput kernel<br/>提取数据描述（含 NPU 数据地址）
+    AI->>UDF: req_msg_queue：数据描述（地址指向 NPU 数据）
+    Note over UDF: _prepare_inputs：<br/>create_npu_tensors 按描述+地址重建 tensor
+    Note over UDF: 执行用户函数<br/>torch.npu.synchronize()
+    Note over UDF: _prepare_outputs：<br/>构造输出描述（dataAddr 指向输出 tensor）
+    UDF->>AI: resp_msg_queue：输出描述
+    Note over AI: next stream：<br/>dequeue resp → PostprocessDynamicOutput kernel<br/>按描述重建标准 mbuf
+    AI->>D: 标准 mbuf：[desc][tensor 数据]
+```
+
+AICPU 调度模型以 entry/next 双流循环运行（`CreateSchedTasks`）：entry 流从输入队列 dequeue 后由 `PrepareDynamicInputOutput` kernel 提取各输入的描述信息，并以数据在 device 的实际地址作为 dataAddr（无需搬移数据本体），打包 enqueue 到 req 消息队列；next 流从 resp 消息队列取出 UDF 回传的输出描述，由 `PostprocessDynamicOutput` kernel 重建标准 mbuf 后 enqueue 到输出队列。UDF 侧的输入/输出队列就是这两个 req/resp proxy 队列（`udf/execute/npu_sched_processor.cpp` 的 `LoadNpuSchedModel`）。
+
+- **输入**（`_prepare_inputs`）：从 req 消息解析 desc 数组，对每个 desc 调 `torchair.llm_datadist.create_npu_tensors` 按描述和地址直接重建 tensor，数据不拷贝
+- **输出**（`_prepare_outputs`）：synchronize 后将各输出的地址/shape/dtype 打包成一条描述消息（msg_type=1023）回传 resp 队列，不搬移数据本体
+- **结果缓存防释放**（关键正确性设计）：输出描述中的地址指向 UDF 持有的 tensor 的 device 内存，在 AICPU 重建 mbuf 并被下游消费前，生产者必须持有 tensor 引用防止该内存被 Python GC 回收——`_result`/`_outputs` 缓存上一轮输出，直到下一轮调用覆盖
+
+**feed/fetch 侧配合**：装饰器生效时向 `msg_type_register` 注册 `torch.Tensor ↔ 1023`。`feed` 时 CPU tensor 序列化为 `[RuntimeTensorDesc][数据本体]`（要求 CPU，非 CPU tensor 抛 TypeError；非连续 tensor 自动 `.contiguous()` 转换），此时 desc 中的地址记录的是 host 指针，仅作元信息使用——数据从 host 队列进入 device 队列时由底层自动拷贝到 device（见 4.4 节），AICPU 侧生成描述时以数据在 device 的实际地址为准；`fetch` 时以 `torch.frombuffer(offset=1024)` 重建 CPU tensor。注册表随 cloudpickle 进入 UDF 工作区，执行器侧同步识别该类型。
+
+**消息格式的两层约定**：节点间数据队列上统一传递 `[RuntimeTensorDesc][data]` 布局的标准 mbuf（feed 产出的完整布局）；desc-only（仅描述、不带数据本体）仅存在于 npu_sched 模式下 UDF 与 AICPU 调度模型之间的 req/resp 消息队列，由 AICPU 负责与标准 mbuf 的双向转换。C++ 消费侧均按该布局解析：非 proxy 动态执行剥掉 1024B 头取内联数据（`dynamic_model_executor.cc` 的 `PrepareInputs`），proxy 动态执行直接以 `desc.data_addr` 作为模型输入地址实现零拷贝（`proxy_dynamic_model_executor.cc` 的 `PrepareInputs`）。1023 仅是 Python 层的类型路由标记，C++ 侧不感知该枚举值。
+
+**`_npu_sched_model` 属性链路**：`add_process_point` 中 `flow_node.set_attr("_npu_sched_model", 1)` → 编译期 `process_point_loader.cc` 将其提升为图级属性并设 IO_PLACEMENT=device → 部署期 `udf_executor_client.cc` 检测到该属性后以 `--npu_sched=1` fork udf_executor 并启动 AICPU 调度，`FlowFuncExecutor` 经 `NpuSchedProcessor`（`udf/execute/npu_sched_processor.h`）加载 AICPU 调度模型并将 req/resp 消息队列注册为自己的输入/输出队列。因此 npu_model 是"Python UDF 仅 host"约束的例外（见 [4.6.1 节](#461-udf-执行位置如何决定)）。
+
+**约束**：输出必须为 npu tensor（`_check_torch_output` 强制校验）；不支持流式输入输出与 `choice_output`；多输出时必须返回 tuple 且个数与 num_returns 严格一致；依赖 torch/torch_npu/torchair。dtype 映射支持 float32/float16/bfloat16/int8~int64/uint8/bool/float64，torch≥2.3 追加 uint16/32/64。
+
+#### 4.5.3 pyflow 与 npu_model 实现对比
+
+**共同点**：同一基类体系（函数/类两种装饰对象、`fnode()` 构图、`FlowFuncRegister` 注册）；同一工程生成链路（cloudpickle + C++ wrapper + `func_*.json`，均 `heavy_load=True`）；同一调度执行机制（UdfModel → FlowFuncProcessor 状态机，见 [udf.md](udf.md)）。
+
+| 维度 | `@df.pyflow` | `@df.npu_model` |
+|------|--------------|-----------------|
+| 定位 | 通用 Python UDF | PyTorch 零拷贝下沉 |
+| 输入 | 反序列化为 Python 对象（numpy/注册类型/cloudpickle），数据拷贝 | AICPU 中转数据描述，按描述+device 地址重建 tensor，零拷贝 |
+| 输出 | 序列化数据本体写入 mbuf | 输出描述回传 AICPU，由 AICPU 重建标准 mbuf 给下游 |
+| 内存正确性 | 数据随消息传递，无悬挂风险 | 须缓存 tensor 引用防 GC（描述携带地址的代价） |
+| 执行模式 | host 侧 udf_executor，直连数据队列 | npu_sched 模式：UDF 只连 req/resp 消息队列，数据由 AICPU 调度模型代理；level=2 编译为 OM 完全下沉 |
+| 独有选项 | `stream_input`、`choice_output`、generator 流式输出 | `optimize_level`、`input_descs`（仅类） |
+| 消息格式 | 自定义类型（≥1024）或 cloudpickle（65535） | 节点间标准 mbuf（`[desc][data]`），UDF↔AICPU 间 desc-only（msg_type=1023） |
+| 流式支持 | 支持 | 不支持 |
+| 额外依赖 | 无 | torch / torch_npu / torchair |
+
+**选型指引**：任意 Python 逻辑（含 numpy CPU 计算、非 tensor 数据）用 `@df.pyflow`；PyTorch 计算且输入输出均为 npu tensor 用 `@df.npu_model`，数据不搬移，类形式可进一步用 level=2 将模型整体下沉。
 
 ### 4.6 UDF 执行位置与多实例部署
 
-#### 4.6.1 UDF 执行位置（host/device）如何决定
+#### 4.6.1 UDF 执行位置如何决定
 
 UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataFlowGraphAutoDeployer::SelectResourceType`（`runner/compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`）：
 
@@ -559,7 +672,7 @@ UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataF
 - **未指定部署设备**：heavy_load=false 时，若可运行类型含 Ascend 则选 Ascend（device），否则选第一个（host）；heavy_load=true 时报错（重载必须指定设备）
 - **已指定部署设备**：heavy_load=true 选非 Ascend（host）；heavy_load=false 选 Ascend（device）
 
-**为什么 Python UDF 只能 host？** 双重保证：CMake 模板（`pydflow/python/dataflow/tools/tpl/tpl_cmake.py`）在 `RESOURCE_TYPE == "Ascend"` 时直接 `FATAL_ERROR`，且 `FuncWsCreator`（`tools/func_ws_creator.py`）默认写 `heavy_load: True`。
+**为什么 Python UDF 只能 host？** 双重保证：CMake 模板（`pydflow/python/dataflow/tools/tpl/tpl_cmake.py`）在 `RESOURCE_TYPE == "Ascend"` 时直接 `FATAL_ERROR`，且 `FuncWsCreator`（`tools/func_ws_creator.py`）默认写 `heavy_load: True`。`@df.npu_model` 是该规则的例外——其生成的 UDF 带 `_npu_sched_model=1` 属性，部署时以 npu_sched 模式启动（AICPU 调度模型代理数据进出，数据本体不离开 device），见 [4.5.2 节](#452-dfnpu_model-pytorch-零拷贝下沉装饰器)。
 
 **为什么 C++ UDF 默认 device？** C++ UDF 的 `heavy_load` 默认 false（`compile_config_json.cc`），且当编译产出同时含 Ascend 和 host 类型时，`SelectResourceType` 选 Ascend。用户可在 FunctionPp 的编译配置 JSON 中将 `heavy_load` 设为 true 强制 host。
 
@@ -666,7 +779,7 @@ input_queue → npu_executor(dequeue→模型执行→enqueue)
 | 模块 | 核心文件 | 职责 |
 |------|----------|------|
 | flow_graph | `flow_graph.cc`, `process_point.cc` | C++ 构图核心 |
-| pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py` | Python 接口 |
+| pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py`, `wrapper/flow_func_wrapper.cpp` | Python 接口（含 pybind11 扩展、RuntimeTensorDesc 布局） |
 | session | `dflow_api.h`, `dflow_api.cc` | DFlowSession API 入口 |
 | compiler | `flow_model_builder.cc`, `process_node_engine_manager.cc` | 编译核心 |
 | compiler | `process_point_loader.cc`, `flow_model_cache.cc` | PP 加载、缓存 |

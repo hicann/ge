@@ -104,6 +104,8 @@ The most typical scenario: two models (such as an ONNX model and a PB model) con
 | C++ UDF (host compilation only) | Host only | Compilation output does not include Ascend |
 | heavy_load UDF | Host | Heavy-load UDF forced to host, but must bind to a specified NPU-associated host CPU |
 
+> **Exception**: Python UDFs decorated with `@df.npu_model` are not subject to the "host only" restriction -- the `_npu_sched_model=1` attribute they carry deploys udf_executor in npu_sched mode (the AICPU scheduling model proxies data in and out, data descriptions are relayed through req/resp message queues, and the data itself never leaves the device), see [Section 4.5.2](#452-dfnpu_model-pytorch-zero-copy-sinking-decorator).
+
 ```
 FlowData ──→ [GraphPp: ONNX model] ──→ [FuncPp: UDF0] ──→ [GraphPp: PB model] ──→ [FuncPp: UDF1] ──→ Output
                (device execution)      (host or device)     (device execution)      (host or device)
@@ -197,17 +199,17 @@ After graph construction, compile and run through `DFlowSession` (`runner/sessio
 
 ### 3.3 Python Interface
 
-The Python side provides three layers of wrapping (`pydflow/python/dataflow/`):
+The Python side provides three layers of wrapping (`pydflow/python/dataflow/`); for mechanism details refer to [Section 4.5](#45-python-interface-layer):
 
 | Layer | File | Description |
 |-------|------|-------------|
-| High-level API | `dataflow.py` | FlowGraph/FlowNode/FlowData/Tensor/feed/fetch |
-| Decorators | `pyflow.py` | `@df.pyflow` (function/class auto-convert to PP), `@df.method` (multi-method) |
-| PyTorch integration | `plugin/torch/torch_plugin.py` | `@df.npu_model` (NPU model zero-copy transfer) |
+| High-level API | `dataflow.py` | Graph construction and runtime interfaces such as FlowGraph/FlowNode/FlowData/Tensor/feed/fetch |
+| General UDF decorator | `pyflow.py` | `@df.pyflow` (function/class auto-convert to PP), `@df.method` (in-class method marker), see [Section 4.5.1](#451-dfpyflow-general-python-udf-decorator) |
+| PyTorch integration | `plugin/torch/torch_plugin.py` | `@df.npu_model` (PyTorch zero-copy sinking), see [Section 4.5.2](#452-dfnpu_model-pytorch-zero-copy-sinking-decorator) |
 
-The `@df.pyflow` decorator is the core convenience mechanism on the Python side: users define ordinary Python functions, and the decorator automatically generates the UDF project (C++ wrapper code + CMakeLists + compilation configuration JSON), serializes the user function object with cloudpickle, and compiles it into a loadable SO (`pydflow/python/dataflow/tools/func_ws_creator.py`). Users do not need to write any C++ code.
+Relationship between the two decorators: `@df.pyflow` lets users define UDF nodes as ordinary Python functions/classes; the framework automatically generates the UDF project (cloudpickle serialization + C++ wrapper + CMake compilation into SO), requiring no hand-written C++. `@df.npu_model` inherits the pyflow base classes and overrides the data in/out paths, targeting PyTorch computation scenarios where both inputs and outputs are NPU tensors; data descriptions are relayed through the AICPU scheduling model, and the data never leaves the device.
 
-PyTorch integration achieves zero-copy cross-process NPU tensor transfer through `RuntimeTensorDesc` (1024-byte fixed structure, containing NPU tensor address/shape/dtype); the receiver rebuilds tensors from addresses through `torchair.llm_datadist.create_npu_tensors` (`plugin/torch/torch_plugin.py`).
+In addition, `pydflow/wrapper/` provides pybind11 C++ extension modules: `dflow_wrapper` (graph construction classes such as FlowGraph/FlowNode plus FlowBufferFactory) and `data_wrapper` (DataType enums) support the user-side API, while `flowfunc_wrapper` (FlowMsg/MetaRunContext/RuntimeTensorDesc layout, etc., source directory `wrapper/flow_func_wrapper/`) supports UDF execution within the udf_executor process.
 
 ### 3.4 Data Types
 
@@ -219,7 +221,27 @@ DataFlow runtime data uses **FlowMsg** as the core carrier (`executor/flow_msg.c
 | `RawDataFlowMsg` | `[raw bytes]` | Arbitrary binary data |
 | `EmptyDataFlowMsg` | Empty | EOS (End Of Sequence) marker |
 
-FlowMsg is based on Ascend runtime **rtMbuf** for zero-copy implementation: producers fill mbuf data and pass it through queues to consumers; `rtMbufCopyBufRef` only increments the reference count, allowing multiple consumers to share the same data block without copying. The mbuf head area carries `MsgInfo` (trans_id, msg_type, ret_code, timestamps, flags, data_label, route_label, and so on), supporting transaction tracking and data routing.
+FlowMsg is based on Ascend runtime **rtMbuf** for zero-copy implementation: producers fill mbuf data and pass it through queues to consumers; `rtMbufCopyBufRef` only increments the reference count, allowing multiple consumers to share the same data block without copying.
+
+The mbuf memory layout (`udf/flow_func/mbuf_flow_msg.h`):
+
+```
++---------------------------------------------+
+| mbuf head (256B by default)                 |
+|   +-- last 64B: MbufHeadMsg control info    |
+|       trans_id / version / msg_type /       |
+|       ret_code / start_time / end_time /    |
+|       flags / data_flag / step_id /         |
+|       data_label / route_label              |
++---------------------------------------------+
+| mbuf data area                              |
+|   Tensor messages: [RuntimeTensorDesc 1024B]|
+|                    [actual tensor data]     |
+|   Other messages: raw data                  |
++---------------------------------------------+
+```
+
+`MbufHeadMsg` carries all control information needed for transaction tracking and data routing; `RuntimeTensorDesc` (1024-byte fixed layout: dataAddr/dtype/shape[33] (shape[0] stores the dim count, followed by DIM0~DIM31)/format/data_size, etc.) describes the tensor metadata in the data area.
 
 `DataFlowInfo` carries metadata for each data interaction: start_time/end_time/flow_flags (EOS/SEG)/transaction_id/user_data (up to 64 bytes of custom data).
 
@@ -540,11 +562,102 @@ After enabling, the aligner aligns multi-path outputs by `(trans_id, data_label)
 - `feed_data`/`fetch_data`: Tensor-specific zero-copy high-performance path, directly using `ge::Tensor`
 - `feed`/`fetch`: Supports any serializable object, through FlowMsg + cloudpickle serialization; has serialization overhead but higher flexibility
 
-For UDF Python development, refer to [udf.md](udf.md).
+The two core decorators on the Python side, `@df.pyflow` and `@df.npu_model`, share the same base classes and project generation chain; the former is the general UDF decorator, and the latter is the zero-copy sinking decorator for PyTorch. For the scheduling and execution mechanisms of the UDF framework itself, refer to [udf.md](udf.md).
+
+#### 4.5.1 `@df.pyflow` General Python UDF Decorator
+
+**Two decoration targets** (`_make_pyflow` in `pyflow.py`):
+
+| Decoration Target | Product | Graph Construction |
+|------------------|---------|-------------------|
+| Function | `PyFunctionProcessPoint` | `function.fnode()` creates the node; the input count is derived from the function signature, and the output count is determined by the return type annotation or the `num_returns` option |
+| Class | `PyActorProcessPoint` | `Class.fnode()`; `_df_from_class` dynamically derives a subclass, methods marked with `@df.method()` are collected at `fnode()` time, and node method invocation is edge connection (e.g., `node.forward(x)`) |
+
+When decorating a class, `fnode()` scans methods marked with `__df_method__` and generates two wrappers for each method: `ActorFlowNodeMethod` handles graph construction (maintaining the index offset of each method within the node's inputs/outputs), while the callable object returned by `get_redefined_method` handles invoking the user method in the UDF process at execution time. Class constructor arguments are saved at `fnode(*args)` and re-executed via `_super_init` during UDF process initialization.
+
+**Supported options**: `num_returns`, `resources` (memory/num_cpus/num_npus), `env_hook_func` (environment hook before initialization), `visible_device_enable`, `stream_input` (streaming input, currently only supports "Queue"), `choice_output` (output filter callback; outputs for which it returns False are set to empty and skipped). The latter two are exclusive to pyflow.
+
+**Project generation chain** (`FuncProcessPoint` -> `tools/func_ws_creator.py`):
+
+1. cloudpickle serializes the function/class object to `<name>.pkl`; the global message type registry is serialized to `_msg_type_register.pkl` (restored at UDF process startup, ensuring the executor recognizes custom message types); `env_hook_func` is optionally serialized
+2. Generates the C++ wrapper embedding CPython (`tpl/tpl_wrapper_code.py`: after `Py_Initialize`, imports the pickle file with pybind11 to restore the function object)
+3. Generates CMakeLists and the compilation configuration `func_*.json`, which always writes `heavy_load: True` -- this is one of the root causes of Python UDFs only executing on host (see [Section 4.6.1](#461-how-udf-execution-location-is-determined))
+
+**Runtime data path** (symmetric serialization/deserialization):
+
+- Input: `convert_flow_msg_to_object` deserializes FlowMsg into Python objects (Tensor -> numpy view / registered custom type -> corresponding deserialize function / the rest -> cloudpickle)
+- Output: `_convert_object_to_flow_msg` serializes return values (df.Tensor -> zero-copy FlowMsg conversion / None -> empty message / the rest -> serialized data written into mbuf)
+
+Generator functions output per yield (streaming output). Users can register custom types and serialization functions through `df.utils.msg_type_register` (msg_type starts from 1024); unregistered types default to cloudpickle (msg_type=65535).
+
+#### 4.5.2 `@df.npu_model` PyTorch Zero-copy Sinking Decorator
+
+**Problem solved**: when a host-side Python UDF executes PyTorch code, inputs must be copied from device to host and results copied back to device; the two transfers negate the pipeline's benefits. `@df.npu_model` (`plugin/torch/torch_plugin.py`) executes by relaying data descriptions through the AICPU scheduling model: the Python code still runs on the CPU, but the data never leaves the device.
+
+**Relationship with pyflow**: `NpuFunctionProcessPoint`/`NpuActorProcessPoint` directly inherit the corresponding pyflow base classes, reusing all mechanisms such as `fnode()`, project generation, and registration, and only override data in/out (`prepare_inputs`/`prepare_outputs`) and PP addition (`add_process_point`).
+
+**Two optimize_level levels** (only supported for class decoration; function decoration is equivalent to level=1):
+
+| optimize_level | Path | Mechanism |
+|----------------|------|-----------|
+| 1 (default) | Data sinking | Goes through FuncProcessPoint (Python UDF); the node carries the `_npu_sched_model=1` attribute, the AICPU scheduling model relays data descriptions, and the UDF reads/writes data zero-copy using device addresses (see the data link below) |
+| 2 | Model sinking | `_dynamo_export` constructs sample inputs from `input_descs` (negative dims set to 1 and marked dynamic) and calls `torchair.dynamo_export` to export `export.air`, then compiles it with `GraphProcessPoint(MINDSPORE)` into an OM sinking to NPU (see [Section 4.3.6](#436-model-execution)), leaving the Python execution path |
+
+**Data link: AICPU-scheduling-model-relayed zero-copy execution** (level=1). What flows on inter-node data queues is always the standard mbuf (`[RuntimeTensorDesc 1024B][tensor data]`, see Section 3.4); the npu_model node's data in/out is proxied by the **AICPU scheduling model** (`NpuSchedModelLoader`, `deployer/executor/npu_sched_model_loader.cc`), and the UDF is not directly connected to the data queues:
+
+```mermaid
+sequenceDiagram
+    participant UP as Upstream node (output queue)
+    participant AI as AICPU scheduling model<br/>(entry/next dual-stream loop)
+    participant UDF as udf_executor<br/>(Python UDF)
+    participant D as Downstream node
+
+    UP->>AI: Standard mbuf: [desc][tensor data]
+    Note over AI: entry stream:<br/>dequeue -> PrepareDynamicInputOutput kernel<br/>extract data descriptions (with NPU data addresses)
+    AI->>UDF: req_msg_queue: data descriptions (addresses point to NPU data)
+    Note over UDF: _prepare_inputs:<br/>create_npu_tensors rebuilds tensors from description + address
+    Note over UDF: Execute user function<br/>torch.npu.synchronize()
+    Note over UDF: _prepare_outputs:<br/>construct output descriptions (dataAddr points to output tensors)
+    UDF->>AI: resp_msg_queue: output descriptions
+    Note over AI: next stream:<br/>dequeue resp -> PostprocessDynamicOutput kernel<br/>rebuild standard mbuf from descriptions
+    AI->>D: Standard mbuf: [desc][tensor data]
+```
+
+The AICPU scheduling model runs in an entry/next dual-stream loop (`CreateSchedTasks`): the entry stream dequeues from the input queue, then the `PrepareDynamicInputOutput` kernel extracts the description of each input and uses the data's actual address on the device as dataAddr (no need to move the data itself), packaging and enqueuing it to the req message queue; the next stream takes the output descriptions returned by the UDF from the resp message queue, and the `PostprocessDynamicOutput` kernel rebuilds the standard mbuf and enqueues it to the output queue. The UDF-side input/output queues are exactly these two req/resp proxy queues (`LoadNpuSchedModel` in `udf/execute/npu_sched_processor.cpp`).
+
+- **Input** (`_prepare_inputs`): parses the desc array from the req message, and for each desc calls `torchair.llm_datadist.create_npu_tensors` to rebuild the tensor directly from the description and address, without copying data
+- **Output** (`_prepare_outputs`): after synchronize, packages each output's address/shape/dtype into one description message (msg_type=1023) returned to the resp queue, without moving the data itself
+- **Result caching against release** (key correctness design): the address in the output description points to the device memory of the tensor held by the UDF; before the AICPU rebuilds the mbuf and it is consumed downstream, the producer must hold a tensor reference to prevent that memory from being reclaimed by Python GC -- `_result`/`_outputs` cache the previous round of outputs until overwritten by the next invocation
+
+**feed/fetch side cooperation**: when the decorator takes effect, it registers `torch.Tensor <-> 1023` with `msg_type_register`. At `feed` time, a CPU tensor is serialized into `[RuntimeTensorDesc][data itself]` (CPU required, non-CPU tensors raise TypeError; non-contiguous tensors are automatically converted via `.contiguous()`); the address recorded in the desc at this point is a host pointer, used only as metadata -- when data enters the device queue from a host queue, the underlying layer automatically copies it to the device (see Section 4.4), and the AICPU-side generated description uses the data's actual address on the device; at `fetch` time, a CPU tensor is rebuilt with `torch.frombuffer(offset=1024)`. The registry enters the UDF workspace with cloudpickle, and the executor side recognizes the type accordingly.
+
+**Two-layer message format convention**: standard mbufs in the `[RuntimeTensorDesc][data]` layout flow uniformly on inter-node data queues (the full layout produced by feed); desc-only (descriptions only, without the data itself) exists only on the req/resp message queues between the UDF and the AICPU scheduling model in npu_sched mode, and the AICPU is responsible for the bidirectional conversion with standard mbufs. C++ consumers all parse according to this layout: non-proxy dynamic execution strips the 1024B header to take inline data (`PrepareInputs` in `dynamic_model_executor.cc`), and proxy dynamic execution directly uses `desc.data_addr` as the model input address for zero-copy (`PrepareInputs` in `proxy_dynamic_model_executor.cc`). 1023 is only a Python-layer type routing marker, not recognized as an enum value on the C++ side.
+
+**`_npu_sched_model` attribute chain**: in `add_process_point`, `flow_node.set_attr("_npu_sched_model", 1)` -> at compilation time `process_point_loader.cc` promotes it to a graph-level attribute and sets IO_PLACEMENT=device -> at deployment time `udf_executor_client.cc` detects the attribute, forks udf_executor with `--npu_sched=1` and starts AICPU scheduling; `FlowFuncExecutor` loads the AICPU scheduling model through `NpuSchedProcessor` (`udf/execute/npu_sched_processor.h`) and registers the req/resp message queues as its own input/output queues. Therefore npu_model is the exception to the "Python UDF host only" constraint (see [Section 4.6.1](#461-how-udf-execution-location-is-determined)).
+
+**Constraints**: outputs must be npu tensors (enforced by `_check_torch_output`); streaming input/output and `choice_output` are not supported; for multiple outputs, a tuple must be returned with the count strictly matching num_returns; depends on torch/torch_npu/torchair. dtype mapping supports float32/float16/bfloat16/int8~int64/uint8/bool/float64, with uint16/32/64 added for torch>=2.3.
+
+#### 4.5.3 pyflow vs npu_model Implementation Comparison
+
+**Common points**: the same base class system (function/class decoration targets, `fnode()` graph construction, `FlowFuncRegister` registration); the same project generation chain (cloudpickle + C++ wrapper + `func_*.json`, all with `heavy_load=True`); the same scheduling and execution mechanism (UdfModel -> FlowFuncProcessor state machine, see [udf.md](udf.md)).
+
+| Dimension | `@df.pyflow` | `@df.npu_model` |
+|-----------|--------------|-----------------|
+| Positioning | General Python UDF | PyTorch zero-copy sinking |
+| Input | Deserialized into Python objects (numpy/registered types/cloudpickle), data copied | AICPU relays data descriptions, tensors rebuilt from description + device address, zero-copy |
+| Output | Serialized data itself written into mbuf | Output descriptions returned to the AICPU, which rebuilds standard mbufs for downstream |
+| Memory correctness | Data travels with the message, no dangling risk | Must cache tensor references against GC (the cost of addresses carried in descriptions) |
+| Execution mode | Host-side udf_executor, directly connected to data queues | npu_sched mode: the UDF only connects to req/resp message queues, data proxied by the AICPU scheduling model; level=2 compiles into OM for full sinking |
+| Exclusive options | `stream_input`, `choice_output`, generator streaming output | `optimize_level`, `input_descs` (class only) |
+| Message format | Custom types (>=1024) or cloudpickle (65535) | Inter-node standard mbuf (`[desc][data]`), desc-only between UDF and AICPU (msg_type=1023) |
+| Streaming support | Supported | Not supported |
+| Extra dependencies | None | torch / torch_npu / torchair |
+
+**Selection guidance**: use `@df.pyflow` for arbitrary Python logic (including numpy CPU computation, non-tensor data); use `@df.npu_model` for PyTorch computation where both inputs and outputs are npu tensors, with no data movement; the class form can further use level=2 to sink the model entirely.
 
 ### 4.6 UDF Execution Location and Multi-instance Deployment
 
-#### 4.6.1 How UDF Execution Location (host/device) Is Determined
+#### 4.6.1 How UDF Execution Location Is Determined
 
 The final UDF execution location is determined by the compilation-time attribute chain; the core logic is in `DataFlowGraphAutoDeployer::SelectResourceType` (`runner/compiler/data_flow_graph/data_flow_graph_auto_deployer.cc`):
 
@@ -559,7 +672,7 @@ The final UDF execution location is determined by the compilation-time attribute
 - **Deployment device not specified**: When heavy_load=false, if runnable types include Ascend, select Ascend (device); otherwise select the first one (host). When heavy_load=true, report error (heavy-load must specify device)
 - **Deployment device specified**: When heavy_load=true, select non-Ascend (host); when heavy_load=false, select Ascend (device)
 
-**Why can Python UDF only run on host?** Double guarantee: the CMake template (`pydflow/python/dataflow/tools/tpl/tpl_cmake.py`) directly issues `FATAL_ERROR` when `RESOURCE_TYPE == "Ascend"`, and `FuncWsCreator` (`tools/func_ws_creator.py`) writes `heavy_load: True` by default.
+**Why can Python UDF only run on host?** Double guarantee: the CMake template (`pydflow/python/dataflow/tools/tpl/tpl_cmake.py`) directly issues `FATAL_ERROR` when `RESOURCE_TYPE == "Ascend"`, and `FuncWsCreator` (`tools/func_ws_creator.py`) writes `heavy_load: True` by default. `@df.npu_model` is the exception to this rule -- the UDF it generates carries the `_npu_sched_model=1` attribute and starts in npu_sched mode at deployment (the AICPU scheduling model proxies data in and out, and the data itself never leaves the device), see [Section 4.5.2](#452-dfnpu_model-pytorch-zero-copy-sinking-decorator).
 
 **Why does C++ UDF default to device?** C++ UDF `heavy_load` defaults to false (`compile_config_json.cc`), and when compilation output includes both Ascend and host types, `SelectResourceType` selects Ascend. Users can set `heavy_load` to true in the FunctionPp compilation configuration JSON to force host.
 
@@ -666,7 +779,7 @@ Throughout the entire flow, the compilation, deployment, and execution phases ar
 | Module | Core Files | Responsibility |
 |--------|-----------|----------------|
 | flow_graph | `flow_graph.cc`, `process_point.cc` | C++ graph construction core |
-| pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py` | Python interface |
+| pydflow | `dataflow.py`, `pyflow.py`, `torch_plugin.py`, `wrapper/flow_func_wrapper.cpp` | Python interface (including pybind11 extensions and RuntimeTensorDesc layout) |
 | session | `dflow_api.h`, `dflow_api.cc` | DFlowSession API entry |
 | compiler | `flow_model_builder.cc`, `process_node_engine_manager.cc` | Compilation core |
 | compiler | `process_point_loader.cc`, `flow_model_cache.cc` | PP loading, caching |
