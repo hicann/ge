@@ -27,6 +27,7 @@
 #define private public
 #include "common/model/ge_root_model.h"
 #include "common/helper/custom_op_so_loader.h"
+#include "common/op_so_store/op_so_store_utils.h"
 #undef private
 #include "framework/common/helper/model_helper.h"
 #include "hybrid/node_executor/aicore/aicore_op_task.h"
@@ -2793,6 +2794,54 @@ TEST_F(UtestModelHelper, SaveAutofuseSoBinWithExtAttrPopulatesOpSoStore) {
   EXPECT_EQ(so_bins[0U]->GetSoName(), "libautofuse_repack_ut.so");
   EXPECT_EQ(so_bins[0U]->GetVendorName(), "autofuse_vendor_ut");
   EXPECT_EQ(so_bins[0U]->GetSoBinType(), SoBinType::kAutofuse);
+}
+
+TEST_F(UtestModelHelper, SaveCustomOpSoBinWithExtAttrStoresOnlyCustomOpSo) {
+  auto root_graph = std::make_shared<ComputeGraph>("root_graph_custom_so_ext");
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  ASSERT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, ge_root_model->so_in_om_);
+
+  const auto custom_so =
+      BuildOpSoBinForModelHelperUt("libcustom_repack_ut.so", "custom_vendor_ut", {0x10U, 0x20U}, SoBinType::kCustomOp);
+  const auto autofuse_so = BuildOpSoBinForModelHelperUt("libautofuse_repack_ut.so", "autofuse_vendor_ut",
+                                                        {0x30U, 0x40U}, SoBinType::kAutofuse);
+  ASSERT_NE(custom_so, nullptr);
+  ASSERT_NE(autofuse_so, nullptr);
+  std::map<std::string, OpSoBinPtr> so_buffer;
+  so_buffer.emplace("custom_vendor_ut/libcustom_repack_ut.so", custom_so);
+  so_buffer.emplace("autofuse_vendor_ut/libautofuse_repack_ut.so", autofuse_so);
+  ASSERT_TRUE(root_graph->SetExtAttr("bin_file_buffer", so_buffer));
+
+  ModelHelper model_helper;
+  ASSERT_EQ(model_helper.SaveCustomOpSoBin(ge_root_model), SUCCESS);
+  const auto so_bins = model_helper.op_so_store_.GetSoBin();
+  ASSERT_EQ(so_bins.size(), 1U);
+  EXPECT_EQ(so_bins[0U]->GetSoName(), "libcustom_repack_ut.so");
+  EXPECT_EQ(so_bins[0U]->GetSoBinType(), SoBinType::kCustomOp);
+}
+
+TEST_F(UtestModelHelper, EmbeddedHostCpuFusionSoSkipsPortableSoPathCollect) {
+  RegisterCustomOpCreatorForModelHelperUt(kPortableOpTypeForModelHelper, []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<ModelHelperPortableOpForUt>();
+  });
+  const auto ge_root_model =
+      CreateGeRootModelForModelHelperUt(kPortableOpTypeForModelHelper, kPortableOpTypeForModelHelper);
+  ASSERT_NE(ge_root_model, nullptr);
+  ScopedHostEnvForModelHelperUt host_env_guard("linux", GetCurArch());
+  ScopedEnvVarForModelHelperUt custom_opp_guard(kEnvNameCustom);
+  ASSERT_EQ(mmSetEnv(kEnvNameCustom, "", 1), EN_OK);
+
+  const auto embedded_so = BuildOpSoBinForModelHelperUt("libModelHelperPortableOpForUt.so", "host_cpu_fusion",
+                                                        {0x7FU, 0x45U, 0x4CU, 0x46U}, SoBinType::kCustomOp);
+  ASSERT_NE(embedded_so, nullptr);
+  std::map<std::string, OpSoBinPtr> so_buffer;
+  so_buffer.emplace("host_cpu_fusion/libModelHelperPortableOpForUt.so", embedded_so);
+  ASSERT_TRUE(ge_root_model->GetRootGraph()->SetExtAttr("bin_file_buffer", so_buffer));
+
+  ASSERT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
+  EXPECT_TRUE(ge_root_model->GetCustomOpSoSet().empty());
+  EXPECT_TRUE(OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kCustomOp));
 }
 
 // 边界用例：ExtAttr("bin_file_buffer")存在但map为空时不应异常，

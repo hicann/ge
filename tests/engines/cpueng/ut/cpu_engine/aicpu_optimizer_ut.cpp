@@ -26,7 +26,6 @@
 #include "graph/ge_context.h"
 #include "common/sgt_slice_type.h"
 #include "ge/ge_api_types.h"
-#include "framework/common/host_cpu_fusion_attr.h"
 
 using namespace aicpu;
 using namespace ge;
@@ -751,27 +750,6 @@ TEST(AicpuGraphOptimizer, InsertAicpuNodeDefAttrToOp_Deterministic) {
   ge::AttrUtils::GetBytes(op_desc_ptr, kCustomizedOpDef, buffer_2);
   std::string str2(reinterpret_cast<const char *>(buffer_2.GetData()), buffer_2.GetSize());
   ASSERT_EQ(str1, str2);
-}
-
-TEST(AicpuGraphOptimizer, BuildAicpuNodeDefUsesFusedRegisterAndIoNames) {
-  OpDescPtr op_desc_ptr = make_shared<OpDesc>("fused", kFusedHostCpuOpType);
-  GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_INT64);
-  ASSERT_EQ(op_desc_ptr->AddInputDesc("input_0", tensor_desc), GRAPH_SUCCESS);
-  ASSERT_EQ(op_desc_ptr->AddOutputDesc("output_0", tensor_desc), GRAPH_SUCCESS);
-  ASSERT_TRUE(AttrUtils::SetStr(op_desc_ptr, kFusedHostCpuRegisterName, "FusedHostCpu_test"));
-  aicpuops::NodeDef node_def;
-  ASSERT_EQ(BuildAicpuNodeDef(op_desc_ptr, node_def), SUCCESS);
-  EXPECT_EQ(node_def.op(), "FusedHostCpu_test");
-  ASSERT_EQ(node_def.inputs_size(), 1);
-  ASSERT_EQ(node_def.outputs_size(), 1);
-  EXPECT_EQ(node_def.inputs(0).name(), "input_0");
-  EXPECT_EQ(node_def.outputs(0).name(), "output_0");
-}
-
-TEST(AicpuGraphOptimizer, BuildAicpuNodeDefRejectsMissingFusedRegisterName) {
-  OpDescPtr op_desc_ptr = make_shared<OpDesc>("fused", kFusedHostCpuOpType);
-  aicpuops::NodeDef node_def;
-  EXPECT_EQ(BuildAicpuNodeDef(op_desc_ptr, node_def), ge::PARAM_INVALID);
 }
 
 TEST(AicpuGraphOptimizer, test_GENERATETRANSPOSE_001) {

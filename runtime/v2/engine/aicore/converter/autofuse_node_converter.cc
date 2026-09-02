@@ -97,6 +97,12 @@ ge::Status CreateSoPathHolder(const ge::NodePtr &node, bg::ValueHolderPtr &so_pa
   }
   auto buffer = bin_file_buffer->find(so_path);
   if (buffer == bin_file_buffer->end()) {
+    // bin_file_buffer 可能还包含 HostCPU fusion 的 kCustomOp SO
+    if (mmAccess(so_path.c_str()) == EN_OK) {
+      GELOGD("Autofuse SO is not embedded, use file path: %s.", so_path.c_str());
+      return ge::SUCCESS;
+    }
+
     GELOGE(ge::FAILED, "Not exist autofuse so in bin_file_buffer, key:%s.", so_path.c_str());
     return ge::FAILED;
   }

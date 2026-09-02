@@ -32,6 +32,8 @@
 #include "external/ge_common/ge_common_api_types.h"
 #include "external/graph/custom_op.h"
 #include "graph/custom_op/cast.h"
+#include "framework/common/host_cpu_fusion_attr.h"
+#include "graph/op_so_bin.h"
 #include "common/om2/om2_model_data.h"
 
 namespace ge {
@@ -170,6 +172,37 @@ Status CollectCustomOpTypesFromGraph(const ComputeGraphPtr &graph, const CustomO
     }
   }
   return SUCCESS;
+}
+
+bool IsEmbeddedHostCpuFusionSo(const ComputeGraphPtr &root_graph, const std::string &op_type) {
+  if (root_graph == nullptr) {
+    return false;
+  }
+  const auto so_buffer = root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
+  if (so_buffer == nullptr) {
+    return false;
+  }
+  const std::string so_key = std::string(kFusedHostCpuSoVendor) + "/lib" + op_type + ".so";
+  const auto so_it = so_buffer->find(so_key);
+  return (so_it != so_buffer->cend()) && (so_it->second != nullptr) &&
+         (so_it->second->GetSoBinType() == SoBinType::kCustomOp);
+}
+
+size_t GetEmbeddedCustomOpSoNum(const ComputeGraphPtr &root_graph) {
+  if (root_graph == nullptr) {
+    return 0U;
+  }
+  const auto so_buffer = root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
+  if (so_buffer == nullptr) {
+    return 0U;
+  }
+  size_t embedded_custom_so_num = 0U;
+  for (const auto &entry : *so_buffer) {
+    if ((entry.second != nullptr) && (entry.second->GetSoBinType() == SoBinType::kCustomOp)) {
+      ++embedded_custom_so_num;
+    }
+  }
+  return embedded_custom_so_num;
 }
 }  // namespace
 Status GeRootModel::Initialize(const ComputeGraphPtr &root_graph) {
@@ -379,14 +412,7 @@ Status GeRootModel::ResolvePortableOpSoPath(const std::string &op_type, Portable
   return SUCCESS;
 }
 
-Status GeRootModel::CheckAndSetCustomOpSo() {
-  GE_ASSERT_NOTNULL(root_graph_);
-  GE_ASSERT_NOTNULL(custom_op_registry_);
-  std::string target_os;
-  std::string target_cpu;
-  GE_ASSERT_SUCCESS(GetTargetHostEnv(target_os, target_cpu), "Get target host env failed.");
-  const bool is_cross_compile = IsCrossCompileTarget(target_os, target_cpu);
-  std::set<std::string> used_custom_op_types;
+Status GeRootModel::CollectCustomOpTypesForRootModel(std::set<std::string> &used_custom_op_types) const {
   GE_ASSERT_SUCCESS(CollectCustomOpTypesFromGraph(root_graph_, custom_op_registry_, used_custom_op_types));
   for (const auto &item : subgraph_instance_name_to_model_) {
     const auto &ge_model = item.second;
@@ -395,8 +421,11 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
     }
     GE_ASSERT_SUCCESS(CollectCustomOpTypesFromGraph(ge_model->GetGraph(), custom_op_registry_, used_custom_op_types));
   }
+  return SUCCESS;
+}
 
-  bool has_portable_custom_op = false;
+Status GeRootModel::CollectPortableCustomOpSo(const std::set<std::string> &used_custom_op_types,
+                                              const bool is_cross_compile, bool &has_portable_custom_op) {
   for (const auto &op_type : used_custom_op_types) {
     auto *portable_op = CustomOpCast<PortableOp>(
         custom_op_registry_->GetCustomOpCommonCapability(AscendString(op_type.c_str()), CustomOpCapability::kPortable));
@@ -409,6 +438,11 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
       continue;
     }
 
+    if (IsEmbeddedHostCpuFusionSo(root_graph_, op_type)) {
+      GELOGI("[CustomOp] op[%s] uses embedded HostCPU fusion SO, skip path collect.", op_type.c_str());
+      continue;
+    }
+
     std::string so_path;
     GE_ASSERT_SUCCESS(ResolvePortableOpSoPath(op_type, portable_op, so_path),
                       "Resolve custom op so path failed for op[%s].", op_type.c_str());
@@ -416,7 +450,27 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
     (void)custom_op_so_set_.insert(so_path);
     GELOGI("[CustomOp] Collect custom op so[%s] for op[%s].", so_path.c_str(), op_type.c_str());
   }
+  return SUCCESS;
+}
 
+Status GeRootModel::CheckAndSetCustomOpSo() {
+  GE_ASSERT_NOTNULL(root_graph_);
+  GE_ASSERT_NOTNULL(custom_op_registry_);
+  std::string target_os;
+  std::string target_cpu;
+  GE_ASSERT_SUCCESS(GetTargetHostEnv(target_os, target_cpu), "Get target host env failed.");
+  const bool is_cross_compile = IsCrossCompileTarget(target_os, target_cpu);
+  std::set<std::string> used_custom_op_types;
+  const auto collect_custom_op_status = CollectCustomOpTypesForRootModel(used_custom_op_types);
+  if (collect_custom_op_status != SUCCESS) {
+    return collect_custom_op_status;
+  }
+  bool has_portable_custom_op = false;
+  const auto collect_portable_op_status =
+      CollectPortableCustomOpSo(used_custom_op_types, is_cross_compile, has_portable_custom_op);
+  if (collect_portable_op_status != SUCCESS) {
+    return collect_portable_op_status;
+  }
   if (is_cross_compile && has_portable_custom_op) {
     GE_ASSERT_SUCCESS(CollectCustomOpSoFromCustomOppPath(target_os, target_cpu),
                       "Collect custom op so from ASCEND_CUSTOM_OPP_PATH failed.");
@@ -425,7 +479,12 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
   if (!custom_op_so_set_.empty()) {
     OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, so_in_om_);
   }
-  GELOGI("[CustomOp]The num of so is %zu.", custom_op_so_set_.size());
+  const size_t embedded_custom_so_num = GetEmbeddedCustomOpSoNum(root_graph_);
+  if (embedded_custom_so_num > 0U) {
+    OpSoStoreUtils::SetSoBinType(SoBinType::kCustomOp, so_in_om_);
+  }
+  GELOGI("[CustomOp]The num of path-based so is %zu, embedded so is %zu.", custom_op_so_set_.size(),
+         embedded_custom_so_num);
   return SUCCESS;
 }
 
