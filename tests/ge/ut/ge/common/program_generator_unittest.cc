@@ -6175,6 +6175,11 @@ TEST_F(ProgramGeneratorUt, GenerateAicoreLaunchUsesUnifiedCallbackInfo) {
   EXPECT_NE(dispatch.find("GertModelLaunchKernelV2Params"), std::string::npos);
   EXPECT_NE(dispatch.find("GertModelTaskLaunchParams"), std::string::npos);
   EXPECT_NE(dispatch.find("GertModelTaskLaunchInfo"), std::string::npos);
+  EXPECT_NE(dispatch.find("GertModelLaunchKernelV2Params kernel_params = {};"), std::string::npos);
+  EXPECT_NE(dispatch.find("kernel_params.func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx];"),
+            std::string::npos);
+  EXPECT_NE(dispatch.find("launch_params.launch_kernel_v2_params = kernel_params;"), std::string::npos);
+  EXPECT_NE(dispatch.find("launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;"), std::string::npos);
   const auto launch_call_pos = dispatch.find(
       "KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs)");
   const auto helper_begin = load_run.find("aclError KernelTaskDistribute");
@@ -6635,7 +6640,13 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDsa_Ok) {
   EXPECT_NE(load_run.find("KernelDsaTaskDistribute: Start to execute rtGeneralCtrl directly."), std::string::npos);
   EXPECT_NE(load_run.find("launch_info->launch_params->launch_stars_task_params.task_sqe"), std::string::npos);
   EXPECT_NE(load_run.find("GertModelLaunchStarsTaskWithFlagParams"), std::string::npos);
-  EXPECT_NE(load_run.find(".stream = ctx.stream_list[op->dispatch_info.dsa.stream_id]"), std::string::npos);
+  EXPECT_NE(load_run.find("GertModelLaunchStarsTaskWithFlagParams launch_stars_task_params = {};"), std::string::npos);
+  EXPECT_NE(load_run.find("launch_stars_task_params.task_sqe = reinterpret_cast<const void *>(&sqe);"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("launch_params.launch_stars_task_params = launch_stars_task_params;"), std::string::npos);
+  EXPECT_NE(load_run.find("launch_info.launch_type = RT_STARS_TASK_LAUNCH_WITH_FLAG;"), std::string::npos);
+  EXPECT_NE(load_run.find("launch_stars_task_params.stream = ctx.stream_list[op->dispatch_info.dsa.stream_id];"),
+            std::string::npos);
   EXPECT_EQ(load_run.find(".stream = task_info.stream"), std::string::npos);
   EXPECT_EQ(load_run.find("OM2_CHK_NOTNULL(launch_info->launch_params)"), std::string::npos);
   EXPECT_EQ(load_run.find("launch_info->launch_type != RT_STARS_TASK_LAUNCH_WITH_FLAG"), std::string::npos);
@@ -7341,6 +7352,19 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
   EXPECT_EQ(load_and_run.find("OM2_CHK_NOTNULL(launch_info->launch_params)"), std::string::npos);
   EXPECT_EQ(load_and_run.find("launch_info->launch_type != ACL_RT_LAUNCH_KERNEL_V2"), std::string::npos);
   EXPECT_EQ(load_and_run.find("GetIsDataDump("), std::string::npos);
+  const auto aicpu_dispatch_begin = load_and_run.find("aclError DispatchKernelAicpu");
+  ASSERT_NE(aicpu_dispatch_begin, std::string::npos);
+  const auto aicpu_dispatch_end = load_and_run.find("aclError DispatchKernel(", aicpu_dispatch_begin);
+  ASSERT_NE(aicpu_dispatch_end, std::string::npos);
+  const auto aicpu_dispatch = load_and_run.substr(aicpu_dispatch_begin, aicpu_dispatch_end - aicpu_dispatch_begin);
+  EXPECT_NE(aicpu_dispatch.find("GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};"),
+            std::string::npos);
+  EXPECT_NE(aicpu_dispatch.find(
+                "aicpu_launch_kernel_v2_params.func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx];"),
+            std::string::npos);
+  EXPECT_NE(aicpu_dispatch.find("aicpu_launch_params.launch_kernel_v2_params = aicpu_launch_kernel_v2_params;"),
+            std::string::npos);
+  EXPECT_NE(aicpu_dispatch.find("aicpu_launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
@@ -7382,6 +7406,10 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
   ASSERT_NE(helper_pos, std::string::npos);
   ASSERT_NE(helper_end, std::string::npos);
   const auto helper = load_run_code.substr(helper_pos, helper_end - helper_pos);
+  EXPECT_NE(helper.find("GertModelLaunchKernelV2Params launch_kernel_v2_params = {};"), std::string::npos);
+  EXPECT_NE(helper.find("launch_kernel_v2_params.func_handle = func_handle;"), std::string::npos);
+  EXPECT_NE(helper.find("launch_params.launch_kernel_v2_params = launch_kernel_v2_params;"), std::string::npos);
+  EXPECT_NE(helper.find("launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;"), std::string::npos);
   const auto helper_launch_pos = helper.find("aclrtLaunchKernelV2(func_handle, block_dim, kernel_buf");
   const auto helper_args_copy_pos = helper.find("memcpy_s(args_info->host_addr");
   ASSERT_NE(helper_launch_pos, std::string::npos);

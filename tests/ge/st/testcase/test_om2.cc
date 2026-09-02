@@ -72,9 +72,14 @@ namespace ge {
 namespace {
 
 int32_t g_om2_callback_probe_count = 0;
+bool g_om2_callback_launch_info_valid = false;
 int32_t Om2CallbackProbe(void *, GertModelTaskLaunchInfo *info) {
   ++g_om2_callback_probe_count;
-  return (info == nullptr) ? PARAM_INVALID : SUCCESS;
+  if (info == nullptr) {
+    return PARAM_INVALID;
+  }
+  g_om2_callback_launch_info_valid = (info->launch_params != nullptr) && (info->task_info != nullptr);
+  return SUCCESS;
 }
 
 class CallbackProbeModel {
@@ -85,8 +90,19 @@ class CallbackProbeModel {
   }
 
   int32_t Run(bool session_id_launch, GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2) {
+    GertModelTaskDesc task_info{};
+    GertModelLaunchKernelV2Params kernel_params{};
+    GertModelLaunchStarsTaskWithFlagParams stars_task_params{};
+    GertModelTaskLaunchParams launch_params{};
     GertModelTaskLaunchInfo launch_info{};
     launch_info.launch_type = launch_type;
+    launch_info.task_info = &task_info;
+    if (launch_type == RT_STARS_TASK_LAUNCH_WITH_FLAG) {
+      launch_params.launch_stars_task_params = stars_task_params;
+    } else {
+      launch_params.launch_kernel_v2_params = kernel_params;
+    }
+    launch_info.launch_params = &launch_params;
     if (session_id_launch || callbacks_.launch_func == nullptr) {
       return SUCCESS;
     }
@@ -3882,6 +3898,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
 
 TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {
   g_om2_callback_probe_count = 0;
+  g_om2_callback_launch_info_valid = false;
   GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   CallbackProbeModel model;
@@ -3889,16 +3906,19 @@ TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {
   EXPECT_EQ(model.Callbacks().launch_func, callbacks.launch_func);
   EXPECT_EQ(model.Run(false), SUCCESS);
   EXPECT_EQ(g_om2_callback_probe_count, 1);
+  EXPECT_TRUE(g_om2_callback_launch_info_valid);
 }
 
 TEST_F(Om2CallbackSt, DsaLaunchThroughExecutor) {
   g_om2_callback_probe_count = 0;
+  g_om2_callback_launch_info_valid = false;
   GertModelLoadCallbacks callbacks{};
   callbacks.launch_func = Om2CallbackProbe;
   CallbackProbeModel model;
   ASSERT_EQ(model.Load(&callbacks), SUCCESS);
   EXPECT_EQ(model.Run(false, RT_STARS_TASK_LAUNCH_WITH_FLAG), SUCCESS);
   EXPECT_EQ(g_om2_callback_probe_count, 1);
+  EXPECT_TRUE(g_om2_callback_launch_info_valid);
 }
 
 TEST_F(Om2CallbackSt, CallbackErrorPropagates) {
