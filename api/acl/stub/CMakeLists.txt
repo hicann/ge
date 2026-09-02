@@ -205,6 +205,10 @@ target_link_libraries(stub_acl_mdl_impl PRIVATE
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
     -ldl
 )
+
+install(TARGETS stub_acl_mdl_impl ${INSTALL_OPTIONAL}
+    LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}/${CMAKE_SYSTEM_PROCESSOR}/stub
+)
 ##################################################################################################################
 
 add_dependencies(stub_acl_cblas stub_acl_src)
