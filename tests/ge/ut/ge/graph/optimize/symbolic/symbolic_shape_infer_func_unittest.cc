@@ -904,6 +904,524 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRealDiv) {
   TestForBroadCast("realdiv", "RealDiv");
 }
 
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForIndexByTensor) {
+  const auto func = GetInferFunc("IndexByTensor");
+  ASSERT_TRUE(func.first != nullptr);
+  const auto x0 = Symbol("x0");
+  const auto x1 = Symbol("x1");
+  const auto x2 = Symbol("x2");
+  const auto x3 = Symbol("x3");
+  const auto i0 = Symbol("i0");
+  const auto i1 = Symbol("i1");
+
+  InferSymbolShapeContextTestBuilder builder("IndexByTensor", "index_by_tensor");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("indices_mask");
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("indices", kIrInputDynamic);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddDynamicInputDesc("indices", 2U, true);
+  AttrUtils::SetListInt(op_desc, "indices_mask", {0, 1, 1});
+  auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({x0, x1, x2, x3}))
+                     .AppendInputSymbolTensor(gert::SymbolShape({i0, i1}))
+                     .AppendInputSymbolTensor(gert::SymbolShape({i1}))
+                     .OutputNum(1U)
+                     .Build();
+  ASSERT_EQ(func.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{x0, i0, i1, x3}));
+
+  // A short mask leaves the uncovered trailing dimensions unindexed.
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("indices_mask");
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("indices", kIrInputDynamic);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddDynamicInputDesc("indices", 1U, true);
+  AttrUtils::SetListInt(op_desc, "indices_mask", {1});
+  context = builder.AppendInputSymbolTensor(gert::SymbolShape({x0, x1}))
+                .AppendInputSymbolTensor(gert::SymbolShape({i0}))
+                .OutputNum(1U)
+                .Build();
+  ASSERT_EQ(func.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{i0, x1}));
+
+  // An empty mask with no indices is an identity on x.
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("indices_mask");
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("indices", kIrInputDynamic);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddDynamicInputDesc("indices", 0U, true);
+  AttrUtils::SetListInt(op_desc, "indices_mask", {});
+  context = builder.AppendInputSymbolTensor(gert::SymbolShape({x0, x1})).OutputNum(1U).Build();
+  ASSERT_EQ(func.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{x0, x1}));
+
+  // A mask longer than x rank and a mismatched index count are rejected.
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("indices_mask");
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("indices", kIrInputDynamic);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddDynamicInputDesc("indices", 1U, true);
+  AttrUtils::SetListInt(op_desc, "indices_mask", {1, 0, 0});
+  context = builder.AppendInputSymbolTensor(gert::SymbolShape({x0, x1}))
+                .AppendInputSymbolTensor(gert::SymbolShape({i0}))
+                .OutputNum(1U)
+                .Build();
+  EXPECT_EQ(func.first(context), UNSUPPORTED);
+
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("indices_mask");
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("indices", kIrInputDynamic);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddDynamicInputDesc("indices", 2U, true);
+  AttrUtils::SetListInt(op_desc, "indices_mask", {1});
+  context = builder.AppendInputSymbolTensor(gert::SymbolShape({x0, x1}))
+                .AppendInputSymbolTensor(gert::SymbolShape({i0}))
+                .AppendInputSymbolTensor(gert::SymbolShape({i1}))
+                .OutputNum(1U)
+                .Build();
+  EXPECT_EQ(func.first(context), UNSUPPORTED);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMoeRouting) {
+  const auto func_v2 = GetInferFunc("MoeInitRoutingV2");
+  const auto func_v3 = GetInferFunc("MoeInitRoutingV3");
+  ASSERT_TRUE(func_v2.first != nullptr);
+  ASSERT_TRUE(func_v3.first != nullptr);
+  const auto n = Symbol("n");
+  const auto h = Symbol("h");
+  const auto k = Symbol("k");
+
+  InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV2", "moe_init_v2");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  for (const auto &name :
+       {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "count_flag", "before_capacity_flag"}) {
+    op_desc->AppendIrAttrName(name);
+  }
+  AttrUtils::SetInt(op_desc, "active_num", 8);
+  AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+  AttrUtils::SetInt(op_desc, "expert_num", 2);
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+  AttrUtils::SetInt(op_desc, "count_flag", 1);
+  AttrUtils::SetBool(op_desc, "before_capacity_flag", false);
+  auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                     .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                     .OutputNum(3U)
+                     .Build();
+  ASSERT_EQ(func_v2.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{sym::Min(n * k, Symbol(8)), h}));
+  EXPECT_EQ(context->GetOutputSymbolShape(1)->GetDims(), (std::vector<Expression>{n * k}));
+  EXPECT_EQ(context->GetOutputSymbolShape(2)->GetDims(), (std::vector<Expression>{Symbol(2)}));
+
+  InferSymbolShapeContextTestBuilder builder_v3("MoeInitRoutingV3", "moe_init_v3");
+  op_desc = builder_v3.GetOrCreateOpDescPtr();
+  for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                           "count_flag", "quant_mode", "expert_range"}) {
+    op_desc->AppendIrAttrName(name);
+  }
+  AttrUtils::SetInt(op_desc, "active_num", 8);
+  AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+  AttrUtils::SetInt(op_desc, "expert_num", 2);
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+  AttrUtils::SetInt(op_desc, "expert_token_num_type", 2);
+  AttrUtils::SetBool(op_desc, "count_flag", true);
+  AttrUtils::SetInt(op_desc, "quant_mode", 11);
+  AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+  context = builder_v3.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                .OutputNum(4U)
+                .Build();
+  ASSERT_EQ(func_v3.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{sym::Min(n * k, Symbol(8)), h}));
+  EXPECT_EQ(context->GetOutputSymbolShape(1)->GetDims(), (std::vector<Expression>{n * k}));
+  EXPECT_EQ(context->GetOutputSymbolShape(2)->GetDims(), (std::vector<Expression>{Symbol(2), Symbol(2)}));
+  EXPECT_EQ(context->GetOutputSymbolShape(3)->GetDims(),
+            (std::vector<Expression>{n * k, sym::Ceiling(h / Symbol(256)), Symbol(2)}));
+
+  // FP4 uses active rows and one scale value per 64 hidden elements, regardless of drop-pad mode.
+  builder_v3.Destroy();
+  op_desc = builder_v3.GetOrCreateOpDescPtr();
+  for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                           "count_flag", "quant_mode", "expert_range"}) {
+    op_desc->AppendIrAttrName(name);
+  }
+  AttrUtils::SetInt(op_desc, "active_num", 8);
+  AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+  AttrUtils::SetInt(op_desc, "expert_num", 2);
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 1);
+  AttrUtils::SetInt(op_desc, "expert_token_num_type", 0);
+  AttrUtils::SetBool(op_desc, "count_flag", false);
+  AttrUtils::SetInt(op_desc, "quant_mode", 9);
+  AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+  context = builder_v3.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                .OutputNum(4U)
+                .Build();
+  ASSERT_EQ(func_v3.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(2), Symbol(4), h}));
+  EXPECT_EQ(context->GetOutputSymbolShape(1)->GetDims(), (std::vector<Expression>{n * k}));
+  EXPECT_EQ(context->GetOutputSymbolShape(3)->GetDims(),
+            (std::vector<Expression>{sym::Min(n * k, Symbol(8)), sym::Ceiling(h / Symbol(64)), Symbol(2)}));
+
+  // V2 drop-pad additionally exposes before-capacity counts.
+  InferSymbolShapeContextTestBuilder builder_v2_drop("MoeInitRoutingV2", "moe_init_v2_drop");
+  op_desc = builder_v2_drop.GetOrCreateOpDescPtr();
+  for (const auto &name :
+       {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "count_flag", "before_capacity_flag"}) {
+    op_desc->AppendIrAttrName(name);
+  }
+  AttrUtils::SetInt(op_desc, "active_num", 8);
+  AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+  AttrUtils::SetInt(op_desc, "expert_num", 2);
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 1);
+  AttrUtils::SetInt(op_desc, "count_flag", 0);
+  AttrUtils::SetBool(op_desc, "before_capacity_flag", true);
+  context = builder_v2_drop.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                .OutputNum(4U)
+                .Build();
+  ASSERT_EQ(func_v2.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(2), Symbol(4), h}));
+  EXPECT_EQ(context->GetOutputSymbolShape(1)->GetDims(), (std::vector<Expression>{n * k}));
+  EXPECT_EQ(context->GetOutputSymbolShape(3)->GetDims(), (std::vector<Expression>{Symbol(2)}));
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMoeFinalizeRoutingV2) {
+  const auto func = GetInferFunc("MoeFinalizeRoutingV2");
+  ASSERT_TRUE(func.first != nullptr);
+  const auto rows = Symbol("rows");
+  const auto h = Symbol("h");
+
+  InferSymbolShapeContextTestBuilder builder("MoeFinalizeRoutingV2", "moe_finalize_v2");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("drop_pad_mode");
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+  auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({rows, h}))
+                     .AppendInputSymbolTensor(gert::SymbolShape({rows}))
+                     .OutputNum(1U)
+                     .Build();
+  ASSERT_EQ(func.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{rows, h}));
+
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("drop_pad_mode");
+  AttrUtils::SetInt(op_desc, "drop_pad_mode", 1);
+  context = builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol("experts"), Symbol("capacity"), h}))
+                .AppendInputSymbolTensor(gert::SymbolShape({rows}))
+                .OutputNum(1U)
+                .Build();
+  ASSERT_EQ(func.first(context), GRAPH_SUCCESS);
+  EXPECT_EQ(context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{rows, h}));
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMoeFinalizeRoutingV2InvalidPaths) {
+  const auto func = GetInferFunc("MoeFinalizeRoutingV2");
+  ASSERT_TRUE(func.first != nullptr);
+  const auto rows = Symbol("rows");
+  const auto h = Symbol("h");
+  // attr index 4 is expert_num_per_row in the registered attribute list.
+  const auto run = [&](const gert::SymbolShape &expanded_x, const gert::SymbolShape &row_idx,
+                       const std::vector<gert::SymbolShape> &optional_inputs, const int64_t drop_pad_mode,
+                       const int64_t expert_num_per_row, const graphStatus expected, const char *name) {
+    InferSymbolShapeContextTestBuilder builder("MoeFinalizeRoutingV2", name);
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &attr_name : {"drop_pad_mode", "expert_num_per_row_dummy1", "expert_num_per_row_dummy2",
+                                  "expert_num_per_row_dummy3", "expert_num_per_row"}) {
+      op_desc->AppendIrAttrName(attr_name);
+    }
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", drop_pad_mode);
+    AttrUtils::SetInt(op_desc, "expert_num_per_row_dummy1", 0);
+    AttrUtils::SetInt(op_desc, "expert_num_per_row_dummy2", 0);
+    AttrUtils::SetInt(op_desc, "expert_num_per_row_dummy3", 0);
+    AttrUtils::SetInt(op_desc, "expert_num_per_row", expert_num_per_row);
+    builder.AppendInputSymbolTensor(expanded_x);
+    builder.AppendInputSymbolTensor(row_idx);
+    for (const auto &shape : optional_inputs) {
+      builder.AppendInputSymbolTensor(shape);
+    }
+    auto context = builder.OutputNum(1U).Build();
+    EXPECT_EQ(func.first(context), expected) << "case: " << name;
+  };
+
+  // Row index must stay 1-D.
+  run(gert::SymbolShape({rows, h}), gert::SymbolShape({rows, h}), {}, 0, 1, UNSUPPORTED, "moe_finalize_row_idx_rank");
+  // drop_pad_mode out of range [0, 3].
+  run(gert::SymbolShape({rows, h}), gert::SymbolShape({rows}), {}, 4, 1, UNSUPPORTED, "moe_finalize_bad_mode");
+  // Non-positive expert_num_per_row (attr index 4).
+  run(gert::SymbolShape({rows, h}), gert::SymbolShape({rows}), {}, 0, 0, UNSUPPORTED, "moe_finalize_bad_k");
+  // Dropless mode (0/2) requires a 2-D expanded_x.
+  run(gert::SymbolShape({Symbol("experts"), Symbol("cap"), h}), gert::SymbolShape({rows}), {}, 2, 1, UNSUPPORTED,
+      "moe_finalize_dropless_rank");
+  // Drop-pad mode (1/3) requires a 3-D expanded_x.
+  run(gert::SymbolShape({rows, h}), gert::SymbolShape({rows}), {}, 1, 1, UNSUPPORTED, "moe_finalize_drop_pad_rank");
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMoeRoutingV3InvalidAttrs) {
+  const auto n = Symbol("n");
+  const auto h = Symbol("h");
+  const auto k = Symbol("k");
+  const auto func = GetInferFunc("MoeInitRoutingV3");
+  ASSERT_TRUE(func.first != nullptr);
+  const auto run = [&](const int64_t drop_pad_mode, const int64_t expert_token_num_type, const graphStatus expected,
+                       const char *name) {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV3", name);
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &attr_name :
+         {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type"}) {
+      op_desc->AppendIrAttrName(attr_name);
+    }
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", drop_pad_mode);
+    AttrUtils::SetInt(op_desc, "expert_token_num_type", expert_token_num_type);
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(3)
+                       .Build();
+    EXPECT_EQ(func.first(context), expected) << "case: " << name;
+  };
+
+  run(2, 0, UNSUPPORTED, "moe_v3_bad_drop_pad_mode");
+  run(0, 3, UNSUPPORTED, "moe_v3_bad_token_num_type");
+  run(1, 2, GRAPH_SUCCESS, "moe_v3_drop_pad_expert_token");
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMoeRoutingInvalidPaths) {
+  const auto n = Symbol("n");
+  const auto h = Symbol("h");
+  const auto k = Symbol("k");
+
+  // Invalid input ranks and cross-input dimensions are rejected before attributes are read.
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV2", "moe_bad_rank");
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(3)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV2").first(context), UNSUPPORTED);
+  }
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV2", "moe_bad_relation");
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(2), h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({Symbol(3), k}))
+                       .OutputNum(3)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV2").first(context), UNSUPPORTED);
+  }
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV2", "moe_bad_drop_pad");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name :
+         {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "count_flag", "before_capacity_flag"}) {
+      op_desc->AppendIrAttrName(name);
+    }
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", 2);
+    AttrUtils::SetInt(op_desc, "count_flag", 0);
+    AttrUtils::SetBool(op_desc, "before_capacity_flag", false);
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(3)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV2").first(context), UNSUPPORTED);
+  }
+  // Missing attributes use defaults, and missing output slots are tolerated by SetShape.
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV2", "moe_default_attrs");
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(1)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV2").first(context), GRAPH_SUCCESS);
+  }
+
+  // V3 count output and quantization modes which are distinct in the host implementation.
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV3", "moe_v3_count_1d");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                             "count_flag", "quant_mode", "expert_range"}) {
+      op_desc->AppendIrAttrName(name);
+    }
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "expert_token_num_type", 0);
+    AttrUtils::SetBool(op_desc, "count_flag", true);
+    AttrUtils::SetInt(op_desc, "quant_mode", 4);
+    AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(3)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV3").first(context), GRAPH_SUCCESS);
+  }
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV3", "moe_v3_quant_8");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                             "count_flag", "quant_mode", "expert_range"}) {
+      op_desc->AppendIrAttrName(name);
+    }
+    AttrUtils::SetInt(op_desc, "quant_mode", 8);
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+    AttrUtils::SetInt(op_desc, "expert_token_num_type", 0);
+    AttrUtils::SetBool(op_desc, "count_flag", false);
+    AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(4)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV3").first(context), GRAPH_SUCCESS);
+  }
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV3", "moe_v3_bad_quant");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                             "count_flag", "quant_mode", "expert_range"}) {
+      op_desc->AppendIrAttrName(name);
+    }
+    AttrUtils::SetInt(op_desc, "quant_mode", 10);
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+    AttrUtils::SetInt(op_desc, "expert_token_num_type", 0);
+    AttrUtils::SetBool(op_desc, "count_flag", false);
+    AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .OutputNum(4)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV3").first(context), UNSUPPORTED);
+  }
+  {
+    InferSymbolShapeContextTestBuilder builder("MoeInitRoutingV3", "moe_v3_non_quant_block");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name : {"active_num", "expert_capacity", "expert_num", "drop_pad_mode", "expert_token_num_type",
+                             "count_flag", "quant_mode", "expert_range"}) {
+      op_desc->AppendIrAttrName(name);
+    }
+    AttrUtils::SetInt(op_desc, "quant_mode", -1);
+    AttrUtils::SetInt(op_desc, "active_num", 8);
+    AttrUtils::SetInt(op_desc, "expert_capacity", 4);
+    AttrUtils::SetInt(op_desc, "expert_num", 2);
+    AttrUtils::SetInt(op_desc, "drop_pad_mode", 0);
+    AttrUtils::SetInt(op_desc, "expert_token_num_type", 0);
+    AttrUtils::SetBool(op_desc, "count_flag", false);
+    AttrUtils::SetListInt(op_desc, "expert_range", {0, 2});
+    auto context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, k}))
+                       .AppendInputSymbolTensor(gert::SymbolShape({n, h, Symbol(2)}))
+                       .OutputNum(4)
+                       .Build();
+    EXPECT_EQ(GetInferFunc("MoeInitRoutingV3").first(context), GRAPH_SUCCESS);
+  }
+}
+
+static void BuildStridedSliceInferContext(InferSymbolShapeContextTestBuilder &builder,
+                                          const std::initializer_list<Expression> &x_values,
+                                          const std::vector<Expression> &begin_values,
+                                          const std::vector<Expression> &end_values,
+                                          const std::vector<Expression> &strides_values, int64_t start_mask,
+                                          int64_t end_mask, int64_t ellipsis_mask, int64_t new_axis_mask,
+                                          int64_t shrink_axis_maks);
+static void BuildStridedSliceV3InferContext(InferSymbolShapeContextTestBuilder &builder,
+                                            const std::initializer_list<Expression> &x_values,
+                                            const std::vector<Expression> &begin_values,
+                                            const std::vector<Expression> &end_values,
+                                            const std::vector<Expression> &axes_values,
+                                            const std::vector<Expression> &strides_values);
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceInvalidSpecifications) {
+  const auto run_v1 = [](const std::vector<Expression> &begin, const std::vector<Expression> &end,
+                         const std::vector<Expression> &stride, graphStatus expected) {
+    auto func = GetInferFunc("StridedSlice");
+    InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_invalid_spec");
+    BuildStridedSliceInferContext(builder, {Symbol(4), Symbol(5)}, begin, end, stride, 0, 0, 0, 0, 0);
+    auto context = builder.Build();
+    EXPECT_EQ(func.first(context), expected);
+  };
+  run_v1({Symbol(0)}, {Symbol(4), Symbol(5)}, {Symbol(1)}, PARAM_INVALID);
+  run_v1({Symbol(0)}, {Symbol(4)}, {Symbol("dynamic_stride")}, UNSUPPORTED);
+  run_v1({Symbol(0)}, {Symbol(4)}, {Symbol(0)}, PARAM_INVALID);
+
+  const auto run_v2 = [](const std::vector<Expression> &begin, const std::vector<Expression> &end,
+                         const std::vector<Expression> &axes, const std::vector<Expression> &strides,
+                         graphStatus expected) {
+    auto func = GetInferFunc("StridedSliceV2");
+    InferSymbolShapeContextTestBuilder builder("StridedSliceV2", "stridedslice_v2_invalid_spec");
+    auto op_desc = builder.GetOrCreateOpDescPtr();
+    for (const auto &name : {"start_mask", "end_mask", "ellipsis_mask", "new_axis_mask", "shrink_axis_mask"}) {
+      op_desc->AppendIrAttrName(name);
+      AttrUtils::SetInt(op_desc, name, 0);
+    }
+    op_desc->AddInputDesc(GeTensorDesc());
+    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(4), Symbol(5)}))
+        .AppendInputSymbolTensor(gert::SymbolShape({Symbol(begin.size())}), true, &begin)
+        .AppendInputSymbolTensor(gert::SymbolShape({Symbol(end.size())}), true, &end)
+        .AppendInputSymbolTensor(gert::SymbolShape({Symbol(axes.size())}), true, &axes)
+        .AppendInputSymbolTensor(gert::SymbolShape({Symbol(strides.size())}), true, &strides)
+        .OutputNum(1);
+    auto context = builder.Build();
+    EXPECT_EQ(func.first(context), expected);
+  };
+  run_v2({Symbol(0)}, {Symbol(4)}, {}, {Symbol(1)}, GRAPH_SUCCESS);
+  run_v2({Symbol(0)}, {Symbol(4)}, {Symbol(0)}, {Symbol(1), Symbol(1)}, PARAM_INVALID);
+  run_v2({Symbol(0)}, {Symbol(4), Symbol(5)}, {Symbol(0)}, {Symbol(1)}, PARAM_INVALID);
+  run_v2({Symbol(0)}, {Symbol(4)}, {Symbol(3)}, {Symbol(1)}, PARAM_INVALID);
+  run_v2({Symbol(0), Symbol(0)}, {Symbol(4), Symbol(5)}, {Symbol(0), Symbol(0)}, {Symbol(1), Symbol(1)}, PARAM_INVALID);
+
+  const auto run_v3 = [](const std::vector<Expression> &begin, const std::vector<Expression> &end,
+                         const std::vector<Expression> &axes, const std::vector<Expression> &strides,
+                         graphStatus expected) {
+    auto func = GetInferFunc("StridedSliceV3");
+    InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_invalid_spec");
+    BuildStridedSliceV3InferContext(builder, {Symbol(4), Symbol(5)}, begin, end, axes, strides);
+    auto context = builder.Build();
+    EXPECT_EQ(func.first(context), expected);
+  };
+  run_v3({Symbol(4)}, {Symbol(0)}, {Symbol(0)}, {Symbol(1)}, GRAPH_SUCCESS);
+  run_v3({Symbol(0)}, {Symbol(4)}, {Symbol(2)}, {Symbol(1)}, PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceMissingEndDoesNotAddGuard) {
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 1));
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_missing_end");
+  BuildStridedSliceInferContext(builder, {s0, s1}, {Symbol(0)}, {Symbol(4)}, {Symbol(1)}, 0, 0, 0, 0, 0);
+
+  auto context = builder.Build();
+  ASSERT_EQ(GetInferFunc("StridedSlice").first(context), SUCCESS);
+  const auto output_shape = context->GetOutputSymbolShape(0);
+  ASSERT_NE(output_shape, nullptr);
+  ASSERT_EQ(output_shape->GetDimNum(), 2);
+  EXPECT_EQ(output_shape->GetDim(1), s1);
+  for (const auto &guard_info : shape_env.GetAllSymbolCheckInfos()) {
+    EXPECT_EQ(std::string(guard_info.expr.Serialize().get()).find("s1"), std::string::npos);
+  }
+}
+
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForCast) {
   TestForElementWise("cast", "Cast");
 }
@@ -1396,6 +1914,25 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSplitV) {
                              .Build();
     ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
   }
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSplitVConcreteSizes) {
+  auto func = GetInferFunc("SplitV");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("SplitV", "splitv_concrete");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("num_split");
+  AttrUtils::SetInt(op_desc, "num_split", 2);
+  const std::vector<Expression> size_splits = {Symbol(1), Symbol(3)};
+  const std::vector<Expression> split_dim = {Symbol(1)};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(2), Symbol(4)}))
+                           .AppendInputSymbolTensor(gert::SymbolShape(), true, &size_splits)
+                           .AppendInputSymbolTensor(gert::SymbolShape(), true, &split_dim)
+                           .OutputNum(2)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(2), Symbol(1)}).GetDims());
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({Symbol(2), Symbol(3)}).GetDims());
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForFill) {
@@ -2845,6 +3382,27 @@ static void BuildStridedSliceInferContext(InferSymbolShapeContextTestBuilder &bu
       .OutputNum(1);
 }
 
+static void BuildStridedSliceV3InferContext(InferSymbolShapeContextTestBuilder &builder,
+                                            const std::initializer_list<Expression> &x_values,
+                                            const std::vector<Expression> &begin_values,
+                                            const std::vector<Expression> &end_values,
+                                            const std::vector<Expression> &axes_values,
+                                            const std::vector<Expression> &strides_values) {
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+
+  builder.AppendInputSymbolTensor(gert::SymbolShape(x_values))
+      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(begin_values.size())}), true, &begin_values)
+      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(end_values.size())}), true, &end_values)
+      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(axes_values.size())}), true, &axes_values)
+      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(strides_values.size())}), true, &strides_values)
+      .OutputNum(1);
+}
+
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlice_1) {
   auto func = GetInferFunc("StridedSlice");
   ASSERT_TRUE(func.first != nullptr);
@@ -2887,19 +3445,16 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlice_1) {
     ASSERT_EQ(out_shape->GetDim(3), c0);
     ASSERT_EQ(out_shape->GetDim(4), c1);
     const std::vector<SymbolCheckInfo> guard_infos = shape_env.GetAllSymbolCheckInfos();
-    ASSERT_EQ(guard_infos.size(), 10);
+    ASSERT_EQ(guard_infos.size(), 13);
     const std::set<std::string> expect_guard = {
-        "ExpectLe(s0, 5)", "ExpectLe(s1, 5)", "ExpectLe(s2, 5)", "ExpectLe(s3, 5)", "ExpectLe(s3, 3)",
-        "ExpectLt(0, s0)", "ExpectLt(1, s1)", "ExpectLt(2, s2)", "ExpectLt(4, s4)", "ExpectLt(5, s4)"};
+        "ExpectLe(0, s0)", "ExpectLe(1, s1)", "ExpectLe(2, s2)", "ExpectLe(s0, 5)", "ExpectLe(s1, 5)",
+        "ExpectLe(s2, 5)", "ExpectLe(s3, 5)", "ExpectLe(s3, 3)", "ExpectLt(0, s0)", "ExpectLt(1, s1)",
+        "ExpectLt(2, s2)", "ExpectLt(4, s4)", "ExpectLt(5, s4)"};
     for (auto &iter : guard_infos) {
       EXPECT_NE(expect_guard.find(std::string(iter.expr.Serialize().get())), expect_guard.end());
     }
     const std::vector<SymbolCheckInfo> assert_guard_infos = shape_env.GetAllSymbolAssertInfos();
-    ASSERT_EQ(assert_guard_infos.size(), 3);
-    const std::set<std::string> assert_guard = {"ExpectLe(2, s2)", "ExpectLe(1, s1)", "ExpectLe(0, s0)"};
-    for (auto &iter : assert_guard_infos) {
-      EXPECT_NE(assert_guard.find(std::string(iter.expr.Serialize().get())), assert_guard.end());
-    }
+    ASSERT_EQ(assert_guard_infos.size(), 0);
   }
   {
     ShapeEnvAttr shape_env;
@@ -3131,23 +3686,19 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlice_1) {
     ASSERT_EQ(out_shape->GetDim(4), s4);
     ASSERT_EQ(out_shape->GetDim(5), c1);
     const std::vector<SymbolCheckInfo> guard_infos = shape_env.GetAllSymbolCheckInfos();
-    ASSERT_EQ(guard_infos.size(), 20);
+    ASSERT_EQ(guard_infos.size(), 19);
     const std::set<std::string> expect_guard = {
-        "ExpectLe(0, s4)", "ExpectLe(0, s3)", "ExpectLe(0, s2)", "ExpectLe(0, s1)", "ExpectLe(s0, 5)",
-        "ExpectLe(s1, 3)", "ExpectLe(s1, 5)", "ExpectLe(s2, 5)", "ExpectLe(s3, 3)", "ExpectLe(s3, 5)",
-        "ExpectLt(0, s0)", "ExpectLt(0, s2)", "ExpectLt(0, s3)", "ExpectLt(0, s4)", "ExpectLt(1, s0)",
-        "ExpectLt(1, s1)", "ExpectLt(2, s2)", "ExpectLt(2, s4)", "ExpectLt(4, s4)", "ExpectLt(5, s4)"};
+        "ExpectLe(0, s0)", "ExpectLe(0, s1)", "ExpectLe(0, s2)", "ExpectLe(1, s1)", "ExpectLe(2, s2)",
+        "ExpectLe(4, s4)", "ExpectLe(s0, 5)", "ExpectLe(s1, 3)", "ExpectLe(s1, 5)", "ExpectLe(s2, 5)",
+        "ExpectLe(s3, 3)", "ExpectLe(s3, 5)", "ExpectLt(0, s0)", "ExpectLt(1, s0)", "ExpectLt(1, s1)",
+        "ExpectLt(2, s2)", "ExpectLt(2, s4)", "ExpectLt(4, s4)", "ExpectLt(5, s4)"};
     for (auto &iter : guard_infos) {
       EXPECT_NE(expect_guard.find(std::string(iter.expr.Serialize().get())), expect_guard.end());
     }
+    // Non-negativity guards now register as check infos (EXPECT clamp form) instead of
+    // assert infos; the assert set stays empty under the full-range-aware clamp.
     const std::vector<SymbolCheckInfo> assert_guard_infos = shape_env.GetAllSymbolAssertInfos();
-    ASSERT_EQ(assert_guard_infos.size(), 8);
-    const std::set<std::string> assert_guard = {"ExpectLe(4, s4)", "ExpectLe(2, s2)", "ExpectLe(1, s1)",
-                                                "ExpectLe(0, s0)", "ExpectLe(0, s1)", "ExpectLe(0, s2)",
-                                                "ExpectLe(0, s3)", "ExpectLe(0, s4)"};
-    for (auto &iter : assert_guard_infos) {
-      EXPECT_NE(assert_guard.find(std::string(iter.expr.Serialize().get())), assert_guard.end());
-    }
+    ASSERT_EQ(assert_guard_infos.size(), 0);
   }
 }
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlicewithBeginIsNull) {
@@ -3184,6 +3735,106 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlicewithBeginIsNul
   auto infer_context = builder.Build();
   ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
 }
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceRejectsMultipleEllipsis) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_multiple_ellipsis");
+  BuildStridedSliceInferContext(builder, {Symbol(5), Symbol(6)}, {Symbol(0), Symbol(0)}, {Symbol(5), Symbol(6)},
+                                {Symbol(1), Symbol(1)}, 0, 0, 0b11);
+  auto infer_context = builder.Build();
+  ASSERT_NE(func.first(infer_context), SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceRejectsIndexBeyondRank) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_index_beyond_rank");
+  BuildStridedSliceInferContext(builder, {Symbol(5), Symbol(6)}, {Symbol(0), Symbol(0), Symbol(0)},
+                                {Symbol(5), Symbol(6), Symbol(1)}, {Symbol(1), Symbol(1), Symbol(1)});
+  auto infer_context = builder.Build();
+  ASSERT_NE(func.first(infer_context), SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceNegativeStride) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_negative_stride");
+  BuildStridedSliceInferContext(builder, {Symbol(5)}, {Symbol(4)}, {Symbol(-1)}, {Symbol(-1)});
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), std::vector<Expression>{Symbol(0)});
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceNegativeStrideEndMask) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_negative_stride_end_mask");
+  BuildStridedSliceInferContext(builder, {Symbol(5)}, {Symbol(4)}, {Symbol(-1)}, {Symbol(-1)}, 0, 1);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), std::vector<Expression>{Symbol(5)});
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceEmptyRange) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_empty_range");
+  BuildStridedSliceInferContext(builder, {Symbol(5)}, {Symbol(4)}, {Symbol(2)}, {Symbol(1)});
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), std::vector<Expression>{Symbol(0)});
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceZeroDimEllipsis) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_zero_dim_ellipsis");
+  BuildStridedSliceInferContext(builder, {Symbol(5), Symbol(6)}, {Symbol(0), Symbol(0), Symbol(1), Symbol(2)},
+                                {Symbol(5), Symbol(6), Symbol(5), Symbol(6)},
+                                {Symbol(1), Symbol(1), Symbol(1), Symbol(1)}, 0, 0, 0b0010, 0b0001);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            (std::vector<Expression>{Symbol(1), Symbol(4), Symbol(4)}));
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3NegativeSymbolicStride) {
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto input_dim = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 0));
+  auto negative_stride = shape_env.CreateSymbol(-2, MakeShared<InputShapeSource>(1, 0));
+
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_negative_symbolic_stride");
+  BuildStridedSliceV3InferContext(builder, {input_dim}, {Symbol(10)}, {Symbol(0)}, {Symbol(0)}, {negative_stride});
+
+  auto infer_context = builder.Build();
+  // A dynamic stride hint is only a representative value and cannot prove
+  // the runtime direction.  Symbolic inference must fall back cleanly.
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceRejectsUnknownIndexSign) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_unknown_index_sign");
+  BuildStridedSliceInferContext(builder, {Symbol(8)}, {Symbol("dynamic_begin")}, {Symbol(6)}, {Symbol(1)});
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3RejectsZeroStride) {
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_zero_stride");
+  BuildStridedSliceV3InferContext(builder, {Symbol(5)}, {Symbol(0)}, {Symbol(5)}, {Symbol(0)}, {Symbol(0)});
+
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), PARAM_INVALID);
+}
+
 void EXPECT_BatchMatMulV2TestCommon(const gert::SymbolShape &x1, const gert::SymbolShape &x2, bool adj_x1, bool adj_x2,
                                     const gert::SymbolShape &expect_out, graphStatus expect_status) {
   auto func = GetInferFunc("BatchMatMulV2");
@@ -3790,23 +4441,19 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceD) {
     ASSERT_EQ(out_shape->GetDim(4), s4);
     ASSERT_EQ(out_shape->GetDim(5), c1);
     const std::vector<SymbolCheckInfo> guard_infos = shape_env.GetAllSymbolCheckInfos();
-    ASSERT_EQ(guard_infos.size(), 20);
+    ASSERT_EQ(guard_infos.size(), 19);
     const std::set<std::string> expect_guard = {
-        "ExpectLe(0, s4)", "ExpectLe(0, s3)", "ExpectLe(0, s2)", "ExpectLe(0, s1)", "ExpectLe(s0, 5)",
-        "ExpectLt(0, s0)", "ExpectLt(0, s2)", "ExpectLt(0, s3)", "ExpectLt(0, s4)", "ExpectLt(1, s0)",
-        "ExpectLt(1, s1)", "ExpectLt(2, s2)", "ExpectLt(2, s4)", "ExpectLt(3, s1)", "ExpectLt(3, s3)",
-        "ExpectLt(4, s4)", "ExpectLt(5, s1)", "ExpectLt(5, s2)", "ExpectLt(5, s3)", "ExpectLt(5, s4)"};
+        "ExpectLe(0, s0)", "ExpectLe(0, s1)", "ExpectLe(0, s2)", "ExpectLe(1, s1)", "ExpectLe(2, s2)",
+        "ExpectLe(4, s4)", "ExpectLe(s0, 5)", "ExpectLt(0, s0)", "ExpectLt(1, s0)", "ExpectLt(1, s1)",
+        "ExpectLt(2, s2)", "ExpectLt(2, s4)", "ExpectLt(3, s1)", "ExpectLt(3, s3)", "ExpectLt(4, s4)",
+        "ExpectLt(5, s1)", "ExpectLt(5, s2)", "ExpectLt(5, s3)", "ExpectLt(5, s4)"};
     for (auto &iter : guard_infos) {
       EXPECT_NE(expect_guard.find(std::string(iter.expr.Serialize().get())), expect_guard.end());
     }
+    // Non-negativity guards now register as check infos (EXPECT clamp form) instead of
+    // assert infos; the assert set stays empty under the full-range-aware clamp.
     const std::vector<SymbolCheckInfo> assert_guard_infos = shape_env.GetAllSymbolAssertInfos();
-    ASSERT_EQ(assert_guard_infos.size(), 8);
-    const std::set<std::string> assert_guard = {"ExpectLe(4, s4)", "ExpectLe(2, s2)", "ExpectLe(1, s1)",
-                                                "ExpectLe(0, s0)", "ExpectLe(0, s1)", "ExpectLe(0, s2)",
-                                                "ExpectLe(0, s3)", "ExpectLe(0, s4)"};
-    for (auto &iter : assert_guard_infos) {
-      EXPECT_NE(assert_guard.find(std::string(iter.expr.Serialize().get())), assert_guard.end());
-    }
+    ASSERT_EQ(assert_guard_infos.size(), 0);
   }
   {
     ShapeEnvAttr shape_env;

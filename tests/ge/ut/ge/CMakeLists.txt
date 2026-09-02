@@ -432,6 +432,8 @@ set(BASE_COMMON_TEST_FILES
 )
 
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")
+list(APPEND SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS
+     "${AIR_CODE_DIR}/tests/ge/st/testcase/autofuse/test_symbolic_shape_infer_coverage.cc")
 file(GLOB_RECURSE ES_GRAPH_BUILDER_TEST_SRCS CONFIGURE_DEPENDS "graph/eager_style_graph_builder/es_base_struct/*.cc" "graph/eager_style_graph_builder/es_generator/*.cc")
 
 set(MULTI_PARTS_TEST_FILES

@@ -19,6 +19,7 @@
 namespace ge {
 namespace {
 const size_t kXInputIndex = 0;
+const size_t kAxesInputIndex = 1;
 const size_t kOutputIndex = 0;
 const size_t kUnsqueezeOutputNum = 1;
 const size_t kUnsqueezeInputNum = 1;
@@ -65,16 +66,13 @@ static graphStatus UnsqueezeSymbolicKernelCompute(gert::InferSymbolComputeContex
 
   auto symbol_tensor = context->GetInputSymbolTensor(kXInputIndex);
   GE_UNSUPPORTED_IF_NULL(symbol_tensor);
-  if (symbol_tensor->GetSymbolicValue() == nullptr) {
-    GELOGW("SymbolicKernel compute unsupported, reason: get input symbolic value failed, node %s[%s].",
-           context->GetNodeName(), context->GetNodeType());
-    return UNSUPPORTED;
-  }
+  auto symbol_values = symbol_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(symbol_values);
   auto out_symbol_tensor = context->GetOutputSymbolTensor(kOutputIndex);
   GE_ASSERT_NOTNULL(out_symbol_tensor);
   std::vector<Expression> output_shape;
   GE_ASSERT_SUCCESS(CalOutShape(symbol_tensor->GetOriginSymbolShape(), axes, output_shape));
-  auto symbolic_value_unique = ge::MakeUnique<std::vector<ge::Expression> >(*symbol_tensor->GetSymbolicValue());
+  auto symbolic_value_unique = ge::MakeUnique<std::vector<ge::Expression>>(*symbol_values);
   if (symbolic_value_unique != nullptr) {
     out_symbol_tensor->SetSymbolicValue(std::move(symbolic_value_unique));
   }
@@ -84,5 +82,38 @@ static graphStatus UnsqueezeSymbolicKernelCompute(gert::InferSymbolComputeContex
 
   return SUCCESS;
 }
+
+static graphStatus UnsqueezeV3SymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GE_ASSERT_NOTNULL(context);
+  auto axes_tensor = context->GetInputSymbolTensor(kAxesInputIndex);
+  GE_UNSUPPORTED_IF_NULL(axes_tensor);
+  auto axes_values = axes_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(axes_values);
+  std::vector<int64_t> axes;
+  axes.reserve(axes_values->size());
+  for (const auto &symbol : *axes_values) {
+    int64_t axis = 0L;
+    if (!symbol.GetConstValue(axis)) {
+      GELOGW("UnsqueezeV3 symbolic kernel unsupported: axis is not constant, node %s[%s].", context->GetNodeName(),
+             context->GetNodeType());
+      return UNSUPPORTED;
+    }
+    axes.push_back(axis);
+  }
+
+  auto input = context->GetInputSymbolTensor(kXInputIndex);
+  GE_UNSUPPORTED_IF_NULL(input);
+  auto input_values = input->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(input_values);
+  auto output = context->GetOutputSymbolTensor(kOutputIndex);
+  GE_ASSERT_NOTNULL(output);
+  std::vector<Expression> output_shape;
+  GE_ASSERT_SUCCESS(CalOutShape(input->GetOriginSymbolShape(), axes, output_shape));
+  output->MutableOriginSymbolShape().MutableDims() = output_shape;
+  output->SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(*input_values));
+  return SUCCESS;
+}
+
 REGISTER_SYMBOLIC_KERNEL(Unsqueeze, UnsqueezeSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(UnsqueezeV3, UnsqueezeV3SymbolicKernelCompute);
 }  // namespace ge
