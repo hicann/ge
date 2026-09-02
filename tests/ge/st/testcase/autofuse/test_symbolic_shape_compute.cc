@@ -4728,6 +4728,192 @@ TEST_F(SymbolicShapeComputeST, test_stridedslicev3_no_optional) {
   EXPECT_EQ(*result_value, expect_symbolic_value);
 }
 
+TEST_F(SymbolicShapeComputeST, test_sub_with_const_broadcast) {
+  auto x0 = builder_->CreateConst(std::vector<int32_t>{10, 20, 30, 40}, std::vector<int64_t>{2, 2});
+  auto x1 = builder_->CreateConst(std::vector<int32_t>{1, 2}, std::vector<int64_t>{1, 2});
+  auto sub = es::Sub(x0, x1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(sub, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Sub");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(2), Symbol(2)}));
+  ASSERT_NE(attr->symbolic_tensor.GetSymbolicValue(), nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(),
+            std::vector<Expression>({Symbol(9), Symbol(18), Symbol(29), Symbol(38)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_mul_with_const_broadcast) {
+  auto x0 = builder_->CreateConst(std::vector<int32_t>{2, 3, 4, 5}, std::vector<int64_t>{2, 2});
+  auto x1 = builder_->CreateConst(std::vector<int32_t>{10, 20}, std::vector<int64_t>{1, 2});
+  auto mul = es::Mul(x0, x1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(mul, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Mul");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(),
+            std::vector<Expression>({Symbol(20), Symbol(60), Symbol(40), Symbol(100)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_select_v2_with_broadcast) {
+  auto condition = builder_->CreateConst(std::vector<int32_t>{1, 0}, std::vector<int64_t>{2, 1});
+  auto then_tensor = builder_->CreateConst(std::vector<int32_t>{1, 2, 3, 4}, std::vector<int64_t>{2, 2});
+  auto else_tensor = builder_->CreateConst(std::vector<int32_t>{10, 20}, std::vector<int64_t>{1, 2});
+  auto select = es::SelectV2(condition, then_tensor, else_tensor);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(select, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("SelectV2");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(),
+            std::vector<Expression>({Symbol(1), Symbol(2), Symbol(10), Symbol(20)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_identity_and_cast_symbolic_value) {
+  auto input = builder_->CreateInput(0, "input");
+  input.SetOriginSymbolShape(std::vector<const char *>({"2"}));
+  auto identity = es::Identity(input);
+  auto cast = es::Cast(identity, DT_FLOAT);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(cast, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto identity_node = cg->FindFirstNodeMatchType("Identity");
+  ASSERT_NE(identity_node, nullptr);
+  identity_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_INT32);
+  identity_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_INT32);
+  auto cast_node = cg->FindFirstNodeMatchType("Cast");
+  ASSERT_NE(cast_node, nullptr);
+  cast_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_INT32);
+  cast_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  auto data_node = cg->FindNode("input");
+  ASSERT_NE(data_node, nullptr);
+  data_node->GetOpDesc()
+      ->MutableOutputDesc(0)
+      ->GetOrCreateAttrsGroup<SymbolicDescAttr>()
+      ->symbolic_tensor.SetSymbolicValue(
+          ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{Symbol(5), Symbol(400)}));
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto cast_output_node = cg->FindFirstNodeMatchType("Cast");
+  ASSERT_NE(cast_output_node, nullptr);
+  auto attr = cast_output_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(), std::vector<Expression>({Symbol(5), Symbol(400)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_range_symbolic_value) {
+  auto start = builder_->CreateScalar(2);
+  auto limit = builder_->CreateScalar(8);
+  auto delta = builder_->CreateScalar(2);
+  auto range = es::Range(start, limit, delta);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(range, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Range");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(), std::vector<Expression>({Symbol(2), Symbol(4), Symbol(6)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_rsqrt_symbolic_value) {
+  auto input = builder_->CreateConst(std::vector<int32_t>{4, 16}, std::vector<int64_t>{2});
+  auto rsqrt = es::Rsqrt(input);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rsqrt, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("Rsqrt");
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(
+      *attr->symbolic_tensor.GetSymbolicValue(),
+      std::vector<Expression>({sym::Pow(Symbol(4), sym::Rational(-1, 2)), sym::Pow(Symbol(16), sym::Rational(-1, 2))}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_slice_symbolic_value) {
+  auto x = builder_->CreateConst(std::vector<int32_t>{0, 1, 2, 3, 4, 5}, std::vector<int64_t>{2, 3});
+  auto offsets = builder_->CreateConst(std::vector<int32_t>{1, 1}, std::vector<int64_t>{2});
+  auto sizes = builder_->CreateConst(std::vector<int32_t>{1, 2}, std::vector<int64_t>{2});
+  auto slice = es::Slice(x, offsets, sizes);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(slice, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Slice");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(1), Symbol(2)}));
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(), std::vector<Expression>({Symbol(4), Symbol(5)}));
+}
+
+TEST_F(SymbolicShapeComputeST, test_softmax_v2_symbolic_value) {
+  auto input = builder_->CreateConst(std::vector<int32_t>{0, 1, 2, 3}, std::vector<int64_t>{2, 2});
+  auto softmax = es::SoftmaxV2(input, std::vector<int64_t>{-1}, false);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(softmax, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("SoftmaxV2");
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  const auto e0 = sym::Exp(Symbol(0));
+  const auto e1 = sym::Exp(Symbol(1));
+  EXPECT_EQ(attr->symbolic_tensor.GetSymbolicValue()->at(0), e0 / (e0 + e1));
+  EXPECT_EQ(attr->symbolic_tensor.GetSymbolicValue()->at(1), e1 / (e0 + e1));
+}
+
+TEST_F(SymbolicShapeComputeST, test_transpose_symbolic_value) {
+  auto input = builder_->CreateConst(std::vector<int32_t>{0, 1, 2, 3, 4, 5}, std::vector<int64_t>{2, 3});
+  auto perm = builder_->CreateConst(std::vector<int32_t>{1, 0}, std::vector<int64_t>{2});
+  auto transpose = es::Transpose(input, perm);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(transpose, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Transpose");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(*attr->symbolic_tensor.GetSymbolicValue(),
+            std::vector<Expression>({Symbol(0), Symbol(3), Symbol(1), Symbol(4), Symbol(2), Symbol(5)}));
+}
+
 TEST_F(SymbolicShapeComputeST, test_binary_symbolic_kernels) {
   auto lhs = builder_->CreateConst(std::vector<int32_t>{1, 2, 3, 4, 5, 6}, std::vector<int64_t>{2, 3});
   auto rhs = builder_->CreateConst(std::vector<int32_t>{2, 5, 4}, std::vector<int64_t>{3});

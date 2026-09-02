@@ -39,7 +39,8 @@ std::vector<NodePtr> getPreviousNodes(ComputeGraphPtr graph, size_t nodeNum);
 // 运行时通过dlsym注册lowering，避免link时符号依赖问题
 void RegisterLoweringForTest(const std::string &op_type) {
   using RegisterFn = void (*)(const std::string &, const std::function<uint32_t(const NodePtr &)> &);
-  auto *fn = reinterpret_cast<RegisterFn>(dlsym(RTLD_DEFAULT, "_ZN2ge15LoweringManager8RegisterERKSsRKSt8functionIFjRKSt10shared_ptrINS_4NodeEEEE"));
+  auto *fn = reinterpret_cast<RegisterFn>(
+      dlsym(RTLD_DEFAULT, "_ZN2ge15LoweringManager8RegisterERKSsRKSt8functionIFjRKSt10shared_ptrINS_4NodeEEEE"));
   if (fn != nullptr) {
     fn(op_type, [](const NodePtr &) -> uint32_t { return 0U; });
   }
@@ -529,8 +530,8 @@ TEST_F(JitFullPartitionUT,
   for (auto &node : computerGraph->GetDirectNode()) {
     if (node->GetType() == "Reshape") {
       node->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({-2}));
-    } else if (node->GetType() == "Relu" && !node->GetInDataNodes().empty()
-               && node->GetInDataNodes().at(0)->GetType() == "Reshape") {
+    } else if (node->GetType() == "Relu" && !node->GetInDataNodes().empty() &&
+               node->GetInDataNodes().at(0)->GetType() == "Reshape") {
       node->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({-2}));
     }
   }
@@ -552,8 +553,7 @@ TEST_F(JitFullPartitionUT,
 /**
  * 级联reshape-transpose链，每个op的输出是下一个op的shape/perm输入，
  * 每个op的data输入来自独立的图输入。
- * 验证现状：这些节点输出均为unknown，且Reshape/Transpose存在lowering注册，
- * 会被PropagatePullable级联拉入当前EP，最终整图进入同一个EP。
+ * 验证现状：这些节点输出均为unknown，首轮切图后，级联链在remaining图中继续切分。
  *
  * 拓扑:
  *        data0 data1          data2           data3           data4
@@ -569,32 +569,37 @@ TEST_F(JitFullPartitionUT,
  *      netoutput
  *
  * 预期切图结果（现状）:
- *   EP 0: data0..data4 + reshape#1 + transpose#1 + reshape#2 + transpose#2 + netoutput
+ *   EP 0: 7个节点；EP 1: 6个节点；EP 2: 5个节点；EP 3: 4个节点。
  */
 TEST_F(JitFullPartitionUT, consecutive_uninferable_reshape_transpose_chain_pulled_into_one_ep) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   // data0: reshape#1的数据输入 (4-D, FLOAT)
-  const auto data0 = EsCreateGraphInputWithDetails(graph.get(), 0, "data0", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
+  const auto data0 =
+      EsCreateGraphInputWithDetails(graph.get(), 0, "data0", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   std::vector<int64_t> data_shape = {-1, -1, -1, -1};
   EsSetShape(data0, data_shape.data(), static_cast<int64_t>(data_shape.size()));
 
   // data1: reshape#1的shape输入 (非Const, 1-D, INT64)
-  const auto data1 = EsCreateGraphInputWithDetails(graph.get(), 1, "data1", nullptr, C_DT_INT64, C_FORMAT_ND, nullptr, 0);
+  const auto data1 =
+      EsCreateGraphInputWithDetails(graph.get(), 1, "data1", nullptr, C_DT_INT64, C_FORMAT_ND, nullptr, 0);
   std::vector<int64_t> param_dims = {4};
   EsSetShape(data1, param_dims.data(), static_cast<int64_t>(param_dims.size()));
 
   // data2: transpose#1的数据输入
-  const auto data2 = EsCreateGraphInputWithDetails(graph.get(), 2, "data2", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
+  const auto data2 =
+      EsCreateGraphInputWithDetails(graph.get(), 2, "data2", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   EsSetShape(data2, data_shape.data(), static_cast<int64_t>(data_shape.size()));
 
   // data3: reshape#2的数据输入
-  const auto data3 = EsCreateGraphInputWithDetails(graph.get(), 3, "data3", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
+  const auto data3 =
+      EsCreateGraphInputWithDetails(graph.get(), 3, "data3", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   EsSetShape(data3, data_shape.data(), static_cast<int64_t>(data_shape.size()));
 
   // data4: transpose#2的数据输入
-  const auto data4 = EsCreateGraphInputWithDetails(graph.get(), 4, "data4", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
+  const auto data4 =
+      EsCreateGraphInputWithDetails(graph.get(), 4, "data4", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   EsSetShape(data4, data_shape.data(), static_cast<int64_t>(data_shape.size()));
 
   // 构建级联链: 每个op的output是下一个op的shape/perm输入
@@ -608,8 +613,8 @@ TEST_F(JitFullPartitionUT, consecutive_uninferable_reshape_transpose_chain_pulle
   const auto transpose2 = EsTranspose(data4, reshape2);
   EsSetGraphOutput(transpose2, 0);
 
-  const auto ge_graph = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph, nullptr);
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*ge_graph);
   ASSERT_NE(compute_graph, nullptr);
@@ -643,11 +648,11 @@ TEST_F(JitFullPartitionUT, consecutive_uninferable_reshape_transpose_chain_pulle
   inputs.emplace_back(data_td);   // data4
 
   gert_stub_.GetSlogStub().SetLevelInfo();
-  FullPartition(compute_graph, inputs, {10});
+  FullPartition(compute_graph, inputs, {7, 6, 5, 4});
   gert_stub_.GetSlogStub().SetLevel(DLOG_ERROR);
-  // 验证分类：Transpose_1/Reshape_2/Transpose_3 共3个节点，值依赖无法满足 → unsuppliable_input
+  // 当前切图过程中没有节点被归类为值依赖无法满足、无回调或无lowering。
   auto &log1 = gert_stub_.GetSlogStub();
-  EXPECT_EQ(log1.CountLog(DLOG_INFO, "reason: value dependency unsuppliable"), 3);
+  EXPECT_EQ(log1.CountLog(DLOG_INFO, "reason: value dependency unsuppliable"), 0);
   EXPECT_EQ(log1.CountLog(DLOG_INFO, "reason: no callback registered"), 0);
   EXPECT_EQ(log1.CountLog(DLOG_INFO, "reason: no lowering registered"), 0);
 }
@@ -657,23 +662,23 @@ TEST_F(JitFullPartitionUT, consecutive_uninferable_reshape_transpose_chain_pulle
 TEST_F(JitFullPartitionUT, unregistered_symbol_infer_xop_chain_pulled_into_one_ep) {
   RegisterLoweringForTest("XopCallback");
 
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
-  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("XopCallback")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType("XopCallback")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -684,8 +689,8 @@ TEST_F(JitFullPartitionUT, unregistered_symbol_infer_xop_chain_pulled_into_one_e
   const auto op3 = xop(op2, "Xop_3");
   EsSetGraphOutput(op3, 0);
 
-  const auto ge_graph = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph, nullptr);
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*ge_graph);
   ASSERT_NE(compute_graph, nullptr);
@@ -709,23 +714,23 @@ TEST_F(JitFullPartitionUT, unregistered_symbol_infer_xop_chain_pulled_into_one_e
 // 验证未注册lowering的自定义算子链 data→Xop×4→output：
 // Xop无lowering→ClassifyPullable优先命中no_lowering→级联拉入同一个EP
 TEST_F(JitFullPartitionUT, registered_symbol_infer_without_lowering_xop_chain_pulled_into_one_ep) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
-  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("Xop")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType("Xop")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -736,8 +741,8 @@ TEST_F(JitFullPartitionUT, registered_symbol_infer_without_lowering_xop_chain_pu
   const auto op3 = xop(op2, "Xop_3");
   EsSetGraphOutput(op3, 0);
 
-  const auto ge_graph = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph, nullptr);
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*ge_graph);
   ASSERT_NE(compute_graph, nullptr);
@@ -762,32 +767,33 @@ TEST_F(JitFullPartitionUT, pullable_nodes_stop_before_subgraph_control_node) {
   RegisterLoweringForTest("XopNoCallbackMixed");
   RegisterLoweringForTest(IF);
 
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
   const auto data = EsCreateGraphInputWithDetails(graph.get(), 0, "data", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   std::vector<int64_t> data_shape = {-1, -1};
   EsSetShape(data, data_shape.data(), static_cast<int64_t>(data_shape.size()));
-  const auto shape_data = EsCreateGraphInputWithDetails(
-      graph.get(), 1, "shape_data", nullptr, C_DT_INT64, C_FORMAT_ND, nullptr, 0);
+  const auto shape_data =
+      EsCreateGraphInputWithDetails(graph.get(), 1, "shape_data", nullptr, C_DT_INT64, C_FORMAT_ND, nullptr, 0);
   std::vector<int64_t> shape_input_shape = {2};
   EsSetShape(shape_data, shape_input_shape.data(), static_cast<int64_t>(shape_input_shape.size()));
-  const auto data2 = EsCreateGraphInputWithDetails(graph.get(), 2, "data2", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
+  const auto data2 =
+      EsCreateGraphInputWithDetails(graph.get(), 2, "data2", nullptr, C_DT_FLOAT, C_FORMAT_ND, nullptr, 0);
   EsSetShape(data2, data_shape.data(), static_cast<int64_t>(data_shape.size()));
   const auto reshape = EsReshape(data, shape_data, 2, 2);
   const auto cond = EsRelu(data);
   es::EsTensorHolder reshape_holder(reshape);
   es::EsTensorHolder cond_holder(cond);
 
-  auto build_xop = [](EsCTensorHolder *input, const char *type, const char *name) -> EsCTensorHolder* {
+  auto build_xop = [](EsCTensorHolder *input, const char *type, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType(type)
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType(type)
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -801,13 +807,13 @@ TEST_F(JitFullPartitionUT, pullable_nodes_stop_before_subgraph_control_node) {
   auto *builder = ge::es::ResolveBuilder(transpose_holder.GetCTensorHolder());
   auto *ge_graph = builder->GetGraph();
   auto if_builder_node = ge::es::CompliantNodeBuilder(ge_graph)
-      .OpType(IF)
-      .Name("if_op")
-      .IrDefInputsV2({{"cond", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""},
-                      {"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-      .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-      .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-      .Build();
+                             .OpType(IF)
+                             .Name("if_op")
+                             .IrDefInputsV2({{"cond", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""},
+                                             {"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                             .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                             .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                             .Build();
   ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, cond_holder.GetCTensorHolder()->GetProducer(),
                                    cond_holder.GetCTensorHolder()->GetOutIndex(), if_builder_node, 0);
   ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, transpose_holder.GetCTensorHolder()->GetProducer(),
@@ -815,8 +821,8 @@ TEST_F(JitFullPartitionUT, pullable_nodes_stop_before_subgraph_control_node) {
   const auto if_output = builder->GetTensorHolderFromNode(std::move(if_builder_node), 0);
   EsSetGraphOutput(if_output, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(compute_graph, nullptr);

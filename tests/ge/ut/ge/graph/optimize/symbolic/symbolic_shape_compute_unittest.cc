@@ -4773,6 +4773,173 @@ TEST_F(SymbolicShapeComputeUT, test_stridedslice_ellipsis_zero_dim_expansion) {
   ASSERT_EQ(RunSymbolInferenceTest(cg, expect_node_vec, {}), SUCCESS);
 }
 
+TEST_F(SymbolicShapeComputeUT, test_sub_with_const_broadcast) {
+  const std::vector<int32_t> x0_value = {10, 20, 30, 40};
+  const std::vector<int32_t> x1_value = {1, 2};
+  const std::vector<int64_t> x0_dims = {2, 2};
+  const std::vector<int64_t> x1_dims = {1, 2};
+  auto x0 = EsCreateConstInt32(graph_, x0_value.data(), x0_dims.data(), x0_dims.size());
+  auto x1 = EsCreateConstInt32(graph_, x1_value.data(), x1_dims.data(), x1_dims.size());
+  auto sub = EsSub(x0, x1);
+  ASSERT_EQ(EsSetGraphOutput(sub, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("Sub", {Symbol(2), Symbol(2)}, {}, {}, {Symbol(9), Symbol(18), Symbol(29), Symbol(38)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_mul_with_const_broadcast) {
+  const std::vector<int32_t> x0_value = {2, 3, 4, 5};
+  const std::vector<int32_t> x1_value = {10, 20};
+  const std::vector<int64_t> x0_dims = {2, 2};
+  const std::vector<int64_t> x1_dims = {1, 2};
+  auto x0 = EsCreateConstInt32(graph_, x0_value.data(), x0_dims.data(), x0_dims.size());
+  auto x1 = EsCreateConstInt32(graph_, x1_value.data(), x1_dims.data(), x1_dims.size());
+  auto mul = EsMul(x0, x1);
+  ASSERT_EQ(EsSetGraphOutput(mul, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("Mul", {Symbol(2), Symbol(2)}, {}, {}, {Symbol(20), Symbol(60), Symbol(40), Symbol(100)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_select_v2_with_broadcast) {
+  const std::vector<int32_t> condition_value = {1, 0};
+  const std::vector<int32_t> then_value = {1, 2, 3, 4};
+  const std::vector<int32_t> else_value = {10, 20};
+  const std::vector<int64_t> condition_dims = {2, 1};
+  const std::vector<int64_t> then_dims = {2, 2};
+  const std::vector<int64_t> else_dims = {1, 2};
+  auto condition = EsCreateConstInt32(graph_, condition_value.data(), condition_dims.data(), condition_dims.size());
+  auto then_tensor = EsCreateConstInt32(graph_, then_value.data(), then_dims.data(), then_dims.size());
+  auto else_tensor = EsCreateConstInt32(graph_, else_value.data(), else_dims.data(), else_dims.size());
+  auto select = EsSelectV2(condition, then_tensor, else_tensor);
+  ASSERT_EQ(EsSetGraphOutput(select, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("SelectV2", {Symbol(2), Symbol(2)}, {}, {},
+                             {Symbol(1), Symbol(2), Symbol(10), Symbol(20)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_identity_and_cast_symbolic_value) {
+  auto input = EsCreateGraphInputWithDetails(graph_, 0, "input", nullptr, C_DataType::C_DT_INT32, C_Format::C_FORMAT_ND,
+                                             nullptr, 0);
+  auto identity = EsIdentity(input);
+  auto cast = EsCast(identity, DT_FLOAT);
+  ASSERT_EQ(EsSetGraphOutput(cast, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  DataInfo data_info = {FORMAT_ND, DT_INT32, {2}};
+  ASSERT_EQ(SetNoStorage(cg, "input", data_info, 0), SUCCESS);
+  auto input_attr = cg->FindNode("input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(input_attr, nullptr);
+  input_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({Symbol(2)}));
+  input_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{Symbol(5), Symbol(400)}));
+  auto cast_node = cg->FindFirstNodeMatchType("Cast");
+  ASSERT_NE(cast_node, nullptr);
+  cast_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_INT32);
+  cast_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  ExpectNodeInfo identity_expect("Identity", {Symbol(2)}, {}, {}, {Symbol(5), Symbol(400)});
+  ExpectNodeInfo cast_expect("Cast", {Symbol(2)}, {}, {}, {Symbol(5), Symbol(400)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {identity_expect, cast_expect}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_range_symbolic_value) {
+  auto start = EsCreateScalarInt64(graph_, 2);
+  auto limit = EsCreateScalarInt64(graph_, 8);
+  auto delta = EsCreateScalarInt64(graph_, 2);
+  auto range = EsRange(start, limit, delta, false);
+  ASSERT_EQ(EsSetGraphOutput(range, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("Range", {Symbol(3)}, {}, {}, {Symbol(2), Symbol(4), Symbol(6)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_rsqrt_symbolic_value) {
+  const std::vector<int32_t> value = {4, 16};
+  const std::vector<int64_t> dims = {2};
+  auto input = EsCreateConstInt32(graph_, value.data(), dims.data(), dims.size());
+  auto rsqrt = EsRsqrt(input);
+  ASSERT_EQ(EsSetGraphOutput(rsqrt, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto rsqrt_node = cg->FindFirstNodeMatchType("Rsqrt");
+  ASSERT_NE(rsqrt_node, nullptr);
+  rsqrt_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  rsqrt_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  const auto inverse_sqrt = sym::Pow(Symbol(4), sym::Rational(-1, 2));
+  const auto inverse_sqrt_16 = sym::Pow(Symbol(16), sym::Rational(-1, 2));
+  ExpectNodeInfo expect_node("Rsqrt", {Symbol(2)}, {}, {}, {inverse_sqrt, inverse_sqrt_16});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_slice_symbolic_value) {
+  const std::vector<int32_t> x_value = {0, 1, 2, 3, 4, 5};
+  const std::vector<int32_t> offsets_value = {1, 1};
+  const std::vector<int32_t> sizes_value = {1, 2};
+  const std::vector<int64_t> x_dims = {2, 3};
+  const std::vector<int64_t> index_dims = {2};
+  auto x = EsCreateConstInt32(graph_, x_value.data(), x_dims.data(), x_dims.size());
+  auto offsets = EsCreateConstInt32(graph_, offsets_value.data(), index_dims.data(), index_dims.size());
+  auto sizes = EsCreateConstInt32(graph_, sizes_value.data(), index_dims.data(), index_dims.size());
+  auto slice = EsSlice(x, offsets, sizes);
+  ASSERT_EQ(EsSetGraphOutput(slice, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("Slice", {Symbol(1), Symbol(2)}, {}, {}, {Symbol(4), Symbol(5)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_softmax_v2_symbolic_value) {
+  const std::vector<int32_t> value = {0, 1, 2, 3};
+  const std::vector<int64_t> dims = {2, 2};
+  auto input = EsCreateConstInt32(graph_, value.data(), dims.data(), dims.size());
+  const int64_t axes[] = {-1};
+  auto softmax = EsSoftmaxV2(input, axes, 1, false);
+  ASSERT_EQ(EsSetGraphOutput(softmax, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto softmax_node = cg->FindFirstNodeMatchType("SoftmaxV2");
+  ASSERT_NE(softmax_node, nullptr);
+  softmax_node->GetOpDesc()->MutableInputDesc(0)->SetDataType(DT_FLOAT);
+  softmax_node->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
+  const auto e0 = sym::Exp(Symbol(0));
+  const auto e1 = sym::Exp(Symbol(1));
+  const auto e2 = sym::Exp(Symbol(2));
+  const auto e3 = sym::Exp(Symbol(3));
+  ExpectNodeInfo expect_node("SoftmaxV2", {Symbol(2), Symbol(2)}, {}, {},
+                             {e0 / (e0 + e1), e1 / (e0 + e1), e2 / (e2 + e3), e3 / (e2 + e3)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+TEST_F(SymbolicShapeComputeUT, test_transpose_symbolic_value) {
+  const std::vector<int32_t> x_value = {0, 1, 2, 3, 4, 5};
+  const std::vector<int32_t> perm_value = {1, 0};
+  const std::vector<int64_t> x_dims = {2, 3};
+  const std::vector<int64_t> perm_dims = {2};
+  auto x = EsCreateConstInt32(graph_, x_value.data(), x_dims.data(), x_dims.size());
+  auto perm = EsCreateConstInt32(graph_, perm_value.data(), perm_dims.data(), perm_dims.size());
+  auto transpose = EsTranspose(x, perm);
+  ASSERT_EQ(EsSetGraphOutput(transpose, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ExpectNodeInfo expect_node("Transpose", {Symbol(3), Symbol(2)}, {}, {},
+                             {Symbol(0), Symbol(3), Symbol(1), Symbol(4), Symbol(2), Symbol(5)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
 TEST_F(SymbolicShapeComputeUT, InferShapeForLogicalNotSymbolicKernel) {
   const std::vector<int32_t> input_value = {1, 0, 0, 1};
   const std::vector<int64_t> input_dims = {2, 2};

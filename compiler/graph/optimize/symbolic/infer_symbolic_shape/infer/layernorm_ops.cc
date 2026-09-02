@@ -155,7 +155,40 @@ graphStatus InferShape4SoftmaxCrossEntropyWithLogits(gert::InferSymbolShapeConte
   }
   return ge::GRAPH_SUCCESS;
 }
+/**
+ * RmsNorm算子的符号化Shape推导
+ * 【算子功能】对输入x执行均方根归一化，输出归一化结果y和反向标准差rstd。
+ * 【算子约束】gamma的秩不能大于x的秩；rstd在x的末尾gamma秩个维度上保留维度1。
+ * 【推导逻辑】先读取x和gamma的符号Shape，y逐维复制x的Shape；根据gamma的秩确定归一化尾部维度的
+ *          起始位置，将rstd的对应维度替换为1，其余前置维度保持x的符号维度不变，分别写回两个输出。
+ * 【举例】x=[B,S,H]、gamma=[H]时，y=[B,S,H]，rstd=[B,S,1]。
+ */
+graphStatus InferShape4RmsNorm(gert::InferSymbolShapeContext *context) {
+  const auto x_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(x_shape);
+  const auto gamma_shape = context->GetInputSymbolShape(1);
+  GE_UNSUPPORTED_IF_NULL(gamma_shape);
+  const auto y_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(y_shape);
+  const auto rstd_shape = context->GetOutputSymbolShape(1);
+  GE_ASSERT_NOTNULL(rstd_shape);
 
+  const auto x_dim_num = x_shape->GetDimNum();
+  const auto gamma_dim_num = gamma_shape->GetDimNum();
+  GE_ASSERT(gamma_dim_num <= x_dim_num,
+            "RmsNorm failed, gamma rank[%zu] must not be greater than x rank[%zu]. node %s[%s]", gamma_dim_num,
+            x_dim_num, context->GetNodeName(), context->GetNodeType());
+
+  *y_shape = *x_shape;
+  *rstd_shape = *x_shape;
+  const auto norm_begin = x_dim_num - gamma_dim_num;
+  for (size_t i = norm_begin; i < x_dim_num; ++i) {
+    rstd_shape->MutableDims()[i] = Symbol(1);
+  }
+  return GRAPH_SUCCESS;
+}
+
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(RmsNorm).InferSymbolShape(InferShape4RmsNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(LayerNorm).InferSymbolShape(InferShape4LayerNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(AddLayerNorm).InferSymbolShape(InferShape4AddLayerNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(SoftmaxCrossEntropyWithLogits)

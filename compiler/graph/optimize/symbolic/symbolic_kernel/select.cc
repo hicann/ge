@@ -16,6 +16,7 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
+#include <algorithm>
 
 namespace ge {
 namespace {
@@ -113,8 +114,134 @@ bool Broadcast(const std::vector<Expression> &src_data, const std::vector<int64_
   }
   return true;
 }
+
+bool ComputeBroadcastShape(const std::vector<std::vector<int64_t>> &input_shapes, std::vector<int64_t> &output_shape) {
+  size_t max_rank = 0U;
+  for (const auto &shape : input_shapes) {
+    max_rank = std::max(max_rank, shape.size());
+  }
+  output_shape.assign(max_rank, 1L);
+  for (const auto &shape : input_shapes) {
+    const size_t offset = max_rank - shape.size();
+    for (size_t i = 0U; i < shape.size(); ++i) {
+      const int64_t current = output_shape[offset + i];
+      const int64_t value = shape[i];
+      if (current != 1L && value != 1L && current != value) {
+        return false;
+      }
+      output_shape[offset + i] = current == 1L ? value : current;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
+graphStatus PrepareSelectV2(gert::InferSymbolComputeContext *context, std::vector<int64_t> &output_dims,
+                            std::vector<Expression> &output_value) {
+  const auto condition = GetInputSymbolicValue(context, 0U);
+  const auto then_value = GetInputSymbolicValue(context, 1U);
+  const auto else_value = GetInputSymbolicValue(context, 2U);
+  if (!CheckInputsValue(condition, then_value, else_value)) {
+    GELOGW(
+        "SelectV2 symbolic compute unsupported: condition, then or else SymbolicValue is missing or empty, node "
+        "%s[%s].",
+        context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  std::vector<int64_t> condition_dims;
+  std::vector<int64_t> then_dims;
+  std::vector<int64_t> else_dims;
+  const auto condition_shape = context->GetInputSymbolShape(0U);
+  const auto then_shape = context->GetInputSymbolShape(1U);
+  const auto else_shape = context->GetInputSymbolShape(2U);
+  GE_UNSUPPORTED_IF_NULL(condition_shape);
+  GE_UNSUPPORTED_IF_NULL(then_shape);
+  GE_UNSUPPORTED_IF_NULL(else_shape);
+  if (!GetShapeValue(condition_shape->GetDims(), condition_dims) || !GetShapeValue(then_shape->GetDims(), then_dims) ||
+      !GetShapeValue(else_shape->GetDims(), else_dims)) {
+    GELOGW("SelectV2 symbolic compute unsupported: input Shape contains non-constant dimensions, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  if (!ComputeBroadcastShape({condition_dims, then_dims, else_dims}, output_dims)) {
+    GELOGW("SelectV2 symbolic compute unsupported: condition, then and else cannot broadcast, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  std::vector<Expression> condition_broadcast;
+  std::vector<Expression> then_broadcast;
+  std::vector<Expression> else_broadcast;
+  if (!Broadcast(*condition, condition_dims, output_dims, condition_broadcast) ||
+      !Broadcast(*then_value, then_dims, output_dims, then_broadcast) ||
+      !Broadcast(*else_value, else_dims, output_dims, else_broadcast)) {
+    GELOGW("SelectV2 symbolic compute unsupported: input SymbolicValue broadcast failed, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  if (!CalOutputValue(condition_broadcast, then_broadcast, else_broadcast, output_value)) {
+    GELOGW("SelectV2 symbolic compute unsupported: failed to select broadcasted values, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus SetSelectOutput(gert::InferSymbolComputeContext *context, const std::vector<Expression> &shape,
+                            const std::vector<Expression> &value) {
+  auto output = context->GetOutputSymbolTensor(0U);
+  GE_ASSERT_NOTNULL(output);
+  output->MutableOriginSymbolShape().MutableDims() = shape;
+  output->SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(value));
+  GELOGD("%s[%s] kernel success, output ori shape: %s, output value %s", context->GetNodeName(), context->GetNodeType(),
+         SymbolicInferUtil::VectorExpressionToStr(shape).c_str(),
+         SymbolicInferUtil::VectorExpressionToStr(value).c_str());
+  return GRAPH_SUCCESS;
+}
+
+/**
+ * SelectV2算子的符号化计算
+ * 【算子功能】根据condition逐元素从then和else中选择输出值。
+ * 【算子约束】condition、then和else的Shape必须可确定并满足广播规则，输入SymbolicValue必须有效。
+ * 【推导逻辑】先读取condition、then和else的Shape及SymbolicValue，按尾部维度对齐并使用相等或1维规则
+ *          计算三者的公共输出Shape；再将三个输入的SymbolicValue分别扩展到该Shape，逐位置解析condition，
+ *          condition大于0时选择then，否则选择else，最后写回输出Shape和SymbolicValue。
+ * 【举例】condition Shape=[2,1]、value=[1,0]，then Shape=[2,2]、value=[1,2,3,4]，else Shape=[1,2]、
+ *          value=[10,20]时，输出Shape=[2,2]，输出value=[1,2,10,20]。
+ */
+graphStatus SelectV2SymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GE_ASSERT_NOTNULL(context);
+  GE_ASSERT_EQ(context->GetComputeNodeInputNum(), kSelectInputNum);
+  GE_ASSERT_EQ(context->GetComputeNodeOutputNum(), kSelectOutputNum);
+
+  std::vector<Expression> output_value;
+  std::vector<int64_t> output_dims;
+  auto ret = PrepareSelectV2(context, output_dims, output_value);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  std::vector<Expression> output_shape;
+  output_shape.reserve(output_dims.size());
+  for (const auto dim : output_dims) {
+    output_shape.emplace_back(Symbol(dim));
+  }
+  ret = SetSelectOutput(context, output_shape, output_value);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  return GRAPH_SUCCESS;
+}
+
+/**
+ * Select算子的符号化计算
+ * 【算子功能】根据condition逐元素从x1和x2中选择输出值。
+ * 【算子约束】x1和x2的Shape必须完全一致；condition支持标量、与输入同Shape或一维首轴匹配的场景。
+ * 【推导逻辑】先读取condition、x1和x2的SymbolicValue，并使用x1/x2的共同Shape作为输出Shape；将condition
+ *          按Select规则广播到该Shape后，逐位置解析condition，condition大于0时写入x1对应表达式，否则写入
+ *          x2对应表达式，最终将输出Shape和选择后的SymbolicValue写回输出Tensor。
+ * 【举例】condition Shape=[2]、value=[1,0]，x1/x2 Shape=[2,2]、value分别为[1,2,3,4]和[10,20,30,40]时，
+ *          输出Shape为[2,2]，输出value为[1,2,30,40]。
+ */
 static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
   GE_ASSERT_NOTNULL(context);
   GELOGD("Select Symbolic Kernel in, node %s[%s].", context->GetNodeName(), context->GetNodeType());
@@ -163,19 +290,13 @@ static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *
     return UNSUPPORTED;
   }
 
-  auto output_desc = context->GetOutputSymbolTensor(0U);
-  GE_ASSERT_NOTNULL(output_desc);
-  auto symbolic_value_unique = ge::MakeUnique<std::vector<ge::Expression>>(output_value);
-  if (symbolic_value_unique != nullptr) {
-    output_desc->SetSymbolicValue(std::move(symbolic_value_unique));
+  const auto ret = SetSelectOutput(context, x1_shape->GetDims(), output_value);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
   }
-  output_desc->MutableOriginSymbolShape().MutableDims() = x1_shape->GetDims();
 
-  GELOGD("%s[%s] kernel success, output ori shape: %s, output value %s", context->GetNodeName(), context->GetNodeType(),
-         SymbolicInferUtil::VectorExpressionToStr(output_desc->GetOriginSymbolShape().GetDims()).c_str(),
-         SymbolicInferUtil::VectorExpressionToStr(*output_desc->GetSymbolicValue()).c_str());
-
-  return SUCCESS;
+  return GRAPH_SUCCESS;
 }
 REGISTER_SYMBOLIC_KERNEL(Select, SelectSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(SelectV2, SelectV2SymbolicKernelCompute);
 }  // namespace ge

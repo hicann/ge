@@ -7574,4 +7574,160 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEinsum_EllipsisWithPrefix)
   ASSERT_EQ(out_shape->GetDim(0), s0);
   ASSERT_EQ(out_shape->GetDim(2), s3);
 }
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForFlatten) {
+  const auto func = GetInferFunc("Flatten");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  const auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 2));
+  const auto input_shape = gert::SymbolShape({s0, s1, s2});
+
+  InferSymbolShapeContextTestBuilder builder("Flatten", "flatten");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("axis");
+  AttrUtils::SetInt(op_desc, "axis", 1);
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({s0, s1 * s2}).GetDims());
+
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("axis");
+  AttrUtils::SetInt(op_desc, "axis", -1);
+  infer_context = builder.AppendInputSymbolTensor(input_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({s0 * s1, s2}).GetDims());
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForShape) {
+  const auto func = GetInferFunc("Shape");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  InferSymbolShapeContextTestBuilder builder("Shape", "shape");
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1})).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(2)}).GetDims());
+
+  builder.Destroy();
+  infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape()).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(0)}).GetDims());
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRmsNorm) {
+  const auto func = GetInferFunc("RmsNorm");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  const auto s2 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 2));
+  const auto x_shape = gert::SymbolShape({s0, s1, s2});
+  const auto gamma_shape = gert::SymbolShape({s2});
+
+  InferSymbolShapeContextTestBuilder builder("RmsNorm", "rms_norm");
+  auto infer_context =
+      builder.AppendInputSymbolTensor(x_shape).AppendInputSymbolTensor(gamma_shape).OutputNum(2).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({s0, s1, Symbol(1)}).GetDims());
+
+  builder.Destroy();
+  infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1, s2}))
+                      .AppendInputSymbolTensor(gert::SymbolShape({s1, s2}))
+                      .OutputNum(2)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({s0, Symbol(1), Symbol(1)}).GetDims());
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForGroupedMatmul) {
+  const auto func = GetInferFunc("GroupedMatmul");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto m = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto k = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto n = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(1, 1));
+
+  InferSymbolShapeContextTestBuilder builder("GroupedMatmul", "grouped_matmul");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("split_item");
+  op_desc->AppendIrAttrName("dtype");
+  op_desc->AppendIrAttrName("transpose_weight");
+  op_desc->AppendIrAttrName("transpose_x");
+  op_desc->AppendIrAttrName("group_type");
+  op_desc->AppendIrAttrName("group_list_type");
+  AttrUtils::SetInt(op_desc, "split_item", 3);
+  AttrUtils::SetInt(op_desc, "dtype", 0);
+  AttrUtils::SetBool(op_desc, "transpose_weight", false);
+  AttrUtils::SetBool(op_desc, "transpose_x", false);
+  AttrUtils::SetInt(op_desc, "group_type", -1);
+  AttrUtils::SetInt(op_desc, "group_list_type", 0);
+  op_desc->AppendIrInput("x", kIrInputDynamic);
+  op_desc->AppendIrInput("weight", kIrInputDynamic);
+  op_desc->AppendIrOutput("y", kIrOutputDynamic);
+  op_desc->AddDynamicInputDesc("x", 1, true);
+  op_desc->AddDynamicInputDesc("weight", 1, true);
+  op_desc->AddDynamicOutputDesc("y", 1, true);
+
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({b, m, k}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({k, n}))
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, m, n}).GetDims());
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForApplyRotaryPosEmb) {
+  const auto func = GetInferFunc("ApplyRotaryPosEmb");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto nq = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto nk = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(1, 1));
+  const auto s = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto query_shape = gert::SymbolShape({b, nq, s, Symbol(8)});
+  const auto key_shape = gert::SymbolShape({b, nk, s, Symbol(8)});
+  const auto rotary_shape = gert::SymbolShape({Symbol(1), Symbol(1), s, Symbol(4)});
+
+  InferSymbolShapeContextTestBuilder builder("ApplyRotaryPosEmb", "apply_rotary_pos_emb");
+  auto infer_context = builder.AppendInputSymbolTensor(query_shape)
+                           .AppendInputSymbolTensor(key_shape)
+                           .AppendInputSymbolTensor(rotary_shape)
+                           .AppendInputSymbolTensor(rotary_shape)
+                           .OutputNum(2)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), query_shape.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), key_shape.GetDims());
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTensorScatterUpdate) {
+  const auto func = GetInferFunc("TensorScatterUpdate");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  const auto input_shape = gert::SymbolShape({s0, s1});
+  InferSymbolShapeContextTestBuilder builder("TensorScatterUpdate", "tensor_scatter_update");
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), input_shape.GetDims());
+}
 }  // namespace ge

@@ -10111,4 +10111,97 @@ TEST_F(SymbolicShapeInferenceST, InferSymbolicShapeForFusedInferAttentionScore) 
   EXPECT_EQ(softmax_lse_attr->symbolic_tensor.GetOriginSymbolShape(),
             gert::SymbolShape({ge::Symbol("batch"), ge::Symbol("num_heads"), ge::Symbol("seq_len"), ge::Symbol(1)}));
 }
+
+TEST_F(SymbolicShapeInferenceST, InferShapeForFlatten) {
+  auto data = builder_->CreateInput(0, "data");
+  data.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  auto flatten = es::Flatten(data, 1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(flatten, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto flatten_node = cg->FindFirstNodeMatchType("Flatten");
+  ASSERT_NE(flatten_node, nullptr);
+  flatten_node->GetOpDesc()->AppendIrAttrName("axis");
+  AttrUtils::SetInt(flatten_node->GetOpDesc(), "axis", 1);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = flatten_node;
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1") * Symbol("s2")}));
+}
+
+TEST_F(SymbolicShapeInferenceST, InferShapeForShape) {
+  auto data = builder_->CreateInput(0, "data");
+  data.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  auto shape = es::Shape(data, DT_INT64);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(shape, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Shape");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(3)}));
+}
+
+TEST_F(SymbolicShapeInferenceST, InferShapeForRmsNorm) {
+  auto x = builder_->CreateInput(0, "x");
+  auto gamma = builder_->CreateInput(1, "gamma");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  gamma.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  auto rms_norm = es::RmsNorm(x, gamma);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rms_norm.y, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rms_norm.rstd, 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("RmsNorm");
+  ASSERT_NE(node, nullptr);
+  auto y_attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto rstd_attr = node->GetOpDesc()->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  ASSERT_NE(rstd_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
+  EXPECT_EQ(rstd_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol(1)}));
+}
+
+TEST_F(SymbolicShapeInferenceST, InferShapeForApplyRotaryPosEmb) {
+  auto query = builder_->CreateInput(0, "query");
+  auto key = builder_->CreateInput(1, "key");
+  auto cos = builder_->CreateInput(2, "cos");
+  auto sin = builder_->CreateInput(3, "sin");
+  query.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2", "8"}));
+  key.SetOriginSymbolShape(std::vector<const char *>({"s0", "s3", "s2", "8"}));
+  cos.SetOriginSymbolShape(std::vector<const char *>({"1", "1", "s2", "4"}));
+  sin.SetOriginSymbolShape(std::vector<const char *>({"1", "1", "s2", "4"}));
+  auto rope = es::ApplyRotaryPosEmb(query, key, cos, sin);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rope.ref_query, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rope.ref_key, 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("ApplyRotaryPosEmb");
+  ASSERT_NE(node, nullptr);
+  auto query_attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto key_attr = node->GetOpDesc()->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(query_attr, nullptr);
+  ASSERT_NE(key_attr, nullptr);
+  EXPECT_EQ(query_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2"), Symbol(8)}));
+  EXPECT_EQ(key_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s3"), Symbol("s2"), Symbol(8)}));
+}
+
 }  // namespace ge

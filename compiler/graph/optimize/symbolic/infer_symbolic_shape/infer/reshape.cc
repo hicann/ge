@@ -113,6 +113,26 @@ graphStatus InferShape4Reshape(gert::InferSymbolShapeContext *context) {
   return ReshapeInferCommon(context, in_shape, out_shape, shape_tensor, dt);
 }
 
+/**
+ * Shape算子的符号化Shape推导
+ * 【算子功能】获取输入张量的秩，并将秩表示为一个一维Shape张量的长度。
+ * 【算子约束】输入必须存在有效的符号Shape；输出为单个一维张量。
+ * 【推导逻辑】读取输入符号Shape的维度数量R，创建一个一维输出符号Shape并将其唯一维度设为R；
+ *          该推导只处理Shape，不展开输入Tensor的元素值，输出SymbolicValue由对应符号计算阶段生成。
+ * 【举例】输入Shape=[s0,s1,s2]时，输出Shape为[3]。
+ */
+graphStatus InferShape4Shape(gert::InferSymbolShapeContext *context) {
+  const auto in_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(in_shape);
+  const auto out_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(out_shape);
+
+  out_shape->Clear();
+  out_shape->AppendDim(Symbol(static_cast<int64_t>(in_shape->GetDimNum())));
+  return GRAPH_SUCCESS;
+}
+
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Shape).InferSymbolShape(InferShape4Shape);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Reshape).InferSymbolShape(InferShape4Reshape);
 }  // namespace
 }  // namespace ge
