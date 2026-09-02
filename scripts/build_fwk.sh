@@ -393,6 +393,8 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
     #execute ut testcase with mem leaks by default
     if [[ "X$ENABLE_GE_UT" = "Xon" ]]; then
       echo "[TEST GE COMMON] Begin to run tests with leaks check"
+      # Keep GE LLT on test stubs instead of loading CANN OPP plugins.
+      unset ASCEND_OPP_PATH
       export LD_PRELOAD=${USE_ASAN}
       ASAN_OPTIONS=detect_container_overflow=0 \
       ctest --verbose -j ${THREAD_NUM} -L ut -L ge_common --test-dir ${BUILD_PATH} --no-tests=error \
