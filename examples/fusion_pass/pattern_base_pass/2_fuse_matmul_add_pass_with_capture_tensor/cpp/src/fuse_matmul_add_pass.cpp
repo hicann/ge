@@ -84,8 +84,8 @@ class FuseMatMulAndAddPass : public PatternFusionPass {
     bool transpose_x2;
     matmul_node.node.GetAttr("transpose_x2", transpose_x2);
 
-    auto alpha_const = replace_graph_builder.CreateScalar(1);
-    auto beta_const = replace_graph_builder.CreateScalar(1);
+    auto alpha_const = replace_graph_builder.CreateScalar(1.0f);
+    auto beta_const = replace_graph_builder.CreateScalar(1.0f);
     auto gemm = es::GEMM(r_a, r_b, r_c, alpha_const, beta_const, transpose_x1, transpose_x2);
     return replace_graph_builder.BuildAndReset({gemm});
   }
