@@ -1465,8 +1465,10 @@ class GraphCompilerTest : public testing::Test {
     (void)ge::MemManager::Instance().Initialize(mem_type);
     ge::SetAutofusePlatform("2201");
     MockGenerateTask();
+    ResetAclskVerifyForTest();
   }
   void TearDown() {
+    ResetAclskVerifyForTest();
     char runtime2_env[MMPA_MAX_PATH] = {'1'};
     mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
     graph_optimizer_option = kGraphOptimizerOption::kNormal;

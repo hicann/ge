@@ -40,6 +40,11 @@ constexpr size_t default_pair_size = 2U;
 const std::set<std::string> scope_check_valid_value{"bypass", "abort"};
 const std::string super_scope_key = "_super_kernel_scope";
 constexpr int32_t MAX_DEADLOCK_ITER = 10;
+
+AclskHandleHolder &GetAclskHandleHolder() {
+  static AclskHandleHolder holder;
+  return holder;
+}
 bool IsSendNode(const NodePtr node) {
   auto type = node->GetType();
   return ((type == SEND) || (type == SENDNOTIFY) || (type == "SendMem"));
@@ -417,20 +422,28 @@ Status SuperKernelPass::InitAclskVerify() {
   }
   aclsk_initialized_ = true;
 
-  void *handle = mmDlopen("libascendsk.so", MMPA_RTLD_NOW);
-  if (handle == nullptr) {
-    const char_t *error = mmDlerror();
-    GELOGW("mmDlopen libascendsk.so failed, skip deadlock check, error=%s", error ? error : "");
-    return SUCCESS;
+  auto &holder = GetAclskHandleHolder();
+  if (holder.handle == nullptr && holder.func == nullptr) {
+    holder.handle = mmDlopen("libascendsk.so", MMPA_RTLD_NOW);
+    if (holder.handle == nullptr) {
+      const char_t *error = mmDlerror();
+      GELOGW("mmDlopen libascendsk.so failed, skip deadlock check, error=%s", error ? error : "");
+      return SUCCESS;
+    }
+    holder.func = reinterpret_cast<AclskScopeVerifyFunc>(mmDlsym(holder.handle, "aclskScopeVerify"));
+    if (holder.func == nullptr) {
+      const char_t *error = mmDlerror();
+      GELOGW("mmDlsym aclskScopeVerify failed, skip deadlock check, error=%s", error ? error : "");
+      return SUCCESS;
+    }
+    GELOGI("aclskScopeVerify loaded successfully");
   }
-  aclsk_verify_func_ = reinterpret_cast<AclskScopeVerifyFunc>(mmDlsym(handle, "aclskScopeVerify"));
-  if (aclsk_verify_func_ == nullptr) {
-    const char_t *error = mmDlerror();
-    GELOGW("mmDlsym aclskScopeVerify failed, skip deadlock check, error=%s", error ? error : "");
-    return SUCCESS;
-  }
-  GELOGI("aclskScopeVerify loaded successfully");
   return SUCCESS;
+}
+
+// Only used for DT (unit test / system test)
+void ResetAclskVerifyForTest() {
+  GetAclskHandleHolder().ResetForTest();
 }
 
 void SuperKernelPass::BuildScopeNameToIdMap() {
@@ -463,20 +476,7 @@ int32_t SuperKernelPass::GetScopeIdByCtrlEdge(const NodePtr &node, bool is_send)
   if (related_node == nullptr) {
     return -1;
   }
-  int32_t scope_id = GetScopeId(related_node);
-  if (scope_id > 0) {
-    auto it = scope_id_to_name_.find(scope_id);
-    if (it != scope_id_to_name_.end()) {
-      int64_t related_topo_id = related_node->GetOpDesc()->GetId();
-      if (!is_send && IsFirstNodeInScope(it->second, related_topo_id)) {
-        return -1;
-      }
-      if (is_send && IsLastNodeInScope(it->second, related_topo_id)) {
-        return -1;
-      }
-    }
-  }
-  return scope_id;
+  return GetScopeId(related_node);
 }
 
 uint32_t SuperKernelPass::GetEventId(const NodePtr &node) {
@@ -509,15 +509,33 @@ aclskScopeVerifyKernelType SuperKernelPass::GetKernelType(const NodePtr &node) {
   return ACLSK_SCOPE_VERIFY_KERNEL_NO_AICORE;
 }
 
+void SuperKernelPass::FillCoreLimit(const OpDesc *op_desc, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
+                                    int32_t vector_core_cnt_global) {
+  info.flag = 0U;
+  info.coreLimit[0] = ai_core_cnt_global;
+  info.coreLimit[1] = vector_core_cnt_global;
+  bool is_tiling_sink_op = false;
+  (void)AttrUtils::GetBool(op_desc, "_tiling_sink_op", is_tiling_sink_op);
+  if (is_tiling_sink_op) {
+    info.flag = 1U;
+  }
+  std::string aic_cnt_value;
+  std::string vec_cnt_value;
+  if (AttrUtils::GetStr(op_desc, "_op_aicore_num", aic_cnt_value)) {
+    info.coreLimit[0] = std::atoi(aic_cnt_value.c_str());
+  }
+  if (AttrUtils::GetStr(op_desc, "_op_vectorcore_num", vec_cnt_value)) {
+    info.coreLimit[1] = std::atoi(vec_cnt_value.c_str());
+  }
+}
+
 bool SuperKernelPass::FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info,
-                                         std::vector<ExtendInfoTmp> &extend_infos, int32_t ai_core_cnt_global,
-                                         int32_t vector_core_cnt_global) {
+                                         int32_t ai_core_cnt_global, int32_t vector_core_cnt_global) {
   auto op_desc = node->GetOpDescBarePtr();
   info.extendType = 0;
   info.extendInfo = nullptr;
   info.taskId = op_desc->GetId();
   info.streamId = op_desc->GetStreamId();
-
   if (IsSendNode(node)) {
     info.taskType = ACLSK_SCOPE_VERIFY_NODE_NOTIFY;
     info.eventId = GetEventId(node);
@@ -532,39 +550,19 @@ bool SuperKernelPass::FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNo
     info.taskType = ACLSK_SCOPE_VERIFY_NODE_COMPUTE;
     info.eventId = 0;
     info.scopeId = GetScopeId(node);
-
-    ExtendInfoTmp ext_info = {};
-    bool is_tiling_sink_op = false;
-    (void)AttrUtils::GetBool(op_desc, "_tiling_sink_op", is_tiling_sink_op);
-    ext_info.flag = is_tiling_sink_op ? 1U : 0U;
-
-    std::string aic_cnt_value;
-    std::string vec_cnt_value;
-    bool has_aic = AttrUtils::GetStr(op_desc, "_op_aicore_num", aic_cnt_value);
-    bool has_vec = AttrUtils::GetStr(op_desc, "_op_vectorcore_num", vec_cnt_value);
-    ext_info.coreLimit[0] = has_aic ? std::atoi(aic_cnt_value.c_str()) : ai_core_cnt_global;
-    ext_info.coreLimit[1] = has_vec ? std::atoi(vec_cnt_value.c_str()) : vector_core_cnt_global;
-    GELOGD("node %s(%s) extend info: flag=%u, coreLimit[%d,%d]", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
-           ext_info.flag, ext_info.coreLimit[0], ext_info.coreLimit[1]);
-
-    extend_infos.push_back(ext_info);
-    info.extendInfo = &extend_infos.back();
+    FillCoreLimit(op_desc, info, ai_core_cnt_global, vector_core_cnt_global);
   }
-
   info.kernelType = GetKernelType(node);
-
   int64_t block_dim = 0;
   (void)AttrUtils::GetInt(op_desc, TVM_ATTR_NAME_BLOCKDIM, block_dim);
   if (block_dim == 0) {
     (void)AttrUtils::GetInt(op_desc, "hcom_block_dim", block_dim);
   }
   info.numBlocks = static_cast<uint32_t>(block_dim);
-
   std::vector<int64_t> ratio_cv;
   (void)AttrUtils::GetListInt(op_desc, "_task_ratio_cube_vector", ratio_cv);
   info.taskRatio[0] = (ratio_cv.size() >= 2U) ? static_cast<uint32_t>(ratio_cv[0]) : 0U;
   info.taskRatio[1] = (ratio_cv.size() >= 2U) ? static_cast<uint32_t>(ratio_cv[1]) : 0U;
-
   int64_t sche_mode = 0;
   (void)AttrUtils::GetInt(op_desc, "_soft_sync_schedule_mode", sche_mode);
   info.scheMode = static_cast<int32_t>(sche_mode);
@@ -572,9 +570,7 @@ bool SuperKernelPass::FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNo
 }
 
 Status SuperKernelPass::BuildVerifyGraph(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &nodes,
-                                         std::vector<NodePtr> &node_mapping, std::vector<ExtendInfoTmp> &extend_infos) {
-  extend_infos.reserve(graph->GetAllNodes().size());
-
+                                         std::vector<NodePtr> &node_mapping) {
   std::string soc_version;
   (void)GetThreadLocalContext().GetOption(ge::SOC_VERSION, soc_version);
   fe::PlatFormInfos platform_infos;
@@ -598,7 +594,7 @@ Status SuperKernelPass::BuildVerifyGraph(const ComputeGraphPtr &graph, std::vect
     GE_ASSERT_NOTNULL(op_desc);
 
     aclskScopeVerifyNodeInfo info = {};
-    if (!FillVerifyNodeInfo(node, info, extend_infos, ai_core_cnt_global, vector_core_cnt_global)) {
+    if (!FillVerifyNodeInfo(node, info, ai_core_cnt_global, vector_core_cnt_global)) {
       continue;
     }
 
@@ -606,10 +602,10 @@ Status SuperKernelPass::BuildVerifyGraph(const ComputeGraphPtr &graph, std::vect
     nodes.emplace_back(info);
     GELOGD(
         "verify node: %s(%s) taskId %ld streamId %ld eventId %ld scopeId %d taskType %d kernelType %d "
-        "numBlocks %u taskRatio[%u,%u] scheMode %d",
+        "numBlocks %u taskRatio[%u,%u] scheMode %d flag %u coreLimit[%d,%d]",
         op_desc->GetNamePtr(), op_desc->GetTypePtr(), info.taskId, info.streamId, info.eventId, info.scopeId,
         static_cast<int32_t>(info.taskType), static_cast<int32_t>(info.kernelType), info.numBlocks, info.taskRatio[0],
-        info.taskRatio[1], info.scheMode);
+        info.taskRatio[1], info.scheMode, info.flag, info.coreLimit[0], info.coreLimit[1]);
   }
   return SUCCESS;
 }
@@ -630,6 +626,29 @@ bool SuperKernelPass::IsLastNodeInScope(const std::string &scope_name, int64_t t
   return topo_id == scope_it->second[scope_it->second.size() - 1U]->GetOpDesc()->GetId();
 }
 
+void SuperKernelPass::ExcludeNode(const NodePtr &split_node) {
+  auto op_desc = split_node->GetOpDescBarePtr();
+  if (IsSendRcvNode(split_node)) {
+    excluded_send_rcv_nodes_.insert(split_node->GetName());
+  } else {
+    op_desc->DelAttr(super_scope_key);
+  }
+}
+
+bool SuperKernelPass::IsTopoIdInScope(const std::string &scope_name, int64_t topo_id) {
+  auto scope_it = ori_super_nodes_.find(scope_name);
+  if (scope_it == ori_super_nodes_.end() || scope_it->second.empty()) {
+    return true;
+  }
+  int64_t min_id = scope_it->second[0]->GetOpDesc()->GetId();
+  int64_t max_id = scope_it->second[scope_it->second.size() - 1U]->GetOpDesc()->GetId();
+  if (topo_id < min_id || topo_id > max_id) {
+    GELOGI("skip node topo %ld out of scope %s [%ld,%ld]", topo_id, scope_name.c_str(), min_id, max_id);
+    return false;
+  }
+  return true;
+}
+
 Status SuperKernelPass::ProcessSplitResults(const std::vector<aclskScopeVerifySplitResult> &results,
                                             const aclskScopeVerifyNodeInfo *verify_nodes_base,
                                             const std::vector<NodePtr> &node_mapping,
@@ -637,47 +656,40 @@ Status SuperKernelPass::ProcessSplitResults(const std::vector<aclskScopeVerifySp
                                             std::map<std::string, std::vector<ScopeCutPoint>> &scope_cut_id) {
   for (const auto &result : results) {
     if (result.splitNode == nullptr) {
-      GELOGW("ProcessSplitResults: splitNode is nullptr, skip");
+      GELOGW("splitNode is nullptr, skip");
       continue;
     }
     GE_ASSERT_TRUE(result.splitNode >= verify_nodes_base && result.splitNode < verify_nodes_base + node_mapping.size(),
                    "splitNode pointer out of verify_nodes range");
-    auto idx = static_cast<size_t>(result.splitNode - verify_nodes_base);
-    NodePtr split_node = node_mapping[idx];
-    GE_ASSERT_NOTNULL(split_node);
+    auto split_node = node_mapping[static_cast<size_t>(result.splitNode - verify_nodes_base)];
     auto op_desc = split_node->GetOpDescBarePtr();
     GE_ASSERT_NOTNULL(op_desc);
-
+    GELOGD("split node %s(type %s) topo_id %ld splitType %d", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
+           op_desc->GetId(), static_cast<int32_t>(result.splitType));
     auto it = scope_id_to_name_.find(result.splitNode->scopeId);
     std::string scope_name = (it != scope_id_to_name_.end()) ? it->second : "";
-    GELOGD("ProcessSplitResults: node %s(type %s) topo_id %ld scope_name '%s' splitType %d", op_desc->GetNamePtr(),
-           op_desc->GetTypePtr(), op_desc->GetId(), scope_name.c_str(), static_cast<int32_t>(result.splitType));
     if (scope_name.empty()) {
       continue;
     }
-
     int64_t topo_id = op_desc->GetId();
-
+    if (result.splitType == ACLSK_SCOPE_VERIFY_SPLIT_EXCLUDE_NODE) {
+      ExcludeNode(split_node);
+    }
+    if (!IsTopoIdInScope(scope_name, topo_id)) {
+      continue;
+    }
     if (result.splitType == ACLSK_SCOPE_VERIFY_SPLIT_BEFORE_NODE) {
       if (IsFirstNodeInScope(scope_name, topo_id)) {
-        GELOGI("skip split before node %s (topo_id %ld), it is the first node in scope %s", op_desc->GetNamePtr(),
-               topo_id, scope_name.c_str());
+        GELOGI("skip first node %s in scope %s", op_desc->GetNamePtr(), scope_name.c_str());
         continue;
       }
       scope_cut_id[scope_name].push_back({topo_id, false});
       need_split_scopes.insert(scope_name);
-      GEEVENT("scope %s split before node %s (topo_id %ld), reason %d", scope_name.c_str(), op_desc->GetNamePtr(),
-              topo_id, result.splitReason);
+      GEEVENT("scope %s split before %s topo %ld", scope_name.c_str(), op_desc->GetNamePtr(), topo_id);
     } else if (result.splitType == ACLSK_SCOPE_VERIFY_SPLIT_EXCLUDE_NODE) {
       scope_cut_id[scope_name].push_back({topo_id, true});
       need_split_scopes.insert(scope_name);
-      if (IsSendRcvNode(split_node)) {
-        excluded_send_rcv_nodes_.insert(split_node->GetName());
-      } else {
-        op_desc->DelAttr(super_scope_key);
-      }
-      GEEVENT("scope %s exclude node %s (topo_id %ld) due to deadlock, reason %d", scope_name.c_str(),
-              op_desc->GetNamePtr(), topo_id, result.splitReason);
+      GEEVENT("scope %s exclude %s topo %ld", scope_name.c_str(), op_desc->GetNamePtr(), topo_id);
     }
   }
   return SUCCESS;
@@ -686,9 +698,8 @@ Status SuperKernelPass::ProcessSplitResults(const std::vector<aclskScopeVerifySp
 Status SuperKernelPass::CallAclskVerify(const ComputeGraphPtr &graph,
                                         std::vector<aclskScopeVerifyNodeInfo> &verify_nodes,
                                         std::vector<NodePtr> &node_mapping,
-                                        std::vector<aclskScopeVerifySplitResult> &split_results,
-                                        std::vector<ExtendInfoTmp> &extend_infos) {
-  GE_ASSERT_SUCCESS(BuildVerifyGraph(graph, verify_nodes, node_mapping, extend_infos));
+                                        std::vector<aclskScopeVerifySplitResult> &split_results) {
+  GE_ASSERT_SUCCESS(BuildVerifyGraph(graph, verify_nodes, node_mapping));
 
   split_results.resize(verify_nodes.size());
   for (auto &sr : split_results) {
@@ -706,7 +717,7 @@ Status SuperKernelPass::CallAclskVerify(const ComputeGraphPtr &graph,
   graph_info.extendInfo = nullptr;
 
   size_t real_count = 0;
-  aclError ret = aclsk_verify_func_(&graph_info, split_results.size(), split_results.data(), &real_count);
+  aclError ret = GetAclskHandleHolder().func(&graph_info, split_results.size(), split_results.data(), &real_count);
   GE_ASSERT(ret == ACL_SUCCESS, "aclskScopeVerify failed, ret=%d", static_cast<int32_t>(ret));
   GE_ASSERT_TRUE(real_count <= split_results.size(), "real_count %zu exceeds capacity %zu", real_count,
                  split_results.size());
@@ -718,7 +729,7 @@ Status SuperKernelPass::DeadlockCheckAndSplit(const ComputeGraphPtr &graph) {
   excluded_send_rcv_nodes_.clear();
 
   GE_ASSERT_SUCCESS(InitAclskVerify());
-  if (aclsk_verify_func_ == nullptr) {
+  if (GetAclskHandleHolder().func == nullptr) {
     GELOGI("aclskScopeVerify not available, skip deadlock check");
     return SUCCESS;
   }
@@ -730,8 +741,7 @@ Status SuperKernelPass::DeadlockCheckAndSplit(const ComputeGraphPtr &graph) {
     std::vector<aclskScopeVerifyNodeInfo> verify_nodes;
     std::vector<NodePtr> node_mapping;
     std::vector<aclskScopeVerifySplitResult> split_results;
-    std::vector<ExtendInfoTmp> extend_infos;
-    GE_ASSERT_SUCCESS(CallAclskVerify(graph, verify_nodes, node_mapping, split_results, extend_infos));
+    GE_ASSERT_SUCCESS(CallAclskVerify(graph, verify_nodes, node_mapping, split_results));
 
     if (split_results.empty()) {
       GELOGI("deadlock check passed at iteration %d", iter);

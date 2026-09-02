@@ -14,14 +14,26 @@
 #include <cstdint>
 #include "graph/passes/graph_pass.h"
 #include "super_kernel/super_kernel.h"
+#include "mmpa/mmpa_api.h"
 
 using AclskScopeVerifyFunc = aclError (*)(const aclskScopeVerifyGraphInfo *, size_t, aclskScopeVerifySplitResult *,
                                           size_t *);
 
 namespace ge {
-struct ExtendInfoTmp {
-  uint32_t flag;
-  int32_t coreLimit[2];
+
+struct AclskHandleHolder {
+  void *handle = nullptr;
+  AclskScopeVerifyFunc func = nullptr;
+  ~AclskHandleHolder() {
+    if (handle != nullptr) {
+      mmDlclose(handle);
+      handle = nullptr;
+    }
+  }
+  void ResetForTest() {
+    handle = nullptr;
+    func = nullptr;
+  }
 };
 
 struct ScopeCutPoint {
@@ -88,14 +100,17 @@ class SuperKernelPass : public GraphPass {
   Status InitAclskVerify();
   void BuildScopeNameToIdMap();
   Status BuildVerifyGraph(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &nodes,
-                          std::vector<NodePtr> &node_mapping, std::vector<ExtendInfoTmp> &extend_infos);
-  bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info, std::vector<ExtendInfoTmp> &extend_infos,
-                          int32_t ai_core_cnt_global, int32_t vector_core_cnt_global);
+                          std::vector<NodePtr> &node_mapping);
+  bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
+                          int32_t vector_core_cnt_global);
+  void FillCoreLimit(const OpDesc *op_desc, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
+                     int32_t vector_core_cnt_global);
   Status CallAclskVerify(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &verify_nodes,
-                         std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results,
-                         std::vector<ExtendInfoTmp> &extend_infos);
+                         std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results);
   bool IsFirstNodeInScope(const std::string &scope_name, int64_t topo_id);
   bool IsLastNodeInScope(const std::string &scope_name, int64_t topo_id);
+  void ExcludeNode(const NodePtr &split_node);
+  bool IsTopoIdInScope(const std::string &scope_name, int64_t topo_id);
   Status ProcessSplitResults(const std::vector<aclskScopeVerifySplitResult> &results,
                              const aclskScopeVerifyNodeInfo *verify_nodes_base,
                              const std::vector<NodePtr> &node_mapping, std::set<std::string> &need_split_scopes,
@@ -115,7 +130,6 @@ class SuperKernelPass : public GraphPass {
   std::map<int32_t, std::string> scope_id_to_name_;
   std::set<std::string> excluded_send_rcv_nodes_;
   std::map<std::string, std::string> scope_original_name_map_;
-  AclskScopeVerifyFunc aclsk_verify_func_ = nullptr;
   bool aclsk_initialized_ = false;
 };
 
@@ -204,6 +218,9 @@ class SuperKernelScope {
   uint32_t event_begin_id_;
   uint32_t event_num_ = 0;
 };
+
+// Only used for DT (unit test / system test)
+void ResetAclskVerifyForTest();
 
 }  // namespace ge
 #endif  // GE_GRAPH_PASSES_SUPER_KERNEL_PASS_H_
