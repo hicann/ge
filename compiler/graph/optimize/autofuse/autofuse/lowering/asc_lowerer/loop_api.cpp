@@ -73,6 +73,20 @@ KernelBox StoreExtern(const ge::OutDataAnchorPtr &dst) {
   return lowered->Set(dst, std::make_shared<KernelBoxMeta>());
 }
 
+KernelBox StoreIgnoredOutput(const ge::OutDataAnchorPtr &dst) {
+  LOWERING_ASSERT_NOTNULL(dst);
+  LOWERING_ASSERT_NOTNULL(dst->GetOwnerNode());
+  LOWERING_ASSERT_NOTNULL(dst->GetOwnerNode()->GetOpDesc());
+  const auto lowered = dst->GetOwnerNode()->GetOpDesc()->GetOrCreateAttrsGroup<LoweringResultAttrs>();
+  LOWERING_ASSERT_NOTNULL(lowered);
+  auto meta = std::make_shared<KernelBoxMeta>();
+  // 默认 KernelBoxMeta 是 Extern；改成占位后，GetNodeKernelBoxes 不会因这一路空槽 Fallback 整节点。
+  meta->type = FuseType::kCube;
+  meta->is_support = true;
+  meta->realize = false;
+  return lowered->Set(dst, meta);
+}
+
 namespace {
 void DropLowerResultIfNeeded(const std::shared_ptr<KernelBoxMeta> &meta, const ge::OutDataAnchorPtr &dst,
                              const LoopVar &result) {
@@ -437,28 +451,6 @@ LoopVar Permute(const LoopVar &op, std::vector<size_t> order) {
   return LoopVar(std::make_shared<PermuteOp>(op.Op(), std::move(order)));
 }
 
-// 检查描述符是否都是静态的
-bool AreDescriptorsStatic(const ge::OpDesc *op_desc, bool check_inputs) {
-  if (check_inputs) {
-    for (size_t i = 0; i < op_desc->GetInputsSize(); i++) {
-      const auto input_desc = op_desc->MutableInputDesc(i);
-      GE_ASSERT_NOTNULL(input_desc);
-      if (input_desc->GetOriginShape().IsUnknownShape()) {
-        return false;
-      }
-    }
-  } else {
-    for (size_t i = 0; i < op_desc->GetOutputsSize(); i++) {
-      const auto output_desc = op_desc->MutableOutputDesc(i);
-      GE_ASSERT_NOTNULL(output_desc);
-      if (output_desc->GetOriginShape().IsUnknownShape()) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 bool IsStaticShape(std::vector<Expression> output_dims, const ge::OutDataAnchorPtr &dst,
                    const std::vector<ge::InDataAnchorPtr> &inputs) {
   // 检查输出维度是否都是常量表达式
@@ -468,24 +460,29 @@ bool IsStaticShape(std::vector<Expression> output_dims, const ge::OutDataAnchorP
     }
   }
 
-  // 检查输出节点的形状是否都是静态的
+  // dst / inputs 已是本次 lowering 的非空边，只检查这些边生产者的 output desc，不扫节点上全部锚点。
+  // optional 输入的节点 InputDesc 可能是 FORMAT_RESERVED 占位，MutableInputDesc 会得到空指针。
   GE_ASSERT_NOTNULL(dst);
   GE_ASSERT_NOTNULL(dst->GetOwnerNode());
   const auto &outputs_op_desc = dst->GetOwnerNode()->GetOpDescBarePtr();
   GE_ASSERT_NOTNULL(outputs_op_desc);
-  if (!AreDescriptorsStatic(outputs_op_desc, false)) {
+  const auto output_desc = outputs_op_desc->MutableOutputDesc(dst->GetIdx());
+  GE_ASSERT_NOTNULL(output_desc);
+  if (output_desc->GetOriginShape().IsUnknownShape()) {
     return false;
   }
 
-  // 检查输入节点的形状是否都是静态的
-  if (!inputs.empty()) {
-    for (const auto &input : inputs) {
-      GE_ASSERT_NOTNULL(input->GetOwnerNode());
-      const auto &inputs_op_desc = input->GetOwnerNode()->GetOpDescBarePtr();
-      GE_ASSERT_NOTNULL(inputs_op_desc);
-      if (!AreDescriptorsStatic(inputs_op_desc, true)) {
-        return false;
-      }
+  for (const auto &input : inputs) {
+    GE_ASSERT_NOTNULL(input);
+    const auto peer = input->GetPeerOutAnchor();
+    GE_ASSERT_NOTNULL(peer);
+    GE_ASSERT_NOTNULL(peer->GetOwnerNode());
+    const auto peer_op_desc = peer->GetOwnerNode()->GetOpDescBarePtr();
+    GE_ASSERT_NOTNULL(peer_op_desc);
+    const auto peer_desc = peer_op_desc->MutableOutputDesc(peer->GetIdx());
+    GE_ASSERT_NOTNULL(peer_desc);
+    if (peer_desc->GetOriginShape().IsUnknownShape()) {
+      return false;
     }
   }
 

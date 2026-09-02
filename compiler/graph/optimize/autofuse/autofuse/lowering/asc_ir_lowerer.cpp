@@ -27,10 +27,44 @@
 #include "graph/graph.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/file_utils.h"
+#include "graph/attribute_group/attr_group_symbolic_desc.h"
+#include "graph/symbolizer/symbolic.h"
 
 namespace ge {
 using namespace autofuse;
 namespace {
+graphStatus CompleteStaticSymbolicShapeForConv(const ComputeGraphPtr &graph) {
+  // ExtendConv2D 等场景下部分静态 shape 可能未挂 SymbolicDescAttr；
+  // lowering 前补齐，避免后续 shape 推导/融合判断把静态图误判为动态。
+  for (const auto &node : graph->GetAllNodes()) {
+    if (node->GetType() != "ExtendConv2D") {
+      continue;
+    }
+    const auto op_desc = node->GetOpDesc();
+    GE_ASSERT_NOTNULL(op_desc);
+    for (size_t i = 0U; i < op_desc->GetOutputsSize(); ++i) {
+      const auto output_desc = op_desc->MutableOutputDesc(i);
+      GE_ASSERT_NOTNULL(output_desc);
+      if (output_desc->GetAttrsGroup<SymbolicDescAttr>() != nullptr) {
+        continue;
+      }
+      const auto &shape =
+          output_desc->IsOriginShapeInitialized() ? output_desc->GetOriginShape() : output_desc->GetShape();
+      if (shape.IsUnknownShape()) {
+        continue;
+      }
+      const auto sym_attr = output_desc->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+      GE_ASSERT_NOTNULL(sym_attr);
+      auto &dims = sym_attr->symbolic_tensor.MutableOriginSymbolShape().MutableDims();
+      dims.reserve(shape.GetDimNum());
+      for (const auto dim : shape.GetDims()) {
+        dims.emplace_back(Symbol(dim));
+      }
+    }
+  }
+  return GRAPH_SUCCESS;
+}
+
 bool IsNodeShouldPrune(const NodePtr &node) {
   if (!node->GetOutNodes().empty()) {
     return false;
@@ -166,6 +200,7 @@ graphStatus AscIrLowerer::Lowering(const ComputeGraphPtr &graph) {
     do_lowered_ = false;
     return GRAPH_SUCCESS;
   }
+  GE_ASSERT_GRAPH_SUCCESS(CompleteStaticSymbolicShapeForConv(graph));
   // 若使能子图落盘，提前深拷贝原始图
   if (ge::AutoFuseConfig::LoweringConfig().enable_subgraph_recover) {
     pre_lowering_graph_ = ComGraphMakeShared<ComputeGraph>(graph->GetName() + "_pre_lowering");

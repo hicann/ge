@@ -1300,8 +1300,12 @@ void BuildConv2DAttr(const OpDescPtr &op_desc, Conv2DAttr &conv2d_attr) {
   (void)AttrUtils::GetInt(op_desc, "groups", conv2d_attr.groups);
   (void)AttrUtils::GetStr(op_desc, "data_format", conv2d_attr.data_format);
   (void)AttrUtils::GetInt(op_desc, "offset_x", conv2d_attr.offset_x);
+  (void)AttrUtils::GetStr(op_desc, "pad_mode", conv2d_attr.pad_mode);
   (void)AttrUtils::GetStr(op_desc, "padding", conv2d_attr.pad_mode);
   (void)AttrUtils::GetBool(op_desc, "enable_hf32", conv2d_attr.enable_hf32);
+  (void)AttrUtils::GetInt(op_desc, "fixed_shift_value", conv2d_attr.fixed_shift_value);
+  // ExtendConv2D 独有属性；Conv2DV2 上 GetStr 失败时保持默认 "rint"。
+  (void)AttrUtils::GetStr(op_desc, "round_mode", conv2d_attr.round_mode);
 }
 
 graphStatus GetConv2DDims(const NodePtr &node, const ge::InDataAnchorPtr &x_anchor,
@@ -1337,7 +1341,19 @@ void SetConv2DBiasAndOffsetW(const NodePtr &node, const OpDescPtr &op_desc, Conv
   }
 }
 
+void SetExtendConv2DFixpipeParams(const NodePtr &node, const OpDescPtr &op_desc, Conv2DAttr &conv2d_attr) {
+  // ExtendConv2D 通过可选 scale0 开启 fixpipe quant/dequant 路径。
+  auto scale0_index = op_desc->GetInputIndexByName("scale0");
+  if (scale0_index >= 0) {
+    const auto scale0_anchor = node->GetInDataAnchor(scale0_index);
+    if (scale0_anchor != nullptr && scale0_anchor->GetPeerOutAnchor() != nullptr) {
+      conv2d_attr.has_scale0 = true;
+    }
+  }
+}
+
 std::vector<ge::InDataAnchorPtr> CollectConv2DInputs(const NodePtr &node) {
+  // 仅收集已连接输入。ExtendConv2D 空槽由后端按 has_bias(2)/has_scale0(4) 还原，不再传 nullptr_inputs_index。
   std::vector<ge::InDataAnchorPtr> inputs;
   for (const auto &in_anchor : node->GetAllInDataAnchors()) {
     GE_ASSERT_NOTNULL(in_anchor);
@@ -1350,7 +1366,8 @@ std::vector<ge::InDataAnchorPtr> CollectConv2DInputs(const NodePtr &node) {
 }
 }  // anonymous namespace
 
-graphStatus LowerConv2D(const NodePtr &node) {
+// Conv2DV2 / ExtendConv2D 共用 lowering；is_extend_conv2d 决定 ASCIR 算子变体与扩展属性。
+graphStatus InnerLowerConv2D(const NodePtr &node, bool is_extend_conv2d) {
   const auto x_anchor = node->GetInDataAnchor(0);
   const auto w_anchor = node->GetInDataAnchor(1);
   GE_ASSERT_NOTNULL(x_anchor);
@@ -1363,26 +1380,51 @@ graphStatus LowerConv2D(const NodePtr &node) {
   auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
 
+  conv2d_attr.is_extend_conv2d = is_extend_conv2d;
   BuildConv2DAttr(op_desc, conv2d_attr);
   SetConv2DBiasAndOffsetW(node, op_desc, conv2d_attr);
-
-  auto output_desc = op_desc->GetOutputDescPtr(0);
-  if (output_desc != nullptr) {
-    conv2d_attr.output_dtype = output_desc->GetDataType();
+  if (is_extend_conv2d) {
+    (void)AttrUtils::GetBool(op_desc, "enable_relu0", conv2d_attr.enable_relu0);
+    SetExtendConv2DFixpipeParams(node, op_desc, conv2d_attr);
   }
+  auto output_desc = op_desc->GetOutputDescPtr(0);
+  GE_ASSERT_NOTNULL(output_desc);
+  conv2d_attr.output_dtype = output_desc->GetDataType();
 
   auto inputs = CollectConv2DInputs(node);
 
   GELOGI(
       "Conv2D lowering: output_dtype=%s, strides=[%s], pads=[%s], dilations=[%s], "
-      "groups=%ld, data_format=%s, offset_x=%ld, pad_mode=%s, enable_hf32=%d, has_bias=%d, has_offset_w=%d",
+      "groups=%ld, data_format=%s, offset_x=%ld, pad_mode=%s, enable_hf32=%d, fixed_shift_value=%ld, has_bias=%d, "
+      "has_scale0=%d, "
+      "has_offset_w=%d, is_extend_conv2d=%d",
       TypeUtils::DataTypeToSerialString(conv2d_attr.output_dtype).c_str(), loop::StrJoin(conv2d_attr.strides).c_str(),
       loop::StrJoin(conv2d_attr.pads).c_str(), loop::StrJoin(conv2d_attr.dilations).c_str(), conv2d_attr.groups,
       conv2d_attr.data_format.c_str(), conv2d_attr.offset_x, conv2d_attr.pad_mode.c_str(), conv2d_attr.enable_hf32,
-      conv2d_attr.has_bias, conv2d_attr.has_offset_w);
+      conv2d_attr.fixed_shift_value, conv2d_attr.has_bias, conv2d_attr.has_scale0, conv2d_attr.has_offset_w,
+      conv2d_attr.is_extend_conv2d);
 
   auto kernel_box = loop::StoreConv2D(node->GetOutDataAnchor(0), inputs, conv2d_attr);
+  // ExtendConv2D 的 y1 常未连接；lowering 只写 y0。未使用输出若不占位，GetKernelBox 会生成 Extern，
+  // PostProcess 会把整节点 Fallback。这里只给未使用输出挂 非Extern 占位，不改变公共收集函数。
+  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
+    if (out_anchor == nullptr || out_anchor->GetIdx() == 0 || out_anchor->GetPeerInDataNodesSize() != 0U) {
+      GELOGI("Check ignored-output skip on node %s: idx=%d, peer_in_nodes=%u", node->GetNamePtr(), out_anchor->GetIdx(),
+             out_anchor->GetPeerInDataNodesSize());
+      continue;
+    }
+    (void)loop::StoreIgnoredOutput(out_anchor);
+    GELOGI("StoreIgnoredOutput on node %s: idx=%d", node->GetNamePtr(), out_anchor->GetIdx());
+  }
   return GRAPH_SUCCESS;
+}
+
+graphStatus LowerConv2D(const NodePtr &node) {
+  return InnerLowerConv2D(node, false);
+}
+
+graphStatus LowerExtendConv2D(const NodePtr &node) {
+  return InnerLowerConv2D(node, true);
 }
 
 REGISTER_POINTWISE_LOWER(Abs, loop::Abs);
@@ -1467,6 +1509,8 @@ REGISTER_LOWERING_WITH_EXISTED(BatchMatMulV3, BatchLowerMatMul);
 
 REGISTER_LOWERING_WITH_EXISTED(Conv2D, LowerConv2D);
 REGISTER_LOWERING_WITH_EXISTED(Conv2DV2, LowerConv2D);
+// ExtendConv2D 走同一套 InnerLowerConv2D，通过 is_extend_conv2d 切换 ASCIR 变体。
+REGISTER_LOWERING_WITH_EXISTED(ExtendConv2D, LowerExtendConv2D);
 
 REGISTER_LOWERING(ClipByValue) {
   loop::Index broadcasted;

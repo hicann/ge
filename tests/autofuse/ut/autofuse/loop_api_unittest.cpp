@@ -1204,4 +1204,24 @@ TEST_F_LOOP_DTYPE_INST1(Floor2Int);
 TEST_F_LOOP_DTYPE_INST1(IndexExpr);
 TEST_F_LOOP_DTYPE_INST1(Round2Int);
 TEST_F_LOOP_DTYPE_INST1(Trunc2Int);
+
+TEST_F(LoopApiUT, StoreIgnoredOutputIsNotExtern) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"s0"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"s0"});
+    auto pack = es::Pack({data0, data1}, 0, 2);
+    pack.SetSymbolShape({"2", "s0"});
+    es_graph_->SetOutput(pack, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto pack = cg->FindNode("Pack_0");
+  ASSERT_NE(pack, nullptr);
+  auto ignored = loop::StoreIgnoredOutput(pack->GetOutDataAnchor(0));
+  EXPECT_FALSE(ignored.IsExternKernel());
+  EXPECT_TRUE(ignored.IsCube());
+}
 }  // namespace ge

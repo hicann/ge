@@ -884,7 +884,11 @@ bool AutofuseUtils::IsCubeNodeType(const NodePtr &node) {
       {kConv2D, kConv2D},
       {kConv2DBias, kConv2DBias},
       {kConv2DOffset, kConv2DOffset},
-      {kConv2DOffsetBias, kConv2DOffsetBias}};
+      {kConv2DOffsetBias, kConv2DOffsetBias},
+      {kExtendConv2D, kExtendConv2D},
+      {kExtendConv2DBias, kExtendConv2DBias},
+      {kExtendConv2DScale, kExtendConv2DScale},
+      {kExtendConv2DBiasScale, kExtendConv2DBiasScale}};
 
   auto node_type = node->GetType();
   auto it = kCubeTypeList.find(node_type);

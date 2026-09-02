@@ -1132,7 +1132,8 @@ class StoreConv2DOp : public LoopOp {
             << "pads=[" << loop::StrJoin(attrs_.pads) << "], dilations=[" << loop::StrJoin(attrs_.dilations) << "], "
             << "groups=" << attrs_.groups << ", data_format=" << attrs_.data_format << ", offset_x=" << attrs_.offset_x
             << ", pad_mode=" << attrs_.pad_mode << ", enable_hf32=" << attrs_.enable_hf32
-            << ", has_bias=" << attrs_.has_bias << ", has_offset_w=" << attrs_.has_offset_w << ")";
+            << ", fixed_shift_value=" << attrs_.fixed_shift_value << ", has_bias=" << attrs_.has_bias
+            << ", has_offset_w=" << attrs_.has_offset_w << ")";
     return ss_conv.str();
   }
 

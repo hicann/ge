@@ -75,6 +75,7 @@ const std::string kConvSubgraphName = "conv_subgraph";
 const std::string kMatMulNodeType = "MatMulV3";
 const std::string kMatMulBatchMatmulNodeType = "BatchMatMulV3";
 const std::string kConv2DNodeType = "Conv2DV2";
+const std::string kExtendConv2DNodeType = "ExtendConv2D";
 constexpr int32_t kSocVersionLen = 50;
 
 gert::KernelContextHolder BuildTilingParseContextHolder(
@@ -863,6 +864,7 @@ ge::graphStatus AutofuseNodeWithMatmulTiling(const ge::Operator &op, const fe::P
 
 ge::graphStatus AutofuseNodeWithConvTiling(const ge::Operator &op, const fe::PlatFormInfos &ge_platform_infos,
                                            OpRunInfoV2 &run_info, ge::ConstNodePtr node) {
+  // CV 融合二次 tiling：先跑子图中的 Conv2DV2/ExtendConv2D tiling，再跑 Autofuse tiling。
   ge::Operator conv_op = ge::OpDescUtils::CreateOperatorFromNode(node);
   auto op_desc = ge::OpDescUtils::GetOpDescFromOperator(conv_op);
   const auto &space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry(
@@ -916,7 +918,8 @@ ge::graphStatus AicoreRtParseAndTiling(const ge::Operator &op, const fe::PlatFor
     if (conv_subgraph != nullptr) {
       GELOGI("Get autofuse conv node: %s", op_desc->GetName().c_str());
       for (auto &node : conv_subgraph->GetAllNodes()) {
-        if (node->GetType() == kConv2DNodeType.c_str()) {
+        // ExtendConv2D 与 Conv2DV2 共用 CV 融合二次 tiling 路径。
+        if (node->GetType() == kConv2DNodeType.c_str() || node->GetType() == kExtendConv2DNodeType.c_str()) {
           GE_ASSERT_GRAPH_SUCCESS(AutofuseNodeWithConvTiling(op, ge_platform_infos, run_info, node));
           return ge::GRAPH_SUCCESS;
         }

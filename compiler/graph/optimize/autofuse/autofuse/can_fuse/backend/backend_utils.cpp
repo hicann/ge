@@ -1832,8 +1832,6 @@ Status BackendUtils::CreateNewNodeInputDescAttr(const NodePtr &new_node, const N
   for (input_idx = 0U; input_idx < node1_input_map.size(); input_idx++) {
     auto input_desc = op_desc->MutableInputDesc(input_idx);
     GE_ASSERT_NOTNULL(input_desc);
-    auto input_attr = input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
-    GE_ASSERT_NOTNULL(input_attr);
 
     auto node1_op_desc = node1->GetOpDescBarePtr();
     const auto node1_input_desc = node1_op_desc->MutableInputDesc(node1_input_map[input_idx]);
@@ -1841,19 +1839,14 @@ Status BackendUtils::CreateNewNodeInputDescAttr(const NodePtr &new_node, const N
     auto node1_attr = node1_input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
     GE_ASSERT_NOTNULL(node1_attr);
 
-    input_desc->SetOriginShape(node1_input_desc->GetOriginShape());
-    input_desc->SetShape(node1_input_desc->GetShape());
-    input_desc->SetDataType(node1_input_desc->GetDataType());
-    input_desc->SetOriginDataType(node1_input_desc->GetOriginDataType());
-    input_desc->SetFormat(node1_input_desc->GetFormat());
-    input_desc->SetOriginFormat(node1_input_desc->GetOriginFormat());
+    *input_desc = *node1_input_desc;  // 整描述拷贝，保留 format/shape 之外的扩展属性（含 SymbolicDesc）。
+    auto input_attr = input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
+    GE_ASSERT_NOTNULL(input_attr);
     *input_attr = *node1_attr;
   }
   for (; input_idx < node2_input_map.size(); input_idx++) {
     auto input_desc = op_desc->MutableInputDesc(input_idx);
     GE_ASSERT_NOTNULL(input_desc);
-    auto input_attr = input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
-    GE_ASSERT_NOTNULL(input_attr);
 
     GE_ASSERT_NOTNULL(node2);
     auto node2_op_desc = node2->GetOpDescBarePtr();
@@ -1863,12 +1856,9 @@ Status BackendUtils::CreateNewNodeInputDescAttr(const NodePtr &new_node, const N
     auto node2_attr = node2_input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
     GE_ASSERT_NOTNULL(node2_attr);
 
-    input_desc->SetOriginShape(node2_input_desc->GetOriginShape());
-    input_desc->SetShape(node2_input_desc->GetShape());
-    input_desc->SetDataType(node2_input_desc->GetDataType());
-    input_desc->SetOriginDataType(node2_input_desc->GetOriginDataType());
-    input_desc->SetFormat(node2_input_desc->GetFormat());
-    input_desc->SetOriginFormat(node2_input_desc->GetOriginFormat());
+    *input_desc = *node2_input_desc;  // 整描述拷贝，保留 format/shape 之外的扩展属性（含 SymbolicDesc）。
+    auto input_attr = input_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
+    GE_ASSERT_NOTNULL(input_attr);
     *input_attr = *node2_attr;
   }
   return SUCCESS;
@@ -1883,8 +1873,6 @@ Status BackendUtils::CreateNewNodeOutputDescAttr(const NodePtr &new_node, const 
   for (output_idx = 0U; output_idx < node1_output_map.size(); output_idx++) {
     auto output_desc = op_desc->MutableOutputDesc(output_idx);
     GE_ASSERT_NOTNULL(output_desc);
-    auto output_attr = output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
-    GE_ASSERT_NOTNULL(output_attr);
 
     auto node1_op_desc = node1->GetOpDescBarePtr();
     auto node1_output_desc = node1_op_desc->MutableOutputDesc(node1_output_map[output_idx]);
@@ -1892,19 +1880,14 @@ Status BackendUtils::CreateNewNodeOutputDescAttr(const NodePtr &new_node, const 
     auto node1_attr = node1_output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
     GE_ASSERT_NOTNULL(node1_attr);
 
-    output_desc->SetOriginShape(node1_output_desc->GetOriginShape());
-    output_desc->SetShape(node1_output_desc->GetShape());
-    output_desc->SetDataType(node1_output_desc->GetDataType());
-    output_desc->SetOriginDataType(node1_output_desc->GetOriginDataType());
-    output_desc->SetFormat(node1_output_desc->GetFormat());
-    output_desc->SetOriginFormat(node1_output_desc->GetOriginFormat());
+    *output_desc = *node1_output_desc;
+    auto output_attr = output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
+    GE_ASSERT_NOTNULL(output_attr);
     *output_attr = *node1_attr;
   }
   for (; output_idx < node2_output_map.size(); output_idx++) {
     auto output_desc = op_desc->MutableOutputDesc(output_idx);
     GE_ASSERT_NOTNULL(output_desc);
-    auto output_attr = output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
-    GE_ASSERT_NOTNULL(output_attr);
 
     GE_ASSERT_NOTNULL(node2);
     auto node2_op_desc = node2->GetOpDescBarePtr();
@@ -1914,12 +1897,9 @@ Status BackendUtils::CreateNewNodeOutputDescAttr(const NodePtr &new_node, const 
     auto node2_attr = node2_output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
     GE_ASSERT_NOTNULL(node2_attr);
 
-    output_desc->SetOriginShape(node2_output_desc->GetOriginShape());
-    output_desc->SetShape(node2_output_desc->GetShape());
-    output_desc->SetDataType(node2_output_desc->GetDataType());
-    output_desc->SetOriginDataType(node2_output_desc->GetOriginDataType());
-    output_desc->SetFormat(node2_output_desc->GetFormat());
-    output_desc->SetOriginFormat(node2_output_desc->GetOriginFormat());
+    *output_desc = *node2_output_desc;
+    auto output_attr = output_desc->GetOrCreateAttrsGroup<ge::SymbolicDescAttr>();
+    GE_ASSERT_NOTNULL(output_attr);
     *output_attr = *node2_attr;
   }
   return SUCCESS;

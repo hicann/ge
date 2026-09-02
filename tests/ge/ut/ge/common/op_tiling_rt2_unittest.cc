@@ -63,6 +63,7 @@ class CompileInfoJson : public CompileInfoBase {
 
 int32_t expected_deterministic = -1;
 int32_t expected_deterministic_level = -1;
+bool check_extend_conv_attrs = false;
 constexpr const char *kDeterministicAttr = "_deterministic";
 constexpr const char *kDeterministicLevelAttr = "_deterministic_level";
 
@@ -76,6 +77,7 @@ class RegisterOpTilingRT2UT : public testing::Test {
   void TearDown() {
     expected_deterministic = -1;
     expected_deterministic_level = -1;
+    check_extend_conv_attrs = false;
     ge::GetThreadLocalContext().SetGlobalOption({});
     ge::AclRuntimeStub::SetErrorResultApiName("");
     ge::AclRuntimeStub::Reset();
@@ -159,6 +161,23 @@ graphStatus TilingForAdd(gert::TilingContext *context) {
 }
 
 graphStatus CubeTilingForAutofuse(gert::TilingContext *context) {
+  if (check_extend_conv_attrs) {
+    const auto attrs = context->GetAttrs();
+    EXPECT_NE(attrs, nullptr);
+    if (attrs != nullptr) {
+      EXPECT_EQ(attrs->GetAttrNum(), 16U);
+      const auto ascendc_op_para_size = attrs->GetInt(14U);
+      const auto fixed_shift_value = attrs->GetInt(15U);
+      EXPECT_NE(ascendc_op_para_size, nullptr);
+      EXPECT_NE(fixed_shift_value, nullptr);
+      if (ascendc_op_para_size != nullptr) {
+        EXPECT_EQ(*ascendc_op_para_size, 2 * 1024 * 1024);
+      }
+      if (fixed_shift_value != nullptr) {
+        EXPECT_EQ(*fixed_shift_value, 0);
+      }
+    }
+  }
   context->SetTilingKey(321);
   context->SetBlockDim(4);
   auto tiling_data = context->GetRawTilingData();
@@ -191,6 +210,39 @@ ge::ComputeGraphPtr BuildCubeSubgraph(const std::string &graph_name, const std::
   op_desc->AddOutputDesc("y", tensor_desc);
   auto node = subgraph->AddNode(op_desc);
   EXPECT_NE(node, nullptr);
+  return subgraph;
+}
+
+ge::ComputeGraphPtr BuildExtendConvSubgraph() {
+  auto subgraph = BuildCubeSubgraph("conv_subgraph", "ExtendConv2D");
+  auto extend_conv_node = subgraph->FindNode("ExtendConv2D");
+  EXPECT_NE(extend_conv_node, nullptr);
+  if (extend_conv_node == nullptr) {
+    return subgraph;
+  }
+  const auto op_desc = extend_conv_node->GetOpDesc();
+  const std::vector<std::string> ir_attr_names = {
+      "strides",  "pads",        "dilations",    "groups",       "data_format", "offset_x", "round_mode",
+      "pad_mode", "enable_hf32", "enable_relu0", "enable_relu1", "dual_output", "dtype0",   "dtype1"};
+  for (const auto &attr_name : ir_attr_names) {
+    op_desc->AppendIrAttrName(attr_name);
+  }
+  (void)ge::AttrUtils::SetListInt(op_desc, "strides", std::vector<int64_t>({1, 1, 1, 1}));
+  (void)ge::AttrUtils::SetListInt(op_desc, "pads", std::vector<int64_t>({0, 0, 0, 0}));
+  (void)ge::AttrUtils::SetListInt(op_desc, "dilations", std::vector<int64_t>({1, 1, 1, 1}));
+  (void)ge::AttrUtils::SetInt(op_desc, "groups", 1);
+  (void)ge::AttrUtils::SetStr(op_desc, "data_format", "NCHW");
+  (void)ge::AttrUtils::SetInt(op_desc, "offset_x", 0);
+  (void)ge::AttrUtils::SetStr(op_desc, "round_mode", "rint");
+  (void)ge::AttrUtils::SetStr(op_desc, "pad_mode", "SPECIFIC");
+  (void)ge::AttrUtils::SetBool(op_desc, "enable_hf32", false);
+  (void)ge::AttrUtils::SetBool(op_desc, "enable_relu0", false);
+  (void)ge::AttrUtils::SetBool(op_desc, "enable_relu1", false);
+  (void)ge::AttrUtils::SetBool(op_desc, "dual_output", false);
+  (void)ge::AttrUtils::SetInt(op_desc, "dtype0", -1);
+  (void)ge::AttrUtils::SetInt(op_desc, "dtype1", -1);
+  op_desc->AppendIrAttrName("ascendc_op_para_size");
+  (void)ge::AttrUtils::SetInt(op_desc, "ascendc_op_para_size", 2 * 1024 * 1024);
   return subgraph;
 }
 
@@ -228,6 +280,7 @@ class OpImplGuard {
 };
 
 OpImplGuard RegisterCubeTiling(const std::string &node_type) {
+  SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
   OpImplGuard guard(node_type);
   auto op_impl_func =
       gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(node_type.c_str());
@@ -611,6 +664,27 @@ TEST_F(RegisterOpTilingRT2UT, AutofuseNodeWithConvTilingUseVecFuncSuccess) {
   auto workspace = run_info.GetAllWorkspaces();
   EXPECT_EQ(run_info.GetWorkspaceNum(), 1);
   EXPECT_EQ(workspace[0], 2560);
+}
+
+TEST_F(RegisterOpTilingRT2UT, AutofuseNodeWithExtendConvTilingAttrsSuccess) {
+  auto op_impl_guard = RegisterCubeTiling("ExtendConv2D");
+  auto op_impl_func =
+      gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl("ExtendConv2D");
+  op_impl_func->private_attrs.emplace_back(ge::AscendString("fixed_shift_value"),
+                                           ge::AnyValue::CreateFrom(static_cast<int64_t>(0)));
+  check_extend_conv_attrs = true;
+
+  auto graph = ShareGraph::AutoFuseNodeGraph();
+  auto autofuse_node = graph->FindNode("fused_graph");
+  std::string cmake_binary_path = CMAKE_BINARY_DIR;
+  auto autofuse_stub_so = cmake_binary_path + "/tests/depends/op_stub/libautofuse_stub.so";
+  (void)ge::AttrUtils::SetStr(autofuse_node->GetOpDesc(), "bin_file_path", autofuse_stub_so);
+  (void)autofuse_node->GetOpDesc()->SetExtAttr("conv_subgraph", BuildExtendConvSubgraph());
+
+  utils::OpRunInfo run_info;
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(autofuse_node);
+  fe::PlatFormInfos platform_infos;
+  EXPECT_EQ(AicoreRtParseAndTiling(op, platform_infos, run_info), GRAPH_SUCCESS);
 }
 
 TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingMemCheckDynamicInputDescSuccess) {

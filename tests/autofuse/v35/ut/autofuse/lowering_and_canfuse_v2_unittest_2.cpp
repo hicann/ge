@@ -34,6 +34,7 @@
 #include "expression/testcase/source_stub.h"
 #include "op_creator_register.h"
 #include "all_ops_cpp.h"
+#include "extend_conv2d_ops_cpp.h"
 #include "compliant_op_desc_builder.h"
 #include "esb_graph.h"
 #include "common/autofuse_platform_api.h"
@@ -166,6 +167,34 @@ static void BuildConv2DWithBiasGraph(es::Graph &graph) {
   graph.SetOutput(conv2d, 0);
 }
 
+static void BuildExtendConv2DGraph(es::Graph &graph, bool has_bias, bool has_scale0) {
+  auto data0 = graph.CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"1", "224", "224", "3"});
+
+  auto filter = graph.CreateInput(1, "filter", nullptr);
+  filter.SetSymbolShape({"3", "3", "3", "64"});
+
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {1, 1, 1, 1};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+  int input_idx = 2;
+  es::Tensor bias;
+  es::Tensor scale0;
+  if (has_bias) {
+    bias = graph.CreateInput(input_idx++, "bias", nullptr);
+    bias.SetSymbolShape({"64"});
+  }
+  if (has_scale0) {
+    scale0 = graph.CreateInput(input_idx, "scale0", nullptr);
+    scale0.SetSymbolShape({"64"});
+  }
+
+  auto conv2d = es::ExtendConv2D(data0, filter, has_bias ? bias : nullptr, nullptr, has_scale0 ? scale0 : nullptr,
+                                 strides, pads, dilations, 1, "NHWC", 0, "rint", "SPECIFIC", false);
+  conv2d.SetSymbolShape({"1", "224", "224", "64"});
+  graph.SetOutput(conv2d, 0);
+}
+
 static void BuildConv2DWithOffsetWGraph(es::Graph &graph, bool has_bias) {
   auto data0 = graph.CreateInput(0, "data0", nullptr);
   data0.SetSymbolShape({"1", "224", "224", "3"});
@@ -290,46 +319,58 @@ static void VerifyConv2DAttrGeneric(const ComputeGraphPtr &cg, const std::vector
   EXPECT_TRUE(found) << "Conv2D node not found in AscGraph";
 }
 
-static bool VerifyConv2DIrAttr(const NodePtr &asc_node, const std::string &node_type) {
-  auto op_desc = asc_node->GetOpDesc();
+template <typename IrAttrT>
+static bool GetConv2DCommonIrAttr(const NodePtr &asc_node, std::vector<int64_t> &strides, std::vector<int64_t> &pads,
+                                  std::vector<int64_t> &dilations, int64_t &groups) {
+  const auto op_desc = asc_node->GetOpDesc();
   const auto node_attr = op_desc->GetAttrsGroup<AscNodeAttr>();
-  if (node_attr == nullptr || node_attr->ir_attr == nullptr) return false;
-
-  std::vector<int64_t> strides, pads, dilations;
-  int64_t groups = 0;
-
-  if (node_type == "Conv2D") {
-    auto conv_attr = node_attr->ir_attr->DownCastTo<ge::ascir_op::Conv2D::AscConv2DIrAttrDef>();
-    if (conv_attr == nullptr) return false;
-    (void)conv_attr->GetStrides(strides);
-    (void)conv_attr->GetPads(pads);
-    (void)conv_attr->GetDilations(dilations);
-    (void)conv_attr->GetGroups(groups);
-  } else if (node_type == "Conv2DBias") {
-    auto conv_attr = node_attr->ir_attr->DownCastTo<ge::ascir_op::Conv2DBias::AscConv2DBiasIrAttrDef>();
-    if (conv_attr == nullptr) return false;
-    (void)conv_attr->GetStrides(strides);
-    (void)conv_attr->GetPads(pads);
-    (void)conv_attr->GetDilations(dilations);
-    (void)conv_attr->GetGroups(groups);
-  } else if (node_type == "Conv2DOffset") {
-    auto conv_attr = node_attr->ir_attr->DownCastTo<ge::ascir_op::Conv2DOffset::AscConv2DOffsetIrAttrDef>();
-    if (conv_attr == nullptr) return false;
-    (void)conv_attr->GetStrides(strides);
-    (void)conv_attr->GetPads(pads);
-    (void)conv_attr->GetDilations(dilations);
-    (void)conv_attr->GetGroups(groups);
-  } else if (node_type == "Conv2DOffsetBias") {
-    auto conv_attr = node_attr->ir_attr->DownCastTo<ge::ascir_op::Conv2DOffsetBias::AscConv2DOffsetBiasIrAttrDef>();
-    if (conv_attr == nullptr) return false;
-    (void)conv_attr->GetStrides(strides);
-    (void)conv_attr->GetPads(pads);
-    (void)conv_attr->GetDilations(dilations);
-    (void)conv_attr->GetGroups(groups);
-  } else {
+  if (node_attr == nullptr || node_attr->ir_attr == nullptr) {
     return false;
   }
+  const auto conv_attr = node_attr->ir_attr->DownCastTo<IrAttrT>();
+  if (conv_attr == nullptr) {
+    return false;
+  }
+  (void)conv_attr->GetStrides(strides);
+  (void)conv_attr->GetPads(pads);
+  (void)conv_attr->GetDilations(dilations);
+  (void)conv_attr->GetGroups(groups);
+  return true;
+}
 
+static bool VerifyConv2DIrAttr(const NodePtr &asc_node, const std::string &node_type) {
+  std::vector<int64_t> strides;
+  std::vector<int64_t> pads;
+  std::vector<int64_t> dilations;
+  int64_t groups = 0;
+  bool ok = false;
+  if (node_type == "Conv2D") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::Conv2D::AscConv2DIrAttrDef>(asc_node, strides, pads, dilations, groups);
+  } else if (node_type == "Conv2DBias") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::Conv2DBias::AscConv2DBiasIrAttrDef>(asc_node, strides, pads, dilations,
+                                                                                 groups);
+  } else if (node_type == "Conv2DOffset") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::Conv2DOffset::AscConv2DOffsetIrAttrDef>(asc_node, strides, pads, dilations,
+                                                                                     groups);
+  } else if (node_type == "Conv2DOffsetBias") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::Conv2DOffsetBias::AscConv2DOffsetBiasIrAttrDef>(asc_node, strides, pads,
+                                                                                             dilations, groups);
+  } else if (node_type == "ExtendConv2D") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::ExtendConv2D::AscExtendConv2DIrAttrDef>(asc_node, strides, pads, dilations,
+                                                                                     groups);
+  } else if (node_type == "ExtendConv2DBias") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::ExtendConv2DBias::AscExtendConv2DBiasIrAttrDef>(asc_node, strides, pads,
+                                                                                             dilations, groups);
+  } else if (node_type == "ExtendConv2DScale") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::ExtendConv2DScale::AscExtendConv2DScaleIrAttrDef>(asc_node, strides, pads,
+                                                                                               dilations, groups);
+  } else if (node_type == "ExtendConv2DBiasScale") {
+    ok = GetConv2DCommonIrAttr<ge::ascir_op::ExtendConv2DBiasScale::AscExtendConv2DBiasScaleIrAttrDef>(
+        asc_node, strides, pads, dilations, groups);
+  }
+  if (!ok) {
+    return false;
+  }
   EXPECT_EQ(strides, (std::vector<int64_t>{1, 1, 1, 1}));
   EXPECT_EQ(pads, (std::vector<int64_t>{1, 1, 1, 1}));
   EXPECT_EQ(dilations, (std::vector<int64_t>{1, 1, 1, 1}));
@@ -627,5 +668,65 @@ TEST_F(UTestLoweringAndCanfuseV2_2, Conv2DWithBiasAndOffsetWTest) {
   SetCurShapeEnvContext(nullptr);
   ge::ResetAutofusePlatform();
   RuntimeStub::Reset();
+}
+
+static void RunExtendConv2DLoweringCase(es::Graph &graph, const std::string &expected_type, size_t min_inputs) {
+  ge::ResetAutofusePlatform();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  SetupShapeEnv(shape_env);
+
+  auto built = graph.Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*built);
+  ASSERT_NE(cg, nullptr);
+
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetType() != "ExtendConv2D") {
+      continue;
+    }
+    EXPECT_EQ(node->GetAllOutDataAnchorsSize(), 2U);
+    EXPECT_EQ(node->GetOutDataAnchor(1)->GetPeerInDataNodesSize(), 0U);
+  }
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetType() != "ExtendConv2D") {
+      continue;
+    }
+    auto y1_box = loop::GetKernelBox(node->GetOutDataAnchor(1));
+    EXPECT_FALSE(y1_box.IsExternKernel());
+    EXPECT_TRUE(y1_box.IsCube());
+  }
+
+  VerifyConv2DRepeats(cg, expected_type, {1, 224, 224, 3}, {3, 3, 3, 64}, {1, 224, 224, 64}, min_inputs, 1);
+
+  SetCurShapeEnvContext(nullptr);
+  ge::ResetAutofusePlatform();
+  RuntimeStub::Reset();
+}
+
+TEST_F(UTestLoweringAndCanfuseV2_2, ExtendConv2DNoBiasTest) {
+  BuildExtendConv2DGraph(*es_graph_, false, false);
+  RunExtendConv2DLoweringCase(*es_graph_, "ExtendConv2D", 2);
+}
+
+TEST_F(UTestLoweringAndCanfuseV2_2, ExtendConv2DWithBiasTest) {
+  BuildExtendConv2DGraph(*es_graph_, true, false);
+  RunExtendConv2DLoweringCase(*es_graph_, "ExtendConv2DBias", 3);
+}
+
+TEST_F(UTestLoweringAndCanfuseV2_2, ExtendConv2DWithScale0Test) {
+  BuildExtendConv2DGraph(*es_graph_, false, true);
+  RunExtendConv2DLoweringCase(*es_graph_, "ExtendConv2DScale", 3);
+}
+
+TEST_F(UTestLoweringAndCanfuseV2_2, ExtendConv2DWithBiasAndScale0Test) {
+  BuildExtendConv2DGraph(*es_graph_, true, true);
+  RunExtendConv2DLoweringCase(*es_graph_, "ExtendConv2DBiasScale", 4);
 }
 }  // namespace ge

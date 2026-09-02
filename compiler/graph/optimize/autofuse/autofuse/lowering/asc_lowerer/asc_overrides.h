@@ -67,7 +67,13 @@ namespace loop {
   GET_IR_ATTR(OpType, Obj.Src())->SetData_format(Attr.data_format); \
   GET_IR_ATTR(OpType, Obj.Src())->SetOffset_x(Attr.offset_x);       \
   GET_IR_ATTR(OpType, Obj.Src())->SetEnable_hf32(Attr.enable_hf32); \
-  GET_IR_ATTR(OpType, Obj.Src())->SetHas_relu(0)
+  GET_IR_ATTR(OpType, Obj.Src())->SetFixed_shift_value(Attr.fixed_shift_value)
+
+// ExtendConv2D 在 Conv2D 公共属性基础上补充 round_mode / relu0。
+#define SET_EXTEND_CONV2D_ATTRS(OpType, Obj, Attr)                \
+  SET_CONV2D_ATTRS(OpType, Obj, Attr);                            \
+  GET_IR_ATTR(OpType, Obj.Src())->SetRound_mode(Attr.round_mode); \
+  GET_IR_ATTR(OpType, Obj.Src())->SetEnable_relu0(Attr.enable_relu0)
 
 template <typename T>
 bool InferAscirDataType(const std::vector<DataType> &input_dtypes, std::vector<DataType> &output_dtypes) {
@@ -408,7 +414,31 @@ class AscOverrides final : public OpOverrides {
     GE_WARN_ASSERT(inputs.size() >= 2U && inputs.size() <= 4U);
 
     AscVar conv;
-    if (inputs.size() == 2U) {
+    // ExtendConv2D 按 (bias, scale0) 组合映射到 4 种 ASCIR 变体；Conv2DV2 仍走原有 bias/offset_w 组合。
+    if (conv2d_attr.is_extend_conv2d) {
+      if (inputs.size() == 2U) {
+        conv = MakeAscVar<ascir_op::ExtendConv2D>(explicit_output_dtypes, inputs[0], inputs[1]);
+        SET_EXTEND_CONV2D_ATTRS(ExtendConv2D, conv, conv2d_attr);
+      } else if (inputs.size() == 3U) {
+        if (conv2d_attr.has_bias) {
+          conv = MakeAscVar<ascir_op::ExtendConv2DBias>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2]);
+          SET_EXTEND_CONV2D_ATTRS(ExtendConv2DBias, conv, conv2d_attr);
+        } else if (conv2d_attr.has_scale0) {
+          conv = MakeAscVar<ascir_op::ExtendConv2DScale>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2]);
+          SET_EXTEND_CONV2D_ATTRS(ExtendConv2DScale, conv, conv2d_attr);
+        } else {
+          GE_WARN_ASSERT(false, "ExtendConv2D attr info not match, input=3, bias=false, scale0=false.");
+        }
+      } else if (inputs.size() == 4U) {
+        if (conv2d_attr.has_bias && conv2d_attr.has_scale0) {
+          conv = MakeAscVar<ascir_op::ExtendConv2DBiasScale>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2],
+                                                             inputs[3]);
+          SET_EXTEND_CONV2D_ATTRS(ExtendConv2DBiasScale, conv, conv2d_attr);
+        } else {
+          GE_WARN_ASSERT(false, "ExtendConv2D attr info not match, input=4, bias or scale0 is false.");
+        }
+      }
+    } else if (inputs.size() == 2U) {
       conv = MakeAscVar<ascir_op::Conv2D>(explicit_output_dtypes, inputs[0], inputs[1]);
       SET_CONV2D_ATTRS(Conv2D, conv, conv2d_attr);
     } else if (inputs.size() == 3U) {

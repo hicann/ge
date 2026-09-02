@@ -4427,6 +4427,29 @@ static void SetConv2DV2ExtraAttrs(const ge::OpDescPtr &op_desc, const std::strin
   AttrUtils::SetBool(op_desc, "enable_hf32", false);
 }
 
+static void SetExtendConv2DExtraAttrs(const ge::OpDescPtr &op_desc, const std::string &pad_mode) {
+  op_desc->AppendIrAttrName("data_format");
+  op_desc->AppendIrAttrName("offset_x");
+  op_desc->AppendIrAttrName("round_mode");
+  op_desc->AppendIrAttrName("pad_mode");
+  op_desc->AppendIrAttrName("enable_hf32");
+  AttrUtils::SetStr(op_desc, "data_format", "NHWC");
+  AttrUtils::SetInt(op_desc, "offset_x", 0);
+  AttrUtils::SetStr(op_desc, "round_mode", "rint");
+  AttrUtils::SetStr(op_desc, "pad_mode", pad_mode);
+  AttrUtils::SetBool(op_desc, "enable_hf32", false);
+}
+
+static gert::InferSymbolShapeContext *BuildExtendConv2DInferContext(
+    InferSymbolShapeContextTestBuilder &builder, const std::initializer_list<Expression> &x_values,
+    const std::initializer_list<Expression> &w_values, const std::vector<int64_t> &strides,
+    const std::vector<int64_t> &pads, const std::vector<int64_t> &dilations, const std::string &pad_mode) {
+  builder.Destroy();
+  BuildConv2DInferContext(builder, x_values, w_values, strides, pads, dilations, 1, FORMAT_NHWC, FORMAT_HWCN);
+  SetExtendConv2DExtraAttrs(builder.GetOrCreateOpDescPtr(), pad_mode);
+  return builder.Build();
+}
+
 static gert::InferSymbolShapeContext *BuildConv2DV2InferContext(
     InferSymbolShapeContextTestBuilder &builder, const std::initializer_list<Expression> &x_values,
     const std::initializer_list<Expression> &w_values, const std::vector<int64_t> &strides,
@@ -4943,6 +4966,39 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConv2DV2) {
 
   infer_context =
       BuildConv2DV2InferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "AABB");
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+  builder.Destroy();
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForExtendConv2D) {
+  auto func = GetInferFunc("ExtendConv2D");
+  ASSERT_TRUE(func.first != nullptr);
+  InferSymbolShapeContextTestBuilder builder("ExtendConv2D", "extendConv2D");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(28, MakeShared<InputShapeSource>(0, 3));
+  auto s3 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+  auto s4 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 5));
+  auto s5 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 6));
+  auto s6 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 7));
+  auto s7 = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 8));
+  std::vector<int64_t> strides = {1, 1, 1, 1};
+  std::vector<int64_t> pads = {0, 0, 0, 0};
+  std::vector<int64_t> dilations = {1, 1, 1, 1};
+
+  auto infer_context =
+      BuildExtendConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "SPECIFIC");
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  CheckConv2DV2SpecificOutput(infer_context, s0, s1, s2, s4, s5, s7);
+
+  infer_context = BuildExtendConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations,
+                                                "SAME_LOWER");
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+
+  infer_context =
+      BuildExtendConv2DInferContext(builder, {s0, s1, s2, s3}, {s4, s5, s6, s7}, strides, pads, dilations, "AABB");
   ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
   builder.Destroy();
 }

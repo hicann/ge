@@ -229,6 +229,24 @@ void RegisterConv2DAndBNOps() {
       {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional, ge::kIrInputOptional}, {"y"},
       kIrOutputRequired, {"strides", "pads", "dilations", "groups", "data_format", "offset_x"});
   RegisterVecInputTypeOpCreatorV2(
+      "ExtendConv2D", {"x", "filter", "bias", "offset_w", "scale0"},
+      {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional, ge::kIrInputOptional, ge::kIrInputOptional},
+      {"y", "y1"}, kIrOutputRequired,
+      {"strides", "pads", "dilations", "groups", "data_format", "offset_x", "round_mode", "pad_mode"});
+  RegisterVecInputTypeOpCreatorV2(
+      "ExtendConv2DBias", {"x", "filter", "bias"}, {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional},
+      {"y"}, kIrOutputRequired,
+      {"strides", "pads", "dilations", "groups", "data_format", "offset_x", "round_mode", "pad_mode"});
+  RegisterVecInputTypeOpCreatorV2(
+      "ExtendConv2DScale", {"x", "filter", "scale0"},
+      {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional}, {"y"}, kIrOutputRequired,
+      {"strides", "pads", "dilations", "groups", "data_format", "offset_x", "round_mode", "pad_mode"});
+  RegisterVecInputTypeOpCreatorV2(
+      "ExtendConv2DBiasScale", {"x", "filter", "bias", "scale0"},
+      {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional, ge::kIrInputOptional}, {"y"},
+      kIrOutputRequired,
+      {"strides", "pads", "dilations", "groups", "data_format", "offset_x", "round_mode", "pad_mode"});
+  RegisterVecInputTypeOpCreatorV2(
       "BNInferenceD", {"x1", "x2", "x3", "x4", "x5"},
       {ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputRequired, ge::kIrInputOptional, ge::kIrInputOptional},
       {"y"}, kIrOutputRequired, {"momentum", "epsilon", "use_global_stats", "mode"});
