@@ -752,7 +752,7 @@ void HeavyFormatPropagation::CreateNextNodeInfo(const ge::NodePtr &next_node, co
                                                 PropagationInfo &propagation_info, int32_t anchor_index, bool is_input,
                                                 NodeInfoPtr &next_node_info, std::deque<NodeInfoPtr> &next_node_queue) {
   if (IsStaticZeroShapeOp(next_node->GetOpDesc())) {
-    FE_LOGD("Skip %s because %s is an zero shape op.", next_node->GetName().c_str(), next_node->GetName().c_str());
+    FE_LOGD("Skip %s because %s is a zero shape op.", next_node->GetName().c_str(), next_node->GetName().c_str());
     return;
   }
 
@@ -1259,7 +1259,7 @@ Status HeavyFormatPropagation::GetPeerOutFormat(const vector<int64_t> &input_non
     // get peer out anchor format & shape of other way op
     auto ouput_desc = owner_node->GetOpDesc()->MutableOutputDesc(peer_out_idx);
     if (ouput_desc == nullptr) {
-      REPORT_FE_ERROR("[GraphOptJdgInst][FmtPropagate][UpdAllTypeIn] Ouput_desc %u of %s's out anchor is nullptr!",
+      REPORT_FE_ERROR("[GraphOptJdgInst][FmtPropagate][UpdAllTypeIn] Output_desc %u of %s's out anchor is nullptr!",
                       in_anchor_index, node_name.c_str());
       continue;
     }

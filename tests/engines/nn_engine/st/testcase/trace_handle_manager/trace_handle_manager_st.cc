@@ -59,3 +59,22 @@ TEST_F(TraceHandleManagerSTest, init_case_01) {
   handle_manager.Finalize();
   handle_manager.Finalize();
 }
+
+// trace_handle_manager.cc:44 - global_handle_ < 0 after AtraceCreate
+// trace_handle_manager.cc:48 - statistics_handle_ < 0 after AtraceCreate
+TEST_F(TraceHandleManagerSTest, init_trace_handle_not_created) {
+  TraceHandleManager handle_manager;
+  EXPECT_EQ(handle_manager.Initialize(), SUCCESS);
+  handle_manager.Finalize();
+}
+
+// trace_handle_manager.cc:119 - subgraph_trace_handle < 0 after AtraceCreate
+// trace_handle_manager.cc:124 - subgraph_event_handle < 0 after AtraceEventCreate
+TEST_F(TraceHandleManagerSTest, add_subgraph_trace_handle_not_created) {
+  TraceHandleManager handle_manager;
+  EXPECT_EQ(handle_manager.Initialize(), SUCCESS);
+  handle_manager.subgraph_handle_map_.clear();
+  handle_manager.subgraph_event_map_.clear();
+  handle_manager.AddSubGraphTraceHandle();
+  handle_manager.Finalize();
+}

@@ -39,6 +39,10 @@ class WeightCompressJudge {
   static WeightCompressType CompareCompressType(const ge::NodePtr &weight_node,
                                                 const bool &is_support_two_compress_types);
 
+  static Status CalculateCompressRatios(const ge::NodePtr &weight_node, char *weight_data, size_t weight_size,
+                                        bool is_support_two_compress_types, float &low_sparse_compress_ratio,
+                                        float &high_sparse_compress_ratio);
+
   static float DoCompressWeights(char *input, const size_t &input_size, const WeightCompressType &compress_type);
 
   static size_t ComputeFractalSize(const size_t &weight_size);

@@ -527,7 +527,7 @@ Status TransNodeMerging::MergeOneNode(ge::ComputeGraph &fused_graph, ge::NodePtr
     if (dst_anchor_null_flag) {
       REPORT_FE_ERROR("[GraphOptJdgInst][ShapeTrans][MrgOneNd] The dstAnchor or its successor node is null!");
       REPORT_FE_ERROR("[GraphOptJdgInst][ShapeTrans][MrgOneNd] Failed to remove node [%s, %s] from graph [%s]!",
-                      fused_graph.GetName().c_str(), node->GetNamePtr(), node->GetTypePtr());
+                      node->GetNamePtr(), node->GetTypePtr(), fused_graph.GetName().c_str());
       return FAILED;
     } else {
       auto dst_node = dst_in_anchor->GetOwnerNode();

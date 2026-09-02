@@ -111,7 +111,7 @@ Status GetSoPath(const ge::Node &node, std::string &so_path) {
       if (op_desc->GetOppImplVersion() == ge::OppImplVersion::kOppKernel) {
         std::string opp_kernel_path = "";
         if (fe::Configuration::Instance(AI_CORE_NAME).GetOppLatestPath(opp_kernel_path) != SUCCESS) {
-          FE_LOGD("Node[%s, %s]Failed to get opp latest path", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+          FE_LOGD("Node[%s, %s] Failed to get opp latest path", op_desc->GetNamePtr(), op_desc->GetTypePtr());
         }
         opp_kernel_ret = GetOppSoFilePath(op_desc, opp_kernel_path, so_path);
         FE_LOGD("The ops impl version is oppkernel.");
@@ -414,7 +414,7 @@ bool CheckTilingSink(const ge::Node &node) {
 
 ge::Status CreateTilingTaskSuperKernel(const gert::ExeResGenerationContext *context, domi::TaskDef &aicpu_task,
                                        const ParamDef &param) {
-  FE_CHECK(CreateTilingTask(context, param, aicpu_task) != SUCCESS, FE_LOGE("Creat tiling task failed."),
+  FE_CHECK(CreateTilingTask(context, param, aicpu_task) != SUCCESS, FE_LOGE("Create tiling task failed."),
            return FAILED);
   std::vector<gert::SyncResInfo> sync_res_info_v = context->GetSyncResInfos();
   FE_CHECK(sync_res_info_v.size() != 1, FE_LOGE("stream_v size is not equal to 1"), return FAILED);
@@ -532,7 +532,7 @@ Status GenerateTaskForSinkOp(const gert::ExeResGenerationContext *context, const
   FE_CHECK(CreateTilingTask(context, param, tiling_task) != SUCCESS,
            FE_LOGE("Node [%s, %s] failed to create tiling task.", op_name, op_type), return FAILED);
   FE_CHECK(CreateRefreshTask(context, refresh_task) != SUCCESS,
-           FE_LOGE("Node [%s, %s] creat refresh task failed.", op_name, op_type), return FAILED);
+           FE_LOGE("Node [%s, %s] create refresh task failed.", op_name, op_type), return FAILED);
   FE_CHECK(CreateRecordTask(context, record_task) != SUCCESS,
            FE_LOGE("Node [%s, %s] failed to create record task.", op_name, op_type), return FAILED);
   FE_CHECK(CreateWaitTask(context, wait_task) != SUCCESS,
@@ -589,8 +589,8 @@ bool IsPrefixOpsPath(const ge::OpDesc &op_desc, std::string &ops_path_name_prefi
       FE_LOGD("Node[%s, %s] after substr, ops_path_name_prefix:[%s]", op_desc.GetNamePtr(), op_desc.GetTypePtr(),
               ops_path_name_prefix.c_str());
     } else {
-      FE_LOGW("Node[%s, %s] ops_path_name_prefix:[%s] is not in the expected format", ops_path_name_prefix.c_str(),
-              op_desc.GetNamePtr(), op_desc.GetTypePtr());
+      FE_LOGW("Node[%s, %s] ops_path_name_prefix: [%s] is not in the expected format", op_desc.GetNamePtr(),
+              op_desc.GetTypePtr(), ops_path_name_prefix.c_str());
     }
   }
   return ret;

@@ -357,8 +357,8 @@ Status OpCompiler::VerifyScopeIdAttr(const int64_t &scope_id, const bool &is_l1_
     if (scope_iter->second != is_l1_fusion) {
       if (is_l1_fusion) {
         FE_LOGE(
-            "The scopeId[%ld] of this node is used for L1 fusion"
-            "while the same scopeId of other node is used for UB fusion."
+            "The scopeId[%ld] of this node is used for L1 fusion "
+            "while the same scopeId of other node is used for UB fusion. "
             "The scope id of L1 and UB fusion must not be the same.",
             scope_id);
       } else {
@@ -1034,7 +1034,7 @@ Status OpCompiler::SetMemoryTypeForOutput(const ge::NodePtr &node, const OpKerne
       }
       (void)ge::AttrUtils::SetInt(output_desc_ptr, ge::ATTR_NAME_MEMORY_SIZE_CALC_TYPE,
                                   static_cast<int64_t>(ge::MemorySizeCalcType::ALWAYS_EMPTY));
-      FE_LOGI("Node[type=%s,name=%s]: success to set the attribute %s to %d for the output %s.", op_type.c_str(),
+      FE_LOGI("Node[type=%s,name=%s]: Successfully set the attribute %s to %d for the output %s.", op_type.c_str(),
               op_name.c_str(), ge::ATTR_NAME_MEMORY_SIZE_CALC_TYPE.c_str(),
               static_cast<int32_t>(ge::MemorySizeCalcType::ALWAYS_EMPTY), out_info->GetName().c_str());
     }
@@ -1160,7 +1160,7 @@ bool OpCompiler::StopCompileOpInTuningAndAfterBuilderMode() const {
 
 Status OpCompiler::CompileOpOnly(CompileInfoParam &compile_info) const {
   if (compile_info.fusion_nodes_map.empty()) {
-    FE_LOGI("No node in graph need to compile.");
+    FE_LOGI("No node in the graph needs to be compiled.");
     return SUCCESS;
   }
 
@@ -1284,7 +1284,7 @@ Status OpCompiler::CompileOp(ge::ComputeGraph &graph, std::vector<ge::NodePtr> &
   }
 
   if (compile_info.fusion_nodes_map.empty()) {
-    FE_LOGI("No node in graph need to compile.");
+    FE_LOGI("No node in the graph needs to be compiled.");
     return SUCCESS;
   }
 

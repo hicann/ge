@@ -983,7 +983,7 @@ Status BufferFusionPassRunner::MatchFusionPattern(MatchInfo &m_info, BufferFusio
 
   if (!is_matched) {
     FE_CHECK_NOTNULL(m_info.head_node);
-    FE_LOGD("Cannot matched pattern %s with head %s.", m_info.pattern->GetName().c_str(),
+    FE_LOGD("Cannot match pattern %s with head %s.", m_info.pattern->GetName().c_str(),
             m_info.head_node->GetName().c_str());
     return FAILED;
   }

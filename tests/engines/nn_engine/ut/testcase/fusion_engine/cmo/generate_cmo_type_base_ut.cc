@@ -146,3 +146,8 @@ TEST_F(GenerateCmoTypeBaseTest, CheckParentOpIsAiCore) {
   bool res = cmo_type_base_->CheckParentOpIsAiCore(node2->GetInDataAnchor(0));
   EXPECT_TRUE(res);
 }
+
+TEST_F(GenerateCmoTypeBaseTest, GetCacheSize) {
+  uint64_t cache_size = cmo_type_base_->GetCacheSize();
+  EXPECT_TRUE(cache_size > 0);
+}

@@ -220,7 +220,7 @@ Status FusionGraphMerge::MergeFusionNodeL2Info(const ge::ComputeGraph &fusion_gr
       } else {
         L2FusionInfoPtr origin_l2_info = GetL2FusionInfoFromJson(op_desc);
         if (origin_l2_info == nullptr) {
-          FE_LOGD("node %s does not has l2_info.", node_ptr->GetName().c_str());
+          FE_LOGD("node %s does not have l2_info.", node_ptr->GetName().c_str());
           continue;
         }
         ret = SetL2NameAndIndexForUnfusNode(origin_l2_info);
@@ -262,7 +262,7 @@ Status FusionGraphMerge::AddRelatedThreadNode(ScopeNodeMap &fusion_scope_map) co
           FE_LOGD("Related nodes are %s.", node_ptr->GetName().c_str());
         }
       } else {
-        FE_LOGI("Node %s do not have related nodes.", node->GetName().c_str());
+        FE_LOGI("Node %s does not have related nodes.", node->GetName().c_str());
       }
       if (pass_name.empty()) {
         (void)ge::AttrUtils::GetStr(node->GetOpDesc(), kPassNameUbAttr, pass_name);
@@ -536,7 +536,7 @@ Status FusionGraphMerge::SetL2TaskInfoToFusionOp(ge::NodePtr fus_node) const {
           }
         }
         if (origin_l2_info == nullptr) {
-          FE_LOGD("node %s does not has l2_info.", origin_name.c_str());
+          FE_LOGD("node %s does not have l2_info.", origin_name.c_str());
           continue;
         }
         auto fuse_node_output_desc = fus_node->GetOpDesc()->MutableOutputDesc(iter_vec->first);

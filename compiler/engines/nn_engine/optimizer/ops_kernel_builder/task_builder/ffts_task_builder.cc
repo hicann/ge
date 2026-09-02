@@ -71,8 +71,8 @@ Status FftsTaskBuilder::GenerateFFTSPlusCtx(const ge::Node &node, const ge::RunC
   context_.weightMemBase = context.weightMemBase;
   context_.weightBufferHost = context.weightsBuffer;
   auto op_desc = node.GetOpDesc();
-  FE_LOGD("Start to generate FFTSPlus Ctx, node %s, dataMemSize %lu, weightMemSize %lu.", node.GetName().c_str(),
-          context.dataMemSize, context.weightMemSize);
+  FE_LOGD("Start to generate FFTSPlus Ctx, node %s, dataMemSize %lu bytes, weightMemSize %lu bytes.",
+          node.GetName().c_str(), context.dataMemSize, context.weightMemSize);
   FftsPlusCtxDefPtr ctx = nullptr;
   FE_MAKE_SHARED(ctx = std::make_shared<domi::FftsPlusCtxDef>(), return FAILED);
   FE_CHECK_NOTNULL(ctx);

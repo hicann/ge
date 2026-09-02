@@ -39,7 +39,7 @@ Status ConvEstimator::GetConvCycle(PlatFormInfos &platform_info, const std::vect
   }
 
   if (weight_shape.size() != DIM_DEFAULT_SIZE) {
-    FE_LOGW("Weight size %zu is invalid, must be 4.", fm_shape.size());
+    FE_LOGW("FM shape size %zu is invalid, must be 4.", fm_shape.size());
     return FAILED;
   }
 

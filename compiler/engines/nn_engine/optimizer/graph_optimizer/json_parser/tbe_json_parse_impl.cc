@@ -486,7 +486,7 @@ Status TbeJsonFileParseImpl::ReadBytesFromBinaryFile(const string &file_name, st
 
     if (size > INT_MAX) {
       if_stream.close();
-      FE_LOGE("File size %ld exceeds the limit of %d.", size, INT_MAX);
+      FE_LOGE("File size %ld bytes exceeds the limit of %d bytes.", size, INT_MAX);
       return FAILED;
     }
     if_stream.seekg(0, std::ios::beg);
@@ -577,7 +577,7 @@ Status TbeJsonFileParseImpl::ParseRunInfo(OpTilingInfo &run_info, bool &has_run_
 Status TbeJsonFileParseImpl::ParseFatbin(const ge::OpKernelBinPtr &fatbin,
                                          FatbinKernelInfoMap &fatbin_kernel_info_map) const {
   const uint8_t *fatbin_ptr = fatbin->GetBinData();
-  FE_LOGD("Fatbin data size is %zu.", fatbin->GetBinDataSize());
+  FE_LOGD("Fatbin data size is %zu bytes.", fatbin->GetBinDataSize());
   // get fatbin header info
   uint64_t tiling_key_num = 0;
   if (memcpy_s(&tiling_key_num, sizeof(uint64_t), fatbin_ptr, sizeof(uint64_t)) != EOK) {

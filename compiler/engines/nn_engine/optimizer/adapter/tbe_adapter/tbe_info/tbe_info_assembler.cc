@@ -441,7 +441,7 @@ void TbeInfoAssembler::FeedL2InputTensor(const ToOpStructPtr &l2_info, const ge:
   vector<int64_t> input_offsets = op_desc->GetInputOffset();
   size_t input_offset_size = input_offsets.size();
   if (input_num > input_offset_size) {
-    FE_LOGW("intput_desc_size > input_offset_size, input_desc_size:%lu, input_offset_size:%lu.", input_num,
+    FE_LOGW("input_desc_size > input_offset_size, input_desc_size:%lu, input_offset_size:%lu.", input_num,
             input_offset_size);
   } else {
     if (index_in_opdesc >= input_offset_size) {
@@ -2008,7 +2008,7 @@ Status TbeInfoAssembler::AssembleTbeInfo(ge::Node *node, const OpKernelInfoPtr &
   ub_fusion_space_size = op->TryGetExtAttr(ATTR_NAME_UB_FUSION_SPACE_SIZE, ub_fusion_space_size);
   if (ub_fusion_space_size != 0) {
     tbe_op_info.SetUBSpaceSize(static_cast<uint64_t>(ub_fusion_space_size));
-    FE_LOGD("Set Node %s's UBSpaceSize %u", op->GetName().c_str(), ub_fusion_space_size);
+    FE_LOGD("Set Node %s's UBSpaceSize %u bytes", op->GetName().c_str(), ub_fusion_space_size);
   }
 
   ToOpStructPtr l1_info;

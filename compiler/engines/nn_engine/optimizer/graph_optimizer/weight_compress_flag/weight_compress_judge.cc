@@ -178,7 +178,8 @@ WeightCompressType WeightCompressJudge::CompareCompressType(const ge::NodePtr &w
   }
 
   size_t weight_size = weight_tensor->GetData().size();
-  FE_LOGD("Node [%s, %s]: the weight size is %zu.", weight_node->GetNamePtr(), weight_node->GetTypePtr(), weight_size);
+  FE_LOGD("Node [%s, %s]: the weight size is %zu bytes.", weight_node->GetNamePtr(), weight_node->GetTypePtr(),
+          weight_size);
   if (weight_size == 0 || weight_size % FRACTAL_SIZE_MIN != 0) {
     FE_LOGW("Node [%s, %s]: The weight data is either empty or not a multiple of 512.", weight_node->GetNamePtr(),
             weight_node->GetTypePtr());
@@ -187,35 +188,46 @@ WeightCompressType WeightCompressJudge::CompareCompressType(const ge::NodePtr &w
 
   float low_sparse_compress_ratio = 0.0;
   float high_sparse_compress_ratio = 0.0;
-  if (!is_support_two_compress_types) {
-    low_sparse_compress_ratio = DoCompressWeights(weight_data, weight_size, WeightCompressType::LOW_SPARSE_COMPRESS);
-  } else {
-    fe::ThreadPool executor(kWeightCompressJudgePrefix + fe::GetCurThreadIdStr(),
-                            static_cast<uint32_t>(kWeightCompressTypes.size()));
-    std::vector<std::future<float>> vector_future;
-    for (auto compress_type : kWeightCompressTypes) {
-      std::future<float> f = executor.commit(DoCompressWeights, weight_data, weight_size, compress_type);
-      if (!f.valid()) {
-        FE_LOGW("[Call][Commit] failed, Future is invalid, node name:%s", weight_node->GetName().c_str());
-        return WeightCompressType::DISABLE_COMPRESS;
-      }
-      vector_future.emplace_back(std::move(f));
-    }
-    if (vector_future.size() != kWeightCompressTypes.size()) {
-      FE_LOGW("Multi-thread do compress weights for node[%s, %s] failed.", weight_node->GetName().c_str(),
-              weight_node->GetType().c_str());
-      return WeightCompressType::DISABLE_COMPRESS;
-    }
-    try {
-      low_sparse_compress_ratio = vector_future[0].get();
-      high_sparse_compress_ratio = vector_future[1].get();
-    } catch (const std::exception &exp) {
-      FE_LOGE("Node[%s, %s]: An exception occurred while running DoCompressWeights, with the error message: [%s].",
-              weight_node->GetNamePtr(), weight_node->GetTypePtr(), exp.what());
-      return WeightCompressType::DISABLE_COMPRESS;
-    }
+  if (CalculateCompressRatios(weight_node, weight_data, weight_size, is_support_two_compress_types,
+                              low_sparse_compress_ratio, high_sparse_compress_ratio) != SUCCESS) {
+    return WeightCompressType::DISABLE_COMPRESS;
   }
   return GetFinalCompressType(low_sparse_compress_ratio, high_sparse_compress_ratio);
+}
+
+Status WeightCompressJudge::CalculateCompressRatios(const ge::NodePtr &weight_node, char *weight_data,
+                                                    size_t weight_size, bool is_support_two_compress_types,
+                                                    float &low_sparse_compress_ratio,
+                                                    float &high_sparse_compress_ratio) {
+  if (!is_support_two_compress_types) {
+    low_sparse_compress_ratio = DoCompressWeights(weight_data, weight_size, WeightCompressType::LOW_SPARSE_COMPRESS);
+    return SUCCESS;
+  }
+  fe::ThreadPool executor(kWeightCompressJudgePrefix + fe::GetCurThreadIdStr(),
+                          static_cast<uint32_t>(kWeightCompressTypes.size()));
+  std::vector<std::future<float>> vector_future;
+  for (auto compress_type : kWeightCompressTypes) {
+    std::future<float> f = executor.commit(DoCompressWeights, weight_data, weight_size, compress_type);
+    if (!f.valid()) {
+      FE_LOGW("[Call][Commit] failed, Future is invalid, node name:%s", weight_node->GetName().c_str());
+      return FAILED;
+    }
+    vector_future.emplace_back(std::move(f));
+  }
+  if (vector_future.size() != kWeightCompressTypes.size()) {
+    FE_LOGW("Multi-thread do compress weights for node[%s, %s] failed.", weight_node->GetName().c_str(),
+            weight_node->GetType().c_str());
+    return FAILED;
+  }
+  try {
+    low_sparse_compress_ratio = vector_future[0].get();
+    high_sparse_compress_ratio = vector_future[1].get();
+  } catch (const std::exception &exp) {
+    FE_LOGE("Node[%s, %s]: An exception occurred while running DoCompressWeights, with the error message: [%s].",
+            weight_node->GetNamePtr(), weight_node->GetTypePtr(), exp.what());
+    return FAILED;
+  }
+  return SUCCESS;
 }
 
 float WeightCompressJudge::DoCompressWeights(char *input, const size_t &input_size,

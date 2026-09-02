@@ -459,7 +459,7 @@ Status DataTaskBuilder::GetSuccessorContextId(uint32_t out_anchor_index, const g
       vector<uint32_t> peer_in_context_id_list;
       (void)ge::AttrUtils::GetListInt(peer_op, kAutoCtxIdList, peer_in_context_id_list);
       if (peer_in_context_id_list.empty()) {
-        FFTS_LOGI("Node %s needs successor list but it has a successor %s which do not have a context id.",
+        FFTS_LOGI("Node %s needs successor list but it has a successor %s which does not have a context id.",
                   node->GetName().c_str(), peer_op->GetName().c_str());
         continue;
       }

@@ -24,7 +24,7 @@ bool HasPeerOutNode(const ge::Node *node, const int &anchor_index, ge::NodePtr &
   auto peer_out_anchor = in_anchor->GetPeerOutAnchor();
   FE_CHECK(peer_out_anchor == nullptr, FE_LOGW("index:%d peer_out_anchor is nullptr", anchor_index), return false);
   peer_out_node = peer_out_anchor->GetOwnerNode();
-  FE_CHECK(peer_out_node == nullptr, FE_LOGW("index:%d peer_out_anchor is nullptr", anchor_index), return false);
+  FE_CHECK(peer_out_node == nullptr, FE_LOGW("index:%d peer_out_node is nullptr", anchor_index), return false);
   return true;
 }
 }  // namespace

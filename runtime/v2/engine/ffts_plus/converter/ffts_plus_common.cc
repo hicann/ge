@@ -22,7 +22,7 @@ FFTSNodeCalculaterRegistry::NodeCalculater GetNodeCalculater(const ge::NodePtr &
   if (calc_func != nullptr) {
     auto func = FFTSNodeCalculaterRegistry::GetInstance().FindNodeCalculater(*calc_func);
     if (func == nullptr) {
-      GELOGE(ge::FAILED, "Get null calculater of node[%s] by attr.", node->GetName().c_str());
+      GELOGE(ge::FAILED, "Get null calculator of node[%s] by attr.", node->GetName().c_str());
       return nullptr;
     }
     return func;
@@ -31,7 +31,7 @@ FFTSNodeCalculaterRegistry::NodeCalculater GetNodeCalculater(const ge::NodePtr &
   if (func != nullptr) {
     return func;
   }
-  GELOGE(ge::FAILED, "Failed to find the calculater for node %s type %s", node->GetName().c_str(),
+  GELOGE(ge::FAILED, "Failed to find the calculator for node %s type %s", node->GetName().c_str(),
          node->GetType().c_str());
   return nullptr;
 }
@@ -93,7 +93,7 @@ std::vector<bg::ValueHolderPtr> FFTSTaskAndArgsLaunch(FFTSLuanchArg launch_arg, 
   auto launch_ret = bg::LaunchFFTSPlusTaskNoCopy(launch_arg.global_data->GetStream(), task_info_para,
                                                  launch_arg.need_launch, dfx_holder, launch_arg.workspaces_addr);
   if (launch_ret == nullptr) {
-    GELOGE(ge::FAILED, "Lowing launch ffts task failed with copy flag[%d].", launch_arg.do_copy);
+    GELOGE(ge::FAILED, "Lowering launch ffts task failed with copy flag[%d].", launch_arg.do_copy);
     return {};
   }
   bg::ValueHolder::AddDependency(h2d_ret, launch_ret);

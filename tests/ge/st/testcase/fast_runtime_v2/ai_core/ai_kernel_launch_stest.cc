@@ -784,6 +784,29 @@ TEST_F(AiKernelLaunchST, test_LaunchAicpuCustKernel_success) {
   ASSERT_EQ(registry.FindKernelFuncs("LaunchAicpuCustKernel")->run_func(run_context), ge::GRAPH_SUCCESS);
 }
 
+TEST_F(AiKernelLaunchST, test_UpdateMergedCopyInfo_tiling_size_overflow) {
+  size_t compiled_args_size = 64;
+  auto node_desc_holder = malloc(compiled_args_size + sizeof(ComputeNodeDesc));
+  auto node_desc = reinterpret_cast<ComputeNodeDesc *>(node_desc_holder);
+  *node_desc = {.input_num = 1,
+                .output_num = 1,
+                .workspace_cap = 8,
+                .max_tiling_data = 128,
+                .need_shape_buffer = false,
+                .need_overflow = false,
+                .compiled_args_size = compiled_args_size};
+  auto args_info_desc_holder = CreateDefaultArgsInfoDesc(node_desc->input_num, node_desc->output_num);
+  auto args_info_desc = reinterpret_cast<ArgsInfosDesc *>(args_info_desc_holder.get());
+  auto holder = RtKernelLaunchArgsEx::Create(*node_desc, *args_info_desc);
+  ASSERT_NE(holder, nullptr);
+  auto args = reinterpret_cast<RtKernelLaunchArgsEx *>(holder.get());
+  auto available = args->GetArgsCap(RtKernelLaunchArgsEx::ArgsType::kTilingData) +
+                   args->GetArgsCap(RtKernelLaunchArgsEx::ArgsType::kHostInputData);
+  args->GetTilingData().SetDataSize(available + 1);
+  ASSERT_EQ(args->UpdateMergedCopyInfo(), ge::GRAPH_FAILED);
+  free(node_desc_holder);
+}
+
 TEST_F(AiKernelLaunchST, AiCoreLaunchKernelWithHandle_need_shapebuffer_success) {
   AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}), true, g_overflow_addr, true, g_shape_buffer_addr);
   GertRuntimeStub runtime_stub;

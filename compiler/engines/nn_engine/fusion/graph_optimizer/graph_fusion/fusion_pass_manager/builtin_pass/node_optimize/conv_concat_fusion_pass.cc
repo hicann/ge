@@ -496,7 +496,7 @@ Status ConvConcatFusionPass::MatchForDequant(const ge::NodePtr &node_ptr,
 
 ConvConcatFusionPattern ConvConcatFusionPass::GetMatchPattern(const ge::NodePtr &pre_node_ptr) const {
   if (UnknownShapeUtils::IsUnknownShapeOp(*pre_node_ptr->GetOpDesc())) {
-    FE_LOGD("node[%s, %s] is dynamic is not be support", pre_node_ptr->GetNamePtr(), pre_node_ptr->GetTypePtr());
+    FE_LOGD("node[%s, %s] is dynamic and is not supported.", pre_node_ptr->GetNamePtr(), pre_node_ptr->GetTypePtr());
     return UN_SUPPORTED;
   } else if (IsConv(pre_node_ptr) == SUCCESS) {
     return PATTERN_CONV2D_CONCAT;

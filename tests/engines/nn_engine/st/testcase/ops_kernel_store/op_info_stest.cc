@@ -718,3 +718,32 @@ TEST_F(STEST_OP_KERNEL_INFO, parse_fallback) {
   EXPECT_EQ(fe::SUCCESS, ret);
   EXPECT_EQ(res_fallbacks, cfg_fallbacks);
 }
+
+/* Line 1018: ConvertListListAttrValue with missing defaultValue triggers FE_LOGD */
+TEST_F(STEST_OP_KERNEL_INFO, convert_list_list_attr_value_default_value_not_found) {
+  OpContent op_content;
+  op_content.op_type_ = "TestOp";
+  std::map<std::string, std::string> attr_map;
+  attr_map["value"] = "1,2,3";
+  op_content.map_kernel_info_.emplace(std::make_pair("attr_test", attr_map));
+
+  OpKernelInfoConstructor op_kernel_info_constructor;
+  vector<vector<vector<int64_t>>> list_list_attr_vec;
+  Status ret = op_kernel_info_constructor.ConvertListListAttrValue<int64_t>(op_content, "attr_test", "defaultValue",
+                                                                            list_list_attr_vec);
+  EXPECT_EQ(ret, fe::NOT_CHANGED);
+}
+
+/* Line 1269: InitAttrValue with attr.list missing triggers FE_LOGW */
+TEST_F(STEST_OP_KERNEL_INFO, init_attr_value_attr_list_not_found) {
+  OpContent op_content;
+  op_content.op_type_ = "TestOp";
+  std::map<std::string, std::string> attr_map;
+  attr_map["type"] = "int";
+  op_content.map_kernel_info_.emplace(std::make_pair("attr", attr_map));
+
+  OpKernelInfoPtr op_info_ptr = std::make_shared<OpKernelInfo>("TestOp");
+  OpKernelInfoConstructor op_kernel_info_constructor;
+  Status ret = op_kernel_info_constructor.InitAttrValue(op_content, op_info_ptr);
+  EXPECT_EQ(ret, fe::SUCCESS);
+}

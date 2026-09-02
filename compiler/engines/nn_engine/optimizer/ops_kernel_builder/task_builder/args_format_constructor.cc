@@ -81,7 +81,7 @@ bool FindInputInGraph(size_t idx, const std::vector<InputOrOutputInfoPtr> &input
       return true;
     }
   }
-  FE_LOGD("Input name [%s] not find, with input size %zu.", input_name.c_str(), input_size);
+  FE_LOGD("Input name [%s] not found, input size is %zu.", input_name.c_str(), input_size);
   return false;
 }
 
@@ -99,7 +99,7 @@ bool ArgsFormatConstructor::FindOptInsertPos(size_t ir_idx, const std::vector<In
     }
   }
   if (insert_pos == 0) {
-    REPORT_FE_ERROR("[ArgsFormatConstructor] Op[name=%s,type=%s]Not find pre input name [%s].",
+    REPORT_FE_ERROR("[ArgsFormatConstructor] Op[name=%s,type=%s] Cannot find pre input name [%s].",
                     op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), pre_input_name.c_str());
     return false;
   }
@@ -178,7 +178,7 @@ bool ArgsFormatConstructor::GetOpInputInfo(std::vector<uint32_t> &input_type_lis
     }
   }
   if (all_num > input_size) {
-    FE_LOGW("Input name size[%zu] less size by ir[%zu].", input_size, all_num);
+    FE_LOGW("Input name size [%zu] is less than IR size [%zu].", input_size, all_num);
     return false;
   }
   FE_LOGD("Op[%s] dynamic input expand num is %zu.", op_desc_->GetNamePtr(), exp_num);
@@ -451,7 +451,7 @@ Status ArgsFormatConstructor::ConstructNodeArgsDesc() {
   }
   by_ir_ = NeedConstructByIR(op_desc_, is_dy_folded_, (is_input_gen_place_ || is_output_gen_place_));
   if (ConstructInArgsDesc() != SUCCESS) {
-    FE_LOGE("Node [%s][%s] failed to in args desc.", op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
+    FE_LOGE("Node [%s][%s] failed to construct input args desc.", op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
     return FAILED;
   }
   dyn_io_v_.clear();

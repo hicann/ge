@@ -166,7 +166,7 @@ bool OpDebugConfigParser::SetOpDebugList(const std::string &op_debug_list, const
 
 bool OpDebugConfigParser::SetOpdebugConfig(const std::string &file_path) {
   if (op_debug_config_.empty()) {
-    FE_LOGD("with out op_debug_config");
+    FE_LOGD("without op_debug_config");
     return false;
   }
   std::vector<std::string> op_debug_config_vec;

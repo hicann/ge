@@ -595,7 +595,7 @@ extern "C" LX_QUERY_STATUS GetOpInfo(const TbeOpInfo &tbeOpInfo, std::string &re
   (void)opinfo.GetName(opName);
   (void)opinfo.GetModuleName(opModule);
 
-  TE_DBGLOG("Query L1/L2 fusion info begin. Name=[%s], Module=[%s].", opName.c_str(), opModule.c_str());
+  TE_DBGLOG("Query Lx-fusion info begin. Name=[%s], Module=[%s].", opName.c_str(), opModule.c_str());
 
   res = IsOpParameterValid(opModule, opFuncName);
   TE_FUSION_CHECK(!res, {

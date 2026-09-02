@@ -64,6 +64,7 @@ class BinaryInfoBase {
                                const bool &isSuperKernel, const std::string &path) const;
   bool ReadOpBinaryInfoConfig(const std::string &binaryInfoConfigPath, nlohmann::json &binaryInfoConfig) const;
   bool GenerateBinaryInfo(nlohmann::json &binaryInfoConfig);
+  bool ProcessSingleOpBinaryInfo(const std::string &opType, const nlohmann::json &iterJsonValue);
   bool GenerateSimpleKeyList(const std::string &opType, const nlohmann::json &binaryList,
                              std::unordered_map<std::string, std::string> &simpleKeyInfoMap) const;
   bool GenerateInOutPutMode(const std::string opType, const std::string &type, const nlohmann::json &binaryInfoParams,

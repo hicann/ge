@@ -35,8 +35,8 @@ bool GenerateCMOTypeInvalid::CheckReadDistance(const ge::OpDescPtr &op_desc,
   if (!data_visit_dist_vec.empty()) {
     data_vist_dist_from_pre_node = data_visit_dist_vec[0];
   }
-  FE_LOGD("Op[name=%s,type=%s,input=%s]: visit pre node distance:%d, threshold:%d", op_name.c_str(), op_type.c_str(),
-          op_desc->GetName().c_str(), data_vist_dist_from_pre_node, kDataVisitDistThreshold);
+  FE_LOGD("Op[name=%s,type=%s,input=%d]: visit pre node distance:%d, threshold:%d", op_name.c_str(), op_type.c_str(),
+          in_idx, data_vist_dist_from_pre_node, kDataVisitDistThreshold);
   return data_vist_dist_from_pre_node < kDataVisitDistThreshold;
 }
 

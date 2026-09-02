@@ -44,7 +44,7 @@ ge::graphStatus UpdateManualCmoCtxProc(const rtFftsPlusTaskInfo_t *task_info, co
     }
     const auto &addr_base_vv = (type == 0U) ? flush_data->input_addr_vv : flush_data->output_addr_vv;
     if (static_cast<size_t>(io_index) >= kMaxIndexNum) {
-      GELOGE(ge::FAILED, "[FillDataCtx]Index(%d) over size.", io_index);
+      GELOGE(ge::FAILED, "[FillDataCtx]Index(%d) over size %zu.", io_index, kMaxIndexNum);
       return ge::GRAPH_FAILED;
     }
     uint64_t para_base = addr_base_vv[io_index][0U];
@@ -152,7 +152,7 @@ ge::graphStatus FFTSUpdateStaAICoreArgs(KernelContext *context) {
   auto in_num = context->GetInputValue<size_t>(static_cast<size_t>(StaArgsInKey::IN_NUM));
   auto out_num = context->GetInputValue<size_t>(static_cast<size_t>(StaArgsInKey::OUT_NUM));
   if (in_num > kMaxIndexNum || out_num > kMaxIndexNum) {
-    KLOGE("In/Out io num: %zu/%zu exceeds maximum allowed number.", in_num, out_num);
+    KLOGE("In/Out io num: %zu/%zu exceeds maximum allowed number %zu.", in_num, out_num, kMaxIndexNum);
     return ge::GRAPH_FAILED;
   }
   auto flush_data = context->GetOutputPointer<AICoreSubTaskFlush>(static_cast<size_t>(StaArgsOutKey::FLUSH_DATA));
@@ -199,7 +199,7 @@ ge::graphStatus StaticUpdateManualGeDataDumpInfo(const KernelContext *context, g
   size_t in_num = context->GetInputValue<size_t>(static_cast<size_t>(ManualDataDumpKey::IN_NUM));
   size_t out_num = context->GetInputValue<size_t>(static_cast<size_t>(ManualDataDumpKey::OUT_NUM));
   if (in_num > kMaxIndexNum || out_num > kMaxIndexNum) {
-    GELOGE(ge::FAILED, "In/Out io num:%zu %zu over max num.", in_num, out_num);
+    GELOGE(ge::FAILED, "In/Out io num:%zu %zu over max num %zu.", in_num, out_num, kMaxIndexNum);
     return ge::GRAPH_FAILED;
   }
 
@@ -369,7 +369,7 @@ ge::graphStatus FFTSUpdateAutoAICoreArgs(KernelContext *context) {
   proc_arg.in_num = context->GetInputValue<size_t>(static_cast<size_t>(AutoArgsInKey::IN_NUM));
   auto out_num = context->GetInputValue<size_t>(static_cast<size_t>(AutoArgsInKey::OUT_NUM));
   if (proc_arg.in_num > kMaxIndexNum || out_num > kMaxIndexNum) {
-    KLOGE("In/Out io num: %zu/%zu exceeds maximum allowed number.", proc_arg.in_num, out_num);
+    KLOGE("In/Out io num: %zu/%zu exceeds maximum allowed number %zu.", proc_arg.in_num, out_num, kMaxIndexNum);
     return ge::GRAPH_FAILED;
   }
   auto flush_data = context->GetOutputPointer<AICoreSubTaskFlush>(static_cast<size_t>(StaArgsOutKey::FLUSH_DATA));
@@ -462,7 +462,7 @@ ge::graphStatus StaticUpdateAutoGeDataDumpInfo(const KernelContext *context, ger
   size_t in_num = context->GetInputValue<size_t>(static_cast<size_t>(AutoDataDumpKey::IN_NUM));
   size_t out_num = context->GetInputValue<size_t>(static_cast<size_t>(AutoDataDumpKey::OUT_NUM));
   if (in_num > kMaxIndexNum || out_num > kMaxIndexNum) {
-    GELOGE(ge::FAILED, "In/Out io num:%zu/%zu over max num.", in_num, out_num);
+    GELOGE(ge::FAILED, "In/Out io num:%zu/%zu over max num %zu.", in_num, out_num, kMaxIndexNum);
     return ge::GRAPH_FAILED;
   }
 
@@ -611,7 +611,7 @@ ge::graphStatus UpdateAutoCmoCtxProc(const rtFftsPlusTaskInfo_t *task_info, cons
   for (size_t j = 0U; j < idx_num; ++j) {
     int32_t io_index = idx_vec[j];
     if (static_cast<size_t>(io_index) >= kMaxIndexNum) {
-      GELOGE(ge::FAILED, "[FillDataCtx]Index(%d) over size.", io_index);
+      GELOGE(ge::FAILED, "[FillDataCtx]Index(%d) over size %zu.", io_index, kMaxIndexNum);
       return ge::GRAPH_FAILED;
     }
     const auto &addr_base_vv = (type == 0U) ? flush_data->input_addr_vv : flush_data->output_addr_vv;
@@ -677,7 +677,7 @@ ge::graphStatus StaAutoUpdateContext(KernelContext *context) {
   uint16_t total_num = task_info->fftsPlusSqe->totalContextNum;
   for (size_t idx = 0U; idx < ctx_num; ++idx) {
     if (ctx_id_vec[idx] >= total_num) {
-      KLOGE("Context Id(%d) overflow.", ctx_id_vec[idx]);
+      KLOGE("Context Id(%d) overflow, total num: %u.", ctx_id_vec[idx], total_num);
       return ge::GRAPH_FAILED;
     }
     auto ctx = reinterpret_cast<rtFftsPlusAicAivCtx_t *>(context_head + ctx_id_vec[idx]);

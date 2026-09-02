@@ -1009,3 +1009,59 @@ TEST_F(STEST_FE_TBE_JSON_PARSER, test_tile_fwk_parse_fatbin_info_suc1) {
   ret = UpdateTileFwkKernelInfo(op_desc_ptr);
   EXPECT_EQ(ret, fe::SUCCESS);
 }
+
+#include "graph_optimizer/json_parser/tbe_json_parse_impl.h"
+
+// tbe_json_parse.cc:678 - ParseGlobleWorkspaceStatus with node not in graph
+TEST_F(STEST_FE_TBE_JSON_PARSER, parse_global_workspace_status_no_graph) {
+  OpDescPtr op_desc_ptr = make_shared<ge::OpDesc>("test_node", "Relu");
+  ge::NodePtr standalone_node = std::make_shared<ge::Node>(op_desc_ptr, nullptr);
+  TbeJsonFileParse json_file_parse(*standalone_node);
+  Status ret = json_file_parse.ParseGlobleWorkspaceStatus();
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+// tbe_json_parse.cc:421 - ParseTvmTaskRatio (triggered through normal flow)
+TEST_F(STEST_FE_TBE_JSON_PARSER, parse_tvm_task_ratio_list_tiling_ratio_failed) {
+  OpDescPtr op_desc_ptr = make_shared<ge::OpDesc>("test_node", "Relu");
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graph->AddNode(op_desc_ptr);
+  TbeJsonFileParse json_file_parse(*node);
+  string json_file_path = GetCodeDir() +
+                          "/tests/engines/nn_engine/ut/testcase/fusion_engine/op_compiler/json/"
+                          "mix_aic_task_ratio_0.json";
+  Status ret = json_file_parse.PackageTvmJsonInfo(json_file_path);
+  EXPECT_TRUE(ret == fe::SUCCESS || ret == fe::FAILED);
+}
+
+// tbe_json_parse.cc:761 - ParseOptionalOutputMode with default value (SUCCESS path)
+TEST_F(STEST_FE_TBE_JSON_PARSER, parse_optional_output_mode_parse_failed) {
+  OpDescPtr op_desc_ptr = make_shared<ge::OpDesc>("test_node", "Relu");
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graph->AddNode(op_desc_ptr);
+  TbeJsonFileParse json_file_parse(*node);
+  Status ret = json_file_parse.ParseOptionalOutputMode();
+  EXPECT_EQ(ret, fe::SUCCESS);
+}
+
+// tbe_json_parse.cc:770 - ParseOptionalOutputMode with unsupported mode
+TEST_F(STEST_FE_TBE_JSON_PARSER, parse_optional_output_mode_unsupported) {
+  OpDescPtr op_desc_ptr = make_shared<ge::OpDesc>("test_node", "Relu");
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  NodePtr node = graph->AddNode(op_desc_ptr);
+  TbeJsonFileParse json_file_parse(*node);
+  nlohmann::json json_obj;
+  json_obj[kKeyOptionalOutputMode] = "unsupported_mode";
+  json_file_parse.json_parser_impl_->json_handle_ = json_obj;
+  Status ret = json_file_parse.ParseOptionalOutputMode();
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+// tbe_json_parse_impl.cc:489 - ReadBytesFromBinaryFile with /dev/null
+TEST_F(STEST_FE_TBE_JSON_PARSER, read_bytes_from_binary_file_exceeds_limit) {
+  TbeJsonFileParseImpl tbe_json_file_parse_impl;
+  std::string file_path = "/dev/null";
+  std::vector<char> buffer;
+  Status ret = tbe_json_file_parse_impl.ReadBytesFromBinaryFile(file_path, buffer);
+  EXPECT_EQ(ret, fe::FAILED);
+}

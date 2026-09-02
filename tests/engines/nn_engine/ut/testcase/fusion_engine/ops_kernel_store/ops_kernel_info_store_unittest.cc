@@ -5135,3 +5135,41 @@ TEST_F(FEOpsKernelInfoStoreTest, check_single_tensor_accurate_mode_nullptr_tenso
   EXPECT_EQ(true, ret);
   EXPECT_EQ(false, check_flag);
 }
+
+#include "common/config_parser/op_debug_config_parser.h"
+#include "common/util/json_util.h"
+
+// op_cust_dtypes_config_parser.cc:168 - SplitInoutDtype with inputDtype after outputDtype
+TEST_F(FEOpsKernelInfoStoreTest, op_cust_dtypes_split_inout_dtype_wrong_order) {
+  OpCustDtypesConfigParser parser;
+  std::vector<string> input_dtype;
+  std::vector<string> output_dtype;
+  // outputDtype before inputDtype → pos_i > pos_o
+  string line = "outputDtype:float16;inputDtype:float32";
+  bool ret = parser.SplitInoutDtype(line, input_dtype, output_dtype);
+  EXPECT_FALSE(ret);
+}
+
+// op_debug_config_parser.cc:169 - SetOpdebugConfig with empty config
+TEST_F(FEOpsKernelInfoStoreTest, op_debug_config_parser_empty_config) {
+  OpDebugConfigParser parser;
+  parser.SetOpDebugConfigEnv("");
+  bool ret = parser.SetOpdebugConfig("test_path");
+  EXPECT_FALSE(ret);
+}
+
+// json_util.cc:41 - RealPath with path that causes new to fail (hard to trigger)
+// json_util.cc:70 - FcntlLockFile release lock failed
+TEST_F(FEOpsKernelInfoStoreTest, json_util_fcntl_lock_file_release_failed) {
+  // Test FcntlLockFile with invalid fd to trigger F_UNLCK failure at line 70
+  Status ret = FcntlLockFile("test_file", -1, F_UNLCK, 0);
+  EXPECT_EQ(ret, fe::FAILED);
+}
+
+// json_util.cc:41 - RealPath with non-existent path (may trigger line 53, not 41)
+// Line 41 is only triggered when new(nothrow) fails (OOM), which is not practically testable.
+// This test exercises RealPath with a non-existent path for coverage.
+TEST_F(FEOpsKernelInfoStoreTest, json_util_real_path_not_exist) {
+  std::string result = RealPath("/non/existent/path/that/does/not/exist");
+  EXPECT_TRUE(result.empty());
+}

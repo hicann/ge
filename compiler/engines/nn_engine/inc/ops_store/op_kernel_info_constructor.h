@@ -85,6 +85,9 @@ class OpKernelInfoConstructor {
 
   Status GetStrFromMap(const std::map<std::string, std::string> &map_info, std::string key, std::string &value) const;
 
+  Status GetAttrStrValue(const OpContent &op_content, const std::string &attr_name, const std::string &key_name,
+                         std::string &value) const;
+
   /* Convert listed attribute value from a long string to a 2D-Vector */
   template <typename T>
   Status ConvertListAttrValue(const OpContent &op_content, const std::string &attr_name, const std::string &key_name,

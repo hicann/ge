@@ -41,7 +41,6 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
   auto input_dtypes = args.origin_info_ptr->input_dtypes;
   auto input_shapes = args.origin_info_ptr->input_shapes;
   auto output_shapes = args.origin_info_ptr->output_shapes;
-  auto propagat_primary_format = args.propagat_primary_format;
   auto propagat_sub_format = args.propagat_sub_format;
 
   auto op_name = op_desc.GetName();
@@ -49,7 +48,7 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
 
   // 1. check the origin format
   if (!CheckOriginFormat(input_formats, input_shapes)) {
-    FE_LOGW("Op[name%s,optype[%s]]: all inputs are different in format.", op_name.c_str(), op_type.c_str());
+    FE_LOGW("Op[name=%s, type=%s]: all inputs are different in format.", op_name.c_str(), op_type.c_str());
     return FAILED;
   }
 
@@ -60,21 +59,7 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
   GetScalarInputIndex(input_shapes, scalar_input_index);
   // check whether shapes of all inputs are the same
   if (CheckOriginShape(input_shapes)) {
-    FE_LOGD("Op[name=%s,type=%s]: all input_descs have the same origin shape.", op_name.c_str(), op_type.c_str());
-    /* 2.1 For 6HD, we need the original shape to be 5D although the two
-     * shape is same. The reason is there is no padding mechanism from less
-     * than 5D to 5D. */
-    size_t dim_value = 0;
-    if (Check6HDShape(input_shapes, support_format, dim_value) != SUCCESS) {
-      FE_LOGD("Op[name=%s,type=%s]: dim size %zu should > 5 for 6HD.", op_name.c_str(), op_type.c_str(), dim_value);
-      return SUCCESS;
-    }
-    // check whether has scalar shape
-    ge::Format same_format = (scalar_input_index.empty() ? support_format : ge::FORMAT_ND);
-    InsertFormatVec(input_size, same_format, result.input_format_res);
-    InsertFormatVec(output_size, same_format, result.output_format_res);
-    InsertSubformatVec(support_format, propagat_sub_format, result.input_subformat_res, result.output_subformat_res);
-    return SUCCESS;
+    return ProcessSameShape(op_desc, args, scalar_input_index, input_size, output_size, result);
   }
 
   bool is_need_check_flag = propagat_sub_format > GROUPS_DEFAULT_VALUE &&
@@ -89,31 +74,7 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
   }
   // 3. has scalar inputs
   if (!scalar_input_index.empty()) {
-    vector<ge::Format> input_support_formats;
-    FE_CHECK((input_shapes.size() != input_dtypes.size()), FE_LOGE("Shape and type size not equal."), return FAILED);
-    for (size_t i = 0; i < input_shapes.size(); ++i) {
-      if (scalar_input_index.count(i) == 1) {
-        FE_LOGD("Op[name=%s,type=%s]: input %zu is scalar.", op_name.c_str(), op_type.c_str(), i);
-        input_support_formats.emplace_back(ge::FORMAT_ND);
-        continue;
-      }
-
-      FormatProccessInputArg input_arg(input_formats[i], input_dtypes[i], input_shapes[i], propagat_primary_format,
-                                       propagat_sub_format);
-      if (!CheckPartNonScalarInputs(input_arg)) {
-        FE_LOGD("Op[name=%s,type=%s]: check non-scalar input [%zu] not successfully.", op_name.c_str(), op_type.c_str(),
-                i);
-        return FAILED;
-      }
-      FE_LOGD("Op[name=%s,type=%s]: input %zu is non-scalar.", op_name.c_str(), op_type.c_str(), i);
-      input_support_formats.emplace_back(support_format);
-    }
-
-    result.input_format_res.emplace_back(input_support_formats);
-    vector<ge::Format> output_support_formats;
-    GenerateOutputFormats(output_shapes, support_format, output_support_formats);
-    result.output_format_res.emplace_back(output_support_formats);
-    return SUCCESS;
+    return ProcessScalarInputs(op_desc, args, scalar_input_index, result);
   }
 
   // 4. has no scalar inputs
@@ -126,6 +87,71 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
   vector<ge::Format> out_support_formats;
   GenerateOutputFormats(output_shapes, support_format, out_support_formats);
   result.output_format_res.emplace_back(out_support_formats);
+  return SUCCESS;
+}
+
+Status BroadcastFormatProcess::ProcessSameShape(const ge::OpDesc &op_desc, const FormatProccessArgs &args,
+                                                const std::set<size_t> &scalar_input_index, size_t input_size,
+                                                size_t output_size, FormatProccessResult &result) {
+  auto op_name = op_desc.GetName();
+  auto op_type = op_desc.GetType();
+  auto input_shapes = args.origin_info_ptr->input_shapes;
+  auto support_format = args.support_format;
+  FE_LOGD("Op[name=%s,type=%s]: all input_descs have the same origin shape.", op_name.c_str(), op_type.c_str());
+  /* 2.1 For 6HD, we need the original shape to be 5D although the two
+   * shape is same. The reason is there is no padding mechanism from less
+   * than 5D to 5D. */
+  size_t dim_value = 0;
+  if (Check6HDShape(input_shapes, support_format, dim_value) != SUCCESS) {
+    FE_LOGD("Op[name=%s,type=%s]: dim size %zu should > 5 for 6HD.", op_name.c_str(), op_type.c_str(), dim_value);
+    return SUCCESS;
+  }
+  // check whether has scalar shape
+  ge::Format same_format = (scalar_input_index.empty() ? support_format : ge::FORMAT_ND);
+  InsertFormatVec(input_size, same_format, result.input_format_res);
+  InsertFormatVec(output_size, same_format, result.output_format_res);
+  InsertSubformatVec(support_format, args.propagat_sub_format, result.input_subformat_res, result.output_subformat_res);
+  return SUCCESS;
+}
+
+Status BroadcastFormatProcess::ProcessScalarInputs(const ge::OpDesc &op_desc, const FormatProccessArgs &args,
+                                                   const std::set<size_t> &scalar_input_index,
+                                                   FormatProccessResult &result) {
+  auto op_name = op_desc.GetName();
+  auto op_type = op_desc.GetType();
+  auto input_formats = args.origin_info_ptr->input_formats;
+  auto input_dtypes = args.origin_info_ptr->input_dtypes;
+  auto input_shapes = args.origin_info_ptr->input_shapes;
+  auto output_shapes = args.origin_info_ptr->output_shapes;
+  auto support_format = args.support_format;
+
+  vector<ge::Format> input_support_formats;
+  FE_CHECK((input_shapes.size() != input_dtypes.size()),
+           FE_LOGE("Op[name=%s, type=%s]: shape size[%zu] and type size[%zu] not equal.", op_name.c_str(),
+                   op_type.c_str(), input_shapes.size(), input_dtypes.size()),
+           return FAILED);
+  for (size_t i = 0; i < input_shapes.size(); ++i) {
+    if (scalar_input_index.count(i) == 1) {
+      FE_LOGD("Op[name=%s,type=%s]: input %zu is scalar.", op_name.c_str(), op_type.c_str(), i);
+      input_support_formats.emplace_back(ge::FORMAT_ND);
+      continue;
+    }
+
+    FormatProccessInputArg input_arg(input_formats[i], input_dtypes[i], input_shapes[i], args.propagat_primary_format,
+                                     args.propagat_sub_format);
+    if (!CheckPartNonScalarInputs(input_arg)) {
+      FE_LOGD("Op[name=%s,type=%s]: check non-scalar input [%zu] not successfully.", op_name.c_str(), op_type.c_str(),
+              i);
+      return FAILED;
+    }
+    FE_LOGD("Op[name=%s,type=%s]: input %zu is non-scalar.", op_name.c_str(), op_type.c_str(), i);
+    input_support_formats.emplace_back(support_format);
+  }
+
+  result.input_format_res.emplace_back(input_support_formats);
+  vector<ge::Format> output_support_formats;
+  GenerateOutputFormats(output_shapes, support_format, output_support_formats);
+  result.output_format_res.emplace_back(output_support_formats);
   return SUCCESS;
 }
 

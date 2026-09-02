@@ -96,7 +96,7 @@ Status ConcatTileFusionPass::GetShapeLimited(const ge::DataType &data_type) {
   }
   FE_MUL_OVERFLOW(val_size, val_core, shape_limited_);
   shape_limited_ /= data_type_size;
-  FE_LOGD("Current soc has vector_core_num is [%s], vector_calculate_size is [%s], shape_limited_size is [%lu].",
+  FE_LOGD("Current soc vector_core_num is [%s], vector_calculate_size is [%s], shape_limited_size is [%lu].",
           val_core_str.c_str(), val_size_str.c_str(), shape_limited_);
   return SUCCESS;
 }

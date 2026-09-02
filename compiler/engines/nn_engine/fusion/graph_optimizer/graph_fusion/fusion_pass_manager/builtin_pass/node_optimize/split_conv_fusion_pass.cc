@@ -117,7 +117,7 @@ bool SplitConvFusionPass::CheckInOutNodesAttr(const ge::NodePtr &node) const {
   bool is_continous_input = false;
   (void)ge::AttrUtils::GetBool(op_desc, ge::ATTR_NAME_CONTINUOUS_INPUT, is_continous_input);
   if (is_continous_input) {
-    FE_LOGD("Next node [%s] has continous_input attribute, can't optimize.", op_desc->GetName().c_str());
+    FE_LOGD("Next node [%s] has continuous_input attribute, can't optimize.", op_desc->GetName().c_str());
     return false;
   }
   vector<int64_t> output_index;

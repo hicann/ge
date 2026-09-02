@@ -447,4 +447,36 @@ TEST_F(AicoreNodeConverterST, ConvertEnableVectorNode) {
   TestAicoreNodeConvert(6);
   TestAicoreNodeConvert(7);
 }
+
+TEST_F(AicoreNodeConverterST, GetNodeCalculater_InvalidCalcAttr) {
+  auto graph = ShareGraph::AicoreNoCompileResultGraph();
+  auto node = graph->FindNode("add1");
+  ASSERT_NE(node, nullptr);
+  (void)ge::AttrUtils::SetStr(node->GetOpDesc(), ge::kAttrCalcArgsSizeFunc, "non_existent_calculator");
+  auto calc_func = GetNodeCalculater(node);
+  EXPECT_EQ(calc_func, nullptr);
+}
+
+TEST_F(AicoreNodeConverterST, GetNodeCalculater_NoCalculatorFound) {
+  auto graph = ShareGraph::AicoreNoCompileResultGraph();
+  auto node = graph->FindNode("add1");
+  ASSERT_NE(node, nullptr);
+  auto calc_func = GetNodeCalculater(node);
+  EXPECT_EQ(calc_func, nullptr);
+}
+
+TEST_F(AicoreNodeConverterST, FFTSTaskAndArgsLaunch_LaunchRetNull) {
+  auto graph = ShareGraph::AicoreNoCompileResultGraph();
+  auto node = graph->FindNode("add1");
+  ASSERT_NE(node, nullptr);
+  LoweringGlobalData global_data;
+  FFTSAllMemPara all_mem_para;
+  all_mem_para.dev_addr_base = bg::ValueHolder::CreateConst(nullptr, 0);
+  all_mem_para.host_addr_base = bg::ValueHolder::CreateConst(nullptr, 0);
+  all_mem_para.mem_guarder = bg::ValueHolder::CreateConst(nullptr, 0);
+  std::vector<bg::ValueHolderPtr> task_info_vec(static_cast<size_t>(TaskPreOutKey::kNUM), nullptr);
+  FFTSLuanchArg launch_arg = {node, &global_data, false, nullptr, nullptr};
+  auto ret = FFTSTaskAndArgsLaunch(launch_arg, all_mem_para, task_info_vec);
+  EXPECT_TRUE(ret.empty());
+}
 }  // namespace gert

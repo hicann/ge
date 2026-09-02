@@ -1017,8 +1017,8 @@ bool IsPrefixOpsPath(const ge::OpDesc &op_desc) {
       FE_LOGD("Node[%s, %s] after substr, ops_path_name_prefix:[%s]", op_desc.GetNamePtr(), op_desc.GetTypePtr(),
               ops_path_name_prefix.c_str());
     } else {
-      FE_LOGW("Node[%s, %s] ops_path_name_prefix:[%s] is not in the expected format", ops_path_name_prefix.c_str(),
-              op_desc.GetNamePtr(), op_desc.GetTypePtr());
+      FE_LOGW("Node[%s, %s] ops_path_name_prefix:[%s] is not in the expected format.", op_desc.GetNamePtr(),
+              op_desc.GetTypePtr(), ops_path_name_prefix.c_str());
     }
   }
   return ret;
@@ -1076,7 +1076,7 @@ bool IsSuppoertedFormat(const ge::Format cur_heavy_format, const uint32_t &cur_s
   vector<size_t> index;
   size_t format_len = input_formats.size();
   if (input_sub_formats.empty() && cur_sub_format > DEFAULT_SUB_FORMAT) {
-    FE_LOGW("[IsSuppoertedFormat] Support subformat_vec is empty.");
+    FE_LOGW("[IsSupportedFormat] Support subformat_vec is empty.");
     return false;
   }
   if (std::find(input_sub_formats.begin(), input_sub_formats.end(), SUPPORT_ALL_SUB_FORMAT) ==

@@ -5110,3 +5110,97 @@ TEST(TeFusionUTest, check_prebuilt_is_custom_op) {
   compileRetPtr->jsonInfo = std::make_shared<nlohmann::json>();
   te::fusion::TeFusionManager::GetInstance()->UpdateOpTaskForCompileCache(task, compileRetPtr);
 }
+
+TEST(TeFusionUTest, GetPrivateAttrValue_NotFoundInOpDesc) {
+  ge::OpDescPtr op_desc = std::make_shared<ge::OpDesc>("test_op", "TestOp");
+
+  // Line 272: GetStrPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::string("default_str"));
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetStrPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_str_attr");
+    std::string result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result, "default_str");
+  }
+
+  // Line 283: GetIntPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(static_cast<int64_t>(42));
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetIntPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_int_attr");
+    int64_t result = 0;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result, 42);
+  }
+
+  // Line 294: GetFloatPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(1.5f);
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetFloatPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_float_attr");
+    float result = 0.0f;
+    tbe_attr_value.GetValue(result);
+    EXPECT_FLOAT_EQ(result, 1.5f);
+  }
+
+  // Line 305: GetBoolPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(true);
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetBoolPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_bool_attr");
+    bool result = false;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result, true);
+  }
+
+  // Line 316: GetListStrPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::vector<std::string>{"a", "b"});
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetListStrPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_list_str_attr");
+    std::vector<std::string> result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result.size(), 2U);
+  }
+
+  // Line 327: GetListIntPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::vector<int64_t>{1, 2, 3});
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetListIntPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_list_int_attr");
+    std::vector<int64_t> result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result.size(), 3U);
+  }
+
+  // Line 338: GetListFloatPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::vector<float>{1.0f, 2.0f});
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetListFloatPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_list_float_attr");
+    std::vector<float> result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result.size(), 2U);
+  }
+
+  // Line 349: GetListListIntPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::vector<std::vector<int64_t>>{{1, 2}, {3, 4}});
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetListListIntPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_list_list_int_attr");
+    std::vector<std::vector<int64_t>> result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result.size(), 2U);
+  }
+
+  // Line 360: GetListBoolPrivateAttrValue
+  {
+    ge::AnyValue av = ge::AnyValue::CreateFrom(std::vector<bool>{true, false});
+    te::TbeAttrValue tbe_attr_value;
+    fe::GetListBoolPrivateAttrValue(*op_desc, av, tbe_attr_value, "non_existent_list_bool_attr");
+    std::vector<bool> result;
+    tbe_attr_value.GetValue(result);
+    EXPECT_EQ(result.size(), 2U);
+  }
+}

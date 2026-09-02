@@ -756,3 +756,16 @@ TEST_F(STestTbeTimeEstimator, test_set_impl_mode_enum_not_equal_zero) {
   (void)ge::AttrUtils::GetInt(conv, OP_IMPL_MODE_ENUM, op_impl_mode_num);
   EXPECT_EQ(op_impl_mode_num, 0);
 }
+
+#include "adapter/tbe_adapter/tbe_info/estimator/conv_estimator.h"
+
+TEST_F(STestTbeTimeEstimator, test_conv_estimator_weight_shape_invalid) {
+  fe::InitPlatformInfo("Ascend310P3", true);
+  tbe_info_assembler_ptr_->Initialize();
+  PlatFormInfos &platform_info = tbe_info_assembler_ptr_->all_plat_info_.platform_info;
+  std::vector<int64_t> weight_shape = {1, 2, 3};
+  std::vector<int64_t> fm_shape = {1, 2, 3, 4};
+  uint64_t cycle = 0;
+  Status ret = ConvEstimator::GetConvCycle(platform_info, weight_shape, fm_shape, cycle);
+  EXPECT_EQ(ret, fe::FAILED);
+}

@@ -464,7 +464,7 @@ Status OpCompilerFormatTune::UpdateTensorByCannKbResult(ge::NodePtr &node, const
   ge::OpDescPtr op_desc = node->GetOpDesc();
   FE_CHECK_NOTNULL(op_desc);
   size_t tensor_size = is_input ? op_desc->GetInputsSize() : op_desc->GetOutputsSize();
-  FE_LOGI("Op[name=%s, type=%s]: The tensor size is %zu.", node->GetName().c_str(), node->GetType().c_str(),
+  FE_LOGI("Op[name=%s, type=%s]: The tensor size is %zu bytes.", node->GetName().c_str(), node->GetType().c_str(),
           tensor_size);
   for (size_t tensor_index = 0U; tensor_index < tensor_size; ++tensor_index) {
     std::string tuneformat_key = IS_INPUT_TO_STRING(is_input) + std::to_string(tensor_index);
@@ -509,7 +509,7 @@ Status OpCompilerFormatTune::UpdateTensorByNodeAttr(ge::NodePtr &node, const boo
   ge::OpDescPtr op_desc = node->GetOpDesc();
   FE_CHECK_NOTNULL(op_desc);
   size_t tensor_size = is_input ? op_desc->GetInputsSize() : op_desc->GetOutputsSize();
-  FE_LOGI("Op[name=%s, type=%s]: The tensor size is %zu.", node->GetName().c_str(), node->GetType().c_str(),
+  FE_LOGI("Op[name=%s, type=%s]: The tensor size is %zu bytes.", node->GetName().c_str(), node->GetType().c_str(),
           tensor_size);
   for (size_t tensor_index = 0U; tensor_index < tensor_size; ++tensor_index) {
     ge::GeTensorDescPtr tensor_desc =

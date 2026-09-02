@@ -741,7 +741,7 @@ Status OpKernelInfoConstructor::InitDtype(const map<string, string> &map_info,
   if (dtype_size != dtype_and_format_size_of_first_input) {
     REPORT_FE_ERROR(
         "[InitOpInfoLib][InitOpKernel] "
-        "The dtype size of input [%u] named [%s] is [%u], which is not as same as other input or output [%u].",
+        "The dtype size of input [%u] named [%s] is [%u], which is not the same as that of other input or output [%u].",
         input_or_output_info->GetIndex(), input_or_output_info->GetName().c_str(), dtype_size,
         dtype_and_format_size_of_first_input);
     return FAILED;
@@ -1003,11 +1003,8 @@ Status OpKernelInfoConstructor::GetStrFromMap(const map<string, string> &map_inf
   return SUCCESS;
 }
 
-template <typename T>
-Status OpKernelInfoConstructor::ConvertListListAttrValue(const OpContent &op_content, const std::string &attr_name,
-                                                         const std::string &key_name,
-                                                         vector<vector<vector<T>>> &list_list_attr_vec) const {
-  string value;
+Status OpKernelInfoConstructor::GetAttrStrValue(const OpContent &op_content, const std::string &attr_name,
+                                                const std::string &key_name, std::string &value) const {
   Status status = GetStrFromOpContent(op_content, attr_name, key_name, value);
   if (status != SUCCESS) {
     if (key_name == STR_VALUE) {
@@ -1015,10 +1012,22 @@ Status OpKernelInfoConstructor::ConvertListListAttrValue(const OpContent &op_con
                       op_content.op_type_.c_str(), attr_name.c_str(), key_name.c_str());
       return FAILED;
     } else {
-      FE_LOGD("Getting attribute %s for [%s:%s] was not successfully.", op_content.op_type_.c_str(), attr_name.c_str(),
+      FE_LOGD("Getting attribute %s for [%s:%s] was not successful.", op_content.op_type_.c_str(), attr_name.c_str(),
               key_name.c_str());
       return NOT_CHANGED;
     }
+  }
+  return SUCCESS;
+}
+
+template <typename T>
+Status OpKernelInfoConstructor::ConvertListListAttrValue(const OpContent &op_content, const std::string &attr_name,
+                                                         const std::string &key_name,
+                                                         vector<vector<vector<T>>> &list_list_attr_vec) const {
+  string value;
+  Status status = GetAttrStrValue(op_content, attr_name, key_name, value);
+  if (status != SUCCESS) {
+    return status;
   }
   vector<string> value_str_list_list = StringUtils::Split(value, ';');
   for (auto &value_str_list : value_str_list_list) {
@@ -1066,17 +1075,9 @@ Status OpKernelInfoConstructor::ConvertListAttrValue(const OpContent &op_content
                                                      const std::string &key_name,
                                                      std::vector<std::vector<T>> &list_attr_vec) const {
   string value;
-  Status status = GetStrFromOpContent(op_content, attr_name, key_name, value);
+  Status status = GetAttrStrValue(op_content, attr_name, key_name, value);
   if (status != SUCCESS) {
-    if (key_name == STR_VALUE) {
-      REPORT_FE_ERROR("[InitOpInfoLib][InitOpKernel] Op [%s] Get ListList attr[%s:%s] value failed.",
-                      op_content.op_type_.c_str(), attr_name.c_str(), key_name.c_str());
-      return FAILED;
-    } else {
-      FE_LOGD("Getting attribute %s for [%s:%s] was not successfully.", op_content.op_type_.c_str(), attr_name.c_str(),
-              key_name.c_str());
-      return NOT_CHANGED;
-    }
+    return status;
   }
   vector<string> value_str_list = StringUtils::Split(value, ';');
   for (auto &value_str : value_str_list) {
@@ -1266,7 +1267,7 @@ Status OpKernelInfoConstructor::InitAttrValue(const OpContent &op_content, OpKer
   }
   string attr_str;
   if (GetStrFromOpContent(op_content, STR_ATTR, STR_LIST, attr_str) != SUCCESS) {
-    FE_LOGW("Operation %s get attr.list was not successfully.", op_content.op_type_.c_str());
+    FE_LOGW("Operation %s get attr.list was not successful.", op_content.op_type_.c_str());
     return SUCCESS;
   }
   attr_vec = StringUtils::Split(attr_str, ',');
@@ -1332,7 +1333,7 @@ Status OpKernelInfoConstructor::GetStrFromOpContent(const OpContent &op_content,
   auto key1_pos = op_content.map_kernel_info_.find(key1);
   if (op_content.map_kernel_info_.end() == key1_pos) {
     if (key1 != STR_RESHAPE_TYPE && key2 != STR_DEFAULT_VALUE) {
-      FE_LOGD("Op %s not found %s in OpContent!", op_content.op_type_.c_str(), key1.c_str());
+      FE_LOGD("Unable to find %s of op %s in OpContent.", op_content.op_type_.c_str(), key1.c_str());
     }
     return OP_STORE_MAP_KEY_FIND_FAILED;
   }
@@ -1340,7 +1341,8 @@ Status OpKernelInfoConstructor::GetStrFromOpContent(const OpContent &op_content,
   auto key2_pos = key1_pos->second.find(key2);
   if (key1_pos->second.end() == key2_pos) {
     if (key1 != STR_RESHAPE_TYPE && key2 != STR_DEFAULT_VALUE) {
-      FE_LOGD("Operation %s not found in %s.%s of OpContent!", op_content.op_type_.c_str(), key1.c_str(), key2.c_str());
+      FE_LOGD("Operation %s is unavailable in %s.%s of OpContent.", op_content.op_type_.c_str(), key1.c_str(),
+              key2.c_str());
     }
     return OP_STORE_MAP_KEY_FIND_FAILED;
   }
@@ -1445,7 +1447,8 @@ Status OpKernelInfoConstructor::InitTuneFormatSwitch(const map<string, string> &
                                                      const string &op_type) {
   string tuneformat_switch_str;
   if (GetStrFromMap(map_info, STR_TUNEFORMAT_SWITCH, tuneformat_switch_str) != SUCCESS) {
-    FE_LOGD("[InitOpInfoLib][InitOpKernel] op(type:[%s]) not find tuneformat_switch_str key.", op_type.c_str());
+    FE_LOGD("[InitOpInfoLib][InitOpKernel] Unable to find key tuneformat_switch_str for op(type:[%s])",
+            op_type.c_str());
     input_or_output_info->op_tune_format_switch_ = false;
   } else {
     auto tuneformat_switch_iter = kBoolToStringMap.find(StringUtils::Trim(tuneformat_switch_str));

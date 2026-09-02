@@ -1267,7 +1267,7 @@ bool TeFusionManager::BuildFusionOp(OpBuildTaskPtr &opTask, const std::string &o
     // fusion op reuse bin res failed, back to single op bin reuse.
     TE_FUSION_CHECK(opTask->opRes != nullptr, {
       TE_FUSION_CHECK(opTask->opRes->backToSingleOpBinReuse,
-                      TE_INFOLOG("Fusion op[taskId:%d] failed to reuse bin res, will fall back to single op bin reuse.",
+                      TE_INFOLOG("Fusion op[taskId:%d] unable to reuse bin res, will fall back to single op bin reuse.",
                                  opTask->taskId);
                       return false);
     });
@@ -1340,7 +1340,8 @@ bool TeFusionManager::BuildFusionOp(OpBuildTaskPtr &opTask, const std::string &o
     // auto tune failed, do single op building if these's only one op
     if (!opTask->attrKernelName.empty()) {
       opTask->kernel = opTask->attrKernelName;
-      TE_DBGLOG("Update kernel name of task[%lu] to [%s].", opTask->taskId, opTask->attrKernelName.c_str());
+      TE_DBGLOG("Update kernel name of taskID[%lu:%lu] to [%s].", opTask->graphId, opTask->taskId,
+                opTask->attrKernelName.c_str());
     }
     return BuildSingleOp(opTask);
   }

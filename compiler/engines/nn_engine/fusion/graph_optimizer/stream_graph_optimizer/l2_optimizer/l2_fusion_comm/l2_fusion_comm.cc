@@ -33,7 +33,7 @@ void L2FusionComm::GetL2HardwareSet(L2BufferInfo &l2) {
 Status L2FusionComm::CalcTensorSize(const ge::GeTensorDesc &tensor_desc, int64_t &tensor_size) {
   // verify the tensor
   FE_CHECK(TensorComputeUtil::VerifyTensor(tensor_desc) != SUCCESS,
-           REPORT_FE_ERROR("[StreamOpt][L2Opt][CaclTensorSize] Failed to verify this tensor."), return FAILED);
+           REPORT_FE_ERROR("[StreamOpt][L2Opt][CalcTensorSize] Failed to verify this tensor."), return FAILED);
 
   int64_t element_cnt;
   FE_CHECK(TensorComputeUtil::GetElementCountByMultiply(tensor_desc, element_cnt) != SUCCESS,

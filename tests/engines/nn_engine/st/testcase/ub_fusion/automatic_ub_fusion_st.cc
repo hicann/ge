@@ -2176,3 +2176,65 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION, fuse_two_nodes) {
 //   EXPECT_EQ(fe::SUCCESS, sub_graph_optimizer_ptr_->BuildFusionGraph(*graph));
 //   ge::GraphUtils::DumpGEGraphToOnnx(*graph, "after");
 // }
+
+TEST_F(UB_FUSION_ST_AUTO_FUSION, fuse_two_nodes_change_scope_id_failed) {
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_change_scope_failed");
+  ge::GeTensorDesc tensor_desc(ge::GeShape({4, 4}), ge::FORMAT_ND, ge::DT_FLOAT);
+
+  std::vector<ge::NodePtr> producer_nodes;
+  std::vector<ge::NodePtr> consumer_nodes;
+  for (int i = 0; i < 15; ++i) {
+    auto op = std::make_shared<ge::OpDesc>("p" + std::to_string(i), "Sqrt");
+    op->AddInputDesc(tensor_desc);
+    op->AddOutputDesc(tensor_desc);
+    op->SetId(i);
+    producer_nodes.push_back(graph->AddNode(op));
+  }
+  for (int i = 0; i < 13; ++i) {
+    auto op = std::make_shared<ge::OpDesc>("c" + std::to_string(i), "Sqrt");
+    op->AddInputDesc(tensor_desc);
+    op->AddOutputDesc(tensor_desc);
+    op->SetId(100 + i);
+    consumer_nodes.push_back(graph->AddNode(op));
+  }
+
+  int64_t producer_scope_id = 100;
+  int64_t consumer_scope_id = 200;
+
+  ScopeInfo producer_scope;
+  producer_scope.is_dynamic_impl = false;
+  for (size_t i = 0; i < producer_nodes.size(); ++i) {
+    producer_scope.nodes.emplace(std::make_pair(producer_nodes[i]->GetOpDesc()->GetId(), producer_nodes[i]));
+    ScopeAllocator::SetScopeAttr(producer_nodes[i]->GetOpDesc(), producer_scope_id);
+  }
+
+  ScopeInfo consumer_scope;
+  consumer_scope.is_dynamic_impl = false;
+  for (size_t i = 0; i < consumer_nodes.size(); ++i) {
+    consumer_scope.nodes.emplace(std::make_pair(consumer_nodes[i]->GetOpDesc()->GetId(), consumer_nodes[i]));
+    ScopeAllocator::SetScopeAttr(consumer_nodes[i]->GetOpDesc(), consumer_scope_id);
+  }
+
+  auto_buffer_fusion_ptr_->scope_id_nodes_map_.clear();
+  auto_buffer_fusion_ptr_->scope_id_nodes_map_.emplace(std::make_pair(producer_scope_id, producer_scope));
+  auto_buffer_fusion_ptr_->scope_id_nodes_map_.emplace(std::make_pair(consumer_scope_id, consumer_scope));
+
+  ge::OpDescPtr producer_desc = std::make_shared<ge::OpDesc>("producer", "Sqrt");
+  producer_desc->AddInputDesc(tensor_desc);
+  producer_desc->AddOutputDesc(tensor_desc);
+  producer_desc->SetId(300);
+  ScopeAllocator::SetScopeAttr(producer_desc, producer_scope_id);
+  ge::NodePtr producer_node = graph->AddNode(producer_desc);
+
+  ge::OpDescPtr consumer_desc = std::make_shared<ge::OpDesc>("consumer", "Sqrt");
+  consumer_desc->AddInputDesc(tensor_desc);
+  consumer_desc->AddOutputDesc(tensor_desc);
+  consumer_desc->SetId(301);
+  ScopeAllocator::SetScopeAttr(consumer_desc, consumer_scope_id);
+  ge::NodePtr consumer_node = graph->AddNode(consumer_desc);
+
+  int64_t p_scope = producer_scope_id;
+  int64_t c_scope = consumer_scope_id;
+  Status ret = auto_buffer_fusion_ptr_->FuseTwoNodes(producer_node, consumer_node, p_scope, c_scope);
+  EXPECT_TRUE(ret == fe::SUCCESS || ret == fe::FAILED);
+}

@@ -1318,7 +1318,9 @@ TEST_F(UTEST_fusion_engine_op_compiler, setcompressweightattr_03) {
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   NodePtr node = graph->AddNode(op_desc);
 
-  PlatformUtils::Instance().soc_version_ = "Ascend910B2";
+  PlatformUtils::Instance().soc_version_ = "InvalidSocVersion";
+  PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "InvalidSocVersion";
+  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("InvalidSocVersion");
 
   auto op_compiler_ptr = std::make_shared<OpCompiler>("normal compiler", AI_CORE_NAME, lx_fusion_optimizer_);
   Status status = op_compiler_ptr->SetCompressWeightAttr(node);

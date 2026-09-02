@@ -332,7 +332,7 @@ ge::graphStatus MixL2UpdateGeDataDumpInfo(const KernelContext *context, gert::Da
   size_t in_num = context->GetInputValue<size_t>(static_cast<size_t>(MixL2DataDumpKey::IN_NUM));
   size_t out_num = context->GetInputValue<size_t>(static_cast<size_t>(MixL2DataDumpKey::OUT_NUM));
   if (in_num > kMaxIndexNum || out_num > kMaxIndexNum) {
-    GELOGE(ge::FAILED, "In/Out io num:%zu %zu are over max num.", in_num, out_num);
+    GELOGE(ge::FAILED, "In/Out io num:%zu %zu are over max num %zu.", in_num, out_num, kMaxIndexNum);
     return ge::GRAPH_FAILED;
   }
 

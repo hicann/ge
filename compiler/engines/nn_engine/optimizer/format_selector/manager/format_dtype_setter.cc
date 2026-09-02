@@ -220,7 +220,7 @@ bool FormatDtypeSetter::GetFirstLayerConv2DWeight(const ge::NodePtr &node, ge::N
     weight = weight_node;
     return true;
   }
-  FE_LOGD("Final don't have variable type weight.");
+  FE_LOGD("Finally, no variable-type weight is found.");
   return false;
 }
 

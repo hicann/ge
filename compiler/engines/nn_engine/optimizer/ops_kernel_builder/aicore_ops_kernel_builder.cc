@@ -76,7 +76,7 @@ Status SetTilingSinkCalcResources(const ge::Node &node, gert::ExeResGenerationCo
   stream_info.name = "tiling";
   vector<int64_t> stream_depend_value_list(0);
   std::string indexs_str = GetInputDependencyIndexs(funcs_ptr->tiling_dependency, stream_depend_value_list);
-  FE_LOGD("Node[%s] type[%s] tiling sink dependency indexs[%s]", node.GetNamePtr(), node.GetTypePtr(),
+  FE_LOGD("Node[%s] type[%s] tiling sink dependency indexes[%s]", node.GetNamePtr(), node.GetTypePtr(),
           indexs_str.c_str());
   stream_info.depend_value_input_indices = stream_depend_value_list;
   std::vector<gert::StreamInfo> stream_info_vec(0);
@@ -101,7 +101,7 @@ Status CalculateTilingSinkWorkspace(ge::Node &node, gert::ExeResGenerationContex
   ge::OpDescPtr op_desc = node.GetOpDesc();
   FE_CHECK_NOTNULL(op_desc);
   auto workspace_bytes = op_desc->GetWorkspaceBytes();
-  FE_LOGI("Node[%s] type[%s] tiling sink workspace size is [%ld].", node.GetNamePtr(), node.GetTypePtr(),
+  FE_LOGI("Node[%s] type[%s] tiling sink workspace size is [%ld] bytes.", node.GetNamePtr(), node.GetTypePtr(),
           workspace_bytes[0]);
 
   std::string prefix = "";
@@ -150,14 +150,15 @@ void ProcDfxBufferSize(const ge::OpDescPtr op_desc) {
   }
   auto new_workspaces = op_desc->GetWorkspaceBytes();
   if (new_workspaces.empty()) {
-    FE_LOGW("Op[%s] need dfx buffer but not has workspace.", op_desc->GetNamePtr());
+    FE_LOGW("Op[%s] needs dfx buffer but does not have workspace.", op_desc->GetNamePtr());
     return;
   }
   if (ge::CheckInt64AddOverflow(new_workspaces[0], buffer_size) != SUCCESS) {
-    FE_LOGW("Op[%s] workspace size over flow int64.", op_desc->GetNamePtr());
+    FE_LOGW("Op[%s] workspace size overflow int64.", op_desc->GetNamePtr());
     return;
   }
-  FE_LOGW("Op[%s] workspace[0] size [%ld] expand with [%ld].", op_desc->GetNamePtr(), new_workspaces[0], buffer_size);
+  FE_LOGW("Op[%s] workspace[0] size [%ld] bytes, expand with [%ld] bytes.", op_desc->GetNamePtr(), new_workspaces[0],
+          buffer_size);
   new_workspaces[0] = new_workspaces[0] + buffer_size;
   op_desc->SetWorkspaceBytes(new_workspaces);
   return;

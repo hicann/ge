@@ -59,6 +59,40 @@ TEST_F(FFTSAICoreKernelTestUT, test_ffts_args_memory_success) {
   // ASSERT_EQ(run_context1.value_holder[4].GetValue<size_t>(), 3264);
 }
 
+TEST_F(FFTSAICoreKernelTestUT, test_redirect_tiling_addr_tiling_offset_overflow) {
+  RtFFTSKernelLaunchArgs::ComputeNodeDesc node_desc;
+  node_desc.max_tiling_data = 63;
+  node_desc.max_tail_tiling_data = 63;
+  node_desc.addr_num = 1;
+  node_desc.input_num = 2;
+  node_desc.output_num = 1;
+  node_desc.workspace_cap = 8;
+  node_desc.thread_num_max = 1;
+  size_t total_size = 0;
+  ge::NodePtr tmp_node = std::make_shared<ge::Node>();
+  auto rt_arg = RtFFTSKernelLaunchArgs::Create(tmp_node, node_desc, total_size);
+  auto *rt_args = reinterpret_cast<RtFFTSKernelLaunchArgs *>(rt_arg.get());
+  rt_args->args_desc_.offsets[RtFFTSKernelLaunchArgs::kTilingData] = std::numeric_limits<uint16_t>::max() + 1;
+  ASSERT_EQ(rt_args->RedirectTilingAddr(), ge::GRAPH_FAILED);
+}
+
+TEST_F(FFTSAICoreKernelTestUT, test_redirect_tiling_addr_tail_tiling_offset_overflow) {
+  RtFFTSKernelLaunchArgs::ComputeNodeDesc node_desc;
+  node_desc.max_tiling_data = 63;
+  node_desc.max_tail_tiling_data = 63;
+  node_desc.addr_num = 1;
+  node_desc.input_num = 2;
+  node_desc.output_num = 1;
+  node_desc.workspace_cap = 8;
+  node_desc.thread_num_max = 1;
+  size_t total_size = 0;
+  ge::NodePtr tmp_node = std::make_shared<ge::Node>();
+  auto rt_arg = RtFFTSKernelLaunchArgs::Create(tmp_node, node_desc, total_size);
+  auto *rt_args = reinterpret_cast<RtFFTSKernelLaunchArgs *>(rt_arg.get());
+  rt_args->args_desc_.offsets[RtFFTSKernelLaunchArgs::kTailTilingData] = std::numeric_limits<uint16_t>::max() + 1;
+  ASSERT_EQ(rt_args->RedirectTilingAddr(), ge::GRAPH_FAILED);
+}
+
 TEST_F(FFTSAICoreKernelTestUT, test_ffts_update_auto_args) {
   // update args
   auto level_1_allocator = memory::CachingMemAllocator::GetAllocator();
@@ -289,6 +323,38 @@ TEST_F(FFTSAICoreKernelTestUT, ExpandDfxWorkspaceSize_test) {
   run_context.value_holder[1].Set(reinterpret_cast<void *>(buf_size), nullptr);
   ASSERT_EQ(registry.FindKernelFuncs("ExpandDfxWorkspaceSize")->run_func(run_context), ge::GRAPH_SUCCESS);
   ASSERT_EQ(work_vec[0], 322);
+}
+
+TEST_F(FFTSAICoreKernelTestUT, test_ffts_update_auto_args_in_num_over_max) {
+  auto work_space = ContinuousVector::Create<memory::FftsMemBlock *>(1);
+  auto work_space_vector = reinterpret_cast<ContinuousVector *>(work_space.get());
+  work_space_vector->SetSize(0);
+
+  AICoreSinkRet sink_ret;
+  NodeMemPara node_para;
+
+  auto offset = ContinuousVector::Create<uint64_t>(6);
+  auto offset_vector = reinterpret_cast<ContinuousVector *>(offset.get());
+  offset_vector->SetSize(5);
+
+  auto run_context = BuildKernelRunContext(static_cast<size_t>(AutoArgsInKey::kNUM) + 3,
+                                           static_cast<size_t>(kernel::ArgsOutKey::kNUM));
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::WORKSPACE)].Set(work_space_vector, nullptr);
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::SINK_RET)].Set(&sink_ret, nullptr);
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::ARGS_PARA)].Set(&node_para, nullptr);
+  uint32_t thread_dim = 2;
+  uint32_t window_size = 2;
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::THREAD_DIM)].Set(reinterpret_cast<void *>(thread_dim),
+                                                                               nullptr);
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::WINDOW_SIZE)].Set(reinterpret_cast<void *>(window_size),
+                                                                                nullptr);
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::THREAD_OFFSET)].Set((void *)offset_vector, nullptr);
+  size_t in_num = kMaxIndexNum + 1;
+  size_t out_num = 1;
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::IN_NUM)].Set((void *)in_num, nullptr);
+  run_context.value_holder[static_cast<size_t>(AutoArgsInKey::OUT_NUM)].Set((void *)out_num, nullptr);
+
+  ASSERT_EQ(registry.FindKernelFuncs("FFTSUpdateAutoAICoreArgs")->run_func(run_context), ge::GRAPH_FAILED);
 }
 
 }  // namespace gert

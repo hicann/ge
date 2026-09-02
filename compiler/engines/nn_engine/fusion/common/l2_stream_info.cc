@@ -52,7 +52,7 @@ Status StreamL2Info::SetStreamL2Info(const int64_t &stream_id, TaskL2InfoMap &l2
   std::string stream_l2_map_key = stream_id_str + batch_label;
   const auto it = stream_l2_map_.find(stream_l2_map_key);
   if (it != stream_l2_map_.end()) {
-    FE_LOGD("SetStreamL2InfoMap: steam_map has been set with key %s.", stream_l2_map_key.c_str());
+    FE_LOGD("SetStreamL2InfoMap: stream map has been set with key %s.", stream_l2_map_key.c_str());
     it->second = l2_alloc_res;
     return fe::SUCCESS;
   }

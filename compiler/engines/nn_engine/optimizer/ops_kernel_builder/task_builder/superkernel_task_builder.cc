@@ -617,7 +617,7 @@ Status SuperkernelTaskBuilder::GenerateSuperKernelTask(const ge::Node &node, ge:
           node.GetTypePtr(), soc_version.c_str());
   ge::ComputeGraphPtr sub_graph = nullptr;
   if (!GetSubGraphByNode(node, sub_graph)) {
-    FE_LOGE("Superkernel node[%s, %s] has no invalid subgraph.", node.GetNamePtr(), node.GetTypePtr());
+    FE_LOGE("Superkernel node[%s, %s] has no valid subgraph.", node.GetNamePtr(), node.GetTypePtr());
     return FAILED;
   }
   std::vector<ge::Node *> super_kernel_nodes;

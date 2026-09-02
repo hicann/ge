@@ -41,11 +41,11 @@ Status TraceHandleManager::Initialize() {
 
   global_handle_ = AtraceCreate(TracerType::TRACER_TYPE_SCHEDULE, kGlobalTraceHandleName);
   if (global_handle_ < 0) {
-    FE_LOGW("Trace handle [%s] does not been created.", kGlobalTraceHandleName);
+    FE_LOGW("Trace handle [%s] has not been created.", kGlobalTraceHandleName);
   }
   statistics_handle_ = AtraceCreate(TracerType::TRACER_TYPE_SCHEDULE, kStatisticsTraceHandleName);
   if (statistics_handle_ < 0) {
-    FE_LOGW("Trace handle [%s] does not been created.", kStatisticsTraceHandleName);
+    FE_LOGW("Trace handle [%s] has not been created.", kStatisticsTraceHandleName);
   }
 
   finalize_event_handle_ = AtraceEventCreate(kFinalizeEventName);
@@ -116,12 +116,12 @@ void TraceHandleManager::AddSubGraphTraceHandle() {
   std::string trace_name = kCompileTraceHandlePrefix + std::to_string(remainder);
   TraHandle subgraph_trace_handle = AtraceCreate(TracerType::TRACER_TYPE_SCHEDULE, trace_name.c_str());
   if (subgraph_trace_handle < 0) {
-    FE_LOGW("Trace handle [%s] does not been created.", trace_name.c_str());
+    FE_LOGW("Trace handle [%s] has not been created.", trace_name.c_str());
     return;
   }
   TraEventHandle subgraph_event_handle = AtraceEventCreate(trace_name.c_str());
   if (subgraph_event_handle < 0) {
-    FE_LOGW("Event handle [%s] does not been created.", trace_name.c_str());
+    FE_LOGW("Event handle [%s] has not been created.", trace_name.c_str());
     return;
   }
   (void)AtraceEventBindTrace(subgraph_event_handle, subgraph_trace_handle);

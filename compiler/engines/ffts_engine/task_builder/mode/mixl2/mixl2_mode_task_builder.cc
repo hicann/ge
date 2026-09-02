@@ -104,7 +104,7 @@ Status Mixl2ModeTaskBuilder::GenSubGraphTaskDef(std::vector<ge::NodePtr> &memset
   FFTS_CHECK_NOTNULL(ffts_plus_task_def);
   GenerateAtomicCtx(node, memset_nodes, ffts_plus_task_def);
 
-  FFTS_LOGD("Generated mxl2 node name: %s.", node->GetOpDesc()->GetNamePtr());
+  FFTS_LOGD("Generated mixl2 node name: %s.", node->GetOpDesc()->GetNamePtr());
   TaskBuilderType task_builder_type = TaskBuilderType::EN_TASK_TYPE_MIX_L2_AIC_AIV;
   FFTSPlusTaskBuilderPtr task_builder = GetTaskBuilder(task_builder_type);
   FFTS_CHECK_NOTNULL(task_builder);

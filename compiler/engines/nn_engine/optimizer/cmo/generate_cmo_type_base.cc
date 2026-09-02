@@ -174,7 +174,7 @@ uint64_t GenerateCMOTypeBase::GetCacheSize() const {
     PlatformInfo platform_info;
     OptionalInfo opti_info;
     if (PlatformInfoManager::Instance().GetPlatformInfoWithOutSocVersion(platform_info, opti_info) != SUCCESS) {
-      FE_LOGW("Cannot get l2 cache size from platform info, using default value:%lu", kDefaultL2CacheSize);
+      FE_LOGW("Cannot get l2 cache size from platform info, using default value: %lu bytes", kDefaultL2CacheSize);
       cache_size = kDefaultL2CacheSize;
     } else {
       cache_size = platform_info.soc_info.l2_size;

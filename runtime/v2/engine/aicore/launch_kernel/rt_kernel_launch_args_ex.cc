@@ -271,7 +271,7 @@ ge::graphStatus RtKernelLaunchArgsEx::UpdateMergedCopyInfo() {
   GELOGD("tiling data offset %zu, tiling data size %zu", args_desc_.GetOffset(ArgsType::kTilingData), tiling_data_size);
   if (tiling_data_size >
       (args_desc_.GetOffset(ArgsType::kHostInputInfo) - args_desc_.GetOffset(ArgsType::kTilingData))) {
-    GELOGE(ge::FAILED, "tiling data size %zu, arg end offset %zu, tilling data offset %zu", tiling_data_size,
+    GELOGE(ge::FAILED, "tiling data size %zu, arg end offset %zu, tiling data offset %zu", tiling_data_size,
            args_desc_.GetOffset(ArgsType::kArgsTypeEnd), args_desc_.GetOffset(ArgsType::kTilingData));
     return ge::GRAPH_FAILED;
   }

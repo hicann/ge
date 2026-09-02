@@ -246,7 +246,7 @@ Status TransNodeInsertion::FillTransInfo(const ge::InDataAnchorPtr &dst_anchor, 
   FE_LOGD(
       "Format of dst node is %s, format of source node is %s, src out sub format is %d, dst in sub format is %d, "
       "dst in original format is %s, src out original format is %s, src out c0 format is %d, dst in c0 format is %d, "
-      "use_concecutive_principle is %d.",
+      "use_consecutive_principle is %d.",
       FormatToStr(global_trans_info_ptr_->dst_in_primary_format).c_str(),
       FormatToStr(global_trans_info_ptr_->src_out_primary_format).c_str(), global_trans_info_ptr_->src_out_sub_format,
       global_trans_info_ptr_->dst_in_sub_format, FormatToStr(global_trans_info_ptr_->dst_in_original_format).c_str(),
@@ -566,7 +566,7 @@ Status TransNodeInsertion::InsertTransOpByConcecutiveStrategy(ge::ComputeGraph &
   for (auto transnode_idx : strategy_vector_combination[0]) {
     if (transnode_idx >= FORBIDDEN_INDEX) {
       REPORT_FE_ERROR(
-          "[GraphOpt][Trans][InsertTransByConcec] We do not support transactions from %s to %s between %s and %s.",
+          "[GraphOpt][Trans][InsertTransByConsecutive] We do not support transactions from %s to %s between %s and %s.",
           FormatToStr(global_trans_info_ptr_->src_out_primary_format).c_str(),
           FormatToStr(global_trans_info_ptr_->dst_in_primary_format).c_str(),
           global_trans_info_ptr_->src_op_desc->GetName().c_str(),
@@ -634,7 +634,7 @@ Status TransNodeInsertion::InsertTransOpByOriginalFormat(ge::ComputeGraph &fused
     for (auto transnode_idx : strategy_vector) {
       if (transnode_idx >= FORBIDDEN_INDEX) {
         REPORT_FE_ERROR(
-            "[GraphOpt][Trans][InsertTransByOri] We do not support transactions from %s to %s between %s and %s.",
+            "[GraphOpt][Trans][InsertTransByOri] We do not support transforms from %s to %s between %s and %s.",
             FormatToStr(global_trans_info_ptr_->src_out_primary_format).c_str(),
             FormatToStr(global_trans_info_ptr_->dst_in_primary_format).c_str(),
             global_trans_info_ptr_->src_op_desc->GetName().c_str(),

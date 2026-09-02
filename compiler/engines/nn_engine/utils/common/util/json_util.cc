@@ -38,7 +38,7 @@ std::string RealPath(const std::string &path) {
   // pclint check，one param in stack can not exceed 1K bytes
   char *resoved_path = new (std::nothrow) char[PATH_MAX];
   if (resoved_path == nullptr) {
-    FE_LOGI("New resoved_path not successfully.");
+    FE_LOGI("Failed to create resolved path.");
     return "";
   }
   (void)memset_s(resoved_path, PATH_MAX, 0, PATH_MAX);
@@ -67,7 +67,7 @@ Status FcntlLockFile(const std::string &file, int fd, int type, uint32_t recursi
   if (fcntl(fd, F_SETLK, &lock_arg) != 0) {
     if (recursive_cnt == 0) {
       if (type == F_UNLCK) {
-        FE_LOGW("Realse lock file(%s) failed.", file.c_str());
+        FE_LOGW("Release lock file(%s) failed.", file.c_str());
       } else {
         FE_LOGD("File(%s) is locked by %d.", file.c_str(), lock_arg.l_pid);
       }
