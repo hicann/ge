@@ -552,7 +552,7 @@ class PythonCustomOpPybindBridge {
       // object that needs cleanup.
       py::object python_ir_meta = BuildPythonIrMeta(holder->ir_meta.get());
       py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
-      compile_ctx = native_module.attr("_borrow_op_compile_context")(py::int_(reinterpret_cast<uintptr_t>(ctx)));
+      compile_ctx = native_module.attr("_borrow_op_compile_context")(py::capsule(ctx, "gert::OpCompileContext"));
       py::object result =
           bridge_module_.attr("call_compile")(holder->instance_id, std::move(python_ir_meta), compile_ctx);
       return TranslateStatusLike(result);
