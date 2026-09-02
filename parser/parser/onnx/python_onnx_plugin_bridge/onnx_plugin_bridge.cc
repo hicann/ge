@@ -19,6 +19,7 @@
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/def_types.h"
 #include "graph/graph.h"
 #include "graph/operator.h"
 #include "parser/common/op_registration_tbe.h"
@@ -144,7 +145,7 @@ class OnnxPluginBridge {
     py::gil_scoped_acquire gil;
     try {
       const py::object python_node = py::cast(node, py::return_value_policy::reference);
-      const auto handle = reinterpret_cast<uintptr_t>(&operator_dest);
+      const auto handle = PtrToValue(&operator_dest);
       (void)bridge_module_.attr("call_parse_node")(node->op_type(), python_node, handle);
       operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, node->op_type());
       return SUCCESS;
@@ -171,8 +172,8 @@ class OnnxPluginBridge {
     }
     py::gil_scoped_acquire gil;
     try {
-      const auto source_handle = reinterpret_cast<uintptr_t>(&operator_src);
-      const auto target_handle = reinterpret_cast<uintptr_t>(&operator_dest);
+      const auto source_handle = PtrToValue(&operator_src);
+      const auto target_handle = PtrToValue(&operator_dest);
       (void)bridge_module_.attr("call_parse_operator")(origin, source_handle, target_handle);
       operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, origin);
       return SUCCESS;
@@ -199,10 +200,11 @@ class OnnxPluginBridge {
     }
     py::gil_scoped_acquire gil;
     try {
-      const auto source_handle = reinterpret_cast<uintptr_t>(&operator_src);
+      const auto source_handle = PtrToValue(&operator_src);
       const py::object replacement = bridge_module_.attr("call_decompose")(origin, source_handle);
-      const auto graph_handle = py::cast<uintptr_t>(replacement.attr("_handle").attr("value"));
-      const auto *replacement_graph = reinterpret_cast<const Graph *>(graph_handle);
+      const auto graph_handle = py::cast<uint64_t>(replacement.attr("_handle").attr("value"));
+      // restore the borrowed Graph address held by the python wrapper
+      const auto *replacement_graph = PtrToPtr<void, const Graph>(ValueToPtr(graph_handle));
       return subgraph.CopyFrom(*replacement_graph) == GRAPH_SUCCESS ? SUCCESS : FAILED;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_decompose_return_exception_.ptr())) {
@@ -220,7 +222,7 @@ class OnnxPluginBridge {
   }
 
  private:
-  void SyncPluginPathUnlocked() {
+  void SyncPluginPathUnlocked() const {
     const char *plugin_path = std::getenv(kPluginPathEnv);
     const std::string plugin_path_value = (plugin_path == nullptr) ? std::string() : plugin_path;
     const py::object environ = py::module_::import("os").attr("environ");
@@ -263,7 +265,7 @@ class OnnxPluginBridge {
   }
 
   bool RegisterCallback(const std::string &origin, const std::string &callback_kind, OpRegistrationData &registration,
-                        bool &has_parse_params_callback, bool &has_graph_callback) {
+                        bool &has_parse_params_callback, bool &has_graph_callback) const {
     if (callback_kind == kParseNodeCallbackKind) {
       has_parse_params_callback = true;
       const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
@@ -295,7 +297,7 @@ class OnnxPluginBridge {
   }
 
   bool RegisterDescriptor(const std::string &target, const std::string &origin,
-                          const std::vector<std::string> &callback_kinds) {
+                          const std::vector<std::string> &callback_kinds) const {
     std::string registered_target;
     if (domi::OpRegistry::Instance()->GetOmTypeByOriOpType(origin, registered_target)) {
       if (registered_target != target) {
