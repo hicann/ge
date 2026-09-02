@@ -25,6 +25,9 @@ target_compile_definitions(autofusion_ut PRIVATE
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
         google=ascend_private
         AUTOFUSE_USE_GE_METADEF
+        # Keep this test executable ABI-compatible with the external CANN
+        # AscIR library, just like the shared test autofuse target.
+        AUTOFUSE_ST_COMPAT_CANN
         )
 
 target_compile_options(autofusion_ut PRIVATE ${ASCGEN_DT_COMPILE_OPTION}
