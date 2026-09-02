@@ -100,7 +100,7 @@ if [[ "${task_name}" =~ executor ]]; then
 	        --prefix ${WORKSPACE} \
 	        --driver_path=${ASCEND_3RD_LIB_PATH}
 
-	    python /home/api-doc/APIInfoGenTool/usabilityCheck.py --target ${REPOSITORY_NAME} --out_dir /home/api_result --key ${GIT_PR_NUMBER} --git_url https://gitcode.com/opencann/${REPOSITORY_NAME}/pull/${GIT_PR_NUMBER} --branch ${GIT_TARGET_BRANCH} --server_url http://10.0.0.193:10005/check
+	    python /home/api-doc/APIInfoGenTool/usabilityCheck.py --target ${REPOSITORY_NAME} --out_dir /home/api_result --key ${GIT_PR_NUMBER} --git_url https://gitcode.com/cann/${REPOSITORY_NAME}/pull/${GIT_PR_NUMBER} --branch ${GIT_TARGET_BRANCH} --server_url http://10.0.0.193:10005/check
   fi
 elif [[ "${task_name}" =~ dflow ]]; then
   if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
