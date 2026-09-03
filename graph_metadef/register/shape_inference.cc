@@ -561,7 +561,7 @@ ge::graphStatus InferShapeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   }
   const auto shape_infer_rule = ge::ShapeInferenceRule::FromOpDesc(op_desc);
   if (shape_infer_rule == nullptr) {
-    REPORT_INNER_ERR_MSG("EZ9999",
+    REPORT_INNER_ERR_MSG("E19999",
                          "Cannot find infer_shape func of node %s[%s]. Please confirm whether the op_proto shared "
                          "library (.so) has been loaded "
                          "successfully, and that you have already developed the infer_shape func.",
@@ -575,7 +575,7 @@ ge::graphStatus InferShapeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   }
   if (!shape_infer_rule->IsValid()) {
     REPORT_INNER_ERR_MSG(
-        "EZ9999",
+        "E19999",
         "No infer shape func registered for node %s[%s], and inference rule: %s is set but failed to parse: %s.",
         op_desc->GetNamePtr(), op_desc->GetTypePtr(), ge::InferenceRule::GetInferenceRule(op_desc).c_str(),
         shape_infer_rule->Error().c_str());
@@ -598,7 +598,7 @@ ge::graphStatus InferDtypeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   }
   const auto dtype_infer_rule = ge::DtypeInferenceRule::FromOpDesc(op_desc);
   if (dtype_infer_rule == nullptr) {
-    REPORT_INNER_ERR_MSG("EZ9999",
+    REPORT_INNER_ERR_MSG("E19999",
                          "Cannot find Node %s[%s] custom infer_datatype func. Please confirm whether the op_proto "
                          "shared library (.so) has been "
                          "loaded successfully, and that you have already developed the infer_datatype func or marked "
@@ -614,7 +614,7 @@ ge::graphStatus InferDtypeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   }
   if (!dtype_infer_rule->IsValid()) {
     REPORT_INNER_ERR_MSG(
-        "EZ9999",
+        "E19999",
         "No infer dtype func registered for node %s[%s], and inference rule: %s is set but failed to parse: %s.",
         op_desc->GetNamePtr(), op_desc->GetTypePtr(), ge::InferenceRule::GetInferenceRule(op_desc).c_str(),
         dtype_infer_rule->Error().c_str());

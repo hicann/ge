@@ -823,7 +823,7 @@ const std::string ge_error_code = R"(
       "errTitle": "Invalid_Argument",
       "ErrCode": "E11016",
       "ErrMessage": "Failed to add Op %s to NetOutput. Op output index %s is not less than %s. NetOutput input_index %s is not less than %s.",
-      "Arglist": "opname,outputindex,totlaloutputindex,inputindex,totlalinputindex",
+      "Arglist": "opname,outputindex,totaloutputindex,inputindex,totalinputindex",
       "suggestion": {
         "Possible Cause": "N/A",
         "Solution": "Try again with a valid --out_nodes argument."
