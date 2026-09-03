@@ -10,7 +10,7 @@
 # ----------------------------------------------------------------------------
 #
 # 选项：
-#   -t, --target [sample_and_run]  指定要构建和运行的目标（默认: sample_and_run）
+#   -t, --target [sample|sample_and_run]  指定要构建和运行的目标（默认: sample）
 #   -h, --help                                    显示帮助信息
 
 
@@ -22,11 +22,11 @@ usage() {
 Usage: $0 [OPTIONS]
 
 选项:
-  -t, --target TARGET   指定要构建和运行的目标 (sample_and_run)
+  -t, --target TARGET   指定要构建和运行的目标 (sample 或 sample_and_run)
   -h, --help            显示此帮助信息
 
 默认行为:
-  当未指定目标时，默认构建并运行
+  当未指定目标时，默认构建并dump图
 EOF
     exit 0
 }

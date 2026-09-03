@@ -74,7 +74,6 @@ int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs, const std:
 void MakeSigmoidAddGraphByEsAndDump() {
   std::unique_ptr<ge::Graph> graph = MakeSigmoidAddGraphByEs();
   graph->DumpToFile(ge::Graph::DumpFormat::kOnnx, ge::AscendString("make_sigmoid_add_graph"));
-  graph->DumpToFile(ge::Graph::DumpFormat::kTxt, ge::AscendString("make_sigmoid_add_graph"));
 }
 
 std::unique_ptr<ge::Graph> MakeSigmoidAddGraphByEs() {
