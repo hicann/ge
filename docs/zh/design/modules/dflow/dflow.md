@@ -122,7 +122,7 @@ UDF 解决框架无法自动处理的场景：模型间格式转换（FP16→FP3
 
 ### 2.4 多实例负载均衡
 
-多实例部署后，默认按 trans_id 轮询分发到各实例。通过 `SetBalanceScatter`/`SetBalanceGather` 配置后，会按策略生成 route_label，flowGW 根据 trans_id 和 route_label 进行分发，保证相同 trans_id 和 route_label 的数据被分发到同一实例。
+多实例部署后，默认按 trans_id 轮询分发到各实例。通过 `SetBalanceScatter`/`SetBalanceGather` 配置后，会按策略生成 route_label，由 flowGW（独立于 GE 的数据网关进程，GE 侧仅下发路由与分组配置）根据 trans_id 和 route_label 进行分发，保证相同 trans_id 和 route_label 的数据被分发到同一实例。
 
 ---
 
@@ -155,11 +155,15 @@ classDiagram
     class ProcessPoint {
         <<abstract>>
         +Serialize(str)
-        +SetCompileConfigFile(path)
+        #SetCompileConfigFile(path)
     }
     class FunctionPp { UDF 自定义功能 }
     class GraphPp { IR 图计算逻辑 }
     class FlowGraphPp { 嵌套 FlowGraph }
+    class InnerPp {
+        <<abstract>>
+        内置 PP 扩展基类
+    }
     class ModelPp { 内部实验性，未对外 }
 
     FlowOperator <|-- FlowData
@@ -167,7 +171,8 @@ classDiagram
     ProcessPoint <|-- FunctionPp
     ProcessPoint <|-- GraphPp
     ProcessPoint <|-- FlowGraphPp
-    ProcessPoint <|-- ModelPp
+    ProcessPoint <|-- InnerPp
+    InnerPp <|-- ModelPp
 ```
 
 **关键设计决策**：
@@ -184,7 +189,7 @@ classDiagram
 | `GraphPp` | IR 图定义的计算逻辑 | NPU 引擎（模型下沉） |
 | `FlowGraphPp` | 嵌套 FlowGraph 作为 PP | NPU 引擎（递归编译） |
 
-此外代码中还存在 `ModelPp`（加载预编译 OM 模型，直接加载不编译），它是内部实验性特性，未对外提供接口。
+此外代码中还存在 `InnerPp`（内置 PP 扩展基类，为内置 PP 类型提供统一的属性扩展机制）及其派生的 `ModelPp`（加载预编译 OM 模型，直接加载不编译）。两者均为内部实现，未对外提供接口。
 
 `FlowGraph` 构建时将 FlowOperator 列表构建为 GE `Graph`，并设置 `ATTR_NAME_IS_DATA_FLOW_GRAPH = true` 标记此图为 dflow 图。
 
@@ -209,7 +214,7 @@ Python 侧提供三层封装（`pydflow/python/dataflow/`），机制详解见 [
 
 两个装饰器的关系：`@df.pyflow` 让用户以普通 Python 函数/类定义 UDF 节点，框架自动生成 UDF 工程（cloudpickle 序列化 + C++ wrapper + CMake 编译为 SO），无需手写 C++；`@df.npu_model` 继承 pyflow 基类并重写数据进出路径，面向输入输出均为 NPU tensor 的 PyTorch 计算场景，经 AICPU 调度模型中转数据描述，数据不离开 device。
 
-此外，`pydflow/wrapper/` 提供 pybind11 C++ 扩展模块：`dflow_wrapper`（FlowGraph/FlowNode 等构图类与 FlowBufferFactory）和 `data_wrapper`（DataType 枚举）支撑用户侧 API，`flowfunc_wrapper`（FlowMsg/MetaRunContext/RuntimeTensorDesc 布局等，源文件 `wrapper/flow_func_wrapper/`）支撑 udf_executor 进程内的 UDF 执行。
+此外，`pydflow/wrapper/` 提供 pybind11 C++ 扩展模块：`dflow_wrapper`（FlowGraph/FlowNode 等构图类与 FlowBufferFactory）和 `data_wrapper`（DataType 与 FuncDataType 枚举）支撑用户侧 API，`flowfunc_wrapper`（FlowMsg/MetaRunContext/RuntimeTensorDesc 布局等，源文件 `wrapper/flow_func_wrapper/`）支撑 udf_executor 进程内的 UDF 执行。
 
 ### 3.4 数据类型
 
@@ -219,9 +224,9 @@ DataFlow 运行时数据以 **FlowMsg** 为核心载体（`executor/flow_msg.cc`
 |------|------|------|
 | `TensorFlowMsg` | `[RuntimeTensorDesc][TensorData]` | Tensor 数据，零拷贝 |
 | `RawDataFlowMsg` | `[原始字节]` | 任意二进制数据 |
-| `EmptyDataFlowMsg` | 空 | EOS（End Of Sequence）标记 |
+| `EmptyDataFlowMsg` | `[RuntimeTensorDesc]`（不含数据本体） | 空数据消息，用于流结束等场景的通知 |
 
-FlowMsg 基于昇腾 runtime 的 **rtMbuf** 实现零拷贝：生产者填充 mbuf 数据，通过队列传给消费者，`rtMbufCopyBufRef` 仅增加引用计数，多个消费者共享同一块数据无需复制。
+FlowMsg 基于昇腾 runtime 的 **rtMbuf** 实现零拷贝：生产者填充 mbuf 数据，通过队列传给消费者，`rtMbufCopyBufRef` 仅增加引用计数，多个消费者共享同一块数据无需复制。EOS（End Of Sequence）的判定与消息子类无关：EOS 标志记录在 mbuf head 中（带魔数校验），用户以空输入携带 EOS 标志喂入时，框架向各输入队列发出仅含描述信息的空数据消息，下游据此感知流结束。
 
 mbuf 的内存布局（`udf/flow_func/mbuf_flow_msg.h`）：
 
@@ -231,8 +236,8 @@ mbuf 的内存布局（`udf/flow_func/mbuf_flow_msg.h`）：
 │   └── 尾部 64B：MbufHeadMsg 控制信息           │
 │       trans_id / version / msg_type /        │
 │       ret_code / start_time / end_time /     │
-│       flags / data_flag / step_id /          │
-│       data_label / route_label               │
+│       flags / data_flag / worked_id /        │
+│       step_id / data_label / route_label     │
 ├─────────────────────────────────────────────┤
 │ mbuf 数据区                                   │
 │   Tensor 类消息：[RuntimeTensorDesc 1024B]    │
@@ -241,7 +246,7 @@ mbuf 的内存布局（`udf/flow_func/mbuf_flow_msg.h`）：
 └─────────────────────────────────────────────┘
 ```
 
-`MbufHeadMsg` 承载事务追踪与数据路由所需的全部控制信息；`RuntimeTensorDesc`（1024 字节固定布局：dataAddr/dtype/shape[33]（shape[0] 存维数，DIM0~DIM31 跟随）/format/data_size 等）描述数据区中 tensor 的元信息。
+`MbufHeadMsg` 承载事务追踪与数据路由所需的全部控制信息；`RuntimeTensorDesc`（1024 字节固定布局：dataAddr/dtype/shape[33]（shape[0] 存维数，DIM0~DIM31 跟随）/original_shape[33]/format/data_size 等）描述数据区中 tensor 的元信息，其中 original_shape 保存原始形状，供动态 shape 场景恢复。
 
 `DataFlowInfo` 携带每次数据交互的元信息：start_time/end_time/flow_flags（EOS/SEG）/transaction_id/user_data（最多 64 字节自定义数据）。
 
@@ -256,7 +261,7 @@ GraphPp 支持通过**编译配置 JSON 文件**指定编译期选项，用户�
 
 #### build_options
 
-`build_options` 中的键值对**原样透传给 GE 编译器**，作为 GraphPp 子图的编译参数。GE 支持的图编译参数都可以在这里设置，使得每个 GraphPp 子图能独立配置编译行为（如动态 shape、输出内存预分配等）。具体 option 的名称和取值格式请参考 GE 编译参数文档。
+`build_options` 中的键值对**透传给 GE 编译器**，作为 GraphPp 子图的编译参数。GE 支持的图编译参数都可以在这里设置，使得每个 GraphPp 子图能独立配置编译行为（如动态 shape、输出内存预分配等）。其中设置了 `ge.inputShape` 时，框架会自动推导并追加动态执行模式与 shape range 相关的派生选项。具体 option 的名称和取值格式请参考 GE 编译参数文档。
 
 #### inputs_tensor_desc
 
@@ -329,7 +334,7 @@ flowchart TD
 | 引擎 | 编译方式 | 产出 |
 |------|----------|------|
 | NPUProcessNodeEngine | 委托 `GeSession` 编译（模型下沉） | GraphModel (OM) |
-| CPUProcessNodeEngine | 继承 NPU，设 `EXEC_PLACEMENT=HOST` | GraphModel (OM) |
+| CPUProcessNodeEngine | 继承 NPU，CPU 子图编译时由 FlowModelBuilder 注入 `EXEC_PLACEMENT=HOST` | GraphModel (OM) |
 | UdfProcessNodeEngine | `UdfModelBuilder` 构建 UdfModelDef + cmake/make 编译用户 SO | UdfModel |
 
 CPU 引擎继承 NPU 引擎仅重写 `GetEngineName`，编译流程完全复用——区别只在执行时的 placement。这种继承复用避免了代码重复。
@@ -367,7 +372,7 @@ classDiagram
     PneModel <|-- SerializedModel
 ```
 
-**为什么分四种模型？** 因为它们的序列化策略、设备 ID 管理方式、数据来源各不相同。GraphModel 直接返回内存中的 OM 数据；UdfModel 持有 `UdfModelDef` protobuf 描述（编译期由 `UdfModelBuilder` 构建，内置 UDF 序列化为 OM buffer，外部 UDF 序列化为 tar.gz 包）；SerializedModel 是运行期反序列化创建的 UDF 子模型，支持内存 buffer 或文件路径。
+**为什么分四种模型？** 因为它们的序列化策略、设备 ID 管理方式、数据来源各不相同。GraphModel 直接返回内存中的 OM 数据；UdfModel 持有 `UdfModelDef` protobuf 描述（编译期由 `UdfModelBuilder` 构建，内置 UDF 将 UdfModelDef 定义序列化后随 OM 的 FLOW_SUBMODEL 分区存储，外部 UDF 序列化为 tar.gz 包）；SerializedModel 是运行期反序列化创建的 UDF 子模型，支持内存 buffer 或文件路径。
 
 **ModelRelation** 是最核心的数据结构之一（`base/model/model_relation.h`），描述子模型之间通过队列（Endpoint）如何连接。它将逻辑拓扑（FlowNode 之间的边）翻译为物理连接关系："子模型 A 的输出队列 X 连接到子模型 B 的输入队列 Y"。
 
@@ -441,7 +446,7 @@ graph TD
 |------|-----------|------|------|
 | 应用头节点 | 用户应用进程 | 编译、编排部署、Feed/Fetch | `MasterModelDeployer` 通过 dlopen 在进程内运行，`LocalDeployer` 直接处理本节点部署 |
 | 从调度节点 | `deployer_daemon` | gRPC 服务端、客户端管理 | 远程节点独立启动的守护进程，为每个头节点连接 fork 一个 sub_deployer。自身**不加载模型**（无 `GeExecutor`），是轻量级分发器 |
-| 子从调度节点 | `sub_deployer` | 模型加载、fork executor | daemon 的子进程，attach 到 daemon 的 MemoryGroup，初始化 `GeExecutor` 具备模型加载能力。通过消息队列与 daemon 通信，崩溃可由 daemon 重新 fork |
+| 子从调度节点 | `sub_deployer` | 模型加载、fork executor | daemon 的子进程，attach 到 daemon 的 MemoryGroup，初始化 `GeExecutor` 具备模型加载能力。通过消息队列与 daemon 通信，异常由头节点心跳检测感知 |
 | npu_executor | `npu_executor_main` | 加载执行 NPU 模型 | `EngineDaemon` 类，每设备一个进程，集成 AICPU 调度器自动 dequeue→模型执行→enqueue |
 | udf_executor | `udf_executor` | 加载用户 SO 执行 UDF | `FlowFuncExecutor` 类，**每个 UDF 模型一个独立进程**（因用户 SO 线程安全无法保证），事件驱动状态机调度。根据 UDF 部署位置有两种 fork 路径（见下文） |
 | host_cpu_executor | `host_cpu_executor_main` | 加载执行 CPU 侧模型 | `EngineDaemon(is_host_cpu=true)`，与 npu_executor 相同类但跑在 host CPU |
@@ -453,7 +458,7 @@ graph TD
 
 两种模式由 `ExecutorKey.is_proxy` 区分：当 `device_type != CPU` 且 `engine_name == PNE_ID_UDF` 时为 proxy 模式（`deploy_state.cc` 的 `AddLocalSubmodelDesc`）。`PneExecutorClientFactory` 根据 `engine_name + is_proxy` 创建对应 client。
 
-**为什么 sub_deployer 要独立于 daemon？** daemon 需要长期稳定运行、服务多个用户连接，不应承担模型加载等重逻辑。sub_deployer 按 client 隔离，崩溃只影响该用户，daemon 可重新 fork 恢复。
+**为什么 sub_deployer 要独立于 daemon？** daemon 需要长期稳定运行、服务多个用户连接，不应承担模型加载等重逻辑。sub_deployer 按 client 隔离，异常只影响该用户；头节点通过心跳检测感知节点异常并触发异常处理，daemon 仅在新连接建立时为该连接 fork 新的 sub_deployer。
 
 **为什么 udf_executor 每个模型一个进程？** 用户编译的 SO 中静态变量初始化、全局状态、线程安全无法保证，且不同 UDF 的 SO 之间可能存在符号冲突。进程级隔离是最可靠的隔离方式，避免不同 UDF 间的状态干扰和符号冲突。
 
@@ -479,7 +484,7 @@ graph TD
 3. **加载模型**：`LoadSubmodels` 并行在各节点加载子模型，本节点由 `LocalDeployer` → `DeployContext` → `ExecutorManager::GetOrCreateExecutorClient` 根据 PNE 类型创建对应 executor client 并 fork executor 进程；远程节点由 sub_deployer 的 `ExecutorManager` fork executor 进程
 4. **建立队列绑定**：`DeployLocalFlowRoute` 完成本地流路由部署，建立队列间的数据绑定关系
 
-executor 进程启动后：attach MemoryGroup → 初始化 `MessageServer` → 通过消息队列接收 `kLoadModel` 请求 → 加载模型 → attach 队列 → 就绪。
+executor 进程启动后：attach MemoryGroup → 初始化 `MessageServer` → 接收模型加载请求并加载模型 → attach 队列 → 就绪。加载请求的接收方式因执行器而异：npu_executor / host_cpu_executor 通过消息队列接收；udf_executor 的模型描述在 fork 时经启动参数指向的本地文件加载，其消息队列仅承载运行期控制消息（挂起/恢复/异常通知等）。
 
 #### 4.3.5 队列与执行器
 
@@ -559,7 +564,7 @@ sequenceDiagram
 
 `pydflow/` 提供双数据路径设计（`pydflow/python/dataflow/dataflow.py`）：
 
-- `feed_data`/`fetch_data`：Tensor 专用零拷贝高性能路径，直接使用 `ge::Tensor`
+- `feed_data`/`fetch_data`：Tensor 专用高性能路径，直接使用 `ge::Tensor`，无序列化开销（fetch 侧以内存视图零拷贝返回）
 - `feed`/`fetch`：支持任意可序列化对象，通过 FlowMsg + cloudpickle 序列化，有序列化开销但灵活性高
 
 Python 侧的两个核心装饰器 `@df.pyflow` 与 `@df.npu_model` 共享同一套基类与工程生成链路，前者是通用 UDF 装饰器，后者是面向 PyTorch 的零拷贝下沉装饰器。UDF 框架本身的调度与执行机制详见 [udf.md](udf.md)。
@@ -575,7 +580,7 @@ Python 侧的两个核心装饰器 `@df.pyflow` 与 `@df.npu_model` 共享同一
 
 类装饰在 `fnode()` 时扫描带 `__df_method__` 标记的方法，为每个方法生成两个包装：`ActorFlowNodeMethod` 负责构图期连边（维护各方法在节点输入/输出中的索引偏移），`get_redefined_method` 返回的可调用对象负责执行期在 UDF 进程中调用用户方法。类构造参数在 `fnode(*args)` 时保存，UDF 进程初始化时经 `_super_init` 重新执行 `__init__`。
 
-**支持的选项**：`num_returns`、`resources`（memory/num_cpus/num_npus）、`env_hook_func`（初始化前环境钩子）、`visible_device_enable`、`stream_input`（流式输入，当前仅支持 "Queue"）、`choice_output`（输出过滤回调，返回 False 的输出置空跳过）。后两者为 pyflow 独有。
+**支持的选项**：`num_returns`、`resources`（memory/num_cpus/num_npus，当前仅 num_cpus 参与部署生效）、`env_hook_func`（初始化前环境钩子）、`visible_device_enable`、`stream_input`（流式输入，当前仅支持 "Queue"）、`choice_output`（输出过滤回调，返回 False 的输出置空跳过）。后两者为 pyflow 独有。
 
 **工程生成链路**（`FuncProcessPoint` → `tools/func_ws_creator.py`）：
 
@@ -586,9 +591,9 @@ Python 侧的两个核心装饰器 `@df.pyflow` 与 `@df.npu_model` 共享同一
 **运行时数据路径**（对称的序列化/反序列化）：
 
 - 输入：`convert_flow_msg_to_object` 将 FlowMsg 反序列化为 Python 对象（Tensor→numpy 视图 / 已注册自定义类型→对应反序列化函数 / 其余→cloudpickle）
-- 输出：`_convert_object_to_flow_msg` 将返回值序列化（df.Tensor→零拷贝转 FlowMsg / None→空消息 / 其余→序列化数据本体写入 mbuf）
+- 输出：`_convert_object_to_flow_msg` 将返回值序列化（df.Tensor→转 FlowMsg：`df.alloc_tensor` 分配的 Tensor 以共享 mbuf 引用零拷贝转换，其余 Tensor 拷贝数据后写入 / None→空消息 / 其余→序列化数据本体写入 mbuf）
 
-generator 函数按 yield 逐次输出（流式输出）。用户可通过 `df.utils.msg_type_register` 注册自定义类型与序列化函数（msg_type 从 1024 起），未注册类型默认 cloudpickle（msg_type=65535）。
+generator 函数按 yield 逐次输出（流式输出）。用户可通过 `df.utils.msg_type_register` 注册自定义类型与序列化函数（自定义 msg_type 约定从 1024 起，注册时不做下限强制校验），未注册类型默认 cloudpickle（msg_type=65535）。
 
 #### 4.5.2 `@df.npu_model` PyTorch 零拷贝下沉装饰器
 
@@ -633,7 +638,7 @@ AICPU 调度模型以 entry/next 双流循环运行（`CreateSchedTasks`）：en
 
 **消息格式的两层约定**：节点间数据队列上统一传递 `[RuntimeTensorDesc][data]` 布局的标准 mbuf（feed 产出的完整布局）；desc-only（仅描述、不带数据本体）仅存在于 npu_sched 模式下 UDF 与 AICPU 调度模型之间的 req/resp 消息队列，由 AICPU 负责与标准 mbuf 的双向转换。C++ 消费侧均按该布局解析：非 proxy 动态执行剥掉 1024B 头取内联数据（`dynamic_model_executor.cc` 的 `PrepareInputs`），proxy 动态执行直接以 `desc.data_addr` 作为模型输入地址实现零拷贝（`proxy_dynamic_model_executor.cc` 的 `PrepareInputs`）。1023 仅是 Python 层的类型路由标记，C++ 侧不感知该枚举值。
 
-**`_npu_sched_model` 属性链路**：`add_process_point` 中 `flow_node.set_attr("_npu_sched_model", 1)` → 编译期 `process_point_loader.cc` 将其提升为图级属性并设 IO_PLACEMENT=device → 部署期 `udf_executor_client.cc` 检测到该属性后以 `--npu_sched=1` fork udf_executor 并启动 AICPU 调度，`FlowFuncExecutor` 经 `NpuSchedProcessor`（`udf/execute/npu_sched_processor.h`）加载 AICPU 调度模型并将 req/resp 消息队列注册为自己的输入/输出队列。因此 npu_model 是"Python UDF 仅 host"约束的例外（见 [4.6.1 节](#461-udf-执行位置如何决定)）。
+**`_npu_sched_model` 属性链路**：`add_process_point` 中 `flow_node.set_attr("_npu_sched_model", 1)`（两种 optimize_level 下均设置，当前仅 FuncPp 编译路径消费该属性）→ 编译期 `process_point_loader.cc` 将其提升为图级属性并设 IO_PLACEMENT=device → 部署期 `udf_executor_client.cc` 检测到该属性后以 `--npu_sched=1` fork udf_executor 并启动 AICPU 调度，`FlowFuncExecutor` 经 `NpuSchedProcessor`（`udf/execute/npu_sched_processor.h`）加载 AICPU 调度模型并将 req/resp 消息队列注册为自己的输入/输出队列。因此 npu_model 是"Python UDF 仅 host"约束的例外（见 [4.6.1 节](#461-udf-执行位置如何决定)）。
 
 **约束**：输出必须为 npu tensor（`_check_torch_output` 强制校验）；不支持流式输入输出与 `choice_output`；多输出时必须返回 tuple 且个数与 num_returns 严格一致；依赖 torch/torch_npu/torchair。dtype 映射支持 float32/float16/bfloat16/int8~int64/uint8/bool/float64，torch≥2.3 追加 uint16/32/64。
 
@@ -674,7 +679,7 @@ UDF 的最终执行位置由编译期属性链路决定，核心逻辑在 `DataF
 
 **为什么 Python UDF 只能 host？** 双重保证：CMake 模板（`pydflow/python/dataflow/tools/tpl/tpl_cmake.py`）在 `RESOURCE_TYPE == "Ascend"` 时直接 `FATAL_ERROR`，且 `FuncWsCreator`（`tools/func_ws_creator.py`）默认写 `heavy_load: True`。`@df.npu_model` 是该规则的例外——其生成的 UDF 带 `_npu_sched_model=1` 属性，部署时以 npu_sched 模式启动（AICPU 调度模型代理数据进出，数据本体不离开 device），见 [4.5.2 节](#452-dfnpu_model-pytorch-零拷贝下沉装饰器)。
 
-**为什么 C++ UDF 默认 device？** C++ UDF 的 `heavy_load` 默认 false（`compile_config_json.cc`），且当编译产出同时含 Ascend 和 host 类型时，`SelectResourceType` 选 Ascend。用户可在 FunctionPp 的编译配置 JSON 中将 `heavy_load` 设为 true 强制 host。
+**为什么 C++ UDF 默认 device？** C++ UDF 的 `heavy_load` 默认 false（`compile_config_json.h`），且当编译产出同时含 Ascend 和 host 类型时，`SelectResourceType` 选 Ascend。用户可在 FunctionPp 的编译配置 JSON 中将 `heavy_load` 设为 true 强制 host。
 
 heavy_load UDF 虽然在 host CPU 执行，但仍需指定 logic_device_id——部署时会找到该 ID 对应的 NPU 物理设备，构造一个 CPU 类型、proxy 指向该 NPU 的部署信息，即"跑在 host CPU，但数据队列代理到指定 NPU"（`deployer/deploy/resource/heterogeneous_deploy_planner.cc` 的 `AssignDevices`）。
 
@@ -724,7 +729,7 @@ heavy_load UDF 虽然在 host CPU 执行，但仍需指定 logic_device_id——
 
 范围配置展开为多个 logic_device_id 后，部署阶段为每个 ID 映射一个物理设备并生成独立的模型实例：
 
-- **实例命名**：`model_name@process_id@device_key`（`heterogeneous_deploy_planner.cc` 的 `PrepareTargetDevices`），同一模型下 process_id 从 0 递增
+- **实例命名**：`model_name@process_id@device_key@is_redundant`（`heterogeneous_deploy_planner.cc` 的 `PrepareTargetDevices`），同一模型下 process_id 从 0 递增，末段标识该实例是否为冗余实例
 
 **多实例数据路由**：多实例部署后，默认按 trans_id 轮询分发到各实例。通过 `SetBalanceScatter`/`SetBalanceGather` 配置后，会按策略生成 route_label，flowGW 根据 trans_id 和 route_label 进行分发，保证相同 trans_id 和 route_label 的数据被分发到同一实例。
 

@@ -22,7 +22,7 @@ UDF 作为数据流图中的处理节点，接收上游数据、执行自定义�
 
 用户可通过部署配置 JSON（option `ge.experiment.data_flow_deploy_info_path`）指定各节点部署到哪些设备，支持范围语法多实例部署。详见 dflow.md 的"4.6 UDF 执行位置与多实例部署"章节。
 
-UDF 代码位于 `dflow/udf/`。核心运行时在 `flow_func/`，设备侧执行器在 `execute/`，内置 UDF 在 `built_in/`。
+UDF 代码位于 `dflow/udf/`。核心运行时在 `flow_func/`，执行器进程（udf_executor，host 与 device 复用同一实现）在 `execute/`，内置 UDF 在 `built_in/`。
 
 ---
 
@@ -50,6 +50,15 @@ Python 提供三种方式，门槛递降：
 `@df.pyflow` 装饰器自动生成 UDF 工程（C++ wrapper + CMakeLists + 配置 JSON），用 cloudpickle 序列化用户函数，编译为可加载 SO。用户函数的参数自动从 FlowMsg 反序列化为 numpy array / torch tensor，返回值自动序列化回 FlowMsg。
 
 `@df.pyflow` 与 `@df.npu_model` 两个装饰器的实现机制与对比详见 dflow.md 的 [4.5 节](dflow.md#45-python-接口层)。
+
+Python 侧为 UDF 开发提供以下配套能力：
+
+| 能力 | 入口 | 说明 |
+|------|------|------|
+| 零拷贝输出 | `df.alloc_tensor` | 在 UDF 内分配与 mbuf 共享的 Tensor，输出时以共享 mbuf 引用零拷贝转 FlowMsg；普通 df.Tensor 输出需拷贝数据，推荐使用该接口 |
+| 流式队列 | `FlowMsgQueue` | 流式输入模式下 UDF 收到的队列对象，实现 `queue.Queue` 接口子集（`get`/`get_nowait`/`qsize`/`empty`/`full`），取到 tensor 消息时自动转为 df.Tensor |
+| 部署参数 | `PyMetaParams` | UDF 内读取部署信息：work_path、运行 device_id、实例编号/总数，以及构图时经 `set_init_param` 设置的初始化参数 |
+| 协作式中止 | `DfAbortException` | 重部署或进程退出时由流式取数处抛出，执行包装层捕获后令本轮调用安全结束，配合框架完成优雅退出，用户无需自行处理 |
 
 ---
 
@@ -198,6 +207,7 @@ Processor 不忙轮询，靠两类队列事件唤醒（`flow_func/flow_func_proc
 挂起和恢复通过外部控制信号触发（deployer 发送 Suspend/Recover 消息），不是状态机自然流转。`SetClearAndSuspend`/`SetClearAndRecover` 设置标志位后，在下次 `DoSchedule` 入口处由 `PreCheckSpecialStatus` 检测并执行切换。用于在线模型更新和故障恢复：
 - **挂起**：`ResetProcessor` + `DiscardAllInputData` → `kSuspend`，发完成事件。挂起期间持续丢弃输入数据
 - **恢复**：丢弃输入；若 wrapper 已释放则重建并重新 `InitFlowFunc`，否则直接 `kReady`
+- **状态重置**：全部 processor 挂起完成后，executor 尝试对用户函数执行状态重置。Python UDF 的 wrapper 重写了该接口——重新恢复序列化的函数对象并重放用户类构造，恢复时直接复用重置后的实例；C++ UDF 基类默认不支持，回退为释放 wrapper，恢复时走上述重建路径
 
 ### 4.6 生产者-消费者分离
 
@@ -221,7 +231,7 @@ executor 线程池中，main 线程处理队列事件（E2NE/F2NF）→ 提交 `
 
 ### 5.2 Reader 驱动模式（默认）
 
-`is_stream_input_ == false`。Processor 用 `MbufReader` 自动从硬件队列读取、（可选）`DataAligner` 对齐，就绪后回调 `SetInputData` → 转 `kCallFlowFunc` → 调 `func_wrapper_->Proc(input_data_)`。用户无需关心数据何时到达。
+`is_stream_input_ == false`。Processor 用 `MbufReader` 自动从硬件队列读取、（可选）`DataAligner` 对齐，就绪后回调 `SetInputData` → 转 `kCallFlowFunc` → 调 `func_wrapper_->Proc(input_data_)`。用户无需关心数据何时到达。队列读写经 `QueueWrapper` 封装；UDF 运行在 host 时支持直接操作 device 队列，此类队列由 `ProxyQueueWrapper` 封装读写，具备独立的超时与重试语义。
 
 ### 5.3 FlowMsgQueue 流式模式
 
@@ -367,18 +377,61 @@ flowchart TD
 | Dump | `flow_func_dumper.h` | DI 注入，processor 通过 `async_executor_` 异步提交 dump 任务避免阻塞调度 |
 | 异步执行 | `async_executor.h` | 标准线程池，用于 SO 单线程串行化、dump 异步等 |
 | FlowModel | `flow_model.h` | 抽象 Init/Run，供 `RunFlowModel` 调用 NN 模型 |
+| 内存统计 | `execute/udf_memory_statistic_manager.h` | 独立线程周期读取进程内存（RSS/HWM）与内存组用量并输出日志 |
+
+### 11.1 UDF 数据 Dump
+
+UDF 的输入输出数据支持落盘，用于数据问题定位，经以下 GE 全局配置开启：
+
+| 配置 | 说明 |
+|------|------|
+| `ge.exec.enableDump` | 总开关 |
+| `ge.exec.dumpPath` | 落盘根目录，默认 `/var/log/npu/dump/udf` |
+| `ge.exec.dumpStep` | step 过滤，`_` 分隔多个 item，`-` 表示区间（如 `"1_3-5"` 表示 step 1、3、4、5） |
+| `ge.exec.dumpMode` | 落盘内容：`input` / `output` / `all` |
+
+机制要点：
+
+- **异步执行**：processor 在调用用户 Proc 前 dump 输入、`SetOutput` 后 dump 输出，任务经 `async_executor_` 异步执行，不阻塞调度；按消息携带的 step_id 过滤
+- **统一描述与路径**：两侧均复用 GE 通用 dump 的 DumpData protobuf 结构，落盘路径为 `{dumpPath}/{deviceId}/{opName}/0/{stepId}/{opName}.{时间戳}`
+- **host 侧执行**：executor 自行落盘，文件内容为 `[proto 长度][DumpData protobuf][输入/输出二进制数据]`
+- **device 侧执行**：executor 不负责落盘——仅记录数据在 device 的地址，将"数据描述 + 目标文件路径"打包为消息经同步事件发给 AICPU，由 AICPU 侧代理读取数据并完成落盘；首次 dump 前需先向 AICPU 发送 dump 初始化事件
+
+性能分析（profiling）当前为预留能力，尚未实现数据上报。
 
 ---
 
-## 12. 设备侧执行器
+## 12. 执行器进程
 
-`FlowFuncExecutor`（`execute/flow_func_executor.h`）是 udf_executor 进程的事件驱动驱动器，作为独立进程运行（`execute/main.cpp` 入口）。
+`FlowFuncExecutor`（`execute/flow_func_executor.h`）是 udf_executor 进程的事件驱动驱动器，作为独立进程运行（`execute/main.cpp` 入口）。host 与 device 部署复用同一套执行器实现，进程内按运行位置（`IsOnDevice` 标志）区分行为差异（如队列形态、安全沙箱仅在 device 启用）。
 
 **线程模型**（`execute/flow_func_executor.cpp` 的 `ThreadLoop`）：`FlowFuncThreadPool`（AICPU 绑核）创建 cpu_num 个线程。**main 线程**订阅全部事件（队列/初始化/计时/状态/挂起恢复/异常等），用 main 调度组；**worker 线程**只订阅 `kEventIdFlowFuncExecute` + `NotifyThreadExit`，用 worker 调度组。循环 `halEschedWaitEvent`（2s 超时）→ `ProcessEvent` 按事件 ID 分发。超时则 main 线程 `CheckReplenishSchedule` 补调度。
 
-**GlobalConfig**（`config/global_config.h`）：`FlowFuncConfig` 的设备侧实现（单例），持有 device_id、各调度组 ID、worker_num、npu_sched、abnormal/exit 标志等。通过 `FlowFuncConfigManager::SetConfig` 注入核心库——这种**依赖注入**使核心库（`flow_func/`）可独立编译测试，不依赖具体设备环境。
+**GlobalConfig**（`config/global_config.h`）：`FlowFuncConfig` 的执行器进程侧实现（单例），持有 device_id、各调度组 ID、worker_num、npu_sched、abnormal/exit 标志等。通过 `FlowFuncConfigManager::SetConfig` 注入核心库——这种**依赖注入**使核心库（`flow_func/`）可独立编译测试，不依赖具体设备环境。
 
-**FlowFuncModel**（`model/flow_func_model.h`）：从 protobuf 解析的 UDF 节点部署描述符，含 lib_path、flow_func_name、input/output 队列、multi_func_input/output_maps、stream_input_func_names、input_align_attrs、attr_map 等。`ParseModels` 从批量模型路径解析多个模型。
+**FlowFuncModel**（`model/flow_func_model.h`）：从 protobuf 解析的 UDF 节点部署描述符，含 lib_path、flow_func_name、input/output 队列、multi_func_input/output_maps、stream_input_func_names、input_align_attrs、attr_map 等。`ParseModels` 从启动参数指向的本地文件解析多个模型——udf_executor 的模型加载不走消息队列，消息队列仅承载运行期控制消息（挂起/恢复/异常通知等）。
+
+### 12.1 安全沙箱（device 侧）
+
+用户 SO 属于不可信代码，device 侧 udf_executor 通过双重机制保证安全：
+
+- **系统调用沙箱**：非内置 UDF 用户运行时，线程池的每个线程（含 SO 加载专用线程）启动时经 libseccomp 安装系统调用白名单过滤器——默认拒绝（返回 EPERM），仅放行基础系统调用（文件读写、内存管理、futex 等），被拦截的调用记录日志。用户 SO 的静态初始化代码同样运行在沙箱内
+- **内置用户限制**：以设备内置用户身份运行时，进程只允许加载内置 UDF 的 SO，拒绝加载任何用户 SO。两类进程职责分离：内置 UDF 进程不做沙箱限制但仅运行可信代码，用户 UDF 进程全线程沙箱
+
+`stubs/seccomp/` 为交叉编译/部署环境缺少真实 libseccomp 时提供的链接桩。
+
+### 12.2 进程韧性
+
+- **父进程退出监控**：周期检查父进程 PID，发生变化则尝试正常退出，多次退出失败后强制结束自身，避免遗留孤儿进程
+- **SIGTERM 优雅退出**：注册信号处理函数，收到后停止调度，等待用户函数安全返回后再退出
+
+### 12.3 运行治理
+
+- **调度优先级**：模型可配置 AICPU esched 进程/事件优先级（`_eschedProcessPriority` / `_eschedEventPriority`）
+- **状态上报**：按模型配置查询输入队列深度构造状态消息，写入状态队列供头节点感知负载与异常
+- **内存与运行指标**：独立线程周期统计进程内存（RSS/HWM）与内存组用量；周期输出每 processor 的执行指标
+- **软调度模式**：启动时尝试向 AICPU 提交软调度模式切换事件，配合驱动完成调度模式协商
+- **模型级配置**：`__cpu_num` 自定义执行线程数（默认为 processor 数 + 1）；`_user_buf_cfg` 配置用户态内存池；多实例部署时模型携带副本编号/总数，经 `MetaParams` 的 `GetRunningInstanceId`/`GetRunningInstanceNum` 接口对用户 UDF 暴露（框架内置 UDF 未使用），供用户按实例身份做数据分片等处理
 
 ---
 
@@ -458,7 +511,9 @@ Processor 不轮询，靠队列事件唤醒；executor 用 AICPU esched 事件 +
 | `reader_writer/data_aligner.cpp` | 多输入对齐 |
 | `reader_writer/mbuf_reader.cpp` | 硬件队列读取 |
 | `reader_writer/queue_wrapper.cpp` | 队列入队/出队封装 |
-| `execute/flow_func_executor.cpp` | 设备侧事件驱动驱动器 |
+| `reader_writer/proxy_queue_wrapper.cpp` | host 侧直接操作 device 队列的封装 |
+| `toolchain/dump/udf_dump_manager.cpp` | Dump 开启/step 过滤/落盘管理 |
+| `execute/flow_func_executor.cpp` | 执行器进程的事件驱动驱动器 |
 | `execute/main.cpp` | executor 进程入口 |
 | `built_in/time_batch_flow_func.cpp` | 内置 TimeBatch UDF |
 | `built_in/count_batch_flow_func.cpp` | 内置 CountBatch UDF |
