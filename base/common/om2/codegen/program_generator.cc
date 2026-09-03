@@ -9,6 +9,7 @@
  */
 
 #include "program_generator.h"
+#include <string_view>
 #include "common/om2/codegen/ast/ast_nodes.h"
 #include "common/om2/codegen/emitter/cpp_emitter.h"
 #include "common/om2/codegen/file_code_generator/args_manager_file_code_generator.h"
@@ -17,10 +18,11 @@
 #include "common/om2/codegen/file_code_generator/load_and_run_file_code_generator.h"
 #include "common/om2/codegen/file_code_generator/resources_file_code_generator.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
-#include "common/om2/codegen/om2_model_api_resource.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {
+std::string_view GetOm2ModelApiHeader();
+
 namespace {
 Status EmitFile(const GeneratedFileIndex file_index, const AstNode *unit, Om2CodePrinter &code_printer) {
   GE_ASSERT_TRUE(unit != nullptr, "[OM2] Program %zu AST is null.", static_cast<size_t>(file_index));
