@@ -44,6 +44,36 @@ std::atomic_bool g_dflow_ge_initialized{false};
 std::mutex g_dflow_ge_release_mutex;  // DFlowInitialize, DFlowFinalize and ~DFlowSession use
 std::shared_ptr<DFlowSessionManager> g_dflow_session_manager;
 
+// Save caller's runtime context on entry and restore it on exit, so that internal device/context
+// switching of dflow is transparent to api callers. No-op when the caller thread has no context.
+// Skip restoring when the context is unchanged during the call, in case it was destroyed midway
+// (e.g. by internal aclrtResetDevice) and restoring an invalid handle would fail.
+class RtCtxGuard {
+ public:
+  RtCtxGuard() {
+    if (aclrtGetCurrentContext(&old_ctx_) != ACL_SUCCESS) {
+      old_ctx_ = nullptr;
+    }
+  }
+  ~RtCtxGuard() {
+    if (old_ctx_ == nullptr) {
+      return;
+    }
+    aclrtContext cur_ctx = nullptr;
+    if ((aclrtGetCurrentContext(&cur_ctx) != ACL_SUCCESS) || (cur_ctx == old_ctx_)) {
+      return;
+    }
+    if (aclrtSetCurrentContext(old_ctx_) != ACL_SUCCESS) {
+      GELOGW("Failed to restore runtime context after dflow api call, the context may have been destroyed.");
+    }
+  }
+  RtCtxGuard(const RtCtxGuard &) = delete;
+  RtCtxGuard &operator=(const RtCtxGuard &) = delete;
+
+ private:
+  aclrtContext old_ctx_ = nullptr;
+};
+
 void DFlowFinalizeImpl() {
   GELOGT(TRACE_INIT, "DFlowFinalize start.");
   if (g_dflow_session_manager != nullptr) {
@@ -62,6 +92,7 @@ void DFlowFinalizeImpl() {
 }  // namespace
 
 Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
+  RtCtxGuard ctx_guard;
   std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
   if (g_dflow_ge_initialized) {
     GELOGW("DFlowInitialize is called more than once");
@@ -101,6 +132,7 @@ Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
 
 // DFlow finalize, releasing all resources
 Status DFlowFinalize() {
+  RtCtxGuard ctx_guard;
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kGEFinalize);
   std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
   DFlowFinalizeImpl();
@@ -136,12 +168,14 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
 }  // namespace
 
 DFlowSession::DFlowSession(const std::map<AscendString, AscendString> &options) {
+  RtCtxGuard ctx_guard;
   std::map<std::string, std::string> str_options;
   ConvertAscendStringMap(options, str_options);
   ConstructSession(str_options, dflow_session_impl_);
 }
 
 DFlowSession::~DFlowSession() {
+  RtCtxGuard ctx_guard;
   if (dflow_session_impl_ == nullptr) {
     return;
   }
@@ -175,6 +209,7 @@ DFlowSession::~DFlowSession() {
 
 Status DFlowSession::AddGraph(uint32_t graph_id, const FlowGraph &graph,
                               const std::map<AscendString, AscendString> &options) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
@@ -203,6 +238,7 @@ Status DFlowSession::AddGraph(uint32_t graph_id, const FlowGraph &graph,
 }
 
 Status DFlowSession::RemoveGraph(uint32_t graph_id) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
@@ -224,6 +260,7 @@ Status DFlowSession::RemoveGraph(uint32_t graph_id) {
 }
 
 Status DFlowSession::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
@@ -253,11 +290,13 @@ uint64_t DFlowSession::GetSessionId() const {
 
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, const DataFlowInfo &info,
                                        int32_t timeout) {
+  RtCtxGuard ctx_guard;
   return FeedDataFlowGraph(graph_id, {}, inputs, info, timeout);
 }
 
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                        const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][Data]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Feed data failed because GEInitialize was not called before.");
@@ -279,11 +318,13 @@ Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint
 }
 
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   return FeedDataFlowGraph(graph_id, {}, inputs, timeout);
 }
 
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                        const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   GE_CHK_BOOL_RET_STATUS(g_dflow_ge_initialized, FAILED,
                          "[Feed][FlowMsg]Failed because GEInitialize was not called before.");
 
@@ -301,6 +342,7 @@ Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint
 
 Status DFlowSession::FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, uint32_t index,
                                  const DataFlowInfo &info, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][RawData]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Feed raw data failed because GEInitialize was not called before.");
@@ -322,11 +364,13 @@ Status DFlowSession::FeedRawData(uint32_t graph_id, const std::vector<RawData> &
 
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, std::vector<Tensor> &outputs, DataFlowInfo &info,
                                         int32_t timeout) {
+  RtCtxGuard ctx_guard;
   return FetchDataFlowGraph(graph_id, {}, outputs, info, timeout);
 }
 
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                         std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   if (!g_dflow_ge_initialized) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Fetch][Data]Failed because GEInitialize was not called before.");
     REPORT_INNER_ERR_MSG("E19999", "Fetch data failed because GEInitialize was not called before.");
@@ -350,11 +394,13 @@ Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uin
 }
 
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   return FetchDataFlowGraph(graph_id, {}, outputs, timeout);
 }
 
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                         std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
+  RtCtxGuard ctx_guard;
   GE_CHK_BOOL_RET_STATUS(g_dflow_ge_initialized, FAILED,
                          "[Fetch][FlowMsg]Failed because GEInitialize was not called before.");
   GE_CHECK_NOTNULL(dflow_session_impl_);

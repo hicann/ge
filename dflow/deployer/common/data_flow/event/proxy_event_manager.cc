@@ -12,6 +12,7 @@
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "mmpa/mmpa_api.h"
+#include "common/utils/rts_api_utils.h"
 
 namespace ge {
 namespace {
@@ -89,6 +90,8 @@ Status ProxyEventManager::GetProxyPid(int32_t device_id, int32_t &pid) {
 
 Status ProxyEventManager::SubmitEventSync(int32_t device_id, uint32_t sub_event_id, char_t *msg, size_t msg_len,
                                           rtEschedEventReply_t *ack) {
+  // rt esched api depends on thread-private runtime context, ensure current thread binds the device first
+  GE_CHK_STATUS_RET(RtsApiUtils::SetDevice(device_id), "Failed to set device, device_id = %d.", device_id);
   int32_t proxy_pid = -1;
   GE_CHK_STATUS_RET(GetProxyPid(device_id, proxy_pid), "Failed to get proxy pid, device_id = %d.", device_id);
   uint32_t group_id = 0U;
