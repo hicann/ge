@@ -73,8 +73,8 @@ class Om2CodegenModelBuilder {
   std::vector<om2::MemInfo> GetAllMemoryTypeSize(const GeModelPtr &model) const;
   static void ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder, domi::TaskDef *const task_def,
                                     std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index, ModelTaskType task_type);
-  static Status BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model, const domi::TaskDef &task_def,
-                                             const OpDescPtr &op_desc, ModelTaskType task_type);
+  static Status BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model, const OpDescPtr &op_desc,
+                                             ModelTaskType task_type);
   static Status BuildKernelRegistryForAicpu(Om2CodegenModel &codegen_model, const domi::TaskDef &task_def,
                                             const std::string &op_type, const std::string &kernel_name,
                                             const std::string &aicpu_kernel_sign);
