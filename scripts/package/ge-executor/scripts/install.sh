@@ -94,13 +94,6 @@ chmod_end() {
         current_install_path="$current_install_path/$pkg_version_dir"
     fi
 
-    # data dir/file permission
-    chmod_single_dir "$default_dir/ascend_install.info" 640 file 2> /dev/null
-    chmod_single_dir "$default_dir/version.info" 440 file 2> /dev/null
-    chmod_single_dir "$default_dir/scene.info" 640 file 2> /dev/null
-    chmod_single_dir "$default_dir" 750 dir 2> /dev/null
-    chmod_single_dir "$default_dir/script" 550 dir 2> /dev/null
-    chmod_recur "$default_dir/script" 550 file 2> /dev/null
     chown -R "$username":"$usergroup" "$default_dir" 2> /dev/null
     if [ $(id -u) -eq 0 ]; then
         chown "root:root" "$default_dir" 2> /dev/null
@@ -525,7 +518,6 @@ update_version_info_version() {
         cp -f "$pkg_version_path" "$default_dir"
         log "INFO" "Base version set successfully!"
     fi
-    chmod_single_dir "$default_dir/version.info" 440 file >> /dev/null 2>&1
 }
 
 log_base_version() {

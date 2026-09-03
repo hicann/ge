@@ -11,9 +11,9 @@
 ![图示](../figures/feature_intro_4.png)
 
 1. 调用[GEInitializeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEInitializeV2.md)进行系统初始化（也可在Graph构建前调用），申请系统资源。
-2. 调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
+2. 调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
 3. 调用[Session构造函数](../../../api/graph_engine_api/cpp/ge/GeSession/GESession.md)创建Session类对象，申请Session资源。
-4. 调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理 \> aclrtMallocHost/aclrtMalloc”分别申请Host和Device内存。
+4. 调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理 \> aclrtMallocHost/aclrtMalloc”分别申请Host和Device内存。
 5. 调用[AddGraph](../../../api/graph_engine_api/cpp/ge/GeSession/AddGraph.md)在Session类对象中添加定义好的图。
 6. （可选）调用[CompileGraph](../../../api/graph_engine_api/cpp/ge/GeSession/CompileGraph.md)完成图编译。
 7. （可选）调用[LoadGraph](../../../api/graph_engine_api/cpp/ge/GeSession/LoadGraph.md)（异步执行Graph场景），加载图模型到上面步骤创建的Stream上。
@@ -22,7 +22,7 @@
     若在调用本接口前未执行LoadGraph完成图加载，则本接口将自动调用LoadGraph以完成加载；若在调用LoadGraph接口前未执行CompileGraph完成图编译，则LoadGraph将自动调用CompileGraph以完成编译。
 
 9. 调用“aclrtSynchronizeStream”阻塞程序运行，直到指定Stream中的所有任务都完成。
-10. 调用《Runtime运行时 API》中的“内存管理 \> aclrtFree/aclrtFreeHost”释放内存；调用[GEFinalizeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEFinalizeV2.md)，释放系统资源；调用《Runtime运行时 API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
+10. 调用《Runtime运行时API》中的“内存管理 \> aclrtFree/aclrtFreeHost”释放内存；调用[GEFinalizeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEFinalizeV2.md)，释放系统资源；调用《Runtime运行时API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
 
 ### 开发示例
 
@@ -210,20 +210,20 @@
 ![图示](../figures/single_thread.png)
 
 1. 调用[GEInitializeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEInitializeV2.md)进行系统初始化（也可在Graph构建前调用），申请系统资源。
-2. 调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
+2. 调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl。
 3. 调用[Session构造函数](../../../api/graph_engine_api/cpp/ge/GeSession/GESession.md)创建多个Session类对象，申请Session资源，每个Session传入不同的ge.session\_device\_id，将模型运行在不同的Device。
 4. 创建多个线程，每个线程传入不同的Session，下面以一个线程为例，描述简单的流程：
-    1. 调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理 \> aclrtMalloc”申请Device内存。
+    1. 调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream，然后调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理 \> aclrtMalloc”申请Device内存。
     2. 调用[AddGraph](../../../api/graph_engine_api/cpp/ge/GeSession/AddGraph.md)在Session类对象中添加定义好的图。
     3. 调用[CompileGraph](../../../api/graph_engine_api/cpp/ge/GeSession/CompileGraph.md)完成图编译。
     4. 调用[LoadGraph](../../../api/graph_engine_api/cpp/ge/GeSession/LoadGraph.md)（异步执行Graph场景），将图模型加载到前面创建的Stream上。
-    5. 调用《Runtime运行时 API》中的“内存管理 \> aclrtMemcpy”将数据从Host传输到Device。
+    5. 调用《Runtime运行时API》中的“内存管理 \> aclrtMemcpy”将数据从Host传输到Device。
     6. 调用[RunGraphWithStreamAsync](../../../api/graph_engine_api/cpp/ge/GeSession/RunGraphWithStreamAsync.md)异步执行接口，运行Graph。
     7. 调用“aclrtSynchronizeStream”阻塞程序运行，直到指定Stream中的所有任务都完成。
-    8. 调用《Runtime运行时 API》中的“内存管理 \> aclrtMemcpy”将数据从Device回传到Host。
-    9. 调用《Runtime运行时 API》中的“内存管理 \> aclrtFree”释放内存。
+    8. 调用《Runtime运行时API》中的“内存管理 \> aclrtMemcpy”将数据从Device回传到Host。
+    9. 调用《Runtime运行时API》中的“内存管理 \> aclrtFree”释放内存。
 
-5. 调用[GEFinalizeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEFinalizeV2.md)，释放系统资源；调用《Runtime运行时 API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
+5. 调用[GEFinalizeV2](../../../api/graph_engine_api/cpp/ge/GeSession/GEFinalizeV2.md)，释放系统资源；调用《Runtime运行时API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
 
 ### 开发示例
 

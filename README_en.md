@@ -18,7 +18,7 @@ GE provides friendly integration capabilities for PyTorch and TensorFlow fronten
 
 To quickly experience GE's working methods and basic development process, refer to the following documentation:
 
-- [Build Verification](docs/zh/build.md): Introduces the complete build process of components and test case execution flow.
+- [Build Verification](docs/en/build.md): Introduces the complete build process of components and test case execution flow.
 - [Quick Start](examples/acl/1_sample_resnet50_imagenet_classification/README.md): Using ResNet50 model as an example, introduces how to use the ATC tool for model conversion and execute inference on Ascend AI processors.
 - [Quick Start-LLM](examples/acl/3_sample_qwen_llm/README.md): Using Qwen model as an example, introduces how to use the ATC tool for LLM model conversion and implement LLM model loading, execution, and result retrieval.
 
@@ -28,7 +28,7 @@ To learn how to use GE for model compilation and execution, refer to the Graph M
 
 To gain a deep understanding of GE's internal design, architecture mechanisms, and development processes, refer to the following documentation:
 
-* [GE Architecture Documentation](docs/zh/design/architecture.md): Introduces core components, execution flows, optimization mechanisms, and other internal principles.
+* [GE Architecture Documentation](docs/en/design/architecture.md): Introduces core components, execution flows, optimization mechanisms, and other internal principles.
 * [Contributing Guide](CONTRIBUTING.md): Explains how to submit Issues, Pull Requests, and code standards.
 * [AI Agent Support](.opencode/README.md): Introduces some default skills used in the repository and using agents to assist the development process.
 

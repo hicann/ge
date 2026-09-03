@@ -4,7 +4,7 @@
 
 ## 安装驱动固件与CANN软件包
 
-准备带有AI处理器的硬件环境，参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（**针对8.5.0及之后版本**，编译Graph为离线模型时，必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败），安装完成后：
+准备带有AI处理器的硬件环境，参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（**针对8.5.0及之后版本**，编译Graph为离线模型时，必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败），安装完成后：
 
 - “$\{INSTALL\_DIR\}/**opp/built-in/op\_graph/inc**”下提供了CANN算子原型定义，用于通过算子原型构建Graph。
 - “$\{INSTALL\_DIR\}/**include/graph**”下提供了Graph构建接口。

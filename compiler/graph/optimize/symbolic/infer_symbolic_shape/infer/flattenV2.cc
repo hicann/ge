@@ -17,6 +17,56 @@
 
 namespace ge {
 namespace {
+/**
+ * Flatten算子的符号化Shape推导
+ * 【算子功能】将输入张量从指定轴开始的多个维度展平为两个维度。
+ * 【算子约束】axis必须位于输入秩允许的范围内；标量输入仅支持axis=0。
+ * 【推导逻辑】先将负axis转换为非负轴并校验其位于[0, rank)；遍历axis左侧维度并按顺序相乘形成
+ *          输出第0维，再遍历axis及右侧维度相乘形成输出第1维。乘法直接作用于符号表达式，因此动态
+ *          维度会保留为乘积表达式；标量按两个1维处理。
+ * 【举例】输入Shape=[B,S,H,W]、axis=1时，输出Shape=[B,S*H*W]；输入Shape=[2,3,4]、axis=-1时，
+ *          输出Shape=[6,4]。
+ */
+graphStatus InferShape4Flatten(gert::InferSymbolShapeContext *context) {
+  const auto in_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(in_shape);
+  const auto out_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(out_shape);
+  const auto attrs = context->GetAttrs();
+  GE_ASSERT_NOTNULL(attrs);
+  const auto axis_ptr = attrs->GetInt(0);
+  GE_ASSERT_NOTNULL(axis_ptr);
+
+  const int64_t dim_num = static_cast<int64_t>(in_shape->GetDimNum());
+  const int64_t axis = *axis_ptr;
+  const int64_t real_axis = axis >= 0 ? axis : axis + dim_num;
+  if (dim_num == 0) {
+    GE_ASSERT(axis == 0, "Flatten failed, scalar input only supports axis=0, but got axis[%ld]. node %s[%s]", axis,
+              context->GetNodeName(), context->GetNodeType());
+    out_shape->Clear();
+    out_shape->AppendDim(Symbol(1));
+    out_shape->AppendDim(Symbol(1));
+    return GRAPH_SUCCESS;
+  }
+
+  GE_ASSERT(real_axis >= 0 && real_axis < dim_num, "Flatten failed, axis[%ld] is out of range[-%ld, %ld]. node %s[%s]",
+            axis, dim_num, dim_num - 1, context->GetNodeName(), context->GetNodeType());
+
+  auto dim0 = Expression(Symbol(1));
+  for (int64_t i = 0; i < real_axis; ++i) {
+    dim0 = dim0 * in_shape->GetDim(i);
+  }
+  auto dim1 = Expression(Symbol(1));
+  for (int64_t i = real_axis; i < dim_num; ++i) {
+    dim1 = dim1 * in_shape->GetDim(i);
+  }
+
+  out_shape->Clear();
+  out_shape->AppendDim(dim0);
+  out_shape->AppendDim(dim1);
+  return GRAPH_SUCCESS;
+}
+
 graphStatus InferShape4FlattenV2(gert::InferSymbolShapeContext *context) {
   auto const in_shape = context->GetInputSymbolShape(0);
   GE_UNSUPPORTED_IF_NULL(in_shape);
@@ -65,6 +115,7 @@ graphStatus InferShape4FlattenV2(gert::InferSymbolShapeContext *context) {
   return ge::GRAPH_SUCCESS;
 }
 
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Flatten).InferSymbolShape(InferShape4Flatten);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(FlattenV2).InferSymbolShape(InferShape4FlattenV2);
 }  // namespace
 }  // namespace ge

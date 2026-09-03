@@ -47,4 +47,4 @@ ge::Status GeSessionExecuteGraphWithStreamAsync(ge::Session &session, uint32_t g
 - 调用该接口前，需要通过acl提供的**aclrtCreateStream**接口创建Stream。
 - 得到输出运行结果前，需要通过**aclrtSynchronizeStream**接口保证Stream上的任务已经执行完。
 
-接口详细说明请参见《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Stream管理”。
+接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Stream管理”。

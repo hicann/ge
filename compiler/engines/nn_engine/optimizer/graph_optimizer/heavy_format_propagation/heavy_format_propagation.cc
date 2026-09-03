@@ -690,7 +690,8 @@ Status HeavyFormatPropagation::GetNodeReshapeType(const NodeInfoPtr &node_info, 
             node->GetName().c_str(), dim_num);
     return NEED_IGNORE;
   }
-  if (!only_get_default_type && !node_info->tensor_map.empty()) {
+  if (!only_get_default_type && !node_info->tensor_map.empty() &&
+      !node_info->tensor_map[node_info->is_input_of_curr_node ? INPUT_INDEX : OUTPUT_INDEX].empty()) {
     index_name_map = node_info->tensor_map[node_info->is_input_of_curr_node ? INPUT_INDEX : OUTPUT_INDEX];
     auto iter = index_name_map.find(anchor_index);
     if (iter == index_name_map.end()) {

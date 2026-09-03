@@ -133,6 +133,7 @@ class ExpressionImpl {
   friend ExpressionImplPtr Min(const ExpressionImplPtr &a, const ExpressionImplPtr &b);
   friend ExpressionImplPtr Abs(const ExpressionImplPtr &a);
   friend ExpressionImplPtr Pow(const ExpressionImplPtr &a, const ExpressionImplPtr &b);
+  friend ExpressionImplPtr Exp(const ExpressionImplPtr &a);
   friend ExpressionImplPtr Mod(const ExpressionImplPtr &a, const ExpressionImplPtr &b);
   friend ExpressionImplPtr Log(const ExpressionImplPtr &a);  // 默认以E为底
   friend ExpressionImplPtr Log(const ExpressionImplPtr &arg, const ExpressionImplPtr &base);

@@ -79,7 +79,6 @@ create_stub_softlink() {
         for lib in $(get_stub_libs_from_filelist); do
             [ -f "$lib" ] && ln -sf "$lib" "$(basename $lib)"
         done
-        chmod u-w .
     })
 }
 
@@ -91,7 +90,6 @@ remove_stub_softlink() {
     local arch_name="$pkg_arch_name"
     ([ -d "$install_path/${arch_name}-linux/devlib" ] && cd "$install_path/${arch_name}-linux/devlib" && {
         chmod u+w . && get_stub_libs_from_filelist | while read -r line; do basename "$line"; done | xargs rm -rf
-        chmod u-w .
     })
 }
 

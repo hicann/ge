@@ -64,8 +64,8 @@ class MatmulAddFusionPass : public PatternFusionPass {
     auto [r_a, r_b] = replace_graph_builder.CreateInputs<2>();
     auto r_c =
         replace_graph_builder.CreateConst(std::vector<float>{0.1f, 0.1f, 0.1f, 0.1f}, std::vector<int64_t>{2, 2});
-    auto alpha_const = replace_graph_builder.CreateScalar(1);
-    auto beta_const = replace_graph_builder.CreateScalar(1);
+    auto alpha_const = replace_graph_builder.CreateScalar(1.0f);
+    auto beta_const = replace_graph_builder.CreateScalar(1.0f);
     auto gemm = es::GEMM(r_a, r_b, r_c, alpha_const, beta_const);
     return replace_graph_builder.BuildAndReset({gemm});
   }

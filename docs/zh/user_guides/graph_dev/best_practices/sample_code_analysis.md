@@ -1,6 +1,6 @@
 # 样例代码解析
 
-本实践采用模块化设计，基于C++语言结合GE图引擎 API与acl（Ascend Computing Language）API实现，完整代码请单击[推荐网络高性能示例](../../../../../examples/recommendation)获取，核心组件构成如下：
+本实践采用模块化设计，基于C++语言结合GE图引擎API与acl（Ascend Computing Language）API实现，完整代码请单击[推荐网络高性能示例](../../../../../examples/recommendation)获取，核心组件构成如下：
 
 1. **ModelInference::Builder**：构建器，配置模型参数；封装ModelInference对象的构建过程，提供链式配置接口。
 2. **ModelInference**：核心类，提供模型初始化、资源管理、任务调度等核心能力。
@@ -18,7 +18,7 @@
 
 ![图2示例](../figures/single_thread_14.png)
 
-1. 调用《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl，调用《Runtime运行时 API》中的“Device管理 \> aclrtSetDevice”指定运行的Device。
+1. 调用《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“初始化和去初始化 \> aclInit”接口，初始化acl，调用《Runtime运行时API》中的“Device管理 \> aclrtSetDevice”指定运行的Device。
 2. 构建ModelInference实例并初始化特性开关：开启批量H2D功能、配置AICore控核策略、使用多实例并行。
 3. ModelInference初始化：
     1. 调用[Session构造函数](../../../api/graph_engine_api/cpp/ge/Session/Session.md)创建Session类对象，申请Session资源，Session中的options中配置ge.aicoreNum参数。
@@ -26,20 +26,20 @@
     3. 调用[aclgrphParseTensorFlow](../../../api/graph_engine_api/cpp/ge/aclgrphParseTensorFlow.md)解析模型，获取Graph。
     4. 调用[AddGraph](../../../api/graph_engine_api/cpp/ge/Session/AddGraph.md)在Session类对象中添加定义好的图。
     5. 调用[CompileGraph](../../../api/graph_engine_api/cpp/ge/Session/CompileGraph.md)完成图编译。
-    6. 调用《Runtime运行时 API》中的“Device管理 \> aclrtGetDevice”获取运行的Device。
+    6. 调用《Runtime运行时API》中的“Device管理 \> aclrtGetDevice”获取运行的Device。
     7. 创建多个线程，每个线程传入相同的Session，Graph ID，Device ID。
 
 4. 提交推理任务到工作线程。下面以一个线程为例，描述工作线程的执行流程：
-    1. 调用《Runtime运行时 API》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream。
+    1. 调用《Runtime运行时API》中的“Device管理 \> aclrtSetDevice”指定运行的Device，调用“aclrtCreateStream”创建Stream。
     2. 调用[LoadGraph](../../../api/graph_engine_api/cpp/ge/Session/LoadGraph.md)（异步执行Graph场景），将图模型加载到上一步骤创建的Stream上。监听任务队列接收并执行任务：
-        1. 调用《Runtime运行时 API》中的“内存管理 \> aclrtMalloc”申请Device内存，调用《Runtime运行时 API》中的“内存管理 \> aclrtMemcpyBatch”将数据从Host批量传输到Device。（如果开启批量H2D功能，使用aclrtMemcpyBatch接口，不开启该功能，则使用aclrtMemcpy接口）。
+        1. 调用《Runtime运行时API》中的“内存管理 \> aclrtMalloc”申请Device内存，调用《Runtime运行时API》中的“内存管理 \> aclrtMemcpyBatch”将数据从Host批量传输到Device。（如果开启批量H2D功能，使用aclrtMemcpyBatch接口，不开启该功能，则使用aclrtMemcpy接口）。
         2. 调用[ExecuteGraphWithStreamAsync](../../../api/graph_engine_api/cpp/ge/Session/ExecuteGraphWithStreamAsync.md)异步执行接口，运行Graph。
         3. 调用“aclrtSynchronizeStream”阻塞程序运行，直到指定Stream中的所有任务都完成。
         4. 调用aclrtMemcpyBatch将数据从Device批量回传到Host。
-        5. 调用《Runtime运行时 API》中的“内存管理 \> aclrtFree”释放内存。
+        5. 调用《Runtime运行时API》中的“内存管理 \> aclrtFree”释放内存。
         6. 执行自定义的回调函数。
 
-5. 调用[GEFinalize](../../../api/graph_engine_api/cpp/ge/Session/GEFinalize.md)，释放系统资源；调用《Runtime运行时 API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
+5. 调用[GEFinalize](../../../api/graph_engine_api/cpp/ge/Session/GEFinalize.md)，释放系统资源；调用《Runtime运行时API》中的“初始化和去初始化 \> aclFinalize”释放相关资源。
 
 ## 开发示例
 

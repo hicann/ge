@@ -232,7 +232,7 @@
     }
     ```
 
-aclrtMallocHost、aclrtMalloc、aclrtFreeHost、aclrtFree等接口详细说明请参见《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理”。
+aclrtMallocHost、aclrtMalloc、aclrtFreeHost、aclrtFree等接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“内存管理”。
 
 ## 编译和运行接口变化
 

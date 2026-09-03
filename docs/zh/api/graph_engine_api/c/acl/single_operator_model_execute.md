@@ -4,7 +4,7 @@
 
 - **[执行固定Shape算子示例代码](static_shape_op_exec_sample_code.md)**
 本节介绍基于单算子模型执行的方式调用固定Shape算子的关键接口、示例代码。
-- **[执行动态Shape算子示例代码](dynamic _shape_op_exec_sample_code.md)**
+- **[执行动态Shape算子示例代码](dynamic_shape_op_exec_sample_code.md)**
 本节介绍基于单算子模型执行的方式调用动态Shape算子的关键接口、示例代码。
 - **[aclopSetModelDir](aclopSetModelDir.md)**
 

@@ -113,9 +113,9 @@ graphStatus ComputeBroadcastShape(const gert::InferSymbolComputeContext *context
   return SUCCESS;
 }
 
-graphStatus AddSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+template <typename BinaryOp>
+graphStatus BinaryElementwiseSymbolicKernelCompute(gert::InferSymbolComputeContext *context, BinaryOp binary_op) {
   GE_ASSERT_NOTNULL(context);
-  GELOGD("Add Symbolic Kernel in, node %s[%s].", context->GetNodeName(), context->GetNodeType());
   std::vector<int64_t> x1_dims;
   if (!context->GetConstInputDims(kX1InputIndex, x1_dims)) {
     GELOGW("SymbolicKernel compute unsupported, reason: get x1 const input dim failed, node %s[%s].",
@@ -150,16 +150,64 @@ graphStatus AddSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
   GE_ASSERT_SUCCESS(BroadcastData(*x1_symbols, x1_dims, output_dims, x1_broadcast));
   std::vector<Expression> x2_broadcast;
   GE_ASSERT_SUCCESS(BroadcastData(*x2_symbols, x2_dims, output_dims, x2_broadcast));
-  GE_ASSERT_TRUE(x1_broadcast.size() == x2_broadcast.size(), "Add broadcast size mismatch: %zu vs %zu",
-                 x1_broadcast.size(), x2_broadcast.size());
+  GE_ASSERT_TRUE(x1_broadcast.size() == x2_broadcast.size(), "broadcast size mismatch: %zu vs %zu", x1_broadcast.size(),
+                 x2_broadcast.size());
   std::vector<Expression> output_values;
   output_values.reserve(x1_broadcast.size());
   for (size_t i = 0UL; i < x1_broadcast.size(); ++i) {
-    output_values.push_back(x1_broadcast[i] + x2_broadcast[i]);
+    output_values.push_back(binary_op(x1_broadcast[i], x2_broadcast[i]));
   }
   return SetOutputShapeAndValue(context, output_dims, std::move(output_values));
 }
 }  // namespace
 
+/**
+ * Add算子的符号化计算
+ * 【算子功能】对两个输入张量执行逐元素加法。
+ * 【推导逻辑】先获取x1和x2的确定Shape及SymbolicValue，按尾部维度补1并逐维校验广播兼容性，生成输出
+ *          Shape；然后根据输入/输出stride将两个SymbolicValue映射到输出线性位置，在每个位置构造x1+x2
+ *          表达式，最后写入输出Shape和SymbolicValue。
+ * 【算子约束】输入Shape必须可确定并满足广播规则，两个输入必须存在且长度匹配的SymbolicValue。
+ * 【举例】x1 Shape=[2,2]、value=[1,2,3,4]，x2 Shape=[1,2]、value=[10,20]时，
+ *          x2广播后输出Shape为[2,2]，输出value为[11,22,13,24]。
+ */
+graphStatus AddSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GELOGD("Add Symbolic Kernel in, node %s[%s].", context->GetNodeName(), context->GetNodeType());
+  return BinaryElementwiseSymbolicKernelCompute(context,
+                                                [](const Expression &x1, const Expression &x2) { return x1 + x2; });
+}
+
+/**
+ * Sub算子的符号化计算
+ * 【算子功能】对两个输入张量执行逐元素减法。
+ * 【推导逻辑】先获取两个输入Shape并按尾部维度执行广播校验，再依据stride展开各输入的SymbolicValue；
+ *          对广播后的每个线性位置构造x1-x2表达式，保持输出布局与广播Shape一致，最后写回输出结果。
+ * 【算子约束】输入Shape必须可确定并满足广播规则，两个输入必须存在且长度匹配的SymbolicValue。
+ * 【举例】x1 Shape=[2,2]、value=[10,20,30,40]，x2 Shape=[1,2]、value=[1,2]时，
+ *          输出Shape为[2,2]，输出value为[9,18,29,38]。
+ */
+graphStatus SubSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GELOGD("Sub Symbolic Kernel in, node %s[%s].", context->GetNodeName(), context->GetNodeType());
+  return BinaryElementwiseSymbolicKernelCompute(context,
+                                                [](const Expression &x1, const Expression &x2) { return x1 - x2; });
+}
+
+/**
+ * Mul算子的符号化计算
+ * 【算子功能】对两个输入张量执行逐元素乘法。
+ * 【推导逻辑】先获取两个输入Shape并按尾部维度执行广播校验，再依据stride展开各输入的SymbolicValue；
+ *          对广播后的每个线性位置构造x1*x2表达式，保持输出布局与广播Shape一致，最后写回输出结果。
+ * 【算子约束】输入Shape必须可确定并满足广播规则，两个输入必须存在且长度匹配的SymbolicValue。
+ * 【举例】x1 Shape=[2,2]、value=[2,3,4,5]，x2 Shape=[1,2]、value=[10,20]时，
+ *          输出Shape为[2,2]，输出value为[20,60,40,100]。
+ */
+graphStatus MulSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
+  GELOGD("Mul Symbolic Kernel in, node %s[%s].", context->GetNodeName(), context->GetNodeType());
+  return BinaryElementwiseSymbolicKernelCompute(context,
+                                                [](const Expression &x1, const Expression &x2) { return x1 * x2; });
+}
+
 REGISTER_SYMBOLIC_KERNEL(Add, AddSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(Sub, SubSymbolicKernelCompute);
+REGISTER_SYMBOLIC_KERNEL(Mul, MulSymbolicKernelCompute);
 }  // namespace ge

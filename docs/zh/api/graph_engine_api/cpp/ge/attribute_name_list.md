@@ -86,7 +86,7 @@ vector_core_cnt=48
 - true：算子执行不受超时时间限制，永不超时。
 - false：算子执行受超时时间限制。
 
-用户可以通过《Runtime运行时 API》中的“执行控制 \> aclrtSetOpExecuteTimeOutV2”接口设置算子执行的超时时间。
+用户可以通过《Runtime运行时API》中的“执行控制 \> aclrtSetOpExecuteTimeOutV2”接口设置算子执行的超时时间。
 
 **使用约束：**
 

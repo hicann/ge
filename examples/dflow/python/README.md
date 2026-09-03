@@ -35,7 +35,7 @@
 ## 环境准备
 - 参考[环境准备](../../../docs/zh/quick_install.md)下载安装驱动/固件/CANN软件包；
 
-- python 版本要求：python3.11 具体版本以dataflow wheel包编译时用的python版本为准，如果需要使用不同python版本，可以参考[编译](../../../docs/zh/build.md#43-编译)重新编译ge_compiler包并安装；
+- python 版本要求：python3.12 具体版本以dataflow wheel包编译时用的python版本为准，如果需要使用不同python版本，可以参考[编译](../../../docs/zh/build.md#43-编译)重新编译ge_compiler包并安装；
 
 - config目录下的模型生成脚本 model_generator.py 依赖tensorflow-cpu和onnx，需通过 pip3 install tensorflow-cpu 和 pip3 install onnx 安装；
 
@@ -63,13 +63,13 @@ export ASCEND_GLOBAL_LOG_LEVEL=3       #0 debug 1 info 2 warn 3 error 不设置�
 source {HOME}/Ascend/cann/set_env.sh #{HOME}为CANN软件包安装目录，请根据实际安装路径进行替换
 export RESOURCE_CONFIG_PATH=./numa_config.json # 请根据实际生成的文件路径指定
 
-python3.11 sample_base.py
-python3.11 sample_udf_python.py
-python3.11 sample_exception.py
-python3.11 sample_pytorch.py
-python3.11 sample_npu_model.py
-python3.11 sample_multiple_model.py
-python3.11 sample_perf.py
+python3.12 sample_base.py
+python3.12 sample_udf_python.py
+python3.12 sample_exception.py
+python3.12 sample_pytorch.py
+python3.12 sample_npu_model.py
+python3.12 sample_multiple_model.py
+python3.12 sample_perf.py
 
 # unset此环境变量，防止影响非dflow用例
 unset RESOURCE_CONFIG_PATH

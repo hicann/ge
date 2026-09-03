@@ -95,7 +95,7 @@ bash scripts/check_env.sh
 | **[ERROR]**   | 关键依赖缺失或版本不兼容     | 必须修复，否则无法编译   |
 
 > [!NOTE] 注意
-> 环境检查脚本中所有的检查项和版本约束严格来源于 docs/zh/build.md 和 requirements.txt，如文档和依赖更新，请同步修改[脚本](../../scripts/check_env.sh)。
+> 环境检查脚本中所有的检查项和版本约束严格来源于docs/zh/build.md和requirements.txt，如文档和依赖更新，请同步修改[脚本](../../scripts/check_env.sh)。
 
 ### 4.3 编译
 
@@ -146,11 +146,11 @@ bash scripts/check_env.sh
 
 - 统计代码覆盖率:
 
-  使用 `tests/run_test.sh` 脚本的 `-c` 参数可以在测试用例运行过程中生成代码覆盖率统计文件。
+  使用`tests/run_test.sh`脚本的`-c`参数可以在测试用例运行过程中生成代码覆盖率统计文件。
 
   **前置条件**：
-  - 确保 `lcov` 工具已正确安装
-  - 编译运行环境上的 `gcc` 和 `gcov` 必须是配套版本
+  - 确保`lcov`工具已正确安装
+  - 编译运行环境上的`gcc`和`gcov`必须是配套版本
 
   **使用方法**：
 
@@ -158,7 +158,7 @@ bash scripts/check_env.sh
   bash tests/run_test.sh -c [其他参数]
   ```
 
-  **输出位置**：生成的覆盖率文件位于代码根目录下的 `cov/` 目录中。
+  **输出位置**：生成的覆盖率文件位于代码根目录下的`cov/`目录中。
 
 - 执行指定用例：
 
@@ -168,7 +168,7 @@ bash scripts/check_env.sh
   - 已经执行了UT/ST对应的测试命令，并正确生成了测试可执行文件。
 
   **使用方法**：
-  - 示例：已经执行了 `bash tests/run_test.sh --ut=ge_common` ，并希望单独执行验证 `ut_libge_multiparts_utest` ：
+  - 示例：已经执行了`bash tests/run_test.sh --ut=ge_common` ，并希望单独执行验证`ut_libge_multiparts_utest`：
 
   ```bash
   # 测试UT/ST会对部分依赖so进行打桩处理，需要清除LD_LIBRARY_PATH和ASCEND_OPP_PATH环境变量，避免宿主机已安装的 CANN/Ascend 环境干扰测试

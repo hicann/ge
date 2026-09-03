@@ -20,6 +20,7 @@
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
 #include "framework/common/debug/ge_log.h"
+#include "graph/def_types.h"
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_c_api.h"
 
@@ -34,7 +35,10 @@ namespace onnx_bridge = ::ge::onnx_plugin_bridge;
 
 std::string GetLoaderLibraryPath() {
   Dl_info dl_info{};
-  if ((dladdr(reinterpret_cast<void *>(&LoadOnnxPythonPluginBridge), &dl_info) == 0) ||
+  // pass this function's address via PtrToPtr; decltype names the function type so the
+  // template parameter list stays in sync with the real signature.
+  if ((dladdr(PtrToPtr<decltype(LoadOnnxPythonPluginBridge), const void>(&LoadOnnxPythonPluginBridge), &dl_info) ==
+       0) ||
       (dl_info.dli_fname == nullptr) || (dl_info.dli_fname[0] == '\0')) {
     return "";
   }

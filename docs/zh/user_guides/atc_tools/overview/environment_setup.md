@@ -2,7 +2,7 @@
 
 ## 获取ATC工具
 
-进行模型转换前，请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（针对8.5.0及之后版本，必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败）。以root用户的默认安装路径为例，ATC工具安装在“/usr/local/Ascend/cann/bin”目录中。
+进行模型转换前，请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》完成环境搭建，并确保已安装CANN Toolkit开发套件包和ops算子包（针对8.5.0及之后版本，必须安装与目标AI处理器相匹配的ops算子包，否则会导致编译失败）。以root用户的默认安装路径为例，ATC工具安装在“/usr/local/Ascend/cann/bin”目录中。
 
 支持在同一开发环境中部署多个芯片的算子包，实现多芯片场景下的模型转换，可通过在不同路径下分别安装CANN Toolkit开发套件及对应芯片（如芯片A、芯片B）的算子包，例如：
 
@@ -17,8 +17,8 @@
 >
 >- 使用export方式设置环境变量后，环境变量只在当前窗口有效，用户可以按需将以上命令写入环境变量配置文件（如.bashrc文件）。
 >- 使用ATC工具进行模型转换的过程中，会自动将ATC工具所在位置“../python/site-packages”目录下算子编译依赖的Python库写入PYTHONPATH环境变量。
-> 若算子实现时用户引入了上述依赖外的其他Python依赖，请自行添加PYTHONPATH的环境变量，配置引入的Python依赖所在路径，如下所示：
-> export PYTHONPATH=_xxxx_:$PYTHONPATH
+> 若算子实现时用户引入了上述依赖外的其他Python依赖，请自行添加PYTHONPATH的环境变量，配置引入的Python依赖所在路径，示例为：
+> `export PYTHONPATH=_xxxx_:$PYTHONPATH`
 
 1. **必选环境变量**
 

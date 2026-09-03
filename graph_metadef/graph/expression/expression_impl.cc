@@ -681,6 +681,13 @@ ExpressionImplPtr Pow(const ExpressionImplPtr &a, const ExpressionImplPtr &b) {
   return ExpressionImpl::CreateExpressionImpl<const SymEngineExprPtr &>(sym_expr);
 }
 
+ExpressionImplPtr Exp(const ExpressionImplPtr &a) {
+  GE_ASSERT_NOTNULL(a);
+  GE_ASSERT_TRUE(!a->sym_expr_.is_null());
+  SymEngineExprPtr sym_expr = SymEngine::pow(SymEngine::E, a->sym_expr_);
+  return ExpressionImpl::CreateExpressionImpl<const SymEngineExprPtr &>(sym_expr);
+}
+
 ExpressionImplPtr Mod(const ExpressionImplPtr &a, const ExpressionImplPtr &b) {
   GE_ASSERT_NOTNULL(a);
   GE_ASSERT_NOTNULL(b);

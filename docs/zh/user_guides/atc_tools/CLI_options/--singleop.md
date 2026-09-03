@@ -182,7 +182,7 @@ IPV350：不支持
 单算子描述文件（JSON格式）格式以及参数配置请参见[单算子模型转换](../sinlgeop_model_convert/sinlgeop_model_convert.md)。
 
 **参数值约束：**
-该参数指定的单算子都是基于Ascend IR定义的，关于单算子的详细定义请参见《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”章节。
+该参数指定的单算子都是基于Ascend IR定义的，关于单算子的详细定义请参见《[算子库](https://gitcode.com/cann/docs/blob/master/docs/zh/ops-lib/0_README.md)》中的“Ascend IR算子规格说明”章节。
 
 ## 推荐配置及收益
 

@@ -80,5 +80,6 @@ IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Swish).InferSymbolShape(InferShape4ElementWise)
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Sin).InferSymbolShape(InferShape4ElementWise);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MaskedFill).InferSymbolShape(InferShape4ElementWise);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Ceil).InferSymbolShape(InferShape4ElementWise);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(TensorScatterUpdate).InferSymbolShape(InferShape4ElementWise);
 }  // namespace
 }  // namespace ge

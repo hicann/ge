@@ -156,9 +156,9 @@ python3 ge_ms_autotune.py --run-command "..." \
 |---|---|---|
 | `--mode` | `online` | `online` 本机执行；`offline` 编译 OM 后送目标机执行 |
 | `--run-command` | online 必填 | 被测命令，整体加引号；按 shell 词法切分后直接执行，不经过 shell |
-| `--compile-command` | offline 必填 | 编译 OM 的命令，用 `{om}`（含 `.om`）或 `{om_prefix}`（不含后缀）占位输出路径 |
+| `--compile-command` | offline 必填 | 编译 OM 的命令，用 `{om}`（含 `.om`）或 `{om_prefix}`（不含后缀）占位输出路径；ATC 编动态 Shape 时**必定**把产物改名为 `<prefix>_<os>_<cpu>.om`（如 `_linux_x86_64`，后缀取目标运行环境，无开关可关），驱动两种命名都接受，只认本轮新产出的那一份 |
 | `--target` | offline 必填 | 目标机配置 JSON 路径，字段见[离线场景](#离线场景目标机执行) |
-| `--om-dir` | `<output-dir>/om` | offline：OM 产物与编译日志的存放目录 |
+| `--om-dir` | `<本次运行目录>/om` | offline：OM 产物与编译日志的存放目录 |
 | `--strategies` | `LoadBalance,MainStream` | 候选策略，逗号分隔，可选 `LoadBalance`/`MainStream`/`WeightedLoadBalance`/`cv` |
 | `--streams` | `2,4,8` | 候选流数，逗号分隔，取值 `[1,64]`；`cv` 策略不带流数 |
 | `--configs` | 空 | 直接给定候选（如 `default,LoadBalance:4`），指定后忽略上面两个矩阵参数 |
@@ -167,7 +167,7 @@ python3 ge_ms_autotune.py --run-command "..." \
 | `--min-steps` | `5` | 单轮有效 STEP 数下限，低于该值判为无效 |
 | `--main-graph` | 自动 | 多执行对象时指定主对象：`session_id:graph_id` 或 `model:model_id`；默认取 STEP 数最多者 |
 | `--timeout` | `1800` | 单轮超时秒数，`0` 表示不限制 |
-| `--output-dir` | `./ge_ms_autotune_output` | 结果目录，必须不存在或为空 |
+| `--output-dir` | `./ge_ms_autotune_output` | 结果父目录；每次运行自动创建带时间戳的子目录 |
 
 `default` 基准会自动加入候选列表并排在首位。
 
@@ -175,15 +175,19 @@ python3 ge_ms_autotune.py --run-command "..." \
 
 ```
 tune_out/
-├── summary.csv / summary.json          候选汇总（含各轮明细与无效原因）
-├── om/                                 仅 offline：各候选 OM 与编译日志
-├── target_*.log                        仅 offline：远端目录准备、上传、清理日志
-└── trial_000_default_r1/
-    ├── stdout.log                      被测命令（offline 为远端 ssh 会话）的 stdout+stderr
-    ├── steps.csv                       本轮解析出的全部 STEP
-    ├── fetch_plog.log                  仅 offline：plog 回传日志
-    └── plog/                           本轮 GE 日志（offline 为目标机回传的副本）
+└── run_20260902_143015_12345/          本次运行自动创建的结果子目录
+    ├── summary.csv / summary.json      候选汇总（含各轮明细与无效原因）
+    ├── om/                             仅 offline：各候选 OM 与编译日志
+    ├── target_*.log                    仅 offline：远端目录准备、上传、清理日志
+    └── trial_000_default_r1/
+        ├── stdout.log                  被测命令（offline 为远端 ssh 会话）的 stdout+stderr
+        ├── steps.csv                   本轮解析出的全部 STEP
+        ├── fetch_plog.log              仅 offline：plog 回传日志
+        └── plog/                       本轮 GE 日志（offline 为目标机回传的副本）
 ```
+
+`--output-dir` 可以复用已有目录，无需提前清空。驱动脚本会在其中创建
+`run_YYYYMMDD_HHMMSS_PID` 格式的子目录（同一秒内重复运行时自动追加序号），并在控制台打印本次实际结果路径。
 
 统计口径与推荐规则：
 
@@ -251,6 +255,31 @@ tune_out/
         │  结束后 rm -rf <remote_workdir>
 ```
 
+### 编译机与执行机为同一环境
+
+离线模式仍然按“编译 OM → 执行 OM”的流程运行，只是把目标机配置为当前机器，通过 SSH/SCP
+访问本机。先确认当前用户可以免交互登录本机（例如 `ssh 127.0.0.1`），并准备一个不会存放其他文件的
+绝对路径作为 `remote_workdir`；寻优结束后该目录会被整目录删除。
+
+例如当前用户已配置 `~/.ssh/id_rsa`：
+
+```json
+{
+  "host": "127.0.0.1",
+  "port": 22,
+  "user": "当前登录用户名",
+  "identity_file": "~/.ssh/id_rsa",
+  "remote_workdir": "/tmp/ge_ms_autotune",
+  "cann_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+  "run_command": "python3 /data/infer.py --om {om} --loop 20"
+}
+```
+
+编译命令在当前 shell 中执行，因此先 source 编译机上的 CANN 环境；`cann_env` 用于本机 SSH
+会话再次加载同一套环境。编译命令中的模型路径、目标机 `run_command` 中的程序路径以及
+`remote_workdir` 都应当是当前机器可见的路径。若本机未启用 SSH 服务，可改用已配置的其他本机地址，
+或先启动 SSH 服务；认证方式与跨机离线场景相同。
+
 ### 目标机配置
 
 ```json
@@ -284,7 +313,7 @@ tune_out/
 驱动脚本只上传 OM，不部署程序。该程序需满足：
 
 - 加载工具传入的 `{om}`。它会被替换为目标机上该候选 OM 的绝对路径
-  （`<remote_workdir>/om/model_<候选>.om`）；候选切换完全靠换 OM，程序本身无需感知多流配置；
+  （`<remote_workdir>/om/model_<候选>.om`，动态 Shape 下带 `_linux_x86_64` 等平台后缀，与编译产物同名）；候选切换完全靠换 OM，程序本身无需感知多流配置；
 - 各候选使用完全相同的固定输入与迭代次数；
 - warmup 之后至少执行 `--min-steps` 次（默认 5，正式比较建议 20 起）；
 - 使用打点覆盖的 ACL 接口 `aclmdlExecute`/`aclmdlExecuteV2`/`aclmdlExecuteAsync`。
@@ -336,5 +365,7 @@ python3 ge_ms_autotune.py --mode offline \
 | 与 `ge.enableSingleStream=true` 同时配置报参数错误 | 单流与自动多流互斥，二者只能选一 |
 | offline：提示需要 `sshpass` | 编译机未装 `sshpass`；装上，或改配 `identity_file` 走密钥认证 |
 | offline：ssh 连不上或反复要密码 | 先手工 `ssh -i <key> user@host` 验证；驱动使用 `BatchMode=yes`，不会交互输密码 |
-| offline：候选编译失败 | 看 `<output-dir>/om/compile_<候选>.log`；确认 `--compile-command` 的 `{om_prefix}` 与实际产物路径一致 |
+| offline：候选编译失败 | 看本次运行目录下 `om/compile_<候选>.log`；确认 `--compile-command` 的 `{om_prefix}` 与实际产物路径一致 |
+| offline：提示"未产出 OM"但 om 目录里有文件 | 那是上一轮的残留，驱动只认本轮新写入的产物；换一个 `--output-dir` 重跑 |
+| offline：提示"本轮产出多个 OM" | 一条编译命令输出了多份产物（如同时编了两个架构）；改成每个候选只出一份 |
 | offline：STEP 全部缺失 | 目标机推理程序未走覆盖到的 ACL 接口，或 `cann_env` 没配导致 plog 落到别处 |

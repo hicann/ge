@@ -1,4 +1,4 @@
-# 图开发指南
+# 图开发
 
 - [入门教程](overview/getting_started.md)
   - [什么是GE图引擎](overview/GE_definition.md)
