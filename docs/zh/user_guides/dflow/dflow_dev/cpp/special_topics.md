@@ -26,7 +26,7 @@
 
 #### 环境准备
 
-- 进行UDF开发前，需要完成驱动固件及开发套件包Ascend-cann-toolkit的安装，详细操作请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
+- 进行UDF开发前，需要完成驱动固件及开发套件包Ascend-cann-toolkit的安装，详细操作请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 - 配置环境变量CANN软件包安装路径ASCEND\_INSTALL\_PATH，UDF编译时根据该环境变量寻找依赖的头文件和so，如果不设置，默认该环境变量取值为“/usr/local/Ascend”。配置示例如下。
 
     ```shell

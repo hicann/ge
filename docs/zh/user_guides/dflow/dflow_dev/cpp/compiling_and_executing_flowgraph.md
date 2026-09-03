@@ -13,7 +13,7 @@
 5. 调用"GEFinalize"接口，释放系统资源。
 
 > [!NOTE]说明
->如上步骤中的“GEInitialize”、“Session构造函数”、“AddGraph”、“RunGraph”、“GEFinalize”详细信息请参考《[GE图引擎 API](../../../../api/graph_engine_api/README.md)》。
+>如上步骤中的“GEInitialize”、“Session构造函数”、“AddGraph”、“RunGraph”、“GEFinalize”详细信息请参考《[GE图引擎API](../../../../api/graph_engine_api/README.md)》。
 >使用DataFlow开发框架时，NN模型执行使用的是饱和模式。该模式下计算精度可能存在误差，该模式仅为兼容旧版本，后续不演进。
 
 ## 开发示例

@@ -61,7 +61,7 @@ const char *aclmdlGetOutputNameByIndex(const aclmdlDesc *modelDesc, size_t index
 
     output_网络输出下标_输出算子名称_算子输出边下标
 
-    构图接口的详细说明请参见《[图开发](https://hiascend.com/document/redirect/CannCommunityGraphguide)》。
+    构图接口的详细说明请参见《[图开发](../../../../user_guides/graph_dev/compile_and_run_graph/compile_graph_to_offline_model.md)》。
 
 - ONNX网络
   - 在构建模型时，不指定输出节点名称（node\_name）或输出名称（output的name），或者仅指定输出名称，返回值格式如下，各项之间以冒号分割：
@@ -80,6 +80,6 @@ const char *aclmdlGetOutputNameByIndex(const aclmdlDesc *modelDesc, size_t index
 
         output_网络输出下标_输出算子名称_算子输出边下标
 
-        构图接口的详细说明请参见《[图开发](https://hiascend.com/document/redirect/CannCommunityGraphguide)》。
+        构图接口的详细说明请参见《[图开发](../../../../user_guides/graph_dev/compile_and_run_graph/compile_graph_to_offline_model.md)》。
 
   - 同时指定输出节点名称（node\_name）和输出名称（output的name），接口返回报错。

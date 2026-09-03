@@ -257,7 +257,7 @@ typedef enum {
 
 如果设置了ACL\_OP\_DEBUG\_LEVEL编译选项，则只有编译选项值为0才会启用编译缓存功能，其它取值禁用编译缓存功能。
 
-关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见《[环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)》。
+关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
 
 ## ACL\_OP\_PERFORMANCE\_MODE取值说明
 
@@ -304,7 +304,7 @@ Atlas 推理系列产品，该选项默认值为enable。
 <!-- end id13 -->
 
 <!-- npu="950,A3,910b,910,310p,310b" id17 -->
-若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[软件安装](https://hiascend.com/document/redirect/CannCommunityInstSoftware)》。
+若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 <!-- end id17 -->
 
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclCompileOpt_res.md#id2 -->

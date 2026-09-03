@@ -36,4 +36,4 @@ Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocato
 - 对于不同流，如果用户使用同一个Allocator，不可以多条流并发执行，在执行下一条Stream前，需要对上一Stream做流同步。
 - 将Allocator中的内存释放给操作系统前，需要先调用接口“aclrtSynchronizeStream”执行流同步，确保Stream中的任务已执行完成。
 
-    接口详细介绍请参见《Runtime运行时 API》中的“Stream管理”。
+    接口详细介绍请参见《Runtime运行时API》中的“Stream管理”。

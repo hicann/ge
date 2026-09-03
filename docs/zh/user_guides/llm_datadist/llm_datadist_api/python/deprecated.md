@@ -5,5 +5,5 @@
   - [dtype](dtype.md)
   - [shape](shape.md)
 - [Tensor](Tensor.md)
-  - [Tensor-constructor](/Tensor-constructor.md)
+  - [Tensor-constructor](Tensor-constructor.md)
   - [numpy](numpy.md)

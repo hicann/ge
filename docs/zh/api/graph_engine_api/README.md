@@ -1,4 +1,4 @@
-# GE图引擎 API
+# GE图引擎API
 
 - [头文件和库文件说明](header_and_library_files_description.md)
 - [C++语言接口](cpp/cpp_language_interface.md)
@@ -45,7 +45,7 @@
       - [InstanceOutputStorageFormat](cpp/ge/es/CompliantNodeBuilder/InstanceOutputStorageFormat.md)
       - [IrAttrDef](cpp/ge/es/CompliantNodeBuilder/IrAttrDef.md)
       - [IrAttrDefV2](cpp/ge/es/CompliantNodeBuilder/IrAttrDefV2/IrAttrDefV2.md)
-        - [简介](cpp/ge/es/CompliantNodeBuilder/overview.md)
+        - [简介](cpp/ge/es/CompliantNodeBuilder/IrAttrDefV2/overview.md)
         - [IrAttrDefV2构造函数](cpp/ge/es/CompliantNodeBuilder/IrAttrDefV2/IrAttrDefV2_constructor.md)
         - [AttrDataType](cpp/ge/es/CompliantNodeBuilder/IrAttrDefV2/AttrDataType.md)
         - [AttrName](cpp/ge/es/CompliantNodeBuilder/IrAttrDefV2/AttrName.md)
@@ -64,7 +64,7 @@
       - [IrDefOutputsV2](cpp/ge/es/CompliantNodeBuilder/IrDefOutputsV2.md)
       - [IrInputDef](cpp/ge/es/CompliantNodeBuilder/IrInputDef.md)
       - [IrInputDefV2](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/IrInputDefV2.md)
-        - [简介](cpp/ge/es/CompliantNodeBuilder/overview.md)
+        - [简介](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/overview.md)
         - [IrInputDefV2构造函数](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/IrInputDefV2_constructor.md)
         - [GetInputType](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetInputType.md)
         - [GetName](cpp/ge/es/CompliantNodeBuilder/IrInputDefV2/GetName.md)
@@ -452,7 +452,7 @@
       - [CheckNodeSupportOnAicore](cpp/ge/GeUtils/CheckNodeSupportOnAicore.md)
 
     - [Graph](cpp/ge/Graph/Graph.md)
-      - [简介](python/ge/graph/Graph/overview.md)
+      - [简介](cpp/ge/Graph/overview.md)
       - [Graph构造函数和析构函数](cpp/ge/Graph/Graph_constructor_and_destructor.md)
       - [AddControlEdge](cpp/ge/Graph/AddControlEdge.md)
       - [AddDataEdge](cpp/ge/Graph/AddDataEdge.md)
@@ -920,7 +920,7 @@
       - [div](python/ge/es/TensorHolder/div.md)
       - [get\_owner\_builder](python/ge/es/TensorHolder/get_owner_builder.md)
       - [mul](python/ge/es/TensorHolder/mul.md)
-      - [name](python/ge/es/GraphBuilder/name.md)
+      - [name](python/ge/es/TensorHolder/name.md)
       - [set\_data\_type](python/ge/es/TensorHolder/set_data_type.md)
       - [set\_format](python/ge/es/TensorHolder/set_format.md)
       - [set\_shape](python/ge/es/TensorHolder/set_shape.md)

@@ -52,7 +52,7 @@
     OpType::TypeName2:InputDtype:dtype1,dtype2,...,OutputDtype:dtype1,...
     ```
 
-算子具体支持的计算精度可以从《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》\> “Ascend IR算子规格说明”中查看。
+算子具体支持的计算精度可以从《[算子库](https://gitcode.com/cann/docs/blob/master/docs/zh/ops-lib/0_README.md)》\> “Ascend IR算子规格说明”中查看。
 
 以TensorFlow ResNet50网络模型中的Relu算子为例，其对应的Ascend IR定义的算子类型为Relu，该算子输入和输出只有一个，该配置样例如下：
 

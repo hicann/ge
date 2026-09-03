@@ -4,7 +4,7 @@
 
 ### 前提条件
 
-- 安装软件包：准备带有AI处理器的硬件环境，并安装驱动固件和CANN软件包，具体安装步骤请参见《[软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
+- 安装软件包：准备带有AI处理器的硬件环境，并安装驱动固件和CANN软件包，具体安装步骤请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 - GCC版本：要求9.5.0及以上，建议使用9.5.0版本。
 - CMake：要求3.20.0版本及以上，建议使用3.20.0版本。
 - 安装mspti，mspti有两种获取方式（开启PGO特性时需要安装该依赖）：

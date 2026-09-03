@@ -105,7 +105,7 @@ namespace ge{
 
 - 对于内置算子，用户可以通过如下两种方式获取算子原型：
 
-  - 从《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》中的“Ascend IR算子规格说明”获取，如下图所示。
+  - 从《[算子库](https://gitcode.com/cann/docs/blob/master/docs/zh/ops-lib/0_README.md)》中的“Ascend IR算子规格说明”获取，如下图所示。
 
       **图 1**  查看算子原型信息
       ![算子原型信](../figures/view_op_prototype_info.png "查看算子原型信息")

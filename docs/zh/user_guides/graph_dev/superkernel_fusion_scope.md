@@ -160,7 +160,7 @@ SuperKernel是一种基于二进制层面的算子融合技术，区别于传统
     }
     ```
 
-    上述acl接口详细说明请参见《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》。
+    上述acl接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》。
 
 - **标定算子不融合到SuperKernel的关键步骤示例**
 
@@ -204,4 +204,4 @@ SuperKernel是一种基于二进制层面的算子融合技术，区别于传统
     }
     ```
 
-    上述acl接口详细说明请参见《[Runtime运行时 API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》。
+    上述acl接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》。
