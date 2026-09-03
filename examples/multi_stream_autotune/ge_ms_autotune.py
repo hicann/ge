@@ -42,6 +42,9 @@ PASSWORD_ENV = "GE_MS_TARGET_PASSWORD"
 STRATEGIES = ("LoadBalance", "MainStream", "WeightedLoadBalance", "cv")
 BASELINE_CONFIG = "default"
 MAX_STREAMS = 64
+# 判定 OM 是否为本轮新产出时允许的时间误差（秒）：
+# 文件修改时间的精度可能低于程序取到的时刻，刚写出的文件也可能显得略早
+OM_TIME_TOLERANCE_SECONDS = 2.0
 REQUIRED_FIELDS = (
     "api",
     "mode",
@@ -590,6 +593,7 @@ def compile_candidates(
         environment = os.environ.copy()
         environment[MODE_ENV] = config
         print("[编译] 候选={} → {}".format(config, om_path.name))
+        started_at = time.time()
         run_stage(
             argv,
             args.om_dir / "compile_{}.log".format(slug),
@@ -597,14 +601,51 @@ def compile_candidates(
             args.timeout,
             "候选 {} 编译".format(config),
         )
-        if not om_path.is_file():
-            raise AutotuneError(
-                "候选 {} 未产出 {}，检查 --compile-command 的输出路径。".format(
-                    config, om_path
-                )
-            )
-        oms[config] = om_path
+        actual_om_path = find_compiled_om(prefix, config, started_at)
+        if actual_om_path != om_path:
+            print("      ATC 生成带平台后缀的 OM：{}".format(actual_om_path.name))
+        oms[config] = actual_om_path
     return oms
+
+
+def find_compiled_om(prefix: Path, config: str, since: float) -> Path:
+    """定位本轮实际产出的 OM，兼容动态 Shape 的 `_<os>_<cpu>` 后缀。
+
+    静态 Shape 产出 `<prefix>.om`；动态 Shape 下 ATC 一定会把文件名改写成
+    `<prefix>_<host_env_os>_<host_env_cpu>.om`，后缀取自目标运行环境（交叉编译时
+    与编译机不同），无开关可关，两种命名都要接受。`since` 用于排除上一轮遗留的
+    同名产物；`--save_original_model` 附带的 `_original.om` 不可执行，需排除。
+    """
+    om_path = prefix.with_suffix(".om")
+    original_name = prefix.name + "_original.om"
+    produced = [
+        path
+        for path in [om_path, *prefix.parent.glob(prefix.name + "_*.om")]
+        if path.is_file() and path.name != original_name
+    ]
+    fresh = sorted(
+        path
+        for path in produced
+        if path.stat().st_mtime >= since - OM_TIME_TOLERANCE_SECONDS
+    )
+    if not fresh:
+        detail = ""
+        if produced:
+            detail = "，同目录下只有上一轮的 {}".format(
+                ", ".join(path.name for path in sorted(produced))
+            )
+        raise AutotuneError(
+            "候选 {} 未产出 OM，期望 {} 或带 `_<os>_<cpu>` 后缀的同名文件{}。"
+            "检查 --compile-command 的输出路径。".format(config, om_path, detail)
+        )
+    if len(fresh) > 1:
+        raise AutotuneError(
+            "候选 {} 本轮产出多个 OM（{}），无法判定用哪一个，"
+            "请让 --compile-command 每个候选只输出一份产物。".format(
+                config, ", ".join(path.name for path in fresh)
+            )
+        )
+    return fresh[0]
 
 
 def upload_candidates(oms: Dict[str, Path], args: argparse.Namespace) -> Dict[str, str]:
@@ -990,9 +1031,27 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         default="./ge_ms_autotune_output",
-        help="结果目录，需不存在或为空",
+        help="结果父目录，本次运行会在其中创建带时间戳的子目录",
     )
     return parser
+
+
+def create_run_output_dir(base_dir: Path) -> Path:
+    """在用户指定的父目录下创建本次运行的唯一结果目录。"""
+    if base_dir.exists() and not base_dir.is_dir():
+        raise AutotuneError("结果父目录不是目录：{}".format(base_dir))
+    base_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    prefix = "run_{}_{}".format(timestamp, os.getpid())
+    for attempt in range(1000):
+        suffix = "" if attempt == 0 else "_{}".format(attempt)
+        run_dir = base_dir / (prefix + suffix)
+        try:
+            run_dir.mkdir()
+            return run_dir
+        except FileExistsError:
+            continue
+    raise AutotuneError("无法在结果父目录下创建唯一运行目录：{}".format(base_dir))
 
 
 def prepare_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
@@ -1002,12 +1061,6 @@ def prepare_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     prepare_mode_args(args)
     args.main_graph = parse_main_graph(args.main_graph)
     args.output_dir = Path(args.output_dir).expanduser().resolve()
-    if args.output_dir.exists() and any(args.output_dir.iterdir()):
-        raise AutotuneError(
-            "结果目录非空，请换一个 --output-dir：{}".format(args.output_dir)
-        )
-    if args.mode == "offline" and args.om_dir is None:
-        args.om_dir = args.output_dir / "om"
     return args
 
 
@@ -1070,7 +1123,9 @@ def execute_trials(
 def run(argv: Optional[Sequence[str]] = None) -> int:
     args = prepare_args(argv)
     configs = build_configs(args.configs, args.strategies, args.streams)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    args.output_dir = create_run_output_dir(args.output_dir)
+    if args.mode == "offline" and args.om_dir is None:
+        args.om_dir = args.output_dir / "om"
     print(
         "候选配置（{} 个 × {} 轮，{} 模式）：{}".format(
             len(configs), args.repeat, args.mode, ", ".join(configs)

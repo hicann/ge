@@ -166,9 +166,9 @@ python3 ge_ms_autotune.py --run-command "..." \
 |---|---|---|
 | `--mode` | `online` | `online` runs locally; `offline` builds OMs and runs them on a target machine |
 | `--run-command` | required (online) | Command under test, quoted as a whole; split with shell lexing and executed directly, not through a shell |
-| `--compile-command` | required (offline) | OM build command; use `{om}` (with `.om`) or `{om_prefix}` (without suffix) for the output path |
+| `--compile-command` | required (offline) | OM build command; use `{om}` (with `.om`) or `{om_prefix}` (without suffix) for the output path. For dynamic shapes ATC **always** renames the artifact to `<prefix>_<os>_<cpu>.om` (e.g. `_linux_x86_64`, taken from the target runtime environment, with no switch to disable it); the driver accepts both names and only picks the artifact written by the current build |
 | `--target` | required (offline) | Path to the target machine JSON, see [Offline mode](#offline-mode-target-machine) |
-| `--om-dir` | `<output-dir>/om` | offline: where OMs and build logs are stored |
+| `--om-dir` | `<current-run-dir>/om` | offline: where OMs and build logs are stored |
 | `--strategies` | `LoadBalance,MainStream` | Candidate strategies: `LoadBalance`, `MainStream`, `WeightedLoadBalance`, `cv` |
 | `--streams` | `2,4,8` | Candidate stream counts in `[1,64]`; the `cv` strategy takes no stream count |
 | `--configs` | empty | Explicit candidate list (for example `default,LoadBalance:4`); overrides the two matrix options above |
@@ -177,7 +177,7 @@ python3 ge_ms_autotune.py --run-command "..." \
 | `--min-steps` | `5` | Minimum valid STEP records per run |
 | `--main-graph` | auto | Pick the main execution object explicitly: `session_id:graph_id` or `model:model_id`; by default the one with the most records |
 | `--timeout` | `1800` | Per-run timeout in seconds, `0` disables it |
-| `--output-dir` | `./ge_ms_autotune_output` | Result directory, must be missing or empty |
+| `--output-dir` | `./ge_ms_autotune_output` | Result parent directory; a timestamped subdirectory is created for each run |
 
 The `default` baseline is always added as the first candidate.
 
@@ -185,15 +185,20 @@ The `default` baseline is always added as the first candidate.
 
 ```
 tune_out/
-├── summary.csv / summary.json          per-candidate summary, per-run details and reject reasons
-├── om/                                 offline only: one OM per candidate plus build logs
-├── target_*.log                        offline only: remote prepare, upload and cleanup logs
-└── trial_000_default_r1/
-    ├── stdout.log                      stdout and stderr of the run (the ssh session when offline)
-    ├── steps.csv                       all STEP records parsed from this run
-    ├── fetch_plog.log                  offline only: plog transfer log
-    └── plog/                           GE logs of this run (a copy pulled back when offline)
+└── run_20260902_143015_12345/          result subdirectory created for this run
+    ├── summary.csv / summary.json      per-candidate summary, per-run details and reject reasons
+    ├── om/                             offline only: one OM per candidate plus build logs
+    ├── target_*.log                    offline only: remote prepare, upload and cleanup logs
+    └── trial_000_default_r1/
+        ├── stdout.log                  stdout and stderr of the run (the ssh session when offline)
+        ├── steps.csv                   all STEP records parsed from this run
+        ├── fetch_plog.log              offline only: plog transfer log
+        └── plog/                       GE logs of this run (a copy pulled back when offline)
 ```
+
+You can reuse an existing `--output-dir`; it no longer needs to be empty. The driver creates a
+`run_YYYYMMDD_HHMMSS_PID` subdirectory (adding a sequence suffix for collisions in the same
+second) and prints the actual result path.
 
 Statistics and recommendation rules:
 
@@ -273,6 +278,34 @@ build machine                                            target machine
         │  finally: rm -rf <remote_workdir>
 ```
 
+### Build and execution on the same machine
+
+Offline mode still follows the “build OM -> execute OM” flow. Configure the target as the local
+machine so the driver reaches it over SSH/SCP. First verify that the current user can log in to
+localhost without interaction (for example, `ssh 127.0.0.1`). Choose an absolute
+`remote_workdir` that contains no valuable files; the entire directory is removed when tuning ends.
+
+For a user with `~/.ssh/id_rsa` configured:
+
+```json
+{
+  "host": "127.0.0.1",
+  "port": 22,
+  "user": "your-login-user",
+  "identity_file": "~/.ssh/id_rsa",
+  "remote_workdir": "/tmp/ge_ms_autotune",
+  "cann_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+  "run_command": "python3 /data/infer.py --om {om} --loop 20"
+}
+```
+
+The compile command runs in the current shell, so source the build machine's CANN environment
+before starting the driver. `cann_env` loads the same environment again in the localhost SSH
+session. The model path in the compile command, the inference program path in `run_command`, and
+`remote_workdir` must all be visible on this machine. If the local SSH service is disabled, enable
+it first or use another reachable local address; authentication is the same as for a split-machine
+offline run.
+
 ### Target machine configuration
 
 ```json
@@ -307,8 +340,9 @@ The program behind `run_command` is yours to write and to deploy on the target (
 image, CI — whatever you use); the driver uploads OMs only, never the program. It must:
 
 - load the `{om}` it is given — the placeholder becomes the absolute path of that candidate's OM
-  on the target (`<remote_workdir>/om/model_<config>.om`). Candidates are switched purely by
-  swapping the OM, so the program itself needs no multi-stream awareness;
+  on the target (`<remote_workdir>/om/model_<config>.om`, carrying the `_linux_x86_64`-style
+  platform suffix for dynamic shapes, same name as the built artifact). Candidates are switched
+  purely by swapping the OM, so the program itself needs no multi-stream awareness;
 - use exactly the same fixed inputs and iteration count for every candidate;
 - run at least `--min-steps` iterations after warmup (5 by default, 20+ for a real comparison);
 - use a recorded ACL interface: `aclmdlExecute`, `aclmdlExecuteV2` or `aclmdlExecuteAsync`.
@@ -368,5 +402,7 @@ Pin the tuning result on the business side instead of keeping the sample pass ar
 | Parameter error together with `ge.enableSingleStream=true` | Single stream and auto multi-stream are mutually exclusive |
 | offline: `sshpass` is reported as missing | Install it on the build machine, or switch to key authentication with `identity_file` |
 | offline: ssh cannot connect or keeps asking for a password | Verify `ssh -i <key> user@host` by hand first; the driver uses `BatchMode=yes` and never prompts |
-| offline: a candidate fails to build | Read `<output-dir>/om/compile_<config>.log` and check that `{om_prefix}` matches the real output path |
+| offline: a candidate fails to build | Read `om/compile_<config>.log` under the current run directory and check that `{om_prefix}` matches the real output path |
+| offline: "no OM produced" although the om directory is not empty | Those files are left over from an earlier run; the driver only accepts artifacts written by the current build. Rerun with a fresh `--output-dir` |
+| offline: "multiple OMs produced" | One build command emitted several artifacts (e.g. two architectures); make it emit exactly one per candidate |
 | offline: no STEP record at all | The target program uses an uncovered ACL path, or `cann_env` is unset so the plog lands elsewhere |
