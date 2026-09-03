@@ -93,6 +93,7 @@ static ModelDescRefObj *CreateModelDescRefObj(void) {
   InitModelInOutInfo(&mdlDescRefObj->modelDesc.ioInfo);
   InitModelFifoInfo(&mdlDescRefObj->modelDesc.fifoInfo);
   mdlDescRefObj->modelDesc.memType = ACL_MEM_MALLOC_HUGE_FIRST;
+  mdlDescRefObj->modelDesc.locationType = ACL_MEM_LOCATION_TYPE_HOST;
   GELOGD("create model desc ref obj success.");
   return mdlDescRefObj;
 }

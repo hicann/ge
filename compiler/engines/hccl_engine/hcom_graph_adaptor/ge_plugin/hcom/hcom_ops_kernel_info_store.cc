@@ -12,6 +12,8 @@
 #include "common/adapter_dlhcclfunc.h"
 #include "common/op_hcom_comm.h"
 #include <securec.h>
+#include <cstddef>
+#include <cstring>
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -36,6 +38,7 @@
 #include "hcom/hcom_topo_info.h"
 #include "offline_build_config_parse.h"
 #include "hcom_op_utils.h"
+#include "device_capability.h"
 #include "adapter_dlhcclfunc.h"
 
 using namespace std;
@@ -319,10 +322,11 @@ HcclResult HcomOpsKernelInfoStore::CheckPrivateDef(const ge::GETaskInfo &task) {
   }
   HCCL_KERNEL_INFO_PRIVATE_DEF *privateDefBuf = reinterpret_cast<HCCL_KERNEL_INFO_PRIVATE_DEF *>(task.privateDef);
   size_t crackNum = privateDefBuf->tensorNum;
+  size_t compatSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) - privateDefBuf->privateDefSize;
   // 表示有tensor间脏数据需要清零
   if (crackNum != 0) {
     uint32_t privateDefLenwithCrackClear =
-        sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + crackNum * sizeof(int64_t) + crackNum * sizeof(int64_t);
+        sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) + crackNum * sizeof(int64_t) + crackNum * sizeof(int64_t) - compatSize;
     if (task.privateDefLen != privateDefLenwithCrackClear) {
       HCCL_ERROR("[Check][PrivateDef]errNo[0x%016llx] privateDefLen[%u] is not equal to [%zu]",
                  HCOM_ERROR_CODE(HCCL_E_PARA), task.privateDefLen, privateDefLenwithCrackClear);
@@ -341,6 +345,7 @@ HcclResult HcomOpsKernelInfoStore::CheckPrivateDef(const ge::GETaskInfo &task) {
     } else {
       privateDefLen = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
     }
+    privateDefLen -= compatSize;
     if (task.privateDefLen != privateDefLen) {
       HCCL_ERROR("[Check][PrivateDef]errNo[0x%016llx] privateDefLen[%u] is not equal to [%zu]",
                  HCOM_ERROR_CODE(HCCL_E_PARA), task.privateDefLen, privateDefLen);
@@ -765,11 +770,11 @@ HcclResult HcomOpsKernelInfoStore::CleanIntervalMemory(const char *tag, std::vec
                                                        std::vector<std::int64_t> &crackSize, rtStream_t stream) {
   std::string strTag = (tag == nullptr) ? "" : tag;
   HCCL_DEBUG("[CleanIntervalMemory] tag[%s]", strTag.c_str());
-  DevType devType = HcomGetDeviceType();
-  HCCL_DEBUG("[CleanIntervalMemory][HcomGetDeviceType]devType is %d", devType);
+  bool supportsV2Kernel = DeviceCapability::Instance().SupportsV2Kernel();
+  HCCL_DEBUG("[CleanIntervalMemory][DeviceCapability]supportsV2Kernel is %d", supportsV2Kernel);
 
 #ifndef OPEN_BUILD_PROJECT
-  if (devType == DevType::DEV_TYPE_950) {
+  if (supportsV2Kernel) {
     // A5适配
     return CleanInterMemoryV2(crackSize, crackAddr, stream);
   }
@@ -901,9 +906,8 @@ HcclResult HcomOpsKernelInfoStore::CheckTensorNumAndTensorSize(const ge::GETaskI
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::CheckHcomOpMemSize(DevType deviceType, u64 countLeft, u32 unitSize,
-                                                      u64 cclBufferSize) {
-  if (deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) {
+HcclResult HcomOpsKernelInfoStore::CheckHcomOpMemSize(u64 countLeft, u32 unitSize, u64 cclBufferSize) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel()) {
     // 用户内存大于ccl buf时返回错误
     CHK_PRT_RET(
         ((countLeft * unitSize) > cclBufferSize),
@@ -930,8 +934,6 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceLoop(const ge::GETaskInfo &task,
 
   CHK_RET(CheckTensorNumAndTensorSize(task, count, unitSize, commInputSize));
 
-  DevType devType = HcomGetDeviceType();
-
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
   bool secAddrCopyWithoutOffset = false;
   if (count * unitSize <= commInputSize) {
@@ -949,13 +951,13 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceLoop(const ge::GETaskInfo &task,
 
     // 大于cclbuffer，count取cclbuffer最大支持count，否则走input支持的count
     curCount = ((countLeft * unitSize) > commInputSize) ? maxCountPerLoop : countLeft;
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commInputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commInputSize));
 
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize,
-                             secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, secAddrCopyWithoutOffset,
+                             streamMain));
     // 获取cclbuffer
     void *commInputPtr = nullptr;
     void *commOutputPtr = nullptr;
@@ -993,7 +995,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceLoop(const ge::GETaskInfo &task,
     }
 
     // 将结果拷回二级指针上
-    CHK_RET(RefreshOutputAddr(devType, shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
+    CHK_RET(RefreshOutputAddr(shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
                               secAddrCopyWithoutOffset, streamMain));
 
     // 更新偏移量
@@ -1159,8 +1161,6 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherLoop(const std::vector<std::stri
   u64 maxCountPerLoop = commOutputSize / (rankSize * unitSize);  // ccl buffer内存单次最多能够接受的input count
   u64 curCount = 0;
 
-  DevType devType = HcomGetDeviceType();
-
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
   bool secAddrCopyWithoutOffset = false;
   if (count * unitSize * rankSize <= commOutputSize) {
@@ -1181,11 +1181,11 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherLoop(const std::vector<std::stri
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位：字节
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commOutputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commOutputSize));
 
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize,
-                             secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, secAddrCopyWithoutOffset,
+                             streamMain));
     // 获取cclbuffer
     void *commInputPtr = nullptr;
     void *commOutputPtr = nullptr;
@@ -1216,8 +1216,8 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherLoop(const std::vector<std::stri
     }
 
     // 将结果拷回二级指针上
-    CHK_RET(RefreshAllgatherOutputAddr(devType, shapeType, comm, group, outputDataPtr, outputOffset, curSize, count,
-                                       unitSize, rankSize, secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshAllgatherOutputAddr(shapeType, comm, group, outputDataPtr, outputOffset, curSize, count, unitSize,
+                                       rankSize, secAddrCopyWithoutOffset, streamMain));
 
     // 更新偏移量
     inputOffset += curSize;
@@ -1321,11 +1321,11 @@ HcclResult HcomOpsKernelInfoStore::GetInputCCLbufPtrAndIndirectInCCLbufPtr(const
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::RefreshAllgatherOutputAddr(DevType deviceType, u32 shapeType,
-                                                              const int64_t &hcomComm, const std::string &sGroup,
-                                                              void *&outputAddr, u64 outputOffset, u64 curSize,
-                                                              u64 count, u32 unitSize, u32 rankSize,
-                                                              bool secAddrCopyWithoutOffset, rtStream_t stream) {
+HcclResult HcomOpsKernelInfoStore::RefreshAllgatherOutputAddr(u32 shapeType, const int64_t &hcomComm,
+                                                              const std::string &sGroup, void *&outputAddr,
+                                                              u64 outputOffset, u64 curSize, u64 count, u32 unitSize,
+                                                              u32 rankSize, bool secAddrCopyWithoutOffset,
+                                                              rtStream_t stream) {
   HCCL_DEBUG("[RefreshAllgatherOutputAddr] shapeType[%u]", shapeType);
   void *commOutputPtr = nullptr;
   u64 commOutputSize = 0;
@@ -1339,7 +1339,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshAllgatherOutputAddr(DevType deviceType
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // 把中转buf一级指针指向的数据,偏移拷贝到用户输出一级指针指向的内存空间 rts提供新的拷贝task
-  if ((deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) || secAddrCopyWithoutOffset) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel() || secAddrCopyWithoutOffset) {
     CHK_RET(hrtMemAsyncCopy(outputAddr, curSize * rankSize, indirectOutCCLbufPtr, curSize * rankSize,
                             HcclRtMemcpyKind::HCCL_RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream));
 
@@ -1581,8 +1581,6 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
   u64 curCount = 0;
   u64 outputMaxSize = count * unitSize;
 
-  DevType devType = HcomGetDeviceType();
-
   HCCL_KERNEL_INFO_PRIVATE_DEF *privateDefBuf = reinterpret_cast<HCCL_KERNEL_INFO_PRIVATE_DEF *>(task.privateDef);
   CHK_PTR_NULL(privateDefBuf);
   size_t tensorNum = privateDefBuf->tensorNum;
@@ -1611,11 +1609,11 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft * rankSize, unitSize, commInputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft * rankSize, unitSize, commInputSize));
 
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshReduceScatterInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize, count,
-                                          unitSize, rankSize, secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshReduceScatterInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, count, unitSize,
+                                          rankSize, secAddrCopyWithoutOffset, streamMain));
 
     // 获取cclbuffer
     void *commInputPtr = nullptr;
@@ -1651,7 +1649,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
     }
 
     // 将结果拷回二级指针上
-    CHK_RET(RefreshOutputAddr(devType, shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
+    CHK_RET(RefreshOutputAddr(shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
                               secAddrCopyWithoutOffset, streamMain));
 
     // 更新偏移量
@@ -1663,11 +1661,11 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::RefreshReduceScatterInputAddr(DevType deviceType, u32 shapeType,
-                                                                 const int64_t &hcomComm, const std::string &sGroup,
-                                                                 void *&inputAddr, u64 inputOffset, u64 curSize,
-                                                                 u64 count, u32 unitSize, u32 rankSize,
-                                                                 bool secAddrCopyWithoutOffset, rtStream_t stream) {
+HcclResult HcomOpsKernelInfoStore::RefreshReduceScatterInputAddr(u32 shapeType, const int64_t &hcomComm,
+                                                                 const std::string &sGroup, void *&inputAddr,
+                                                                 u64 inputOffset, u64 curSize, u64 count, u32 unitSize,
+                                                                 u32 rankSize, bool secAddrCopyWithoutOffset,
+                                                                 rtStream_t stream) {
   HCCL_DEBUG("[RefreshReduceScatterInputAddr] shapeType[%u]", shapeType);
   void *commInputPtr = nullptr;
   u64 commInputSize = 0;
@@ -1681,7 +1679,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshReduceScatterInputAddr(DevType deviceT
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // 把中转buf一级指针指向的数据,偏移拷贝到用户输出一级指针指向的内存空间 rts提供新的拷贝task
-  if ((deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) || secAddrCopyWithoutOffset) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel() || secAddrCopyWithoutOffset) {
     CHK_RET(hrtMemAsyncCopy(indirectInCCLbufPtr, curSize * rankSize, inputAddr, curSize * rankSize,
                             HcclRtMemcpyKind::HCCL_RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream));
 
@@ -1791,8 +1789,6 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastLoop(const std::vector<std::stri
   u64 curCount = 0;
   u64 outputMaxSize = count * unitSize;
 
-  DevType devType = HcomGetDeviceType();
-
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
   bool secAddrCopyWithoutOffset = false;
   if (count * unitSize <= commInputSize) {
@@ -1813,11 +1809,11 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastLoop(const std::vector<std::stri
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commInputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commInputSize));
 
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize,
-                             secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, secAddrCopyWithoutOffset,
+                             streamMain));
     // 获取cclbuffer
     void *commInputPtr = nullptr;
     CHK_RET(GetCommCCLBuf(shapeType, HCCL_KERNEL_OP_TYPE_BROADCAST, comm, group, commInputPtr));
@@ -1845,8 +1841,8 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastLoop(const std::vector<std::stri
     }
 
     // 将结果拷回二级指针上
-    CHK_RET(RefreshOutputAddr(devType, shapeType, HCCL_KERNEL_OP_TYPE_BROADCAST, comm, group, inputDataPtr, inputOffset,
-                              curSize, outputMaxSize, secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshOutputAddr(shapeType, HCCL_KERNEL_OP_TYPE_BROADCAST, comm, group, inputDataPtr, inputOffset, curSize,
+                              outputMaxSize, secAddrCopyWithoutOffset, streamMain));
 
     // 更新偏移量
     inputOffset += curSize;
@@ -1968,8 +1964,6 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
 
   u64 outputMaxSize = count * unitSize / rankSize;
 
-  DevType devType = HcomGetDeviceType();
-
   CHK_RET(CheckTensorNumAndTensorSize(task, count, unitSize, commInputSize));
 
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
@@ -1992,11 +1986,11 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commInputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commInputSize));
 
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize,
-                             secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, secAddrCopyWithoutOffset,
+                             streamMain));
     // 获取cclbuffer
     void *commInputPtr = nullptr;
     void *commOutputPtr = nullptr;
@@ -2034,7 +2028,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
 
     // 只root rank将结果拷回二级指针上
     if (rankId == root) {
-      CHK_RET(RefreshOutputAddr(devType, shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
+      CHK_RET(RefreshOutputAddr(shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
                                 secAddrCopyWithoutOffset, streamMain));
     }
 
@@ -2133,8 +2127,6 @@ HcclResult HcomOpsKernelInfoStore::HcomSendLoop(const std::vector<std::string> &
   u64 maxCountPerLoop = commInputSize / unitSize;  // ccl buffer内存单次最多能够接受的input count
   u64 curCount = 0;
 
-  DevType devType = HcomGetDeviceType();
-
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
   bool secAddrCopyWithoutOffset = false;
   if (count * unitSize <= commInputSize) {
@@ -2162,11 +2154,11 @@ HcclResult HcomOpsKernelInfoStore::HcomSendLoop(const std::vector<std::string> &
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commInputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commInputSize));
 
     // 把size大小的内存，通过二级指针偏移拷贝，从input拷贝到ccl buffer中
-    CHK_RET(RefreshInputAddr(devType, shapeType, comm, group, inputDataPtr, inputOffset, curSize,
-                             secAddrCopyWithoutOffset, streamMain));
+    CHK_RET(RefreshInputAddr(shapeType, comm, group, inputDataPtr, inputOffset, curSize, secAddrCopyWithoutOffset,
+                             streamMain));
     // 获取cclbuffer
     void *commInputPtr = nullptr;
     if (shapeType == ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE) {
@@ -2281,8 +2273,6 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveLoop(const std::vector<std::string
   u64 curCount = 0;
   u64 outputMaxSize = count * unitSize;
 
-  DevType devType = HcomGetDeviceType();
-
   // 如果通信size小于CCL BUFF size，不走二级地址偏移拷贝
   bool secAddrCopyWithoutOffset = false;
   if (count * unitSize <= commOutputSize) {
@@ -2310,7 +2300,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveLoop(const std::vector<std::string
     // 通过count得出size
     u64 curSize = curCount * unitSize;  // 单位 byte
 
-    CHK_RET(CheckHcomOpMemSize(devType, countLeft, unitSize, commOutputSize));
+    CHK_RET(CheckHcomOpMemSize(countLeft, unitSize, commOutputSize));
 
     // 获取cclbuffer
     void *commOutputPtr = nullptr;
@@ -2334,7 +2324,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveLoop(const std::vector<std::string
     }
 
     // 将结果拷回二级指针上
-    CHK_RET(RefreshOutputAddr(devType, shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
+    CHK_RET(RefreshOutputAddr(shapeType, comm, group, outputDataPtr, outputOffset, curSize, outputMaxSize,
                               secAddrCopyWithoutOffset, streamMain));
 
     // 更新偏移量
@@ -2649,10 +2639,10 @@ HcclResult HcomOpsKernelInfoStore::SetKnownShapeWorkspaceResource(const ge::GETa
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
   ge::GETaskKernelHcclInfo hcclInfo = hcclInfos[0];  // HCOM场景下只会有一个
-  DevType devType = HcomGetDeviceType();
   // A5
   // 单p场景算法返回的workSpaceMemSize可能为0，同时workSpaceAddr也是nullptr，所以不做拦截.A3场景workSpaceMemSize最小值为32k，不能为0.
-  if (devType != DevType::DEV_TYPE_950 && (hcclInfo.workSpaceAddr == nullptr || hcclInfo.workSpaceMemSize == 0)) {
+  if (!DeviceCapability::Instance().SupportsV2Kernel() &&
+      (hcclInfo.workSpaceAddr == nullptr || hcclInfo.workSpaceMemSize == 0)) {
     HCCL_ERROR(
         "[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] load task failed. "
         "workspace memory ptr is null or size is [%llu]",
@@ -2762,9 +2752,9 @@ HcclResult HcomOpsKernelInfoStore::RefreshInputAddr(u32 shapeType, const int64_t
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::RefreshInputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm,
-                                                    const std::string &sGroup, const void *inputAddr, u64 inputOffset,
-                                                    u64 curSize, bool secAddrCopyWithoutOffset, rtStream_t stream) {
+HcclResult HcomOpsKernelInfoStore::RefreshInputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
+                                                    const void *inputAddr, u64 inputOffset, u64 curSize,
+                                                    bool secAddrCopyWithoutOffset, rtStream_t stream) {
   HCCL_DEBUG("[RefreshInputAddr] shapeType[%u]", shapeType);
   void *commInputPtr = nullptr;
   u64 commInputSize = 0;
@@ -2778,7 +2768,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshInputAddr(DevType deviceType, u32 shap
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // 把用户输入buf一级指针指向的数据，偏移拷贝到中转buf一级指针指向的内存空间 rts提供新的拷贝task
-  if ((deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) || secAddrCopyWithoutOffset) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel() || secAddrCopyWithoutOffset) {
     CHK_RET(hrtMemAsyncCopy(indirectInCCLbufPtr, curSize, inputAddr, curSize,
                             HcclRtMemcpyKind::HCCL_RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream));
 
@@ -2820,10 +2810,9 @@ HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(u32 shapeType, const int64_
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 shapeType, const int64_t &hcomComm,
-                                                     const std::string &sGroup, void *outputAddr, u64 outputOffset,
-                                                     u64 curSize, u64 outputMaxSize, bool secAddrCopyWithoutOffset,
-                                                     rtStream_t stream) {
+HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(u32 shapeType, const int64_t &hcomComm, const std::string &sGroup,
+                                                     void *outputAddr, u64 outputOffset, u64 curSize, u64 outputMaxSize,
+                                                     bool secAddrCopyWithoutOffset, rtStream_t stream) {
   HCCL_DEBUG("[RefreshOutputAddr] shapeType[%u]", shapeType);
   void *commOutputPtr = nullptr;
   u64 commOutputSize = 0;
@@ -2837,7 +2826,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 sha
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // 把中转buf一级指针指向的数据,偏移拷贝到用户输出一级指针指向的内存空间 rts提供新的拷贝task
-  if ((deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) || secAddrCopyWithoutOffset) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel() || secAddrCopyWithoutOffset) {
     CHK_RET(hrtMemAsyncCopy(outputAddr, curSize, indirectOutCCLbufPtr, curSize,
                             HcclRtMemcpyKind::HCCL_RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream));
 
@@ -2855,11 +2844,10 @@ HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 sha
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 shapeType,
-                                                     const std::string &sCollectiveType, const int64_t &hcomComm,
-                                                     const std::string &sGroup, void *outputAddr, u64 outputOffset,
-                                                     u64 curSize, u64 outputMaxSize, bool secAddrCopyWithoutOffset,
-                                                     rtStream_t stream) {
+HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(u32 shapeType, const std::string &sCollectiveType,
+                                                     const int64_t &hcomComm, const std::string &sGroup,
+                                                     void *outputAddr, u64 outputOffset, u64 curSize, u64 outputMaxSize,
+                                                     bool secAddrCopyWithoutOffset, rtStream_t stream) {
   HCCL_DEBUG("[Refresh][OutputAddr] shapeType[%u]", shapeType);
   CHK_PRT_RET(sCollectiveType != HCCL_KERNEL_OP_TYPE_BROADCAST,
               HCCL_ERROR("[Refresh][OutputAddr]do not support the communication type[%s]", sCollectiveType.c_str()),
@@ -2883,7 +2871,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 sha
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // 把中转buf一级指针指向的数据,偏移拷贝到用户输出一级指针指向的内存空间 rts提供新的拷贝task
-  if ((deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910) || secAddrCopyWithoutOffset) {
+  if (!DeviceCapability::Instance().HasLegacyMemoryModel() || secAddrCopyWithoutOffset) {
     CHK_RET(hrtMemAsyncCopy(outputAddr, curSize, indirectInCCLbufPtr, curSize,
                             HcclRtMemcpyKind::HCCL_RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream));
 
@@ -3031,14 +3019,26 @@ HcclResult HcomOpsKernelInfoStore::TransfromRealRankId(const ge::GETaskInfo &tas
 
 HcclResult HcomOpsKernelInfoStore::CheckOfflineDevTypeIsSame(const ge::GETaskInfo &task) const {
   HCCL_KERNEL_INFO_PRIVATE_DEF *privateDefBuf = reinterpret_cast<HCCL_KERNEL_INFO_PRIVATE_DEF *>(task.privateDef);
-  HCCL_DEBUG("[CheckOfflineDevTypeIsSame] isOfflineComp[%u] devType[%u]", privateDefBuf->isOfflineComp,
-             privateDefBuf->devType);
-  if (privateDefBuf->isOfflineComp) {
-    // 获取芯片类型
-    DevType devType = HcomGetDeviceType();
-    if (devType != privateDefBuf->devType) {
-      HCCL_ERROR("[LoadTask]check offline device type failed. build dev type[%u] load dev type[%u]",
-                 privateDefBuf->devType, devType);
+  HCCL_DEBUG("[CheckOfflineDevTypeIsSame] isOfflineComp[%u] devType[%d] privateDefLen[%u]",
+             privateDefBuf->isOfflineComp, privateDefBuf->devType, task.privateDefLen);
+  if (!privateDefBuf->isOfflineComp) {
+    return HCCL_SUCCESS;
+  }
+
+  // 双路径校验: 通过 privateDefSize (build 侧自描述 struct 大小) 区分新旧 OM
+  if (privateDefBuf->privateDefSize >= sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF) && privateDefBuf->socVersion[0] != '\0') {
+    // 新 OM 路径: socVersion 字符串校验
+    const std::string &loadSocVersion = DeviceCapability::Instance().GetSocVersionString();
+    if (privateDefBuf->socVersion != loadSocVersion) {
+      HCCL_ERROR("[LoadTask]offline socVersion mismatch. build socVersion[%s], load socVersion[%s]",
+                 privateDefBuf->socVersion, loadSocVersion.c_str());
+    }
+  } else {
+    // 旧 OM 路径: devType 整数校验 (向后兼容, 仅 warning 不阻断, 保留旧行为)
+    int loadDevType = DeviceCapability::Instance().GetDeviceIdentity();
+    if (loadDevType != privateDefBuf->devType) {
+      HCCL_ERROR("[LoadTask]check offline device type mismatch. build dev type[%d], load dev type[%d]",
+                 privateDefBuf->devType, loadDevType);
     }
   }
   return HCCL_SUCCESS;
@@ -3437,8 +3437,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcclUnfoldStream(const std::string &group,
   HCCL_INFO("Get Unfold Stream from group:%s", group.c_str());
   HcclComm comm = nullptr;
   CHK_RET(HcomGetCommHandleByGroup(group.c_str(), &comm));
-  DevType devType = HcomGetDeviceType();
-  if (devType != DevType::DEV_TYPE_950) {
+  if (!DeviceCapability::Instance().SupportsV2Kernel()) {
     rtStream_t aicpuStream = nullptr;
     CHK_RET(HcomMc2AiCpuStreamAllocAndGet(group.c_str(), streamMode, &aicpuStream));
     unfoldStream = aicpuStream;
@@ -3453,7 +3452,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcclUnfoldStream(const std::string &group,
       HCCL_INFO("[GetHcclUnfoldStream] Create new thread for ctx:%s", ctxName.c_str());
       ThreadHandle unfoldThread;
       ctxSize = sizeof(ThreadHandle);
-      CHK_RET(HcclThreadAcquire(comm, CommEngine::COMM_ENGINE_CPU, 1, 0, &unfoldThread));
+      CHK_RET(HcclThreadAcquire(comm, CommEngine::COMM_ENGINE_CPU, 1, 1, &unfoldThread));
       CHK_RET(HcclEngineCtxCreate(comm, ctxName.c_str(), CommEngine::COMM_ENGINE_CPU_TS, ctxSize, &ctx));
       HCCL_DEBUG("[GetHcclUnfoldStream] HcclEngineCtxCreate tag[%s], UnfoldThread[%lu]", ctxName.c_str(), unfoldThread);
       ThreadHandle *threadPtr = reinterpret_cast<ThreadHandle *>(ctx);

@@ -18,6 +18,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "hcom_graph_optimizer.h"
 #include "hcom_acl_adapter.h"
+#include "device_capability.h"
 
 #ifndef OPEN_BUILD_PROJECT
 #include "acl/acl_rt.h"
@@ -196,14 +197,6 @@ void ReleaseA5AicpuGraphSyncResource(const char *groupName) {
 #endif
 }
 
-bool IsA5DeviceType(const DevType devType) {
-#ifdef MACRO_DEV_TYPE_NEW
-  return devType == DevType::DEV_TYPE_950;
-#else
-  return devType == DevType::DEV_TYPE_910_95;
-#endif
-}
-
 HcclAllocComResourceByTilingA5Mc2Func GetA5Mc2AllocFunc() {
   static HcclAllocComResourceByTilingA5Mc2Func func = nullptr;
   static void *handle = nullptr;
@@ -276,8 +269,8 @@ std::string FormatCommEngines(const std::vector<u8> &commEngines) {
   return oss.str();
 }
 
-bool NeedUseA5AicpuMc2Resource(const DevType devType, const u32 tilingVersion, const std::string &tilingData) {
-  const bool isA5 = IsA5DeviceType(devType);
+bool NeedUseAicpuMc2Resource(const u32 tilingVersion, const std::string &tilingData) {
+  const bool supportsAicpuMc2Resource = DeviceCapability::Instance().SupportsAicpuMc2Resource();
   std::vector<u8> commEngines;
   bool parsed = false;
   if (tilingVersion == INIT_TILING_VERSION) {
@@ -291,14 +284,16 @@ bool NeedUseA5AicpuMc2Resource(const DevType devType, const u32 tilingVersion, c
     }
   }
 
-  const bool useNewFlow = isA5 && parsed && allAicpu;
+  const bool useNewFlow = supportsAicpuMc2Resource && parsed && allAicpu;
   HCCL_INFO(
-      "GE_MC2_A5_RESOURCE dispatch devType[%d], tilingVersion[%u], ccTilingCnt[%zu], commEngines[%s], "
+      "GE_MC2_AICPU_RESOURCE dispatch supportsAicpuMc2Resource[%d], tilingVersion[%u], ccTilingCnt[%zu], "
+      "commEngines[%s], "
       "selected[%s].",
-      devType, tilingVersion, commEngines.size(), FormatCommEngines(commEngines).c_str(),
+      supportsAicpuMc2Resource, tilingVersion, commEngines.size(), FormatCommEngines(commEngines).c_str(),
       (useNewFlow ? "new/asc-devkit-aicpu" : "old/hcomm"));
-  if (isA5 && parsed && !allAicpu) {
-    HCCL_INFO("GE_MC2_A5_RESOURCE A5 CCU keep old flow, commEngines[%s].", FormatCommEngines(commEngines).c_str());
+  if (supportsAicpuMc2Resource && parsed && !allAicpu) {
+    HCCL_INFO("GE_MC2_AICPU_RESOURCE AICPU MC2 resource skipped, keep old flow, commEngines[%s].",
+              FormatCommEngines(commEngines).c_str());
   }
   return useNewFlow;
 }
@@ -351,12 +346,7 @@ rtStream_t HcomGetStreamByOpDesc(const ge::OpDescPtr &opdesc) {
 
 void *HcomGetContext(const rtStream_t stream, const void *tilingData, const char *groupName) {
 #ifndef OPEN_BUILD_PROJECT
-  DevType devType = HcomGetDeviceType();
-#ifdef MACRO_DEV_TYPE_NEW
-  if (devType == DevType::DEV_TYPE_950) {
-#else
-  if (devType == DevType::DEV_TYPE_910_95) {
-#endif
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
     return HcomGetContextV2(stream, tilingData, groupName);
   }
 #endif
@@ -551,10 +541,9 @@ ge::graphStatus HcomCreateComResourceMC2(const ge::OpDescPtr &opdesc, std::vecto
   const u32 version = HcomGetTilingVersionByOpDesc(opdesc, tilingData);
   HCCL_INFO("Tiling version of op %s is %u.", opdesc->GetName().c_str(), version);
 #ifndef OPEN_BUILD_PROJECT
-  const DevType devType = HcomGetDeviceType();
-  const bool useA5AicpuResource = NeedUseA5AicpuMc2Resource(devType, version, tilingData);
+  const bool useAicpuMc2Resource = NeedUseAicpuMc2Resource(version, tilingData);
 #else
-  const bool useA5AicpuResource = false;
+  const bool useAicpuMc2Resource = false;
 #endif
 
   for (const auto &group : groups) {
@@ -566,7 +555,7 @@ ge::graphStatus HcomCreateComResourceMC2(const ge::OpDescPtr &opdesc, std::vecto
     }
 #ifndef OPEN_BUILD_PROJECT
     void *context =
-        useA5AicpuResource
+        useAicpuMc2Resource
             ? HcomGetA5AicpuContext(stream, reinterpret_cast<const void *>(tilingData.c_str()), group.c_str())
             : HcomGetContext(stream, reinterpret_cast<const void *>(tilingData.c_str()), group.c_str());
 #else

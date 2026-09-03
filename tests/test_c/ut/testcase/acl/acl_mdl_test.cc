@@ -138,15 +138,40 @@ TEST_F(AclMdlTest, aclmdlExecuteAsyncV2_workSpacePtrNotSet) {
   aclDataBuffer *dataBuffer = (aclDataBuffer *)malloc(100);
   aclError ret = aclmdlAddDatasetBuffer(dataset, dataBuffer);
   EXPECT_EQ(ret, ACL_SUCCESS);
-  aclmdlExecConfigHandle handle;
+  aclmdlExecConfigHandle handle = {0};
 
   handle.workPtr = NULL;
+  handle.workSize = 100;
   ret = aclmdlExecuteAsyncV2(1, dataset, dataset, nullptr, &handle);
   EXPECT_NE(ret, ACL_SUCCESS);
 
   aclrtStream stream = (void *)0x0010;
   ret = aclmdlExecuteAsyncV2(1, dataset, dataset, stream, &handle);
   EXPECT_NE(ret, ACL_SUCCESS);
+
+  free(dataBuffer);
+  ret = aclmdlDestroyDataset(dataset);
+  EXPECT_EQ(ret, ACL_SUCCESS);
+}
+
+TEST_F(AclMdlTest, aclmdlExecuteAsyncV2_workSpaceNotRequired) {
+  aclmdlDataset *dataset = aclmdlCreateDataset();
+  EXPECT_NE(dataset, nullptr);
+  aclDataBuffer *dataBuffer = (aclDataBuffer *)malloc(100);
+  aclError ret = aclmdlAddDatasetBuffer(dataset, dataBuffer);
+  EXPECT_EQ(ret, ACL_SUCCESS);
+  aclmdlExecConfigHandle handle = {0};
+
+  handle.workPtr = NULL;
+  handle.workSize = 0;
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), ExecModel(_, _, _, _, _)).Times(1).WillOnce(Return(SUCCESS));
+  ret = aclmdlExecuteAsyncV2(1, dataset, dataset, nullptr, &handle);
+  EXPECT_EQ(ret, ACL_SUCCESS);
+
+  aclrtStream stream = (void *)0x0010;
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), ExecModel(_, _, _, _, _)).Times(1).WillOnce(Return(SUCCESS));
+  ret = aclmdlExecuteAsyncV2(1, dataset, dataset, stream, &handle);
+  EXPECT_EQ(ret, ACL_SUCCESS);
 
   free(dataBuffer);
   ret = aclmdlDestroyDataset(dataset);
@@ -641,7 +666,11 @@ TEST_F(AclMdlTest, aclmdlLoadWithConfig_fromMem_normal) {
   aclmdlSetConfigOpt(handle, ACL_MDL_MEM_SIZET, &modelSize, sizeof(modelSize));
 
   uint32_t modelId;
-  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _)).Times(1).WillOnce(Return(SUCCESS));
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _))
+      .WillOnce(Invoke([](uint32_t *, const ModelData *modelData) {
+        EXPECT_EQ(modelData->modelLoadType, MDL_LOAD_FROM_MEM);
+        return SUCCESS;
+      }));
   aclError ret = aclmdlLoadWithConfig(handle, &modelId);
   EXPECT_EQ(ret, ACL_SUCCESS);
   aclmdlDestroyConfigHandle(handle);
@@ -701,7 +730,11 @@ TEST_F(AclMdlTest, aclmdlLoadWithConfig_fromFile_normal) {
   aclmdlSetConfigOpt(handle, ACL_MDL_PATH_PTR, &path, sizeof(path));
   uint32_t modelId;
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDataFromFile(_, _)).Times(1).WillOnce(Return(SUCCESS));
-  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _)).Times(1).WillOnce(Return(SUCCESS));
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _))
+      .WillOnce(Invoke([](uint32_t *, const ModelData *modelData) {
+        EXPECT_EQ(modelData->modelLoadType, MDL_LOAD_FROM_FILE);
+        return SUCCESS;
+      }));
   aclError ret = aclmdlLoadWithConfig(handle, &modelId);
   EXPECT_EQ(ret, ACL_SUCCESS);
   aclmdlDestroyConfigHandle(handle);

@@ -393,7 +393,8 @@ HcclResult IsUsingOpenSource(bool &openSource) {
     return HCCL_E_NOT_FOUND;
   }
   const char *indOp = getenv("HCCL_INDEPENDENT_OP");
-  if (socVersion.find("Ascend950") == std::string::npos) {
+  if (socVersion.find("Ascend950") == std::string::npos && socVersion.find("Ascend960") == std::string::npos &&
+      socVersion.find("Ascend910_96") == std::string::npos && socVersion.find("ascend960") == std::string::npos) {
     openSource = false;
   } else if (indOp != nullptr && strcmp(indOp, "0") == 0) {
     openSource = false;

@@ -202,3 +202,9 @@ rtError_t rtGetRunMode_Device_Normal_Invoke(aclrtRunMode *mode) {
   *mode = ACL_DEVICE;
   return RT_ERROR_NONE;
 }
+
+aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
+  (void)ptr;
+  attributes->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+  return ACL_SUCCESS;
+}

@@ -141,3 +141,7 @@ char *dlerror(void) {
 int access(const char *name, int type) {
   return RtStubMock::GetInstance().access(name, type);
 }
+
+aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
+  return RtStubMock::GetInstance().aclrtPointerGetAttributes(ptr, attributes);
+}

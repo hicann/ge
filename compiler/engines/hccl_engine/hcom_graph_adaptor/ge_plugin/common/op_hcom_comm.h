@@ -24,6 +24,7 @@
 #include "graph/ge_tensor.h"
 #include "hccl/hccl_ex.h"
 #include <nlohmann/json.hpp>
+#include <securec.h>
 
 #include "hccl/hcom.h"
 #include "hccl/base.h"
@@ -169,9 +170,10 @@ using HCCL_KERNEL_INFO_PRIVATE_DEF = struct hcclKernelInfoPrivateDef {
   int64_t comm = 0;
   HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
   bool needMapRank = false;
-  bool isOfflineComp = false;                 // 是否是离线编译
-  DevType devType = DevType::DEV_TYPE_COUNT;  // 只有离线编译时需要，在loadtask的时候校验一致性
+  bool isOfflineComp = false;  // 是否是离线编译
+  int devType = -1;            // 占位 (兼容旧 OM devType 字段校验)
   u32 aivCoreLimit = 0;
+  char socVersion[32] = {0};  // SOC 版本字符串 (新 OM), 旧 OM 无此字段
 };
 
 using HCCL_ALLTOALLV_KERNEL_INFO_PRIVATE_DEF = struct hcclAlltoallvKernelInfoPrivateDef : HCCL_KERNEL_INFO_PRIVATE_DEF {
@@ -195,6 +197,8 @@ using HCCL_ALLTOALLV_KERNEL_INFO_PRIVATE_DEF = struct hcclAlltoallvKernelInfoPri
     dataType = KernelInfoPrivateDef.dataType;
     needMapRank = KernelInfoPrivateDef.needMapRank;
     aivCoreLimit = KernelInfoPrivateDef.aivCoreLimit;
+    memcpy_s(this->socVersion, sizeof(this->socVersion), KernelInfoPrivateDef.socVersion,
+             sizeof(KernelInfoPrivateDef.socVersion));
   };
 };
 
@@ -219,6 +223,8 @@ using HCCL_REDUCESCATTERV_KERNEL_INFO_PRIVATE_DEF =
     dataType = KernelInfoPrivateDef.dataType;
     needMapRank = KernelInfoPrivateDef.needMapRank;
     aivCoreLimit = KernelInfoPrivateDef.aivCoreLimit;
+    memcpy_s(this->socVersion, sizeof(this->socVersion), KernelInfoPrivateDef.socVersion,
+             sizeof(KernelInfoPrivateDef.socVersion));
   };
 };
 
@@ -243,6 +249,8 @@ using HCCL_ALLGATHERV_KERNEL_INFO_PRIVATE_DEF =
     dataType = KernelInfoPrivateDef.dataType;
     needMapRank = KernelInfoPrivateDef.needMapRank;
     aivCoreLimit = KernelInfoPrivateDef.aivCoreLimit;
+    memcpy_s(this->socVersion, sizeof(this->socVersion), KernelInfoPrivateDef.socVersion,
+             sizeof(KernelInfoPrivateDef.socVersion));
   };
 };
 

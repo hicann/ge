@@ -34,6 +34,7 @@
 #include "hccl/hcom.h"
 #include "register/ops_kernel_builder_registry.h"
 #include "offline_build_config_parse.h"
+#include "device_capability.h"
 #include "acl/acl_rt.h"
 #include "mmpa/mmpa_api.h"
 
@@ -154,20 +155,20 @@ std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKern
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAlltoAllSuperKernelMapV2 = {
-    {"AivAlltoAllMesh1D", {"/hccl_a2a_superkernel_mesh_1d", "sk_alltoall_mesh_1d"}},
+    {"AivAllToAllSoleMesh", {"/hccl_a2a_superkernel_mesh_1d", "sk_alltoall_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllGatherSuperKernelMapV2 = {
-    {"AivAllGatherMesh1D", {"/hccl_ag_superkernel_mesh_1d", "sk_allgather_mesh_1d"}},
+    {"AivAllGatherSoleMesh", {"/hccl_ag_superkernel_mesh_1d", "sk_allgather_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelMapV2 = {
-    {"AivReduceScatterMesh1D", {"/hccl_rs_superkernel_mesh_1d", "sk_reducescatter_mesh_1d"}},
+    {"AivReduceScatterSoleMesh", {"/hccl_rs_superkernel_mesh_1d", "sk_reducescatter_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelMapV2 = {
-    {"AivAllReduceMesh1DOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot", "sk_allreduce_mesh_1d_oneshot"}},
-    {"AivAllReduceMesh1DTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot", "sk_allreduce_mesh_1d_twoshot"}},
+    {"AivAllReduceSoleMeshOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot", "sk_allreduce_mesh_1d_oneshot"}},
+    {"AivAllReduceSoleMeshTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot", "sk_allreduce_mesh_1d_twoshot"}},
 };
 
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelMap = {
@@ -227,6 +228,11 @@ ge::Status HcomOpsKernelBuilder::CalcOpRunningParam(ge::Node &node) {
   ret = HcomCalcOpRunningParam(node);
   CHK_PRT_RET(ret != HCCL_SUCCESS,
               HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] Calc Op Running Params failed.", HCOM_ERROR_CODE(ret)),
+              ge::INTERNAL_ERROR);
+
+  ret = SetAivCoreTypeAttr(node);
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] SetAivCoreTypeAttr failed.", HCOM_ERROR_CODE(ret)),
               ge::INTERNAL_ERROR);
 
   ret = SetSuperKernelScopeAttr(node);
@@ -302,10 +308,10 @@ HcclResult HcomOpsKernelBuilder::CheckSuperKernelEligibility(ge::Node &node, con
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrFor950(const ge::OpDescPtr &opDescPtr, HcclCMDType opType,
-                                                                   HcclDataType dataType, const std::string &algName,
-                                                                   std::string &funcName,
-                                                                   const std::string &binPath) const {
+HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrForV2(const ge::OpDescPtr &opDescPtr, HcclCMDType opType,
+                                                                  HcclDataType dataType, const std::string &algName,
+                                                                  std::string &funcName,
+                                                                  const std::string &binPath) const {
   auto itMap = AivSuperKernelMapV2.find(opType);
   auto it = (itMap->second).find(algName);
   if (it != (itMap->second).end()) {
@@ -354,16 +360,10 @@ HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrs(const ge::OpDescPt
   ge::AttrUtils::SetBool(opDescPtr, "_hccl", true);
   std::string binPath;
   CHK_RET(SKGetAlgPath(opType, binPath));
-  // 步骤2：获取SOC_VERSION
-  std::string socVersion{};
-  if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
-    HCCL_ERROR("[HcomOpsKernelBuilder][SetAivSuperKernelBinaryAttrs] get soc version failed");
-    return HCCL_E_NOT_FOUND;
-  }
-  // 步骤3：根据SOC_VERSION和确定性配置选择不同的二进制文件路径
-  if (socVersion.find("Ascend950") != std::string::npos) {
-    // 950架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
-    CHK_RET(SetAivSuperKernelBinaryAttrFor950(opDescPtr, opType, dataType, algName, funcName, binPath));
+  // 步骤2：根据设备能力和确定性配置选择不同的二进制文件路径
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
+    // 950/960 架构下，使用AIV SuperKernelV2 Map进行二进制文件路径设置
+    CHK_RET(SetAivSuperKernelBinaryAttrForV2(opDescPtr, opType, dataType, algName, funcName, binPath));
   } else {
     u8 deterministic = DETERMINISTIC_DISABLE;
     CHK_RET(GetDeterministic(deterministic));
@@ -412,14 +412,14 @@ HcclResult HcomOpsKernelBuilder::SetAivSuperKernelBinaryAttrs(const ge::OpDescPt
 // 设置SuperKernel Block维度以计算并设置AIV核数（block维度）
 HcclResult HcomOpsKernelBuilder::SetSuperKernelBlockDim(const ge::OpDescPtr &opDescPtr, const std::string &group,
                                                         HcclCMDType opType, u64 count, void *counts,
-                                                        HcclDataType dataType, u32 aivCoreLimit, char *algName,
-                                                        u32 rankSize) const {
+                                                        HcclDataType dataType, HcclReduceOp reduction, u32 aivCoreLimit,
+                                                        char *algName, u32 rankSize) const {
   // 计算AIV核数
   u32 blockDim;
   bool openSourceTag = false;
   CHK_RET(IsUsingOpenSource(openSourceTag));
   if (openSourceTag) {
-    CHK_RET(HcceCalcAivCoreNumGraphMode(aivCoreLimit, &blockDim));
+    CHK_RET(HcceCalcAivCoreNumGraphMode(group.c_str(), count, dataType, reduction, opType, aivCoreLimit, &blockDim));
   } else {
     CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &blockDim));
   }
@@ -486,8 +486,8 @@ HcclResult HcomOpsKernelBuilder::SetSuperKernelScopeAttr(ge::Node &node) {
   // 步骤3：设置superkernel二进制属性并计算block维度
   std::string funcName;
   CHK_RET(SetAivSuperKernelBinaryAttrs(opDescPtr, opType, dataType, algName, funcName));
-  CHK_RET(
-      SetSuperKernelBlockDim(opDescPtr, sGroup, opType, count, countsPtr, dataType, aivCoreLimit, algName, rankSize));
+  CHK_RET(SetSuperKernelBlockDim(opDescPtr, sGroup, opType, count, countsPtr, dataType, reduction, aivCoreLimit,
+                                 algName, rankSize));
   HCCL_INFO("[HcomOpsKernelBuilder][SetSuperKernelScopeAttr] Support SPK Optype[%s] funcName[%s]",
             sCollectiveType.c_str(), funcName.c_str());
   return HCCL_SUCCESS;
@@ -652,8 +652,22 @@ ge::Status HcomOpsKernelBuilder::GenerateTask([[maybe_unused]] const ge::Node &n
 
   if (IsOfflineCompilation()) {
     privateDefBuf.isOfflineComp = true;
-    CHK_RET(GetOffDeviceTypeWithoutDev(privateDefBuf.devType));
-    HCCL_DEBUG("GenerateTask: isOfflineComp[%u] devType[%u]", privateDefBuf.isOfflineComp, privateDefBuf.devType);
+    // 离线编译: 填充新 OM socVersion 字段 + 旧 OM devType 兼容字段
+    const int devType = DeviceCapability::Instance().GetDeviceIdentity();
+    CHK_PRT_RET(devType == -1,
+                HCCL_ERROR("[Generate][Task] offline build reject unknown SOC, devType=-1, socVersion[%s].",
+                           DeviceCapability::Instance().GetSocVersionString().c_str()),
+                ge::INTERNAL_ERROR);
+    privateDefBuf.devType = devType;
+    const std::string &socVersion = DeviceCapability::Instance().GetSocVersionString();
+    errno_t secRet =
+        strncpy_s(privateDefBuf.socVersion, sizeof(privateDefBuf.socVersion), socVersion.c_str(), socVersion.size());
+    CHK_PRT_RET(secRet != EOK,
+                HCCL_ERROR("[Generate][Task] strncpy_s socVersion failed, srcLen[%zu], dstLen[%zu]", socVersion.size(),
+                           sizeof(privateDefBuf.socVersion)),
+                HCCL_E_INTERNAL);
+    HCCL_DEBUG("GenerateTask: isOfflineComp[%u] devType[%d] socVersion[%s]", privateDefBuf.isOfflineComp,
+               privateDefBuf.devType, privateDefBuf.socVersion);
   }
 
   CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, privateDefBuf.aivCoreLimit));
@@ -1057,8 +1071,7 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, const std::strin
   CHK_RET(PrepareSelectAivParam(node, sCollectiveType, hcomComm, sGroup, rankSize, count, counts, dataType, opType,
                                 reduction, aivCoreLimit));
   // 判断是否走 Aiv
-  DevType devType = HcomGetDeviceType();
-  if (devType != DevType::DEV_TYPE_950) {
+  if (DeviceCapability::Instance().UsesHcomSelectAlgForAiv()) {
     void *countsPtr = counts.data();
 #ifdef HCOM_SELECT_ALG_POINTER_MODE
     CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, countsPtr, dataType, reduction, opType, aivCoreLimit, &ifAiv,
@@ -1075,6 +1088,20 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, const std::strin
     CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
     ifAiv = superKernel != "" ? true : false;
     HCCL_INFO("[%s] SPK, superkernel is %s, ifAiv[%d]", __func__, superKernel.c_str(), ifAiv);
+  }
+  return HCCL_SUCCESS;
+}
+
+// 统一设置AIV模式核类型属性，供流分配、SuperKernel校验和tiling识别节点
+HcclResult HcomOpsKernelBuilder::SetAivCoreTypeAttr(ge::Node &node) {
+  auto opDescPtr = node.GetOpDesc();
+  bool ifAiv = false;
+  if (!IsOfflineCompilation()) {
+    CHK_RET(JudgeIsAivMode(node, opDescPtr->GetType(), ifAiv));
+  }
+  if (ifAiv && !ge::AttrUtils::SetStr(opDescPtr, "_cube_vector_core_type", "AIV")) {
+    HCCL_ERROR("[%s] node[%s] set AIV core type attr failed.", __func__, node.GetNamePtr());
+    return HCCL_E_INTERNAL;
   }
   return HCCL_SUCCESS;
 }
@@ -1103,7 +1130,7 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   if (!IsOfflineCompilation()) {
     CHK_PRT(JudgeIsAivMode(node, node.GetOpDesc()->GetType(), ifAiv));
   }
-  HCCL_INFO("[%s] ifAiv[%d] should %s set attached stream info", __func__, ifAiv, ifAiv ? "not" : "");
+  HCCL_INFO("[%s] ifAiv[%d] should%s set attached stream info", __func__, ifAiv, ifAiv ? " not" : "");
 
   // AIV 模式不设置从流信息
   if (!ifAiv) {

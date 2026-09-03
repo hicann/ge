@@ -133,7 +133,8 @@ HcclResult HcceReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t rec
                                       size_t streamCount, void *scratchMemAddr, uint64_t scratchMemSize);
 HcclResult HcceSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
                                   HcclCMDType opType, int32_t aivCoreLimit, bool *ifAiv, char *algName);
-HcclResult HcceCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *blockDim);
+HcclResult HcceCalcAivCoreNumGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
+                                       HcclCMDType opType, u32 aivCoreLimit, u32 *blockDim);
 HcclResult HcceSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit);
 HcclResult HcceGetAlgExecParamGraphMode(const char *tag, const char *group, u64 count, void *inputPtr, void *outputPtr,
                                         HcclCMDType opType, bool clearEnable, HcclDataType dataType, HcclReduceOp op,

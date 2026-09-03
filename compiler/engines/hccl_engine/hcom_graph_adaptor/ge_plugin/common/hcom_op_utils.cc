@@ -21,6 +21,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "offline_build_config_parse.h"
+#include "device_capability.h"
 #include "graph/ge_context.h"
 #include "graph/utils/tensor_utils_ex.h"
 
@@ -874,12 +875,7 @@ HcclResult HcomOpUtils::GetHcclCommNameFromConfig(std::string &commName) {
     return HCCL_SUCCESS;
   }
 
-  DevType tempDevType;
-  if (GetOffDeviceTypeWithoutDev(tempDevType) != HCCL_SUCCESS) {
-    HCCL_ERROR("[GetHcclCommNameFromConfig] get devType failed.");
-    return HCCL_E_INTERNAL;
-  }
-  if ((!IsOfflineCompilation()) || (tempDevType != DevType::DEV_TYPE_MC62)) {
+  if ((!IsOfflineCompilation()) || (!DeviceCapability::Instance().IsMc62Device())) {
     HCCL_ERROR("[GetHcclCommNameFromConfig] not support, only offline compilation with MC62 chip is supported.");
     return HCCL_E_NOT_SUPPORT;
   }
@@ -980,12 +976,7 @@ HcclResult HcomOpUtils::GetRankIdsFromGroupList(const std::string &groupName, st
 
   // V2和旧的json格式上有差异，当前主要使用的是最新的V2格式json文件，优先判断尝试解析V2格式
   if (ge::GetThreadLocalContext().GetOption(ge::OPTION_EXEC_HCOM_GROUPLIST_V2, groupListString) == ge::GRAPH_SUCCESS) {
-    DevType tempDevType;
-    if (GetOffDeviceTypeWithoutDev(tempDevType) != HCCL_SUCCESS) {
-      HCCL_ERROR("[GetRankIdsFromGroupList] get devType failed.");
-      return HCCL_E_INTERNAL;
-    }
-    if ((!IsOfflineCompilation()) || (tempDevType != DevType::DEV_TYPE_MC62)) {
+    if ((!IsOfflineCompilation()) || (!DeviceCapability::Instance().IsMc62Device())) {
       HCCL_ERROR("[GetRankIdsFromGroupList] not support, only offline compilation with MC62 chip is supported.");
       return HCCL_E_NOT_SUPPORT;
     }

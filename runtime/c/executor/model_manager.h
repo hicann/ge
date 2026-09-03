@@ -36,6 +36,7 @@ typedef struct {
   void *modelDbgHandle;
   ModelFifoInfo fifoInfo;
   aclrtMemMallocPolicy memType;
+  aclrtMemLocationType locationType;
 } GeModelDesc;
 
 typedef struct {

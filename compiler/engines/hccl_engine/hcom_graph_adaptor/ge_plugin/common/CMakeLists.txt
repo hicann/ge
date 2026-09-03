@@ -16,6 +16,7 @@ target_sources(hcom_graph_adaptor  PRIVATE
     hcom_log.cc
     dlhccl_function.cc
     adapter_dlhcclfunc.cc
+    device_capability.cc
 )
 
 target_sources(hcom_executor  PRIVATE
@@ -26,6 +27,7 @@ target_sources(hcom_executor  PRIVATE
     hcom_log.cc
     dlhccl_function.cc
     adapter_dlhcclfunc.cc
+    device_capability.cc
 )
 
 target_sources(hcom_opskernel_builder PRIVATE
@@ -34,6 +36,7 @@ target_sources(hcom_opskernel_builder PRIVATE
     ops_kernel_builder_base.cc
     hcom_acl_adapter.cc
     hcom_log.cc
+    device_capability.cc
 )
 
 target_sources(hcom_gradtune_opskernel_builder PRIVATE
@@ -41,4 +44,5 @@ target_sources(hcom_gradtune_opskernel_builder PRIVATE
     hcom_base_funs.cc
     ops_kernel_builder_base.cc
     hcom_log.cc
+    device_capability.cc
 )

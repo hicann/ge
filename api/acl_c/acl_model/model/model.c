@@ -38,6 +38,7 @@ static aclError ModelLoadFromFileWithMem(const aclmdlConfigHandle *handle, uint3
   ModelData data = {0};
   data.priority = handle->priority;
   data.memType = handle->memType;
+  data.modelLoadType = MDL_LOAD_FROM_FILE;
   char *modelPath = handle->loadPath;
   SetPartFromHandle(handle, &data);
   Status ret = LoadDataFromFile(modelPath, &data);
@@ -71,6 +72,7 @@ static aclError ModelLoadFromMemWithMem(const aclmdlConfigHandle *handle, uint32
   data.modelLen = (uint64_t)modelSize;
   data.priority = handle->priority;
   data.memType = handle->memType;
+  data.modelLoadType = MDL_LOAD_FROM_MEM;
   data.fd = NULL;
   data.flag = NO_NEED_READ_FROM_FD;
   SetPartFromHandle(handle, &data);
@@ -88,6 +90,7 @@ static aclError ModelLoadFromMemWithMem(const aclmdlConfigHandle *handle, uint32
 static aclError SetExecHandle(const aclmdlExecConfigHandle *handle, aclrtStream stream, ExecHandleDesc *execDesc) {
   void *workPtr = NULL;
   size_t workSize = 0U;
+  size_t streamWorkSize = 0U;
   if (handle != NULL) {
     if (handle->workPtr != NULL) {
       workPtr = handle->workPtr;
@@ -95,9 +98,9 @@ static aclError SetExecHandle(const aclmdlExecConfigHandle *handle, aclrtStream 
     }
   }
   if ((workPtr == NULL) && (stream != NULL)) {
-    (void)rtStreamGetWorkspace(stream, &workPtr, &workSize);
+    (void)rtStreamGetWorkspace(stream, &workPtr, &streamWorkSize);
   }
-  if (workPtr == NULL) {
+  if ((((handle != NULL) && (handle->workSize != 0)) || (streamWorkSize != 0)) && (workPtr == NULL)) {
     ACL_LOG_ERROR("not set workSpacePtr.");
     return ACL_ERROR_INVALID_PARAM;
   }
