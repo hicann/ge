@@ -25,7 +25,6 @@
 #include "common/ge_common/ge_types.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "common/checker.h"
-#include "common/om2/codegen/om2_model_api_resource.h"
 #include "framework/common/scope_guard.h"
 #include "graph/ge_context.h"
 #include "graph_metadef/common/ge_common/util.h"
@@ -560,6 +559,8 @@ Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, c
   const std::string interface_name = model_name + "_internal.h";
   const Om2CodegenArtifact *interface_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, interface_name, interface_artifact));
+  const Om2CodegenArtifact *model_api_artifact = nullptr;
+  GE_ASSERT_SUCCESS(FindArtifact(artifacts, kModelApiName, model_api_artifact));
   const Om2CodegenArtifact *makefile_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, "Makefile", makefile_artifact));
 
@@ -576,9 +577,9 @@ Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, c
     CloseMemFdFile(makefile_file);
   };
   GE_MAKE_GUARD(memfd_cleanup, memfd_cleanup_callback);
-  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, std::string(GetOm2ModelApiHeader()), model_api_file));
+  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, model_api_artifact->data, model_api_file));
   std::string interface_data = interface_artifact->data;
-  GE_ASSERT_SUCCESS(ReplaceInclude(interface_data, kModelApiName, model_api_file.fd_path, false));
+  GE_ASSERT_SUCCESS(ReplaceInclude(interface_data, kModelApiName, model_api_file.fd_path));
   GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_data, header_file));
   GE_ASSERT_SUCCESS(CreateCompileCppFiles(artifacts, interface_name, header_file.fd_path, cpp_files));
   GE_CHK_BOOL_RET_STATUS(!cpp_files.empty(), FAILED, "[OM2] No generated cpp artifacts found for model %s",

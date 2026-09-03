@@ -1021,10 +1021,11 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   const std::string model_name = "continuation_test";
-  const std::string interface_name = model_name + "_interface.h";
+  const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
   Om2CodegenArtifacts artifacts = {
-      {interface_name, "#pragma once\n#define CONTINUATION_TEST_VALUE 7\n"},
+      {"om2_model_api.h", "#pragma once\n"},
+      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define CONTINUATION_TEST_VALUE 7\n"},
       {model_name + "_resources.cpp",
        include_line + "extern \"C\" int ContinuationTestResources() { return CONTINUATION_TEST_VALUE; }\n"},
       {model_name + "_kernel_reg.cpp",
@@ -1062,10 +1063,11 @@ $(TARGET): $(SRC_FILES)
 
 // build_config 校验 UT：通过 SetGraphOption 注入 ge.buildConfig，走 CompileGeneratedCppToSo 触发校验
 static Om2CodegenArtifacts MakeBuildConfigTestArtifacts(const std::string &model_name) {
-  const std::string interface_name = model_name + "_interface.h";
+  const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
   return {
-      {interface_name, "#pragma once\n#define BC_TEST_VALUE 1\n"},
+      {"om2_model_api.h", "#pragma once\n"},
+      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define BC_TEST_VALUE 1\n"},
       {model_name + "_load_and_run.cpp", include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n"},
       {"Makefile", R"(CXX := c++
 TARGET := ../libbc_test_om2.so
@@ -1080,6 +1082,14 @@ $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 )"},
   };
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MissingModelApiArtifact_Failed) {
+  const std::string model_name = "missing_model_api";
+  auto artifacts = MakeBuildConfigTestArtifacts(model_name);
+  artifacts.erase(artifacts.begin());
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
 }
 
 std::string GetNativeMachine() {
