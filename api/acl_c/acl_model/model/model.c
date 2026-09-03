@@ -38,6 +38,7 @@ static aclError ModelLoadFromFileWithMem(const aclmdlConfigHandle *handle, uint3
   ModelData data = {0};
   data.priority = handle->priority;
   data.memType = handle->memType;
+  data.modelLoadType = MDL_LOAD_FROM_FILE;
   char *modelPath = handle->loadPath;
   SetPartFromHandle(handle, &data);
   Status ret = LoadDataFromFile(modelPath, &data);
@@ -71,6 +72,7 @@ static aclError ModelLoadFromMemWithMem(const aclmdlConfigHandle *handle, uint32
   data.modelLen = (uint64_t)modelSize;
   data.priority = handle->priority;
   data.memType = handle->memType;
+  data.modelLoadType = MDL_LOAD_FROM_MEM;
   data.fd = NULL;
   data.flag = NO_NEED_READ_FROM_FD;
   SetPartFromHandle(handle, &data);

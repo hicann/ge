@@ -666,7 +666,11 @@ TEST_F(AclMdlTest, aclmdlLoadWithConfig_fromMem_normal) {
   aclmdlSetConfigOpt(handle, ACL_MDL_MEM_SIZET, &modelSize, sizeof(modelSize));
 
   uint32_t modelId;
-  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _)).Times(1).WillOnce(Return(SUCCESS));
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _))
+      .WillOnce(Invoke([](uint32_t *, const ModelData *modelData) {
+        EXPECT_EQ(modelData->modelLoadType, MDL_LOAD_FROM_MEM);
+        return SUCCESS;
+      }));
   aclError ret = aclmdlLoadWithConfig(handle, &modelId);
   EXPECT_EQ(ret, ACL_SUCCESS);
   aclmdlDestroyConfigHandle(handle);
@@ -726,7 +730,11 @@ TEST_F(AclMdlTest, aclmdlLoadWithConfig_fromFile_normal) {
   aclmdlSetConfigOpt(handle, ACL_MDL_PATH_PTR, &path, sizeof(path));
   uint32_t modelId;
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDataFromFile(_, _)).Times(1).WillOnce(Return(SUCCESS));
-  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _)).Times(1).WillOnce(Return(SUCCESS));
+  EXPECT_CALL(GeExecutorStubMock::GetInstance(), GeLoadModelFromData(_, _))
+      .WillOnce(Invoke([](uint32_t *, const ModelData *modelData) {
+        EXPECT_EQ(modelData->modelLoadType, MDL_LOAD_FROM_FILE);
+        return SUCCESS;
+      }));
   aclError ret = aclmdlLoadWithConfig(handle, &modelId);
   EXPECT_EQ(ret, ACL_SUCCESS);
   aclmdlDestroyConfigHandle(handle);

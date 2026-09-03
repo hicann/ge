@@ -47,6 +47,7 @@ class RtStubMock {
   MOCK_METHOD1(dlclose, int(void *handle));
   MOCK_METHOD0(dlerror, char *());
   MOCK_METHOD2(access, int(const char *name, int type));
+  MOCK_METHOD2(aclrtPointerGetAttributes, aclError(const void *ptr, aclrtPtrAttributes *attributes));
 };
 rtError_t rtMalloc(void **devPtr, uint64_t size, rtMemType_t type, const uint16_t moduleId);
 rtError_t rtMalloc_Normal_Invoke(void **devPtr, uint64_t size, rtMemType_t type, const uint16_t moduleId);

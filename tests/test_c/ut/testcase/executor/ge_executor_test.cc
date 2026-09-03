@@ -40,6 +40,11 @@ class UtestGEExecutorTest : public testing::Test {
     ON_CALL(RtStubMock::GetInstance(), rtNanoModelDestroy(_)).WillByDefault(Return(0));
     ON_CALL(RtStubMock::GetInstance(), rtMemcpy(_, _, _, _, _)).WillByDefault(Invoke(rtMemcpy_Normal_Invoke));
     ON_CALL(RtStubMock::GetInstance(), rtMalloc(_, _, _, _)).WillByDefault(Invoke(rtMalloc_Normal_Invoke));
+    ON_CALL(RtStubMock::GetInstance(), aclrtPointerGetAttributes(_, _))
+        .WillByDefault(Invoke([](const void *, aclrtPtrAttributes *attributes) {
+          attributes->location.type = ACL_MEM_LOCATION_TYPE_HOST;
+          return ACL_SUCCESS;
+        }));
     ON_CALL(MmpaStubMock::GetInstance(), mmMalloc(_)).WillByDefault(Invoke(mmMalloc_Normal_Invoke));
   }
   void TearDown() {
@@ -2682,6 +2687,47 @@ TEST_F(UtestGEExecutorTest, ForDump_StaticTaskSize_Set_Normal) {
   EXPECT_EQ(desc.part.taskSize, 301);
   FreeModelData(&modelData);
   GeFinalize();
+}
+
+TEST_F(UtestGEExecutorTest, MdlPartitionParseReuseDeviceModelMemory) {
+  ExeModelBuilder modelBuilder;
+  modelBuilder.AddPartition(PRE_MODEL_DESC, [](std::vector<uint8_t> &model) { GenerateEleForModel(45, 301, model); })
+      .Build();
+
+  ModelData modelData = {};
+  modelData.modelData = modelBuilder.ModelData();
+  modelData.modelLen = modelBuilder.ModelLen();
+  modelData.modelLoadType = MDL_LOAD_FROM_MEM;
+  GeModelDesc desc = {};
+
+  EXPECT_CALL(RtStubMock::GetInstance(), aclrtPointerGetAttributes(modelData.modelData, _))
+      .WillOnce(Invoke([](const void *, aclrtPtrAttributes *attributes) {
+        attributes->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+        return ACL_SUCCESS;
+      }));
+  EXPECT_CALL(RtStubMock::GetInstance(), rtMemcpy(_, _, _, _, _)).Times(0);
+
+  EXPECT_EQ(MdlPartitionParse(&modelData, &desc), SUCCESS);
+  EXPECT_EQ(desc.innerPtrState, 0UL);
+  EXPECT_GE((uintptr_t)desc.part.modelDescPtr, (uintptr_t)modelData.modelData);
+  EXPECT_LT((uintptr_t)desc.part.modelDescPtr, (uintptr_t)modelData.modelData + modelData.modelLen);
+}
+
+TEST_F(UtestGEExecutorTest, MdlPartitionParsePointerAttributesFailedFallbackHost) {
+  ExeModelBuilder modelBuilder;
+  modelBuilder.AddPartition(PRE_MODEL_DESC, [](std::vector<uint8_t> &model) { GenerateEleForModel(45, 301, model); })
+      .Build();
+
+  ModelData modelData = {};
+  modelData.modelData = modelBuilder.ModelData();
+  modelData.modelLen = modelBuilder.ModelLen();
+  modelData.modelLoadType = MDL_LOAD_FROM_MEM;
+  GeModelDesc desc = {};
+
+  EXPECT_CALL(RtStubMock::GetInstance(), aclrtPointerGetAttributes(modelData.modelData, _))
+      .WillOnce(Return(ACL_ERROR_RT_FAILURE));
+  EXPECT_EQ(MdlPartitionParse(&modelData, &desc), SUCCESS);
+  EXPECT_EQ(desc.locationType, ACL_MEM_LOCATION_TYPE_HOST);
 }
 
 // Covers ge_executor.c lines 191-192, 200, 226-228:

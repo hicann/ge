@@ -9,11 +9,16 @@
  */
 
 #include "securec.h"
+#include "acl/acl_rt.h"
 #include "rt_external_mem.h"
 #include "model_desc.h"
 #include "model_parse.h"
 
 typedef Status (*ParseFromFd)(const ModelData *modelData, uint8_t *data, size_t size, void *appInfo);
+
+static bool CanReuseModelPartition(const ModelData *modelData, const GeModelDesc *mdlDesc) {
+  return (modelData->modelLoadType == MDL_LOAD_FROM_MEM) && (mdlDesc->locationType == ACL_MEM_LOCATION_TYPE_DEVICE);
+}
 
 Status ReadDataFromFd(mmFileHandle *fd, size_t offset, size_t len, void *dst) {
   if (fd == NULL) {
@@ -29,16 +34,23 @@ Status ReadDataFromFd(mmFileHandle *fd, size_t offset, size_t len, void *dst) {
   return SUCCESS;
 }
 
-static Status ParseModelDesc(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseModelDesc(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                              GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.modelDescPtr;
   if ((modelData->part.modelDescPtr == NULL) || (modelData->part.modelDescSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse modelDesc in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_PRE_MODEL_DESC_PTR;
+      GELOGD("use innerModelDescPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_PRE_MODEL_DESC_PTR;
-    GELOGD("use innerModelDescPtr.");
   }
   mdlDesc->part.modelDescPtr = dstAddr;
 
@@ -46,24 +58,33 @@ static Status ParseModelDesc(const ModelData *modelData, size_t offset, uint8_t 
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy modelDesc to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
 
-static Status ParseWeightData(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseWeightData(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                               GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.weightPtr;
   if ((modelData->part.weightPtr == NULL) || (modelData->part.weightSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse weight in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_WEIGHTS_DATA_PTR;
+      GELOGD("use innerWeightPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_WEIGHTS_DATA_PTR;
-    GELOGD("use innerWeightPtr.");
   }
   mdlDesc->part.weightPtr = dstAddr;
 
@@ -71,24 +92,33 @@ static Status ParseWeightData(const ModelData *modelData, size_t offset, uint8_t
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy weight to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
 
-static Status ParseTbeKernels(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseTbeKernels(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                               GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.kernelPtr;
   if ((modelData->part.kernelPtr == NULL) || (modelData->part.kernelSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse kernels in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TBE_KERNELS_PTR;
+      GELOGD("use innerKernelPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TBE_KERNELS_PTR;
-    GELOGD("use innerKernelPtr.");
   }
   mdlDesc->part.kernelPtr = dstAddr;
 
@@ -96,24 +126,33 @@ static Status ParseTbeKernels(const ModelData *modelData, size_t offset, uint8_t
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy kernels to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
 
-static Status ParseStaticTaskDesc(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseStaticTaskDesc(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                                   GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.taskPtr;
   if ((modelData->part.taskPtr == NULL) || (modelData->part.taskSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse task in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_STATIC_TASK_DESC_PTR;
+      GELOGD("use innerTaskPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_STATIC_TASK_DESC_PTR;
-    GELOGD("use innerTaskPtr.");
   }
   mdlDesc->part.taskPtr = dstAddr;
   mdlDesc->part.taskSize = size;  // dump needs to use this taskSize from model file
@@ -122,24 +161,33 @@ static Status ParseStaticTaskDesc(const ModelData *modelData, size_t offset, uin
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy static task to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
 
-static Status ParseDynamicTaskDesc(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseDynamicTaskDesc(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                                    GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.dynTaskPtr;
   if ((modelData->part.dynTaskPtr == NULL) || (modelData->part.dynTaskSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse dynamic task in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_DYNAMIC_TASK_DESC_PTR;
+      GELOGD("use innerDynTaskPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_DYNAMIC_TASK_DESC_PTR;
-    GELOGD("use innerDynTaskPtr.");
   }
   mdlDesc->part.dynTaskPtr = dstAddr;
 
@@ -147,24 +195,33 @@ static Status ParseDynamicTaskDesc(const ModelData *modelData, size_t offset, ui
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy dynamic task to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
 
-static Status ParseTaskParam(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseTaskParam(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                              GeModelDesc *mdlDesc) {
+  bool needCopy = true;
   void *dstAddr = modelData->part.paramPtr;
   if ((modelData->part.paramPtr == NULL) || (modelData->part.paramSize < size)) {
-    aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-    if (rtRet != ACL_ERROR_NONE) {
-      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    if (CanReuseModelPartition(modelData, mdlDesc)) {
+      dstAddr = partitionData;
+      needCopy = false;
+      GELOGD("reuse task parameters in device memory.");
+    } else {
+      aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
+      if (rtRet != ACL_ERROR_NONE) {
+        return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+      }
+      mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TASK_PARAM_PTR;
+      GELOGD("use innerParamPtr.");
     }
-    mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TASK_PARAM_PTR;
-    GELOGD("use innerParamPtr.");
   }
   mdlDesc->part.paramPtr = dstAddr;
 
@@ -172,10 +229,12 @@ static Status ParseTaskParam(const ModelData *modelData, size_t offset, uint8_t 
     return ReadDataFromFd(modelData->fd, offset, size, dstAddr);
   }
 
-  Status ret = (Status)rtMemcpy(dstAddr, size, data, size, RT_MEMCPY_HOST_TO_DEVICE);
-  if (ret != SUCCESS) {
-    GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy partition to device failed");
-    return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+  if (needCopy) {
+    Status ret = (Status)rtMemcpy(dstAddr, size, partitionData, size, RT_MEMCPY_HOST_TO_DEVICE);
+    if (ret != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "copy task parameters to device failed");
+      return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
+    }
   }
   return SUCCESS;
 }
@@ -378,12 +437,12 @@ static Status ParserPartionFromFd(const ModelData *modelData, size_t offset, siz
   return SUCCESS;
 }
 
-static Status ParseModelIoDesc(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseModelIoDesc(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                                GeModelDesc *mdlDesc) {
   if (modelData->flag == NEED_READ_FROM_FD) {
     return ParserPartionFromFd(modelData, offset, size, (void *)&mdlDesc->ioInfo, (ParseFromFd)ParseModelIoDescInfo);
   }
-  return ParseModelIoDescInfo(modelData, data, size, &mdlDesc->ioInfo);
+  return ParseModelIoDescInfo(modelData, partitionData, size, &mdlDesc->ioInfo);
 }
 
 Status ParsePartitionPreProcess(const ModelData *modelData, uint32_t *partitionNum) {
@@ -501,12 +560,12 @@ Status ParseModelDescExtend(const ModelData *modelData, uint8_t *data, size_t si
   return ParseTlvList(modelData, data + sizeof(struct ModelExtendHead), extendDesc->len, mdlDesc);
 }
 
-static Status ParseModelDescExtendInfo(const ModelData *modelData, size_t offset, uint8_t *data, size_t size,
+static Status ParseModelDescExtendInfo(const ModelData *modelData, size_t offset, uint8_t *partitionData, size_t size,
                                        GeModelDesc *mdlDesc) {
   if (modelData->flag == NEED_READ_FROM_FD) {
     return ParserPartionFromFd(modelData, offset, size, (void *)mdlDesc, (ParseFromFd)ParseModelDescExtend);
   }
-  return ParseModelDescExtend(modelData, data, size, mdlDesc);
+  return ParseModelDescExtend(modelData, partitionData, size, mdlDesc);
 }
 
 Status MdlPartitionParse(const ModelData *modelData, GeModelDesc *mdlDesc) {
@@ -524,10 +583,13 @@ Status MdlPartitionParse(const ModelData *modelData, GeModelDesc *mdlDesc) {
   uint8_t *baseAddr = (uint8_t *)modelData->modelData;
   uint8_t *partBaseAddr = baseAddr + baseOffset;
   uint64_t validLen = modelData->modelLen - baseOffset;
+  aclrtPtrAttributes attributes = {0};
+  (void)aclrtPointerGetAttributes(baseAddr, &attributes);
+  mdlDesc->locationType = attributes.location.type;
   for (size_t i = 0UL; i < partitionNum; ++i) {
     ModelPartitionMemInfo *partitionInfo = (ModelPartitionMemInfo *)(baseAddr + offset);
     size_t size = partitionInfo->mem_size;
-    uint8_t *data = partBaseAddr + partitionInfo->mem_offset;
+    uint8_t *partitionData = partBaseAddr + partitionInfo->mem_offset;
     if ((partitionInfo->mem_offset > validLen) || (size == 0) || (size > validLen - partitionInfo->mem_offset)) {
       GELOGE(ACL_ERROR_GE_INTERNAL_ERROR,
              "partition type %d, mem_size is %zu offset is %zu,"
@@ -540,35 +602,35 @@ Status MdlPartitionParse(const ModelData *modelData, GeModelDesc *mdlDesc) {
     size_t dataOffset = baseOffset + partitionInfo->mem_offset;
     switch (partitionInfo->type) {
       case PRE_MODEL_DESC: {
-        ret = ParseModelDesc(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseModelDesc(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case PRE_MODEL_DESC_EXTEND: {
-        ret = ParseModelDescExtendInfo(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseModelDescExtendInfo(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case WEIGHTS_DATA: {
-        ret = ParseWeightData(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseWeightData(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case TBE_KERNELS: {
-        ret = ParseTbeKernels(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseTbeKernels(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case STATIC_TASK_DESC: {
-        ret = ParseStaticTaskDesc(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseStaticTaskDesc(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case DYNAMIC_TASK_DESC: {
-        ret = ParseDynamicTaskDesc(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseDynamicTaskDesc(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case TASK_PARAM: {
-        ret = ParseTaskParam(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseTaskParam(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       case MODEL_INOUT_INFO: {
-        ret = ParseModelIoDesc(modelData, dataOffset, data, size, mdlDesc);
+        ret = ParseModelIoDesc(modelData, dataOffset, partitionData, size, mdlDesc);
         break;
       }
       default:
