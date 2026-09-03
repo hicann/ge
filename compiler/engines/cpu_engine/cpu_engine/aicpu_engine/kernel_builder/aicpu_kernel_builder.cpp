@@ -16,7 +16,7 @@ KernelBuilderPtr AicpuKernelBuilder::instance_ = nullptr;
 
 inline KernelBuilderPtr AicpuKernelBuilder::Instance() {
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance_.reset(new (std::nothrow) AicpuKernelBuilder); });
+  std::call_once(flag, []() { instance_.reset(new (std::nothrow) AicpuKernelBuilder); });
   return instance_;
 }
 

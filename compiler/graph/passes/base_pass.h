@@ -52,27 +52,27 @@ class BaseNodePass {
 
   virtual ~BaseNodePass() = default;
 
-  const std::vector<NodePtr> &GetNodesNeedRePass() {
+  const std::vector<NodePtr> &GetNodesNeedRePass() const {
     return nodes_need_re_pass_;
   }
 
-  const OrderedNodeSet &GetNodesNeedRePassImmediately() {
+  const OrderedNodeSet &GetNodesNeedRePassImmediately() const {
     return nodes_need_re_pass_immediately_;
   }
 
-  const OrderedNodeSet &GetGlobalNodesNeedRePassImmediately() {
+  const OrderedNodeSet &GetGlobalNodesNeedRePassImmediately() const {
     return global_nodes_need_repass_immediately_;
   }
 
-  const std::unordered_set<NodePtr> &GetNodesDeleted() {
+  const std::unordered_set<NodePtr> &GetNodesDeleted() const {
     return nodes_deleted_;
   }
 
-  const std::unordered_set<NodePtr> &GetNodesSuspend() {
+  const std::unordered_set<NodePtr> &GetNodesSuspend() const {
     return nodes_suspend_;
   }
 
-  const OrderedNodeSet &GetNodesResume() {
+  const OrderedNodeSet &GetNodesResume() const {
     return nodes_resume_;
   }
 

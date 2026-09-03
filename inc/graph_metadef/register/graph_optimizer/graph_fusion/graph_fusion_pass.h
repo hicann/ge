@@ -40,7 +40,7 @@ class Pass {
     name_ = name;
   }
 
-  std::string GetName() {
+  std::string GetName() const {
     return name_;
   }
 

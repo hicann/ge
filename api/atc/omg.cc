@@ -285,7 +285,7 @@ void FindParserSo(const std::string &path, std::vector<std::string> &file_list, 
   return;
 }
 
-bool CheckDigitStr(std::string &str) {
+bool CheckDigitStr(const std::string &str) {
   for (char c : str) {
     if (!isdigit(c)) {
       GELOGE(FAILED, "[Check][Param]value[%s] is not positive integer", str.c_str());
@@ -295,7 +295,7 @@ bool CheckDigitStr(std::string &str) {
   return true;
 }
 
-domi::Status StringToInt(std::string &str, int32_t &value) {
+domi::Status StringToInt(const std::string &str, int32_t &value) {
   try {
     if (!CheckDigitStr(str)) {
       GELOGE(PARAM_INVALID, "[Check][Param]Invalid digit string: %s ", str.c_str());

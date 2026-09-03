@@ -40,7 +40,7 @@
 using namespace std;
 
 namespace ge {
-domi::Status StringToInt(std::string &str, int32_t &value);
+domi::Status StringToInt(const std::string &str, int32_t &value);
 domi::Status ParseOutNodes(const std::string &out_nodes);
 domi::Status CheckOutPutDataTypeSupport(const std::string &output_type);
 domi::Status ParseOutputType(const std::string &output_type,

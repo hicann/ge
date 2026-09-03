@@ -23,7 +23,7 @@ KernelInfoPtr AicpuKernelInfo::instance_ = nullptr;
 
 inline KernelInfoPtr AicpuKernelInfo::Instance() {
   static once_flag flag;
-  call_once(flag, [&]() { instance_.reset(new (nothrow) AicpuKernelInfo); });
+  call_once(flag, []() { instance_.reset(new (nothrow) AicpuKernelInfo); });
   return instance_;
 }
 

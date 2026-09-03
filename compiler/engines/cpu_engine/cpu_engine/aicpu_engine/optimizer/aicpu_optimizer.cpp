@@ -18,7 +18,7 @@ OptimizerPtr AicpuOptimizer::instance_ = nullptr;
 
 OptimizerPtr AicpuOptimizer::Instance() {
   static std::once_flag flag;
-  std::call_once(flag, [&]() { instance_.reset(new (std::nothrow) AicpuOptimizer); });
+  std::call_once(flag, []() { instance_.reset(new (std::nothrow) AicpuOptimizer); });
   return instance_;
 }
 
