@@ -25,6 +25,7 @@
 #include "common/ge_common/ge_types.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "common/checker.h"
+#include "common/om2/codegen/om2_model_api_resource.h"
 #include "framework/common/scope_guard.h"
 #include "graph/ge_context.h"
 #include "graph_metadef/common/ge_common/util.h"
@@ -484,26 +485,31 @@ endif
   return SUCCESS;
 }
 
+Status ReplaceInclude(std::string &data, const std::string &include_name, const std::string &include_path,
+                      const bool required = true) {
+  const std::string old_include = "#include \"" + include_name + "\"";
+  const std::string new_include = "#include \"" + include_path + "\"";
+  size_t pos = 0U;
+  bool replaced = false;
+  pos = data.find(old_include, pos);
+  while (pos != std::string::npos) {
+    (void)data.replace(pos, old_include.size(), new_include);
+    pos += new_include.size();
+    replaced = true;
+    pos = data.find(old_include, pos);
+  }
+  GE_ASSERT_TRUE(!required || replaced, "[OM2] Include %s not found", include_name.c_str());
+  return SUCCESS;
+}
+
 Status CreateCompileCppFiles(const Om2CodegenArtifacts &artifacts, const std::string &interface_name,
                              const std::string &header_fd_path, std::vector<MemFdFile> &cpp_files) {
-  const std::string old_include = "#include \"" + interface_name + "\"";
-  const std::string new_include = "#include \"" + header_fd_path + "\"";
   for (const auto &artifact : artifacts) {
     if (!IsCppFile(artifact.file_name)) {
       continue;
     }
     std::string compile_data = artifact.data;
-    size_t pos = 0U;
-    bool replaced = false;
-    pos = compile_data.find(old_include, pos);
-    while (pos != std::string::npos) {
-      (void)compile_data.replace(pos, old_include.size(), new_include);
-      pos += new_include.size();
-      replaced = true;
-      pos = compile_data.find(old_include, pos);
-    }
-    GE_ASSERT_TRUE(replaced, "[OM2] Interface include %s not found in %s", interface_name.c_str(),
-                   artifact.file_name.c_str());
+    GE_ASSERT_SUCCESS(ReplaceInclude(compile_data, interface_name, header_fd_path));
 
     MemFdFile cpp_file;
     GE_ASSERT_SUCCESS(CreateMemFdFile(artifact.file_name, compile_data, cpp_file));
@@ -550,24 +556,30 @@ std::string Om2Utils::NormalizeCpuArch(const std::string &cpu) {
 
 Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, const std::string &model_name,
                                          Om2CodegenArtifact &so_artifact, const bool is_release) {
-  const std::string interface_name = model_name + "_interface.h";
+  constexpr char kModelApiName[] = "om2_model_api.h";
+  const std::string interface_name = model_name + "_internal.h";
   const Om2CodegenArtifact *interface_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, interface_name, interface_artifact));
   const Om2CodegenArtifact *makefile_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, "Makefile", makefile_artifact));
 
+  MemFdFile model_api_file;
   MemFdFile header_file;
   std::vector<MemFdFile> cpp_files;
   std::string so_path;
   MemFdFile makefile_file;
-  auto memfd_cleanup_callback = [&header_file, &cpp_files, &so_path, &makefile_file]() {
+  auto memfd_cleanup_callback = [&model_api_file, &header_file, &cpp_files, &so_path, &makefile_file]() {
+    CloseMemFdFile(model_api_file);
     CloseMemFdFile(header_file);
     CloseMemFdFiles(cpp_files);
     RemoveTempFile(so_path);
     CloseMemFdFile(makefile_file);
   };
   GE_MAKE_GUARD(memfd_cleanup, memfd_cleanup_callback);
-  GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_artifact->data, header_file));
+  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, std::string(GetOm2ModelApiHeader()), model_api_file));
+  std::string interface_data = interface_artifact->data;
+  GE_ASSERT_SUCCESS(ReplaceInclude(interface_data, kModelApiName, model_api_file.fd_path, false));
+  GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_data, header_file));
   GE_ASSERT_SUCCESS(CreateCompileCppFiles(artifacts, interface_name, header_file.fd_path, cpp_files));
   GE_CHK_BOOL_RET_STATUS(!cpp_files.empty(), FAILED, "[OM2] No generated cpp artifacts found for model %s",
                          model_name.c_str());

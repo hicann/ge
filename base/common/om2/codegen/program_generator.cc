@@ -17,6 +17,7 @@
 #include "common/om2/codegen/file_code_generator/load_and_run_file_code_generator.h"
 #include "common/om2/codegen/file_code_generator/resources_file_code_generator.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
+#include "common/om2/codegen/om2_model_api_resource.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {
@@ -42,11 +43,17 @@ Status EmitFile(const GeneratedFileIndex file_index, const AstNode *unit, Om2Cod
 
 Status ProgramGenerator::GenerateProgram(Om2CodePrinter &code_printer) {
   GE_ASSERT_SUCCESS(GenerateKernelRegSource(code_printer));
+  GE_ASSERT_SUCCESS(GenerateModelApiHeader(code_printer));
   GE_ASSERT_SUCCESS(GenerateInterfaceHeader(code_printer));
   GE_ASSERT_SUCCESS(GenerateResourcesSource(code_printer));
   GE_ASSERT_SUCCESS(GenerateLoadAndRunSource(code_printer));
   GE_ASSERT_SUCCESS(GenerateArgsManagerSource(code_printer));
   GE_ASSERT_SUCCESS(GenerateMakeFile(code_printer));
+  return SUCCESS;
+}
+
+Status ProgramGenerator::GenerateModelApiHeader(Om2CodePrinter &code_printer) {
+  code_printer.AddContent(GeneratedFileIndex::kModelApiHeaderFile, std::string(GetOm2ModelApiHeader()));
   return SUCCESS;
 }
 
@@ -82,14 +89,14 @@ std::vector<DeclNode *> ProgramGenerator::BuildInterfaceHeaderIncludes() const {
 
 Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
   InterfaceFileCodeGenerator interface_handler(ast_);
-  auto external_api_decls = interface_handler.BuildExternalApiDecls();
   auto rt_forward_decls = interface_handler.BuildRtForwardDecls();
   auto file_items = BuildInterfaceHeaderIncludes();
+  file_items.push_back(ast_.Include("om2_model_api.h"));
   file_items.push_back(ast_.Space());
   file_items.push_back(ast_.StablePart(StablePartId::kOm2LogMacros, StablePartPlacement::kTranslationUnit));
   file_items.push_back(ast_.StablePart(StablePartId::kInterfaceMacros));
   file_items.push_back(ast_.StablePart(StablePartId::kInterfacePointerHelpers));
-  file_items.push_back(ast_.StablePart(StablePartId::kInterfaceDumpApis));
+  file_items.push_back(ast_.StablePart(StablePartId::kInterfaceInternalTypes));
   file_items.insert(file_items.end(), rt_forward_decls.begin(), rt_forward_decls.end());
   file_items.push_back(ast_.Namespace(
       "om2",
@@ -110,7 +117,6 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
           ast_.StablePart(StablePartId::kOpDefStructs, StablePartPlacement::kNamespace),
           interface_handler.BuildOm2ModelClass(codegen_model_),
       }));
-  file_items.push_back(ast_.ExternBlock("C", external_api_decls));
   auto *translation_unit = ast_.File(file_items);
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kInterfaceHeaderFile, translation_unit, code_printer));
   return SUCCESS;
@@ -131,7 +137,7 @@ Status ProgramGenerator::GenerateResourcesSource(Om2CodePrinter &code_printer) {
     resources_items.push_back(ast_.StablePart(StablePartId::kCreateLabelListForLabelGotoEx));
   }
   auto *translation_unit = ast_.File({
-      ast_.Include(codegen_model_.model_name + "_interface.h"),
+      ast_.Include(codegen_model_.model_name + "_internal.h"),
       ast_.Space(),
       ast_.Namespace("om2", resources_items),
   });
@@ -143,7 +149,7 @@ Status ProgramGenerator::GenerateResourcesSource(Om2CodePrinter &code_printer) {
 Status ProgramGenerator::GenerateArgsManagerSource(Om2CodePrinter &code_printer) {
   ArgsManagerFileCodeGenerator args_manager_handler(ast_);
   auto *translation_unit = ast_.File({
-      ast_.Include(codegen_model_.model_name + "_interface.h"),
+      ast_.Include(codegen_model_.model_name + "_internal.h"),
       ast_.Space(),
       ast_.Namespace("om2",
                      {
@@ -177,7 +183,7 @@ Status ProgramGenerator::GenerateKernelRegSource(Om2CodePrinter &code_printer) {
       kernel_reg_handler.BuildRegisterCustAicpuKernel(),
   };
   auto *translation_unit = ast_.File({
-      ast_.Include(codegen_model_.model_name + "_interface.h"),
+      ast_.Include(codegen_model_.model_name + "_internal.h"),
       ast_.Namespace("om2",
                      {
                          ast_.Namespace("", anonymous_items),
@@ -200,7 +206,7 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
   (void)anonymous_items.insert(anonymous_items.begin(),
                                ast_.StablePart(StablePartId::kLoadAndRunDumpHelpers, StablePartPlacement::kNamespace));
   anonymous_items.push_back(load_and_run_handler.BuildOpDefTable(codegen_model_, task_code_builder_list_));
-  std::vector<DeclNode *> body_items = {ast_.Include(codegen_model_.model_name + "_interface.h")};
+  std::vector<DeclNode *> body_items = {ast_.Include(codegen_model_.model_name + "_internal.h")};
   if (has_custom_kernel_) {
     body_items.emplace_back(ast_.Include("graph/custom_op.h"));
     body_items.emplace_back(ast_.Include("exe_graph/runtime/gert_mem_allocator.h"));

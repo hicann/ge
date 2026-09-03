@@ -74,7 +74,6 @@ StablePartRole InferStablePartRole(StablePartId id) {
     case StablePartId::kReadBinaryFileToBuffer:
     case StablePartId::kGenerateJsonFile:
     case StablePartId::kLoadAndRunExternalApis:
-    case StablePartId::kInterfaceDumpApis:
     case StablePartId::kLoadAndRunDumpHelpers:
       return StablePartRole::kHelperFunctionGroup;
     case StablePartId::kScopeGuard:

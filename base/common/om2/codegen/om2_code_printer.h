@@ -17,7 +17,8 @@
 
 namespace ge {
 enum class GeneratedFileIndex : uint32_t {
-  kKernelRegistryFile = 0U,
+  kModelApiHeaderFile = 0U,
+  kKernelRegistryFile,
   kResourcesFile,
   kArgsManagerFile,
   kLoadingAndRunningFile,

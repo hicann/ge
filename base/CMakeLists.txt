@@ -66,6 +66,12 @@ file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS
         "common/helper/om2_package_helper.cc"
         "common/helper/visual_json_converter.cc"
 )
+set(OM2_MODEL_API_HEADER "${AIR_CODE_DIR}/inc/framework/om2/model_api/om2_model_api.h")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OM2_MODEL_API_HEADER}")
+file(READ "${OM2_MODEL_API_HEADER}" OM2_MODEL_API_CONTENT)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/common/om2/codegen/om2_model_api_resource.cc.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/om2_model_api_resource.cc" @ONLY)
+list(APPEND OM2_SRCS "${CMAKE_CURRENT_BINARY_DIR}/om2_model_api_resource.cc")
 set(SRC_BASE_LIST
     "common/context/ctx.cc"
     "common/context/local_context.cc"

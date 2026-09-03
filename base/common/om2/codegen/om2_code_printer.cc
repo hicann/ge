@@ -21,7 +21,8 @@ void Om2CodePrinter::SetFileInfo(GeneratedFileIndex generated_file_index, const 
 }
 
 void Om2CodePrinter::InitDefaultFileInfo(const std::string &model_name) {
-  SetFileInfo(GeneratedFileIndex::kInterfaceHeaderFile, model_name + "_interface.h");
+  SetFileInfo(GeneratedFileIndex::kModelApiHeaderFile, "om2_model_api.h");
+  SetFileInfo(GeneratedFileIndex::kInterfaceHeaderFile, model_name + "_internal.h");
   SetFileInfo(GeneratedFileIndex::kResourcesFile, model_name + "_resources.cpp");
   SetFileInfo(GeneratedFileIndex::kArgsManagerFile, model_name + "_args_manager.cpp");
   SetFileInfo(GeneratedFileIndex::kKernelRegistryFile, model_name + "_kernel_reg.cpp");

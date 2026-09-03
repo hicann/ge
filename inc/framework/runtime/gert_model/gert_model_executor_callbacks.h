@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #include "acl/acl_rt.h"
-#include "framework/runtime/gert_model/gert_model_executor_types.h"
+#include "framework/om2/model_api/om2_model_api.h"
 
 #ifdef __cplusplus
 extern "C" {

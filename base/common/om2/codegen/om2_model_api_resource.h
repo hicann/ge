@@ -8,10 +8,13 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_FRAMEWORK_RUNTIME_GERT_MODEL_GERT_MODEL_EXECUTOR_TYPES_H_
-#define GE_FRAMEWORK_RUNTIME_GERT_MODEL_GERT_MODEL_EXECUTOR_TYPES_H_
+#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_API_RESOURCE_H_
+#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_API_RESOURCE_H_
 
-// Kept as a compatibility include for existing runtime users. The ABI types are defined only once.
-#include "framework/om2/model_api/om2_model_api.h"
+#include <string_view>
 
-#endif  // GE_FRAMEWORK_RUNTIME_GERT_MODEL_GERT_MODEL_EXECUTOR_TYPES_H_
+namespace ge {
+std::string_view GetOm2ModelApiHeader();
+}  // namespace ge
+
+#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_API_RESOURCE_H_
