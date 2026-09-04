@@ -9,14 +9,36 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
+# Color
+Red='\e[0;31m'          # Red
+Green='\e[0;32m'        # Green
+BRed='\e[1;31m'         # Red
+BGreen='\e[1;32m'       # Green
+BCyan='\e[1;36m'        # Cyan
+Purple='\e[0;35m'       # Purple
+BPurple='\e[1;35m'      # Bold Purple
+Color_Off='\e[0m'       # Text Reset
+Now=`date +"%Y-%m-%d %H:%M:%S"`
+
 function LOG_DO() {
     local date_time
-    local BPurple='\e[1;35m'
-    local Purple='\e[0;35m'
-    local Color_Off='\e[0m'
     date_time=$(date +%Y%m%d-%H%M%S)
     echo -e "${BPurple}[Command]${Color_Off} ${date_time} ${Purple}$*${Color_Off}"
     "$@"
+}
+
+# Log error
+function LOG_ERROR() {
+    local date_time
+    date_time=$(date +%Y%m%d-%H%M%S)
+    echo -e "${BRed}[ERROR] ${date_time} ${1}${Color_Off}"
+}
+
+# Log info
+function LOG_INFO() {
+    local date_time
+    date_time=$(date +%Y%m%d-%H%M%S)
+    echo -e "${BGreen}[INFO] ${date_time} ${1}${Color_Off}"
 }
 
 function DP_ASSERT_EQUAL() {
