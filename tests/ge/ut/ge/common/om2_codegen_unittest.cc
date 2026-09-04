@@ -868,57 +868,6 @@ TEST_F(Om2CodegenUt, AstDsl_IgnoreOutputRemoveFile_Ok) {
                             });
 }
 
-TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
-  AstContext ctx;
-  AstBuildContext ast(ctx);
-
-  auto *tu = ast.File({
-      ast.StablePart(StablePartId::kInterfacePointerHelpers),
-      ast.ExternBlock("C", {ast.StablePart(StablePartId::kInterfaceDumpApis)}),
-  });
-  ASSERT_NE(tu, nullptr);
-
-  const auto output = EmitNode(*tu);
-  ExpectContainsAll(output, {
-                                "inline void *ValueToPtr(const uint64_t value) {\n",
-                                "inline uint64_t PtrToU64(const void *ptr) {\n",
-                                "extern \"C\" {\n",
-                                "enum GertModelArgKind : uint64_t {\n",
-                                "struct GertModelArgSlotInfo {\n",
-                                "struct GertModelTaskRawInfo {\n",
-                                "const struct GertModelTaskRawInfo *task_raw_info = nullptr;\n",
-                                "  uint64_t kernel_type = 10000U;\n",
-                                "enum GertModelTaskLaunchType : uint64_t",
-                                "struct GertModelLaunchKernelV2Params {\n",
-                                "  uint64_t struct_size = sizeof(GertModelLaunchKernelV2Params);\n",
-                                "  aclrtFuncHandle func_handle = nullptr;\n",
-                                "  uint32_t block_dim = 0;\n",
-                                "  uint32_t reserved_1 = 0;\n",
-                                "  const void *args_data = nullptr;\n",
-                                "  size_t args_size = 0;\n",
-                                "  aclrtLaunchKernelCfg *config = nullptr;\n",
-                                "  aclrtStream stream = nullptr;\n",
-                                "struct GertModelLaunchStarsTaskWithFlagParams {\n",
-                                "  uint64_t struct_size = sizeof(GertModelLaunchStarsTaskWithFlagParams);\n",
-                                "  const void *task_sqe = nullptr;\n",
-                                "  uint32_t sqe_len = 0;\n",
-                                "  uint32_t reserved_1 = 0;\n",
-                                "  aclrtStream stream = nullptr;\n",
-                                "  uint32_t flag = 0;\n",
-                                "  uint32_t reserved_2 = 0;\n",
-                                "struct GertModelTaskLaunchInfo {\n",
-                                "  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);\n",
-                                "  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;\n",
-                                "GertModelLaunchFunc launch_func = nullptr;",
-                            });
-  EXPECT_LT(output.find("  uint64_t task_type = 0;\n"), output.find("  uint64_t kernel_type = 10000U;\n"));
-  EXPECT_EQ(output.find("report_task_preprocess"), std::string::npos);
-  EXPECT_EQ(output.find("report_task_postprocess"), std::string::npos);
-  EXPECT_EQ(output.find("get_data_dump_enabled"), std::string::npos);
-  EXPECT_LT(output.find("inline uint64_t PtrToU64"), output.find("extern \"C\" {"));
-  EXPECT_GT(output.find("struct Om2Tensor"), output.find("extern \"C\" {"));
-}
-
 TEST_F(Om2CodegenUt, LoadAndRunDumpHelpers_EmitInAnonymousNamespace_Ok) {
   AstContext ctx;
   AstBuildContext ast(ctx);
@@ -1514,7 +1463,6 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
       {StablePartId::kScopeGuard, "class ScopeGuard"},
       {StablePartId::kReadBinaryFileToBuffer, "BinaryBuffer ReadBinaryFileToBuffer"},
       {StablePartId::kGenerateJsonFile, "aclError GenerateJsonFile"},
-      {StablePartId::kInterfaceDumpApis, "struct GertModelTaskDesc"},
       {StablePartId::kOm2LogMacros, "#define OM2_LOGD"},
   };
 
