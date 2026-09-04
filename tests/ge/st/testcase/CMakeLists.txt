@@ -247,6 +247,7 @@ target_link_options(ge_common_atc PRIVATE
 
 target_link_libraries(ge_common_atc
     intf_llt_pub
+    mmpa_stub
     ascendcl_stub
     -Wl,-z,muldefs
     ge_compiler

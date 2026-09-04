@@ -1457,6 +1457,25 @@ aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetMemInfo(attr, free_size, total);
 }
 
+aclError aclrtCtxSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  return ACL_SUCCESS;
+}
+
+aclError aclrtSetSysParamOpt(aclSysParamOpt opt, int64_t value) {
+  return ACL_SUCCESS;
+}
+
+aclError aclrtHostRegister(void *ptr, uint64_t size, aclrtHostRegisterType type, void **devPtr) {
+  if (devPtr != nullptr) {
+    *devPtr = ptr;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError aclrtHostUnregister(void *ptr) {
+  return ACL_SUCCESS;
+}
+
 const char *aclrtGetSocName() {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetSocName();
 }

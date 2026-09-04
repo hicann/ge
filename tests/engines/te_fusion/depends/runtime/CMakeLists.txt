@@ -14,6 +14,7 @@ set(FE_SRC_CPP
 # compile for fe_st
 add_library(runtime_stub_fe SHARED
         ${FE_SRC_CPP})
+set_property(TARGET runtime_stub_fe APPEND PROPERTY LINK_OPTIONS "-Wl,-soname,libruntime.so")
 
 #target_include_directories(runtime_stub_fe PRIVATE
 #        )

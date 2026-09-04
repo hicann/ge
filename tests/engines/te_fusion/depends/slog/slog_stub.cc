@@ -12,7 +12,6 @@
 #include <fstream>
 #include <string.h>
 #include <stdarg.h>
-#include <map>
 
 #define MSG_LENGTH_STUB (1024)
 #define SET_MOUDLE_ID_MAP_NAME(x) {#x, x}
@@ -46,13 +45,6 @@ int CheckLogLevel(int moduleId, int level) {
   return level >= DLOG_ERROR;
 }
 
-const std::map<int, std::string> LOG_LEVEL_STR_MAP{
-    {DLOG_DEBUG, "DEBUG"},
-    {DLOG_INFO, "INFO"},
-    {DLOG_WARN, "WARN"},
-    {DLOG_ERROR, "ERROR"},
-};
-
 void DlogRecord(int moduleId, int level, const char *fmt, ...) {
   if (moduleId < 0 || moduleId >= INVLID_MOUDLE_ID) {
     return;
@@ -63,9 +55,21 @@ void DlogRecord(int moduleId, int level, const char *fmt, ...) {
   int len;
   char msg[MSG_LENGTH_STUB] = {0};
   std::string level_str = "NULL";
-  auto iter = LOG_LEVEL_STR_MAP.find(level);
-  if (iter != LOG_LEVEL_STR_MAP.end()) {
-    level_str = iter->second;
+  switch (level) {
+    case DLOG_DEBUG:
+      level_str = "DEBUG";
+      break;
+    case DLOG_INFO:
+      level_str = "INFO";
+      break;
+    case DLOG_WARN:
+      level_str = "WARN";
+      break;
+    case DLOG_ERROR:
+      level_str = "ERROR";
+      break;
+    default:
+      break;
   }
   snprintf(msg, MSG_LENGTH_STUB, "[FE] [%s] ", level_str.c_str());
   va_list ap;

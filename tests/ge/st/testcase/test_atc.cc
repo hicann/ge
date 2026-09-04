@@ -33,7 +33,19 @@
 #include "register/amct_registry.h"
 
 #include <fstream>
+#include <dlfcn.h>
+#include <string.h>
 #include <vector>
+
+extern "C" void *dlopen(const char *file_name, int mode) {
+  if (file_name != nullptr && strstr(file_name, "liboptf_plugin_hccl.so") != nullptr) {
+    return nullptr;
+  }
+
+  using DlopenFunc = void *(*)(const char *, int);
+  static DlopenFunc real_dlopen = reinterpret_cast<DlopenFunc>(dlsym(RTLD_NEXT, "dlopen"));
+  return real_dlopen(file_name, mode);
+}
 
 DECLARE_bool(help);
 DECLARE_bool(raw_ge_options_ignore_unsupported);

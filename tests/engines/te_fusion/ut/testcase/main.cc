@@ -28,6 +28,10 @@
 
 using namespace std;
 
+#ifdef GE_TEFUSION_GCOV
+extern "C" void __gcov_dump(void);
+#endif
+
 int main(int argc, char **argv) {
   string stub_cann_path = fe::GetCodeDir() + "/tests/engines/nn_engine/depends/CANN_910b_stub/cann";
   fe::EnvVarGuard cann_guard(MM_ENV_ASCEND_HOME_PATH, stub_cann_path.c_str());
@@ -40,5 +44,8 @@ int main(int argc, char **argv) {
   cann_guard.Restore();
   opp_guard.Restore();
   int ret = RUN_ALL_TESTS();
-  return ret;
+#ifdef GE_TEFUSION_GCOV
+  __gcov_dump();
+#endif
+  std::_Exit(ret);
 }

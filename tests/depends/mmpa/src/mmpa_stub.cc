@@ -437,6 +437,9 @@ static rtError_t MockRtGetSocSpec(const char *label, const char *key, char *valu
 
 VOID *mmDlopen(const CHAR *fileName, INT32 mode) {
   const std::string so_name = fileName ? fileName : "";
+  if (so_name.find("liboptf_plugin_hccl.so") != std::string::npos) {
+    return nullptr;
+  }
   if (so_name.find("libcce.so") != std::string::npos) {
     return (void *)(libcce_name.data());
   };
