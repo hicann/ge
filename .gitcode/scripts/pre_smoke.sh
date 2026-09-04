@@ -36,9 +36,9 @@ arm_package_dflow="cann-dflow_linux-aarch64.run"
 arm_package_compiler="cann-ge-compiler_linux-aarch64.run"
 arm_package_executor="cann-ge-executor_linux-aarch64.run"
 
-wget -nv -O "${arm_package_dflow}"     "${dflow_url}"
-wget -nv -O "${arm_package_compiler}"  "${compiler_url}"
-wget -nv -O "${arm_package_executor}"  "${executor_url}"
+wget -nv -O "${arm_package_dflow}"     "${dflow_url}" || true
+wget -nv -O "${arm_package_compiler}"  "${compiler_url}" || true
+wget -nv -O "${arm_package_executor}"  "${executor_url}" || true
 
 if { [ ! -f "${arm_package_dflow}" ] || [ ! -s "${arm_package_dflow}" ]; } && \
    { [ ! -f "${arm_package_compiler}" ] || [ ! -s "${arm_package_compiler}" ]; } && \
