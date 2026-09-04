@@ -1428,11 +1428,12 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_
 }
 
 const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
+    {GeneratedFileIndex::kModelApiHeaderFile, "om2_model_api.h"},
     {GeneratedFileIndex::kKernelRegistryFile, "g1_kernel_reg.cpp"},
     {GeneratedFileIndex::kResourcesFile, "g1_resources.cpp"},
     {GeneratedFileIndex::kArgsManagerFile, "g1_args_manager.cpp"},
     {GeneratedFileIndex::kLoadingAndRunningFile, "g1_load_and_run.cpp"},
-    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_interface.h"},
+    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_internal.h"},
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
@@ -1457,9 +1458,10 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
   Om2CodegenArtifacts artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     std::string output;
     GE_ASSERT_SUCCESS(ReadGeneratedArtifact(artifacts, file_index, output));
     outputs.emplace(file_index, std::move(output));
@@ -1469,7 +1471,7 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
 
 std::string GetExpectedArgsManagerSource() {
   return R"(#line 1 "g1_args_manager.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 aclError Om2ArgsTable::Init() {
@@ -1629,7 +1631,7 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
   [[maybe_unused]] const std::string expected = R"(#line 1 "g1_resources.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
@@ -2636,19 +2638,22 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 #ifdef __cplusplus
 }
 #endif)";
-  const auto &source = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
-  EXPECT_NE(source.find("struct GertModelLoadCallbacks"), std::string::npos);
-  EXPECT_NE(source.find("GertModelLaunchFunc launch_func"), std::string::npos);
-  EXPECT_NE(source.find("constexpr size_t kModelWorkSize"), std::string::npos);
-  EXPECT_NE(source.find("constexpr size_t kModelZeroCopySize"), std::string::npos);
-  EXPECT_NE(source.find("inline aclError AclrtMalloc"), std::string::npos);
-  EXPECT_NE(source.find("aclrtMallocWithCfg"), std::string::npos);
-  EXPECT_NE(source.find("RT_MEMORY_HBM"), std::string::npos);
-  EXPECT_NE(source.find("ACL_MEM_TYPE_HIGH_BAND_WIDTH"), std::string::npos);
-  EXPECT_NE(source.find("ACL_RT_MEM_ATTR_MODULE_ID"), std::string::npos);
-  EXPECT_NE(source.find("    case RT_MEMORY_HBM:\n    default:\n      return aclrtMallocWithCfg"), std::string::npos);
-  EXPECT_NE(source.find("void *work_ptr"), std::string::npos);
-  EXPECT_EQ(source.find("reuse_zero_copy_"), std::string::npos);
+  const auto &model_api_header = outputs[GeneratedFileIndex::kModelApiHeaderFile];
+  EXPECT_NE(model_api_header.find("struct GertModelLoadCallbacks"), std::string::npos);
+  EXPECT_NE(model_api_header.find("GertModelLaunchFunc launch_func"), std::string::npos);
+  EXPECT_NE(model_api_header.find("void *work_ptr"), std::string::npos);
+
+  const auto &internal_header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  EXPECT_NE(internal_header.find("constexpr size_t kModelWorkSize"), std::string::npos);
+  EXPECT_NE(internal_header.find("constexpr size_t kModelZeroCopySize"), std::string::npos);
+  EXPECT_NE(internal_header.find("inline aclError AclrtMalloc"), std::string::npos);
+  EXPECT_NE(internal_header.find("aclrtMallocWithCfg"), std::string::npos);
+  EXPECT_NE(internal_header.find("RT_MEMORY_HBM"), std::string::npos);
+  EXPECT_NE(internal_header.find("ACL_MEM_TYPE_HIGH_BAND_WIDTH"), std::string::npos);
+  EXPECT_NE(internal_header.find("ACL_RT_MEM_ATTR_MODULE_ID"), std::string::npos);
+  EXPECT_NE(internal_header.find("    case RT_MEMORY_HBM:\n    default:\n      return aclrtMallocWithCfg"),
+            std::string::npos);
+  EXPECT_EQ(internal_header.find("reuse_zero_copy_"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
@@ -2658,7 +2663,7 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string kernel_reg_expected = R"OM2(#line 1 "g1_kernel_reg.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 namespace om2 {
 namespace {
 constexpr uint32_t kMaxJsonFileLen = 512U;
@@ -2838,9 +2843,10 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_FileStorageShape_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -2853,7 +2859,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -3651,7 +3657,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -4456,10 +4462,11 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AicpuEmptyShape_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  // Verify all 6 files are generated
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  // Verify all 7 files are generated
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     EXPECT_NE(outputs.find(file_index), outputs.end());
     EXPECT_FALSE(outputs[file_index].empty());
   }
@@ -4477,7 +4484,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -5303,7 +5310,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -7713,9 +7720,10 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_AllKernel_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -7879,9 +7887,10 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForSeparatelyCleanTask_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   // Verify all expected files are generated
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -7951,34 +7960,35 @@ TEST_F(ProgramGeneratorUt, GenerateLoggingFunctionality_Ok) {
 //  OM2 Profiling — codegen 输出中包含 profiling 相关模式
 // =========================================================================
 
-TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_ContainsProfilingTypes) {
+TEST_F(ProgramGeneratorUt, GenerateHeaders_ContainsProfilingTypes) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const auto &header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  const auto &model_api_header = outputs[GeneratedFileIndex::kModelApiHeaderFile];
+  const auto &internal_header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
 
-  // profiling/prof_common.h 和 mmpa/mmpa_api.h 应包含在头文件中
-  EXPECT_NE(header.find("#include \"profiling/prof_common.h\""), std::string::npos);
-  EXPECT_NE(header.find("#include \"mmpa/mmpa_api.h\""), std::string::npos);
+  // profiling/prof_common.h 和 mmpa/mmpa_api.h 属于内部实现依赖。
+  EXPECT_NE(internal_header.find("#include \"profiling/prof_common.h\""), std::string::npos);
+  EXPECT_NE(internal_header.find("#include \"mmpa/mmpa_api.h\""), std::string::npos);
   // GertModelRunCallbacks 和 GertModelRunReportInfo 结构体应该存在
-  EXPECT_NE(header.find("struct GertModelRunCallbacks"), std::string::npos);
-  EXPECT_NE(header.find("struct GertModelRunReportInfo"), std::string::npos);
-  EXPECT_NE(header.find("ReportModelRunFunc"), std::string::npos);
-  EXPECT_NE(header.find("report_run_info_preprocess"), std::string::npos);
-  EXPECT_NE(header.find("report_run_info_postprocess"), std::string::npos);
+  EXPECT_NE(model_api_header.find("struct GertModelRunCallbacks"), std::string::npos);
+  EXPECT_NE(model_api_header.find("struct GertModelRunReportInfo"), std::string::npos);
+  EXPECT_NE(model_api_header.find("ReportModelRunFunc"), std::string::npos);
+  EXPECT_NE(model_api_header.find("report_run_info_preprocess"), std::string::npos);
+  EXPECT_NE(model_api_header.find("report_run_info_postprocess"), std::string::npos);
   // GertModelTaskDesc 新增 profiling 字段
-  EXPECT_NE(header.find("uint64_t launch_begin"), std::string::npos);
-  EXPECT_NE(header.find("original_op_names"), std::string::npos);
-  EXPECT_NE(header.find("input_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("output_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("workspace_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("weight_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("uint64_t launch_begin"), std::string::npos);
+  EXPECT_NE(model_api_header.find("original_op_names"), std::string::npos);
+  EXPECT_NE(model_api_header.find("input_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("output_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("workspace_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("weight_mem_size"), std::string::npos);
   // Om2Model 和外部 API 接收 GertModelRunCallbacks*
-  EXPECT_NE(header.find("GertModelRunCallbacks"), std::string::npos);
+  EXPECT_NE(internal_header.find("GertModelRunCallbacks"), std::string::npos);
   // AicoreDispatchInfo 中应有 fusion_op 字段
-  EXPECT_NE(header.find("fusion_op"), std::string::npos);
+  EXPECT_NE(internal_header.find("fusion_op"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {

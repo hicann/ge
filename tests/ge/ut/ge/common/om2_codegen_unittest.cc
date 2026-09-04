@@ -1548,7 +1548,8 @@ TEST_F(Om2CodegenUt, Om2CodePrinter_GetFileName_DefaultNames) {
   const std::string model_name = "test_model";
   Om2CodePrinter printer(model_name);
 
-  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_interface.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kModelApiHeaderFile), "om2_model_api.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_internal.h");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kResourcesFile), model_name + "_resources.cpp");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kArgsManagerFile), model_name + "_args_manager.cpp");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kKernelRegistryFile), model_name + "_kernel_reg.cpp");
