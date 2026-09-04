@@ -81,6 +81,11 @@ DeviceTilingContextBuilder &DeviceTilingContextBuilder::DeterministicLevel(int32
   return *this;
 }
 
+DeviceTilingContextBuilder &DeviceTilingContextBuilder::SetPcieThroughFlag(bool pcie_through_flag) {
+  pcie_through_flag_ = pcie_through_flag;
+  return *this;
+}
+
 DeviceTilingContextBuilder &DeviceTilingContextBuilder::TilingData(void *tiling_data) {
   outputs_[TilingContext::kOutputTilingData] = tiling_data;
   return *this;
@@ -174,6 +179,9 @@ ge::graphStatus DeviceTilingContextBuilder::BuildIOTensors(const ge::OpDesc *con
 // n-m output shapes
 // m + 1 compile info
 // m + 2 tiling func
+// m + 3 deterministic
+// m + 4 deterministic level
+// m + 5 pcie through flag
 // 其中 n为输入个数总和，m为输入输出个数总和
 ge::graphStatus DeviceTilingContextBuilder::Build(const ge::NodePtr &node, TiledKernelContextHolder &holder) {
   GE_ASSERT_NOTNULL(platform_info_, " Device platform info addr is nullptr.");
@@ -187,6 +195,7 @@ ge::graphStatus DeviceTilingContextBuilder::Build(const ge::NodePtr &node, Tiled
   inputs_.emplace_back(nullptr);
   inputs_.emplace_back(reinterpret_cast<void *>(deterministic_));
   inputs_.emplace_back(reinterpret_cast<void *>(deterministic_level_));
+  inputs_.emplace_back(reinterpret_cast<void *>(pcie_through_flag_));
 
   return TiledBuild(node, holder);
 }

@@ -1570,6 +1570,8 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY extern const std::string ATTR_NAM
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY extern const std::string ATTR_NAME_SUPER_KERNEL_OPTIONS;
 // inference rule for torch or other framework with symbols
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY extern const std::string ATTR_NAME_INFER_RULE;
+// for pcie through
+GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY extern const std::string ATTR_NAME_PCIE_THROUGH_FLAG;
 }  // namespace ge
 
 /*lint +e618*/

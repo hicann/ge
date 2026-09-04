@@ -89,6 +89,7 @@ enum class TilingFixedInputIndex {
   kFwkData,
   kDeterministic,
   kDeterministicLevel,
+  kPcieThroughFlag,
   kNum,
 };
 

@@ -132,9 +132,10 @@ RunCfg CollectRunConfig(const ge::NodePtr &node, const LowerInput &lower_input, 
       GELOGE(ge::INTERNAL_ERROR, "platform_info is nullptr! Node: %s.", node->GetName().c_str());
       return run_cfg;
     }
-    auto tiling_ret = bg::Tiling(
-        node, lower_input.input_shapes, output_shapes,
-        {platform_info, *(lower_input.global_data), launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+    auto tiling_ret =
+        bg::Tiling(node, lower_input.input_shapes, output_shapes,
+                   {platform_info, *(lower_input.global_data),
+                    launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], lower_input.input_addrs});
     run_cfg.tiling_input_launch_arg = tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)];
     run_cfg.block_dim = tiling_ret[TilingContext::kOutputBlockDim];
     run_cfg.schedule_mode = tiling_ret[TilingContext::kOutputScheduleMode];
@@ -820,16 +821,18 @@ static std::vector<bg::DevMemValueHolderPtr> LoweringWithHandleProc(const ge::No
     return {};
   }
   if (!NodeSupportRollback(node)) {
-    proc_arg.tiling_ret = bg::Tiling(node, lower_input.input_shapes, output_shapes,
-                                     {platform_info, *(lower_input.global_data),
-                                      proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+    proc_arg.tiling_ret =
+        bg::Tiling(node, lower_input.input_shapes, output_shapes,
+                   {platform_info, *(lower_input.global_data),
+                    proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], lower_input.input_addrs});
     CHECK_HOLDERS_ALL_OK_RET(proc_arg.tiling_ret, static_cast<size_t>(kernel::TilingExOutputIndex::kNum), return {});
     output_addrs = AicoreProcWithHandle(node, lower_input, output_shapes, proc_arg);
   } else {
     GELOGD("Lowering with rollback of aicpu.");
-    proc_arg.tiling_ret = bg::FallibleTiling(node, lower_input.input_shapes, output_shapes,
-                                             {platform_info, *(lower_input.global_data),
-                                              proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+    proc_arg.tiling_ret = bg::FallibleTiling(
+        node, lower_input.input_shapes, output_shapes,
+        {platform_info, *(lower_input.global_data),
+         proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], lower_input.input_addrs});
     CHECK_HOLDERS_ALL_OK_RET(proc_arg.tiling_ret,
                              static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum), return {});
     output_addrs = bg::If<bg::DevMemValueHolder>(
@@ -994,7 +997,7 @@ static std::vector<bg::ValueHolderPtr> WithFlagTilingProc(const ge::NodePtr &nod
   }
   return bg::Tiling(node, lower_input.input_shapes, output_shapes,
                     {platform_info, *(lower_input.global_data),
-                     proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+                     proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], lower_input.input_addrs});
 }
 
 static std::vector<bg::DevMemValueHolderPtr> LoweringWithFlagProc(const ge::NodePtr &node,
@@ -1017,9 +1020,10 @@ static std::vector<bg::DevMemValueHolderPtr> LoweringWithFlagProc(const ge::Node
     output_addrs = AicoreProcWithFlag(node, lower_input, output_shapes, proc_arg);
   } else {
     GELOGD("Lowering with rollback of aicpu.");
-    proc_arg.tiling_ret = bg::FallibleTiling(node, lower_input.input_shapes, output_shapes,
-                                             {platform_info, *(lower_input.global_data),
-                                              proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+    proc_arg.tiling_ret = bg::FallibleTiling(
+        node, lower_input.input_shapes, output_shapes,
+        {platform_info, *(lower_input.global_data),
+         proc_arg.launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], lower_input.input_addrs});
     CHECK_HOLDERS_ALL_OK_RET(proc_arg.tiling_ret,
                              static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum), return {});
     output_addrs = bg::If<bg::DevMemValueHolder>(

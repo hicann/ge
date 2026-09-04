@@ -12,6 +12,7 @@
 
 #include "common/op_tiling/op_tiling_rt2.h"
 #include "graph/ge_local_context.h"
+#include "graph/debug/ge_attr_define.h"
 #include "register/hidden_inputs_func_registry.h"
 #include "graph/args_format_desc.h"
 #include "exe_graph/lowering/bg_kernel_context_extend.h"
@@ -146,11 +147,15 @@ Status ArgsFormatUtils::SinkTilingContext(const NodePtr &node, DavinciModel &dav
          node->GetName().c_str());
 
   auto context_builder = gert::DeviceTilingContextBuilder();
+  bool pcie_through_flag = false;
+  (void)ge::AttrUtils::GetBool(node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag);
+  GELOGI("Get pcie_through_flag:[%d] from node:%s", pcie_through_flag, node->GetName().c_str());
   Status ret =
       context_builder.PlatformInfo(platform_infos_addr)
           .TilingData(device_addr)
           .Deterministic(deterministic)
           .DeterministicLevel(deterministic_level)
+          .SetPcieThroughFlag(pcie_through_flag)
           .Workspace(ValueToPtr(PtrToValue(device_addr) + aligned_tiling_size))
           .AddrRefreshedInputTensor(index_to_tensor)
           .TiledHolder(context_host_begin, context_dev_begin, aligned_tiling_context_size + compute_node_info_size)

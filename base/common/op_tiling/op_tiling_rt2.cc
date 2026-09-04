@@ -9,6 +9,7 @@
  */
 
 #include "nlohmann/json.hpp"
+#include "ge_common/ge_common_api_types.h"
 #include "op_tiling_rt2.h"
 
 #include <mutex>
@@ -41,6 +42,7 @@
 #include "rt_external_mem.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "graph/ge_local_context.h"
+#include "graph/ge_context.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/op_kernel_bin.h"
 #include "common/tbe_handle_store/kernel_store.h"
@@ -605,6 +607,9 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t *const com
   GE_ASSERT_SUCCESS(GetDeterministicConfig(op_desc, deterministic, deterministic_level));
   GELOGI("Get deterministic: %d, deterministic level: %d from node: %s", deterministic, deterministic_level,
          op_desc->GetName().c_str());
+  bool pcie_through_flag = false;
+  (void)ge::AttrUtils::GetBool(op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag);
+  GELOGI("Get pcie_through_flag: %d from node: %s", pcie_through_flag, op_desc->GetName().c_str());
 
   /*
    * 后续切换OpTilingContextBuilder时，出于兼容性考虑（新GE包+老metadef包），建议deterministic_level的设置通过调用纯C弱符号接口
@@ -618,6 +623,7 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t *const com
           .TilingData(tiling_data.get())
           .Deterministic(deterministic)
           .DeterministicLevel(deterministic_level)
+          .SetPcieThroughFlag(pcie_through_flag)
           .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
           .SetSpaceRegistryV2(space_registry, static_cast<gert::OppImplVersionTag>(op_desc->GetOppImplVersion()))
           .Build(op);

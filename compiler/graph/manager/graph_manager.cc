@@ -145,6 +145,7 @@
 #include "common/helper/om2/om2_zip_saver.h"
 #include "common/om2/rt_var_resource.h"
 #include "framework/common/helper/om2_package_helper.h"
+#include "platform/platform_info.h"
 
 namespace ge {
 namespace {
@@ -1229,10 +1230,53 @@ Status GraphManager::ProcessNullableOutput(ComputeGraphPtr &compute_graph) const
   return SUCCESS;
 }
 
+Status GraphManager::ProcessPcieThrough(ComputeGraphPtr &compute_graph) const {
+  std::string disable_pcie_through;
+  if (GetContext().GetOption(OPTION_EXEC_DISABLE_PCIE_THROUGH, disable_pcie_through) == SUCCESS &&
+      disable_pcie_through == "1") {
+    GELOGI("pcie through is disabled by option %s, skip ProcessPcieThrough", OPTION_EXEC_DISABLE_PCIE_THROUGH);
+    return SUCCESS;
+  }
+  fe::PlatFormInfos platform_infos;
+  fe::OptionalInfos optional_infos;
+  if (fe::PlatformInfoManager::Instance().GetPlatformInfoWithOutSocVersion(platform_infos, optional_infos) != SUCCESS) {
+    GELOGW("Failed to get platform info, skip ProcessPcieThrough");
+    return SUCCESS;
+  }
+  std::string pcie_support;
+  if (!platform_infos.GetPlatformResWithLock("SoCInfo", "pcie_through_partial_support", pcie_support) ||
+      pcie_support != "1") {
+    GELOGI("platform does not support pcie through (pcie_through_partial_support=%s), skip ProcessPcieThrough",
+           pcie_support.c_str());
+    return SUCCESS;
+  }
+  for (const auto &node : compute_graph->GetAllNodes()) {
+    if (node == nullptr || node->GetOpDesc() == nullptr) {
+      continue;
+    }
+    auto op_desc = node->GetOpDesc();
+    const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry(
+        static_cast<gert::OppImplVersionTag>(op_desc->GetOppImplVersion()));
+    if (space_registry == nullptr) {
+      continue;
+    }
+    const auto op_impl = space_registry->GetOpImpl(op_desc->GetType().c_str());
+    if (op_impl == nullptr) {
+      continue;
+    }
+    GELOGI("IsSupportPcieThrough: %d", op_impl->IsSupportPcieThrough());
+    if (op_impl->IsSupportPcieThrough()) {
+      (void)ge::AttrUtils::SetBool(op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, true);
+    }
+  }
+  return SUCCESS;
+}
+
 Status GraphManager::PreRunOptimizeSubGraph(const GraphNodePtr &graph_node, ge::ComputeGraphPtr &compute_graph,
                                             uint64_t session_id) {
   GE_CHECK_NOTNULL(graph_node);
   GE_CHECK_NOTNULL(compute_graph);
+  GM_RUN_AND_DUMP_PERF("ProcessPcieThrough", ProcessPcieThrough, compute_graph);
   GM_RUN_AND_DUMP_PERF("ProcessNullableOutput", ProcessNullableOutput, compute_graph);
   GM_RUN_AND_DUMP_PERF("OptimizeSubgraph", OptimizeSubgraph, graph_node, compute_graph, session_id);
 

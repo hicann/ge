@@ -245,6 +245,7 @@ void TilingContextFaker::UpdateInputs() {
   inputs.push_back(fwk_data_);      // kInputsTilingFunc
   inputs.push_back(deterministic_);
   inputs.push_back(deterministic_level_);
+  inputs.push_back(reinterpret_cast<void *>(pcie_through_flag_));
   base_faker_.Inputs(std::move(inputs));
 }
 TilingContextFaker &TilingContextFaker::TilingFwkData(void *fwk_data) {
@@ -254,6 +255,11 @@ TilingContextFaker &TilingContextFaker::TilingFwkData(void *fwk_data) {
 }
 TilingContextFaker &TilingContextFaker::Deterministic(void *deterministic) {
   deterministic_ = deterministic;
+  UpdateInputs();
+  return *this;
+}
+TilingContextFaker &TilingContextFaker::PcieThroughFlag(bool pcie_through_flag) {
+  pcie_through_flag_ = pcie_through_flag;
   UpdateInputs();
   return *this;
 }

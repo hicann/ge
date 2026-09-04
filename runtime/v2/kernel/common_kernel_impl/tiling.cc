@@ -9,6 +9,9 @@
  */
 
 #include "tiling.h"
+#include <vector>
+#include "acl/acl_rt.h"
+#include "register/op_impl_kernel_registry.h"
 #include "register/kernel_registry.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "graph/utils/math_util.h"
@@ -24,6 +27,7 @@
 #include "kernel/kernel_log.h"
 #include "aicore/launch_kernel/rt_kernel_launch_args_ex.h"
 #include "aicore/converter/autofuse_node_converter.h"
+#include "exe_graph/runtime/gert_tensor_data.h"
 
 namespace gert {
 namespace kernel {
@@ -40,6 +44,52 @@ constexpr size_t kFwkDataOffset =
 // 每个算子的最大缓存数和老化阈值
 constexpr size_t kTilingCacheSizePerOp = 120UL;
 constexpr size_t kTilingCacheEvictNum = 8UL;
+
+ge::graphStatus CheckPcieThrough(KernelContext *context) {
+  auto *output = context->GetOutputPointer<bool>(0U);
+  GE_ASSERT_NOTNULL(output);
+  *output = false;
+  uint32_t count = 0U;
+  if (aclrtHostGetDevicePointerAddrRange(nullptr, &count) != ACL_SUCCESS || count == 0U) {
+    GELOGI("CheckPcieThrough: aclrtHostGetDevicePointerAddrRange returned count=0 or failed");
+    return ge::GRAPH_SUCCESS;
+  }
+  GELOGI("CheckPcieThrough: pcie addr range count:[%u]", count);
+  std::vector<aclrtAddrRange> ranges(count);
+  if (aclrtHostGetDevicePointerAddrRange(ranges.data(), &count) != ACL_SUCCESS) {
+    GELOGI("CheckPcieThrough: aclrtHostGetDevicePointerAddrRange failed to get ranges");
+    return ge::GRAPH_SUCCESS;
+  }
+  const auto input_num = context->GetInputNum();
+  GELOGD("CheckPcieThrough: input_num:[%zu]", input_num);
+  for (size_t i = 0U; i < input_num; ++i) {
+    auto *tensor_data = context->GetInputValue<gert::GertTensorData *>(i);
+    if (tensor_data == nullptr) {
+      GELOGI("CheckPcieThrough: input idx:[%zu] tensor_data is nullptr, skip", i);
+      continue;
+    }
+    const auto addr = tensor_data->GetAddr();
+    if (addr == nullptr) {
+      GELOGI("CheckPcieThrough: input idx:[%zu] addr is nullptr, skip", i);
+      continue;
+    }
+    const auto addr_val = reinterpret_cast<uint64_t>(addr);
+    GELOGD("CheckPcieThrough: input idx:[%zu], addr:[%p]", i, addr);
+    for (uint32_t j = 0U; j < count; ++j) {
+      const auto lo = reinterpret_cast<uint64_t>(ranges[j].startAddr);
+      const auto hi = reinterpret_cast<uint64_t>(ranges[j].endAddr);
+      GELOGD("CheckPcieThrough: input:[%zu], addrRange index:[%u], startAddr:[%p], endAddr:[%p]", i, j,
+             ranges[j].startAddr, ranges[j].endAddr);
+      if (addr_val >= lo && addr_val < hi) {
+        GELOGD("CheckPcieThrough: input idx:[%zu] addr is in pcie range, set flag=true", i);
+        *output = true;
+        return ge::GRAPH_SUCCESS;
+      }
+    }
+  }
+  GELOGI("CheckPcieThrough: no input addr in pcie range, flag=false");
+  return ge::GRAPH_SUCCESS;
+}
 
 std::vector<std::string> TilingAppendWorkSpaceTracer(const KernelContext *context) {
   auto tiling_ws = context->GetInputPointer<gert::ContinuousVector>(0U);
@@ -235,6 +285,11 @@ ge::graphStatus BuildGeneralTilingCacheKey(const KernelContext *context, HashBuf
       GE_ASSERT_NOTNULL(input_shape);
       hash_buf.AddParamToBuf(input_shape->GetOriginShape());
     }
+  }
+  const auto tiling_context = reinterpret_cast<const TilingContext *>(context);
+  const auto pcie_flag = tiling_context->GetPcieThroughFlag();
+  if (pcie_flag) {
+    hash_buf.AddParamToBuf(pcie_flag);
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -862,6 +917,8 @@ ge::graphStatus BuildCacheableTilingFwkDataOutput(const ge::FastNode *node, Kern
 REGISTER_KERNEL(PrepareCacheableTilingFwkData)
     .RunFunc(PrepareCacheableTilingFwkData)
     .OutputsCreator(BuildCacheableTilingFwkDataOutput);
+
+REGISTER_KERNEL(CheckPcieThrough).RunFunc(CheckPcieThrough);
 }  // namespace kernel
 
 }  // namespace gert

@@ -34,6 +34,7 @@ struct TilingLowerInput {
   ValueHolderPtr platform_info;
   LoweringGlobalData &global_data;
   ValueHolderPtr launch_arg;
+  const std::vector<bg::DevMemValueHolderPtr> input_addrs;
 };
 
 void DebugForArgsInfo(const ge::NodePtr &compute_node, const std::vector<ArgsInfo> &args_infos,

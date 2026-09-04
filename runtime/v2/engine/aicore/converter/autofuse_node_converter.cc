@@ -196,7 +196,8 @@ LowerResult LoweringAutofuseNode(const ge::NodePtr &node, const LowerInput &lowe
   CONVERTER_CHECK_HOLDERS_ALL_OK(launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
   auto tiling_results =
       bg::Tiling(node, input_data_shape_handlers, output_shapes,
-                 {platform_info, *global_data, launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+                 {platform_info, *global_data, launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)],
+                  lower_input.input_addrs});
   CONVERTER_CHECK_HOLDERS_ALL_OK(tiling_results, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
 
   // launch

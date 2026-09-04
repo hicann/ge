@@ -113,6 +113,7 @@ class BgTilingUT : public BgTestAutoCreateFrame {
     expect_from.emplace_back("PrepareTilingFwkData");
     expect_from.emplace_back("InnerData");
     expect_from.emplace_back("InnerData");
+    expect_from.emplace_back("Const");
     ASSERT_EQ(FastNodeTopoChecker(tiling_rets[0]).StrictConnectFrom(expect_from), "success");
     auto tiling_parse_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "TilingParse");
     ASSERT_NE(tiling_parse_node, nullptr);
@@ -193,7 +194,7 @@ TEST_F(BgTilingUT, BgTiling_Ok_CachableTilingUnsupported) {
                                                                   {"TilingParse", 1},
                                                                   {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
-                                                                  {"Const", 10},
+                                                                  {"Const", 11},
                                                                   {"CalcTensorSizeFromStorage", 1},
                                                                   {"PrepareTilingFwkData", 1},
                                                                   {"AllocLaunchArg", 1}}),
@@ -407,6 +408,33 @@ TEST_F(BgTilingUT, BgTiling_FailedWhenNodeDeterministicNotString) {
   bg::LowerConstDataNode(global_data);
   auto tiling_rets = Tiling(add_node, input_shapes, {out_shape}, {platform, global_data, fake_launch_arg_});
   EXPECT_TRUE(tiling_rets.empty() || (tiling_rets[0] == nullptr));
+}
+
+TEST_F(BgTilingUT, BgTiling_CreatesPcieThroughHolder) {
+  IMPL_OP(FakeAddN).InputsDataDependency({0});
+  SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+
+  constexpr int64_t kInputNum = 2UL;
+  std::vector<ValueHolderPtr> input_shapes;
+  for (int64_t i = 0; i < kInputNum; ++i) {
+    input_shapes.emplace_back(ValueHolder::CreateFeed(i));
+  }
+  auto out_shape = ValueHolder::CreateFeed(2);
+  auto platform = ValueHolder::CreateFeed(3);
+  auto graph = BuildGraphWithManyInputs("FakeAddN", kInputNum);
+  ASSERT_NE(graph, nullptr);
+  auto add_node = graph->FindNode("FakeAddN");
+  ASSERT_NE(add_node, nullptr);
+  AddCompiledJson(add_node);
+
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("FakeAddN", false).Build();
+  bg::LowerConstDataNode(global_data);
+  auto tiling_rets = Tiling(add_node, input_shapes, {out_shape}, {platform, global_data, fake_launch_arg_});
+  ASSERT_FALSE(tiling_rets.empty());
+  for (const auto &ret : tiling_rets) {
+    ASSERT_NE(ret, nullptr);
+  }
 }
 
 }  // namespace bg
