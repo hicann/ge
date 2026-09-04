@@ -27,7 +27,6 @@ function executSt(){
         fi
         ret=$?
     else
-        echo 0 &> ${CODE_PATH}/st_ge_${GE_ST_RT2}.txt
         if [ "${GE_ST_RT2}X" == "dflowX" ] || [ "${GE_ST_RT2}X" == "pythonX" ] || [ "${GE_ST_RT2}X" == "heteroX" ];then
             if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
                 LOG_DO bash run_test.sh --st=${GE_ST_RT2} -c --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
@@ -74,9 +73,14 @@ function executSt(){
             echo "ut_type=graphengine" >> "${ATOMGIT_OUTPUT}"
         fi
     else
-        lcov --list ${coverage_info}
-        mv ${coverage_info} coverage_st_${GE_ST_RT2}.info
+        if [ -n "${coverage_info}" ] && [ -f "${coverage_info}" ]; then
+            lcov --list ${coverage_info}
+            mv ${coverage_info} coverage_st_${GE_ST_RT2}.info
+        else
+            echo "WARN: coverage.info not found, skipping lcov report"
+        fi
     fi
+    exit $ret
 }
 
 
