@@ -22,7 +22,7 @@ UDF serves as a processing node in the data flow graph, receiving upstream data,
 
 Users can specify which devices each node deploys to through the deployment configuration JSON (option `ge.experiment.data_flow_deploy_info_path`), supporting range syntax for multi-instance deployment. Refer to the "4.6 UDF Execution Location and Multi-instance Deployment" section in dflow.md.
 
-UDF code is located in `dflow/udf/`. The core runtime is in `flow_func/`, the device-side executor is in `execute/`, and built-in UDFs are in `built_in/`.
+UDF code is located in `dflow/udf/`. The core runtime is in `flow_func/`, the executor process (udf_executor, shared by host and device) is in `execute/`, and built-in UDFs are in `built_in/`.
 
 ---
 
@@ -50,6 +50,15 @@ Python provides three approaches with decreasing entry barriers:
 The `@df.pyflow` decorator automatically generates the UDF project (C++ wrapper + CMakeLists + configuration JSON), serializes the user function with cloudpickle, and compiles it into a loadable SO. User function parameters are automatically deserialized from FlowMsg to numpy array / torch tensor, and return values are automatically serialized back to FlowMsg.
 
 For the implementation mechanisms and comparison of the `@df.pyflow` and `@df.npu_model` decorators, refer to [Section 4.5](dflow.md#45-python-interface-layer) of dflow.md.
+
+The Python side provides the following supporting capabilities for UDF development:
+
+| Capability | Entry | Description |
+|------------|-------|-------------|
+| Zero-copy output | `df.alloc_tensor` | Allocates an mbuf-shared Tensor inside the UDF; on output it is converted to FlowMsg zero-copy through a shared mbuf reference; ordinary df.Tensor output requires data copying, so using this interface is recommended |
+| Streaming queue | `FlowMsgQueue` | The queue object received by the UDF in streaming input mode, implementing a subset of the `queue.Queue` interface (`get`/`get_nowait`/`qsize`/`empty`/`full`); tensor messages are automatically converted to df.Tensor |
+| Deployment parameters | `PyMetaParams` | Reads deployment information inside the UDF: work_path, running device_id, instance index/count, and initialization parameters set via `set_init_param` during graph construction |
+| Cooperative abort | `DfAbortException` | Thrown at streaming dequeue points during redeployment or process exit; the execution wrapper layer catches it to safely end the current call, cooperating with the framework for graceful exit; users do not need to handle it themselves |
 
 ---
 
@@ -198,6 +207,7 @@ If the Processor is stuck in `kPrepareInputData` or `kRepublishOutputData` for m
 Suspend and resume are triggered by external control signals (deployer sends Suspend/Recover messages), not by natural state machine transitions. After `SetClearAndSuspend`/`SetClearAndRecover` set the flags, `PreCheckSpecialStatus` detects and executes the transition at the next `DoSchedule` entry. Used for online model updates and fault recovery:
 - **Suspend**: `ResetProcessor` + `DiscardAllInputData` to `kSuspend`, sends completion event. Input data is continuously discarded during suspension
 - **Resume**: Discards input; if the wrapper has been released, rebuilds and re-calls `InitFlowFunc`; otherwise directly transitions to `kReady`
+- **State reset**: After all processors finish suspending, the executor attempts a state reset on the user function. The Python UDF wrapper overrides this interface -- restoring the serialized function object and replaying the user class construction; on recovery the reset instance is reused directly. The C++ UDF base class does not support it by default, falling back to releasing the wrapper, and recovery follows the rebuild path above
 
 ### 4.6 Producer-Consumer Separation
 
@@ -221,7 +231,7 @@ Exception linkage: `AddExceptionTransId` discards all cached data for that trans
 
 ### 5.2 Reader-driven Mode (Default)
 
-`is_stream_input_ == false`. The Processor uses `MbufReader` to automatically read from hardware queues, optionally uses `DataAligner` for alignment, and after readiness calls back `SetInputData` which transitions to `kCallFlowFunc` and calls `func_wrapper_->Proc(input_data_)`. Users do not need to concern themselves with when data arrives.
+`is_stream_input_ == false`. The Processor uses `MbufReader` to automatically read from hardware queues, optionally uses `DataAligner` for alignment, and after readiness calls back `SetInputData` which transitions to `kCallFlowFunc` and calls `func_wrapper_->Proc(input_data_)`. Users do not need to concern themselves with when data arrives. Queue reads and writes are wrapped by `QueueWrapper`; when the UDF runs on the host it supports directly operating device queues, and such queues are read and written through the `ProxyQueueWrapper` wrapper with independent timeout and retry semantics.
 
 ### 5.3 FlowMsgQueue Streaming Mode
 
@@ -367,18 +377,61 @@ These two built-in UDFs are automatically inserted by the compiler's `ConvertBat
 | Dump | `flow_func_dumper.h` | DI injection, processor asynchronously submits dump tasks through `async_executor_` to avoid blocking scheduling |
 | Async execution | `async_executor.h` | Standard thread pool, used for SO single-thread serialization, async dump, and so on |
 | FlowModel | `flow_model.h` | Abstract Init/Run, for `RunFlowModel` to call NN models |
+| Memory statistics | `execute/udf_memory_statistic_manager.h` | Independent thread periodically reads process memory (RSS/HWM) and memory group usage and outputs logs |
+
+### 11.1 UDF Data Dump
+
+UDF input and output data can be dumped to disk for data problem localization, enabled through the following GE global configurations:
+
+| Configuration | Description |
+|---------------|-------------|
+| `ge.exec.enableDump` | Master switch |
+| `ge.exec.dumpPath` | Dump root directory, default `/var/log/npu/dump/udf` |
+| `ge.exec.dumpStep` | Step filtering; `_` separates multiple items, `-` indicates a range (for example, `"1_3-5"` means steps 1, 3, 4, 5) |
+| `ge.exec.dumpMode` | Dump content: `input` / `output` / `all` |
+
+Key mechanism points:
+
+- **Asynchronous execution**: The processor dumps inputs before calling the user Proc and outputs after `SetOutput`; tasks are executed asynchronously through `async_executor_` without blocking scheduling; filtering is based on the step_id carried by messages
+- **Unified description and path**: Both sides reuse the DumpData protobuf structure of GE's general dump, with the dump path `{dumpPath}/{deviceId}/{opName}/0/{stepId}/{opName}.{timestamp}`
+- **Host-side execution**: The executor writes to disk itself, with file content `[proto length][DumpData protobuf][input/output binary data]`
+- **Device-side execution**: The executor is not responsible for writing to disk -- it only records the device address of the data, packs the "data description + target file path" into a message and sends it to the AICPU via a synchronous event; the AICPU side reads the data and completes the dump. Before the first dump, a dump initialization event must be sent to the AICPU
+
+Profiling is currently a reserved capability; data reporting is not yet implemented.
 
 ---
 
-## 12. Device-side Executor
+## 12. Executor Process
 
-`FlowFuncExecutor` (`execute/flow_func_executor.h`) is the event-driven driver for the udf_executor process, running as an independent process (`execute/main.cpp` entry).
+`FlowFuncExecutor` (`execute/flow_func_executor.h`) is the event-driven driver for the udf_executor process, running as an independent process (`execute/main.cpp` entry). Host and device deployments reuse the same executor implementation; behavior differences within the process (such as queue forms, and the security sandbox which is only enabled on the device) are distinguished by the running location (`IsOnDevice` flag).
 
 **Thread model** (`ThreadLoop` in `execute/flow_func_executor.cpp`): `FlowFuncThreadPool` (AICPU core-bound) creates cpu_num threads. The **main thread** subscribes to all events (queue/initialization/timer/state/suspend-resume/exception, and so on), using the main scheduling group; **worker threads** only subscribe to `kEventIdFlowFuncExecute` + `NotifyThreadExit`, using the worker scheduling group. Loops `halEschedWaitEvent` (2s timeout) and `ProcessEvent` dispatches by event ID. On timeout, the main thread calls `CheckReplenishSchedule` for supplementary scheduling.
 
-**GlobalConfig** (`config/global_config.h`): The device-side implementation of `FlowFuncConfig` (singleton), holding device_id, scheduling group IDs, worker_num, npu_sched, abnormal/exit flags, and so on. Injected into the core library through `FlowFuncConfigManager::SetConfig` -- this **dependency injection** allows the core library (`flow_func/`) to be independently compiled and tested without depending on specific device environments.
+**GlobalConfig** (`config/global_config.h`): The executor-process-side implementation of `FlowFuncConfig` (singleton), holding device_id, scheduling group IDs, worker_num, npu_sched, abnormal/exit flags, and so on. Injected into the core library through `FlowFuncConfigManager::SetConfig` -- this **dependency injection** allows the core library (`flow_func/`) to be independently compiled and tested without depending on specific device environments.
 
-**FlowFuncModel** (`model/flow_func_model.h`): UDF node deployment descriptor parsed from protobuf, containing lib_path, flow_func_name, input/output queues, multi_func_input/output_maps, stream_input_func_names, input_align_attrs, attr_map, and so on. `ParseModels` parses multiple models from batch model paths.
+**FlowFuncModel** (`model/flow_func_model.h`): UDF node deployment descriptor parsed from protobuf, containing lib_path, flow_func_name, input/output queues, multi_func_input/output_maps, stream_input_func_names, input_align_attrs, attr_map, and so on. `ParseModels` parses multiple models from the local file pointed to by the startup argument -- udf_executor model loading does not go through message queues, which only carry runtime control messages (suspend/resume/exception notification, etc.).
+
+### 12.1 Security Sandbox (device side)
+
+User SOs are untrusted code; the device-side udf_executor guarantees security through a dual mechanism:
+
+- **System call sandbox**: When running as a non-built-in UDF user, every thread in the thread pool (including the dedicated SO loading thread) installs a system call whitelist filter via libseccomp at startup -- denying by default (returning EPERM), allowing only basic system calls (file read/write, memory management, futex, etc.), with intercepted calls logged. Static initialization code of user SOs also runs inside the sandbox
+- **Built-in user restriction**: When running as the device built-in user, the process is only allowed to load built-in UDF SOs and rejects any user SO. The responsibilities of the two process types are separated: built-in UDF processes have no sandbox restrictions but run only trusted code; user UDF processes sandbox all threads
+
+`stubs/seccomp/` provides link stubs when the cross-compilation/deployment environment lacks the real libseccomp.
+
+### 12.2 Process Resilience
+
+- **Parent process exit monitoring**: Periodically checks the parent process PID; on change it attempts a normal exit, and force-terminates itself after multiple exit failures, avoiding orphan processes
+- **SIGTERM graceful exit**: Registers a signal handler; on receipt it stops scheduling and waits for user functions to return safely before exiting
+
+### 12.3 Runtime Governance
+
+- **Scheduling priority**: Models can configure AICPU esched process/event priorities (`_eschedProcessPriority` / `_eschedEventPriority`)
+- **Status reporting**: Queries input queue depths per model configuration to construct status messages, written to the status queue for the head node to sense load and abnormalities
+- **Memory and runtime metrics**: An independent thread periodically collects process memory (RSS/HWM) and memory group usage; execution metrics per processor are output periodically
+- **Soft scheduling mode**: At startup, attempts to submit a soft scheduling mode switch event to the AICPU, cooperating with the driver for scheduling mode negotiation
+- **Model-level configuration**: `__cpu_num` customizes the execution thread count (default is processor count + 1); `_user_buf_cfg` configures the user-mode memory pool; in multi-instance deployment, models carry replica index/count, exposed to user UDFs through the `GetRunningInstanceId`/`GetRunningInstanceNum` interfaces of `MetaParams` (not used by built-in UDFs), for users to perform data sharding and similar processing based on instance identity
 
 ---
 
@@ -458,7 +511,9 @@ Reports through status queue to head node broadcast to each node executor awaren
 | `reader_writer/data_aligner.cpp` | Multi-input alignment |
 | `reader_writer/mbuf_reader.cpp` | Hardware queue reading |
 | `reader_writer/queue_wrapper.cpp` | Queue enqueue/dequeue wrapper |
-| `execute/flow_func_executor.cpp` | Device-side event-driven driver |
+| `reader_writer/proxy_queue_wrapper.cpp` | Wrapper for directly operating device queues from the host side |
+| `toolchain/dump/udf_dump_manager.cpp` | Dump enabling/step filtering/disk-write management |
+| `execute/flow_func_executor.cpp` | Event-driven driver of the executor process |
 | `execute/main.cpp` | Executor process entry |
 | `built_in/time_batch_flow_func.cpp` | Built-in TimeBatch UDF |
 | `built_in/count_batch_flow_func.cpp` | Built-in CountBatch UDF |

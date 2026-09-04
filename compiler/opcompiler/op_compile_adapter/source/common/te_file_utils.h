@@ -36,7 +36,7 @@ class TeFileUtils {
   static bool GetBufferFromBinFile(const std::string &binFilePath, std::vector<char> &buffer);
 
  private:
-  static bool IsFileUsed(std::string &filePath);
+  static bool IsFileUsed(const std::string &filePath);
   static bool IsFileFcntlLock(int fd);
   static bool JudgeEmptyAndCreateDir(char tmpDirPath[], const std::string &directoryPath);
   static bool CopyFileToNewPath(const std::string &filePath, const std::string &dstPath);

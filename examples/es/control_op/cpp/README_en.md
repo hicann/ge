@@ -122,7 +122,7 @@ For example, the prototype of the If operator is shown below, the ES graph const
 Its corresponding function prototype is:
 
 - Function name: If (C++) or EsIf (C)
-- Parameters: 3 in total, namely cond, input, then_branch, else_branch
+- Parameters: 5 in total (cond, input, output_num, then_branch, else_branch)
 - Return value: output
 
 **In C API:**

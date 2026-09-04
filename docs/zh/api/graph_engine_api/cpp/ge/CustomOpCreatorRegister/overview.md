@@ -12,4 +12,8 @@
 
 ```c++
 CustomOpCreatorRegister(const AscendString &operator_type, const BaseOpCreator &op_creator)
+CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const BaseOpCreator &op_creator)
+CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator)
+CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const CustomOpCreateFunc op_creator)
+~CustomOpCreatorRegister() = default
 ```

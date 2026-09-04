@@ -96,7 +96,7 @@ export DUMP_GE_GRAPH=2
 ```
 其对应的函数原型为：
 - 函数名：If（C++）或 EsIf（C）
-- 参数：共 3 个，依次为 cond， input， then_branch， else_branch
+- 参数：共 5 个，依次为 cond、input、output_num、then_branch、else_branch
 - 返回值：输出 output
 
 **C API中：**

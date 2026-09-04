@@ -98,6 +98,7 @@ int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs, const std:
   auto ret = s->AddGraph(graph_id, graph);
   if (ret != ge::SUCCESS) {
     std::cout << "AddGraph failed" << std::endl;
+    delete s;
     return -1;
   }
   std::vector<ge::Tensor> outputs;
@@ -105,10 +106,12 @@ int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs, const std:
   if (ret != ge::SUCCESS) {
     std::cout << "RunGraph failed" << std::endl;
     (void)s->RemoveGraph(graph_id);
+    delete s;
     return -1;
   }
   (void)s->RemoveGraph(graph_id);
   ge::Utils::PrintTensorsToFile(outputs, output_prefix);
+  delete s;
   return 0;
 }
 std::unique_ptr<ge::Graph> MakeAddSubMulDivGraphByEs() {

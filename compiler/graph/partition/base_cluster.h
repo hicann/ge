@@ -152,7 +152,7 @@ class BaseCluster : public std::enable_shared_from_this<BaseCluster> {
     type_index_ = type_index;
   }
   void SetMergeInputs(bool merge_inputs);
-  std::string GetPartitionedCallName() {
+  std::string GetPartitionedCallName() const {
     if (partition_node_ != nullptr) {
       return partition_node_->GetName();
     }

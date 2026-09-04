@@ -51,6 +51,28 @@ bool EnableIgnoreInferError() {
   GELOGI("Got value of env[IGNORE_INFER_ERROR] is [%s].", env_str_value.c_str());
   return !env_str_value.empty();
 }
+
+graphStatus InferCustomOpShapeByDefault(const OpDescPtr &op_desc) {
+  for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
+    auto output_tensor = op_desc->MutableOutputDesc(index);
+    GE_ASSERT_NOTNULL(output_tensor);
+    if (output_tensor->IsOriginShapeInitialized()) {
+      // 继承框架的Shape
+      output_tensor->SetShape(output_tensor->GetOriginShape());
+      output_tensor->SetDataType(output_tensor->GetOriginDataType());
+      output_tensor->SetFormat(output_tensor->GetOriginFormat());
+    } else {
+      // 否则刷新shape为-2, 此处后续可以调用用户注册的datatype推导函数推到datatype
+      output_tensor->SetShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetOriginShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetDataType(DT_UNDEFINED);
+      output_tensor->SetOriginDataType(DT_UNDEFINED);
+      output_tensor->SetFormat(FORMAT_ND);
+      output_tensor->SetOriginFormat(FORMAT_ND);
+    }
+  }
+  return GRAPH_SUCCESS;
+}
 }  // namespace
 
 graphStatus OpDescUtilsEx::CallInferFuncV2(const OpDescPtr &op_desc, Operator &op) {
@@ -141,30 +163,20 @@ graphStatus OpDescUtilsEx::InferCustomOpShape(const OpDescPtr &op_desc, Operator
         op_desc->GetNamePtr(), op_desc->GetTypePtr(), custom_op_infer_datatype_func, custom_op_infer_shape_func);
   }
 
+  // Keep the same dispatch priority as the regular infer path: V1 first, then V2.
+  auto infer_func = TryGetV1InferFunc(op_desc);
+  if (infer_func != nullptr) {
+    GELOGI("[Call][InferFunc] call V1 func for op [%s][%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    op_desc->AddInferFunc(infer_func);
+    return CallInferFuncV1(op_desc, op);
+  }
+
   const auto is_infer_shape_v2_registered_func = OperatorFactoryImpl::GetIsInferShapeV2RegisteredFunc();
   if ((is_infer_shape_v2_registered_func != nullptr) && is_infer_shape_v2_registered_func(op_desc)) {
     GELOGI("[Call][InferFunc] call V2 func for op [%s][%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return CallInferFuncV2(op_desc, op);
   }
-  for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
-    auto output_tensor = op_desc->MutableOutputDesc(index);
-    GE_ASSERT_NOTNULL(output_tensor);
-    if (output_tensor->IsOriginShapeInitialized()) {
-      // 继承框架的Shape
-      output_tensor->SetShape(output_tensor->GetOriginShape());
-      output_tensor->SetDataType(output_tensor->GetOriginDataType());
-      output_tensor->SetFormat(output_tensor->GetOriginFormat());
-    } else {
-      // 否则刷新shape为-2, 此处后续可以调用用户注册的datatype推导函数推到datatype
-      output_tensor->SetShape(GeShape(UNKNOWN_RANK));
-      output_tensor->SetOriginShape(GeShape(UNKNOWN_RANK));
-      output_tensor->SetDataType(DT_UNDEFINED);
-      output_tensor->SetOriginDataType(DT_UNDEFINED);
-      output_tensor->SetFormat(FORMAT_ND);
-      output_tensor->SetOriginFormat(FORMAT_ND);
-    }
-  }
-  return GRAPH_SUCCESS;
+  return InferCustomOpShapeByDefault(op_desc);
 }
 
 graphStatus OpDescUtilsEx::CallInferFunc(const OpDescPtr &op_desc, Operator &op) {
@@ -184,8 +196,7 @@ graphStatus OpDescUtilsEx::CallInferFunc(const OpDescPtr &op_desc, Operator &op)
         "proceeds only if has_io is true and either has_ir or has_infer_func is true",
         op_desc->GetNamePtr(), op_desc->GetTypePtr(), has_io, is_exist_op, has_infer_func);
     ret = GRAPH_PARAM_INVALID;
-  } else if (CustomOpFactory::IsExistOp(op_desc->GetTypePtr()) ||
-             CustomOpFactory::IsExistOp(op_desc->GetTypePtr(), OpBackend::kHostCPU)) {
+  } else if (CustomOpFactory::IsExistOp(op_desc->GetTypePtr())) {
     ret = InferCustomOpShape(op_desc, op);
   } else {
     // priority of use infer func v1

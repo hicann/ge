@@ -2318,8 +2318,7 @@ Status TensorFlowModelParser::ParseProto(const google::protobuf::Message *proto,
   std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
   for (int i = 0; i < graph_def->node_size(); i++) {
     const domi::tensorflow::NodeDef *node_def = graph_def->mutable_node(i);
-    if (ge::CustomOpFactory::IsExistOp(node_def->op().c_str()) ||
-        CustomOpFactory::IsExistOp(node_def->op().c_str(), OpBackend::kHostCPU)) {
+    if (ge::CustomOpFactory::IsExistOp(node_def->op().c_str())) {
       custom_nodes_map[node_def->op()] = node_def;
     }
   }

@@ -54,17 +54,18 @@ bool CompareInputModelIoItem(const InputModelIoItem &lhs, const InputModelIoItem
   return lhs.visit_order < rhs.visit_order;
 }
 
-std::string BuildAicoreKernelBinId(const Om2CodegenModel &codegen_model, const domi::TaskDef &task_def,
-                                   const OpDescPtr &op_desc) {
+std::string BuildAicoreKernelBinId(const Om2CodegenModel &codegen_model, const OpDescPtr &op_desc, bool is_atomic) {
   std::string bin_id;
-  const std::string kernel_id_attr = Om2CodegenUtils::IsSeparatelyCleanTask(op_desc, task_def.kernel().kernel_name())
-                                         ? kAttrMemsetKernelBinId
-                                         : ATTR_NAME_KERNEL_BIN_ID;
-  (void)AttrUtils::GetStr(op_desc, kernel_id_attr, bin_id);
+  if (is_atomic) {
+    (void)AttrUtils::GetStr(op_desc, kAttrMemsetKernelBinId, bin_id);
+  } else {
+    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, bin_id);
+  }
   if (bin_id.empty()) {
     (void)AttrUtils::GetStr(op_desc, ATTR_NAME_SESSION_GRAPH_ID, bin_id);
     bin_id += std::string("_" + codegen_model.model_name + op_desc->GetName());
   }
+  bin_id += "_AicoreKernel";
   return bin_id;
 }
 
@@ -728,7 +729,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
 
     std::string kernel_name;
     if (is_aicore) {
-      GE_ASSERT_SUCCESS(BuildKernelRegistryForAicore(codegen_model, task_def, op_desc, task_type));
+      GE_ASSERT_SUCCESS(BuildKernelRegistryForAicore(codegen_model, op_desc, task_type));
       continue;
     }
 
@@ -768,8 +769,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
   return SUCCESS;
 }
 
-Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model,
-                                                            const domi::TaskDef &task_def, const OpDescPtr &op_desc,
+Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model, const OpDescPtr &op_desc,
                                                             ModelTaskType task_type) {
   const auto kernel_name_ptr = AttrUtils::GetStr(op_desc, "_kernelname");
   GE_ASSERT_NOTNULL(kernel_name_ptr, "[OM2] Failed to get kernel_name from op_desc, op=%s", op_desc->GetName().c_str());
@@ -787,16 +787,15 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &cod
     aicore_sign = kernel_name + "#" + std::to_string(tiling_key);
     kind = KernelBinaryKind::kAllKernel;
   }
-  const std::string bin_id = BuildAicoreKernelBinId(codegen_model, task_def, op_desc);
-  const auto RegisterKernel = [&codegen_model, &op_desc, &kind](const std::string &sign, const std::string &bin_id,
-                                                                const std::string &name, uint64_t tiling_key,
-                                                                bool is_atomic) -> Status {
+  const auto RegisterKernel = [&codegen_model, &op_desc, &kind](const std::string &sign, const std::string &name,
+                                                                uint64_t tiling_key, bool is_atomic) -> Status {
     if (codegen_model.kernel_registry.func_handle_indices.find(sign) !=
         codegen_model.kernel_registry.func_handle_indices.end()) {
       return SUCCESS;
     }
     std::string magic;
     GE_CHK_STATUS(Om2CodegenUtils::GetMagic(op_desc, magic, is_atomic));
+    const std::string bin_id = BuildAicoreKernelBinId(codegen_model, op_desc, is_atomic);
     const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
     GELOGI("[OM2] RegisterKernel: bin_id=%s, op=%s, sign=%s, func_idx=%u, tiling_key=%lu", bin_id.c_str(),
            op_desc->GetNamePtr(), sign.c_str(), func_handle_index, tiling_key);
@@ -806,8 +805,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &cod
     codegen_model.kernel_registry.func_handle_indices.emplace(sign, func_handle_index);
     return SUCCESS;
   };
-
-  GE_CHK_STATUS(RegisterKernel(aicore_sign, bin_id, kernel_name, tiling_key, false));
+  GE_CHK_STATUS(RegisterKernel(aicore_sign, kernel_name, tiling_key, false));
 
   std::string atomic_kernel_name;
   const auto atomic_kernel_name_ptr = AttrUtils::GetStr(op_desc, ATOMIC_ATTR_TBE_KERNEL_NAME);
@@ -815,7 +813,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &cod
     atomic_kernel_name = *atomic_kernel_name_ptr;
   }
   if (!atomic_kernel_name.empty()) {
-    GE_CHK_STATUS(RegisterKernel(atomic_kernel_name + "_atomic", bin_id, atomic_kernel_name, 0U, true));
+    GE_CHK_STATUS(RegisterKernel(atomic_kernel_name + "_atomic", atomic_kernel_name, 0U, true));
   }
   return SUCCESS;
 }

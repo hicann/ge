@@ -154,6 +154,8 @@ std::unique_ptr<ModelV2Executor> ModelV2ExecutorBuilder::Build(const ExecutorOpt
 
   ge::ComputeGraphPtr root_graph = root_model_->GetRootGraph();
   GE_ASSERT_NOTNULL(root_graph);
+  GELOGI("Build RT2 executor for root compute graph[%s], model[%s].", root_graph->GetName().c_str(),
+         root_model_->GetModelName().c_str());
   (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC, executor->deterministic_);
   (void)ge::AttrUtils::GetInt(root_graph, ge::DETERMINISTIC_LEVEL, executor->deterministic_level_);
   executor->need_set_deterministic_config_ =

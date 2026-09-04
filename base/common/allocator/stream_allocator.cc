@@ -13,6 +13,7 @@
 #include "common/checker.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/ge_inner_error_codes.h"
+#include "acl/acl_rt.h"
 
 namespace gert {
 StreamAllocator::StreamAllocator(int32_t priority, uint32_t flags)
@@ -43,6 +44,10 @@ TypedContinuousVector<rtStream_t> *StreamAllocator::AcquireStreams(const size_t 
     GE_ASSERT_RT_OK(rtStreamCreateWithFlags(&stream, default_priority_, default_flags_));
     streams->MutableData()[i] = stream;
     GE_ASSERT_SUCCESS(streams->SetSize(i + 1U));
+
+    int32_t rt_stream_id = -1;
+    (void)aclrtStreamGetId(stream, &rt_stream_id);
+    GELOGI("Collect rt2 stream, get rts stream %p from logical stream %zu, rts_stream_id: %d", stream, i, rt_stream_id);
   }
   return streams;
 }

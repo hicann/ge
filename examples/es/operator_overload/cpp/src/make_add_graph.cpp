@@ -32,6 +32,7 @@ int RunGraphAdd(ge::Graph &graph, const std::vector<ge::Tensor> &inputs, const s
   auto ret = s->AddGraph(graph_id, graph);
   if (ret != ge::SUCCESS) {
     std::cout << "AddGraph failed" << std::endl;
+    delete s;
     return -1;
   }
   std::vector<ge::Tensor> outputs;
@@ -39,6 +40,7 @@ int RunGraphAdd(ge::Graph &graph, const std::vector<ge::Tensor> &inputs, const s
   if (ret != ge::SUCCESS) {
     std::cout << "RunGraph failed" << std::endl;
     (void)s->RemoveGraph(graph_id);
+    delete s;
     return -1;
   }
   (void)s->RemoveGraph(graph_id);

@@ -353,7 +353,7 @@ void TeFileUtils::DeleteFile(const std::string &path) {
   }
 }
 
-bool TeFileUtils::IsFileUsed(std::string &filePath) {
+bool TeFileUtils::IsFileUsed(const std::string &filePath) {
   // if locked by other process, don't delete the file
   FILE *fp = fopen(filePath.c_str(), "r");
   if (fp == nullptr) {

@@ -147,7 +147,14 @@ ge::graphStatus ModelV2Executor::OccupyStreamResource(const ModelExecuteArg &arg
   GE_ASSERT_NOTNULL(streams, "Failed to prepare reusable streams, num %zu. Maybe streams not enough on device",
                     stream_num);
   GE_ASSERT_TRUE(streams->GetSize() > 0u);
+  const auto previous_stream = streams->GetData()[0U];
   streams->MutableData()[0] = arg.stream;
+
+  if ((arg.stream != nullptr) && (previous_stream != arg.stream)) {
+    int32_t rt_stream_id = -1;
+    (void)aclrtStreamGetId(arg.stream, &rt_stream_id);
+    GELOGI("Collect rt2 stream, get rts stream %p from logical stream 0, rts_stream_id: %d", arg.stream, rt_stream_id);
+  }
 
   events = event_allocator->AcquireEvents(model_desc_->GetReusableEventNum());
   GE_ASSERT_NOTNULL(events, "Failed to prepare reusable events, num %zu. Maybe events not enough on device",

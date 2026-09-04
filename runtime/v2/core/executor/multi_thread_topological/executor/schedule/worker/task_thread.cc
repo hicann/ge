@@ -20,7 +20,7 @@ bool TaskThread::Start(Runnable runnable) {
     return false;
   }
 
-  thread_.reset(new (std::nothrow) std::thread([=]() {
+  thread_.reset(new (std::nothrow) std::thread([runnable]() {
     SET_THREAD_NAME(pthread_self(), "ge_exe_tasktd");
     runnable();
   }));

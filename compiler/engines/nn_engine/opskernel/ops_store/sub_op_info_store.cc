@@ -192,7 +192,7 @@ Status SubOpInfoStore::LoadOpJsonFile(const std::string &json_file_path) {
 Status SubOpInfoStore::ConstructOpKernelInfo(const std::string &engine_name) {
   OpKernelInfoConstructor op_kernel_info_constructor;
   for (auto &op : op_content_map_) {
-    if (ge::CustomOpFactory::IsExistOp(ge::AscendString(op.first.c_str()))) {
+    if (ge::CustomOpFactory::IsExistOp(ge::AscendString(op.first.c_str()), ge::OpBackend::kDevice)) {
       FE_LOGD("Op[%s] is ge_custom_op, skip construct op_kernel_info.", op.first.c_str());
       continue;
     }

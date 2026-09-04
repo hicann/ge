@@ -2824,7 +2824,7 @@ aclError RegisterCustAicpuKernel(std::string &bin_id, aclrtBinHandle &bin_handle
 } // namespace
 aclError Om2Model::RegisterKernels() {
   OM2_LOGI("RegisterKernels begin");
-  OM2_CHK_STATUS(RegisterAicoreKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {"_g1add1", ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_, callbacks_));
+  OM2_CHK_STATUS(RegisterAicoreKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {"_g1add1_AicoreKernel", ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_, callbacks_));
   OM2_LOGI("RegisterKernels done");
   return ACL_SUCCESS;
 }
