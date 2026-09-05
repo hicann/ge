@@ -70,7 +70,7 @@ bool SafeProduct(const std::vector<int64_t> &dims, size_t begin, size_t end, siz
   return true;
 }
 
-graphStatus GetSplitInfo(gert::InferSymbolComputeContext *context, int64_t &num_split, int64_t &split_dim,
+graphStatus GetSplitInfo(const gert::InferSymbolComputeContext *context, int64_t &num_split, int64_t &split_dim,
                          std::vector<int64_t> &split_sizes) {
   const auto attrs = context->GetAttrs();
   GE_UNSUPPORTED_IF_NULL(attrs);
@@ -122,8 +122,8 @@ graphStatus ResolveSplitSizes(const int64_t split_dim_size, std::vector<int64_t>
   return SUCCESS;
 }
 
-graphStatus PrepareSplitInput(gert::InferSymbolComputeContext *context, const size_t x_input_index, int64_t &split_dim,
-                              std::vector<int64_t> &split_sizes, const gert::SymbolShape *&x_shape,
+graphStatus PrepareSplitInput(const gert::InferSymbolComputeContext *context, const size_t x_input_index,
+                              int64_t &split_dim, std::vector<int64_t> &split_sizes, const gert::SymbolShape *&x_shape,
                               const std::vector<Expression> *&x_values, std::vector<int64_t> &x_dims,
                               size_t &inner_count, size_t &outer_count) {
   GE_ASSERT_NOTNULL(context);
