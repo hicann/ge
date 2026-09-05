@@ -13,7 +13,7 @@
 **参数值：**"整数1|整数2"，中间使用“|”分隔。
 
 <!-- npu="950,A3,910b" id11 -->
-- **场景1**：针对如下产品，整数1表示算子编译时使用的AI Core中的Cube Core核数，整数2表示算子编译时使用的AI Core中的Vector Core核数，整数1与整数2都需要大于0，小于等于AI处理器包含的最大Cube Core和Vector Core数量：
+- **场景1**：针对如下产品，整数1表示算子编译时使用的AI Core中的Cube Core核数，整数2表示算子编译时使用的AI Core中的Vector Core核数，整数1与整数2都需要大于等于0，小于等于AI处理器包含的最大Cube Core和Vector Core数量：
 
     <!-- npu="950" id1 -->
     Ascend 950PR/Ascend 950DT
@@ -80,7 +80,7 @@
 <!-- end id14 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--aicore_num_res.md#id2 -->
-
+- 配置为0不会报错，但会被当作未配置处理，不产生控核效果，如配置“整数1|0”，等同于配置“整数1|”。
 - 如果配置该参数的同时启用了算子编译缓存功能（[--op\_compiler\_cache\_mode](--op_compiler_cache_mode.md)参数配置为“enable”或者“force”），此参数仅在首次编译时生效。若您想在非首次编译时生效该参数，需要清理编译磁盘的缓存。
 
 其中，$\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用户安装为例，安装后文件默认存储路径为：/usr/local/Ascend/cann。<arch\>表示具体操作系统架构，xxx请根据实际产品进行选择。
