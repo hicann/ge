@@ -490,9 +490,28 @@ Status NodeCheckerUtils::CheckPhonySplitInputSize(const Node *const node) {
   if (!MemLayoutConflictUtil::IsNoPaddingContinuousOutput(node)) {
     return SUCCESS;
   }
-  GE_ASSERT_TRUE(node->GetOpDescBarePtr()->GetInputsSize() == 1U,
+  const auto op_desc = node->GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  if (op_desc->GetType() == "SplitV") {
+    const auto in_nodes = node->GetInDataNodes();
+    GE_ASSERT_TRUE(in_nodes.size() >= 3U,
+                   "node %s is SplitV with nopadding continuous output, should have 3 data inputs, but actual: %zu",
+                   NodeCheckerUtils::NodeName(node).c_str(), in_nodes.size());
+    std::string const_op_type;
+    GE_ASSERT_TRUE(!ge::NodeUtils::GetConstOpType(in_nodes.at(0U), const_op_type),
+                   "node %s is SplitV, input0 (x) should be non-const", NodeCheckerUtils::NodeName(node).c_str());
+    GE_ASSERT_TRUE(ge::NodeUtils::GetConstOpType(in_nodes.at(1U), const_op_type),
+                   "node %s is SplitV, input1 (size_splits) should be const", NodeCheckerUtils::NodeName(node).c_str());
+    GE_ASSERT_TRUE(ge::NodeUtils::GetConstOpType(in_nodes.at(2U), const_op_type),
+                   "node %s is SplitV, input2 (split_dim) should be const", NodeCheckerUtils::NodeName(node).c_str());
+    const auto input_desc = op_desc->GetInputDesc(0U);
+    GE_ASSERT_TRUE(input_desc.GetFormat() == ge::FORMAT_NCHW, "node %s is SplitV, input0 (x) format should be NCHW",
+                   NodeCheckerUtils::NodeName(node).c_str());
+    return SUCCESS;
+  }
+  GE_ASSERT_TRUE(op_desc->GetInputsSize() == 1U,
                  "node %s need nopadding continuous output, should only has one input, but actual input size: %zu",
-                 NodeCheckerUtils::NodeName(node).c_str(), node->GetOpDescBarePtr()->GetInputsSize());
+                 NodeCheckerUtils::NodeName(node).c_str(), op_desc->GetInputsSize());
   return SUCCESS;
 }
 

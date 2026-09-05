@@ -57,40 +57,57 @@ void SplitNOptimizer::GetRealSplitDimFromOriginalFormatToFormat(const ge::OpDesc
   FE_LOGD("GetRealSplitDim end node:%s, splitdim: %ld.", op_desc->GetName().c_str(), split_dim);
 }
 
+bool SplitNOptimizer::IsInvalidInputNode(const ge::NodePtr &in_node, bool is_splitv, size_t index) {
+  std::string op_type;
+  if (ge::NodeUtils::GetConstOpType(in_node, op_type)) {
+    if (is_splitv && index > 0U) {
+      return false;
+    }
+    FE_LOGD("In node %s of type %s cannot be optimized.", in_node->GetName().c_str(), op_type.c_str());
+    return true;
+  }
+  if ((in_node->GetType() == TRANSDATA || in_node->GetType() == RESHAPE) &&
+      (in_node->GetAllInDataAnchors().size() != 0)) {
+    FE_CHECK_NOTNULL(in_node->GetInDataAnchor(0));
+    auto peerOutAnchor = in_node->GetInDataAnchor(0)->GetPeerOutAnchor();
+    if (peerOutAnchor == nullptr) {
+      FE_LOGD("The first peer of in_node[%s] in the anchor is null.", in_node->GetName().c_str());
+      return true;
+    }
+    auto pre_in_node = peerOutAnchor->GetOwnerNode();
+    if (pre_in_node != nullptr && IsRootGraphData(pre_in_node->GetType())) {
+      FE_LOGD("Data->TransData/Reshape->split. Data: pre_in_node[%s] cannot be optimized.",
+              pre_in_node->GetName().c_str());
+      return true;
+    }
+  }
+  bool is_no_task = false;
+  (void)ge::AttrUtils::GetBool(in_node->GetOpDesc(), ge::ATTR_NAME_NOTASK, is_no_task);
+  if (is_no_task) {
+    FE_LOGD("In node %s has no_task attribute, cannot be optimized.", in_node->GetName().c_str());
+    return true;
+  }
+  vector<int64_t> output_index;
+  (void)ge::AttrUtils::GetListInt(in_node->GetOpDesc(), ge::ATOMIC_ATTR_OUTPUT_INDEX, output_index);
+  if (!output_index.empty()) {
+    FE_LOGD("Node [%s] has atomic_output attribute, cannot be optimized.", in_node->GetName().c_str());
+    return true;
+  }
+  return false;
+}
+
 bool SplitNOptimizer::InputCheck(ge::NodePtr split_node) const {
-  for (auto in_node : split_node->GetInDataNodes()) {
-    std::string op_type;
-    if (ge::NodeUtils::GetConstOpType(in_node, op_type)) {
-      FE_LOGD("In node %s of type %s, %s cannot be optimized.", in_node->GetName().c_str(), op_type.c_str(),
-              split_node->GetName().c_str());
-      return false;
-    }
-    if ((in_node->GetType() == TRANSDATA || in_node->GetType() == RESHAPE) &&
-        (in_node->GetAllInDataAnchors().size() != 0)) {
-      FE_CHECK_NOTNULL(in_node->GetInDataAnchor(0));
-      auto peerOutAnchor = in_node->GetInDataAnchor(0)->GetPeerOutAnchor();
-      if (peerOutAnchor == nullptr) {
-        FE_LOGD("The first peer of in_node[%s] in the anchor is null.", in_node->GetName().c_str());
-        return false;
-      }
-      auto pre_in_node = peerOutAnchor->GetOwnerNode();
-      if (pre_in_node != nullptr && IsRootGraphData(pre_in_node->GetType())) {
-        FE_LOGD("Data->TransData/Reshape->split. Data: pre_in_node[%s], %s cannot be optimized.",
-                pre_in_node->GetName().c_str(), split_node->GetName().c_str());
-        return false;
-      }
-    }
-    bool is_no_task = false;
-    (void)ge::AttrUtils::GetBool(in_node->GetOpDesc(), ge::ATTR_NAME_NOTASK, is_no_task);
-    if (is_no_task) {
-      FE_LOGD("In node %s, the presence of the no_task attribute means that %s cannot be optimized.",
-              in_node->GetName().c_str(), split_node->GetName().c_str());
-      return false;
-    }
-    vector<int64_t> output_index;
-    (void)ge::AttrUtils::GetListInt(in_node->GetOpDesc(), ge::ATOMIC_ATTR_OUTPUT_INDEX, output_index);
-    if (!output_index.empty()) {
-      FE_LOGD("Node [%s] has an atomic_output attribute and cannot be optimized.", in_node->GetName().c_str());
+  if (split_node == nullptr) {
+    return false;
+  }
+  auto op_desc = split_node->GetOpDesc();
+  if (op_desc == nullptr) {
+    return false;
+  }
+  bool is_splitv = (op_desc->GetType() == fe::SPLITV);
+  const auto in_nodes = split_node->GetInDataNodes();
+  for (size_t i = 0U; i < in_nodes.size(); i++) {
+    if (IsInvalidInputNode(in_nodes.at(i), is_splitv, i)) {
       return false;
     }
   }

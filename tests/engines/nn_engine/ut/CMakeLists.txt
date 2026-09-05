@@ -169,6 +169,8 @@ add_executable(ut_fe_graph_optimizer
     ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_fusion/graph_fusion_ut.cc
     ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_optimizer/fusion_engine_coverage.cc
     ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_optimizer/fusion_engine_fe_graph_optimizer_unittest.cc
+    ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_optimizer/fusion_engine_fe_graph_optimizer_misc_unittest.cc
+    ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_optimizer/fusion_engine_fe_graph_optimizer_fixture.cc
     ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/graph_optimizer/check_graph_cycle_unittest.cc
 )
 target_link_libraries(ut_fe_graph_optimizer PRIVATE -Wl,--whole-archive fe_ut_common -Wl,--no-whole-archive)
