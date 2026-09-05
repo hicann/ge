@@ -395,6 +395,8 @@ class GraphManager {
 
   Status ProcessNullableOutput(ComputeGraphPtr &compute_graph) const;
 
+  Status ProcessPcieThrough(ComputeGraphPtr &compute_graph) const;
+
   bool CheckModelLoad(const GeRootModelPtr &ge_root_model, bool load_flag) const;
 
   bool IsGraphNeedBuild(const GraphNodePtr &graph_node) const;

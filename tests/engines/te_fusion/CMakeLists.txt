@@ -76,5 +76,13 @@ add_subdirectory(depends/op_tiling)
 add_subdirectory(depends/trace)
 add_subdirectory(depends/ascendcl)
 
+# Redirect toolkit runtime dependencies to the TeFusion test stubs.
+set_target_properties(acl_rt PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/depends/ascendcl/libascendcl_stub.so"
+)
+set_target_properties(runtime PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/depends/runtime/libruntime_stub_fe.so"
+)
+
 add_subdirectory(ut)
 add_subdirectory(st)

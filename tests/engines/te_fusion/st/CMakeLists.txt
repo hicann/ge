@@ -71,6 +71,7 @@ target_include_directories(tefusion_st PRIVATE
         ${ASCEND_INSTALL_PATH}/include/experiment/metadef)
 
 target_compile_options(tefusion_st PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:--coverage>
         -D__OPTIMIZER_KT_TEST__
         -DDAVINCI_CLOUD
         -Dgoogle=ascend_private)
@@ -83,7 +84,18 @@ target_link_directories(tefusion_st PRIVATE
     ${ASCEND_INSTALL_PATH}/devlib
 )
 
+target_compile_definitions(tefusion_st PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:GE_TEFUSION_GCOV>
+)
+
+target_link_options(tefusion_st PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_BINARY_DIR}/tests/engines/te_fusion/depends/ascendcl
+    -Wl,-rpath,${CMAKE_BINARY_DIR}/tests/engines/te_fusion/depends/runtime
+)
+
 target_link_libraries(tefusion_st PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:--coverage>
         msprof_headers
         cce_headers
         runtime_headers
@@ -127,4 +139,4 @@ target_link_libraries(tefusion_st PRIVATE
         fusion_pass
         intf_llt_pub
         ge_common_base
-        acl_rt)
+        ascendcl_stub)

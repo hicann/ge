@@ -605,4 +605,141 @@ TEST_F(TilingContextBuilderUT, GetDependInputTensorAddr_Const_Input_Success) {
   EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
   EXPECT_NE(address, nullptr);
 }
+
+TEST_F(TilingContextBuilderUT, BuildWithPcieThroughFlag) {
+  auto tiling_data = gert::TilingData::CreateCap(1024);
+  auto workspace_size = gert::ContinuousVector::Create<size_t>(16);
+  std::string op_compile_info_json = "{}";
+  fe::PlatFormInfos platform_infos;
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto builder = TilingContextBuilder();
+
+  auto foo_node = ComputeNodeFaker().NameAndType("foo", "Foo").IoNum(1, 2).InputNames({"x"}).Build();
+  auto bar_node = ComputeNodeFaker().NameAndType("bar", "Bar").IoNum(2, 1).InputNames({"x", "y"}).Build();
+  ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(0), bar_node->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(1), bar_node->GetInDataAnchor(1));
+  const size_t k_input_anchor = 2U;
+  ge::NodeUtils::AppendInputAnchor(bar_node, k_input_anchor);
+  ge::OpDescPtr op_desc = bar_node->GetOpDesc();
+  ge::GeTensorDesc tensor_desc(ge::GeShape({1}));
+  op_desc->AddOutputDesc("z", tensor_desc);
+  op_desc->MutableInputDesc(1)->SetDataType(ge::DT_INT32);
+  op_desc->MutableInputDesc(1)->SetShape(ge::GeShape({1}));
+  op_desc->MutableInputDesc(1)->SetOriginShape(ge::GeShape({1}));
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(bar_node->shared_from_this());
+  ge::graphStatus ret;
+  auto tiling_context_holder = builder.CompileInfo(const_cast<char *>(op_compile_info_json.c_str()))
+                                   .PlatformInfo(reinterpret_cast<void *>(&platform_infos))
+                                   .TilingData(tiling_data.get())
+                                   .Deterministic(1)
+                                   .DeterministicLevel(1)
+                                   .SetPcieThroughFlag(true)
+                                   .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
+                                   .SetSpaceRegistryV2(space_registry, gert::OppImplVersionTag::kOpp)
+                                   .Build(op, ret);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  auto tiling_context = reinterpret_cast<TilingContext *>(tiling_context_holder.context_);
+  EXPECT_NE(tiling_context, nullptr);
+  EXPECT_EQ(tiling_context->GetPcieThroughFlag(), true);
+
+  bg::ValueHolder::PopGraphFrame();
+  DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(TilingContextBuilderUT, BuildWithPcieThroughFlagDefault) {
+  auto tiling_data = gert::TilingData::CreateCap(1024);
+  auto workspace_size = gert::ContinuousVector::Create<size_t>(16);
+  std::string op_compile_info_json = "{}";
+  fe::PlatFormInfos platform_infos;
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto builder = TilingContextBuilder();
+
+  auto foo_node = ComputeNodeFaker().NameAndType("foo", "Foo").IoNum(1, 2).InputNames({"x"}).Build();
+  auto bar_node = ComputeNodeFaker().NameAndType("bar", "Bar").IoNum(2, 1).InputNames({"x", "y"}).Build();
+  ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(0), bar_node->GetInDataAnchor(0));
+  ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(1), bar_node->GetInDataAnchor(1));
+  const size_t k_input_anchor = 2U;
+  ge::NodeUtils::AppendInputAnchor(bar_node, k_input_anchor);
+  ge::OpDescPtr op_desc = bar_node->GetOpDesc();
+  ge::GeTensorDesc tensor_desc(ge::GeShape({1}));
+  op_desc->AddOutputDesc("z", tensor_desc);
+  op_desc->MutableInputDesc(1)->SetDataType(ge::DT_INT32);
+  op_desc->MutableInputDesc(1)->SetShape(ge::GeShape({1}));
+  op_desc->MutableInputDesc(1)->SetOriginShape(ge::GeShape({1}));
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(bar_node->shared_from_this());
+  ge::graphStatus ret;
+  auto tiling_context_holder = builder.CompileInfo(const_cast<char *>(op_compile_info_json.c_str()))
+                                   .PlatformInfo(reinterpret_cast<void *>(&platform_infos))
+                                   .TilingData(tiling_data.get())
+                                   .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
+                                   .SetSpaceRegistryV2(space_registry, gert::OppImplVersionTag::kOpp)
+                                   .Build(op, ret);
+  EXPECT_EQ(ret, ge::GRAPH_SUCCESS);
+  auto tiling_context = reinterpret_cast<TilingContext *>(tiling_context_holder.context_);
+  EXPECT_NE(tiling_context, nullptr);
+  EXPECT_EQ(tiling_context->GetPcieThroughFlag(), false);
+
+  bg::ValueHolder::PopGraphFrame();
+  DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(TilingContextBuilderUT, BuildDeviceTilingContextWithPcieThroughFlag) {
+  auto graph = ConcatV2ConstDependencyGraph();
+  fe::PlatFormInfos platform_infos;
+  auto node = graph->FindNode("ifa");
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+
+  size_t total_plain_size{0UL};
+  size_t extend_info_size{0UL};
+  bg::BufferPool buffer_pool;
+  auto compute_node_extend_holder = bg::CreateComputeNodeInfo(node, buffer_pool, extend_info_size);
+  ASSERT_NE(compute_node_extend_holder, nullptr);
+
+  const size_t device_tiling_size = gert::DeviceTilingContextBuilder::CalcTotalTiledSize(op_desc);
+  size_t aligned_tiling_context_size = ge::RoundUp(static_cast<uint64_t>(device_tiling_size), sizeof(uintptr_t));
+  aligned_tiling_context_size += extend_info_size;
+  total_plain_size += aligned_tiling_context_size;
+
+  const auto aligned_tiling_size = 1024UL;
+  total_plain_size += aligned_tiling_size;
+
+  const size_t workspace_addr_size = 16 * sizeof(gert::ContinuousVector);
+  total_plain_size += workspace_addr_size;
+
+  auto host_pointer = std::unique_ptr<uint8_t[]>(new uint8_t[total_plain_size]);
+  ASSERT_NE(host_pointer, nullptr);
+  auto device_addr = std::unique_ptr<uint8_t[]>(new uint8_t[total_plain_size]);
+  ASSERT_NE(device_addr, nullptr);
+
+  uint8_t *context_host_begin = &host_pointer[aligned_tiling_size + workspace_addr_size];
+  uint64_t context_dev_begin = ge::PtrToValue(device_addr.get()) + aligned_tiling_size + workspace_addr_size;
+
+  gert::TiledKernelContextHolder tiling_context_holder;
+  tiling_context_holder.compute_node_info_size_ = extend_info_size;
+  tiling_context_holder.host_compute_node_info_ = compute_node_extend_holder.get();
+
+  auto context_builder = gert::DeviceTilingContextBuilder();
+  ge::Status ret = context_builder.PlatformInfo(reinterpret_cast<void *>(&platform_infos))
+                       .TilingData(device_addr.get())
+                       .Deterministic(0)
+                       .DeterministicLevel(1)
+                       .SetPcieThroughFlag(true)
+                       .CompileInfo(nullptr)
+                       .Workspace(ge::ValueToPtr(ge::PtrToValue(device_addr.get()) + aligned_tiling_size))
+                       .TiledHolder(context_host_begin, context_dev_begin,
+                                    total_plain_size - aligned_tiling_size - workspace_addr_size)
+                       .Build(node, tiling_context_holder);
+  EXPECT_EQ(memcpy_s(device_addr.get(), total_plain_size, host_pointer.get(), total_plain_size), 0);
+
+  auto device_context = reinterpret_cast<TilingContext *>(tiling_context_holder.dev_context_addr_);
+  EXPECT_NE(device_context, nullptr);
+  EXPECT_EQ(device_context->GetPcieThroughFlag(), true);
+  EXPECT_EQ(ret, ge::SUCCESS);
+}
 }  // namespace gert

@@ -15,7 +15,12 @@
 namespace {
 constexpr const char *kInvlaidSocVersion = "invalid_version";
 constexpr const char *kInvlaidInitSocVersion = "invalid_init_version";
+bool g_pcie_through_partial_support = false;
 }  // namespace
+
+void SetPcieThroughPartialSupport(bool supported) {
+  g_pcie_through_partial_support = supported;
+}
 
 fe::PlatformInfoManager &fe::PlatformInfoManager::Instance() {
   static fe::PlatformInfoManager pf;
@@ -152,6 +157,10 @@ bool fe::PlatFormInfos::GetPlatformResWithLock(
 }
 
 bool fe::PlatFormInfos::GetPlatformResWithLock(const string &label, const string &key, string &val) {
+  if (label == "SoCInfo" && key == "pcie_through_partial_support") {
+    val = g_pcie_through_partial_support ? "1" : "0";
+    return true;
+  }
   if (label == "DtypeMKN" && key == "Default") {
     val = "16,16,16";
   } else if (label == "version" && key == "Short_SoC_Version") {

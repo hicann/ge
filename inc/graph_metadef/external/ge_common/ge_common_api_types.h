@@ -61,6 +61,7 @@ const char_t *const OPTION_EXEC_PROFILING_OPTIONS = "ge.exec.profilingOptions";
 const char_t *const OPTION_EXEC_HCCL_FLAG = "ge.exec.hcclFlag";
 const char_t *const OPTION_EXEC_ATOMIC_FLAG = "ge.exec.enable_atomic";
 const char_t *const OPTION_EXEC_DISABLE_REUSED_MEMORY = "ge.exec.disableReuseMemory";
+const char_t *const OPTION_EXEC_DISABLE_PCIE_THROUGH = "ge.exec.disable_pcie_through";
 const char_t *const OPTION_EXEC_ENABLE_TAILING_OPTIMIZATION = "ge.exec.isTailingOptimization";
 // Dynamic input flag. ge.exec.dynamicInput=1, means enable dynaimc input,
 // ge.exec.dynamicGraphExecuteMode, dynamic_execute[default]

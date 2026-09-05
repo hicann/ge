@@ -101,7 +101,7 @@ UINT32 StubFailedTiling(KernelContext *) {
 }
 
 TEST_F(TilingUT, Tiling_Failed_WhenTilingFuncFailed) {
-  auto run_context = BuildKernelRunContext(3, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
+  auto run_context = BuildKernelRunContext(4, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
   auto tiling_data = TilingData::CreateCap(10);
   kernel::TilingFwkData fwk_data = {.tiling_func = reinterpret_cast<void *>(StubFailedTiling),
                                     .launch_arg = fake_launch_arg};
@@ -391,8 +391,8 @@ TEST_F(TilingUT, FallibleTiling_ReturnSuccess_WhenTilingFuncFailed) {
                                     .launch_arg = fake_launch_arg};
   auto context_holder =
       KernelRunContextFaker()
-          .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&fwk_data, nullptr, nullptr})
+          .KernelIONum(4, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
+          .Inputs({&fwk_data, nullptr, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kernel::FallibleTiling(context), ge::GRAPH_SUCCESS);
@@ -405,8 +405,8 @@ TEST_F(TilingUT, FallibleTiling_ReturnSuccess_WhenTilingFuncSuccess) {
                                     .launch_arg = fake_launch_arg};
   auto context_holder =
       KernelRunContextFaker()
-          .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&fwk_data, nullptr, nullptr})
+          .KernelIONum(4, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
+          .Inputs({&fwk_data, nullptr, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kernel::FallibleTiling(context), ge::GRAPH_SUCCESS);
@@ -775,6 +775,63 @@ TEST_F(TilingUT, TilingMemCheck_succ_aligned) {
   EXPECT_EQ(ge::DumpStub::GetInstance().GetDynamicUnits()[0][7], 256);  // dim[2]
   EXPECT_EQ(ge::DumpStub::GetInstance().GetDynamicUnits()[0][8], 0);    // output
   ge::DumpStub::GetInstance().Clear();
+}
+
+TEST_F(TilingUT, Tiling_WithPcieThroughFlagTrue) {
+  auto workspace_holder = ContinuousVector::Create<size_t>(16);
+  auto workspace = reinterpret_cast<TypedContinuousVector<size_t> *>(workspace_holder.get());
+  kernel::TilingFwkData fwk_data = {.tiling_func = reinterpret_cast<void *>(SuccessTilingFunc),
+                                    .launch_arg = fake_launch_arg};
+  auto context_holder = TilingContextFaker()
+                            .NodeIoNum(2, 1)
+                            .TilingFwkData(&fwk_data)
+                            .Workspace(reinterpret_cast<ContinuousVector *>(workspace))
+                            .PcieThroughFlag(true)
+                            .Build();
+  auto context = context_holder.GetContext<KernelContext>();
+  ASSERT_EQ(kernel::Tiling(context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(TilingUT, Tiling_WithPcieThroughFlagFalse) {
+  auto workspace_holder = ContinuousVector::Create<size_t>(16);
+  auto workspace = reinterpret_cast<TypedContinuousVector<size_t> *>(workspace_holder.get());
+  kernel::TilingFwkData fwk_data = {.tiling_func = reinterpret_cast<void *>(SuccessTilingFunc),
+                                    .launch_arg = fake_launch_arg};
+  auto context_holder = TilingContextFaker()
+                            .NodeIoNum(2, 1)
+                            .TilingFwkData(&fwk_data)
+                            .Workspace(reinterpret_cast<ContinuousVector *>(workspace))
+                            .PcieThroughFlag(false)
+                            .Build();
+  auto context = context_holder.GetContext<KernelContext>();
+  ASSERT_EQ(kernel::Tiling(context), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(TilingUT, CheckPcieThrough_RegisteredAndReturnsFalse) {
+  const auto check_pcie_through = KernelRegistry::GetInstance().FindKernelFuncs("CheckPcieThrough");
+  ASSERT_NE(check_pcie_through, nullptr);
+  GertTensorData td1;
+  GertTensorData td2;
+  auto context_holder = KernelRunContextFaker()
+                            .KernelIONum(2, 1)
+                            .Inputs({reinterpret_cast<void *>(&td1), reinterpret_cast<void *>(&td2)})
+                            .Build();
+  auto context = context_holder.GetContext<KernelContext>();
+  ASSERT_EQ(check_pcie_through->run_func(context), ge::GRAPH_SUCCESS);
+  auto *output = context->GetOutputPointer<bool>(0U);
+  ASSERT_NE(output, nullptr);
+  EXPECT_FALSE(*output);
+}
+
+TEST_F(TilingUT, CheckPcieThrough_ZeroInputsReturnsFalse) {
+  const auto check_pcie_through = KernelRegistry::GetInstance().FindKernelFuncs("CheckPcieThrough");
+  ASSERT_NE(check_pcie_through, nullptr);
+  auto context_holder = KernelRunContextFaker().KernelIONum(0, 1).Build();
+  auto context = context_holder.GetContext<KernelContext>();
+  ASSERT_EQ(check_pcie_through->run_func(context), ge::GRAPH_SUCCESS);
+  auto *output = context->GetOutputPointer<bool>(0U);
+  ASSERT_NE(output, nullptr);
+  EXPECT_FALSE(*output);
 }
 
 }  // namespace gert

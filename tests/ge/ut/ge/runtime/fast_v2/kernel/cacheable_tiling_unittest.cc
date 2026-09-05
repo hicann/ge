@@ -191,15 +191,15 @@ TEST_F(CacheableTilingUt, CacheableTiling_Fail_CallTilingFuncFailed) {
   // 准备Tiling的输出
   auto workspace_sizes_holder = CreateWorkspaceSizesWithDummyData(16UL);
   ASSERT_NE(workspace_sizes_holder, nullptr);
-  auto run_context =
-      KernelRunContextFaker()
-          .NodeIoNum(2UL, 1UL)
-          .IrInputNum(2UL)
-          .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-          .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr, nullptr})
-          .Outputs({nullptr, nullptr, nullptr, nullptr, workspace_sizes_holder.get(), nullptr, nullptr, nullptr,
-                    nullptr, nullptr, nullptr, nullptr})
-          .Build();
+  auto run_context = KernelRunContextFaker()
+                         .NodeIoNum(2UL, 1UL)
+                         .IrInputNum(2UL)
+                         .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
+                         .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr,
+                                  nullptr, nullptr})
+                         .Outputs({nullptr, nullptr, nullptr, nullptr, workspace_sizes_holder.get(), nullptr, nullptr,
+                                   nullptr, nullptr, nullptr, nullptr, nullptr})
+                         .Build();
   ASSERT_EQ(kf_cacheable_tiling->run_func(run_context), ge::GRAPH_FAILED);
   // tiling_func调用失败不做缓存
   HashBuffer hash_buf;
@@ -240,13 +240,13 @@ TEST_F(CacheableTilingUt, CacheableTiling_Ok_TilingResultAddedAndFetched) {
   const auto execute_kernel_and_check = [&](KernelRegistry::KernelFunc stub_func) {
     const TilingFwkData fwk_data = {.tiling_func = reinterpret_cast<void *>(stub_func), .launch_arg = fake_launch_arg};
     cacheable_fwk_data.fwk_data = fwk_data;
-    auto run_context =
-        KernelRunContextFaker()
-            .NodeIoNum(2UL, 1UL)
-            .IrInputNum(2UL)
-            .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-            .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr, nullptr})
-            .Build();
+    auto run_context = KernelRunContextFaker()
+                           .NodeIoNum(2UL, 1UL)
+                           .IrInputNum(2UL)
+                           .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
+                           .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr,
+                                    nullptr, nullptr})
+                           .Build();
     ASSERT_EQ(kf_cacheable_tiling->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
     ASSERT_EQ(kf_cacheable_tiling->run_func(run_context), ge::GRAPH_SUCCESS);
     // tiling_func调用成功,缓存Tiling结果,其中workspace中缓存的是调用AlignWorkspaceSizes对齐后的结果
@@ -328,13 +328,13 @@ TEST_F(CacheableTilingUt, CacheableTiling_Ok_DataDependentTilingResultAddedAndFe
   const auto execute_kernel_and_check = [&](KernelRegistry::KernelFunc stub_func) {
     cacheable_fwk_data.fwk_data.tiling_func = reinterpret_cast<void *>(stub_func);
     auto td_output_holder = TilingData::CreateCap(1024UL);
-    auto run_context =
-        KernelRunContextFaker()
-            .NodeIoNum(2UL, 1UL)
-            .IrInputNum(2UL)
-            .KernelIONum(7UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-            .Inputs({&in_tensor1, &in_tensor2, &out_tensor, nullptr, nullptr, &cacheable_fwk_data, nullptr, nullptr})
-            .Build();
+    auto run_context = KernelRunContextFaker()
+                           .NodeIoNum(2UL, 1UL)
+                           .IrInputNum(2UL)
+                           .KernelIONum(7UL, static_cast<size_t>(TilingExOutputIndex::kNum))
+                           .Inputs({&in_tensor1, &in_tensor2, &out_tensor, nullptr, nullptr, &cacheable_fwk_data,
+                                    nullptr, nullptr, nullptr})
+                           .Build();
 
     ASSERT_EQ(kf_cacheable_tiling->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
     ASSERT_EQ(kf_cacheable_tiling->run_func(run_context), ge::GRAPH_SUCCESS);
@@ -369,7 +369,7 @@ TEST_F(CacheableTilingUt, CacheableFallibleTiling_ok_TilingFuncSucc) {
   auto context_holder =
       KernelRunContextFaker()
           .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&cacheable_fwk_data, nullptr, nullptr})
+          .Inputs({&cacheable_fwk_data, nullptr, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kf_cacheable_fallible_tiling->run_func(context), ge::GRAPH_SUCCESS);

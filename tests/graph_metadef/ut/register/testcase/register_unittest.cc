@@ -70,6 +70,7 @@ void from_json(const nlohmann::json &j, HcomTopoInfo::TopoInfo &info);
 }  // namespace ge
 namespace {
 int32_t expected_py_deterministic_level = -1;
+int32_t expected_py_pcie_through_flag = -1;
 
 REG_OP(AddUt)
     .INPUT(x1, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT32}))
@@ -286,6 +287,9 @@ UINT32 OpTilingStubV6(gert::TilingContext *kernel_context) {
   if (expected_py_deterministic_level >= 0) {
     EXPECT_EQ(kernel_context->GetDeterministicLevel(), expected_py_deterministic_level);
   }
+  if (expected_py_pcie_through_flag >= 0) {
+    EXPECT_EQ(kernel_context->GetPcieThroughFlag(), static_cast<bool>(expected_py_pcie_through_flag));
+  }
   return ge::GRAPH_SUCCESS;
 }
 
@@ -329,6 +333,7 @@ class UtestRegister : public testing::Test {
 
   void TearDown() {
     expected_py_deterministic_level = -1;
+    expected_py_pcie_through_flag = -1;
     (void)error_message::GetErrMgrErrorMessage();
   }
 };
@@ -4168,4 +4173,78 @@ TEST_F(UtestRegister, IncCov_AscendCPyInterfaceGetTilingDefInfo_NullParams) {
   size_t size = 1024;
   EXPECT_EQ(AscendCPyInterfaceGetTilingDefInfo(nullptr, const_cast<char *>(res_info.c_str()), size), 0);
   unsetenv("ENABLE_RUNTIME_V2");
+}
+
+TEST_F(UtestRegister, new_optiling_py_interface_ok_with_pcie_through_flag) {
+  const nlohmann::json input = R"([
+{"name": "t0", "dtype": "float16","const_value": [1.1,2.1,3.1,4.1] ,"shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "FRACTAL_Z", "sub_format" :32},
+{"dtype": "int8", "shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "ND"}
+])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([
+{"name": "y_0","dtype": "int8","shape": [9,9,9,9],"ori_shape" :[9,9,9,9],"format": "ND","ori_format":"ND"}])"_json;
+  std::string output_str = output.dump();
+  const char *op_type = "TestReluV2";
+  const char *cmp_info = "";
+  std::string runinfo(161, 'a');
+  size_t size = 161;
+  const char *cmp_info_hash = "";
+  uint64_t *elapse = nullptr;
+  const nlohmann::json attrs = R"([
+{ "name": "op_para_size", "dtype": "int", "value": 50}])"_json;
+  const nlohmann::json extra_infos = R"([{"pcie_through_flag": true}])"_json;
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl(op_type);
+  op_impl_func->tiling = OpTilingStubV6;
+  op_impl_func->tiling_parse = OpTilingParseStubV5;
+  op_impl_func->compile_info_creator = CreateCompileInfo;
+  op_impl_func->compile_info_deleter = DeleteCompileInfo;
+  op_impl_func->max_tiling_data_size = 50;
+
+  expected_py_pcie_through_flag = 1;
+  EXPECT_EQ(std::string(DoOpTilingForCompile(op_type, cmp_info, cmp_info_hash, input_str.c_str(), output_str.c_str(),
+                                             attrs.dump().c_str(), const_cast<char *>(runinfo.c_str()), size, elapse,
+                                             extra_infos.dump().c_str())),
+            "{\"ret_code\":0}");
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(UtestRegister, new_optiling_py_interface_ok_without_pcie_through_flag) {
+  const nlohmann::json input = R"([
+{"name": "t0", "dtype": "float16","const_value": [1.1,2.1,3.1,4.1] ,"shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "FRACTAL_Z", "sub_format" :32},
+{"dtype": "int8", "shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "ND"}
+])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([
+{"name": "y_0","dtype": "int8","shape": [9,9,9,9],"ori_shape" :[9,9,9,9],"format": "ND","ori_format":"ND"}])"_json;
+  std::string output_str = output.dump();
+  const char *op_type = "TestReluV2";
+  const char *cmp_info = "";
+  std::string runinfo(161, 'a');
+  size_t size = 161;
+  const char *cmp_info_hash = "";
+  uint64_t *elapse = nullptr;
+  const nlohmann::json attrs = R"([
+{ "name": "op_para_size", "dtype": "int", "value": 50}])"_json;
+  const nlohmann::json extra_infos = R"([{}])"_json;
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl(op_type);
+  op_impl_func->tiling = OpTilingStubV6;
+  op_impl_func->tiling_parse = OpTilingParseStubV5;
+  op_impl_func->compile_info_creator = CreateCompileInfo;
+  op_impl_func->compile_info_deleter = DeleteCompileInfo;
+  op_impl_func->max_tiling_data_size = 50;
+
+  expected_py_pcie_through_flag = 0;
+  EXPECT_EQ(std::string(DoOpTilingForCompile(op_type, cmp_info, cmp_info_hash, input_str.c_str(), output_str.c_str(),
+                                             attrs.dump().c_str(), const_cast<char *>(runinfo.c_str()), size, elapse,
+                                             extra_infos.dump().c_str())),
+            "{\"ret_code\":0}");
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
 }

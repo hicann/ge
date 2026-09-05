@@ -54,6 +54,11 @@ TilingContextBuilder &TilingContextBuilder::DeterministicLevel(int32_t determini
   return *this;
 }
 
+TilingContextBuilder &TilingContextBuilder::SetPcieThroughFlag(bool pcie_through_flag) {
+  pcie_through_flag_ = pcie_through_flag;
+  return *this;
+}
+
 TilingContextBuilder &TilingContextBuilder::TilingData(void *tiling_data) {
   outputs_[TilingContext::kOutputTilingData] = tiling_data;
   return *this;
@@ -191,12 +196,16 @@ KernelContextHolder TilingContextBuilder::Build(const ge::Operator &op, ge::grap
   context_inputs.emplace_back(nullptr);
   context_inputs.emplace_back(reinterpret_cast<void *>(deterministic_));
   context_inputs.emplace_back(reinterpret_cast<void *>(deterministic_level_));
+  context_inputs.emplace_back(reinterpret_cast<void *>(pcie_through_flag_));
   return base_builder_.Inputs(context_inputs).Outputs(outputs_).Build(node->GetOpDesc(), ret);
 }
 // 0-n input tensors
 // n-m output shapes
 // m + 1 compile info
 // m + 2 tiling func
+// m + 3 deterministic
+// m + 4 deterministic level
+// m + 5 pcie through flag
 // 其中 n为输入个数总和，m为输入输出个数总和
 KernelContextHolder TilingContextBuilder::Build(const ge::Operator &op) {
   ge::Status ret = ge::GRAPH_FAILED;

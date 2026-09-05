@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 add_library(ascendcl_stub SHARED src/ascendcl_stub.cc)
+set_property(TARGET ascendcl_stub APPEND PROPERTY LINK_OPTIONS "-Wl,-soname,libacl_rt.so")
 target_compile_options(ascendcl_stub PRIVATE -g)
 target_compile_definitions(ascendcl_stub PRIVATE
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>

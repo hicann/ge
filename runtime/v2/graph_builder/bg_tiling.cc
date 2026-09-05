@@ -33,6 +33,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "exe_graph/lowering/data_dependent_interpreter.h"
 #include "graph/ge_context.h"
+#include "acl/acl_rt.h"
 #include "common/op_tiling/op_tiling_rt2.h"
 #include "common/op_tiling/tiling_dfx.h"
 #include "rt_external_model.h"
@@ -44,6 +45,39 @@
 namespace gert {
 namespace bg {
 namespace {
+
+bool IsPcieThroughEnabled() {
+  std::string disable_pcie_through;
+  if (ge::GetContext().GetOption("ge.exec.disable_pcie_through", disable_pcie_through) == ge::GRAPH_SUCCESS &&
+      disable_pcie_through == "1") {
+    GELOGI("pcie through is disabled by option ge.exec.disable_pcie_through");
+    return false;
+  }
+  fe::PlatFormInfos platform_infos;
+  if (fe::PlatformInfoManager::Instance().GetPlatformInstanceByDevice(0U, platform_infos) != 0) {
+    GELOGW("GetPlatformInstanceByDevice failed");
+    return false;
+  }
+  std::string pcie_support;
+  if (!platform_infos.GetPlatformResWithLock("SoCInfo", "pcie_through_partial_support", pcie_support) ||
+      pcie_support != "1") {
+    return false;
+  }
+  GELOGD("pcie_support:[%s]", pcie_support.c_str());
+  int32_t device_id = -1;
+  if (aclrtGetDevice(&device_id) != ACL_SUCCESS) {
+    return false;
+  }
+  int64_t connect_type = -1;
+  if (aclrtGetDeviceInfo(static_cast<uint32_t>(device_id), ACL_DEV_ATTR_HD_CONNECT_TYPE, &connect_type) !=
+          ACL_SUCCESS ||
+      connect_type != static_cast<int64_t>(ACL_HOST_DEVICE_CONNECT_TYPE_PCIE)) {
+    return false;
+  }
+  GELOGI("device_id: %d, connect_type:%" PRId64 "", device_id, connect_type);
+  return true;
+}
+
 struct TilingAppendDfxInfoInputs {
   const std::vector<ValueHolderPtr> &input_shapes;
   const std::vector<ValueHolderPtr> &output_shapes;
@@ -267,6 +301,34 @@ ge::Status BuildTilingDeterministicInput(const ge::NodePtr &node, LoweringGlobal
       global_data.GetOrCreateUniqueValueHolder(deterministic_level_key, deterministic_level_builder);
   GE_ASSERT_TRUE(deterministic_level_vec.size() == 1UL);
   tiling_input.emplace_back(deterministic_level_vec[0]);
+  return ge::SUCCESS;
+}
+
+ge::Status BuildTilingPcieThroughInput(const ge::NodePtr &node, std::vector<ValueHolderPtr> &tiling_input,
+                                       const std::vector<bg::DevMemValueHolderPtr> &input_addrs) {
+  GE_ASSERT_NOTNULL(node);
+  GE_ASSERT_NOTNULL(node->GetOpDesc());
+  thread_local static bool env_enabled = IsPcieThroughEnabled();
+  bool pcie_through_flag = false;
+  const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry(
+      static_cast<gert::OppImplVersionTag>(node->GetOpDesc()->GetOppImplVersion()));
+  if (space_registry != nullptr) {
+    const auto *op_impl = space_registry->GetOpImpl(node->GetTypePtr());
+    if (op_impl != nullptr && op_impl->IsSupportPcieThrough() && env_enabled) {
+      pcie_through_flag = true;
+    }
+  }
+  GELOGI("pcie_through_flag initial:[%d], node:%s", pcie_through_flag, node->GetName().c_str());
+  if (pcie_through_flag && !input_addrs.empty()) {
+    auto check_holder = bg::ValueHolder::CreateSingleDataOutput("CheckPcieThrough",
+                                                                ConvertDevMemValueHoldersToValueHolders(input_addrs));
+    GE_ASSERT_NOTNULL(check_holder);
+    tiling_input.emplace_back(check_holder);
+  } else {
+    auto pcie_through_holder = bg::ValueHolder::CreateConst(&pcie_through_flag, sizeof(bool));
+    GE_ASSERT_NOTNULL(pcie_through_holder);
+    tiling_input.emplace_back(pcie_through_holder);
+  }
   return ge::SUCCESS;
 }
 
@@ -625,9 +687,9 @@ ge::Status BuildTilingAppendDfxInfo(const ge::NodePtr &node, std::vector<ValueHo
   return ge::SUCCESS;
 }
 
-/*                +--> Tiling <---+-----------------+----------------+------------------------+
- *              /        |         \                 \                \                        \
- *  <input-shapes> <output-shapes> TilingParse   PlatformInfo   PrepareTilingFrameworkData   Deterministic
+/*                +--> Tiling <---+-----------------+----------------+------------------------+-------------+
+ *              /        |         \                 \                \                        \             \
+ *  <input-shapes> <output-shapes> TilingParse   PlatformInfo   PrepareTilingFrameworkData   Deterministic PcieThrough
  *                                   /     /    \                  /              \
  *                       space_registry  json    \          FindTilingFunc       (向后可扩展框架内部FwkData输入)
  *                                                \        /         \
@@ -652,6 +714,7 @@ std::vector<ValueHolderPtr> Tiling(const ge::NodePtr &node, const std::vector<Va
     GE_ASSERT_SUCCESS(
         BuildCacheableTilingFwkDataInputs(node, lower_inputs, 0U, "BuildSymbolTilingCacheKey", inputs_holders));
     GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, inputs_holders));
+    GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(node, inputs_holders, lower_inputs.input_addrs));
     return bg::ValueHolder::CreateDataOutput("CacheableTiling", inputs_holders, tiling_output_num);
   }
   GE_ASSERT_NOTNULL(node);
@@ -676,10 +739,12 @@ std::vector<ValueHolderPtr> Tiling(const ge::NodePtr &node, const std::vector<Va
     GE_ASSERT_SUCCESS(BuildCacheableTilingFwkDataInputs(node, lower_inputs, data_dependency,
                                                         "BuildGeneralTilingCacheKey", tiling_input));
     GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, tiling_input));
+    GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(node, tiling_input, lower_inputs.input_addrs));
     tiling_ret = ValueHolder::CreateDataOutput("CacheableTiling", tiling_input, tiling_output_num);
   } else {
     GE_ASSERT_SUCCESS(BuildTilingFwkDataInputs(node, lower_inputs, tiling_input));
     GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, tiling_input));
+    GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(node, tiling_input, lower_inputs.input_addrs));
     tiling_ret = ValueHolder::CreateDataOutput("Tiling", tiling_input, tiling_output_num);
   }
 
@@ -730,10 +795,12 @@ std::vector<ValueHolderPtr> FallibleTiling(const ge::NodePtr &node, const std::v
     GE_ASSERT_SUCCESS(BuildCacheableTilingFwkDataInputs(node, lower_inputs, data_dependency,
                                                         "BuildGeneralTilingCacheKey", tiling_input));
     GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, tiling_input));
+    GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(node, tiling_input, lower_inputs.input_addrs));
     tiling_ret = ValueHolder::CreateDataOutput("CacheableFallibleTiling", tiling_input, fallible_output_num);
   } else {
     GE_ASSERT_SUCCESS(BuildTilingFwkDataInputs(node, lower_inputs, tiling_input));
     GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, tiling_input));
+    GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(node, tiling_input, lower_inputs.input_addrs));
     tiling_ret = ValueHolder::CreateDataOutput("FallibleTiling", tiling_input, fallible_output_num);
   }
 
@@ -770,6 +837,7 @@ std::vector<ValueHolderPtr> TilingForAtomic(const ge::NodePtr &atomic_node, cons
   }
   inputs.emplace_back(ValueHolder::CreateSingleDataOutput("PrepareTilingFwkData", {tiling_func, launch_arg}));
   GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(atomic_node, global_data, inputs));
+  GE_ASSERT_SUCCESS(BuildTilingPcieThroughInput(atomic_node, inputs, {}));
   return ValueHolder::CreateDataOutput("Tiling", inputs, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
 }
 

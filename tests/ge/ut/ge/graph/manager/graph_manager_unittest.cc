@@ -76,6 +76,8 @@ using namespace std;
 using namespace testing;
 using namespace domi;
 
+extern void SetPcieThroughPartialSupport(bool supported);
+
 namespace {
 const char *kCast = "Cast";
 const uint32_t kNotAdded = 0;
@@ -5981,6 +5983,64 @@ TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_invalid_pattern) {
   std::vector<GeShape> option_shape;
   EXPECT_EQ(ParseHintInputShape(option_shape), PARAM_INVALID);
   GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenDisabledByOption) {
+  auto back_options = ge::GetThreadLocalContext().GetAllGlobalOptions();
+  auto global_options = back_options;
+  global_options["ge.exec.disable_pcie_through"] = "1";
+  GetThreadLocalContext().SetGlobalOption(global_options);
+
+  auto graph = CreateGraphWithNullOutput();
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
+
+  auto cast1_node = graph->FindNode("cast1");
+  ASSERT_NE(cast1_node, nullptr);
+  bool pcie_through_flag = true;
+  EXPECT_FALSE(ge::AttrUtils::GetBool(cast1_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
+
+  GetThreadLocalContext().SetGlobalOption(back_options);
+}
+
+TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenPlatformNotSupport) {
+  auto graph = CreateGraphWithNullOutput();
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
+
+  auto cast1_node = graph->FindNode("cast1");
+  ASSERT_NE(cast1_node, nullptr);
+  bool pcie_through_flag = true;
+  EXPECT_FALSE(ge::AttrUtils::GetBool(cast1_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
+}
+
+TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SetsFlagWhenSupported) {
+  SetPcieThroughPartialSupport(true);
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("Cast");
+  ASSERT_NE(op_impl_func, nullptr);
+  op_impl_func->SetSupportPcieThrough();
+
+  auto graph = CreateGraphWithNullOutput();
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
+
+  auto cast1_node = graph->FindNode("cast1");
+  ASSERT_NE(cast1_node, nullptr);
+  bool pcie_through_flag = false;
+  EXPECT_TRUE(ge::AttrUtils::GetBool(cast1_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
+  EXPECT_TRUE(pcie_through_flag);
+
+  auto cast2_node = graph->FindNode("cast2");
+  ASSERT_NE(cast2_node, nullptr);
+  pcie_through_flag = false;
+  EXPECT_TRUE(ge::AttrUtils::GetBool(cast2_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
+  EXPECT_TRUE(pcie_through_flag);
+
+  SetPcieThroughPartialSupport(false);
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
 }
 
 }  // namespace ge

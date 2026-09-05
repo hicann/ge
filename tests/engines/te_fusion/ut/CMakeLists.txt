@@ -71,6 +71,7 @@ target_include_directories(tefusion_ut PRIVATE
         ${TEFUSION_TEST_ROOT_PATH})
 
 target_compile_options(tefusion_ut PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:--coverage>
         $<$<STREQUAL:${ENABLE_ASAN},true>:-fsanitize=address -fsanitize-recover=address,all -fno-omit-frame-pointer -g>
         -D__OPTIMIZER_KT_TEST__
         -DDAVINCI_CLOUD
@@ -84,7 +85,18 @@ target_link_directories(tefusion_ut PRIVATE
     ${ASCEND_INSTALL_PATH}/devlib
 )
 
+target_compile_definitions(tefusion_ut PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:GE_TEFUSION_GCOV>
+)
+
+target_link_options(tefusion_ut PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_BINARY_DIR}/tests/engines/te_fusion/depends/ascendcl
+    -Wl,-rpath,${CMAKE_BINARY_DIR}/tests/engines/te_fusion/depends/runtime
+)
+
 target_link_libraries(tefusion_ut PRIVATE
+        $<$<STREQUAL:${ENABLE_GCOV},true>:--coverage>
         $<$<STREQUAL:${ENABLE_ASAN},true>:-fsanitize=address>
         air_headers
         ge_metadef_headers
@@ -126,7 +138,7 @@ target_link_libraries(tefusion_ut PRIVATE
         aicore_utils
         fe
         fusion_pass
-        acl_rt
+        ascendcl_stub
         graph_base
         ge_common_base
    	GTestShared::gmock

@@ -17,6 +17,18 @@ generate_cann_protobuf(dump_proto PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_p
 
 add_library(profiler_stub SHARED src/profiler_stub.cc src/dump_stub.cc ${PROTO_SRCS})
 
+# Use the test dump implementation when runner targets are built for LLT.
+foreach(runner_target ge_runner ge_runner_v2)
+    if (TARGET ${runner_target})
+        get_target_property(runner_link_libraries ${runner_target} LINK_LIBRARIES)
+        list(REMOVE_ITEM runner_link_libraries ascend_dump)
+        list(APPEND runner_link_libraries profiler_stub)
+        set_target_properties(${runner_target} PROPERTIES
+            LINK_LIBRARIES "${runner_link_libraries}"
+        )
+    endif()
+endforeach()
+
 add_dependencies(profiler_stub
         dump_proto
         )

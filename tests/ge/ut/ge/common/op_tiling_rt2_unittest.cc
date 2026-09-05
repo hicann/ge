@@ -64,8 +64,10 @@ class CompileInfoJson : public CompileInfoBase {
 int32_t expected_deterministic = -1;
 int32_t expected_deterministic_level = -1;
 bool check_extend_conv_attrs = false;
+int32_t expected_pcie_through_flag = -1;
 constexpr const char *kDeterministicAttr = "_deterministic";
 constexpr const char *kDeterministicLevelAttr = "_deterministic_level";
+constexpr const char *kPcieThroughFlagAttr = "_pcie_through_flag";
 
 class RegisterOpTilingRT2UT : public testing::Test {
  protected:
@@ -78,6 +80,7 @@ class RegisterOpTilingRT2UT : public testing::Test {
     expected_deterministic = -1;
     expected_deterministic_level = -1;
     check_extend_conv_attrs = false;
+    expected_pcie_through_flag = -1;
     ge::GetThreadLocalContext().SetGlobalOption({});
     ge::AclRuntimeStub::SetErrorResultApiName("");
     ge::AclRuntimeStub::Reset();
@@ -134,6 +137,9 @@ ge::graphStatus DummyTiling(TilingContext *tiling_context) {
   }
   if (expected_deterministic >= 0) {
     EXPECT_EQ(tiling_context->GetDeterministic(), expected_deterministic);
+  }
+  if (expected_pcie_through_flag >= 0) {
+    EXPECT_EQ(tiling_context->GetPcieThroughFlag(), static_cast<bool>(expected_pcie_through_flag));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -1439,6 +1445,33 @@ TEST_F(RegisterOpTilingRT2UT, SetDeterministicConfigPropagatesAclFailures) {
   ge::AclRuntimeStub::SetErrorResultApiName("aclrtCtxSetSysParamOpt");
   EXPECT_NE(SetDeterministicConfig(1, 2), GRAPH_SUCCESS);
   ASSERT_EQ(acl_runtime_stub_->GetSysParamSetRecords().size(), 1U);
+}
+
+TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithNodePcieThroughFlag) {
+  SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto graph = ShareGraph::ConcatV2ConstDependencyGraph();
+  auto concatv2_node = graph->FindNode("concatv2");
+  ASSERT_NE(concatv2_node, nullptr);
+  (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), COMPILE_INFO_JSON, "testst");
+  (void)ge::AttrUtils::SetBool(concatv2_node->GetOpDesc(), kPcieThroughFlagAttr, true);
+  expected_pcie_through_flag = 1;
+  utils::OpRunInfo run_info;
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(concatv2_node);
+  fe::PlatFormInfos platform_infos;
+  EXPECT_EQ(AicoreRtParseAndTiling(op, platform_infos, run_info), GRAPH_SUCCESS);
+}
+
+TEST_F(RegisterOpTilingRT2UT, AicoreParseAndTilingWithoutPcieThroughFlag) {
+  SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto graph = ShareGraph::ConcatV2ConstDependencyGraph();
+  auto concatv2_node = graph->FindNode("concatv2");
+  ASSERT_NE(concatv2_node, nullptr);
+  (void)ge::AttrUtils::SetStr(concatv2_node->GetOpDesc(), COMPILE_INFO_JSON, "testst");
+  expected_pcie_through_flag = 0;
+  utils::OpRunInfo run_info;
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(concatv2_node);
+  fe::PlatFormInfos platform_infos;
+  EXPECT_EQ(AicoreRtParseAndTiling(op, platform_infos, run_info), GRAPH_SUCCESS);
 }
 
 }  // namespace optiling

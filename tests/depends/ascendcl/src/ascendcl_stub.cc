@@ -2020,6 +2020,13 @@ aclError aclDestroyDataBuffer(const aclDataBuffer *dataBuffer) {
   return ge::AclApiStub::GetInstance()->aclDestroyDataBuffer(dataBuffer);
 }
 
+aclError aclrtHostGetDevicePointerAddrRange(aclrtAddrRange *addrRange, uint32_t *count) {
+  if (count != nullptr) {
+    *count = 0U;
+  }
+  return ACL_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -1579,4 +1579,7 @@ const std::string ATTR_NAME_SUPER_KERNEL_OPTIONS = "_super_kernel_options";
 
 // inference rule for torch or other framework with symbols
 const std::string ATTR_NAME_INFER_RULE = "_inference_rule";
+
+// for pcie through
+const std::string ATTR_NAME_PCIE_THROUGH_FLAG = "_pcie_through_flag";
 }  // namespace ge

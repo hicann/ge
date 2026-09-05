@@ -176,6 +176,7 @@ class TilingContextFaker {
   TilingContextFaker &Workspace(ContinuousVector *workspace);
   TilingContextFaker &TilingFwkData(void *fwk_data);
   TilingContextFaker &Deterministic(void *deterministic);
+  TilingContextFaker &PcieThroughFlag(bool pcie_through_flag);
 
   KernelRunContextHolder Build() const;
 
@@ -193,6 +194,7 @@ class TilingContextFaker {
   void *compile_info_ = nullptr;
   void *deterministic_ = nullptr;
   void *deterministic_level_ = nullptr;
+  bool pcie_through_flag_ = false;
 };
 }  // namespace gert
 #endif  // AIR_CXX_TESTS_UT_GE_RUNTIME_V2_FAKER_KERNEL_RUN_CONTEXT_FACKER_H_

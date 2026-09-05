@@ -105,9 +105,10 @@ constexpr uint32_t kRightShiftBits = 4;
 constexpr uint32_t kAndBits = 15;
 const std::string kHexDigits = "0123456789ABCDEF";
 constexpr size_t kSize = 4UL;
-constexpr size_t kTilingCtxFixedInputSize = 5UL;
+constexpr size_t kTilingCtxFixedInputSize = 6UL;
 constexpr size_t kDeterministicOffset = 3UL;
 constexpr size_t kDeterministicLevelOffset = 4UL;
+constexpr size_t kPcieThroughOffset = 5UL;
 const std::string kMaxTilingSize = "op_para_size";
 constexpr size_t kMaxTilingDataSize = 16UL * 1024UL;
 constexpr size_t kWorkspaceHolerSize = 8UL;
@@ -734,6 +735,10 @@ void ParseExtraInfo(const nlohmann::json &extra_info, ge::OpDescPtr &op_desc) {
   if (extra_info.contains("deterministic_level")) {
     const int32_t deterministic_level = extra_info["deterministic_level"];
     (void)ge::AttrUtils::SetInt(op_desc, "deterministic_level", deterministic_level);
+  }
+  if (extra_info.contains("pcie_through_flag")) {
+    const bool pcie_through_flag = extra_info["pcie_through_flag"];
+    (void)ge::AttrUtils::SetBool(op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag);
   }
   if (extra_info.contains(ge::public_attr::OP_AI_CORE_NUM)) {
     const std::string op_aicore_num = extra_info[ge::public_attr::OP_AI_CORE_NUM];
@@ -1706,6 +1711,12 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
   GELOGI("Get deterministic level: %d from node: %s", deterministic_level, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicLevelOffset] =
       reinterpret_cast<void *>(deterministic_level);
+
+  bool pcie_through_flag = false;
+  (void)ge::AttrUtils::GetBool(context_com.op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag);
+  tiling_context_inputs[context_com.storage_shapes.size() + kPcieThroughOffset] =
+      reinterpret_cast<void *>(pcie_through_flag);
+  GELOGI("Get pcie_through_flag: %d from node: %s", pcie_through_flag, context_com.op_desc->GetName().c_str());
   return gert::KernelRunContextBuilder()
       .Inputs(tiling_context_inputs)
       .Outputs({nullptr, nullptr, &context_com.atomic_flag, context_com.tiling_data.get(),

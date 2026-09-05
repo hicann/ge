@@ -2478,4 +2478,20 @@ TEST_F(GeApiV2Test, SessionApis_GraphNotExist_ReportE10062) {
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
   ReInitGe();
 }
+
+TEST_F(GeApiV2Test, InitializeWithDisablePcieThroughOption) {
+  GEFinalizeV2();
+  std::map<AscendString, AscendString> options = {{"ge.exec.disable_pcie_through", "1"}};
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GEFinalizeV2();
+  ReInitGe();
+}
+
+TEST_F(GeApiV2Test, InitializeWithEnablePcieThroughOption) {
+  GEFinalizeV2();
+  std::map<AscendString, AscendString> options = {{"ge.exec.disable_pcie_through", "0"}};
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GEFinalizeV2();
+  ReInitGe();
+}
 }  // namespace ge
