@@ -2437,11 +2437,10 @@ Status KernelTaskCodeBuilder::SetIoAddrs() {
     GetAtomicWorkspaceAddrs(workspace_addrs_, workspace_mem_types_, tensor_device_addrs, mem_types);
   }
 
-  size_t io_addrs_element_num = tensor_device_addrs.size();
+  io_addrs_ = tensor_device_addrs;
   if (is_addrs_folded_) {
-    io_addrs_element_num += 1UL;
+    io_addrs_.push_back(0UL);
   }
-  io_addrs_.resize(io_addrs_element_num);
   (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), mem_types.cbegin(), mem_types.cend());
   size_t args_size = 0UL;
   GE_ASSERT_TRUE(!ge::MulOverflow(io_addrs_.size(), kAddressLen, args_size));
@@ -2595,7 +2594,7 @@ Status KernelTaskCodeBuilder::GetTaskArgsRefreshInfos(std::vector<om2::TaskArgsR
 
   if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU) ||
       (kernel_type_ == ccKernelType::AI_CPU_KFC)) {
-    args_io_addrs_updater_.GenArgsRefreshInfos(infos, io_addr_offset_ + args_offset_from_pls_, args_placement_);
+    args_io_addrs_updater_.GenArgsRefreshInfos(infos, io_addr_offset_, args_placement_);
     return SUCCESS;
   }
   return SUCCESS;
