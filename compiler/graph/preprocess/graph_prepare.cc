@@ -1450,7 +1450,7 @@ Status GraphPrepare::CheckGraphAndUpdateOriginShape() const {
 
 Status GraphPrepare::CheckRefInputNode(const NodePtr &node, const std::string &input_name,
                                        const std::set<NodePtr> &ref_nodes) const {
-  static std::set<std::string> block_list = {ge::CONSTANTOP, ge::CONSTANT};
+  static const std::set<std::string> block_list = {ge::CONSTANTOP, ge::CONSTANT};
   GE_CHECK_NOTNULL(node);
   const auto &op_desc = node->GetOpDesc();
   GE_CHECK_NOTNULL(op_desc);

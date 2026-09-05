@@ -182,7 +182,7 @@ class GraphManager {
 
   Status CheckGraphValidBeforeExecute(const GraphId &graph_id, GraphNodePtr &graph_node) const;
 
-  const std::map<std::string, std::string> *GetGraphOptions(uint32_t graph_id);
+  const std::map<std::string, std::string> *GetGraphOptions(uint32_t graph_id) const;
 
   void SetOptionsRunGraphFlag(bool run_graph_flag);
 
@@ -242,7 +242,7 @@ class GraphManager {
                     std::vector<std::pair<uint64_t, uint64_t>> &cross_ranges) const;
 
   // temporary solution, set rebuild_ctrl from external to share variable change between different graph_manager object
-  void SetExternalGraphRebuildStateCtrl(std::shared_ptr<GraphRebuildStateCtrl> &rebuild_ctrl);
+  void SetExternalGraphRebuildStateCtrl(const std::shared_ptr<GraphRebuildStateCtrl> &rebuild_ctrl);
   Status SetFrozenInputAttrs(const GeRootModelPtr &ge_root_model, const GraphNodePtr &graph_node) const;
   void UpdateLocalOmgContext(GraphId graph_id);
   Status StartForRunGraph(const GraphNodePtr &graph_node, const std::vector<GeTensor> &inputs,

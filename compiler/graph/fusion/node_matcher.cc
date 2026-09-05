@@ -25,7 +25,7 @@ namespace ge {
 namespace fusion {
 namespace {
 template <typename T>
-bool IsTensorDataEqualWith(ConstGeTensorPtr &a_tensor, ConstGeTensorPtr &b_tensor, size_t shape_size) {
+bool IsTensorDataEqualWith(const ConstGeTensorPtr &a_tensor, const ConstGeTensorPtr &b_tensor, size_t shape_size) {
   const auto *a_value = reinterpret_cast<const T *>(a_tensor->GetData().data());
   const auto *b_value = reinterpret_cast<const T *>(b_tensor->GetData().data());
   for (size_t i = 0U; i < shape_size; ++i) {
@@ -36,7 +36,7 @@ bool IsTensorDataEqualWith(ConstGeTensorPtr &a_tensor, ConstGeTensorPtr &b_tenso
   return true;
 }
 
-bool IsTensorEqualWith(ConstGeTensorPtr &a_tensor, ConstGeTensorPtr &b_tensor) {
+bool IsTensorEqualWith(const ConstGeTensorPtr &a_tensor, const ConstGeTensorPtr &b_tensor) {
   const auto &a_tensor_desc = a_tensor->GetTensorDesc();
   const auto &b_tensor_desc = b_tensor->GetTensorDesc();
 
