@@ -337,6 +337,34 @@ TEST_F(UtestModelParserBase, GetModelInputDesc_SizeTooSmall) {
   EXPECT_EQ(base.GetModelInputDesc(data.data(), data.size(), info), PARAM_INVALID);
 }
 
+TEST_F(UtestModelParserBase, GetModelInputDesc_MalformedNameLen) {
+  // name_len 超出记录实际剩余长度时，解析必须先完成边界检查再读取，
+  // 否则 std::string 构造将按不可信长度越界读取源缓冲。
+  ModelParserBase base;
+  const string name = "input_tensor";
+  ModelTensorDescBaseInfo base_info;
+  base_info.size = 100U;
+  base_info.format = FORMAT_NCHW;
+  base_info.dt = DT_FLOAT;
+  base_info.name_len = 0x08000000U;  // 128MB，远超记录剩余长度
+  base_info.dims_len = 0U;
+  base_info.dimsV2_len = 0U;
+  base_info.shape_range_len = 0U;
+
+  const uint32_t desc_num = 1U;
+  const size_t total_size = sizeof(uint32_t) + sizeof(ModelTensorDescBaseInfo) + name.size();
+  vector<uint8_t> data(total_size, 0);
+  size_t offset = 0U;
+  memcpy(data.data() + offset, &desc_num, sizeof(uint32_t));
+  offset += sizeof(uint32_t);
+  memcpy(data.data() + offset, &base_info, sizeof(ModelTensorDescBaseInfo));
+  offset += sizeof(ModelTensorDescBaseInfo);
+  memcpy(data.data() + offset, name.c_str(), name.size());
+
+  ge::ModelInOutInfo info;
+  EXPECT_NE(base.GetModelInputDesc(data.data(), data.size(), info), SUCCESS);
+}
+
 TEST_F(UtestModelParserBase, GetDynamicBatch_Success) {
   ModelParserBase base;
   const uint32_t num = 3U;
