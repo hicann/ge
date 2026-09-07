@@ -223,9 +223,9 @@ TEST(GertModelExecutorTypesUt, DefaultsAndLayoutAreStable) {
   EXPECT_EQ(callbacks.struct_size, sizeof(callbacks));
   EXPECT_EQ(info.launch_type, ACL_RT_LAUNCH_KERNEL_V2);
   EXPECT_EQ(task.kernel_type, static_cast<uint64_t>(ccKernelType::INVALID));
-  EXPECT_EQ(kernel.reserved_1, 0U);
-  EXPECT_EQ(dsa.reserved_1, 0U);
-  EXPECT_EQ(dsa.reserved_2, 0U);
+  EXPECT_EQ(kernel.abi_pad_1, 0U);
+  EXPECT_EQ(dsa.abi_pad_1, 0U);
+  EXPECT_EQ(dsa.abi_pad_2, 0U);
   EXPECT_EQ(callbacks.report_model_base_info, nullptr);
   EXPECT_EQ(callbacks.launch_func, nullptr);
   static_assert(offsetof(GertModelTaskLaunchParams, launch_kernel_v2_params) == 0U);

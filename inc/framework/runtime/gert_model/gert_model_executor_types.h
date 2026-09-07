@@ -24,7 +24,7 @@ struct GertModelLaunchKernelV2Params {
   aclrtFuncHandle func_handle = nullptr;
   uint32_t block_dim = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_1 = 0;
+  uint32_t abi_pad_1 = 0;
   const void *args_data = nullptr;
   size_t args_size = 0;
   aclrtLaunchKernelCfg *config = nullptr;
@@ -37,11 +37,11 @@ struct GertModelLaunchStarsTaskWithFlagParams {
   const void *task_sqe = nullptr;
   uint32_t sqe_len = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_1 = 0;
+  uint32_t abi_pad_1 = 0;
   aclrtStream stream = nullptr;
   uint32_t flag = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_2 = 0;
+  uint32_t abi_pad_2 = 0;
 };
 
 union GertModelTaskLaunchParams {
