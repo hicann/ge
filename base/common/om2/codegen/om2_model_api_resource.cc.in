@@ -12,6 +12,6 @@
 
 namespace ge {
 std::string_view GetOm2ModelApiHeader() {
-  return R"OM2API(@OM2_MODEL_API_CONTENT@)OM2API";
+  return R"OM2_API_HDR_RSRC(@OM2_MODEL_API_CONTENT@)OM2_API_HDR_RSRC";
 }
 }  // namespace ge
