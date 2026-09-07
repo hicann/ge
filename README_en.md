@@ -1,5 +1,7 @@
 # GE (Graph Engine)
 
+English | [简体中文](./README.md)
+
 ## Latest News
 
 - [2026/03] Continuously enhanced graph optimization capabilities, improved unit test coverage, and fixed compilation issues in multiple edge cases. Optimized documentation structure to enhance developer experience.
@@ -12,7 +14,7 @@ GE (Graph Engine) is a graph compiler and executor for Ascend, providing computa
 
 GE provides friendly integration capabilities for PyTorch and TensorFlow frontends, and simultaneously supports parsing and compilation of mainstream model formats such as onnx and pb. See [Ascend Community Documentation - Graph Mode Development Guide](https://hiascend.com/document/redirect/CannCommunityGraphguide).
 
-![](docs/zh/figures/architecture.png)
+![](docs/en/figures/architecture.png)
 
 ## Quick Start
 
