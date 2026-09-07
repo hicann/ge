@@ -78,6 +78,13 @@ class ModelV2ExecutorTestHelper {
     return executor->CheckIoReuseAddrs(inputs, input_num, outputs, output_num);
   }
 
+  static ge::graphStatus OccupyStreamResource(ModelV2Executor *executor, const ModelExecuteArg &arg,
+                                              TypedContinuousVector<rtStream_t> *&streams,
+                                              TypedContinuousVector<rtEvent_t> *&events,
+                                              TypedContinuousVector<rtNotify_t> *&notifies) {
+    return executor->OccupyStreamResource(arg, streams, events, notifies);
+  }
+
   static const ge::CustomOpRegistryPtr &GetCustomOpRegistry(ModelV2Executor *executor) {
     return executor->custom_op_registry_;
   }

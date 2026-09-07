@@ -36,6 +36,7 @@
 #include "graph/load/model_manager/model_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph/custom_op_factory.h"
+#include "common/model_v2_executor_test_helper.h"
 
 // using namespace ge;
 namespace gert {
@@ -744,6 +745,8 @@ TEST_F(ExecutorUnitTest, LoadExecutorFromModelDataWithExternalStreamAllocator) {
                            .BuildGeRootModel();
 
   GertRuntimeStub rts_stub;
+  rts_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  rts_stub.GetSlogStub().Clear();
   {
     ASSERT_EQ(rts_stub.GetAclRuntimeStub().GetAllRtStreams().size(), 0);
     // load model v2 executor
@@ -761,17 +764,25 @@ TEST_F(ExecutorUnitTest, LoadExecutorFromModelDataWithExternalStreamAllocator) {
     ASSERT_EQ(executor->GetModelDesc().GetReusableEventNum(), 2 + 1);     // origin 2 event, last sync 1 event
     ASSERT_EQ(rts_stub.GetRtsRuntimeStub().GetAllRtStreams().size(), 1);  // require 1 sub stream
 
-    rtStream_t stream = 0;
+    rtStream_t stream = reinterpret_cast<rtStream_t>(0x1000);
     // execute
     ModelExecuteArg arg;
     arg.stream = stream;
     arg.external_stream_allocator = &stream_allocator;
     arg.external_event_allocator = &event_allocator;
+    arg.external_notify_allocator = &notify_allocator;
 
-    auto outputs = FakeTensors({2048}, 1);
-    auto inputs = FakeTensors({2048}, 2);
-
-    executor->Execute(arg, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(), outputs.size());
+    TypedContinuousVector<rtStream_t> *streams = nullptr;
+    TypedContinuousVector<rtEvent_t> *events = nullptr;
+    TypedContinuousVector<rtNotify_t> *notifies = nullptr;
+    ASSERT_EQ(ModelV2ExecutorTestHelper::OccupyStreamResource(executor.get(), arg, streams, events, notifies),
+              ge::GRAPH_SUCCESS);
+    ASSERT_NE(rts_stub.GetSlogStub().FindLog(DLOG_INFO, "Root graph total stream_num"), -1);
+    ASSERT_NE(rts_stub.GetSlogStub().FindLog(DLOG_INFO, "Build RT2 executor for root compute graph["), -1);
+    ASSERT_NE(rts_stub.GetSlogStub().FindLog(
+                  DLOG_INFO, "Collect rt2 stream, get rts stream 0x1000 from logical stream 0, rts_stream_id:"),
+              -1);
+    ASSERT_NE(rts_stub.GetSlogStub().FindLog(DLOG_INFO, "from logical stream 1, rts_stream_id:"), -1);
     // no more stream acquired during executing with same stream allocator
     ASSERT_EQ(rts_stub.GetRtsRuntimeStub().GetAllRtStreams().size(), 1);
   }

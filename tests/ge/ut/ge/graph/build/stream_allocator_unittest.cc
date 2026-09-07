@@ -1734,6 +1734,9 @@ TEST_F(UtestStreamAllocator, single_stream_allow_rts_fail) {
 }
 
 TEST_F(UtestStreamAllocator, SetLogicStreamAttr_Ok_OnRefreshRealStream) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  runtime_stub.GetSlogStub().Clear();
   graphStatus ret = GRAPH_SUCCESS;
 
   ge::ComputeGraphPtr graph = make_shared<ge::ComputeGraph>("");
@@ -1755,6 +1758,7 @@ TEST_F(UtestStreamAllocator, SetLogicStreamAttr_Ok_OnRefreshRealStream) {
   }
   ret = stream_allocator->InsertSyncNodesByLogicStream(stream_num, event_num, notify_num);
   EXPECT_EQ(ret, GRAPH_SUCCESS);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "logic stream id is"), -1);
   auto node_id_to_node_tasks = MakeTaskDefsByGraph(graph, 3);
   ret = stream_allocator->SplitStreamAndRefreshTaskDef(node_id_to_node_tasks, stream_num, event_num, notify_num);
   EXPECT_EQ(ret, GRAPH_SUCCESS);

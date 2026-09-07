@@ -588,12 +588,21 @@ TEST_F(GraphBuilderTest, test_build_for_graph_with_label) {
 }
 
 TEST_F(GraphBuilderTest, test_build_for_static_shape_graph_with_const) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  runtime_stub.GetSlogStub().Clear();
   GraphBuilder graph_builder;
   auto root_graph = BuildGraphWithConst();
   AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
   GeRootModelPtr root_model;
   auto ret = graph_builder.Build(root_graph, root_model);
   EXPECT_EQ(ret, SUCCESS);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Begin to build known shape graph[g1]."), -1);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "[Assign][LogicalStream] At last, root graph: g1,"), -1);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "After InsertSyncNodesByLogicStream, graph:g1,"), -1);
+  const auto split_log = runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "After SplitStreamAndRefreshTaskDef, graph:g1,");
+  const auto delegated_log = runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Move split stream from ge to rts");
+  ASSERT_TRUE((split_log != -1) || (delegated_log != -1));
 }
 
 TEST_F(GraphBuilderTest, test_build_for_static_shape_graph_with_memory_type) {
@@ -615,12 +624,18 @@ TEST_F(GraphBuilderTest, test_build_for_dynamic_shape_graph_with_memory_type) {
 }
 
 TEST_F(GraphBuilderTest, test_build_for_dynamic_shape_graph) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  runtime_stub.GetSlogStub().Clear();
   GraphBuilder graph_builder;
   auto root_graph = BuildDynamicShapeGraph();
   AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
   GeRootModelPtr root_model;
   auto ret = graph_builder.Build(root_graph, root_model);
   EXPECT_EQ(ret, SUCCESS);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Start to build BuildForDynamicShape for dynamic shape."),
+            -1);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Begin to build unknown shape graph[subgraph-1]."), -1);
 }
 
 TEST_F(GraphBuilderTest, Build_Ok_DynamicShapeGraphWithMultiStreamDisabled) {
