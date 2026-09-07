@@ -53,35 +53,25 @@ output.0=FORMAT_NCHW
 Run()
   │
   ├─ 1. ParseConfigFile()         从环境变量读取配置文件路径，解析 node_name → FormatConfig 映射
-  ├─ 2. 备份原图                   Graph origin_graph = *graph（用于整图回滚）
-  ├─ 3. 遍历图中所有节点:
-  │      └─ ApplyFormatAndCheck()  对匹配配置的节点执行：
-  │           ├─ Step0: 校验待修改端口的原始 format 是否在支持范围内（FORMAT_NCHW / FORMAT_NHWC）
-  │           │           └─ 不支持 → 记录日志，return false（该节点失败）
-  │           ├─ Step1: 备份当前 input/output format + shape
-  │           ├─ Step2: 修改 input/output format + shape（联动转换 shape 维度）
-  │           ├─ Step3: 传播 output format 到直连 NetOutput 节点
-  │           ├─ Step4: CheckOpSupported 校验算子是否支持（Data 节点跳过）
-  │           │           └─ 失败 → 节点级回退（RollbackFormats + RollbackNetOutput）
-   │           └─ Step5: 检查并删除前后变冗余的 Transpose 节点
-   │                       ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
-   │                       │    ├─ perm 非 Const 或 Const 有输入 → 记录日志，不加入待删除列表
-   │                       │    └─ Transpose 有控制边输入或输出 → 记录日志，不加入待删除列表
-   │                       └─ 删除失败 → return false（触发整图回滚）
+  ├─ 2. 收集与配置匹配的目标节点
+  ├─ 3. 逐个节点执行 ApplyFormatAndCheck()：
+  │      ├─ Step0: 校验待修改端口的原始 format 是否在支持范围内（FORMAT_NCHW / FORMAT_NHWC）
+  │      │           └─ 不支持 → 记录日志，return false（该节点失败）
+  │      ├─ Step1: 修改 input/output format + shape（联动转换 shape 维度）
+  │      ├─ Step2: 传播 output format 到直连 NetOutput 节点
+  │      ├─ Step3: CheckOpSupported 校验算子是否支持（Data/Reshape 节点跳过）
+  │      │           └─ 失败 → 记录日志，return false
+  │      └─ Step4: 检查并删除前后变冗余的 Transpose 节点
+  │                  ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
+  │                  │    ├─ perm 非 Const 或 Const 有输入 → 记录日志，不加入待删除列表
+  │                  │    └─ Transpose 有控制边输入或输出 → 记录日志，不加入待删除列表
+  │                  └─ 删除失败 → return false
   │      成功的节点记入 configured_nodes 集合
-  └─ 4. if 任一节点失败:
-         └─ 整图回滚 *graph = origin_graph，返回 FAILED
-  └─ 5. CheckFormatContinuity()    仅检查 configured_nodes 中的节点 format 连续性
+  │      任一节点失败 → 记录日志，返回 FAILED
+  └─ 4. CheckFormatContinuity()    仅检查 configured_nodes 中的节点 format 连续性
          ├─ 入口处打印未参与检查的节点（未在图中找到 / 未配置成功）
-         └─ 失败 → 整图回滚 *graph = origin_graph，返回 FAILED
+         └─ 失败 → 记录日志，返回 FAILED
 ```
-
-### 回滚机制
-
-| 层级 | 触发条件 | 机制 |
-|------|---------|------|
-| **节点级回退** | CheckOpSupported 失败 / format 修改失败 | `RollbackFormats` + `RollbackNetOutput` 恢复当前节点及关联 NetOutput 的 format 和 shape |
-| **整图回滚** | 任一节点 `ApplyFormatAndCheck` 返回 false（含 Transpose 删除失败），或 `CheckFormatContinuity` 检查不通过 | `*graph = origin_graph` 恢复全部修改 |
 
 ### 已知限制
 
@@ -117,15 +107,15 @@ Run()
 1. 定义类 `GraphNodeSettedFormatPass` 继承 `FusionBasePass`。
 2. 重写 `Run` 方法，主要逻辑包括：
    - 从环境变量 `ASCEND_CUSTOM_FORMATS_CFG` 指定的配置文件中解析节点格式配置。
-   - 备份原图，遍历图中节点，对匹配配置的节点执行 `ApplyFormatAndCheck`：
+   - 遍历图中节点，对匹配配置的节点执行 `ApplyFormatAndCheck`：
      - 校验待修改端口的原始 format 是否在支持范围内（`FORMAT_NCHW` / `FORMAT_NHWC`），不支持则记录日志并跳过该节点。
      - 修改 input/output format 和 shape，修改 format 时同步重排 shape 维度（如 NCHW→NHWC 时 `[N,C,H,W]`→`[N,H,W,C]`）。
      - 若输出直连 NetOutput 节点，同步修改 NetOutput 对应输入端口的 format 和 shape。
-     - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data 节点跳过校验）。
-     - 校验失败时回退当前节点及关联 NetOutput 的修改；Transpose 删除失败时触发整图回滚。
+     - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data/Reshape 节点跳过校验）。
+     - 校验失败时记录日志并返回 FAILED。
      - 校验通过后检查并删除前后因 format 变更而变冗余的 Transpose 节点。
      - 配置成功的节点记入 `configured_nodes` 集合。
-   - 所有节点处理完成后，调用 `CheckFormatContinuity` 仅检查 `configured_nodes` 中节点的 format 连续性；入口处打印未参与检查的节点（未在图中找到 / 未配置成功），不连续则整图回滚。
+   - 所有节点处理完成后，调用 `CheckFormatContinuity` 仅检查 `configured_nodes` 中节点的 format 连续性；入口处打印未参与检查的节点（未在图中找到 / 未配置成功），不连续则返回 FAILED。
 3. 注册 `GraphNodeSettedFormatPass` 为自定义融合 pass，执行阶段为 `kAfterOriginGraphOptimize`。
 
 ## 程序编译

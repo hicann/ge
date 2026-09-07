@@ -56,35 +56,25 @@ output.0=FORMAT_NCHW
 Run()
   │
   ├─ 1. ParseConfigFile()         Read config file path from env var, parse node_name → FormatConfig mapping
-  ├─ 2. Backup original graph     Graph origin_graph = *graph (for full rollback)
-  ├─ 3. Iterate all nodes in graph:
-  │      └─ ApplyFormatAndCheck()  For nodes matching config:
-  │           ├─ Step0: Validate original format of ports to be modified is within supported range (FORMAT_NCHW / FORMAT_NHWC)
-  │           │           └─ Unsupported → log and return false (node fails)
-  │           ├─ Step1: Backup current input/output format + shape
-  │           ├─ Step2: Modify input/output format + shape (with shape dimension reordering)
-  │           ├─ Step3: Propagate output format to directly connected NetOutput nodes
-  │           ├─ Step4: CheckOpSupported validation (skipped for Data nodes)
-  │           │           └─ On failure → node-level rollback (RollbackFormats + RollbackNetOutput)
-   │           └─ Step5: Detect and remove redundant Transpose nodes
-   │                       ├─ Collection: IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
-   │                       │    ├─ Non-Const perm or Const with input edges → log and skip (not added to removal list)
-   │                       │    └─ Transpose has control input or output edges → log and skip (not added to removal list)
-   │                       └─ On failure → return false (triggers full graph rollback)
+  ├─ 2. Collect target nodes matching config
+  ├─ 3. Execute ApplyFormatAndCheck() for each target node:
+  │      ├─ Step0: Validate original format of ports to be modified is within supported range (FORMAT_NCHW / FORMAT_NHWC)
+  │      │           └─ Unsupported → log and return false (node fails)
+  │      ├─ Step1: Modify input/output format + shape (with shape dimension reordering)
+  │      ├─ Step2: Propagate output format to directly connected NetOutput nodes
+  │      ├─ Step3: CheckOpSupported validation (skipped for Data/Reshape nodes)
+  │      │           └─ On failure → log and return false
+  │      └─ Step4: Detect and remove redundant Transpose nodes
+  │                  ├─ Collection: IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
+  │                  │    ├─ Non-Const perm or Const with input edges → log and skip (not added to removal list)
+  │                  │    └─ Transpose has control input or output edges → log and skip (not added to removal list)
+  │                  └─ On failure → return false
   │      Successfully configured nodes are recorded into configured_nodes set
-  └─ 4. If any node failed:
-         └─ Full rollback *graph = origin_graph, return FAILED
-  └─ 5. CheckFormatContinuity()    Only check format continuity for nodes in configured_nodes
+  │      Any node failed → log and return FAILED
+  └─ 4. CheckFormatContinuity()    Only check format continuity for nodes in configured_nodes
          ├─ Log nodes not participating in check (not found in graph / not successfully configured) at entry
-         └─ On failure → Full rollback *graph = origin_graph, return FAILED
+         └─ On failure → log and return FAILED
 ```
-
-### Rollback Mechanism
-
-| Level | Trigger | Mechanism |
-|-------|---------|-----------|
-| **Node-level rollback** | CheckOpSupported failed / format modification failed | `RollbackFormats` + `RollbackNetOutput` restore the current node and associated NetOutput format and shape |
-| **Full graph rollback** | Any node's `ApplyFormatAndCheck` returned false (including Transpose removal failure), or `CheckFormatContinuity` check failed | `*graph = origin_graph` restores all modifications |
 
 ### Known Limitations
 
@@ -120,15 +110,15 @@ Run()
 1. Define `GraphNodeSettedFormatPass` inheriting `FusionBasePass`.
 2. Override the `Run` method with the following logic:
    - Parse the configuration file specified by the `ASCEND_CUSTOM_FORMATS_CFG` environment variable.
-   - Back up the original graph, then iterate over all nodes and execute `ApplyFormatAndCheck` for nodes matching the configuration:
+   - Iterate over all nodes and execute `ApplyFormatAndCheck` for nodes matching the configuration:
      - Validate that the original format of ports to be modified is within the supported range (`FORMAT_NCHW` / `FORMAT_NHWC`); if not, log and skip the node.
      - Modify input/output format and shape, synchronously reordering shape dimensions when modifying format (e.g., NCHW→NHWC: `[N,C,H,W]`→`[N,H,W,C]`).
      - If an output is directly connected to a NetOutput node, propagate the format change to the corresponding NetOutput input port.
-     - Validate the modified format combination via `GeUtils::CheckNodeSupportOnAicore` (Data nodes skip validation).
-     - On validation failure, roll back the current node and associated NetOutput changes; on Transpose removal failure, trigger full graph rollback.
+     - Validate the modified format combination via `GeUtils::CheckNodeSupportOnAicore` (Data/Reshape nodes skip validation).
+     - On validation failure, log and return FAILED.
      - After successful validation, detect and remove Transpose nodes that have become redundant due to the format change.
      - Record successfully configured nodes into the `configured_nodes` set.
-   - After all nodes are processed, call `CheckFormatContinuity` to only check format continuity for nodes in `configured_nodes`; log nodes not participating in check (not found in graph / not successfully configured) at entry; rollback the entire graph if discontinuity is detected.
+   - After all nodes are processed, call `CheckFormatContinuity` to only check format continuity for nodes in `configured_nodes`; log nodes not participating in check (not found in graph / not successfully configured) at entry; return FAILED if discontinuity is detected.
 3. Register `GraphNodeSettedFormatPass` as a custom fusion pass at the `kAfterOriginGraphOptimize` stage.
 
 ## Compilation

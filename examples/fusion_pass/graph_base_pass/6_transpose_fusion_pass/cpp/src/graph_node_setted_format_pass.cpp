@@ -123,7 +123,6 @@ bool ParseSectionLine(const std::string &trimmed, size_t line_num, std::string &
     std::cout << "[GraphNodeSettedFormatPass] Parse error at line " << line_num << ": empty node name" << std::endl;
     return true;
   }
-  op_configs.try_emplace(current_node);
   return true;
 }
 
@@ -230,7 +229,7 @@ std::unordered_map<std::string, FormatConfig> ParseConfigFile() {
  * 参考 user_semantic_inference.cc 中的使用方式：
  *   1. 修改 tensor 的 format
  *   2. 调用 CheckOpSupported(node) 校验
- *   3. 若返回 false，回退修改并报错
+ *   3. 若返回 false，记录失败日志并返回失败
  *
  * 实现：调用对外接口 GeUtils::CheckNodeSupportOnAicore 校验节点是否支持在 AI Core 上执行。
  *
@@ -336,45 +335,6 @@ bool UpdateShapeByFormat(TensorDesc &desc, Format old_format, Format new_format)
 /// NetOutput 算子类型名
 constexpr const char *kNetOutputType = "NetOutput";
 
-/// 备份 TensorDesc 的 format 和 shape，用于回退
-struct TensorDescBackup {
-  Format format;
-  Shape shape;
-};
-
-/**
- * @brief 回退节点的 input/output format 和 shape 到备份值。
- */
-void RollbackFormats(GNode &node, const std::unordered_map<uint32_t, TensorDescBackup> &input_backups,
-                     const std::unordered_map<uint32_t, TensorDescBackup> &output_backups) {
-  for (const auto &[idx, backup] : input_backups) {
-    TensorDesc desc;
-    if (node.GetInputDesc(static_cast<int64_t>(idx), desc) == GRAPH_SUCCESS) {
-      desc.SetFormat(backup.format);
-      desc.SetShape(backup.shape);
-      node.UpdateInputDesc(static_cast<int64_t>(idx), desc);
-    }
-  }
-  for (const auto &[idx, backup] : output_backups) {
-    TensorDesc desc;
-    if (node.GetOutputDesc(static_cast<int64_t>(idx), desc) == GRAPH_SUCCESS) {
-      desc.SetFormat(backup.format);
-      desc.SetShape(backup.shape);
-      node.UpdateOutputDesc(static_cast<int64_t>(idx), desc);
-    }
-  }
-}
-
-/**
- * @brief 记录对 NetOutput 节点输入格式和 shape 的修改，用于回退。
- */
-struct NetOutputBackup {
-  GNodePtr node;           // 被修改的 NetOutput 节点
-  int32_t input_index;     // 被修改的输入端口
-  Format original_format;  // 原始格式
-  Shape original_shape;    // 原始 shape
-};
-
 /**
  * @brief 当节点输出格式被修改后，检查该输出是否直连 NetOutput 节点，
  *        若是则同步修改 NetOutput 对应输入端口的格式。
@@ -382,10 +342,8 @@ struct NetOutputBackup {
  * @param node 刚修改完输出格式的节点
  * @param config 该节点的格式配置（仅用 output_formats）
  * @param node_name 节点名（用于日志）
- * @param backups 输出：记录所有被修改的 NetOutput 节点信息，用于后续回退
  */
-void PropagateFormatToNetOutput(GNode &node, const FormatConfig &config, const std::string &node_name,
-                                std::vector<NetOutputBackup> &backups) {
+void PropagateFormatToNetOutput(GNode &node, const FormatConfig &config, const std::string &node_name) {
   for (const auto &[out_idx, fmt] : config.output_formats) {
     // 获取该输出端口连接的所有后继数据节点及其输入端口索引
     auto successors = node.GetOutDataNodesAndPortIndexs(static_cast<int32_t>(out_idx));
@@ -403,16 +361,13 @@ void PropagateFormatToNetOutput(GNode &node, const FormatConfig &config, const s
         continue;
       }
 
-      // 备份 NetOutput 输入端口的原始格式和 shape
+      // 修改 NetOutput 输入端口的格式和 shape
       TensorDesc desc;
       if (succ_node->GetInputDesc(succ_in_idx, desc) != GRAPH_SUCCESS) {
         std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: cannot get NetOutput input desc at port "
                   << succ_in_idx << std::endl;
         continue;
       }
-      backups.push_back({succ_node, succ_in_idx, desc.GetFormat(), desc.GetShape()});
-
-      // 修改 NetOutput 输入端口的格式和 shape
       Format old_format = desc.GetFormat();
       UpdateShapeByFormat(desc, old_format, fmt);
       if (succ_node->UpdateInputDesc(succ_in_idx, desc) != GRAPH_SUCCESS) {
@@ -429,61 +384,14 @@ void PropagateFormatToNetOutput(GNode &node, const FormatConfig &config, const s
   }
 }
 
-/**
- * @brief 回退所有通过 PropagateFormatToNetOutput 修改的 NetOutput 节点。
- */
-void RollbackNetOutput(const std::vector<NetOutputBackup> &backups) {
-  for (const auto &b : backups) {
-    if (b.node == nullptr) {
-      continue;
-    }
-    TensorDesc desc;
-    if (b.node->GetInputDesc(b.input_index, desc) == GRAPH_SUCCESS) {
-      desc.SetFormat(b.original_format);
-      desc.SetShape(b.original_shape);
-      b.node->UpdateInputDesc(b.input_index, desc);
-    }
-  }
-}
-
 // ---------- 格式修改与校验 ----------
 
 /**
- * @brief 备份节点输入/输出端口当前 format 和 shape 到 backup 映射表中。
- * @return true 备份成功, false 无法获取某个 tensor desc
- */
-bool BackupFormatDescs(GNode &node, const FormatConfig &config, const std::string &node_name,
-                       std::unordered_map<uint32_t, TensorDescBackup> &input_backups,
-                       std::unordered_map<uint32_t, TensorDescBackup> &output_backups) {
-  for (const auto &[idx, fmt] : config.input_formats) {
-    TensorDesc desc;
-    if (node.GetInputDesc(static_cast<int64_t>(idx), desc) != GRAPH_SUCCESS) {
-      std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: cannot get input desc at index " << idx
-                << std::endl;
-      return false;
-    }
-    input_backups[idx] = {desc.GetFormat(), desc.GetShape()};
-  }
-  for (const auto &[idx, fmt] : config.output_formats) {
-    TensorDesc desc;
-    if (node.GetOutputDesc(static_cast<int64_t>(idx), desc) != GRAPH_SUCCESS) {
-      std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: cannot get output desc at index " << idx
-                << std::endl;
-      return false;
-    }
-    output_backups[idx] = {desc.GetFormat(), desc.GetShape()};
-  }
-  return true;
-}
-
-/**
  * @brief 将配置中的 input/output format 和 shape 应用到节点上。
- *        若 output 修改失败，会自动回退已修改的 input format 和 shape。
- * @param input_backups 已备份的 input format/shape（用于 output 失败时的回退）
- * @return true 全部应用成功, false 应用失败（input 已回退）
+ *
+ * @return true 全部应用成功, false 应用失败
  */
-bool ApplyFormatChanges(GNode &node, const FormatConfig &config, const std::string &node_name,
-                        const std::unordered_map<uint32_t, TensorDescBackup> &input_backups) {
+bool ApplyFormatChanges(GNode &node, const FormatConfig &config, const std::string &node_name) {
   // 修改 input format 和 shape
   for (const auto &[idx, fmt] : config.input_formats) {
     TensorDesc desc;
@@ -503,13 +411,13 @@ bool ApplyFormatChanges(GNode &node, const FormatConfig &config, const std::stri
   for (const auto &[idx, fmt] : config.output_formats) {
     TensorDesc desc;
     if (node.GetOutputDesc(static_cast<int64_t>(idx), desc) != GRAPH_SUCCESS) {
-      RollbackFormats(node, input_backups, {});
       return false;
     }
     Format old_format = desc.GetFormat();
     UpdateShapeByFormat(desc, old_format, fmt);
     if (node.UpdateOutputDesc(static_cast<int64_t>(idx), desc) != GRAPH_SUCCESS) {
-      RollbackFormats(node, input_backups, {});
+      std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: failed to update output desc " << idx
+                << std::endl;
       return false;
     }
   }
@@ -733,19 +641,25 @@ bool RemoveTransposeAndRelink(const GraphPtr &graph, const GNodePtr &transpose_n
 
   AscendString name;
   std::string name_str = (transpose_node->GetName(name) == GRAPH_SUCCESS) ? name.GetString() : "unknown";
-  // 若 perm 输入节点（通常是 Const）无其他消费者则一并移除
-  // 先删除 Transpose perm 输入节点，RemoveNode 内部会递归删除 Transpose 所有输入
-  if (perm_node != nullptr) {
-    if (perm_node->GetOutDataNodesAndPortIndexs(0).empty()) {
-      if (graph->RemoveNode(*perm_node) != GRAPH_SUCCESS) {
-        std::cout << "[GraphNodeSettedFormatPass] Remove perm const node failed" << std::endl;
-      }
-    }
-  }
   // 移除 Transpose 节点
   if (graph->RemoveNode(*transpose_node) != GRAPH_SUCCESS) {
     std::cout << "[GraphNodeSettedFormatPass] Remove transpose node failed" << std::endl;
     return false;
+  }
+  // 若 perm 输入节点（通常是 Const）无其他消费者则一并移除
+  if (perm_node != nullptr) {
+    bool has_other_consumer = false;
+    for (size_t i = 0; i < perm_node->GetOutputsSize(); ++i) {
+      if (!perm_node->GetOutDataNodesAndPortIndexs(static_cast<int32_t>(i)).empty()) {
+        has_other_consumer = true;
+        break;
+      }
+    }
+    if (!has_other_consumer) {
+      if (graph->RemoveNode(*perm_node) != GRAPH_SUCCESS) {
+        std::cout << "[GraphNodeSettedFormatPass] Remove perm const node failed" << std::endl;
+      }
+    }
   }
 
   std::cout << "[GraphNodeSettedFormatPass] Removed redundant Transpose[" << name_str << "]" << std::endl;
@@ -866,22 +780,19 @@ bool ValidateOriginalFormats(const GNode &node, const FormatConfig &config, cons
  *
  * @param node 目标节点
  * @param node_name 节点名（用于日志）
- * @param backup_input_formats input format 备份（校验失败时回退）
- * @param backup_output_formats output format 备份（校验失败时回退）
- * @param netoutput_backups NetOutput 备份（校验失败时回退）
- * @return true 校验通过（或 Data 节点跳过）, false 校验失败（已回退）
+ * @return true 校验通过（或 Data/Reshape 节点跳过）, false 校验失败
  */
-bool ValidateOpSupported(GNode &node, const std::string &node_name,
-                         const std::unordered_map<uint32_t, TensorDescBackup> &backup_input_formats,
-                         const std::unordered_map<uint32_t, TensorDescBackup> &backup_output_formats,
-                         const std::vector<NetOutputBackup> &netoutput_backups) {
+bool ValidateOpSupported(GNode &node, const std::string &node_name) {
   AscendString node_type;
-  bool is_data_node = (node.GetType(node_type) == GRAPH_SUCCESS && std::string(node_type.GetString()) == "Data");
+  bool is_no_check_node =
+      (node.GetType(node_type) == GRAPH_SUCCESS &&
+       (std::string(node_type.GetString()) == "Data" || std::string(node_type.GetString()) == "Reshape"));
   std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "] node_type is " << node_type.GetString()
             << std::endl;
 
-  if (is_data_node) {
-    std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: Data node, skip CheckOpSupported" << std::endl;
+  if (is_no_check_node) {
+    std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: no check node, skip CheckOpSupported"
+              << std::endl;
     return true;
   }
 
@@ -889,9 +800,6 @@ bool ValidateOpSupported(GNode &node, const std::string &node_name,
   if (!CheckOpSupported(node, reason)) {
     std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: CheckOpSupported FAILED! Reason: " << reason
               << std::endl;
-    std::cout << "[GraphNodeSettedFormatPass] Rollback format changes for node[" << node_name << "]" << std::endl;
-    RollbackFormats(node, backup_input_formats, backup_output_formats);
-    RollbackNetOutput(netoutput_backups);
     return false;
   }
   std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: format applied and CheckOpSupported passed"
@@ -903,18 +811,16 @@ bool ValidateOpSupported(GNode &node, const std::string &node_name,
  * @brief 对单个节点根据 FormatConfig 修改输入/输出 format，并通过 CheckOpSupported 校验。
  *
  * 流程（参考 user_semantic_inference.cc）：
- *   1. 备份当前 format 和 shape
- *   2. 修改 input/output format 和 shape
- *   3. 将 output format 和 shape 联动传播到直连的 NetOutput 节点
- *   4. CheckOpSupported 校验 → 不支持则回退（含 NetOutput）
- *      注：Data 节点跳过校验，因为 Data 不是计算算子，无对应 kernel
- *   5. 校验通过后，检查并删除前后变冗余的 Transpose 节点
+ *   1. 修改 input/output format 和 shape
+ *   2. 将 output format 和 shape 联动传播到直连的 NetOutput 节点
+ *   3. CheckOpSupported 校验（Data 节点跳过，因为 Data 不是计算算子，无对应 kernel）
+ *   4. 校验通过后，检查并删除前后变冗余的 Transpose 节点
  *
  * @param graph 图指针（用于删除冗余 Transpose 节点）
  * @param node 目标节点
  * @param config 该算子对应的格式配置
  * @param node_name 节点名（用于日志）
- * @return true 修改成功并通过校验, false 修改不可行（已回退）
+ * @return true 修改成功并通过校验, false 修改失败
  */
 bool ApplyFormatAndCheck(const GraphPtr &graph, GNode &node, const FormatConfig &config, const std::string &node_name) {
   // ----- Step 0: 校验待修改端口的原始 format 是否在 kFormatMap 支持范围内 -----
@@ -922,30 +828,23 @@ bool ApplyFormatAndCheck(const GraphPtr &graph, GNode &node, const FormatConfig 
     return false;
   }
 
-  // ----- Step 1-2: 备份并应用 format + shape -----
-  std::unordered_map<uint32_t, TensorDescBackup> backup_input_formats;
-  std::unordered_map<uint32_t, TensorDescBackup> backup_output_formats;
-
-  if (!BackupFormatDescs(node, config, node_name, backup_input_formats, backup_output_formats)) {
-    return false;
-  }
-  if (!ApplyFormatChanges(node, config, node_name, backup_input_formats)) {
+  // ----- Step 1: 修改 input/output format + shape -----
+  if (!ApplyFormatChanges(node, config, node_name)) {
     return false;
   }
 
-  // ----- Step 3: 将 output format 联动传播到直连的 NetOutput 节点 -----
-  std::vector<NetOutputBackup> netoutput_backups;
-  PropagateFormatToNetOutput(node, config, node_name, netoutput_backups);
+  // ----- Step 2: 将 output format 联动传播到直连的 NetOutput 节点 -----
+  PropagateFormatToNetOutput(node, config, node_name);
 
-  // ----- Step 4: CheckOpSupported 校验（Data 节点跳过）-----
-  if (!ValidateOpSupported(node, node_name, backup_input_formats, backup_output_formats, netoutput_backups)) {
+  // ----- Step 3: CheckOpSupported 校验（Data 节点跳过）-----
+  if (!ValidateOpSupported(node, node_name)) {
     return false;
   }
 
-  // ----- Step 5: 检查并删除前后变冗余的 Transpose 节点 -----
+  // ----- Step 4: 检查并删除前后变冗余的 Transpose 节点 -----
   if (!RemoveRedundantTranspose(graph, node, node_name)) {
-    std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name
-              << "]: some redundant Transpose removal failed, will rollback entire graph" << std::endl;
+    std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "]: some redundant Transpose removal failed"
+              << std::endl;
     return false;
   }
 
@@ -1126,7 +1025,7 @@ bool ProcessTargetNodes(const GraphPtr &graph, const std::unordered_map<std::str
  *   2. 遍历图中所有节点，以节点名（node_name）匹配配置，修改对应节点的输入/输出 format 和 shape。
  *   3. 若配置了节点输出格式，且该输出直连 NetOutput 节点，则同步修改 NetOutput 对应输入端口的 format 和 shape。
  *   4. 每修改完一个节点，调用 CheckOpSupported 校验算子是否支持该格式组合（Data 节点跳过校验）；
- *      若不支持，回退该节点的修改（含 NetOutput 联动修改），打印节点名和对应配置，返回 FAILED 并回滚整个图。
+ *      若不支持，记录失败日志并返回 FAILED。
  *   5. 校验通过后，检查节点前后直连的 Transpose 两侧 format 是否一致，
  *      若一致说明 Transpose 不再做有意义的格式转换，删除该 Transpose 并将前后节点直连。
  *
@@ -1147,10 +1046,7 @@ class GraphNodeSettedFormatPass : public FusionBasePass {
       return SUCCESS;
     }
 
-    // ----- 2. 备份原图（任一个节点失败时回滚整个图）-----
-    Graph origin_graph = *graph;
-
-    // ----- 3. 收集与配置匹配的目标节点 -----
+    // ----- 2. 收集与配置匹配的目标节点 -----
     std::vector<std::string> target_nodes;
     for (auto &node : graph->GetDirectNode()) {
       AscendString node_name_asc;
@@ -1163,21 +1059,18 @@ class GraphNodeSettedFormatPass : public FusionBasePass {
       }
     }
 
-    // ----- 4. 逐个节点执行 format 修改与校验 -----
+    // ----- 3. 逐个节点执行 format 修改与校验 -----
     std::unordered_set<std::string> configured_nodes;
     bool any_failed = ProcessTargetNodes(graph, op_configs, target_nodes, configured_nodes);
-    // ----- 4. 如果任一个节点失败，回滚整个图 -----
     if (any_failed) {
-      std::cout << "[GraphNodeSettedFormatPass] Some nodes failed check, rolling back entire graph" << std::endl;
-      *graph = origin_graph;
-      return SUCCESS;
+      std::cout << "[GraphNodeSettedFormatPass] Some nodes failed check" << std::endl;
+      return FAILED;
     }
 
-    // ----- 5. 配置节点 format 连续性检查 -----
+    // ----- 4. 配置节点 format 连续性检查 -----
     if (!CheckFormatContinuity(graph, op_configs, configured_nodes)) {
-      std::cout << "[GraphNodeSettedFormatPass] Format continuity check failed, rolling back entire graph" << std::endl;
-      *graph = origin_graph;
-      return SUCCESS;
+      std::cout << "[GraphNodeSettedFormatPass] Format continuity check failed" << std::endl;
+      return FAILED;
     }
 
     std::cout << "GraphNodeSettedFormatPass completed successfully" << std::endl;
