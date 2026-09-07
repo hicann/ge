@@ -50,6 +50,7 @@
 
 namespace ge {
 using namespace gert;
+
 class ModelHelperTest : public testing::Test {
  protected:
   void SetUp() {}
@@ -671,7 +672,7 @@ TEST_F(ModelHelperTest, SaveToOm_for_SplitAndUpgraded_Opp) {
 
   std::map<string, string> env_options;
   env_options["ge.host_env_os"] = "linux";
-  env_options["ge.host_env_cpu"] = "x86_64";
+  env_options["ge.host_env_cpu"] = GetCompileTimeCpu();
   (void)GetThreadLocalContext().SetGlobalOption(env_options);
 
   ModelHelper model_helper;
